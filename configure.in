@@ -5551,9 +5551,16 @@ dnl = Disable PulseAudio
 dnl ========================================================
 
 dnl If using libcubeb with Linux, ensure that the PA library is available
-if test -n "$MOZ_CUBEB" -a "$OS_TARGET" = "Linux" -a -z "$MOZ_B2G"; then
-    MOZ_PULSEAUDIO=1
-fi
+case "$OS_TARGET" in
+WINNT|Darwin|Android|OpenBSD)
+    ;;
+*)
+    if test -n "$MOZ_CUBEB" -a -z "$MOZ_B2G"; then
+        MOZ_PULSEAUDIO=1
+    fi
+    ;;
+esac
+
 MOZ_ARG_DISABLE_BOOL(pulseaudio,
 [  --disable-pulseaudio          Disable PulseAudio support],
    MOZ_PULSEAUDIO=,
@@ -5576,10 +5583,14 @@ AC_SUBST(MOZ_PULSEAUDIO_CFLAGS)
 dnl ========================================================
 dnl = Enable GStreamer
 dnl ========================================================
-if test "$OS_TARGET" = "Linux"; then
-  MOZ_GSTREAMER=1
-  GST_API_VERSION=1.0
-fi
+case "$OS_TARGET" in
+WINNT|Darwin|Android)
+    ;;
+*)
+    MOZ_GSTREAMER=1
+    GST_API_VERSION=1.0
+    ;;
+esac
 
 MOZ_ARG_ENABLE_STRING(gstreamer,
 [ --enable-gstreamer[=0.10]     Enable GStreamer support],
