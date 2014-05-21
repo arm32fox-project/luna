@@ -5863,6 +5863,14 @@ AddonInternal.prototype = {
       if (targetApp.id == TOOLKIT_ID)
         app = targetApp;
     }
+    //Special case: check for Firefox TargetApps. this has to be done AFTER
+    //the initial check to make sure appinfo.ID is preferred, even if
+    //Firefox is listed before it in the install manifest.
+    for (let targetApp of this.targetApplications) {
+      if (targetApp.id == "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}") //Firefox GUID
+        return targetApp;
+    }
+    // Return toolkit ID if toolkit.
     return app;
   },
 
