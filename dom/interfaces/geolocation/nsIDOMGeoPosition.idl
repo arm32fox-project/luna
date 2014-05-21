@@ -1,0 +1,27 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+#include "domstubs.idl"
+#include "nsIDOMGeoPositionCoords.idl"
+
+[scriptable, uuid(dd9f7e81-0f74-4fb5-b361-37019bf60c3f)]
+interface nsIDOMGeoPosition : nsISupports
+{
+/* TO-DO:
+  readonly attribute DOMString address;
+  readonly attribute DOMString countrycode;
+  readonly attribute DOMString timezone;
+  readonly attribute DOMString zipcode;
+  readonly attribute DOMString postalcode;
+  readonly attribute DOMString city;
+  readonly attribute DOMString regioncode;
+  readonly attribute DOMString region;
+  readonly attribute DOMString country;
+  readonly attribute DOMString isp;
+  readonly attribute DOMString org;
+  readonly attribute DOMString as; */
+  readonly attribute DOMTimeStamp timestamp;
+  readonly attribute nsIDOMGeoPositionCoords coords;
+};

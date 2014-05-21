@@ -1,0 +1,248 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+.inner {
+  background-color: #eef2f5;
+  min-height: 3.8em;
+  padding: 0.5em;
+
+  /* make room for the favicon */
+  -moz-margin-start: 4.5em;
+}
+
+.details {
+  width: 100%;
+}
+
+.details > div {
+  display: inline;
+}
+
+.version {
+  /* title is not localized, so keep the margin on the left side */
+  margin-left: .67em;
+}
+
+.tag {
+  float: right;
+  margin-left: .67em;
+
+  /* compensate for the title baseline */
+  position: relative;
+  bottom: -3px;
+}
+
+#header-button {
+  background-image: url("chrome://browser/skin/images/addons-amo-hdpi.png");
+}
+
+.description {
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.status {
+  background-color: #eef2f5;
+  border-top: 2px solid;
+  -moz-border-top-colors: #bac2ac #ffffff;
+  font-weight: bold;
+  padding: 0.5em;
+  width: 100%;
+}
+
+.options-header {
+  font-weight: bold;
+  padding: 1em 1.3em;
+}
+
+.options-box {
+  margin: 0 .67em;
+}
+
+.addon-item[isDisabled="true"] .options-header,
+.addon-item:not([optionsURL]) .options-header,
+.addon-item[optionsURL=""] .options-header,
+.addon-item[isDisabled="true"] .options-box,
+.addon-item:not([optionsURL]) .options-box,
+.addon-item[optionsURL=""] .options-box {
+  display: none;
+}
+
+setting {
+  padding: 1em .67em;
+  border-top: 2px solid;
+  -moz-border-top-colors: #bac2ac #ffffff;
+  -moz-box-align: center;
+  -moz-box-sizing: border-box;
+  width: 100%;
+}
+
+setting > vbox {
+  -moz-box-flex: 1;
+}
+
+.preferences-title {
+  font-weight: bold;
+}
+
+.preferences-description {
+  margin-top: 4px;
+}
+
+.preferences-description:empty {
+  display: none;
+}
+
+/* Put setting textboxes on a separate row */
+setting[type="integer"],
+setting[type="string"] {
+  -moz-box-align: center;
+  -moz-box-orient: vertical;
+}
+
+.preferences-alignment > textbox {
+  margin: .67em 0 0 0;
+  font-size: 1.2em !important;
+}
+
+checkbox {
+  -moz-binding: url("chrome://global/content/bindings/checkbox.xml#checkbox-with-spacing") !important;
+}
+
+checkbox[label=""] > .checkbox-label-box,
+checkbox:not([label]) > .checkbox-label-box {
+  display: none;
+}
+
+.checkbox-check {
+  background: url("chrome://browser/skin/images/checkbox_unchecked.png") no-repeat 50% 50%;
+  border: 0 transparent;
+  width: 2.6em;
+  height: 2.6em;
+}
+
+setting:active checkbox > .checkbox-spacer-box > .checkbox-check {
+  background-image: url("chrome://browser/skin/images/checkbox_unchecked_pressed.png");
+}
+
+checkbox[disabled="true"] > .checkbox-spacer-box > .checkbox-check {
+  background-image: url("chrome://browser/skin/images/checkbox_unchecked_disabled.png");
+}
+
+checkbox[checked="true"] > .checkbox-spacer-box > .checkbox-check {
+  background-image: url("chrome://browser/skin/images/checkbox_checked.png");
+}
+
+setting:active checkbox[checked="true"] > .checkbox-spacer-box > .checkbox-check {
+  background-image: url("chrome://browser/skin/images/checkbox_checked_pressed.png");
+}
+
+checkbox[checked="true"][disabled="true"] > .checkbox-spacer-box > .checkbox-check {
+  background-image: url("chrome://browser/skin/images/checkbox_checked_disabled.png");
+}
+
+/* Textbox */
+
+textbox[type="number"] > spinbuttons {
+  visibility: collapse;
+}
+
+textbox {
+  background: white -moz-linear-gradient(top, rgba(27,113,177,0.5) 0, rgba(198,225,246,0.2) 3px, rgba(255,255,255,0.2) 16px);
+  border-radius: 3px;
+  border-color: rgb(94,128,153);
+  padding: 0 !important;
+}
+
+.textbox-input-box {
+  padding: .4em .67em;
+}
+
+/* Menulist */
+
+menulist {
+  -moz-appearance: none !important;
+  -moz-user-focus: ignore;
+  /* min-width: 200px !important; */
+  color: #000 !important;
+  border-radius: 5px;
+  border-color: rgb(94,128,153);
+  border-style: solid;
+  padding: .4em .67em;
+  background: white;
+  border: 1px solid #cacdd5;
+  border-style: solid;
+  border-color: rgb(94,128,153);
+  min-width: 200px;
+}
+
+.menulist-label {
+  background-color: transparent !important;
+}
+
+menulist > menupopup > menuitem > label {
+  -moz-padding-start: 3px !important;
+  -moz-padding-end: 7px !important;
+}
+
+menulist > dropmarker {
+  height: 1.8em;
+  width: 1.8em;
+  margin-left: @margin_snormal@;
+  background-color: transparent; /* for windows */
+  border: none;                  /* for windows */
+  -moz-box-align: center;
+  -moz-box-pack: center;
+  list-style-image: url("chrome://browser/skin/images/dropmarker.svg") !important;
+  -moz-image-region: auto;
+  display: block;
+}
+
+/* XBL bindings */
+
+settings {
+  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#settings");
+}
+
+setting {
+  display: none;
+}
+
+setting[type="bool"] {
+  display: -moz-box;
+  -moz-binding: url("chrome://browser/content/bindings/settings.xml#setting-fulltoggle-bool");
+}
+
+setting[type="bool"][localized="true"] {
+  display: -moz-box;
+  -moz-binding: url("chrome://browser/content/bindings/settings.xml#setting-fulltoggle-localized-bool");
+}
+
+setting[type="boolint"] {
+  display: -moz-box;
+  -moz-binding: url("chrome://browser/content/bindings/settings.xml#setting-fulltoggle-boolint");
+}
+
+setting[type="integer"] {
+  display: -moz-box;
+  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-integer");
+}
+
+setting[type="control"] {
+  display: -moz-box;
+  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-control");
+}
+
+setting[type="string"] {
+  display: -moz-box;
+  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-string");
+}
+
+setting[type="radio"],
+setting[type="menulist"] {
+  display: -moz-box;
+  -moz-binding: url("chrome://mozapps/content/extensions/setting.xml#setting-multi");
+}

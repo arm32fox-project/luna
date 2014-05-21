@@ -1,0 +1,6 @@
+duckduckgo-palemoon
+bing
+google
+twitter
+wikipedia
+yahoo

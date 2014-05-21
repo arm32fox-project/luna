@@ -1,0 +1,6 @@
+<!ENTITY status4evar.status.widget.title "状态文本">
+<!ENTITY status4evar.progress.widget.title "进度条">
+<!ENTITY status4evar.download.widget.title "下载状态">
+<!ENTITY status4evar.options.widget.title "Pale Moon status bar 选项">
+<!ENTITY status4evar.options.widget.label "Pale Moon status bar">
+<!ENTITY status4evar.menu.options.label "状态栏选项...">

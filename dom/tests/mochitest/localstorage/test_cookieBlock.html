@@ -1,0 +1,50 @@
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>cookie blocking test</title>
+
+<script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+<link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
+
+<script type="text/javascript">
+
+function startTest()
+{
+  var io = SpecialPowers.Cc["@mozilla.org/network/io-service;1"]
+    .getService(SpecialPowers.Ci.nsIIOService);
+  var uri = io.newURI(window.location, "", null);
+  var cp = SpecialPowers.Cc["@mozilla.org/cookie/permission;1"]
+    .getService(SpecialPowers.Ci.nsICookiePermission);
+
+  cp.setAccess(uri, SpecialPowers.Ci.nsICookiePermission.ACCESS_DENY);
+
+  try {
+    localStorage.setItem("blocked", "blockedvalue");
+    ok(false, "Exception for localStorage.setItem, ACCESS_DENY");
+  }
+  catch (ex) {
+    ok(true, "Exception for localStorage.setItem, ACCESS_DENY");
+  }
+
+  try {
+    localStorage.getItem("blocked");
+    ok(false, "Exception for localStorage.getItem, ACCESS_DENY");
+  }
+  catch (ex) {
+    ok(true, "Exception for localStorage.getItem, ACCESS_DENY");
+  }
+
+  cp.setAccess(uri, SpecialPowers.Ci.nsICookiePermission.ACCESS_DEFAULT);
+
+  SimpleTest.finish();
+}
+
+SimpleTest.waitForExplicitFinish();
+
+</script>
+
+</head>
+
+<body onload="startTest();">
+
+</body>
+</html>

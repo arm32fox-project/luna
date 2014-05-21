@@ -1,0 +1,62 @@
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME	= pref
+MSVC_ENABLE_PGO := 1
+EXPORT_LIBRARY = 1
+IS_COMPONENT	= 1
+MODULE_NAME	= nsPrefModule
+LIBXUL_LIBRARY = 1
+
+DEFINES += -DOS_ARCH=$(OS_ARCH) \
+           -DMOZ_WIDGET_TOOLKIT=$(MOZ_WIDGET_TOOLKIT) \
+           $(NULL)
+
+include $(topsrcdir)/config/config.mk
+include $(topsrcdir)/ipc/chromium/chromium-config.mk
+include $(topsrcdir)/config/rules.mk
+
+GARBAGE		+= $(addprefix $(DIST)/bin/defaults/pref/, \
+			mailnews.js editor.js \
+			aix.js unix.js winpref.js os2prefs.js)
+
+GARBAGE		+= greprefs.js
+
+# TODO bug 813259 external files should be defined near their location in the source tree.
+grepref_files = $(topsrcdir)/netwerk/base/public/security-prefs.js $(srcdir)/init/all.js
+
+ifdef MOZ_DATA_REPORTING
+grepref_files += $(topsrcdir)/services/datareporting/datareporting-prefs.js
+endif
+
+ifdef MOZ_SERVICES_HEALTHREPORT
+ifneq (android,$(MOZ_WIDGET_TOOLKIT))
+grepref_files += $(topsrcdir)/services/healthreport/healthreport-prefs.js
+else
+grepref_files += $(topsrcdir)/mobile/android/chrome/content/healthreport-prefs.js
+endif
+endif
+
+# Optimizer bug with GCC 3.2.2 on OS/2
+ifeq ($(OS_ARCH), OS2)
+nsPrefService.$(OBJ_SUFFIX): nsPrefService.cpp
+	$(REPORT_BUILD)
+	@$(MAKE_DEPS_AUTO_CXX)
+	$(ELOG) $(CCC) $(OUTOPTION)$@ -c $(COMPILE_CXXFLAGS:-O2=-O1) $(_VPATH_SRCS)
+endif
+
+
+greprefs.js: $(grepref_files)
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(PREF_PPFLAGS) $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $^ > $@
+
+libs:: greprefs.js
+	$(INSTALL) $^ $(DIST)/bin/

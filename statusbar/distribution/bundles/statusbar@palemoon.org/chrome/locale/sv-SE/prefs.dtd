@@ -1,0 +1,97 @@
+<!ENTITY status4evar.window.title "Inställningar för Pale Moons statusfält">
+<!ENTITY status4evar.pane.status "Status">
+<!ENTITY status4evar.pane.progress "Förlopp">
+<!ENTITY status4evar.pane.download "Filhämtning">
+<!ENTITY status4evar.pane.addonbar "Statusfältet">
+<!ENTITY status4evar.pane.advanced "Avancerat">
+<!ENTITY status4evar.tab.general "Allmänt">
+<!ENTITY status4evar.tab.toolbar "Statusfältet">
+<!ENTITY status4evar.tab.urlbar "Adressfältet">
+<!ENTITY status4evar.tab.popup "Popupruta">
+<!ENTITY status4evar.tab.tabs "Flikar">
+<!ENTITY status4evar.option.none "Ingen">
+<!ENTITY status4evar.option.nothing "Nothing">
+<!ENTITY status4evar.option.toolbar "Statusfältet">
+<!ENTITY status4evar.option.urlbar "Adressfältet">
+<!ENTITY status4evar.option.popup "Popupruta">
+<!ENTITY status4evar.option.tooltip "Verktygstips">
+<!ENTITY status4evar.option.bottom "Nederst">
+<!ENTITY status4evar.option.top "Överst">
+<!ENTITY status4evar.option.fill "Fyllning">
+<!ENTITY status4evar.option.dlcount "Antal filhämtningar">
+<!ENTITY status4evar.option.dltime "Återstående tid">
+<!ENTITY status4evar.option.both "Båda">
+<!ENTITY status4evar.option.right "Höger">
+<!ENTITY status4evar.option.left "Vänster">
+<!ENTITY status4evar.option.fixed "Fast">
+<!ENTITY status4evar.option.simple "Enkel">
+<!ENTITY status4evar.option.advanced "Avancerad">
+<!ENTITY status4evar.option.browse "Bläddra">
+<!ENTITY status4evar.option.clear "Rensa">
+<!ENTITY status4evar.option.center "Centrera">
+<!ENTITY status4evar.option.offset "Förskjutning">
+<!ENTITY status4evar.option.repeat "Upprepa">
+<!ENTITY status4evar.option.no-repeat "Upprepa inte">
+<!ENTITY status4evar.option.space "Utrymme">
+<!ENTITY status4evar.option.round "Avrunda">
+<!ENTITY status4evar.option.firefoxdefault "Pale Moon default">
+<!ENTITY status4evar.option.download.panel "Panel">
+<!ENTITY status4evar.option.download.library "Library">
+<!ENTITY status4evar.option.download.classic "Classic">
+<!ENTITY status4evar.unit.milliseconds "milliseconds">
+<!ENTITY status4evar.unit.seconds "s">
+<!ENTITY status4evar.unit.px "px">
+<!ENTITY status4evar.status.general.status.caption "Statustext">
+<!ENTITY status4evar.status.label "Visa status i:">
+<!ENTITY status4evar.status.timeout.label "Dölj status efter">
+<!ENTITY status4evar.status.default.label "Visa standardstatus">
+<!ENTITY status4evar.status.network.label "Visa nätverksstatus">
+<!ENTITY status4evar.status.network.xhr.label "Visa bakgrundsnätverksstatus">
+<!ENTITY toolkit.dom.status.change.label "Tillåt webbsidor att ändra status">
+<!ENTITY status4evar.status.general.linkOver.caption "Länkar">
+<!ENTITY status4evar.status.linkOver.label "Visa länkar i:">
+<!ENTITY status4evar.status.linkOver.delay.show.label "Fördröjning innan länkar visas:">
+<!ENTITY status4evar.status.linkOver.delay.hide.label "Fördröjning innan länkar döljs:">
+<!ENTITY status4evar.status.toolbar.maxLength.label "Maximilängd för statustext:">
+<!ENTITY status4evar.status.urlbar.align.label "Justering för status:">
+<!ENTITY status4evar.status.urlbar.color.label "Statusfärg:">
+<!ENTITY status4evar.status.currentUrl "Aktuell plats">
+<!ENTITY status4evar.status.statusText "Statustext">
+<!ENTITY status4evar.status.firefox.compat.caption "Funktioner för Firefox-kompatibilitet">
+<!ENTITY browser.urlbar.formatting.enabled.label "Aktivera färgmarkering av domän">
+<!ENTITY browser.urlbar.trimming.enabled.label "Aktivera döljande av protokoll (http:// och ftp://)">
+<!ENTITY browser.urlbar.autofill.enabled.label "Aktivera automatisk komplettering av URL:er">
+<!ENTITY status4evar.status.popup.invertMirror.label "På höger sida som standard">
+<!ENTITY status4evar.status.popup.mouseMirror.label "Växla sida när musen förs över rutan">
+<!ENTITY status4evar.status.popup.findMirror.label "Starta på motsatt sida när söklisten är öppen">
+<!ENTITY status4evar.progress.style.label "Använd ett eget format">
+<!ENTITY status4evar.progress.urlbar.enable.label "Visa förlopp i adressfältet">
+<!ENTITY status4evar.progress.urlbar.line.label "Linjeformat:">
+<!ENTITY status4evar.progress.toolbar.force.label "Visa alltid statusfältobjektet">
+<!ENTITY status4evar.editor.label "Redigerare:">
+<!ENTITY status4evar.editor.css.color.label "Färg:">
+<!ENTITY status4evar.editor.css.image.label "Bild:">
+<!ENTITY status4evar.editor.css.image.repeat "Upprepa">
+<!ENTITY status4evar.editor.css.image.position "Position">
+<!ENTITY status4evar.editor.css.image.offset "Förskjutning">
+<!ENTITY status4evar.download.button.action.label "Download status button action:">
+<!ENTITY status4evar.download.force.label "Visa alltid indikatorn för filhämtningsstatus">
+<!ENTITY status4evar.download.label.force.label "Visa alltid knapptexten">
+<!ENTITY status4evar.download.label.label "Filhämtningsstatusindikatorns text:">
+<!ENTITY status4evar.download.tooltip.label "Filhämtningsstatusindikatorns verktygstips:">
+<!ENTITY status4evar.download.progress.label "Visa filhämtningsförlopp i indikatorn">
+<!ENTITY status4evar.download.progress.average.label "Visa genomsnittligt slutförande av filhämtningar">
+<!ENTITY status4evar.download.progress.max.label "Visa den mest fullständiga filhämtningen">
+<!ENTITY status4evar.download.progress.min.label "Visa den minst fullständiga filhämtningen">
+<!ENTITY status4evar.download.color.active.label "Förloppsfärg för aktiva filhämtningar:">
+<!ENTITY status4evar.download.color.paused.label "Förloppsfärg för pausade filhämtningar:">
+<!ENTITY status4evar.download.notify.animate.label "Animate button when download completes">
+<!ENTITY status4evar.download.notify.timeout.label "Highlight button when download completes:">
+<!ENTITY status4evar.addonbar.borderStyle "Använd alternativa kantlinjer för verktygsfält">
+<!ENTITY status4evar.addonbar.windowGripper "Visa fönstrets handtag för storleksändring">
+<!ENTITY status4evar.addonbar.closeButton "Visa stängknappen">
+<!ENTITY status4evar.advanced.warning "Dessa avancerade inställningar kan orsaka problem med andra tillägg. Ändra dem på egen risk.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding "Försök att tvinga XBL-bindning till adressfältet.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding.desc "Aktivera detta endast om du har problem med att på ett korrekt sätt visa adressfältets förlopps- eller statustext. Det här kan orsaka att andra tillägg som försöker ange en XBL-bindning till adressfältet slutar fungera.">
+<!ENTITY status4evar.advanced.status.detectFullScreen "Identifiera helskärmsläge och visa länkar/status på ett korrekt sätt.">
+<!ENTITY toolkit.classic.download.window.label "Använd klassiskt filhämtningsfönster">

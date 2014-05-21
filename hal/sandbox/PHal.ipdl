@@ -1,0 +1,189 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set sw=2 ts=8 et ft=cpp : */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+include protocol PContent;
+include protocol PBrowser;
+include "prtime.h";
+include "mozilla/HalSensor.h";
+include "mozilla/HalTypes.h";
+include "mozilla/dom/ScreenOrientation.h";
+include "nsRect.h";
+
+using mozilla::dom::ScreenOrientation;
+using mozilla::hal::FlashMode;
+using mozilla::hal::LightType;
+using mozilla::hal::LightMode;
+using mozilla::hal::SensorType;
+using mozilla::hal::SensorAccuracyType;
+using mozilla::hal::WakeLockControl;
+using mozilla::hal::SwitchState;
+using mozilla::hal::SwitchDevice;
+using mozilla::hal::ProcessPriority;
+using nsIntRect;
+using PRTime;
+using mozilla::hal::FMRadioCountry;
+using mozilla::hal::FMRadioOperation;
+using mozilla::hal::FMRadioOperationStatus;
+
+namespace mozilla {
+
+namespace hal {
+struct BatteryInformation {
+  double level;
+  bool   charging;
+  double remainingTime;
+};
+
+struct LightConfiguration {
+  LightType light;
+  LightMode mode;
+  FlashMode flash;
+  uint32_t flashOnMS;
+  uint32_t flashOffMS;
+  uint32_t color;
+};
+
+struct SensorData {
+  SensorType sensor;
+  PRTime timestamp;
+  float[] values;
+  SensorAccuracyType accuracy;
+};
+
+struct NetworkInformation {
+  double bandwidth;
+  bool   canBeMetered;
+};
+
+struct SwitchEvent {
+  SwitchDevice device;
+  SwitchState status;
+};
+
+struct WakeLockInformation {
+  nsString topic;
+  uint32_t numLocks;
+  uint32_t numHidden;
+  uint64_t[] lockingProcesses;
+};
+
+struct ScreenConfiguration {
+  nsIntRect rect;
+  ScreenOrientation orientation;
+  uint32_t colorDepth;
+  uint32_t pixelDepth;
+};
+
+struct FMRadioOperationInformation {
+  FMRadioOperation operation;
+  FMRadioOperationStatus status;
+  uint32_t frequency;
+};
+
+struct FMRadioSettings {
+  FMRadioCountry country;
+  uint32_t upperLimit;
+  uint32_t lowerLimit;
+  uint32_t spaceType;
+  uint32_t preEmphasis;
+};
+
+struct SystemTimezoneChangeInformation {
+  // These timezone offsets are relative to UTC in minutes and
+  // have already taken daylight saving time (DST) into account.
+  int32_t oldTimezoneOffsetMinutes;
+  int32_t newTimezoneOffsetMinutes;
+};
+
+} // namespace hal
+
+namespace hal_sandbox {
+
+sync protocol PHal {
+    manager PContent;
+
+child:
+    NotifyBatteryChange(BatteryInformation aBatteryInfo);
+    NotifyNetworkChange(NetworkInformation aNetworkInfo);
+    NotifyWakeLockChange(WakeLockInformation aWakeLockInfo);
+    NotifyScreenConfigurationChange(ScreenConfiguration aScreenOrientation);
+    NotifySwitchChange(SwitchEvent aEvent);
+    NotifySystemClockChange(int64_t aClockDeltaMS); 
+    NotifySystemTimezoneChange(SystemTimezoneChangeInformation aSystemTimezoneChangeInfo); 
+
+parent:
+    Vibrate(uint32_t[] pattern, uint64_t[] id, PBrowser browser);
+    CancelVibrate(uint64_t[] id, PBrowser browser);
+
+    EnableBatteryNotifications();
+    DisableBatteryNotifications();
+    sync GetCurrentBatteryInformation()
+      returns (BatteryInformation aBatteryInfo);
+
+    EnableNetworkNotifications();
+    DisableNetworkNotifications();
+    sync GetCurrentNetworkInformation()
+      returns (NetworkInformation aNetworkInfo);
+
+    sync GetScreenEnabled() returns (bool enabled);
+    SetScreenEnabled(bool enabled);
+
+    sync GetCpuSleepAllowed() returns (bool allowed);
+    SetCpuSleepAllowed(bool allowed);
+
+    sync GetScreenBrightness() returns (double brightness);
+    SetScreenBrightness(double brightness);
+
+    AdjustSystemClock(int64_t aDeltaMilliseconds);
+    SetTimezone(nsCString aTimezoneSpec);
+    sync GetTimezone()
+      returns (nsCString aTimezoneSpec);
+    EnableSystemClockChangeNotifications();
+    DisableSystemClockChangeNotifications();
+    EnableSystemTimezoneChangeNotifications();
+    DisableSystemTimezoneChangeNotifications();
+
+    sync SetLight(LightType light, LightConfiguration aConfig)
+      returns (bool status);
+    sync GetLight(LightType light)
+      returns (LightConfiguration aConfig, bool status);
+
+    ModifyWakeLock(nsString aTopic,
+                   WakeLockControl aLockAdjust,
+                   WakeLockControl aHiddenAdjust,
+                   uint64_t aProcessID);
+    EnableWakeLockNotifications();
+    DisableWakeLockNotifications();
+    sync GetWakeLockInfo(nsString aTopic)
+      returns (WakeLockInformation aWakeLockInfo);
+
+    EnableScreenConfigurationNotifications();
+    DisableScreenConfigurationNotifications();
+    sync GetCurrentScreenConfiguration()
+      returns (ScreenConfiguration aScreenConfiguration);
+    sync LockScreenOrientation(ScreenOrientation aOrientation)
+      returns (bool allowed);
+    UnlockScreenOrientation();
+ 
+    EnableSwitchNotifications(SwitchDevice aDevice);
+    DisableSwitchNotifications(SwitchDevice aDevice);
+    sync GetCurrentSwitchState(SwitchDevice aDevice)
+      returns (SwitchState aState);
+
+    FactoryReset();
+
+child:
+    NotifySensorChange(SensorData aSensorData);
+
+parent:
+    EnableSensorNotifications(SensorType aSensor);
+    DisableSensorNotifications(SensorType aSensor);
+
+    __delete__();
+};
+
+} // namespace hal
+} // namespace mozilla

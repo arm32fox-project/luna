@@ -1,0 +1,6 @@
+<!ENTITY status4evar.status.widget.title "Tekst statusu">
+<!ENTITY status4evar.progress.widget.title "Pasek postępu">
+<!ENTITY status4evar.download.widget.title "Status pobierania">
+<!ENTITY status4evar.options.widget.title "Opcje paska statusu Pale Moon">
+<!ENTITY status4evar.options.widget.label "Pasek statusu Pale Moon">
+<!ENTITY status4evar.menu.options.label "Opcje paska statusu...">

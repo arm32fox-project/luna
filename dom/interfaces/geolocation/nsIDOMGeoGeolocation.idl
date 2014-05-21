@@ -1,0 +1,33 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "domstubs.idl"
+
+interface nsIDOMGeoPositionCallback;
+interface nsIDOMGeoPositionErrorCallback;
+
+%{C++
+#include "DictionaryHelpers.h"
+%}
+
+dictionary GeoPositionOptions
+{
+  boolean enableHighAccuracy;
+  long timeout;
+  long maximumAge;
+};
+
+[ptr] native NamespacedGeoPositionOptions(mozilla::idl::GeoPositionOptions);
+
+[builtinclass, uuid(1bc7d103-c7ae-4467-881c-21a8dfa17938)]
+interface nsIDOMGeoGeolocation : nsISupports
+{
+  int32_t watchPosition(in nsIDOMGeoPositionCallback callback,
+                        in nsIDOMGeoPositionErrorCallback errorCallback,
+                        in NamespacedGeoPositionOptions options);
+  void getCurrentPosition(in nsIDOMGeoPositionCallback callback,
+                          in nsIDOMGeoPositionErrorCallback errorCallback,
+                          in NamespacedGeoPositionOptions options);
+  void clearWatch(in long watchId);
+};

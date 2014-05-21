@@ -1,0 +1,6 @@
+<!ENTITY status4evar.status.widget.title "狀態文字">
+<!ENTITY status4evar.progress.widget.title "進度條">
+<!ENTITY status4evar.download.widget.title "下載進度">
+<!ENTITY status4evar.options.widget.title "Pale Moon 狀態列設定">
+<!ENTITY status4evar.options.widget.label "Pale Moon 狀態列">
+<!ENTITY status4evar.menu.options.label "Pale Moon 狀態列…">

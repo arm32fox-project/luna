@@ -1,0 +1,25 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+ *
+ * This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+[ptr] native JSRuntime(JSRuntime);
+native JSGCCallback(JSGCCallback);
+
+interface nsIBackstagePass;
+
+[uuid(991c0749-a22e-476b-9428-a373df037455)]
+interface nsIJSRuntimeService : nsISupports
+{
+    readonly attribute JSRuntime        runtime;
+
+    /**
+     * Register additional GC callback which will run after the
+     * standard XPConnect callback.
+     */
+    [noscript, notxpcom] void registerGCCallback(in JSGCCallback func);
+    [noscript, notxpcom] void unregisterGCCallback(in JSGCCallback func);
+};

@@ -1,0 +1,6 @@
+<!ENTITY status4evar.status.widget.title "Statustext">
+<!ENTITY status4evar.progress.widget.title "Förloppsindikator">
+<!ENTITY status4evar.download.widget.title "Filhämtningsstatus">
+<!ENTITY status4evar.options.widget.title "Inställningar för Pale Moons statusfält">
+<!ENTITY status4evar.options.widget.label "Pale Moons statusfält">
+<!ENTITY status4evar.menu.options.label "Inställningar för statusfältet …">

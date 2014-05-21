@@ -1,0 +1,6 @@
+<!ENTITY status4evar.status.widget.title "Durum Metni">
+<!ENTITY status4evar.progress.widget.title "İlerleme Durumu">
+<!ENTITY status4evar.download.widget.title "İndirme Durumu">
+<!ENTITY status4evar.options.widget.title "Pale Moon durum çubuğu seçenekleri">
+<!ENTITY status4evar.options.widget.label "Pale Moon durum çubuğu">
+<!ENTITY status4evar.menu.options.label "Durum çubuğu seçenekleri">

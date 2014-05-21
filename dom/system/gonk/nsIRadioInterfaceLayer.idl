@@ -1,0 +1,123 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+interface nsIDOMMozMobileConnectionInfo;
+interface nsIDOMMozMobileICCInfo;
+interface nsIMobileMessageCallback;
+interface nsIDOMMozSmsSegmentInfo;
+
+[scriptable, uuid(1e602d20-d066-4399-8997-daf36b3158ef)]
+interface nsIRILDataCallInfo : nsISupports
+{
+  /**
+   * Current data call state, one of the
+   * nsINetworkInterface::NETWORK_STATE_* constants.
+   */
+  readonly attribute unsigned long state;
+  readonly attribute AString cid;
+  readonly attribute AString apn;
+  readonly attribute AString ifname;
+  readonly attribute AString ip;
+  readonly attribute AString netmask;
+  readonly attribute AString broadcast;
+  readonly attribute AString gw;
+  readonly attribute jsval dns;
+};
+
+[scriptable, uuid(5bcac053-c245-46f0-bb45-d0039bfb89f5)]
+interface nsIRILDataCallback : nsISupports
+{
+  /**
+   * Notified when a data call changes state.
+   *
+   * @param dataCall
+   *        A nsIRILDataCallInfo object.
+   */
+  void dataCallStateChanged(in nsIRILDataCallInfo dataCall);
+
+  /**
+   * Called when nsIRadioInterfaceLayer is asked to enumerate the current
+   * data call state.
+   *
+   * @param datacalls
+   *        Array of nsIRILDataCallInfo objects.
+   * @param length
+   *        Lenght of the aforementioned array.
+   */
+  void receiveDataCallList([array,size_is(length)] in nsIRILDataCallInfo dataCalls,
+                           in unsigned long length);
+};
+
+[scriptable, uuid(c0c5cb9f-6372-4b5a-b74c-baacc2da5e4f)]
+interface nsIVoicemailInfo : nsISupports
+{
+  readonly attribute DOMString number;
+
+  readonly attribute DOMString displayName;
+};
+
+[scriptable, uuid(2f1c8055-322e-490a-b1e1-4ccd5d546b3c)]
+interface nsIRilContext : nsISupports
+{
+  readonly attribute DOMString radioState;
+
+  readonly attribute DOMString cardState;
+
+  readonly attribute long retryCount;
+
+  readonly attribute DOMString imsi;
+
+  readonly attribute DOMString networkSelectionMode;
+
+  readonly attribute nsIDOMMozMobileICCInfo iccInfo;
+
+  readonly attribute nsIDOMMozMobileConnectionInfo voice;
+
+  readonly attribute nsIDOMMozMobileConnectionInfo data;
+};
+
+[scriptable, uuid(c1c9d1e6-fec6-4c99-880d-7a310d736e64)]
+interface nsIRadioInterfaceLayer : nsISupports
+{
+  /**
+   * Activates or deactivates radio power.
+   */
+  void setRadioEnabled(in bool value);
+
+  readonly attribute nsIRilContext rilContext;
+
+  readonly attribute nsIVoicemailInfo voicemailInfo;
+
+  /**
+   * PDP APIs
+   */
+  void setupDataCallByType(in DOMString apntype);
+  void deactivateDataCallByType(in DOMString apntype);
+  long getDataCallStateByType(in DOMString apntype);
+  void setupDataCall(in long radioTech,
+                     in DOMString apn,
+                     in DOMString user,
+                     in DOMString passwd,
+                     in long chappap,
+                     in DOMString pdptype);
+  void deactivateDataCall(in DOMString cid,
+                          in DOMString reason);
+  void getDataCallList();
+
+  void registerDataCallCallback(in nsIRILDataCallback callback);
+  void unregisterDataCallCallback(in nsIRILDataCallback callback);
+
+  void updateRILNetworkInterface();
+
+  /**
+   * SMS-related functionality.
+   */
+  nsIDOMMozSmsSegmentInfo getSegmentInfoForText(in DOMString text);
+
+  void sendSMS(in DOMString number,
+               in DOMString message,
+               in nsIMobileMessageCallback request);
+};

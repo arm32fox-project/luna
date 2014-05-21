@@ -1,0 +1,97 @@
+<!ENTITY status4evar.window.title "Pale Moon 상태 바 환경설정">
+<!ENTITY status4evar.pane.status "상태">
+<!ENTITY status4evar.pane.progress "진행">
+<!ENTITY status4evar.pane.download "다운로드">
+<!ENTITY status4evar.pane.addonbar "상태 바">
+<!ENTITY status4evar.pane.advanced "고급">
+<!ENTITY status4evar.tab.general "일반">
+<!ENTITY status4evar.tab.toolbar "상태 바">
+<!ENTITY status4evar.tab.urlbar "주소 창 모음">
+<!ENTITY status4evar.tab.popup "팝업">
+<!ENTITY status4evar.tab.tabs "탭">
+<!ENTITY status4evar.option.none "없음">
+<!ENTITY status4evar.option.nothing "없음">
+<!ENTITY status4evar.option.toolbar "상태 바">
+<!ENTITY status4evar.option.urlbar "주소 창 모음">
+<!ENTITY status4evar.option.popup "팝업">
+<!ENTITY status4evar.option.tooltip "툴팁">
+<!ENTITY status4evar.option.bottom "하단">
+<!ENTITY status4evar.option.top "상단">
+<!ENTITY status4evar.option.fill "채우기">
+<!ENTITY status4evar.option.dlcount "다운로드 카운트">
+<!ENTITY status4evar.option.dltime "남은 시간">
+<!ENTITY status4evar.option.both "둘 다 표시">
+<!ENTITY status4evar.option.right "오른쪽">
+<!ENTITY status4evar.option.left "왼쪽">
+<!ENTITY status4evar.option.fixed "고정">
+<!ENTITY status4evar.option.simple "단순">
+<!ENTITY status4evar.option.advanced "고급">
+<!ENTITY status4evar.option.browse "찾아보기">
+<!ENTITY status4evar.option.clear "지우기">
+<!ENTITY status4evar.option.center "가운데">
+<!ENTITY status4evar.option.offset "오프셋">
+<!ENTITY status4evar.option.repeat "반복">
+<!ENTITY status4evar.option.no-repeat "반복 안 함">
+<!ENTITY status4evar.option.space "공백">
+<!ENTITY status4evar.option.round "둥글게">
+<!ENTITY status4evar.option.firefoxdefault "Pale Moon 기본값">
+<!ENTITY status4evar.option.download.panel "패널">
+<!ENTITY status4evar.option.download.library "라이브러리">
+<!ENTITY status4evar.option.download.classic "고전">
+<!ENTITY status4evar.unit.milliseconds "밀리 초">
+<!ENTITY status4evar.unit.seconds "초">
+<!ENTITY status4evar.unit.px "px">
+<!ENTITY status4evar.status.general.status.caption "상태 텍스트">
+<!ENTITY status4evar.status.label "상태 표시 방법:">
+<!ENTITY status4evar.status.timeout.label "다음 시간 이후 상태 숨기기">
+<!ENTITY status4evar.status.default.label "기본 상태 보여주기">
+<!ENTITY status4evar.status.network.label "네트워크 상태 보여주기">
+<!ENTITY status4evar.status.network.xhr.label "백그라운드 네트워크 상태 보여주기">
+<!ENTITY toolkit.dom.status.change.label "웹 페이지가 상태를 변경할 수 있게 허용">
+<!ENTITY status4evar.status.general.linkOver.caption "링크">
+<!ENTITY status4evar.status.linkOver.label "링크 표시 방법:">
+<!ENTITY status4evar.status.linkOver.delay.show.label "링크 보여주기 전 대기 시간:">
+<!ENTITY status4evar.status.linkOver.delay.hide.label "링크 숨기기 전 대기 시간:">
+<!ENTITY status4evar.status.toolbar.maxLength.label "최대 상태 텍스트 길이:">
+<!ENTITY status4evar.status.urlbar.align.label "상태 정렬:">
+<!ENTITY status4evar.status.urlbar.color.label "상태 표시 색:">
+<!ENTITY status4evar.status.currentUrl "현재 위치">
+<!ENTITY status4evar.status.statusText "상태 텍스트">
+<!ENTITY status4evar.status.firefox.compat.caption "Firefox 호환성 기능">
+<!ENTITY browser.urlbar.formatting.enabled.label "도메인 주소 강조 표시 활성화">
+<!ENTITY browser.urlbar.trimming.enabled.label "프로토콜 숨기기 활성화 (http:// 및 ftp://)">
+<!ENTITY browser.urlbar.autofill.enabled.label "URL 자동 완성 활성화">
+<!ENTITY status4evar.status.popup.invertMirror.label "기본적으로 오른편에 위치">
+<!ENTITY status4evar.status.popup.mouseMirror.label "마우스를 갖다댈 때 위치 바꾸기">
+<!ENTITY status4evar.status.popup.findMirror.label "검색 창이 열릴 시 반대편에서 시작">
+<!ENTITY status4evar.progress.style.label "사용자 정의 스타일 사용">
+<!ENTITY status4evar.progress.urlbar.enable.label "주소 창 모음에 진행 상태 표시">
+<!ENTITY status4evar.progress.urlbar.line.label "선 스타일:">
+<!ENTITY status4evar.progress.toolbar.force.label "항상 상태 바 항목 보여주기">
+<!ENTITY status4evar.editor.label "편집기:">
+<!ENTITY status4evar.editor.css.color.label "색깔:">
+<!ENTITY status4evar.editor.css.image.label "이미지:">
+<!ENTITY status4evar.editor.css.image.repeat "반복">
+<!ENTITY status4evar.editor.css.image.position "포지션">
+<!ENTITY status4evar.editor.css.image.offset "오프셋">
+<!ENTITY status4evar.download.button.action.label "다운로드 상태 버튼 동작:">
+<!ENTITY status4evar.download.force.label "항상 다운로드 상태를 표시하기">
+<!ENTITY status4evar.download.label.force.label "항상 하단 텍스트를 보여주기">
+<!ENTITY status4evar.download.label.label "다운로드 상태 표시 텍스트:">
+<!ENTITY status4evar.download.tooltip.label "다운로드 상태 표시 툴팁:">
+<!ENTITY status4evar.download.progress.label "다운로드 진행을 표시기에서 보여주기">
+<!ENTITY status4evar.download.progress.average.label "평균 다운로드 완료 보여주기">
+<!ENTITY status4evar.download.progress.max.label "최대 완료 다운로드 보여주기">
+<!ENTITY status4evar.download.progress.min.label "최소 완료 다운로드 보여주기">
+<!ENTITY status4evar.download.color.active.label "진행 중인 다운로드를 표시할 색:">
+<!ENTITY status4evar.download.color.paused.label "중지된 다운로드를 표시할 색:">
+<!ENTITY status4evar.download.notify.animate.label "다운로드 완료 버튼 애니메이션 활성">
+<!ENTITY status4evar.download.notify.timeout.label "다운로드 완료시 버튼을 강조할 시간:">
+<!ENTITY status4evar.addonbar.borderStyle "대안적인 도구 모음 경계 사용">
+<!ENTITY status4evar.addonbar.windowGripper "창 크기 조절 버튼 보여주기">
+<!ENTITY status4evar.addonbar.closeButton "닫기 버튼 보여주기">
+<!ENTITY status4evar.advanced.warning "이러한 고급 설정값들은 다른 화장 기능과 문제를 일으킬 수 있습니다. 위험을 감수하고 수정하십시오.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding "강제 주소 창 모음 XBL 바인딩을 시도합니다.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding.desc "오직 주소 창 모음 진행 바나 상태 텍스트가 제대로 표시되지 않을 경우에만 선택하십시오. 이것은 잠재적으로 주소 창 모음 상에 XBL 바인딩을 설정하는 다른 확장기능을 망가뜨릴 수 있습니다.">
+<!ENTITY status4evar.advanced.status.detectFullScreen "전체 화면 모드 및 링크/상태 표시를 적절히 감지합니다.">
+<!ENTITY toolkit.classic.download.window.label "기존 다운로드 창 사용">

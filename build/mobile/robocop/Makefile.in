@@ -1,0 +1,132 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH       = @DEPTH@
+topsrcdir   = @top_srcdir@
+srcdir      = @srcdir@
+VPATH       = @srcdir@
+
+mobile-tests := mobile/android/base/tests
+TESTPATH     := $(topsrcdir)/$(mobile-tests)
+dir-tests    := $(DEPTH)/$(mobile-tests)
+
+include $(DEPTH)/config/autoconf.mk
+
+ANDROID_APK_NAME := robocop-debug
+
+ROBOTIUM_PATH = $(srcdir)/robotium-solo-3.6.jar
+
+JAVAFILES = \
+  R.java \
+  $(NULL)
+
+RES_FILES = \
+  res/values/strings.xml \
+  $(NULL)
+
+_JAVA_HARNESS = \
+  Actions.java \
+  Assert.java \
+  Driver.java \
+  Element.java \
+  FennecInstrumentationTestRunner.java \
+  FennecNativeActions.java \
+  FennecMochitestAssert.java \
+  FennecTalosAssert.java \
+  FennecNativeDriver.java \
+  FennecNativeElement.java \
+  RoboCopException.java \
+  RobocopUtils.java \
+  PaintedSurface.java \
+  $(NULL)
+
+# pre-process harness sources
+PP_TARGETS        += java-harness
+java-harness      := $(addprefix $(srcdir)/,$(addsuffix .in,$(_JAVA_HARNESS)))
+java-harness-dep  := $(addprefix $(CURDIR)/,$(_JAVA_HARNESS))
+java-harness_PATH := $(CURDIR)
+
+# pre-process test sources
+PP_TARGETS      += java-tests
+java-tests-src  := $(wildcard $(TESTPATH)/*.java.in)
+java-tests-dep  := $(patsubst $(TESTPATH)/%.java.in,$(dir-tests)/%.java,$(java-tests-src))
+java-tests      := $(java-tests-src)
+java-tests_PATH := $(dir-tests)
+
+PP_TARGETS        += manifest
+manifest          := $(srcdir)/AndroidManifest.xml.in
+manifest_TARGET   := AndroidManifest.xml
+
+
+# Install robocop configs and helper
+INSTALL_TARGETS += robocop
+robocop_TARGET  := libs
+robocop_DEST    := $(CURDIR)
+robocop_FILES   := \
+  $(TESTPATH)/robocop.ini \
+  $(TESTPATH)/robocop_autophone.ini \
+  $(NULL)
+robocop-deps := $(notdir $(robocop_FILES))
+
+MOCHITEST_ROBOCOP_FILES := \
+  $(wildcard $(TESTPATH)/*.html) \
+  $(wildcard $(TESTPATH)/*.jpg) \
+  $(wildcard $(TESTPATH)/*.sjs) \
+  $(wildcard $(TESTPATH)/test*.js) \
+  $(wildcard $(TESTPATH)/robocop*.js) \
+  $(wildcard $(TESTPATH)/*.xml) \
+  $(NULL)
+
+GARBAGE += \
+  AndroidManifest.xml \
+  $(java-tests-dep) \
+  $(_JAVA_HARNESS) \
+  classes.dex \
+  $(ANDROID_APK_NAME).ap_ \
+  $(ANDROID_APK_NAME)-unsigned-unaligned.apk \
+  $(ANDROID_APK_NAME)-unaligned.apk \
+  $(ANDROID_APK_NAME).apk \
+  $(robocop-deps) \
+  $(NULL)
+
+DEFINES += \
+  -DANDROID_PACKAGE_NAME=$(ANDROID_PACKAGE_NAME) \
+  $(NULL)
+
+JAVA_CLASSPATH = $(ANDROID_SDK)/android.jar:$(ROBOTIUM_PATH)
+
+include $(topsrcdir)/config/rules.mk
+
+# Override rules.mk java flags with the android specific ones
+include $(topsrcdir)/config/android-common.mk
+
+GENERATED_DIRS_tools = classes $(dir-tests)
+
+tools:: $(ANDROID_APK_NAME).apk
+
+classes.dex: $(ANDROID_APK_NAME).ap_
+classes.dex: $(robocop-deps)
+classes.dex: $(java-harness-dep)
+classes.dex: $(java-tests-dep)
+	$(JAVAC) $(JAVAC_FLAGS) -d classes $(JAVAFILES) $(_JAVA_HARNESS) $(java-tests-dep)
+	$(DX) --dex --output=$@ classes $(ROBOTIUM_PATH) $(ANDROID_COMPT_LIB)
+
+$(ANDROID_APK_NAME).ap_: AndroidManifest.xml $(TESTPATH)/assets/*
+	$(AAPT) package -f -M $< -I $(ANDROID_SDK)/android.jar -I . -S res -A $(TESTPATH)/assets -F $@ -J ./
+
+$(ANDROID_APK_NAME)-unsigned-unaligned.apk: $(ANDROID_APK_NAME).ap_ classes.dex
+	cp $< $@
+	$(ZIP) -0 $@ classes.dex
+
+$(ANDROID_APK_NAME)-unaligned.apk: $(ANDROID_APK_NAME)-unsigned-unaligned.apk
+	cp $< $@
+	$(DEBUG_JARSIGNER) $@
+
+$(ANDROID_APK_NAME).apk: $(ANDROID_APK_NAME)-unaligned.apk
+	$(ZIPALIGN) -f -v 4 $< $@
+
+# PP_java-tests not fully usable here
+# Intermediate step toward a library rule.
+$(dir-tests)/%.java: $(TESTPATH)/%.java.in $(call mkdir_deps,$(dir-tests))
+	$(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) $< > $@

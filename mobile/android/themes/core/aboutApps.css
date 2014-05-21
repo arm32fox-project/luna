@@ -1,0 +1,55 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+.app:active {
+  background-color: #febc2b;
+}
+
+#header-button {
+  background-image: url("chrome://browser/skin/images/addons-amo-hdpi.png");
+}
+
+#main-container {
+  margin: 1em;
+  padding: 1em;
+  border-radius: 10px;
+  border: 1px solid grey;
+  background-color: white;
+  width: calc(100% - 4em);
+}
+
+.spacer {
+  clear: both;
+}
+
+.app {
+  float: left;
+  cursor: pointer;
+  text-align: center;
+  margin: 1em;
+  width: 5.6em;
+  height: 6.7em;
+  font-size: .8em;
+  background-color: transparent;
+  border: none;
+}
+
+.app img {
+  width: 5em;
+  height: 5em;
+  pointer-events: none;
+}
+
+.app div {
+  pointer-events: none;
+}
+
+#noapps {
+  padding: 1em;
+  text-align: center;
+}
+
+.hidden {
+  display: none;
+}

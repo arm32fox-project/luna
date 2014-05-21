@@ -1,0 +1,97 @@
+<!ENTITY status4evar.window.title "Pale Moon tilarivin asetukset">
+<!ENTITY status4evar.pane.status "Tila">
+<!ENTITY status4evar.pane.progress "Eteneminen">
+<!ENTITY status4evar.pane.download "Lataus">
+<!ENTITY status4evar.pane.addonbar "Tilarivi">
+<!ENTITY status4evar.pane.advanced "Lisäasetukset">
+<!ENTITY status4evar.tab.general "Yleiset">
+<!ENTITY status4evar.tab.toolbar "Tilarivi">
+<!ENTITY status4evar.tab.urlbar "Osoiterivi">
+<!ENTITY status4evar.tab.popup "Ponnahdusikkuna">
+<!ENTITY status4evar.tab.tabs "Välilehdet">
+<!ENTITY status4evar.option.none "Ei yhtään">
+<!ENTITY status4evar.option.nothing "Ei mitään">
+<!ENTITY status4evar.option.toolbar "Tilarivi">
+<!ENTITY status4evar.option.urlbar "Osoiterivi">
+<!ENTITY status4evar.option.popup "Ponnahdusikkuna">
+<!ENTITY status4evar.option.tooltip "Vihje">
+<!ENTITY status4evar.option.bottom "Alaosa">
+<!ENTITY status4evar.option.top "Yläosa">
+<!ENTITY status4evar.option.fill "Täytä">
+<!ENTITY status4evar.option.dlcount "Lauksien määrä">
+<!ENTITY status4evar.option.dltime "Jäljellä oleva aika">
+<!ENTITY status4evar.option.both "Molemmat">
+<!ENTITY status4evar.option.right "Oikea">
+<!ENTITY status4evar.option.left "Vasen">
+<!ENTITY status4evar.option.fixed "Kiinteä">
+<!ENTITY status4evar.option.simple "Yksinkertainen">
+<!ENTITY status4evar.option.advanced "Lisäasetukset">
+<!ENTITY status4evar.option.browse "Selaa">
+<!ENTITY status4evar.option.clear "Tyhjennä">
+<!ENTITY status4evar.option.center "Keskikohta">
+<!ENTITY status4evar.option.offset "Sivunasetus">
+<!ENTITY status4evar.option.repeat "Toisto">
+<!ENTITY status4evar.option.no-repeat "Ei toistoa">
+<!ENTITY status4evar.option.space "Väli">
+<!ENTITY status4evar.option.round "Pyöreä">
+<!ENTITY status4evar.option.firefoxdefault "Pale Moon oletus">
+<!ENTITY status4evar.option.download.panel "Paneeli">
+<!ENTITY status4evar.option.download.library "Kirjasto">
+<!ENTITY status4evar.option.download.classic "Klassinen">
+<!ENTITY status4evar.unit.milliseconds "millisekunnit">
+<!ENTITY status4evar.unit.seconds "sekunnit">
+<!ENTITY status4evar.unit.px "px">
+<!ENTITY status4evar.status.general.status.caption "Tilan teksti">
+<!ENTITY status4evar.status.label "Näytä tila:">
+<!ENTITY status4evar.status.timeout.label "Piilota tila kun">
+<!ENTITY status4evar.status.default.label "Näytä oletustila">
+<!ENTITY status4evar.status.network.label "Näytä verkon tila">
+<!ENTITY status4evar.status.network.xhr.label "Näytä taustaverkon tila">
+<!ENTITY toolkit.dom.status.change.label "Salli nettisivujen muuttaa tilaa">
+<!ENTITY status4evar.status.general.linkOver.caption "Linkit">
+<!ENTITY status4evar.status.linkOver.label "Näytä linkit:">
+<!ENTITY status4evar.status.linkOver.delay.show.label "Viive ennen linkkien näyttämistä:">
+<!ENTITY status4evar.status.linkOver.delay.hide.label "Viive ennen linkkien piilottamista:">
+<!ENTITY status4evar.status.toolbar.maxLength.label "Maksimi tilan tekstin pituus:">
+<!ENTITY status4evar.status.urlbar.align.label "Tilan kohdistus:">
+<!ENTITY status4evar.status.urlbar.color.label "Tilan väri:">
+<!ENTITY status4evar.status.currentUrl "Nykyinen Sijainti">
+<!ENTITY status4evar.status.statusText "Tilan Teksti">
+<!ENTITY status4evar.status.firefox.compat.caption "Firefox yhteensopivuuden ominaisuudet">
+<!ENTITY browser.urlbar.formatting.enabled.label "Ota käyttöön verkkotunnuksen korostus">
+<!ENTITY browser.urlbar.trimming.enabled.label "Ota käyttöön protokollan piilotus (http:// ja ftp://)">
+<!ENTITY browser.urlbar.autofill.enabled.label "Ota käyttööna automaattinen osoitteen täydennys">
+<!ENTITY status4evar.status.popup.invertMirror.label "Oletuksena oikeaan laitaan">
+<!ENTITY status4evar.status.popup.mouseMirror.label "Vaihda puolta kun hiiri on päällä">
+<!ENTITY status4evar.status.popup.findMirror.label "Aloita vastakkaiselta puolelta kun hakupalkki on avoinna">
+<!ENTITY status4evar.progress.style.label "Käytä mukautettua tyyliä">
+<!ENTITY status4evar.progress.urlbar.enable.label "Näytä edistyminen osoiterivillä">
+<!ENTITY status4evar.progress.urlbar.line.label "Rivityyli:">
+<!ENTITY status4evar.progress.toolbar.force.label "Näytä aina tilarivin kohteet">
+<!ENTITY status4evar.editor.label "Editori:">
+<!ENTITY status4evar.editor.css.color.label "Väri:">
+<!ENTITY status4evar.editor.css.image.label "Kuva:">
+<!ENTITY status4evar.editor.css.image.repeat "Toista">
+<!ENTITY status4evar.editor.css.image.position "Sijainti">
+<!ENTITY status4evar.editor.css.image.offset "Tasoitus">
+<!ENTITY status4evar.download.button.action.label "Lautaustila-painikkeen toiminto:">
+<!ENTITY status4evar.download.force.label "Näytä aina latauksen edistymisen ilmaisin">
+<!ENTITY status4evar.download.label.force.label "Näytä aina painikkeiden tekstit">
+<!ENTITY status4evar.download.label.label "Latauksen tilan ilmaisimen teksti:">
+<!ENTITY status4evar.download.tooltip.label "Latauksen tilan ilmaisimen vihje:">
+<!ENTITY status4evar.download.progress.label "Näytä latauksen edistyminen ilmaisimessa">
+<!ENTITY status4evar.download.progress.average.label "Näytä latauksen keskimääräinen valmistuminen">
+<!ENTITY status4evar.download.progress.max.label "Näytä eniten valmistunut lataus">
+<!ENTITY status4evar.download.progress.min.label "Näytä vähiten valmistunut lataus">
+<!ENTITY status4evar.download.color.active.label "Edistymisen väri aktiivisille latauksille:">
+<!ENTITY status4evar.download.color.paused.label "Edistymisen väri pysäytetyille latauksille:">
+<!ENTITY status4evar.download.notify.animate.label "Animoi painike kun lataus valmistuu">
+<!ENTITY status4evar.download.notify.timeout.label "Korosta painike kun lataus valmistuu">
+<!ENTITY status4evar.addonbar.borderStyle "Käytä valinnaisia työkalurivin reunoja">
+<!ENTITY status4evar.addonbar.windowGripper "Näytä ikkunan koonmuuttaja">
+<!ENTITY status4evar.addonbar.closeButton "Näytä sulje-painike">
+<!ENTITY status4evar.advanced.warning "Nämä lisäasetukset voivat aiheuttaa ongelmia muiden lisäosien kanssa. Muuta omalla vastuulla.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding "Pyri pakottamaan osoiterivin XBL-sidos.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding.desc "Valitse tämä vain, jos sinulla on ongelmia osoiterivin edistymisen tai tilan tekstin näyttämisen kanssa. Tämä voi mahdollisesti rikkoa muita lisäosia, jotka yrittävät asettaa XBL-sidoksen osoiterivillä.">
+<!ENTITY status4evar.advanced.status.detectFullScreen "Tunnista koko näytön tila ja näytä linkit/tila asianmukaisesti.">
+<!ENTITY toolkit.classic.download.window.label "Käytä alkuperäistä latausikkunaa">

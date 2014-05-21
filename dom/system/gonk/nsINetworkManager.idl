@@ -1,0 +1,211 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+/**
+ * Information about networks that is exposed to network manager API consumers.
+ */
+[scriptable, uuid(d70b9d95-87d5-4ce9-aff7-4323dac79b07)]
+interface nsINetworkInterface : nsISupports
+{
+  const long NETWORK_STATE_UNKNOWN = -1;
+  const long NETWORK_STATE_CONNECTING = 0;
+  const long NETWORK_STATE_CONNECTED = 1;
+  const long NETWORK_STATE_DISCONNECTING = 2;
+  const long NETWORK_STATE_DISCONNECTED = 3;
+
+  /**
+   * Current network state, one of the NETWORK_STATE_* constants.
+   *
+   * When this changes, network interface implementations notify the
+   * 'network-interface-state-changed' observer notification.
+   */
+  readonly attribute long state;
+
+  const long NETWORK_TYPE_WIFI        = 0;
+  const long NETWORK_TYPE_MOBILE      = 1;
+  const long NETWORK_TYPE_MOBILE_MMS  = 2;
+  const long NETWORK_TYPE_MOBILE_SUPL = 3;
+
+  /**
+   * Network type. One of the NETWORK_TYPE_* constants.
+   */
+  readonly attribute long type;
+
+  /**
+   * Name of the network interface. This identifier is unique.
+   */
+  readonly attribute DOMString name;
+
+  /**
+   * Indicates whether DHCP should be run when the interface connects.
+   */
+  readonly attribute boolean dhcp;
+
+  /**
+   * IP Address
+   */
+  readonly attribute DOMString ip;
+
+  /**
+   * Netmask
+   */
+  readonly attribute DOMString netmask;
+
+  /**
+   * Broadcast
+   */
+  readonly attribute DOMString broadcast;
+
+  /**
+   * Default gateway
+   */
+  readonly attribute DOMString gateway;
+
+  /**
+   * Primary DNS address
+   */
+  readonly attribute DOMString dns1;
+
+  /**
+   * Secondary DNS address
+   */
+  readonly attribute DOMString dns2;
+
+  /**
+   * The host name of the http proxy server.
+   */
+  readonly attribute DOMString httpProxyHost;
+
+  /*
+   * The port number of the http proxy server. 
+   */
+  readonly attribute long httpProxyPort;
+
+};
+
+[scriptable, function, uuid(91824160-fb25-11e1-a21f-0800200c9a66)]
+interface nsIWifiTetheringCallback : nsISupports
+{
+  /**
+   * Callback function used to report status to WifiManager.
+   *
+   * @param error
+   *        An error message if the operation wasn't successful,
+   *        or `null` if it was.
+   */
+  void wifiTetheringEnabledChange(in jsval error);
+};
+
+[scriptable, function, uuid(e079aa2a-ec0a-4bbd-b1a4-d81a9faae464)]
+interface nsINetworkStatsCallback : nsISupports
+{
+  void networkStatsAvailable(in boolean success,
+                             in unsigned long rxBytes,
+                             in unsigned long txBytes,
+                             in jsval date);
+};
+
+/**
+ * Manage network interfaces.
+ */
+[scriptable, uuid(f39a0fb6-2752-47d2-943e-a0cdd3e43494)]
+interface nsINetworkManager : nsISupports
+{
+  /**
+   * Register the given network interface with the network manager.
+   *
+   * Consumers will be notified with the 'network-interface-registered'
+   * observer notification.
+   *
+   * Throws if there's already an interface registered that has the same
+   * name.
+   *
+   * @param network
+   *        Network interface to register.
+   */
+  void registerNetworkInterface(in nsINetworkInterface network);
+
+  /**
+   * Unregister the given network interface from the network manager.
+   *
+   * Consumers will be notified with the 'network-interface-unregistered'
+   * observer notification.
+   *
+   * Throws an exception if the specified network interface object isn't
+   * registered.
+   *
+   * @param network
+   *        Network interface to unregister.
+   */
+  void unregisterNetworkInterface(in nsINetworkInterface network);
+
+  /**
+   * Object containing all known network connections, keyed by their
+   * interface name.
+   */
+  readonly attribute jsval networkInterfaces;
+
+  /**
+   * The preferred network type. One of the
+   * nsINetworkInterface::NETWORK_TYPE_* constants.
+   *
+   * This attribute is used for setting default route to favor
+   * interfaces with given type.  This can be overriden by calling
+   * overrideDefaultRoute().
+   */
+  attribute long preferredNetworkType;
+
+  /**
+   * The network interface handling all data traffic.
+   *
+   * When this changes, the 'network-active-changed' observer
+   * notification is dispatched.
+   */
+  readonly attribute nsINetworkInterface active;
+
+  /**
+   * Override the default behaviour for preferredNetworkType and route
+   * all network traffic through the the specified interface.
+   *
+   * Consumers can observe changes to the active network by subscribing to
+   * the 'network-active-changed' observer notification.
+   *
+   * @param network
+   *        Network to route all network traffic to. If this is null,
+   *        a previous override is canceled.
+   */
+  long overrideActive(in nsINetworkInterface network);
+
+  /**
+   * Enable or disable Wifi Tethering
+   *
+   * @param enabled
+   *        Boolean that indicates whether tethering should be enabled (true) or disabled (false).
+   * @param network
+   *        The Wifi network interface with at least name of network interface.
+   * @param config
+   *        The Wifi Tethering configuration from settings db.
+   * @param callback
+   *        Callback function used to report status to WifiManager.
+   */
+  void setWifiTethering(in boolean enabled,
+                        in nsINetworkInterface networkInterface,
+                        in jsval config,
+                        in nsIWifiTetheringCallback callback);
+
+  /**
+   * Retrieve network interface stats.
+   *
+   * @param networkName
+   *        Select the Network interface to request estats.
+   *
+   * @param callback
+   *        Callback to notify result and provide stats, connectionType
+   *        and the date when stats are retrieved
+   */
+  void getNetworkInterfaceStats(in DOMString networkName, in nsINetworkStatsCallback callback);
+
+};

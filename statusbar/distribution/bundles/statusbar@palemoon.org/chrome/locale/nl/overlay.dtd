@@ -1,0 +1,6 @@
+<!ENTITY status4evar.status.widget.title "Statustekst">
+<!ENTITY status4evar.progress.widget.title "Voortgangsindicator">
+<!ENTITY status4evar.download.widget.title "Download-status">
+<!ENTITY status4evar.options.widget.title "Statusbalkopties voor Pale Moon">
+<!ENTITY status4evar.options.widget.label "Pale Moon statusbalk">
+<!ENTITY status4evar.menu.options.label "Statusbalkopties...">

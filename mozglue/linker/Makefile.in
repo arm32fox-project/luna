@@ -1,0 +1,37 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+FORCE_STATIC_LIB= 1
+STL_FLAGS =
+
+HOST_PROGRAM = szip
+
+HOST_CPPSRCS = \
+  szip.cpp \
+  SeekableZStream.cpp \
+  $(NULL)
+
+HOST_LIBS = -lz
+
+DEFINES += -DIMPL_MFBT
+
+include $(topsrcdir)/config/rules.mk
+
+ifeq (arm,$(TARGET_CPU))
+ifdef MOZ_THUMB2
+HOST_CXXFLAGS += -DTARGET_THUMB
+else
+HOST_CXXFLAGS += -DTARGET_ARM
+endif
+endif
+ifeq (x86,$(CPU_ARCH))
+HOST_CXXFLAGS += -DTARGET_X86
+endif

@@ -1,0 +1,99 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>Test for HTMLButtonElement attributes reflection</title>
+  <script type="application/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="application/javascript" src="../reflect.js"></script>
+  <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css"/>
+</head>
+<body>
+<p id="display"></p>
+<div id="content" style="display: none">
+</div>
+<pre id="test">
+<script type="application/javascript">
+
+/** Test for HTMLButtonElement attributes reflection **/
+
+// .autofocus
+reflectBoolean({
+  element: document.createElement("button"),
+  attribute: "autofocus",
+});
+
+// .disabled
+reflectBoolean({
+  element: document.createElement("button"),
+  attribute: "disabled",
+});
+
+// TODO: formAction (URL).  But note that we currently reflect it weirdly; see
+// content/html/content/test/test_bug607145.html
+
+// .formEnctype
+reflectLimitedEnumerated({
+  element: document.createElement("button"),
+  attribute: "formEnctype",
+  validValues: [
+    "application/x-www-form-urlencoded",
+    "multipart/form-data",
+    "text/plain",
+  ],
+  invalidValues: [ "text/html", "", "tulip" ],
+  defaultValue: {
+    invalid: "application/x-www-form-urlencoded",
+    missing: "",
+  }
+});
+
+// .formMethod
+reflectLimitedEnumerated({
+  element: document.createElement("button"),
+  attribute: "formMethod",
+  validValues: [ "get", "post" ],
+  invalidValues: [ "put", "", "tulip" ],
+  unsupportedValues: [ "dialog" ],
+  defaultValue: {
+    invalid: "get",
+    missing: "",
+  }
+});
+
+// .formNoValidate
+reflectBoolean({
+  element: document.createElement("button"),
+  attribute: "formNoValidate",
+});
+
+// .formTarget
+reflectString({
+  element: document.createElement("button"),
+  attribute: "formTarget",
+});
+
+// .name
+reflectString({
+  element: document.createElement("button"),
+  attribute: "name",
+});
+
+// .type
+reflectLimitedEnumerated({
+  element: document.createElement("button"),
+  attribute: "type",
+  validValues: [ "submit", "reset", "button" ],
+  invalidValues: [ "this-is-probably-a-wrong-type", "", "tulip" ],
+  unsupportedValues: [ "menu" ],
+  defaultValue: "submit",
+});
+
+// .value
+reflectString({
+  element: document.createElement("button"),
+  attribute: "value",
+});
+
+</script>
+</pre>
+</body>
+</html>

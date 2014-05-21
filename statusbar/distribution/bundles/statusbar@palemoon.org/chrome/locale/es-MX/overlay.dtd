@@ -1,0 +1,7 @@
+<!ENTITY status4evar.status.widget.title "Texto de Estado">
+<!ENTITY status4evar.progress.widget.title "Barra de Progreso">
+<!ENTITY status4evar.download.widget.title "Estado de las Descargas">
+<!ENTITY status4evar.options.widget.title "Opciones de la Barra de Estado de Pale Moon">
+<!ENTITY status4evar.options.widget.label "Barra de Estado de Pale Moon">
+<!ENTITY status4evar.menu.options.label "Opciones de la Barra de Estado...">
+

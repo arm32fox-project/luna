@@ -1,0 +1,6 @@
+<!ENTITY status4evar.status.widget.title "상태 텍스트">
+<!ENTITY status4evar.progress.widget.title "진행 바">
+<!ENTITY status4evar.download.widget.title "다운로드 상태">
+<!ENTITY status4evar.options.widget.title "Pale Moon 상태 바 옵션">
+<!ENTITY status4evar.options.widget.label "Pale Moon 상태 바">
+<!ENTITY status4evar.menu.options.label "상태 바 옵션...">

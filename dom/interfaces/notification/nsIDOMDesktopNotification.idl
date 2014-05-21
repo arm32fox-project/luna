@@ -1,0 +1,19 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "domstubs.idl"
+
+interface nsIObserver;
+
+// Notification service that also provides the manifest URL
+[scriptable, uuid(7fb4f0f9-ff5b-4620-8e1b-d82d723605af)]
+interface nsIAppNotificationService : nsISupports
+{
+    void showAppNotification(in AString  imageUrl,
+                              in AString  title,
+                              in AString  text,
+                              [optional] in boolean textClickable,
+                              [optional] in AString manifestURL,
+                              [optional] in nsIObserver alertListener);
+};

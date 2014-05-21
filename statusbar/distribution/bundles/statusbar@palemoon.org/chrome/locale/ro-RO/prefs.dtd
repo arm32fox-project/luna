@@ -1,0 +1,97 @@
+<!ENTITY status4evar.window.title "Preferințe bară de stare Pale Moon">
+<!ENTITY status4evar.pane.status "Stare">
+<!ENTITY status4evar.pane.progress "Progres">
+<!ENTITY status4evar.pane.download "Descărcare">
+<!ENTITY status4evar.pane.addonbar "Bara de stare">
+<!ENTITY status4evar.pane.advanced "Avansat">
+<!ENTITY status4evar.tab.general "General">
+<!ENTITY status4evar.tab.toolbar "Bara de stare">
+<!ENTITY status4evar.tab.urlbar "Bara de adrese">
+<!ENTITY status4evar.tab.popup "Pop-up">
+<!ENTITY status4evar.tab.tabs "File">
+<!ENTITY status4evar.option.none "Fără">
+<!ENTITY status4evar.option.nothing "Nimic">
+<!ENTITY status4evar.option.toolbar "Bara de stare">
+<!ENTITY status4evar.option.urlbar "Bara de adrese">
+<!ENTITY status4evar.option.popup "Pop-up">
+<!ENTITY status4evar.option.tooltip "Etichete">
+<!ENTITY status4evar.option.bottom "Dedesubt">
+<!ENTITY status4evar.option.top "Deasupra">
+<!ENTITY status4evar.option.fill "Umplere">
+<!ENTITY status4evar.option.dlcount "Numărătoare descărcări">
+<!ENTITY status4evar.option.dltime "Timp rămas">
+<!ENTITY status4evar.option.both "Ambele">
+<!ENTITY status4evar.option.right "Dreapta">
+<!ENTITY status4evar.option.left "Stânga">
+<!ENTITY status4evar.option.fixed "Fixat">
+<!ENTITY status4evar.option.simple "Simplu">
+<!ENTITY status4evar.option.advanced "Avansat">
+<!ENTITY status4evar.option.browse "Răsfoire">
+<!ENTITY status4evar.option.clear "Șterge">
+<!ENTITY status4evar.option.center "Centru">
+<!ENTITY status4evar.option.offset "Deplasare">
+<!ENTITY status4evar.option.repeat "Repetare">
+<!ENTITY status4evar.option.no-repeat "Fără repetare">
+<!ENTITY status4evar.option.space "Spațiu">
+<!ENTITY status4evar.option.round "Rotund">
+<!ENTITY status4evar.option.firefoxdefault "Implicit Pale Moon">
+<!ENTITY status4evar.option.download.panel "Panou">
+<!ENTITY status4evar.option.download.library "Librărie">
+<!ENTITY status4evar.option.download.classic "Clasic">
+<!ENTITY status4evar.unit.milliseconds "milisecunde">
+<!ENTITY status4evar.unit.seconds "secunde">
+<!ENTITY status4evar.unit.px "px">
+<!ENTITY status4evar.status.general.status.caption "Text stare">
+<!ENTITY status4evar.status.label "Arată stare în:">
+<!ENTITY status4evar.status.timeout.label "Ascunde stare după">
+<!ENTITY status4evar.status.default.label "Arată stare implicită">
+<!ENTITY status4evar.status.network.label "Arată stare rețea">
+<!ENTITY status4evar.status.network.xhr.label "Arată stare rețea în fundal">
+<!ENTITY toolkit.dom.status.change.label "Permite ca paginile web să schimbe starea">
+<!ENTITY status4evar.status.general.linkOver.caption "Legături">
+<!ENTITY status4evar.status.linkOver.label "Arată legături în:">
+<!ENTITY status4evar.status.linkOver.delay.show.label "Întârziere la afișarea legăturilor:">
+<!ENTITY status4evar.status.linkOver.delay.hide.label "Întârziere înaintea ascunderii legăturilor:">
+<!ENTITY status4evar.status.toolbar.maxLength.label "Lungime maximă text de stare:">
+<!ENTITY status4evar.status.urlbar.align.label "Aliniere stare:">
+<!ENTITY status4evar.status.urlbar.color.label "Culoare stare:">
+<!ENTITY status4evar.status.currentUrl "Locație curentă">
+<!ENTITY status4evar.status.statusText "Text stare">
+<!ENTITY status4evar.status.firefox.compat.caption "Caracteristici de compatibilitate Firefox">
+<!ENTITY browser.urlbar.formatting.enabled.label "Activează evidențiere domeniu">
+<!ENTITY browser.urlbar.trimming.enabled.label "Activează ascundere protocol (http:// şi ftp://)">
+<!ENTITY browser.urlbar.autofill.enabled.label "Activează auto-completare adrese URL">
+<!ENTITY status4evar.status.popup.invertMirror.label "Implicit în partea dreaptă">
+<!ENTITY status4evar.status.popup.mouseMirror.label "Schimbă părțile când mouse-ul este deasupra">
+<!ENTITY status4evar.status.popup.findMirror.label "Pornește pe partea opusă când bara de căutare este deschisă">
+<!ENTITY status4evar.progress.style.label "Folosește un stil propriu">
+<!ENTITY status4evar.progress.urlbar.enable.label "Arată progres în bara de adrese">
+<!ENTITY status4evar.progress.urlbar.line.label "Stil linie:">
+<!ENTITY status4evar.progress.toolbar.force.label "Arată mereu bara de stare">
+<!ENTITY status4evar.editor.label "Editor:">
+<!ENTITY status4evar.editor.css.color.label "Culoare:">
+<!ENTITY status4evar.editor.css.image.label "Imagine:">
+<!ENTITY status4evar.editor.css.image.repeat "Repetare">
+<!ENTITY status4evar.editor.css.image.position "Poziție">
+<!ENTITY status4evar.editor.css.image.offset "Deplasare">
+<!ENTITY status4evar.download.button.action.label "Acțiune buton stare descărcare:">
+<!ENTITY status4evar.download.force.label "Arată mereu indicator stare descărcare">
+<!ENTITY status4evar.download.label.force.label "Arată mereu textul butonului">
+<!ENTITY status4evar.download.label.label "Text indicator stare descărcare:">
+<!ENTITY status4evar.download.tooltip.label "Etichetă indicator stare descărcare:">
+<!ENTITY status4evar.download.progress.label "Arată progres descărcare pe indicator">
+<!ENTITY status4evar.download.progress.average.label "Arată progres mediu descărcare">
+<!ENTITY status4evar.download.progress.max.label "Arată cea mai completă descărcare">
+<!ENTITY status4evar.download.progress.min.label "Arată cea mai puțin completă descărcare">
+<!ENTITY status4evar.download.color.active.label "Culoare indicator progres pentru descărcări active:">
+<!ENTITY status4evar.download.color.paused.label "Culoare progres pentru descărcări amânate:">
+<!ENTITY status4evar.download.notify.animate.label "Animează butonul la terminare descărcare">
+<!ENTITY status4evar.download.notify.timeout.label "Evidențiază butonul la terminare descărcare:">
+<!ENTITY status4evar.addonbar.borderStyle "Folosește margini alternative pentru bara de unelte">
+<!ENTITY status4evar.addonbar.windowGripper "Arată mânerul de re-dimensionare fereastră">
+<!ENTITY status4evar.addonbar.closeButton "Arată butonul Închidere">
+<!ENTITY status4evar.advanced.warning "Aceste reglaje avansate pot cauza probleme cu alte extensii. Modificați pe riscul dvs.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding "Încearcă forțare asociere XBL cu bara de adrese.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding.desc "Selectați această opțiune doar dacă aveți probleme cu afișarea corecta a textului de stare sau progresului pe bara de adrese. Aceasta va opri potențial alte extensii care încearcă să regleze o asociere XBL cu bara de adrese.">
+<!ENTITY status4evar.advanced.status.detectFullScreen "Detectează modul ecran complet și arată legături/stare după cum este necesar.">
+<!ENTITY toolkit.classic.download.window.label "Folosește fereastră clasică descărcări">
