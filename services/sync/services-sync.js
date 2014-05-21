@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-pref("services.sync.serverURL", "https://auth.services.mozilla.com/");
+pref("services.sync.serverURL", "https://sync.palemoon.net/");
 pref("services.sync.userURL", "user/");
 pref("services.sync.miscURL", "misc/");
-pref("services.sync.termsURL", "https://services.mozilla.com/tos/");
-pref("services.sync.privacyURL", "https://services.mozilla.com/privacy-policy/");
-pref("services.sync.statusURL", "https://services.mozilla.com/status/");
-pref("services.sync.syncKeyHelpURL", "https://services.mozilla.com/help/synckey");
+pref("services.sync.termsURL", "http://www.palemoon.org/sync/terms.shtml");
+pref("services.sync.privacyURL", "http://www.palemoon.org/sync/privacy.shtml");
+pref("services.sync.statusURL", "https://sync.palemoon.net/status/");
+pref("services.sync.syncKeyHelpURL", "http://www.palemoon.org/sync/keyhelp.shtml");
 
 pref("services.sync.lastversion", "firstrun");
 pref("services.sync.sendVersionInfo", true);
