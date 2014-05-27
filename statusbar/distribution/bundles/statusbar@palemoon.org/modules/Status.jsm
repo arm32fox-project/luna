@@ -290,6 +290,7 @@ S4EStatusService.prototype =
 		let label = null;
 
 		if(this._window.fullScreen && this._service.advancedStatusDetectFullScreen)
+		// Change status type to pop-up automatically for full screen use
 		{
 			switch(location)
 			{
@@ -307,7 +308,7 @@ S4EStatusService.prototype =
 
 		switch(location)
 		{
-			case 0: // Disable
+			case 0: // Disabled
 				break;
 			case 1: // Toolbar
 				label = this._getters.statusWidgetLabel;
@@ -320,8 +321,14 @@ S4EStatusService.prototype =
 					urlbar.setStatus(text.val);
 				}
 				break;
-			case 3: // Popup
+			case 3: // Pop-up choice & FullScreen use
 			default:
+				let fsElement = ((isFullScreen) ? this._window.content.document.mozFullScreenElement : null);
+				if(fsElement && fsElement.nodeName == 'VIDEO')
+				{
+				   // Prevent pop-up status from overlaying full-screen HTML5 video
+					return;
+				}
 				label = this._getters.statusOverlay;
 				break;
 		}
