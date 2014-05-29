@@ -51,7 +51,7 @@ ACCEPTED_MAR_CHANNEL_IDS=palemoon-mozilla-beta,palemoon-mozilla-release
 MAR_CHANNEL_ID=palemoon-mozilla-release
 MOZ_PROFILE_MIGRATOR=1
 MOZ_EXTENSION_MANAGER=1
-MOZ_APP_STATIC_INI=0
+MOZ_APP_STATIC_INI=
 MOZ_WEBAPP_RUNTIME=1
 MOZ_MEDIA_NAVIGATOR=1
 if test "$OS_TARGET" = "WINNT" -o "$OS_TARGET" = "Darwin"; then
