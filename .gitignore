@@ -27,6 +27,7 @@ security/manager/.nss.checkout
 
 # Build directories
 /obj*/
+/build-*/
 
 # Build directories for js shell
 */_DBG.OBJ/
