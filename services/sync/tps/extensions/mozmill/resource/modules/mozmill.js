@@ -57,6 +57,7 @@ applicationDictionary = {
   "{718e30fb-e89b-41dd-9da7-e25a45638b28}": "Sunbird",
   "{92650c4d-4b8e-4d2a-b7eb-24ecf4f6b63a}": "SeaMonkey",
   "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}": "Firefox",
+  "{8de7fcbb-c55c-4fbe-bfc5-fc555c87dbc4}": "PaleMoon",
   "{3550f703-e582-4d05-9a08-453d09bdfdc6}": 'Thunderbird',
 }
 
@@ -64,7 +65,7 @@ var Application = applicationDictionary[appInfo.ID];
 
 if (Application == undefined) {
   // Default to Firefox
-  var Application = 'Firefox';
+  var Application = 'PaleMoon';
 }
 
 // get startup time if available
