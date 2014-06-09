@@ -1054,7 +1054,8 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
 	goto UNSUPPORTED;
 
     if (pattern->extend != CAIRO_EXTEND_NONE &&
-	pattern->extend != CAIRO_EXTEND_REPEAT)
+	pattern->extend != CAIRO_EXTEND_REPEAT &&
+	pattern->extend != CAIRO_EXTEND_PAD)
 	goto UNSUPPORTED;
 
     if (mask_pattern) {
@@ -1160,9 +1161,10 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
      * of the extents, because it won't clear that area to transparent
      * black.
      */
-
+     
+    needs_pad = FALSE;
     if (pattern->extend != CAIRO_EXTEND_REPEAT) {
-	needs_repeat = FALSE;
+      needs_repeat = FALSE;
 
 	/* If the src rect and the extents of the source image don't overlap at all,
 	 * we can't do anything useful here.
@@ -1182,6 +1184,7 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
 	    dst_r.x -= src_r.x;
 
             src_r.x = 0;
+            needs_pad = TRUE;
 	}
 
 	if (src_r.y < 0) {
@@ -1191,20 +1194,27 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
 	    dst_r.y -= src_r.y;
 	    
             src_r.y = 0;
+            needs_pad = TRUE;
 	}
 
 	if (src_r.x + src_r.width > src_extents.width) {
 	    src_r.width = src_extents.width - src_r.x;
 	    dst_r.width = src_r.width;
+	    needs_pad = TRUE;
 	}
 
 	if (src_r.y + src_r.height > src_extents.height) {
 	    src_r.height = src_extents.height - src_r.y;
 	    dst_r.height = src_r.height;
+	    needs_pad = TRUE;
 	}
     } else {
 	needs_repeat = TRUE;
     }
+
+   if (pattern->extend == CAIRO_EXTEND_PAD && needs_pad) {
+       goto UNSUPPORTED;
+   }
 
     /*
      * Operations that we can do:
