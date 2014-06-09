@@ -306,10 +306,8 @@ pref("gfx.font_rendering.opentype_svg.enabled", false);
 // comma separated list of backends to use in order of preference
 // e.g., pref("gfx.canvas.azure.backends", "direct2d,skia,cairo");
 pref("gfx.canvas.azure.backends", "direct2d,skia,cairo");
-pref("gfx.content.azure.backends", "direct2d");
-pref("gfx.content.azure.enabled", true);
+pref("gfx.content.azure.backends", "direct2d,cairo");
 #else
-pref("gfx.content.azure.enabled", false);
 #ifdef XP_MACOSX
 pref("gfx.canvas.azure.backends", "cg");
 // Accelerated cg canvas where available (10.7+)

@@ -573,7 +573,8 @@ protected:
      * The backend used is determined by aBackendBitmask and the order specified
      * by the gfx.canvas.azure.backends pref.
      */
-    void InitBackendPrefs(uint32_t aCanvasBitmask, uint32_t aContentBitmask);
+    void InitBackendPrefs(uint32_t aCanvasBitmask, mozilla::gfx::BackendType aCanvasDefault,
+                          uint32_t aContentBitmask, mozilla::gfx::BackendType aContentDefault);
 
     /**
      * returns the first backend named in the pref gfx.canvas.azure.backends
@@ -595,8 +596,7 @@ protected:
      * It also modifies aBackendBitmask to only include backends that are
      * allowed given the prefs.
      */
-    static mozilla::gfx::BackendType GetBackendPref(const char* aEnabledPrefName,
-                                                    const char* aBackendPrefName,
+    static mozilla::gfx::BackendType GetBackendPref(const char* aBackendPrefName,
                                                     uint32_t &aBackendBitmask);
     /**
      * Decode the backend enumberation from a string.

@@ -250,8 +250,9 @@ gfxPlatform::gfxPlatform()
     mBidiNumeralOption = UNINITIALIZED_VALUE;
 
     uint32_t canvasMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA);
-    uint32_t contentMask = 0;
-    InitBackendPrefs(canvasMask, contentMask);
+    uint32_t contentMask = 1 << BACKEND_CAIRO;
+    InitBackendPrefs(canvasMask, BACKEND_CAIRO,
+                     contentMask, BACKEND_CAIRO); 
 }
 
 gfxPlatform*
@@ -1285,32 +1286,37 @@ gfxPlatform::AppendPrefLang(eFontPrefLang aPrefLangs[], uint32_t& aLen, eFontPre
 }
 
 void
-gfxPlatform::InitBackendPrefs(uint32_t aCanvasBitmask, uint32_t aContentBitmask)
+gfxPlatform::InitBackendPrefs(uint32_t aCanvasBitmask, BackendType aCanvasDefault,
+                              uint32_t aContentBitmask, BackendType aContentDefault)
 {
     mPreferredCanvasBackend = GetCanvasBackendPref(aCanvasBitmask);
     if (!mPreferredCanvasBackend) {
-      mPreferredCanvasBackend = BACKEND_CAIRO;
+      mPreferredCanvasBackend = aCanvasDefault;
     }
-    mFallbackCanvasBackend = GetCanvasBackendPref(aCanvasBitmask & ~(1 << mPreferredCanvasBackend));
+    mFallbackCanvasBackend = 
+      GetCanvasBackendPref(aCanvasBitmask & ~(1 << mPreferredCanvasBackend));
     
     mContentBackendBitmask = aContentBitmask;
     mContentBackend = GetContentBackendPref(mContentBackendBitmask);
+    if (!mContentBackend) {
+        mContentBackend = aContentDefault;
+    } 
 }
 
 /* static */ BackendType
 gfxPlatform::GetCanvasBackendPref(uint32_t aBackendBitmask)
 {
-    return GetBackendPref(nullptr, "gfx.canvas.azure.backends", aBackendBitmask);
+    return GetBackendPref("gfx.canvas.azure.backends", aBackendBitmask);
 }
 
 /* static */ BackendType
 gfxPlatform::GetContentBackendPref(uint32_t &aBackendBitmask)
 {
-    return GetBackendPref("gfx.content.azure.enabled", "gfx.content.azure.backends", aBackendBitmask);
+    return GetBackendPref("gfx.content.azure.backends", aBackendBitmask);
 }
 
 /* static */ BackendType
-gfxPlatform::GetBackendPref(const char* aEnabledPrefName, const char* aBackendPrefName, uint32_t &aBackendBitmask)
+gfxPlatform::GetBackendPref(const char* aBackendPrefName, uint32_t &aBackendBitmask)
 {
     if (aEnabledPrefName &&
         !Preferences::GetBool(aEnabledPrefName, false)) {

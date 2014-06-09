@@ -92,8 +92,9 @@ gfxPlatformGtk::gfxPlatformGtk()
     UpdateFontList();
 #endif
     uint32_t canvasMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA);
-    uint32_t contentMask = 0;
-    InitBackendPrefs(canvasMask, contentMask);
+    uint32_t contentMask = (1 << BACKEND_CAIRO) | (1 << BACKEND_SKIA);
+    InitBackendPrefs(canvasMask, BACKEND_CAIRO,
+                     contentMask, BACKEND_CAIRO);
 }
 
 gfxPlatformGtk::~gfxPlatformGtk()
