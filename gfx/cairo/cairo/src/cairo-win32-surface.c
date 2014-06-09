@@ -1023,7 +1023,7 @@ _cairo_win32_surface_composite (cairo_operator_t	op,
     cairo_fixed_t x0_fixed, y0_fixed;
     cairo_int_status_t status;
 
-    cairo_bool_t needs_alpha, needs_scale, needs_repeat;
+    cairo_bool_t needs_alpha, needs_scale, needs_repeat, needs_pad;
     cairo_image_surface_t *src_image = NULL;
 
     cairo_format_t src_format;
