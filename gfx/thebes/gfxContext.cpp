@@ -1408,6 +1408,8 @@ gfxContext::Mask(gfxPattern *pattern)
       // will be drawn) outside of the bounds of the surface. We can support
       // that by clipping out drawing to that area.
       Point offset;
+      nsRefPtr<gfxASurface> asurf;
+      gfxPoint deviceOffset;      
       if (pattern->IsAzure()) {
         // This is an Azure pattern. i.e. this was the result of a PopGroup and
         // then the extend mode was changed to EXTEND_NONE.
@@ -1416,8 +1418,9 @@ gfxContext::Mask(gfxPattern *pattern)
         // yet because of this. And it would complicate things a little further.
         offset = Point(0.f, 0.f);
       } else if (pattern->GetType() == gfxPattern::PATTERN_SURFACE) {
-        nsRefPtr<gfxASurface> asurf = pattern->GetSurface();
-        gfxPoint deviceOffset = asurf->GetDeviceOffset();
+        asurf = pattern->GetSurface();
+        deviceOffset = asurf->GetDeviceOffset();
+        asurf->SetDeviceOffset(gfxPoint());
         offset = Point(-deviceOffset.x, -deviceOffset.y);
 
         // this lets GetAzureSurface work
@@ -1435,6 +1438,10 @@ gfxContext::Mask(gfxPattern *pattern)
         ChangeTransform(mat);
         mDT->MaskSurface(GeneralPattern(this), mask, offset, DrawOptions(1.0f, CurrentState().op, CurrentState().aaMode));
         ChangeTransform(old);
+
+        if (asurf) {
+          asurf->SetDeviceOffset(deviceOffset);
+        }
         return;
       }
     }
@@ -1454,12 +1461,14 @@ gfxContext::Mask(gfxASurface *surface, const gfxPoint& offset)
       gfxPlatform::GetPlatform()->GetSourceSurfaceForSurface(mDT, surface);
 
     gfxPoint pt = surface->GetDeviceOffset();
+    surface->SetDeviceOffset(gfxPoint());
 
     // We clip here to bind to the mask surface bounds, see above.
     mDT->MaskSurface(GeneralPattern(this), 
               sourceSurf,
               Point(offset.x - pt.x, offset.y -  pt.y),
               DrawOptions(1.0f, CurrentState().op, CurrentState().aaMode));
+    surface->SetDeviceOffset(pt);
   }
 }
 
