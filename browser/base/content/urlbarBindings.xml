@@ -696,6 +696,8 @@
       ]]></handler>
 
       <handler event="blur"><![CDATA[
+        if (event.originalTarget != this.inputField)
+          return;
         this._clearNoActions();
         this.formatValue();
       ]]></handler>
@@ -726,6 +728,8 @@
       ]]></handler>
 
       <handler event="focus" phase="capturing"><![CDATA[
+        if (event.originalTarget != this.inputField)
+          return;
         this._hideURLTooltip();
         this._clearFormatting();
       ]]></handler>
