@@ -501,14 +501,17 @@ gfxWindowsPlatform::UpdateRenderMode()
 #endif
 
     uint32_t canvasMask = 1 << BACKEND_CAIRO;
-    uint32_t contentMask = 0;
+    uint32_t contentMask = 1 << BACKEND_CAIRO;
+    BackendType defaultBackend = BACKEND_CAIRO;
     if (mRenderMode == RENDER_DIRECT2D) {
       canvasMask |= 1 << BACKEND_DIRECT2D;
       contentMask |= 1 << BACKEND_DIRECT2D;
+      defaultBackend = BACKEND_DIRECT2D;
     } else {
       canvasMask |= 1 << BACKEND_SKIA;
     }
-    InitBackendPrefs(canvasMask, contentMask);
+    InitBackendPrefs(canvasMask, defaultBackend,
+                     contentMask, defaultBackend);
 }
 
 #ifdef CAIRO_HAS_D2D_SURFACE

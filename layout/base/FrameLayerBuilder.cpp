@@ -3263,7 +3263,7 @@ static bool ShouldDrawRectsSeparately(gfxContext* aContext, DrawRegionClip aClip
   static bool sPaintRectsSeparately;
   static bool sPaintRectsSeparatelyPrefCached = false;
   if (!sPaintRectsSeparatelyPrefCached) {
-    Preferences::AddBoolVarCache(&sPaintRectsSeparately, "layout.paint_rects_separately", true);
+    Preferences::AddBoolVarCache(&sPaintRectsSeparately, "layout.altrendering.enabled", true);
     sPaintRectsSeparatelyPrefCached = true;
   }
 

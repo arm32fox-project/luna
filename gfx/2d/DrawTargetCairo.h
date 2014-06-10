@@ -58,6 +58,8 @@ public:
   virtual TemporaryRef<SourceSurface> Snapshot();
   virtual IntSize GetSize();
 
+  virtual void SetPermitSubpixelAA(bool aPermitSubpixelAA);
+ 
   virtual void Flush();
   virtual void DrawSurface(SourceSurface *aSurface,
                            const Rect &aDest,
