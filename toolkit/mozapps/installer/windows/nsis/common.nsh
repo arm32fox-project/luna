@@ -5009,7 +5009,7 @@
 
       !ifdef HAVE_64BIT_OS
         ${Unless} ${RunningX64}
-        ${OrUnless} ${AtLeastWinVista}
+        ${OrUnless} ${AtLeastWinXP}
           MessageBox MB_OK|MB_ICONSTOP "$R9" IDOK
           ; Nothing initialized so no need to call OnEndCommon
           Quit

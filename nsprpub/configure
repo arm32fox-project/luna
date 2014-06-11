@@ -4653,7 +4653,7 @@ EOF
             fi
         fi
 
-        OS_DLLFLAGS="-nologo -DLL -SUBSYSTEM:WINDOWS"
+        OS_DLLFLAGS="-nologo -DLL -SUBSYSTEM:WINDOWS,5.02"
         if test "$MSC_VER" -le "1200" -a -z "$MOZ_DEBUG_SYMBOLS"; then
             OS_DLLFLAGS="$OS_DLLFLAGS -PDB:NONE"
         fi
