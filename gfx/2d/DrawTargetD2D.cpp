@@ -983,11 +983,6 @@ DrawTargetD2D::FillGlyphs(ScaledFont *aFont,
     d2dAAMode = D2D1_TEXT_ANTIALIAS_MODE_DEFAULT;
   }
 
-  if (d2dAAMode == D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE &&
-      mFormat != FORMAT_B8G8R8X8) {
-    d2dAAMode = D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE;
-  }
-
   rt->SetTextAntialiasMode(d2dAAMode);
 
   if (rt != mRT || params != mTextRenderingParams) {
