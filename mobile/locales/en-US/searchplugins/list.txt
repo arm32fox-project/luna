@@ -1,4 +1,3 @@
-amazondotcom
+duckduckgo
 google
-twitter
 wikipedia

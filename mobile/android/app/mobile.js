@@ -54,7 +54,7 @@ pref("ui.scrollbarsCanOverlapContent", 1);
 /* cache prefs */
 pref("browser.cache.disk.enable", true);
 pref("browser.cache.disk.capacity", 20480); // kilobytes
-pref("browser.cache.disk.max_entry_size", 4096); // kilobytes
+pref("browser.cache.disk.max_entry_size", 2048); // kilobytes
 pref("browser.cache.disk.smart_size.enabled", true);
 pref("browser.cache.disk.smart_size.first_run", true);
 
@@ -64,7 +64,7 @@ pref("browser.cache.memory.enable", false);
 #else
 pref("browser.cache.memory.enable", true);
 #endif
-pref("browser.cache.memory.capacity", 1024); // kilobytes
+pref("browser.cache.memory.capacity", 4096); // kilobytes
 
 /* image cache prefs */
 pref("image.cache.size", 1048576); // bytes
@@ -76,8 +76,8 @@ pref("browser.cache.offline.enable", true);
 pref("browser.cache.offline.capacity", 5120); // kilobytes
 pref("offline-apps.quota.warn", 1024); // kilobytes
 
-// cache compression turned off for now - see bug #715198
-pref("browser.cache.compression_level", 0);
+// cache compression: fast, basic compression
+pref("browser.cache.compression_level", 1);
 
 /* disable some protocol warnings */
 pref("network.protocol-handler.warn-external.tel", false);
@@ -88,7 +88,7 @@ pref("network.protocol-handler.warn-external.vnd.youtube", false);
 /* http prefs */
 pref("network.http.pipelining", true);
 pref("network.http.pipelining.ssl", true);
-pref("network.http.proxy.pipelining", true);
+pref("network.http.proxy.pipelining", false);
 pref("network.http.pipelining.maxrequests" , 6);
 pref("network.http.keep-alive.timeout", 600);
 pref("network.http.max-connections", 20);
@@ -115,8 +115,8 @@ pref("browser.sessionhistory.max_entries", 50);
 /* session store */
 pref("browser.sessionstore.resume_session_once", false);
 pref("browser.sessionstore.resume_from_crash", true);
-pref("browser.sessionstore.interval", 10000); // milliseconds
-pref("browser.sessionstore.max_tabs_undo", 1);
+pref("browser.sessionstore.interval", 60000); // milliseconds
+pref("browser.sessionstore.max_tabs_undo", 3);
 pref("browser.sessionstore.max_resumed_crashes", 1);
 pref("browser.sessionstore.recent_crashes", 0);
 
@@ -137,7 +137,7 @@ pref("browser.download.manager.showWhenStarting", false);
 pref("browser.download.manager.closeWhenDone", true);
 pref("browser.download.manager.openDelay", 0);
 pref("browser.download.manager.focusWhenStarting", false);
-pref("browser.download.manager.flashCount", 2);
+pref("browser.download.manager.flashCount", 8);
 pref("browser.download.manager.displayedHistoryDays", 7);
 
 /* download helper */
@@ -240,7 +240,7 @@ pref("intl.charsetmenu.browser.static", "chrome://browser/locale/browser.propert
 pref("browser.search.defaultenginename", "chrome://browser/locale/region.properties");
 // SSL error page behaviour
 pref("browser.ssl_override_behavior", 2);
-pref("browser.xul.error_pages.expert_bad_cert", false);
+pref("browser.xul.error_pages.expert_bad_cert", true);
 
 // disable logging for the search service by default
 pref("browser.search.log", false);
@@ -288,7 +288,7 @@ pref("places.favicons.optimizeToDimension", 32);
 
 // various and sundry awesomebar prefs (should remove/re-evaluate
 // these once bug 447900 is fixed)
-pref("browser.urlbar.clickSelectsAll", true);
+pref("browser.urlbar.clickSelectsAll", false);
 pref("browser.urlbar.doubleClickSelectsAll", true);
 pref("browser.urlbar.autoFill", false);
 pref("browser.urlbar.matchOnlyTyped", false);
@@ -454,20 +454,12 @@ pref("plugin.default.state", 1);
 pref("breakpad.reportURL", "https://crash-stats.mozilla.com/report/index/");
 pref("app.support.baseURL", "http://support.mozilla.org/1/mobile/%VERSION%/%OS%/%LOCALE%/");
 // Used to submit data to input from about:feedback
-pref("app.feedback.postURL", "https://input.mozilla.org/%LOCALE%/feedback");
+pref("app.feedback.postURL", "http://forum.palemoon.org");
 pref("app.privacyURL", "https://www.mozilla.org/legal/privacy/firefox.html");
 pref("app.creditsURL", "http://www.mozilla.org/credits/");
 pref("app.channelURL", "http://www.mozilla.org/%LOCALE%/firefox/channel/");
-#if MOZ_UPDATE_CHANNEL == aurora
-pref("app.releaseNotesURL", "http://www.mozilla.com/%LOCALE%/mobile/%VERSION%/auroranotes/");
-#else
-pref("app.releaseNotesURL", "http://www.mozilla.com/%LOCALE%/mobile/%VERSION%/releasenotes/");
-#endif
-#if MOZ_UPDATE_CHANNEL == beta
-pref("app.faqURL", "http://www.mozilla.com/%LOCALE%/mobile/beta/faq/");
-#else
+pref("app.releaseNotesURL", "http://www.palemoon.org/releasenotes-ng.shtml");
 pref("app.faqURL", "http://www.mozilla.com/%LOCALE%/mobile/faq/");
-#endif
 pref("app.marketplaceURL", "https://marketplace.mozilla.org/");
 
 // Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
@@ -475,10 +467,7 @@ pref("security.alternate_certificate_error_page", "certerror");
 
 pref("security.warn_viewing_mixed", false); // Warning is disabled.  See Bug 616712.
 
-#ifdef NIGHTLY_BUILD
-// Block insecure active content on https pages
-pref("security.mixed_content.block_active_content", true);
-#endif
+pref("security.mixed_content.block_active_content", false);
 
 // Override some named colors to avoid inverse OS themes
 pref("ui.-moz-dialog", "#efebe7");

@@ -2,11 +2,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MOZ_APP_BASENAME=Fennec
-MOZ_APP_VENDOR=Mozilla
+MOZ_APP_BASENAME=Palemoon
+MOZ_APP_VENDOR=Moonchild
 
-MOZ_APP_VERSION=24.0
-MOZ_APP_UA_NAME=Firefox
+MOZ_APP_VERSION=24.6
+MOZ_APP_UA_NAME=PaleMoon
 
 MOZ_BRANDING_DIRECTORY=mobile/android/branding/unofficial
 MOZ_OFFICIAL_BRANDING_DIRECTORY=mobile/android/branding/official
