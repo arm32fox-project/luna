@@ -321,14 +321,14 @@ DecoderTraits::CanHandleMediaType(const char* aMIMEType,
 #ifdef MOZ_WEBM
   if (IsWebMType(nsDependentCString(aMIMEType))) {
     codecList = gWebMCodecs;
-    result = CANPLAY_YES;
+    result = CANPLAY_MAYBE;
   }
 #endif
 #ifdef MOZ_DASH
   if (IsDASHMPDType(nsDependentCString(aMIMEType))) {
     // DASH manifest uses WebM codecs only.
     codecList = gWebMCodecs;
-    result = CANPLAY_YES;
+    result = CANPLAY_MAYBE;
   }
 #endif
 #ifdef MOZ_GSTREAMER
