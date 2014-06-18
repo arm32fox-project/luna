@@ -2560,6 +2560,10 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   -moz-image-region: rect(0, 16px, 16px, 0);
 }
 
+.tab-close-button:-moz-lwtheme-brighttext {
+  list-style-image: url("chrome://global/skin/icons/close-inverted.png");
+}
+
 .tab-close-button:hover {
   -moz-image-region: rect(0, 32px, 16px, 16px);
 }
@@ -2572,6 +2576,10 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   .tab-close-button {
     list-style-image: url("chrome://global/skin/icons/close@2x.png");
     -moz-image-region: rect(0, 32px, 32px, 0);
+  }
+  
+  .tab-close-button:-moz-lwtheme-brighttext {
+    list-style-image: url("chrome://global/skin/icons/close-inverted@2x.png");
   }
 
   .tab-close-button:hover {

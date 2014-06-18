@@ -2118,6 +2118,10 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   list-style-image: url("chrome://global/skin/icons/close.png");
 }
 
+.tab-close-button:-moz-lwtheme-brighttext {
+  list-style-image: url("chrome://global/skin/icons/close-inverted.png");
+}
+
 .tab-close-button:hover,
 .tab-close-button:hover[selected="true"] {
   -moz-image-region: rect(0, 32px, 16px, 16px);
