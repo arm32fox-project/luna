@@ -3,6 +3,6 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 MOZ_APP_DISPLAYNAME="Pale Moon"
-ANDROID_PACKAGE_NAME=org.palemoon.moonchild
+ANDROID_PACKAGE_NAME=org.palemoon.mobile
 MOZ_UPDATER=
 MOZ_ANDROID_ANR_REPORTER=
