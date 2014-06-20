@@ -742,3 +742,6 @@ pref("media.useAudioChannelService", false);
 
 // Explicitly declare sync server
 pref("services.sync.serverURL", "https://sync.palemoon.net/");
+
+// Declare compatibility mode with Firefox by default for AMO
+pref("general.useragent.compatMode.firefox", true);
