@@ -474,31 +474,27 @@ function openAboutDialog() {
 
 function openPreferences(paneID, extraArgs)
 {
-  if (Services.prefs.getBoolPref("browser.preferences.inContent")) {
-    openUILinkIn("about:preferences", "tab");
-  } else {
-    var instantApply = getBoolPref("browser.preferences.instantApply", false);
-    var features = "chrome,titlebar,toolbar,centerscreen" + (instantApply ? ",dialog=no" : ",modal");
+  var instantApply = getBoolPref("browser.preferences.instantApply", false);
+  var features = "chrome,titlebar,toolbar,centerscreen" + (instantApply ? ",dialog=no" : ",modal");
 
-    var win = Services.wm.getMostRecentWindow("Browser:Preferences");
-    if (win) {
-      win.focus();
-      if (paneID) {
-        var pane = win.document.getElementById(paneID);
-        win.document.documentElement.showPane(pane);
-      }
-
-      if (extraArgs && extraArgs["advancedTab"]) {
-        var advancedPaneTabs = win.document.getElementById("advancedPrefs");
-        advancedPaneTabs.selectedTab = win.document.getElementById(extraArgs["advancedTab"]);
-      }
-
-     return;
+  var win = Services.wm.getMostRecentWindow("Browser:Preferences");
+  if (win) {
+    win.focus();
+    if (paneID) {
+      var pane = win.document.getElementById(paneID);
+      win.document.documentElement.showPane(pane);
     }
 
-    openDialog("chrome://browser/content/preferences/preferences.xul",
-               "Preferences", features, paneID, extraArgs);
+    if (extraArgs && extraArgs["advancedTab"]) {
+      var advancedPaneTabs = win.document.getElementById("advancedPrefs");
+      advancedPaneTabs.selectedTab = win.document.getElementById(extraArgs["advancedTab"]);
+    }
+
+    return win;
   }
+
+  return openDialog("chrome://browser/content/preferences/preferences.xul",
+                    "Preferences", features, paneID, extraArgs);
 }
 
 function openAdvancedPreferences(tabID)
