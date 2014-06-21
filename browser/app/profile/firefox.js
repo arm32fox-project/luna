@@ -257,16 +257,8 @@ pref("browser.fullscreen.autohide", true);
 pref("browser.fullscreen.animateUp", 1);
 pref("browser.overlink-delay", 80);
 
-#ifdef UNIX_BUT_NOT_MAC
-pref("browser.urlbar.clickSelectsAll", false);
-#else
 pref("browser.urlbar.clickSelectsAll", true);
-#endif
-#ifdef UNIX_BUT_NOT_MAC
-pref("browser.urlbar.doubleClickSelectsAll", true);
-#else
 pref("browser.urlbar.doubleClickSelectsAll", false);
-#endif
 pref("browser.urlbar.autoFill", true);
 pref("browser.urlbar.autoFill.typed", true);
 // 0: Match anywhere (e.g., middle of words)
