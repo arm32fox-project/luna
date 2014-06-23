@@ -269,8 +269,7 @@ appUpdater.prototype =
     const URI_UPDATE_PROMPT_DIALOG = "chrome://mozapps/content/update/updates.xul";
     // Firefox no longer displays a license for updates and the licenseURL check
     // is just in case a distibution does.
-    if (this.update && (this.update.billboardURL || this.update.licenseURL ||
-        this.addons.length != 0)) {
+    if (this.update) {
       var ary = null;
       ary = Components.classes["@mozilla.org/supports-array;1"].
             createInstance(Components.interfaces.nsISupportsArray);
@@ -318,24 +317,10 @@ appUpdater.prototype =
         return;
       }
 
-      // Firefox no longer displays a license for updates and the licenseURL
-      // check is just in case a distibution does.
-      if (gAppUpdater.update.billboardURL || gAppUpdater.update.licenseURL) {
-        gAppUpdater.selectPanel("updateButtonBox");
-        gAppUpdater.setupUpdateButton("update.openUpdateUI." +
-                                      (this.isMajor ? "upgradeButton"
-                                                    : "applyButton"));
-        return;
-      }
-
-      if (!gAppUpdater.update.appVersion ||
-          Services.vc.compare(gAppUpdater.update.appVersion,
-                              Services.appinfo.version) == 0) {
-        gAppUpdater.startDownload();
-        return;
-      }
-
-      gAppUpdater.checkAddonCompatibility();
+      gAppUpdater.selectPanel("updateButtonBox");
+      gAppUpdater.setupUpdateButton("update.openUpdateUI." +
+                                    (this.isMajor ? "upgradeButton"
+                                                  : "applyButton"));
     },
 
     /**
