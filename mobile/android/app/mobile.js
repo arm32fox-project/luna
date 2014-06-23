@@ -452,14 +452,14 @@ pref("plugin.default.state", 1);
 // product URLs
 // The breakpad report server to link to in about:crashes
 pref("breakpad.reportURL", "https://crash-stats.mozilla.com/report/index/");
-pref("app.support.baseURL", "http://support.mozilla.org/1/mobile/%VERSION%/%OS%/%LOCALE%/");
+pref("app.support.baseURL", "http://forum.palemoon.org/viewforum.php?f=39");
 // Used to submit data to input from about:feedback
 pref("app.feedback.postURL", "http://forum.palemoon.org");
-pref("app.privacyURL", "https://www.mozilla.org/legal/privacy/firefox.html");
-pref("app.creditsURL", "http://www.mozilla.org/credits/");
-pref("app.channelURL", "http://www.mozilla.org/%LOCALE%/firefox/channel/");
+pref("app.privacyURL", "");
+pref("app.creditsURL", "http://www.palemoon.org/credits/");
+pref("app.channelURL", "");
 pref("app.releaseNotesURL", "http://www.palemoon.org/releasenotes-ng.shtml");
-pref("app.faqURL", "http://www.mozilla.com/%LOCALE%/mobile/faq/");
+pref("app.faqURL", "");
 pref("app.marketplaceURL", "https://marketplace.mozilla.org/");
 
 // Name of alternate about: page for certificate errors (when undefined, defaults to about:neterror)
