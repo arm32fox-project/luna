@@ -72,4 +72,8 @@
     <item android:id="@+id/settings"
           android:icon="@drawable/ic_menu_settings"
           android:title="@string/settings" />
+          
+    <item android:id="@+id/quit"
+          android:icon="@drawable/ic_menu_quit"
+          android:title="@string/quit" />
 </menu>
