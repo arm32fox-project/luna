@@ -152,7 +152,9 @@ let gInitialPages = [
 #include browser-fullZoom.js
 #include browser-places.js
 #include browser-plugins.js
+#ifdef MOZ_SAFE_BROWSING
 #include browser-safebrowsing.js
+#endif
 #include browser-social.js
 #include browser-tabPreviews.js
 #include browser-thumbnails.js
@@ -2390,9 +2392,11 @@ let BrowserOnClick = {
     if (ownerDoc.documentURI.startsWith("about:certerror")) {
       this.onAboutCertError(originalTarget, ownerDoc);
     }
+#ifdef MOZ_SAFE_BROWSING
     else if (ownerDoc.documentURI.startsWith("about:blocked")) {
       this.onAboutBlocked(originalTarget, ownerDoc);
     }
+#endif
     else if (ownerDoc.documentURI.startsWith("about:neterror")) {
       this.onAboutNetError(originalTarget, ownerDoc);
     }
@@ -2455,6 +2459,7 @@ let BrowserOnClick = {
     }
   },
 
+#ifdef MOZ_SAFE_BROWSING
   onAboutBlocked: function BrowserOnClick_onAboutBlocked(aTargetElm, aOwnerDoc) {
     let elmId = aTargetElm.getAttribute("id");
     let secHistogram = Services.telemetry.getHistogramById("SECURITY_UI");
@@ -2568,6 +2573,7 @@ let BrowserOnClick = {
     // doesn't get removed on redirects.
     notification.persistence = -1;
   },
+#endif
 
   onAboutNetError: function BrowserOnClick_onAboutNetError(aTargetElm, aOwnerDoc) {
     let elmId = aTargetElm.getAttribute("id");
