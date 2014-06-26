@@ -2793,12 +2793,14 @@ NSEvent* gLastDragMouseDownEvent = nil;
 - (NSView *)hitTest:(NSPoint)aPoint
 {
   NSView* target = [super hitTest:aPoint];
-  if ((target == self) && [self isPluginView] && mGeckoChild) {
+  NSWindow *window = [self window];
+  if (window && (target == self) && [self isPluginView] && mGeckoChild) {
     nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
-    NSPoint cocoaLoc = [[self superview] convertPoint:aPoint toView:self];
-    cocoaLoc.y = nsCocoaUtils::FlippedScreenY(cocoaLoc.y);
-    nsIntPoint widgetLoc = mGeckoChild->CocoaPointsToDevPixels(cocoaLoc) -
+    NSPoint windowLoc = [[self superview] convertPoint:aPoint toView:nil];
+    NSPoint screenLoc = [window convertBaseToScreen:windowLoc];
+    screenLoc.y = nsCocoaUtils::FlippedScreenY(screenLoc.y);
+    nsIntPoint widgetLoc = mGeckoChild->CocoaPointsToDevPixels(screenLoc) -
       mGeckoChild->WidgetToScreenOffset();
 
     nsQueryContentEvent hitTest(true, NS_QUERY_DOM_WIDGET_HITTEST, 

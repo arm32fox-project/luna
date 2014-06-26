@@ -1,0 +1,7 @@
+<!ENTITY status4evar.status.widget.title "Κατάσταση">
+<!ENTITY status4evar.progress.widget.title "Μετρητής προόδου">
+<!ENTITY status4evar.download.widget.title "Κατάσταση λήψεων αρχείων">
+<!ENTITY status4evar.options.widget.title "Επιλογές γραμμής καταστάσεως του Pale Moon">
+<!ENTITY status4evar.options.widget.label "Γραμμή καταστάσεως του Pale Moon">
+<!ENTITY status4evar.menu.options.label "Επιλογές γραμμής καταστάσεως...">
+

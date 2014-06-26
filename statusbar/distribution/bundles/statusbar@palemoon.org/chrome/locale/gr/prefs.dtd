@@ -1,0 +1,107 @@
+<!ENTITY status4evar.window.title "Προτιμήσεις γραμμής καταστάσεως του Pale Moon">
+<!ENTITY status4evar.pane.status "Κατάσταση">
+<!ENTITY status4evar.pane.progress "Πρόοδος">
+<!ENTITY status4evar.pane.download "Λήψεις αρχείων">
+<!ENTITY status4evar.pane.addonbar "Γραμμή καταστάσεως">
+<!ENTITY status4evar.pane.advanced "Για προχωρημένους">
+<!ENTITY status4evar.tab.general "Γενικά">
+<!ENTITY status4evar.tab.toolbar "Γραμμή καταστάσεως">
+<!ENTITY status4evar.tab.urlbar "Γραμμή διεύθυνσης">
+<!ENTITY status4evar.tab.popup "Αναδυόμενο κείμενο">
+<!ENTITY status4evar.tab.tabs "Καρτέλες">
+<!ENTITY status4evar.option.none "Πουθενά">
+<!ENTITY status4evar.option.nothing "Τίποτα">
+<!ENTITY status4evar.option.toolbar "Στην γραμμή καταστάσεως">
+<!ENTITY status4evar.option.urlbar "Στην γραμμή διεύθυνσης">
+<!ENTITY status4evar.option.popup "Ως αναδυόμενο κείμενο">
+<!ENTITY status4evar.option.tooltip "Βοήθημα (Tooltip)">
+<!ENTITY status4evar.option.bottom "Στο κάτω μέρος">
+<!ENTITY status4evar.option.top "Στο πάνω μέρος">
+<!ENTITY status4evar.option.fill "Γέμισμα">
+<!ENTITY status4evar.option.dlcount "Μέτρηση λήψεων αρχείων">
+<!ENTITY status4evar.option.dltime "Χρόνος ολοκληρώσεως">
+<!ENTITY status4evar.option.both "Και τα δύο">
+<!ENTITY status4evar.option.right "Δεξιά">
+<!ENTITY status4evar.option.left "Αριστερά">
+<!ENTITY status4evar.option.fixed "Σε καθορισμένο σημείο">
+<!ENTITY status4evar.option.simple "Απλός">
+<!ENTITY status4evar.option.advanced "Για προχωρημένους">
+<!ENTITY status4evar.option.browse "Επιλογή...">
+<!ENTITY status4evar.option.clear "Καθαρισμός">
+<!ENTITY status4evar.option.center "Κέντρο">
+<!ENTITY status4evar.option.offset "Όφσετ">
+<!ENTITY status4evar.option.repeat "Επανάληψη">
+<!ENTITY status4evar.option.no-repeat "Όχι επανάληψη">
+<!ENTITY status4evar.option.space "Κενό">
+<!ENTITY status4evar.option.round "Στρογγυλεμένο">
+<!ENTITY status4evar.option.firefoxdefault "Προεπιλεγμένη">
+<!ENTITY status4evar.option.download.panel "Άνοιγμα πάνελ">
+<!ENTITY status4evar.option.download.library "Άνοιγμα βιβλιοθήκης">
+<!ENTITY status4evar.option.download.classic "Άνοιγμα κλασσικού παραθύρου">
+
+<!ENTITY status4evar.unit.milliseconds "χιλιοστά του δευτερολέπτου">
+<!ENTITY status4evar.unit.seconds "δευτερόλεπτα">
+<!ENTITY status4evar.unit.px "πίξελ">
+<!ENTITY status4evar.status.general.status.caption "Κατάσταση">
+<!ENTITY status4evar.status.label "Εμφάνιση καταστάσεως:">
+<!ENTITY status4evar.status.timeout.label "Απόκρυψη καταστάσεως μετά από">
+<!ENTITY status4evar.status.default.label "Εμφάνιση προεπιλεγμένης καταστάσεως">
+<!ENTITY status4evar.status.network.label "Εμφάνιση καταστάσεως δικτύου">
+<!ENTITY status4evar.status.network.xhr.label "Εμφάνιση καταστάσεως δικτύου που πραγματοποιείται στο παρασκήνιο">
+<!ENTITY toolkit.dom.status.change.label "Να επιτρέπεται στις ιστοσελίδες να μεταβάλλουν την κατάσταση">
+
+<!ENTITY status4evar.status.general.linkOver.caption "Δεσμοί">
+<!ENTITY status4evar.status.linkOver.label "Εμφάνιση δεσμών:">
+<!ENTITY status4evar.status.linkOver.delay.show.label "Καθυστέρηση εμφανίσεως δεσμών:">
+<!ENTITY status4evar.status.linkOver.delay.hide.label "Καθυστέρηση αποκρύψεως δεσμών:">
+
+<!ENTITY status4evar.status.toolbar.maxLength.label "Μέγιστο μήκος κειμένου στην γραμμή καταστάσεως:">
+
+<!ENTITY status4evar.status.urlbar.align.label "Στοίχιση κειμένου καταστάσεως:">
+<!ENTITY status4evar.status.urlbar.color.label "Χρώμα κειμένου καταστάσεως">
+<!ENTITY status4evar.status.currentUrl "Τρέχουσα θέση">
+<!ENTITY status4evar.status.statusText "Κείμενο καταστάσεως">
+<!ENTITY status4evar.status.firefox.compat.caption "Λειτουργίες συμβατότητας του Firefox">
+<!ENTITY browser.urlbar.formatting.enabled.label "Ενεργοποίηση επισήμανσης τομέων">
+<!ENTITY browser.urlbar.trimming.enabled.label "Ενεργοποίηση απόκρυψης πρωτοκόλλου (http:// και ftp://)">
+<!ENTITY browser.urlbar.autofill.enabled.label "Ενεργοποίηση αυτόματης συμπλήρωσης των URL">
+<!ENTITY status4evar.status.popup.invertMirror.label "Προεπιλογή της δεξιάς πλευράς">
+<!ENTITY status4evar.status.popup.mouseMirror.label "Αλλαγή πλευράς κατά την κίνηση του ποντικιού πάνω στο κείμενο">
+<!ENTITY status4evar.status.popup.findMirror.label "Έναρξη από την αντίθετη πλευρά όταν η γραμμή ευρέσεως είναι ενεργή">
+<!ENTITY status4evar.progress.style.label "Χρήση προσαρμοσμένου στυλ">
+<!ENTITY status4evar.progress.urlbar.enable.label "Εμφάνιση προόδου στην γραμμή διεύθυνσης">
+<!ENTITY status4evar.progress.urlbar.line.label "Θέση γραμμής:">
+<!ENTITY status4evar.progress.toolbar.force.label "Να εμφανίζεται πάντοτε η πρόοδος στην γραμμή καταστάσεως">
+<!ENTITY status4evar.editor.label "Επεξεργαστής:">
+<!ENTITY status4evar.editor.css.color.label "Χρώμα:">
+<!ENTITY status4evar.editor.css.image.label "Εικόνα:">
+<!ENTITY status4evar.editor.css.image.repeat "Επανάληψη">
+<!ENTITY status4evar.editor.css.image.position "Θέση">
+<!ENTITY status4evar.editor.css.image.offset "Όφσετ">
+
+<!ENTITY status4evar.download.button.action.label "Ενέργεια κατά το πάτημα του πλήκτρου καταστάσεως λήψεων:">
+<!ENTITY status4evar.download.force.label "Να εμφανίζεται πάντοτε η ένδειξη καταστάσεως λήψεων">
+<!ENTITY status4evar.download.label.force.label "Να εμφανίζεται πάντοτε το κείμενο του πλήκτρου">
+<!ENTITY status4evar.download.label.label "Κείμενο ενδείξεως καταστάσεως λήψεων:">
+<!ENTITY status4evar.download.tooltip.label "Tooltip ενδείξεως καταστάσεως λήψεων:">
+<!ENTITY status4evar.download.progress.label "Να εμφανίζεται η πρόοδος των λήψεων στην ένδειξη">
+<!ENTITY status4evar.download.progress.average.label "Να εμφανίζεται ο μέσος χρόνος ολοκλήρωσης των λήψεων">
+<!ENTITY status4evar.download.progress.max.label "Να εμφανίζεται η κατά το μέγιστο μέρος ολοκληρωμένη λήψη">
+<!ENTITY status4evar.download.progress.min.label "Να εμφανίζεται η κατά το ελάχιστο μέρος ολοκληρωμένη λήψη">
+<!ENTITY status4evar.download.color.active.label "Χρώμα προόδου για τις ενεργές λήψεις:">
+<!ENTITY status4evar.download.color.paused.label "Χρώμα προόδου για τις λήψεις σε παύση:">
+<!ENTITY status4evar.download.notify.animate.label "Να αποκτά κίνηση η ένδειξη κατά την ολοκλήρωση των λήψεων">
+<!ENTITY status4evar.download.notify.timeout.label "Να επισημαίνεται η ένδειξη όταν η λήψη ολοκληρώνεται σε:">
+
+<!ENTITY status4evar.addonbar.borderStyle "Να γίνεται χρήση εναλλακτικού περιγράμματος διαχωρισμού της εργαλειοθήκης">
+<!ENTITY status4evar.addonbar.windowGripper "Να εμφανίζεται η λαβή αλλαγής μεγέθους των παραθύρων">
+<!ENTITY status4evar.addonbar.closeButton "Να εμφανίζεται το πλήκτρο κλεισίματος">
+
+<!ENTITY status4evar.advanced.warning "Αυτές οι ρυθμίσεις για προχωρημένους δύνανται να προκαλέσουν προβλήματα με το Status-4-Evar ή άλλες επεκτάσεις. Οιεσδήποτε τροποποιήσεις πραγματοποιούνται με δική σας ευθύνη.">
+
+<!ENTITY status4evar.advanced.urlbar.forceBinding "Επιχείρησε να εξαναγκάσεις το XBL binding στην γραμμή διεύθυνσης.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding.desc "Επιλέξτε το μόνο εάν έχετε προβλήματα με την πρόοδο της γραμμής διεύθυνσης ή με την ομαλή προβολή του κειμένου στην γραμμή καταστάσεως. Η επιλογή αυτή μπορεί να καταστρέψει επεκτάσεις οι οποίες προσπαθούν να θέσουν XBL binding στην γραμμή διεύθυνσης.">
+
+<!ENTITY status4evar.advanced.status.detectFullScreen "Ανίχνευσε την κατάσταση πλήρους οθόνης και πρόβαλε καταλλήλως τους δεσμούς και το κείμενο της γραμμής καταστάσεως.">
+
+<!ENTITY toolkit.classic.download.window.label "Να γίνεται χρήση του κλασσικού παραθύρου λήψεων αρχείων">

@@ -16,6 +16,7 @@ locale	status4evar	es-MX		chrome/locale/es-MX/
 locale	status4evar	es-AR		chrome/locale/es-AR/
 locale	status4evar	fi			chrome/locale/fi/
 locale	status4evar	fr			chrome/locale/fr/
+locale	status4evar	gr			chrome/locale/gr/
 locale	status4evar	hu-HU		chrome/locale/hu-HU/
 locale	status4evar	it 		chrome/locale/it/
 # locale	status4evar	ja-JP		chrome/locale/ja-JP/

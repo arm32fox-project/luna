@@ -16,18 +16,18 @@
 
 # LOCALIZATION NOTE (bookmarks_aboutBrowser):
 # link title for about:fennec
-#define bookmarks_aboutBrowser Firefox: About your browser
+#define bookmarks_aboutBrowser Pale Moon: About your browser
 
 # LOCALIZATION NOTE (bookmarks_addons):
 # link title for https://addons.mozilla.org/en-US/mobile
-#define bookmarks_addons Firefox: Customize with add-ons
+#define bookmarks_addons Customize with add-ons
 
 # LOCALIZATION NOTE (bookmarks_support):
 # link title for https://support.mozilla.org/mobile
-#define bookmarks_support Firefox: Support
+#define bookmarks_support Pale Moon: Support
 
 # LOCALIZATION NOTE (bookmarks_aboutHome):
 # link title for about:home
-#define bookmarks_aboutHome Firefox Start
+#define bookmarks_aboutHome Pale Moon Start
 
 #unfilter emptyLines

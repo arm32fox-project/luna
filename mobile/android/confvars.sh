@@ -2,17 +2,17 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MOZ_APP_BASENAME=Fennec
-MOZ_APP_VENDOR=Mozilla
+MOZ_APP_BASENAME=Palemoon
+MOZ_APP_VENDOR=Moonchild
 
-MOZ_APP_VERSION=24.0
-MOZ_APP_UA_NAME=Firefox
+MOZ_APP_VERSION=24.7b3
+MOZ_APP_UA_NAME=PaleMoon
 
 MOZ_BRANDING_DIRECTORY=mobile/android/branding/unofficial
 MOZ_OFFICIAL_BRANDING_DIRECTORY=mobile/android/branding/official
 # MOZ_APP_DISPLAYNAME is set by branding/configure.sh
 
-MOZ_SAFE_BROWSING=1
+MOZ_SAFE_BROWSING=
 
 MOZ_DISABLE_CRYPTOLEGACY=1
 
@@ -58,7 +58,7 @@ MOZ_FOLD_LIBS=1
 MOZ_PAY=1
 
 # Enable UI for healthreporter
-MOZ_SERVICES_HEALTHREPORT=1
+MOZ_SERVICES_HEALTHREPORT=
 
 # Enable the production cert for verifying signed packaged apps.
 MOZ_B2G_CERTDATA=1
