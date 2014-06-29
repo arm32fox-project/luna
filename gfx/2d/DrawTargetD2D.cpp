@@ -953,19 +953,15 @@ DrawTargetD2D::FillGlyphs(ScaledFont *aFont,
     aaMode = aOptions.mAntialiasMode;
   }
 
-  if (mFormat == FORMAT_B8G8R8A8 && mPermitSubpixelAA &&
-      aOptions.mCompositionOp == OP_OVER && aPattern.GetType() == PATTERN_COLOR &&
-      aaMode == AA_SUBPIXEL) {
-    if (FillGlyphsManual(font, aBuffer,
-                         static_cast<const ColorPattern*>(&aPattern)->mColor,
-                         params, aOptions)) {
-      return;
-    }
-  }
-
   ID2D1RenderTarget *rt = GetRTForOperation(aOptions.mCompositionOp, aPattern);
 
   PrepareForDrawing(rt);
+  
+  bool forceClearType = false;
+  if (mFormat == FORMAT_B8G8R8A8 && mPermitSubpixelAA &&
+      aOptions.mCompositionOp == OP_OVER && aaMode == AA_SUBPIXEL) {
+    forceClearType = true;    
+  }
 
   D2D1_TEXT_ANTIALIAS_MODE d2dAAMode = D2D1_TEXT_ANTIALIAS_MODE_DEFAULT;
 
@@ -981,6 +977,11 @@ DrawTargetD2D::FillGlyphs(ScaledFont *aFont,
     break;
   default:
     d2dAAMode = D2D1_TEXT_ANTIALIAS_MODE_DEFAULT;
+  }
+  
+  if (d2dAAMode == D2D1_TEXT_ANTIALIAS_MODE_CLEARTYPE &&
+      mFormat != FORMAT_B8G8R8X8 && !forceClearType) {
+    d2dAAMode = D2D1_TEXT_ANTIALIAS_MODE_GRAYSCALE;
   }
 
   rt->SetTextAntialiasMode(d2dAAMode);
