@@ -105,8 +105,6 @@ let gDocShellCapabilities = (function () {
 
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
   "resource://gre/modules/NetUtil.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "ScratchpadManager",
-  "resource:///modules/devtools/scratchpad-manager.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DocumentUtils",
   "resource:///modules/sessionstore/DocumentUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SessionStorage",
@@ -1735,10 +1733,6 @@ let SessionStoreInternal = {
       this._capClosedWindows();
     }
 
-    if (lastSessionState.scratchpads) {
-      ScratchpadManager.restoreSession(lastSessionState.scratchpads);
-    }
-
     // Set data that persists between sessions
     this._recentCrashes = lastSessionState.session &&
                           lastSessionState.session.recentCrashes || 0;
@@ -2536,15 +2530,11 @@ let SessionStoreInternal = {
       recentCrashes: this._recentCrashes
     };
 
-    // get open Scratchpad window states too
-    var scratchpads = ScratchpadManager.getSessionState();
-
     return {
       windows: total,
       selectedWindow: ix + 1,
       _closedWindows: lastClosedWindowsCopy,
-      session: session,
-      scratchpads: scratchpads
+      session: session
     };
   },
 
@@ -2764,10 +2754,6 @@ let SessionStoreInternal = {
 
     this.restoreHistoryPrecursor(aWindow, tabs, winData.tabs,
       (aOverwriteTabs ? (parseInt(winData.selected) || 1) : 0), 0, 0);
-
-    if (aState.scratchpads) {
-      ScratchpadManager.restoreSession(aState.scratchpads);
-    }
 
     // set smoothScroll back to the original value
     tabstrip.smoothScroll = smoothScroll;
