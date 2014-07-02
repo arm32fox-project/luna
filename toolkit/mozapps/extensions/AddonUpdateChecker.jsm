@@ -653,7 +653,7 @@ this.AddonUpdateChecker = {
         if (aIgnoreCompatibility) {
           for (let targetApp of update.targetApplications) {
             let id = targetApp.id;
-            if (id == Services.appinfo.ID || id = FIREFOX_ID || id == TOOLKIT_ID)
+            if (id == Services.appinfo.ID || id == FIREFOX_ID || id == TOOLKIT_ID)
               return update;
           }
         }

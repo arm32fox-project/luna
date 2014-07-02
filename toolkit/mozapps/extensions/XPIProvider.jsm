@@ -5816,7 +5816,7 @@ AddonInternal.prototype = {
       aPlatformVersion = Services.appinfo.platformVersion;
 
     let version;
-    if (app.id == Services.appinfo.ID)
+    if (app.id == Services.appinfo.ID || app.id == FIREFOX_ID)
       version = aAppVersion;
     else if (app.id == TOOLKIT_ID)
       version = aPlatformVersion
@@ -5840,7 +5840,7 @@ AddonInternal.prototype = {
 
       // Extremely old extensions should not be compatible by default.
       let minCompatVersion;
-      if (app.id == Services.appinfo.ID)
+      if (app.id == Services.appinfo.ID || app.id == FIREFOX_ID)
         minCompatVersion = XPIProvider.minCompatibleAppVersion;
       else if (app.id == TOOLKIT_ID)
         minCompatVersion = XPIProvider.minCompatiblePlatformVersion;
@@ -5868,7 +5868,7 @@ AddonInternal.prototype = {
     //the initial check to make sure appinfo.ID is preferred, even if
     //Firefox is listed before it in the install manifest.
     for (let targetApp of this.targetApplications) {
-      if (targetApp.id == "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}") //Firefox GUID
+      if (targetApp.id == FIREFOX_ID) //Firefox GUID
         return targetApp;
     }
     // Return toolkit ID if toolkit.
