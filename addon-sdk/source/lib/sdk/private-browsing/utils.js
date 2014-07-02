@@ -22,7 +22,7 @@ let pbService;
 let PrivateBrowsingUtils;
 
 // Private browsing is only supported in Fx
-if (isOneOf(['Firefox', 'Fennec'])) {
+if (isOneOf(['Firefox', 'Fennec', 'PaleMoon'])) {
   // get the nsIPrivateBrowsingService if it exists
   try {
     pbService = Cc["@mozilla.org/privatebrowsing;1"].
@@ -43,11 +43,11 @@ if (isOneOf(['Firefox', 'Fennec'])) {
 }
 
 // checks that global private browsing is implemented
-let isGlobalPBSupported = exports.isGlobalPBSupported = !!pbService && is('Firefox');
+let isGlobalPBSupported = exports.isGlobalPBSupported = !!pbService && is('PaleMoon');
 
 // checks that per-window private browsing is implemented
 let isWindowPBSupported = exports.isWindowPBSupported =
-                          !pbService && !!PrivateBrowsingUtils && is('Firefox');
+                          !pbService && !!PrivateBrowsingUtils && is('PaleMoon');
 
 // checks that per-tab private browsing is implemented
 let isTabPBSupported = exports.isTabPBSupported =

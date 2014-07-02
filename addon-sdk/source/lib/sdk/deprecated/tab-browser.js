@@ -8,7 +8,8 @@
 module.metadata = {
   'stability': 'deprecated',
   'engines': {
-    'Firefox': '*'
+    'Firefox': '*',
+    'PaleMoon': '*'
   }
 };
 

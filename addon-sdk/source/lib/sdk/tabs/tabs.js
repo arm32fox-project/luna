@@ -7,6 +7,7 @@ module.metadata = {
   'stability': 'unstable',
   'engines': {
     'Firefox': '*',
+    'PaleMoon': '*',
     'Fennec': '*'
   }
 };
