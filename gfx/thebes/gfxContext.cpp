@@ -1424,9 +1424,11 @@ gfxContext::Mask(gfxPattern *pattern)
         offset = Point(0.f, 0.f);
       } else if (pattern->GetType() == gfxPattern::PATTERN_SURFACE) {
         asurf = pattern->GetSurface();
-        deviceOffset = asurf->GetDeviceOffset();
-        asurf->SetDeviceOffset(gfxPoint());
-        offset = Point(-deviceOffset.x, -deviceOffset.y);
+        if (asurf) {
+          deviceOffset = asurf->GetDeviceOffset();
+          asurf->SetDeviceOffset(gfxPoint());
+          offset = Point(-deviceOffset.x, -deviceOffset.y);
+        }
 
         // this lets GetAzureSurface work
         pattern->GetPattern(mDT);
