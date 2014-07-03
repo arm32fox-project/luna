@@ -2159,6 +2159,7 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 %endif
 %include ../shared/plugin-doorhanger.inc.css
 
+%ifdef MOZ_DEVTOOLS
 .gcli-panel {
   padding: 0;
 }
@@ -2177,6 +2178,7 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
   border-radius: 1px;
   -moz-margin-end: 2px;
 }
+%endif
 
 #social-provider-button {
   -moz-image-region: rect(0, 16px, 16px, 0);

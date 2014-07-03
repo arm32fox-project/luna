@@ -2955,6 +2955,7 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 %endif
 %include ../shared/plugin-doorhanger.inc.css
 
+%ifdef MOZ_DEVTOOLS
 /* Error counter */
 
 #developer-toolbar-toolbox-button[error-count]:before {
@@ -2965,6 +2966,7 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   border-radius: 1px;
   -moz-margin-end: 5px;
 }
+%endif
 
 /* Social toolbar item */
 
