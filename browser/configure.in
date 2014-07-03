@@ -1,0 +1,25 @@
+dnl -*- Mode: Autoconf; tab-width: 2; indent-tabs-mode: nil; -*-
+dnl vi: set tabstop=2 shiftwidth=2 expandtab:
+dnl This Source Code Form is subject to the terms of the Mozilla Public
+dnl License, v. 2.0. If a copy of the MPL was not distributed with this
+dnl file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+dnl Things we need to carry from confvars.sh
+
+
+dnl Optional parts of the build.
+
+dnl ========================================================
+dnl = Enable Mozilla DevTools (/browser only)
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(devtools,
+[  --enable-devtools           Enable Mozilla DevTools],
+    MOZ_DEVTOOLS=1,
+    MOZ_DEVTOOLS=)
+
+if test -n "$MOZ_DEVTOOLS"; then
+    AC_DEFINE(MOZ_DEVTOOLS)
+fi
+
+AC_SUBST(MOZ_DEVTOOLS)
+

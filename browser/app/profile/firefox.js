@@ -1042,6 +1042,7 @@ pref("services.sync.prefs.sync.xpinstall.whitelist.required", true);
 // Disable the error console
 pref("devtools.errorconsole.enabled", true);
 
+#ifdef MOZ_DEVTOOLS
 // Developer toolbar and GCLI preferences
 pref("devtools.toolbar.enabled", true);
 pref("devtools.toolbar.visible", false);
@@ -1191,6 +1192,7 @@ pref("devtools.fontinspector.enabled", true);
 // opened developer tool. This allows us to ping telemetry just once per browser
 // version for each user.
 pref("devtools.telemetry.tools.opened.version", "{}");
+#endif
 
 // Whether the character encoding menu is under the main Firefox button. This
 // preference is a string so that localizers can alter it.

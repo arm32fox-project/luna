@@ -3691,9 +3691,11 @@ toolbarbutton.chevron > .toolbarbutton-menu-dropmarker {
   font-size: 120%;
 }
 
+%ifdef MOZ_DEVTOOLS
 %include ../shared/devtools/responsivedesign.inc.css
 %include ../shared/devtools/highlighter.inc.css
 %include ../shared/devtools/commandline.inc.css
+%endif
 %include ../shared/plugin-doorhanger.inc.css
 
 /* On mac, the popup notification contents are indented by default and so
