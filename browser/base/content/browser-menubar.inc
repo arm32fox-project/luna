@@ -567,7 +567,8 @@
                     label="&webDeveloperMenu.label;"
                     accesskey="&webDeveloperMenu.accesskey;">
                 <menupopup id="menuWebDeveloperPopup">
-                  <menuitem id="menu_devToolbox"
+#ifdef MOZ_DEVTOOLS
+				<menuitem id="menu_devToolbox"
                             observes="devtoolsMenuBroadcaster_DevToolbox"
                             accesskey="&devToolboxMenuItem.accesskey;"/>
                   <menuseparator id="menu_devtools_separator"/>
@@ -585,14 +586,17 @@
                   <menuitem id="menu_scratchpad"
                             observes="devtoolsMenuBroadcaster_Scratchpad"
                             accesskey="&scratchpad.accesskey;"/>
+#endif
                   <menuitem id="menu_pageSource"
                             observes="devtoolsMenuBroadcaster_PageSource"
                             accesskey="&pageSourceCmd.accesskey;"/>
                   <menuitem id="javascriptConsole"
                             observes="devtoolsMenuBroadcaster_ErrorConsole"
                             accesskey="&errorConsoleCmd.accesskey;"/>
+#ifdef MOZ_DEVTOOLS
                   <menuitem id="menu_devtools_connect"
                             observes="devtoolsMenuBroadcaster_connect"/>
+#endif
                   <menuseparator id="devToolsEndSeparator"/>
                   <menuitem id="getMoreDevtools"
                             observes="devtoolsMenuBroadcaster_GetMoreTools"

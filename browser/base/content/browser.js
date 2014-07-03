@@ -109,6 +109,7 @@ XPCOMUtils.defineLazyGetter(this, "PopupNotifications", function () {
   }
 });
 
+#ifdef MOZ_DEVTOOLS
 XPCOMUtils.defineLazyGetter(this, "DeveloperToolbar", function() {
   let tmp = {};
   Cu.import("resource:///modules/devtools/DeveloperToolbar.jsm", tmp);
@@ -120,6 +121,7 @@ XPCOMUtils.defineLazyGetter(this, "BrowserDebuggerProcess", function() {
   Cu.import("resource:///modules/devtools/DebuggerProcess.jsm", tmp);
   return tmp.BrowserDebuggerProcess;
 });
+#endif
 
 XPCOMUtils.defineLazyModuleGetter(this, "Social",
   "resource:///modules/Social.jsm");
@@ -1167,6 +1169,7 @@ var gBrowserInit = {
         setUrlAndSearchBarWidthForConditionalForwardButton();
     });
 
+#ifdef MOZ_DEVTOOLS
     // Enable developer toolbar?
     let devToolbarEnabled = gPrefService.getBoolPref("devtools.toolbar.enabled");
     if (devToolbarEnabled) {
@@ -1191,6 +1194,7 @@ var gBrowserInit = {
       cmd.removeAttribute("disabled");
       cmd.removeAttribute("hidden");
     }
+#endif
 
     // Enable Error Console?
     let consoleEnabled = gPrefService.getBoolPref("devtools.errorconsole.enabled");
@@ -1200,6 +1204,7 @@ var gBrowserInit = {
       cmd.removeAttribute("hidden");
     }
 
+#ifdef MOZ_DEVTOOLS
     // Enable Scratchpad in the UI, if the preference allows this.
     let scratchpadEnabled = gPrefService.getBoolPref(Scratchpad.prefEnabledName);
     if (scratchpadEnabled) {
@@ -1215,6 +1220,7 @@ var gBrowserInit = {
       cmd.removeAttribute("disabled");
       cmd.removeAttribute("hidden");
     }
+#endif
 
 #ifdef MENUBAR_CAN_AUTOHIDE
     // If the user (or the locale) hasn't enabled the top-level "Character
@@ -1225,6 +1231,7 @@ var gBrowserInit = {
       document.getElementById("appmenu_charsetMenu").hidden = true;
 #endif
 
+#ifdef MOZ_DEVTOOLS
     // Enable Responsive UI?
     let responsiveUIEnabled = gPrefService.getBoolPref("devtools.responsiveUI.enabled");
     if (responsiveUIEnabled) {
@@ -1235,6 +1242,7 @@ var gBrowserInit = {
 
     // Add Devtools menuitems and listeners
     gDevToolsBrowser.registerBrowserWindow(window);
+#endif
 
     let appMenuButton = document.getElementById("appmenu-button");
     let appMenuPopup = document.getElementById("appmenu-popup");
@@ -1311,12 +1319,14 @@ var gBrowserInit = {
     if (!this._loadHandled)
       return;
 
+#ifdef MOZ_DEVTOOLS
     gDevToolsBrowser.forgetBrowserWindow(window);
 
     let desc = Object.getOwnPropertyDescriptor(window, "DeveloperToolbar");
     if (desc && !desc.get) {
       DeveloperToolbar.destroy();
     }
+#endif
 
     // First clean up services initialized in gBrowserInit.onLoad (or those whose
     // uninit methods don't depend on the services having been initialized).
@@ -7081,6 +7091,7 @@ var TabContextMenu = {
   }
 };
 
+#ifdef MOZ_DEVTOOLS
 XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
                                   "resource:///modules/devtools/gDevTools.jsm");
 
@@ -7090,6 +7101,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "gDevToolsBrowser",
 XPCOMUtils.defineLazyGetter(this, "HUDConsoleUI", function () {
   return Cu.import("resource:///modules/HUDService.jsm", {}).HUDService.consoleUI;
 });
+#endif
 
 // Prompt user to restart the browser in safe mode
 function safeModeRestart()
@@ -7147,6 +7159,7 @@ function toggleAddonBar() {
   setToolbarVisibility(addonBar, addonBar.collapsed);
 }
 
+#ifdef MOZ_DEVTOOLS
 var Scratchpad = {
   prefEnabledName: "devtools.scratchpad.enabled",
 
@@ -7172,6 +7185,7 @@ XPCOMUtils.defineLazyGetter(ResponsiveUI, "ResponsiveUIManager", function() {
   Cu.import("resource:///modules/devtools/responsivedesign.jsm", tmp);
   return tmp.ResponsiveUIManager;
 });
+#endif
 
 XPCOMUtils.defineLazyGetter(window, "gShowPageResizers", function () {
 #ifdef XP_WIN

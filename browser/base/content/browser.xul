@@ -1032,6 +1032,7 @@
 
   <vbox id="browser-bottombox" layer="true">
     <notificationbox id="global-notificationbox"/>
+#ifdef MOZ_DEVTOOLS
     <toolbar id="developer-toolbar"
              class="devtools-toolbar"
              hidden="true">
@@ -1056,6 +1057,7 @@
                          tooltiptext="&devToolbarCloseButton.tooltiptext;"/>
 #endif
    </toolbar>
+#endif
 
     <toolbar id="addon-bar"
              toolbarname="&palemoon.menu.statusBar.label;" accesskey="&palemoon.menu.statusBar.accesskey;"

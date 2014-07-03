@@ -142,6 +142,7 @@
                  command="Tools:DevToolbox"
                  label="&appMenuWebDeveloper.label;">
         <menupopup id="appmenu_webDeveloper_popup">
+#ifdef MOZ_DEVTOOLS
           <menuitem id="appmenu_devToolbox"
                     observes="devtoolsMenuBroadcaster_DevToolbox"/>
           <menuseparator id="appmenu_devtools_separator"/>
@@ -155,12 +156,15 @@
                     observes="devtoolsMenuBroadcaster_ResponsiveUI"/>
           <menuitem id="appmenu_scratchpad"
                     observes="devtoolsMenuBroadcaster_Scratchpad"/>
+#endif
           <menuitem id="appmenu_pageSource"
                     observes="devtoolsMenuBroadcaster_PageSource"/>
           <menuitem id="appmenu_errorConsole"
                     observes="devtoolsMenuBroadcaster_ErrorConsole"/>
+#ifdef MOZ_DEVTOOLS
           <menuitem id="appmenu_devtools_connect"
                     observes="devtoolsMenuBroadcaster_connect"/>
+#endif
           <menuseparator id="appmenu_devToolsEndSeparator"/>
           <menuitem id="appmenu_getMoreDevtools"
                     observes="devtoolsMenuBroadcaster_GetMoreTools"/>
