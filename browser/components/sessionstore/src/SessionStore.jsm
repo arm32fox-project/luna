@@ -105,8 +105,12 @@ let gDocShellCapabilities = (function () {
 
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
   "resource://gre/modules/NetUtil.jsm");
+
+#ifdef MOZ_DEVTOOLS
 XPCOMUtils.defineLazyModuleGetter(this, "ScratchpadManager",
   "resource:///modules/devtools/scratchpad-manager.jsm");
+#endif  
+  
 XPCOMUtils.defineLazyModuleGetter(this, "DocumentUtils",
   "resource:///modules/sessionstore/DocumentUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "SessionStorage",
@@ -1735,9 +1739,11 @@ let SessionStoreInternal = {
       this._capClosedWindows();
     }
 
+#ifdef MOZ_DEVTOOLS
     if (lastSessionState.scratchpads) {
       ScratchpadManager.restoreSession(lastSessionState.scratchpads);
     }
+#endif
 
     // Set data that persists between sessions
     this._recentCrashes = lastSessionState.session &&
@@ -2536,15 +2542,21 @@ let SessionStoreInternal = {
       recentCrashes: this._recentCrashes
     };
 
+#ifdef MOZ_DEVTOOLS
     // get open Scratchpad window states too
     var scratchpads = ScratchpadManager.getSessionState();
+#endif
 
     return {
       windows: total,
       selectedWindow: ix + 1,
       _closedWindows: lastClosedWindowsCopy,
+#ifdef MOZ_DEVTOOLS
       session: session,
       scratchpads: scratchpads
+#else
+      session: session
+#endif
     };
   },
 

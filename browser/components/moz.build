@@ -23,7 +23,6 @@ PARALLEL_DIRS += [
 if CONFIG['MOZ_SAFE_BROWSING']:
     PARALLEL_DIRS += ['safebrowsing']
 
-TEST_DIRS += ['test']
 DIRS += ['build']
 
 XPIDL_SOURCES += [

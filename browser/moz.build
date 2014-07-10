@@ -16,8 +16,10 @@ PARALLEL_DIRS += [
     'extensions',
 ]
 
+if CONFIG['MOZ_DEVTOOLS']:
+    DIRS += ['devtools']
+
 DIRS += [
-    'devtools',
     'app',
 ]
 

@@ -2948,11 +2948,14 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   font-size: 120%;
 }
 
+%ifdef MOZ_DEVTOOLS
 %include ../shared/devtools/responsivedesign.inc.css
 %include ../shared/devtools/highlighter.inc.css
 %include ../shared/devtools/commandline.inc.css
+%endif
 %include ../shared/plugin-doorhanger.inc.css
 
+%ifdef MOZ_DEVTOOLS
 /* Error counter */
 
 #developer-toolbar-toolbox-button[error-count]:before {
@@ -2963,6 +2966,7 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   border-radius: 1px;
   -moz-margin-end: 5px;
 }
+%endif
 
 /* Social toolbar item */
 
