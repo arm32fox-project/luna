@@ -404,6 +404,9 @@ ThebesLayerD3D10::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode)
     return;
   }
 
+  // Simplify complex shapes by extending the area to a larger bounding shape.
+  aRegion.SimplifyOutwardByArea(100*100);
+
   nsRefPtr<gfxASurface> destinationSurface;
   
   if (aMode == SURFACE_COMPONENT_ALPHA) {
@@ -419,9 +422,6 @@ ThebesLayerD3D10::DrawRegion(nsIntRegion &aRegion, SurfaceMode aMode)
   } else {
     destinationSurface = mD2DSurface;
   }
-
-// Should be available once nsregion is fixed.
-//  aRegion.SimplifyOutwardByArea(100*100);
 
   MOZ_ASSERT(mDrawTarget);
   nsRefPtr<gfxContext> context = new gfxContext(mDrawTarget);
