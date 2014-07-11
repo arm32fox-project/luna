@@ -68,6 +68,8 @@ pref("browser.search.param.yahoo-fr-ja", "mozff");
 pref("general.useragent.override.live.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
 pref("general.useragent.override.outlook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
 pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
+pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
+pref("general.useragent.override.google.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:24.7) Gecko/24 PaleMoon/99.0");
 
 // ****************** Extensions/plugins ******************
 
