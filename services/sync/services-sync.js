@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-pref("services.sync.serverURL", "https://sync.palemoon.net/");
+pref("services.sync.serverURL", "https://pmsync.palemoon.net/sync/");
 pref("services.sync.userURL", "user/");
 pref("services.sync.miscURL", "misc/");
 pref("services.sync.termsURL", "http://www.palemoon.org/sync/terms.shtml");
@@ -37,7 +37,7 @@ pref("services.sync.jpake.lastMsgMaxTries", 300);  // 5 minutes
 pref("services.sync.jpake.maxTries", 10);
 
 // Allow add-ons to be synced from non-trusted sources.
-pref("services.sync.addons.ignoreRepositoryChecking", false);
+pref("services.sync.addons.ignoreRepositoryChecking", true);
 
 // If true, add-on sync ignores changes to the user-enabled flag. This
 // allows people to have the same set of add-ons installed across all

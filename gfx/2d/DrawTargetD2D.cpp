@@ -953,6 +953,16 @@ DrawTargetD2D::FillGlyphs(ScaledFont *aFont,
     aaMode = aOptions.mAntialiasMode;
   }
 
+  if (mFormat == FORMAT_B8G8R8A8 && mPermitSubpixelAA &&
+      aOptions.mCompositionOp == OP_OVER && aPattern.GetType() == PATTERN_COLOR &&
+      aaMode == AA_SUBPIXEL) {
+    if (FillGlyphsManual(font, aBuffer,
+                         static_cast<const ColorPattern*>(&aPattern)->mColor,
+                         params, aOptions)) {
+      return;
+    }
+  }
+
   ID2D1RenderTarget *rt = GetRTForOperation(aOptions.mCompositionOp, aPattern);
 
   PrepareForDrawing(rt);
