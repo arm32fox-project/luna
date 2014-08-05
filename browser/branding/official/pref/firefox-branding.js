@@ -23,8 +23,6 @@ pref("app.update.url.details", "http://www.palemoon.org/releasenotes-ng.shtml");
 // Additional Update fixes - no SSL damnit, I don't have a cert (4.0)
 pref("app.update.cert.checkAttributes", false);
 pref("app.update.cert.requireBuiltIn", false);
-// Fix useragent for UA sniffing websites
-pref("general.useragent.compatMode.firefox", true);
 // Make sure we shortcut out of a11y to save walking unnecessary code
 pref("accessibility.force_disabled", 1);
 
@@ -70,6 +68,10 @@ pref("general.useragent.override.outlook.com","Mozilla/5.0 (Windows NT 6.1; WOW6
 pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
 pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
 pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0");
+pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:24.9) Gecko/20100101 Firefox/24.9 PaleMoon/24.9");
+
+// Enable Firefox compatibility mode globally?
+pref("general.useragent.compatMode.firefox", false);
 
 // ****************** Extensions/plugins ******************
 
