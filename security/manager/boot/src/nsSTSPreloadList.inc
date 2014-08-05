@@ -8,7 +8,7 @@
 /*****************************************************************************/
 
 #include "mozilla/StandardInteger.h"
-const PRTime gPreloadListExpirationTime = INT64_C(1416650838534000);
+const PRTime gPreloadListExpirationTime = INT64_C(1417860380322000);
 
 class nsSTSPreload
 {
@@ -37,6 +37,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "bccx.com", true },
   { "bcrook.com", false },
   { "bitbucket.org", false },
+  { "blacklane.com", true },
   { "blog.cyveillance.com", true },
   { "blog.linode.com", false },
   { "blog.lookout.com", false },
@@ -52,6 +53,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "cloudns.com.au", true },
   { "cloudsecurityalliance.org", true },
   { "codereview.appspot.com", false },
+  { "config.schokokeks.org", false },
   { "conformal.com", true },
   { "controlcenter.gigahost.dk", true },
   { "crm.onlime.ch", false },
@@ -93,11 +95,12 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "gocardless.com", true },
   { "grc.com", false },
   { "grepular.com", true },
+  { "hackerone.com", true },
   { "harvestapp.com", true },
   { "haste.ch", true },
   { "heha.co", true },
   { "howrandom.org", true },
-  { "id.atlassian.com", true },
+  { "id.atlassian.com", false },
   { "id.mayfirst.org", false },
   { "imouto.my", false },
   { "inertianetworks.com", true },
@@ -172,6 +175,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "pypi.python.org", true },
   { "python.org", false },
   { "reviews.anime.my", true },
+  { "rme.li", false },
   { "roddis.net", false },
   { "romab.com", true },
   { "roundcube.mayfirst.org", false },
@@ -209,6 +213,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "webfilings.appspot.com", true },
   { "webmail.gigahost.dk", false },
   { "webmail.onlime.ch", false },
+  { "webmail.schokokeks.org", false },
   { "wepay.com", false },
   { "wf-bigsky-master.appspot.com", true },
   { "wf-demo-eu.appspot.com", true },
@@ -235,6 +240,7 @@ static const nsSTSPreload kSTSPreloadList[] = {
   { "www.entropia.de", false },
   { "www.eternalgoth.co.uk", true },
   { "www.evernote.com", false },
+  { "www.gamesdepartment.co.uk", false },
   { "www.getcloak.com", false },
   { "www.gov.uk", false },
   { "www.grc.com", false },
