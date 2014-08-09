@@ -7,7 +7,7 @@ pref("services.sync.userURL", "user/");
 pref("services.sync.miscURL", "misc/");
 pref("services.sync.termsURL", "http://www.palemoon.org/sync/terms.shtml");
 pref("services.sync.privacyURL", "http://www.palemoon.org/sync/privacy.shtml");
-pref("services.sync.statusURL", "https://sync.palemoon.net/status/");
+pref("services.sync.statusURL", "https://pmsync.palemoon.net/status/");
 pref("services.sync.syncKeyHelpURL", "http://www.palemoon.org/sync/keyhelp.shtml");
 
 pref("services.sync.lastversion", "firstrun");
