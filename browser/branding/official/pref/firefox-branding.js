@@ -70,7 +70,6 @@ pref("general.useragent.override.outlook.com","Mozilla/5.0 (Windows NT 6.1; WOW6
 pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
 pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
 pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0");
-pref("general.useragent.override.google.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:33.0) Gecko/20100101 Firefox/33.0 (Pale Moon)");
 
 // ****************** Extensions/plugins ******************
 

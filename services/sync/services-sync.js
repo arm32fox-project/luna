@@ -7,7 +7,7 @@ pref("services.sync.userURL", "user/");
 pref("services.sync.miscURL", "misc/");
 pref("services.sync.termsURL", "http://www.palemoon.org/sync/terms.shtml");
 pref("services.sync.privacyURL", "http://www.palemoon.org/sync/privacy.shtml");
-pref("services.sync.statusURL", "https://sync.palemoon.net/status/");
+pref("services.sync.statusURL", "https://sync.palemoon.net/status");
 pref("services.sync.syncKeyHelpURL", "http://www.palemoon.org/sync/keyhelp.shtml");
 
 pref("services.sync.lastversion", "firstrun");
@@ -37,7 +37,7 @@ pref("services.sync.jpake.lastMsgMaxTries", 300);  // 5 minutes
 pref("services.sync.jpake.maxTries", 10);
 
 // Allow add-ons to be synced from non-trusted sources.
-pref("services.sync.addons.ignoreRepositoryChecking", false);
+pref("services.sync.addons.ignoreRepositoryChecking", true);
 
 // If true, add-on sync ignores changes to the user-enabled flag. This
 // allows people to have the same set of add-ons installed across all
