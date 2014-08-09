@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-pref("services.sync.serverURL", "https://pmsync.palemoon.net/sync/");
+pref("services.sync.serverURL", "https://pmsync.palemoon.net/sync/index.php/");
 pref("services.sync.userURL", "user/");
 pref("services.sync.miscURL", "misc/");
 pref("services.sync.termsURL", "http://www.palemoon.org/sync/terms.shtml");
