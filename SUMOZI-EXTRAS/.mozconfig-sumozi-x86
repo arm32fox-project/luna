@@ -1,0 +1,38 @@
+### Mozilla Build Options
+mk_add_options MOZ_CO_PROJECT=browser
+mk_add_options MOZ_OBJDIR=@TOPSRCDIR@/../obj-dir/sumozi-x86
+mk_add_options MOZ_MAKE_FLAGS=-j4
+WIN32_REDIST_DIR=$VCINSTALLDIR/redist/x86/Microsoft.VC110.CRT
+ac_add_options --enable-application=browser
+
+### Compiler Options
+ac_add_options --enable-optimize="-O2 -GFs -GS- -fp:precise -Qfast_transcendentals -Qpar"
+
+### Branding Options
+export MOZILLA_OFFICIAL=1
+ac_add_options --enable-official-branding
+
+### Packaging
+ac_add_options --with-distribution-id=Palemoon
+ac_add_options --enable-chrome-format=omni
+
+### Update Packaging
+ac_add_options --disable-updater
+ac_add_options --disable-update-packaging
+ac_add_options --disable-update-channel
+
+### Enabled Features
+ac_add_options --enable-jemalloc
+
+### Disabled Features
+ac_add_options --disable-crashreporter
+ac_add_options --disable-maintenance-service
+ac_add_options --disable-websms-backend
+ac_add_options --disable-metro
+ac_add_options --disable-windows-mobile-components
+
+### Other Options
+ac_add_options --disable-debug
+ac_add_options --disable-tests
+ac_add_options --disable-mochitests
+ac_add_options --enable-strip
