@@ -1993,7 +1993,7 @@ tools are selected during the Xcode/Developer Tools installation.])
             fi
         fi
 
-        OS_DLLFLAGS="-nologo -DLL -SUBSYSTEM:WINDOWS,5.01"
+        OS_DLLFLAGS="-nologo -DLL -SUBSYSTEM:WINDOWS"
         if test "$MSC_VER" -le "1200" -a -z "$MOZ_DEBUG_SYMBOLS"; then
             OS_DLLFLAGS="$OS_DLLFLAGS -PDB:NONE"
         fi
