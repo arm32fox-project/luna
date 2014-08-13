@@ -8,20 +8,11 @@ MOZ_APP_VENDOR=Moonchild
 MOZ_UPDATER=1
 MOZ_PHOENIX=1
 
-if test "$OS_ARCH" = "WINNT"; then
-  if ! test "$HAVE_64BIT_OS"; then
-    MOZ_VERIFY_MAR_SIGNATURE=
-    MOZ_MAINTENANCE_SERVICE=
-    if test "$MOZ_UPDATE_CHANNEL" = "nightly" -o \
-            "$MOZ_UPDATE_CHANNEL" = "aurora" -o \
-            "$MOZ_UPDATE_CHANNEL" = "beta" -o \
-            "$MOZ_UPDATE_CHANNEL" = "release"; then
-      if ! test "$MOZ_DEBUG"; then
-        MOZ_STUB_INSTALLER=
-      fi
-    fi
-  fi
-fi
+MOZ_VERIFY_MAR_SIGNATURE=
+
+#never build MozCo service tools
+MOZ_MAINTENANCE_SERVICE=
+MOZ_STUB_INSTALLER=
 
 MOZ_CHROME_FILE_FORMAT=omni
 MOZ_SAFE_BROWSING=
