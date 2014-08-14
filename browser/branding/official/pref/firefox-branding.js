@@ -7,7 +7,7 @@ pref("app.update.interval", 172800);
 pref("app.update.auto", false);
 pref("app.update.enabled", true);
 // URL for update checks, re-enabled on palemoon.org (369)
-pref("app.update.url", "http://www.palemoon.org/update/%VERSION%/%BUILD_TARGET%/update.xml");
+pref("app.update.url", "http://www.palemoon.org/update/%VERSION%/Atom/update.xml");
 pref("app.update.promptWaitTime", 86400); 
 // The time interval between the downloading of mar file chunks in the
 // background (in seconds)
