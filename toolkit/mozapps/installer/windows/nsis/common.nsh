@@ -5023,7 +5023,6 @@
         ${EndIf}
 
         ${If} ${IsWinXP}
-        ${AndIf} ${AtMostServicePack} 1
           StrCpy $R8 "1"
         ${EndIf}
 
