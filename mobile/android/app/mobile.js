@@ -740,8 +740,5 @@ pref("dom.payment.provider.0.requestMethod", "GET");
 // Make <audio> and <video> talk to the AudioChannelService.
 pref("media.useAudioChannelService", false);
 
-// Explicitly declare sync server
-pref("services.sync.serverURL", "https://sync.palemoon.net/");
-
 // Declare compatibility mode with Firefox by default for AMO
 pref("general.useragent.compatMode.firefox", true);
