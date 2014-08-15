@@ -307,6 +307,16 @@ bool nsUXThemeData::IsHighContrastOn()
   return sIsHighContrastOn;
 }
 
+static bool
+IsWin8OrLater()
+{
+  OSVERSIONINFOW osInfo;
+  osInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
+  GetVersionExW(&osInfo);
+  return (osInfo.dwMajorVersion > 6) ||
+    (osInfo.dwMajorVersion >= 6 && osInfo.dwMinorVersion >= 2);
+}
+
 // static
 void
 nsUXThemeData::UpdateNativeThemeInfo()
