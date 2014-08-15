@@ -93,6 +93,7 @@ public:
   static SIZE sCommandButtons[4];
   static mozilla::LookAndFeel::WindowsTheme sThemeId;
   static bool sIsDefaultWindowsTheme;
+  static bool sIsHighContrastOn;
 
   static void Initialize();
   static void Teardown();
