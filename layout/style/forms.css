@@ -197,7 +197,7 @@ select {
   word-wrap: normal !important;
   text-align: start; 
   cursor: default;
-  -moz-box-sizing: border-box;
+  box-sizing: border-box;
   -moz-user-select: none;
   -moz-appearance: menulist;
   border-width: 2px;
@@ -245,7 +245,7 @@ select > button {
 
   /* Make sure to size correctly if the combobox has a non-auto height. */
   height: 100% ! important;
-  -moz-box-sizing: border-box ! important;
+  box-sizing: border-box ! important;
 
   /*
     Make sure to align properly with the display frame.  Note that we
@@ -277,7 +277,7 @@ select:empty {
   -moz-user-select: none;
   /* Make sure to size correctly if the combobox has a non-auto height. */
   height: 100% ! important;
-  -moz-box-sizing: border-box ! important;
+  box-sizing: border-box ! important;
 }
 
 option {
@@ -480,7 +480,7 @@ input[type="checkbox"] {
    (Should we maybe set !important on width and height, then?)  */
 input[type="radio"],
 input[type="checkbox"] {
-  -moz-box-sizing: border-box;
+  box-sizing: border-box;
   width: 13px;
   height: 13px;
   cursor: default;
@@ -540,7 +540,7 @@ input[type="submit"] {
   line-height: normal;
   white-space: pre;
   cursor: default;
-  -moz-box-sizing: border-box;
+  box-sizing: border-box;
   -moz-user-select: none;
   -moz-binding: none;
   text-align: center;
@@ -684,7 +684,7 @@ progress {
   float: none ! important;
   position: static ! important;
   overflow: visible ! important;
-  -moz-box-sizing: border-box ! important;
+  box-sizing: border-box ! important;
 
   -moz-appearance: progresschunk;
   height: 100%;
