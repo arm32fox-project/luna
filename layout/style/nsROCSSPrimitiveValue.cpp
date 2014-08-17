@@ -81,7 +81,7 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
     case CSS_PX :
       {
         float val = nsPresContext::AppUnitsToFloatCSSPixels(mValue.mAppUnits);
-        tmpStr.AppendFloat(val);
+        nsStyleUtil::AppendCSSNumber(val, tmpStr);
         tmpStr.AppendLiteral("px");
         break;
       }
@@ -125,13 +125,13 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
       }
     case CSS_PERCENTAGE :
       {
-        tmpStr.AppendFloat(mValue.mFloat * 100);
+        nsStyleUtil::AppendCSSNumber(mValue.mFloat * 100, tmpStr);
         tmpStr.Append(PRUnichar('%'));
         break;
       }
     case CSS_NUMBER :
       {
-        tmpStr.AppendFloat(mValue.mFloat);
+        nsStyleUtil::AppendCSSNumber(mValue.mFloat, tmpStr);
         break;
       }
     case CSS_RECT :
@@ -218,7 +218,7 @@ nsROCSSPrimitiveValue::GetCssText(nsAString& aCssText)
       }
     case CSS_S :
       {
-        tmpStr.AppendFloat(mValue.mFloat);
+        nsStyleUtil::AppendCSSNumber(mValue.mFloat, tmpStr);
         tmpStr.AppendLiteral("s");
         break;
       }
