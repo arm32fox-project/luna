@@ -340,6 +340,7 @@ private:
   mozilla::dom::CSSValue* DoGetDisplay();
   mozilla::dom::CSSValue* DoGetPosition();
   mozilla::dom::CSSValue* DoGetClip();
+  mozilla::dom::CSSValue* DoGetImageOrientation();
   mozilla::dom::CSSValue* DoGetOverflow();
   mozilla::dom::CSSValue* DoGetOverflowX();
   mozilla::dom::CSSValue* DoGetOverflowY();
@@ -490,6 +491,11 @@ private:
   bool GetFrameBoundsHeightForTransform(nscoord &aHeight);
   bool GetFrameBorderRectWidth(nscoord& aWidth);
   bool GetFrameBorderRectHeight(nscoord& aHeight);
+
+  /* Helper functions for computing the filter property style. */
+  void SetCssTextToCoord(nsAString& aCssText, const nsStyleCoord& aCoord);
+  nsROCSSPrimitiveValue* CreatePrimitiveValueForStyleFilter(
+    const nsStyleFilter& aStyleFilter);
 
   struct ComputedStyleMapEntry
   {

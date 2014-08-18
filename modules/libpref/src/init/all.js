@@ -1764,8 +1764,14 @@ pref("layout.css.masking.enabled", true);
 // Is support for the the @supports rule enabled?
 pref("layout.css.supports-rule.enabled", true);
 
+// Is support for CSS Filters enabled?
+pref("layout.css.filters.enabled", false);
+
 // Is support for CSS Flexbox enabled?
 pref("layout.css.flexbox.enabled", true);
+
+// Is support for the CSS4 image-orientation property enabled?
+pref("layout.css.image-orientation.enabled", true);
 
 // Is support for CSS3 Fonts features enabled?
 // (includes font-variant-*, font-kerning, font-synthesis

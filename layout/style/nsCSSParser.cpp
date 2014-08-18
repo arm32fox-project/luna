@@ -118,8 +118,9 @@ using namespace mozilla;
 #define VARIANT_UK   (VARIANT_URL | VARIANT_KEYWORD)
 #define VARIANT_UO   (VARIANT_URL | VARIANT_NONE)
 #define VARIANT_ANGLE_OR_ZERO (VARIANT_ANGLE | VARIANT_ZERO_ANGLE)
-#define VARIANT_LPCALC (VARIANT_LENGTH | VARIANT_CALC | VARIANT_PERCENT)
-#define VARIANT_LNCALC (VARIANT_LENGTH | VARIANT_CALC | VARIANT_NUMBER)
+#define VARIANT_LCALC  (VARIANT_LENGTH | VARIANT_CALC)
+#define VARIANT_LPCALC (VARIANT_LCALC | VARIANT_PERCENT)
+#define VARIANT_LNCALC (VARIANT_LCALC | VARIANT_NUMBER)
 #define VARIANT_LPNCALC (VARIANT_LNCALC | VARIANT_PERCENT)
 #define VARIANT_IMAGE (VARIANT_URL | VARIANT_NONE | VARIANT_GRADIENT | \
                        VARIANT_IMAGE_RECT | VARIANT_ELEMENT)
@@ -653,6 +654,7 @@ protected:
   bool SetValueToURL(nsCSSValue& aValue, const nsString& aURL);
   bool TranslateDimension(nsCSSValue& aValue, int32_t aVariantMask,
                             float aNumber, const nsString& aUnit);
+  bool ParseImageOrientation(nsCSSValue& aAngle);
   bool ParseImageRect(nsCSSValue& aImage);
   bool ParseElement(nsCSSValue& aValue);
   bool ParseColorStop(nsCSSValueGradient* aGradient);
@@ -685,6 +687,10 @@ protected:
 
   /* Functions for transform-origin/perspective-origin Parsing */
   bool ParseTransformOrigin(bool aPerspective);
+
+  /* Functions for filter parsing */
+  bool ParseFilter();
+  bool ParseSingleFilter(nsCSSValue* aValue);
 
   /* Find and return the namespace ID associated with aPrefix.
      If aPrefix has not been declared in an @namespace rule, returns
@@ -5533,6 +5539,47 @@ CSSParserImpl::SetValueToURL(nsCSSValue& aValue, const nsString& aURL)
 }
 
 /**
+ * Parse the image-orientation property, which has the grammar:
+ * <angle> flip? | flip | from-image
+ */
+bool
+CSSParserImpl::ParseImageOrientation(nsCSSValue& aValue)
+{
+  if (ParseVariant(aValue, VARIANT_INHERIT, nullptr)) {
+    // 'inherit' and 'initial' must be alone
+    return true;
+  }
+
+  // Check for an angle with optional 'flip'.
+  nsCSSValue angle;
+  if (ParseVariant(angle, VARIANT_ANGLE, nullptr)) {
+    nsCSSValue flip;
+
+    if (ParseVariant(flip, VARIANT_KEYWORD, nsCSSProps::kImageOrientationFlipKTable)) {
+      nsRefPtr<nsCSSValue::Array> array = nsCSSValue::Array::Create(2);
+      array->Item(0) = angle;
+      array->Item(1) = flip;
+      aValue.SetArrayValue(array, eCSSUnit_Array);
+    } else {
+      aValue = angle;
+    }
+    
+    return true;
+  }
+
+  // The remaining possibilities (bare 'flip' and 'from-image') are both
+  // keywords, so we can handle them at the same time.
+  nsCSSValue keyword;
+  if (ParseVariant(keyword, VARIANT_KEYWORD, nsCSSProps::kImageOrientationKTable)) {
+    aValue = keyword;
+    return true;
+  }
+
+  // All possibilities failed.
+  return false;
+}
+
+/**
  * Parse the arguments of -moz-image-rect() function.
  * -moz-image-rect(<uri>, <top>, <right>, <bottom>, <left>)
  */
@@ -6550,6 +6597,8 @@ CSSParserImpl::ParsePropertyByFunction(nsCSSProperty aPropID)
     return ParseCounterData(aPropID);
   case eCSSProperty_cursor:
     return ParseCursor();
+  case eCSSProperty_filter:
+    return ParseFilter();
   case eCSSProperty_flex:
     return ParseFlex();
   case eCSSProperty_font:
@@ -6671,6 +6720,8 @@ CSSParserImpl::ParseSingleValueProperty(nsCSSValue& aValue,
         return ParseFontFeatureSettings(aValue);
       case eCSSProperty_font_weight:
         return ParseFontWeight(aValue);
+      case eCSSProperty_image_orientation:
+        return ParseImageOrientation(aValue);
       case eCSSProperty_marks:
         return ParseMarks(aValue);
       case eCSSProperty_text_decoration_line:
@@ -10117,6 +10168,148 @@ bool CSSParserImpl::ParseTransformOrigin(bool aPerspective)
 
     AppendValue(prop, value);
   }
+  return true;
+}
+
+/**
+ * Reads a single url or filter function from the tokenizer stream, reporting an
+ * error if something goes wrong.
+ */
+bool
+CSSParserImpl::ParseSingleFilter(nsCSSValue* aValue)
+{
+  if (ParseVariant(*aValue, VARIANT_URL, nullptr)) {
+    return true;
+  }
+
+  if (!nsLayoutUtils::CSSFiltersEnabled()) {
+    // With CSS Filters disabled, we should only accept an SVG reference filter.
+    REPORT_UNEXPECTED_TOKEN(PEExpectedNoneOrURL);
+    return false;
+  }
+
+  if (!GetToken(true)) {
+    REPORT_UNEXPECTED_EOF(PEFilterEOF);
+    return false;
+  }
+
+  if (mToken.mType != eCSSToken_Function) {
+    REPORT_UNEXPECTED_TOKEN(PEExpectedNoneOrURLOrFilterFunction);
+    return false;
+  }
+
+  // Set up the parsing rules based on the filter function.
+  int32_t variantMask = VARIANT_PN;
+  bool rejectNegativeArgument = true;
+  bool clampArgumentToOne = false;
+  nsCSSKeyword functionName = nsCSSKeywords::LookupKeyword(mToken.mIdent);
+  switch (functionName) {
+    case eCSSKeyword_blur:
+      variantMask = VARIANT_LCALC | VARIANT_NONNEGATIVE_DIMENSION;
+      // VARIANT_NONNEGATIVE_DIMENSION will already reject negative lengths.
+      rejectNegativeArgument = false;
+      break;
+    case eCSSKeyword_brightness:
+    case eCSSKeyword_contrast:
+    case eCSSKeyword_saturate:
+      break;
+    case eCSSKeyword_grayscale:
+    case eCSSKeyword_invert:
+    case eCSSKeyword_sepia:
+    case eCSSKeyword_opacity:
+      clampArgumentToOne = true;
+      break;
+    case eCSSKeyword_hue_rotate:
+      variantMask = VARIANT_ANGLE;
+      rejectNegativeArgument = false;
+      break;
+    default:
+      // Unrecognized filter function.
+      REPORT_UNEXPECTED_TOKEN(PEExpectedNoneOrURLOrFilterFunction);
+      SkipUntil(')');
+      return false;
+  }
+
+  // Parse the function.
+  uint16_t minElems = 1U;
+  uint16_t maxElems = 1U;
+  uint32_t allVariants = 0;
+  if (!ParseFunction(functionName, &variantMask, allVariants,
+                     minElems, maxElems, *aValue)) {
+    REPORT_UNEXPECTED(PEFilterFunctionArgumentsParsingError);
+    return false;
+  }
+
+  // Get the first and only argument to the filter function.
+  NS_ABORT_IF_FALSE(aValue->GetUnit() == eCSSUnit_Function,
+                    "expected a filter function");
+  NS_ABORT_IF_FALSE(aValue->UnitHasArrayValue(),
+                    "filter function should be an array");
+  NS_ABORT_IF_FALSE(aValue->GetArrayValue()->Count() == 2,
+                    "filter function should have exactly one argument");
+  nsCSSValue& arg = aValue->GetArrayValue()->Item(1);
+
+  if (rejectNegativeArgument &&
+      ((arg.GetUnit() == eCSSUnit_Percent && arg.GetPercentValue() < 0.0f) ||
+       (arg.GetUnit() == eCSSUnit_Number && arg.GetFloatValue() < 0.0f))) {
+    REPORT_UNEXPECTED(PEExpectedNonnegativeNP);
+    return false;
+  }
+
+  if (clampArgumentToOne) {
+    if (arg.GetUnit() == eCSSUnit_Number &&
+        arg.GetFloatValue() > 1.0f) {
+      arg.SetFloatValue(1.0f, arg.GetUnit());
+    } else if (arg.GetUnit() == eCSSUnit_Percent &&
+               arg.GetPercentValue() > 1.0f) {
+      arg.SetPercentValue(1.0f);
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Parses a filter property value by continuously reading in urls and/or filter
+ * functions and constructing a list.
+ *
+ * When CSS Filters are enabled, the filter property accepts one or more SVG
+ * reference filters and/or CSS filter functions.
+ * e.g. filter: url(#my-filter-1) blur(3px) url(#my-filter-2) grayscale(50%);
+ *
+ * When CSS Filters are disabled, the filter property only accepts one SVG
+ * reference filter.
+ * e.g. filter: url(#my-filter);
+ */
+bool
+CSSParserImpl::ParseFilter()
+{
+  nsCSSValue value;
+  if (ParseVariant(value, VARIANT_INHERIT | VARIANT_NONE, nullptr)) {
+    // 'inherit', 'initial', and 'none' must be alone
+    if (!ExpectEndProperty()) {
+      return false;
+    }
+  } else {
+    nsCSSValueList* cur = value.SetListValue();
+    while (cur) {
+      if (!ParseSingleFilter(&cur->mValue)) {
+        return false;
+      }
+      if (CheckEndProperty()) {
+        break;
+      }
+      if (!nsLayoutUtils::CSSFiltersEnabled()) {
+        // With CSS Filters disabled, we should only accept one SVG reference
+        // filter.
+        REPORT_UNEXPECTED_TOKEN(PEExpectEndValue);
+        return false;
+      }
+      cur->mNext = new nsCSSValueList;
+      cur = cur->mNext;
+    }
+  }
+  AppendValue(eCSSProperty_filter, value);
   return true;
 }
 

@@ -977,6 +977,48 @@ nsChangeHint nsStyleSVG::CalcDifference(const nsStyleSVG& aOther) const
 }
 
 // --------------------
+// nsStyleFilter
+//
+nsStyleFilter::nsStyleFilter()
+  : mType(eNull)
+{
+  MOZ_COUNT_CTOR(nsStyleFilter);
+}
+
+nsStyleFilter::nsStyleFilter(const nsStyleFilter& aSource)
+  : mType(aSource.mType)
+{
+  MOZ_COUNT_CTOR(nsStyleFilter);
+
+  if (mType == eURL) {
+    mURL = aSource.mURL;
+  } else if (mType != eNull) {
+    mFilterParameter = aSource.mFilterParameter;
+  }
+}
+
+nsStyleFilter::~nsStyleFilter()
+{
+  MOZ_COUNT_DTOR(nsStyleFilter);
+}
+
+bool
+nsStyleFilter::operator==(const nsStyleFilter& aOther) const
+{
+  if (mType != aOther.mType) {
+      return false;
+  }
+
+  if (mType == eURL) {
+    return EqualURIs(mURL, aOther.mURL);
+  } else if (mType != eNull) {
+    return mFilterParameter == aOther.mFilterParameter;
+  }
+
+  return true;
+}
+
+// --------------------
 // nsStyleSVGReset
 //
 nsStyleSVGReset::nsStyleSVGReset() 
@@ -986,7 +1028,6 @@ nsStyleSVGReset::nsStyleSVGReset()
     mFloodColor              = NS_RGB(0,0,0);
     mLightingColor           = NS_RGB(255,255,255);
     mClipPath                = nullptr;
-    mFilter                  = nullptr;
     mMask                    = nullptr;
     mStopOpacity             = 1.0f;
     mFloodOpacity            = 1.0f;
@@ -1007,7 +1048,7 @@ nsStyleSVGReset::nsStyleSVGReset(const nsStyleSVGReset& aSource)
   mFloodColor = aSource.mFloodColor;
   mLightingColor = aSource.mLightingColor;
   mClipPath = aSource.mClipPath;
-  mFilter = aSource.mFilter;
+  mFilters = aSource.mFilters;
   mMask = aSource.mMask;
   mStopOpacity = aSource.mStopOpacity;
   mFloodOpacity = aSource.mFloodOpacity;
@@ -1021,8 +1062,8 @@ nsChangeHint nsStyleSVGReset::CalcDifference(const nsStyleSVGReset& aOther) cons
   nsChangeHint hint = nsChangeHint(0);
 
   if (!EqualURIs(mClipPath, aOther.mClipPath) ||
-      !EqualURIs(mFilter, aOther.mFilter)     ||
-      !EqualURIs(mMask, aOther.mMask)) {
+      !EqualURIs(mMask, aOther.mMask) ||
+      mFilters != aOther.mFilters) {
     NS_UpdateHint(hint, nsChangeHint_UpdateEffects);
     NS_UpdateHint(hint, nsChangeHint_RepaintFrame);
   }
@@ -2311,6 +2352,7 @@ nsStyleVisibility::nsStyleVisibility(nsPresContext* aPresContext)
 nsStyleVisibility::nsStyleVisibility(const nsStyleVisibility& aSource)
 {
   MOZ_COUNT_CTOR(nsStyleVisibility);
+  mImageOrientation = aSource.mImageOrientation;
   mDirection = aSource.mDirection;
   mVisible = aSource.mVisible;
   mPointerEvents = aSource.mPointerEvents;
@@ -2324,6 +2366,9 @@ nsChangeHint nsStyleVisibility::CalcDifference(const nsStyleVisibility& aOther) 
   if (mDirection != aOther.mDirection || mWritingMode != aOther.mWritingMode) {
     NS_UpdateHint(hint, nsChangeHint_ReconstructFrame);
   } else {
+    if ((mImageOrientation != aOther.mImageOrientation)) {
+      NS_UpdateHint(hint, nsChangeHint_AllReflowHints);
+    }
     if (mVisible != aOther.mVisible) {
       if ((NS_STYLE_VISIBILITY_COLLAPSE == mVisible) ||
           (NS_STYLE_VISIBILITY_COLLAPSE == aOther.mVisible)) {
