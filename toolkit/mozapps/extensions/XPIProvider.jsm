@@ -104,6 +104,7 @@ const PREFIX_NS_EM                    = "http://www.mozilla.org/2004/em-rdf#";
 
 const TOOLKIT_ID                      = "toolkit@mozilla.org";
 const FIREFOX_ID                      = "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}"
+const FIREFOX_APPCOMPATVERSION        = "24.9"
 
 // The value for this is in Makefile.in
 #expand const DB_SCHEMA                       = __MOZ_EXTENSIONS_DB_SCHEMA__;
@@ -5816,10 +5817,12 @@ AddonInternal.prototype = {
       aPlatformVersion = Services.appinfo.platformVersion;
 
     let version;
-    if (app.id == Services.appinfo.ID || app.id == FIREFOX_ID)
+    if (app.id == Services.appinfo.ID)
       version = aAppVersion;
+    else if (app.id == FIREFOX_ID)
+      version = FIREFOX_APPCOMPATVERSION;
     else if (app.id == TOOLKIT_ID)
-      version = aPlatformVersion
+      version = aPlatformVersion;
 
     // Only extensions and dictionaries can be compatible by default; themes
     // and language packs always use strict compatibility checking.
