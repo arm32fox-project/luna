@@ -9,10 +9,11 @@
 #include "nsCSSProperty.h"
 #include "gfxFontFeatures.h"
 #include "nsIPrincipal.h"
-#include "nsSubstring.h"
+#include "nsString.h"
 
 class nsCSSValue;
 class nsStringComparator;
+class nsStyleCoord;
 class nsIContent;
 struct gfxFontFeature;
 class nsCSSValueList;
@@ -45,6 +46,8 @@ public:
                                     int32_t aLastMask,
                                     nsAString& aResult);
 
+  static void AppendAngleValue(const nsStyleCoord& aValue, nsAString& aResult);
+
   static void AppendPaintOrderValue(uint8_t aValue, nsAString& aResult);
 
   static void AppendFontFeatureSettings(const nsTArray<gfxFontFeature>& aFeatures,
@@ -52,6 +55,11 @@ public:
 
   static void AppendFontFeatureSettings(const nsCSSValue& src,
                                         nsAString& aResult);
+
+  static void AppendCSSNumber(float aNumber, nsAString& aResult)
+  {
+    aResult.AppendFloat(aNumber);
+  }
 
   // convert bitmask value to keyword name for a functional alternate
   static void GetFunctionalAlternatesName(int32_t aFeature,

@@ -11,6 +11,7 @@
 #include "mozilla/RefPtr.h"
 #include "DecodeStrategy.h"
 #include "ImageMetadata.h"
+#include "Orientation.h"
 
 namespace mozilla {
 namespace image {
@@ -180,7 +181,9 @@ protected:
 
   // Called by decoders when they determine the size of the image. Informs
   // the image of its size and sends notifications.
-  void PostSize(int32_t aWidth, int32_t aHeight);
+  void PostSize(int32_t aWidth,
+                int32_t aHeight,
+                Orientation aOrientation = Orientation());
 
   // Called by decoders when they begin a frame. Informs the image, sends
   // notifications, and does internal book-keeping.

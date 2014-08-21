@@ -950,9 +950,9 @@ public:
    * @param aFrame Frame whose (min-/max-/)width is being computed
    * @param aContainingBlockWidth Width of aFrame's containing block.
    * @param aContentEdgeToBoxSizing The sum of any left/right padding and
-   *          border that goes inside the rect chosen by -moz-box-sizing.
+   *          border that goes inside the rect chosen by box-sizing.
    * @param aBoxSizingToMarginEdge The sum of any left/right padding, border,
-   *          and margin that goes outside the rect chosen by -moz-box-sizing.
+   *          and margin that goes outside the rect chosen by box-sizing.
    * @param aCoord The width value to compute.
    */
   static nscoord ComputeWidthValue(
@@ -1334,6 +1334,18 @@ public:
                                          const nsRect& aDestArea);
 
   /**
+   * Given an image container and an orientation, returns an image container
+   * that contains the same image, reoriented appropriately. May return the
+   * original image container if no changes are needed.
+   *
+   * @param aContainer   The image container to apply the orientation to.
+   * @param aOrientation The desired orientation.
+   */
+  static already_AddRefed<imgIContainer>
+  OrientImage(imgIContainer* aContainer,
+              const nsStyleImageOrientation& aOrientation);
+
+  /**
    * Determine if any corner radius is of nonzero size
    *   @param aCorners the |nsStyleCorners| object to check
    *   @return true unless all the coordinates are 0%, 0 or null.
@@ -1612,6 +1624,11 @@ public:
    * Checks whether we want to layerize animated images whenever possible.
    */
   static bool AnimatedImageLayersEnabled();
+
+  /**
+   * Checks if we should enable parsing for CSS Filters.
+   */
+  static bool CSSFiltersEnabled();
 
   /**
    * Unions the overflow areas of all non-popup children of aFrame with

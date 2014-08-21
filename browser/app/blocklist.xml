@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <blocklist xmlns="http://www.mozilla.org/2006/addons-blocklist"
-lastupdate="1407370380000">
+lastupdate="1407886026000">
   <emItems>
     <emItem blockID="i454" id="sqlmoz@facebook.com">
       <versionRange minVersion="0" maxVersion="*" severity="3">
@@ -884,6 +884,13 @@ lastupdate="1407370380000">
       severity="1"></versionRange>
       <prefs></prefs>
     </emItem>
+    <emItem blockID="i692"
+    id="/^(j003-lqgrmgpcekslhg|SupraSavings|j003-dkqonnnthqjnkq|j003-kaggrpmirxjpzh)@jetpack$/">
+
+      <versionRange minVersion="0" maxVersion="*" severity="1">
+      </versionRange>
+      <prefs></prefs>
+    </emItem>
     <emItem blockID="i172" id="info@bflix.info">
       <versionRange minVersion="0" maxVersion="*" severity="3">
       </versionRange>
@@ -1580,6 +1587,12 @@ lastupdate="1407370380000">
     <emItem blockID="i473"
     id="{81b13b5d-fba1-49fd-9a6b-189483ac548a}">
       <versionRange minVersion="0" maxVersion="*" severity="3">
+      </versionRange>
+      <prefs></prefs>
+    </emItem>
+    <emItem blockID="i690"
+    id="{55dce8ba-9dec-4013-937e-adbf9317d990">
+      <versionRange minVersion="0" maxVersion="*" severity="1">
       </versionRange>
       <prefs></prefs>
     </emItem>

@@ -79,20 +79,21 @@ enum WindowsThemeColor {
 
 class nsUXThemeData {
   static HMODULE sThemeDLL;
-   static HMODULE sDwmDLL;
+  static HMODULE sDwmDLL;
   static HANDLE sThemes[eUXNumClasses];
   
   static const wchar_t *GetClassName(nsUXThemeClass);
 
 public:
   static const PRUnichar kThemeLibraryName[];
-   static const PRUnichar kDwmLibraryName[];
+  static const PRUnichar kDwmLibraryName[];
   static bool sFlatMenus;
   static bool sTitlebarInfoPopulatedAero;
   static bool sTitlebarInfoPopulatedThemed;
   static SIZE sCommandButtons[4];
   static mozilla::LookAndFeel::WindowsTheme sThemeId;
   static bool sIsDefaultWindowsTheme;
+  static bool sIsHighContrastOn;
 
   static void Initialize();
   static void Teardown();
@@ -108,6 +109,7 @@ public:
   static void UpdateNativeThemeInfo();
   static mozilla::LookAndFeel::WindowsTheme GetNativeThemeId();
   static bool IsDefaultWindowTheme();
+  static bool IsHighContrastOn();
 
   // dwmapi.dll function typedefs and declarations
   typedef HRESULT (WINAPI*DwmExtendFrameIntoClientAreaProc)(HWND hWnd, const MARGINS *pMarInset);
