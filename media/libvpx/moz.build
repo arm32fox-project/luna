@@ -4,37 +4,101 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MODULE = 'vpx'
-
-EXPORTS.vpx += [
-    'arm.h',
-    'mem.h',
-    'scale_mode.h',
-    'vp8.h',
-    'vp8cx.h',
-    'vp8dx.h',
-    'vp8e.h',
-    'vpx_codec.h',
-    'vpx_codec_impl_bottom.h',
-    'vpx_codec_impl_top.h',
-    'vpx_decoder.h',
-    'vpx_decoder_compat.h',
-    'vpx_encoder.h',
-    'vpx_image.h',
-    'vpx_integer.h',
-    'vpx_mem.h',
-    'vpx_mem_intrnl.h',
-    'vpx_timer.h',
-    'vpxscale.h',
-    'x86.h',
-    'yv12config.h',
-    'yv12extend.h',
-]
+EXPORTS.vpx += ['vpx/vp8.h',
+             'vpx/vp8cx.h',
+             'vpx/vp8dx.h',
+             'vpx/vpx_codec.h',
+             'vpx/vpx_decoder.h',
+             'vpx/vpx_encoder.h',
+             'vpx/vpx_image.h',
+             'vpx/vpx_integer.h',
+             'vpx_mem/include/vpx_mem_intrnl.h',
+             'vpx_mem/vpx_mem.h',
+             'vpx_ports/arm.h',
+             'vpx_ports/mem.h',
+             'vpx_ports/vpx_timer.h',
+             'vpx_ports/x86.h',
+             'vpx_scale/vpx_scale.h',
+             'vpx_scale/yv12config.h']
 
 if CONFIG['VPX_NEED_OBJ_INT_EXTRACT']:
     HOST_CSRCS += [
-        'obj_int_extract.c',
+        'build/make/obj_int_extract.c',
     ]
 
-LIBRARY_NAME = 'vpx'
+    HOST_PROGRAM = 'host_obj_int_extract'
 
+
+
+if CONFIG['MOZ_VP8_ERROR_CONCEALMENT']:
+    CSRCS += files['ERROR_CONCEALMENT']
+
+if CONFIG['MOZ_VP8_ENCODER']:
+    CSRCS += files['ENCODER']
+
+#postproc is only enabled on x86 with asm
+if CONFIG['VPX_X86_ASM']:
+    CSRCS += files['VP8_POSTPROC']
+
+if CONFIG['VPX_X86_ASM'] and CONFIG['OS_TARGET'] == 'WINNT':
+    CSRCS += [
+        'vpx_scale/vpx_scale_asm_offsets.c',
+    ]
+    if CONFIG['MOZ_VP8_ENCODER']:
+        SOURCES += [
+            'vp8/encoder/vp8_asm_enc_offsets.c',
+        ]
+
+if CONFIG['VPX_X86_ASM']:
+    CSRCS += files['X86_ASM']
+
+    if '64' in CONFIG['OS_TEST']:
+        CSRCS += files['X86-64_ASM']
+
+    # AVX2 only supported on
+    # Darwin toolchain right now
+    if CONFIG['OS_TARGET'] == 'Darwin':
+        CSRCS += files['AVX2']
+
+if CONFIG['VPX_X86_ASM'] and CONFIG['MOZ_VP8_ENCODER']:
+    CSRCS += files['X86_ASM_ENCODER']
+    if '64' in CONFIG['OS_TEST']:
+        CSRCS += files['X86-64_ASM_ENCODER']
+
+arm_asm_files = []
+if CONFIG['VPX_ARM_ASM']:
+    arm_asm_files += files['ARM_ASM']
+    if CONFIG['MOZ_VP8_ENCODER']:
+        arm_asm_files += files['ARM_ASM_ENCODER']
+
+    if CONFIG['VPX_AS_CONVERSION']:
+        GENERATED_SOURCES += [ "%s.%s" % (f, CONFIG['VPX_ASM_SUFFIX'])
+            for f in sorted(arm_asm_files) if f.endswith('.asm')
+        ]
+        CSRCS += [
+            f for f in sorted(arm_asm_files) if not f.endswith('.asm')
+        ]
+    else:
+        CSRCS += sorted(arm_asm_files)
+
+# boolhuff_armv5te.asm defines the same functions as boolhuff.c instead of
+# using RTCD, so we have to make sure we only add one of the two.
+if CONFIG['MOZ_VP8_ENCODER'] \
+    and 'vp8/encoder/arm/armv5te/boolhuff_armv5te.asm' not in arm_asm_files:
+    CSRCS += [
+        'vp8/encoder/boolhuff.c',
+    ]
+
+MSVC_ENABLE_PGO = True
+
+if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
+    NO_VISIBILITY_FLAGS = True
+
+FINAL_LIBRARY = 'gkmedias'
+
+DEFINES['HAVE_CONFIG_H'] = 'vpx_config.h'
+
+if CONFIG['OS_TARGET'] == 'Android':
+    # Older versions of the Android NDK don't pre-define anything to indicate
+    # the OS they're on, so do it for them.
+    DEFINES['__linux__'] = True

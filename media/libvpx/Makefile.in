@@ -28,6 +28,11 @@ LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/libvpx/vp8/decoder \
   -I$(topsrcdir)/media/libvpx/vp8/decoder/arm \
   -I$(topsrcdir)/media/libvpx/vp8/decoder/x86 \
+  -I$(topsrcdir)/media/libvpx/vp9/ \
+  -I$(topsrcdir)/media/libvpx/vp9/common/ \
+  -I$(topsrcdir)/media/libvpx/vp9/common/arm \
+  -I$(topsrcdir)/media/libvpx/vp9/common/x86 \
+  -I$(topsrcdir)/media/libvpx/vp9/decoder/ \
   -I$(topsrcdir)/media/libvpx/vpx_codec \
   -I$(topsrcdir)/media/libvpx/vpx_mem/ \
   -I$(topsrcdir)/media/libvpx/vpx_mem/include \
@@ -59,6 +64,13 @@ VPATH += \
   $(srcdir)/vp8/decoder/arm/neon \
   $(srcdir)/vp8/decoder/generic \
   $(srcdir)/vp8/decoder/x86 \
+  $(srcdir)/vp9 \
+  $(srcdir)/vp9/common \
+  $(srcdir)/vp9/common/arm \
+  $(srcdir)/vp9/common/arm/neon \
+  $(srcdir)/vp9/common/generic \
+  $(srcdir)/vp9/common/x86 \
+  $(srcdir)/vp9/decoder \
   $(NULL)
 
 #Setup the libvpx assembler config.
@@ -68,8 +80,6 @@ AS_DASH_C_FLAG=$(VPX_DASH_C_FLAG)
 ASM_SUFFIX=$(VPX_ASM_SUFFIX)
 
 CSRCS += \
-  vpx_config_c.c \
-  vp8_dx_iface.c \
   alloccommon.c \
   blockd.c \
   debugmodes.c \
@@ -80,43 +90,73 @@ CSRCS += \
   extend.c \
   filter.c \
   findnearmv.c \
+  systemdependent.c \
   idct_blk.c \
   idctllm.c \
   loopfilter.c \
   loopfilter_filters.c \
   mbpitch.c \
   modecont.c \
-  modecontext.c \
-  postproc.c \
   quant_common.c \
   reconinter.c \
   reconintra.c \
   reconintra4x4.c \
+  rtcd.c \
   sad_c.c \
   setupintrarecon.c \
   swapyv12buffer.c \
   treecoder.c \
   variance_c.c \
-  systemdependent.c \
   dboolhuff.c \
   decodemv.c \
   decodframe.c \
   detokenize.c \
-  reconintra_mt.c \
   onyxd_if.c \
   threading.c \
-  dsystemdependent.c \
+  vp8_dx_iface.c \
+  vp9_systemdependent.c \
+  vp9_alloccommon.c \
+  vp9_common_data.c \
+  vp9_convolve.c \
+  vp9_debugmodes.c \
+  vp9_entropy.c \
+  vp9_entropymode.c \
+  vp9_entropymv.c \
+  vp9_extend.c \
+  vp9_filter.c \
+  vp9_findnearmv.c \
+  vp9_idct.c \
+  vp9_loopfilter.c \
+  vp9_loopfilter_filters.c \
+  vp9_mvref_common.c \
+  vp9_pred_common.c \
+  vp9_quant_common.c \
+  vp9_reconinter.c \
+  vp9_reconintra.c \
+  vp9_rtcd.c \
+  vp9_scale.c \
+  vp9_scan.c \
+  vp9_seg_common.c \
+  vp9_tile_common.c \
+  vp9_treecoder.c \
+  vp9_dboolhuff.c \
+  vp9_decodemv.c \
+  vp9_decodframe.c \
+  vp9_detokenize.c \
+  vp9_dsubexp.c \
+  vp9_onyxd_if.c \
+  vp9_thread.c \
+  vp9_dx_iface.c \
   vpx_codec.c \
   vpx_decoder.c \
-  vpx_decoder_compat.c \
   vpx_encoder.c \
   vpx_image.c \
   vpx_mem.c \
   gen_scalers.c \
-  vpxscale.c \
-  scalesystemdependent.c \
+  vpx_scale.c \
   yv12config.c \
   yv12extend.c \
+  vpx_scale_rtcd.c \
   $(NULL)
 
 ifdef MOZ_VP8_ERROR_CONCEALMENT
@@ -134,14 +174,16 @@ VPATH += \
   $(srcdir)/vp8/encoder/arm/neon \
   $(srcdir)/vp8/encoder/generic \
   $(srcdir)/vp8/encoder/x86 \
+  $(srcdir)/vp9/encoder \
+  $(srcdir)/vp9/encoder/x86 \
   $(srcdir)/vpx_scale/arm \
   $(srcdir)/vpx_scale/arm/neon \
   $(NULL)
 
 CSRCS += \
-  vp8_cx_iface.c \
   bitstream.c \
   dct.c \
+  denoising.c \
   encodeframe.c \
   encodeintra.c \
   encodemb.c \
@@ -163,7 +205,35 @@ CSRCS += \
   temporal_filter.c \
   tokenize.c \
   treewriter.c \
-  csystemdependent.c \
+  vp8_cx_iface.c \
+  vp9_bitstream.c \
+  vp9_boolhuff.c \
+  vp9_dct.c \
+  vp9_encodeframe.c \
+  vp9_encodeintra.c \
+  vp9_encodemb.c \
+  vp9_encodemv.c \
+  vp9_firstpass.c \
+  vp9_lookahead.c \
+  vp9_mbgraph.c \
+  vp9_mcomp.c \
+  vp9_modecosts.c \
+  vp9_onyx_if.c \
+  vp9_picklpf.c \
+  vp9_psnr.c \
+  vp9_quantize.c \
+  vp9_ratectrl.c \
+  vp9_rdopt.c \
+  vp9_sad_c.c \
+  vp9_segmentation.c \
+  vp9_subexp.c \
+  vp9_temporal_filter.c \
+  vp9_tokenize.c \
+  vp9_treewriter.c \
+  vp9_vaq.c \
+  vp9_variance_c.c \
+  vp9_cx_iface.c \
+  svc_encodeframe.c \
   $(NULL)
 endif
 
@@ -171,90 +241,13 @@ ifdef VPX_X86_ASM
 # Building on an x86 platform with a supported assembler, include
 # the optimized assembly in the build.
 
-CSRCS += \
-  filter_x86.c \
-  idct_blk_mmx.c \
-  idct_blk_sse2.c \
-  loopfilter_x86.c \
-  postproc_x86.c \
-  recon_wrapper_sse2.c \
-  variance_mmx.c \
-  variance_sse2.c \
-  variance_ssse3.c \
-  vp8_asm_stubs.c \
-  x86_systemdependent.c \
-  x86_dsystemdependent.c \
-  $(NULL)
-
-ASFILES += \
-  dequantize_mmx.asm \
-  idctllm_mmx.asm \
-  idctllm_sse2.asm \
-  iwalsh_mmx.asm \
-  iwalsh_sse2.asm \
-  loopfilter_mmx.asm \
-  loopfilter_sse2.asm \
-  postproc_mmx.asm \
-  postproc_sse2.asm \
-  recon_mmx.asm \
-  recon_sse2.asm \
-  sad_mmx.asm \
-  sad_sse2.asm \
-  sad_sse3.asm \
-  sad_sse4.asm \
-  sad_ssse3.asm \
-  subpixel_mmx.asm \
-  subpixel_sse2.asm \
-  subpixel_ssse3.asm \
-  variance_impl_mmx.asm \
-  variance_impl_sse2.asm \
-  variance_impl_ssse3.asm \
-  emms.asm \
-  $(NULL)
-
-ifeq (64,$(findstring 64,$(OS_TEST)))
-ASFILES += loopfilter_block_sse2.asm
-endif
-
-ifdef MOZ_VP8_ENCODER
-
-CSRCS += \
-  x86_csystemdependent.c \
-  $(NULL)
-
-# Files which depend on asm_enc_offsets.asm
-VPX_ASM_ENC_OFFSETS_SRCS = \
-  quantize_sse2.asm \
-  quantize_sse4.asm \
-  quantize_ssse3.asm \
-  $(NULL)
-
-ASFILES += \
-  dct_mmx.asm \
-  dct_sse2.asm \
-  encodeopt.asm \
-  fwalsh_sse2.asm \
-  quantize_mmx.asm \
-  subtract_mmx.asm \
-  subtract_sse2.asm \
-  temporal_filter_apply_sse2.asm \
-  $(VPX_ASM_ENC_OFFSETS_SRCS) \
-  $(NULL)
-
-endif
-
-endif
+# XXX {Progress Placeholder}
 
 ifdef VPX_ARM_ASM
 # Building on an ARM platform with a supported assembler, include
 # the optimized assembly in the build.
 
 ifeq ($(OS_TARGET),Android)
-
-# Older versions of the Android NDK don't pre-define anything to indicate the
-# OS they're on, so do it for them.
-DEFINES += -D__linux__
-
 # For cpu-features.h
 LOCAL_INCLUDES += -I$(ANDROID_NDK)/sources/android/cpufeatures
 ifndef MOZ_WEBRTC
@@ -264,135 +257,21 @@ CSRCS += cpu-features.c
 endif
 endif
 
-CSRCS += \
-  arm_cpudetect.c \
-  arm_systemdependent.c \
-  bilinearfilter_arm.c \
-  dequantize_arm.c \
-  filter_arm.c \
-  loopfilter_arm.c \
-  reconintra_arm.c \
-  variance_arm.c \
-  idct_blk_v6.c \
-  idct_blk_neon.c \
-  arm_dsystemdependent.c \
-  arm_scalesystemdependent.c \
-  yv12extend_arm.c \
-  $(NULL)
-
-# Files which depend on asm_com_offsets.asm
-VPX_ASM_COM_OFFSETS_SRCS = \
-  vp8_vpxyv12_copy_y_neon.asm \
-  vp8_vpxyv12_copyframe_func_neon.asm \
-  vp8_vpxyv12_extendframeborders_neon.asm \
-  $(NULL)
-
-VPX_ASFILES = \
-  bilinearfilter_v6.asm \
-  copymem16x16_v6.asm \
-  copymem8x4_v6.asm \
-  copymem8x8_v6.asm \
-  dc_only_idct_add_v6.asm \
-  dequant_idct_v6.asm \
-  dequantize_v6.asm \
-  filter_v6.asm \
-  idct_v6.asm \
-  intra4x4_predict_v6.asm \
-  iwalsh_v6.asm \
-  loopfilter_v6.asm \
-  simpleloopfilter_v6.asm \
-  sixtappredict8x4_v6.asm \
-  bilinearpredict16x16_neon.asm \
-  bilinearpredict4x4_neon.asm \
-  bilinearpredict8x4_neon.asm \
-  bilinearpredict8x8_neon.asm \
-  buildintrapredictorsmby_neon.asm \
-  copymem16x16_neon.asm \
-  copymem8x4_neon.asm \
-  copymem8x8_neon.asm \
-  dc_only_idct_add_neon.asm \
-  dequant_idct_neon.asm \
-  dequantizeb_neon.asm \
-  idct_dequant_0_2x_neon.asm \
-  idct_dequant_full_2x_neon.asm \
-  iwalsh_neon.asm \
-  loopfilter_neon.asm \
-  loopfiltersimplehorizontaledge_neon.asm \
-  loopfiltersimpleverticaledge_neon.asm \
-  mbloopfilter_neon.asm \
-  save_neon_reg.asm \
-  vp8_mse16x16_armv6.asm \
-  vp8_sad16x16_armv6.asm \
-  vp8_variance16x16_armv6.asm \
-  vp8_variance8x8_armv6.asm \
-  vp8_variance_halfpixvar16x16_h_armv6.asm \
-  vp8_variance_halfpixvar16x16_hv_armv6.asm \
-  vp8_variance_halfpixvar16x16_v_armv6.asm \
-  shortidct4x4llm_neon.asm \
-  sad16_neon.asm \
-  sad8_neon.asm \
-  sixtappredict16x16_neon.asm \
-  sixtappredict4x4_neon.asm \
-  sixtappredict8x4_neon.asm \
-  sixtappredict8x8_neon.asm \
-  variance_neon.asm \
-  vp8_mse16x16_neon.asm \
-  vp8_subpixelvariance8x8_neon.asm \
-  vp8_subpixelvariance16x16_neon.asm \
-  vp8_subpixelvariance16x16s_neon.asm \
-  $(VPX_ASM_COM_OFFSETS_SRCS) \
-  $(NULL)
-
+ASM_OFFSETS = vpx_scale_asm_offsets.asm
 ifdef MOZ_VP8_ENCODER
-CSRCS += \
-  arm_csystemdependent.c \
-  boolhuff_arm.c \
-  dct_arm.c \
-  picklpf_arm.c \
-  $(NULL)
-
-# Files which depend on asm_enc_offsets.asm
-VPX_ASM_ENC_OFFSETS_SRCS = \
-  boolhuff_armv5te.asm \
-  vp8_packtokens_armv5.asm \
-  vp8_packtokens_mbrow_armv5.asm \
-  vp8_packtokens_partitions_armv5.asm \
-  vp8_fast_quantize_b_armv6.asm \
-  vp8_subtract_armv6.asm \
-  fastquantizeb_neon.asm \
-  subtract_neon.asm \
-  $(NULL)
-
-VPX_ASFILES += \
-  vp8_short_fdct4x4_armv6.asm \
-  walsh_v6.asm \
-  shortfdct_neon.asm \
-  vp8_memcpy_neon.asm \
-  vp8_shortwalsh4x4_neon.asm \
-  $(VPX_ASM_ENC_OFFSETS_SRCS) \
-  $(NULL)
-
+ASM_OFFSETS += vp8_asm_enc_offsets.asm
 endif
+
 
 ifdef VPX_AS_CONVERSION
 # The ARM asm is written in ARM RVCT syntax, but we actually build it with
 # gas using GNU syntax. Add some rules to perform the conversion.
-VPX_CONVERTED_ASFILES = $(addsuffix .$(ASM_SUFFIX), $(VPX_ASFILES))
 
-ASFILES += $(VPX_CONVERTED_ASFILES)
-GARBAGE += $(VPX_CONVERTED_ASFILES)
+GENERATED_DIRS += $(dir $(ASFILES))
 
-%.asm.$(ASM_SUFFIX): %.asm
+%.asm.$(ASM_SUFFIX): %.asm $(ASM_OFFSETS)
 	$(VPX_AS_CONVERSION) < $< > $@
-else
-ASFILES += $(VPX_ASFILES)
-endif
 
-else
-ifdef MOZ_VP8_ENCODER
-# boolhuff_armv5te.asm defines the same functions as boolhuff.c instead of
-# using RTCD, so we have to make sure we only add one of the two.
-CSRCS += boolhuff.c
 endif
 endif
 
@@ -409,16 +288,11 @@ else
 VPX_OIE_FORMAT := gas
 endif
 
-HOST_PROGRAM = host_obj_int_extract$(HOST_BIN_SUFFIX)
-
-CSRCS += asm_com_offsets.c
-
-GARBAGE += asm_com_offsets.$(OBJ_SUFFIX) asm_com_offsets.asm
+GARBAGE += vpx_scale_asm_offsets.$(OBJ_SUFFIX) vpx_scale_asm_offsets.asm
 
 ifdef MOZ_VP8_ENCODER
-CSRCS += asm_enc_offsets.c
 
-GARBAGE += asm_enc_offsets.$(OBJ_SUFFIX) asm_enc_offsets.asm
+GARBAGE += vp8_asm_enc_offsets.$(OBJ_SUFFIX) vp8_asm_enc_offsets.asm
 endif
 
 else
@@ -426,78 +300,88 @@ else
 # We can extract the asm offsets directly from generated assembly using inline
 # asm. This is the preferred method.
 
-asm_com_offsets.s: CFLAGS += -DINLINE_ASM
+vpx_scale_asm_offsets.s: CFLAGS += -DINLINE_ASM
 
 OFFSET_PATTERN := '^[a-zA-Z0-9_]* EQU'
 
-asm_com_offsets.asm: asm_com_offsets.s
+# This rule, as well as the rule for vp8_asm_enc_offsets.s further below are here
+# because the generic rule in rules.mk was made to not be implicit, and we
+# can't put the C files in CSRCS.
+vpx_scale_asm_offsets.s: $(srcdir)/vpx_scale/vpx_scale_asm_offsets.c
+	$(REPORT_BUILD)
+	$(CC) -S $(COMPILE_CFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
+
+vpx_scale_asm_offsets.asm: vpx_scale_asm_offsets.s
 	grep $(OFFSET_PATTERN) $< | sed -e 's/[$$\#]//g' \
 	    $(if $(VPX_AS_CONVERSION),| $(VPX_AS_CONVERSION)) > $@
 
-GARBAGE += asm_com_offsets.s asm_com_offsets.asm
+GARBAGE += vpx_scale_asm_offsets.s vpx_scale_asm_offsets.asm
 
 ifdef MOZ_VP8_ENCODER
 
-asm_enc_offsets.s: CFLAGS += -DINLINE_ASM
+vp8_asm_enc_offsets.s: CFLAGS += -DINLINE_ASM
 
-asm_enc_offsets.asm: asm_enc_offsets.s
+vp8_asm_enc_offsets.s: $(srcdir)/vp8/encoder/vp8_asm_enc_offsets.c
+	$(REPORT_BUILD)
+	$(CC) -S $(COMPILE_CFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
+
+vp8_asm_enc_offsets.asm: vp8_asm_enc_offsets.s
 	grep $(OFFSET_PATTERN) $< | sed -e 's/[$$\#]//g' \
 	    $(if $(VPX_AS_CONVERSION),| $(VPX_AS_CONVERSION)) > $@
 
-GARBAGE += asm_enc_offsets.s asm_enc_offsets.asm
+GARBAGE += vp8_asm_enc_offsets.s vp8_asm_enc_offsets.asm
+
 
 endif
 
 endif
 
-EXTRA_MDDEPEND_FILES = asm_enc_offsets.s.pp asm_enc_offsets.$(OBJ_SUFFIX).pp asm_com_offsets.s.pp asm_com_offsets.$(OBJ_SUFFIX).pp
+EXTRA_MDDEPEND_FILES = vp8_asm_enc_offsets.s.pp vp8_asm_enc_offsets.$(OBJ_SUFFIX).pp vpx_scale_asm_offsets.s.pp vpx_scale_asm_offsets.$(OBJ_SUFFIX).pp
 
 include $(topsrcdir)/config/rules.mk
 
 # This must be after rules.mk in order to use $(OBJ_SUFFIX) outside a
 # recursively-expanded variable.
+
+# dont add for MSVC
+ifndef _MSC_VER
+%_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2
+%_ssse3.$(OBJ_SUFFIX): CFLAGS += -mssse3
+%_avx2.$(OBJ_SUFFIX): CFLAGS += -mavx2
+endif
+
+quantize_sse4.$(OBJ_SUFFIX): vp8_asm_enc_offsets.asm
+quantize_ssse3.$(OBJ_SUFFIX): vp8_asm_enc_offsets.asm
+
 ifdef VPX_NEED_OBJ_INT_EXTRACT
 
 # only for MSVC
 ifdef _MSC_VER
-asm_com_offsets.$(OBJ_SUFFIX): CFLAGS += -GL-
+NO_PROFILE_GUIDED_OPTIMIZE := vpx_scale_asm_offsets.c
 endif
 
-asm_com_offsets.asm: asm_com_offsets.$(OBJ_SUFFIX) $(HOST_PROGRAM)
+vpx_scale_asm_offsets.asm: vpx_scale_asm_offsets.$(OBJ_SUFFIX) $(HOST_PROGRAM)
 	./$(HOST_PROGRAM) $(VPX_OIE_FORMAT) $< \
 	    $(if $(VPX_AS_CONVERSION),| $(VPX_AS_CONVERSION)) > $@
 
 # Filter out this object, because we don't want to link against it.
 # It was generated solely so it could be parsed by obj_int_extract.
-OBJS := $(filter-out asm_com_offsets.$(OBJ_SUFFIX),$(OBJS))
+OBJS := $(filter-out vpx_scale_asm_offsets.$(OBJ_SUFFIX),$(OBJS))
 
 ifdef MOZ_VP8_ENCODER
 
 ifdef _MSC_VER
-asm_enc_offsets.$(OBJ_SUFFIX): CFLAGS += -GL-
+NO_PROFILE_GUIDED_OPTIMIZE += vp8_asm_enc_offsets.c
 endif
 
-asm_enc_offsets.asm: asm_enc_offsets.$(OBJ_SUFFIX) $(HOST_PROGRAM)
+vp8_asm_enc_offsets.asm: vp8_asm_enc_offsets.$(OBJ_SUFFIX) $(HOST_PROGRAM)
 	./$(HOST_PROGRAM) $(VPX_OIE_FORMAT) $< \
 	    $(if $(VPX_AS_CONVERSION),| $(VPX_AS_CONVERSION)) > $@
 
 # Filter out this object, because we don't want to link against it.
 # It was generated solely so it could be parsed by obj_int_extract.
-OBJS := $(filter-out asm_enc_offsets.$(OBJ_SUFFIX),$(OBJS))
+OBJS := $(filter-out vp8_asm_enc_offsets.$(OBJ_SUFFIX),$(OBJS))
 
-endif
-endif
-
-# These dependencies are not generated automatically, so do it manually.
-ifdef VPX_AS_CONVERSION
-$(addsuffix .$(OBJ_SUFFIX), $(VPX_ASM_COM_OFFSETS_SRCS)): asm_com_offsets.asm
-ifdef MOZ_VP8_ENCODER
-$(addsuffix .$(OBJ_SUFFIX), $(VPX_ASM_ENC_OFFSETS_SRCS)): asm_enc_offsets.asm
-endif
-else
-$(patsubst %.$(ASM_SUFFIX),%.$(OBJ_SUFFIX), $(VPX_ASM_COM_OFFSETS_SRCS)): asm_com_offsets.asm
-ifdef MOZ_VP8_ENCODER
-$(patsubst %.$(ASM_SUFFIX),%.$(OBJ_SUFFIX), $(VPX_ASM_ENC_OFFSETS_SRCS)): asm_enc_offsets.asm
 endif
 endif
 
