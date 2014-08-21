@@ -60,7 +60,7 @@
 !define MinSupportedVer "Microsoft Windows Vista x64"
 #else
 !define ARCH "x86"
-!define MinSupportedVer "Microsoft Windows Vista"
+!define MinSupportedVer "Microsoft Windows XP SP3"
 #endif
 
 #ifdef MOZ_MAINTENANCE_SERVICE
