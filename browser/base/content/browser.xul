@@ -8,7 +8,7 @@
 
 <?xml-stylesheet href="chrome://browser/content/browser.css" type="text/css"?>
 
-# Pale Moon: Restore title to AppMenu windowed use
+# Restore title to AppMenu windowed use
 <?xml-stylesheet href="chrome://browser/content/browser-title.css" type="text/css"?>
 
 <?xml-stylesheet href="chrome://browser/content/places/places.css" type="text/css"?>
@@ -21,8 +21,10 @@
 <?xul-overlay href="chrome://browser/content/baseMenuOverlay.xul"?>
 <?xul-overlay href="chrome://browser/content/places/placesOverlay.xul"?>
 
-# Pale Moon: padlock feature
+# Padlock feature
 <?xul-overlay href="chrome://browser/content/padlock.xul"?>
+# Improve bookmark menu dragging
+<?xul-overlay href="chrome://browser/content/browser-menudragging.xul"?>
  
 # All DTD information is stored in a separate file so that it can be shared by
 # hiddenWindow.xul.
