@@ -11,6 +11,7 @@ EXPORTS += [
     'OggDecoder.h',
     'OggReader.h',
     'OggWriter.h',
+    'OpusParser.h',
 ]
 
 CPP_SOURCES += [
@@ -18,6 +19,7 @@ CPP_SOURCES += [
     'OggDecoder.cpp',
     'OggReader.cpp',
     'OggWriter.cpp',
+    'OpusParser.cpp',
 ]
 
 LIBRARY_NAME = 'gkconogg_s'
