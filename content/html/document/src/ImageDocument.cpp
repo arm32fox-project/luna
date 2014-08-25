@@ -15,6 +15,7 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMEventListener.h"
+#include "nsIFrame.h"
 #include "nsGkAtoms.h"
 #include "imgIRequest.h"
 #include "imgILoader.h"
@@ -590,7 +591,7 @@ ImageDocument::UpdateSizeFromLayout()
   }
 
   nsIntSize oldSize(mImageWidth, mImageHeight);
-  IntrinsicSize newSize = contentFrame->GetIntrinsicSize();
+  nsIFrame::IntrinsicSize newSize = contentFrame->GetIntrinsicSize();
 
   if (newSize.width.GetUnit() == eStyleUnit_Coord) {
     mImageWidth = nsPresContext::AppUnitsToFloatCSSPixels(newSize.width.GetCoordValue());
