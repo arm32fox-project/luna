@@ -13,7 +13,6 @@
 #include "nsString.h"
 #include "nsIDialogParamBlock.h"
 #include "nsIMutableArray.h"
-#include "mozilla/dom/ScriptSettings.h"
 
 /****************************************************************
  ************************ nsCookiePromptService *****************
@@ -72,8 +71,6 @@ nsCookiePromptService::CookieDialog(nsIDOMWindow *aParent,
     parent = do_QueryInterface(privateParent);
   }
 
-  mozilla::dom::AutoNoJSAPI nojsapi;
-  
   // The cookie dialog will be modal for the root chrome window rather than the
   // tab containing the permission-requesting page.  This removes confusion
   // about which monitor is displaying the dialog (see bug 470356), but also
