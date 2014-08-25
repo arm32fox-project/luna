@@ -4,6 +4,7 @@
 
 
 #include "nsCookiePromptService.h"
+#include "nsCxPusher.h"
 #include "nsICookie.h"
 #include "nsICookieAcceptDialog.h"
 #include "nsIDOMWindow.h"
@@ -71,6 +72,9 @@ nsCookiePromptService::CookieDialog(nsIDOMWindow *aParent,
     parent = do_QueryInterface(privateParent);
   }
 
+  // Construct auto-selected JS context for this so it can actually show
+  mozilla::AutoJSContext cx;
+  
   // The cookie dialog will be modal for the root chrome window rather than the
   // tab containing the permission-requesting page.  This removes confusion
   // about which monitor is displaying the dialog (see bug 470356), but also
