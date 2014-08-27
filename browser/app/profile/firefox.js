@@ -1206,7 +1206,7 @@ pref("browser.panorama.animate_zoom", true);
 // Defines the url to be used for new tabs.
 pref("browser.newtab.url", "about:blank");
 // Activates preloading of the new tab url.
-pref("browser.newtab.preload", true);
+pref("browser.newtab.preload", false);
 
 // Toggles the content of 'about:newtab'. Shows the grid when enabled.
 pref("browser.newtabpage.enabled", true);
