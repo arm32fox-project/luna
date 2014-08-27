@@ -2,12 +2,21 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
+<!-- Menu items -->
+<!ENTITY palemoon.sendLinkCmd.label            "Send Link…">
+<!ENTITY palemoon.sendLinkCmd.accesskey        "d">
+<!ENTITY palemoon.sendPageCmd.label            "Send Page Link…">
+<!ENTITY palemoon.sendPageCmd.accesskey        "e">
+
 <!ENTITY palemoon.menu.statusBar.label               "Status Bar">
 <!ENTITY palemoon.menu.statusBar.accesskey           "S">
 <!ENTITY palemoon.menu.allBookmarks.label            "Organize Bookmarks">
 
-<!ENTITY palemoon.showTabBar.label             "Always show the tab bar">
-<!ENTITY palemoon.showTabBar.accesskey         "b">
+<!-- Preferences -->
+<!ENTITY toolkit.classic.download.window.label       "Use the classic downloads window">
+
+<!ENTITY palemoon.showTabBar.label                   "Always show the tab bar">
+<!ENTITY palemoon.showTabBar.accesskey               "b">
 <!ENTITY palemoon.insertRelatedAfterCurrent.label    "Insert related tabs next to the current tab">
 <!ENTITY palemoon.contextLoadInBackground.label      "When performing a context search, switch to the new tab immediately">
 <!ENTITY palemoon.closeWindowWithLastTab.label       "Close the window when the last tab is closed">
@@ -33,8 +42,3 @@
 <!ENTITY palemoon.smoothscroll.pagekeys.duration     "Page up/down scroll duration:">
 <!ENTITY palemoon.smoothscroll.scrollbar.label       "Smooth scroll with scrollbars">
 <!ENTITY palemoon.smoothscroll.scrollbar.duration    "Scrollbar smooth scroll duration:">
-
-<!ENTITY palemoon.sendLinkCmd.label            "Send Link…">
-<!ENTITY palemoon.sendLinkCmd.accesskey        "d">
-<!ENTITY palemoon.sendPageCmd.label            "Send Page Link…">
-<!ENTITY palemoon.sendPageCmd.accesskey        "e">
