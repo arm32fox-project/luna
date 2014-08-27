@@ -1204,7 +1204,7 @@ pref("prompts.tab_modal.enabled", true);
 pref("browser.panorama.animate_zoom", true);
 
 // Defines the url to be used for new tabs.
-pref("browser.newtab.url", "about:blank");
+pref("browser.newtab.url", "about:logopage");
 // Activates preloading of the new tab url.
 pref("browser.newtab.preload", false);
 
