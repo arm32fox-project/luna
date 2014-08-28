@@ -49,6 +49,7 @@
 #define ID_BLOCK                0xa1
 #define ID_BLOCK_DURATION       0x9b
 #define ID_REFERENCE_BLOCK      0xfb
+#define ID_DISCARD_PADDING      0x75a2
 
 /* Tracks Elements */
 #define ID_TRACKS               0x1654ae6b
@@ -63,6 +64,8 @@
 #define ID_LANGUAGE             0x22b59c
 #define ID_CODEC_ID             0x86
 #define ID_CODEC_PRIVATE        0x63a2
+#define ID_CODEC_DELAY          0x56aa
+#define ID_SEEK_PREROLL         0x56bb
 
 /* Video Elements */
 #define ID_VIDEO                0xe0
@@ -128,7 +131,9 @@ enum ebml_type_enum {
 
 /* Track IDs */
 #define TRACK_ID_VP8            "V_VP8"
+#define TRACK_ID_VP9            "V_VP9"
 #define TRACK_ID_VORBIS         "A_VORBIS"
+#define TRACK_ID_OPUS           "A_OPUS"
 
 enum vint_mask {
   MASK_NONE,
@@ -192,6 +197,7 @@ struct info {
 struct block_group {
   struct ebml_type duration;
   struct ebml_type reference_block;
+  struct ebml_type discard_padding;
 };
 
 struct cluster {
@@ -228,6 +234,8 @@ struct track_entry {
   struct ebml_type language;
   struct ebml_type codec_id;
   struct ebml_type codec_private;
+  struct ebml_type codec_delay;
+  struct ebml_type seek_preroll;
   struct video video;
   struct audio audio;
 };
@@ -303,6 +311,7 @@ struct nestegg_packet {
   uint64_t track;
   uint64_t timecode;
   struct frame * frame;
+  int64_t discard_padding;
 };
 
 /* Element Descriptor */
@@ -366,6 +375,7 @@ static struct ebml_element_desc ne_block_group_elements[] = {
   E_SUSPEND(ID_BLOCK, TYPE_BINARY),
   E_FIELD(ID_BLOCK_DURATION, TYPE_UINT, struct block_group, duration),
   E_FIELD(ID_REFERENCE_BLOCK, TYPE_INT, struct block_group, reference_block),
+  E_FIELD(ID_DISCARD_PADDING, TYPE_INT, struct block_group, discard_padding),
   E_LAST
 };
 
@@ -407,6 +417,8 @@ static struct ebml_element_desc ne_track_entry_elements[] = {
   E_FIELD(ID_LANGUAGE, TYPE_STRING, struct track_entry, language),
   E_FIELD(ID_CODEC_ID, TYPE_STRING, struct track_entry, codec_id),
   E_FIELD(ID_CODEC_PRIVATE, TYPE_BINARY, struct track_entry, codec_private),
+  E_FIELD(ID_CODEC_DELAY, TYPE_UINT, struct track_entry, codec_delay),
+  E_FIELD(ID_SEEK_PREROLL, TYPE_UINT, struct track_entry, seek_preroll),
   E_SINGLE_MASTER(ID_VIDEO, TYPE_MASTER, struct track_entry, video),
   E_SINGLE_MASTER(ID_AUDIO, TYPE_MASTER, struct track_entry, audio),
   E_LAST
@@ -1363,6 +1375,35 @@ ne_read_block(nestegg * ctx, uint64_t block_id, uint64_t block_size, nestegg_pac
   return 1;
 }
 
+static int
+ne_read_discard_padding(nestegg * ctx, nestegg_packet * pkt)
+{
+  int r;
+  uint64_t id, size;
+  struct ebml_element_desc * element;
+  struct ebml_type * storage;
+
+  r = ne_peek_element(ctx, &id, &size);
+  if (r != 1)
+    return r;
+
+  if (id != ID_DISCARD_PADDING)
+    return 1;
+
+  element = ne_find_element(id, ctx->ancestor->node);
+  if (!element)
+    return 1;
+
+  r = ne_read_simple(ctx, element, size);
+  if (r != 1)
+    return r;
+  storage = (struct ebml_type *) (ctx->ancestor->data + element->offset);
+  pkt->discard_padding = storage->v.i;
+
+  return 1;
+}
+
+
 static uint64_t
 ne_buf_read_id(unsigned char const * p, size_t length)
 {
@@ -1422,9 +1463,8 @@ ne_find_cue_position_for_track(nestegg * ctx, struct ebml_list_node * node, unsi
     if (ne_map_track_number_to_index(ctx, track_number, &t) != 0)
       return NULL;
 
-    if (t == track) {
+    if (t == track)
       return pos;
-    }
 
     node = node->next;
   }
@@ -1550,9 +1590,9 @@ ne_buffer_read(void * buffer, size_t length, void * user_data)
   int rv = 1;
   size_t available = sb->length - sb->offset;
 
-  if (available < length) {
+  if (available < length)
     return 0;
-  }
+
   memcpy(buffer, sb->buffer + sb->offset, length);
   sb->offset += length;
 
@@ -1577,9 +1617,8 @@ ne_buffer_seek(int64_t offset, int whence, void * user_data)
       break;
   }
 
-  if (o < 0 || o > (int64_t) sb->length) {
+  if (o < 0 || o > (int64_t) sb->length)
     return -1;
-  }
 
   sb->offset = o;
   return 0;
@@ -1933,8 +1972,14 @@ nestegg_track_codec_id(nestegg * ctx, unsigned int track)
   if (strcmp(codec_id, TRACK_ID_VP8) == 0)
     return NESTEGG_CODEC_VP8;
 
+  if (strcmp(codec_id, TRACK_ID_VP9) == 0)
+    return NESTEGG_CODEC_VP9;
+
   if (strcmp(codec_id, TRACK_ID_VORBIS) == 0)
     return NESTEGG_CODEC_VORBIS;
+
+  if (strcmp(codec_id, TRACK_ID_OPUS) == 0)
+    return NESTEGG_CODEC_OPUS;
 
   return -1;
 }
@@ -1988,34 +2033,40 @@ nestegg_track_codec_data(nestegg * ctx, unsigned int track, unsigned int item,
   if (!entry)
     return -1;
 
-  if (nestegg_track_codec_id(ctx, track) != NESTEGG_CODEC_VORBIS)
+  if (nestegg_track_codec_id(ctx, track) != NESTEGG_CODEC_VORBIS
+    && nestegg_track_codec_id(ctx, track) != NESTEGG_CODEC_OPUS)
     return -1;
 
   if (ne_get_binary(entry->codec_private, &codec_private) != 0)
     return -1;
 
-  p = codec_private.data;
-  count = *p++ + 1;
+  if (nestegg_track_codec_id(ctx, track) == NESTEGG_CODEC_VORBIS) {
+      p = codec_private.data;
+      count = *p++ + 1;
 
-  if (count > 3)
-    return -1;
+      if (count > 3)
+        return -1;
 
-  i = 0;
-  total = 0;
-  while (--count) {
-    sizes[i] = ne_xiph_lace_value(&p);
-    total += sizes[i];
-    i += 1;
+      i = 0;
+      total = 0;
+      while (--count) {
+        sizes[i] = ne_xiph_lace_value(&p);
+        total += sizes[i];
+        i += 1;
+      }
+      sizes[i] = codec_private.length - total - (p - codec_private.data);
+
+      for (i = 0; i < item; ++i) {
+        if (sizes[i] > LIMIT_FRAME)
+          return -1;
+        p += sizes[i];
+      }
+      *data = p;
+      *length = sizes[item];
+  } else {
+    *data = codec_private.data;
+    *length = codec_private.length;
   }
-  sizes[i] = codec_private.length - total - (p - codec_private.data);
-
-  for (i = 0; i < item; ++i) {
-    if (sizes[i] > LIMIT_FRAME)
-      return -1;
-    p += sizes[i];
-  }
-  *data = p;
-  *length = sizes[item];
 
   return 0;
 }
@@ -2104,6 +2155,14 @@ nestegg_track_audio_params(nestegg * ctx, unsigned int track,
   ne_get_uint(entry->audio.bit_depth, &value);
   params->depth = value;
 
+  value = 0;
+  ne_get_uint(entry->codec_delay, &value);
+  params->codec_delay = value;
+
+  value = 0;
+  ne_get_uint(entry->seek_preroll, &value);
+  params->seek_preroll = value;
+
   return 0;
 }
 
@@ -2129,6 +2188,13 @@ nestegg_read_packet(nestegg * ctx, nestegg_packet ** pkt)
       /* The only DESC_FLAG_SUSPEND fields are Blocks and SimpleBlocks, which we
          handle directly. */
       r = ne_read_block(ctx, id, size, pkt);
+      if (r != 1)
+        return r;
+
+      r = ne_read_discard_padding(ctx, *pkt);
+      if (r != 1)
+        return r;
+
       return r;
     }
 
@@ -2166,6 +2232,13 @@ int
 nestegg_packet_tstamp(nestegg_packet * pkt, uint64_t * tstamp)
 {
   *tstamp = pkt->timecode;
+  return 0;
+}
+
+int
+nestegg_packet_discard_padding(nestegg_packet * pkt, int64_t * discard_padding)
+{
+  *discard_padding = pkt->discard_padding;
   return 0;
 }
 

@@ -15,6 +15,7 @@
 #include "nsIDOMKeyEvent.h"
 #include "nsIDOMMouseEvent.h"
 #include "nsIDOMEventListener.h"
+#include "nsIFrame.h"
 #include "nsGkAtoms.h"
 #include "imgIRequest.h"
 #include "imgILoader.h"
@@ -567,9 +568,42 @@ ImageDocument::HandleEvent(nsIDOMEvent* aEvent)
     else if (mImageIsOverflowing) {
       ShrinkToFit();
     }
+  } else if (eventType.EqualsLiteral("load")) {
+    UpdateSizeFromLayout();
   }
 
   return NS_OK;
+}
+
+void
+ImageDocument::UpdateSizeFromLayout()
+{
+  // Pull an updated size from the content frame to account for any size
+  // change due to CSS properties like |image-orientation|.
+  Element* contentElement = mImageContent->AsElement();
+  if (!contentElement) {
+    return;
+  }
+
+  nsIFrame* contentFrame = contentElement->GetPrimaryFrame(Flush_Frames);
+  if (!contentFrame) {
+    return;
+  }
+
+  nsIntSize oldSize(mImageWidth, mImageHeight);
+  nsIFrame::IntrinsicSize newSize = contentFrame->GetIntrinsicSize();
+
+  if (newSize.width.GetUnit() == eStyleUnit_Coord) {
+    mImageWidth = nsPresContext::AppUnitsToFloatCSSPixels(newSize.width.GetCoordValue());
+  }
+  if (newSize.height.GetUnit() == eStyleUnit_Coord) {
+    mImageHeight = nsPresContext::AppUnitsToFloatCSSPixels(newSize.height.GetCoordValue());
+  }
+
+  // Ensure that our information about overflow is up-to-date if needed.
+  if (mImageWidth != oldSize.width || mImageHeight != oldSize.height) {
+    CheckOverflowing(false);
+  }
 }
 
 nsresult

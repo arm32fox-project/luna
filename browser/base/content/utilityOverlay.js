@@ -43,9 +43,10 @@ var gBidiUI = false;
  * Determines whether the given url is considered a special URL for new tabs.
  */
 function isBlankPageURL(aURL) {
-  // Pale Moon: Only make "about:blank" or "about:newtab" be a "blank page" to fix focus issues. 
+  // Pale Moon: Only make "about:blank", the logopage, or "about:newtab" be 
+  // a "blank page" to fix focus issues. 
   // Original code: return aURL == "about:blank" || aURL == BROWSER_NEW_TAB_URL;
-  return aURL == "about:blank" || aURL == "about:newtab";
+  return aURL == "about:blank" || aURL == "about:newtab" || aURL == "about:logopage";
 }
 
 function getBrowserURL()

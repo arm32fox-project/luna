@@ -26,6 +26,10 @@
 #include "DASHRepReader.h"
 #endif
 
+#ifdef MOZ_OPUS
+#include "OpusParser.h"
+#endif
+
 namespace mozilla {
 
 class WebMBufferedState;
@@ -244,6 +248,11 @@ protected:
                            bool aEOS,
                            int64_t aGranulepos);
 
+#ifdef MOZ_OPUS
+  // Setup opus decoder
+  bool InitOpusDecoder();
+#endif
+
   // Decode a nestegg packet of audio data. Push the audio data on the
   // audio queue. Returns true when there's more audio to decode,
   // false if the audio is finished, end of file has been reached,
@@ -262,7 +271,7 @@ private:
   nestegg* mContext;
 
   // VP8 decoder state
-  vpx_codec_ctx_t mVP8;
+  vpx_codec_ctx_t mVPX;
 
   // Vorbis decoder state
   vorbis_info mVorbisInfo;
@@ -271,6 +280,14 @@ private:
   vorbis_block mVorbisBlock;
   uint32_t mPacketCount;
   uint32_t mChannels;
+
+
+#ifdef MOZ_OPUS
+  // Opus decoder state
+  nsAutoPtr<OpusParser> mOpusParser;
+  OpusMSDecoder *mOpusDecoder;
+  int mSkip;        // Number of samples left to trim before playback.
+#endif
 
   // Queue of video and audio packets that have been read but not decoded. These
   // must only be accessed from the state machine thread.
@@ -287,6 +304,9 @@ private:
   // Number of audio frames we've decoded since decoding began at mAudioStartMs.
   uint64_t mAudioFrames;
 
+  // Number of nanoseconds that must be discarded from the start of the Stream.
+  uint64_t mCodecDelay;
+
   // Parser state and computed offset-time mappings.  Shared by multiple
   // readers when decoder has been cloned.  Main thread only.
   nsRefPtr<WebMBufferedState> mBufferedState;
@@ -302,6 +322,11 @@ private:
   bool mHasVideo;
   bool mHasAudio;
 
+  // Codec ID of audio track
+  int mAudioCodec;
+  // Codec ID of video track
+  int mVideoCodec;
+ 
 #ifdef MOZ_DASH
   // Byte range for initialisation data; e.g. specified in DASH manifest.
   MediaByteRange mInitByteRange;
