@@ -50,11 +50,11 @@
       }
 
       // insert the version of the XUL application (!= XULRunner platform version)
-      var versionNum = Components.classes["@mozilla.org/xre/app-info;1"]
-                                 .getService(Components.interfaces.nsIXULAppInfo)
-                                 .version;
-      var version = document.getElementById("version");
-      version.appendChild(document.createTextNode("&about.version; " + versionNum));
+      //var versionNum = Components.classes["@mozilla.org/xre/app-info;1"]
+      //                           .getService(Components.interfaces.nsIXULAppInfo)
+      //                           .version;
+      //var version = document.getElementById("version");
+      //version.appendChild(document.createTextNode("&about.version; " + versionNum));
 
       // append user agent
       var ua = navigator.userAgent;
