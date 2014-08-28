@@ -74,6 +74,13 @@ public:
                                 MetadataTags** aTags);
   virtual nsresult Seek(int64_t aTime, int64_t aStartTime, int64_t aEndTime, int64_t aCurrentTime);
   virtual nsresult GetBuffered(dom::TimeRanges* aBuffered, int64_t aStartTime);
+  
+  // Downmix multichannel Audio samples to Stereo.
+  // It is used from Vorbis and Opus decoders.
+  // Input are the buffer contains multichannel data,
+  // the number of channels and the number of frames.
+  static void DownmixToStereo(nsAutoArrayPtr<AudioDataValue>& buffer,
+                     uint32_t& channel, int32_t frames);
 
 private:
   // This monitor should be taken when reading or writing to mIsChained.
