@@ -271,7 +271,7 @@ private:
   nestegg* mContext;
 
   // VP8 decoder state
-  vpx_codec_ctx_t mVP8;
+  vpx_codec_ctx_t mVPX;
 
   // Vorbis decoder state
   vorbis_info mVorbisInfo;
@@ -324,6 +324,8 @@ private:
 
   // Codec ID of audio track
   int mAudioCodec;
+  // Codec ID of video track
+  int mVideoCodec;
  
 #ifdef MOZ_DASH
   // Byte range for initialisation data; e.g. specified in DASH manifest.
