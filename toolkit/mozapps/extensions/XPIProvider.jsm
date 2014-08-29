@@ -5819,8 +5819,10 @@ AddonInternal.prototype = {
     let version;
     if (app.id == Services.appinfo.ID)
       version = aAppVersion;
+#ifdef MOZ_MULTI_GUID
     else if (app.id == FIREFOX_ID)
       version = FIREFOX_APPCOMPATVERSION;
+#endif
     else if (app.id == TOOLKIT_ID)
       version = aPlatformVersion;
 
@@ -5867,6 +5869,7 @@ AddonInternal.prototype = {
       if (targetApp.id == TOOLKIT_ID)
         app = targetApp;
     }
+#ifdef MOZ_MULTI_GUID
     //Special case: check for Firefox TargetApps. this has to be done AFTER
     //the initial check to make sure appinfo.ID is preferred, even if
     //Firefox is listed before it in the install manifest.
@@ -5874,6 +5877,7 @@ AddonInternal.prototype = {
       if (targetApp.id == FIREFOX_ID) //Firefox GUID
         return targetApp;
     }
+#endif
     // Return toolkit ID if toolkit.
     return app;
   },
