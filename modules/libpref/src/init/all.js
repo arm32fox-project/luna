@@ -3928,12 +3928,12 @@ pref("image.http.accept", "image/png,image/*;q=0.8,*/*;q=0.5");
 #ifdef XP_MACOSX
 pref("image.high_quality_downscaling.enabled", false);
 #else
-pref("image.high_quality_downscaling.enabled", false);
+pref("image.high_quality_downscaling.enabled", true);
 #endif
 
 // The minimum percent downscaling we'll use high-quality downscaling on,
 // interpreted as a floating-point number / 1000.
-pref("image.high_quality_downscaling.min_factor", 1000);
+pref("image.high_quality_downscaling.min_factor", 335);
 
 // The maximum memory size which we'll use high-quality uspcaling on,
 // interpreted as number of decoded bytes.
