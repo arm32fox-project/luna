@@ -166,6 +166,18 @@ CSRCS += \
 endif
 
 ifdef MOZ_VP8_ENCODER
+LOCAL_INCLUDES += \
+  -I$(topsrcdir)/media/libvpx/vp8/encoder \
+  -I$(topsrcdir)/media/libvpx/vp8/encoder/arm \
+  -I$(topsrcdir)/media/libvpx/vp8/encoder/arm/armv5te \
+  -I$(topsrcdir)/media/libvpx/vp8/encoder/arm/neon \
+  -I$(topsrcdir)/media/libvpx/vp8/encoder/arm/armv6 \
+  -I$(topsrcdir)/media/libvpx/vpx_scale/arm \
+  -I$(topsrcdir)/media/libvpx/vpx_scale/arm/neon \  -I$(topsrcdir)/media/libvpx/vp8/encoder/x86 \
+  -I$(topsrcdir)/media/libvpx/vp9/encoder \
+  -I$(topsrcdir)/media/libvpx/vp9/encoder/x86 \  -I$(topsrcdir)/media/libvpx/third_party/x86inc \
+  $(NULL)
+
 VPATH += \
   $(srcdir)/vp8/encoder \
   $(srcdir)/vp8/encoder/arm \
@@ -386,20 +398,21 @@ endif
 endif
 
 CSRCS += \
-   idct_blk_v6.c \
-   bilinearfilter_arm.c \
-   dequantize_arm.c \
-   filter_arm.c \
-   loopfilter_arm.c \
-   reconintra_arm.c \
-   variance_arm.c \
-   vp9_convolve_neon.c \
-   vp9_idct16x16_neon.c \
-   arm_cpudetect.c \
-   yv12extend_arm.c \
+  idct_blk_v6.c \
+  idct_blk_neon.c \
+  bilinearfilter_arm.c \
+  dequantize_arm.c \
+  filter_arm.c \
+  loopfilter_arm.c \
+  reconintra_arm.c \
+  variance_arm.c \
+  vp9_convolve_neon.c \
+  vp9_idct16x16_neon.c \
+  arm_cpudetect.c \
+  yv12extend_arm.c \
   $(NULL)
 
-# Files which depend on asm_com_offsets.asm
+# Files which depend on asm_com_offsets.asm (Apparently not used in libvpx 1.3.0 for ARM)
 VPX_ASM_COM_OFFSETS_SRCS = \
   vp8_vpxyv12_copy_y_neon.asm \
   $(NULL)
@@ -487,7 +500,7 @@ CSRCS += \
    quantize_arm.c \
   $(NULL)
 
-# Files which depend on asm_enc_offsets.asm
+# Files which depend on asm_enc_offsets.asm (Apparently not used in libvpx 1.3.0 for ARM)
 VPX_ASM_ENC_OFFSETS_SRCS = \
   boolhuff_armv5te.asm \
   $(NULL)
