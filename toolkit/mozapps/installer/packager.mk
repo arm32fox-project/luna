@@ -108,26 +108,38 @@ UNPACK_TAR       = tar -xf-
 
 ifeq ($(MOZ_PKG_FORMAT),TAR)
 PKG_SUFFIX	= .tar
-INNER_MAKE_PACKAGE 	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && \
-  $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) > $(PACKAGE)
+ifdef MOZ_PHOENIX
+INNER_MAKE_PACKAGE 	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) > $(PACKAGE)
+else
+INNER_MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) > $(PACKAGE)
+endif
 INNER_UNMAKE_PACKAGE	= $(UNPACK_TAR) < $(UNPACKAGE)
 MAKE_SDK = $(CREATE_FINAL_TAR) - $(MOZ_APP_NAME)-sdk > $(SDK)
 endif
 ifeq ($(MOZ_PKG_FORMAT),TGZ)
 PKG_SUFFIX	= .tar.gz
-INNER_MAKE_PACKAGE 	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && \
-  $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | gzip -vf9 > $(PACKAGE)
+ifdef MOZ_PHOENIX
+INNER_MAKE_PACKAGE 	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | gzip -vf9 > $(PACKAGE)
+else
+INNER_MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | gzip -vf9 > $(PACKAGE)
+endif
 INNER_UNMAKE_PACKAGE	= gunzip -c $(UNPACKAGE) | $(UNPACK_TAR)
 MAKE_SDK = $(CREATE_FINAL_TAR) - $(MOZ_APP_NAME)-sdk | gzip -vf9 > $(SDK)
 endif
 ifeq ($(MOZ_PKG_FORMAT),BZ2)
 PKG_SUFFIX	= .tar.bz2
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
-INNER_MAKE_PACKAGE 	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && \
-  $(CREATE_FINAL_TAR) - -C $(STAGEPATH)$(MOZ_PKG_DIR) $(_APPNAME) | bzip2 -vf > $(PACKAGE)
+ifdef MOZ_PHOENIX
+INNER_MAKE_PACKAGE 	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && $(CREATE_FINAL_TAR) - -C $(STAGEPATH)$(MOZ_PKG_DIR) $(_APPNAME) | bzip2 -vf > $(PACKAGE)
 else
-INNER_MAKE_PACKAGE 	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && \
-  $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | bzip2 -vf > $(PACKAGE)
+INNER_MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - -C $(STAGEPATH)$(MOZ_PKG_DIR) $(_APPNAME) | bzip2 -vf > $(PACKAGE)
+endif
+else
+ifdef MOZ_PHOENIX
+INNER_MAKE_PACKAGE 	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | bzip2 -vf > $(PACKAGE)
+else
+INNER_MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | bzip2 -vf > $(PACKAGE)
+endif
 endif
 INNER_UNMAKE_PACKAGE	= bunzip2 -c $(UNPACKAGE) | $(UNPACK_TAR)
 MAKE_SDK = $(CREATE_FINAL_TAR) - $(MOZ_APP_NAME)-sdk | bzip2 -vf > $(SDK)
@@ -138,15 +150,20 @@ ifdef MOZ_EXTERNAL_SIGNING_FORMAT
 MOZ_EXTERNAL_SIGNING_FORMAT := $(filter-out signcode,$(MOZ_EXTERNAL_SIGNING_FORMAT))
 endif
 PKG_SUFFIX	= .zip
-INNER_MAKE_PACKAGE	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && \
-  $(ZIP) -r9D $(PACKAGE) $(MOZ_PKG_DIR) -x \*/.mkdir.done
+ifdef MOZ_PHOENIX
+INNER_MAKE_PACKAGE	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && $(ZIP) -r9D $(PACKAGE) $(MOZ_PKG_DIR) -x \*/.mkdir.done
+else
+INNER_MAKE_PACKAGE	= $(ZIP) -r9D $(PACKAGE) $(MOZ_PKG_DIR) -x \*/.mkdir.done
+endif
 INNER_UNMAKE_PACKAGE	= $(UNZIP) $(UNPACKAGE)
 MAKE_SDK = $(ZIP) -r9D $(SDK) $(MOZ_APP_NAME)-sdk
 endif
 ifeq ($(MOZ_PKG_FORMAT),SFX7Z)
 PKG_SUFFIX	= .exe
 INNER_MAKE_PACKAGE	= rm -f app.7z && \
+ifdef MOZ_PHOENIX
   cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && \
+endif
   mv $(MOZ_PKG_DIR) core && \
   $(CYGWIN_WRAPPER) 7z a -r -t7z app.7z -mx -m0=BCJ2 -m1=LZMA:d25 \
     -m2=LZMA:d19 -m3=LZMA:d19 -mb0:1 -mb0s1:2 -mb0s2:3 && \
