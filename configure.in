@@ -4167,6 +4167,7 @@ ENABLE_TESTS=1
 ENABLE_SYSTEM_EXTENSION_DIRS=1
 MOZ_BRANDING_DIRECTORY=
 MOZ_OFFICIAL_BRANDING=
+MOZ_MOONCHILD=1
 MOZ_FEEDS=1
 MOZ_WEBAPP_RUNTIME=
 MOZ_JSDEBUGGER=1
@@ -4888,23 +4889,37 @@ MOZ_ARG_ENABLE_STRING(ui-locale,
 AC_SUBST(MOZ_UI_LOCALE)
 
 dnl ========================================================
-dnl = Trademarked Branding
+dnl = Vendor override
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(official-vendor,
+[  --disable-official-vendor   Disable the use of official vendor.],
+    MOZ_MOONCHILD=,
+    MOZ_MOONCHILD=1)
+
+dnl ========================================================
+dnl = IPR protected branding
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(official-branding,
 [  --enable-official-branding
-                          Enable Official mozilla.org Branding
+                          Enable official branding
                           Do not distribute builds with
                           --enable-official-branding unless you have
-                          permission to use trademarks per
-                          http://www.mozilla.org/foundation/trademarks/ .],
+                          permission to use the name/logo as per
+                          http://www.palemoon.org/redist.shtml .],
 [
   if test -z "$MOZ_OFFICIAL_BRANDING_DIRECTORY"; then
     AC_MSG_ERROR([You must specify MOZ_OFFICIAL_BRANDING_DIRECTORY to use --enable-official-branding.])
   else
     MOZ_BRANDING_DIRECTORY=${MOZ_OFFICIAL_BRANDING_DIRECTORY}
     MOZ_OFFICIAL_BRANDING=1
+    MOZ_MOONCHILD=1
   fi
 ], MOZ_OFFICIAL_BRANDING=)
+
+AC_SUBST(MOZ_MOONCHILD)
+if test -n "$MOZ_MOONCHILD"; then
+  AC_DEFINE(MOZ_MOONCHILD)
+fi
 
 AC_SUBST(MOZ_OFFICIAL_BRANDING)
 if test -n "$MOZ_OFFICIAL_BRANDING"; then
