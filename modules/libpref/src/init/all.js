@@ -73,8 +73,7 @@ pref("offline-apps.quota.warn",        51200);
 // 0 => disable compression
 // 1 => best speed
 // 9 => best compression
-// cache compression turned off for now - see bug #715198
-pref("browser.cache.compression_level", 0);
+pref("browser.cache.compression_level", 3);
 
 // Whether or not indexedDB is enabled.
 pref("dom.indexedDB.enabled", true);
@@ -3928,12 +3927,12 @@ pref("image.http.accept", "image/png,image/*;q=0.8,*/*;q=0.5");
 #ifdef XP_MACOSX
 pref("image.high_quality_downscaling.enabled", false);
 #else
-pref("image.high_quality_downscaling.enabled", false);
+pref("image.high_quality_downscaling.enabled", true);
 #endif
 
 // The minimum percent downscaling we'll use high-quality downscaling on,
 // interpreted as a floating-point number / 1000.
-pref("image.high_quality_downscaling.min_factor", 1000);
+pref("image.high_quality_downscaling.min_factor", 335);
 
 // The maximum memory size which we'll use high-quality uspcaling on,
 // interpreted as number of decoded bytes.
