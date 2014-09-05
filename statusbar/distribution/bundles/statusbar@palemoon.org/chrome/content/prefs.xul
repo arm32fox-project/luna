@@ -252,7 +252,7 @@
 											<hbox id="identity-box-inner" align="center">
 												<stack id="page-proxy-stack">
 													<image id="page-proxy-favicon" validate="never" pageproxystate="valid"
-													       src="chrome://status4evar/skin/s4e16.png" />
+													       src="chrome://status4evar/skin/pms16.png" />
 												</stack>
 											</hbox>
 										</box>
