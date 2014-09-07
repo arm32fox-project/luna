@@ -103,6 +103,7 @@ pref("browser.sessionhistory.max_total_viewers", 2);
 
 pref("ui.use_native_colors", true);
 pref("ui.click_hold_context_menus", false);
+pref("browser.display.ignore_accessibility_theme", false); // completely ignore accessibility theme (high contrast, etc)
 pref("browser.display.use_document_fonts",  1);  // 0 = never, 1 = quick, 2 = always
 pref("browser.display.use_document_colors", true);
 pref("browser.display.use_system_colors",   false);

@@ -618,6 +618,7 @@ nsPresContext::GetDocumentColorPreferences()
     }
     else {
       useAccessibilityTheme =
+        !Preferences::GetBool("browser.display.ignore_accessibility_theme", false) &&
         LookAndFeel::GetInt(LookAndFeel::eIntID_UseAccessibilityTheme, 0);
       usePrefColors = !useAccessibilityTheme;
     }
