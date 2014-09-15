@@ -173,9 +173,11 @@ LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/libvpx/vp8/encoder/arm/neon \
   -I$(topsrcdir)/media/libvpx/vp8/encoder/arm/armv6 \
   -I$(topsrcdir)/media/libvpx/vpx_scale/arm \
-  -I$(topsrcdir)/media/libvpx/vpx_scale/arm/neon \  -I$(topsrcdir)/media/libvpx/vp8/encoder/x86 \
+  -I$(topsrcdir)/media/libvpx/vpx_scale/arm/neon \
+  -I$(topsrcdir)/media/libvpx/vp8/encoder/x86 \
   -I$(topsrcdir)/media/libvpx/vp9/encoder \
-  -I$(topsrcdir)/media/libvpx/vp9/encoder/x86 \  -I$(topsrcdir)/media/libvpx/third_party/x86inc \
+  -I$(topsrcdir)/media/libvpx/vp9/encoder/x86 \
+  -I$(topsrcdir)/media/libvpx/third_party/x86inc \
   $(NULL)
 
 VPATH += \
