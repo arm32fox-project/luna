@@ -2044,27 +2044,31 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 }
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme {
-  background-image: linear-gradient(@selectedTabHighlight@, @toolbarHighlight@ 50%);
+  background-image: linear-gradient(rgba(255,255,255,.6), rgba(255,255,255,.8) 50%);
+}
+
+.tabbrowser-tab[selected="true"]:-moz-lwtheme-brighttext {
+  background-image: linear-gradient(rgba(0,0,0,.6), rgba(0,0,0,.8) 50%);
 }
 
 .tabbrowser-tab:-moz-lwtheme-brighttext:not([selected="true"]),
 .tabs-newtab-button:-moz-lwtheme-brighttext {
-  background-image: linear-gradient(hsla(0,0%,40%,.6), hsla(0,0%,30%,.6) 80%);
+  background-image: linear-gradient(hsla(0,0%,25%,.4), hsla(0,0%,15%,.6) 80%);
 }
 
 .tabbrowser-tab:-moz-lwtheme-brighttext:not([selected="true"]):hover,
 .tabs-newtab-button:-moz-lwtheme-brighttext:hover {
-  background-image: linear-gradient(hsla(0,0%,60%,.6), hsla(0,0%,45%,.6) 80%);
+  background-image: linear-gradient(hsla(0,0%,30%,.4), hsla(0,0%,10%,.8) 80%);
 }
 
 .tabbrowser-tab:-moz-lwtheme-darktext:not([selected="true"]),
 .tabs-newtab-button:-moz-lwtheme-darktext {
-  background-image: linear-gradient(hsla(0,0%,60%,.5), hsla(0,0%,45%,.5) 80%);
+  background-image: linear-gradient(hsla(0,0%,75%,.4), hsla(0,0%,85%,.6) 80%);
 }
 
 .tabbrowser-tab:-moz-lwtheme-darktext:not([selected="true"]):hover,
 .tabs-newtab-button:-moz-lwtheme-darktext:hover {
-  background-image: linear-gradient(hsla(0,0%,80%,.5), hsla(0,0%,60%,.5) 80%);
+  background-image: linear-gradient(hsla(0,0%,80%,.4), hsla(0,0%,90%,.8) 80%);
 }
 
 .tabbrowser-tab[pinned][titlechanged]:not([selected="true"]) {
