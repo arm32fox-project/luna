@@ -161,29 +161,31 @@ nsPluginInstanceOwner::GetImageContainer()
   // for what we do on other versions.
   if (AndroidBridge::Bridge()->GetAPIVersion() < 11)
     return NULL;
-  
+
+  gfxRect r = GetPluginRect();
+
+  // NotifySize() causes Flash to do a bunch of stuff like ask for surfaces to render
+  // into, set y-flip flags, etc, so we do this at the beginning.
+  float xResolution = mObjectFrame->PresContext()->GetRootPresContext()->PresShell()->GetXResolution();
+  float yResolution = mObjectFrame->PresContext()->GetRootPresContext()->PresShell()->GetYResolution();
+  r.Scale(xResolution, yResolution);
+  mInstance->NotifySize(nsIntSize(r.width, r.height));
+
   container = LayerManager::CreateImageContainer();
 
   ImageFormat format = ImageFormat::SHARED_TEXTURE;
   nsRefPtr<Image> img = container->CreateImage(&format, 1);
 
   SharedTextureImage::Data data;
+  data.mSize = gfxIntSize(r.width, r.height);
   data.mHandle = mInstance->CreateSharedHandle();
   data.mShareType = mozilla::gl::GLContext::SameProcess;
   data.mInverted = mInstance->Inverted();
-
-  gfxRect r = GetPluginRect();
-  data.mSize = gfxIntSize(r.width, r.height);
 
   SharedTextureImage* pluginImage = static_cast<SharedTextureImage*>(img.get());
   pluginImage->SetData(data);
 
   container->SetCurrentImageInTransaction(img);
-
-  float xResolution = mObjectFrame->PresContext()->GetRootPresContext()->PresShell()->GetXResolution();
-  float yResolution = mObjectFrame->PresContext()->GetRootPresContext()->PresShell()->GetYResolution();
-  r.Scale(xResolution, yResolution);
-  mInstance->NotifySize(nsIntSize(r.width, r.height));
 
   return container.forget();
 #endif
