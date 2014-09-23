@@ -131,6 +131,31 @@ static DllBlockInfo sWindowsDllBlocklist[] = {
   { "opnx.dll", MAKE_VERSION(1, 3, 334, 9) },
   { "prnx.dll", MAKE_VERSION(1, 3, 334, 9) },
 
+  // Older belgian ID card software causes Firefox to crash or hang on
+  // shutdown, bug 831285 and 918399.
+  { "beid35cardlayer.dll", MAKE_VERSION(3, 5, 6, 6968) },
+
+  // bug 925459, bitguard crashes
+  { "bitguard.dll", ALL_VERSIONS },
+
+  // bug 812683 - crashes in Windows library when Asus Gamer OSD is installed
+  // Software is discontinued/unsupported
+  { "atkdx11disp.dll", ALL_VERSIONS },
+
+  // Topcrash with Conduit SearchProtect, bug 944542
+  { "spvc32.dll", ALL_VERSIONS },
+
+  // XP topcrash with F-Secure, bug 970362
+  { "fs_ccf_ni_umh32.dll", MAKE_VERSION(1, 42, 101, 0), DllBlockInfo::BLOCK_XP_ONLY },
+
+  // Topcrash with V-bates, bug 1002748 and bug 1023239
+  { "libinject.dll", UNVERSIONED },
+  { "libinject2.dll", 0x537DDC93, DllBlockInfo::USE_TIMESTAMP },
+  { "libredir2.dll", 0x5385B7ED, DllBlockInfo::USE_TIMESTAMP },
+
+  // Crashes with DesktopTemperature, bug 1046382
+  { "dtwxsvc.dll", 0x53153234, DllBlockInfo::USE_TIMESTAMP },
+
   { NULL, 0 }
 };
 
