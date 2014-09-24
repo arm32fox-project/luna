@@ -72,8 +72,6 @@
 #ifndef __LP64__
 #include "nsIAppleFileDecoder.h"
 #endif
-#elif defined(XP_OS2)
-#include "nsILocalFileOS2.h"
 #endif
 
 #include "nsIPluginHost.h" // XXX needed for ext->type mapping (bug 233289)

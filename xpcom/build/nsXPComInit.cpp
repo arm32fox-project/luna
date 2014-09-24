@@ -62,7 +62,7 @@
 
 #include "nsIFile.h"
 #include "nsLocalFile.h"
-#if defined(XP_UNIX) || defined(XP_OS2)
+#if defined(XP_UNIX)
 #include "nsNativeCharsetUtils.h"
 #endif
 #include "nsDirectoryService.h"
@@ -386,7 +386,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
         setlocale(LC_ALL, "");
 #endif
 
-#if defined(XP_UNIX) || defined(XP_OS2)
+#if defined(XP_UNIX)
     NS_StartupNativeCharsetUtils();
 #endif
 
