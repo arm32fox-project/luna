@@ -16,11 +16,6 @@
 
 #include "double-conversion.h"
 
-#ifdef XP_OS2
-#define _PC_53  PC_53
-#define _MCW_EM MCW_EM
-#define _MCW_PC MCW_PC
-#endif
 #include <locale.h>
 #include <math.h>
 #include <string.h>

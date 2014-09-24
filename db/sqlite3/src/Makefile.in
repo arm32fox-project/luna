@@ -104,12 +104,6 @@ ifdef SOLARIS_SUNPRO_CC
 NO_PROFILE_GUIDED_OPTIMIZE = 1
 endif
 
-ifeq ($(OS_ARCH),OS2)
-ifdef MOZ_OS2_HIGH_MEMORY
-DEFINES += -DOS2_HIGH_MEMORY
-endif
-endif
-
 ifeq ($(OS_TARGET),Android)
 # default to user readable only to fit Android security model
 DEFINES += -DSQLITE_DEFAULT_FILE_PERMISSIONS=0600
@@ -130,9 +124,3 @@ include $(topsrcdir)/config/rules.mk
 
 # next line allows use of MOZ_OBJDIR in .mozconfig with older gcc on BeOS, maybe others
 LOCAL_INCLUDES += -I$(srcdir)
-
-ifeq ($(OS_ARCH),OS2)
-ADD_TO_DEF_FILE = $(PYTHON) $(topsrcdir)/config/Preprocessor.py $(DEFINES) \
-       $(srcdir)/sqlite.def | sed -e '1,/^EXPORTS$$/ d' -e 's,sqlite3,_\0,' \
-       -e 's,\ DATA.*$$,,' >> $(DEF_FILE)
-endif

@@ -104,7 +104,7 @@ TEST_DIRS += [
     'bindings/test',
 ]
 
-if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('gtk2', 'cocoa', 'windows', 'android', 'qt', 'os2'):
+if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('gtk2', 'cocoa', 'windows', 'android', 'qt'):
     TEST_DIRS += ['plugins/test']
 
 MODULE = 'dom'

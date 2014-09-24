@@ -62,11 +62,6 @@ if CONFIG['OS_ARCH'] == 'WINNT':
         'nsPluginNativeWindowWin.cpp',
         'nsPluginDirServiceProvider.cpp',
     ]
-elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
-    CPP_SOURCES += [
-        'nsPluginsDirOS2.cpp',
-        'nsPluginNativeWindowOS2.cpp',
-    ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
     CPP_SOURCES += [
         'nsPluginsDirDarwin.cpp',
