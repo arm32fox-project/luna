@@ -146,15 +146,15 @@ static DllBlockInfo sWindowsDllBlocklist[] = {
   { "spvc32.dll", ALL_VERSIONS },
 
   // XP topcrash with F-Secure, bug 970362
-  { "fs_ccf_ni_umh32.dll", MAKE_VERSION(1, 42, 101, 0), DllBlockInfo::BLOCK_XP_ONLY },
+  { "fs_ccf_ni_umh32.dll", MAKE_VERSION(1, 42, 101, 0) },
 
   // Topcrash with V-bates, bug 1002748 and bug 1023239
   { "libinject.dll", UNVERSIONED },
-  { "libinject2.dll", 0x537DDC93, DllBlockInfo::USE_TIMESTAMP },
-  { "libredir2.dll", 0x5385B7ED, DllBlockInfo::USE_TIMESTAMP },
+  { "libinject2.dll", ALL_VERSIONS },
+  { "libredir2.dll", ALL_VERSIONS },
 
   // Crashes with DesktopTemperature, bug 1046382
-  { "dtwxsvc.dll", 0x53153234, DllBlockInfo::USE_TIMESTAMP },
+  { "dtwxsvc.dll", ALL_VERSIONS },
 
   { NULL, 0 }
 };
