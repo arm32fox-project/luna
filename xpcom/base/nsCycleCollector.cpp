@@ -2712,13 +2712,6 @@ nsCycleCollector::CleanupAfterCollection()
     mWhiteNodes = nullptr;
     mCollectionInProgress = false;
 
-#ifdef XP_OS2
-    // Now that the cycle collector has freed some memory, we can try to
-    // force the C library to give back as much memory to the system as
-    // possible.
-    _heapmin();
-#endif
-
     uint32_t interval = (uint32_t) ((TimeStamp::Now() - mCollectionStart).ToMilliseconds());
 #ifdef COLLECT_TIME_DEBUG
     printf("cc: total cycle collector time was %ums\n", interval);

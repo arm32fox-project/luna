@@ -10,7 +10,7 @@
 #include "prnetdb.h"
 #include "mozilla/LinkedList.h"
 
-#if !defined(XP_WIN) && !defined(XP_OS2)
+#if !defined(XP_WIN)
 #include <arpa/inet.h>
 #endif
 
@@ -96,14 +96,10 @@ union NetAddr {
     IPv6Addr ip;                    /* the actual 128 bits of address */
     uint32_t scope_id;              /* set of interfaces for a scope */
   } inet6;
-#if defined(XP_UNIX) || defined(XP_OS2)
+#if defined(XP_UNIX)
   struct {                          /* Unix domain socket address */
     uint16_t family;                /* address family (AF_UNIX) */
-#ifdef XP_OS2
-    char path[108];                 /* null-terminated pathname */
-#else
     char path[104];                 /* null-terminated pathname */
-#endif
   } local;
 #endif
 };

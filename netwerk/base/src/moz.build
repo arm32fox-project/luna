@@ -72,11 +72,7 @@ CPP_SOURCES += [
     'nsUnicharStreamLoader.cpp',
 ]
 
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
-    CPP_SOURCES += [
-        'nsURLHelperOS2.cpp',
-    ]
-elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
     CPP_SOURCES += [
         'nsURLHelperWin.cpp',
         'nsNativeConnectionHelper.cpp',

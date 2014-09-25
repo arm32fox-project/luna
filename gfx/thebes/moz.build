@@ -136,21 +136,6 @@ elif CONFIG['MOZ_WIDGET_GTK']:
         CPP_SOURCES += [
             'gfxPangoFonts.cpp',
         ]
-elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
-    EXPORTS += [
-        'gfxOS2Fonts.h',
-        'gfxOS2Platform.h',
-        'gfxOS2Surface.h',
-        'gfxPDFSurface.h',
-    ]
-    CPP_SOURCES += [
-        'gfxOS2Fonts.cpp',
-        'gfxOS2Platform.cpp',
-        'gfxOS2Surface.cpp',
-        'nsUnicodeRange.cpp',
-        'gfxFontconfigUtils.cpp',
-        'gfxPDFSurface.cpp'
-    ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
     EXPORTS += [
         'gfxFT2FontBase.h',

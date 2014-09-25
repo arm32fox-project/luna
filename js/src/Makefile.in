@@ -125,15 +125,9 @@ LOCAL_INCLUDES += \
 ifdef MOZ_NATIVE_FFI
 EXTRA_DSO_LDOPTS += $(MOZ_FFI_LIBS)
 else
-ifeq ($(OS_ARCH),OS2)
-SHARED_LIBRARY_LIBS += \
-    ctypes/libffi/.libs/ffi.a \
-    $(NULL)
-else
 SHARED_LIBRARY_LIBS += \
     ctypes/libffi/.libs/libffi.$(LIB_SUFFIX) \
     $(NULL)
-endif
 endif
 
 endif # JS_HAS_CTYPES
@@ -148,7 +142,7 @@ VPATH += $(srcdir)/perf
 
 DASH_R		= -r
 
-ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
+ifneq (,$(filter WINNT,$(OS_ARCH)))
 SDK_LIBRARY = $(IMPORT_LIBRARY)
 else
 SDK_LIBRARY = $(SHARED_LIBRARY)
@@ -192,7 +186,7 @@ endif
 
 default::
 
-ifneq (,$(CROSS_COMPILE)$(filter-out WINNT OS2,$(OS_ARCH)))
+ifneq (,$(CROSS_COMPILE)$(filter-out WINNT,$(OS_ARCH)))
 # nsinstall doesn't get built until we enter config/ in the exports phase,
 # so we'll have to manually ensure it gets built here if we want to use
 # $(EXPORTS)
@@ -400,7 +394,7 @@ RESFILE = ETWProvider.res
 endif
 
 # HP-UX does not require the extra linking of "-lm"
-ifeq (,$(filter HP-UX WINNT OS2,$(OS_ARCH)))
+ifeq (,$(filter HP-UX WINNT,$(OS_ARCH)))
 EXTRA_LIBS	+= -lm
 endif
 

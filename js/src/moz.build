@@ -296,11 +296,6 @@ if CONFIG['OS_ARCH'] == 'WINNT':
         'ExecutableAllocatorWin.cpp',
         'OSAllocatorWin.cpp',
     ]
-elif CONFIG['OS_ARCH'] == 'OS2':
-    CPP_SOURCES += [
-        'ExecutableAllocatorOS2.cpp',
-        'OSAllocatorOS2.cpp',
-    ]
 else:
     CPP_SOURCES += [
         'ExecutableAllocatorPosix.cpp',

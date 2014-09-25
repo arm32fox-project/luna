@@ -69,14 +69,6 @@ LOCAL_INCLUDES += -I$(topsrcdir)/widget/windows
 LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
 endif
 
-ifeq ($(OS_ARCH),OS2)
-RESFILE = xulrunos2.res
-RCFLAGS += -i $(topsrcdir)/widget/os2
-
-LOCAL_INCLUDES += -I$(topsrcdir)/widget/os2
-LOCAL_INCLUDES += -I$(topsrcdir)/xpcom/base
-endif
-
 # dependent libraries
 STATIC_LIBS += \
   jsipc_s \
@@ -244,7 +236,7 @@ COMPONENT_LIBS += universalchardet
 DEFINES += -DMOZ_UNIVERSALCHARDET
 endif
 
-ifeq (,$(filter android gonk qt os2 cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
+ifeq (,$(filter android gonk qt cocoa windows,$(MOZ_WIDGET_TOOLKIT)))
 ifdef MOZ_XUL
 COMPONENT_LIBS += fileview
 DEFINES += -DMOZ_FILEVIEW
@@ -280,7 +272,7 @@ endif
 endif
 
 # Platform-specific icon channel stuff - supported mostly-everywhere
-ifneq (,$(filter windows os2 mac cocoa gtk2 gtk3 qt android,$(MOZ_WIDGET_TOOLKIT)))
+ifneq (,$(filter windows mac cocoa gtk2 gtk3 qt android,$(MOZ_WIDGET_TOOLKIT)))
 DEFINES += -DICON_DECODER
 COMPONENT_LIBS += imgicon
 endif
@@ -305,9 +297,6 @@ COMPONENT_LIBS += widget_windows
 ifdef MOZ_METRO
 COMPONENT_LIBS += widget_winrt
 endif
-endif
-ifeq (os2,$(MOZ_WIDGET_TOOLKIT))
-COMPONENT_LIBS += wdgtos2
 endif
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += widget_mac
@@ -472,7 +461,7 @@ GARBAGE += \
 LOCAL_INCLUDES += -I$(topsrcdir)/intl/unicharutil/util \
   -I$(topsrcdir)/intl/unicharutil/src
 
-ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
+ifneq (,$(filter WINNT,$(OS_ARCH)))
 SDK_LIBRARY = $(IMPORT_LIBRARY)
 else
 SDK_LIBRARY = $(SHARED_LIBRARY)

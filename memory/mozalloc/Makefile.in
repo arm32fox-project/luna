@@ -29,12 +29,10 @@ ifeq ($(OS_ARCH),Linux)
 DEFINES += -DXP_LINUX
 endif
 
-ifeq (,$(filter-out OS2,$(OS_ARCH)))
 # The strndup declaration in string.h is in an ifdef __USE_GNU section
 DEFINES		+= -D_GNU_SOURCE
-endif
 
-ifneq (,$(filter OS2 WINNT,$(OS_ARCH)))
+ifneq (,$(filter WINNT,$(OS_ARCH)))
 SDK_LIBRARY = $(IMPORT_LIBRARY)
 else
 SDK_LIBRARY = $(SHARED_LIBRARY)
