@@ -35,7 +35,6 @@ AUTOCFG_JS_EXPORTS += $(srcdir)/unix/platform.js
 endif
 endif
 endif
-endif
 
 include $(topsrcdir)/config/rules.mk
 
