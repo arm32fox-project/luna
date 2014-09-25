@@ -825,24 +825,3 @@ input[type=range]::-moz-range-thumb {
   /* Prevent nsFrame::HandlePress setting mouse capture to this element. */
   -moz-user-select: none ! important;
 }
-
-%ifdef XP_OS2
-input {
-  font: medium serif; font-family: inherit
-}
-
-select {
-  font: medium serif; font-family: inherit
-}
-
-optgroup {
-  font: medium serif; font-family: inherit
-}
-
-input[type="reset"],
-input[type="button"],
-input[type="submit"] { 
-  font: medium serif; font-family: inherit
-}
-
-%endif

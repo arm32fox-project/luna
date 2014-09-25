@@ -2783,6 +2783,8 @@ nsPluginHost::ReadPluginInfo()
     mCachedPlugins = tag;
   }
 
+// On Android we always want to try to load a plugin again (Flash). See bug# 935676.
+#ifndef MOZ_WIDGET_ANDROID
   if (hasInvalidPlugins) {
     if (!ReadSectionHeader(reader, "INVALID")) {
       return rv;
@@ -2806,6 +2808,7 @@ nsPluginHost::ReadPluginInfo()
       mInvalidPlugins = invalidTag;
     }
   }
+#endif
 
   // flip the pref so we don't import the legacy flags again
   Preferences::SetBool("plugin.importedState", true);

@@ -575,9 +575,6 @@ nsBrowserContentHandler.prototype = {
       Components.utils.reportError(e);
     }
 
-    if (startPage == "about:blank")
-      startPage = "";
-
     // Only show the startPage if we're not restoring an update session.
     if (overridePage && startPage && !haveUpdateSession)
       return overridePage + "|" + startPage;

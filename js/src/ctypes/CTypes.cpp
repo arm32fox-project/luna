@@ -12,7 +12,7 @@
 #include <limits>
 #include <math.h>
 
-#if defined(XP_WIN) || defined(XP_OS2)
+#if defined(XP_WIN)
 #include <float.h>
 #endif
 

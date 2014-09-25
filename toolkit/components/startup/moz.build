@@ -21,11 +21,7 @@ CPP_SOURCES += [
     'nsAppStartup.cpp',
 ]
 
-if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'os2':
-    CPP_SOURCES += [
-        'nsUserInfoOS2.cpp',
-    ]
-elif CONFIG['OS_ARCH'] == 'WINNT':
+if CONFIG['OS_ARCH'] == 'WINNT':
     CPP_SOURCES += [
         'nsUserInfoWin.cpp',
     ]
