@@ -5820,8 +5820,12 @@ AddonInternal.prototype = {
     if (app.id == Services.appinfo.ID)
       version = aAppVersion;
 #ifdef MOZ_MULTI_GUID
-    else if (app.id == FIREFOX_ID)
+    else if (app.id == FIREFOX_ID) {
       version = FIREFOX_APPCOMPATVERSION;
+      if (this.type == "locale")
+        //Never allow firefox language packs
+        return false;
+      }
 #endif
     else if (app.id == TOOLKIT_ID)
       version = aPlatformVersion;
