@@ -5823,9 +5823,9 @@ AddonInternal.prototype = {
     else if (app.id == FIREFOX_ID) {
       version = FIREFOX_APPCOMPATVERSION;
       if (this.type == "locale")
-        //Never allow firefox language packs
+        //Never allow language packs in Firefox compatibility mode
         return false;
-      }
+    }
 #endif
     else if (app.id == TOOLKIT_ID)
       version = aPlatformVersion;
