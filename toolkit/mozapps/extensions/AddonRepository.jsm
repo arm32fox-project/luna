@@ -1172,8 +1172,12 @@ this.AddonRepository = {
     let results = [];
 
     function isSameApplication(aAppNode) {
+#ifdef MOZ_MULTI_GUID
       if (self._getTextContent(aAppNode) == Services.appinfo.ID ||
           self._getTextContent(aAppNode) == FIREFOX_ID) {
+#else
+      if (self._getTextContent(aAppNode) == Services.appinfo.ID) {
+#endif
         return true;
       }
       return false;
