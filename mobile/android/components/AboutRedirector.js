@@ -13,14 +13,14 @@ let modules = {
     privileged: true
   },
 
-  // about:fennec and about:firefox are aliases for about:,
+  // about:fennec and about:palemoon are aliases for about:,
   // but hidden from about:about
   fennec: {
     uri: "chrome://browser/content/about.xhtml",
     privileged: true,
     hide: true
   },
-  get firefox() this.fennec,
+  get palemoon() this.fennec,
 
   // about:blank has some bad loading behavior we can avoid, if we use an alias
   empty: {
