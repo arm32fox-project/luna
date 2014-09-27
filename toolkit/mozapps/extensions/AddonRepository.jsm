@@ -40,6 +40,7 @@ const FILE_DATABASE  = "addons.sqlite";
 const DB_SCHEMA      = 4;
 
 const TOOLKIT_ID     = "toolkit@mozilla.org";
+const FIREFOX_ID     = "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}";
 
 ["LOG", "WARN", "ERROR"].forEach(function(aName) {
   this.__defineGetter__(aName, function logFuncGetter() {
@@ -1171,7 +1172,11 @@ this.AddonRepository = {
     let results = [];
 
     function isSameApplication(aAppNode) {
-      return self._getTextContent(aAppNode) == Services.appinfo.ID;
+      if (self._getTextContent(aAppNode) == Services.appinfo.ID ||
+          self._getTextContent(aAppNode) == FIREFOX_ID) {
+        return true;
+      }
+      return false;
     }
 
     for (let i = 0; i < aElements.length && results.length < this._maxResults; i++) {
