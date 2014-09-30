@@ -94,6 +94,9 @@
  * socket for which we are validating the cert.
  */
 
+#include "nsIPrefService.h"
+#include "mozilla/Preferences.h"
+
 #include "SSLServerCertVerification.h"
 #include "CertVerifier.h"
 #include "nsIBadCertListener2.h"
@@ -888,7 +891,26 @@ AuthCertificate(TransportSecurityInfo * infoObject, CERTCertificate * cert,
                                                stapledOCSPResponse,
                                                infoObject);
     if (rv != SECSuccess) {
-      return rv;
+      PRErrorCode ocspErrorCode = PR_GetError();
+      if (ocspErrorCode == SEC_ERROR_OCSP_OLD_RESPONSE) {
+        bool allow_unsafe_ocsp;
+        Preferences::GetBool("security.ssl.allow_unsafe_ocsp_response", &allow_unsafe_ocsp);
+        if (allow_unsafe_ocsp) {
+          // Due to buggy servers that will staple expired OCSP responses
+          // (see for example http://trac.nginx.org/nginx/ticket/425),
+          // don't terminate the connection if the stapled response is expired.
+          NS_ERROR("Unsafe SSL handshake: expired stapled OCSP response.");
+        }
+        else {
+          // No unsafe OCSP allowed
+          return rv;
+        }
+
+      }
+      else {
+        // Not an expired OCSP response
+        return rv;
+      }
     }
   }
 
