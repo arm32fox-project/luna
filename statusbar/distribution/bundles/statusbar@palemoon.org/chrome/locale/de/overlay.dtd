@@ -1,6 +1,6 @@
 <!ENTITY status4evar.status.widget.title "Statustext">
 <!ENTITY status4evar.progress.widget.title "Fortschrittsanzeige">
 <!ENTITY status4evar.download.widget.title "Download-Status">
-<!ENTITY status4evar.options.widget.title "Pale Moon statusleiste einstellungen">
-<!ENTITY status4evar.options.widget.label "Pale Moon statusleiste">
+<!ENTITY status4evar.options.widget.title "Einstellungen für die Pale Moon Statusleiste">
+<!ENTITY status4evar.options.widget.label "Pale Moon Statusleiste">
 <!ENTITY status4evar.menu.options.label "Einstellungen der Statusleiste...">
