@@ -1,0 +1,97 @@
+<!ENTITY status4evar.window.title "Statusleiste von Pale Moon - Einstellungen">
+<!ENTITY status4evar.pane.status "Status">
+<!ENTITY status4evar.pane.progress "Fortschritt">
+<!ENTITY status4evar.pane.download "Dateieingang">
+<!ENTITY status4evar.pane.addonbar "Statusleiste">
+<!ENTITY status4evar.pane.advanced "Erweitert">
+<!ENTITY status4evar.tab.general "Allgemein">
+<!ENTITY status4evar.tab.toolbar "Statusleiste">
+<!ENTITY status4evar.tab.urlbar "Adressleiste">
+<!ENTITY status4evar.tab.popup "Aufploppfenster">
+<!ENTITY status4evar.tab.tabs "Reiter">
+<!ENTITY status4evar.option.none "keine">
+<!ENTITY status4evar.option.nothing "Nichts">
+<!ENTITY status4evar.option.toolbar "in der Statusleiste">
+<!ENTITY status4evar.option.urlbar "in der Adressleiste">
+<!ENTITY status4evar.option.popup "in einem Aufploppfenster">
+<!ENTITY status4evar.option.tooltip "Minihilfe">
+<!ENTITY status4evar.option.bottom "unten">
+<!ENTITY status4evar.option.top "oben">
+<!ENTITY status4evar.option.fill "gefüllt">
+<!ENTITY status4evar.option.dlcount "Dateieingangszähler">
+<!ENTITY status4evar.option.dltime "Restdauer">
+<!ENTITY status4evar.option.both "Zähler und Restdauer">
+<!ENTITY status4evar.option.right "rechts">
+<!ENTITY status4evar.option.left "links">
+<!ENTITY status4evar.option.fixed "feststehend">
+<!ENTITY status4evar.option.simple "einfach">
+<!ENTITY status4evar.option.advanced "erweitert">
+<!ENTITY status4evar.option.browse "Durchsuchen">
+<!ENTITY status4evar.option.clear "Entfernen">
+<!ENTITY status4evar.option.center "mittig">
+<!ENTITY status4evar.option.offset "versetzt">
+<!ENTITY status4evar.option.repeat "wiederholt">
+<!ENTITY status4evar.option.no-repeat "nicht wiederholt">
+<!ENTITY status4evar.option.space "verteilt">
+<!ENTITY status4evar.option.round "gerundet">
+<!ENTITY status4evar.option.firefoxdefault "Standard">
+<!ENTITY status4evar.option.download.panel "Panel">
+<!ENTITY status4evar.option.download.library "Magazin">
+<!ENTITY status4evar.option.download.classic "Klassisch">
+<!ENTITY status4evar.unit.milliseconds "Millisekunden">
+<!ENTITY status4evar.unit.seconds "Sekunden">
+<!ENTITY status4evar.unit.px "Pixel">
+<!ENTITY status4evar.status.general.status.caption "Statustext">
+<!ENTITY status4evar.status.label "Anzeige des Status:">
+<!ENTITY status4evar.status.timeout.label "Statusanzeige ausblenden nach">
+<!ENTITY status4evar.status.default.label "Standardstatus anzeigen">
+<!ENTITY status4evar.status.network.label "Netzwerkstatus anzeigen">
+<!ENTITY status4evar.status.network.xhr.label "Hintergrund-Netzwerkstatus anzeigen">
+<!ENTITY toolkit.dom.status.change.label "Seiten das Ändern des Statuszeilentextes erlauben">
+<!ENTITY status4evar.status.general.linkOver.caption "Verknüpfungen">
+<!ENTITY status4evar.status.linkOver.label "Anzeige der Verknüpfungsziele:">
+<!ENTITY status4evar.status.linkOver.delay.show.label "Einblenden (ms):">
+<!ENTITY status4evar.status.linkOver.delay.hide.label "Ausblenden (ms):">
+<!ENTITY status4evar.status.toolbar.maxLength.label "Maximale Länge der Statusanzeige:">
+<!ENTITY status4evar.status.urlbar.align.label "Anordnung der Statusanzeige:">
+<!ENTITY status4evar.status.urlbar.color.label "Textfarbe:">
+<!ENTITY status4evar.status.currentUrl "Aktuelle Adresse">
+<!ENTITY status4evar.status.statusText "Statustext">
+<!ENTITY status4evar.status.firefox.compat.caption "Kompatibilitätsfunktionen">
+<!ENTITY browser.urlbar.formatting.enabled.label "Hauptadressen-Hervorhebung aktivieren">
+<!ENTITY browser.urlbar.trimming.enabled.label "Protokoll ausblenden (http:// und ftp://)">
+<!ENTITY browser.urlbar.autofill.enabled.label "Automatische vervollständigung von Adressen">
+<!ENTITY status4evar.status.popup.invertMirror.label "Standardmäßig auf der rechten Seite">
+<!ENTITY status4evar.status.popup.mouseMirror.label "Seite wechseln beim Überfahren mit der Maus">
+<!ENTITY status4evar.status.popup.findMirror.label "Bei eingeblendeter Suchleiste auf gegenüberliegender Seite starten">
+<!ENTITY status4evar.progress.style.label "Benutzerdefinierten Stil für Fortschrittsanzeige verwenden">
+<!ENTITY status4evar.progress.urlbar.enable.label "Fortschritt in der Adressleiste anzeigen">
+<!ENTITY status4evar.progress.urlbar.line.label "Anzeigeart:">
+<!ENTITY status4evar.progress.toolbar.force.label "Fortschrittsanzeige immer anzeigen">
+<!ENTITY status4evar.editor.label "Einfaches Schreibprogramm:">
+<!ENTITY status4evar.editor.css.color.label "Farbe:">
+<!ENTITY status4evar.editor.css.image.label "Grafik:">
+<!ENTITY status4evar.editor.css.image.repeat "Wiederholung">
+<!ENTITY status4evar.editor.css.image.position "Position">
+<!ENTITY status4evar.editor.css.image.offset "Versatz">
+<!ENTITY status4evar.download.button.action.label "Funktion der Statusleisten-Schaltfläche:">
+<!ENTITY status4evar.download.force.label "Dateieingangsstatus immer anzeigen">
+<!ENTITY status4evar.download.label.force.label "Beschriftung immer anzeigen">
+<!ENTITY status4evar.download.label.label "Beschriftung für Dateieingangsstatus:">
+<!ENTITY status4evar.download.tooltip.label "Minihilfen-Text für Dateieingangsstatus:">
+<!ENTITY status4evar.download.progress.label "Fortschritt des Dateieingangs im Schaltflächensymbol anzeigen">
+<!ENTITY status4evar.download.progress.average.label "Zeige durchschnittlichen Fortschritt">
+<!ENTITY status4evar.download.progress.max.label "Zeige die am vollständigsten geladene Datei">
+<!ENTITY status4evar.download.progress.min.label "Zeige die am wenigsten geladene Datei">
+<!ENTITY status4evar.download.color.active.label "Fortschrittsfarbe für aktive Dateieingänge:">
+<!ENTITY status4evar.download.color.paused.label "Fortschrittsfarbe für ruhende Dateieingänge:">
+<!ENTITY status4evar.download.notify.animate.label "Schaltfläche nach vollständigem Dateieingang animieren">
+<!ENTITY status4evar.download.notify.timeout.label "Schaltfläche nach vollständigem Dateieingang hervorheben für">
+<!ENTITY status4evar.addonbar.borderStyle "Alternativen Symbolleistenrand verwenden">
+<!ENTITY status4evar.addonbar.windowGripper "Anfasser zur Fenstergrößenänderung anzeigen">
+<!ENTITY status4evar.addonbar.closeButton "Schließen-Schaltflache anzeigen">
+<!ENTITY status4evar.advanced.warning "Diese erweiterten Einstellungen können Probleme mit anderen Erweiterungen verursachen. Änderungen nur auf eigene Gefahr!">
+<!ENTITY status4evar.advanced.urlbar.forceBinding "XBL-Bindung der Adressleiste erzwingen.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding.desc "Nur auswählen, wenn Sie Probleme mit der Darstellung der Fortschrittsanzeige in der Adressleiste oder dem Statustext haben. Dies kann möglicherweise Probleme mit anderen Erweiterungen, die eine XBL-Bindung auf der Adressleiste setzen, verursachen.">
+<!ENTITY status4evar.advanced.status.detectFullScreen "Vollbildmodus erkennen und Verknüpfungen bzw. Status entsprechend anzeigen.">
+<!ENTITY toolkit.classic.download.window.label "Klassische Dateieingangsverwaltung verwenden">
