@@ -118,7 +118,7 @@ def config_status(topobjdir = '.', topsrcdir = '.',
     log_manager.enable_unstructured()
 
     if not options.files and not options.headers:
-        print('Reticulating splines...', file=sys.stderr)
+        print('Checking for beer in the fridge...', file=sys.stderr)
         summary = backend.consume(definitions)
 
         for line in summary.summaries():

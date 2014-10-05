@@ -887,8 +887,6 @@ html[dir='rtl'] .toolbarButton.pageDown::before {
 }
 
 .toolbarButton.bookmark {
-  -webkit-box-sizing: border-box;
-  -moz-box-sizing: border-box;
   box-sizing: border-box;
   margin-top: 3px;
   padding-top: 4px;

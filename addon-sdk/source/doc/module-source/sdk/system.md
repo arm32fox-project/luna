@@ -194,7 +194,7 @@ See [nsIXULAppInfo's `appBuildID`](https://developer.mozilla.org/en-US/docs/Usin
 <api name="id">
 @property {String}
 The UUID for the host application. For example,
-`"{ec8030f7-c20a-464f-9b0e-13a3a9e97384}"` for Firefox.
+`"{8de7fcbb-c55c-4fbe-bfc5-fc555c87dbc4}"` for Pale Moon.
 This has traditionally been in the form
 `"{AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE}"` but for some applications it may
 be in the form `"appname@vendor.tld"`.

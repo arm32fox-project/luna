@@ -1334,15 +1334,15 @@ CSS_PROP_BORDER(
     offsetof(nsStyleBorder, mBoxShadow),
     eStyleAnimType_Shadow)
 CSS_PROP_POSITION(
-    -moz-box-sizing,
+    box-sizing,
     box_sizing,
-    CSS_PROP_DOMPROP_PREFIXED(BoxSizing),
+    BoxSizing,
     CSS_PROPERTY_PARSE_VALUE,
     "",
     VARIANT_HK,
     kBoxSizingKTable,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None) // XXX bug 3935
+    eStyleAnimType_None)
 CSS_PROP_TABLEBORDER(
     caption-side,
     caption_side,
@@ -1923,6 +1923,17 @@ CSS_PROP_POSITION(
     nullptr,
     offsetof(nsStylePosition, mHeight),
     eStyleAnimType_Coord)
+CSS_PROP_VISIBILITY(
+    image-orientation,
+    image_orientation,
+    ImageOrientation,
+    CSS_PROPERTY_PARSE_VALUE |
+        CSS_PROPERTY_VALUE_PARSER_FUNCTION,
+    "layout.css.image-orientation.enabled",
+    0,
+    kImageOrientationKTable,
+    offsetof(nsStyleVisibility, mImageOrientation),
+    eStyleAnimType_None)
 CSS_PROP_LIST(
     -moz-image-region,
     image_region,
@@ -3327,12 +3338,12 @@ CSS_PROP_SVGRESET(
     filter,
     filter,
     Filter,
-    CSS_PROPERTY_PARSE_VALUE,
+    CSS_PROPERTY_PARSE_FUNCTION,
     "",
-    VARIANT_HUO,
+    0,
     nullptr,
     CSS_PROP_NO_OFFSET,
-    eStyleAnimType_None)
+    eStyleAnimType_Custom)
 CSS_PROP_SVGRESET(
     flood-color,
     flood_color,

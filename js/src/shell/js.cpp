@@ -63,7 +63,7 @@
 #include <sys/wait.h>
 #endif
 
-#if defined(XP_WIN) || defined(XP_OS2)
+#if defined(XP_WIN)
 #include <io.h>     /* for isatty() */
 #endif
 
@@ -4419,7 +4419,7 @@ static JSBool
 env_setProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, MutableHandleValue vp)
 {
 /* XXX porting may be easy, but these don't seem to supply setenv by default */
-#if !defined XP_OS2 && !defined SOLARIS
+#if !defined SOLARIS
     int rv;
 
     ToStringHelper idstr(cx, id, true);
@@ -4455,7 +4455,7 @@ env_setProperty(JSContext *cx, HandleObject obj, HandleId id, JSBool strict, Mut
         return false;
     }
     vp.set(valstr.getJSVal());
-#endif /* !defined XP_OS2 && !defined SOLARIS */
+#endif /* !defined SOLARIS */
     return true;
 }
 
@@ -5213,13 +5213,6 @@ main(int argc, char **argv, char **envp)
     }
 #else
     gStackBase = (uintptr_t) &stackDummy;
-#endif
-
-#ifdef XP_OS2
-   /* these streams are normally line buffered on OS/2 and need a \n, *
-    * so we need to unbuffer then to get a reasonable prompt          */
-    setbuf(stdout,0);
-    setbuf(stderr,0);
 #endif
 
     MaybeOverrideOutFileFromEnv("JS_STDERR", stderr, &gErrFile);

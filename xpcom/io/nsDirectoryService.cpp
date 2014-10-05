@@ -33,8 +33,6 @@
 #include <CoreServices/CoreServices.h>
 #include <Carbon/Carbon.h>
 #endif
-#elif defined(XP_OS2)
-#define MAX_PATH _MAX_PATH
 #endif
 
 #include "SpecialSystemDirectory.h"
@@ -52,8 +50,6 @@ using namespace mozilla;
 #define HOME_DIR NS_OSX_HOME_DIR
 #elif defined (XP_UNIX)
 #define HOME_DIR NS_UNIX_HOME_DIR
-#elif defined (XP_OS2)
-#define HOME_DIR NS_OS2_HOME_DIR
 #endif
 
 //----------------------------------------------------------------------------------------
@@ -197,17 +193,6 @@ nsDirectoryService::GetCurrentProcessDirectory(nsIFile** aFile)
         *aFile = localFile;
         return NS_OK;
     }
-
-#elif defined(XP_OS2)
-    PPIB ppib;
-    PTIB ptib;
-    char buffer[CCHMAXPATH];
-    DosGetInfoBlocks( &ptib, &ppib);
-    DosQueryModuleName( ppib->pib_hmte, CCHMAXPATH, buffer);
-    *strrchr( buffer, '\\') = '\0'; // XXX DBCS misery
-    localFile->InitWithNativePath(nsDependentCString(buffer));
-    *aFile = localFile;
-    return NS_OK;
 
 #endif
     
@@ -894,23 +879,6 @@ nsDirectoryService::GetFile(const char *prop, bool *persistent, nsIFile **_retva
     {
         rv = GetSpecialSystemDirectory(Unix_XDG_Videos, getter_AddRefs(localFile));
         *persistent = false;
-    }
-#elif defined (XP_OS2)
-    else if (inAtom == nsDirectoryService::sSystemDirectory)
-    {
-        rv = GetSpecialSystemDirectory(OS2_SystemDirectory, getter_AddRefs(localFile)); 
-    }
-    else if (inAtom == nsDirectoryService::sOS2Directory)
-    {
-        rv = GetSpecialSystemDirectory(OS2_OS2Directory, getter_AddRefs(localFile)); 
-    }
-    else if (inAtom == nsDirectoryService::sOS_HomeDirectory)
-    {
-        rv = GetSpecialSystemDirectory(OS2_HomeDirectory, getter_AddRefs(localFile)); 
-    }
-    else if (inAtom == nsDirectoryService::sOS_DesktopDirectory)
-    {
-        rv = GetSpecialSystemDirectory(OS2_DesktopDirectory, getter_AddRefs(localFile)); 
     }
 #endif
 

@@ -323,7 +323,7 @@ pref("browser.download.manager.closeWhenDone", false);
 pref("browser.download.manager.focusWhenStarting", false);
 pref("browser.download.manager.flashCount", 2);
 pref("browser.download.manager.addToRecentDocs", true);
-pref("browser.download.manager.quitBehavior", 0);
+pref("browser.download.manager.quitBehavior", 2);
 pref("browser.download.manager.scanWhenDone", true);
 pref("browser.download.manager.resumeOnWakeDelay", 10000);
 
@@ -1204,7 +1204,7 @@ pref("prompts.tab_modal.enabled", true);
 pref("browser.panorama.animate_zoom", true);
 
 // Defines the url to be used for new tabs.
-pref("browser.newtab.url", "about:blank");
+pref("browser.newtab.url", "about:logopage");
 // Activates preloading of the new tab url.
 pref("browser.newtab.preload", false);
 

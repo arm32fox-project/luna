@@ -21,6 +21,7 @@ const appShellService = Cc['@mozilla.org/appshell/appShellService;1'].
                         getService(Ci.nsIAppShellService);
 
 const NAME2TOPIC = {
+  'PaleMoon': 'sessionstore-windows-restored',
   'Firefox': 'sessionstore-windows-restored',
   'Fennec': 'sessionstore-windows-restored',
   'SeaMonkey': 'sessionstore-windows-restored',

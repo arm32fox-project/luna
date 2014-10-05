@@ -1005,6 +1005,14 @@ public:
     mExistThrottledUpdates = aExistThrottledUpdates;
   }
 
+  bool HasWarnedAboutPositionedTableParts() const {
+    return mHasWarnedAboutPositionedTableParts;
+  }
+
+  void SetHasWarnedAboutPositionedTableParts() {
+    mHasWarnedAboutPositionedTableParts = true;
+  }
+  
 protected:
   friend class nsRunnableMethod<nsPresContext>;
   NS_HIDDEN_(void) ThemeChangedInternal();
@@ -1298,6 +1306,8 @@ protected:
   mutable unsigned      mIsChromeIsCached : 1;
   mutable unsigned      mIsChrome : 1;
 
+  unsigned mHasWarnedAboutPositionedTableParts : 1;
+ 
 #ifdef DEBUG
   bool                  mInitialized;
 #endif

@@ -27,12 +27,14 @@
 #include "FixedTableLayoutStrategy.h"
 
 #include "nsPresContext.h"
+#include "nsContentUtils.h"
 #include "nsCSSRendering.h"
 #include "nsGkAtoms.h"
 #include "nsCSSAnonBoxes.h"
 #include "nsIPresShell.h"
 #include "nsIDOMElement.h"
 #include "nsIDOMHTMLElement.h"
+#include "nsIScriptError.h"
 #include "nsFrameManager.h"
 #include "nsError.h"
 #include "nsAutoPtr.h"
@@ -41,6 +43,7 @@
 #include "nsDisplayList.h"
 #include "nsIScrollableFrame.h"
 #include "nsCSSProps.h"
+#include "RestyleTracker.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -252,6 +255,81 @@ nsTableFrame::PageBreakAfter(nsIFrame* aSourceFrame,
   return false;
 }
 
+typedef nsTArray<nsIFrame*> FrameTArray;
+
+/* static */ void
+nsTableFrame::DestroyPositionedTablePartArray(void* aPropertyValue)
+{
+  auto positionedObjs = static_cast<FrameTArray*>(aPropertyValue);
+  delete positionedObjs;
+}
+
+/* static */ void
+nsTableFrame::RegisterPositionedTablePart(nsIFrame* aFrame)
+{
+  // Supporting relative positioning for table parts other than table cells has
+  // the potential to break sites that apply 'position: relative' to those
+  // parts, expecting nothing to happen. We warn in the console to make tracking
+  // down the issue easier.
+  if (nsGkAtoms::tableCellFrame != aFrame->GetType()) {
+    nsIContent* content = aFrame->GetContent();
+    nsPresContext* presContext = aFrame->PresContext();
+    if (content && !presContext->HasWarnedAboutPositionedTableParts()) {
+      presContext->SetHasWarnedAboutPositionedTableParts();
+      nsContentUtils::ReportToConsole(nsIScriptError::warningFlag,
+                                      "Layout: Tables",
+                                      content->OwnerDoc(),
+                                      nsContentUtils::eLAYOUT_PROPERTIES,
+                                      "TablePartRelPosWarning");
+    }
+  }
+
+  nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(aFrame);
+  MOZ_ASSERT(tableFrame, "Should have a table frame here");
+  tableFrame = static_cast<nsTableFrame*>(tableFrame->GetFirstContinuation());
+
+  // Retrieve the positioned parts for this table.
+  FrameProperties props = tableFrame->Properties();
+  auto positionedParts =
+    static_cast<FrameTArray*>(props.Get(PositionedTablePartArray()));
+
+  // Create the array if it doesn't exist yet.
+  if (!positionedParts) {
+    positionedParts = new FrameTArray;
+    props.Set(PositionedTablePartArray(), positionedParts);
+  }
+
+  // Add this frame to the list.
+  positionedParts->AppendElement(aFrame);
+}
+
+/* static */ void
+nsTableFrame::UnregisterPositionedTablePart(nsIFrame* aFrame,
+                                            nsIFrame* aDestructRoot)
+{
+  // Retrieve the table frame, and ensure that we hit aDestructRoot on the way.
+  // If we don't, that means that the table frame will be destroyed, so we don't
+  // need to bother with unregistering this frame.
+  nsTableFrame* tableFrame = GetTableFramePassingThrough(aDestructRoot, aFrame);
+  if (!tableFrame) {
+    return;
+  }
+  tableFrame = static_cast<nsTableFrame*>(tableFrame->GetFirstContinuation());
+
+  // Retrieve the positioned parts for this table.
+  FrameProperties props = tableFrame->Properties();
+  auto positionedParts =
+    static_cast<FrameTArray*>(props.Get(PositionedTablePartArray()));
+
+  // Remove the frame.
+  MOZ_ASSERT(positionedParts &&
+             positionedParts->IndexOf(aFrame) != FrameTArray::NoIndex,
+             "Asked to unregister a positioned table part that wasn't registered");
+  if (positionedParts) {
+    positionedParts->RemoveElement(aFrame);
+  }
+}
+ 
 // XXX this needs to be cleaned up so that the frame constructor breaks out col group
 // frames into a separate child list, bug 343048.
 NS_IMETHODIMP
@@ -1777,6 +1855,10 @@ NS_METHOD nsTableFrame::Reflow(nsPresContext*           aPresContext,
     AdjustForCollapsingRowsCols(aDesiredSize, borderPadding);
   }
 
+  // If there are any relatively-positioned table parts, we need to reflow their
+  // absolutely-positioned descendants now that their dimensions are final.
+  FixupPositionedTableParts(aPresContext, aDesiredSize, aReflowState);
+
   // make sure the table overflow area does include the table rect.
   nsRect tableRect(0, 0, aDesiredSize.width, aDesiredSize.height) ;
 
@@ -1795,6 +1877,63 @@ NS_METHOD nsTableFrame::Reflow(nsPresContext*           aPresContext,
   FinishAndStoreOverflow(&aDesiredSize);
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
   return rv;
+}
+
+void
+nsTableFrame::FixupPositionedTableParts(nsPresContext*           aPresContext,
+                                        nsHTMLReflowMetrics&     aDesiredSize,
+                                        const nsHTMLReflowState& aReflowState)
+{
+  auto positionedParts =
+    static_cast<FrameTArray*>(Properties().Get(PositionedTablePartArray()));
+  if (!positionedParts) {
+    return;
+  }
+
+  mozilla::css::OverflowChangedTracker overflowTracker;
+  overflowTracker.SetSubtreeRoot(this);
+
+  for (size_t i = 0; i < positionedParts->Length(); ++i) {
+    nsIFrame* positionedPart = positionedParts->ElementAt(i);
+
+    // As we've already finished reflow, positionedParts's size and overflow
+    // areas have already been assigned, so we just pull them back out.
+    nsSize size(positionedPart->GetSize());
+    nsHTMLReflowMetrics desiredSize;
+    desiredSize.width = size.width;
+    desiredSize.height = size.height;
+    desiredSize.mOverflowAreas = positionedPart->GetOverflowAreasRelativeToSelf();
+
+    // Construct a dummy reflow state and reflow status.
+    // XXX(seth): Note that the dummy reflow state doesn't have a correct
+    // chain of parent reflow states. It also doesn't necessarily have a
+    // correct containing block.
+    nsHTMLReflowState reflowState(aPresContext, positionedPart,
+                                  aReflowState.rendContext,
+                                  nsSize(size.width, NS_UNCONSTRAINEDSIZE),
+                                  nsHTMLReflowState::DUMMY_PARENT_REFLOW_STATE);
+    nsReflowStatus reflowStatus = NS_FRAME_COMPLETE;
+
+    // Reflow absolutely-positioned descendants of the positioned part.
+    // FIXME: Unconditionally using NS_UNCONSTRAINEDSIZE for the height and
+    // ignoring any change to the reflow status aren't correct. We'll never
+    // paginate absolutely positioned frames.
+    overflowTracker.AddFrame(positionedPart);
+    nsFrame* positionedFrame = static_cast<nsFrame*>(positionedPart);
+    positionedFrame->FinishReflowWithAbsoluteFrames(PresContext(),
+                                                    desiredSize,
+                                                    reflowState,
+                                                    reflowStatus,
+                                                    true);
+  }
+
+  // Propagate updated overflow areas up the tree.
+  overflowTracker.Flush();
+
+  // Update our own overflow areas. (OverflowChangedTracker doesn't update the
+  // subtree root itself.)
+  aDesiredSize.SetOverflowAreasToDesiredBounds();
+  nsLayoutUtils::UnionChildOverflow(this, aDesiredSize.mOverflowAreas);
 }
 
 bool
@@ -3396,6 +3535,32 @@ nsTableFrame::GetTableFrame(nsIFrame* aFrame)
   }
   NS_RUNTIMEABORT("unable to find table parent");
   return nullptr;
+}
+
+nsTableFrame*
+nsTableFrame::GetTableFramePassingThrough(nsIFrame* aMustPassThrough,
+                                          nsIFrame* aFrame)
+{
+  MOZ_ASSERT(aMustPassThrough == aFrame ||
+             nsLayoutUtils::IsProperAncestorFrame(aMustPassThrough, aFrame),
+             "aMustPassThrough should be an ancestor");
+
+  // Retrieve the table frame, and ensure that we hit aMustPassThrough on the
+  // way.  If we don't, just return null.
+  bool hitPassThroughFrame = false;
+  nsTableFrame* tableFrame = nullptr;
+  for (nsIFrame* ancestor = aFrame; ancestor; ancestor = ancestor->GetParent()) {
+    if (ancestor == aMustPassThrough) {
+      hitPassThroughFrame = true;
+    }
+    if (nsGkAtoms::tableFrame == ancestor->GetType()) {
+      tableFrame = static_cast<nsTableFrame*>(ancestor);
+      break;
+    }
+  }
+
+  MOZ_ASSERT(tableFrame, "Should have a table frame here");
+  return hitPassThroughFrame ? tableFrame : nullptr;
 }
 
 bool
