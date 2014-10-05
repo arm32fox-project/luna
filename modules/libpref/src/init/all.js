@@ -3862,7 +3862,7 @@ pref("gfx.xrender.enabled",true);
 
 #ifdef XP_WIN
 // Whether to disable the automatic detection and use of direct2d.
-pref("gfx.direct2d.disabled", false);
+pref("gfx.direct2d.disabled", true);
 
 // Whether to attempt to enable Direct2D regardless of automatic detection or
 // blacklisting
