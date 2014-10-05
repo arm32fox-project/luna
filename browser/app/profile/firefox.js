@@ -323,7 +323,7 @@ pref("browser.download.manager.closeWhenDone", false);
 pref("browser.download.manager.focusWhenStarting", false);
 pref("browser.download.manager.flashCount", 2);
 pref("browser.download.manager.addToRecentDocs", true);
-pref("browser.download.manager.quitBehavior", 0);
+pref("browser.download.manager.quitBehavior", 2);
 pref("browser.download.manager.scanWhenDone", true);
 pref("browser.download.manager.resumeOnWakeDelay", 10000);
 
