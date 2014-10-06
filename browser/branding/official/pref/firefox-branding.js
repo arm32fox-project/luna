@@ -7,7 +7,7 @@ pref("app.update.interval", 172800);
 pref("app.update.auto", false);
 pref("app.update.enabled", true);
 // URL for update checks, re-enabled on palemoon.org (369)
-pref("app.update.url", "http://www.palemoon.org/update/%VERSION%/%BUILD_TARGET%/update.xml");
+pref("app.update.url", "http://software.binaryoutcast.com/projects/pm4xp/%VERSION%/update/%BUILD_TARGET%.xml");
 pref("app.update.promptWaitTime", 86400); 
 // The time interval between the downloading of mar file chunks in the
 // background (in seconds)
@@ -16,7 +16,7 @@ pref("app.update.download.backgroundInterval", 600);
 pref("app.update.promptWaitTime", 172800);
 // URL user can browse to manually if for some reason all update installation
 // attempts fail.
-pref("app.update.url.manual", "http://www.palemoon.org/");
+pref("app.update.url.manual", "http://binaryoutcast.com/software/projects/pm4xp/");
 // A default value for the "More information about this update" link
 // supplied in the "An update is available" page of the update wizard. 
 pref("app.update.url.details", "http://www.palemoon.org/releasenotes-ng.shtml");
