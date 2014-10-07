@@ -102,7 +102,7 @@ var padlock_PadLock =
     padlock_PadLock.prefbranch.addObserver("", padlock_PadLock, false);
   },
   onUnLoad: function() {
-    padlock_PadLock.prefbranch.removeObserver("", this);
+    padlock_PadLock.prefbranch.removeObserver("", padlock_PadLock);
   },
   observe: function(subject, topic, data)
   {

@@ -38,10 +38,6 @@ LOCAL_INCLUDES	= \
 	-I$(srcdir)/../commandhandler/src \
 	$(NULL)
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
-LOCAL_INCLUDES += -I$(srcdir)/../printingui/src/os2 
-endif
-
 ifdef MOZ_PDF_PRINTING
 LOCAL_INCLUDES += -I$(srcdir)/../printingui/src/unixshared 
 endif

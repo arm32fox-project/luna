@@ -35,10 +35,6 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),android)
 CPPSRCS += $(RELATIVE_PATH)/nptest_droid.cpp
 endif
 
-ifeq ($(MOZ_WIDGET_TOOLKIT),os2)
-CPPSRCS += $(RELATIVE_PATH)/nptest_os2.cpp
-endif
-
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
 CPPSRCS += $(RELATIVE_PATH)/nptest_qt.cpp
 include $(topsrcdir)/config/config.mk

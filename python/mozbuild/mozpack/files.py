@@ -137,7 +137,7 @@ class File(BaseFile):
 
 class ExecutableFile(File):
     '''
-    File class for executable and library files on OS/2, OS/X and ELF systems.
+    File class for executable and library files on OS/X and ELF systems.
     (see mozpack.executables.is_executable documentation).
     '''
     def copy(self, dest, skip_if_older=True):

@@ -31,6 +31,7 @@
 #include "nsBlockFrame.h"
 #include "nsBidiPresUtils.h"
 #include "imgIContainer.h"
+#include "ImageOps.h"
 #include "gfxRect.h"
 #include "gfxContext.h"
 #include "gfxFont.h"
@@ -97,6 +98,11 @@ using namespace mozilla::css;
 using namespace mozilla::dom;
 using namespace mozilla::layers;
 using namespace mozilla::layout;
+
+using mozilla::image::Angle;
+using mozilla::image::Flip;
+using mozilla::image::ImageOps;
+using mozilla::image::Orientation;
 
 #define FLEXBOX_ENABLED_PREF_NAME "layout.css.flexbox.enabled"
 
@@ -381,6 +387,22 @@ nsLayoutUtils::AnimatedImageLayersEnabled()
   }
 
   return sAnimatedImageLayersEnabled;
+}
+
+bool
+nsLayoutUtils::CSSFiltersEnabled()
+{
+  static bool sCSSFiltersEnabled;
+  static bool sCSSFiltersPrefCached = false;
+
+  if (!sCSSFiltersPrefCached) {
+    sCSSFiltersPrefCached = true;
+    Preferences::AddBoolVarCache(&sCSSFiltersEnabled,
+                                 "layout.css.filters.enabled",
+                                 false);
+  }
+
+  return sCSSFiltersEnabled;
 }
 
 void
@@ -2717,7 +2739,7 @@ nsLayoutUtils::IntrinsicForContainer(nsRenderingContext *aRenderingContext,
     // -moz-fit-content and -moz-available enumerated widths compute intrinsic
     // widths just like auto.
     // For -moz-max-content and -moz-min-content, we handle them like
-    // specified widths, but ignore -moz-box-sizing.
+    // specified widths, but ignore box-sizing.
     boxSizing = NS_STYLE_BOX_SIZING_CONTENT;
   } else if (!styleWidth.ConvertsToLength() &&
              !(haveFixedMinWidth && haveFixedMaxWidth && maxw <= minw)) {
@@ -4217,6 +4239,25 @@ nsLayoutUtils::GetWholeImageDestination(const nsIntSize& aWholeImageSize,
   nscoord wholeSizeY = NSToCoordRound(aWholeImageSize.height*appUnitsPerCSSPixel*scaleY);
   return nsRect(aDestArea.TopLeft() - nsPoint(destOffsetX, destOffsetY),
                 nsSize(wholeSizeX, wholeSizeY));
+}
+
+/* static */ already_AddRefed<imgIContainer>
+nsLayoutUtils::OrientImage(imgIContainer* aContainer,
+                           const nsStyleImageOrientation& aOrientation)
+{
+  MOZ_ASSERT(aContainer, "Should have an image container");
+  nsCOMPtr<imgIContainer> img(aContainer);
+
+  if (aOrientation.IsFromImage()) {
+    img = ImageOps::Orient(img, img->GetOrientation());
+  } else if (!aOrientation.IsDefault()) {
+    Angle angle = aOrientation.Angle();
+    Flip flip  = aOrientation.IsFlipped() ? Flip::Horizontal
+                                          : Flip::Unflipped;
+    img = ImageOps::Orient(img, Orientation(angle, flip));
+  }
+
+  return img.forget();
 }
 
 static bool NonZeroStyleCoord(const nsStyleCoord& aCoord)

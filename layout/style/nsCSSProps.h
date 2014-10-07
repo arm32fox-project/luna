@@ -371,6 +371,7 @@ public:
   static const int32_t kBoxPackKTable[];
   static const int32_t kDominantBaselineKTable[];
   static const int32_t kFillRuleKTable[];
+  static const int32_t kFilterFunctionKTable[];
   static const int32_t kImageRenderingKTable[];
   static const int32_t kShapeRenderingKTable[];
   static const int32_t kStrokeLinecapKTable[];
@@ -415,6 +416,8 @@ public:
   static const int32_t kFontVariantNumericKTable[];
   static const int32_t kFontVariantPositionKTable[];
   static const int32_t kFontWeightKTable[];
+  static const int32_t kImageOrientationKTable[];
+  static const int32_t kImageOrientationFlipKTable[];
   static const int32_t kIMEModeKTable[];
   static const int32_t kLineHeightKTable[];
   static const int32_t kListStylePositionKTable[];

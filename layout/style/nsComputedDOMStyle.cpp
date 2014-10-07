@@ -42,6 +42,7 @@
 #include "nsStyleTransformMatrix.h"
 #include "mozilla/dom/Element.h"
 #include "nsWrapperCacheInlines.h"
+#include "nsUTF8Utils.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -1711,16 +1712,7 @@ nsComputedDOMStyle::GetCSSGradientString(const nsStyleGradient* aGradient,
     if (needSep) {
       aString.AppendLiteral(" ");
     }
-    tmpVal->SetNumber(aGradient->mAngle.GetAngleValue());
-    tmpVal->GetCssText(tokenString);
-    aString.Append(tokenString);
-    switch (aGradient->mAngle.GetUnit()) {
-    case eStyleUnit_Degree: aString.AppendLiteral("deg"); break;
-    case eStyleUnit_Grad: aString.AppendLiteral("grad"); break;
-    case eStyleUnit_Radian: aString.AppendLiteral("rad"); break;
-    case eStyleUnit_Turn: aString.AppendLiteral("turn"); break;
-    default: NS_NOTREACHED("unrecognized angle unit");
-    }
+    nsStyleUtil::AppendAngleValue(aGradient->mAngle, aString);
     needSep = true;
   }
 
@@ -3301,6 +3293,27 @@ nsComputedDOMStyle::DoGetForceBrokenImageIcon()
 }
 
 CSSValue*
+nsComputedDOMStyle::DoGetImageOrientation()
+{
+  nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
+  nsAutoString string;
+  nsStyleImageOrientation orientation = StyleVisibility()->mImageOrientation;
+
+  if (orientation.IsFromImage()) {
+    string.AppendLiteral("from-image");
+  } else {
+    nsStyleUtil::AppendAngleValue(orientation.AngleAsCoord(), string);
+
+    if (orientation.IsFlipped()) {
+      string.AppendLiteral(" flip");
+    }
+  }
+
+  val->SetString(string);
+  return val;
+}
+
+CSSValue*
 nsComputedDOMStyle::DoGetIMEMode()
 {
   nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
@@ -4005,6 +4018,23 @@ nsComputedDOMStyle::SetValueToCoord(nsROCSSPrimitiveValue* aValue,
         SetValueToCalc(calc, aValue);
       }
       break;
+
+    case eStyleUnit_Degree:
+      aValue->SetDegree(aCoord.GetAngleValue());
+      break;
+
+    case eStyleUnit_Grad:
+      aValue->SetGrad(aCoord.GetAngleValue());
+      break;
+
+    case eStyleUnit_Radian:
+      aValue->SetRadian(aCoord.GetAngleValue());
+      break;
+
+    case eStyleUnit_Turn:
+      aValue->SetTurn(aCoord.GetAngleValue());
+      break;
+
     default:
       NS_ERROR("Can't handle this unit");
       break;
@@ -4466,19 +4496,75 @@ nsComputedDOMStyle::DoGetClipPath()
   return val;
 }
 
+void
+nsComputedDOMStyle::SetCssTextToCoord(nsAString& aCssText,
+                                      const nsStyleCoord& aCoord)
+{
+  nsROCSSPrimitiveValue* value = new nsROCSSPrimitiveValue;
+  bool clampNegativeCalc = true;
+  SetValueToCoord(value, aCoord, clampNegativeCalc);
+  value->GetCssText(aCssText);
+  delete value;
+}
+
+CSSValue*
+nsComputedDOMStyle::CreatePrimitiveValueForStyleFilter(
+  const nsStyleFilter& aStyleFilter)
+{
+  nsROCSSPrimitiveValue* value = new nsROCSSPrimitiveValue;
+  // Handle url().
+  if (aStyleFilter.GetType() == NS_STYLE_FILTER_URL) {
+    value->SetURI(aStyleFilter.GetURL());
+    return value;
+  }
+
+  // Filter function name and opening parenthesis.
+  nsAutoString filterFunctionString;
+  AppendASCIItoUTF16(
+    nsCSSProps::ValueToKeyword(aStyleFilter.GetType(),
+                               nsCSSProps::kFilterFunctionKTable),
+                               filterFunctionString);
+  filterFunctionString.AppendLiteral("(");
+
+  nsAutoString argumentString;
+  if (aStyleFilter.GetType() == NS_STYLE_FILTER_DROP_SHADOW) {
+    // Handle drop-shadow()
+    nsRefPtr<CSSValue> shadowValue =
+      GetCSSShadowArray(aStyleFilter.GetDropShadow(),
+                        StyleColor()->mColor,
+                        false);
+    ErrorResult dummy;
+    shadowValue->GetCssText(argumentString, dummy);
+  } else {
+    // Filter function argument.
+    SetCssTextToCoord(argumentString, aStyleFilter.GetFilterParameter());
+  }
+  filterFunctionString.Append(argumentString);
+
+  // Filter function closing parenthesis.
+  filterFunctionString.AppendLiteral(")");
+
+  value->SetString(filterFunctionString);
+  return value;
+}
+
 CSSValue*
 nsComputedDOMStyle::DoGetFilter()
 {
-  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+  const nsTArray<nsStyleFilter>& filters = StyleSVGReset()->mFilters;
 
-  const nsStyleSVGReset* svg = StyleSVGReset();
+  if (filters.IsEmpty()) {
+    nsROCSSPrimitiveValue* value = new nsROCSSPrimitiveValue;
+    value->SetIdent(eCSSKeyword_none);
+    return value;
+  }
 
-  if (svg->mFilter)
-    val->SetURI(svg->mFilter);
-  else
-    val->SetIdent(eCSSKeyword_none);
-
-  return val;
+  nsDOMCSSValueList* valueList = GetROCSSValueList(false);
+  for(uint32_t i = 0; i < filters.Length(); i++) {
+    CSSValue* value = CreatePrimitiveValueForStyleFilter(filters[i]);
+    valueList->AppendCSSValue(value);
+  }
+  return valueList;
 }
 
 CSSValue*
@@ -4904,6 +4990,7 @@ nsComputedDOMStyle::GetQueryablePropertyMap(uint32_t* aLength)
     //// COMPUTED_STYLE_MAP_ENTRY(border_width,             BorderWidth),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(bottom,                 Bottom),
     COMPUTED_STYLE_MAP_ENTRY(box_shadow,                    BoxShadow),
+    COMPUTED_STYLE_MAP_ENTRY(box_sizing,                    BoxSizing),
     COMPUTED_STYLE_MAP_ENTRY(caption_side,                  CaptionSide),
     COMPUTED_STYLE_MAP_ENTRY(clear,                         Clear),
     COMPUTED_STYLE_MAP_ENTRY(clip,                          Clip),
@@ -4937,6 +5024,7 @@ nsComputedDOMStyle::GetQueryablePropertyMap(uint32_t* aLength)
     COMPUTED_STYLE_MAP_ENTRY(font_variant_position,         FontVariantPosition),
     COMPUTED_STYLE_MAP_ENTRY(font_weight,                   FontWeight),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(height,                 Height),
+    COMPUTED_STYLE_MAP_ENTRY(image_orientation,             ImageOrientation),
     COMPUTED_STYLE_MAP_ENTRY(ime_mode,                      IMEMode),
     COMPUTED_STYLE_MAP_ENTRY(justify_content,               JustifyContent),
     COMPUTED_STYLE_MAP_ENTRY_LAYOUT(left,                   Left),
@@ -5030,7 +5118,6 @@ nsComputedDOMStyle::GetQueryablePropertyMap(uint32_t* aLength)
     COMPUTED_STYLE_MAP_ENTRY(box_ordinal_group,             BoxOrdinalGroup),
     COMPUTED_STYLE_MAP_ENTRY(box_orient,                    BoxOrient),
     COMPUTED_STYLE_MAP_ENTRY(box_pack,                      BoxPack),
-    COMPUTED_STYLE_MAP_ENTRY(box_sizing,                    BoxSizing),
     COMPUTED_STYLE_MAP_ENTRY(_moz_column_count,             ColumnCount),
     COMPUTED_STYLE_MAP_ENTRY(_moz_column_fill,              ColumnFill),
     COMPUTED_STYLE_MAP_ENTRY(_moz_column_gap,               ColumnGap),

@@ -56,6 +56,8 @@ browser.jar:
         content/browser/aboutRobots-widget-left.png   (content/aboutRobots-widget-left.png)
         content/browser/aboutSocialError.xhtml        (content/aboutSocialError.xhtml)
 *       content/browser/browser.css                   (content/browser.css)
+        content/browser/browser-menudragging.xul      (content/browser-menudragging.xul)
+        content/browser/browser-menudragging.js       (content/browser-menudragging.js)
 *       content/browser/browser-title.css             (content/browser-title.css)
 *       content/browser/browser.js                    (content/browser.js)
 *       content/browser/browser.xul                   (content/browser.xul)

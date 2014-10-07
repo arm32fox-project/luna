@@ -84,7 +84,7 @@
         <label value="&palemoon.newtabPage.label;"/>
         <menulist id="newtabPage" preference="browser.newtab.url">
           <menupopup>
-            <menuitem label="&palemoon.newtabPage.blank.label;"     value="about:blank" id="newtabPageBlank"/>
+            <menuitem label="&palemoon.newtabPage.blank.label;"     value="about:logopage" id="newtabPageBlank"/>
             <menuitem label="&palemoon.newtabPage.home.label;"      value="http://start.palemoon.org/" id="newtabPageHome"/>
             <menuitem label="&palemoon.newtabPage.quickdial.label;" value="about:newtab" id="newtabPageQuickdial"/>
           </menupopup>

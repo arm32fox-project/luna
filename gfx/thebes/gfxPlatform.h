@@ -21,10 +21,6 @@
 #include "mozilla/RefPtr.h"
 #include "GfxInfoCollector.h"
 
-#ifdef XP_OS2
-#undef OS2EMX_PLAIN_CHAR
-#endif
-
 class gfxImageSurface;
 class gfxFont;
 class gfxFontGroup;

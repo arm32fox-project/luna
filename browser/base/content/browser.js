@@ -145,7 +145,8 @@ let gInitialPages = [
   "about:newtab",
   "about:home",
   "about:privatebrowsing",
-  "about:sessionrestore"
+  "about:sessionrestore",
+  "about:logopage"
 ];
 
 #include browser-addons.js

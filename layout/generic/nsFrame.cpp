@@ -4953,7 +4953,7 @@ ComputeOutlineAndEffectsRect(nsIFrame* aFrame,
     // For SVG frames, we only need to account for filters.
     // TODO: We could also take account of clipPath and mask to reduce the
     // visual overflow, but that's not essential.
-    if (aFrame->StyleSVGReset()->mFilter) {
+    if (aFrame->StyleSVGReset()->SingleFilter()) {
       if (aStoreRectProperties) {
         aFrame->Properties().
           Set(nsIFrame::PreEffectsBBoxProperty(), new nsRect(r));
@@ -5059,10 +5059,37 @@ nsIFrame::GetOverflowAreas() const
                          nsRect(nsPoint(0, 0), GetSize()));
 }
 
+nsOverflowAreas
+nsIFrame::GetOverflowAreasRelativeToSelf() const
+{
+  if (IsTransformed()) {
+    nsOverflowAreas* preTransformOverflows = static_cast<nsOverflowAreas*>
+      (Properties().Get(PreTransformOverflowAreasProperty()));
+    if (preTransformOverflows) {
+      return nsOverflowAreas(preTransformOverflows->VisualOverflow(),
+                             preTransformOverflows->ScrollableOverflow());
+    }
+  }
+  return nsOverflowAreas(GetVisualOverflowRect(),
+                         GetScrollableOverflowRect());
+}
+
 nsRect
 nsIFrame::GetScrollableOverflowRectRelativeToParent() const
 {
   return GetScrollableOverflowRect() + mRect.TopLeft();
+}
+
+nsRect
+nsIFrame::GetScrollableOverflowRectRelativeToSelf() const
+{
+  if (IsTransformed()) {
+    nsOverflowAreas* preTransformOverflows = static_cast<nsOverflowAreas*>
+      (Properties().Get(PreTransformOverflowAreasProperty()));
+    if (preTransformOverflows)
+      return preTransformOverflows->ScrollableOverflow();
+  }
+  return GetScrollableOverflowRect();
 }
 
 nsRect

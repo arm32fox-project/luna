@@ -13,7 +13,7 @@
 #include "nsCppSharedAllocator.h"
 #include "nsCRTGlue.h"
 
-#if defined(XP_WIN) || defined(XP_OS2)
+#if defined(XP_WIN)
 #  define NS_LINEBREAK           "\015\012"
 #  define NS_LINEBREAK_LEN       2
 #else
@@ -21,7 +21,7 @@
 #    define NS_LINEBREAK         "\012"
 #    define NS_LINEBREAK_LEN     1
 #  endif /* XP_UNIX */
-#endif /* XP_WIN || XP_OS2 */
+#endif /* XP_WIN */
 
 extern const PRUnichar kIsoLatin1ToUCS2[256];
 
@@ -187,7 +187,7 @@ NS_IS_SPACE(PRUnichar c)
 
 #define NS_IS_CNTRL(i)   ((((unsigned int) (i)) > 0x7f) ? (int) 0 : iscntrl(i))
 #define NS_IS_DIGIT(i)   ((((unsigned int) (i)) > 0x7f) ? (int) 0 : isdigit(i))
-#if defined(XP_WIN) || defined(XP_OS2)
+#if defined(XP_WIN)
 #define NS_IS_ALPHA(VAL) (isascii((int)(VAL)) && isalpha((int)(VAL)))
 #else
 #define NS_IS_ALPHA(VAL) ((((unsigned int) (VAL)) > 0x7f) ? (int) 0 : isalpha((int)(VAL)))

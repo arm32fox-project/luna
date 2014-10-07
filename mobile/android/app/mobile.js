@@ -149,12 +149,9 @@ pref("signon.expireMasterPassword", false);
 pref("signon.SignonFileName", "signons.txt");
 pref("signon.debug", false);
 
-/* form helper */
-// 0 = disabled, 1 = enabled, 2 = dynamic depending on screen size
-pref("formhelper.mode", 2);
+/* form helper (scroll to and optionally zoom into editable fields)  */
+pref("formhelper.mode", 2);  // 0 = disabled, 1 = enabled, 2 = dynamic depending on screen size
 pref("formhelper.autozoom", true);
-pref("formhelper.autozoom.caret", true);
-pref("formhelper.restore", false);
 
 /* find helper */
 pref("findhelper.autozoom", true);
@@ -739,9 +736,6 @@ pref("dom.payment.provider.0.requestMethod", "GET");
 
 // Make <audio> and <video> talk to the AudioChannelService.
 pref("media.useAudioChannelService", false);
-
-// Explicitly declare sync server
-pref("services.sync.serverURL", "https://sync.palemoon.net/");
 
 // Declare compatibility mode with Firefox by default for AMO
 pref("general.useragent.compatMode.firefox", true);

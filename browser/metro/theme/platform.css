@@ -451,7 +451,7 @@ notification {
 
 richgrid {
   display: -moz-box;
-  -moz-box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 richgrid .meta-grid {
@@ -465,7 +465,7 @@ richgriditem {
 richgriditem .richgrid-item-content {
   border: @metro_border_thin@ solid @tile_border_color@;
   box-shadow: 0 0 @metro_spacing_snormal@ rgba(0, 0, 0, 0.1);
-  -moz-box-sizing: border-box;
+  box-sizing: border-box;
   padding: 10px 8px 6px 8px;
   position: relative;
 }

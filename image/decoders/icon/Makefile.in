@@ -28,10 +28,6 @@ ifeq ($(OS_ARCH),WINNT)
 PLATFORM = win
 endif
 
-ifeq ($(OS_ARCH),OS2)
-PLATFORM = os2
-endif
-
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 PLATFORM = mac
 endif

@@ -38,12 +38,12 @@
 
 #status4evar-options-button
 {
-	list-style-image: url("chrome://status4evar/skin/s4e24.png");
+	list-style-image: url("chrome://status4evar/skin/pms24.png");
 }
 
 toolbar[iconsize="small"] #status4evar-options-button
 {
-	list-style-image: url("chrome://status4evar/skin/s4e16.png");
+	list-style-image: url("chrome://status4evar/skin/pms16.png");
 }
 
 /*
