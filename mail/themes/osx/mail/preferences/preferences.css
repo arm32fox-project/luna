@@ -1,0 +1,321 @@
+/*
+# -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+
+.windowDialog {
+  padding: 12px;
+  font: -moz-dialog;
+}
+
+#permissionsText {
+  font: small-caption;
+  font-weight: normal;
+  line-height: 1.3em;
+  margin-bottom: 4px !important;
+}
+
+menulist > menupopup > menuitem {
+  font: -moz-pull-down-menu;
+}
+ 
+prefwindow:not([type="child"]) {
+  padding: 0 !important;
+}
+
+prefpane {
+  padding: 12px;
+}
+
+.paneSelector {
+  list-style-image: url("chrome://messenger/skin/preferences/mail-options.png");
+}
+
+radio[pane=paneGeneral] {
+  -moz-image-region: rect(0px, 32px, 32px, 0px)
+}
+
+radio[pane=paneDisplay] {
+  -moz-image-region: rect(0px, 64px, 32px, 32px)
+}
+
+radio[pane=paneCompose] {
+  -moz-image-region: rect(0px, 96px, 32px, 64px)
+}
+
+radio[pane=paneChat] {
+  -moz-image-region: rect(0px, 288px, 32px, 256px);
+}
+
+radio[pane=paneSecurity] {
+  -moz-image-region: rect(0px 128px 32px 96px);
+}
+
+radio[pane=paneApplications] {
+  -moz-image-region: rect(0px 160px 32px 128px);
+}
+
+radio[pane=paneAdvanced] {
+  -moz-image-region: rect(0px, 256px, 32px, 224px)
+}
+
+@media (min-resolution: 2dppx) {
+  .paneSelector {
+    list-style-image: url("chrome://messenger/skin/preferences/mail-options@2x.png");
+  }
+
+  radio[pane=paneGeneral] {
+    -moz-image-region: rect(0px, 64px, 64px, 0px)
+  }
+
+  radio[pane=paneDisplay] {
+    -moz-image-region: rect(0px, 128px, 64px, 64px)
+  }
+
+  radio[pane=paneCompose] {
+    -moz-image-region: rect(0px, 192px, 64px, 128px)
+  }
+
+  radio[pane=paneChat] {
+    -moz-image-region: rect(0px, 576px, 64px, 512px);
+  }
+
+  radio[pane=paneSecurity] {
+    -moz-image-region: rect(0px, 256px, 64px, 192px);
+  }
+
+  radio[pane=paneApplications] {
+    -moz-image-region: rect(0px, 320px, 64px, 256px);
+  }
+
+  radio[pane=paneAdvanced] {
+    -moz-image-region: rect(0px, 512px, 64px, 448px)
+  }
+
+  .paneButtonIcon {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+/* Attachments Pane */
+#MailPreferences[animated="true"] #handlersView {
+  height: 17em;
+}
+
+#MailPreferences[animated="false"] #handlersView {
+  -moz-box-flex: 1;
+}
+
+#browserStartupHomepage {
+  padding-top: 2px;
+  padding-bottom: 3px;
+  -moz-padding-start: 4px;
+  -moz-padding-end: 2px;
+}
+
+prefpane .groupbox-body {
+  -moz-appearance: none;
+  padding: 8px 4px 4px;
+}
+
+#paneTabs > groupbox {
+  margin: 0;
+}
+
+#paneTabs > vbox {
+  margin: 8px;
+}
+
+prefpane .groupbox-title {
+  background: url("chrome://global/skin/50pct_transparent_grey.png") repeat-x bottom left;
+  margin-bottom: 4px;
+}
+
+caption {
+  border-bottom: 1px solid #ECECEC;
+  padding-top: 4px !important;
+  padding-bottom: 0px !important;
+  -moz-padding-start: 0px !important;
+  -moz-padding-end: 4px !important;
+}
+
+#paneContent {
+  padding-top: 8px;
+}
+
+#paneContent row {
+  padding: 0 4px;
+}
+
+#advancedPrefs {
+  margin: 0 8px;
+}
+
+#securityPrefs {
+  padding: 0 4px;
+}
+
+tabpanels {
+  padding: 18px 10px 10px;
+  margin: 0 6px 6px;
+}
+
+/* override the color style for tag items when they
+   have selection */
+#tagList listitem[selected="true"] {
+  color: -moz-DialogText !important;
+}
+
+#tagList:focus > listitem[selected="true"] {
+  color: HighlightText !important;
+}
+
+/* Chat */
+#timeBeforeAway {
+  width: 4em;
+}
+
+/* Quota meter in Folder Properties */
+
+#quotaPercentageBar {
+  -moz-appearance: none;
+  border: 1px solid #8B8B8B;
+}
+
+#quotaPercentageBar > .progress-bar {
+  -moz-appearance: none;
+  background-color: #88AAFF;
+  opacity: .5;
+}
+
+/* Attachments */
+
+body {
+  font-size: 12px;
+}
+
+a {
+  color: -moz-nativehyperlinktext;
+  text-decoration: underline;
+}
+
+#provider-header {
+  border-bottom: 1px solid #b1b1b1;
+  margin-bottom: 20px;
+  height: 50px;
+}
+
+#provider-name {
+  padding: 0;
+  margin: 0;
+  margin-right: 120px;
+}
+
+#provider-name h1 {
+  font-size: large;
+}
+
+#provider-name h2 {
+  font-size: 12px;
+}
+
+#provider-terms {
+  float: right;
+  width: 110px;
+}
+
+#provider-terms a {
+  font-size: small;
+  display: block;
+  margin-bottom: 5px;
+  text-align: right;
+}
+
+#provider-space {
+  text-align: right;
+  margin-right: 180px;
+  margin-top: 50px;
+  height: 100px;
+}
+
+#cloudFileView {
+  width: 150px;
+  overflow: hidden;
+}
+
+#upgrade {
+  margin-top: 1em;
+}
+
+#provider-space-visuals {
+  width: 150px;
+  height: 150px;
+  float: right;
+}
+
+#provider-account-settings {
+  text-align: right;
+  position: absolute;
+  bottom: 8px;
+  right: 10px;
+}
+
+.space-swatch {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  border: 1px solid rgba(0,0,0,0.5);
+  border-radius: 2px;
+  -moz-margin-start: 0.5ch;
+  -moz-box-sizing: border-box;
+}
+
+/* Main pane padding */
+
+#provider-management {
+  margin: 0 10px;
+}
+
+#provider-name h1 {
+  margin: 0;
+}
+
+/* Loading panel */
+#cloudFileLoadingPanel, #cloudFileDefaultPanel {
+  text-align: center;
+  padding-top: 150px;
+}
+
+#provider-settings .indented {
+  margin-left: 75px;
+}
+
+/* Flexing */
+#provider-management {
+  display: block;
+  -moz-box-orient: vertical;
+}
+
+#provider-space label {
+  -moz-margin-end: 0.5ch;
+  vertical-align: middle;
+}
+
+#provider-space span {
+  vertical-align: middle;
+}
+
+#provider-header {
+  -moz-box-flex: 0;
+}
+
+#provider-spacebox {
+  -moz-box-flex: 1;
+}
+
+#provider-account-settings {
+  -moz-box-flex: 0;
+}

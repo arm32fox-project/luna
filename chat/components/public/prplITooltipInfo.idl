@@ -1,0 +1,21 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+/*
+ * This interface provides access to the content of a
+ * PurpleNotifyUserInfoEntry structure.
+ */
+
+[scriptable, uuid(dd535741-4b04-49ca-8df6-08f8577fe52b)]
+interface prplITooltipInfo: nsISupports {
+  const short pair          = 0;
+  const short sectionBreak  = 1;
+  const short sectionHeader = 2;
+
+  readonly attribute short type;
+  readonly attribute AUTF8String label;
+  readonly attribute AUTF8String value;
+};

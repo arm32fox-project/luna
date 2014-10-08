@@ -1,0 +1,90 @@
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+MODULE = 'addrbook'
+
+EXPORTS += [
+    'nsVCardObj.h',
+]
+
+CPP_SOURCES += [
+    'nsAbAddressCollector.cpp',
+    'nsAbBSDirectory.cpp',
+    'nsAbBooleanExpression.cpp',
+    'nsAbCardProperty.cpp',
+    'nsAbContentHandler.cpp',
+    'nsAbDirFactoryService.cpp',
+    'nsAbDirProperty.cpp',
+    'nsAbDirectoryQuery.cpp',
+    'nsAbDirectoryQueryProxy.cpp',
+    'nsAbLDIFService.cpp',
+    'nsAbMDBCard.cpp',
+    'nsAbMDBDirFactory.cpp',
+    'nsAbMDBDirProperty.cpp',
+    'nsAbMDBDirectory.cpp',
+    'nsAbManager.cpp',
+    'nsAbQueryStringToExpression.cpp',
+    'nsAbView.cpp',
+    'nsAddbookProtocolHandler.cpp',
+    'nsAddbookUrl.cpp',
+    'nsAddrDatabase.cpp',
+    'nsDirPrefs.cpp',
+    'nsMsgVCardService.cpp',
+    'nsVCard.cpp',
+    'nsVCardObj.cpp',
+]
+
+if CONFIG['OS_ARCH'] == 'WINNT' and not CONFIG['GNU_CC']:
+    CPP_SOURCES += [
+        'nsAbOutlookDirFactory.cpp',
+        'nsAbOutlookDirectory.cpp',
+        'nsAbWinHelper.cpp',
+        'nsMapiAddressBook.cpp',
+        'nsWabAddressBook.cpp',
+    ]
+
+if CONFIG['OS_ARCH'] == 'Darwin':
+    CPP_SOURCES += [
+        'nsAbOSXDirFactory.cpp',
+    ]
+
+    CMMSRCS += [
+        'nsAbOSXCard.mm',
+        'nsAbOSXDirectory.mm',
+        'nsAbOSXUtils.mm',
+    ]
+
+if CONFIG['MOZ_LDAP_XPCOM']:
+    CPP_SOURCES += [
+        'nsAbBoolExprToLDAPFilter.cpp',
+        'nsAbLDAPCard.cpp',
+        'nsAbLDAPDirFactory.cpp',
+        'nsAbLDAPDirectory.cpp',
+        'nsAbLDAPDirectoryQuery.cpp',
+        'nsAbLDAPDirectoryModify.cpp',
+        'nsAbLDAPListenerBase.cpp',
+        'nsAbLDAPReplicationData.cpp',
+        'nsAbLDAPReplicationQuery.cpp',
+        'nsAbLDAPReplicationService.cpp',
+    ]
+
+    if CONFIG['MOZ_INCOMPLETE_TOOLKIT_LDAP_AUTOCOMPLETE']:
+        EXTRA_COMPONENTS += ['nsAbLDAPAutoCompleteSearch.js']
+    else:
+        CPP_SOURCES += [
+            'nsAbLDAPAutoCompFormatter.cpp',
+            'nsLDAPAutoCompleteSession.cpp',
+        ]
+
+EXTRA_COMPONENTS += [
+    'nsAbAutoCompleteMyDomain.js',
+    'nsAbAutoCompleteSearch.js',
+    'nsAbLDAPAttributeMap.js',
+]
+
+EXTRA_PP_COMPONENTS += [
+    'nsAddrbook.manifest',
+]
+

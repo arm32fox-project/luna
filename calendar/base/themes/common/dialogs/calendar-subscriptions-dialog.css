@@ -1,0 +1,52 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#calendar-subscriptions-dialog {
+  min-width: 480px;
+  min-height: 320px;
+}
+
+calendar-subscriptions-richlistbox {
+  background-color: white;
+  border: 1px solid black;
+  margin-top: 2px;
+  margin-bottom: 2px;
+  -moz-margin-start: 4px;
+  -moz-margin-end: 4px;
+  padding-top: 2px;
+  padding-bottom: 3px;
+  -moz-padding-start: 4px;
+  -moz-padding-end: 2px;
+}
+
+calendar-subscriptions-richlistitem[selected="true"] {
+  background-color: Highlight;
+  color: HighlightText;
+}
+
+.calendar-subscriptions-richlistitem-checkbox {
+  -moz-margin-end: 0px;
+}
+
+.calendar-subscriptions-richlistitem-checkbox > .checkbox-label-box {
+  display: none;
+}
+
+.calendar-subscriptions-select-label {
+  margin-top: 6px;
+}
+
+.calendar-subscriptions-status-box {
+  margin-top: 2px;
+  margin-bottom: 2px;
+  -moz-margin-start: 4px;
+}
+
+.calendar-subscriptions-status-icon {
+  list-style-image: url("chrome://global/skin/icons/notloading_16.png");
+}
+
+.calendar-subscriptions-status-icon[busy="true"] {
+  list-style-image: url("chrome://global/skin/icons/loading_16.png");
+}

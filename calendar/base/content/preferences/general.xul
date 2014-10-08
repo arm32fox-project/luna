@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<!DOCTYPE overlay [
+    <!ENTITY % generalDTD SYSTEM "chrome://calendar/locale/preferences/general.dtd">
+    <!ENTITY % globalDTD SYSTEM "chrome://calendar/locale/global.dtd">
+    %generalDTD;
+    %globalDTD;
+]>
+
+<overlay id="CalendarGeneralPaneOverlay"
+         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+    <vbox id="calPreferencesBoxGeneral">
+        <script type="application/javascript"
+                src="chrome://calendar/content/preferences/general.js"/>
+        <script type="application/javascript"
+                src="chrome://calendar/content/calendar-ui-utils.js"/>
+
+        <!-- Get the localized text for use in the .js -->
+        <script type="application/javascript">
+            var labelLong  = "&pref.dateformat.long;";
+            var labelShort = "&pref.dateformat.short;";
+        </script>
+
+        <preferences>
+            <preference id="calendar.date.format"
+                        name="calendar.date.format"
+                        type="int"/>
+            <preference id="calendar.event.defaultlength"
+                        name="calendar.event.defaultlength"
+                        type="int"/>
+            <preference id="calendar.alarms.defaultsnoozelength"
+                        name="calendar.alarms.defaultsnoozelength"
+                        type="int"/>
+            <preference id="calendar.view.useSystemColors"
+                        name="calendar.view.useSystemColors"
+                        type="bool"/>
+        </preferences>
+
+        <groupbox>
+            <caption label="&pref.mainbox.label;"/>
+            <hbox align="center">
+                <label value="&pref.dateformat.label;"
+                       accesskey="&pref.dateformat.accesskey;"
+                       control="dateformat"/>
+                <menulist id="dateformat" crop="none"
+                          preference="calendar.date.format">
+                    <menupopup id="dateformatpopup">
+                        <menuitem id="dateformat-long-menuitem"
+                                  label="&pref.dateformat.long;"
+                                  value="0"/>
+                        <menuitem id="dateformat-short-menuitem"
+                                  label="&pref.dateformat.short;"
+                                  value="1"/>
+                    </menupopup>
+                </menulist>
+            </hbox>
+
+            <hbox align="center">
+                <label value="&pref.defaultlength.label;"
+                       accesskey="&pref.defaultlength.accesskey;"
+                       control="defaultlength"/>
+                <textbox id="defaultlength"
+                         preference="calendar.event.defaultlength"
+                         type="number"
+                         min="0"
+                         maxlength="3"
+                         size="3"/>
+                <label value="&calendar.global.units.minutes;"/>
+            </hbox>
+
+            <hbox align="center">
+                <label value="&pref.defaultsnoozelength.label;"
+                       accesskey="&pref.defaultsnoozelength.accesskey;"
+                       control="defaultsnoozelength"/>
+                <textbox id="defaultsnoozelength"
+                         preference="calendar.alarms.defaultsnoozelength"
+                         type="number"
+                         min="0"
+                         maxlength="4"
+                         size="3"/>
+                <label value="&calendar.global.units.minutes;"/>
+            </hbox>
+
+        </groupbox>
+
+#ifndef XP_MACOSX
+        <groupbox>
+            <caption label="&pref.accessibility.label;"/>
+            <hbox align="center">
+                <checkbox id="systemColors" pack="end"
+                          label="&pref.systemcolors.label;"
+                          accesskey="&pref.systemcolors.accesskey;"
+                          preference="calendar.view.useSystemColors"/>
+            </hbox>
+        </groupbox>
+#endif
+
+    </vbox>
+</overlay>

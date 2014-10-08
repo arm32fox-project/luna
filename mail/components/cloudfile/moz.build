@@ -1,0 +1,22 @@
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+XPIDL_SOURCES += [
+    'nsIMsgCloudFileProvider.idl',
+]
+
+MODULE = 'cloudfile'
+
+EXTRA_COMPONENTS += [
+    'cloudFileComponents.manifest',
+    'nsBox.js',
+    'nsUbuntuOne.js',
+    'nsYouSendIt.js',
+]
+
+EXTRA_JS_MODULES += [
+    'cloudFileAccounts.js',
+]
+

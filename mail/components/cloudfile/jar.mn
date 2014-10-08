@@ -1,0 +1,27 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+messenger.jar:
+*   content/messenger/cloudfile/addAccountDialog.xul (content/addAccountDialog.xul)
+    content/messenger/cloudfile/addAccountDialog.js  (content/addAccountDialog.js)
+    content/messenger/cloudfile/attachment-24.png (content/attachment-24.png)
+    content/messenger/cloudfile/emptySettings.xhtml (content/emptySettings.xhtml)
+    content/messenger/cloudfile/Box/settings.xhtml (content/Box/settings.xhtml)
+    content/messenger/cloudfile/Box/management.xhtml (content/Box/management.xhtml)
+    content/messenger/cloudfile/Box/management.js (content/Box/management.js)
+    content/messenger/cloudfile/Box/auth.xul (content/Box/auth.xul)
+    content/messenger/cloudfile/Box/auth.js (content/Box/auth.js)
+    content/messenger/cloudfile/UbuntuOne/management.js (content/UbuntuOne/management.js)
+    content/messenger/cloudfile/UbuntuOne/management.xhtml (content/UbuntuOne/management.xhtml)
+    content/messenger/cloudfile/UbuntuOne/settings.js (content/UbuntuOne/settings.js)
+    content/messenger/cloudfile/UbuntuOne/settings.xhtml (content/UbuntuOne/settings.xhtml)
+    content/messenger/cloudfile/YouSendIt/management.xhtml (content/YouSendIt/management.xhtml)
+    content/messenger/cloudfile/YouSendIt/management.js (content/YouSendIt/management.js)
+    content/messenger/cloudfile/YouSendIt/settings.js (content/YouSendIt/settings.js)
+    content/messenger/cloudfile/YouSendIt/settings.xhtml (content/YouSendIt/settings.xhtml)
+    content/messenger/cloudfile/YouSendIt/fileExceedsLimit.xul (content/YouSendIt/fileExceedsLimit.xul)
+    content/messenger/cloudfile/YouSendIt/fileExceedsLimit.js (content/YouSendIt/fileExceedsLimit.js)
+    content/messenger/cloudfile/YouSendIt/fileExceedsQuota.xul (content/YouSendIt/fileExceedsQuota.xul)
+    content/messenger/cloudfile/YouSendIt/fileExceedsQuota.js (content/YouSendIt/fileExceedsQuota.js)
+    content/messenger/cloudfile/YouSendIt/fileExceeds2GB.xul (content/YouSendIt/fileExceeds2GB.xul)

@@ -1,0 +1,40 @@
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME	= msgsearch_s
+ifndef MOZ_INCOMPLETE_EXTERNAL_LINKAGE
+MOZILLA_INTERNAL_API = 1
+LIBXUL_LIBRARY = 1
+endif
+EXPORT_DIR	= $(DIST)/bin/isp
+
+
+EXPORT_RESOURCE_FILES	= \
+				  Bogofilter.sfd \
+				  DSPAM.sfd \
+				  POPFile.sfd \
+				  SpamAssassin.sfd \
+				  SpamPal.sfd \
+			        $(NULL)
+
+# we don't want the shared lib, but we want to force the creation of a static lib.
+FORCE_STATIC_LIB = 1
+
+include $(topsrcdir)/config/rules.mk
+
+GARBAGE += $(addprefix $(EXPORT_DIR)/, $(EXPORT_RESOURCE_FILES)) 
+
+libs:: $(EXPORT_RESOURCE_FILES)
+	 $(INSTALL) $^ $(EXPORT_DIR)
+
+install:: $(EXPORT_RESOURCE_FILES)
+	    $(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/isp

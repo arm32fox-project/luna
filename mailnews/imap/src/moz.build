@@ -1,0 +1,33 @@
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+MODULE = 'msgimap'
+
+EXPORTS += [
+    'nsImapCore.h',
+]
+
+CPP_SOURCES += [
+    'nsAutoSyncManager.cpp',
+    'nsAutoSyncState.cpp',
+    'nsIMAPBodyShell.cpp',
+    'nsIMAPGenericParser.cpp',
+    'nsIMAPHostSessionList.cpp',
+    'nsIMAPNamespace.cpp',
+    'nsImapFlagAndUidState.cpp',
+    'nsImapIncomingServer.cpp',
+    'nsImapMailFolder.cpp',
+    'nsImapOfflineSync.cpp',
+    'nsImapProtocol.cpp',
+    'nsImapSearchResults.cpp',
+    'nsImapServerResponseParser.cpp',
+    'nsImapService.cpp',
+    'nsImapStringBundle.cpp',
+    'nsImapUndoTxn.cpp',
+    'nsImapUrl.cpp',
+    'nsImapUtils.cpp',
+    'nsSyncRunnableHelpers.cpp',
+]
+

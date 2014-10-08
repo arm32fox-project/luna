@@ -1,0 +1,279 @@
+/*
+
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+*/
+
+/* ===== searchDialog.css ===============================================
+  == Styles for the Mail Search dialog.
+  ======================================================================= */
+
+@import url("chrome://messenger/skin/");
+@import url("chrome://messenger/skin/tagColors.css");
+
+@namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+window {
+        padding-top: 8px;
+}
+
+window > vbox {
+  padding: 0px 8px;
+}
+
+window > #searchTerms > vbox {
+  font: menu;
+}
+/* ::::: box sizes ::::: */
+
+#searchTermTree {
+  min-height: 50px;
+}
+
+#searchTermListBox {
+  height: 100px;
+}
+
+#searchTermList > listitem[selected="true"] {
+  background-color: inherit;
+}
+
+listcell > hbox {
+  -moz-box-pack: end;
+}
+
+#searchResultListBox {
+  -moz-appearance: listbox;
+  -moz-margin-start: 4px;
+  -moz-margin-end: 4px;
+  height: 100px;
+}
+
+#searchAddressBookWindow,
+#searchMailWindow {
+  padding: 0px;
+}
+
+menulist {
+  width: 18em;
+}
+
+.filler {
+  -moz-padding-end: 22px;
+}
+
+.search-menulist {
+  width: 12em;
+}
+
+.search-menulist[unavailable="true"] {
+  color: GrayText;
+}
+
+.small-button {
+  -moz-appearance: none;
+  font: icon;
+  text-shadow: 0 1px #F2F2F2;
+  border: 1px solid #A8A8A8;
+  background: linear-gradient(to top, #ECECEC, #ECECEC 50%, #F9F9F9 0%, #F9F9F9);
+  min-width: 22px;
+  height: 20px;
+  padding: 0 1px 1px 0;
+  margin: 0;
+}
+
+.small-button:not([disabled="true"]):hover:active {
+  background: linear-gradient(to top, #B0B0B0, #B4B4B4 50%, #BFBFBF 0%, #BABABA);
+  border: 1px solid #9C9C9C;
+}
+
+.small-button[disabled="true"] {
+  opacity: 0.6;
+}
+
+.small-button + .small-button,
+.small-button + .small-button:hover:active {
+  border-left-width: 0;
+  min-width: 21px;
+}
+
+.small-button:focus {
+  box-shadow:  inset 0 0 1px -moz-mac-focusring,
+               1px 0 2px 1px -moz-mac-focusring,
+               -1px 0 2px 1px -moz-mac-focusring;
+}
+
+.small-button:focus + .small-button {
+  box-shadow: inset 1px 0 -moz-mac-focusring;
+}
+
+/* ::::: thread decoration ::::: */
+
+treechildren::-moz-tree-cell-text(read) {
+  font-weight: normal;
+}
+
+treechildren::-moz-tree-cell-text(unread) {
+  font-weight: bold;
+}
+
+/* on a collapsed thread, if the top level message is read, but the thread has
+ * unread children, underline the text.  4.x mac did this, very slick
+ */
+treechildren::-moz-tree-cell-text(container, closed, hasUnread, read) {
+  text-decoration: underline;
+}
+
+/* ::::: message column icons ::::: */
+
+/* ..... thread column ..... */
+
+.threadColumnHeader {
+  list-style-image: url("chrome://messenger/skin/icons/unthreadcol.png");
+}
+
+.threadColumnHeader[sortDirection="ascending"]  {
+  list-style-image: url("chrome://messenger/skin/icons/threadcol.png");
+}
+
+.threadColumnHeader[sortDirection="descending"] {
+  list-style-image: url("chrome://messenger/skin/icons/threadcol.png");
+}
+
+treechildren::-moz-tree-image(threadCol, container) {
+  list-style-image: url("chrome://messenger/skin/icons/thread-closed.png");
+}
+
+treechildren::-moz-tree-image(threadCol, container, open) {
+  list-style-image: url("chrome://messenger/skin/icons/thread-open.png");
+}
+
+treechildren::-moz-tree-image(threadCol, container, hasUnread) {
+  list-style-image: url("chrome://messenger/skin/icons/thread-new-closed.png");
+}
+
+treechildren::-moz-tree-image(threadCol, container, hasUnread, open) {
+  list-style-image: url("chrome://messenger/skin/icons/thread-new-open.png");
+}
+
+/* ..... read column ..... */
+
+.readColumnHeader {
+  list-style-image: url("chrome://messenger/skin/icons/readcol.png");
+}
+
+treechildren::-moz-tree-image(unreadButtonColHeader) {
+  list-style-image: url("chrome://messenger/skin/icons/readmail.png");
+}
+
+treechildren::-moz-tree-image(unreadButtonColHeader, unread) {
+  list-style-image: url("chrome://messenger/skin/icons/unreadmail.png");
+}
+
+/* ..... flag column ..... */
+
+.flagColumnHeader {
+  list-style-image: url("chrome://messenger/skin/icons/flagcol.png");
+}
+
+treechildren::-moz-tree-image(flaggedCol) {
+  list-style-image: url("chrome://messenger/skin/icons/readmail.png");
+}
+
+treechildren::-moz-tree-image(flaggedCol, flagged) {
+  list-style-image: url("chrome://messenger/skin/icons/flaggedmail.png");
+}
+
+/* ..... junkStatus column ..... */
+
+.junkStatusHeader {
+  list-style-image: url("chrome://messenger/skin/icons/junk-column-header.png");
+  padding-top: 0px;
+  padding-bottom: 0px;
+  -moz-padding-start: 0px;
+  -moz-padding-end: 4px;
+}
+
+/* "unknown" now looks like "not junk".  see bug #182386 */
+treechildren::-moz-tree-image(junkStatusCol) {
+  list-style-image: url("chrome://messenger/skin/icons/readmail.png");
+  -moz-padding-start: 0px;
+  -moz-padding-end: 4px;
+}
+
+treechildren::-moz-tree-image(junkStatusCol, junk) {
+  list-style-image: url("chrome://messenger/skin/icons/folder-pane.png");
+  -moz-image-region: rect(0 128px 16px 112px);
+  -moz-margin-end: -1px;
+}
+
+treechildren::-moz-tree-image(junkStatusCol, notjunk) {
+  list-style-image: url("chrome://messenger/skin/icons/readmail.png");
+  -moz-padding-start: 0px;
+  -moz-padding-end: 4px;
+}
+
+/* ..... subject column ..... */
+
+#subjectCol {
+  -moz-padding-start: 20px;
+}
+
+#subjectCol[primary="true"] {
+  -moz-padding-start: 41px;
+}
+
+treechildren::-moz-tree-image(subjectCol) {
+  -moz-margin-end: 2px;
+  list-style-image: url("chrome://messenger/skin/icons/message-mail.png");
+}
+
+treechildren::-moz-tree-image(subjectCol, new) {
+  list-style-image: url("chrome://messenger/skin/icons/message-mail-new.png");
+}
+
+treechildren::-moz-tree-image(subjectCol, attach) {
+  list-style-image: url("chrome://messenger/skin/icons/message-mail-attach.png");
+}
+
+treechildren::-moz-tree-image(subjectCol, imapdeleted) {
+  list-style-image: url("chrome://messenger/skin/icons/message-mail-imapdelete.png");
+}
+
+treechildren::-moz-tree-image(subjectCol, news) {
+  list-style-image: url("chrome://messenger/skin/icons/folder-pane.png");
+  -moz-image-region: rect(0 224px 16px 208px);
+}
+
+treechildren::-moz-tree-image(subjectCol, news, attach) {
+  list-style-image: url("chrome://messenger/skin/icons/message-news-attach.png");
+}
+
+treechildren::-moz-tree-image(subjectCol, news, attach, offline) {
+  list-style-image: url("chrome://messenger/skin/icons/message-news-attach-offl.png");
+}
+
+treechildren::-moz-tree-image(subjectCol, news, new) {
+  list-style-image: url("chrome://messenger/skin/icons/message-news-new.png");
+}
+
+treechildren::-moz-tree-image(subjectCol, news, new, attach) {
+  list-style-image: url("chrome://messenger/skin/icons/message-news-new-attach.png");
+}
+
+treechildren::-moz-tree-cell-text(subjectCol) {
+  -moz-padding-start: 0;
+}
+
+#sizeCol,
+#unreadCol,
+#totalCol {
+  text-align: right;
+}
+
+#status-bar {
+  font: message-box;
+  margin-top: 8px;
+}

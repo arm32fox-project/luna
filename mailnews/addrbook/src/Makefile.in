@@ -1,0 +1,40 @@
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME	= addrbook_s
+ifndef MOZ_INCOMPLETE_EXTERNAL_LINKAGE
+MOZILLA_INTERNAL_API = 1
+LIBXUL_LIBRARY = 1
+endif
+
+ifeq ($(OS_ARCH),WINNT)
+OS_CXXFLAGS += -DNOMINMAX
+endif
+
+ifdef MOZ_LDAP_XPCOM
+DEFINES += -DMOZ_LDAP_XPCOM
+
+ifdef MOZ_INCOMPLETE_TOOLKIT_LDAP_AUTOCOMPLETE
+DEFINES += -DMOZ_INCOMPLETE_TOOLKIT_LDAP_AUTOCOMPLETE
+endif
+
+# XXX These files are not being built as they don't work. Bug 311632 should
+# fix them.
+# nsAbLDAPChangeLogQuery.cpp
+# nsAbLDAPChangeLogData.cpp
+endif
+
+# we don't want the shared lib, but we want to force the creation of a static lib.
+FORCE_STATIC_LIB = 1
+
+include $(topsrcdir)/config/rules.mk
+

@@ -1,0 +1,587 @@
+/*
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+
+/* ===== mailWindow1.css ================================================
+  == Styles for the main Mail window in the default layout scheme.
+  ======================================================================= */
+
+@import url("chrome://messenger/skin/");
+@import url("chrome://messenger/skin/primaryToolbar.css");
+@import url("chrome://messenger/skin/folderMenus.css");
+@import url("chrome://messenger/skin/folderPane.css");
+@import url("chrome://messenger/skin/tagColors.css");
+
+@namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+/* give the toolbox a min-height of 41px for Australis theme */
+.mail-toolbox:not([mode="full"]) > toolbar:only-of-type,
+.mail-toolbox[mode="full"][labelalign="end"] > toolbar:only-of-type {
+  margin-top: 6px;
+  margin-bottom: 6px;
+}
+
+.mail-toolbox[iconsize="large"]:not([mode="full"]) > toolbar:only-of-type,
+.mail-toolbox[iconsize="large"][mode="full"][labelalign="end"] >
+toolbar:only-of-type {
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+.mail-toolbox[mode="text"]:not([mode="full"]) > toolbar:only-of-type {
+  margin-top: 4px;
+  margin-bottom: 5px;
+}
+
+/* Don't use the listbox appearance as that gives us a blue-grey top border
+   that collides with the primary toolbar border */
+#threadTree, #folderTree {
+  -moz-appearance:  none;
+  background-color: -moz-Field;
+  color: -moz-FieldText;
+}
+
+@media (-moz-windows-default-theme) {
+  #folderTree {
+    background-image: url("chrome://messenger/skin/grain.png");
+  }
+}
+
+#messengerBox {
+  background-color: -moz-Dialog;
+}
+
+#tabmail:-moz-lwtheme {
+  text-shadow: none;
+}
+
+#folderUnreadCol,
+#folderTotalCol,
+#folderSizeCol {
+  text-align: right;
+}
+
+#folderNameCol [sortDirection="ascending"],
+#folderNameCol [sortDirection="descending"] {
+  list-style-image: none;
+}
+
+/* ::::: thread decoration ::::: */
+
+treechildren::-moz-tree-row(dummy)  {
+  background-color:  #F0F0F0;
+  margin-bottom: 1px;
+  -moz-padding-start: 2px;
+}
+
+treechildren::-moz-tree-row(dummy, selected) {
+  background-color: -moz-Dialog;
+}
+
+treechildren::-moz-tree-row(dummy, selected, focus)  {
+  background-color: Highlight;
+}
+
+treechildren::-moz-tree-cell-text(dummy) {
+  font-weight: bold;
+}
+
+treechildren::-moz-tree-cell-text(read) {
+  font-weight: normal;
+}
+
+treechildren::-moz-tree-cell-text(unread) {
+  font-weight: bold;
+}
+
+treechildren::-moz-tree-cell-text(imapdeleted) {
+  text-decoration: line-through;
+}
+
+/* on a collapsed thread, if the top level message is read, but the thread has
+ * unread children, underline the text.  4.x mac did this, very slick 
+ */
+treechildren::-moz-tree-cell-text(container, closed, hasUnread, read) {
+  text-decoration: underline;
+}
+
+/* ::::: message column icons ::::: */
+
+.treecol-image image {
+  -moz-padding-end: 4px;
+  padding-bottom: 3px;
+}
+
+:-moz-system-metric(windows-classic) .treecol-image image {
+  -moz-padding-end: 1px;
+  padding-bottom: 2px;
+}
+
+/* ..... column picker ..... */
+
+.tree-columnpicker-icon  {
+  list-style-image: url("chrome://messenger/skin/icons/columnpicker.svg");
+}
+
+/* ..... thread column ..... */
+
+.threadColumnHeader {
+  list-style-image: url("chrome://messenger/skin/icons/thread-col.svg");
+}
+
+treechildren::-moz-tree-image(threadCol, container) {
+  list-style-image: url("chrome://messenger/skin/icons/thread.png");
+}
+
+treechildren::-moz-tree-image(threadCol, watch) {
+  list-style-image: url("chrome://messenger/skin/icons/thread-watched.png");
+}
+
+treechildren::-moz-tree-image(threadCol, ignore) {
+  list-style-image: url("chrome://messenger/skin/icons/thread-ignored.png");
+}
+
+treechildren::-moz-tree-image(threadCol, ignoreSubthread) {
+  list-style-image: url("chrome://messenger/skin/icons/message-ignored.png");
+}
+
+/* ..... read column ..... */
+
+.readColumnHeader {
+  list-style-image: url("chrome://messenger/skin/icons/readcol.svg");
+}
+
+treechildren::-moz-tree-image(unreadButtonColHeader) {
+  list-style-image: url("chrome://messenger/skin/icons/readmail.png");
+}
+
+treechildren::-moz-tree-image(unreadButtonColHeader, dummy) {
+  list-style-image: none;
+}
+
+treechildren::-moz-tree-image(unreadButtonColHeader, unread) {
+  list-style-image: url("chrome://messenger/skin/icons/unreadmail.png");
+}
+
+/* ..... attachment column ..... */
+
+.attachmentColumnHeader {
+  list-style-image: url("chrome://messenger/skin/icons/attachment-col.svg");
+}
+
+treechildren::-moz-tree-image(attachmentCol, attach) {
+  list-style-image: url("chrome://messenger/skin/icons/attachment-col.png");
+  -moz-margin-start: 3px;
+}
+
+/* ..... flag column ..... */
+
+.flagColumnHeader {
+  list-style-image: url("chrome://messenger/skin/icons/flag-col.svg");
+}
+
+treechildren::-moz-tree-image(flaggedCol) {
+  list-style-image: url("chrome://messenger/skin/icons/flag-empty.png");
+  -moz-padding-end: 2px;
+}
+
+treechildren::-moz-tree-image(flaggedCol, dummy) {
+  list-style-image: none;
+}
+
+treechildren::-moz-tree-image(flaggedCol, flagged) {
+  list-style-image: url("chrome://messenger/skin/icons/flag.png");
+}
+
+/* ..... junkStatus column ..... */
+
+.junkStatusHeader {
+  list-style-image: url("chrome://messenger/skin/icons/junk-col.svg");
+  -moz-padding-end: 3px;
+}
+
+/* "unknown" now looks like "not junk".  see bug #182386 */
+treechildren::-moz-tree-image(junkStatusCol) {
+  list-style-image: url("chrome://messenger/skin/icons/readmail.png");
+  -moz-padding-start: 0px;
+}
+
+treechildren::-moz-tree-image(junkStatusCol, junk) {
+  list-style-image: url("chrome://messenger/skin/icons/folder.png");
+  -moz-image-region: rect(0 128px 16px 112px);
+}
+
+treechildren::-moz-tree-image(junkStatusCol, dummy) {
+  list-style-image: none;
+}
+
+treechildren::-moz-tree-image(junkStatusCol, notjunk) {
+  list-style-image: url("chrome://messenger/skin/icons/readmail.png");
+  -moz-padding-start: 0px;
+}
+
+/* ..... subject column ..... */
+
+#subjectCol {
+  -moz-padding-start: 17px;
+}
+
+#subjectCol[primary="true"] {
+  -moz-padding-start: 30px;
+}
+
+treechildren::-moz-tree-image(subjectCol) {
+  -moz-margin-end: 2px;
+  list-style-image: url("chrome://messenger/skin/icons/message.png");
+  -moz-image-region: rect(0 16px 16px 0);
+}
+
+treechildren::-moz-tree-image(subjectCol, dummy) {
+  list-style-image: none;
+}
+
+treechildren::-moz-tree-image(subjectCol, forwarded) {
+  -moz-image-region: rect(0 48px 16px 32px);
+}
+
+treechildren::-moz-tree-image(subjectCol, replied) {
+  -moz-image-region: rect(0 32px 16px 16px);
+}
+
+treechildren::-moz-tree-image(subjectCol, replied, forwarded) {
+  -moz-image-region: rect(0 64px 16px 48px);
+}
+
+treechildren::-moz-tree-image(subjectCol, new) {
+  -moz-image-region: rect(0 96px 16px 80px);
+}
+
+
+/* IMPORTANT: make sure the imap-deleted column always comes after the replied/forwarded style rules.
+   This ensures that we show that the message is marked as deleted over status information. */
+
+treechildren::-moz-tree-image(subjectCol, imapdeleted) {
+  -moz-image-region: rect(0 80px 16px 64px);
+}
+
+treechildren::-moz-tree-cell-text(subjectCol) {
+  -moz-padding-start: 0 !important;
+}
+
+#sizeCol,
+#unreadCol,
+#totalCol {
+  text-align: right;
+}
+
+#threadTree treecolpicker.treecol-image {
+  padding-bottom: 2px;
+}
+
+/* We need to hide overflow in messagepanebox, so that resizing doesn't spill
+   header content over the statusbar.
+   */
+
+#messagepanebox {
+  overflow: hidden;
+}
+
+/* ..... folder pane adjustments ..... */
+
+#folderpane-title {
+  -moz-padding-start: 12px;
+  -moz-padding-end: 8px;
+}
+
+.folderview-cycler {
+  -moz-padding-end: 0px;
+}
+
+.folderview-cycler[dir="prev"],
+.folderview-cycler[dir="next"]:-moz-locale-dir(rtl) {
+  list-style-image: url("chrome://messenger/skin/icons/arrow/foldercycler-arrow-left.png");
+}
+
+.folderview-cycler[dir="next"],
+.folderview-cycler[dir="prev"]:-moz-locale-dir(rtl) {
+  list-style-image: url("chrome://messenger/skin/icons/arrow/foldercycler-arrow-right.png");
+}
+
+/* ..... splitter adjustments ..... */
+
+#mailContent[layout="standard"] #threadpane-splitter {
+  /* Overlap the folder pane splitter to make the splitters appear unified. */
+  -moz-margin-start: -1px;
+}
+
+#mailContent[layout="standard"] #folderpane_splitter:-moz-locale-dir(rtl) {
+  /* Don't draw the splitter's border here... */
+  border-left: 0;
+}
+
+#mailContent[layout="standard"] #threadPaneBox:-moz-locale-dir(rtl),
+#mailContent[layout="standard"] #messagepanebox:-moz-locale-dir(rtl){
+  /* ... draw it here instead! (This removes the white highlight just to the
+     right of the thread pane splitter so everything looks pretty.) */
+  margin-right: -2px;
+  border-right: 2px solid;
+  -moz-border-right-colors: ThreeDHighlight ThreeDShadow;
+}
+
+#mailContent[layout="standard"] #threadPaneBox:-moz-locale-dir(rtl) {
+  /* Make sure we have a white dot in the top-left corner where the splitters
+     meet. */
+  margin-bottom: -2px;
+  padding-bottom: 2px;
+}
+
+#mailContent[layout="wide"] #folderpane_splitter {
+  /* Make this draw above the thread pane splitter so that we overlap its top
+     border. This will make the splitters appear unified. */
+  position: relative;
+  z-index: 2;
+  margin-bottom: -1px;
+}
+
+#mailContent[layout="wide"] #threadpane-splitter {
+  /* Don't draw the splitter's border here... */
+  border-top: 0;
+}
+
+#mailContent[layout="wide"] #threadPaneBox,
+#mailContent[layout="wide"] #folderPaneBox {
+  /* ... draw it here instead! (This removes the white highlight just below the
+     folder pane splitter so everything looks pretty.) */
+  position: relative;
+  z-index: 1;
+  margin-bottom: -2px;
+  border-bottom: 2px solid;
+  -moz-border-bottom-colors: ThreeDHighlight ThreeDShadow;
+}
+
+#mailContent[layout="wide"] #folderPaneBox:-moz-locale-dir(ltr),
+#mailContent[layout="wide"] #threadPaneBox:-moz-locale-dir(rtl) {
+  /* Make sure we have a white dot in the top-left corner where the splitters
+     meet. */
+  margin-right: -2px;
+  padding-right: 2px;
+}
+
+/* ..... status bar adjustments ..... */
+
+#quotaMeter {
+  min-width: 4em;
+  max-width: 4em;
+  border: 1px solid ThreeDShadow;
+}
+#quotaPanel .progress-bar {
+  -moz-appearance: none;
+  background-color: #88AAFF;
+  opacity: .5;
+}
+#quotaPanel[alert="warning"] .progress-bar {
+  background-color: orange;
+}
+#quotaPanel[alert="critical"] .progress-bar {
+  background-color: red;
+  opacity: .6;
+}
+#quotaLabel {
+  text-align: center;
+}
+
+#threadTree treechildren::-moz-tree-row(odd) {
+  background-image: url("chrome://messenger/skin/icons/row.png");
+  background-position: bottom;
+  background-repeat: repeat-x;
+}
+
+.tabmail-tab[type="message"] {
+  list-style-image: url("chrome://messenger/skin/icons/server.png");
+  -moz-image-region: rect(0 16px 16px 0);
+}
+
+/* ..... tabs ..... */
+
+#tabpanelcontainer {
+  -moz-appearance: none;
+}
+
+/* ..... Draw in titlebar ..... */
+
+#messengerWindow[tabsintitlebar]:-moz-window-inactive {
+  background-color: InactiveCaption;
+}
+
+#messengerWindow[tabsintitlebar]:-moz-system-metric(windows-classic)
+  menubar > menu:-moz-window-inactive {
+  color: -moz-dialogtext;
+}
+
+@media (-moz-windows-default-theme) {
+  #messengerWindow[tabsintitlebar] {
+    background-color: ActiveCaption;
+  }
+}
+
+/* Luna silver needs special colors. Default doesn't look good */
+@media (-moz-windows-theme: luna-silver) {
+  #messengerWindow[tabsintitlebar] {
+    background-color: #D6D8E1;
+  }
+
+  #messengerWindow[tabsintitlebar]:-moz-window-inactive {
+    background-color: #E8E9F1;
+  }
+}
+
+/* Royale needs special colors. Default is grey */
+@media (-moz-windows-theme: royale) {
+  #messengerWindow[tabsintitlebar] {
+    background-color: #3472C5;
+  }
+
+  #messengerWindow[tabsintitlebar]:-moz-window-inactive {
+    background-color: #83B7E2;
+  }
+}
+
+/* Zune needs special colors. Default is grey */
+@media (-moz-windows-theme: zune) {
+  #messengerWindow[tabsintitlebar] {
+    background-color: #343434;
+  }
+
+  #messengerWindow[tabsintitlebar]:-moz-window-inactive {
+    background-color: #4B4B4B;
+  }
+}
+
+#messengerWindow[tabsintitlebar]:-moz-lwtheme {
+  background-color: transparent;
+}
+
+#titlebar {
+  -moz-binding: url("chrome://global/content/bindings/general.xml#windowdragbox");
+}
+
+#messengerWindow:not([tabsintitlebar]) #titlebar {
+  visibility: collapse;
+}
+
+#titlebar:-moz-lwtheme {
+  visibility: hidden;
+}
+
+#titlebar-content:-moz-lwtheme {
+  -moz-binding: url("chrome://global/content/bindings/general.xml#windowdragbox");
+  visibility: visible;
+}
+
+#titlebar-spacer {
+  pointer-events: none;
+}
+
+#tabs-toolbar {
+  -moz-binding: url("chrome://global/content/bindings/toolbar.xml#toolbar-drag");
+}
+
+#titlebar-buttonbox {
+  -moz-appearance: -moz-window-button-box;
+  position: relative;
+}
+
+#titlebar-min {
+  -moz-appearance: -moz-window-button-minimize;
+}
+
+@media not all and (-moz-windows-classic) {
+  #titlebar-min {
+    -moz-margin-end: 2px;
+  }
+}
+
+#titlebar-max {
+  -moz-appearance: -moz-window-button-maximize;
+}
+
+#messengerWindow[sizemode="maximized"] #titlebar-max {
+  -moz-appearance: -moz-window-button-restore;
+}
+
+#titlebar-close {
+  -moz-appearance: -moz-window-button-close;
+}
+
+#messengerWindow[tabsintitlebar] .titlebar-placeholder[type="caption-buttons"] {
+  margin-left: 10px; /* additional space for Aero Snap */
+}
+
+#messengerWindow:not([tabsintitlebar]) .titlebar-placeholder {
+  visibility: collapse; 
+}
+
+/* Window titlebar drawn by TB. So needs border like system windows */
+#messengerWindow[sizemode="normal"] > #titlebar > #titlebar-content {
+  border-top: 3px solid;
+  -moz-border-top-colors: ThreeDLightShadow ThreeDHighlight ActiveBorder;
+}
+
+#messengerWindow[sizemode="normal"] #titlebar-buttonbox {
+  margin-top: -3px;
+}
+
+#messengerWindow[sizemode="normal"] > #titlebar >
+#titlebar-content:-moz-window-inactive {
+  -moz-border-top-colors: ThreeDLightShadow ThreeDHighlight InactiveBorder;
+}
+
+@media (-moz-windows-default-theme) {
+  #messengerWindow[sizemode="normal"] > #titlebar > #titlebar-content {
+    -moz-border-top-colors: rgba(0, 0, 0, .1) rgba(255, 255, 255, .3)
+                            rgba(255, 255, 255, .2);
+  }
+
+  #messengerWindow[sizemode="normal"] > #titlebar >
+  #titlebar-content:-moz-window-inactive {
+    -moz-border-top-colors: rgba(255, 255, 255, .4) rgba(255, 255, 255, .3)
+                            rgba(255, 255, 255, .2);
+  }
+}
+
+@media (-moz-windows-theme: luna-silver) {
+  #messengerWindow[sizemode="normal"] > #titlebar > #titlebar-content {
+    -moz-border-top-colors: rgba(0, 0, 0, .4) rgba(255, 255, 255, .3)
+                            rgba(255, 255, 255, .2);
+  }
+}
+
+@media (-moz-windows-theme: zune),
+       (-moz-windows-theme: royale) {
+  #messengerWindow[sizemode="normal"] > #titlebar > #titlebar-content {
+    -moz-border-top-colors: rgba(0, 0, 0, .4) rgba(255, 255, 255, .3)
+                            rgba(255, 255, 255, .2) !important;
+  }
+}
+
+/* Black on dark background doesn't look good */
+@media (-moz-windows-theme: luna-blue),
+       (-moz-windows-theme: royale),
+       (-moz-windows-theme: zune) {
+  #messengerWindow[tabsintitlebar] menubar:not(:-moz-lwtheme) > menu {
+    color: white;
+  }
+}
+
+#messengerWindow[tabsintitlebar][sizemode="maximized"] > #navigation-toolbox{
+  margin-top: -12px;
+}
+
+@media not all and (-moz-windows-compositor) {
+  #mail-toolbar-menubar2[autohide="false"] +
+  #tabs-toolbar > .titlebar-placeholder {
+    display: none;
+  }
+}

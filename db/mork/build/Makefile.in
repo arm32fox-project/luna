@@ -1,0 +1,35 @@
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+VPATH		= @srcdir@
+srcdir		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME	= mork
+EXPORT_LIBRARY = 1
+IS_COMPONENT	= 1
+MODULE_NAME	= nsMorkModule
+
+ifndef MOZ_INCOMPLETE_EXTERNAL_LINKAGE
+MOZILLA_INTERNAL_API = 1
+LIBXUL_LIBRARY	= 1
+else
+FORCE_SHARED_LIB = 1
+endif
+
+SHARED_LIBRARY_LIBS = ../src/$(LIB_PREFIX)msgmork_s.$(LIB_SUFFIX)
+
+ifdef MOZ_INCOMPLETE_EXTERNAL_LINKAGE
+EXTRA_DSO_LDOPTS += \
+	$(XPCOM_GLUE_LDOPTS) \
+	$(NSPR_LIBS) \
+	$(NULL)
+endif
+
+include $(topsrcdir)/config/rules.mk
+

@@ -1,0 +1,27 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+interface nsIMsgFolder;
+interface nsIUrlListener;
+interface nsIMsgWindow;
+
+[scriptable, uuid(c1c47796-c8b0-4d12-97aa-c93883ea1c97)]
+interface nsINewsBlogFeedDownloader : nsISupports
+{
+  void downloadFeed(in string aUrl, in nsIMsgFolder aFolder,
+                     in boolean aQuickMode, in wstring aTitle,
+          in nsIUrlListener aUrlListener, in nsIMsgWindow aMsgWindow);
+
+  /* A convient method to subscribe to feeds without going through the subscribe UI
+     used by drag and drop */
+  void subscribeToFeed(in string aUrl, in nsIMsgFolder aFolder, in nsIMsgWindow aMsgWindow);
+
+  /* called when the RSS Incoming Server detects a change to an RSS folder. For instance, the user just
+     deleted an RSS folder and we need to update the subscriptions data source. Or the user renamed an RSS folder...
+  */
+  void updateSubscriptionsDS(in nsIMsgFolder aFolder, in boolean aUnsubscribe);
+};
+

@@ -1,0 +1,111 @@
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME = mail
+EXPORT_LIBRARY = 1
+IS_COMPONENT	= 1
+ifndef MOZ_INCOMPLETE_EXTERNAL_LINKAGE
+MOZILLA_INTERNAL_API = 1
+LIBXUL_LIBRARY	= 1
+else
+FORCE_SHARED_LIB = 1
+endif
+FORCE_USE_PIC   = 1
+
+MODULE_NAME	= nsMailModule
+
+ifdef MOZ_LDAP_XPCOM
+DEFINES		+= -DMOZ_LDAP_XPCOM
+ifdef MOZ_INCOMPLETE_TOOLKIT_LDAP_AUTOCOMPLETE
+DEFINES += -DMOZ_INCOMPLETE_TOOLKIT_LDAP_AUTOCOMPLETE
+endif
+endif
+
+ifeq ($(OS_ARCH),WINNT)
+DEFINES		+= -DZLIB_DLL
+endif
+
+SHARED_LIBRARY_LIBS = \
+	        ../base/util/$(LIB_PREFIX)msgbsutl_s.$(LIB_SUFFIX) \
+		../base/src/$(LIB_PREFIX)msgbase_s.$(LIB_SUFFIX) \
+		../base/search/src/$(LIB_PREFIX)msgsearch_s.$(LIB_SUFFIX) \
+		../local/src//$(LIB_PREFIX)msglocal_s.$(LIB_SUFFIX) \
+	        ../compose/src/$(LIB_PREFIX)msgcompose_s.$(LIB_SUFFIX) \
+	        ../db/msgdb/src/$(LIB_PREFIX)msgdb_s.$(LIB_SUFFIX) \
+	        ../imap/src/$(LIB_PREFIX)msgimap_s.$(LIB_SUFFIX) \
+	        ../addrbook/src/$(LIB_PREFIX)addrbook_s.$(LIB_SUFFIX) \
+	        ../news/src/$(LIB_PREFIX)msgnews_s.$(LIB_SUFFIX) \
+	        ../mime/src/$(LIB_PREFIX)mime_s.$(LIB_SUFFIX) \
+	        ../mime/emitters/$(LIB_PREFIX)emitterutil_s.$(LIB_SUFFIX) \
+	        ../extensions/bayesian-spam-filter/src/$(LIB_PREFIX)bayesflt_s.$(LIB_SUFFIX) \
+	        ../extensions/fts3/src/$(LIB_PREFIX)fts3tok_s.$(LIB_SUFFIX) \
+	        ../extensions/mailviews/src/$(LIB_PREFIX)mailview_s.$(LIB_SUFFIX) \
+                ../extensions/mdn/src/$(LIB_PREFIX)msgmdn_s.$(LIB_SUFFIX) \
+                ../mime/cthandlers/vcard/$(LIB_PREFIX)vcard_s.$(LIB_SUFFIX) \
+                ../mime/cthandlers/glue/$(LIB_PREFIX)mimecthglue_s.$(LIB_SUFFIX) \
+                ../mime/cthandlers/pgpmime/$(LIB_PREFIX)pgpmime_s.$(LIB_SUFFIX) \
+                $(NULL)
+
+ifdef MOZILLA_INTERNAL_API
+EXTRA_DSO_LDOPTS = \
+		$(MOZDEPTH)/rdf/util/src/internal/$(LIB_PREFIX)rdfutil_s.$(LIB_SUFFIX) \
+		$(MOZ_JS_LIBS) \
+		$(MOZ_UNICHARUTIL_LIBS) \
+		$(MOZ_COMPONENT_LIBS) \
+		$(MOZ_ZLIB_LIBS) \
+		$(NULL)
+else
+EXTRA_DSO_LDOPTS = \
+	$(LIBS_DIR) \
+	$(MOZ_JS_LIBS) \
+	$(XPCOM_GLUE_LDOPTS) \
+	$(call EXPAND_LIBNAME_PATH,unicharutil_external_s,$(LIBXUL_DIST)/lib) \
+	$(call EXPAND_LIBNAME_PATH,rdfutil_external_s,$(LIBXUL_DIST)/lib) \
+	$(NSPR_LIBS) \
+	$(XPCOM_LIBS) \
+	$(NULL)
+ifneq (WINNT,$(OS_ARCH))
+EXTRA_DSO_LDOPTS += \
+	$(MOZ_ZLIB_LIBS) \
+	$(NULL)
+endif
+endif
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+EXTRA_DSO_LDOPTS += \
+  $(TK_LIBS) \
+                  -framework Cocoa \
+  $(NULL)
+endif 
+
+LOCAL_INCLUDES = -I$(srcdir) \
+                 -I$(srcdir)/../base/src \
+                 -I$(srcdir)/../base/util \
+                 -I$(srcdir)/../local/src \
+                 -I$(srcdir)/../addrbook/src \
+                 -I$(srcdir)/../imap/src \
+                 -I$(srcdir)/../compose/src \
+                 -I$(srcdir)/../base/search/src \
+                 -I$(srcdir)/../mime/src \
+                 -I$(srcdir)/../mime/emitters \
+                 -I$(srcdir)/../news/src \
+                 -I$(srcdir)/../extensions/bayesian-spam-filter/src \
+                 -I$(srcdir)/../extensions/fts3/src \
+                 -I$(srcdir)/../extensions/mailviews/src \
+                 -I$(srcdir)/../extensions/mdn/src \
+                 $(NULL)
+
+include $(topsrcdir)/config/rules.mk
+
+ifeq ($(OS_ARCH),WINNT)
+OS_LIBS	+= $(call EXPAND_LIBNAME,shell32)
+endif

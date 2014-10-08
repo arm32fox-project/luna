@@ -1,0 +1,113 @@
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME = import
+IS_COMPONENT	= 1
+ifdef MOZ_INCOMPLETE_EXTERNAL_LINKAGE
+FORCE_SHARED_LIB=1
+else
+EXPORT_LIBRARY = 1
+MOZILLA_INTERNAL_API = 1
+LIBXUL_LIBRARY = 1
+endif
+
+MODULE_NAME	= nsImportServiceModule
+
+SHARED_LIBRARY_LIBS = \
+		../src/$(LIB_PREFIX)import_s.$(LIB_SUFFIX) \
+		../text/src/$(LIB_PREFIX)imptext_s.$(LIB_SUFFIX) \
+		../vcard/src/$(LIB_PREFIX)impvcard_s.$(LIB_SUFFIX) \
+		$(NULL)
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+SHARED_LIBRARY_LIBS += ../eudora/src/$(LIB_PREFIX)impEudra_s.$(LIB_SUFFIX)
+SHARED_LIBRARY_LIBS += ../applemail/src/$(LIB_PREFIX)applmail_s.$(LIB_SUFFIX)
+endif
+
+ifeq ($(OS_ARCH),WINNT)
+SHARED_LIBRARY_LIBS += ../eudora/src/$(LIB_PREFIX)impEudra_s.$(LIB_SUFFIX)
+
+ifndef GNU_CC
+SHARED_LIBRARY_LIBS += ../oexpress/$(LIB_PREFIX)importOE_s.$(LIB_SUFFIX)
+SHARED_LIBRARY_LIBS += ../outlook/src/$(LIB_PREFIX)impOutlk_s.$(LIB_SUFFIX)
+SHARED_LIBRARY_LIBS += ../winlivemail/$(LIB_PREFIX)importWM_s.$(LIB_SUFFIX)
+endif
+
+endif
+
+LOCAL_INCLUDES += -I$(srcdir)/../src \
+	-I$(srcdir)/../text/src \
+  -I$(srcdir)/../vcard/src \
+	$(NULL)
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+LOCAL_INCLUDES += -I$(srcdir)/../eudora/src \
+									-I$(srcdir)/../applemail/src \
+									$(NULL)
+endif
+
+ifeq ($(OS_ARCH),WINNT)
+LOCAL_INCLUDES += -I$(srcdir)/../eudora/src
+ifndef GNU_CC
+LOCAL_INCLUDES += -I$(srcdir)/../oexpress \
+	-I$(srcdir)/../outlook/src \
+	-I$(srcdir)/../winlivemail  \
+	$(NULL)
+endif
+endif
+
+EXTRA_DSO_LDOPTS += ../../base/util/$(LIB_PREFIX)msgbsutl_s.$(LIB_SUFFIX)
+
+ifdef MOZILLA_INTERNAL_API
+EXTRA_DSO_LDOPTS += \
+	$(LIBS_DIR) \
+	$(EXTRA_DSO_LIBS) \
+	$(MOZ_UNICHARUTIL_LIBS) \
+	$(MOZ_COMPONENT_LIBS) \
+	$(NULL)
+else
+EXTRA_DSO_LDOPTS += \
+	$(LIBS_DIR) \
+	$(MOZ_JS_LIBS) \
+	$(XPCOM_GLUE_LDOPTS) \
+	$(call EXPAND_LIBNAME_PATH,unicharutil_external_s,$(LIBXUL_DIST)/lib) \
+	$(MOZDEPTH)/rdf/util/src/$(LIB_PREFIX)rdfutil_external_s.$(LIB_SUFFIX) \
+	$(NSPR_LIBS) \
+	$(XPCOM_LIBS) \
+	$(NULL)
+ifneq (WINNT,$(OS_ARCH))
+EXTRA_DSO_LDOPTS += \
+	$(MOZ_ZLIB_LIBS) \
+	$(NULL)
+endif
+endif
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+EXTRA_DSO_LDOPTS += \
+	-framework Cocoa  \
+	$(TK_LIBS) \
+	$(NULL)
+endif
+
+ifeq ($(OS_ARCH),AIX)
+ifdef MOZILLA_INTERNAL_API
+EXTRA_DSO_LDOPTS += \
+	$(MOZDEPTH)/rdf/util/src/internal/$(LIB_PREFIX)rdfutil_s.$(LIB_SUFFIX) \
+	$(NULL)
+else
+EXTRA_DSO_LDOPTS += \
+	$(MOZDEPTH)/rdf/util/src/$(LIB_PREFIX)rdfutil_external_s.$(LIB_SUFFIX) \
+	$(NULL)
+endif
+endif
+
+include $(topsrcdir)/config/rules.mk

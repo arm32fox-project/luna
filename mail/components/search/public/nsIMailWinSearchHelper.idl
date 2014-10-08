@@ -1,0 +1,58 @@
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+#include "nsISupports.idl"
+
+interface nsIFile;
+
+[scriptable, uuid(a65307b3-64f8-49fc-96a7-2cfc7d1f18ee)]
+interface nsIMailWinSearchHelper : nsISupports
+{
+  /**
+   * Whether the Windows Search service is installed and running.
+   *
+   * @exception NS_ERROR_NOT_AVAILABLE if the Windows Search service is
+   * not installed
+   */
+  readonly attribute boolean serviceRunning;
+
+  /**
+   * Whether the Mail, ImapMail, and News folders are in the crawl scope.
+   *
+   * @exception NS_ERROR_NOT_AVAILABLE if the Windows Search service is not
+   * installed or running
+   */
+  readonly attribute boolean foldersInCrawlScope;
+
+  /**
+   * Sets the File Attribute Not Content Indexed bit. For proper operation
+   * of the indexer, this bit must be set to 0/false.
+   *
+   * @param aFile the file or directory for which this bit is supposed to be set
+   * @param aBit false if the content is to be indexed, true if not
+   * @param aRecurse whether this bit is to be set recursively for all subdirectories
+   * and files inside a directory
+   */
+  void setFANCIBit(in nsIFile aFile, in boolean aBit, in boolean aRecurse);
+
+  /**
+   * Returns whether the .wdseml file association has been set to Thunderbird or not.
+   */
+  readonly attribute boolean isFileAssociationSet;
+
+  /**
+   * Sets the .wdseml file association.
+   */
+  void setFileAssociation();
+
+  /**
+   * Runs the setup application using ShellExecute, passing the profile directory as
+   * a parameter.
+   *
+   * @param aEnable true to enable, false to disable
+   */
+  void runSetup(in boolean aEnable);
+};

@@ -1,0 +1,65 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* ===== msgCompSMIMEOverlay.css ========================================
+  == Styles for the S/Mime in composer window.
+  ======================================================================= */
+
+@namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+#button-security {
+  list-style-image: url("chrome://messenger/skin/messengercompose/compose-toolbar.png");
+  -moz-image-region: rect(0px 120px 24px 96px);
+}
+
+#button-security:hover {
+  -moz-image-region: rect(24px 120px 48px 96px);
+} 
+
+#button-security[disabled] {
+  -moz-image-region: rect(48px 120px 72px 96px) !important;
+} 
+
+toolbar[iconsize="small"] #button-security {
+  list-style-image: url("chrome://messenger/skin/messengercompose/compose-toolbar-small.png");
+  -moz-image-region: rect(0px 80px 16px 64px);
+}
+
+toolbar[iconsize="small"] #button-security:hover {
+  -moz-image-region: rect(16px 80px 32px 64px);
+} 
+
+toolbar[iconsize="small"] #button-security[disabled] {
+  -moz-image-region: rect(32px 80px 48px 64px) !important;
+} 
+
+#msgcomposeWindow #signing-status {
+  list-style-image: none;
+  visibility: collapse;
+}
+
+#msgcomposeWindow[signing="ok"] #signing-status {
+  list-style-image: url("chrome://messenger/skin/smime/icons/sbSignOk.png");
+  visibility: visible;
+}
+
+#msgcomposeWindow[signing="notok"] #signing-status {
+  list-style-image: url("chrome://messenger/skin/smime/icons/sbSignNotOk.png");
+  visibility: visible;
+}
+
+#msgcomposeWindow #encryption-status {
+  list-style-image: none;
+  visibility: collapse;
+}
+
+#msgcomposeWindow[crypto="ok"] #encryption-status {
+  list-style-image: url("chrome://messenger/skin/smime/icons/sbCryptoOk.png");
+  visibility: visible;
+}
+
+#msgcomposeWindow[crypto="notok"] #encryption-status {
+  list-style-image: url("chrome://messenger/skin/smime/icons/sbCryptoNotOk.png");
+  visibility: visible;
+}

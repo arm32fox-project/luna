@@ -1,0 +1,50 @@
+/*
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+*/
+
+.quick-search-button-image {
+  padding: 0px;
+}
+
+/* it looks like appearance: searchfield gets us our search icon... */
+#searchInput,
+.remote-gloda-search {
+  margin: 3px 4px 4px !important;
+  -moz-appearance: searchfield;
+  font: icon;
+  height: 22px !important;
+}
+
+#searchInput > .textbox-input-box,
+.remote-gloda-search > .textbox-input-box {
+  border: none;
+  padding-top: 1px;
+  height: 21px !important;
+  margin: 0 !important;
+}
+
+#searchInput:-moz-lwtheme:not([focused="true"]),
+.remote-gloda-search:-moz-lwtheme:not([focused="true"]) {
+  opacity: .9;
+}
+
+.remote-gloda-search-container {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+
+/* things from xul.css that only exist if Thunderbird did not define
+ * AUTOCOMPLETE_OLD_STYLE
+ */
+
+.autocomplete-history-dropmarker {
+  display: none;
+}
+
+.autocomplete-history-dropmarker[enablehistory="true"] {
+  display: -moz-box;
+  -moz-binding: url("chrome://global/content/bindings/autocomplete.xml#history-dropmarker");
+}

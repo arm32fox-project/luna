@@ -1,0 +1,108 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* Lightning "Calendar" Toolbarbutton */
+#lightning-button-calendar {
+    list-style-image: url(chrome://lightning/skin/mode-switch-icons.png);
+    -moz-image-region: rect(0px 98px 18px 80px);
+}
+
+#lightning-button-calendar:not([disabled]):active {
+    -moz-image-region: rect(18px 98px 36px 80px);
+}
+
+/* Lightning "Tasks" Toolbarbutton */
+#lightning-button-tasks {
+    list-style-image: url(chrome://lightning/skin/mode-switch-icons.png);
+    -moz-image-region: rect(0px 116px 18px 98px);
+}
+#lightning-button-tasks:not([disabled]):active {
+    -moz-image-region: rect(18px 116px 36px 98px);
+}
+
+/* Toolbar buttons */
+
+.calbar-toolbarbutton-1 {
+  list-style-image: url(chrome://calendar/skin/toolbar.png);
+}
+
+#calendar-synchronize-button,
+#task-synchronize-button {
+  -moz-image-region: rect(0px 18px 18px 0px);
+}
+
+#calendar-synchronize-button:not([disabled]):active,
+#task-synchronize-button:not([disabled]):active {
+  -moz-image-region: rect(18px 18px 36px 0px);
+}
+
+#calendar-newevent-button,
+#task-newevent-button {
+  -moz-image-region: rect(0px 36px 18px 18px);
+}
+
+#calendar-newevent-button:not([disabled]):active,
+#task-newevent-button:not([disabled]):active {
+  -moz-image-region: rect(18px 36px 36px 18px);
+}
+
+#calendar-newtask-button,
+#task-newtask-button {
+  -moz-image-region: rect(0px 72px 18px 54px);
+}
+
+#calendar-newtask-button:not([disabled]):active,
+#task-newtask-button:not([disabled]):active {
+  -moz-image-region: rect(18px 72px 36px 54px);
+}
+
+#calendar-edit-button,
+#task-edit-button {
+  -moz-image-region: rect(0px 90px 18px 72px);
+}
+
+#calendar-edit-button:not([disabled]):active,
+#task-edit-button:not([disabled]):active {
+  -moz-image-region: rect(18px 90px 36px 72px);
+}
+
+#calendar-delete-button,
+#task-delete-button {
+  -moz-image-region: rect(0px 108px 18px 90px);
+}
+
+#calendar-delete-button:not([disabled]):active,
+#task-delete-button:not([disabled]):active {
+  -moz-image-region: rect(18px 108px 36px 90px);
+}
+
+#calendar-goto-today-button {
+  -moz-image-region: rect(0px 54px 18px 36px);
+}
+
+#calendar-goto-today-button:not([disabled]):active {
+  -moz-image-region: rect(18px 54px 36px 36px);
+}
+
+#calendar-print-button,
+#task-print-button {
+  -moz-image-region: rect(0px 126px 18px 108px);
+}
+
+#calendar-print-button:not([disabled]):active,
+#task-print-button:not([disabled]):active {
+  -moz-image-region: rect(18px 126px 36px 108px);
+}
+
+#calendar-unifinder-button {
+  -moz-image-region: rect(0px 144px 18px 126px);
+}
+
+#calendar-unifinder-button:not([disabled]):active {
+  -moz-image-region: rect(18px 144px 36px 126px);
+}
+
+#calendar-unifinder-button[checked="true"] {
+  -moz-image-region: rect(36px 144px 54px 126px);
+}

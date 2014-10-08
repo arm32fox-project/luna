@@ -1,0 +1,54 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+#include "nsISimpleEnumerator.idl"
+#include "prplIConversation.idl"
+
+[scriptable, uuid(f13dc4fc-5334-45cb-aa58-a92851955e55)]
+interface imIStatusInfo: nsISupports {
+  // Name suitable for display in the UI. Can either be the username,
+  // the server side alias, or the user set local alias of the contact.
+  readonly attribute AUTF8String displayName;
+  readonly attribute AUTF8String buddyIconFilename;
+
+  const short STATUS_UNKNOWN = 0;
+  const short STATUS_OFFLINE = 1;
+  const short STATUS_INVISIBLE = 2;
+  const short STATUS_MOBILE = 3;
+  const short STATUS_IDLE = 4;
+  const short STATUS_AWAY = 5;
+  const short STATUS_UNAVAILABLE = 6;
+  const short STATUS_AVAILABLE = 7;
+
+  // numerical value used to compare the availability of two buddies
+  // based on their current status.
+  //  Use it only for immediate comparisons, do not store the value,
+  //  it can change between versions for a same status of the buddy.
+  readonly attribute long statusType;
+
+  readonly attribute boolean online;    // (statusType > STATUS_OFFLINE)
+  readonly attribute boolean available; // (statusType == STATUS_AVAILABLE)
+  readonly attribute boolean idle;      // (statusType == STATUS_IDLE)
+  readonly attribute boolean mobile;    // (statusType == STATUS_MOBILE)
+
+  readonly attribute AUTF8String statusText;
+
+  // Gives more detail to compare the availability of two buddies with the same
+  // status type.
+  //  Example: 2 buddies may have been idle for various amounts of times.
+  readonly attribute long availabilityDetails;
+
+  // True if the buddy is online or if the account supports sending
+  // offline messages to the buddy.
+  readonly attribute boolean canSendMessage;
+
+  // enumerator of purpleTooltipInfo components
+  nsISimpleEnumerator getTooltipInfo();
+
+  // Will select the buddy automatically based on availability, and
+  // the account (if needed) based on the account order in the account
+  // manager.
+  prplIConversation createConversation();
+};

@@ -1,0 +1,76 @@
+/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+/**
+ * Encode/decode mail headers (via libmime).
+ */
+[scriptable, uuid(1f685c2d-5ac6-40a9-8415-655b408a7d42)]
+interface nsIMimeConverter : nsISupports {
+  /**
+   * Suggested byte length limit for use when calling
+   * encodeMimePartIIStr(_UTF8).
+   */
+  const long MIME_ENCODED_WORD_SIZE = 72;
+  const long MAX_CHARSET_NAME_LENGTH = 64;
+
+  /**
+   * Encode a UTF-8 CString into RFC 2047 form ("=?" charset "?" encoding "?"
+   * encoded-text "?=", where encoding is either "B" for BASE64 (RFC 2045) or
+   * "Q" for quoted-printable-ish (RFC 2045)).
+   *
+   * @param header UTF-8 header to encode.
+   * @param structured Is the header's field-body a "structured" field?
+   *     (Encoded words are only allowed in comment/phrase portions of
+   *     structured field bodies.)
+   * @param mailCharset Charset name to convert (as an ASCII C string).
+   * @param fieldnamelen Header field name lengt (ex: "From: " = 6)
+   * @param encodedWordSize Byte length limit of the output, usually 72. (Use
+   *     MIME_ENCODED_WORD_SIZE.)
+   *
+   * @return The encoded buffer (as a C string).
+   */
+  string encodeMimePartIIStr_UTF8(in AUTF8String header,
+                                  in boolean     structured,
+                                  in string      mailCharset,
+                                  in long        fieldnamelen,
+                                  in long        encodedWordSize);
+
+  /**
+   * Decode a MIME header to UTF-8 if conversion is required.  Marked as
+   * noscript because the return value may contain non-ASCII characters.
+   *
+   * @param header A (possibly encoded) header to decode.
+   * @param default_charset The charset to apply to un-labeled non-UTF-8 data.
+   * @param override_charset If true, default_charset is used instead of any
+   *     charset labeling other than UTF-8.
+   * @param eatContinuations If true, unfold headers.
+   *
+   * @return UTF-8 encoded value if conversion was required, nullptr if no
+   *     conversion was required.
+   */
+  AUTF8String decodeMimeHeaderToUTF8(in ACString header,
+                                     in string default_charset,
+                                     in boolean override_charset,
+                                     in boolean eatContinuations);
+
+  /**
+   * Decode a MIME header to UTF-16.
+   *
+   * @param header A (possibly encoded) header to decode.
+   * @param default_charset The charset to apply to un-labeled non-UTF-8 data.
+   * @param override_charset If true, default_charset is used instead of any
+   *     charset labeling other than UTF-8.
+   * @param eatContinuations If true, unfold headers.
+   *
+   * @return UTF-16 encoded value as an AString.
+   */
+  AString decodeMimeHeader(in string header,
+                           in string default_charset,
+                           in boolean override_charset,
+                           in boolean eatContinuations);
+};
+

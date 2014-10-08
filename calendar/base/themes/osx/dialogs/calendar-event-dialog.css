@@ -1,0 +1,80 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/*--------------------------------------------------------------------
+ *   Event dialog keep duration button
+ *-------------------------------------------------------------------*/
+
+#keepduration-button {
+    padding: 3px 6px;
+}
+
+#timezone-endtime {
+    -moz-margin-start: 15px;
+}
+
+/*--------------------------------------------------------------------
+ *   Event dialog toolbar buttons
+ *-------------------------------------------------------------------*/
+
+.cal-event-toolbarbutton {
+    list-style-image: url("chrome://calendar/skin/calendar-event-dialog-toolbar.png");
+}
+
+/*--------------------------------------------------------------------
+ *   invite attendees button
+ *-------------------------------------------------------------------*/
+
+#button-attendees {
+  -moz-image-region: rect(0 36px 18px 18px);
+}
+#button-attendees:not([disabled]):active {
+  -moz-image-region: rect(18px 36px 36px 18px);
+}
+
+/*--------------------------------------------------------------------
+ *   documents button
+ *-------------------------------------------------------------------*/
+
+#button-url {
+  -moz-image-region: rect(0 72px 18px 54px);
+}
+#button-url:not([disabled]):active {
+  -moz-image-region: rect(18px 72px 36px 54px);
+}
+
+/*--------------------------------------------------------------------
+ *   privacy button
+ *-------------------------------------------------------------------*/
+
+#button-privacy {
+  -moz-image-region: rect(0 90px 18px 72px);
+}
+#button-privacy:not([disabled]):active {
+  -moz-image-region: rect(18px 90px 36px 72px);
+}
+
+/*--------------------------------------------------------------------
+ *   save button
+ *-------------------------------------------------------------------*/
+
+#button-save {
+  -moz-image-region: rect(0 108px 18px 90px);
+}
+#button-save:not([disabled]):active {
+  -moz-image-region: rect(18px 108px 36px 90px);
+}
+
+/*--------------------------------------------------------------------
+ *   delete button
+ *-------------------------------------------------------------------*/
+
+#button-delete.cal-event-toolbarbutton {
+  list-style-image: url("chrome://calendar/skin/calendar-event-dialog-toolbar.png");
+  -moz-image-region: rect(0 306px 18px 288px);
+}
+#button-delete.cal-event-toolbarbutton:not([disabled]):active,
+#button-delete.cal-event-toolbarbutton:not([disabled]):hover:active {
+  -moz-image-region: rect(18px 306px 36px 288px);
+}

@@ -1,0 +1,15 @@
+/* -*- Mode: IDL; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+interface nsIFile;
+
+[scriptable, uuid(ba3071e9-39a5-4a10-b770-1809317ef2c1)]
+interface nsINoIncomingServer : nsISupports {
+  /* copy (or prepend) bin/defaults/messenger/<folderNameOnDisk> to <parentDir>/<folderNameOnDisk> */
+  void copyDefaultMessages(in string folderNameOnDisk, in nsIFile parentDir);
+};
+

@@ -1,0 +1,76 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@import url(chrome://calendar/skin/common/calendar-task-view.css);
+
+#calendar-task-details-container {
+    padding-top: 2px;
+    overflow: hidden;
+}
+
+#other-actions-box {
+    -moz-margin-end: 3px;
+}
+
+#task-addition-box {
+    background: linear-gradient(#eaeaea, #d1d1d1);
+}
+
+.task-details-name {
+    color: #888a85; /* lower contrast */
+}
+
+#calendar-task-details-grid > rows > .item-date-row > .headline {
+    color: #888a85; /* lower contrast */
+}
+
+.task-details-value {
+    color: black;
+}
+
+#task-text-filter-field {
+    margin: 4px 5px;
+}
+
+#task-actions-toolbar {
+    min-width: 50px !important;
+    min-height: 14px !important;
+}
+
+#task-actions-category {
+    list-style-image: url(chrome://calendar/skin/tasks-actions.png);
+    -moz-image-region: rect(0px 18px 18px 0px);
+}
+
+#task-actions-markcompleted {
+    list-style-image: url(chrome://calendar/skin/tasks-actions.png);
+    -moz-image-region: rect(0px 36px 18px 18px);
+}
+
+#task-actions-priority {
+    list-style-image: url(chrome://calendar/skin/tasks-actions.png);
+    -moz-image-region: rect(0px 54px 18px 36px);
+}
+
+#calendar-delete-task-button {
+    list-style-image: url(chrome://calendar/skin/toolbar.png);
+    -moz-image-region: rect(18px 108px 36px 90px);
+}
+
+#calendar-add-task-button {
+    list-style-image: url(chrome://calendar/skin/toolbar.png);
+    -moz-image-region: rect(0px 72px 18px 54px);
+}
+
+#calendar-add-task-button:not([disabled]):active {
+    -moz-image-region: rect(18px 72px 36px 54px);
+}
+
+#calendar-add-task-button[disabled="true"] > .toolbarbutton-icon {
+    opacity: .5;
+}
+
+#calendar-add-task-button > .toolbarbutton-text {
+  -moz-margin-start: 0px;
+}

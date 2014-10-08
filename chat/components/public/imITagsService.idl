@@ -1,0 +1,56 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+#include "nsIObserver.idl"
+
+interface imIContact;
+
+[scriptable, uuid(c211e5e2-f0a4-4a86-9e4c-3f6b905628a5)]
+interface imITag: nsISupports {
+  readonly attribute long id;
+           attribute AUTF8String name;
+
+  // Get an array of all the contacts associated with this tag.
+  //  Contacts can either "have the tag" (added by user action) or
+  //  have inherited the tag because it was the server side group for
+  //  one of the AccountBuddy of the contact.
+  void getContacts([optional] out unsigned long contactCount,
+                   [retval, array, size_is(contactCount)] out imIContact contacts);
+
+  void addObserver(in nsIObserver aObserver);
+  void removeObserver(in nsIObserver aObserver);
+  /* Observers will be notified of changes related to the contacts
+   * that have the tag: contact-*, buddy-*, account-buddy-*
+   * notifications forwarded respectively from the imIContact,
+   * imIBuddy and imIAccountBuddy instances.
+   */
+
+  // Exposed for add-on authors. All internal calls will come from the
+  // imITag implementation itself so it wasn't required to expose this.
+  // This can be used to dispatch custom notifications to the
+  // observers of the tag.
+  void notifyObservers(in nsISupports aObj, in string aEvent,
+                       [optional] in wstring aData);
+};
+
+[scriptable, uuid(f799a9c2-23f2-4fd1-96fb-515bad238f8c)]
+interface imITagsService: nsISupports {
+  // Create a new tags or return the existing one if it already exists
+  imITag createTag(in AUTF8String aName);
+  // Get an existing tag by (numeric) id. Returns null if not found.
+  imITag getTagById(in long aId);
+  // Get an existing tag by name (will do an SQL query). Returns null
+  // if not found.
+  imITag getTagByName(in AUTF8String aName);
+  // Get an array of all existing tags.
+  void getTags([optional] out unsigned long tagCount,
+               [retval, array, size_is(tagCount)] out imITag tags);
+
+  boolean isTagHidden(in imITag aTag);
+  void hideTag(in imITag aTag);
+  void showTag(in imITag aTag);
+
+  readonly attribute imITag otherContactsTag;
+};

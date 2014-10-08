@@ -1,0 +1,68 @@
+#
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH   = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir    = @srcdir@
+VPATH   = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME = calbasecomps
+SHORT_LIBNAME = calbscmp
+IS_COMPONENT = 1
+MODULE_NAME = calBaseModule
+# We don't want an EXPORT_LIBRARY
+FORCE_SHARED_LIB = 1
+FORCE_USE_PIC   = 1 # Force use of PIC
+USE_STATIC_LIBS = 1
+NO_COMPONENTS_MANIFEST = 1
+
+LOCAL_INCLUDES = \
+	-I$(srcdir)/..
+
+SHARED_LIBRARY_LIBS = \
+    $(DEPTH)/calendar/base/backend/libical/$(LIB_PREFIX)calbase_s.$(LIB_SUFFIX) \
+    $(DEPTH)/calendar/libical/src/libical/$(LIB_PREFIX)mozical.$(LIB_SUFFIX) \
+    $(NULL)
+
+ifdef JS_SHARED_LIBRARY 
+EXTRA_DSO_LDOPTS += $(MOZ_JS_LIBS)
+else
+EXTRA_DSO_LDOPTS += $(XPCOM_LIBS)
+endif
+
+ifdef MOZILLA_INTERNAL_API
+EXTRA_DSO_LDOPTS += \
+	$(LIBS_DIR) \
+	$(EXTRA_DSO_LIBS) \
+	$(MOZ_COMPONENT_LIBS) \
+	$(NULL)
+else
+EXTRA_DSO_LDOPTS += \
+	$(LIBS_DIR) \
+	$(EXTRA_DSO_LIBS) \
+	$(NSPR_LIBS) \
+	$(XPCOM_STATICRUNTIME_GLUE_LDOPTS) \
+	$(NULL)
+endif
+
+include $(topsrcdir)/config/rules.mk
+
+# Ensure that we don't embed a manifest referencing the CRT
+EMBED_MANIFEST_AT =
+
+BACKEND_MANIFESTS = libical.manifest
+DEFINES += -DSHARED_LIBRARY=$(SHARED_LIBRARY) -DXPIDL_MODULE=$(XPIDL_MODULE)
+
+libs:: $(BACKEND_MANIFESTS)
+	$(EXIT_ON_ERROR) \
+	$(NSINSTALL) -D $(FINAL_TARGET)/components; \
+	for i in $^; do \
+	  fname=`basename $$i`; \
+	  dest=$(FINAL_TARGET)/components/$${fname}; \
+	  $(RM) -f $$dest; \
+	  $(PYTHON) $(MOZILLA_SRCDIR)/config/Preprocessor.py $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $$i > $$dest; \
+	done

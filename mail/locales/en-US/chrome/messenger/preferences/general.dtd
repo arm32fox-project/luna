@@ -1,0 +1,36 @@
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<!ENTITY messengerStartPage.label         "&brandShortName; Start Page">
+<!ENTITY enableStartPage.label            "When &brandShortName; launches, show the Start Page in the message area">
+<!ENTITY enableStartPage.accesskey        "W">
+<!ENTITY location.label                   "Location:">
+<!ENTITY location1.accesskey               "o">
+<!ENTITY useDefault.label                 "Restore Default">
+<!ENTITY useDefault.accesskey             "R">
+
+<!ENTITY bounceSystemDockIcon.label       "Animate the dock icon">
+<!ENTITY bounceSystemDockIcon.accesskey   "i">
+
+<!ENTITY newMessagesArrive.label          "When new messages arrive:">
+<!ENTITY playSound.label                  "Play a sound">
+<!ENTITY playSound1.accesskey              "d">
+<!ENTITY showAnimatedAlert.label          "Show an alert">
+<!ENTITY showAnimatedAlert.accesskey      "S">
+<!ENTITY customizeMailAlert.label         "Customize…">
+<!ENTITY customizeMailAlert.accesskey     "C">
+
+<!ENTITY showTrayIcon.label               "Show a tray icon">
+<!ENTITY showTrayIcon.accesskey           "t">
+
+<!ENTITY play.label                       "Play">
+<!ENTITY play.accesskey                   "P">
+<!ENTITY systemsound.label                "Default system sound for new mail">
+<!ENTITY systemsoundMac.label             "System Alert Sound">
+<!ENTITY systemsoundMac.accesskey         "y">
+<!ENTITY systemsound.accesskey            "y">
+<!ENTITY customsound.label                "Use the following sound file">
+<!ENTITY customsound.accesskey            "U">
+<!ENTITY browse.label                     "Browse…">
+<!ENTITY browse.accesskey                 "B">

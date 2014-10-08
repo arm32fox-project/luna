@@ -1,0 +1,235 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#task-actions-toolbar .toolbarbutton-icon {
+  margin: 1px;
+  width: 16px;
+  height: 16px;
+}
+
+#task-actions-toolbar > #task-actions-category {
+  list-style-image: url(chrome://calendar/skin/tasks-actions-aero.png);
+  -moz-image-region: rect(1px 17px 17px 1px);
+}
+
+#task-actions-toolbar > #task-actions-markcompleted {
+  list-style-image: url(chrome://calendar/skin/tasks-actions-aero.png);
+  -moz-image-region: rect(1px 35px 17px 19px);
+}
+
+#task-actions-toolbar > #task-actions-priority {
+  list-style-image: url(chrome://calendar/skin/tasks-actions-aero.png);
+  -moz-image-region: rect(1px 51px 17px 35px);
+}
+
+#task-actions-toolbar > #calendar-delete-task-button {
+  list-style-image: url(chrome://calendar/skin/toolbar-aero.png);
+  -moz-image-region: rect(1px 107px 17px 91px);
+}
+
+#task-addition-box > box > #calendar-add-task-button {
+  list-style-image: url(chrome://calendar/skin/toolbar-aero.png);
+  -moz-image-region: rect(1px 71px 17px 55px);
+}
+
+#calendar-add-task-button[disabled="true"] > .toolbarbutton-icon {
+  opacity: 0.4;
+}
+
+#todaypane-new-event-button {
+  list-style-image: url(chrome://calendar/skin/toolbar-aero.png) !important;
+  -moz-image-region: rect(1px 35px 17px 19px) !important;
+}
+
+#todaypane-new-event-button[disabled="true"] > .toolbarbutton-icon {
+  opacity: 0.4;
+}
+
+#unifinder-search-field,
+#view-task-edit-field,
+#task-text-filter-field,
+#unifinder-task-edit-field {
+  -moz-appearance: none;
+  background-clip: padding-box;
+  border: 1px solid ThreeDDarkShadow;
+  border-radius: 2px;
+}
+
+#view-task-edit-field,
+#task-text-filter-field {
+  width: 15em;
+}
+
+@media (-moz-windows-default-theme) {
+  #unifinder-search-field,
+  #view-task-edit-field,
+  #task-text-filter-field,
+  #unifinder-task-edit-field {
+    border-color: hsla(210, 54%, 20%, .25) hsla(210, 54%, 20%, .27)
+                  hsla(210, 54%, 20%, .3);
+    box-shadow: 0 1px hsla(0, 0%, 0%, .01) inset,
+                0 1px hsla(0, 0%, 100%, .1);
+  }
+
+  #bottom-events-box > #unifinder-searchBox,
+  #task-addition-box {
+    background-color: #f8f8f8;
+  }
+
+  sidebarheader {
+    -moz-appearance: none;
+    background-color: #f8f8f8;
+    border-bottom: none;
+  }
+
+  #today-pane-panel:-moz-lwtheme > sidebarheader {
+    background-color: rgba(255, 255, 255, 0.3);
+    background-image: linear-gradient(rgba(255, 255, 255, 0.5),
+                      rgba(255, 255, 255, 0) 28px);
+  }
+
+  sidebarheader > spacer {
+    min-height: 25px;
+  }
+}
+
+@media (-moz-windows-compositor) {
+  #unifinder-search-field,
+  #view-task-edit-field,
+  #task-text-filter-field,
+  #unifinder-task-edit-field {
+    border-color: hsla(210, 54%, 20%, .25) hsla(210, 54%, 20%, .27)
+                  hsla(210, 54%, 20%, .3);
+  }
+
+  #unifinder-search-field:not([focused]):hover,
+  #view-task-edit-field:not([focused]):hover,
+  #task-text-filter-field:not([focused]):hover,
+  #unifinder-task-edit-field:not([focused]):hover {
+    border-color: hsla(210, 54%, 20%, .35) hsla(210, 54%, 20%, .37)
+                  hsla(210, 54%, 20%, .4);
+  }
+
+  #unifinder-search-field[focused],
+  #view-task-edit-field[focused],
+  #task-text-filter-field[focused],
+  #unifinder-task-edit-field[focused] {
+    border-color: hsla(206, 100%, 60%, .65) hsla(206, 100%, 55%, .65)
+                  hsla(206, 100%, 50%, .65);
+  }
+}
+
+#calsidebar_splitter {
+  border: none;
+  border-left: 1px solid #A9B7C9;
+  min-width: 0;
+  width: 5px;
+  background-color: transparent;
+  margin-top: 0;
+  -moz-margin-end: -5px;
+  position: relative;
+  z-index: 10;
+  transition: border-width .3s ease-in;
+}
+
+#today-splitter {
+  border: none;
+  border-right: 1px solid #A9B7C9;
+  min-width: 0;
+  width: 5px;
+  background-color: transparent;
+  margin-top: 0;
+  -moz-margin-start: -5px;
+  position: relative;
+  z-index: 10;
+  transition: border-width .3s ease-in;
+}
+
+/* Until Bug 621351 is fixed we need border-right and border-left in
+ * combination with -moz-locale-dir instead of -moz-border-end and
+ * -moz-border-start for transition
+ */
+
+#calsidebar_splitter:-moz-locale-dir(rtl) {
+  border-right: 1px solid #A9B7C9;
+  border-left-width: 0;
+}
+
+#today-splitter:-moz-locale-dir(rtl) {
+  border-left: 1px solid #A9B7C9;
+  border-right-width: 0;
+}
+
+#today-splitter[state="collapsed"]:-moz-locale-dir(ltr) {
+  border-right: 1px solid transparent;
+}
+
+#calsidebar_splitter[state="collapsed"]:hover:-moz-locale-dir(rtl),
+#today-splitter[state="collapsed"]:hover:-moz-locale-dir(ltr) {
+  border-right: 4px solid highlight;
+}
+
+#today-splitter[state="collapsed"]:-moz-locale-dir(rtl) {
+  border-left: 1px solid transparent;
+}
+
+#calsidebar_splitter[state="collapsed"]:hover:-moz-locale-dir(ltr),
+#today-splitter[state="collapsed"]:hover:-moz-locale-dir(rtl) {
+  border-left: 4px solid highlight;
+}
+
+#today-splitter:-moz-lwtheme {
+  background-image: none;
+}
+
+#today-splitter > grippy {
+  display: none;
+}
+
+#today-pane-splitter,
+#calendar-view-box #calendar-view-splitter,
+#calendar-task-box #calendar-task-view-splitter {
+  border: none;
+  border-bottom: 1px solid #A9B7C9;
+  min-height: 0;
+  height: 5px;
+  background-color: transparent;
+  margin-top: -5px;
+  position: relative;
+  z-index: 10;
+}
+
+#today-pane-splitter {
+  border-bottom: 3px double #A9B7C9;
+  margin-top: -3px;
+}
+
+#calendar-nav-control {
+  border-top-width: 0 !important;
+}
+
+#calendar-task-details-container {
+  border-top-width: 0 !important;
+  padding-top: 0px;
+}
+
+#today-pane-panel {
+  -moz-border-start-width: 0 !important;
+}
+
+@media all and (-moz-windows-compositor) {
+  #messengerWindow[sizemode=normal] #today-pane-panel {
+    -moz-border-end: 1px solid rgba(10%, 10%, 10%, .4);
+    border-bottom: 1px solid rgba(10%, 10%, 10%, .4);
+    background-clip: padding-box;
+  }
+
+  #today-pane-panel .folderview-cycler {
+    margin-top: -1px;
+  }
+}
+
+.occurrence-accept-buttons {
+  list-style-image: url(chrome://calendar/skin/calendar-occurrence-prompt-aero.png);
+}

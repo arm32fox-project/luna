@@ -1,0 +1,23 @@
+This is the first source release produced from the mercurial repo.  The
+source tarball was produced by the following steps:
+
+  hg clone http://hg.mozilla.org/projects/ldap-sdks
+  cd ldap-sdks
+  hg archive -p mozldap-6.0.7 -r LDAPCSDK_6_0_7_RTM -t tgz -I ldapsdk.mak -I ldapsdk.mk -I c-sdk mozldap-6.0.7.tar.gz
+
+NOTE: the format of the .tar.gz file has changed.  The file/directory layout used to look like this:
+
+mozldap-VER/mozilla/directory/
+mozldap-VER/mozilla/directory/Makefile
+mozldap-VER/mozilla/directory/ldapsdk.mak
+mozldap-VER/mozilla/directory/ldapsdk.mk
+mozldap-VER/mozilla/directory/c-sdk/
+
+I have collapsed the directories to be this instead:
+
+mozldap-VER/
+mozldap-VER/ldapsdk.mak
+mozldap-VER/ldapsdk.mk
+mozldap-VER/c-sdk/
+
+The top level Makefile has disappeared from the hg repo - I don't think it was needed.

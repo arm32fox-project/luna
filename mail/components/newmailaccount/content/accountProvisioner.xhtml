@@ -1,0 +1,183 @@
+<!DOCTYPE html [
+  <!ENTITY % brandDTD SYSTEM "chrome://branding/locale/brand.dtd">
+    %brandDTD;
+  <!ENTITY % mainDTD SYSTEM "chrome://messenger/locale/newmailaccount/accountProvisioner.dtd">
+    %mainDTD;
+]>
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <!-- This meta charset tag has to be above the license block, or
+       window.arguments is undefined.  See bug 617339.  -->
+  <meta charset="utf-8" />
+
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+  <title>&window.title;</title>
+
+  <link rel="stylesheet"
+        type="text/css"
+        href="chrome://messenger/skin/newmailaccount/accountProvisioner.css" />
+
+  <script type="text/javascript;version=1.8"
+          src="chrome://messenger/content/jquery.js">
+  </script>
+  <script type="text/javascript;version=1.8"
+          src="chrome://messenger/content/jquery-ui.js">
+  </script>
+  <script type="text/javascript;version=1.8"
+          src="chrome://messenger/content/accountcreation/util.js">
+  </script>
+  <script type="text/javascript;version=1.8"
+          src="chrome://messenger/content/accountcreation/accountConfig.js">
+  </script>
+  <script type="text/javascript;version=1.8"
+          src="chrome://messenger/content/accountcreation/sanitizeDatatypes.js">
+  </script>
+  <script type="text/javascript;version=1.8"
+          src="chrome://messenger/content/accountcreation/readFromXML.js">
+  </script>
+  <script type="text/javascript;version=1.8"
+          src="chrome://messenger/content/accountcreation/createInBackend.js">
+  </script>
+  <script type="text/javascript;version=1.8"
+          src="chrome://communicator/content/utilityOverlay.js">
+  </script>
+  <script type="text/javascript;version=1.8"
+          src="chrome://messenger/content/newmailaccount/jquery.scrollTo.js">
+  </script>
+  <script type="text/javascript;version=1.8"
+          src="chrome://messenger/content/newmailaccount/jquery.tmpl.js">
+  </script>
+  <script type="text/javascript;version=1.8"
+          src="chrome://messenger/content/newmailaccount/accountProvisioner.js">
+  </script>
+</head>
+<body>
+  <div id="window" class="vbox">
+
+    <div id="content" class="boxFlex vbox">
+
+      <div id="upper" class="contentPadded">
+        <div class="header">
+          <h2>&header2.label;</h2>
+        </div>
+
+        <form id="search" onsubmit="return false;">
+          <div id="searchFields" class="hbox">
+            <input id="name" type="text" placeholder="&input.namePlaceholder;"
+                   maxlength="150" class="boxFlex"/>
+            <input type="submit" value="&input.search;" class="search boxFlex" id="searchSubmit"/>
+          </div>
+          <div id="providers">
+            <div id="instructions">&partnership.description;</div>
+            <ol id="providerList">
+            </ol>
+            <div id="otherLangDesc">&other.languages;</div>
+          </div>
+        </form>
+
+        <div id="notifications">
+
+          <img class="spinner"
+               src="chrome://messenger/skin/newmailaccount/spinner.gif"/>
+
+          <div id="cannotConnectMessage" class="error"></div>
+
+          <div class="error">
+            <p>&error.line1;</p>
+            <p>&error.line2;</p>
+            &error.suggest.before;<a
+              href="http://www.mozilla.org/en-US/thunderbird/features/email_providers.html"
+              class="external">&error.suggest.middle;</a>&error.suggest.after;
+          </div>
+
+          <div class="success">
+            <div class="title">&success.title.before;<span id="FirstAndLastName"></span>&success.title.after;</div>
+
+            <div class="boxFlex tip">&success.tip;</div>
+
+            <div id="resultsHeader" class="hbox row th displayNone">
+              <div class="boxFlex provider th"></div>
+              <div class="price th"></div>
+            </div>
+
+            <div id="results"></div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="spacer"></div>
+      <hr />
+      <div class="description contentPadded">
+        <div class="commentary">
+        </div>
+      </div>
+
+    </div>
+
+    <div id="existing" class="contentPadded">
+      <div class="tinyheader">
+        <button class="existing">&tinyheader.existing;</button>
+        <button class="close">&content.close;</button>
+      </div>
+    </div>
+
+  </div>
+
+  <div id="successful_account">
+    <h2>&successful.title;</h2>
+    <div id="success-message">&successful.successMessage;</div>
+
+    <div id="search_engine_wrap">
+      <img src="chrome://messenger/skin/newmailaccount/search.png"/>
+      <input type="checkbox" id="search_engine_check" />
+      <span id="search_engine_desc"></span>
+    </div>
+
+    <div id="success-compose">
+      <img src="chrome://messenger/skin/newmailaccount/success-compose.png"/>
+      <h4>&successful.write;</h4>
+      &successful.write.desc;
+    </div>
+
+    <div id="success-addons">
+      <img src="chrome://messenger/skin/newmailaccount/success-addons.png"/>
+      <h4>&successful.customize;</h4>
+      &successful.customize.desc;
+    </div>
+
+    <div id="success-signature">
+      <img src="chrome://messenger/skin/newmailaccount/success-signature.png"/>
+      <h4>&successful.attach;</h4>
+      &successful.attach.desc;
+    </div>
+
+    <button id="closeWindow" class="close">&successful.close;</button>
+  </div>
+
+</body>
+
+  <!-- Templates!  Woo! -->
+
+  <script id="result_tmpl" type="text/html"><![CDATA[
+    <div class="hbox row selection">
+      <div class="boxFlex address">${address}</div>
+      <div class="pricing">
+        <button class="create"
+          address="${address}">${priceStr}</button>
+        <span class="create"
+          address="${address}">${priceStr}</span>
+      </div>
+    </div>
+  ]]></script>
+
+  <script id="more_results_tmpl" type="text/html"><![CDATA[
+    <div class="more">
+      ${moreStr}
+    </div>
+  ]]></script>
+
+</html>

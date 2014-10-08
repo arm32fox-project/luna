@@ -1,0 +1,36 @@
+. "$topsrcdir/build/mozconfig.common"
+
+ac_add_options --enable-application=mail
+ac_add_options --enable-update-channel=${MOZ_UPDATE_CHANNEL}
+ac_add_options --enable-update-packaging
+ac_add_options --enable-jemalloc
+ac_add_options --with-l10n-base=../../l10n
+
+# Build lightning locales
+ac_add_options --enable-calendar
+
+# For NSS symbols
+export MOZ_DEBUG_SYMBOLS=1
+
+# Needed to enable breakpad in application.ini
+export MOZILLA_OFFICIAL=1
+
+if test -n "${_PYMAKE}"; then
+  mk_add_options MOZ_MAKE_FLAGS=-j4
+else
+  mk_add_options MOZ_MAKE_FLAGS=-j1
+fi
+
+if test "$PROCESSOR_ARCHITECTURE" = "AMD64" -o "$PROCESSOR_ARCHITEW6432" = "AMD64"; then
+  . $topsrcdir/build/win32/mozconfig.vs2010-win64
+else
+  . $topsrcdir/build/win32/mozconfig.vs2010
+fi
+
+# Set up mapi includes (must be done after visual studio setup)
+export INCLUDE=$INCLUDE:/c/Office\ 2010\ Developer\ Resources/Outlook\ 2010\ MAPI\ Headers
+mk_export_correct_style INCLUDE
+
+# Run client.py
+mk_add_options CLIENT_PY_ARGS="$(cat $topsrcdir/build/client.py-l10n-args)"
+mk_add_options ALWAYS_RUN_CLIENT_PY=1

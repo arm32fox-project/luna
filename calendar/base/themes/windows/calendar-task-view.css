@@ -1,0 +1,85 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@import url(chrome://calendar/skin/common/calendar-task-view.css);
+@import url(chrome://calendar-windows/skin/calendar.css);
+
+#calendar-task-view-splitter {
+    border: none;
+    min-height: 5px;
+}
+
+#calendar-task-details-container {
+    border-top: 1px solid ThreeDShadow;
+    border-left: 1px solid ThreeDShadow;
+    border-right: 0px;
+    border-bottom: 0px;
+    overflow: hidden;
+}
+
+#other-actions-box {
+    -moz-margin-end: -2px;
+}
+
+.task-details-name {
+    color: windowtext;
+    opacity: 0.5; /* lower contrast */
+}
+
+#calendar-task-details-grid > rows > .item-date-row > .headline {
+    color: windowtext;
+    opacity: 0.5; /* lower contrast */
+}
+
+.task-details-value {
+    color: WindowText;
+}
+
+#task-text-filter-field {
+    margin: 5px;
+}
+
+#task-text-filter-field .textbox-search-icons {
+    margin-bottom: -1px;
+}
+
+/* ::::: task actions toolbar ::::: */
+
+#task-actions-toolbox {
+    -moz-appearance: none;
+}
+
+#task-actions-toolbar {
+    min-height: 0;
+    padding: 0;
+}
+
+#task-actions-category {
+    list-style-image: url(chrome://calendar/skin/tasks-actions.png);
+    -moz-image-region: rect(0px, 16px, 16px, 0px);
+}
+
+#task-actions-markcompleted {
+    list-style-image: url(chrome://calendar/skin/tasks-actions.png);
+    -moz-image-region: rect(0px, 32px, 16px, 16px);
+}
+
+#task-actions-priority {
+    list-style-image: url(chrome://calendar/skin/tasks-actions.png);
+    -moz-image-region: rect(0px, 48px, 16px, 32px);
+}
+
+#calendar-delete-task-button {
+    list-style-image: url(chrome://calendar/skin/toolbar-small.png);
+    -moz-image-region: rect(0px, 48px, 16px, 32px);
+}
+
+#calendar-add-task-button {
+    list-style-image: url(chrome://calendar/skin/toolbar-small.png);
+    -moz-image-region: rect(0px 256px 16px 240px);
+}
+
+#calendar-add-task-button[disabled="true"] {
+    -moz-image-region: rect(32px 256px 48px 240px);
+}

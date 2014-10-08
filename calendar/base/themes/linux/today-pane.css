@@ -1,0 +1,72 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@import url(chrome://calendar/skin/common/today-pane.css);
+
+#today-pane-panel {
+  border-bottom: 1px solid ThreeDShadow;
+}
+
+#today-pane-panel:-moz-lwtheme > sidebarheader {
+  background-image: linear-gradient(rgba(255, 255, 255, 0.3), rgba(255, 255, 255, 0) 19px);
+}
+
+#today-pane-splitter {
+  -moz-appearance: none;
+  border-bottom: 3px double ThreeDShadow;
+  /* splitter grip area */
+  height: 5px;
+  /* make only the splitter border visible */
+  margin-top: -3px;
+  /* because of the negative margin needed to make the splitter visible */
+  position: relative;
+  z-index: 10;
+}
+
+.miniday-nav-buttons {
+  max-width: 19px;
+}
+
+#next-day-button > .toolbarbutton-icon {
+  -moz-appearance: button-arrow-next;
+}
+
+#previous-day-button > .toolbarbutton-icon {
+  -moz-appearance: button-arrow-previous;
+}
+
+#today-button {
+  max-width: none;
+}
+
+#today-button:hover {
+  list-style-image: url("chrome://calendar/skin/widgets/nav-today-hov.svg");
+}
+
+#miniday-dropdown-button {
+  max-width: 18px;
+}
+
+.today-closebutton {
+  list-style-image: url("chrome://global/skin/icons/close.png");
+  -moz-appearance: none;
+  border: none !important;
+  padding: 2px;
+}
+
+.today-closebutton > .toolbarbutton-icon {
+  -moz-margin-end: 0px; /* override toolkit's default value */
+}
+
+#todaypane-new-event-button {
+  -moz-image-region: rect(0px 16px 16px 0px);
+}
+#todaypane-new-event-button[disabled="true"],
+#todaypane-new-event-button[disabled="true"]:hover,
+#todaypane-new-event-button[disabled="true"]:hover:active {
+  -moz-image-region: rect(32px 16px 48px 0px);
+}
+#todaypane-new-event-button:hover {
+  -moz-image-region: rect(16px 16px 32px 0px);
+}

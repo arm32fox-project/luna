@@ -1,0 +1,15 @@
+; This Source Code Form is subject to the terms of the Mozilla Public
+; License, v. 2.0. If a copy of the MPL was not distributed with this
+; file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+LIBRARY         MapiProxy.dll
+DESCRIPTION     'Proxy/Stub DLL'
+
+EXPORTS
+                DllGetClassObject   @1  PRIVATE
+                DllCanUnloadNow     @2  PRIVATE
+                GetProxyDllInfo     @3  PRIVATE
+                DllRegisterServer   @4  PRIVATE
+                DllUnregisterServer @5  PRIVATE
+
+

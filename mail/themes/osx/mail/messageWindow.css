@@ -1,0 +1,38 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* ===== messageWindow.css ==============================================
+  == Styles for the message window.
+  ======================================================================= */
+
+@import url("chrome://messenger/skin/");
+@import url("chrome://messenger/skin/primaryToolbar.css");
+@import url("chrome://messenger/skin/tagColors.css");
+
+@namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+/* ::::: Mail Toolbars and Menubars ::::: */
+
+.mail-toolbox {
+  border-bottom: 0px;
+}
+
+.mail-toolbox:-moz-lwtheme {
+  background: none !important;
+}
+
+#mail-bar3:-moz-lwtheme {
+  padding-top: 22px;
+}
+
+.mail-toolbox > toolbar:not(:-moz-lwtheme) {
+  -moz-appearance: toolbar;
+}
+
+/* ::::: message header borders ::::: */
+
+#messagepanebox {
+  text-shadow: none;
+  background-color: #FFFFFF;
+}

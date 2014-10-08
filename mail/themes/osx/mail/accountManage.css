@@ -1,0 +1,58 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* ===== accountManage.css ==============================================
+  == Styles for the Mail Account Manager.
+  ======================================================================= */
+
+@import url("chrome://messenger/skin/");
+
+@namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+/* ::::: account manager :::::: */
+
+.specialFolderPickerGrid {
+  -moz-margin-start: 20px;
+}
+
+.fccReplyFollowsParent {
+  -moz-margin-start: 20px;
+}
+
+.signatureBox {
+  font-family: -moz-fixed;
+}
+
+#am-main-title, dialogheader {
+  display: none;
+}
+
+.dialog-button[dlgtype="help"] {
+  display: none;
+}
+
+#accounttree {
+  -moz-margin-end: 8px;
+}
+
+#accountActionsDropdown {
+  min-width: 30ch;
+}
+
+#identitiesList > listitem:first-child,
+treechildren::-moz-tree-cell-text(isDefaultServer-true) {
+  font-weight: bold;
+}
+
+button:not(.spinbuttons-button):not(.dialog-button) {
+  min-height: 19px; /* aqua size for small buttons */
+}
+
+description {
+  margin: 4px 4px 8px;
+}
+
+#archiveTree > treechildren {
+  background-color: #FFFFFF;
+}

@@ -1,0 +1,32 @@
+# vim: set filetype=python:
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+MODULE = 'mozldap'
+
+CPP_SOURCES += [
+    'nsLDAPBERElement.cpp',
+    'nsLDAPBERValue.cpp',
+    'nsLDAPConnection.cpp',
+    'nsLDAPControl.cpp',
+    'nsLDAPMessage.cpp',
+    'nsLDAPModification.cpp',
+    'nsLDAPOperation.cpp',
+    'nsLDAPProtocolModule.cpp',
+    'nsLDAPServer.cpp',
+    'nsLDAPService.cpp',
+    'nsLDAPURL.cpp',
+]
+
+if CONFIG['MOZ_PREF_EXTENSIONS']:
+    CPP_SOURCES += ['nsLDAPSyncQuery.cpp']
+
+if CONFIG['MOZ_PSM']:
+    CPP_SOURCES += ['nsLDAPSecurityGlue.cpp']
+
+EXTRA_COMPONENTS += [
+    'ldapComponents.manifest',
+    'nsLDAPProtocolHandler.js',
+]
+

@@ -1,0 +1,120 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* ===== filterDialog.css ===============================================
+  == Styles for the Mail Filters dialog.
+  ======================================================================= */
+
+@import url("chrome://messenger/skin/");
+
+@namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
+
+#filterListDialog {
+  padding: 0px;
+}
+
+#filterListDialog > hbox {
+   margin: 8px;
+   font: menu;
+}
+
+#filterListDialog > grid {
+   margin: 8px;
+}
+
+/* ::::: columns :::::: */
+
+listcell[enabled="false"] {
+  list-style-image: url("chrome://messenger/skin/icons/dot.png");
+}
+
+listcell[enabled="true"] {
+ list-style-image: url("chrome://messenger/skin/icons/check.png");
+}
+
+.small-button {
+  -moz-appearance: none;
+  font: icon;
+  text-shadow: 0 1px #F2F2F2;
+  border: 1px solid #A8A8A8; 
+  background: linear-gradient(to top, #ECECEC, #ECECEC 50%, #F9F9F9 0%, #F9F9F9);
+  min-width: 22px;
+  height: 20px;
+  padding: 0 1px 1px 0;
+  margin: 0;
+}
+
+.small-button:first-child {
+  margin-left: 1px;
+}
+
+.small-button:not([disabled="true"]):hover:active {
+  background: linear-gradient(to top, #B0B0B0, #B4B4B4 50%, #BFBFBF 0%, #BABABA);
+  border: 1px solid #9C9C9C;
+}
+
+.small-button[disabled="true"] {
+  opacity: 0.6;
+}
+
+.small-button + .small-button,
+.small-button + .small-button:hover:active {
+  border-left-width: 0;
+  min-width: 21px;
+}
+
+.small-button:focus {
+  box-shadow:  inset 0 0 1px -moz-mac-focusring,
+               1px 0 2px 1px -moz-mac-focusring,
+               -1px 0 2px 1px -moz-mac-focusring;
+}
+
+.small-button:focus + .small-button {
+  box-shadow: inset 1px 0 -moz-mac-focusring;
+}
+
+listcell > hbox {
+  -moz-box-pack: end;
+}
+
+/* No '.filler' here, so add margin to make more room. */
+hbox > .small-button + .small-button {
+  -moz-margin-end: 9px;
+}
+
+.search-menulist, .search-value-menulist {
+  width: 12em;
+}
+
+.search-menulist[unavailable="true"] {
+  color: GrayText;
+}
+
+#searchTermList > listitem[selected="true"] {
+  background-color: inherit;
+}
+
+.filler {
+  -moz-padding-end: 22px;
+}
+
+.ruleaction {
+  border: 1px solid transparent;
+}
+
+.ruleactionitem {
+  min-width: 20em;
+}
+
+.ruleaction-type {
+  min-width: 15em;
+}
+
+#countBox[filterActive="matches"] {
+  color: #4e9a06;
+}
+
+#countBox[filterActive="nomatches"] {
+  color: #cc0000;
+}

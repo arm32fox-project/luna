@@ -1,0 +1,35 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+export USE_EXTENSION_MANIFEST = 1
+export XPI_NAME = gdata-provider
+DIST_FILES = install.rdf
+XPI_PKGNAME = gdata-provider-$(GDATA_VERSION).$(AB_CD).$(MOZ_PKG_PLATFORM)
+XPI_VERSION = $(GDATA_VERSION)
+XPI_NO_UNIVERSAL = 1
+
+CALENDAR_VERSION := $(shell cat $(topsrcdir)/calendar/sunbird/config/version.txt)
+THUNDERBIRD_VERSION := $(shell cat $(topsrcdir)/mail/config/version.txt)
+SEAMONKEY_VERSION := $(shell cat $(topsrcdir)/suite/config/version.txt)
+GDATA_VERSION = $(shell $(PYTHON) $(srcdir)/makeversion.py $(CALENDAR_VERSION))
+
+DEFINES += -DAB_CD=$(AB_CD) \
+           -DCALENDAR_VERSION=$(CALENDAR_VERSION) \
+           -DSEAMONKEY_VERSION=$(SEAMONKEY_VERSION) \
+           -DTHUNDERBIRD_VERSION=$(THUNDERBIRD_VERSION) \
+           -DCOMM_BUILD=$(COMM_BUILD) \
+           -DGDATA_VERSION=$(GDATA_VERSION) \
+           $(NULL)
+
+PREF_JS_EXPORTS = $(srcdir)/defaults/preferences.js
+
+include $(topsrcdir)/config/rules.mk
+include $(topsrcdir)/calendar/lightning/lightning-packager.mk

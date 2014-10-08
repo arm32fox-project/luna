@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<!DOCTYPE overlay [
+    <!ENTITY % alarmsDTD SYSTEM "chrome://calendar/locale/preferences/alarms.dtd">
+    <!ENTITY % globalDTD SYSTEM "chrome://calendar/locale/global.dtd">
+    %alarmsDTD;
+    %globalDTD;
+]>
+
+<overlay id="AlarmsPaneOverlay"
+         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+    <vbox id="calPreferencesBoxAlarms">
+        <stringbundle id="bundleCalendarPreferences"
+                      src="chrome://calendar/locale/calendar.properties"/>
+        <script type="application/javascript"
+                src="chrome://calendar/content/preferences/alarms.js"/>
+        <script type="application/javascript"
+                src="chrome://calendar/content/calendar-dialog-utils.js"/>
+
+        <preferences>
+            <preference id="calendar.alarms.playsound"
+                        name="calendar.alarms.playsound"
+                        type="bool"
+                        onchange="gAlarmsPane.alarmsPlaySoundPrefChanged();"/>
+            <preference id="calendar.alarms.soundURL"
+                        name="calendar.alarms.soundURL"
+                        type="string"
+                        onchange="gAlarmsPane.readSoundLocation();"/>
+            <preference id="calendar.alarms.show"
+                        name="calendar.alarms.show"
+                        type="bool"/>
+            <preference id="calendar.alarms.showmissed"
+                        name="calendar.alarms.showmissed"
+                        type="bool"/>
+            <preference id="calendar.alarms.onforevents"
+                        name="calendar.alarms.onforevents"
+                        type="int"/>
+            <preference id="calendar.alarms.onfortodos"
+                        name="calendar.alarms.onfortodos"
+                        type="int"/>
+            <preference id="calendar.alarms.eventalarmlen"
+                        name="calendar.alarms.eventalarmlen"
+                        type="int"/>
+            <preference id="calendar.alarms.eventalarmunit"
+                        name="calendar.alarms.eventalarmunit"
+                        type="string"/>
+            <preference id="calendar.alarms.todoalarmlen"
+                        name="calendar.alarms.todoalarmlen"
+                        type="int"/>
+            <preference id="calendar.alarms.todoalarmunit"
+                        name="calendar.alarms.todoalarmunit"
+                        type="string"/>
+<!--
+            <preference id="calendar.alarms.emailaddress"
+                        name="calendar.alarms.emailaddress"
+                        type="string"/>
+            <preference id="calendar.alarms.text"
+                        name="calendar.alarms.text"
+                        type="string"/>
+-->
+        </preferences>
+
+        <groupbox>
+            <caption label="&pref.alarmgoesoff.label;"/>
+            <vbox>
+                <hbox align="center" flex="1">
+                    <checkbox id="alarmSoundCheckbox"
+                              preference="calendar.alarms.playsound"
+                              label="&pref.playasound;"
+                              accesskey="&pref.calendar.alarms.playsound.accessKey;"/>
+                    <filefield id="alarmSoundFileField"
+                               flex="1"
+                               preference="calendar.alarms.soundURL"
+                               preference-editable="true"
+                               onsyncfrompreference="return gAlarmsPane.readSoundLocation();"/>
+                </hbox>
+                <hbox pack="end">
+                    <button id="calendar.prefs.alarm.sound.useDefault"
+                            label="&pref.calendar.alarms.sound.useDefault.label;"
+                            accesskey="&pref.calendar.alarms.sound.useDefault.accessKey;"
+                            oncommand="gAlarmsPane.useDefaultSound()"/>
+                    <button id="calendar.prefs.alarm.sound.browse"
+                            label="&pref.calendar.alarms.sound.browse.label;"
+                            accesskey="&pref.calendar.alarms.sound.browse.accessKey;"
+                            oncommand="gAlarmsPane.browseAlarm()"/>
+                    <button id="calendar.prefs.alarm.sound.preview"
+                            label="&pref.calendar.alarms.sound.preview.label;"
+                            accesskey="&pref.calendar.alarms.sound.preview.accessKey;"
+                            oncommand="gAlarmsPane.previewAlarm()"/>
+                </hbox>
+            </vbox>
+            <hbox align="center" flex="1">
+                <checkbox id="alarmshow"
+                          preference="calendar.alarms.show"
+                          label="&pref.showalarmbox;"
+                          accesskey="&pref.calendar.alarms.showAlarmBox.accessKey;"/>
+            </hbox>
+            <hbox align="center" flex="1">
+                <checkbox id="missedalarms"
+                          preference="calendar.alarms.showmissed"
+                          label="&pref.missedalarms;"
+                          accesskey="&pref.calendar.alarms.missedAlarms.accessKey;"/>
+            </hbox>
+        </groupbox>
+
+        <groupbox>
+            <caption label="&pref.calendar.alarms.defaults.label;"/>
+            <grid>
+                <columns>
+                    <column flex="1"/>
+                    <column/>
+                </columns>
+                <rows>
+                    <row align="center">
+                        <label value="&pref.defalarm4events.label;"
+                               accesskey="&pref.defalarm4events.accesskey;"
+                               control="eventdefalarm"/>
+                        <menulist id="eventdefalarm"
+                                  crop="none"
+                                  preference="calendar.alarms.onforevents">
+                            <menupopup id="eventdefalarmpopup">
+                                <menuitem id="eventdefalarmon"
+                                          label="&pref.alarm.on;"
+                                          value="1"/>
+                                <menuitem id="eventdefalarmoff"
+                                          label="&pref.alarm.off;"
+                                          value="0"
+                                          selected="true"/>
+                            </menupopup>
+                        </menulist>
+                    </row>
+                    <row align="center">
+                        <label value="&pref.defalarm4todos.label;"
+                               accesskey="&pref.defalarm4todos.accesskey;"
+                               control="tododefalarm"/>
+                        <menulist id="tododefalarm"
+                                  crop="none"
+                                  preference="calendar.alarms.onfortodos">
+                            <menupopup id="tododefalarmpopup">
+                                <menuitem id="tododefalarmon"
+                                          label="&pref.alarm.on;"
+                                          value="1"/>
+                                <menuitem id="tododefalarmoff"
+                                          label="&pref.alarm.off;"
+                                          value="0"
+                                          selected="true"/>
+                            </menupopup>
+                        </menulist>
+                    </row>
+                    <row align="center">
+                        <label value="&pref.defalarmlen4events.label;"
+                               accesskey="&pref.defalarmlen4events.accesskey;"
+                               control="eventdefalarmlen"/>
+                        <hbox align="center">
+                            <textbox id="eventdefalarmlen"
+                                     preference="calendar.alarms.eventalarmlen"
+                                     type="number"
+                                     min="0"
+                                     size="3"
+                                     oninput="gAlarmsPane.updateMenuPlural('eventdefalarmlen','eventdefalarmunit')"/>
+                            <menulist id="eventdefalarmunit"
+                                      crop="none"
+                                      preference="calendar.alarms.eventalarmunit"
+                                      labelnumber="labelplural">
+                                <menupopup id="eventdefalarmunitpopup">
+                                    <menuitem id="eventdefalarmunitmin"
+                                              label="&calendar.global.units.minutes;"
+                                              labelplural="&calendar.global.units.minutes;"
+                                              labelsingular="&calendar.global.units.minute;"
+                                              value="minutes"
+                                              selected="true"/>
+                                    <menuitem id="eventdefalarmunithour"
+                                              label="&calendar.global.units.hours;"
+                                              labelplural="&calendar.global.units.hours;"
+                                              labelsingular="&calendar.global.units.hour;"
+                                              value="hours"/>
+                                    <menuitem id="eventdefalarmunitday"
+                                              label="&calendar.global.units.days;"
+                                              labelplural="&calendar.global.units.days;"
+                                              labelsingular="&calendar.global.units.day;"
+                                              value="days"/>
+                                </menupopup>
+                            </menulist>
+                        </hbox>
+                    </row>
+                    <row align="center">
+                        <label value="&pref.defalarmlen4todos.label;"
+                               accesskey="&pref.defalarmlen4todos.accesskey;"
+                               control="tododefalarmlen"/>
+                        <hbox align="center">
+                            <textbox id="tododefalarmlen"
+                                     preference="calendar.alarms.todoalarmlen"
+                                     type="number"
+                                     min="0"
+                                     size="3"
+                                     oninput="gAlarmsPane.updateMenuPlural('tododefalarmlen','tododefalarmunit')"/>
+                            <menulist id="tododefalarmunit"
+                                      crop="none"
+                                      preference="calendar.alarms.todoalarmunit"
+                                      labelnumber="labelplural">
+                                <menupopup id="tododefalarmunitpopup">
+                                    <menuitem id="tododefalarmunitmin"
+                                              label="&calendar.global.units.minutes;"
+                                              labelplural="&calendar.global.units.minutes;"
+                                              labelsingular="&calendar.global.units.minute;"
+                                              value="minutes"
+                                              selected="true"/>
+                                    <menuitem id="tododefalarmunithour"
+                                              label="&calendar.global.units.hours;"
+                                              labelplural="&calendar.global.units.hours;"
+                                              labelsingular="&calendar.global.units.hour;"
+                                              value="hours"/>
+                                    <menuitem id="tododefalarmunitday"
+                                              label="&calendar.global.units.days;"
+                                              labelplural="&calendar.global.units.days;"
+                                              labelsingular="&calendar.global.units.day;"
+                                              value="days"/>
+                                </menupopup>
+                            </menulist>
+                        </hbox>
+                    </row>
+                </rows>
+            </grid>
+
+<!--
+            <hbox collapsed="true">
+                <caption label="&pref.defaultemail.label;"/>
+                <textbox id="alarmemailaddress"
+                         preference="calendar.alarms.emailaddress"
+                         flex="1"/>
+            </hbox>
+            <hbox collapsed="true">
+                <caption label="&pref.defaulttext.label;"/>
+                <textbox id="alarmtext"
+                         preference="calendar.alarm.text"
+                         flex="1"/>
+            </hbox>
+-->
+        </groupbox>
+
+    </vbox>
+</overlay>

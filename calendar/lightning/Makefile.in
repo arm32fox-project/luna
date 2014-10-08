@@ -1,0 +1,149 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+# Calendar builders currently use STRIP_XPI to reduce the binary component in
+# Lightning.
+
+export XPI_NAME = lightning
+export USE_EXTENSION_MANIFEST = 1
+XPI_PKGNAME = lightning-$(LIGHTNING_VERSION).$(AB_CD).$(MOZ_PKG_PLATFORM)
+XPI_VERSION = $(LIGHTNING_VERSION)
+
+XPI_EM_ID = {e2fda1a4-762b-4020-b5ad-a41df1933103}
+
+DIST_FILES = install.rdf application.ini
+PREF_JS_EXPORTS = $(srcdir)/content/lightning.js
+
+# Lighting version number
+LIGHTNING_VERSION := $(shell cat $(srcdir)/../sunbird/config/version.txt)
+THUNDERBIRD_VERSION := $(shell cat $(topsrcdir)/mail/config/version.txt)
+SEAMONKEY_VERSION := $(shell cat $(topsrcdir)/suite/config/version.txt)
+GDATA_VERSION := $(shell $(PYTHON) $(topsrcdir)/calendar/providers/gdata/makeversion.py $(LIGHTNING_VERSION))
+
+# For extensions we require a max version that is compatible across security releases.
+# THUNDERBIRD_MAXVERSION and SEAMONKEY_MAXVERSION is our method for doing that.
+# Alpha versions 10.0a1 and 10.0a2 aren't affected
+# For Seamonkey, 2.17 becomes 2.17.*, 2.17.1 becomes 2.17.*
+# For Thunderbird, 10.0 becomes 10.*, 10.0.1 becomes 10.*
+THUNDERBIRD_MAXVERSION := $(THUNDERBIRD_VERSION)
+ifneq (a,$(findstring a,$(THUNDERBIRD_VERSION)))
+THUNDERBIRD_MAXVERSION := $(shell echo $(THUNDERBIRD_VERSION) | sed "s|\(^[0-9]*\)\.\([0-9]*\).*|\1|" ).*
+endif
+
+SEAMONKEY_MAXVERSION := $(SEAMONKEY_VERSION)
+ifneq (a,$(findstring a,$(SEAMONKEY_VERSION)))
+SEAMONKEY_MAXVERSION := $(shell echo $(SEAMONKEY_VERSION) | sed "s|\(^[0-9]*.[0-9]*\).*|\1|" ).*
+endif
+
+ifneq (,$(findstring a,$(LIGHTNING_VERSION)))
+DEFINES += -DLIGHTNING_PRERELEASE_VERSION=1
+endif
+
+# Enable nightly updates on aurora and nightly channel
+ifeq (nightly,$(subst aurora,nightly,$(MOZ_UPDATE_CHANNEL)))
+DEFINES += -DLIGHTNING_UPDATE_LOCATION=https://calendar.mozilla.org/update.php
+endif
+
+# Gecko milestone
+GRE_MILESTONE = $(shell $(PYTHON) $(MOZILLA_SRCDIR)/config/printconfigsetting.py $(LIBXUL_DIST)/bin/platform.ini Build Milestone)
+ifdef GRE_MILESTONE
+DEFINES += -DGRE_MILESTONE=$(GRE_MILESTONE)
+endif
+
+# comm-central source repo and stamp
+SOURCE_STAMP ?= $(firstword $(shell hg -R $(topsrcdir) parent --template="{node|short}\n" 2>/dev/null))
+ifdef SOURCE_STAMP
+DEFINES += -DSOURCE_STAMP="$(SOURCE_STAMP)"
+endif
+
+SOURCE_REPO := $(shell hg -R $(topsrcdir) showconfig paths.default 2>/dev/null | sed -e "s/^ssh:/http:/")
+ifdef SOURCE_REPO
+DEFINES += -DSOURCE_REPO="$(SOURCE_REPO)"
+endif
+
+# Mozilla source repo and stamps
+MOZ_SOURCE_STAMP = $(firstword $(shell hg -R $(MOZILLA_SRCDIR) parent --template="{node|short}\n" 2>/dev/null))
+ifdef MOZ_SOURCE_STAMP
+DEFINES += -DMOZ_SOURCE_STAMP="$(MOZ_SOURCE_STAMP)"
+endif
+
+MOZ_SOURCE_REPO := $(shell hg -R $(MOZILLA_SRCDIR) showconfig paths.default 2>/dev/null | sed -e "s/^ssh:/http:/")
+ifdef MOZ_SOURCE_REPO
+DEFINES += -DMOZ_SOURCE_REPO="$(MOZ_SOURCE_REPO)"
+endif
+
+# include config.mk here so myconfig or app-config can set DISABLE_LIGHTNING_INSTALL
+include $(topsrcdir)/config/config.mk
+
+# installing lightning in a thunderbird build causes problems on tinderboxes
+# (see bug 406441 and bug 440017), so we need to provide a hook for the
+# tinderboxen to disable that.
+ifndef DISABLE_LIGHTNING_INSTALL
+# install Lightning as a global extension in dist/bin/extensions/
+INSTALL_EXTENSION_ID = $(XPI_EM_ID)
+endif
+
+ifneq (,$(filter gtk2 qt,$(MOZ_WIDGET_TOOLKIT)))
+THEME=linux
+else
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+THEME=osx
+else
+THEME=windows
+endif
+endif
+
+DEFINES += -DTHUNDERBIRD_VERSION=$(THUNDERBIRD_VERSION) \
+           -DTHUNDERBIRD_MAXVERSION=$(THUNDERBIRD_MAXVERSION) \
+           -DAB_CD=$(AB_CD) \
+           -DSEAMONKEY_VERSION=$(SEAMONKEY_VERSION) \
+           -DSEAMONKEY_MAXVERSION=$(SEAMONKEY_MAXVERSION) \
+           -DLIGHTNING_VERSION=$(LIGHTNING_VERSION) \
+           -DTARGET_PLATFORM=$(OS_TARGET)_$(TARGET_XPCOM_ABI) \
+           -DXPI_EM_ID=$(XPI_EM_ID) \
+           -DTHEME=$(THEME) \
+           $(NULL)
+
+GRE_BUILDID = $(shell $(PYTHON) $(MOZILLA_SRCDIR)/config/printconfigsetting.py $(LIBXUL_DIST)/bin/platform.ini Build BuildID)
+DEFINES += -DGRE_BUILDID=$(GRE_BUILDID)
+
+# xxx todo: unless our packaging story is revised (bug 406579) we package up timezones.sqlite
+libs::
+	$(NSINSTALL) -m 0644 $(srcdir)/../timezones/timezones.sqlite $(FINAL_TARGET)
+
+include $(topsrcdir)/config/rules.mk
+include $(srcdir)/lightning-packager.mk
+
+# For Lightning, we also need to preprocess the l10n prefs
+repack-process-extrafiles: lightning-extrafiles
+lightning-extrafiles: LOCALE_BASEDIR=$(call EXPAND_LOCALE_SRCDIR,calendar/locales)
+lightning-extrafiles:
+	$(PYTHON) $(MOZILLA_SRCDIR)/config/Preprocessor.py $(PREF_PPFLAGS) $(DEFINES) $(ACDEFINES) $(XULPPFLAGS) $(LOCALE_BASEDIR)/lightning-l10n.js  > $(DIST)/$(UNIVERSAL_PATH)xpi-stage/$(L10N_XPI_NAME)/$(PREF_DIR)/lightning-l10n.js
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+# If the macbundle dist dir was already created, sync lightning here to avoid
+# the need to make -C objdir/mail/app each time
+libs::
+	[ -d $(DIST)/$(MOZ_MACBUNDLE_NAME) ] && rsync -aL $(FINAL_TARGET)/ $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/MacOS/extensions/$(XPI_EM_ID) || true
+endif
+
+ident:
+	@printf "comm_revision "
+	@$(PYTHON) $(MOZILLA_SRCDIR)/config/printconfigsetting.py \
+	    $(FINAL_TARGET)/application.ini App SourceStamp
+	@printf "moz_revision "
+	@$(PYTHON) $(MOZILLA_SRCDIR)/config/printconfigsetting.py \
+	    $(FINAL_TARGET)/application.ini Build SourceStamp
+	@printf "buildid "
+	@$(PYTHON) $(MOZILLA_SRCDIR)/config/printconfigsetting.py \
+	    $(FINAL_TARGET)/application.ini App BuildID
+
+include $(srcdir)/lightning-symbols.mk

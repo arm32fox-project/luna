@@ -1,0 +1,264 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+DEPTH		= @DEPTH@
+topsrcdir	= @top_srcdir@
+srcdir		= @srcdir@
+VPATH		= @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+AB_CD = $(MOZ_UI_LOCALE) 
+
+GRE_MILESTONE = $(shell $(PYTHON) $(MOZILLA_SRCDIR)/config/printconfigsetting.py $(LIBXUL_DIST)/bin/platform.ini Build Milestone)
+GRE_BUILDID = $(shell $(PYTHON) $(MOZILLA_SRCDIR)/config/printconfigsetting.py $(LIBXUL_DIST)/bin/platform.ini Build BuildID)
+
+MOZ_SOURCE_STAMP = $(firstword $(shell hg -R $(topsrcdir) parent --template="{node|short}\n" 2>/dev/null))
+ifdef MOZ_SOURCE_STAMP
+DEFINES += -DMOZ_SOURCE_STAMP="$(MOZ_SOURCE_STAMP)"
+endif
+
+SOURCE_REPO := $(shell hg -R $(topsrcdir) showconfig paths.default 2>/dev/null | sed -e "s/^ssh:/http:/")
+ifdef SOURCE_REPO
+DEFINES += -DMOZ_SOURCE_REPO="$(SOURCE_REPO)"
+endif
+
+ifdef MOZILLA_OFFICIAL
+DEFINES += -DMOZILLA_OFFICIAL
+endif
+
+PREF_JS_EXPORTS = \
+    $(srcdir)/profile/all-thunderbird.js \
+    $(srcdir)/profile/channel-prefs.js \
+    $(NULL)
+
+DEFINES += \
+  -DAB_CD=$(AB_CD) \
+  -DAPP_VERSION="$(MOZ_APP_VERSION)" \
+  -DTHUNDERBIRD_ICO=\"$(DIST)/branding/thunderbird.ico\" \
+  -DGRE_MILESTONE=$(GRE_MILESTONE) \
+  -DGRE_BUILDID=$(GRE_BUILDID) \
+   $(NULL)
+
+ifdef LIBXUL_SDK
+include $(topsrcdir)/config/rules.mk
+else
+# Build a binary bootstrapping with XRE_main
+
+DIST_FILES = application.ini
+
+LOCAL_INCLUDES += \
+  -I$(MOZILLA_SRCDIR)/toolkit/xre \
+  -I$(MOZILLA_SRCDIR)/xpcom/base \
+  -I$(MOZILLA_SRCDIR)/xpcom/build \
+  $(NULL)
+
+DEFINES += -DXPCOM_GLUE
+STL_FLAGS=
+
+LIBS += \
+	$(EXTRA_DSO_LIBS) \
+	$(XPCOM_STANDALONE_GLUE_LDOPTS) \
+	$(NULL)
+
+ifdef MOZ_LINKER
+LIBS += $(MOZ_ZLIB_LIBS)
+endif
+
+ifndef MOZ_WINCONSOLE
+ifdef MOZ_DEBUG
+MOZ_WINCONSOLE = 1
+else
+MOZ_WINCONSOLE = 0
+endif
+endif
+
+# This switches $(INSTALL) to copy mode, like $(SYSINSTALL), so things that
+# shouldn't get 755 perms need $(IFLAGS1) for either way of calling nsinstall.
+NSDISTMODE = copy
+
+include $(topsrcdir)/config/config.mk
+
+ifdef _MSC_VER
+# Always enter a Windows program through wmain, whether or not we're
+# a console application.
+WIN32_EXE_LDFLAGS += -ENTRY:wmainCRTStartup
+endif
+
+ifeq ($(OS_ARCH),WINNT)
+# Extract the icons we care about embedding into the EXE
+mailtoolbar = $(topsrcdir)/mail/themes/windows/mail/icons/mail-toolbar-aero.png
+# Each icon is 18x18 in the toolbar, and we want a 16x16 icon here, so we cut
+# off a pixel at each end.
+embedded-icons::
+	$(call png2ico,$(mailtoolbar),19,1,16,write-message.ico)
+	$(call png2ico,$(mailtoolbar),37,1,16,address-book.ico)
+
+GARBAGE += write-message.ico address-book.ico
+
+RCINCLUDE = splash.rc
+# Rebuild thunderbird.exe if the manifest changes - it's included by splash.rc.
+# (this dependency should really be just for thunderbird.exe, not other targets)
+EXTRA_DEPS += $(PROGRAM).manifest
+ifndef GNU_CC
+RCFLAGS += -DMOZ_THUNDERBIRD -I$(srcdir)
+else
+RCFLAGS += -DMOZ_THUNDERBIRD --include-dir $(srcdir)
+endif
+endif
+
+ifeq ($(OS_ARCH),OS2)
+RESFILE=splashos2.res
+RCFLAGS += -DMOZ_THUNDERBIRD
+RCFLAGS += -DTHUNDERBIRD_ICO=\"$(DIST)/branding/thunderbird.ico\"
+endif
+
+include $(topsrcdir)/config/rules.mk
+
+ifeq ($(OS_ARCH),WINNT)
+
+$(RESFILE): embedded-icons
+
+#
+# Control the default heap size.
+# This is the heap returned by GetProcessHeap().
+# As we use the CRT heap, the default size is too large and wastes VM.
+#
+# The default heap size is 1MB on Win32.
+# The heap will grow if need be.
+#
+# Set it to 256k.  See bug 127069.
+#
+ifndef GNU_CC
+LDFLAGS += /HEAP:0x40000
+ifeq ($(OS_TEST),x86_64)
+# set stack to 2MB on x64 build.  See bug 582910                                
+LDFLAGS += -STACK:2097152
+endif
+endif
+endif
+
+ifneq (,$(filter-out OS2 WINNT,$(OS_ARCH)))
+libs::
+	cp -p $(MOZ_APP_NAME)$(BIN_SUFFIX) $(DIST)/bin/$(MOZ_APP_NAME)-bin$(BIN_SUFFIX)
+
+GARBAGE += $(addprefix $(DIST)/bin/defaults/pref/, all.js all-thunderbird.js channel-prefs.js mailnews.js)
+endif # ! OS 2 or WinNT
+
+endif # LIBXUL_SDK
+
+ifneq (,$(filter windows os2,$(MOZ_WIDGET_TOOLKIT)))
+ICON_SUFFIX=.ico
+
+DESKTOP_ICONS = \
+	abcardWindow \
+	addressbookWindow \
+	msgcomposeWindow \
+	$(NULL) 
+
+BRANDED_ICONS = \
+	messengerWindow \
+	$(NULL)
+
+
+DESKTOP_ICON_FILES = $(addsuffix $(ICON_SUFFIX), $(DESKTOP_ICONS) $(DESKTOP_ICONS_SMALL))
+BRANDED_ICON_FILES = $(addsuffix $(ICON_SUFFIX), $(BRANDED_ICONS) $(BRANDED_ICONS_SMALL))
+
+libs:: $(addprefix icons/$(MOZ_WIDGET_TOOLKIT)/,$(DESKTOP_ICON_FILES))
+	$(INSTALL) $(IFLAGS1) $^ $(DIST)/bin/chrome/icons/default
+
+libs:: $(addprefix $(DIST)/branding/,$(BRANDED_ICON_FILES))
+	$(INSTALL) $(IFLAGS1) $^ $(DIST)/bin/chrome/icons/default
+
+install:: $(addprefix icons/$(MOZ_WIDGET_TOOLKIT)/,$(DESKTOP_ICON_FILES))
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/chrome/icons/default
+
+install:: $(addprefix $(DIST)/branding,$(BRANDED_ICON_FILES))
+	$(SYSINSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)/chrome/icons/default
+endif
+
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
+libs::
+	$(INSTALL) $(IFLAGS1) $(DIST)/branding/default* $(DIST)/bin/chrome/icons/default
+
+install::
+	$(SYSINSTALL) $(IFLAGS1) $(DIST)/branding/default* $(DESTDIR)$(mozappdir)/chrome/icons/default
+endif
+
+libs:: $(srcdir)/profile/prefs.js
+	$(INSTALL) $(IFLAGS1) $^ $(DIST)/bin/defaults/profile
+
+libs:: $(srcdir)/blocklist.xml
+	$(INSTALL) $(IFLAGS1) $^ $(DIST)/bin
+
+ifdef ENABLE_TESTS
+# Bug 680203 - When making and running packaged tests on our buildbots,
+# Lightning is not included in the package, so Lightning tests cannot run
+# properly even though we build Lightning.
+libs::
+	sed -e '/calendar/d' $(MOZDEPTH)/_tests/xpcshell/xpcshell.ini >$(MOZDEPTH)/_tests/xpcshell/all-test-dirs.list
+endif
+
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+
+MAC_APP_NAME = $(MOZ_APP_DISPLAYNAME)
+
+ifdef MOZ_DEBUG
+MAC_APP_NAME := $(MAC_APP_NAME)Debug
+endif
+
+LOWER_MAC_APP_NAME = $(shell echo $(MAC_APP_NAME) | tr '[A-Z]' '[a-z]')
+
+AB_CD = $(MOZ_UI_LOCALE)
+
+AB := $(firstword $(subst -, ,$(AB_CD)))
+
+clean clobber repackage::
+	$(RM) -r $(DIST)/$(MOZ_MACBUNDLE_NAME)
+
+ifdef LIBXUL_SDK
+APPFILES = Resources
+else
+APPFILES = MacOS
+endif
+
+libs repackage:: $(PROGRAM)
+	$(MKDIR) -p $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/MacOS
+	rsync -a --exclude "*.in" $(srcdir)/macbuild/Contents $(DIST)/$(MOZ_MACBUNDLE_NAME) --exclude English.lproj
+	$(MKDIR) -p $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/Resources/$(AB).lproj
+	rsync -a --exclude "*.in" $(srcdir)/macbuild/Contents/Resources/English.lproj/ $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/Resources/$(AB).lproj
+	sed -e "s/%APP_VERSION%/$(MOZ_APP_VERSION)/" -e "s/%MAC_APP_NAME%/$(MAC_APP_NAME)/" -e "s/%LOWER_MAC_APP_NAME%/$(LOWER_MAC_APP_NAME)/" $(srcdir)/macbuild/Contents/Info.plist.in > $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/Info.plist
+	sed -e "s/%MAC_APP_NAME%/$(MAC_APP_NAME)/" $(srcdir)/macbuild/Contents/Resources/English.lproj/InfoPlist.strings.in | iconv -f UTF-8 -t UTF-16 > $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/Resources/$(AB).lproj/InfoPlist.strings
+	rsync -a $(DIST)/bin/ $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/$(APPFILES)
+ifdef LIBXUL_SDK
+	cp $(LIBXUL_DIST)/bin/$(XR_STUB_NAME) $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/MacOS/thunderbird
+else
+	$(RM) $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/MacOS/$(PROGRAM)
+	rsync -aL $(PROGRAM) $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/MacOS
+endif
+	$(MKDIR) -p $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/Library/Spotlight
+	rsync -a --copy-unsafe-links $(DIST)/package/thunderbird.mdimporter $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/Library/Spotlight
+	cp -RL $(DIST)/branding/thunderbird.icns $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/Resources/thunderbird.icns
+	printf APPLMOZM > $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/PkgInfo
+else
+ifdef LIBXUL_SDK
+libs::
+	cp $(LIBXUL_DIST)/bin/$(XULRUNNER_STUB_NAME)$(BIN_SUFFIX) $(DIST)/bin/thunderbird$(BIN_SUFFIX)
+endif
+endif
+
+ifdef LIBXUL_SDK
+ifndef SKIP_COPY_XULRUNNER
+libs::
+ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
+	rsync -a --copy-unsafe-links $(LIBXUL_DIST)/XUL.framework $(DIST)/$(MOZ_MACBUNDLE_NAME)/Contents/Frameworks
+else
+	$(NSINSTALL) -D $(DIST)/bin/xulrunner
+	(cd $(LIBXUL_SDK)/bin && tar $(TAR_CREATE_FLAGS) - .) | (cd $(DIST)/bin/xulrunner && tar -xf -)
+endif # cocoa
+endif # SKIP_COPY_XULRUNNER
+endif # LIBXUL_SDK
+
+# Note that anything you do to dist/ down here isn't going to make it into the
+# Mac build, since it's already been copied over to the .app, above.

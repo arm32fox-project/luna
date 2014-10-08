@@ -1,0 +1,198 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+/* Calendar list rules */
+#calendar-panel {
+    padding-bottom: 5px;
+}
+
+/* Lightning preferences icon */
+radio[pane=paneLightning] {
+    list-style-image: url("chrome://calendar/skin/cal-icon32.png");
+}
+
+/* iMIP notification bar */
+#imip-bar > image {
+    list-style-image: url("chrome://calendar/skin/cal-icon32.png");
+    -moz-margin-end: 8px;
+}
+
+/* ::::: tabs ::::: */
+
+/* ::: new tab buttons ::: */
+#calendar-tab-button {
+    list-style-image: url(chrome://lightning/skin/mode-switch-icons.png);
+    -moz-image-region: rect(0px 98px 18px 80px);
+}
+
+#calendar-tab-button:not([disabled]):active {
+    -moz-image-region: rect(18px 98px 36px 80px);
+}
+
+#task-tab-button {
+    list-style-image: url(chrome://lightning/skin/mode-switch-icons.png);
+    -moz-image-region: rect(0px 116px 18px 98px);
+}
+
+#task-tab-button:not([disabled]):active {
+    -moz-image-region: rect(18px 116px 36px 98px);
+}
+
+/* ::: tab icons ::: */
+.icon-holder[type="calendar"],
+.tabmail-tab[type="calendar"] {
+    list-style-image: url(chrome://lightning/skin/mode-switch-icons.png);
+    -moz-image-region: rect(0px 64px 16px 48px);
+}
+
+.icon-holder[type="calendar"][selected="true"],
+.tabmail-tab[type="calendar"][selected="true"] {
+    -moz-image-region: rect(16px 64px 32px 48px);
+}
+
+.icon-holder[type="tasks"],
+.tabmail-tab[type="tasks"] {
+    list-style-image: url(chrome://lightning/skin/mode-switch-icons.png);
+    -moz-image-region: rect(0px 80px 16px 64px);
+}
+
+.icon-holder[type="tasks"][selected="true"],
+.tabmail-tab[type="tasks"][selected="true"] {
+    -moz-image-region: rect(16px 80px 32px 64px);
+}
+
+
+
+/* Lightning sidebar background in calendar and task mode */
+#ltnSidebar {
+  background-color: -moz-field;  
+}
+
+/* Write button */
+#newMsgButton-mail-menuitem {
+  list-style-image: url(chrome://calendar/skin/toolbar.png);
+  -moz-image-region: rect(18px 90px 36px 72px);
+}
+
+#newMsgButton-calendar-menuitem {
+  list-style-image: url(chrome://calendar/skin/toolbar.png);
+  -moz-image-region: rect(18px 36px 36px 18px);
+}
+
+#newMsgButton-task-menuitem {
+  list-style-image: url(chrome://calendar/skin/toolbar.png);
+  -moz-image-region: rect(18px 72px 36px 54px);
+}
+
+/* Today pane button in status bar */
+#calendar-status-todaypane-button,
+#calendar-status-todaypane-button[checked="true"] {
+  min-width: 0;
+  min-height: 0;
+  margin: 1px 0 0;
+  -moz-appearance: none;
+  padding: 0 2px !important;
+  border: none;
+  background-color: transparent;
+}
+
+#calendar-status-todaypane-button > stack > .toolbarbutton-icon-begin {
+  list-style-image: url(chrome://calendar/skin/toolbar.png);
+  -moz-image-region: rect(1px 161px 18px 145px);
+}
+
+#calendar-status-todaypane-button:active > stack > .toolbarbutton-icon-begin {
+  -moz-image-region: rect(19px 161px 36px 145px);
+}
+
+#calendar-status-todaypane-button[checked="true"] > stack > .toolbarbutton-icon-begin {
+  -moz-image-region: rect(37px 161px 54px 145px);
+}
+
+#calendar-status-todaypane-button > stack > .toolbarbutton-day-text {
+  text-align: center;
+  margin:4px 0 -4px 0;
+  font-size: 7pt;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: bold;
+  text-shadow: none;
+  color: #0969B2;
+  background-color: transparent;
+}
+
+/* shift the today pane button label up by one pixel to center it */
+#calendar-status-todaypane-button > .toolbarbutton-text {
+  margin: 0 6px 1px !important;
+}
+
+#calendar-status-todaypane-button[checked="true"] > .toolbarbutton-text {
+  color: #0969B2;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+
+#calendar-status-todaypane-button > .toolbarbutton-icon-end {
+  list-style-image: url(chrome://global/skin/icons/collapse.png);
+}
+
+#calendar-status-todaypane-button[checked="true"] > .toolbarbutton-icon-end {
+  list-style-image: url(chrome://global/skin/icons/expand.png);
+}  
+
+#calMinimonthBox {
+    margin-top: 3px;
+}
+
+.calendar-splitter {
+  height: 8px !important;
+  min-height: 8px;
+  background-image: url("chrome://messenger/skin/icons/vertical-threadpane-splitter-bg.gif");
+  background-repeat: repeat-y;
+  -moz-border-start: 1px solid #A6A6A6;
+  -moz-border-end: 1px solid #8C8C8C;
+}
+
+.calendar-splitter:-moz-locale-dir(rtl) {
+  background-image: url("chrome://messenger/skin/icons/vertical-threadpane-splitter-bg-rtl.gif");
+}
+
+/* The orient="vertical" isn't which direction the splitter itself runs, it's
+   actually which way its parent lays out its children, so when it's vertical,
+   the splitter is a horizontal bar. */
+.calendar-splitter[orient="vertical"] {
+  background-image: url("chrome://messenger/skin/icons/threadpane-splitter-bg.gif");
+  background-repeat: repeat-x;
+  border-top: 1px solid #A6A6A6;
+  border-bottom: 1px solid #8C8C8C;
+  -moz-border-start-width: 0;
+  -moz-border-end-width: 0;
+}
+
+.calendar-splitter[state="collapsed"] {
+  border-bottom-width: 0;
+  -moz-border-end: 0;
+}
+
+.calendar-sidebar-splitter {
+  background-image: none;
+  min-width: 3px;
+  width: 3px;
+}
+
+#calsidebar_splitter[state="collapsed"] {
+  min-width: 5px;
+  width: 5px;
+  -moz-margin-start: 1px;
+  background: url("chrome://global/skin/splitter/dimple.png") transparent no-repeat center;
+}
+
+#today-splitter {
+  -moz-border-start: 1px solid #8B8B8B;
+  -moz-margin-end: -2px;
+  position: relative;
+}
+
+#ltnSidebar {
+  -moz-border-end: 1px solid #8B8B8B;
+  -moz-margin-end: -3px !important;
+}

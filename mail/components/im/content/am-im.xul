@@ -1,0 +1,51 @@
+<?xml version="1.0"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+
+<!DOCTYPE window SYSTEM "chrome://messenger/locale/am-im.dtd">
+
+<page
+  id     = "account"
+  title  = "&accountWindow.title;"
+  buttons= "accept,cancel"
+  xmlns  = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+  onload = "parent.onPanelLoaded('am-im.xul');">
+  <script type="application/javascript" src="chrome://messenger/content/am-im.js"/>
+
+  <hbox>
+    <image id="protocolIcon"/>
+    <vbox flex="1">
+      <label id="accountName" crop="end" class="header"/>
+      <label id="protocolName"/>
+    </vbox>
+  </hbox>
+  <separator/>
+
+  <hbox id="passwordBox" equalsize="always" align="baseline">
+    <label value="&account.password;" control="server.password" flex="1"/>
+    <textbox id="server.password" flex="1" type="password"
+             preftype="wstring" genericattr="true"/>
+  </hbox>
+  <separator class="groove"/>
+
+  <hbox id="aliasBox" equalsize="always" align="baseline">
+    <label value="&account.alias;" control="server.alias" flex="1"/>
+    <textbox id="server.alias" flex="1" preftype="wstring"
+             wsm_persist="true" genericattr="true"/>
+  </hbox>
+
+  <separator class="groove" hidden="true" id="optionalSeparator"/>
+
+  <vbox id="autojoinBox" hidden="true">
+    <label value="&account.autojoin;" control="server.autojoin" flex="1"/>
+    <textbox id="server.autojoin" flex="1" preftype="wstring" genericattr="true"/>
+  </vbox>
+
+  <groupbox id="advanced">
+    <caption label="&account.advanced;"/>
+    <vbox id="protoSpecific" flex="1"/>
+  </groupbox>
+</page>

@@ -1,0 +1,277 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+%include messenger.css
+
+treechildren::-moz-tree-cell-text {
+  -moz-padding-start: 2px;
+}
+
+.toolbar-primary {
+  -moz-appearance: none;
+}
+
+.toolbarbutton-1[checked="true"] {
+  padding: 1px 5px !important;
+}
+
+#searchInput,
+#IMSearchInput,
+.remote-gloda-search {
+  background-clip: padding-box;
+  border: 1px solid ThreeDShadow;
+  border-radius: 2px;
+  min-height: 24px;
+  margin-top: 1px;
+  margin-bottom: 1px;
+  width: 25em;
+}
+
+.remote-gloda-search-container {
+  padding-top: 1px;
+  padding-bottom: 1px;
+}
+
+#tabmail-buttons > toolbarbutton {
+  margin-top: 3px;
+  margin-bottom: 0;
+}
+
+@media (-moz-windows-default-theme) {
+  #searchInput,
+  #IMSearchInput,
+  .remote-gloda-search {
+    border-color: hsla(210, 54%, 20%, .25) hsla(210, 54%, 20%, .27)
+                  hsla(210, 54%, 20%, .3);
+    box-shadow: 0 1px hsla(0, 0%, 0%, .01) inset,
+                0 1px hsla(0, 0%, 100%, .1);
+  }
+
+  #searchInput:-moz-lwtheme,
+  #IMSearchInput:-moz-lwtheme,
+  .remote-gloda-search:-moz-lwtheme {
+    border-color: rgba(0, 0, 0, .32);
+    color: black;
+  }
+
+  listitem,
+  treechildren::-moz-tree-row {
+    min-height: 1.7em;
+    color: -moz-FieldText;
+    -moz-margin-start: 1px;
+    -moz-margin-end: 1px;
+    border-radius: 3px;
+    border: 2px solid transparent!important;
+    background-image: linear-gradient(transparent, transparent) !important;
+    background-repeat: no-repeat;
+    background-size: 100% 100%;
+  }
+
+  listitem[selected="true"],
+  treechildren::-moz-tree-row(selected) {
+    -moz-border-top-colors: rgb(217, 217, 217)
+                            rgba(255, 255, 255, .4) !important;
+    -moz-border-right-colors: rgb(217, 217, 217)
+                              rgba(255, 255, 255, .4) !important;
+    -moz-border-left-colors: rgb(217, 217, 217)
+                             rgba(255, 255, 255, .4) !important;
+    -moz-border-bottom-colors: rgb(217, 217, 217)
+                               rgba(255, 255, 255, .6) !important;
+    background-image: linear-gradient(rgba(190, 190, 190, .1),
+                                      rgba(190, 190, 190, .4)) !important;
+    background-color: transparent;
+  }
+
+  listitem[selected="true"] {
+    background-color: rgba(190, 190, 190, .15);
+  }
+
+  listbox:focus > listitem[selected="true"] {
+    background-color: rgba(131, 183, 249, .05);
+    background-image: linear-gradient(rgba(131, 183, 249, .16),
+                                      rgba(131, 183, 249, .375)) !important;
+  }
+
+  listbox:focus > listitem[current="true"],
+  treechildren::-moz-tree-row(current, focus) {
+    -moz-border-top-colors: rgb(125, 162, 206)
+                            rgba(255,255,255,.4) !important;
+    -moz-border-right-colors: rgb(125, 162, 206)
+                              rgba(255,255,255,.4) !important;
+    -moz-border-left-colors: rgb(125, 162, 206)
+                             rgba(255,255,255,.4) !important;
+    -moz-border-bottom-colors: rgb(125, 162, 206)
+                               rgba(255,255,255,.6) !important;
+    outline: none;
+  }
+
+  listbox:focus > listitem[selected="true"],
+  treechildren::-moz-tree-row(selected, focus),
+  treechildren::-moz-tree-row(dropOn) {
+    -moz-border-top-colors: rgb(132, 172, 221)
+                            rgba(255, 255, 255, .4) !important;
+    -moz-border-right-colors: rgb(132, 172, 221)
+                              rgba(255, 255, 255, .4) !important;
+    -moz-border-left-colors: rgb(132, 172, 221)
+                             rgba(255, 255, 255, .4) !important;
+    -moz-border-bottom-colors: rgb(132, 172, 221)
+                               rgba(255, 255, 255, .6) !important;
+    background-image: linear-gradient(rgba(131, 183, 249, .16),
+                                      rgba(131, 183, 249, .375)) !important;
+    background-color: transparent;
+  }
+
+  listbox:focus > listitem[selected="true"] {
+    background-color: rgba(131, 183, 249, .02);
+  }
+
+  listbox:focus > listitem[selected="true"][current="true"] {
+    background-color: rgba(131, 183, 249, .15);
+  }
+
+  treechildren::-moz-tree-cell(dropOn) {
+    background-image: none !important;
+    background-color: transparent !important;
+    border-radius: 0 !important;
+  }
+
+  treechildren::-moz-tree-row(selected, current, focus) {
+    -moz-border-top-colors: rgb(125, 162, 206)
+                            rgba(255,255,255,.4) !important;
+    -moz-border-right-colors: rgb(125, 162, 206)
+                              rgba(255,255,255,.4) !important;
+    -moz-border-left-colors: rgb(125, 162, 206)
+                             rgba(255,255,255,.4) !important;
+    -moz-border-bottom-colors: rgb(125, 162, 206)
+                               rgba(255,255,255,.6) !important;
+    background-image: linear-gradient(rgba(131, 183, 249, .28),
+                                      rgba(131, 183, 249, .50)) !important;
+    background-color: transparent;
+  }
+
+  treechildren::-moz-tree-row(hover) {
+    -moz-border-top-colors: rgb(184, 214, 251)
+                            rgba(255,255,255,.4) !important;
+    -moz-border-right-colors: rgb(184, 214, 251)
+                              rgba(255,255,255,.4) !important;
+    -moz-border-left-colors: rgb(184, 214, 251)
+                             rgba(255,255,255,.4) !important;
+    -moz-border-bottom-colors: rgb(184, 214, 251)
+                               rgba(255,255,255,.6) !important;
+    background-image: linear-gradient(rgba(131, 183, 249, .05),
+                                      rgba(131, 183, 249, .16)) !important;
+    background-color: transparent;
+  }
+
+  treechildren::-moz-tree-row(hover, current) {
+    -moz-border-top-colors: rgb(125, 162, 206)
+                            rgba(255,255,255,.4) !important;
+    -moz-border-right-colors: rgb(125, 162, 206)
+                              rgba(255,255,255,.4) !important;
+    -moz-border-left-colors: rgb(125, 162, 206)
+                             rgba(255,255,255,.4) !important;
+    -moz-border-bottom-colors: rgb(125, 162, 206)
+                               rgba(255,255,255,.6) !important;
+    background-image: linear-gradient(rgba(131, 183, 249, .05),
+                                      rgba(131, 183, 249, .16)) !important;
+    background-color: transparent;
+  }
+
+  treechildren::-moz-tree-row(hover, selected) {
+    -moz-border-top-colors: rgb(125, 162, 206)
+                            rgba(255,255,255,.4) !important;
+    -moz-border-right-colors: rgb(125, 162, 206)
+                              rgba(255,255,255,.4) !important;
+    -moz-border-left-colors: rgb(125, 162, 206)
+                             rgba(255,255,255,.4) !important;
+    -moz-border-bottom-colors: rgb(125, 162, 206)
+                               rgba(255,255,255,.6) !important;
+    background-image: linear-gradient(rgba(131, 183, 249, .28),
+                                      rgba(131, 183, 249, .50)) !important;
+    background-color: transparent;
+  }
+
+  tree[disabled="true"] > treechildren::-moz-tree-row {
+    background: none !important;
+    -moz-border-top-colors: transparent !important;
+    -moz-border-right-colors: transparent !important;
+    -moz-border-left-colors: transparent !important;
+    -moz-border-bottom-colors: transparent !important;
+  }
+
+  tree[disabled="true"] > treechildren::-moz-tree-twisty(open) {
+    list-style-image: url("chrome://global/skin/tree/twisty-open.png");
+  }
+
+  tree[disabled="true"] > treechildren:-moz-locale-dir(rtl)::-moz-tree-twisty(open) {
+    list-style-image: url("chrome://global/skin/tree/twisty-open-rtl.png");
+  }
+
+  treechildren::-moz-tree-cell-text {
+    padding-bottom: initial;
+    border-color: transparent;
+    background-color: transparent;
+  }
+
+  listitem[selected="true"][current="true"],
+  treechildren::-moz-tree-cell-text(selected, focus) {
+    color: -moz-DialogText;
+  }
+
+  notification[value="addon-install-blocked"],
+  notification[value="addon-install-complete"] {
+    background-image: url("chrome://mozapps/skin/extensions/stripes-info-negative.png"),
+                      linear-gradient(rgba(204, 217, 234, 0.5),
+                                      rgba(231, 237, 246, 0.8));
+  }
+}
+
+@media (-moz-windows-compositor) {
+  #unifinder-searchBox,
+  #task-addition-box {
+    border-top: none;
+    background-color: -moz-dialog;
+  }
+
+  #searchInput:not(:-moz-lwtheme),
+  #IMSearchInput:not(:-moz-lwtheme),
+  .remote-gloda-search:not(:-moz-lwtheme) {
+    border-color: hsla(210, 54%, 20%, .25) hsla(210, 54%, 20%, .27)
+                  hsla(210, 54%, 20%, .3);
+  }
+
+  #searchInput:not(:-moz-lwtheme):not([focused]):hover,
+  #IMSearchInput:not(:-moz-lwtheme):not([focused]):hover,
+  .remote-gloda-search:not(:-moz-lwtheme):not([focused]):hover {
+    border-color: hsla(210, 54%, 20%, .35) hsla(210, 54%, 20%, .37)
+                  hsla(210, 54%, 20%, .4);
+  }
+
+  #searchInput:not(:-moz-lwtheme)[focused],
+  #IMSearchInput:not(:-moz-lwtheme)[focused],
+  .remote-gloda-search:not(:-moz-lwtheme)[focused] {
+    border-color: hsla(206, 100%, 60%, .65) hsla(206, 100%, 55%, .65)
+                  hsla(206, 100%, 50%, .65);
+  }
+
+  #tabbar-toolbar #searchInput:not(:-moz-lwtheme) {
+    background-color: rgba(255, 255, 255, .725);
+    border-color: rgba(0, 0, 0, .32);
+    color: black;
+  }
+
+  #tabbar-toolbar #searchInput:not(:-moz-lwtheme):hover {
+    background-color: rgba(255, 255, 255, .898);
+  }
+
+  #tabbar-toolbar #searchInput:not(:-moz-lwtheme)[focused="true"] {
+    background-color: white;
+  }
+}
+
+@media not all and (-moz-windows-compositor) {
+  #print-preview-toolbar:not(:-moz-lwtheme) {
+    -moz-appearance: -moz-win-browsertabbar-toolbox;
+  }
+}

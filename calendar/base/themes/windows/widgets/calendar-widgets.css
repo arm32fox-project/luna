@@ -1,0 +1,34 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@import url(chrome://calendar/skin/common/widgets/calendar-widgets.css);
+
+treenode-checkbox[checked="true"] > .checkbox-check {
+  background-image: url(chrome://global/skin/tree/twisty-open.png);
+}
+
+treenode-checkbox > .checkbox-check {
+  -moz-appearance: none;
+  -moz-box-align: center;
+  border: none;
+  width: 9px; /* The image's width is 9 pixels */
+  height: 9px;
+  background-image: url(chrome://global/skin/tree/twisty-clsd.png);
+}
+
+#task-tree-filtergroup {
+  -moz-padding-start: 12px;
+}
+
+calendar-list-tree .tree-scrollable-columns {
+  -moz-padding-start: 18px;
+}
+
+.toolbarbutton-icon-begin {
+  -moz-margin-end: 5px;
+}
+
+.toolbarbutton-icon-end {
+  -moz-margin-start: 5px;
+}

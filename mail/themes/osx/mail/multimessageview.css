@@ -1,0 +1,29 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@import url("chrome://messenger/content/multimessageview.css");
+
+/* osx-specific overrides for multimessageview.css*/
+
+.multimessage {
+  min-height: 15px;
+  margin-top: 3px;
+  margin-bottom: 3px;
+}
+
+.starred .star {
+  background-image: url("chrome://messenger/skin/icons/flaggedmail.png");
+}
+
+.info {
+  color: GrayText;
+}
+
+.heading.info {
+  color: GrayText;
+}
+
+#header-view-toolbox {
+  font: message-box;
+}

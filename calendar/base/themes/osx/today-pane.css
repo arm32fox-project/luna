@@ -1,0 +1,59 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+@import url(chrome://calendar/skin/common/today-pane.css);
+
+#today-pane-panel:-moz-lwtheme > sidebarheader {
+  text-shadow: none;
+  background-color: rgba(255, 255, 255, 0.3);
+  background-image: linear-gradient(rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0) 19px);
+}
+
+.miniday-nav-buttons {
+  list-style-image: url("chrome://calendar/skin/widgets/nav-arrow.svg");
+}
+
+#previous-day-button:-moz-locale-dir(ltr),
+#next-day-button:-moz-locale-dir(rtl) {
+  transform: scaleX(-1);
+}
+
+.today-closebutton {
+  list-style-image: url("chrome://global/skin/icons/close-sidebar.png") !important;
+}
+
+.today-closebutton > .toolbarbutton-text {
+   display: none;
+}
+
+#agenda-toolbar {
+  background-color: -moz-dialog;
+  color: -moz-dialogtext;
+}
+
+#todaypane-new-event-button {
+  list-style-image: url(chrome://calendar/skin/toolbar.png);
+  -moz-image-region: rect(0px 36px 18px 18px);
+}
+
+#todaypane-new-event-button:not([disabled]):active {
+  -moz-image-region: rect(18px 36px 36px 18px);
+}
+
+#todaypane-new-event-button[disabled="true"] > .toolbarbutton-icon {
+  opacity: .5;
+}
+
+#todaypane-new-event-button > .toolbarbutton-text {
+  -moz-margin-start: 0px;
+}
+
+#agenda-listbox {
+  border-top-color: #B8B8B8;
+}
+
+#today-pane-splitter {
+  min-height: 9px;
+  border-top: 1px solid #B8B8B8;
+}

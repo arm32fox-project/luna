@@ -1,0 +1,91 @@
+<?xml version="1.0"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/.
+   -->
+
+<?xml-stylesheet href="chrome://messenger/skin/dialogs.css" type="text/css"?>
+<?xml-stylesheet href="chrome://messenger/skin/searchDialog.css" type="text/css"?>
+<?xml-stylesheet href="chrome://messenger/skin/messenger.css" type="text/css"?>
+<?xml-stylesheet href="chrome://messenger/skin/folderMenus.css" type="text/css"?>
+
+<?xul-overlay href="chrome://messenger/content/searchTermOverlay.xul"?>
+
+<!DOCTYPE dialog [
+<!ENTITY % folderDTD SYSTEM "chrome://messenger/locale/virtualFolderProperties.dtd">%folderDTD;
+<!ENTITY % pickerDTD SYSTEM "chrome://messenger/locale/msgFolderPickerOverlay.dtd"> %pickerDTD;
+]>
+
+<dialog xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
+        id="virtualFolderPropertiesDialog"
+        title="&virtualFolderProperties.title;"
+        onload="onLoad();"
+        buttons="accept,cancel"
+        newFolderAcceptButtonLabel="&newFolderButton.label;"
+        newFolderAcceptButtonAccessKey="&newFolderButton.accesskey;"
+        editFolderAcceptButtonLabel="&editFolderButton.label;"
+        editFolderAcceptButtonAccessKey="&editFolderButton.accesskey;"
+        style="width: 50em; height: 28em;"
+        windowtype="mailnews:virtualFolderProperties"
+        ondialogaccept="return onOK();">
+
+  <stringbundleset id="stringbundleset">
+    <stringbundle id="bundle_search"    src="chrome://messenger/locale/search.properties"/>
+    <stringbundle id="bundle_messenger" src="chrome://messenger/locale/messenger.properties"/>
+  </stringbundleset>
+
+  <script type="application/javascript" src="chrome://messenger/content/mailCommands.js"/>
+  <script type="application/javascript" src="chrome://messenger/content/commandglue.js"/>
+  <script type="application/javascript" src="chrome://messenger/content/widgetglue.js"/>
+  <script type="application/javascript" src="chrome://messenger/content/virtualFolderProperties.js"/>
+
+  <grid>
+    <columns>
+      <column/>
+      <column flex="1"/>
+      <column flex="2"/>
+    </columns>
+
+    <rows>
+      <row>
+        <label value="&name.label;" accesskey="&name.accesskey;" control="name"/>
+        <textbox tabindex="0" id="name" oninput="doEnabling();"/>
+        <spring/>
+      </row>
+
+      <row align="center"  id="chooseFolderLocationRow">
+        <label value="&description.label;" accesskey="&description.accesskey;" control="msgNewFolderPicker"/>
+        <menulist id="msgNewFolderPicker" flex="1" oncommand="onFolderPick(event);">
+          <menupopup id="msgNewFolderPopup" type="folder" mode="newFolder"
+                     showFileHereLabel="true"
+                     fileHereLabel="&newfolderchoosethis.label;" />
+        </menulist>
+        <spring/>
+      </row>
+
+      <row align="center">
+        <label value="&folderSelectionCaption.label;"/>
+        <hbox>
+          <spacer flex="1"/>
+          <button label="&chooseFoldersButton.label;" oncommand="chooseFoldersToSearch();" 
+                  accesskey="&chooseFoldersButton.accesskey;"/>
+        </hbox>
+      </row>
+    </rows>
+  </grid>
+
+  <hbox flex="1">
+    <checkbox id="searchOnline" label="&searchOnline.label;" accesskey="&searchOnline.accesskey;"/>
+  </hbox>
+
+  <separator class="thin"/>
+
+  <vbox flex="2">
+    <label value="&searchTermCaption.label;"/>
+    <hbox flex="1">
+      <vbox id="searchTermListBox" flex="2"/>
+    </hbox>
+  </vbox>
+
+</dialog>
+

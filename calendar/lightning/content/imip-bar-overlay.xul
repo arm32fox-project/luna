@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<!DOCTYPE overlay [
+    <!ENTITY % lightningDTD SYSTEM "chrome://lightning/locale/lightning.dtd">
+    %lightningDTD;
+]>
+
+<!-- Use the Thunderbird Notification bar style for our iMIP warning -->
+<?xml-stylesheet href="chrome://messenger/skin/primaryToolbar.css" type="text/css"?>
+<?xml-stylesheet href="chrome://messenger/skin/messageHeader.css" type="text/css"?>
+
+<?xml-stylesheet href="chrome://lightning/skin/lightning.css" type="text/css"?>
+<?xml-stylesheet href="chrome://lightning/content/lightning-widgets.css" type="text/css"?>
+
+<overlay xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+    <script type="application/javascript"
+            src="chrome://lightning/content/lightning-utils.js"/>
+    <script type="application/javascript"
+            src="chrome://calendar/content/calUtils.js"/>
+    <script type="application/javascript"
+            src="chrome://lightning/content/imip-bar.js"/>
+    <script type="application/javascript"
+            src="chrome://calendar/content/calendar-management.js"/>
+    <script type="application/javascript"
+            src="chrome://calendar/content/calendar-ui-utils.js"/>
+
+    <vbox id="messagepanebox">
+      <vbox id="singlemessage" insertbefore="msgHeaderView">
+        <lightning-notification-bar id="imip-bar"
+                                    collapsed="true"
+                                    insertbefore="msgHeaderView"
+                                    label="&lightning.imipbar.description;">
+          <button id="imip-button1" hidden="true"/>
+          <button id="imip-button2" hidden="true"/>
+          <button id="imip-button3" hidden="true"/>
+        </lightning-notification-bar>
+      </vbox>
+    </vbox>
+</overlay>

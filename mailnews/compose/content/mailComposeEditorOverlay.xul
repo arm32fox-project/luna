@@ -1,0 +1,130 @@
+<?xml version="1.0"?>
+<!-- This Source Code Form is subject to the terms of the Mozilla Public
+   - License, v. 2.0. If a copy of the MPL was not distributed with this
+   - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
+
+<!DOCTYPE window SYSTEM "chrome://messenger/locale/messengercompose/mailComposeEditorOverlay.dtd" >
+
+<overlay id="mailComposeEditorOverlay"
+         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+
+  <script type="application/javascript">
+  <![CDATA[
+    Components.utils.import("resource://gre/modules/Services.jsm");
+
+    var gMsgCompProcessLink = false;
+    var gMsgCompInputElement = null;
+    var gMsgCompPrevInputValue = null;
+    var gMsgCompPrevMozDoNotSendAttribute;
+    var gMsgCompAttachSourceElement = null;
+    var gMOZDONOTSEND = "moz-do-not-send";
+
+    function OnLoadOverlay()
+    {
+      gMsgCompAttachSourceElement = document.getElementById("AttachSourceToMail");
+      var editor = GetCurrentEditor();
+      if (gMsgCompAttachSourceElement && editor &&
+          (editor.flags & Components.interfaces.nsIPlaintextEditor.eEditorMailMask))
+      {
+        SetRelativeCheckbox = function() { SetAttachCheckbox();};
+        //initialize the AttachSourceToMail checkbox
+        gMsgCompAttachSourceElement.hidden = false;
+
+        switch (document.documentElement.id)
+        {
+          case "imageDlg":
+            gMsgCompInputElement = gDialog.srcInput;
+            gMsgCompProcessLink = false;
+            break;
+          case "linkDlg" :
+            gMsgCompInputElement =  gDialog.hrefInput;
+            gMsgCompProcessLink = true;
+            break;
+        }
+        if (gMsgCompInputElement)
+        {
+          SetAttachCheckbox();
+          gMsgCompPrevMozDoNotSendAttribute = globalElement.getAttribute(gMOZDONOTSEND)
+        }
+      }
+    }
+
+    addEventListener("load", OnLoadOverlay, false);
+
+    function SetAttachCheckbox()
+    {
+      var resetCheckbox = false;
+      var mozDoNotSend = globalElement.getAttribute(gMOZDONOTSEND);
+
+      //In case somebody played with the advanced property and changed the moz-do-not-send attribute
+      if (mozDoNotSend != gMsgCompPrevMozDoNotSendAttribute)
+      {
+        gMsgCompPrevMozDoNotSendAttribute = mozDoNotSend;
+        resetCheckbox = true;
+      }
+
+      // Has the URL changed
+      if (gMsgCompInputElement && gMsgCompInputElement.value != gMsgCompPrevInputValue)
+      {
+        gMsgCompPrevInputValue = gMsgCompInputElement.value;
+        resetCheckbox = true;
+      }
+
+      if (gMsgCompInputElement && resetCheckbox)
+      {
+        // Here is the rule about how to set the checkbox Attach Source To Message:
+        // if the attribute moz-do-not-send has not been set, we look at the scheme of the url
+        // and at some pref to decide what is the best for the user. Else if it is set to true,
+        // the checkbox is unchecked else is checked.
+        var attach = true;
+        if (mozDoNotSend == null)
+        {
+          // We haven't yet set the moz-do-not-send attribute, let's figure out the best setting
+          // the rule should be in sync with to the one in nsMsgComposeAndSend::GetEmbeddedObjectInfo
+
+          if (gMsgCompProcessLink)
+          {
+            //is it a Windows remote file?
+            if (gMsgCompInputElement.value.trimLeft().toLowerCase().startsWith("file://///"))
+            {
+              try {
+                let dontAttachPref =
+                  "mail.compose.dont_attach_source_of_local_network_links";
+                if (Services.prefs.getBoolPref(dontAttachPref))
+                  attach = false;
+              } catch(ex) {};
+            }
+            //is it not a file: location at all?
+            else if (!gMsgCompInputElement.value.trimLeft().toLowerCase().startsWith("file://"))
+              attach = false;
+          }
+        }
+        else
+          attach = (mozDoNotSend != "true");
+
+        gMsgCompAttachSourceElement.checked = attach;
+      }
+    }
+
+    function DoAttachSourceCheckbox()
+    {
+      gMsgCompPrevMozDoNotSendAttribute = (!gMsgCompAttachSourceElement.checked).toString();
+      globalElement.setAttribute(gMOZDONOTSEND, gMsgCompPrevMozDoNotSendAttribute)
+    }
+
+  ]]>
+  </script>
+
+  <hbox id="MakeRelativeHbox">
+    <checkbox id="AttachSourceToMail" hidden="true"
+              label="&attachImageSource.label;" accesskey="&attachImageSource.accesskey;"
+              insertafter="MakeRelativeCheckbox" oncommand="DoAttachSourceCheckbox()"/>
+  </hbox>
+
+  <groupbox id="LinkURLBox">
+    <checkbox id="AttachSourceToMail" hidden="true"
+              label="&attachLinkSource.label;" accesskey="&attachLinkSource.accesskey;"
+              insertafter="LinkLocationBox" oncommand="DoAttachSourceCheckbox()"/>
+  </groupbox>
+
+</overlay>

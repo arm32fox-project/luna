@@ -1,0 +1,46 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+.ib-msg-txt {
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.ib-img-smile {
+  vertical-align: text-bottom;
+}
+
+*:-moz-any-link .ib-img-smile {
+  border: none;
+  border-bottom: solid 1px;
+  margin-bottom: 1px;
+}
+
+.moz-txt-underscore {
+  text-decoration: underline;
+}
+
+/* disable overflow in themes until bug 42676 is fixed in Mozilla */
+#Chat {
+  overflow: hidden !important;
+}
+
+#Chat * {
+  overflow: visible !important;
+}
+
+#unread-ruler {
+  margin: 0;
+  width: 100%;
+  border: none;
+  border-top: 1px dashed red;
+}
+
+.ib-nick {
+  font-weight: bold;
+}
+
+.ib-nick[left] {
+  color: grey;
+}

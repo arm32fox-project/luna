@@ -1,0 +1,22 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+interface nsIMsgFolder;
+
+[scriptable,uuid(a1aaa404-9be7-461f-a715-e92512729923)]
+interface nsIFolderLookupService : nsISupports
+{
+  /**
+   * Returns a folder with the given id. If the folder does not exist, but an
+   * identifiable parent does, we'll create it and then return that folder. If
+   * no parent exists, this will return null.
+   *
+   * @note For the moment, the id is the URI property of the folder.  This may
+   *       change
+   */
+  nsIMsgFolder getFolderById(in ACString id);
+};
+
