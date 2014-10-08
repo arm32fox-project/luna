@@ -25,7 +25,7 @@
 #include "prprf.h"
 #include "nsMsgDBCID.h"
 #include "nsILocale.h"
-#include "nsLocaleCID.h"
+
 #include "nsMsgMimeCID.h"
 #include "nsILocaleService.h"
 #include "nsMsgFolderFlags.h"
