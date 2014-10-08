@@ -5,13 +5,16 @@
 
 MOZ_APP_BASENAME=FossaMail
 MOZ_APP_NAME=fossamail
+MOZ_MOONCHILD=1
 MOZ_UPDATER=1
 MOZ_THUNDERBIRD=1
+MOZ_CALENDAR=1
 MOZ_CHROME_FILE_FORMAT=omni
 MOZ_NO_ACTIVEX_SUPPORT=1
 MOZ_ACTIVEX_SCRIPTING_SUPPORT=
 MOZ_LDAP_XPCOM=1
 MOZ_COMPOSER=1
+MOZ_APP_STATIC_INI=1
 if test "$OS_ARCH" = "WINNT"; then
   if ! test "$HAVE_64BIT_OS"; then
     MOZ_VERIFY_MAR_SIGNATURE=1
@@ -40,8 +43,8 @@ THUNDERBIRD_VERSION=$MOZ_APP_VERSION
 
 # MOZ_UA_BUILDID=20100101
 
-MOZ_BRANDING_DIRECTORY=mail/branding/aurora
-MOZ_OFFICIAL_BRANDING_DIRECTORY=other-licenses/branding/thunderbird
+MOZ_BRANDING_DIRECTORY=mail/branding/unofficial
+MOZ_OFFICIAL_BRANDING_DIRECTORY=mail/branding/official
 MOZ_APP_ID={3550f703-e582-4d05-9a08-453d09bdfdc6}
 # This should usually be the same as the value MAR_CHANNEL_ID.
 # If more than one ID is needed, then you should use a comma separated list
