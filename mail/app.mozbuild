@@ -6,7 +6,7 @@
 app_libxul_dirs = []
 app_libxul_static_dirs = []
 
-include('../bridge/bridge.mozbuild')
+include('../mailnews/mailnews.mozbuild')
 
 if not CONFIG['MOZ_INCOMPLETE_EXTERNAL_LINKAGE']:
     app_libxul_dirs = mailnews_dirs
