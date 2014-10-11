@@ -11,7 +11,8 @@
 module.metadata = {
   "stability": "stable",
   "engines": {
-    "Firefox": "*"
+    "Firefox": "*",
+    "PaleMoon": "*"
   }
 };
 
