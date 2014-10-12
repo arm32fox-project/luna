@@ -424,11 +424,6 @@ public:
   // from MediaManager thread.
   static MediaManager* Get();
 
-  static bool Exists()
-  {
-    return !!sSingleton;
-  }
-
   static nsIThread* GetThread() {
     return Get()->mMediaThread;
   }
