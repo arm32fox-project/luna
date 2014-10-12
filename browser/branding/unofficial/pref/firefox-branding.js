@@ -28,7 +28,7 @@ pref("accessibility.force_disabled", 1);
 
 // ****************** Release notes and vendor URLs ******************
 
-pref("app.releaseNotesURL", "http://www.palemoon.org/releasenotes-ng.shtml");
+pref("app.releaseNotesURL", "http://www.palemoon.org/releasenotes.shtml");
 pref("app.vendorURL", "http://www.palemoon.org/");
 pref("app.support.baseURL", "http://www.palemoon.org/support/");
 //Add-on window fixes
