@@ -52,6 +52,7 @@
                   name="pref.general.disable_button.default_browser"
                   type="bool"/>
 #endif
+      <preference id="pref.general.compatmode.firefox" name="general.useragent.compatMode.firefox"        type="bool"/>
 
       <!-- Data Choices tab -->
 
@@ -207,6 +208,11 @@
             </hbox>
           </groupbox>
 #endif
+          <groupbox id="FirefoxCompatGroup" orient="vertical">
+            <caption label="&palemoon.firefoxCompatGroup.label;"/>
+            <checkbox id="palemoon.firefoxCompat.check" preference="pref.general.compatmode.firefox"
+                      label="&palemoon.firefoxCompat.label;" />
+          </groupbox>
         </tabpanel>
 
 #ifdef MOZ_DATA_REPORTING
