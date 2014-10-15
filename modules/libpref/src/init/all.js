@@ -3902,6 +3902,7 @@ pref("browser.history.maxStateObjectSize", 655360);
 
 // XPInstall prefs
 pref("xpinstall.whitelist.required", false); //Asking permission to ask permission? Really...
+pref("extensions.update.requireBuiltInCerts", false); //Will never work behind an SSL CDN...
 pref("extensions.alwaysUnpack", false);
 pref("extensions.minCompatiblePlatformVersion", "2.0");
 
