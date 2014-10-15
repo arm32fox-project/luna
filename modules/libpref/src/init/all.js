@@ -3901,7 +3901,7 @@ pref("browser.history.allowPopState", true);
 pref("browser.history.maxStateObjectSize", 655360);
 
 // XPInstall prefs
-pref("xpinstall.whitelist.required", true);
+pref("xpinstall.whitelist.required", false); //Asking permission to ask permission? Really...
 pref("extensions.alwaysUnpack", false);
 pref("extensions.minCompatiblePlatformVersion", "2.0");
 
