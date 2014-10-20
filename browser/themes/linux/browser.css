@@ -1727,7 +1727,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 }
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme-brighttext {
-  background-image: linear-gradient(rgba(0,0,0,.6), rgba(0,0,0,.8) 50%);
+  background-image: linear-gradient(rgba(128,128,128,.6), rgba(0,0,0,.8) 50%);
 }
 
 .tabbrowser-tab:-moz-lwtheme-brighttext:not([selected="true"]),
