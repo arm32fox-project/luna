@@ -3423,7 +3423,7 @@ define("orion/textview/textView", ['orion/textview/textModel', 'orion/textview/k
 	if (document.selection && window.ActiveXObject && /MSIE/.test(userAgent)) {
 		isIE = document.documentMode ? document.documentMode : 7;
 	}
-	var isFirefox = parseFloat(userAgent.split("Firefox/")[1] || userAgent.split("Minefield/")[1]) || undefined;
+	var isFirefox = parseFloat(userAgent.split("Firefox/")[1] || userAgent.split("PaleMoon/")[1] || userAgent.split("NewMoon/")[1]) || undefined;
 	var isOpera = userAgent.indexOf("Opera") !== -1;
 	var isChrome = userAgent.indexOf("Chrome") !== -1;
 	var isSafari = userAgent.indexOf("Safari") !== -1 && !isChrome;
