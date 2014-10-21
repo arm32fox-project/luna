@@ -75,14 +75,14 @@ pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; r
 
 // UA-Sniffing domains below are pending responses from their operators - temp workaround
 pref("general.useragent.override.netflix.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/24.9 PaleMoon/25.0");
-pref("general.useragent.override.google.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/24.9 PaleMoon/25.0");
 
 // UA-Sniffing domains below have indicated no interest in supporting Pale Moon (BOO!)
 pref("general.useragent.override.humblebundle.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:33.0) Gecko/20100101 Firefox/33.0 (Pale Moon)");
 pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0");
+pref("general.useragent.override.icloud.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
 
 // Enable Firefox compatibility mode globally?
-pref("general.useragent.compatMode.firefox", false);
+pref("general.useragent.compatMode.firefox", true);
 
 // ****************** Extensions/plugins ******************
 
