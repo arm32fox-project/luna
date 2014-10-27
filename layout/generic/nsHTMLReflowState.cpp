@@ -828,13 +828,43 @@ nsHTMLReflowState::ComputeRelativeOffsets(uint8_t aCBDirection,
 
   // Store the offset
   FrameProperties props = aFrame->Properties();
-  nsPoint* offsets = static_cast<nsPoint*>
+  nsMargin* offsets = static_cast<nsMargin*>
     (props.Get(nsIFrame::ComputedOffsetProperty()));
   if (offsets) {
-    offsets->MoveTo(aComputedOffsets.left, aComputedOffsets.top);
+    *offsets = aComputedOffsets;
   } else {
     props.Set(nsIFrame::ComputedOffsetProperty(),
-              new nsPoint(aComputedOffsets.left, aComputedOffsets.top));
+              new nsMargin(aComputedOffsets));
+  }
+}
+
+/* static */ void
+nsHTMLReflowState::ApplyRelativePositioning(nsIFrame* aFrame,
+                                            const nsMargin& aComputedOffsets, 
+                                            nsPoint* aPosition)
+{
+  if (!aFrame->IsRelativelyPositioned()) {
+    NS_ASSERTION(!aFrame->Properties().Get(nsIFrame::NormalPositionProperty()),
+                 "We assume that changing the 'position' property causes "
+                 "frame reconstruction.  If that ever changes, this code "
+                 "should call "
+                 "props.Delete(nsIFrame::NormalPositionProperty())");
+    return;
+  }
+
+  // Store the normal position
+  FrameProperties props = aFrame->Properties();
+  nsPoint* normalPosition = static_cast<nsPoint*>
+    (props.Get(nsIFrame::NormalPositionProperty()));
+  if (normalPosition) {
+    *normalPosition = *aPosition;
+  } else {
+    props.Set(nsIFrame::NormalPositionProperty(), new nsPoint(*aPosition));
+  }
+
+  const nsStyleDisplay* display = aFrame->StyleDisplay();
+  if (NS_STYLE_POSITION_RELATIVE == display->mPosition) {
+    *aPosition += nsPoint(aComputedOffsets.left, aComputedOffsets.top);
   }
 }
 
