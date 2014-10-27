@@ -6675,6 +6675,12 @@ nsRuleNode::ComputePositionData(void* aStartStruct,
               SETDSC_ENUMERATED, parentPos->mBoxSizing,
               NS_STYLE_BOX_SIZING_CONTENT, 0, 0, 0, 0);
 
+  // align-content: enum, inherit, initial
+  SetDiscrete(*aRuleData->ValueForAlignContent(),
+              pos->mAlignContent, canStoreInRuleTree,
+              SETDSC_ENUMERATED, parentPos->mAlignContent,
+              NS_STYLE_ALIGN_CONTENT_STRETCH, 0, 0, 0, 0);
+
   // align-items: enum, inherit, initial
   SetDiscrete(*aRuleData->ValueForAlignItems(),
               pos->mAlignItems, canStoreInRuleTree,
@@ -6752,6 +6758,12 @@ nsRuleNode::ComputePositionData(void* aStartStruct,
   SetFactor(*aRuleData->ValueForFlexShrink(),
             pos->mFlexShrink, canStoreInRuleTree,
             parentPos->mFlexShrink, 1.0f);
+
+  // flex-wrap: enum, inherit, initial
+  SetDiscrete(*aRuleData->ValueForFlexWrap(),
+              pos->mFlexWrap, canStoreInRuleTree,
+              SETDSC_ENUMERATED, parentPos->mFlexWrap,
+              NS_STYLE_FLEX_WRAP_NOWRAP, 0, 0, 0, 0);
 
   // order: integer, inherit, initial
   SetDiscrete(*aRuleData->ValueForOrder(),
