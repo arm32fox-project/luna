@@ -4089,6 +4089,20 @@ function get_computed_value(cs, property)
 // to gCSSProperties, if the flexbox pref is enabled.
 if (SpecialPowers.getBoolPref("layout.css.flexbox.enabled")) {
 	var flexProperties = {
+	"align-content": {
+		domProp: "alignContent",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ "stretch" ],
+		other_values: [
+			"flex-start",
+			"flex-end",
+			"center",
+			"space-between",
+			"space-around"
+		],
+		invalid_values: [ "abc", "30px", "0", "auto" ]
+	},
 	"align-items": {
 		domProp: "alignItems",
 		inherited: false,
@@ -4236,6 +4250,14 @@ if (SpecialPowers.getBoolPref("layout.css.flexbox.enabled")) {
 		initial_values: [ "1" ],
 		other_values: [ "3", "0", "0.0", "2.5", "123" ],
 		invalid_values: [ "0px", "-5", "1%", "3em", "stretch", "auto" ]
+	},
+	"flex-wrap": {
+		domProp: "flexWrap",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ "nowrap" ],
+		other_values: [ "wrap", "wrap-reverse" ],
+		invalid_values: [ "10px", "30%", "justify", "column wrap", "auto" ]
 	},
 	"order": {
 		domProp: "order",
