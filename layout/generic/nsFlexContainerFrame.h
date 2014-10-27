@@ -11,8 +11,6 @@
 #define nsFlexContainerFrame_h___
 
 #include "nsContainerFrame.h"
-#include "nsTArray.h"
-#include "mozilla/Types.h"
 
 nsIFrame* NS_NewFlexContainerFrame(nsIPresShell* aPresShell,
                                    nsStyleContext* aContext);
@@ -20,9 +18,11 @@ nsIFrame* NS_NewFlexContainerFrame(nsIPresShell* aPresShell,
 typedef nsContainerFrame nsFlexContainerFrameSuper;
 
 class FlexItem;
+class FlexLine;
 class FlexboxAxisTracker;
 class MainAxisPositionTracker;
 class SingleLineCrossAxisPositionTracker;
+template <class T> class nsTArray;
 
 class nsFlexContainerFrame : public nsFlexContainerFrameSuper {
   NS_DECL_FRAMEARENA_HELPERS
@@ -50,7 +50,6 @@ public:
     GetPrefWidth(nsRenderingContext* aRenderingContext) MOZ_OVERRIDE;
 
   virtual nsIAtom* GetType() const MOZ_OVERRIDE;
-  virtual int GetSkipSides() const MOZ_OVERRIDE;
 #ifdef DEBUG
   NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
 #endif // DEBUG
@@ -82,46 +81,43 @@ protected:
   void SanityCheckAnonymousFlexItems() const;
 #endif // DEBUG
 
+  FlexItem GenerateFlexItemForChild(nsPresContext* aPresContext,
+                                    nsIFrame* aChildFrame,
+                                    const nsHTMLReflowState& aParentReflowState,
+                                    const FlexboxAxisTracker& aAxisTracker);
 
-  // Returns nsresult because we might have to reflow aChildFrame (to get its
-  // vertical intrinsic size in a vertical flexbox), and if that reflow fails
-  // (returns a failure nsresult), we want to bail out.
-  nsresult AppendFlexItemForChild(nsPresContext* aPresContext,
-                                  nsIFrame* aChildFrame,
-                                  const nsHTMLReflowState& aParentReflowState,
-                                  const FlexboxAxisTracker& aAxisTracker,
-                                  nsTArray<FlexItem>& aFlexItems);
+  // Returns nsresult because we might have to reflow aFlexItem.Frame() (to
+  // get its vertical intrinsic size in a vertical flexbox), and if that
+  // reflow fails (returns a failure nsresult), we want to bail out.
+  nsresult ResolveFlexItemMaxContentSizing(nsPresContext* aPresContext,
+                                           FlexItem& aFlexItem,
+                                           const nsHTMLReflowState& aParentReflowState,
+                                           const FlexboxAxisTracker& aAxisTracker);
 
-  // Runs the "resolve the flexible lengths" algorithm, distributing
-  // |aFlexContainerMainSize| among the |aItems| and freezing them.
-  void ResolveFlexibleLengths(const FlexboxAxisTracker& aAxisTracker,
-                              nscoord aFlexContainerMainSize,
-                              nsTArray<FlexItem>& aItems);
-
-  nsresult GenerateFlexItems(nsPresContext* aPresContext,
+  nsresult GenerateFlexLines(nsPresContext* aPresContext,
                              const nsHTMLReflowState& aReflowState,
+                             nscoord aContentBoxMainSize,
+                             nscoord aAvailableHeightForContent,
                              const FlexboxAxisTracker& aAxisTracker,
-                             nsTArray<FlexItem>& aItems);
+                             nsTArray<FlexLine>& aLines);
 
-  nscoord ComputeFlexContainerMainSize(const nsHTMLReflowState& aReflowState,
-                                       const FlexboxAxisTracker& aAxisTracker,
-                                       const nsTArray<FlexItem>& aFlexItems);
+  nscoord GetMainSizeFromReflowState(const nsHTMLReflowState& aReflowState,
+                                     const FlexboxAxisTracker& aAxisTracker);
 
-  void PositionItemInMainAxis(MainAxisPositionTracker& aMainAxisPosnTracker,
-                              FlexItem& aItem);
+  nscoord ComputeCrossSize(const nsHTMLReflowState& aReflowState,
+                           const FlexboxAxisTracker& aAxisTracker,
+                           const nsTArray<FlexLine>& aLines,
+                           nscoord aAvailableHeightForContent,
+                           bool* aIsDefinite,
+                           nsReflowStatus& aStatus);
 
   nsresult SizeItemInCrossAxis(nsPresContext* aPresContext,
                                const FlexboxAxisTracker& aAxisTracker,
                                nsHTMLReflowState& aChildReflowState,
                                FlexItem& aItem);
 
-  void PositionItemInCrossAxis(
-    nscoord aLineStartPosition,
-    SingleLineCrossAxisPositionTracker& aLineCrossAxisPosnTracker,
-    FlexItem& aItem);
-
-  bool    mChildrenHaveBeenReordered; // Have we ever had to reorder our kids
-                                      // to satisfy their 'order' values?
+  bool mChildrenHaveBeenReordered; // Have we ever had to reorder our kids
+                                   // to satisfy their 'order' values?
 };
 
 #endif /* nsFlexContainerFrame_h___ */
