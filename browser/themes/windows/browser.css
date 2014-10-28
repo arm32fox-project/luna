@@ -2044,23 +2044,26 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   opacity: 0.99;
 }
 
+.tabbrowser-tab:-moz-lwtheme:not([selected="true"]) {
+  opacity: 0.85;
+}
+
 .tabbrowser-tab[selected="true"]:-moz-lwtheme {
   background-image: linear-gradient(rgba(255,255,255,.6), rgba(255,255,255,.8) 50%);
 }
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme-brighttext {
-  background-image: linear-gradient(rgba(128,128,128,.6), rgba(0,0,0,.8) 50%);
+  background-image: linear-gradient(rgba(128,128,128,.8), rgba(32,32,32,.9) 50%);
 }
 
 .tabbrowser-tab:-moz-lwtheme-brighttext:not([selected="true"]),
 .tabs-newtab-button:-moz-lwtheme-brighttext {
   background-image: linear-gradient(hsla(0,0%,25%,.4), hsla(0,0%,15%,.6) 80%);
-  opacity: 0.8;
 }
 
 .tabbrowser-tab:-moz-lwtheme-brighttext:not([selected="true"]):hover,
 .tabs-newtab-button:-moz-lwtheme-brighttext:hover {
-  background-image: linear-gradient(hsla(0,0%,30%,.4), hsla(0,0%,10%,.8) 80%);
+  background-image: linear-gradient(hsla(0,0%,60%,.4), hsla(0,0%,10%,.8) 80%);
 }
 
 .tabbrowser-tab:-moz-lwtheme-darktext:not([selected="true"]),
@@ -2070,7 +2073,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 .tabbrowser-tab:-moz-lwtheme-darktext:not([selected="true"]):hover,
 .tabs-newtab-button:-moz-lwtheme-darktext:hover {
-  background-image: linear-gradient(hsla(0,0%,80%,.4), hsla(0,0%,90%,.8) 80%);
+  background-image: linear-gradient(hsla(0,0%,60%,.4), hsla(0,0%,90%,.8) 80%);
 }
 
 .tabbrowser-tab[pinned][titlechanged]:not([selected="true"]) {
