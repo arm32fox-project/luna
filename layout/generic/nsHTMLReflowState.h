@@ -480,15 +480,28 @@ public:
     }
     return std::max(aWidth, mComputedMinWidth);
   }
+  
   /**
    * Apply the mComputed(Min/Max)Height constraints to the content
    * size computed so far.
+   *
+   * @param aHeight The height that we've computed an to which we want to apply
+   *        min/max constraints.
+   * @param aConsumed The amount of the computed height that was consumed by
+   *        our prev-in-flows.
    */
-  nscoord ApplyMinMaxHeight(nscoord aHeight) const {
+  nscoord ApplyMinMaxHeight(nscoord aHeight, nscoord aConsumed = 0) const {
+    aHeight += aConsumed;
+
     if (NS_UNCONSTRAINEDSIZE != mComputedMaxHeight) {
       aHeight = std::min(aHeight, mComputedMaxHeight);
     }
-    return std::max(aHeight, mComputedMinHeight);
+
+    if (NS_UNCONSTRAINEDSIZE != mComputedMinHeight) {
+      aHeight = std::max(aHeight, mComputedMinHeight);
+    }
+
+    return aHeight - aConsumed;
   }
 
   bool ShouldReflowAllKids() const {
@@ -532,6 +545,15 @@ public:
                                      nscoord aContainingBlockWidth,
                                      nscoord aContainingBlockHeight,
                                      nsMargin& aComputedOffsets);
+
+  // If a relatively positioned element, adjust the position appropriately.
+  static void ApplyRelativePositioning(nsIFrame* aFrame,
+                                       const nsMargin& aComputedOffsets,
+                                       nsPoint* aPosition);
+                                       
+  void ApplyRelativePositioning(nsPoint* aPosition) const {
+    ApplyRelativePositioning(frame, mComputedOffsets, aPosition);
+  }
 
 #ifdef DEBUG
   // Reflow trace methods.  Defined in nsFrame.cpp so they have access
