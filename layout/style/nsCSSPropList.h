@@ -1616,6 +1616,12 @@ CSS_PROP_POSITION(
     kFlexDirectionKTable,
     offsetof(nsStylePosition, mFlexDirection),
     eStyleAnimType_EnumU8)
+CSS_PROP_SHORTHAND(
+    flex-flow,
+    flex_flow,
+    FlexFlow,
+    CSS_PROPERTY_PARSE_FUNCTION,
+    "layout.css.flexbox.enabled")
 CSS_PROP_POSITION(
     flex-grow,
     flex_grow,
