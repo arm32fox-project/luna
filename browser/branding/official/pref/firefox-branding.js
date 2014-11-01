@@ -64,8 +64,6 @@ pref("browser.search.param.yahoo-fr-cjkt", "moz35"); // now unused
 pref("browser.search.param.yahoo-fr-ja", "mozff");
 
 // ****************** domain-specific UAs ******************
-// AMO needs "Firefox", obviously
-pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:24.9) Gecko/20100101 Firefox/24.9 PaleMoon/24.9");
 
 // Special cases
 // Facebook uses incompatible multiple-policy CSP in Firefox 27+ mode - Always disable FF Compat until CSP is updated
