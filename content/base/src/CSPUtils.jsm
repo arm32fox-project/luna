@@ -156,7 +156,7 @@ CSPPolicyURIListener.prototype = {
       // policy.  Also toss an error into the console so developers can see why
       // this policy is used.
       this._csp.log(WARN_FLAG, CSPLocalizer.getFormatStr("errorFetchingPolicy",
-                                                         [status]);
+                                                         [status]));
       this._csp.appendPolicy("default-src 'none'", this._docURI,
                              this._reportOnly, this._csp._specCompliant);
     }
