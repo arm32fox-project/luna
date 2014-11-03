@@ -293,9 +293,15 @@ JSFunction::getBoundFunctionTarget() const
 }
 
 inline bool
+js::Class::isJSFunction() const
+{
+    return this == &JSFunction::class_;
+}
+
+inline bool
 js::Class::isCallable() const
 {
-    return this == &JSFunction::class_ || call;
+    return js::Class:isJSFunction() || call;
 }
 
 #endif /* jsfuninlines_h */
