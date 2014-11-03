@@ -6532,7 +6532,7 @@ dnl ========================================================
 dnl = Enable safe browsing (anti-phishing)
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(safe-browsing,
-[  --enable-safe-browsing  Enable safe browsing (anti-phishing) implementation],
+[  --enable-safe-browsing  Enable SafeBrowsing implementation. Requires API key.],
     MOZ_SAFE_BROWSING=1,
     MOZ_SAFE_BROWSING= )
 if test -n "$MOZ_SAFE_BROWSING"; then
