@@ -891,13 +891,17 @@ DataChannelConnection::RequestMoreStreams(int32_t aNeeded)
   // Doesn't block, we get an event when it succeeds or fails
   if (usrsctp_setsockopt(mMasterSocket, IPPROTO_SCTP, SCTP_ADD_STREAMS, &sas,
                          (socklen_t) sizeof(struct sctp_add_streams)) < 0) {
-    if (errno == EALREADY)
+    if (errno == EALREADY) {
+      LOG(("Already have %u output streams", outStreamsNeeded));
       return true;
+    }
 
     LOG(("***failed: setsockopt ADD errno=%d", errno));
     return false;
   }
   LOG(("Requested %u more streams", outStreamsNeeded));
+  // We add to mStreams when we get a SCTP_STREAM_CHANGE_EVENT and the
+  // values are larger than mStreams.Length()
   return true;
 }
 
@@ -1110,6 +1114,7 @@ DataChannelConnection::HandleOpenRequestMessage(const struct rtcweb_datachannel_
       prPolicy = SCTP_PR_SCTP_TTL;
       break;
     default:
+      LOG(("Unknown channel type", req->channel_type));
       /* XXX error handling */
       return;
   }
@@ -1134,6 +1139,10 @@ DataChannelConnection::HandleOpenRequestMessage(const struct rtcweb_datachannel_
              prValue, channel->mPrValue, flags, channel->mFlags));
       }
     }
+    return;
+  }
+  if (stream >= mStreams.Length()) {
+    LOG(("%s: Error! stream %u out of bounds (%u)", __FUNCTION__, stream, mStreams.Length()));
     return;
   }
 
@@ -1690,7 +1699,7 @@ DataChannelConnection::HandleStreamChangeEvent(const struct sctp_stream_change_e
     return;
   } else {
     if (strchg->strchange_instrms > mStreams.Length()) {
-      LOG(("Other side increased streamds from %u to %u",
+      LOG(("Other side increased streams from %u to %u",
            mStreams.Length(), strchg->strchange_instrms));
     }
     if (strchg->strchange_outstrms > mStreams.Length()) {
@@ -1928,6 +1937,11 @@ DataChannelConnection::OpenFinish(already_AddRefed<DataChannel> aChannel)
   if (mState == OPEN) {
     if (stream == INVALID_STREAM) {
       stream = FindFreeStream(); // may be INVALID_STREAM if we need more
+      // block "automatic" updates for now, and just use a larger default until we match
+      // the WG draft design (65534 each way) and grow mStreams as needed.
+      if (stream == INVALID_STREAM) {
+        goto request_error_cleanup;
+      }
     }
     if (stream == INVALID_STREAM || stream >= mStreams.Length()) {
       // RequestMoreStreams() limits to MAX_NUM_STREAMS -- allocate extra streams
