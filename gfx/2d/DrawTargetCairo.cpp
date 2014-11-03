@@ -895,8 +895,6 @@ DrawTargetCairo::InitAlreadyReferenced(cairo_surface_t* aSurface, const IntSize&
 {
   //check if aSurface is valid. Destroy and return early if not a valid surface.
   if (cairo_surface_status(aSurface)) {
-    gfxCriticalError() << "Attempt to create DrawTarget for invalid surface. "
-                       << aSize << " Cairo Status: " << cairo_surface_status(aSurface);
     cairo_surface_destroy(aSurface);
     return false;
   }
