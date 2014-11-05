@@ -1773,7 +1773,7 @@ MainAxisPositionTracker::
         }
         break;
       default:
-        MOZ_CRASH("Unexpected justify-content value");
+        NS_NOTREACHED("Unexpected justify-content value");
     }
   }
 
@@ -1944,7 +1944,7 @@ CrossAxisPositionTracker::
         }
         break;
       default:
-        MOZ_CRASH("Unexpected align-content value");
+        NS_NOTREACHED("Unexpected align-content value");
     }
   }
 }
@@ -2216,7 +2216,7 @@ FlexboxAxisTracker::FlexboxAxisTracker(nsFlexContainerFrame* aFlexContainerFrame
       mMainAxis = GetReverseAxis(blockDimension);
       break;
     default:
-      MOZ_CRASH("Unexpected computed value for 'flex-flow' property");
+      NS_NOTREACHED("Unexpected computed value for 'flex-flow' property");
   }
 
   // Determine cross axis:
