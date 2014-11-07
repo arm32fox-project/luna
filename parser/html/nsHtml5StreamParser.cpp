@@ -794,8 +794,13 @@ nsHtml5StreamParser::WriteStreamBytes(const uint8_t* aFromSegment,
                                       uint32_t* aWriteCount)
 {
   NS_ASSERTION(IsParserThread(), "Wrong thread!");
-  // mLastBuffer always points to a buffer of the size
+  // mLastBuffer should always point to a buffer of the size
   // NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE.
+  if (!mLastBuffer) {
+    NS_WARNING("mLastBuffer should not be null!");
+    MarkAsBroken(NS_ERROR_NULL_POINTER);
+    return NS_ERROR_NULL_POINTER;
+  }  
   if (mLastBuffer->getEnd() == NS_HTML5_STREAM_PARSER_READ_BUFFER_SIZE) {
     nsRefPtr<nsHtml5OwningUTF16Buffer> newBuf =
       nsHtml5OwningUTF16Buffer::FalliblyCreate(
@@ -892,7 +897,8 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
    * WillBuildModel to be called before the document has had its 
    * script global object set.
    */
-  mExecutor->WillBuildModel(eDTDMode_unknown);
+  nsresult rv = mExecutor->WillBuildModel(eDTDMode_unknown);
+  NS_ENSURE_SUCCESS(rv, rv);
   
   nsRefPtr<nsHtml5OwningUTF16Buffer> newBuf =
     nsHtml5OwningUTF16Buffer::FalliblyCreate(
@@ -907,7 +913,7 @@ nsHtml5StreamParser::OnStartRequest(nsIRequest* aRequest, nsISupports* aContext)
   NS_ASSERTION(!mLastBuffer, "How come we have the last buffer set?");
   mFirstBuffer = mLastBuffer = newBuf;
 
-  nsresult rv = NS_OK;
+  rv = NS_OK;
 
   // The line below means that the encoding can end up being wrong if
   // a view-source URL is loaded without having the encoding hint from a
@@ -976,8 +982,9 @@ nsHtml5StreamParser::DoStopRequest()
 
   if (!mUnicodeDecoder) {
     uint32_t writeCount;
-    if (NS_FAILED(FinalizeSniffing(nullptr, 0, &writeCount, 0))) {
-      MarkAsBroken();
+    nsresult rv;
+    if (NS_FAILED(rv = FinalizeSniffing(nullptr, 0, &writeCount, 0))) {
+      MarkAsBroken(rv);
       return;
     }
   } else if (mFeedChardet) {
@@ -1049,7 +1056,7 @@ nsHtml5StreamParser::DoDataAvailable(uint8_t* aBuffer, uint32_t aLength)
     rv = SniffStreamBytes(aBuffer, aLength, &writeCount);
   }
   if (NS_FAILED(rv)) {
-    MarkAsBroken();
+    MarkAsBroken(rv);
     return;
   }
   NS_ASSERTION(writeCount == aLength, "Wrong number of stream bytes written/sniffed.");
@@ -1596,13 +1603,13 @@ nsHtml5StreamParser::TimerFlush()
 }
 
 void
-nsHtml5StreamParser::MarkAsBroken()
+nsHtml5StreamParser::MarkAsBroken(nsresult aRv)
 {
   NS_ASSERTION(IsParserThread(), "Wrong thread!");
   mTokenizerMutex.AssertCurrentThreadOwns();
 
   Terminate();
-  mTreeBuilder->MarkAsBroken();
+  mTreeBuilder->MarkAsBroken(aRv);
   mozilla::DebugOnly<bool> hadOps = mTreeBuilder->Flush(false);
   NS_ASSERTION(hadOps, "Should have had the markAsBroken op!");
   if (NS_FAILED(NS_DispatchToMainThread(mExecutorFlusher))) {
