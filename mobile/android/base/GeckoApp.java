@@ -1667,8 +1667,7 @@ abstract public class GeckoApp
         
         // ...except for when the user chooses to.
         if (savedInstanceState != null ||
-                PreferenceManager.getDefaultSharedPreferences(this)
-                .getBoolean("android.not_a_preference.restoreSession", false)) {
+                PreferenceManager.getDefaultSharedPreferences(this).getBoolean(GeckoPreferences.PREFS_RESTORE_SESSION, false)) {
             restoreMode = RESTORE_NORMAL;
         }
 
