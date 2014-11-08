@@ -1646,16 +1646,12 @@ abstract public class GeckoApp
             });
 
             restoreMode = RESTORE_NORMAL;
-        } else if (savedInstanceState != null ||
-                PreferenceManager.getDefaultSharedPreferences(this)
-                .getBoolean("android.not_a_preference.restoreSession", false)) {
-            restoreMode = RESTORE_NORMAL;
         }
 
         // We record crashes in the crash reporter. If sessionstore.js
         // exists, but we didn't flag a crash in the crash reporter, we
         // were probably just force killed by the user, so we shouldn't do
-        // a restore.
+        // a restore...
         if (prefs.getBoolean(PREFS_CRASHED, false)) {
             ThreadUtils.postToBackgroundThread(new Runnable() {
                 @Override
@@ -1667,6 +1663,13 @@ abstract public class GeckoApp
             });
 
             restoreMode = RESTORE_CRASH;
+        }
+        
+        // ...except for when the user chooses to.
+        if (savedInstanceState != null ||
+                PreferenceManager.getDefaultSharedPreferences(this)
+                .getBoolean("android.not_a_preference.restoreSession", false)) {
+            restoreMode = RESTORE_NORMAL;
         }
 
         return restoreMode;
