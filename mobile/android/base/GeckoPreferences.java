@@ -73,7 +73,8 @@ public class GeckoPreferences
     private static String PREFS_MP_ENABLED = "privacy.masterpassword.enabled";
     private static String PREFS_UPDATER_AUTODOWNLOAD = "app.update.autodownload";
     private static String PREFS_HEALTHREPORT_LINK = NON_PREF_PREFIX + "healthreport.link";
-    private static String PREFS_RESTORE_SESSION = NON_PREF_PREFIX + "restoreSession";
+
+    public static String PREFS_RESTORE_SESSION = NON_PREF_PREFIX + "restoreSession";
 
     // These values are chosen to be distinct from other Activity constants.
     private static int REQUEST_CODE_PREF_SCREEN = 5;
