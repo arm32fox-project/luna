@@ -102,7 +102,7 @@
 <!ENTITY pref_plugins_disabled "Disabled">
 <!ENTITY pref_text_size "Text size">
 <!ENTITY pref_reflow_on_zoom3 "Double tap to reflow text">
-<!ENTITY pref_restore_session "Always restore tabs">
+<!ENTITY pref_restore_session "Automatically restore tabs">
 <!ENTITY pref_font_size_tiny "Tiny">
 <!ENTITY pref_font_size_small "Small">
 <!ENTITY pref_font_size_medium "Medium">
@@ -117,8 +117,8 @@ size. -->
 <!ENTITY pref_font_size_adjust_char "A">
 
 <!-- Localization note (pref_font_size_preview_text): This paragraph is used as an example to
-    demonstrate the font size setting.  It is meant to be whimsical and fun. -->
-<!ENTITY pref_font_size_preview_text "The quick orange fox jumps over your expectations with more speed, more flexibility and more security. As a non-profit, we\'re free to innovate on your behalf without any pressure to compromise. That means a better experience for you and a brighter future for the Web.">
+    demonstrate the font size setting. -->
+<!ENTITY pref_font_size_preview_text "Five or six big jet planes zoomed quickly past the new tower by the light of the Pale Moon. As a true non-profit, open, community-focused project, we\'re free to develop for you without any pressure to compromise. That means a better experience for you, and a brighter future for the Web.">
 
 <!ENTITY pref_use_master_password "Use master password">
 <!ENTITY pref_show_product_announcements "Show product announcements">
