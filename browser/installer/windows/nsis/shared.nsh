@@ -369,7 +369,17 @@ FunctionEnd
 !macroend
 !define ShowShortcuts "!insertmacro ShowShortcuts"
 
-; Adds the protocol and file handler registry entries for making Firefox the
+!macro AddAssociationIfNoneExist FILE_TYPE
+  ClearErrors
+  EnumRegKey $7 HKCR "${FILE_TYPE}" 0
+  ${If} ${Errors}
+    WriteRegStr SHCTX "SOFTWARE\Classes\${FILE_TYPE}"  "" "PaleMoonHTML"
+  ${EndIf}
+!macroend
+!define AddAssociationIfNoneExist "!insertmacro AddAssociationIfNoneExist"
+
+
+; Adds the protocol and file handler registry entries for making Pale Moon the
 ; default handler (uses SHCTX).
 !macro SetHandlers
   ${GetLongPath} "$INSTDIR\${FileMainEXE}" $8
@@ -403,11 +413,11 @@ FunctionEnd
     WriteRegStr SHCTX "$0\.xhtml" "" "PaleMoonHTML"
   ${EndIf}
 
-  ; Only add webm if it's not present
-  ${CheckIfRegistryKeyExists} "$0" ".webm" $7
-  ${If} $7 == "false"
-    WriteRegStr SHCTX "$0\.webm"  "" "PaleMoonHTML"
-  ${EndIf}
+  ;Register file associations, but only if they don't exist yet.
+  ${AddAssociationIfNoneExist} ".oga"
+  ${AddAssociationIfNoneExist} ".ogg"
+  ${AddAssociationIfNoneExist} ".ogv"
+  ${AddAssociationIfNoneExist} ".webm"
 
   ; An empty string is used for the 5th param because PaleMoonHTML is not a
   ; protocol handler
