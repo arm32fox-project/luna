@@ -314,7 +314,7 @@
                     label="&openFrameCmd.label;"
                     accesskey="&openFrameCmd.accesskey;"
                     oncommand="gContextMenu.openFrame();"/>
-          <menuseparator/>
+          <menuseparator id="open-frame-sep"/>
           <menuitem id="context-reloadframe"
                     label="&reloadFrameCmd.label;"
                     accesskey="&reloadFrameCmd.accesskey;"
