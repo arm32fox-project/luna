@@ -60,7 +60,6 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
             'ColorLayerD3D9.cpp',
             'CanvasLayerD3D9.cpp',
             'DeviceManagerD3D9.cpp',
-            'Nv3DVUtils.cpp',
         ]
     if CONFIG['MOZ_ENABLE_D3D10_LAYER']:
         EXPORTS += [

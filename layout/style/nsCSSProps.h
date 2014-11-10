@@ -395,9 +395,11 @@ public:
   static int32_t kDisplayKTable[];
   static const int32_t kElevationKTable[];
   static const int32_t kEmptyCellsKTable[];
+  static const int32_t kAlignContentKTable[];
   static const int32_t kAlignItemsKTable[];
   static const int32_t kAlignSelfKTable[];
   static const int32_t kFlexDirectionKTable[];
+  static const int32_t kFlexWrapKTable[];
   static const int32_t kJustifyContentKTable[];
   static const int32_t kFloatKTable[];
   static const int32_t kFloatEdgeKTable[];

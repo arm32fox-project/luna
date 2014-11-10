@@ -3119,6 +3119,13 @@ nsHtml5TreeBuilder::isSecondOnStackBody()
 void 
 nsHtml5TreeBuilder::documentModeInternal(nsHtml5DocumentMode m, nsString* publicIdentifier, nsString* systemIdentifier, bool html4SpecificAdditionalErrorChecks)
 {
+  if (isSrcdocDocument) {
+    quirks = false;
+    if (this) {
+      this->documentMode(STANDARDS_MODE);
+    }
+    return;
+  }
   quirks = (m == QUIRKS_MODE);
   if (this) {
     this->documentMode(m);
@@ -4063,6 +4070,12 @@ void
 nsHtml5TreeBuilder::setScriptingEnabled(bool scriptingEnabled)
 {
   this->scriptingEnabled = scriptingEnabled;
+}
+
+void 
+nsHtml5TreeBuilder::setIsSrcdocDocument(bool isSrcdocDocument)
+{
+  this->isSrcdocDocument = isSrcdocDocument;
 }
 
 void 

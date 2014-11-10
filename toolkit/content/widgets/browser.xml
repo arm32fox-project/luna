@@ -319,7 +319,7 @@
                 readonly="true">
         <getter>
         <![CDATA[
-          if (!this._webNavigation)
+          if (!this._webNavigation && this.docShell)
             this._webNavigation = this.isRemoteBrowser ? this._remoteWebNavigation : this.docShell.QueryInterface(Components.interfaces.nsIWebNavigation);
           return this._webNavigation;
         ]]>

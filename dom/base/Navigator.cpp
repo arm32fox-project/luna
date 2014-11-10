@@ -52,9 +52,10 @@
 #include "nsIHttpChannel.h"
 #include "TimeManager.h"
 
-#ifdef MOZ_MEDIA_NAVIGATOR
+// XXX Required for misc DX input methods, should be made 
+// independent of Mediamanager in the future
 #include "MediaManager.h"
-#endif
+
 #ifdef MOZ_B2G_RIL
 #include "TelephonyFactory.h"
 #endif
