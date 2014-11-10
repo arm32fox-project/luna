@@ -2017,6 +2017,12 @@ let SessionStoreInternal = {
     if (aEntry.referrerURI)
       entry.referrer = aEntry.referrerURI.spec;
 
+    if (aEntry.srcdocData)
+      entry.srcdocData = aEntry.srcdocData;
+
+    if (aEntry.isSrcdocEntry)
+      entry.isSrcdocEntry = aEntry.isSrcdocEntry;
+
     if (aEntry.contentType)
       entry.contentType = aEntry.contentType;
 
@@ -3266,6 +3272,8 @@ let SessionStoreInternal = {
       shEntry.contentType = aEntry.contentType;
     if (aEntry.referrer)
       shEntry.referrerURI = this._getURIFromString(aEntry.referrer);
+    if (aEntry.isSrcdocEntry)
+      shEntry.srcdocData = aEntry.srcdocData;
 
     if (aEntry.cacheKey) {
       var cacheKey = Cc["@mozilla.org/supports-PRUint32;1"].

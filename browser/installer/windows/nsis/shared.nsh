@@ -46,7 +46,7 @@ FunctionEnd
   System::Call "kernel32::ProcessIdToSessionId(i $0, *i ${NSIS_MAX_STRLEN} r9)"
 
   ; Determine if we're the protected UserChoice default or not. If so fix the
-  ; start menu tile.  In case there are 2 Firefox installations, we only do
+  ; start menu tile.  In case there are 2 Pale Moon installations, we only do
   ; this if the application being updated is the default.
   ReadRegStr $0 HKCU "Software\Microsoft\Windows\Shell\Associations\UrlAssociations\http\UserChoice" "ProgId"
   ${If} $0 == "PaleMoonURL"
@@ -369,7 +369,17 @@ FunctionEnd
 !macroend
 !define ShowShortcuts "!insertmacro ShowShortcuts"
 
-; Adds the protocol and file handler registry entries for making Firefox the
+!macro AddAssociationIfNoneExist FILE_TYPE
+  ClearErrors
+  EnumRegKey $7 HKCR "${FILE_TYPE}" 0
+  ${If} ${Errors}
+    WriteRegStr SHCTX "SOFTWARE\Classes\${FILE_TYPE}"  "" "PaleMoonHTML"
+  ${EndIf}
+!macroend
+!define AddAssociationIfNoneExist "!insertmacro AddAssociationIfNoneExist"
+
+
+; Adds the protocol and file handler registry entries for making Pale Moon the
 ; default handler (uses SHCTX).
 !macro SetHandlers
   ${GetLongPath} "$INSTDIR\${FileMainEXE}" $8
@@ -403,11 +413,11 @@ FunctionEnd
     WriteRegStr SHCTX "$0\.xhtml" "" "PaleMoonHTML"
   ${EndIf}
 
-  ; Only add webm if it's not present
-  ${CheckIfRegistryKeyExists} "$0" ".webm" $7
-  ${If} $7 == "false"
-    WriteRegStr SHCTX "$0\.webm"  "" "PaleMoonHTML"
-  ${EndIf}
+  ;Register file associations, but only if they don't exist yet.
+  ${AddAssociationIfNoneExist} ".oga"
+  ${AddAssociationIfNoneExist} ".ogg"
+  ${AddAssociationIfNoneExist} ".ogv"
+  ${AddAssociationIfNoneExist} ".webm"
 
   ; An empty string is used for the 5th param because PaleMoonHTML is not a
   ; protocol handler
@@ -427,7 +437,7 @@ FunctionEnd
 !macroend
 !define SetHandlers "!insertmacro SetHandlers"
 
-; Adds the HKLM\Software\Clients\StartMenuInternet\FIREFOX.EXE registry
+; Adds the HKLM\Software\Clients\StartMenuInternet\{EXE} registry
 ; entries (does not use SHCTX).
 ;
 ; The values for StartMenuInternet are only valid under HKLM and there can only
@@ -506,7 +516,7 @@ FunctionEnd
 ; The IconHandler reference for PaleMoonHTML can end up in an inconsistent state
 ; due to changes not being detected by the IconHandler for side by side
 ; installs (see bug 268512). The symptoms can be either an incorrect icon or no
-; icon being displayed for files associated with Firefox (does not use SHCTX).
+; icon being displayed for files associated with Pale Moon (does not use SHCTX).
 !macro FixShellIconHandler RegKey
   ClearErrors
   ReadRegStr $1 ${RegKey} "Software\Classes\PaleMoonHTML\ShellEx\IconHandler" ""
@@ -603,6 +613,40 @@ FunctionEnd
 !macroend
 !define SetUninstallKeys "!insertmacro SetUninstallKeys"
 
+; Due to a bug when associating some file handlers, only SHCTX was checked for
+; some file types such as ".webm". SHCTX is set to HKCU or HKLM depending on
+; whether the installer has write access to HKLM. The bug would happen when
+; HCKU was checked and didn't exist since programs aren't required to set the
+; HKCU Software\Classes keys when associating handlers. The fix uses the merged
+; view in HKCR to check for existance of an existing association. This macro
+; cleans affected installations by removing the HKLM and HKCU value if it is set
+; to PaleMoonHTML when there is a value for PersistentHandler or by removing the
+; HKCU value when the HKLM value has a value other than an empty string.
+!macro FixBadFileAssociation FILE_TYPE
+  ; Only delete the default value in case the key has values for OpenWithList,
+  ; OpenWithProgids, PersistentHandler, etc.
+  ReadRegStr $0 HKCU "Software\Classes\${FILE_TYPE}" ""
+  ReadRegStr $1 HKLM "Software\Classes\${FILE_TYPE}" ""
+  ReadRegStr $2 HKCR "${FILE_TYPE}\PersistentHandler" ""
+  ${If} "$2" != ""
+    ; Since there is a persistent handler remove PaleMoonHTML as the default
+    ; value from both HKCU and HKLM if it is set to PaleMoonHTML.
+    ${If} "$0" == "PaleMoonHTML"
+      DeleteRegValue HKCU "Software\Classes\${FILE_TYPE}" ""
+    ${EndIf}
+    ${If} "$1" == "PaleMoonHTML"
+      DeleteRegValue HKLM "Software\Classes\${FILE_TYPE}" ""
+    ${EndIf}
+  ${ElseIf} "$0" == "PaleMoonHTML"
+    ; Since KHCU is set to PaleMoonHTML, remove it as the default value
+    ; from HKCU if HKLM is set to a value other than an empty string.
+    ${If} "$1" != ""
+      DeleteRegValue HKCU "Software\Classes\${FILE_TYPE}" ""
+    ${EndIf}
+  ${EndIf}
+!macroend
+!define FixBadFileAssociation "!insertmacro FixBadFileAssociation"
+
 ; Add app specific handler registry entries under Software\Classes if they
 ; don't exist (does not use SHCTX).
 !macro FixClassKeys
@@ -629,6 +673,12 @@ FunctionEnd
     ${WriteRegStr2} $TmpVal "$1\.xhtml" "" "xhtmlfile" 0
     ${WriteRegStr2} $TmpVal "$1\.xhtml" "Content Type" "application/xhtml+xml" 0
   ${EndIf}
+
+  ; Remove possibly badly associated file types
+  ${FixBadFileAssociation} ".oga"
+  ${FixBadFileAssociation} ".ogg"
+  ${FixBadFileAssociation} ".ogv"
+  ${FixBadFileAssociation} ".webm"
 !macroend
 !define FixClassKeys "!insertmacro FixClassKeys"
 
@@ -695,7 +745,7 @@ FunctionEnd
       SetRegView 64
     ${EndIf}
     DeleteRegKey HKLM "$R0"
-    WriteRegStr HKLM "$R0" "prefetchProcessName" "FIREFOX"
+    WriteRegStr HKLM "$R0" "prefetchProcessName" "PALEMOON"
     WriteRegStr HKLM "$R0\0" "name" "${CERTIFICATE_NAME}"
     WriteRegStr HKLM "$R0\0" "issuer" "${CERTIFICATE_ISSUER}"
     ${If} ${RunningX64}
@@ -713,16 +763,12 @@ FunctionEnd
 !macro RemoveDeprecatedKeys
   StrCpy $0 "SOFTWARE\Classes"
   ; Remove support for launching gopher urls from the shell during install or
-  ; update if the DefaultIcon is from firefox.exe.
+  ; update if the DefaultIcon is from palemoon.exe.
   ${RegCleanAppHandler} "gopher"
 
   ; Remove support for launching chrome urls from the shell during install or
-  ; update if the DefaultIcon is from firefox.exe (Bug 301073).
+  ; update if the DefaultIcon is from palemoon.exe (Bug 301073).
   ${RegCleanAppHandler} "chrome"
-
-  ; Remove protocol handler registry keys added by the MS shim
-  DeleteRegKey HKLM "Software\Classes\Firefox.URL"
-  DeleteRegKey HKCU "Software\Classes\Firefox.URL"
 
   ; Remove the app compatibility registry key
   StrCpy $0 "Software\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Layers"
@@ -1039,7 +1085,7 @@ FunctionEnd
       ${If} ${AtLeastWin7}
         ; No need to check the default on Win8 and later
         ${If} ${AtMostWin2008R2}
-          ; Check if the Firefox is the http handler for this user
+          ; Check if Pale Moon is the http handler for this user
           SetShellVarContext current ; Set SHCTX to the current user
           ${IsHandlerForInstallDir} "http" $R9
           ${If} $TmpVal == "HKLM"

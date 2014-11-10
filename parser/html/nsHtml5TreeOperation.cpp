@@ -214,6 +214,9 @@ nsHtml5TreeOperation::AppendToDocument(nsIContent* aNode,
   nsIDocument* doc = aBuilder->GetDocument();
   uint32_t childCount = doc->GetChildCount();
   rv = doc->AppendChildTo(aNode, false);
+  if (rv == NS_ERROR_DOM_HIERARCHY_REQUEST_ERR) {
+    return NS_OK;
+  }
   NS_ENSURE_SUCCESS(rv, rv);
   nsNodeUtils::ContentInserted(doc, aNode, childCount);
 
@@ -575,8 +578,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       return rv;
     }
     case eTreeOpMarkAsBroken: {
-      aBuilder->MarkAsBroken(NS_ERROR_OUT_OF_MEMORY);
-      return rv;
+      return mOne.result;
     }
     case eTreeOpRunScript: {
       nsIContent* node = *(mOne.node);

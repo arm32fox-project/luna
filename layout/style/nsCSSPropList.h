@@ -1556,6 +1556,16 @@ CSS_PROP_TABLEBORDER(
     CSS_PROP_NO_OFFSET,
     eStyleAnimType_None)
 CSS_PROP_POSITION(
+    align-content,
+    align_content,
+    AlignContent,
+    CSS_PROPERTY_PARSE_VALUE,
+    "layout.css.flexbox.enabled",
+    VARIANT_HK,
+    kAlignContentKTable,
+    offsetof(nsStylePosition, mAlignContent),
+    eStyleAnimType_EnumU8)
+CSS_PROP_POSITION(
     align-items,
     align_items,
     AlignItems,
@@ -1606,6 +1616,12 @@ CSS_PROP_POSITION(
     kFlexDirectionKTable,
     offsetof(nsStylePosition, mFlexDirection),
     eStyleAnimType_EnumU8)
+CSS_PROP_SHORTHAND(
+    flex-flow,
+    flex_flow,
+    FlexFlow,
+    CSS_PROPERTY_PARSE_FUNCTION,
+    "layout.css.flexbox.enabled")
 CSS_PROP_POSITION(
     flex-grow,
     flex_grow,
@@ -1634,6 +1650,16 @@ CSS_PROP_POSITION(
     nullptr,
     offsetof(nsStylePosition, mFlexShrink),
     eStyleAnimType_float) // float, except animations to/from 0 shouldn't work
+CSS_PROP_POSITION(
+    flex-wrap,
+    flex_wrap,
+    FlexWrap,
+    CSS_PROPERTY_PARSE_VALUE,
+    "layout.css.flexbox.enabled",
+    VARIANT_HK,
+    kFlexWrapKTable,
+    offsetof(nsStylePosition, mFlexWrap),
+    eStyleAnimType_EnumU8)
 CSS_PROP_POSITION(
     order,
     order,

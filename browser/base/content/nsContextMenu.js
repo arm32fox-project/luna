@@ -280,6 +280,18 @@ nsContextMenu.prototype = {
     this.showItem("context-keywordfield",
                   this.onTextInput && this.onKeywordField);
     this.showItem("frame", this.inFrame);
+
+    // srcdoc cannot be opened separately due to concerns about web
+    // content with about:srcdoc in location bar masquerading as trusted
+    // chrome/addon content.
+    // No need to also test for this.inFrame as this is checked in the parent
+    // submenu.
+    this.showItem("context-showonlythisframe", !this.inSrcdocFrame);
+    this.showItem("context-openframeintab", !this.inSrcdocFrame);
+    this.showItem("context-openframe", !this.inSrcdocFrame);
+    this.showItem("context-bookmarkframe", !this.inSrcdocFrame);
+    this.showItem("open-frame-sep", !this.inSrcdocFrame);
+
     this.showItem("frame-sep", this.inFrame && isTextSelected);
 
     // Hide menu entries for images, show otherwise
@@ -518,6 +530,7 @@ nsContextMenu.prototype = {
     this.linkProtocol      = "";
     this.onMathML          = false;
     this.inFrame           = false;
+    this.inSrcdocFrame     = false;
     this.inSyntheticDoc    = false;
     this.hasBGImage        = false;
     this.bgImageURL        = "";
@@ -683,8 +696,13 @@ nsContextMenu.prototype = {
 
     // See if the user clicked in a frame.
     var docDefaultView = this.target.ownerDocument.defaultView;
-    if (docDefaultView != docDefaultView.top)
+    if (docDefaultView != docDefaultView.top) {
       this.inFrame = true;
+
+      if (this.target.ownerDocument.isSrcdocDocument) {
+          this.inSrcdocFrame = true;
+      }
+    }
 
     // if the document is editable, show context menu like in text inputs
     if (!this.onEditableArea) {
@@ -713,6 +731,7 @@ nsContextMenu.prototype = {
           this.onCompletedImage  = false;
           this.onMathML          = false;
           this.inFrame           = false;
+          this.inSrcdocFrame     = false;
           this.hasBGImage        = false;
           this.isDesignMode      = true;
           this.onEditableArea = true;

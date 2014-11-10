@@ -22,8 +22,6 @@
 #include "mozilla/layers/PLayerChild.h"
 #include "mozilla/WidgetUtils.h"
 
-#include "../d3d9/Nv3DVUtils.h"
-
 #include "gfxCrashReporterUtils.h"
 #ifdef MOZ_METRO
 #include "DXGI1_2.h"
@@ -113,19 +111,6 @@ LayerManagerD3D10::Initialize(bool force, HRESULT* aHresultPtr)
 
   HRESULT hr = E_UNEXPECTED;
 
-  /* Create an Nv3DVUtils instance */
-  if (!mNv3DVUtils) {
-    mNv3DVUtils = new Nv3DVUtils();
-    if (!mNv3DVUtils) {
-      NS_WARNING("Could not create a new instance of Nv3DVUtils.\n");
-    }
-  }
-
-  /* Initialize the Nv3DVUtils object */
-  if (mNv3DVUtils) {
-    mNv3DVUtils->Initialize();
-  }
-
   mDevice = gfxWindowsPlatform::GetPlatform()->GetD3D10Device();
   if (!mDevice) {
       SetHRESULT(aHresultPtr, hr);
@@ -135,13 +120,6 @@ LayerManagerD3D10::Initialize(bool force, HRESULT* aHresultPtr)
   /*
    * Do some post device creation setup
    */
-  if (mNv3DVUtils) {
-    IUnknown* devUnknown = NULL;
-    if (mDevice) {
-      mDevice->QueryInterface(IID_IUnknown, (void **)&devUnknown);
-    }
-    mNv3DVUtils->SetDeviceInfo(devUnknown);
-  }
 
   int referenceCount = 0;
   UINT size = sizeof(referenceCount);

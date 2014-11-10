@@ -14,7 +14,6 @@
 #include "yuv_convert.h"
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
-#include "Nv3DVUtils.h"
 #include "D3D9SurfaceImage.h"
 
 namespace mozilla {
@@ -486,42 +485,6 @@ ImageLayerD3D9::RenderLayer()
       1);
 
     mD3DManager->SetShaderMode(DeviceManagerD3D9::YCBCRLAYER, GetMaskLayer());
-
-    /*
-     * Send 3d control data and metadata
-     */
-    if (mD3DManager->GetNv3DVUtils()) {
-      Nv_Stereo_Mode mode;
-      switch (yuvImage->GetData()->mStereoMode) {
-      case STEREO_MODE_LEFT_RIGHT:
-        mode = NV_STEREO_MODE_LEFT_RIGHT;
-        break;
-      case STEREO_MODE_RIGHT_LEFT:
-        mode = NV_STEREO_MODE_RIGHT_LEFT;
-        break;
-      case STEREO_MODE_BOTTOM_TOP:
-        mode = NV_STEREO_MODE_BOTTOM_TOP;
-        break;
-      case STEREO_MODE_TOP_BOTTOM:
-        mode = NV_STEREO_MODE_TOP_BOTTOM;
-        break;
-      case STEREO_MODE_MONO:
-        mode = NV_STEREO_MODE_MONO;
-        break;
-      }
-
-      // Send control data even in mono case so driver knows to leave stereo mode.
-      mD3DManager->GetNv3DVUtils()->SendNv3DVControl(mode, true, FIREFOX_3DV_APP_HANDLE);
-
-      if (yuvImage->GetData()->mStereoMode != STEREO_MODE_MONO) {
-        mD3DManager->GetNv3DVUtils()->SendNv3DVControl(mode, true, FIREFOX_3DV_APP_HANDLE);
-
-        nsRefPtr<IDirect3DSurface9> renderTarget;
-        device()->GetRenderTarget(0, getter_AddRefs(renderTarget));
-        mD3DManager->GetNv3DVUtils()->SendNv3DVMetaData((unsigned int)yuvImage->GetSize().width,
-                                                        (unsigned int)yuvImage->GetSize().height, (HANDLE)(data->mYTexture), (HANDLE)(renderTarget));
-      }
-    }
 
     // Linear scaling is default here, adhering to mFilter is difficult since
     // presumably even with point filtering we'll still want chroma upsampling

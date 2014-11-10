@@ -234,9 +234,26 @@ function showBrowserSpecificIndicator(aBrowser) {
   let stringBundle = chromeWin.gNavigatorBundle;
 
   let message = stringBundle.getString("getUserMedia.sharing" + captureState + ".message2");
-  let mainAction = null;
-  let secondaryActions = null;
+
+  let windowId = aBrowser.contentWindow
+                         .QueryInterface(Ci.nsIInterfaceRequestor)
+                         .getInterface(Ci.nsIDOMWindowUtils)
+                         .currentInnerWindowID;
+  let mainAction = {
+    label: "Continue Sharing", //stringBundle.getString("getUserMedia.continueSharing.label"),
+    accessKey: "C", //stringBundle.getString("getUserMedia.continueSharing.accesskey"),
+    callback: function () {},
+    dismiss: true
+  };
+  let secondaryActions = [{
+    label: "Stop Sharing", //stringBundle.getString("getUserMedia.stopSharing.label"),
+    accessKey: "S", //stringBundle.getString("getUserMedia.stopSharing.accesskey"),
+    callback: function () {
+      Services.obs.notifyObservers(null, "getUserMedia:revoke", windowId);
+    }
+  }];
   let options = {
+    hideNotNow: true,
     dismissed: true
   };
   chromeWin.PopupNotifications.show(aBrowser, "webRTC-sharingDevices", message,
