@@ -52,6 +52,8 @@ public:
 
     NS_HIDDEN_(nsresult) Init(nsIURI* uri);
 
+    NS_HIDDEN_(nsresult) InitSrcdoc(nsIURI* aURI, const nsAString &aSrcdoc);
+
 protected:
     nsCOMPtr<nsIChannel>        mChannel;
     nsCOMPtr<nsIHttpChannel>    mHttpChannel;
@@ -64,6 +66,7 @@ protected:
     nsCString                   mContentType;
     bool                        mIsDocument; // keeps track of the LOAD_DOCUMENT_URI flag
     bool                        mOpened;
+    bool                        mIsSrcdocChannel;
 };
 
 #endif /* nsViewSourceChannel_h___ */

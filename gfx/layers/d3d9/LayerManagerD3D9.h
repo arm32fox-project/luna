@@ -149,11 +149,6 @@ public:
   IDirect3DDevice9 *device() const { return mDeviceManager->device(); }
   DeviceManagerD3D9 *deviceManager() const { return mDeviceManager; }
 
-  /** 
-   * Return pointer to the Nv3DVUtils instance. Re-direct to mDeviceManager.
-   */ 
-  Nv3DVUtils *GetNv3DVUtils()  { return mDeviceManager ? mDeviceManager->GetNv3DVUtils() : NULL; } 
-
   static void OnDeviceManagerDestroy(DeviceManagerD3D9 *aDeviceManager) {
     if(aDeviceManager == mDefaultDeviceManager)
       mDefaultDeviceManager = nullptr;

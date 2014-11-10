@@ -17,7 +17,6 @@ namespace layers {
 
 class DeviceManagerD3D9;
 class LayerD3D9;
-class Nv3DVUtils;
 class Layer;
 
 // Shader Constant locations
@@ -118,11 +117,6 @@ public:
   };
 
   void SetShaderMode(ShaderMode aMode, Layer* aMask, bool aIs2D);
-
-  /** 
-   * Return pointer to the Nv3DVUtils instance 
-   */ 
-  Nv3DVUtils *GetNv3DVUtils()  { return mNv3DVUtils; }
 
   /**
    * Returns true if this device was removed.
@@ -227,9 +221,6 @@ private:
 
   /* If this device was removed */
   bool mDeviceWasRemoved;
-
-  /* Nv3DVUtils instance */ 
-  nsAutoPtr<Nv3DVUtils> mNv3DVUtils; 
 
   /**
    * Verifies all required device capabilities are present.

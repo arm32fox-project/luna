@@ -1292,3 +1292,16 @@ pref("browser.padlock.urlbar_background", 1);
 //Pale Moon standalone image background color
 pref("browser.display.standalone_images.background_color", "#2E3B41");
 
+// ****************** domain-specific UAs ******************
+
+// AMO needs "Firefox", obviously - pass on the OS (determined at build time)
+#ifdef XP_UNIX
+#ifdef XP_MACOSX
+pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Macintosh; Intel Mac OS X 10.8; rv:24.9) Gecko/20100101 Firefox/24.9 (Pale Moon)");
+#else
+pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Linux; X11; rv:24.9) Gecko/20100101 Firefox/24.9 (Pale Moon)");
+#endif
+#else
+pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:24.9) Gecko/20100101 Firefox/24.9 (Pale Moon)");
+#endif
+
