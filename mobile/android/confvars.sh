@@ -5,7 +5,7 @@
 MOZ_APP_BASENAME=Palemoon
 MOZ_APP_VENDOR=Moonchild
 
-MOZ_APP_VERSION=25.1b3
+MOZ_APP_VERSION=25.1
 MOZ_APP_UA_NAME=PaleMoon
 
 MOZ_BRANDING_DIRECTORY=mobile/android/branding/unofficial
