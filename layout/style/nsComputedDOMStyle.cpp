@@ -3174,6 +3174,16 @@ nsComputedDOMStyle::DoGetBorderImageRepeat()
 }
 
 CSSValue*
+nsComputedDOMStyle::DoGetAlignContent()
+{
+  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+  val->SetIdent(
+    nsCSSProps::ValueToKeywordEnum(StylePosition()->mAlignContent,
+                                   nsCSSProps::kAlignContentKTable));
+  return val;
+}
+
+CSSValue*
 nsComputedDOMStyle::DoGetAlignItems()
 {
   nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
@@ -3253,6 +3263,16 @@ nsComputedDOMStyle::DoGetFlexShrink()
 {
   nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
   val->SetNumber(StylePosition()->mFlexShrink);
+  return val;
+}
+
+CSSValue*
+nsComputedDOMStyle::DoGetFlexWrap()
+{
+  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+  val->SetIdent(
+    nsCSSProps::ValueToKeywordEnum(StylePosition()->mFlexWrap,
+                                   nsCSSProps::kFlexWrapKTable));
   return val;
 }
 
@@ -4935,6 +4955,7 @@ nsComputedDOMStyle::GetQueryablePropertyMap(uint32_t* aLength)
      * Implementations of CSS styles *
     \* ***************************** */
 
+    COMPUTED_STYLE_MAP_ENTRY(align_content,                 AlignContent),
     COMPUTED_STYLE_MAP_ENTRY(align_items,                   AlignItems),
     COMPUTED_STYLE_MAP_ENTRY(align_self,                    AlignSelf),
     //// COMPUTED_STYLE_MAP_ENTRY(animation,                Animation),
@@ -5006,6 +5027,7 @@ nsComputedDOMStyle::GetQueryablePropertyMap(uint32_t* aLength)
     COMPUTED_STYLE_MAP_ENTRY(flex_direction,                FlexDirection),
     COMPUTED_STYLE_MAP_ENTRY(flex_grow,                     FlexGrow),
     COMPUTED_STYLE_MAP_ENTRY(flex_shrink,                   FlexShrink),
+    COMPUTED_STYLE_MAP_ENTRY(flex_wrap,                     FlexWrap),
     COMPUTED_STYLE_MAP_ENTRY(float,                         Float),
     //// COMPUTED_STYLE_MAP_ENTRY(font,                     Font),
     COMPUTED_STYLE_MAP_ENTRY(font_family,                   FontFamily),

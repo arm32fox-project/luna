@@ -198,6 +198,8 @@ class nsHtml5StreamParser : public nsIStreamListener,
      */
     void SetViewSourceTitle(nsIURI* aURL);
 
+    bool IsSrcdocDocument();
+
   private:
 
 #ifdef DEBUG
@@ -208,7 +210,7 @@ class nsHtml5StreamParser : public nsIStreamListener,
     }
 #endif
 
-    void MarkAsBroken();
+    void MarkAsBroken(nsresult aRv);
 
     /**
      * Marks the stream parser as interrupted. If you ever add calls to this

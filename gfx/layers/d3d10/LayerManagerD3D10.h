@@ -20,7 +20,6 @@ namespace mozilla {
 namespace layers {
 
 class DummyRoot;
-class Nv3DVUtils;
 
 /**
  * This structure is used to pass rectangles to our shader constant. We can use
@@ -142,11 +141,6 @@ public:
   void SetViewport(const nsIntSize &aViewport);
   const nsIntSize &GetViewport() { return mViewport; }
 
-  /**
-   * Return pointer to the Nv3DVUtils instance
-   */
-  Nv3DVUtils *GetNv3DVUtils()  { return mNv3DVUtils; }
-
   static void ReportFailure(const nsACString &aMsg, HRESULT aCode);
 
 private:
@@ -173,9 +167,6 @@ private:
   CallbackInfo mCurrentCallbackInfo;
 
   nsIntSize mViewport;
-
-  /* Nv3DVUtils instance */ 
-  nsAutoPtr<Nv3DVUtils> mNv3DVUtils; 
 
   /*
    * Context target, NULL when drawing directly to our swap chain.
@@ -214,11 +205,6 @@ public:
 
   /* Called by the layer manager when it's destroyed */
   virtual void LayerManagerDestroyed() {}
-
-  /**
-   * Return pointer to the Nv3DVUtils instance. Calls equivalent method in LayerManager.
-   */
-  Nv3DVUtils *GetNv3DVUtils()  { return mD3DManager->GetNv3DVUtils(); }
 
   /*
    * Returns a shader resource view of a texture containing the contents of this
