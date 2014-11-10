@@ -27,6 +27,7 @@
 #include "nsCharsetSource.h"
 #include "nsIWyciwygChannel.h"
 #include "nsIInputStreamChannel.h"
+#include "nsIViewSourceChannel.h"
 
 #include "mozilla/dom/EncodingUtils.h"
 
@@ -1631,6 +1632,12 @@ nsHtml5StreamParser::IsSrcdocDocument()
     nsCOMPtr<nsIInputStreamChannel> isr = do_QueryInterface(channel);
     if (isr) {
       isr->GetIsSrcdocChannel(&isSrcdoc);
+      return isSrcdoc;
+    }
+    nsCOMPtr<nsIViewSourceChannel> vsc = do_QueryInterface(channel);
+    if (vsc) {
+        vsc->GetIsSrcdocChannel(&isSrcdoc);
+        return isSrcdoc;
     }
   }
   return isSrcdoc;

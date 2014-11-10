@@ -11,6 +11,7 @@
 #include "nsHtml5AtomTable.h"
 #include "nsHtml5DependentUTF16Buffer.h"
 #include "nsIInputStreamChannel.h"
+#include "nsIViewSourceChannel.h"
 
 NS_INTERFACE_TABLE_HEAD(nsHtml5Parser)
   NS_INTERFACE_TABLE2(nsHtml5Parser, nsIParser, nsISupportsWeakReference)
@@ -725,6 +726,12 @@ nsHtml5Parser::IsSrcdocDocument()
     nsCOMPtr<nsIInputStreamChannel> isr = do_QueryInterface(channel);
     if (isr) {
       isr->GetIsSrcdocChannel(&isSrcdoc);
+      return isSrcdoc;
+    }
+    nsCOMPtr<nsIViewSourceChannel> vsc = do_QueryInterface(channel);
+    if (vsc) {
+        vsc->GetIsSrcdocChannel(&isSrcdoc);
+        return isSrcdoc;
     }
   }
   return isSrcdoc;
