@@ -258,6 +258,8 @@ class nsHtml5Parser : public nsIParser,
      */
     nsresult ParseUntilBlocked();
 
+    bool IsSrcdocDocument();
+
   private:
 
     // State variables
