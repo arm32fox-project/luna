@@ -42,7 +42,7 @@
     <hbox id="PMclientBox">
       <vbox id="PMleftBox" flex="1"/>
       <vbox id="PMrightBox" flex="1">
-#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (Atom-optimized)</label>
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (Atom/WinXP)</label>
         <label id="distribution" class="text-blurb"/>
         <label id="distributionId" class="text-blurb"/>
 
