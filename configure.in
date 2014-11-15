@@ -4138,7 +4138,7 @@ MOZ_ANDROID_HISTORY=
 MOZ_WEBSMS_BACKEND=
 MOZ_ANDROID_WALLPAPER=
 MOZ_ANDROID_BEAM=
-ACCESSIBILITY=1
+ACCESSIBILITY=
 MOZ_TIME_MANAGER=
 MOZ_PAY=
 MOZ_AUDIO_CHANNEL_MANAGER=
@@ -5158,10 +5158,10 @@ AC_DEFINE(IBMBIDI)
 dnl ========================================================
 dnl accessibility support on by default on all platforms
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(accessibility,
-[  --disable-accessibility Disable accessibility support],
-    ACCESSIBILITY=,
-    ACCESSIBILITY=1 )
+MOZ_ARG_ENABLE_BOOL(accessibility,
+[  --enable-accessibility Enable specialized accessibility support],
+    ACCESSIBILITY=1,
+    ACCESSIBILITY= )
 if test "$ACCESSIBILITY"; then
     case "$target" in
     *-mingw*)
