@@ -15,20 +15,12 @@ MOZ_ACTIVEX_SCRIPTING_SUPPORT=
 MOZ_LDAP_XPCOM=1
 MOZ_COMPOSER=1
 MOZ_APP_STATIC_INI=1
-if test "$OS_ARCH" = "WINNT"; then
-  if ! test "$HAVE_64BIT_OS"; then
-    MOZ_VERIFY_MAR_SIGNATURE=1
-    MOZ_MAINTENANCE_SERVICE=1
-  fi
-fi
 
-# Disable Accessibility on Mac for now as unit tests fail (bug 862238).
-if test "$OS_ARCH" = "Darwin"; then
-  ACCESSIBILITY=
-fi
+# Disable Accessibility
+ACCESSIBILITY=
 
-MOZ_SAFE_BROWSING=1
-MOZ_MEDIA_NAVIGATOR=1
+MOZ_SAFE_BROWSING=
+MOZ_MEDIA_NAVIGATOR=
 MOZ_MORK=1
 MAIL_COMPONENT="mail msgsmime import"
 MAIL_MODULE="MODULE(nsMailModule) MODULE(nsMsgSMIMEModule) MODULE(nsImportServiceModule)"
