@@ -27,6 +27,7 @@
 #include "nsError.h"
 #include "nsXPCOMCIDInternal.h"
 #include "nsUnicharInputStream.h"
+#include "nsIFrame.h"
 
 #define kExpatSeparatorChar 0xFFFF
 
@@ -340,6 +341,9 @@ NS_IMPL_CYCLE_COLLECTING_RELEASE(nsExpatDriver)
 
 NS_IMPL_CYCLE_COLLECTION_2(nsExpatDriver, mSink, mExtendedSink)
 
+// We store the tagdepth in a PRUint8, so make sure the limit fits in a PRUint8.
+PR_STATIC_ASSERT(MAX_REFLOW_DEPTH <= PR_UINT8_MAX);
+
 nsExpatDriver::nsExpatDriver()
   : mExpatParser(nullptr),
     mInCData(false),
@@ -347,6 +351,7 @@ nsExpatDriver::nsExpatDriver()
     mInExternalDTD(false),
     mMadeFinalCallToExpat(false),
     mIsFinalChunk(false),
+    mTagDepth(0),
     mInternalState(NS_OK),
     mExpatBuffered(0),
     mCatalogData(nullptr),
@@ -361,7 +366,7 @@ nsExpatDriver::~nsExpatDriver()
   }
 }
 
-nsresult
+void
 nsExpatDriver::HandleStartElement(const PRUnichar *aValue,
                                   const PRUnichar **aAtts)
 {
@@ -379,14 +384,17 @@ nsExpatDriver::HandleStartElement(const PRUnichar *aValue,
   }
 
   if (mSink) {
+    if (++mTagDepth == MAX_REFLOW_DEPTH) {
+      MaybeStopParser(NS_ERROR_HTMLPARSER_HIERARCHYTOODEEP);
+      return;
+    }
+
     nsresult rv = mSink->
       HandleStartElement(aValue, aAtts, attrArrayLength,
                          XML_GetIdAttributeIndex(mExpatParser),
                          XML_GetCurrentLineNumber(mExpatParser));
     MaybeStopParser(rv);
   }
-
-  return NS_OK;
 }
 
 nsresult
@@ -398,6 +406,7 @@ nsExpatDriver::HandleEndElement(const PRUnichar *aValue)
 
   if (mSink && mInternalState != NS_ERROR_HTMLPARSER_STOPPARSING) {
     nsresult rv = mSink->HandleEndElement(aValue);
+    --mTagDepth;
     MaybeStopParser(rv);
   }
 
