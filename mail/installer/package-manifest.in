@@ -379,6 +379,7 @@
 @BINPATH@/components/autoconfig.xpt
 
 ; Phishing Protection
+#ifdef MOZ_SAFE_BROWSING
 @BINPATH@/components/phishing.manifest
 @BINPATH@/components/nsPhishingProtectionApplication.js
 @BINPATH@/components/nsUrlClassifierListManager.js
@@ -386,6 +387,7 @@
 @BINPATH@/components/nsUrlClassifierLib.js
 @BINPATH@/components/nsURLClassifier.manifest
 @BINPATH@/components/url-classifier.xpt
+#endif
 
 ; Address Book autocomplete
 @BINPATH@/components/nsAbAutoCompleteMyDomain.js
