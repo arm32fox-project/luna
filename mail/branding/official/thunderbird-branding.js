@@ -7,13 +7,26 @@ pref("mailnews.start_page.welcome_url","about:blank");
 // start page override to load after an update
 pref("mailnews.start_page.override_url","about:blank");
 
-// Interval: Time between checks for a new version (in seconds)
-// nightly=8 hours, official=24 hours
-pref("app.update.interval", 28800);
 
-// The time interval between the downloading of mar file chunks in the
-// background (in seconds)
+// Application updates
+pref("app.update.interval", 86400);
 pref("app.update.download.backgroundInterval", 60);
+pref("app.update.cert.requireBuiltIn", false);
+pref("app.update.cert.checkAttributes", false);
+pref("app.update.cert.maxErrors", 5);
+pref("app.update.enabled", true);               
+pref("app.update.auto", false);
+
+pref("app.update.mode", 2);
+pref("app.update.silent", false);
+pref("app.update.staging.enabled", false);
+pref("app.update.url", "https://www.fossamail.org/update/%VERSION%/%BUILD_TARGET%/update.xml");
+pref("app.update.url.manual", "http://www.fossamail.org/");
+pref("app.update.url.details", "http://www.fossamail.org/releasenotes.shtml");
+pref("app.update.idletime", 600);
+pref("app.update.showInstalledUI", true);
+
+pref("app.update.service.enabled", false);
 
 // Vendor and app URLS
 pref("app.vendorURL", "http://www.fossamail.org/");
