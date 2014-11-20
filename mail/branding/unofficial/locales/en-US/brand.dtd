@@ -5,4 +5,6 @@
 <!ENTITY  brandShortName        "MailNews">
 <!ENTITY  brandFullName         "MailNews">
 <!ENTITY  vendorShortName       "Moonchild">
+<!ENTITY  vendorFullName        "Moonchild Productions">
+<!ENTITY  vendorURL             "http://www.moonchildproductions.info">
 <!ENTITY  trademarkInfo.part1   " ">

@@ -90,13 +90,13 @@
           </description>
 #endif
           <description class="text-blurb" id="communityDesc">
-            FossaMail is published by <label class="text-link" onclick="openURL('http://www.moonchildproductions.info/');" oncommand="openUILink(this.getAttribute('href'), event);">Moonchild Productions</label> and created by <label class="text-link" onclick="openAboutTab('about:credits');">a global community</label> working together to make the internet better.
+            &brandFullName; is published by <label class="text-link" onclick="openURL('&vendorURL;');" oncommand="openUILink(this.getAttribute('href'), event);">&vendorFullName;</label> and created by <label class="text-link" onclick="openAboutTab('about:credits');">a global community</label> working together to make the internet better.
           </description>
           <description class="text-blurb" id="contributeDesc">
             We believe that the Internet should be open, public and available to everyone without any restrictions.
           </description>
           <description class="text-blurb" id="contributeDesc2">
-            Sound interesting? <label class="text-link" onclick="openURL('http://www.mozilla.org/contribute/');">Get involved</label>!
+            Sound interesting? <label class="text-link" onclick="openURL('http://forum.palemoon.org/viewforum.php?f=33');">Get involved</label>!
           </description>
        </vbox>
      </vbox>
