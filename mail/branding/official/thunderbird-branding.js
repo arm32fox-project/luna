@@ -19,6 +19,9 @@ pref("app.update.download.backgroundInterval", 60);
 pref("app.vendorURL", "http://www.fossamail.org/");
 pref("mail.cloud_files.inserted_urls.footer.link", "http://www.fossamail.org/");
 
+pref("app.releaseNotesURL","http://www.fossamail.org/releasenotes.shtml");
+pref("app.support.baseURL","http://support.live.mozillamessaging.com/%LOCALE%/thunderbird/%APPBUILDID%/");
+
 // Preferences for AMO integration
 pref("extensions.getAddons.cache.enabled", true);
 pref("extensions.getAddons.maxResults", 15);
