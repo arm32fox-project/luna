@@ -200,6 +200,7 @@ pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.name", "chrome://messeng
 pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.description", "chrome://messenger/locale/messenger.properties");
 
 pref("lightweightThemes.update.enabled", true);
+pref("lightweightThemes.animation.enabled", false);
 
 pref("xpinstall.whitelist.add", "addons.mozilla.org");
 pref("xpinstall.whitelist.add.36", "getpersonas.com");
