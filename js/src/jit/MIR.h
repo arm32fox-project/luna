@@ -2423,6 +2423,10 @@ class MToDouble
     {
         setResultType(MIRType_Double);
         setMovable();
+
+        // An object might have "valueOf", which means it is actively used.
+        if (def->mightBeType(MIRType_Object))
+            setGuard();
     }
 
   public:
@@ -2502,6 +2506,10 @@ class MToInt32 : public MUnaryInstruction
     {
         setResultType(MIRType_Int32);
         setMovable();
+
+        // An object might have "valueOf", which means it is actively used.
+        if (def->mightBeType(MIRType_Object))
+            setGuard();
     }
 
   public:
@@ -2546,6 +2554,10 @@ class MTruncateToInt32 : public MUnaryInstruction
     {
         setResultType(MIRType_Int32);
         setMovable();
+
+        // An object might have "valueOf", which means it is actively used.
+        if (def->mightBeType(MIRType_Object))
+            setGuard();
     }
 
   public:
