@@ -3235,7 +3235,20 @@ class MMathFunction
         Tan,
         ACos,
         ASin,
-        ATan
+        ATan,
+        Log10,
+        Log2,
+        Log1P,
+        ExpM1,
+        CosH,
+        SinH,
+        TanH,
+        ACosH,
+        ASinH,
+        ATanH,
+        Sign,
+        Trunc,
+        Cbrt
     };
 
   private:
