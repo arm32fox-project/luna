@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <android/log.h>
 #include <mozilla/Util.h>
+#include <sys/syscall.h>
 
 #include <vector>
 
