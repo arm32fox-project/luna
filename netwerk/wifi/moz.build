@@ -31,7 +31,7 @@ if CONFIG['OS_ARCH'] == 'Darwin':
     CPP_SOURCES += [
         'nsWifiScannerMac.cpp',
     ]
-elif CONFIG['OS_ARCH'] == 'FreeBSD':
+elif CONFIG['OS_ARCH'] in ('DragonFly', 'FreeBSD'):
     CPP_SOURCES += [
         'nsWifiScannerFreeBSD.cpp',
     ]
