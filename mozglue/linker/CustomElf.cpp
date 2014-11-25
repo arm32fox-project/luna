@@ -312,10 +312,6 @@ CustomElf::GetSymbolPtrInDeps(const char *symbol) const
       return const_cast<CustomElf *>(this);
     if (strcmp(symbol + 2, "moz_linker_stats") == 0)
       return FunctionPtr(&ElfLoader::stats);
-#ifdef __ARM_EABI__
-    if (strcmp(symbol + 2, "gnu_Unwind_Find_exidx") == 0)
-      return FunctionPtr(__wrap___gnu_Unwind_Find_exidx);
-#endif
   } else if (symbol[0] == 's' && symbol[1] == 'i') {
     if (strcmp(symbol + 2, "gnal") == 0)
       return FunctionPtr(SEGVHandler::__wrap_signal);
