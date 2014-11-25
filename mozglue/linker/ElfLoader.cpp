@@ -932,12 +932,12 @@ SEGVHandler::SEGVHandler()
   action.sa_restorer = NULL;
   if (sys_sigaction(SIGSEGV, &action, NULL))
     return;
-  stackPtr.Assign(MemoryRange::mmap(NULL, PageSize(), PROT_NONE,
-                                    MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-  if (stackPtr.get() == MAP_FAILED)
+  stackPtr.Assign(mmap(NULL, PageSize(), PROT_NONE,
+                       MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+  if (stackPtr.buf == MAP_FAILED)
     return;
 
-  *((volatile int*)stackPtr.get()) = 123;
+  *((volatile int*)stackPtr.buf) = 123;
   stackPtr.Assign(MAP_FAILED, 0);
   if (signalHandlingBroken) {
     /* Restore the original segfault signal handler. */
@@ -951,9 +951,9 @@ SEGVHandler::SEGVHandler()
     if (oldStack.ss_flags == SS_ONSTACK)
       oldStack.ss_flags = 0;
     if (!oldStack.ss_sp || oldStack.ss_size < stackSize) {
-      stackPtr.Assign(MemoryRange::mmap(NULL, stackSize, PROT_READ | PROT_WRITE,
-                                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
-      if (stackPtr.get() == MAP_FAILED)
+      stackPtr.Assign(mmap(NULL, stackSize, PROT_READ | PROT_WRITE,
+                           MAP_PRIVATE | MAP_ANONYMOUS, -1, 0));
+      if (stackPtr.buf == MAP_FAILED)
         return;
       stack_t stack;
       stack.ss_sp = stackPtr;
@@ -986,7 +986,7 @@ SEGVHandler::~SEGVHandler()
 void SEGVHandler::test_handler(int signum, siginfo_t *info, void *context)
 {
   SEGVHandler &that = ElfLoader::Singleton;
-  if (signum != SIGSEGV || info == NULL || info->si_addr != that.stackPtr.get())
+  if (signum != SIGSEGV || info == NULL || info->si_addr != that.stackPtr.buf)
     that.signalHandlingBroken = true;
   mprotect(that.stackPtr, that.stackPtr.GetLength(), PROT_READ | PROT_WRITE);
 }
