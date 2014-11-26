@@ -35,7 +35,7 @@
 // **********************************************************************
 
 #if defined (XP_UNIX)
-static bool sDisableSignalHandling = false;
+static bool sDisableSignalHandling = true;
 #endif
 
 nsProfileLock::nsProfileLock() :
@@ -50,7 +50,7 @@ nsProfileLock::nsProfileLock() :
 {
 #if defined (XP_UNIX)
     next = prev = this;
-    sDisableSignalHandling = PR_GetEnv("MOZ_DISABLE_SIG_HANDLER") ? true : false;
+//    sDisableSignalHandling = PR_GetEnv("MOZ_DISABLE_SIG_HANDLER") ? true : false;
 #endif
 }
 
