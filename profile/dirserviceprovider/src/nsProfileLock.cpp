@@ -34,8 +34,10 @@
 // This code was moved from profile/src/nsProfileAccess.
 // **********************************************************************
 
-#if defined (XP_UNIX)
+#if defined (ANDROID)
 static bool sDisableSignalHandling = true;
+#elif defined (XP_UNIX)
+static bool sDisableSignalHandling = false;
 #endif
 
 nsProfileLock::nsProfileLock() :
@@ -48,9 +50,12 @@ nsProfileLock::nsProfileLock() :
     ,mLockFileDesc(-1)
 #endif
 {
-#if defined (XP_UNIX)
+#if defined (ANDROID)
     next = prev = this;
-//    sDisableSignalHandling = PR_GetEnv("MOZ_DISABLE_SIG_HANDLER") ? true : false;
+    //Ignore MOZ_DISABLE_SIG_HANDLER environment variable; always disable on Android
+#elif defined (XP_UNIX)
+    next = prev = this;
+    sDisableSignalHandling = PR_GetEnv("MOZ_DISABLE_SIG_HANDLER") ? true : false;
 #endif
 }
 
