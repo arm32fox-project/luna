@@ -235,7 +235,7 @@ AndroidBridge::Init(JNIEnv *jEnv,
     if (eglClass) {
         // The pointer type moved to a 'long' in Android L, API version 20
         const char* jniType = mAPIVersion >= 20 ? "J" : "I";
-        jEGLSurfacePointerField = getField("mEGLSurface", jniType);
+        jEGLSurfacePointerField = jEnv->GetFieldID(eglClass, "mEGLSurface", jniType);
     } else {
         jEGLSurfacePointerField = 0;
     }
