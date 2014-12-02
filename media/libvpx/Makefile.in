@@ -325,6 +325,8 @@ ifeq ($(OS_ARCH),Darwin)
 CSRCS += \
   vp9_loopfilter_intrin_avx2.c\
   $(NULL)
+
+vp9_loopfilter_intrin_avx2.o: CFLAGS += -mavx2
 endif
 
 ifdef MOZ_VP8_ENCODER
