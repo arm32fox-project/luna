@@ -277,7 +277,7 @@ js::GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id,
 
     bool doGet = true;
     if (pobj->isNative()) {
-        desc->attrs = GetShapeAttributes(shape);
+        desc->attrs = GetShapeAttributes(pobj, shape);
         if (desc->attrs & (JSPROP_GETTER | JSPROP_SETTER)) {
             doGet = false;
             if (desc->attrs & JSPROP_GETTER)
@@ -647,8 +647,8 @@ DefinePropertyOnObject(JSContext *cx, HandleObject obj, HandleId id, const PropD
          shapeHasDefaultSetter = true,
          shapeHasGetterValue = false,
          shapeHasSetterValue = false;
-    uint8_t shapeAttributes = JSPROP_ENUMERATE;
-    if (!IsImplicitDenseElement(shape)) {
+    uint8_t shapeAttributes = GetShapeAttributes(obj, shape);
+    if (!IsImplicitDenseOrTypedArrayElement(shape)) {
         shapeDataDescriptor = shape->isDataDescriptor();
         shapeAccessorDescriptor = shape->isAccessorDescriptor();
         shapeWritable = shape->writable();
@@ -689,8 +689,8 @@ DefinePropertyOnObject(JSContext *cx, HandleObject obj, HandleId id, const PropD
              * avoid calling a getter; we won't need the value if it's not a
              * data descriptor.
              */
-            if (IsImplicitDenseElement(shape)) {
-                v = obj->getDenseElement(JSID_TO_INT(id));
+            if (IsImplicitDenseOrTypedArrayElement(shape)) {
+                v = obj->getDenseOrTypedArrayElement(cx, JSID_TO_INT(id));
             } else if (shape->isDataDescriptor()) {
                 /*
                  * We must rule out a non-configurable js::PropertyOp-guarded
@@ -831,8 +831,8 @@ DefinePropertyOnObject(JSContext *cx, HandleObject obj, HandleId id, const PropD
             changed |= JSPROP_ENUMERATE;
 
         attrs = (shapeAttributes & ~changed) | (desc.attributes() & changed);
-        getter = IsImplicitDenseElement(shape) ? JS_PropertyStub : shape->getter();
-        setter = IsImplicitDenseElement(shape) ? JS_StrictPropertyStub : shape->setter();
+        getter = IsImplicitDenseOrTypedArrayElement(shape) ? JS_PropertyStub : shape->getter();
+        setter = IsImplicitDenseOrTypedArrayElement(shape) ? JS_StrictPropertyStub : shape->setter();
     } else if (desc.isDataDescriptor()) {
         unsigned unchanged = 0;
         if (!desc.hasConfigurable())
@@ -1099,7 +1099,7 @@ JSObject::sealOrFreeze(JSContext *cx, HandleObject obj, ImmutabilityType it)
     /* preventExtensions must sparsify dense objects, so we can assign to holes without checks. */
     JS_ASSERT_IF(obj->isNative(), obj->getDenseCapacity() == 0);
 
-    if (obj->isNative() && !obj->inDictionaryMode()) {
+    if (obj->isNative() && !obj->inDictionaryMode() && !obj->isTypedArray()) {
         /*
          * Seal/freeze non-dictionary objects by constructing a new shape
          * hierarchy mirroring the original one, which can be shared if many
@@ -2828,6 +2828,9 @@ JSObject::growElements(ThreadSafeContext *tcx, uint32_t newcap)
     JS_ASSERT(isExtensible());
     JS_ASSERT_IF(isArray() && !arrayLengthIsWritable(),
                  newcap <= getArrayLength());
+    
+    // R: Do we need this?
+    JS_ASSERT(canHaveNonEmptyElements());
 
     /*
      * When an object with CAPACITY_DOUBLING_MAX or fewer elements needs to
@@ -2891,7 +2894,10 @@ JSObject::growElements(ThreadSafeContext *tcx, uint32_t newcap)
 
 void
 JSObject::shrinkElements(JSContext *cx, uint32_t newcap)
-{
+{ 
+    // R: Do we need this?
+    JS_ASSERT(canHaveNonEmptyElements());
+    
     uint32_t oldcap = getDenseCapacity();
     JS_ASSERT(newcap <= oldcap);
 
@@ -3355,7 +3361,8 @@ DefinePropertyOrElement(JSContext *cx, HandleObject obj, HandleId id,
         getter == JS_PropertyStub &&
         setter == JS_StrictPropertyStub &&
         attrs == JSPROP_ENUMERATE &&
-        (!obj->isIndexed() || !obj->nativeContains(cx, id)))
+        (!obj->isIndexed() || !obj->nativeContains(cx, id)) &&
+        !obj->isTypedArray())
     {
         uint32_t index = JSID_TO_INT(id);
         bool definesPast;
@@ -3387,6 +3394,12 @@ DefinePropertyOrElement(JSContext *cx, HandleObject obj, HandleId id,
         }
     }
 
+    // Don't define new indexed properties on typed arrays.
+    if (obj->isTypedArray()) {
+        uint64_t index;
+        if (IsTypedArrayIndex(id, &index))
+            return true;
+    }
 
     AutoRooterGetterSetter gsRoot(cx, attrs, &getter, &setter);
 
@@ -3454,7 +3467,11 @@ js::DefineNativeProperty(JSContext *cx, HandleObject obj, HandleId id, HandleVal
         if (!baseops::LookupProperty<CanGC>(cx, obj, id, &pobj, &shape))
             return false;
         if (shape && pobj == obj) {
-            if (IsImplicitDenseElement(shape)) {
+            if (IsImplicitDenseOrTypedArrayElement(shape)) {
+                if (obj->isTypedArray()) {
+                    /* Ignore getter/setter properties added to typed arrays. */
+                    return true;
+                }
                 if (!JSObject::sparsifyDenseElement(cx, obj, JSID_TO_INT(id)))
                     return false;
                 shape = obj->nativeLookup(cx, id);
@@ -3594,7 +3611,7 @@ CallResolveOp(JSContext *cx, HandleObject obj, HandleId id, unsigned flags,
     }
 
     if (JSID_IS_INT(id) && objp->containsDenseElement(JSID_TO_INT(id))) {
-        MarkDenseElementFound<CanGC>(propp);
+        MarkDenseOrTypedArrayElementFound<CanGC>(propp);
         return true;
     }
 
@@ -4018,8 +4035,8 @@ GetPropertyHelperInline(JSContext *cx,
                : JSObject::getGeneric(cx, obj2Handle, obj2Handle, idHandle, vpHandle);
     }
 
-    if (IsImplicitDenseElement(shape)) {
-        vp.set(obj2->getDenseElement(JSID_TO_INT(id)));
+    if (IsImplicitDenseOrTypedArrayElement(shape)) {
+        vp.set(obj2->getDenseOrTypedArrayElement(cx, JSID_TO_INT(id)));
         return true;
     }
 
@@ -4058,19 +4075,33 @@ LookupPropertyPureInline(JSObject *obj, jsid id, JSObject **objp, Shape **propp)
 
     JSObject *current = obj;
     while (true) {
-        /* Search for a native dense element or property. */
-        {
-            if (JSID_IS_INT(id) && current->containsDenseElement(JSID_TO_INT(id))) {
-                *objp = current;
-                MarkDenseElementFound<NoGC>(propp);
+        /* Search for a native dense element, typed array element, or property. */
+
+        if (JSID_IS_INT(id) && current->containsDenseElement(JSID_TO_INT(id))) {
+            *objp = current;
+            MarkDenseOrTypedArrayElementFound<NoGC>(propp);
+            return true;
+        }
+
+        if (current->isTypedArray()) {
+            uint64_t index;
+            if (IsTypedArrayIndex(id, &index)) {
+                if (index < TypedArray::length(obj)) {
+                    *objp = current;
+                    MarkDenseOrTypedArrayElementFound<NoGC>(propp);
+                } else {
+                    *objp = nullptr;
+                    *propp = nullptr;
+                }
                 return true;
             }
 
-            if (Shape *shape = current->nativeLookupPure(id)) {
-                *objp = current;
-                *propp = shape;
-                return true;
-            }
+        }
+
+        if (Shape *shape = current->nativeLookupPure(id)) {
+            *objp = current;
+            *propp = shape;
+            return true;
         }
 
         /* Fail if there's a resolve hook. */
@@ -4114,6 +4145,12 @@ js::LookupPropertyPure(JSObject *obj, jsid id, JSObject **objp, Shape **propp)
     return LookupPropertyPureInline(obj, id, objp, propp);
 }
 
+static inline bool
+IdIsLength(JSContext *cx, jsid id)
+{
+    return JSID_IS_ATOM(id) && cx->names().length == JSID_TO_ATOM(id);
+}
+
 /*
  * A pure version of GetPropertyHelper that can be called from parallel code
  * without locking. This code path cannot GC. This variant returns false
@@ -4126,7 +4163,7 @@ js::LookupPropertyPure(JSObject *obj, jsid id, JSObject **objp, Shape **propp)
  *  - The property has a getter.
  */
 bool
-js::GetPropertyPure(JSObject *obj, jsid id, Value *vp)
+js::GetPropertyPure(JSContext *cx, JSObject *obj, jsid id, Value *vp)
 {
     JSObject *obj2;
     Shape *shape;
@@ -4145,11 +4182,24 @@ js::GetPropertyPure(JSObject *obj, jsid id, Value *vp)
         return true;
     }
 
-    if (IsImplicitDenseElement(shape)) {
-        *vp = obj2->getDenseElement(JSID_TO_INT(id));
+    if (IsImplicitDenseOrTypedArrayElement(shape)) {
+        *vp = obj2->getDenseOrTypedArrayElement(cx, JSID_TO_INT(id));
         return true;
     }
 
+    /* Special case 'length' on Array and TypedArray. */
+    if (IdIsLength(cx, id)) {
+        if (obj->isArray()) {
+            vp->setNumber(obj->getArrayLength());
+            return true;
+        }
+
+        if (obj->isTypedArray()) {
+            vp->setNumber(TypedArray::length(obj));
+            return true;
+        }
+    }
+     
     return NativeGetPureInline(obj2, shape, vp);
 }
 
@@ -4349,7 +4399,7 @@ baseops::SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receive
     PropertyOp getter = clasp->getProperty;
     StrictPropertyOp setter = clasp->setProperty;
 
-    if (IsImplicitDenseElement(shape)) {
+    if (IsImplicitDenseOrTypedArrayElement(shape)) {
         /* ES5 8.12.4 [[Put]] step 2, for a dense data property on pobj. */
         if (pobj != obj)
             shape = NULL;
@@ -4419,15 +4469,15 @@ baseops::SetPropertyHelper(JSContext *cx, HandleObject obj, HandleObject receive
         }
     }
 
-    if (IsImplicitDenseElement(shape)) {
+    if (IsImplicitDenseOrTypedArrayElement(shape)) {
         uint32_t index = JSID_TO_INT(id);
         bool definesPast;
         if (!WouldDefinePastNonwritableLength(cx, obj, index, strict, &definesPast))
             return false;
         if (definesPast)
             return true;
-
-        JSObject::setDenseElementWithType(cx, obj, index, vp);
+        
+        obj->setDenseOrTypedArrayElementWithType(cx, index, vp);
         return true;
     }
 
@@ -4482,7 +4532,7 @@ baseops::GetAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *a
     if (!nobj->isNative())
         return JSObject::getGenericAttributes(cx, nobj, id, attrsp);
 
-    *attrsp = GetShapeAttributes(shape);
+    *attrsp = GetShapeAttributes(nobj, shape);
     return true;
 }
 
@@ -4500,7 +4550,7 @@ baseops::GetElementAttributes(JSContext *cx, HandleObject obj, uint32_t index, u
     if (!nobj->isNative())
         return JSObject::getElementAttributes(cx, nobj, index, attrsp);
 
-    *attrsp = GetShapeAttributes(shape);
+    *attrsp = GetShapeAttributes(nobj, shape);
     return true;
 }
 
@@ -4513,7 +4563,12 @@ baseops::SetAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *a
         return false;
     if (!shape)
         return true;
-    if (nobj->isNative() && IsImplicitDenseElement(shape)) {
+    if (nobj->isNative() && IsImplicitDenseOrTypedArrayElement(shape)) {
+        if (nobj->isTypedArray()) {
+            if (*attrsp == (JSPROP_ENUMERATE | JSPROP_PERMANENT))
+                return true;
+            return false;
+        }
         if (!JSObject::sparsifyDenseElement(cx, nobj, JSID_TO_INT(id)))
             return false;
         shape = obj->nativeLookup(cx, id);
@@ -4532,7 +4587,12 @@ baseops::SetElementAttributes(JSContext *cx, HandleObject obj, uint32_t index, u
         return false;
     if (!shape)
         return true;
-    if (nobj->isNative() && IsImplicitDenseElement(shape)) {
+    if (nobj->isNative() && IsImplicitDenseOrTypedArrayElement(shape)) {
+        if (nobj->isTypedArray()) {
+            if (*attrsp == (JSPROP_ENUMERATE | JSPROP_PERMANENT))
+                return true;
+            return false;
+        }
         if (!JSObject::sparsifyDenseElement(cx, obj, index))
             return false;
         jsid id = INT_TO_JSID(index);
@@ -4560,7 +4620,13 @@ baseops::DeleteGeneric(JSContext *cx, HandleObject obj, HandleId id, JSBool *suc
 
     GCPoke(cx->runtime());
 
-    if (IsImplicitDenseElement(shape)) {
+    if (IsImplicitDenseOrTypedArrayElement(shape)) {
+        if (obj->isTypedArray()) {
+            // Don't delete elements from typed arrays.
+            *succeeded = false;
+            return true;
+        }
+
         if (!CallJSDeletePropertyOp(cx, obj->getClass()->delProperty, obj, id, succeeded))
             return false;
         if (!succeeded)
@@ -4791,7 +4857,7 @@ js::CheckAccess(JSContext *cx, JSObject *obj_, HandleId id, JSAccessMode mode,
             break;
         }
 
-        *attrsp = GetShapeAttributes(shape);
+        *attrsp = GetShapeAttributes(pobj, shape);
 
         if (!writing) {
             if (IsImplicitDenseElement(shape)) {

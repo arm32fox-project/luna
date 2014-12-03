@@ -1665,10 +1665,12 @@ ParallelGetPropertyIC::update(ForkJoinSlice *slice, size_t cacheIndex,
     RootedScript script(pt);
     jsbytecode *pc;
     cache.getScriptedLocation(&script, &pc);
-
+    
+    JSContext *slicecx = reinterpret_cast<JSContext *>(slice);
+    
     // Grab the property early, as the pure path is fast anyways and doesn't
     // need a lock. If we can't do it purely, bail out of parallel execution.
-    if (!GetPropertyPure(obj, NameToId(cache.name()), vp.address()))
+    if (!GetPropertyPure(slicecx, obj, NameToId(cache.name()), vp.address()))
         return TP_RETRY_SEQUENTIALLY;
 
     // Avoid unnecessary locking if cannot attach stubs and idempotent.

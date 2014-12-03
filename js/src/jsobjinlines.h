@@ -426,6 +426,24 @@ JSObject::initDenseElement(uint32_t index, const js::Value &val)
     elements[index].init(this, js::HeapSlot::Element, index, val);
 }
 
+
+inline bool
+JSObject::setDenseElementIfHasType(uint32_t index, const js::Value &val)
+{
+    if (!js::types::HasTypePropertyId(this, JSID_VOID, val))
+        return false;
+    JSObject::setDenseElementMaybeConvertDouble(index, val);
+    return true;
+}
+
+inline void
+JSObject::setDenseElementWithTypeNoObj(JSContext *cx, uint32_t index,
+                                    const js::Value &val)
+{
+    js::types::AddTypePropertyId(cx, this, JSID_VOID, val);
+    this->setDenseElementMaybeConvertDouble(index, val);
+}
+
 /* static */ inline void
 JSObject::setDenseElementWithType(JSContext *cx, js::HandleObject obj, uint32_t index,
                                   const js::Value &val)
@@ -697,6 +715,33 @@ JSObject::setDateUTCTime(const js::Value &time)
 {
     JS_ASSERT(isDate());
     setFixedSlot(JSSLOT_DATE_UTC_TIME, time);
+}
+
+inline js::Value
+JSObject::getDenseOrTypedArrayElement(JSContext *cx, uint32_t idx)
+{
+    if (this->isTypedArray())
+        return as<js::TypedArray>().getTypedArrayElement(cx, idx);
+    return getDenseElement(idx);
+}
+
+inline bool
+JSObject::setDenseOrTypedArrayElementIfHasType(JSContext *cx, uint32_t index,
+                                               const js::Value &val)
+{
+    if (this->isTypedArray())
+        return as<js::TypedArray>().setTypedArrayElement(cx, this, index, val);
+    return setDenseElementIfHasType(index, val);
+}
+
+inline bool
+JSObject::setDenseOrTypedArrayElementWithType(JSContext *cx, uint32_t index,
+                                              const js::Value &val)
+{
+    if (this->isTypedArray())
+        return as<js::TypedArray>().setTypedArrayElement(cx, this, index, val);
+    setDenseElementWithTypeNoObj(cx, index, val);
+    return true;
 }
 
 /* static */ inline bool

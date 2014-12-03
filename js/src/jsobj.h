@@ -537,13 +537,22 @@ class JSObject : public js::ObjectImpl
     inline void setDenseElement(uint32_t index, const js::Value &val);
     inline void initDenseElement(uint32_t index, const js::Value &val);
     inline void setDenseElementMaybeConvertDouble(uint32_t index, const js::Value &val);
+    inline bool setDenseElementIfHasType(uint32_t index, const js::Value &val);
     static inline void setDenseElementWithType(JSContext *cx, js::HandleObject obj,
                                                uint32_t index, const js::Value &val);
+    inline void setDenseElementWithTypeNoObj(JSContext *cx, uint32_t index,
+                                             const js::Value &val);
     static inline void initDenseElementWithType(JSContext *cx, js::HandleObject obj,
                                                 uint32_t index, const js::Value &val);
     static inline void setDenseElementHole(JSContext *cx, js::HandleObject obj, uint32_t index);
     static inline void removeDenseElementForSparseIndex(JSContext *cx, js::HandleObject obj,
                                                         uint32_t index);
+    inline js::Value getDenseOrTypedArrayElement(JSContext *cx, uint32_t idx);
+    inline bool setDenseOrTypedArrayElementIfHasType(JSContext *cx, uint32_t index,
+                                                     const js::Value &val);
+    inline bool setDenseOrTypedArrayElementWithType(JSContext *cx, uint32_t index,
+                                                    const js::Value &val);
+
     inline void copyDenseElements(uint32_t dstStart, const js::Value *src, uint32_t count);
     inline void initDenseElements(uint32_t dstStart, const js::Value *src, uint32_t count);
     inline void moveDenseElements(uint32_t dstStart, uint32_t srcStart, uint32_t count);
@@ -902,13 +911,13 @@ class JSObject : public js::ObjectImpl
     template <class T>
     T &as() {
         JS_ASSERT(is<T>());
-        return *static_cast<T *>(this);
+        return *reinterpret_cast<T *>(this);
     }
 
     template <class T>
     const T &as() const {
         JS_ASSERT(is<T>());
-        return *static_cast<const T *>(this);
+        return *reinterpret_cast<const T *>(this);
     }
 
     /* Direct subtypes of JSObject: */
@@ -1242,13 +1251,17 @@ bool
 LookupPropertyPure(JSObject *obj, jsid id, JSObject **objp, Shape **propp);
 
 bool
-GetPropertyPure(JSObject *obj, jsid id, Value *vp);
+GetPropertyPure(JSContext *cx, JSObject *obj, jsid id, Value *vp);
 
+/* Doesn't seem to be used this way. */
+/*
 inline bool
-GetPropertyPure(JSObject *obj, PropertyName *name, Value *vp)
+GetPropertyPure(JSContext *cx, JSObject *obj, PropertyName *name, Value *vp)
 {
-    return GetPropertyPure(obj, NameToId(name), vp);
+    return GetPropertyPure(cx, obj, NameToId(name), vp);
 }
+*/
+
 
 bool
 GetOwnPropertyDescriptor(JSContext *cx, HandleObject obj, HandleId id, PropertyDescriptor *desc);

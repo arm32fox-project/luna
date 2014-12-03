@@ -3559,7 +3559,7 @@ TryAttachGetElemStub(JSContext *cx, HandleScript script, ICGetElem_Fallback *stu
 
     if (obj->isNative()) {
         // Check for NativeObject[int] dense accesses.
-        if (rhs.isInt32()) {
+        if (rhs.isInt32() && !obj->isTypedArray()) {
             IonSpew(IonSpew_BaselineIC, "  Generating GetElem(Native[Int32] dense) stub");
             ICGetElem_Dense::Compiler compiler(cx, stub->fallbackMonitorStub()->firstMonitorStub(),
                                                obj->lastProperty());
@@ -3595,10 +3595,10 @@ TryAttachGetElemStub(JSContext *cx, HandleScript script, ICGetElem_Fallback *stu
         return true;
     }
 
-    // GetElem operations on non-native objects other than typed arrays cannot
-    // be cached by either Baseline or Ion. Indicate this in the cache so that
-    // Ion does not generate a cache for this op.
-    if (!obj->isNative() && !obj->isTypedArray())
+    // GetElem operations on non-native objects cannot be cached by either
+    // Baseline or Ion. Indicate this in the cache so that Ion does not
+    // generate a cache for this op.
+    if (!obj->isNative())
         stub->noteNonNativeAccess();
 
     return true;
@@ -4200,11 +4200,10 @@ DoSetElemFallback(JSContext *cx, BaselineFrame *frame, ICSetElem_Fallback *stub,
 
     // Try to generate new stubs.
     if (obj->isNative() &&
+        !obj->isTypedArray() &&
         index.isInt32() && index.toInt32() >= 0 &&
         !rhs.isMagic(JS_ELEMENTS_HOLE))
     {
-        JS_ASSERT(!obj->isTypedArray());
-
         bool addingCase;
         size_t protoDepth;
 

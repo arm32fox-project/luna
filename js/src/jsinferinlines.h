@@ -588,6 +588,36 @@ EnsureTrackPropertyTypes(JSContext *cx, JSObject *obj, jsid id)
     JS_ASSERT(obj->type()->unknownProperties() || TrackPropertyTypes(cx, obj, id));
 }
 
+/* helper functions for property IDs */
+inline bool
+CanHaveEmptyPropertyTypesForOwnProperty(JSObject *obj)
+{
+    // Property type sets for global objects may be empty for 'own' properties
+    // if the global property still has its initial undefined value.
+    return obj->is<GlobalObject>();
+}
+
+inline bool
+HasTypePropertyId(JSObject *obj, jsid id, Type type)
+{
+    if (obj->hasLazyType())
+        return true;
+
+    if (obj->type()->unknownProperties())
+        return true;
+
+    if (HeapTypeSet *types = obj->type()->maybeGetProperty(IdToTypeId(id), NULL))
+        return types->hasType(type);
+
+    return false;
+}
+
+inline bool
+HasTypePropertyId(JSObject *obj, jsid id, const Value &value)
+{
+    return HasTypePropertyId(obj, id, GetValueType(NULL, value));
+}
+
 /* Add a possible type for a property of obj. */
 inline void
 AddTypePropertyId(JSContext *cx, JSObject *obj, jsid id, Type type)

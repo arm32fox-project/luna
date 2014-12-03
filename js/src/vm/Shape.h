@@ -1124,6 +1124,31 @@ Shape::searchNoHashify(Shape *start, jsid id)
 template<> struct RootKind<Shape *> : SpecificRootKind<Shape *, THING_ROOT_SHAPE> {};
 template<> struct RootKind<BaseShape *> : SpecificRootKind<BaseShape *, THING_ROOT_BASE_SHAPE> {};
 
+// Property lookup hooks on objects are required to return a non-nullptr shape
+// to signify that the property has been found. For cases where the property is
+// not actually represented by a Shape, use a dummy value. This includes all
+// properties of non-native objects, and dense elements for native objects.
+// Use separate APIs for these two cases.
+
+template <AllowGC allowGC>
+static inline void
+MarkDenseElementFound(typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp)
+{
+    propp.set(reinterpret_cast<Shape*>(1));
+}
+
+static inline bool
+IsImplicitDenseElement(Shape *prop)
+{
+    return prop == reinterpret_cast<Shape*>(1);
+}
+
+static inline uint8_t
+GetShapeAttributes(HandleShape shape)
+{
+    return IsImplicitDenseElement(shape) ? JSPROP_ENUMERATE : shape->attributes();
+}
+
 } // namespace js
 
 #ifdef _MSC_VER
