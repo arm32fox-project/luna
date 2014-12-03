@@ -732,8 +732,6 @@ js::ObjectMayHaveExtraIndexedProperties(JSObject *obj)
             return true;
         if (obj->getDenseInitializedLength() > 0)
             return true;
-        if (obj->isTypedArray())
-            return true;
     }
 
     return false;

@@ -307,12 +307,8 @@ struct TypedArray : public BufferView {
     static inline void * viewData(JSObject *obj);
 
   public:
-    
     static bool isArrayIndex(JSObject *obj, jsid id, uint32_t *ip = NULL);
-    
-    Value getTypedArrayElement(JSContext *cx, uint32_t index);
-    static bool setTypedArrayElement(JSContext *cx, JSObject *obj, uint32_t index, Value d);
-    
+
     static void neuter(JSObject *view);
 
     static inline uint32_t slotWidth(int atype);
@@ -350,34 +346,6 @@ IsTypedArrayConstructor(const Value &v, uint32_t type);
 
 bool
 IsTypedArrayBuffer(const Value &v);
-
-// Return value is whether the string is some integer. If the string is an
-// integer which is not representable as a uint64_t, the return value is true
-// and the resulting index is UINT64_MAX.
-bool
-StringIsTypedArrayIndex(JSLinearString *str, uint64_t *indexp);
-
-inline bool
-IsTypedArrayIndex(jsid id, uint64_t *indexp)
-{
-    if (JSID_IS_INT(id)) {
-        int32_t i = JSID_TO_INT(id);
-        JS_ASSERT(i >= 0);
-        *indexp = (double)i;
-        return true;
-    }
-
-    if (MOZ_UNLIKELY(!JSID_IS_STRING(id)))
-        return false;
-
-    JSAtom *atom = JSID_TO_ATOM(id);
-
-    jschar c = atom->chars()[0];
-    if (!JS7_ISDEC(c) && c != '-')
-        return false;
-
-    return StringIsTypedArrayIndex(atom, indexp);
-}
 
 static inline unsigned
 TypedArrayShift(ArrayBufferView::ViewType viewType)

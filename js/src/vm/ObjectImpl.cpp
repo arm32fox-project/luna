@@ -152,19 +152,6 @@ static ObjectElements emptyElementsHeader(0, 0);
 HeapSlot *js::emptyObjectElements =
     reinterpret_cast<HeapSlot *>(uintptr_t(&emptyElementsHeader) + sizeof(ObjectElements));
 
-#ifdef DEBUG
-
-bool
-ObjectImpl::canHaveNonEmptyElements()
-{
-    JSObject *obj = static_cast<JSObject *>(this);
-    if (isNative())
-        return !obj->isTypedArray();
-    return obj->is<ArrayBufferObject>() || obj->is<SharedArrayBufferObject>();
-}
-
-#endif // DEBUG
-
 /* static */ bool
 ObjectElements::ConvertElementsToDoubles(JSContext *cx, uintptr_t elementsPtr)
 {

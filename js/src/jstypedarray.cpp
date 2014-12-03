@@ -45,8 +45,6 @@ using namespace js::gc;
 using namespace js::types;
 
 using mozilla::IsNaN;
-using mozilla::NegativeInfinity;
-using mozilla::PositiveInfinity;
 using mozilla::PodCopy;
 using JS::CanonicalizeNaN;
 
@@ -1444,7 +1442,7 @@ class TypedArrayTemplate
         JS_ASSERT(tarray->isTypedArray());
 
         if (index < length(tarray)) {
-            getIndexValue(tarray, index);
+            copyIndexToValue(tarray, index, vp);
             return true;
         }
 
@@ -1499,7 +1497,7 @@ class TypedArrayTemplate
         // Fast-path the common case of index < length
         if (index < length(tarray)) {
             // this inline function is specialized for each type
-            getIndexValue(tarray, index);
+            copyIndexToValue(tarray, index, vp);
             *present = true;
             return true;
         }
@@ -1514,7 +1512,7 @@ class TypedArrayTemplate
     }
 
     static bool
-    toDoubleForTypedArray(JSContext *cx, Value vp, double *d)
+    toDoubleForTypedArray(JSContext *cx, HandleValue vp, double *d)
     {
         if (vp.isDouble()) {
             *d = vp.toDouble();
@@ -1578,45 +1576,6 @@ class TypedArrayTemplate
         return true;
     }
 
-    static bool
-    setIndexValue(JSContext *cx, JSObject *tarray, uint32_t index, const Value &value)
-    {
-        JS_ASSERT(tarray);
-        JS_ASSERT(index < length(tarray));
-
-        if (value.isInt32()) {
-            setIndex(tarray, index, NativeType(value.toInt32()));
-            return true;
-        }
-
-        double d;
-        if (!toDoubleForTypedArray(cx, value, &d))
-            return false;
-
-        // If the array is an integer array, we only handle up to
-        // 32-bit ints from this point on.  if we want to handle
-        // 64-bit ints, we'll need some changes.
-
-        // Assign based on characteristics of the destination type
-        if (ArrayTypeIsFloatingPoint()) {
-            setIndex(tarray, index, NativeType(d));
-        } else if (ArrayTypeIsUnsigned()) {
-            JS_ASSERT(sizeof(NativeType) <= 4);
-            uint32_t n = ToUint32(d);
-            setIndex(tarray, index, NativeType(n));
-        } else if (ArrayTypeID() == TypedArray::TYPE_UINT8_CLAMPED) {
-            // The uint8_clamped type has a special rounding converter
-            // for doubles.
-            setIndex(tarray, index, NativeType(d));
-        } else {
-            JS_ASSERT(sizeof(NativeType) <= 4);
-            int32_t n = ToInt32(d);
-            setIndex(tarray, index, NativeType(n));
-        }
-
-        return true;
-    }
-    
     static JSBool
     obj_setGeneric(JSContext *cx, HandleObject tarray, HandleId id,
                    MutableHandleValue vp, JSBool strict)
@@ -1835,10 +1794,16 @@ class TypedArrayTemplate
         obj->setSlot(NEXT_VIEW_SLOT, PrivateValue(NULL));
         obj->setSlot(NEXT_BUFFER_SLOT, PrivateValue(UNSET_BUFFER_LINK));
 
-        // Note: Make sure to keep this extensible according to the spec.
+        // Mark the object as non-extensible. We cannot simply call
+        // obj->preventExtensions() because that has to iterate through all
+        // properties, and on long arrays that is much too slow. We could
+        // initialize the length fields to zero to avoid that, but then it
+        // would just boil down to a slightly slower wrapper around the
+        // following code anyway:
         js::Shape *empty = EmptyShape::getInitialShape(cx, fastClass(),
                                                        obj->getProto(), obj->getParent(), obj->getMetadata(),
-                                                       gc::FINALIZE_OBJECT8_BACKGROUND);
+                                                       gc::FINALIZE_OBJECT8_BACKGROUND,
+                                                       BaseShape::NOT_EXTENSIBLE);
         if (!empty)
             return NULL;
         obj->setLastPropertyInfallible(empty);
@@ -2318,7 +2283,7 @@ class TypedArrayTemplate
         *(static_cast<NativeType*>(viewData(obj)) + index) = val;
     }
 
-    static Value getIndexValue(JSObject *tarray, uint32_t index);
+    static void copyIndexToValue(JSObject *tarray, uint32_t index, MutableHandleValue vp);
 
     static JSObject *
     createSubarray(JSContext *cx, HandleObject tarray, uint32_t begin, uint32_t end)
@@ -2711,33 +2676,38 @@ ArrayBufferObject::createTypedArrayFromBuffer(JSContext *cx, unsigned argc, Valu
 // this default implementation is only valid for integer types
 // less than 32-bits in size.
 template<typename NativeType>
-Value
-TypedArrayTemplate<NativeType>::getIndexValue(JSObject *tarray, uint32_t index)
+void
+TypedArrayTemplate<NativeType>::copyIndexToValue(JSObject *tarray, uint32_t index,
+                                                 MutableHandleValue vp)
 {
     JS_STATIC_ASSERT(sizeof(NativeType) < 4);
 
-    return Int32Value(getIndex(tarray, index));
+    vp.setInt32(getIndex(tarray, index));
 }
 
 // and we need to specialize for 32-bit integers and floats
 template<>
-Value
-TypedArrayTemplate<int32_t>::getIndexValue(JSObject *tarray, uint32_t index)
+void
+TypedArrayTemplate<int32_t>::copyIndexToValue(JSObject *tarray, uint32_t index,
+                                              MutableHandleValue vp)
 {
-    return Int32Value(getIndex(tarray, index));
+    int32_t val = getIndex(tarray, index);
+    vp.setInt32(val);
 }
 
 template<>
-Value
-TypedArrayTemplate<uint32_t>::getIndexValue(JSObject *tarray, uint32_t index)
+void
+TypedArrayTemplate<uint32_t>::copyIndexToValue(JSObject *tarray, uint32_t index,
+                                               MutableHandleValue vp)
 {
     uint32_t val = getIndex(tarray, index);
-    return NumberValue(val);
+    vp.setNumber(val);
 }
 
 template<>
-Value
-TypedArrayTemplate<float>::getIndexValue(JSObject *tarray, uint32_t index)
+void
+TypedArrayTemplate<float>::copyIndexToValue(JSObject *tarray, uint32_t index,
+                                            MutableHandleValue vp)
 {
     float val = getIndex(tarray, index);
     double dval = val;
@@ -2752,12 +2722,13 @@ TypedArrayTemplate<float>::getIndexValue(JSObject *tarray, uint32_t index)
      * This could be removed for platforms/compilers known to convert a 32-bit
      * non-canonical nan to a 64-bit canonical nan.
      */
-    return DoubleValue(CanonicalizeNaN(dval));
+    vp.setDouble(CanonicalizeNaN(dval));
 }
 
 template<>
-Value
-TypedArrayTemplate<double>::getIndexValue(JSObject *tarray, uint32_t index)
+void
+TypedArrayTemplate<double>::copyIndexToValue(JSObject *tarray, uint32_t index,
+                                             MutableHandleValue vp)
 {
     double val = getIndex(tarray, index);
 
@@ -2768,7 +2739,7 @@ TypedArrayTemplate<double>::getIndexValue(JSObject *tarray, uint32_t index)
      * confuse the engine into interpreting a double-typed jsval as an
      * object-typed jsval.
      */
-    return DoubleValue(CanonicalizeNaN(val));
+    vp.setDouble(CanonicalizeNaN(val));
 }
 
 JSBool
@@ -3364,85 +3335,6 @@ DataViewObject::fun_setFloat64(JSContext *cx, unsigned argc, Value *vp)
     return CallNonGenericMethod<is, setFloat64Impl>(cx, args);
 }
 
-Value
-TypedArray::getTypedArrayElement(JSContext *cx, uint32_t index)
-{
-    JSObject *obj = reinterpret_cast<JSObject *>(this);
-    
-    switch (type(obj)) {
-      case TypedArray::TYPE_INT8:
-        return TypedArrayTemplate<int8_t>::getIndexValue(obj, index);
-        break;
-      case TypedArray::TYPE_UINT8:
-        return TypedArrayTemplate<uint8_t>::getIndexValue(obj, index);
-        break;
-      case TypedArray::TYPE_UINT8_CLAMPED:
-        return TypedArrayTemplate<uint8_clamped>::getIndexValue(obj, index);
-        break;
-      case TypedArray::TYPE_INT16:
-        return TypedArrayTemplate<int16_t>::getIndexValue(obj, index);
-        break;
-      case TypedArray::TYPE_UINT16:
-        return TypedArrayTemplate<uint16_t>::getIndexValue(obj, index);
-        break;
-      case TypedArray::TYPE_INT32:
-        return TypedArrayTemplate<int32_t>::getIndexValue(obj, index);
-        break;
-      case TypedArray::TYPE_UINT32:
-        return TypedArrayTemplate<uint32_t>::getIndexValue(obj, index);
-        break;
-      case TypedArray::TYPE_FLOAT32:
-        return TypedArrayTemplate<float>::getIndexValue(obj, index);
-        break;
-      case TypedArray::TYPE_FLOAT64:
-        return TypedArrayTemplate<double>::getIndexValue(obj, index);
-        break;
-      default:
-        JS_NOT_REACHED("Unknown TypedArray type");
-    }
-}
-
-bool
-TypedArray::setTypedArrayElement(JSContext *cx, JSObject *obj, uint32_t index, Value d)
-{
-    if (index < TypedArray::length(obj)) 
-        return false;
-
-    switch (type(obj)) {
-      case TypedArray::TYPE_INT8:
-        TypedArrayTemplate<int8_t>::setIndexValue(cx, obj, index, d);
-        break;
-      case TypedArray::TYPE_UINT8:
-        TypedArrayTemplate<uint8_t>::setIndexValue(cx, obj, index, d);
-        break;
-      case TypedArray::TYPE_UINT8_CLAMPED:
-        TypedArrayTemplate<uint8_clamped>::setIndexValue(cx, obj, index, d);
-        break;
-      case TypedArray::TYPE_INT16:
-        TypedArrayTemplate<int16_t>::setIndexValue(cx, obj, index, d);
-        break;
-      case TypedArray::TYPE_UINT16:
-        TypedArrayTemplate<uint16_t>::setIndexValue(cx, obj, index, d);
-        break;
-      case TypedArray::TYPE_INT32:
-        TypedArrayTemplate<int32_t>::setIndexValue(cx, obj, index, d);
-        break;
-      case TypedArray::TYPE_UINT32:
-        TypedArrayTemplate<uint32_t>::setIndexValue(cx, obj, index, d);
-        break;
-      case TypedArray::TYPE_FLOAT32:
-        TypedArrayTemplate<float>::setIndexValue(cx, obj, index, d);
-        break;
-      case TypedArray::TYPE_FLOAT64:
-        TypedArrayTemplate<double>::setIndexValue(cx, obj, index, d);
-        break;
-      default:
-        JS_NOT_REACHED("Unknown TypedArray type");
-        return false;
-    }
-    return true;
-}
-
 /***
  *** JS impl
  ***/
@@ -3644,7 +3536,8 @@ IMPL_TYPED_ARRAY_COMBINED_UNWRAPPERS(Float64, double, double)
     #_typedArray,                                                              \
     JSCLASS_HAS_RESERVED_SLOTS(TypedArray::RESERVED_SLOTS) |                   \
     JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS |                        \
-    JSCLASS_HAS_CACHED_PROTO(JSProto_##_typedArray),                                                         \
+    JSCLASS_HAS_CACHED_PROTO(JSProto_##_typedArray) |                          \
+    Class::NON_NATIVE,                                                         \
     JS_PropertyStub,         /* addProperty */                                 \
     JS_DeletePropertyStub,   /* delProperty */                                 \
     JS_PropertyStub,         /* getProperty */                                 \
@@ -4041,55 +3934,6 @@ bool
 js::IsTypedArrayBuffer(const Value &v)
 {
     return v.isObject() && v.toObject().is<ArrayBufferObject>();
-}
-
-bool
-js::StringIsTypedArrayIndex(JSLinearString *str, uint64_t *indexp)
-{
-    const jschar *s = str->chars();
-    const jschar *end = s + str->length();
-
-    if (s == end)
-        return false;
-
-    bool negative = false;
-    if (*s == '-') {
-        negative = true;
-        if (++s == end)
-            return false;
-    }
-
-    if (!JS7_ISDEC(*s))
-        return false;
-
-    uint64_t index = 0;
-    uint32_t digit = JS7_UNDEC(*s++);
-
-    /* Don't allow leading zeros. */
-    if (digit == 0 && s != end)
-        return false;
-
-    index = digit;
-
-    for (; s < end; s++) {
-        if (!JS7_ISDEC(*s))
-            return false;
-
-        digit = JS7_UNDEC(*s);
-
-        /* Watch for overflows. */
-        if ((UINT64_MAX - digit) / 10 < index)
-            index = UINT64_MAX;
-        else
-            index = 10 * index + digit;
-    }
-
-    if (negative)
-        *indexp = UINT64_MAX;
-    else
-        *indexp = index;
-        
-    return true;
 }
 
 /* JS Friend API */

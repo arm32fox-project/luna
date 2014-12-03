@@ -436,21 +436,22 @@ js::intrinsic_UnsafeSetElement(JSContext *cx, unsigned argc, Value *vp)
         uint32_t elemi = base+2;
 
         JS_ASSERT(args[arri].isObject());
-        JS_ASSERT(args[arri].toObject().isNative());
+        JS_ASSERT(args[arri].toObject().isNative() ||
+                  args[arri].toObject().isTypedArray());
         JS_ASSERT(args[idxi].isInt32());
 
         RootedObject arrobj(cx, &args[arri].toObject());
         uint32_t idx = args[idxi].toInt32();
 
-        if (arrobj->isTypedArray()) {
+        if (arrobj->isNative()) {
+            JS_ASSERT(idx < arrobj->getDenseInitializedLength());
+            JSObject::setDenseElementWithType(cx, arrobj, idx, args[elemi]);
+        } else {
             JS_ASSERT(idx < TypedArray::length(arrobj));
             RootedValue tmp(cx, args[elemi]);
             // XXX: Always non-strict.
             if (!JSObject::setElement(cx, arrobj, arrobj, idx, &tmp, false))
                 return false;
-        } else {
-            JS_ASSERT(idx < arrobj->getDenseInitializedLength());
-            arrobj->setDenseElementWithTypeNoObj(cx, idx, args[elemi]);
         }
     }
 

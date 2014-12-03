@@ -3397,8 +3397,8 @@ LookupResult(JSContext *cx, HandleObject obj, HandleObject obj2, HandleId id,
                 return true;
             }
         }
-    } else if (IsImplicitDenseOrTypedArrayElement(shape)) {
-        *vp = obj2->getDenseOrTypedArrayElement(cx, JSID_TO_INT(id));
+    } else if (IsImplicitDenseElement(shape)) {
+        *vp = obj2->getDenseElement(JSID_TO_INT(id));
         return true;
     } else {
         /* Peek at the native property's slot value, without doing a Get. */
@@ -3544,21 +3544,9 @@ JS_AlreadyHasOwnPropertyById(JSContext *cx, JSObject *objArg, jsid id_, JSBool *
         return JS_TRUE;
     }
 
-    // Check for an existing native property on the objct. Be careful not to
-    // call any lookup or resolve hooks.
-
-    if (JSID_IS_INT(id)) {
-        uint32_t index = JSID_TO_INT(id);
-
-        if (obj->containsDenseElement(index)) {
-            *foundp = true;
-            return true;
-        }
-
-        if (obj->isTypedArray() && index < TypedArray::length(obj)) {
-            *foundp = true;
-            return true;
-        }
+    if (JSID_IS_INT(id) && obj->containsDenseElement(JSID_TO_INT(id))) {
+        *foundp = true;
+        return JS_TRUE;
     }
 
     *foundp = obj->nativeContains(cx, id);
@@ -3896,11 +3884,11 @@ GetPropertyDescriptorById(JSContext *cx, HandleObject obj, HandleId id, unsigned
 
     desc->obj = obj2;
     if (obj2->isNative()) {
-        if (IsImplicitDenseOrTypedArrayElement(shape)) {
+        if (IsImplicitDenseElement(shape)) {
             desc->attrs = JSPROP_ENUMERATE;
             desc->getter = NULL;
             desc->setter = NULL;
-            desc->value = obj2->getDenseOrTypedArrayElement(cx, JSID_TO_INT(id));
+            desc->value = obj2->getDenseElement(JSID_TO_INT(id));
         } else {
             desc->attrs = shape->attributes();
             desc->getter = shape->getter();

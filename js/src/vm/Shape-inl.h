@@ -10,7 +10,6 @@
 #include "mozilla/PodOperations.h"
 
 #include "jsarray.h"
-#include "jstypedarray.h"
 #include "jsbool.h"
 #include "jscntxt.h"
 #include "jsdbgapi.h"
@@ -525,29 +524,21 @@ MarkNonNativePropertyFound(MutableHandleShape propp)
 
 template <AllowGC allowGC>
 static inline void
-MarkDenseOrTypedArrayElementFound(typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp)
+MarkDenseElementFound(typename MaybeRooted<Shape*, allowGC>::MutableHandleType propp)
 {
     propp.set(reinterpret_cast<Shape*>(1));
 }
 
 static inline bool
-IsImplicitDenseOrTypedArrayElement(Shape *prop)
+IsImplicitDenseElement(Shape *prop)
 {
     return prop == reinterpret_cast<Shape*>(1);
 }
 
 static inline uint8_t
-GetShapeAttributes(JSObject *obj, Shape *shape)
+GetShapeAttributes(HandleShape shape)
 {
-    JS_ASSERT(obj->isNative());
-
-    if (IsImplicitDenseOrTypedArrayElement(shape)) {
-        if (obj->isTypedArray())
-            return JSPROP_ENUMERATE | JSPROP_PERMANENT;
-        return JSPROP_ENUMERATE;
-    }
-
-    return shape->attributes();
+    return IsImplicitDenseElement(shape) ? JSPROP_ENUMERATE : shape->attributes();
 }
 
 } /* namespace js */
