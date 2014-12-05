@@ -73,7 +73,7 @@ pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; r
 
 // UA-Sniffing domains below are pending responses from their operators - temp workaround
 pref("general.useragent.override.netflix.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.1) Gecko/20100101 Firefox/24.9 PaleMoon/25.1.0");
-pref("general.useragent.override.facebook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.1) Gecko/20141110 PaleMoon/25.1.0");
+pref("general.useragent.override.facebook.com","Opera/9.80 (Pale Moon)");
 
 // UA-Sniffing domains below have indicated no interest in supporting Pale Moon (BOO!)
 pref("general.useragent.override.humblebundle.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:33.0) Gecko/20100101 Firefox/33.0 (Pale Moon)");
