@@ -3485,6 +3485,16 @@ nsComputedDOMStyle::DoGetOverflowY()
 }
 
 CSSValue*
+nsComputedDOMStyle::DoGetOverflowClipBox()
+{
+  nsROCSSPrimitiveValue* val = new nsROCSSPrimitiveValue;
+  val->SetIdent(
+    nsCSSProps::ValueToKeywordEnum(StyleDisplay()->mOverflowClipBox,
+                                   nsCSSProps::kOverflowClipBoxKTable));
+  return val;
+}
+
+CSSValue*
 nsComputedDOMStyle::DoGetResize()
 {
   nsROCSSPrimitiveValue *val = new nsROCSSPrimitiveValue;
@@ -5076,6 +5086,7 @@ nsComputedDOMStyle::GetQueryablePropertyMap(uint32_t* aLength)
     COMPUTED_STYLE_MAP_ENTRY(outline_style,                 OutlineStyle),
     COMPUTED_STYLE_MAP_ENTRY(outline_width,                 OutlineWidth),
     COMPUTED_STYLE_MAP_ENTRY(overflow,                      Overflow),
+    COMPUTED_STYLE_MAP_ENTRY(overflow_clip_box,             OverflowClipBox),
     COMPUTED_STYLE_MAP_ENTRY(overflow_x,                    OverflowX),
     COMPUTED_STYLE_MAP_ENTRY(overflow_y,                    OverflowY),
     //// COMPUTED_STYLE_MAP_ENTRY(padding,                  Padding),
