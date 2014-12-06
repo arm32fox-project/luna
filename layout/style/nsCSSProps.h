@@ -107,6 +107,13 @@ MOZ_STATIC_ASSERT((CSS_PROPERTY_PARSE_PROPERTY_MASK &
 // This property is allowed in an @page rule.
 #define CSS_PROPERTY_APPLIES_TO_PAGE_RULE         (1<<19)
 
+// This property's getComputedStyle implementation requires layout to be
+// flushed.
+// #define CSS_PROPERTY_GETCS_NEEDS_LAYOUT_FLUSH     (1<<20) /* NYI */
+
+// This property requires a stacking context.
+// #define CSS_PROPERTY_CREATES_STACKING_CONTEXT     (1<<21) /* NYI */
+
 // This property is always enabled in UA sheets.  This is meant to be used
 // together with a pref that enables the property for non-UA sheets.
 // Note that if such a property has an alias, then any use of that alias
