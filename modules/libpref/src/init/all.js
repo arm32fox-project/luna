@@ -1804,7 +1804,7 @@ pref("layout.css.scope-pseudo.enabled", true);
 pref("layout.css.vertical-text.enabled", false);
 
 // Is support for CSS overflow-clip-box enabled for content?
-pref("layout.css.overflow-clip-box.enabled", false);
+pref("layout.css.overflow-clip-box.enabled", true);
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
