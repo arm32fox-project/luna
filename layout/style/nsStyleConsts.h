@@ -575,6 +575,10 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_OVERFLOW_SCROLLBARS_HORIZONTAL 5
 #define NS_STYLE_OVERFLOW_SCROLLBARS_VERTICAL   6
 
+// See nsStylePosition.mOverflowClipBox
+#define NS_STYLE_OVERFLOW_CLIP_BOX_PADDING_BOX  0
+#define NS_STYLE_OVERFLOW_CLIP_BOX_CONTENT_BOX  1
+
 // See nsStyleList
 #define NS_STYLE_LIST_STYLE_NONE                  0
 #define NS_STYLE_LIST_STYLE_DISC                  1
