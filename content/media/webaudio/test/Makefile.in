@@ -101,6 +101,7 @@ MOCHITEST_FILES := \
   audio-expected.wav \
   audio-mono-expected.wav \
   audio-mono-expected-2.wav \
+  audio-quad.wav \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk
