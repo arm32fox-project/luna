@@ -4,49 +4,49 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/dom/Future.h"
-#include "mozilla/dom/FutureBinding.h"
-#include "mozilla/dom/FutureResolver.h"
+#include "mozilla/dom/Promise.h"
+#include "mozilla/dom/PromiseBinding.h"
+#include "mozilla/dom/PromiseResolver.h"
 #include "mozilla/Preferences.h"
-#include "FutureCallback.h"
+#include "PromiseCallback.h"
 #include "nsContentUtils.h"
 #include "nsPIDOMWindow.h"
 
 namespace mozilla {
 namespace dom {
 
-// FutureTask
+// PromiseTask
 
-// This class processes the future's callbacks with future's result.
-class FutureTask MOZ_FINAL : public nsRunnable
+// This class processes the promise's callbacks with promise's result.
+class PromiseTask MOZ_FINAL : public nsRunnable
 {
 public:
-  FutureTask(Future* aFuture)
-    : mFuture(aFuture)
+  PromiseTask(Promise* aPromise)
+    : mPromise(aPromise)
   {
-    MOZ_ASSERT(aFuture);
-    MOZ_COUNT_CTOR(FutureTask);
+    MOZ_ASSERT(aPromise);
+    MOZ_COUNT_CTOR(PromiseTask);
   }
 
-  ~FutureTask()
+  ~PromiseTask()
   {
-    MOZ_COUNT_DTOR(FutureTask);
+    MOZ_COUNT_DTOR(PromiseTask);
   }
 
   NS_IMETHOD Run()
   {
-    mFuture->mTaskPending = false;
-    mFuture->RunTask();
+    mPromise->mTaskPending = false;
+    mPromise->RunTask();
     return NS_OK;
   }
 
 private:
-  nsRefPtr<Future> mFuture;
+  nsRefPtr<Promise> mPromise;
 };
 
-// Future
+// Promise
 
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Future)
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Promise)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mWindow)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mResolver)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mResolveCallbacks);
@@ -55,7 +55,7 @@ NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(Future)
   NS_IMPL_CYCLE_COLLECTION_UNLINK_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
 
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Future)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Promise)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindow)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mResolver)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mResolveCallbacks);
@@ -63,54 +63,54 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Future)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
 
-NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(Future)
+NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(Promise)
   NS_IMPL_CYCLE_COLLECTION_TRACE_JSVAL_MEMBER_CALLBACK(mResult)
   NS_IMPL_CYCLE_COLLECTION_TRACE_PRESERVED_WRAPPER
 NS_IMPL_CYCLE_COLLECTION_TRACE_END
 
-NS_IMPL_CYCLE_COLLECTING_ADDREF(Future)
-NS_IMPL_CYCLE_COLLECTING_RELEASE(Future)
+NS_IMPL_CYCLE_COLLECTING_ADDREF(Promise)
+NS_IMPL_CYCLE_COLLECTING_RELEASE(Promise)
 
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(Future)
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(Promise)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_MAP_ENTRY(nsISupports)
 NS_INTERFACE_MAP_END
 
-Future::Future(nsPIDOMWindow* aWindow)
+Promise::Promise(nsPIDOMWindow* aWindow)
   : mWindow(aWindow)
   , mResult(JS::UndefinedValue())
   , mState(Pending)
   , mTaskPending(false)
 {
-  MOZ_COUNT_CTOR(Future);
-  NS_HOLD_JS_OBJECTS(this, Future);
+  MOZ_COUNT_CTOR(Promise);
+  NS_HOLD_JS_OBJECTS(this, Promise);
   SetIsDOMBinding();
 
-  mResolver = new FutureResolver(this);
+  mResolver = new PromiseResolver(this);
 }
 
-Future::~Future()
+Promise::~Promise()
 {
   mResult = JSVAL_VOID;
-  NS_DROP_JS_OBJECTS(this, Future);
-  MOZ_COUNT_DTOR(Future);
+  NS_DROP_JS_OBJECTS(this, Promise);
+  MOZ_COUNT_DTOR(Promise);
 }
 
 JSObject*
-Future::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+Promise::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
 {
-  return FutureBinding::Wrap(aCx, aScope, this);
+  return PromiseBinding::Wrap(aCx, aScope, this);
 }
 
 /* static */ bool
-Future::PrefEnabled()
+Promise::PrefEnabled()
 {
-  return Preferences::GetBool("dom.future.enabled", false);
+  return Preferences::GetBool("dom.promise.enabled", false);
 }
 
-/* static */ already_AddRefed<Future>
-Future::Constructor(const GlobalObject& aGlobal, JSContext* aCx,
-                    FutureInit& aInit, ErrorResult& aRv)
+/* static */ already_AddRefed<Promise>
+Promise::Constructor(const GlobalObject& aGlobal, JSContext* aCx,
+                    PromiseInit& aInit, ErrorResult& aRv)
 {
   MOZ_ASSERT(PrefEnabled());
 
@@ -120,23 +120,23 @@ Future::Constructor(const GlobalObject& aGlobal, JSContext* aCx,
     return nullptr;
   }
 
-  nsRefPtr<Future> future = new Future(window);
+  nsRefPtr<Promise> promise = new Promise(window);
 
-  aInit.Call(future, *future->mResolver, aRv,
+  aInit.Call(promise, *promise->mResolver, aRv,
              CallbackObject::eRethrowExceptions);
   aRv.WouldReportJSException();
 
   if (aRv.IsJSException()) {
     Optional<JS::Handle<JS::Value> > value(aCx);
     aRv.StealJSException(aCx, &value.Value());
-    future->mResolver->Reject(aCx, value);
+    promise->mResolver->Reject(aCx, value);
   }
 
-  return future.forget();
+  return promise.forget();
 }
 
-/* static */ already_AddRefed<Future>
-Future::Resolve(const GlobalObject& aGlobal, JSContext* aCx,
+/* static */ already_AddRefed<Promise>
+Promise::Resolve(const GlobalObject& aGlobal, JSContext* aCx,
                 JS::Handle<JS::Value> aValue, ErrorResult& aRv)
 {
   MOZ_ASSERT(PrefEnabled());
@@ -147,15 +147,15 @@ Future::Resolve(const GlobalObject& aGlobal, JSContext* aCx,
     return nullptr;
   }
 
-  nsRefPtr<Future> future = new Future(window);
+  nsRefPtr<Promise> promise = new Promise(window);
 
   Optional<JS::Handle<JS::Value> > value(aCx, aValue);
-  future->mResolver->Resolve(aCx, value);
-  return future.forget();
+  promise->mResolver->Resolve(aCx, value);
+  return promise.forget();
 }
 
-/* static */ already_AddRefed<Future>
-Future::Reject(const GlobalObject& aGlobal, JSContext* aCx,
+/* static */ already_AddRefed<Promise>
+Promise::Reject(const GlobalObject& aGlobal, JSContext* aCx,
                JS::Handle<JS::Value> aValue, ErrorResult& aRv)
 {
   MOZ_ASSERT(PrefEnabled());
@@ -166,62 +166,62 @@ Future::Reject(const GlobalObject& aGlobal, JSContext* aCx,
     return nullptr;
   }
 
-  nsRefPtr<Future> future = new Future(window);
+  nsRefPtr<Promise> promise = new Promise(window);
 
   Optional<JS::Handle<JS::Value> > value(aCx, aValue);
-  future->mResolver->Reject(aCx, value);
-  return future.forget();
+  promise->mResolver->Reject(aCx, value);
+  return promise.forget();
 }
 
-already_AddRefed<Future>
-Future::Then(AnyCallback* aResolveCallback, AnyCallback* aRejectCallback)
+already_AddRefed<Promise>
+Promise::Then(AnyCallback* aResolveCallback, AnyCallback* aRejectCallback)
 {
-  nsRefPtr<Future> future = new Future(GetParentObject());
+  nsRefPtr<Promise> promise = new Promise(GetParentObject());
 
-  nsRefPtr<FutureCallback> resolveCb =
-    FutureCallback::Factory(future->mResolver,
+  nsRefPtr<PromiseCallback> resolveCb =
+    PromiseCallback::Factory(promise->mResolver,
                             aResolveCallback,
-                            FutureCallback::Resolve);
+                            PromiseCallback::Resolve);
 
-  nsRefPtr<FutureCallback> rejectCb =
-    FutureCallback::Factory(future->mResolver,
+  nsRefPtr<PromiseCallback> rejectCb =
+    PromiseCallback::Factory(promise->mResolver,
                             aRejectCallback,
-                            FutureCallback::Reject);
+                            PromiseCallback::Reject);
 
   AppendCallbacks(resolveCb, rejectCb);
 
-  return future.forget();
+  return promise.forget();
 }
 
-already_AddRefed<Future>
-Future::Catch(AnyCallback* aRejectCallback)
+already_AddRefed<Promise>
+Promise::Catch(AnyCallback* aRejectCallback)
 {
   return Then(nullptr, aRejectCallback);
 }
 
 void
-Future::Done(AnyCallback* aResolveCallback, AnyCallback* aRejectCallback)
+Promise::Done(AnyCallback* aResolveCallback, AnyCallback* aRejectCallback)
 {
   if (!aResolveCallback && !aRejectCallback) {
     return;
   }
 
-  nsRefPtr<FutureCallback> resolveCb;
+  nsRefPtr<PromiseCallback> resolveCb;
   if (aResolveCallback) {
-    resolveCb = new SimpleWrapperFutureCallback(this, aResolveCallback);
+    resolveCb = new SimpleWrapperPromiseCallback(this, aResolveCallback);
   }
 
-  nsRefPtr<FutureCallback> rejectCb;
+  nsRefPtr<PromiseCallback> rejectCb;
   if (aRejectCallback) {
-    rejectCb = new SimpleWrapperFutureCallback(this, aRejectCallback);
+    rejectCb = new SimpleWrapperPromiseCallback(this, aRejectCallback);
   }
 
   AppendCallbacks(resolveCb, rejectCb);
 }
 
 void
-Future::AppendCallbacks(FutureCallback* aResolveCallback,
-                        FutureCallback* aRejectCallback)
+Promise::AppendCallbacks(PromiseCallback* aResolveCallback,
+                         PromiseCallback* aRejectCallback)
 {
   if (aResolveCallback) {
     mResolveCallbacks.AppendElement(aResolveCallback);
@@ -231,22 +231,22 @@ Future::AppendCallbacks(FutureCallback* aResolveCallback,
     mRejectCallbacks.AppendElement(aRejectCallback);
   }
 
-  // If future's state is resolved, queue a task to process future's resolve
-  // callbacks with future's result. If future's state is rejected, queue a task
-  // to process future's reject callbacks with future's result.
+  // If promise's state is resolved, queue a task to process promise's resolve
+  // callbacks with promise's result. If promise's state is rejected, queue a task
+  // to process promise's reject callbacks with promise's result.
   if (mState != Pending && !mTaskPending) {
-    nsRefPtr<FutureTask> task = new FutureTask(this);
+    nsRefPtr<PromiseTask> task = new PromiseTask(this);
     NS_DispatchToCurrentThread(task);
     mTaskPending = true;
   }
 }
 
 void
-Future::RunTask()
+Promise::RunTask()
 {
   MOZ_ASSERT(mState != Pending);
 
-  nsTArray<nsRefPtr<FutureCallback> > callbacks;
+  nsTArray<nsRefPtr<PromiseCallback> > callbacks;
   callbacks.SwapElements(mState == Resolved ? mResolveCallbacks
                                             : mRejectCallbacks);
   mResolveCallbacks.Clear();
