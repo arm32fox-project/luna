@@ -3,6 +3,7 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 var imServices = {};
+Components.utils.import("resource:///modules/chatNotifications.jsm");
 Components.utils.import("resource:///modules/imServices.jsm", imServices);
 imServices = imServices.Services;
 
@@ -67,7 +68,7 @@ buddyListContextMenu.prototype = {
                           deleteButton, null, null, null, {}))
       return;
 
-    this.target.remove();
+    this.target.delete();
   }
 };
 
@@ -406,10 +407,14 @@ var chatHandler = {
       return false;
     if (aShouldSelect) {
       if (aShouldSelect === true) {
-        // Open the first group (index 0)
-        treeView.toggleOpenState(0);
-        // Select the first log of the first group (index 1)
-        logTree.view.selection.select(1);
+        // Select the first line.
+        let selectIndex = 0;
+        if (treeView.isContainer(selectIndex)) {
+          // If the first line is a group, open it and select the
+          // next line instead.
+          treeView.toggleOpenState(selectIndex++);
+        }
+        logTree.view.selection.select(selectIndex);
       }
       else {
         let logTime = aShouldSelect.time;
@@ -570,7 +575,7 @@ var chatHandler = {
         conv.conv = item.conv;
         conv.tab = item;
         conv.setAttribute("contentcontextmenu", "chatConversationContextMenu");
-        conv.setAttribute("contenttooltip", "aHTMLTooltip");
+        conv.setAttribute("contenttooltip", "buddyTooltip");
         item.convView = conv;
         document.getElementById("contextSplitter").hidden = false;
         document.getElementById("contextPane").hidden = false;
@@ -634,8 +639,7 @@ var chatHandler = {
   },
 
   onNicklistKeyPress: function(aEvent) {
-    if (aEvent.keyCode != aEvent.DOM_VK_RETURN &&
-        aEvent.keyCode != aEvent.DOM_VK_ENTER)
+    if (aEvent.keyCode != aEvent.DOM_VK_RETURN)
       return;
 
     let listbox = aEvent.originalTarget;
@@ -835,7 +839,7 @@ var chatHandler = {
       }
       delete this._pendingLogBrowserLoad;
       Services.obs.removeObserver(this, "conversation-loaded");
-      return;      
+      return;
     }
 
     if (aTopic == "account-connected" || aTopic == "account-disconnected" ||
@@ -969,6 +973,7 @@ var chatHandler = {
       imServices.obs.removeObserver(this, topic);
   },
   init: function() {
+    Notifications.init();
     if (!Services.prefs.getBoolPref("mail.chat.enabled")) {
       ["button-chat", "menu_goChat", "goChatSeparator",
        "imAccountsStatus", "joinChatMenuItem", "newIMAccountMenuItem",
@@ -1083,81 +1088,129 @@ chatLogTreeView.prototype = {
       this._tree.rowCountChanged(0, -this._rowMap.length);
     this._rowMap = [];
 
-    // The keys used in the 'groups' object should match string ids in
-    // messenger.properties, except 'other' that has a special handling.
-    let groups = {
-      lastWeek: [],
-      twoWeeksAgo: [],
-      other: []
-    };
-
-    // today and yesterday are treated differently, because they represent
-    // individual logs, and are not "groups".
-    let today = null, yesterday = null;
-
-    let dts = Components.classes["@mozilla.org/intl/scriptabledateformat;1"]
-                        .getService(Ci.nsIScriptableDateFormat);
+    // Used to show the dates in the log list in the locale of the application.
+    let chatBundle = document.getElementById("chatBundle");
+    let dateFormatBundle = document.getElementById("bundle_dateformat");
+    let placesBundle = document.getElementById("bundle_places");
+    let dts = Cc["@mozilla.org/intl/scriptabledateformat;1"].getService(Ci.nsIScriptableDateFormat);
     let formatDate = function(aDate) {
       return dts.FormatDate("", dts.dateFormatShort, aDate.getFullYear(),
                             aDate.getMonth() + 1, aDate.getDate());
     };
+    let formatDateTime = function(aDate) {
+      return dts.FormatDateTime("", dts.dateFormatShort,
+                                dts.timeFormatNoSeconds, aDate.getFullYear(),
+                                aDate.getMonth() + 1, aDate.getDate(),
+                                aDate.getHours(), aDate.getMinutes(), 0);
+    };
+    let formatMonthYear = function(aDate) {
+      let month = formatMonth(aDate);
+      return placesBundle.getFormattedString("finduri-MonthYear",
+                                             [month, aDate.getFullYear()]);
+    };
+    let formatMonth = function(aDate)
+      dateFormatBundle.getString("month." + (aDate.getMonth() + 1) + ".name");
+    let formatWeekday = function(aDate)
+      dateFormatBundle.getString("day." + (aDate.getDay() + 1) + ".name");
+
     let nowDate = new Date();
     let todayDate = new Date(nowDate.getFullYear(), nowDate.getMonth(),
                              nowDate.getDate());
 
-    // Build a chatLogTreeLogItem for each log, and put it in the right group.
-    let chatBundle = document.getElementById("chatBundle");
+    // The keys used in the 'firstgroups' object should match string ids.
+    // The order is the reverse of that in which they will appear
+    // in the logTree.
+    let firstgroups = {
+      previousWeek: [],
+      currentWeek: [],
+      yesterday: [],
+      today: []
+    };
 
+    // today and yesterday are treated differently, because for JSON logs they
+    // represent individual logs, and are not "groups".
+    let today = null, yesterday = null;
+
+    // Build a chatLogTreeLogItem for each log, and put it in the right group.
+    let groups = {};
     for each (let log in fixIterator(this._logs)) {
       let logDate = new Date(log.time * 1000);
+      // Calculate elapsed time between the log and 00:00:00 today.
       let timeFromToday = todayDate - logDate;
-      let title = formatDate(logDate);
+      let isJSON = log.format == "json";
+      let title = (isJSON ? formatDate : formatDateTime)(logDate);
       let group;
       if (timeFromToday <= 0) {
-        today = new chatLogTreeLogItem(log, chatBundle.getString("log.today"), 0);
-        continue;
+        if (isJSON) {
+          today = new chatLogTreeLogItem(log, chatBundle.getString("log.today"), 0);
+          continue;
+        }
+        group = firstgroups.today;
       }
       else if (timeFromToday <= kDayInMsecs) {
-        yesterday = new chatLogTreeLogItem(log, chatBundle.getString("log.yesterday"), 0);
-        continue;
+        if (isJSON) {
+          yesterday = new chatLogTreeLogItem(log, chatBundle.getString("log.yesterday"), 0);
+          continue;
+        }
+        group = firstgroups.yesterday;
       }
-      else if (timeFromToday <= kWeekInMsecs)
-        group = groups.lastWeek;
-      else if (timeFromToday <= kTwoWeeksInMsecs)
-        group = groups.twoWeeksAgo;
-      else
-        group = groups.other;
+      // Note that the 7 days of the current week include today.
+      else if (timeFromToday <= kWeekInMsecs - kDayInMsecs) {
+        group = firstgroups.currentWeek;
+        if (isJSON)
+          title = formatWeekday(logDate);
+      }
+      else if (timeFromToday <= kTwoWeeksInMsecs - kDayInMsecs)
+        group = firstgroups.previousWeek;
+      else {
+        logDate.setHours(0);
+        logDate.setMinutes(0);
+        logDate.setSeconds(0);
+        logDate.setDate(1);
+        let groupID = logDate.toISOString();
+        if (!(groupID in groups)) {
+          let groupname;
+          if (logDate.getFullYear() == nowDate.getFullYear()) {
+            if (logDate.getMonth() == nowDate.getMonth())
+              groupname = placesBundle.getString("finduri-AgeInMonths-is-0");
+            else
+              groupname = formatMonth(logDate);
+          }
+          else
+            groupname = formatMonthYear(logDate);
+          groups[groupID] = {
+            entries: [],
+            name: groupname
+          };
+        }
+        group = groups[groupID].entries;
+      }
       group.push(new chatLogTreeLogItem(log, title, 1));
     }
 
+    let groupIDs = Object.keys(groups).sort().reverse();
+
+    // Add firstgroups to groups and groupIDs.
+    for each (let [groupID, group] in Iterator(firstgroups)) {
+      if (!group.length)
+        continue;
+      groupIDs.unshift(groupID);
+      groups[groupID] = {
+        entries: firstgroups[groupID],
+        name: chatBundle.getString("log." + groupID)
+      };
+    }
+
+    // Build tree.
     if (today)
       this._rowMap.push(today);
     if (yesterday)
       this._rowMap.push(yesterday);
-
-    for each (let [groupId, group] in Iterator(groups)) {
-      if (!group.length)
-        continue;
-
-      group.sort(function(l1, l2) l2.log.time - l1.log.time);
-
-      let groupName;
-      if (groupId == "other") {
-        // If we're in the "other" group, the title will be the end and
-        // beginning dates for that group.
-        // Example: 28/08/2012 - 04/01/2012
-        groupName = formatDate(new Date(group[0].log.time * 1000));
-        if (group.length > 1) {
-          let fromDate = new Date(group[group.length - 1].log.time * 1000);
-          groupName += " - " + formatDate(fromDate);
-        }
-      }
-      else {
-        // Otherwise, get the appropriate string for this group.
-        groupName = chatBundle.getString("log." + groupId);
-      }
-      this._rowMap.push(new chatLogTreeGroupItem(groupName, group));
-    }
+    groupIDs.forEach(function (aGroupID) {
+      let group = groups[aGroupID];
+      group.entries.sort(function(l1, l2) l2.log.time - l1.log.time);
+      this._rowMap.push(new chatLogTreeGroupItem(group.name, group.entries));
+    }, this);
 
     // Finally, notify the tree.
     if (this._tree)

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const {interfaces: Ci, utils: Cu} = Components;
+const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 Cu.import("resource:///modules/imServices.jsm");
 Cu.import("resource:///modules/iteratorUtils.jsm");
 Cu.import("resource:///modules/mailServices.js");
@@ -142,7 +142,7 @@ var gAccountManager = {
       var elt = document.getElementById(aObject.id);
       elt.destroy();
       if (!elt.selected) {
-        this.accountList.removeChild(elt);
+        elt.remove();
         return;
       }
       // The currently selected element is removed,
@@ -151,7 +151,7 @@ var gAccountManager = {
       // Prevent errors if the timer is active and the account deleted
       clearTimeout(this.disableTimerID);
       this.disableTimerID = 0;
-      this.accountList.removeChild(elt);
+      elt.remove();
       var count = this.accountList.getRowCount();
       if (!count) {
         document.getElementById("accountsDesk").selectedIndex = 0;
@@ -210,6 +210,50 @@ var gAccountManager = {
       this.temporarilyDisableButtons();
       account.disconnect();
     }
+  },
+  addException: function am_addException() {
+    let account = this.accountList.selectedItem.account;
+    if (!account.disconnected || !account.prplAccount.connectionTarget)
+      return;
+
+    // Open the Gecko SSL exception dialog.
+    let params = {exceptionAdded: false, prefetchCert: true,
+                  location: account.prplAccount.connectionTarget};
+    window.openDialog("chrome://pippki/content/exceptionDialog.xul", "",
+                      "chrome,centerscreen,modal", params);
+    // Reconnect the account if an exception was added.
+    if (params.exceptionAdded)
+      account.connect();
+  },
+  copyDebugLog: function am_copyDebugLog() {
+    let account = this.accountList.selectedItem.account;
+    let text = account.getDebugMessages().map(function(dbgMsg) {
+      let m = dbgMsg.message;
+      const dateServ = Cc["@mozilla.org/intl/scriptabledateformat;1"]
+                         .getService(Ci.nsIScriptableDateFormat);
+      let time = new Date(m.timeStamp);
+      time = dateServ.FormatDateTime("", dateServ.dateFormatShort,
+                                     dateServ.timeFormatSeconds,
+                                     time.getFullYear(), time.getMonth() + 1,
+                                     time.getDate(), time.getHours(),
+                                     time.getMinutes(), time.getSeconds());
+      let level = dbgMsg.logLevel;
+      if (!level)
+        return "(" + m.errorMessage + ")";
+      if (level == dbgMsg.LEVEL_ERROR)
+        level = "ERROR";
+      else if (level == dbgMsg.LEVEL_WARNING)
+        level = "WARN.";
+      else if (level == dbgMsg.LEVEL_LOG)
+        level = "LOG  ";
+      else
+        level = "DEBUG"
+      return "[" + time + "] " + level + " (@ " + m.sourceLine +
+             " " + m.sourceName + ":" + m.lineNumber + ")\n" +
+             m.errorMessage;
+    }).join("\n");
+    Cc["@mozilla.org/widget/clipboardhelper;1"]
+      .getService(Ci.nsIClipboardHelper).copyString(text);
   },
   updateConnectedLabels: function am_updateConnectedLabels() {
     for (let i = 0; i < gAccountManager.accountList.itemCount; ++i) {
@@ -469,7 +513,7 @@ var gAccountManager = {
          If none, this function has already returned */
       case as.AUTOLOGIN_ENABLED:
         if (!("PluralForm" in window))
-          Components.utils.import("resource://gre/modules/PluralForm.jsm");
+          Cu.import("resource://gre/modules/PluralForm.jsm");
         label = bundle.getString("accountsManager.notification.singleCrash.label");
         label = PluralForm.get(crashCount, label).replace("#1", crashCount);
         priority = box.PRIORITY_WARNING_MEDIUM;

@@ -59,6 +59,10 @@ imconv[attention] {
   color: blue;
 }
 
+.conv-hbox {
+  -moz-box-align: center;
+}
+
 /* From instantbird/themes/blist.css */
 .contactStatusText,
 .convStatusText {
@@ -303,8 +307,8 @@ imcontact[aliasing] .contactDisplayName {
 
 .conv-textbox {
   margin: 0 0;
-  padding: 0 0;
-  -moz-box-sizing: content-box;
+  padding: 2px;
+  box-sizing: content-box;
 }
 %ifndef XP_MACOSX
 
