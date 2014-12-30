@@ -41,18 +41,22 @@ function kickCommand(aMsg, aConv) {
 
 // Send a message directly to a user.
 // aMsg is <user> <message>
-function messageCommand(aMsg, aConv) {
+// aReturnedConv is optional and returns the resulting conversation.
+function messageCommand(aMsg, aConv, aReturnedConv) {
   let sep = aMsg.indexOf(" ");
   // If no space in the message or the first space is at the end of the message.
   if (sep == -1 || (sep + 1) == aMsg.length) {
     let msg = aMsg.trim();
     if (!msg.length)
       return false;
-    getAccount(aConv).createConversation(msg);
+    let conv = getAccount(aConv).createConversation(msg);
+    if (aReturnedConv)
+      aReturnedConv.value = conv;
     return true;
   }
 
-  return privateMessage(aConv, aMsg.slice(sep + 1), aMsg.slice(0, sep));
+  return privateMessage(aConv, aMsg.slice(sep + 1), aMsg.slice(0, sep),
+                        aReturnedConv);
 }
 
 // aAdd is true to add a mode, false to remove a mode.
@@ -70,22 +74,30 @@ function actionCommand(aMsg, aConv) {
   // Don't try to send an empty action.
   if (!aMsg || !aMsg.trim().length)
     return false;
-  if (!ctcpCommand(aConv, aConv.name, "ACTION", aMsg))
-    return false;
+
+  let conv = getConv(aConv);
+  let account = getAccount(aConv);
+  if (!ctcpCommand(aConv, aConv.name, "ACTION", aMsg)) {
+    conv.writeMessage(account._currentServerName, _("error.sendMessageFailed"),
+                      {error: true, system: true});
+    return true;
+  }
 
   // Show the action on our conversation.
-  getConv(aConv).writeMessage(getAccount(aConv)._nickname, "/me " + aMsg,
-                              {outgoing: true});
+  conv.writeMessage(account._nickname, "/me " + aMsg, {outgoing: true});
   return true;
 }
 
-// Helper functions
-function privateMessage(aConv, aMsg, aNickname) {
+// This will open the conversation, and send and display the text.
+// aReturnedConv is optional and returns the resulting conversation.
+function privateMessage(aConv, aMsg, aNickname, aReturnedConv) {
   if (!aMsg.length)
     return false;
 
-  // This will open the conversation, send and display the text
-  getAccount(aConv).getConversation(aNickname).sendMsg(aMsg);
+  let conv = getAccount(aConv).getConversation(aNickname);
+  conv.sendMsg(aMsg);
+  if (aReturnedConv)
+    aReturnedConv.value = conv;
   return true;
 }
 
@@ -100,14 +112,11 @@ function simpleCommand(aConv, aCommand, aParams) {
   return true;
 }
 
-function ctcpCommand(aConv, aTarget, aCommand, aMsg) {
-  if (!aTarget.length)
-    return false;
+function ctcpCommand(aConv, aTarget, aCommand, aMsg)
+  getAccount(aConv).sendCTCPMessage(aCommand, aMsg, aTarget, false)
 
-  getAccount(aConv).sendCTCPMessage(aCommand, aMsg, aTarget, false);
-  return true;
-}
-
+// Replace the command name in the help string so translators do not attempt to
+// translate it.
 var commands = [
   {
     name: "action",
@@ -119,11 +128,12 @@ var commands = [
     get helpString() _("command.ctcp", "ctcp"),
     run: function(aMsg, aConv) {
       let separator = aMsg.indexOf(" ");
-      if (separator == -1 && (separator + 1) != aMsg.length)
+      // Ensure we have two non-empty parameters.
+      if (separator < 1 || (separator + 1) == aMsg.length)
         return false;
 
-      return ctcpCommand(aConv, aMsg.slice(0, separator),
-                         aMsg.slice(separator + 1));
+      ctcpCommand(aConv, aMsg.slice(0, separator), aMsg.slice(separator + 1));
+      return true;
     }
   },
   {
@@ -134,36 +144,58 @@ var commands = [
   {
     name: "deop",
     get helpString() _("command.deop", "deop"),
+    usageContext: Ci.imICommand.CMD_CONTEXT_CHAT,
     run: function(aMsg, aConv) setMode(aMsg, aConv, "o", false)
   },
   {
     name: "devoice",
     get helpString() _("command.devoice", "devoice"),
+    usageContext: Ci.imICommand.CMD_CONTEXT_CHAT,
     run: function(aMsg, aConv) setMode(aMsg, aConv, "v", false)
   },
   {
     name: "invite",
-    get helpString() _("command.invite", "invite"),
+    get helpString() _("command.invite2", "invite"),
     run: function(aMsg, aConv) {
       let params = splitInput(aMsg);
-      // If no parameters are given.
+
+      // Try to find one, and only one, channel in the list of parameters.
+      let channel;
+      let account = getAccount(aConv);
+      // Find the first param that could be a channel name.
+      for (let i = 0; i < params.length; ++i) {
+        if (account.isMUCName(params[i])) {
+          // If channel is set, two channel names have been found.
+          if (channel)
+            return false;
+
+          // Remove that parameter and store it.
+          channel = params.splice(i, 1)[0];
+        }
+      }
+
+      // If no parameters or only a channel are given.
       if (!params[0].length)
         return false;
-      // If only a nick is given, append the current channel name.
-      if (params.length == 1)
-        params.push(aConv.name);
 
-      return simpleCommand(aConv, "INVITE", params);
+      // Default to using the current conversation as the channel to invite to.
+      if (!channel)
+        channel = aConv.name;
+
+      params.forEach(function(p)
+        simpleCommand(aConv, "INVITE", [p, channel]));
+      return true;
     }
   },
   {
     name: "join",
     get helpString() _("command.join", "join"),
-    run: function(aMsg, aConv) {
+    run: function(aMsg, aConv, aReturnedConv) {
       let params = aMsg.trim().split(/,\s*/);
       let account = getAccount(aConv);
+      let conv;
       if (!params[0]) {
-        let conv = getConv(aConv);
+        conv = getConv(aConv);
         if (!conv.isChat || !conv.left)
           return false;
         // Rejoin the current channel. If the channel was explicitly parted
@@ -176,21 +208,42 @@ var commands = [
         params = [conv.name];
       }
       params.forEach(function(joinParam) {
-        if (joinParam)
-          account.joinChat(account.getChatRoomDefaultFieldValues(joinParam));
+        if (joinParam) {
+          let chatroomfields = account.getChatRoomDefaultFieldValues(joinParam);
+          conv = account.joinChat(chatroomfields);
+        }
       });
+      if (aReturnedConv)
+        aReturnedConv.value = conv;
       return true;
     }
   },
   {
     name: "kick",
     get helpString() _("command.kick", "kick"),
+    usageContext: Ci.imICommand.CMD_CONTEXT_CHAT,
     run: kickCommand
   },
   {
     name: "list",
     get helpString() _("command.list", "list"),
-    run: function(aMsg, aConv) simpleCommand(aConv, "LIST")
+    run: function(aMsg, aConv, aReturnedConv) {
+      let account = getAccount(aConv);
+      let serverName = account._currentServerName;
+      let serverConv = account.getConversation(serverName);
+      account.requestRoomInfo({onRoomInfoAvailable: function(aRooms) {
+        aRooms.forEach(function(aRoom) {
+          serverConv.writeMessage(serverName,
+                                  aRoom.name +
+                                  " (" + aRoom.participantCount + ") " +
+                                  aRoom.topic,
+                                  {incoming: true, noLog: true});
+        });
+      }}, true);
+      if (aReturnedConv)
+        aReturnedConv.value = serverConv;
+      return true;
+    }
   },
   {
     name: "me",
@@ -282,6 +335,7 @@ var commands = [
   {
     name: "op",
     get helpString() _("command.op", "op"),
+    usageContext: Ci.imICommand.CMD_CONTEXT_CHAT,
     run: function(aMsg, aConv) setMode(aMsg, aConv, "o", true)
   },
   {
@@ -292,6 +346,7 @@ var commands = [
   {
     name: "part",
     get helpString() _("command.part", "part"),
+    usageContext: Ci.imICommand.CMD_CONTEXT_CHAT,
     run: function (aMsg, aConv) {
       getConv(aConv).part(aMsg);
       return true;
@@ -300,7 +355,17 @@ var commands = [
   {
     name: "ping",
     get helpString() _("command.ping", "ping"),
-    run: function(aMsg, aConv) ctcpCommand(aConv, aMsg, "PING")
+    run: function(aMsg, aConv) {
+      // Send a ping to the entered nick using the current time (in
+      // milliseconds) as the param. If no nick is entered, ping the
+      // server.
+      if (aMsg && aMsg.trim().length)
+        ctcpCommand(aConv, aMsg, "PING", Date.now());
+      else
+        getAccount(aConv).sendMessage("PING", Date.now());
+
+      return true;
+    }
   },
   {
     name: "query",
@@ -311,7 +376,12 @@ var commands = [
     name: "quit",
     get helpString() _("command.quit", "quit"),
     run: function(aMsg, aConv) {
-      getAccount(aConv).quit(aMsg);
+      let account = getAccount(aConv);
+      account.disconnect(aMsg);
+      // While prpls shouldn't usually touch imAccount, this disconnection
+      // is an action the user requested via the UI. Without this call,
+      // the imAccount would immediately reconnect the account.
+      account.imAccount.disconnect();
       return true;
     }
   },
@@ -329,6 +399,7 @@ var commands = [
   {
     name: "remove",
     get helpString() _("command.kick", "remove"),
+    usageContext: Ci.imICommand.CMD_CONTEXT_CHAT,
     run: kickCommand
   },
   {
@@ -339,6 +410,7 @@ var commands = [
   {
     name: "topic",
     get helpString() _("command.topic", "topic"),
+    usageContext: Ci.imICommand.CMD_CONTEXT_CHAT,
     run: function(aMsg, aConv) {
       aConv.topic = aMsg;
       return true;
@@ -352,11 +424,17 @@ var commands = [
   {
     name: "version",
     get helpString() _("command.version", "version"),
-    run: function(aMsg, aConv) ctcpCommand(aConv, aMsg, "VERSION")
+    run: function(aMsg, aConv) {
+      if (!aMsg || !aMsg.trim().length)
+        return false;
+      ctcpCommand(aConv, aMsg, "VERSION");
+      return true;
+    }
   },
   {
     name: "voice",
     get helpString() _("command.voice", "voice"),
+    usageContext: Ci.imICommand.CMD_CONTEXT_CHAT,
     run: function(aMsg, aConv) setMode(aMsg, aConv, "v", true)
   },
   {

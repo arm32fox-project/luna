@@ -359,22 +359,23 @@ const statusMessageReplacements = {
   shortTime: function(aMsg) (new Date(aMsg.time * 1000)).toLocaleTimeString(),
   messageClasses: function(aMsg) {
     let msgClass = [];
-    if (/^(<[^>]+>)*\/me /.test(aMsg.originalMessage))
-      msgClass.push("action");
 
-    if (!aMsg.system) {
+    if (aMsg.system)
+      msgClass.push("event");
+    else {
       msgClass.push("message");
+
       if (aMsg.incoming)
         msgClass.push("incoming");
-      else
-        if (aMsg.outgoing)
-          msgClass.push("outgoing");
+      else if (aMsg.outgoing)
+        msgClass.push("outgoing");
+
+      if (/^(<[^>]+>)*\/me /.test(aMsg.originalMessage))
+        msgClass.push("action");
 
       if (aMsg.autoResponse)
         msgClass.push("autoreply");
     }
-    else
-      msgClass.push("event");
 
     if (aMsg.containsNick)
       msgClass.push("nick");
@@ -389,6 +390,8 @@ const statusMessageReplacements = {
   }
 };
 
+function formatSender(aName)
+  "<span class=\"ib-sender\">" + TXTToHTML(aName) + "</span>";
 const messageReplacements = {
   userIconPath: function (aMsg) {
     // If the protocol plugin provides an icon for the message, use it.
@@ -406,15 +409,15 @@ const messageReplacements = {
     // Fallback to the theme's default icons.
     return (aMsg.incoming ? "Incoming" : "Outgoing") + "/buddy_icon.png";
   },
-  senderScreenName: function(aMsg) TXTToHTML(aMsg.who),
-  sender: function(aMsg) TXTToHTML(aMsg.alias || aMsg.who),
+  senderScreenName: function(aMsg) formatSender(aMsg.who),
+  sender: function(aMsg) formatSender(aMsg.alias || aMsg.who),
   senderColor: function(aMsg) aMsg.color,
   senderStatusIcon: function(aMsg)
     getStatusIconFromBuddy(getBuddyFromMessage(aMsg)),
   messageDirection: function(aMsg) "ltr",
   // no theme actually use this, don't bother making sure this is the real
   // serverside alias
-  senderDisplayName: function(aMsg) TXTToHTML(aMsg.alias || aMsg.who),
+  senderDisplayName: function(aMsg) formatSender(aMsg.alias || aMsg.who),
   service: function(aMsg) aMsg.conversation.account.protocol.name,
   textbackgroundcolor: function(aMsg, aFormat) "transparent", // FIXME?
   __proto__: statusMessageReplacements
@@ -512,7 +515,7 @@ function insertHTMLForMessage(aMsg, aHTML, aDoc, aIsNext)
 {
   let insert = aDoc.getElementById("insert");
   if (insert && !aIsNext) {
-    insert.parentNode.removeChild(insert);
+    insert.remove();
     insert = null;
   }
 
@@ -629,12 +632,12 @@ function _serializeDOMObject(aDocument, aInitFunction)
 {
   // This shouldn't really be a constant, as we want to support
   // text/html too in the future.
-  const type = "text/plain"; 
+  const type = "text/plain";
 
   let encoder =
     Components.classes["@mozilla.org/layout/documentEncoder;1?type=" + type]
               .createInstance(Ci.nsIDocumentEncoder);
-  encoder.init(aDocument, type, 0);
+  encoder.init(aDocument, type, Ci.nsIDocumentEncoder.OutputPreformatted);
   aInitFunction(encoder);
   let result = encoder.encodeToString();
   return result;
@@ -906,13 +909,13 @@ SelectedMessage.prototype = {
       }
     }
 
-    // override the default %message% replacement so that it doesn't
-    // add a span node.
+    // Overrides default replacements so that they don't add a span node.
     // Also, this uses directly the text variable so that we don't
     // have to change the content of msg.message and revert it
     // afterwards.
     replacements = {
       message: function(aMsg) text,
+      sender: function(aMsg) aMsg.alias || aMsg.who,
       __proto__: replacements
     };
 

@@ -17,11 +17,6 @@ Cu.import("resource:///modules/imXPCOMUtils.jsm");
 Cu.import("resource:///modules/ircHandlers.jsm");
 Cu.import("resource:///modules/ircUtils.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "PluralForm", function() {
-  Cu.import("resource://gre/modules/PluralForm.jsm");
-  return PluralForm;
-});
-
 // Split into a CTCP message which is a single command and a single parameter:
 //   <command> " " <parameter>
 // The high level dequote is to unescape \001 in the message content.
@@ -33,8 +28,8 @@ function CTCPMessage(aMessage, aRawCTCPMessage) {
   // High/CTCP level dequote: replace the quote char \134 followed by a or \134
   // with \001 or \134, respectively. Any other character after \134 is replaced
   // with itself.
-  let dequotedCTCPMessage = message.ctcp.rawMessage.replace(/\x5C./g,
-    function(aStr) (aStr[1] == "a") ? "\x01" : aStr[1]);
+  let dequotedCTCPMessage = message.ctcp.rawMessage.replace(/\\(.|$)/g,
+    function(aStr) aStr[1] ? (aStr[1] == "a" ? "\x01" : aStr[1]) : "");
 
   let separator = dequotedCTCPMessage.indexOf(" ");
   // If there's no space, then only a command is given.
@@ -97,12 +92,19 @@ function ctcpHandleMessage(aMessage) {
     ircHandlers.handleMessage(message);
   }
 
-  let handled = true;
   // Loop over each raw CTCP message.
-  for each (let message in ctcpMessages)
-    handled &= ircHandlers.handleCTCPMessage(this, message);
+  for each (let message in ctcpMessages) {
+    if (!ircHandlers.handleCTCPMessage(this, message)) {
+      this.WARN("Unhandled CTCP message: " + message.ctcp.rawMessage +
+                "\nin IRC message: " + message.rawMessage);
+      this.sendCTCPMessage("ERRMSG",
+                           [message.ctcp.rawMessage, ":Unhandled CTCP command"],
+                           message.nickname || message.servername, true);
+    }
+  }
 
-  return handled;
+  // We have handled this message as much as we can.
+  return true;
 }
 
 // This is the the basic CTCP protocol.
@@ -140,36 +142,17 @@ var ctcpBase = {
 
     // Used to measure the delay of the IRC network between clients.
     "PING": function(aMessage) {
+      // PING timestamp
       if (aMessage.command == "PRIVMSG") {
-        // PING timestamp
         // Received PING request, send PING response.
         this.LOG("Received PING request from " + aMessage.nickname +
                  ". Sending PING response: \"" + aMessage.ctcp.param + "\".");
         this.sendCTCPMessage("PING", aMessage.ctcp.param, aMessage.nickname,
-                              true);
+                             true);
+        return true;
       }
-      else {
-        // PING timestamp
-        // Received PING response, display to the user.
-        let sentTime = new Date(aMessage.ctcp.param);
-
-        // The received timestamp is invalid
-        if (isNaN(sentTime)) {
-          this.WARN(aMessage.nickname +
-                    " returned an invalid timestamp from a CTCP PING: " +
-                    aMessage.ctcp.param);
-          return false;
-        }
-
-        // Find the delay in seconds.
-        let delay = (Date.now() - sentTime) / 1000;
-
-        let message = PluralForm.get(delay, _("ctcp.ping", aMessage.nickname))
-                                .replace("#2", delay);
-        this.getConversation(aMessage.nickname)
-            .writeMessage(aMessage.nickname, message, {system: true});
-      }
-      return true;
+      else
+        return this.handlePingReply(aMessage.nickname, aMessage.ctcp.param);
     },
 
     // An encryption protocol between clients without any known reference.

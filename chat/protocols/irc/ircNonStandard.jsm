@@ -9,12 +9,12 @@
  * listing the known servers that support this extension.
  *
  * Resources for these commands include:
- *  http://hg.atheme.org/charybdis/file/tip/include/numeric.h
+ *  https://github.com/atheme/charybdis/blob/master/include/numeric.h
  *  http://hg.unrealircd.com/hg/unreal/raw-file/tip/include/numeric.h
  */
 const EXPORTED_SYMBOLS = ["ircNonStandard"];
 
-const Cu = Components.utils;
+const {interfaces: Ci, utils: Cu} = Components;
 
 Cu.import("resource:///modules/ircHandlers.jsm");
 Cu.import("resource:///modules/ircUtils.jsm");
@@ -45,6 +45,11 @@ var ircNonStandard = {
         this.gotDisconnected(Ci.prplIAccount.ERROR_AUTHENTICATION_IMPOSSIBLE,
                              _("connection.error.passwordRequired"));
       }
+      return true;
+    },
+
+    "042": function(aMessage) { // RPL_YOURID (IRCnet)
+      // <nick> <id> :your unique ID
       return true;
     },
 
@@ -101,10 +106,27 @@ var ircNonStandard = {
       return this.setWhois(aMessage.params[1], {bot: true});
     },
 
+    "338": function(aMessage) {
+      // RPL_CHANPASSOK
+      // RPL_WHOISACTUALLY (ircu, Bahamut, Charybdis)
+      // <nick> <user> <ip> :actually using host
+      return true;
+    },
+
     "378": function(aMessage) { // RPL_WHOISHOST (Unreal & Charybdis)
       // <nick> :is connecting from <host> <ip>
       let [host, ip] = aMessage.params[2].split(" ").slice(-2);
       return this.setWhois(aMessage.params[1], {host: host, ip: ip});
+    },
+
+    "464": function(aMessage) {
+      // :Password required
+      // If we receive a ZNC error message requesting a password, eat it since
+      // a NOTICE AUTH will follow causing us to send the password. This numeric
+      // is, unfortunately, also sent if you give a wrong password. The
+      // parameter in that case is "Invalid Password".
+      return aMessage.servername == "irc.znc.in" &&
+             aMessage.params[1] == "Password required";
     },
 
     "499": function(aMessage) { // ERR_CHANOWNPRIVNEEDED (Unreal)

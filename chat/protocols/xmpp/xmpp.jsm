@@ -9,7 +9,7 @@ const EXPORTED_SYMBOLS = [
   "XMPPAccountPrototype"
 ];
 
-const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
+const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 Cu.import("resource:///modules/imServices.jsm");
 Cu.import("resource:///modules/imStatusUtils.jsm");
@@ -19,18 +19,12 @@ Cu.import("resource:///modules/socket.jsm");
 Cu.import("resource:///modules/xmpp-xml.jsm");
 Cu.import("resource:///modules/xmpp-session.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "DownloadUtils", function() {
-  Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
-  return DownloadUtils;
-});
-XPCOMUtils.defineLazyGetter(this, "FileUtils", function() {
-  Components.utils.import("resource://gre/modules/FileUtils.jsm");
-  return FileUtils;
-});
-XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
-  Components.utils.import("resource://gre/modules/NetUtil.jsm");
-  return NetUtil;
-});
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadUtils",
+  "resource://gre/modules/DownloadUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
+  "resource://gre/modules/FileUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
+  "resource://gre/modules/NetUtil.jsm");
 XPCOMUtils.defineLazyServiceGetter(this, "imgTools",
                                    "@mozilla.org/image/tools;1",
                                    "imgITools");
@@ -94,8 +88,6 @@ const XMPPMUCConversationPrototype = {
     GenericConvChatPrototype._init.call(this, aAccount, aJID, aNick);
   },
 
-  get normalizedName() this.name,
-
   _targetResource: "",
 
   /* Called when the user enters a chat message */
@@ -116,7 +108,7 @@ const XMPPMUCConversationPrototype = {
       }
       delete this._participants[nick];
       let nickString = Cc["@mozilla.org/supports-string;1"]
-                       .createInstance(Ci.nsISupportsString);
+                         .createInstance(Ci.nsISupportsString);
       nickString.data = nick;
       this.notifyObservers(new nsSimpleEnumerator([nickString]),
                            "chat-buddy-remove");
@@ -183,7 +175,7 @@ const XMPPConversationPrototype = {
   __proto__: GenericConvIMPrototype,
 
   _typingTimer: null,
-  _supportChatStateNotifications: true,
+  supportChatStateNotifications: true,
   _typingState: "active",
 
   _init: function(aAccount, aBuddy) {
@@ -197,21 +189,21 @@ const XMPPConversationPrototype = {
   get shouldSendTypingNotifications()
     this._supportChatStateNotifications &&
     Services.prefs.getBoolPref("purple.conversations.im.send_typing"),
-  set supportChatStateNotifications(val) {
-    this._supportChatStateNotifications = val;
-  },
 
   /* Called when the user is typing a message
-   * aLength - length of the typed message */
-  sendTyping: function(aLength) {
+   * aString - the currently typed message
+   * Returns the number of characters that can still be typed */
+  sendTyping: function(aString) {
     if (!this.shouldSendTypingNotifications)
-      return;
+      return Ci.prplIConversation.NO_TYPING_LIMIT;
 
     this._cancelTypingTimer();
-    if (aLength)
+    if (aString.length)
       this._typingTimer = setTimeout(this.finishedComposing.bind(this), 10000);
 
-    this._setTypingState(aLength ? "composing" : "active");
+    this._setTypingState(aString.length ? "composing" : "active");
+
+    return Ci.prplIConversation.NO_TYPING_LIMIT;
   },
 
   finishedComposing: function() {
@@ -257,9 +249,9 @@ const XMPPConversationPrototype = {
     if (!who)
       who = this._account.name;
     let alias = this.account.alias || this.account.statusInfo.displayName;
-    let msg = Components.classes["@mozilla.org/txttohtmlconv;1"]
-                        .getService(Ci.mozITXTToHTMLConv)
-                        .scanTXT(aMsg, Ci.mozITXTToHTMLConv.kEntities);
+    let msg = Cc["@mozilla.org/txttohtmlconv;1"]
+                .getService(Ci.mozITXTToHTMLConv)
+                .scanTXT(aMsg, Ci.mozITXTToHTMLConv.kEntities);
     this.writeMessage(who, msg, {outgoing: true, _alias: alias});
     delete this._typingState;
   },
@@ -339,8 +331,6 @@ const XMPPAccountBuddyPrototype = {
 
     return new nsSimpleEnumerator(tooltipInfo);
   },
-
-  get normalizedName() this.userName,
 
   // _rosterAlias is the value stored in the roster on the XMPP
   // server. For most servers we will be read/write.
@@ -442,7 +432,11 @@ const XMPPAccountBuddyPrototype = {
 
   _photoHash: null,
   _saveIcon: function(aPhotoNode) {
-    let type = aPhotoNode.getElement(["TYPE"]).innerText;
+    // Some servers seem to send a photo node without a type declared.
+    let type = aPhotoNode.getElement(["TYPE"]);
+    if (!type)
+      return;
+    type = type.innerText;
     const kExt = {"image/gif": "gif", "image/jpeg": "jpg", "image/png": "png"};
     if (!kExt.hasOwnProperty(type))
       return;
@@ -521,6 +515,13 @@ const XMPPAccountBuddyPrototype = {
         idleSince = now - parseInt(query.attributes["seconds"], 10);
         statusType = Ci.imIStatusInfo.STATUS_IDLE;
       }
+
+      // Mark official Android clients as mobile.
+      const kAndroidNodeURI = "http://www.android.com/gtalk/client/caps";
+      if (aStanza.getChildrenByNS(Stanza.NS.caps)
+                 .some(function(s) s.localName == "c" &&
+                                   s.attributes["node"] == kAndroidNodeURI))
+        statusType = Ci.imIStatusInfo.STATUS_MOBILE;
 
       let status = aStanza.getElement(["status"]);
       status = status ? status.innerText : "";
@@ -613,7 +614,6 @@ const XMPPAccountPrototype = {
     this._conv = {};
     this._buddies = {};
     this._mucs = {};
-    this._pendingAuthRequests = [];
   },
 
   get canJoinChat() true,
@@ -662,8 +662,6 @@ const XMPPAccountPrototype = {
     }
     this._connection.sendStanza(Stanza.presence({to: jid + "/" + nick}, x));
   },
-
-  get normalizedName() this._normalizeJID(this.name),
 
   _idleSince: 0,
   observe: function(aSubject, aTopic, aData) {
@@ -748,7 +746,7 @@ const XMPPAccountPrototype = {
     if (!this._connection)
       throw "The account isn't connected";
 
-    let jid = this._normalizeJID(aName);
+    let jid = this.normalize(aName);
     if (!jid || !jid.contains("@"))
       throw "Invalid username";
 
@@ -777,6 +775,15 @@ const XMPPAccountPrototype = {
     let buddy = new this._accountBuddyConstructor(this, aBuddy, aTag);
     this._buddies[buddy.normalizedName] = buddy;
     return buddy;
+  },
+
+  /* Replies to a buddy request in order to accept it or deny it. */
+  replyToBuddyRequest: function(aReply, aRequest) {
+    if (!this._connection)
+      return;
+    let s = Stanza.presence({to: aRequest.userName, type: aReply})
+    this._connection.sendStanza(s);
+    this.removeBuddyRequest(aRequest);
   },
 
   /* XMPPSession events */
@@ -824,34 +831,12 @@ const XMPPAccountPrototype = {
     let from = aStanza.attributes["from"];
     this.DEBUG("Received presence stanza for " + from);
 
-    let jid = this._normalizeJID(from);
+    let jid = this.normalize(from);
     let type = aStanza.attributes["type"];
     if (type == "subscribe") {
-      let authRequest = {
-        _account: this,
-        get account() this._account.imAccount,
-        userName: jid,
-        _sendReply: function(aReply) {
-          let connection = this._account._connection;
-          if (!connection)
-            return;
-          this._account._pendingAuthRequests =
-            this._account._pendingAuthRequests.filter(function(r) r !== this);
-          connection.sendStanza(Stanza.presence({to: this.userName,
-                                                 type: aReply}));
-        },
-        grant: function() { this._sendReply("subscribed"); },
-        deny: function() { this._sendReply("unsubscribed"); },
-        cancel: function() {
-          Services.obs.notifyObservers(this,
-                                       "buddy-authorization-request-canceled",
-                                       null);
-        },
-        QueryInterface: XPCOMUtils.generateQI([Ci.prplIBuddyRequest])
-      };
-      Services.obs.notifyObservers(authRequest, "buddy-authorization-request",
-                                   null);
-      this._pendingAuthRequests.push(authRequest);
+      this.addBuddyRequest(jid,
+                           this.replyToBuddyRequest.bind(this, "subscribed"),
+                           this.replyToBuddyRequest.bind(this, "unsubscribed"));
     }
     else if (type == "unsubscribe" || type == "unsubscribed" ||
              type == "subscribed") {
@@ -874,13 +859,13 @@ const XMPPAccountPrototype = {
       }
       this._mucs[jid].onPresenceStanza(aStanza);
     }
-    else if (from != this._connection._jid.jid)
+    else if (jid != this.normalize(this._connection._jid.jid))
       this.WARN("received presence stanza for unknown buddy " + from);
   },
 
   /* Called when a message stanza is received */
   onMessageStanza: function(aStanza) {
-    let norm = this._normalizeJID(aStanza.attributes["from"]);
+    let norm = this.normalize(aStanza.attributes["from"]);
 
     let type = aStanza.attributes["type"];
     let body;
@@ -895,9 +880,9 @@ const XMPPAccountPrototype = {
         // Even if the message is in plain text, the prplIMessage
         // should contain a string that's correctly escaped for
         // insertion in an HTML document.
-        body = Components.classes["@mozilla.org/txttohtmlconv;1"]
-                         .getService(Ci.mozITXTToHTMLConv)
-                         .scanTXT(b.innerText, Ci.mozITXTToHTMLConv.kEntities);
+        body = Cc["@mozilla.org/txttohtmlconv;1"]
+                 .getService(Ci.mozITXTToHTMLConv)
+                 .scanTXT(b.innerText, Ci.mozITXTToHTMLConv.kEntities);
       }
     }
     if (body) {
@@ -932,21 +917,21 @@ const XMPPAccountPrototype = {
     if (type == "error")
       return;
 
+    let typingState = Ci.prplIConvIM.NOT_TYPING;
     let state;
     let s = aStanza.getChildrenByNS(Stanza.NS.chatstates);
     if (s.length > 0)
       state = s[0].localName;
     if (state) {
       this.DEBUG(state);
-      if (state == "active")
-        this._conv[norm].updateTyping(Ci.prplIConvIM.NOT_TYPING);
-      else if (state == "composing")
-        this._conv[norm].updateTyping(Ci.prplIConvIM.TYPING);
+      if (state == "composing")
+        typingState = Ci.prplIConvIM.TYPING;
       else if (state == "paused")
-        this._conv[norm].updateTyping(Ci.prplIConvIM.TYPED);
+        typingState = Ci.prplIConvIM.TYPED;
     }
-    else
-      this._conv[norm].supportChatStateNotifications = false;
+    let conv = this._conv[norm];
+    conv.updateTyping(typingState);
+    conv.supportChatStateNotifications = !!state;
   },
 
   /* Called when there is an error in the xmpp session */
@@ -960,7 +945,7 @@ const XMPPAccountPrototype = {
   /* When a vCard is received */
   _vCardReceived: false,
   onVCard: function(aStanza) {
-    let jid = this._normalizeJID(aStanza.attributes["from"]);
+    let jid = this.normalize(aStanza.attributes["from"]);
     if (!jid || !this._buddies.hasOwnProperty(jid))
       return;
     let buddy = this._buddies[jid];
@@ -985,10 +970,11 @@ const XMPPAccountPrototype = {
     buddy._vCardReceived = true;
   },
 
-  _normalizeJID: function(aJID)
-    aJID.trim()
-        .split("/", 1)[0] // up to first slash
-        .toLowerCase(),
+  normalize: function(aJID) {
+    return aJID.trim()
+               .split("/", 1)[0] // up to first slash
+               .toLowerCase();
+  },
 
   _parseJID: function(aJid) {
     let match =
@@ -1018,7 +1004,7 @@ const XMPPAccountPrototype = {
       this.WARN("Received a roster item without jid: " + aItem.getXML());
       return "";
     }
-    jid = this._normalizeJID(jid);
+    jid = this.normalize(jid);
 
     let subscription =  "";
     if ("subscription" in aItem.attributes)
@@ -1048,17 +1034,18 @@ const XMPPAccountPrototype = {
       }
     }
     else {
-      let tagName = _("defaultGroup");
+      let tag;
       for each (let group in aItem.getChildren("group")) {
         let name = group.innerText;
         if (name) {
-          tagName = name;
+          tag = Services.tags.createTag(name);
           break; // TODO we should create an accountBuddy per group,
                  // but this._buddies would probably not like that...
         }
       }
-      let tag = Services.tags.createTag(tagName);
-      buddy = new this._accountBuddyConstructor(this, null, tag, jid);
+      buddy = new this._accountBuddyConstructor(this, null,
+                                                tag || Services.tags.defaultTag,
+                                                jid);
     }
 
     // We request the vCard only if we haven't received it yet and are
@@ -1188,10 +1175,6 @@ const XMPPAccountPrototype = {
     for each (let muc in this._mucs)
       muc.left = true;
 
-    for each (let request in this._pendingAuthRequests)
-      request.cancel();
-    this._pendingAuthRequests = [];
-
     this._connection.disconnect();
     delete this._connection;
 
@@ -1299,8 +1282,8 @@ const XMPPAccountPrototype = {
           scaledImage = imgTools.encodeScaledImage(readImage, type, 64, 64);
         }
 
-        let bstream = Components.classes["@mozilla.org/binaryinputstream;1"].
-                      createInstance(Ci.nsIBinaryInputStream);
+        let bstream = Cc["@mozilla.org/binaryinputstream;1"]
+                        .createInstance(Ci.nsIBinaryInputStream);
         bstream.setInputStream(scaledImage);
 
         let data = bstream.readBytes(bstream.available());
@@ -1309,7 +1292,7 @@ const XMPPAccountPrototype = {
           binval: btoa(data).replace(/.{74}/g, "$&\n")
         };
       } catch (e) {
-        Components.utils.reportError(e);
+        Cu.reportError(e);
         this._cachedUserIcon = null;
       }
       delete this._cachingUserIcon;

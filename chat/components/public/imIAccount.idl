@@ -10,6 +10,7 @@ interface imITag;
 interface imIBuddy;
 interface imIAccountBuddy;
 interface imIAccount;
+interface prplIAccount;
 interface prplIProtocol;
 interface purpleIProxyInfo;
 interface nsIScriptError;
@@ -39,11 +40,39 @@ interface prplIChatRoomField: nsISupports {
   readonly attribute long max;
 };
 
+/*
+ * Information about a chat room and the fields required to join it.
+ */
+[scriptable, uuid(3fc279d9-b280-4f4a-babd-b4e328e65a01)]
+interface prplIRoomInfo: nsISupports {
+  readonly attribute AUTF8String accountId;
+  readonly attribute AUTF8String name;
+  readonly attribute AUTF8String topic;
+  readonly attribute unsigned long participantCount;
+  readonly attribute prplIChatRoomFieldValues chatRoomFieldValues;
+};
+
+/*
+ * Callback passed to an account's requestRoomInfo function.
+ */
+[scriptable, function, uuid(d3c13bde-b852-44a8-a0dc-c781366cf110)]
+interface prplIRoomInfoCallback: nsISupports {
+  /* aRooms is an array containing a batch of prplIRoomInfo. This will be called
+   * multiple times as batches of chat rooms are received. The number of rooms
+   * in each batch is left for the prplIAccount implementation to decide.
+   * aCompleted will be true when aRooms is the last batch.
+   */
+  void onRoomInfoAvailable([array, size_is(aCount)] in prplIRoomInfo aRooms,
+                           in prplIAccount aAccount,
+                           in boolean aCompleted,
+                           in unsigned long aCount);
+};
+
 
 /*
  * This interface should be implemented by the protocol plugin.
  */
-[scriptable, uuid(fb1b29cb-63ba-4335-9f44-63aea3f616a3)]
+[scriptable, uuid(bc540cab-a6e9-4c2c-abff-e95d0d1370a1)]
 interface prplIAccount: nsISupports {
   readonly attribute imIAccount imAccount;
 
@@ -85,12 +114,23 @@ interface prplIAccount: nsISupports {
   readonly attribute boolean canJoinChat;
   nsISimpleEnumerator getChatRoomFields();
   prplIChatRoomFieldValues getChatRoomDefaultFieldValues([optional] in AUTF8String aDefaultChatName);
+  /* Request information on available chat rooms, to be returned via the
+   * callback.
+   */
+  void requestRoomInfo(in prplIRoomInfoCallback aCallback);
+  readonly attribute boolean isRoomInfoStale;
+
   /*
    * Create a new chat conversation if it doesn't already exist.
    */
   void joinChat(in prplIChatRoomFieldValues aComponents);
 
+  // A name that can be used to check for duplicates and is the basis
+  // for the directory name for log storage.
   readonly attribute AUTF8String normalizedName;
+  // Request that the account normalizes a name. Use this only when an object
+  // providing a normalizedName doesn't exist yet or isn't accessible.
+  AUTF8String normalize(in AUTF8String aName);
 
   attribute purpleIProxyInfo proxyInfo;
 
@@ -102,6 +142,11 @@ interface prplIAccount: nsISupports {
 
   /* When a connection error occurred, this value indicates the type of error */
   readonly attribute short connectionErrorReason;
+
+  /* When a certificate error occurs, the host/port that caused a
+   * SSL/certificate error when connecting to it. This is only valid when
+   * connectionErrorReason is one of ERROR_CERT_*. */
+  readonly attribute AUTF8String connectionTarget;
 
   /* Possible connection error reasons:
      ERROR_NETWORK_ERROR and ERROR_ENCRYPTION_ERROR are not fatal and
@@ -158,9 +203,6 @@ interface prplIAccount: nsISupports {
   //   PURPLE_CONNECTION_NO_IMAGES
   //    Connection does not support sending of images.
   readonly attribute boolean noImages;
-
-  // This is currently used only by Twitter.
-  readonly attribute long maxMessageLength;
 };
 
 

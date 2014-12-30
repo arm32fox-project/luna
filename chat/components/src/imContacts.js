@@ -6,7 +6,17 @@ const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 Cu.import("resource:///modules/imXPCOMUtils.jsm");
 Cu.import("resource:///modules/imServices.jsm");
 
+XPCOMUtils.defineLazyGetter(this, "_", function()
+  l10nHelper("chrome://chat/locale/contacts.properties")
+);
+
 var gDBConnection = null;
+
+function executeAsyncThenFinalize(statement)
+{
+  statement.executeAsync();
+  statement.finalize();
+}
 
 function getDBConnection()
 {
@@ -109,6 +119,7 @@ this.__defineGetter__("DBConn", function() {
 function TagsService() { }
 TagsService.prototype = {
   get wrappedJSObject() this,
+  get defaultTag() this.createTag(_("defaultGroup")),
   createTag: function(aName) {
     // If the tag already exists, we don't want to create a duplicate.
     let tag = this.getTagByName(aName);
@@ -116,8 +127,12 @@ TagsService.prototype = {
       return tag;
 
     let statement = DBConn.createStatement("INSERT INTO tags (name, position) VALUES(:name, 0)");
-    statement.params.name = aName;
-    statement.executeStep();
+    try {
+      statement.params.name = aName;
+      statement.executeStep();
+    } finally {
+      statement.finalize();
+    }
 
     tag = new Tag(DBConn.lastInsertRowID, aName);
     Tags.push(tag);
@@ -130,12 +145,21 @@ TagsService.prototype = {
   getTagByName: function(aName) {
     let statement = DBConn.createStatement("SELECT id FROM tags where name = :name");
     statement.params.name = aName;
-    if (!statement.executeStep())
-      return null;
-    return this.getTagById(statement.row.id);
+    try {
+      if (!statement.executeStep())
+        return null;
+      return this.getTagById(statement.row.id);
+    } finally {
+      statement.finalize();
+    }
   },
   // Get an array of all existing tags.
   getTags: function(aTagCount) {
+    if (Tags.length)
+      Tags.sort(function(a, b) a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+    else
+      this.defaultTag;
+
     if (aTagCount)
       aTagCount.value = Tags.length;
     return Tags;
@@ -172,9 +196,13 @@ Tag.prototype = {
   get name() this._name,
   set name(aNewName) {
     let statement = DBConn.createStatement("UPDATE tags SET name = :name WHERE id = :id");
-    statement.params.name = aNewName;
-    statement.params.id = this._id;
-    statement.execute();
+    try {
+      statement.params.name = aNewName;
+      statement.params.id = this._id;
+      statement.execute();
+    } finally {
+      statement.finalize();
+    }
 
     //FIXME move the account buddies if some use this tag as their group
     return aNewName;
@@ -257,7 +285,7 @@ var otherContactsTag = {
   },
   observe: function(aSubject, aTopic, aData) {
     aSubject.QueryInterface(Ci.imIContact);
-    if (aTopic == "contact-tag-removed") {
+    if (aTopic == "contact-tag-removed" || aTopic == "contact-added") {
       if (!(aSubject.id in this._contacts) &&
           !(parseInt(aData) in this._hiddenTags) &&
           aSubject.getTags().every(function(t) t.id in this._hiddenTags, this))
@@ -296,6 +324,7 @@ var otherContactsTag = {
       this._hideTag(tag);
     Services.obs.addObserver(this, "contact-tag-added", false);
     Services.obs.addObserver(this, "contact-tag-removed", false);
+    Services.obs.addObserver(this, "contact-added", false);
     Services.obs.addObserver(this, "contact-removed", false);
   },
 
@@ -309,14 +338,14 @@ var otherContactsTag = {
       aContactCount.value = contacts.length;
     return contacts;
   },
-  _addContact: function (aContact) {
+  _addContact: function(aContact) {
     this._contacts[aContact.id] = aContact;
     this.notifyObservers(aContact, "contact-moved-in");
     for each (let observer in ContactsById[aContact.id]._observers)
       observer.observe(this, "contact-moved-in", null);
     aContact.addObserver(this._observer);
   },
-  _removeContact: function (aContact) {
+  _removeContact: function(aContact) {
     delete this._contacts[aContact.id];
     aContact.removeObserver(this._observer);
     this.notifyObservers(aContact, "contact-moved-out");
@@ -370,7 +399,7 @@ Contact.prototype = {
     let statement = DBConn.createStatement("UPDATE contacts SET alias = :alias WHERE id = :id");
     statement.params.alias = aNewAlias;
     statement.params.id = this._id;
-    statement.executeAsync();
+    executeAsyncThenFinalize(statement);
 
     let oldDisplayName = this.displayName;
     this._alias = aNewAlias;
@@ -386,7 +415,11 @@ Contact.prototype = {
 
     // Create a real contact for this dummy contact
     let statement = DBConn.createStatement("INSERT INTO contacts DEFAULT VALUES");
-    statement.execute();
+    try {
+      statement.execute();
+    } finally {
+      statement.finalize();
+    }
     delete ContactsById[this._id];
     let oldId = this._id;
     this._id = DBConn.lastInsertRowID;
@@ -396,7 +429,7 @@ Contact.prototype = {
     statement = DBConn.createStatement("UPDATE buddies SET contact_id = :id WHERE id = :buddy_id");
     statement.params.id = this._id;
     statement.params.buddy_id = this._buddies[0].id;
-    statement.executeAsync();
+    executeAsyncThenFinalize(statement);
   },
 
   getTags: function(aTagCount) {
@@ -415,7 +448,7 @@ Contact.prototype = {
                                "VALUES(:contactId, :tagId)");
       statement.params.contactId = this.id;
       statement.params.tagId = aTag.id;
-      statement.executeAsync();
+      executeAsyncThenFinalize(statement);
     }
 
     aTag = TagsById[aTag.id];
@@ -449,7 +482,7 @@ Contact.prototype = {
                                            "AND tag_id = :tagId");
     statement.params.contactId = this.id;
     statement.params.tagId = aTag.id;
-    statement.executeAsync();
+    executeAsyncThenFinalize(statement);
   },
   hasTag: function(aTag) this._tags.some(function (t) t.id == aTag.id),
   _massMove: false,
@@ -611,7 +644,7 @@ Contact.prototype = {
         let statement =
           DBConn.createStatement("DELETE FROM contacts WHERE id = :id");
         statement.params.id = this._id;
-        statement.executeAsync();
+        executeAsyncThenFinalize(statement);
       }
       this._notifyObservers("removed");
       delete ContactsById[this._id];
@@ -621,7 +654,7 @@ Contact.prototype = {
       let statement =
         DBConn.createStatement("DELETE FROM contact_tag WHERE contact_id = :id");
       statement.params.id = this._id;
-      statement.executeAsync();
+      executeAsyncThenFinalize(statement);
 
       delete this._tags;
       delete this._buddies;
@@ -661,6 +694,7 @@ Contact.prototype = {
       statement.params.buddyId = this._buddies[i].id;
       statement.executeAsync();
     }
+    statement.finalize();
   },
 
   detachBuddy: function(aBuddy) {
@@ -676,6 +710,7 @@ Contact.prototype = {
 
     // Create a new dummy contact and use it for the detached buddy.
     buddy.contact = new Contact();
+    buddy.contact._notifyObservers("added");
 
     // The first tag was inherited during the contact setter.
     // This will copy the remaining tags.
@@ -928,7 +963,7 @@ Buddy.prototype = {
     statement.params.contactId = aContact.id > 0 ? aContact.id : 0;
     statement.params.position = aContact._buddies.length - 1;
     statement.params.buddyId = this.id;
-    statement.executeAsync();
+    executeAsyncThenFinalize(statement);
 
     this._notifyObservers("moved-into-contact");
     return aContact;
@@ -1083,6 +1118,8 @@ Buddy.prototype = {
       this._observers.push(aObserver);
   },
   removeObserver: function(aObserver) {
+    if (!this._observers)
+      return;
     this._observers = this._observers.filter(function(o) o !== aObserver);
   },
   // internal calls + calls from add-ons
@@ -1121,7 +1158,7 @@ Buddy.prototype = {
                                    "WHERE id = :buddyId");
           statement.params.buddyId = this.id;
           statement.params.srvAlias = this._srvAlias;
-          statement.executeAsync();
+          executeAsyncThenFinalize(statement);
           this._notifyObservers("display-name-changed", aData);
         }
         break;
@@ -1147,9 +1184,12 @@ Buddy.prototype = {
         if (this._accounts.length == 1) {
           let statement =
             DBConn.createStatement("DELETE FROM buddies WHERE id = :id");
-          statement.params.id = this.id;
-          statement.execute();
-
+          try {
+            statement.params.id = this.id;
+            statement.execute();
+          } finally {
+            statement.finalize();
+          }
           this._notifyObservers("removed");
 
           delete BuddiesById[this._id];
@@ -1187,64 +1227,80 @@ function ContactsService() { }
 ContactsService.prototype = {
   initContacts: function() {
     let statement = DBConn.createStatement("SELECT id, name FROM tags");
-    while (statement.executeStep())
-      Tags.push(new Tag(statement.getInt32(0), statement.getUTF8String(1)));
+    try {
+      while (statement.executeStep())
+        Tags.push(new Tag(statement.getInt32(0), statement.getUTF8String(1)));
+    } finally {
+      statement.finalize();
+    }
 
     statement = DBConn.createStatement("SELECT id, alias FROM contacts");
-    while (statement.executeStep())
-      new Contact(statement.getInt32(0), statement.getUTF8String(1));
+    try {
+      while (statement.executeStep())
+        new Contact(statement.getInt32(0), statement.getUTF8String(1));
+    } finally {
+      statement.finalize();
+    }
 
     statement =
       DBConn.createStatement("SELECT contact_id, tag_id FROM contact_tag");
-    while (statement.executeStep()) {
-      let contact = ContactsById[statement.getInt32(0)];
-      let tag = TagsById[statement.getInt32(1)];
-      contact._tags.push(tag);
-      tag._addContact(contact);
+    try {
+      while (statement.executeStep()) {
+        let contact = ContactsById[statement.getInt32(0)];
+        let tag = TagsById[statement.getInt32(1)];
+        contact._tags.push(tag);
+        tag._addContact(contact);
+      }
+    } finally {
+      statement.finalize();
     }
 
     statement = DBConn.createStatement("SELECT id, key, name, srv_alias, contact_id FROM buddies ORDER BY position");
-    while (statement.executeStep())
-      new Buddy(statement.getInt32(0), statement.getUTF8String(1),
+    try {
+      while (statement.executeStep()) {
+        new Buddy(statement.getInt32(0), statement.getUTF8String(1),
                 statement.getUTF8String(2), statement.getUTF8String(3),
                 statement.getInt32(4));
-    // FIXME is there a way to enforce that all AccountBuddies of a Buddy have the same protocol?
-
-    statement = DBConn.createStatement("SELECT account_id, buddy_id, tag_id FROM account_buddy");
-    while (statement.executeStep()) {
-      let accountId = statement.getInt32(0);
-      let buddyId = statement.getInt32(1);
-      let tagId = statement.getInt32(2);
-
-      if (!BuddiesById.hasOwnProperty(buddyId)) {
-        Cu.reportError("Corrupted database: account_buddy entry for account " +
-                       accountId + " and tag " + tagId +
-                       " references unknown buddy with id " + buddyId);
-        continue;
+        // FIXME is there a way to enforce that all AccountBuddies of a Buddy have the same protocol?
       }
-
-      let buddy = BuddiesById[buddyId];
-      if (buddy._hasAccountBuddy(accountId, tagId)) {
-        Cu.reportError("Corrupted database: duplicated account_buddy entry: " +
-                       "account_id = " + accountId + ", buddy_id = " + buddyId +
-                       ", tag_id = " + tagId);
-        continue;
-      }
-
-      let account = Services.accounts.getAccountByNumericId(accountId);
-      let tag = TagsById[tagId];
-      try {
-        let accountBuddy = account.loadBuddy(buddy, tag);
-        if (accountBuddy)
-          buddy._addAccount(accountBuddy, tag);
-      } catch (e) {
-        // FIXME accountBuddy shouldn't be NULL (once imAccounts.js is finished)
-        // It currently doesn't work right with unknown protocols.
-        Components.utils.reportError(e);
-        dump(e + "\n");
-      }
+    } finally {
+      statement.finalize();
     }
 
+    statement = DBConn.createStatement("SELECT account_id, buddy_id, tag_id FROM account_buddy");
+    try {
+      while (statement.executeStep()) {
+        let accountId = statement.getInt32(0);
+        let buddyId = statement.getInt32(1);
+        let tagId = statement.getInt32(2);
+
+        if (!BuddiesById.hasOwnProperty(buddyId)) {
+          Cu.reportError("Corrupted database: account_buddy entry for account " +
+                         accountId + " and tag " + tagId +
+                         " references unknown buddy with id " + buddyId);
+          continue;
+        }
+
+        let buddy = BuddiesById[buddyId];
+        if (buddy._hasAccountBuddy(accountId, tagId)) {
+          Cu.reportError("Corrupted database: duplicated account_buddy entry: " +
+                         "account_id = " + accountId + ", buddy_id = " + buddyId +
+                         ", tag_id = " + tagId);
+          continue;
+        }
+
+        let account = Services.accounts.getAccountByNumericId(accountId);
+        let tag = TagsById[tagId];
+        try {
+          buddy._addAccount(account.loadBuddy(buddy, tag), tag);
+        } catch (e) {
+          Cu.reportError(e);
+          dump(e + "\n");
+        }
+      }
+    } finally {
+      statement.finalize();
+    }
     otherContactsTag._initHiddenTags();
   },
   unInitContacts: function() {
@@ -1259,6 +1315,13 @@ ContactsService.prototype = {
   },
 
   getContactById: function(aId) ContactsById[aId],
+  // Get an array of all existing contacts.
+  getContacts: function(aContactCount) {
+    let contacts = [ContactsById[id] for (id in ContactsById) if (!ContactsById[id]._empty)];
+    if (aContactCount)
+      aContactCount.value = contacts.length;
+    return contacts;
+  },
   getBuddyById: function(aId) BuddiesById[aId],
   getBuddyByNameAndProtocol: function(aNormalizedName, aPrpl) {
     let statement =
@@ -1268,9 +1331,25 @@ ContactsService.prototype = {
                              "WHERE b.key = :buddyName and a.prpl = :prplId");
     statement.params.buddyName = aNormalizedName;
     statement.params.prplId = aPrpl.id;
-    if (!statement.executeStep())
-      return null;
-    return BuddiesById[statement.row.id];
+    try {
+      if (!statement.executeStep())
+        return null;
+      return BuddiesById[statement.row.id];
+    } finally {
+      statement.finalize();
+    }
+  },
+  getAccountBuddyByNameAndAccount: function(aNormalizedName, aAccount) {
+    let buddy = this.getBuddyByNameAndProtocol(aNormalizedName,
+                                               aAccount.protocol);
+    if (buddy) {
+      let id = aAccount.id;
+      for (let accountBuddy of buddy.getAccountBuddies()) {
+        if (accountBuddy.account.id == id)
+          return accountBuddy;
+      }
+    }
+    return null;
   },
 
   accountBuddyAdded: function(aAccountBuddy) {
@@ -1282,14 +1361,18 @@ ContactsService.prototype = {
         DBConn.createStatement("INSERT INTO buddies " +
                                "(key, name, srv_alias, position) " +
                                "VALUES(:key, :name, :srvAlias, 0)");
-      let name = aAccountBuddy.userName;
-      let srvAlias = aAccountBuddy.serverAlias;
-      statement.params.key = normalizedName;
-      statement.params.name = name;
-      statement.params.srvAlias = srvAlias;
-      statement.execute();
-      buddy =
-        new Buddy(DBConn.lastInsertRowID, normalizedName, name, srvAlias, 0);
+      try {
+        let name = aAccountBuddy.userName;
+        let srvAlias = aAccountBuddy.serverAlias;
+        statement.params.key = normalizedName;
+        statement.params.name = name;
+        statement.params.srvAlias = srvAlias;
+        statement.execute();
+        buddy =
+          new Buddy(DBConn.lastInsertRowID, normalizedName, name, srvAlias, 0);
+      } finally {
+        statement.finalize();
+      }
     }
 
     // Initialize the 'buddy' field of the imIAccountBuddy instance.
@@ -1310,10 +1393,14 @@ ContactsService.prototype = {
       DBConn.createStatement("INSERT INTO account_buddy " +
                              "(account_id, buddy_id, tag_id) " +
                              "VALUES(:accountId, :buddyId, :tagId)");
-    statement.params.accountId = accountId;
-    statement.params.buddyId = buddy.id;
-    statement.params.tagId = tagId;
-    statement.execute();
+    try {
+      statement.params.accountId = accountId;
+      statement.params.buddyId = buddy.id;
+      statement.params.tagId = tagId;
+      statement.execute();
+    } finally {
+      statement.finalize();
+    }
 
     // Fire the notifications.
     buddy.observe(aAccountBuddy, "account-buddy-added");
@@ -1325,10 +1412,14 @@ ContactsService.prototype = {
                                     "WHERE account_id = :accountId AND " +
                                           "buddy_id = :buddyId AND " +
                                           "tag_id = :tagId");
-    statement.params.accountId = aAccountBuddy.account.numericId;
-    statement.params.buddyId = buddy.id;
-    statement.params.tagId = aAccountBuddy.tag.id;
-    statement.execute();
+    try {
+      statement.params.accountId = aAccountBuddy.account.numericId;
+      statement.params.buddyId = buddy.id;
+      statement.params.tagId = aAccountBuddy.tag.id;
+      statement.execute();
+    } finally {
+      statement.finalize();
+    }
 
     buddy.observe(aAccountBuddy, "account-buddy-removed");
   },
@@ -1341,11 +1432,15 @@ ContactsService.prototype = {
                              "WHERE account_id = :accountId AND " +
                                    "buddy_id = :buddyId AND " +
                                    "tag_id = :oldTagId");
-    statement.params.accountId = aAccountBuddy.account.numericId;
-    statement.params.buddyId = buddy.id;
-    statement.params.oldTagId = aOldTag.id;
-    statement.params.newTagId = aNewTag.id;
-    statement.execute();
+    try {
+      statement.params.accountId = aAccountBuddy.account.numericId;
+      statement.params.buddyId = buddy.id;
+      statement.params.oldTagId = aOldTag.id;
+      statement.params.newTagId = aNewTag.id;
+      statement.execute();
+    } finally {
+      statement.finalize();
+    }
 
     let contact = ContactsById[buddy.contact.id];
 
@@ -1361,39 +1456,59 @@ ContactsService.prototype = {
     let statement =
       DBConn.createStatement("SELECT name, prpl FROM accounts WHERE id = :id");
     statement.params.id = aId;
-    if (statement.executeStep()) {
-      if (statement.getUTF8String(0) == aUserName &&
-          statement.getUTF8String(1) == aPrplId)
-        return; // The account is already stored correctly.
-      throw Cr.NS_ERROR_UNEXPECTED; // Corrupted database?!?
+    try {
+      if (statement.executeStep()) {
+        if (statement.getUTF8String(0) == aUserName &&
+            statement.getUTF8String(1) == aPrplId)
+          return; // The account is already stored correctly.
+        throw Cr.NS_ERROR_UNEXPECTED; // Corrupted database?!?
+      }
+    } finally {
+      statement.finalize();
     }
 
     // Actually store the account.
     statement = DBConn.createStatement("INSERT INTO accounts (id, name, prpl) " +
                                        "VALUES(:id, :userName, :prplId)");
-    statement.params.id = aId;
-    statement.params.userName = aUserName;
-    statement.params.prplId = aPrplId;
-    statement.execute();
+    try {
+      statement.params.id = aId;
+      statement.params.userName = aUserName;
+      statement.params.prplId = aPrplId;
+      statement.execute();
+    } finally {
+      statement.finalize();
+    }
   },
   accountIdExists: function(aId) {
     let statement =
       DBConn.createStatement("SELECT id FROM accounts WHERE id = :id");
-    statement.params.id = aId;
-    return statement.executeStep();
+    try {
+      statement.params.id = aId;
+      return statement.executeStep();
+    } finally {
+      statement.finalize();
+    }
   },
   forgetAccount: function(aId) {
     let statement =
       DBConn.createStatement("DELETE FROM accounts WHERE id = :accountId");
-    statement.params.accountId = aId;
-    statement.execute();
+    try {
+      statement.params.accountId = aId;
+      statement.execute();
+    } finally {
+      statement.finalize();
+    }
 
     // removing the account from the accounts table is not enought,
     // we need to remove all the associated account_buddy entries too
     statement = DBConn.createStatement("DELETE FROM account_buddy " +
                                        "WHERE account_id = :accountId");
-    statement.params.accountId = aId;
-    statement.execute();
+    try {
+      statement.params.accountId = aId;
+      statement.execute();
+    } finally {
+      statement.finalize();
+    }
   },
 
   QueryInterface: XPCOMUtils.generateQI([Ci.imIContactsService]),

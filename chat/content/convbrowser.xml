@@ -8,19 +8,11 @@
           xmlns="http://www.mozilla.org/xbl"
           xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
-  <binding id="browser">
+  <binding id="browser" role="outerdoc">
     <implementation type="application/javascript"
-                    implements="nsIAccessibleProvider, nsIDOMEventListener,
+                    implements="nsIDOMEventListener,
                                 nsIWebProgressListener, nsIController,
                                 nsISelectionListener, nsIObserver">
-      <property name="accessibleType" readonly="true">
-        <getter>
-          <![CDATA[
-            return Components.interfaces.nsIAccessibleProvider.OuterDoc;
-          ]]>
-        </getter>
-      </property>
-
       <property name="autoscrollEnabled">
         <getter>
           <![CDATA[
@@ -53,6 +45,10 @@
         <parameter name="aConversation"/>
         <body>
           <![CDATA[
+            // Magic Copy may be initialized if the convbrowser is already
+            // displaying a conversation.
+            this.uninitMagicCopy();
+
             this._conv = aConversation;
 
             // init is called when the message style preview is
@@ -94,6 +90,20 @@
                 onget="return this._webNavigation || (this._webNavigation = this.docShell.QueryInterface(Components.interfaces.nsIWebNavigation));"
                 readonly="true"/>
 
+      <field name="_finder">null</field>
+
+      <property name="finder" readonly="true">
+        <getter><![CDATA[
+          if (!this._finder) {
+            if (!this.docShell)
+              return null;
+
+            let Finder = Components.utils.import("resource://gre/modules/Finder.jsm", {}).Finder;
+            this._finder = new Finder(this.docShell);
+          }
+          return this._finder;
+        ]]></getter>
+      </property>
 
       <field name="_fastFind">null</field>
       <property name="fastFind"
@@ -116,6 +126,9 @@
         </getter>
       </property>
 
+      <field name="_lastSearchString">null</field>
+      <field name="_lastSearchHighlight">false</field>
+
       <property name="webProgress"
                 readonly="true"
                 onget="return this.docShell.QueryInterface(Components.interfaces.nsIInterfaceRequestor).getInterface(Components.interfaces.nsIWebProgress);"/>
@@ -134,12 +147,66 @@
                 onget="return this.docShell.contentViewer.QueryInterface(Components.interfaces.nsIMarkupDocumentViewer);"
                 readonly="true"/>
 
-      <field name="magicCopyPref" readonly="true">"messenger.conversations.selections.magicCopyEnabled"</field>
-      <field name="magicCopyInitialized">false</field>
+      <method name="enableMagicCopy">
+        <body>
+          <![CDATA[
+          this.contentWindow.controllers.insertControllerAt(0, this);
+          this.autoCopyEnabled = Services.clipboard.supportsSelectionClipboard() &&
+            Services.prefs.getBoolPref("clipboard.autocopy");
+          if (this.autoCopyEnabled) {
+            this.contentWindow.getSelection()
+                .QueryInterface(Components.interfaces.nsISelectionPrivate)
+                .addSelectionListener(this);
+          }
+          ]]>
+        </body>
+      </method>
 
+      <method name="disableMagicCopy">
+        <body>
+          <![CDATA[
+          this.contentWindow.controllers.removeController(this);
+          if (this.autoCopyEnabled) {
+             this.contentWindow.getSelection()
+                 .QueryInterface(Components.interfaces.nsISelectionPrivate)
+                 .removeSelectionListener(this);
+          }
+          ]]>
+        </body>
+      </method>
+
+      <field name="autoCopyEnabled">false</field>
+      <field name="magicCopyPref" readonly="true">"messenger.conversations.selections.magicCopyEnabled"</field>
       <property name="magicCopyEnabled"
                 onget="return Services.prefs.getBoolPref(this.magicCopyPref);"
                 readonly="true"/>
+      <field name="magicCopyInitialized">false</field>
+
+      <method name="initMagicCopy">
+        <body>
+          <![CDATA[
+          if (this.magicCopyInitialized)
+            return;
+          Services.prefs.addObserver(this.magicCopyPref, this, false);
+          this.magicCopyInitialized = true;
+          if (this.magicCopyEnabled)
+            this.enableMagicCopy();
+          ]]>
+        </body>
+      </method>
+
+      <method name="uninitMagicCopy">
+        <body>
+          <![CDATA[
+          if (!this.magicCopyInitialized)
+            return;
+          Services.prefs.removeObserver(this.magicCopyPref, this);
+          if (this.magicCopyEnabled)
+            this.disableMagicCopy();
+          this.magicCopyInitialized = false;
+          ]]>
+        </body>
+      </method>
 
       <method name="addProgressListener">
         <parameter name="aListener"/>
@@ -199,15 +266,10 @@
 
             if (this._autoScrollNeedsCleanup) {
               // we polluted the global scope, so clean it up
-              this._autoScrollPopup.parentNode.removeChild(this._autoScrollPopup);
+              this._autoScrollPopup.remove();
             }
 
-            if (!this.magicCopyInitialized)
-              return;
-
-            Services.prefs.removeObserver(this.magicCopyPref, this);
-            if (this.magicCopyEnabled)
-              this.contentWindow.controllers.removeController(this);
+            this.uninitMagicCopy();
           ]]>
         </body>
       </method>
@@ -222,6 +284,14 @@
             this._autoScrollEnabled =
               body.scrollHeight <= body.scrollTop + body.clientHeight + 10;
             return this._autoScrollEnabled;
+          ]]>
+         </body>
+      </method>
+
+      <method name="autoScrollEnabled">
+        <body>
+          <![CDATA[
+            return this._autoScrollEnabled || this._updateAutoScrollEnabled();
           ]]>
          </body>
       </method>
@@ -263,6 +333,14 @@
           <![CDATA[
             this._pendingMessages.push({msg: aMsg, context: aContext,
                                         firstUnread: aFirstUnread});
+            this.delayedDisplayPendingMessages();
+          ]]>
+        </body>
+      </method>
+
+      <method name="delayedDisplayPendingMessages">
+        <body>
+          <![CDATA[
             if (this._messageDisplayPending)
               return;
             this._messageDisplayPending = true;
@@ -274,8 +352,38 @@
       </method>
 
       <field name="progressBar">null</field>
-      <!-- These variables are reset in onStateChange. -->
+
+      <!-- getNextPendingMessage and getPendingMessagesCount are the
+           only 2 methods accessing the this._pendingMessages array
+           directly during the chunked display of messages. It is
+           possible to override these 2 methods to replace the array
+           with something else. The log viewer for example uses an
+           enumerator that creates message objects lazily to avoid
+           jank when displaying lots of messages. -->
+      <!-- This variable is reset in onStateChange. -->
       <field name="_nextPendingMessageIndex">0</field>
+      <method name="getNextPendingMessage">
+        <body>
+          <![CDATA[
+            if (this._nextPendingMessageIndex == this._pendingMessages.length) {
+              this._pendingMessages = [];
+              this._nextPendingMessageIndex = 0;
+              return null;
+            }
+            return this._pendingMessages[this._nextPendingMessageIndex++];
+          ]]>
+        </body>
+      </method>
+      <method name="getPendingMessagesCount">
+        <body>
+          <![CDATA[
+            return this._pendingMessages.length;
+          ]]>
+        </body>
+      </method>
+
+      <!-- These variables are reset in onStateChange. -->
+      <field name="_pendingMessagesDisplayed">0</field>
       <field name="_displayPendingMessagesCalls">0</field>
       <method name="displayPendingMessages">
         <body>
@@ -283,29 +391,27 @@
             if (!this._messageDisplayPending)
               return;
 
-            let max = this._pendingMessages.length;
-            let begin = Date.now();
-            let i;
-            for (i = this._nextPendingMessageIndex; i < max; ++i) {
-              let msg = this._pendingMessages[i];
-              this.displayMessage(msg.msg, msg.context, i + 1 < max,
-                                  msg.firstUnread);
-              if (Date.now() - begin > 40)
+            let max = this.getPendingMessagesCount();
+            for (let begin = Date.now(); Date.now() - begin < 40; ) {
+              let msg = this.getNextPendingMessage();
+              if (!msg)
                 break;
+              this.displayMessage(msg.msg, msg.context,
+                                  ++this._pendingMessagesDisplayed < max,
+                                  msg.firstUnread);
             }
             let event = document.createEvent("UIEvents");
             event.initUIEvent("MessagesDisplayed", false, false, window, 0);
             this.dispatchEvent(event);
-            if (i < max - 1) {
-              this._nextPendingMessageIndex = i + 1;
+            if (this._pendingMessagesDisplayed < max) {
               if (this.progressBar) {
                 // Show progress bar if after the third call (ca. 120ms)
                 // less than half the messages have been displayed.
                 if (++this._displayPendingMessagesCalls > 2 &&
-                    max > 2 * this._nextPendingMessageIndex)
+                    max > 2 * this._pendingMessagesDisplayed)
                   this.progressBar.hidden = false;
                 this.progressBar.max = max;
-                this.progressBar.value = this._nextPendingMessageIndex;
+                this.progressBar.value = this._pendingMessagesDisplayed;
               }
               Services.tm.mainThread.dispatch(this.displayPendingMessages.bind(this),
                                               Ci.nsIEventTarget.DISPATCH_NORMAL);
@@ -313,8 +419,7 @@
             }
             this.contentWindow.messageInsertPending = false;
             this._messageDisplayPending = false;
-            this._pendingMessages = [];
-            this._nextPendingMessageIndex = 0;
+            this._pendingMessagesDisplayed = 0;
             this._displayPendingMessagesCalls = 0;
             if (this.progressBar)
               this.progressBar.hidden = true;
@@ -322,6 +427,8 @@
         </body>
       </method>
 
+      <!-- This is reset in onStateChange. -->
+      <field name="_sessions">[]</field>
       <method name="displayMessage">
         <parameter name="aMsg"/>
         <parameter name="aContext"/>
@@ -330,6 +437,23 @@
         <body>
           <![CDATA[
             let doc = this.contentDocument;
+
+            if (aMsg.noLog && aMsg.notification &&
+                aMsg.who == "sessionstart") {
+              // New session log.
+              if (this._lastMessage) {
+                let ruler = doc.createElement("hr");
+                ruler.className = "sessionstart-ruler";
+                doc.getElementById("Chat").appendChild(ruler);
+                this._sessions.push(ruler);
+                // Close any open bubble.
+                this._lastMessage = null;
+              }
+              // Suppress this message unless it was an error message.
+              if (!aMsg.error)
+                return;
+            }
+
             let cs = Components.classes["@mozilla.org/txttohtmlconv;1"]
                                .getService(Ci.mozITXTToHTMLConv);
             /*
@@ -411,7 +535,7 @@
 
             if (!aNoAutoScroll) {
               newElt.getBoundingClientRect(); // avoid ireflow bugs
-              if (this._autoScrollEnabled || this._updateAutoScrollEnabled())
+              if (this.autoScrollEnabled())
                 this._scrollToElement(newElt);
             }
             this._lastElement = newElt;
@@ -466,7 +590,7 @@
             // If this added an insert node, insert the next messages there.
             let insert = doc.getElementById("insert");
             if (insert) {
-              moveToParent.removeChild(moveTo);
+              moveTo.remove();
               moveTo = insert;
               moveToParent = moveTo.parentNode;
             }
@@ -479,7 +603,7 @@
               range.setEndBefore(doc.getElementById("next-messages-end"));
               moveToParent.insertBefore(range.extractContents(), moveTo);
             }
-            moveToParent.removeChild(moveTo);
+            moveTo.remove();
 
             // Restore existing insert node.
             if (actualInsert)
@@ -491,7 +615,7 @@
             range.setEndAfter(doc.getElementById("end-of-split-block"));
             range.deleteContents();
           }
-          ruler.parentNode.removeChild(ruler);
+          ruler.remove();
         ]]>
         </body>
       </method>
@@ -511,6 +635,7 @@
           let ruler = this.contentDocument.getElementById("unread-ruler");
           if (ruler)
             sectionElements.push(ruler);
+          sectionElements = sectionElements.concat(this._sessions);
 
           // Return ordered array of sections with entries
           // [Y, scrollY such that Y is centered]
@@ -619,22 +744,10 @@
           if (aTopic != "nsPref:changed")
             throw "Bad notification";
 
-          if (this.magicCopyEnabled) {
-            this.contentWindow.controllers.insertControllerAt(0, this);
-            if (Services.clipboard.supportsSelectionClipboard()) {
-              this.contentWindow.getSelection()
-                  .QueryInterface(Components.interfaces.nsISelectionPrivate)
-                  .addSelectionListener(this);
-            }
-          }
-          else {
-            this.contentWindow.controllers.removeController(this);
-            if (Services.clipboard.supportsSelectionClipboard()) {
-               this.contentWindow.getSelection()
-                   .QueryInterface(Components.interfaces.nsISelectionPrivate)
-                   .removeSelectionListener(this);
-            }
-          }
+          if (this.magicCopyEnabled)
+            this.enableMagicCopy();
+          else
+            this.disableMagicCopy();
         ]]>
         </body>
       </method>
@@ -717,25 +830,15 @@
                 }
                 this._loadState = 1;
 
-                // Expose scrollToElement to the message styles.
+                // Expose scrollToElement and autoScrollEnabled to the
+                // message styles.
                 this.contentWindow.scrollToElement = this._scrollToElement.bind(this);
+                this.contentWindow.autoScrollEnabled = this.autoScrollEnabled.bind(this);
                 return;
               }
               this.removeProgressListener(this);
 
-              if (this.magicCopyEnabled) {
-                this.contentWindow.controllers.insertControllerAt(0, this);
-
-                if (Services.clipboard.supportsSelectionClipboard()) {
-                  this.contentWindow.getSelection()
-                      .QueryInterface(Components.interfaces.nsISelectionPrivate)
-                      .addSelectionListener(this);
-                }
-              }
-              if (!this.magicCopyInitialized) {
-                Services.prefs.addObserver(this.magicCopyPref, this, false);
-                this.magicCopyInitialized = true;
-              }
+              this.initMagicCopy();
 
               // We need to reset these variables here to avoid a race
               // condition if we are starting to display a new conversation
@@ -748,7 +851,11 @@
               this._messageDisplayPending = false;
               this._pendingMessages = [];
               this._nextPendingMessageIndex = 0;
+              this._pendingMessagesDisplayed = 0;
               this._displayPendingMessagesCalls = 0;
+              this._sessions = [];
+              if (this.progressBar)
+                this.progressBar.hidden = true;
 
               Services.obs.notifyObservers(this, "conversation-loaded", null);
             }
@@ -1013,29 +1120,18 @@
         <![CDATA[
           aOtherBrowser.destroy();
 
-          var magicCopyEnabled = this.magicCopyEnabled;
-
-          if (magicCopyEnabled) {
-            // We need to remove the selection listener (unix only)
-            // before _contentWindow is changed.
-            if (Services.clipboard.supportsSelectionClipboard()) {
-              aOtherBrowser.contentWindow.getSelection()
-                           .QueryInterface(Components.interfaces.nsISelectionPrivate)
-                           .removeSelectionListener(aOtherBrowser);
-            }
-          }
-
-          // and the progress listener too!
+          // Remove the progress listener.
           this.removeProgressListener(this);
 
           // We need to swap fields that are tied to our docshell or related to
-          // the loaded page
-          // Fields which are built as a result of notifactions (pageshow/hide,
+          // the loaded page.
+          // Fields which are built as a result of notifications (pageshow/hide,
           // DOMLinkAdded/Removed, onStateChange) should not be swapped here,
           // because these notifications are dispatched again once the docshells
-          // are swapped.
-          var fieldsToSwap = ["_docShell", "_fastFind", "_contentWindow", "_webNavigation",
-                              "_theme", "_textModifiers", "_autoScrollEnabled",
+          // are swapped (pageshow/hide, DOMLinkAdded/Removed) or because we
+          // set the missing fields below (onStateChange).
+          var fieldsToSwap = ["_docShell", "_fastFind", "_contentWindow",
+                              "_webNavigation", "_theme", "_autoScrollEnabled",
                               "_lastElement", "_lastMessage", "_lastMessageIsContext",
                               "_firstNonContextElt"];
 
@@ -1052,18 +1148,7 @@
             aOtherBrowser[field] = ourFieldValues[field];
           }
 
-          if (!magicCopyEnabled)
-            return;
-
-          // Now that we have the new _contentWindow, we can add back our controller
-          this.contentWindow.controllers.insertControllerAt(0, this);
-
-          // and our selection listener!
-          if (Services.clipboard.supportsSelectionClipboard()) {
-            this.contentWindow.getSelection()
-                .QueryInterface(Components.interfaces.nsISelectionPrivate)
-                .addSelectionListener(this);
-          }
+          this.initMagicCopy();
         ]]>
         </body>
       </method>

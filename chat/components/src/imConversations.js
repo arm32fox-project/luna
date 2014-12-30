@@ -24,13 +24,9 @@ function UIConversation(aPrplConversation)
   this.changeTargetTo(aPrplConversation);
   let iface = Ci["prplIConv" + (aPrplConversation.isChat ? "Chat" : "IM")];
   this._interfaces = this._interfaces.concat(iface);
-  let contact = this.contact;
-  if (contact) {
-    // XPConnect will create a wrapper around 'this' here,
-    // so the list of exposed interfaces shouldn't change anymore.
-    contact.addObserver(this);
-    this._observedContact = contact;
-  }
+  // XPConnect will create a wrapper around 'this' after here,
+  // so the list of exposed interfaces shouldn't change anymore.
+  this.updateContactObserver();
   Services.obs.notifyObservers(this, "new-ui-conversation", null);
 }
 
@@ -44,9 +40,30 @@ UIConversation.prototype = {
       return target.buddy.buddy.contact;
     return null;
   },
+  updateContactObserver: function() {
+    let contact = this.contact;
+    if (contact && !this._observedContact) {
+      contact.addObserver(this);
+      this._observedContact = contact;
+    }
+    else if (!contact && this.observedContact) {
+      this._observedContact.removeObserver(this);
+      delete this._observedContact;
+    }
+  },
   get target() this._prplConv[this._currentTargetId],
   set target(aPrplConversation) {
     this.changeTargetTo(aPrplConversation);
+  },
+  get hasMultipleTargets() Object.keys(this._prplConv).length > 1,
+  getTargetByAccount: function(aAccount) {
+    let accountId = aAccount.id;
+    for (let id in this._prplConv) {
+      let prplConv = this._prplConv[id];
+      if (prplConv.account.id == accountId)
+        return prplConv;
+    }
+    return null;
   },
   _currentTargetId: 0,
   changeTargetTo: function(aPrplConversation) {
@@ -319,7 +336,7 @@ UIConversation.prototype = {
   // prplIConvIM
   get buddy() this.target.buddy,
   get typingState() this.target.typingState,
-  sendTyping: function(aLength) { this.target.sendTyping(aLength); },
+  sendTyping: function(aString) this.target.sendTyping(aString),
 
   // Chat only
   getParticipants: function() this.target.getParticipants(),
@@ -342,10 +359,13 @@ ConversationsService.prototype = {
     this._prplConversations = [];
     Services.obs.addObserver(this, "account-disconnecting", false);
     Services.obs.addObserver(this, "account-connected", false);
+    Services.obs.addObserver(this, "account-buddy-added", false);
+    Services.obs.addObserver(this, "account-buddy-removed", false);
   },
 
   unInitConversations: function() {
-    for each (let UIConv in this._uiConv)
+    let UIConvs = this.getUIConversations();
+    for (let UIConv of UIConvs)
       UIConv.unInit();
     delete this._uiConv;
     delete this._uiConvByContactId;
@@ -355,6 +375,8 @@ ConversationsService.prototype = {
     delete this._prplConversations;
     Services.obs.removeObserver(this, "account-disconnecting");
     Services.obs.removeObserver(this, "account-connected");
+    Services.obs.removeObserver(this, "account-buddy-added");
+    Services.obs.removeObserver(this, "account-buddy-removed");
   },
 
   observe: function(aSubject, aTopic, aData) {
@@ -369,6 +391,52 @@ ConversationsService.prototype = {
         if (conv.account.id == aSubject.id)
           conv.disconnecting();
       }
+    }
+    else if (aTopic == "account-buddy-added") {
+      let accountBuddy = aSubject;
+      let prplConversation =
+        this.getConversationByNameAndAccount(accountBuddy.normalizedName,
+                                             accountBuddy.account, false);
+      if (!prplConversation)
+        return;
+
+      let uiConv = this.getUIConversation(prplConversation);
+      let contactId = accountBuddy.buddy.contact.id;
+      if (contactId in this._uiConvByContactId) {
+        // Trouble! There is an existing uiConv for this contact.
+        // We should avoid having two uiConvs with the same contact.
+        // This is ugly UX, but at least can only happen if there is
+        // already an accountBuddy with the same name for the same
+        // protocol on a different account, which should be rare.
+        this.removeConversation(prplConversation);
+        return;
+      }
+      // Link the existing uiConv to the contact.
+      this._uiConvByContactId[contactId] = uiConv;
+      uiConv.updateContactObserver();
+      uiConv.notifyObservers(uiConv, "update-conv-buddy");
+    }
+    else if (aTopic == "account-buddy-removed") {
+      let accountBuddy = aSubject;
+      let contactId = accountBuddy.buddy.contact.id;
+      if (!(contactId in this._uiConvByContactId))
+        return;
+      let uiConv = this._uiConvByContactId[contactId];
+
+      // If there is more than one target on the uiConv, close the
+      // prplConv as we can't dissociate the uiConv from the contact.
+      // The conversation with the contact will continue with a different
+      // target.
+      if (uiConv.hasMultipleTargets) {
+        let prplConversation = uiConv.getTargetByAccount(accountBuddy.account);
+        if (prplConversation)
+          this.removeConversation(prplConversation);
+        return;
+      }
+
+      delete this._uiConvByContactId[contactId];
+      uiConv.updateContactObserver();
+      uiConv.notifyObservers(uiConv, "update-conv-buddy");
     }
   },
 
@@ -406,9 +474,9 @@ ConversationsService.prototype = {
     Services.obs.notifyObservers(aPrplConversation, "conversation-closed", null);
 
     let uiConv = this.getUIConversation(aPrplConversation);
+    delete this._uiConv[aPrplConversation.id];
     let contactId = {};
     if (uiConv.removeTarget(aPrplConversation, contactId)) {
-      delete this._uiConv[aPrplConversation.id];
       if (contactId.value)
         delete this._uiConvByContactId[contactId.value];
       Services.obs.notifyObservers(uiConv, "ui-conversation-closed", null);
@@ -423,13 +491,24 @@ ConversationsService.prototype = {
   },
 
   getUIConversations: function(aConvCount) {
-    let rv = Object.keys(this._uiConv).map(function (k) this._uiConv[k], this);
-    aConvCount.value = rv.length;
+    let rv = [];
+    if (this._uiConv) {
+      for (let prplConvId in this._uiConv) {
+        // Since an UIConversation may be linked to multiple prplConversations,
+        // we must ensure we don't return the same UIConversation twice,
+        // by checking the id matches that of the active prplConversation.
+        let uiConv = this._uiConv[prplConvId];
+        if (prplConvId == uiConv.target.id)
+          rv.push(uiConv);
+      }
+    }
+    if (aConvCount)
+      aConvCount.value = rv.length;
     return rv;
   },
   getUIConversation: function(aPrplConversation) {
     let id = aPrplConversation.id;
-    if (id in this._uiConv)
+    if (this._uiConv && id in this._uiConv)
       return this._uiConv[id];
     throw "Unknown conversation";
   },
@@ -444,10 +523,13 @@ ConversationsService.prototype = {
     return null;
   },
   getConversationByNameAndAccount: function(aName, aAccount, aIsChat) {
-    for each (let conv in this._prplConversations)
-      if (conv.name == aName && conv.account.numericId == aAccount.numericId &&
+    let normalizedName = aAccount.normalize(aName);
+    for (let conv of this._prplConversations) {
+      if (aAccount.normalize(conv.name) == normalizedName &&
+          aAccount.numericId == aAccount.numericId &&
           conv.isChat == aIsChat)
         return conv;
+    }
     return null;
   },
 

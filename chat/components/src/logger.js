@@ -15,6 +15,10 @@ XPCOMUtils.defineLazyGetter(this, "logDir", function() {
   return file;
 });
 
+XPCOMUtils.defineLazyGetter(this, "bundle", function()
+  Services.strings.createBundle("chrome://chat/locale/logger.properties")
+);
+
 const FileInputStream = CC("@mozilla.org/network/file-input-stream;1",
                            "nsIFileInputStream",
                            "init");
@@ -124,7 +128,8 @@ ConversationLog.prototype = {
                              title: this._conv.title,
                              account: account.normalizedName,
                              protocol: account.protocol.normalizedName,
-                             isChat: this._conv.isChat
+                             isChat: this._conv.isChat,
+                             normalizedName: this._conv.normalizedName
                             }) + "\n";
     }
     return "Conversation with " + this._conv.name +
@@ -333,11 +338,24 @@ function LogConversation(aLineInputStreams)
   let firstFile = true;
 
   for each (let inputStream in aLineInputStreams) {
+    let stream = inputStream.stream;
     let line = {value: ""};
-    let more = inputStream.readLine(line);
-
-    if (!line.value)
-      throw "bad log file";
+    let more = stream.readLine(line);
+    let sessionMsg = {
+      who: "sessionstart",
+      date: getDateFromFilename(inputStream.filename)[0],
+      text: "",
+      flags: ["noLog", "notification"]
+    }
+    if (!line.value) {
+      // Bad log file.
+      sessionMsg.text = bundle.formatStringFromName("badLogfile",
+                                                    [inputStream.filename], 1);
+      sessionMsg.flags.push("error", "system");
+      this._messages.push(sessionMsg);
+      continue;
+    }
+    this._messages.push(sessionMsg);
 
     if (firstFile) {
       let data = JSON.parse(line.value);
@@ -347,22 +365,25 @@ function LogConversation(aLineInputStreams)
       this._accountName = data.account;
       this._protocolName = data.protocol;
       this._isChat = data.isChat;
+      this.normalizedName = data.normalizedName;
       firstFile = false;
     }
 
     while (more) {
-      more = inputStream.readLine(line);
+      more = stream.readLine(line);
       if (!line.value)
         break;
       try {
-        let data = JSON.parse(line.value);
-        this._messages.push(new LogMessage(data, this));
+        this._messages.push(JSON.parse(line.value));
       } catch (e) {
         // if a message line contains junk, just ignore the error and
         // continue reading the conversation.
       }
     }
   }
+
+  if (firstFile)
+    throw "All selected log files are invalid";
 }
 LogConversation.prototype = {
   __proto__: ClassInfo("imILogConversation", "Log conversation object"),
@@ -378,7 +399,20 @@ LogConversation.prototype = {
   getMessages: function(aMessageCount) {
     if (aMessageCount)
       aMessageCount.value = this._messages.length;
-    return this._messages;
+    return this._messages.map(function(m) new LogMessage(m, this), this);
+  },
+  getMessagesEnumerator: function(aMessageCount) {
+    if (aMessageCount)
+      aMessageCount.value = this._messages.length;
+    let enumerator = {
+      _index: 0,
+      _conv: this,
+      _messages: this._messages,
+      hasMoreElements: function() this._index < this._messages.length,
+      getNext: function() new LogMessage(this._messages[this._index++], this._conv),
+      QueryInterface: XPCOMUtils.generateQI([Ci.nsISimpleEnumerator])
+    };
+    return enumerator;
   }
 };
 
@@ -409,7 +443,10 @@ Log.prototype = {
     let lis = new ConverterInputStream(fis, "UTF-8", 1024, 0x0);
     lis.QueryInterface(Ci.nsIUnicharLineInputStream);
     try {
-      return new LogConversation(lis);
+      return new LogConversation({
+        stream: lis,
+        filename: this.file.leafName
+      });
     } catch (e) {
       // If the file contains some junk (invalid JSON), the
       // LogConversation code will still read the messages it can parse.
@@ -478,21 +515,28 @@ function DailyLogEnumerator(aEntries) {
       if (!(file instanceof Ci.nsIFile))
         continue;
 
-      let [logDate] = getDateFromFilename(file.leafName);
+      let [logDate, logFormat] = getDateFromFilename(file.leafName);
       if (!logDate) {
         // We'll skip this one, since it's got a busted filename.
         continue;
       }
 
-      // We want to cluster all of the logs that occur on the same day
-      // into the same Arrays. We clone the date for the log, reset it to
-      // the 0th hour/minute/second, and use that to construct an ID for the
-      // Array we'll put the log in.
       let dateForID = new Date(logDate);
-      dateForID.setHours(0);
-      dateForID.setMinutes(0);
-      dateForID.setSeconds(0);
-      let dayID = dateForID.toISOString();
+      let dayID;
+      if (logFormat == "json") {
+        // We want to cluster all of the logs that occur on the same day
+        // into the same Arrays. We clone the date for the log, reset it to
+        // the 0th hour/minute/second, and use that to construct an ID for the
+        // Array we'll put the log in.
+        dateForID.setHours(0);
+        dateForID.setMinutes(0);
+        dateForID.setSeconds(0);
+        dayID = dateForID.toISOString();
+      }
+      else {
+        // Add legacy text logs as individual entries.
+        dayID = dateForID.toISOString() + "txt";
+      }
 
       if (!(dayID in this._entries))
         this._entries[dayID] = [];
@@ -512,7 +556,13 @@ DailyLogEnumerator.prototype = {
   _days: [],
   _index: 0,
   hasMoreElements: function() this._index < this._days.length,
-  getNext: function() new LogCluster(this._entries[this._days[this._index++]]),
+  getNext: function() {
+    let dayID = this._days[this._index++];
+    if (dayID.endsWith("txt"))
+      return new Log(this._entries[dayID][0].file);
+    else
+      return new LogCluster(this._entries[dayID]);
+  },
   QueryInterface: XPCOMUtils.generateQI([Ci.nsISimpleEnumerator])
 };
 
@@ -555,7 +605,10 @@ LogCluster.prototype = {
       // Pass in 0x0 so that we throw exceptions on unknown bytes.
       let lis = new ConverterInputStream(fis, "UTF-8", 1024, 0x0);
       lis.QueryInterface(Ci.nsIUnicharLineInputStream);
-      streams.push(lis);
+      streams.push({
+        stream: lis,
+        filename: entry.file.leafName
+      });
     }
 
     try {
@@ -573,16 +626,13 @@ LogCluster.prototype = {
 
 function Logger() { }
 Logger.prototype = {
-  _enumerateLogs: function logger__enumerateLogs(aAccount, aNormalizedName,
-                                                 aGroupByDay) {
+  _getLogArray: function logger__getLogArray(aAccount, aNormalizedName) {
+    let entries = [];
     let file = getLogFolderForAccount(aAccount);
     file.append(encodeName(aNormalizedName));
-    if (!file.exists())
-      return EmptyEnumerator;
-
-    let enumerator = aGroupByDay ? DailyLogEnumerator : LogEnumerator;
-
-    return new enumerator([file.directoryEntries]);
+    if (file.exists())
+      entries.push(file.directoryEntries);
+    return entries;
   },
   getLogFromFile: function logger_getLogFromFile(aFile, aGroupByDay) {
     if (aGroupByDay)
@@ -621,45 +671,52 @@ Logger.prototype = {
 
     return new LogCluster(relevantEntries);
   },
+  _getEnumerator: function logger__getEnumerator(aLogArray, aGroupByDay) {
+    let enumerator = aGroupByDay ? DailyLogEnumerator : LogEnumerator;
+    return aLogArray.length ? new enumerator(aLogArray) : EmptyEnumerator;
+  },
   getLogFileForOngoingConversation: function logger_getLogFileForOngoingConversation(aConversation)
     getLogForConversation(aConversation).file,
-  getLogsForContact: function logger_getLogsForContact(aContact) {
-    let entries = [];
-    aContact.getBuddies().forEach(function (aBuddy) {
-      aBuddy.getAccountBuddies().forEach(function (aAccountBuddy) {
-        let file = getLogFolderForAccount(aAccountBuddy.account);
-        file.append(encodeName(aAccountBuddy.normalizedName));
-        if (file.exists())
-          entries.push(file.directoryEntries);
-      });
-    });
-    return new LogEnumerator(entries);
+  getLogsForAccountAndName: function logger_getLogsForAccountAndName(aAccount,
+                                       aNormalizedName, aGroupByDay) {
+    let entries = this._getLogArray(aAccount, aNormalizedName);
+    return this._getEnumerator(entries, aGroupByDay);
   },
-  getLogsForBuddy: function logger_getLogsForBuddy(aBuddy) {
-    let entries = [];
-    aBuddy.getAccountBuddies().forEach(function (aAccountBuddy) {
-      let file = getLogFolderForAccount(aAccountBuddy.account);
-      file.append(encodeName(aAccountBuddy.normalizedName));
-      if (file.exists())
-        entries.push(file.directoryEntries);
-    });
-    return new LogEnumerator(entries);
+  getLogsForAccountBuddy: function logger_getLogsForAccountBuddy(aAccountBuddy,
+                                                                 aGroupByDay) {
+    return this.getLogsForAccountAndName(aAccountBuddy.account,
+                                         aAccountBuddy.normalizedName, aGroupByDay);
   },
-  getLogsForAccountBuddy: function logger_getLogsForAccountBuddy(aAccountBuddy)
-    this._enumerateLogs(aAccountBuddy.account, aAccountBuddy.normalizedName),
+  getLogsForBuddy: function logger_getLogsForBuddy(aBuddy, aGroupByDay) {
+    let entries = [];
+    for (let accountBuddy of aBuddy.getAccountBuddies()) {
+      entries = entries.concat(this._getLogArray(accountBuddy.account,
+                                                 accountBuddy.normalizedName));
+    }
+    return this._getEnumerator(entries, aGroupByDay);
+  },
+  getLogsForContact: function logger_getLogsForContact(aContact, aGroupByDay) {
+    let entries = [];
+    for (let buddy of aContact.getBuddies()) {
+      for (let accountBuddy of buddy.getAccountBuddies()) {
+        entries = entries.concat(this._getLogArray(accountBuddy.account,
+                                                   accountBuddy.normalizedName));
+      }
+    }
+    return this._getEnumerator(entries, aGroupByDay);
+  },
   getLogsForConversation: function logger_getLogsForConversation(aConversation,
                                                                  aGroupByDay) {
     let name = aConversation.normalizedName;
     if (convIsRealMUC(aConversation))
       name += ".chat";
-
-    return this._enumerateLogs(aConversation.account, name, aGroupByDay);
+    return this.getLogsForAccountAndName(aConversation.account, name, aGroupByDay);
   },
   getSystemLogsForAccount: function logger_getSystemLogsForAccount(aAccount)
-    this._enumerateLogs(aAccount, ".system"),
+    this.getLogsForAccountAndName(aAccount, ".system"),
   getSimilarLogs: function(aLog, aGroupByDay) {
-    let enumerator = aGroupByDay ? DailyLogEnumerator : LogEnumerator;
-    return new enumerator([new LocalFile(aLog.path).parent.directoryEntries]);
+    return this._getEnumerator([new LocalFile(aLog.path).parent.directoryEntries],
+                               aGroupByDay);
   },
 
   observe: function logger_observe(aSubject, aTopic, aData) {

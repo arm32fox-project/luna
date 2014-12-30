@@ -5,6 +5,7 @@
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 Cu.import("resource:///modules/imXPCOMUtils.jsm");
 Cu.import("resource:///modules/imServices.jsm");
+Cu.import("resource:///modules/jsProtoHelper.jsm");
 
 const kPrefAutologinPending = "messenger.accounts.autoLoginPending";
 const kPrefMessengerAccounts = "messenger.accounts";
@@ -23,6 +24,10 @@ const kPrefAccountPassword = "password";
 
 XPCOMUtils.defineLazyGetter(this, "_", function()
   l10nHelper("chrome://chat/locale/accounts.properties")
+);
+
+XPCOMUtils.defineLazyGetter(this, "_maxDebugMessages", function()
+  Services.prefs.getIntPref("messenger.accounts.maxDebugMessages")
 );
 
 var gUserCanceledMasterPasswordPrompt = false;
@@ -94,6 +99,11 @@ UnknownProtocol.prototype = {
   get slashCommandsNative() false,
   get usePurpleProxy() false
 };
+
+function UnknownAccountBuddy(aAccount, aBuddy, aTag) {
+  this._init({imAccount: aAccount}, aBuddy, aTag);
+}
+UnknownAccountBuddy.prototype = GenericAccountBuddyPrototype;
 
 // aName and aPrplId are provided as parameter only if this is a new
 // account that doesn't exist in the preferences. In this case, these
@@ -217,7 +227,8 @@ imAccount.prototype = {
 
       if (this.canJoinChat &&
           this.prefBranch.prefHasUserValue(kPrefAccountAutoJoin)) {
-        let autojoin = this.prefBranch.getCharPref(kPrefAccountAutoJoin);
+        let autojoin = this.prefBranch.getComplexValue(
+          kPrefAccountAutoJoin, Ci.nsISupportsString).data;
         if (autojoin) {
           for each (let room in autojoin.trim().split(/,\s*/)) {
             if (room)
@@ -247,8 +258,24 @@ imAccount.prototype = {
     }
     else if (aTopic == "account-disconnected") {
       this.connectionState = Ci.imIAccount.STATE_DISCONNECTED;
+      let connectionErrorReason = this.prplAccount.connectionErrorReason;
+      if (connectionErrorReason != Ci.prplIAccount.NO_ERROR) {
+        // If the account was disconnected with an error, save the debug messages.
+        this._omittedDebugMessagesBeforeError += this._omittedDebugMessages;
+        if (this._debugMessagesBeforeError)
+          this._omittedDebugMessagesBeforeError += this._debugMessagesBeforeError.length;
+        this._debugMessagesBeforeError = this._debugMessages;
+      }
+      else {
+        // After a clean disconnection, drop the debug messages that
+        // could have been left by a previous error.
+        delete this._omittedDebugMessagesBeforeError;
+        delete this._debugMessagesBeforeError;
+      }
+      delete this._omittedDebugMessages;
+      delete this._debugMessages;
       if (this._statusObserver &&
-          this.prplAccount.connectionErrorReason == Ci.prplIAccount.NO_ERROR &&
+          connectionErrorReason == Ci.prplIAccount.NO_ERROR &&
           this.statusInfo.statusType > Ci.imIStatusInfo.STATUS_OFFLINE) {
         // If the status changed back to online while an account was still
         // disconnecting, it was not reconnected automatically at that point,
@@ -265,15 +292,41 @@ imAccount.prototype = {
   },
 
   _debugMessages: null,
+  _omittedDebugMessages: 0,
+  _debugMessagesBeforeError: null,
+  _omittedDebugMessagesBeforeError: 0,
   logDebugMessage: function(aMessage, aLevel) {
     if (!this._debugMessages)
       this._debugMessages = [];
-    if (this._debugMessages.length >= 50)
+    if (_maxDebugMessages &&
+        this._debugMessages.length >= _maxDebugMessages) {
       this._debugMessages.shift();
+      ++this._omittedDebugMessages;
+    }
     this._debugMessages.push({logLevel: aLevel, message: aMessage});
   },
+  _createDebugMessage: function(aMessage) {
+    let scriptError =
+      Cc["@mozilla.org/scripterror;1"].createInstance(Ci.nsIScriptError);
+    scriptError.init(aMessage, "", "", 0, null, Ci.nsIScriptError.warningFlag,
+                     "component javascript");
+    return {logLevel: 0, message: scriptError};
+  },
   getDebugMessages: function(aCount) {
-    let messages = this._debugMessages || [];
+    let messages = [];
+    if (this._omittedDebugMessagesBeforeError) {
+      let text = this._omittedDebugMessagesBeforeError + " messages omitted";
+      messages.push(this._createDebugMessage(text));
+    }
+    if (this._debugMessagesBeforeError)
+      messages = messages.concat(this._debugMessagesBeforeError);
+    if (this._omittedDebugMessages) {
+      let text = this._omittedDebugMessages + " messages omitted";
+      messages.push(this._createDebugMessage(text));
+    }
+    if (this._debugMessages)
+      messages = messages.concat(this._debugMessages);
+
     if (aCount)
       aCount.value = messages.length;
     return messages;
@@ -290,6 +343,12 @@ imAccount.prototype = {
     this._observedStatusInfo = aUserStatusInfo;
     if (this._statusObserver)
       this.statusInfo.addObserver(this._statusObserver);
+  },
+  _removeStatusObserver: function() {
+    if (this._statusObserver) {
+      this.statusInfo.removeObserver(this._statusObserver);
+      delete this._statusObserver;
+    }
   },
   get statusInfo() this._observedStatusInfo || Services.core.globalUserStatus,
 
@@ -387,7 +446,12 @@ imAccount.prototype = {
     }.bind(this));
   },
 
-  get normalizedName() this._ensurePrplAccount.normalizedName,
+  // If the protocol plugin is missing, we can't access the normalizedName,
+  // but in lots of cases this.name is equivalent.
+  get normalizedName()
+    this.prplAccount ? this.prplAccount.normalizedName : this.name,
+  normalize: function(aName)
+    this.prplAccount ? this.prplAccount.normalize(aName) : aName,
 
   _sendUpdateNotification: function() {
     this._sendNotification("account-updated");
@@ -543,11 +607,9 @@ imAccount.prototype = {
     let login = Cc["@mozilla.org/login-manager/loginInfo;1"]
                 .createInstance(Ci.nsILoginInfo);
     let passwordURI = "im://" + this.protocol.id;
-    // The password is stored with the normalizedName. If the protocol
-    // plugin is missing, we can't access the normalizedName, but in
-    // lots of cases this.name is equivalent.
-    let name = this.prplAccount ? this.normalizedName : this.name;
-    login.init(passwordURI, null, passwordURI, name, "", "", "");
+    // Note: the normalizedName may not be exactly right if the
+    // protocol plugin is missing.
+    login.init(passwordURI, null, passwordURI, this.normalizedName, "", "", "");
     let logins = Services.logins.findLogins({}, passwordURI, null, passwordURI);
     for each (let l in logins) {
       if (login.matches(l, true)) {
@@ -564,6 +626,9 @@ imAccount.prototype = {
   unInit: function() {
     // remove any pending reconnection timer.
     this._cancelReconnection();
+
+    // Keeping a status observer could cause an immediate reconnection.
+    this._removeStatusObserver();
 
     // remove any pending autologin preference used for crash detection.
     this._finishedAutoLogin();
@@ -622,6 +687,7 @@ imAccount.prototype = {
           // Disconnect or reconnect the account automatically, otherwise notify
           // the prplAccount instance.
           let statusType = aSubject.statusType;
+          let connectionErrorReason = this.connectionErrorReason;
           if (statusType == Ci.imIStatusInfo.STATUS_OFFLINE) {
             if (this.connected || this.connecting)
               this.prplAccount.disconnect();
@@ -629,7 +695,9 @@ imAccount.prototype = {
           }
           else if (statusType > Ci.imIStatusInfo.STATUS_OFFLINE &&
                    this.disconnected &&
-                   this.connectionErrorReason == Ci.prplIAccount.NO_ERROR)
+                   (connectionErrorReason == Ci.prplIAccount.NO_ERROR ||
+                    connectionErrorReason == Ci.prplIAccount.ERROR_NETWORK_ERROR ||
+                    connectionErrorReason == Ci.prplIAccount.ERROR_ENCRYPTION_ERROR))
             this.prplAccount.connect();
           else if (this.connected)
             this.prplAccount.observe(aSubject, aTopic, aData);
@@ -645,10 +713,7 @@ imAccount.prototype = {
       this.prplAccount.connect();
   },
   disconnect: function() {
-    if (this._statusObserver) {
-      this.statusInfo.removeObserver(this._statusObserver);
-      delete this._statusObserver;
-    }
+    this._removeStatusObserver();
     if (!this.disconnected)
       this._ensurePrplAccount.disconnect();
   },
@@ -681,8 +746,12 @@ imAccount.prototype = {
   addBuddy: function(aTag, aName) {
     this._ensurePrplAccount.addBuddy(aTag, aName);
   },
-  loadBuddy: function(aBuddy, aTag)
-    this._ensurePrplAccount.loadBuddy(aBuddy, aTag), // FIXME for unknown proto
+  loadBuddy: function(aBuddy, aTag) {
+    if (this.prplAccount)
+      return this.prplAccount.loadBuddy(aBuddy, aTag);
+    // Generate dummy account buddies for unknown protocols.
+    return new UnknownAccountBuddy(this, aBuddy, aTag);
+  },
   requestBuddyInfo: function(aBuddyName) {
     this._ensurePrplAccount.requestBuddyInfo(aBuddyName);
   },
@@ -728,7 +797,6 @@ imAccount.prototype = {
   get noFontSizes() this._ensurePrplAccount.noFontSizes,
   get noUrlDesc() this._ensurePrplAccount.noUrlDesc,
   get noImages() this._ensurePrplAccount.noImages,
-  get maxMessageLength() this._ensurePrplAccount.maxMessageLength,
 
   get proxyInfo() this._ensurePrplAccount.proxyInfo,
   set proxyInfo(val) {

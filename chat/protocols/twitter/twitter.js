@@ -4,10 +4,14 @@
 
 const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
 
-Cu.import("resource:///modules/http.jsm");
+Cu.import("resource://gre/modules/Http.jsm");
 Cu.import("resource:///modules/imServices.jsm");
 Cu.import("resource:///modules/imXPCOMUtils.jsm");
 Cu.import("resource:///modules/jsProtoHelper.jsm");
+Cu.import("resource:///modules/twitter-text.jsm");
+
+const NS_PREFBRANCH_PREFCHANGE_TOPIC_ID = "nsPref:changed";
+const kMaxMessageLength = 140;
 
 XPCOMUtils.defineLazyGetter(this, "_", function()
   l10nHelper("chrome://chat/locale/twitter.properties")
@@ -32,37 +36,33 @@ Tweet.prototype = {
   _deleted: false,
   getActions: function(aCount) {
     let account = this.conversation._account;
-    if (!account.connected) {
-      if (aCount)
-        aCount.value = 0;
-      return [];
-    }
+    let actions = [];
 
-    let actions = [
-      new Action(_("action.reply"), function() {
-        this.conversation.startReply(this._tweet);
-      }, this)
-    ];
-    if (this.incoming) {
+    if (account.connected) {
       actions.push(
-        new Action(_("action.retweet"), function() {
-          this.conversation.reTweet(this._tweet);
+        new Action(_("action.reply"), function() {
+          this.conversation.startReply(this._tweet);
         }, this)
       );
-      let friend = account.isFriend(this._tweet.user);
-      if (friend !== null) {
-        let action = friend ? "stopFollowing" : "follow";
+      if (this.incoming) {
+        actions.push(
+          new Action(_("action.retweet"), function() {
+            this.conversation.reTweet(this._tweet);
+          }, this)
+        );
+        let isFriend = account._friends.has(this._tweet.user.id_str);
+        let action = isFriend ? "stopFollowing" : "follow";
         let screenName = this._tweet.user.screen_name;
         actions.push(new Action(_("action." + action, screenName),
                                 function() { account[action](screenName); }));
       }
-    }
-    else if (this.outgoing && !this._deleted) {
-      actions.push(
-        new Action(_("action.delete"), function() {
-          this.destroy();
-        }, this)
-      );
+      else if (this.outgoing && !this._deleted) {
+        actions.push(
+          new Action(_("action.delete"), function() {
+            this.destroy();
+          }, this)
+        );
+      }
     }
     actions.push(new Action(_("action.copyLink"), function() {
       let href = "https://twitter.com/" + this._tweet.user.screen_name +
@@ -114,6 +114,18 @@ function Conversation(aAccount)
 {
   this._init(aAccount);
   this._ensureParticipantExists(aAccount.name);
+  // We need the screen names for the IDs in _friends, but _userInfo is
+  // indexed by name, so we build an ID -> name map.
+  let names = new Map([userInfo.id_str, name] for ([name, userInfo] of aAccount._userInfo));
+  for (let id_str of aAccount._friends)
+    this._ensureParticipantExists(names.get(id_str));
+
+  // If the user's info has already been received, update the timeline topic.
+  if (aAccount._userInfo.has(aAccount.name)) {
+    let userInfo = aAccount._userInfo.get(aAccount.name);
+    if ("description" in userInfo)
+      this.setTopic(userInfo.description, aAccount.name, true);
+  }
 }
 Conversation.prototype = {
   __proto__: GenericConvChatPrototype,
@@ -151,8 +163,12 @@ Conversation.prototype = {
                            aTweet.text), true);
     }, this);
   },
+  getTweetLength: function (aString) {
+    // Use the Twitter library to calculate the length.
+    return twttr.txt.getTweetLength(aString, this._account.config);
+  },
   sendMsg: function (aMsg) {
-    if (aMsg.length > this._account.maxMessageLength) {
+    if (this.getTweetLength(aMsg) > kMaxMessageLength) {
       this.systemMessage(_("error.tooLong"), true);
       throw Cr.NS_ERROR_INVALID_ARG;
     }
@@ -161,13 +177,15 @@ Conversation.prototype = {
       let error = this._parseError(aData);
       this.systemMessage(_("error.general", error, aMsg), true);
     }, this);
-    this.sendTyping(0);
+    this.sendTyping("");
   },
-  sendTyping: function(aLength) {
-    if (aLength == 0 && this.inReplyToStatusId) {
+  sendTyping: function(aString) {
+    if (aString.length == 0 && this.inReplyToStatusId) {
       delete this.inReplyToStatusId;
       this.notifyObservers(null, "status-text-changed", "");
+      return kMaxMessageLength;
     }
+    return kMaxMessageLength - this.getTweetLength(aString);
   },
   systemMessage: function(aMessage, aIsError, aDate) {
     let flags = {system: true};
@@ -346,13 +364,17 @@ Conversation.prototype = {
 function Account(aProtocol, aImAccount)
 {
   this._init(aProtocol, aImAccount);
-  this._knownMessageIds = {};
-  this._userInfo = {};
+  this._knownMessageIds = new Set();
+  this._userInfo = new Map();
+  this._friends = new Set();
 }
 Account.prototype = {
   __proto__: GenericAccountPrototype,
 
-  get maxMessageLength() 140,
+  // The correct normalization for twitter would be just toLowerCase().
+  // Unfortunately, for backwards compatibility we retain this normalization,
+  // which can cause edge cases for usernames with underscores.
+  normalize: function(aString) aString.replace(/[^a-z0-9]/gi, "").toLowerCase(),
 
   consumerKey: Services.prefs.getCharPref("chat.twitter.consumerKey"),
   consumerSecret: Services.prefs.getCharPref("chat.twitter.consumerSecret"),
@@ -365,6 +387,13 @@ Account.prototype = {
   _pendingRequests: [],
   _timelineBuffer: [],
   _timelineAuthError: 0,
+
+  // Twitter's current internal configuration, received in response to an API
+  // call, see https://dev.twitter.com/docs/api/1.1/get/help/configuration.
+  config: {
+    "short_url_length_https": 23,
+    "short_url_length": 22
+  },
 
   token: "",
   tokenSecret: "",
@@ -395,11 +424,25 @@ Account.prototype = {
 
     this.LOG("Connecting using existing token");
     this.getTimelines();
+
+    // Request the Twitter API configuration.
+    this.signAndSend("1.1/help/configuration.json", null, null,
+                     this.onConfigReceived, this.onError, this);
   },
 
-  // Twitter doesn't broadcast the user's availability, so we can ignore
-  // imIUserStatusInfo's status notifications.
-  observe: function(aSubject, aTopic, aMsg) { },
+  observe: function(aSubject, aTopic, aMsg) {
+    // Twitter doesn't broadcast the user's availability, so we can ignore
+    // imIUserStatusInfo's status notifications.
+    if (aTopic != NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)
+      return;
+
+    // Reopen the stream with the new tracked keywords.
+    this.DEBUG("Twitter tracked keywords modified: " + this.getString("track"));
+
+    // Close the stream and reopen it.
+    this._streamingRequest.abort();
+    this.openStream();
+  },
 
   signAndSend: function(aUrl, aHeaders, aPOSTData, aOnLoad, aOnError, aThis,
                         aOAuthParams) {
@@ -459,10 +502,16 @@ Account.prototype = {
 
     let authorization =
       "OAuth " + params.map(function (p) p[0] + "=\"" + p[1] + "\"").join(", ");
-    let headers = (aHeaders || []).concat([["Authorization", authorization]]);
 
-    return doXHRequest(url, headers, aPOSTData, aOnLoad, aOnError, aThis, null,
-                       this);
+    let options = {
+      headers: (aHeaders || []).concat([["Authorization", authorization]]),
+      postData: aPOSTData,
+      onLoad: aOnLoad ? aOnLoad.bind(aThis) : null,
+      onError: aOnError ? aOnError.bind(aThis) : null,
+      logger: {log: this.LOG.bind(this),
+               debug: this.DEBUG.bind(this)}
+    }
+    return httpRequest(url, options);
   },
   _parseURLData: function(aData) {
     let result = {};
@@ -490,14 +539,6 @@ Account.prototype = {
   },
 
   _friends: null,
-  isFriend: function(aUser) {
-    if (!("id_str" in aUser) ||
-        !this._friends) // null until data is received from the user stream.
-      return null;
-    //XXX Good enough for now, but if we ever call this from a loop,
-    // we should keep this._friends sorted and do a binary search.
-    return this._friends.indexOf(aUser.id_str) != -1;
-  },
   follow: function(aUserName) {
     this.signAndSend("1.1/friendships/create.json", null,
                      [["screen_name", aUserName]]);
@@ -510,8 +551,7 @@ Account.prototype = {
       let user = JSON.parse(aData);
       if (!("id_str" in user))
         return; // Unexpected response...
-      this._friends =
-        this._friends.filter(function(id_str) id_str != user.id_str);
+      this._friends.delete(user.id_str);
       let date = aXHR.getResponseHeader("Date");
       this.timeline.systemMessage(_("event.unfollow", user.screen_name), false,
                                   new Date(date) / 1000);
@@ -563,7 +603,7 @@ Account.prototype = {
     let lastMsgId = this._lastMsgId;
     for each (let tweet in aMessages) {
       if (!("user" in tweet) || !("text" in tweet) || !("id_str" in tweet) ||
-         tweet.id_str in this._knownMessageIds)
+          this._knownMessageIds.has(tweet.id_str))
         continue;
       let id = tweet.id_str;
       // Update the last known message.
@@ -572,9 +612,8 @@ Account.prototype = {
       if (id.length > lastMsgId.length ||
           (id.length == lastMsgId.length && id > lastMsgId))
         lastMsgId = id;
-      this._knownMessageIds[id] = true;
-      if ("description" in tweet.user)
-        this.setUserInfo(tweet.user);
+      this._knownMessageIds.add(id);
+      this.setUserInfo(tweet.user);
       this.timeline.displayTweet(tweet);
     }
     if (lastMsgId != this._lastMsgId) {
@@ -655,6 +694,7 @@ Account.prototype = {
     this._streamingRequest.responseType = "moz-chunked-text";
     this._streamingRequest.onprogress = this.onDataAvailable.bind(this);
     this.resetStreamTimeout();
+    this.prefs.addObserver("track", this, false);
   },
   _streamTimeout: null,
   resetStreamTimeout: function() {
@@ -691,14 +731,33 @@ Account.prototype = {
       }
       if ("text" in msg)
         this.displayMessages([msg]);
-      else if ("friends" in msg)
-        this._friends = msg.friends.map(function(aId) aId.toString());
+      else if ("friends" in msg) {
+        // Filter out the IDs that info has already been received from (e.g. a
+        // tweet has been received as part of the timeline request).
+        let userInfoIds = new Set();
+        for each (let userInfo in this._userInfo)
+          userInfoIds.add(userInfo.id_str);
+        let ids = msg.friends.filter(
+          function(aId) !userInfoIds.has(aId.toString()), this);
+
+        while (ids.length) {
+          // Take the first 100 elements, turn them into a comma separated list.
+          this.signAndSend("1.1/users/lookup.json", null,
+                           [["user_id", ids.slice(0, 99).join(",")]],
+                           this.onLookupReceived, null, this);
+          // Remove the first 100 elements.
+          ids = ids.slice(100);
+        }
+
+        // Overwrite the existing _friends list (if any).
+        this._friends = new Set(msg.friends.map(function(aId) aId.toString()));
+      }
       else if ("event" in msg) {
         let user, event;
         switch(msg.event) {
           case "follow":
             if (msg.source.screen_name == this.name) {
-              this._friends.push(msg.target.id_str);
+              this._friends.add(msg.target.id_str);
               user = msg.target;
               event = "follow";
             }
@@ -870,6 +929,10 @@ Account.prototype = {
     if (this._streamTimeout) {
       clearTimeout(this._streamTimeout);
       delete this._streamTimeout;
+      // Remove the preference observer that is added when the user stream is
+      // opened. (This needs to be removed even if an error occurs, in which
+      // case _streamingRequest is immediately deleted.)
+      this.prefs.removeObserver("track", this);
     }
     if (this._streamingRequest) {
       this._streamingRequest.abort();
@@ -929,7 +992,7 @@ Account.prototype = {
 
   setUserInfo: function(aUser) {
     let nick = aUser.screen_name;
-    this._userInfo[nick] = aUser;
+    this._userInfo.set(nick, aUser);
 
     // If it's the user's userInfo, update the timeline topic.
     if (nick == this.name && "description" in aUser)
@@ -941,13 +1004,12 @@ Account.prototype = {
     this.requestBuddyInfo(user.screen_name);
   },
   requestBuddyInfo: function(aBuddyName) {
-    if (!hasOwnProperty(this._userInfo, aBuddyName)) {
+    let userInfo = this._userInfo.get(aBuddyName);
+    if (!userInfo) {
       this.signAndSend("1.1/users/show.json?screen_name=" + aBuddyName, null,
                        null, this.onRequestedInfoReceived, null, this);
       return;
     }
-
-    let userInfo = this._userInfo[aBuddyName];
 
     // List of the names of the info to actually show in the tooltip and
     // optionally a transform function to apply to the value.
@@ -990,6 +1052,20 @@ Account.prototype = {
                                  "user-info-received", aBuddyName);
   },
 
+  // Handle the full user info for each received friend. Set the user info and
+  // create the participant.
+  onLookupReceived: function(aData) {
+    let users = JSON.parse(aData);
+    for each (let user in users) {
+      this.setUserInfo(user);
+      this.timeline._ensureParticipantExists(user.screen_name);
+    }
+  },
+
+  onConfigReceived: function(aData) {
+    this.config = JSON.parse(aData);
+  },
+
   // Allow us to reopen the timeline via the join chat menu.
   get canJoinChat() true,
   joinChat: function(aComponents) {
@@ -998,15 +1074,49 @@ Account.prototype = {
   }
 };
 
-function TwitterProtocol() { }
+// Shortcut to get the JavaScript account object.
+function getAccount(aConv) aConv.wrappedJSObject._account;
+
+function TwitterProtocol() {
+  this.registerCommands();
+}
 TwitterProtocol.prototype = {
   __proto__: GenericProtocolPrototype,
-  get name() "Twitter",
+  get normalizedName() "twitter",
+  get name() _("twitter.protocolName"),
   get iconBaseURI() "chrome://prpl-twitter/skin/",
   get noPassword() true,
   options: {
     "track": {get label() _("options.track"), default: ""}
   },
+  // Replace the command name in the help string so translators do not attempt
+  // to translate it.
+  commands: [
+    {
+      name: "follow",
+      get helpString() _("command.follow", "follow"),
+      run: function(aMsg, aConv) {
+        aMsg = aMsg.trim();
+        if (!aMsg)
+          return false;
+        let account = getAccount(aConv);
+        aMsg.split(" ").forEach(account.follow, account);
+        return true;
+      }
+    },
+    {
+      name: "unfollow",
+      get helpString() _("command.unfollow", "unfollow"),
+      run: function(aMsg, aConv) {
+        aMsg = aMsg.trim();
+        if (!aMsg)
+          return false;
+        let account = getAccount(aConv);
+        aMsg.split(" ").forEach(account.stopFollowing, account);
+        return true;
+      }
+    }
+  ],
   getAccount: function(aImAccount) new Account(this, aImAccount),
   classID: Components.ID("{31082ff6-1de8-422b-ab60-ca0ac0b2af13}")
 };

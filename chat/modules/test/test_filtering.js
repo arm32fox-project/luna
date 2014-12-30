@@ -27,7 +27,7 @@ function test_plainText() {
   const strings = [
     "foo",
     "foo  ", // preserve trailing whitespace
-//TODO    "  foo", // leading indent is currently destroyed, see bio 898
+    "  foo", // preserve leading indent
     "&lt;html&gt;&amp;" // keep escaped characters
   ];
   for each (let string in strings)
@@ -47,6 +47,7 @@ function test_paragraphs() {
 function test_stripScripts() {
   const strings = {
     "<script>alert('hey')</script>": "",
+    "foo <script>alert('hey')</script>": "foo ",
     "<p onclick=\"alert('hey')\">foo</p>": "<p>foo</p>",
     "<p onmouseover=\"alert('hey')\">foo</p>": "<p>foo</p>"
   };
@@ -200,13 +201,14 @@ function test_permissiveMode() {
   }
 
   // Allow hr
-  string = "foo<hr>bar";
+  let string = "foo<hr>bar";
   do_check_eq(string, cleanupImMarkup(string));
 
   // Allow most CSS rules changing the text appearance.
   const okCSS = [
     "font-style: italic",
     "font-weight: bold",
+    "text-decoration: underline",
     "color: pink;",
     "font-family: Times",
     "font-size: larger"
@@ -220,11 +222,6 @@ function test_permissiveMode() {
   do_check_eq("<span style=\"font-family: normal; font-style: normal;" +
               " font-weight: normal; font-size: 15px;\">foo</span>",
               cleanupImMarkup("<span style=\"font: 15px normal\">foo</span>"));
-  // text-decoration is a shorthand for several -moz-text-decoration properties.
-  do_check_eq("<span style=\"-moz-text-decoration-color: -moz-use-text-color;" +
-              " -moz-text-decoration-line: underline;" +
-              " -moz-text-decoration-style: solid;\">foo</span>",
-              cleanupImMarkup("<span style=\"text-decoration: underline\">foo</span>"));
 
   // But still filter out dangerous CSS rules.
   const badCSS = [

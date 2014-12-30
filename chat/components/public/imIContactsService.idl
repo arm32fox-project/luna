@@ -14,15 +14,20 @@ interface imIAccountBuddy;
 interface imIAccount;
 interface prplIProtocol;
 
-[scriptable, uuid(f1619b49-310b-47aa-ab1c-238aba084c62)]
+[scriptable, uuid(be0f7dd6-26ca-445c-a265-99cf9612ece8)]
 interface imIContactsService: nsISupports {
   void initContacts();
   void unInitContacts();
 
   imIContact getContactById(in long aId);
+  // Get an array of all existing contacts.
+  void getContacts([optional] out unsigned long contactCount,
+                   [retval, array, size_is(contactCount)] out imIContact contacts);
   imIBuddy getBuddyById(in long aId);
   imIBuddy getBuddyByNameAndProtocol(in AUTF8String aNormalizedName,
                                      in prplIProtocol aPrpl);
+  imIAccountBuddy getAccountBuddyByNameAndAccount(in AUTF8String aNormalizedName,
+                                                  in imIAccount aAccount);
 
   // These 3 functions are called by the protocol plugins when
   // synchronizing the buddy list with the server stored list,
@@ -145,7 +150,9 @@ interface imIBuddy: imIStatusInfo {
   readonly attribute long id;
   readonly attribute prplIProtocol protocol;
   readonly attribute AUTF8String userName; // may be formatted
-  readonly attribute AUTF8String normalizedName; // normalized userName
+  // A name that can be used to check for duplicates and is the basis
+  // for the directory name for log storage.
+  readonly attribute AUTF8String normalizedName;
   // The optional server alias is in displayName (inherited from imIStatusInfo)
   // displayName = serverAlias || userName.
 
@@ -223,6 +230,8 @@ interface imIAccountBuddy: imIStatusInfo {
   // server-stored buddy list.
            attribute imITag tag;
   readonly attribute AUTF8String userName;
+  // A name that can be used to check for duplicates and is the basis
+  // for the directory name for log storage.
   readonly attribute AUTF8String normalizedName;
            attribute AUTF8String serverAlias;
 
