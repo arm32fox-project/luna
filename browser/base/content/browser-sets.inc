@@ -174,7 +174,8 @@
     <broadcaster id="devtoolsMenuBroadcaster_DevToolbox"
                  label="&devToolboxMenuItem.label;"
                  type="checkbox" autocheck="false"
-                 command="Tools:DevToolbox"/>
+                 command="Tools:DevToolbox"
+                 key="key_devToolbox"/>
     <broadcaster id="devtoolsMenuBroadcaster_DevToolbar"
                  label="&devToolbarMenu.label;"
                  type="checkbox" autocheck="false"
@@ -260,6 +261,7 @@
 #endif
     <key id="key_openAddons" key="&addons.commandkey;" command="Tools:Addons" modifiers="accel,shift"/>
     <key id="key_browserConsole" key="&browserConsoleCmd.commandkey;" command="Tools:BrowserConsole" modifiers="accel,shift"/>
+    <key id="key_devToolbox" keycode="VK_F12" keytext="F12" command="Tools:DevToolbox"/>
     <key id="key_devToolbar" keycode="&devToolbar.keycode;" modifiers="shift"
          keytext="&devToolbar.keytext;" command="Tools:DevToolbarFocus"/>
     <key id="key_responsiveUI" key="&responsiveDesignTool.commandkey;" command="Tools:ResponsiveUI"
