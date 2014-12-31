@@ -511,7 +511,7 @@ Account.prototype = {
       logger: {log: this.LOG.bind(this),
                debug: this.DEBUG.bind(this)}
     }
-    return httpRequest(url, options);
+    return doXHRequest(url, options);
   },
   _parseURLData: function(aData) {
     let result = {};

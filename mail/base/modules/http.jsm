@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const EXPORTED_SYMBOLS = ["httpRequest", "percentEncode"];
+const EXPORTED_SYMBOLS = ["doXHRequest", "percentEncode"];
 
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
@@ -30,7 +30,7 @@ function percentEncode(aString)
  * array the first value is the key and the second is the value, e.g.
  *  [["key1", "value1"], ["key2", "value2"]].
  */
-function httpRequest(aUrl, aOptions) {
+function doXHRequest(aUrl, aOptions) {
   let xhr = Cc["@mozilla.org/xmlextras/xmlhttprequest;1"]
               .createInstance(Ci.nsIXMLHttpRequest);
   xhr.mozBackgroundRequest = true; // no error dialogs

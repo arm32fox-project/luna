@@ -494,7 +494,7 @@ YahooLoginHelper.prototype = {
       onLoad: this._onPagerAddressResponse.bind(this),
       onError: this._onHttpError.bind(this)
     }
-    httpRequest(this._account._protocol.pagerRequestUrl, options);
+    doXHRequest(this._account._protocol.pagerRequestUrl, options);
   },
 
   _getChallengeString: function() {
@@ -517,7 +517,7 @@ YahooLoginHelper.prototype = {
       onLoad: this._onLoginTokenResponse.bind(this),
       onError: this._onHttpError.bind(this)
     }
-    httpRequest(url, options);
+    doXHRequest(url, options);
   },
 
   _getCookies: function() {
@@ -530,7 +530,7 @@ YahooLoginHelper.prototype = {
       onLoad: this._onLoginCookiesResponse.bind(this),
       onError: this._onHttpError.bind(this)
     }
-    httpRequest(url, options);
+    doXHRequest(url, options);
   },
 
   _sendPagerAuthResponse: function() {
@@ -1067,7 +1067,7 @@ const YahooPacketHandler = {
  * image on a Yahoo! Messenger account. The reason this functionality is split
  * into a separate class is because of the complexity of the operation. Because
  * of special protocol requirements, it is easier to use raw TCP communication
- * instead of the httpRequest() method. */
+ * instead of the doXHRequest() method. */
 function YahooProfileIconUploader(aAccount, aSession, aFileName, aImage)
 {
   this._account = aAccount;
