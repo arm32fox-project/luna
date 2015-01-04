@@ -44,16 +44,9 @@
        textbox.addEventListener("overflow", this.inputExpand.bind(this), true);
        textbox.addEventListener("underflow", this._onTextboxUnderflow, true);
 
-       new MutationObserver(function(aMutations) {
-         for (let mutation of aMutations) {
-           if (mutation.oldValue == "dragging") {
-             this._onSplitterChange();
-             break;
-           }
-         }
-       }.bind(this)).observe(this.getElt("splitter-bottom"),
-                             {attributes: true, attributeOldValue: true,
-                              attributeFilter: ["state"]});
+       this.getElt("splitter-bottom")
+           .addEventListener("DOMAttrModified",
+                             this._onSplitterChange.bind(this));
 
        var browser = this.browser;
        browser.addEventListener("keypress", this.browserKeyPress);
@@ -206,7 +199,7 @@
           else if (aMsg.match(/^\/(?:say)? .*/))
             aMsg = aMsg.slice(aMsg.indexOf(" ") + 1);
           else if (Services.cmd.executeCommand(aMsg, this._conv.target)) {
-            this._conv.sendTyping("");
+            this._conv.sendTyping(0);
             this.resetInput();
             return;
           }
@@ -300,8 +293,12 @@
      </method>
 
      <method name="_onSplitterChange">
+      <parameter name="aEvent"/>
       <body>
       <![CDATA[
+        if (aEvent.attrName != "state" || aEvent.prevValue != "dragging")
+          return;
+
         let textbox = this.editor;
         // set the default height as the deck height (modified by the splitter)
         textbox.defaultHeight = parseInt(textbox.parentNode.height) -
@@ -529,28 +526,25 @@
 
             let text = inputBox.value;
 
+            let maxLength = this._conv.account.maxMessageLength;
+            if (maxLength) {
+              let left = maxLength - text.length;
+              // 200 is a 'magic' constant to avoid showing big numbers.
+              this._statusTextEnd =
+                left < Math.min(200, maxLength) ? left.toString() : "";
+              this._statusTextEndIsError = left < 0;
+              this.displayStatusText();
+            }
+
             // try to avoid sending typing notifications when the user is
             // typing a command in the conversation.
             // These checks are not perfect (especially if non-existing
             // commands are sent as regular messages on the in-use prpl).
-            let left = Ci.prplIConversation.NO_TYPING_LIMIT;
-            if (!text.startsWith("/"))
-              left = this._conv.sendTyping(text);
-            else if (/^\/me /.test(text))
-              left = this._conv.sendTyping(text.slice(4));
-
-            // When the input box is cleared or there is no character limit,
-            // don't show the character limit in the statusbar.
-            if (left == Ci.prplIConversation.NO_TYPING_LIMIT || !text.length) {
-              this._statusTextEnd = "";
-              this._statusTextEndIsError = false;
-            }
-            else {
-              // 200 is a 'magic' constant to avoid showing big numbers.
-              this._statusTextEnd = left < 200 ? left.toString() : "";
-              this._statusTextEndIsError = left < 0;
-            }
-            this.displayStatusText();
+            if (! text.startsWith("/"))
+              this._conv.sendTyping(text.length);
+            else
+              if (text.startsWith("/me "))
+                this._conv.sendTyping(text.length - 4);
           }).bind(this), 0);
           return;
         }
@@ -949,10 +943,10 @@
 
          // Is aOldName is not null, then we are renaming the buddy
          if (!this._hasBuddy(aOldName))
-           throw "Updating a chat buddy that does not exist: " + aOldName;
+           throw "Updating a chat buddy that does not exist?!";
 
          if (this._hasBuddy(name))
-           throw "Updating a chat buddy to an already existing one: " + name;
+           throw "Updating a chat buddy to an already existing one?!";
 
          var item = this.buddies[aOldName];
          item.chatBuddy = aBuddy;
@@ -961,7 +955,7 @@
          item.setAttribute("label", name);
 
          // Move this item to the right position if its name changed
-         item.remove();
+         document.getElementById("nicklist").removeChild(item);
          this.addNick(item);
        ]]>
        </body>
@@ -972,7 +966,8 @@
        <![CDATA[
          if (!this._hasBuddy(aName))
            throw "Cannot remove a buddy that was not in the room";
-         this.buddies[aName].remove();
+         var item = this.buddies[aName];
+         item.parentNode.removeChild(item);
          delete this.buddies[aName];
          if (this._isBuddyActive(aName))
            delete this._activeBuddies[aName];
@@ -1133,8 +1128,8 @@
        <![CDATA[
          if (this._conv.isChat) {
            let nicklist = document.getElementById("nicklist");
-           while (nicklist.hasChildNodes())
-             nicklist.lastChild.remove();
+           while (nicklist.firstChild)
+             nicklist.removeChild(nicklist.firstChild);
            // Populate the nicklist
            this.buddies = {};
            let nicks = fixIterator(this.conv.getParticipants());
@@ -1403,6 +1398,7 @@
        <![CDATA[
          switch (aEvent.keyCode) {
            case aEvent.DOM_VK_RETURN:
+           case aEvent.DOM_VK_ENTER:
              this.finishEditTopic(true);
              break;
 

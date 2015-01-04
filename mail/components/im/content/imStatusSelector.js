@@ -129,6 +129,7 @@ var statusSelector = {
 
     switch (aEvent.keyCode) {
       case aEvent.DOM_VK_RETURN:
+      case aEvent.DOM_VK_ENTER:
         statusSelector.finishEditStatusMessage(true);
         break;
 
@@ -227,6 +228,7 @@ var statusSelector = {
   displayNameKeyPress: function ss_displayNameKeyPress(aEvent) {
     switch (aEvent.keyCode) {
       case aEvent.DOM_VK_RETURN:
+      case aEvent.DOM_VK_ENTER:
         statusSelector.finishEditDisplayName(true);
         break;
 

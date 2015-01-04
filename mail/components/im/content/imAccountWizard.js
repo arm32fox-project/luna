@@ -127,8 +127,9 @@ var accountWizard = {
 
     var vbox = document.getElementById("userNameBox");
     // remove anything that may be there for another protocol
-    while (vbox.hasChildNodes())
-      vbox.lastChild.remove();
+    var child;
+    while ((child = vbox.firstChild))
+      vbox.removeChild(child);
 
     var splits = [];
     for (let split in this.getProtoUserSplits())
@@ -218,8 +219,9 @@ var accountWizard = {
   populateProtoSpecificBox: function aw_populate() {
     var id = this.proto.id;
     var rows = document.getElementById("protoSpecific");
-    while (rows.hasChildNodes())
-      rows.lastChild.remove();
+    var child;
+    while ((child = rows.firstChild))
+      rows.removeChild(child);
     var visible = false;
     for (let opt in this.getProtoOptions()) {
       var text = opt.label;
@@ -282,8 +284,9 @@ var accountWizard = {
   showSummary: function aw_showSummary() {
     var rows = document.getElementById("summaryRows");
     var bundle = document.getElementById("accountsBundle");
-    while (rows.hasChildNodes())
-      rows.lastChild.remove();
+    var child;
+    while ((child = rows.firstChild))
+      rows.removeChild(child);
 
     var label = document.getElementById("protoLabel").value;
     rows.appendChild(this.createSummaryRow(label, this.proto.name));
@@ -412,8 +415,6 @@ var accountWizard = {
 
   getValue: function aw_getValue(aId) {
     var elt = document.getElementById(aId);
-    if ("selectedItem" in elt)
-      return elt.selectedItem.value;
     if ("checked" in elt)
       return elt.checked;
     if ("value" in elt)

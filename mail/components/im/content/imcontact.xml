@@ -82,7 +82,7 @@
       <![CDATA[
         this.contact.removeObserver(this);
         delete this.contact;
-        this.remove();
+        this.parentNode.removeChild(this);
       ]]>
       </body>
      </method>
@@ -156,7 +156,7 @@
       </body>
      </method>
 
-     <method name="delete">
+     <method name="remove">
       <body>
       <![CDATA[
         this.contact.remove();
@@ -193,6 +193,7 @@
         switch (aEvent.keyCode) {
           // If Enter or Return is pressed, open a new conversation
           case aEvent.DOM_VK_RETURN:
+          case aEvent.DOM_VK_ENTER:
             if (this.hasAttribute("aliasing"))
               this.finishAliasing(true);
             else if (this.canOpenConversation())

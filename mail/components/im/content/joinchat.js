@@ -5,7 +5,6 @@
 Components.utils.import("resource:///modules/iteratorUtils.jsm");
 Components.utils.import("resource:///modules/imServices.jsm");
 
-const Cc = Components.classes;
 const Ci = Components.interfaces;
 const autoJoinPref = "autoJoin";
 
@@ -31,7 +30,7 @@ var joinChat = {
   onAccountSelect: function jc_onAccountSelect() {
     let ab = document.getElementById("separatorRow1");
     while (ab.nextSibling && ab.nextSibling.id != "separatorRow2")
-      ab.nextSibling.remove();
+      ab.parentNode.removeChild(ab.nextSibling);
 
     let acc = document.getElementById("accountlist").selectedItem.account;
     let sep = document.getElementById("separatorRow2");
@@ -92,7 +91,7 @@ var joinChat = {
   join: function jc_join() {
     let values = joinChat._values;
     for each (let field in joinChat._fields) {
-      let val = field.textbox.value.trim();
+      let val = field.textbox.value;
       if (!val && field.field.required) {
         field.textbox.focus();
         //FIXME: why isn't the return false enough?
@@ -125,27 +124,23 @@ var joinChat = {
 */
 
     if (document.getElementById("autojoin").checked) {
-      // "nick" for JS-XMPP, "handle" for libpurple prpls.
-      let nick = values.getValue("nick") || values.getValue("handle");
-      if (nick)
-        name += "/" + nick;
+      if (protoId == "prpl-gtalk")
+        name += "/" + values.getValue("nick");
+      else if (protoId != "prpl-irc")
+        name += "/" + values.getValue("handle");
 
       let prefBranch =
         Services.prefs.getBranch("messenger.account." + account.id + ".");
-      let autojoin = [];
+      let autojoin = [ ];
       if (prefBranch.prefHasUserValue(autoJoinPref)) {
-        let prefValue =
-          prefBranch.getComplexValue(autoJoinPref, Ci.nsISupportsString).data;
+        let prefValue = prefBranch.getCharPref(autoJoinPref);
         if (prefValue)
           autojoin = prefValue.split(",");
       }
 
       if (autojoin.indexOf(name) == -1) {
         autojoin.push(name);
-        let str = Cc["@mozilla.org/supports-string;1"]
-                    .createInstance(Ci.nsISupportsString);
-        str.data = autojoin.join(",");
-        prefBranch.setComplexValue(autoJoinPref, Ci.nsISupportsString, str);
+        prefBranch.setCharPref(autoJoinPref, autojoin.join(","));
       }
     }
 

@@ -12,7 +12,7 @@
 
   <binding id="badgebutton"
            extends="chrome://global/content/bindings/toolbarbutton.xml#toolbarbutton"
-           display="xul:button" role="xul:toolbarbutton">
+           display="xul:button">
     <content>
       <children includes="observes|template|menupopup|panel|tooltip"/>
       <xul:stack>
@@ -24,10 +24,15 @@
       <xul:label class="toolbarbutton-text" crop="right" flex="1"
                  xbl:inherits="value=label,accesskey,crop"/>
     </content>
-    <implementation>
+    <implementation implements="nsIAccessibleProvider">
       <field name="_badgeCount">
       0
       </field>
+      <property name="accessibleType" readonly="true">
+        <getter>
+          return Components.interfaces.nsIAccessibleProvider.XULToolbarButton;
+        </getter>
+      </property>
 
       <property name="badgeCount" onget="return this._badgeCount;"
                                   onset="return this._setBadgeCount(val);">

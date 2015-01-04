@@ -6,9 +6,7 @@
 
 <!DOCTYPE bindings [
   <!ENTITY % accountsDTD SYSTEM "chrome://messenger/locale/imAccounts.dtd">
-  <!ENTITY % certManagerDTD SYSTEM "chrome://pippki/locale/certManager.dtd">
   %accountsDTD;
-  %certManagerDTD;
 ]>
 
 <bindings id="accountBindings"
@@ -27,7 +25,7 @@
             </xul:stack>
             <xul:spacer flex="1"/>
           </xul:vbox>
-          <xul:vbox flex="1" align="start">
+          <xul:vbox flex="1">
            <xul:label xbl:inherits="value=name" crop="end" class="accountName"/>
            <xul:label class="connecting" crop="end" anonid="connecting" value="&account.connecting;"/>
            <xul:label class="connected" crop="end" anonid="connected"/>
@@ -35,10 +33,6 @@
            <xul:label class="disconnected" crop="end" value="&account.disconnected;"/>
            <xul:description class="error" anonid="error"/>
            <xul:description class="error" anonid="reconnect"/>
-           <xul:label class="addException text-link"
-                      onclick="gAccountManager.addException()"
-                      value="&certmgr.addException.label;"
-                      accesskey="&certmgr.addException.accesskey;"/>
            <xul:spacer flex="1"/>
           </xul:vbox>
           <xul:checkbox label="&account.autoSignOn.label;" dir="reverse"
@@ -69,10 +63,8 @@
           state = "disconnected";
           if (this._account.connectionErrorReason != Ci.prplIAccount.NO_ERROR)
             this.updateConnectionError();
-          else {
+          else
             this.removeAttribute("error");
-            this.removeAttribute("certError");
-          }
         } else if (this._account.connecting) {
           state = "connecting";
           this.updateConnectionState();
@@ -99,8 +91,6 @@
         progress.setAttribute("value", text);
         if (this.reconnectUpdateInterval)
           this._cancelReconnectTimer();
-
-        this.removeAttribute("certError");
       ]]>
       </body>
      </method>
@@ -127,10 +117,6 @@
           text = bundle.getFormattedString(key, [text]);
 
         this.setAttribute("error", "true");
-        if ((Ci.imIAccount.ERROR_CERT_NOT_PROVIDED <= errorReason &&
-             errorReason <= Ci.imIAccount.ERROR_CERT_OTHER_ERROR) &&
-            account.prplAccount.connectionTarget)
-          this.setAttribute("certError", "true");
         var error = document.getAnonymousElementByAttribute(this, "anonid",
                                                             "error");
         error.textContent = text;

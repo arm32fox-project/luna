@@ -31,8 +31,6 @@
 
   <stringbundleset id="stringbundleset">
     <stringbundle id="chatBundle" src="chrome://messenger/locale/chat.properties"/>
-    <stringbundle id="bundle_dateformat" src="chrome://global/locale/dateFormat.properties"/>
-    <stringbundle id="bundle_places" src="chrome://places/locale/places.properties"/>
   </stringbundleset>
 
   <popupset id="mainPopupSet">
@@ -153,7 +151,7 @@
                        align="center"
                        flex="1"
                        class="chromeclass-toolbar-additional">
-            <textbox id="IMSearchInput"
+            <textbox id="IMSearchInput" 
                      flex="1"
                      type="glodacomplete"
                      searchbutton="true"
@@ -241,7 +239,7 @@
                 </vbox>
                 <vbox flex="1" id="logDisplayBrowserBox">
                   <browser id="conv-log-browser" type="content-conversation" contextmenu="chatConversationContextMenu" flex="1"
-                           tooltip="buddyTooltip"/>
+                           tooltip="aHTMLTooltip"/>
                   <progressmeter id="log-browserProgress" hidden="true"/>
                   <findbar id="log-findbar" browserid="conv-log-browser"/>
                 </vbox>

@@ -106,8 +106,9 @@ var account = {
 
   populateProtoSpecificBox: function account_populate() {
     var gbox = document.getElementById("protoSpecific");
-    while (gbox.hasChildNodes())
-      gbox.lastChild.remove();
+    let child;
+    while ((child = gbox.firstChild))
+      gbox.removeChild(child);
 
     let options = this.proto.getOptions();
     while (options.hasMoreElements()) {

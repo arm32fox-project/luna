@@ -9,7 +9,6 @@ const Ci = Components.interfaces;
 const Cr = Components.results;
 const Cu = Components.utils;
 
-Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/gloda/public.js");
 
 /**
@@ -202,11 +201,7 @@ GlodaIMSearcher.prototype = {
   /**
    * Number of messages to retrieve initially.
    */
-  get retrievalLimit() {
-    return Services.prefs.getIntPref(
-      "mailnews.database.global.search.im.limit"
-    );
-  },
+  retrievalLimit: 400,
 
   /**
    * Parse the string into terms/phrases by finding matching double-quotes.
