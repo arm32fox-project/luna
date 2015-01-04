@@ -865,24 +865,26 @@ nsCacheProfilePrefObserver::MemoryCacheEnabled()
  * If browser.cache.memory.capacity is negative or not present, we use a
  * formula that grows less than linearly with the amount of system memory, 
  * with an upper limit on the cache size. No matter how much physical RAM is
- * present, the default cache size would not exceed 32 MB. This maximum would
- * apply only to systems with more than 4 GB of RAM (e.g. terminal servers)
+ * present, the default cache size will not exceed 64 MB. This maximum will
+ * only apply to systems with a large amount of RAM (>16GB).
  *
  *   RAM   Cache
  *   ---   -----
- *   32 Mb   2 Mb
- *   64 Mb   4 Mb
- *  128 Mb   6 Mb
- *  256 Mb  10 Mb
- *  512 Mb  14 Mb
- * 1024 Mb  18 Mb
- * 2048 Mb  24 Mb
- * 4096 Mb  30 Mb
+ *   32 MB   2 MB (1^2)/2 + 1 + 0.1 = 0.5 + 1 + 0.1 = 1.6 ~= 2
+ *   64 MB   4 MB (2^2)/2 + 2 + 0.1 = 2 + 2 + 0.1 = 4.1 ~= 4
+ *  128 MB   8 MB (3^2)/2 + 3 + 0.1 = 4.5 + 3 + 0.1 = 7.6 ~= 8
+ *  256 MB  12 MB 
+ *  512 MB  18 MB 
+ *    1 GB  24 MB 
+ *    2 GB  32 MB 
+ *    4 GB  40 MB 
+ *    8 GB  50 MB (9^2)/2 + 9 = 40.5 + 9 + 0.1 ~= 50 
+ *   16 GB  60 MB (10^2)/2 + 10 = 50 + 10 + 0.1 ~= 60
  *
  * The equation for this is (for cache size C and memory size K (kbytes)):
  *  x = log2(K) - 14
- *  C = x^2/3 + x + 2/3 + 0.1 (0.1 for rounding)
- *  if (C > 32) C = 32
+ *  C = (x^2)/2 + x + 0.1 (0.1 for rounding)
+ *  if (C > 64) C = 64
  */
 
 int32_t
@@ -898,10 +900,10 @@ nsCacheProfilePrefObserver::MemoryCacheCapacity()
     CACHE_LOG_DEBUG(("Physical Memory size is %llu\n", bytes));
 
     // If getting the physical memory failed, arbitrarily assume
-    // 32 MB of RAM. We use a low default to have a reasonable
-    // size on all the devices we support.
+    // 256 MB of RAM. We use this default to have a reasonable
+    // memory cache size on all the devices we support.
     if (bytes == 0)
-        bytes = 32 * 1024 * 1024;
+        bytes = 256 * 1024 * 1024;
 
     // Conversion from unsigned int64_t to double doesn't work on all platforms.
     // We need to truncate the value at INT64_MAX to make sure we don't
@@ -915,12 +917,12 @@ nsCacheProfilePrefObserver::MemoryCacheCapacity()
 
     double x = log(kBytesD)/log(2.0) - 14;
     if (x > 0) {
-        capacity = (int32_t)(x * x / 3.0 + x + 2.0 / 3 + 0.1); // 0.1 for rounding
-        if (capacity > 32)
-            capacity = 32;
+        capacity = (int32_t)((x * x) / 2.0 + x + 0.1); // 0.1 for rounding
+        if (capacity > 64)
+            capacity = 64;
         capacity   *= 1024;
     } else {
-        capacity    = 0;
+        capacity    = 1024; //always reserve at least 1 MB for memory cache
     }
 
     return capacity;
