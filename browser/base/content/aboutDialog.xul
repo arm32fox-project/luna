@@ -83,19 +83,6 @@
 #endif
           </vbox>
 
-#ifdef MOZ_UPDATER
-#          <description class="text-blurb" id="currentChannelText">
-#            &channel.description.start;<label id="currentChannel"/>&channel.description.end;
-#          </description>
-#endif
-#          <vbox id="experimental" hidden="true">
-#            <description class="text-blurb" id="warningDesc">
-#              &warningDesc.version;
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-#              &warningDesc.telemetryDesc;
-#endif
-#            </description>
-#			  </vbox>
         <description class="text-pmcreds">
           Pale Moon is released by <label class="text-link" href="http://www.moonchildproductions.info">Moonchild Productions</label>.
         </description>

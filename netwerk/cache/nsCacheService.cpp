@@ -59,9 +59,6 @@ using namespace mozilla;
 #define DISK_CACHE_MAX_ENTRY_SIZE_PREF "browser.cache.disk.max_entry_size"
 #define DISK_CACHE_CAPACITY         256000
 
-#define DISK_CACHE_USE_OLD_MAX_SMART_SIZE_PREF \
-    "browser.cache.disk.smart_size.use_old_max"
-
 #define OFFLINE_CACHE_ENABLE_PREF   "browser.cache.offline.enable"
 #define OFFLINE_CACHE_DIR_PREF      "browser.cache.offline.parent_directory"
 #define OFFLINE_CACHE_CAPACITY_PREF "browser.cache.offline.capacity"
@@ -92,7 +89,6 @@ static const char * prefList[] = {
     DISK_CACHE_CAPACITY_PREF,
     DISK_CACHE_DIR_PREF,
     DISK_CACHE_MAX_ENTRY_SIZE_PREF,
-    DISK_CACHE_USE_OLD_MAX_SMART_SIZE_PREF,
     OFFLINE_CACHE_ENABLE_PREF,
     OFFLINE_CACHE_CAPACITY_PREF,
     OFFLINE_CACHE_DIR_PREF,
@@ -109,10 +105,8 @@ const int32_t DEFAULT_CACHE_SIZE = 250 * 1024;  // 250 MB
 const int32_t MIN_CACHE_SIZE = 50 * 1024;       //  50 MB
 #ifdef ANDROID
 const int32_t MAX_CACHE_SIZE = 200 * 1024;      // 200 MB
-const int32_t OLD_MAX_CACHE_SIZE = 200 * 1024;  // 200 MB
 #else
-const int32_t MAX_CACHE_SIZE = 350 * 1024;      // 350 MB
-const int32_t OLD_MAX_CACHE_SIZE = 1024 * 1024; //   1 GB
+const int32_t MAX_CACHE_SIZE = 250 * 1024;      // 250 MB
 #endif
 // Default cache size was 50 MB for many years until FF 4:
 const int32_t PRE_GECKO_2_0_DEFAULT_CACHE_SIZE = 50 * 1024;
@@ -129,7 +123,6 @@ public:
         , mDiskCacheCapacity(0)
         , mDiskCacheMaxEntrySize(-1) // -1 means "no limit"
         , mSmartSizeEnabled(false)
-        , mShouldUseOldMaxSmartSize(false)
         , mOfflineCacheEnabled(false)
         , mOfflineCacheCapacity(0)
         , mMemoryCacheEnabled(true)
@@ -154,9 +147,6 @@ public:
     nsIFile *       DiskCacheParentDirectory()  { return mDiskCacheParentDirectory; }
     bool            SmartSizeEnabled()          { return mSmartSizeEnabled; }
 
-    bool            ShouldUseOldMaxSmartSize()        { return mShouldUseOldMaxSmartSize; }
-    void            SetUseNewMaxSmartSize(bool useNew)     { mShouldUseOldMaxSmartSize = !useNew; }
-
     bool            OfflineCacheEnabled();
     int32_t         OfflineCacheCapacity()         { return mOfflineCacheCapacity; }
     nsIFile *       OfflineCacheParentDirectory()  { return mOfflineCacheParentDirectory; }
@@ -170,8 +160,7 @@ public:
     bool            SanitizeAtShutdown() { return mSanitizeOnShutdown && mClearCacheOnShutdown; }
 
     static uint32_t GetSmartCacheSize(const nsAString& cachePath,
-                                      uint32_t currentSize,
-                                      bool shouldUseOldMaxSmartSize);
+                                      uint32_t currentSize);
 
     bool                    PermittedToSmartSize(nsIPrefBranch*, bool firstRun);
 
@@ -183,8 +172,6 @@ private:
     int32_t                 mDiskCacheMaxEntrySize; // in kilobytes
     nsCOMPtr<nsIFile>       mDiskCacheParentDirectory;
     bool                    mSmartSizeEnabled;
-
-    bool                    mShouldUseOldMaxSmartSize;
 
     bool                    mOfflineCacheEnabled;
     int32_t                 mOfflineCacheCapacity; // in kilobytes
@@ -261,11 +248,9 @@ private:
 class nsGetSmartSizeEvent: public nsRunnable
 {
 public:
-    nsGetSmartSizeEvent(const nsAString& cachePath, uint32_t currentSize,
-                        bool shouldUseOldMaxSmartSize)
+    nsGetSmartSizeEvent(const nsAString& cachePath, uint32_t currentSize)
       : mCachePath(cachePath)
       , mCurrentSize(currentSize)
-      , mShouldUseOldMaxSmartSize(shouldUseOldMaxSmartSize)
     {}
    
     // Calculates user's disk space available on a background thread and
@@ -274,8 +259,7 @@ public:
     {
         uint32_t size;
         size = nsCacheProfilePrefObserver::GetSmartCacheSize(mCachePath,
-                                                             mCurrentSize,
-                                                             mShouldUseOldMaxSmartSize);
+                                                             mCurrentSize);
         NS_DispatchToMainThread(new nsSetSmartSizeEvent(size));
         return NS_OK;
     }
@@ -283,7 +267,6 @@ public:
 private:
     nsString mCachePath;
     uint32_t mCurrentSize;
-    bool     mShouldUseOldMaxSmartSize;
 };
 
 class nsBlockOnCacheThreadEvent : public nsRunnable {
@@ -462,11 +445,6 @@ nsCacheProfilePrefObserver::Observe(nsISupports *     subject,
                 mDiskCacheCapacity = std::max(0, newCapacity);
                 nsCacheService::SetDiskCacheCapacity(mDiskCacheCapacity);
             }
-        } else if (!strcmp(DISK_CACHE_USE_OLD_MAX_SMART_SIZE_PREF, data.get())) {
-            rv = branch->GetBoolPref(DISK_CACHE_USE_OLD_MAX_SMART_SIZE_PREF,
-                                     &mShouldUseOldMaxSmartSize);
-            if (NS_FAILED(rv))
-                return rv;
         } else if (!strcmp(DISK_CACHE_MAX_ENTRY_SIZE_PREF, data.get())) {
             int32_t newMaxSize;
             rv = branch->GetIntPref(DISK_CACHE_MAX_ENTRY_SIZE_PREF,
@@ -562,12 +540,10 @@ nsCacheProfilePrefObserver::Observe(nsISupports *     subject,
 // Returns default ("smart") size (in KB) of cache, given available disk space
 // (also in KB)
 static uint32_t
-SmartCacheSize(const uint32_t availKB, bool shouldUseOldMaxSmartSize)
+SmartCacheSize(const uint32_t availKB)
 {
-    uint32_t maxSize = shouldUseOldMaxSmartSize ? OLD_MAX_CACHE_SIZE : MAX_CACHE_SIZE;
-
     if (availKB > 100 * 1024 * 1024)
-        return maxSize;  // skip computing if we're over 100 GB
+        return MAX_CACHE_SIZE;  // skip computing if we're over 100 GB
 
     // Grow/shrink in 10 MB units, deliberately, so that in the common case we
     // don't shrink cache and evict items every time we startup (it's important
@@ -603,7 +579,7 @@ SmartCacheSize(const uint32_t availKB, bool shouldUseOldMaxSmartSize)
     sz10MBs += std::max<uint32_t>(5, static_cast<uint32_t>(avail10MBs * .4));
 #endif
 
-    return std::min<uint32_t>(maxSize, sz10MBs * 10 * 1024);
+    return std::min<uint32_t>(MAX_CACHE_SIZE, sz10MBs * 10 * 1024);
 }
 
  /* Computes our best guess for the default size of the user's disk cache, 
@@ -619,8 +595,7 @@ SmartCacheSize(const uint32_t availKB, bool shouldUseOldMaxSmartSize)
   */
 uint32_t
 nsCacheProfilePrefObserver::GetSmartCacheSize(const nsAString& cachePath,
-                                              uint32_t currentSize,
-                                              bool shouldUseOldMaxSmartSize)
+                                              uint32_t currentSize)
 {
     // Check for free space on device where cache directory lives
     nsresult rv;
@@ -637,8 +612,7 @@ nsCacheProfilePrefObserver::GetSmartCacheSize(const nsAString& cachePath,
         return DEFAULT_CACHE_SIZE;
 
     return SmartCacheSize(static_cast<uint32_t>((bytesAvailable / 1024) +
-                                                currentSize),
-                          shouldUseOldMaxSmartSize);
+                                                currentSize));
 }
 
 /* Determine if we are permitted to dynamically size the user's disk cache based
@@ -667,11 +641,6 @@ nsCacheProfilePrefObserver::PermittedToSmartSize(nsIPrefBranch* branch, bool
                 return mSmartSizeEnabled;
             }
         }
-        // Set manual setting to MAX cache size as starting val for any
-        // adjustment by user: (bug 559942 comment 65)
-        // Pale Moon: don't set this - the default should be used!
-        // int32_t maxSize = mShouldUseOldMaxSmartSize ? OLD_MAX_CACHE_SIZE : MAX_CACHE_SIZE;
-        // branch->SetIntPref(DISK_CACHE_CAPACITY_PREF, maxSize);
     }
 
     rv = branch->GetBoolPref(DISK_CACHE_SMART_SIZE_ENABLED_PREF,
@@ -703,9 +672,6 @@ nsCacheProfilePrefObserver::ReadPrefs(nsIPrefBranch* branch)
                                    NS_GET_IID(nsIFile),
                                    getter_AddRefs(mDiskCacheParentDirectory));
 
-    (void) branch->GetBoolPref(DISK_CACHE_USE_OLD_MAX_SMART_SIZE_PREF,
-                               &mShouldUseOldMaxSmartSize);
-    
     if (!mDiskCacheParentDirectory) {
         nsCOMPtr<nsIFile>  directory;
 
@@ -1581,9 +1547,6 @@ nsCacheService::CreateDiskDevice()
         return rv;
     }
 
-    Telemetry::Accumulate(Telemetry::DISK_CACHE_SMART_SIZE_USING_OLD_MAX,
-                          mObserver->ShouldUseOldMaxSmartSize());
-
     NS_ASSERTION(!mSmartSizeTimer, "Smartsize timer was already fired!");
 
     // Disk device is usually created during the startup. Delay smart size
@@ -1605,61 +1568,6 @@ nsCacheService::CreateDiskDevice()
     // method (create the disk-device) has been fulfilled
 
     return NS_OK;
-}
-
-// Runnable sent from cache thread to main thread
-class nsDisableOldMaxSmartSizePrefEvent: public nsRunnable
-{
-public:
-    nsDisableOldMaxSmartSizePrefEvent() {}
-
-    NS_IMETHOD Run()
-    {
-        // Main thread may have already called nsCacheService::Shutdown
-        if (!nsCacheService::IsInitialized())
-            return NS_ERROR_NOT_AVAILABLE;
-
-        nsCOMPtr<nsIPrefBranch> branch = do_GetService(NS_PREFSERVICE_CONTRACTID);
-        if (!branch) {
-            return NS_ERROR_NOT_AVAILABLE;
-        }
-
-        nsresult rv = branch->SetBoolPref(DISK_CACHE_USE_OLD_MAX_SMART_SIZE_PREF, false);
-        if (NS_FAILED(rv)) {
-            NS_WARNING("Failed to disable old max smart size");
-            return rv;
-        }
-
-        // It is safe to call SetDiskSmartSize_Locked() without holding the lock
-        // when we are on main thread and nsCacheService is initialized.
-        nsCacheService::gService->SetDiskSmartSize_Locked();
-
-        // Pale Moon: don't set this - the default should be used!
-
-//        if (nsCacheService::gService->mObserver->PermittedToSmartSize(branch, false)) {
-//            rv = branch->SetIntPref(DISK_CACHE_CAPACITY_PREF, MAX_CACHE_SIZE);
-//            if (NS_FAILED(rv)) {
-//                NS_WARNING("Failed to set cache capacity pref");
-//            }
-//        }
-
-        return NS_OK;
-    }
-};
-
-void
-nsCacheService::MarkStartingFresh()
-{
-    if (!gService->mObserver->ShouldUseOldMaxSmartSize()) {
-        // Already using new max, nothing to do here
-        return;
-    }
-
-    gService->mObserver->SetUseNewMaxSmartSize(true);
-
-    // We always dispatch an event here because we don't want to deal with lock
-    // reentrance issues.
-    NS_DispatchToMainThread(new nsDisableOldMaxSmartSizePrefEvent());
 }
 
 nsresult
@@ -3081,8 +2989,7 @@ nsCacheService::SetDiskSmartSize_Locked()
     rv = mObserver->DiskCacheParentDirectory()->GetPath(cachePath);
     if (NS_SUCCEEDED(rv)) {
         nsCOMPtr<nsIRunnable> event =
-            new nsGetSmartSizeEvent(cachePath, mDiskDevice->getCacheSize(),
-                                    mObserver->ShouldUseOldMaxSmartSize());
+            new nsGetSmartSizeEvent(cachePath, mDiskDevice->getCacheSize());
         DispatchToCacheIOThread(event);
     } else {
         return NS_ERROR_FAILURE;
