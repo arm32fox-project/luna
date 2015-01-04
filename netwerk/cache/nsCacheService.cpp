@@ -106,7 +106,7 @@ const int32_t MIN_CACHE_SIZE = 50 * 1024;       //  50 MB
 #ifdef ANDROID
 const int32_t MAX_CACHE_SIZE = 200 * 1024;      // 200 MB
 #else
-const int32_t MAX_CACHE_SIZE = 250 * 1024;      // 250 MB
+const int32_t MAX_CACHE_SIZE = 300 * 1024;      // 300 MB
 #endif
 // Default cache size was 50 MB for many years until FF 4:
 const int32_t PRE_GECKO_2_0_DEFAULT_CACHE_SIZE = 50 * 1024;
