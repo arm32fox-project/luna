@@ -164,14 +164,6 @@ pref("dom.ipc.plugins.timeoutSecs", 20);
 //Automatically update extensions by default
 pref("extensions.update.autoUpdateDefault", true);
 
-//cache handling 1GB -> 250MB by default, disable automatic
-//max element size -> 4MB, caching anything larger is not recommended
-pref("browser.cache.disk.smart_size.enabled",false);
-pref("browser.cache.disk.capacity",256000); //250MB
-pref("browser.cache.disk.max_entry_size",4096);
-pref("browser.cache.memory.capacity",-1); //dynamically allocate RAM cache as-needed.
-pref("browser.cache.memory.max_entry_size",-1); 
-
 //Improve memory handling for js
 pref("javascript.options.mem.gc_per_compartment", true);
 pref("javascript.options.mem.high_water_mark", 64);

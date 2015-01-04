@@ -1137,10 +1137,6 @@
     "n_buckets": 50,
     "description": "Time spent waiting on the cache service lock on the main thread (ms)"
   },
-  "DISK_CACHE_SMART_SIZE_USING_OLD_MAX": {
-    "kind": "boolean",
-    "description": "Whether we are using the old default cache smart size"
-  },
   "CACHE_SERVICE_LOCK_WAIT_MAINTHREAD_NSSETDISKSMARTSIZECALLBACK_NOTIFY": {
     "kind": "exponential",
     "high": "10 * 1000",
