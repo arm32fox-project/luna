@@ -3,12 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#define MAC_OS_X_VERSION_MASK     0x0000FFFF // Not supported
-#define MAC_OS_X_VERSION_10_4_HEX 0x00001040 // Not supported
-#define MAC_OS_X_VERSION_10_5_HEX 0x00001050
-#define MAC_OS_X_VERSION_10_6_HEX 0x00001060
-#define MAC_OS_X_VERSION_10_7_HEX 0x00001070
-#define MAC_OS_X_VERSION_10_8_HEX 0x00001080
+#define MAC_OS_X_VERSION_MASK      0x0000FFFF
+#define MAC_OS_X_VERSION_10_4_HEX  0x00001040 // Not supported
+#define MAC_OS_X_VERSION_10_5_HEX  0x00001050
+#define MAC_OS_X_VERSION_10_6_HEX  0x00001060
+#define MAC_OS_X_VERSION_10_7_HEX  0x00001070
+#define MAC_OS_X_VERSION_10_8_HEX  0x00001080
+#define MAC_OS_X_VERSION_10_9_HEX  0x00001090
+#define MAC_OS_X_VERSION_10_10_HEX 0x000010A0
 
 // This API will not work for OS X 10.10, see Gestalt.h.
 
@@ -87,4 +89,16 @@ nsCocoaFeatures::OnLionOrLater()
 nsCocoaFeatures::OnMountainLionOrLater()
 {
     return (OSXVersion() >= MAC_OS_X_VERSION_10_8_HEX);
+}
+
+/* static */ bool
+nsCocoaFeatures::OnMavericksOrLater()
+{
+    return (OSXVersion() >= MAC_OS_X_VERSION_10_9_HEX);
+}
+
+/* static */ bool
+nsCocoaFeatures::OnYosemiteOrLater()
+{
+    return (OSXVersion() >= MAC_OS_X_VERSION_10_10_HEX);
 }
