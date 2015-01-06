@@ -301,6 +301,8 @@ public:
                              nsIContent* aTemplChild);
 
   bool ChromeOnlyContent() { return mChromeOnlyContent; }
+  bool BindToUntrustedContent() { return mBindToUntrustedContent; }
+  
 protected:
   // Ensure that mAttributeTable has been created.
   void EnsureAttributeTable();
@@ -333,6 +335,7 @@ protected:
   bool mCheckedBaseProto;
   bool mKeyHandlersRegistered;
   bool mChromeOnlyContent;
+  bool mBindToUntrustedContent;
  
   nsXBLPrototypeResources* mResources; // If we have any resources, this will be non-null.
                                       
