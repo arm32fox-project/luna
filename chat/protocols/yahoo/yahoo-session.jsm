@@ -7,7 +7,7 @@ const EXPORTED_SYMBOLS = ["YahooSession"];
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 Cu.import("resource://gre/modules/FileUtils.jsm");
-Cu.import("resource://gre/modules/Http.jsm");
+Cu.import("resource://gre/modules/http.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource:///modules/ArrayBufferUtils.jsm");
 Cu.import("resource:///modules/imServices.jsm");
