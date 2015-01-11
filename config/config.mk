@@ -314,10 +314,6 @@ ifeq ($(OS_ARCH),BSD_OS)
 TAR_CREATE_FLAGS = -cvLf
 endif
 
-ifeq ($(OS_ARCH),OS2)
-TAR_CREATE_FLAGS = -cvf
-endif
-
 #
 # Personal makefile customizations go in these optional make include files.
 #
@@ -467,11 +463,7 @@ ifeq (xpconnect, $(findstring xpconnect, $(BUILD_MODULES)))
 DEFINES +=  -DXPCONNECT_STANDALONE
 endif
 
-ifeq ($(OS_ARCH),OS2)
-ELF_DYNSTR_GC	= echo
-else
 ELF_DYNSTR_GC	= :
-endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),qt)
 OS_LIBS += $(MOZ_QT_LIBS)
@@ -518,9 +510,6 @@ endif # OS_ARCH=Darwin
 # Set link flags according to whether we want a console.
 ifdef MOZ_WINCONSOLE
 ifeq ($(MOZ_WINCONSOLE),1)
-ifeq ($(OS_ARCH),OS2)
-BIN_FLAGS	+= -Zlinker -PM:VIO
-endif
 ifeq ($(OS_ARCH),WINNT)
 ifdef GNU_CC
 WIN32_EXE_LDFLAGS	+= -mconsole
@@ -529,9 +518,6 @@ WIN32_EXE_LDFLAGS	+= -SUBSYSTEM:CONSOLE
 endif
 endif
 else # MOZ_WINCONSOLE
-ifeq ($(OS_ARCH),OS2)
-BIN_FLAGS	+= -Zlinker -PM:PM
-endif
 ifeq ($(OS_ARCH),WINNT)
 ifdef GNU_CC
 WIN32_EXE_LDFLAGS	+= -mwindows
@@ -585,19 +571,15 @@ NSINSTALL_NATIVECMD := %nsinstall nsinstall
 ifdef NSINSTALL_BIN
 NSINSTALL = $(NSINSTALL_BIN)
 else
-ifeq (OS2,$(CROSS_COMPILE)$(OS_ARCH))
-NSINSTALL = $(MOZ_TOOLS_DIR)/nsinstall
-else
 ifeq ($(HOST_OS_ARCH),WINNT)
 NSINSTALL = $(NSINSTALL_PY)
 else
 NSINSTALL = $(CONFIG_TOOLS)/nsinstall$(HOST_BIN_SUFFIX)
 endif # WINNT
-endif # OS2
 endif # NSINSTALL_BIN
 
 
-ifeq (,$(CROSS_COMPILE)$(filter-out WINNT OS2, $(OS_ARCH)))
+ifeq (,$(CROSS_COMPILE)$(filter-out WINNT, $(OS_ARCH)))
 INSTALL = $(NSINSTALL) -t
 ifdef .PYMAKE
 install_cmd = $(NSINSTALL_NATIVECMD) -t $(1)
@@ -609,7 +591,7 @@ else
 # target-specific.
 INSTALL         = $(if $(filter copy, $(NSDISTMODE)), $(NSINSTALL) -t, $(if $(filter absolute_symlink, $(NSDISTMODE)), $(NSINSTALL) -L $(PWD), $(NSINSTALL) -R))
 
-endif # WINNT/OS2
+endif # WINNT
 
 # The default for install_cmd is simply INSTALL
 install_cmd ?= $(INSTALL) $(1)
@@ -676,13 +658,9 @@ MERGE_FILE = $(LOCALE_SRCDIR)/$(1)
 endif
 MERGE_FILES = $(foreach f,$(1),$(call MERGE_FILE,$(f)))
 
-ifeq (OS2,$(OS_ARCH))
-RUN_TEST_PROGRAM = $(MOZILLA_SRCDIR)/build/os2/test_os2.cmd "$(DIST)"
-else
 ifneq (WINNT,$(OS_ARCH))
 RUN_TEST_PROGRAM = $(DIST)/bin/run-mozilla.sh
 endif # ! WINNT
-endif # ! OS2
 
 CREATE_PRECOMPLETE_CMD = $(PYTHON) $(call core_abspath,$(MOZILLA_SRCDIR)/config/createprecomplete.py)
 
