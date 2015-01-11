@@ -60,8 +60,6 @@ if CONFIG['NS_PRINTING']:
 
 if CONFIG['OS_ARCH'] == 'WINNT':
     CPP_SOURCES += ['nsMessengerWinIntegration.cpp']
-elif CONFIG['OS_ARCH'] == 'OS2':
-    CPP_SOURCES += ['nsMessengerOS2Integration.cpp']
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gtk2':
     CPP_SOURCES += ['nsMessengerUnixIntegration.cpp']

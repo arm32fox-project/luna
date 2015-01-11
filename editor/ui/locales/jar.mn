@@ -34,23 +34,3 @@
   locale/@AB_CD@/editor/EdDialogOverlay.dtd                  (%chrome/dialogs/EdDialogOverlay.dtd)
   locale/@AB_CD@/editor/EdAdvancedEdit.dtd                   (%chrome/dialogs/EdAdvancedEdit.dtd)
   locale/@AB_CD@/editor/EdConvertToTable.dtd                 (%chrome/dialogs/EdConvertToTable.dtd)
-
-
-#ifdef MOZ_SUITE
-@AB_CD@.jar:
-% locale editor-region @AB_CD@ %locale/@AB_CD@/editor-region/
-  locale/@AB_CD@/editor/editor.dtd                           (%chrome/composer/editor.dtd)
-  locale/@AB_CD@/editor/editingOverlay.dtd                   (%chrome/composer/editingOverlay.dtd)
-  locale/@AB_CD@/editor/editorPrefsOverlay.dtd               (%chrome/composer/editorPrefsOverlay.dtd)
-  locale/@AB_CD@/editor/pref-toolbars.dtd                    (%chrome/composer/pref-toolbars.dtd)
-  locale/@AB_CD@/editor/pref-editing.dtd                     (%chrome/composer/pref-editing.dtd)
-  locale/@AB_CD@/editor/pref-composer.dtd                    (%chrome/composer/pref-composer.dtd)
-  locale/@AB_CD@/editor/EdLinkChecker.dtd                    (%chrome/dialogs/EdLinkChecker.dtd)
-  locale/@AB_CD@/editor/EditorPageProperties.dtd             (%chrome/dialogs/EditorPageProperties.dtd)
-  locale/@AB_CD@/editor/EditorSnapToGrid.dtd                 (%chrome/dialogs/EditorSnapToGrid.dtd)
-  locale/@AB_CD@/editor/EditConflict.dtd                     (%chrome/dialogs/EditConflict.dtd)
-  locale/@AB_CD@/editor/EditorSaveAsCharset.dtd              (%chrome/dialogs/EditorSaveAsCharset.dtd)
-  locale/@AB_CD@/editor/EditorPublish.dtd                    (%chrome/dialogs/EditorPublish.dtd)
-  locale/@AB_CD@/editor/EditorPublishProgress.dtd            (%chrome/dialogs/EditorPublishProgress.dtd)
-  locale/@AB_CD@/editor-region/region.properties             (%chrome/region/region.properties)
-#endif
