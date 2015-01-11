@@ -136,11 +136,6 @@ public:
     static bool      IsStorageEnabledForPolicy_Locked(nsCacheStoragePolicy policy);
 
     /**
-     * Called by disk cache to notify us to use the new max smart size
-     */
-    static void      MarkStartingFresh();
-
-    /**
      * Methods called by nsApplicationCacheService
      */
 
@@ -229,7 +224,6 @@ private:
     friend class nsBlockOnCacheThreadEvent;
     friend class nsSetDiskSmartSizeCallback;
     friend class nsDoomEvent;
-    friend class nsDisableOldMaxSmartSizePrefEvent;
     friend class nsDiskCacheMap;
     friend class nsAsyncDoomEvent;
     friend class nsCacheEntryDescriptor;

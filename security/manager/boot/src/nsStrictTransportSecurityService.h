@@ -157,6 +157,7 @@ private:
 
   nsTHashtable<nsSTSHostEntry> mPrivateModeHostTable;
   bool mUsePreloadList;
+  bool mUseStsService;
 };
 
 #endif // __nsStrictTransportSecurityService_h__
