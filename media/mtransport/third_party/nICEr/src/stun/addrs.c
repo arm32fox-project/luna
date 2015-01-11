@@ -586,6 +586,12 @@ stun_get_siocgifconf_addrs(nr_transport_addr addrs[], int maxaddrs, int *count)
    ifc.ifc_buf = buf;
 
    e = ioctl(s,SIOCGIFCONF,&ifc);
+
+   if ( e == -1 )
+   {
+      return(R_INTERNAL);
+   }
+
    ptr = buf;
    tl = ifc.ifc_len;
    n=0;
