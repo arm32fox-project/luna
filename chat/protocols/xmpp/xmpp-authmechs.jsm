@@ -18,14 +18,15 @@ Cu.import("resource:///modules/xmpp-xml.jsm");
 
 /* Handle PLAIN authorization mechanism */
 function PlainAuth(username, password, domain) {
-  this._username = username;
-  this._password = password;
+  let data = "\0"+ username + "\0" + password;
+  // btoa for Unicode, see https://developer.mozilla.org/en-US/docs/DOM/window.btoa
+  this._base64Data = btoa(unescape(encodeURIComponent(data)));
 }
 PlainAuth.prototype = {
   next: function(aStanza) ({
     done: true,
     send: Stanza.node("auth", Stanza.NS.sasl, {mechanism: "PLAIN"},
-                      btoa("\0"+ this._username + "\0" + this._password))
+                      this._base64Data)
   })
 };
 
@@ -84,12 +85,15 @@ DigestMD5Auth.prototype = {
     let decoded = atob(aStanza.innerText.replace(/[^A-Za-z0-9\+\/\=]/g, ""));
     let data = {realm: ""};
 
-    for each (let elem in decoded.split(",")) {
-      let e = elem.split("=");
-      if (e.length != 2)
+    for each (let elem in decoded.split(/, */)) {
+      // Find the first = and use that to split the nonce from the value.
+      let index = elem.indexOf("=");
+      if (index == -1)
         throw "Error decoding: " + elem;
 
-      data[e[0]] = e[1].replace(/"|'/g, "");
+      // Remove leading and trailing single or double quote, and then remove \ escaping.
+      data[elem.slice(0, index)] =
+        elem.slice(index + 1).replace(/^["']|["']$/g, "").replace(/\\(.)/g, "$1");
     }
 
     data.username = this._username;

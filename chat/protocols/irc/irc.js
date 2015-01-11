@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
+const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
 
 Cu.import("resource:///modules/imXPCOMUtils.jsm");
 Cu.import("resource:///modules/imServices.jsm");
@@ -10,6 +10,12 @@ Cu.import("resource:///modules/ircUtils.jsm");
 Cu.import("resource:///modules/ircHandlers.jsm");
 Cu.import("resource:///modules/jsProtoHelper.jsm");
 Cu.import("resource:///modules/socket.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
+  "resource://gre/modules/PluralForm.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadUtils",
+  "resource://gre/modules/DownloadUtils.jsm");
 
 /*
  * Parses a raw IRC message into an object (see section 2.3 of RFC 2812). This
@@ -114,16 +120,24 @@ const GenericIRCConversation = {
   _pendingMessage: false,
   _waitingForNick: false,
 
+  normalizeNick: function(aNick) this._account.normalizeNick(aNick),
+
+  // This will calculate the maximum number of bytes that are left for a message
+  // typed by the user by calculate the amount of bytes that would be used by
+  // the IRC messaging.
+  getMaxMessageLength: function() {
+    // Build the shortest possible message that could be sent to other users.
+    let baseMessage = ":" + this._account._nickname + this._account.prefix +
+                      " " + this._account.buildMessage("PRIVMSG", this.name) +
+                      " :\r\n";
+    return this._account.maxMessageLength -
+           this._account.countBytes(baseMessage);
+  },
   sendMsg: function(aMessage) {
     // Split the message by line breaks and send each one individually.
     let messages = aMessage.split(/[\r\n]+/);
 
-    // Build the shortest possible message that could be sent.
-    let baseMessage = this._account._nickname + this._account.prefix +
-                      " " + this._account.buildMessage("PRIVMSG", this.name) +
-                      " :\r\n";
-    let maxLength =
-      this._account.maxMessageLength - this._account.countBytes(baseMessage);
+    let maxLength = this.getMaxMessageLength();
 
     // Attempt to smartly split a string into multiple lines (based on the
     // maximum number of characters the message can contain).
@@ -145,24 +159,37 @@ const GenericIRCConversation = {
     }
 
     // Send each message and display it in the conversation.
-    messages.forEach(function (aMessage) {
-      if (!aMessage.length)
+    for (let message of messages) {
+      if (!message.length)
         return;
 
-      this._account.sendMessage("PRIVMSG", [this.name, aMessage]);
+      if (!this._account.sendMessage("PRIVMSG", [this.name, message])) {
+        this.writeMessage(this._account._currentServerName,
+                          _("error.sendMessageFailed"),
+                          {error: true, system: true});
+        break;
+      }
 
       // Since the server doesn't send us a message back, just assume the
       // message was received and immediately show it.
-      this.writeMessage(this._account._nickname, aMessage, {outgoing: true});
+      this.writeMessage(this._account._nickname, message, {outgoing: true});
 
       this._pendingMessage = true;
-    }, this);
+    }
+  },
+  // IRC doesn't support typing notifications, but it does have a maximum
+  // message length.
+  sendTyping: function(aString) {
+    let longestLineLength =
+      Math.max.apply(null, aString.split("\n").map(this._account.countBytes,
+                                                   this._account));
+    return this.getMaxMessageLength() - longestLineLength;
   },
 
   requestBuddyInfo: function(aNick) {
     if (!this._observedNicks.length)
       Services.obs.addObserver(this, "user-info-received", false);
-    this._observedNicks.push(this._account.normalize(aNick));
+    this._observedNicks.push(this.normalizeNick(aNick));
     this._account.requestBuddyInfo(aNick);
   },
 
@@ -170,25 +197,60 @@ const GenericIRCConversation = {
     if (aTopic != "user-info-received")
       return;
 
-    let nick = this._account.normalize(aData);
+    let nick = this.normalizeNick(aData);
     let nickIndex = this._observedNicks.indexOf(nick);
     if (nickIndex == -1)
       return;
+
+    // Remove the nick from the list of nicks that are being waited to received.
     this._observedNicks.splice(nickIndex, 1);
+
+    // If this is the last nick, remove the observer.
     if (!this._observedNicks.length)
       Services.obs.removeObserver(this, "user-info-received");
 
     // If we are waiting for the conversation name, set it.
+    let account = this._account;
     if (this._waitingForNick && nick == this.normalizedName) {
-      if (hasOwnProperty(this._account.whoisInformation, nick))
-        this.updateNick(this._account.whoisInformation[nick]["nick"]);
+      if (hasOwnProperty(account.whoisInformation, nick))
+        this.updateNick(account.whoisInformation[nick]["nick"]);
       delete this._waitingForNick;
       return;
     }
 
     // Otherwise, print the requested whois information.
-    this._account.writeWhois(this, aData,
-                             aSubject.QueryInterface(Ci.nsISimpleEnumerator));
+    let type = {system: true, noLog: true};
+    // RFC 2812 errors 401 and 406 result in there being no entry for the nick.
+    if (!hasOwnProperty(account.whoisInformation, nick)) {
+      this.writeMessage(null, _("message.unknownNick", nick), type);
+      return;
+    }
+    // If the nick is offline, tell the user. In that case, it's WHOWAS info.
+    let msgType = "message.whois";
+    if ("offline" in account.whoisInformation[nick])
+      msgType = "message.whowas";
+    let msg = _(msgType, account.whoisInformation[nick]["nick"]);
+
+    // Iterate over each field.
+    let tooltipInfo = aSubject.QueryInterface(Ci.nsISimpleEnumerator);
+    while (tooltipInfo.hasMoreElements()) {
+      let elt = tooltipInfo.getNext().QueryInterface(Ci.prplITooltipInfo);
+      switch (elt.type) {
+        case Ci.prplITooltipInfo.pair:
+        case Ci.prplITooltipInfo.sectionHeader:
+          msg += "\n" + _("message.whoisEntry", elt.label, elt.value);
+          break;
+        case Ci.prplITooltipInfo.sectionBreak:
+          break;
+        case Ci.prplITooltipInfo.status:
+          if (elt.label != Ci.imIStatusInfo.STATUS_AWAY)
+            break;
+          // The away message has no tooltipInfo.pair entry.
+          msg += "\n" + _("message.whoisEntry", _("tooltip.away"), elt.value);
+          break;
+      }
+    }
+    this.writeMessage(null, msg, type);
   },
 
   unInitIRCConversation: function() {
@@ -203,6 +265,7 @@ function ircChannel(aAccount, aName, aNick) {
   this._modes = [];
   this._observedNicks = [];
   this.banMasks = [];
+  this._firstJoin = true;
 }
 ircChannel.prototype = {
   __proto__: GenericConvChatPrototype,
@@ -211,6 +274,8 @@ ircChannel.prototype = {
   // For IRC you're not in a channel until the JOIN command is received, open
   // all channels (initially) as left.
   _left: true,
+  // True until successfully joined for the first time.
+  _firstJoin: false,
   banMasks: [],
 
   // Overwrite the writeMessage function to apply CTCP formatting before
@@ -254,14 +319,14 @@ ircChannel.prototype = {
     GenericConvChatPrototype.unInit.call(this);
   },
 
-  getNormalizedChatBuddyName: function(aNick)
-    this._account.normalize(aNick, this._account.userPrefixes),
+  // Use the normalized nick in order to properly notify the observers.
+  getNormalizedChatBuddyName: function(aNick) this.normalizeNick(aNick),
 
   hasParticipant: function(aNick)
-    hasOwnProperty(this._participants, this.getNormalizedChatBuddyName(aNick)),
+    hasOwnProperty(this._participants, this.normalizeNick(aNick)),
 
   getParticipant: function(aNick, aNotifyObservers) {
-    let normalizedNick = this.getNormalizedChatBuddyName(aNick);
+    let normalizedNick = this.normalizeNick(aNick);
     if (this.hasParticipant(aNick))
       return this._participants[normalizedNick];
 
@@ -269,7 +334,7 @@ ircChannel.prototype = {
     this._participants[normalizedNick] = participant;
 
     // Add the participant to the whois table if it is not already there.
-    this._account.setWhoisFromNick(participant._name);
+    this._account.setWhois(participant._name);
 
     if (aNotifyObservers) {
       this.notifyObservers(new nsSimpleEnumerator([participant]),
@@ -279,7 +344,7 @@ ircChannel.prototype = {
   },
   updateNick: function(aOldNick, aNewNick) {
     let isParticipant = this.hasParticipant(aOldNick);
-    if (this._account.normalize(aOldNick) == this._account.normalize(this.nick)) {
+    if (this.normalizeNick(aOldNick) == this.normalizeNick(this.nick)) {
       // If this is the user's nick, change it.
       this.nick = aNewNick;
       // If the account was disconnected, it's OK the user is not a participant.
@@ -298,7 +363,7 @@ ircChannel.prototype = {
 
     // Update the nickname and add it under the new nick.
     participant._name = aNewNick;
-    this._participants[this.getNormalizedChatBuddyName(aNewNick)] = participant;
+    this._participants[this.normalizeNick(aNewNick)] = participant;
 
     this.notifyObservers(participant, "chat-buddy-update", aOldNick);
   },
@@ -313,7 +378,7 @@ ircChannel.prototype = {
       this.notifyObservers(new nsSimpleEnumerator([stringNickname]),
                            "chat-buddy-remove");
     }
-    delete this._participants[this.getNormalizedChatBuddyName(aNick)];
+    delete this._participants[this.normalizeNick(aNick)];
   },
   // Use this before joining to avoid errors of trying to re-add an existing
   // participant
@@ -367,7 +432,7 @@ ircChannel.prototype = {
           aModeParams.length && this.hasParticipant(peekNextParam())) {
         // Store the new modes for this nick (so each participant's mode is only
         // updated once).
-        let nick = this._account.normalize(getNextParam());
+        let nick = this.normalizeNick(getNextParam());
         if (!hasOwnProperty(userModes, nick))
           userModes[nick] = [];
         userModes[nick].push(aNewMode[i]);
@@ -488,9 +553,7 @@ ircChannel.prototype = {
     let participant = this.getParticipant(this.nick);
     return this._modes.indexOf("t") == -1 || participant.op ||
            participant.halfOp;
-  },
-
-  get normalizedName() this._account.normalize(this.name)
+  }
 };
 copySharedBaseToPrototype(GenericIRCConversation, ircChannel.prototype);
 
@@ -534,7 +597,6 @@ ircParticipant.prototype = {
 };
 
 function ircConversation(aAccount, aName) {
-  this.buddy = aAccount.getBuddy(aName);
   let nick = aAccount.normalize(aName);
   if (hasOwnProperty(aAccount.whoisInformation, nick))
     aName = aAccount.whoisInformation[nick]["nick"];
@@ -549,6 +611,7 @@ function ircConversation(aAccount, aName) {
 }
 ircConversation.prototype = {
   __proto__: GenericConvIMPrototype,
+  get buddy() this._account.getBuddy(this.name),
 
   // Overwrite the writeMessage function to apply CTCP formatting before
   // display.
@@ -557,8 +620,6 @@ ircConversation.prototype = {
                                              ctcpFormatToHTML(aText),
                                              aProperties);
   },
-
-  get normalizedName() this._account.normalize(this.name),
 
   unInit: function() {
     this.unInitIRCConversation();
@@ -586,8 +647,10 @@ ircSocket.prototype = {
   _converter: null,
 
   sendPing: function() {
-    // Send a ping using the current timestamp as a payload.
-    this._account.sendMessage("PING", Date.now());
+    // Send a ping using the current timestamp as a payload prefixed with
+    // an underscore to signify this was an "automatic" PING (used to avoid
+    // socket timeouts).
+    this._account.sendMessage("PING", "_" + Date.now());
   },
 
   _initCharsetConverter: function() {
@@ -604,13 +667,13 @@ ircSocket.prototype = {
 
   // Implement Section 5 of RFC 2812.
   onDataReceived: function(aRawMessage) {
-    this.DEBUG(aRawMessage);
+    let conversionWarning = "";
     if (this._converter) {
       try {
         aRawMessage = this._converter.ConvertToUnicode(aRawMessage);
       } catch (e) {
-        this.WARN("This message doesn't seem to be " + this._account._encoding +
-                  " encoded: " + aRawMessage);
+        conversionWarning = "\nThis message doesn't seem to be " +
+                            this._account._encoding + " encoded.";
         // Unfortunately, if the unicode converter failed once,
         // it will keep failing so we need to reinitialize it.
         this._initCharsetConverter();
@@ -618,42 +681,62 @@ ircSocket.prototype = {
     }
 
     // We've received data and are past the authentication stage.
-    if (this.connected)
+    if (this._account.connected)
       this.resetPingTimer();
 
     // Low level dequote: replace quote character \020 followed by 0, n, r or
     // \020 with a \0, \n, \r or \020, respectively. Any other character is
     // replaced with itself.
     const lowDequote = {"0": "\0", "n": "\n", "r": "\r", "\x10": "\x10"};
-    aRawMessage = aRawMessage.replace(/\x10./g,
+    let dequotedMessage = aRawMessage.replace(/\x10./g,
       function(aStr) lowDequote[aStr[1]] || aStr[1]);
 
     try {
-      // If nothing handled the message, throw a warning.
-      if (!ircHandlers.handleMessage(this._account, new ircMessage(aRawMessage)))
-        this.WARN("Unhandled IRC message: " + aRawMessage);
+      let message = new ircMessage(dequotedMessage);
+      this.DEBUG(JSON.stringify(message) + conversionWarning);
+      if (!ircHandlers.handleMessage(this._account, message)) {
+        // If the message was not handled, throw a warning containing
+        // the original quoted message.
+        this.WARN("Unhandled IRC message:\n" + aRawMessage);
+      }
     } catch (e) {
       // Catch the error, display it and hope the connection can continue with
       // this message in error. Errors are also caught inside of handleMessage,
       // but we expect to handle message parsing errors here.
+      this.DEBUG(aRawMessage + conversionWarning);
       this.ERROR(e);
     }
   },
   onConnection: function() {
     this._account._connectionRegistration.call(this._account);
   },
+  disconnect: function() {
+    if (!this._account)
+      return;
+    Socket.disconnect.call(this);
+    delete this._account;
+  },
 
   // Throw errors if the socket has issues.
-  onConnectionClosed: function () {
-    if (!this._account.imAccount || this._account.disconnecting ||
-        this._account.disconnected)
+  onConnectionClosed: function() {
+    // If the account was already disconnected, e.g. in response to
+    // onConnectionReset, do nothing.
+    if (!this._account)
       return;
-
-    this.ERROR("Connection closed by server.");
-    this._account.gotDisconnected(Ci.prplIAccount.ERROR_NETWORK_ERROR,
-                                  _("connection.error.lost"));
+    const msg = "Connection closed by server.";
+    if (this._account.disconnecting) {
+      // The server closed the connection before we handled the ERROR
+      // response to QUIT.
+      this.LOG(msg);
+      this._account.gotDisconnected();
+    }
+    else {
+      this.ERROR(msg);
+      this._account.gotDisconnected(Ci.prplIAccount.ERROR_NETWORK_ERROR,
+                                    _("connection.error.lost"));
+    }
   },
-  onConnectionReset: function () {
+  onConnectionReset: function() {
     this.ERROR("Connection reset.");
     this._account.gotDisconnected(Ci.prplIAccount.ERROR_NETWORK_ERROR,
                                   _("connection.error.lost"));
@@ -663,10 +746,11 @@ ircSocket.prototype = {
     this._account.gotDisconnected(Ci.prplIAccount.ERROR_NETWORK_ERROR,
                                   _("connection.error.timeOut"));
   },
-  onBadCertificate: function(aNSSErrorMessage) {
-    this.ERROR("bad certificate: " + aNSSErrorMessage);
-    this._account.gotDisconnected(Ci.prplIAccount.ERROR_CERT_OTHER_ERROR,
-                                  aNSSErrorMessage);
+  onBadCertificate: function(aIsSslError, aNSSErrorMessage) {
+    this.ERROR("Bad certificate or SSL connection for " + this._account.name +
+               ":\n" + aNSSErrorMessage);
+    let error = this._account.handleBadCertificate(this, aIsSslError);
+    this._account.gotDisconnected(error, aNSSErrorMessage);
   },
 
   get DEBUG() this._account.DEBUG,
@@ -685,15 +769,18 @@ ircAccountBuddy.prototype = {
   // hovers over the buddy.
   getTooltipInfo: function() this._account.getBuddyInfo(this.normalizedName),
 
-  get normalizedName() this._account.normalize(this.userName),
-
   // Allow sending of messages to buddies even if they are not online since IRC
   // does not always provide status information in a timely fashion. (Note that
   // this is OK since the server will throw an error if the user is not online.)
   get canSendMessage() this.account.connected,
 
   // Called when the user wants to chat with the buddy.
-  createConversation: function() this._account.createConversation(this.userName)
+  createConversation: function() this._account.createConversation(this.userName),
+
+  remove: function() {
+    this._account.removeBuddy(this);
+    GenericAccountBuddyPrototype.remove.call(this);
+  }
 };
 
 function ircAccount(aProtocol, aImAccount) {
@@ -715,6 +802,8 @@ function ircAccount(aProtocol, aImAccount) {
   this.whoisInformation = {};
   this._chatRoomFieldsList = {};
   this._caps = [];
+
+  this._roomInfoCallbacks = new Set();
 }
 ircAccount.prototype = {
   __proto__: GenericAccountPrototype,
@@ -737,8 +826,6 @@ ircAccount.prototype = {
   // necessary for guessing message lengths.
   prefix: null,
 
-  get normalizedName() this.normalize(this.name),
-
   // Parts of the specification give max lengths, keep track of them since a
   // server can overwrite them. The defaults given here are from RFC 2812.
   maxNicknameLength: 9, // 1.2.1 Users
@@ -746,10 +833,9 @@ ircAccount.prototype = {
   maxMessageLength: 512, // 2.3 Messages
   maxHostnameLength: 63, // 2.3.1 Message format in Augmented BNF
 
-  // The default prefixes.
-  userPrefixes: ["@", "!", "%", "+"],
   // The default prefixes to modes.
   userPrefixToModeMap: {"@": "o", "!": "n", "%": "h", "+": "v"},
+  get userPrefixes() Object.keys(this.userPrefixToModeMap),
   // Modes that have a nickname parameter and affect a participant. See 4.1
   // Member Status of RFC 2811.
   memberStatuses: ["a", "h", "o", "O", "q", "v", "!"],
@@ -771,6 +857,7 @@ ircAccount.prototype = {
     return str.replace(this.normalizeExpression,
                        function(c) String.fromCharCode(c.charCodeAt(0) + 0x20));
   },
+  normalizeNick: function(aNick) this.normalize(aNick, this.userPrefixes),
 
   isMUCName: function(aStr) {
     return (this.channelPrefixes.indexOf(aStr[0]) != -1);
@@ -816,7 +903,7 @@ ircAccount.prototype = {
   _modes: [],
   _userModeReceived: false,
   setUserMode: function(aNick, aNewModes, aSetter, aDisplayFullMode) {
-    if (this.normalize(aNick) != this.normalize(this._nickname)) {
+    if (this.normalizeNick(aNick) != this.normalizeNick(this._nickname)) {
       WARN("Received unexpected mode for " + aNick);
       return false;
     }
@@ -849,6 +936,55 @@ ircAccount.prototype = {
     return true;
   },
 
+  // Channels are stored as prplIRoomInfo.
+  _channelList: [],
+  _roomInfoCallbacks: new Set(),
+  // If true, we have sent the LIST request and are waiting for replies.
+  _pendingList: false,
+  // Callbacks receive at most this many channels per call.
+  _channelsPerBatch: 25,
+  _lastListTime: 0,
+  get isRoomInfoStale() Date.now() - this._lastListTime > kListRefreshInterval,
+  // Called by consumers that want a list of available channels, which are
+  // provided through the callback (prplIRoomInfoCallback instance).
+  requestRoomInfo: function(aCallback, aIsUserRequest) {
+    // Ignore the automaticList pref if the user explicitly requests /list.
+    if (!aIsUserRequest &&
+        !Services.prefs.getBoolPref("chat.irc.automaticList"))
+      throw Cr.NS_ERROR_NOT_IMPLEMENTED; // Pretend we can't return roomInfo.
+    if (this._roomInfoCallbacks.has(aCallback)) // Callback is not new.
+      return;
+    // Send a LIST request if the channel list is stale and a current request
+    // has not been sent.
+    if (this.isRoomInfoStale && !this._pendingList) {
+      this._channelList = [];
+      this._pendingList = true;
+      this._lastListTime = Date.now();
+      this.sendMessage("LIST");
+    }
+    // Otherwise, pass channels that have already been received to the callback.
+    else {
+      aCallback.onRoomInfoAvailable(this._channelList, this, !this._pendingList,
+                                    this._channelList.length);
+    }
+
+    if (this._pendingList)
+      this._roomInfoCallbacks.add(aCallback);
+  },
+  // Pass room info for any remaining channels to callbacks and clean up.
+  _sendRemainingRoomInfo: function() {
+    let remainingChannelCount = this._channelList.length % this._channelsPerBatch;
+    if (remainingChannelCount) {
+      let remainingChannels = this._channelList.slice(-remainingChannelCount);
+      for (let callback of this._roomInfoCallbacks) {
+        callback.onRoomInfoAvailable(remainingChannels, this, true,
+                                     remainingChannelCount);
+      }
+    }
+    this._roomInfoCallbacks.clear();
+    delete this._pendingList;
+  },
+
   // The whois information: nicks are used as keys and refer to a map of field
   // to value.
   whoisInformation: {},
@@ -861,6 +997,10 @@ ircAccount.prototype = {
     this.removeBuddyInfo(aBuddyName);
     this.sendMessage("WHOIS", aBuddyName);
   },
+  notifyWhois: function(aNick) {
+    Services.obs.notifyObservers(this.getBuddyInfo(aNick), "user-info-received",
+                                 this.normalizeNick(aNick));
+  },
   // Request WHOWAS information on a buddy when the user requests more
   // information.
   requestOfflineBuddyInfo: function(aBuddyName) {
@@ -869,7 +1009,7 @@ ircAccount.prototype = {
   },
   // Return an nsISimpleEnumerator of imITooltipInfo for a given nick.
   getBuddyInfo: function(aNick) {
-    let nick = this.normalize(aNick);
+    let nick = this.normalizeNick(aNick);
     if (!hasOwnProperty(this.whoisInformation, nick))
       return EmptyEnumerator;
 
@@ -880,11 +1020,33 @@ ircAccount.prototype = {
           whoisInformation.serverInfo);
     }
 
+    // Sort the list of channels, ignoring the prefixes of channel and user.
+    let prefixes = this.userPrefixes.concat(this.channelPrefixes);
+    let sortWithoutPrefix = function(a, b) {
+      a = this.normalize(a, prefixes);
+      b = this.normalize(b, prefixes);
+      return a < b ? -1 : a > b ? 1 : 0;
+    }.bind(this);
+    let sortChannels = function(channels)
+      channels.trim().split(/\s+/).sort(sortWithoutPrefix).join(" ");
+
+    // Convert booleans into a human-readable form.
+    let normalizeBool = function(aBool) _(aBool ? "yes" : "no");
+
+    // Convert timespan in seconds into a human-readable form.
+    let normalizeTime = function(aTime) {
+      let valuesAndUnits = DownloadUtils.convertTimeUnits(aTime);
+      // If the time is exact to the first set of units, trim off
+      // the subsequent zeroes.
+      if (!valuesAndUnits[2])
+        valuesAndUnits.splice(2, 2);
+      return _("tooltip.timespan", valuesAndUnits.join(" "));
+    };
+
     // List of the names of the info to actually show in the tooltip and
     // optionally a transform function to apply to the value. Each field here
     // maps to tooltip.<fieldname> in irc.properties.
     // See the various RPL_WHOIS* results for the options.
-    let normalizeBool = function(aBool) _(aBool ? "yes" : "no");
     const kFields = {
       realname: null,
       server: null,
@@ -892,11 +1054,10 @@ ircAccount.prototype = {
       registered: normalizeBool,
       registeredAs: null,
       secure: normalizeBool,
-      away: null,
       ircOp: normalizeBool,
       bot: normalizeBool,
-      idleTime: null,
-      channels: null
+      lastActivity: normalizeTime,
+      channels: sortChannels
     };
 
     let tooltipInfo = [];
@@ -909,28 +1070,35 @@ ircAccount.prototype = {
       }
     }
 
+    const kSetIdleStatusAfterSeconds = 3600;
+    let statusType = Ci.imIStatusInfo.STATUS_AVAILABLE;
+    let statusText = "";
+    if ("away" in whoisInformation) {
+      statusType = Ci.imIStatusInfo.STATUS_AWAY;
+      statusText = whoisInformation["away"];
+    }
+    else if ("offline" in whoisInformation)
+      statusType = Ci.imIStatusInfo.STATUS_OFFLINE;
+    else if ("lastActivity" in whoisInformation &&
+             whoisInformation["lastActivity"] > kSetIdleStatusAfterSeconds)
+      statusType = Ci.imIStatusInfo.STATUS_IDLE;
+    tooltipInfo.push(new TooltipInfo(statusType, statusText, true));
+
     return new nsSimpleEnumerator(tooltipInfo);
   },
   // Remove a WHOIS entry.
   removeBuddyInfo: function(aNick) {
-    let nick = this.normalize(aNick);
+    let nick = this.normalizeNick(aNick);
     if (hasOwnProperty(this.whoisInformation, nick))
       delete this.whoisInformation[nick];
-  },
-  // Set minimal WHOIS entry containing only the capitalized nick,
-  // if no WHOIS info exists already.
-  setWhoisFromNick: function(aNick) {
-    let nick = this.normalize(aNick);
-    if (!hasOwnProperty(this.whoisInformation, nick))
-      this.whoisInformation[nick] = {"nick": aNick};
   },
   // Copies the fields of aFields into the whois table. If the field already
   // exists, that field is ignored (it is assumed that the first server response
   // is the most up to date information, as is the case for 312/314). Note that
   // the whois info for a nick is reset whenever whois information is requested,
   // so the first response from each whois is recorded.
-  setWhois: function(aNick, aFields) {
-    let nick = this.normalize(aNick, this.userPrefixes);
+  setWhois: function(aNick, aFields = {}) {
+    let nick = this.normalizeNick(aNick);
     // If the nickname isn't in the list yet, add it.
     if (!hasOwnProperty(this.whoisInformation, nick))
       this.whoisInformation[nick] = {};
@@ -946,37 +1114,18 @@ ircAccount.prototype = {
 
     return true;
   },
-  // Write WHOIS information to a conversation.
-  writeWhois: function(aConv, aNick, aTooltipInfo) {
-    let nick = this.normalize(aNick);
-    let type = {system: true, noLog: true};
-    // RFC 2812 errors 401 and 406 result in there being no entry for the nick.
-    if (!hasOwnProperty(this.whoisInformation, nick)) {
-      aConv.writeMessage(null, _("message.unknownNick", nick), type);
-      return;
-    }
-    // If the nick is offline, tell the user. In that case, it's WHOWAS info.
-    let msgType = "message.whois";
-    if ("offline" in this.whoisInformation[nick])
-      msgType = "message.whowas";
-    let msg = _(msgType, this.whoisInformation[nick]["nick"]);
-    while (aTooltipInfo.hasMoreElements()) {
-      let elt = aTooltipInfo.getNext().QueryInterface(Ci.prplITooltipInfo);
-      switch (elt.type) {
-        case Ci.prplITooltipInfo.pair:
-        case Ci.prplITooltipInfo.sectionHeader:
-          msg += "\n" + _("message.whoisEntry", elt.label, elt.value);
-          break;
-        case Ci.prplITooltipInfo.sectionBreak:
-          break;
-      }
-    }
-    aConv.writeMessage(null, msg, type);
-  },
 
   trackBuddy: function(aNick) {
     // Put the username as the first to be checked on the next ISON call.
     this.trackQueue.unshift(aNick);
+  },
+  untrackBuddy: function(aNick) {
+    let index = this.trackQueue.indexOf(aNick);
+    if (index < 0) {
+      this.ERROR("Trying to untrack a nick that was not being tracked: "+ aNick);
+      return;
+    }
+    this.trackQueue.splice(index, 1);
   },
   addBuddy: function(aTag, aName) {
     let buddy = new ircAccountBuddy(this, null, aTag, aName);
@@ -984,6 +1133,10 @@ ircAccount.prototype = {
     this.trackBuddy(buddy.userName);
 
     Services.contacts.accountBuddyAdded(buddy);
+  },
+  removeBuddy: function(aBuddy) {
+    delete this._buddies[aBuddy.normalizedName];
+    this.untrackBuddy(aBuddy.userName);
   },
   // Loads a buddy from the local storage. Called for each buddy locally stored
   // before connecting to the server.
@@ -995,7 +1148,7 @@ ircAccount.prototype = {
     return buddy;
   },
   hasBuddy: function(aName)
-    hasOwnProperty(this._buddies, this.normalize(aName, this.userPrefixes)),
+    hasOwnProperty(this._buddies, this.normalizeNick(aName)),
   // Return an array of buddy names.
   getBuddyNames: function() {
     let buddies = [];
@@ -1005,12 +1158,12 @@ ircAccount.prototype = {
   },
   getBuddy: function(aName) {
     if (this.hasBuddy(aName))
-      return this._buddies[this.normalize(aName, this.userPrefixes)];
+      return this._buddies[this.normalizeNick(aName)];
     return null;
   },
   changeBuddyNick: function(aOldNick, aNewNick) {
     let msg;
-    if (this.normalize(aOldNick) == this.normalize(this._nickname)) {
+    if (this.normalizeNick(aOldNick) == this.normalizeNick(this._nickname)) {
       // Your nickname changed!
       this._nickname = aNewNick;
       msg = _("message.nick.you", aNewNick);
@@ -1034,7 +1187,7 @@ ircAccount.prototype = {
 
     // Adjust the whois table where necessary.
     this.removeBuddyInfo(aOldNick);
-    this.setWhoisFromNick(aNewNick);
+    this.setWhois(aNewNick);
 
     // If a private conversation is open with that user, change its title.
     if (this.hasConversation(aOldNick)) {
@@ -1043,11 +1196,109 @@ ircAccount.prototype = {
 
       // Remove the old reference to the conversation and create a new one.
       this.removeConversation(aOldNick);
-      this._conversations[this.normalize(aNewNick)] = conversation;
+      this._conversations[this.normalizeNick(aNewNick)] = conversation;
 
       conversation.updateNick(aNewNick);
       conversation.writeMessage(aOldNick, msg, {system: true});
     }
+  },
+
+  /*
+   * Generate a new nick to change to if the user requested nick is already in
+   * use or is otherwise invalid.
+   *
+   * First try all the alternate nicks that were chosen by the user, and if none
+   * of them work, then generate a new nick by:
+   *  1. If there was not a digit at the end of the nick, append a 1.
+   *  2. If there was a digit, then increment the number.
+   *  3. Add leading 0s back on.
+   *  4. Ensure the nick is an appropriate length.
+   */
+  tryNewNick: function(aOldNick) {
+    // Split the string on commas, remove whitespace around the nicks and
+    // remove empty nicks.
+    let allNicks = this.getString("alternateNicks").split(",")
+                       .map(n => n.trim()).filter(n => !!n);
+    allNicks.unshift(this._accountNickname);
+
+    // If the previously tried nick is in the array and not the last
+    // element, try the next nick in the array.
+    let oldIndex = allNicks.indexOf(aOldNick);
+    if (oldIndex != -1 && oldIndex < allNicks.length - 1) {
+      let newNick = allNicks[oldIndex + 1];
+      this.LOG(aOldNick + " is already in use, trying " + newNick);
+      this.sendMessage("NICK", newNick); // Nick message.
+      return true;
+    }
+
+    // Separate the nick into the text and digits part.
+    let nickParts = /^(.+?)(\d*)$/.exec(aOldNick);
+    let newNick = nickParts[1];
+
+    // No nick found from the user's preferences, so just generating one.
+    // If there is not a digit at the end of the nick, just append 1.
+    let newDigits = "1";
+    // If there is a digit at the end of the nick, increment it.
+    if (nickParts[2]) {
+      newDigits = (parseInt(nickParts[2], 10) + 1).toString();
+      // If there are leading 0s, add them back on, after we've incremented (e.g.
+      // 009 --> 010).
+      let numLeadingZeros = nickParts[2].length - newDigits.length;
+      if (numLeadingZeros > 0)
+        newDigits = "0".repeat(numLeadingZeros) + newDigits;
+    }
+
+    // If the nick will be too long, ensure all the digits fit.
+    if (newNick.length + newDigits.length > this.maxNicknameLength) {
+      // Handle the silly case of a single letter followed by all nines.
+      if (newDigits.length == this.maxNicknameLength)
+        newDigits = newDigits.slice(1);
+      newNick = newNick.slice(0, this.maxNicknameLength - newDigits.length);
+    }
+    // Append the digits.
+    newNick += newDigits;
+
+    if (this.normalize(newNick) == this.normalize(this._nickname)) {
+      // The nick we were about to try next is our current nick. This means
+      // the user attempted to change to a version of the nick with a lower or
+      // absent number suffix, and this failed.
+      let msg = _("message.nick.fail", this._nickname);
+      for each (let conversation in this._conversations)
+        conversation.writeMessage(this._nickname, msg, {system: true});
+      return true;
+    }
+
+    this.LOG(aOldNick + " is already in use, trying " + newNick);
+    this.sendMessage("NICK", newNick); // Nick message.
+    return true;
+  },
+
+  handlePingReply: function(aSource, aPongTime) {
+    // Received PING response, display to the user.
+    let sentTime = new Date(parseInt(aPongTime, 10));
+
+    // The received timestamp is invalid.
+    if (isNaN(sentTime)) {
+      this.WARN(aMessage.servername +
+                " returned an invalid timestamp from a PING: " + aPongTime);
+      return false;
+    }
+
+    // Find the delay in milliseconds.
+    let delay = Date.now() - sentTime;
+
+    // If the delay is negative or greater than 1 minute, something is
+    // feeding us a crazy value. Don't display this to the user.
+    if (delay < 0 || 60 * 1000 < delay) {
+      this.WARN(aMessage.servername +
+                " returned an invalid delay from a PING: " + delay);
+      return false;
+    }
+
+    let msg = PluralForm.get(delay, _("message.ping", aSource))
+                        .replace("#2", delay);
+    this.getConversation(aSource).writeMessage(aSource, msg, {system: true});
+    return true;
   },
 
   countBytes: function(aStr) {
@@ -1102,7 +1353,7 @@ ircAccount.prototype = {
       // Attempt to maximize the characters used in each message, this may mean
       // that a specific user gets sent very often since they have a short name!
       let buddiesLength = this.countBytes(this.pendingIsOnQueue[0]);
-      for (let i = 0; i < this.trackQueue.length; i++) {
+      for (let i = 0; i < this.trackQueue.length; ++i) {
         // If we can fit the nick, add it to the current buffer.
         if ((buddiesLength + this.countBytes(this.trackQueue[i])) < this._isOnLength) {
           // Remove the name from the list and add it to the pending queue.
@@ -1174,21 +1425,20 @@ ircAccount.prototype = {
     this.sendMessage("QUIT",
                      aMessage || this.getString("quitmsg") || undefined);
   },
-  // When the user clicks "Disconnect" in account manager
-  disconnect: function() {
+  // When the user clicks "Disconnect" in account manager, or uses /quit.
+  // aMessage is an optional parameter containing the quit message.
+  disconnect: function(aMessage) {
     if (this.disconnected || this.disconnecting)
-       return;
-
-    this._reportDisconnecting(Ci.prplIAccount.NO_ERROR);
+      return;
 
     // If there's no socket, disconnect immediately to avoid waiting 2 seconds.
-    if (!this._socket || !this._socket.isConnected) {
+    if (!this._socket || this._socket.disconnected) {
       this.gotDisconnected();
       return;
     }
 
     // Let the server know we're going to disconnect.
-    this.quit();
+    this.quit(aMessage);
 
     // Reset original nickname for the next reconnect.
     this._requestedNickname = this._accountNickname;
@@ -1212,6 +1462,19 @@ ircAccount.prototype = {
       this.ERROR("joinChat called without a channel name.");
       return;
     }
+    // A channel prefix is required. If the user didn't include one,
+    // we prepend # automatically to match the behavior of other
+    // clients. Not doing it used to cause user confusion.
+    if (this.channelPrefixes.indexOf(channel[0]) == -1)
+      channel = "#" + channel;
+
+    // No need to join a channel we are already in.
+    if (this.hasConversation(channel)) {
+      let conv = this.getConversation(channel);
+      if (!conv.left)
+        return conv;
+    }
+
     let params = [channel];
     let key = aComponents.getValue("password");
     if (key)
@@ -1222,11 +1485,13 @@ ircAccount.prototype = {
     // Send the join command, but don't log the channel key.
     this.sendMessage("JOIN", params,
                      "JOIN " + channel + (key ? " <key not logged>" : ""));
+    // Open conversation early for better responsiveness.
+    return this.getConversation(channel);
   },
 
   chatRoomFields: {
-    "channel": {"label": _("joinChat.channel"), "required": true},
-    "password": {"label": _("joinChat.password"), "isPassword": true}
+    "channel": {get label() _("joinChat.channel"), required: true},
+    "password": {get label() _("joinChat.password"), isPassword: true}
   },
 
   parseDefaultChatName: function(aDefaultName) {
@@ -1246,6 +1511,10 @@ ircAccount.prototype = {
   // Returns a conversation (creates it if it doesn't exist)
   getConversation: function(aName) {
     let name = this.normalize(aName);
+    // If the whois information has been received, we have the proper nick
+    // capitalization.
+    if (hasOwnProperty(this.whoisInformation, name))
+      aName = this.whoisInformation[name].nick;
     if (!this.hasConversation(aName)) {
       let constructor = this.isMUCName(aName) ? ircChannel : ircConversation;
       this._conversations[name] = new constructor(this, aName, this._nickname);
@@ -1296,12 +1565,13 @@ ircAccount.prototype = {
 
   // Shortcut method to build & send a message at once. Use aLoggedData to log
   // something different than what is actually sent.
-  sendMessage: function(aCommand, aParams, aLoggedData) {
-    this.sendRawMessage(this.buildMessage(aCommand, aParams), aLoggedData);
-  },
+  // Returns false if the message could not be sent.
+  sendMessage: function(aCommand, aParams, aLoggedData)
+    this.sendRawMessage(this.buildMessage(aCommand, aParams), aLoggedData),
 
   // This sends a message over the socket and catches any errors. Use
   // aLoggedData to log something different than what is actually sent.
+  // Returns false if the message could not be sent.
   sendRawMessage: function(aMessage, aLoggedData) {
     // Low level quoting, replace \0, \n, \r or \020 with \0200, \020n, \020r or
     // \020\020, respectively.
@@ -1309,7 +1579,7 @@ ircAccount.prototype = {
     const lowRegex = new RegExp("[" + Object.keys(lowQuote).join("") + "]", "g");
     aMessage = aMessage.replace(lowRegex, function(aChar) "\x10" + lowQuote[aChar]);
 
-    if (!this._socket || !this._socket.isConnected) {
+    if (!this._socket || this._socket.disconnected) {
       this.gotDisconnected(Ci.prplIAccount.ERROR_NETWORK_ERROR,
                            _("connection.error.lost"));
     }
@@ -1325,20 +1595,24 @@ ircAccount.prototype = {
 
     try {
       this._socket.sendString(aMessage, this._encoding, aLoggedData);
+      return true;
     } catch (e) {
       try {
+        this._socket.sendData(aMessage, aLoggedData);
         this.WARN("Failed to convert " + aMessage + " from Unicode to " +
                   this._encoding + ".");
-        this._socket.sendData(aMessage, aLoggedData);
+        return true;
       } catch(e) {
         this.ERROR("Socket error:", e);
         this.gotDisconnected(Ci.prplIAccount.ERROR_NETWORK_ERROR,
                              _("connection.error.lost"));
+        return false;
       }
     }
   },
 
   // CTCP messages are \001<COMMAND> [<parameters>]*\001.
+  // Returns false if the message could not be sent.
   sendCTCPMessage: function(aCommand, aParams, aTarget, aIsNotice) {
     // Combine the CTCP command and parameters into the single IRC param.
     let ircParam = aCommand;
@@ -1350,15 +1624,15 @@ ircAccount.prototype = {
 
     // High/CTCP level quoting, replace \134 or \001 with \134\134 or \134a,
     // respectively. This is only done inside the extended data message.
-    const highQuote = {"\x5C": "\x5C", "\x01": "a"};
-    const highRegex = new RegExp("[" + Object.keys(highQuote).join("") + "]", "g");
-    ircParam = ircParam.replace(highRegex, function(aChar) "\x5C" + highQuote[aChar]);
+    const highRegex = /\\|\x01/g;
+    ircParam = ircParam.replace(highRegex,
+      function(aChar) "\\" + (aChar == "\\" ? "\\" : "a"));
 
     // Add the CTCP tagging.
     ircParam = "\x01" + ircParam + "\x01";
 
     // Send the IRC message as a NOTICE or PRIVMSG.
-    this.sendMessage(aIsNotice ? "NOTICE" : "PRIVMSG", [aTarget, ircParam]);
+    return this.sendMessage(aIsNotice ? "NOTICE" : "PRIVMSG", [aTarget, ircParam]);
   },
 
   // Implement section 3.1 of RFC 2812
@@ -1423,6 +1697,11 @@ ircAccount.prototype = {
         conversation.left = true;
       }
     }
+
+    // If we disconnected during a pending LIST request, make sure callbacks
+    // receive any remaining channels.
+    if (this._pendingList)
+      this._sendRemainingRoomInfo();
 
     // Clear whois table.
     this.whoisInformation = {};
@@ -1506,20 +1785,21 @@ ircProtocol.prototype = {
   get baseId() "prpl-irc",
 
   usernameSplits: [
-    {label: _("options.server"), separator: "@",
+    {get label() _("options.server"), separator: "@",
      defaultValue: "chat.freenode.net", reverse: true}
   ],
 
   options: {
     // TODO Default to IRC over SSL.
-    "port": {label: _("options.port"), default: 6667},
-    "ssl": {label: _("options.ssl"), default: false},
+    "port": {get label() _("options.port"), default: 6667},
+    "ssl": {get label() _("options.ssl"), default: false},
     // TODO We should attempt to auto-detect encoding instead.
-    "encoding": {label: _("options.encoding"), default: "UTF-8"},
-    "quitmsg": {label: _("options.quitMessage"),
+    "encoding": {get label() _("options.encoding"), default: "UTF-8"},
+    "quitmsg": {get label() _("options.quitMessage"),
                 get default() Services.prefs.getCharPref("chat.irc.defaultQuitMessage")},
-    "partmsg": {label: _("options.partMessage"), default: ""},
-    "showServerTab": {label: _("options.showServerTab"), default: false}
+    "partmsg": {get label() _("options.partMessage"), default: ""},
+    "showServerTab": {get label() _("options.showServerTab"), default: false},
+    "alternateNicks": {get label() _("options.alternateNicks"), default: ""}
   },
 
   get chatHasTopic() true,

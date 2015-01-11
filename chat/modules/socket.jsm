@@ -34,7 +34,8 @@
  *   proxyFlags
  *   connectTimeout (default is no timeout)
  *   readWriteTimeout (default is no timeout)
- *   isConnected
+ *   disconnected
+ *   sslStatus
  *
  * Users should "subclass" this object, i.e. set their .__proto__ to be it. And
  * then implement:
@@ -42,7 +43,7 @@
  *   onConnectionHeard()
  *   onConnectionTimedOut()
  *   onConnectionReset()
- *   onBadCertificate(AString aNSSErrorMessage)
+ *   onBadCertificate(boolean aIsSslError, AString aNSSErrorMessage)
  *   onConnectionClosed()
  *   onDataReceived(String <data>)
  *   <length handled> = onBinaryDataReceived(ArrayBuffer <data>)
@@ -56,13 +57,13 @@
  *   The ping functionality: Included in the socket object is a higher level
  *   "ping" messaging system, which is commonly used in instant messaging
  *   protocols. The ping functionality works by calling a user defined method,
- *   sendPing(), if resetPingTimeout() is not called after two minutes. If no
+ *   sendPing(), if resetPingTimer() is not called after two minutes. If no
  *   ping response is received after 30 seconds, the socket will disconnect.
  *   Thus, a socket using this functionality should:
  *     1. Implement sendPing() to send an appropriate ping message for the
  *        protocol.
- *     2. Call resetPingTimeout() to start the ping messages.
- *     3. Call resetPingTimeout() each time a message is received (i.e. the
+ *     2. Call resetPingTimer() to start the ping messages.
+ *     3. Call resetPingTimer() each time a message is received (i.e. the
  *        socket is known to still be alive).
  *     4. Call cancelDisconnectTimer() when a ping response is received.
  */
@@ -78,6 +79,7 @@ const EXPORTED_SYMBOLS = ["Socket"];
 
 const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
 Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource:///modules/ArrayBufferUtils.jsm");
 Cu.import("resource:///modules/imXPCOMUtils.jsm");
 
 // Network errors see: xpcom/base/nsError.h
@@ -116,10 +118,6 @@ const Socket = {
   // separated by delimiter.
   delimiter: "",
 
-  // Set this for binary mode to split after a certain number of bytes have
-  // been received.
-  inputSegmentSize: 0,
-
   // Set this for the segment size of outgoing binary streams.
   outputSegmentSize: 0,
 
@@ -131,6 +129,9 @@ const Socket = {
   connectTimeout: 0,
   readWriteTimeout: 0,
 
+  // A nsISSLStatus instance giving details about the certificate error.
+  sslStatus: null,
+
   /*
    *****************************************************************************
    ******************************* Public methods ******************************
@@ -141,9 +142,16 @@ const Socket = {
     if (Services.io.offline)
       throw Cr.NS_ERROR_FAILURE;
 
+    // This won't work for Linux due to bug 758848.
+    Services.obs.addObserver(this, "wake_notification", false);
+
     this.LOG("Connecting to: " + aHost + ":" + aPort);
     this.host = aHost;
     this.port = aPort;
+    this.disconnected = false;
+
+    this._pendingData = [];
+    delete this._stopRequestStatus;
 
     // Array of security options
     this.security = aSecurity || [];
@@ -176,6 +184,9 @@ const Socket = {
   disconnect: function() {
     this.LOG("Disconnect");
 
+    // Don't handle any remaining unhandled data.
+    this._pendingData = [];
+
     // Close all input and output streams.
     if ("_inputStream" in this) {
       this._inputStream.close();
@@ -199,8 +210,14 @@ const Socket = {
     if (this._pingTimer) {
       clearTimeout(this._pingTimer);
       delete this._pingTimer;
+      delete this._resetPingTimerPending;
     }
     this.cancelDisconnectTimer();
+
+    delete this._lastAliveTime;
+    Services.obs.removeObserver(this, "wake_notification");
+
+    this.disconnected = true;
   },
 
   // Listen for a connection on a port.
@@ -247,15 +264,11 @@ const Socket = {
     }
   },
 
-  sendBinaryData: function(/* ArrayBuffer */ aData) {
-    this.LOG("Sending binary data data: <" + aData + ">");
+  sendBinaryData: function(/* ArrayBuffer */ aData, aLoggedData) {
+    this.LOG("Sending binary data:\n" + (aLoggedData ||
+             "<" + ArrayBufferToHexString(aData) + ">"));
 
-    let uint8 = Uint8Array(aData);
-
-    // Since there doesn't seem to be a uint8.get() method for the byte array
-    let byteArray = [];
-    for (let i = 0; i < uint8.byteLength; i++)
-      byteArray.push(uint8[i]);
+    let byteArray = ArrayBufferToBytes(aData);
     try {
       // Send the data as a byte array
       this._binaryOutputStream.writeByteArray(byteArray, byteArray.length);
@@ -264,7 +277,7 @@ const Socket = {
     }
   },
 
-  isConnected: false,
+  disconnected: true,
 
   startTLS: function() {
     this.transport.securityInfo.QueryInterface(Ci.nsISSLSocketControl).StartTLS();
@@ -274,10 +287,23 @@ const Socket = {
   // received (e.g. when it is known the socket is still open). Calling this for
   // the first time enables the ping functionality.
   resetPingTimer: function() {
+    // Clearing and setting timeouts is expensive, so we do it at most
+    // once per eventloop spin cycle.
+    if (this._resetPingTimerPending)
+      return;
+    this._resetPingTimerPending = true;
+    executeSoon(this._delayedResetPingTimer.bind(this));
+  },
+  kTimeBeforePing: 120000, // 2 min
+  kTimeAfterPingBeforeDisconnect: 30000, // 30 s
+  _delayedResetPingTimer: function() {
+    if (!this._resetPingTimerPending)
+      return;
+    delete this._resetPingTimerPending;
     if (this._pingTimer)
       clearTimeout(this._pingTimer);
     // Send a ping every 2 minutes if there's no traffic on the socket.
-    this._pingTimer = setTimeout(this._sendPing.bind(this), 120000);
+    this._pingTimer = setTimeout(this._sendPing.bind(this), this.kTimeBeforePing);
   },
 
   // If using the ping functionality, this should be called when a ping receives
@@ -287,6 +313,30 @@ const Socket = {
       return;
     clearTimeout(this._disconnectTimer);
     delete this._disconnectTimer;
+  },
+
+  // Plenty of time may have elapsed if the computer wakes from sleep, so check
+  // if we should reconnect immediately.
+  _lastAliveTime: null,
+  observe: function(aSubject, aTopic, aData) {
+    if (aTopic != "wake_notification")
+      return;
+    let elapsedTime = Date.now() - this._lastAliveTime;
+    // If there never was any activity before we went to sleep,
+    // or if we've been waiting for a ping response for over 30s,
+    // or if the last activity on the socket is longer ago than we usually
+    //   allow before we timeout,
+    // declare the connection timed out immediately.
+    if (!this._lastAliveTime ||
+        (this._disconnectTimer && elapsedTime > this.kTimeAfterPingBeforeDisconnect) ||
+        elapsedTime > this.kTimeBeforePing + this.kTimeAfterPingBeforeDisconnect)
+      this.onConnectionTimedOut();
+    else if (this._pingTimer) {
+      // If there was a ping timer running when the computer went to sleep,
+      // ping immediately to discover if we are still connected.
+      clearTimeout(this._pingTimer);
+      this._sendPing();
+    }
   },
 
   /*
@@ -331,7 +381,6 @@ const Socket = {
     this._resetBuffers();
     this._openStreams();
 
-    this.isConnected = true;
     this.onConnectionHeard();
     this.stopListening();
   },
@@ -349,42 +398,78 @@ const Socket = {
   // onDataAvailable, called by Mozilla's networking code.
   // Buffers the data, and parses it into discrete messages.
   onDataAvailable: function(aRequest, aContext, aInputStream, aOffset, aCount) {
+    if (this.disconnected)
+      return;
+    this._lastAliveTime = Date.now();
     if (this.binaryMode) {
       // Load the data from the stream
       this._incomingDataBuffer = this._incomingDataBuffer
                                      .concat(this._binaryInputStream
                                                  .readByteArray(aCount));
 
-      let size = this.inputSegmentSize || this._incomingDataBuffer.length;
-      this.LOG(size + " " + this._incomingDataBuffer.length);
-      while (this._incomingDataBuffer.length >= size) {
-        let buffer = new ArrayBuffer(size);
+      let size = this._incomingDataBuffer.length;
 
-        // Create a new ArraybufferView
-        let uintArray = new Uint8Array(buffer);
+      // Create a new ArrayBuffer.
+      let buffer = new ArrayBuffer(size);
+      let uintArray = new Uint8Array(buffer);
 
-        // Set the data into the array while saving the extra data
-        uintArray.set(this._incomingDataBuffer.splice(0, size));
+      // Set the data into the array while saving the extra data.
+      uintArray.set(this._incomingDataBuffer);
 
-        // Notify we've received data
-        this.onBinaryDataReceived(buffer);
-      }
-    } else {
+      // Notify we've received data.
+      // Variable data size, the callee must return how much data was handled.
+      size = this.onBinaryDataReceived(buffer);
+
+      // Remove the handled data.
+      this._incomingDataBuffer.splice(0, size);
+    }
+    else {
       if (this.delimiter) {
-        // Load the data from the stream
+        // Load the data from the stream.
         this._incomingDataBuffer += this._scriptableInputStream.read(aCount);
         let data = this._incomingDataBuffer.split(this.delimiter);
 
-        // Store the (possibly) incomplete part
+        // Store the (possibly) incomplete part.
         this._incomingDataBuffer = data.pop();
+        if (!data.length)
+          return;
 
-        // Send each string to the handle data function
-        data.forEach(this.onDataReceived, this);
-      } else {
-        // Send the whole string to the handle data function
-        this.onDataReceived(this._scriptableInputStream.read(aCount));
+        // Add the strings to the queue.
+        this._pendingData = this._pendingData.concat(data);
       }
+      else {
+        // Add the whole string to the queue.
+        this._pendingData.push(this._scriptableInputStream.read(aCount));
+      }
+      this._activateQueue();
     }
+  },
+
+  _pendingData: [],
+  _handlingQueue: false,
+  _activateQueue: function() {
+    if (this._handlingQueue)
+      return;
+    this._handlingQueue = true;
+    this._handleQueue();
+  },
+  // Asynchronously send each string to the handle data function.
+  _handleQueue: function() {
+    let begin = Date.now();
+    while (this._pendingData.length) {
+      this.onDataReceived(this._pendingData.shift());
+      // If more than 10ms have passed, stop blocking the thread.
+      if (Date.now() - begin > 10)
+        break;
+    }
+    if (this._pendingData.length) {
+      executeSoon(this._handleQueue.bind(this));
+      return;
+    }
+    delete this._handlingQueue;
+    // If there was a stop request, handle it.
+    if ("_stopRequestStatus" in this)
+      this._handleStopRequest(this._stopRequestStatus);
   },
 
   /*
@@ -396,18 +481,35 @@ const Socket = {
   },
   // Called to signify the end of an asynchronous request.
   onStopRequest: function(aRequest, aContext, aStatus) {
+    if (this.disconnected) {
+      // We're already disconnected, so nothing left to do here.
+      return;
+    }
+
     this.DEBUG("onStopRequest (" + aStatus + ")");
-    delete this.isConnected;
+    this._stopRequestStatus = aStatus;
+    // The stop request will be handled when the queue is next empty.
+    this._activateQueue();
+  },
+  // Close the connection after receiving a stop request.
+  _handleStopRequest: function(aStatus) {
+    if (this.disconnected)
+      return;
+    this.disconnected = true;
     if (aStatus == NS_ERROR_NET_RESET)
       this.onConnectionReset();
     else if (aStatus == NS_ERROR_NET_TIMEOUT)
       this.onConnectionTimedOut();
-    else if (aStatus) {
+    else if (!Components.isSuccessCode(aStatus)) {
       let nssErrorsService =
         Cc["@mozilla.org/nss_errors_service;1"].getService(Ci.nsINSSErrorsService);
-      if (aStatus <= nssErrorsService.getXPCOMFromNSSError(nssErrorsService.NSS_SEC_ERROR_BASE) &&
-          aStatus >= nssErrorsService.getXPCOMFromNSSError(nssErrorsService.NSS_SEC_ERROR_LIMIT - 1)) {
-        this.onBadCertificate(nssErrorsService.getErrorMessage(aStatus));
+      if ((aStatus <= nssErrorsService.getXPCOMFromNSSError(nssErrorsService.NSS_SEC_ERROR_BASE) &&
+           aStatus >= nssErrorsService.getXPCOMFromNSSError(nssErrorsService.NSS_SEC_ERROR_LIMIT - 1)) ||
+          (aStatus <= nssErrorsService.getXPCOMFromNSSError(nssErrorsService.NSS_SSL_ERROR_BASE) &&
+           aStatus >= nssErrorsService.getXPCOMFromNSSError(nssErrorsService.NSS_SSL_ERROR_LIMIT - 1))) {
+        this.onBadCertificate(nssErrorsService.getErrorClass(aStatus) ==
+                              nssErrorsService.ERROR_CLASS_SSL_PROTOCOL,
+                              nssErrorsService.getErrorMessage(aStatus));
         return;
       }
     }
@@ -419,17 +521,29 @@ const Socket = {
    */
   // Called when there's an error, return true to suppress the modal alert.
   // Whatever this function returns, NSS will close the connection.
-  notifyCertProblem: function(aSocketInfo, aStatus, aTargetSite) true,
+  notifyCertProblem: function(aSocketInfo, aStatus, aTargetSite) {
+    this.sslStatus = aStatus;
+    return true;
+  },
 
   /*
    * nsISSLErrorListener
    */
-  notifySSLError: function(aSocketInfo, aError, aTargetSite) true,
+  notifySSLError: function(aSocketInfo, aError, aTargetSite) {
+    this.sslStatus = null;
+    return true;
+  },
 
   /*
    * nsITransportEventSink methods
    */
   onTransportStatus: function(aTransport, aStatus, aProgress, aProgressmax) {
+    // Don't send status change notifications after the socket has been closed.
+    // The event sink can't be removed after opening the transport, so we can't
+    // do better than adding a null check here.
+    if (!this.transport)
+      return;
+
     const nsITransportEventSinkStatus = {
          0x804b0003: "STATUS_RESOLVING",
          0x804b000b: "STATUS_RESOLVED",
@@ -443,7 +557,6 @@ const Socket = {
     this.DEBUG("onTransportStatus(" + (status || ("0x" + aStatus.toString(16))) +")");
 
     if (status == "STATUS_CONNECTED_TO") {
-      this.isConnected = true;
       // Notify that the connection has been established.
       this.onConnection();
     }
@@ -495,9 +608,8 @@ const Socket = {
     this.transport.setEventSink(this, Services.tm.currentThread);
 
     // No limit on the output stream buffer
-    this._outputStream = this.transport.openOutputStream(0, // flags
-                                                         this.outputSegmentSize, // Use default segment size
-                                                         -1); // Segment count
+    this._outputStream =
+      this.transport.openOutputStream(0, this.outputSegmentSize, -1);
     if (!this._outputStream)
       throw "Error getting output stream.";
 
@@ -532,7 +644,7 @@ const Socket = {
     delete this._pingTimer;
     this.sendPing();
     this._disconnectTimer = setTimeout(this.onConnectionTimedOut.bind(this),
-                                       30000);
+                                       this.kTimeAfterPingBeforeDisconnect);
   },
 
   /*

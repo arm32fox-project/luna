@@ -6,7 +6,6 @@ const EXPORTED_SYMBOLS = ["ircHandlers"];
 
 const Cu = Components.utils;
 
-Cu.import("resource:///modules/imXPCOMUtils.jsm");
 Cu.import("resource:///modules/ircUtils.jsm");
 
 var ircHandlers = {
@@ -99,11 +98,9 @@ var ircHandlers = {
         // command.
         // Parse the command with the JavaScript account object as "this".
         if (handler.isEnabled.call(aAccount) &&
-            hasOwnProperty(handler.commands, aCommand) &&
-            handler.commands[aCommand].call(aAccount, aMessage)) {
-          aAccount.DEBUG(JSON.stringify(aMessage));
+            Object.prototype.hasOwnProperty.call(handler.commands, aCommand) &&
+            handler.commands[aCommand].call(aAccount, aMessage))
           return true;
-        }
       } catch (e) {
         // We want to catch an error here because one of our handlers are
         // broken, if we don't catch the error, the whole IRC plug-in will die.
@@ -154,4 +151,4 @@ var ircHandlers = {
   get LOW_PRIORITY() -100,
   get DEFAULT_PRIORITY() 0,
   get HIGH_PRIORITY() 100
-}
+};

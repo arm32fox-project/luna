@@ -25,11 +25,20 @@ Cu.import("resource:///modules/imXPCOMUtils.jsm");
 Cu.import("resource:///modules/imServices.jsm");
 Cu.import("resource:///modules/ircHandlers.jsm");
 Cu.import("resource:///modules/ircUtils.jsm");
+Cu.import("resource:///modules/jsProtoHelper.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "DownloadUtils", function() {
-  Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
-  return DownloadUtils;
-});
+function ircRoomInfo(aName, aTopic, aParticipantCount, aAccount) {
+  this.name = aName;
+  this.topic = aTopic;
+  this.participantCount = aParticipantCount;
+  this._account = aAccount;
+}
+ircRoomInfo.prototype = {
+  __proto__: ClassInfo("prplIRoomInfo", "IRC RoomInfo Object"),
+  get accountId() this._account.imAccount.id,
+  get chatRoomFieldValues()
+    this._account.getChatRoomDefaultFieldValues(this.name)
+}
 
 function privmsg(aAccount, aMessage, aIsNotification) {
   let params = {incoming: true};
@@ -109,46 +118,6 @@ function serverErrorMessage(aAccount, aMessage, aError) {
   return writeMessage(aAccount, aMessage, aError, "error")
 }
 
-// Try a new nick if the previous tried nick is already in use.
-function tryNewNick(aAccount, aMessage) {
-  let nickParts = /^(.+?)(\d*)$/.exec(aMessage.params[1]);
-  let newNick = nickParts[1];
-
-  // If there was not a digit at the end of the nick, just append 1.
-  let newDigits = "1";
-  // If there was a digit at the end of the nick, increment it.
-  if (nickParts[2]) {
-    newDigits = (parseInt(nickParts[2], 10) + 1).toString();
-    // If there were leading 0s, add them back on, after we've incremented (e.g.
-    // 009 --> 010).
-    for (let len = nickParts[2].length - newDigits.length; len > 0; --len)
-      newDigits = "0" + newDigits;
-  }
-  // If the nick will be too long, ensure all the digits fit.
-  if (newNick.length + newDigits.length > aAccount.maxNicknameLength) {
-    // Handle the silly case of a single letter followed by all nines.
-    if (newDigits.length == aAccount.maxNicknameLength)
-      newDigits = newDigits.slice(1);
-    newNick = newNick.slice(0, aAccount.maxNicknameLength - newDigits.length);
-  }
-  // Append the digits.
-  newNick += newDigits;
-
-  if (aAccount.normalize(newNick) == aAccount.normalize(aAccount._nickname)) {
-    // The nick we were about to try next is our current nick. This means
-    // the user attempted to change to a version of the nick with a lower or
-    // absent number suffix, and this failed.
-    let msg = _("message.nick.fail", aAccount._nickname);
-    for each (let conversation in aAccount._conversations)
-      conversation.writeMessage(aAccount._nickname, msg, {system: true});
-    return true;
-  }
-
-  aAccount.LOG(aMessage.params[1] + " is already in use, trying " + newNick);
-  aAccount.sendMessage("NICK", newNick); // Nick message.
-  return true;
-}
-
 // See RFCs 2811 & 2812 (which obsoletes RFC 1459) for a description of these
 // commands.
 var ircBase = {
@@ -199,7 +168,6 @@ var ircBase = {
       // JOIN ( <channel> *( "," <channel> ) [ <key> *( "," <key> ) ] ) / "0"
       // Add the buddy to each channel
       for each (let channelName in aMessage.params[0].split(",")) {
-        let convAlreadyExists = this.hasConversation(channelName);
         let conversation = this.getConversation(channelName);
         if (this.normalize(aMessage.nickname, this.userPrefixes) ==
             this.normalize(this._nickname)) {
@@ -212,10 +180,11 @@ var ircBase = {
           // If the user parted from this room earlier, confirm the rejoin.
           // If conversation._chatRoomFields is present, the rejoin was due to
           // an automatic reconnection, for which we already notify the user.
-          if (convAlreadyExists && !conversation._chatRoomFields) {
+          if (!conversation._firstJoin && !conversation._chatRoomFields) {
             conversation.writeMessage(aMessage.nickname, _("message.rejoined"),
                                       {system: true});
           }
+          delete conversation._firstJoin;
 
           // Ensure chatRoomFields information is available for reconnection.
           let nName = this.normalize(channelName);
@@ -300,9 +269,16 @@ var ircBase = {
     },
     "PONG": function(aMessage) {
       // PONG <server> [ <server2> ]
+      let pongTime = aMessage.params[1];
+
       // Ping to keep the connection alive.
-      this._socket.cancelDisconnectTimer();
-      return true;
+      if (pongTime.startsWith("_")) {
+        this._socket.cancelDisconnectTimer();
+        return true;
+      }
+      // Otherwise, the ping was from a user command.
+      else
+        return this.handlePingReply(aMessage.servername, pongTime);
     },
     "PRIVMSG": function(aMessage) {
       // PRIVMSG <msgtarget> <text to be sent>
@@ -365,11 +341,8 @@ var ircBase = {
       if (aMessage.params[0] != this._nickname)
         this.changeBuddyNick(this._nickname, aMessage.params[0]);
 
-      // Get our full prefix.
-      this.prefix = aMessage.params[1].slice(
-        aMessage.params[1].lastIndexOf(" ") + 1);
-      // Remove the nick from the prefix.
-      this.prefix = this.prefix.slice(this.prefix.indexOf("!"));
+      // Request our own whois entry so we can set the prefix.
+      this.requestBuddyInfo(this._nickname);
 
       // If our status is Unavailable, tell the server.
       if (this.imAccount.statusInfo.statusType < Ci.imIStatusInfo.STATUS_AVAILABLE)
@@ -637,8 +610,18 @@ var ircBase = {
      */
     "263": function(aMessage) { // RPL_TRYAGAIN
       // <command> :Please wait a while and try again.
-      // TODO setTimeout for a minute or so and try again?
-      return false;
+      if (aMessage.params[1] == "LIST" && this._pendingList) {
+        // We may receive this from servers which rate-limit LIST if the
+        // server believes us to be asking for LIST data too soon after the
+        // previous request.
+        // Tidy up as we won't be receiving any more channels.
+        this._sendRemainingRoomInfo();
+        // Fake the last LIST time so that we may try again in one hour.
+        const kHour = 60 * 60 * 1000;
+        this._lastListTime = Date.now() - kListRefreshInterval + kHour;
+        return true;
+      }
+      return serverMessage(this, aMessage);
     },
 
     "265": function(aMessage) { // nonstandard
@@ -713,9 +696,16 @@ var ircBase = {
     "311": function(aMessage) { // RPL_WHOISUSER
       // <nick> <user> <host> * :<real name>
       // <username>@<hostname>
+      let nick = aMessage.params[1];
       let source = aMessage.params[2] + "@" + aMessage.params[3];
-      return this.setWhois(aMessage.params[1], {realname: aMessage.params[5],
-                                                connectedFrom: source});
+      // Some servers obfuscate the host when sending messages. Therefore,
+      // we set the account prefix by using the host from this response.
+      // We store it separately to avoid glitches due to the whois entry
+      // being temporarily deleted during future updates of the entry.
+      if (this.normalize(nick) == this.normalize(this._nickname))
+        this.prefix = "!" + source;
+      return this.setWhois(nick, {realname: aMessage.params[5],
+                                  connectedFrom: source});
     },
     "312": function(aMessage) { // RPL_WHOISSERVER
       // <nick> <server> :<server info>
@@ -744,23 +734,17 @@ var ircBase = {
     },
     "317": function(aMessage) { // RPL_WHOISIDLE
       // <nick> <integer> :seconds idle
-      let valuesAndUnits =
-        DownloadUtils.convertTimeUnits(parseInt(aMessage.params[2]));
-      if (!valuesAndUnits[2])
-        valuesAndUnits.splice(2, 2);
       return this.setWhois(aMessage.params[1],
-                           {idleTime: valuesAndUnits.join(" ")});
+                           {lastActivity: parseInt(aMessage.params[2])});
     },
     "318": function(aMessage) { // RPL_ENDOFWHOIS
       // <nick> :End of WHOIS list
       // We've received everything about WHOIS, tell the tooltip that is waiting
       // for this information.
-      let nick = this.normalize(aMessage.params[1]);
+      let nick = this.normalizeNick(aMessage.params[1]);
 
-      if (hasOwnProperty(this.whoisInformation, nick)) {
-        Services.obs.notifyObservers(this.getBuddyInfo(nick),
-                                     "user-info-received", nick);
-      }
+      if (hasOwnProperty(this.whoisInformation, nick))
+        this.notifyWhois(nick);
       else {
         // If there is no whois information stored at this point, the nick
         // is either offline or does not exist, so we run WHOWAS.
@@ -783,11 +767,27 @@ var ircBase = {
     },
     "322": function(aMessage) { // RPL_LIST
       // <channel> <# visible> :<topic>
-      // TODO parse this for # users & topic.
-      return serverMessage(this, aMessage);
+      let name = aMessage.params[1];
+      let participantCount = aMessage.params[2];
+      let topic = aMessage.params[3];
+      // Some servers (e.g. Unreal) include the channel's modes before the topic.
+      // Omit this.
+      topic = topic.replace(/^\[\+[a-zA-Z]*\] /, "");
+
+      this._channelList.push(new ircRoomInfo(name, topic, participantCount, this));
+      // Give callbacks a batch of channels of length _channelsPerBatch.
+      if (this._channelList.length % this._channelsPerBatch == 0) {
+        let channelBatch = this._channelList.slice(-this._channelsPerBatch);
+        for (let callback of this._roomInfoCallbacks) {
+          callback.onRoomInfoAvailable(channelBatch, this, false,
+                                       this._channelsPerBatch);
+        }
+      }
+      return true;
     },
     "323": function(aMessage) { // RPL_LISTEND
       // :End of LIST
+      this._sendRemainingRoomInfo();
       return true;
     },
 
@@ -974,9 +974,7 @@ var ircBase = {
       // <nick> :End of WHOWAS
       // We've received everything about WHOWAS, tell the tooltip that is waiting
       // for this information.
-      let nick = this.normalize(aMessage.params[1]);
-      Services.obs.notifyObservers(this.getBuddyInfo(nick),
-                                   "user-info-received", nick);
+      this.notifyWhois(aMessage.params[1]);
       return true;
     },
 
@@ -1200,11 +1198,11 @@ var ircBase = {
     },
     "433": function(aMessage) { // ERR_NICKNAMEINUSE
       // <nick> :Nickname is already in use
-      return tryNewNick(this, aMessage);
+      return this.tryNewNick(aMessage.params[1]);
     },
     "436": function(aMessage) { // ERR_NICKCOLLISION
       // <nick> :Nickname collision KILL from <user>@<host>
-      return tryNewNick(this, aMessage);
+      return this.tryNewNick(aMessage.params[1]);
     },
     "437": function(aMessage) { // ERR_UNAVAILRESOURCE
       // <nick/channel> :Nick/channel is temporarily unavailable
@@ -1225,8 +1223,11 @@ var ircBase = {
     },
     "443": function(aMessage) { // ERR_USERONCHANNEL
       // <user> <channel> :is already on channel
-      // TODO
-      return false;
+      this.getConversation(aMessage.params[2])
+          .writeMessage(aMessage.servername,
+                        _("message.alreadyInChannel", aMessage.params[1],
+                          aMessage.params[2]), {system: true});
+      return true;
     },
     "444": function(aMessage) { // ERR_NOLOGIN
       // <user> :User not logged in
