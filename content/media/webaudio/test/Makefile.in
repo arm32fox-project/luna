@@ -27,6 +27,7 @@ MOCHITEST_FILES := \
   test_bug867203.html \
   test_bug875221.html \
   test_bug875402.html \
+  test_bug894150.html \
   test_analyserNode.html \
   test_AudioBuffer.html \
   test_AudioContext.html \
@@ -66,6 +67,7 @@ MOCHITEST_FILES := \
   test_gainNodeInLoop.html \
   test_maxChannelCount.html \
   test_mediaDecoding.html \
+  test_decodeMultichannel.html \
   test_mediaStreamAudioDestinationNode.html \
   test_mixingRules.html \
   test_nodeToParamConnection.html \
@@ -100,6 +102,7 @@ MOCHITEST_FILES := \
   audio-expected.wav \
   audio-mono-expected.wav \
   audio-mono-expected-2.wav \
+  audio-quad.wav \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk

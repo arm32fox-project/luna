@@ -2423,6 +2423,10 @@ class MToDouble
     {
         setResultType(MIRType_Double);
         setMovable();
+
+        // An object might have "valueOf", which means it is actively used.
+        if (def->mightBeType(MIRType_Object))
+            setGuard();
     }
 
   public:
@@ -2502,6 +2506,10 @@ class MToInt32 : public MUnaryInstruction
     {
         setResultType(MIRType_Int32);
         setMovable();
+
+        // An object might have "valueOf", which means it is actively used.
+        if (def->mightBeType(MIRType_Object))
+            setGuard();
     }
 
   public:
@@ -2546,6 +2554,10 @@ class MTruncateToInt32 : public MUnaryInstruction
     {
         setResultType(MIRType_Int32);
         setMovable();
+
+        // An object might have "valueOf", which means it is actively used.
+        if (def->mightBeType(MIRType_Object))
+            setGuard();
     }
 
   public:
@@ -3235,7 +3247,20 @@ class MMathFunction
         Tan,
         ACos,
         ASin,
-        ATan
+        ATan,
+        Log10,
+        Log2,
+        Log1P,
+        ExpM1,
+        CosH,
+        SinH,
+        TanH,
+        ACosH,
+        ASinH,
+        ATanH,
+        Sign,
+        Trunc,
+        Cbrt
     };
 
   private:
@@ -4952,9 +4977,7 @@ class MLoadTypedArrayElementHole
         return getOperand(1);
     }
     AliasSet getAliasSet() const {
-        // Out-of-bounds accesses are handled using a VM call, this may
-        // invoke getters on the prototype chain.
-        return AliasSet::Store(AliasSet::Any);
+        return AliasSet::Load(AliasSet::TypedArrayElement);
     }
 };
 

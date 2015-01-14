@@ -2237,6 +2237,10 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   -moz-image-region: auto;
 }
 
+#alltabs-button:-moz-lwtheme-brighttext {
+  list-style-image: url("chrome://browser/skin/tabbrowser/alltabs-inverted.png");
+}
+
 %ifdef WINDOWS_AERO
 :-moz-any(#TabsToolbar, #nav-bar[tabsontop=false], #toolbar-menubar) > #alltabs-button[type=menu]:-moz-system-metric(windows-compositor):not(:-moz-lwtheme),
 :-moz-any(#TabsToolbar, #nav-bar[tabsontop=false], #toolbar-menubar) > toolbarpaletteitem > #alltabs-button[type=menu]:-moz-system-metric(windows-compositor):not(:-moz-lwtheme),

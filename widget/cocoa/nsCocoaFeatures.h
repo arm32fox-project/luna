@@ -14,6 +14,8 @@ public:
   static bool OnLionOrLater();
   static bool OnMountainLionOrLater();
   static bool SupportCoreAnimationPlugins();
+  static bool OnMavericksOrLater();
+  static bool OnYosemiteOrLater();
 
 private:
   static int32_t mOSXVersion;

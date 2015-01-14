@@ -395,7 +395,13 @@ function openModalWindow(domWin, uri, args) {
 }
 
 function openTabPrompt(domWin, tabPrompt, args) {
-    PromptUtils.fireDialogEvent(domWin, "DOMWillOpenModalDialog");
+    let allowFocusSwitch = true;
+    try {
+      allowFocusSwitch = Services.prefs.getBoolPref("prompts.tab_modal.focusSwitch");
+    } catch(e) {}
+    
+    if (allowFocusSwitch)
+        PromptUtils.fireDialogEvent(domWin, "DOMWillOpenModalDialog");
 
     let winUtils = domWin.QueryInterface(Ci.nsIInterfaceRequestor)
                          .getInterface(Ci.nsIDOMWindowUtils);
@@ -415,7 +421,8 @@ function openTabPrompt(domWin, tabPrompt, args) {
 
         winUtils.leaveModalStateWithWindow(callerWin);
 
-        PromptUtils.fireDialogEvent(domWin, "DOMModalDialogClosed");
+        if (allowFocusSwitch)
+            PromptUtils.fireDialogEvent(domWin, "DOMModalDialogClosed");
     }
 
     let newPrompt;

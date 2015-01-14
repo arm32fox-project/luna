@@ -719,7 +719,8 @@
                                  .getService(Components.interfaces.nsIObserverService);
               os.addObserver(this, "browser:purge-session-history", false);
               // wire up session history
-              this.webNavigation.sessionHistory =
+              if (this.webNavigation)
+                this.webNavigation.sessionHistory =
                       Components.classes["@mozilla.org/browser/shistory;1"]
                                 .createInstance(Components.interfaces.nsISHistory);
               // enable global history if we weren't told otherwise

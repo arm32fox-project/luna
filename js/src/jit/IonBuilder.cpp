@@ -6602,7 +6602,7 @@ IonBuilder::jsop_getelem_typed(int arrayType)
         current->add(load);
         current->push(load);
 
-        return resumeAfter(load) && pushTypeBarrier(load, types, needsBarrier);
+        return pushTypeBarrier(load, types, needsBarrier);
     }
 }
 

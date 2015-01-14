@@ -196,6 +196,8 @@ public:
    * to indicate the first binding in a document.
    * XBLBinding_Serialize_ChromeOnlyContent indicates that
    * nsXBLPrototypeBinding::mChromeOnlyContent should be true.
+   * XBLBinding_Serialize_BindToUntrustedContent indicates that
+   * nsXBLPrototypeBinding::mBindToUntrustedContent should be true.
    */
   nsresult Read(nsIObjectInputStream* aStream,
                 nsXBLDocumentInfo* aDocInfo,
@@ -301,6 +303,8 @@ public:
                              nsIContent* aTemplChild);
 
   bool ChromeOnlyContent() { return mChromeOnlyContent; }
+  bool BindToUntrustedContent() { return mBindToUntrustedContent; }
+  
 protected:
   // Ensure that mAttributeTable has been created.
   void EnsureAttributeTable();
@@ -333,6 +337,7 @@ protected:
   bool mCheckedBaseProto;
   bool mKeyHandlersRegistered;
   bool mChromeOnlyContent;
+  bool mBindToUntrustedContent;
  
   nsXBLPrototypeResources* mResources; // If we have any resources, this will be non-null.
                                       
