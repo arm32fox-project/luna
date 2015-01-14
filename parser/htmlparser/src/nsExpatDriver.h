@@ -36,7 +36,7 @@ public:
                               const PRUnichar *aBase,
                               const PRUnichar *aSystemId,
                               const PRUnichar *aPublicId);
-  nsresult HandleStartElement(const PRUnichar *aName, const PRUnichar **aAtts);
+  void HandleStartElement(const PRUnichar *aName, const PRUnichar **aAtts);
   nsresult HandleEndElement(const PRUnichar *aName);
   nsresult HandleCharacterData(const PRUnichar *aCData, const uint32_t aLength);
   nsresult HandleComment(const PRUnichar *aName);
@@ -120,6 +120,8 @@ private:
   // Whether we're sure that we won't be getting more buffers to parse from
   // Necko
   bool             mIsFinalChunk;
+
+  PRUint8          mTagDepth;
 
   nsresult         mInternalState;
 

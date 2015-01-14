@@ -234,6 +234,12 @@ public:
                                  nsIURI* aBaseURL,
                                  nsIPrincipal* aDocPrincipal);
 
+  nsCSSProperty LookupEnabledProperty(const nsAString& aProperty) {
+    return nsCSSProps::LookupProperty(aProperty, mUnsafeRulesEnabled ?
+                                                   nsCSSProps::eEnabledInUASheets :
+                                                   nsCSSProps::eEnabled);
+  }
+
 protected:
   class nsAutoParseCompoundProperty;
   friend class nsAutoParseCompoundProperty;
@@ -1197,7 +1203,11 @@ CSSParserImpl::ParseProperty(const nsCSSProperty aPropID,
   *aChanged = false;
 
   // Check for unknown or preffed off properties
-  if (eCSSProperty_UNKNOWN == aPropID || !nsCSSProps::IsEnabled(aPropID)) {
+  if (eCSSProperty_UNKNOWN == aPropID ||
+      !(nsCSSProps::IsEnabled(aPropID) ||
+        (mUnsafeRulesEnabled &&
+         nsCSSProps::PropHasFlags(aPropID,
+                                  CSS_PROPERTY_ALWAYS_ENABLED_IN_UA_SHEETS)))) {
     NS_ConvertASCIItoUTF16 propName(nsCSSProps::GetStringValue(aPropID));
     REPORT_UNEXPECTED_P(PEUnknownProperty, propName);
     REPORT_UNEXPECTED(PEDeclDropped);
@@ -1397,8 +1407,7 @@ CSSParserImpl::EvaluateSupportsDeclaration(const nsAString& aProperty,
                                            nsIURI* aBaseURL,
                                            nsIPrincipal* aDocPrincipal)
 {
-  nsCSSProperty propID = nsCSSProps::LookupProperty(aProperty,
-                                                    nsCSSProps::eEnabled);
+  nsCSSProperty propID = LookupEnabledProperty(aProperty);
   if (propID == eCSSProperty_UNKNOWN) {
     return false;
   }
@@ -2909,13 +2918,13 @@ CSSParserImpl::ParseSupportsConditionInParensInsideParens(bool& aConditionMet)
         return false;
       }
 
+      // R: Should this be in the prop_unknown block below?
       if (ExpectSymbol(')', true)) {
         UngetToken();
         return false;
       }
 
-      nsCSSProperty propID = nsCSSProps::LookupProperty(propertyName,
-                                                        nsCSSProps::eEnabled);
+      nsCSSProperty propID = LookupEnabledProperty(propertyName);
       if (propID == eCSSProperty_UNKNOWN) {
         aConditionMet = false;
         SkipUntil(')');
@@ -4800,8 +4809,7 @@ CSSParserImpl::ParseDeclaration(css::Declaration* aDeclaration,
   nsAutoSuppressErrors suppressErrors(this, mInFailingSupportsRule);
 
   // Map property name to its ID and then parse the property
-  nsCSSProperty propID = nsCSSProps::LookupProperty(propertyName,
-                                                    nsCSSProps::eEnabled);
+  nsCSSProperty propID = LookupEnabledProperty(propertyName);
   if (eCSSProperty_UNKNOWN == propID ||
      (aContext == eCSSContext_Page &&
       !nsCSSProps::PropHasFlags(propID, CSS_PROPERTY_APPLIES_TO_PAGE_RULE))) { // unknown property

@@ -3158,7 +3158,7 @@ dnl Checks for library functions.
 dnl ========================================================
 AC_PROG_GCC_TRADITIONAL
 AC_FUNC_MEMCMP
-AC_CHECK_FUNCS(random strerror lchown fchmod snprintf memmove rint stat64 lstat64 truncate64 setbuf isatty)
+AC_CHECK_FUNCS(random strerror lchown fchmod snprintf memmove stat64 lstat64 truncate64 setbuf isatty)
 AC_CHECK_FUNCS(statvfs64 statvfs statfs64 statfs)
 AC_CHECK_FUNCS(flockfile getpagesize)
 AC_CHECK_FUNCS(localtime_r strtok_r)
@@ -4061,6 +4061,7 @@ ENABLE_SYSTEM_EXTENSION_DIRS=1
 MOZ_BRANDING_DIRECTORY=
 MOZ_OFFICIAL_BRANDING=
 MOZ_MOONCHILD=1
+MOZ_DISABLE_PARENTAL_CONTROLS=1
 MOZ_FEEDS=1
 MOZ_WEBAPP_RUNTIME=
 MOZ_JSDEBUGGER=1
@@ -4079,7 +4080,7 @@ MOZ_OPUS=1
 MOZ_WEBM=1
 MOZ_DASH=
 MOZ_WMF=
-MOZ_WEBRTC=1
+MOZ_WEBRTC=
 MOZ_PEERCONNECTION=
 MOZ_SRTP=
 MOZ_WEBRTC_SIGNALING=
@@ -4138,7 +4139,7 @@ MOZ_ANDROID_HISTORY=
 MOZ_WEBSMS_BACKEND=
 MOZ_ANDROID_WALLPAPER=
 MOZ_ANDROID_BEAM=
-ACCESSIBILITY=1
+ACCESSIBILITY=
 MOZ_TIME_MANAGER=
 MOZ_PAY=
 MOZ_AUDIO_CHANNEL_MANAGER=
@@ -5158,10 +5159,10 @@ AC_DEFINE(IBMBIDI)
 dnl ========================================================
 dnl accessibility support on by default on all platforms
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(accessibility,
-[  --disable-accessibility Disable accessibility support],
-    ACCESSIBILITY=,
-    ACCESSIBILITY=1 )
+MOZ_ARG_ENABLE_BOOL(accessibility,
+[  --enable-accessibility Enable specialized accessibility support],
+    ACCESSIBILITY=1,
+    ACCESSIBILITY= )
 if test "$ACCESSIBILITY"; then
     case "$target" in
     *-mingw*)
@@ -5243,10 +5244,10 @@ esac
 dnl ========================================================
 dnl = Disable WebRTC code
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(webrtc,
-[  --disable-webrtc        Disable support for WebRTC],
-    MOZ_WEBRTC=,
-    MOZ_WEBRTC=1)
+MOZ_ARG_ENABLE_BOOL(webrtc,
+[  --enable-webrtc        Enable support for WebRTC],
+    MOZ_WEBRTC=1,
+    MOZ_WEBRTC= )
 
 if test -n "$MOZ_WEBRTC"; then
     AC_DEFINE(MOZ_WEBRTC)
@@ -6327,11 +6328,11 @@ fi
 dnl ========================================================
 dnl parental controls (for Windows Vista)
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(parental-controls,
-[  --disable-parental-controls
-                          Do not build parental controls],
-   MOZ_DISABLE_PARENTAL_CONTROLS=1,
-   MOZ_DISABLE_PARENTAL_CONTROLS=)
+MOZ_ARG_ENABLE_BOOL(parental-controls,
+[  --enable-parental-controls
+                          Build integrated parental controls],
+   MOZ_DISABLE_PARENTAL_CONTROLS=,
+   MOZ_DISABLE_PARENTAL_CONTROLS=1)
 if test -n "$MOZ_DISABLE_PARENTAL_CONTROLS"; then
     AC_DEFINE(MOZ_DISABLE_PARENTAL_CONTROLS)
 fi

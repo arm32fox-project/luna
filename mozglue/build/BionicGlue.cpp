@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <android/log.h>
 #include <mozilla/Util.h>
+#include <sys/syscall.h>
 
 #include <vector>
 
@@ -90,8 +91,6 @@ WRAP(pthread_atfork)(void (*prepare)(void), void (*parent)(void), void (*child)(
   return 0;
 }
 
-extern "C" pid_t __fork(void);
-
 extern "C" NS_EXPORT pid_t
 WRAP(fork)(void)
 {
@@ -101,7 +100,7 @@ WRAP(fork)(void)
     if (it->prepare)
       it->prepare();
 
-  switch ((pid = __fork())) {
+  switch ((pid = syscall(__NR_clone, SIGCHLD, NULL, NULL, NULL, NULL))) {
   case 0:
     cpuacct_add(getuid());
     for (std::vector<AtForkFuncs>::iterator it = atfork.begin();
