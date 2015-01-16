@@ -264,7 +264,7 @@ private:
   static void HandleOOM() {
     fputs("Out of memory allocating nsTArray buffer.\n", stderr);
     MOZ_CRASH();
-    MOZ_NOT_REACHED();
+    MOZ_NOT_REACHED("OOM Crash (nsTArray buffer).");
   }
 };
 
