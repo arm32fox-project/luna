@@ -3330,7 +3330,13 @@ PresShell::ScrollFrameRectIntoView(nsIFrame*                aFrame,
     nsIScrollableFrame* sf = do_QueryFrame(container);
     if (sf) {
       nsPoint oldPosition = sf->GetScrollPosition();
-      ScrollToShowRect(container, sf, rect - sf->GetScrolledFrame()->GetPosition(),
+      nsRect targetRect = rect;
+      if (container->StyleDisplay()->mOverflowClipBox ==
+            NS_STYLE_OVERFLOW_CLIP_BOX_CONTENT_BOX) {
+        nsMargin padding = container->GetUsedPadding();
+        targetRect.Inflate(padding);
+      }
+      ScrollToShowRect(container, sf, targetRect - sf->GetScrolledFrame()->GetPosition(),
                        aVertical, aHorizontal, aFlags);
       nsPoint newPosition = sf->GetScrollPosition();
       // If the scroll position increased, that means our content moved up,
@@ -7818,6 +7824,8 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
   nsHTMLReflowState reflowState(mPresContext, target, rcx, reflowSize);
 
   if (rootFrame == target) {
+    reflowState.Init(mPresContext);
+    
     // When the root frame is being reflowed with unconstrained height
     // (which happens when we're called from
     // nsDocumentViewer::SizeToContent), we're effectively doing a
@@ -7832,6 +7840,13 @@ PresShell::DoReflow(nsIFrame* target, bool aInterruptible)
     }
 
     mLastRootReflowHadUnconstrainedHeight = hasUnconstrainedHeight;
+  } else {
+    // Initialize reflow state with current used border and padding,
+    // in case this was set specifically by the parent frame when the
+    // reflow root was reflowed by its parent.
+    nsMargin currentBorder = target->GetUsedBorder();
+    nsMargin currentPadding = target->GetUsedPadding();
+    reflowState.Init(mPresContext, -1, -1, &currentBorder, &currentPadding);
   }
 
   // fix the computed height

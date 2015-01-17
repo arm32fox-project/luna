@@ -1171,7 +1171,7 @@ class Assembler
         LessThanOrEqual = LE,
         Overflow = VS,
         Signed = MI,
-        Unsigned = PL,
+        NotSigned = PL,
         Zero = EQ,
         NonZero = NE,
         Always  = AL,

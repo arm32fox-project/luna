@@ -500,6 +500,11 @@ MediaDecodeTask::Decode()
 
   mBufferDecoder->BeginDecoding(NS_GetCurrentThread());
 
+  // Tell the decoder reader that we are not going to play the data directly,
+  // and that we should not reject files with more channels than the audio
+  // back-end supports.
+  mDecoderReader->SetIgnoreAudioOutputFormat();
+
   mDecoderReader->OnDecodeThreadStart();
 
   VideoInfo videoInfo;

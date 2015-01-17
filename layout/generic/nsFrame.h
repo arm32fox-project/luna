@@ -595,6 +595,11 @@ public:
         return true;
       }
       if (aFrame->IsFrameOfType(nsIFrame::eReplacedContainsBlock)) {
+        if (type == nsGkAtoms::textInputFrame) {
+          // A text input frame always has an anonymous scroll frame
+          // that handles overflow cases.
+          return false;
+        }
         return true;
       }
     }

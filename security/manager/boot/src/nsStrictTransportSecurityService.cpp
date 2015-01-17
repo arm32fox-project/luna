@@ -77,6 +77,7 @@ nsSTSHostEntry::nsSTSHostEntry(const nsSTSHostEntry& toCopy)
 
 nsStrictTransportSecurityService::nsStrictTransportSecurityService()
   : mUsePreloadList(true)
+  , mUseStsService(true)
 {
 }
 
@@ -97,6 +98,7 @@ nsStrictTransportSecurityService::Init()
    NS_ENSURE_SUCCESS(rv, rv);
 
    mUsePreloadList = mozilla::Preferences::GetBool("network.stricttransportsecurity.preloadlist", true);
+   mUseStsService = mozilla::Preferences::GetBool("network.stricttransportsecurity.enabled", true);  
    mozilla::Preferences::AddStrongObserver(this, "network.stricttransportsecurity.preloadlist");
    mObserverService = mozilla::services::GetObserverService();
    if (mObserverService)
@@ -379,6 +381,12 @@ nsStrictTransportSecurityService::IsStsHost(const char* aHost, uint32_t aFlags, 
   // manager is used and it's not threadsafe.
   NS_ENSURE_TRUE(NS_IsMainThread(), NS_ERROR_UNEXPECTED);
 
+  // exit early if STS not enabled
+  if (!mUseStsService) {
+    *aResult = false;
+    return NS_OK;
+  }
+
   /* An IP address never qualifies as a secure URI. */
   if (HostIsIPAddress(aHost)) {
     *aResult = false;
@@ -438,6 +446,11 @@ nsStrictTransportSecurityService::IsStsURI(nsIURI* aURI, uint32_t aFlags, bool* 
   nsAutoCString host;
   nsresult rv = GetHost(aURI, host);
   NS_ENSURE_SUCCESS(rv, rv);
+
+  // exit early if STS not enabled
+  if (!mUseStsService) {
+    return NS_OK;
+  }
 
   /* An IP address never qualifies as a secure URI. */
   if (HostIsIPAddress(host.BeginReading())) {

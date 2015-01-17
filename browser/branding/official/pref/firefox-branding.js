@@ -72,7 +72,8 @@ pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT 6.1; WOW64; rv
 pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
 
 // UA-Sniffing domains below are pending responses from their operators - temp workaround
-pref("general.useragent.override.netflix.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.0) Gecko/20100101 Firefox/24.9 PaleMoon/25.0");
+pref("general.useragent.override.netflix.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.1) Gecko/20100101 Firefox/24.9 PaleMoon/25.1.0");
+pref("general.useragent.override.facebook.com","Opera/9.80 (Pale Moon)");
 
 // UA-Sniffing domains below have indicated no interest in supporting Pale Moon (BOO!)
 pref("general.useragent.override.humblebundle.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:33.0) Gecko/20100101 Firefox/33.0 (Pale Moon)");
@@ -162,14 +163,6 @@ pref("dom.ipc.plugins.timeoutSecs", 20);
 
 //Automatically update extensions by default
 pref("extensions.update.autoUpdateDefault", true);
-
-//cache handling 1GB -> 250MB by default, disable automatic
-//max element size -> 4MB, caching anything larger is not recommended
-pref("browser.cache.disk.smart_size.enabled",false);
-pref("browser.cache.disk.capacity",256000); //250MB
-pref("browser.cache.disk.max_entry_size",4096);
-pref("browser.cache.memory.capacity",-1); //dynamically allocate RAM cache as-needed.
-pref("browser.cache.memory.max_entry_size",-1); 
 
 //Improve memory handling for js
 pref("javascript.options.mem.gc_per_compartment", true);

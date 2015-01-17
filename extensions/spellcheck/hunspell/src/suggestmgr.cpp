@@ -161,7 +161,10 @@ int SuggestMgr::testsug(char** wlst, const char * candidate, int wl, int ns, int
       int cwrd = 1;
       if (ns == maxSug) return maxSug;
       for (int k=0; k < ns; k++) {
-        if (strcmp(candidate,wlst[k]) == 0) cwrd = 0;
+        if (strcmp(candidate,wlst[k]) == 0) {
+            cwrd = 0;
+            break;
+        }
       }
       if ((cwrd) && checkword(candidate, wl, cpdsuggest, timer, timelimit)) {
         wlst[ns] = mystrdup(candidate);
@@ -418,8 +421,12 @@ int SuggestMgr::map_related(const char * word, char * candidate, int wn, int cn,
       int cwrd = 1;
       *(candidate + cn) = '\0';
       int wl = strlen(candidate);
-      for (int m=0; m < ns; m++)
-          if (strcmp(candidate, wlst[m]) == 0) cwrd = 0;
+      for (int m=0; m < ns; m++) {
+          if (strcmp(candidate, wlst[m]) == 0) {
+              cwrd = 0;
+              break;
+          }
+      }
       if ((cwrd) && checkword(candidate, wl, cpdsuggest, timer, timelimit)) {
           if (ns < maxSug) {
               wlst[ns] = mystrdup(candidate);
@@ -815,8 +822,12 @@ int SuggestMgr::twowords(char ** wlst, const char * word, int ns, int cpdsuggest
                 ((c1 == 3) && (c2 >= 2)))) *p = '-';
 
             cwrd = 1;
-            for (int k=0; k < ns; k++)
-                if (strcmp(candidate,wlst[k]) == 0) cwrd = 0;
+            for (int k=0; k < ns; k++) {
+                if (strcmp(candidate,wlst[k]) == 0) {
+                    cwrd = 0;
+                    break;
+                }
+            }
             if (ns < maxSug) {
                 if (cwrd) {
                     wlst[ns] = mystrdup(candidate);
@@ -831,8 +842,12 @@ int SuggestMgr::twowords(char ** wlst, const char * word, int ns, int cpdsuggest
                 mystrlen(p + 1) > 1 &&
                 mystrlen(candidate) - mystrlen(p) > 1) {
                 *p = '-'; 
-                for (int k=0; k < ns; k++)
-                    if (strcmp(candidate,wlst[k]) == 0) cwrd = 0;
+                for (int k=0; k < ns; k++) {
+                    if (strcmp(candidate,wlst[k]) == 0) {
+                        cwrd = 0;
+                        break;
+                    }
+                }
                 if (ns < maxSug) {
                     if (cwrd) {
                         wlst[ns] = mystrdup(candidate);
@@ -1246,9 +1261,9 @@ int SuggestMgr::ngsuggest(char** wlst, char * w, int ns, HashMgr** pHMgr, int md
                  if (guess[lp]) {
                     free (guess[lp]);
                     if (guessorig[lp]) {
-                	free(guessorig[lp]);
-                	guessorig[lp] = NULL;
-            	    }
+                      free(guessorig[lp]);
+                      guessorig[lp] = NULL;
+                    }
                  }
                  gscore[lp] = sc;
                  guess[lp] = glst[k].word;
@@ -1375,33 +1390,36 @@ int SuggestMgr::ngsuggest(char** wlst, char * w, int ns, HashMgr** pHMgr, int md
         // leave only excellent suggestions, if exists
         if (gscore[i] > 1000) same = 1; else if (gscore[i] < -100) {
             same = 1;
-	    // keep the best ngram suggestions, unless in ONLYMAXDIFF mode
+            // keep the best ngram suggestions, unless in ONLYMAXDIFF mode
             if (ns > oldns || (pAMgr && pAMgr->get_onlymaxdiff())) {
-    	        free(guess[i]);
-    	        if (guessorig[i]) free(guessorig[i]);
+              free(guess[i]);
+              if (guessorig[i]) free(guessorig[i]);
                 continue;
             }
         }
         for (j = 0; j < ns; j++) {
           // don't suggest previous suggestions or a previous suggestion with prefixes or affixes
           if ((!guessorig[i] && strstr(guess[i], wlst[j])) ||
-	     (guessorig[i] && strstr(guessorig[i], wlst[j])) ||
-            // check forbidden words
-            !checkword(guess[i], strlen(guess[i]), 0, NULL, NULL)) unique = 0;
-        }
+              (guessorig[i] && strstr(guessorig[i], wlst[j])) ||
+              // check forbidden words
+              !checkword(guess[i], strlen(guess[i]), 0, NULL, NULL)) {
+                unique = 0;
+                break;
+              }
+          }
         if (unique) {
-    	    wlst[ns++] = guess[i];
-    	    if (guessorig[i]) {
-    		free(guess[i]);
-    		wlst[ns-1] = guessorig[i];
-    	    }
-    	} else {
-    	    free(guess[i]);
-    	    if (guessorig[i]) free(guessorig[i]);
-    	}
+          wlst[ns++] = guess[i];
+          if (guessorig[i]) {
+            free(guess[i]);
+            wlst[ns-1] = guessorig[i];
+          }
+        } else {
+          free(guess[i]);
+          if (guessorig[i]) free(guessorig[i]);
+        }
       } else {
         free(guess[i]);
-    	if (guessorig[i]) free(guessorig[i]);
+        if (guessorig[i]) free(guessorig[i]);
       }
     }
   }
@@ -1410,16 +1428,19 @@ int SuggestMgr::ngsuggest(char** wlst, char * w, int ns, HashMgr** pHMgr, int md
   if (ph) for (i=0; i < MAX_ROOTS; i++) {
     if (rootsphon[i]) {
       if ((ns < oldns + MAXPHONSUGS) && (ns < maxSug)) {
-	int unique = 1;
+        int unique = 1;
         for (j = 0; j < ns; j++) {
           // don't suggest previous suggestions or a previous suggestion with prefixes or affixes
           if (strstr(rootsphon[i], wlst[j]) || 
             // check forbidden words
-            !checkword(rootsphon[i], strlen(rootsphon[i]), 0, NULL, NULL)) unique = 0;
+            !checkword(rootsphon[i], strlen(rootsphon[i]), 0, NULL, NULL)) {
+              unique = 0;
+              break;
+            }
         }
         if (unique) {
-            wlst[ns++] = mystrdup(rootsphon[i]);
-            if (!wlst[ns - 1]) return ns - 1;
+          wlst[ns++] = mystrdup(rootsphon[i]);
+          if (!wlst[ns - 1]) return ns - 1;
         }
       }
     }

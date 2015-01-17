@@ -4715,6 +4715,17 @@ if (SpecialPowers.getBoolPref("layout.css.filters.enabled")) {
 	};
 }
 
+if (SpecialPowers.getBoolPref("layout.css.overflow-clip-box.enabled")) {
+	gCSSProperties["overflow-clip-box"] = {
+		domProp: "overflowClipBox",
+		inherited: false,
+		type: CSS_TYPE_LONGHAND,
+		initial_values: [ "padding-box" ],
+		other_values: [ "content-box" ],
+		invalid_values: [ "none", "auto", "border-box", "0" ]
+	};
+}
+
 if (SpecialPowers.getBoolPref("layout.css.image-orientation.enabled")) {
 	gCSSProperties["image-orientation"] = {
 		domProp: "imageOrientation",
