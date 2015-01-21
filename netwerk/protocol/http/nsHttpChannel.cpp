@@ -1194,10 +1194,10 @@ nsHttpChannel::ProcessResponse()
     // notify "http-on-examine-response" observers
     gHttpHandler->OnExamineResponse(this);
 
-    // Cookies should not be handled on proxy failure either.
-    // This would be consolidated with ProcessSecurityHeaders but it should
-    // happen after OnExamineResponse.
-    if (!mTransaction->ProxyConnectFailed() && (httpStatus != 407)) {
+    // Cookies should not be handled on proxy connection failure.
+    // This would normally be consolidated with ProcessSecurityHeaders, but it
+    // needs to happen after OnExamineResponse.
+    if (!mTransaction->ProxyConnectFailed()) {
         SetCookie(mResponseHead->PeekHeader(nsHttp::Set_Cookie));
     }
 
