@@ -452,6 +452,10 @@ var gPluginHandler = {
   },
 
   showInstallNotification: function (aPlugin) {
+  
+    //Short-circuit for discontinued PFS @Mozilla.
+    return false;
+    
     let browser = gBrowser.getBrowserForDocument(aPlugin.ownerDocument
                                                         .defaultView.top.document);
     if (!browser.missingPlugins)
