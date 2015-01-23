@@ -49,7 +49,6 @@ class Preprocessor:
     #  1: wantsTrue
     #  2: #else found
     self.ifStates = []
-    self.checkLineNumbers = False
     self.writtenLines = 0
     self.filters = []
     self.cmds = {}
@@ -128,14 +127,6 @@ class Preprocessor:
     """
     Internal method for handling output.
     """
-    if self.checkLineNumbers:
-      self.writtenLines += 1
-      ln = self.context['LINE']
-      if self.writtenLines != ln:
-        self.out.write('//@line {line} "{file}"{le}'.format(line=ln,
-                                                            file=self.context['FILE'],
-                                                            le=self.LE))
-        self.writtenLines = ln
     filteredLine = self.applyFilters(aLine)
     if filteredLine != aLine:
       self.actionLevel = 2
@@ -429,8 +420,6 @@ class Preprocessor:
     """
     isName = type(args) == str or type(args) == unicode
     oldWrittenLines = self.writtenLines
-    oldCheckLineNumbers = self.checkLineNumbers
-    self.checkLineNumbers = False
     if isName:
       try:
         args = str(args)
@@ -443,7 +432,6 @@ class Preprocessor:
         raise
       except:
         raise Preprocessor.Error(self, 'FILE_NOT_FOUND', str(args))
-    self.checkLineNumbers = bool(re.search('\.(js|jsm|java)(?:\.in)?$', args.name))
     oldFile = self.context['FILE']
     oldLine = self.context['LINE']
     oldDir = self.context['DIRECTORY']
@@ -462,7 +450,6 @@ class Preprocessor:
       self.handleLine(l)
     args.close()
     self.context['FILE'] = oldFile
-    self.checkLineNumbers = oldCheckLineNumbers
     self.writtenLines = oldWrittenLines
     self.context['LINE'] = oldLine
     self.context['DIRECTORY'] = oldDir
