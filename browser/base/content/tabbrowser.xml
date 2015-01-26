@@ -646,10 +646,6 @@
                     (aFlags & Ci.nsIWebProgressListener.LOCATION_CHANGE_ERROR_PAGE))
                   this.mBrowser.userTypedValue = null;
 
-                // Clear out the missing plugins list since it's related to the
-                // previous location.
-                this.mBrowser.missingPlugins = null;
-
                 // Don't clear the favicon if this onLocationChange was
                 // triggered by a pushState or a replaceState.  See bug 550565.
                 if (!gMultiProcessBrowser) {
