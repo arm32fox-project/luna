@@ -1413,14 +1413,6 @@ BrowserGlue.prototype = {
       }
     }
 
-    if (currentUIVersion < 13) {
-      try {
-        if (Services.prefs.getBoolPref("plugins.hide_infobar_for_missing_plugin"))
-          Services.prefs.setBoolPref("plugins.notifyMissingFlash", false);
-      }
-      catch (ex) {}
-    }
-
     if (this._dirty)
       this._dataSource.QueryInterface(Ci.nsIRDFRemoteDataSource).Flush();
 
