@@ -1183,10 +1183,6 @@ toolbar[iconsize="small"] #webrtc-status-button {
   list-style-image: url(chrome://mozapps/skin/plugins/pluginBlocked-64.png);
 }
 
-.popup-notification-icon[popupid="plugins-not-found"] {
-  list-style-image: url(chrome://browser/skin/pluginInstall-64.png);
-}
-
 .popup-notification-icon[popupid="web-notifications"] {
   list-style-image: url(chrome://browser/skin/notification-64.png);
 }
@@ -1338,10 +1334,6 @@ toolbar[iconsize="small"] #webrtc-status-button {
 #alert-plugins-notification-icon:active,
 #blocked-plugins-notification-icon:active {
   -moz-image-region: rect(0, 48px, 16px, 32px);
-}
-
-#plugin-install-notification-icon {
-  list-style-image: url(chrome://browser/skin/pluginInstall-16.png);
 }
 
 #notification-popup-box[hidden] {
