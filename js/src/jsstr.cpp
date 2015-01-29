@@ -4043,29 +4043,6 @@ js::DeflateStringToBuffer(JSContext *maybecx, const jschar *src, size_t srclen,
 }
 
 bool
-js::InflateStringToBuffer(JSContext *maybecx, const char *src, size_t srclen,
-                          jschar *dst, size_t *dstlenp)
-{
-    if (dst) {
-        size_t dstlen = *dstlenp;
-        if (srclen > dstlen) {
-            for (size_t i = 0; i < dstlen; i++)
-                dst[i] = (unsigned char) src[i];
-            if (maybecx) {
-                AutoSuppressGC suppress(maybecx);
-                JS_ReportErrorNumber(maybecx, js_GetErrorMessage, NULL,
-                                     JSMSG_BUFFER_TOO_SMALL);
-            }
-            return JS_FALSE;
-        }
-        for (size_t i = 0; i < srclen; i++)
-            dst[i] = (unsigned char) src[i];
-    }
-    *dstlenp = srclen;
-    return JS_TRUE;
-}
-
-bool
 js::InflateUTF8StringToBufferReplaceInvalid(JSContext *cx, const char *src,
                                             size_t srclen, jschar *dst,
                                             size_t *dstlenp)
