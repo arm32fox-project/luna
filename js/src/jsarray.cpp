@@ -991,14 +991,14 @@ ArrayJoin(JSContext *cx, CallArgs &args)
 
     // Steps 4 and 5
     RootedString sepstr(cx, NULL);
+    JS::Anchor<JSString *> anchor(nullptr);
+    const jschar *sepchars;
+    size_t seplen;
     if (!Locale && args.hasDefined(0)) {
         sepstr = ToString<CanGC>(cx, args.handleAt(0));
         if (!sepstr)
             return false;
-    }
-    const jschar *sepchars;
-    size_t seplen;
-    if (sepstr) {
+        anchor = sepstr;
         sepchars = sepstr->getChars(cx);
         if (!sepchars)
             return false;
