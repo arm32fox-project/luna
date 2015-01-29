@@ -332,7 +332,7 @@ SVGFETurbulenceElement::Turbulence(int aColorChannel, double* aPoint,
     if (aBaseFreqX != 0.0) {
       double loFreq = double (floor(aTileWidth * aBaseFreqX)) / aTileWidth;
       double hiFreq = double (ceil(aTileWidth * aBaseFreqX)) / aTileWidth;
-      if (aBaseFreqX / loFreq < hiFreq / aBaseFreqX)
+      if (aBaseFreqX * aBaseFreqX < hiFreq * loFreq)
         aBaseFreqX = loFreq;
       else
         aBaseFreqX = hiFreq;
@@ -340,7 +340,7 @@ SVGFETurbulenceElement::Turbulence(int aColorChannel, double* aPoint,
     if (aBaseFreqY != 0.0) {
       double loFreq = double (floor(aTileHeight * aBaseFreqY)) / aTileHeight;
       double hiFreq = double (ceil(aTileHeight * aBaseFreqY)) / aTileHeight;
-      if (aBaseFreqY / loFreq < hiFreq / aBaseFreqY)
+      if (aBaseFreqY * aBaseFreqY < loFreq * hiFreq)
         aBaseFreqY = loFreq;
       else
         aBaseFreqY = hiFreq;
