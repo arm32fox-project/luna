@@ -318,6 +318,14 @@ class MOZ_STACK_CLASS CallArgsBase :
         return i < argc_ && !this->argv_[i].isUndefined();
     }
 
+    /*
+     * Returns thisv and args in a single array, as required by
+     * Array.prototype.concat.
+     */
+    const Value *thisAndArgs() const {
+        return this->thisv().address();
+    }
+
   public:
     // These methods are publicly exposed, but we're less sure of the interface
     // here than we'd like (because they're hackish and drop assertions).  Try
