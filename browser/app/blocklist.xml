@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <blocklist xmlns="http://www.mozilla.org/2006/addons-blocklist"
-lastupdate="1422372563000">
+lastupdate="1422524108000">
   <emItems>
     <emItem blockID="i58" id="webmaster@buzzzzvideos.info">
       <versionRange minVersion="0" maxVersion="*"></versionRange>
@@ -2887,6 +2887,14 @@ lastupdate="1422372563000">
       <match name="filename"
       exp="(NPSWF32.*\.dll)|(Flash\ Player\.plugin)" />
       <versionRange minVersion="10.3.183.66"
+      maxVersion="11.2.202.438" severity="0" vulnerabilitystatus="1">
+      </versionRange>
+      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p794">
+      <match name="filename"
+      exp="(NPSWF32.*\.dll)|(Flash\ Player\.plugin)" />
+      <versionRange minVersion="11.3"
       maxVersion="13.0.0.258" severity="0" vulnerabilitystatus="1">
       </versionRange>
       <infoURL>https://get.adobe.com/flashplayer/</infoURL>
