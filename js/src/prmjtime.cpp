@@ -101,11 +101,15 @@ NowCalibrate()
 {
     MOZ_ASSERT(calibration.freq > 0);
 
+    // By wrapping a timeBegin/EndPeriod pair of calls around this loop,
+    // the loop seems to take much less time on NT6 kernels.
+    timeBeginPeriod(1);
     FILETIME ft, ftStart;
     GetSystemTimeAsFileTime(&ftStart);
     do {
         GetSystemTimeAsFileTime(&ft);
     } while (memcmp(&ftStart, &ft, sizeof(ft)) == 0);
+    timeEndPeriod(1);
 
     LARGE_INTEGER now;
     QueryPerformanceCounter(&now);
