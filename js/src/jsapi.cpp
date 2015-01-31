@@ -627,6 +627,34 @@ JS_IsBuiltinFunctionConstructor(JSFunction *fun)
 /************************************************************************/
 
 /*
+ * One-time initialization calls.
+ */
+
+// Flag to indicate Init has been called.
+static JSBool js_Initialized = JS_FALSE;
+
+JS_PUBLIC_API(JSBool)
+JS_Init(void)
+{
+  MOZ_ASSERT(!js_Initialized,
+             "Must call JS_Init only once, before any other JSAPI operation");
+
+  js_Initialized = true;
+  return true;
+}
+
+JS_PUBLIC_API(void)
+JS_ShutDown(void)
+{
+  MOZ_ASSERT(js_Initialized,
+             "JS_ShutDown must only be called after JS_Init and can't race with it");
+             
+  // Deallocate and cleanup code. 
+  PRMJ_NowShutdown();
+  js_Initialized = false; 
+}
+
+/*
  * Has a new runtime ever been created?  This flag is used to control things
  * that should happen only once across all runtimes.
  */
@@ -1131,12 +1159,6 @@ JS_DestroyRuntime(JSRuntime *rt)
 {
     js_free(rt->defaultLocale);
     js_delete(rt);
-}
-
-JS_PUBLIC_API(void)
-JS_ShutDown(void)
-{
-    PRMJ_NowShutdown();
 }
 
 JS_PUBLIC_API(void *)
