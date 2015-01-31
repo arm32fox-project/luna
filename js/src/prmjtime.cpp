@@ -121,6 +121,7 @@ NowCalibrate()
 
 static const unsigned DataLockSpinCount = 4096;
 
+static void (WINAPI *pGetSystemTimePreciseAsFileTime)(LPFILETIME) = nullptr;
 
 void
 PRMJ_NowInit()
@@ -140,6 +141,12 @@ PRMJ_NowInit()
 #ifdef JS_THREADSAFE
     InitializeCriticalSectionAndSpinCount(&calibration.data_lock, DataLockSpinCount);
 #endif
+
+    // Windows 8 has a new API function we can use.
+    if (HMODULE h = GetModuleHandle("kernel32.dll")) {
+        pGetSystemTimePreciseAsFileTime =
+            (void (WINAPI *)(LPFILETIME))GetProcAddress(h, "GetSystemTimePreciseAsFileTime");
+    }
 }
 
 #ifdef JS_THREADSAFE
@@ -165,6 +172,12 @@ PRMJ_NowShutdown()
 int64_t
 PRMJ_Now()
 {
+    if (pGetSystemTimePreciseAsFileTime) {
+        // Windows 8 has a new API function that does all the work.
+        FILETIME ft;
+        pGetSystemTimePreciseAsFileTime(&ft);
+        return int64_t(FileTimeToUnixMicroseconds(ft));
+    }
 
     bool calibrated = false;
     bool needsCalibration = !calibration.calibrated;
