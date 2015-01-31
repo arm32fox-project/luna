@@ -639,6 +639,9 @@ JS_Init(void)
   MOZ_ASSERT(!js_Initialized,
              "Must call JS_Init only once, before any other JSAPI operation");
 
+  // Init and calibrate PRMJ_Now.
+  PRMJ_NowInit();
+  
   js_Initialized = true;
   return true;
 }
