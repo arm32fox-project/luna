@@ -93,14 +93,6 @@ public:
     return !mHaveResultOrErrorCode;
   }
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  uint64_t
-  GetSerialNumber() const
-  {
-    return mSerialNumber;
-  }
-#endif
-
 protected:
   IDBRequest();
   ~IDBRequest();
@@ -112,9 +104,6 @@ protected:
   nsRefPtr<mozilla::dom::DOMError> mError;
   IndexedDBRequestParentBase* mActorParent;
   nsString mFilename;
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  uint64_t mSerialNumber;
-#endif
   nsresult mErrorCode;
   uint32_t mLineNo;
   bool mHaveResultOrErrorCode;

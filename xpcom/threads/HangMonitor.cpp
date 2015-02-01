@@ -16,10 +16,6 @@
 #include <windows.h>
 #endif
 
-#if defined(MOZ_ENABLE_PROFILER_SPS) && defined(MOZ_PROFILING) && defined(XP_WIN)
-  #define REPORT_CHROME_HANGS
-#endif
-
 namespace mozilla { namespace HangMonitor {
 
 /**
@@ -53,31 +49,11 @@ bool gShutdown;
 // we're currently not processing events.
 volatile PRIntervalTime gTimestamp = PR_INTERVAL_NO_WAIT;
 
-#ifdef REPORT_CHROME_HANGS
-// Main thread ID used in reporting chrome hangs under Windows
-static HANDLE winMainThreadHandle = NULL;
-
-// Default timeout for reporting chrome hangs to Telemetry (5 seconds)
-static const int32_t DEFAULT_CHROME_HANG_INTERVAL = 5;
-
-// Maximum number of PCs to gather from the stack
-static const int32_t MAX_CALL_STACK_PCS = 400;
-#endif
-
 // PrefChangedFunc
 int
 PrefChanged(const char*, void*)
 {
   int32_t newval = Preferences::GetInt(kHangMonitorPrefName);
-#ifdef REPORT_CHROME_HANGS
-  // Monitor chrome hangs on the profiling branch if Telemetry enabled
-  if (newval == 0) {
-    bool telemetryEnabled = Preferences::GetBool(kTelemetryPrefName);
-    if (telemetryEnabled) {
-      newval = DEFAULT_CHROME_HANG_INTERVAL;
-    }
-  }
-#endif
   MonitorAutoLock lock(*gMonitor);
   if (newval != gTimeout) {
     gTimeout = newval;
@@ -103,41 +79,6 @@ Crash()
   NS_RUNTIMEABORT("HangMonitor triggered");
 }
 
-#ifdef REPORT_CHROME_HANGS
-static void
-ChromeStackWalker(void *aPC, void *aSP, void *aClosure)
-{
-  MOZ_ASSERT(aClosure);
-  std::vector<uintptr_t> *stack =
-    static_cast<std::vector<uintptr_t>*>(aClosure);
-  if (stack->size() == MAX_CALL_STACK_PCS)
-    return;
-  MOZ_ASSERT(stack->size() < MAX_CALL_STACK_PCS);
-  stack->push_back(reinterpret_cast<uintptr_t>(aPC));
-}
-
-static void
-GetChromeHangReport(Telemetry::ProcessedStack &aStack)
-{
-  MOZ_ASSERT(winMainThreadHandle);
-
-  // The thread we're about to suspend might have the alloc lock
-  // so allocate ahead of time
-  std::vector<uintptr_t> rawStack;
-  rawStack.reserve(MAX_CALL_STACK_PCS);
-  DWORD ret = ::SuspendThread(winMainThreadHandle);
-  if (ret == -1)
-    return;
-  NS_StackWalk(ChromeStackWalker, /* skipFrames */ 0, /* maxFrames */ 0,
-               reinterpret_cast<void*>(&rawStack),
-               reinterpret_cast<uintptr_t>(winMainThreadHandle), nullptr);
-  ret = ::ResumeThread(winMainThreadHandle);
-  if (ret == -1)
-    return;
-  aStack = Telemetry::GetStackAndModules(rawStack);
-}
-#endif
-
 void
 ThreadMain(void*)
 {
@@ -150,10 +91,6 @@ ThreadMain(void*)
   // run twice to trigger hang protection.
   PRIntervalTime lastTimestamp = 0;
   int waitCount = 0;
-
-#ifdef REPORT_CHROME_HANGS
-  Telemetry::ProcessedStack stack;
-#endif
 
   while (true) {
     if (gShutdown) {
@@ -176,26 +113,15 @@ ThreadMain(void*)
         gTimeout > 0) {
       ++waitCount;
       if (waitCount >= 2) {
-#ifdef REPORT_CHROME_HANGS
-        GetChromeHangReport(stack);
-#else
         int32_t delay =
           int32_t(PR_IntervalToSeconds(now - timestamp));
         if (delay >= gTimeout) {
           MonitorAutoUnlock unlock(*gMonitor);
           Crash();
         }
-#endif
       }
     }
     else {
-#ifdef REPORT_CHROME_HANGS
-      if (waitCount >= 2) {
-        uint32_t hangDuration = PR_IntervalToSeconds(now - lastTimestamp);
-        Telemetry::RecordChromeHang(hangDuration, stack);
-        stack.Clear();
-      }
-#endif
       lastTimestamp = timestamp;
       waitCount = 0;
     }
@@ -225,14 +151,6 @@ Startup()
 
   Preferences::RegisterCallback(PrefChanged, kHangMonitorPrefName, NULL);
   PrefChanged(NULL, NULL);
-
-#ifdef REPORT_CHROME_HANGS
-  Preferences::RegisterCallback(PrefChanged, kTelemetryPrefName, NULL);
-  winMainThreadHandle =
-    OpenThread(THREAD_ALL_ACCESS, FALSE, GetCurrentThreadId());
-  if (!winMainThreadHandle)
-    return;
-#endif
 
   // Don't actually start measuring hangs until we hit the main event loop.
   // This potentially misses a small class of really early startup hangs,

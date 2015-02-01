@@ -1359,12 +1359,6 @@ XPCJSRuntime::~XPCJSRuntime()
         delete mDetachedWrappedNativeProtoMap;
     }
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    // Tell the profiler that the runtime is gone
-    if (PseudoStack *stack = mozilla_get_pseudo_stack())
-        stack->sampleRuntime(nullptr);
-#endif
-
 #ifdef DEBUG
     for (uint32_t i = 0; i < XPCCCX_STRING_CACHE_SIZE; ++i) {
         NS_ASSERTION(!mScratchStrings[i].mInUse, "Uh, string wrapper still in use!");
@@ -2714,10 +2708,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
                               xpc::WrapperFactory::WrapForSameCompartment,
                               xpc::WrapperFactory::PrepareForWrapping);
     js::SetPreserveWrapperCallback(runtime, PreserveWrapper);
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    if (PseudoStack *stack = mozilla_get_pseudo_stack())
-        stack->sampleRuntime(runtime);
-#endif
     JS_SetAccumulateTelemetryCallback(runtime, AccumulateTelemetryCallback);
     js::SetActivityCallback(runtime, ActivityCallback, this);
     js::SetCTypesActivityCallback(runtime, CTypesActivityCallback);
