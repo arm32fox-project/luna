@@ -95,11 +95,6 @@
 # include "gfxAndroidPlatform.h"
 #endif
 
-#ifdef MOZ_CRASHREPORTER
-# include "nsExceptionHandler.h"
-# include "nsICrashReporter.h"
-#endif
-
 #ifdef MOZ_PERMISSIONS
 # include "nsPermissionManager.h"
 #endif
@@ -918,32 +913,6 @@ ContentParent::ActorDestroy(ActorDestroyReason why)
 
         if (AbnormalShutdown == why) {
             props->SetPropertyAsBool(NS_LITERAL_STRING("abnormal"), true);
-
-#ifdef MOZ_CRASHREPORTER
-            // There's a window in which child processes can crash
-            // after IPC is established, but before a crash reporter
-            // is created.
-            if (ManagedPCrashReporterParent().Length() > 0) {
-                CrashReporterParent* crashReporter =
-                    static_cast<CrashReporterParent*>(ManagedPCrashReporterParent()[0]);
-
-                // If we're an app process, always stomp the latest URI
-                // loaded in the child process with our manifest URL.  We
-                // would rather associate the crashes with apps than
-                // random child windows loaded in them.
-                //
-                // XXX would be nice if we could get both ...
-                if (!mAppManifestURL.IsEmpty()) {
-                    crashReporter->AnnotateCrashReport(NS_LITERAL_CSTRING("URL"),
-                                                       NS_ConvertUTF16toUTF8(mAppManifestURL));
-                }
-
-                crashReporter->GenerateCrashReport(this, NULL);
-
-                nsAutoString dumpID(crashReporter->ChildDumpID());
-                props->SetPropertyAsAString(NS_LITERAL_STRING("dumpID"), dumpID);
-            }
-#endif
         }
         obs->NotifyObservers((nsIPropertyBag2*) props, "ipc:content-shutdown", nullptr);
     }
@@ -1812,11 +1781,7 @@ PCrashReporterParent*
 ContentParent::AllocPCrashReporter(const NativeThreadId& tid,
                                    const uint32_t& processType)
 {
-#ifdef MOZ_CRASHREPORTER
-  return new CrashReporterParent();
-#else
   return nullptr;
-#endif
 }
 
 bool

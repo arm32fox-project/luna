@@ -27,10 +27,6 @@
 #include "nsTArray.h"
 #include "mozilla/Preferences.h"
 
-#if defined(MOZ_CRASHREPORTER)
-#include "nsExceptionHandler.h"
-#endif
-
 using namespace mozilla::widget;
 using namespace mozilla;
 using mozilla::MutexAutoLock;
@@ -844,13 +840,7 @@ GfxInfoBase::LogFailure(const nsACString &failure)
   /* We only keep the first 9 failures */
   if (mFailureCount < ArrayLength(mFailures)) {
     mFailures[mFailureCount++] = failure;
-
-    /* record it in the crash notes too */
-    #if defined(MOZ_CRASHREPORTER)
-      CrashReporter::AppendAppNotesToCrashReport(failure);
-    #endif
   }
-
 }
 
 /* void getFailures ([optional] out unsigned long failureCount, [array, size_is (failureCount), retval] out string failures); */

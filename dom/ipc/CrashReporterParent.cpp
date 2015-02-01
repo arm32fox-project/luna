@@ -18,9 +18,6 @@ void
 CrashReporterParent::AnnotateCrashReport(const nsCString& key,
                                          const nsCString& data)
 {
-#ifdef MOZ_CRASHREPORTER
-    mNotes.Put(key, data);
-#endif
 }
 
 bool
@@ -35,10 +32,6 @@ CrashReporterParent::CrashReporterParent()
 , mInitialized(false)
 {
     MOZ_COUNT_CTOR(CrashReporterParent);
-
-#ifdef MOZ_CRASHREPORTER
-    mNotes.Init(4);
-#endif
 }
 
 CrashReporterParent::~CrashReporterParent()
@@ -54,51 +47,6 @@ CrashReporterParent::SetChildData(const NativeThreadId& tid,
     mMainThread = tid;
     mProcessType = processType;
 }
-
-#ifdef MOZ_CRASHREPORTER
-bool
-CrashReporterParent::GenerateCrashReportForMinidump(nsIFile* minidump,
-    const AnnotationTable* processNotes)
-{
-    if (!CrashReporter::GetIDFromMinidump(minidump, mChildDumpID))
-        return false;
-    return GenerateChildData(processNotes);
-}
-
-bool
-CrashReporterParent::GenerateChildData(const AnnotationTable* processNotes)
-{
-    MOZ_ASSERT(mInitialized);
-
-    nsAutoCString type;
-    switch (mProcessType) {
-        case GeckoProcessType_Content:
-            type = NS_LITERAL_CSTRING("content");
-            break;
-        case GeckoProcessType_Plugin:
-            type = NS_LITERAL_CSTRING("plugin");
-            break;
-        default:
-            NS_ERROR("unknown process type");
-            break;
-    }
-    mNotes.Put(NS_LITERAL_CSTRING("ProcessType"), type);
-
-    char startTime[32];
-    sprintf(startTime, "%lld", static_cast<long long>(mStartTime));
-    mNotes.Put(NS_LITERAL_CSTRING("StartupTime"), nsDependentCString(startTime));
-
-    if (!mAppNotes.IsEmpty())
-        mNotes.Put(NS_LITERAL_CSTRING("Notes"), mAppNotes);
-
-    bool ret = CrashReporter::AppendExtraData(mChildDumpID, mNotes);
-    if (ret && processNotes)
-        ret = CrashReporter::AppendExtraData(mChildDumpID, *processNotes);
-    if (!ret)
-        NS_WARNING("problem appending child data to .extra");
-    return ret;
-}
-#endif
 
 } // namespace dom
 } // namespace mozilla

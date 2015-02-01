@@ -30,10 +30,6 @@
 #include "nsHashKeys.h"
 #include "nsIFileStreams.h"
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-#endif
-
 namespace mozilla {
 namespace dom {
 class PCrashReporterParent;
@@ -63,9 +59,6 @@ class PluginHangUIParent;
 class PluginModuleParent
     : public PPluginModuleParent
     , public PluginLibrary
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-    , public CrashReporter::InjectorCrashCallback
-#endif
 {
 private:
     typedef mozilla::PluginLibrary PluginLibrary;
@@ -292,10 +285,6 @@ private:
 private:
     CrashReporterParent* CrashReporter();
 
-#ifdef MOZ_CRASHREPORTER
-    void ProcessFirstMinidump();
-    void WriteExtraDataForMinidump(CrashReporter::AnnotationTable& notes);
-#endif
     void CleanupFromTimeout(const bool aByHangUI);
     void SetChildTimeout(const int32_t aChildTimeout);
     static int TimeoutChanged(const char* aPref, void* aModule);
@@ -356,15 +345,6 @@ private:
 #endif
 
     friend class mozilla::dom::CrashReporterParent;
-
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-    void InitializeInjector();
-    
-    void OnCrash(DWORD processID) MOZ_OVERRIDE;
-
-    DWORD mFlashProcess1;
-    DWORD mFlashProcess2;
-#endif
 };
 
 } // namespace plugins

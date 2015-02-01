@@ -736,11 +736,7 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
     elif self.IS_WIN32:
       env["PATH"] = env["PATH"] + ";" + ldLibraryPath
 
-    if crashreporter:
-      env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
-      env['MOZ_CRASHREPORTER'] = '1'
-    else:
-      env['MOZ_CRASHREPORTER_DISABLE'] = '1'
+    env['MOZ_CRASHREPORTER_DISABLE'] = '1'
 
     env['GNOME_DISABLE_CRASH_DIALOG'] = '1'
     env['XRE_NO_WINDOWS_CRASH_DIALOG'] = '1'

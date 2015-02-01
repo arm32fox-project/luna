@@ -314,11 +314,6 @@ ContentChild::Init(MessageLoop* aIOLoop,
     Open(aChannel, aParentHandle, aIOLoop);
     sSingleton = this;
 
-#ifdef MOZ_CRASHREPORTER
-    SendPCrashReporterConstructor(CrashReporter::CurrentThreadId(),
-                                  XRE_GetProcessType());
-#endif
-
     SendGetProcessAttributes(&mID, &mIsForApp, &mIsForBrowser);
 
     if (mIsForApp && !mIsForBrowser) {
@@ -734,11 +729,7 @@ PCrashReporterChild*
 ContentChild::AllocPCrashReporter(const mozilla::dom::NativeThreadId& id,
                                   const uint32_t& processType)
 {
-#ifdef MOZ_CRASHREPORTER
-    return new CrashReporterChild();
-#else
     return nullptr;
-#endif
 }
 
 bool

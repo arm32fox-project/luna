@@ -118,11 +118,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "SessionStorage",
 XPCOMUtils.defineLazyModuleGetter(this, "_SessionFile",
   "resource:///modules/sessionstore/_SessionFile.jsm");
 
-#ifdef MOZ_CRASHREPORTER
-XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
-  "@mozilla.org/xre/app-info;1", "nsICrashReporter");
-#endif
-
 function debug(aMsg) {
   aMsg = ("SessionStore: " + aMsg).replace(/\S{80}/g, "$&\n");
   Services.console.logStringMessage(aMsg);
@@ -4002,23 +3997,6 @@ let SessionStoreInternal = {
    * Annotate a breakpad crash report with the currently selected tab's URL.
    */
   _updateCrashReportURL: function ssi_updateCrashReportURL(aWindow) {
-#ifdef MOZ_CRASHREPORTER
-    try {
-      var currentURI = aWindow.gBrowser.currentURI.clone();
-      // if the current URI contains a username/password, remove it
-      try {
-        currentURI.userPass = "";
-      }
-      catch (ex) { } // ignore failures on about: URIs
-
-      CrashReporter.annotateCrashReport("URL", currentURI.spec);
-    }
-    catch (ex) {
-      // don't make noise when crashreporter is built but not enabled
-      if (ex.result != Components.results.NS_ERROR_NOT_INITIALIZED)
-        debug(ex);
-    }
-#endif
   },
 
   /**

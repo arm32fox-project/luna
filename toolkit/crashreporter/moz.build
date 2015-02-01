@@ -11,9 +11,6 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     'breakpad-windows-libxul'
     ]
 
-    if CONFIG['MOZ_CRASHREPORTER_INJECTOR']:
-        DIRS += ['breakpad-windows-standalone']
-
 elif CONFIG['OS_ARCH'] == 'Darwin':
     DIRS += [
         'google-breakpad/src/common',
@@ -47,13 +44,6 @@ elif CONFIG['OS_ARCH'] == 'SunOS':
     ]
 
 DIRS += ['client']
-
-if CONFIG['MOZ_CRASHREPORTER_INJECTOR']:
-    DIRS += ['injector']
-    CPP_SOURCES += [
-        'LoadLibraryRemote.cpp',
-        'InjectCrashReporter.cpp',
-    ]
 
 TEST_TOOL_DIRS += ['test']
 

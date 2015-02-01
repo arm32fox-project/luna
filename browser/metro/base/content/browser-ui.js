@@ -219,22 +219,6 @@ var BrowserUI = {
   },
 
   startupCrashCheck: function startupCrashCheck() {
-#ifdef MOZ_CRASHREPORTER
-    if (!Services.prefs.getBoolPref("app.reportCrashes"))
-      return false;
-    if (CrashReporter.enabled) {
-      var lastCrashID = Cc["@mozilla.org/xre/app-info;1"].getService(Ci.nsIXULAppInfo).lastRunCrashID;
-      if (lastCrashID && lastCrashID.length) {
-        Util.dumpLn("Submitting last crash id:", lastCrashID);
-        try {
-          this.CrashSubmit.submit(lastCrashID);
-        } catch (ex) {
-          Util.dumpLn(ex);
-        }
-        return true;
-      }
-    }
-#endif
     return false;
   },
 

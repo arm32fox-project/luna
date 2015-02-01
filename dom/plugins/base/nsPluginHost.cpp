@@ -131,10 +131,6 @@
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GeckoPlugins" , ## args)
 #endif
 
-#if MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-#endif
-
 using namespace mozilla;
 using mozilla::TimeStamp;
 
@@ -995,12 +991,6 @@ nsPluginHost::TrySetUpPluginInstance(const char *aMimeType,
   nsPluginTag* pluginTag = FindPluginForType(aMimeType, true);
 
   NS_ASSERTION(pluginTag, "Must have plugin tag here!");
-
-#if defined(MOZ_WIDGET_ANDROID) && defined(MOZ_CRASHREPORTER)
-  if (pluginTag->mIsFlashPlugin) {
-    CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("FlashVersion"), pluginTag->mVersion);
-  }
-#endif
 
   nsRefPtr<nsNPAPIPluginInstance> instance = new nsNPAPIPluginInstance();
 

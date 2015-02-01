@@ -42,10 +42,6 @@
 #include "nsJSPrincipals.h"
 #include <algorithm>
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-#endif
-
 using namespace mozilla;
 using namespace xpc;
 using namespace JS;
@@ -742,11 +738,6 @@ XPCJSRuntime::GCSliceCallback(JSRuntime *rt,
     XPCJSRuntime *self = nsXPConnect::GetRuntimeInstance();
     if (!self)
         return;
-
-#ifdef MOZ_CRASHREPORTER
-    CrashReporter::SetGarbageCollecting(progress == JS::GC_CYCLE_BEGIN ||
-                                        progress == JS::GC_SLICE_BEGIN);
-#endif
 
     if (self->mPrevGCSliceCallback)
         (*self->mPrevGCSliceCallback)(rt, progress, desc);
@@ -2455,14 +2446,6 @@ JSMemoryMultiReporter::CollectReports(WindowPaths *windowPaths,
 
 } // namespace xpc
 
-#ifdef MOZ_CRASHREPORTER
-static JSBool
-DiagnosticMemoryCallback(void *ptr, size_t size)
-{
-    return CrashReporter::RegisterAppMemory(ptr, size) == NS_OK;
-}
-#endif
-
 static void
 AccumulateTelemetryCallback(int id, uint32_t sample)
 {
@@ -2731,9 +2714,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
                               xpc::WrapperFactory::WrapForSameCompartment,
                               xpc::WrapperFactory::PrepareForWrapping);
     js::SetPreserveWrapperCallback(runtime, PreserveWrapper);
-#ifdef MOZ_CRASHREPORTER
-    JS_EnumerateDiagnosticMemoryRegions(DiagnosticMemoryCallback);
-#endif
 #ifdef MOZ_ENABLE_PROFILER_SPS
     if (PseudoStack *stack = mozilla_get_pseudo_stack())
         stack->sampleRuntime(runtime);

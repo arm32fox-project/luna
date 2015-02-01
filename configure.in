@@ -5922,49 +5922,6 @@ AC_SUBST(MOZ_GAMEPAD)
 AC_SUBST(MOZ_GAMEPAD_BACKEND)
 
 dnl ========================================================
-dnl = Breakpad crash reporting (off by default)
-dnl ========================================================
-
-MOZ_ARG_ENABLE_BOOL(crashreporter,
-[  --enable-crashreporter Enable Mozilla crash reporter],
-    MOZ_CRASHREPORTER=1,
-    MOZ_CRASHREPORTER= )
-
-if test -n "$MOZ_CRASHREPORTER"; then
-   AC_DEFINE(MOZ_CRASHREPORTER)
-
-  if test "$OS_TARGET" = "Linux" -o "$OS_ARCH" = "SunOS" && \
-    test -z "$SKIP_LIBRARY_CHECKS"; then
-    PKG_CHECK_MODULES(MOZ_GTHREAD, gthread-2.0)
-    AC_SUBST(MOZ_GTHREAD_CFLAGS)
-    AC_SUBST(MOZ_GTHREAD_LIBS)
-  fi
-
-  if test "$OS_ARCH" != "$HOST_OS_ARCH" -a "$OS_ARCH" != "WINNT"; then
-    AC_MSG_ERROR([Breakpad tools do not support compiling on $HOST_OS_ARCH while targeting $OS_ARCH.  Do not use --enable-crashreporter.])
-  fi
-
-  if test "$OS_ARCH" = "WINNT"; then
-    if test -z "$HAVE_64BIT_OS"; then
-      MOZ_CRASHREPORTER_INJECTOR=1
-      AC_DEFINE(MOZ_CRASHREPORTER_INJECTOR)
-    fi
-  fi
-fi
-AC_DEFINE_UNQUOTED(BREAKPAD_CUSTOM_STDINT_H, "mozilla/StandardInteger.h")
-
-MOZ_ARG_WITH_STRING(crashreporter-enable-percent,
-[  --with-crashreporter-enable-percent=NN
-                          Enable sending crash reports by default on NN% of users. (default=100)],
-[ val=`echo $withval | sed 's/[^0-9]//g'`
-    MOZ_CRASHREPORTER_ENABLE_PERCENT="$val"])
-
-if test -z "$MOZ_CRASHREPORTER_ENABLE_PERCENT"; then
-   MOZ_CRASHREPORTER_ENABLE_PERCENT=100
-fi
-AC_DEFINE_UNQUOTED(MOZ_CRASHREPORTER_ENABLE_PERCENT, $MOZ_CRASHREPORTER_ENABLE_PERCENT)
-
-dnl ========================================================
 dnl = libjpeg-turbo configuration
 dnl ========================================================
 MOZ_LIBJPEG_TURBO=
@@ -8508,9 +8465,6 @@ AC_SUBST(MOZ_SPELLCHECK)
 AC_SUBST(MOZ_ANDROID_OMTC)
 AC_SUBST(MOZ_ANDROID_ANR_REPORTER)
 AC_SUBST(MOZ_ONLY_TOUCH_EVENTS)
-AC_SUBST(MOZ_CRASHREPORTER)
-AC_SUBST(MOZ_CRASHREPORTER_INJECTOR)
-AC_SUBST(MOZ_CRASHREPORTER_UPLOAD_FULL_SYMBOLS)
 AC_SUBST(MOZ_MAINTENANCE_SERVICE)
 AC_SUBST(MOZ_STUB_INSTALLER)
 AC_SUBST(MOZ_VERIFY_MAR_SIGNATURE)
@@ -8691,7 +8645,7 @@ fi
 dnl If we have any service that uploads data (and requires data submission
 dnl policy alert), set MOZ_DATA_REPORTING.
 dnl We need SUBST for build system and DEFINE for xul preprocessor.
-if test -n "$MOZ_TELEMETRY_REPORTING" || test -n "$MOZ_SERVICES_HEALTHREPORT" || test -n "$MOZ_CRASHREPORTER"; then
+if test -n "$MOZ_TELEMETRY_REPORTING" || test -n "$MOZ_SERVICES_HEALTHREPORT"; then
   MOZ_DATA_REPORTING=1
   AC_DEFINE(MOZ_DATA_REPORTING)
   AC_SUBST(MOZ_DATA_REPORTING)
@@ -9130,7 +9084,6 @@ TARGET_CPU=${TARGET_CPU} \
 MOZ_DEBUG=${MOZ_DEBUG} \
 MOZ_WIDGET_TOOLKIT=${MOZ_WIDGET_TOOLKIT} \
 UNIVERSAL_BINARY=${UNIVERSAL_BINARY} \
-MOZ_CRASHREPORTER=${MOZ_CRASHREPORTER} \
 MOZ_APP_NAME=${MOZ_APP_NAME} \
 TOPSRCDIR=${_topsrcdir} \
 MOZ_ASAN=${MOZ_ASAN} \

@@ -39,9 +39,7 @@ elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
     PARALLEL_DIRS += ['system/androidproxy']
 
-if CONFIG['MOZ_CRASHREPORTER']:
-    PARALLEL_DIRS += ['crashreporter']
-elif CONFIG['MOZ_ENABLE_PROFILER_SPS']:
+if CONFIG['MOZ_ENABLE_PROFILER_SPS']:
     # Profiler requires some crashreporter code,
     # so build it even if crashreporter is disabled.
     PARALLEL_DIRS += [
