@@ -269,13 +269,6 @@ private:
     virtual PBlobParent* AllocPBlob(const BlobConstructorParams& aParams);
     virtual bool DeallocPBlob(PBlobParent*);
 
-    virtual PCrashReporterParent* AllocPCrashReporter(const NativeThreadId& tid,
-                                                      const uint32_t& processType);
-    virtual bool DeallocPCrashReporter(PCrashReporterParent* crashreporter);
-    virtual bool RecvPCrashReporterConstructor(PCrashReporterParent* actor,
-                                               const NativeThreadId& tid,
-                                               const uint32_t& processType);
-
     virtual bool RecvGetRandomValues(const uint32_t& length,
                                      InfallibleTArray<uint8_t>* randomValues);
 
@@ -460,8 +453,6 @@ private:
     bool mIsDestroyed;
     bool mSendPermissionUpdates;
     bool mIsForBrowser;
-
-    friend class CrashReporterParent;
 
     nsRefPtr<nsConsoleService>  mConsoleService;
     nsConsoleService* GetConsoleService();

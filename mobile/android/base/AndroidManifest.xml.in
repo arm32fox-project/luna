@@ -204,18 +204,6 @@
 #include ../services/manifests/SyncAndroidManifest_activities.xml.in
 #include ../services/manifests/HealthReportAndroidManifest_activities.xml.in
 
-#if MOZ_CRASHREPORTER
-  <activity android:name="org.mozilla.gecko.CrashReporter"
-            android:label="@string/crash_reporter_title"
-            android:icon="@drawable/crash_reporter"
-            android:theme="@style/Gecko"
-            android:excludeFromRecents="true">
-          <intent-filter>
-            <action android:name="org.mozilla.gecko.reportCrash" />
-          </intent-filter>
-	</activity>
-#endif
-
         <activity android:name="org.mozilla.gecko.VideoPlayer"
                   android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation"
                   android:theme="@android:style/Theme.NoTitleBar">

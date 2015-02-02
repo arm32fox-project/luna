@@ -58,10 +58,6 @@ ScopedAppData::ScopedAppData(const nsXREAppData* aAppData)
     SetAllocatedString(this->maxVersion, aAppData->maxVersion);
   }
 
-  if (aAppData->size > offsetof(nsXREAppData, crashReporterURL)) {
-    SetAllocatedString(this->crashReporterURL, aAppData->crashReporterURL);
-  }
-
   if (aAppData->size > offsetof(nsXREAppData, UAName)) {
     SetAllocatedString(this->UAName, aAppData->UAName);
   }
@@ -83,7 +79,6 @@ ScopedAppData::~ScopedAppData()
   SetAllocatedString(this->minVersion, nullptr);
   SetAllocatedString(this->maxVersion, nullptr);
 
-  SetAllocatedString(this->crashReporterURL, nullptr);
   SetAllocatedString(this->UAName, nullptr);
 }
 

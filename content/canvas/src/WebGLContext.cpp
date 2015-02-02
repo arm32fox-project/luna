@@ -35,8 +35,6 @@
 
 #include "GLContextProvider.h"
 
-#include "gfxCrashReporterUtils.h"
-
 #include "nsSVGEffects.h"
 
 #include "prenv.h"
@@ -431,8 +429,6 @@ WebGLContext::SetDimensions(int32_t width, int32_t height)
     bool prefer16bit =
         Preferences::GetBool("webgl.prefer-16bpp", false);
 
-    ScopedGfxFeatureReporter reporter("WebGL", forceEnabled);
-
     if (disabled)
         return NS_ERROR_FAILURE;
 
@@ -599,7 +595,6 @@ WebGLContext::SetDimensions(int32_t width, int32_t height)
     MOZ_ASSERT(gl->Caps().antialias == caps.antialias || !gl->Caps().antialias);
     MOZ_ASSERT(gl->Caps().preserve == caps.preserve);
 
-    reporter.SetSuccessful();
     return NS_OK;
 }
 

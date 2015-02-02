@@ -146,16 +146,6 @@ class TestBuildDict(unittest.TestCase):
         """
         Test that crashreporter values are properly detected.
         """
-        d = build_dict({'OS_TARGET':'Linux',
-                        'TARGET_CPU':'i386',
-                        'MOZ_WIDGET_TOOLKIT':'gtk2'})
-        self.assertEqual(False, d['crashreporter'])
-        
-        d = build_dict({'OS_TARGET':'Linux',
-                        'TARGET_CPU':'i386',
-                        'MOZ_WIDGET_TOOLKIT':'gtk2',
-                        'MOZ_CRASHREPORTER':'1'})
-        self.assertEqual(True, d['crashreporter'])
 
 class TestWriteJson(unittest.TestCase):
     """

@@ -7,7 +7,6 @@
 
 #include "prenv.h"
 #include "nsXULAppAPI.h"
-#include "nsExceptionHandler.h"
 #include "nsDebug.h"
 
 #include "mozilla/X11Util.h"
@@ -116,18 +115,6 @@ X11Error(Display *display, XErrorEvent *event) {
       notes.Append(" requests ago");
     }
   }
-
-#ifdef MOZ_CRASHREPORTER
-  switch (XRE_GetProcessType()) {
-  case GeckoProcessType_Default:
-  case GeckoProcessType_Plugin:
-  case GeckoProcessType_Content:
-    CrashReporter::AppendAppNotesToCrashReport(notes);
-    break;
-  default: 
-    ; // crash report notes not supported.
-  }
-#endif
 
 #ifdef DEBUG
   // The resource id is unlikely to be useful in a crash report without

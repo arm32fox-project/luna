@@ -57,7 +57,6 @@ browser/app
   toolkit
   toolkit/components
   toolkit/content
-  toolkit/crashreporter
   toolkit/devtools
   toolkit/forgetaboutsite
   toolkit/identity

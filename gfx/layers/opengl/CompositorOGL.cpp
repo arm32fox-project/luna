@@ -22,8 +22,6 @@
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
 
-#include "gfxCrashReporterUtils.h"
-
 #include "nsMathUtils.h"
 
 #include "GeckoProfiler.h"
@@ -351,8 +349,6 @@ CompositorOGL::ReadDrawFPSPref::Run()
 bool
 CompositorOGL::Initialize()
 {
-  ScopedGfxFeatureReporter reporter("GL Layers", true);
-
   // Do not allow double initialization
   NS_ABORT_IF_FALSE(mGLContext == nullptr, "Don't reinitialize CompositorOGL");
 
@@ -526,7 +522,6 @@ CompositorOGL::Initialize()
     NS_DispatchToMainThread(new ReadDrawFPSPref());
   }
 
-  reporter.SetSuccessful();
   return true;
 }
 

@@ -11,9 +11,6 @@
 #include "mozilla/StartupTimeline.h"
 #include "nsTArray.h"
 #include "nsStringGlue.h"
-#if defined(MOZ_ENABLE_PROFILER_SPS)
-#include "shared-libraries.h"
-#endif
 
 namespace base {
   class Histogram;
@@ -154,18 +151,6 @@ const uint32_t kSlowSQLThresholdForMainThread = 50;
 const uint32_t kSlowSQLThresholdForHelperThreads = 100;
 
 class ProcessedStack;
-
-/**
- * Record the main thread's call stack after it hangs.
- *
- * @param duration - Approximate duration of main thread hang in seconds
- * @param callStack - Array of PCs from the hung call stack
- * @param moduleMap - Array of info about modules in memory (for symbolication)
- */
-#if defined(MOZ_ENABLE_PROFILER_SPS)
-void RecordChromeHang(uint32_t duration,
-                      ProcessedStack &aStack);
-#endif
 
 /**
  * Record a failed attempt at locking the user's profile.

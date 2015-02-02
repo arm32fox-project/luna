@@ -867,10 +867,6 @@ public:
 
     char aLocal;
     profiler_register_thread("WebWorker", &aLocal);
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    if (PseudoStack* stack = mozilla_get_pseudo_stack())
-      stack->sampleRuntime(rt);
-#endif
 
     {
       JSAutoRequest ar(cx);
@@ -895,10 +891,6 @@ public:
       JS_DestroyContext(cx);
     }
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    if (PseudoStack* stack = mozilla_get_pseudo_stack())
-      stack->sampleRuntime(nullptr);
-#endif
     JS_DestroyRuntime(rt);
 
     workerPrivate->ScheduleDeletion(false);

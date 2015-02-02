@@ -20,7 +20,6 @@ DIRS += [
     'shared',
     'responsivedesign',
     'framework',
-    'profiler',
     'fontinspector',
 
 ]
