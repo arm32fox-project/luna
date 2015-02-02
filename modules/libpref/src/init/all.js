@@ -3974,11 +3974,6 @@ pref("dom.w3c_touch_events.enabled", 2);
 // enable JS dump() function.
 pref("browser.dom.window.dump.enabled", false);
 
-// SPS Profiler
-pref("profiler.enabled", false);
-pref("profiler.interval", 10);
-pref("profiler.entries", 100000);
-
 // Network API
 pref("dom.network.enabled", true);
 pref("dom.network.metered", false);

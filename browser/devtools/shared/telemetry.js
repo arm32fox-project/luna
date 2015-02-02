@@ -118,11 +118,6 @@ Telemetry.prototype = {
       userHistogram: "DEVTOOLS_STYLEEDITOR_OPENED_PER_USER_FLAG",
       timerHistogram: "DEVTOOLS_STYLEEDITOR_TIME_ACTIVE_SECONDS"
     },
-    jsprofiler: {
-      histogram: "DEVTOOLS_JSPROFILER_OPENED_BOOLEAN",
-      userHistogram: "DEVTOOLS_JSPROFILER_OPENED_PER_USER_FLAG",
-      timerHistogram: "DEVTOOLS_JSPROFILER_TIME_ACTIVE_SECONDS"
-    },
     netmonitor: {
       histogram: "DEVTOOLS_NETMONITOR_OPENED_BOOLEAN",
       userHistogram: "DEVTOOLS_NETMONITOR_OPENED_PER_USER_FLAG",
