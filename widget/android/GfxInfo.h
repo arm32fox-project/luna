@@ -71,8 +71,6 @@ protected:
 
 private:
 
-  void AddCrashReportAnnotations();
-
   bool mInitializedFromJavaData;
 
   // the GL strings

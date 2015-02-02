@@ -512,8 +512,6 @@ GfxInfo::Init()
     mAdapterDeviceID.AssignASCII(spoofedDevice);
   }
 
-  AddCrashReportAnnotations();
-
   return rv;
 }
 
@@ -645,11 +643,6 @@ GfxInfo::GetIsGPU2Active(bool* aIsGPU2Active)
 {
   *aIsGPU2Active = mIsGPU2Active;
   return NS_OK;
-}
-
-void
-GfxInfo::AddCrashReportAnnotations()
-{
 }
 
 static OperatingSystem

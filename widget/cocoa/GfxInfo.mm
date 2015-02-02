@@ -136,8 +136,6 @@ GfxInfo::Init()
 
   GetDeviceInfo();
 
-  AddCrashReportAnnotations();
-
   mOSXVersion = nsCocoaFeatures::OSXVersion();
 
   return rv;
@@ -279,11 +277,6 @@ NS_IMETHODIMP
 GfxInfo::GetIsGPU2Active(bool* aIsGPU2Active)
 {
   return NS_ERROR_FAILURE;
-}
-
-void
-GfxInfo::AddCrashReportAnnotations()
-{
 }
 
 // We don't support checking driver versions on Mac.

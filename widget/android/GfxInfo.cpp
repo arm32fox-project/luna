@@ -156,7 +156,6 @@ GfxInfo::EnsureInitializedFromGfxInfoData()
                         uint32_t(nd);
   }
 
-  AddCrashReportAnnotations();
 }
 
 /* readonly attribute DOMString adapterDescription; */
@@ -269,11 +268,6 @@ NS_IMETHODIMP
 GfxInfo::GetIsGPU2Active(bool* aIsGPU2Active)
 {
   return NS_ERROR_FAILURE;
-}
-
-void
-GfxInfo::AddCrashReportAnnotations()
-{
 }
 
 const nsTArray<GfxDriverInfo>&
