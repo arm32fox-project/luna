@@ -19,7 +19,6 @@
 
 #include "AppProcessChecker.h"
 #include "AudioChannelService.h"
-#include "CrashReporterParent.h"
 #include "IHistory.h"
 #include "IDBFactory.h"
 #include "IndexedDBParent.h"
@@ -1775,29 +1774,6 @@ ContentParent::FriendlyName(nsAString& aName)
     } else {
         aName.AssignLiteral("???");
     }
-}
-
-PCrashReporterParent*
-ContentParent::AllocPCrashReporter(const NativeThreadId& tid,
-                                   const uint32_t& processType)
-{
-  return nullptr;
-}
-
-bool
-ContentParent::RecvPCrashReporterConstructor(PCrashReporterParent* actor,
-                                             const NativeThreadId& tid,
-                                             const uint32_t& processType)
-{
-  static_cast<CrashReporterParent*>(actor)->SetChildData(tid, processType);
-  return true;
-}
-
-bool
-ContentParent::DeallocPCrashReporter(PCrashReporterParent* crashreporter)
-{
-  delete crashreporter;
-  return true;
 }
 
 hal_sandbox::PHalParent*

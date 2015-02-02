@@ -23,7 +23,6 @@
 #include "mozilla/ipc/SyncChannel.h"
 #include "mozilla/plugins/PluginModuleParent.h"
 #include "mozilla/plugins/BrowserStreamParent.h"
-#include "mozilla/dom/PCrashReporterParent.h"
 #include "PluginIdentifierParent.h"
 
 #include "nsAutoPtr.h"
@@ -45,8 +44,6 @@ using base::KillProcess;
 
 using mozilla::PluginLibrary;
 using mozilla::ipc::SyncChannel;
-using mozilla::dom::PCrashReporterParent;
-using mozilla::dom::CrashReporterParent;
 
 using namespace mozilla;
 using namespace mozilla::plugins;
@@ -1260,20 +1257,6 @@ PluginModuleParent::RecvPluginHideWindow(const uint32_t& aWindowId)
         "PluginInstanceParent::RecvPluginHideWindow not implemented!");
     return false;
 #endif
-}
-
-PCrashReporterParent*
-PluginModuleParent::AllocPCrashReporter(mozilla::dom::NativeThreadId* id,
-                                        uint32_t* processType)
-{
-    return nullptr;
-}
-
-bool
-PluginModuleParent::DeallocPCrashReporter(PCrashReporterParent* actor)
-{
-    delete actor;
-    return true;
 }
 
 bool

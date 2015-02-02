@@ -46,10 +46,6 @@ typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINUNIXINIT) (const NPNetscapeFun
 typedef NS_NPAPIPLUGIN_CALLBACK(NPError, NP_PLUGINSHUTDOWN) (void);
 
 namespace mozilla {
-namespace dom {
-class PCrashReporterChild;
-}
-
 namespace plugins {
 
 #ifdef MOZ_WIDGET_QT
@@ -62,7 +58,6 @@ class PluginInstanceChild;
 
 class PluginModuleChild : public PPluginModuleChild
 {
-    typedef mozilla::dom::PCrashReporterChild PCrashReporterChild;
 protected:
     virtual mozilla::ipc::RPCChannel::RacyRPCPolicy
     MediateRPCRace(const Message& parent, const Message& child) MOZ_OVERRIDE
@@ -131,16 +126,6 @@ protected:
 
     virtual bool
     RecvSetParentHangTimeout(const uint32_t& aSeconds);
-
-    virtual PCrashReporterChild*
-    AllocPCrashReporter(mozilla::dom::NativeThreadId* id,
-                        uint32_t* processType);
-    virtual bool
-    DeallocPCrashReporter(PCrashReporterChild* actor);
-    virtual bool
-    AnswerPCrashReporterConstructor(PCrashReporterChild* actor,
-                                    mozilla::dom::NativeThreadId* id,
-                                    uint32_t* processType);
 
     virtual void
     ActorDestroy(ActorDestroyReason why);

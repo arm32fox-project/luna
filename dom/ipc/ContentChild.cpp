@@ -13,12 +13,10 @@
 #endif
 
 #include "ContentChild.h"
-#include "CrashReporterChild.h"
 #include "TabChild.h"
 
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/ExternalHelperAppChild.h"
-#include "mozilla/dom/PCrashReporterChild.h"
 #include "mozilla/dom/DOMStorageIPC.h"
 #include "mozilla/Hal.h"
 #include "mozilla/hal_sandbox/PHalChild.h"
@@ -723,20 +721,6 @@ ContentChild::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
       }
 
   return actor;
-}
-
-PCrashReporterChild*
-ContentChild::AllocPCrashReporter(const mozilla::dom::NativeThreadId& id,
-                                  const uint32_t& processType)
-{
-    return nullptr;
-}
-
-bool
-ContentChild::DeallocPCrashReporter(PCrashReporterChild* crashreporter)
-{
-    delete crashreporter;
-    return true;
 }
 
 PHalChild*

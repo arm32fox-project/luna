@@ -31,11 +31,6 @@
 #include "nsIFileStreams.h"
 
 namespace mozilla {
-namespace dom {
-class PCrashReporterParent;
-class CrashReporterParent;
-}
-
 namespace plugins {
 //-----------------------------------------------------------------------------
 
@@ -62,8 +57,6 @@ class PluginModuleParent
 {
 private:
     typedef mozilla::PluginLibrary PluginLibrary;
-    typedef mozilla::dom::PCrashReporterParent PCrashReporterParent;
-    typedef mozilla::dom::CrashReporterParent CrashReporterParent;
 
 protected:
 
@@ -168,12 +161,6 @@ protected:
 
     virtual bool
     RecvPluginHideWindow(const uint32_t& aWindowId) MOZ_OVERRIDE;
-
-    virtual PCrashReporterParent*
-    AllocPCrashReporter(mozilla::dom::NativeThreadId* id,
-                        uint32_t* processType) MOZ_OVERRIDE;
-    virtual bool
-    DeallocPCrashReporter(PCrashReporterParent* actor) MOZ_OVERRIDE;
 
     virtual bool
     RecvSetCursor(const NSCursorInfo& aCursorInfo) MOZ_OVERRIDE;
@@ -283,8 +270,6 @@ private:
 #endif
 
 private:
-    CrashReporterParent* CrashReporter();
-
     void CleanupFromTimeout(const bool aByHangUI);
     void SetChildTimeout(const int32_t aChildTimeout);
     static int TimeoutChanged(const char* aPref, void* aModule);
@@ -292,7 +277,6 @@ private:
 
     PluginProcessParent* mSubprocess;
     // the plugin thread in mSubprocess
-    NativeThreadId mPluginThread;
     bool mShutdown;
     bool mClearSiteDataSupported;
     bool mGetSitesWithDataSupported;
@@ -339,7 +323,6 @@ private:
     ScopedClose mPluginXSocketFdDup;
 #endif
 
-    friend class mozilla::dom::CrashReporterParent;
 };
 
 } // namespace plugins

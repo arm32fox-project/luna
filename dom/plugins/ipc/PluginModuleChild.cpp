@@ -41,7 +41,6 @@
 #include "mozilla/plugins/BrowserStreamChild.h"
 #include "mozilla/plugins/PluginStreamChild.h"
 #include "PluginIdentifierChild.h"
-#include "mozilla/dom/CrashReporterChild.h"
 
 #include "nsNPAPIPlugin.h"
 
@@ -60,8 +59,6 @@
 
 using namespace mozilla;
 using namespace mozilla::plugins;
-using mozilla::dom::CrashReporterChild;
-using mozilla::dom::PCrashReporterChild;
 
 #if defined(XP_WIN)
 const PRUnichar * kFlashFullscreenClass = L"ShockwaveFlashFullScreen";
@@ -667,29 +664,6 @@ PluginModuleChild::QuickExit()
 {
     NS_WARNING("plugin process _exit()ing");
     _exit(0);
-}
-
-PCrashReporterChild*
-PluginModuleChild::AllocPCrashReporter(mozilla::dom::NativeThreadId* id,
-                                       uint32_t* processType)
-{
-    return new CrashReporterChild();
-}
-
-bool
-PluginModuleChild::DeallocPCrashReporter(PCrashReporterChild* actor)
-{
-    delete actor;
-    return true;
-}
-
-bool
-PluginModuleChild::AnswerPCrashReporterConstructor(
-        PCrashReporterChild* actor,
-        mozilla::dom::NativeThreadId* id,
-        uint32_t* processType)
-{
-    return true;
 }
 
 void

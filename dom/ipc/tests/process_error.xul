@@ -32,18 +32,6 @@
       ok(subject instanceof Components.interfaces.nsIPropertyBag2,
          'Subject implements nsIPropertyBag2.');
 
-      var dumpID;
-      if ('nsICrashReporter' in Components.interfaces) {
-        dumpID = subject.getPropertyAsAString('dumpID');
-        ok(dumpID, "dumpID is present and not an empty string");
-      }
-
-      if (dumpID) {
-        var minidumpDirectory = getMinidumpDirectory();
-        removeFile(minidumpDirectory, dumpID + '.dmp');
-        removeFile(minidumpDirectory, dumpID + '.extra');
-      }
-
       Services.obs.removeObserver(crashObserver, 'ipc:content-shutdown');
       done();
     }
