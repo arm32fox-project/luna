@@ -218,10 +218,6 @@ var BrowserUI = {
     return this.CrashSubmit;
   },
 
-  startupCrashCheck: function startupCrashCheck() {
-    return false;
-  },
-
 
   /*********************************
    * Navigation

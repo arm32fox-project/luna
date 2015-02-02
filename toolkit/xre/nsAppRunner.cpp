@@ -810,12 +810,6 @@ nsXULAppInfo::GetReplacedLockTime(PRTime *aReplacedLockTime)
   return NS_OK;
 }
 
-NS_IMETHODIMP
-nsXULAppInfo::GetLastRunCrashID(nsAString &aLastRunCrashID)
-{
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
-
 #ifdef XP_WIN
 // Matches the enum in WinNT.h for the Vista SDK but renamed so that we can
 // safely build with the Vista SDK and without it.

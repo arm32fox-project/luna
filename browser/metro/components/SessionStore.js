@@ -341,7 +341,6 @@ SessionStore.prototype = {
 
     if (!aNoNotification)
       this.saveStateDelayed();
-    this._updateCrashReportURL(aWindow);
   },
 
   onTabRemove: function ss_onTabRemove(aWindow, aBrowser, aNoNotification) {
@@ -395,8 +394,6 @@ SessionStore.prototype = {
     // Save out the state as quickly as possible
     if (aMessage.name == "pageshow")
       this.saveStateNow();
-
-    this._updateCrashReportURL(aWindow);
   },
 
   onTabSelect: function ss_onTabSelect(aWindow, aBrowser) {
@@ -421,8 +418,6 @@ SessionStore.prototype = {
 
       delete aBrowser.__SS_restore;
     }
-
-    this._updateCrashReportURL(aWindow);
   },
 
   saveStateDelayed: function ss_saveStateDelayed() {
@@ -542,10 +537,7 @@ SessionStore.prototype = {
       }
     });
   },
-
-  _updateCrashReportURL: function ss_updateCrashReportURL(aWindow) {
-  },
-
+  
   getBrowserState: function ss_getBrowserState() {
     let data = this._getCurrentState();
     return JSON.stringify(data);

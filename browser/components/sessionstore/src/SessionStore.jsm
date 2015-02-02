@@ -1180,8 +1180,6 @@ let SessionStoreInternal = {
     if (!aNoNotification) {
       this.saveStateDelayed(aWindow);
     }
-
-    this._updateCrashReportURL(aWindow);
   },
 
   /**
@@ -1283,8 +1281,6 @@ let SessionStoreInternal = {
     delete aBrowser.__SS_formDataSaved;
     this.saveStateDelayed(aWindow);
 
-    // attempt to update the current URL we send in a crash report
-    this._updateCrashReportURL(aWindow);
   },
 
   /**
@@ -1318,8 +1314,6 @@ let SessionStoreInternal = {
           tab.linkedBrowser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE)
         this.restoreTab(tab);
 
-      // attempt to update the current URL we send in a crash report
-      this._updateCrashReportURL(aWindow);
     }
   },
 
@@ -3991,12 +3985,6 @@ let SessionStoreInternal = {
    */
   _getURIFromString: function ssi_getURIFromString(aString) {
     return Services.io.newURI(aString, null, null);
-  },
-
-  /**
-   * Annotate a breakpad crash report with the currently selected tab's URL.
-   */
-  _updateCrashReportURL: function ssi_updateCrashReportURL(aWindow) {
   },
 
   /**
