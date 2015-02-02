@@ -14,8 +14,6 @@
 #include "gfxPlatform.h"
 #include "gfxWindowsSurface.h"
 
-#include "gfxCrashReporterUtils.h"
-
 #include "prenv.h"
 
 #include "mozilla/Preferences.h"
@@ -110,8 +108,6 @@ WGLLibrary::EnsureInitialized(bool aUseMesaLlvmPipe)
     if (mInitialized)
         return true;
     
-    mozilla::ScopedGfxFeatureReporter reporter("WGL", aUseMesaLlvmPipe);
-
     const char* libGLFilename = aUseMesaLlvmPipe 
                                 ? "mesallvmpipe.dll" 
                                 : "Opengl32.dll";
@@ -247,7 +243,6 @@ WGLLibrary::EnsureInitialized(bool aUseMesaLlvmPipe)
         return false;
     }
 
-    reporter.SetSuccessful();
     return true;
 }
 

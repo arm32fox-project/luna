@@ -23,8 +23,6 @@
 
 #include "nsIGfxInfo.h"
 
-#include "gfxCrashReporterUtils.h"
-
 #include "gfxGDIFontList.h"
 #include "gfxGDIFont.h"
 
@@ -469,7 +467,6 @@ gfxWindowsPlatform::UpdateRenderMode()
     // Enable when it's preffed on -and- we're using Vista or higher. Or when
     // we're going to use D2D.
     if (!mDWriteFactory && (mUseDirectWrite && isVistaOrHigher)) {
-        mozilla::ScopedGfxFeatureReporter reporter("DWrite");
         DWriteCreateFactoryFunc createDWriteFactory = (DWriteCreateFactoryFunc)
             GetProcAddress(LoadLibraryW(L"dwrite.dll"), "DWriteCreateFactory");
 
@@ -493,9 +490,6 @@ gfxWindowsPlatform::UpdateRenderMode()
             }
 
             SetupClearTypeParams();
-
-            if (hr == S_OK)
-              reporter.SetSuccessful();
         }
     }
 #endif
@@ -563,8 +557,6 @@ gfxWindowsPlatform::VerifyD2DDevice(bool aAttemptForce)
         mD2DDevice = nullptr;
     }
 
-    mozilla::ScopedGfxFeatureReporter reporter("D2D", aAttemptForce);
-
     nsRefPtr<ID3D10Device1> device;
 
     int supportedFeatureLevelsCount = ArrayLength(kSupportedFeatureLevels);
@@ -614,7 +606,6 @@ gfxWindowsPlatform::VerifyD2DDevice(bool aAttemptForce)
     }
 
     if (mD2DDevice) {
-        reporter.SetSuccessful();
         mozilla::gfx::Factory::SetDirect3D10Device(cairo_d2d_device_get_device(mD2DDevice));
     }
 #endif
