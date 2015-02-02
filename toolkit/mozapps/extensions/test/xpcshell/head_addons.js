@@ -59,16 +59,8 @@ function createAppInfo(id, name, version, platformVersion) {
       // Do nothing
     },
 
-    // nsICrashReporter
-    annotations: {},
-
-    annotateCrashReport: function(key, data) {
-      this.annotations[key] = data;
-    },
-
     QueryInterface: XPCOMUtils.generateQI([AM_Ci.nsIXULAppInfo,
                                            AM_Ci.nsIXULRuntime,
-                                           AM_Ci.nsICrashReporter,
                                            AM_Ci.nsISupports])
   };
 
@@ -82,52 +74,6 @@ function createAppInfo(id, name, version, platformVersion) {
   var registrar = Components.manager.QueryInterface(AM_Ci.nsIComponentRegistrar);
   registrar.registerFactory(XULAPPINFO_CID, "XULAppInfo",
                             XULAPPINFO_CONTRACTID, XULAppInfoFactory);
-}
-
-/**
- * Tests that an add-on does appear in the crash report annotations, if
- * crash reporting is enabled. The test will fail if the add-on is not in the
- * annotation.
- * @param  aId
- *         The ID of the add-on
- * @param  aVersion
- *         The version of the add-on
- */
-function do_check_in_crash_annotation(aId, aVersion) {
-  if (!("nsICrashReporter" in AM_Ci))
-    return;
-
-  if (!("Add-ons" in gAppInfo.annotations)) {
-    do_check_false(true);
-    return;
-  }
-
-  let addons = gAppInfo.annotations["Add-ons"].split(",");
-  do_check_false(addons.indexOf(encodeURIComponent(aId) + ":" +
-                                encodeURIComponent(aVersion)) < 0);
-}
-
-/**
- * Tests that an add-on does not appear in the crash report annotations, if
- * crash reporting is enabled. The test will fail if the add-on is in the
- * annotation.
- * @param  aId
- *         The ID of the add-on
- * @param  aVersion
- *         The version of the add-on
- */
-function do_check_not_in_crash_annotation(aId, aVersion) {
-  if (!("nsICrashReporter" in AM_Ci))
-    return;
-
-  if (!("Add-ons" in gAppInfo.annotations)) {
-    do_check_true(true);
-    return;
-  }
-
-  let addons = gAppInfo.annotations["Add-ons"].split(",");
-  do_check_true(addons.indexOf(encodeURIComponent(aId) + ":" +
-                               encodeURIComponent(aVersion)) < 0);
 }
 
 /**

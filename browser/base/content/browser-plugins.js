@@ -314,22 +314,6 @@ var gPluginHandler = {
     openURL(Services.urlFormatter.formatURLPref("plugins.update.url"));
   },
 
-#ifdef MOZ_CRASHREPORTER
-  submitReport: function submitReport(pluginDumpID, browserDumpID, plugin) {
-    let keyVals = {};
-    if (plugin) {
-      let userComment = this.getPluginUI(plugin, "submitComment").value.trim();
-      if (userComment)
-        keyVals.PluginUserComment = userComment;
-      if (this.getPluginUI(plugin, "submitURLOptIn").checked)
-        keyVals.PluginContentURL = plugin.ownerDocument.URL;
-    }
-    this.CrashSubmit.submit(pluginDumpID, { extraExtraKeyVals: keyVals });
-    if (browserDumpID)
-      this.CrashSubmit.submit(browserDumpID);
-  },
-#endif
-
   // Callback for user clicking a "reload page" link
   reloadPage: function (browser) {
     browser.reload();

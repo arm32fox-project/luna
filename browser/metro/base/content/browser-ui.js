@@ -161,10 +161,6 @@ var BrowserUI = {
 
       BrowserUI._pullDesktopControlledPrefs();
 
-      // check for left over crash reports and submit them if found.
-      if (BrowserUI.startupCrashCheck()) {
-        Browser.selectedTab = BrowserUI.newOrSelectTab("about:crash");
-      }
       Util.dumpLn("* delay load complete.");
     }, false);
 
@@ -207,17 +203,6 @@ var BrowserUI = {
     FlyoutPanelsUI.hide();
     PanelUI.hide();
   },
-
-  /*********************************
-   * Crash reporting
-   */
-
-  get CrashSubmit() {
-    delete this.CrashSubmit;
-    Cu.import("resource://gre/modules/CrashSubmit.jsm", this);
-    return this.CrashSubmit;
-  },
-
 
   /*********************************
    * Navigation
@@ -1294,9 +1279,6 @@ var BrowserUI = {
     }
   },
 
-  crashReportingPrefChanged: function crashReportingPrefChanged(aState) {
-    CrashReporter.submitReports = aState;
-  }
 };
 
 /**

@@ -1427,7 +1427,6 @@ var diagnosticList = [
     title: "Sync Plugin Constructor",
     check: function(frames, symbols, meta) {
       return stepContains('CallPPluginInstanceConstructor', frames, symbols) 
-          || stepContains('CallPCrashReporterConstructor', frames, symbols) 
           || stepContains('PPluginModuleParent::CallNP_Initialize', frames, symbols)
           || stepContains('GeckoChildProcessHost::SyncLaunch', frames, symbols)
           ;

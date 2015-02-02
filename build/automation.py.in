@@ -68,7 +68,6 @@ _IS_CYGWIN = False
 #expand _CERTS_SRC_DIR = __CERTS_SRC_DIR__
 #expand _IS_TEST_BUILD = __IS_TEST_BUILD__
 #expand _IS_DEBUG_BUILD = __IS_DEBUG_BUILD__
-#expand _CRASHREPORTER = __CRASHREPORTER__ == 1
 #expand _IS_ASAN = __IS_ASAN__ == 1
 
 
@@ -145,7 +144,6 @@ class Automation(object):
   CERTS_SRC_DIR = _CERTS_SRC_DIR
   IS_TEST_BUILD = _IS_TEST_BUILD
   IS_DEBUG_BUILD = _IS_DEBUG_BUILD
-  CRASHREPORTER = _CRASHREPORTER
   IS_ASAN = _IS_ASAN
 
   # timeout, in seconds
@@ -717,7 +715,7 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
     os.unlink(pwfilePath)
     return 0
 
-  def environment(self, env = None, xrePath = None, crashreporter = True):
+  def environment(self, env = None, xrePath = None):
     if xrePath == None:
       xrePath = self.DIST_BIN
     if env == None:
@@ -735,8 +733,6 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
       env[envVar] = ldLibraryPath
     elif self.IS_WIN32:
       env["PATH"] = env["PATH"] + ";" + ldLibraryPath
-
-    env['MOZ_CRASHREPORTER_DISABLE'] = '1'
 
     env['GNOME_DISABLE_CRASH_DIALOG'] = '1'
     env['XRE_NO_WINDOWS_CRASH_DIALOG'] = '1'
@@ -912,18 +908,6 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
 
   def killAndGetStackNoScreenshot(self, processPID, utilityPath, debuggerInfo):
     """Kill the process, preferrably in a way that gets us a stack trace."""
-    if self.CRASHREPORTER and not debuggerInfo:
-      if self.UNIXISH:
-        # ABRT will get picked up by Breakpad's signal handler
-        os.kill(processPID, signal.SIGABRT)
-        return
-      elif self.IS_WIN32:
-        # We should have a "crashinject" program in our utility path
-        crashinject = os.path.normpath(os.path.join(utilityPath, "crashinject.exe"))
-        if os.path.exists(crashinject) and subprocess.Popen([crashinject, str(processPID)]).wait() == 0:
-          return
-      #TODO: kill the process such that it triggers Breakpad on OS X (bug 525296)
-    self.log.info("Can't trigger Breakpad, just killing process")
     self.killPid(processPID)
 
   def waitForFinish(self, proc, utilityPath, timeout, maxTime, startTime, debuggerInfo, symbolsPath):
@@ -1107,8 +1091,7 @@ user_pref("camino.use_system_proxy_settings", false); // Camino-only, harmless t
 
     self.lastTestSeen = "automation.py"
     proc = self.Process([cmd] + args,
-                 env = self.environment(env, xrePath = xrePath,
-                                   crashreporter = not debuggerInfo),
+                 env = self.environment(env, xrePath = xrePath),
                  stdout = outputPipe,
                  stderr = subprocess.STDOUT)
     self.log.info("INFO | automation.py | Application pid: %d", proc.pid)
