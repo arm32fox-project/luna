@@ -324,7 +324,6 @@ SessionStore.prototype = {
     aBrowser.addEventListener("pageshow", this, true);
     if (!aNoNotification)
       this.saveStateDelayed();
-    this._updateCrashReportURL(aWindow);
   },
 
   onTabRemove: function ss_onTabRemove(aWindow, aBrowser, aNoNotification) {
@@ -394,8 +393,6 @@ SessionStore.prototype = {
       this._collectTabData(aWindow, aBrowser, data);
       this.saveStateNow();
     }
-
-    this._updateCrashReportURL(aWindow);
   },
 
   onTabSelect: function ss_onTabSelect(aWindow, aBrowser) {
@@ -416,7 +413,6 @@ SessionStore.prototype = {
     }
 
     this.saveStateDelayed();
-    this._updateCrashReportURL(aWindow);
   },
 
   saveStateDelayed: function ss_saveStateDelayed() {
@@ -573,9 +569,6 @@ SessionStore.prototype = {
         Services.obs.notifyObservers(null, "sessionstore-state-write-complete", "");
       }
     });
-  },
-
-  _updateCrashReportURL: function ss_updateCrashReportURL(aWindow) {
   },
 
   _serializeHistoryEntry: function _serializeHistoryEntry(aEntry) {

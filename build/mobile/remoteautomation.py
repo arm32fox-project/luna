@@ -46,19 +46,16 @@ class RemoteAutomation(Automation):
         self._remoteLog = logfile
 
     # Set up what we need for the remote environment
-    def environment(self, env = None, xrePath = None, crashreporter = True):
+    def environment(self, env = None, xrePath = None):
         # Because we are running remote, we don't want to mimic the local env
         # so no copying of os.environ
         if env is None:
             env = {}
 
         # Except for the mochitest results table hiding option, which isn't
-        # passed to runtestsremote.py as an actual option, but through the
-        # MOZ_CRASHREPORTER_DISABLE environment variable.
+        # passed to runtestsremote.py as an actual option.
         if 'MOZ_HIDE_RESULTS_TABLE' in os.environ:
             env['MOZ_HIDE_RESULTS_TABLE'] = os.environ['MOZ_HIDE_RESULTS_TABLE']
-
-        env['MOZ_CRASHREPORTER_DISABLE'] = '1'
 
         return env
 
@@ -144,31 +141,8 @@ class RemoteAutomation(Automation):
         if javaException:
             return True
 
-        # If crash reporting is disabled (MOZ_CRASHREPORTER!=1), we can't say
-        # anything.
-        if not self.CRASHREPORTER:
-            return False
-
-        try:
-            dumpDir = tempfile.mkdtemp()
-            remoteCrashDir = self._remoteProfile + '/minidumps/'
-            if not self._devicemanager.dirExists(remoteCrashDir):
-                # If crash reporting is enabled (MOZ_CRASHREPORTER=1), the
-                # minidumps directory is automatically created when Fennec
-                # (first) starts, so its lack of presence is a hint that
-                # something went wrong.
-                print "Automation Error: No crash directory (%s) found on remote device" % remoteCrashDir
-                # Whilst no crash was found, the run should still display as a failure
-                return True
-            self._devicemanager.getDirectory(remoteCrashDir, dumpDir)
-            crashed = Automation.checkForCrashes(self, dumpDir, symbolsPath)
-
-        finally:
-            try:
-                shutil.rmtree(dumpDir)
-            except:
-                print "WARNING: unable to remove directory: %s" % dumpDir
-        return crashed
+        # No crash reporting
+        return False
 
     def buildCommandLine(self, app, debuggerInfo, profileDir, testURL, extraArgs):
         # If remote profile is specified, use that instead
