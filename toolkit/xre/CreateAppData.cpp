@@ -128,6 +128,19 @@ XRE_ParseAppData(nsIFile* aINIFile, nsXREAppData *aAppData)
     ReadStrings(parser, strings2);
   }
 
+  if (aAppData->size > offsetof(nsXREAppData, crashReporterURL)) {
+    ReadString strings3[] = {
+      { "Crash Reporter", "ServerURL", &aAppData->crashReporterURL },
+      { nullptr }
+    };
+    ReadStrings(parser, strings3);
+    ReadFlag flags2[] = {
+      { "Crash Reporter", "Enabled", NS_XRE_ENABLE_CRASH_REPORTER },
+      { nullptr }
+    };
+    ReadFlags(parser, flags2, &aAppData->flags);
+  }
+
   if (aAppData->size > offsetof(nsXREAppData, UAName)) {
     ReadString strings4[] = {
       { "App", "UAName",    &aAppData->UAName },
