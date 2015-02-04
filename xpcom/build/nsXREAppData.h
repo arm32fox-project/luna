@@ -94,11 +94,6 @@ struct nsXREAppData
   const char *maxVersion;
 
   /**
-   * The server URL to send crash reports to.
-   */
-  const char *crashReporterURL;
-
-  /**
    * The profile directory that will be used. Optional (may be null). Must not
    * be the empty string, must be ASCII. The path is split into components
    * along the path separator characters '/' and '\'.
