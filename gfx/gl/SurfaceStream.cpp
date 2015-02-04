@@ -33,6 +33,8 @@ SurfaceStream::ChooseGLStreamType(SurfaceStream::OMTC omtc,
 SurfaceStream*
 SurfaceStream::CreateForType(SurfaceStreamType type, mozilla::gl::GLContext* glContext, SurfaceStream* prevStream)
 {
+    SurfaceStream* result = nullptr;
+
     switch (type) {
         case SurfaceStreamType::SingleBuffer:
             result = new SurfaceStream_SingleBuffer(prevStream);
