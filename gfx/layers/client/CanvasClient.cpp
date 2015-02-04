@@ -22,20 +22,15 @@ namespace mozilla {
 namespace layers {
 
 /* static */ TemporaryRef<CanvasClient>
-CanvasClient::CreateCanvasClient(CompositableType aCompositableHostType,
+CanvasClient::CreateCanvasClient(CanvasClientType aType,
                                  CompositableForwarder* aForwarder,
                                  TextureFlags aFlags)
 {
-  if (aCompositableHostType == BUFFER_IMAGE_SINGLE) {
-    return new CanvasClient2D(aForwarder, aFlags);
+  if (aType == CanvasClientGLContext &&
+      aForwarder->GetCompositorBackendType() == LAYERS_OPENGL) {
+    return new CanvasClientSurfaceStream(aForwarder, aFlags);
   }
-  if (aCompositableHostType == BUFFER_IMAGE_BUFFERED) {
-    if (aForwarder->GetCompositorBackendType() == LAYERS_OPENGL) {
-      return new CanvasClientWebGL(aForwarder, aFlags);
-    }
-    return new CanvasClient2D(aForwarder, aFlags);
-  }
-  return nullptr;
+  return new CanvasClient2D(aForwarder, aFlags);
 }
 
 void
@@ -72,28 +67,32 @@ CanvasClient2D::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
 }
 
 void
-CanvasClientWebGL::Updated()
+CanvasClientSurfaceStream::Updated()
 {
-  mForwarder->UpdateTextureNoSwap(this, 1, mTextureClient->GetDescriptor());
+  if (mNeedsUpdate) {
+    mForwarder->UpdateTextureNoSwap(this, 1, mTextureClient->GetDescriptor());
+    mNeedsUpdate = false;
+  }
 }
 
 
-CanvasClientWebGL::CanvasClientWebGL(CompositableForwarder* aFwd,
-                                     TextureFlags aFlags)
+CanvasClientSurfaceStream::CanvasClientSurfaceStream(CompositableForwarder* aFwd,
+                                                     TextureFlags aFlags)
 : CanvasClient(aFwd, aFlags)
+, mNeedsUpdate(false)
 {
-  mTextureInfo.mCompositableType = BUFFER_IMAGE_BUFFERED;
+  mTextureInfo.mCompositableType = BUFFER_IMAGE_SINGLE;
 }
 
 void
-CanvasClientWebGL::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
+CanvasClientSurfaceStream::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
 {
   if (!mTextureClient) {
     mTextureClient = CreateTextureClient(TEXTURE_STREAM_GL);
     MOZ_ASSERT(mTextureClient, "Failed to create texture client");
   }
 
-  NS_ASSERTION(aLayer->mGLContext, "CanvasClientWebGL should only be used with GL canvases");
+  NS_ASSERTION(aLayer->mGLContext, "CanvasClientSurfaceStream should only be used with GL canvases");
 
   // the content type won't be used
   mTextureClient->EnsureAllocated(aSize, gfxASurface::CONTENT_COLOR);
@@ -122,9 +121,15 @@ CanvasClientWebGL::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
     printf_stderr("isCrossProcess, but not MOZ_WIDGET_GONK! Someone needs to write some code!");
     MOZ_ASSERT(false);
 #endif
+    mNeedsUpdate = true;
   } else {
     SurfaceStreamHandle handle = stream->GetShareHandle();
-    mTextureClient->SetDescriptor(SurfaceStreamDescriptor(handle, false));
+    SurfaceDescriptor *desc = mTextureClient->GetDescriptor();
+    if (desc->type() != SurfaceDescriptor::TSurfaceStreamDescriptor ||
+        desc->get_SurfaceStreamDescriptor().handle() != handle) {
+      *desc = SurfaceStreamDescriptor(handle, false);
+      mNeedsUpdate = true;
+    }
   }
 
   aLayer->Painted();
