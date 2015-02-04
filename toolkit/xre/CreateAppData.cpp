@@ -129,11 +129,11 @@ XRE_ParseAppData(nsIFile* aINIFile, nsXREAppData *aAppData)
   }
 
   if (aAppData->size > offsetof(nsXREAppData, UAName)) {
-    ReadString strings4[] = {
+    ReadString strings3[] = {
       { "App", "UAName",    &aAppData->UAName },
       { nullptr }
     };
-    ReadStrings(parser, strings4);
+    ReadStrings(parser, strings3);
   }
 
   return NS_OK;

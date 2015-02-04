@@ -128,9 +128,4 @@ struct nsXREAppData
  */
 #define NS_XRE_ENABLE_EXTENSION_MANAGER (1 << 2)
 
-/**
- * Indicates whether or not to use Breakpad crash reporting.
- */
-#define NS_XRE_ENABLE_CRASH_REPORTER (1 << 3)
-
 #endif // nsXREAppData_h
