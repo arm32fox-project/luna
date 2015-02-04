@@ -128,6 +128,11 @@ CanvasClientSurfaceStream::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
     if (desc->type() != SurfaceDescriptor::TSurfaceStreamDescriptor ||
         desc->get_SurfaceStreamDescriptor().handle() != handle) {
       *desc = SurfaceStreamDescriptor(handle, false);
+
+      // Ref this so the SurfaceStream doesn't disappear unexpectedly. The
+      // Compositor will need to unref it when finished.
+      aLayer->mGLContext->AddRef();
+      
       mNeedsUpdate = true;
     }
   }

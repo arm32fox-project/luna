@@ -374,6 +374,12 @@ SurfaceStreamHostOGL::UpdateImpl(const SurfaceDescriptor& aImage,
 {
   MOZ_ASSERT(aImage.type() == SurfaceDescriptor::TSurfaceStreamDescriptor,
              "Invalid descriptor");
+             
+  // The SurfaceStream's GLContext was refed before being passed up to us, so
+  // we need to ensure it gets derefed when we are finished.
+  const SurfaceStreamDescriptor& streamDesc =
+      aImage.get_SurfaceStreamDescriptor();
+
   mStream = SurfaceStream::FromHandle(streamDesc.handle());
   MOZ_ASSERT(mStream);
   mStreamGL = dont_AddRef(mStream->GLContext());

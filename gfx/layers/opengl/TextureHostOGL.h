@@ -501,6 +501,7 @@ protected:
   GLuint mTextureHandle;
   GLuint mUploadTexture;
   GLenum mWrapMode;
+  nsRefPtr<GLContext> mStreamGL;
   gl::ShaderProgramType mShaderProgram;
   gfx::SurfaceStream *mStream;
 };
