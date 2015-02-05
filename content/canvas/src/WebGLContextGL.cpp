@@ -5139,21 +5139,38 @@ WebGLContext::TexImage2D_base(WebGLenum target, WebGLint level, WebGLenum intern
             error = CheckedTexImage2D(LOCAL_GL_TEXTURE_2D, 0, internalformat, width, height,
                                       border, format, type, nullptr);
 
+            if (error) {
+                GenerateWarning("texImage2D generated error %s", ErrorName(error));
+                return;
+            }
+
             // We then proceed to initializing the texture by assembling a FBO.
             // We make it a color-less FBO, which isn't supported everywhere, but we should be
             // fine because we only need this to be successful on ANGLE which is said to support
             // that. Still, we want to gracefully handle failure in case the FBO is incomplete.
 
             bool success = false;
-            GLuint fb = 0;
+            GLuint fb = 0, colortex = 0;
 
             // dummy do {...} while to be able to break
             do {
                 gl->fGenFramebuffers(1, &fb);
                 if (!fb)
                     break;
+                gl->fGenTextures(1, &colortex);
+                if (!colortex)
+                    break;
 
                 ScopedBindFramebuffer autoBindFB(gl, fb);
+                ScopedBindTexture autoBindColorTex(gl, colortex);
+                error = CheckedTexImage2D(LOCAL_GL_TEXTURE_2D, 0, LOCAL_GL_RGBA, width, height,
+                                          border, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE, nullptr);
+
+                gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
+                                          LOCAL_GL_COLOR_ATTACHMENT0,
+                                          LOCAL_GL_TEXTURE_2D,
+                                          colortex,
+                                          0);
 
                 gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
                                           LOCAL_GL_DEPTH_ATTACHMENT,
@@ -5175,6 +5192,7 @@ WebGLContext::TexImage2D_base(WebGLenum target, WebGLint level, WebGLenum intern
             } while(false);
 
             gl->fDeleteFramebuffers(1, &fb);
+            gl->fDeleteTextures(1, &colortex);
 
             if (!success) {
                 return ErrorOutOfMemory("texImage2D: sorry, ran out of ways to initialize a depth texture.");
