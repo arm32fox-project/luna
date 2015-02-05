@@ -8,6 +8,7 @@
 #include "prenv.h"
 #include "nsXULAppAPI.h"
 #include "nsDebug.h"
+#include "nsString.h" // for nsAutoCString
 
 #include "mozilla/X11Util.h"
 #include <X11/Xlib.h>
