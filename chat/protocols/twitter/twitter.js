@@ -4,7 +4,7 @@
 
 const {classes: Cc, interfaces: Ci, results: Cr, utils: Cu} = Components;
 
-Cu.import("resource://gre/modules/http.jsm");
+Cu.import("resource:///modules/httpRequest.jsm");
 Cu.import("resource:///modules/imServices.jsm");
 Cu.import("resource:///modules/imXPCOMUtils.jsm");
 Cu.import("resource:///modules/jsProtoHelper.jsm");
@@ -511,7 +511,7 @@ Account.prototype = {
       logger: {log: this.LOG.bind(this),
                debug: this.DEBUG.bind(this)}
     }
-    return doXHRequest(url, options);
+    return httpRequest(url, options);
   },
   _parseURLData: function(aData) {
     let result = {};

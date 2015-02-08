@@ -7,7 +7,7 @@ const EXPORTED_SYMBOLS = ["YahooSession"];
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 
 Cu.import("resource://gre/modules/FileUtils.jsm");
-Cu.import("resource://gre/modules/http.jsm");
+Cu.import("resource:///modules/httpRequest.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource:///modules/ArrayBufferUtils.jsm");
 Cu.import("resource:///modules/imServices.jsm");
@@ -494,7 +494,7 @@ YahooLoginHelper.prototype = {
       onLoad: this._onPagerAddressResponse.bind(this),
       onError: this._onHttpError.bind(this)
     }
-    doXHRequest(this._account._protocol.pagerRequestUrl, options);
+    httpRequest(this._account._protocol.pagerRequestUrl, options);
   },
 
   _getChallengeString: function() {
@@ -517,7 +517,7 @@ YahooLoginHelper.prototype = {
       onLoad: this._onLoginTokenResponse.bind(this),
       onError: this._onHttpError.bind(this)
     }
-    doXHRequest(url, options);
+    httpRequest(url, options);
   },
 
   _getCookies: function() {
@@ -530,7 +530,7 @@ YahooLoginHelper.prototype = {
       onLoad: this._onLoginCookiesResponse.bind(this),
       onError: this._onHttpError.bind(this)
     }
-    doXHRequest(url, options);
+    httpRequest(url, options);
   },
 
   _sendPagerAuthResponse: function() {
