@@ -185,7 +185,7 @@ OAuth2.prototype = {
     },
 
     onAccessTokenFailed: function onAccessTokenFailed(aData) {
-        this.refreshToken = null;
+        if (aError != "offline") this.refreshToken = null;
         this.connecting = false;
         this.connectFailureCallback();
     },
