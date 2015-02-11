@@ -45,6 +45,8 @@
               commandupdater="true"
               events="focus,sort,places"
               oncommandupdate="goUpdatePlacesCommands();">
+    <command id="placesCmd_open"
+             oncommand="goDoPlacesCommand('placesCmd_open');"/>
     <command id="placesCmd_open:window"
              oncommand="goDoPlacesCommand('placesCmd_open:window');"/>
     <command id="placesCmd_open:tab"
@@ -89,11 +91,17 @@
              onpopupshowing="this._view = PlacesUIUtils.getViewForNode(document.popupNode);
                              return this._view.buildContextMenu(this);"
              onpopuphiding="this._view.destroyContextMenu();">
+    <menuitem id="placesContext_open"
+              command="placesCmd_open"
+              label="&cmd.open.label;"
+              accesskey="&cmd.open.accesskey;"
+              default="true"
+              selectiontype="single"
+              selection="link"/>
     <menuitem id="placesContext_open:newtab"
               command="placesCmd_open:tab"
               label="&cmd.open_tab.label;"
               accesskey="&cmd.open_tab.accesskey;"
-              default="true"
               selectiontype="single"
               selection="link"/>
     <menuitem id="placesContext_openContainer:tabs"
