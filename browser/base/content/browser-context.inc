@@ -16,11 +16,6 @@
                 accesskey="&spellUndoAddToDictionary.accesskey;"
                 oncommand="InlineSpellCheckerUI.undoAddToDictionary();" />
       <menuseparator id="spell-suggestions-separator"/>
-      <menuitem id="context-openlinkincurrent"
-                default="true"
-                label="&openLinkCmdInCurrent.label;"
-                accesskey="&openLinkCmdInCurrent.accesskey;"
-                oncommand="gContextMenu.openLinkInCurrent();"/>
       <menuitem id="context-openlinkintab"
                 label="&openLinkCmdInTab.label;"
                 accesskey="&openLinkCmdInTab.accesskey;"
@@ -33,6 +28,10 @@
                 label="&openLinkInPrivateWindowCmd.label;"
                 accesskey="&openLinkInPrivateWindowCmd.accesskey;"
                 oncommand="gContextMenu.openLinkInPrivateWindow();"/>
+      <menuitem id="context-openlinkincurrent"
+                label="&openLinkCmdInCurrent.label;"
+                accesskey="&openLinkCmdInCurrent.accesskey;"
+                oncommand="gContextMenu.openLinkInCurrent();"/>
       <menuseparator id="context-sep-open"/>
       <menuitem id="context-bookmarklink"
                 label="&bookmarkThisLinkCmd.label;"
