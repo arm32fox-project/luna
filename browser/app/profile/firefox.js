@@ -1285,6 +1285,6 @@ pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Macintosh; In
 pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Linux; X11; rv:24.9) Gecko/20100101 Firefox/24.9 (Pale Moon)");
 #endif
 #else
-pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:24.9) Gecko/20100101 Firefox/24.9 (Pale Moon)");
+pref("general.useragent.override.addons.mozilla.org","Mozilla/5.0 (Windows NT; x86; rv:24.9) Gecko/20100101 Firefox/24.9 (Pale Moon)");
 #endif
 
