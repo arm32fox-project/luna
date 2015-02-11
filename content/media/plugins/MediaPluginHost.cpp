@@ -14,7 +14,6 @@
 #include "pratom.h"
 #include "MediaPluginReader.h"
 #include "nsIGfxInfo.h"
-#include "gfxCrashReporterUtils.h"
 #include "prmem.h"
 
 #include "MPAPI.h"

@@ -245,10 +245,6 @@ public:
   static void ShutdownTelemetry();
   static void RecordSlowStatement(const nsACString &sql, const nsACString &dbName,
                                   uint32_t delay);
-#if defined(MOZ_ENABLE_PROFILER_SPS)
-  static void RecordChromeHang(uint32_t duration,
-                               Telemetry::ProcessedStack &aStack);
-#endif
   static nsresult GetHistogramEnumId(const char *name, Telemetry::ID *id);
   static int64_t GetTelemetryMemoryUsed();
   size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
@@ -2047,20 +2043,6 @@ TelemetryImpl::RecordSlowStatement(const nsACString &sql,
   StoreSlowSQL(fullSQL, delay, Unsanitized);
 }
 
-#if defined(MOZ_ENABLE_PROFILER_SPS)
-void
-TelemetryImpl::RecordChromeHang(uint32_t duration,
-                                Telemetry::ProcessedStack &aStack)
-{
-  if (!sTelemetry || !sTelemetry->mCanRecord)
-    return;
-
-  MutexAutoLock hangReportMutex(sTelemetry->mHangReportsMutex);
-
-  sTelemetry->mHangReports.AddHang(aStack, duration);
-}
-#endif
-
 NS_IMPL_THREADSAFE_ISUPPORTS1(TelemetryImpl, nsITelemetry)
 NS_GENERIC_FACTORY_SINGLETON_CONSTRUCTOR(nsITelemetry, TelemetryImpl::CreateTelemetryInstance)
 
@@ -2200,14 +2182,6 @@ void Init()
   MOZ_ASSERT(telemetryService);
 }
 
-#if defined(MOZ_ENABLE_PROFILER_SPS)
-void RecordChromeHang(uint32_t duration,
-                      ProcessedStack &aStack)
-{
-  TelemetryImpl::RecordChromeHang(duration, aStack);
-}
-#endif
-
 ProcessedStack::ProcessedStack()
 {
 }
@@ -2261,19 +2235,6 @@ struct StackFrame
   uint16_t mModIndex; // The index of module that has this program counter.
 };
 
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-static bool CompareByPC(const StackFrame &a, const StackFrame &b)
-{
-  return a.mPC < b.mPC;
-}
-
-static bool CompareByIndex(const StackFrame &a, const StackFrame &b)
-{
-  return a.mIndex < b.mIndex;
-}
-#endif
-
 ProcessedStack
 GetStackAndModules(const std::vector<uintptr_t>& aPCs)
 {
@@ -2286,60 +2247,6 @@ GetStackAndModules(const std::vector<uintptr_t>& aPCs)
     rawStack.push_back(Frame);
   }
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  // Remove all modules not referenced by a PC on the stack
-  std::sort(rawStack.begin(), rawStack.end(), CompareByPC);
-
-  size_t moduleIndex = 0;
-  size_t stackIndex = 0;
-  size_t stackSize = rawStack.size();
-
-  SharedLibraryInfo rawModules = SharedLibraryInfo::GetInfoForSelf();
-  rawModules.SortByAddress();
-
-  while (moduleIndex < rawModules.GetSize()) {
-    const SharedLibrary& module = rawModules.GetEntry(moduleIndex);
-    uintptr_t moduleStart = module.GetStart();
-    uintptr_t moduleEnd = module.GetEnd() - 1;
-    // the interval is [moduleStart, moduleEnd)
-
-    bool moduleReferenced = false;
-    for (;stackIndex < stackSize; ++stackIndex) {
-      uintptr_t pc = rawStack[stackIndex].mPC;
-      if (pc >= moduleEnd)
-        break;
-
-      if (pc >= moduleStart) {
-        // If the current PC is within the current module, mark
-        // module as used
-        moduleReferenced = true;
-        rawStack[stackIndex].mPC -= moduleStart;
-        rawStack[stackIndex].mModIndex = moduleIndex;
-      } else {
-        // PC does not belong to any module. It is probably from
-        // the JIT. Use a fixed mPC so that we don't get different
-        // stacks on different runs.
-        rawStack[stackIndex].mPC =
-          std::numeric_limits<uintptr_t>::max();
-      }
-    }
-
-    if (moduleReferenced) {
-      ++moduleIndex;
-    } else {
-      // Remove module if no PCs within its address range
-      rawModules.RemoveEntries(moduleIndex, moduleIndex + 1);
-    }
-  }
-
-  for (;stackIndex < stackSize; ++stackIndex) {
-    // These PCs are past the last module.
-    rawStack[stackIndex].mPC = std::numeric_limits<uintptr_t>::max();
-  }
-
-  std::sort(rawStack.begin(), rawStack.end(), CompareByIndex);
-#endif
-
   // Copy the information to the return value.
   ProcessedStack Ret;
   for (std::vector<StackFrame>::iterator i = rawStack.begin(),
@@ -2348,28 +2255,6 @@ GetStackAndModules(const std::vector<uintptr_t>& aPCs)
     ProcessedStack::Frame frame = { rawFrame.mPC, rawFrame.mModIndex };
     Ret.AddFrame(frame);
   }
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  for (unsigned i = 0, n = rawModules.GetSize(); i != n; ++i) {
-    const SharedLibrary &info = rawModules.GetEntry(i);
-    const std::string &name = info.GetName();
-    std::string basename = name;
-#ifdef XP_MACOSX
-    // FIXME: We want to use just the basename as the libname, but the
-    // current profiler addon needs the full path name, so we compute the
-    // basename in here.
-    size_t pos = name.rfind('/');
-    if (pos != std::string::npos) {
-      basename = name.substr(pos + 1);
-    }
-#endif
-    ProcessedStack::Module module = {
-      basename,
-      info.GetBreakpadId()
-    };
-    Ret.AddModule(module);
-  }
-#endif
 
   return Ret;
 }

@@ -38,9 +38,6 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT },
     { "plugins", "chrome://global/content/plugins.html", 0 },
     { "config", "chrome://global/content/config.xul", 0 },
-#ifdef MOZ_CRASHREPORTER
-    { "crashes", "chrome://global/content/crashes.xhtml", 0 },
-#endif
     { "logo", "chrome://branding/content/about.png",
       nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT},
     { "buildconfig", "chrome://global/content/buildconfig.html",

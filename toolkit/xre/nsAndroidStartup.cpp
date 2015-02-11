@@ -17,7 +17,6 @@
 #include "nsAppRunner.h"
 #include "AndroidBridge.h"
 #include "APKOpen.h"
-#include "nsExceptionHandler.h"
 
 #define LOG(args...) __android_log_print(ANDROID_LOG_INFO, MOZ_APP_NAME, args)
 
@@ -44,15 +43,6 @@ struct AutoAttachJavaThread {
 extern "C" NS_EXPORT void
 GeckoStart(void *data, const nsXREAppData *appData)
 {
-#ifdef MOZ_CRASHREPORTER
-    const struct mapping_info *info = getLibraryMapping();
-    while (info->name) {
-      CrashReporter::AddLibraryMapping(info->name, info->base,
-                                       info->len, info->offset);
-      info++;
-    }
-#endif
-
     AutoAttachJavaThread attacher;
     if (!attacher.attached)
         return;

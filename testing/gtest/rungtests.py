@@ -63,8 +63,6 @@ class GTests(object):
         env["MOZILLA_FIVE_HOME"] = self.xre_path
         env["MOZ_XRE_DIR"] = self.xre_path
         env["XPCOM_DEBUG_BREAK"] = "stack-and-abort"
-        env["MOZ_CRASHREPORTER_NO_REPORT"] = "1"
-        env["MOZ_CRASHREPORTER"] = "1"
         env["MOZ_RUN_GTEST"] = "1"
         # Normally we run with GTest default output, override this to use the TBPL test format.
         env["MOZ_TBPL_PARSER"] = "1"

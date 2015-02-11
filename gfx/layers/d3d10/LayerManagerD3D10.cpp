@@ -22,7 +22,6 @@
 #include "mozilla/layers/PLayerChild.h"
 #include "mozilla/WidgetUtils.h"
 
-#include "gfxCrashReporterUtils.h"
 #ifdef MOZ_METRO
 #include "DXGI1_2.h"
 #include "nsWindowsHelpers.h"
@@ -107,8 +106,6 @@ SetHRESULT(HRESULT* aHresultPtr, HRESULT aHresult)
 bool
 LayerManagerD3D10::Initialize(bool force, HRESULT* aHresultPtr)
 {
-  ScopedGfxFeatureReporter reporter("D3D10 Layers", force);
-
   HRESULT hr = E_UNEXPECTED;
 
   mDevice = gfxWindowsPlatform::GetPlatform()->GetD3D10Device();
@@ -287,7 +284,6 @@ LayerManagerD3D10::Initialize(bool force, HRESULT* aHresultPtr)
     dxgiFactory->MakeWindowAssociation(swapDesc.OutputWindow, DXGI_MWA_NO_WINDOW_CHANGES);
   }
 
-  reporter.SetSuccessful();
   return true;
 }
 

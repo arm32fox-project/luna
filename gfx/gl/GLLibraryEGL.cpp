@@ -4,7 +4,6 @@
 
 #include "GLLibraryEGL.h"
 
-#include "gfxCrashReporterUtils.h"
 #include "mozilla/Preferences.h"
 #include "nsDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
@@ -102,8 +101,6 @@ GLLibraryEGL::EnsureInitialized()
     if (mInitialized) {
         return true;
     }
-
-    mozilla::ScopedGfxFeatureReporter reporter("EGL");
 
 #ifdef XP_WIN
 #ifdef MOZ_WEBGL
@@ -294,7 +291,6 @@ GLLibraryEGL::EnsureInitialized()
     }
 
     mInitialized = true;
-    reporter.SetSuccessful();
     return true;
 }
 

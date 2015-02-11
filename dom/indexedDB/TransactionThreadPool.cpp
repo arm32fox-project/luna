@@ -29,21 +29,6 @@ const uint32_t kIdleThreadTimeoutMs = 30000;
 TransactionThreadPool* gInstance = nullptr;
 bool gShutdown = false;
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-
-class TransactionThreadPoolListener : public nsIThreadPoolListener
-{
-public:
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSITHREADPOOLLISTENER
-
-private:
-  virtual ~TransactionThreadPoolListener()
-  { }
-};
-
-#endif // MOZ_ENABLE_PROFILER_SPS
-
 } // anonymous namespace
 
 BEGIN_INDEXEDDB_NAMESPACE
@@ -139,14 +124,6 @@ TransactionThreadPool::Init()
 
   rv = mThreadPool->SetIdleThreadTimeout(kIdleThreadTimeoutMs);
   NS_ENSURE_SUCCESS(rv, rv);
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  nsCOMPtr<nsIThreadPoolListener> listener =
-    new TransactionThreadPoolListener();
-
-  rv = mThreadPool->SetListener(listener);
-  NS_ENSURE_SUCCESS(rv, rv);
-#endif
 
   return NS_OK;
 }
@@ -662,27 +639,3 @@ FinishTransactionRunnable::Run()
 
   return NS_OK;
 }
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-
-NS_IMPL_THREADSAFE_ISUPPORTS1(TransactionThreadPoolListener,
-                              nsIThreadPoolListener)
-
-NS_IMETHODIMP
-TransactionThreadPoolListener::OnThreadCreated()
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-  char aLocal;
-  profiler_register_thread("IndexedDB Transaction", &aLocal);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-TransactionThreadPoolListener::OnThreadShuttingDown()
-{
-  MOZ_ASSERT(!NS_IsMainThread());
-  profiler_unregister_thread();
-  return NS_OK;
-}
-
-#endif // MOZ_ENABLE_PROFILER_SPS

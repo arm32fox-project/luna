@@ -1315,7 +1315,6 @@ FunctionEnd
   Push "nssdbm3.dll"
   Push "mozsqlite3.dll"
   Push "xpcom.dll"
-  Push "crashreporter.exe"
   Push "updater.exe"
   Push "${FileMainEXE}"
 !macroend

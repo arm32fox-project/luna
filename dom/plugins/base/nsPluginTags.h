@@ -99,6 +99,7 @@ private:
                 const char* const* aExtensions,
                 uint32_t aVariantCount);
   nsresult EnsureMembersAreUTF8();
+  void FixupVersion();
 };
 
 class DOMMimeTypeImpl : public nsIDOMMimeType {

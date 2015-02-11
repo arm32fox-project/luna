@@ -80,10 +80,6 @@
 #include <unistd.h>     /* for isatty() */
 #endif
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
-#endif
-
 using namespace mozilla;
 using namespace JS;
 
@@ -1707,13 +1703,6 @@ main(int argc, char **argv, char **envp)
     if (!XRE_ShutdownTestShell())
         NS_ERROR("problem shutting down testshell");
 
-#ifdef MOZ_CRASHREPORTER
-    // Get the crashreporter service while XPCOM is still active.
-    // This is a special exception: it will remain usable after NS_ShutdownXPCOM().
-    nsCOMPtr<nsICrashReporter> crashReporter =
-        do_GetService("@mozilla.org/toolkit/crash-reporter;1");
-#endif
-
     // no nsCOMPtrs are allowed to be alive when you call NS_ShutdownXPCOM
     rv = NS_ShutdownXPCOM( NULL );
     NS_ASSERTION(NS_SUCCEEDED(rv), "NS_ShutdownXPCOM failed");
@@ -1731,14 +1720,6 @@ main(int argc, char **argv, char **envp)
     dirprovider.ClearAppDir();
     dirprovider.ClearPluginDir();
     dirprovider.ClearAppFile();
-
-#ifdef MOZ_CRASHREPORTER
-    // Shut down the crashreporter service to prevent leaking some strings it holds.
-    if (crashReporter) {
-        crashReporter->SetEnabled(false);
-        crashReporter = nullptr;
-    }
-#endif
 
     NS_LogTerm();
 

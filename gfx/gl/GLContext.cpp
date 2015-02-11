@@ -9,7 +9,6 @@
 
 #include "GLContext.h"
 
-#include "gfxCrashReporterUtils.h"
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "GLContextProvider.h"
@@ -128,10 +127,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(TextureMemoryUsage,
 bool
 GLContext::InitWithPrefix(const char *prefix, bool trygl)
 {
-    ScopedGfxFeatureReporter reporter("GL Context");
-
     if (mInitialized) {
-        reporter.SetSuccessful();
         return true;
     }
 
@@ -655,9 +651,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         MOZ_ASSERT(IsCurrent());
     }
 
-    if (mInitialized)
-        reporter.SetSuccessful();
-    else {
+    if (!mInitialized) {
         // if initialization fails, ensure all symbols are zero, to avoid hard-to-understand bugs
         mSymbols.Zero();
         NS_WARNING("InitWithPrefix failed!");

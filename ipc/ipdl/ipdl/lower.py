@@ -2536,9 +2536,6 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
              
         if self.protocol.decl.type.isToplevel():
             cf.addthings([
-                CppDirective('ifdef', 'MOZ_CRASHREPORTER'),
-                CppDirective('  include', '"nsXULAppAPI.h"'),
-                CppDirective('endif')
             ])
 
         cf.addthings((
@@ -3184,13 +3181,7 @@ class _GenerateProtocolActorCode(ipdl.ast.Visitor):
                 ret=Type.BOOL,
                 const=1))
             getdump.addstmts([
-                CppDirective('ifdef', 'MOZ_CRASHREPORTER'),
-                StmtReturn(ExprCall(
-                    ExprVar('XRE_TakeMinidumpForChild'),
-                    args=[ ExprCall(otherpidvar), dumpvar, seqvar ])),
-                CppDirective('else'),
                 StmtReturn.FALSE,
-                CppDirective('endif')
             ])
             self.cls.addstmts([ otherpid, Whitespace.NL,
                                 getdump, Whitespace.NL ])

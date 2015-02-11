@@ -95,12 +95,6 @@ public:
     virtual PBlobChild* AllocPBlob(const BlobConstructorParams& aParams);
     virtual bool DeallocPBlob(PBlobChild*);
 
-    virtual PCrashReporterChild*
-    AllocPCrashReporter(const mozilla::dom::NativeThreadId& id,
-                        const uint32_t& processType);
-    virtual bool
-    DeallocPCrashReporter(PCrashReporterChild*);
-
     virtual PHalChild* AllocPHal() MOZ_OVERRIDE;
     virtual bool DeallocPHal(PHalChild*) MOZ_OVERRIDE;
 

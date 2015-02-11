@@ -16,8 +16,8 @@
 //#define IDB_PROFILER_MARK_DETAILS 0
 
 // Sanity check the options above.
-#if defined(IDB_PROFILER_USE_MARKS) && !defined(MOZ_ENABLE_PROFILER_SPS)
-#error Cannot use IDB_PROFILER_USE_MARKS without MOZ_ENABLE_PROFILER_SPS!
+#if defined(IDB_PROFILER_USE_MARKS)
+#error Cannot use IDB_PROFILER_USE_MARKS without Moz profiler!
 #endif
 
 #if defined(IDB_PROFILER_MARK_DETAILS) && !defined(IDB_PROFILER_USE_MARKS)

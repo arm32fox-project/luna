@@ -24,7 +24,7 @@ else
 FORCE_SHARED_LIB= 1
 endif
 
-# TODO: we do this in crashreporter and storage/src too, should be centralized
+# TODO: we do this in storage/src too, should be centralized
 ifeq ($(OS_ARCH),Linux)
 DEFINES += -DXP_LINUX
 endif

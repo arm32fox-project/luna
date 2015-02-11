@@ -1742,14 +1742,43 @@ typedef enum JSUseHelperThreads
     JS_USE_HELPER_THREADS
 } JSUseHelperThreads;
 
+
+/**
+ * Initialize SpiderMonkey, performing one-time initializations for methods
+ * that need it (currently only PRMJ_Now).
+ * Once this method has succeeded, it is safe to call JS_NewRuntime and other
+ * JSAPI methods.
+ *
+ * This method MUST be called before any other JSAPI method is used on any
+ * thread.  Once it has been used, it is safe to call any JSAPI method, and it
+ * remains safe to do so until JS_ShutDown is correctly called.
+ */
+extern JS_PUBLIC_API(JSBool)
+JS_Init(void);
+
+/**
+ * Destroy free-standing resources allocated by SpiderMonkey, not associated
+ * with any runtime, context, or other structure.
+ *
+ * This method should be called after all other JSAPI data has been properly
+ * cleaned up: every new runtime must have been destroyed, every new context
+ * must have been destroyed, and so on.  Calling this method before all other
+ * resources have been destroyed has undefined behavior.
+ *
+ * Failure to call this method currently has no adverse effects other than
+ * leaking memory from resources allocated in Init().
+ *
+ * It is safe to call JS_Init again, and then to resume using SpiderMonkey as
+ * usual, once this method has returned.
+ */
+extern JS_PUBLIC_API(void)
+JS_ShutDown(void);
+
 extern JS_PUBLIC_API(JSRuntime *)
 JS_NewRuntime(uint32_t maxbytes, JSUseHelperThreads useHelperThreads);
 
 extern JS_PUBLIC_API(void)
 JS_DestroyRuntime(JSRuntime *rt);
-
-extern JS_PUBLIC_API(void)
-JS_ShutDown(void);
 
 JS_PUBLIC_API(void *)
 JS_GetRuntimePrivate(JSRuntime *rt);

@@ -63,7 +63,6 @@ protected:
 
 private:
 
-  void AddCrashReportAnnotations();
   nsString mDeviceString;
   nsString mDeviceID;
   nsString mDriverVersion;

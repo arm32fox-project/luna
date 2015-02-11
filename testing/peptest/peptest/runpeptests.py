@@ -95,7 +95,6 @@ class Peptest():
         env['MOZ_INSTRUMENT_EVENT_LOOP'] = '1'
         env['MOZ_INSTRUMENT_EVENT_LOOP_THRESHOLD'] = str(options.tracerThreshold)
         env['MOZ_INSTRUMENT_EVENT_LOOP_INTERVAL'] = str(options.tracerInterval)
-        env['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
 
         # construct the browser arguments
         cmdargs = []

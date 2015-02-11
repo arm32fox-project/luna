@@ -14,12 +14,6 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 XPCOMUtils.defineLazyGetter(this, "gAppBrowser",
                             function() document.getElementById("content"));
 
-#ifdef MOZ_CRASHREPORTER
-XPCOMUtils.defineLazyServiceGetter(this, "gCrashReporter",
-                                   "@mozilla.org/toolkit/crash-reporter;1",
-                                   "nsICrashReporter");
-#endif
-
 let progressListener = {
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIWebProgressListener,
                                          Ci.nsISupportsWeakReference]),
@@ -41,7 +35,6 @@ let progressListener = {
     if (aRequest instanceof Ci.nsIChannel &&
         aFlags & Ci.nsIWebProgressListener.STATE_START &&
         aFlags & Ci.nsIWebProgressListener.STATE_IS_DOCUMENT) {
-      updateCrashReportURL(aRequest.URI);
     }
   }
 };
@@ -157,23 +150,5 @@ function updateEditUIVisibility() {
     goSetCommandEnabled("cmd_delete", true);
     goSetCommandEnabled("cmd_switchTextDirection", true);
   }
-#endif
-}
-
-function updateCrashReportURL(aURI) {
-#ifdef MOZ_CRASHREPORTER
-  if (!gCrashReporter.enabled)
-    return;
-
-  let uri = aURI.clone();
-  // uri.userPass throws on protocols without the concept of authentication,
-  // like about:, which tests can load, so we catch and ignore an exception.
-  try {
-    if (uri.userPass != "") {
-      uri.userPass = "";
-    }
-  } catch (e) {}
-
-  gCrashReporter.annotateCrashReport("URL", uri.spec);
 #endif
 }
