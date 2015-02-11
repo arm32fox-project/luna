@@ -918,7 +918,7 @@ pref("network.http.keep-alive.timeout", 115);
 // Note: the socket transport service will clamp the number below 256 if the OS
 // cannot allocate that many FDs, and it also always tries to reserve up to 250
 // file descriptors for things other than sockets.   
-pref("network.http.max-connections", 256);
+pref("network.http.max-connections", 48);
 
 // If NOT connecting via a proxy, then
 // a new connection will only be attempted if the number of active persistent
@@ -928,13 +928,16 @@ pref("network.http.max-persistent-connections-per-server", 6);
 // If connecting via a proxy, then a
 // new connection will only be attempted if the number of active persistent
 // connections to the proxy is less then max-persistent-connections-per-proxy.
-pref("network.http.max-persistent-connections-per-proxy", 32);
+pref("network.http.max-persistent-connections-per-proxy", 16);
 
 // amount of time (in seconds) to suspend pending requests, before spawning a
 // new connection, once the limit on the number of persistent connections per
 // host has been reached.  however, a new connection will not be created if
 // max-connections or max-connections-per-server has also been reached.
-pref("network.http.request.max-start-delay", 10);
+pref("network.http.request.max-start-delay", 6);
+
+ // With pipelining, this should be low (pl:10 npl:15)
+pref("network.http.max-connections-per-server",10);
 
 // Headers
 pref("network.http.accept.default", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
@@ -961,26 +964,26 @@ pref("network.http.redirection-limit", 20);
 // NOTE: separate values with comma+space (", "): see bug 576033
 pref("network.http.accept-encoding", "gzip, deflate");
 
-pref("network.http.pipelining"      , false);
-pref("network.http.pipelining.ssl"  , false); // disable pipelining over SSL
+pref("network.http.pipelining"      , true); //pipelining on by default, issues are very rare
+pref("network.http.pipelining.ssl"  , true); //also pipelining over SSL
 pref("network.http.pipelining.abtest", false);
-pref("network.http.proxy.pipelining", false);
+pref("network.http.proxy.pipelining", false); // don't pipeline proxy requests - breaks some proxies!
 
 // Max number of requests in the pipeline
-pref("network.http.pipelining.maxrequests" , 32);
+pref("network.http.pipelining.maxrequests" , 4);
 
 // An optimistic request is one pipelined when policy might allow a new
 // connection instead
 pref("network.http.pipelining.max-optimistic-requests" , 4);
 
-pref("network.http.pipelining.aggressive", false);
+pref("network.http.pipelining.aggressive", true);
 pref("network.http.pipelining.maxsize" , 300000);
 pref("network.http.pipelining.reschedule-on-timeout", true);
-pref("network.http.pipelining.reschedule-timeout", 1500);
+pref("network.http.pipelining.reschedule-timeout", 1000);
 
 // The read-timeout is a ms timer that causes the transaction to be completely
 // restarted without pipelining.
-pref("network.http.pipelining.read-timeout", 30000);
+pref("network.http.pipelining.read-timeout", 5000);
 
 // Prompt for 307 redirects
 pref("network.http.prompt-temp-redirect", true);
@@ -1267,7 +1270,8 @@ pref("network.dns.disableIPv6", false);
 pref("network.dnsCacheExpirationGracePeriod", 2592000);
 
 // This preference can be used to turn off DNS prefetch.
-pref("network.dns.disablePrefetch", false);
+// Disable DNS prefetching to prevent router hangups
+pref("network.dns.disablePrefetch", true);
 
 // This preference controls whether or not URLs with UTF-8 characters are
 // escaped.  Set this preference to TRUE for strict RFC2396 conformance.
@@ -1287,7 +1291,7 @@ pref("network.ftp.idleConnectionTimeout", 300);
 pref("network.dir.format", 2);
 
 // enables the prefetch service (i.e., prefetching of <link rel="next"> URLs).
-pref("network.prefetch-next", true);
+pref("network.prefetch-next", false);
 
 
 // The following prefs pertain to the negotiate-auth extension (see bug 17578),
@@ -1613,25 +1617,25 @@ pref("mousewheel.min_line_scroll_amount", 5);
 // Scrollbars: Clicking scrollbars arrows, clicking scrollbars tracks
 // Note: Currently OS X trackpad and magic mouse don't use our smooth scrolling
 // Note: These are relevant only when "general.smoothScroll" is enabled
-pref("general.smoothScroll.mouseWheel.durationMinMS", 200);
-pref("general.smoothScroll.mouseWheel.durationMaxMS", 400);
+pref("general.smoothScroll.lines",true);
+pref("general.smoothScroll.lines.durationMinMS",50);
+pref("general.smoothScroll.lines.durationMaxMS",200);
+pref("general.smoothScroll.pages",false);
+pref("general.smoothScroll.pages.durationMinMS",200);
+pref("general.smoothScroll.pages.durationMaxMS",600);
+pref("general.smoothScroll.mouseWheel",true);
+pref("general.smoothScroll.mouseWheel.durationMinMS",150);
+pref("general.smoothScroll.mouseWheel.durationMaxMS",500);
+pref("general.smoothScroll.scrollbars",true);
+pref("general.smoothScroll.scrollbars.durationMinMS",50);
+pref("general.smoothScroll.scrollbars.durationMaxMS",200);
+pref("general.smoothScroll.other",false);
+pref("general.smoothScroll.other.durationMinMS",200);
+pref("general.smoothScroll.other.durationMaxMS",600);
+pref("general.smoothScroll.pixels", true);
 pref("general.smoothScroll.pixels.durationMinMS", 150);
 pref("general.smoothScroll.pixels.durationMaxMS", 150);
-pref("general.smoothScroll.lines.durationMinMS", 150);
-pref("general.smoothScroll.lines.durationMaxMS", 150);
-pref("general.smoothScroll.pages.durationMinMS", 150);
-pref("general.smoothScroll.pages.durationMaxMS", 150);
-pref("general.smoothScroll.scrollbars.durationMinMS", 150);
-pref("general.smoothScroll.scrollbars.durationMaxMS", 150);
-pref("general.smoothScroll.other.durationMinMS", 150);
-pref("general.smoothScroll.other.durationMaxMS", 150);
-// Enable disable smooth scrolling for different triggers (when "general.smoothScroll" is enabled)
-pref("general.smoothScroll.mouseWheel", true);
-pref("general.smoothScroll.pixels", true);
-pref("general.smoothScroll.lines", true);
-pref("general.smoothScroll.pages", true);
-pref("general.smoothScroll.scrollbars", true);
-pref("general.smoothScroll.other", true);
+
 // To connect consecutive scroll events into a continuous flow, the animation's duration
 // should be longer than scroll events intervals (or else the scroll will stop
 // before the next event arrives - we're guessing next interval by averaging recent

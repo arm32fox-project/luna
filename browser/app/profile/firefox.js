@@ -631,7 +631,8 @@ pref("plugins.always_show_indicator", false);
 pref("plugins.update.url", "https://www.mozilla.org/%LOCALE%/plugincheck/");
 pref("plugins.update.notifyUser", false);
 
-pref("plugins.click_to_play", false);
+//Enable tri-state option (Always/Never/Ask)
+pref("plugins.click_to_play", true);
 
 #ifdef XP_WIN
 pref("browser.preferences.instantApply", false);
