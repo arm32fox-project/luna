@@ -181,7 +181,6 @@ pref("dom.max_chrome_script_run_time", 90); //Some addons need ample time!
 pref("dom.max_script_run_time", 20); //Should be plenty for a page script to do what it needs
 
 //Media components
-pref("media.webaudio.enabled", true);
 
 //Image decoding tweaks
 pref("image.mem.max_ms_before_yield", 50);

@@ -1248,10 +1248,7 @@ pref("security.mixed_content.block_active_content", true);
 // Override the Gecko-default value of false for Firefox.
 pref("plain_text.wrap_long_lines", true);
 
-#ifndef RELEASE_BUILD
-// Enable Web Audio for Firefox Desktop in Nightly and Aurora
 pref("media.webaudio.enabled", true);
-#endif
 
 // If this turns true, Moz*Gesture events are not called stopPropagation()
 // before content.
