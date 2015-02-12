@@ -255,24 +255,6 @@
             </hbox>
           </groupbox>
 #endif
-#ifdef MOZ_CRASHREPORTER
-          <groupbox>
-            <caption label="&crashReporterSection.label;"/>
-            <description>&crashReporterDesc.label;</description>
-            <hbox>
-              <checkbox id="submitCrashesBox"
-                        oncommand="gAdvancedPane.updateSubmitCrashes();"
-                        label="&enableCrashReporter.label;"
-                        accesskey="&enableCrashReporter.accesskey;"/>
-
-              <spacer flex="1"/>
-              <label id="crashReporterLearnMore"
-                     class="text-link"
-                     value="&crashReporterLearnMore.label;"
-                     onclick="gAdvancedPane.openTextLink(event)"/>
-            </hbox>
-          </groupbox>
-#endif
         </tabpanel>
 #endif
         <!-- Network -->

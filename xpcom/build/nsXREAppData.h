@@ -94,11 +94,6 @@ struct nsXREAppData
   const char *maxVersion;
 
   /**
-   * The server URL to send crash reports to.
-   */
-  const char *crashReporterURL;
-
-  /**
    * The profile directory that will be used. Optional (may be null). Must not
    * be the empty string, must be ASCII. The path is split into components
    * along the path separator characters '/' and '\'.
@@ -132,10 +127,5 @@ struct nsXREAppData
  * initialized at startup.
  */
 #define NS_XRE_ENABLE_EXTENSION_MANAGER (1 << 2)
-
-/**
- * Indicates whether or not to use Breakpad crash reporting.
- */
-#define NS_XRE_ENABLE_CRASH_REPORTER (1 << 3)
 
 #endif // nsXREAppData_h

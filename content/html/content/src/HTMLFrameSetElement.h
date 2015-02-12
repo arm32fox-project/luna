@@ -53,6 +53,8 @@ public:
       mCurrentRowColHint(NS_STYLE_HINT_REFLOW)
   {
     SetIsDOMBinding();
+    // This element inserts out-of-body and can't use a fast path to set InnerHTML
+    SetElementInsertsOOB();
   }
   virtual ~HTMLFrameSetElement();
 

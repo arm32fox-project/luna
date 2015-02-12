@@ -35,6 +35,11 @@ public:
     : nsGenericHTMLElement(aNodeInfo)
   {
     SetIsDOMBinding();
+    if (mNodeInfo->Equals(nsGkAtoms::head) ||
+        mNodeInfo->Equals(nsGkAtoms::html)) {
+      // This element inserts out-of-body and can't use a fast path to set InnerHTML
+      SetElementInsertsOOB();
+    }
   }
   virtual ~HTMLSharedElement();
 

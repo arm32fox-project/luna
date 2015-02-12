@@ -118,9 +118,6 @@ public:
 
 #include "nsIWidget.h"
 
-#include "gfxCrashReporterUtils.h"
-
-
 #if defined(MOZ_PLATFORM_MAEMO) || defined(MOZ_WIDGET_GONK)
 static bool gUseBackingSurface = true;
 #else

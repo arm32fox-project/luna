@@ -44,10 +44,6 @@ namespace {
 
 NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-uint64_t gNextSerialNumber = 1;
-#endif
-
 PLDHashOperator
 DoomCachedStatements(const nsACString& aQuery,
                      nsCOMPtr<mozIStorageStatement>& aStatement,
@@ -169,9 +165,6 @@ IDBTransaction::IDBTransaction()
   mActorChild(nullptr),
   mActorParent(nullptr),
   mAbortCode(NS_OK),
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  mSerialNumber(gNextSerialNumber++),
-#endif
   mCreating(false)
 #ifdef DEBUG
   , mFiredCompleteOrAbort(false)

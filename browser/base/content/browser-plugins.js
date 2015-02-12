@@ -3,7 +3,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-const kPrefNotifyMissingFlash = "plugins.notifyMissingFlash";
 const kPrefSessionPersistMinutes = "plugin.sessionPermissionNow.intervalInMinutes";
 const kPrefPersistentDays = "plugin.persistentPermissionAlways.intervalInDays";
 
@@ -16,14 +15,6 @@ var gPluginHandler = {
     return plugin.ownerDocument.
            getAnonymousElementByAttribute(plugin, "class", className);
   },
-
-#ifdef MOZ_CRASHREPORTER
-  get CrashSubmit() {
-    delete this.CrashSubmit;
-    Cu.import("resource://gre/modules/CrashSubmit.jsm", this);
-    return this.CrashSubmit;
-  },
-#endif
 
   _getPluginInfo: function (pluginElement) {
     let pluginHost = Cc["@mozilla.org/plugin/host;1"].getService(Ci.nsIPluginHost);
@@ -155,69 +146,6 @@ var gPluginHandler = {
     }
   },
 
-  supportedPlugins: {
-    "mimetypes": {
-      "application/x-shockwave-flash": "flash",
-      "application/futuresplash": "flash",
-      "application/x-java-.*": "java",
-      "application/x-director": "shockwave",
-      "application/(sdp|x-(mpeg|rtsp|sdp))": "quicktime",
-      "audio/(3gpp(2)?|AMR|aiff|basic|mid(i)?|mp4|mpeg|vnd\.qcelp|wav|x-(aiff|m4(a|b|p)|midi|mpeg|wav))": "quicktime",
-      "image/(pict|png|tiff|x-(macpaint|pict|png|quicktime|sgi|targa|tiff))": "quicktime",
-      "video/(3gpp(2)?|flc|mp4|mpeg|quicktime|sd-video|x-mpeg)": "quicktime",
-      "application/x-unknown": "test",
-    },
-
-    "plugins": {
-      "flash": {
-        "displayName": "Flash",
-        "installWINNT": true,
-        "installDarwin": true,
-        "installLinux": true,
-      },
-      "java": {
-        "displayName": "Java",
-        "installWINNT": true,
-        "installDarwin": true,
-        "installLinux": true,
-      },
-      "shockwave": {
-        "displayName": "Shockwave",
-        "installWINNT": true,
-        "installDarwin": true,
-      },
-      "quicktime": {
-        "displayName": "QuickTime",
-        "installWINNT": true,
-      },
-      "test": {
-        "displayName": "Test plugin",
-        "installWINNT": true,
-        "installLinux": true,
-        "installDarwin": true,
-      }
-    }
-  },
-
-  nameForSupportedPlugin: function (aMimeType) {
-    for (let type in this.supportedPlugins.mimetypes) {
-      let re = new RegExp(type);
-      if (re.test(aMimeType)) {
-        return this.supportedPlugins.mimetypes[type];
-      }
-    }
-    return null;
-  },
-
-  canInstallThisMimeType: function (aMimeType) {
-    let os = Services.appinfo.OS;
-    let pluginName = this.nameForSupportedPlugin(aMimeType);
-    if (pluginName && "install" + os in this.supportedPlugins.plugins[pluginName]) {
-      return true;
-    }
-    return false;
-  },
-
   handleEvent : function(event) {
     let plugin;
     let doc;
@@ -261,19 +189,7 @@ var gPluginHandler = {
         break;
 
       case "PluginNotFound":
-        let installable = this.showInstallNotification(plugin, eventType);
-        // For non-object plugin tags, register a click handler to install the
-        // plugin. Object tags can, and often do, deal with that themselves,
-        // so don't stomp on the page developers toes.
-        if (installable && !(plugin instanceof HTMLObjectElement)) {
-          let installStatus = doc.getAnonymousElementByAttribute(plugin, "class", "installStatus");
-          installStatus.setAttribute("installable", "true");
-          let iconStatus = doc.getAnonymousElementByAttribute(plugin, "class", "icon");
-          iconStatus.setAttribute("installable", "true");
-
-          let installLink = doc.getAnonymousElementByAttribute(plugin, "anonid", "installPluginLink");
-          this.addLinkClickCallback(installLink, "installSinglePlugin", plugin);
-        }
+        /* No action (plugin finder obsolete) */
         break;
 
       case "PluginBlocklisted":
@@ -387,33 +303,6 @@ var gPluginHandler = {
       objLoadingContent.cancelPlayPreview();
   },
 
-  newPluginInstalled : function(event) {
-    // browser elements are anonymous so we can't just use target.
-    var browser = event.originalTarget;
-    // clear the plugin list, now that at least one plugin has been installed
-    browser.missingPlugins = null;
-
-    var notificationBox = gBrowser.getNotificationBox(browser);
-    var notification = notificationBox.getNotificationWithValue("missing-plugins");
-    if (notification)
-      notificationBox.removeNotification(notification);
-
-    // reload the browser to make the new plugin show.
-    browser.reload();
-  },
-
-  // Callback for user clicking on a missing (unsupported) plugin.
-  installSinglePlugin: function (plugin) {
-    var missingPlugins = new Map();
-
-    var pluginInfo = this._getPluginInfo(plugin);
-    missingPlugins.set(pluginInfo.mimetype, pluginInfo);
-
-    openDialog("chrome://mozapps/content/plugins/pluginInstallerWizard.xul",
-               "PFSWindow", "chrome,centerscreen,resizable=yes",
-               {plugins: missingPlugins, browser: gBrowser.selectedBrowser});
-  },
-
   // Callback for user clicking on a disabled plugin
   managePlugins: function (aEvent) {
     BrowserOpenAddonsMgr("addons://list/plugin");
@@ -425,22 +314,6 @@ var gPluginHandler = {
     openURL(Services.urlFormatter.formatURLPref("plugins.update.url"));
   },
 
-#ifdef MOZ_CRASHREPORTER
-  submitReport: function submitReport(pluginDumpID, browserDumpID, plugin) {
-    let keyVals = {};
-    if (plugin) {
-      let userComment = this.getPluginUI(plugin, "submitComment").value.trim();
-      if (userComment)
-        keyVals.PluginUserComment = userComment;
-      if (this.getPluginUI(plugin, "submitURLOptIn").checked)
-        keyVals.PluginContentURL = plugin.ownerDocument.URL;
-    }
-    this.CrashSubmit.submit(pluginDumpID, { extraExtraKeyVals: keyVals });
-    if (browserDumpID)
-      this.CrashSubmit.submit(browserDumpID);
-  },
-#endif
-
   // Callback for user clicking a "reload page" link
   reloadPage: function (browser) {
     browser.reload();
@@ -451,61 +324,6 @@ var gPluginHandler = {
     openHelpLink("plugin-crashed", false);
   },
 
-  showInstallNotification: function (aPlugin) {
-    let browser = gBrowser.getBrowserForDocument(aPlugin.ownerDocument
-                                                        .defaultView.top.document);
-    if (!browser.missingPlugins)
-      browser.missingPlugins = new Map();
-
-    let pluginInfo = this._getPluginInfo(aPlugin);
-    browser.missingPlugins.set(pluginInfo.mimetype, pluginInfo);
-
-    // only show notification for small subset of plugins
-    let mimetype = pluginInfo.mimetype.split(";")[0];
-    if (!this.canInstallThisMimeType(mimetype))
-      return false;
-
-    let pluginIdentifier = this.nameForSupportedPlugin(mimetype);
-    if (!pluginIdentifier)
-      return false;
-
-    let displayName = this.supportedPlugins.plugins[pluginIdentifier].displayName;
-
-    // don't show several notifications
-    let notification = PopupNotifications.getNotification("plugins-not-found", browser);
-    if (notification)
-      return true;
-
-    let messageString = gNavigatorBundle.getString("installPlugin.message");
-    let mainAction = {
-      label: gNavigatorBundle.getFormattedString("installPlugin.button.label",
-                                                 [displayName]),
-      accessKey: gNavigatorBundle.getString("installPlugin.button.accesskey"),
-      callback: function () {
-        openDialog("chrome://mozapps/content/plugins/pluginInstallerWizard.xul",
-                   "PFSWindow", "chrome,centerscreen,resizable=yes",
-                   {plugins: browser.missingPlugins, browser: browser});
-      }
-    };
-    let secondaryActions = null;
-    let options = { dismissed: true };
-
-    let showForFlash = Services.prefs.getBoolPref(kPrefNotifyMissingFlash);
-    if (pluginIdentifier == "flash" && showForFlash) {
-      secondaryActions = [{
-        label: gNavigatorBundle.getString("installPlugin.ignoreButton.label"),
-        accessKey: gNavigatorBundle.getString("installPlugin.ignoreButton.accesskey"),
-        callback: function () {
-          Services.prefs.setBoolPref(kPrefNotifyMissingFlash, false);
-        }
-      }];
-      options.dismissed = false;
-    }
-    PopupNotifications.show(browser, "plugins-not-found",
-                            messageString, "plugin-install-notification-icon",
-                            mainAction, secondaryActions, options);
-    return true;
-  },
   // Event listener for click-to-play plugins.
   _handleClickToPlayEvent: function PH_handleClickToPlayEvent(aPlugin) {
     let doc = aPlugin.ownerDocument;
@@ -843,20 +661,6 @@ var gPluginHandler = {
     if (!(propertyBag instanceof Ci.nsIPropertyBag2) ||
         !(propertyBag instanceof Ci.nsIWritablePropertyBag2))
      return;
-
-#ifdef MOZ_CRASHREPORTER
-    let pluginDumpID = propertyBag.getPropertyAsAString("pluginDumpID");
-    let browserDumpID= propertyBag.getPropertyAsAString("browserDumpID");
-    let shouldSubmit = gCrashReporter.submitReports;
-    let doPrompt     = true; // XXX followup to get via gCrashReporter
-
-    // Submit automatically when appropriate.
-    if (pluginDumpID && shouldSubmit && !doPrompt) {
-      this.submitReport(pluginDumpID, browserDumpID);
-      // Submission is async, so we can't easily show failure UI.
-      propertyBag.setPropertyAsBool("submittedCrashReport", true);
-    }
-#endif
   },
 
   // Crashed-plugin event listener. Called for every instance of a
@@ -887,73 +691,6 @@ var gPluginHandler = {
     let doc = plugin.ownerDocument;
     let overlay = doc.getAnonymousElementByAttribute(plugin, "class", "mainBox");
     let statusDiv = doc.getAnonymousElementByAttribute(plugin, "class", "submitStatus");
-#ifdef MOZ_CRASHREPORTER
-    let status;
-
-    // Determine which message to show regarding crash reports.
-    if (submittedReport) { // submitReports && !doPrompt, handled in observer
-      status = "submitted";
-    }
-    else if (!submitReports && !doPrompt) {
-      status = "noSubmit";
-    }
-    else { // doPrompt
-      status = "please";
-      this.getPluginUI(plugin, "submitButton").addEventListener("click",
-        function (event) {
-          if (event.button != 0 || !event.isTrusted)
-            return;
-          this.submitReport(pluginDumpID, browserDumpID, plugin);
-          pref.setBoolPref("", optInCB.checked);
-        }.bind(this));
-      let optInCB = this.getPluginUI(plugin, "submitURLOptIn");
-      let pref = Services.prefs.getBranch("dom.ipc.plugins.reportCrashURL");
-      optInCB.checked = pref.getBoolPref("");
-    }
-
-    // If we don't have a minidumpID, we can't (or didn't) submit anything.
-    // This can happen if the plugin is killed from the task manager.
-    if (!pluginDumpID) {
-        status = "noReport";
-    }
-
-    statusDiv.setAttribute("status", status);
-
-    let helpIcon = doc.getAnonymousElementByAttribute(plugin, "class", "helpIcon");
-    this.addLinkClickCallback(helpIcon, "openHelpPage");
-
-    // If we're showing the link to manually trigger report submission, we'll
-    // want to be able to update all the instances of the UI for this crash to
-    // show an updated message when a report is submitted.
-    if (doPrompt) {
-      let observer = {
-        QueryInterface: XPCOMUtils.generateQI([Ci.nsIObserver,
-                                               Ci.nsISupportsWeakReference]),
-        observe : function(subject, topic, data) {
-          let propertyBag = subject;
-          if (!(propertyBag instanceof Ci.nsIPropertyBag2))
-            return;
-          // Ignore notifications for other crashes.
-          if (propertyBag.get("minidumpID") != pluginDumpID)
-            return;
-          statusDiv.setAttribute("status", data);
-        },
-
-        handleEvent : function(event) {
-            // Not expected to be called, just here for the closure.
-        }
-      }
-
-      // Use a weak reference, so we don't have to remove it...
-      Services.obs.addObserver(observer, "crash-report-status", true);
-      // ...alas, now we need something to hold a strong reference to prevent
-      // it from being GC. But I don't want to manually manage the reference's
-      // lifetime (which should be no greater than the page).
-      // Clever solution? Use a closue with an event listener on the document.
-      // When the doc goes away, so do the listener references and the closure.
-      doc.addEventListener("mozCleverClosureHack", observer, false);
-    }
-#endif
 
     let crashText = doc.getAnonymousElementByAttribute(plugin, "class", "msgCrashedText");
     crashText.textContent = messageString;
@@ -1019,16 +756,6 @@ var gPluginHandler = {
         popup: null,
         callback: function() { browser.reload(); },
       }];
-#ifdef MOZ_CRASHREPORTER
-      let submitButton = {
-        label: submitLabel,
-        accessKey: submitKey,
-        popup: null,
-          callback: function() { gPluginHandler.submitReport(pluginDumpID, browserDumpID); },
-      };
-      if (pluginDumpID)
-        buttons.push(submitButton);
-#endif
 
       let notification = notificationBox.appendNotification(messageString, "plugin-crashed",
                                                             iconURL, priority, buttons);

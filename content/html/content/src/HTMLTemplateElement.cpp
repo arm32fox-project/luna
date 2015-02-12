@@ -34,6 +34,8 @@ HTMLTemplateElement::HTMLTemplateElement(already_AddRefed<nsINodeInfo> aNodeInfo
   : nsGenericHTMLElement(aNodeInfo)
 {
   SetIsDOMBinding();
+  // This element inserts out-of-body and can't use a fast path to set InnerHTML
+  SetElementInsertsOOB();
 }
 
 nsresult

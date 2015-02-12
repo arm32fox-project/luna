@@ -468,10 +468,14 @@ CssHtmlTree.prototype = {
     delete this.viewedElement;
 
     // Remove event listeners
-    this.includeBrowserStylesCheckbox.removeEventListener("command",
-      this.includeBrowserStylesChanged);
-    this.searchField.removeEventListener("command", this.filterChanged);
-
+    if (this.includeBrowserStylesCheckbox) {
+      this.includeBrowserStylesCheckbox.removeEventListener("command",
+        this.includeBrowserStylesChanged);
+    }
+    if (this.searchField) {
+      this.searchField.removeEventListener("command", this.filterChanged);
+    }
+    
     // Cancel tree construction
     if (this._refreshProcess) {
       this._refreshProcess.cancel();
@@ -502,9 +506,11 @@ CssHtmlTree.prototype = {
     }
 
     // Remove bound listeners
-    this.styleDocument.removeEventListener("copy", this.siBoundCopy);
-    this.styleDocument.removeEventListener("mousedown", this.siFocusWindow);
-
+    if (this.styleDocument) {
+      this.styleDocument.removeEventListener("copy", this.siBoundCopy);
+      this.styleDocument.removeEventListener("mousedown", this.siFocusWindow);
+    }
+    
     // Nodes used in templating
     delete this.root;
     delete this.propertyContainer;

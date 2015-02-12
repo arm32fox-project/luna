@@ -995,7 +995,7 @@ CrashesProvider.prototype = Object.freeze({
 /**
  * Helper for interacting with the crashes directory.
  *
- * FUTURE Extract to JSM alongside crashreporter. Use in about:crashes.
+ * RRR: No longer needed?
  */
 this.CrashDirectoryService = function () {
   let base = Cc["@mozilla.org/file/directory_service;1"]

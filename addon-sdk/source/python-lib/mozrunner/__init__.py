@@ -390,9 +390,6 @@ class Runner(object):
             else:
                 os.environ['LD_LIBRARY_PATH'] = dirname
 
-        # Disable the crash reporter by default
-        os.environ['MOZ_CRASHREPORTER_NO_REPORT'] = '1'
-
         self.profile = profile
 
         self.cmdargs = cmdargs

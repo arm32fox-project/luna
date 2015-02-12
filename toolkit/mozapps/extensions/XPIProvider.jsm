@@ -1786,19 +1786,7 @@ var XPIProvider = {
     }
 
     this.enabledAddons = Prefs.getCharPref(PREF_EM_ENABLED_ADDONS, "");
-    if ("nsICrashReporter" in Ci &&
-        Services.appinfo instanceof Ci.nsICrashReporter) {
-      // Annotate the crash report with relevant add-on information.
-      try {
-        Services.appinfo.annotateCrashReport("Theme", this.currentSkin);
-      } catch (e) { }
-      try {
-        Services.appinfo.annotateCrashReport("EMCheckCompatibility",
-                                             AddonManager.checkCompatibility);
-      } catch (e) { }
-      this.addAddonsToCrashReporter();
-    }
-
+    
     AddonManagerPrivate.recordTimestamp("XPI_bootstrap_addons_begin");
     for (let id in this.bootstrappedAddons) {
       let file = Cc["@mozilla.org/file/local;1"].createInstance(Ci.nsIFile);
@@ -1934,34 +1922,6 @@ var XPIProvider = {
   persistBootstrappedAddons: function XPI_persistBootstrappedAddons() {
     Services.prefs.setCharPref(PREF_BOOTSTRAP_ADDONS,
                                JSON.stringify(this.bootstrappedAddons));
-  },
-
-  /**
-   * Adds a list of currently active add-ons to the next crash report.
-   */
-  addAddonsToCrashReporter: function XPI_addAddonsToCrashReporter() {
-    if (!("nsICrashReporter" in Ci) ||
-        !(Services.appinfo instanceof Ci.nsICrashReporter))
-      return;
-
-    // In safe mode no add-ons are loaded so we should not include them in the
-    // crash report
-    if (Services.appinfo.inSafeMode)
-      return;
-
-    let data = this.enabledAddons;
-    for (let id in this.bootstrappedAddons) {
-      data += (data ? "," : "") + encodeURIComponent(id) + ":" +
-              encodeURIComponent(this.bootstrappedAddons[id].version);
-    }
-
-    try {
-      Services.appinfo.annotateCrashReport("Add-ons", data);
-    }
-    catch (e) { }
-    
-    const TelemetryPing = Cc["@mozilla.org/base/telemetry-ping;1"].getService(Ci.nsITelemetryPing);
-    TelemetryPing.setAddOns(data);
   },
 
   /**
@@ -3857,7 +3817,6 @@ var XPIProvider = {
       descriptor: aFile.persistentDescriptor
     };
     this.persistBootstrappedAddons();
-    this.addAddonsToCrashReporter();
 
     // Locales only contain chrome and can't have bootstrap scripts
     if (aType == "locale") {
@@ -3928,7 +3887,6 @@ var XPIProvider = {
     delete this.bootstrapScopes[aId];
     delete this.bootstrappedAddons[aId];
     this.persistBootstrappedAddons();
-    this.addAddonsToCrashReporter();
   },
 
   /**

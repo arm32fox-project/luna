@@ -23,10 +23,6 @@
 
 using namespace mozilla;
 
-#if defined(MOZ_CRASHREPORTER) && !defined(NO_BLOCKLIST_CRASHREPORTER)
-#include "nsExceptionHandler.h"
-#endif
-
 #define ALL_VERSIONS   ((unsigned long long)-1LL)
 
 // DLLs sometimes ship without a version number, particularly early
@@ -504,11 +500,5 @@ XRE_SetupDllBlocklist()
 #ifdef DEBUG
   if (!ok)
     printf_stderr ("LdrLoadDll hook failed, no dll blocklisting active\n");
-#endif
-
-#if defined(MOZ_CRASHREPORTER) && !defined(NO_BLOCKLIST_CRASHREPORTER)
-  if (!ok) {
-    CrashReporter::AppendAppNotesToCrashReport(NS_LITERAL_CSTRING("DllBlockList Failed\n"));
-  }
 #endif
 }

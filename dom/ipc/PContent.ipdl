@@ -8,7 +8,6 @@ include protocol PBlob;
 include protocol PBluetooth;
 include protocol PBrowser;
 include protocol PCompositor;
-include protocol PCrashReporter;
 include protocol PExternalHelperApp;
 include protocol PDeviceStorageRequest;
 include protocol PHal;
@@ -45,7 +44,6 @@ using IPC::Principal;
 using mozilla::null_t;
 using mozilla::void_t;
 using mozilla::dom::AudioChannelType;
-using mozilla::dom::NativeThreadId;
 using mozilla::hal::ProcessPriority;
 using mozilla::layout::ScrollingBehavior;
 using gfxIntSize;
@@ -242,7 +240,6 @@ rpc protocol PContent
     manages PBlob;
     manages PBluetooth;
     manages PBrowser;
-    manages PCrashReporter;
     manages PDeviceStorageRequest;
     manages PExternalHelperApp;
     manages PHal;
@@ -382,8 +379,6 @@ parent:
         returns (bool isOffline);
 
     PDeviceStorageRequest(DeviceStorageParams params);
-
-    sync PCrashReporter(NativeThreadId tid, uint32_t processType);
 
     sync GetRandomValues(uint32_t length)
         returns (uint8_t[] randomValues);

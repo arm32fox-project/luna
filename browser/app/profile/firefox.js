@@ -631,10 +631,8 @@ pref("plugins.always_show_indicator", false);
 pref("plugins.update.url", "https://www.mozilla.org/%LOCALE%/plugincheck/");
 pref("plugins.update.notifyUser", false);
 
-pref("plugins.click_to_play", false);
-
-// display door hanger if flash not installed
-pref("plugins.notifyMissingFlash", true);
+//Enable tri-state option (Always/Never/Ask)
+pref("plugins.click_to_play", true);
 
 #ifdef XP_WIN
 pref("browser.preferences.instantApply", false);
@@ -893,20 +891,6 @@ pref("browser.zoom.siteSpecific", true);
 // Whether or not to update background tabs to the current zoom level.
 pref("browser.zoom.updateBackgroundTabs", true);
 
-// The breakpad report server to link to in about:crashes
-pref("breakpad.reportURL", "https://crash-stats.mozilla.com/report/index/");
-
-#ifndef RELEASE_BUILD
-// Override submission of plugin hang reports to a different processing server
-// for the smaller-volume nightly/aurora populations.
-pref("toolkit.crashreporter.pluginHangSubmitURL",
-     "https://hang-reports.mozilla.org/submit");
-#endif
-
-// URL for "Learn More" for Crash Reporter
-pref("toolkit.crashreporter.infoURL",
-     "https://www.mozilla.org/legal/privacy/firefox.html#crash-reporter");
-
 // base URL for web-based support pages
 pref("app.support.baseURL", "https://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/");
 
@@ -1087,9 +1071,6 @@ pref("devtools.debugger.ui.variables-sorting-enabled", true);
 pref("devtools.debugger.ui.variables-only-enum-visible", false);
 pref("devtools.debugger.ui.variables-searchbox-visible", false);
 
-// Enable the Profiler
-pref("devtools.profiler.enabled", true);
-
 // Enable the Network Monitor
 pref("devtools.netmonitor.enabled", true);
 
@@ -1268,10 +1249,7 @@ pref("security.mixed_content.block_active_content", true);
 // Override the Gecko-default value of false for Firefox.
 pref("plain_text.wrap_long_lines", true);
 
-#ifndef RELEASE_BUILD
-// Enable Web Audio for Firefox Desktop in Nightly and Aurora
 pref("media.webaudio.enabled", true);
-#endif
 
 // If this turns true, Moz*Gesture events are not called stopPropagation()
 // before content.

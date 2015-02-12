@@ -30,16 +30,7 @@
 #include "nsHashKeys.h"
 #include "nsIFileStreams.h"
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsExceptionHandler.h"
-#endif
-
 namespace mozilla {
-namespace dom {
-class PCrashReporterParent;
-class CrashReporterParent;
-}
-
 namespace plugins {
 //-----------------------------------------------------------------------------
 
@@ -63,14 +54,9 @@ class PluginHangUIParent;
 class PluginModuleParent
     : public PPluginModuleParent
     , public PluginLibrary
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-    , public CrashReporter::InjectorCrashCallback
-#endif
 {
 private:
     typedef mozilla::PluginLibrary PluginLibrary;
-    typedef mozilla::dom::PCrashReporterParent PCrashReporterParent;
-    typedef mozilla::dom::CrashReporterParent CrashReporterParent;
 
 protected:
 
@@ -175,12 +161,6 @@ protected:
 
     virtual bool
     RecvPluginHideWindow(const uint32_t& aWindowId) MOZ_OVERRIDE;
-
-    virtual PCrashReporterParent*
-    AllocPCrashReporter(mozilla::dom::NativeThreadId* id,
-                        uint32_t* processType) MOZ_OVERRIDE;
-    virtual bool
-    DeallocPCrashReporter(PCrashReporterParent* actor) MOZ_OVERRIDE;
 
     virtual bool
     RecvSetCursor(const NSCursorInfo& aCursorInfo) MOZ_OVERRIDE;
@@ -290,25 +270,13 @@ private:
 #endif
 
 private:
-    CrashReporterParent* CrashReporter();
-
-#ifdef MOZ_CRASHREPORTER
-    void ProcessFirstMinidump();
-    void WriteExtraDataForMinidump(CrashReporter::AnnotationTable& notes);
-#endif
     void CleanupFromTimeout(const bool aByHangUI);
     void SetChildTimeout(const int32_t aChildTimeout);
     static int TimeoutChanged(const char* aPref, void* aModule);
     void NotifyPluginCrashed();
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-    void InitPluginProfiling();
-    void ShutdownPluginProfiling();
-#endif
-
     PluginProcessParent* mSubprocess;
     // the plugin thread in mSubprocess
-    NativeThreadId mPluginThread;
     bool mShutdown;
     bool mClearSiteDataSupported;
     bool mGetSitesWithDataSupported;
@@ -355,16 +323,6 @@ private:
     ScopedClose mPluginXSocketFdDup;
 #endif
 
-    friend class mozilla::dom::CrashReporterParent;
-
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-    void InitializeInjector();
-    
-    void OnCrash(DWORD processID) MOZ_OVERRIDE;
-
-    DWORD mFlashProcess1;
-    DWORD mFlashProcess2;
-#endif
 };
 
 } // namespace plugins

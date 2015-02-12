@@ -8,9 +8,6 @@
 
 #include "nsDebugImpl.h"
 #include "nsDebug.h"
-#ifdef MOZ_CRASHREPORTER
-# include "nsExceptionHandler.h"
-#endif
 #include "nsStringGlue.h"
 #include "prprf.h"
 #include "prlog.h"
@@ -365,12 +362,6 @@ NS_DebugBreak(uint32_t aSeverity, const char *aStr, const char *aExpr,
      return;
 
    case NS_DEBUG_ABORT: {
-#if defined(MOZ_CRASHREPORTER)
-     nsCString note("xpcom_runtime_abort(");
-     note += buf.buffer;
-     note += ")";
-     CrashReporter::AppendAppNotesToCrashReport(note);
-#endif  // MOZ_CRASHREPORTER
 
 #if defined(DEBUG) && defined(_WIN32)
      RealBreak();
