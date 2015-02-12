@@ -109,13 +109,11 @@ GLXLibrary::EnsureInitialized(LibType libType)
             return false;
         }
 
-        ScopedGfxFeatureReporter reporter(libGLfilename, forceFeatureReport);
         mOGLLibrary = PR_LoadLibrary(libGLfilename);
         if (!mOGLLibrary) {
             NS_WARNING("Couldn't load OpenGL shared library.");
             return false;
         }
-        reporter.SetSuccessful();
     }
 
     if (PR_GetEnv("MOZ_GLX_DEBUG")) {
