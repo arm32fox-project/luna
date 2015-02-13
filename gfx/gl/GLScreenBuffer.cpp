@@ -48,6 +48,7 @@ GLScreenBuffer::Create(GLContext* gl,
     SurfaceStream* stream = SurfaceStream::CreateForType(
         SurfaceStream::ChooseGLStreamType(SurfaceStream::MainThread,
                                           caps.preserve),
+        gl,
         nullptr);
 
     return new GLScreenBuffer(gl, caps, factory, stream);
@@ -335,7 +336,7 @@ GLScreenBuffer::Morph(SurfaceFactory_GL* newFactory, SurfaceStreamType streamTyp
     if (mStream->mType == streamType)
         return;
 
-    SurfaceStream* newStream = SurfaceStream::CreateForType(streamType, mStream);
+    SurfaceStream* newStream = SurfaceStream::CreateForType(streamType, mGL, mStream);
     MOZ_ASSERT(newStream);
 
     delete mStream;

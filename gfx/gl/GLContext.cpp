@@ -53,6 +53,7 @@ static const char *sExtensionNames[] = {
     "GL_OES_stencil8",
     "GL_OES_texture_npot",
     "GL_OES_depth_texture",
+    "GL_ANGLE_depth_texture",
     "GL_OES_packed_depth_stencil",
     "GL_IMG_read_format",
     "GL_EXT_read_format_bgra",
