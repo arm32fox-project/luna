@@ -1019,9 +1019,11 @@ WebGLContext::CopyTexSubImage2D(WebGLenum target,
         return ErrorInvalidOperation("copyTexSubImage2D: texture format requires an alpha channel "
                                      "but the framebuffer doesn't have one");
 
-    if (format == LOCAL_GL_DEPTH_COMPONENT ||
-        format == LOCAL_GL_DEPTH_STENCIL)
+    if (IsGLDepthFormat(format) ||
+        IsGLDepthStencilFormat(format))
+    {
         return ErrorInvalidOperation("copyTexSubImage2D: a base internal format of DEPTH_COMPONENT or DEPTH_STENCIL isn't supported");
+    }
 
     if (mBoundFramebuffer)
         if (!mBoundFramebuffer->CheckAndInitializeRenderbuffers())
@@ -1832,10 +1834,12 @@ WebGLContext::GenerateMipmap(WebGLenum target)
         return ErrorInvalidOperation("generateMipmap: Texture data at level zero is compressed.");
 
     if (IsExtensionEnabled(WEBGL_depth_texture) &&
-        (format == LOCAL_GL_DEPTH_COMPONENT || format == LOCAL_GL_DEPTH_STENCIL))
+        (IsGLDepthFormat(format) || IsGLDepthStencilFormat(format)))
+    {
         return ErrorInvalidOperation("generateMipmap: "
                                      "A texture that has a base internal format of "
                                      "DEPTH_COMPONENT or DEPTH_STENCIL isn't supported");
+    }
 
     if (!tex->AreAllLevel0ImageInfosEqual())
         return ErrorInvalidOperation("generateMipmap: The six faces of this cube map have different dimensions, format, or type.");
@@ -5536,27 +5540,39 @@ WebGLTexelFormat mozilla::GetWebGLTexelFormat(GLenum format, GLenum type)
                 return WebGLTexelConversions::D16;
             case LOCAL_GL_UNSIGNED_INT:
                 return WebGLTexelConversions::D32;
-            default:
-                MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
-                return WebGLTexelConversions::BadFormat;
         }
-    } else if (format == LOCAL_GL_DEPTH_STENCIL) {
+        MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
+        return WebGLTexelConversions::BadFormat;
+    }
+    
+    if (format == LOCAL_GL_DEPTH_STENCIL) {
         switch (type) {
             case LOCAL_GL_UNSIGNED_INT_24_8_EXT:
                 return WebGLTexelConversions::D24S8;
-            default:
-                MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
-                NS_ABORT_IF_FALSE(false, "Coding mistake?! Should never reach this point.");
-                return WebGLTexelConversions::BadFormat;
         }
+        MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
+        return WebGLTexelConversions::BadFormat;
     }
 
+    if (format == LOCAL_GL_DEPTH_COMPONENT16) {
+        return WebGLTexelFormat::D16;
+    }
+
+    if (format == LOCAL_GL_DEPTH_COMPONENT32) {
+        return WebGLTexelFormat::D32;
+    }
+
+    if (format == LOCAL_GL_DEPTH24_STENCIL8) {
+        return WebGLTexelFormat::D24S8;
+    }
 
     if (type == LOCAL_GL_UNSIGNED_BYTE) {
         switch (format) {
             case LOCAL_GL_RGBA:
+            //case LOCAL_GL_SRGB_ALPHA_EXT:
                 return WebGLTexelConversions::RGBA8;
             case LOCAL_GL_RGB:
+            //case LOCAL_GL_SRGB_EXT:
                 return WebGLTexelConversions::RGB8;
             case LOCAL_GL_ALPHA:
                 return WebGLTexelConversions::A8;
@@ -5564,14 +5580,17 @@ WebGLTexelFormat mozilla::GetWebGLTexelFormat(GLenum format, GLenum type)
                 return WebGLTexelConversions::R8;
             case LOCAL_GL_LUMINANCE_ALPHA:
                 return WebGLTexelConversions::RA8;
-            default:
-                NS_ABORT_IF_FALSE(false, "Coding mistake?! Should never reach this point.");
-                return WebGLTexelConversions::BadFormat;
         }
-    } else if (type == LOCAL_GL_FLOAT) {
+        
+        MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
+        return WebGLTexelConversions::BadFormat;
+    }
+    
+    if (type == LOCAL_GL_FLOAT) {
         // OES_texture_float
         switch (format) {
             case LOCAL_GL_RGBA:
+            case LOCAL_GL_RGBA32F:
                 return WebGLTexelConversions::RGBA32F;
             case LOCAL_GL_RGB:
                 return WebGLTexelConversions::RGB32F;
@@ -5581,23 +5600,25 @@ WebGLTexelFormat mozilla::GetWebGLTexelFormat(GLenum format, GLenum type)
                 return WebGLTexelConversions::R32F;
             case LOCAL_GL_LUMINANCE_ALPHA:
                 return WebGLTexelConversions::RA32F;
-            default:
-                NS_ABORT_IF_FALSE(false, "Coding mistake?! Should never reach this point.");
-                return WebGLTexelConversions::BadFormat;
         }
-    } else {
-        switch (type) {
-            case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
-                return WebGLTexelConversions::RGBA4444;
-            case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
-                return WebGLTexelConversions::RGBA5551;
-            case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
-                return WebGLTexelConversions::RGB565;
-            default:
-                NS_ABORT_IF_FALSE(false, "Coding mistake?! Should never reach this point.");
-                return WebGLTexelConversions::BadFormat;
-        }
+        MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
+        return WebGLTexelConversions::BadFormat;        
     }
+    
+    switch (type) {
+        case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
+            return WebGLTexelConversions::RGBA4444;
+        case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
+            return WebGLTexelConversions::RGBA5551;
+        case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
+            return WebGLTexelConversions::RGB565;
+        default:
+            NS_ABORT_IF_FALSE(false, "Coding mistake?! Should never reach this point.");
+            return WebGLTexelConversions::BadFormat;
+    }
+    
+    MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
+    return WebGLTexelConversions::BadFormat;        
 }
 
 WebGLenum
