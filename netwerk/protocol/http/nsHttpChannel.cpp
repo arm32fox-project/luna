@@ -1197,7 +1197,7 @@ nsHttpChannel::ProcessResponse()
     // Cookies should not be handled on proxy connection failure.
     // This would normally be consolidated with ProcessSecurityHeaders, but it
     // needs to happen after OnExamineResponse.
-    if (!mTransaction->ProxyConnectFailed()) {
+    if (!mTransaction->ProxyConnectFailed() && (httpStatus != 407)) {
         SetCookie(mResponseHead->PeekHeader(nsHttp::Set_Cookie));
     }
 
