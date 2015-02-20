@@ -593,7 +593,7 @@ GARBAGE += vpx_scale_asm_offsets.s vpx_scale_asm_offsets.asm
 
 ifdef MOZ_VP8_ENCODER
 
-vp8_asm_enc_offsets.s: CFLAGS += -DINLINE_ASM
+vp8_asm_enc_offsets.s: CFLAGS += -DINLINE_ASM -fno-integrated-as
 
 vp8_asm_enc_offsets.asm: vp8_asm_enc_offsets.s
 	grep $(OFFSET_PATTERN) $< | sed -e 's/[$$\#]//g' \
