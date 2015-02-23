@@ -69,6 +69,9 @@ extern JSBool
 js_math_ceil(JSContext *cx, unsigned argc, js::Value *vp);
 
 extern JSBool
+math_clz32(JSContext *cx, unsigned argc, js::Value *vp);
+
+extern JSBool
 js_math_floor(JSContext *cx, unsigned argc, js::Value *vp);
 
 extern JSBool

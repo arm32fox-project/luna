@@ -306,6 +306,30 @@ js_math_ceil(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
+// ES6 Draft 2015-02-20 (RC1): 20.2.2.11
+JSbool
+js::math_clz32(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    if (args.length() == 0) {
+        args.rval().setInt32(32);
+        return true;
+    }
+
+    uint32_t n;
+    if (!ToUint32(cx, args[0], &n))
+        return false;
+
+    if (n == 0) {
+        args.rval().setInt32(32);
+        return true;
+    }
+
+    args.rval().setInt32(mozilla::CountLeadingZeroes32(n));
+    return true;
+}
+
 double
 js::math_cos_impl(MathCache *cache, double x)
 {
@@ -1222,6 +1246,7 @@ static const JSFunctionSpec math_static_methods[] = {
     JS_FN("atan",           math_atan,            1, 0),
     JS_FN("atan2",          math_atan2,           2, 0),
     JS_FN("ceil",           js_math_ceil,         1, 0),
+    JS_FN("clz32",          math_clz32,           1, 0),
     JS_FN("cos",            math_cos,             1, 0),
     JS_FN("exp",            math_exp,             1, 0),
     JS_FN("floor",          js_math_floor,        1, 0),
