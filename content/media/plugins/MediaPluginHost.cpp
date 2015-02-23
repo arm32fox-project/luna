@@ -114,8 +114,6 @@ static bool IsOmxSupported()
     return false;
   }
 
-  ScopedGfxFeatureReporter reporter("Stagefright", forceEnabled);
-
   if (!forceEnabled) {
     nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
     if (gfxInfo) {
@@ -129,7 +127,6 @@ static bool IsOmxSupported()
     }
   }
 
-  reporter.SetSuccessful();
   return true;
 }
 

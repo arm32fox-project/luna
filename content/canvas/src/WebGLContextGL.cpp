@@ -1019,9 +1019,11 @@ WebGLContext::CopyTexSubImage2D(WebGLenum target,
         return ErrorInvalidOperation("copyTexSubImage2D: texture format requires an alpha channel "
                                      "but the framebuffer doesn't have one");
 
-    if (format == LOCAL_GL_DEPTH_COMPONENT ||
-        format == LOCAL_GL_DEPTH_STENCIL)
+    if (IsGLDepthFormat(format) ||
+        IsGLDepthStencilFormat(format))
+    {
         return ErrorInvalidOperation("copyTexSubImage2D: a base internal format of DEPTH_COMPONENT or DEPTH_STENCIL isn't supported");
+    }
 
     if (mBoundFramebuffer)
         if (!mBoundFramebuffer->CheckAndInitializeRenderbuffers())
@@ -1832,10 +1834,12 @@ WebGLContext::GenerateMipmap(WebGLenum target)
         return ErrorInvalidOperation("generateMipmap: Texture data at level zero is compressed.");
 
     if (IsExtensionEnabled(WEBGL_depth_texture) &&
-        (format == LOCAL_GL_DEPTH_COMPONENT || format == LOCAL_GL_DEPTH_STENCIL))
+        (IsGLDepthFormat(format) || IsGLDepthStencilFormat(format)))
+    {
         return ErrorInvalidOperation("generateMipmap: "
                                      "A texture that has a base internal format of "
                                      "DEPTH_COMPONENT or DEPTH_STENCIL isn't supported");
+    }
 
     if (!tex->AreAllLevel0ImageInfosEqual())
         return ErrorInvalidOperation("generateMipmap: The six faces of this cube map have different dimensions, format, or type.");
@@ -5039,17 +5043,21 @@ WebGLContext::TexImage2D_base(WebGLenum target, WebGLint level, WebGLenum intern
     if (border != 0)
         return ErrorInvalidValue("texImage2D: border must be 0");
 
-    if (format == LOCAL_GL_DEPTH_COMPONENT || format == LOCAL_GL_DEPTH_STENCIL) {
+    const bool isDepthTexture = format == LOCAL_GL_DEPTH_COMPONENT ||
+                                format == LOCAL_GL_DEPTH_STENCIL;
+    
+    if (isDepthTexture) {
         if (IsExtensionEnabled(WEBGL_depth_texture)) {
             if (target != LOCAL_GL_TEXTURE_2D || data != nullptr || level != 0)
                 return ErrorInvalidOperation("texImage2D: "
-                                             "with format of DEPTH_COMPONENT or DEPTH_STENCIL "
+                                             "with format of DEPTH_COMPONENT or DEPTH_STENCIL, "
                                              "target must be TEXTURE_2D, "
                                              "data must be nullptr, "
                                              "level must be zero");
+        } else {
+            return ErrorInvalidEnum("texImage2D: attempt to create a depth texture "
+                                    "without having enabled the WEBGL_depth_texture extension.");
         }
-        else
-            return ErrorInvalidEnumInfo("texImage2D: internal format", internalformat);
     }
 
     uint32_t dstTexelSize = 0;
@@ -5119,17 +5127,93 @@ WebGLContext::TexImage2D_base(WebGLenum target, WebGLint level, WebGLenum intern
                                       width, height, border, format, type, convertedData);
         }
     } else {
-        // We need some zero pages, because GL doesn't guarantee the
-        // contents of a texture allocated with nullptr data.
-        // Hopefully calloc will just mmap zero pages here.
-        void *tempZeroData = calloc(1, bytesNeeded);
-        if (!tempZeroData)
-            return ErrorOutOfMemory("texImage2D: could not allocate %d bytes (for zero fill)", bytesNeeded);
+        if (isDepthTexture && !gl->IsExtensionSupported(GLContext::OES_depth_texture)) {
+            // There's only one way that we can we supporting depth textures without
+            // supporting the regular depth_texture feature set: that's
+            // with ANGLE_depth_texture.
 
-        error = CheckedTexImage2D(target, level, internalformat,
-                                  width, height, border, format, type, tempZeroData);
+            // It should be impossible to get here without ANGLE_depth_texture support
+            MOZ_ASSERT(gl->IsExtensionSupported(GLContext::ANGLE_depth_texture));
+            // It should be impossible to get here with a target other than TEXTURE_2D,
+            // a nonzero level, or non-null data
+            MOZ_ASSERT(target == LOCAL_GL_TEXTURE_2D && level == 0 && data == nullptr);
 
-        free(tempZeroData);
+            // We start by calling texImage2D with null data, giving us an uninitialized texture,
+            // which is all it can give us in this case.
+            error = CheckedTexImage2D(LOCAL_GL_TEXTURE_2D, 0, internalformat, width, height,
+                                      border, format, type, nullptr);
+
+            if (error) {
+                GenerateWarning("texImage2D generated error %s", ErrorName(error));
+                return;
+            }
+
+            // We then proceed to initializing the texture by assembling a FBO.
+            // We make it a color-less FBO, which isn't supported everywhere, but we should be
+            // fine because we only need this to be successful on ANGLE which is said to support
+            // that. Still, we want to gracefully handle failure in case the FBO is incomplete.
+
+            bool success = false;
+            GLuint fb = 0, colortex = 0;
+
+            // dummy do {...} while to be able to break
+            do {
+                gl->fGenFramebuffers(1, &fb);
+                if (!fb)
+                    break;
+                gl->fGenTextures(1, &colortex);
+                if (!colortex)
+                    break;
+
+                ScopedBindFramebuffer autoBindFB(gl, fb);
+                ScopedBindTexture autoBindColorTex(gl, colortex);
+                error = CheckedTexImage2D(LOCAL_GL_TEXTURE_2D, 0, LOCAL_GL_RGBA, width, height,
+                                          border, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE, nullptr);
+
+                gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
+                                          LOCAL_GL_COLOR_ATTACHMENT0,
+                                          LOCAL_GL_TEXTURE_2D,
+                                          colortex,
+                                          0);
+
+                gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
+                                          LOCAL_GL_DEPTH_ATTACHMENT,
+                                          LOCAL_GL_TEXTURE_2D,
+                                          tex->GLName(),
+                                          0);
+                if (format == LOCAL_GL_DEPTH_STENCIL) {
+                    gl->fFramebufferTexture2D(LOCAL_GL_FRAMEBUFFER,
+                                              LOCAL_GL_STENCIL_ATTACHMENT,
+                                              LOCAL_GL_TEXTURE_2D,
+                                              tex->GLName(),
+                                              0);
+                }
+                if (gl->fCheckFramebufferStatus(LOCAL_GL_FRAMEBUFFER) != LOCAL_GL_FRAMEBUFFER_COMPLETE)
+                    break;
+
+                gl->ClearSafely();
+                success = true;
+            } while(false);
+
+            gl->fDeleteFramebuffers(1, &fb);
+            gl->fDeleteTextures(1, &colortex);
+
+            if (!success) {
+                return ErrorOutOfMemory("texImage2D: sorry, ran out of ways to initialize a depth texture.");
+            }
+        } else {
+            // We need some zero pages, because GL doesn't guarantee the
+            // contents of a texture allocated with nullptr data.
+            // Hopefully calloc will just mmap zero pages here.
+            void *tempZeroData = calloc(1, bytesNeeded);
+            if (!tempZeroData)
+                return ErrorOutOfMemory("texImage2D: could not allocate %d bytes (for zero fill)", bytesNeeded);
+
+            error = CheckedTexImage2D(target, level, internalformat,
+                                      width, height, border, format, type, tempZeroData);
+
+            free(tempZeroData);
+        }
     }
 
     if (error) {
@@ -5456,27 +5540,39 @@ WebGLTexelFormat mozilla::GetWebGLTexelFormat(GLenum format, GLenum type)
                 return WebGLTexelConversions::D16;
             case LOCAL_GL_UNSIGNED_INT:
                 return WebGLTexelConversions::D32;
-            default:
-                MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
-                return WebGLTexelConversions::BadFormat;
         }
-    } else if (format == LOCAL_GL_DEPTH_STENCIL) {
+        MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
+        return WebGLTexelConversions::BadFormat;
+    }
+    
+    if (format == LOCAL_GL_DEPTH_STENCIL) {
         switch (type) {
             case LOCAL_GL_UNSIGNED_INT_24_8_EXT:
                 return WebGLTexelConversions::D24S8;
-            default:
-                MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
-                NS_ABORT_IF_FALSE(false, "Coding mistake?! Should never reach this point.");
-                return WebGLTexelConversions::BadFormat;
         }
+        MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
+        return WebGLTexelConversions::BadFormat;
     }
 
+    if (format == LOCAL_GL_DEPTH_COMPONENT16) {
+        return WebGLTexelFormat::D16;
+    }
+
+    if (format == LOCAL_GL_DEPTH_COMPONENT32) {
+        return WebGLTexelFormat::D32;
+    }
+
+    if (format == LOCAL_GL_DEPTH24_STENCIL8) {
+        return WebGLTexelFormat::D24S8;
+    }
 
     if (type == LOCAL_GL_UNSIGNED_BYTE) {
         switch (format) {
             case LOCAL_GL_RGBA:
+            //case LOCAL_GL_SRGB_ALPHA_EXT:
                 return WebGLTexelConversions::RGBA8;
             case LOCAL_GL_RGB:
+            //case LOCAL_GL_SRGB_EXT:
                 return WebGLTexelConversions::RGB8;
             case LOCAL_GL_ALPHA:
                 return WebGLTexelConversions::A8;
@@ -5484,14 +5580,17 @@ WebGLTexelFormat mozilla::GetWebGLTexelFormat(GLenum format, GLenum type)
                 return WebGLTexelConversions::R8;
             case LOCAL_GL_LUMINANCE_ALPHA:
                 return WebGLTexelConversions::RA8;
-            default:
-                NS_ABORT_IF_FALSE(false, "Coding mistake?! Should never reach this point.");
-                return WebGLTexelConversions::BadFormat;
         }
-    } else if (type == LOCAL_GL_FLOAT) {
+        
+        MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
+        return WebGLTexelConversions::BadFormat;
+    }
+    
+    if (type == LOCAL_GL_FLOAT) {
         // OES_texture_float
         switch (format) {
             case LOCAL_GL_RGBA:
+            case LOCAL_GL_RGBA32F:
                 return WebGLTexelConversions::RGBA32F;
             case LOCAL_GL_RGB:
                 return WebGLTexelConversions::RGB32F;
@@ -5501,23 +5600,25 @@ WebGLTexelFormat mozilla::GetWebGLTexelFormat(GLenum format, GLenum type)
                 return WebGLTexelConversions::R32F;
             case LOCAL_GL_LUMINANCE_ALPHA:
                 return WebGLTexelConversions::RA32F;
-            default:
-                NS_ABORT_IF_FALSE(false, "Coding mistake?! Should never reach this point.");
-                return WebGLTexelConversions::BadFormat;
         }
-    } else {
-        switch (type) {
-            case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
-                return WebGLTexelConversions::RGBA4444;
-            case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
-                return WebGLTexelConversions::RGBA5551;
-            case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
-                return WebGLTexelConversions::RGB565;
-            default:
-                NS_ABORT_IF_FALSE(false, "Coding mistake?! Should never reach this point.");
-                return WebGLTexelConversions::BadFormat;
-        }
+        MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
+        return WebGLTexelConversions::BadFormat;        
     }
+    
+    switch (type) {
+        case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
+            return WebGLTexelConversions::RGBA4444;
+        case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
+            return WebGLTexelConversions::RGBA5551;
+        case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
+            return WebGLTexelConversions::RGB565;
+        default:
+            NS_ABORT_IF_FALSE(false, "Coding mistake?! Should never reach this point.");
+            return WebGLTexelConversions::BadFormat;
+    }
+    
+    MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
+    return WebGLTexelConversions::BadFormat;        
 }
 
 WebGLenum

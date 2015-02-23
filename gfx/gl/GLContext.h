@@ -992,6 +992,7 @@ public:
         OES_stencil8,
         OES_texture_npot,
         OES_depth_texture,
+        ANGLE_depth_texture,
         OES_packed_depth_stencil,
         IMG_read_format,
         EXT_read_format_bgra,

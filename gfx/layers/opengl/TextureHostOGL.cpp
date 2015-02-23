@@ -368,11 +368,21 @@ SurfaceStreamHostOGL::DeleteTextures()
 }
 
 void
-SurfaceStreamHostOGL::SwapTexturesImpl(const SurfaceDescriptor& aImage,
-                                       nsIntRegion* aRegion)
+SurfaceStreamHostOGL::UpdateImpl(const SurfaceDescriptor& aImage,
+                                 nsIntRegion* aRegion,
+                                 nsIntPoint* aOffset)
 {
   MOZ_ASSERT(aImage.type() == SurfaceDescriptor::TSurfaceStreamDescriptor,
              "Invalid descriptor");
+             
+  // The SurfaceStream's GLContext was refed before being passed up to us, so
+  // we need to ensure it gets derefed when we are finished.
+  const SurfaceStreamDescriptor& streamDesc =
+      aImage.get_SurfaceStreamDescriptor();
+
+  mStream = SurfaceStream::FromHandle(streamDesc.handle());
+  MOZ_ASSERT(mStream);
+  mStreamGL = dont_AddRef(mStream->GLContext());
 }
 
 void
@@ -386,15 +396,8 @@ bool
 SurfaceStreamHostOGL::Lock()
 {
   mGL->MakeCurrent();
-  SurfaceStream* surfStream = nullptr;
-  SharedSurface* sharedSurf = nullptr;
-  const SurfaceStreamDescriptor& streamDesc =
-    mBuffer->get_SurfaceStreamDescriptor();
 
-  surfStream = SurfaceStream::FromHandle(streamDesc.handle());
-  MOZ_ASSERT(surfStream);
-
-  sharedSurf = surfStream->SwapConsumer();
+  SharedSurface* sharedSurf = mStream->SwapConsumer();
   if (!sharedSurf) {
     // We don't have a valid surf to show yet.
     return false;

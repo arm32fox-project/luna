@@ -997,18 +997,18 @@ bool WebGLContext::IsExtensionSupported(JSContext *cx, WebGLExtensionID ext) con
         case WEBGL_compressed_texture_pvrtc:
             return gl->IsExtensionSupported(GLContext::IMG_texture_compression_pvrtc);
         case WEBGL_depth_texture:
-            if (gl->IsGLES2() &&
-                gl->IsExtensionSupported(GLContext::OES_packed_depth_stencil) &&
-                gl->IsExtensionSupported(GLContext::OES_depth_texture))
-            {
+            if (gl->IsGLES2()) {
+                // WEBGL_depth_texture always supports DEPTH_STENCIL textures
+                if (!gl->IsExtensionSupported(GLContext::OES_packed_depth_stencil)) {
+                    return false;
+                }
+                return gl->IsExtensionSupported(GLContext::OES_depth_texture) ||
+                       gl->IsExtensionSupported(GLContext::ANGLE_depth_texture);
+            } else if (gl->IsExtensionSupported(GLContext::EXT_packed_depth_stencil)) {
+                // Not GLES v2, but packed depth stencils are supported
                 return true;
             }
-            else if (!gl->IsGLES2() &&
-                     gl->IsExtensionSupported(GLContext::EXT_packed_depth_stencil))
-            {
-                return true;
-            }
-            return false;
+            return false;                
         case WEBGL_debug_renderer_info:
             return xpc::AccessCheck::isChrome(js::GetContextCompartment(cx));
         default:
