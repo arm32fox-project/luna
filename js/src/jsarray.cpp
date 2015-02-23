@@ -2902,7 +2902,17 @@ js_Array(JSContext *cx, unsigned argc, Value *vp)
         }
     }
 
-    RootedObject obj(cx, NewDenseUnallocatedArray(cx, length));
+    /*
+     * Optimize allocation of small arrays with dense elements, to avoid reallocating
+     * elements when actually filling the array.
+     */
+    static const uint32_t ArrayEagerAllocationMaxLength = 2048;
+
+    RootedObject obj(cx);
+    obj = (length <= ArrayEagerAllocationMaxLength)
+          ? NewDenseAllocatedArray(cx, length)
+          : NewDenseUnallocatedArray(cx, length);
+
     if (!obj)
         return false;
 
