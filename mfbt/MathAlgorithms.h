@@ -144,4 +144,210 @@ Abs<long double>(const long double d)
 
 } /* namespace mozilla */
 
+/* ------------------------------ CLZ/CTZ/CPop ------------------------------ */
+
+#if defined(_WIN32) && (_MSC_VER >= 1300) && (defined(_M_IX86) || defined(_M_AMD64) || defined(_M_X64))
+#define MOZ_BITSCAN_WINDOWS
+
+  extern "C" {
+    unsigned char _BitScanForward(unsigned long* Index, unsigned long mask);
+    unsigned char _BitScanReverse(unsigned long* Index, unsigned long mask);
+#pragma intrinsic(_BitScanForward, _BitScanReverse)
+
+#if defined(_M_AMD64) || defined(_M_X64)
+#define MOZ_BITSCAN_WINDOWS64
+    unsigned char _BitScanForward64(unsigned long* index, unsigned __int64 mask);
+    unsigned char _BitScanReverse64(unsigned long* index, unsigned __int64 mask);
+#pragma intrinsic(_BitScanForward64, _BitScanReverse64)
+#endif
+  } // extern "C"
+
+#endif
+
+namespace mozilla {
+
+namespace detail {
+
+#if defined(MOZ_BITSCAN_WINDOWS)
+  // Windows implementation of clz/ctz
+
+  inline uint_fast8_t
+  CountLeadingZeroes32(uint32_t u)
+  {
+    unsigned long index;
+    _BitScanReverse(&index, static_cast<unsigned long>(u));
+    return uint_fast8_t(31 - index);
+  }
+
+
+  inline uint_fast8_t
+  CountTrailingZeroes32(uint32_t u)
+  {
+    unsigned long index;
+    _BitScanForward(&index, static_cast<unsigned long>(u));
+    return uint_fast8_t(index);
+  }
+
+  inline uint_fast8_t
+  CountPopulation32(uint32_t u)
+  {
+     uint32_t sum2  = (u     & 0x55555555) + ((u     & 0xaaaaaaaa) >> 1);
+     uint32_t sum4  = (sum2  & 0x33333333) + ((sum2  & 0xcccccccc) >> 2);
+     uint32_t sum8  = (sum4  & 0x0f0f0f0f) + ((sum4  & 0xf0f0f0f0) >> 4);
+     uint32_t sum16 = (sum8  & 0x00ff00ff) + ((sum8  & 0xff00ff00) >> 8);
+     return sum16;
+  }
+
+  inline uint_fast8_t
+  CountLeadingZeroes64(uint64_t u)
+  {
+#if defined(MOZ_BITSCAN_WINDOWS64)
+    unsigned long index;
+    _BitScanReverse64(&index, static_cast<unsigned __int64>(u));
+    return uint_fast8_t(63 - index);
+#else
+    uint32_t hi = uint32_t(u >> 32);
+    if (hi != 0)
+      return CountLeadingZeroes32(hi);
+    return 32 + CountLeadingZeroes32(uint32_t(u));
+#endif
+  }
+
+  inline uint_fast8_t
+  CountTrailingZeroes64(uint64_t u)
+  {
+#if defined(MOZ_BITSCAN_WINDOWS64)
+    unsigned long index;
+    _BitScanForward64(&index, static_cast<unsigned __int64>(u));
+    return uint_fast8_t(index);
+#else
+    uint32_t lo = uint32_t(u);
+    if (lo != 0)
+      return CountTrailingZeroes32(lo);
+    return 32 + CountTrailingZeroes32(uint32_t(u >> 32));
+#endif
+  }
+
+#ifdef MOZ_HAVE_BITSCAN64
+#undef MOZ_HAVE_BITSCAN64
+#endif
+
+#elif defined(__clang__) || defined(__GNUC__)
+
+#if defined(__clang__)
+     // clang might not have clz/ctz
+#if !__has_builtin(__builtin_ctz) || !__has_builtin(__builtin_clz)
+#error "A clang providing __builtin_clz and __builtin_ctz is required to build"
+#endif
+#else
+     // gcc has had builtin clz and friends since v3.4: no need to check.
+#endif
+
+  inline uint_fast8_t
+  CountLeadingZeroes32(uint32_t u)
+  {
+    return __builtin_clz(u);
+  }
+
+  inline uint_fast8_t
+  CountTrailingZeroes32(uint32_t u)
+  {
+    return __builtin_ctz(u);
+  }
+
+  inline uint_fast8_t
+  CountPopulation32(uint32_t u)
+  {
+    return __builtin_popcount(u);
+  }
+
+  inline uint_fast8_t
+  CountLeadingZeroes64(uint64_t u)
+  {
+    return __builtin_clzll(u);
+  }
+
+  inline uint_fast8_t
+  CountTrailingZeroes64(uint64_t u)
+  {
+    return __builtin_ctzll(u);
+  }
+
+#else 
+  //not windows x86/x64, gnu cc or clang
+#error "Clz/ctz/cpop unimplemented for your compiler. Implement these!"
+  inline uint_fast8_t CountLeadingZeroes32(uint32_t u) MOZ_DELETE;
+  inline uint_fast8_t CountTrailingZeroes32(uint32_t u) MOZ_DELETE;
+  inline uint_fast8_t CountPopulation32(uint32_t u) MOZ_DELETE;
+  inline uint_fast8_t CountLeadingZeroes64(uint64_t u) MOZ_DELETE;
+  inline uint_fast8_t CountTrailingZeroes64(uint64_t u) MOZ_DELETE;
+#endif
+
+} // namespace detail
+
+/**
+ * Compute the number of high-order zero bits in the NON-ZERO number |u|.  That
+ * is, looking at the bitwise representation of the number, with the highest-
+ * valued bits at the start, return the number of zeroes before the first one
+ * is observed.
+ *
+ * CountLeadingZeroes32(0xF0FF1000) is 0;
+ * CountLeadingZeroes32(0x7F8F0001) is 1;
+ * CountLeadingZeroes32(0x3FFF0100) is 2;
+ * CountLeadingZeroes32(0x1FF50010) is 3; and so on.
+ */
+inline uint_fast8_t
+CountLeadingZeroes32(uint32_t u)
+{
+  MOZ_ASSERT(u != 0);
+  return detail::CountLeadingZeroes32(u);
+}
+
+/**
+ * Compute the number of low-order zero bits in the NON-ZERO number |u|.  That
+ * is, looking at the bitwise representation of the number, with the lowest-
+ * valued bits at the start, return the number of zeroes before the first one
+ * is observed.
+ *
+ * CountTrailingZeroes32(0x0100FFFF) is 0;
+ * CountTrailingZeroes32(0x7000FFFE) is 1;
+ * CountTrailingZeroes32(0x0080FFFC) is 2;
+ * CountTrailingZeroes32(0x0080FFF8) is 3; and so on.
+ */
+inline uint_fast8_t
+CountTrailingZeroes32(uint32_t u)
+{
+  MOZ_ASSERT(u != 0);
+  return detail::CountTrailingZeroes32(u);
+}
+
+/**
+ * Compute the number of one bits in the number |u|,
+ */
+inline uint_fast8_t
+CountPopulation32(uint32_t u)
+{
+  return detail::CountPopulation32(u);
+}
+
+/** Analogous to CountLeadingZeroes32, but for 64-bit numbers. */
+inline uint_fast8_t
+CountLeadingZeroes64(uint64_t u)
+{
+  MOZ_ASSERT(u != 0);
+  return detail::CountLeadingZeroes64(u);
+}
+
+/** Analogous to CountTrailingZeroes32, but for 64-bit numbers. */
+inline uint_fast8_t
+CountTrailingZeroes64(uint64_t u)
+{
+  MOZ_ASSERT(u != 0);
+  return detail::CountTrailingZeroes64(u);
+}
+
+} /* namespace mozilla */
+
+/* ---------------------------- end CLZ/CTZ/CPop ---------------------------- */
+
 #endif  /* mozilla_MathAlgorithms_h_ */
