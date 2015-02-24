@@ -2906,7 +2906,7 @@ js_Array(JSContext *cx, unsigned argc, Value *vp)
      * Optimize allocation of small arrays with dense elements, to avoid reallocating
      * elements when actually filling the array.
      */
-    static const uint32_t ArrayEagerAllocationMaxLength = 2048;
+    static const uint32_t ArrayEagerAllocationMaxLength = 900;
 
     RootedObject obj(cx);
     obj = (length <= ArrayEagerAllocationMaxLength)
