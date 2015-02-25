@@ -1978,8 +1978,8 @@ ia64*-hpux*)
         esac
         MOZ_PGO_OPTIMIZE_FLAGS="-O3"
         MOZ_OPTIMIZE_FLAGS="-Os $MOZ_OPTIMIZE_SIZE_TWEAK"
-	if test -z "$CLANG_CC"; then
-	  MOZ_OPTIMIZE_FLAGS="-freorder-blocks $MOZ_OPTIMIZE_FLAGS"
+        if test -z "$CLANG_CC"; then
+          MOZ_OPTIMIZE_FLAGS="-freorder-blocks $MOZ_OPTIMIZE_FLAGS"
         fi 
     fi
 
