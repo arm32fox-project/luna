@@ -62,6 +62,10 @@ protected:
 
   void StartControllingInput(nsIDOMHTMLInputElement *aInput);
   void StopControllingInput();
+  /**
+   * Checks that aElement is a type of element we want to fill
+   */
+  bool ShouldControlInput(nsIDOMHTMLInputElement* aElement);
 
   nsresult PerformInputListAutoComplete(nsIAutoCompleteResult* aPreviousResult);
 

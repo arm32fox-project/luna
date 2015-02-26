@@ -60,6 +60,7 @@ nsFormFillController::nsFormFillController() :
   mSuppressOnInput(false)
 {
   mController = do_GetService("@mozilla.org/autocomplete/controller;1");
+  MOZ_ASSERT(mController);
   mPwmgrInputs.Init();
 }
 
@@ -104,6 +105,17 @@ nsFormFillController::AttributeChanged(nsIDocument* aDocument,
                                        int32_t aNameSpaceID,
                                        nsIAtom* aAttribute, int32_t aModType)
 {
+  if ((aAttribute == nsGkAtoms::type || aAttribute == nsGkAtoms::readonly ||
+       aAttribute == nsGkAtoms::autocomplete || aAttribute == nsGkAtoms::list) &&
+      aNameSpaceID == kNameSpaceID_None) {
+    // Stop the current state of the controller, conditionally.
+    // based on the new values.
+    nsCOMPtr<nsIDOMHTMLInputElement> focusedInput(mFocusedInput);
+    if (focusedInput && !ShouldControlInput(focusedInput)) {
+      StopControllingInput();
+    }
+  }
+
   if (mListNode && mListNode->Contains(aElement)) {
     RevalidateDataList();
   }
@@ -836,22 +848,20 @@ nsFormFillController::RemoveForDocumentEnumerator(const nsINode* aKey,
   return PL_DHASH_NEXT;
 }
 
-nsresult
-nsFormFillController::Focus(nsIDOMEvent* aEvent)
+bool
+nsFormFillController::ShouldControlInput(nsIDOMHTMLInputElement* aInput)
 {
-  nsCOMPtr<nsIDOMHTMLInputElement> input = do_QueryInterface(
-    aEvent->InternalDOMEvent()->GetTarget());
-  nsCOMPtr<nsINode> inputNode = do_QueryInterface(input);
+  nsCOMPtr<nsINode> inputNode = do_QueryInterface(aInput);
   if (!inputNode)
-    return NS_OK;
+    return false;
 
   bool isReadOnly = false;
-  input->GetReadOnly(&isReadOnly);
+  aInput->GetReadOnly(&isReadOnly);
 
-  bool autocomplete = nsContentUtils::IsAutocompleteEnabled(input);
+  bool autocomplete = nsContentUtils::IsAutocompleteEnabled(aInput);
 
   nsCOMPtr<nsIDOMHTMLElement> datalist;
-  input->GetList(getter_AddRefs(datalist));
+  aInput->GetList(getter_AddRefs(datalist));
   bool hasList = datalist != nullptr;
 
   bool dummy;
@@ -859,13 +869,25 @@ nsFormFillController::Focus(nsIDOMEvent* aEvent)
   if (mPwmgrInputs.Get(inputNode, &dummy))
       isPwmgrInput = true;
 
-  nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(input);
+  nsCOMPtr<nsIFormControl> formControl = do_QueryInterface(aInput);
   if (isPwmgrInput || (formControl &&
                        formControl->IsSingleLineTextControl(true) &&
                        (hasList || autocomplete) && !isReadOnly)) {
-    StartControllingInput(input);
+    return true;
   }
+  return false;
+}
 
+nsresult
+nsFormFillController::Focus(nsIDOMEvent* aEvent)
+{
+  nsCOMPtr<nsIDOMHTMLInputElement> input = do_QueryInterface(
+    aEvent->InternalDOMEvent()->GetTarget());
+  if (ShouldControlInput(input)) {
+    StartControllingInput(input);
+  } else {
+    StopControllingInput(input);
+  }
   return NS_OK;
 }
 
@@ -1079,6 +1101,10 @@ nsFormFillController::StartControllingInput(nsIDOMHTMLInputElement *aInput)
   // Make sure we're not still attached to an input
   StopControllingInput();
 
+  if (!mController) {
+    return;
+  }
+
   // Find the currently focused docShell
   nsCOMPtr<nsIDocShell> docShell = GetDocShellForInput(aInput);
   int32_t index = GetIndexOfDocShell(docShell);
@@ -1121,13 +1147,15 @@ nsFormFillController::StopControllingInput()
     mListNode = nullptr;
   }
 
-  // Reset the controller's input, but not if it has been switched
-  // to another input already, which might happen if the user switches
-  // focus by clicking another autocomplete textbox
-  nsCOMPtr<nsIAutoCompleteInput> input;
-  mController->GetInput(getter_AddRefs(input));
-  if (input == this)
-    mController->SetInput(nullptr);
+  if (mController) {
+    // Reset the controller's input, but not if it has been switched
+    // to another input already, which might happen if the user switches
+    // focus by clicking another autocomplete textbox
+    nsCOMPtr<nsIAutoCompleteInput> input;
+    mController->GetInput(getter_AddRefs(input));
+    if (input == this)
+      mController->SetInput(nullptr);
+  }
 
   if (mFocusedInputNode) {
     MaybeRemoveMutationObserver(mFocusedInputNode);
