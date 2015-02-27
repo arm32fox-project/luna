@@ -886,7 +886,7 @@ nsFormFillController::Focus(nsIDOMEvent* aEvent)
   if (ShouldControlInput(input)) {
     StartControllingInput(input);
   } else {
-    StopControllingInput(input);
+    StopControllingInput();
   }
   return NS_OK;
 }
