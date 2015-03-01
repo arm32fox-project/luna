@@ -88,10 +88,22 @@
 }
 %endif
 
-#nav-bar[tabsontop=true],
-#nav-bar[tabsontop=true][collapsed=true]:not([customizing]) + toolbar,
-#nav-bar[tabsontop=true][collapsed=true]:not([customizing]) + #customToolbars + #PersonalToolbar {
+#nav-bar[tabsontop=true]:not(:-moz-lwtheme),
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):not(:-moz-lwtheme) + toolbar,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):not(:-moz-lwtheme) + #customToolbars + #PersonalToolbar {
   background-image: linear-gradient(@toolbarHighlight@, rgba(255,255,255,0));
+}
+
+#nav-bar[tabsontop=true]:-moz-lwtheme,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme + toolbar,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme + #customToolbars + #PersonalToolbar {
+  background-image: linear-gradient(rgba(255,255,255,.8), rgba(255,255,255,0));
+}
+
+#nav-bar[tabsontop=true]:-moz-lwtheme-brighttext,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme-brighttext + toolbar,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme-brighttext + #customToolbars + #PersonalToolbar {
+  background-image: linear-gradient(rgba(32,32,32,.8), rgba(32,32,32,0));
 }
 
 #personal-bookmarks {
@@ -2041,11 +2053,12 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 .tabbrowser-tab:-moz-lwtheme {
   color: inherit;
+  /* 0.99 opacity rquired to force an active layer, see bug #1028369 */
   opacity: 0.99;
 }
 
 .tabbrowser-tab:-moz-lwtheme:not([selected="true"]) {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme {
@@ -2053,7 +2066,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 }
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme-brighttext {
-  background-image: linear-gradient(rgba(128,128,128,.8), rgba(32,32,32,.9) 50%);
+  background-image: linear-gradient(rgba(128,128,128,.9), rgba(32,32,32,.9) 50%, rgba(32,32,32,.9) 80%, rgba(32,32,32,.8) 100%);
 }
 
 .tabbrowser-tab:-moz-lwtheme-brighttext:not([selected="true"]),
