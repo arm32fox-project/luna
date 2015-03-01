@@ -1705,6 +1705,9 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 .tabbrowser-tab[selected="true"] {
   background-image: linear-gradient(@selectedTabHighlight@, @toolbarHighlight@ 32%),
                     linear-gradient(-moz-dialog, -moz-dialog);
+}
+
+.tabbrowser-tab[selected="true"]:not(:-moz-lwtheme) {
   color: -moz-dialogtext;
 }
 
