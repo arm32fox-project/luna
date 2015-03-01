@@ -371,10 +371,6 @@
                       label="&helpMenu.label;"
                       oncommand="openHelpLink('firefox-help')"
                       onclick="checkForMiddleClick(this, event);"/>
-            <menuitem id="appmenu_gettingStarted"
-                      label="&appMenuGettingStarted.label;"
-                      oncommand="gBrowser.loadOneTab('https://www.mozilla.org/firefox/central/', {inBackground: false});"
-                      onclick="checkForMiddleClick(this, event);"/>
 #ifdef MOZ_SERVICES_HEALTHREPORT
             <menuitem id="appmenu_healthReport"
                       label="&healthReport.label;"
