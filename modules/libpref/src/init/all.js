@@ -1064,6 +1064,9 @@ pref("network.ftp.control.qos", 0);
 // <ws>: WebSocket
 pref("network.websocket.enabled", true);
 
+// raw TCP sockets (windowless)
+pref("dom.mozTCPSocket.enabled", true);
+
 // 2147483647 == PR_INT32_MAX == ~2 GB  
 pref("network.websocket.max-message-size", 2147483647);
 
