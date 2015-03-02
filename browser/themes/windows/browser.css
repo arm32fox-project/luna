@@ -2835,6 +2835,11 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   margin: 0;
 }
 
+/* Make sure the allTab previews always have regular close buttons */
+#allTabs-tab-close-button:-moz-lwtheme-brighttext {
+  list-style-image: url("chrome://global/skin/icons/close.png");
+}
+
 .allTabs-favicon[src] {
   background-color: -moz-dialog;
   width: 22px;
