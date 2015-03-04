@@ -631,7 +631,8 @@ pref("plugins.always_show_indicator", false);
 pref("plugins.update.url", "https://www.mozilla.org/%LOCALE%/plugincheck/");
 pref("plugins.update.notifyUser", false);
 
-pref("plugins.click_to_play", false);
+//Enable tri-state option (Always/Never/Ask)
+pref("plugins.click_to_play", true);
 
 #ifdef XP_WIN
 pref("browser.preferences.instantApply", false);
@@ -817,12 +818,15 @@ pref("browser.sessionstore.max_windows_undo", 3);
 // number of crashes that can occur before the about:sessionrestore page is displayed
 // (this pref has no effect if more than 6 hours have passed since the last crash)
 pref("browser.sessionstore.max_resumed_crashes", 1);
-// restore_on_demand overrides MAX_CONCURRENT_TAB_RESTORES (sessionstore constant)
+// restore_on_demand overrides browser.sessionstore.max_concurrent_tabs
 // and restore_hidden_tabs. When true, tabs will not be restored until they are
 // focused (also applies to tabs that aren't visible). When false, the values
-// for MAX_CONCURRENT_TAB_RESTORES and restore_hidden_tabs are respected.
-// Selected tabs are always restored regardless of this pref.
+// for browser.sessionstore.max_concurrent_tabs and restore_hidden_tabs are 
+// respected. Selected tabs are always restored regardless of this pref.
 pref("browser.sessionstore.restore_on_demand", true);
+// The number of tabs that can restore concurrently.
+// Sane values are 1..10, default 3.
+pref("browser.sessionstore.max_concurrent_tabs", 3);
 // Whether to automatically restore hidden tabs (i.e., tabs in other tab groups) or not
 pref("browser.sessionstore.restore_hidden_tabs", false);
 // If restore_on_demand is set, pinned tabs are restored on startup by default.
@@ -1248,10 +1252,7 @@ pref("security.mixed_content.block_active_content", true);
 // Override the Gecko-default value of false for Firefox.
 pref("plain_text.wrap_long_lines", true);
 
-#ifndef RELEASE_BUILD
-// Enable Web Audio for Firefox Desktop in Nightly and Aurora
 pref("media.webaudio.enabled", true);
-#endif
 
 // If this turns true, Moz*Gesture events are not called stopPropagation()
 // before content.

@@ -121,7 +121,6 @@ size. -->
 <!ENTITY pref_font_size_preview_text "Five or six big jet planes zoomed quickly past the new tower by the light of the Pale Moon. As a true non-profit, open, community-focused project, we\'re free to develop for you without any pressure to compromise. That means a better experience for you, and a brighter future for the Web.">
 
 <!ENTITY pref_use_master_password "Use master password">
-<!ENTITY pref_show_product_announcements "Show product announcements">
 <!ENTITY pref_sync "Sync">
 <!ENTITY pref_search_suggestions "Show search suggestions">
 <!ENTITY pref_import_android "Import from Android">

@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <blocklist xmlns="http://www.mozilla.org/2006/addons-blocklist"
-lastupdate="1422639900000">
+lastupdate="1423697587000">
   <emItems>
     <emItem blockID="i58" id="webmaster@buzzzzvideos.info">
       <versionRange minVersion="0" maxVersion="*"></versionRange>
@@ -208,6 +208,24 @@ lastupdate="1422639900000">
       <versionRange minVersion="0" maxVersion="*"></versionRange>
       <prefs></prefs>
     </emItem>
+    <emItem blockID="i858" id="fftoolbar2014@etech.com">
+      <versionRange minVersion="0" maxVersion="*" severity="1">
+      </versionRange>
+      <prefs>
+        <pref>browser.startup.homepage</pref>
+        <pref>browser.search.defaultenginename</pref>
+      </prefs>
+    </emItem>
+    <emItem blockID="i854" id="/^(7tG@zEb\.net|ru@gfK0J\.edu)$/">
+      <versionRange minVersion="0" maxVersion="*" severity="3">
+      </versionRange>
+      <prefs></prefs>
+    </emItem>
+    <emItem blockID="i850" id="P2@D.edu">
+      <versionRange minVersion="0" maxVersion="*" severity="1">
+      </versionRange>
+      <prefs></prefs>
+    </emItem>
     <emItem blockID="i554" id="lightningnewtab@gmail.com">
       <versionRange minVersion="0" maxVersion="*" severity="1">
       </versionRange>
@@ -249,6 +267,13 @@ lastupdate="1422639900000">
     </emItem>
     <emItem blockID="i620"
     id="{21EAF666-26B3-4A3C-ABD0-CA2F5A326744}">
+      <versionRange minVersion="0" maxVersion="*" severity="3">
+      </versionRange>
+      <prefs></prefs>
+    </emItem>
+    <emItem blockID="i856"
+    id="/^({94d62e35-4b43-494c-bf52-ba5935df36ef}|firefox@advanceelite\.com|{bb7b7a60-f574-47c2-8a0b-4c56f2da9802})$/">
+
       <versionRange minVersion="0" maxVersion="*" severity="3">
       </versionRange>
       <prefs></prefs>
@@ -424,6 +449,11 @@ lastupdate="1422639900000">
       </versionRange>
       <prefs></prefs>
     </emItem>
+    <emItem blockID="i848" id="bcVX5@nQm9l.org">
+      <versionRange minVersion="0" maxVersion="*" severity="1">
+      </versionRange>
+      <prefs></prefs>
+    </emItem>
     <emItem blockID="i431" id="chinaescapeone@facebook.com">
       <versionRange minVersion="0" maxVersion="*" severity="3">
       </versionRange>
@@ -595,6 +625,16 @@ lastupdate="1422639900000">
       <versionRange minVersion="0" maxVersion="*" severity="3">
       </versionRange>
       <prefs></prefs>
+    </emItem>
+    <emItem blockID="i844"
+    id=" e9d197d59f2f45f382b1aa5c14d82@8706aaed9b904554b5cb7984e9.com">
+
+      <versionRange minVersion="0" maxVersion="*" severity="1">
+      </versionRange>
+      <prefs>
+        <pref>browser.startup.homepage</pref>
+        <pref>browser.search.defaultenginename</pref>
+      </prefs>
     </emItem>
     <emItem blockID="i770"
     id="{8dc5c42e-9204-2a64-8b97-fa94ff8a241f}">
@@ -903,6 +943,12 @@ lastupdate="1422639900000">
       </versionRange>
       <prefs></prefs>
     </emItem>
+    <emItem blockID="i822"
+    id="{6af08a71-380e-42dd-9312-0111d2bc0630}">
+      <versionRange minVersion="0" maxVersion="*" severity="3">
+      </versionRange>
+      <prefs></prefs>
+    </emItem>
     <emItem blockID="i490" id="now.msn.com@services.mozilla.org">
       <versionRange minVersion="0" maxVersion="*" severity="3">
       </versionRange>
@@ -916,6 +962,13 @@ lastupdate="1422639900000">
     <emItem blockID="i61" id="youtube@youtube3.com">
       <versionRange minVersion="0" maxVersion="*"></versionRange>
       <versionRange minVersion="0" maxVersion="*"></versionRange>
+      <prefs></prefs>
+    </emItem>
+    <emItem blockID="i700"
+    id="2bbadf1f-a5af-499f-9642-9942fcdb7c76@f05a14cc-8842-4eee-be17-744677a917ed.com">
+
+      <versionRange minVersion="0" maxVersion="*" severity="1">
+      </versionRange>
       <prefs></prefs>
     </emItem>
     <emItem blockID="i696"
@@ -964,6 +1017,11 @@ lastupdate="1422639900000">
     </emItem>
     <emItem blockID="i76" id="crossriderapp3924@crossrider.com">
       <versionRange minVersion="0" maxVersion="*"></versionRange>
+      <prefs></prefs>
+    </emItem>
+    <emItem blockID="i836" id="hansin@topvest.id">
+      <versionRange minVersion="0" maxVersion="*" severity="3">
+      </versionRange>
       <prefs></prefs>
     </emItem>
     <emItem blockID="i82"
@@ -1416,6 +1474,15 @@ lastupdate="1422639900000">
       </versionRange>
       <prefs></prefs>
     </emItem>
+    <emItem blockID="i846"
+    id="PDVDZDW52397720@XDDWJXW57740856.com">
+      <versionRange minVersion="0" maxVersion="*" severity="1">
+      </versionRange>
+      <prefs>
+        <pref>browser.startup.homepage</pref>
+        <pref>browser.search.defaultenginename</pref>
+      </prefs>
+    </emItem>
     <emItem blockID="i354"
     id="{c0c2693d-2ee8-47b4-9df7-b67a0ee31988}">
       <versionRange minVersion="0" maxVersion="*" severity="1">
@@ -1425,6 +1492,11 @@ lastupdate="1422639900000">
     <emItem blockID="i726"
     id="{d87d56b2-1379-49f4-b081-af2850c79d8e}">
       <versionRange minVersion="0" maxVersion="*" severity="3">
+      </versionRange>
+      <prefs></prefs>
+    </emItem>
+    <emItem blockID="i852" id="6lIy@T.edu">
+      <versionRange minVersion="0" maxVersion="*" severity="1">
       </versionRange>
       <prefs></prefs>
     </emItem>
@@ -1692,7 +1764,8 @@ lastupdate="1422639900000">
       </versionRange>
       <prefs></prefs>
     </emItem>
-    <emItem blockID="i70" id="psid-vhvxQHMZBOzUZA@jetpack">
+    <emItem blockID="i543"
+    id="{badea1ae-72ed-4f6a-8c37-4db9a4ac7bc9}">
       <versionRange minVersion="0" maxVersion="*" severity="1">
       </versionRange>
       <prefs></prefs>
@@ -1701,6 +1774,12 @@ lastupdate="1422639900000">
     id="703db0db-5fe9-44b6-9f53-c6a91a0ad5bd@7314bc82-969e-4d2a-921b-e5edd0b02cf1.com">
 
       <versionRange minVersion="0" maxVersion="*" severity="1">
+      </versionRange>
+      <prefs></prefs>
+    </emItem>
+    <emItem blockID="i840"
+    id="{4889ddce-7a83-45e6-afc9-1e4f1149fff4}">
+      <versionRange minVersion="0" maxVersion="*" severity="3">
       </versionRange>
       <prefs></prefs>
     </emItem>
@@ -1800,6 +1879,12 @@ lastupdate="1422639900000">
     <emItem blockID="i650" id="jid1-qj0w91o64N7Eeg@jetpack">
       <versionRange minVersion="39.5.1" maxVersion="47.0.4"
       severity="3"></versionRange>
+      <prefs></prefs>
+    </emItem>
+    <emItem blockID="i842"
+    id="{746505DC-0E21-4667-97F8-72EA6BCF5EEF}">
+      <versionRange minVersion="0" maxVersion="*" severity="1">
+      </versionRange>
       <prefs></prefs>
     </emItem>
     <emItem blockID="i552"
@@ -1911,10 +1996,9 @@ lastupdate="1422639900000">
       <versionRange minVersion="0" maxVersion="*"></versionRange>
       <prefs></prefs>
     </emItem>
-    <emItem blockID="i700"
-    id="2bbadf1f-a5af-499f-9642-9942fcdb7c76@f05a14cc-8842-4eee-be17-744677a917ed.com">
-
-      <versionRange minVersion="0" maxVersion="*" severity="1">
+    <emItem blockID="i838"
+    id="{87b5a11e-3b54-42d2-9102-0a7cb1f79ebf}">
+      <versionRange minVersion="0" maxVersion="*" severity="3">
       </versionRange>
       <prefs></prefs>
     </emItem>
@@ -2122,8 +2206,7 @@ lastupdate="1422639900000">
       </versionRange>
       <prefs></prefs>
     </emItem>
-    <emItem blockID="i543"
-    id="{badea1ae-72ed-4f6a-8c37-4db9a4ac7bc9}">
+    <emItem blockID="i70" id="psid-vhvxQHMZBOzUZA@jetpack">
       <versionRange minVersion="0" maxVersion="*" severity="1">
       </versionRange>
       <prefs></prefs>
@@ -2396,6 +2479,30 @@ lastupdate="1422639900000">
       <match name="filename"
       exp="(NPSWF32\.dll)|(Flash\ Player\.plugin)" />
       <versionRange minVersion="10.3" maxVersion="10.3.183.18.999"
+      severity="0" vulnerabilitystatus="1">
+        <targetApplication id="{8de7fcbb-c55c-4fbe-bfc5-fc555c87dbc4}">
+
+          <versionRange minVersion="17.0.4" maxVersion="17.0.*" />
+        </targetApplication>
+      </versionRange>
+      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p178">
+      <match name="filename"
+      exp="(NPSWF[0-9_]*\.dll)|(Flash\ Player\.plugin)" />
+      <versionRange minVersion="11.0" maxVersion="11.7.700.169"
+      severity="0" vulnerabilitystatus="1">
+        <targetApplication id="{8de7fcbb-c55c-4fbe-bfc5-fc555c87dbc4}">
+
+          <versionRange minVersion="19.0a1" maxVersion="*" />
+        </targetApplication>
+      </versionRange>
+      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p178">
+      <match name="filename"
+      exp="(NPSWF[0-9_]*\.dll)|(Flash\ Player\.plugin)" />
+      <versionRange minVersion="11.0" maxVersion="11.7.700.169"
       severity="0" vulnerabilitystatus="1">
         <targetApplication id="{8de7fcbb-c55c-4fbe-bfc5-fc555c87dbc4}">
 
@@ -2890,9 +2997,10 @@ lastupdate="1422639900000">
       maxVersion="13.0.0.258" severity="0" vulnerabilitystatus="1">
       </versionRange>
       <infoURL>https://get.adobe.com/flashplayer/</infoURL>
-    <pluginItem os="Linux" blockID="p794">
+    </pluginItem>
+    <pluginItem os="Linux" blockID="p796">
       <match name="filename" exp="libflashplayer\.so" />
-      <versionRange minVersion="0" maxVersion="11.2.202.438"
+      <versionRange minVersion="0" maxVersion="11.2.202.424"
       severity="0" vulnerabilitystatus="1"></versionRange>
       <infoURL>https://get.adobe.com/flashplayer/</infoURL>
     </pluginItem>
@@ -2900,6 +3008,48 @@ lastupdate="1422639900000">
       <match name="filename"
       exp="(NPSWF32.*\.dll)|(Flash\ Player\.plugin)" />
       <versionRange minVersion="14.0" maxVersion="15.0.0.242"
+      severity="0" vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p824">
+      <match name="filename"
+      exp="(NPSWF32.*\.dll)|(Flash\ Player\.plugin)" />
+      <versionRange minVersion="13.0.0.259" maxVersion="13.0.0.263"
+      severity="0" vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+    </pluginItem>
+    <pluginItem os="Linux" blockID="p826">
+      <match name="filename" exp="libflashplayer\.so" />
+      <versionRange minVersion="11.2.202.425"
+      maxVersion="11.2.202.439" severity="0"
+      vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p828">
+      <match name="filename"
+      exp="(NPSWF32.*\.dll)|(Flash\ Player\.plugin)" />
+      <versionRange minVersion="15.0.0.243" maxVersion="16.0.0.287"
+      severity="0" vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+    </pluginItem>
+    <pluginItem os="Linux" blockID="p830">
+      <match name="filename" exp="libflashplayer\.so" />
+      <versionRange minVersion="11.2.202.439"
+      maxVersion="11.2.202.441" severity="0"
+      vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p832">
+      <match name="filename"
+      exp="(NPSWF32.*\.dll)|(Flash\ Player\.plugin)" />
+      <versionRange minVersion="16.0.0.295" maxVersion="16.0.0.304"
+      severity="0" vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p834">
+      <match name="filename"
+      exp="(NPSWF32.*\.dll)|(Flash\ Player\.plugin)" />
+      <versionRange minVersion="13.0.0.263" maxVersion="13.0.0.268"
       severity="0" vulnerabilitystatus="1"></versionRange>
       <infoURL>https://get.adobe.com/flashplayer/</infoURL>
     </pluginItem>

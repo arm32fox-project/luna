@@ -17,7 +17,7 @@ pref("app.update.download.backgroundInterval", 600);
 pref("app.update.url.manual", "http://www.palemoon.org/");
 // A default value for the "More information about this update" link
 // supplied in the "An update is available" page of the update wizard. 
-pref("app.update.url.details", "http://www.palemoon.org/releasenotes-ng.shtml");
+pref("app.update.url.details", "http://www.palemoon.org/releasenotes.shtml");
 // Additional Update fixes - no SSL damnit, I don't have a cert (4.0)
 pref("app.update.cert.checkAttributes", false);
 pref("app.update.cert.requireBuiltIn", false);
@@ -84,18 +84,6 @@ pref("general.useragent.compatMode.firefox", false);
 
 // ****************** Networking config ******************
 
-pref("network.prefetch-next", false); //prefetching engine off by default!
-pref("network.http.pipelining"      , true); //pipelining on by default, haven't seen any issues
-pref("network.http.pipelining.ssl"  , true); 
-pref("network.http.proxy.pipelining", false); // pipeline proxy requests - breaks some proxies! (406)
-pref("network.http.pipelining.aggressive", true);
-pref("network.http.pipelining.max-optimistic-requests", 4);
-pref("network.http.pipelining.maxrequests", 4);  // Max number of requests in the pipeline
-pref("network.http.max-connections",48); // Don't saturate the network layer and go easy on poor residential routers&wireless! (FF=256)
-pref("network.http.max-connections-per-server",8); // With pipelining, this should be low (FF=15)
-pref("network.http.max-persistent-connections-per-proxy", 8);
-pref("network.http.max-persistent-connections-per-server", 6);
-pref("network.dns.disablePrefetch", true); //Disable DNS prefetching to prevent router hangups
 pref("network.dnsCacheEntries", 1024); //cache 1024 instead of 20
 pref("network.dnsCacheExpiration", 3600); //TTL 1 hour
 
@@ -120,21 +108,6 @@ pref("social.enabled", false);
 
 //Set tabs NOT on top
 pref("browser.tabs.onTop",false); 
-
-//Smooth scrolling settings
-pref("general.smoothScroll",true);
-pref("general.smoothScroll.lines",true);
-pref("general.smoothScroll.lines.durationMinMS",50);
-pref("general.smoothScroll.lines.durationMaxMS",200);
-pref("general.smoothScroll.pages",false);
-pref("general.smoothScroll.pages.durationMinMS",200);
-pref("general.smoothScroll.pages.durationMaxMS",600);
-pref("general.smoothScroll.mouseWheel",true);
-pref("general.smoothScroll.mouseWheel.durationMinMS",150);
-pref("general.smoothScroll.mouseWheel.durationMaxMS",500);
-pref("general.smoothScroll.scrollbars",true);
-pref("general.smoothScroll.scrollbars.durationMinMS",50);
-pref("general.smoothScroll.scrollbars.durationMaxMS",200);
 
 // ****************** Misc. config ******************
 

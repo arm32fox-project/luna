@@ -2316,7 +2316,9 @@ nsPresContext::NotifyDidPaintForSubtree(uint32_t aFlags)
     }
   }
   
-  if (!PresShell()->IsVisible() && !mFireAfterPaintEvents) {
+  // It's possible on shutdown that we already lost the presentation shell
+  // at this point. So check for its existence before checking visibility.
+  if (PresShell() && !PresShell()->IsVisible() && !mFireAfterPaintEvents) {
     return;
   }
   

@@ -5,7 +5,6 @@
 
 package org.mozilla.gecko;
 
-import org.mozilla.gecko.background.announcements.AnnouncementsConstants;
 import org.mozilla.gecko.background.common.GlobalConstants;
 import org.mozilla.gecko.background.healthreport.HealthReportConstants;
 import org.mozilla.gecko.util.GeckoEventListener;
@@ -65,7 +64,6 @@ public class GeckoPreferences
     private int mPrefsRequestId = 0;
 
     // These match keys in resources/xml/preferences.xml.in.
-    private static String PREFS_ANNOUNCEMENTS_ENABLED = NON_PREF_PREFIX + "privacy.announcements.enabled";
     private static String PREFS_DATA_REPORTING_PREFERENCES = NON_PREF_PREFIX + "datareporting.preferences";
     private static String PREFS_TELEMETRY_ENABLED = "datareporting.telemetry.enabled";
     private static String PREFS_MENU_CHAR_ENCODING = "browser.menu.showCharacterEncoding";
@@ -361,26 +359,6 @@ public class GeckoPreferences
 
     /**
      * Broadcast the provided value as the value of the
-     * <code>PREFS_ANNOUNCEMENTS_ENABLED</code> pref.
-     */
-    public static void broadcastAnnouncementsPref(final Context context, final boolean value) {
-        broadcastPrefAction(context,
-                            AnnouncementsConstants.ACTION_ANNOUNCEMENTS_PREF,
-                            PREFS_ANNOUNCEMENTS_ENABLED,
-                            value);
-    }
-
-    /**
-     * Broadcast the current value of the
-     * <code>PREFS_ANNOUNCEMENTS_ENABLED</code> pref.
-     */
-    public static void broadcastAnnouncementsPref(final Context context) {
-        final boolean value = getBooleanPref(context, PREFS_ANNOUNCEMENTS_ENABLED, true);
-        broadcastAnnouncementsPref(context, value);
-    }
-
-    /**
-     * Broadcast the provided value as the value of the
      * <code>PREFS_HEALTHREPORT_UPLOAD_ENABLED</code> pref.
      */
     public static void broadcastHealthReportUploadPref(final Context context, final boolean value) {
@@ -424,10 +402,6 @@ public class GeckoPreferences
             return false;
         } else if (PREFS_MENU_CHAR_ENCODING.equals(prefName)) {
             setCharEncodingState(((String) newValue).equals("true"));
-        } else if (PREFS_ANNOUNCEMENTS_ENABLED.equals(prefName)) {
-            // Send a broadcast intent to the product announcements service, either to start or
-            // to stop the repeated background checks.
-            broadcastAnnouncementsPref(GeckoAppShell.getContext(), ((Boolean) newValue).booleanValue());
         } else if (PREFS_UPDATER_AUTODOWNLOAD.equals(prefName)) {
             org.mozilla.gecko.updater.UpdateServiceHelper.registerForUpdates(GeckoAppShell.getContext(), (String) newValue);
         } else if (PREFS_HEALTHREPORT_UPLOAD_ENABLED.equals(prefName)) {

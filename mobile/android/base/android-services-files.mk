@@ -6,20 +6,10 @@
 SYNC_PP_JAVA_FILES := \
   background/common/GlobalConstants.java \
   sync/SyncConstants.java \
-  background/announcements/AnnouncementsConstants.java \
   background/healthreport/HealthReportConstants.java \
   $(NULL)
 
 SYNC_JAVA_FILES := \
-  background/announcements/Announcement.java \
-  background/announcements/AnnouncementPresenter.java \
-  background/announcements/AnnouncementsBroadcastReceiver.java \
-  background/announcements/AnnouncementsBroadcastService.java \
-  background/announcements/AnnouncementsFetchDelegate.java \
-  background/announcements/AnnouncementsFetcher.java \
-  background/announcements/AnnouncementsFetchResourceDelegate.java \
-  background/announcements/AnnouncementsService.java \
-  background/announcements/AnnouncementsStartReceiver.java \
   background/BackgroundService.java \
   background/bagheera/BagheeraClient.java \
   background/bagheera/BagheeraRequestDelegate.java \

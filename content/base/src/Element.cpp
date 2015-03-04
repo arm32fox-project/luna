@@ -3261,6 +3261,27 @@ Element::GetInnerHTML(nsAString& aInnerHTML, ErrorResult& aError)
   aError = GetMarkup(false, aInnerHTML);
 }
 
+static bool
+ContainsMarkup(const nsAString& aStr)
+{
+  const PRUnichar* start = aStr.BeginReading();
+  const PRUnichar* end = aStr.EndReading();
+
+  while (start != end) {
+    PRUnichar c = *start;
+    if (c == PRUnichar('<') ||
+        c == PRUnichar('&') ||
+        c == PRUnichar('\r') ||
+        c == PRUnichar('\0')) {
+      return true;
+    }
+    ++start;
+  }
+  
+  return false;
+}
+
+
 void
 Element::SetInnerHTML(const nsAString& aInnerHTML, ErrorResult& aError)
 {
@@ -3272,6 +3293,19 @@ Element::SetInnerHTML(const nsAString& aInnerHTML, ErrorResult& aError)
     MOZ_ASSERT(frag);
     target = frag;
   }
+
+  // Fast path for strings without markup. Limit this to relatively short
+  // strings, so that the ContainsMarkup check isn't parsing too much data.
+  // Don't do this for elements that insert out-of-body, to avoid issues
+  // where elements should have implicit elements inserted.
+  if (!target->HasOOBInsertion() && aInnerHTML.Length() < 200 &&
+      !ContainsMarkup(aInnerHTML)) {
+    aError = nsContentUtils::SetNodeTextContent(target, aInnerHTML, false);
+    return;
+  }
+  
+  // From here on, the string is either too long or contains markup characters,
+  // meaning we want to spin up the HTML parser to insert the data.
 
   nsIDocument* doc = target->OwnerDoc();
 
