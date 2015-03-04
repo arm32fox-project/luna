@@ -2197,6 +2197,7 @@ UpdateThreadFunc(void *param)
         }
         RegCloseKey(baseKey);
       }
+#endif
     }
 
     if (rv == OK) {
