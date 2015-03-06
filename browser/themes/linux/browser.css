@@ -53,9 +53,9 @@
 #nav-bar:not(:-moz-lwtheme),
 #nav-bar[collapsed=true] + toolbar:not(:-moz-lwtheme),
 #nav-bar[collapsed=true] + #customToolbars + #PersonalToolbar:not(:-moz-lwtheme),
-#nav-bar[tabsontop=true]not(:-moz-lwtheme),
-#nav-bar[tabsontop=true][collapsed=true]:not([customizing])not(:-moz-lwtheme) + toolbar,
-#nav-bar[tabsontop=true][collapsed=true]:not([customizing])not(:-moz-lwtheme) + #customToolbars + #PersonalToolbar {
+#nav-bar[tabsontop=true],
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]) + toolbar,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]) + #customToolbars + #PersonalToolbar {
   background-image: linear-gradient(@toolbarHighlight@, rgba(255,255,255,0));
 }
 
