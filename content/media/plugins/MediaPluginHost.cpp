@@ -14,7 +14,6 @@
 #include "pratom.h"
 #include "MediaPluginReader.h"
 #include "nsIGfxInfo.h"
-#include "gfxCrashReporterUtils.h"
 #include "prmem.h"
 
 #include "MPAPI.h"
@@ -115,8 +114,6 @@ static bool IsOmxSupported()
     return false;
   }
 
-  ScopedGfxFeatureReporter reporter("Stagefright", forceEnabled);
-
   if (!forceEnabled) {
     nsCOMPtr<nsIGfxInfo> gfxInfo = do_GetService("@mozilla.org/gfx/info;1");
     if (gfxInfo) {
@@ -130,7 +127,6 @@ static bool IsOmxSupported()
     }
   }
 
-  reporter.SetSuccessful();
   return true;
 }
 

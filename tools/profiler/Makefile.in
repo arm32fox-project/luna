@@ -16,7 +16,6 @@ ifdef MOZ_ENABLE_PROFILER_SPS
 LOCAL_INCLUDES += \
   -I$(topsrcdir)/mozglue/linker \
   -I$(topsrcdir)/ipc/chromium/src \
-  -I$(topsrcdir)/toolkit/crashreporter/google-breakpad/src \
   $(NULL)
 
 ifneq (,$(filter armeabi,$(ANDROID_CPU_ARCH)))

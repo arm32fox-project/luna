@@ -88,10 +88,22 @@
 }
 %endif
 
-#nav-bar[tabsontop=true],
-#nav-bar[tabsontop=true][collapsed=true]:not([customizing]) + toolbar,
-#nav-bar[tabsontop=true][collapsed=true]:not([customizing]) + #customToolbars + #PersonalToolbar {
+#nav-bar[tabsontop=true]:not(:-moz-lwtheme),
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):not(:-moz-lwtheme) + toolbar,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):not(:-moz-lwtheme) + #customToolbars + #PersonalToolbar {
   background-image: linear-gradient(@toolbarHighlight@, rgba(255,255,255,0));
+}
+
+#nav-bar[tabsontop=true]:-moz-lwtheme,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme + toolbar,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme + #customToolbars + #PersonalToolbar {
+  background-image: linear-gradient(rgba(255,255,255,.8), rgba(255,255,255,0));
+}
+
+#nav-bar[tabsontop=true]:-moz-lwtheme-brighttext,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme-brighttext + toolbar,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme-brighttext + #customToolbars + #PersonalToolbar {
+  background-image: linear-gradient(rgba(32,32,32,.8), rgba(32,32,32,0));
 }
 
 #personal-bookmarks {
@@ -2041,11 +2053,12 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 .tabbrowser-tab:-moz-lwtheme {
   color: inherit;
+  /* 0.99 opacity rquired to force an active layer, see bug #1028369 */
   opacity: 0.99;
 }
 
 .tabbrowser-tab:-moz-lwtheme:not([selected="true"]) {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme {
@@ -2053,7 +2066,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 }
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme-brighttext {
-  background-image: linear-gradient(rgba(128,128,128,.8), rgba(32,32,32,.9) 50%);
+  background-image: linear-gradient(rgba(128,128,128,.9), rgba(32,32,32,.9) 50%, rgba(32,32,32,.9) 80%, rgba(32,32,32,.8) 100%);
 }
 
 .tabbrowser-tab:-moz-lwtheme-brighttext:not([selected="true"]),
@@ -2285,6 +2298,10 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   border: none;
 }
 
+.tabs-closebutton:-moz-lwtheme-brighttext {
+  list-style-image: url("chrome://global/skin/icons/close-inverted.png");
+}
+
 .tabs-closebutton > .toolbarbutton-icon {
   -moz-margin-end: 0px !important;
   -moz-padding-end: 2px !important;
@@ -2479,10 +2496,6 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   list-style-image: url(chrome://mozapps/skin/plugins/pluginBlocked-64.png);
 }
 
-.popup-notification-icon[popupid="plugins-not-found"] {
-  list-style-image: url(chrome://browser/skin/pluginInstall-64.png);
-}
-
 .popup-notification-icon[popupid="web-notifications"] {
   list-style-image: url(chrome://browser/skin/notification-64.png);
 }
@@ -2640,10 +2653,6 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
 #alert-plugins-notification-icon:active,
 #blocked-plugins-notification-icon:active {
   -moz-image-region: rect(0, 48px, 16px, 32px);
-}
-
-#plugin-install-notification-icon {
-  list-style-image: url(chrome://browser/skin/pluginInstall-16.png);
 }
 
 #notification-popup-box[hidden] {
@@ -2826,6 +2835,11 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   margin: 0;
 }
 
+/* Make sure the allTab previews always have regular close buttons */
+#allTabs-tab-close-button:-moz-lwtheme-brighttext {
+  list-style-image: url("chrome://global/skin/icons/close.png");
+}
+
 .allTabs-favicon[src] {
   background-color: -moz-dialog;
   width: 22px;
@@ -2895,6 +2909,10 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   list-style-image: url("chrome://global/skin/icons/close.png");
   -moz-appearance: none;
   -moz-image-region: rect(0, 16px, 16px, 0);
+}
+
+#addonbar-closebutton:-moz-lwtheme-brighttext {
+  list-style-image: url("chrome://global/skin/icons/close-inverted.png");
 }
 
 #addonbar-closebutton:hover {

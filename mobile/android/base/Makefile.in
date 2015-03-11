@@ -361,7 +361,6 @@ DEFINES += \
   -DMOZ_APP_VERSION=$(MOZ_APP_VERSION) \
   -DMOZ_BUILD_TIMESTAMP=$(MOZ_BUILD_TIMESTAMP) \
   -DMOZ_CHILD_PROCESS_NAME=$(MOZ_CHILD_PROCESS_NAME) \
-  -DMOZ_CRASHREPORTER=$(MOZ_CRASHREPORTER) \
   -DMOZ_MIN_CPU_VERSION=$(MIN_CPU_VERSION) \
   -DMOZ_UPDATE_CHANNEL=$(MOZ_UPDATE_CHANNEL) \
   -DOMNIJAR_NAME=$(OMNIJAR_NAME) \
@@ -1070,12 +1069,6 @@ RES_MENU = \
   $(NULL)
 
 JAVA_CLASSPATH = $(ANDROID_SDK)/android.jar
-
-ifdef MOZ_CRASHREPORTER
-FENNEC_JAVA_FILES += CrashReporter.java
-RES_DRAWABLE_MDPI += res/drawable-mdpi/crash_reporter.png
-RES_LAYOUT += res/layout/crash_reporter.xml
-endif
 
 MOZ_ANDROID_DRAWABLES += \
   $(SYNC_RES_DRAWABLE)                                                          \

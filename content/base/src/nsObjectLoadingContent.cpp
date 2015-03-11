@@ -342,15 +342,6 @@ nsPluginCrashedEvent::Run()
   variant->SetAsAString(mPluginFilename);
   containerEvent->SetData(NS_LITERAL_STRING("pluginFilename"), variant);
 
-  // add a "submittedCrashReport" property to this event
-  variant = do_CreateInstance("@mozilla.org/variant;1");
-  if (!variant) {
-    NS_WARNING("Couldn't create crashSubmit variant for PluginCrashed event!");
-    return NS_OK;
-  }
-  variant->SetAsBool(mSubmittedCrashReport);
-  containerEvent->SetData(NS_LITERAL_STRING("submittedCrashReport"), variant);
-
   nsEventDispatcher::DispatchDOMEvent(mContent, nullptr, event, nullptr, nullptr);
   return NS_OK;
 }

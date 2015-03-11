@@ -69,9 +69,6 @@ var gAdvancedPane = {
     this.updateReadPrefs();
 #endif
     this.updateOfflineApps();
-#ifdef MOZ_CRASHREPORTER
-    this.initSubmitCrashes();
-#endif
     this.initTelemetry();
 #ifdef MOZ_SERVICES_HEALTHREPORT
     this.initSubmitHealthReport();
@@ -193,36 +190,6 @@ var gAdvancedPane = {
       el.setAttribute("hidden", "true");
     }
   },
-
-  /**
-   *
-   */
-  initSubmitCrashes: function ()
-  {
-    var checkbox = document.getElementById("submitCrashesBox");
-    try {
-      var cr = Components.classes["@mozilla.org/toolkit/crash-reporter;1"].
-               getService(Components.interfaces.nsICrashReporter);
-      checkbox.checked = cr.submitReports;
-    } catch (e) {
-      checkbox.style.display = "none";
-    }
-    this._setupLearnMoreLink("toolkit.crashreporter.infoURL", "crashReporterLearnMore");
-  },
-
-  /**
-   *
-   */
-  updateSubmitCrashes: function ()
-  {
-    var checkbox = document.getElementById("submitCrashesBox");
-    try {
-      var cr = Components.classes["@mozilla.org/toolkit/crash-reporter;1"].
-               getService(Components.interfaces.nsICrashReporter);
-      cr.submitReports = checkbox.checked;
-    } catch (e) { }
-  },
-
 
   /**
    * The preference/checkbox is configured in XUL.

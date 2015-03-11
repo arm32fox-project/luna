@@ -117,6 +117,9 @@ HTMLSelectElement::HTMLSelectElement(already_AddRefed<nsINodeInfo> aNodeInfo,
     mOptGroupCount(0),
     mSelectedIndex(-1)
 {
+  // This element inserts out-of-body and can't use a fast path to set InnerHTML
+  SetElementInsertsOOB();
+  
   // DoneAddingChildren() will be called later if it's from the parser,
   // otherwise it is
 

@@ -13,12 +13,10 @@
 #endif
 
 #include "ContentChild.h"
-#include "CrashReporterChild.h"
 #include "TabChild.h"
 
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/ExternalHelperAppChild.h"
-#include "mozilla/dom/PCrashReporterChild.h"
 #include "mozilla/dom/DOMStorageIPC.h"
 #include "mozilla/Hal.h"
 #include "mozilla/hal_sandbox/PHalChild.h"
@@ -313,11 +311,6 @@ ContentChild::Init(MessageLoop* aIOLoop,
 
     Open(aChannel, aParentHandle, aIOLoop);
     sSingleton = this;
-
-#ifdef MOZ_CRASHREPORTER
-    SendPCrashReporterConstructor(CrashReporter::CurrentThreadId(),
-                                  XRE_GetProcessType());
-#endif
 
     SendGetProcessAttributes(&mID, &mIsForApp, &mIsForBrowser);
 
@@ -728,24 +721,6 @@ ContentChild::GetOrCreateActorForBlob(nsIDOMBlob* aBlob)
       }
 
   return actor;
-}
-
-PCrashReporterChild*
-ContentChild::AllocPCrashReporter(const mozilla::dom::NativeThreadId& id,
-                                  const uint32_t& processType)
-{
-#ifdef MOZ_CRASHREPORTER
-    return new CrashReporterChild();
-#else
-    return nullptr;
-#endif
-}
-
-bool
-ContentChild::DeallocPCrashReporter(PCrashReporterChild* crashreporter)
-{
-    delete crashreporter;
-    return true;
 }
 
 PHalChild*

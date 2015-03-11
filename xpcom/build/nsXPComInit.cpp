@@ -129,6 +129,8 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 
 #include "GeckoProfiler.h"
 
+#include "jsapi.h" // for JS_Init/JS_Shutdown
+
 using namespace mozilla;
 using base::AtExitManager;
 using mozilla::ipc::BrowserProcessSubThread;
@@ -464,6 +466,11 @@ NS_InitXPCOM2(nsIServiceManager* *result,
     rv = nsCycleCollector_startup(CCSingleThread);
     if (NS_FAILED(rv)) return rv;
 
+    // Initialize the JS engine.
+    if (!JS_Init()) {
+        return NS_ERROR_UNEXPECTED;
+    }
+
     rv = nsComponentManagerImpl::gComponentManager->Init();
     if (NS_FAILED(rv))
     {
@@ -692,8 +699,12 @@ ShutdownXPCOM(nsIServiceManager* servMgr)
     if (nsComponentManagerImpl::gComponentManager) {
         rv = (nsComponentManagerImpl::gComponentManager)->Shutdown();
         NS_ASSERTION(NS_SUCCEEDED(rv), "Component Manager shutdown failed.");
-    } else
+    } else {
         NS_WARNING("Component Manager was never created ...");
+    }
+    
+    // Shut down the JS engine.
+    JS_ShutDown();
 
     // Release our own singletons
     // Do this _after_ shutting down the component manager, because the

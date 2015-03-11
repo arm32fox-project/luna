@@ -87,7 +87,7 @@ ClientCanvasLayer::RenderLayer()
         flags |= OwnByClient;
       }
     }
-    mCanvasClient = CanvasClient::CreateCanvasClient(GetCompositableClientType(),
+    mCanvasClient = CanvasClient::CreateCanvasClient(GetCanvasClientType(),
                                                      ClientManager(), flags);
     if (!mCanvasClient) {
       return;

@@ -227,9 +227,6 @@
 @BINPATH@/components/pref.xpt
 @BINPATH@/components/prefetch.xpt
 @BINPATH@/components/profile.xpt
-#ifdef MOZ_ENABLE_PROFILER_SPS
-@BINPATH@/components/profiler.xpt
-#endif
 @BINPATH@/components/proxyObject.xpt
 @BINPATH@/components/rdf.xpt
 @BINPATH@/components/satchel.xpt
@@ -521,18 +518,6 @@ bin/libfreebl_32int64_3.so
 ;
 #ifdef MOZ_UPDATER
 @BINPATH@/updater@BIN_SUFFIX@
-#endif
-
-; [Crash Reporter]
-;
-#ifdef MOZ_CRASHREPORTER
-@BINPATH@/crashreporter@BIN_SUFFIX@
-@BINPATH@/crashreporter.crt
-@BINPATH@/crashreporter.ini
-#ifdef XP_UNIX
-@BINPATH@/Throbber-small.gif
-#endif
-@BINPATH@/crashreporter-override.ini
 #endif
 
 ; [Extensions]

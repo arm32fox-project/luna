@@ -627,6 +627,37 @@ JS_IsBuiltinFunctionConstructor(JSFunction *fun)
 /************************************************************************/
 
 /*
+ * One-time initialization calls.
+ */
+
+// Flag to indicate Init has been called.
+static JSBool js_Initialized = JS_FALSE;
+
+JS_PUBLIC_API(JSBool)
+JS_Init(void)
+{
+  MOZ_ASSERT(!js_Initialized,
+             "Must call JS_Init only once, before any other JSAPI operation");
+
+  // Init and calibrate PRMJ_Now.
+  PRMJ_NowInit();
+  
+  js_Initialized = true;
+  return true;
+}
+
+JS_PUBLIC_API(void)
+JS_ShutDown(void)
+{
+  MOZ_ASSERT(js_Initialized,
+             "JS_ShutDown must only be called after JS_Init and can't race with it");
+             
+  // Deallocate and cleanup code. 
+  PRMJ_NowShutdown();
+  js_Initialized = false; 
+}
+
+/*
  * Has a new runtime ever been created?  This flag is used to control things
  * that should happen only once across all runtimes.
  */
@@ -1131,12 +1162,6 @@ JS_DestroyRuntime(JSRuntime *rt)
 {
     js_free(rt->defaultLocale);
     js_delete(rt);
-}
-
-JS_PUBLIC_API(void)
-JS_ShutDown(void)
-{
-    PRMJ_NowShutdown();
 }
 
 JS_PUBLIC_API(void *)
@@ -6038,7 +6063,25 @@ JS_DecodeBytes(JSContext *cx, const char *src, size_t srclen, jschar *dst, size_
 {
     AssertHeapIsIdle(cx);
     CHECK_REQUEST(cx);
-    return InflateStringToBuffer(cx, src, srclen, dst, dstlenp);
+
+    if (!dst) {
+        *dstlenp = srclen;
+        return true;
+    }
+
+    size_t dstlen = *dstlenp;
+
+    if (srclen > dstlen) {
+        InflateStringToBuffer(src, dstlen, dst);
+
+        AutoSuppressGC suppress(cx);
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_BUFFER_TOO_SMALL);
+        return false;
+    }
+
+    InflateStringToBuffer(src, srclen, dst);
+    *dstlenp = srclen;
+    return true;
 }
 
 JS_PUBLIC_API(char *)

@@ -35,8 +35,6 @@
 
 #include "GLContextProvider.h"
 
-#include "gfxCrashReporterUtils.h"
-
 #include "nsSVGEffects.h"
 
 #include "prenv.h"
@@ -431,8 +429,6 @@ WebGLContext::SetDimensions(int32_t width, int32_t height)
     bool prefer16bit =
         Preferences::GetBool("webgl.prefer-16bpp", false);
 
-    ScopedGfxFeatureReporter reporter("WebGL", forceEnabled);
-
     if (disabled)
         return NS_ERROR_FAILURE;
 
@@ -599,7 +595,6 @@ WebGLContext::SetDimensions(int32_t width, int32_t height)
     MOZ_ASSERT(gl->Caps().antialias == caps.antialias || !gl->Caps().antialias);
     MOZ_ASSERT(gl->Caps().preserve == caps.preserve);
 
-    reporter.SetSuccessful();
     return NS_OK;
 }
 
@@ -1002,18 +997,18 @@ bool WebGLContext::IsExtensionSupported(JSContext *cx, WebGLExtensionID ext) con
         case WEBGL_compressed_texture_pvrtc:
             return gl->IsExtensionSupported(GLContext::IMG_texture_compression_pvrtc);
         case WEBGL_depth_texture:
-            if (gl->IsGLES2() &&
-                gl->IsExtensionSupported(GLContext::OES_packed_depth_stencil) &&
-                gl->IsExtensionSupported(GLContext::OES_depth_texture))
-            {
+            if (gl->IsGLES2()) {
+                // WEBGL_depth_texture always supports DEPTH_STENCIL textures
+                if (!gl->IsExtensionSupported(GLContext::OES_packed_depth_stencil)) {
+                    return false;
+                }
+                return gl->IsExtensionSupported(GLContext::OES_depth_texture) ||
+                       gl->IsExtensionSupported(GLContext::ANGLE_depth_texture);
+            } else if (gl->IsExtensionSupported(GLContext::EXT_packed_depth_stencil)) {
+                // Not GLES v2, but packed depth stencils are supported
                 return true;
             }
-            else if (!gl->IsGLES2() &&
-                     gl->IsExtensionSupported(GLContext::EXT_packed_depth_stencil))
-            {
-                return true;
-            }
-            return false;
+            return false;                
         case WEBGL_debug_renderer_info:
             return xpc::AccessCheck::isChrome(js::GetContextCompartment(cx));
         default:

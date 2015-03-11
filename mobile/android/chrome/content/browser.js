@@ -188,12 +188,6 @@ function convertFromTwipsToPx(aSize) {
   return aSize/240 * 16.0;
 }
 
-#ifdef MOZ_CRASHREPORTER
-Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
-  "@mozilla.org/xre/app-info;1", "nsICrashReporter");
-#endif
-
 XPCOMUtils.defineLazyGetter(this, "ContentAreaUtils", function() {
   let ContentAreaUtils = {};
   Services.scriptloader.loadSubScript("chrome://global/content/contentAreaUtils.js", ContentAreaUtils);
@@ -1038,14 +1032,6 @@ var BrowserApp = {
 
           prefs.push(pref);
           continue;
-#ifdef MOZ_CRASHREPORTER
-        // Crash reporter submit pref must be fetched from nsICrashReporter service.
-        case "datareporting.crashreporter.submitEnabled":
-          pref.type = "bool";
-          pref.value = CrashReporter.submitReports;
-          prefs.push(pref);
-          continue;
-#endif
       }
 
       // Pref name translation.
@@ -1178,12 +1164,6 @@ var BrowserApp = {
         Services.prefs.setBoolPref(SearchEngines.PREF_SUGGEST_PROMPTED, true);
         break;
 
-#ifdef MOZ_CRASHREPORTER
-      // Crash reporter preference is in a service; set and return.
-      case "datareporting.crashreporter.submitEnabled":
-        CrashReporter.submitReports = json.value;
-        return;
-#endif
       // When sending to Java, we normalized special preferences that use
       // integers and strings to represent booleans. Here, we convert them back
       // to their actual types so we can store them.

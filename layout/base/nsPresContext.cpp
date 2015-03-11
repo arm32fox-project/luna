@@ -2315,6 +2315,13 @@ nsPresContext::NotifyDidPaintForSubtree(uint32_t aFlags)
       return;
     }
   }
+  
+  // It's possible on shutdown that we already lost the presentation shell
+  // at this point. So check for its existence before checking visibility.
+  if (PresShell() && !PresShell()->IsVisible() && !mFireAfterPaintEvents) {
+    return;
+  }
+  
   // Non-root prescontexts fire MozAfterPaint to all their descendants
   // unconditionally, even if no invalidations have been collected. This is
   // because we don't want to eat the cost of collecting invalidations for

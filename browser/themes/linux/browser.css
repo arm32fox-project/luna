@@ -59,6 +59,18 @@
   background-image: linear-gradient(@toolbarHighlight@, rgba(255,255,255,0));
 }
 
+#nav-bar[tabsontop=true]:-moz-lwtheme,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme + toolbar,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme + #customToolbars + #PersonalToolbar {
+  background-image: linear-gradient(rgba(255,255,255,.8), rgba(255,255,255,0));
+}
+
+#nav-bar[tabsontop=true]:-moz-lwtheme-brighttext,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme-brighttext + toolbar,
+#nav-bar[tabsontop=true][collapsed=true]:not([customizing]):-moz-lwtheme-brighttext + #customToolbars + #PersonalToolbar {
+  background-image: linear-gradient(rgba(32,32,32,.8), rgba(32,32,32,0));
+}
+
 #personal-bookmarks {
   min-height: 29px;
 }
@@ -1183,10 +1195,6 @@ toolbar[iconsize="small"] #webrtc-status-button {
   list-style-image: url(chrome://mozapps/skin/plugins/pluginBlocked-64.png);
 }
 
-.popup-notification-icon[popupid="plugins-not-found"] {
-  list-style-image: url(chrome://browser/skin/pluginInstall-64.png);
-}
-
 .popup-notification-icon[popupid="web-notifications"] {
   list-style-image: url(chrome://browser/skin/notification-64.png);
 }
@@ -1338,10 +1346,6 @@ toolbar[iconsize="small"] #webrtc-status-button {
 #alert-plugins-notification-icon:active,
 #blocked-plugins-notification-icon:active {
   -moz-image-region: rect(0, 48px, 16px, 32px);
-}
-
-#plugin-install-notification-icon {
-  list-style-image: url(chrome://browser/skin/pluginInstall-16.png);
 }
 
 #notification-popup-box[hidden] {
@@ -1713,6 +1717,9 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 .tabbrowser-tab[selected="true"] {
   background-image: linear-gradient(@selectedTabHighlight@, @toolbarHighlight@ 32%),
                     linear-gradient(-moz-dialog, -moz-dialog);
+}
+
+.tabbrowser-tab[selected="true"]:not(:-moz-lwtheme) {
   color: -moz-dialogtext;
 }
 
@@ -1724,7 +1731,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 
 .tabbrowser-tab:-moz-lwtheme:not([selected="true"]) {
-  opacity: 0.85;
+  opacity: 0.9;
 }
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme {
@@ -1732,7 +1739,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 }
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme-brighttext {
-  background-image: linear-gradient(rgba(128,128,128,.8), rgba(32,32,32,.9) 50%);
+  background-image: linear-gradient(rgba(128,128,128,.9), rgba(32,32,32,.9) 50%, rgba(32,32,32,.9) 80%, rgba(32,32,32,.8) 100%);
 }
 
 .tabbrowser-tab:-moz-lwtheme-brighttext:not([selected="true"]),

@@ -10,11 +10,6 @@ const Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-#ifdef MOZ_CRASHREPORTER
-XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
-  "@mozilla.org/xre/app-info;1", "nsICrashReporter");
-#endif
-
 XPCOMUtils.defineLazyGetter(this, "NetUtil", function() {
   Cu.import("resource://gre/modules/NetUtil.jsm");
   return NetUtil;
@@ -346,7 +341,6 @@ SessionStore.prototype = {
 
     if (!aNoNotification)
       this.saveStateDelayed();
-    this._updateCrashReportURL(aWindow);
   },
 
   onTabRemove: function ss_onTabRemove(aWindow, aBrowser, aNoNotification) {
@@ -400,8 +394,6 @@ SessionStore.prototype = {
     // Save out the state as quickly as possible
     if (aMessage.name == "pageshow")
       this.saveStateNow();
-
-    this._updateCrashReportURL(aWindow);
   },
 
   onTabSelect: function ss_onTabSelect(aWindow, aBrowser) {
@@ -426,8 +418,6 @@ SessionStore.prototype = {
 
       delete aBrowser.__SS_restore;
     }
-
-    this._updateCrashReportURL(aWindow);
   },
 
   saveStateDelayed: function ss_saveStateDelayed() {
@@ -547,27 +537,7 @@ SessionStore.prototype = {
       }
     });
   },
-
-  _updateCrashReportURL: function ss_updateCrashReportURL(aWindow) {
-#ifdef MOZ_CRASHREPORTER
-    try {
-      let currentURI = aWindow.Browser.selectedBrowser.currentURI.clone();
-      // if the current URI contains a username/password, remove it
-      try {
-        currentURI.userPass = "";
-      }
-      catch (ex) { } // ignore failures on about: URIs
-
-      CrashReporter.annotateCrashReport("URL", currentURI.spec);
-    }
-    catch (ex) {
-      // don't make noise when crashreporter is built but not enabled
-      if (ex.result != Components.results.NS_ERROR_NOT_INITIALIZED)
-        Components.utils.reportError("SessionStore:" + ex);
-    }
-#endif
-  },
-
+  
   getBrowserState: function ss_getBrowserState() {
     let data = this._getCurrentState();
     return JSON.stringify(data);

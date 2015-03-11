@@ -2438,6 +2438,7 @@ TypeCompartment::addAllocationSiteTypeObject(JSContext *cx, AllocationSiteKey ke
         allocationSiteTable = cx->new_<AllocationSiteTable>();
         if (!allocationSiteTable || !allocationSiteTable->init()) {
             cx->compartment()->types.setPendingNukeTypes(cx);
+            allocationSiteTable = nullptr;
             return NULL;
         }
     }

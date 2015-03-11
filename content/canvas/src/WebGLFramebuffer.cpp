@@ -89,6 +89,79 @@ WebGLFramebuffer::Attachment::HasSameDimensionsAs(const Attachment& other) const
            thisRect->HasSameDimensionsAs(*otherRect);
 }
 
+/* The following IsValidFBOTextureXXX functions check the internal
+   format that is used by GL or GL ES texture formats.  This
+   corresponds to the state that is stored in
+   WebGLTexture::ImageInfo::InternalFormat()*/
+static inline bool
+IsValidFBOTextureColorFormat(GLenum internalFormat)
+{
+     return (
+         /* linear 8-bit formats */
+        internalFormat == LOCAL_GL_ALPHA ||
+        internalFormat == LOCAL_GL_LUMINANCE ||
+        internalFormat == LOCAL_GL_LUMINANCE_ALPHA ||
+        internalFormat == LOCAL_GL_RGB ||
+        internalFormat == LOCAL_GL_RGBA ||
+        /* sRGB 8-bit formats */
+        //internalFormat == LOCAL_GL_SRGB_EXT ||
+        //internalFormat == LOCAL_GL_SRGB_ALPHA_EXT ||
+        /* linear float32 formats */
+        internalFormat == LOCAL_GL_ALPHA32F_ARB ||
+        internalFormat == LOCAL_GL_LUMINANCE32F_ARB ||
+        internalFormat == LOCAL_GL_LUMINANCE_ALPHA32F_ARB ||
+        internalFormat == LOCAL_GL_RGB32F_ARB ||
+        internalFormat == LOCAL_GL_RGBA32F_ARB);
+}
+
+static inline bool
+IsValidFBOTextureDepthFormat(GLenum internalFormat)
+{
+    return (
+        internalFormat == LOCAL_GL_DEPTH_COMPONENT ||
+        internalFormat == LOCAL_GL_DEPTH_COMPONENT16 ||
+        internalFormat == LOCAL_GL_DEPTH_COMPONENT32);
+}
+
+static inline bool
+IsValidFBOTextureDepthStencilFormat(GLenum internalFormat)
+{
+    return (
+        internalFormat == LOCAL_GL_DEPTH_STENCIL ||
+        internalFormat == LOCAL_GL_DEPTH24_STENCIL8);
+}
+
+/* The following IsValidFBORenderbufferXXX functions check the internal
+   format that is stored by WebGLRenderbuffer::InternalFormat(). Valid
+   values can be found in WebGLContext::RenderbufferStorage. */
+static inline bool
+IsValidFBORenderbufferColorFormat(GLenum internalFormat)
+{
+    return (
+        internalFormat == LOCAL_GL_RGB565 ||
+        internalFormat == LOCAL_GL_RGB5_A1 ||
+        internalFormat == LOCAL_GL_RGBA4 ||
+        internalFormat == LOCAL_GL_SRGB8_ALPHA8_EXT);
+}
+
+static inline bool
+IsValidFBORenderbufferDepthFormat(GLenum internalFormat)
+{
+    return internalFormat == LOCAL_GL_DEPTH_COMPONENT16;
+}
+
+static inline bool
+IsValidFBORenderbufferDepthStencilFormat(GLenum internalFormat)
+{
+    return internalFormat == LOCAL_GL_DEPTH_STENCIL;
+}
+
+static inline bool
+IsValidFBORenderbufferStencilFormat(GLenum internalFormat)
+{
+    return internalFormat == LOCAL_GL_STENCIL_INDEX8;
+}
+
 bool
 WebGLFramebuffer::Attachment::IsComplete() const {
     const WebGLRectangleObject *thisRect = RectangleObject();
@@ -102,44 +175,44 @@ WebGLFramebuffer::Attachment::IsComplete() const {
         if (!mTexturePtr->HasImageInfoAt(0, 0))
             return false;
 
-        WebGLenum format = mTexturePtr->ImageInfoAt(0).Format();
+        const WebGLTexture::ImageInfo& imageInfo =
+            mTexturePtr->ImageInfoAt(mTextureLevel, mTextureCubeMapFace);
+        GLenum internalFormat = imageInfo.Format();
 
-        if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT) {
-            return format == LOCAL_GL_DEPTH_COMPONENT;
+        if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT)
+            return IsValidFBOTextureDepthFormat(internalFormat);
+
+        if (mAttachmentPoint == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
+            return IsValidFBOTextureDepthStencilFormat(internalFormat);
+
+        if (mAttachmentPoint >= LOCAL_GL_COLOR_ATTACHMENT0 &&
+            mAttachmentPoint < GLenum(LOCAL_GL_COLOR_ATTACHMENT0 +
+                                      WebGLContext::sMaxColorAttachments))
+        {
+            return IsValidFBOTextureColorFormat(internalFormat);
         }
-        else if (mAttachmentPoint == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT) {
-            return format == LOCAL_GL_DEPTH_STENCIL;
-        }
-        else if (mAttachmentPoint >= LOCAL_GL_COLOR_ATTACHMENT0 &&
-                 mAttachmentPoint < WebGLenum(LOCAL_GL_COLOR_ATTACHMENT0 + WebGLContext::sMaxColorAttachments)) {
-            return (format == LOCAL_GL_ALPHA ||
-                    format == LOCAL_GL_LUMINANCE ||
-                    format == LOCAL_GL_LUMINANCE_ALPHA ||
-                    format == LOCAL_GL_RGB ||
-                    format == LOCAL_GL_RGBA);
-        }
-        MOZ_NOT_REACHED("Invalid WebGL attachment poin?");
+        MOZ_NOT_REACHED("Invalid WebGL attachment point?");
     }
 
     if (mRenderbufferPtr) {
-        WebGLenum format = mRenderbufferPtr->InternalFormat();
+        GLenum internalFormat = mRenderbufferPtr->InternalFormat();
 
-        if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT) {
-            return format == LOCAL_GL_DEPTH_COMPONENT16;
+        if (mAttachmentPoint == LOCAL_GL_DEPTH_ATTACHMENT)
+            return IsValidFBORenderbufferDepthFormat(internalFormat);
+
+        if (mAttachmentPoint == LOCAL_GL_STENCIL_ATTACHMENT)
+            return IsValidFBORenderbufferStencilFormat(internalFormat);
+
+        if (mAttachmentPoint == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT)
+            return IsValidFBORenderbufferDepthStencilFormat(internalFormat);
+
+        if (mAttachmentPoint >= LOCAL_GL_COLOR_ATTACHMENT0 &&
+            mAttachmentPoint < GLenum(LOCAL_GL_COLOR_ATTACHMENT0 +
+                                      WebGLContext::sMaxColorAttachments))
+        {
+            return IsValidFBORenderbufferColorFormat(internalFormat);
         }
-        else if (mAttachmentPoint == LOCAL_GL_STENCIL_ATTACHMENT) {
-            return format == LOCAL_GL_STENCIL_INDEX8;
-        }
-        else if (mAttachmentPoint == LOCAL_GL_DEPTH_STENCIL_ATTACHMENT) {
-            return format == LOCAL_GL_DEPTH_STENCIL;
-        }
-        else if (mAttachmentPoint >= LOCAL_GL_COLOR_ATTACHMENT0 &&
-                 mAttachmentPoint < WebGLenum(LOCAL_GL_COLOR_ATTACHMENT0 + WebGLContext::sMaxColorAttachments)) {
-            return (format == LOCAL_GL_RGB565 ||
-                    format == LOCAL_GL_RGB5_A1 ||
-                    format == LOCAL_GL_RGBA4);
-        }
-        MOZ_NOT_REACHED("Invalid WebGL attachment poin?");
+        MOZ_NOT_REACHED("Invalid WebGL attachment point?");
     }
 
     NS_ABORT(); // should never get there
