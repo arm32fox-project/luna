@@ -156,11 +156,7 @@
 #endif
 #endif
 
-#if defined(MOZ_ENABLE_PROFILER_SPS)
-#define PROFILER_MODULE MODULE(nsProfilerModule)
-#else
 #define PROFILER_MODULE
-#endif
 
 #if defined(MOZ_WEBRTC)
 #define PEERCONNECTION_MODULE MODULE(peerconnection)

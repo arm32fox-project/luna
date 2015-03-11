@@ -18,12 +18,6 @@
 #import <IOKit/IOKitLib.h>
 #import <Cocoa/Cocoa.h>
 
-#if defined(MOZ_CRASHREPORTER)
-#include "nsExceptionHandler.h"
-#include "nsICrashReporter.h"
-#define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
-#endif
-
 #define MAC_OS_X_VERSION_MASK       0x0000FFFF
 #define MAC_OS_X_VERSION_MAJOR_MASK 0x0000FFF0
 #define MAC_OS_X_VERSION_10_4_HEX   0x00001040 // Not supported
@@ -141,8 +135,6 @@ GfxInfo::Init()
 #endif
 
   GetDeviceInfo();
-
-  AddCrashReportAnnotations();
 
   mOSXVersion = nsCocoaFeatures::OSXVersion();
 
@@ -285,34 +277,6 @@ NS_IMETHODIMP
 GfxInfo::GetIsGPU2Active(bool* aIsGPU2Active)
 {
   return NS_ERROR_FAILURE;
-}
-
-void
-GfxInfo::AddCrashReportAnnotations()
-{
-#if defined(MOZ_CRASHREPORTER)
-  nsString deviceID, vendorID;
-  nsAutoCString narrowDeviceID, narrowVendorID;
-
-  GetAdapterDeviceID(deviceID);
-  CopyUTF16toUTF8(deviceID, narrowDeviceID);
-  GetAdapterVendorID(vendorID);
-  CopyUTF16toUTF8(vendorID, narrowVendorID);
-
-  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterVendorID"),
-                                     narrowVendorID);
-  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterDeviceID"),
-                                     narrowDeviceID);
-  /* Add an App Note for now so that we get the data immediately. These
-   * can go away after we store the above in the socorro db */
-  nsAutoCString note;
-  /* AppendPrintf only supports 32 character strings, mrghh. */
-  note.Append("AdapterVendorID: ");
-  note.Append(narrowVendorID);
-  note.Append(", AdapterDeviceID: ");
-  note.Append(narrowDeviceID);
-  CrashReporter::AppendAppNotesToCrashReport(note);
-#endif
 }
 
 // We don't support checking driver versions on Mac.

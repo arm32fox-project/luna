@@ -424,7 +424,6 @@ public:
   virtual ~SurfaceStreamHostOGL()
   {
     DeleteTextures();
-    *mBuffer = SurfaceDescriptor();
   }
 
   virtual void SetCompositor(Compositor* aCompositor) MOZ_OVERRIDE;
@@ -439,8 +438,9 @@ public:
   bool IsValid() const MOZ_OVERRIDE { return true; }
 
   // override from TextureHost
-  virtual void SwapTexturesImpl(const SurfaceDescriptor& aImage,
-                                nsIntRegion* aRegion = nullptr) MOZ_OVERRIDE;
+  virtual void UpdateImpl(const SurfaceDescriptor& aImage,
+                          nsIntRegion* aRegion,
+                          nsIntPoint* aOffset);
   virtual bool Lock() MOZ_OVERRIDE;
   virtual void Unlock() MOZ_OVERRIDE;
 
@@ -490,6 +490,7 @@ public:
     , mTextureHandle(0)
     , mUploadTexture(0)
     , mWrapMode(LOCAL_GL_CLAMP_TO_EDGE)
+    , mStream(nullptr)
   {}
 
 protected:
@@ -500,7 +501,9 @@ protected:
   GLuint mTextureHandle;
   GLuint mUploadTexture;
   GLenum mWrapMode;
+  nsRefPtr<GLContext> mStreamGL;
   gl::ShaderProgramType mShaderProgram;
+  gfx::SurfaceStream *mStream;
 };
 
 class TiledTextureHostOGL : public TextureHost

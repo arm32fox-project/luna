@@ -464,18 +464,23 @@ inline void
 JSObject::copyDenseElements(uint32_t dstStart, const js::Value *src, uint32_t count)
 {
     JS_ASSERT(dstStart + count <= getDenseCapacity());
-    JS::Zone *zone = this->zone();
-    for (uint32_t i = 0; i < count; ++i)
-        elements[dstStart + i].set(zone, this, js::HeapSlot::Element, dstStart + i, src[i]);
+        JSRuntime *rt = runtime();
+        if (JS::IsIncrementalBarrierNeeded(rt)) {
+            JS::Zone *zone = this->zone();
+            for (uint32_t i = 0; i < count; ++i)
+                elements[dstStart + i].set(zone, this, js::HeapSlot::Element, dstStart + i, src[i]);
+        } else {
+            memcpy(&elements[dstStart], src, count * sizeof(js::HeapSlot));
+            DenseRangeWriteBarrierPost(rt, this, dstStart, count);
+        }
 }
 
 inline void
 JSObject::initDenseElements(uint32_t dstStart, const js::Value *src, uint32_t count)
 {
     JS_ASSERT(dstStart + count <= getDenseCapacity());
-    JSRuntime *rt = runtime();
-    for (uint32_t i = 0; i < count; ++i)
-        elements[dstStart + i].init(rt, this, js::HeapSlot::Element, dstStart + i, src[i]);
+        memcpy(&elements[dstStart], src, count * sizeof(js::HeapSlot));
+        DenseRangeWriteBarrierPost(runtime(), this, dstStart, count);
 }
 
 inline void

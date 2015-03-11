@@ -95,10 +95,6 @@ const WebProgress = {
       aTab.browser.userTypedValue = "";
       aTab.browser.appIcon = { href: null, size:-1 };
 
-#ifdef MOZ_CRASHREPORTER
-      if (CrashReporter.enabled)
-        CrashReporter.annotateCrashReport("URL", spec);
-#endif
       this._waitForLoad(aTab);
     }
 

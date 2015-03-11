@@ -26,9 +26,9 @@ const PRIVACY_FULL = 2;
 const NOTIFY_WINDOWS_RESTORED = "sessionstore-windows-restored";
 const NOTIFY_BROWSER_STATE_RESTORED = "sessionstore-browser-state-restored";
 
-// Maximum number of tabs to restore simultaneously. Previously controlled by
+// Default maximum number of tabs to restore simultaneously. Controlled by
 // the browser.sessionstore.max_concurrent_tabs pref.
-const MAX_CONCURRENT_TAB_RESTORES = 3;
+const DEFAULT_MAX_CONCURRENT_TAB_RESTORES = 3;
 
 // global notifications observed
 const OBSERVING = [
@@ -117,11 +117,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "SessionStorage",
   "resource:///modules/sessionstore/SessionStorage.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "_SessionFile",
   "resource:///modules/sessionstore/_SessionFile.jsm");
-
-#ifdef MOZ_CRASHREPORTER
-XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
-  "@mozilla.org/xre/app-info;1", "nsICrashReporter");
-#endif
 
 function debug(aMsg) {
   aMsg = ("SessionStore: " + aMsg).replace(/\S{80}/g, "$&\n");
@@ -293,7 +288,10 @@ let SessionStoreInternal = {
 
   // number of tabs currently restoring
   _tabsRestoringCount: 0,
-
+  
+  // max number of tabs to restore concurrently
+  _maxConcurrentTabRestores: DEFAULT_MAX_CONCURRENT_TAB_RESTORES,
+  
   // The state from the previous session (after restoring pinned tabs). This
   // state is persisted and passed through to the next session during an app
   // restart to make the third party add-on warning not trash the deferred
@@ -495,6 +493,15 @@ let SessionStoreInternal = {
       this._prefBranch.addObserver("sessionstore.max_windows_undo", this, true);
       return this._prefBranch.getIntPref("sessionstore.max_windows_undo");
     });
+    
+    // Straight-up collect the following one-time pref(s)
+    this._maxConcurrentTabRestores = 
+         Services.prefs.getIntPref("browser.sessionstore.max_concurrent_tabs");
+    // ensure a sane value for concurrency, ignore and set default otherwise
+    if (this._maxConcurrentTabRestores < 1 || this._maxConcurrentTabRestores > 10) {
+      this._maxConcurrentTabRestores = DEFAULT_MAX_CONCURRENT_TAB_RESTORES;
+    }
+    
   },
 
   _initWindow: function ssi_initWindow(aWindow) {
@@ -1185,8 +1192,6 @@ let SessionStoreInternal = {
     if (!aNoNotification) {
       this.saveStateDelayed(aWindow);
     }
-
-    this._updateCrashReportURL(aWindow);
   },
 
   /**
@@ -1288,8 +1293,6 @@ let SessionStoreInternal = {
     delete aBrowser.__SS_formDataSaved;
     this.saveStateDelayed(aWindow);
 
-    // attempt to update the current URL we send in a crash report
-    this._updateCrashReportURL(aWindow);
   },
 
   /**
@@ -1323,8 +1326,6 @@ let SessionStoreInternal = {
           tab.linkedBrowser.__SS_restoreState == TAB_STATE_NEEDS_RESTORE)
         this.restoreTab(tab);
 
-      // attempt to update the current URL we send in a crash report
-      this._updateCrashReportURL(aWindow);
     }
   },
 
@@ -3109,7 +3110,7 @@ let SessionStoreInternal = {
                            aRestoreImmediately);
     }, 0);
 
-    // This could cause us to ignore MAX_CONCURRENT_TAB_RESTORES a bit, but
+    // This could cause us to ignore max_concurrent_tabs pref a bit, but
     // it ensures each window will have its selected tab loaded.
     if (aRestoreImmediately || aWindow.gBrowser.selectedBrowser == browser) {
       this.restoreTab(tab);
@@ -3236,7 +3237,7 @@ let SessionStoreInternal = {
       return;
 
     // Don't exceed the maximum number of concurrent tab restores.
-    if (this._tabsRestoringCount >= MAX_CONCURRENT_TAB_RESTORES)
+    if (this._tabsRestoringCount >= this._maxConcurrentTabRestores)
       return;
 
     let tab = TabRestoreQueue.shift();
@@ -3996,29 +3997,6 @@ let SessionStoreInternal = {
    */
   _getURIFromString: function ssi_getURIFromString(aString) {
     return Services.io.newURI(aString, null, null);
-  },
-
-  /**
-   * Annotate a breakpad crash report with the currently selected tab's URL.
-   */
-  _updateCrashReportURL: function ssi_updateCrashReportURL(aWindow) {
-#ifdef MOZ_CRASHREPORTER
-    try {
-      var currentURI = aWindow.gBrowser.currentURI.clone();
-      // if the current URI contains a username/password, remove it
-      try {
-        currentURI.userPass = "";
-      }
-      catch (ex) { } // ignore failures on about: URIs
-
-      CrashReporter.annotateCrashReport("URL", currentURI.spec);
-    }
-    catch (ex) {
-      // don't make noise when crashreporter is built but not enabled
-      if (ex.result != Components.results.NS_ERROR_NOT_INITIALIZED)
-        debug(ex);
-    }
-#endif
   },
 
   /**

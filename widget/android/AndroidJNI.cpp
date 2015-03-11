@@ -23,11 +23,6 @@
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
 
-#ifdef MOZ_CRASHREPORTER
-#include "nsICrashReporter.h"
-#include "nsExceptionHandler.h"
-#endif
-
 #include "mozilla/unused.h"
 
 #include "mozilla/dom/SmsMessage.h"
@@ -93,12 +88,6 @@ Java_org_mozilla_gecko_GeckoAppShell_onResume(JNIEnv *jenv, jclass jc)
 NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_GeckoAppShell_reportJavaCrash(JNIEnv *jenv, jclass, jstring jStackTrace)
 {
-#ifdef MOZ_CRASHREPORTER
-    const nsJNIString stackTrace16(jStackTrace, jenv);
-    const NS_ConvertUTF16toUTF8 stackTrace8(stackTrace16);
-    CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("JavaStackTrace"), stackTrace8);
-#endif // MOZ_CRASHREPORTER
-
     abort();
 }
 
@@ -971,11 +960,17 @@ Java_org_mozilla_gecko_ANRReporter_getNativeStack(JNIEnv* jenv, jclass)
 NS_EXPORT void JNICALL
 Java_org_mozilla_gecko_ANRReporter_releaseNativeStack(JNIEnv* jenv, jclass)
 {
+/* --- STUB --- */
+/* With the profiler removed, this is now a stub. Does something actually
+   have to be done to release the stack in case of an ANR except gather
+   data?...
+   
     if (!profiler_is_active()) {
         // Maybe profiler support is disabled?
         return;
     }
     mozilla_sampler_stop();
+*/
 }
 
 }

@@ -34,8 +34,6 @@
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
 
-#include "gfxCrashReporterUtils.h"
-
 #include "GeckoProfiler.h"
 
 #ifdef MOZ_WIDGET_ANDROID
@@ -256,8 +254,6 @@ LayerManagerOGL::ReadDrawFPSPref::Run()
 bool
 LayerManagerOGL::Initialize(bool force)
 {
-  ScopedGfxFeatureReporter reporter("GL Layers", force);
-
   // Do not allow double initialization
   NS_ABORT_IF_FALSE(mGLContext == nullptr, "Don't reinitialize layer managers");
 
@@ -448,7 +444,6 @@ LayerManagerOGL::Initialize(bool force)
 
   mComposer2D = mWidget->GetComposer2D();
 
-  reporter.SetSuccessful();
   return true;
 }
 

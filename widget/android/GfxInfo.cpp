@@ -12,12 +12,6 @@
 
 #include "AndroidBridge.h"
 
-#if defined(MOZ_CRASHREPORTER)
-#include "nsExceptionHandler.h"
-#include "nsICrashReporter.h"
-#define NS_CRASHREPORTER_CONTRACTID "@mozilla.org/toolkit/crash-reporter;1"
-#endif
-
 using namespace mozilla::widget;
 
 #ifdef DEBUG
@@ -162,7 +156,6 @@ GfxInfo::EnsureInitializedFromGfxInfoData()
                         uint32_t(nd);
   }
 
-  AddCrashReportAnnotations();
 }
 
 /* readonly attribute DOMString adapterDescription; */
@@ -275,24 +268,6 @@ NS_IMETHODIMP
 GfxInfo::GetIsGPU2Active(bool* aIsGPU2Active)
 {
   return NS_ERROR_FAILURE;
-}
-
-void
-GfxInfo::AddCrashReportAnnotations()
-{
-#if defined(MOZ_CRASHREPORTER)
-  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterVendorID"),
-                                     mVendor);
-  CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING("AdapterDeviceID"),
-                                     mRenderer);
-
-  /* Add an App Note for now so that we get the data immediately. These
-   * can go away after we store the above in the socorro db */
-  nsAutoCString note;
-  note.AppendPrintf("AdapterDescription: '%s'\n", mAdapterDescription.get());
-
-  CrashReporter::AppendAppNotesToCrashReport(note);
-#endif
 }
 
 const nsTArray<GfxDriverInfo>&

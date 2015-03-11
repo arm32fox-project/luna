@@ -13,7 +13,6 @@ MODULE = 'gfx'
 
 EXPORTS += [
     'gfxCore.h',
-    'gfxCrashReporterUtils.h',
     'nsBoundingMetrics.h',
     'nsColor.h',
     'nsColorNameList.h',
@@ -41,7 +40,6 @@ if CONFIG['MOZ_X11']:
     ]
 
 CPP_SOURCES += [
-    'gfxCrashReporterUtils.cpp',
     'nsColor.cpp',
     'nsDeviceContext.cpp',
     'nsFont.cpp',

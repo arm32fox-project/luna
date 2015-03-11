@@ -64,11 +64,6 @@ CPP_SOURCES += [
     'nsWindowGfx.cpp',
 ]
 
-if CONFIG['MOZ_CRASHREPORTER']:
-    CPP_SOURCES += [
-        'LSPAnnotator.cpp',
-    ]
-
 if CONFIG['NS_PRINTING']:
     CPP_SOURCES += [
         'nsPrintOptionsWin.cpp',

@@ -25,7 +25,6 @@ loader.lazyGetter(this, "InspectorPanel", function() require("devtools/inspector
 loader.lazyImporter(this, "WebConsolePanel", "resource:///modules/WebConsolePanel.jsm");
 loader.lazyImporter(this, "DebuggerPanel", "resource:///modules/devtools/DebuggerPanel.jsm");
 loader.lazyImporter(this, "StyleEditorPanel", "resource:///modules/devtools/StyleEditorPanel.jsm");
-loader.lazyImporter(this, "ProfilerPanel", "resource:///modules/devtools/ProfilerPanel.jsm");
 loader.lazyImporter(this, "NetMonitorPanel", "resource:///modules/devtools/NetMonitorPanel.jsm");
 
 // Strings
@@ -34,14 +33,12 @@ const inspectorProps = "chrome://browser/locale/devtools/inspector.properties";
 const debuggerProps = "chrome://browser/locale/devtools/debugger.properties";
 const styleEditorProps = "chrome://browser/locale/devtools/styleeditor.properties";
 const webConsoleProps = "chrome://browser/locale/devtools/webconsole.properties";
-const profilerProps = "chrome://browser/locale/devtools/profiler.properties";
 const netMonitorProps = "chrome://browser/locale/devtools/netmonitor.properties";
 loader.lazyGetter(this, "toolboxStrings", () => Services.strings.createBundle(toolboxProps));
 loader.lazyGetter(this, "webConsoleStrings", () => Services.strings.createBundle(webConsoleProps));
 loader.lazyGetter(this, "debuggerStrings", () => Services.strings.createBundle(debuggerProps));
 loader.lazyGetter(this, "styleEditorStrings", () => Services.strings.createBundle(styleEditorProps));
 loader.lazyGetter(this, "inspectorStrings", () => Services.strings.createBundle(inspectorProps));
-loader.lazyGetter(this, "profilerStrings",() => Services.strings.createBundle(profilerProps));
 loader.lazyGetter(this, "netMonitorStrings", () => Services.strings.createBundle(netMonitorProps));
 
 let Tools = {};
@@ -149,28 +146,6 @@ Tools.styleEditor = {
   }
 };
 
-Tools.jsprofiler = {
-  id: "jsprofiler",
-  accesskey: l10n("profiler.accesskey", profilerStrings),
-  key: l10n("profiler2.commandkey", profilerStrings),
-  ordinal: 5,
-  modifiers: "shift",
-  visibilityswitch: "devtools.profiler.enabled",
-  icon: "chrome://browser/skin/devtools/tool-profiler.png",
-  url: "chrome://browser/content/devtools/profiler.xul",
-  label: l10n("profiler.label", profilerStrings),
-  tooltip: l10n("profiler.tooltip2", profilerStrings),
-
-  isTargetSupported: function (target) {
-    return true;
-  },
-
-  build: function (frame, target) {
-    let panel = new ProfilerPanel(frame, target);
-    return panel.open();
-  }
-};
-
 Tools.netMonitor = {
   id: "netmonitor",
   accesskey: l10n("netmonitor.accesskey", netMonitorStrings),
@@ -199,7 +174,6 @@ let defaultTools = [
   Tools.webConsole,
   Tools.jsdebugger,
   Tools.inspector,
-  Tools.jsprofiler,
   Tools.netMonitor
 ];
 

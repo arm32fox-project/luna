@@ -83,6 +83,12 @@ moz_calloc(size_t nmemb, size_t size)
 void*
 moz_xrealloc(void* ptr, size_t size)
 {
+    // Ensure that we have reasonable realloc semantics, regardless of the
+    // underlying malloc implementation.
+    if (UNLIKELY(!ptr && !size)) {
+        return nullptr;
+    }
+
     void* newptr = realloc(ptr, size);
     if (UNLIKELY(!newptr && size)) {
         mozalloc_handle_oom(size);
@@ -90,9 +96,16 @@ moz_xrealloc(void* ptr, size_t size)
     }
     return newptr;
 }
+
 void*
 moz_realloc(void* ptr, size_t size)
 {
+    // Ensure that we have reasonable realloc semantics, regardless of the
+    // underlying malloc implementation.
+    if (UNLIKELY(!ptr && !size)) {
+        return nullptr;
+    }
+
     return realloc(ptr, size);
 }
 

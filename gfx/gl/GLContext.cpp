@@ -9,7 +9,6 @@
 
 #include "GLContext.h"
 
-#include "gfxCrashReporterUtils.h"
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "GLContextProvider.h"
@@ -54,6 +53,7 @@ static const char *sExtensionNames[] = {
     "GL_OES_stencil8",
     "GL_OES_texture_npot",
     "GL_OES_depth_texture",
+    "GL_ANGLE_depth_texture",
     "GL_OES_packed_depth_stencil",
     "GL_IMG_read_format",
     "GL_EXT_read_format_bgra",
@@ -128,10 +128,7 @@ NS_MEMORY_REPORTER_IMPLEMENT(TextureMemoryUsage,
 bool
 GLContext::InitWithPrefix(const char *prefix, bool trygl)
 {
-    ScopedGfxFeatureReporter reporter("GL Context");
-
     if (mInitialized) {
-        reporter.SetSuccessful();
         return true;
     }
 
@@ -655,9 +652,7 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
         MOZ_ASSERT(IsCurrent());
     }
 
-    if (mInitialized)
-        reporter.SetSuccessful();
-    else {
+    if (!mInitialized) {
         // if initialization fails, ensure all symbols are zero, to avoid hard-to-understand bugs
         mSymbols.Zero();
         NS_WARNING("InitWithPrefix failed!");

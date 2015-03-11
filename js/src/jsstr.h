@@ -239,15 +239,15 @@ extern jschar *
 InflateUTF8String(JSContext *cx, const char *bytes, size_t *length);
 
 /*
- * Inflate bytes to JS chars in an existing buffer. 'chars' must be large
- * enough for 'length' jschars. The buffer is NOT null-terminated.
- *
- * charsLength must be be initialized with the destination buffer size and, on
- * return, will contain on return the number of copied chars.
+ * Inflate bytes to JS chars in an existing buffer. 'dst' must be large
+ * enough for 'srclen' jschars. The buffer is NOT null-terminated.
  */
-extern bool
-InflateStringToBuffer(JSContext *cx, const char *bytes, size_t length,
-                      jschar *chars, size_t *charsLength);
+inline void
+InflateStringToBuffer(const char *src, size_t srclen, jschar *dst)
+{
+    for (size_t i = 0; i < srclen; i++)
+        dst[i] = (unsigned char) src[i];
+}
 
 extern bool
 InflateUTF8StringToBuffer(JSContext *cx, const char *bytes, size_t length,

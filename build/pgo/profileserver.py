@@ -52,7 +52,6 @@ if __name__ == '__main__':
                              locations=locations)
 
     env = os.environ.copy()
-    env["MOZ_CRASHREPORTER_NO_REPORT"] = "1"
     env["XPCOM_DEBUG_BREAK"] = "warn"
     jarlog = os.getenv("JARLOG_FILE")
     if jarlog:

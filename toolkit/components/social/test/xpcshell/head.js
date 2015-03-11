@@ -37,16 +37,8 @@ function createAppInfo(id, name, version, platformVersion) {
       // Do nothing
     },
 
-    // nsICrashReporter
-    annotations: {},
-
-    annotateCrashReport: function(key, data) {
-      this.annotations[key] = data;
-    },
-
     QueryInterface: XPCOMUtils.generateQI([Ci.nsIXULAppInfo,
                                            Ci.nsIXULRuntime,
-                                           Ci.nsICrashReporter,
                                            Ci.nsISupports])
   };
 

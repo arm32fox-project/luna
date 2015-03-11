@@ -36,8 +36,6 @@
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
 
-#include "gfxCrashReporterUtils.h"
-
 #include "GeckoProfiler.h"
 
 #ifdef MOZ_WIDGET_ANDROID

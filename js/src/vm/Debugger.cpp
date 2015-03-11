@@ -2606,10 +2606,12 @@ JSBool
 Debugger::findAllGlobals(JSContext *cx, unsigned argc, Value *vp)
 {
     THIS_DEBUGGER(cx, argc, vp, "findAllGlobals", args, dbg);
-
-    RootedObject result(cx, NewDenseEmptyArray(cx));
-    if (!result)
-        return false;
+    
+    AutoObjectVector globals(cx);
+    
+    // Accumulate the list of globals before wrapping them, because
+    // wrapping can GC and collect compartments out from under us
+    // while iterating.
 
     for (CompartmentsIter c(cx->runtime()); !c.done(); c.next()) {
         c->zone()->scheduledForDestruction = false;
@@ -2622,13 +2624,21 @@ Debugger::findAllGlobals(JSContext *cx, unsigned argc, Value *vp)
              * we need to mark it black.
              */
             JS::ExposeGCThingToActiveJS(global, JSTRACE_OBJECT);
-
-            RootedValue globalValue(cx, ObjectValue(*global));
-            if (!dbg->wrapDebuggeeValue(cx, &globalValue))
-                return false;
-            if (!js_NewbornArrayPush(cx, result, globalValue))
+            if (!globals.append(global))
                 return false;
         }
+    }
+
+    RootedObject result(cx, NewDenseEmptyArray(cx));
+    if (!result)
+        return false;
+
+    for (size_t i = 0; i < globals.length(); i++) {
+        RootedValue globalValue(cx, ObjectValue(*globals[i]));
+        if (!dbg->wrapDebuggeeValue(cx, &globalValue))
+            return false;
+        if (!js_NewbornArrayPush(cx, result, globalValue))
+            return false;
     }
 
     args.rval().setObject(*result);

@@ -1314,6 +1314,9 @@ private:
     NodeHandlingClick,
     // Set if the node has had :hover selectors matched against it
     NodeHasRelevantHoverRules,
+    // Set if the element has a parser insertion mode other than "in body"
+    // See: HTML5 draft "parser state" section
+    ElementInsertsOOB,
     // Guard value
     BooleanFlagCount
   };
@@ -1450,6 +1453,7 @@ public:
   bool IsScopedStyleRoot() { return GetBoolFlag(ElementIsScopedStyleRoot); }
   bool HasRelevantHoverRules() const { return GetBoolFlag(NodeHasRelevantHoverRules); }
   void SetHasRelevantHoverRules() { SetBoolFlag(NodeHasRelevantHoverRules); }
+  bool HasOOBInsertion() const { return GetBoolFlag(ElementInsertsOOB); }
 protected:
   void SetParentIsContent(bool aValue) { SetBoolFlag(ParentIsContent, aValue); }
   void SetInDocument() { SetBoolFlag(IsInDocument); }
@@ -1472,6 +1476,7 @@ protected:
   bool HandlingClick() const { return GetBoolFlag(NodeHandlingClick); }
   void SetHandlingClick() { SetBoolFlag(NodeHandlingClick); }
   void ClearHandlingClick() { ClearBoolFlag(NodeHandlingClick); }
+  void SetElementInsertsOOB() { SetBoolFlag(ElementInsertsOOB); }
 
   void SetSubtreeRootPointer(nsINode* aSubtreeRoot)
   {

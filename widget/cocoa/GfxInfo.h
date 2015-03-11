@@ -67,7 +67,6 @@ protected:
 private:
 
   void GetDeviceInfo();
-  void AddCrashReportAnnotations();
   nsString mRendererIDsString;
   nsString mAdapterRAMString;
 

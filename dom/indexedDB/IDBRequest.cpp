@@ -27,10 +27,6 @@
 
 namespace {
 
-#ifdef MOZ_ENABLE_PROFILER_SPS
-uint64_t gNextSerialNumber = 1;
-#endif
-
 } // anonymous namespace
 
 USING_INDEXEDDB_NAMESPACE
@@ -38,9 +34,6 @@ USING_INDEXEDDB_NAMESPACE
 IDBRequest::IDBRequest()
 : mResultVal(JSVAL_VOID),
   mActorParent(nullptr),
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  mSerialNumber(gNextSerialNumber++),
-#endif
   mErrorCode(NS_OK),
   mLineNo(0),
   mHaveResultOrErrorCode(false)

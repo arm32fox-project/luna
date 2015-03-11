@@ -280,9 +280,6 @@
 @BINPATH@/components/pref.xpt
 @BINPATH@/components/prefetch.xpt
 @BINPATH@/components/profile.xpt
-#ifdef MOZ_ENABLE_PROFILER_SPS
-@BINPATH@/components/profiler.xpt
-#endif
 @BINPATH@/components/rdf.xpt
 @BINPATH@/components/satchel.xpt
 @BINPATH@/components/saxparser.xpt
@@ -713,24 +710,6 @@ bin/libfreebl_32int64_3.so
 #ifdef MOZ_MAINTENANCE_SERVICE
 @BINPATH@/maintenanceservice.exe
 @BINPATH@/maintenanceservice_installer.exe
-#endif
-
-; [Crash Reporter]
-;
-#ifdef MOZ_CRASHREPORTER
-#ifdef XP_MACOSX
-@BINPATH@/crashreporter.app/
-#else
-@BINPATH@/crashreporter@BIN_SUFFIX@
-@BINPATH@/crashreporter.ini
-#ifdef XP_UNIX
-@BINPATH@/Throbber-small.gif
-#endif
-#endif
-@BINPATH@/browser/crashreporter-override.ini
-#ifdef MOZ_CRASHREPORTER_INJECTOR
-@BINPATH@/breakpadinjector.dll
-#endif
 #endif
 
 #ifdef MOZ_WEBAPP_RUNTIME

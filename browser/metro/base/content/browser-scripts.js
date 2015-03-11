@@ -78,11 +78,6 @@ XPCOMUtils.defineLazyServiceGetter(window, "gFaviconService",
 XPCOMUtils.defineLazyServiceGetter(window, "gFocusManager",
                                    "@mozilla.org/focus-manager;1",
                                    "nsIFocusManager");
-#ifdef MOZ_CRASHREPORTER
-XPCOMUtils.defineLazyServiceGetter(this, "CrashReporter",
-                                   "@mozilla.org/xre/app-info;1",
-                                   "nsICrashReporter");
-#endif
 
 /*
  * window.Rect is used by
