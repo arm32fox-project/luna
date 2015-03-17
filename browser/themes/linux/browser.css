@@ -1077,11 +1077,13 @@ toolbar[iconsize="small"] #webrtc-status-button {
   box-shadow: inset 0 0 2px rgb(168,0,0);
 }
 
-#urlbar[https_color="y"][security_level="high"] {
+#urlbar[https_color="y"][security_level="high"],
+#urlbar[https_color="p"][security_level="high"] {
   box-shadow: inset 0 0 2px rgb(0,79,168);
 }
 
-#urlbar[https_color="y"][security_level="ev"] {
+#urlbar[https_color="y"][security_level="ev"],
+#urlbar[https_color="p"][security_level="ev"] {
   box-shadow: inset 0 0 2px rgb(0,168,0);
 }
 
@@ -1091,12 +1093,16 @@ toolbar[iconsize="small"] #webrtc-status-button {
 }
 
 #urlbar[https_color="y"][security_level="high"]:-moz-lwtheme-brighttext,
-#urlbar[https_color="y"][security_level="high"]:not(:-moz-lwtheme) {
+#urlbar[https_color="y"][security_level="high"]:not(:-moz-lwtheme),
+#urlbar[https_color="p"][security_level="high"]:-moz-lwtheme-brighttext,
+#urlbar[https_color="p"][security_level="high"]:not(:-moz-lwtheme) {
   box-shadow: inset 0 0 4px rgb(0,79,168);
 }
 
 #urlbar[https_color="y"][security_level="ev"]:-moz-lwtheme-brighttext,
-#urlbar[https_color="y"][security_level="ev"]:not(:-moz-lwtheme) {
+#urlbar[https_color="y"][security_level="ev"]:not(:-moz-lwtheme),
+#urlbar[https_color="p"][security_level="ev"]:-moz-lwtheme-brighttext,
+#urlbar[https_color="p"][security_level="ev"]:not(:-moz-lwtheme) {
   box-shadow: inset 0 0 4px rgb(0,168,0);
 }
 

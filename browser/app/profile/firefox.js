@@ -1268,10 +1268,11 @@ pref("browser.padlock.shown", true);
    2 = inside identity button, left side
    3 = urlbar, right side (next to bookmark star)
    4 = statusbar
-   5 = tabs bar, right side */
+   5 = tabs bar, right side 
+   6-10 = same locations, classic style padlock */
 pref("browser.padlock.style", 1);
-// address bar border, 0 = no border, 1 = border
-pref("browser.padlock.urlbar_background", 1);
+// address bar border, 0 = no border, 1 = border, 2 = border only on secure sites
+pref("browser.padlock.urlbar_background", 2);
 
 //Pale Moon standalone image background color
 pref("browser.display.standalone_images.background_color", "#2E3B41");

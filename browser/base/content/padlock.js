@@ -159,7 +159,10 @@ var padlock_PadLock =
 
     var colshow;
     var colprefval = padlock_PadLock.prefbranch.getIntPref("urlbar_background");
-    if (colprefval == 1) {
+    if (colprefval == 2) {
+      colshow = "p";
+    } 
+    else if (colprefval == 1) {
       colshow = "y";
     }
     else { // 0 or anything else_ default
