@@ -84,7 +84,8 @@ var padlock_PadLock =
     },
   setPadlockLevel: function(item, level) {
     let secbut = document.getElementById(item);
-
+    var sectooltip = "";
+    
     if (level) {
       secbut.setAttribute("level", level);
       secbut.hidden = false;
@@ -93,7 +94,26 @@ var padlock_PadLock =
       secbut.removeAttribute("level");
     }
     
-    secbut.setAttribute("tooltiptext", level);
+    switch (level) {
+      case "ev":
+        sectooltip = "Extended Validated";
+        break;
+      case "high":
+        sectooltip = "Secure";
+        break;
+      case "low":
+        sectooltip = "Weak security";
+        break;
+      case "mixed":
+        sectooltip = "Mixed mode (partially encrypted)";
+        break;
+      case "broken":
+        sectooltip = "Not secure";
+        break;
+      default:
+        sectooltip = "";
+    }
+    secbut.setAttribute("tooltiptext", sectooltip);
   },
   prefbranch : null,
   onLoad: function() {
