@@ -20,7 +20,8 @@
   background-color: transparent;
 }
 
-#padlock-ib[padshow="ib-trans-bg"][level="low"] {
+#padlock-ib[padshow="ib-trans-bg"][level="low"],
+#padlock-ib[padshow="ib-trans-bg"][level="mixed"] {
   list-style-image: url("chrome://browser/content/padlock_mod_low.png");
   background-color: transparent;
 }
@@ -54,7 +55,8 @@
   background-color: transparent;
 }
 
-#padlock-ib-left[padshow="ib-left"][level="low"] {
+#padlock-ib-left[padshow="ib-left"][level="low"],
+#padlock-ib-left[padshow="ib-left"][level="mixed"] {
   list-style-image: url("chrome://browser/content/padlock_mod_low.png");
   padding: 2px;
   background-color: transparent;
@@ -88,7 +90,8 @@
   background-color: transparent;
 }
 
-#padlock-ub-right[padshow="ub-right"][level="low"] {
+#padlock-ub-right[padshow="ub-right"][level="low"],
+#padlock-ub-right[padshow="ub-right"][level="mixed"] {
   list-style-image: url("chrome://browser/content/padlock_mod_low.png");
   background-color: transparent;
 }
@@ -114,7 +117,8 @@
   background-color: transparent;
 }
 
-#padlock-sb[padshow="statbar"][level="low"] {
+#padlock-sb[padshow="statbar"][level="low"],
+#padlock-sb[padshow="statbar"][level="mixed"] {
   list-style-image: url("chrome://browser/content/padlock_mod_low.png");
   background-color: transparent;
 }
@@ -140,7 +144,8 @@
   background-color: transparent;
 }
 
-#padlock-tab[padshow="tabs-bar"][level="low"] {
+#padlock-tab[padshow="tabs-bar"][level="low"],
+#padlock-tab[padshow="tabs-bar"][level="mixed"] {
   list-style-image: url("chrome://browser/content/padlock_mod_low.png");
   background-color: transparent;
 }
@@ -171,7 +176,12 @@
 #padlock-ib-left[padshow="ib-left"][padstyle="classic"][level="low"],
 #padlock-ub-right[padshow="ub-right"][padstyle="classic"][level="low"],
 #padlock-sb[padshow="statbar"][padstyle="classic"][level="low"],
-#padlock-tab[padshow="tabs-bar"][padstyle="classic"][level="low"] {
+#padlock-tab[padshow="tabs-bar"][padstyle="classic"][level="low"],
+#padlock-ib[padshow="ib-trans-bg"][padstyle="classic"][level="mixed"],
+#padlock-ib-left[padshow="ib-left"][padstyle="classic"][level="mixed"],
+#padlock-ub-right[padshow="ub-right"][padstyle="classic"][level="mixed"],
+#padlock-sb[padshow="statbar"][padstyle="classic"][level="mixed"],
+#padlock-tab[padshow="tabs-bar"][padstyle="classic"][level="mixed"] {
   list-style-image: url("chrome://browser/content/padlock_classic_https.png");
 }
 

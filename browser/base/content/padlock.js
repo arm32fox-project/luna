@@ -46,6 +46,10 @@ var padlock_PadLock =
             level = "low";
             is_insecure = "insecure";
             break;
+          case wpl.STATE_IS_BROKEN | wpl.STATE_SECURE_LOW:
+            level = "mixed";
+            is_insecure = "insecure";
+            break;
           case wpl.STATE_IS_BROKEN:
             level = "broken";
             is_insecure = "insecure";
