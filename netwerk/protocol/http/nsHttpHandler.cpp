@@ -87,11 +87,6 @@ static NS_DEFINE_CID(kSocketProviderServiceCID, NS_SOCKETPROVIDERSERVICE_CID);
 #define BROWSER_PREF_PREFIX     "browser.cache."
 #define DONOTTRACK_HEADER_ENABLED "privacy.donottrackheader.enabled"
 #define DONOTTRACK_HEADER_VALUE   "privacy.donottrackheader.value"
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-#define TELEMETRY_ENABLED        "toolkit.telemetry.enabledPreRelease"
-#else
-#define TELEMETRY_ENABLED        "toolkit.telemetry.enabled"
-#endif
 #define ALLOW_EXPERIMENTS        "network.allow-experiments"
 
 #define UA_PREF(_pref) UA_PREF_PREFIX _pref
@@ -261,7 +256,6 @@ nsHttpHandler::Init()
         prefBranch->AddObserver(BROWSER_PREF("disk_cache_ssl"), this, true);
         prefBranch->AddObserver(DONOTTRACK_HEADER_ENABLED, this, true);
         prefBranch->AddObserver(DONOTTRACK_HEADER_VALUE, this, true);
-        prefBranch->AddObserver(TELEMETRY_ENABLED, this, true);
 
         PrefsChanged(prefBranch, nullptr);
     }
@@ -1264,19 +1258,6 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
     // toggle to true anytime a token bucket related pref is changed.. that
     // includes telemetry and allow-experiments because of the abtest profile
     bool requestTokenBucketUpdated = false;
-
-    //
-    // Telemetry
-    //
-
-    if (PREF_CHANGED(TELEMETRY_ENABLED)) {
-        cVar = false;
-        requestTokenBucketUpdated = true;
-        rv = prefs->GetBoolPref(TELEMETRY_ENABLED, &cVar);
-        if (NS_SUCCEEDED(rv)) {
-            mTelemetryEnabled = cVar;
-        }
-    }
 
     //
     // network.allow-experiments

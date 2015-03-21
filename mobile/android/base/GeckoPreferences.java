@@ -277,11 +277,6 @@ public class GeckoPreferences
                     preferences.removePreference(pref);
                     i--;
                     continue;
-                } else if (!AppConstants.MOZ_TELEMETRY_REPORTING &&
-                           PREFS_TELEMETRY_ENABLED.equals(key)) {
-                    preferences.removePreference(pref);
-                    i--;
-                    continue;
                 } else if (!AppConstants.MOZ_SERVICES_HEALTHREPORT &&
                            (PREFS_HEALTHREPORT_UPLOAD_ENABLED.equals(key) ||
                             PREFS_HEALTHREPORT_LINK.equals(key))) {

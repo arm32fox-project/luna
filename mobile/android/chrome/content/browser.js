@@ -327,9 +327,6 @@ var BrowserApp = {
     ExternalApps.init();
     Distribution.init();
     Tabs.init();
-#ifdef MOZ_TELEMETRY_REPORTING
-    Telemetry.init();
-#endif
 #ifdef ACCESSIBILITY
     AccessFu.attach(window);
 #endif
@@ -637,9 +634,6 @@ var BrowserApp = {
     ExternalApps.uninit();
     Distribution.uninit();
     Tabs.uninit();
-#ifdef MOZ_TELEMETRY_REPORTING
-    Telemetry.uninit();
-#endif
   },
 
   // This function returns false during periods where the browser displayed document is
@@ -1036,16 +1030,6 @@ var BrowserApp = {
 
       // Pref name translation.
       switch (prefName) {
-#ifdef MOZ_TELEMETRY_REPORTING
-        // Telemetry pref differs based on build.
-        case Telemetry.SHARED_PREF_TELEMETRY_ENABLED:
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-          prefName = "toolkit.telemetry.enabledPreRelease";
-#else
-          prefName = "toolkit.telemetry.enabled";
-#endif
-          break;
-#endif
       }
 
       try {
@@ -1177,16 +1161,6 @@ var BrowserApp = {
 
     // Pref name translation.
     switch (json.name) {
-#ifdef MOZ_TELEMETRY_REPORTING
-      // Telemetry pref differs based on build.
-      case Telemetry.SHARED_PREF_TELEMETRY_ENABLED:
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-        json.name = "toolkit.telemetry.enabledPreRelease";
-#else
-        json.name = "toolkit.telemetry.enabled";
-#endif
-        break;
-#endif
     }
 
     switch (json.type) {
@@ -5100,16 +5074,7 @@ var FormAssistant = {
  */
 let HealthReportStatusListener = {
   TELEMETRY_PREF: 
-#ifdef MOZ_TELEMETRY_REPORTING
-    // Telemetry pref differs based on build.
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-    "toolkit.telemetry.enabledPreRelease",
-#else
-    "toolkit.telemetry.enabled",
-#endif
-#else
     null,
-#endif
 
   init: function () {
     try {

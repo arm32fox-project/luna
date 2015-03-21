@@ -59,16 +59,6 @@
 
       <!-- Data Choices tab -->
 
-#ifdef MOZ_TELEMETRY_REPORTING
-      <preference id="toolkit.telemetry.enabled"
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-                  name="toolkit.telemetry.enabledPreRelease"
-#else
-                  name="toolkit.telemetry.enabled"
-#endif
-                  type="bool"/>
-#endif
-
       <!-- Network tab -->
       <preference id="browser.cache.disk.capacity"     name="browser.cache.disk.capacity"     type="int"/>
       <preference id="browser.offline-apps.notify"     name="browser.offline-apps.notify"     type="bool"/>
@@ -221,23 +211,6 @@
 #ifdef MOZ_DATA_REPORTING
         <!-- Data Choices -->
         <tabpanel id="dataChoicesPanel" orient="vertical">
-#ifdef MOZ_TELEMETRY_REPORTING
-          <groupbox>
-            <caption label="&telemetrySection.label;"/>
-            <description>&telemetryDesc.label;</description>
-            <hbox>
-              <checkbox id="submitTelemetryBox"
-                        preference="toolkit.telemetry.enabled"
-                        label="&enableTelemetry.label;"
-                        accesskey="&enableTelemetry.accesskey;"/>
-              <spacer flex="1"/>
-              <label id="telemetryLearnMore"
-                     class="text-link"
-                     value="&telemetryLearnMore.label;"
-                     onclick="gAdvancedPane.openTextLink(event)"/>
-            </hbox>
-          </groupbox>
-#endif
 #ifdef MOZ_SERVICES_HEALTHREPORT
           <groupbox>
             <caption label="&healthReportSection.label;"/>
