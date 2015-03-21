@@ -335,9 +335,6 @@ nsUrlClassifierDBServiceWorker::HandlePendingLookups()
       MutexAutoUnlock unlock(mPendingLookupLock);
       DoLookup(lookup.mKey, lookup.mCallback);
     }
-    double lookupTime = (TimeStamp::Now() - lookup.mStartTime).ToMilliseconds();
-    Telemetry::Accumulate(Telemetry::URLCLASSIFIER_LOOKUP_TIME,
-                          static_cast<uint32_t>(lookupTime));
   }
 
   return NS_OK;

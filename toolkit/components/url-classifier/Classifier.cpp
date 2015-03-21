@@ -199,8 +199,6 @@ Classifier::TableRequest(nsACString& aResult)
 nsresult
 Classifier::Check(const nsACString& aSpec, LookupResultArray& aResults)
 {
-  Telemetry::AutoTimer<Telemetry::URLCLASSIFIER_CL_CHECK_TIME> timer;
-
   // Get the set of fragments to look up.
   nsTArray<nsCString> fragments;
   nsresult rv = LookupCache::GetLookupFragments(aSpec, &fragments);
@@ -278,8 +276,6 @@ Classifier::Check(const nsACString& aSpec, LookupResultArray& aResults)
 nsresult
 Classifier::ApplyUpdates(nsTArray<TableUpdate*>* aUpdates)
 {
-  Telemetry::AutoTimer<Telemetry::URLCLASSIFIER_CL_UPDATE_TIME> timer;
-
 #if defined(PR_LOGGING)
   PRIntervalTime clockStart = 0;
   if (LOG_ENABLED() || true) {

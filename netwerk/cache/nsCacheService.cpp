@@ -1162,7 +1162,6 @@ nsCacheService::Shutdown()
     }
 
     nsCOMPtr<nsIThread> cacheIOThread;
-    Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_SHUTDOWN> totalTimer;
 
     bool shouldSanitize = false;
     nsCOMPtr<nsIFile> parentDir;
@@ -1234,10 +1233,8 @@ nsCacheService::Shutdown()
             if (NS_SUCCEEDED(parentDir->Exists(&exists)) && exists)
                 nsDeleteDir::DeleteDir(parentDir, false);
         }
-        Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_SHUTDOWN_CLEAR_PRIVATE> timer;
         nsDeleteDir::Shutdown(shouldSanitize);
     } else {
-        Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_DELETEDIR_SHUTDOWN> timer;
         nsDeleteDir::Shutdown(shouldSanitize);
     }
 }
@@ -2074,7 +2071,6 @@ nsCacheService::ActivateEntry(nsCacheRequest * request,
 nsCacheEntry *
 nsCacheService::SearchCacheDevices(nsCString * key, nsCacheStoragePolicy policy, bool *collision)
 {
-    Telemetry::AutoTimer<Telemetry::CACHE_DEVICE_SEARCH_2> timer;
     nsCacheEntry * entry = nullptr;
 
     MOZ_EVENT_TRACER_NAME_OBJECT(key, key->BeginReading());
@@ -2546,17 +2542,6 @@ nsCacheService::LockReleased()
 void
 nsCacheService::Lock(mozilla::Telemetry::ID mainThreadLockerID)
 {
-    mozilla::Telemetry::ID lockerID;
-    mozilla::Telemetry::ID generalID;
-
-    if (NS_IsMainThread()) {
-        lockerID = mainThreadLockerID;
-        generalID = mozilla::Telemetry::CACHE_SERVICE_LOCK_WAIT_MAINTHREAD_2;
-    } else {
-        lockerID = mozilla::Telemetry::HistogramCount;
-        generalID = mozilla::Telemetry::CACHE_SERVICE_LOCK_WAIT_2;
-    }
-
     TimeStamp start(TimeStamp::Now());
     MOZ_EVENT_TRACER_WAIT(nsCacheService::gService, "net::cache::lock");
 
@@ -2565,13 +2550,6 @@ nsCacheService::Lock(mozilla::Telemetry::ID mainThreadLockerID)
 
     TimeStamp stop(TimeStamp::Now());
     MOZ_EVENT_TRACER_EXEC(nsCacheService::gService, "net::cache::lock");
-
-    // Telemetry isn't thread safe on its own, but this is OK because we're
-    // protecting it with the cache lock. 
-    if (lockerID != mozilla::Telemetry::HistogramCount) {
-        mozilla::Telemetry::AccumulateTimeDelta(lockerID, start, stop);
-    }
-    mozilla::Telemetry::AccumulateTimeDelta(generalID, start, stop);
 }
 
 void

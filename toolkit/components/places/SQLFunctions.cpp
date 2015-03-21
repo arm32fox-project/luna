@@ -449,8 +449,6 @@ namespace places {
     NS_ENSURE_SUCCESS(rv, rv);
     NS_ASSERTION(numEntries > 0, "unexpected number of arguments");
 
-    Telemetry::AutoTimer<Telemetry::PLACES_FRECENCY_CALC_TIME_MS> timer;
-
     int64_t pageId = aArguments->AsInt64(0);
     int32_t typed = numEntries > 1 ? aArguments->AsInt32(1) : 0;
     int32_t fullVisitCount = numEntries > 2 ? aArguments->AsInt32(2) : 0;

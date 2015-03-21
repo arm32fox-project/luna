@@ -195,7 +195,6 @@ gfxPlatformFontList::InitOtherFamilyNames()
 {
     mOtherFamilyNamesInitialized = true;
 
-    Telemetry::AutoTimer<Telemetry::FONTLIST_INITOTHERFAMILYNAMES> timer;
     // iterate over all font families and read in other family names
     mFontFamilies.Enumerate(gfxPlatformFontList::InitOtherFamilyNamesProc, this);
 }
@@ -216,7 +215,6 @@ gfxPlatformFontList::InitFaceNameLists()
     mFaceNamesInitialized = true;
 
     // iterate over all font families and read in other family names
-    Telemetry::AutoTimer<Telemetry::FONTLIST_INITFACENAMELISTS> timer;
     mFontFamilies.Enumerate(gfxPlatformFontList::InitFaceNameListsProc, this);
 }
 
@@ -442,19 +440,6 @@ gfxPlatformFontList::SystemFindFontForChar(const uint32_t aCh,
         mReplacementCharFallbackFamily = fallbackFamily;
     }
  
-    // track system fallback time
-    static bool first = true;
-    int32_t intElapsed = int32_t(first ? elapsed.ToMilliseconds() :
-                                         elapsed.ToMicroseconds());
-    Telemetry::Accumulate((first ? Telemetry::SYSTEM_FONT_FALLBACK_FIRST :
-                                   Telemetry::SYSTEM_FONT_FALLBACK),
-                          intElapsed);
-    first = false;
-
-    // track the script for which fallback occurred (incremented one make it
-    // 1-based)
-    Telemetry::Accumulate(Telemetry::SYSTEM_FONT_FALLBACK_SCRIPT, aRunScript + 1);
-
     return fontEntry;
 }
 

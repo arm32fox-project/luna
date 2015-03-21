@@ -88,18 +88,12 @@ nsHttpConnection::~nsHttpConnection()
     if (!mEverUsedSpdy) {
         LOG(("nsHttpConnection %p performed %d HTTP/1.x transactions\n",
              this, mHttp1xTransactionCount));
-        Telemetry::Accumulate(Telemetry::HTTP_REQUEST_PER_CONN,
-                              mHttp1xTransactionCount);
     }
 
     if (mTotalBytesRead) {
         uint32_t totalKBRead = static_cast<uint32_t>(mTotalBytesRead >> 10);
         LOG(("nsHttpConnection %p read %dkb on connection spdy=%d\n",
              this, totalKBRead, mEverUsedSpdy));
-        Telemetry::Accumulate(mEverUsedSpdy ?
-                              Telemetry::SPDY_KBREAD_PER_CONN :
-                              Telemetry::HTTP_KBREAD_PER_CONN,
-                              totalKBRead);
     }
 }
 
@@ -289,8 +283,6 @@ nsHttpConnection::EnsureNPNComplete()
                                                       &spdyVersion);
     if (NS_SUCCEEDED(rv))
         StartSpdy(spdyVersion);
-
-    Telemetry::Accumulate(Telemetry::SPDY_NPN_CONNECT, UsingSpdy());
 
 npnComplete:
     LOG(("nsHttpConnection::EnsureNPNComplete setting complete to true"));

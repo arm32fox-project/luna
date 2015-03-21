@@ -144,10 +144,6 @@ SpdySession3::~SpdySession3()
   deflateEnd(&mUpstreamZlib);
 
   mStreamTransactionHash.Enumerate(ShutdownEnumerator, this);
-  Telemetry::Accumulate(Telemetry::SPDY_PARALLEL_STREAMS, mConcurrentHighWater);
-  Telemetry::Accumulate(Telemetry::SPDY_REQUEST_PER_CONN, (mNextStreamID - 1) / 2);
-  Telemetry::Accumulate(Telemetry::SPDY_SERVER_INITIATED_STREAMS,
-                        mServerPushedResources);
 }
 
 void
@@ -1357,20 +1353,16 @@ SpdySession3::HandleSettings(SpdySession3 *self)
     switch (id)
     {
     case SETTINGS_TYPE_UPLOAD_BW:
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_UL_BW, value);
       break;
 
     case SETTINGS_TYPE_DOWNLOAD_BW:
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_DL_BW, value);
       break;
 
     case SETTINGS_TYPE_RTT:
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_RTT, value);
       break;
 
     case SETTINGS_TYPE_MAX_CONCURRENT:
       self->mMaxConcurrent = value;
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_MAX_STREAMS, value);
       break;
 
     case SETTINGS_TYPE_CWND:
@@ -1381,15 +1373,12 @@ SpdySession3::HandleSettings(SpdySession3 *self)
         if (ci)
           gHttpHandler->ConnMgr()->ReportSpdyCWNDSetting(ci, value);
       }
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_CWND, value);
       break;
 
     case SETTINGS_TYPE_DOWNLOAD_RETRANS_RATE:
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_RETRANS, value);
       break;
 
     case SETTINGS_TYPE_INITIAL_WINDOW:
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_IW, value >> 10);
       {
         int32_t delta = value - self->mServerInitialWindow;
         self->mServerInitialWindow = value;
@@ -1938,8 +1927,6 @@ SpdySession3::WriteSegments(nsAHttpSegmentWriter *writer,
     else {
       ChangeDownstreamState(PROCESSING_DATA_FRAME);
 
-      Telemetry::Accumulate(Telemetry::SPDY_CHUNK_RECVD,
-                            mInputFrameDataSize >> 10);
       mLastDataReadEpoch = mLastReadEpoch;
 
       uint32_t streamID =

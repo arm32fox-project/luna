@@ -2443,51 +2443,37 @@ JSMemoryMultiReporter::CollectReports(WindowPaths *windowPaths,
 static void
 AccumulateTelemetryCallback(int id, uint32_t sample)
 {
+// Telemetry stub
     switch (id) {
       case JS_TELEMETRY_GC_REASON:
-        Telemetry::Accumulate(Telemetry::GC_REASON_2, sample);
         break;
       case JS_TELEMETRY_GC_IS_COMPARTMENTAL:
-        Telemetry::Accumulate(Telemetry::GC_IS_COMPARTMENTAL, sample);
         break;
       case JS_TELEMETRY_GC_MS:
-        Telemetry::Accumulate(Telemetry::GC_MS, sample);
         break;
       case JS_TELEMETRY_GC_MAX_PAUSE_MS:
-        Telemetry::Accumulate(Telemetry::GC_MAX_PAUSE_MS, sample);
         break;
       case JS_TELEMETRY_GC_MARK_MS:
-        Telemetry::Accumulate(Telemetry::GC_MARK_MS, sample);
         break;
       case JS_TELEMETRY_GC_SWEEP_MS:
-        Telemetry::Accumulate(Telemetry::GC_SWEEP_MS, sample);
         break;
       case JS_TELEMETRY_GC_MARK_ROOTS_MS:
-        Telemetry::Accumulate(Telemetry::GC_MARK_ROOTS_MS, sample);
         break;
       case JS_TELEMETRY_GC_MARK_GRAY_MS:
-        Telemetry::Accumulate(Telemetry::GC_MARK_GRAY_MS, sample);
         break;
       case JS_TELEMETRY_GC_SLICE_MS:
-        Telemetry::Accumulate(Telemetry::GC_SLICE_MS, sample);
         break;
       case JS_TELEMETRY_GC_MMU_50:
-        Telemetry::Accumulate(Telemetry::GC_MMU_50, sample);
         break;
       case JS_TELEMETRY_GC_RESET:
-        Telemetry::Accumulate(Telemetry::GC_RESET, sample);
         break;
       case JS_TELEMETRY_GC_INCREMENTAL_DISABLED:
-        Telemetry::Accumulate(Telemetry::GC_INCREMENTAL_DISABLED, sample);
         break;
       case JS_TELEMETRY_GC_NON_INCREMENTAL:
-        Telemetry::Accumulate(Telemetry::GC_NON_INCREMENTAL, sample);
         break;
       case JS_TELEMETRY_GC_SCC_SWEEP_TOTAL_MS:
-        Telemetry::Accumulate(Telemetry::GC_SCC_SWEEP_TOTAL_MS, sample);
         break;
       case JS_TELEMETRY_GC_SCC_SWEEP_MAX_PAUSE_MS:
-        Telemetry::Accumulate(Telemetry::GC_SCC_SWEEP_MAX_PAUSE_MS, sample);
         break;
     }
 }

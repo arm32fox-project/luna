@@ -411,7 +411,6 @@ class GradientCache MOZ_FINAL : public nsExpirationTracker<GradientCacheData,4>
       mHashEntries.Init();
       srand(time(nullptr));
       mTimerPeriod = rand() % MAX_GENERATION_MS + 1;
-      Telemetry::Accumulate(Telemetry::GRADIENT_RETENTION_TIME, mTimerPeriod);
     }
 
     virtual void NotifyExpired(GradientCacheData* aObject)
@@ -2136,7 +2135,6 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
                               const nsRect& aFillArea)
 {
   PROFILER_LABEL("nsCSSRendering", "PaintGradient");
-  Telemetry::AutoTimer<Telemetry::GRADIENT_DURATION, Telemetry::Microsecond> gradientTimer;
   if (aOneCellArea.IsEmpty())
     return;
 

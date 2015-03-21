@@ -204,9 +204,6 @@ nsRange::~nsRange()
 {
   NS_ASSERTION(!IsInSelection(), "deleting nsRange that is in use");
 
-  // Maybe we can remove Detach() -- bug 702948.
-  Telemetry::Accumulate(Telemetry::DOM_RANGE_DETACHED, mIsDetached);
-
   // we want the side effects (releases and list removals)
   DoSetRange(nullptr, 0, nullptr, 0, nullptr);
 } 

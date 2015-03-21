@@ -730,7 +730,6 @@ nsHttpConnectionMgr::GetSpdyPreferredEnt(nsConnectionEntry *aOriginalEntry)
              "with %s connections. rv=%x isJoined=%d",
              preferred->mConnInfo->Host(), aOriginalEntry->mConnInfo->Host(),
              rv, isJoined));
-        Telemetry::Accumulate(Telemetry::SPDY_NPN_JOIN, false);
         return nullptr;
     }
 
@@ -740,7 +739,6 @@ nsHttpConnectionMgr::GetSpdyPreferredEnt(nsConnectionEntry *aOriginalEntry)
          "so %s will be coalesced with %s",
          preferred->mConnInfo->Host(), aOriginalEntry->mConnInfo->Host(),
          aOriginalEntry->mConnInfo->Host(), preferred->mConnInfo->Host()));
-    Telemetry::Accumulate(Telemetry::SPDY_NPN_JOIN, true);
     return preferred;
 }
 
@@ -1423,14 +1421,6 @@ nsHttpConnectionMgr::AddToShortestPipeline(nsConnectionEntry *ent,
         ent->SetYellowConnection(bestConn);
 
     if (!trans->GetPendingTime().IsNull()) {
-        if (trans->UsesPipelining())
-            AccumulateTimeDelta(
-                Telemetry::TRANSACTION_WAIT_TIME_HTTP_PIPELINES,
-                trans->GetPendingTime(), TimeStamp::Now());
-        else
-            AccumulateTimeDelta(
-                Telemetry::TRANSACTION_WAIT_TIME_HTTP,
-                trans->GetPendingTime(), TimeStamp::Now());
         trans->SetPendingTime(false);
     }
     return true;
@@ -1680,8 +1670,6 @@ nsHttpConnectionMgr::DispatchTransaction(nsConnectionEntry *ent,
         rv = conn->Activate(trans, caps, priority);
         MOZ_ASSERT(NS_SUCCEEDED(rv), "SPDY Cannot Fail Dispatch");
         if (NS_SUCCEEDED(rv) && !trans->GetPendingTime().IsNull()) {
-            AccumulateTimeDelta(Telemetry::TRANSACTION_WAIT_TIME_SPDY,
-                trans->GetPendingTime(), TimeStamp::Now());
             trans->SetPendingTime(false);
         }
         return rv;
@@ -1698,12 +1686,6 @@ nsHttpConnectionMgr::DispatchTransaction(nsConnectionEntry *ent,
     rv = DispatchAbstractTransaction(ent, trans, caps, conn, priority);
 
     if (NS_SUCCEEDED(rv) && !trans->GetPendingTime().IsNull()) {
-        if (trans->UsesPipelining())
-            AccumulateTimeDelta(Telemetry::TRANSACTION_WAIT_TIME_HTTP_PIPELINES,
-                trans->GetPendingTime(), TimeStamp::Now());
-        else
-            AccumulateTimeDelta(Telemetry::TRANSACTION_WAIT_TIME_HTTP,
-                trans->GetPendingTime(), TimeStamp::Now());
         trans->SetPendingTime(false);
     }
     return rv;
@@ -1800,14 +1782,12 @@ nsHttpConnectionMgr::BuildPipeline(nsConnectionEntry *ent,
 void
 nsHttpConnectionMgr::ReportProxyTelemetry(nsConnectionEntry *ent)
 {
+// Telemetry stub
     enum { PROXY_NONE = 1, PROXY_HTTP = 2, PROXY_SOCKS = 3 };
 
-    if (!ent->mConnInfo->UsingProxy())
-        Telemetry::Accumulate(Telemetry::HTTP_PROXY_TYPE, PROXY_NONE);
-    else if (ent->mConnInfo->UsingHttpProxy())
-        Telemetry::Accumulate(Telemetry::HTTP_PROXY_TYPE, PROXY_HTTP);
-    else
-        Telemetry::Accumulate(Telemetry::HTTP_PROXY_TYPE, PROXY_SOCKS);
+    if (!ent->mConnInfo->UsingProxy()) {}
+    else if (ent->mConnInfo->UsingHttpProxy()) {}
+    else {}
 }
 
 nsresult

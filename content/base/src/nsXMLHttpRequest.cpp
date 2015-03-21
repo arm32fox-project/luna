@@ -1574,9 +1574,6 @@ nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
 {
   NS_ENSURE_ARG(!method.IsEmpty());
 
-  Telemetry::Accumulate(Telemetry::XMLHTTPREQUEST_ASYNC_OR_SYNC,
-                        async ? 0 : 1);
-
   NS_ENSURE_TRUE(mPrincipal, NS_ERROR_NOT_INITIALIZED);
 
   // Disallow HTTP/1.1 TRACE method (see bug 302489)

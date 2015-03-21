@@ -625,40 +625,6 @@ nsLoadGroup::RemoveRequest(nsIRequest *request, nsISupports* ctxt,
 
     PL_DHashTableRawRemove(&mRequests, entry);
 
-    // Collect telemetry stats only when default request is a timed channel.
-    // Don't include failed requests in the timing statistics.
-    if (mDefaultLoadIsTimed && NS_SUCCEEDED(aStatus)) {
-        nsCOMPtr<nsITimedChannel> timedChannel = do_QueryInterface(request);
-        if (timedChannel) {
-            // Figure out if this request was served from the cache
-            ++mTimedRequests;
-            TimeStamp timeStamp;
-            rv = timedChannel->GetCacheReadStart(&timeStamp);
-            if (NS_SUCCEEDED(rv) && !timeStamp.IsNull()) {
-                ++mCachedRequests;
-            }
-            else {
-                mTimedNonCachedRequestsUntilOnEndPageLoad++;
-            }
-
-            rv = timedChannel->GetAsyncOpen(&timeStamp);
-            if (NS_SUCCEEDED(rv) && !timeStamp.IsNull()) {
-                Telemetry::AccumulateTimeDelta(
-                    Telemetry::HTTP_SUBITEM_OPEN_LATENCY_TIME,
-                    mDefaultRequestCreationTime, timeStamp);
-            }
-
-            rv = timedChannel->GetResponseStart(&timeStamp);
-            if (NS_SUCCEEDED(rv) && !timeStamp.IsNull()) {
-                Telemetry::AccumulateTimeDelta(
-                    Telemetry::HTTP_SUBITEM_FIRST_BYTE_LATENCY_TIME,
-                    mDefaultRequestCreationTime, timeStamp);
-            }
-
-            TelemetryReportChannel(timedChannel, false);
-        }
-    }
-
     if (mRequests.entryCount == 0) {
         TelemetryReport();
     }
@@ -862,7 +828,6 @@ void
 nsLoadGroup::TelemetryReport()
 {
     if (mDefaultLoadIsTimed) {
-        Telemetry::Accumulate(Telemetry::HTTP_REQUEST_PER_PAGE, mTimedRequests);
         if (mTimedRequests) {
             Telemetry::Accumulate(Telemetry::HTTP_REQUEST_PER_PAGE_FROM_CACHE,
                                   mCachedRequests * 100 / mTimedRequests);

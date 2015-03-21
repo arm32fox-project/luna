@@ -2590,20 +2590,12 @@ nsJSContext::CycleCollectNow(nsICycleCollectorListener *aListener,
 
   PRTime endCCTime = PR_Now();
 
-  // Log information about the CC via telemetry, JSON and the console.
+  // Log information about the CC via JSON and the console.
   uint32_t ccNowDuration = TimeBetween(start, endCCTime);
-  Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_FINISH_IGC, finishedIGC);
-  Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_SYNC_SKIPPABLE, ranSyncForgetSkippable);
-  Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_FULL, ccNowDuration);
-
   if (sLastCCEndTime) {
     uint32_t timeBetween = (uint32_t)(start - sLastCCEndTime) / PR_USEC_PER_SEC;
-    Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_TIME_BETWEEN, timeBetween);
   }
   sLastCCEndTime = endCCTime;
-
-  Telemetry::Accumulate(Telemetry::FORGET_SKIPPABLE_MAX,
-                        sMaxForgetSkippableTime / PR_USEC_PER_MSEC);
 
   PRTime delta = GetCollectionTimeDelta();
 

@@ -50,7 +50,6 @@ NS_IMPL_ISUPPORTS1(nsSecurityNameSet, nsIScriptExternalNameSet)
 static JSBool
 netscape_security_enablePrivilege(JSContext *cx, unsigned argc, JS::Value *vp)
 {
-    Telemetry::Accumulate(Telemetry::ENABLE_PRIVILEGE_EVER_CALLED, true);
     return xpc::EnableUniversalXPConnect(cx);
 }
 

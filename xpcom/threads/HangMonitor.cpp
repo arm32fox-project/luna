@@ -249,8 +249,7 @@ NotifyActivity(ActivityType activityType)
     // Mozilla's UI responsiveness goal is 50ms
     static const uint32_t kUIResponsivenessThresholdMS = 50;
     if (cumulativeUILagMS > kUIResponsivenessThresholdMS) {
-      mozilla::Telemetry::Accumulate(mozilla::Telemetry::EVENTLOOP_UI_LAG_EXP_MS,
-                                     cumulativeUILagMS);
+      // Telemetry stub
     }
     cumulativeUILagMS = 0;
   }

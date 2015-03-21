@@ -3168,7 +3168,6 @@ nsObjectLoadingContent::LegacyCall(JSContext* aCx,
     return JS::UndefinedValue();
   }
 
-  Telemetry::Accumulate(Telemetry::PLUGIN_CALLED_DIRECTLY, true);
   return retval;
 }
 

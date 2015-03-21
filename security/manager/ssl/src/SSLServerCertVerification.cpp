@@ -1130,9 +1130,6 @@ SSLServerCertVerificationJob::Run()
       }
 #endif
       MutexAutoLock telemetryMutex(*gSSLVerificationTelemetryMutex);
-      Telemetry::AccumulateTimeDelta(telemetryID,
-                                     mJobStartTime,
-                                     now);
     }
     if (error != 0) {
       RefPtr<CertErrorRunnable> runnable(CreateCertErrorRunnable(
@@ -1401,7 +1398,7 @@ SSLServerCertVerificationResult::Run()
 {
   // TODO: Assert that we're on the socket transport thread
   if (mTelemetryID != Telemetry::HistogramCount) {
-     Telemetry::Accumulate(mTelemetryID, mTelemetryValue);
+  // Telemetry stub
   }
   // XXX: This cast will be removed by the next patch
   ((nsNSSSocketInfo *) mInfoObject.get())

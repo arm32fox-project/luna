@@ -525,7 +525,6 @@ nsIdleService::ResetIdleTimeOut(uint32_t idleDeltaInMS)
   }
 
   // Mark all idle services as non-idle, and calculate the next idle timeout.
-  Telemetry::AutoTimer<Telemetry::IDLE_NOTIFY_BACK_MS> timer;
   nsCOMArray<nsIObserver> notifyList;
   mDeltaToNextIdleSwitchInS = UINT32_MAX;
 
@@ -551,8 +550,6 @@ nsIdleService::ResetIdleTimeOut(uint32_t idleDeltaInMS)
   ReconfigureTimer();
 
   int32_t numberOfPendingNotifications = notifyList.Count();
-  Telemetry::Accumulate(Telemetry::IDLE_NOTIFY_BACK_LISTENERS,
-                        numberOfPendingNotifications);
 
   // Bail if nothing to do.
   if (!numberOfPendingNotifications) {
@@ -701,9 +698,6 @@ nsIdleService::IdleTimerCallback(void)
     return;
   }
 
-  // Tell expired listeners they are expired,and find the next timeout
-  Telemetry::AutoTimer<Telemetry::IDLE_NOTIFY_IDLE_MS> timer;
-
   // We need to initialise the time to the next idle switch.
   mDeltaToNextIdleSwitchInS = UINT32_MAX;
 
@@ -737,8 +731,6 @@ nsIdleService::IdleTimerCallback(void)
   ReconfigureTimer();
 
   int32_t numberOfPendingNotifications = notifyList.Count();
-  Telemetry::Accumulate(Telemetry::IDLE_NOTIFY_IDLE_LISTENERS,
-                        numberOfPendingNotifications);
 
   // Bail if nothing to do.
   if (!numberOfPendingNotifications) {

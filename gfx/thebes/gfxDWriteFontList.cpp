@@ -796,13 +796,10 @@ gfxDWriteFontList::InitFontList()
     }
 
     elapsedTime = (t3.QuadPart - t1.QuadPart) * 1000.0 / frequency.QuadPart;
-    Telemetry::Accumulate(Telemetry::DWRITEFONT_INITFONTLIST_TOTAL, elapsedTime);
     LOG_FONTINIT(("Total time in InitFontList:    %9.3f ms\n", elapsedTime));
     elapsedTime = (t2.QuadPart - t1.QuadPart) * 1000.0 / frequency.QuadPart;
-    Telemetry::Accumulate(Telemetry::DWRITEFONT_INITFONTLIST_INIT, elapsedTime);
     LOG_FONTINIT((" --- gfxPlatformFontList init: %9.3f ms\n", elapsedTime));
     elapsedTime = (t3.QuadPart - t2.QuadPart) * 1000.0 / frequency.QuadPart;
-    Telemetry::Accumulate(Telemetry::DWRITEFONT_INITFONTLIST_GDI, elapsedTime);
     LOG_FONTINIT((" --- GdiInterop object:        %9.3f ms\n", elapsedTime));
 
     return NS_OK;
@@ -1042,21 +1039,15 @@ gfxDWriteFontList::DelayedInitFontList()
     }
 
     elapsedTime = (t3.QuadPart - t1.QuadPart) * 1000.0 / frequency.QuadPart;
-    Telemetry::Accumulate(Telemetry::DWRITEFONT_DELAYEDINITFONTLIST_TOTAL, elapsedTime);
-    Telemetry::Accumulate(Telemetry::DWRITEFONT_DELAYEDINITFONTLIST_COUNT,
-                          systemFonts->GetFontFamilyCount());
-    Telemetry::Accumulate(Telemetry::DWRITEFONT_DELAYEDINITFONTLIST_GDI_TABLE, mGDIFontTableAccess);
     LOG_FONTINIT((
        "Total time in DelayedInitFontList:    %9.3f ms (families: %d, %s)\n",
        elapsedTime, systemFonts->GetFontFamilyCount(),
        (mGDIFontTableAccess ? "gdi table access" : "dwrite table access")));
 
     elapsedTime = (t2.QuadPart - t1.QuadPart) * 1000.0 / frequency.QuadPart;
-    Telemetry::Accumulate(Telemetry::DWRITEFONT_DELAYEDINITFONTLIST_COLLECT, elapsedTime);
     LOG_FONTINIT((" --- GetSystemFontCollection:  %9.3f ms\n", elapsedTime));
 
     elapsedTime = (t3.QuadPart - t2.QuadPart) * 1000.0 / frequency.QuadPart;
-    Telemetry::Accumulate(Telemetry::DWRITEFONT_DELAYEDINITFONTLIST_ITERATE, elapsedTime);
     LOG_FONTINIT((" --- iterate over families:    %9.3f ms\n", elapsedTime));
 
     return NS_OK;
@@ -1422,7 +1413,6 @@ gfxDWriteFontList::GlobalFontFallback(const uint32_t aCh,
             *aMatchedFamily = family;
             return fontEntry;
         }
-        Telemetry::Accumulate(Telemetry::BAD_FALLBACK_FONT, true);
     }
 
     return nullptr;

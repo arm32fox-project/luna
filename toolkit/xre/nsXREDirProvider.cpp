@@ -830,8 +830,6 @@ nsXREDirProvider::DoStartup()
       else
         mode = 2;
     }
-    mozilla::Telemetry::Accumulate(mozilla::Telemetry::SAFE_MODE_USAGE, mode);
-
     obsSvc->NotifyObservers(nullptr, "profile-initial-state", nullptr);
   }
   return NS_OK;

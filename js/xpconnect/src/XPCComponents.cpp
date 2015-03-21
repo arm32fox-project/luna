@@ -4847,9 +4847,6 @@ ContentComponentsGetterOp(JSContext *cx, HandleObject obj, HandleId id,
     if (nsContentUtils::IsCallerXBL())
         return true;
 
-    // Do Telemetry on how often this happens.
-    Telemetry::Accumulate(Telemetry::COMPONENTS_OBJECT_ACCESSED_BY_CONTENT, true);
-
     // Warn once.
     JSAutoCompartment ac(cx, obj);
     nsCOMPtr<nsPIDOMWindow> win =
@@ -4927,12 +4924,6 @@ nsXPCComponents::CanCallMethod(const nsIID * iid, const PRUnichar *methodName, c
 {
     static const char* const allowed[] = { "isSuccessCode", "lookupMethod", nullptr };
     *_retval = xpc_CheckAccessList(methodName, allowed);
-    if (*_retval &&
-        methodName[0] == 'l' &&
-        !nsContentUtils::IsCallerXBL())
-    {
-        Telemetry::Accumulate(Telemetry::COMPONENTS_LOOKUPMETHOD_ACCESSED_BY_CONTENT, true);
-    }
     return NS_OK;
 }
 
@@ -4942,12 +4933,6 @@ nsXPCComponents::CanGetProperty(const nsIID * iid, const PRUnichar *propertyName
 {
     static const char* const allowed[] = { "interfaces", "interfacesByID", "results", nullptr};
     *_retval = xpc_CheckAccessList(propertyName, allowed);
-    if (*_retval &&
-        propertyName[0] == 'i' &&
-        !nsContentUtils::IsCallerXBL())
-    {
-        Telemetry::Accumulate(Telemetry::COMPONENTS_INTERFACES_ACCESSED_BY_CONTENT, true);
-    }
     return NS_OK;
 }
 

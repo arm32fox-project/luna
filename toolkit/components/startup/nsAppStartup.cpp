@@ -662,11 +662,6 @@ nsAppStartup::GetStartupInfo(JSContext* aCx, JS::Value* aRetval)
 
     procTime = TimeStamp::ProcessCreation(error);
 
-    if (error) {
-      Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS,
-        StartupTimeline::PROCESS_CREATION);
-    }
-
     StartupTimeline::Record(StartupTimeline::PROCESS_CREATION, procTime);
   }
 
@@ -681,8 +676,6 @@ nsAppStartup::GetStartupInfo(JSContext* aCx, JS::Value* aRetval)
       // Always define main to aid with bug 689256.
       stamp = procTime;
       MOZ_ASSERT(!stamp.IsNull());
-      Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS,
-        StartupTimeline::MAIN);
     }
 
     if (!stamp.IsNull()) {
@@ -692,8 +685,6 @@ nsAppStartup::GetStartupInfo(JSContext* aCx, JS::Value* aRetval)
         JS::Rooted<JSObject*> date(aCx, JS_NewDateObjectMsec(aCx, prStamp));
         JS_DefineProperty(aCx, obj, StartupTimeline::Describe(ev),
           OBJECT_TO_JSVAL(date), NULL, NULL, JSPROP_ENUMERATE);
-      } else {
-        Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS, ev);
       }
     }
   }
@@ -791,9 +782,6 @@ nsAppStartup::TrackStartupCrashBegin(bool *aIsSafeModeNecessary)
   // sanity check that the pref set at last success is not greater than the current time
   if (PR_Now() / PR_USEC_PER_SEC <= lastSuccessfulStartup)
     return NS_ERROR_FAILURE;
-
-  // The last startup was a crash so include it in the count regardless of when it happened.
-  Telemetry::Accumulate(Telemetry::STARTUP_CRASH_DETECTED, true);
 
   if (inSafeMode) {
     GetAutomaticSafeModeNecessary(aIsSafeModeNecessary);

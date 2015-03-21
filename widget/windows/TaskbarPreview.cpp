@@ -61,7 +61,6 @@ GetRenderingContext(nsIDocShell *shell, gfxASurface *surface,
                     uint32_t width, uint32_t height) {
   if (!gCtx) {
     // create the canvas rendering context
-    Telemetry::Accumulate(Telemetry::CANVAS_2D_USED, 1);
     gCtx = new mozilla::dom::CanvasRenderingContext2D();
     NS_ADDREF(gCtx);
   }

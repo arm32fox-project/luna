@@ -1778,11 +1778,6 @@ PresShell::Initialize(nscoord aWidth, nscoord aHeight)
     }
   }
 
-  if (root && root->IsXUL()) {
-    mozilla::Telemetry::AccumulateTimeDelta(Telemetry::XUL_INITIAL_FRAME_CONSTRUCTION,
-                                            timerStart);
-  }
-
   return NS_OK; //XXX this needs to be real. MMP
 }
 
@@ -8038,20 +8033,6 @@ PresShell::ProcessReflowCommands(bool aInterruptible)
     // waiting we avoid an overeager "jitter" effect.
     mShouldUnsuppressPainting = false;
     UnsuppressAndInvalidate();
-  }
-
-  if (mDocument->GetRootElement()) {
-    Telemetry::ID id;
-    if (mDocument->GetRootElement()->IsXUL()) {
-      id = mIsActive
-        ? Telemetry::XUL_FOREGROUND_REFLOW_MS
-        : Telemetry::XUL_BACKGROUND_REFLOW_MS;
-    } else {
-      id = mIsActive
-        ? Telemetry::HTML_FOREGROUND_REFLOW_MS
-        : Telemetry::HTML_BACKGROUND_REFLOW_MS;
-    }
-    Telemetry::AccumulateTimeDelta(id, timerStart);
   }
 
   return !interrupted;

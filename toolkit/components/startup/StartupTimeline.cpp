@@ -35,8 +35,7 @@ StartupTimelineRecordExternal(int aEvent, uint64_t aWhen)
   // Since the timestamp comes from an external source validate it before
   // recording it and log a telemetry error if it appears inconsistent.
   if (ts < TimeStamp::ProcessCreation(error)) {
-    Telemetry::Accumulate(Telemetry::STARTUP_MEASUREMENT_ERRORS,
-      (StartupTimeline::Event)aEvent);
+    // Telemetry stub
   } else {
     StartupTimeline::Record((StartupTimeline::Event)aEvent, ts);
   }

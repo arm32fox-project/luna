@@ -2218,7 +2218,6 @@ nsCycleCollector::MarkRoots(GCGraphBuilder &builder)
     if (builder.RanOutOfMemory()) {
         NS_ASSERTION(false,
                      "Ran out of memory while building cycle collector graph");
-        Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_OOM, true);
     }
 }
 
@@ -2660,7 +2659,6 @@ nsCycleCollector::FixGrayBits(bool aForceGC)
 
         bool needGC = mJSRuntime->NeedCollect();
         // Only do a telemetry ping for non-shutdown CCs.
-        Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_NEED_GC, needGC);
         if (!needGC)
             return;
         if (mResults)
@@ -2730,10 +2728,6 @@ nsCycleCollector::CleanupAfterCollection()
         mResults->mVisitedGCed = mVisitedGCed;
         mResults = nullptr;
     }
-    Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR, interval);
-    Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_VISITED_REF_COUNTED, mVisitedRefCounted);
-    Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_VISITED_GCED, mVisitedGCed);
-    Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_COLLECTED, mWhiteNodeCount);
 }
 
 void
@@ -2821,7 +2815,6 @@ nsCycleCollector::BeginCollection(ccType aCCType,
                            mergeZones);
     if (!builder.Initialized()) {
         NS_ASSERTION(false, "Failed to initialize GCGraphBuilder, will probably leak.");
-        Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_OOM, true);
         return false;
     }
 

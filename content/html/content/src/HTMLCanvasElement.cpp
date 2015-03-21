@@ -675,7 +675,6 @@ HTMLCanvasElement::GetContextHelper(const nsAString& aContextId,
   NS_ENSURE_ARG(aContext);
 
   if (aContextId.EqualsLiteral("2d")) {
-    Telemetry::Accumulate(Telemetry::CANVAS_2D_USED, 1);
     nsRefPtr<CanvasRenderingContext2D> ctx =
       new CanvasRenderingContext2D();
 

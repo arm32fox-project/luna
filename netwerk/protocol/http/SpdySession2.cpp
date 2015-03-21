@@ -134,10 +134,6 @@ SpdySession2::~SpdySession2()
   deflateEnd(&mUpstreamZlib);
 
   mStreamTransactionHash.Enumerate(ShutdownEnumerator, this);
-  Telemetry::Accumulate(Telemetry::SPDY_PARALLEL_STREAMS, mConcurrentHighWater);
-  Telemetry::Accumulate(Telemetry::SPDY_REQUEST_PER_CONN, (mNextStreamID - 1) / 2);
-  Telemetry::Accumulate(Telemetry::SPDY_SERVER_INITIATED_STREAMS,
-                        mServerPushedResources);
 }
 
 void
@@ -1108,12 +1104,9 @@ SpdySession2::HandleSynReplyForValidStream()
         "fin=%d",
         this, mInputFrameDataStream->StreamID(), mInputFrameDataLast));
 
-  Telemetry::Accumulate(Telemetry::SPDY_SYN_REPLY_SIZE,
-                        mInputFrameDataSize - 6);
   if (mDecompressBufferUsed) {
     uint32_t ratio =
       (mInputFrameDataSize - 6) * 100 / mDecompressBufferUsed;
-    Telemetry::Accumulate(Telemetry::SPDY_SYN_REPLY_RATIO, ratio);
   }
 
   // status and version are required.
@@ -1235,41 +1228,6 @@ SpdySession2::HandleSettings(SpdySession2 *self)
     uint32_t value =  PR_ntohl(reinterpret_cast<uint32_t *>(setting)[1]);
 
     LOG3(("Settings ID %d, Flags %X, Value %d", id, flags, value));
-
-    switch (id)
-    {
-    case SETTINGS_TYPE_UPLOAD_BW:
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_UL_BW, value);
-      break;
-
-    case SETTINGS_TYPE_DOWNLOAD_BW:
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_DL_BW, value);
-      break;
-
-    case SETTINGS_TYPE_RTT:
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_RTT, value);
-      break;
-
-    case SETTINGS_TYPE_MAX_CONCURRENT:
-      self->mMaxConcurrent = value;
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_MAX_STREAMS, value);
-      break;
-
-    case SETTINGS_TYPE_CWND:
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_CWND, value);
-      break;
-
-    case SETTINGS_TYPE_DOWNLOAD_RETRANS_RATE:
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_RETRANS, value);
-      break;
-
-    case SETTINGS_TYPE_INITIAL_WINDOW:
-      Telemetry::Accumulate(Telemetry::SPDY_SETTINGS_IW, value >> 10);
-      break;
-
-    default:
-      break;
-    }
 
   }
 
@@ -1690,8 +1648,6 @@ SpdySession2::WriteSegments(nsAHttpSegmentWriter *writer,
         ChangeDownstreamState(DISCARDING_DATA_FRAME);
       }
       mInputFrameDataLast = (mInputFrameBuffer[4] & kFlag_Data_FIN);
-      Telemetry::Accumulate(Telemetry::SPDY_CHUNK_RECVD,
-                            mInputFrameDataSize >> 10);
       LOG3(("Start Processing Data Frame. "
             "Session=%p Stream ID 0x%x Stream Ptr %p Fin=%d Len=%d",
             this, streamID, mInputFrameDataStream, mInputFrameDataLast,

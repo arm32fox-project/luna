@@ -149,7 +149,6 @@ nsDeleteDir::DestroyThread()
 void
 nsDeleteDir::TimerCallback(nsITimer *aTimer, void *arg)
 {
-  Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_DELETEDIR> timer;
   {
     MutexAutoLock lock(gInstance->mLock);
 
@@ -187,8 +186,6 @@ nsDeleteDir::TimerCallback(nsITimer *aTimer, void *arg)
 nsresult
 nsDeleteDir::DeleteDir(nsIFile *dirIn, bool moveToTrash, uint32_t delay)
 {
-  Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_TRASHRENAME> timer;
-
   if (!gInstance)
     return NS_ERROR_NOT_INITIALIZED;
 

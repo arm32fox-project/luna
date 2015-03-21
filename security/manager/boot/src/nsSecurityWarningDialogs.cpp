@@ -88,7 +88,6 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
   }
   
   MOZ_ASSERT(NS_IsMainThread());
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI, aBucket);
   // See AlertDialog() for a description of how showOnce works.
   nsAutoCString showOncePref(prefName);
   showOncePref += ".show_once";
@@ -146,9 +145,7 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
 
   *_result = (buttonPressed != 1);
   if (*_result) {
-  // For confirmation dialogs, the clickthrough constant is 1 more
-  // than the constant for the dialog.
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI, aBucket + 1);
+    // Telemetry stub
   }
 
   if (!prefValue && prefName) {

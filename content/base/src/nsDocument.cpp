@@ -1456,7 +1456,6 @@ nsDocument::~nsDocument()
       } else if (hasMixedDisplay) {
         mixedContentLevel = MIXED_DISPLAY_CONTENT;
       }
-      Accumulate(Telemetry::MIXED_CONTENT_PAGE_LOAD, mixedContentLevel);
     }
   }
 

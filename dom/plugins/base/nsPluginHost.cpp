@@ -1903,11 +1903,9 @@ nsresult nsPluginHost::ScanPluginsDirectory(nsIFile *pluginsDir,
       nsPluginInfo info;
       memset(&info, 0, sizeof(info));
       nsresult res;
-      // Opening a block for the telemetry AutoTimer
-      {
-        Telemetry::AutoTimer<Telemetry::PLUGIN_LOAD_METADATA> telemetry;
-        res = pluginFile.GetPluginInfo(info, &library);
-      }
+
+      res = pluginFile.GetPluginInfo(info, &library);
+      
       // if we don't have mime type don't proceed, this is not a plugin
       if (NS_FAILED(res) || !info.fMimeTypeArray) {
         nsRefPtr<nsInvalidPluginTag> invalidTag = new nsInvalidPluginTag(filePath.get(),
@@ -2092,8 +2090,6 @@ nsresult nsPluginHost::LoadPlugins()
 // This is needed in ReloadPlugins to prevent possible recursive reloads
 nsresult nsPluginHost::FindPlugins(bool aCreatePluginList, bool * aPluginsChanged)
 {
-  Telemetry::AutoTimer<Telemetry::FIND_PLUGINS> telemetry;
-
   NS_ENSURE_ARG_POINTER(aPluginsChanged);
 
   *aPluginsChanged = false;
@@ -3088,7 +3084,6 @@ nsPluginHost::StopPluginInstance(nsNPAPIPluginInstance* aInstance)
     return NS_OK;
   }
 
-  Telemetry::AutoTimer<Telemetry::PLUGIN_SHUTDOWN_MS> timer;
   aInstance->Stop();
 
   // if the instance does not want to be 'cached' just remove it

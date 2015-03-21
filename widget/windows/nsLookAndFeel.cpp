@@ -53,8 +53,6 @@ int32_t IsTouchDeviceSupportPresent()
 
 nsLookAndFeel::nsLookAndFeel() : nsXPLookAndFeel()
 {
-  mozilla::Telemetry::Accumulate(mozilla::Telemetry::TOUCH_ENABLED_DEVICE,
-                                 IsTouchDeviceSupportPresent());
 }
 
 nsLookAndFeel::~nsLookAndFeel()

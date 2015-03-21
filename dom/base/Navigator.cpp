@@ -610,7 +610,6 @@ Navigator::GetDoNotTrack(nsAString &aResult)
 NS_IMETHODIMP
 Navigator::JavaEnabled(bool* aReturn)
 {
-  Telemetry::AutoTimer<Telemetry::CHECK_JAVA_ENABLED> telemetryTimer;
   // Return true if we have a handler for "application/x-java-vm",
   // otherwise return false.
   *aReturn = false;

@@ -331,13 +331,6 @@ nsDiskCacheStreamIO::Close()
     if (NS_FAILED(rv))
         NS_WARNING("CloseOutputStream() failed");
 
-    mozilla::Telemetry::ID id;
-    if (NS_IsMainThread())
-        id = mozilla::Telemetry::NETWORK_DISK_CACHE_STREAMIO_CLOSE_MAIN_THREAD;
-    else
-        id = mozilla::Telemetry::NETWORK_DISK_CACHE_STREAMIO_CLOSE;
-    mozilla::Telemetry::AccumulateTimeDelta(id, start);
-
     return rv;
 }
 

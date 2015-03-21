@@ -1906,8 +1906,6 @@ nsDocShell::GatherCharsetMenuTelemetry()
     return NS_OK;
   }
 
-  Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_USED, true);
-
   bool isFileURL = false;
   nsIURI* url = doc->GetOriginalURI();
   if (url) {
@@ -1923,30 +1921,18 @@ nsDocShell::GatherCharsetMenuTelemetry()
     case kCharsetFromParentFrame:
     case kCharsetFromHintPrevDoc:
       // Changing charset on an unlabeled doc.
-      if (isFileURL) {
-        Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 0);
-      } else {
-        Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 1);
-      }
       break;
     case kCharsetFromAutoDetection:
       // Changing charset on unlabeled doc where chardet fired
-      if (isFileURL) {
-        Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 2);
-      } else {
-        Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 3);
-      }
       break;
     case kCharsetFromMetaPrescan:
     case kCharsetFromMetaTag:
     case kCharsetFromChannel:
       // Changing charset on a doc that had a charset label.
-      Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 4);
       break;
     case kCharsetFromParentForced:
     case kCharsetFromUserForced:
       // Changing charset on a document that already had an override.
-      Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 5);
       break;
     case kCharsetFromIrreversibleAutoDetection:
     case kCharsetFromOtherComponent:
@@ -1954,7 +1940,6 @@ nsDocShell::GatherCharsetMenuTelemetry()
     case kCharsetUninitialized:
     default:
       // Bug. This isn't supposed to happen.
-      Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 6);
       break;
   }
   return NS_OK;
@@ -4276,16 +4261,9 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
                 rv = stss->IsStsURI(aURI, flags, &isStsHost);
                 NS_ENSURE_SUCCESS(rv, rv);
 
-                uint32_t bucketId;
                 if (isStsHost) {
                   cssClass.AssignLiteral("badStsCert");
-                  //measuring STS separately allows us to measure click through
-                  //rates easily
-                  bucketId = nsISecurityUITelemetry::WARNING_BAD_CERT_TOP_STS;
-                } else {
-                  bucketId = nsISecurityUITelemetry::WARNING_BAD_CERT_TOP;
                 }
-
 
                 if (Preferences::GetBool(
                         "browser.xul.error_pages.expert_bad_cert", false)) {
@@ -4298,10 +4276,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
                         "security.alternate_certificate_error_page");
                 if (alternateErrorPage)
                     errorPage.Assign(alternateErrorPage);
-
-                if (!IsFrame() && errorPage.EqualsIgnoreCase("certerror")) 
-                    mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI, bucketId);
-
             } else {
                 error.AssignLiteral("nssFailure2");
             }
@@ -4319,20 +4293,13 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
         if (alternateErrorPage)
             errorPage.Assign(alternateErrorPage);
 
-        uint32_t bucketId;
         if (NS_ERROR_PHISHING_URI == aError) {
             error.AssignLiteral("phishingBlocked");
-            bucketId = IsFrame() ? nsISecurityUITelemetry::WARNING_PHISHING_PAGE_FRAME :
-                                   nsISecurityUITelemetry::WARNING_PHISHING_PAGE_TOP ;
         } else {
             error.AssignLiteral("malwareBlocked");
-            bucketId = IsFrame() ? nsISecurityUITelemetry::WARNING_MALWARE_PAGE_FRAME :
-                                   nsISecurityUITelemetry::WARNING_MALWARE_PAGE_TOP ;
         }
 
         if (errorPage.EqualsIgnoreCase("blocked"))
-            mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI,
-                                           bucketId);
 
         cssClass.AssignLiteral("blacklist");
     }
@@ -6659,9 +6626,6 @@ nsDocShell::EndPageLoad(nsIWebProgress * aProgress,
         TimeStamp channelCreationTime;
         rv = timingChannel->GetChannelCreation(&channelCreationTime);
         if (NS_SUCCEEDED(rv) && !channelCreationTime.IsNull()) {
-            Telemetry::AccumulateTimeDelta(
-                Telemetry::TOTAL_CONTENT_PAGE_LOAD_TIME,
-                channelCreationTime);
             nsCOMPtr<nsPILoadGroupInternal> internalLoadGroup =
                 do_QueryInterface(mLoadGroup);
             if (internalLoadGroup)

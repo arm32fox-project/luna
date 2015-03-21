@@ -175,8 +175,7 @@ bool ValidWriteAssert(bool ok)
     // We normally don't poison writes if gShutdownChecks is SCM_NOTHING, but
     // write poisoning can get more users in the future (profiling for example),
     // so make sure we behave correctly.
-    if (gShutdownChecks == SCM_NOTHING || ok || !sProfileDirectory ||
-        !Telemetry::CanRecord()) {
+    if (gShutdownChecks == SCM_NOTHING || ok || !sProfileDirectory) {
         return ok;
     }
 

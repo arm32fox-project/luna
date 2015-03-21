@@ -1228,9 +1228,6 @@ nsGlobalWindow::~nsGlobalWindow()
       PR_REMOVE_AND_INIT_LINK(w);
     }
   } else {
-    Telemetry::Accumulate(Telemetry::INNERWINDOWS_WITH_MUTATION_LISTENERS,
-                          mMutationBits ? 1 : 0);
-
     if (mListenerManager) {
       mListenerManager->Disconnect();
       mListenerManager = nullptr;
@@ -2671,9 +2668,6 @@ nsGlobalWindow::InnerSetNewDocument(nsIDocument* aDocument)
 #ifdef DEBUG
   mLastOpenedURI = aDocument->GetDocumentURI();
 #endif
-
-  Telemetry::Accumulate(Telemetry::INNERWINDOWS_WITH_MUTATION_LISTENERS,
-                        mMutationBits ? 1 : 0);
 
   // Clear our mutation bitfield.
   mMutationBits = 0;
@@ -10443,7 +10437,6 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
       now - gLastRecordedRecentTimeouts > recordingInterval) {
     uint32_t count = gTimeoutsRecentlySet;
     gTimeoutsRecentlySet = 0;
-    Telemetry::Accumulate(Telemetry::DOM_TIMERS_RECENTLY_SET, count);
     gLastRecordedRecentTimeouts = now;
   }
 
@@ -10462,8 +10455,6 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
   // If we ever start setting mTimeoutInsertionPoint to a non-dummy timeout,
   // the logic in ResetTimersForNonBackgroundWindow will need to change.
   mTimeoutInsertionPoint = dummy_timeout;
-
-  Telemetry::AutoCounter<Telemetry::DOM_TIMERS_FIRED_PER_NATIVE_TIMEOUT> timeoutsRan;
 
   for (nsTimeout *timeout = mTimeouts.getFirst();
        timeout != dummy_timeout && !IsFrozen();
@@ -10512,7 +10503,6 @@ nsGlobalWindow::RunTimeout(nsTimeout *aTimeout)
     }
 
     // This timeout is good to run
-    ++timeoutsRan;
     bool timeout_was_cleared = RunTimeoutHandler(timeout, scx);
 
     if (timeout_was_cleared) {

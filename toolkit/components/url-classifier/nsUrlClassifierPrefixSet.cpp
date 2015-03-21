@@ -387,8 +387,6 @@ nsUrlClassifierPrefixSet::LoadFromFd(AutoFDClose& fileFd)
 NS_IMETHODIMP
 nsUrlClassifierPrefixSet::LoadFromFile(nsIFile* aFile)
 {
-  Telemetry::AutoTimer<Telemetry::URLCLASSIFIER_PS_FILELOAD_TIME> timer;
-
   nsresult rv;
   AutoFDClose fileFd;
   rv = aFile->OpenNSPRFileDesc(PR_RDONLY | nsIFile::OS_READAHEAD,
@@ -402,7 +400,6 @@ nsresult
 nsUrlClassifierPrefixSet::StoreToFd(AutoFDClose& fileFd)
 {
   {
-      Telemetry::AutoTimer<Telemetry::URLCLASSIFIER_PS_FALLOCATE_TIME> timer;
       int64_t size = 4 * sizeof(uint32_t);
       size += 2 * mIndexStarts.Length() * sizeof(uint32_t);
       size +=     mDeltas.Length() * sizeof(uint16_t);

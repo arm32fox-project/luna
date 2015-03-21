@@ -455,31 +455,6 @@ nsNSSHttpRequestSession::internal_send_receive_attempt(bool &retryable_error,
     }
   }
 
-  if (!event->mStartTime.IsNull()) {
-    if (request_canceled) {
-      Telemetry::Accumulate(Telemetry::CERT_VALIDATION_HTTP_REQUEST_RESULT, 0);
-      Telemetry::AccumulateTimeDelta(
-        Telemetry::CERT_VALIDATION_HTTP_REQUEST_CANCELED_TIME,
-        event->mStartTime, TimeStamp::Now());
-    }
-    else if (NS_SUCCEEDED(mListener->mResultCode) &&
-             mListener->mHttpResponseCode == 200) {
-      Telemetry::Accumulate(Telemetry::CERT_VALIDATION_HTTP_REQUEST_RESULT, 1);
-      Telemetry::AccumulateTimeDelta(
-        Telemetry::CERT_VALIDATION_HTTP_REQUEST_SUCCEEDED_TIME,
-        event->mStartTime, TimeStamp::Now());
-    }
-    else {
-      Telemetry::Accumulate(Telemetry::CERT_VALIDATION_HTTP_REQUEST_RESULT, 2);
-      Telemetry::AccumulateTimeDelta(
-        Telemetry::CERT_VALIDATION_HTTP_REQUEST_FAILED_TIME,
-        event->mStartTime, TimeStamp::Now());
-    }
-  }
-  else {
-    Telemetry::Accumulate(Telemetry::CERT_VALIDATION_HTTP_REQUEST_RESULT, 3);
-  }
-
   if (request_canceled)
     return SECFailure;
 
@@ -964,7 +939,6 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
       infoObject->SetNegotiatedNPN(reinterpret_cast<char *>(npnbuf), npnlen);
     else
       infoObject->SetNegotiatedNPN(nullptr, 0);
-    mozilla::Telemetry::Accumulate(Telemetry::SSL_NPN_TYPE, state);
   }
   else
     infoObject->SetNegotiatedNPN(nullptr, 0);
@@ -974,14 +948,11 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
     // Get the protocol version for telemetry
     // 0=ssl3, 1=tls1, 2=tls1.1, 3=tls1.2
     unsigned int versionEnum = channelInfo.protocolVersion & 0xFF;
-    Telemetry::Accumulate(Telemetry::SSL_HANDSHAKE_VERSION, versionEnum);
 
     SSLCipherSuiteInfo cipherInfo;
     if (SSL_GetCipherSuiteInfo(channelInfo.cipherSuite, &cipherInfo,
                                 sizeof (cipherInfo)) == SECSuccess) {
       // keyExchange null=0, rsa=1, dh=2, fortezza=3, ecdh=4
-      Telemetry::Accumulate(Telemetry::SSL_KEY_EXCHANGE_ALGORITHM,
-                            cipherInfo.keaType);
     }
       
   }

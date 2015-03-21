@@ -151,9 +151,6 @@ nsresult
 LookupCache::Build(AddPrefixArray& aAddPrefixes,
                    AddCompleteArray& aAddCompletes)
 {
-  Telemetry::Accumulate(Telemetry::URLCLASSIFIER_LC_COMPLETIONS,
-                        static_cast<uint32_t>(aAddCompletes.Length()));
-
   mCompletions.Clear();
   mCompletions.SetCapacity(aAddCompletes.Length());
   for (uint32_t i = 0; i < aAddCompletes.Length(); i++) {
@@ -161,9 +158,6 @@ LookupCache::Build(AddPrefixArray& aAddPrefixes,
   }
   aAddCompletes.Clear();
   mCompletions.Sort();
-
-  Telemetry::Accumulate(Telemetry::URLCLASSIFIER_LC_PREFIXES,
-                        static_cast<uint32_t>(aAddPrefixes.Length()));
 
   nsresult rv = ConstructPrefixSet(aAddPrefixes);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -609,8 +603,6 @@ static void EnsureSorted(T* aArray)
 nsresult
 LookupCache::ConstructPrefixSet(AddPrefixArray& aAddPrefixes)
 {
-  Telemetry::AutoTimer<Telemetry::URLCLASSIFIER_PS_CONSTRUCT_TIME> timer;
-
   nsTArray<uint32_t> array;
   array.SetCapacity(aAddPrefixes.Length());
 
@@ -641,7 +633,6 @@ LookupCache::ConstructPrefixSet(AddPrefixArray& aAddPrefixes)
   return NS_OK;
 
  error_bailout:
-  Telemetry::Accumulate(Telemetry::URLCLASSIFIER_PS_FAILURE, 1);
   return rv;
 }
 

@@ -496,7 +496,6 @@ nsDiskCacheDevice::GetDeviceID()
 nsCacheEntry *
 nsDiskCacheDevice::FindEntry(nsCString * key, bool *collision)
 {
-    Telemetry::AutoTimer<Telemetry::CACHE_DISK_SEARCH_2> timer;
     if (!Initialized())  return nullptr;  // NS_ERROR_NOT_INITIALIZED
     if (mClearingDiskCache)  return nullptr;
     nsDiskCacheRecord       record;
@@ -994,7 +993,6 @@ nsDiskCacheDevice::EvictEntries(const char * clientID)
 nsresult
 nsDiskCacheDevice::OpenDiskCache()
 {
-    Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_OPEN> timer;
     // if we don't have a cache directory, create one and open it
     bool exists;
     nsresult rv = mCacheDirectory->Exists(&exists);
@@ -1006,20 +1004,16 @@ nsDiskCacheDevice::OpenDiskCache()
         nsDiskCache::CorruptCacheInfo corruptInfo;
         rv = mCacheMap.Open(mCacheDirectory, &corruptInfo, true);
 
-        if (NS_SUCCEEDED(rv)) {
-            Telemetry::Accumulate(Telemetry::DISK_CACHE_CORRUPT_DETAILS,
-                                  corruptInfo);
-        } else if (rv == NS_ERROR_ALREADY_INITIALIZED) {
+        if (rv == NS_ERROR_ALREADY_INITIALIZED) {
           NS_WARNING("nsDiskCacheDevice::OpenDiskCache: already open!");
         } else {
-            // Consider cache corrupt: delete it
-            Telemetry::Accumulate(Telemetry::DISK_CACHE_CORRUPT_DETAILS,
-                                  corruptInfo);
-            // delay delete by 1 minute to avoid IO thrash at startup
-            rv = nsDeleteDir::DeleteDir(mCacheDirectory, true, 60000);
-            if (NS_FAILED(rv))
-                return rv;
-            exists = false;
+          // Consider cache corrupt: delete it
+          NS_WARNING("nsDiskCacheDevice::OpenDiskCache: cache corruption - cache will be deleted!");
+          // delay delete by 1 minute to avoid IO thrash at startup
+          rv = nsDeleteDir::DeleteDir(mCacheDirectory, true, 60000);
+          if (NS_FAILED(rv))
+              return rv;
+          exists = false;
         }
     }
 

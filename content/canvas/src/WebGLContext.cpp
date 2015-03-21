@@ -90,7 +90,6 @@ nsresult NS_NewCanvasRenderingContextWebGL(nsIDOMWebGLRenderingContext** aResult
 nsresult
 NS_NewCanvasRenderingContextWebGL(nsIDOMWebGLRenderingContext** aResult)
 {
-    Telemetry::Accumulate(Telemetry::CANVAS_WEBGL_USED, 1);
     nsIDOMWebGLRenderingContext* ctx = new WebGLContext();
     if (!ctx)
         return NS_ERROR_OUT_OF_MEMORY;

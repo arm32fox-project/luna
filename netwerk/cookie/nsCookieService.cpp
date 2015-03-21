@@ -798,8 +798,6 @@ nsCookieService::TryInitDB(bool aRecreateDB)
 
   // This block provides scope for the Telemetry AutoTimer
   {
-    Telemetry::AutoTimer<Telemetry::MOZ_SQLITE_COOKIES_OPEN_READAHEAD_MS>
-      telemetry;
     ReadAheadFile(mDefaultDBState->cookieFile);
 
     // open a connection to the cookie database, and only cache our connection

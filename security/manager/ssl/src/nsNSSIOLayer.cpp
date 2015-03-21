@@ -200,14 +200,6 @@ void
 nsNSSSocketInfo::SetHandshakeCompleted(bool aResumedSession)
 {
   if (!mHandshakeCompleted) {
-    // This will include TCP and proxy tunnel wait time
-    Telemetry::AccumulateTimeDelta(Telemetry::SSL_TIME_UNTIL_READY,
-                                   mSocketCreationTimestamp, TimeStamp::Now());
-
-    // If the handshake is completed for the first time from just 1 callback
-    // that means that TLS session resumption must have been used.
-    Telemetry::Accumulate(Telemetry::SSL_RESUMED_SESSION, aResumedSession);
-
     // Remove the plain text layer as it is not needed anymore.
     // The plain text layer is not always present - so its not a fatal error
     // if it cannot be removed
@@ -467,10 +459,6 @@ nsNSSSocketInfo::SetCertVerificationResult(PRErrorCode errorCode,
 
   if (errorCode) {
     SetCanceled(errorCode, errorMessageType);
-  }
-
-  if (mPlaintextBytesRead && !errorCode) {
-    Telemetry::Accumulate(Telemetry::SSL_BYTES_BEFORE_CERT_CALLBACK, mPlaintextBytesRead);
   }
 
   mCertVerificationState = after_cert_verification;

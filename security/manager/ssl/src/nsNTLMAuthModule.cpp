@@ -775,16 +775,6 @@ nsNTLMAuthModule::Init(const char      *serviceName,
   mUsername = username;
   mPassword = password;
 
-  static bool sTelemetrySent = false;
-  if (!sTelemetrySent) {
-      mozilla::Telemetry::Accumulate(
-          mozilla::Telemetry::NTLM_MODULE_USED,
-          serviceFlags | nsIAuthModule::REQ_PROXY_AUTH
-              ? NTLM_MODULE_GENERIC_PROXY
-              : NTLM_MODULE_GENERIC_DIRECT);
-      sTelemetrySent = true;
-  }
-
   return NS_OK;
 }
 

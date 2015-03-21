@@ -419,8 +419,7 @@ RasterImage::RasterImage(imgStatusTracker* aStatusTracker,
 {
   // Set up the discard tracker node.
   mDiscardTrackerNode.img = this;
-  Telemetry::GetHistogramById(Telemetry::IMAGE_DECODE_COUNT)->Add(0);
-
+  
   // Statistics
   num_containers++;
 }
@@ -2177,18 +2176,11 @@ RasterImage::InitDecoder(bool aDoSizeDecode)
   CONTAINER_ENSURE_SUCCESS(mDecoder->GetDecoderError());
 
   if (!aDoSizeDecode) {
-    Telemetry::GetHistogramById(Telemetry::IMAGE_DECODE_COUNT)->Subtract(mDecodeCount);
     mDecodeCount++;
-    Telemetry::GetHistogramById(Telemetry::IMAGE_DECODE_COUNT)->Add(mDecodeCount);
-
     if (mDecodeCount > sMaxDecodeCount) {
       // Don't subtract out 0 from the histogram, because that causes its count
       // to go negative, which is not kosher.
-      if (sMaxDecodeCount > 0) {
-        Telemetry::GetHistogramById(Telemetry::IMAGE_MAX_DECODE_COUNT)->Subtract(sMaxDecodeCount);
-      }
       sMaxDecodeCount = mDecodeCount;
-      Telemetry::GetHistogramById(Telemetry::IMAGE_MAX_DECODE_COUNT)->Add(sMaxDecodeCount);
     }
   }
 
@@ -2784,7 +2776,7 @@ RasterImage::Draw(gfxContext *aContext,
 
   if (mDecoded && !mDrawStartTime.IsNull()) {
       TimeDuration drawLatency = TimeStamp::Now() - mDrawStartTime;
-      Telemetry::Accumulate(Telemetry::IMAGE_DECODE_ON_DRAW_LATENCY, int32_t(drawLatency.ToMicroseconds()));
+      // telemetry stub?
       // clear the value of mDrawStartTime
       mDrawStartTime = TimeStamp();
   }
@@ -3077,10 +3069,6 @@ RasterImage::FinishedSomeDecoding(eShutdownIntent aIntent /* = eShutdownIntent_D
   if (image->mDecoder) {
     image->mDecoder->MarkFrameDirty();
 
-    if (request && request->mChunkCount && !image->mDecoder->IsSizeDecode()) {
-      Telemetry::Accumulate(Telemetry::IMAGE_DECODE_CHUNKS, request->mChunkCount);
-    }
-
     if (!image->mHasSize && image->mDecoder->HasSize()) {
       image->mDecoder->SetSizeOnImage();
     }
@@ -3094,21 +3082,6 @@ RasterImage::FinishedSomeDecoding(eShutdownIntent aIntent /* = eShutdownIntent_D
       nsRefPtr<Decoder> decoder = image->mDecoder;
 
       wasSize = decoder->IsSizeDecode();
-
-      // Do some telemetry if this isn't a size decode.
-      if (request && !wasSize) {
-        Telemetry::Accumulate(Telemetry::IMAGE_DECODE_TIME,
-                              int32_t(request->mDecodeTime.ToMicroseconds()));
-
-        // We record the speed for only some decoders. The rest have
-        // SpeedHistogram return HistogramCount.
-        Telemetry::ID id = decoder->SpeedHistogram();
-        if (id < Telemetry::HistogramCount) {
-          int32_t KBps = int32_t(request->mImage->mBytesDecoded /
-                                 (1024 * request->mDecodeTime.ToSeconds()));
-          Telemetry::Accumulate(id, KBps);
-        }
-      }
 
       // We need to shut down the decoder first, in order to ensure all
       // decoding routines have been finished.

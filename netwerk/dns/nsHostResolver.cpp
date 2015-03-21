@@ -544,7 +544,6 @@ nsHostResolver::ResolveHost(const char            *host,
                 LOG(("Using cached record for host [%s].\n", host));
                 // put reference to host record on stack...
                 result = he->rec;
-                Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2, METHOD_HIT);
 
                 // For entries that are in the grace period with a failed connect,
                 // or all cached negative entries, use the cache but start a new lookup in
@@ -559,26 +558,16 @@ nsHostResolver::ResolveHost(const char            *host,
                              he->rec->negative ? "negative" :"positive", host));
                         IssueLookup(he->rec);
 
-                        if (!he->rec->negative) {
-                            // negative entries are constantly being refreshed, only
-                            // track positive grace period induced renewals
-                            Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                                  METHOD_RENEWAL);
-                        }
                     }
                 }
                 
                 if (he->rec->negative) {
-                    Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                          METHOD_NEGATIVE_HIT);
                     status = NS_ERROR_UNKNOWN_HOST;
                 }
             }
             // if the host name is an IP address literal and has been parsed,
             // go ahead and use it.
             else if (he->rec->addr) {
-                Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                      METHOD_LITERAL);
                 result = he->rec;
             }
             // try parsing the host name as an IP address literal to short
@@ -590,15 +579,11 @@ nsHostResolver::ResolveHost(const char            *host,
                 he->rec->addr = new NetAddr();
                 PRNetAddrToNetAddr(&tempAddr, he->rec->addr);
                 // put reference to host record on stack...
-                Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                      METHOD_LITERAL);
                 result = he->rec;
             }
             else if (mPendingCount >= MAX_NON_PRIORITY_REQUESTS &&
                      !IsHighPriority(flags) &&
                      !he->rec->resolving) {
-                Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                      METHOD_OVERFLOW);
                 // This is a lower priority request and we are swamped, so refuse it.
                 rv = NS_ERROR_DNS_LOOKUP_QUEUE_FULL;
             }
@@ -614,17 +599,12 @@ nsHostResolver::ResolveHost(const char            *host,
                 if (!he->rec->resolving) {
                     he->rec->flags = flags;
                     rv = IssueLookup(he->rec);
-                    Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                          METHOD_NETWORK_FIRST);
                     if (NS_FAILED(rv))
                         PR_REMOVE_AND_INIT_LINK(callback);
                     else
                         LOG(("DNS lookup for host [%s] blocking pending 'getaddrinfo' query.", host));
                 }
                 else if (he->rec->onQueue) {
-                    Telemetry::Accumulate(Telemetry::DNS_LOOKUP_METHOD2,
-                                          METHOD_NETWORK_SHARED);
-
                     // Consider the case where we are on a pending queue of 
                     // lower priority than the request is being made at.
                     // In that case we should upgrade to the higher queue.
@@ -890,8 +870,6 @@ nsHostResolver::OnLookupComplete(nsHostRecord *rec, nsresult status, AddrInfo *r
                     // record the age of the entry upon eviction.
                     TimeDuration age = TimeStamp::NowLoRes() -
                                          (head->expiration - mMaxCacheLifetime);
-                    Telemetry::Accumulate(Telemetry::DNS_CLEANUP_AGE,
-                                          static_cast<uint32_t>(age.ToSeconds() / 60));
                 }
 
                 // release reference to rec owned by mEvictionQ
@@ -1004,14 +982,9 @@ nsHostResolver::ThreadFunc(void *arg)
             PR_FreeAddrInfo(prai);
             status = NS_OK;
 
-            Telemetry::Accumulate(!rec->addr_info_gencnt ?
-                                    Telemetry::DNS_LOOKUP_TIME :
-                                    Telemetry::DNS_RENEWAL_TIME,
-                                  millis);
         }
         else {
             status = NS_ERROR_UNKNOWN_HOST;
-            Telemetry::Accumulate(Telemetry::DNS_FAILED_LOOKUP_TIME, millis);
         }
 
         // OnLookupComplete may release "rec", log before we lose it.
