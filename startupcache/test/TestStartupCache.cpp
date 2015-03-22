@@ -405,11 +405,6 @@ GetHistogramCounts(const char *testmsg, const nsACString &histogram_id,
 {
   nsCOMPtr<nsITelemetry> telemetry = do_GetService("@mozilla.org/base/telemetry;1");
   Rooted<Value> h(cx);
-  nsresult trv = telemetry->GetHistogramById(histogram_id, cx, h.address());
-  if (NS_FAILED(trv)) {
-    fail("%s: couldn't get histogram %s", testmsg, ToNewCString(histogram_id));
-    return false;
-  }
   passed(testmsg);
 
   Rooted<Value> snapshot_val(cx);

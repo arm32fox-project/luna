@@ -6763,6 +6763,7 @@ var RemoteDebugger = {
   }
 };
 
+// Telemetry : remove this.
 var Telemetry = {
   SHARED_PREF_TELEMETRY_ENABLED: "datareporting.telemetry.enabled",
 
@@ -6776,8 +6777,6 @@ var Telemetry = {
 
   addData: function addData(aHistogramId, aValue) {
     let telemetry = Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
-    let histogram = telemetry.getHistogramById(aHistogramId);
-    histogram.add(aValue);
   },
 
   observe: function observe(aSubject, aTopic, aData) {

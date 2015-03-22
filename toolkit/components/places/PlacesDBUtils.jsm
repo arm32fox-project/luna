@@ -54,13 +54,6 @@ this.PlacesDBUtils = {
     }
     else {
       // All tasks have been completed.
-      // Telemetry the time it took for maintenance, if a start time exists.
-      if (aTasks._telemetryStart) {
-        Services.telemetry.getHistogramById("PLACES_IDLE_MAINTENANCE_TIME_MS")
-                          .add(Date.now() - aTasks._telemetryStart);
-        aTasks._telemetryStart = 0;
-      }
-
       if (aTasks.callback) {
         let scope = aTasks.scope || Cu.getGlobalForObject(aTasks.callback);
         aTasks.callback.call(scope, aTasks.messages);
@@ -972,8 +965,6 @@ this.PlacesDBUtils = {
         }
         if (isFinite(value)) {
           probeValues[aProbe.histogram] = value;
-          Services.telemetry.getHistogramById(aProbe.histogram)
-                            .add(value);
         }
       } catch (ex) {
         Components.utils.reportError(ex);

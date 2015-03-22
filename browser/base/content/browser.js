@@ -1250,7 +1250,6 @@ var gBrowserInit = {
           return;
         let duration = new Date() - appMenuOpening;
         appMenuOpening = null;
-        Services.telemetry.getHistogramById("FX_APP_MENU_OPEN_MS").add(duration);
       }, false);
     }
 
@@ -2410,14 +2409,10 @@ let BrowserOnClick = {
 
   onAboutCertError: function BrowserOnClick_onAboutCertError(aTargetElm, aOwnerDoc) {
     let elmId = aTargetElm.getAttribute("id");
-    let secHistogram = Services.telemetry.getHistogramById("SECURITY_UI");
     let isTopFrame = (aOwnerDoc.defaultView.parent === aOwnerDoc.defaultView);
 
     switch (elmId) {
       case "exceptionDialogButton":
-        if (isTopFrame) {
-          secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_BAD_CERT_TOP_CLICK_ADD_EXCEPTION);
-        }
         let params = { exceptionAdded : false };
 
         try {
@@ -2441,22 +2436,13 @@ let BrowserOnClick = {
         break;
 
       case "getMeOutOfHereButton":
-        if (isTopFrame) {
-          secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_BAD_CERT_TOP_GET_ME_OUT_OF_HERE);
-        }
         getMeOutOfHere();
         break;
 
       case "technicalContent":
-        if (isTopFrame) {
-          secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_BAD_CERT_TOP_TECHNICAL_DETAILS);
-        }
         break;
 
       case "expertContent":
-        if (isTopFrame) {
-          secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_BAD_CERT_TOP_UNDERSTAND_RISKS);
-        }
         break;
 
     }
@@ -2465,7 +2451,6 @@ let BrowserOnClick = {
 #ifdef MOZ_SAFE_BROWSING
   onAboutBlocked: function BrowserOnClick_onAboutBlocked(aTargetElm, aOwnerDoc) {
     let elmId = aTargetElm.getAttribute("id");
-    let secHistogram = Services.telemetry.getHistogramById("SECURITY_UI");
 
     // The event came from a button on a malware/phishing block page
     // First check whether it's malware or phishing, so that we can
@@ -2478,7 +2463,6 @@ let BrowserOnClick = {
 
     switch (elmId) {
       case "getMeOutButton":
-        secHistogram.add(nsISecTel[bucketName + "GET_ME_OUT_OF_HERE"]);
         getMeOutOfHere();
         break;
 
@@ -2486,10 +2470,6 @@ let BrowserOnClick = {
         // This is the "Why is this site blocked" button.  For malware,
         // we can fetch a site-specific report, for phishing, we redirect
         // to the generic page describing phishing protection.
-
-        // We log even if malware/phishing info URL couldn't be found:
-        // the measurement is for how many users clicked the WHY BLOCKED button
-        secHistogram.add(nsISecTel[bucketName + "WHY_BLOCKED"]);
 
         if (isMalware) {
           // Get the stop badware "why is this blocked" report url,
@@ -2512,7 +2492,6 @@ let BrowserOnClick = {
         break;
 
       case "ignoreWarningButton":
-        secHistogram.add(nsISecTel[bucketName + "IGNORE_WARNING"]);
         this.ignoreWarningButton(isMalware);
         break;
     }

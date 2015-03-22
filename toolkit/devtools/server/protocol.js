@@ -1110,25 +1110,8 @@ let frontProto = function(proto) {
     }
 
     proto[name] = function(...args) {
-      let histogram, startTime;
       if (spec.telemetry) {
-        if (spec.oneway) {
-          // That just doesn't make sense.
-          throw Error("Telemetry specified for a oneway request");
-        }
-        let transportType = this.conn.localTransport
-          ? "LOCAL_"
-          : "REMOTE_";
-        let histogramId = "DEVTOOLS_DEBUGGER_RDP_"
-          + transportType + spec.telemetry + "_MS";
-        try {
-          histogram = Services.telemetry.getHistogramById(histogramId);
-          startTime = new Date();
-        } catch(ex) {
-          // XXX: Is this expected in xpcshell tests?
-          console.error(ex);
-          spec.telemetry = false;
-        }
+        //Telemetry stub
       }
 
       let packet = spec.request.write(args, this);
@@ -1140,11 +1123,6 @@ let frontProto = function(proto) {
 
       return this.request(packet).then(response => {
         let ret = spec.response.read(response, this);
-
-        if (histogram) {
-          histogram.add(+new Date - startTime);
-        }
-
         return ret;
       }).then(null, promiseDone);
     }

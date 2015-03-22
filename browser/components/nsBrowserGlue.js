@@ -629,13 +629,6 @@ BrowserGlue.prototype = {
       catch (ex) { /* never mind; suppose SessionStore is broken */ }
 
       let isDefault = shell.isDefaultBrowser(true, false); // startup check, check all assoc
-      try {
-        // Report default browser status on startup to telemetry
-        // so we can track whether we are the default.
-        Services.telemetry.getHistogramById("BROWSER_IS_USER_DEFAULT")
-                          .add(isDefault);
-      }
-      catch (ex) { /* Don't break the default prompt if telemetry is broken. */ }
 
       if (shouldCheck && !isDefault && !willRecoverSession) {
         Services.tm.mainThread.dispatch(function() {
@@ -1776,7 +1769,6 @@ ContentPermissionPrompt.prototype = {
   },
 
   _promptGeo : function(aRequest) {
-    var secHistogram = Services.telemetry.getHistogramById("SECURITY_UI");
     var browserBundle = Services.strings.createBundle("chrome://browser/locale/browser.properties");
     var requestingURI = aRequest.principal.URI;
 
@@ -1788,7 +1780,7 @@ ContentPermissionPrompt.prototype = {
       action: null,
       expireType: null,
       callback: function() {
-        secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_GEOLOCATION_REQUEST_SHARE_LOCATION);
+        // Telemetry stub
       },
     }];
 
@@ -1804,7 +1796,7 @@ ContentPermissionPrompt.prototype = {
         action: Ci.nsIPermissionManager.ALLOW_ACTION,
         expireType: null,
         callback: function() {
-          secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_GEOLOCATION_REQUEST_ALWAYS_SHARE);
+          // Telemetry stub
         },
       });
 
@@ -1814,7 +1806,7 @@ ContentPermissionPrompt.prototype = {
         action: Ci.nsIPermissionManager.DENY_ACTION,
         expireType: null,
         callback: function() {
-          secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_GEOLOCATION_REQUEST_NEVER_SHARE);
+          // Telemetry stub
         },
       });
     }
@@ -1824,8 +1816,6 @@ ContentPermissionPrompt.prototype = {
     var link = chromeWin.document.getElementById("geolocation-learnmore-link");
     link.value = browserBundle.GetStringFromName("geolocation.learnMore");
     link.href = Services.urlFormatter.formatURLPref("browser.geolocation.warning.infoURL");
-
-    secHistogram.add(Ci.nsISecurityUITelemetry.WARNING_GEOLOCATION_REQUEST);
 
     this._showPrompt(aRequest, message, "geo", actions, "geolocation",
                      "geo-notification-icon", null);

@@ -124,9 +124,7 @@ add_task(function test_execute()
   for (let histogramId in histograms) {
     do_log_info("checking histogram " + histogramId);
     let validate = histograms[histogramId];
-    let snapshot = Services.telemetry.getHistogramById(histogramId).snapshot();
-    validate(snapshot.sum);
-    do_check_true(snapshot.counts.reduce(function(a, b) a + b) > 0);
+    // Telemetry stub
   }
 });
 

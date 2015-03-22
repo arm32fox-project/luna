@@ -793,9 +793,7 @@ nsPlacesAutoComplete.prototype = {
       let elapsed = Date.now() - this._telemetryStartTime;
       if (elapsed > 50) {
         try {
-          Services.telemetry
-                  .getHistogramById("PLACES_AUTOCOMPLETE_1ST_RESULT_TIME_MS")
-                  .add(elapsed);
+          // Telemetry stub
         } catch (ex) {
           Components.utils.reportError("Unable to report telemetry.");
         }
