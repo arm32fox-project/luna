@@ -1927,6 +1927,10 @@ pref("dom.ipc.tabs.shutdownTimeoutSecs", 0);
 pref("dom.ipc.plugins.java.enabled", false);
 #endif
 
+// How long we wait (in seconds) before unloading an idle plugin process.
+// Defaults to 1 minute.
+pref("dom.ipc.plugins.unloadTimeoutSecs", 60);
+
 pref("dom.ipc.processCount", 1);
 
 // Enable the use of display-lists for SVG hit-testing and painting.
