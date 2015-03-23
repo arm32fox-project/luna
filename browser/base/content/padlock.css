@@ -182,7 +182,7 @@
 #padlock-ub-right[padshow="ub-right"][padstyle="classic"][level="mixed"],
 #padlock-sb[padshow="statbar"][padstyle="classic"][level="mixed"],
 #padlock-tab[padshow="tabs-bar"][padstyle="classic"][level="mixed"] {
-  list-style-image: url("chrome://browser/content/padlock_classic_https.png");
+  list-style-image: url("chrome://browser/content/padlock_classic_low.png");
 }
 
 #padlock-ib[padshow="ib-trans-bg"][padstyle="classic"][level="broken"],
