@@ -152,6 +152,11 @@ using mozilla::TimeStamp;
 static const char *kPrefWhitelist = "plugin.allowed_types";
 static const char *kPrefDisableFullPage = "plugin.disable_full_page_plugin_for_types";
 
+// How long we wait before unloading an idle plugin process.
+// Defaults to 60 seconds.
+static const char *kPrefUnloadPluginTimeoutSecs = "dom.ipc.plugins.unloadTimeoutSecs";
+static const uint32_t kDefaultPluginUnloadingTimeout = 60;
+
 // Version of cached plugin info
 // 0.01 first implementation
 // 0.02 added caching of CanUnload to fix bug 105935
@@ -266,7 +271,7 @@ bool ReadSectionHeader(nsPluginManifestLineReader& reader, const char *token)
 
 static bool UnloadPluginsASAP()
 {
-  return Preferences::GetBool("dom.ipc.plugins.unloadASAP", false);
+  return (Preferences::GetUint(kPrefUnloadPluginTimeoutSecs, kDefaultPluginUnloadingTimeout) == 0);
 }
 
 nsPluginHost::nsPluginHost()
@@ -793,7 +798,11 @@ void nsPluginHost::OnPluginInstanceDestroyed(nsPluginTag* aPluginTag)
       } else {
         aPluginTag->mUnloadTimer = do_CreateInstance(NS_TIMER_CONTRACTID);
       }
-      aPluginTag->mUnloadTimer->InitWithCallback(this, 1000 * 60 * 3, nsITimer::TYPE_ONE_SHOT);
+      uint32_t unloadTimeout = Preferences::GetUint(kPrefUnloadPluginTimeoutSecs,
+                                                    kDefaultPluginUnloadingTimeout);
+      aPluginTag->mUnloadTimer->InitWithCallback(this,
+                                                 1000 * unloadTimeout,
+                                                 nsITimer::TYPE_ONE_SHOT);
     }
   }
 }

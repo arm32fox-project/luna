@@ -1912,6 +1912,10 @@ pref("dom.ipc.tabs.shutdownTimeoutSecs", 0);
 pref("dom.ipc.plugins.java.enabled", false);
 #endif
 
+// How long we wait (in seconds) before unloading an idle plugin process.
+// Defaults to 1 minute.
+pref("dom.ipc.plugins.unloadTimeoutSecs", 60);
+
 pref("dom.ipc.processCount", 1);
 
 // Enable the use of display-lists for SVG hit-testing and painting.
@@ -2474,9 +2478,6 @@ pref("gfx.font_rendering.cleartype_params.force_gdi_classic_for_families",
 pref("gfx.font_rendering.cleartype_params.force_gdi_classic_max_size", 17);
 
 pref("ui.key.menuAccessKeyFocuses", true);
-
-// override double-click word selection behavior.
-pref("layout.word_select.eat_space_to_next_word", true);
 
 // scrollbar snapping region
 pref("slider.snapMultiplier", 6);

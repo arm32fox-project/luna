@@ -1250,7 +1250,7 @@ nsDocShell::LoadURI(nsIURI * aURI,
     
     // Note: we allow loads to get through here even if mFiredUnloadEvent is
     // true; that case will get handled in LoadInternal or LoadHistoryEntry.
-    if (IsPrintingOrPP()) {
+    if (IsPrintingOrPP() || mBlockNavigation) {
       return NS_OK; // JS may not handle returning of an error code
     }
     nsresult rv;
@@ -3959,7 +3959,9 @@ nsDocShell::IsPrintingOrPP(bool aDisplayErrorDialog)
 bool
 nsDocShell::IsNavigationAllowed(bool aDisplayPrintErrorDialog)
 {
-    return !IsPrintingOrPP(aDisplayPrintErrorDialog) && !mFiredUnloadEvent;
+    return !IsPrintingOrPP(aDisplayPrintErrorDialog) && 
+           !mFiredUnloadEvent && 
+           !mBlockNavigation;
 }
 
 //*****************************************************************************
@@ -8972,13 +8974,18 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             GetCurScrollPos(ScrollOrientation_X, &cx);
             GetCurScrollPos(ScrollOrientation_Y, &cy);
 
-            // ScrollToAnchor doesn't necessarily cause us to scroll the window;
-            // the function decides whether a scroll is appropriate based on the
-            // arguments it receives.  But even if we don't end up scrolling,
-            // ScrollToAnchor performs other important tasks, such as informing
-            // the presShell that we have a new hash.  See bug 680257.
-            rv = ScrollToAnchor(curHash, newHash, aLoadType);
-            NS_ENSURE_SUCCESS(rv, rv);
+            {
+                AutoRestore<bool> scrollingToAnchor(mBlockNavigation);
+                mBlockNavigation = true;
+
+                // ScrollToAnchor doesn't necessarily cause us to scroll the window;
+                // the function decides whether a scroll is appropriate based on the
+                // arguments it receives.  But even if we don't end up scrolling,
+                // ScrollToAnchor performs other important tasks, such as informing
+                // the presShell that we have a new hash.  See bug 680257.
+                rv = ScrollToAnchor(curHash, newHash, aLoadType);
+                NS_ENSURE_SUCCESS(rv, rv);
+            }
 
             // Reset mLoadType to its original value once we exit this block,
             // because this short-circuited load might have started after a
