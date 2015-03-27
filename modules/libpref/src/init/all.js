@@ -2494,9 +2494,6 @@ pref("gfx.font_rendering.cleartype_params.force_gdi_classic_max_size", 17);
 
 pref("ui.key.menuAccessKeyFocuses", true);
 
-// override double-click word selection behavior.
-pref("layout.word_select.eat_space_to_next_word", true);
-
 // scrollbar snapping region
 pref("slider.snapMultiplier", 6);
 
