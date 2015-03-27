@@ -5996,7 +5996,6 @@ var CharacterEncoding = {
 
   setEncoding: function setEncoding(aEncoding) {
     let browser = BrowserApp.selectedBrowser;
-    browser.docShell.gatherCharsetMenuTelemetry();
     browser.docShell.charset = aEncoding;
     browser.reload(Ci.nsIWebNavigation.LOAD_FLAGS_CHARSET_CHANGE);
   }
