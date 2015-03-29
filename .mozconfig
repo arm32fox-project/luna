@@ -1,4 +1,0 @@
-# Do not bother to run tests, they will probably not work
-ac_add_options --disable-tests
-ac_add_options --disable-mochitests
-
