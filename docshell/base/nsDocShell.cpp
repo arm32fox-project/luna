@@ -9137,7 +9137,7 @@ nsDocShell::InternalLoad(nsIURI * aURI,
 
             // Inform the favicon service that the favicon for oldURI also
             // applies to aURI.
-            CopyFavicon(currentURI, aURI, mInPrivateBrowsing);
+            CopyFavicon(oldURI, aURI, mInPrivateBrowsing);
 
             // ScrollToAnchor doesn't necessarily cause us to scroll the window;
             // the function decides whether a scroll is appropriate based on the
