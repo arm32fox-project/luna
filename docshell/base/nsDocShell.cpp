@@ -926,7 +926,7 @@ NS_INTERFACE_MAP_BEGIN(nsDocShell)
     NS_INTERFACE_MAP_ENTRY(nsIDOMStorageManager)
 NS_INTERFACE_MAP_END_INHERITING(nsDocLoader)
 
-///*****************************************************************************
+//*****************************************************************************
 // nsDocShell::nsIInterfaceRequestor
 //*****************************************************************************   
 NS_IMETHODIMP nsDocShell::GetInterface(const nsIID & aIID, void **aSink)
