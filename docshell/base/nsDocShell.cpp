@@ -1250,7 +1250,7 @@ nsDocShell::LoadURI(nsIURI * aURI,
     
     // Note: we allow loads to get through here even if mFiredUnloadEvent is
     // true; that case will get handled in LoadInternal or LoadHistoryEntry.
-    if (IsPrintingOrPP() || mBlockNavigation) {
+    if (IsPrintingOrPP()) {
       return NS_OK; // JS may not handle returning of an error code
     }
     nsresult rv;
@@ -3975,8 +3975,7 @@ bool
 nsDocShell::IsNavigationAllowed(bool aDisplayPrintErrorDialog)
 {
     return !IsPrintingOrPP(aDisplayPrintErrorDialog) && 
-           !mFiredUnloadEvent && 
-           !mBlockNavigation;
+           !mFiredUnloadEvent;
 }
 
 //*****************************************************************************
@@ -9010,19 +9009,6 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             GetCurScrollPos(ScrollOrientation_X, &cx);
             GetCurScrollPos(ScrollOrientation_Y, &cy);
 
-            {
-                AutoRestore<bool> scrollingToAnchor(mBlockNavigation);
-                mBlockNavigation = true;
-
-                // ScrollToAnchor doesn't necessarily cause us to scroll the window;
-                // the function decides whether a scroll is appropriate based on the
-                // arguments it receives.  But even if we don't end up scrolling,
-                // ScrollToAnchor performs other important tasks, such as informing
-                // the presShell that we have a new hash.  See bug 680257.
-                rv = ScrollToAnchor(curHash, newHash, aLoadType);
-                NS_ENSURE_SUCCESS(rv, rv);
-            }
-
             // Reset mLoadType to its original value once we exit this block,
             // because this short-circuited load might have started after a
             // normal, network load, and we don't want to clobber its load type.
@@ -9110,16 +9096,6 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                     mOSHE->SetCacheKey(cacheKey);
             }
 
-            /* restore previous position of scroller(s), if we're moving
-             * back in history (bug 59774)
-             */
-            if (mOSHE && (aLoadType == LOAD_HISTORY || aLoadType == LOAD_RELOAD_NORMAL))
-            {
-                nscoord bx, by;
-                mOSHE->GetScrollPosition(&bx, &by);
-                SetCurScrollPosEx(bx, by);
-            }
-
             /* Restore the original LSHE if we were loading something
              * while short-circuited load was initiated.
              */
@@ -9159,6 +9135,28 @@ nsDocShell::InternalLoad(nsIURI * aURI,
 
             SetDocCurrentStateObj(mOSHE);
 
+            // Inform the favicon service that the favicon for oldURI also
+            // applies to aURI.
+            CopyFavicon(currentURI, aURI, mInPrivateBrowsing);
+
+            // ScrollToAnchor doesn't necessarily cause us to scroll the window;
+            // the function decides whether a scroll is appropriate based on the
+            // arguments it receives.  But even if we don't end up scrolling,
+            // ScrollToAnchor performs other important tasks, such as informing
+            // the presShell that we have a new hash.  See bug 680257.
+            rv = ScrollToAnchor(curHash, newHash, aLoadType);
+            NS_ENSURE_SUCCESS(rv, rv);
+
+            /* restore previous position of scroller(s), if we're moving
+             * back in history (bug 59774)
+             */
+            if (mOSHE && (aLoadType == LOAD_HISTORY ||
+                          aLoadType == LOAD_RELOAD_NORMAL)) {
+              nscoord bx, by;
+              mOSHE->GetScrollPosition(&bx, &by);
+              SetCurScrollPosEx(bx, by);
+            }
+
             // Dispatch the popstate and hashchange events, as appropriate.
             if (mScriptGlobal) {
                 // Fire a hashchange event URIs differ, and only in their hashes.
@@ -9174,10 +9172,6 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                     mScriptGlobal->DispatchAsyncHashchange(oldURI, aURI);
                 }
             }
-
-            // Inform the favicon service that the favicon for oldURI also
-            // applies to aURI.
-            CopyFavicon(oldURI, aURI, mInPrivateBrowsing);
 
             return NS_OK;
         }
