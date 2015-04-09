@@ -55,6 +55,18 @@ using namespace mozilla;
 #ifdef XP_WIN
 #define kMetroTestFile "tests.ini"
 const char* kMetroConsoleIdParam = "testconsoleid=";
+#endif 	
+
+#if defined(MOZ_WIDGET_GTK) \
+  && (defined(MOZ_MEMORY) || defined(__FreeBSD__) \
+      || (defined(__NetBSD__) && __NetBSD_Version__ >= 500000000))
+  // Disable the slice allocator, since jemalloc already uses similar layout
+  // algorithms, and using a sub-allocator tends to increase fragmentation.
+  // This must be done before any g_slice_* functions are called.  That is
+  // before g_thread_init() for GLib versions prior to 2.32, before
+  // g_type_init() for later versions prior to 2.36, and before the library is
+  // loaded for later versions.
+#define SET_G_SLICE_ALWAYS_MALLOC 1
 #endif
 
 static void Output(const char *fmt, ... )
@@ -150,6 +162,10 @@ XRE_SetupDllBlocklistType XRE_SetupDllBlocklist;
 XRE_StartupTimelineRecordType XRE_StartupTimelineRecord;
 XRE_mainType XRE_main;
 XRE_DisableWritePoisoningType XRE_DisableWritePoisoning;
+#if SET_G_SLICE_ALWAYS_MALLOC
+void (*g_thread_init)(void*);
+void (*g_type_init)();
+#endif
 
 static const nsDynamicFunctionLoad kXULFuncs[] = {
     { "XRE_GetFileFromPath", (NSFuncPtr*) &XRE_GetFileFromPath },
@@ -161,6 +177,10 @@ static const nsDynamicFunctionLoad kXULFuncs[] = {
     { "XRE_StartupTimelineRecord", (NSFuncPtr*) &XRE_StartupTimelineRecord },
     { "XRE_main", (NSFuncPtr*) &XRE_main },
     { "XRE_DisableWritePoisoning", (NSFuncPtr*) &XRE_DisableWritePoisoning },
+#if SET_G_SLICE_ALWAYS_MALLOC
+    { "g_thread_init", (NSFuncPtr*) &g_thread_init },
+    { "g_type_init", (NSFuncPtr*) &g_type_init },
+#endif
     { nullptr, nullptr }
 };
 
@@ -540,6 +560,14 @@ InitXPCOMGlue(const char *argv0, nsIFile **xreDirectory)
     return NS_ERROR_FAILURE;
   }
 
+#if SET_G_SLICE_ALWAYS_MALLOC
+  char *g_slice = getenv("G_SLICE");
+  static char tmp_g_slice[] = "G_SLICE=always-malloc";
+  if (!g_slice) {
+    putenv(tmp_g_slice);
+  }
+#endif
+
   // We do this because of data in bug 771745
   XPCOMGlueEnablePreload();
 
@@ -554,6 +582,16 @@ InitXPCOMGlue(const char *argv0, nsIFile **xreDirectory)
     Output("Couldn't load XRE functions.\n");
     return rv;
   }
+
+#if SET_G_SLICE_ALWAYS_MALLOC
+  if (!g_slice) {
+    // Restore the environment for child processes after ensuring that GLib
+    // has read the variable.
+    g_thread_init(nullptr); // For GLib version < 2.32
+    g_type_init(); // For 2.32 <= GLib version < 2.36
+    unsetenv("G_SLICE");
+  }
+#endif
 
   NS_LogInit();
 

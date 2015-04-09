@@ -337,15 +337,24 @@ class ZonesIter {
 struct CompartmentsInZoneIter
 {
   private:
-    JSCompartment **it, **end;
+    JS::Zone *zone;
+    JSCompartment **it;
 
+    CompartmentsInZoneIter()
+      : zone(nullptr), it(nullptr)
+    {}
+     
   public:
-    CompartmentsInZoneIter(JS::Zone *zone) {
+    CompartmentsInZoneIter(JS::Zone *zone) : zone(zone) {
         it = zone->compartments.begin();
-        end = zone->compartments.end();
     }
 
-    bool done() const { return it == end; }
+    bool done() const {
+        JS_ASSERT(it); 
+        return it < zone->compartments.begin() ||
+               it >= zone->compartments.end();        
+    }
+    
     void next() {
         JS_ASSERT(!done());
         it++;
