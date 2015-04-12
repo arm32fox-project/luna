@@ -1779,17 +1779,6 @@ nsHttpConnectionMgr::BuildPipeline(nsConnectionEntry *ent,
     return NS_OK;
 }
 
-void
-nsHttpConnectionMgr::ReportProxyTelemetry(nsConnectionEntry *ent)
-{
-// Telemetry stub
-    enum { PROXY_NONE = 1, PROXY_HTTP = 2, PROXY_SOCKS = 3 };
-
-    if (!ent->mConnInfo->UsingProxy()) {}
-    else if (ent->mConnInfo->UsingHttpProxy()) {}
-    else {}
-}
-
 nsresult
 nsHttpConnectionMgr::ProcessNewTransaction(nsHttpTransaction *trans)
 {
@@ -1822,8 +1811,6 @@ nsHttpConnectionMgr::ProcessNewTransaction(nsHttpTransaction *trans)
 
         ent = preferredEntry;
     }
-
-    ReportProxyTelemetry(ent);
 
     // Check if the transaction already has a sticky reference to a connection.
     // If so, then we can just use it directly by transferring its reference

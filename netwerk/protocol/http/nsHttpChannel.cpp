@@ -65,21 +65,6 @@ enum CacheDisposition {
     kCacheMissed = 4
 };
 
-const Telemetry::ID UNKNOWN_DEVICE = static_cast<Telemetry::ID>(0);
-void
-AccumulateCacheHitTelemetry(Telemetry::ID deviceHistogram,
-                            CacheDisposition hitOrMiss)
-{
-// Telemetry stub
-    // If we had a cache hit, or we revalidated an entry, then we should know
-    // the device for the entry already. But, sometimes this assertion fails!
-    // (Bug 769497).
-    // MOZ_ASSERT(deviceHistogram != UNKNOWN_DEVICE || hitOrMiss == kCacheMissed);
-
-    if (deviceHistogram != UNKNOWN_DEVICE) {
-    }
-}
-
 // Computes and returns a SHA1 hash of the input buffer. The input buffer
 // must be a null-terminated string.
 nsresult
@@ -215,7 +200,6 @@ public:
         , mCachedContentIsPartial(false)
         , mCustomConditionalRequest(false)
         , mDidReval(false)
-        , mCacheEntryDeviceTelemetryID(UNKNOWN_DEVICE)
     {
         MOZ_ASSERT(NS_IsMainThread());
     }
@@ -277,7 +261,6 @@ private:
     /*out*/ bool mCachedContentIsPartial;
     /*out*/ bool mCustomConditionalRequest;
     /*out*/ bool mDidReval;
-    /*out*/ Telemetry::ID mCacheEntryDeviceTelemetryID;
 };
 
 NS_IMPL_ISUPPORTS_INHERITED1(HttpCacheQuery, nsRunnable, nsICacheListener)
@@ -290,7 +273,6 @@ nsHttpChannel::nsHttpChannel()
     : ALLOW_THIS_IN_INITIALIZER_LIST(HttpAsyncAborter<nsHttpChannel>(this))
     , mLogicalOffset(0)
     , mCacheAccess(0)
-    , mCacheEntryDeviceTelemetryID(UNKNOWN_DEVICE)
     , mPostID(0)
     , mRequestTime(0)
     , mOnCacheEntryAvailableCallback(nullptr)
@@ -452,9 +434,6 @@ nsHttpChannel::ContinueConnect()
             if (NS_FAILED(rv) && event) {
                 event->Revoke();
             }
-
-            AccumulateCacheHitTelemetry(mCacheEntryDeviceTelemetryID,
-                                        kCacheHit);
 
             return rv;
         }
@@ -1318,9 +1297,6 @@ nsHttpChannel::ProcessResponse()
         cacheDisposition = kCacheHitViaReval;
     else
         cacheDisposition = kCacheMissedViaReval;
-
-    AccumulateCacheHitTelemetry(mCacheEntryDeviceTelemetryID,
-                                cacheDisposition);
 
     return rv;
 }
@@ -2883,26 +2859,6 @@ HttpCacheQuery::OnCacheEntryAvailable(nsICacheEntryDescriptor *entry,
     mCacheEntry = entry;
     mCacheAccess = access;
     mStatus = status;
-
-    if (mCacheEntry) {
-        // Telemetry stub?
-        char* cacheDeviceID = nullptr;
-        mCacheEntry->GetDeviceID(&cacheDeviceID);
-        if (cacheDeviceID) {
-            if (!strcmp(cacheDeviceID, kDiskDeviceID)) {
-            } else if (!strcmp(cacheDeviceID, kMemoryDeviceID)) {
-            } else if (!strcmp(cacheDeviceID, kOfflineDeviceID)) {
-            } else {
-                MOZ_NOT_REACHED("unknown cache device ID");
-            }
-
-            delete cacheDeviceID;
-        } else {
-            // If we can read from the entry, it must have a device, but
-            // sometimes we don't (Bug 769497).
-            // MOZ_ASSERT(!(mCacheAccess & nsICache::ACCESS_READ));
-        }
-    }
 
     nsresult rv = CheckCache();
     if (NS_FAILED(rv))
@@ -5449,7 +5405,6 @@ nsHttpChannel::OnCacheEntryAvailable(nsICacheEntryDescriptor *entry,
         mCachedContentIsPartial = mCacheQuery->mCachedContentIsPartial;
         mCustomConditionalRequest = mCacheQuery->mCustomConditionalRequest;
         mDidReval = mCacheQuery->mDidReval;
-        mCacheEntryDeviceTelemetryID = mCacheQuery->mCacheEntryDeviceTelemetryID;
         mCacheQuery = nullptr;
     }
 
