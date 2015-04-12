@@ -206,9 +206,9 @@ pref("extensions.dss.switchPending", false);    // Non-dynamic switch pending af
 pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.name", "chrome://browser/locale/browser.properties");
 pref("extensions.{972ce4c6-7e08-4474-a285-3208198ce6fd}.description", "chrome://browser/locale/browser.properties");
 
-pref("xpinstall.whitelist.add", "addons.mozilla.org,www.palemoon.org");
-pref("xpinstall.whitelist.add.36", "getpersonas.com");
-pref("xpinstall.whitelist.add.180", "marketplace.firefox.com");
+pref("xpinstall.whitelist.add", "addons.mozilla.org,www.palemoon.org,addons.palemoon.org");
+pref("xpinstall.whitelist.add.36", "");
+pref("xpinstall.whitelist.add.180", "");
 
 pref("lightweightThemes.update.enabled", true);
 pref("lightweightThemes.animation.enabled", false);
