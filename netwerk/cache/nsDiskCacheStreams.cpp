@@ -320,7 +320,7 @@ nsDiskCacheStreamIO::Close()
     mozilla::TimeStamp start = mozilla::TimeStamp::Now();
 
     // grab service lock
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSDISKCACHESTREAMIO_CLOSEOUTPUTSTREAM));
+    nsCacheServiceAutoLock lock();
 
     if (!mBinding) {    // if we're severed, just clear member variables
         mOutputStreamIsOpen = false;
@@ -419,7 +419,7 @@ nsDiskCacheStreamIO::Write( const char * buffer,
     }
 
     // grab service lock
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSDISKCACHESTREAMIO_WRITE));
+    nsCacheServiceAutoLock lock();
     if (!mBinding)  return NS_ERROR_NOT_AVAILABLE;
 
     if (mInStreamCount) {
