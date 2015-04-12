@@ -81,7 +81,6 @@ DOMStorageCache::DOMStorageCache(const nsACString* aScope)
 , mLoadResult(NS_OK)
 , mInitialized(false)
 , mSessionOnlyDataSetActive(false)
-, mPreloadTelemetryRecorded(false)
 {
   MOZ_COUNT_CTOR(DOMStorageCache);
 }
@@ -168,7 +167,7 @@ DOMStorageCache::DataSet(const DOMStorage* aStorage)
     // Session only data set is demanded but not filled with
     // current data set, copy to session only set now.
 
-    WaitForPreload(Telemetry::LOCALDOMSTORAGE_SESSIONONLY_PRELOAD_BLOCKING_MS);
+    WaitForPreload();
 
     Data& defaultSet = mData[kDefaultSet];
     Data& sessionSet = mData[kSessionSet];
@@ -294,27 +293,8 @@ DOMStorageCache::KeepAlive()
   mKeepAliveTimer.swap(timer);
 }
 
-namespace { // anon
-
-// The AutoTimer provided by telemetry headers is only using static,
-// i.e. compile time known ID, but here we know the ID only at run time.
-// Hence a new class.
-class TelemetryAutoTimer
-{
-public:
-  TelemetryAutoTimer(Telemetry::ID aId)
-    : id(aId), start(TimeStamp::Now()) {}
-  ~TelemetryAutoTimer()
-    { Telemetry::AccumulateDelta_impl<Telemetry::Millisecond>::compute(id, start); }
-private:
-  Telemetry::ID id;
-  const TimeStamp start;
-};
-
-} // anon
-
 void
-DOMStorageCache::WaitForPreload(Telemetry::ID aTelemetryID)
+DOMStorageCache::WaitForPreload()
 {
   if (!mPersistent) {
     return;
@@ -322,21 +302,13 @@ DOMStorageCache::WaitForPreload(Telemetry::ID aTelemetryID)
 
   bool loaded = mLoaded;
 
-  // Telemetry of rates of pending preloads
-  if (!mPreloadTelemetryRecorded) {
-    mPreloadTelemetryRecorded = true;
-  }
-
   if (loaded) {
     return;
   }
 
-  // Measure which operation blocks and for how long
-  TelemetryAutoTimer timer(aTelemetryID);
-
   // If preload already started (i.e. we got some first data, but not all)
   // SyncPreload will just wait for it to finish rather then synchronously
-  // read from the database.  It seems to me more optimal.
+  // read from the database.  It seems to be more optimal.
 
   // TODO place for A/B testing (force main thread load vs. let preload finish)
   sDatabase->SyncPreload(this);
@@ -346,7 +318,7 @@ nsresult
 DOMStorageCache::GetLength(const DOMStorage* aStorage, uint32_t* aRetval)
 {
   if (Persist(aStorage)) {
-    WaitForPreload(Telemetry::LOCALDOMSTORAGE_GETLENGTH_BLOCKING_MS);
+    WaitForPreload();
     if (NS_FAILED(mLoadResult)) {
       return mLoadResult;
     }
@@ -394,7 +366,7 @@ DOMStorageCache::GetKey(const DOMStorage* aStorage, uint32_t aIndex, nsAString& 
   // maybe we need to have a lazily populated key array here or
   // something?
   if (Persist(aStorage)) {
-    WaitForPreload(Telemetry::LOCALDOMSTORAGE_GETKEY_BLOCKING_MS);
+    WaitForPreload();
     if (NS_FAILED(mLoadResult)) {
       return mLoadResult;
     }
@@ -422,7 +394,7 @@ nsTArray<nsString>*
 DOMStorageCache::GetKeys(const DOMStorage* aStorage)
 {
   if (Persist(aStorage)) {
-    WaitForPreload(Telemetry::LOCALDOMSTORAGE_GETALLKEYS_BLOCKING_MS);
+    WaitForPreload();
   }
 
   nsTArray<nsString>* result = new nsTArray<nsString>();
@@ -438,7 +410,7 @@ DOMStorageCache::GetItem(const DOMStorage* aStorage, const nsAString& aKey,
                          nsAString& aRetval)
 {
   if (Persist(aStorage)) {
-    WaitForPreload(Telemetry::LOCALDOMSTORAGE_GETVALUE_BLOCKING_MS);
+    WaitForPreload();
     if (NS_FAILED(mLoadResult)) {
       return mLoadResult;
     }
@@ -460,7 +432,7 @@ DOMStorageCache::SetItem(const DOMStorage* aStorage, const nsAString& aKey,
                          const nsString& aValue, nsString& aOld)
 {
   if (Persist(aStorage)) {
-    WaitForPreload(Telemetry::LOCALDOMSTORAGE_SETVALUE_BLOCKING_MS);
+    WaitForPreload();
     if (NS_FAILED(mLoadResult)) {
       return mLoadResult;
     }
@@ -500,7 +472,7 @@ DOMStorageCache::RemoveItem(const DOMStorage* aStorage, const nsAString& aKey,
                             nsString& aOld)
 {
   if (Persist(aStorage)) {
-    WaitForPreload(Telemetry::LOCALDOMSTORAGE_REMOVEKEY_BLOCKING_MS);
+    WaitForPreload();
     if (NS_FAILED(mLoadResult)) {
       return mLoadResult;
     }
@@ -532,9 +504,8 @@ DOMStorageCache::Clear(const DOMStorage* aStorage)
     // We need to preload all data (know the size) before we can proceeed
     // to correctly decrease cached usage number.
     // XXX as in case of unload, this is not technically needed now, but
-    // after super-scope quota introduction we have to do this.  Get telemetry
-    // right now.
-    WaitForPreload(Telemetry::LOCALDOMSTORAGE_CLEAR_BLOCKING_MS);
+    // after super-scope quota introduction we have to do this.
+    WaitForPreload();
     if (NS_FAILED(mLoadResult)) {
       // When we failed to load data from the database, force delete of the
       // scope data and make use of the storage possible again.
@@ -589,9 +560,8 @@ DOMStorageCache::UnloadItems(uint32_t aUnloadFlags)
     // Must wait for preload to pass correct usage to ProcessUsageDelta
     // XXX this is not technically needed right now since there is just
     // per-origin isolated quota handling, but when we introduce super-
-    // -scope quotas, we have to do this.  Better to start getting
-    // telemetry right now.
-    WaitForPreload(Telemetry::LOCALDOMSTORAGE_UNLOAD_BLOCKING_MS);
+    // -scope quotas, we have to do this.
+    WaitForPreload();
 
     mData[kDefaultSet].mKeys.Clear();
     ProcessUsageDelta(kDefaultSet, -mData[kDefaultSet].mOriginQuotaUsage);
@@ -610,7 +580,7 @@ DOMStorageCache::UnloadItems(uint32_t aUnloadFlags)
 
 #ifdef DOM_STORAGE_TESTS
   if (aUnloadFlags & kTestReload) {
-    WaitForPreload(Telemetry::LOCALDOMSTORAGE_UNLOAD_BLOCKING_MS);
+    WaitForPreload();
 
     mData[kDefaultSet].mKeys.Clear();
     mLoaded = false; // This is only used in testing code
