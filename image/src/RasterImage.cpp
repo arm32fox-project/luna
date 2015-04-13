@@ -2754,11 +2754,6 @@ RasterImage::Draw(gfxContext *aContext,
     mStatusTracker->OnUnlockedDraw();
   }
 
-  // We use !mDecoded && mHasSourceData to mean discarded.
-  if (!mDecoded && mHasSourceData) {
-    mDrawStartTime = TimeStamp::Now();
-  }
-
   // If a synchronous draw is requested, flush anything that might be sitting around
   if (aFlags & FLAG_SYNC_DECODE) {
     nsresult rv = SyncDecode();
@@ -2773,13 +2768,6 @@ RasterImage::Draw(gfxContext *aContext,
   }
 
   DrawWithPreDownscaleIfNeeded(frame, aContext, aFilter, aUserSpaceToImageSpace, aFill, aSubimage, aFlags);
-
-  if (mDecoded && !mDrawStartTime.IsNull()) {
-      TimeDuration drawLatency = TimeStamp::Now() - mDrawStartTime;
-      // telemetry stub?
-      // clear the value of mDrawStartTime
-      mDrawStartTime = TimeStamp();
-  }
 
   return NS_OK;
 }

@@ -236,15 +236,8 @@ NotifyActivity(ActivityType activityType)
   // penalties here.
   gTimestamp = PR_IntervalNow();
 
-  // If we have UI activity we should reset the timer and report it if it is
-  // significant enough.
+  // If we have UI activity we should reset the timer.
   if (activityType == kUIActivity) {
-    // The minimum amount of lag time that we should report for telemetry data.
-    // Mozilla's UI responsiveness goal is 50ms
-    static const uint32_t kUIResponsivenessThresholdMS = 50;
-    if (cumulativeUILagMS > kUIResponsivenessThresholdMS) {
-      // Telemetry stub
-    }
     cumulativeUILagMS = 0;
   }
 }

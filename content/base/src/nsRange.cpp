@@ -2779,8 +2779,7 @@ nsRange::ToString(nsAString& aReturn)
 NS_IMETHODIMP
 nsRange::Detach()
 {
-  // No-op, but still set mIsDetached for telemetry (bug 702948)
-  mIsDetached = true;
+  // No-op, see bug 702948
   return NS_OK;
 }
 

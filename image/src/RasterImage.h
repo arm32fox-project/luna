@@ -758,7 +758,6 @@ private: // data
   nsresult WriteToDecoder(const char *aBuffer, uint32_t aCount, DecodeStrategy aStrategy);
   nsresult DecodeSomeData(uint32_t aMaxBytes, DecodeStrategy aStrategy);
   bool     IsDecodeFinished();
-  TimeStamp mDrawStartTime;
 
   inline bool CanQualityScale(const gfxSize& scale);
   inline bool CanScale(gfxPattern::GraphicsFilter aFilter, gfxSize aScale, uint32_t aFlags);

@@ -185,7 +185,6 @@ bool ValidWriteAssert(bool ok)
 
     NS_StackWalk(RecordStackWalker, /* skipFrames */ 0, /* maxFrames */ 0,
                  reinterpret_cast<void*>(&rawStack), 0, nullptr);
-    Telemetry::ProcessedStack stack = Telemetry::GetStackAndModules(rawStack);
 
     nsPrintfCString nameAux("%s%s%s", sProfileDirectory,
                             NS_SLASH, "Telemetry.LateWriteTmpXXXXXX");
@@ -223,28 +222,9 @@ bool ValidWriteAssert(bool ok)
 
     size_t numModules = stack.GetNumModules();
     sha1Stream.Printf("%u\n", (unsigned)numModules);
-    for (size_t i = 0; i < numModules; ++i) {
-        Telemetry::ProcessedStack::Module module = stack.GetModule(i);
-        sha1Stream.Printf("%s %s\n", module.mBreakpadId.c_str(),
-                          module.mName.c_str());
-    }
 
     size_t numFrames = stack.GetStackSize();
     sha1Stream.Printf("%u\n", (unsigned)numFrames);
-    for (size_t i = 0; i < numFrames; ++i) {
-        const Telemetry::ProcessedStack::Frame &frame =
-            stack.GetFrame(i);
-        // NOTE: We write the offsets, while the atos tool expects a value with
-        // the virtual address added. For example, running otool -l on the the firefox
-        // binary shows
-        //      cmd LC_SEGMENT_64
-        //      cmdsize 632
-        //      segname __TEXT
-        //      vmaddr 0x0000000100000000
-        // so to print the line matching the offset 123 one has to run
-        // atos -o firefox 0x100000123.
-        sha1Stream.Printf("%d %x\n", frame.mModIndex, (unsigned)frame.mOffset);
-    }
 
     SHA1Sum::Hash sha1;
     sha1Stream.Finish(sha1);

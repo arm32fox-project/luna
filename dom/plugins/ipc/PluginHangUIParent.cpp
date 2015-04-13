@@ -30,33 +30,6 @@ using mozilla::widget::WidgetUtils;
 using std::string;
 using std::vector;
 
-namespace {
-class nsPluginHangUITelemetry : public nsRunnable
-{
-public:
-  nsPluginHangUITelemetry(int aResponseCode, int aDontAskCode,
-                          uint32_t aResponseTimeMs, uint32_t aTimeoutMs)
-    : mResponseCode(aResponseCode),
-      mDontAskCode(aDontAskCode),
-      mResponseTimeMs(aResponseTimeMs),
-      mTimeoutMs(aTimeoutMs)
-  {
-  }
-
-  NS_IMETHOD
-  Run()
-  {
-    return NS_OK;
-  }
-
-private:
-  int mResponseCode;
-  int mDontAskCode;
-  uint32_t mResponseTimeMs;
-  uint32_t mTimeoutMs;
-};
-} // anonymous namespace
-
 namespace mozilla {
 namespace plugins {
 
@@ -354,11 +327,6 @@ PluginHangUIParent::RecvUserResponse(const unsigned int& aResponse)
     responseCode = 3;
   }
   int dontAskCode = (aResponse & HANGUI_USER_RESPONSE_DONT_SHOW_AGAIN) ? 1 : 0;
-  nsCOMPtr<nsIRunnable> workItem = new nsPluginHangUITelemetry(responseCode,
-                                                               dontAskCode,
-                                                               LastShowDurationMs(),
-                                                               mTimeoutPrefMs);
-  NS_DispatchToMainThread(workItem, NS_DISPATCH_NORMAL);
   return true;
 }
 

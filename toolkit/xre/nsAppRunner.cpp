@@ -2795,20 +2795,12 @@ namespace mozilla {
 
 static void SetShutdownChecks() {
   // Set default first. On debug builds we crash. On nightly and local
-  // builds we record. Nightlies will then send the info via telemetry,
-  // but it is usefull to have the data in about:telemetry in local builds
-  // too.
+  // builds we record.
 
 #ifdef DEBUG
   gShutdownChecks = SCM_CRASH;
 #else
-  const char* releaseChannel = NS_STRINGIFY(MOZ_UPDATE_CHANNEL);
-  if (strcmp(releaseChannel, "nightly") == 0 ||
-      strcmp(releaseChannel, "default") == 0) {
-    gShutdownChecks = SCM_RECORD;
-  } else {
-    gShutdownChecks = SCM_NOTHING;
-  }
+  gShutdownChecks = SCM_NOTHING;
 #endif
 
   // We let an environment variable override the default so that addons
@@ -2817,8 +2809,6 @@ static void SetShutdownChecks() {
   if (mozShutdownChecksEnv) {
     if (strcmp(mozShutdownChecksEnv, "crash") == 0) {
       gShutdownChecks = SCM_CRASH;
-    } else if (strcmp(mozShutdownChecksEnv, "record") == 0) {
-      gShutdownChecks = SCM_RECORD;
     } else if (strcmp(mozShutdownChecksEnv, "nothing") == 0) {
       gShutdownChecks = SCM_NOTHING;
     }
