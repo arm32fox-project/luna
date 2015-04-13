@@ -2441,44 +2441,6 @@ JSMemoryMultiReporter::CollectReports(WindowPaths *windowPaths,
 } // namespace xpc
 
 static void
-AccumulateTelemetryCallback(int id, uint32_t sample)
-{
-// Telemetry stub
-    switch (id) {
-      case JS_TELEMETRY_GC_REASON:
-        break;
-      case JS_TELEMETRY_GC_IS_COMPARTMENTAL:
-        break;
-      case JS_TELEMETRY_GC_MS:
-        break;
-      case JS_TELEMETRY_GC_MAX_PAUSE_MS:
-        break;
-      case JS_TELEMETRY_GC_MARK_MS:
-        break;
-      case JS_TELEMETRY_GC_SWEEP_MS:
-        break;
-      case JS_TELEMETRY_GC_MARK_ROOTS_MS:
-        break;
-      case JS_TELEMETRY_GC_MARK_GRAY_MS:
-        break;
-      case JS_TELEMETRY_GC_SLICE_MS:
-        break;
-      case JS_TELEMETRY_GC_MMU_50:
-        break;
-      case JS_TELEMETRY_GC_RESET:
-        break;
-      case JS_TELEMETRY_GC_INCREMENTAL_DISABLED:
-        break;
-      case JS_TELEMETRY_GC_NON_INCREMENTAL:
-        break;
-      case JS_TELEMETRY_GC_SCC_SWEEP_TOTAL_MS:
-        break;
-      case JS_TELEMETRY_GC_SCC_SWEEP_MAX_PAUSE_MS:
-        break;
-    }
-}
-
-static void
 CompartmentNameCallback(JSRuntime *rt, JSCompartment *comp,
                         char *buf, size_t bufsize)
 {
@@ -2694,7 +2656,6 @@ XPCJSRuntime::XPCJSRuntime(nsXPConnect* aXPConnect)
                               xpc::WrapperFactory::WrapForSameCompartment,
                               xpc::WrapperFactory::PrepareForWrapping);
     js::SetPreserveWrapperCallback(runtime, PreserveWrapper);
-    JS_SetAccumulateTelemetryCallback(runtime, AccumulateTelemetryCallback);
     js::SetActivityCallback(runtime, ActivityCallback, this);
     js::SetCTypesActivityCallback(runtime, CTypesActivityCallback);
 
