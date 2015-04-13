@@ -43,6 +43,12 @@
     right: -12px;
 }
 
+/* Lightweight Themes */
+
+#main-window:-moz-lwtheme::after {
+  color: inherit;
+  text-shadow: inherit;
+}
 
 /* Windows Classic theme */
 
