@@ -935,7 +935,7 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
   rv = SSL_GetChannelInfo(fd, &channelInfo, sizeof(channelInfo));
   MOZ_ASSERT(rv == SECSuccess);
   if (rv == SECSuccess) {
-    // Get the protocol version for telemetry
+    // Get the protocol version
     // 0=ssl3, 1=tls1, 2=tls1.1, 3=tls1.2
     unsigned int versionEnum = channelInfo.protocolVersion & 0xFF;
 
@@ -949,8 +949,7 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
       status->mSecretKeyLength = cipherInfo.effectiveKeyBits;
 //      status->mCipherName.Assign(cipherInfo.cipherSuiteName); //XXX: Fx Full Suite string
       status->mCipherName.Assign(cipherInfo.symCipherName);
-
-      // keyExchange null=0, rsa=1, dh=2, fortezza=3, ecdh=4
+//      status->mProtocolVersion.Assign(versionEnum);
     }
       
   }
