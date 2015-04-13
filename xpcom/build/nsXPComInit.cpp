@@ -508,8 +508,6 @@ NS_InitXPCOM2(nsIServiceManager* *result,
 
     mozilla::MapsMemoryReporter::Init();
 
-    mozilla::Telemetry::Init();
-
     mozilla::HangMonitor::Startup();
 
 #ifdef MOZ_VISUAL_EVENT_TRACER
