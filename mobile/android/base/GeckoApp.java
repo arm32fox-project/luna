@@ -180,8 +180,6 @@ abstract public class GeckoApp
 
     protected int mRestoreMode = RESTORE_NONE;
     protected boolean mInitialized = false;
-    private Telemetry.Timer mJavaUiStartupTimer;
-    private Telemetry.Timer mGeckoReadyStartupTimer;
 
     private String mPrivateBrowsingSession;
 
@@ -528,17 +526,7 @@ abstract public class GeckoApp
             } else if (event.equals("Reader:GoToReadingList")) {
                 showReadingList();
             } else if (event.equals("Gecko:Ready")) {
-                mGeckoReadyStartupTimer.stop();
                 geckoConnected();
-
-                // This method is already running on the background thread, so we
-                // know that mHealthRecorder will exist. That doesn't stop us being
-                // paranoid.
-                // This method is cheap, so don't spawn a new runnable.
-                final BrowserHealthRecorder rec = mHealthRecorder;
-                if (rec != null) {
-                  rec.recordGeckoStartupTime(mGeckoReadyStartupTimer.getElapsed());
-                }
             } else if (event.equals("ToggleChrome:Hide")) {
                 toggleChrome(false);
             } else if (event.equals("ToggleChrome:Show")) {
@@ -1135,10 +1123,6 @@ abstract public class GeckoApp
             enableStrictMode();
         }
 
-        // The clock starts...now. Better hurry!
-        mJavaUiStartupTimer = new Telemetry.Timer("FENNEC_STARTUP_TIME_JAVAUI");
-        mGeckoReadyStartupTimer = new Telemetry.Timer("FENNEC_STARTUP_TIME_GECKOREADY");
-
         String args = getIntent().getStringExtra("args");
 
         String profileName = null;
@@ -1197,7 +1181,6 @@ abstract public class GeckoApp
             // This happens when the GeckoApp activity is destroyed by Android
             // without killing the entire application (see Bug 769269).
             mIsRestoringActivity = true;
-            Telemetry.HistogramAdd("FENNEC_RESTORING_ACTIVITY", 1);
         }
 
         // Fix for Bug 830557 on Tegra boards running Froyo.
@@ -1239,12 +1222,6 @@ abstract public class GeckoApp
             boolean wasInBackground =
                 savedInstanceState.getBoolean(SAVED_STATE_IN_BACKGROUND, false);
 
-            // Don't log OOM-kills if only one activity was destroyed. (For example
-            // from "Don't keep activities" on ICS)
-            if (!wasInBackground && !mIsRestoringActivity) {
-                Telemetry.HistogramAdd("FENNEC_WAS_KILLED", 1);
-            }
-
             if (savedInstanceState.getBoolean(SAVED_STATE_INTENT_HANDLED, false)) {
                 Intent thisIntent = getIntent();
                 // Bug 896992 - This intent has already been handled, clear the intent action.
@@ -1265,9 +1242,6 @@ abstract public class GeckoApp
                 final SharedPreferences prefs = GeckoApp.getAppSharedPreferences();
 
                 SessionInformation previousSession = SessionInformation.fromSharedPrefs(prefs);
-                if (previousSession.wasKilled()) {
-                    Telemetry.HistogramAdd("FENNEC_WAS_KILLED", 1);
-                }
 
                 SharedPreferences.Editor editor = prefs.edit();
                 editor.putBoolean(GeckoApp.PREFS_OOM_EXCEPTION, false);
@@ -1412,8 +1386,6 @@ abstract public class GeckoApp
             Tabs.getInstance().notifyListeners(null, Tabs.TabEvents.RESTORED);
         }
 
-        Telemetry.HistogramAdd("FENNEC_STARTUP_GECKOAPP_ACTION", startupAction.ordinal());
-
         if (!mIsRestoringActivity) {
             sGeckoThread = new GeckoThread(intent, passedUri);
             ThreadUtils.setGeckoThread(sGeckoThread);
@@ -1503,19 +1475,9 @@ abstract public class GeckoApp
             }
         });
 
-        // Trigger the completion of the telemetry timer that wraps activity startup,
-        // then grab the duration to give to FHR.
-        mJavaUiStartupTimer.stop();
-        final long javaDuration = mJavaUiStartupTimer.getElapsed();
-
         ThreadUtils.getBackgroundHandler().postDelayed(new Runnable() {
             @Override
             public void run() {
-                final BrowserHealthRecorder rec = mHealthRecorder;
-                if (rec != null) {
-                    rec.recordJavaStartupTime(javaDuration);
-                }
-
                 // Sync settings need Gecko to be loaded, so
                 // no hurry in starting this.
                 checkMigrateSync();
