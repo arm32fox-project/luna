@@ -60,8 +60,7 @@ GetStorageSQLiteMemoryUsed()
 
 // We don't need an "explicit" reporter for total SQLite memory usage, because
 // the multi-reporter provides reports that add up to the total.  But it's
-// useful to have the total in the "Other Measurements" list in about:memory,
-// and more importantly, we also gather the total via telemetry.
+// useful to have the total in the "Other Measurements" list in about:memory.
 NS_MEMORY_REPORTER_IMPLEMENT(StorageSQLite,
     "storage-sqlite",
     KIND_OTHER,
@@ -106,8 +105,7 @@ public:
   // There may be a delay getting the lock if another thread is accessing the
   // Connection.  This isn't very nice if CollectReports is called from the
   // main thread!  But at the time of writing this function is only called when
-  // about:memory is loaded (not, for example, when telemetry pings occur) and
-  // any delays in that case aren't so bad.
+  // about:memory is loaded and any delays in that case aren't so bad.
   NS_IMETHOD CollectReports(nsIMemoryMultiReporterCallback *aCb,
                             nsISupports *aClosure)
   {
@@ -371,8 +369,6 @@ Service::shutdown()
   NS_IF_RELEASE(sXPConnect);
 }
 
-sqlite3_vfs *ConstructTelemetryVFS();
-
 #ifdef MOZ_STORAGE_MEMORY
 #  include "mozmemory.h"
 
@@ -507,15 +503,6 @@ Service::initialize()
   rc = ::sqlite3_initialize();
   if (rc != SQLITE_OK)
     return convertResultCode(rc);
-
-  mSqliteVFS = ConstructTelemetryVFS();
-  if (mSqliteVFS) {
-    rc = sqlite3_vfs_register(mSqliteVFS, 1);
-    if (rc != SQLITE_OK)
-      return convertResultCode(rc);
-  } else {
-    NS_WARNING("Failed to register telemetry VFS");
-  }
 
   // Register for xpcom-shutdown so we can cleanup after ourselves.  The
   // observer service can only be used on the main thread.
