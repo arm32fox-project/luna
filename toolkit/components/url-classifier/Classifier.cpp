@@ -12,7 +12,6 @@
 #include "nsISeekableStream.h"
 #include "nsIFile.h"
 #include "nsAutoPtr.h"
-#include "mozilla/Telemetry.h"
 #include "prlog.h"
 
 // NSPR_LOG_MODULES=UrlClassifierDbService:5

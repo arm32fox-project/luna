@@ -13,7 +13,6 @@
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
 #include "mozilla/Monitor.h"
-#include "mozilla/Telemetry.h"
 #include "nsAutoPtr.h"
 
 namespace mozilla {

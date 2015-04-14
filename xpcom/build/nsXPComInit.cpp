@@ -106,7 +106,6 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 #include "mozilla/Services.h"
 #include "mozilla/Omnijar.h"
 #include "mozilla/HangMonitor.h"
-#include "mozilla/Telemetry.h"
 
 #include "nsChromeRegistry.h"
 #include "nsChromeProtocolHandler.h"

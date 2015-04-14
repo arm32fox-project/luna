@@ -9,7 +9,6 @@
 #include "mozilla/ProcessedStack.h"
 #include "mozilla/Scoped.h"
 #include "mozilla/SHA1.h"
-#include "mozilla/Telemetry.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsStackWalk.h"

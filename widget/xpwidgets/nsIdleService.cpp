@@ -15,7 +15,6 @@
 #include "prlog.h"
 #include "mozilla/Services.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include <algorithm>
 
 #ifdef MOZ_WIDGET_ANDROID

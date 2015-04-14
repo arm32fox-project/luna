@@ -7,8 +7,6 @@
 #include "nsNSSComponent.h"
 #include "nsNSSIOLayer.h"
 
-#include "mozilla/Telemetry.h"
-
 #include "prlog.h"
 #include "prnetdb.h"
 #include "nsIPrefService.h"

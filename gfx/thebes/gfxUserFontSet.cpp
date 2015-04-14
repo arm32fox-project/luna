@@ -18,7 +18,6 @@
 #include "nsIProtocolHandler.h"
 #include "nsIPrincipal.h"
 #include "mozilla/Services.h"
-#include "mozilla/Telemetry.h"
 
 #include "opentype-sanitiser.h"
 #include "ots-memory-stream.h"

@@ -17,7 +17,6 @@
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
 
-#include "mozilla/Telemetry.h"
 #include "mozilla/VisualEventTracer.h"
 #include <algorithm>
 

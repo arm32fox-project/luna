@@ -33,7 +33,6 @@
 #include "mozilla/Services.h"
 #include "mozilla/Omnijar.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 
 #include <stdlib.h>
 

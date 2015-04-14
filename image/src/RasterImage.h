@@ -34,7 +34,6 @@
 #include "mozilla/LinkedList.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/ReentrantMonitor.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
 #include "mozilla/StaticPtr.h"
 #include "mozilla/WeakPtr.h"

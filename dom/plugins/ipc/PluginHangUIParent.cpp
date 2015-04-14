@@ -8,7 +8,6 @@
 
 #include "PluginHangUIParent.h"
 
-#include "mozilla/Telemetry.h"
 #include "mozilla/plugins/PluginModuleParent.h"
 
 #include "nsContentUtils.h"

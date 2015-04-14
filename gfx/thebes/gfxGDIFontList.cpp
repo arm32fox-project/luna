@@ -27,8 +27,6 @@
 #include "nsISimpleEnumerator.h"
 #include "nsIWindowsRegKey.h"
 
-#include "mozilla/Telemetry.h"
-
 #include <usp10.h>
 #include <t2embapi.h>
 

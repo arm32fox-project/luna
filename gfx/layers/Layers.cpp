@@ -9,7 +9,6 @@
 
 #include "mozilla/layers/PLayerTransaction.h"
 #include "mozilla/layers/LayerManagerComposite.h"
-#include "mozilla/Telemetry.h"
 #include "CompositableHost.h"
 
 #include "ImageLayers.h"

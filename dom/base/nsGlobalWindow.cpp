@@ -220,7 +220,6 @@
 #include "nsRefreshDriver.h"
 #include "mozAutoDocUpdate.h"
 
-#include "mozilla/Telemetry.h"
 #include "nsLocation.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsDOMEventTargetHelper.h"

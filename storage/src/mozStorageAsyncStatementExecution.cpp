@@ -19,8 +19,6 @@
 #include "mozStorageStatementData.h"
 #include "mozStorageAsyncStatementExecution.h"
 
-#include "mozilla/Telemetry.h"
-
 namespace mozilla {
 namespace storage {
 

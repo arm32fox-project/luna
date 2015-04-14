@@ -16,7 +16,6 @@
 #include "nsXPCOMStrings.h"
 
 #include "BackgroundFileSaver.h"
-#include "mozilla/Telemetry.h"
 
 namespace mozilla {
 namespace net {

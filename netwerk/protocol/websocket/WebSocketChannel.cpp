@@ -37,7 +37,6 @@
 #include "nsNetUtil.h"
 #include "mozilla/Attributes.h"
 #include "TimeStamp.h"
-#include "mozilla/Telemetry.h"
 
 #include "plbase64.h"
 #include "prmem.h"

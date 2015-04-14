@@ -20,7 +20,6 @@
 #include "nsIObserverService.h"
 #include "nsThread.h"
 #include "nsMemoryInfoDumper.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Services.h"
 

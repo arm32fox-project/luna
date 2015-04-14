@@ -20,7 +20,6 @@
 #include "nsNetCID.h"
 #include "nsCOMPtr.h"
 #include "nsICryptoHash.h"
-#include "mozilla/Telemetry.h"
 
 #include <windows.h>
 

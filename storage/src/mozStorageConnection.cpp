@@ -13,7 +13,6 @@
 #include "nsThreadUtils.h"
 #include "nsIFile.h"
 #include "nsIFileURL.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/Attributes.h"

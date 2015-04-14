@@ -67,7 +67,6 @@
 #include "nsStringBuffer.h"
 #include "nsDOMFile.h"
 #include "nsIFileChannel.h"
-#include "mozilla/Telemetry.h"
 #include "jsfriendapi.h"
 #include "GeckoProfiler.h"
 #include "mozilla/dom/EncodingUtils.h"

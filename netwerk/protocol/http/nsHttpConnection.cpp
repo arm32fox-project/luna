@@ -23,7 +23,6 @@
 #include "nsProxyRelease.h"
 #include "nsPreloadedStream.h"
 #include "ASpdySession.h"
-#include "mozilla/Telemetry.h"
 #include "nsISupportsPriority.h"
 #include "nsHttpPipeline.h"
 

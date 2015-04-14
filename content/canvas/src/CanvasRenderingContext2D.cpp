@@ -85,7 +85,6 @@
 #include "mozilla/ipc/PDocumentRendererParent.h"
 #include "mozilla/MathAlgorithms.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/unused.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsWrapperCacheInlines.h"

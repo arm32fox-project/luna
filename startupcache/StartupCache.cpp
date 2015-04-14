@@ -31,7 +31,6 @@
 #include "nsZipArchive.h"
 #include "mozilla/Omnijar.h"
 #include "prenv.h"
-#include "mozilla/Telemetry.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
 #include "nsIProtocolHandler.h"

@@ -21,7 +21,7 @@
 #include "nsRefPtrHashtable.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/Telemetry.h"
+#include "mozilla/TimeStamp.h"
 
 class nsCacheRequest;
 class nsCacheProfilePrefObserver;

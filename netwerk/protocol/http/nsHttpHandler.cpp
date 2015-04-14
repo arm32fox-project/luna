@@ -46,7 +46,6 @@
 #include "nsIXULAppInfo.h"
 
 #include "mozilla/net/NeckoChild.h"
-#include "mozilla/Telemetry.h"
 
 #if defined(XP_UNIX)
 #include <sys/utsname.h>

@@ -110,7 +110,6 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/Telemetry.h"
 #include "nsIThreadPool.h"
 #include "nsNetUtil.h"
 #include "nsXPCOMCIDInternal.h"

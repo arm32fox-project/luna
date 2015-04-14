@@ -34,7 +34,6 @@
 #include "nsIScriptContext.h"
 #include "nsJSEnvironment.h"
 #include "nsXMLHttpRequest.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/XPTInterfaceInfoManager.h"
 #include "nsDOMClassInfoID.h"
 

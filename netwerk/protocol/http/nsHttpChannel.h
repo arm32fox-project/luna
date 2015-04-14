@@ -31,7 +31,6 @@
 #include "nsDNSPrefetch.h"
 #include "TimingStruct.h"
 #include "AutoClose.h"
-#include "mozilla/Telemetry.h"
 
 class nsAHttpConnection;
 

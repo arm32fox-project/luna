@@ -24,7 +24,6 @@
 #include "nsUnicharUtils.h"
 #include "nsVariant.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "BatteryManager.h"
 #include "PowerManager.h"
 #include "nsIDOMWakeLock.h"
