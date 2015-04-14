@@ -386,17 +386,5 @@ AsyncStatementCallbackNotifier::HandleCompletion(uint16_t aReason)
   return NS_OK;
 }
 
-////////////////////////////////////////////////////////////////////////////////
-//// AsyncStatementCallbackNotifier
-
-NS_IMETHODIMP
-AsyncStatementTelemetryTimer::HandleCompletion(uint16_t aReason)
-{
-  if (aReason == mozIStorageStatementCallback::REASON_FINISHED) {
-  // Telemetry stub
-  }
-  return NS_OK;
-}
-
 } // namespace places
 } // namespace mozilla

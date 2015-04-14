@@ -641,7 +641,6 @@ nsPlacesExpiration.prototype = {
   },
 
   // Number of expiration steps needed to reach a CLEAN status.
-  _telemetrySteps: 1,
   handleCompletion: function PEX_handleCompletion(aReason)
   {
     if (aReason == Ci.mozIStorageStatementCallback.REASON_FINISHED) {
@@ -650,19 +649,6 @@ nsPlacesExpiration.prototype = {
         // A dirty history will return all the entries we are expecting bringing
         // our countdown to zero, while a clean one will not.
         let oldStatus = this.status;
-        this.status = this._expectedResultsCount == 0 ? STATUS.DIRTY
-                                                      : STATUS.CLEAN;
-
-        // Collect or send telemetry data.
-        if (this.status == STATUS.DIRTY) {
-          this._telemetrySteps++;
-        }
-        else {
-          // Telemetry stub
-          this._telemetrySteps = 1;
-        }
-
-        delete this._expectedResultsCount;
       }
 
       // Dispatch a notification that expiration has finished.

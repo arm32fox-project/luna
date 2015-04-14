@@ -3111,18 +3111,6 @@ nsNavHistory::DecayFrecency()
   );
   NS_ENSURE_STATE(deleteAdaptive);
 
-  mozIStorageBaseStatement *stmts[] = {
-    decayFrecency.get(),
-    decayAdaptive.get(),
-    deleteAdaptive.get()
-  };
-  nsCOMPtr<mozIStoragePendingStatement> ps;
-  nsRefPtr<AsyncStatementTelemetryTimer> cb =
-    new AsyncStatementTelemetryTimer(Telemetry::PLACES_IDLE_FRECENCY_DECAY_TIME_MS);
-  rv = mDB->MainConn()->ExecuteAsync(stmts, ArrayLength(stmts), cb,
-                                     getter_AddRefs(ps));
-  NS_ENSURE_SUCCESS(rv, rv);
-
   return NS_OK;
 }
 

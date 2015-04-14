@@ -86,7 +86,6 @@ this.PlacesDBUtils = {
     , this.checkCoherence
     , this._refreshUI
     ]);
-    tasks._telemetryStart = Date.now();
     tasks.callback = aCallback;
     tasks.scope = aScope;
     this._executeTasks(tasks);
@@ -808,216 +807,6 @@ this.PlacesDBUtils = {
   },
 
   /**
-   * Collects telemetry data.
-   *
-   * There are essentially two modes of collection and the mode is
-   * determined by the presence of aHealthReportCallback. If
-   * aHealthReportCallback is not defined (the default) then we are in
-   * "Telemetry" mode. Results will be reported to Telemetry. If we are
-   * in "Health Report" mode only the probes with a true healthreport
-   * flag will be collected and the results will be reported to the
-   * aHealthReportCallback.
-   *
-   * @param [optional] aTasks
-   *        Tasks object to execute.
-   * @param [optional] aHealthReportCallback
-   *        Function to receive data relevant for Firefox Health Report.
-   */
-  telemetry: function PDBU_telemetry(aTasks, aHealthReportCallback=null)
-  {
-    let tasks = new Tasks(aTasks);
-
-    let isTelemetry = !aHealthReportCallback;
-
-    // This will be populated with one integer property for each probe result,
-    // using the histogram name as key.
-    let probeValues = {};
-
-    // The following array contains an ordered list of entries that are
-    // processed to collect telemetry data.  Each entry has these properties:
-    //
-    //  histogram: Name of the telemetry histogram to update.
-    //  query:     This is optional.  If present, contains a database command
-    //             that will be executed asynchronously, and whose result will
-    //             be added to the telemetry histogram.
-    //  callback:  This is optional.  If present, contains a function that must
-    //             return the value that will be added to the telemetry
-    //             histogram. If a query is also present, its result is passed
-    //             as the first argument of the function.  If the function
-    //             raises an exception, no data is added to the histogram.
-    //  healthreport: Boolean indicating whether this probe is relevant
-    //                to Firefox Health Report.
-    //
-    // Since all queries are executed in order by the database backend, the
-    // callbacks can also use the result of previous queries stored in the
-    // probeValues object.
-    let probes = [
-      { histogram: "PLACES_PAGES_COUNT",
-        healthreport: true,
-        query:     "SELECT count(*) FROM moz_places" },
-
-      { histogram: "PLACES_BOOKMARKS_COUNT",
-        healthreport: true,
-        query:     "SELECT count(*) FROM moz_bookmarks b "
-                 + "JOIN moz_bookmarks t ON t.id = b.parent "
-                 + "AND t.parent <> :tags_folder "
-                 + "WHERE b.type = :type_bookmark " },
-
-      { histogram: "PLACES_TAGS_COUNT",
-        query:     "SELECT count(*) FROM moz_bookmarks "
-                 + "WHERE parent = :tags_folder " },
-
-      { histogram: "PLACES_FOLDERS_COUNT",
-        query:     "SELECT count(*) FROM moz_bookmarks "
-                 + "WHERE TYPE = :type_folder "
-                 + "AND parent NOT IN (0, :places_root, :tags_folder) " },
-
-      { histogram: "PLACES_KEYWORDS_COUNT",
-        query:     "SELECT count(*) FROM moz_keywords " },
-
-      { histogram: "PLACES_SORTED_BOOKMARKS_PERC",
-        query:     "SELECT ROUND(( "
-                 +   "SELECT count(*) FROM moz_bookmarks b "
-                 +   "JOIN moz_bookmarks t ON t.id = b.parent "
-                 +   "AND t.parent <> :tags_folder AND t.parent > :places_root "
-                 +   "WHERE b.type  = :type_bookmark "
-                 +   ") * 100 / ( "
-                 +   "SELECT count(*) FROM moz_bookmarks b "
-                 +   "JOIN moz_bookmarks t ON t.id = b.parent "
-                 +   "AND t.parent <> :tags_folder "
-                 +   "WHERE b.type = :type_bookmark "
-                 + ")) " },
-
-      { histogram: "PLACES_TAGGED_BOOKMARKS_PERC",
-        query:     "SELECT ROUND(( "
-                 +   "SELECT count(*) FROM moz_bookmarks b "
-                 +   "JOIN moz_bookmarks t ON t.id = b.parent "
-                 +   "AND t.parent = :tags_folder "
-                 +   ") * 100 / ( "
-                 +   "SELECT count(*) FROM moz_bookmarks b "
-                 +   "JOIN moz_bookmarks t ON t.id = b.parent "
-                 +   "AND t.parent <> :tags_folder "
-                 +   "WHERE b.type = :type_bookmark "
-                 + ")) " },
-
-      { histogram: "PLACES_DATABASE_FILESIZE_MB",
-        callback: function () {
-          let DBFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
-          DBFile.append("places.sqlite");
-          return parseInt(DBFile.fileSize / BYTES_PER_MEBIBYTE);
-        }
-      },
-
-      { histogram: "PLACES_DATABASE_JOURNALSIZE_MB",
-        callback: function () {
-          let DBFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
-          DBFile.append("places.sqlite-wal");
-          return parseInt(DBFile.fileSize / BYTES_PER_MEBIBYTE);
-        }
-      },
-
-      { histogram: "PLACES_DATABASE_PAGESIZE_B",
-        query:     "PRAGMA page_size /* PlacesDBUtils.jsm PAGESIZE_B */" },
-
-      { histogram: "PLACES_DATABASE_SIZE_PER_PAGE_B",
-        query:     "PRAGMA page_count",
-        callback: function (aDbPageCount) {
-          // Note that the database file size would not be meaningful for this
-          // calculation, because the file grows in fixed-size chunks.
-          let dbPageSize = probeValues.PLACES_DATABASE_PAGESIZE_B;
-          let placesPageCount = probeValues.PLACES_PAGES_COUNT;
-          return Math.round((dbPageSize * aDbPageCount) / placesPageCount);
-        }
-      },
-
-      { histogram: "PLACES_ANNOS_BOOKMARKS_COUNT",
-        query:     "SELECT count(*) FROM moz_items_annos" },
-
-      // LENGTH is not a perfect measure, since it returns the number of bytes
-      // only for BLOBs, the number of chars for anything else.  Though it's
-      // the best approximation we have.
-      { histogram: "PLACES_ANNOS_BOOKMARKS_SIZE_KB",
-        query:     "SELECT SUM(LENGTH(content))/1024 FROM moz_items_annos" },
-
-      { histogram: "PLACES_ANNOS_PAGES_COUNT",
-        query:     "SELECT count(*) FROM moz_annos" },
-
-      { histogram: "PLACES_ANNOS_PAGES_SIZE_KB",
-        query:     "SELECT SUM(LENGTH(content))/1024 FROM moz_annos" },
-    ];
-
-    let params = {
-      tags_folder: PlacesUtils.tagsFolderId,
-      type_folder: PlacesUtils.bookmarks.TYPE_FOLDER,
-      type_bookmark: PlacesUtils.bookmarks.TYPE_BOOKMARK,
-      places_root: PlacesUtils.placesRootId
-    };
-
-    let outstandingProbes = 0;
-
-    function reportResult(aProbe, aValue) {
-      outstandingProbes--;
-
-      let value = aValue;
-      try {
-        if ("callback" in aProbe) {
-          value = aProbe.callback(value);
-        }
-        if (isFinite(value)) {
-          probeValues[aProbe.histogram] = value;
-        }
-      } catch (ex) {
-        Components.utils.reportError(ex);
-      }
-
-      if (!outstandingProbes && aHealthReportCallback) {
-        try {
-          aHealthReportCallback(probeValues);
-        } catch (ex) {
-          Components.utils.reportError(ex);
-        }
-      }
-    }
-
-    for (let i = 0; i < probes.length; i++) {
-      let probe = probes[i];
-
-      if (!isTelemetry && !probe.healthreport) {
-        continue;
-      }
-
-      outstandingProbes++;
-
-      if (!("query" in probe)) {
-        reportResult(probe);
-        continue;
-      }
-
-      let stmt = DBConn.createAsyncStatement(probe.query);
-      for (param in params) {
-        if (probe.query.indexOf(":" + param) > 0) {
-          stmt.params[param] = params[param];
-        }
-      }
-
-      try {
-        stmt.executeAsync({
-          handleError: PlacesDBUtils._handleError,
-          handleResult: function (aResultSet) {
-            let row = aResultSet.getNextRow();
-            reportResult(probe, row.getResultByIndex(0));
-          },
-          handleCompletion: function () {}
-        });
-      } finally{
-        stmt.finalize();
-      }
-    }
-
-    PlacesDBUtils._executeTasks(tasks);
-  },
-
-  /**
    * Runs a list of tasks, notifying log messages to the callback.
    *
    * @param aTasks
@@ -1054,7 +843,6 @@ function Tasks(aTasks)
       this._log = aTasks.messages;
       this.callback = aTasks.callback;
       this.scope = aTasks.scope;
-      this._telemetryStart = aTasks._telemetryStart;
     }
   }
 }
@@ -1064,7 +852,6 @@ Tasks.prototype = {
   _log: [],
   callback: null,
   scope: null,
-  _telemetryStart: 0,
 
   /**
    * Adds a task to the top of the list.

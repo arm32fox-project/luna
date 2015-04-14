@@ -8,8 +8,6 @@ Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
                                   "resource://gre/modules/PlacesUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
-                                  "resource://gre/modules/TelemetryStopwatch.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
                                   "resource://gre/modules/NetUtil.jsm");
 
@@ -80,9 +78,6 @@ const kBrowserUrlbarAutocompleteEnabledPref = "autocomplete.enabled";
 const kBrowserUrlbarAutofillPref = "autoFill";
 // Whether to search only typed entries.
 const kBrowserUrlbarAutofillTypedPref = "autoFill.typed";
-
-// The Telemetry histogram for urlInlineComplete query on domain
-const DOMAIN_QUERY_TELEMETRY = "PLACES_AUTOCOMPLETE_URLINLINE_DOMAIN_QUERY_TIME_MS";
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Globals
@@ -538,7 +533,6 @@ nsPlacesAutoComplete.prototype = {
       [this._getBoundAdaptiveQuery(), this._getBoundOpenPagesQuery(tokens), query];
 
     // Start executing our queries.
-    this._telemetryStartTime = Date.now();
     this._executeQueries(queries);
 
     // Set up our persistent state for the duration of the search.
@@ -789,17 +783,6 @@ nsPlacesAutoComplete.prototype = {
     }
     result.setSearchResult(Ci.nsIAutoCompleteResult[resultCode]);
     this._listener.onSearchResult(this, result);
-    if (this._telemetryStartTime) {
-      let elapsed = Date.now() - this._telemetryStartTime;
-      if (elapsed > 50) {
-        try {
-          // Telemetry stub
-        } catch (ex) {
-          Components.utils.reportError("Unable to report telemetry.");
-        }
-      }
-      this._telemetryStartTime = null;
-    }
   },
 
   /**
@@ -1376,7 +1359,6 @@ urlInlineComplete.prototype = {
     if (lastSlashIndex == -1) {
       var hasDomainResult = false;
       var domain, untrimmedDomain;
-      TelemetryStopwatch.start(DOMAIN_QUERY_TELEMETRY);
       try {
         // Execute the query synchronously.
         // This is by design, to avoid race conditions between the
@@ -1389,7 +1371,6 @@ urlInlineComplete.prototype = {
       } finally {
         query.reset();
       }
-      TelemetryStopwatch.finish(DOMAIN_QUERY_TELEMETRY);
 
       if (hasDomainResult) {
         // We got a match for a domain, we can add it immediately.
