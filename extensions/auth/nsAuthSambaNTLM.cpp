@@ -8,7 +8,6 @@
 #include "prenv.h"
 #include "plbase64.h"
 #include "prerror.h"
-#include "mozilla/Telemetry.h"
 
 #include <stdlib.h>
 

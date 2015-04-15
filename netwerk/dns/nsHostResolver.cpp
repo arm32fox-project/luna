@@ -35,7 +35,6 @@
 
 #include "mozilla/HashFunctions.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/VisualEventTracer.h"
 
 using namespace mozilla;

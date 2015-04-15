@@ -68,7 +68,6 @@
 #include "mozilla/Preferences.h"
 #include "nsLocation.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Telemetry.h"
 
 // Window scriptable helper includes
 #include "nsIDocShell.h"

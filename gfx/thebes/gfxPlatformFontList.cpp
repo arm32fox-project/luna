@@ -17,7 +17,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
 
 using namespace mozilla;

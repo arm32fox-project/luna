@@ -6,7 +6,6 @@
 
 #include "nsNSSCallbacks.h"
 
-#include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
 #include "nsNSSComponent.h"
 #include "nsNSSIOLayer.h"

@@ -29,8 +29,6 @@
 #include <imgIContainer.h>
 #include <nsIDocShell.h>
 
-#include "mozilla/Telemetry.h"
-
 // Defined in dwmapi in a header that needs a higher numbered _WINNT #define
 #define DWM_SIT_DISPLAYFRAME 0x1
 

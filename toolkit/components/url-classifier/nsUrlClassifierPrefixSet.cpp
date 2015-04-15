@@ -17,7 +17,6 @@
 #include "nsTArray.h"
 #include "nsThreadUtils.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/FileUtils.h"
 #include "prlog.h"
 

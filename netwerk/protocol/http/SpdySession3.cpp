@@ -7,7 +7,6 @@
 // HttpLog.h should generally be included first
 #include "HttpLog.h"
 
-#include "mozilla/Telemetry.h"
 #include "mozilla/Preferences.h"
 #include "nsHttp.h"
 #include "nsHttpHandler.h"

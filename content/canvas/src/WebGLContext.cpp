@@ -41,7 +41,6 @@
 
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
-#include "mozilla/Telemetry.h"
 
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"

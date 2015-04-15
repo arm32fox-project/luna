@@ -13,7 +13,6 @@
 #include "nsHttpConnection.h"
 #include "nsHttpHandler.h"
 #include "prnetdb.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Preferences.h"
 #include "prprf.h"
 #include <algorithm>

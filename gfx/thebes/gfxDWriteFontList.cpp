@@ -16,7 +16,6 @@
 #include "nsServiceManagerUtils.h"
 #include "nsCharSeparatedTokenizer.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 
 #include "gfxGDIFontList.h"
 

@@ -15,7 +15,6 @@
 #include "nsINavHistoryService.h"
 #include "nsPrintfCString.h"
 #include "nsNavHistory.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Likely.h"
 
 using namespace mozilla::storage;

@@ -37,7 +37,6 @@
 #include "mozilla/Likely.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
-#include "mozilla/Telemetry.h"
 #include "gfxSVGGlyphs.h"
 
 #include "cairo.h"

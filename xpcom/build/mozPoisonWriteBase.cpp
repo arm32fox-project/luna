@@ -9,7 +9,6 @@
 #include "mozilla/ProcessedStack.h"
 #include "mozilla/Scoped.h"
 #include "mozilla/SHA1.h"
-#include "mozilla/Telemetry.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsStackWalk.h"
@@ -219,12 +218,6 @@ bool ValidWriteAssert(bool ok)
 #endif
 
     SHA1Stream sha1Stream(stream);
-
-    size_t numModules = stack.GetNumModules();
-    sha1Stream.Printf("%u\n", (unsigned)numModules);
-
-    size_t numFrames = stack.GetStackSize();
-    sha1Stream.Printf("%u\n", (unsigned)numFrames);
 
     SHA1Sum::Hash sha1;
     sha1Stream.Finish(sha1);

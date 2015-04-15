@@ -7,7 +7,6 @@
 #include "nsDeleteDir.h"
 #include "nsIFile.h"
 #include "nsString.h"
-#include "mozilla/Telemetry.h"
 #include "nsITimer.h"
 #include "nsISimpleEnumerator.h"
 #include "nsAutoPtr.h"

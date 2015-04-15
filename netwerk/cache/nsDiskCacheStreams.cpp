@@ -12,7 +12,6 @@
 #include "nsCacheService.h"
 #include "mozilla/FileUtils.h"
 #include "nsThreadUtils.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
 #include <algorithm>
 #include "mozilla/VisualEventTracer.h"

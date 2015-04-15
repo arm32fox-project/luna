@@ -14,8 +14,6 @@
 #include "SpdySession2.h"
 #include "SpdySession3.h"
 
-#include "mozilla/Telemetry.h"
-
 namespace mozilla {
 namespace net {
 

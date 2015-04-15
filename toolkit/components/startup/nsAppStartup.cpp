@@ -44,7 +44,6 @@
 #undef GetStartupInfo
 #endif
 
-#include "mozilla/Telemetry.h"
 #include "mozilla/StartupTimeline.h"
 
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);

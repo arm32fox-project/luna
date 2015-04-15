@@ -11,7 +11,6 @@
 #include "TextUpdater.h"
 
 #include "mozilla/dom/Element.h"
-#include "mozilla/Telemetry.h"
 
 using namespace mozilla;
 using namespace mozilla::a11y;

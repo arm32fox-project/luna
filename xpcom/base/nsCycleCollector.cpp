@@ -147,7 +147,6 @@
 #include "mozilla/mozPoisonWrite.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/StandardInteger.h"
-#include "mozilla/Telemetry.h"
 
 using namespace mozilla;
 

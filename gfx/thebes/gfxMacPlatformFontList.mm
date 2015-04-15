@@ -65,7 +65,6 @@
 #include "nsCharTraits.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 
 #include <unistd.h>
 #include <time.h>

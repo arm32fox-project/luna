@@ -37,8 +37,6 @@
 #include "nsICacheVisitor.h"
 #include "nsISeekableStream.h"
 
-#include "mozilla/Telemetry.h"
-
 #include "sqlite3.h"
 #include "mozilla/storage.h"
 

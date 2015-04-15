@@ -22,7 +22,6 @@
 
 #include "nsISSLSocketControl.h"
 #include "prnetdb.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/VisualEventTracer.h"
 #include <algorithm>
 

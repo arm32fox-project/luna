@@ -49,7 +49,6 @@
 #include "mozilla/storage.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/FileUtils.h"
-#include "mozilla/Telemetry.h"
 #include "nsIAppsService.h"
 #include "mozIApplication.h"
 

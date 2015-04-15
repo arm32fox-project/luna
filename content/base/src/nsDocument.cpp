@@ -21,7 +21,6 @@
 #include "plstr.h"
 #include "prprf.h"
 
-#include "mozilla/Telemetry.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsDocument.h"

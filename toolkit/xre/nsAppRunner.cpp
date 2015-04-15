@@ -21,7 +21,6 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Poison.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Util.h"
 
 #include "nsAppRunner.h"

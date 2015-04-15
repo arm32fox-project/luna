@@ -22,7 +22,6 @@
 #include "nsString.h"
 #include "nsTArray.h"
 #include "nsIHttpChannelInternal.h"
-#include "mozilla/Telemetry.h"
 
 using namespace mozilla;
 

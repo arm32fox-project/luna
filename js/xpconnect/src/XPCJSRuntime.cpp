@@ -21,7 +21,6 @@
 #include "nsPrintfCString.h"
 #include "prsystem.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 
 #include "nsLayoutStatics.h"
 #include "nsContentUtils.h"

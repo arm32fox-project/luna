@@ -16,7 +16,6 @@
 #include "nsIPrefBranch.h"
 #include "nsThreadUtils.h"
 
-#include "mozilla/Telemetry.h"
 #include "nsISecurityUITelemetry.h"
 
 NS_IMPL_THREADSAFE_ISUPPORTS1(nsSecurityWarningDialogs, nsISecurityWarningDialogs)

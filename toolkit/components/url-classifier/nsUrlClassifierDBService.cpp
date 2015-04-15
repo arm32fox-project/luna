@@ -33,7 +33,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/TimeStamp.h"
-#include "mozilla/Telemetry.h"
 #include "prlog.h"
 #include "prprf.h"
 #include "prnetdb.h"

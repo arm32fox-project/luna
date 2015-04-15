@@ -174,7 +174,6 @@
 #include "gfxPlatform.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "GeckoProfiler.h"
 #include "mozilla/css/ImageLoader.h"
 

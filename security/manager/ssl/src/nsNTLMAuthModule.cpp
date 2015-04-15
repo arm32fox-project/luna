@@ -12,7 +12,6 @@
 #include "pk11pub.h"
 #include "md4.h"
 #include "mozilla/Likely.h"
-#include "mozilla/Telemetry.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo *

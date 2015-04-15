@@ -29,7 +29,6 @@
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 
 using namespace mozilla;
 

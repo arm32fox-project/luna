@@ -31,7 +31,6 @@
 #include "nsFontFaceList.h"
 #include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/dom/RangeBinding.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Likely.h"
 
 using namespace mozilla;

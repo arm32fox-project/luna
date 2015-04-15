@@ -55,7 +55,6 @@
 #include "nsCSSRenderingBorders.h"
 #include "mozilla/css/ImageLoader.h"
 #include "ImageContainer.h"
-#include "mozilla/Telemetry.h"
 #include "gfxUtils.h"
 #include <algorithm>
 

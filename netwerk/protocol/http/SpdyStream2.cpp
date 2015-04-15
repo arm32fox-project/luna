@@ -13,7 +13,6 @@
 #include "nsAlgorithm.h"
 #include "prnetdb.h"
 #include "nsHttpRequestHead.h"
-#include "mozilla/Telemetry.h"
 #include "nsISocketTransport.h"
 #include "nsISupportsPriority.h"
 #include "nsHttpHandler.h"

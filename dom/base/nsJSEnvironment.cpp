@@ -76,7 +76,6 @@
 #include "prthread.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/dom/BindingUtils.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/dom/CanvasRenderingContext2DBinding.h"
