@@ -35,6 +35,8 @@ public:
   uint32_t mSecretKeyLength;
   nsXPIDLCString mCipherName;
 
+  uint32_t mProtocolVersion;
+
   bool mIsDomainMismatch;
   bool mIsNotValidAtThisTime;
   bool mIsUntrusted;
@@ -46,9 +48,8 @@ public:
   bool mHaveCertErrorBits;
 };
 
-// 2c3837af-8b85-4a68-b0d8-0aed88985b32
 #define NS_SSLSTATUS_CID \
-{ 0x2c3837af, 0x8b85, 0x4a68, \
-  { 0xb0, 0xd8, 0x0a, 0xed, 0x88, 0x98, 0x5b, 0x32 } }
+{ 0x4442f91b, 0x30c4, 0x46ce, \
+  { 0xbd, 0x6b, 0xc7, 0xd8, 0x92, 0x05, 0x72, 0x38 } }
 
 #endif

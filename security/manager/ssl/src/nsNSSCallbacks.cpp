@@ -976,6 +976,7 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
       status->mSecretKeyLength = cipherInfo.effectiveKeyBits;
 //      status->mCipherName.Assign(cipherInfo.cipherSuiteName); //XXX: Fx Full Suite string
       status->mCipherName.Assign(cipherInfo.symCipherName);
+      status->mProtocolVersion = channelInfo.protocolVersion & 0xFF;
 
       // keyExchange null=0, rsa=1, dh=2, fortezza=3, ecdh=4
       Telemetry::Accumulate(Telemetry::SSL_KEY_EXCHANGE_ALGORITHM,
