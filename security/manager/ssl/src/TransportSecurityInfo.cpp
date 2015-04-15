@@ -291,8 +291,8 @@ TransportSecurityInfo::GetInterface(const nsIID & uuid, void * *result)
 }
 
 static NS_DEFINE_CID(kNSSCertificateCID, NS_X509CERT_CID);
-#define TRANSPORTSECURITYINFOMAGIC { 0xa9863a23, 0x26b8, 0x4a9c, \
-  { 0x83, 0xf1, 0xe9, 0xda, 0xdb, 0x36, 0xb8, 0x30 } }
+#define TRANSPORTSECURITYINFOMAGIC { 0xa9863a23, 0x2429, 0x4866, \
+  { 0x92, 0x89, 0x45, 0x51, 0xc2, 0x01, 0xca, 0xf2 } }
 static NS_DEFINE_CID(kTransportSecurityInfoMagic, TRANSPORTSECURITYINFOMAGIC);
 
 NS_IMETHODIMP
