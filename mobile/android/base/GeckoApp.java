@@ -1241,7 +1241,7 @@ abstract public class GeckoApp
             public void run() {
                 final SharedPreferences prefs = GeckoApp.getAppSharedPreferences();
 
-//                SessionInformation previousSession = SessionInformation.fromSharedPrefs(prefs);
+                SessionInformation previousSession = SessionInformation.fromSharedPrefs(prefs);
 
                 SharedPreferences.Editor editor = prefs.edit();
                 editor.putBoolean(GeckoApp.PREFS_OOM_EXCEPTION, false);
