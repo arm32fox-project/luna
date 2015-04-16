@@ -313,7 +313,16 @@ public class ProfileMigrator {
     }
 
     public void launchPlaces(File profileDir) {
+        boolean timeThisRun = false;
+        Telemetry.Timer timer = null;
+        // First run, time things
+        if (!hasMigrationRun()) {
+            timeThisRun = true;
+            timer = new Telemetry.Timer("BROWSERPROVIDER_XUL_IMPORT_TIME");
+        }
         launchPlaces(profileDir, DEFAULT_HISTORY_MIGRATE_COUNT);
+        if (timeThisRun)
+            timer.stop();
     }
 
     public void launchPlaces(File profileDir, int maxEntries) {
@@ -851,6 +860,8 @@ public class ProfileMigrator {
                 Cursor cursor = db.rawQuery(HISTORY_COUNT_QUERY, null);
                 cursor.moveToFirst();
                 int historyCount = cursor.getInt(0);
+                Telemetry.HistogramAdd("BROWSERPROVIDER_XUL_IMPORT_HISTORY",
+                                       historyCount);
 
                 final String currentTime = Long.toString(System.currentTimeMillis());
                 final String[] queryParams = new String[] {
@@ -1087,6 +1098,8 @@ public class ProfileMigrator {
 
                 // Keep statistics
                 int bookmarkCount = cursor.getCount();
+                Telemetry.HistogramAdd("BROWSERPROVIDER_XUL_IMPORT_BOOKMARKS",
+                                       bookmarkCount);
 
                 // Get the extra bookmark attributes
                 Map<Long, List<AttributePair>> attributes = getBookmarkAttributes(db);

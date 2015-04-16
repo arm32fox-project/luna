@@ -73,6 +73,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
     private boolean mSuggestionsEnabled;
     private AsyncTask<String, Void, ArrayList<String>> mSuggestTask;
     private AwesomeBarCursorAdapter mCursorAdapter = null;
+    private boolean mTelemetrySent = false;
     private LinearLayout mAllPagesView;
     private boolean mAnimateSuggestions;
     private View mSuggestionsOptInPrompt;
@@ -286,11 +287,20 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
             mCursorAdapter.setFilterQueryProvider(new FilterQueryProvider() {
                 @Override
                 public Cursor runQuery(CharSequence constraint) {
+                    long start = SystemClock.uptimeMillis();
+
                     Cursor c = BrowserDB.filter(getContentResolver(), constraint, MAX_RESULTS);
                     c.getCount();
 
                     postLoadFavicons();
-                    
+
+                    long end = SystemClock.uptimeMillis();
+                    if (!mTelemetrySent && TextUtils.isEmpty(constraint)) {
+                        int time = (int)(end - start);
+                        Telemetry.HistogramAdd("FENNEC_AWESOMEBAR_ALLPAGES_EMPTY_TIME", time);
+                        mTelemetrySent = true;
+                    }
+
                     findAutocompleteFor(constraint.toString(), c);
                     return c;
                 }
