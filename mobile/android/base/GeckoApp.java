@@ -14,8 +14,8 @@ import org.mozilla.gecko.gfx.PluginLayer;
 import org.mozilla.gecko.menu.GeckoMenu;
 import org.mozilla.gecko.menu.GeckoMenuInflater;
 import org.mozilla.gecko.menu.MenuPanel;
-// import org.mozilla.gecko.health.BrowserHealthRecorder;
-// import org.mozilla.gecko.health.BrowserHealthRecorder.SessionInformation;
+import org.mozilla.gecko.health.BrowserHealthRecorder;
+import org.mozilla.gecko.health.BrowserHealthRecorder.SessionInformation;
 import org.mozilla.gecko.updater.UpdateService;
 import org.mozilla.gecko.updater.UpdateServiceHelper;
 import org.mozilla.gecko.util.EventDispatcher;
@@ -183,7 +183,7 @@ abstract public class GeckoApp
 
     private String mPrivateBrowsingSession;
 
-//    private volatile BrowserHealthRecorder mHealthRecorder = null;
+    private volatile BrowserHealthRecorder mHealthRecorder = null;
 
     abstract public int getLayout();
     abstract public boolean hasTabsSideBar();
@@ -1257,9 +1257,9 @@ abstract public class GeckoApp
                 // of the activity itself.
                 final String profilePath = getProfile().getDir().getAbsolutePath();
                 final EventDispatcher dispatcher = GeckoAppShell.getEventDispatcher();
-//                Log.i(LOGTAG, "Creating BrowserHealthRecorder.");
-//                mHealthRecorder = new BrowserHealthRecorder(GeckoApp.this, profilePath, dispatcher,
-//                                                            previousSession);
+                Log.i(LOGTAG, "Creating BrowserHealthRecorder.");
+                mHealthRecorder = new BrowserHealthRecorder(GeckoApp.this, profilePath, dispatcher,
+                                                            previousSession);
             }
         });
 
@@ -1853,7 +1853,7 @@ abstract public class GeckoApp
         final long now = System.currentTimeMillis();
         final long realTime = android.os.SystemClock.elapsedRealtime();
 
-/*        ThreadUtils.postToBackgroundThread(new Runnable() {
+        ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
                 // Now construct the new session on BrowserHealthRecorder's behalf. We do this here
@@ -1873,7 +1873,7 @@ abstract public class GeckoApp
                     Log.w(LOGTAG, "Can't record session: rec is null.");
                 }
             }
-         }); */
+         });
     }
 
     @Override
@@ -1889,12 +1889,12 @@ abstract public class GeckoApp
     @Override
     public void onPause()
     {
-        // final BrowserHealthRecorder rec = mHealthRecorder;
+        final BrowserHealthRecorder rec = mHealthRecorder;
 
         // In some way it's sad that Android will trigger StrictMode warnings
         // here as the whole point is to save to disk while the activity is not
         // interacting with the user.
-        /* ThreadUtils.postToBackgroundThread(new Runnable() {
+        ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
                 SharedPreferences prefs = GeckoApp.getAppSharedPreferences();
@@ -1905,7 +1905,7 @@ abstract public class GeckoApp
                 }
                 editor.commit();
             }
-        }); */
+        });
 
         GeckoScreenOrientationListener.getInstance().stop();
 
@@ -2000,7 +2000,7 @@ abstract public class GeckoApp
                 SmsManager.getInstance().shutdown();
         }
 
-/*        final BrowserHealthRecorder rec = mHealthRecorder;
+        final BrowserHealthRecorder rec = mHealthRecorder;
         mHealthRecorder = null;
         if (rec != null) {
             // Closing a BrowserHealthRecorder could incur a write.
@@ -2010,7 +2010,7 @@ abstract public class GeckoApp
                     rec.close();
                 }
             });
-        } */
+        }
 
         super.onDestroy();
 
