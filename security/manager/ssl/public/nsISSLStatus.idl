@@ -13,6 +13,7 @@ interface nsISSLStatus : nsISupports {
   readonly attribute nsIX509Cert serverCert;
 
   readonly attribute string cipherName;
+  readonly attribute string cipherSuite;
   readonly attribute unsigned long keyLength;
   readonly attribute unsigned long secretKeyLength;
 
