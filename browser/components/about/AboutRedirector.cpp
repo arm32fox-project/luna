@@ -28,7 +28,7 @@ struct RedirEntry {
   required before adding new map entries without
   URI_SAFE_FOR_UNTRUSTED_CONTENT.  Also note, however, that adding
   URI_SAFE_FOR_UNTRUSTED_CONTENT will allow random web sites to link to that
-  URI.  Perhaps we should separate the two concepts out...
+  URI.  If you want to prevent this, add MAKE_UNLINKABLE as well.
  */
 static RedirEntry kRedirMap[] = {
 #ifdef MOZ_SAFE_BROWSING

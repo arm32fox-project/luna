@@ -948,7 +948,7 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
       status->mSecretKeyLength = cipherInfo.effectiveKeyBits;
 //      status->mCipherName.Assign(cipherInfo.cipherSuiteName); //XXX: Fx Full Suite string
       status->mCipherName.Assign(cipherInfo.symCipherName);
-//      status->mProtocolVersion.Assign(versionEnum);
+      status->mProtocolVersion = channelInfo.protocolVersion & 0xFF;
     }
       
   }
