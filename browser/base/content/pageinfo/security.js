@@ -52,7 +52,6 @@ var security = {
         cAName : issuerName,
         encryptionAlgorithm : undefined,
         encryptionStrength : undefined,
-        encryptionSuite : undefined,
         version: undefined,
         isBroken : isBroken,
         isEV : isEV,
@@ -64,7 +63,6 @@ var security = {
       try {
         retval.encryptionAlgorithm = status.cipherName;
         retval.encryptionStrength = status.secretKeyLength;
-        retval.encryptionSuite = status.cipherSuite;
         version = status.protocolVersion;
       }
       catch (e) {
@@ -92,7 +90,6 @@ var security = {
         cAName : "",
         encryptionAlgorithm : "",
         encryptionStrength : 0,
-        encryptionSuite : "",
         version: "",
         isBroken : isBroken,
         isEV : isEV,
@@ -267,9 +264,7 @@ function securityOnLoad() {
     msg1 = pkiBundle.getString("pageInfo_Privacy_Mixed1");
     msg2 = pkiBundle.getString("pageInfo_Privacy_None2");
   }
-  else if (info.encryptionStrength >= 128 && 
-           info.encryptionSuite.indexOf("RC4") = -1) {
-    //Anything >= 128-bits that isn't RC4 is considered strong
+  else if (info.encryptionStrength >= 90) {
     hdr = pkiBundle.getFormattedString("pageInfo_StrongEncryptionWithBits",
                                        [info.encryptionAlgorithm,
                                         info.encryptionStrength + "",
@@ -279,7 +274,6 @@ function securityOnLoad() {
     security._cert = info.cert;
   }
   else if (info.encryptionStrength > 0) {
-    //We have SOME encryption, but it's either <128-bits or RC4
     hdr  = pkiBundle.getFormattedString("pageInfo_WeakEncryptionWithBits",
                                         [info.encryptionAlgorithm,
                                          info.encryptionStrength + "",
