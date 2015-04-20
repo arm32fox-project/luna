@@ -291,8 +291,9 @@ TransportSecurityInfo::GetInterface(const nsIID & uuid, void * *result)
 }
 
 static NS_DEFINE_CID(kNSSCertificateCID, NS_X509CERT_CID);
-#define TRANSPORTSECURITYINFOMAGIC { 0xa9863a23, 0x2429, 0x4866, \
-  { 0x92, 0x89, 0x45, 0x51, 0xc2, 0x01, 0xca, 0xf2 } }
+//341ad5b8-5041-465c-b78d-78d2ae18eaa1
+#define TRANSPORTSECURITYINFOMAGIC { 0x341ad5b8, 0x5041, 0x465c, \
+  { 0xb7, 0x8d, 0x78, 0xd2, 0xae, 0x18, 0xea, 0xa1 } }
 static NS_DEFINE_CID(kTransportSecurityInfoMagic, TRANSPORTSECURITYINFOMAGIC);
 
 NS_IMETHODIMP
@@ -308,7 +309,7 @@ TransportSecurityInfo::Write(nsIObjectOutputStream* stream)
   // Write a redundant copy of the certificate for backward compatibility
   // with previous versions, which also unnecessarily wrote it.
   //
-  // As we are reading the object our self, not using ReadObject, we have
+  // As we are reading the object ourself, not using ReadObject, we have
   // to store it here 'manually' as well, mimicking our object stream
   // implementation.
 
