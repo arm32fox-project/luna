@@ -462,10 +462,16 @@ _ABS_MOZSRCDIR = $(shell cd $(MOZILLA_DIR) && pwd)
 ifndef PKG_DMG_SOURCE
 PKG_DMG_SOURCE = $(STAGEPATH)$(MOZ_PKG_DIR)
 endif
+ifdef MOZ_PHOENIX
 INNER_MAKE_PACKAGE = cp -r $(_ABS_MOZSRCDIR)/statusbar/* $(MOZ_PKG_DIR)/$(MOZ_APP_DISPLAYNAME).app/Contents/MacOS/. && \
   $(_ABS_MOZSRCDIR)/build/package/mac_osx/pkg-dmg \
   --source "$(PKG_DMG_SOURCE)" --target "$(PACKAGE)" \
   --volname "$(MOZ_APP_DISPLAYNAME)" $(PKG_DMG_FLAGS)
+else
+INNER_MAKE_PACKAGE = $(_ABS_MOZSRCDIR)/build/package/mac_osx/pkg-dmg \
+  --source "$(PKG_DMG_SOURCE)" --target "$(PACKAGE)" \
+  --volname "$(MOZ_APP_DISPLAYNAME)" $(PKG_DMG_FLAGS)
+endif
 INNER_UNMAKE_PACKAGE	= \
   set -ex; \
   rm -rf $(_ABS_DIST)/unpack.tmp; \
