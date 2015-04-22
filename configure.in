@@ -5611,6 +5611,17 @@ MOZ_ARG_ENABLE_BOOL(alsa,
 MOZ_ALSA=1,
 MOZ_ALSA=)
 
+MOZ_ARG_ENABLE_BOOL(oss,
+[ --enable-oss          Enable OSS support],
+   MOZ_OSS=1,
+   MOZ_OSS=)
+
+if test -n "$MOZ_OSS"; then
+   MOZ_ALSA=
+fi
+
+AC_SUBST(MOZ_OSS)
+
 if test -n "$MOZ_ALSA"; then
     AC_DEFINE(MOZ_CUBEB)
     PKG_CHECK_MODULES(MOZ_ALSA, alsa, ,
