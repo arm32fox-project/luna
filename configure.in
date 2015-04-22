@@ -8598,23 +8598,10 @@ AC_SUBST(MOZ_PKG_SPECIAL)
 
 AC_SUBST(MOZILLA_OFFICIAL)
 
-AC_DEFINE_UNQUOTED(MOZ_TELEMETRY_DISPLAY_REV, 2)
-AC_SUBST(MOZ_TELEMETRY_DISPLAY_REV)
-
-if test "$MOZ_TELEMETRY_REPORTING"; then
-    AC_DEFINE(MOZ_TELEMETRY_REPORTING)
-
-    # Enable Telemetry by default for nightly and aurora channels
-    if test "$MOZ_UPDATE_CHANNEL" = "nightly" -o \
-        "$MOZ_UPDATE_CHANNEL" = "aurora"; then
-        AC_DEFINE(MOZ_TELEMETRY_ON_BY_DEFAULT)
-    fi
-fi
-
 dnl If we have any service that uploads data (and requires data submission
 dnl policy alert), set MOZ_DATA_REPORTING.
 dnl We need SUBST for build system and DEFINE for xul preprocessor.
-if test -n "$MOZ_TELEMETRY_REPORTING" || test -n "$MOZ_SERVICES_HEALTHREPORT"; then
+if test -n "$MOZ_SERVICES_HEALTHREPORT"; then
   MOZ_DATA_REPORTING=1
   AC_DEFINE(MOZ_DATA_REPORTING)
   AC_SUBST(MOZ_DATA_REPORTING)

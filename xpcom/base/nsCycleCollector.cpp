@@ -147,7 +147,6 @@
 #include "mozilla/mozPoisonWrite.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/StandardInteger.h"
-#include "mozilla/Telemetry.h"
 
 using namespace mozilla;
 
@@ -1004,10 +1003,6 @@ public:
 private:
     nsTArray<PtrInfo*> *mWhiteNodes;
     uint32_t mWhiteNodeCount;
-
-    // mVisitedRefCounted and mVisitedGCed are only used for telemetry
-    uint32_t mVisitedRefCounted;
-    uint32_t mVisitedGCed;
 
     CC_BeforeUnlinkCallback mBeforeUnlinkCB;
     CC_ForgetSkippableCallback mForgetSkippableCB;
@@ -1953,7 +1948,6 @@ GCGraphBuilder::DescribeRefCountedNode(nsrefcnt refCount, const char *objName)
         Fault("zero refcount", mCurrPi);
     if (refCount == UINT32_MAX)
         Fault("overflowing refcount", mCurrPi);
-    mCollector->mVisitedRefCounted++;
 
     if (mListener) {
         mListener->NoteRefCountedObject((uint64_t)mCurrPi->mPointer, refCount,
@@ -1967,7 +1961,6 @@ NS_IMETHODIMP_(void)
 GCGraphBuilder::DescribeGCedNode(bool isMarked, const char *objName)
 {
     uint32_t refCount = isMarked ? UINT32_MAX : 0;
-    mCollector->mVisitedGCed++;
 
     if (mListener) {
         mListener->NoteGCedObject((uint64_t)mCurrPi->mPointer, isMarked,
@@ -2218,7 +2211,6 @@ nsCycleCollector::MarkRoots(GCGraphBuilder &builder)
     if (builder.RanOutOfMemory()) {
         NS_ASSERTION(false,
                      "Ran out of memory while building cycle collector graph");
-        Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_OOM, true);
     }
 }
 
@@ -2522,8 +2514,6 @@ nsCycleCollector::nsCycleCollector(CCThreadingModel aModel) :
     mThread(PR_GetCurrentThread()),
     mWhiteNodes(nullptr),
     mWhiteNodeCount(0),
-    mVisitedRefCounted(0),
-    mVisitedGCed(0),
     mBeforeUnlinkCB(nullptr),
     mForgetSkippableCB(nullptr),
     mReporter(nullptr),
@@ -2659,8 +2649,6 @@ nsCycleCollector::FixGrayBits(bool aForceGC)
         mJSRuntime->FixWeakMappingGrayBits();
 
         bool needGC = mJSRuntime->NeedCollect();
-        // Only do a telemetry ping for non-shutdown CCs.
-        Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_NEED_GC, needGC);
         if (!needGC)
             return;
         if (mResults)
@@ -2687,8 +2675,6 @@ nsCycleCollector::PrepareForCollection(nsCycleCollectorResults *aResults,
     TimeLog timeLog;
 
     mCollectionStart = TimeStamp::Now();
-    mVisitedRefCounted = 0;
-    mVisitedGCed = 0;
 
     mCollectionInProgress = true;
 
@@ -2716,24 +2702,17 @@ nsCycleCollector::CleanupAfterCollection()
 #ifdef COLLECT_TIME_DEBUG
     printf("cc: total cycle collector time was %ums\n", interval);
     if (mResults) {
-        printf("cc: visited %u ref counted and %u GCed objects, freed %d ref counted and %d GCed objects.\n",
-               mVisitedRefCounted, mVisitedGCed,
+        printf("cc: freed %d ref counted and %d GCed objects.\n",
                mResults->mFreedRefCounted, mResults->mFreedGCed);
     } else {
-        printf("cc: visited %u ref counted and %u GCed objects, freed %d.\n",
-               mVisitedRefCounted, mVisitedGCed, mWhiteNodeCount);
+        printf("cc: freed %d.\n",
+               mWhiteNodeCount);
     }
     printf("cc: \n");
 #endif
     if (mResults) {
-        mResults->mVisitedRefCounted = mVisitedRefCounted;
-        mResults->mVisitedGCed = mVisitedGCed;
         mResults = nullptr;
     }
-    Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR, interval);
-    Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_VISITED_REF_COUNTED, mVisitedRefCounted);
-    Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_VISITED_GCED, mVisitedGCed);
-    Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_COLLECTED, mWhiteNodeCount);
 }
 
 void
@@ -2821,7 +2800,6 @@ nsCycleCollector::BeginCollection(ccType aCCType,
                            mergeZones);
     if (!builder.Initialized()) {
         NS_ASSERTION(false, "Failed to initialize GCGraphBuilder, will probably leak.");
-        Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_OOM, true);
         return false;
     }
 

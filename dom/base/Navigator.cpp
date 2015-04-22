@@ -24,7 +24,6 @@
 #include "nsUnicharUtils.h"
 #include "nsVariant.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 #include "BatteryManager.h"
 #include "PowerManager.h"
 #include "nsIDOMWakeLock.h"
@@ -610,7 +609,6 @@ Navigator::GetDoNotTrack(nsAString &aResult)
 NS_IMETHODIMP
 Navigator::JavaEnabled(bool* aReturn)
 {
-  Telemetry::AutoTimer<Telemetry::CHECK_JAVA_ENABLED> telemetryTimer;
   // Return true if we have a handler for "application/x-java-vm",
   // otherwise return false.
   *aReturn = false;

@@ -37,7 +37,6 @@
 #include "nsNetUtil.h"
 #include "mozilla/Attributes.h"
 #include "TimeStamp.h"
-#include "mozilla/Telemetry.h"
 
 #include "plbase64.h"
 #include "prmem.h"
@@ -2273,7 +2272,6 @@ WebSocketChannel::ReportConnectionTelemetry()
     (didProxy ? (1 << 0) : 0);
 
   LOG(("WebSocketChannel::ReportConnectionTelemetry() %p %d", this, value));
-  Telemetry::Accumulate(Telemetry::WEBSOCKETS_HANDSHAKE_TYPE, value);
 }
 
 // nsIDNSListener

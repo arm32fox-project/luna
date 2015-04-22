@@ -29,7 +29,6 @@
 #include "Role.h"
 #include "RootAccessibleWrap.h"
 #include "States.h"
-#include "Statistics.h"
 #include "TextLeafAccessibleWrap.h"
 
 #ifdef MOZ_ACCESSIBILITY_ATK
@@ -1631,8 +1630,6 @@ NS_GetAccessibilityService(nsIAccessibilityService** aResult)
     service->Shutdown();
     return NS_ERROR_FAILURE;
   }
-
-  statistics::A11yInitialized();
 
   nsAccessibilityService::gAccessibilityService = service;
   NS_ADDREF(*aResult = service);

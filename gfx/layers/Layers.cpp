@@ -9,7 +9,6 @@
 
 #include "mozilla/layers/PLayerTransaction.h"
 #include "mozilla/layers/LayerManagerComposite.h"
-#include "mozilla/Telemetry.h"
 #include "CompositableHost.h"
 
 #include "ImageLayers.h"
@@ -937,8 +936,6 @@ LayerManager::PostPresent()
     }
   }
   if (!mTabSwitchStart.IsNull()) {
-    Telemetry::Accumulate(Telemetry::FX_TAB_SWITCH_TOTAL_MS,
-                          uint32_t((TimeStamp::Now() - mTabSwitchStart).ToMilliseconds()));
     mTabSwitchStart = TimeStamp();
   }
 }

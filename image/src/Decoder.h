@@ -136,9 +136,6 @@ public:
   bool HasSize() const { return mImageMetadata.HasSize(); }
   void SetSizeOnImage();
 
-  // Use HistogramCount as an invalid Histogram ID
-  virtual Telemetry::ID SpeedHistogram() { return Telemetry::HistogramCount; }
-
   ImageMetadata& GetImageMetadata() { return mImageMetadata; }
 
   // Tell the decoder infrastructure to allocate a frame. By default, frame 0

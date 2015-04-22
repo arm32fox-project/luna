@@ -13,7 +13,6 @@
 #include "nsAlgorithm.h"
 #include "prnetdb.h"
 #include "nsHttpRequestHead.h"
-#include "mozilla/Telemetry.h"
 #include "nsISocketTransport.h"
 #include "nsISupportsPriority.h"
 #include "nsHttpHandler.h"
@@ -425,15 +424,12 @@ SpdyStream2::ParseHttpRequestHeaders(const char *buf,
     mTxInlineFrame[4] = SpdySession2::kFlag_Data_FIN;
   }
 
-  Telemetry::Accumulate(Telemetry::SPDY_SYN_SIZE, mTxInlineFrameUsed - 18);
-
   // The size of the input headers is approximate
   uint32_t ratio =
     (mTxInlineFrameUsed - 18) * 100 /
     (11 + mTransaction->RequestHead()->RequestURI().Length() +
      mFlatHttpRequestHeaders.Length());
 
-  Telemetry::Accumulate(Telemetry::SPDY_SYN_RATIO, ratio);
   return NS_OK;
 }
 

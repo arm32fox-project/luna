@@ -1695,9 +1695,6 @@ var gErrorExtraPage = {
   onPageShow: function() {
     gUpdates.setButtons(null, null, "okButton", true);
     gUpdates.wiz.getButton("finish").focus();
-    let secHistogram = CoC["@mozilla.org/base/telemetry;1"].
-                                  getService(CoI.nsITelemetry).
-                                  getHistogramById("SECURITY_UI");
 
     if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_CERT_ERRORS))
       Services.prefs.clearUserPref(PREF_APP_UPDATE_CERT_ERRORS);
@@ -1707,12 +1704,10 @@ var gErrorExtraPage = {
 
     if (gUpdates.update.errorCode == CERT_ATTR_CHECK_FAILED_HAS_UPDATE) {
       document.getElementById("errorCertAttrHasUpdateLabel").hidden = false;
-      secHistogram.add(CoI.nsISecurityUITelemetry.WARNING_INSECURE_UPDATE);
     }
     else {
       if (gUpdates.update.errorCode == CERT_ATTR_CHECK_FAILED_NO_UPDATE){
         document.getElementById("errorCertCheckNoUpdateLabel").hidden = false;
-        secHistogram.add(CoI.nsISecurityUITelemetry.WARNING_NO_SECURE_UPDATE);
       }
       else
         document.getElementById("genericBackgroundErrorLabel").hidden = false;

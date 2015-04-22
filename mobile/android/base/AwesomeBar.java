@@ -8,7 +8,7 @@ package org.mozilla.gecko;
 import org.mozilla.gecko.db.BrowserContract.Combined;
 import org.mozilla.gecko.db.BrowserDB;
 import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.health.BrowserHealthRecorder;
+// import org.mozilla.gecko.health.BrowserHealthRecorder;
 import org.mozilla.gecko.util.GamepadUtils;
 import org.mozilla.gecko.util.StringUtils;
 import org.mozilla.gecko.util.ThreadUtils;
@@ -372,6 +372,7 @@ public class AwesomeBar extends GeckoActivity
      *        {@link BrowserHealthRecorder#SEARCH_LOCATIONS}.
      */
     private static void recordSearch(String identifier, String where) {
+/*      
         Log.i(LOGTAG, "Recording search: " + identifier + ", " + where);
         try {
             JSONObject message = new JSONObject();
@@ -381,7 +382,7 @@ public class AwesomeBar extends GeckoActivity
             GeckoAppShell.getEventDispatcher().dispatchEvent(message);
         } catch (Exception e) {
             Log.w(LOGTAG, "Error recording search.", e);
-        }
+        } */
     }
 
     private void openUserEnteredAndFinish(final String url) {

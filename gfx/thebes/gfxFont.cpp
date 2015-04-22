@@ -37,7 +37,6 @@
 #include "mozilla/Likely.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
-#include "mozilla/Telemetry.h"
 #include "gfxSVGGlyphs.h"
 
 #include "cairo.h"
@@ -1383,7 +1382,6 @@ gfxFontCache::Lookup(const gfxFontEntry *aFontEntry,
     Key key(aFontEntry, aStyle);
     HashEntry *entry = mFonts.GetEntry(key);
 
-    Telemetry::Accumulate(Telemetry::FONT_CACHE_HIT, entry != nullptr);
     if (!entry)
         return nullptr;
 
@@ -2962,15 +2960,9 @@ gfxFont::GetShapedWord(gfxContext *aContext,
 
     if (sw) {
         sw->ResetAge();
-        Telemetry::Accumulate((isContent ? Telemetry::WORD_CACHE_HITS_CONTENT :
-                                   Telemetry::WORD_CACHE_HITS_CHROME),
-                              aLength);
         return sw;
     }
 
-    Telemetry::Accumulate((isContent ? Telemetry::WORD_CACHE_MISSES_CONTENT :
-                               Telemetry::WORD_CACHE_MISSES_CHROME),
-                          aLength);
     sw = entry->mShapedWord = gfxShapedWord::Create(aText, aLength,
                                                     aRunScript,
                                                     aAppUnitsPerDevUnit,

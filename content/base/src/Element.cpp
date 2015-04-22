@@ -119,7 +119,6 @@
 #include "xpcpublic.h"
 #include "nsIScriptError.h"
 #include "nsLayoutStatics.h"
-#include "mozilla/Telemetry.h"
 
 #include "mozilla/CORSMode.h"
 

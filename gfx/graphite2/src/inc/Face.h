@@ -104,10 +104,6 @@ protected:
 private:
     uint16 m_ascent,
            m_descent;
-#ifdef GRAPHITE2_TELEMETRY
-public:
-    mutable telemetry   tele;
-#endif
 };
 
 

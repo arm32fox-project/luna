@@ -20,7 +20,6 @@
 #include "nsISupportsPriority.h"
 #include "nsITimedChannel.h"
 #include "pldhash.h"
-#include "mozilla/TimeStamp.h"
 
 class  nsILoadGroupConnectionInfo;
 
@@ -62,12 +61,6 @@ protected:
 
     nsresult MergeLoadFlags(nsIRequest *aRequest, nsLoadFlags& flags);
 
-private:
-    void TelemetryReport();
-    void TelemetryReportChannel(nsITimedChannel *timedChannel,
-                                bool defaultRequest);
-
-protected:
     uint32_t                        mForegroundCount;
     uint32_t                        mLoadFlags;
 
@@ -84,12 +77,6 @@ protected:
     nsresult                        mStatus;
     int32_t                         mPriority;
     bool                            mIsCanceling;
-
-    /* Telemetry */
-    mozilla::TimeStamp              mDefaultRequestCreationTime;
-    bool                            mDefaultLoadIsTimed;
-    uint32_t                        mTimedRequests;
-    uint32_t                        mCachedRequests;
 
     /* For nsPILoadGroupInternal */
     uint32_t                        mTimedNonCachedRequestsUntilOnEndPageLoad;
