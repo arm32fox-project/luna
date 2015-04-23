@@ -871,23 +871,27 @@ nsPluginHost::InstantiatePluginInstance(const char *aMimeType, nsIURI* aURL,
   nsPluginTagType tagType;
   rv = pti->GetTagType(&tagType);
   if (NS_FAILED(rv)) {
+    instanceOwner->Destroy();
     return rv;
   }
 
   if (tagType != nsPluginTagType_Embed &&
       tagType != nsPluginTagType_Applet &&
       tagType != nsPluginTagType_Object) {
+    instanceOwner->Destroy();  
     return NS_ERROR_FAILURE;
   }
 
   rv = SetUpPluginInstance(aMimeType, aURL, instanceOwner);
   if (NS_FAILED(rv)) {
+    instanceOwner->Destroy();
     return NS_ERROR_FAILURE;
   }
 
   nsRefPtr<nsNPAPIPluginInstance> instance;
   rv = instanceOwner->GetInstance(getter_AddRefs(instance));
   if (NS_FAILED(rv)) {
+    instanceOwner->Destroy();
     return rv;
   }
 
