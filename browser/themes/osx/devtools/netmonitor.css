@@ -17,7 +17,7 @@
 }
 
 #requests-menu-toolbar {
-  height: 32px;
+  height: 33px;
   padding: 0;
 }
 
@@ -45,7 +45,7 @@
   -moz-appearance: none;
   background: none;
   min-width: 20px;
-  min-height: 31px; /* Remaining 1px comes from border of the toolbar. */
+  min-height: 32px; /* Remaining 1px comes from border of the toolbar. */
   margin: 0;
   border: none;
   padding: 0;
@@ -173,10 +173,10 @@ box.requests-menu-status[code^="5"] {
 
 .requests-menu-timings-division {
   width: 100px;
-  padding-top: 2px;
+  padding-top: 1px;
   -moz-padding-start: 4px;
   -moz-border-start: 1px dotted #999;
-  font-size: 75%;
+  font-size: 90%;
   pointer-events: none;
 }
 
@@ -433,7 +433,7 @@ box.requests-menu-status[code^="5"] {
   min-width: 1em;
   margin: 0;
   border: none;
-  padding: 2px 1.5vw;
+  padding: 0px 1.5vw;
   color: #fff;
 }
 
@@ -483,7 +483,7 @@ box.requests-menu-status[code^="5"] {
 
   .requests-menu-footer-button,
   .requests-menu-footer-label {
-    padding: 2px 2vw;
+    padding: 0px 2vw;
   }
 
   #details-pane {

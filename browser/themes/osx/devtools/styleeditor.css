@@ -4,13 +4,13 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #style-editor-chrome {
-  background-color: hsl(208,11%,27%);
+  background-color: hsl(211,21%,26%);
 }
 
 .stylesheet-title,
 .stylesheet-name {
   text-decoration: none;
-  color: hsl(207,17%,88%);
+  color: hsl(210,30%,85%);
 }
 
 .stylesheet-name {
@@ -19,7 +19,7 @@
 
 .stylesheet-rule-count,
 .stylesheet-saveButton {
-  color: hsl(211,12%,60%);
+  color: hsl(210,16%,53%);
 }
 
 .stylesheet-saveButton {
@@ -34,7 +34,7 @@
 
 .splitview-active .stylesheet-rule-count,
 .splitview-active .stylesheet-saveButton {
-  color: hsl(200,66%,70%);
+  color: hsl(205,50%,70%);
 }
 
 .splitview-nav:focus {

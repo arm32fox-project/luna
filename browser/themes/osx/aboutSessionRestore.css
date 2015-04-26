@@ -14,7 +14,7 @@ body {
 }
 
 #errorPageContainer {
-  background-image: url("chrome://global/skin/icons/warning-64.png");
+  background-image: url("chrome://global/skin/icons/warning-large.png");
   display: -moz-box;
   width: -moz-available;
   height: 70%;
@@ -61,9 +61,8 @@ treechildren::-moz-tree-image(partial) {
 }
 
 #buttons {
-  -moz-margin-start: 80px; /* same as #errorLongContent in netError.css */
+  width: 100%;
 }
 #buttons > button {
   margin-top: 2em;
-  -moz-margin-start: 6px;
 }

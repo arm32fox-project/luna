@@ -18,9 +18,8 @@
 
 #sites-list {
   -moz-appearance: none;
-  border: 1px solid rgba(60,73,97,0.5);
-  box-shadow: inset 0 1px 1px rgba(0,0,0,0.15), 0 1px rgba(255,255,255,0.25);
-  background: linear-gradient(rgba(255,255,255,0.2), rgba(255,255,255,0.3));
+  border: 1px solid rgba(0, 0, 0, 0.32);
+  background-color: rgba(255, 255, 255, 0.4);
   margin: 5px 0 0 0;
 }
 
@@ -36,12 +35,6 @@
   list-style-image: url("chrome://mozapps/skin/places/defaultFavicon.png");
 }
 
-@media (min-resolution: 2dppx) {
-  .site-favicon {
-    list-style-image: url("chrome://mozapps/skin/places/defaultFavicon@2x.png");
-  }
-}
-
 #all-sites-item > .site-container > .site-favicon {
   list-style-image: none;
 }
@@ -49,7 +42,7 @@
 /* permissions box */
 
 #permissions-box {
-  padding: 10px;
+  padding-top: 10px;
   overflow-y: auto;
 }
 
@@ -108,12 +101,6 @@
   list-style-image: url(chrome://global/skin/icons/question-64.png);
 }
 
-@media (min-resolution: 2dppx) {
-  .pref-icon[type="geo"] {
-    list-style-image: url(chrome://browser/skin/Geolocation-64@2x.png);
-  }
-}
-
 .pref-title {
   font-size: 125%;
   margin-bottom: 0;
@@ -123,4 +110,5 @@
 .pref-menulist {
   margin-left: 6px;
   margin-right: 6px;
+  min-width: 10em; /* native menulists ellipsize their longest entries by default on many themes */
 }

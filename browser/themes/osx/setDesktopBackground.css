@@ -6,7 +6,7 @@
 @namespace html url("http://www.w3.org/1999/xhtml");
 
 html|canvas#screen {
-  margin: 12px 11px 38px;
+  margin: 12px 11px 32px;
 }
 
 #monitor {
