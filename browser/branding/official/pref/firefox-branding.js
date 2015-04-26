@@ -90,8 +90,8 @@ pref("plugin.expose_full_path", true); //Security: expose the full path to the p
 
 // ****************** Networking config ******************
 
-pref("network.dnsCacheEntries", 1024); //cache 1024 instead of 20
-pref("network.dnsCacheExpiration", 3600); //TTL 1 hour
+pref("network.dnsCacheEntries", 128); //cache up to this many entries in-browser
+pref("network.dnsCacheExpiration", 300); //TTL 5 minutes
 
 // ****************** Renderer config ******************
 
