@@ -422,7 +422,7 @@ js_math_floor(JSContext *cx, unsigned argc, Value *vp)
 }
 
 //ES6 2015-02-20 20.2.2.17
-bool
+JSBool
 js::math_fround(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);

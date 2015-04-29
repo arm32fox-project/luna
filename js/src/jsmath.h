@@ -97,7 +97,7 @@ namespace js {
 extern JSBool
 math_clz32(JSContext *cx, unsigned argc, js::Value *vp);
 
-extern bool
+extern JSBool
 math_fround(JSContext *cx, unsigned argc, js::Value *vp);
 
 extern JSBool
