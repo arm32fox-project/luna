@@ -64,7 +64,7 @@ public:
 
     NS_IMETHOD Run()
     {
-        nsCacheServiceAutoLock lock();
+        nsCacheServiceAutoLock lock;
 #ifdef PR_LOGGING
         CACHE_LOG_DEBUG(("nsDiskCacheDeviceDeactivateEntryEvent[%p]\n", this));
 #endif
@@ -89,7 +89,7 @@ public:
 
     NS_IMETHOD Run()
     {
-        nsCacheServiceAutoLock lock();
+        nsCacheServiceAutoLock lock;
         mDevice->EvictDiskCacheEntries(mDevice->mCacheCapacity);
         return NS_OK;
     }
@@ -375,7 +375,7 @@ public:
 private:
     int64_t Amount()
     {
-        nsCacheServiceAutoLock lock();
+        nsCacheServiceAutoLock lock;
         return mDevice->SizeOfIncludingThis(MallocSizeOf);
     }
 

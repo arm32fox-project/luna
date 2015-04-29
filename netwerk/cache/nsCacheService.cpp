@@ -196,7 +196,7 @@ public:
 
     NS_IMETHOD Notify(nsITimer* aTimer) {
         if (nsCacheService::gService) {
-            nsCacheServiceAutoLock autoLock();
+            nsCacheServiceAutoLock autoLock;
             nsCacheService::gService->SetDiskSmartSize_Locked();
             nsCacheService::gService->mSmartSizeTimer = nullptr;
         }
@@ -276,7 +276,7 @@ public:
     }
     NS_IMETHOD Run()
     {
-        nsCacheServiceAutoLock autoLock();
+        nsCacheServiceAutoLock autoLock;
 #ifdef PR_LOGGING
         CACHE_LOG_DEBUG(("nsBlockOnCacheThreadEvent [%p]\n", this));
 #endif
@@ -954,7 +954,7 @@ public:
         NS_ASSERTION(mRequest->mListener,
                      "Sync OpenCacheEntry() posted to background thread!");
 
-        nsCacheServiceAutoLock lock();
+        nsCacheServiceAutoLock lock;
         rv = nsCacheService::gService->ProcessRequest(mRequest,
                                                       false,
                                                       nullptr);
@@ -999,7 +999,7 @@ public:
 
     NS_IMETHOD Run()
     {
-        nsCacheServiceAutoLock lock();
+        nsCacheServiceAutoLock lock;
 
         bool foundActive = true;
         nsresult status = NS_ERROR_NOT_AVAILABLE;
@@ -1167,7 +1167,7 @@ nsCacheService::Shutdown()
     nsCOMPtr<nsIFile> parentDir;
 
     {
-        nsCacheServiceAutoLock lock();
+        nsCacheServiceAutoLock lock;
         NS_ASSERTION(mInitialized,
             "can't shutdown nsCacheService unless it has been initialized.");
         if (!mInitialized)
@@ -1180,7 +1180,7 @@ nsCacheService::Shutdown()
     CloseAllStreams();
 
     {
-        nsCacheServiceAutoLock lock();
+        nsCacheServiceAutoLock lock;
         NS_ASSERTION(mInitialized, "Bad state");
 
         mInitialized = false;
@@ -1326,7 +1326,7 @@ nsCacheService::EvictEntriesForClient(const char *          clientID,
     nsRefPtr<EvictionNotifierRunnable> r = new EvictionNotifierRunnable(this);
     NS_DispatchToMainThread(r);
 
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
     nsresult res = NS_OK;
 
     if (storagePolicy == nsICache::STORE_ANYWHERE ||
@@ -1375,7 +1375,7 @@ nsCacheService::IsStorageEnabledForPolicy(nsCacheStoragePolicy  storagePolicy,
                                           bool *              result)
 {
     if (gService == nullptr) return NS_ERROR_NOT_AVAILABLE;
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
 
     *result = gService->IsStorageEnabledForPolicy_Locked(storagePolicy);
     return NS_OK;
@@ -1423,7 +1423,7 @@ NS_IMETHODIMP nsCacheService::VisitEntries(nsICacheVisitor *visitor)
 {
     NS_ENSURE_ARG_POINTER(visitor);
 
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
 
     if (!(mEnableDiskDevice || mEnableMemoryDevice))
         return NS_ERROR_NOT_AVAILABLE;
@@ -1945,7 +1945,7 @@ nsCacheService::OpenCacheEntry(nsCacheSession *           session,
     }
     else {
 
-        nsCacheServiceAutoLock lock();
+        nsCacheServiceAutoLock lock;
         rv = gService->ProcessRequest(request, true, result);
 
         // delete requests that have completed
@@ -2259,14 +2259,14 @@ nsCacheService::OnProfileShutdown(bool cleanse)
         return;
     }
     {
-        nsCacheServiceAutoLock lock();
+        nsCacheServiceAutoLock lock;
         gService->mClearingEntries = true;
         gService->DoomActiveEntries(nullptr);
     }
 
     gService->CloseAllStreams();
 
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
     gService->ClearDoomList();
 
     // Make sure to wait for any pending cache-operations before
@@ -2308,7 +2308,7 @@ nsCacheService::OnProfileChanged()
 
     CACHE_LOG_DEBUG(("nsCacheService::OnProfileChanged"));
  
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
     
     gService->mEnableDiskDevice    = gService->mObserver->DiskCacheEnabled();
     gService->mEnableOfflineDevice = gService->mObserver->OfflineCacheEnabled();
@@ -2362,7 +2362,7 @@ void
 nsCacheService::SetDiskCacheEnabled(bool    enabled)
 {
     if (!gService)  return;
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
     gService->mEnableDiskDevice = enabled;
 }
 
@@ -2371,7 +2371,7 @@ void
 nsCacheService::SetDiskCacheCapacity(int32_t  capacity)
 {
     if (!gService)  return;
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
 
     if (gService->mDiskDevice) {
         gService->mDiskDevice->SetCapacity(capacity);
@@ -2384,7 +2384,7 @@ void
 nsCacheService::SetDiskCacheMaxEntrySize(int32_t  maxSize)
 {
     if (!gService)  return;
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
 
     if (gService->mDiskDevice) {
         gService->mDiskDevice->SetMaxEntrySize(maxSize);
@@ -2395,7 +2395,7 @@ void
 nsCacheService::SetMemoryCacheMaxEntrySize(int32_t  maxSize)
 {
     if (!gService)  return;
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
 
     if (gService->mMemoryDevice) {
         gService->mMemoryDevice->SetMaxEntrySize(maxSize);
@@ -2406,7 +2406,7 @@ void
 nsCacheService::SetOfflineCacheEnabled(bool    enabled)
 {
     if (!gService)  return;
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
     gService->mEnableOfflineDevice = enabled;
 }
 
@@ -2414,7 +2414,7 @@ void
 nsCacheService::SetOfflineCacheCapacity(int32_t  capacity)
 {
     if (!gService)  return;
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
 
     if (gService->mOfflineDevice) {
         gService->mOfflineDevice->SetCapacity(capacity);
@@ -2431,7 +2431,7 @@ nsCacheService::SetMemoryCache()
 
     CACHE_LOG_DEBUG(("nsCacheService::SetMemoryCache"));
 
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
 
     gService->mEnableMemoryDevice = gService->mObserver->MemoryCacheEnabled();
 
@@ -2542,14 +2542,14 @@ nsCacheService::LockReleased()
 void
 nsCacheService::Lock()
 {
-    TimeStamp start(TimeStamp::Now());
-    MOZ_EVENT_TRACER_WAIT(nsCacheService::gService, "net::cache::lock");
+//    TimeStamp start(TimeStamp::Now());
+//    MOZ_EVENT_TRACER_WAIT(nsCacheService::gService, "net::cache::lock");
 
     gService->mLock.Lock();
-    gService->LockAcquired();
+//    gService->LockAcquired();
 
-    TimeStamp stop(TimeStamp::Now());
-    MOZ_EVENT_TRACER_EXEC(nsCacheService::gService, "net::cache::lock");
+//    TimeStamp stop(TimeStamp::Now());
+//    MOZ_EVENT_TRACER_EXEC(nsCacheService::gService, "net::cache::lock");
 }
 
 void
@@ -2560,10 +2560,10 @@ nsCacheService::Unlock()
     nsTArray<nsISupports*> doomed;
     doomed.SwapElements(gService->mDoomedObjects);
 
-    gService->LockReleased();
+//    gService->LockReleased();
     gService->mLock.Unlock();
 
-    MOZ_EVENT_TRACER_DONE(nsCacheService::gService, "net::cache::lock");
+//    MOZ_EVENT_TRACER_DONE(nsCacheService::gService, "net::cache::lock");
 
     for (uint32_t i = 0; i < doomed.Length(); ++i)
         doomed[i]->Release();
@@ -2865,7 +2865,7 @@ nsCacheService::CloseAllStreams()
     nsTArray<nsRefPtr<nsCacheEntryDescriptor::nsOutputStreamWrapper> > outputs;
 
     {
-        nsCacheServiceAutoLock lock();
+        nsCacheServiceAutoLock lock;
 
         nsVoidArray entries;
 
@@ -2944,7 +2944,7 @@ nsCacheService::LogCacheStatistics()
 nsresult
 nsCacheService::SetDiskSmartSize()
 {
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
 
     if (!gService) return NS_ERROR_NOT_AVAILABLE;
 
@@ -3038,7 +3038,7 @@ IsEntryPrivate(nsCacheEntry* entry)
 void
 nsCacheService::LeavePrivateBrowsing()
 {
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
 
     gService->DoomActiveEntries(IsEntryPrivate);
 
