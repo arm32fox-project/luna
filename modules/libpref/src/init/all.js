@@ -410,21 +410,6 @@ pref("toolkit.scrollbox.verticalScrollDistance", 3);
 pref("toolkit.scrollbox.horizontalScrollDistance", 5);
 pref("toolkit.scrollbox.clickToScroll.scrollDelay", 150);
 
-// Telemetry
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-pref("toolkit.telemetry.enabledPreRelease", true);
-#else
-pref("toolkit.telemetry.enabled", false);
-#endif
-pref("toolkit.telemetry.server", "https://data.mozilla.com");
-// Telemetry server owner. Please change if you set toolkit.telemetry.server to a different server
-pref("toolkit.telemetry.server_owner", "Mozilla");
-// Information page about telemetry (temporary ; will be about:telemetry in the end)
-pref("toolkit.telemetry.infoURL", "https://www.mozilla.org/legal/privacy/firefox.html#telemetry");
-// Determines whether full SQL strings are returned when they might contain sensitive info
-// i.e. dynamically constructed SQL strings or SQL executed by addons against addon DBs
-pref("toolkit.telemetry.debugSlowSql", false);
-
 // Identity module
 pref("toolkit.identity.enabled", false);
 pref("toolkit.identity.debug", false);
@@ -1063,6 +1048,9 @@ pref("network.ftp.control.qos", 0);
 
 // <ws>: WebSocket
 pref("network.websocket.enabled", true);
+
+// raw TCP sockets (windowless)
+pref("dom.mozTCPSocket.enabled", true);
 
 // 2147483647 == PR_INT32_MAX == ~2 GB  
 pref("network.websocket.max-message-size", 2147483647);
@@ -1920,6 +1908,10 @@ pref("dom.ipc.tabs.shutdownTimeoutSecs", 0);
 pref("dom.ipc.plugins.java.enabled", false);
 #endif
 
+// How long we wait (in seconds) before unloading an idle plugin process.
+// Defaults to 1 minute.
+pref("dom.ipc.plugins.unloadTimeoutSecs", 60);
+
 pref("dom.ipc.processCount", 1);
 
 // Enable the use of display-lists for SVG hit-testing and painting.
@@ -2482,9 +2474,6 @@ pref("gfx.font_rendering.cleartype_params.force_gdi_classic_for_families",
 pref("gfx.font_rendering.cleartype_params.force_gdi_classic_max_size", 17);
 
 pref("ui.key.menuAccessKeyFocuses", true);
-
-// override double-click word selection behavior.
-pref("layout.word_select.eat_space_to_next_word", true);
 
 // scrollbar snapping region
 pref("slider.snapMultiplier", 6);

@@ -117,7 +117,7 @@ public:
 
 class AddrInfo {
 public:
-  AddrInfo(const char *host, const PRAddrInfo *prAddrInfo, bool disableIPv4,
+  AddrInfo(const char *host, const PRAddrInfo *prAddrInfo,
            const char *cname);
   ~AddrInfo();
 

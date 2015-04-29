@@ -214,11 +214,6 @@ let SessionFileInternal = {
       try {
         let bytes = yield OS.File.read(aPath, undefined, aReadOptions);
         text = gDecoder.decode(bytes);
-        // If the file is read successfully, add a telemetry probe based on
-        // the updated duration value of the |outExecutionDuration| option.
-        let histogram = Telemetry.getHistogramById(
-          "FX_SESSION_RESTORE_READ_FILE_MS");
-        histogram.add(aReadOptions.outExecutionDuration);
       } catch (ex if self._isNoSuchFile(ex)) {
         // Ignore exceptions about non-existent files.
       } catch (ex) {
@@ -294,8 +289,6 @@ let SessionFileInternal = {
     return TaskUtils.spawn(function task() {
       try {
         yield OS.File.move(self.path, self.backupPath, backupCopyOptions);
-        Telemetry.getHistogramById("FX_SESSION_RESTORE_BACKUP_FILE_MS").add(
-          backupCopyOptions.outExecutionDuration);
       } catch (ex if self._isNoSuchFile(ex)) {
         // Ignore exceptions about non-existent files.
       } catch (ex) {

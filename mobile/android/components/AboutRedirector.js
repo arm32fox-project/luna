@@ -62,6 +62,7 @@ let modules = {
   reader: {
     uri: "chrome://browser/content/aboutReader.html",
     privileged: false,
+    dontLink: true,
     hide: true
   },
   feedback: {
@@ -96,7 +97,9 @@ AboutRedirector.prototype = {
     let moduleInfo = this._getModuleInfo(aURI);
     if (moduleInfo.hide)
       flags = Ci.nsIAboutModule.HIDE_FROM_ABOUTABOUT;
-
+    if (moduleInfo.dontLink)
+      flags = flags | Ci.nsIAboutModule.MAKE_UNLINKABLE;
+    
     return flags | Ci.nsIAboutModule.ALLOW_SCRIPT;
   },
 

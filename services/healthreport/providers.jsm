@@ -55,13 +55,6 @@ const DAILY_DISCRETE_NUMERIC_FIELD = {type: Metrics.Storage.FIELD_DAILY_DISCRETE
 const DAILY_LAST_NUMERIC_FIELD = {type: Metrics.Storage.FIELD_DAILY_LAST_NUMERIC};
 const DAILY_COUNTER_FIELD = {type: Metrics.Storage.FIELD_DAILY_COUNTER};
 
-// Preprocess to use the correct telemetry pref.
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-const TELEMETRY_PREF = "toolkit.telemetry.enabledPreRelease";
-#else
-const TELEMETRY_PREF = "toolkit.telemetry.enabled";
-#endif
-
 /**
  * Represents basic application state.
  *
@@ -350,13 +343,17 @@ AppInfoProvider.prototype = Object.freeze({
     }
 
     // FUTURE this should be retrieved periodically or at upload time.
-    yield this._recordIsTelemetryEnabled(m);
+
+    // Telemetry stub 
+    //yield this._recordIsTelemetryEnabled(m);
+    //
     yield this._recordIsBlocklistEnabled(m);
     yield this._recordDefaultBrowser(m);
   },
 
   _recordIsTelemetryEnabled: function (m) {
-    let enabled = TELEMETRY_PREF && this._prefs.get(TELEMETRY_PREF, false);
+    // Telemetry stub
+    let enabled = false;
     this._log.debug("Recording telemetry enabled (" + TELEMETRY_PREF + "): " + enabled);
     yield m.setDailyLastNumeric("isTelemetryEnabled", enabled ? 1 : 0);
   },

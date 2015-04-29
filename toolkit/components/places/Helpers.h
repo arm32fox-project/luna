@@ -247,6 +247,7 @@ private:
 /**
  * Used to notify a topic to system observers on async execute completion.
  */
+// Telemetry stub
 class AsyncStatementTelemetryTimer : public AsyncStatementCallback
 {
 public:

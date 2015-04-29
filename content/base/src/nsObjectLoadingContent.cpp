@@ -78,7 +78,6 @@
 #include "nsWidgetsCID.h"
 #include "nsContentCID.h"
 #include "mozilla/dom/BindingUtils.h"
-#include "mozilla/Telemetry.h"
 
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
@@ -3168,7 +3167,6 @@ nsObjectLoadingContent::LegacyCall(JSContext* aCx,
     return JS::UndefinedValue();
   }
 
-  Telemetry::Accumulate(Telemetry::PLUGIN_CALLED_DIRECTLY, true);
   return retval;
 }
 

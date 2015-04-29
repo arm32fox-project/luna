@@ -3,8 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-%include ../shared.inc
-
 #body {
   background: #fff;
 }
@@ -293,11 +291,12 @@
 }
 
 #debugger-controls {
-  box-shadow: 0 1px 0 hsla(210,16%,76%,.15) inset,
-              0 0 0 1px hsla(210,16%,76%,.15) inset,
-              0 1px 0 hsla(210,16%,76%,.15);
+  box-shadow: 0 1px 0 hsla(209,29%,72%,.15) inset,
+              0 0 0 1px hsla(209,29%,72%,.1) inset,
+              0 0 0 1px hsla(209,29%,72%,.1),
+              0 1px 0 hsla(210,16%,76%,.1);
   border: 1px solid hsla(210,8%,5%,.45);
-  border-radius: @toolbarbuttonCornerRadius@;
+  border-radius: 3px;
   margin: 0 3px;
 }
 
@@ -313,6 +312,10 @@
   list-style-image: url("chrome://browser/skin/devtools/debugger-expand.png");
 }
 
-#instruments-pane-toggle:active {
+#instruments-pane-toggle:hover {
   -moz-image-region: rect(0px,32px,16px,16px);
+}
+
+#instruments-pane-toggle:hover:active {
+  -moz-image-region: rect(0px,48px,16px,32px);
 }

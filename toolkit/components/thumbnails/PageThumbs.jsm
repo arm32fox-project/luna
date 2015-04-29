@@ -236,11 +236,7 @@ this.PageThumbs = {
    * @param aCanvas The canvas to draw to.
    */
   captureToCanvas: function PageThumbs_captureToCanvas(aWindow, aCanvas) {
-    let telemetryCaptureTime = new Date();
     this._captureToCanvas(aWindow, aCanvas);
-    let telemetry = Services.telemetry;
-    telemetry.getHistogramById("FX_THUMBNAILS_CAPTURE_TIME_MS")
-      .add(new Date() - telemetryCaptureTime);
   },
 
   // The background thumbnail service captures to canvas but doesn't want to
@@ -305,10 +301,7 @@ this.PageThumbs = {
    */
   _store: function PageThumbs__store(aOriginalURL, aFinalURL, aData) {
     return TaskUtils.spawn(function () {
-      let telemetryStoreTime = new Date();
       yield PageThumbsStorage.writeData(aFinalURL, aData);
-      Services.telemetry.getHistogramById("FX_THUMBNAILS_STORE_TIME_MS")
-        .add(new Date() - telemetryStoreTime);
 
       // We've been redirected. Create a copy of the current thumbnail for
       // the redirect source. We need to do this because:

@@ -12,6 +12,10 @@
   -moz-image-region: rect(0, 16px, 16px, 0);
 }
 
+.findbar-closebutton:-moz-lwtheme-brighttext {
+  list-style-image: url("chrome://global/skin/icons/close-inverted.png");
+}
+
 .findbar-closebutton:hover {
   -moz-image-region: rect(0, 32px, 16px, 16px);
 }

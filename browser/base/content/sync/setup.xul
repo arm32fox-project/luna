@@ -235,7 +235,7 @@
       &pairDevice.setup.description.label;
       <label class="text-link"
              value="&addDevice.showMeHow.label;"
-             href="https://services.mozilla.com/sync/help/easy-setup"/>
+             href="http://www.palemoon.org/sync/help/easy-setup.shtml"/>
     </description>
     <label value="&addDevice.setup.enterCode.label;"
            control="easySetupPIN1"/>
@@ -354,7 +354,7 @@
       <description>
         &existingRecoveryKey.description;
         <label class="text-link"
-               href="https://services.mozilla.com/sync/help/manual-setup">
+               href="http://www.palemoon.org/sync/help/recoverykey.shtml">
           &addDevice.showMeHow.label;
         </label>
         <spacer id="passphraseHelpSpacer"/>

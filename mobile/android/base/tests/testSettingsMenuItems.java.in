@@ -23,7 +23,7 @@ public class testSettingsMenuItems extends PixelTest {
         // In this First Section I've declared the strings that contain the Menu sections
 
         // The first string contains menu sections that do not have multiple option
-        String menuItems [] = { "General", "About", "Sync", "Content", "Pinch to reflow text", "Privacy & Security", "Tell sites not to track me", "Remember passwords", "Use master password", "Show search suggestions", "Show product announcements", "Import & Export"};
+        String menuItems [] = { "General", "About", "Sync", "Content", "Pinch to reflow text", "Privacy & Security", "Tell sites not to track me", "Remember passwords", "Use master password", "Show search suggestions", "Import & Export"};
         // This string contains every menu section that have multiple selection options followed by the option that is selected by default
         String defaultSectionsValues [] = { "Automatic updates", "Only over Wi-Fi", "Character encoding", "Don't show menu","Plugins", "Tap to play", "Text size", "Tiny", "Cookies", "Enable"};
 

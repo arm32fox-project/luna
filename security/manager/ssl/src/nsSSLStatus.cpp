@@ -59,6 +59,30 @@ nsSSLStatus::GetCipherName(char** _result)
 }
 
 NS_IMETHODIMP
+nsSSLStatus::GetCipherSuite(char** _result)
+{
+  NS_ASSERTION(_result, "non-NULL destination required");
+  if (!mHaveKeyLengthAndCipher)
+    return NS_ERROR_NOT_AVAILABLE;
+
+  *_result = ToNewCString(mCipherSuite);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSSLStatus::GetProtocolVersion(uint32_t* _result)
+{
+  NS_ASSERTION(_result, "non-NULL destination required");
+  if (!mHaveKeyLengthAndCipher) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  *_result = mProtocolVersion;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsSSLStatus::GetIsDomainMismatch(bool* _result)
 {
   NS_ASSERTION(_result, "non-NULL destination required");
@@ -105,6 +129,11 @@ nsSSLStatus::Read(nsIObjectInputStream* stream)
   NS_ENSURE_SUCCESS(rv, rv);
   rv = stream->ReadCString(mCipherName);
   NS_ENSURE_SUCCESS(rv, rv);
+  rv = stream->ReadCString(mCipherSuite);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = stream->Read32(&mProtocolVersion);
+  NS_ENSURE_SUCCESS(rv, rv);
 
   rv = stream->ReadBoolean(&mIsDomainMismatch);
   NS_ENSURE_SUCCESS(rv, rv);
@@ -134,6 +163,9 @@ nsSSLStatus::Write(nsIObjectOutputStream* stream)
   rv = stream->Write32(mSecretKeyLength);
   NS_ENSURE_SUCCESS(rv, rv);
   rv = stream->WriteStringZ(mCipherName.get());
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  rv = stream->Write32(mProtocolVersion);
   NS_ENSURE_SUCCESS(rv, rv);
 
   rv = stream->WriteBoolean(mIsDomainMismatch);
@@ -213,7 +245,9 @@ nsSSLStatus::GetClassIDNoAlloc(nsCID *aClassIDNoAlloc)
 }
 
 nsSSLStatus::nsSSLStatus()
-: mKeyLength(0), mSecretKeyLength(0)
+: mKeyLength(0)
+, mSecretKeyLength(0)
+, mProtocolVersion(0)
 , mIsDomainMismatch(false)
 , mIsNotValidAtThisTime(false)
 , mIsUntrusted(false)
@@ -221,6 +255,7 @@ nsSSLStatus::nsSSLStatus()
 , mHaveCertErrorBits(false)
 {
   mCipherName = "";
+  mCipherSuite = "";
 }
 
 NS_IMPL_THREADSAFE_ISUPPORTS3(nsSSLStatus, nsISSLStatus, nsISerializable, nsIClassInfo)

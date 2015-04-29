@@ -117,7 +117,6 @@
 #include "xpcpublic.h"
 #include "nsIScriptError.h"
 #include "nsLayoutStatics.h"
-#include "mozilla/Telemetry.h"
 
 #include "mozilla/CORSMode.h"
 
@@ -1041,8 +1040,6 @@ public:
         UnbindSubtree(mSubtreeRoots[i]);
       }
       mSubtreeRoots.Clear();
-      Telemetry::Accumulate(Telemetry::CYCLE_COLLECTOR_CONTENT_UNBIND,
-                            uint32_t(PR_Now() - start) / PR_USEC_PER_MSEC);
     }
     if (this == sContentUnbinder) {
       sContentUnbinder = nullptr;

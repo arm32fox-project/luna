@@ -5,12 +5,75 @@
 @import "chrome://global/skin/";
 
 /* View buttons */
-@import "chrome://global/skin/viewbuttons.css";
+#viewGroup {
+  -moz-padding-start: 10px;
+}
 
-/* Extensions will provide icons because the view buttons have icons
-   on the windows and linux themes. We don't want to display them */
-.viewButtonIcon {
-  display: none;
+#viewGroup > radio {
+  list-style-image: url("chrome://browser/skin/pageInfo.png");
+  -moz-box-orient: vertical;
+  -moz-box-align: center;
+  -moz-appearance: none;
+  padding: 5px 3px 1px 3px;
+  margin: 0 1px;
+  min-width: 4.5em;
+}
+
+#viewGroup > radio:hover {
+  background-color: #E0E8F6;
+  color: black;
+}
+
+#viewGroup > radio[selected="true"] {
+  background-color: #C1D2EE;
+  color: black;
+}
+
+#topBar {
+  border-bottom: 2px groove ThreeDFace;
+  -moz-padding-start: 10px;
+  background-color: -moz-Field;
+  color: -moz-FieldText;
+}
+
+#generalTab {
+  -moz-image-region: rect(0px, 32px, 32px, 0px)
+}
+
+#generalTab:hover, #generalTab[selected="true"] {
+  -moz-image-region: rect(32px, 32px, 64px, 0px)
+}
+
+#mediaTab {
+  -moz-image-region: rect(0px, 64px, 32px, 32px)
+}
+
+#mediaTab:hover, #mediaTab[selected="true"] {
+  -moz-image-region: rect(32px, 64px, 64px, 32px)
+}
+
+#feedTab {
+  -moz-image-region: rect(0px, 96px, 32px, 64px)
+}
+
+#feedTab:hover, #feedTab[selected="true"] {
+  -moz-image-region: rect(32px, 96px, 64px, 64px)
+}
+
+#permTab {
+  -moz-image-region: rect(0px, 128px, 32px, 96px)
+}
+
+#permTab:hover, #permTab[selected="true"] {
+  -moz-image-region: rect(32px, 128px, 64px, 96px)
+}
+
+#securityTab {
+  -moz-image-region: rect(0px, 160px, 32px, 128px)
+}
+
+#securityTab:hover, #securityTab[selected="true"] {
+  -moz-image-region: rect(32px, 160px, 64px, 128px)
 }
 
 deck {
@@ -53,26 +116,29 @@ textbox[disabled] {
 }
 
 /* General Tab */
-groupbox.collapsable caption .caption-icon {
-  width: 11px;
-  height: 11px;
+groupbox.collapsable caption .caption-icon { 
+  width: 9px;
+  height: 9px;
   background-repeat: no-repeat;
   background-position: center;
+  -moz-margin-start: 2px;
   -moz-margin-end: 2px;
-  background-image: url("chrome://global/skin/arrow/arrow-dn.gif");
+  background-image: url("chrome://global/skin/tree/twisty-open.png");
 }
 
-groupbox.collapsable[closed="true"] caption .caption-icon {
-  background-image: url("chrome://global/skin/arrow/arrow-rit.gif");
+groupbox.collapsable[closed="true"] {
+  border: none;
+  margin-bottom: 9px;
+  -moz-appearance: none;
+}
+
+groupbox.collapsable[closed="true"] caption .caption-icon { 
+  background-image: url("chrome://global/skin/tree/twisty-clsd.png");
 }
 
 groupbox tree { 
-  margin: 0;
+  margin: 0 3px;
   border: none;
-}
-
-groupbox.treebox .groupbox-body { 
-  padding: 0;
 }
 
 #securityBox description { 
@@ -91,7 +157,9 @@ groupbox.treebox .groupbox-body {
 }
 
 #mediaSplitter {
+  border-style: none;
   background: none;
+  height: .8em;
 }
 
 #mediaGrid {
