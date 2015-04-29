@@ -421,6 +421,26 @@ js_math_floor(JSContext *cx, unsigned argc, Value *vp)
     return true;
 }
 
+//ES6 2015-02-20 20.2.2.17
+bool
+js::math_fround(JSContext *cx, unsigned argc, Value *vp)
+{
+    CallArgs args = CallArgsFromVp(argc, vp);
+
+    if (args.length() == 0) {
+        args.rval().setDouble(js_NaN);
+        return true;
+    }
+
+    double x;
+    if (!ToNumber(cx, args[0], &x))
+        return false;
+
+    float f = x;
+    args.rval().setDouble(static_cast<double>(f));
+    return true;
+}
+
 JSBool
 js::math_imul(JSContext *cx, unsigned argc, Value *vp)
 {
@@ -1250,6 +1270,7 @@ static const JSFunctionSpec math_static_methods[] = {
     JS_FN("cos",            math_cos,             1, 0),
     JS_FN("exp",            math_exp,             1, 0),
     JS_FN("floor",          js_math_floor,        1, 0),
+    JS_FN("fround",         math_fround,          1, 0),
     JS_FN("imul",           math_imul,            2, 0),
     JS_FN("log",            math_log,             1, 0),
     JS_FN("max",            js_math_max,          2, 0),
