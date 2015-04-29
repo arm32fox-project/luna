@@ -307,7 +307,7 @@ js_math_ceil(JSContext *cx, unsigned argc, Value *vp)
 }
 
 // ES6 Draft 2015-02-20 (RC1): 20.2.2.11
-JSbool
+JSBool
 js::math_clz32(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
