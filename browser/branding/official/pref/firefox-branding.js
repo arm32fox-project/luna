@@ -7,7 +7,7 @@ pref("app.update.interval", 172800);
 pref("app.update.auto", false);
 pref("app.update.enabled", true);
 // URL for update checks, re-enabled on palemoon.org (369)
-pref("app.update.url", "http://www.palemoon.org/update/%VERSION%/Atom/update.xml");
+pref("app.update.url", "https://www.palemoon.org/update/%VERSION%/Atom/update.xml");
 pref("app.update.promptWaitTime", 86400); 
 // The time interval between the downloading of mar file chunks in the
 // background (in seconds)
@@ -90,8 +90,8 @@ pref("plugin.expose_full_path", true); //Security: expose the full path to the p
 
 // ****************** Networking config ******************
 
-pref("network.dnsCacheEntries", 1024); //cache 1024 instead of 20
-pref("network.dnsCacheExpiration", 3600); //TTL 1 hour
+pref("network.dnsCacheEntries", 128); //cache up to this many entries in-browser
+pref("network.dnsCacheExpiration", 300); //TTL 5 minutes
 
 // ****************** Renderer config ******************
 

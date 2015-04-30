@@ -3847,10 +3847,6 @@
             return;
           }
 
-          Services.telemetry.getHistogramById(aTab.closing ?
-                                              "FX_TAB_ANIM_CLOSE_MS" :
-                                              "FX_TAB_ANIM_OPEN_MS")
-                            .add(Date.now() - aTab._animStartTime);
           aTab._animStartTime = 0;
 
           // Handle tab animation smoothness telemetry/logging of frame intervals and paint times
@@ -3891,16 +3887,8 @@
                               ? averagePaint
                               : averageInterval / (frameCount - 1);
 
-            Services.telemetry.getHistogramById("FX_TAB_ANIM_ANY_FRAME_INTERVAL_MS").add(averageInterval);
-            Services.telemetry.getHistogramById("FX_TAB_ANIM_ANY_FRAME_PAINT_MS").add(averagePaint);
-
             if (aTab._recordingTabOpenPlain) {
               delete aTab._recordingTabOpenPlain;
-              // While we do have a telemetry probe NEWTAB_PAGE_ENABLED to monitor newtab preview, it'll be
-              // easier to overview the data without slicing by it. Hence the additional histograms with _PREVIEW.
-              let preview = this._browserNewtabpageEnabled ? "_PREVIEW" : "";
-              Services.telemetry.getHistogramById("FX_TAB_ANIM_OPEN" + preview + "_FRAME_INTERVAL_MS").add(averageInterval);
-              Services.telemetry.getHistogramById("FX_TAB_ANIM_OPEN" + preview + "_FRAME_PAINT_MS").add(averagePaint);
             }
           }
         ]]>

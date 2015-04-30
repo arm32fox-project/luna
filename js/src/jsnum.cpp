@@ -977,6 +977,7 @@ static const JSFunctionSpec number_static_methods[] = {
     /* ES6 additions. */
     JS_FN("parseFloat", num_parseFloat, 1, 0),
     JS_FN("parseInt", num_parseInt, 2, 0),
+    {"isSafeInteger", {NULL, NULL}, 1, 0, "Number_isSafeInteger"},
     JS_FS_END
 };
 

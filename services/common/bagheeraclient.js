@@ -178,8 +178,7 @@ BagheeraClient.prototype = Object.freeze({
     data = CommonUtils.convertString(data, "uncompressed", "deflate");
     if (options.telemetryCompressed) {
       try {
-        let h = Services.telemetry.getHistogramById(options.telemetryCompressed);
-        h.add(data.length);
+        // Telemetry stub
       } catch (ex) {
         this._log.warn("Unable to record telemetry for compressed payload size: " +
                        CommonUtils.exceptionStr(ex));

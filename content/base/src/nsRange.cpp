@@ -31,7 +31,6 @@
 #include "nsFontFaceList.h"
 #include "mozilla/dom/DocumentFragment.h"
 #include "mozilla/dom/RangeBinding.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Likely.h"
 
 using namespace mozilla;
@@ -203,9 +202,6 @@ nsRange::IsNodeSelected(nsINode* aNode, uint32_t aStartOffset,
 nsRange::~nsRange() 
 {
   NS_ASSERTION(!IsInSelection(), "deleting nsRange that is in use");
-
-  // Maybe we can remove Detach() -- bug 702948.
-  Telemetry::Accumulate(Telemetry::DOM_RANGE_DETACHED, mIsDetached);
 
   // we want the side effects (releases and list removals)
   DoSetRange(nullptr, 0, nullptr, 0, nullptr);
@@ -2782,8 +2778,7 @@ nsRange::ToString(nsAString& aReturn)
 NS_IMETHODIMP
 nsRange::Detach()
 {
-  // No-op, but still set mIsDetached for telemetry (bug 702948)
-  mIsDetached = true;
+  // No-op, see bug 702948
   return NS_OK;
 }
 

@@ -67,7 +67,6 @@
 #include "nsStringBuffer.h"
 #include "nsDOMFile.h"
 #include "nsIFileChannel.h"
-#include "mozilla/Telemetry.h"
 #include "jsfriendapi.h"
 #include "GeckoProfiler.h"
 #include "mozilla/dom/EncodingUtils.h"
@@ -1573,9 +1572,6 @@ nsXMLHttpRequest::Open(const nsACString& method, const nsACString& url,
                        const Optional<nsAString>& password)
 {
   NS_ENSURE_ARG(!method.IsEmpty());
-
-  Telemetry::Accumulate(Telemetry::XMLHTTPREQUEST_ASYNC_OR_SYNC,
-                        async ? 0 : 1);
 
   NS_ENSURE_TRUE(mPrincipal, NS_ERROR_NOT_INITIALIZED);
 

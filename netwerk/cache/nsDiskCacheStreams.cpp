@@ -12,7 +12,6 @@
 #include "nsCacheService.h"
 #include "mozilla/FileUtils.h"
 #include "nsThreadUtils.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
 #include <algorithm>
 #include "mozilla/VisualEventTracer.h"
@@ -320,7 +319,7 @@ nsDiskCacheStreamIO::Close()
     mozilla::TimeStamp start = mozilla::TimeStamp::Now();
 
     // grab service lock
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSDISKCACHESTREAMIO_CLOSEOUTPUTSTREAM));
+    nsCacheServiceAutoLock lock;
 
     if (!mBinding) {    // if we're severed, just clear member variables
         mOutputStreamIsOpen = false;
@@ -330,13 +329,6 @@ nsDiskCacheStreamIO::Close()
     nsresult rv = CloseOutputStream();
     if (NS_FAILED(rv))
         NS_WARNING("CloseOutputStream() failed");
-
-    mozilla::Telemetry::ID id;
-    if (NS_IsMainThread())
-        id = mozilla::Telemetry::NETWORK_DISK_CACHE_STREAMIO_CLOSE_MAIN_THREAD;
-    else
-        id = mozilla::Telemetry::NETWORK_DISK_CACHE_STREAMIO_CLOSE;
-    mozilla::Telemetry::AccumulateTimeDelta(id, start);
 
     return rv;
 }
@@ -426,7 +418,7 @@ nsDiskCacheStreamIO::Write( const char * buffer,
     }
 
     // grab service lock
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSDISKCACHESTREAMIO_WRITE));
+    nsCacheServiceAutoLock lock;
     if (!mBinding)  return NS_ERROR_NOT_AVAILABLE;
 
     if (mInStreamCount) {

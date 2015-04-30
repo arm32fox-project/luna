@@ -240,7 +240,6 @@ let Content = {
       }
 
       case "Browser:SetCharset": {
-        docShell.gatherCharsetMenuTelemetry();
         docShell.charset = json.charset;
 
         let webNav = docShell.QueryInterface(Ci.nsIWebNavigation);

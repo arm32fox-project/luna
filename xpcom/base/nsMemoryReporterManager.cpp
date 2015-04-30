@@ -20,7 +20,6 @@
 #include "nsIObserverService.h"
 #include "nsThread.h"
 #include "nsMemoryInfoDumper.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Services.h"
 
@@ -266,7 +265,6 @@ static nsresult GetResident(int64_t *n, bool aDoPurge)
 {
 #ifdef HAVE_JEMALLOC_STATS
     if (aDoPurge) {
-      Telemetry::AutoTimer<Telemetry::MEMORY_FREE_PURGED_PAGES_MS> timer;
       jemalloc_purge_freed_pages();
     }
 #endif
@@ -397,8 +395,8 @@ public:
 "This is the same measurement as 'resident', but it tries to be as fast as "
 "possible at the expense of accuracy.  On most platforms this is identical to "
 "the 'resident' measurement, but on Mac it may over-count.  You should use "
-"'resident-fast' where you care about latency of collection (e.g. in "
-"telemetry).  Otherwise you should use 'resident'.")
+"'resident-fast' where you care about latency of collection. " 
+"Otherwise you should use 'resident'.")
     {}
 
     NS_IMETHOD GetAmount(int64_t *aAmount) { return GetResidentFast(aAmount); }

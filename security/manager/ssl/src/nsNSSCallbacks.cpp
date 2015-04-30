@@ -6,7 +6,6 @@
 
 #include "nsNSSCallbacks.h"
 
-#include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
 #include "nsNSSComponent.h"
 #include "nsNSSIOLayer.h"
@@ -455,31 +454,6 @@ nsNSSHttpRequestSession::internal_send_receive_attempt(bool &retryable_error,
     }
   }
 
-  if (!event->mStartTime.IsNull()) {
-    if (request_canceled) {
-      Telemetry::Accumulate(Telemetry::CERT_VALIDATION_HTTP_REQUEST_RESULT, 0);
-      Telemetry::AccumulateTimeDelta(
-        Telemetry::CERT_VALIDATION_HTTP_REQUEST_CANCELED_TIME,
-        event->mStartTime, TimeStamp::Now());
-    }
-    else if (NS_SUCCEEDED(mListener->mResultCode) &&
-             mListener->mHttpResponseCode == 200) {
-      Telemetry::Accumulate(Telemetry::CERT_VALIDATION_HTTP_REQUEST_RESULT, 1);
-      Telemetry::AccumulateTimeDelta(
-        Telemetry::CERT_VALIDATION_HTTP_REQUEST_SUCCEEDED_TIME,
-        event->mStartTime, TimeStamp::Now());
-    }
-    else {
-      Telemetry::Accumulate(Telemetry::CERT_VALIDATION_HTTP_REQUEST_RESULT, 2);
-      Telemetry::AccumulateTimeDelta(
-        Telemetry::CERT_VALIDATION_HTTP_REQUEST_FAILED_TIME,
-        event->mStartTime, TimeStamp::Now());
-    }
-  }
-  else {
-    Telemetry::Accumulate(Telemetry::CERT_VALIDATION_HTTP_REQUEST_RESULT, 3);
-  }
-
   if (request_canceled)
     return SECFailure;
 
@@ -850,11 +824,8 @@ PK11PasswordPrompt(PK11SlotInfo* slot, PRBool retry, void* arg)
 
 void HandshakeCallback(PRFileDesc* fd, void* client_data) {
   nsNSSShutDownPreventionLock locker;
-  int32_t sslStatus;
-  char* cipherName = nullptr;
-  int32_t keyLength;
-  int32_t encryptBits;
-
+  SECStatus rv;
+  
   nsNSSSocketInfo* infoObject = (nsNSSSocketInfo*) fd->higher->secret;
 
   // certificate validation sets FirstServerHelloReceived, so if that flag
@@ -869,46 +840,42 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
   nsSSLIOLayerHelpers& ioLayerHelpers = infoObject->SharedState().IOLayerHelpers();
   ioLayerHelpers.rememberTolerantSite(infoObject);
 
-  if (SECSuccess != SSL_SecurityStatus(fd, &sslStatus, &cipherName, &keyLength,
-                                       &encryptBits, nullptr, nullptr)) {
-    return;
+  PRBool siteSupportsSafeRenego;
+  rv = SSL_HandshakeNegotiatedExtension(fd, ssl_renegotiation_info_xtn,
+                                        &siteSupportsSafeRenego);
+  MOZ_ASSERT(rv == SECSuccess);
+  if (rv != SECSuccess) {
+    siteSupportsSafeRenego = false;
   }
 
-  int32_t secStatus;
-  if (sslStatus == SSL_SECURITY_STATUS_OFF)
-    secStatus = nsIWebProgressListener::STATE_IS_BROKEN;
-  else
-    secStatus = nsIWebProgressListener::STATE_IS_SECURE
-              | nsIWebProgressListener::STATE_SECURE_HIGH;
+  if (siteSupportsSafeRenego ||
+      !ioLayerHelpers.treatUnsafeNegotiationAsBroken()) {
+    infoObject->SetSecurityState(nsIWebProgressListener::STATE_IS_SECURE |
+                                 nsIWebProgressListener::STATE_SECURE_HIGH);
+  } else {
+    infoObject->SetSecurityState(nsIWebProgressListener::STATE_IS_BROKEN);
+  }
 
-  PRBool siteSupportsSafeRenego;
-  if (SSL_HandshakeNegotiatedExtension(fd, ssl_renegotiation_info_xtn, &siteSupportsSafeRenego) != SECSuccess
-      || !siteSupportsSafeRenego) {
+  // XXX Bug 883674: We shouldn't be formatting messages here in PSM; instead,
+  // we should set a flag on the channel that higher (UI) level code can check
+  // to log the warning. In particular, these warnings should go to the web
+  // console instead of to the error console. Also, the warning is not
+  // localized.
+  if (!siteSupportsSafeRenego &&
+      ioLayerHelpers.getWarnLevelMissingRFC5746() > 0) {
+    nsCOMPtr<nsIConsoleService> console = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
+    if (console) {
+      nsXPIDLCString hostName;
+      infoObject->GetHostName(getter_Copies(hostName));
 
-    bool wantWarning = (ioLayerHelpers.getWarnLevelMissingRFC5746() > 0);
-
-    nsCOMPtr<nsIConsoleService> console;
-    if (infoObject && wantWarning) {
-      console = do_GetService(NS_CONSOLESERVICE_CONTRACTID);
-      if (console) {
-        nsXPIDLCString hostName;
-        infoObject->GetHostName(getter_Copies(hostName));
-
-        nsAutoString msg;
-        msg.Append(NS_ConvertASCIItoUTF16(hostName));
-        msg.Append(NS_LITERAL_STRING(" : server does not support RFC 5746, see CVE-2009-3555"));
-
-        console->LogStringMessage(msg.get());
-      }
-    }
-    if (ioLayerHelpers.treatUnsafeNegotiationAsBroken()) {
-      secStatus = nsIWebProgressListener::STATE_IS_BROKEN;
+      nsAutoString msg;
+      msg.Append(NS_ConvertASCIItoUTF16(hostName));
+      msg.Append(NS_LITERAL_STRING(" : server does not support RFC 5746, see CVE-2009-3555"));
+      console->LogStringMessage(msg.get());
     }
   }
 
   ScopedCERTCertificate serverCert(SSL_PeerCertificate(fd));
-
-  infoObject->SetSecurityState(secStatus);
 
   /* Set the SSL Status information */
   RefPtr<nsSSLStatus> status(infoObject->SSLStatus());
@@ -949,11 +916,6 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
     }
   }
 
-  status->mHaveKeyLengthAndCipher = true;
-  status->mKeyLength = keyLength;
-  status->mSecretKeyLength = encryptBits;
-  status->mCipherName.Assign(cipherName);
-
   // Get the NPN value.
   SSLNextProtoState state;
   unsigned char npnbuf[256];
@@ -964,30 +926,33 @@ void HandshakeCallback(PRFileDesc* fd, void* client_data) {
       infoObject->SetNegotiatedNPN(reinterpret_cast<char *>(npnbuf), npnlen);
     else
       infoObject->SetNegotiatedNPN(nullptr, 0);
-    mozilla::Telemetry::Accumulate(Telemetry::SSL_NPN_TYPE, state);
   }
   else
     infoObject->SetNegotiatedNPN(nullptr, 0);
 
   SSLChannelInfo channelInfo;
-  if (SSL_GetChannelInfo(fd, &channelInfo, sizeof(channelInfo)) == SECSuccess) {
-    // Get the protocol version for telemetry
+  rv = SSL_GetChannelInfo(fd, &channelInfo, sizeof(channelInfo));
+  MOZ_ASSERT(rv == SECSuccess);
+  if (rv == SECSuccess) {
+    // Get the protocol version
     // 0=ssl3, 1=tls1, 2=tls1.1, 3=tls1.2
     unsigned int versionEnum = channelInfo.protocolVersion & 0xFF;
-    Telemetry::Accumulate(Telemetry::SSL_HANDSHAKE_VERSION, versionEnum);
 
     SSLCipherSuiteInfo cipherInfo;
-    if (SSL_GetCipherSuiteInfo(channelInfo.cipherSuite, &cipherInfo,
-                                sizeof (cipherInfo)) == SECSuccess) {
-      // keyExchange null=0, rsa=1, dh=2, fortezza=3, ecdh=4
-      Telemetry::Accumulate(Telemetry::SSL_KEY_EXCHANGE_ALGORITHM,
-                            cipherInfo.keaType);
+    rv = SSL_GetCipherSuiteInfo(channelInfo.cipherSuite, &cipherInfo,
+                                sizeof cipherInfo);
+    MOZ_ASSERT(rv == SECSuccess);
+    if (rv == SECSuccess) {
+      status->mHaveKeyLengthAndCipher = true;
+      status->mKeyLength = cipherInfo.symKeyBits;
+      status->mSecretKeyLength = cipherInfo.effectiveKeyBits;
+      status->mCipherSuite.Assign(cipherInfo.cipherSuiteName);
+      status->mCipherName.Assign(cipherInfo.symCipherName);
+      status->mProtocolVersion = channelInfo.protocolVersion & 0xFF;
     }
       
   }
   infoObject->SetHandshakeCompleted(isResumedSession);
-
-  PORT_Free(cipherName);
 }
 
 struct OCSPDefaultResponders {

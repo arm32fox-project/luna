@@ -97,13 +97,6 @@ DOMStorage::SetItem(const nsAString& aKey, const nsAString& aData)
     return NS_ERROR_DOM_SECURITY_ERR;
   }
 
-  Telemetry::Accumulate(GetType() == LocalStorage
-      ? Telemetry::LOCALDOMSTORAGE_KEY_SIZE_BYTES
-      : Telemetry::SESSIONDOMSTORAGE_KEY_SIZE_BYTES, aKey.Length());
-  Telemetry::Accumulate(GetType() == LocalStorage
-      ? Telemetry::LOCALDOMSTORAGE_VALUE_SIZE_BYTES
-      : Telemetry::SESSIONDOMSTORAGE_VALUE_SIZE_BYTES, aData.Length());
-
   nsString old;
   nsresult rv = mCache->SetItem(this, aKey, nsString(aData), old);
   if (NS_FAILED(rv)) {

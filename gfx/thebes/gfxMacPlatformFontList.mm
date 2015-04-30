@@ -9,6 +9,7 @@
  *   Masayuki Nakano <masayuki@d-toybox.com>
  *   John Daggett <jdaggett@mozilla.com>
  *   Jonathan Kew <jfkthame@gmail.com>
+ *   Mark Straver <moonchild@palemoon.org>
  *
  * Copyright (C) 2006 Apple Computer, Inc.  All rights reserved.
  *
@@ -64,7 +65,6 @@
 #include "nsCharTraits.h"
 
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 
 #include <unistd.h>
 #include <time.h>
@@ -677,8 +677,6 @@ gfxMacPlatformFontList::InitFontList()
     if (mATSGeneration == currentGeneration)
         return NS_OK;
 
-    Telemetry::AutoTimer<Telemetry::MAC_INITFONTLIST_TOTAL> timer;
-
     mATSGeneration = currentGeneration;
 #ifdef PR_LOGGING
     LOG_FONTLIST(("(fontlist) updating to generation: %d", mATSGeneration));
@@ -909,10 +907,6 @@ gfxMacPlatformFontList::GlobalFontFallback(const uint32_t aCh,
         if (familyName) {
             ::CFRelease(familyName);
         }
-    }
-
-    if (cantUseFallbackFont) {
-        Telemetry::Accumulate(Telemetry::BAD_FALLBACK_FONT, cantUseFallbackFont);
     }
 
     ::CFRelease(str);

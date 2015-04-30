@@ -599,13 +599,6 @@ interface nsIDocShell : nsIDocShellTreeItem
   attribute string charset;
 
   /**
-   * Called when the user chose an encoding override from the character
-   * encoding menu. Separate from the setter for the charset property to avoid
-   * extensions adding noise to the data.
-   */
-  void gatherCharsetMenuTelemetry();
-
-  /**
    * The charset forced by the user. When the charset attribute is set this
    * attribute is set to the same value.
    *

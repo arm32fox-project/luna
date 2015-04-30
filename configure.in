@@ -71,7 +71,7 @@ GCONF_VERSION=1.2.1
 GIO_VERSION=2.20
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.7.17
+SQLITE_VERSION=3.8.8.3
 
 MSMANIFEST_TOOL=
 
@@ -4030,7 +4030,7 @@ ENABLE_TESTS=1
 ENABLE_SYSTEM_EXTENSION_DIRS=1
 MOZ_BRANDING_DIRECTORY=
 MOZ_OFFICIAL_BRANDING=
-MOZ_MOONCHILD=1
+MC_OFFICIAL=1
 MOZ_DISABLE_PARENTAL_CONTROLS=1
 MOZ_FEEDS=1
 MOZ_WEBAPP_RUNTIME=
@@ -4747,8 +4747,8 @@ dnl = Vendor override
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(official-vendor,
 [  --disable-official-vendor   Disable the use of official vendor.],
-    MOZ_MOONCHILD=,
-    MOZ_MOONCHILD=1)
+    MC_OFFICIAL=,
+    MC_OFFICIAL=1)
 
 dnl ========================================================
 dnl = IPR protected branding
@@ -4766,13 +4766,13 @@ MOZ_ARG_ENABLE_BOOL(official-branding,
   else
     MOZ_BRANDING_DIRECTORY=${MOZ_OFFICIAL_BRANDING_DIRECTORY}
     MOZ_OFFICIAL_BRANDING=1
-    MOZ_MOONCHILD=1
+    MC_OFFICIAL=1
   fi
 ], MOZ_OFFICIAL_BRANDING=)
 
-AC_SUBST(MOZ_MOONCHILD)
-if test -n "$MOZ_MOONCHILD"; then
-  AC_DEFINE(MOZ_MOONCHILD)
+AC_SUBST(MC_OFFICIAL)
+if test -n "$MC_OFFICIAL"; then
+  AC_DEFINE(MC_OFFICIAL)
 fi
 
 AC_SUBST(MOZ_OFFICIAL_BRANDING)
@@ -5610,6 +5610,17 @@ MOZ_ARG_ENABLE_BOOL(alsa,
 [  --enable-alsa          Enable Alsa support (default on Linux)],
 MOZ_ALSA=1,
 MOZ_ALSA=)
+
+MOZ_ARG_ENABLE_BOOL(oss,
+[ --enable-oss          Enable OSS support],
+   MOZ_OSS=1,
+   MOZ_OSS=)
+
+if test -n "$MOZ_OSS"; then
+   MOZ_ALSA=
+fi
+
+AC_SUBST(MOZ_OSS)
 
 if test -n "$MOZ_ALSA"; then
     AC_DEFINE(MOZ_CUBEB)
@@ -8598,23 +8609,10 @@ AC_SUBST(MOZ_PKG_SPECIAL)
 
 AC_SUBST(MOZILLA_OFFICIAL)
 
-AC_DEFINE_UNQUOTED(MOZ_TELEMETRY_DISPLAY_REV, 2)
-AC_SUBST(MOZ_TELEMETRY_DISPLAY_REV)
-
-if test "$MOZ_TELEMETRY_REPORTING"; then
-    AC_DEFINE(MOZ_TELEMETRY_REPORTING)
-
-    # Enable Telemetry by default for nightly and aurora channels
-    if test "$MOZ_UPDATE_CHANNEL" = "nightly" -o \
-        "$MOZ_UPDATE_CHANNEL" = "aurora"; then
-        AC_DEFINE(MOZ_TELEMETRY_ON_BY_DEFAULT)
-    fi
-fi
-
 dnl If we have any service that uploads data (and requires data submission
 dnl policy alert), set MOZ_DATA_REPORTING.
 dnl We need SUBST for build system and DEFINE for xul preprocessor.
-if test -n "$MOZ_TELEMETRY_REPORTING" || test -n "$MOZ_SERVICES_HEALTHREPORT"; then
+if test -n "$MOZ_SERVICES_HEALTHREPORT"; then
   MOZ_DATA_REPORTING=1
   AC_DEFINE(MOZ_DATA_REPORTING)
   AC_SUBST(MOZ_DATA_REPORTING)

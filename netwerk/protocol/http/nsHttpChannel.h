@@ -31,7 +31,6 @@
 #include "nsDNSPrefetch.h"
 #include "TimingStruct.h"
 #include "AutoClose.h"
-#include "mozilla/Telemetry.h"
 
 class nsAHttpConnection;
 
@@ -301,7 +300,6 @@ private:
     nsAutoPtr<nsHttpResponseHead>     mCachedResponseHead;
     nsCOMPtr<nsISupports>             mCachedSecurityInfo;
     nsCacheAccessMode                 mCacheAccess;
-    mozilla::Telemetry::ID            mCacheEntryDeviceTelemetryID;
     uint32_t                          mPostID;
     uint32_t                          mRequestTime;
 

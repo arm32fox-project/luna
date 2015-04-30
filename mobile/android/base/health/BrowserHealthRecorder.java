@@ -492,10 +492,6 @@ public class BrowserHealthRecorder implements GeckoEventListener {
 
     private void handlePrefValue(final String pref, final boolean value) {
         Log.d(LOG_TAG, "Incorporating environment: " + pref + " = " + value);
-        if (AppConstants.TELEMETRY_PREF_NAME.equals(pref)) {
-            profileCache.setTelemetryEnabled(value);
-            return;
-        }
         if (PREF_BLOCKLIST_ENABLED.equals(pref)) {
             profileCache.setBlocklistEnabled(value);
             return;
@@ -606,7 +602,6 @@ public class BrowserHealthRecorder implements GeckoEventListener {
 
         // Oh, singletons.
         PrefsHelper.getPrefs(new String[] {
-                                 AppConstants.TELEMETRY_PREF_NAME,
                                  PREF_BLOCKLIST_ENABLED
                              },
                              handler);

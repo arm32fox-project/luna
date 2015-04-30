@@ -16,7 +16,6 @@
 #include "nsXPCOMStrings.h"
 
 #include "BackgroundFileSaver.h"
-#include "mozilla/Telemetry.h"
 
 namespace mozilla {
 namespace net {
@@ -633,16 +632,6 @@ BackgroundFileSaver::NotifySaveComplete()
   mWorkerThread->Shutdown();
 
   sThreadCount--;
-
-  // When there are no more active downloads, we consider the download session
-  // finished. We record the maximum number of concurrent downloads reached
-  // during the session in a telemetry histogram, and we reset the maximum
-  // thread counter for the next download session
-  if (sThreadCount == 0) {
-    Telemetry::Accumulate(Telemetry::BACKGROUNDFILESAVER_THREAD_COUNT,
-                          sTelemetryMaxThreadCount);
-    sTelemetryMaxThreadCount = 0;
-  }
 
   return NS_OK;
 }

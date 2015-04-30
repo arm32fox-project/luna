@@ -67,6 +67,7 @@ description > .text-link:focus {
   border: 0px;
 }
 
+
 .success,
 .error {
   padding: 2px;
@@ -123,4 +124,9 @@ description > .text-link:focus {
 #successPageIcon {
   /* TODO replace this with a 128px version (bug 591122) */
   list-style-image: url("chrome://browser/skin/sync-32.png");
+}
+
+#tosDesc {
+  margin-left: -7px;
+  margin-bottom: 3px;
 }

@@ -327,9 +327,6 @@ var BrowserApp = {
     ExternalApps.init();
     Distribution.init();
     Tabs.init();
-#ifdef MOZ_TELEMETRY_REPORTING
-    Telemetry.init();
-#endif
 #ifdef ACCESSIBILITY
     AccessFu.attach(window);
 #endif
@@ -637,9 +634,6 @@ var BrowserApp = {
     ExternalApps.uninit();
     Distribution.uninit();
     Tabs.uninit();
-#ifdef MOZ_TELEMETRY_REPORTING
-    Telemetry.uninit();
-#endif
   },
 
   // This function returns false during periods where the browser displayed document is
@@ -1036,16 +1030,6 @@ var BrowserApp = {
 
       // Pref name translation.
       switch (prefName) {
-#ifdef MOZ_TELEMETRY_REPORTING
-        // Telemetry pref differs based on build.
-        case Telemetry.SHARED_PREF_TELEMETRY_ENABLED:
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-          prefName = "toolkit.telemetry.enabledPreRelease";
-#else
-          prefName = "toolkit.telemetry.enabled";
-#endif
-          break;
-#endif
       }
 
       try {
@@ -1177,16 +1161,6 @@ var BrowserApp = {
 
     // Pref name translation.
     switch (json.name) {
-#ifdef MOZ_TELEMETRY_REPORTING
-      // Telemetry pref differs based on build.
-      case Telemetry.SHARED_PREF_TELEMETRY_ENABLED:
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-        json.name = "toolkit.telemetry.enabledPreRelease";
-#else
-        json.name = "toolkit.telemetry.enabled";
-#endif
-        break;
-#endif
     }
 
     switch (json.type) {
@@ -5100,16 +5074,7 @@ var FormAssistant = {
  */
 let HealthReportStatusListener = {
   TELEMETRY_PREF: 
-#ifdef MOZ_TELEMETRY_REPORTING
-    // Telemetry pref differs based on build.
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-    "toolkit.telemetry.enabledPreRelease",
-#else
-    "toolkit.telemetry.enabled",
-#endif
-#else
     null,
-#endif
 
   init: function () {
     try {
@@ -6031,7 +5996,6 @@ var CharacterEncoding = {
 
   setEncoding: function setEncoding(aEncoding) {
     let browser = BrowserApp.selectedBrowser;
-    browser.docShell.gatherCharsetMenuTelemetry();
     browser.docShell.charset = aEncoding;
     browser.reload(Ci.nsIWebNavigation.LOAD_FLAGS_CHARSET_CHANGE);
   }
@@ -6798,6 +6762,7 @@ var RemoteDebugger = {
   }
 };
 
+// Telemetry : remove this.
 var Telemetry = {
   SHARED_PREF_TELEMETRY_ENABLED: "datareporting.telemetry.enabled",
 
@@ -6811,8 +6776,6 @@ var Telemetry = {
 
   addData: function addData(aHistogramId, aValue) {
     let telemetry = Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
-    let histogram = telemetry.getHistogramById(aHistogramId);
-    histogram.add(aValue);
   },
 
   observe: function observe(aSubject, aTopic, aData) {

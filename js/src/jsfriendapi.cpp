@@ -621,12 +621,6 @@ js::GetWeakmapKeyDelegate(JSObject *key)
     return NULL;
 }
 
-JS_FRIEND_API(void)
-JS_SetAccumulateTelemetryCallback(JSRuntime *rt, JSAccumulateTelemetryDataCallback callback)
-{
-    rt->telemetryCallback = callback;
-}
-
 JS_FRIEND_API(JSObject *)
 JS_CloneObject(JSContext *cx, JSObject *obj_, JSObject *proto_, JSObject *parent_)
 {

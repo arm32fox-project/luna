@@ -110,8 +110,6 @@ DOMStorageDBThread::Shutdown()
     return NS_ERROR_NOT_INITIALIZED;
   }
 
-  Telemetry::AutoTimer<Telemetry::LOCALDOMSTORAGE_SHUTDOWN_DATABASE_MS> timer;
-
   {
     MonitorAutoLock monitor(mMonitor);
 
@@ -415,8 +413,6 @@ DOMStorageDBThread::OpenDatabaseConnection()
 nsresult
 DOMStorageDBThread::InitDatabase()
 {
-  Telemetry::AutoTimer<Telemetry::LOCALDOMSTORAGE_INIT_DATABASE_MS> timer;
-
   nsresult rv;
 
   // Here we are on the worker thread. This opens the worker connection.

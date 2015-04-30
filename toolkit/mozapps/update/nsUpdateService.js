@@ -493,13 +493,7 @@ function hasUpdateMutex() {
 
 XPCOMUtils.defineLazyGetter(this, "gCanApplyUpdates", function aus_gCanApplyUpdates() {
   function submitHasPermissionsTelemetryPing(val) {
-    try {
-      let h = Services.telemetry.getHistogramById("UPDATER_HAS_PERMISSIONS");
-      h.add(+val);
-    } catch(e) {
-      // Don't allow any exception to be propagated.
-      Components.utils.reportError(e);
-    }
+    // Telemetry stub
   }
 
   try {
@@ -2161,7 +2155,6 @@ UpdateService.prototype = {
       // want telemetry pings breaking app update so we just put it
       // inside the try to be safe.
       let val = getPref("getBoolPref", pref, false);
-      Services.telemetry.getHistogramById(histogram).add(+val);
     } catch(e) {
       // Don't allow any exception to be propagated.
       Components.utils.reportError(e);
@@ -2189,20 +2182,6 @@ UpdateService.prototype = {
       wrk.close();
     } catch(e) {
     }
-    try {
-      let h = Services.telemetry.getHistogramById("UPDATER_SERVICE_INSTALLED");
-      h.add(installed);
-    } catch(e) {
-      // Don't allow any exception to be propagated.
-      Components.utils.reportError(e);
-    }
-    try {
-      let h = Services.telemetry.getHistogramById("UPDATER_SERVICE_MANUALLY_UNINSTALLED");
-      h.add(!installed && attempted ? 1 : 0);
-    } catch(e) {
-      // Don't allow any exception to be propagated.
-      Components.utils.reportError(e);
-    }
   },
 #endif
 
@@ -2215,16 +2194,7 @@ UpdateService.prototype = {
    *         The histogram ID to report to
    */
   _sendIntPrefTelemetryPing: function AUS__intTelemetryPing(pref, histogram) {
-    try {
-      // The getPref is already wrapped in a try/catch but we never
-      // want telemetry pings breaking app update so we just put it
-      // inside the try to be safe.
-      let val = getPref("getIntPref", pref, 0);
-      Services.telemetry.getHistogramById(histogram).add(val);
-    } catch(e) {
-      // Don't allow any exception to be propagated.
-      Components.utils.reportError(e);
-    }
+    // Telemetry stub
   },
 
 
@@ -2246,7 +2216,6 @@ UpdateService.prototype = {
       if (parts.length > 1) {
         result = parseInt(parts[1]) || INVALID_UPDATER_STATUS_CODE;
       }
-      Services.telemetry.getHistogramById("UPDATER_STATUS_CODES").add(result);
     } catch(e) {
       // Don't allow any exception to be propagated.
       Components.utils.reportError(e);

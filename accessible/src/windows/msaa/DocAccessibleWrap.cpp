@@ -13,7 +13,6 @@
 #include "nsWinUtils.h"
 #include "Role.h"
 #include "RootAccessible.h"
-#include "Statistics.h"
 
 #include "nsIDocShell.h"
 #include "nsIDocShellTreeNode.h"
@@ -69,7 +68,6 @@ DocAccessibleWrap::QueryInterface(REFIID iid, void** ppv)
   if (IID_ISimpleDOMDocument != iid)
     return HyperTextAccessibleWrap::QueryInterface(iid, ppv);
 
-  statistics::ISimpleDOMUsed();
   *ppv = static_cast<ISimpleDOMDocument*>(this);
   (reinterpret_cast<IUnknown*>(*ppv))->AddRef();
   return S_OK;

@@ -17,7 +17,6 @@
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
 
-#include "mozilla/Telemetry.h"
 #include "mozilla/VisualEventTracer.h"
 #include <algorithm>
 
@@ -182,9 +181,6 @@ nsDiskCacheMap::Open(nsIFile *  cacheDirectory,
         goto error_exit;
     }
     
-    Telemetry::Accumulate(Telemetry::HTTP_DISK_CACHE_OVERHEAD,
-                          (uint32_t)SizeOfExcludingThis(moz_malloc_size_of));
-
     *corruptInfo = nsDiskCache::kNotCorrupt;
     return NS_OK;
     
@@ -1286,9 +1282,6 @@ nsDiskCacheMap::InitCacheClean(nsIFile *  cacheDirectory,
         int32_t bytesRead = PR_Read(mCleanFD, &clean, 1);
         if (bytesRead != 1) {
             NS_WARNING("Could not read _CACHE_CLEAN_ file contents");
-        } else if (reportCacheCleanTelemetryData) {
-            Telemetry::Accumulate(Telemetry::DISK_CACHE_REDUCTION_TRIAL,
-                                  clean == '1' ? 1 : 0);
         }
     }
 
@@ -1351,11 +1344,9 @@ nsDiskCacheMap::InvalidateCache()
     if (!mIsDirtyCacheFlushed) {
         rv = WriteCacheClean(false);
         if (NS_FAILED(rv)) {
-          Telemetry::Accumulate(Telemetry::DISK_CACHE_INVALIDATION_SUCCESS, 0);
           return rv;
         }
 
-        Telemetry::Accumulate(Telemetry::DISK_CACHE_INVALIDATION_SUCCESS, 1);
         mIsDirtyCacheFlushed = true;
     }
 
@@ -1382,7 +1373,7 @@ nsDiskCacheMap::ResetCacheTimer(int32_t timeout)
 void
 nsDiskCacheMap::RevalidateTimerCallback(nsITimer *aTimer, void *arg)
 {
-    nsCacheServiceAutoLock lock(LOCK_TELEM(NSDISKCACHEMAP_REVALIDATION));
+    nsCacheServiceAutoLock lock();
     if (!nsCacheService::gService->mDiskDevice ||
         !nsCacheService::gService->mDiskDevice->Initialized()) {
         return;
@@ -1425,7 +1416,6 @@ nsDiskCacheMap::RevalidateCache()
     nsresult rv;
 
     if (!IsCacheInSafeState()) {
-        Telemetry::Accumulate(Telemetry::DISK_CACHE_REVALIDATION_SAFE, 0);
         CACHE_LOG_DEBUG(("CACHE: Revalidation should not performed because "
                          "cache not in a safe state\n"));
         // Normally we would return an error here, but there is a bug where
@@ -1433,24 +1423,14 @@ nsDiskCacheMap::RevalidateCache()
         // until browser shutdown.  So we allow revalidation for the time being
         // to get proper telemetry data of how much the cache corruption plan
         // would help.
-    } else {
-        Telemetry::Accumulate(Telemetry::DISK_CACHE_REVALIDATION_SAFE, 1);
     }
 
-    // We want this after the lock to prove that flushing a file isn't that expensive
-    Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_REVALIDATION> totalTimer;
-
-    // If telemetry data shows it is worth it, we'll be flushing headers and
-    // records before flushing the clean cache file.
-  
     // Write out the _CACHE_CLEAN_ file with '1'
     rv = WriteCacheClean(true);
     if (NS_FAILED(rv)) {
-        Telemetry::Accumulate(Telemetry::DISK_CACHE_REVALIDATION_SUCCESS, 0);
         return rv;
     }
 
-    Telemetry::Accumulate(Telemetry::DISK_CACHE_REVALIDATION_SUCCESS, 1);
     mIsDirtyCacheFlushed = false;
 
     return NS_OK;

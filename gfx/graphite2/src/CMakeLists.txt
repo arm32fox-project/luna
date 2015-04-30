@@ -52,10 +52,6 @@ if (GRAPHITE2_NTRACING)
     set(TRACING)
 endif (GRAPHITE2_NTRACING)
 
-if (GRAPHITE2_TELEMETRY)
-    add_definitions(-DGRAPHITE2_TELEMETRY)
-endif (GRAPHITE2_TELEMETRY)
-
 set(GRAPHITE_HEADERS 
     ../include/graphite2/Font.h
     ../include/graphite2/Segment.h
