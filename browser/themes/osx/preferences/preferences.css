@@ -88,13 +88,9 @@ radio[pane=paneSync] {
   list-style-image: url("chrome://mozapps/skin/places/defaultFavicon.png") !important;
 }
 
-#cookiesChildren::-moz-tree-image(domainCol, container) {
-  list-style-image: url("chrome://global/skin/icons/folder-item.png") !important;
-  -moz-image-region: rect(0, 32px, 16px, 16px);
-}
-
+#cookiesChildren::-moz-tree-image(domainCol, container),
 #cookiesChildren::-moz-tree-image(domainCol, container, open) {
-  -moz-image-region: rect(16px, 32px, 32px, 16px);
+  list-style-image: url("chrome://global/skin/tree/folder.png") !important;
 }
 
 #cookieInfoBox {

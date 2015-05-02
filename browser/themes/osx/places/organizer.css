@@ -30,51 +30,6 @@
   transform: scaleX(-1);
 }
 
-/* Menu */
-#placesMenu {
-  -moz-margin-start: 6px;
-  -moz-appearance: none;
-  border: none;
-}
-
-#placesMenu > menu {
-  -moz-padding-start: 4px;
-  -moz-padding-end: 1px;
-  padding-top: 2px;
-  padding-bottom: 2px;
-  -moz-appearance: toolbarbutton;
-%ifdef XP_WIN
-% use standard menu colors on OS/2
-  color: -moz-DialogText;
-%endif
-  border: 1px solid transparent;
-}
-
-#placesMenu > menu[_moz-menuactive="true"] {
-  background-color: transparent;
-}
-
-#placesMenu > menu:hover {
-  border-color: ThreeDHighlight ThreeDShadow ThreeDShadow ThreeDHighlight;
-}
-
-#placesMenu > menu[open="true"] {
-  border-color: ThreeDShadow ThreeDHighlight ThreeDHighlight ThreeDShadow;
-  -moz-padding-start: 5px;
-  -moz-padding-end: 0px;
-  padding-top: 3px;
-  padding-bottom: 1px;
-}
-
-#placesMenu > menu > .menubar-text {
-  -moz-padding-end: 8px;
-  background: url(chrome://global/skin/arrow/arrow-dn.gif) right center no-repeat;
-}
-
-#placesMenu > menu > .menubar-text:-moz-locale-dir(rtl) {
-  background-position: left center;
-}
-
 /* organize, view and maintenance buttons icons */
 #organizeButton, 
 #viewMenu, 
@@ -139,4 +94,41 @@
 #clearDownloadsButton {
   -moz-padding-start: 9px;
   -moz-padding-end: 9px;
+}
+
+/* hover-over/open button highlighting */
+
+#organizeButton,
+#viewMenu, 
+#maintenanceButton,
+#organizeButton,
+#clearDownloadsButton {
+    color: #222;
+    border: 0;
+    border-radius: 10000px;
+    padding: 1px 8px;
+    margin: 0 0 1px;
+}
+
+#back-button,
+#forward-button {
+    color: #222;
+    border: 0;
+    border-radius: 10000px;
+    padding: 1px 1px;
+    margin: 0 0 1px;
+}
+
+#organizeButton:hover,
+#organizeButton[open="true"], 
+#viewMenu:hover,
+#viewMenu[open="true"],
+#maintenanceButton:hover,
+#maintenanceButton[open="true"],
+#organizeButton:hover,
+#organizeButton[open="true"],
+#clearDownloadsButton:hover,
+#back-button:not([disabled]):hover,
+#forward-button:not([disabled]):hover {
+    background-color: rgba(0, 0, 0, .205);
 }
