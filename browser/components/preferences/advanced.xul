@@ -14,9 +14,6 @@
 %privacyDTD;
 <!ENTITY % palemoonDTD SYSTEM "chrome://browser/locale/palemoon.dtd">
 %palemoonDTD;
-<!-- XXX added prefs hack -->
-<!ENTITY palemoon.firefoxCompatGroup.label    "Firefox Compatibility">
-<!ENTITY palemoon.firefoxCompat.label         "Use Firefox Compatibility mode">
 ]>
 
 <overlay id="AdvancedPaneOverlay"
