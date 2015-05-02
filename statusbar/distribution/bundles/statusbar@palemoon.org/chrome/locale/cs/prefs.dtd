@@ -1,0 +1,107 @@
+<!ENTITY status4evar.window.title "Možnosti stavového řádku">
+<!ENTITY status4evar.pane.status "Stav">
+<!ENTITY status4evar.pane.progress "Činnost">
+<!ENTITY status4evar.pane.download "Stahování">
+<!ENTITY status4evar.pane.addonbar "Stavový řádek">
+<!ENTITY status4evar.pane.advanced "Rozšířené">
+<!ENTITY status4evar.tab.general "Obecné">
+<!ENTITY status4evar.tab.toolbar "Nástrojová lišta">
+<!ENTITY status4evar.tab.urlbar "Adresní řádek">
+<!ENTITY status4evar.tab.popup "Vyskakovací">
+<!ENTITY status4evar.tab.tabs "Panely">
+<!ENTITY status4evar.option.none "žádný">
+<!ENTITY status4evar.option.nothing "žádná">
+<!ENTITY status4evar.option.toolbar "v nástrojové liště">
+<!ENTITY status4evar.option.urlbar "v adresním řádku">
+<!ENTITY status4evar.option.popup "vyskakovací">
+<!ENTITY status4evar.option.tooltip "Místní nápověda">
+<!ENTITY status4evar.option.bottom "dole">
+<!ENTITY status4evar.option.top "nahoře">
+<!ENTITY status4evar.option.fill "vyplnit">
+<!ENTITY status4evar.option.dlcount "počet stahování">
+<!ENTITY status4evar.option.dltime "zbývající čas">
+<!ENTITY status4evar.option.both "obojí">
+<!ENTITY status4evar.option.right "vpravo">
+<!ENTITY status4evar.option.left "vlevo">
+<!ENTITY status4evar.option.fixed "pevný">
+<!ENTITY status4evar.option.simple "Jednoduchý">
+<!ENTITY status4evar.option.advanced "Rozšířený">
+<!ENTITY status4evar.option.browse "Vybrat">
+<!ENTITY status4evar.option.clear "Vyčistit">
+<!ENTITY status4evar.option.center "Na střed">
+<!ENTITY status4evar.option.offset "Vyrovnat">
+<!ENTITY status4evar.option.repeat "Opakovat">
+<!ENTITY status4evar.option.no-repeat "Neopakovat">
+<!ENTITY status4evar.option.space "Mezera">
+<!ENTITY status4evar.option.round "Kulaté">
+<!ENTITY status4evar.option.firefoxdefault "výchozí">
+<!ENTITY status4evar.option.download.panel "zobrazit panel se seznamem souborů">
+<!ENTITY status4evar.option.download.library "zobrazit Knihovnu stránek">
+<!ENTITY status4evar.option.download.classic "zobrazit Správce stahování">
+
+<!ENTITY status4evar.unit.milliseconds "milisekund">
+<!ENTITY status4evar.unit.seconds "sekund">
+<!ENTITY status4evar.unit.px "px">
+<!ENTITY status4evar.status.general.status.caption "Stavový text">
+<!ENTITY status4evar.status.label "Zobrazit stav:">
+<!ENTITY status4evar.status.timeout.label "Skrýt stav za">
+<!ENTITY status4evar.status.default.label "Zobrazit výchozí stav">
+<!ENTITY status4evar.status.network.label "Zobrazit stav sítě">
+<!ENTITY status4evar.status.network.xhr.label "Zobrazit stav požadavků na pozadí">
+<!ENTITY toolkit.dom.status.change.label "Povolit stránkám změnit stavový text">
+
+<!ENTITY status4evar.status.general.linkOver.caption "Odkazy">
+<!ENTITY status4evar.status.linkOver.label "Zobrazovat adresy odkazů v:">
+<!ENTITY status4evar.status.linkOver.delay.show.label "Zpoždění zobrazení odkazů:">
+<!ENTITY status4evar.status.linkOver.delay.hide.label "Zpoždění skrytí odkazů:">
+
+<!ENTITY status4evar.status.toolbar.maxLength.label "Maximální délka stavu:">
+
+<!ENTITY status4evar.status.urlbar.align.label "Zarovnání:">
+<!ENTITY status4evar.status.urlbar.color.label "Barva písma:">
+<!ENTITY status4evar.status.currentUrl "Aktuální adresa">
+<!ENTITY status4evar.status.statusText "Stavový text">
+<!ENTITY status4evar.status.firefox.compat.caption "Vlastnosti prohlížeče">
+<!ENTITY browser.urlbar.formatting.enabled.label "Povolit zvýrazňování domény">
+<!ENTITY browser.urlbar.trimming.enabled.label "Povolit skrývání protokolu (http:// a ftp://)">
+<!ENTITY browser.urlbar.autofill.enabled.label "Povolit automatické dokončování URL">
+<!ENTITY status4evar.status.popup.invertMirror.label "Výchozí na pravé straně">
+<!ENTITY status4evar.status.popup.mouseMirror.label "Změnit strany při najetí myší">
+<!ENTITY status4evar.status.popup.findMirror.label "Zobrazit na opačné straně pokud je otevřena vyhledávací lišta">
+<!ENTITY status4evar.progress.style.label "Použít vlastní styl pro lištu činnosti">
+<!ENTITY status4evar.progress.urlbar.enable.label "Zobrazit činnosti v adresním řádku">
+<!ENTITY status4evar.progress.urlbar.line.label "Styl linky:">
+<!ENTITY status4evar.progress.toolbar.force.label "Vždy zobrazit položku v nástrojové liště">
+<!ENTITY status4evar.editor.label "Editor:">
+<!ENTITY status4evar.editor.css.color.label "Barva:">
+<!ENTITY status4evar.editor.css.image.label "Obrázek:">
+<!ENTITY status4evar.editor.css.image.repeat "Opakovat">
+<!ENTITY status4evar.editor.css.image.position "Umístění">
+<!ENTITY status4evar.editor.css.image.offset "Vyrovnat">
+
+<!ENTITY status4evar.download.button.action.label "Akce tlačítka průběhu stahování:">
+<!ENTITY status4evar.download.force.label "Vždy zobrazit tlačítko průběhu stahování">
+<!ENTITY status4evar.download.label.force.label "Vždy zobrazit text tlačítka">
+<!ENTITY status4evar.download.label.label "Text tlačítka průběhu stahování:">
+<!ENTITY status4evar.download.tooltip.label "Nápověda tlačítka průběhu stahování:">
+<!ENTITY status4evar.download.progress.label "Zobrazit postup stahování v tlačítku">
+<!ENTITY status4evar.download.progress.average.label "Zobrazit průměrný stav dokončení stahování">
+<!ENTITY status4evar.download.progress.max.label "Zobrazit nejvíce dokončené stahování">
+<!ENTITY status4evar.download.progress.min.label "Zobrazit nejméně dokončené stahování">
+<!ENTITY status4evar.download.color.active.label "Barva postupu aktivních stahování:">
+<!ENTITY status4evar.download.color.paused.label "Barva postupu pozastavených stahování:">
+<!ENTITY status4evar.download.notify.animate.label "Animovat tlačítko při dokončení stahování">
+<!ENTITY status4evar.download.notify.timeout.label "Zvýraznit tlačítko při dokončení stahování:">
+
+<!ENTITY status4evar.addonbar.borderStyle "Použít alternativní ohraničení lišty">
+<!ENTITY status4evar.addonbar.windowGripper "Zobrazit chytač změny velikosti okna">
+<!ENTITY status4evar.addonbar.closeButton "Zobrazit zavírací tlačítko">
+
+<!ENTITY status4evar.advanced.warning "Tyto rozšířené možnosti mohou způsobit problémy se Status-4-Evar nebo jinými rozšířeními. Změny na vlastní nebezpečí.">
+
+<!ENTITY status4evar.advanced.urlbar.forceBinding "Pokusit se vynutit XBL vazby adresního řádku.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding.desc "Zvolte pouze pokud máte problémy se zobrazením činnosti nebo stavu v adresním řádku. Toto může potenciálně poškodit jiné rozšíření, které nastavuje XBL vazby adresního řádku.">
+
+<!ENTITY status4evar.advanced.status.detectFullScreen "Přizpůsobit zobrazení odkazů/stavu v režimu celé obrazovky.">
+
+<!ENTITY toolkit.classic.download.window.label "Používat klasické okno stahování">
