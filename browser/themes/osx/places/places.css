@@ -48,13 +48,10 @@ treechildren::-moz-tree-image(title, separator) {
   height: 0;
 }
 
-treechildren::-moz-tree-image(title, container) {
-  list-style-image: url("chrome://global/skin/icons/folder-item.png");
-  -moz-image-region: rect(0px, 32px, 16px, 16px);
-}
-
+treechildren::-moz-tree-image(title, container),
 treechildren::-moz-tree-image(title, open) {
-  -moz-image-region: rect(16px, 32px, 32px, 16px);
+  list-style-image: url("chrome://global/skin/tree/folder.png");
+  -moz-image-region: rect(0, 16px, 16px, 0);
 }
 
 treechildren::-moz-tree-image(title, container, livemark) {
@@ -106,13 +103,11 @@ treechildren::-moz-tree-image(title, query, dayContainer) {
 }
 
 treechildren::-moz-tree-image(title, query, hostContainer) {
-  list-style-image: url("chrome://global/skin/icons/folder-item.png");
-  -moz-image-region: rect(0px, 32px, 16px, 16px);
+  list-style-image: url("chrome://global/skin/tree/folder.png");
 }
 
 treechildren::-moz-tree-image(title, query, hostContainer, open) {
-  list-style-image: url("chrome://global/skin/icons/folder-item.png");
-  -moz-image-region: rect(16px, 32px, 32px, 16px);
+  list-style-image: url("chrome://global/skin/tree/folder.png");
 }
 
 treechildren::-moz-tree-image(title, query, OrganizerQuery_History) {
@@ -121,13 +116,11 @@ treechildren::-moz-tree-image(title, query, OrganizerQuery_History) {
 
 /* We want some queries to look like ordinary folders. This must come
    after the (title, query) selector, or it would get overridden. */
-treechildren::-moz-tree-image(title, query, folder) {
-  list-style-image: url("chrome://global/skin/icons/folder-item.png");
-  -moz-image-region: rect(0px, 32px, 16px, 16px);
-}
 
+treechildren::-moz-tree-image(title, query, folder),
 treechildren::-moz-tree-image(title, query, folder, open) {
-  -moz-image-region: rect(16px, 32px, 32px, 16px);
+  list-style-image: url("chrome://global/skin/tree/folder.png");
+  -moz-image-region: rect(0, 16px, 16px, 0);
 }
 
 treechildren::-moz-tree-image(cutting) {

@@ -10,16 +10,11 @@
 
 #downloadsRichListBox > richlistitem.download {
   height: 6em;
-%ifndef WINDOWS_AERO
   padding: 5px 8px;
-%endif
 }
 
 .downloadTypeIcon {
   -moz-margin-end: 8px;
-%ifdef WINDOWS_AERO
-  -moz-margin-start: 8px;
-%endif
   /* explicitly size the icon, so size doesn't vary on hidpi systems */
   height: 32px;
   width: 32px;
@@ -101,7 +96,6 @@ richlistitem.download:hover > .downloadButton.downloadRetry:active {
   -moz-image-region: rect(32px, 64px, 48px, 48px);
 }
 
-%ifndef WINDOWS_AERO
 richlistitem.download[selected] > .downloadButton.downloadCancel {
   -moz-image-region: rect(0px, 80px, 16px, 64px);
 }
@@ -149,4 +143,4 @@ richlistitem.download[selected]:hover > .downloadButton.downloadRetry:hover {
 richlistitem.download[selected]:hover > .downloadButton.downloadRetry:active {
   -moz-image-region: rect(32px, 128px, 48px, 112px);
 }
-%endif
+

@@ -20,9 +20,7 @@
 .searchbar-engine-image {
   height: 16px;
   width: 16px;
-  list-style-image: url("chrome://global/skin/icons/folder-item.png");
-  -moz-image-region: rect(0px, 16px, 16px, 0px);
-  -moz-margin-start: 2px;
+  list-style-image: url("chrome://mozapps/skin/places/defaultFavicon.png");
 }
 
 .searchbar-engine-button {
@@ -60,7 +58,7 @@
 
 .search-go-button {
   padding: 1px;
-  list-style-image: url("chrome://global/skin/icons/Search-glass.png");
+  list-style-image: url("chrome://browser/skin/Search-glass.png");
   -moz-image-region: rect(0px 16px 16px 0px);
 }
 
