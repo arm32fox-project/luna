@@ -69,11 +69,11 @@
 }
 
 .expander-up {
-  list-style-image: url("chrome://global/skin/icons/collapse.png");
+  list-style-image: url("chrome://browser/skin/places/expander-open.png");
 }
 
 .expander-down {
-  list-style-image: url("chrome://global/skin/icons/expand.png");
+  list-style-image: url("chrome://browser/skin/places/expander-closed.png");
 }
 
 

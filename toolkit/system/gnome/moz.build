@@ -15,11 +15,6 @@ if CONFIG['MOZ_ENABLE_GCONF']:
         'nsGConfService.cpp',
     ]
 
-if CONFIG['MOZ_ENABLE_GNOMEVFS']:
-    CPP_SOURCES += [
-        'nsGnomeVFSService.cpp',
-    ]
-
 if CONFIG['MOZ_ENABLE_GIO']:
     CPP_SOURCES += [
         'nsGIOService.cpp',
