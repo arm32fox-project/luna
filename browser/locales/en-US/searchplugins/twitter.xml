@@ -10,5 +10,6 @@
 <SearchForm>https://twitter.com/search/</SearchForm>
 <Url type="text/html" method="GET" template="https://twitter.com/search">
   <Param name="q" value="{searchTerms}"/>
+  <Param name="source" value="desktop-search"/>
 </Url>
 </SearchPlugin>
