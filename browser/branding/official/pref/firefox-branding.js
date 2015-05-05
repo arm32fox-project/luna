@@ -58,11 +58,6 @@ pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/fir
 //add-on/plugin blocklist -> Palemoon.org
 pref("extensions.blocklist.url","http://blocklist.palemoon.org/%VERSION%/blocklist.xml");
 
-pref("browser.search.param.ms-pc", "MOZI");
-pref("browser.search.param.yahoo-fr", "moz35");
-pref("browser.search.param.yahoo-fr-cjkt", "moz35"); // now unused
-pref("browser.search.param.yahoo-fr-ja", "mozff");
-
 // ****************** domain-specific UAs ******************
 
 // Required for domains that have proven unresponsive to requests from users
