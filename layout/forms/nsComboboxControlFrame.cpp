@@ -750,9 +750,12 @@ nsComboboxControlFrame::GetIntrinsicWidth(nsRenderingContext* aRenderingContext,
   }
 
   // add room for the dropmarker button if there is one
-  if (!IsThemed() || presContext->GetTheme()->ThemeNeedsComboboxDropmarker())
+  if ((!IsThemed() || 
+      presContext->GetTheme()->ThemeNeedsComboboxDropmarker()) &&
+      StyleDisplay()->mAppearance != NS_THEME_NONE) {
     displayWidth += scrollbarWidth;
-
+  }
+  
   return displayWidth;
 
 }
@@ -829,7 +832,8 @@ nsComboboxControlFrame::Reflow(nsPresContext*          aPresContext,
   // dropdown button.
   nscoord buttonWidth;
   const nsStyleDisplay *disp = StyleDisplay();
-  if (IsThemed(disp) && !aPresContext->GetTheme()->ThemeNeedsComboboxDropmarker()) {
+  if ((IsThemed(disp) && !aPresContext->GetTheme()->ThemeNeedsComboboxDropmarker()) ||
+      StyleDisplay()->mAppearance == NS_THEME_NONE) {
     buttonWidth = 0;
   }
   else {
