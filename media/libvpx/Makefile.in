@@ -593,12 +593,11 @@ GARBAGE += vpx_scale_asm_offsets.s vpx_scale_asm_offsets.asm
 
 ifdef MOZ_VP8_ENCODER
 
-# Clang work around, and GCC fix.
-ifdef __clang__
-vp8_asm_enc_offsets.s: CFLAGS += -DINLINE_ASM -fno-integrated-as
-else
 vp8_asm_enc_offsets.s: CFLAGS += -DINLINE_ASM
-endif
+
+vp8_asm_enc_offsets.s: $(srcdir)/vp8/encoder/vp8_asm_enc_offsets.c
+	$(REPORT_BUILD)
+	$(CC) -S $(COMPILE_CFLAGS) $(NO_INTEGRATED_AS_CFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
 
 vp8_asm_enc_offsets.asm: vp8_asm_enc_offsets.s
 	grep $(OFFSET_PATTERN) $< | sed -e 's/[$$\#]//g' \

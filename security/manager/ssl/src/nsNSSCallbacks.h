@@ -222,6 +222,3 @@ public:
 };
 
 #endif // _NSNSSCALLBACKS_H_
-
-
-

@@ -11,7 +11,6 @@ var gCert;
 var gChecking;
 var gBroken;
 var gNeedReset;
-var gSecHistogram;
 var gNsISecTel;
 
 Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
@@ -46,9 +45,6 @@ function initExceptionDialog() {
   gDialog = document.documentElement;
   gBundleBrand = document.getElementById("brand_bundle");
   gPKIBundle = document.getElementById("pippki_bundle");
-  gSecHistogram = Components.classes["@mozilla.org/base/telemetry;1"].
-                    getService(Components.interfaces.nsITelemetry).
-                    getHistogramById("SECURITY_UI");
   gNsISecTel = Components.interfaces.nsISecurityUITelemetry;
 
   var brandName = gBundleBrand.getString("brandShortName");
@@ -259,7 +255,6 @@ function updateCertStatus() {
           longDesc3  = utl;
         }
       }
-      gSecHistogram.add(bucketId);
 
       // In these cases, we do want to enable the "Add Exception" button
       gDialog.getButton("extra1").disabled = false;
@@ -331,10 +326,8 @@ function updateCertStatus() {
  * Handle user request to display certificate details
  */
 function viewCertButtonClick() {
-  gSecHistogram.add(gNsISecTel.WARNING_BAD_CERT_TOP_CLICK_VIEW_CERT);
   if (gCert)
     viewCertHelper(this, gCert);
-    
 }
 
 /**
@@ -363,10 +356,7 @@ function addException() {
   
   var permanentCheckbox = document.getElementById("permanent");
   var shouldStorePermanently = permanentCheckbox.checked && !inPrivateBrowsingMode();
-  if(!permanentCheckbox.checked)
-   gSecHistogram.add(gNsISecTel.WARNING_BAD_CERT_TOP_DONT_REMEMBER_EXCEPTION);
 
-  gSecHistogram.add(confirmBucketId);
   var uri = getURI();
   overrideService.rememberValidityOverride(
     uri.asciiHost, uri.port,

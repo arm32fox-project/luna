@@ -131,8 +131,6 @@ SessionStartup.prototype = {
           corruptFile = true;
         }
       }
-      Services.telemetry.getHistogramById("FX_SESSION_RESTORE_CORRUPT_FILE").add(corruptFile);
-
       let doResumeSessionOnce = Services.prefs.getBoolPref("browser.sessionstore.resume_session_once");
       let doResumeSession = doResumeSessionOnce ||
             Services.prefs.getIntPref("browser.startup.page") == 3;
@@ -146,11 +144,6 @@ SessionStartup.prototype = {
         this._initialState && this._initialState.session &&
         this._initialState.session.state &&
         this._initialState.session.state == STATE_RUNNING_STR;
-
-      // Report shutdown success via telemetry. Shortcoming here are
-      // being-killed-by-OS-shutdown-logic, shutdown freezing after
-      // session restore was written, etc.
-      Services.telemetry.getHistogramById("SHUTDOWN_OK").add(!lastSessionCrashed);
 
       // set the startup type
       if (lastSessionCrashed && resumeFromCrash)

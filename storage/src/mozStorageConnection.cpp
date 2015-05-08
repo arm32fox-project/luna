@@ -13,7 +13,6 @@
 #include "nsThreadUtils.h"
 #include "nsIFile.h"
 #include "nsIFileURL.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/Attributes.h"
@@ -816,17 +815,6 @@ Connection::stepStatement(sqlite3_stmt *aStatement)
     ::sqlite3_reset(aStatement);
   }
 
-  // Report very slow SQL statements to Telemetry
-  TimeDuration duration = TimeStamp::Now() - startTime;
-  const uint32_t threshold =
-    NS_IsMainThread() ? Telemetry::kSlowSQLThresholdForMainThread
-                      : Telemetry::kSlowSQLThresholdForHelperThreads;
-  if (duration.ToMilliseconds() >= threshold) {
-    nsDependentCString statementString(::sqlite3_sql(aStatement));
-    Telemetry::RecordSlowSQLStatement(statementString, getFilename(),
-                                      duration.ToMilliseconds());
-  }
-
   (void)::sqlite3_extended_result_codes(mDBConn, 0);
   // Drop off the extended result bits of the result code.
   return srv & 0xFF;
@@ -894,17 +882,6 @@ Connection::executeSql(const char *aSqlString)
 
   TimeStamp startTime = TimeStamp::Now();
   int srv = ::sqlite3_exec(mDBConn, aSqlString, NULL, NULL, NULL);
-
-  // Report very slow SQL statements to Telemetry
-  TimeDuration duration = TimeStamp::Now() - startTime;
-  const uint32_t threshold =
-    NS_IsMainThread() ? Telemetry::kSlowSQLThresholdForMainThread
-                      : Telemetry::kSlowSQLThresholdForHelperThreads;
-  if (duration.ToMilliseconds() >= threshold) {
-    nsDependentCString statementString(aSqlString);
-    Telemetry::RecordSlowSQLStatement(statementString, getFilename(),
-                                      duration.ToMilliseconds());
-  }
 
   return srv;
 }

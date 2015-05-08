@@ -28,7 +28,6 @@ public:
 
   virtual void WriteInternal(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy);
   virtual void FinishInternal();
-  virtual Telemetry::ID SpeedHistogram();
 
 private:
   /* These functions will be called when the decoder has a decoded row,

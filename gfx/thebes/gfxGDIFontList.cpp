@@ -27,8 +27,6 @@
 #include "nsISimpleEnumerator.h"
 #include "nsIWindowsRegKey.h"
 
-#include "mozilla/Telemetry.h"
-
 #include <usp10.h>
 #include <t2embapi.h>
 
@@ -681,7 +679,6 @@ gfxGDIFontList::GetFontSubstitutes()
 nsresult
 gfxGDIFontList::InitFontList()
 {
-    Telemetry::AutoTimer<Telemetry::GDI_INITFONTLIST_TOTAL> timer;
     gfxFontCache *fc = gfxFontCache::GetCache();
     if (fc)
         fc->AgeAllGenerations();

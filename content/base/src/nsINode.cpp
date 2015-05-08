@@ -15,7 +15,6 @@
 #include "mozAutoDocUpdate.h"
 #include "mozilla/CORSMode.h"
 #include "mozilla/Likely.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/Util.h"
 #include "nsAsyncDOMEvent.h"
 #include "nsAttrValueOrString.h"

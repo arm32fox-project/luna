@@ -15,6 +15,12 @@ if CONFIG['MOZ_ALSA']:
         'cubeb_alsa.c',
     ]
 
+if CONFIG['MOZ_OSS']:
+    CSRCS += [
+        'cubeb_oss.c',
+    ]
+    DEFINES=['-DUSE_OSS']
+
 if CONFIG['MOZ_PULSEAUDIO']:
     CSRCS += [
         'cubeb_pulse.c',

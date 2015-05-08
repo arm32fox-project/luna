@@ -97,7 +97,6 @@ abstract public class BrowserApp extends GeckoApp
 
     public static BrowserToolbar mBrowserToolbar;
     private AboutHome mAboutHome;
-    protected Telemetry.Timer mAboutHomeStartupTimer = null;
 
     private static final int ADDON_MENU_OFFSET = 1000;
     private class MenuItemInfo {
@@ -388,8 +387,6 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        mAboutHomeStartupTimer = new Telemetry.Timer("FENNEC_STARTUP_TIME_ABOUTHOME");
-
         super.onCreate(savedInstanceState);
 
         RelativeLayout actionBar = (RelativeLayout) findViewById(R.id.browser_toolbar);
@@ -451,7 +448,6 @@ abstract public class BrowserApp extends GeckoApp
         registerEventListener("Feedback:LastUrl");
         registerEventListener("Feedback:OpenPlayStore");
         registerEventListener("Feedback:MaybeLater");
-        registerEventListener("Telemetry:Gather");
         registerEventListener("Settings:Show");
         registerEventListener("Updater:Launch");
 
@@ -725,7 +721,6 @@ abstract public class BrowserApp extends GeckoApp
         unregisterEventListener("Feedback:LastUrl");
         unregisterEventListener("Feedback:OpenPlayStore");
         unregisterEventListener("Feedback:MaybeLater");
-        unregisterEventListener("Telemetry:Gather");
         unregisterEventListener("Settings:Show");
         unregisterEventListener("Updater:Launch");
 
@@ -788,11 +783,6 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     protected void loadStartupTab(String url) {
-        // We aren't showing about:home, so cancel the telemetry timer
-        if (url != null || mRestoreMode != RESTORE_NONE) {
-            mAboutHomeStartupTimer.cancel();
-        }
-
         super.loadStartupTab(url);
     }
 
@@ -1092,11 +1082,6 @@ abstract public class BrowserApp extends GeckoApp
                     DataReportingNotification.checkAndNotifyPolicy(GeckoAppShell.getContext());
                 }
 
-            } else if (event.equals("Telemetry:Gather")) {
-                Telemetry.HistogramAdd("PLACES_PAGES_COUNT", BrowserDB.getCount(getContentResolver(), "history"));
-                Telemetry.HistogramAdd("PLACES_BOOKMARKS_COUNT", BrowserDB.getCount(getContentResolver(), "bookmarks"));
-                Telemetry.HistogramAdd("FENNEC_FAVICONS_COUNT", BrowserDB.getCount(getContentResolver(), "favicons"));
-                Telemetry.HistogramAdd("FENNEC_THUMBNAILS_COUNT", BrowserDB.getCount(getContentResolver(), "thumbnails"));
             } else if (event.equals("Reader:ListCountRequest")) {
                 handleReaderListCountRequest();
             } else if (event.equals("Reader:Added")) {
@@ -1867,7 +1852,6 @@ abstract public class BrowserApp extends GeckoApp
 
     @Override
     public void onAboutHomeLoadComplete() {
-        mAboutHomeStartupTimer.stop();
     }
 
     @Override

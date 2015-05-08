@@ -52,17 +52,37 @@ var security = {
         cAName : issuerName,
         encryptionAlgorithm : undefined,
         encryptionStrength : undefined,
+        encryptionSuite : undefined,
+        version: undefined,
         isBroken : isBroken,
         isEV : isEV,
         cert : cert,
         fullLocation : gWindow.location
       };
 
+      var version;
       try {
         retval.encryptionAlgorithm = status.cipherName;
         retval.encryptionStrength = status.secretKeyLength;
+        retval.encryptionSuite = status.cipherSuite;
+        version = status.protocolVersion;
       }
       catch (e) {
+      }
+
+      switch (version) {
+        case nsISSLStatus.SSL_VERSION_3:
+          retval.version = "SSL 3";
+          break;
+        case nsISSLStatus.TLS_VERSION_1:
+          retval.version = "TLS 1.0";
+          break;
+        case nsISSLStatus.TLS_VERSION_1_1:
+          retval.version = "TLS 1.1";
+          break;
+        case nsISSLStatus.TLS_VERSION_1_2:
+          retval.version = "TLS 1.2"
+          break;
       }
 
       return retval;
@@ -72,6 +92,8 @@ var security = {
         cAName : "",
         encryptionAlgorithm : "",
         encryptionStrength : 0,
+        encryptionSuite : "",
+        version: "",
         isBroken : isBroken,
         isEV : isEV,
         cert : null,
@@ -245,16 +267,23 @@ function securityOnLoad() {
     msg1 = pkiBundle.getString("pageInfo_Privacy_Mixed1");
     msg2 = pkiBundle.getString("pageInfo_Privacy_None2");
   }
-  else if (info.encryptionStrength >= 90) {
+  else if (info.encryptionStrength >= 128 && 
+           info.encryptionSuite.indexOf("RC4") == -1) {
+    //Anything >= 128-bits that isn't RC4 is considered strong
     hdr = pkiBundle.getFormattedString("pageInfo_StrongEncryptionWithBits",
-                                       [info.encryptionAlgorithm, info.encryptionStrength + ""]);
+                                       [info.encryptionAlgorithm,
+                                        info.encryptionStrength + "",
+                                        info.version]);
     msg1 = pkiBundle.getString("pageInfo_Privacy_Strong1");
     msg2 = pkiBundle.getString("pageInfo_Privacy_Strong2");
     security._cert = info.cert;
   }
   else if (info.encryptionStrength > 0) {
+    //We have SOME encryption, but it's either <128-bits or RC4
     hdr  = pkiBundle.getFormattedString("pageInfo_WeakEncryptionWithBits",
-                                        [info.encryptionAlgorithm, info.encryptionStrength + ""]);
+                                        [info.encryptionAlgorithm,
+                                         info.encryptionStrength + "",
+                                         info.version]);
     msg1 = pkiBundle.getFormattedString("pageInfo_Privacy_Weak1", [info.hostName]);
     msg2 = pkiBundle.getString("pageInfo_Privacy_Weak2");
   }

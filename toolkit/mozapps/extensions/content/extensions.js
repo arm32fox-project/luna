@@ -709,12 +709,14 @@ var gViewController = {
       }
     },
 
+    /*
     cmd_pluginCheck: {
       isEnabled: function cmd_pluginCheck_isEnabled() true,
       doCommand: function cmd_pluginCheck_doCommand() {
         openURL(Services.urlFormatter.formatURLPref("plugins.update.url"));
       }
     },
+    */
 
     cmd_toggleAutoUpdateDefault: {
       isEnabled: function cmd_toggleAutoUpdateDefault_isEnabled() true,

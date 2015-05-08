@@ -9,7 +9,7 @@ body.private > #errorPageContainer {
 }
 
 body.normal > #errorPageContainer {
-  background-image: url("chrome://global/skin/icons/question-64.png");
+  background-image: url("chrome://global/skin/icons/question-48.png");
 }
 
 #clearRecentHistoryDesc {
