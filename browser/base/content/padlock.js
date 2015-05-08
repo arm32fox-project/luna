@@ -46,6 +46,10 @@ var padlock_PadLock =
             level = "low";
             is_insecure = "insecure";
             break;
+          case wpl.STATE_IS_BROKEN | wpl.STATE_SECURE_LOW:
+            level = "mixed";
+            is_insecure = "insecure";
+            break;
           case wpl.STATE_IS_BROKEN:
             level = "broken";
             is_insecure = "insecure";
@@ -80,7 +84,8 @@ var padlock_PadLock =
     },
   setPadlockLevel: function(item, level) {
     let secbut = document.getElementById(item);
-
+    var sectooltip = "";
+    
     if (level) {
       secbut.setAttribute("level", level);
       secbut.hidden = false;
@@ -89,7 +94,26 @@ var padlock_PadLock =
       secbut.removeAttribute("level");
     }
     
-    secbut.setAttribute("tooltiptext", level);
+    switch (level) {
+      case "ev":
+        sectooltip = "Extended Validated";
+        break;
+      case "high":
+        sectooltip = "Secure";
+        break;
+      case "low":
+        sectooltip = "Weak security";
+        break;
+      case "mixed":
+        sectooltip = "Mixed mode (partially encrypted)";
+        break;
+      case "broken":
+        sectooltip = "Not secure";
+        break;
+      default:
+        sectooltip = "";
+    }
+    secbut.setAttribute("tooltiptext", sectooltip);
   },
   prefbranch : null,
   onLoad: function() {
@@ -159,7 +183,10 @@ var padlock_PadLock =
 
     var colshow;
     var colprefval = padlock_PadLock.prefbranch.getIntPref("urlbar_background");
-    if (colprefval == 1) {
+    if (colprefval == 2) {
+      colshow = "p";
+    } 
+    else if (colprefval == 1) {
       colshow = "y";
     }
     else { // 0 or anything else_ default

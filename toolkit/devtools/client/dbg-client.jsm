@@ -266,7 +266,6 @@ DebuggerClient.requester = function DC_requester(aPacketSkeleton, { telemetry,
         : "REMOTE_";
       let histogramId = "DEVTOOLS_DEBUGGER_RDP_"
         + transportType + telemetry + "_MS";
-      histogram = Services.telemetry.getHistogramById(histogramId);
       startTime = +new Date;
     }
     let outgoingPacket = {
@@ -303,9 +302,6 @@ DebuggerClient.requester = function DC_requester(aPacketSkeleton, { telemetry,
         thisCallback(aResponse);
       }
 
-      if (histogram) {
-        histogram.add(+new Date - startTime);
-      }
     }.bind(this));
 
   };

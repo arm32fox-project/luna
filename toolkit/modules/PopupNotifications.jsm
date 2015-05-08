@@ -798,8 +798,6 @@ PopupNotifications.prototype = {
     // Only report the first time mainAction is triggered and remember that this occurred.
     if (!notification.timeMainActionFirstTriggered) {
       notification.timeMainActionFirstTriggered = timeSinceShown;
-      Services.telemetry.getHistogramById("POPUP_NOTIFICATION_MAINACTION_TRIGGERED_MS").
-                         add(timeSinceShown);
     }
 
     if (timeSinceShown < this.buttonDelay) {

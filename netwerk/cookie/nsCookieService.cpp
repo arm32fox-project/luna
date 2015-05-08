@@ -49,7 +49,6 @@
 #include "mozilla/storage.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/FileUtils.h"
-#include "mozilla/Telemetry.h"
 #include "nsIAppsService.h"
 #include "mozIApplication.h"
 
@@ -798,8 +797,6 @@ nsCookieService::TryInitDB(bool aRecreateDB)
 
   // This block provides scope for the Telemetry AutoTimer
   {
-    Telemetry::AutoTimer<Telemetry::MOZ_SQLITE_COOKIES_OPEN_READAHEAD_MS>
-      telemetry;
     ReadAheadFile(mDefaultDBState->cookieFile);
 
     // open a connection to the cookie database, and only cache our connection

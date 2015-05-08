@@ -33,7 +33,6 @@
 #include "mozilla/Services.h"
 #include "mozilla/Omnijar.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Telemetry.h"
 
 #include <stdlib.h>
 
@@ -830,8 +829,6 @@ nsXREDirProvider::DoStartup()
       else
         mode = 2;
     }
-    mozilla::Telemetry::Accumulate(mozilla::Telemetry::SAFE_MODE_USAGE, mode);
-
     obsSvc->NotifyObservers(nullptr, "profile-initial-state", nullptr);
   }
   return NS_OK;

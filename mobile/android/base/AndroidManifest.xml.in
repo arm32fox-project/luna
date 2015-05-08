@@ -9,7 +9,7 @@
       android:sharedUserId="@MOZ_ANDROID_SHARED_ID@"
 #endif
       >
-    <uses-sdk android:minSdkVersion="8"
+    <uses-sdk android:minSdkVersion="14"
               android:targetSdkVersion="14"/>
 
 #include ../services/manifests/HealthReportAndroidManifest_permissions.xml.in

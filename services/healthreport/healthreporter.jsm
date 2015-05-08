@@ -1384,9 +1384,6 @@ HealthReporter.prototype = Object.freeze({
     return Task.spawn(function doUpload() {
       let payload = yield this.getJSONPayload();
 
-      let histogram = Services.telemetry.getHistogramById(TELEMETRY_PAYLOAD_SIZE_UNCOMPRESSED);
-      histogram.add(payload.length);
-
       let lastID = this.lastSubmitID;
       yield this._state.addRemoteID(id);
 

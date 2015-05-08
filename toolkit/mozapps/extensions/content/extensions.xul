@@ -87,7 +87,7 @@
     <command id="cmd_back"/>
     <command id="cmd_forward"/>
     <command id="cmd_enableCheckCompatibility"/>
-    <command id="cmd_pluginCheck"/>
+<!--    <command id="cmd_pluginCheck"/> -->
     <command id="cmd_enableUpdateSecurity"/>
     <command id="cmd_toggleAutoUpdateDefault"/>
     <command id="cmd_resetAddonAutoUpdate"/>
@@ -349,15 +349,17 @@
               <spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
             </hbox>
           </hbox>
+          <!--
           <hbox class="view-header global-info-container">
             <hbox class="global-info" flex="1" align="center">
               <button class="button-link global-info-plugincheck"
                       label="&info.plugincheck.label;"
                       tooltiptext="&info.plugincheck.tooltip;"
                       command="cmd_pluginCheck"/>
-              <spacer flex="5000"/> <!-- Necessary to allow the message to wrap -->
+              <spacer flex="5000"/>
             </hbox>
           </hbox>
+          -->
           <vbox id="addon-list-empty" class="alert-container"
                 flex="1" hidden="true">
             <spacer class="alert-spacer-before"/>

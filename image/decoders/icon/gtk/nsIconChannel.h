@@ -42,10 +42,6 @@ class nsIconChannel MOZ_FINAL : public nsIChannel {
      */
     nsCOMPtr<nsIChannel> mRealChannel;
 
-    /**
-     * Called by Init if we need to use the gnomeui library.
-     */
-    nsresult InitWithGnome(nsIMozIconURI *aURI);
     nsresult InitWithGIO(nsIMozIconURI *aIconURI);
 };
 

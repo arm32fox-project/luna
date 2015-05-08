@@ -313,7 +313,7 @@ nsPluginInstanceOwner::~nsPluginInstanceOwner()
 {
   int32_t cnt;
 
-  if (mWaitingForPaint) {
+  if (mWaitingForPaint && mContent) {
     // We don't care when the event is dispatched as long as it's "soon",
     // since whoever needs it will be waiting for it.
     nsCOMPtr<nsIRunnable> event = new AsyncPaintWaitEvent(mContent, true);
@@ -2602,6 +2602,10 @@ nsPluginInstanceOwner::Destroy()
     }
     mWidget->Destroy();
   }
+
+  // This object can outlive mContent. mContent is weak so we should assume
+  // that mContent can no longer be touched after Destroy().
+  mContent = nullptr;
 
   return NS_OK;
 }

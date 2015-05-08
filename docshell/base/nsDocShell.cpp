@@ -17,7 +17,6 @@
 #include "mozilla/Preferences.h"
 #include "mozilla/Services.h"
 #include "mozilla/StartupTimeline.h"
-#include "mozilla/Telemetry.h"
 #include "mozilla/unused.h"
 #include "mozilla/Util.h"
 #include "mozilla/VisualEventTracer.h"
@@ -926,7 +925,7 @@ NS_INTERFACE_MAP_BEGIN(nsDocShell)
     NS_INTERFACE_MAP_ENTRY(nsIDOMStorageManager)
 NS_INTERFACE_MAP_END_INHERITING(nsDocLoader)
 
-///*****************************************************************************
+//*****************************************************************************
 // nsDocShell::nsIInterfaceRequestor
 //*****************************************************************************   
 NS_IMETHODIMP nsDocShell::GetInterface(const nsIID & aIID, void **aSink)
@@ -1250,7 +1249,7 @@ nsDocShell::LoadURI(nsIURI * aURI,
     
     // Note: we allow loads to get through here even if mFiredUnloadEvent is
     // true; that case will get handled in LoadInternal or LoadHistoryEntry.
-    if (IsPrintingOrPP() || mBlockNavigation) {
+    if (IsPrintingOrPP()) {
       return NS_OK; // JS may not handle returning of an error code
     }
     nsresult rv;
@@ -1890,74 +1889,6 @@ nsDocShell::GetCharset(char** aCharset)
     }
 
     return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDocShell::GatherCharsetMenuTelemetry()
-{
-  nsCOMPtr<nsIContentViewer> viewer;
-  GetContentViewer(getter_AddRefs(viewer));
-  if (!viewer) {
-    return NS_OK;
-  }
-
-  nsIDocument* doc = viewer->GetDocument();
-  if (!doc || doc->WillIgnoreCharsetOverride()) {
-    return NS_OK;
-  }
-
-  Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_USED, true);
-
-  bool isFileURL = false;
-  nsIURI* url = doc->GetOriginalURI();
-  if (url) {
-    url->SchemeIs("file", &isFileURL);
-  }
-
-  int32_t charsetSource = doc->GetDocumentCharacterSetSource();
-  switch (charsetSource) {
-    case kCharsetFromWeakDocTypeDefault:
-    case kCharsetFromUserDefault:
-    case kCharsetFromDocTypeDefault:
-    case kCharsetFromCache:
-    case kCharsetFromParentFrame:
-    case kCharsetFromHintPrevDoc:
-      // Changing charset on an unlabeled doc.
-      if (isFileURL) {
-        Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 0);
-      } else {
-        Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 1);
-      }
-      break;
-    case kCharsetFromAutoDetection:
-      // Changing charset on unlabeled doc where chardet fired
-      if (isFileURL) {
-        Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 2);
-      } else {
-        Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 3);
-      }
-      break;
-    case kCharsetFromMetaPrescan:
-    case kCharsetFromMetaTag:
-    case kCharsetFromChannel:
-      // Changing charset on a doc that had a charset label.
-      Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 4);
-      break;
-    case kCharsetFromParentForced:
-    case kCharsetFromUserForced:
-      // Changing charset on a document that already had an override.
-      Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 5);
-      break;
-    case kCharsetFromIrreversibleAutoDetection:
-    case kCharsetFromOtherComponent:
-    case kCharsetFromByteOrderMark:
-    case kCharsetUninitialized:
-    default:
-      // Bug. This isn't supposed to happen.
-      Telemetry::Accumulate(Telemetry::CHARSET_OVERRIDE_SITUATION, 6);
-      break;
-  }
-  return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -3975,8 +3906,7 @@ bool
 nsDocShell::IsNavigationAllowed(bool aDisplayPrintErrorDialog)
 {
     return !IsPrintingOrPP(aDisplayPrintErrorDialog) && 
-           !mFiredUnloadEvent && 
-           !mBlockNavigation;
+           !mFiredUnloadEvent;
 }
 
 //*****************************************************************************
@@ -4278,16 +4208,9 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
                 rv = stss->IsStsURI(aURI, flags, &isStsHost);
                 NS_ENSURE_SUCCESS(rv, rv);
 
-                uint32_t bucketId;
                 if (isStsHost) {
                   cssClass.AssignLiteral("badStsCert");
-                  //measuring STS separately allows us to measure click through
-                  //rates easily
-                  bucketId = nsISecurityUITelemetry::WARNING_BAD_CERT_TOP_STS;
-                } else {
-                  bucketId = nsISecurityUITelemetry::WARNING_BAD_CERT_TOP;
                 }
-
 
                 if (Preferences::GetBool(
                         "browser.xul.error_pages.expert_bad_cert", false)) {
@@ -4300,10 +4223,6 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
                         "security.alternate_certificate_error_page");
                 if (alternateErrorPage)
                     errorPage.Assign(alternateErrorPage);
-
-                if (!IsFrame() && errorPage.EqualsIgnoreCase("certerror")) 
-                    mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI, bucketId);
-
             } else {
                 error.AssignLiteral("nssFailure2");
             }
@@ -4321,20 +4240,13 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
         if (alternateErrorPage)
             errorPage.Assign(alternateErrorPage);
 
-        uint32_t bucketId;
         if (NS_ERROR_PHISHING_URI == aError) {
             error.AssignLiteral("phishingBlocked");
-            bucketId = IsFrame() ? nsISecurityUITelemetry::WARNING_PHISHING_PAGE_FRAME :
-                                   nsISecurityUITelemetry::WARNING_PHISHING_PAGE_TOP ;
         } else {
             error.AssignLiteral("malwareBlocked");
-            bucketId = IsFrame() ? nsISecurityUITelemetry::WARNING_MALWARE_PAGE_FRAME :
-                                   nsISecurityUITelemetry::WARNING_MALWARE_PAGE_TOP ;
         }
 
         if (errorPage.EqualsIgnoreCase("blocked"))
-            mozilla::Telemetry::Accumulate(mozilla::Telemetry::SECURITY_UI,
-                                           bucketId);
 
         cssClass.AssignLiteral("blacklist");
     }
@@ -6661,9 +6573,6 @@ nsDocShell::EndPageLoad(nsIWebProgress * aProgress,
         TimeStamp channelCreationTime;
         rv = timingChannel->GetChannelCreation(&channelCreationTime);
         if (NS_SUCCEEDED(rv) && !channelCreationTime.IsNull()) {
-            Telemetry::AccumulateTimeDelta(
-                Telemetry::TOTAL_CONTENT_PAGE_LOAD_TIME,
-                channelCreationTime);
             nsCOMPtr<nsPILoadGroupInternal> internalLoadGroup =
                 do_QueryInterface(mLoadGroup);
             if (internalLoadGroup)
@@ -9010,19 +8919,6 @@ nsDocShell::InternalLoad(nsIURI * aURI,
             GetCurScrollPos(ScrollOrientation_X, &cx);
             GetCurScrollPos(ScrollOrientation_Y, &cy);
 
-            {
-                AutoRestore<bool> scrollingToAnchor(mBlockNavigation);
-                mBlockNavigation = true;
-
-                // ScrollToAnchor doesn't necessarily cause us to scroll the window;
-                // the function decides whether a scroll is appropriate based on the
-                // arguments it receives.  But even if we don't end up scrolling,
-                // ScrollToAnchor performs other important tasks, such as informing
-                // the presShell that we have a new hash.  See bug 680257.
-                rv = ScrollToAnchor(curHash, newHash, aLoadType);
-                NS_ENSURE_SUCCESS(rv, rv);
-            }
-
             // Reset mLoadType to its original value once we exit this block,
             // because this short-circuited load might have started after a
             // normal, network load, and we don't want to clobber its load type.
@@ -9110,16 +9006,6 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                     mOSHE->SetCacheKey(cacheKey);
             }
 
-            /* restore previous position of scroller(s), if we're moving
-             * back in history (bug 59774)
-             */
-            if (mOSHE && (aLoadType == LOAD_HISTORY || aLoadType == LOAD_RELOAD_NORMAL))
-            {
-                nscoord bx, by;
-                mOSHE->GetScrollPosition(&bx, &by);
-                SetCurScrollPosEx(bx, by);
-            }
-
             /* Restore the original LSHE if we were loading something
              * while short-circuited load was initiated.
              */
@@ -9159,6 +9045,28 @@ nsDocShell::InternalLoad(nsIURI * aURI,
 
             SetDocCurrentStateObj(mOSHE);
 
+            // Inform the favicon service that the favicon for oldURI also
+            // applies to aURI.
+            CopyFavicon(oldURI, aURI, mInPrivateBrowsing);
+
+            // ScrollToAnchor doesn't necessarily cause us to scroll the window;
+            // the function decides whether a scroll is appropriate based on the
+            // arguments it receives.  But even if we don't end up scrolling,
+            // ScrollToAnchor performs other important tasks, such as informing
+            // the presShell that we have a new hash.  See bug 680257.
+            rv = ScrollToAnchor(curHash, newHash, aLoadType);
+            NS_ENSURE_SUCCESS(rv, rv);
+
+            /* restore previous position of scroller(s), if we're moving
+             * back in history (bug 59774)
+             */
+            if (mOSHE && (aLoadType == LOAD_HISTORY ||
+                          aLoadType == LOAD_RELOAD_NORMAL)) {
+              nscoord bx, by;
+              mOSHE->GetScrollPosition(&bx, &by);
+              SetCurScrollPosEx(bx, by);
+            }
+
             // Dispatch the popstate and hashchange events, as appropriate.
             if (mScriptGlobal) {
                 // Fire a hashchange event URIs differ, and only in their hashes.
@@ -9174,10 +9082,6 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                     mScriptGlobal->DispatchAsyncHashchange(oldURI, aURI);
                 }
             }
-
-            // Inform the favicon service that the favicon for oldURI also
-            // applies to aURI.
-            CopyFavicon(oldURI, aURI, mInPrivateBrowsing);
 
             return NS_OK;
         }

@@ -258,7 +258,7 @@ nsSecureBrowserUIImpl::MapInternalToExternalState(uint32_t* aState, lockIconStat
       break;
 
     case lis_mixed_security:
-      *aState = STATE_IS_BROKEN;
+      *aState = STATE_IS_BROKEN | STATE_SECURE_LOW;
       break;
 
     case lis_high_security:
@@ -295,14 +295,14 @@ nsSecureBrowserUIImpl::MapInternalToExternalState(uint32_t* aState, lockIconStat
   // set by the lock parameter.
   if (docShell->GetHasMixedActiveContentLoaded() &&
       docShell->GetHasMixedDisplayContentLoaded()) {
-      *aState = STATE_IS_BROKEN |
+      *aState = STATE_IS_BROKEN | STATE_SECURE_LOW |
                 nsIWebProgressListener::STATE_LOADED_MIXED_ACTIVE_CONTENT |
                 nsIWebProgressListener::STATE_LOADED_MIXED_DISPLAY_CONTENT;
   } else if (docShell->GetHasMixedActiveContentLoaded()) {
-      *aState = STATE_IS_BROKEN |
+      *aState = STATE_IS_BROKEN | STATE_SECURE_LOW |
                 nsIWebProgressListener::STATE_LOADED_MIXED_ACTIVE_CONTENT;
   } else if (docShell->GetHasMixedDisplayContentLoaded()) {
-      *aState = STATE_IS_BROKEN |
+      *aState = STATE_IS_BROKEN | STATE_SECURE_LOW |
                 nsIWebProgressListener::STATE_LOADED_MIXED_DISPLAY_CONTENT;
   }
 

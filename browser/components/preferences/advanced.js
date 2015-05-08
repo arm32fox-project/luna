@@ -198,9 +198,7 @@ var gAdvancedPane = {
    */
   initTelemetry: function ()
   {
-#ifdef MOZ_TELEMETRY_REPORTING
-    this._setupLearnMoreLink("toolkit.telemetry.infoURL", "telemetryLearnMore");
-#endif
+  // Telemetry stub
   },
 
 #ifdef MOZ_SERVICES_HEALTHREPORT

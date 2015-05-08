@@ -17,8 +17,11 @@ public:
     nsCacheMetaData() : mBuffer(nullptr), mBufferSize(0), mMetaSize(0) { }
 
     ~nsCacheMetaData() {
-        mBufferSize = mMetaSize = 0;  
-        moz_free(mBuffer);
+        mBufferSize = mMetaSize = 0;
+        // mBuffer is not necessarily guaranteed to be filled.
+        if (mBuffer) {
+            moz_free(mBuffer);
+        }
         mBuffer = nullptr;
     }
 

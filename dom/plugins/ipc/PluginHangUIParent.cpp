@@ -8,7 +8,6 @@
 
 #include "PluginHangUIParent.h"
 
-#include "mozilla/Telemetry.h"
 #include "mozilla/plugins/PluginModuleParent.h"
 
 #include "nsContentUtils.h"
@@ -29,41 +28,6 @@ using mozilla::widget::WidgetUtils;
 
 using std::string;
 using std::vector;
-
-namespace {
-class nsPluginHangUITelemetry : public nsRunnable
-{
-public:
-  nsPluginHangUITelemetry(int aResponseCode, int aDontAskCode,
-                          uint32_t aResponseTimeMs, uint32_t aTimeoutMs)
-    : mResponseCode(aResponseCode),
-      mDontAskCode(aDontAskCode),
-      mResponseTimeMs(aResponseTimeMs),
-      mTimeoutMs(aTimeoutMs)
-  {
-  }
-
-  NS_IMETHOD
-  Run()
-  {
-    mozilla::Telemetry::Accumulate(
-              mozilla::Telemetry::PLUGIN_HANG_UI_USER_RESPONSE, mResponseCode);
-    mozilla::Telemetry::Accumulate(
-              mozilla::Telemetry::PLUGIN_HANG_UI_DONT_ASK, mDontAskCode);
-    mozilla::Telemetry::Accumulate(
-              mozilla::Telemetry::PLUGIN_HANG_UI_RESPONSE_TIME, mResponseTimeMs);
-    mozilla::Telemetry::Accumulate(
-              mozilla::Telemetry::PLUGIN_HANG_TIME, mTimeoutMs + mResponseTimeMs);
-    return NS_OK;
-  }
-
-private:
-  int mResponseCode;
-  int mDontAskCode;
-  uint32_t mResponseTimeMs;
-  uint32_t mTimeoutMs;
-};
-} // anonymous namespace
 
 namespace mozilla {
 namespace plugins {
@@ -362,11 +326,6 @@ PluginHangUIParent::RecvUserResponse(const unsigned int& aResponse)
     responseCode = 3;
   }
   int dontAskCode = (aResponse & HANGUI_USER_RESPONSE_DONT_SHOW_AGAIN) ? 1 : 0;
-  nsCOMPtr<nsIRunnable> workItem = new nsPluginHangUITelemetry(responseCode,
-                                                               dontAskCode,
-                                                               LastShowDurationMs(),
-                                                               mTimeoutPrefMs);
-  NS_DispatchToMainThread(workItem, NS_DISPATCH_NORMAL);
   return true;
 }
 

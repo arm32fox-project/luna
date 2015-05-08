@@ -1121,12 +1121,5 @@ nsGIFDecoder2::SetHold(const uint8_t* buf1, uint32_t count1, const uint8_t* buf2
   return true;
 }
 
-Telemetry::ID
-nsGIFDecoder2::SpeedHistogram()
-{
-  return Telemetry::IMAGE_DECODE_SPEED_GIF;
-}
-
-
 } // namespace image
 } // namespace mozilla

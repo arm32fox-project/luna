@@ -2800,14 +2800,22 @@ PluginInstanceChild::DoAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
         mCurrentAsyncSetWindowTask = nullptr;
     }
 
+    // Used to track whether we actually change any window property values.
+    bool windowChanged = false;
+
     mWindow.window = NULL;
     if (mWindow.width != aWindow.width || mWindow.height != aWindow.height ||
         mWindow.clipRect.top != aWindow.clipRect.top ||
         mWindow.clipRect.left != aWindow.clipRect.left ||
         mWindow.clipRect.bottom != aWindow.clipRect.bottom ||
-        mWindow.clipRect.right != aWindow.clipRect.right)
+        mWindow.clipRect.right != aWindow.clipRect.right) {
+        windowChanged = true;
         mAccumulatedInvalidRect = nsIntRect(0, 0, aWindow.width, aWindow.height);
-
+    } else {
+        windowChanged = mWindow.x != aWindow.x || mWindow.y != aWindow.y ||
+            mWindow.type != aWindow.type;
+    }
+    
     mWindow.x = aWindow.x;
     mWindow.y = aWindow.y;
     mWindow.width = aWindow.width;
@@ -2815,6 +2823,7 @@ PluginInstanceChild::DoAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
     mWindow.clipRect = aWindow.clipRect;
     mWindow.type = aWindow.type;
 #ifdef XP_MACOSX
+    windowChanged = windowChanged || (mContentsScaleFactor != aWindow.contentsScaleFactor);
     mContentsScaleFactor = aWindow.contentsScaleFactor;
 #endif
 
@@ -2823,8 +2832,12 @@ PluginInstanceChild::DoAsyncSetWindow(const gfxSurfaceType& aSurfaceType,
 
     mLayersRendering = true;
     mSurfaceType = aSurfaceType;
-    UpdateWindowAttributes(true);
 
+    // Notify the plugin of new window attributes, but only if they have actually changed.
+    if (windowChanged) {
+        UpdateWindowAttributes(true);
+    }
+  
 #ifdef XP_WIN
     if (GetQuirks() & PluginModuleChild::QUIRK_WINLESS_TRACKPOPUP_HOOK)
         CreateWinlessPopupSurrogate();

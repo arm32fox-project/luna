@@ -66,9 +66,6 @@ bool gr_start_logging(gr_face * face, const char *log_path)
 	if (!face->logger()) return false;
 
 	*face->logger() << json::array;
-#ifdef GRAPHITE2_TELEMETRY
-    *face->logger() << face->tele;
-#endif
 
 	return true;
 #else   // GRAPHITE2_NTRACING
@@ -115,35 +112,12 @@ void graphite_stop_logging()
 
 } // extern "C"
 
-#ifdef GRAPHITE2_TELEMETRY
-size_t   * graphite2::telemetry::_category = 0UL;
-#endif
-
 #if !defined GRAPHITE2_NTRACING
 
-#ifdef GRAPHITE2_TELEMETRY
-
-json & graphite2::operator << (json & j, const telemetry & t) throw()
-{
-    j << json::object
-            << "type"   << "telemetry"
-            << "silf"   << t.silf
-            << "states" << t.states
-            << "starts" << t.starts
-            << "transitions" << t.transitions
-            << "glyphs" << t.glyph
-            << "code"   << t.code
-            << "misc"   << t.misc
-            << "total"  << (t.silf + t.states + t.starts + t.transitions + t.glyph + t.code + t.misc)
-        << json::close;
-    return j;
-}
-#else
 json & graphite2::operator << (json & j, const telemetry &) throw()
 {
     return j;
 }
-#endif
 
 
 json & graphite2::operator << (json & j, const CharInfo & ci) throw()

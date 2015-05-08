@@ -27,7 +27,6 @@ this.MozSocialAPI = {
 
       if (!this._everEnabled) {
         this._everEnabled = true;
-        Services.telemetry.getHistogramById("SOCIAL_ENABLED_ON_SESSION").add(true);
       }
 
     } else {

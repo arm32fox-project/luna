@@ -138,10 +138,6 @@ XPInstallConfirm.init = function XPInstallConfirm_init()
 
 XPInstallConfirm.onOK = function XPInstallConfirm_onOk()
 {
-  Components.classes["@mozilla.org/base/telemetry;1"].
-    getService(Components.interfaces.nsITelemetry).
-    getHistogramById("SECURITY_UI").
-    add(Components.interfaces.nsISecurityUITelemetry.WARNING_CONFIRM_ADDON_INSTALL_CLICK_THROUGH);
   for (let install of args.installs)
     install.install();
   return true;

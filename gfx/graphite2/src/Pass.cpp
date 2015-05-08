@@ -162,9 +162,6 @@ bool Pass::readPass(const byte * const pass_start, size_t pass_length, size_t su
     if (!readRanges(ranges, numRanges)) return false;
     if (!readRules(rule_map, numEntries,  precontext, sort_keys,
                    o_constraint, rcCode, o_actions, aCode, face)) return false;
-#ifdef GRAPHITE2_TELEMETRY
-    telemetry::category _states_cat(face.tele.states);
-#endif
     return readStates(start_states, states, o_rule_map, face);
 }
 
@@ -232,17 +229,8 @@ static int cmpRuleEntry(const void *a, const void *b) { return (*(RuleEntry *)a 
 
 bool Pass::readStates(const byte * starts, const byte *states, const byte * o_rule_map, GR_MAYBE_UNUSED const Face & face)
 {
-#ifdef GRAPHITE2_TELEMETRY
-    telemetry::category _states_cat(face.tele.starts);
-#endif
     m_startStates = gralloc<uint16>(m_maxPreCtxt - m_minPreCtxt + 1);
-#ifdef GRAPHITE2_TELEMETRY
-    telemetry::set_category(face.tele.states);
-#endif
     m_states      = gralloc<State>(m_numStates);
-#ifdef GRAPHITE2_TELEMETRY
-    telemetry::set_category(face.tele.transitions);
-#endif
     m_transitions      = gralloc<uint16>(m_numTransition * m_numColumns);
 
     if (!m_startStates || !m_states || !m_transitions) return false;

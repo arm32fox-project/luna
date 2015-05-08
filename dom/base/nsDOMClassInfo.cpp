@@ -68,7 +68,6 @@
 #include "mozilla/Preferences.h"
 #include "nsLocation.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/Telemetry.h"
 
 // Window scriptable helper includes
 #include "nsIDocShell.h"
@@ -4329,9 +4328,6 @@ const InterfaceShimEntry kInterfaceShimMap[] =
 static nsresult
 DefineComponentsShim(JSContext *cx, JS::HandleObject global)
 {
-  // Keep track of how often this happens.
-  Telemetry::Accumulate(Telemetry::COMPONENTS_SHIM_ACCESSED_BY_CONTENT, true);
-
   // Create a fake Components object.
   JS::Rooted<JSObject*> components(cx, JS_NewObject(cx, nullptr, nullptr, global));
   NS_ENSURE_TRUE(components, NS_ERROR_OUT_OF_MEMORY);

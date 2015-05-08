@@ -42,11 +42,6 @@ function test() {
     }
     info(url.query);
 
-    // Check if we encountered telemetry errors and turn the tests for which
-    // we don't have valid data into known failures.
-    let snapshot = gTelemetry.getHistogramById("STARTUP_MEASUREMENT_ERRORS")
-                             .snapshot();
-
     let tProcessValid = (snapshot.counts[0] == 0);
     let tMainValid = tProcessValid && (snapshot.counts[2] == 0);
     let tFirstPaintValid = tProcessValid && (snapshot.counts[5] == 0);

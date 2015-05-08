@@ -95,6 +95,12 @@ js_math_floor_impl(double x);
 namespace js {
 
 extern JSBool
+math_clz32(JSContext *cx, unsigned argc, js::Value *vp);
+
+extern JSBool
+math_fround(JSContext *cx, unsigned argc, js::Value *vp);
+
+extern JSBool
 math_imul(JSContext *cx, unsigned argc, js::Value *vp);
 
 extern JSBool

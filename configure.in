@@ -65,13 +65,12 @@ GTK2_VERSION=2.10.0
 GTK3_VERSION=3.0.0
 WINDRES_VERSION=2.14.90
 W32API_VERSION=3.14
-GNOMEVFS_VERSION=2.0
 GNOMEUI_VERSION=2.2.0
 GCONF_VERSION=1.2.1
 GIO_VERSION=2.20
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.7.17
+SQLITE_VERSION=3.8.8.3
 
 MSMANIFEST_TOOL=
 
@@ -1956,7 +1955,10 @@ ia64*-hpux*)
     TARGET_NSPR_MDCPUCFG='\"md/_linux.cfg\"'
 
     MOZ_GFX_OPTIMIZE_MOBILE=1
-    MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks -fno-reorder-functions"
+    MOZ_OPTIMIZE_FLAGS="-Os -fno-reorder-functions"
+    if test -z "$CLANG_CC"; then
+      MOZ_OPTIMIZE_FLAGS="-freorder-blocks $MOZ_OPTIMIZE_FLAGS"
+    fi
     ;;
 
 *-*linux*)
@@ -1974,8 +1976,10 @@ ia64*-hpux*)
             MOZ_OPTIMIZE_SIZE_TWEAK="-finline-limit=50"
         esac
         MOZ_PGO_OPTIMIZE_FLAGS="-O3"
-        MOZ_OPTIMIZE_FLAGS="-Os -freorder-blocks $MOZ_OPTIMIZE_SIZE_TWEAK"
-        MOZ_DEBUG_FLAGS="-g"
+        MOZ_OPTIMIZE_FLAGS="-Os $MOZ_OPTIMIZE_SIZE_TWEAK"
+        if test -z "$CLANG_CC"; then
+          MOZ_OPTIMIZE_FLAGS="-freorder-blocks $MOZ_OPTIMIZE_FLAGS"
+        fi 
     fi
 
     TARGET_NSPR_MDCPUCFG='\"md/_linux.cfg\"'
@@ -4030,7 +4034,7 @@ ENABLE_TESTS=1
 ENABLE_SYSTEM_EXTENSION_DIRS=1
 MOZ_BRANDING_DIRECTORY=
 MOZ_OFFICIAL_BRANDING=
-MOZ_MOONCHILD=1
+MC_OFFICIAL=1
 MOZ_DISABLE_PARENTAL_CONTROLS=1
 MOZ_FEEDS=1
 MOZ_WEBAPP_RUNTIME=
@@ -4747,8 +4751,8 @@ dnl = Vendor override
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(official-vendor,
 [  --disable-official-vendor   Disable the use of official vendor.],
-    MOZ_MOONCHILD=,
-    MOZ_MOONCHILD=1)
+    MC_OFFICIAL=,
+    MC_OFFICIAL=1)
 
 dnl ========================================================
 dnl = IPR protected branding
@@ -4766,13 +4770,13 @@ MOZ_ARG_ENABLE_BOOL(official-branding,
   else
     MOZ_BRANDING_DIRECTORY=${MOZ_OFFICIAL_BRANDING_DIRECTORY}
     MOZ_OFFICIAL_BRANDING=1
-    MOZ_MOONCHILD=1
+    MC_OFFICIAL=1
   fi
 ], MOZ_OFFICIAL_BRANDING=)
 
-AC_SUBST(MOZ_MOONCHILD)
-if test -n "$MOZ_MOONCHILD"; then
-  AC_DEFINE(MOZ_MOONCHILD)
+AC_SUBST(MC_OFFICIAL)
+if test -n "$MC_OFFICIAL"; then
+  AC_DEFINE(MC_OFFICIAL)
 fi
 
 AC_SUBST(MOZ_OFFICIAL_BRANDING)
@@ -4843,7 +4847,7 @@ then
 fi
 
 dnl ========================================================
-dnl = GnomeVFS, GIO and GConf support module
+dnl = GIO and GConf support module
 dnl ========================================================
 
 if test "$MOZ_X11"
@@ -4855,33 +4859,6 @@ then
         MOZ_ENABLE_GIO=1
         MOZ_ENABLE_GCONF=1
     fi
-
-    dnl ========================================================
-    dnl = GnomeVFS support module
-    dnl ========================================================
-    MOZ_ARG_ENABLE_BOOL(gnomevfs,
-    [  --enable-gnomevfs       Enable GnomeVFS support (default: disabled)],
-        MOZ_ENABLE_GNOMEVFS=force,
-        MOZ_ENABLE_GNOMEVFS=)
-
-    if test "$MOZ_ENABLE_GNOMEVFS"
-    then
-        PKG_CHECK_MODULES(MOZ_GNOMEVFS, gnome-vfs-2.0 >= $GNOMEVFS_VERSION gnome-vfs-module-2.0 >= $GNOMEVFS_VERSION,[
-            MOZ_GNOMEVFS_LIBS=`echo $MOZ_GNOMEVFS_LIBS | sed 's/-llinc\>//'`
-            MOZ_ENABLE_GNOMEVFS=1
-            AC_DEFINE(MOZ_ENABLE_GNOMEVFS)
-        ],[
-            if test "$MOZ_ENABLE_GNOMEVFS" = "force"
-            then
-                AC_MSG_ERROR([* * * Could not find gnome-vfs-module-2.0 >= $GNOMEVFS_VERSION])
-            fi
-            MOZ_ENABLE_GNOMEVFS=
-        ])
-    fi
-
-    AC_SUBST(MOZ_ENABLE_GNOMEVFS)
-    AC_SUBST(MOZ_GNOMEVFS_CFLAGS)
-    AC_SUBST(MOZ_GNOMEVFS_LIBS)
 
     dnl ========================================================
     dnl = GIO support module
@@ -5611,6 +5588,17 @@ MOZ_ARG_ENABLE_BOOL(alsa,
 MOZ_ALSA=1,
 MOZ_ALSA=)
 
+MOZ_ARG_ENABLE_BOOL(oss,
+[ --enable-oss          Enable OSS support],
+   MOZ_OSS=1,
+   MOZ_OSS=)
+
+if test -n "$MOZ_OSS"; then
+   MOZ_ALSA=
+fi
+
+AC_SUBST(MOZ_OSS)
+
 if test -n "$MOZ_ALSA"; then
     AC_DEFINE(MOZ_CUBEB)
     PKG_CHECK_MODULES(MOZ_ALSA, alsa, ,
@@ -6014,19 +6002,6 @@ MOZ_ARG_ENABLE_STRING(extensions,
     fi
 done],
     MOZ_EXTENSIONS="$MOZ_EXTENSIONS_DEFAULT")
-
-if test -z "$MOZ_ENABLE_GNOMEVFS" -a `echo "$MOZ_EXTENSIONS" | grep -c gnomevfs` -ne 0; then
-    # Suppress warning on non-X11 platforms
-    if test -n "$MOZ_X11"; then
-        AC_MSG_WARN([Removing gnomevfs from MOZ_EXTENSIONS due to no --enable-gnomevfs.])
-    fi
-    MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|gnomevfs||'`
-fi
-
-dnl Do not build gnomevfs with libxul based apps
-if test -n "$LIBXUL_SDK_DIR" -a `echo "$MOZ_EXTENSIONS" | grep -c gnomevfs` -ne 0; then
-    MOZ_EXTENSIONS=`echo $MOZ_EXTENSIONS | sed -e 's|gnomevfs||'`
-fi
 
 if test -z "$MOZ_ENABLE_GIO" -a `echo "$MOZ_EXTENSIONS" | grep -c gio` -ne 0; then
     # Suppress warning on non-X11 platforms
@@ -7770,6 +7745,26 @@ AC_SUBST(PROFILE_GEN_LDFLAGS)
 AC_SUBST(PROFILE_USE_CFLAGS)
 AC_SUBST(PROFILE_USE_LDFLAGS)
 
+dnl ========================================================
+dnl Support for -fno-integrated-as -S in Clang, without bre
+dnl -aking GCC.
+dnl This is a work around to build vp8_asm_enc_offsets.c in
+dnl libvpx.
+dnl ========================================================
+
+_SAVE_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS -fno-integrated-as -S"
+
+AC_MSG_CHECKING([whether C compiler supports -fno-integrated-as])
+AC_TRY_COMPILE([], [return 0;],
+               [ NO_INTEGRATED_AS_CFLAGS="-fno-integrated-as"
+                 result="yes" ], result="no")
+AC_MSG_RESULT([$result])
+
+CFLAGS="$_SAVE_CFLAGS"
+
+AC_SUBST(NO_INTEGRATED_AS_CFLAGS)
+
 AC_LANG_CPLUSPLUS
 
 dnl ========================================================
@@ -8598,23 +8593,10 @@ AC_SUBST(MOZ_PKG_SPECIAL)
 
 AC_SUBST(MOZILLA_OFFICIAL)
 
-AC_DEFINE_UNQUOTED(MOZ_TELEMETRY_DISPLAY_REV, 2)
-AC_SUBST(MOZ_TELEMETRY_DISPLAY_REV)
-
-if test "$MOZ_TELEMETRY_REPORTING"; then
-    AC_DEFINE(MOZ_TELEMETRY_REPORTING)
-
-    # Enable Telemetry by default for nightly and aurora channels
-    if test "$MOZ_UPDATE_CHANNEL" = "nightly" -o \
-        "$MOZ_UPDATE_CHANNEL" = "aurora"; then
-        AC_DEFINE(MOZ_TELEMETRY_ON_BY_DEFAULT)
-    fi
-fi
-
 dnl If we have any service that uploads data (and requires data submission
 dnl policy alert), set MOZ_DATA_REPORTING.
 dnl We need SUBST for build system and DEFINE for xul preprocessor.
-if test -n "$MOZ_TELEMETRY_REPORTING" || test -n "$MOZ_SERVICES_HEALTHREPORT"; then
+if test -n "$MOZ_SERVICES_HEALTHREPORT"; then
   MOZ_DATA_REPORTING=1
   AC_DEFINE(MOZ_DATA_REPORTING)
   AC_SUBST(MOZ_DATA_REPORTING)
