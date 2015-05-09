@@ -25,7 +25,7 @@ MOZ_MULTI_GUID=1
 # "nightly" branding (until bug 659568 is fixed).
 # For the mozilla-aurora repository, use "aurora".
 MOZ_BRANDING_DIRECTORY=browser/branding/unofficial
-MOZ_OFFICIAL_BRANDING_DIRECTORY=browser/branding/official
+MOZ_OFFICIAL_BRANDING_DIRECTORY=browser/branding/pm4xp
 # New Pale Moon App GUID
 # Firefox MOZ_APP_ID={ec8030f7-c20a-464f-9b0e-13a3a9e97384}
 MOZ_APP_ID={8de7fcbb-c55c-4fbe-bfc5-fc555c87dbc4}
