@@ -1002,16 +1002,18 @@ nsDiskCacheDevice::OpenDiskCache()
         nsDiskCache::CorruptCacheInfo corruptInfo;
         rv = mCacheMap.Open(mCacheDirectory, &corruptInfo, true);
 
-        if (rv == NS_ERROR_ALREADY_INITIALIZED) {
+        if (NS_SUCCEEDED(rv)) {
+            // Everything is OK, do nothing!
+            // This previously held telemetry collection
+        } else if (rv == NS_ERROR_ALREADY_INITIALIZED) {
           NS_WARNING("nsDiskCacheDevice::OpenDiskCache: already open!");
         } else {
-          // Consider cache corrupt: delete it
-          NS_WARNING("nsDiskCacheDevice::OpenDiskCache: cache corruption - cache will be deleted!");
-          // delay delete by 1 minute to avoid IO thrash at startup
-          rv = nsDeleteDir::DeleteDir(mCacheDirectory, true, 60000);
-          if (NS_FAILED(rv))
-              return rv;
-          exists = false;
+            // Consider the cache corrupt: delete it.
+            // Delay delete by 1 minute to avoid I/O thrashing at startup
+            rv = nsDeleteDir::DeleteDir(mCacheDirectory, true, 60000);
+            if (NS_FAILED(rv))
+                return rv;
+            exists = false;
         }
     }
 
