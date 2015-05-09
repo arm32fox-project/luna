@@ -2546,7 +2546,7 @@ nsCacheService::Lock()
 //    MOZ_EVENT_TRACER_WAIT(nsCacheService::gService, "net::cache::lock");
 
     gService->mLock.Lock();
-//    gService->LockAcquired();
+    gService->LockAcquired();
 
 //    TimeStamp stop(TimeStamp::Now());
 //    MOZ_EVENT_TRACER_EXEC(nsCacheService::gService, "net::cache::lock");
@@ -2560,7 +2560,7 @@ nsCacheService::Unlock()
     nsTArray<nsISupports*> doomed;
     doomed.SwapElements(gService->mDoomedObjects);
 
-//    gService->LockReleased();
+    gService->LockReleased();
     gService->mLock.Unlock();
 
 //    MOZ_EVENT_TRACER_DONE(nsCacheService::gService, "net::cache::lock");
