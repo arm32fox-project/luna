@@ -1373,7 +1373,7 @@ nsDiskCacheMap::ResetCacheTimer(int32_t timeout)
 void
 nsDiskCacheMap::RevalidateTimerCallback(nsITimer *aTimer, void *arg)
 {
-    nsCacheServiceAutoLock lock();
+    nsCacheServiceAutoLock lock;
     if (!nsCacheService::gService->mDiskDevice ||
         !nsCacheService::gService->mDiskDevice->Initialized()) {
         return;
