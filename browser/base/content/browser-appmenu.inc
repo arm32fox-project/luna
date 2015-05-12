@@ -16,25 +16,14 @@
                              this._currentPopup = event.target;">
   <hbox>
     <vbox id="appmenuPrimaryPane">
-      <splitmenu id="appmenu_newTab"
-                 label="&tabCmd.label;"
-                 command="cmd_newNavigatorTab">
-          <menupopup>
-            <menuitem id="appmenu_newTab_popup"
-                      label="&tabCmd.label;"
-                      command="cmd_newNavigatorTab"
-                      key="key_newNavigatorTab"/>
-            <menuitem id="appmenu_newNavigator"
-                      label="&newNavigatorCmd.label;"
-                      command="cmd_newNavigator"
-                      key="key_newNavigator"/>
-            <menuseparator/>
-            <menuitem id="appmenu_openFile"
-                      label="&openFileCmd.label;"
-                      command="Browser:OpenFile"
-                      key="openFileKb"/>
-          </menupopup>
-      </splitmenu>
+      <menuitem id="appmenu_newTab_popup"
+                label="&tabCmd.label;"
+                command="cmd_newNavigatorTab"
+                key="key_newNavigatorTab"/>
+      <menuitem id="appmenu_newNavigator"
+                label="&newNavigatorCmd.label;"
+                command="cmd_newNavigator"
+                key="key_newNavigator"/>
       <menuitem id="appmenu_newPrivateWindow"
                 class="menuitem-iconic menuitem-iconic-tooltip"
                 label="&newPrivateWindow.label;"
@@ -111,6 +100,10 @@
                 command="cmd_find"
                 key="key_find"/>
       <menuseparator class="appmenu-menuseparator"/>
+      <menuitem id="appmenu_openFile"
+                label="&openFileCmd.label;"
+                command="Browser:OpenFile"
+                key="openFileKb"/>
       <menuitem id="appmenu_savePage"
                 class="menuitem-tooltip"
                 label="&savePageCmd.label;"
@@ -192,17 +185,6 @@
                 type="checkbox"
                 observes="View:FullScreen"
                 key="key_fullScreen"/>
-#ifdef MOZ_SERVICES_SYNC
-      <!-- only one of sync-setup or sync-syncnow will be showing at once -->
-      <menuitem id="sync-setup-appmenu"
-                label="&syncSetup.label;"
-                observes="sync-setup-state"
-                oncommand="gSyncUI.openSetup()"/>
-      <menuitem id="sync-syncnowitem-appmenu"
-                label="&syncSyncNowItem.label;"
-                observes="sync-syncnow-state"
-                oncommand="gSyncUI.doSync(event);"/>
-#endif
       <menuitem id="appmenu-quit"
                 class="menuitem-iconic"
 #ifdef XP_WIN
@@ -336,6 +318,17 @@
                 label="&addons.label;"
                 command="Tools:Addons"
                 key="key_openAddons"/>
+#ifdef MOZ_SERVICES_SYNC
+      <!-- only one of sync-setup or sync-syncnow will be showing at once -->
+      <menuitem id="sync-setup-appmenu"
+                label="&syncSetup.label;"
+                observes="sync-setup-state"
+                oncommand="gSyncUI.openSetup()"/>
+      <menuitem id="sync-syncnowitem-appmenu"
+                label="&syncSyncNowItem.label;"
+                observes="sync-syncnow-state"
+                oncommand="gSyncUI.doSync(event);"/>
+#endif
       <splitmenu id="appmenu_customize"
 #ifdef XP_UNIX
                  label="&preferencesCmdUnix.label;"
