@@ -227,11 +227,14 @@ png_write_info(png_structp png_ptr, png_infop info_ptr)
              info_ptr->text[i].lang,
              info_ptr->text[i].lang_key,
              info_ptr->text[i].text);
+         /* Mark this chunk as written */
+         if (info_ptr->text[i].compression == PNG_TEXT_COMPRESSION_NONE)
+            info_ptr->text[i].compression = PNG_TEXT_COMPRESSION_NONE_WR;
+         else
+            info_ptr->text[i].compression = PNG_TEXT_COMPRESSION_zTXt_WR;
 #else
-          png_warning(png_ptr, "Unable to write international text");
+         png_warning(png_ptr, "Unable to write international text");
 #endif
-          /* Mark this chunk as written */
-          info_ptr->text[i].compression = PNG_TEXT_COMPRESSION_NONE_WR;
       }
 
       /* If we want a compressed text chunk */
@@ -242,11 +245,11 @@ png_write_info(png_structp png_ptr, png_infop info_ptr)
          png_write_zTXt(png_ptr, info_ptr->text[i].key,
              info_ptr->text[i].text, 0,
              info_ptr->text[i].compression);
+         /* Mark this chunk as written */
+         info_ptr->text[i].compression = PNG_TEXT_COMPRESSION_zTXt_WR;
 #else
          png_warning(png_ptr, "Unable to write compressed text");
 #endif
-         /* Mark this chunk as written */
-         info_ptr->text[i].compression = PNG_TEXT_COMPRESSION_zTXt_WR;
       }
 
       else if (info_ptr->text[i].compression == PNG_TEXT_COMPRESSION_NONE)
@@ -350,11 +353,11 @@ png_write_end(png_structp png_ptr, png_infop info_ptr)
                 info_ptr->text[i].lang,
                 info_ptr->text[i].lang_key,
                 info_ptr->text[i].text);
+            /* Mark this chunk as written */
+            info_ptr->text[i].compression = PNG_TEXT_COMPRESSION_NONE_WR;
 #else
             png_warning(png_ptr, "Unable to write international text");
 #endif
-            /* Mark this chunk as written */
-            info_ptr->text[i].compression = PNG_TEXT_COMPRESSION_NONE_WR;
          }
 
          else if (info_ptr->text[i].compression >= PNG_TEXT_COMPRESSION_zTXt)
@@ -364,11 +367,11 @@ png_write_end(png_structp png_ptr, png_infop info_ptr)
             png_write_zTXt(png_ptr, info_ptr->text[i].key,
                 info_ptr->text[i].text, 0,
                 info_ptr->text[i].compression);
+            /* Mark this chunk as written */
+            info_ptr->text[i].compression = PNG_TEXT_COMPRESSION_zTXt_WR;
 #else
             png_warning(png_ptr, "Unable to write compressed text");
 #endif
-            /* Mark this chunk as written */
-            info_ptr->text[i].compression = PNG_TEXT_COMPRESSION_zTXt_WR;
          }
 
          else if (info_ptr->text[i].compression == PNG_TEXT_COMPRESSION_NONE)
@@ -377,12 +380,11 @@ png_write_end(png_structp png_ptr, png_infop info_ptr)
             /* Write uncompressed chunk */
             png_write_tEXt(png_ptr, info_ptr->text[i].key,
                 info_ptr->text[i].text, 0);
+            /* Mark this chunk as written */
+            info_ptr->text[i].compression = PNG_TEXT_COMPRESSION_NONE_WR;
 #else
             png_warning(png_ptr, "Unable to write uncompressed text");
 #endif
-
-            /* Mark this chunk as written */
-            info_ptr->text[i].compression = PNG_TEXT_COMPRESSION_NONE_WR;
          }
       }
 #endif
@@ -531,7 +533,7 @@ png_create_write_struct_2,(png_const_charp user_png_ver, png_voidp error_ptr,
    /* Initialize zbuf - compression buffer */
    png_ptr->zbuf_size = PNG_ZBUF_SIZE;
 
-   if (!png_cleanup_needed)
+   if (png_cleanup_needed == 0)
    {
       png_ptr->zbuf = (png_bytep)png_malloc_warn(png_ptr,
           png_ptr->zbuf_size);
@@ -539,7 +541,7 @@ png_create_write_struct_2,(png_const_charp user_png_ver, png_voidp error_ptr,
          png_cleanup_needed = 1;
    }
 
-   if (png_cleanup_needed)
+   if (png_cleanup_needed != 0)
    {
        /* Clean up PNG structure and deallocate any memory. */
        png_free(png_ptr, png_ptr->zbuf);
@@ -775,7 +777,7 @@ png_write_row(png_structp png_ptr, png_const_bytep row)
    {
       png_do_write_interlace(&row_info, png_ptr->row_buf + 1, png_ptr->pass);
       /* This should always get caught above, but still ... */
-      if (!(row_info.width))
+      if (row_info.width == 0)
       {
          png_write_finish_row(png_ptr);
          return;
@@ -875,7 +877,7 @@ png_write_flush(png_structp png_ptr)
             png_error(png_ptr, "zlib error");
       }
 
-      if (!(png_ptr->zstream.avail_out))
+      if ((png_ptr->zstream.avail_out) == 0)
       {
          /* Write the IDAT and reset the zlib output buffer */
          png_write_IDAT(png_ptr, png_ptr->zbuf, png_ptr->zbuf_size);
@@ -1404,6 +1406,7 @@ png_set_filter_heuristics_fixed(png_structp png_ptr, int heuristic_method,
 #endif /* FIXED_POINT */
 #endif /* PNG_WRITE_WEIGHTED_FILTER_SUPPORTED */
 
+#ifdef PNG_WRITE_CUSTOMIZE_COMPRESSION_SUPPORTED
 void PNGAPI
 png_set_compression_level(png_structp png_ptr, int level)
 {
@@ -1482,6 +1485,7 @@ png_set_compression_method(png_structp png_ptr, int method)
    png_ptr->flags |= PNG_FLAG_ZLIB_CUSTOM_METHOD;
    png_ptr->zlib_method = method;
 }
+#endif /* WRITE_CUSTOMIZE_COMPRESSION */
 
 /* The following were added to libpng-1.5.4 */
 #ifdef PNG_WRITE_CUSTOMIZE_ZTXT_COMPRESSION_SUPPORTED
