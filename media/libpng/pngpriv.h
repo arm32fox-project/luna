@@ -1,12 +1,10 @@
 
 /* pngpriv.h - private declarations for use inside libpng
  *
- * For conditions of distribution and use, see copyright notice in png.h
- * Copyright (c) 1998-2013 Glenn Randers-Pehrson
+ * Last changed in libpng 1.5.19 [August 21, 2014]
+ * Copyright (c) 1998-2014 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
- *
- * Last changed in libpng 1.5.15 [March 28, 2013]
  *
  * This code is released under the libpng license.
  * For conditions of distribution and use, see the disclaimer
@@ -133,6 +131,53 @@
 #  define PNG_DLL_EXPORT
 #endif
 
+/* Compile time options.
+ * =====================
+ * In a multi-arch build the compiler may compile the code several times for the
+ * same object module, producing different binaries for different architectures.
+ * When this happens configure-time setting of the target host options cannot be
+ * done and this interferes with the handling of the ARM NEON optimizations, and
+ * possibly other similar optimizations.  Put additional tests here; in general
+ * this is needed when the same option can be changed at both compile time and
+ * run time depending on the target OS (i.e. iOS vs Android.)
+ *
+ * NOTE: symbol prefixing does not pass $(CFLAGS) to the preprocessor, because
+ * this is not possible with certain compilers (Oracle SUN OS CC), as a result
+ * it is necessary to ensure that all extern functions that *might* be used
+ * regardless of $(CFLAGS) get declared in this file.  The test on __ARM_NEON__
+ * below is one example of this behavior because it is controlled by the
+ * presence or not of -mfpu=neon on the GCC command line, it is possible to do
+ * this in $(CC), e.g. "CC=gcc -mfpu=neon", but people who build libpng rarely
+ * do this.
+ */
+#ifndef PNG_ARM_NEON_OPT
+   /* ARM NEON optimizations are being controlled by the compiler settings,
+    * typically the target FPU.  If the FPU has been set to NEON (-mfpu=neon
+    * with GCC) then the compiler will define __ARM_NEON__ and we can rely
+    * unconditionally on NEON instructions not crashing, otherwise we must
+    * disable use of NEON instructions.
+    *
+    * NOTE: at present these optimizations depend on 'ALIGNED_MEMORY', so they
+    * can only be turned on automatically if that is supported too.  If
+    * PNG_ARM_NEON_OPT is set in CPPFLAGS (to >0) then arm/arm_init.c will fail
+    * to compile with an appropriate #error if ALIGNED_MEMORY has been turned
+    * off.
+    */
+#  if defined(__ARM_NEON__) && defined(PNG_ALIGNED_MEMORY_SUPPORTED)
+#     define PNG_ARM_NEON_OPT 2
+#  else
+#     define PNG_ARM_NEON_OPT 0
+#  endif
+#endif
+
+
+#if PNG_ARM_NEON_OPT > 0
+   /* NEON optimizations are to be at least considered by libpng, so enable the
+    * callbacks to do this.
+    */
+#  define PNG_FILTER_OPTIMIZATIONS png_init_filter_functions_neon
+#endif
+
 /* SECURITY and SAFETY:
  *
  * By default libpng is built without any internal limits on image size,
@@ -142,36 +187,6 @@
  * safe, but builders of secure systems should verify the values against the
  * real system capabilities.
  */
-
-#ifdef PNG_SAFE_LIMITS_SUPPORTED
-   /* 'safe' limits */
-#  ifndef PNG_USER_WIDTH_MAX
-#     define PNG_USER_WIDTH_MAX 1000000
-#  endif
-#  ifndef PNG_USER_HEIGHT_MAX
-#     define PNG_USER_HEIGHT_MAX 1000000
-#  endif
-#  ifndef PNG_USER_CHUNK_CACHE_MAX
-#     define PNG_USER_CHUNK_CACHE_MAX 128
-#  endif
-#  ifndef PNG_USER_CHUNK_MALLOC_MAX
-#     define PNG_USER_CHUNK_MALLOC_MAX 8000000
-#  endif
-#else
-   /* values for no limits */
-#  ifndef PNG_USER_WIDTH_MAX
-#     define PNG_USER_WIDTH_MAX 0x7fffffff
-#  endif
-#  ifndef PNG_USER_HEIGHT_MAX
-#     define PNG_USER_HEIGHT_MAX 0x7fffffff
-#  endif
-#  ifndef PNG_USER_CHUNK_CACHE_MAX
-#     define PNG_USER_CHUNK_CACHE_MAX 0
-#  endif
-#  ifndef PNG_USER_CHUNK_MALLOC_MAX
-#     define PNG_USER_CHUNK_MALLOC_MAX 0
-#  endif
-#endif
 
 /* config.h is created by and PNG_CONFIGURE_LIBPNG is set by the "configure"
  * script.  We may need it here to get the correct configuration on things
@@ -183,9 +198,11 @@
 #  endif
 #endif
 
-/* Moved to pngpriv.h at libpng-1.5.0 */
-/* NOTE: some of these may have been used in external applications as
- * these definitions were exposed in pngconf.h prior to 1.5.
+/* SECURITY and SAFETY:
+ *
+ * libpng is built with support for internal limits on image dimensions and
+ * memory usage.  These are documented in scripts/pnglibconf.dfa of the
+ * source and recorded in the machine generated header file pnglibconf.h.
  */
 
 /* If you are running on a machine where you cannot allocate more
@@ -202,6 +219,11 @@
 #if defined(MAXSEG_64K) && !defined(PNG_MAX_MALLOC_64K)
 #  define PNG_MAX_MALLOC_64K
 #endif
+
+/* Moved to pngpriv.h at libpng-1.5.0 */
+/* NOTE: some of these may have been used in external applications as
+ * these definitions were exposed in pngconf.h prior to 1.5.
+ */
 
 #ifndef PNG_UNUSED
 /* Unused formal parameter warnings are silenced using the following macro
@@ -252,8 +274,6 @@
 #ifdef PNG_WARNINGS_SUPPORTED
 #  define PNG_WARNING_PARAMETERS(p) png_warning_parameters p;
 #else
-#  define png_warning(s1,s2) ((void)(s1))
-#  define png_chunk_warning(s1,s2) ((void)(s1))
 #  define png_warning_parameter(p,number,string) ((void)0)
 #  define png_warning_parameter_unsigned(p,number,format,value) ((void)0)
 #  define png_warning_parameter_signed(p,number,format,value) ((void)0)
@@ -261,8 +281,6 @@
 #  define PNG_WARNING_PARAMETERS(p)
 #endif
 #ifndef PNG_ERROR_TEXT_SUPPORTED
-#  define png_error(s1,s2) png_err(s1)
-#  define png_chunk_error(s1,s2) png_err(s1)
 #  define png_fixed_error(s1,s2) png_err(s1)
 #endif
 
@@ -377,7 +395,7 @@
 #    define CVT_PTR_NOCHECK(ptr) (ptr)
 #    define png_strlen  lstrlenA
 #    define png_memcmp  memcmp
-#    define png_memcpy  CopyMemory
+#    define png_memcpy  memcpy
 #    define png_memset  memset
 #  else
 #    define CVT_PTR(ptr)         (ptr)
@@ -529,7 +547,7 @@
 #define PNG_FLAG_STRIP_ERROR_NUMBERS      0x40000
 #define PNG_FLAG_STRIP_ERROR_TEXT         0x80000
 #define PNG_FLAG_MALLOC_NULL_MEM_OK       0x100000
-                                  /*      0x200000  unused */
+#define PNG_FLAG_ZSTREAM_PROGRESSIVE      0x200000
                                   /*      0x400000  unused */
 #define PNG_FLAG_BENIGN_ERRORS_WARN       0x800000  /* Added to libpng-1.4.0 */
 #define PNG_FLAG_ZTXT_CUSTOM_STRATEGY    0x1000000  /* 5 lines added */
@@ -1781,13 +1799,21 @@ PNG_EXTERN void png_set_rgb_to_gray_fixed PNGARG((png_structp png_ptr,
 #endif
 #endif /* FIX MISSING !FIXED_POINT DECLARATIONS */
 
+/* These are initialization functions for hardware specific PNG filter
+ * optimizations; list these here then select the appropriate one at compile
+ * time using the macro PNG_FILTER_OPTIMIZATIONS.  If the macro is not defined
+ * the generic code is used.
+ */
 #ifdef PNG_FILTER_OPTIMIZATIONS
 PNG_EXTERN void PNG_FILTER_OPTIMIZATIONS(png_structp png_ptr, unsigned int bpp);
-   /* This is the initialization function for hardware specific optimizations,
-    * one implementation (for ARM NEON machines) is contained in
-    * arm/filter_neon.c.  It need not be defined - the generic code will be used
-    * if not.
+   /* Just declare the optimization that will be used */
+#else
+   /* List *all* the possible optimizations here - this branch is required if
+    * the builder of libpng passes the definition of PNG_FILTER_OPTIMIZATIONS in
+    * CFLAGS in place of CPPFLAGS *and* uses symbol prefixing.
     */
+PNG_EXTERN void png_init_filter_functions_neon(png_structp png_ptr,
+    unsigned int bpp);
 #endif
 
 /* Maintainer: Put new private prototypes here ^ */
