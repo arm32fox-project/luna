@@ -5,7 +5,7 @@
 #include "build/build_config.h"
 #include "base/debug_util.h"
 
-#define MOZ_HAVE_EXECINFO_H (defined(OS_LINUX) && !defined(ANDROID))
+#define MOZ_HAVE_EXECINFO_H (defined(OS_LINUX) && defined(__GLIBC__))
 
 #include <errno.h>
 #include <fcntl.h>
