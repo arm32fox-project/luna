@@ -1067,12 +1067,8 @@ NS_IMETHODIMP Navigator::GetGeolocation(nsIDOMGeoGeolocation** _retval)
     return NS_ERROR_FAILURE;
   }
 
-  if (Preferences::GetBool("geo.enabled", true)) {
-    //Only Init when enabled, otherwise return empty
-    if (NS_FAILED(mGeolocation->Init(mWindow->GetOuterWindow()))) {
-      mGeolocation = nullptr;
-      return NS_ERROR_FAILURE;
-    }
+  if (NS_FAILED(mGeolocation->Init(mWindow->GetOuterWindow()))) {
+    return NS_ERROR_FAILURE;
   }
 
   NS_ADDREF(*_retval = mGeolocation);
