@@ -1,6 +1,6 @@
 // ****************** App/Update/General ******************
 
-pref("startup.homepage_override_url","http://www.palemoon.org/");
+pref("startup.homepage_override_url","http://www.palemoon.org/releasenotes.shtml");
 pref("startup.homepage_welcome_url","http://www.palemoon.org/firstrun.shtml");
 // Interval: Time between checks for a new version (in seconds) -- 2 days for Pale Moon
 pref("app.update.interval", 172800);
