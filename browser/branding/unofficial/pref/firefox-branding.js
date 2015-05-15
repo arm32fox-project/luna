@@ -74,10 +74,6 @@ pref("general.useragent.compatMode.firefox", false);
 pref("network.dnsCacheEntries", 128); //cache up to this many entries in-browser
 pref("network.dnsCacheExpiration", 300); //TTL 5 minutes
 
-// ****************** Renderer config ******************
-
-pref("nglayout.initialpaint.delay", 150);
-
 // ****************** UI config ******************
 
 pref("browser.tabs.insertRelatedAfterCurrent", false); //use old method of tabbed browsing instead of "Chrome" style
