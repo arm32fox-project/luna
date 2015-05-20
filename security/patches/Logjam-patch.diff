@@ -1,0 +1,25 @@
+From 37ec67b7436423a95bbe0f92152e2238455b6711 Mon Sep 17 00:00:00 2001
+From: Pale Moon <git-repo@palemoon.org>
+Date: Wed, 20 May 2015 21:48:35 +0200
+Subject: [PATCH] Refuse DHE keys less than 1024 key bits (Logjam)
+
+---
+ security/nss/lib/ssl/ssl3con.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/security/nss/lib/ssl/ssl3con.c b/security/nss/lib/ssl/ssl3con.c
+index 01164e5..acd731a 100644
+--- a/security/nss/lib/ssl/ssl3con.c
++++ b/security/nss/lib/ssl/ssl3con.c
+@@ -6714,7 +6714,7 @@ ssl3_HandleServerKeyExchange(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
+     	if (rv != SECSuccess) {
+ 	    goto loser;		/* malformed. */
+ 	}
+-	if (dh_p.len < 512/8) {
++	if (dh_p.len < 1024/8) {
+ 	    errCode = SSL_ERROR_WEAK_SERVER_EPHEMERAL_DH_KEY;
+ 	    goto alert_loser;
+ 	}
+-- 
+1.8.3.msysgit.0
+
