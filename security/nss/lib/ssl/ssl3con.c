@@ -6714,7 +6714,7 @@ ssl3_HandleServerKeyExchange(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
     	if (rv != SECSuccess) {
 	    goto loser;		/* malformed. */
 	}
-	if (dh_p.len < 512/8) {
+	if (dh_p.len < 1024/8) {
 	    errCode = SSL_ERROR_WEAK_SERVER_EPHEMERAL_DH_KEY;
 	    goto alert_loser;
 	}
