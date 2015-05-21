@@ -187,7 +187,7 @@ nsConsoleService::LogMessageWithMode(nsIConsoleMessage *message, nsConsoleServic
     {
         MutexAutoLock lock(mLock);
 
-#if defined(ANDROID)
+#if defined(ANDROID) && !defined(RELEASE_BUILD)
         if (outputMode == OutputToLog)
         {
             nsXPIDLString msg;
