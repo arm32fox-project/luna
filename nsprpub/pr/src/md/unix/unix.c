@@ -21,6 +21,10 @@
 #include <poll.h>
 #endif
 
+#if defined(ANDROID)
+#include <android/api-level.h>
+#endif
+
 /* To get FIONREAD */
 #if defined(UNIXWARE)
 #include <sys/filio.h>
@@ -2709,8 +2713,8 @@ static void* _MD_Unix_mmap64(
 }  /* _MD_Unix_mmap64 */
 #endif /* defined(_PR_NO_LARGE_FILES) || defined(SOLARIS2_5) */
 
-/* Android doesn't have mmap64. */
-#if defined(ANDROID)
+/* Android <= 19 doesn't have mmap64. */
+#if defined(ANDROID) && __ANDROID_API__ <= 19
 extern void *__mmap2(void *, size_t, int, int, int, size_t);
 
 #define ANDROID_PAGE_SIZE 4096
@@ -3614,14 +3618,9 @@ PRStatus _MD_MemUnmap(void *addr, PRUint32 len)
 {
     if (munmap(addr, len) == 0) {
         return PR_SUCCESS;
-    } else {
-    if (errno == EINVAL) {
-            PR_SetError(PR_INVALID_ARGUMENT_ERROR, errno);
-    } else {
-        PR_SetError(PR_UNKNOWN_ERROR, errno);
     }
-        return PR_FAILURE;
-    }
+    _PR_MD_MAP_DEFAULT_ERROR(errno);
+    return PR_FAILURE;
 }
 
 PRStatus _MD_CloseFileMap(PRFileMap *fmap)
@@ -3636,6 +3635,20 @@ PRStatus _MD_CloseFileMap(PRFileMap *fmap)
     }
     PR_DELETE(fmap);
     return PR_SUCCESS;
+}
+
+PRStatus _MD_SyncMemMap(
+    PRFileDesc *fd,
+    void *addr,
+    PRUint32 len)
+{
+    /* msync(..., MS_SYNC) alone is sufficient to flush modified data to disk
+     * synchronously. It is not necessary to call fsync. */
+    if (msync(addr, len, MS_SYNC) == 0) {
+        return PR_SUCCESS;
+    }
+    _PR_MD_MAP_DEFAULT_ERROR(errno);
+    return PR_FAILURE;
 }
 
 #if defined(_PR_NEED_FAKE_POLL)
