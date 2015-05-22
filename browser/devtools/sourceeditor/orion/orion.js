@@ -3420,9 +3420,6 @@ define("orion/textview/textView", ['orion/textview/textModel', 'orion/textview/k
 	}
 	var userAgent = navigator.userAgent;
 	var isIE;
-	if (document.selection && window.ActiveXObject && /MSIE/.test(userAgent)) {
-		isIE = document.documentMode ? document.documentMode : 7;
-	}
 	var isFirefox = 24;
 	var isOpera = false;
 	var isChrome = false;
