@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.content.Context;
 import android.text.TextUtils;
@@ -21,7 +21,7 @@ public class RemoteTabs extends ExpandableListView
                                    ExpandableListView.OnGroupClickListener,
                                    ExpandableListView.OnChildClickListener, 
                                    TabsAccessor.OnQueryTabsCompleteListener {
-    private static final String LOGTAG = "GeckoRemoteTabs";
+    private static final String LOGTAG = "GoannaRemoteTabs";
 
     private Context mContext;
     private TabsPanel mTabsPanel;

@@ -20,7 +20,7 @@ public class testAwesomebarSwipes extends BaseTest {
     }
 
     public void testAwesomebarSwipes() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         ListView list = getAllPagesList("about:firefox");
 
@@ -28,8 +28,8 @@ public class testAwesomebarSwipes extends BaseTest {
         ViewPager pager = (ViewPager)mSolo.getView(ViewPager.class, 0);
         mAsserter.is(pager.getCurrentItem(), 0, "All pages is selected");
 
-        int width = mDriver.getGeckoWidth() / 2;
-        int y = mDriver.getGeckoHeight() / 2;
+        int width = mDriver.getGoannaWidth() / 2;
+        int y = mDriver.getGoannaHeight() / 2;
         mActions.drag(width, 0, y, y);
         mAsserter.is(pager.getCurrentItem(), 1, "Bookmarks page is selected");
 

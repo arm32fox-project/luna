@@ -32,7 +32,7 @@ public class testImportFromAndroid extends PixelTest {
         ArrayList<String> firefoxBookmarks = new ArrayList<String>();
         ArrayList<String> oldFirefoxHistory = new ArrayList<String>();
         ArrayList<String> oldFirefoxBookmarks = new ArrayList<String>();
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // Get the Android hostory
         androidData = getAndroidUrls("history");

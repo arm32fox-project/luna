@@ -5,7 +5,7 @@
 
 <merge xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <org.mozilla.gecko.menu.MenuItemDefault
+    <org.mozilla.goanna.menu.MenuItemDefault
             android:id="@+id/menu_item"
             android:layout_width="0dip"
             android:layout_height="fill_parent"

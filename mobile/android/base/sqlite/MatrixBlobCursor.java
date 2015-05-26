@@ -15,7 +15,7 @@
  * limitations under the License.
  */
 
-package org.mozilla.gecko.sqlite;
+package org.mozilla.goanna.sqlite;
 
 import android.database.AbstractCursor;
 import android.database.CursorIndexOutOfBoundsException;

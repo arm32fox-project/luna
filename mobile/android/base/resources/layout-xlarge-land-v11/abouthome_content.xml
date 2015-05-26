@@ -3,9 +3,9 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
-<org.mozilla.gecko.widget.AboutHomeView
+<org.mozilla.goanna.widget.AboutHomeView
         xmlns:android="http://schemas.android.com/apk/res/android"
-        xmlns:gecko="http://schemas.android.com/apk/res-auto"
+        xmlns:goanna="http://schemas.android.com/apk/res-auto"
 		android:id="@+id/abouthome_content"
         android:layout_width="fill_parent"
         android:layout_height="fill_parent"
@@ -22,7 +22,7 @@
                       android:layout_marginLeft="@dimen/abouthome_gutter_large"
                       android:layout_marginRight="@dimen/abouthome_gutter_small">
 
-            <Gecko.ImageView android:id="@+id/abouthome_logo"
+            <Goanna.ImageView android:id="@+id/abouthome_logo"
                              android:src="@drawable/abouthome_logo"
                              android:layout_width="wrap_content"
                              android:layout_height="24dip"
@@ -30,7 +30,7 @@
                              android:layout_marginBottom="10dip"
                              android:layout_marginLeft="12dip"/>
 
-            <Gecko.TextView android:id="@+id/top_sites_title"
+            <Goanna.TextView android:id="@+id/top_sites_title"
                             android:text="@string/abouthome_top_sites_title"
                             android:layout_width="fill_parent"
                             android:layout_height="26dip"
@@ -41,10 +41,10 @@
                             android:textStyle="bold"
                             android:gravity="left|center_vertical"/>
 
-            <Gecko.TopSitesView android:id="@+id/top_sites_grid"
+            <Goanna.TopSitesView android:id="@+id/top_sites_grid"
                                 style="@style/AboutHome.Thumbnail.Grid"/>
 
-            <Gecko.PromoBox android:id="@+id/promo_box"
+            <Goanna.PromoBox android:id="@+id/promo_box"
                             android:background="@drawable/abouthome_promo_box"
                             android:layout_width="fill_parent"
                             android:layout_height="wrap_content"
@@ -83,26 +83,26 @@
                           android:layout_alignParentLeft="true"
                           android:layout_marginTop="50dip">
 
-                <Gecko.LastTabsSection android:id="@+id/last_tabs"
+                <Goanna.LastTabsSection android:id="@+id/last_tabs"
                                        android:layout_width="fill_parent"
                                        android:layout_height="wrap_content"
                                        android:visibility="gone"
-                                       gecko:title="@string/abouthome_last_tabs_title"
-                                       gecko:more_text="@string/abouthome_last_tabs_open"/>
+                                       goanna:title="@string/abouthome_last_tabs_title"
+                                       goanna:more_text="@string/abouthome_last_tabs_open"/>
 
-                <Gecko.AddonsSection android:id="@+id/recommended_addons"
+                <Goanna.AddonsSection android:id="@+id/recommended_addons"
                                      android:layout_width="fill_parent"
                                      android:layout_height="wrap_content"
                                      android:visibility="gone"
-                                     gecko:title="@string/abouthome_addons_title"
-                                     gecko:more_text="@string/abouthome_addons_browse"/>
+                                     goanna:title="@string/abouthome_addons_title"
+                                     goanna:more_text="@string/abouthome_addons_browse"/>
 
-                <Gecko.RemoteTabsSection android:id="@+id/remote_tabs"
+                <Goanna.RemoteTabsSection android:id="@+id/remote_tabs"
                                          android:layout_width="fill_parent"
                                          android:layout_height="wrap_content"
                                          android:visibility="gone"
-                                         gecko:title="@string/remote_tabs"
-                                         gecko:more_text="@string/remote_tabs_show_all"/>
+                                         goanna:title="@string/remote_tabs"
+                                         goanna:more_text="@string/remote_tabs_show_all"/>
 
             </LinearLayout>
 
@@ -110,4 +110,4 @@
 
     </LinearLayout>
 
-</org.mozilla.gecko.widget.AboutHomeView>
+</org.mozilla.goanna.widget.AboutHomeView>

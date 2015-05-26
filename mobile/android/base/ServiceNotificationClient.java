@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.content.ComponentName;
 import android.content.Context;
@@ -16,7 +16,7 @@ import android.util.Log;
  * Client for posting notifications through the NotificationService.
  */
 public class ServiceNotificationClient extends NotificationClient {
-    private static final String LOGTAG = "GeckoServiceNotificationClient";
+    private static final String LOGTAG = "GoannaServiceNotificationClient";
 
     private final ServiceConnection mConnection = new NotificationServiceConnection();
     private boolean mBound;

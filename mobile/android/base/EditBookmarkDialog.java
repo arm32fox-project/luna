@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
+import org.mozilla.goanna.db.BrowserContract.Bookmarks;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UiAsyncTask;
 
 import android.content.Context;
 import android.app.AlertDialog;
@@ -24,11 +24,11 @@ import android.widget.Toast;
 /**
  * A dialog that allows editing a bookmarks url, title, or keywords
  * <p>
- * Invoked by calling one of the {@link org.mozilla.gecko.EditBookmarkDialog.show}
+ * Invoked by calling one of the {@link org.mozilla.goanna.EditBookmarkDialog.show}
  * methods.
  */
 public class EditBookmarkDialog {
-    private static final String LOGTAG = "GeckoEditBookmarkDialog";
+    private static final String LOGTAG = "GoannaEditBookmarkDialog";
     private Context mContext;
 
     public EditBookmarkDialog(Context context) {

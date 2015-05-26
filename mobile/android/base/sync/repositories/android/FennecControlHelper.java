@@ -2,11 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories.android;
+package org.mozilla.goanna.sync.repositories.android;
 
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.db.BrowserContract.Control;
-import org.mozilla.gecko.sync.repositories.NoContentProviderException;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.db.BrowserContract.Control;
+import org.mozilla.goanna.sync.repositories.NoContentProviderException;
 
 import android.content.ContentProviderClient;
 import android.content.Context;

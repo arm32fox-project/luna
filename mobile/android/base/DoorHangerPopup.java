@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.widget.ArrowPopup;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.widget.ArrowPopup;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -21,16 +21,16 @@ import java.util.HashSet;
 import java.util.List;
 
 public class DoorHangerPopup extends ArrowPopup
-                             implements GeckoEventListener,
+                             implements GoannaEventListener,
                                         Tabs.OnTabsChangedListener,
                                         DoorHanger.OnButtonClickListener {
-    private static final String LOGTAG = "GeckoDoorHangerPopup";
+    private static final String LOGTAG = "GoannaDoorHangerPopup";
 
     // Stores a set of all active DoorHanger notifications. A DoorHanger is
     // uniquely identified by its tabId and value.
     private HashSet<DoorHanger> mDoorHangers;
 
-    DoorHangerPopup(GeckoApp activity, View anchor) {
+    DoorHangerPopup(GoannaApp activity, View anchor) {
         super(activity, anchor);
 
         mDoorHangers = new HashSet<DoorHanger>();
@@ -47,14 +47,14 @@ public class DoorHangerPopup extends ArrowPopup
     }
 
     @Override
-    public void handleMessage(String event, JSONObject geckoObject) {
+    public void handleMessage(String event, JSONObject goannaObject) {
         try {
             if (event.equals("Doorhanger:Add")) {
-                final int tabId = geckoObject.getInt("tabID");
-                final String value = geckoObject.getString("value");
-                final String message = geckoObject.getString("message");
-                final JSONArray buttons = geckoObject.getJSONArray("buttons");
-                final JSONObject options = geckoObject.getJSONObject("options");
+                final int tabId = goannaObject.getInt("tabID");
+                final String value = goannaObject.getString("value");
+                final String message = goannaObject.getString("message");
+                final JSONArray buttons = goannaObject.getJSONArray("buttons");
+                final JSONObject options = goannaObject.getJSONObject("options");
 
                 mActivity.runOnUiThread(new Runnable() {
                     @Override
@@ -63,8 +63,8 @@ public class DoorHangerPopup extends ArrowPopup
                     }
                 });
             } else if (event.equals("Doorhanger:Remove")) {
-                final int tabId = geckoObject.getInt("tabID");
-                final String value = geckoObject.getString("value");
+                final int tabId = goannaObject.getInt("tabID");
+                final String value = goannaObject.getString("value");
 
                 mActivity.runOnUiThread(new Runnable() {
                     @Override
@@ -191,8 +191,8 @@ public class DoorHangerPopup extends ArrowPopup
             Log.e(LOGTAG, "Error creating onClick response", e);
         }
 
-        GeckoEvent e = GeckoEvent.createBroadcastEvent("Doorhanger:Reply", response.toString());
-        GeckoAppShell.sendEventToGecko(e);
+        GoannaEvent e = GoannaEvent.createBroadcastEvent("Doorhanger:Reply", response.toString());
+        GoannaAppShell.sendEventToGoanna(e);
         removeDoorHanger(dh);
         updatePopup();
     }
@@ -307,11 +307,11 @@ public class DoorHangerPopup extends ArrowPopup
     }
 
     private void registerEventListener(String event) {
-        GeckoAppShell.getEventDispatcher().registerEventListener(event, this);
+        GoannaAppShell.getEventDispatcher().registerEventListener(event, this);
     }
 
     private void unregisterEventListener(String event) {
-        GeckoAppShell.getEventDispatcher().unregisterEventListener(event, this);
+        GoannaAppShell.getEventDispatcher().unregisterEventListener(event, this);
     }
 
     @Override

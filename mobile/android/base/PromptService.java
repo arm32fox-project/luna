@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.util.GeckoEventResponder;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.util.GoannaEventResponder;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import org.json.JSONObject;
 
@@ -14,20 +14,20 @@ import android.content.Context;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-public class PromptService implements GeckoEventResponder {
-    private static final String LOGTAG = "GeckoPromptService";
+public class PromptService implements GoannaEventResponder {
+    private static final String LOGTAG = "GoannaPromptService";
 
     private final ConcurrentLinkedQueue<String> mPromptQueue;
     private final Context mContext;
 
     public PromptService(Context context) {
-        GeckoAppShell.getEventDispatcher().registerEventListener("Prompt:Show", this);
+        GoannaAppShell.getEventDispatcher().registerEventListener("Prompt:Show", this);
         mPromptQueue = new ConcurrentLinkedQueue<String>();
         mContext = context;
     }
 
     void destroy() {
-        GeckoAppShell.getEventDispatcher().unregisterEventListener("Prompt:Show", this);
+        GoannaAppShell.getEventDispatcher().unregisterEventListener("Prompt:Show", this);
     }
 
     public void show(final String aTitle, final String aText, final Prompt.PromptListItem[] aMenuList,
@@ -47,7 +47,7 @@ public class PromptService implements GeckoEventResponder {
         });
     }
 
-    // GeckoEventListener implementation
+    // GoannaEventListener implementation
     @Override
     public void handleMessage(String event, final JSONObject message) {
         // The dialog must be created on the UI thread.
@@ -59,7 +59,7 @@ public class PromptService implements GeckoEventResponder {
                 if (isAsync) {
                     p = new Prompt(mContext, new Prompt.PromptCallback() {
                         public void onPromptFinished(String jsonResult) {
-                            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Prompt:Reply", jsonResult));
+                            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Prompt:Reply", jsonResult));
                         }
                     });
                 } else {
@@ -70,7 +70,7 @@ public class PromptService implements GeckoEventResponder {
         });
     }
 
-    // GeckoEventResponder implementation
+    // GoannaEventResponder implementation
     @Override
     public String getResponse(final JSONObject origMessage) {
         if (origMessage.optBoolean("async")) {
@@ -81,7 +81,7 @@ public class PromptService implements GeckoEventResponder {
         // response we provide for that message
         String result;
         while (null == (result = mPromptQueue.poll())) {
-            GeckoAppShell.processNextNativeEvent(true);
+            GoannaAppShell.processNextNativeEvent(true);
         }
         return result;
     }

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.content.Intent;
 import android.os.Bundle;
@@ -26,8 +26,8 @@ import android.view.Display;
 import java.net.URL;
 import java.io.File;
 
-public class WebAppImpl extends GeckoApp {
-    private static final String LOGTAG = "GeckoWebAppImpl";
+public class WebAppImpl extends GoannaApp {
+    private static final String LOGTAG = "GoannaWebAppImpl";
 
     private URL mOrigin;
     private TextView mTitlebarText = null;
@@ -49,7 +49,7 @@ public class WebAppImpl extends GeckoApp {
         super.onCreate(savedInstanceState);
 
         mSplashscreen = (RelativeLayout) findViewById(R.id.splashscreen);
-        if (!GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
+        if (!GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
             overridePendingTransition(R.anim.grow_fade_in_center, android.R.anim.fade_out);
             showSplash();
         }
@@ -84,12 +84,12 @@ public class WebAppImpl extends GeckoApp {
     @Override
     protected void loadStartupTab(String uri) {
         String action = getIntent().getAction();
-        if (GeckoApp.ACTION_WEBAPP_PREFIX.equals(action)) {
+        if (GoannaApp.ACTION_WEBAPP_PREFIX.equals(action)) {
             // This action assumes the uri is not an installed WebApp. We will
             // use the WebAppAllocator to register the uri with an Android
             // process so it can run chromeless.
             int index = WebAppAllocator.getInstance(this).findAndAllocateIndex(uri, "App", (Bitmap) null);
-            Intent appIntent = GeckoAppShell.getWebAppIntent(index, uri);
+            Intent appIntent = GoannaAppShell.getWebAppIntent(index, uri);
             startActivity(appIntent);
             finish();
         }
@@ -215,8 +215,8 @@ public class WebAppImpl extends GeckoApp {
     }
 
     @Override
-    protected void geckoConnected() {
-        super.geckoConnected();
+    protected void goannaConnected() {
+        super.goannaConnected();
         mLayerView.setOverScrollMode(View.OVER_SCROLL_NEVER);
     }
 };

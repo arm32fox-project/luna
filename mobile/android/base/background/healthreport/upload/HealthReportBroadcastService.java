@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.healthreport.upload;
+package org.mozilla.goanna.background.healthreport.upload;
 
-import org.mozilla.gecko.background.BackgroundService;
-import org.mozilla.gecko.background.common.GlobalConstants;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.healthreport.HealthReportConstants;
+import org.mozilla.goanna.background.BackgroundService;
+import org.mozilla.goanna.background.common.GlobalConstants;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.healthreport.HealthReportConstants;
 
 import android.app.AlarmManager;
 import android.app.PendingIntent;
@@ -101,8 +101,8 @@ public class HealthReportBroadcastService extends BackgroundService {
     if (Intent.ACTION_BOOT_COMPLETED.equals(action) ||
         Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE.equals(action)) {
       BackgroundService.reflectContextToFennec(this,
-          GlobalConstants.GECKO_PREFERENCES_CLASS,
-          GlobalConstants.GECKO_BROADCAST_HEALTHREPORT_UPLOAD_PREF_METHOD);
+          GlobalConstants.GOANNA_PREFERENCES_CLASS,
+          GlobalConstants.GOANNA_BROADCAST_HEALTHREPORT_UPLOAD_PREF_METHOD);
       return;
     }
 

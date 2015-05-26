@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.animation;
+package org.mozilla.goanna.animation;
 
 import android.support.v4.view.ViewCompat;
 import android.os.Build;
@@ -19,7 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PropertyAnimator implements Runnable {
-    private static final String LOGTAG = "GeckoPropertyAnimator";
+    private static final String LOGTAG = "GoannaPropertyAnimator";
 
     public static enum Property {
         ALPHA,

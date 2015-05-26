@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -11,14 +11,14 @@ import android.os.Bundle;
 import android.util.Log;
 
 public class Restarter extends Activity {
-    private static final String LOGTAG = "GeckoRestarter";
+    private static final String LOGTAG = "GoannaRestarter";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         Log.i(LOGTAG, "Trying to restart " + AppConstants.MOZ_APP_NAME);
         try {
             int countdown = 40;
-            while (GeckoAppShell.checkForGeckoProcs() &&  --countdown > 0) {
+            while (GoannaAppShell.checkForGoannaProcs() &&  --countdown > 0) {
                 // Wait for the old process to die before we continue
                 try {
                     Thread.sleep(100);
@@ -27,10 +27,10 @@ public class Restarter extends Activity {
 
             if (countdown <= 0) {
                 // if the countdown expired, something is hung
-                GeckoAppShell.killAnyZombies();
+                GoannaAppShell.killAnyZombies();
                 countdown = 10;
                 // wait for the kill to take effect
-                while (GeckoAppShell.checkForGeckoProcs() &&  --countdown > 0) {
+                while (GoannaAppShell.checkForGoannaProcs() &&  --countdown > 0) {
                     try {
                         Thread.sleep(100);
                     } catch (InterruptedException ie) {}
@@ -54,7 +54,7 @@ public class Restarter extends Activity {
             Log.i(LOGTAG, e.toString());
         }
         // Give the new process time to start before we die
-        GeckoAppShell.waitForAnotherGeckoProc();
+        GoannaAppShell.waitForAnotherGoannaProc();
         System.exit(0);
     }
 }

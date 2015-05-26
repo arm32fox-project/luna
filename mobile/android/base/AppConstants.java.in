@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 /**
  * A collection of constants that pertain to the build and runtime state of the
@@ -13,7 +13,7 @@ package org.mozilla.gecko;
  * other things.
  *
  * See also SysInfo.java, which includes some of the values available from
- * nsSystemInfo inside Gecko.
+ * nsSystemInfo inside Goanna.
  */
 public class AppConstants {
     public static final String ANDROID_PACKAGE_NAME = "@ANDROID_PACKAGE_NAME@";
@@ -49,12 +49,12 @@ public class AppConstants {
         " (Android; rv:" + AppConstants.MOZ_APP_VERSION + ")";
 
     public static final String USER_AGENT_FENNEC_MOBILE = "Mozilla/5.0 (Android; Mobile; rv:" +
-        AppConstants.MOZ_APP_VERSION + ") Gecko/" +
+        AppConstants.MOZ_APP_VERSION + ") Goanna/" +
         AppConstants.MOZ_APP_VERSION + " Firefox/" +
         AppConstants.MOZ_APP_VERSION;
 
     public static final String USER_AGENT_FENNEC_TABLET = "Mozilla/5.0 (Android; Tablet; rv:" +
-        AppConstants.MOZ_APP_VERSION + ") Gecko/" +
+        AppConstants.MOZ_APP_VERSION + ") Goanna/" +
         AppConstants.MOZ_APP_VERSION + " Firefox/" +
         AppConstants.MOZ_APP_VERSION;
 

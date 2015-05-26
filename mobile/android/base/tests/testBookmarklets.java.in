@@ -19,7 +19,7 @@ public class testBookmarklets extends PixelTest {
         final String js = "javascript:alert(12 + .34)";
         boolean alerted;
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // load a standard page so bookmarklets work
         loadAndPaint(url);

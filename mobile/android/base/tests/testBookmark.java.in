@@ -34,7 +34,7 @@ public class testBookmark extends PixelTest  {
 
         mClassLoader = getActivity().getApplicationContext().getClassLoader();
         try {
-            Class browserDB = mClassLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
+            Class browserDB = mClassLoader.loadClass("org.mozilla.goanna.db.BrowserDB");
             mAddBookmark = browserDB.getMethod("addBookmark", ContentResolver.class, String.class, String.class);
             mRemoveBookmark = browserDB.getMethod("removeBookmarksWithURL", ContentResolver.class, String.class);
             mIsBookmarked = browserDB.getMethod("isBookmark", ContentResolver.class, String.class);
@@ -67,7 +67,7 @@ public class testBookmark extends PixelTest  {
     public void runAwesomeScreenTest() {
         final long PAINT_CLEAR_DELAY = 1000;  // milliseconds
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // Open the bookmark list and check the root folder view
         ListView bookmarksList = getBookmarksList(ABOUT_HOME_URL, 4);

@@ -4,15 +4,15 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
-                  xmlns:gecko="http://schemas.android.com/apk/res-auto"
+                  xmlns:goanna="http://schemas.android.com/apk/res-auto"
                   android:enabled="false">
 
     <PreferenceCategory android:title="@string/pref_category_general">
 
-        <org.mozilla.gecko.LinkPreference android:title="@string/pref_about_firefox"
+        <org.mozilla.goanna.LinkPreference android:title="@string/pref_about_firefox"
                                           url="about:" />
 
-        <org.mozilla.gecko.SyncPreference android:title="@string/pref_sync"
+        <org.mozilla.goanna.SyncPreference android:title="@string/pref_sync"
                                           android:persistent="false" />
 
         <CheckBoxPreference android:key="android.not_a_preference.restoreSession"
@@ -26,11 +26,11 @@
                         android:entryValues="@array/pref_update_autodownload_values"
                         android:persistent="false" />
 
-        <org.mozilla.gecko.AndroidImportPreference
+        <org.mozilla.goanna.AndroidImportPreference
            android:key="android.not_a_preference.import_android"
-           gecko:entries="@array/pref_import_android_entries"
-           gecko:entryKeys="@array/pref_import_android_keys"
-           gecko:initialValues="@array/pref_import_android_values"
+           goanna:entries="@array/pref_import_android_entries"
+           goanna:entryKeys="@array/pref_import_android_keys"
+           goanna:initialValues="@array/pref_import_android_values"
            android:title="@string/pref_import_android"
            android:positiveButtonText="@string/bookmarkhistory_button_import"
            android:negativeButtonText="@string/button_cancel"
@@ -51,7 +51,7 @@
                         android:entryValues="@array/pref_plugins_values"
                         android:persistent="false" />
 
-        <org.mozilla.gecko.FontSizePreference
+        <org.mozilla.goanna.FontSizePreference
                         android:key="font.size.inflation.minTwips"
                         android:title="@string/pref_text_size"
                         android:positiveButtonText="@string/pref_font_size_set"
@@ -73,15 +73,15 @@
                         android:entryValues="@array/pref_cookies_values"
                         android:persistent="false" />
 
-        <!-- keys prefixed with "android.not_a_preference." are not synced with Gecko -->
-        <org.mozilla.gecko.PrivateDataPreference
+        <!-- keys prefixed with "android.not_a_preference." are not synced with Goanna -->
+        <org.mozilla.goanna.PrivateDataPreference
                             android:key="android.not_a_preference.privacy.clear"
                             android:title="@string/pref_clear_private_data"
                             android:persistent="true"
                             android:positiveButtonText="@string/button_clear_data"
-                            gecko:entries="@array/pref_private_data_entries"
-                            gecko:entryKeys="@array/pref_private_data_keys"
-                            gecko:initialValues="@array/pref_private_data_values" />
+                            goanna:entries="@array/pref_private_data_entries"
+                            goanna:entryKeys="@array/pref_private_data_keys"
+                            goanna:initialValues="@array/pref_private_data_values" />
 
         <ListPreference android:key="privacy.donottrackheader"
                         android:title="@string/pref_donottrack_menu"
@@ -112,7 +112,7 @@
 
         <PreferenceScreen android:key="android.not_a_preference.datareporting.preferences"
                           android:title="@string/pref_category_datareporting"
-                          android:fragment="org.mozilla.gecko.GeckoPreferenceFragment" >
+                          android:fragment="org.mozilla.goanna.GoannaPreferenceFragment" >
 
             <extra android:name="resource"
                    android:value="preferences_datareporting" />

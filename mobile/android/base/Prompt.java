@@ -3,11 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.util.GeckoEventResponder;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.widget.DateTimePicker;
+import org.mozilla.goanna.util.GoannaEventResponder;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.widget.DateTimePicker;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -53,7 +53,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
 public class Prompt implements OnClickListener, OnCancelListener, OnItemClickListener {
-    private static final String LOGTAG = "GeckoPromptService";
+    private static final String LOGTAG = "GoannaPromptService";
 
     private String[] mButtons;
     private PromptInput[] mInputs;
@@ -117,7 +117,7 @@ public class Prompt implements OnClickListener, OnCancelListener, OnItemClickLis
     public void show(String aTitle, String aText, PromptListItem[] aMenuList, boolean aMultipleSelection) {
         ThreadUtils.assertOnUiThread();
 
-        GeckoAppShell.getLayerView().abortPanning();
+        GoannaAppShell.getLayerView().abortPanning();
 
         AlertDialog.Builder builder = new AlertDialog.Builder(mContext);
         if (!TextUtils.isEmpty(aTitle)) {
@@ -283,8 +283,8 @@ public class Prompt implements OnClickListener, OnCancelListener, OnItemClickLis
             mPromptQueue.offer(aReturn.toString());
         }
 
-        // poke the Gecko thread in case it's waiting for new events
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createNoOpEvent());
+        // poke the Goanna thread in case it's waiting for new events
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createNoOpEvent());
 
         if (mCallback != null) {
             mCallback.onPromptFinished(aReturn.toString());
@@ -292,14 +292,14 @@ public class Prompt implements OnClickListener, OnCancelListener, OnItemClickLis
         mGuid = null;
     }
 
-    private void processMessage(JSONObject geckoObject) {
-        String title = getSafeString(geckoObject, "title");
-        String text = getSafeString(geckoObject, "text");
-        mGuid = getSafeString(geckoObject, "guid");
+    private void processMessage(JSONObject goannaObject) {
+        String title = getSafeString(goannaObject, "title");
+        String text = getSafeString(goannaObject, "text");
+        mGuid = getSafeString(goannaObject, "guid");
 
-        mButtons = getStringArray(geckoObject, "buttons");
+        mButtons = getStringArray(goannaObject, "buttons");
 
-        JSONArray inputs = getSafeArray(geckoObject, "inputs");
+        JSONArray inputs = getSafeArray(goannaObject, "inputs");
         mInputs = new PromptInput[inputs.length()];
         for (int i = 0; i < mInputs.length; i++) {
             try {
@@ -307,9 +307,9 @@ public class Prompt implements OnClickListener, OnCancelListener, OnItemClickLis
             } catch(Exception ex) { }
         }
 
-        PromptListItem[] menuitems = getListItemArray(geckoObject, "listitems");
-        mSelected = getBooleanArray(geckoObject, "selected");
-        boolean multiple = geckoObject.optBoolean("multiple");
+        PromptListItem[] menuitems = getListItemArray(goannaObject, "listitems");
+        mSelected = getBooleanArray(goannaObject, "selected");
+        boolean multiple = goannaObject.optBoolean("multiple");
         show(title, text, menuitems, multiple);
     }
 

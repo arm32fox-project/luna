@@ -3,11 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
 public class HealthReportConstants {
   public static final String HEALTH_AUTHORITY = "@ANDROID_PACKAGE_NAME@.health";
-  public static final String GLOBAL_LOG_TAG = "GeckoHealth";
+  public static final String GLOBAL_LOG_TAG = "GoannaHealth";
 
   /**
    * The earliest allowable value for the last ping time, corresponding to May 2nd 2013.

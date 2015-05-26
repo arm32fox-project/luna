@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.util.ActivityResultHandler;
-import org.mozilla.gecko.util.ActivityResultHandlerMap;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.goanna.util.ActivityResultHandler;
+import org.mozilla.goanna.util.ActivityResultHandlerMap;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.GoannaEventListener;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -29,8 +29,8 @@ import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 
-public class ActivityHandlerHelper implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoActivityHandlerHelper";
+public class ActivityHandlerHelper implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaActivityHandlerHelper";
 
     private final ConcurrentLinkedQueue<String> mFilePickerResult;
 
@@ -49,8 +49,8 @@ public class ActivityHandlerHelper implements GeckoEventListener {
         mFilePickerResult = new ConcurrentLinkedQueue<String>() {
             @Override public boolean offer(String e) {
                 if (super.offer(e)) {
-                    // poke the Gecko thread in case it's waiting for new events
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createNoOpEvent());
+                    // poke the Goanna thread in case it's waiting for new events
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createNoOpEvent());
                     return true;
                 }
                 return false;
@@ -61,7 +61,7 @@ public class ActivityHandlerHelper implements GeckoEventListener {
         mAwesomebarResultHandler = new AwesomebarResultHandler();
         mCameraImageResultHandler = new CameraImageResultHandler(mFilePickerResult);
         mCameraVideoResultHandler = new CameraVideoResultHandler(mFilePickerResult);
-        GeckoAppShell.getEventDispatcher().registerEventListener("FilePicker:Show", this);
+        GoannaAppShell.getEventDispatcher().registerEventListener("FilePicker:Show", this);
     }
 
     @Override
@@ -73,18 +73,18 @@ public class ActivityHandlerHelper implements GeckoEventListener {
             if ("mimeType".equals(mode))
                 mimeType = message.optString("mimeType");
             else if ("extension".equals(mode))
-                mimeType = GeckoAppShell.getMimeTypeFromExtensions(message.optString("extensions"));
+                mimeType = GoannaAppShell.getMimeTypeFromExtensions(message.optString("extensions"));
 
             Log.i(LOGTAG, "Mime: " + mimeType);
 
-            showFilePickerAsync(GeckoAppShell.getGeckoInterface().getActivity(), mimeType, new FileResultHandler() {
+            showFilePickerAsync(GoannaAppShell.getGoannaInterface().getActivity(), mimeType, new FileResultHandler() {
                 public void gotFile(String filename) {
                     try {
                         message.put("file", filename);
                     } catch (JSONException ex) {
                         Log.i(LOGTAG, "Can't add filename to message " + filename);
                     }
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent(
                         "FilePicker:Result", message.toString()));
                 }
             });
@@ -101,7 +101,7 @@ public class ActivityHandlerHelper implements GeckoEventListener {
 
     private int addIntentActivitiesToList(Context context, Intent intent, ArrayList<Prompt.PromptListItem> items, ArrayList<Intent> aIntents) {
         PackageManager pm = context.getPackageManager();
-        List<ResolveInfo> lri = pm.queryIntentActivityOptions(GeckoAppShell.getGeckoInterface().getActivity().getComponentName(), null, intent, 0);
+        List<ResolveInfo> lri = pm.queryIntentActivityOptions(GoannaAppShell.getGoannaInterface().getActivity().getComponentName(), null, intent, 0);
 
         if (lri == null) {
             return 0;
@@ -252,7 +252,7 @@ public class ActivityHandlerHelper implements GeckoEventListener {
             return intents.get(0);
         }
 
-        final PromptService ps = GeckoAppShell.getGeckoInterface().getPromptService();
+        final PromptService ps = GoannaAppShell.getGoannaInterface().getPromptService();
         final String title = getFilePickerTitle(context, aMimeType);
 
         // Runnable has to be called to show an intent-like
@@ -309,7 +309,7 @@ public class ActivityHandlerHelper implements GeckoEventListener {
 
         String filePickerResult;
         while (null == (filePickerResult = mFilePickerResult.poll())) {
-            GeckoAppShell.processNextNativeEvent(true);
+            GoannaAppShell.processNextNativeEvent(true);
         }
         return filePickerResult;
     }

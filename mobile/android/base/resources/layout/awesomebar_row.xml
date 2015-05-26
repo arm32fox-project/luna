@@ -8,7 +8,7 @@
                 android:layout_height="@dimen/awesomebar_row_height"
                 android:padding="6dip">
 
-    <Gecko.FaviconView android:id="@+id/favicon"
+    <Goanna.FaviconView android:id="@+id/favicon"
                        android:layout_width="@dimen/favicon_bg"
                        android:layout_height="@dimen/favicon_bg"
                        android:layout_marginLeft="6dip"

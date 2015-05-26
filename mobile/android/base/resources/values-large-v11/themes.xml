@@ -6,10 +6,10 @@
 <resources>
 
     <!--
-        Base application theme. This could be overridden by GeckoBaseTheme
+        Base application theme. This could be overridden by GoannaBaseTheme
         in other res/values-XXX/themes.xml.
     -->
-    <style name="GeckoBase" parent="@android:style/Theme.Holo.Light">
+    <style name="GoannaBase" parent="@android:style/Theme.Holo.Light">
         <item name="android:windowContentOverlay">@null</item>
         <item name="android:windowActionBar">false</item>
         <item name="android:windowNoTitle">true</item>

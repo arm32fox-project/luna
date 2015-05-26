@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
 import java.util.Iterator;
 
 import org.json.JSONObject;
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.SysInfo;
-import org.mozilla.gecko.background.common.log.Logger;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.SysInfo;
+import org.mozilla.goanna.background.common.log.Logger;
 
 import android.content.ContentProvider;
 import android.content.ContentProviderClient;
@@ -20,7 +20,7 @@ import android.content.Context;
  * Construct a HealthReport environment from the current running system.
  */
 public class EnvironmentBuilder {
-  private static final String LOG_TAG = "GeckoEnvBuilder";
+  private static final String LOG_TAG = "GoannaEnvBuilder";
 
   public static ContentProviderClient getContentProviderClient(Context context) {
     ContentResolver cr = context.getContentResolver();
@@ -79,11 +79,11 @@ public class EnvironmentBuilder {
 
     e.profileCreation = (int) (info.getProfileCreationTime() / HealthReportConstants.MILLISECONDS_PER_DAY);
 
-    // Corresponds to Gecko pref "extensions.blocklist.enabled".
+    // Corresponds to Goanna pref "extensions.blocklist.enabled".
     e.isBlocklistEnabled = (info.isBlocklistEnabled() ? 1 : 0);
 
-    // Corresponds to one of two Gecko telemetry prefs. We reflect these into
-    // GeckoPreferences as "datareporting.telemetry.enabled".
+    // Corresponds to one of two Goanna telemetry prefs. We reflect these into
+    // GoannaPreferences as "datareporting.telemetry.enabled".
     e.isTelemetryEnabled = (info.isTelemetryEnabled() ? 1 : 0);
 
     e.extensionCount = 0;

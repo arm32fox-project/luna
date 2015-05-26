@@ -18,7 +18,7 @@
  * Mozilla: Changing the package.
  */
 //package android.widget;
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
 import android.content.ComponentName;
 import android.content.Context;

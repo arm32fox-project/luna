@@ -12,7 +12,7 @@ add_task(function test_JNI() {
   let jni = null;
   try {
     jni = new JNI();
-    let cls = jni.findClass("org/mozilla/gecko/GeckoAppShell");
+    let cls = jni.findClass("org/mozilla/goanna/GoannaAppShell");
     let method = jni.getStaticMethodID(cls, "getPreferredIconSize", "()I");
     iconSize = jni.callStaticIntMethod(cls, method);
   } finally {

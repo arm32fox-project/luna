@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import org.json.JSONObject;
 
@@ -31,8 +31,8 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class Tabs implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoTabs";
+public class Tabs implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaTabs";
 
     // mOrder and mTabs are always of the same cardinality, and contain the same values.
     private final CopyOnWriteArrayList<Tab> mOrder = new CopyOnWriteArrayList<Tab>();
@@ -129,7 +129,7 @@ public class Tabs implements GeckoEventListener {
     }
 
     // Ideally, this would remove the reference to the activity once it's
-    // detached; however, we have lifecycle issues with GeckoApp and Tabs that
+    // detached; however, we have lifecycle issues with GoannaApp and Tabs that
     // requires us to keep it around (see
     // https://bugzilla.mozilla.org/show_bug.cgi?id=844407).
     public synchronized void detachFromActivity(Activity activity) {
@@ -237,8 +237,8 @@ public class Tabs implements GeckoEventListener {
             notifyListeners(oldTab, TabEvents.UNSELECTED);
         }
 
-        // Pass a message to Gecko to update tab state in BrowserApp.
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Selected", String.valueOf(tab.getId())));
+        // Pass a message to Goanna to update tab state in BrowserApp.
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Tab:Selected", String.valueOf(tab.getId())));
         return tab;
     }
 
@@ -274,7 +274,7 @@ public class Tabs implements GeckoEventListener {
      * Gets the selected tab.
      *
      * The selected tab can be null if we're doing a session restore after a
-     * crash and Gecko isn't ready yet.
+     * crash and Goanna isn't ready yet.
      *
      * @return the selected tab, or null if no tabs exist
      */
@@ -316,8 +316,8 @@ public class Tabs implements GeckoEventListener {
 
         tab.onDestroy();
 
-        // Pass a message to Gecko to update tab state in BrowserApp
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Closed", String.valueOf(tabId)));
+        // Pass a message to Goanna to update tab state in BrowserApp
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Tab:Closed", String.valueOf(tabId)));
     }
 
     /** Return the tab that will be selected by default after this one is closed */
@@ -356,12 +356,12 @@ public class Tabs implements GeckoEventListener {
     }
 
     /**
-     * @return the current GeckoApp instance, or throws if
+     * @return the current GoannaApp instance, or throws if
      *         we aren't correctly initialized.
      */
     private synchronized android.app.Activity getActivity() {
         if (mActivity == null) {
-            throw new IllegalStateException("Tabs not initialized with a GeckoApp instance.");
+            throw new IllegalStateException("Tabs not initialized with a GoannaApp instance.");
         }
         return mActivity;
     }
@@ -379,7 +379,7 @@ public class Tabs implements GeckoEventListener {
        return Tabs.TabsInstanceHolder.INSTANCE;
     }
 
-    // GeckoEventListener implementation
+    // GoannaEventListener implementation
 
     @Override
     public void handleMessage(String event, JSONObject message) {
@@ -440,12 +440,12 @@ public class Tabs implements GeckoEventListener {
                 notifyListeners(tab, TabEvents.READER_ENABLED);
             } else if (event.equals("Content:StateChange")) {
                 int state = message.getInt("state");
-                if ((state & GeckoAppShell.WPL_STATE_IS_NETWORK) != 0) {
-                    if ((state & GeckoAppShell.WPL_STATE_START) != 0) {
+                if ((state & GoannaAppShell.WPL_STATE_IS_NETWORK) != 0) {
+                    if ((state & GoannaAppShell.WPL_STATE_START) != 0) {
                         boolean showProgress = message.getBoolean("showProgress");
                         tab.handleDocumentStart(showProgress, message.getString("uri"));
                         notifyListeners(tab, Tabs.TabEvents.START, showProgress);
-                    } else if ((state & GeckoAppShell.WPL_STATE_STOP) != 0) {
+                    } else if ((state & GoannaAppShell.WPL_STATE_STOP) != 0) {
                         tab.handleDocumentStop(message.getBoolean("success"));
                         notifyListeners(tab, Tabs.TabEvents.STOP);
                     }
@@ -595,7 +595,7 @@ public class Tabs implements GeckoEventListener {
     }
 
     private void registerEventListener(String event) {
-        GeckoAppShell.getEventDispatcher().registerEventListener(event, this);
+        GoannaAppShell.getEventDispatcher().registerEventListener(event, this);
     }
 
     /**
@@ -659,7 +659,7 @@ public class Tabs implements GeckoEventListener {
                 int tabId = getNextTabId();
                 args.put("tabID", tabId);
 
-                // The URL is updated for the tab once Gecko responds with the
+                // The URL is updated for the tab once Goanna responds with the
                 // Tab:Added message. We can preliminarily set the tab's URL as
                 // long as it's a valid URI.
                 String tabUrl = (url != null && Uri.parse(url).getScheme() != null) ? url : null;
@@ -671,7 +671,7 @@ public class Tabs implements GeckoEventListener {
             Log.w(LOGTAG, "Error building JSON arguments for loadUrl.", e);
         }
 
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Load", args.toString()));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Tab:Load", args.toString()));
 
         if ((added != null) && !delayLoad && !background) {
             selectTab(added.getId());

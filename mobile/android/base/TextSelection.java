@@ -2,14 +2,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.gfx.Layer;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.util.EventDispatcher;
-import org.mozilla.gecko.util.FloatUtils;
-import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.gfx.Layer;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.util.EventDispatcher;
+import org.mozilla.goanna.util.FloatUtils;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -18,8 +18,8 @@ import org.json.JSONObject;
 import android.util.Log;
 import android.view.View;
 
-class TextSelection extends Layer implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoTextSelection";
+class TextSelection extends Layer implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaTextSelection";
 
     private final TextSelectionHandle mStartHandle;
     private final TextSelectionHandle mMiddleHandle;
@@ -34,7 +34,7 @@ class TextSelection extends Layer implements GeckoEventListener {
                   TextSelectionHandle middleHandle,
                   TextSelectionHandle endHandle,
                   EventDispatcher eventDispatcher,
-                  GeckoApp activity) {
+                  GoannaApp activity) {
         mStartHandle = startHandle;
         mMiddleHandle = middleHandle;
         mEndHandle = endHandle;
@@ -82,12 +82,12 @@ class TextSelection extends Layer implements GeckoEventListener {
                         mViewLeft = 0.0f;
                         mViewTop = 0.0f;
                         mViewZoom = 0.0f;
-                        LayerView layerView = GeckoAppShell.getLayerView();
+                        LayerView layerView = GoannaAppShell.getLayerView();
                         if (layerView != null) {
                             layerView.addLayer(TextSelection.this);
                         }
                     } else if (event.equals("TextSelection:HideHandles")) {
-                        LayerView layerView = GeckoAppShell.getLayerView();
+                        LayerView layerView = GoannaAppShell.getLayerView();
                         if (layerView != null) {
                             layerView.removeLayer(TextSelection.this);
                         }
@@ -105,7 +105,7 @@ class TextSelection extends Layer implements GeckoEventListener {
 
                             TextSelectionHandle handle = getHandle(position.getString("handle"));
                             handle.setVisibility(position.getBoolean("hidden") ? View.GONE : View.VISIBLE);
-                            handle.positionFromGecko(left, top, rtl);
+                            handle.positionFromGoanna(left, top, rtl);
                         }
                     }
                 } catch (JSONException e) {

@@ -3,19 +3,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.AwesomeBar.ContextMenuSubject;
-import org.mozilla.gecko.db.BrowserContract.Combined;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.db.BrowserDB.URLColumns;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.StringUtils;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
-import org.mozilla.gecko.widget.FaviconView;
+import org.mozilla.goanna.AwesomeBar.ContextMenuSubject;
+import org.mozilla.goanna.db.BrowserContract.Combined;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.db.BrowserDB.URLColumns;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.util.GamepadUtils;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.StringUtils;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UiAsyncTask;
+import org.mozilla.goanna.widget.FaviconView;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -57,8 +57,8 @@ import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.List;
 
-public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
-    public static final String LOGTAG = "GeckoAllPagesTab";
+public class AllPagesTab extends AwesomeBarTab implements GoannaEventListener {
+    public static final String LOGTAG = "GoannaAllPagesTab";
     private static final String TAG = "allPages";
 
     private static final int SUGGESTION_TIMEOUT = 3000;
@@ -96,7 +96,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
         mSearchEngines = new ArrayList<SearchEngine>();
 
         registerEventListener("SearchEngines:Data");
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("SearchEngines:Get", null));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("SearchEngines:Get", null));
 
         mHandler = new AllPagesHandler();
     }
@@ -672,7 +672,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
 
     private void showSuggestionsOptIn() {
         mSuggestionsOptInPrompt = LayoutInflater.from(mContext).inflate(R.layout.awesomebar_suggestion_prompt, (LinearLayout)getView(), false);
-        GeckoTextView promptText = (GeckoTextView) mSuggestionsOptInPrompt.findViewById(R.id.suggestions_prompt_title);
+        GoannaTextView promptText = (GoannaTextView) mSuggestionsOptInPrompt.findViewById(R.id.suggestions_prompt_title);
         promptText.setText(getResources().getString(R.string.suggestions_prompt, mSearchEngines.get(0).name));
         Tab tab = Tabs.getInstance().getSelectedTab();
         if (tab != null)
@@ -709,7 +709,7 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
         // Make suggestions appear immediately after the user opts in
         primeSuggestions();
 
-        // Pref observer in gecko will also set prompted = true
+        // Pref observer in goanna will also set prompted = true
         PrefsHelper.setPref("browser.search.suggest.enabled", enabled);
 
         TranslateAnimation anim1 = new TranslateAnimation(0, mSuggestionsOptInPrompt.getWidth(), 0, 0);
@@ -831,11 +831,11 @@ public class AllPagesTab extends AwesomeBarTab implements GeckoEventListener {
     }
 
     private void registerEventListener(String event) {
-        GeckoAppShell.getEventDispatcher().registerEventListener(event, this);
+        GoannaAppShell.getEventDispatcher().registerEventListener(event, this);
     }
 
     private void unregisterEventListener(String event) {
-        GeckoAppShell.getEventDispatcher().unregisterEventListener(event, this);
+        GoannaAppShell.getEventDispatcher().unregisterEventListener(event, this);
     }
 
     private List<String> getUrlsWithoutFavicon() {

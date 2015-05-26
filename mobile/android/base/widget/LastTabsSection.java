@@ -3,18 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.Favicons;
-import org.mozilla.gecko.GeckoProfile;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.SessionParser;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
-import org.mozilla.gecko.widget.FaviconView;
+import org.mozilla.goanna.Favicons;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.SessionParser;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.util.GamepadUtils;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UiAsyncTask;
+import org.mozilla.goanna.widget.FaviconView;
 
 import android.content.ContentResolver;
 import android.content.Context;
@@ -51,7 +51,7 @@ public class LastTabsSection extends AboutHomeSection {
         new UiAsyncTask<Void, Void, ArrayList<TabInfo>>(ThreadUtils.getBackgroundHandler()) {
             @Override
             protected ArrayList<TabInfo> doInBackground(Void... params) {
-                String jsonString = GeckoProfile.get(mContext).readSessionFile(true);
+                String jsonString = GoannaProfile.get(mContext).readSessionFile(true);
                 if (jsonString == null) {
                     // no previous session data
                     return null;

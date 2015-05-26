@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.mozglue;
+package org.mozilla.goanna.mozglue;
 
 import java.nio.ByteBuffer;
 
@@ -44,7 +44,7 @@ public final class DirectBufferAllocator {
         return null;
     }
 
-    // These JNI methods are implemented in mozglue/android/nsGeckoUtils.cpp.
+    // These JNI methods are implemented in mozglue/android/nsGoannaUtils.cpp.
     private static native ByteBuffer nativeAllocateDirectBuffer(long size);
     private static native void nativeFreeDirectBuffer(ByteBuffer buf);
 }

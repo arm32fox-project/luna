@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.util.GoannaEventListener;
 
 import org.json.JSONObject;
 
@@ -30,8 +30,8 @@ import android.view.ViewParent;
 import java.util.ArrayList;
 import java.util.List;
 
-public class LightweightTheme implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoLightweightTheme";
+public class LightweightTheme implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaLightweightTheme";
 
     private Application mApplication;
     private Handler mHandler;
@@ -56,8 +56,8 @@ public class LightweightTheme implements GeckoEventListener {
         mListeners = new ArrayList<OnChangeListener>();
 
         // unregister isn't needed as the lifetime is same as the application.
-        GeckoAppShell.getEventDispatcher().registerEventListener("LightweightTheme:Update", this);
-        GeckoAppShell.getEventDispatcher().registerEventListener("LightweightTheme:Disable", this);
+        GoannaAppShell.getEventDispatcher().registerEventListener("LightweightTheme:Update", this);
+        GoannaAppShell.getEventDispatcher().registerEventListener("LightweightTheme:Disable", this);
     }
 
     public void addListener(final OnChangeListener listener) {

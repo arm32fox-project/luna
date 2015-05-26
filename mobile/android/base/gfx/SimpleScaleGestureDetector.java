@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
 import org.json.JSONException;
 
@@ -34,7 +34,7 @@ import java.util.Stack;
  *   - It doesn't take pressure into account, which results in smoother scaling.
  */
 class SimpleScaleGestureDetector {
-    private static final String LOGTAG = "GeckoSimpleScaleGestureDetector";
+    private static final String LOGTAG = "GoannaSimpleScaleGestureDetector";
 
     private SimpleScaleGestureListener mListener;
     private long mLastEventTime;

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
 import android.graphics.Rect;
 import android.opengl.GLES20;
@@ -16,7 +16,7 @@ import java.nio.ByteBuffer;
  * ES.
  */
 public abstract class TileLayer extends Layer {
-    private static final String LOGTAG = "GeckoTileLayer";
+    private static final String LOGTAG = "GoannaTileLayer";
 
     private final Rect mDirtyRect;
     private IntSize mSize;

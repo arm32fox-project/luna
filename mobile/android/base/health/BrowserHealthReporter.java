@@ -3,23 +3,23 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.health;
+package org.mozilla.goanna.health;
 
 import android.content.ContentProviderClient;
 import android.content.Context;
 import android.util.Log;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoProfile;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.GoannaProfile;
 
-import org.mozilla.gecko.background.healthreport.EnvironmentBuilder;
-import org.mozilla.gecko.background.healthreport.HealthReportConstants;
-import org.mozilla.gecko.background.healthreport.HealthReportDatabaseStorage;
-import org.mozilla.gecko.background.healthreport.HealthReportGenerator;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder;
+import org.mozilla.goanna.background.healthreport.HealthReportConstants;
+import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage;
+import org.mozilla.goanna.background.healthreport.HealthReportGenerator;
 
-import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -28,12 +28,12 @@ import org.json.JSONObject;
  * BrowserHealthReporter is the browser's interface to the Firefox Health
  * Report report generator.
  *
- * Each instance registers Gecko event listeners, so keep a single instance
+ * Each instance registers Goanna event listeners, so keep a single instance
  * around for the life of the browser. Java callers should use this globally
  * available singleton.
  */
-public class BrowserHealthReporter implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoHealthRep";
+public class BrowserHealthReporter implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaHealthRep";
 
     public static final String EVENT_REQUEST  = "HealthReport:Request";
     public static final String EVENT_RESPONSE = "HealthReport:Response";
@@ -41,16 +41,16 @@ public class BrowserHealthReporter implements GeckoEventListener {
     protected final Context context;
 
     public BrowserHealthReporter() {
-        GeckoAppShell.registerEventListener(EVENT_REQUEST, this);
+        GoannaAppShell.registerEventListener(EVENT_REQUEST, this);
 
-        context = GeckoAppShell.getContext();
+        context = GoannaAppShell.getContext();
         if (context == null) {
-            throw new IllegalStateException("Null Gecko context");
+            throw new IllegalStateException("Null Goanna context");
         }
     }
 
     public void uninit() {
-        GeckoAppShell.unregisterEventListener(EVENT_REQUEST, this);
+        GoannaAppShell.unregisterEventListener(EVENT_REQUEST, this);
     }
 
     /**
@@ -112,7 +112,7 @@ public class BrowserHealthReporter implements GeckoEventListener {
     }
 
     /**
-     * Generate a new Health Report for the current Gecko profile.
+     * Generate a new Health Report for the current Goanna profile.
      *
      * This method performs IO, so call it from a background thread.
      *
@@ -121,7 +121,7 @@ public class BrowserHealthReporter implements GeckoEventListener {
      * @return non-null Health Report.
      */
     public JSONObject generateReport() throws JSONException {
-        GeckoProfile profile = GeckoAppShell.getGeckoInterface().getProfile();
+        GoannaProfile profile = GoannaAppShell.getGoannaInterface().getProfile();
         String profilePath = profile.getDir().getAbsolutePath();
 
         long since = System.currentTimeMillis() - HealthReportConstants.MILLISECONDS_PER_SIX_MONTHS;
@@ -144,7 +144,7 @@ public class BrowserHealthReporter implements GeckoEventListener {
                         report = new JSONObject();
                     }
 
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(EVENT_RESPONSE, report.toString()));
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent(EVENT_RESPONSE, report.toString()));
                 }
            });
         } catch (Exception e) {

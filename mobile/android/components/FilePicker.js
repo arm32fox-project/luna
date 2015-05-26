@@ -203,7 +203,7 @@ FilePicker.prototype = {
   },
 
   sendMessageToJava: function(aMsg) {
-    Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge).handleGeckoMessage(JSON.stringify(aMsg));
+    Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge).handleGoannaMessage(JSON.stringify(aMsg));
   },
 
   observe: function(aSubject, aTopic, aData) {

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
 import java.io.UnsupportedEncodingException;
 import java.security.MessageDigest;
@@ -13,7 +13,7 @@ import java.util.SortedSet;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.mozilla.apache.commons.codec.binary.Base64;
-import org.mozilla.gecko.background.common.log.Logger;
+import org.mozilla.goanna.background.common.log.Logger;
 
 /**
  * This captures all of the details that define an 'environment' for FHR's purposes.
@@ -30,7 +30,7 @@ import org.mozilla.gecko.background.common.log.Logger;
  *
  */
 public abstract class Environment {
-  private static final String LOG_TAG = "GeckoEnvironment";
+  private static final String LOG_TAG = "GoannaEnvironment";
 
   public static int VERSION = 1;
 
@@ -49,7 +49,7 @@ public abstract class Environment {
   public String sysName;
   public String sysVersion;      // Kernel.
 
-  // geckoAppInfo. Not sure if we can/should provide this on Android.
+  // goannaAppInfo. Not sure if we can/should provide this on Android.
   public String vendor;
   public String appName;
   public String appID;

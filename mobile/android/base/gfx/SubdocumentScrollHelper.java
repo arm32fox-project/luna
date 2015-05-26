@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.util.EventDispatcher;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.util.EventDispatcher;
+import org.mozilla.goanna.util.GoannaEventListener;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -17,8 +17,8 @@ import android.graphics.PointF;
 import android.os.Handler;
 import android.util.Log;
 
-class SubdocumentScrollHelper implements GeckoEventListener {
-    private static final String LOGTAG = "GeckoSubdocScroll";
+class SubdocumentScrollHelper implements GoannaEventListener {
+    private static final String LOGTAG = "GoannaSubdocScroll";
 
     private static String MESSAGE_PANNING_OVERRIDE = "Panning:Override";
     private static String MESSAGE_CANCEL_OVERRIDE = "Panning:CancelOverride";
@@ -92,7 +92,7 @@ class SubdocumentScrollHelper implements GeckoEventListener {
         } catch (JSONException e) {
             Log.e(LOGTAG, "Error forming subwindow scroll message: ", e);
         }
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent(MESSAGE_SCROLL, json.toString()));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent(MESSAGE_SCROLL, json.toString()));
 
         mOverrideScrollAck = false;
         mOverrideScrollPending = false;
@@ -116,11 +116,11 @@ class SubdocumentScrollHelper implements GeckoEventListener {
         return mScrollSucceeded;
     }
 
-    // GeckoEventListener implementation
+    // GoannaEventListener implementation
 
     @Override
     public void handleMessage(final String event, final JSONObject message) {
-        // This comes in on the Gecko thread; hand off the handling to the UI thread.
+        // This comes in on the Goanna thread; hand off the handling to the UI thread.
         mUiHandler.post(new Runnable() {
             @Override
             public void run() {

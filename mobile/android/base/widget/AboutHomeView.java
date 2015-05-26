@@ -1,8 +1,8 @@
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.LightweightTheme;
-import org.mozilla.gecko.LightweightThemeDrawable;
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.LightweightTheme;
+import org.mozilla.goanna.LightweightThemeDrawable;
+import org.mozilla.goanna.R;
 
 import android.content.Context;
 import android.util.AttributeSet;

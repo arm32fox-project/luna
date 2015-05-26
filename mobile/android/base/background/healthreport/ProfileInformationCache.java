@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -14,17 +14,17 @@ import java.util.Scanner;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.healthreport.EnvironmentBuilder.ProfileInformationProvider;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder.ProfileInformationProvider;
 
 /**
  * There are some parts of the FHR environment that can't be readily computed
- * without a running Gecko -- add-ons, for example. In order to make this
- * information available without launching Gecko, we persist it on Fennec
+ * without a running Goanna -- add-ons, for example. In order to make this
+ * information available without launching Goanna, we persist it on Fennec
  * startup. This class is the notepad in which we write.
  */
 public class ProfileInformationCache implements ProfileInformationProvider {
-  private static final String LOG_TAG = "GeckoProfileInfo";
+  private static final String LOG_TAG = "GoannaProfileInfo";
   private static final String CACHE_FILE = "profile_info_cache.json";
 
   /*

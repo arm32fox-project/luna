@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.util.GoannaEventListener;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -24,9 +24,9 @@ import android.util.Log;
 import java.util.Set;
 import java.util.HashSet;
 
-public class NotificationHelper implements GeckoEventListener {
+public class NotificationHelper implements GoannaEventListener {
     public static final String NOTIFICATION_ID = "NotificationHelper_ID";
-    private static final String LOGTAG = "GeckoNotificationManager";
+    private static final String LOGTAG = "GoannaNotificationManager";
     private Context mContext;
     private Set<String> mShowing;
 
@@ -38,7 +38,7 @@ public class NotificationHelper implements GeckoEventListener {
     }
 
     private void registerEventListener(String event) {
-        GeckoAppShell.getEventDispatcher().registerEventListener(event, this);
+        GoannaAppShell.getEventDispatcher().registerEventListener(event, this);
     }
 
     @Override
@@ -93,7 +93,7 @@ public class NotificationHelper implements GeckoEventListener {
 
         // We currently don't support a callback when these are clicked.
         // Instead we just open fennec.
-        Intent notificationIntent = new Intent(GeckoApp.ACTION_ALERT_CALLBACK);
+        Intent notificationIntent = new Intent(GoannaApp.ACTION_ALERT_CALLBACK);
         String app = mContext.getClass().getName();
         notificationIntent.setClassName(AppConstants.ANDROID_PACKAGE_NAME, app);
         notificationIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -106,7 +106,7 @@ public class NotificationHelper implements GeckoEventListener {
         PendingIntent pi = PendingIntent.getActivity(mContext, 0, notificationIntent, 0);
         builder.setContentIntent(pi);
 
-        GeckoAppShell.sNotificationClient.add(id.hashCode(), builder.build());
+        GoannaAppShell.sNotificationClient.add(id.hashCode(), builder.build());
         if (!mShowing.contains(id)) {
             mShowing.add(id);
         }
@@ -125,7 +125,7 @@ public class NotificationHelper implements GeckoEventListener {
     }
 
     public void hideNotification(String id) {
-        GeckoAppShell.sNotificationClient.remove(id.hashCode());
+        GoannaAppShell.sNotificationClient.remove(id.hashCode());
         mShowing.remove(id);
     }
 

@@ -21,7 +21,7 @@ MOZGLUE_JAVA_FILES := \
   $(NULL)
 
 MOZGLUE_PP_JAVA_FILES := \
-  mozglue/GeckoLoader.java \
+  mozglue/GoannaLoader.java \
   $(NULL)
 
 UTIL_JAVA_FILES := \
@@ -31,10 +31,10 @@ UTIL_JAVA_FILES := \
   util/EventDispatcher.java \
   util/FloatUtils.java \
   util/GamepadUtils.java \
-  util/GeckoBackgroundThread.java \
-  util/GeckoEventListener.java \
-  util/GeckoEventResponder.java \
-  util/GeckoJarReader.java \
+  util/GoannaBackgroundThread.java \
+  util/GoannaEventListener.java \
+  util/GoannaEventResponder.java \
+  util/GoannaJarReader.java \
   util/HardwareUtils.java \
   util/INIParser.java \
   util/INISection.java \
@@ -94,27 +94,27 @@ FENNEC_JAVA_FILES = \
   FontSizePreference.java \
   FormAssistPopup.java \
   ForwardButton.java \
-  GeckoAccessibility.java \
-  GeckoApplication.java \
-  GeckoApp.java \
-  GeckoAppShell.java \
-  GeckoActivity.java \
-  GeckoBatteryManager.java \
-  GeckoConnectivityReceiver.java \
-  GeckoEditable.java \
-  GeckoEvent.java \
-  GeckoHalDefines.java \
-  GeckoInputConnection.java \
-  GeckoMessageReceiver.java \
-  GeckoPreferences.java \
-  GeckoPreferenceFragment.java \
-  GeckoProfile.java \
-  GeckoSmsManager.java \
-  GeckoThread.java \
-  GeckoJavaSampler.java \
+  GoannaAccessibility.java \
+  GoannaApplication.java \
+  GoannaApp.java \
+  GoannaAppShell.java \
+  GoannaActivity.java \
+  GoannaBatteryManager.java \
+  GoannaConnectivityReceiver.java \
+  GoannaEditable.java \
+  GoannaEvent.java \
+  GoannaHalDefines.java \
+  GoannaInputConnection.java \
+  GoannaMessageReceiver.java \
+  GoannaPreferences.java \
+  GoannaPreferenceFragment.java \
+  GoannaProfile.java \
+  GoannaSmsManager.java \
+  GoannaThread.java \
+  GoannaJavaSampler.java \
   GlobalHistory.java \
-  GeckoViewsFactory.java \
-  GeckoView.java \
+  GoannaViewsFactory.java \
+  GoannaView.java \
   health/BrowserHealthRecorder.java \
   health/BrowserHealthReporter.java \
   InputMethods.java \
@@ -193,7 +193,7 @@ FENNEC_JAVA_FILES = \
   gfx/DisplayPortMetrics.java \
   gfx/DrawTimingQueue.java \
   gfx/FloatSize.java \
-  gfx/GeckoLayerClient.java \
+  gfx/GoannaLayerClient.java \
   gfx/GfxInfoThread.java \
   gfx/GLController.java \
   gfx/ImmutableViewportMetrics.java \
@@ -224,10 +224,10 @@ FENNEC_JAVA_FILES = \
   gfx/TouchEventHandler.java \
   gfx/ViewTransform.java \
   gfx/VirtualLayer.java \
-  menu/GeckoMenu.java \
-  menu/GeckoMenuInflater.java \
-  menu/GeckoMenuItem.java \
-  menu/GeckoSubMenu.java \
+  menu/GoannaMenu.java \
+  menu/GoannaMenuInflater.java \
+  menu/GoannaMenuItem.java \
+  menu/GoannaSubMenu.java \
   menu/MenuItemActionBar.java \
   menu/MenuItemActionView.java \
   menu/MenuItemDefault.java \
@@ -243,8 +243,8 @@ FENNEC_JAVA_FILES = \
   widget/DateTimePicker.java \
   widget/Divider.java \
   widget/FaviconView.java \
-  widget/GeckoPopupMenu.java \
-  widget/GeckoActionProvider.java \
+  widget/GoannaPopupMenu.java \
+  widget/GoannaActionProvider.java \
   widget/IconTabWidget.java \
   widget/LastTabsSection.java \
   widget/LinkTextView.java \
@@ -254,10 +254,10 @@ FENNEC_JAVA_FILES = \
   widget/TabRow.java \
   widget/ThumbnailView.java \
   widget/TwoWayView.java \
-  GeckoNetworkManager.java \
-  GeckoScreenOrientationListener.java \
+  GoannaNetworkManager.java \
+  GoannaScreenOrientationListener.java \
   UpdateService.java \
-  GeckoUpdateReceiver.java \
+  GoannaUpdateReceiver.java \
   ReferrerReceiver.java \
   $(NULL)
 
@@ -288,15 +288,15 @@ DEFINES += -DMOZ_ANDROID_ANR_REPORTER=1
 endif
 
 FENNEC_PP_JAVA_VIEW_FILES = \
-  GeckoButton.java \
-  GeckoImageButton.java \
-  GeckoImageView.java \
-  GeckoEditText.java \
-  GeckoFrameLayout.java \
-  GeckoLinearLayout.java \
-  GeckoRelativeLayout.java \
-  GeckoTextSwitcher.java \
-  GeckoTextView.java \
+  GoannaButton.java \
+  GoannaImageButton.java \
+  GoannaImageView.java \
+  GoannaEditText.java \
+  GoannaFrameLayout.java \
+  GoannaLinearLayout.java \
+  GoannaRelativeLayout.java \
+  GoannaTextSwitcher.java \
+  GoannaTextView.java \
   $(NULL)
 
 FENNEC_PP_JAVA_FILES = \
@@ -384,7 +384,7 @@ GARBAGE += \
   $(FENNEC_PP_JAVA_FILES) \
   $(FENNEC_PP_JAVA_VIEW_FILES) \
   $(SYNC_PP_JAVA_FILES) \
-  gecko.ap_  \
+  goanna.ap_  \
   res/values/strings.xml \
   R.java \
   $(FENNEC_PP_XML_FILES) \
@@ -460,7 +460,7 @@ RES_LAYOUT = \
   res/layout/doorhanger_button.xml \
   res/layout/find_in_page_content.xml \
   res/layout/font_size_preference.xml \
-  res/layout/gecko_app.xml \
+  res/layout/goanna_app.xml \
   res/layout/web_app.xml \
   res/layout/launch_app_list.xml \
   res/layout/launch_app_listitem.xml \
@@ -1061,7 +1061,7 @@ RES_MENU = \
   res/menu/abouthome_topsites_contextmenu.xml \
   res/menu/awesomebar_contextmenu.xml \
   res/menu/browser_app_menu.xml \
-  res/menu/gecko_app_menu.xml \
+  res/menu/goanna_app_menu.xml \
   res/menu/titlebar_contextmenu.xml \
   res/menu-large-v11/browser_app_menu.xml \
   res/menu-v11/browser_app_menu.xml \
@@ -1151,9 +1151,9 @@ RES_DIRS= \
   $(NULL)
 
 ALL_JARS = \
-  jars/gecko-browser.jar \
-  jars/gecko-mozglue.jar \
-  jars/gecko-util.jar \
+  jars/goanna-browser.jar \
+  jars/goanna-mozglue.jar \
+  jars/goanna-util.jar \
   jars/sync-thirdparty.jar \
   jars/websockets.jar \
   $(NULL)
@@ -1176,23 +1176,23 @@ classes.dex: $(ALL_JARS)
 	@echo "DX classes.dex"
 	$(DX) --dex --output=classes.dex jars $(ANDROID_COMPAT_LIB)
 
-jars/gecko-browser.jar: jars/gecko-mozglue.jar jars/gecko-util.jar jars/sync-thirdparty.jar jars/websockets.jar $(addprefix $(srcdir)/,$(FENNEC_JAVA_FILES)) $(FENNEC_PP_JAVA_FILES) $(FENNEC_PP_JAVA_VIEW_FILES) $(addprefix $(srcdir)/,$(SYNC_JAVA_FILES)) $(SYNC_PP_JAVA_FILES) R.java
-	@echo "JAR gecko-browser.jar"
-	$(NSINSTALL) -D classes/gecko-browser
-	$(JAVAC) $(JAVAC_FLAGS) -Xlint:all,-deprecation,-fallthrough -d classes/gecko-browser -classpath "jars/gecko-mozglue.jar:jars/gecko-util.jar:jars/sync-thirdparty.jar:jars/websockets.jar" $(addprefix $(srcdir)/,$(FENNEC_JAVA_FILES)) $(FENNEC_PP_JAVA_FILES) $(FENNEC_PP_JAVA_VIEW_FILES) $(addprefix $(srcdir)/,$(SYNC_JAVA_FILES)) $(SYNC_PP_JAVA_FILES) R.java
-	$(JAR) cMf jars/gecko-browser.jar -C classes/gecko-browser .
+jars/goanna-browser.jar: jars/goanna-mozglue.jar jars/goanna-util.jar jars/sync-thirdparty.jar jars/websockets.jar $(addprefix $(srcdir)/,$(FENNEC_JAVA_FILES)) $(FENNEC_PP_JAVA_FILES) $(FENNEC_PP_JAVA_VIEW_FILES) $(addprefix $(srcdir)/,$(SYNC_JAVA_FILES)) $(SYNC_PP_JAVA_FILES) R.java
+	@echo "JAR goanna-browser.jar"
+	$(NSINSTALL) -D classes/goanna-browser
+	$(JAVAC) $(JAVAC_FLAGS) -Xlint:all,-deprecation,-fallthrough -d classes/goanna-browser -classpath "jars/goanna-mozglue.jar:jars/goanna-util.jar:jars/sync-thirdparty.jar:jars/websockets.jar" $(addprefix $(srcdir)/,$(FENNEC_JAVA_FILES)) $(FENNEC_PP_JAVA_FILES) $(FENNEC_PP_JAVA_VIEW_FILES) $(addprefix $(srcdir)/,$(SYNC_JAVA_FILES)) $(SYNC_PP_JAVA_FILES) R.java
+	$(JAR) cMf jars/goanna-browser.jar -C classes/goanna-browser .
 
-jars/gecko-mozglue.jar: $(addprefix $(srcdir)/,$(MOZGLUE_JAVA_FILES)) $(MOZGLUE_PP_JAVA_FILES) jars
-	@echo "JAR gecko-mozglue.jar"
-	$(NSINSTALL) -D classes/gecko-mozglue
-	$(JAVAC) $(JAVAC_FLAGS) -Xlint:all -d classes/gecko-mozglue $(addprefix $(srcdir)/,$(MOZGLUE_JAVA_FILES)) $(MOZGLUE_PP_JAVA_FILES)
-	$(JAR) cMf jars/gecko-mozglue.jar -C classes/gecko-mozglue .
+jars/goanna-mozglue.jar: $(addprefix $(srcdir)/,$(MOZGLUE_JAVA_FILES)) $(MOZGLUE_PP_JAVA_FILES) jars
+	@echo "JAR goanna-mozglue.jar"
+	$(NSINSTALL) -D classes/goanna-mozglue
+	$(JAVAC) $(JAVAC_FLAGS) -Xlint:all -d classes/goanna-mozglue $(addprefix $(srcdir)/,$(MOZGLUE_JAVA_FILES)) $(MOZGLUE_PP_JAVA_FILES)
+	$(JAR) cMf jars/goanna-mozglue.jar -C classes/goanna-mozglue .
 
-jars/gecko-util.jar: jars/gecko-mozglue.jar $(addprefix $(srcdir)/,$(UTIL_JAVA_FILES)) jars
-	@echo "JAR gecko-util.jar"
-	$(NSINSTALL) -D classes/gecko-util
-	$(JAVAC) $(JAVAC_FLAGS) -Xlint:all,-deprecation -d classes/gecko-util -classpath "jars/gecko-mozglue.jar" $(addprefix $(srcdir)/,$(UTIL_JAVA_FILES))
-	$(JAR) cMf jars/gecko-util.jar -C classes/gecko-util .
+jars/goanna-util.jar: jars/goanna-mozglue.jar $(addprefix $(srcdir)/,$(UTIL_JAVA_FILES)) jars
+	@echo "JAR goanna-util.jar"
+	$(NSINSTALL) -D classes/goanna-util
+	$(JAVAC) $(JAVAC_FLAGS) -Xlint:all,-deprecation -d classes/goanna-util -classpath "jars/goanna-mozglue.jar" $(addprefix $(srcdir)/,$(UTIL_JAVA_FILES))
+	$(JAR) cMf jars/goanna-util.jar -C classes/goanna-util .
 
 jars/sync-thirdparty.jar: $(addprefix $(srcdir)/,$(SYNC_THIRDPARTY_JAVA_FILES)) jars
 	@echo "JAR sync-thirdparty.jar"
@@ -1207,10 +1207,10 @@ jars/websockets.jar: $(addprefix $(srcdir)/, $(WEBSOCKETS_JAVA_FILES)) jars
 	$(JAR) cMf jars/websockets.jar -C classes/websockets .
 
 ifdef MOZ_WEBRTC
-jars/webrtc.jar: $(addprefix $(srcdir)/, $(WEBRTC_JAVA_FILES)) jars jars/gecko-browser.jar jars/gecko-util.jar
+jars/webrtc.jar: $(addprefix $(srcdir)/, $(WEBRTC_JAVA_FILES)) jars jars/goanna-browser.jar jars/goanna-util.jar
 	@echo "JAR webrtc.jar"
 	$(NSINSTALL) -D classes/webrtc
-	$(JAVAC) $(JAVAC_FLAGS) -d classes/webrtc -classpath classes/gecko-browser:classes/gecko-util $(addprefix $(srcdir)/,$(WEBRTC_JAVA_FILES))
+	$(JAVAC) $(JAVAC_FLAGS) -d classes/webrtc -classpath classes/goanna-browser:classes/goanna-util $(addprefix $(srcdir)/,$(WEBRTC_JAVA_FILES))
 	$(JAR) cMf jars/webrtc.jar -C classes/webrtc .
 endif
 
@@ -1219,10 +1219,10 @@ jars:
 	$(NSINSTALL) -D jars
 
 CLASSES_WITH_JNI= \
-    org.mozilla.gecko.GeckoAppShell \
-    org.mozilla.gecko.GeckoJavaSampler \
-    org.mozilla.gecko.gfx.NativePanZoomController \
-    org.mozilla.gecko.ANRReporter \
+    org.mozilla.goanna.GoannaAppShell \
+    org.mozilla.goanna.GoannaJavaSampler \
+    org.mozilla.goanna.gfx.NativePanZoomController \
+    org.mozilla.goanna.ANRReporter \
     $(NULL)
 
 ifdef MOZ_WEBSMS_BACKEND
@@ -1231,10 +1231,10 @@ ifdef MOZ_WEBSMS_BACKEND
 # be different than the one checked in (i.e. it will have the sms-related
 # JNI stubs as well). Just copy the generated file to mozglue/android/
 # like the error message says and rebuild. All should be well after that.
-CLASSES_WITH_JNI += org.mozilla.gecko.GeckoSmsManager
+CLASSES_WITH_JNI += org.mozilla.goanna.GoannaSmsManager
 endif
 
-jni-stubs.inc: jars/gecko-browser.jar jars/gecko-mozglue.jar jars/gecko-util.jar jars/sync-thirdparty.jar
+jni-stubs.inc: jars/goanna-browser.jar jars/goanna-mozglue.jar jars/goanna-util.jar jars/sync-thirdparty.jar
 	$(JAVAH) -o javah.out -bootclasspath $(JAVA_BOOTCLASSPATH) -classpath $(subst $(NULL) $(NULL),:,$^) $(CLASSES_WITH_JNI)
 	$(PYTHON) $(topsrcdir)/mobile/android/base/jni-generator.py javah.out $@
 
@@ -1290,9 +1290,9 @@ WebAppsFragments.java: WebAppsFragment.java.frag
 	done
 
 # Replace @VIEWTYPE@ with different View names.
-$(FENNEC_PP_JAVA_VIEW_FILES): GeckoView.java.frag
+$(FENNEC_PP_JAVA_VIEW_FILES): GoannaView.java.frag
 	@rm -f $@
-	cat $< | sed s,@VIEWTYPE@,$(patsubst Gecko%.java,%,$@),g >> $@ ; \
+	cat $< | sed s,@VIEWTYPE@,$(patsubst Goanna%.java,%,$@),g >> $@ ; \
 
 res/drawable-mdpi/icon.png: $(MOZ_APP_ICON)
 	$(NSINSTALL) -D res/drawable-mdpi
@@ -1330,9 +1330,9 @@ $(RESOURCES): $(RES_DIRS) $(subst res/,$(srcdir)/resources/,$(RESOURCES))
 
 
 R.java: $(MOZ_APP_ICON) $(RESOURCES) $(RES_DRAWABLE) $(RES_BRANDING_DRAWABLE_MDPI) $(PP_RES_XML) res/drawable-mdpi/icon.png res/drawable-hdpi/icon.png res/drawable-xhdpi/icon.png res/drawable-xxhdpi/icon.png res/values/strings.xml AndroidManifest.xml FORCE
-	$(AAPT) package -f -M AndroidManifest.xml -I $(ANDROID_SDK)/android.jar -S res -J . --custom-package org.mozilla.gecko
+	$(AAPT) package -f -M AndroidManifest.xml -I $(ANDROID_SDK)/android.jar -S res -J . --custom-package org.mozilla.goanna
 
-gecko.ap_: AndroidManifest.xml res/drawable-mdpi/icon.png res/drawable-hdpi/icon.png res/drawable-xhdpi/icon.png res/drawable-xxhdpi/icon.png $(RESOURCES) $(RES_DRAWABLE) $(RES_BRANDING_DRAWABLE_MDPI) $(PP_RES_XML) res/values/strings.xml FORCE
+goanna.ap_: AndroidManifest.xml res/drawable-mdpi/icon.png res/drawable-hdpi/icon.png res/drawable-xhdpi/icon.png res/drawable-xxhdpi/icon.png $(RESOURCES) $(RES_DRAWABLE) $(RES_BRANDING_DRAWABLE_MDPI) $(PP_RES_XML) res/values/strings.xml FORCE
 	$(AAPT) package -f -M AndroidManifest.xml -I $(ANDROID_SDK)/android.jar  -S res -F $@
 
 fennec_ids.txt: fennec-ids-generator.py R.java

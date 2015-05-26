@@ -14,7 +14,7 @@ public class testTabHistory extends PixelTest {
     Finally it will run the tests */
 
     public void testTabHistory() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         String url = getAbsoluteUrl("/robocop/robocop_blank_01.html");
         String url2 = getAbsoluteUrl("/robocop/robocop_blank_02.html");

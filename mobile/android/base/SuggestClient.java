@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import org.json.JSONArray;
 
@@ -24,8 +24,8 @@ import java.util.ArrayList;
  * Use network-based search suggestions.
  */
 public class SuggestClient {
-    private static final String LOGTAG = "GeckoSuggestClient";
-    private static final String USER_AGENT = GeckoAppShell.getGeckoInterface().getDefaultUAString();
+    private static final String LOGTAG = "GoannaSuggestClient";
+    private static final String USER_AGENT = GoannaAppShell.getGoannaInterface().getDefaultUAString();
 
     private final Context mContext;
     private final int mTimeout;

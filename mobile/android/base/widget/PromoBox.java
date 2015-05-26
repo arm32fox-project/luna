@@ -2,15 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.sync.setup.activities.SetupSyncActivity;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
+import org.mozilla.goanna.sync.setup.activities.SetupSyncActivity;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UiAsyncTask;
 
 import android.accounts.Account;
 import android.accounts.AccountManager;
@@ -34,7 +34,7 @@ import java.util.Random;
  * including a set[Box Type]Resources() helper method is recommended.
  */
 public class PromoBox extends TextView implements View.OnClickListener {
-    private static final String LOGTAG = "GeckoAboutHomePromoBox";
+    private static final String LOGTAG = "GoannaAboutHomePromoBox";
 
     /* Small class for implementing a new promo box type. Implementors should override canShow and onClick
      * to handle their own needs. By default the box is always showable and does nothing when clicked.

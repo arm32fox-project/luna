@@ -3,9 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.gfx.BitmapUtils;
+import org.mozilla.goanna.gfx.BitmapUtils;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -130,7 +130,7 @@ public class NotificationHandler {
     }
 
     /**
-     * Determines whether a notification should hold a foreground service to keep Gecko alive
+     * Determines whether a notification should hold a foreground service to keep Goanna alive
      *
      * @param notificationID the id of the notification to check
      * @return               whether the notification is ongoing
@@ -141,7 +141,7 @@ public class NotificationHandler {
     }
 
     /**
-     * Determines whether a notification should hold a foreground service to keep Gecko alive
+     * Determines whether a notification should hold a foreground service to keep Goanna alive
      *
      * @param notification   the notification to check
      * @return               whether the notification is ongoing

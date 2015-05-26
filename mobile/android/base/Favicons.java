@@ -3,13 +3,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.util.GeckoJarReader;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.util.GoannaJarReader;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UiAsyncTask;
 
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpResponse;
@@ -36,7 +36,7 @@ import java.util.Map;
 import java.util.Set;
 
 public class Favicons {
-    private static final String LOGTAG = "GeckoFavicons";
+    private static final String LOGTAG = "GoannaFavicons";
 
     public static final long NOT_LOADING = 0;
     public static final long FAILED_EXPIRY_NEVER = -1;
@@ -51,7 +51,7 @@ public class Favicons {
     private LruCache<String, Bitmap> mFaviconsCache;
     private LruCache<String, Long> mFailedCache;
     private LruCache<String, Integer> mColorCache;
-    private static final String USER_AGENT = GeckoAppShell.getGeckoInterface().getDefaultUAString();
+    private static final String USER_AGENT = GoannaAppShell.getGoannaInterface().getDefaultUAString();
     private AndroidHttpClient mHttpClient;
 
     public interface OnFaviconLoadedListener {
@@ -289,7 +289,7 @@ public class Favicons {
         // Runs in background thread
         private Bitmap downloadFavicon(URL faviconUrl) {
             if (mFaviconUrl.startsWith("jar:jar:")) {
-                return GeckoJarReader.getBitmap(mContext.getResources(), mFaviconUrl);
+                return GoannaJarReader.getBitmap(mContext.getResources(), mFaviconUrl);
             }
 
             URI uri;

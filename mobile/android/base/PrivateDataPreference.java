@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -13,7 +13,7 @@ import android.util.AttributeSet;
 import android.util.Log;
 
 class PrivateDataPreference extends MultiChoicePreference {
-    private static final String LOGTAG = "GeckoPrivateDataPreference";
+    private static final String LOGTAG = "GoannaPrivateDataPreference";
     private static final String PREF_KEY_PREFIX = "private.data.";
 
     private Context mContext;
@@ -37,8 +37,8 @@ class PrivateDataPreference extends MultiChoicePreference {
         for (int i = 0; i < keys.length; i++) {
             // Privacy pref checkbox values are stored in Android prefs to
             // remember their check states. The key names are private.data.X,
-            // where X is a string from Gecko sanitization. This prefix is
-            // removed here so we can send the values to Gecko, which then does
+            // where X is a string from Goanna sanitization. This prefix is
+            // removed here so we can send the values to Goanna, which then does
             // the sanitization for each key.
             String key = keys[i].toString().substring(PREF_KEY_PREFIX.length());
             boolean value = values[i];
@@ -49,7 +49,7 @@ class PrivateDataPreference extends MultiChoicePreference {
             }
         }
 
-        // clear private data in gecko
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Sanitize:ClearData", json.toString()));
+        // clear private data in goanna
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Sanitize:ClearData", json.toString()));
     }
 }

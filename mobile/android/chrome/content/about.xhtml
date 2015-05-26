@@ -141,19 +141,19 @@
         showCheckingMessage();
 
         let bridge = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge);
-        bridge.handleGeckoMessage(JSON.stringify({ type: "Update:Check" }));
+        bridge.handleGoannaMessage(JSON.stringify({ type: "Update:Check" }));
       }
 
       function downloadUpdate() {
         let bridge = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge);
-        bridge.handleGeckoMessage(JSON.stringify({ type: "Update:Download" }));
+        bridge.handleGoannaMessage(JSON.stringify({ type: "Update:Download" }));
       }
 
       function installUpdate() {
         showCheckAction();
 
         let bridge = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge);
-        bridge.handleGeckoMessage(JSON.stringify({ type: "Update:Install" }));
+        bridge.handleGoannaMessage(JSON.stringify({ type: "Update:Install" }));
       }
 
       let updateLink = document.getElementById("updateLink");

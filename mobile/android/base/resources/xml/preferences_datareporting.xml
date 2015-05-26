@@ -5,7 +5,7 @@
 
 <!-- Data choices preference screen for pre-v11. Matches xml-v11/preferences_datareporting.xml -->
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
-                  xmlns:gecko="http://schemas.android.com/apk/res-auto"
+                  xmlns:goanna="http://schemas.android.com/apk/res-auto"
                   android:title="@string/pref_category_datareporting"
                   android:enabled="false">
 
@@ -18,7 +18,7 @@
                         android:summary="@string/datareporting_fhr_summary2"
                         android:defaultValue="true" />
 
-    <org.mozilla.gecko.AlignRightLinkPreference android:key="android.not_a_preference.healthreport.link"
+    <org.mozilla.goanna.AlignRightLinkPreference android:key="android.not_a_preference.healthreport.link"
                                                 android:title="@string/datareporting_abouthr_title"
                                                 url="about:healthreport" />
 </PreferenceScreen>

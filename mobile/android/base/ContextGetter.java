@@ -1,4 +1,4 @@
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 import android.content.Context;
 
 interface ContextGetter {

@@ -17,7 +17,7 @@ public class testSystemPages extends PixelTest {
     }
 
     public void testSystemPages() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         String urls [] = {  "about:firefox", "about:rights", "about:home", "about:addons", "about:downloads", "about:buildconfig", "about:"};
         String expectedUrls [] = { "about:apps", "about:downloads", "about:addons", "about:"};
@@ -65,8 +65,8 @@ public class testSystemPages extends PixelTest {
             if (!item.equals("Settings")) {
 
                 // Set up listeners to catch the page load we're about to do
-                tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
-                contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+                tabEventExpecter = mActions.expectGoannaEvent("Tab:Added");
+                contentEventExpecter = mActions.expectGoannaEvent("DOMContentLoaded");
 
                 selectMenuItem(item);
 

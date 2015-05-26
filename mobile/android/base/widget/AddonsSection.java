@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.BrowserApp;
-import org.mozilla.gecko.Favicons;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
+import org.mozilla.goanna.BrowserApp;
+import org.mozilla.goanna.Favicons;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.util.GamepadUtils;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UiAsyncTask;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -40,7 +40,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public class AddonsSection extends AboutHomeSection {
-    private static final String LOGTAG = "GeckoAboutHomeAddons";
+    private static final String LOGTAG = "GoannaAboutHomeAddons";
 
     private Context mContext;
     private BrowserApp mActivity;

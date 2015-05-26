@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.os.StrictMode;
 import android.util.Log;
@@ -24,7 +24,7 @@ import java.util.regex.Pattern;
  * much of nsIXULAppInfo.
  */
 public final class SysInfo {
-    private static final String LOG_TAG = "GeckoSysInfo";
+    private static final String LOG_TAG = "GoannaSysInfo";
 
     // We don't mind an instant of possible duplicate work, we only wish to
     // avoid inconsistency, so we don't bother with synchronization for

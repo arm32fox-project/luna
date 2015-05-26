@@ -3,22 +3,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.AwesomeBar;
-import org.mozilla.gecko.BrowserApp;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.ThumbnailHelper;
-import org.mozilla.gecko.db.BrowserContract.Thumbnails;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.db.BrowserDB.TopSitesCursorWrapper;
-import org.mozilla.gecko.db.BrowserDB.URLColumns;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.util.ActivityResultHandler;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
+import org.mozilla.goanna.AwesomeBar;
+import org.mozilla.goanna.BrowserApp;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.ThumbnailHelper;
+import org.mozilla.goanna.db.BrowserContract.Thumbnails;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.db.BrowserDB.TopSitesCursorWrapper;
+import org.mozilla.goanna.db.BrowserDB.URLColumns;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.util.ActivityResultHandler;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UiAsyncTask;
 
 import android.app.Activity;
 import android.content.ContentResolver;
@@ -55,7 +55,7 @@ import java.util.List;
 import java.util.Map;
 
 public class TopSitesView extends GridView {
-    private static final String LOGTAG = "GeckoAboutHomeTopSites";
+    private static final String LOGTAG = "GoannaAboutHomeTopSites";
 
     private static int mNumberOfTopSites;
     private static int mNumberOfCols;
@@ -636,7 +636,7 @@ public class TopSitesView extends GridView {
             intent.putExtra(AwesomeBar.CURRENT_URL_KEY, url);
         }
 
-        int requestCode = GeckoAppShell.sActivityHelper.makeRequestCode(new ActivityResultHandler() {
+        int requestCode = GoannaAppShell.sActivityHelper.makeRequestCode(new ActivityResultHandler() {
             @Override
             public void onActivityResult(int resultCode, Intent data) {
                 if (resultCode == Activity.RESULT_CANCELED || data == null)

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
 import android.content.Context;
 import android.util.AttributeSet;
@@ -13,7 +13,7 @@ import android.widget.LinearLayout;
 
 public class TabRow extends LinearLayout
                     implements Checkable {
-    private static final String LOGTAG = "GeckoTabRow";
+    private static final String LOGTAG = "GoannaTabRow";
     private static final int[] STATE_CHECKED = { android.R.attr.state_checked };
     private boolean mChecked;
 
