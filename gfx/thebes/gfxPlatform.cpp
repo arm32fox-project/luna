@@ -333,7 +333,7 @@ gfxPlatform::Init()
     useOffMainThreadCompositing &= GetPlatform()->SupportsOffMainThreadCompositing();
 
     if (useOffMainThreadCompositing && (XRE_GetProcessType() ==
-                                        GeckoProcessType_Default)) {
+                                        GoannaProcessType_Default)) {
         CompositorParent::StartUp();
         if (Preferences::GetBool("layers.async-video.enabled",false)) {
             ImageBridgeChild::StartUp();
@@ -1405,7 +1405,7 @@ gfxPlatform::UseReusableTileStore()
 bool
 gfxPlatform::OffMainThreadCompositingEnabled()
 {
-  return XRE_GetProcessType() == GeckoProcessType_Default ?
+  return XRE_GetProcessType() == GoannaProcessType_Default ?
     CompositorParent::CompositorLoop() != nullptr :
     CompositorChild::ChildProcessHasCompositor();
 }

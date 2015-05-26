@@ -256,7 +256,7 @@ ContentParent::MaybeTakePreallocatedAppProcess(const nsAString& aAppManifestURL,
 /*static*/ void
 ContentParent::StartUp()
 {
-    if (XRE_GetProcessType() != GeckoProcessType_Default) {
+    if (XRE_GetProcessType() != GoannaProcessType_Default) {
         return;
     }
 

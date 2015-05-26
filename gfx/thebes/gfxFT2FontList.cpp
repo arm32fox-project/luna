@@ -538,7 +538,7 @@ public:
             LOG(("initializing the map failed"));
         }
 
-        NS_ABORT_IF_FALSE(XRE_GetProcessType() == GeckoProcessType_Default,
+        NS_ABORT_IF_FALSE(XRE_GetProcessType() == GoannaProcessType_Default,
                           "StartupCacheFontNameCache should only be used in chrome process");
         mCache = mozilla::scache::StartupCache::GetSingleton();
 
@@ -1117,7 +1117,7 @@ gfxFT2FontList::FindFonts()
     mCodepointsWithNoFonts.SetRange(0,0x1f);     // C0 controls
     mCodepointsWithNoFonts.SetRange(0x7f,0x9f);  // C1 controls
 
-    if (XRE_GetProcessType() != GeckoProcessType_Default) {
+    if (XRE_GetProcessType() != GoannaProcessType_Default) {
         // Content process: ask the Chrome process to give us the list
         InfallibleTArray<FontListEntry> fonts;
         mozilla::dom::ContentChild::GetSingleton()->SendReadFontList(&fonts);

@@ -316,7 +316,7 @@ private:
 bool
 IsMainProcess()
 {
-  return XRE_GetProcessType() == GeckoProcessType_Default;
+  return XRE_GetProcessType() == GoannaProcessType_Default;
 }
 
 void

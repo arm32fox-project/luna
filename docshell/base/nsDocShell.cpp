@@ -699,7 +699,7 @@ IncreasePrivateDocShellCount()
 {
     gNumberOfPrivateDocShells++;
     if (gNumberOfPrivateDocShells > 1 ||
-        XRE_GetProcessType() != GeckoProcessType_Content) {
+        XRE_GetProcessType() != GoannaProcessType_Content) {
         return;
     }
 
@@ -714,7 +714,7 @@ DecreasePrivateDocShellCount()
     gNumberOfPrivateDocShells--;
     if (!gNumberOfPrivateDocShells)
     {
-        if (XRE_GetProcessType() == GeckoProcessType_Content) {
+        if (XRE_GetProcessType() == GoannaProcessType_Content) {
             mozilla::dom::ContentChild* cc = mozilla::dom::ContentChild::GetSingleton();
             cc->SendPrivateDocShellsExist(false);
             return;
@@ -6519,7 +6519,7 @@ nsDocShell::OnRedirectStateChange(nsIChannel* aOldChannel,
     nsCOMPtr<nsIApplicationCacheChannel> appCacheChannel =
         do_QueryInterface(aNewChannel);
     if (appCacheChannel) {
-        if (GeckoProcessType_Default != XRE_GetProcessType()) {
+        if (GoannaProcessType_Default != XRE_GetProcessType()) {
             // Permission will be checked in the parent process.
             appCacheChannel->SetChooseApplicationCache(true);
         } else {
@@ -9417,7 +9417,7 @@ nsDocShell::DoURILoad(nsIURI * aURI,
 
         // Loads with the correct permissions should check for a matching
         // application cache.
-        if (GeckoProcessType_Default != XRE_GetProcessType()) {
+        if (GoannaProcessType_Default != XRE_GetProcessType()) {
             // Permission will be checked in the parent process
             appCacheChannel->SetChooseApplicationCache(true);
         } else {

@@ -72,7 +72,7 @@ moz_icon_to_channel(nsIURI *aURI, const nsACString& aFileExt, uint32_t aIconSize
   *(out++) = height;
 
   nsresult rv;
-  if (XRE_GetProcessType() == GeckoProcessType_Default)
+  if (XRE_GetProcessType() == GoannaProcessType_Default)
     rv = GetIconForExtension(aFileExt, aIconSize, out);
   else
     rv = CallRemoteGetIconForExtension(aFileExt, aIconSize, out);

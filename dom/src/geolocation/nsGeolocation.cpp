@@ -606,7 +606,7 @@ nsresult nsGeolocationService::Init()
     return NS_ERROR_FAILURE;
   }
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     sGeoInitPending = false;
     return NS_OK;
   }
@@ -807,7 +807,7 @@ nsGeolocationService::StartDevice(nsIPrincipal *aPrincipal)
   // inactivivity
   SetDisconnectTimer();
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
     cpc->SendAddGeolocationListener(IPC::Principal(aPrincipal),
                                     HighAccuracyRequested());
@@ -870,7 +870,7 @@ nsGeolocationService::SetHigherAccuracy(bool aEnable)
 {
   bool highRequired = aEnable || HighAccuracyRequested();
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
     cpc->SendSetGeolocationHigherAccuracy(highRequired);
     return;
@@ -895,7 +895,7 @@ nsGeolocationService::StopDevice()
     mDisconnectTimer = nullptr;
   }
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
     cpc->SendRemoveGeolocationListener();
     return; // bail early
@@ -1409,7 +1409,7 @@ Geolocation::RegisterRequestWithPrompt(nsGeolocationRequest* request)
     return true;
   }
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     nsCOMPtr<nsPIDOMWindow> window = do_QueryReferent(mOwner);
     if (!window) {
       return true;

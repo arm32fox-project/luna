@@ -9146,7 +9146,7 @@ PLDHashOperator UnlockEnumerator(imgIRequest* aKey,
 nsresult
 nsDocument::SetImageLockingState(bool aLocked)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content &&
+  if (XRE_GetProcessType() == GoannaProcessType_Content &&
       !Preferences::GetBool("content.image.allow_locking", true)) {
     return NS_OK;
   }
@@ -9652,7 +9652,7 @@ nsIDocument::ExitFullscreen(nsIDocument* aDoc, bool aRunAsync)
 static bool
 HasCrossProcessParent(nsIDocument* aDocument)
 {
-  if (XRE_GetProcessType() != GeckoProcessType_Content) {
+  if (XRE_GetProcessType() != GoannaProcessType_Content) {
     return false;
   }
   if (aDocument->GetParentDocument() != nullptr) {

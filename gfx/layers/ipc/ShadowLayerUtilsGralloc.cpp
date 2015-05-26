@@ -84,7 +84,7 @@ ParamTraits<MagicGrallocBufferHandle>::Read(const Message* aMsg,
     // SCM_RIGHTS doesn't dup the fd.  That's surprising, but we just
     // deal with it here.  NB: only the "default" (master) process can
     // alloc gralloc buffers.
-    bool sameProcess = (XRE_GetProcessType() == GeckoProcessType_Default);
+    bool sameProcess = (XRE_GetProcessType() == GoannaProcessType_Default);
     int dupFd = sameProcess ? dup(fd.fd) : fd.fd;
     fds[n] = dupFd;
   }

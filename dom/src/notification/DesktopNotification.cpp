@@ -105,7 +105,7 @@ DesktopNotification::Init()
   nsRefPtr<DesktopNotificationRequest> request = new DesktopNotificationRequest(this);
 
   // if we are in the content process, then remote it to the parent.
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
 
     // if for some reason mOwner is null, just silently
     // bail.  The user will not see a notification, and that

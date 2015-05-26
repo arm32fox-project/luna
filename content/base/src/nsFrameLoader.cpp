@@ -1499,7 +1499,7 @@ nsFrameLoader::ShouldUseRemoteProcess()
 
   // If we're inside a content process, don't use a remote process for this
   // frame; it won't work properly until bug 761935 is fixed.
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     return false;
   }
 
@@ -2516,7 +2516,7 @@ nsFrameLoader::ResetPermissionManagerStatus()
 {
   // The resetting of the permissions status can run only
   // in the main process.
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     return;
   }
 

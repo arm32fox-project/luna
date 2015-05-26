@@ -299,7 +299,7 @@ void
 ShadowLayerForwarder::PaintedTiledLayerBuffer(CompositableClient* aCompositable,
                                               BasicTiledLayerBuffer* aTiledLayerBuffer)
 {
-  if (XRE_GetProcessType() != GeckoProcessType_Default)
+  if (XRE_GetProcessType() != GoannaProcessType_Default)
     NS_RUNTIMEABORT("PaintedTiledLayerBuffer must be made IPC safe (not share pointers)");
   mTxn->AddNoSwapPaint(OpPaintTiledLayerBuffer(NULL, aCompositable->GetIPDLActor(),
                                                uintptr_t(aTiledLayerBuffer)));

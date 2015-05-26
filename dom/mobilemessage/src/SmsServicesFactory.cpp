@@ -25,7 +25,7 @@ SmsServicesFactory::CreateSmsService()
 {
   nsCOMPtr<nsISmsService> smsService;
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     smsService = new SmsIPCService();
   } else {
     smsService = new SmsService();
@@ -38,7 +38,7 @@ SmsServicesFactory::CreateSmsService()
 SmsServicesFactory::CreateMobileMessageDatabaseService()
 {
   nsCOMPtr<nsIMobileMessageDatabaseService> mobileMessageDBService;
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     mobileMessageDBService = new SmsIPCService();
   } else {
 #ifdef MOZ_B2G_RIL
@@ -56,7 +56,7 @@ SmsServicesFactory::CreateMmsService()
 {
   nsCOMPtr<nsIMmsService> mmsService;
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     mmsService = new SmsIPCService();
   } else {
 #ifdef MOZ_B2G_RIL

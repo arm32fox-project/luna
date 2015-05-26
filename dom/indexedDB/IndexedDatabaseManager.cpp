@@ -154,7 +154,7 @@ IndexedDatabaseManager::GetOrCreate()
   }
 
   if (!gInstance) {
-    sIsMainProcess = XRE_GetProcessType() == GeckoProcessType_Default;
+    sIsMainProcess = XRE_GetProcessType() == GoannaProcessType_Default;
 
     if (sIsMainProcess) {
       // See if we're starting up in low disk space conditions.
@@ -367,7 +367,7 @@ IndexedDatabaseManager::IsMainProcess()
 {
   NS_ASSERTION(gInstance,
                "IsMainProcess() called before indexedDB has been initialized!");
-  NS_ASSERTION((XRE_GetProcessType() == GeckoProcessType_Default) ==
+  NS_ASSERTION((XRE_GetProcessType() == GoannaProcessType_Default) ==
                sIsMainProcess, "XRE_GetProcessType changed its tune!");
   return sIsMainProcess;
 }
