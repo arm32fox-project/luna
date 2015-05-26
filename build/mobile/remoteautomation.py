@@ -88,15 +88,15 @@ class RemoteAutomation(Automation):
                 #
                 # For example:
                 #
-                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): >>> REPORTING UNCAUGHT EXCEPTION FROM THREAD 9 ("GeckoBackgroundThread")
-                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): java.lang.NullPointerException
-                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at org.mozilla.gecko.GeckoApp$21.run(GeckoApp.java:1833)
-                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at android.os.Handler.handleCallback(Handler.java:587)
-                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at android.os.Handler.dispatchMessage(Handler.java:92)
-                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at android.os.Looper.loop(Looper.java:123)
-                # 01-30 20:15:41.937 E/GeckoAppShell( 1703): 	at org.mozilla.gecko.util.GeckoBackgroundThread.run(GeckoBackgroundThread.java:31)
+                # 01-30 20:15:41.937 E/GoannaAppShell( 1703): >>> REPORTING UNCAUGHT EXCEPTION FROM THREAD 9 ("GoannaBackgroundThread")
+                # 01-30 20:15:41.937 E/GoannaAppShell( 1703): java.lang.NullPointerException
+                # 01-30 20:15:41.937 E/GoannaAppShell( 1703): 	at org.mozilla.goanna.GoannaApp$21.run(GoannaApp.java:1833)
+                # 01-30 20:15:41.937 E/GoannaAppShell( 1703): 	at android.os.Handler.handleCallback(Handler.java:587)
+                # 01-30 20:15:41.937 E/GoannaAppShell( 1703): 	at android.os.Handler.dispatchMessage(Handler.java:92)
+                # 01-30 20:15:41.937 E/GoannaAppShell( 1703): 	at android.os.Looper.loop(Looper.java:123)
+                # 01-30 20:15:41.937 E/GoannaAppShell( 1703): 	at org.mozilla.goanna.util.GoannaBackgroundThread.run(GoannaBackgroundThread.java:31)
                 #
-                #   -> java.lang.NullPointerException at org.mozilla.gecko.GeckoApp$21.run(GeckoApp.java:1833)
+                #   -> java.lang.NullPointerException at org.mozilla.goanna.GoannaApp$21.run(GoannaApp.java:1833)
                 found_exception = True
                 logre = re.compile(r".*\): \t?(.*)")
                 m = logre.search(logcat[i+1])
