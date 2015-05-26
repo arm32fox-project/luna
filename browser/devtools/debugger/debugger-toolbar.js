@@ -1044,7 +1044,7 @@ FilterView.prototype = {
    * The key press listener for the search container.
    */
   _onKeyPress: function(e) {
-    // This attribute is not implemented in Gecko at this time, see bug 680830.
+    // This attribute is not implemented in Goanna at this time, see bug 680830.
     e.char = String.fromCharCode(e.charCode);
 
     let [operator, file, line, token] = this.searchboxInfo;
