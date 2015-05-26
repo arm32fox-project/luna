@@ -671,9 +671,9 @@ getRoleCB(AtkObject *aAtkObj)
   if (aAtkObj->role != ATK_ROLE_INVALID)
     return aAtkObj->role;
 
-#define ROLE(geckoRole, stringRole, atkRole, macRole, \
+#define ROLE(goannaRole, stringRole, atkRole, macRole, \
              msaaRole, ia2Role, nameRule) \
-  case roles::geckoRole: \
+  case roles::goannaRole: \
     aAtkObj->role = atkRole; \
     break;
 

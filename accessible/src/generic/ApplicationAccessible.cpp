@@ -86,7 +86,7 @@ ApplicationAccessible::Name(nsString& aName)
                                  getter_Copies(appName));
   if (NS_FAILED(rv) || appName.IsEmpty()) {
     NS_WARNING("brandShortName not found, using default app name");
-    appName.AssignLiteral("Gecko based application");
+    appName.AssignLiteral("Goanna based application");
   }
 
   aName.Assign(appName);
@@ -244,7 +244,7 @@ ApplicationAccessible::GetAppVersion(nsAString& aVersion)
 NS_IMETHODIMP
 ApplicationAccessible::GetPlatformName(nsAString& aName)
 {
-  aName.AssignLiteral("Gecko");
+  aName.AssignLiteral("Goanna");
   return NS_OK;
 }
 

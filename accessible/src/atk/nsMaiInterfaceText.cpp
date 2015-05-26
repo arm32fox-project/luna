@@ -243,18 +243,18 @@ getCharacterExtentsCB(AtkText *aText, gint aOffset,
     int32_t extY = 0, extX = 0;
     int32_t extWidth = 0, extHeight = 0;
 
-    uint32_t geckoCoordType;
+    uint32_t goannaCoordType;
     if (aCoords == ATK_XY_SCREEN)
-        geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
+        goannaCoordType = nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
     else
-        geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
+        goannaCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
 
 #ifdef DEBUG
     nsresult rv =
 #endif
     text->GetCharacterExtents(aOffset, &extX, &extY,
                               &extWidth, &extHeight,
-                              geckoCoordType);
+                              goannaCoordType);
     *aX = extX;
     *aY = extY;
     *aWidth = extWidth;
@@ -278,11 +278,11 @@ getRangeExtentsCB(AtkText *aText, gint aStartOffset, gint aEndOffset,
     int32_t extY = 0, extX = 0;
     int32_t extWidth = 0, extHeight = 0;
 
-    uint32_t geckoCoordType;
+    uint32_t goannaCoordType;
     if (aCoords == ATK_XY_SCREEN)
-        geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
+        goannaCoordType = nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
     else
-        geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
+        goannaCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
 
 #ifdef DEBUG
     nsresult rv =
@@ -290,7 +290,7 @@ getRangeExtentsCB(AtkText *aText, gint aStartOffset, gint aEndOffset,
     text->GetRangeExtents(aStartOffset, aEndOffset,
                           &extX, &extY,
                           &extWidth, &extHeight,
-                          geckoCoordType);
+                          goannaCoordType);
     aRect->x = extX;
     aRect->y = extY;
     aRect->width = extWidth;
@@ -325,13 +325,13 @@ getOffsetAtPointCB(AtkText *aText,
     return -1;
 
     int32_t offset = 0;
-    uint32_t geckoCoordType;
+    uint32_t goannaCoordType;
     if (aCoords == ATK_XY_SCREEN)
-        geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
+        goannaCoordType = nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
     else
-        geckoCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
+        goannaCoordType = nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE;
 
-    text->GetOffsetAtPoint(aX, aY, geckoCoordType, &offset);
+    text->GetOffsetAtPoint(aX, aY, goannaCoordType, &offset);
     return static_cast<gint>(offset);
 }
 

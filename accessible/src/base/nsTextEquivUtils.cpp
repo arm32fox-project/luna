@@ -386,9 +386,9 @@ nsTextEquivUtils::IsWhitespace(PRUnichar aChar)
 uint32_t 
 nsTextEquivUtils::GetRoleRule(role aRole)
 {
-#define ROLE(geckoRole, stringRole, atkRole, \
+#define ROLE(goannaRole, stringRole, atkRole, \
              macRole, msaaRole, ia2Role, nameRule) \
-  case roles::geckoRole: \
+  case roles::goannaRole: \
     return nameRule;
 
   switch (aRole) {

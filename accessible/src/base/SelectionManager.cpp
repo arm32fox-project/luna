@@ -264,7 +264,7 @@ SelectionManager::GetCaretRect(nsIWidget** aWidget)
   caretRect.MoveBy((*aWidget)->WidgetToScreenOffset() - (*aWidget)->GetClientOffset());
 
   // Correct for character size, so that caret always matches the size of the character
-  // This is important for font size transitions, and is necessary because the Gecko caret uses the
+  // This is important for font size transitions, and is necessary because the Goanna caret uses the
   // previous character's size as the user moves forward in the text by character.
   int32_t charX, charY, charWidth, charHeight;
   if (NS_SUCCEEDED(mLastTextAccessible->GetCharacterExtents(mLastCaretOffset, &charX, &charY,
