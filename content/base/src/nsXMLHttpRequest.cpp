@@ -68,7 +68,7 @@
 #include "nsDOMFile.h"
 #include "nsIFileChannel.h"
 #include "jsfriendapi.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "mozilla/dom/EncodingUtils.h"
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 #include "nsIDOMFormData.h"

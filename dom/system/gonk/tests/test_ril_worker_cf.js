@@ -90,7 +90,7 @@ add_test(function test_setCallForward_unconditional() {
 
   let postedMessage = workerHelper.postedMessage;
 
-  do_check_eq(postedMessage.errorMsg, GECKO_ERROR_SUCCESS);
+  do_check_eq(postedMessage.errorMsg, GOANNA_ERROR_SUCCESS);
   do_check_true(postedMessage.success);
 
   run_next_test();
@@ -138,7 +138,7 @@ add_test(function test_queryCallForwardStatus_unconditional() {
 
   let postedMessage = workerHelper.postedMessage;
 
-  do_check_eq(postedMessage.errorMsg, GECKO_ERROR_SUCCESS);
+  do_check_eq(postedMessage.errorMsg, GOANNA_ERROR_SUCCESS);
   do_check_true(postedMessage.success);
   do_check_true(Array.isArray(postedMessage.rules));
   do_print(postedMessage.rules.length);

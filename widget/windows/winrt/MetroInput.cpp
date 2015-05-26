@@ -136,7 +136,7 @@ namespace {
    * NOTE: This function will set the `mChanged` member of each
    * element it encounters to `false`, since this function is only
    * used to populate a touchlist that is about to be dispatched
-   * in a gecko touch event.
+   * in a goanna touch event.
    *
    * @param aKey the key of the current element being enumerated
    * @param aData the value of the current element being enumerated
@@ -267,18 +267,18 @@ MetroInput::OnEdgeGestureStarted(UI::Input::IEdgeGesture* sender,
 #ifdef DEBUG_INPUT
   LogFunction();
 #endif
-  nsSimpleGestureEvent geckoEvent(true,
+  nsSimpleGestureEvent goannaEvent(true,
                                   NS_SIMPLE_GESTURE_EDGE_STARTED,
                                   mWidget.Get(),
                                   0,
                                   0.0);
   mModifierKeyState.Update();
-  mModifierKeyState.InitInputEvent(geckoEvent);
-  geckoEvent.time = ::GetMessageTime();
+  mModifierKeyState.InitInputEvent(goannaEvent);
+  goannaEvent.time = ::GetMessageTime();
 
-  geckoEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+  goannaEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
 
-  DispatchEventIgnoreStatus(&geckoEvent);
+  DispatchEventIgnoreStatus(&goannaEvent);
   return S_OK;
 }
 
@@ -298,18 +298,18 @@ MetroInput::OnEdgeGestureCanceled(UI::Input::IEdgeGesture* sender,
 #ifdef DEBUG_INPUT
   LogFunction();
 #endif
-  nsSimpleGestureEvent geckoEvent(true,
+  nsSimpleGestureEvent goannaEvent(true,
                                   NS_SIMPLE_GESTURE_EDGE_CANCELED,
                                   mWidget.Get(),
                                   0,
                                   0.0);
   mModifierKeyState.Update();
-  mModifierKeyState.InitInputEvent(geckoEvent);
-  geckoEvent.time = ::GetMessageTime();
+  mModifierKeyState.InitInputEvent(goannaEvent);
+  goannaEvent.time = ::GetMessageTime();
 
-  geckoEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+  goannaEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
 
-  DispatchEventIgnoreStatus(&geckoEvent);
+  DispatchEventIgnoreStatus(&goannaEvent);
   return S_OK;
 }
 
@@ -328,25 +328,25 @@ MetroInput::OnEdgeGestureCompleted(UI::Input::IEdgeGesture* sender,
 #ifdef DEBUG_INPUT
   LogFunction();
 #endif
-  nsSimpleGestureEvent geckoEvent(true,
+  nsSimpleGestureEvent goannaEvent(true,
                                   NS_SIMPLE_GESTURE_EDGE_COMPLETED,
                                   mWidget.Get(),
                                   0,
                                   0.0);
   mModifierKeyState.Update();
-  mModifierKeyState.InitInputEvent(geckoEvent);
-  geckoEvent.time = ::GetMessageTime();
+  mModifierKeyState.InitInputEvent(goannaEvent);
+  goannaEvent.time = ::GetMessageTime();
 
   UI::Input::EdgeGestureKind value;
   aArgs->get_Kind(&value);
 
   if (value == UI::Input::EdgeGestureKind::EdgeGestureKind_Keyboard) {
-    geckoEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
+    goannaEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_KEYBOARD;
   } else {
-    geckoEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
+    goannaEvent.inputSource = nsIDOMMouseEvent::MOZ_SOURCE_TOUCH;
   }
 
-  DispatchEventIgnoreStatus(&geckoEvent);
+  DispatchEventIgnoreStatus(&goannaEvent);
   return S_OK;
 }
 
@@ -424,7 +424,7 @@ MetroInput::OnPointerWheelChanged(UI::Core::ICoreWindow* aSender,
 }
 
 // This helper function is used when a character has been received by our
-// app.  This function is responsible for sending an appropriate gecko
+// app.  This function is responsible for sending an appropriate goanna
 // event in response to the character entered.
 void
 MetroInput::OnCharacterReceived(uint32_t aCharCode)
@@ -449,12 +449,12 @@ MetroInput::OnCharacterReceived(uint32_t aCharCode)
   DispatchEventIgnoreStatus(&keyEvent);
 }
 
-// This helper function is responsible for sending an appropriate gecko
+// This helper function is responsible for sending an appropriate goanna
 // event in response to a keyboard key being pressed down.
 void
 MetroInput::OnKeyDown(uint32_t aVKey)
 {
-  // We can only send a gecko event if there is a gecko virtual key code that
+  // We can only send a goanna event if there is a goanna virtual key code that
   // corresponds to the Windows virtual key code
   uint32_t mozKey = GetMozKeyCode(aVKey);
   if (!mozKey) {
@@ -472,7 +472,7 @@ MetroInput::OnKeyDown(uint32_t aVKey)
   // If the key being pressed is not a printable character (e.g.
   // enter, delete, backspace, alt, etc), we will not receive a character
   // event for this key press, which means that our OnCharacterReceived
-  // function won't get called, and that we will never send a gecko
+  // function won't get called, and that we will never send a goanna
   // keypress event for this character.
   //
   // If the control key is currently down while this key was pressed,
@@ -480,7 +480,7 @@ MetroInput::OnKeyDown(uint32_t aVKey)
   // control character has been generated, or it will not send us any
   // character event (depending on which key has been pressed).
   //
-  // We want gecko to be aware of every keypress, so we send the
+  // We want goanna to be aware of every keypress, so we send the
   // keypress here.
   //
   // Note: We use MapVirtualKey to determine what character code we will
@@ -502,7 +502,7 @@ MetroInput::OnKeyDown(uint32_t aVKey)
   }
 }
 
-// This helper function is responsible for sending an appropriate gecko
+// This helper function is responsible for sending an appropriate goanna
 // event in response to a keyboard key being released.
 void
 MetroInput::OnKeyUp(uint32_t aVKey)
@@ -524,7 +524,7 @@ MetroInput::OnKeyUp(uint32_t aVKey)
 /**
  * This helper function is used by our processing of PointerPressed,
  * PointerReleased, and PointerMoved events.
- * It dispatches a gecko event in response to the input received.  This
+ * It dispatches a goanna event in response to the input received.  This
  * function should only be called for non-touch (i.e. pen or mouse) input
  * events.
  *
@@ -572,7 +572,7 @@ MetroInput::OnPointerNonTouch(UI::Input::IPointerPoint* aPoint) {
       mouseEvent.message = NS_MOUSE_BUTTON_UP;
       break;
   }
-  InitGeckoMouseEventFromPointerPoint(mouseEvent, aPoint);
+  InitGoannaMouseEventFromPointerPoint(mouseEvent, aPoint);
   DispatchEventIgnoreStatus(&mouseEvent);
   return;
 }
@@ -779,10 +779,10 @@ MetroInput::OnPointerMoved(UI::Core::ICoreWindow* aSender,
 }
 
 void
-MetroInput::InitGeckoMouseEventFromPointerPoint(
+MetroInput::InitGoannaMouseEventFromPointerPoint(
                                   nsMouseEvent& aEvent,
                                   UI::Input::IPointerPoint* aPointerPoint) {
-  NS_ASSERTION(aPointerPoint, "InitGeckoMouseEventFromPointerPoint "
+  NS_ASSERTION(aPointerPoint, "InitGoannaMouseEventFromPointerPoint "
                               "called with null PointerPoint!");
 
   WRL::ComPtr<UI::Input::IPointerPointProperties> props;
@@ -843,7 +843,7 @@ MetroInput::OnPointerEntered(UI::Core::ICoreWindow* aSender,
                             mWidget.Get(),
                             nsMouseEvent::eReal,
                             nsMouseEvent::eNormal);
-    InitGeckoMouseEventFromPointerPoint(mouseEvent, currentPoint.Get());
+    InitGoannaMouseEventFromPointerPoint(mouseEvent, currentPoint.Get());
     DispatchEventIgnoreStatus(&mouseEvent);
   }
   return S_OK;
@@ -876,7 +876,7 @@ MetroInput::OnPointerExited(UI::Core::ICoreWindow* aSender,
                             mWidget.Get(),
                             nsMouseEvent::eReal,
                             nsMouseEvent::eNormal);
-    InitGeckoMouseEventFromPointerPoint(mouseEvent, currentPoint.Get());
+    InitGoannaMouseEventFromPointerPoint(mouseEvent, currentPoint.Get());
     DispatchEventIgnoreStatus(&mouseEvent);
   }
   return S_OK;
@@ -889,9 +889,9 @@ MetroInput::OnPointerExited(UI::Core::ICoreWindow* aSender,
  *
  * @param aDelta the gesture change since the last update
  * @param aPosition the position at which the gesture is taking place
- * @param aMagEventType the event type of the gecko magnification gesture to
+ * @param aMagEventType the event type of the goanna magnification gesture to
  *                      send
- * @param aRotEventType the event type of the gecko rotation gesture to send
+ * @param aRotEventType the event type of the goanna rotation gesture to send
  */
 void
 MetroInput::ProcessManipulationDelta(
@@ -910,7 +910,7 @@ MetroInput::ProcessManipulationDelta(
     return;
   }
 
-  // Send a gecko event indicating the magnification since the last update.
+  // Send a goanna event indicating the magnification since the last update.
   nsSimpleGestureEvent magEvent(true,
                                 aMagEventType,
                                 mWidget.Get(), 0, 0.0);
@@ -922,7 +922,7 @@ MetroInput::ProcessManipulationDelta(
   magEvent.refPoint = MetroUtils::LogToPhys(aPosition);
   DispatchEventIgnoreStatus(&magEvent);
 
-  // Send a gecko event indicating the rotation since the last update.
+  // Send a goanna event indicating the rotation since the last update.
   nsSimpleGestureEvent rotEvent(true,
                                 aRotEventType,
                                 mWidget.Get(), 0, 0.0);
@@ -990,7 +990,7 @@ MetroInput::OnManipulationUpdated(
   return S_OK;
 }
 
-// Gecko expects a "finished" event to be sent that has the cumulative
+// Goanna expects a "finished" event to be sent that has the cumulative
 // changes since the gesture began.  The idea is that consumers could hook
 // only this last event and still effectively support magnification and
 // rotation. We accomplish sending this "finished" event by calling our

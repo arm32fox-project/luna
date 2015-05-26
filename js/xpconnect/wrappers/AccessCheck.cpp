@@ -49,7 +49,7 @@ AccessCheck::subsumes(JSCompartment *a, JSCompartment *b)
     nsIPrincipal *bprin = GetCompartmentPrincipal(b);
 
     // If either a or b doesn't have principals, we don't have enough
-    // information to tell. Seeing as how this is Gecko, we are default-unsafe
+    // information to tell. Seeing as how this is Goanna, we are default-unsafe
     // in this case.
     if (!aprin || !bprin)
         return true;

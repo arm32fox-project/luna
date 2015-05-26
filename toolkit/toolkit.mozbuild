@@ -48,7 +48,7 @@ if CONFIG['MOZ_UPDATER']:
 
     add_tier_dir('platform', 'other-licenses/bsdiff')
 
-# Gecko/Core components.
+# Goanna/Core components.
 
 add_tier_dir('platform', ['ipc', 'js/ipc'])
 

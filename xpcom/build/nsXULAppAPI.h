@@ -346,19 +346,19 @@ XRE_API(nsresult,
 XRE_API(void,
         XRE_FreeAppData, (nsXREAppData *aAppData))
 
-enum GeckoProcessType {
-  GeckoProcessType_Default = 0,
+enum GoannaProcessType {
+  GoannaProcessType_Default = 0,
 
-  GeckoProcessType_Plugin,
-  GeckoProcessType_Content,
+  GoannaProcessType_Plugin,
+  GoannaProcessType_Content,
 
-  GeckoProcessType_IPDLUnitTest,
+  GoannaProcessType_IPDLUnitTest,
 
-  GeckoProcessType_End,
-  GeckoProcessType_Invalid = GeckoProcessType_End
+  GoannaProcessType_End,
+  GoannaProcessType_Invalid = GoannaProcessType_End
 };
 
-static const char* const kGeckoProcessTypeString[] = {
+static const char* const kGoannaProcessTypeString[] = {
   "default",
   "plugin",
   "tab",
@@ -367,23 +367,23 @@ static const char* const kGeckoProcessTypeString[] = {
 
 // Oddly, NS_ARRAY_LENGTH causes an internal compiler error with MSVC10, so
 // compute the length manually.
-MOZ_STATIC_ASSERT(sizeof(kGeckoProcessTypeString) /
-                  sizeof(kGeckoProcessTypeString[0]) ==
-                  GeckoProcessType_End,
+MOZ_STATIC_ASSERT(sizeof(kGoannaProcessTypeString) /
+                  sizeof(kGoannaProcessTypeString[0]) ==
+                  GoannaProcessType_End,
                   "Array length mismatch");
 
 XRE_API(const char*,
-        XRE_ChildProcessTypeToString, (GeckoProcessType aProcessType))
+        XRE_ChildProcessTypeToString, (GoannaProcessType aProcessType))
 
-XRE_API(GeckoProcessType,
+XRE_API(GoannaProcessType,
         XRE_StringToChildProcessType, (const char* aProcessTypeString))
 
 XRE_API(nsresult,
         XRE_InitChildProcess, (int aArgc,
                                char* aArgv[],
-                               GeckoProcessType aProcess))
+                               GoannaProcessType aProcess))
 
-XRE_API(GeckoProcessType,
+XRE_API(GoannaProcessType,
         XRE_GetProcessType, ())
 
 typedef void (*MainFunction)(void* aData);

@@ -562,7 +562,7 @@ UpdateCpuSleepState()
 {
   sInternalLockCpuMonitor->AssertCurrentThreadOwns();
   bool allowed = sCpuSleepAllowed && !sInternalLockCpuCount;
-  WriteToFile(allowed ? wakeUnlockFilename : wakeLockFilename, "gecko");
+  WriteToFile(allowed ? wakeUnlockFilename : wakeLockFilename, "goanna");
 }
 
 static void

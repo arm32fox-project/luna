@@ -10,7 +10,7 @@
  * allocation functions.
  *
  * There are several types of functions related to memory allocation
- * that are meant to be used publicly by the Gecko codebase:
+ * that are meant to be used publicly by the Goanna codebase:
  *
  * - malloc implementation functions:
  *   - malloc
@@ -77,7 +77,7 @@
  * dedicated to jemalloc specific functions.
  *
  *
- * All these functions are meant to be called with no prefix from Gecko code.
+ * All these functions are meant to be called with no prefix from Goanna code.
  * In most cases, this is because that's how they are available at runtime.
  * However, on Android, "__wrap_" prefixing is left to the build-time linker
  * (with -Wl,--wrap), or to the mozmemory.h header for malloc_good_size and

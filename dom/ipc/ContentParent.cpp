@@ -280,7 +280,7 @@ ContentParent::JoinProcessesIOThread(const nsTArray<ContentParent*>* aProcesses,
 {
     const nsTArray<ContentParent*>& processes = *aProcesses;
     for (uint32_t i = 0; i < processes.Length(); ++i) {
-        if (GeckoChildProcessHost* process = processes[i]->mSubprocess) {
+        if (GoannaChildProcessHost* process = processes[i]->mSubprocess) {
             process->Join();
         }
     }
@@ -828,11 +828,11 @@ ContentParent::ProcessingError(Result what)
 namespace {
 
 void
-DelayedDeleteSubprocess(GeckoChildProcessHost* aSubprocess)
+DelayedDeleteSubprocess(GoannaChildProcessHost* aSubprocess)
 {
     XRE_GetIOMessageLoop()
         ->PostTask(FROM_HERE,
-                   new DeleteTask<GeckoChildProcessHost>(aSubprocess));
+                   new DeleteTask<GoannaChildProcessHost>(aSubprocess));
 }
 
 // This runnable only exists to delegate ownership of the
@@ -1043,7 +1043,7 @@ ContentParent::ContentParent(mozIApplication* aApp,
     nsDebugImpl::SetMultiprocessMode("Parent");
 
     NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-    mSubprocess = new GeckoChildProcessHost(GeckoProcessType_Content,
+    mSubprocess = new GoannaChildProcessHost(GoannaProcessType_Content,
                                             aOSPrivileges);
 
     mSubprocess->LaunchAndWaitForProcessHandle();

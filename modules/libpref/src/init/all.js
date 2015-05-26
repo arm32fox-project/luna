@@ -1256,7 +1256,7 @@ pref("network.dns.ipv4OnlyDomains", "");
 pref("network.dns.disableIPv6", false);
 
 // The grace period allows the DNS cache to use expired entries, while kicking off
-// a revalidation in the background. In seconds, but rounded to minutes in gecko.
+// a revalidation in the background. In seconds, but rounded to minutes in goanna.
 // Default to 30 days. (basically forever)
 pref("network.dnsCacheExpirationGracePeriod", 2592000);
 
@@ -1466,8 +1466,8 @@ pref("intl.hyphenation-alias.sh-*", "sh");
 pref("intl.hyphenation-alias.sr-*", "sh");
 pref("intl.hyphenation-alias.bs-*", "sh");
 
-// Norwegian has two forms, Bokmål and Nynorsk, with "no" as a macrolanguage encompassing both.
-// For "no", we'll alias to "nb" (Bokmål) as that is the more widely used written form.
+// Norwegian has two forms, Bokm??l and Nynorsk, with "no" as a macrolanguage encompassing both.
+// For "no", we'll alias to "nb" (Bokm??l) as that is the more widely used written form.
 pref("intl.hyphenation-alias.no", "nb");
 pref("intl.hyphenation-alias.no-*", "nb");
 pref("intl.hyphenation-alias.nb-*", "nb");
@@ -1543,7 +1543,7 @@ pref("mousewheel.acceleration.factor", 10);
 // speed is multiplied by the following factors.  The value will be used as
 // 1/100.  E.g., 200 means 2.00.
 // NOTE: Even if "mousewheel.system_scroll_override_on_root_content.enabled" is
-// true, when Gecko detects the user customized the system scrolling speed
+// true, when Goanna detects the user customized the system scrolling speed
 // settings, the override isn't executed.
 pref("mousewheel.system_scroll_override_on_root_content.vertical.factor", 200);
 pref("mousewheel.system_scroll_override_on_root_content.horizontal.factor", 200);
@@ -2529,7 +2529,7 @@ pref("mousewheel.system_scroll_override_on_root_content.enabled", true);
 pref("mousewheel.enable_pixel_scrolling", true);
 
 // If your mouse drive sends WM_*SCROLL messages when you turn your mouse wheel,
-// set this to true.  Then, gecko processes them as mouse wheel messages.
+// set this to true.  Then, goanna processes them as mouse wheel messages.
 pref("mousewheel.emulate_at_wm_scroll", false);
 
 // Enables or disabled the TrackPoint hack, -1 is autodetect, 0 is off,

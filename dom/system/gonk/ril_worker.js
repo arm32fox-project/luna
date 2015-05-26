@@ -748,7 +748,7 @@ let RIL = {
   _pendingSentSmsMap: {},
 
   /**
-   * Index of the RIL_PREFERRED_NETWORK_TYPE_TO_GECKO. Its value should be
+   * Index of the RIL_PREFERRED_NETWORK_TYPE_TO_GOANNA. Its value should be
    * preserved over rild reset.
    */
   preferredNetworkType: null,
@@ -771,7 +771,7 @@ let RIL = {
     /**
      * One of the RADIO_STATE_* constants.
      */
-    this.radioState = GECKO_RADIOSTATE_UNAVAILABLE;
+    this.radioState = GOANNA_RADIOSTATE_UNAVAILABLE;
     this._isInitialRadioState = true;
 
     /**
@@ -794,7 +794,7 @@ let RIL = {
     /**
      * Card state
      */
-    this.cardState = GECKO_CARDSTATE_UNKNOWN;
+    this.cardState = GOANNA_CARDSTATE_UNKNOWN;
 
     /**
      * Strings
@@ -1328,7 +1328,7 @@ let RIL = {
   readICCContacts: function readICCContacts(options) {
     if (!this.appType) {
       options.rilMessageType = "icccontacts";
-      options.errorMsg = GECKO_ERROR_REQUEST_NOT_SUPPORTED;
+      options.errorMsg = GOANNA_ERROR_REQUEST_NOT_SUPPORTED;
       this.sendDOMMessage(options);
     }
 
@@ -1370,7 +1370,7 @@ let RIL = {
     }.bind(this);
 
     if (!this.appType || !options.contact) {
-      onerror(GECKO_ERROR_REQUEST_NOT_SUPPORTED);
+      onerror(GOANNA_ERROR_REQUEST_NOT_SUPPORTED);
       return;
     }
 
@@ -1458,7 +1458,7 @@ let RIL = {
    * Set the preferred network type.
    *
    * @param options An object contains a valid index of
-   *                RIL_PREFERRED_NETWORK_TYPE_TO_GECKO as its `networkType`
+   *                RIL_PREFERRED_NETWORK_TYPE_TO_GOANNA as its `networkType`
    *                attribute, or undefined to set current preferred network
    *                type.
    */
@@ -1660,15 +1660,15 @@ let RIL = {
   },
 
   dialNonEmergencyNumber: function dialNonEmergencyNumber(options, onerror) {
-    if (this.radioState == GECKO_RADIOSTATE_OFF) {
+    if (this.radioState == GOANNA_RADIOSTATE_OFF) {
       // Notify error in establishing the call without radio.
-      onerror(GECKO_ERROR_RADIO_NOT_AVAILABLE);
+      onerror(GOANNA_ERROR_RADIO_NOT_AVAILABLE);
       return;
     }
 
     if (this.voiceRegistrationState.emergencyCallsOnly ||
         options.isDialEmergency) {
-      onerror(RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_UNOBTAINABLE_NUMBER]);
+      onerror(RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_UNOBTAINABLE_NUMBER]);
       return;
     }
 
@@ -1680,7 +1680,7 @@ let RIL = {
     options.request = RILQUIRKS_REQUEST_USE_DIAL_EMERGENCY_CALL ?
                       REQUEST_DIAL_EMERGENCY_CALL : REQUEST_DIAL;
 
-    if (this.radioState == GECKO_RADIOSTATE_OFF) {
+    if (this.radioState == GOANNA_RADIOSTATE_OFF) {
       if (DEBUG) debug("Automatically enable radio for an emergency call.");
 
       if (!this.cachedDialRequest) {
@@ -2071,7 +2071,7 @@ let RIL = {
     Buf.writeString(options.reason || DATACALL_DEACTIVATE_NO_REASON);
     Buf.sendParcel();
 
-    datacall.state = GECKO_NETWORK_STATE_DISCONNECTING;
+    datacall.state = GOANNA_NETWORK_STATE_DISCONNECTING;
     this.sendDOMMessage(datacall);
   },
 
@@ -2925,17 +2925,17 @@ let RIL = {
 
     if ((!iccStatus) || (iccStatus.cardState == CARD_STATE_ABSENT)) {
       switch (this.radioState) {
-        case GECKO_RADIOSTATE_UNAVAILABLE:
-          newCardState = GECKO_CARDSTATE_UNKNOWN;
+        case GOANNA_RADIOSTATE_UNAVAILABLE:
+          newCardState = GOANNA_CARDSTATE_UNKNOWN;
           break;
-        case GECKO_RADIOSTATE_OFF:
-          newCardState = GECKO_CARDSTATE_NOT_READY;
+        case GOANNA_RADIOSTATE_OFF:
+          newCardState = GOANNA_CARDSTATE_NOT_READY;
           break;
-        case GECKO_RADIOSTATE_READY:
+        case GOANNA_RADIOSTATE_READY:
           if (DEBUG) {
             debug("ICC absent");
           }
-          newCardState = GECKO_CARDSTATE_ABSENT;
+          newCardState = GOANNA_CARDSTATE_ABSENT;
           break;
       }
       if (newCardState == this.cardState) {
@@ -2951,12 +2951,12 @@ let RIL = {
                                iccStatus.gsmUmtsSubscriptionAppIndex;
     let app = iccStatus.apps[index];
     if (iccStatus.cardState == CARD_STATE_ERROR || !app) {
-      if (this.cardState == GECKO_CARDSTATE_UNKNOWN) {
+      if (this.cardState == GOANNA_CARDSTATE_UNKNOWN) {
         this.operator = null;
         return;
       }
       this.operator = null;
-      this.cardState = GECKO_CARDSTATE_UNKNOWN;
+      this.cardState = GOANNA_CARDSTATE_UNKNOWN;
       this.sendDOMMessage({rilMessageType: "cardstatechange",
                            cardState: this.cardState});
       return;
@@ -2967,22 +2967,22 @@ let RIL = {
 
     switch (app.app_state) {
       case CARD_APPSTATE_PIN:
-        newCardState = GECKO_CARDSTATE_PIN_REQUIRED;
+        newCardState = GOANNA_CARDSTATE_PIN_REQUIRED;
         break;
       case CARD_APPSTATE_PUK:
-        newCardState = GECKO_CARDSTATE_PUK_REQUIRED;
+        newCardState = GOANNA_CARDSTATE_PUK_REQUIRED;
         break;
       case CARD_APPSTATE_SUBSCRIPTION_PERSO:
         newCardState = PERSONSUBSTATE[app.perso_substate];
         break;
       case CARD_APPSTATE_READY:
-        newCardState = GECKO_CARDSTATE_READY;
+        newCardState = GOANNA_CARDSTATE_READY;
         break;
       case CARD_APPSTATE_UNKNOWN:
       case CARD_APPSTATE_DETECTED:
         // Fall through.
       default:
-        newCardState = GECKO_CARDSTATE_UNKNOWN;
+        newCardState = GOANNA_CARDSTATE_UNKNOWN;
     }
 
     if (this.cardState == newCardState) {
@@ -2992,7 +2992,7 @@ let RIL = {
     // This was moved down from CARD_APPSTATE_READY
     this.requestNetworkInfo();
     this.getSignalStrength();
-    if (newCardState == GECKO_CARDSTATE_READY) {
+    if (newCardState == GOANNA_CARDSTATE_READY) {
       // For type SIM, we need to check EF_phase first.
       // Other types of ICC we can send Terminal_Profile immediately.
       if (this.appType == CARD_APPTYPE_SIM) {
@@ -3019,7 +3019,7 @@ let RIL = {
   _processEnterAndChangeICCResponses: function _processEnterAndChangeICCResponses(length, options) {
     options.success = (options.rilRequestError === 0);
     if (!options.success) {
-      options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+      options.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
     }
     options.retryCount = length ? Buf.readUint32List()[0] : -1;
     this.sendDOMMessage(options);
@@ -3117,7 +3117,7 @@ let RIL = {
       changed = true;
       curState.regState = regState;
 
-      curState.state = NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[regState];
+      curState.state = NETWORK_CREG_TO_GOANNA_MOBILE_CONNECTION_STATE[regState];
       curState.connected = regState == NETWORK_CREG_STATE_REGISTERED_HOME ||
                            regState == NETWORK_CREG_STATE_REGISTERED_ROAMING;
       curState.roaming = regState == NETWORK_CREG_STATE_REGISTERED_ROAMING;
@@ -3151,7 +3151,7 @@ let RIL = {
     if (curState.radioTech != radioTech) {
       changed = true;
       curState.radioTech = radioTech;
-      curState.type = GECKO_RADIO_TECH[radioTech] || null;
+      curState.type = GOANNA_RADIO_TECH[radioTech] || null;
     }
     return changed;
   },
@@ -3356,9 +3356,9 @@ let RIL = {
   _sendDataCallError: function _sendDataCallError(message, errorCode) {
     message.rilMessageType = "datacallerror";
     if (errorCode == ERROR_GENERIC_FAILURE) {
-      message.errorMsg = RIL_ERROR_TO_GECKO_ERROR[errorCode];
+      message.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[errorCode];
     } else {
-      message.errorMsg = RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[errorCode];
+      message.errorMsg = RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[errorCode];
     }
     this.sendDOMMessage(message);
   },
@@ -3386,7 +3386,7 @@ let RIL = {
         // If datacalls list is coming from REQUEST_SETUP_DATA_CALL response,
         // we do not change state for any currentDataCalls not in datacalls list.
         if (!newDataCallOptions) {
-          currentDataCall.state = GECKO_NETWORK_STATE_DISCONNECTED;
+          currentDataCall.state = GOANNA_NETWORK_STATE_DISCONNECTED;
           currentDataCall.rilMessageType = "datacallstatechange";
           this.sendDOMMessage(currentDataCall);
         }
@@ -3395,13 +3395,13 @@ let RIL = {
 
       if (updatedDataCall && !updatedDataCall.ifname) {
         delete this.currentDataCalls[currentDataCall.cid];
-        currentDataCall.state = GECKO_NETWORK_STATE_UNKNOWN;
+        currentDataCall.state = GOANNA_NETWORK_STATE_UNKNOWN;
         currentDataCall.rilMessageType = "datacallstatechange";
         this.sendDOMMessage(currentDataCall);
         continue;
       }
 
-      this._setDataCallGeckoState(updatedDataCall);
+      this._setDataCallGoannaState(updatedDataCall);
       if (updatedDataCall.state != currentDataCall.state) {
         currentDataCall.status = updatedDataCall.status;
         currentDataCall.active = updatedDataCall.active;
@@ -3416,7 +3416,7 @@ let RIL = {
         continue;
       }
       this.currentDataCalls[newDataCall.cid] = newDataCall;
-      this._setDataCallGeckoState(newDataCall);
+      this._setDataCallGoannaState(newDataCall);
       if (newDataCallOptions) {
         newDataCall.radioTech = newDataCallOptions.radioTech;
         newDataCall.apn = newDataCallOptions.apn;
@@ -3433,14 +3433,14 @@ let RIL = {
     }
   },
 
-  _setDataCallGeckoState: function _setDataCallGeckoState(datacall) {
+  _setDataCallGoannaState: function _setDataCallGoannaState(datacall) {
     switch (datacall.active) {
       case DATACALL_INACTIVE:
-        datacall.state = GECKO_NETWORK_STATE_DISCONNECTED;
+        datacall.state = GOANNA_NETWORK_STATE_DISCONNECTED;
         break;
       case DATACALL_ACTIVE_DOWN:
       case DATACALL_ACTIVE_UP:
-        datacall.state = GECKO_NETWORK_STATE_CONNECTED;
+        datacall.state = GOANNA_NETWORK_STATE_CONNECTED;
         break;
     }
   },
@@ -3468,8 +3468,8 @@ let RIL = {
       let state = strings[i + 3];
       if (state === NETWORK_STATE_UNKNOWN) {
         // TODO: looks like this might conflict in style with
-        // GECKO_NETWORK_STYLE_UNKNOWN / nsINetworkManager
-        state = GECKO_QAN_STATE_UNKNOWN;
+        // GOANNA_NETWORK_STYLE_UNKNOWN / nsINetworkManager
+        state = GOANNA_QAN_STATE_UNKNOWN;
       }
 
       network.state = state;
@@ -3519,7 +3519,7 @@ let RIL = {
     }
 
     if (DEBUG) {
-      debug("Radio tech is set to: " + GECKO_RADIO_TECH[radioTech] +
+      debug("Radio tech is set to: " + GOANNA_RADIO_TECH[radioTech] +
             ", it is a " + (isCdma?"cdma":"gsm") + " technology");
     }
 
@@ -3769,7 +3769,7 @@ let RIL = {
 
     if (message) {
       message.result = PDU_FCS_OK;
-      if (message.messageClass == GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_2]) {
+      if (message.messageClass == GOANNA_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_2]) {
         // `MS shall ensure that the message has been to the SMS data field in
         // the (U)SIM before sending an ACK to the SC.`  ~ 3GPP 23.038 clause 4
         message.result = PDU_FCS_RESERVED;
@@ -3832,8 +3832,8 @@ let RIL = {
     delete this._pendingSentSmsMap[message.messageRef];
 
     let deliveryStatus = ((status >>> 5) === 0x00)
-                       ? GECKO_SMS_DELIVERY_STATUS_SUCCESS
-                       : GECKO_SMS_DELIVERY_STATUS_ERROR;
+                       ? GOANNA_SMS_DELIVERY_STATUS_SUCCESS
+                       : GOANNA_SMS_DELIVERY_STATUS_ERROR;
     this.sendDOMMessage({
       rilMessageType: "sms-delivery",
       envelopeId: options.envelopeId,
@@ -4576,7 +4576,7 @@ RIL[REQUEST_LAST_CALL_FAIL_CAUSE] = function REQUEST_LAST_CALL_FAIL_CAUSE(length
       break;
     default:
       options.rilMessageType = "callError";
-      options.errorMsg = RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[failCause];
+      options.errorMsg = RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[failCause];
       this.sendDOMMessage(options);
       break;
   }
@@ -4687,7 +4687,7 @@ RIL[REQUEST_RADIO_POWER] = function REQUEST_RADIO_POWER(length, options) {
   if (options.rilRequestError) {
     if (this.cachedDialRequest && options.on) {
       // Turning on radio fails. Notify the error of making an emergency call.
-      this.cachedDialRequest.onerror(GECKO_ERROR_RADIO_NOT_AVAILABLE);
+      this.cachedDialRequest.onerror(GOANNA_ERROR_RADIO_NOT_AVAILABLE);
       this.cachedDialRequest = null;
     }
     return;
@@ -4714,7 +4714,7 @@ RIL.readSetupDataCall_v5 = function readSetupDataCall_v5(options) {
   options.dns = dns;
   options.gw = gw;
   options.active = DATACALL_ACTIVE_UNKNOWN;
-  options.state = GECKO_NETWORK_STATE_CONNECTING;
+  options.state = GOANNA_NETWORK_STATE_CONNECTING;
   return options;
 };
 
@@ -4762,7 +4762,7 @@ RIL[REQUEST_SEND_USSD] = function REQUEST_SEND_USSD(length, options) {
     debug("REQUEST_SEND_USSD " + JSON.stringify(options));
   }
   options.success = (this._ussdSession = options.rilRequestError === 0);
-  options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+  options.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
   this.sendDOMMessage(options);
 };
 RIL[REQUEST_CANCEL_USSD] = function REQUEST_CANCEL_USSD(length, options) {
@@ -4771,7 +4771,7 @@ RIL[REQUEST_CANCEL_USSD] = function REQUEST_CANCEL_USSD(length, options) {
   }
   options.success = (options.rilRequestError === 0);
   this._ussdSession = !options.success;
-  options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+  options.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
   this.sendDOMMessage(options);
 };
 RIL[REQUEST_GET_CLIR] = null;
@@ -4780,7 +4780,7 @@ RIL[REQUEST_QUERY_CALL_FORWARD_STATUS] =
   function REQUEST_QUERY_CALL_FORWARD_STATUS(length, options) {
     options.success = (options.rilRequestError === 0);
     if (!options.success) {
-      options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+      options.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
       this.sendDOMMessage(options);
       return;
     }
@@ -4814,7 +4814,7 @@ RIL[REQUEST_SET_CALL_FORWARD] =
   function REQUEST_SET_CALL_FORWARD(length, options) {
     options.success = (options.rilRequestError === 0);
     if (!options.success) {
-      options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+      options.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
     }
     this.sendDOMMessage(options);
 };
@@ -4822,7 +4822,7 @@ RIL[REQUEST_QUERY_CALL_WAITING] =
   function REQUEST_QUERY_CALL_WAITING(length, options) {
   options.success = (options.rilRequestError === 0);
   if (!options.success) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    options.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
     this.sendDOMMessage(options);
     return;
   }
@@ -4835,7 +4835,7 @@ RIL[REQUEST_QUERY_CALL_WAITING] =
 RIL[REQUEST_SET_CALL_WAITING] = function REQUEST_SET_CALL_WAITING(length, options) {
   options.success = (options.rilRequestError === 0);
   if (!options.success) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    options.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
   }
   this.sendDOMMessage(options);
 };
@@ -4849,9 +4849,9 @@ RIL[REQUEST_GET_IMEI] = function REQUEST_GET_IMEI(length, options) {
 
   options.rilMessageType = "sendMMI";
   options.success = (options.rilRequestError === 0);
-  options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+  options.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
   if ((!options.success || this.IMEI == null) && !options.errorMsg) {
-    options.errorMsg = GECKO_ERROR_GENERIC_FAILURE;
+    options.errorMsg = GOANNA_ERROR_GENERIC_FAILURE;
   }
   options.result = this.IMEI;
   this.sendDOMMessage(options);
@@ -4871,14 +4871,14 @@ RIL[REQUEST_DEACTIVATE_DATA_CALL] = function REQUEST_DEACTIVATE_DATA_CALL(length
 
   let datacall = this.currentDataCalls[options.cid];
   delete this.currentDataCalls[options.cid];
-  datacall.state = GECKO_NETWORK_STATE_UNKNOWN;
+  datacall.state = GOANNA_NETWORK_STATE_UNKNOWN;
   datacall.rilMessageType = "datacallstatechange";
   this.sendDOMMessage(datacall);
 };
 RIL[REQUEST_QUERY_FACILITY_LOCK] = function REQUEST_QUERY_FACILITY_LOCK(length, options) {
   options.success = (options.rilRequestError === 0);
   if (!options.success) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    options.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
   }
 
   if (length) {
@@ -4889,7 +4889,7 @@ RIL[REQUEST_QUERY_FACILITY_LOCK] = function REQUEST_QUERY_FACILITY_LOCK(length, 
 RIL[REQUEST_SET_FACILITY_LOCK] = function REQUEST_SET_FACILITY_LOCK(length, options) {
   options.success = (options.rilRequestError === 0);
   if (!options.success) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    options.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
   }
   options.retryCount = length ? Buf.readUint32List()[0] : -1;
   this.sendDOMMessage(options);
@@ -4897,7 +4897,7 @@ RIL[REQUEST_SET_FACILITY_LOCK] = function REQUEST_SET_FACILITY_LOCK(length, opti
 RIL[REQUEST_CHANGE_BARRING_PASSWORD] = null;
 RIL[REQUEST_SIM_OPEN_CHANNEL] = function REQUEST_SIM_OPEN_CHANNEL(length, options) {
   if (options.rilRequestError) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    options.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
     this.sendDOMMessage(options);
     return;
   }
@@ -4908,7 +4908,7 @@ RIL[REQUEST_SIM_OPEN_CHANNEL] = function REQUEST_SIM_OPEN_CHANNEL(length, option
 };
 RIL[REQUEST_SIM_CLOSE_CHANNEL] = function REQUEST_SIM_CLOSE_CHANNEL(length, options) {
   if (options.rilRequestError) {
-    options.error = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    options.error = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
     this.sendDOMMessage(options);
     return;
   }
@@ -4918,7 +4918,7 @@ RIL[REQUEST_SIM_CLOSE_CHANNEL] = function REQUEST_SIM_CLOSE_CHANNEL(length, opti
 };
 RIL[REQUEST_SIM_ACCESS_CHANNEL] = function REQUEST_SIM_ACCESS_CHANNEL(length, options) {
   if (options.rilRequestError) {
-    options.error = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    options.error = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
     this.sendDOMMessage(options);
   }
 
@@ -4935,7 +4935,7 @@ RIL[REQUEST_QUERY_NETWORK_SELECTION_MODE] = function REQUEST_QUERY_NETWORK_SELEC
   this._receivedNetworkInfo(NETWORK_INFO_NETWORK_SELECTION_MODE);
 
   if (options.rilRequestError) {
-    options.error = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    options.error = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
     this.sendDOMMessage(options);
     return;
   }
@@ -4945,13 +4945,13 @@ RIL[REQUEST_QUERY_NETWORK_SELECTION_MODE] = function REQUEST_QUERY_NETWORK_SELEC
 
   switch (mode[0]) {
     case NETWORK_SELECTION_MODE_AUTOMATIC:
-      selectionMode = GECKO_NETWORK_SELECTION_AUTOMATIC;
+      selectionMode = GOANNA_NETWORK_SELECTION_AUTOMATIC;
       break;
     case NETWORK_SELECTION_MODE_MANUAL:
-      selectionMode = GECKO_NETWORK_SELECTION_MANUAL;
+      selectionMode = GOANNA_NETWORK_SELECTION_MANUAL;
       break;
     default:
-      selectionMode = GECKO_NETWORK_SELECTION_UNKNOWN;
+      selectionMode = GOANNA_NETWORK_SELECTION_UNKNOWN;
       break;
   }
 
@@ -4963,7 +4963,7 @@ RIL[REQUEST_QUERY_NETWORK_SELECTION_MODE] = function REQUEST_QUERY_NETWORK_SELEC
 };
 RIL[REQUEST_SET_NETWORK_SELECTION_AUTOMATIC] = function REQUEST_SET_NETWORK_SELECTION_AUTOMATIC(length, options) {
   if (options.rilRequestError) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    options.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
     this.sendDOMMessage(options);
     return;
   }
@@ -4972,7 +4972,7 @@ RIL[REQUEST_SET_NETWORK_SELECTION_AUTOMATIC] = function REQUEST_SET_NETWORK_SELE
 };
 RIL[REQUEST_SET_NETWORK_SELECTION_MANUAL] = function REQUEST_SET_NETWORK_SELECTION_MANUAL(length, options) {
   if (options.rilRequestError) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    options.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
     this.sendDOMMessage(options);
     return;
   }
@@ -4981,7 +4981,7 @@ RIL[REQUEST_SET_NETWORK_SELECTION_MANUAL] = function REQUEST_SET_NETWORK_SELECTI
 };
 RIL[REQUEST_QUERY_AVAILABLE_NETWORKS] = function REQUEST_QUERY_AVAILABLE_NETWORKS(length, options) {
   if (options.rilRequestError) {
-    options.errorMsg = RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError];
+    options.errorMsg = RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError];
     this.sendDOMMessage(options);
     return;
   }
@@ -5126,7 +5126,7 @@ RIL[REQUEST_SET_PREFERRED_NETWORK_TYPE] = function REQUEST_SET_PREFERRED_NETWORK
 RIL[REQUEST_GET_PREFERRED_NETWORK_TYPE] = function REQUEST_GET_PREFERRED_NETWORK_TYPE(length, options) {
   let networkType;
   if (!options.rilRequestError) {
-    networkType = RIL_PREFERRED_NETWORK_TYPE_TO_GECKO.indexOf(GECKO_PREFERRED_NETWORK_TYPE_DEFAULT);
+    networkType = RIL_PREFERRED_NETWORK_TYPE_TO_GOANNA.indexOf(GOANNA_PREFERRED_NETWORK_TYPE_DEFAULT);
     let responseLen = Buf.readUint32(); // Number of INT32 responsed.
     if (responseLen) {
       this.preferredNetworkType = networkType = Buf.readUint32();
@@ -5241,11 +5241,11 @@ RIL[UNSOLICITED_RESPONSE_RADIO_STATE_CHANGED] = function UNSOLICITED_RESPONSE_RA
 
   let newState;
   if (radioState == RADIO_STATE_UNAVAILABLE) {
-    newState = GECKO_RADIOSTATE_UNAVAILABLE;
+    newState = GOANNA_RADIOSTATE_UNAVAILABLE;
   } else if (radioState == RADIO_STATE_OFF) {
-    newState = GECKO_RADIOSTATE_OFF;
+    newState = GOANNA_RADIOSTATE_OFF;
   } else {
-    newState = GECKO_RADIOSTATE_READY;
+    newState = GOANNA_RADIOSTATE_READY;
   }
 
   if (DEBUG) {
@@ -5280,9 +5280,9 @@ RIL[UNSOLICITED_RESPONSE_RADIO_STATE_CHANGED] = function UNSOLICITED_RESPONSE_RA
     break;
   }
 
-  if ((this.radioState == GECKO_RADIOSTATE_UNAVAILABLE ||
-       this.radioState == GECKO_RADIOSTATE_OFF) &&
-       newState == GECKO_RADIOSTATE_READY) {
+  if ((this.radioState == GOANNA_RADIOSTATE_UNAVAILABLE ||
+       this.radioState == GOANNA_RADIOSTATE_OFF) &&
+       newState == GOANNA_RADIOSTATE_READY) {
     // The radio became available, let's get its info.
     if (!this._waitingRadioTech) {
       if (this._isCdma) {
@@ -6566,7 +6566,7 @@ let GsmPDUHelper = {
             // TODO: When should we de-activate the level 1 indicator?
             mwi.active = true;
             mwi.discard = false;
-            mwi.msgCount = GECKO_VOICEMAIL_MESSAGE_COUNT_UNKNOWN;
+            mwi.msgCount = GOANNA_VOICEMAIL_MESSAGE_COUNT_UNKNOWN;
             if (DEBUG) debug("TP-PID got return call message: " + msg.sender);
             return;
         }
@@ -6635,7 +6635,7 @@ let GsmPDUHelper = {
 
             mwi.active = active;
             mwi.discard = (dcs & PDU_DCS_CODING_GROUP_BITS) == 0xC0;
-            mwi.msgCount = active ? GECKO_VOICEMAIL_MESSAGE_COUNT_UNKNOWN : 0;
+            mwi.msgCount = active ? GOANNA_VOICEMAIL_MESSAGE_COUNT_UNKNOWN : 0;
 
             if (DEBUG) {
               debug("MWI in DCS received for voicemail: " + JSON.stringify(mwi));
@@ -6667,7 +6667,7 @@ let GsmPDUHelper = {
 
     msg.dcs = dcs;
     msg.encoding = encoding;
-    msg.messageClass = GECKO_SMS_MESSAGE_CLASSES[messageClass];
+    msg.messageClass = GOANNA_SMS_MESSAGE_CLASSES[messageClass];
 
     if (DEBUG) debug("PDU: message encoding is " + encoding + " bit.");
   },
@@ -6937,7 +6937,7 @@ let GsmPDUHelper = {
       return [null, PDU_FCS_OK];
     }
 
-    if (message.messageClass == GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_2]) {
+    if (message.messageClass == GOANNA_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_2]) {
       switch (message.epid) {
         case PDU_PID_ANSI_136_R_DATA:
         case PDU_PID_USIM_DATA_DOWNLOAD:
@@ -6965,13 +6965,13 @@ let GsmPDUHelper = {
     }
 
     // TODO: Bug 739143: B2G SMS: Support SMS Storage Full event
-    if ((message.messageClass != GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_0]) && !true) {
+    if ((message.messageClass != GOANNA_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_0]) && !true) {
       // `When a mobile terminated message is class 0..., the MS shall display
       // the message immediately and send a ACK to the SC ..., irrespective of
       // whether there is memory available in the (U)SIM or ME.` ~ 3GPP 23.038
       // clause 4.
 
-      if (message.messageClass == GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_2]) {
+      if (message.messageClass == GOANNA_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_2]) {
         // `If all the short message storage at the MS is already in use, the
         // MS shall return "memory capacity exceeded".` ~ 3GPP 23.038 clause 4.
         return [null, PDU_FCS_MEMORY_CAPACITY_EXCEEDED];
@@ -7329,7 +7329,7 @@ let GsmPDUHelper = {
     msg.dcs = dcs;
     msg.encoding = encoding;
     msg.language = language;
-    msg.messageClass = GECKO_SMS_MESSAGE_CLASSES[messageClass];
+    msg.messageClass = GOANNA_SMS_MESSAGE_CLASSES[messageClass];
     msg.hasLanguageIndicator = hasLanguageIndicator;
   },
 
@@ -7445,7 +7445,7 @@ let GsmPDUHelper = {
       language:             null,                              //  O   X    O
       fullBody:             null,                              //  O   X    O
       fullData:             null,                              //  O   X    O
-      messageClass:         GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_NORMAL], //  O   x    O
+      messageClass:         GOANNA_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_NORMAL], //  O   x    O
       etws:                 null                               //  ?   O    ?
       /*{
         warningType:        null,                              //  X   O    X
@@ -8066,7 +8066,7 @@ let CdmaPDUHelper = {
       scts:           null,
       dt:             null,
       encoding:       message[PDU_CDMA_MSG_USERDATA_BODY].encoding,
-      messageClass:   GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_NORMAL]
+      messageClass:   GOANNA_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_NORMAL]
     };
 
     return msg;
@@ -9570,15 +9570,15 @@ let ComprehensionTlvHelper = {
   },
 
   /**
-   * Given a geckoError string, this function translates it into cause value
+   * Given a goannaError string, this function translates it into cause value
    * and write the value into buffer.
    *
-   * @param geckoError Error string that is passed to gecko.
+   * @param goannaError Error string that is passed to goanna.
    */
-  writeCauseTlv: function writeCauseTlv(geckoError) {
+  writeCauseTlv: function writeCauseTlv(goannaError) {
     let cause = -1;
-    for (let errorNo in RIL_ERROR_TO_GECKO_ERROR) {
-      if (geckoError == RIL_ERROR_TO_GECKO_ERROR[errorNo]) {
+    for (let errorNo in RIL_ERROR_TO_GOANNA_ERROR) {
+      if (goannaError == RIL_ERROR_TO_GOANNA_ERROR[errorNo]) {
         cause = errorNo;
         break;
       }
@@ -10078,7 +10078,7 @@ let ICCIOHelper = {
     // See GSM11.11, TS 51.011 clause 9.4, and ISO 7816-4 for the error
     // description.
     let errorMsg = "ICC I/O Error code " +
-                   RIL_ERROR_TO_GECKO_ERROR[options.rilRequestError] +
+                   RIL_ERROR_TO_GOANNA_ERROR[options.rilRequestError] +
                    " EF id = " + options.fileId.toString(16) +
                    " command = " + options.command.toString(16);
     if (options.sw1 && options.sw2) {
@@ -11394,12 +11394,12 @@ let ICCUtilsHelper = {
   /**
    * Get whether specificed (U)SIM service is available.
    *
-   * @param geckoService
+   * @param goannaService
    *        Service name like "ADN", "BDN", etc.
    *
    * @return true if the service is enabled, false otherwise.
    */
-  isICCServiceAvailable: function isICCServiceAvailable(geckoService) {
+  isICCServiceAvailable: function isICCServiceAvailable(goannaService) {
     let serviceTable = RIL._isCdma ? RIL.iccInfoPrivate.cst:
                                      RIL.iccInfoPrivate.sst;
     let index, bitmask;
@@ -11420,9 +11420,9 @@ let ICCUtilsHelper = {
        */
       let simService;
       if (RIL.appType == CARD_APPTYPE_SIM) {
-        simService = GECKO_ICC_SERVICES.sim[geckoService];
+        simService = GOANNA_ICC_SERVICES.sim[goannaService];
       } else {
-        simService = GECKO_ICC_SERVICES.ruim[geckoService];
+        simService = GOANNA_ICC_SERVICES.ruim[goannaService];
       }
       if (!simService) {
         return false;
@@ -11445,7 +11445,7 @@ let ICCUtilsHelper = {
        *
        * @see 3GPP TS 31.102 4.2.8.
        */
-      let usimService = GECKO_ICC_SERVICES.usim[geckoService];
+      let usimService = GOANNA_ICC_SERVICES.usim[goannaService];
       if (!usimService) {
         return false;
       }
@@ -11547,7 +11547,7 @@ let ICCContactHelper = {
         break;
       default:
         if (onerror) {
-          onerror(GECKO_ERROR_REQUEST_NOT_SUPPORTED);
+          onerror(GOANNA_ERROR_REQUEST_NOT_SUPPORTED);
         }
         break;
     }
@@ -11625,7 +11625,7 @@ let ICCContactHelper = {
         break;
       default:
         if (onerror) {
-          onerror(GECKO_ERROR_REQUEST_NOT_SUPPORTED);
+          onerror(GOANNA_ERROR_REQUEST_NOT_SUPPORTED);
         }
         break;
     }

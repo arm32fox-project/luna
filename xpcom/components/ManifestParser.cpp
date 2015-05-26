@@ -398,7 +398,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
   NS_NAMED_LITERAL_STRING(kContentAccessible, "contentaccessible");
   NS_NAMED_LITERAL_STRING(kApplication, "application");
   NS_NAMED_LITERAL_STRING(kAppVersion, "appversion");
-  NS_NAMED_LITERAL_STRING(kGeckoVersion, "platformversion");
+  NS_NAMED_LITERAL_STRING(kGoannaVersion, "platformversion");
   NS_NAMED_LITERAL_STRING(kOs, "os");
   NS_NAMED_LITERAL_STRING(kOsVersion, "osversion");
   NS_NAMED_LITERAL_STRING(kABI, "abi");
@@ -411,7 +411,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
 
   nsAutoString appID;
   nsAutoString appVersion;
-  nsAutoString geckoVersion;
+  nsAutoString goannaVersion;
   nsAutoString osTarget;
   nsAutoString abi;
 
@@ -428,7 +428,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
 
     rv = xapp->GetPlatformVersion(s);
     if (NS_SUCCEEDED(rv))
-      CopyUTF8toUTF16(s, geckoVersion);
+      CopyUTF8toUTF16(s, goannaVersion);
 
     nsCOMPtr<nsIXULRuntime> xruntime (do_QueryInterface(xapp));
     if (xruntime) {
@@ -555,7 +555,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
 
     bool ok = true;
     TriState stAppVersion = eUnspecified;
-    TriState stGeckoVersion = eUnspecified;
+    TriState stGoannaVersion = eUnspecified;
     TriState stApp = eUnspecified;
     TriState stOsVersion = eUnspecified;
     TriState stOs = eUnspecified;
@@ -575,7 +575,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
           CheckStringFlag(kABI, wtoken, abi, stABI) ||
           CheckVersionFlag(kOsVersion, wtoken, osVersion, stOsVersion) ||
           CheckVersionFlag(kAppVersion, wtoken, appVersion, stAppVersion) ||
-          CheckVersionFlag(kGeckoVersion, wtoken, geckoVersion, stGeckoVersion))
+          CheckVersionFlag(kGoannaVersion, wtoken, goannaVersion, stGoannaVersion))
         continue;
 
 #if defined(MOZ_WIDGET_ANDROID)
@@ -608,7 +608,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
     if (!ok ||
         stApp == eBad ||
         stAppVersion == eBad ||
-        stGeckoVersion == eBad ||
+        stGoannaVersion == eBad ||
         stOs == eBad ||
         stOsVersion == eBad ||
 #ifdef MOZ_WIDGET_ANDROID
@@ -618,7 +618,7 @@ ParseManifest(NSLocationType type, FileLocation &file, char* buf, bool aChromeOn
       continue;
 
     if (directive->regfunc) {
-      if (GeckoProcessType_Default != XRE_GetProcessType())
+      if (GoannaProcessType_Default != XRE_GetProcessType())
         continue;
 
       if (!nsChromeRegistry::gChromeRegistry) {

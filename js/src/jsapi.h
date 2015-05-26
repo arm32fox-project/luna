@@ -2202,7 +2202,7 @@ JS_GetGlobalForScopeChain(JSContext *cx);
  * frame, which may not match the cx's current compartment. This is extremely
  * dangerous, because it can bypass compartment security invariants in subtle
  * ways. To use it safely, the caller must perform a subsequent security
- * check. There is currently only one consumer of this function in Gecko, and
+ * check. There is currently only one consumer of this function in Goanna, and
  * it should probably stay that way. If you'd like to use it, please consult
  * the XPConnect module owner first.
  */

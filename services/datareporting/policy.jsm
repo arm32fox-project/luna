@@ -5,7 +5,7 @@
 /**
  * This file is in transition. It was originally conceived to fulfill the
  * needs of only Firefox Health Report. It is slowly being morphed into
- * fulfilling the needs of all data reporting facilities in Gecko applications.
+ * fulfilling the needs of all data reporting facilities in Goanna applications.
  * As a result, some things feel a bit weird.
  *
  * DataReportingPolicy is both a driver for data reporting notification

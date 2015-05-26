@@ -337,7 +337,7 @@ NON_DIST_FILES = \
   classes.dex \
   $(NULL)
 
-UPLOAD_EXTRA_FILES += gecko-unsigned-unaligned.apk
+UPLOAD_EXTRA_FILES += goanna-unsigned-unaligned.apk
 
 DIST_FILES += $(MOZ_CHILD_PROCESS_NAME)
 
@@ -351,7 +351,7 @@ ABI_DIR = armeabi
 endif
 endif
 
-GECKO_APP_AP_PATH = $(call core_abspath,$(DEPTH)/mobile/android/base)
+GOANNA_APP_AP_PATH = $(call core_abspath,$(DEPTH)/mobile/android/base)
 
 ifdef ENABLE_TESTS
 INNER_ROBOCOP_PACKAGE=echo
@@ -362,7 +362,7 @@ ROBOCOP_PATH = $(call core_abspath,$(_ABS_DIST)/../build/mobile/robocop)
 # Robocop and Fennec need to be signed with the same key, which means
 # release signing them both.
 INNER_ROBOCOP_PACKAGE= \
-  $(NSINSTALL) $(GECKO_APP_AP_PATH)/fennec_ids.txt $(_ABS_DIST) && \
+  $(NSINSTALL) $(GOANNA_APP_AP_PATH)/fennec_ids.txt $(_ABS_DIST) && \
   cp $(ROBOCOP_PATH)/robocop-debug-unsigned-unaligned.apk $(_ABS_DIST)/robocop-unaligned.apk && \
   $(RELEASE_JARSIGNER) $(_ABS_DIST)/robocop-unaligned.apk && \
   $(ZIPALIGN) -f -v 4 $(_ABS_DIST)/robocop-unaligned.apk $(_ABS_DIST)/robocop.apk
@@ -403,24 +403,24 @@ OMNIJAR_NAME := $(notdir $(OMNIJAR_NAME))
 PKG_SUFFIX      = .apk
 INNER_MAKE_PACKAGE	= \
   $(if $(ALREADY_SZIPPED),,$(foreach lib,$(SZIP_LIBRARIES),host/bin/szip $(MOZ_SZIP_FLAGS) $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/$(lib) && )) \
-  make -C $(GECKO_APP_AP_PATH) gecko.ap_ && \
-  cp $(GECKO_APP_AP_PATH)/gecko.ap_ $(_ABS_DIST) && \
+  make -C $(GOANNA_APP_AP_PATH) goanna.ap_ && \
+  cp $(GOANNA_APP_AP_PATH)/goanna.ap_ $(_ABS_DIST) && \
   ( cd $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH) && \
     mkdir -p lib/$(ABI_DIR) && \
     mv libmozglue.so $(MOZ_CHILD_PROCESS_NAME) lib/$(ABI_DIR) && \
-    unzip -o $(_ABS_DIST)/gecko.ap_ && \
-    rm $(_ABS_DIST)/gecko.ap_ && \
-    $(ZIP) $(if $(MOZ_ENABLE_SZIP),-0 )$(_ABS_DIST)/gecko.ap_ $(ASSET_SO_LIBRARIES) && \
-    $(ZIP) -r9D $(_ABS_DIST)/gecko.ap_ $(DIST_FILES) -x $(NON_DIST_FILES) $(SZIP_LIBRARIES) && \
+    unzip -o $(_ABS_DIST)/goanna.ap_ && \
+    rm $(_ABS_DIST)/goanna.ap_ && \
+    $(ZIP) $(if $(MOZ_ENABLE_SZIP),-0 )$(_ABS_DIST)/goanna.ap_ $(ASSET_SO_LIBRARIES) && \
+    $(ZIP) -r9D $(_ABS_DIST)/goanna.ap_ $(DIST_FILES) -x $(NON_DIST_FILES) $(SZIP_LIBRARIES) && \
     $(if $(filter-out ./,$(OMNIJAR_DIR)), \
       mkdir -p $(OMNIJAR_DIR) && mv $(OMNIJAR_NAME) $(OMNIJAR_DIR) && ) \
-    $(ZIP) -0 $(_ABS_DIST)/gecko.ap_ $(OMNIJAR_DIR)$(OMNIJAR_NAME)) && \
-  rm -f $(_ABS_DIST)/gecko.apk && \
-  cp $(_ABS_DIST)/gecko.ap_ $(_ABS_DIST)/gecko.apk && \
-  $(ZIP) -j0 $(_ABS_DIST)/gecko.apk $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/classes.dex && \
-  cp $(_ABS_DIST)/gecko.apk $(_ABS_DIST)/gecko-unsigned-unaligned.apk && \
-  $(RELEASE_JARSIGNER) $(_ABS_DIST)/gecko.apk && \
-  $(ZIPALIGN) -f -v 4 $(_ABS_DIST)/gecko.apk $(PACKAGE) && \
+    $(ZIP) -0 $(_ABS_DIST)/goanna.ap_ $(OMNIJAR_DIR)$(OMNIJAR_NAME)) && \
+  rm -f $(_ABS_DIST)/goanna.apk && \
+  cp $(_ABS_DIST)/goanna.ap_ $(_ABS_DIST)/goanna.apk && \
+  $(ZIP) -j0 $(_ABS_DIST)/goanna.apk $(STAGEPATH)$(MOZ_PKG_DIR)$(_BINPATH)/classes.dex && \
+  cp $(_ABS_DIST)/goanna.apk $(_ABS_DIST)/goanna-unsigned-unaligned.apk && \
+  $(RELEASE_JARSIGNER) $(_ABS_DIST)/goanna.apk && \
+  $(ZIPALIGN) -f -v 4 $(_ABS_DIST)/goanna.apk $(PACKAGE) && \
   $(INNER_ROBOCOP_PACKAGE)
 
 # Language repacks root the resources contained in assets/omni.ja

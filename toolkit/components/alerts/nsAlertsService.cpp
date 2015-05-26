@@ -68,7 +68,7 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
                                                      const nsAString & aBidi,
                                                      const nsAString & aLang)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
 
     if (aAlertListener)
@@ -116,7 +116,7 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
 
 NS_IMETHODIMP nsAlertsService::CloseAlert(const nsAString& aAlertName)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
     cpc->SendCloseAlert(nsAutoString(aAlertName));
     return NS_OK;

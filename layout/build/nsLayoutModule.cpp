@@ -181,7 +181,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsHTMLEditor)
 
 class nsIDocumentLoaderFactory;
 
-#define PRODUCT_NAME "Gecko"
+#define PRODUCT_NAME "Goanna"
 
 /* 0ddf4df8-4dbb-4133-8b79-9afb966514f5 */
 #define NS_PLUGINDOCLOADERFACTORY_CID \

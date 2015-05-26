@@ -580,7 +580,7 @@ NS_IMETHODIMP nsExternalHelperAppService::DoContent(const nsACString& aMimeConte
     channel->GetURI(getter_AddRefs(uri));
     channel->GetContentLength(&contentLength);
   }
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     // We need to get a hold of a ContentChild so that we can begin forwarding
     // this data to the parent.  In the HTTP case, this is unfortunate, since
     // we're actually passing data from parent->child->parent wastefully, but
@@ -855,7 +855,7 @@ nsExternalHelperAppService::LoadURI(nsIURI *aURI,
 {
   NS_ENSURE_ARG_POINTER(aURI);
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     URIParams uri;
     SerializeURI(aURI, uri);
 
@@ -1506,7 +1506,7 @@ NS_IMETHODIMP nsExternalAppHandler::OnStartRequest(nsIRequest *request, nsISuppo
 
   // At this point, the child process has done everything it can usefully do
   // for OnStartRequest.
-  if (XRE_GetProcessType() == GeckoProcessType_Content)
+  if (XRE_GetProcessType() == GoannaProcessType_Content)
      return NS_OK;
 
   rv = SetUpTempFile(aChannel);
@@ -1745,7 +1745,7 @@ void nsExternalAppHandler::SendStatusChange(ErrorType type, nsresult rv, nsIRequ
                 mWebProgressListener->OnStatusChange(nullptr, (type == kReadError) ? aRequest : nullptr, rv, msgText);
               }
               else
-              if (XRE_GetProcessType() == GeckoProcessType_Default) {
+              if (XRE_GetProcessType() == GoannaProcessType_Default) {
                 // We don't have a listener.  Simply show the alert ourselves.
                 nsCOMPtr<nsIPrompt> prompter(do_GetInterface(mWindowContext));
                 nsXPIDLString title;

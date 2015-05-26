@@ -24,7 +24,7 @@
 
 #include "nsMathUtils.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include <algorithm>
 
 #if MOZ_ANDROID_OMTC

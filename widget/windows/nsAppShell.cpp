@@ -112,20 +112,20 @@ nsAppShell::Exit(void)
 }
 
 void
-nsAppShell::DoProcessMoreGeckoEvents()
+nsAppShell::DoProcessMoreGoannaEvents()
 {
   // Called by nsBaseAppShell's NativeEventCallback() after it has finished
-  // processing pending gecko events and there are still gecko events pending
+  // processing pending goanna events and there are still goanna events pending
   // for the thread. (This can happen if NS_ProcessPendingEvents reached it's
   // starvation timeout limit.) The default behavior in nsBaseAppShell is to
   // call ScheduleNativeEventCallback to post a follow up native event callback
   // message. This triggers an additional call to NativeEventCallback for more
-  // gecko event processing.
+  // goanna event processing.
 
   // There's a deadlock risk here with certain internal Windows modal loops. In
   // our dispatch code, we prioritize messages so that input is handled first.
   // However Windows modal dispatch loops often prioritize posted messages. If
-  // we find ourselves in a tight gecko timer loop where NS_ProcessPendingEvents
+  // we find ourselves in a tight goanna timer loop where NS_ProcessPendingEvents
   // takes longer than the timer duration, NS_HasPendingEvents(thread) will
   // always be true. ScheduleNativeEventCallback will be called on every
   // NativeEventCallback callback, and in a Windows modal dispatch loop, the
@@ -136,7 +136,7 @@ nsAppShell::DoProcessMoreGeckoEvents()
   // dispatch loop dispatching input messages. Once we drop out of the modal
   // loop, we use mNativeCallbackPending to fire off a final NativeEventCallback
   // if we need it, which insures NS_ProcessPendingEvents gets called and all
-  // gecko events get processed.
+  // goanna events get processed.
   if (mEventloopNestingLevel < 2) {
     OnDispatchedEvent(nullptr);
     mNativeCallbackPending = false;
@@ -159,8 +159,8 @@ nsAppShell::ScheduleNativeEventCallback()
 bool
 nsAppShell::ProcessNextNativeEvent(bool mayWait)
 {
-  // Notify ipc we are spinning a (possibly nested) gecko event loop.
-  mozilla::ipc::RPCChannel::NotifyGeckoEventDispatch();
+  // Notify ipc we are spinning a (possibly nested) goanna event loop.
+  mozilla::ipc::RPCChannel::NotifyGoannaEventDispatch();
 
   bool gotMessage = false;
 
@@ -220,7 +220,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
   // See DoProcessNextNativeEvent, mEventloopNestingLevel will be
   // one when a modal loop unwinds.
   if (mNativeCallbackPending && mEventloopNestingLevel == 1)
-    DoProcessMoreGeckoEvents();
+    DoProcessMoreGoannaEvents();
 
   // Check for starved native callbacks. If we haven't processed one
   // of these events in NATIVE_EVENT_STARVATION_LIMIT, fire one off.

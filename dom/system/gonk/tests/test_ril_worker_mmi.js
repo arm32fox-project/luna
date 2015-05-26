@@ -342,7 +342,7 @@ function setCallForwardSuccess(mmi) {
 
   let postedMessage = workerhelper.postedMessage;
 
-  do_check_eq(postedMessage.errorMsg, GECKO_ERROR_SUCCESS);
+  do_check_eq(postedMessage.errorMsg, GOANNA_ERROR_SUCCESS);
   do_check_true(postedMessage.success);
 }
 
@@ -388,7 +388,7 @@ add_test(function test_sendMMI_call_forwarding_interrogation() {
 
   let postedMessage = workerhelper.postedMessage;
 
-  do_check_eq(postedMessage.errorMsg, GECKO_ERROR_SUCCESS);
+  do_check_eq(postedMessage.errorMsg, GOANNA_ERROR_SUCCESS);
   do_check_true(postedMessage.success);
   do_check_true(Array.isArray(postedMessage.rules));
   do_check_eq(postedMessage.rules.length, 1);
@@ -481,7 +481,7 @@ add_test(function test_sendMMI_change_PIN() {
 
   let postedMessage = workerhelper.postedMessage;
 
-  do_check_eq (postedMessage.errorMsg, GECKO_ERROR_SUCCESS);
+  do_check_eq (postedMessage.errorMsg, GOANNA_ERROR_SUCCESS);
   do_check_true(postedMessage.success);
 
   run_next_test();
@@ -525,7 +525,7 @@ add_test(function test_sendMMI_change_PIN2() {
 
   let postedMessage = workerhelper.postedMessage;
 
-  do_check_eq (postedMessage.errorMsg, GECKO_ERROR_SUCCESS);
+  do_check_eq (postedMessage.errorMsg, GOANNA_ERROR_SUCCESS);
   do_check_true(postedMessage.success);
 
   run_next_test();
@@ -569,7 +569,7 @@ add_test(function test_sendMMI_unblock_PIN() {
 
   let postedMessage = workerhelper.postedMessage;
 
-  do_check_eq (postedMessage.errorMsg, GECKO_ERROR_SUCCESS);
+  do_check_eq (postedMessage.errorMsg, GOANNA_ERROR_SUCCESS);
   do_check_true(postedMessage.success);
 
   run_next_test();
@@ -613,7 +613,7 @@ add_test(function test_sendMMI_unblock_PIN2() {
 
   let postedMessage = workerhelper.postedMessage;
 
-  do_check_eq (postedMessage.errorMsg, GECKO_ERROR_SUCCESS);
+  do_check_eq (postedMessage.errorMsg, GOANNA_ERROR_SUCCESS);
   do_check_true(postedMessage.success);
 
   run_next_test();
@@ -660,7 +660,7 @@ add_test(function test_sendMMI_get_IMEI() {
   let postedMessage = workerhelper.postedMessage;
 
   do_check_true(mmiOptions.mmi);
-  do_check_eq (postedMessage.errorMsg, GECKO_ERROR_SUCCESS);
+  do_check_eq (postedMessage.errorMsg, GOANNA_ERROR_SUCCESS);
   do_check_true(postedMessage.success);
 
   run_next_test();
@@ -683,7 +683,7 @@ add_test(function test_sendMMI_get_IMEI_error() {
   let postedMessage = workerhelper.postedMessage;
 
   do_check_true(mmiOptions.mmi);
-  do_check_eq (postedMessage.errorMsg, GECKO_ERROR_RADIO_NOT_AVAILABLE);
+  do_check_eq (postedMessage.errorMsg, GOANNA_ERROR_RADIO_NOT_AVAILABLE);
   do_check_false(postedMessage.success);
 
   run_next_test();
@@ -718,7 +718,7 @@ add_test(function test_sendMMI_USSD() {
   let postedMessage = workerhelper.postedMessage;
 
   do_check_eq(ussdOptions.ussd, "*123#");
-  do_check_eq (postedMessage.errorMsg, GECKO_ERROR_SUCCESS);
+  do_check_eq (postedMessage.errorMsg, GOANNA_ERROR_SUCCESS);
   do_check_true(postedMessage.success);
   do_check_true(worker.RIL._ussdSession);
 
@@ -742,7 +742,7 @@ add_test(function test_sendMMI_USSD_error() {
   let postedMessage = workerhelper.postedMessage;
 
   do_check_eq(ussdOptions.ussd, "*123#");
-  do_check_eq (postedMessage.errorMsg, GECKO_ERROR_GENERIC_FAILURE);
+  do_check_eq (postedMessage.errorMsg, GOANNA_ERROR_GENERIC_FAILURE);
   do_check_false(postedMessage.success);
   do_check_false(worker.RIL._ussdSession);
 

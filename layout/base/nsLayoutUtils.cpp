@@ -88,7 +88,7 @@
 #include "nsXULPopupManager.h"
 #endif
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsAnimationManager.h"
 #include "nsTransitionManager.h"
 #include "nsViewportInfo.h"
@@ -3870,7 +3870,7 @@ struct SnappedImageDrawingParameters {
 /**
  * Given a set of input parameters, compute certain output parameters
  * for drawing an image with the image snapping algorithm.
- * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
+ * See https://wiki.mozilla.org/Goanna:Image_Snapping_and_Rendering
  *
  *  @see nsLayoutUtils::DrawImage() for the descriptions of input parameters
  */
@@ -5249,8 +5249,8 @@ nsLayoutUtils::FontSizeInflationInner(const nsIFrame *aFrame,
     // to determine the point where our mapping function intersects the i=s
     // line. This means that we have an equation of the form:
     //
-    // i = m + s·(P/2)/(1 + P/2), if s <= (1 + P/2)·m
-    // i = s, if s >= (1 + P/2)·m
+    // i = m + s??(P/2)/(1 + P/2), if s <= (1 + P/2)??m
+    // i = s, if s >= (1 + P/2)??m
 
     float intercept = 1 + float(interceptParam)/2.0f;
     if (ratio >= intercept) {

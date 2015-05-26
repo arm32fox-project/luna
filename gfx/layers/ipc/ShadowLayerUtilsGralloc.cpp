@@ -23,7 +23,7 @@
 #include "gfxImageSurface.h"
 #include "gfxPlatform.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #include "cutils/properties.h"
 

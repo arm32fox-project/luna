@@ -101,7 +101,7 @@ AsyncChannel::ProcessLink::~ProcessLink()
         mTransport->set_listener(0);
         
         // we only hold a weak ref to the transport, which is "owned"
-        // by GeckoChildProcess/GeckoThread
+        // by GoannaChildProcess/GoannaThread
         mTransport = 0;
     }
 }

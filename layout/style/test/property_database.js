@@ -2407,7 +2407,7 @@ var gCSSProperties = {
 		other_values: [ "large serif", "9px fantasy", "bold italic small-caps 24px/1.4 Times New Roman, serif",
 		  // system fonts
 		  "caption", "icon", "menu", "message-box", "small-caption", "status-bar",
-		  // Gecko-specific system fonts
+		  // Goanna-specific system fonts
 		  "-moz-window", "-moz-document", "-moz-desktop", "-moz-info", "-moz-dialog", "-moz-button", "-moz-pull-down-menu", "-moz-list", "-moz-field", "-moz-workspace",
 		],
 		invalid_values: [ "9 fantasy", "-2px fantasy" ]

@@ -2844,7 +2844,7 @@ for (uint32_t i = 0; i < length; ++i) {
         if len(interfaceMemberTypes) > 0:
             interfaceObject = []
             for memberType in interfaceMemberTypes:
-                if type.isGeckoInterface():
+                if type.isGoannaInterface():
                     name = memberType.inner.identifier.name
                 else:
                     name = memberType.name
@@ -3024,7 +3024,7 @@ for (uint32_t i = 0; i < length; ++i) {
                                         holderArgs=holderArgs,
                                         dealWithOptional=isOptional and not nullable)
 
-    if type.isGeckoInterface():
+    if type.isGoannaInterface():
         assert not isEnforceRange and not isClamp
 
         descriptor = descriptorProvider.getDescriptor(
@@ -3984,7 +3984,7 @@ if (!returnArray) {
           CGIndenter(exceptionCodeIndented, 4).define())) +
                 setValue("JS::ObjectValue(*returnArray)"), False)
 
-    if (type.isGeckoInterface() and
+    if (type.isGoannaInterface() and
         (not type.isCallbackInterface() or
          type.unroll().inner.identifier.name == "EventListener")):
         descriptor = descriptorProvider.getDescriptor(type.unroll().inner.identifier.name)
@@ -4268,7 +4268,7 @@ def getRetvalDeclarationForType(returnType, descriptorProvider,
         if returnType.nullable():
             result = CGTemplatedType("Nullable", result)
         return result, False, None, None
-    if returnType.isGeckoInterface():
+    if returnType.isGoannaInterface():
         result = CGGeneric(descriptorProvider.getDescriptor(
             returnType.unroll().inner.identifier.name).nativeType)
         if resultAlreadyAddRefed:
@@ -4510,7 +4510,7 @@ def wrapTypeIntoCurrentCompartment(type, value, isMember=True):
                         "arguments yet")
 
     if (type.isString() or type.isPrimitive() or type.isEnum() or
-        type.isGeckoInterface() or type.isCallback() or type.isDate()):
+        type.isGoannaInterface() or type.isCallback() or type.isDate()):
         # All of these don't need wrapping
         return None
 
@@ -4667,7 +4667,7 @@ if (global.Failed()) {
             assert(isResultAlreadyAddRefed(self.descriptor,
                                            self.extendedAttributes) or
                    # Creators can return raw pointers to owned objects
-                   (self.returnType.isGeckoInterface() and
+                   (self.returnType.isGoannaInterface() and
                     self.descriptor.getDescriptor(self.returnType.unroll().inner.identifier.name).nativeOwnership == 'owned') or
                    # Workers use raw pointers for new-object return
                    # values or something
@@ -5588,7 +5588,7 @@ class CGMemberJITInfo(CGThing):
             assert False
         if t.isSequence():
             return "JSVAL_TYPE_OBJECT"
-        if t.isGeckoInterface():
+        if t.isGoannaInterface():
             return "JSVAL_TYPE_OBJECT"
         if t.isString():
             return "JSVAL_TYPE_STRING"
@@ -5741,7 +5741,7 @@ def getUnionAccessorSignatureType(type, descriptorProvider):
 
         return typeName
 
-    if type.isGeckoInterface():
+    if type.isGoannaInterface():
         descriptor = descriptorProvider.getDescriptor(
             type.unroll().inner.identifier.name)
         typeName = CGGeneric(descriptor.nativeType)
@@ -5805,7 +5805,7 @@ def getUnionTypeTemplateVars(unionType, type, descriptorProvider):
     if type.isDictionary() or type.isSequence():
         raise TypeError("Can't handle dictionaries or sequences in unions")
 
-    if type.isGeckoInterface():
+    if type.isGoannaInterface():
         name = type.inner.identifier.name
     elif type.isEnum():
         name = type.inner.identifier.name
@@ -5816,7 +5816,7 @@ def getUnionTypeTemplateVars(unionType, type, descriptorProvider):
 
     tryNextCode = """tryNext = true;
 return true;"""
-    if type.isGeckoInterface():
+    if type.isGoannaInterface():
          tryNextCode = ("""if (mUnion.mType != mUnion.eUninitialized) {
   mUnion.Destroy%s();
 }""" % name) + tryNextCode
@@ -8285,7 +8285,7 @@ class CGForwardDeclarations(CGWrapper):
 
         def forwardDeclareForType(t, workerness='both'):
             t = t.unroll()
-            if t.isGeckoInterface():
+            if t.isGoannaInterface():
                 name = t.inner.identifier.name
                 # Find and add the non-worker implementation, if any.
                 if workerness != 'workeronly':
@@ -8583,7 +8583,7 @@ class CGNativeMember(ClassMethod):
             else:
                 defaultValue = "%s(0)" % enumName
             return enumName, defaultValue, "return ${declName};"
-        if type.isGeckoInterface():
+        if type.isGoannaInterface():
             iface = type.unroll().inner;
             nativeType = self.descriptorProvider.getDescriptor(
                 iface.identifier.name).nativeType
@@ -8712,7 +8712,7 @@ class CGNativeMember(ClassMethod):
                 type = type.inner
             return str(type), True, True
 
-        if (type.isGeckoInterface() and
+        if (type.isGoannaInterface() and
             (not type.isCallbackInterface() or
              type.unroll().inner.identifier.name == "EventListener")):
             iface = type.unroll().inner

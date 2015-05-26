@@ -559,7 +559,7 @@ MOZ_END_ENUM_CLASS(nsDidReflowStatus)
  * to destroy a frame. The lifetime of the frame hierarchy is bounded by the
  * lifetime of the presentation shell which owns the frames.
  *
- * nsIFrame is a private Gecko interface. If you are not Gecko then you
+ * nsIFrame is a private Goanna interface. If you are not Goanna then you
  * should not use it. If you're not in layout, then you won't be able to
  * link to many of the functions defined here. Too bad.
  *

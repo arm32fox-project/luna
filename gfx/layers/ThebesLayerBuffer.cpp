@@ -14,7 +14,7 @@
 #include "gfxUtils.h"
 #include "ipc/AutoOpenSurface.h"
 #include "nsDeviceContext.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include <algorithm>
 
 namespace mozilla {

@@ -58,7 +58,7 @@
 #include "chrome/common/notification_service.h"
 
 #include "mozilla/ipc/BrowserProcessSubThread.h"
-#include "mozilla/ipc/GeckoChildProcessHost.h"
+#include "mozilla/ipc/GoannaChildProcessHost.h"
 #include "mozilla/ipc/IOThreadChild.h"
 #include "mozilla/ipc/ProcessChild.h"
 #include "ScopedXREEmbed.h"
@@ -71,7 +71,7 @@
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #ifdef MOZ_IPDL_TESTS
 #include "mozilla/_ipdltest/IPDLUnitTests.h"
@@ -83,7 +83,7 @@ using mozilla::_ipdltest::IPDLUnitTestProcessChild;
 using namespace mozilla;
 
 using mozilla::ipc::BrowserProcessSubThread;
-using mozilla::ipc::GeckoChildProcessHost;
+using mozilla::ipc::GoannaChildProcessHost;
 using mozilla::ipc::IOThreadChild;
 using mozilla::ipc::ProcessChild;
 using mozilla::ipc::ScopedXREEmbed;
@@ -192,28 +192,28 @@ XRE_TermEmbedding()
 }
 
 const char*
-XRE_ChildProcessTypeToString(GeckoProcessType aProcessType)
+XRE_ChildProcessTypeToString(GoannaProcessType aProcessType)
 {
-  return (aProcessType < GeckoProcessType_End) ?
-    kGeckoProcessTypeString[aProcessType] : nullptr;
+  return (aProcessType < GoannaProcessType_End) ?
+    kGoannaProcessTypeString[aProcessType] : nullptr;
 }
 
-GeckoProcessType
+GoannaProcessType
 XRE_StringToChildProcessType(const char* aProcessTypeString)
 {
   for (int i = 0;
-       i < (int) ArrayLength(kGeckoProcessTypeString);
+       i < (int) ArrayLength(kGoannaProcessTypeString);
        ++i) {
-    if (!strcmp(kGeckoProcessTypeString[i], aProcessTypeString)) {
-      return static_cast<GeckoProcessType>(i);
+    if (!strcmp(kGoannaProcessTypeString[i], aProcessTypeString)) {
+      return static_cast<GoannaProcessType>(i);
     }
   }
-  return GeckoProcessType_Invalid;
+  return GoannaProcessType_Invalid;
 }
 
 namespace mozilla {
 namespace startup {
-GeckoProcessType sChildProcessType = GeckoProcessType_Default;
+GoannaProcessType sChildProcessType = GoannaProcessType_Default;
 }
 }
 
@@ -247,7 +247,7 @@ SetTaskbarGroupId(const nsString& aId)
 nsresult
 XRE_InitChildProcess(int aArgc,
                      char* aArgv[],
-                     GeckoProcessType aProcess)
+                     GoannaProcessType aProcess)
 {
   NS_ENSURE_ARG_MIN(aArgc, 2);
   NS_ENSURE_ARG_POINTER(aArgv);
@@ -354,7 +354,7 @@ XRE_InitChildProcess(int aArgc,
 #endif
   }
 
-  // child processes launched by GeckoChildProcessHost get this magic
+  // child processes launched by GoannaChildProcessHost get this magic
   // argument appended to their command lines
   const char* const parentPIDString = aArgv[aArgc-1];
   NS_ABORT_IF_FALSE(parentPIDString, "NULL parent PID");
@@ -400,7 +400,7 @@ XRE_InitChildProcess(int aArgc,
 
   MessageLoop::Type uiLoopType;
   switch (aProcess) {
-  case GeckoProcessType_Content:
+  case GoannaProcessType_Content:
       // Content processes need the XPCOM/chromium frankenventloop
       uiLoopType = MessageLoop::TYPE_MOZILLA_CHILD;
       break;
@@ -421,15 +421,15 @@ XRE_InitChildProcess(int aArgc,
       nsAutoPtr<ProcessChild> process;
 
       switch (aProcess) {
-      case GeckoProcessType_Default:
+      case GoannaProcessType_Default:
         NS_RUNTIMEABORT("This makes no sense");
         break;
 
-      case GeckoProcessType_Plugin:
+      case GoannaProcessType_Plugin:
         process = new PluginProcessChild(parentHandle);
         break;
 
-      case GeckoProcessType_Content: {
+      case GoannaProcessType_Content: {
           process = new ContentProcess(parentHandle);
           // If passed in grab the application path for xpcom init
           nsCString appDir;
@@ -443,7 +443,7 @@ XRE_InitChildProcess(int aArgc,
         }
         break;
 
-      case GeckoProcessType_IPDLUnitTest:
+      case GoannaProcessType_IPDLUnitTest:
 #ifdef MOZ_IPDL_TESTS
         process = new IPDLUnitTestProcessChild(parentHandle);
 #else 
@@ -479,7 +479,7 @@ XRE_InitChildProcess(int aArgc,
 MessageLoop*
 XRE_GetIOMessageLoop()
 {
-  if (sChildProcessType == GeckoProcessType_Default) {
+  if (sChildProcessType == GoannaProcessType_Default) {
     return BrowserProcessSubThread::GetMessageLoop(BrowserProcessSubThread::IO);
   }
   return IOThreadChild::message_loop();

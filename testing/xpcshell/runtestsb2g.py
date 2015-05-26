@@ -111,18 +111,18 @@ class B2GOptions(RemoteXPCShellOptions):
 
         self.add_option('--address', action='store',
                         type='string', dest='address',
-                        help="host:port of running Gecko instance to connect to")
+                        help="host:port of running Goanna instance to connect to")
         defaults['address'] = None
 
         self.add_option('--use-device-libs', action='store_true',
                         dest='use_device_libs',
                         help="Don't push .so's")
         defaults['use_device_libs'] = False
-        self.add_option("--gecko-path", action="store",
-                        type="string", dest="geckoPath",
-                        help="the path to a gecko distribution that should "
+        self.add_option("--goanna-path", action="store",
+                        type="string", dest="goannaPath",
+                        help="the path to a goanna distribution that should "
                         "be installed on the emulator prior to test")
-        defaults["geckoPath"] = None
+        defaults["goannaPath"] = None
         self.add_option("--logcat-dir", action="store",
                         type="string", dest="logcat_dir",
                         help="directory to store logcat dump files")
@@ -143,8 +143,8 @@ class B2GOptions(RemoteXPCShellOptions):
         if options.b2g_path is None:
             self.error("Need to specify a --b2gpath")
 
-        if options.geckoPath and not options.emulator:
-            self.error("You must specify --emulator if you specify --gecko-path")
+        if options.goannaPath and not options.emulator:
+            self.error("You must specify --emulator if you specify --goanna-path")
 
         if options.logcat_dir and not options.emulator:
             self.error("You must specify --emulator if you specify --logcat-dir")
@@ -161,8 +161,8 @@ def main():
         kwargs['emulator'] = options.emulator
         if options.no_window:
             kwargs['noWindow'] = True
-        if options.geckoPath:
-            kwargs['gecko_path'] = options.geckoPath
+        if options.goannaPath:
+            kwargs['goanna_path'] = options.goannaPath
         if options.logcat_dir:
             kwargs['logcat_dir'] = options.logcat_dir
         if options.busybox:
@@ -207,8 +207,8 @@ def main():
 #                                                                               --adbpath $ADB_PATH
 #                                                                               ...]
 #
-# For xUnit output you should also pass in --tests-root-dir ..objdir-gecko/_tests
-#                                          --xunit-file ..objdir_gecko/_tests/results.xml
+# For xUnit output you should also pass in --tests-root-dir ..objdir-goanna/_tests
+#                                          --xunit-file ..objdir_goanna/_tests/results.xml
 #                                          --xunit-suite-name xpcshell-tests
 if __name__ == '__main__':
     main()

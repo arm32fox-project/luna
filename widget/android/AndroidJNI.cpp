@@ -34,9 +34,9 @@
 #include "nsIMobileMessageDatabaseService.h"
 #include "nsPluginInstanceOwner.h"
 #include "nsSurfaceTexture.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -51,21 +51,21 @@ extern "C" {
  */
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_nativeInit(JNIEnv *jenv, jclass jc)
+Java_org_mozilla_goanna_GoannaAppShell_nativeInit(JNIEnv *jenv, jclass jc)
 {
     AndroidBridge::ConstructBridge(jenv, jc);
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_notifyGeckoOfEvent(JNIEnv *jenv, jclass jc, jobject event)
+Java_org_mozilla_goanna_GoannaAppShell_notifyGoannaOfEvent(JNIEnv *jenv, jclass jc, jobject event)
 {
     // poke the appshell
     if (nsAppShell::gAppShell)
-        nsAppShell::gAppShell->PostEvent(AndroidGeckoEvent::MakeFromJavaObject(jenv, event));
+        nsAppShell::gAppShell->PostEvent(AndroidGoannaEvent::MakeFromJavaObject(jenv, event));
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent(JNIEnv *jenv, jclass, jboolean mayWait)
+Java_org_mozilla_goanna_GoannaAppShell_processNextNativeEvent(JNIEnv *jenv, jclass, jboolean mayWait)
 {
     // poke the appshell
     if (nsAppShell::gAppShell)
@@ -73,26 +73,26 @@ Java_org_mozilla_gecko_GeckoAppShell_processNextNativeEvent(JNIEnv *jenv, jclass
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_setLayerClient(JNIEnv *jenv, jclass, jobject obj)
+Java_org_mozilla_goanna_GoannaAppShell_setLayerClient(JNIEnv *jenv, jclass, jobject obj)
 {
     AndroidBridge::Bridge()->SetLayerClient(jenv, obj);
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_onResume(JNIEnv *jenv, jclass jc)
+Java_org_mozilla_goanna_GoannaAppShell_onResume(JNIEnv *jenv, jclass jc)
 {
     if (nsAppShell::gAppShell)
         nsAppShell::gAppShell->OnResume();
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_reportJavaCrash(JNIEnv *jenv, jclass, jstring jStackTrace)
+Java_org_mozilla_goanna_GoannaAppShell_reportJavaCrash(JNIEnv *jenv, jclass, jstring jStackTrace)
 {
     abort();
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_notifyBatteryChange(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_GoannaAppShell_notifyBatteryChange(JNIEnv* jenv, jclass,
                                                          jdouble aLevel,
                                                          jboolean aCharging,
                                                          jdouble aRemainingTime)
@@ -123,7 +123,7 @@ Java_org_mozilla_gecko_GeckoAppShell_notifyBatteryChange(JNIEnv* jenv, jclass,
 #ifdef MOZ_WEBSMS_BACKEND
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsReceived(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_GoannaSmsManager_notifySmsReceived(JNIEnv* jenv, jclass,
                                                          jstring aSender,
                                                          jstring aBody,
                                                          jint aMessageClass,
@@ -162,7 +162,7 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsReceived(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsSent(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_GoannaSmsManager_notifySmsSent(JNIEnv* jenv, jclass,
                                                      jint aId,
                                                      jstring aReceiver,
                                                      jstring aBody,
@@ -215,7 +215,7 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsSent(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDelivery(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_GoannaSmsManager_notifySmsDelivery(JNIEnv* jenv, jclass,
                                                          jint aId,
                                                          jint aDeliveryStatus,
                                                          jstring aReceiver,
@@ -260,7 +260,7 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDelivery(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsSendFailed(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_GoannaSmsManager_notifySmsSendFailed(JNIEnv* jenv, jclass,
                                                            jint aError,
                                                            jint aRequestId)
 {
@@ -293,7 +293,7 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsSendFailed(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyGetSms(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_GoannaSmsManager_notifyGetSms(JNIEnv* jenv, jclass,
                                                     jint aId,
                                                     jint aDeliveryStatus,
                                                     jstring aReceiver,
@@ -343,7 +343,7 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyGetSms(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyGetSmsFailed(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_GoannaSmsManager_notifyGetSmsFailed(JNIEnv* jenv, jclass,
                                                           jint aError,
                                                           jint aRequestId)
 {
@@ -376,7 +376,7 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyGetSmsFailed(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDeleted(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_GoannaSmsManager_notifySmsDeleted(JNIEnv* jenv, jclass,
                                                         jboolean aDeleted,
                                                         jint aRequestId)
 {
@@ -409,7 +409,7 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDeleted(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDeleteFailed(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_GoannaSmsManager_notifySmsDeleteFailed(JNIEnv* jenv, jclass,
                                                              jint aError,
                                                              jint aRequestId)
 {
@@ -442,7 +442,7 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifySmsDeleteFailed(JNIEnv* jenv, jclas
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyNoMessageInList(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_GoannaSmsManager_notifyNoMessageInList(JNIEnv* jenv, jclass,
                                                              jint aRequestId)
 {
     class NotifyNoMessageInListRunnable : public nsRunnable {
@@ -471,7 +471,7 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyNoMessageInList(JNIEnv* jenv, jclas
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyListCreated(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_GoannaSmsManager_notifyListCreated(JNIEnv* jenv, jclass,
                                                          jint aListId,
                                                          jint aMessageId,
                                                          jint aDeliveryStatus,
@@ -527,7 +527,7 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyListCreated(JNIEnv* jenv, jclass,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyGotNextMessage(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_GoannaSmsManager_notifyGotNextMessage(JNIEnv* jenv, jclass,
                                                             jint aMessageId,
                                                             jint aDeliveryStatus,
                                                             jstring aReceiver,
@@ -579,7 +579,7 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyGotNextMessage(JNIEnv* jenv, jclass
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoSmsManager_notifyReadingMessageListFailed(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_GoannaSmsManager_notifyReadingMessageListFailed(JNIEnv* jenv, jclass,
                                                                       jint aError,
                                                                       jint aRequestId)
 {
@@ -614,25 +614,25 @@ Java_org_mozilla_gecko_GeckoSmsManager_notifyReadingMessageListFailed(JNIEnv* je
 #endif  // MOZ_WEBSMS_BACKEND
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_scheduleComposite(JNIEnv*, jclass)
+Java_org_mozilla_goanna_GoannaAppShell_scheduleComposite(JNIEnv*, jclass)
 {
     nsWindow::ScheduleComposite();
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_scheduleResumeComposition(JNIEnv*, jclass, jint width, jint height)
+Java_org_mozilla_goanna_GoannaAppShell_scheduleResumeComposition(JNIEnv*, jclass, jint width, jint height)
 {
     nsWindow::ScheduleResumeComposition(width, height);
 }
 
 NS_EXPORT float JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_computeRenderIntegrity(JNIEnv*, jclass)
+Java_org_mozilla_goanna_GoannaAppShell_computeRenderIntegrity(JNIEnv*, jclass)
 {
     return nsWindow::ComputeRenderIntegrity();
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_notifyFilePickerResult(JNIEnv* jenv, jclass, jstring filePath, jlong callback)
+Java_org_mozilla_goanna_GoannaAppShell_notifyFilePickerResult(JNIEnv* jenv, jclass, jstring filePath, jlong callback)
 {
     class NotifyFilePickerResultRunnable : public nsRunnable {
     public:
@@ -688,7 +688,7 @@ static bool LockWindowWithRetry(void* window, unsigned char** bits, int* width, 
 }
 
 NS_EXPORT jobject JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_getSurfaceBits(JNIEnv* jenv, jclass, jobject surface)
+Java_org_mozilla_goanna_GoannaAppShell_getSurfaceBits(JNIEnv* jenv, jclass, jobject surface)
 {
     static jclass jSurfaceBitsClass = nullptr;
     static jmethodID jSurfaceBitsCtor = 0;
@@ -739,7 +739,7 @@ Java_org_mozilla_gecko_GeckoAppShell_getSurfaceBits(JNIEnv* jenv, jclass, jobjec
     }
     
     if (!jSurfaceBitsClass) {
-        jSurfaceBitsClass = (jclass)jenv->NewGlobalRef(jenv->FindClass("org/mozilla/gecko/SurfaceBits"));
+        jSurfaceBitsClass = (jclass)jenv->NewGlobalRef(jenv->FindClass("org/mozilla/goanna/SurfaceBits"));
         jSurfaceBitsCtor = jenv->GetMethodID(jSurfaceBitsClass, "<init>", "()V");
 
         jSurfaceBitsWidth = jenv->GetFieldID(jSurfaceBitsClass, "width", "I");
@@ -762,7 +762,7 @@ cleanup:
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_onFullScreenPluginHidden(JNIEnv* jenv, jclass, jobject view)
+Java_org_mozilla_goanna_GoannaAppShell_onFullScreenPluginHidden(JNIEnv* jenv, jclass, jobject view)
 {
   class ExitFullScreenRunnable : public nsRunnable {
     public:
@@ -789,7 +789,7 @@ Java_org_mozilla_gecko_GeckoAppShell_onFullScreenPluginHidden(JNIEnv* jenv, jcla
 }
 
 NS_EXPORT jobject JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_getNextMessageFromQueue(JNIEnv* jenv, jclass, jobject queue)
+Java_org_mozilla_goanna_GoannaAppShell_getNextMessageFromQueue(JNIEnv* jenv, jclass, jobject queue)
 {
     static jclass jMessageQueueCls = nullptr;
     static jfieldID jMessagesField;
@@ -810,11 +810,11 @@ Java_org_mozilla_gecko_GeckoAppShell_getNextMessageFromQueue(JNIEnv* jenv, jclas
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_GeckoAppShell_onSurfaceTextureFrameAvailable(JNIEnv* jenv, jclass, jobject surfaceTexture, jint id)
+Java_org_mozilla_goanna_GoannaAppShell_onSurfaceTextureFrameAvailable(JNIEnv* jenv, jclass, jobject surfaceTexture, jint id)
 {
   nsSurfaceTexture* st = nsSurfaceTexture::Find(id);
   if (!st) {
-    __android_log_print(ANDROID_LOG_ERROR, "GeckoJNI", "Failed to find nsSurfaceTexture with id %d", id);
+    __android_log_print(ANDROID_LOG_ERROR, "GoannaJNI", "Failed to find nsSurfaceTexture with id %d", id);
     return;
   }
 
@@ -822,13 +822,13 @@ Java_org_mozilla_gecko_GeckoAppShell_onSurfaceTextureFrameAvailable(JNIEnv* jenv
 }
 
 NS_EXPORT jdouble JNICALL
-Java_org_mozilla_gecko_GeckoJavaSampler_getProfilerTime(JNIEnv *jenv, jclass jc)
+Java_org_mozilla_goanna_GoannaJavaSampler_getProfilerTime(JNIEnv *jenv, jclass jc)
 {
   return profiler_time();
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_gfx_NativePanZoomController_init(JNIEnv* env, jobject instance)
+Java_org_mozilla_goanna_gfx_NativePanZoomController_init(JNIEnv* env, jobject instance)
 {
     if (!AndroidBridge::Bridge()) {
         return;
@@ -843,11 +843,11 @@ Java_org_mozilla_gecko_gfx_NativePanZoomController_init(JNIEnv* env, jobject ins
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_gfx_NativePanZoomController_handleTouchEvent(JNIEnv* env, jobject instance, jobject event)
+Java_org_mozilla_goanna_gfx_NativePanZoomController_handleTouchEvent(JNIEnv* env, jobject instance, jobject event)
 {
     AsyncPanZoomController *controller = nsWindow::GetPanZoomController();
     if (controller) {
-        AndroidGeckoEvent* wrapper = AndroidGeckoEvent::MakeFromJavaObject(env, event);
+        AndroidGoannaEvent* wrapper = AndroidGoannaEvent::MakeFromJavaObject(env, event);
         const MultiTouchInput& input = wrapper->MakeMultiTouchInput(nsWindow::TopWindow());
         delete wrapper;
         if (input.mType >= 0) {
@@ -857,13 +857,13 @@ Java_org_mozilla_gecko_gfx_NativePanZoomController_handleTouchEvent(JNIEnv* env,
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_gfx_NativePanZoomController_handleMotionEvent(JNIEnv* env, jobject instance, jobject event)
+Java_org_mozilla_goanna_gfx_NativePanZoomController_handleMotionEvent(JNIEnv* env, jobject instance, jobject event)
 {
     // FIXME implement this
 }
 
 NS_EXPORT jlong JNICALL
-Java_org_mozilla_gecko_gfx_NativePanZoomController_runDelayedCallback(JNIEnv* env, jobject instance)
+Java_org_mozilla_goanna_gfx_NativePanZoomController_runDelayedCallback(JNIEnv* env, jobject instance)
 {
     if (!AndroidBridge::Bridge()) {
         return -1;
@@ -873,7 +873,7 @@ Java_org_mozilla_gecko_gfx_NativePanZoomController_runDelayedCallback(JNIEnv* en
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_gfx_NativePanZoomController_destroy(JNIEnv* env, jobject instance)
+Java_org_mozilla_goanna_gfx_NativePanZoomController_destroy(JNIEnv* env, jobject instance)
 {
     if (!AndroidBridge::Bridge()) {
         return;
@@ -889,7 +889,7 @@ Java_org_mozilla_gecko_gfx_NativePanZoomController_destroy(JNIEnv* env, jobject 
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_gfx_NativePanZoomController_notifyDefaultActionPrevented(JNIEnv* env, jobject instance, jboolean prevented)
+Java_org_mozilla_goanna_gfx_NativePanZoomController_notifyDefaultActionPrevented(JNIEnv* env, jobject instance, jboolean prevented)
 {
     AsyncPanZoomController *controller = nsWindow::GetPanZoomController();
     if (controller) {
@@ -898,27 +898,27 @@ Java_org_mozilla_gecko_gfx_NativePanZoomController_notifyDefaultActionPrevented(
 }
 
 NS_EXPORT jboolean JNICALL
-Java_org_mozilla_gecko_gfx_NativePanZoomController_getRedrawHint(JNIEnv* env, jobject instance)
+Java_org_mozilla_goanna_gfx_NativePanZoomController_getRedrawHint(JNIEnv* env, jobject instance)
 {
     // FIXME implement this
     return true;
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_gfx_NativePanZoomController_setOverScrollMode(JNIEnv* env, jobject instance, jint overscrollMode)
+Java_org_mozilla_goanna_gfx_NativePanZoomController_setOverScrollMode(JNIEnv* env, jobject instance, jint overscrollMode)
 {
     // FIXME implement this
 }
 
 NS_EXPORT jint JNICALL
-Java_org_mozilla_gecko_gfx_NativePanZoomController_getOverScrollMode(JNIEnv* env, jobject instance)
+Java_org_mozilla_goanna_gfx_NativePanZoomController_getOverScrollMode(JNIEnv* env, jobject instance)
 {
     // FIXME implement this
     return 0;
 }
 
 NS_EXPORT jboolean JNICALL
-Java_org_mozilla_gecko_ANRReporter_requestNativeStack(JNIEnv*, jclass)
+Java_org_mozilla_goanna_ANRReporter_requestNativeStack(JNIEnv*, jclass)
 {
     if (profiler_is_active()) {
         // Don't proceed if profiler is already running
@@ -937,7 +937,7 @@ Java_org_mozilla_gecko_ANRReporter_requestNativeStack(JNIEnv*, jclass)
 }
 
 NS_EXPORT jstring JNICALL
-Java_org_mozilla_gecko_ANRReporter_getNativeStack(JNIEnv* jenv, jclass)
+Java_org_mozilla_goanna_ANRReporter_getNativeStack(JNIEnv* jenv, jclass)
 {
     if (!profiler_is_active()) {
         // Maybe profiler support is disabled?
@@ -958,7 +958,7 @@ Java_org_mozilla_gecko_ANRReporter_getNativeStack(JNIEnv* jenv, jclass)
 }
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_ANRReporter_releaseNativeStack(JNIEnv* jenv, jclass)
+Java_org_mozilla_goanna_ANRReporter_releaseNativeStack(JNIEnv* jenv, jclass)
 {
 /* --- STUB --- */
 /* With the profiler removed, this is now a stub. Does something actually

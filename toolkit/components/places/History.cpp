@@ -442,7 +442,7 @@ public:
 
   // If we are a content process, always remote the request to the
   // parent process.
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     URIParams uri;
     SerializeURI(aURI, uri);
 
@@ -1967,7 +1967,7 @@ History::NotifyVisited(nsIURI* aURI)
 
   nsAutoScriptBlocker scriptBlocker;
 
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     nsTArray<ContentParent*> cplist;
     ContentParent::GetAll(cplist);
 
@@ -2339,7 +2339,7 @@ History::VisitURI(nsIURI* aURI,
     return NS_OK;
   }
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     URIParams uri;
     SerializeURI(aURI, uri);
 
@@ -2456,7 +2456,7 @@ History::RegisterVisitedCallback(nsIURI* aURI,
                                  Link* aLink)
 {
   NS_ASSERTION(aURI, "Must pass a non-null URI!");
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     NS_PRECONDITION(aLink, "Must pass a non-null Link!");
   }
 
@@ -2496,7 +2496,7 @@ History::RegisterVisitedCallback(nsIURI* aURI,
   // ContentParent::RecvStartVisitedQuery.  All of our code after this point
   // assumes aLink is non-NULL, so we have to return now.
   else if (!aLink) {
-    NS_ASSERTION(XRE_GetProcessType() == GeckoProcessType_Default,
+    NS_ASSERTION(XRE_GetProcessType() == GoannaProcessType_Default,
                  "We should only ever get a null Link in the default process!");
     return NS_OK;
   }
@@ -2551,7 +2551,7 @@ History::SetURITitle(nsIURI* aURI, const nsAString& aTitle)
     return NS_OK;
   }
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     URIParams uri;
     SerializeURI(aURI, uri);
 
@@ -2610,7 +2610,7 @@ History::AddDownload(nsIURI* aSource, nsIURI* aReferrer,
     return NS_OK;
   }
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     NS_ERROR("Cannot add downloads to history from content process!");
     return NS_ERROR_NOT_AVAILABLE;
   }
@@ -2665,7 +2665,7 @@ History::RemoveAllDownloads()
     return NS_OK;
   }
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     NS_ERROR("Cannot remove downloads to history from content process!");
     return NS_ERROR_NOT_AVAILABLE;
   }

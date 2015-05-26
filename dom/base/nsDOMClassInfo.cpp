@@ -4282,7 +4282,7 @@ LocationSetterUnwrapper(JSContext *cx, JS::Handle<JSObject*> obj_, JS::Handle<js
 }
 
 struct InterfaceShimEntry {
-  const char *geckoName;
+  const char *goannaName;
   const char *domName;
 };
 
@@ -4348,7 +4348,7 @@ DefineComponentsShim(JSContext *cx, JS::HandleObject global)
   for (uint32_t i = 0; i < ArrayLength(kInterfaceShimMap); ++i) {
 
     // Grab the names from the table.
-    const char *geckoName = kInterfaceShimMap[i].geckoName;
+    const char *goannaName = kInterfaceShimMap[i].goannaName;
     const char *domName = kInterfaceShimMap[i].domName;
 
     // Look up the appopriate interface object on the global.
@@ -4361,7 +4361,7 @@ DefineComponentsShim(JSContext *cx, JS::HandleObject global)
     }
 
     // Define the shim on the interfaces object.
-    ok = JS_DefineProperty(cx, interfaces, geckoName, v,
+    ok = JS_DefineProperty(cx, interfaces, goannaName, v,
                            JS_PropertyStub, JS_StrictPropertyStub,
                            JSPROP_ENUMERATE | JSPROP_PERMANENT | JSPROP_READONLY);
     NS_ENSURE_TRUE(ok, NS_ERROR_OUT_OF_MEMORY);
@@ -4525,7 +4525,7 @@ nsWindowSH::NewResolve(nsIXPConnectWrappedNative *wrapper, JSContext *cx,
   // GlobalResolve() after we call FindChildWithName() so that named child
   // frames will override external properties which have been registered with
   // the script namespace manager -- pages must be able to depend on frame
-  // names working no matter how Gecko's been configured.
+  // names working no matter how Goanna's been configured.
   bool did_resolve = false;
   nsresult rv = GlobalResolve(win, cx, obj, id, &did_resolve);
   NS_ENSURE_SUCCESS(rv, rv);

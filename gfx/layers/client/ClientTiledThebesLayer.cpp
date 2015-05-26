@@ -5,7 +5,7 @@
 #include "mozilla/layers/PLayerTransactionChild.h"
 #include "ClientTiledThebesLayer.h"
 #include "gfxImageSurface.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "gfxPlatform.h"
 
 

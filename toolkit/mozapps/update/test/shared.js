@@ -553,12 +553,12 @@ function getAppBaseDir() {
 }
 
 /**
- * Returns the Gecko Runtime Engine directory. This is used to locate the the
+ * Returns the Goanna Runtime Engine directory. This is used to locate the the
  * updater binary (Windows and Linux) or updater package (Mac OS X). For
  * XULRunner applications this is different than the currently running process
  * directory.
  *
- * @return nsIFile for the Gecko Runtime Engine directory.
+ * @return nsIFile for the Goanna Runtime Engine directory.
  */
 function getGREDir() {
   return Services.dirsvc.get(NS_GRE_DIR, AUS_Ci.nsIFile);

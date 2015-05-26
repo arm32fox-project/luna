@@ -36,7 +36,7 @@
 #include "nsIServiceManager.h"
 #include "nsIConsoleService.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #ifdef MOZ_WIDGET_ANDROID
 #include <android/log.h>

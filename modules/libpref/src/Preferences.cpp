@@ -356,7 +356,7 @@ Preferences::Init()
   NS_ENSURE_SUCCESS(rv, rv);
 
   using mozilla::dom::ContentChild;
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     InfallibleTArray<PrefSetting> prefs;
     ContentChild::GetSingleton()->SendReadPrefsArray(&prefs);
 
@@ -407,7 +407,7 @@ NS_IMETHODIMP
 Preferences::Observe(nsISupports *aSubject, const char *aTopic,
                      const PRUnichar *someData)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content)
+  if (XRE_GetProcessType() == GoannaProcessType_Content)
     return NS_ERROR_NOT_AVAILABLE;
 
   nsresult rv = NS_OK;
@@ -439,7 +439,7 @@ Preferences::Observe(nsISupports *aSubject, const char *aTopic,
 NS_IMETHODIMP
 Preferences::ReadUserPrefs(nsIFile *aFile)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     NS_ERROR("cannot load prefs from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
@@ -463,7 +463,7 @@ Preferences::ReadUserPrefs(nsIFile *aFile)
 NS_IMETHODIMP
 Preferences::ResetPrefs()
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     NS_ERROR("cannot set prefs from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
@@ -480,7 +480,7 @@ Preferences::ResetPrefs()
 NS_IMETHODIMP
 Preferences::ResetUserPrefs()
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     NS_ERROR("cannot set prefs from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
@@ -492,7 +492,7 @@ Preferences::ResetUserPrefs()
 NS_IMETHODIMP
 Preferences::SavePrefFile(nsIFile *aFile)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     NS_ERROR("cannot save prefs from content process");
     return NS_ERROR_NOT_AVAILABLE;
   }
@@ -1305,7 +1305,7 @@ Preferences::GetComplex(const char* aPref, const nsIID &aType, void** aResult)
 nsresult
 Preferences::SetCString(const char* aPref, const char* aValue)
 {
-  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default, NS_ERROR_NOT_AVAILABLE);
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GoannaProcessType_Default, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
   return PREF_SetCharPref(aPref, aValue, false);
 }
@@ -1314,7 +1314,7 @@ Preferences::SetCString(const char* aPref, const char* aValue)
 nsresult
 Preferences::SetCString(const char* aPref, const nsACString &aValue)
 {
-  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default, NS_ERROR_NOT_AVAILABLE);
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GoannaProcessType_Default, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
   return PREF_SetCharPref(aPref, PromiseFlatCString(aValue).get(), false);
 }
@@ -1323,7 +1323,7 @@ Preferences::SetCString(const char* aPref, const nsACString &aValue)
 nsresult
 Preferences::SetString(const char* aPref, const PRUnichar* aValue)
 {
-  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default, NS_ERROR_NOT_AVAILABLE);
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GoannaProcessType_Default, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
   return PREF_SetCharPref(aPref, NS_ConvertUTF16toUTF8(aValue).get(), false);
 }
@@ -1332,7 +1332,7 @@ Preferences::SetString(const char* aPref, const PRUnichar* aValue)
 nsresult
 Preferences::SetString(const char* aPref, const nsAString &aValue)
 {
-  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default, NS_ERROR_NOT_AVAILABLE);
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GoannaProcessType_Default, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
   return PREF_SetCharPref(aPref, NS_ConvertUTF16toUTF8(aValue).get(), false);
 }
@@ -1341,7 +1341,7 @@ Preferences::SetString(const char* aPref, const nsAString &aValue)
 nsresult
 Preferences::SetBool(const char* aPref, bool aValue)
 {
-  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default, NS_ERROR_NOT_AVAILABLE);
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GoannaProcessType_Default, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
   return PREF_SetBoolPref(aPref, aValue, false);
 }
@@ -1350,7 +1350,7 @@ Preferences::SetBool(const char* aPref, bool aValue)
 nsresult
 Preferences::SetInt(const char* aPref, int32_t aValue)
 {
-  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default, NS_ERROR_NOT_AVAILABLE);
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GoannaProcessType_Default, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
   return PREF_SetIntPref(aPref, aValue, false);
 }
@@ -1368,7 +1368,7 @@ Preferences::SetComplex(const char* aPref, const nsIID &aType,
 nsresult
 Preferences::ClearUser(const char* aPref)
 {
-  NS_ENSURE_TRUE(XRE_GetProcessType() == GeckoProcessType_Default, NS_ERROR_NOT_AVAILABLE);
+  NS_ENSURE_TRUE(XRE_GetProcessType() == GoannaProcessType_Default, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_TRUE(InitStaticMembers(), NS_ERROR_NOT_AVAILABLE);
   return PREF_ClearUserPref(aPref);
 }

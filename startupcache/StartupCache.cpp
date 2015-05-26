@@ -88,7 +88,7 @@ StartupCache*
 StartupCache::GetSingleton() 
 {
   if (!gStartupCache) {
-    if (XRE_GetProcessType() != GeckoProcessType_Default) {
+    if (XRE_GetProcessType() != GoannaProcessType_Default) {
       return nullptr;
     }
 

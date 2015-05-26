@@ -8,7 +8,7 @@
 #include "gfxPoint.h"
 #include "SharedSurface.h"
 #include "SurfaceFactory.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 namespace mozilla {
 namespace gfx {

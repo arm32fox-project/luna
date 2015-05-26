@@ -4,7 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <ostream>
-#include "GeckoProfilerImpl.h"
+#include "GoannaProfilerImpl.h"
 #include "platform.h"
 #include "nsThreadUtils.h"
 #include "nsXULAppAPI.h"
@@ -310,7 +310,7 @@ JSCustomObject* ThreadProfile::ToJSObject(JSContext *aCx)
 void ThreadProfile::BuildJSObject(JSAObjectBuilder& b, JSCustomObject* profile) {
 
   // Thread meta data
-  if (XRE_GetProcessType() == GeckoProcessType_Plugin) {
+  if (XRE_GetProcessType() == GoannaProcessType_Plugin) {
     // TODO Add the proper plugin name
     b.DefineProperty(profile, "name", "Plugin");
   } else {

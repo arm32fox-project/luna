@@ -580,7 +580,7 @@ NS_INTERFACE_MAP_BEGIN(nsXULAppInfo)
   NS_INTERFACE_MAP_ENTRY(nsIWinAppHelper)
 #endif
   NS_INTERFACE_MAP_ENTRY_CONDITIONAL(nsIXULAppInfo, gAppData || 
-                                     XRE_GetProcessType() == GeckoProcessType_Content)
+                                     XRE_GetProcessType() == GoannaProcessType_Content)
 NS_INTERFACE_MAP_END
 
 NS_IMETHODIMP_(nsrefcnt)
@@ -598,7 +598,7 @@ nsXULAppInfo::Release()
 NS_IMETHODIMP
 nsXULAppInfo::GetVendor(nsACString& aResult)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     return NS_ERROR_NOT_AVAILABLE;
   }
   aResult.Assign(gAppData->vendor);
@@ -609,7 +609,7 @@ nsXULAppInfo::GetVendor(nsACString& aResult)
 NS_IMETHODIMP
 nsXULAppInfo::GetName(nsACString& aResult)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     return NS_ERROR_NOT_AVAILABLE;
   }
   aResult.Assign(gAppData->name);
@@ -620,7 +620,7 @@ nsXULAppInfo::GetName(nsACString& aResult)
 NS_IMETHODIMP
 nsXULAppInfo::GetID(nsACString& aResult)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     return NS_ERROR_NOT_AVAILABLE;
   }
   aResult.Assign(gAppData->ID);
@@ -631,7 +631,7 @@ nsXULAppInfo::GetID(nsACString& aResult)
 NS_IMETHODIMP
 nsXULAppInfo::GetVersion(nsACString& aResult)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     ContentChild* cc = ContentChild::GetSingleton();
     aResult = cc->GetAppInfo().version;
     return NS_OK;
@@ -652,7 +652,7 @@ nsXULAppInfo::GetPlatformVersion(nsACString& aResult)
 NS_IMETHODIMP
 nsXULAppInfo::GetAppBuildID(nsACString& aResult)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     ContentChild* cc = ContentChild::GetSingleton();
     aResult = cc->GetAppInfo().buildID;
     return NS_OK;
@@ -673,7 +673,7 @@ nsXULAppInfo::GetPlatformBuildID(nsACString& aResult)
 NS_IMETHODIMP
 nsXULAppInfo::GetUAName(nsACString& aResult)
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     return NS_ERROR_NOT_AVAILABLE;
   }
   aResult.Assign(gAppData->UAName);
@@ -727,13 +727,13 @@ nsXULAppInfo::GetWidgetToolkit(nsACString& aResult)
   return NS_OK;
 }
 
-// Ensure that the GeckoProcessType enum, defined in xpcom/build/nsXULAppAPI.h,
+// Ensure that the GoannaProcessType enum, defined in xpcom/build/nsXULAppAPI.h,
 // is synchronized with the const unsigned longs defined in
 // xpcom/system/nsIXULRuntime.idl.
 #define SYNC_ENUMS(a,b) \
   MOZ_STATIC_ASSERT(nsIXULRuntime::PROCESS_TYPE_ ## a == \
-                    static_cast<int>(GeckoProcessType_ ## b), \
-                    "GeckoProcessType in nsXULAppAPI.h not synchronized with nsIXULRuntime.idl");
+                    static_cast<int>(GoannaProcessType_ ## b), \
+                    "GoannaProcessType in nsXULAppAPI.h not synchronized with nsIXULRuntime.idl");
 
 SYNC_ENUMS(DEFAULT, Default)
 SYNC_ENUMS(PLUGIN, Plugin)
@@ -741,8 +741,8 @@ SYNC_ENUMS(CONTENT, Content)
 SYNC_ENUMS(IPDLUNITTEST, IPDLUnitTest)
 
 // .. and ensure that that is all of them:
-MOZ_STATIC_ASSERT(GeckoProcessType_IPDLUnitTest + 1 == GeckoProcessType_End,
-                  "Did not find the final GeckoProcessType");
+MOZ_STATIC_ASSERT(GoannaProcessType_IPDLUnitTest + 1 == GoannaProcessType_End,
+                  "Did not find the final GoannaProcessType");
 
 NS_IMETHODIMP
 nsXULAppInfo::GetProcessType(uint32_t* aResult)
@@ -755,7 +755,7 @@ nsXULAppInfo::GetProcessType(uint32_t* aResult)
 NS_IMETHODIMP
 nsXULAppInfo::EnsureContentProcess()
 {
-  if (XRE_GetProcessType() != GeckoProcessType_Default)
+  if (XRE_GetProcessType() != GoannaProcessType_Default)
     return NS_ERROR_NOT_AVAILABLE;
 
   nsRefPtr<ContentParent> unused = ContentParent::GetNewOrUsed();
@@ -2405,7 +2405,7 @@ static DWORD InitDwriteBG(LPVOID lpdwThreadParam)
 bool fire_glxtest_process();
 #endif
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 // Encapsulates startup and shutdown state for XRE_main
 class XREMain
@@ -2607,7 +2607,7 @@ XREMain::XRE_mainInit(bool* aExitFlag)
 
   if (mAppData->size > offsetof(nsXREAppData, minVersion)) {
     if (!mAppData->minVersion) {
-      Output(true, "Error: Gecko:MinVersion not specified in application.ini\n");
+      Output(true, "Error: Goanna:MinVersion not specified in application.ini\n");
       return 1;
     }
 
@@ -2844,7 +2844,7 @@ XREMain::XRE_mainStartup(bool* aExitFlag)
   nsQAppInstance::AddRef(gArgc, gArgv, true);
 
 #if MOZ_PLATFORM_MAEMO > 5
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     // try to get the MInputContext if possible to support the MeeGo VKB
     QInputContext* inputContext = qApp->inputContext();
     if (inputContext && inputContext->identifierName() != "MInputContext") {
@@ -3428,7 +3428,7 @@ int
 XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 {
   char aLocal;
-  GeckoProfilerInitRAII profilerGuard(&aLocal);
+  GoannaProfilerInitRAII profilerGuard(&aLocal);
   PROFILER_LABEL("Startup", "XRE_Main");
 
   nsresult rv = NS_OK;
@@ -3603,7 +3603,7 @@ int
 XRE_mainMetro(int argc, char* argv[], const nsXREAppData* aAppData)
 {
   char aLocal;
-  GeckoProfilerInitRAII profilerGuard(&aLocal);
+  GoannaProfilerInitRAII profilerGuard(&aLocal);
   PROFILER_LABEL("Startup", "XRE_Main");
 
   nsresult rv = NS_OK;
@@ -3771,7 +3771,7 @@ XRE_DeinitCommandLine()
   return rv;
 }
 
-GeckoProcessType
+GoannaProcessType
 XRE_GetProcessType()
 {
   return mozilla::startup::sChildProcessType;

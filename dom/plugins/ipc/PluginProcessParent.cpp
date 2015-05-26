@@ -16,7 +16,7 @@ using std::vector;
 using std::string;
 
 using mozilla::ipc::BrowserProcessSubThread;
-using mozilla::ipc::GeckoChildProcessHost;
+using mozilla::ipc::GoannaChildProcessHost;
 using mozilla::plugins::PluginProcessParent;
 using base::ProcessArchitecture;
 
@@ -28,7 +28,7 @@ struct RunnableMethodTraits<PluginProcessParent>
 };
 
 PluginProcessParent::PluginProcessParent(const std::string& aPluginFilePath) :
-    GeckoChildProcessHost(GeckoProcessType_Plugin),
+    GoannaChildProcessHost(GoannaProcessType_Plugin),
     mPluginFilePath(aPluginFilePath)
 {
 }
@@ -41,7 +41,7 @@ bool
 PluginProcessParent::Launch(int32_t timeoutMs)
 {
     ProcessArchitecture currentArchitecture = base::GetCurrentProcessArchitecture();
-    uint32_t containerArchitectures = GetSupportedArchitecturesForProcessType(GeckoProcessType_Plugin);
+    uint32_t containerArchitectures = GetSupportedArchitecturesForProcessType(GoannaProcessType_Plugin);
 
     uint32_t pluginLibArchitectures = currentArchitecture;
 #ifdef XP_MACOSX

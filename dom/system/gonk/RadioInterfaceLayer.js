@@ -259,10 +259,10 @@ function RadioInterfaceLayer() {
   });
 
   this.rilContext = {
-    radioState:     RIL.GECKO_RADIOSTATE_UNAVAILABLE,
-    cardState:      RIL.GECKO_CARDSTATE_UNKNOWN,
+    radioState:     RIL.GOANNA_RADIOSTATE_UNAVAILABLE,
+    cardState:      RIL.GOANNA_CARDSTATE_UNKNOWN,
     retryCount:     0,  // TODO: Please see bug 868896
-    networkSelectionMode: RIL.GECKO_NETWORK_SELECTION_UNKNOWN,
+    networkSelectionMode: RIL.GOANNA_NETWORK_SELECTION_UNKNOWN,
     iccInfo:        null,
     imsi:           null,
 
@@ -1041,11 +1041,11 @@ RadioInterfaceLayer.prototype = {
 
   _preferredNetworkType: null,
   setPreferredNetworkType: function setPreferredNetworkType(value) {
-    let networkType = RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GECKO.indexOf(value);
+    let networkType = RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GOANNA.indexOf(value);
     if (networkType < 0) {
       networkType = (this._preferredNetworkType != null)
-                    ? RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GECKO[this._preferredNetworkType]
-                    : RIL.GECKO_PREFERRED_NETWORK_TYPE_DEFAULT;
+                    ? RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GOANNA[this._preferredNetworkType]
+                    : RIL.GOANNA_PREFERRED_NETWORK_TYPE_DEFAULT;
       gSettingsService.createLock().set("ril.radio.preferredNetworkType",
                                         networkType, null);
       return;
@@ -1069,7 +1069,7 @@ RadioInterfaceLayer.prototype = {
 
     this._preferredNetworkType = message.networkType;
     debug("_preferredNetworkType is now " +
-          RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GECKO[this._preferredNetworkType]);
+          RIL.RIL_PREFERRED_NETWORK_TYPE_TO_GOANNA[this._preferredNetworkType]);
   },
 
   setCellBroadcastSearchList: function setCellBroadcastSearchList(newSearchListStr) {
@@ -1215,7 +1215,7 @@ RadioInterfaceLayer.prototype = {
       // events (e.g. incoming SMS, etc.). Wait for that.
       return;
     }
-    if (this.rilContext.radioState == RIL.GECKO_RADIOSTATE_UNKNOWN) {
+    if (this.rilContext.radioState == RIL.GOANNA_RADIOSTATE_UNKNOWN) {
       // We haven't received a radio state notification from the RIL
       // yet. Wait for that.
       return;
@@ -1225,11 +1225,11 @@ RadioInterfaceLayer.prototype = {
       return;
     }
 
-    if (this.rilContext.radioState == RIL.GECKO_RADIOSTATE_OFF &&
+    if (this.rilContext.radioState == RIL.GOANNA_RADIOSTATE_OFF &&
         this._radioEnabled) {
       this.setRadioEnabled(true);
     }
-    if (this.rilContext.radioState == RIL.GECKO_RADIOSTATE_READY &&
+    if (this.rilContext.radioState == RIL.GOANNA_RADIOSTATE_READY &&
         !this._radioEnabled) {
       this.setRadioEnabled(false);
     }
@@ -1244,7 +1244,7 @@ RadioInterfaceLayer.prototype = {
 
     // This check avoids data call connection if the radio is not ready
     // yet after toggling off airplane mode.
-    if (this.rilContext.radioState != RIL.GECKO_RADIOSTATE_READY) {
+    if (this.rilContext.radioState != RIL.GOANNA_RADIOSTATE_READY) {
       debug("RIL is not ready for data connection: radio's not ready");
       return;
     }
@@ -1259,17 +1259,17 @@ RadioInterfaceLayer.prototype = {
       return;
     }
 
-    if (this.dataNetworkInterface.state == RIL.GECKO_NETWORK_STATE_CONNECTING ||
-        this.dataNetworkInterface.state == RIL.GECKO_NETWORK_STATE_DISCONNECTING) {
+    if (this.dataNetworkInterface.state == RIL.GOANNA_NETWORK_STATE_CONNECTING ||
+        this.dataNetworkInterface.state == RIL.GOANNA_NETWORK_STATE_DISCONNECTING) {
       debug("Nothing to do during connecting/disconnecting in progress.");
       return;
     }
 
     let dataInfo = this.rilContext.data;
     let isRegistered =
-      dataInfo.state == RIL.GECKO_MOBILE_CONNECTION_STATE_REGISTERED;
+      dataInfo.state == RIL.GOANNA_MOBILE_CONNECTION_STATE_REGISTERED;
     let haveDataConnection =
-      dataInfo.type != RIL.GECKO_MOBILE_CONNECTION_STATE_UNKNOWN;
+      dataInfo.type != RIL.GOANNA_MOBILE_CONNECTION_STATE_UNKNOWN;
     if (!isRegistered || !haveDataConnection) {
       debug("RIL is not ready for data connection: Phone's not registered " +
             "or doesn't have data connection.");
@@ -1631,14 +1631,14 @@ RadioInterfaceLayer.prototype = {
       Services.obs.notifyObservers(domMessage, kSmsReceivedObserverTopic, null);
     }.bind(this);
 
-    if (message.messageClass != RIL.GECKO_SMS_MESSAGE_CLASSES[RIL.PDU_DCS_MSG_CLASS_0]) {
+    if (message.messageClass != RIL.GOANNA_SMS_MESSAGE_CLASSES[RIL.PDU_DCS_MSG_CLASS_0]) {
       message.id = gMobileMessageDatabaseService.saveReceivedMessage(message,
                                                                      notifyReceived);
     } else {
       message.id = -1;
       message.threadId = 0;
       message.delivery = DOM_MOBILE_MESSAGE_DELIVERY_RECEIVED;
-      message.deliveryStatus = RIL.GECKO_SMS_DELIVERY_STATUS_SUCCESS;
+      message.deliveryStatus = RIL.GOANNA_SMS_DELIVERY_STATUS_SUCCESS;
       message.read = false;
 
       let domMessage =
@@ -1718,7 +1718,7 @@ RadioInterfaceLayer.prototype = {
                                                      message.deliveryStatus,
                                                      function notifyResult(rv, domMessage) {
       // TODO bug 832140 handle !Components.isSuccessCode(rv)
-      let topic = (message.deliveryStatus == RIL.GECKO_SMS_DELIVERY_STATUS_SUCCESS)
+      let topic = (message.deliveryStatus == RIL.GOANNA_SMS_DELIVERY_STATUS_SUCCESS)
                   ? kSmsDeliverySuccessObserverTopic
                   : kSmsDeliveryErrorObserverTopic;
       Services.obs.notifyObservers(domMessage, topic, null);
@@ -1744,7 +1744,7 @@ RadioInterfaceLayer.prototype = {
     gMobileMessageDatabaseService.setMessageDelivery(options.sms.id,
                                                      null,
                                                      DOM_MOBILE_MESSAGE_DELIVERY_ERROR,
-                                                     RIL.GECKO_SMS_DELIVERY_STATUS_ERROR,
+                                                     RIL.GOANNA_SMS_DELIVERY_STATUS_ERROR,
                                                      function notifyResult(rv, domMessage) {
       // TODO bug 832140 handle !Components.isSuccessCode(rv)
       options.request.notifySendMessageFailed(error);
@@ -1760,7 +1760,7 @@ RadioInterfaceLayer.prototype = {
 
     if (datacall.ifname &&
         datacall.apn == this.dataCallSettings.apn) {
-      data.connected = (datacall.state == RIL.GECKO_NETWORK_STATE_CONNECTED);
+      data.connected = (datacall.state == RIL.GOANNA_NETWORK_STATE_CONNECTED);
       this._sendMobileConnectionMessage("RIL:DataInfoChanged", data);
     }
 
@@ -2170,7 +2170,7 @@ RadioInterfaceLayer.prototype = {
 
     this.handleCallError({
       callIndex: -1,
-      errorMsg: RIL.RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[RIL.CALL_FAIL_UNOBTAINABLE_NUMBER]
+      errorMsg: RIL.RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[RIL.CALL_FAIL_UNOBTAINABLE_NUMBER]
     });
     debug("Number '" + number + "' doesn't seem to be a viable number. Drop.");
 
@@ -2855,7 +2855,7 @@ RadioInterfaceLayer.prototype = {
             .setMessageDelivery(domMessage.id,
                                 null,
                                 DOM_MOBILE_MESSAGE_DELIVERY_ERROR,
-                                RIL.GECKO_SMS_DELIVERY_STATUS_ERROR,
+                                RIL.GOANNA_SMS_DELIVERY_STATUS_ERROR,
                                 function notifyResult(rv, domMessage) {
             // TODO bug 832140 handle !Components.isSuccessCode(rv)
             request.notifySendMessageFailed(errorCode);
@@ -3010,7 +3010,7 @@ RadioInterfaceLayer.prototype = {
       case "supl":
         return this.suplNetworkInterface.state;
       default:
-        return RIL.GECKO_NETWORK_STATE_UNKNOWN;
+        return RIL.GOANNA_NETWORK_STATE_UNKNOWN;
     }
   },
 
@@ -3146,8 +3146,8 @@ RILNetworkInterface.prototype = {
     debug("Data call ID: " + datacall.cid + ", interface name: " +
           datacall.ifname + ", APN name: " + datacall.apn);
     if (this.connecting &&
-        (datacall.state == RIL.GECKO_NETWORK_STATE_CONNECTING ||
-         datacall.state == RIL.GECKO_NETWORK_STATE_CONNECTED)) {
+        (datacall.state == RIL.GOANNA_NETWORK_STATE_CONNECTING ||
+         datacall.state == RIL.GOANNA_NETWORK_STATE_CONNECTED)) {
       this.connecting = false;
       this.cid = datacall.cid;
       this.name = datacall.ifname;
@@ -3183,7 +3183,7 @@ RILNetworkInterface.prototype = {
       this.mRIL.updateRILNetworkInterface();
     }
 
-    if (this.state == RIL.GECKO_NETWORK_STATE_UNKNOWN &&
+    if (this.state == RIL.GOANNA_NETWORK_STATE_UNKNOWN &&
        this.registeredAsNetworkInterface) {
       gNetworkManager.unregisterNetworkInterface(this);
       this.registeredAsNetworkInterface = false;
@@ -3211,7 +3211,7 @@ RILNetworkInterface.prototype = {
   apnRetryCounter: 0,
 
   get connected() {
-    return this.state == RIL.GECKO_NETWORK_STATE_CONNECTED;
+    return this.state == RIL.GOANNA_NETWORK_STATE_CONNECTED;
   },
 
   connect: function connect(options) {
@@ -3239,13 +3239,13 @@ RILNetworkInterface.prototype = {
 
     debug("Going to set up data connection with APN " + this.dataCallSettings.apn);
     let radioTechType = this.mRIL.rilContext.data.type;
-    let radioTechnology = RIL.GECKO_RADIO_TECH.indexOf(radioTechType);
-    let authType = RIL.RIL_DATACALL_AUTH_TO_GECKO.indexOf(this.dataCallSettings["authtype"]);
+    let radioTechnology = RIL.GOANNA_RADIO_TECH.indexOf(radioTechType);
+    let authType = RIL.RIL_DATACALL_AUTH_TO_GOANNA.indexOf(this.dataCallSettings["authtype"]);
     // Use the default authType if the value in database is invalid.
     // For the case that user might not select the authentication type.
     if (authType == -1) {
       debug("Invalid authType " + this.dataCallSettings["authtype"]);
-      authType = RIL.RIL_DATACALL_AUTH_TO_GECKO.indexOf(RIL.GECKO_DATACALL_AUTH_DEFAULT);
+      authType = RIL.RIL_DATACALL_AUTH_TO_GOANNA.indexOf(RIL.GOANNA_DATACALL_AUTH_DEFAULT);
     }
     this.mRIL.setupDataCall(radioTechnology,
                             this.dataCallSettings.apn,
@@ -3284,8 +3284,8 @@ RILNetworkInterface.prototype = {
   },
 
   disconnect: function disconnect() {
-    if (this.state == RIL.GECKO_NETWORK_STATE_DISCONNECTING ||
-        this.state == RIL.GECKO_NETWORK_STATE_DISCONNECTED) {
+    if (this.state == RIL.GOANNA_NETWORK_STATE_DISCONNECTING ||
+        this.state == RIL.GOANNA_NETWORK_STATE_DISCONNECTED) {
       return;
     }
     let reason = RIL.DATACALL_DEACTIVATE_NO_REASON;

@@ -5,7 +5,7 @@
 
 /*
  * Runs the main native Cocoa run loop, interrupting it as needed to process
- * Gecko events.
+ * Goanna events.
  */
 
 #import <Cocoa/Cocoa.h>
@@ -32,7 +32,7 @@
 #include "nsToolkit.h"
 #include "TextInputHandler.h"
 #include "mozilla/HangMonitor.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #include "npapi.h"
 
@@ -73,17 +73,17 @@ nsresult nsCocoaAppModalWindowList::PopCocoa(NSWindow *aWindow, NSModalSession a
   return NS_ERROR_FAILURE;
 }
 
-// Push a Gecko-modal window onto the top of our list.
-nsresult nsCocoaAppModalWindowList::PushGecko(NSWindow *aWindow, nsCocoaWindow *aWidget)
+// Push a Goanna-modal window onto the top of our list.
+nsresult nsCocoaAppModalWindowList::PushGoanna(NSWindow *aWindow, nsCocoaWindow *aWidget)
 {
   NS_ENSURE_STATE(aWindow && aWidget);
   mList.AppendElement(nsCocoaAppModalWindowListItem(aWindow, aWidget));
   return NS_OK;
 }
 
-// Pop the topmost Gecko-modal window off our list.  aWindow and aWidget are
+// Pop the topmost Goanna-modal window off our list.  aWindow and aWidget are
 // just used to check that it's what we expect it to be.
-nsresult nsCocoaAppModalWindowList::PopGecko(NSWindow *aWindow, nsCocoaWindow *aWidget)
+nsresult nsCocoaAppModalWindowList::PopGoanna(NSWindow *aWindow, nsCocoaWindow *aWidget)
 {
   NS_ENSURE_STATE(aWindow && aWidget);
 
@@ -91,25 +91,25 @@ nsresult nsCocoaAppModalWindowList::PopGecko(NSWindow *aWindow, nsCocoaWindow *a
     nsCocoaAppModalWindowListItem &item = mList.ElementAt(i - 1);
     if (item.mWidget) {
       NS_ASSERTION((item.mWindow == aWindow) && (item.mWidget == aWidget),
-                   "PopGecko() called without matching call to PushGecko()!");
+                   "PopGoanna() called without matching call to PushGoanna()!");
       mList.RemoveElementAt(i - 1);
       return NS_OK;
     }
   }
 
-  NS_ERROR("PopGecko() called without matching call to PushGecko()!");
+  NS_ERROR("PopGoanna() called without matching call to PushGoanna()!");
   return NS_ERROR_FAILURE;
 }
 
 // The "current session" is normally the "session" corresponding to the
 // top-most Cocoa app-modal window (both on the screen and in our list).
-// But because Cocoa app-modal dialog can be "interrupted" by a Gecko-modal
+// But because Cocoa app-modal dialog can be "interrupted" by a Goanna-modal
 // dialog, the top-most Cocoa app-modal dialog may already have finished
 // (and no longer be visible).  In this case we need to check the list for
 // the "next" visible Cocoa app-modal window (and return its "session"), or
 // (if no Cocoa app-modal window is visible) return nil.  This way we ensure
 // (as we need to) that all nested Cocoa app-modal sessions are dealt with
-// before we get to any Gecko-modal session(s).  See nsAppShell::
+// before we get to any Goanna-modal session(s).  See nsAppShell::
 // ProcessNextNativeEvent() below.
 NSModalSession nsCocoaAppModalWindowList::CurrentSession()
 {
@@ -129,8 +129,8 @@ NSModalSession nsCocoaAppModalWindowList::CurrentSession()
   return currentSession;
 }
 
-// Has a Gecko modal dialog popped up over a Cocoa app-modal dialog?
-bool nsCocoaAppModalWindowList::GeckoModalAboveCocoaModal()
+// Has a Goanna modal dialog popped up over a Cocoa app-modal dialog?
+bool nsCocoaAppModalWindowList::GoannaModalAboveCocoaModal()
 {
   if (mList.IsEmpty())
     return false;
@@ -140,7 +140,7 @@ bool nsCocoaAppModalWindowList::GeckoModalAboveCocoaModal()
   return (topItem.mWidget != nullptr);
 }
 
-@implementation GeckoNSApplication
+@implementation GoannaNSApplication
 
 - (void)sendEvent:(NSEvent *)anEvent
 {
@@ -289,7 +289,7 @@ nsAppShell::Init()
   [NSBundle loadNibFile:
                      [NSString stringWithUTF8String:(const char*)nibPath.get()]
       externalNameTable:
-           [NSDictionary dictionaryWithObject:[GeckoNSApplication sharedApplication]
+           [NSDictionary dictionaryWithObject:[GoannaNSApplication sharedApplication]
                                        forKey:@"NSOwner"]
                withZone:NSDefaultMallocZone()];
 
@@ -297,7 +297,7 @@ nsAppShell::Init()
   NS_ENSURE_STATE(mDelegate);
 
   // Add a CFRunLoopSource to the main native run loop.  The source is
-  // responsible for interrupting the run loop when Gecko events are ready.
+  // responsible for interrupting the run loop when Goanna events are ready.
 
   mCFRunLoop = [[NSRunLoop currentRunLoop] getCFRunLoop];
   NS_ENSURE_STATE(mCFRunLoop);
@@ -307,7 +307,7 @@ nsAppShell::Init()
   bzero(&context, sizeof(context));
   // context.version = 0;
   context.info = this;
-  context.perform = ProcessGeckoEvents;
+  context.perform = ProcessGoannaEvents;
   
   mCFRunLoopSource = ::CFRunLoopSourceCreate(kCFAllocatorDefault, 0, &context);
   NS_ENSURE_STATE(mCFRunLoopSource);
@@ -352,21 +352,21 @@ nsAppShell::Init()
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
 
-// ProcessGeckoEvents
+// ProcessGoannaEvents
 //
 // The "perform" target of mCFRunLoop, called when mCFRunLoopSource is
 // signalled from ScheduleNativeEventCallback.
 //
-// Arrange for Gecko events to be processed on demand (in response to a call
-// to ScheduleNativeEventCallback(), if processing of Gecko events via "native
+// Arrange for Goanna events to be processed on demand (in response to a call
+// to ScheduleNativeEventCallback(), if processing of Goanna events via "native
 // methods" hasn't been suspended).  This happens in NativeEventCallback().
 //
 // protected static
 void
-nsAppShell::ProcessGeckoEvents(void* aInfo)
+nsAppShell::ProcessGoannaEvents(void* aInfo)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-  PROFILER_LABEL("Events", "ProcessGeckoEvents");
+  PROFILER_LABEL("Events", "ProcessGoannaEvents");
   nsAppShell* self = static_cast<nsAppShell*> (aInfo);
 
   if (self->mRunningEventLoop) {
@@ -418,10 +418,10 @@ nsAppShell::ProcessGeckoEvents(void* aInfo)
            atStart:NO];
 
   // Normally every call to ScheduleNativeEventCallback() results in
-  // exactly one call to ProcessGeckoEvents().  So each Release() here
+  // exactly one call to ProcessGoannaEvents().  So each Release() here
   // normally balances exactly one AddRef() in ScheduleNativeEventCallback().
   // But if Exit() is called just after ScheduleNativeEventCallback(), the
-  // corresponding call to ProcessGeckoEvents() will never happen.  We check
+  // corresponding call to ProcessGoannaEvents() will never happen.  We check
   // for this possibility in two different places -- here and in Exit()
   // itself.  If we find here that Exit() has been called (that mTerminated
   // is true), it's because we've been called recursively, that Exit() was
@@ -429,7 +429,7 @@ nsAppShell::ProcessGeckoEvents(void* aInfo)
   // the recursion.  In this case we'll never be called again, and we balance
   // here any extra calls to ScheduleNativeEventCallback().
   //
-  // When ProcessGeckoEvents() is called recursively, it's because of a
+  // When ProcessGoannaEvents() is called recursively, it's because of a
   // call to ScheduleNativeEventCallback() from NativeEventCallback().  We
   // balance the "extra" AddRefs here (rather than always in Exit()) in order
   // to ensure that 'self' stays alive until the end of this method.  We also
@@ -444,14 +444,14 @@ nsAppShell::ProcessGeckoEvents(void* aInfo)
     while (releaseCount-- > self->mNativeEventCallbackDepth)
       self->Release();
   } else {
-    // As best we can tell, every call to ProcessGeckoEvents() is triggered
+    // As best we can tell, every call to ProcessGoannaEvents() is triggered
     // by a call to ScheduleNativeEventCallback().  But we've seen a few
     // (non-reproducible) cases of double-frees that *might* have been caused
-    // by spontaneous calls (from the OS) to ProcessGeckoEvents().  So we
+    // by spontaneous calls (from the OS) to ProcessGoannaEvents().  So we
     // deal with that possibility here.
     if (PR_ATOMIC_DECREMENT(&self->mNativeEventScheduledDepth) < 0) {
       PR_ATOMIC_SET(&self->mNativeEventScheduledDepth, 0);
-      NS_WARNING("Spontaneous call to ProcessGeckoEvents()!");
+      NS_WARNING("Spontaneous call to ProcessGoannaEvents()!");
     } else {
       self->Release();
     }
@@ -484,20 +484,20 @@ nsAppShell::WillTerminate()
 
 // ScheduleNativeEventCallback
 //
-// Called (possibly on a non-main thread) when Gecko has an event that
-// needs to be processed.  The Gecko event needs to be processed on the
+// Called (possibly on a non-main thread) when Goanna has an event that
+// needs to be processed.  The Goanna event needs to be processed on the
 // main thread, so the native run loop must be interrupted.
 //
 // In nsBaseAppShell.cpp, the mNativeEventPending variable is used to
 // ensure that ScheduleNativeEventCallback() is called no more than once
-// per call to NativeEventCallback().  ProcessGeckoEvents() can skip its
-// call to NativeEventCallback() if processing of Gecko events by native
+// per call to NativeEventCallback().  ProcessGoannaEvents() can skip its
+// call to NativeEventCallback() if processing of Goanna events by native
 // means is suspended (using nsIAppShell::SuspendNative()), which will
 // suspend calls from nsBaseAppShell::OnDispatchedEvent() to
-// ScheduleNativeEventCallback().  But when Gecko event processing by
+// ScheduleNativeEventCallback().  But when Goanna event processing by
 // native means is resumed (in ResumeNative()), an extra call is made to
 // ScheduleNativeEventCallback() (from ResumeNative()).  This triggers
-// another call to ProcessGeckoEvents(), which calls NativeEventCallback(),
+// another call to ProcessGoannaEvents(), which calls NativeEventCallback(),
 // and nsBaseAppShell::OnDispatchedEvent() resumes calling
 // ScheduleNativeEventCallback().
 //
@@ -511,12 +511,12 @@ nsAppShell::ScheduleNativeEventCallback()
     return;
 
   // Each AddRef() here is normally balanced by exactly one Release() in
-  // ProcessGeckoEvents().  But there are exceptions, for which see
-  // ProcessGeckoEvents() and Exit().
+  // ProcessGoannaEvents().  But there are exceptions, for which see
+  // ProcessGoannaEvents() and Exit().
   NS_ADDREF_THIS();
   PR_ATOMIC_INCREMENT(&mNativeEventScheduledDepth);
 
-  // This will invoke ProcessGeckoEvents on the main thread.
+  // This will invoke ProcessGoannaEvents on the main thread.
   ::CFRunLoopSourceSignal(mCFRunLoopSource);
   ::CFRunLoopWakeUp(mCFRunLoop);
 
@@ -526,7 +526,7 @@ nsAppShell::ScheduleNativeEventCallback()
 // ProcessNextNativeEvent
 //
 // If aMayWait is false, process a single native event.  If it is true, run
-// the native run loop until stopped by ProcessGeckoEvents.
+// the native run loop until stopped by ProcessGoannaEvents.
 //
 // Returns true if more events are waiting in the native event queue.
 //
@@ -549,17 +549,17 @@ nsAppShell::ProcessNextNativeEvent(bool aMayWait)
   if (mTerminated)
     return false;
 
-  // We don't want any native events to be processed here (via Gecko) while
+  // We don't want any native events to be processed here (via Goanna) while
   // Cocoa is displaying an app-modal dialog (as opposed to a window-modal
-  // "sheet" or a Gecko-modal dialog).  Otherwise Cocoa event-processing loops
+  // "sheet" or a Goanna-modal dialog).  Otherwise Cocoa event-processing loops
   // may be interrupted, and inappropriate events may get through to the
   // browser window(s) underneath.  This resolves bmo bugs 419668 and 420967.
   //
   // But we need more complex handling (we need to make an exception) if a
-  // Gecko modal dialog is running above the Cocoa app-modal dialog -- for
+  // Goanna modal dialog is running above the Cocoa app-modal dialog -- for
   // which see below.
   if ([NSApp _isRunningAppModal] &&
-      (!gCocoaAppModalWindowList || !gCocoaAppModalWindowList->GeckoModalAboveCocoaModal()))
+      (!gCocoaAppModalWindowList || !gCocoaAppModalWindowList->GoannaModalAboveCocoaModal()))
     return false;
 
   bool wasRunningEventLoop = mRunningEventLoop;
@@ -580,8 +580,8 @@ nsAppShell::ProcessNextNativeEvent(bool aMayWait)
     // just long enough to process it.  For some reason, using [NSApp
     // nextEventMatchingMask:...] to dequeue the event and [NSApp sendEvent:]
     // to "send" it causes trouble, so we no longer do that.  (The trouble
-    // was very strange, and only happened while processing Gecko events on
-    // demand (via ProcessGeckoEvents()), as opposed to processing Gecko
+    // was very strange, and only happened while processing Goanna events on
+    // demand (via ProcessGoannaEvents()), as opposed to processing Goanna
     // events in a tight loop (via nsBaseAppShell::Run()):  Particularly in
     // Camino, mouse-down events sometimes got dropped (or mis-handled), so
     // that (for example) you sometimes needed to click more than once on a
@@ -608,7 +608,7 @@ nsAppShell::ProcessNextNativeEvent(bool aMayWait)
     // false we check for timer events and process them using [NSApp
     // sendEvent:].  When aWait is true [NSRunLoop runMode:beforeDate:]
     // will only return on a "real" event.  But there's code in
-    // ProcessGeckoEvents() that should (when need be) wake us up by sending
+    // ProcessGoannaEvents() that should (when need be) wake us up by sending
     // a "fake" "real" event.  (See Apple's current doc on [NSRunLoop
     // runMode:beforeDate:] and a quote from what appears to be an older
     // version of this doc at
@@ -626,23 +626,23 @@ nsAppShell::ProcessNextNativeEvent(bool aMayWait)
       mozilla::HangMonitor::Suspend();
     }
 
-    // If we're running modal (or not in a Gecko "main" event loop) we still
+    // If we're running modal (or not in a Goanna "main" event loop) we still
     // need to use nextEventMatchingMask and sendEvent -- otherwise (in
     // Minefield) the modal window (or non-main event loop) won't receive key
     // events or most mouse events.
-    if ([NSApp _isRunningModal] || !InGeckoMainEventLoop()) {
+    if ([NSApp _isRunningModal] || !InGoannaMainEventLoop()) {
       if ((nextEvent = [NSApp nextEventMatchingMask:NSAnyEventMask
                                           untilDate:waitUntil
                                              inMode:currentMode
                                             dequeue:YES])) {
         // If we're in a Cocoa app-modal session that's been interrupted by a
-        // Gecko-modal dialog, send the event to the Cocoa app-modal dialog's
+        // Goanna-modal dialog, send the event to the Cocoa app-modal dialog's
         // session.  This ensures that the app-modal session won't be starved
         // of events, and fixes bugs 463473 and 442442.  (The case of an
         // ordinary Cocoa app-modal dialog has been dealt with above.)
         //
-        // Otherwise (if we're in an ordinary Gecko-modal dialog, or if we're
-        // otherwise not in a Gecko main event loop), process the event as
+        // Otherwise (if we're in an ordinary Goanna-modal dialog, or if we're
+        // otherwise not in a Goanna main event loop), process the event as
         // expected.
         NSModalSession currentAppModalSession = nil;
         if (gCocoaAppModalWindowList)
@@ -703,27 +703,27 @@ nsAppShell::ProcessNextNativeEvent(bool aMayWait)
   return moreEvents;
 }
 
-// Returns true if Gecko events are currently being processed in its "main"
-// event loop (or one of its "main" event loops).  Returns false if Gecko
+// Returns true if Goanna events are currently being processed in its "main"
+// event loop (or one of its "main" event loops).  Returns false if Goanna
 // events are being processed in a "nested" event loop, or if we're not
-// running in any sort of Gecko event loop.  How we process native events in
+// running in any sort of Goanna event loop.  How we process native events in
 // ProcessNextNativeEvent() turns on our decision (and if we make the wrong
 // choice, the result may be a hang).
 //
-// We define the "main" event loop(s) as the place (or places) where Gecko
-// event processing "normally" takes place, and all other Gecko event loops
+// We define the "main" event loop(s) as the place (or places) where Goanna
+// event processing "normally" takes place, and all other Goanna event loops
 // as "nested".  The "nested" event loops are normally processed while a call
 // from a "main" event loop is on the stack ... but not always.  For example,
 // the Venkman JavaScript debugger runs a "nested" event loop (in jsdService::
 // EnterNestedEventLoop()) whenever it breaks into the current script.  But
 // if this happens as the result of the user pressing a key combination, there
-// won't be any other Gecko event-processing call on the stack (e.g.
+// won't be any other Goanna event-processing call on the stack (e.g.
 // NS_ProcessNextEvent() or NS_ProcessPendingEvents()).  (In the current
 // nsAppShell implementation, what counts as the "main" event loop is what
-// nsBaseAppShell::NativeEventCallback() does to process Gecko events.  We
+// nsBaseAppShell::NativeEventCallback() does to process Goanna events.  We
 // don't currently use nsBaseAppShell::Run().)
 bool
-nsAppShell::InGeckoMainEventLoop()
+nsAppShell::InGoannaMainEventLoop()
 {
   if ((gXULModalLevel > 0) || (mRecursionDepth > 0))
     return false;
@@ -736,9 +736,9 @@ nsAppShell::InGeckoMainEventLoop()
 //
 // Overrides the base class's Run() method to call [NSApp run] (which spins
 // the native run loop until the application quits).  Since (unlike the base
-// class's Run() method) we don't process any Gecko events here, they need
+// class's Run() method) we don't process any Goanna events here, they need
 // to be processed elsewhere (in NativeEventCallback(), called from
-// ProcessGeckoEvents()).
+// ProcessGoannaEvents()).
 //
 // Camino calls [NSApp run] on its own (via NSApplicationMain()), and so
 // doesn't call nsAppShell::Run().
@@ -799,10 +799,10 @@ nsAppShell::Exit(void)
   [NSApp stop:nullptr];
 
   // A call to Exit() just after a call to ScheduleNativeEventCallback()
-  // prevents the (normally) matching call to ProcessGeckoEvents() from
-  // happening.  If we've been called from ProcessGeckoEvents() (as usually
+  // prevents the (normally) matching call to ProcessGoannaEvents() from
+  // happening.  If we've been called from ProcessGoannaEvents() (as usually
   // happens), we take care of it there.  But if we have an unbalanced call
-  // to ScheduleNativeEventCallback() and ProcessGeckoEvents() isn't on the
+  // to ScheduleNativeEventCallback() and ProcessGoannaEvents() isn't on the
   // stack, we need to take care of the problem here.
   if (!mNativeEventCallbackDepth && mNativeEventScheduledDepth) {
     int32_t releaseCount = PR_ATOMIC_SET(&mNativeEventScheduledDepth, 0);
@@ -955,13 +955,13 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
 //
 // Roll up our context menu (if any) when some other app (or the OS) opens
 // any sort of menu.  But make sure we don't do this for notifications we
-// send ourselves (whose 'sender' will be @"org.mozilla.gecko.PopupWindow").
+// send ourselves (whose 'sender' will be @"org.mozilla.goanna.PopupWindow").
 - (void)beginMenuTracking:(NSNotification*)aNotification
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   NSString *sender = [aNotification object];
-  if (!sender || ![sender isEqualToString:@"org.mozilla.gecko.PopupWindow"]) {
+  if (!sender || ![sender isEqualToString:@"org.mozilla.goanna.PopupWindow"]) {
     nsIRollupListener* rollupListener = nsBaseWidget::GetActiveRollupListener();
     nsCOMPtr<nsIWidget> rollupWidget = rollupListener->GetRollupWidget();
     if (rollupWidget)
@@ -976,12 +976,12 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
 // We hook beginModalSessionForWindow: and endModalSession: in order to
 // maintain a list of Cocoa app-modal windows (and the "sessions" to which
 // they correspond).  We need this in order to deal with the consequences
-// of a Cocoa app-modal dialog being "interrupted" by a Gecko-modal dialog.
+// of a Cocoa app-modal dialog being "interrupted" by a Goanna-modal dialog.
 // See nsCocoaAppModalWindowList::CurrentSession() and
 // nsAppShell::ProcessNextNativeEvent() above.
 //
 // We hook terminate: in order to make OS-initiated termination work nicely
-// with Gecko's shutdown sequence.  (Two ways to trigger OS-initiated
+// with Goanna's shutdown sequence.  (Two ways to trigger OS-initiated
 // termination:  1) Quit from the Dock menu; 2) Log out from (or shut down)
 // your computer while the browser is active.)
 @interface NSApplication (MethodSwizzling)
@@ -1022,7 +1022,7 @@ nsAppShell::AfterProcessNextEvent(nsIThreadInternal *aThread,
 // OS's original implementation.  The only thing the orginal method does which
 // we need is that it posts NSApplicationWillTerminateNotification.  Everything
 // else is unneeded (because it's handled elsewhere), or actively interferes
-// with Gecko's shutdown sequence.  For example the original terminate: method
+// with Goanna's shutdown sequence.  For example the original terminate: method
 // causes the app to exit() inside [NSApp run] (called from nsAppShell::Run()
 // above), which means that nothing runs after the call to nsAppStartup::Run()
 // in XRE_Main(), which in particular means that ScopedXPCOMStartup's destructor

@@ -175,7 +175,7 @@ nsJSUtils::CompileFunction(JSContext* aCx,
   JSPrincipals* p = JS_GetCompartmentPrincipals(js::GetContextCompartment(aCx));
   aOptions.setPrincipals(p);
 
-  // Do the junk Gecko is supposed to do before calling into JSAPI.
+  // Do the junk Goanna is supposed to do before calling into JSAPI.
   xpc_UnmarkGrayObject(aTarget);
 
   // Compile.

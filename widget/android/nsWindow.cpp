@@ -518,7 +518,7 @@ nsWindow::IsEnabled() const
 NS_IMETHODIMP
 nsWindow::Invalidate(const nsIntRect &aRect)
 {
-    AndroidGeckoEvent *event = AndroidGeckoEvent::MakeDrawEvent(aRect);
+    AndroidGoannaEvent *event = AndroidGoannaEvent::MakeDrawEvent(aRect);
     nsAppShell::gAppShell->PostEvent(event);
     return NS_OK;
 }
@@ -741,7 +741,7 @@ nsWindow::CreateLayerManager(int aCompositorWidth, int aCompositorHeight)
 }
 
 void
-nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
+nsWindow::OnGlobalAndroidEvent(AndroidGoannaEvent *ae)
 {
     if (!AndroidBridge::Bridge())
         return;
@@ -751,7 +751,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
         return;
 
     switch (ae->Type()) {
-        case AndroidGeckoEvent::FORCED_RESIZE:
+        case AndroidGoannaEvent::FORCED_RESIZE:
             win->mBounds.width = 0;
             win->mBounds.height = 0;
             // also resize the children
@@ -759,14 +759,14 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
                 win->mChildren[i]->mBounds.width = 0;
                 win->mChildren[i]->mBounds.height = 0;
             }
-        case AndroidGeckoEvent::SIZE_CHANGED: {
+        case AndroidGoannaEvent::SIZE_CHANGED: {
             const nsTArray<nsIntPoint>& points = ae->Points();
             NS_ASSERTION(points.Length() == 2, "Size changed does not have enough coordinates");
 
             int nw = points[0].x;
             int nh = points[0].y;
 
-            if (ae->Type() == AndroidGeckoEvent::FORCED_RESIZE || nw != gAndroidBounds.width ||
+            if (ae->Type() == AndroidGoannaEvent::FORCED_RESIZE || nw != gAndroidBounds.width ||
                 nh != gAndroidBounds.height) {
                 gAndroidBounds.width = nw;
                 gAndroidBounds.height = nh;
@@ -790,7 +790,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             gAndroidScreenBounds.width = newScreenWidth;
             gAndroidScreenBounds.height = newScreenHeight;
 
-            if (XRE_GetProcessType() != GeckoProcessType_Default)
+            if (XRE_GetProcessType() != GoannaProcessType_Default)
                 break;
 
             // Tell the content process the new screen size.
@@ -818,7 +818,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             break;
         }
 
-        case AndroidGeckoEvent::MOTION_EVENT: {
+        case AndroidGoannaEvent::MOTION_EVENT: {
             win->UserActivity();
             if (!gTopLevelWindows.IsEmpty()) {
                 nsIntPoint pt(0,0);
@@ -845,7 +845,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             break;
         }
 
-        case AndroidGeckoEvent::NATIVE_GESTURE_EVENT: {
+        case AndroidGoannaEvent::NATIVE_GESTURE_EVENT: {
             nsIntPoint pt(0,0);
             const nsTArray<nsIntPoint>& points = ae->Points();
             if (points.Length() > 0) {
@@ -859,19 +859,19 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             break;
         }
 
-        case AndroidGeckoEvent::KEY_EVENT:
+        case AndroidGoannaEvent::KEY_EVENT:
             win->UserActivity();
             if (win->mFocus)
                 win->mFocus->OnKeyEvent(ae);
             break;
 
-        case AndroidGeckoEvent::DRAW:
+        case AndroidGoannaEvent::DRAW:
             layers::renderTraceEventStart("Global draw start", "414141");
             win->OnDraw(ae);
             layers::renderTraceEventEnd("414141");
             break;
 
-        case AndroidGeckoEvent::IME_EVENT:
+        case AndroidGoannaEvent::IME_EVENT:
             win->UserActivity();
             if (win->mFocus) {
                 win->mFocus->OnIMEEvent(ae);
@@ -881,7 +881,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             }
             break;
 
-        case AndroidGeckoEvent::IME_KEY_EVENT:
+        case AndroidGoannaEvent::IME_KEY_EVENT:
             // Keys synthesized by Java IME code are saved in the mIMEKeyEvents
             // array until the next IME_REPLACE_TEXT event, at which point
             // these keys are dispatched in sequence.
@@ -890,11 +890,11 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             }
             break;
 
-        case AndroidGeckoEvent::COMPOSITOR_CREATE:
+        case AndroidGoannaEvent::COMPOSITOR_CREATE:
             win->CreateLayerManager(ae->Width(), ae->Height());
             break;
 
-        case AndroidGeckoEvent::COMPOSITOR_PAUSE:
+        case AndroidGoannaEvent::COMPOSITOR_PAUSE:
             // The compositor gets paused when the app is about to go into the
             // background. While the compositor is paused, we need to ensure that
             // no layer tree updates (from draw events) occur, since the compositor
@@ -905,7 +905,7 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
             sCompositorPaused = true;
             break;
 
-        case AndroidGeckoEvent::COMPOSITOR_RESUME:
+        case AndroidGoannaEvent::COMPOSITOR_RESUME:
             // When we receive this, the compositor has already been told to
             // resume. (It turns out that waiting till we reach here to tell
             // the compositor to resume takes too long, resulting in a black
@@ -921,13 +921,13 @@ nsWindow::OnGlobalAndroidEvent(AndroidGeckoEvent *ae)
 }
 
 void
-nsWindow::OnAndroidEvent(AndroidGeckoEvent *ae)
+nsWindow::OnAndroidEvent(AndroidGoannaEvent *ae)
 {
     if (!AndroidBridge::Bridge())
         return;
 
     switch (ae->Type()) {
-        case AndroidGeckoEvent::DRAW:
+        case AndroidGoannaEvent::DRAW:
             OnDraw(ae);
             break;
 
@@ -1040,7 +1040,7 @@ nsWindow::DrawTo(gfxASurface *targetSurface, const nsIntRect &invalidRect)
 }
 
 void
-nsWindow::OnDraw(AndroidGeckoEvent *ae)
+nsWindow::OnDraw(AndroidGoannaEvent *ae)
 {
     if (!IsTopLevel()) {
         ALOG("##### redraw for window %p, which is not a toplevel window -- sending to toplevel!", (void*) this);
@@ -1112,7 +1112,7 @@ nsWindow::InitEvent(nsGUIEvent& event, nsIntPoint* aPoint)
 gfxIntSize
 nsWindow::GetAndroidScreenBounds()
 {
-    if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    if (XRE_GetProcessType() == GoannaProcessType_Content) {
         return ContentChild::GetSingleton()->GetScreenSize();
     }
     return gAndroidScreenBounds;
@@ -1134,7 +1134,7 @@ nsWindow::GetNativeData(uint32_t aDataType)
 }
 
 void
-nsWindow::OnMouseEvent(AndroidGeckoEvent *ae)
+nsWindow::OnMouseEvent(AndroidGoannaEvent *ae)
 {
     uint32_t msg;
     switch (ae->Action()) {
@@ -1194,7 +1194,7 @@ send_again:
     }
 }
 
-bool nsWindow::OnMultitouchEvent(AndroidGeckoEvent *ae)
+bool nsWindow::OnMultitouchEvent(AndroidGoannaEvent *ae)
 {
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
 
@@ -1252,7 +1252,7 @@ bool nsWindow::OnMultitouchEvent(AndroidGeckoEvent *ae)
 }
 
 void
-nsWindow::OnNativeGestureEvent(AndroidGeckoEvent *ae)
+nsWindow::OnNativeGestureEvent(AndroidGoannaEvent *ae)
 {
   nsIntPoint pt(ae->Points()[0].x,
                 ae->Points()[0].y);
@@ -1297,7 +1297,7 @@ nsWindow::DispatchGestureEvent(uint32_t msg, uint32_t direction, double delta,
 
 
 void
-nsWindow::DispatchMotionEvent(nsInputEvent &event, AndroidGeckoEvent *ae,
+nsWindow::DispatchMotionEvent(nsInputEvent &event, AndroidGoannaEvent *ae,
                               const nsIntPoint &refPoint)
 {
     nsIntPoint offset = WidgetToScreenOffset();
@@ -1565,7 +1565,7 @@ static KeyNameIndex ConvertAndroidKeyCodeToKeyNameIndex(int aAndroidKeyCode)
 }
 
 static void InitPluginEvent(ANPEvent* pluginEvent, ANPKeyActions keyAction,
-                            AndroidGeckoEvent& key)
+                            AndroidGoannaEvent& key)
 {
     int androidKeyCode = key.KeyCode();
     uint32_t domKeyCode = ConvertAndroidKeyCodeToDOMKeyCode(androidKeyCode);
@@ -1587,7 +1587,7 @@ static void InitPluginEvent(ANPEvent* pluginEvent, ANPKeyActions keyAction,
 }
 
 void
-nsWindow::InitKeyEvent(nsKeyEvent& event, AndroidGeckoEvent& key,
+nsWindow::InitKeyEvent(nsKeyEvent& event, AndroidGoannaEvent& key,
                        ANPEvent* pluginEvent)
 {
     int androidKeyCode = key.KeyCode();
@@ -1642,7 +1642,7 @@ nsWindow::InitKeyEvent(nsKeyEvent& event, AndroidGeckoEvent& key,
 }
 
 void
-nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
+nsWindow::HandleSpecialKey(AndroidGoannaEvent *ae)
 {
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
     nsCOMPtr<nsIAtom> command;
@@ -1697,7 +1697,7 @@ nsWindow::HandleSpecialKey(AndroidGeckoEvent *ae)
 }
 
 void
-nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
+nsWindow::OnKeyEvent(AndroidGoannaEvent *ae)
 {
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
     RemoveIMEComposition();
@@ -1755,7 +1755,7 @@ nsWindow::OnKeyEvent(AndroidGeckoEvent *ae)
         pressEvent.mFlags.mDefaultPrevented = true;
     }
 #ifdef DEBUG_ANDROID_WIDGET
-    __android_log_print(ANDROID_LOG_INFO, "Gecko", "Dispatching key pressEvent with keyCode %d charCode %d shift %d alt %d sym/ctrl %d metamask %d", pressEvent.keyCode, pressEvent.charCode, pressEvent.IsShift(), pressEvent.IsAlt(), pressEvent.IsControl(), ae->MetaState());
+    __android_log_print(ANDROID_LOG_INFO, "Goanna", "Dispatching key pressEvent with keyCode %d charCode %d shift %d alt %d sym/ctrl %d metamask %d", pressEvent.keyCode, pressEvent.charCode, pressEvent.IsShift(), pressEvent.IsAlt(), pressEvent.IsControl(), ae->MetaState());
 #endif
     DispatchEvent(&pressEvent);
 }
@@ -1793,7 +1793,7 @@ public:
 void
 nsWindow::RemoveIMEComposition()
 {
-    // Remove composition on Gecko side
+    // Remove composition on Goanna side
     if (!mIMEComposing)
         return;
 
@@ -1812,28 +1812,28 @@ nsWindow::RemoveIMEComposition()
 }
 
 void
-nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
+nsWindow::OnIMEEvent(AndroidGoannaEvent *ae)
 {
     MOZ_ASSERT(!mIMEMaskTextUpdate);
     MOZ_ASSERT(!mIMEMaskSelectionUpdate);
     /*
-        Rules for managing IME between Gecko and Java:
+        Rules for managing IME between Goanna and Java:
 
-        * Gecko controls the text content, and Java shadows the Gecko text
+        * Goanna controls the text content, and Java shadows the Goanna text
            through text updates
-        * Java controls the selection, and Gecko shadows the Java selection
+        * Java controls the selection, and Goanna shadows the Java selection
            through set selection events
-        * Java controls the composition, and Gecko shadows the Java
+        * Java controls the composition, and Goanna shadows the Java
            composition through update composition events
     */
     nsRefPtr<nsWindow> kungFuDeathGrip(this);
 
-    if (ae->Action() == AndroidGeckoEvent::IME_ACKNOWLEDGE_FOCUS) {
+    if (ae->Action() == AndroidGoannaEvent::IME_ACKNOWLEDGE_FOCUS) {
         MOZ_ASSERT(mIMEMaskEventsCount > 0);
         mIMEMaskEventsCount--;
         if (!mIMEMaskEventsCount) {
             // The focusing handshake sequence is complete, and Java is waiting
-            // on Gecko. Now we can notify Java of the newly focused content
+            // on Goanna. Now we can notify Java of the newly focused content
             mIMETextChanges.Clear();
             mIMESelectionChanged = false;
             // NotifyIMEOfTextChange also notifies selection
@@ -1845,7 +1845,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
         }
         AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_REPLY_EVENT);
         return;
-    } else if (ae->Action() == AndroidGeckoEvent::IME_UPDATE_CONTEXT) {
+    } else if (ae->Action() == AndroidGoannaEvent::IME_UPDATE_CONTEXT) {
         AndroidBridge::NotifyIMEContext(mInputContext.mIMEState.mEnabled,
                                         mInputContext.mHTMLInputType,
                                         mInputContext.mHTMLInputInputmode,
@@ -1855,35 +1855,35 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
     }
     if (mIMEMaskEventsCount > 0) {
         // Still reply to events, but don't do anything else
-        if (ae->Action() == AndroidGeckoEvent::IME_SYNCHRONIZE ||
-            ae->Action() == AndroidGeckoEvent::IME_REPLACE_TEXT) {
+        if (ae->Action() == AndroidGoannaEvent::IME_SYNCHRONIZE ||
+            ae->Action() == AndroidGoannaEvent::IME_REPLACE_TEXT) {
             AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_REPLY_EVENT);
         }
         return;
     }
     switch (ae->Action()) {
-    case AndroidGeckoEvent::IME_FLUSH_CHANGES:
+    case AndroidGoannaEvent::IME_FLUSH_CHANGES:
         {
             FlushIMEChanges();
         }
         break;
-    case AndroidGeckoEvent::IME_SYNCHRONIZE:
+    case AndroidGoannaEvent::IME_SYNCHRONIZE:
         {
             FlushIMEChanges();
             AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_REPLY_EVENT);
         }
         break;
-    case AndroidGeckoEvent::IME_REPLACE_TEXT:
+    case AndroidGoannaEvent::IME_REPLACE_TEXT:
         {
             /*
-                Replace text in Gecko thread from ae->Start() to ae->End()
+                Replace text in Goanna thread from ae->Start() to ae->End()
                   with the string ae->Characters()
 
                 Selection updates are masked so the result of our temporary
                   selection event is not passed on to Java
 
                 Text updates are passed on, so the Java text can shadow the
-                  Gecko text
+                  Goanna text
             */
             AutoIMEMask selMask(mIMEMaskSelectionUpdate);
             RemoveIMEComposition();
@@ -1927,10 +1927,10 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             AndroidBridge::NotifyIME(AndroidBridge::NOTIFY_IME_REPLY_EVENT);
         }
         break;
-    case AndroidGeckoEvent::IME_SET_SELECTION:
+    case AndroidGoannaEvent::IME_SET_SELECTION:
         {
             /*
-                Set Gecko selection to ae->Start() to ae->End()
+                Set Goanna selection to ae->Start() to ae->End()
 
                 Selection updates are masked to prevent Java from being
                   notified of the new selection
@@ -1962,7 +1962,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             DispatchEvent(&selEvent);
         }
         break;
-    case AndroidGeckoEvent::IME_ADD_COMPOSITION_RANGE:
+    case AndroidGoannaEvent::IME_ADD_COMPOSITION_RANGE:
         {
             nsTextRange range;
             range.mStartOffset = ae->Start();
@@ -1980,7 +1980,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             mIMERanges.AppendElement(range);
         }
         break;
-    case AndroidGeckoEvent::IME_UPDATE_COMPOSITION:
+    case AndroidGoannaEvent::IME_UPDATE_COMPOSITION:
         {
             /*
                 Update the composition from ae->Start() to ae->End() using
@@ -2048,7 +2048,7 @@ nsWindow::OnIMEEvent(AndroidGeckoEvent *ae)
             mIMERanges.Clear();
         }
         break;
-    case AndroidGeckoEvent::IME_REMOVE_COMPOSITION:
+    case AndroidGoannaEvent::IME_REMOVE_COMPOSITION:
         {
             /*
              *  Remove any previous composition.  This is only used for
@@ -2107,7 +2107,7 @@ nsWindow::NotifyIME(NotificationToIME aNotification)
         case REQUEST_TO_CANCEL_COMPOSITION:
             ALOGIME("IME: REQUEST_TO_CANCEL_COMPOSITION");
 
-            // Cancel composition on Gecko side
+            // Cancel composition on Goanna side
             if (mIMEComposing) {
                 nsRefPtr<nsWindow> kungFuDeathGrip(this);
 
@@ -2130,8 +2130,8 @@ nsWindow::NotifyIME(NotificationToIME aNotification)
             ALOGIME("IME: NOTIFY_IME_OF_BLUR");
 
             // Mask events because we lost focus. On the next focus event,
-            // Gecko will notify Java, and Java will send an acknowledge focus
-            // event back to Gecko. That is where we unmask event handling
+            // Goanna will notify Java, and Java will send an acknowledge focus
+            // event back to Goanna. That is where we unmask event handling
             mIMEMaskEventsCount++;
             mIMEComposing = false;
             mIMEComposingText.Truncate();
@@ -2197,8 +2197,8 @@ nsWindow::SetInputContext(const InputContext& aContext,
     if (mIMEUpdatingContext) {
         return;
     }
-    AndroidGeckoEvent *event = AndroidGeckoEvent::MakeIMEEvent(
-            AndroidGeckoEvent::IME_UPDATE_CONTEXT);
+    AndroidGoannaEvent *event = AndroidGoannaEvent::MakeIMEEvent(
+            AndroidGoannaEvent::IME_UPDATE_CONTEXT);
     nsAppShell::gAppShell->PostEvent(event);
     mIMEUpdatingContext = true;
 }
@@ -2226,8 +2226,8 @@ nsWindow::PostFlushIMEChanges()
         // Already posted
         return;
     }
-    AndroidGeckoEvent *event = AndroidGeckoEvent::MakeIMEEvent(
-            AndroidGeckoEvent::IME_FLUSH_CHANGES);
+    AndroidGoannaEvent *event = AndroidGoannaEvent::MakeIMEEvent(
+            AndroidGoannaEvent::IME_FLUSH_CHANGES);
     nsAppShell::gAppShell->PostEvent(event);
 }
 
@@ -2360,7 +2360,7 @@ nsWindow::DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect)
 
     AutoLocalJNIFrame jniFrame(env);
 
-    AndroidGeckoLayerClient& client = AndroidBridge::Bridge()->GetLayerClient();
+    AndroidGoannaLayerClient& client = AndroidBridge::Bridge()->GetLayerClient();
     if (!client.CreateFrame(&jniFrame, mLayerRendererFrame)) return;
     
     if (!WidgetPaintsBackground())
@@ -2385,7 +2385,7 @@ nsWindow::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
     NS_ABORT_IF_FALSE(!mLayerRendererFrame.isNull(),
                       "Frame should have been created in DrawWindowUnderlay()!");
 
-    AndroidGeckoLayerClient& client = AndroidBridge::Bridge()->GetLayerClient();
+    AndroidGoannaLayerClient& client = AndroidBridge::Bridge()->GetLayerClient();
 
     if (!client.ActivateProgram(&jniFrame)) return;
     if (!mLayerRendererFrame.DrawForeground(&jniFrame)) return;

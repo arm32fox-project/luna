@@ -20,7 +20,7 @@ public:
   {}
 
   nsresult Init();
-  void DoProcessMoreGeckoEvents();
+  void DoProcessMoreGoannaEvents();
   void NativeCallback();
 
   static LRESULT CALLBACK EventWindowProc(HWND, UINT, WPARAM, LPARAM);

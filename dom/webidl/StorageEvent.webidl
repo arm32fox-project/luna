@@ -20,7 +20,7 @@ interface StorageEvent : Event
   readonly attribute DOMString? url;
   readonly attribute Storage? storageArea;
 
-  // initStorageEvent is a Gecko specific deprecated method.
+  // initStorageEvent is a Goanna specific deprecated method.
   [Throws]
   void initStorageEvent(DOMString type,
                         boolean canBubble,

@@ -20,7 +20,7 @@
 #include "mozilla/dom/DOMStorageIPC.h"
 #include "mozilla/Hal.h"
 #include "mozilla/hal_sandbox/PHalChild.h"
-#include "mozilla/ipc/GeckoChildProcessHost.h"
+#include "mozilla/ipc/GoannaChildProcessHost.h"
 #include "mozilla/ipc/TestShellChild.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
 #include "mozilla/layers/CompositorChild.h"
@@ -532,7 +532,7 @@ bool
 ContentChild::RecvSetProcessPrivileges(const ChildPrivileges& aPrivs)
 {
   ChildPrivileges privs = (aPrivs == PRIVILEGES_DEFAULT) ?
-                          GeckoChildProcessHost::DefaultChildPrivileges() :
+                          GoannaChildProcessHost::DefaultChildPrivileges() :
                           aPrivs;
   // If this fails, we die.
   SetCurrentProcessPrivileges(privs);

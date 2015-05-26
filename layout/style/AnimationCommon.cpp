@@ -276,7 +276,7 @@ CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *a
         frame->Preserves3DChildren()) {
       if (shouldLog) {
         nsCString message;
-        message.AppendLiteral("Gecko bug: Async animation of 'preserve-3d' transforms is not supported.  See bug 779598");
+        message.AppendLiteral("Goanna bug: Async animation of 'preserve-3d' transforms is not supported.  See bug 779598");
         LogAsyncAnimationFailure(message, aElement);
       }
       return false;
@@ -284,7 +284,7 @@ CommonElementAnimationData::CanAnimatePropertyOnCompositor(const dom::Element *a
     if (frame->IsSVGTransformed()) {
       if (shouldLog) {
         nsCString message;
-        message.AppendLiteral("Gecko bug: Async 'transform' animations of frames with SVG transforms is not supported.  See bug 779599");
+        message.AppendLiteral("Goanna bug: Async 'transform' animations of frames with SVG transforms is not supported.  See bug 779599");
         LogAsyncAnimationFailure(message, aElement);
       }
       return false;

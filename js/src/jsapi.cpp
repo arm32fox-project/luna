@@ -1656,7 +1656,7 @@ JS_TransplantObject(JSContext *cx, HandleObject origobj, HandleObject target)
 
 /*
  * Recompute all cross-compartment wrappers for an object, resetting state.
- * Gecko uses this to clear Xray wrappers when doing a navigation that reuses
+ * Goanna uses this to clear Xray wrappers when doing a navigation that reuses
  * the inner window and global object.
  */
 JS_PUBLIC_API(JSBool)

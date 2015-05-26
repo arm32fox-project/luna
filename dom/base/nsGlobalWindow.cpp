@@ -5156,7 +5156,7 @@ nsGlobalWindow::Dump(const nsAString& aStr)
     }
 #endif
 #ifdef ANDROID
-    __android_log_write(ANDROID_LOG_INFO, "GeckoDump", cstr);
+    __android_log_write(ANDROID_LOG_INFO, "GoannaDump", cstr);
 #endif
     FILE *fp = gDumpFile ? gDumpFile : stdout;
     fputs(cstr, fp);

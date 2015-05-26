@@ -40,7 +40,7 @@
 
 #include "mozilla/dom/ScreenOrientation.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #ifdef MOZ_ANDROID_HISTORY
 #include "nsNetUtil.h"
 #include "IHistory.h"
@@ -64,7 +64,7 @@ PRLogModuleInfo *gWidgetLog = nullptr;
 #endif
 
 nsIGeolocationUpdate *gLocationCallback = nullptr;
-nsAutoPtr<mozilla::AndroidGeckoEvent> gLastSizeChange;
+nsAutoPtr<mozilla::AndroidGoannaEvent> gLastSizeChange;
 
 nsAppShell *nsAppShell::gAppShell = nullptr;
 
@@ -129,7 +129,7 @@ nsAppShell::nsAppShell()
 {
     gAppShell = this;
 
-    if (XRE_GetProcessType() != GeckoProcessType_Default) {
+    if (XRE_GetProcessType() != GoannaProcessType_Default) {
         return;
     }
 
@@ -270,7 +270,7 @@ nsAppShell::ScheduleNativeEventCallback()
     EVLOG("nsAppShell::ScheduleNativeEventCallback pth: %p thread: %p main: %d", (void*) pthread_self(), (void*) NS_GetCurrentThread(), NS_IsMainThread());
 
     // this is valid to be called from any thread, so do so.
-    PostEvent(AndroidGeckoEvent::MakeNativePoke());
+    PostEvent(AndroidGoannaEvent::MakeNativePoke());
 }
 
 bool
@@ -279,7 +279,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     EVLOG("nsAppShell::ProcessNextNativeEvent %d", mayWait);
 
     PROFILER_LABEL("nsAppShell", "ProcessNextNativeEvent");
-    nsAutoPtr<AndroidGeckoEvent> curEvent;
+    nsAutoPtr<AndroidGoannaEvent> curEvent;
     {
         MutexAutoLock lock(mCondLock);
 
@@ -308,11 +308,11 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     EVLOG("nsAppShell: event %p %d", (void*)curEvent.get(), curEvent->Type());
 
     switch (curEvent->Type()) {
-    case AndroidGeckoEvent::NATIVE_POKE:
+    case AndroidGoannaEvent::NATIVE_POKE:
         NativeEventCallback();
         break;
 
-    case AndroidGeckoEvent::SENSOR_EVENT:
+    case AndroidGoannaEvent::SENSOR_EVENT:
       {
         InfallibleTArray<float> values;
         mozilla::hal::SensorType type = (mozilla::hal::SensorType) curEvent->Flags();
@@ -334,7 +334,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
 
         default:
             __android_log_print(ANDROID_LOG_ERROR,
-                                "Gecko", "### SENSOR_EVENT fired, but type wasn't known %d",
+                                "Goanna", "### SENSOR_EVENT fired, but type wasn't known %d",
                                 type);
         }
 
@@ -344,7 +344,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
       }
       break;
 
-    case AndroidGeckoEvent::LOCATION_EVENT: {
+    case AndroidGoannaEvent::LOCATION_EVENT: {
         if (!gLocationCallback)
             break;
 
@@ -356,7 +356,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::APP_BACKGROUNDING: {
+    case AndroidGoannaEvent::APP_BACKGROUNDING: {
         nsCOMPtr<nsIObserverService> obsServ =
             mozilla::services::GetObserverService();
         obsServ->NotifyObservers(nullptr, "application-background", nullptr);
@@ -387,7 +387,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::APP_FOREGROUNDING: {
+    case AndroidGoannaEvent::APP_FOREGROUNDING: {
         // If we are OOM killed with the disk cache enabled, the entire
         // cache will be cleared (bug 105843), so shut down cache on backgrounding
         // and re-init here
@@ -403,7 +403,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::THUMBNAIL: {
+    case AndroidGoannaEvent::THUMBNAIL: {
         if (!mBrowserApp)
             break;
 
@@ -419,8 +419,8 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::VIEWPORT:
-    case AndroidGeckoEvent::BROADCAST: {
+    case AndroidGoannaEvent::VIEWPORT:
+    case AndroidGoannaEvent::BROADCAST: {
 
         if (curEvent->Characters().Length() == 0)
             break;
@@ -435,7 +435,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::LOAD_URI: {
+    case AndroidGoannaEvent::LOAD_URI: {
         nsCOMPtr<nsICommandLineRunner> cmdline
             (do_CreateInstance("@mozilla.org/toolkit/command-line;1"));
         if (!cmdline)
@@ -465,16 +465,16 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::SIZE_CHANGED: {
+    case AndroidGoannaEvent::SIZE_CHANGED: {
         // store the last resize event to dispatch it to new windows with a FORCED_RESIZE event
         if (curEvent != gLastSizeChange) {
-            gLastSizeChange = AndroidGeckoEvent::CopyResizeEvent(curEvent);
+            gLastSizeChange = AndroidGoannaEvent::CopyResizeEvent(curEvent);
         }
         nsWindow::OnGlobalAndroidEvent(curEvent);
         break;
     }
 
-    case AndroidGeckoEvent::VISITED: {
+    case AndroidGoannaEvent::VISITED: {
 #ifdef MOZ_ANDROID_HISTORY
         nsCOMPtr<IHistory> history = services::GetHistoryService();
         nsCOMPtr<nsIURI> visitedURI;
@@ -487,13 +487,13 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::NETWORK_CHANGED: {
+    case AndroidGoannaEvent::NETWORK_CHANGED: {
         hal::NotifyNetworkChange(hal::NetworkInformation(curEvent->Bandwidth(),
                                                          curEvent->CanBeMetered()));
         break;
     }
 
-    case AndroidGeckoEvent::SCREENORIENTATION_CHANGED: {
+    case AndroidGoannaEvent::SCREENORIENTATION_CHANGED: {
         nsresult rv;
         nsCOMPtr<nsIScreenManager> screenMgr =
             do_GetService("@mozilla.org/gfx/screenmanager;1", &rv);
@@ -519,7 +519,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::CALL_OBSERVER:
+    case AndroidGoannaEvent::CALL_OBSERVER:
     {
         nsCOMPtr<nsIObserver> observer;
         mObserversHash.Get(curEvent->Characters(), getter_AddRefs(observer));
@@ -534,17 +534,17 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::REMOVE_OBSERVER:
+    case AndroidGoannaEvent::REMOVE_OBSERVER:
         mObserversHash.Remove(curEvent->Characters());
         break;
 
-    case AndroidGeckoEvent::ADD_OBSERVER:
+    case AndroidGoannaEvent::ADD_OBSERVER:
         AddObserver(curEvent->Characters(), curEvent->Observer());
         break;
 
-    case AndroidGeckoEvent::LOW_MEMORY:
+    case AndroidGoannaEvent::LOW_MEMORY:
         // TODO hook in memory-reduction stuff for different levels here
-        if (curEvent->MetaState() >= AndroidGeckoEvent::MEMORY_PRESSURE_MEDIUM) {
+        if (curEvent->MetaState() >= AndroidGoannaEvent::MEMORY_PRESSURE_MEDIUM) {
             nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
             if (os) {
                 os->NotifyObservers(nullptr,
@@ -554,7 +554,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         }
         break;
 
-    case AndroidGeckoEvent::NETWORK_LINK_CHANGE:
+    case AndroidGoannaEvent::NETWORK_LINK_CHANGE:
     {
         nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
         if (os) {
@@ -565,7 +565,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
-    case AndroidGeckoEvent::NOOP:
+    case AndroidGoannaEvent::NOOP:
         break;
 
     default:
@@ -589,10 +589,10 @@ nsAppShell::ResendLastResizeEvent(nsWindow* aDest) {
     }
 }
 
-AndroidGeckoEvent*
+AndroidGoannaEvent*
 nsAppShell::PopNextEvent()
 {
-    AndroidGeckoEvent *ae = nullptr;
+    AndroidGoannaEvent *ae = nullptr;
     MutexAutoLock lock(mQueueLock);
     if (mEventQueue.Length()) {
         ae = mEventQueue[0];
@@ -607,10 +607,10 @@ nsAppShell::PopNextEvent()
     return ae;
 }
 
-AndroidGeckoEvent*
+AndroidGoannaEvent*
 nsAppShell::PeekNextEvent()
 {
-    AndroidGeckoEvent *ae = nullptr;
+    AndroidGoannaEvent *ae = nullptr;
     MutexAutoLock lock(mQueueLock);
     if (mEventQueue.Length()) {
         ae = mEventQueue[0];
@@ -620,7 +620,7 @@ nsAppShell::PeekNextEvent()
 }
 
 void
-nsAppShell::PostEvent(AndroidGeckoEvent *ae)
+nsAppShell::PostEvent(AndroidGoannaEvent *ae)
 {
     {
         // set this to true when inserting events that we can coalesce
@@ -631,16 +631,16 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
         MutexAutoLock lock(mQueueLock);
         EVLOG("nsAppShell::PostEvent %p %d", ae, ae->Type());
         switch (ae->Type()) {
-        case AndroidGeckoEvent::COMPOSITOR_CREATE:
-        case AndroidGeckoEvent::COMPOSITOR_PAUSE:
-        case AndroidGeckoEvent::COMPOSITOR_RESUME:
+        case AndroidGoannaEvent::COMPOSITOR_CREATE:
+        case AndroidGoannaEvent::COMPOSITOR_PAUSE:
+        case AndroidGoannaEvent::COMPOSITOR_RESUME:
             // Give priority to these events, but maintain their order wrt each other.
             {
                 uint32_t i = 0;
                 while (i < mEventQueue.Length() &&
-                       (mEventQueue[i]->Type() == AndroidGeckoEvent::COMPOSITOR_CREATE ||
-                        mEventQueue[i]->Type() == AndroidGeckoEvent::COMPOSITOR_PAUSE ||
-                        mEventQueue[i]->Type() == AndroidGeckoEvent::COMPOSITOR_RESUME)) {
+                       (mEventQueue[i]->Type() == AndroidGoannaEvent::COMPOSITOR_CREATE ||
+                        mEventQueue[i]->Type() == AndroidGoannaEvent::COMPOSITOR_PAUSE ||
+                        mEventQueue[i]->Type() == AndroidGoannaEvent::COMPOSITOR_RESUME)) {
                     i++;
                 }
                 EVLOG("nsAppShell: Inserting compositor event %d at position %d to maintain priority order", ae->Type(), i);
@@ -648,7 +648,7 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
             }
             break;
 
-        case AndroidGeckoEvent::DRAW:
+        case AndroidGoannaEvent::DRAW:
             if (mQueuedDrawEvent) {
 #if defined(DEBUG) || defined(FORCE_ALOG)
                 // coalesce this new draw event with the one already in the queue
@@ -692,7 +692,7 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
             mEventQueue.AppendElement(ae);
             break;
 
-        case AndroidGeckoEvent::VIEWPORT:
+        case AndroidGoannaEvent::VIEWPORT:
             if (mQueuedViewportEvent) {
                 // drop the previous viewport event now that we have a new one
                 EVLOG("nsAppShell: Dropping old viewport event at %p in favour of new VIEWPORT event %p", mQueuedViewportEvent, ae);
@@ -708,12 +708,12 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
             mEventQueue.AppendElement(ae);
             break;
 
-        case AndroidGeckoEvent::MOTION_EVENT:
+        case AndroidGoannaEvent::MOTION_EVENT:
             if (ae->Action() == AndroidMotionEvent::ACTION_MOVE && mAllowCoalescingTouches) {
                 int len = mEventQueue.Length();
                 if (len > 0) {
-                    AndroidGeckoEvent* event = mEventQueue[len - 1];
-                    if (event->Type() == AndroidGeckoEvent::MOTION_EVENT && event->Action() == AndroidMotionEvent::ACTION_MOVE) {
+                    AndroidGoannaEvent* event = mEventQueue[len - 1];
+                    if (event->Type() == AndroidGoannaEvent::MOTION_EVENT && event->Action() == AndroidMotionEvent::ACTION_MOVE) {
                         // consecutive motion-move events; drop the last one before adding the new one
                         EVLOG("nsAppShell: Dropping old move event at %p in favour of new move event %p", event, ae);
                         mEventQueue.RemoveElementAt(len - 1);
@@ -724,7 +724,7 @@ nsAppShell::PostEvent(AndroidGeckoEvent *ae)
             mEventQueue.AppendElement(ae);
             break;
 
-        case AndroidGeckoEvent::NATIVE_POKE:
+        case AndroidGoannaEvent::NATIVE_POKE:
             allowCoalescingNextViewport = true;
             // fall through
 

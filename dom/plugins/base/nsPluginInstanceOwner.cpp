@@ -89,7 +89,7 @@ static nsPluginInstanceOwner* sFullScreenInstance = nullptr;
 using namespace mozilla::dom;
 
 #include <android/log.h>
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GeckoPlugins" , ## args)
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GoannaPlugins" , ## args)
 #endif
 
 using namespace mozilla;
@@ -157,7 +157,7 @@ nsPluginInstanceOwner::GetImageContainer()
   nsRefPtr<ImageContainer> container;
 
 #if MOZ_WIDGET_ANDROID
-  // Right now we only draw with Gecko layers on Honeycomb and higher. See Paint()
+  // Right now we only draw with Goanna layers on Honeycomb and higher. See Paint()
   // for what we do on other versions.
   if (AndroidBridge::Bridge()->GetAPIVersion() < 11)
     return NULL;
@@ -2077,7 +2077,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
   int16_t response = kNPEventNotHandled;
   void* window = FixUpPluginWindow(ePluginPaintEnable);
   if (window || (eventModel == NPEventModelCocoa)) {
-    mInstance->HandleEvent(event, &response, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+    mInstance->HandleEvent(event, &response, NS_PLUGIN_CALL_SAFE_TO_REENTER_GOANNA);
   }
 
   if (eventModel == NPEventModelCocoa && response == kNPEventStartIME) {
@@ -2193,7 +2193,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
 
   if (pPluginEvent) {
     int16_t response = kNPEventNotHandled;
-    mInstance->HandleEvent(pPluginEvent, &response, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+    mInstance->HandleEvent(pPluginEvent, &response, NS_PLUGIN_CALL_SAFE_TO_REENTER_GOANNA);
     if (response == kNPEventHandled)
       rv = nsEventStatus_eConsumeNoDefault;
   }
@@ -2451,7 +2451,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
   event.send_event = False;
 
   int16_t response = kNPEventNotHandled;
-  mInstance->HandleEvent(&pluginEvent, &response, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+  mInstance->HandleEvent(&pluginEvent, &response, NS_PLUGIN_CALL_SAFE_TO_REENTER_GOANNA);
   if (response == kNPEventHandled)
     rv = nsEventStatus_eConsumeNoDefault;
 #endif
@@ -2503,7 +2503,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
               event.data.mouse.action = kDown_ANPMouseAction;
               event.data.mouse.x = pluginPoint.x;
               event.data.mouse.y = pluginPoint.y;
-              mInstance->HandleEvent(&event, nullptr, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+              mInstance->HandleEvent(&event, nullptr, NS_PLUGIN_CALL_SAFE_TO_REENTER_GOANNA);
             }
             break;
           case NS_MOUSE_BUTTON_UP:
@@ -2514,7 +2514,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
               event.data.mouse.action = kUp_ANPMouseAction;
               event.data.mouse.x = pluginPoint.x;
               event.data.mouse.y = pluginPoint.y;
-              mInstance->HandleEvent(&event, nullptr, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+              mInstance->HandleEvent(&event, nullptr, NS_PLUGIN_CALL_SAFE_TO_REENTER_GOANNA);
             }
             break;
           }
@@ -2530,7 +2530,7 @@ nsEventStatus nsPluginInstanceOwner::ProcessEvent(const nsGUIEvent& anEvent)
        if (pluginEvent) {
          MOZ_ASSERT(pluginEvent->inSize == sizeof(ANPEvent));
          MOZ_ASSERT(pluginEvent->eventType == kKey_ANPEventType);
-         mInstance->HandleEvent(pluginEvent, nullptr, NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+         mInstance->HandleEvent(pluginEvent, nullptr, NS_PLUGIN_CALL_SAFE_TO_REENTER_GOANNA);
        }
      }
      break;
@@ -3175,7 +3175,7 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(int32_t inPaintState)
   // use its native widget (an obj-c object) we have to go
   // from the widget's screen coordinates to its window coords
   // instead of straight to window coords.
-  nsIntPoint geckoScreenCoords = mWidget->WidgetToScreenOffset();
+  nsIntPoint goannaScreenCoords = mWidget->WidgetToScreenOffset();
 
   nsRect windowRect;
   NS_NPAPI_CocoaWindowFrame(cocoaTopLevelWindow, windowRect);
@@ -3184,10 +3184,10 @@ void* nsPluginInstanceOwner::FixUpPluginWindow(int32_t inPaintState)
   GetContentsScaleFactor(&scaleFactor);
   int intScaleFactor = ceil(scaleFactor);
 
-  // Convert geckoScreenCoords from device pixels to "display pixels"
+  // Convert goannaScreenCoords from device pixels to "display pixels"
   // for HiDPI modes.
-  mPluginWindow->x = geckoScreenCoords.x/intScaleFactor - windowRect.x;
-  mPluginWindow->y = geckoScreenCoords.y/intScaleFactor - windowRect.y;
+  mPluginWindow->x = goannaScreenCoords.x/intScaleFactor - windowRect.x;
+  mPluginWindow->y = goannaScreenCoords.y/intScaleFactor - windowRect.y;
 
   NPRect oldClipRect = mPluginWindow->clipRect;
   

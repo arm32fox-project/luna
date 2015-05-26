@@ -51,7 +51,7 @@
 #include "nsSVGEffects.h"
 #include "nsSVGIntegrationUtils.h"
 #include "gfxDrawable.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsCSSRenderingBorders.h"
 #include "mozilla/css/ImageLoader.h"
 #include "ImageContainer.h"
@@ -2881,7 +2881,7 @@ nsCSSRendering::ComputeBackgroundPositioningArea(nsPresContext* aPresContext,
         // For the dir=rtl case:
         + scrollableFrame->GetScrollRange().TopLeft(),
       scrollableFrame->GetScrolledRect().Size());
-    // The ScrolledRect’s size does not include the borders or scrollbars,
+    // The ScrolledRect???s size does not include the borders or scrollbars,
     // reverse the handling of background-origin
     // compared to the common case below.
     if (aLayer.mOrigin == NS_STYLE_BG_ORIGIN_BORDER) {

@@ -48,7 +48,7 @@
  * it took for the event to be serviced.
  */
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #include "EventTracer.h"
 

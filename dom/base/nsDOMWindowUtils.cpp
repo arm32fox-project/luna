@@ -66,7 +66,7 @@
 #include "mozilla/dom/Element.h"
 #include "mozilla/dom/indexedDB/IndexedDatabaseManager.h"
 #include "mozilla/dom/quota/QuotaManager.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsDOMBlobBuilder.h"
 #include "nsIDOMFileHandle.h"
 #include "nsPrintfCString.h"

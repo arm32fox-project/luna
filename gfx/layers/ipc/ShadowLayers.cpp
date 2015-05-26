@@ -22,7 +22,7 @@
 #include "ShadowLayerChild.h"
 #include "gfxipc/ShadowLayerUtils.h"
 #include "RenderTrace.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsXULAppAPI.h"
 #include "mozilla/layers/ImageClient.h"
 #include "mozilla/layers/CanvasClient.h"

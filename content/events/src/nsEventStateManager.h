@@ -87,7 +87,7 @@ public:
 
   /**
    * DispatchLegacyMouseScrollEvents() dispatches NS_MOUSE_SCROLL event and
-   * NS_MOUSE_PIXEL_SCROLL event for compatiblity with old Gecko.
+   * NS_MOUSE_PIXEL_SCROLL event for compatiblity with old Goanna.
    */
   void DispatchLegacyMouseScrollEvents(nsIFrame* aTargetFrame,
                                        mozilla::widget::WheelEvent* aEvent,

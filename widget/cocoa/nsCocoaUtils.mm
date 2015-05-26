@@ -43,26 +43,26 @@ nsCocoaUtils::FlippedScreenY(float y)
   return MenuBarScreenHeight() - y;
 }
 
-NSRect nsCocoaUtils::GeckoRectToCocoaRect(const nsIntRect &geckoRect)
+NSRect nsCocoaUtils::GoannaRectToCocoaRect(const nsIntRect &goannaRect)
 {
   // We only need to change the Y coordinate by starting with the primary screen
-  // height and subtracting the gecko Y coordinate of the bottom of the rect.
-  return NSMakeRect(geckoRect.x,
-                    MenuBarScreenHeight() - geckoRect.YMost(),
-                    geckoRect.width,
-                    geckoRect.height);
+  // height and subtracting the goanna Y coordinate of the bottom of the rect.
+  return NSMakeRect(goannaRect.x,
+                    MenuBarScreenHeight() - goannaRect.YMost(),
+                    goannaRect.width,
+                    goannaRect.height);
 }
 
-NSRect nsCocoaUtils::GeckoRectToCocoaRectDevPix(const nsIntRect &aGeckoRect,
+NSRect nsCocoaUtils::GoannaRectToCocoaRectDevPix(const nsIntRect &aGoannaRect,
                                                 CGFloat aBackingScale)
 {
-  return NSMakeRect(aGeckoRect.x / aBackingScale,
-                    MenuBarScreenHeight() - aGeckoRect.YMost() / aBackingScale,
-                    aGeckoRect.width / aBackingScale,
-                    aGeckoRect.height / aBackingScale);
+  return NSMakeRect(aGoannaRect.x / aBackingScale,
+                    MenuBarScreenHeight() - aGoannaRect.YMost() / aBackingScale,
+                    aGoannaRect.width / aBackingScale,
+                    aGoannaRect.height / aBackingScale);
 }
 
-nsIntRect nsCocoaUtils::CocoaRectToGeckoRect(const NSRect &cocoaRect)
+nsIntRect nsCocoaUtils::CocoaRectToGoannaRect(const NSRect &cocoaRect)
 {
   // We only need to change the Y coordinate by starting with the primary screen
   // height and subtracting both the cocoa y origin and the height of the
@@ -75,7 +75,7 @@ nsIntRect nsCocoaUtils::CocoaRectToGeckoRect(const NSRect &cocoaRect)
   return rect;
 }
 
-nsIntRect nsCocoaUtils::CocoaRectToGeckoRectDevPix(const NSRect &aCocoaRect,
+nsIntRect nsCocoaUtils::CocoaRectToGoannaRectDevPix(const NSRect &aCocoaRect,
                                                    CGFloat aBackingScale)
 {
   nsIntRect rect;
@@ -365,24 +365,24 @@ nsCocoaUtils::ToNSString(const nsAString& aString)
 
 // static
 void
-nsCocoaUtils::GeckoRectToNSRect(const nsIntRect& aGeckoRect,
+nsCocoaUtils::GoannaRectToNSRect(const nsIntRect& aGoannaRect,
                                 NSRect& aOutCocoaRect)
 {
-  aOutCocoaRect.origin.x = aGeckoRect.x;
-  aOutCocoaRect.origin.y = aGeckoRect.y;
-  aOutCocoaRect.size.width = aGeckoRect.width;
-  aOutCocoaRect.size.height = aGeckoRect.height;
+  aOutCocoaRect.origin.x = aGoannaRect.x;
+  aOutCocoaRect.origin.y = aGoannaRect.y;
+  aOutCocoaRect.size.width = aGoannaRect.width;
+  aOutCocoaRect.size.height = aGoannaRect.height;
 }
 
 // static
 void
-nsCocoaUtils::NSRectToGeckoRect(const NSRect& aCocoaRect,
-                                nsIntRect& aOutGeckoRect)
+nsCocoaUtils::NSRectToGoannaRect(const NSRect& aCocoaRect,
+                                nsIntRect& aOutGoannaRect)
 {
-  aOutGeckoRect.x = NSToIntRound(aCocoaRect.origin.x);
-  aOutGeckoRect.y = NSToIntRound(aCocoaRect.origin.y);
-  aOutGeckoRect.width = NSToIntRound(aCocoaRect.origin.x + aCocoaRect.size.width) - aOutGeckoRect.x;
-  aOutGeckoRect.height = NSToIntRound(aCocoaRect.origin.y + aCocoaRect.size.height) - aOutGeckoRect.y;
+  aOutGoannaRect.x = NSToIntRound(aCocoaRect.origin.x);
+  aOutGoannaRect.y = NSToIntRound(aCocoaRect.origin.y);
+  aOutGoannaRect.width = NSToIntRound(aCocoaRect.origin.x + aCocoaRect.size.width) - aOutGoannaRect.x;
+  aOutGoannaRect.height = NSToIntRound(aCocoaRect.origin.y + aCocoaRect.size.height) - aOutGoannaRect.y;
 }
 
 // static

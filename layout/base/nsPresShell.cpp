@@ -174,7 +174,7 @@
 #include "gfxPlatform.h"
 
 #include "mozilla/Preferences.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "mozilla/css/ImageLoader.h"
 
 #include "Layers.h"
@@ -230,7 +230,7 @@ struct RangePaintInfo {
 // ----------------------------------------------------------------------
 
 #ifdef DEBUG
-// Set the environment variable GECKO_VERIFY_REFLOW_FLAGS to one or
+// Set the environment variable GOANNA_VERIFY_REFLOW_FLAGS to one or
 // more of the following flags (comma separated) for handy debug
 // output.
 static uint32_t gVerifyReflowFlags;
@@ -255,14 +255,14 @@ static const VerifyReflowFlags gFlags[] = {
 static void
 ShowVerifyReflowFlags()
 {
-  printf("Here are the available GECKO_VERIFY_REFLOW_FLAGS:\n");
+  printf("Here are the available GOANNA_VERIFY_REFLOW_FLAGS:\n");
   const VerifyReflowFlags* flag = gFlags;
   const VerifyReflowFlags* limit = gFlags + NUM_VERIFY_REFLOW_FLAGS;
   while (flag < limit) {
     printf("  %s\n", flag->name);
     ++flag;
   }
-  printf("Note: GECKO_VERIFY_REFLOW_FLAGS is a comma separated list of flag\n");
+  printf("Note: GOANNA_VERIFY_REFLOW_FLAGS is a comma separated list of flag\n");
   printf("names (no whitespace)\n");
 }
 #endif
@@ -555,7 +555,7 @@ nsIPresShell::GetVerifyReflowEnable()
   static bool firstTime = true;
   if (firstTime) {
     firstTime = false;
-    char* flags = PR_GetEnv("GECKO_VERIFY_REFLOW_FLAGS");
+    char* flags = PR_GetEnv("GOANNA_VERIFY_REFLOW_FLAGS");
     if (flags) {
       bool error = false;
 
@@ -4991,7 +4991,7 @@ void PresShell::UpdateCanvasBackground()
   if (!FrameConstructor()->GetRootElementFrame()) {
     mCanvasBackgroundColor = GetDefaultBackgroundColorToDraw();
   }
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     if (TabChild* tabChild = GetTabChildFrom(this)) {
       tabChild->SetBackgroundColor(mCanvasBackgroundColor);
     }
@@ -9543,7 +9543,7 @@ nsIPresShell::RecomputeFontSizeInflationEnabled()
         mFontSizeInflationEnabled = false;
         return;
       }
-    } else if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    } else if (XRE_GetProcessType() == GoannaProcessType_Default) {
       // We're in the master process.  Cancel inflation if it's been
       // explicitly disabled.
       if (FontSizeInflationDisabledInMasterProcess()) {
@@ -9563,7 +9563,7 @@ nsIPresShell::RecomputeFontSizeInflationEnabled()
   // have any metadata about the width and/or height. On mobile, the screen size
   // and the size of the content area are very close, or the same value.
   // In XUL fennec, the content area is the size of the <browser> widget, but
-  // in native fennec, the content area is the size of the Gecko LayerView
+  // in native fennec, the content area is the size of the Goanna LayerView
   // object.
 
   // TODO:

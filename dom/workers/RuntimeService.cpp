@@ -18,7 +18,7 @@
 #include "nsPIDOMWindow.h"
 
 #include <algorithm>
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "jsdbgapi.h"
 #include "jsfriendapi.h"
 #include "mozilla/dom/BindingUtils.h"

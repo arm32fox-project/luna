@@ -2843,7 +2843,7 @@
   },
   "FENNEC_RESTORING_ACTIVITY": {
     "kind": "flag",
-    "description": "Fennec is starting up but the Gecko thread was still running",
+    "description": "Fennec is starting up but the Goanna thread was still running",
     "cpp_guard": "ANDROID"
   },
   "FENNEC_STARTUP_TIME_JAVAUI": {
@@ -2862,18 +2862,18 @@
     "description": "Time for the about:home page to be displayed (ms)",
     "cpp_guard": "ANDROID"
   },
-  "FENNEC_STARTUP_TIME_GECKOREADY": {
+  "FENNEC_STARTUP_TIME_GOANNAREADY": {
     "kind": "exponential",
     "low": 500,
     "high": "20000",
     "n_buckets": 20,
-    "description": "Time for the Gecko:Ready message to arrive (ms)",
+    "description": "Time for the Goanna:Ready message to arrive (ms)",
     "cpp_guard": "ANDROID"
   },
-  "FENNEC_STARTUP_GECKOAPP_ACTION": {
+  "FENNEC_STARTUP_GOANNAAPP_ACTION": {
     "kind": "enumerated",
     "n_values": 4,
-    "description": "The way the GeckoApp was launched. (Normal, URL, Prefetch, Redirector)",
+    "description": "The way the GoannaApp was launched. (Normal, URL, Prefetch, Redirector)",
     "cpp_guard": "ANDROID"
   },
   "FENNEC_TAB_EXPIRED": {

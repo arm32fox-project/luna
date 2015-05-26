@@ -109,7 +109,7 @@ FilePickerConstructor(nsISupports *aOuter, REFNSIID aIID,
   }
   nsCOMPtr<nsIFilePicker> picker;
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     picker = new nsFilePickerProxy();
   } else {
     if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {

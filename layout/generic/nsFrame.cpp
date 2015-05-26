@@ -8661,37 +8661,37 @@ DR_State::DR_State()
 
 void DR_State::Init() 
 {
-  char* env = PR_GetEnv("GECKO_DISPLAY_REFLOW_ASSERT");
+  char* env = PR_GetEnv("GOANNA_DISPLAY_REFLOW_ASSERT");
   int32_t num;
   if (env) {
     if (GetNumber(env, num)) 
       mAssert = num;
     else 
-      printf("GECKO_DISPLAY_REFLOW_ASSERT - invalid value = %s", env);
+      printf("GOANNA_DISPLAY_REFLOW_ASSERT - invalid value = %s", env);
   }
 
-  env = PR_GetEnv("GECKO_DISPLAY_REFLOW_INDENT_START");
+  env = PR_GetEnv("GOANNA_DISPLAY_REFLOW_INDENT_START");
   if (env) {
     if (GetNumber(env, num)) 
       mIndent = num;
     else 
-      printf("GECKO_DISPLAY_REFLOW_INDENT_START - invalid value = %s", env);
+      printf("GOANNA_DISPLAY_REFLOW_INDENT_START - invalid value = %s", env);
   }
 
-  env = PR_GetEnv("GECKO_DISPLAY_REFLOW_INDENT_UNDISPLAYED_FRAMES");
+  env = PR_GetEnv("GOANNA_DISPLAY_REFLOW_INDENT_UNDISPLAYED_FRAMES");
   if (env) {
     if (GetNumber(env, num)) 
       mIndentUndisplayedFrames = num;
     else 
-      printf("GECKO_DISPLAY_REFLOW_INDENT_UNDISPLAYED_FRAMES - invalid value = %s", env);
+      printf("GOANNA_DISPLAY_REFLOW_INDENT_UNDISPLAYED_FRAMES - invalid value = %s", env);
   }
 
-  env = PR_GetEnv("GECKO_DISPLAY_REFLOW_FLAG_PIXEL_ERRORS");
+  env = PR_GetEnv("GOANNA_DISPLAY_REFLOW_FLAG_PIXEL_ERRORS");
   if (env) {
     if (GetNumber(env, num)) 
       mDisplayPixelErrors = num;
     else 
-      printf("GECKO_DISPLAY_REFLOW_FLAG_PIXEL_ERRORS - invalid value = %s", env);
+      printf("GOANNA_DISPLAY_REFLOW_FLAG_PIXEL_ERRORS - invalid value = %s", env);
   }
 
   InitFrameTypeTable();
@@ -8815,7 +8815,7 @@ void DR_State::AddRule(nsTArray<DR_Rule*>& aRules,
 
 void DR_State::ParseRulesFile()
 {
-  char* path = PR_GetEnv("GECKO_DISPLAY_REFLOW_RULES_FILE");
+  char* path = PR_GetEnv("GOANNA_DISPLAY_REFLOW_RULES_FILE");
   if (path) {
     FILE* inFile = fopen(path, "r");
     if (inFile) {
