@@ -7,4 +7,5 @@
 DIRS += ['include', 'src']
 
 MODULE = 'cubeb'
+TEST_DIRS += ['tests']
 
