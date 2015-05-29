@@ -356,7 +356,7 @@ void Shader::compileToHLSL(void *compiler)
     // ensure the compiler is loaded
     initializeCompiler();
 
-    int compileOptions = SH_OBJECT_CODE | SH_LIMIT_CALL_STACK_DEPTH;
+    int compileOptions = SH_OBJECT_CODE;
     std::string sourcePath;
     if (perfActive())
     {
