@@ -1833,7 +1833,7 @@ case "$target" in
     MOZ_OPTIMIZE_FLAGS="-O3"
     # Statically disable jemalloc on 10.5 and 32-bit 10.6.  See bug 702250.
     if test "$HAVE_64BIT_OS"; then
-        MOZ_MEMORY=1
+    #    MOZ_MEMORY=1
     fi
     DLL_SUFFIX=".dylib"
     DSO_LDOPTS=''
@@ -1984,7 +1984,8 @@ ia64*-hpux*)
 
     TARGET_NSPR_MDCPUCFG='\"md/_linux.cfg\"'
 
-    MOZ_MEMORY=1
+    # Modern Linuxes have better malloc implementations than Mozilla's jemalloc
+    # MOZ_MEMORY=1
 
     case "${target_cpu}" in
     alpha*)
