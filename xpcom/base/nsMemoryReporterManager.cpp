@@ -494,7 +494,7 @@ private:
     {
         jemalloc_stats_t stats;
         jemalloc_stats(&stats);
-        return (int64_t) stats.committed;
+        return (int64_t) stats.allocated + stats.waste + stats.bookkeeping + stats.page_cache;
     }
 };
 
@@ -513,7 +513,7 @@ private:
     {
         jemalloc_stats_t stats;
         jemalloc_stats(&stats);
-        return stats.committed - stats.allocated;
+        return stats.waste + stats.bookkeeping + stats.page_cache;
     }
 };
 
@@ -532,8 +532,8 @@ private:
     {
         jemalloc_stats_t stats;
         jemalloc_stats(&stats);
-        return (int64_t) 10000 * (stats.committed - stats.allocated) /
-                                  ((double)stats.allocated);
+        return (int64_t) 10000 * (stats.waste + stats.bookkeeping + stats.page_cache) /
+                                 ((double)stats.allocated);
     }
 };
 
@@ -552,7 +552,7 @@ private:
     {
         jemalloc_stats_t stats;
         jemalloc_stats(&stats);
-        return (int64_t) stats.dirty;
+        return (int64_t) stats.page_cache;
     }
 };
 
