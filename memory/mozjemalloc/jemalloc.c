@@ -1597,7 +1597,8 @@ void	(*_malloc_message)(const char *p1, const char *p2, const char *p3,
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
-// #include "mozilla/TaggedAnonymousMemory.h"
+
+#include "mozilla/TaggedAnonymousMemory.h"
 // Note: MozTaggedAnonymousMmap() could call an LD_PRELOADed mmap
 // instead of the one defined here; use only MozTagAnonymousMemory().
 
