@@ -1,7 +1,198 @@
-diff --git Libpng15/pngget.c Libpng15-apng/pngget.c
---- Libpng15/pngget.c	2013-03-27 20:21:25.997445906 -0500
-+++ Libpng15-apng/pngget.c	2013-04-05 09:03:41.474710443 -0500
-@@ -1135,9 +1135,171 @@ png_get_palette_max(png_const_structp pn
+diff -rpB -U 8 libpng/png.h libpng-apng/png.h
+--- libpng/png.h	2015-03-26 13:04:47 +0100
++++ libpng-apng/png.h	2015-05-13 13:00:07 +0200
+@@ -457,24 +457,18 @@
+ /* Careful here.  At one time, Guy wanted to use 082, but that would be octal.
+  * We must not include leading zeros.
+  * Versions 0.7 through 1.0.0 were in the range 0 to 100 here (only
+  * version 1.0.0 was mis-numbered 100 instead of 10000).  From
+  * version 1.0.1 it's    xxyyzz, where x=major, y=minor, z=release
+  */
+ #define PNG_LIBPNG_VER 10522 /* 1.5.22 */
+ 
+-/* Library configuration: these options cannot be changed after
+- * the library has been built.
+- */
+-#ifndef PNGLCONF_H
+-    /* If pnglibconf.h is missing, you can
+-     * copy scripts/pnglibconf.h.prebuilt to pnglibconf.h
+-     */
+-#   include "pnglibconf.h"
++#ifndef MOZPNGCONF_H
++#   include "mozpngconf.h"
+ #endif
+ 
+ #ifndef PNG_VERSION_INFO_ONLY
+ #  ifndef PNG_BUILDING_SYMBOL_TABLE
+   /*
+    *   Standard header files (not needed for the version info or while
+    *   building symbol table -- see scripts/pnglibconf.dfa)
+    */
+@@ -857,16 +851,20 @@ typedef png_info FAR * FAR * png_infopp;
+ #define PNG_INFO_oFFs 0x0100
+ #define PNG_INFO_tIME 0x0200
+ #define PNG_INFO_pCAL 0x0400
+ #define PNG_INFO_sRGB 0x0800   /* GR-P, 0.96a */
+ #define PNG_INFO_iCCP 0x1000   /* ESR, 1.0.6 */
+ #define PNG_INFO_sPLT 0x2000   /* ESR, 1.0.6 */
+ #define PNG_INFO_sCAL 0x4000   /* ESR, 1.0.6 */
+ #define PNG_INFO_IDAT 0x8000   /* ESR, 1.0.6 */
++#ifdef PNG_APNG_SUPPORTED
++#define PNG_INFO_acTL 0x10000
++#define PNG_INFO_fcTL 0x20000
++#endif
+ 
+ /* This is used for the transformation routines, as some of them
+  * change these values for the row.  It also should enable using
+  * the routines for other purposes.
+  */
+ typedef struct png_row_info_struct
+ {
+    png_uint_32 width;    /* width of row */
+@@ -902,16 +900,20 @@ typedef PNG_CALLBACK(void, *png_flush_pt
+ typedef PNG_CALLBACK(void, *png_read_status_ptr, (png_structp, png_uint_32,
+     int));
+ typedef PNG_CALLBACK(void, *png_write_status_ptr, (png_structp, png_uint_32,
+     int));
+ 
+ #ifdef PNG_PROGRESSIVE_READ_SUPPORTED
+ typedef PNG_CALLBACK(void, *png_progressive_info_ptr, (png_structp, png_infop));
+ typedef PNG_CALLBACK(void, *png_progressive_end_ptr, (png_structp, png_infop));
++#ifdef PNG_APNG_SUPPORTED
++typedef PNG_CALLBACK(void, *png_progressive_frame_ptr, (png_structp,
++    png_uint_32));
++#endif
+ 
+ /* The following callback receives png_uint_32 row_number, int pass for the
+  * png_bytep data of the row.  When transforming an interlaced image the
+  * row number is the row number within the sub-image of the interlace pass, so
+  * the value will increase to the height of the sub-image (not the full image)
+  * then reset to 0 for the next pass.
+  *
+  * Use PNG_ROW_FROM_PASS_ROW(row, pass) and PNG_COL_FROM_PASS_COL(col, pass) to
+@@ -2690,16 +2692,96 @@ PNG_EXPORT(207, void, png_save_uint_16, 
+ PNG_EXPORT(234, void, png_set_check_for_invalid_index, (png_structp png_ptr,
+     int allowed));
+ #  ifdef PNG_GET_PALETTE_MAX_SUPPORTED
+ PNG_EXPORT(235, int, png_get_palette_max, (png_const_structp png_ptr,
+     png_const_infop info_ptr));
+ #  endif
+ #endif /* CHECK_FOR_INVALID_INDEX */
+ 
++#ifdef PNG_APNG_SUPPORTED
++/* dispose_op flags from inside fcTL */
++#define PNG_DISPOSE_OP_NONE        0x00
++#define PNG_DISPOSE_OP_BACKGROUND  0x01
++#define PNG_DISPOSE_OP_PREVIOUS    0x02
++
++/* blend_op flags from inside fcTL */
++#define PNG_BLEND_OP_SOURCE        0x00
++#define PNG_BLEND_OP_OVER          0x01
++#endif /* PNG_APNG_SUPPORTED */
++
++#ifdef PNG_APNG_SUPPORTED
++PNG_EXPORT(237, png_uint_32, png_get_acTL, (png_structp png_ptr,
++   png_infop info_ptr, png_uint_32 *num_frames, png_uint_32 *num_plays));
++
++PNG_EXPORT(238, png_uint_32, png_set_acTL, (png_structp png_ptr,
++   png_infop info_ptr, png_uint_32 num_frames, png_uint_32 num_plays));
++
++PNG_EXPORT(239, png_uint_32, png_get_num_frames, (png_structp png_ptr,
++   png_infop info_ptr));
++
++PNG_EXPORT(240, png_uint_32, png_get_num_plays, (png_structp png_ptr,
++   png_infop info_ptr));
++
++PNG_EXPORT(241, png_uint_32, png_get_next_frame_fcTL,
++   (png_structp png_ptr, png_infop info_ptr, png_uint_32 *width,
++   png_uint_32 *height, png_uint_32 *x_offset, png_uint_32 *y_offset,
++   png_uint_16 *delay_num, png_uint_16 *delay_den, png_byte *dispose_op,
++   png_byte *blend_op));
++
++PNG_EXPORT(242, png_uint_32, png_set_next_frame_fcTL,
++   (png_structp png_ptr, png_infop info_ptr, png_uint_32 width,
++   png_uint_32 height, png_uint_32 x_offset, png_uint_32 y_offset,
++   png_uint_16 delay_num, png_uint_16 delay_den, png_byte dispose_op,
++   png_byte blend_op));
++
++PNG_EXPORT(243, png_uint_32, png_get_next_frame_width,
++   (png_structp png_ptr, png_infop info_ptr));
++PNG_EXPORT(244, png_uint_32, png_get_next_frame_height,
++   (png_structp png_ptr, png_infop info_ptr));
++PNG_EXPORT(245, png_uint_32, png_get_next_frame_x_offset,
++   (png_structp png_ptr, png_infop info_ptr));
++PNG_EXPORT(246, png_uint_32, png_get_next_frame_y_offset,
++   (png_structp png_ptr, png_infop info_ptr));
++PNG_EXPORT(247, png_uint_16, png_get_next_frame_delay_num,
++   (png_structp png_ptr, png_infop info_ptr));
++PNG_EXPORT(248, png_uint_16, png_get_next_frame_delay_den,
++   (png_structp png_ptr, png_infop info_ptr));
++PNG_EXPORT(249, png_byte, png_get_next_frame_dispose_op,
++   (png_structp png_ptr, png_infop info_ptr));
++PNG_EXPORT(250, png_byte, png_get_next_frame_blend_op,
++   (png_structp png_ptr, png_infop info_ptr));
++PNG_EXPORT(251, png_byte, png_get_first_frame_is_hidden,
++   (png_structp png_ptr, png_infop info_ptr));
++PNG_EXPORT(252, png_uint_32, png_set_first_frame_is_hidden,
++   (png_structp png_ptr, png_infop info_ptr, png_byte is_hidden));
++
++#ifdef PNG_READ_APNG_SUPPORTED
++PNG_EXPORT(253, void, png_read_frame_head, (png_structp png_ptr,
++   png_infop info_ptr));
++#ifdef PNG_PROGRESSIVE_READ_SUPPORTED
++PNG_EXPORT(254, void, png_set_progressive_frame_fn, (png_structp png_ptr,
++   png_progressive_frame_ptr frame_info_fn,
++   png_progressive_frame_ptr frame_end_fn));
++#endif /* PNG_PROGRESSIVE_READ_SUPPORTED */
++#endif /* PNG_READ_APNG_SUPPORTED */
++
++#ifdef PNG_WRITE_APNG_SUPPORTED
++PNG_EXPORT(255, void, png_write_frame_head, (png_structp png_ptr,
++   png_infop info_ptr, png_bytepp row_pointers,
++   png_uint_32 width, png_uint_32 height,
++   png_uint_32 x_offset, png_uint_32 y_offset,
++   png_uint_16 delay_num, png_uint_16 delay_den, png_byte dispose_op,
++   png_byte blend_op));
++
++PNG_EXPORT(256, void, png_write_frame_tail, (png_structp png_ptr,
++   png_infop info_ptr));
++#endif /* PNG_WRITE_APNG_SUPPORTED */
++#endif /* PNG_APNG_SUPPORTED */
++
+ /*******************************************************************************
+  *  IMPLEMENTATION OPTIONS
+  *******************************************************************************
+  *
+  * Support for arbitrary implementation-specific optimizations.  The API allows
+  * particular options to be turned on or off.  'Option' is the number of the
+  * option and 'onoff' is 0 (off) or non-0 (on).  The value returned is given
+  * by the PNG_OPTION_ defines below.
+@@ -2740,17 +2822,21 @@ PNG_EXPORT(236, int, png_set_option, (pn
+  * defs
+  */
+ 
+ /* The last ordinal number (this is the *last* one already used; the next
+  * one to use is one more than this.)  Maintainer, remember to add an entry to
+  * scripts/symbols.def as well.
+  */
+ #ifdef PNG_EXPORT_LAST_ORDINAL
++#  ifdef PNG_APNG_SUPPORTED
++  PNG_EXPORT_LAST_ORDINAL(256);
++#  else
+   PNG_EXPORT_LAST_ORDINAL(236);
++#  endif /* PNG_APNG_SUPPORTED */
+ #endif
+ 
+ #ifdef __cplusplus
+ }
+ #endif
+ 
+ #endif /* PNG_VERSION_INFO_ONLY */
+ /* Do not put anything past this line */
+diff -rpB -U 8 libpng/pngget.c libpng-apng/pngget.c
+--- libpng/pngget.c	2015-03-26 13:04:47 +0100
++++ libpng-apng/pngget.c	2015-05-13 12:57:24 +0200
+@@ -1162,9 +1162,171 @@ png_get_palette_max(png_const_structp pn
     if (png_ptr != NULL && info_ptr != NULL)
        return png_ptr->num_palette_max;
  
@@ -173,201 +364,10 @@ diff --git Libpng15/pngget.c Libpng15-apng/pngget.c
 +}
 +#endif /* PNG_APNG_SUPPORTED */
  #endif /* PNG_READ_SUPPORTED || PNG_WRITE_SUPPORTED */
-diff --git Libpng15/png.h Libpng15-apng/png.h
---- Libpng15/png.h	2013-03-27 20:21:25.890862785 -0500
-+++ Libpng15-apng/png.h	2013-04-05 09:08:47.597309275 -0500
-@@ -433,24 +433,18 @@
- /* Careful here.  At one time, Guy wanted to use 082, but that would be octal.
-  * We must not include leading zeros.
-  * Versions 0.7 through 1.0.0 were in the range 0 to 100 here (only
-  * version 1.0.0 was mis-numbered 100 instead of 10000).  From
-  * version 1.0.1 it's    xxyyzz, where x=major, y=minor, z=release
-  */
- #define PNG_LIBPNG_VER 10515 /* 1.5.15 */
- 
--/* Library configuration: these options cannot be changed after
-- * the library has been built.
-- */
--#ifndef PNGLCONF_H
--    /* If pnglibconf.h is missing, you can
--     * copy scripts/pnglibconf.h.prebuilt to pnglibconf.h
--     */
--#   include "pnglibconf.h"
-+#ifndef MOZPNGCONF_H
-+#   include "mozpngconf.h"
- #endif
- 
- #ifndef PNG_VERSION_INFO_ONLY
- #  ifndef PNG_BUILDING_SYMBOL_TABLE
-   /*
-    *   Standard header files (not needed for the version info or while
-    *   building symbol table -- see scripts/pnglibconf.dfa)
-    */
-@@ -833,16 +827,20 @@ typedef png_info FAR * FAR * png_infopp;
- #define PNG_INFO_oFFs 0x0100
- #define PNG_INFO_tIME 0x0200
- #define PNG_INFO_pCAL 0x0400
- #define PNG_INFO_sRGB 0x0800   /* GR-P, 0.96a */
- #define PNG_INFO_iCCP 0x1000   /* ESR, 1.0.6 */
- #define PNG_INFO_sPLT 0x2000   /* ESR, 1.0.6 */
- #define PNG_INFO_sCAL 0x4000   /* ESR, 1.0.6 */
- #define PNG_INFO_IDAT 0x8000   /* ESR, 1.0.6 */
-+#ifdef PNG_APNG_SUPPORTED
-+#define PNG_INFO_acTL 0x10000
-+#define PNG_INFO_fcTL 0x20000
-+#endif
- 
- /* This is used for the transformation routines, as some of them
-  * change these values for the row.  It also should enable using
-  * the routines for other purposes.
-  */
- typedef struct png_row_info_struct
- {
-    png_uint_32 width;    /* width of row */
-@@ -878,16 +876,20 @@ typedef PNG_CALLBACK(void, *png_flush_pt
- typedef PNG_CALLBACK(void, *png_read_status_ptr, (png_structp, png_uint_32,
-     int));
- typedef PNG_CALLBACK(void, *png_write_status_ptr, (png_structp, png_uint_32,
-     int));
- 
- #ifdef PNG_PROGRESSIVE_READ_SUPPORTED
- typedef PNG_CALLBACK(void, *png_progressive_info_ptr, (png_structp, png_infop));
- typedef PNG_CALLBACK(void, *png_progressive_end_ptr, (png_structp, png_infop));
-+#ifdef PNG_APNG_SUPPORTED
-+typedef PNG_CALLBACK(void, *png_progressive_frame_ptr, (png_structp,
-+    png_uint_32));
-+#endif
- 
- /* The following callback receives png_uint_32 row_number, int pass for the
-  * png_bytep data of the row.  When transforming an interlaced image the
-  * row number is the row number within the sub-image of the interlace pass, so
-  * the value will increase to the height of the sub-image (not the full image)
-  * then reset to 0 for the next pass.
-  *
-  * Use PNG_ROW_FROM_PASS_ROW(row, pass) and PNG_COL_FROM_PASS_COL(col, pass) to
-@@ -2657,16 +2659,96 @@ PNG_EXPORT(207, void, png_save_uint_16,
- PNG_EXPORT(234, void, png_set_check_for_invalid_index, (png_structp png_ptr,
-     int allowed));
- #  ifdef PNG_GET_PALETTE_MAX_SUPPORTED
- PNG_EXPORT(235, int, png_get_palette_max, (png_const_structp png_ptr,
-     png_const_infop info_ptr));
- #  endif
- #endif /* CHECK_FOR_INVALID_INDEX */
- 
-+#ifdef PNG_APNG_SUPPORTED
-+/* dispose_op flags from inside fcTL */
-+#define PNG_DISPOSE_OP_NONE        0x00
-+#define PNG_DISPOSE_OP_BACKGROUND  0x01
-+#define PNG_DISPOSE_OP_PREVIOUS    0x02
-+
-+/* blend_op flags from inside fcTL */
-+#define PNG_BLEND_OP_SOURCE        0x00
-+#define PNG_BLEND_OP_OVER          0x01
-+#endif /* PNG_APNG_SUPPORTED */
-+
-+#ifdef PNG_APNG_SUPPORTED
-+PNG_EXPORT(237, png_uint_32, png_get_acTL, (png_structp png_ptr,
-+   png_infop info_ptr, png_uint_32 *num_frames, png_uint_32 *num_plays));
-+
-+PNG_EXPORT(238, png_uint_32, png_set_acTL, (png_structp png_ptr,
-+   png_infop info_ptr, png_uint_32 num_frames, png_uint_32 num_plays));
-+
-+PNG_EXPORT(239, png_uint_32, png_get_num_frames, (png_structp png_ptr,
-+   png_infop info_ptr));
-+
-+PNG_EXPORT(240, png_uint_32, png_get_num_plays, (png_structp png_ptr,
-+   png_infop info_ptr));
-+
-+PNG_EXPORT(241, png_uint_32, png_get_next_frame_fcTL,
-+   (png_structp png_ptr, png_infop info_ptr, png_uint_32 *width,
-+   png_uint_32 *height, png_uint_32 *x_offset, png_uint_32 *y_offset,
-+   png_uint_16 *delay_num, png_uint_16 *delay_den, png_byte *dispose_op,
-+   png_byte *blend_op));
-+
-+PNG_EXPORT(242, png_uint_32, png_set_next_frame_fcTL,
-+   (png_structp png_ptr, png_infop info_ptr, png_uint_32 width,
-+   png_uint_32 height, png_uint_32 x_offset, png_uint_32 y_offset,
-+   png_uint_16 delay_num, png_uint_16 delay_den, png_byte dispose_op,
-+   png_byte blend_op));
-+
-+PNG_EXPORT(243, png_uint_32, png_get_next_frame_width,
-+   (png_structp png_ptr, png_infop info_ptr));
-+PNG_EXPORT(244, png_uint_32, png_get_next_frame_height,
-+   (png_structp png_ptr, png_infop info_ptr));
-+PNG_EXPORT(245, png_uint_32, png_get_next_frame_x_offset,
-+   (png_structp png_ptr, png_infop info_ptr));
-+PNG_EXPORT(246, png_uint_32, png_get_next_frame_y_offset,
-+   (png_structp png_ptr, png_infop info_ptr));
-+PNG_EXPORT(247, png_uint_16, png_get_next_frame_delay_num,
-+   (png_structp png_ptr, png_infop info_ptr));
-+PNG_EXPORT(248, png_uint_16, png_get_next_frame_delay_den,
-+   (png_structp png_ptr, png_infop info_ptr));
-+PNG_EXPORT(249, png_byte, png_get_next_frame_dispose_op,
-+   (png_structp png_ptr, png_infop info_ptr));
-+PNG_EXPORT(250, png_byte, png_get_next_frame_blend_op,
-+   (png_structp png_ptr, png_infop info_ptr));
-+PNG_EXPORT(251, png_byte, png_get_first_frame_is_hidden,
-+   (png_structp png_ptr, png_infop info_ptr));
-+PNG_EXPORT(252, png_uint_32, png_set_first_frame_is_hidden,
-+   (png_structp png_ptr, png_infop info_ptr, png_byte is_hidden));
-+
-+#ifdef PNG_READ_APNG_SUPPORTED
-+PNG_EXPORT(253, void, png_read_frame_head, (png_structp png_ptr,
-+   png_infop info_ptr));
-+#ifdef PNG_PROGRESSIVE_READ_SUPPORTED
-+PNG_EXPORT(254, void, png_set_progressive_frame_fn, (png_structp png_ptr,
-+   png_progressive_frame_ptr frame_info_fn,
-+   png_progressive_frame_ptr frame_end_fn));
-+#endif /* PNG_PROGRESSIVE_READ_SUPPORTED */
-+#endif /* PNG_READ_APNG_SUPPORTED */
-+
-+#ifdef PNG_WRITE_APNG_SUPPORTED
-+PNG_EXPORT(255, void, png_write_frame_head, (png_structp png_ptr,
-+   png_infop info_ptr, png_bytepp row_pointers,
-+   png_uint_32 width, png_uint_32 height,
-+   png_uint_32 x_offset, png_uint_32 y_offset,
-+   png_uint_16 delay_num, png_uint_16 delay_den, png_byte dispose_op,
-+   png_byte blend_op));
-+
-+PNG_EXPORT(256, void, png_write_frame_tail, (png_structp png_ptr,
-+   png_infop info_ptr));
-+#endif /* PNG_WRITE_APNG_SUPPORTED */
-+#endif /* PNG_APNG_SUPPORTED */
-+
- /*******************************************************************************
-  *  IMPLEMENTATION OPTIONS
-  *******************************************************************************
-  *
-  * Support for arbitrary implementation-specific optimizations.  The API allows
-  * particular options to be turned on or off.  'Option' is the number of the
-  * option and 'onoff' is 0 (off) or non-0 (on).  The value returned is given
-  * by the PNG_OPTION_ defines below.
-@@ -2707,17 +2789,21 @@ PNG_EXPORT(236, int, png_set_option, (pn
-  * defs
-  */
- 
- /* The last ordinal number (this is the *last* one already used; the next
-  * one to use is one more than this.)  Maintainer, remember to add an entry to
-  * scripts/symbols.def as well.
-  */
- #ifdef PNG_EXPORT_LAST_ORDINAL
-+#  ifdef PNG_APNG_SUPPORTED
-+  PNG_EXPORT_LAST_ORDINAL(256);
-+#  else
-   PNG_EXPORT_LAST_ORDINAL(236);
-+#  endif /* PNG_APNG_SUPPORTED */
- #endif
- 
- #ifdef __cplusplus
- }
- #endif
- 
- #endif /* PNG_VERSION_INFO_ONLY */
- /* Do not put anything past this line */
-diff --git Libpng15/pnginfo.h Libpng15-apng/pnginfo.h
---- Libpng15/pnginfo.h	2013-03-27 20:21:25.931778532 -0500
-+++ Libpng15-apng/pnginfo.h	2013-04-05 08:35:44.489862426 -0500
-@@ -260,10 +260,23 @@ defined(PNG_READ_BACKGROUND_SUPPORTED)
+diff -rpB -U 8 libpng/pnginfo.h libpng-apng/pnginfo.h
+--- libpng/pnginfo.h	2015-03-26 13:04:47 +0100
++++ libpng-apng/pnginfo.h	2015-05-13 12:57:24 +0200
+@@ -259,10 +259,23 @@ defined(PNG_READ_BACKGROUND_SUPPORTED)
  
  #ifdef PNG_INFO_IMAGE_SUPPORTED
     /* Memory has been allocated if (valid & PNG_ALLOCATED_INFO_ROWS)
@@ -391,9 +391,9 @@ diff --git Libpng15/pnginfo.h Libpng15-apng/pnginfo.h
 +
  };
  #endif /* PNGINFO_H */
-diff --git Libpng15/pngpread.c Libpng15-apng/pngpread.c
---- Libpng15/pngpread.c	2013-03-27 20:21:26.018949507 -0500
-+++ Libpng15-apng/pngpread.c	2013-04-05 08:35:44.500787013 -0500
+diff -rpB -U 8 libpng/pngpread.c libpng-apng/pngpread.c
+--- libpng/pngpread.c	2015-03-26 13:04:47 +0100
++++ libpng-apng/pngpread.c	2015-05-13 12:57:24 +0200
 @@ -210,16 +210,119 @@ png_push_read_chunk(png_structp png_ptr,
        png_crc_read(png_ptr, chunk_tag, 4);
        png_ptr->chunk_name = PNG_CHUNK_FROM_STRING(chunk_tag);
@@ -692,7 +692,7 @@ diff --git Libpng15/pngpread.c Libpng15-apng/pngpread.c
     png_ptr->zstream.avail_in = (uInt)buffer_length;
  
     /* Keep going until the decompressed data is all processed
-@@ -1299,16 +1488,28 @@ png_set_progressive_read_fn(png_structp
+@@ -1305,16 +1494,28 @@ png_set_progressive_read_fn(png_structp 
  
     png_ptr->info_fn = info_fn;
     png_ptr->row_fn = row_fn;
@@ -721,10 +721,10 @@ diff --git Libpng15/pngpread.c Libpng15-apng/pngpread.c
  
     return png_ptr->io_ptr;
  }
-diff --git Libpng15/pngpriv.h Libpng15-apng/pngpriv.h
---- Libpng15/pngpriv.h	2013-03-27 20:21:25.916383806 -0500
-+++ Libpng15-apng/pngpriv.h	2013-04-05 08:35:44.512724367 -0500
-@@ -456,16 +456,20 @@
+diff -rpB -U 8 libpng/pngpriv.h libpng-apng/pngpriv.h
+--- libpng/pngpriv.h	2015-03-26 13:04:47 +0100
++++ libpng-apng/pngpriv.h	2015-05-13 12:57:24 +0200
+@@ -474,16 +474,20 @@
  #define PNG_HAVE_sRGB               0x80
  #define PNG_HAVE_CHUNK_HEADER      0x100
  #define PNG_WROTE_tIME             0x200
@@ -745,7 +745,7 @@ diff --git Libpng15/pngpriv.h Libpng15-apng/pngpriv.h
  #define PNG_SHIFT               0x0008
  #define PNG_SWAP_BYTES          0x0010
  #define PNG_INVERT_MONO         0x0020
-@@ -653,16 +657,26 @@ PNG_EXTERN png_fixed_point png_fixed PNG
+@@ -671,16 +675,26 @@ PNG_EXTERN png_fixed_point png_fixed PNG
  #define png_sPLT PNG_CHUNK(115,  80,  76,  84)
  #define png_sRGB PNG_CHUNK(115,  82,  71,  66)
  #define png_sTER PNG_CHUNK(115,  84,  69,  82)
@@ -772,7 +772,7 @@ diff --git Libpng15/pngpriv.h Libpng15-apng/pngpriv.h
  
  /* This uses (char), not (png_byte) to avoid warnings on systems where (char) is
   * signed and the argument is a (char[])  This macro will fail miserably on
-@@ -1344,16 +1358,55 @@ PNG_EXTERN void png_push_read_iTXt PNGAR
+@@ -1362,16 +1376,55 @@ PNG_EXTERN void png_push_read_iTXt PNGAR
  
  #ifdef PNG_MNG_FEATURES_SUPPORTED
  PNG_EXTERN void png_do_read_intrapixel PNGARG((png_row_infop row_info,
@@ -828,9 +828,9 @@ diff --git Libpng15/pngpriv.h Libpng15-apng/pngpriv.h
      int_green_x, png_fixed_point int_green_y, png_fixed_point int_blue_x,
      png_fixed_point int_blue_y));
  #endif
-diff --git Libpng15/pngread.c Libpng15-apng/pngread.c
---- Libpng15/pngread.c	2013-03-27 20:21:26.031382541 -0500
-+++ Libpng15-apng/pngread.c	2013-04-05 08:35:44.521542241 -0500
+diff -rpB -U 8 libpng/pngread.c libpng-apng/pngread.c
+--- libpng/pngread.c	2015-03-26 13:04:47 +0100
++++ libpng-apng/pngread.c	2015-05-13 12:57:23 +0200
 @@ -235,16 +235,19 @@ png_read_info(png_structp png_ptr, png_i
        {
           if (!(png_ptr->mode & PNG_HAVE_IHDR))
@@ -1030,10 +1030,10 @@ diff --git Libpng15/pngread.c Libpng15-apng/pngread.c
               "Decompression error");
  
     } while (png_ptr->zstream.avail_out);
-diff --git Libpng15/pngrutil.c Libpng15-apng/pngrutil.c
---- Libpng15/pngrutil.c	2013-03-27 20:21:26.096904976 -0500
-+++ Libpng15-apng/pngrutil.c	2013-04-05 08:35:44.532243804 -0500
-@@ -542,16 +542,21 @@ png_handle_IHDR(png_structp png_ptr, png
+diff -rpB -U 8 libpng/pngrutil.c libpng-apng/pngrutil.c
+--- libpng/pngrutil.c	2015-03-26 13:04:47 +0100
++++ libpng-apng/pngrutil.c	2015-05-13 13:04:25 +0200
+@@ -551,16 +551,21 @@ png_handle_IHDR(png_structp png_ptr, png
     width = png_get_uint_31(png_ptr, buf);
     height = png_get_uint_31(png_ptr, buf + 4);
     bit_depth = buf[8];
@@ -1055,11 +1055,11 @@ diff --git Libpng15/pngrutil.c Libpng15-apng/pngrutil.c
     png_ptr->color_type = (png_byte)color_type;
  #ifdef PNG_MNG_FEATURES_SUPPORTED
     png_ptr->filter_type = (png_byte)filter_type;
-@@ -2619,16 +2624,189 @@ png_handle_iTXt(png_structp png_ptr, png
+@@ -2631,16 +2636,189 @@ png_handle_iTXt(png_structp png_ptr, png
     png_free(png_ptr, png_ptr->chunkdata);
     png_ptr->chunkdata = NULL;
  
-    if (ret)
+    if (ret != 0)
        png_error(png_ptr, "Insufficient memory to store iTXt chunk");
  }
  #endif
@@ -1236,7 +1236,7 @@ diff --git Libpng15/pngrutil.c Libpng15-apng/pngrutil.c
 +    png_ptr->next_seq_num++;
 +}
 +#endif /* PNG_READ_APNG_SUPPORTED */
-+
++ 
  /* This function is called when we haven't found a handler for a
   * chunk.  If there isn't a problem with the chunk itself (ie bad
   * chunk name, CRC, or a critical chunk), the chunk is silently ignored
@@ -1245,7 +1245,7 @@ diff --git Libpng15/pngrutil.c Libpng15-apng/pngrutil.c
   */
  void /* PRIVATE */
  png_handle_unknown(png_structp png_ptr, png_infop info_ptr, png_uint_32 length)
-@@ -4109,9 +4287,86 @@ defined(PNG_USER_TRANSFORM_PTR_SUPPORTED
+@@ -4124,9 +4302,86 @@ defined(PNG_USER_TRANSFORM_PTR_SUPPORTED
     png_debug1(3, "iwidth = %u,", png_ptr->iwidth);
     png_debug1(3, "num_rows = %u,", png_ptr->num_rows);
     png_debug1(3, "rowbytes = %lu,", (unsigned long)png_ptr->rowbytes);
@@ -1332,18 +1332,18 @@ diff --git Libpng15/pngrutil.c Libpng15-apng/pngrutil.c
 +#endif /* PNG_PROGRESSIVE_READ_SUPPORTED */
 +#endif /* PNG_READ_APNG_SUPPORTED */
  #endif /* PNG_READ_SUPPORTED */
-diff --git Libpng15/pngset.c Libpng15-apng/pngset.c
---- Libpng15/pngset.c	2013-03-27 20:21:26.109362380 -0500
-+++ Libpng15-apng/pngset.c	2013-04-05 08:35:44.543863869 -0500
-@@ -257,16 +257,21 @@ png_set_IHDR(png_structp png_ptr, png_in
-        (PNG_UINT_32_MAX >> 3)      /* 8-byte RRGGBBAA pixels */
-        - 48       /* bigrowbuf hack */
-        - 1        /* filter byte */
-        - 7*8      /* rounding of width to multiple of 8 pixels */
-        - 8)       /* extra max_pixel_depth pad */
-       info_ptr->rowbytes = 0;
-    else
-       info_ptr->rowbytes = PNG_ROWBYTES(info_ptr->pixel_depth, width);
+diff -rpB -U 8 libpng/pngset.c libpng-apng/pngset.c
+--- libpng/pngset.c	2015-03-26 13:04:47 +0100
++++ libpng-apng/pngset.c	2015-05-13 13:06:10 +0200
+@@ -248,16 +248,21 @@ png_set_IHDR(png_structp png_ptr, png_in
+       info_ptr->channels = 1;
+ 
+    if (info_ptr->color_type & PNG_COLOR_MASK_ALPHA)
+       info_ptr->channels++;
+ 
+    info_ptr->pixel_depth = (png_byte)(info_ptr->channels * info_ptr->bit_depth);
+ 
+    info_ptr->rowbytes = PNG_ROWBYTES(info_ptr->pixel_depth, width);
 +
 +#ifdef PNG_APNG_SUPPORTED
 +   /* for non-animated png. this may be overwritten from an acTL chunk later */
@@ -1357,7 +1357,7 @@ diff --git Libpng15/pngset.c Libpng15-apng/pngset.c
      png_int_32 offset_x, png_int_32 offset_y, int unit_type)
  {
     png_debug1(1, "in %s storage function", "oFFs");
-@@ -1043,16 +1048,157 @@ png_set_sPLT(png_structp png_ptr,
+@@ -1041,16 +1046,157 @@ png_set_sPLT(png_structp png_ptr,
  
     info_ptr->splt_palettes = np;
     info_ptr->splt_palettes_num += nentries;
@@ -1514,11 +1514,11 @@ diff --git Libpng15/pngset.c Libpng15-apng/pngset.c
  {
     png_unknown_chunkp np;
     int i;
- 
-diff --git Libpng15/pngstruct.h Libpng15-apng/pngstruct.h
---- Libpng15/pngstruct.h	2013-03-27 20:21:25.924524405 -0500
-+++ Libpng15-apng/pngstruct.h	2013-04-05 08:35:44.553970531 -0500
-@@ -288,16 +288,37 @@ struct png_struct_def
+    size_t element_size;
+diff -rpB -U 8 libpng/pngstruct.h libpng-apng/pngstruct.h
+--- libpng/pngstruct.h	2015-03-26 13:04:47 +0100
++++ libpng-apng/pngstruct.h	2015-05-13 12:57:24 +0200
+@@ -287,16 +287,37 @@ struct png_struct_def
     png_uint_32 mng_features_permitted;
  #endif
  
@@ -1556,9 +1556,9 @@ diff --git Libpng15/pngstruct.h Libpng15-apng/pngstruct.h
     png_malloc_ptr malloc_fn;      /* function for allocating memory */
     png_free_ptr free_fn;          /* function for freeing memory */
  #endif
-diff --git Libpng15/pngwrite.c Libpng15-apng/pngwrite.c
---- Libpng15/pngwrite.c	2013-03-27 20:21:26.156957173 -0500
-+++ Libpng15-apng/pngwrite.c	2013-04-05 08:35:44.564786237 -0500
+diff -rpB -U 8 libpng/pngwrite.c libpng-apng/pngwrite.c
+--- libpng/pngwrite.c	2015-03-26 13:04:47 +0100
++++ libpng-apng/pngwrite.c	2015-05-13 12:57:24 +0200
 @@ -53,16 +53,20 @@ png_write_info_before_PLTE(png_structp p
  #ifdef PNG_WRITE_INTERLACING_SUPPORTED
         info_ptr->interlace_type);
@@ -1580,7 +1580,7 @@ diff --git Libpng15/pngwrite.c Libpng15-apng/pngwrite.c
     if (info_ptr->valid & PNG_INFO_sRGB)
        png_write_sRGB(png_ptr, (int)info_ptr->srgb_intent);
  #endif
-@@ -305,16 +309,22 @@ png_write_end(png_structp png_ptr, png_i
+@@ -308,16 +312,22 @@ png_write_end(png_structp png_ptr, png_i
     if (!(png_ptr->mode & PNG_HAVE_IDAT))
        png_error(png_ptr, "No IDATs written into file");
  
@@ -1603,7 +1603,7 @@ diff --git Libpng15/pngwrite.c Libpng15-apng/pngwrite.c
  #endif
  #ifdef PNG_WRITE_tIME_SUPPORTED
        /* Check to see if user has supplied a time chunk */
-@@ -1662,9 +1672,47 @@ png_write_png(png_structp png_ptr, png_i
+@@ -1666,9 +1676,47 @@ png_write_png(png_structp png_ptr, png_i
  
     /* It is REQUIRED to call this to finish writing the rest of the file */
     png_write_end(png_ptr, info_ptr);
@@ -1651,10 +1651,10 @@ diff --git Libpng15/pngwrite.c Libpng15-apng/pngwrite.c
 +}
 +#endif /* PNG_WRITE_APNG_SUPPORTED */
  #endif /* PNG_WRITE_SUPPORTED */
-diff --git Libpng15/pngwutil.c Libpng15-apng/pngwutil.c
---- Libpng15/pngwutil.c	2013-03-27 20:21:26.188217743 -0500
-+++ Libpng15-apng/pngwutil.c	2013-04-05 08:35:44.574964508 -0500
-@@ -813,16 +813,21 @@ png_write_IHDR(png_structp png_ptr, png_
+diff -rpB -U 8 libpng/pngwutil.c libpng-apng/pngwutil.c
+--- libpng/pngwutil.c	2015-03-26 13:04:47 +0100
++++ libpng-apng/pngwutil.c	2015-05-13 13:08:07 +0200
+@@ -815,16 +815,21 @@ png_write_IHDR(png_structp png_ptr, png_
     buf[9] = (png_byte)color_type;
     buf[10] = (png_byte)compression_type;
     buf[11] = (png_byte)filter_type;
@@ -1673,10 +1673,10 @@ diff --git Libpng15/pngwutil.c Libpng15-apng/pngwutil.c
     png_ptr->zstream.zfree = png_zfree;
     png_ptr->zstream.opaque = (voidpf)png_ptr;
  
-    if (!(png_ptr->do_filter))
+    if ((png_ptr->do_filter) == PNG_NO_FILTERS)
     {
        if (png_ptr->color_type == PNG_COLOR_TYPE_PALETTE ||
-@@ -1027,17 +1032,38 @@ png_write_IDAT(png_structp png_ptr, png_
+@@ -1029,17 +1034,38 @@ png_write_IDAT(png_structp png_ptr, png_
        }
  
        else
@@ -1715,7 +1715,7 @@ diff --git Libpng15/pngwutil.c Libpng15-apng/pngwutil.c
      */
     png_ptr->zstream.next_out = png_ptr->zbuf;
     png_ptr->zstream.avail_out = (uInt)png_ptr->zbuf_size;
-@@ -1990,16 +2016,74 @@ png_write_tIME(png_structp png_ptr, png_
+@@ -1992,16 +2018,74 @@ png_write_tIME(png_structp png_ptr, png_
     buf[4] = mod_time->hour;
     buf[5] = mod_time->minute;
     buf[6] = mod_time->second;
@@ -1790,7 +1790,7 @@ diff --git Libpng15/pngwutil.c Libpng15-apng/pngwutil.c
     /* Arrays to facilitate easy interlacing - use pass (0 - 6) as index */
  
     /* Start of interlace block */
-@@ -3169,9 +3253,44 @@ png_write_filtered_row(png_structp png_p
+@@ -3171,9 +3255,44 @@ png_write_filtered_row(png_structp png_p
  
     if (png_ptr->flush_dist > 0 &&
         png_ptr->flush_rows >= png_ptr->flush_dist)

@@ -2357,14 +2357,16 @@ UpdateService.prototype = {
     var vc = Services.vc;
 
     updates.forEach(function(aUpdate) {
-      // Ignore updates for older versions of the application and updates for
-      // the same version of the application with the same build ID.
+      // Ignore updates for older versions of the applications and updates for
+      // the same version or build id of the application.
       if (vc.compare(aUpdate.appVersion, Services.appinfo.version) < 0 ||
-          vc.compare(aUpdate.appVersion, Services.appinfo.version) == 0 &&
-          aUpdate.buildID == Services.appinfo.appBuildID) {
+          (vc.compare(aUpdate.appVersion, Services.appinfo.version) == 0 &&
+          aUpdate.buildID <= Services.appinfo.appBuildID) || 
+          (vc.compare(aUpdate.appVersion, Services.appinfo.version) == 0 &&
+          aUpdate.buildID == undefined)) {
         LOG("UpdateService:selectUpdate - skipping update because the " +
-            "update's application version is less than the current " +
-            "application version");
+            "update's application version or build id is less than or the same current " +
+            "application version or build id");
         return;
       }
 

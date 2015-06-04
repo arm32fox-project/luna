@@ -24,7 +24,7 @@
 
 /* BSD-derived systems use sysctl() to get the number of processors */
 #if defined(BSDI) || defined(FREEBSD) || defined(NETBSD) \
-    || defined(OPENBSD) || defined(DARWIN)
+    || defined(OPENBSD) || defined(DRAGONFLY) || defined(DARWIN)
 #define _PR_HAVE_SYSCTL
 #include <sys/param.h>
 #include <sys/sysctl.h>
@@ -33,6 +33,7 @@
 #if defined(DARWIN)
 #include <mach/mach_init.h>
 #include <mach/mach_host.h>
+#include <mach/mach_port.h>
 #endif
 
 #if defined(HPUX)
@@ -274,15 +275,24 @@ PR_IMPLEMENT(PRUint64) PR_GetPhysicalMemorySize(void)
     if (pageSize >= 0 && pageCount >= 0)
         bytes = (PRUint64) pageSize * pageCount;
 
-#elif defined(NETBSD) || defined(OPENBSD)
+#elif defined(NETBSD) || defined(OPENBSD) \
+    || defined(FREEBSD) || defined(DRAGONFLY)
 
     int mib[2];
     int rc;
+#ifdef HW_PHYSMEM64
     uint64_t memSize;
+#else
+    unsigned long memSize;
+#endif
     size_t len = sizeof(memSize);
 
     mib[0] = CTL_HW;
+#ifdef HW_PHYSMEM64
     mib[1] = HW_PHYSMEM64;
+#else
+    mib[1] = HW_PHYSMEM;
+#endif
     rc = sysctl(mib, 2, &memSize, &len, NULL, 0);
     if (-1 != rc)  {
         bytes = memSize;
@@ -297,13 +307,15 @@ PR_IMPLEMENT(PRUint64) PR_GetPhysicalMemorySize(void)
 
 #elif defined(DARWIN)
 
+    mach_port_t mach_host = mach_host_self();
     struct host_basic_info hInfo;
     mach_msg_type_number_t count = HOST_BASIC_INFO_COUNT;
 
-    int result = host_info(mach_host_self(),
+    int result = host_info(mach_host,
                            HOST_BASIC_INFO,
                            (host_info_t) &hInfo,
                            &count);
+    mach_port_deallocate(mach_task_self(), mach_host);
     if (result == KERN_SUCCESS)
         bytes = hInfo.max_mem;
 

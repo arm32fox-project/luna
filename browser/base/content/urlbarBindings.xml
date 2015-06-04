@@ -2147,6 +2147,13 @@
 
           let viewsLeft = this._viewsLeft;
           if (viewsLeft) {
+            // XXX: Short-circuit this for now.
+            // TO-DO: Clean up this code for sync promotion
+            this._viewsLeft = 0;
+            viewsLeft = 0;
+            return;
+            // XXX
+            
             if (Services.prefs.prefHasUserValue("services.sync.username") &&
                this._notificationType != "addons-sync-disabled") {
               // If the user has already setup Sync, don't show the notification.

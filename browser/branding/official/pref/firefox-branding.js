@@ -1,6 +1,6 @@
 // ****************** App/Update/General ******************
 
-pref("startup.homepage_override_url","http://www.palemoon.org/");
+pref("startup.homepage_override_url","http://www.palemoon.org/releasenotes.shtml");
 pref("startup.homepage_welcome_url","http://www.palemoon.org/firstrun.shtml");
 // Interval: Time between checks for a new version (in seconds) -- 2 days for Pale Moon
 pref("app.update.interval", 172800);
@@ -58,27 +58,22 @@ pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/fir
 //add-on/plugin blocklist -> Palemoon.org
 pref("extensions.blocklist.url","http://blocklist.palemoon.org/%VERSION%/blocklist.xml");
 
-pref("browser.search.param.ms-pc", "MOZI");
-pref("browser.search.param.yahoo-fr", "moz35");
-pref("browser.search.param.yahoo-fr-cjkt", "moz35"); // now unused
-pref("browser.search.param.yahoo-fr-ja", "mozff");
-
 // ****************** domain-specific UAs ******************
 
 // Required for domains that have proven unresponsive to requests from users
-pref("general.useragent.override.live.com","Mozilla/5.0 (Windows NT; x86; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
-pref("general.useragent.override.outlook.com","Mozilla/5.0 (Windows NT; x86; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
-pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT; x86; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
-pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT; x86; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
+pref("general.useragent.override.live.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
+pref("general.useragent.override.outlook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
+pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
+pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
 
 // UA-Sniffing domains below are pending responses from their operators - temp workaround
-pref("general.useragent.override.netflix.com","Mozilla/5.0 (Windows NT; x86; rv:25.1) Gecko/20100101 Firefox/24.9 PaleMoon/25.1.0");
+pref("general.useragent.override.netflix.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25) Gecko/20100101 Firefox/38.9 PaleMoon/25");
 pref("general.useragent.override.facebook.com","Opera/9.80 (Pale Moon)");
 
 // UA-Sniffing domains below have indicated no interest in supporting Pale Moon (BOO!)
-pref("general.useragent.override.humblebundle.com","Mozilla/5.0 (Windows NT; x86; rv:33.0) Gecko/20100101 Firefox/33.0 (Pale Moon)");
-pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT; x86; rv:28.0) Gecko/20100101 Firefox/28.0");
-pref("general.useragent.override.icloud.com","Mozilla/5.0 (Windows NT; x86; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
+pref("general.useragent.override.humblebundle.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:33.0) Gecko/20100101 Firefox/33.0 (Pale Moon)");
+pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0");
+pref("general.useragent.override.icloud.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
 
 // Enable Firefox compatibility mode globally?
 pref("general.useragent.compatMode.firefox", true);
@@ -95,7 +90,6 @@ pref("network.dnsCacheExpiration", 300); //TTL 5 minutes
 
 // ****************** Renderer config ******************
 
-pref("nglayout.initialpaint.delay", 150);
 pref("gfx.color_management.mode",2); //Use CMS for images with ICC profile.
 pref("gfx.color_management.enablev4", true); //Use "new" handler to prevent display issues for v4 ICC embedded profiles!
 

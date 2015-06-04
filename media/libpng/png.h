@@ -1,8 +1,9 @@
 
 /* png.h - header file for PNG reference library
  *
- * libpng version 1.5.16 - May 23, 2013
- * Copyright (c) 1998-2013 Glenn Randers-Pehrson
+ * libpng version 1.5.22, March 26, 2015
+ *
+ * Copyright (c) 1998-2015 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
  *
@@ -11,7 +12,7 @@
  * Authors and maintainers:
  *   libpng versions 0.71, May 1995, through 0.88, January 1996: Guy Schalnat
  *   libpng versions 0.89c, June 1996, through 0.96, May 1997: Andreas Dilger
- *   libpng versions 0.97, January 1998, through 1.5.16 - May 23, 2013: Glenn
+ *   libpng versions 0.97, January 1998, through 1.5.22, March 26, 2015: Glenn
  *   See also "Contributing Authors", below.
  *
  * Note about libpng version numbers:
@@ -190,6 +191,24 @@
  *    1.5.16beta01-06         15    10516  15.so.15.16[.0]
  *    1.5.16rc01              15    10516  15.so.15.16[.0]
  *    1.5.16                  15    10516  15.so.15.16[.0]
+ *    1.5.17beta01            15    10517  15.so.15.17[.0]
+ *    1.5.17rc01-03           15    10517  15.so.15.17[.0]
+ *    1.5.17                  15    10517  15.so.15.17[.0]
+ *    1.5.18beta01-05         15    10518  15.so.15.18[.0]
+ *    1.5.18rc01-02           15    10518  15.so.15.18[.0]
+ *    1.5.18                  15    10518  15.so.15.18[.0]
+ *    1.5.19beta01-05         15    10519  15.so.15.19[.0]
+ *    1.5.19rc01              15    10519  15.so.15.19[.0]
+ *    1.5.19                  15    10519  15.so.15.19[.0]
+ *    1.5.20beta01-02         15    10520  15.so.15.20[.0]
+ *    1.5.20rc01-03           15    10520  15.so.15.20[.0]
+ *    1.5.20                  15    10520  15.so.15.20[.0]
+ *    1.5.21beta01-02         15    10521  15.so.15.21[.0]
+ *    1.5.21rc01-03           15    10521  15.so.15.21[.0]
+ *    1.5.21                  15    10521  15.so.15.21[.0]
+ *    1.5.22beta01-04         15    10522  15.so.15.22[.0]
+ *    1.5.22rc01-04           15    10522  15.so.15.22[.0]
+ *    1.5.22                  15    10522  15.so.15.22[.0]
  *
  *   Henceforth the source version will match the shared-library major
  *   and minor numbers; the shared-library major version number will be
@@ -221,8 +240,8 @@
  *
  * This code is released under the libpng license.
  *
- * libpng versions 1.2.6, August 15, 2004, through 1.5.16, May 23, 2013, are
- * Copyright (c) 2004, 2006-2013 Glenn Randers-Pehrson, and are
+ * libpng versions 1.2.6, August 15, 2004, through 1.5.22, March 26, 2015, are
+ * Copyright (c) 2004, 2006-2015 Glenn Randers-Pehrson, and are
  * distributed according to the same disclaimer and license as libpng-1.2.5
  * with the following individual added to the list of Contributing Authors:
  *
@@ -333,13 +352,13 @@
  * Y2K compliance in libpng:
  * =========================
  *
- *    May 23, 2013
+ *    March 26, 2015
  *
  *    Since the PNG Development group is an ad-hoc body, we can't make
  *    an official declaration.
  *
  *    This is your unofficial assurance that libpng from version 0.71 and
- *    upward through 1.5.16 are Y2K compliant.  It is my belief that
+ *    upward through 1.5.22 are Y2K compliant.  It is my belief that
  *    earlier versions were also Y2K compliant.
  *
  *    Libpng only has two year fields.  One is a 2-byte unsigned integer
@@ -391,16 +410,18 @@
 /* This is not the place to learn how to use libpng. The file libpng-manual.txt
  * describes how to use libpng, and the file example.c summarizes it
  * with some code on which to build.  This file is useful for looking
- * at the actual function definitions and structure components.
+ * at the actual function definitions and structure components.  If that
+ * file has been stripped from your copy of libpng, you can find it at
+ * <http://www.libpng.org/pub/png/libpng-manual.txt>
  *
  * If you just need to read a PNG file and don't want to read the documentation
  * skip to the end of this file and read the section entitled 'simplified API'.
  */
 
 /* Version information for png.h - this should match the version in png.c */
-#define PNG_LIBPNG_VER_STRING "1.5.16"
+#define PNG_LIBPNG_VER_STRING "1.5.22"
 #define PNG_HEADER_VERSION_STRING \
-     " libpng version 1.5.16 - May 23, 2013\n"
+     " libpng version 1.5.22 - March 26, 2015\n"
 
 #define PNG_LIBPNG_VER_SONUM   15
 #define PNG_LIBPNG_VER_DLLNUM  15
@@ -408,7 +429,7 @@
 /* These should match the first 3 components of PNG_LIBPNG_VER_STRING: */
 #define PNG_LIBPNG_VER_MAJOR   1
 #define PNG_LIBPNG_VER_MINOR   5
-#define PNG_LIBPNG_VER_RELEASE 16
+#define PNG_LIBPNG_VER_RELEASE 22
 
 /* This should match the numeric part of the final component of
  * PNG_LIBPNG_VER_STRING, omitting any leading zero:
@@ -439,7 +460,7 @@
  * version 1.0.0 was mis-numbered 100 instead of 10000).  From
  * version 1.0.1 it's    xxyyzz, where x=major, y=minor, z=release
  */
-#define PNG_LIBPNG_VER 10516 /* 1.5.16 */
+#define PNG_LIBPNG_VER 10522 /* 1.5.22 */
 
 #ifndef MOZPNGCONF_H
 #   include "mozpngconf.h"
@@ -555,7 +576,7 @@ extern "C" {
 /* This triggers a compiler error in png.c, if png.c and png.h
  * do not agree upon the version number.
  */
-typedef char* png_libpng_version_1_5_16;
+typedef char* png_libpng_version_1_5_22;
 
 /* Three color definitions.  The order of the red, green, and blue, (and the
  * exact size) is not important, although the size of the fields need to
@@ -1034,11 +1055,13 @@ PNG_EXPORTA(5, png_structp, png_create_write_struct,
     png_error_ptr warn_fn),
     PNG_ALLOCATED);
 
+#ifdef PNG_WRITE_CUSTOMIZE_COMPRESSION_SUPPORTED
 PNG_EXPORT(6, png_size_t, png_get_compression_buffer_size,
     (png_const_structp png_ptr));
 
 PNG_EXPORT(7, void, png_set_compression_buffer_size, (png_structp png_ptr,
     png_size_t size));
+#endif /* WRITE_CUSTOMIZE_COMPRESSION */
 
 /* Moved from pngconf.h in 1.4.0 and modified to ensure setjmp/longjmp
  * match up.
@@ -1704,6 +1727,7 @@ PNG_FIXED_EXPORT(209, void, png_set_filter_heuristics_fixed,
  * for PNG images, and do considerably fewer caclulations.  In the future,
  * these values may not correspond directly to the zlib compression levels.
  */
+#ifdef PNG_WRITE_CUSTOMIZE_COMPRESSION_SUPPORTED
 PNG_EXPORT(69, void, png_set_compression_level,
     (png_structp png_ptr, int level));
 
@@ -1721,7 +1745,7 @@ PNG_EXPORT(72, void, png_set_compression_window_bits, (png_structp png_ptr,
 
 PNG_EXPORT(73, void, png_set_compression_method, (png_structp png_ptr,
     int method));
-#endif
+#endif /* WRITE_CUSTOMIZE_COMPRESSION */
 
 #ifdef PNG_WRITE_CUSTOMIZE_ZTXT_COMPRESSION_SUPPORTED
 /* Also set zlib parameters for compressing non-IDAT chunks */
@@ -1743,6 +1767,7 @@ PNG_EXPORT(225, void, png_set_text_compression_window_bits, (png_structp
 PNG_EXPORT(226, void, png_set_text_compression_method, (png_structp png_ptr,
     int method));
 #endif /* PNG_WRITE_CUSTOMIZE_ZTXT_COMPRESSION_SUPPORTED */
+#endif /* WRITE */
 
 /* These next functions are called for input/output, memory, and error
  * handling.  They are in the file pngrio.c, pngwio.c, and pngerror.c,
@@ -1954,6 +1979,8 @@ PNG_EXPORTA(103, void, png_chunk_error, (png_structp png_ptr,
 #else
 /* Fatal error in PNG image of libpng - can't continue */
 PNG_EXPORTA(104, void, png_err, (png_structp png_ptr), PNG_NORETURN);
+#  define png_error(s1,s2) png_err(s1)
+#  define png_chunk_error(s1,s2) png_err(s1)
 #endif
 
 #ifdef PNG_WARNINGS_SUPPORTED
@@ -1964,6 +1991,9 @@ PNG_EXPORT(105, void, png_warning, (png_structp png_ptr,
 /* Non-fatal error in libpng, chunk name is prepended to message. */
 PNG_EXPORT(106, void, png_chunk_warning, (png_structp png_ptr,
     png_const_charp warning_message));
+#else
+#  define png_warning(s1,s2) ((void)(s1))
+#  define png_chunk_warning(s1,s2) ((void)(s1))
 #endif
 
 #ifdef PNG_BENIGN_ERRORS_SUPPORTED

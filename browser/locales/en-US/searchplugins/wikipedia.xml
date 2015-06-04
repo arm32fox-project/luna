@@ -13,7 +13,6 @@
 </Url>
 <Url type="text/html" method="GET" template="http://en.wikipedia.org/wiki/Special:Search">
   <Param name="search" value="{searchTerms}"/>
-  <Param name="sourceid" value="Mozilla-search"/>
 </Url>
 <SearchForm>http://en.wikipedia.org/wiki/Special:Search</SearchForm>
 </SearchPlugin>

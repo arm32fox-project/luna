@@ -1073,39 +1073,34 @@ toolbar[iconsize="small"] #webrtc-status-button {
   background-position: left;
 }
 
-/* URL bar shading for SSL */
+/* Address bar shading for SSL */
 
-#urlbar[https_color="y"][security_level="broken"] {
-  box-shadow: inset 0 0 2px rgb(168,0,0);
-}
-
-#urlbar[https_color="y"][security_level="high"],
-#urlbar[https_color="p"][security_level="high"] {
-  box-shadow: inset 0 0 2px rgb(0,79,168);
-}
-
-#urlbar[https_color="y"][security_level="ev"],
-#urlbar[https_color="p"][security_level="ev"] {
-  box-shadow: inset 0 0 2px rgb(0,168,0);
-}
-
-#urlbar[https_color="y"][security_level="broken"]:-moz-lwtheme-brighttext,
-#urlbar[https_color="y"][security_level="broken"]:not(:-moz-lwtheme) {
+#urlbar[https_color="all"][security_level="broken"],
+#urlbar[https_color="all"][security_level="low"] {
   box-shadow: inset 0 0 4px rgb(168,0,0);
 }
 
-#urlbar[https_color="y"][security_level="high"]:-moz-lwtheme-brighttext,
-#urlbar[https_color="y"][security_level="high"]:not(:-moz-lwtheme),
-#urlbar[https_color="p"][security_level="high"]:-moz-lwtheme-brighttext,
-#urlbar[https_color="p"][security_level="high"]:not(:-moz-lwtheme) {
+#urlbar[https_color="all"][security_level="mixed"],
+#urlbar[https_color="secure-mixed"][security_level="mixed"] {
+  box-shadow: inset 0 0 4px rgb(168,79,0);
+}
+
+#urlbar[https_color="all"][security_level="high"],
+#urlbar[https_color="secure-mixed"][security_level="high"],
+#urlbar[https_color="secure-only"][security_level="high"] {
   box-shadow: inset 0 0 4px rgb(0,79,168);
 }
 
-#urlbar[https_color="y"][security_level="ev"]:-moz-lwtheme-brighttext,
-#urlbar[https_color="y"][security_level="ev"]:not(:-moz-lwtheme),
-#urlbar[https_color="p"][security_level="ev"]:-moz-lwtheme-brighttext,
-#urlbar[https_color="p"][security_level="ev"]:not(:-moz-lwtheme) {
+#urlbar[https_color="all"][security_level="ev"],
+#urlbar[https_color="secure-mixed"][security_level="ev"],
+#urlbar[https_color="secure-only"][security_level="ev"] {
   box-shadow: inset 0 0 4px rgb(0,168,0);
+}
+
+#urlbar[https_color="all"]:-moz-lwtheme-darktext,
+#urlbar[https_color="secure-mixed"]:-moz-lwtheme-darktext,
+#urlbar[https_color="secure-only"]:-moz-lwtheme-darktext {
+  box-shadow: inset 0 0 2px;
 }
 
 /* Identity popup icons */

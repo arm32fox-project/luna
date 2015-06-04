@@ -354,8 +354,8 @@ class Build(MachCommandBase):
                 print('To take your build for a test drive, run: %s' % app_path)
             app = self.substs['MOZ_BUILD_APP']
             if app in ('browser', 'mobile/android'):
-                print('For more information on what to do now, see '
-                    'https://developer.mozilla.org/docs/Developer_Guide/So_You_Just_Built_Firefox')
+                print('Please remember that you also need to PACKAGE your build '
+                    'to have all components properly included and unnecessary files removed.')
 
         return status
 

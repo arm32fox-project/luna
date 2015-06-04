@@ -10,6 +10,11 @@ CSRCS += [
     'cubeb.c',
 ]
 
+CPP_SOURCES += [
+    'cubeb_panner.cpp',
+]
+
+
 if CONFIG['MOZ_ALSA']:
     CSRCS += [
         'cubeb_alsa.c',
@@ -19,7 +24,6 @@ if CONFIG['MOZ_OSS']:
     CSRCS += [
         'cubeb_oss.c',
     ]
-    DEFINES=['-DUSE_OSS']
 
 if CONFIG['MOZ_PULSEAUDIO']:
     CSRCS += [
@@ -34,16 +38,24 @@ if CONFIG['OS_ARCH'] == 'OpenBSD':
 if CONFIG['OS_TARGET'] == 'Darwin':
     CSRCS += [
         'cubeb_audiounit.c',
+        'cubeb_osx_run_loop.c',
     ]
 
 if CONFIG['OS_TARGET'] == 'WINNT':
     CSRCS += [
         'cubeb_winmm.c',
     ]
+    CPP_SOURCES += [
+        'cubeb_resampler.cpp',
+        'cubeb_wasapi.cpp',
+    ]
 
 if CONFIG['OS_TARGET'] == 'Android':
     CSRCS += [
         'cubeb_opensl.c',
+    ]
+    CPP_SOURCES += [
+        'cubeb_resampler.cpp',
     ]
     if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'gonk':
         CSRCS += [
