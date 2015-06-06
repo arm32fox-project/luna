@@ -742,11 +742,17 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
     return NS_OK;
   }
 
+  // Get preferred language from preferences
+  nsAutoString overrideDict(Preferences::GetLocalizedString("spellchecker.dictionary.override"));
+  if (!overrideDict.IsEmpty()) {
+    mPreferredLang.Assign(overrideDict);
+  }
+
   if (mPreferredLang.IsEmpty()) {
     mPreferredLang.Assign(aFetcher->mRootDocContentLang);
   }
 
-  // Then, try to use language computed from element
+  // Then, try to use language computed from element or override
   if (!mPreferredLang.IsEmpty()) {
     dictName.Assign(mPreferredLang);
   }
