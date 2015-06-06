@@ -607,9 +607,17 @@ nsEditorSpellCheck::SetCurrentDictionary(const nsAString& aDictionary)
 
     if (mPreferredLang.IsEmpty() || !nsStyleUtil::DashMatchCompare(mPreferredLang, langCode, comparator)) {
       // When user sets dictionary manually, we store this value associated
-      // with editor url if it doesn't match the document language.
+      // with editor url.
       StoreCurrentDictionary(mEditor, aDictionary);
+    } else {
+      // If user sets a dictionary matching (even partially), lang defined by
+      // document, we consider content pref has been canceled, and we clear it.
+      ClearCurrentDictionary(mEditor);
     }
+
+    // Also store it in as a preference. It will be used as a default value
+    // when everything else fails.
+    Preferences::SetString("spellchecker.dictionary", aDictionary);
   }
   return mSpellChecker->SetCurrentDictionary(aDictionary);
 }
@@ -720,6 +728,8 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
     return NS_OK;
   }
 
+  mPreferredLang.Assign(aFetcher->mRootContentLang);
+
   // If we successfully fetched a dictionary from content prefs, do not go
   // further. Use this exact dictionary.
   nsAutoString dictName;
@@ -731,32 +741,26 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
     }
     return NS_OK;
   }
-  
-  // Otherwise, get language from preferences, if set
-  nsAutoString preferredDict(Preferences::GetLocalizedString("spellchecker.dictionary.override"));
+
+  if (mPreferredLang.IsEmpty()) {
+    mPreferredLang.Assign(aFetcher->mRootDocContentLang);
+  }
+
+  // Then, try to use language computed from element
+  if (!mPreferredLang.IsEmpty()) {
+    dictName.Assign(mPreferredLang);
+  }
+
+  // otherwise, get language from preferences
+  nsAutoString preferedDict(Preferences::GetLocalizedString("spellchecker.dictionary"));
   if (dictName.IsEmpty()) {
-    dictName.Assign(preferredDict);
+    dictName.Assign(preferedDict);
   }
 
   if (dictName.IsEmpty())
   {
-    // We neither have content prefs, nor a global override set.
-    // Try to use language computed from content root and document
-    mPreferredLang.Assign(aFetcher->mRootContentLang);
-
-    if (mPreferredLang.IsEmpty()) {
-      mPreferredLang.Assign(aFetcher->mRootDocContentLang);
-    }
-
-    if (!mPreferredLang.IsEmpty()) {
-      dictName.Assign(mPreferredLang);
-    }
-  }
-
-  if (dictName.IsEmpty())
-  {
-    // Prefs, content-prefs and document didn't give us a dictionary name,
-    // so we just get the current locale and use that.
+    // Prefs didn't give us a dictionary name, so just get the current
+    // locale and use that as the default dictionary name!
 
     nsCOMPtr<nsIXULChromeRegistry> packageRegistry =
       mozilla::services::GetXULChromeRegistryService();
@@ -787,14 +791,14 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
 
       // try dictionary.spellchecker preference if it starts with langCode (and
       // if we haven't tried it already)
-      if (!preferredDict.IsEmpty() && !dictName.Equals(preferredDict) && 
-          nsStyleUtil::DashMatchCompare(preferredDict, langCode, comparator)) {
-        rv = SetCurrentDictionary(preferredDict);
+      if (!preferedDict.IsEmpty() && !dictName.Equals(preferedDict) && 
+          nsStyleUtil::DashMatchCompare(preferedDict, langCode, comparator)) {
+        rv = SetCurrentDictionary(preferedDict);
       }
 
       // Otherwise, try langCode (if we haven't tried it already)
       if (NS_FAILED(rv)) {
-        if (!dictName.Equals(langCode) && !preferredDict.Equals(langCode)) {
+        if (!dictName.Equals(langCode) && !preferedDict.Equals(langCode)) {
           rv = SetCurrentDictionary(langCode);
         }
       }
@@ -811,7 +815,7 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
           nsAutoString dictStr(dictList.ElementAt(i));
 
           if (dictStr.Equals(dictName) ||
-              dictStr.Equals(preferredDict) ||
+              dictStr.Equals(preferedDict) ||
               dictStr.Equals(langCode)) {
             // We have already tried it
             continue;
