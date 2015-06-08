@@ -411,6 +411,7 @@ freetype/ftlcdfil.h
 freetype/ftsizes.h
 freetype/ftadvanc.h
 freetype/ftbitmap.h
+freetype/ftfntfmt.h
 freetype/ftxf86.h
 freetype.h
 ftcache.h
@@ -424,6 +425,7 @@ ftlcdfil.h
 ftsizes.h
 ftadvanc.h
 ftbitmap.h
+ftfntfmt.h
 ftxf86.h
 fribidi/fribidi.h
 FSp_fopen.h

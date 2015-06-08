@@ -1,0 +1,12 @@
+The source from this directory was copied from the cubeb git repository.
+The changes made were:
+Mozilla:
+* The addition of Makefile.in and moz.build files for the Mozilla build system.
+Pale Moon:
+* Adaptation of Makefile.in and moz.build for the Mozilla build system version as used in Pale Moon.
+* The addition of Linux OSS support
+* Implemented fix for roundf() function missing in MSVC < VS2013
+
+The cubeb git repository is: git://github.com/kinetiknz/cubeb.git
+
+The git commit used for this version: 588c82be50ffee59b7fab71b56e6081a5a89301c.

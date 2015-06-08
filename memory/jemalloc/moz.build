@@ -29,6 +29,8 @@ CSRCS += [
     'tcache.c',
     'tsd.c',
     'util.c',
+    # Do we ever want valgrind?
+    # 'valgrind.c',
 ]
 
 # Only OSX needs the zone allocation implementation,

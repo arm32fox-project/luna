@@ -26,6 +26,7 @@ CPPSRCS += \
   fast-dtoa.cc \
   fixed-dtoa.cc \
   strtod.cc \
+  TaggedAnonymousMemory.cpp \
   $(NULL)
 
 # Imported decimal sources.

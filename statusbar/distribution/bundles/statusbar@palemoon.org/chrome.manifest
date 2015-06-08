@@ -10,6 +10,7 @@ resource status4evar			modules/
 # Locale registration
 locale	status4evar	en-US		chrome/locale/en-US/
 locale	status4evar	en-GB		chrome/locale/en-GB/
+locale	status4evar	cs		chrome/locale/cs/ 
 locale	status4evar	de			chrome/locale/de/
 locale	status4evar	de-ade	chrome/locale/de-ade/
 locale	status4evar	es-ES		chrome/locale/es-ES/

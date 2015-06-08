@@ -49,6 +49,7 @@ var padlock_PadLock =
           case wpl.STATE_IS_BROKEN | wpl.STATE_SECURE_LOW:
             level = "mixed";
             is_insecure = "insecure";
+            highlight_urlbar = true;
             break;
           case wpl.STATE_IS_BROKEN:
             level = "broken";
@@ -183,17 +184,21 @@ var padlock_PadLock =
 
     var colshow;
     var colprefval = padlock_PadLock.prefbranch.getIntPref("urlbar_background");
-    if (colprefval == 2) {
-      colshow = "p";
-    } 
-    else if (colprefval == 1) {
-      colshow = "y";
+    switch (colprefval) {
+      case 3: 
+        colshow = "all";
+        break;
+      case 2: 
+        colshow = "secure-mixed";
+        break;
+      case 1: 
+        colshow = "secure-only";
+        break;
+      default: 
+        colshow = ""; // 0 or anything else: no shading
     }
-    else { // 0 or anything else_ default
-      colshow = "";
-    }
+    document.getElementById("urlbar").setAttribute("https_color", colshow);
 
-    var lockenabled;
     var lockenabled = padlock_PadLock.prefbranch.getBoolPref("shown");
     if (lockenabled)
       padshow = position;
@@ -212,7 +217,6 @@ var padlock_PadLock =
     document.getElementById("padlock-sb").setAttribute("padstyle", padstyle);
     document.getElementById("padlock-tab").setAttribute("padstyle", padstyle);
 
-    document.getElementById("urlbar").setAttribute("https_color", colshow);
   }
 };
 

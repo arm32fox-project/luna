@@ -23,7 +23,12 @@ ifeq ($(OS_TARGET),WINNT)
 DISABLED_CSRCS           += \
                 cubeb_winmm.c \
                 $(NULL)
+DISABLED_CSRCS     += \
+                cubeb_resampler.cpp \
+                cubeb_wasapi.cpp \
+                $(NULL)
 DEFINES         += -DUSE_WINMM
+DEFINES         += -DUSE_WASAPI
 endif
 
 ifeq ($(OS_TARGET),Android)
@@ -35,6 +40,9 @@ DEFINES         += -DUSE_AUDIOTRACK
 endif
 DISABLED_CSRCS           += \
                 cubeb_opensl.c \
+                $(NULL)
+DISABLED_CSRCS     += \                
+                cubeb_resampler.cpp \
                 $(NULL)
 DEFINES         += -DUSE_OPENSL
 endif
@@ -60,7 +68,17 @@ DISABLED_CSRCS           += \
 DEFINES         += -DUSE_ALSA
 endif
 
+ifdef MOZ_OSS
+DISABLED_CSRCS           += \
+                cubeb_oss.c \
+                $(NULL)
+DEFINES         += -DUSE_OSS
+endif
+
 ifdef MOZ_PULSEAUDIO
+ifeq ($(MOZ_WIDGET_TOOLKIT),gonk)
+DEFINES         += -DDISABLE_LIBPULSE_DLOPEN
+endif
 DISABLED_CSRCS           += \
                 cubeb_pulse.c \
                 $(NULL)

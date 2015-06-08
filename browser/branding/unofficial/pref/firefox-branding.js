@@ -1,6 +1,6 @@
 // ****************** App/Update/General ******************
 
-pref("startup.homepage_override_url","http://www.palemoon.org/");
+pref("startup.homepage_override_url","http://www.palemoon.org/releasenotes.shtml");
 pref("startup.homepage_welcome_url","http://www.palemoon.org/firstrun.shtml");
 // Interval: Time between checks for a new version (in seconds) -- 2 days for Pale Moon
 pref("app.update.interval", 172800);
@@ -57,18 +57,13 @@ pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/fir
 //add-on/plugin blocklist -> Palemoon.org
 pref("extensions.blocklist.url","http://blocklist.palemoon.org/%VERSION%/blocklist.xml");
 
-pref("browser.search.param.ms-pc", "MOZI");
-pref("browser.search.param.yahoo-fr", "moz35");
-pref("browser.search.param.yahoo-fr-cjkt", "moz35"); // now unused
-pref("browser.search.param.yahoo-fr-ja", "mozff");
-
 // ****************** domain-specific UAs ******************
 
-pref("general.useragent.override.live.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
-pref("general.useragent.override.outlook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
-pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
-pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0 (Pale Moon)");
-pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0");
+pref("general.useragent.override.live.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
+pref("general.useragent.override.outlook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
+pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
+pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
+pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
 
 
 // Enable Firefox compatibility mode globally?
@@ -78,10 +73,6 @@ pref("general.useragent.compatMode.firefox", false);
 
 pref("network.dnsCacheEntries", 128); //cache up to this many entries in-browser
 pref("network.dnsCacheExpiration", 300); //TTL 5 minutes
-
-// ****************** Renderer config ******************
-
-pref("nglayout.initialpaint.delay", 150);
 
 // ****************** UI config ******************
 
