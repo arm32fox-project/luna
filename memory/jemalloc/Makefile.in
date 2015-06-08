@@ -33,7 +33,11 @@ LOCAL_INCLUDES += \
 
 ifdef _MSC_VER
 LOCAL_INCLUDES += -I$(srcdir)/src/include/msvc_compat
-
+ifndef HAVE_INTTYPES_H
+LOCAL_INCLUDES += \
+  -I$(srcdir)/src/msvc_compat/C99 \
+  $(NULL)
+endif
 DEFINES += -DDLLEXPORT
 endif
 

@@ -70,7 +70,7 @@ GCONF_VERSION=1.2.1
 GIO_VERSION=2.20
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.8.8.3
+SQLITE_VERSION=3.8.10.1
 
 MSMANIFEST_TOOL=
 
@@ -1832,9 +1832,9 @@ case "$target" in
     MKCSHLIB='$(CC) $(CFLAGS) $(DSO_PIC_CFLAGS) $(DSO_LDOPTS) -o $@'
     MOZ_OPTIMIZE_FLAGS="-O3"
     # Statically disable jemalloc on 10.5 and 32-bit 10.6.  See bug 702250.
-    if test "$HAVE_64BIT_OS"; then
-        MOZ_MEMORY=1
-    fi
+    #if test "$HAVE_64BIT_OS"; then
+    #    MOZ_MEMORY=1
+    #fi
     DLL_SUFFIX=".dylib"
     DSO_LDOPTS=''
     STRIP_FLAGS="$STRIP_FLAGS -x -S"
@@ -1984,7 +1984,8 @@ ia64*-hpux*)
 
     TARGET_NSPR_MDCPUCFG='\"md/_linux.cfg\"'
 
-    MOZ_MEMORY=1
+    # Modern Linuxes have better malloc implementations than Mozilla's jemalloc
+    # MOZ_MEMORY=1
 
     case "${target_cpu}" in
     alpha*)

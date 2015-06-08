@@ -923,10 +923,12 @@ public:
                                    bool* aCapitalize) {
       NS_ASSERTION(mTextRun->GetFlags() & nsTextFrameUtils::TEXT_IS_TRANSFORMED,
                    "Text run should be transformed!");
-      nsTransformedTextRun* transformedTextRun =
-        static_cast<nsTransformedTextRun*>(mTextRun);
-      transformedTextRun->SetCapitalization(aOffset + mOffsetIntoTextRun, aLength,
-                                            aCapitalize, mContext);
+      if (mTextRun->GetFlags() & nsTextFrameUtils::TEXT_IS_TRANSFORMED) {
+        nsTransformedTextRun* transformedTextRun =
+          static_cast<nsTransformedTextRun*>(mTextRun);
+        transformedTextRun->SetCapitalization(aOffset + mOffsetIntoTextRun, aLength,
+                                              aCapitalize, mContext);
+      }
     }
 
     void Finish() {

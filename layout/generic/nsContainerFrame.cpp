@@ -112,18 +112,21 @@ nsContainerFrame::AppendFrames(ChildListID  aListID,
       return NS_ERROR_INVALID_ARG;
     }
   }
-  if (aFrameList.NotEmpty()) {
-    mFrames.AppendFrames(this, aFrameList);
 
-    // Ask the parent frame to reflow me.
+  if (MOZ_UNLIKELY(aFrameList.IsEmpty())) {
+    return NS_OK;
+  }
+
+  DrainSelfOverflowList(); // ensure the last frame is in mFrames
+  mFrames.AppendFrames(this, aFrameList);
+
 #ifdef IBMBIDI
-    if (aListID == kPrincipalList)
+  if (aListID != kNoReflowPrincipalList) 
 #endif
-    {
-      PresContext()->PresShell()->
-        FrameNeedsReflow(this, nsIPresShell::eTreeChange,
-                         NS_FRAME_HAS_DIRTY_CHILDREN);
-    }
+  {
+    PresContext()->PresShell()->
+      FrameNeedsReflow(this, nsIPresShell::eTreeChange,
+                       NS_FRAME_HAS_DIRTY_CHILDREN);
   }
   return NS_OK;
 }
@@ -145,18 +148,21 @@ nsContainerFrame::InsertFrames(ChildListID aListID,
       return NS_ERROR_INVALID_ARG;
     }
   }
-  if (aFrameList.NotEmpty()) {
-    // Insert frames after aPrevFrame
-    mFrames.InsertFrames(this, aPrevFrame, aFrameList);
+  
+  if (MOZ_UNLIKELY(aFrameList.IsEmpty())) {
+    return NS_OK;
+  }
+
+  DrainSelfOverflowList(); // ensure aPrevFrame is in mFrames
+  mFrames.InsertFrames(this, aPrevFrame, aFrameList);
 
 #ifdef IBMBIDI
-    if (aListID == kPrincipalList)
-#endif
-    {
-      PresContext()->PresShell()->
-        FrameNeedsReflow(this, nsIPresShell::eTreeChange,
-                         NS_FRAME_HAS_DIRTY_CHILDREN);
-    }
+  if (aListID != kNoReflowPrincipalList) 
+#endif  
+  {
+    PresContext()->PresShell()->
+      FrameNeedsReflow(this, nsIPresShell::eTreeChange,
+                       NS_FRAME_HAS_DIRTY_CHILDREN);
   }
   return NS_OK;
 }

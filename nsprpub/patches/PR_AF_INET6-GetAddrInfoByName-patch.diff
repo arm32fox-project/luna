@@ -1,0 +1,57 @@
+From e3afb8ad07f0c4415ec1f3c71ca191a066a7449e Mon Sep 17 00:00:00 2001
+From: Pale Moon <git-repo@palemoon.org>
+Date: Thu, 19 Mar 2015 23:06:21 +0100
+Subject: [PATCH] Patch NSPR to add PR_AF_INET6 support to GetAddrInfoByName
+
+---
+ nsprpub/pr/src/misc/prnetdb.c | 20 ++++++++++++++++++--
+ 1 file changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/nsprpub/pr/src/misc/prnetdb.c b/nsprpub/pr/src/misc/prnetdb.c
+index 7d05e57..48b3d7c 100644
+--- a/nsprpub/pr/src/misc/prnetdb.c
++++ b/nsprpub/pr/src/misc/prnetdb.c
+@@ -1958,6 +1958,14 @@ pr_GetAddrInfoByNameFB(const char  *hostname,
+ {
+     PRStatus rv;
+     PRAddrInfoFB *ai;
++
++#ifdef _PR_INET6
++    if (af == PR_AF_INET6) {
++        PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
++        return NULL;
++    }
++#endif
++
+     /* fallback on PR_GetHostByName */
+     ai = PR_NEW(PRAddrInfoFB);
+     if (!ai) {
+@@ -1980,7 +1988,11 @@ PR_IMPLEMENT(PRAddrInfo *) PR_GetAddrInfoByName(const char  *hostname,
+                                                 PRIntn       flags)
+ {
+     /* restrict input to supported values */
+-    if ((af != PR_AF_INET && af != PR_AF_UNSPEC) ||
++    if ((af != PR_AF_INET &&
++#ifdef _PR_INET6
++         af != PR_AF_INET6 &&
++#endif
++         af != PR_AF_UNSPEC) ||
+         (flags & ~ PR_AI_NOCANONNAME) != PR_AI_ADDRCONFIG) {
+         PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);
+         return NULL;
+@@ -2033,7 +2045,11 @@ PR_IMPLEMENT(PRAddrInfo *) PR_GetAddrInfoByName(const char  *hostname,
+             hints.ai_flags |= AI_ADDRCONFIG;
+         }
+ #endif
+-        hints.ai_family = (af == PR_AF_INET) ? AF_INET : AF_UNSPEC;
++        hints.ai_family = (af == PR_AF_INET) ? AF_INET
++#ifdef _PR_INET6
++                        : (af == PR_AF_INET6) ? AF_INET6
++#endif
++                        : AF_UNSPEC;
+ 
+         /*
+          * it is important to select a socket type in the hints, otherwise we
+-- 
+1.8.3.msysgit.0
+
