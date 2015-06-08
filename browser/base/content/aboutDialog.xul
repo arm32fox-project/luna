@@ -42,7 +42,11 @@
     <hbox id="PMclientBox">
       <vbox id="PMleftBox" flex="1"/>
       <vbox id="PMrightBox" flex="1">
+#ifdef XP_WIN
 #expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (Atom/WinXP)</label>
+#else
+#expand <label id="PMversion">Version: __MOZ_APP_VERSION__ (Atom)</label>
+#endif
         <label id="distribution" class="text-blurb"/>
         <label id="distributionId" class="text-blurb"/>
 
