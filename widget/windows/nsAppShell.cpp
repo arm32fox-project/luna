@@ -32,26 +32,18 @@ public:
 
 private:
   NS_IMETHOD Callback(const nsAString& aTopic, const nsAString& aState) {
-    bool isLocked = mLockedTopics.Contains(aTopic);
-    bool shouldLock = aState.Equals(NS_LITERAL_STRING("locked-foreground"));
-    if (isLocked == shouldLock) {
+    if (!aTopic.EqualsASCII("screen")) {
       return NS_OK;
     }
-    if (shouldLock) {
-      if (!mLockedTopics.Count()) {
-        // This is the first topic to request the screen saver be disabled.
-        // Prevent screen saver.
-        SetThreadExecutionState(ES_DISPLAY_REQUIRED|ES_CONTINUOUS);
-      }
-      mLockedTopics.PutEntry(aTopic);
+    // Note the wake lock code ensures that we're not sent duplicate
+    // "locked-foreground" notifications when multipe wake locks are held.
+    if (aState.EqualsASCII("locked-foreground")) {
+      // Prevent screen saver.
+      SetThreadExecutionState(ES_DISPLAY_REQUIRED|ES_CONTINUOUS);
     } else {
-      mLockedTopics.RemoveEntry(aTopic);
-      if (!mLockedTopics.Count()) {
-        // No other outstanding topics have requested screen saver be disabled.
-        // Re-enable screen saver.
-        SetThreadExecutionState(ES_CONTINUOUS);
-      }
-   }
+      // Re-enable screen saver.
+      SetThreadExecutionState(ES_CONTINUOUS);
+    }
     return NS_OK;
   }
 };
