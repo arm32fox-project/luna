@@ -344,12 +344,16 @@ private:
 namespace {
 void clock_add(cubeb_stream * stm, LONG64 value)
 {
-  InterlockedExchangeAdd64(&stm->clock, value);
+  // InterlockedExchangeAdd64(&stm->clock, value);
+  // NT 5.1 doesn't support this, so use a normal addition
+  stm->clock += value;
 }
 
 LONG64 clock_get(cubeb_stream * stm)
 {
-  return InterlockedExchangeAdd64(&stm->clock, 0);
+  // return InterlockedExchangeAdd64(&stm->clock, 0);
+  // NT 5.1 doesn't support this, so use a normal return
+  return stm->clock;
 }
 
 bool should_upmix(cubeb_stream * stream)
