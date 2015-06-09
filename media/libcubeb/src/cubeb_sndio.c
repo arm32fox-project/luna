@@ -7,8 +7,10 @@
 #include <poll.h>
 #include <pthread.h>
 #include <sndio.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <assert.h>
 #include "cubeb/cubeb.h"
 #include "cubeb-internal.h"
 
@@ -66,7 +68,7 @@ sndio_mainloop(void *arg)
 #define MAXFDS 8
   struct pollfd pfds[MAXFDS];
   cubeb_stream *s = arg;
-  int n, nfds, revents, state;
+  int n, nfds, revents, state = CUBEB_STATE_STARTED;
   size_t start = 0, end = 0;
   long nfr;
 
@@ -151,7 +153,6 @@ sndio_get_backend_id(cubeb *context)
 {
   return "sndio";
 }
-
 
 static void
 sndio_destroy(cubeb *context)
@@ -258,6 +259,24 @@ sndio_get_max_channel_count(cubeb * ctx, uint32_t * max_channels)
   return CUBEB_OK;
 }
 
+static int
+sndio_get_preferred_sample_rate(cubeb * ctx, uint32_t * rate)
+{
+  // XXX Not yet implemented.
+  *rate = 44100;
+
+  return CUBEB_OK;
+}
+
+static int
+sndio_get_min_latency(cubeb * ctx, cubeb_stream_params params, uint32_t * latency_ms)
+{
+  // XXX Not yet implemented.
+  *latency_ms = 40;
+
+  return CUBEB_OK;
+}
+
 static void
 sndio_stream_destroy(cubeb_stream *s)
 {
@@ -314,13 +333,31 @@ sndio_stream_set_volume(cubeb_stream *s, float volume)
   return CUBEB_OK;
 }
 
+int
+sndio_stream_get_latency(cubeb_stream * stm, uint32_t * latency)
+{
+  // http://www.openbsd.org/cgi-bin/man.cgi?query=sio_open
+  // in the "Measuring the latency and buffers usage" paragraph.
+  *latency = stm->wrpos - stm->rdpos;
+  return CUBEB_OK;
+}
+
 static struct cubeb_ops const sndio_ops = {
   .init = sndio_init,
   .get_backend_id = sndio_get_backend_id,
+  .get_max_channel_count = sndio_get_max_channel_count,
+  .get_min_latency = sndio_get_min_latency,
+  .get_preferred_sample_rate = sndio_get_preferred_sample_rate,
   .destroy = sndio_destroy,
   .stream_init = sndio_stream_init,
   .stream_destroy = sndio_stream_destroy,
   .stream_start = sndio_stream_start,
   .stream_stop = sndio_stream_stop,
-  .stream_get_position = sndio_stream_get_position
+  .stream_get_position = sndio_stream_get_position,
+  .stream_get_latency = sndio_stream_get_latency,
+  .stream_set_volume = sndio_stream_set_volume,
+  .stream_set_panning = NULL,
+  .stream_get_current_device = NULL,
+  .stream_device_destroy = NULL,
+  .stream_register_device_changed_callback = NULL
 };

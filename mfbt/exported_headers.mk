@@ -40,6 +40,7 @@ EXPORTS_mozilla += \
   SHA1.h \
   SplayTree.h \
   StandardInteger.h \
+  TaggedAnonymousMemory.h \
   ThreadLocal.h \
   TypedEnum.h \
   Types.h \
