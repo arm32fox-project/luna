@@ -15,6 +15,7 @@ Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
 // These mirror signon.* prefs.
 var gEnabled = false, gDebug = false, gStoreWhenAutocompleteOff = true;
+var gIgnoreAutocomplete = true;
 
 function log(...pieces) {
     function generateLogMessage(args) {
@@ -72,6 +73,7 @@ var observer = {
         gDebug = Services.prefs.getBoolPref("signon.debug");
         gEnabled = Services.prefs.getBoolPref("signon.rememberSignons");
         gStoreWhenAutocompleteOff = Services.prefs.getBoolPref("signon.storeWhenAutocompleteOff");
+        gIgnoreAutocomplete = Services.prefs.getBoolPref("signon.ignoreAutocomplete");
     },
 };
 
@@ -590,6 +592,10 @@ var LoginManagerContent = {
      */
     _fillForm : function (form, autofillForm, ignoreAutocomplete,
                           clobberPassword, foundLogins) {
+        // User choice for honoring autocomplete=off
+        if (gIgnoreAutocomplete == true)
+            ignoreAutocomplete = true;
+            
         // Heuristically determine what the user/pass fields are
         // We do this before checking to see if logins are stored,
         // so that the user isn't prompted for a master password
