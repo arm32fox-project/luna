@@ -2307,17 +2307,9 @@ abstract public class GeckoApp
         PowerManager.WakeLock wl = mWakeLocks.get(topic);
         if (state.equals("locked-foreground") && wl == null) {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-
-            if (CPU.equals(topic)) {
-              wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, topic);
-            } else if (SCREEN.equals(topic)) {
-              wl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK, topic);
-            }
-
-            if (wl != null) {
-              wl.acquire();
-              mWakeLocks.put(topic, wl);
-            }
+            wl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK, topic);
+            wl.acquire();
+            mWakeLocks.put(topic, wl);
         } else if (!state.equals("locked-foreground") && wl != null) {
             wl.release();
             mWakeLocks.remove(topic);
