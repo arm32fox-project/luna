@@ -1905,7 +1905,6 @@ HTMLMediaElement::HTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     mMediaSecurityVerified(false),
     mCORSMode(CORS_NONE),
     mHasAudio(false),
-    mHasVideo(false),
     mDownloadSuspendedByCache(false),
     mAudioChannelType(AUDIO_CHANNEL_NORMAL),
     mPlayingThroughTheAudioChannel(false)
@@ -2711,7 +2710,6 @@ void HTMLMediaElement::MetadataLoaded(int aChannels,
   mChannels = aChannels;
   mRate = aRate;
   mHasAudio = aHasAudio;
-  mHasVideo = aHasVideo;
   mTags = aTags;
   ChangeReadyState(nsIDOMHTMLMediaElement::HAVE_METADATA);
   DispatchAsyncEvent(NS_LITERAL_STRING("durationchange"));
@@ -3086,6 +3084,9 @@ VideoFrameContainer* HTMLMediaElement::GetVideoFrameContainer()
     return nullptr;
   }
 
+  if (mVideoFrameContainer)
+    return mVideoFrameContainer;
+
   // If we have a print surface, this is just a static image so
   // no image container is required
   if (mPrintSurface)
@@ -3095,11 +3096,6 @@ VideoFrameContainer* HTMLMediaElement::GetVideoFrameContainer()
   nsCOMPtr<nsIDOMHTMLVideoElement> video = do_QueryObject(this);
   if (!video)
     return nullptr;
-
-  mHasVideo = true;
-
-  if (mVideoFrameContainer)
-    return mVideoFrameContainer;
 
   mVideoFrameContainer =
     new VideoFrameContainer(this, LayerManager::CreateAsynchronousImageContainer());
