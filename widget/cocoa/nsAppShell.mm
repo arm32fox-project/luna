@@ -309,8 +309,7 @@ nsCOMPtr<nsIDOMMozWakeLockListener> sWakeLockListener = nullptr;
 static void
 AddScreenWakeLockListener()
 {
-  nsCOMPtr<nsIPowerManagerService> sPowerManagerService = do_GetService(
-                                                          POWERMANAGERSERVICE_CONTRACTID);
+  sPowerManagerService = do_GetService(POWERMANAGERSERVICE_CONTRACTID);
   if (sPowerManagerService) {
     sWakeLockListener = new MacWakeLockListener();
     sPowerManagerService->AddWakeLockListener(sWakeLockListener);
@@ -322,8 +321,7 @@ AddScreenWakeLockListener()
 static void
 RemoveScreenWakeLockListener()
 {
-  nsCOMPtr<nsIPowerManagerService> sPowerManagerService = do_GetService(
-                                                          POWERMANAGERSERVICE_CONTRACTID);
+  sPowerManagerService = do_GetService(POWERMANAGERSERVICE_CONTRACTID);
   if (sPowerManagerService) {
     sPowerManagerService->RemoveWakeLockListener(sWakeLockListener);
     sPowerManagerService = nullptr;
