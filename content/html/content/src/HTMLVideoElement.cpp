@@ -271,7 +271,7 @@ HTMLVideoElement::WakeLockUpdate()
     return;
   }
 
-  if (!mScreenWakeLock && !mPaused && !hidden) {
+  if (!mScreenWakeLock && !mPaused && !hidden && mHasVideo) {
     nsCOMPtr<nsIPowerManagerService> pmService =
       do_GetService(POWERMANAGERSERVICE_CONTRACTID);
     NS_ENSURE_TRUE_VOID(pmService);

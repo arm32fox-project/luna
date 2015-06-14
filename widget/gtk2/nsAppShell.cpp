@@ -15,6 +15,10 @@
 #include "prlog.h"
 #include "prenv.h"
 #include "mozilla/HangMonitor.h"
+#include "nsIPowerManagerService.h"
+#ifdef MOZ_ENABLE_DBUS
+#include "WakeLockListener.h"
+#endif
 
 #define NOTIFY_TOKEN 0xFA
 
@@ -74,6 +78,17 @@ nsAppShell::Init()
         gWidgetDragLog = PR_NewLogModule("WidgetDrag");
     if (!gWidgetDrawLog)
         gWidgetDrawLog = PR_NewLogModule("WidgetDraw");
+#endif
+
+#ifdef MOZ_ENABLE_DBUS
+    nsCOMPtr<nsIPowerManagerService> sPowerManagerService = nullptr;
+    nsCOMPtr<nsIDOMMozWakeLockListener> sWakeLockListener = nullptr;
+
+    if (sPowerManagerService) {
+        sPowerManagerService->AddWakeLockListener(WakeLockListener::GetSingleton());
+    } else {
+        NS_WARNING("Failed to retrieve PowerManagerService, wakelocks will be broken!");
+    }
 #endif
 
     if (!sPollFunc) {
