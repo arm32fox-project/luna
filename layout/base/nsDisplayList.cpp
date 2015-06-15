@@ -2034,7 +2034,9 @@ nsDisplayBackgroundImage::GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
   if (mBackgroundStyle->mBackgroundInlinePolicy == NS_STYLE_BG_INLINE_POLICY_EACH_BOX ||
       (!mFrame->GetPrevContinuation() && !mFrame->GetNextContinuation())) {
     const nsStyleBackground::Layer& layer = mBackgroundStyle->mLayers[mLayer];
-    if (layer.mImage.IsOpaque()) {
+    if (layer.mImage.IsOpaque() &&
+        (layer.mRepeat.mXRepeat != NS_STYLE_BG_REPEAT_SPACE && 
+         layer.mRepeat.mYRepeat != NS_STYLE_BG_REPEAT_SPACE)) {
       nsPresContext* presContext = mFrame->PresContext();
       result = GetInsideClipRegion(this, presContext, layer.mClip, mBounds, aSnap);
     }

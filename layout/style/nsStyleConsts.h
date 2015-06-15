@@ -267,10 +267,13 @@ static inline mozilla::css::Side operator++(mozilla::css::Side& side, int) {
 #define NS_STYLE_BG_POSITION_RIGHT   (1<<4)
 
 // See nsStyleBackground
-#define NS_STYLE_BG_REPEAT_NO_REPEAT                0x00
-#define NS_STYLE_BG_REPEAT_REPEAT_X                 0x01
-#define NS_STYLE_BG_REPEAT_REPEAT_Y                 0x02
-#define NS_STYLE_BG_REPEAT_REPEAT                   0x03
+// Rendering code relies on these values being a bitmask
+#define NS_STYLE_BG_REPEAT_NO_REPEAT (1<<0)
+#define NS_STYLE_BG_REPEAT_REPEAT_X  (1<<1)
+#define NS_STYLE_BG_REPEAT_REPEAT_Y  (1<<2)
+#define NS_STYLE_BG_REPEAT_REPEAT    (1<<3)
+#define NS_STYLE_BG_REPEAT_SPACE     (1<<4)
+#define NS_STYLE_BG_REPEAT_ROUND     (1<<5)
 
 // See nsStyleBackground
 #define NS_STYLE_BG_SIZE_CONTAIN  0

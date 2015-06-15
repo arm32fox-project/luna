@@ -3870,7 +3870,7 @@ struct SnappedImageDrawingParameters {
 /**
  * Given a set of input parameters, compute certain output parameters
  * for drawing an image with the image snapping algorithm.
- * See https://wiki.mozilla.org/Goanna:Image_Snapping_and_Rendering
+ * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
  *
  *  @see nsLayoutUtils::DrawImage() for the descriptions of input parameters
  */
@@ -4013,6 +4013,124 @@ DrawImageInternal(nsRenderingContext*    aRenderingContext,
   return NS_OK;
 }
 
+/** 
+ * IntermediateSurfaceParameters holds the return value of the 
+ * ComputeIntermediateSurfaceParameters function.
+ */
+struct IntermediateSurfaceParameters
+{
+  // Destination where a single copy of the image is to be drawn (in image space).
+  nsIntRect mDest;
+  // A pixel rectangle in tiled image space outside of which gfx should not
+  // sample (using EXTEND_PAD as necessary)
+  nsIntRect mSubimage;
+  // Intermediate surface size in image space.
+  gfxIntSize mSurfaceSize;
+
+  IntermediateSurfaceParameters(const nsIntRect& aDest,
+                                const nsIntRect& aSubimage,
+                                const gfxIntSize& aSurfaceSize)
+    : mDest(aDest),
+      mSubimage(aSubimage),
+      mSurfaceSize(aSurfaceSize)
+  {}
+};
+
+/**
+ * ComputeIntermediateSurfaceParameters calculates the parameters necessary for
+ * creating and drawing to an intermediate surface which represents a padded
+ * image.
+ * @param  aImageSize     - Image size in App Units.
+ * @param  aImageSpacing  - The padding, in app units, to be added around the image.
+ * @return See notes for IntermediateSurfaceParameters.
+ */
+static IntermediateSurfaceParameters
+ComputeIntermediateSurfaceParameters(const nsSize&     aImageSize,
+                                     const nsIntSize&  aImageSpacing)
+{
+  nsIntRect cssDest(nsPresContext::AppUnitsToIntCSSPixels(0),
+                    nsPresContext::AppUnitsToIntCSSPixels(0),
+                    nsPresContext::AppUnitsToIntCSSPixels(aImageSize.width),
+                    nsPresContext::AppUnitsToIntCSSPixels(aImageSize.height));
+
+  nsIntSize surfIntSize =
+    nsIntSize(nsPresContext::AppUnitsToIntCSSPixels(aImageSize.width + aImageSpacing.width),
+              nsPresContext::AppUnitsToIntCSSPixels(aImageSize.height + aImageSpacing.height));
+  nsIntRect subimage;
+  subimage.SizeTo(surfIntSize);
+  
+  return IntermediateSurfaceParameters(cssDest, subimage, surfIntSize);
+}
+
+/**
+ * Draws the image to an intermediate surface, in image space, adding the
+ * specified ammount of padding. The surface is tiled instead of the image. This
+ * method is used when images need to be repeated with an even amount of spacing
+ * between them. For the description of the parameters please see the DrawImage
+ * function notes in the header file.
+ */
+static nsresult
+DrawImageWithSpacingInternal(nsRenderingContext* aRenderingContext,
+                             imgIContainer*      aImage,
+                             GraphicsFilter      aGraphicsFilter,
+                             const nsRect&       aDest,
+                             const nsRect&       aFill,
+                             const nsIntSize&    aImageSpacing,
+                             const nsPoint&      aAnchor,
+                             const nsRect&       aDirty,
+                             const nsIntSize&    aImageSize,
+                             const SVGImageContext* aSVGContext,
+                             PRUint32            aImageFlags)
+{
+  if (!aImageSpacing.width && !aImageSpacing.height) {
+    return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter, aDest,
+                             aFill, aAnchor, aDirty, aImageSize, aSVGContext,
+                             aImageFlags);
+  }
+
+  PRInt32 appUnitsPerDevPixel = aRenderingContext->AppUnitsPerDevPixel();
+  gfxContext* ctx = aRenderingContext->ThebesContext();
+
+  // Compute the intermediate surface parameters.
+  IntermediateSurfaceParameters srfParams =
+    ComputeIntermediateSurfaceParameters(aDest.Size(), aImageSpacing);
+
+  nsRefPtr<gfxASurface> currentSurface = ctx->CurrentSurface();
+
+  // Construct the intermediate surface (in image space)
+  nsRefPtr<gfxASurface> tmpSurface =
+    currentSurface->CreateSimilarSurface(gfxASurface::CONTENT_COLOR_ALPHA,
+                                         srfParams.mSurfaceSize);
+
+  nsRefPtr<gfxContext> tmpCtx = new gfxContext(tmpSurface.get());
+
+  // Draw the image
+  aImage->Draw(tmpCtx, aGraphicsFilter, gfxMatrix(),
+               srfParams.mDest, srfParams.mSubimage, aImageSize, aSVGContext, 
+               imgIContainer::FRAME_CURRENT, aImageFlags);
+
+  // Draw the tiled temporary surface onto the actual surface
+  SnappedImageDrawingParameters drawingParams =
+    ComputeSnappedImageDrawingParameters(ctx, appUnitsPerDevPixel, aDest, aFill,
+                                         aAnchor, aDirty, aImageSize);
+
+  nsRefPtr<gfxSurfaceDrawable> tmpDrawable =
+    new gfxSurfaceDrawable(tmpSurface, srfParams.mSurfaceSize);
+
+  if (!drawingParams.mShouldDraw)
+    return NS_OK;
+
+  gfxContextMatrixAutoSaveRestore saveMatrix(ctx);
+  if (drawingParams.mResetCTM) {
+    ctx->IdentityMatrix();
+  }
+
+  tmpDrawable->Draw(ctx, drawingParams.mFillRect, true,
+                    aGraphicsFilter, drawingParams.mUserSpaceToImageSpace);
+
+  return NS_OK;
+}
+
 /* static */ void
 nsLayoutUtils::DrawPixelSnapped(nsRenderingContext* aRenderingContext,
                                 gfxDrawable*         aDrawable,
@@ -4052,6 +4170,154 @@ nsLayoutUtils::DrawPixelSnapped(nsRenderingContext* aRenderingContext,
                              drawingParams.mUserSpaceToImageSpace, subimage,
                              sourceRect, imageRect, drawingParams.mFillRect,
                              gfxASurface::ImageFormatARGB32, aFilter);
+}
+
+/**
+ * ComputeImageAxisSpacing is a helper function that computes the number
+ * of pixels that each image is spaced with, in image space, in order to fill
+ * gaps between aGapCount images evenly along an axis. aTotalSpacingUnits represents the
+ * total number of app units that are available to be used as spacing.
+ *   @param aTotalSpacingUnits - See nsLayoutUtils::DrawBackgroundImage
+ *   @param aGapCount          - See nsLayoutUtils::DrawBackgroundImage
+ *   @param aOutImageSpacing   - Individual image spacing in image space along the axis.
+ *   @param aOutRemainder - The accumulated error in app units after images are
+ *                          evenly spaced out a whole number of pixels in image
+ *                          space along the axis.
+ */
+static void
+ComputeImageAxisSpacing(nscoord  aTotalSpacingUnits,
+                        PRInt32  aGapCount,
+                        PRInt32& aOutImageSpacing,
+                        nscoord& aOutRemainder)
+{
+  if (aGapCount > 0) {
+    double spacing = nsPresContext::AppUnitsToFloatCSSPixels(aTotalSpacingUnits) / aGapCount;
+    aOutImageSpacing = floorf(spacing);
+    aOutRemainder = 
+      aTotalSpacingUnits - nsPresContext::CSSPixelsToAppUnits(aOutImageSpacing) * aGapCount;
+  } else {
+    aOutImageSpacing = 0;
+    aOutRemainder = 0;
+  }
+}
+
+/**
+ * BisectSpacingAxis accounts for rounding errors when spacing out images. 
+ * This is done by splitting the axis into two regions with different spacing.
+ * The first region will be spaced at floor(aTotalSpacingUnits/numper of gaps) + 1 (in 
+ * image space), whilst the second region is spaced at floor(spacing/number of gaps).
+ * This function operates in one dimension so it should be called once for
+ * vertical spacing and once for horisontal spacing.
+ *   @aImageSize         - image size in app units.
+ *   @aAxisOffset        - translates the bisection point by the aAxisOffset in
+ *                         app units. Used to account for the fact that the
+ *                         image needs to be spaced in a rectangle with a nonzero
+ *                         TopLeft() corner.
+ *   @aAxisLength        - Truncates any rounding errors and forces the spacing to
+ *                         fall within the aAxisLength length.
+ *   @aSpacing           - see nsLayoutUtils::ComputeImageAxisSpacing aOutImageSpacing
+ *   @aRemainder         - see ComputeImageAxisPadding @param aOutRemainder.
+ *   @aOutImageSpacing1  - Represents the spacing in the first region. If spacing can
+ *                         be performed, this is never zero.
+ *   @aOutImageSpacing2  - Represents the spacing in the second region. Zero if
+ *                         spacing can be done evenly in the first region.
+ *   @return - returns the point on the axis where the two regions meet.
+ *             If the axis doesn't need to be split it returns the end point.
+ */
+inline nscoord
+BisectSpacingAxis(nscoord aImageSize, nscoord aAxisOffset, nscoord aAxisLength,
+                  PRInt32 aSpacing, nscoord aRemainder,
+                  PRInt32& aOutImageSpacing1, PRInt32& aOutImageSpacing2)
+{
+  nscoord bisectionPoint = aAxisOffset;
+  if (aRemainder > 0) {
+    aOutImageSpacing1 = nsPresContext::CSSPixelsToAppUnits(aSpacing + 1);
+    aOutImageSpacing2 = nsPresContext::CSSPixelsToAppUnits(aSpacing);
+
+    nscoord spacedLength;
+    spacedLength = (aImageSize + aOutImageSpacing1) * 
+                   NS_round(nsPresContext::AppUnitsToFloatCSSPixels(aRemainder));
+    bisectionPoint += (aAxisLength > spacedLength)?spacedLength:aAxisLength;
+  } else {
+    aOutImageSpacing1 = nsPresContext::CSSPixelsToAppUnits(aSpacing);
+    aOutImageSpacing2 = 0;
+    bisectionPoint += aAxisLength; // if there is no bisection
+  }
+  return bisectionPoint;
+}
+
+/**
+ * ComputeImageRenderingQuadrants accounts for rounding errors when spacing 
+ * images. It splits the aFill rectangle into 4 regions (some of which may be
+ * empty) according to the aRemainder variable (which is given in app units).
+ *   @param aDest       - See nsLayoutUtils::DrawBackgroundImage
+ *   @param aFill       - See nsLayoutUtils::DrawBackgroundImage
+ *   @param aTotalSpacingUnits - See nsLayoutUtils::DrawBackgroundImage
+ *   @param aGapCount   - See nsLayoutUtils::DrawBackgroundImage
+ *   @param aOutDest    - an array of 4 nsRects representing the translated
+ *                        aDest for each of the 4 quadrants.
+ *   @param aOutFill    - an array of 4 nsRects representing the 4 computed 
+ *                        quadrants.
+ *   @param aOutPadding - an array of 4 nsMargins representing the padding that
+ *                        is to be applied to each individual immage in the
+ *                        corresponding region.
+ */
+static void
+ComputeImageRenderingQuadrants(const nsRect&    aDest,
+                               const nsRect&    aFill,
+                               const nsSize&    aTotalSpacingUnits,
+                               const nsIntSize& aGapCount,
+                               nsRect*          aOutFill,
+                               nsIntSize*       aOutImageSpacing)
+{
+  nsIntSize evenSpacing;
+  nsSize remainder;
+  
+  ComputeImageAxisSpacing(aTotalSpacingUnits.width, aGapCount.width,
+                          evenSpacing.width, remainder.width);
+  ComputeImageAxisSpacing(aTotalSpacingUnits.height, aGapCount.height,
+                          evenSpacing.height, remainder.height);
+  
+  nsPoint bisectionPoint;
+  PRInt32 leftSpacing, rightSpacing;
+  // Bisect the area horizontally into left and right.
+  bisectionPoint.x = BisectSpacingAxis(aDest.width,
+                                       aFill.x, aFill.width,
+                                       evenSpacing.width, remainder.width,
+                                       leftSpacing, rightSpacing);
+
+  PRInt32 topSpacing, botSpacing;
+  // Bisect the area vertically into top and bottom
+  bisectionPoint.y = BisectSpacingAxis(aDest.height,
+                                       aFill.y, aFill.height,
+                                       evenSpacing.height, remainder.height,
+                                       topSpacing, botSpacing);
+  
+  /* The quadrants are as follows:
+   *     top left  |   top right
+   *      0 (00)   |    1 (01)
+   *   --------------------------
+   *   bottom left | bottom right
+   *      2 (10)   |    3 (11)
+   * The binary enumeration of the quadrants, in brackets above, is used to set
+   *  them up in the code below.
+   */
+  nsPoint corners[] = { aFill.TopLeft(), bisectionPoint };
+  nsSize sizes[] = { nsSize(bisectionPoint.x - aFill.x,
+                            bisectionPoint.y - aFill.y),
+                     nsSize(aFill.XMost() - bisectionPoint.x,
+                            aFill.YMost() - bisectionPoint.y) };
+  nsIntSize spacing[] = { nsIntSize(leftSpacing, topSpacing), 
+                          nsIntSize(rightSpacing, botSpacing) };
+  
+  for (int j = 0; j < 2; ++j) {
+    for (int i = 0; i < 2; ++i) {
+      int k = j*2+i;
+      aOutFill[k].MoveTo(corners[i].x, corners[j].y);
+      aOutFill[k].SizeTo(sizes[i].width, sizes[j].height);
+      aOutImageSpacing[k] = nsIntSize(spacing[i].width, spacing[j].height);
+    }
+  }
 }
 
 /* static */ nsresult
@@ -4158,6 +4424,8 @@ nsLayoutUtils::DrawBackgroundImage(nsRenderingContext* aRenderingContext,
                                    GraphicsFilter      aGraphicsFilter,
                                    const nsRect&       aDest,
                                    const nsRect&       aFill,
+                                   const nsSize&       aTotalSpacingUnits,
+                                   const nsIntSize&    aGapCount,
                                    const nsPoint&      aAnchor,
                                    const nsRect&       aDirty,
                                    uint32_t            aImageFlags)
@@ -4168,9 +4436,38 @@ nsLayoutUtils::DrawBackgroundImage(nsRenderingContext* aRenderingContext,
     aGraphicsFilter = gfxPattern::FILTER_NEAREST;
   }
 
-  return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter,
-                           aDest, aFill, aAnchor, aDirty,
-                           aImageSize, nullptr, aImageFlags);
+  /* Fast path when there is no need for image spacing */
+  if (aGapCount.width == 0 && aGapCount.height == 0)
+  {
+    return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter,
+                             aDest, aFill, aAnchor, aDirty,
+                             aImageSize, nullptr, aImageFlags);
+  }
+
+  /* image spacing path */
+  nsresult rv;
+  nsPoint translation;
+  nsRect dest = aDest, quadFill[4];
+  nsIntSize quadImageSpacing[4];
+  ComputeImageRenderingQuadrants(aDest, aFill, aTotalSpacingUnits, aGapCount,
+                                 quadFill, quadImageSpacing);
+  for (int i = 0; i < 4; ++i) {
+    if (quadFill[i].IsEmpty()) {
+      continue;
+    }
+    translation = quadFill[i].TopLeft() - aFill.TopLeft();
+    dest.MoveTo(aDest.TopLeft());
+    dest.MoveBy(translation);
+    rv = DrawImageWithSpacingInternal(aRenderingContext, aImage,
+                                      aGraphicsFilter, dest,
+                                      quadFill[i], quadImageSpacing[i],
+                                      aAnchor + translation, aDirty,
+                                      aImageSize, nullptr, aImageFlags);
+    if (NS_FAILED(rv)) {
+      return rv;
+    }
+  }
+  return rv;
 }
 
 /* static */ nsresult

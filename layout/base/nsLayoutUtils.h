@@ -1165,7 +1165,13 @@ public:
   /**
    * Draw a background image.  The image's dimensions are as specified in aDest;
    * the image itself is not consulted to determine a size.
-   * See https://wiki.mozilla.org/Goanna:Image_Snapping_and_Rendering
+   * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
+   * When aGapCount and aSpacing are provided the image is drawn
+   * at aDest and then repeated aGapCount.width + 1 times to the right and 
+   * aGapCount.height + 1 times down, with the total horizontal and vertical 
+   * spacing between all the repetitions being equal to aSpacing.
+   * TotalArea = (aGapCount + 1) * aImageSize + aSpacing (ignoring app unit to
+   *                                                      css unit conversions).
    *   @param aRenderingContext Where to draw the image, set up with an
    *                            appropriate scale and transform for drawing in
    *                            app units.
@@ -1176,9 +1182,18 @@ public:
    *                            the image is a vector image being rendered at
    *                            that size.)
    *   @param aDest             The position and scaled area where one copy of
-   *                            the image should be drawn.
+   *                            the image should be drawn. This area represents
+   *                            the image itself in its correct position as
+   *                            defined with the background-position css
+   *                            property.
    *   @param aFill             The area to be filled with copies of the
    *                            image.
+   *   @param aTotalSpacingUnits  The total number of app units that can be 
+   *                            used for spacing between the images in x (width)
+   *                            and y (height) directions.
+   *   @param aGapCount         Represents the number of gaps between images in
+   *                            each direction among which the aSpacing is to be
+   *                            distributed.
    *   @param aAnchor           A point in aFill which we will ensure is
    *                            pixel-aligned in the output.
    *   @param aDirty            Pixels outside this area may be skipped.
@@ -1190,13 +1205,15 @@ public:
                                       GraphicsFilter      aGraphicsFilter,
                                       const nsRect&       aDest,
                                       const nsRect&       aFill,
+                                      const nsSize&       aTotalSpacingUnits,
+                                      const nsIntSize&    aGapCount,
                                       const nsPoint&      aAnchor,
                                       const nsRect&       aDirty,
                                       uint32_t            aImageFlags);
 
   /**
    * Draw an image.
-   * See https://wiki.mozilla.org/Goanna:Image_Snapping_and_Rendering
+   * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
    *   @param aRenderingContext Where to draw the image, set up with an
    *                            appropriate scale and transform for drawing in
    *                            app units.
@@ -1226,7 +1243,7 @@ public:
 
   /**
    * Draw a drawable using the pixel snapping algorithm.
-   * See https://wiki.mozilla.org/Goanna:Image_Snapping_and_Rendering
+   * See https://wiki.mozilla.org/Gecko:Image_Snapping_and_Rendering
    *   @param aRenderingContext Where to draw the image, set up with an
    *                            appropriate scale and transform for drawing in
    *                            app units.

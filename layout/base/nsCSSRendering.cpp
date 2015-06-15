@@ -1909,8 +1909,10 @@ nsCSSRendering::DetermineBackgroundColor(nsPresContext* aPresContext,
 
   // We can skip painting the background color if a background image is opaque.
   if (aDrawBackgroundColor &&
-      bg->BottomLayer().mRepeat.mXRepeat == NS_STYLE_BG_REPEAT_REPEAT &&
-      bg->BottomLayer().mRepeat.mYRepeat == NS_STYLE_BG_REPEAT_REPEAT &&
+      (bg->BottomLayer().mRepeat.mXRepeat & (NS_STYLE_BG_REPEAT_REPEAT | 
+                                             NS_STYLE_BG_REPEAT_ROUND)) &&
+      (bg->BottomLayer().mRepeat.mYRepeat & (NS_STYLE_BG_REPEAT_REPEAT | 
+                                             NS_STYLE_BG_REPEAT_ROUND)) &&
       bg->BottomLayer().mImage.IsOpaque()) {
     aDrawBackgroundColor = false;
   }
@@ -2718,7 +2720,8 @@ nsCSSRendering::PaintBackgroundWithSC(nsPresContext* aPresContext,
           state.mImageRenderer.Draw(aPresContext, aRenderingContext,
                                     state.mDestArea, state.mFillArea,
                                     state.mAnchor + aBorderArea.TopLeft(),
-                                    clipState.mDirtyRect);
+                                    clipState.mDirtyRect, state.mSpacing,
+                                    state.mGapCount);
         }
       }
     }
@@ -2952,6 +2955,30 @@ nsCSSRendering::ComputeBackgroundPositioningArea(nsPresContext* aPresContext,
   return bgPositioningArea;
 }
 
+/* ComputeBackgroundRepeatSpacing
+ * aImageDimension: the image width/height
+ * aAvailableSpace: the background positioning area width/height
+ * aOutGapCount: the number of gaps between the images
+ * aOutTotalSpacing: the number of app units available for use as spacing.
+ */
+static void
+ComputeBackgroundRepeatSpacing(nscoord aImageDimension, 
+                               nscoord aAvailableSpace,
+                               PRInt32& aOutGapCount,
+                               nscoord& aOutTotalSpacing) {
+  float a = aImageDimension;
+  float A = aAvailableSpace;
+  float r = A/a;       // ratio of the number of times the image can fit
+  
+  if (r < 2.0f) { // if you can't repeat at least twice, then don't repeat.
+    aOutGapCount = 0;
+    aOutTotalSpacing = 0;
+  } else {
+    aOutTotalSpacing = NSToCoordRound(A - floorf(r) * a);
+    aOutGapCount = NSToIntFloor(r) - 1;
+  }
+}
+
 nsBackgroundLayerState
 nsCSSRendering::PrepareBackgroundLayer(nsPresContext* aPresContext,
                                        nsIFrame* aForFrame,
@@ -3061,10 +3088,10 @@ nsCSSRendering::PrepareBackgroundLayer(nsPresContext* aPresContext,
     }
   }
 
-  // Scale the image as specified for background-size and as required for
-  // proper background positioning when background-position is defined with
-  // percentages.
-  nsSize imageSize = state.mImageRenderer.ComputeSize(aLayer.mSize, bgPositioningArea.Size());
+  // Scale the image as specified for background-size and background-repeat.
+  // Also as required for proper background positioning when background-position 
+  // is defined with percentages.
+  nsSize imageSize = state.mImageRenderer.ComputeSize(aLayer, bgPositioningArea.Size());
   if (imageSize.width <= 0 || imageSize.height <= 0)
     return state;
 
@@ -3072,18 +3099,50 @@ nsCSSRendering::PrepareBackgroundLayer(nsPresContext* aPresContext,
   // determined.
   ComputeBackgroundAnchorPoint(aLayer, bgPositioningArea.Size(), imageSize,
                                &imageTopLeft, &state.mAnchor);
+  
+  PRIntn repeatX = aLayer.mRepeat.mXRepeat;
+  PRIntn repeatY = aLayer.mRepeat.mYRepeat;
+  
+  if (repeatX == NS_STYLE_BG_REPEAT_SPACE) {
+    ComputeBackgroundRepeatSpacing(imageSize.width, 
+                                   bgPositioningArea.Width(),
+                                   state.mGapCount.width,
+                                   state.mSpacing.width);
+    if (state.mGapCount.width > 0) {
+      imageTopLeft.x = 0;
+      state.mAnchor.x = 0;
+    } else {
+      repeatX = NS_STYLE_BG_REPEAT_NO_REPEAT;
+    }
+  }
+  
+  if (repeatY == NS_STYLE_BG_REPEAT_SPACE) {
+    ComputeBackgroundRepeatSpacing(imageSize.height, 
+                                   bgPositioningArea.Height(),
+                                   state.mGapCount.height,
+                                   state.mSpacing.height);
+    if (state.mGapCount.height > 0) {
+      imageTopLeft.y = 0;
+      state.mAnchor.y = 0;
+    } else {
+      repeatY = NS_STYLE_BG_REPEAT_NO_REPEAT;
+    }
+  }
+  
   imageTopLeft += bgPositioningArea.TopLeft();
   state.mAnchor += bgPositioningArea.TopLeft();
 
   state.mDestArea = nsRect(imageTopLeft + aBorderArea.TopLeft(), imageSize);
   state.mFillArea = state.mDestArea;
-  int repeatX = aLayer.mRepeat.mXRepeat;
-  int repeatY = aLayer.mRepeat.mYRepeat;
-  if (repeatX == NS_STYLE_BG_REPEAT_REPEAT) {
-    state.mFillArea.x = bgClipRect.x;
-    state.mFillArea.width = bgClipRect.width;
+  if (repeatX & (NS_STYLE_BG_REPEAT_REPEAT | 
+                 NS_STYLE_BG_REPEAT_ROUND  |
+                 NS_STYLE_BG_REPEAT_SPACE)) {
+     state.mFillArea.x = bgClipRect.x;
+     state.mFillArea.width = bgClipRect.width;
   }
-  if (repeatY == NS_STYLE_BG_REPEAT_REPEAT) {
+  if (repeatY & (NS_STYLE_BG_REPEAT_REPEAT | 
+                 NS_STYLE_BG_REPEAT_ROUND  |
+                 NS_STYLE_BG_REPEAT_SPACE)) {
     state.mFillArea.y = bgClipRect.y;
     state.mFillArea.height = bgClipRect.height;
   }
@@ -4646,15 +4705,36 @@ nsImageRenderer::ComputeDrawnSize(const nsStyleBackground::Size& aLayerSize,
   return size;
 }
 
+/* Implementation of the formula for computation of background-repeat round 
+ * property which can be found at 
+ * http://dev.w3.org/csswg/css3-background/#the-background-size
+ */
+static nscoord
+ComputeBackgroundRepeatRound(nscoord currentSize, 
+                             nscoord positioningSize) {
+  float x = currentSize;
+  float w = positioningSize;
+  
+  NS_ASSERTION(currentSize, "invalid size!");
+  float a = NS_roundf(w/x);
+  if (a < 1.0f) {
+    return positioningSize;
+  }
+  
+  x = w/a;
+  
+  return (nscoord(NS_lround(x)));
+}
+
 /*
  * The size returned by this method differs from the value of mSize, which this
  * method also computes, in that mSize is the image's "preferred" size for this
  * particular rendering, while the size returned here is the actual rendered
- * size after accounting for background-size.  The preferred size is most often
- * the image's intrinsic dimensions.  But for images with incomplete intrinsic
- * dimensions, the preferred size varies, depending on the background
- * positioning area, the specified background-size, and the intrinsic ratio and
- * dimensions of the image (if it has them).
+ * size after accounting for background-size (and background-repeat).  The 
+ * preferred size is most often the image's intrinsic dimensions.  But for 
+ * images with incomplete intrinsicdimensions, the preferred size varies, 
+ * depending on the background positioning area, the specified background-size, 
+ * and the intrinsic ratio and dimensions of the image (if it has them).
  *
  * This distinction is necessary because the components of a vector image are
  * specified with respect to its preferred size for a rendering situation, not
@@ -4668,9 +4748,10 @@ nsImageRenderer::ComputeDrawnSize(const nsStyleBackground::Size& aLayerSize,
  * width will be 4px, while in the second case the returned width will be 8px.
  */
 nsSize
-nsImageRenderer::ComputeSize(const nsStyleBackground::Size& aLayerSize,
+nsImageRenderer::ComputeSize(const nsStyleBackground::Layer& aLayer,
                              const nsSize& aBgPositioningArea)
 {
+  // Compute background-size
   bool haveWidth, haveHeight;
   nsSize ratio;
   nscoord unscaledWidth, unscaledHeight;
@@ -4678,12 +4759,51 @@ nsImageRenderer::ComputeSize(const nsStyleBackground::Size& aLayerSize,
                             unscaledWidth, haveWidth,
                             unscaledHeight, haveHeight,
                             ratio);
-  nsSize drawnSize = ComputeDrawnSize(aLayerSize, aBgPositioningArea,
+  nsSize drawnSize = ComputeDrawnSize(aLayer.mSize, aBgPositioningArea,
                                       unscaledWidth, haveWidth,
                                       unscaledHeight, haveHeight,
                                       ratio);
   mSize.width = haveWidth ? unscaledWidth : drawnSize.width;
   mSize.height = haveHeight ? unscaledHeight : drawnSize.height;
+
+  // Check for background-repeat round keyword
+  PRIntn xRepeat = aLayer.mRepeat.mXRepeat;
+  PRIntn yRepeat = aLayer.mRepeat.mYRepeat;
+  bool hasTwoRoundKeywords = xRepeat == NS_STYLE_BG_REPEAT_ROUND && 
+                             yRepeat == NS_STYLE_BG_REPEAT_ROUND;
+
+  // calculate the rounded size only if the background-size computation
+  // returned a correct size for the image.
+  if (drawnSize.width && xRepeat == NS_STYLE_BG_REPEAT_ROUND) {
+    drawnSize.width = ComputeBackgroundRepeatRound(drawnSize.width, 
+                                                   aBgPositioningArea.width);
+    if (!hasTwoRoundKeywords && 
+        aLayer.mSize.mHeightType == nsStyleBackground::Size::eAuto) {
+      // restore intrinsic rato
+      if (ratio.height) {
+        drawnSize.height =
+          NSCoordSaturatingNonnegativeMultiply(drawnSize.width,
+                                               double(ratio.height) / 
+                                               ratio.width);
+      }
+    }
+  }
+
+  if (drawnSize.height && yRepeat == NS_STYLE_BG_REPEAT_ROUND) {
+    drawnSize.height = ComputeBackgroundRepeatRound(drawnSize.height, 
+                                                    aBgPositioningArea.height);
+    if (!hasTwoRoundKeywords && 
+        aLayer.mSize.mWidthType == nsStyleBackground::Size::eAuto) {
+      // restore intrinsic ratio
+      if (ratio.width) {
+        drawnSize.width = 
+          NSCoordSaturatingNonnegativeMultiply(drawnSize.height,
+                                               double(ratio.width) /
+                                               ratio.height);
+      }
+    }
+  }
+
   return drawnSize;
 }
 
@@ -4693,7 +4813,9 @@ nsImageRenderer::Draw(nsPresContext*       aPresContext,
                       const nsRect&        aDest,
                       const nsRect&        aFill,
                       const nsPoint&       aAnchor,
-                      const nsRect&        aDirty)
+                      const nsRect&        aDirty,
+                      const nsSize&        aSpacing,
+                      const nsIntSize&     aGapCount)
 {
   if (!mIsReady) {
     NS_NOTREACHED("Ensure PrepareImage() has returned true before calling me");
@@ -4722,7 +4844,7 @@ nsImageRenderer::Draw(nsPresContext*       aPresContext,
           nsIntSize(nsPresContext::AppUnitsToIntCSSPixels(mSize.width),
                     nsPresContext::AppUnitsToIntCSSPixels(mSize.height)),
           graphicsFilter,
-          aDest, aFill, aAnchor, aDirty, drawFlags);
+          aDest, aFill, aSpacing, aGapCount, aAnchor, aDirty, drawFlags);
       break;
     }
     case eStyleImageType_Gradient:
