@@ -4089,13 +4089,23 @@ DrawImageWithSpacingInternal(nsRenderingContext* aRenderingContext,
   }
 
   PRInt32 appUnitsPerDevPixel = aRenderingContext->AppUnitsPerDevPixel();
-  gfxContext* ctx = aRenderingContext->ThebesContext();
+  nsRefPtr<gfxContext> ctx = aRenderingContext->ThebesContext();
 
   // Compute the intermediate surface parameters.
   IntermediateSurfaceParameters srfParams =
     ComputeIntermediateSurfaceParameters(aDest.Size(), aImageSpacing);
 
   nsRefPtr<gfxASurface> currentSurface = ctx->CurrentSurface();
+  
+  if (!currentSurface) {
+    //XXX: If using Azure, CurrentSurface() is null, and we can't use it.
+    //This is the path we now take because of this lack of surface, since otherwise
+    //we crash on CreateSimilarSurface. Spacing is broken, but at least we don't crash
+    //or (literally) draw a blank.
+    return DrawImageInternal(aRenderingContext, aImage, aGraphicsFilter, aDest,
+                             aFill, aAnchor, aDirty, aImageSize, aSVGContext,
+                             aImageFlags);
+  }
 
   // Construct the intermediate surface (in image space)
   nsRefPtr<gfxASurface> tmpSurface =
