@@ -63,10 +63,10 @@ NS_INTERFACE_MAP_END
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsTypeAheadFind)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsTypeAheadFind)
 
-NS_IMPL_CYCLE_COLLECTION_9(nsTypeAheadFind, mFoundLink, mFoundEditable,
+NS_IMPL_CYCLE_COLLECTION_10(nsTypeAheadFind, mFoundLink, mFoundEditable,
                            mCurrentWindow, mStartFindRange, mSearchRange,
                            mStartPointRange, mEndPointRange, mSoundInterface,
-                           mFind)
+                           mFind, mFoundRange)
 
 static NS_DEFINE_CID(kFrameTraversalCID, NS_FRAMETRAVERSAL_CID);
 
@@ -176,6 +176,7 @@ nsTypeAheadFind::SetDocShell(nsIDocShell* aDocShell)
 
   mFoundLink = nullptr;
   mFoundEditable = nullptr;
+  mFoundRange = nullptr;
   mCurrentWindow = nullptr;
 
   mSelectionController = nullptr;
@@ -275,6 +276,7 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, bool aIsLinksOnly,
   *aResult = FIND_NOTFOUND;
   mFoundLink = nullptr;
   mFoundEditable = nullptr;
+  mFoundRange = nullptr;
   mCurrentWindow = nullptr;
   nsCOMPtr<nsIPresShell> startingPresShell (GetPresShell());
   if (!startingPresShell) {    
@@ -438,6 +440,8 @@ nsTypeAheadFind::FindItNow(nsIPresShell *aPresShell, bool aIsLinksOnly,
         }
         continue;
       }
+	  
+	  mFoundRange = returnRange;
 
       // ------ Success! -------
       // Hide old selection (new one may be on a different controller)
@@ -1091,6 +1095,18 @@ nsTypeAheadFind::GetSelection(nsIPresShell *aPresShell,
   }
 }
 
+NS_IMETHODIMP
+nsTypeAheadFind::GetFoundRange(nsIDOMRange** aFoundRange)
+{
+  NS_ENSURE_ARG_POINTER(aFoundRange);
+  if (mFoundRange == nullptr) {
+	*aFoundRange = nullptr;
+	return NS_OK;
+  }
+  
+  mFoundRange->CloneRange(aFoundRange);
+  return NS_OK;
+}
 
 bool
 nsTypeAheadFind::IsRangeVisible(nsIPresShell *aPresShell,

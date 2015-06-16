@@ -60,7 +60,8 @@ findbar[hidden] {
   height: 16px;
 }
 
-.findbar-find-status {
+.findbar-find-status,
+.findbar-matches {
   margin-top: 0 !important;
   margin-bottom: 0 !important;
   -moz-margin-start: 3px !important;
