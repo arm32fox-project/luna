@@ -52,6 +52,7 @@ dnl Set the version number of the libs included with mozilla
 dnl ========================================================
 MOZJPEG=62
 MOZPNG=10513
+MOZWEBP=030
 NSPR_VERSION=4
 NSS_VERSION=3
 
@@ -973,6 +974,8 @@ MOZ_BZ2_CFLAGS=
 MOZ_BZ2_LIBS='$(call EXPAND_LIBNAME_PATH,bz2,$(DEPTH)/modules/libbz2/src)'
 MOZ_PNG_CFLAGS=
 MOZ_PNG_LIBS='$(call EXPAND_LIBNAME_PATH,mozpng,$(DEPTH)/media/libpng)'
+MOZ_WEBP_CFLAGS=
+MOZ_WEBP_LIBS='$(call EXPAND_LIBNAME_PATH,mozwebp,$(DEPTH)/media/libwebp/src)'
 
 MOZ_JS_STATIC_LIBS='$(call EXPAND_LIBNAME_PATH,js_static,$(LIBXUL_DIST)/lib)'
 MOZ_JS_SHARED_LIBS='$(call EXPAND_LIBNAME_PATH,mozjs,$(LIBXUL_DIST)/lib)'
@@ -3936,6 +3939,35 @@ if test "${BZ2_DIR}" -a -d "${BZ2_DIR}" -a "$MOZ_NATIVE_BZ2" = 1; then
     MOZ_BZ2_LIBS="-L${BZ2_DIR}/lib ${MOZ_BZ2_LIBS}"
 fi
 
+dnl system WEBP Support
+dnl ========================================================
+MOZ_ARG_WITH_STRING(system-webp,
+[  --with-system-webp[=PFX]
+                          Use system libwebp [installed at prefix PFX]],
+    WEBP_DIR=$withval)
+
+_SAVE_CFLAGS=$CFLAGS
+_SAVE_LDFLAGS=$LDFLAGS
+_SAVE_LIBS=$LIBS
+if test -n "${WEBP_DIR}" -a "${WEBP_DIR}" != "yes"; then
+    CFLAGS="-I${WEBP_DIR}/include $CFLAGS"
+    LDFLAGS="-L${WEBP_DIR}/lib $LDFLAGS"
+fi
+if test -z "$WEBP_DIR" -o "$WEBP_DIR" = no; then
+    MOZ_NATIVE_WEBP=
+else
+    AC_CHECK_LIB(webp, WebPGetDecoderVersion, [MOZ_NATIVE_WEBP=1 MOZ_WEBP_LIBS="-lwebp"],
+        [MOZ_NATIVE_WEBP= MOZ_WEBP_CFLAGS= MOZ_WEBP_LIBS=])
+fi
+CFLAGS=$_SAVE_CFLAGS
+LDFLAGS=$_SAVE_LDFLAGS
+LIBS=$_SAVE_LIBS
+
+if test "${WEBP_DIR}" -a -d "${WEBP_DIR}" -a "$MOZ_NATIVE_WEBP" = 1; then
+    MOZ_WEBP_CFLAGS="-I${WEBP_DIR}/include"
+    MOZ_WEBP_LIBS="-L${WEBP_DIR}/lib ${MOZ_WEBP_LIBS}"
+fi
+
 dnl system PNG Support
 dnl ========================================================
 MOZ_ARG_WITH_STRING(system-png,
@@ -4065,6 +4097,8 @@ MOZ_SCTP=
 MOZ_MEDIA_PLUGINS=
 MOZ_MEDIA_NAVIGATOR=
 MOZ_OMX_PLUGIN=
+MOZ_WEBP=1
+MOZ_NATIVE_LIBWEBP=
 MOZ_VP8=
 MOZ_VP8_ERROR_CONCEALMENT=
 MOZ_VP8_ENCODER=1
@@ -5436,6 +5470,10 @@ fi
 AC_SUBST(MOZ_NATIVE_LIBVPX)
 AC_SUBST(MOZ_LIBVPX_CFLAGS)
 AC_SUBST(MOZ_LIBVPX_LIBS)
+
+if test "$MOZ_WEBP"; then
+    AC_DEFINE(MOZ_WEBP)
+fi
 
 if test "$MOZ_WEBM"; then
     MOZ_CUBEB=1
@@ -8640,6 +8678,8 @@ AC_SUBST(MOZ_BZ2_CFLAGS)
 AC_SUBST(MOZ_BZ2_LIBS)
 AC_SUBST(MOZ_PNG_CFLAGS)
 AC_SUBST(MOZ_PNG_LIBS)
+AC_SUBST(MOZ_WEBP_CFLAGS)
+AC_SUBST(MOZ_WEBP_LIBS)
 
 AC_SUBST(NSPR_CFLAGS)
 AC_SUBST(NSPR_LIBS)
@@ -8729,6 +8769,7 @@ AC_SUBST(MOZ_WAVE)
 AC_SUBST(MOZ_VORBIS)
 AC_SUBST(MOZ_TREMOR)
 AC_SUBST(MOZ_OPUS)
+AC_SUBST(MOZ_WEBP)
 AC_SUBST(MOZ_WEBM)
 AC_SUBST(MOZ_DASH)
 AC_SUBST(MOZ_WMF)

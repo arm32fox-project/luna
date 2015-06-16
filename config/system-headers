@@ -1047,6 +1047,13 @@ soundtouch/SoundTouch.h
 #if MOZ_NATIVE_PNG==1
 png.h
 #endif
+#if MOZ_WEBP==1
+webp/encode.h
+webp/decode.h
+dec/vp8i.h
+enc/vp8enci.h
+enc/cost.h
+#endif
 #if MOZ_NATIVE_ZLIB==1
 zlib.h
 #endif

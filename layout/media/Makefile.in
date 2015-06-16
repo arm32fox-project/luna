@@ -100,6 +100,12 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(NULL)
 endif
 
+ifdef MOZ_WEBP
+SHARED_LIBRARY_LIBS    += \
+       $(DEPTH)/media/libwebp/src/$(LIB_PREFIX)mozwebp.$(LIB_SUFFIX) \
+       $(NULL)
+endif
+
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/gfx/angle/$(LIB_PREFIX)angle.$(LIB_SUFFIX) \
 	$(DEPTH)/parser/expat/lib/$(LIB_PREFIX)mozexpat_s.$(LIB_SUFFIX) \

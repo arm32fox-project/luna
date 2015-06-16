@@ -22,6 +22,7 @@ LOCAL_INCLUDES	= \
 		-I$(srcdir)/../encoders/ico \
 		-I$(srcdir)/../encoders/png \
 		-I$(srcdir)/../encoders/jpeg \
+		-I$(srcdir)/../encoders/webp \
 		-I$(srcdir)/../encoders/bmp \
 		$(NULL)
 
@@ -31,6 +32,7 @@ SHARED_LIBRARY_LIBS = \
 		../encoders/ico/$(LIB_PREFIX)imgicoe_s.$(LIB_SUFFIX) \
 		../encoders/png/$(LIB_PREFIX)imgpnge_s.$(LIB_SUFFIX) \
 		../encoders/jpeg/$(LIB_PREFIX)imgjpege_s.$(LIB_SUFFIX) \
+		../encoders/webp/$(LIB_PREFIX)imgwebpe_s.$(LIB_SUFFIX) \
 		../encoders/bmp/$(LIB_PREFIX)imgbmpe_s.$(LIB_SUFFIX) \
 		$(NULL)
 
