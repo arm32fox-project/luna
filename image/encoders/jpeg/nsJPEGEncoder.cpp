@@ -23,7 +23,7 @@ struct encoder_error_mgr {
 };
 
 nsJPEGEncoder::nsJPEGEncoder() : mFinished(false),
-				 mImageBuffer(nullptr), mImageBufferSize(0),
+                                 mImageBuffer(nullptr), mImageBufferSize(0),
                                  mImageBufferUsed(0), mImageBufferReadPoint(0),
                                  mCallback(nullptr),
                                  mCallbackTarget(nullptr), mNotifyThreshold(0),
