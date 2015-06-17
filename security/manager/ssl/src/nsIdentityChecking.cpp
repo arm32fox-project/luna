@@ -1177,7 +1177,7 @@ nsNSSComponent::IdentityInfoInit()
 #ifdef DEBUG
     // The debug CA info is at position 0, and is NOT on the NSS root db
     if (iEV != 0) {
-       NS_ASSERTION(entry.cert, "Could not find EV root in NSS storage");
+       NS_WARNING("Could not find debug EV root in NSS storage");
     }
 #endif
 
