@@ -23,7 +23,6 @@
 #include "mozilla/Preferences.h"
 #include "nsIObserverService.h"
 
- 
 // Used to check if external protocol schemes are usable.
 #include "nsCExternalHandlerService.h"
 #include "nsIExternalProtocolService.h"
