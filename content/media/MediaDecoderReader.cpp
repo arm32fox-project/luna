@@ -377,7 +377,10 @@ void* MediaDecoderReader::VideoQueueMemoryFunctor::operator()(void* anObject) {
                "Wrong format?");
   mozilla::layers::PlanarYCbCrImage* vi = static_cast<mozilla::layers::PlanarYCbCrImage*>(v->mImage.get());
 
-  mResult += vi->GetDataSize();
+  if (mResult && vi) {
+    mResult += vi->GetDataSize();
+  }
+  
   return nullptr;
 }
 
