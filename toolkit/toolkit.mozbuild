@@ -42,6 +42,9 @@ if CONFIG['MOZ_AUTH_EXTENSION']:
 if not CONFIG['MOZ_NATIVE_JPEG']:
     add_tier_dir('platform', 'media/libjpeg')
 
+if CONFIG['MOZ_WEBP']:
+    add_tier_dir('platform', 'media/libwebp')
+
 if CONFIG['MOZ_UPDATER']:
     if not CONFIG['MOZ_NATIVE_BZ2']:
         add_tier_dir('platform', 'modules/libbz2')
