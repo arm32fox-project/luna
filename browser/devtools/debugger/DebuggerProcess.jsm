@@ -15,7 +15,6 @@ Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
 Cu.import("resource:///modules/devtools/ViewHelpers.jsm");
 
 let require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
-let Telemetry = require("devtools/shared/telemetry");
 
 this.EXPORTED_SYMBOLS = ["BrowserDebuggerProcess"];
 
@@ -30,7 +29,6 @@ this.EXPORTED_SYMBOLS = ["BrowserDebuggerProcess"];
 this.BrowserDebuggerProcess = function BrowserDebuggerProcess(aOnClose, aOnRun) {
   this._closeCallback = aOnClose;
   this._runCallback = aOnRun;
-  this._telemetry = new Telemetry();
 
   this._initServer();
   this._initProfile();
@@ -117,8 +115,6 @@ BrowserDebuggerProcess.prototype = {
     let args = ["-no-remote", "-foreground", "-P", this._dbgProfile.name, "-chrome", DBG_XUL];
     process.runwAsync(args, args.length, { observe: () => this.close() });
 
-    this._telemetry.toolOpened("jsbrowserdebugger");
-
     dumpn("Chrome debugger is now running...");
     if (typeof this._runCallback == "function") {
       this._runCallback.call({}, this);
@@ -133,8 +129,6 @@ BrowserDebuggerProcess.prototype = {
       dumpn("Killing chrome debugging process...");
       this._dbgProcess.kill();
     }
-
-    this._telemetry.toolClosed("jsbrowserdebugger");
 
     dumpn("Chrome debugger is now closed...");
     if (typeof this._closeCallback == "function") {
