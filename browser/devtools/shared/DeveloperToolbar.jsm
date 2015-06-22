@@ -51,8 +51,6 @@ XPCOMUtils.defineLazyGetter(this, "toolboxStrings", function () {
   return Services.strings.createBundle("chrome://browser/locale/devtools/toolbox.properties");
 });
 
-let Telemetry = devtools.require("devtools/shared/telemetry");
-
 const converters = require("gcli/converters");
 
 /**
@@ -208,7 +206,6 @@ this.DeveloperToolbar = function DeveloperToolbar(aChromeWindow, aToolbarElement
   this._element.hidden = true;
   this._doc = this._element.ownerDocument;
 
-  this._telemetry = new Telemetry();
   this._lastState = NOTIFICATIONS.HIDE;
   this._pendingShowCallback = undefined;
   this._pendingHide = false;
@@ -340,8 +337,6 @@ DeveloperToolbar.prototype.show = function DT_show(aFocus, aCallback)
   }
 
   Services.prefs.setBoolPref("devtools.toolbar.visible", true);
-
-  this._telemetry.toolOpened("developertoolbar");
 
   this._notify(NOTIFICATIONS.LOAD);
   this._pendingShowCallback = aCallback;
@@ -504,7 +499,6 @@ DeveloperToolbar.prototype.hide = function DT_hide()
   this._doc.getElementById("Tools:DevToolbar").setAttribute("checked", "false");
   this.destroy();
 
-  this._telemetry.toolClosed("developertoolbar");
   this._notify(NOTIFICATIONS.HIDE);
 };
 

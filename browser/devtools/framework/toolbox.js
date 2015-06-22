@@ -8,7 +8,6 @@ const {Cc, Ci, Cu} = require("chrome");
 const MAX_ORDINAL = 99;
 let Promise = require("sdk/core/promise");
 let EventEmitter = require("devtools/shared/event-emitter");
-let Telemetry = require("devtools/shared/telemetry");
 
 Cu.import('resource://gre/modules/XPCOMUtils.jsm');
 Cu.import("resource://gre/modules/Services.jsm");
@@ -59,7 +58,6 @@ XPCOMUtils.defineLazyGetter(this, "Requisition", function() {
 function Toolbox(target, selectedTool, hostType) {
   this._target = target;
   this._toolPanels = new Map();
-  this._telemetry = new Telemetry();
 
   this._toolRegistered = this._toolRegistered.bind(this);
   this._toolUnregistered = this._toolUnregistered.bind(this);
@@ -207,8 +205,6 @@ Toolbox.prototype = {
         this._buildTabs();
         this._buildButtons();
         this._addKeysToWindow();
-
-        this._telemetry.toolOpened("toolbox");
 
         this.selectTool(this._defaultToolId).then(function(panel) {
           this.emit("ready");
@@ -497,12 +493,7 @@ Toolbox.prototype = {
     }
     let tab = this.doc.getElementById("toolbox-tab-" + id);
 
-    if (tab) {
-      if (prevToolId) {
-        this._telemetry.toolClosed(prevToolId);
-      }
-      this._telemetry.toolOpened(id);
-    } else {
+    if (! tab) {
       throw new Error("No tool found");
     }
 
@@ -761,8 +752,6 @@ Toolbox.prototype = {
     }
 
     outstanding.push(this._host.destroy());
-
-    this._telemetry.destroy();
 
     // Targets need to be notified that the toolbox is being torn down, so that
     // remote protocol connections can be gracefully terminated.

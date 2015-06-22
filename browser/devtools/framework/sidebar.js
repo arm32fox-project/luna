@@ -10,7 +10,6 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 var Promise = require("sdk/core/promise");
 var EventEmitter = require("devtools/shared/event-emitter");
-var Telemetry = require("devtools/shared/telemetry");
 
 const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
@@ -39,8 +38,6 @@ function ToolSidebar(tabbox, panel, uid, showTabstripe=true)
   try {
     this._width = Services.prefs.getIntPref("devtools.toolsidebar-width." + this._uid);
   } catch(e) {}
-
-  this._telemetry = new Telemetry();
 
   this._tabbox.tabpanels.addEventListener("select", this, true);
 
@@ -151,11 +148,9 @@ ToolSidebar.prototype = {
       let previousTool = this._currentTool;
       this._currentTool = this.getCurrentTabID();
       if (previousTool) {
-        this._telemetry.toolClosed(previousTool);
         this.emit(previousTool + "-unselected");
       }
 
-      this._telemetry.toolOpened(this._currentTool);
       this.emit(this._currentTool + "-selected");
       this.emit("select", this._currentTool);
     }
@@ -221,10 +216,6 @@ ToolSidebar.prototype = {
 
     while (this._tabbox.tabs.hasChildNodes()) {
       this._tabbox.tabs.removeChild(this._tabbox.tabs.firstChild);
-    }
-
-    if (this._currentTool) {
-      this._telemetry.toolClosed(this._currentTool);
     }
 
     this._tabs = null;
