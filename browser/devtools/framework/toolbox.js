@@ -493,7 +493,7 @@ Toolbox.prototype = {
     }
     let tab = this.doc.getElementById("toolbox-tab-" + id);
 
-    if (! tab) {
+    if (!tab) {
       throw new Error("No tool found");
     }
 
