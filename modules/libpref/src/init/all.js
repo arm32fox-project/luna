@@ -391,6 +391,7 @@ pref("accessibility.typeaheadfind.enabletimeout", true);
 pref("accessibility.typeaheadfind.soundURL", "beep");
 pref("accessibility.typeaheadfind.enablesound", true);
 pref("accessibility.typeaheadfind.prefillwithselection", true);
+pref("accessibility.typeaheadfind.matchCountTimeout", 250);
 
 // use Mac OS X Appearance panel text smoothing setting when rendering text, disabled by default
 pref("gfx.use_text_smoothing_setting", false);
@@ -862,6 +863,14 @@ pref("network.protocol-handler.external.disk", false);
 pref("network.protocol-handler.external.disks", false);
 pref("network.protocol-handler.external.afp", false);
 pref("network.protocol-handler.external.moz-icon", false);
+
+// Don't allow  external protocol handlers for common typos.
+pref("network.protocol-handler.external.ttp", false);  // http
+pref("network.protocol-handler.external.ttps", false); // https
+pref("network.protocol-handler.external.tps", false);  // https
+pref("network.protocol-handler.external.ps", false);   // https
+pref("network.protocol-handler.external.ile", false);  // file
+pref("network.protocol-handler.external.le", false);   // file
 
 // An exposed protocol handler is one that can be used in all contexts.  A
 // non-exposed protocol handler is one that can only be used internally by the

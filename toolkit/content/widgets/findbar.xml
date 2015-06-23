@@ -228,6 +228,7 @@
                     accesskey="&caseSensitiveCheckbox.accesskey;"
                     xbl:inherits="accesskey=matchcaseaccesskey"/>
       <xul:label anonid="match-case-status" class="findbar-find-fast"/>
+	  <xul:label anonid="found-matches" class="findbar-find-fast found-matches" hidden="true"/>
       <xul:image anonid="find-status-icon" class="findbar-find-fast find-status-icon"/>
       <xul:description anonid="find-status" class="findbar-find-fast findbar-find-status"
                        control="findbar-textbox">
@@ -362,6 +363,7 @@
       <constructor><![CDATA[
         // These elements are accessed frequently and are therefore cached
         this._findField = this.getElement("findbar-textbox");
+		this._foundMatches = this.getElement("found-matches");
         this._findStatusIcon = this.getElement("find-status-icon");
         this._findStatusDesc = this.getElement("find-status");
 
@@ -377,6 +379,8 @@
           prefsvc.getIntPref("accessibility.typeaheadfind.timeout");
         this._flashFindBar =
           prefsvc.getIntPref("accessibility.typeaheadfind.flashBar");
+		this._matchCountTimeoutLength =
+		  prefsvc.getIntPref("accessibility.typeaheadfind.matchCountTimeout");
 
         prefsvc.addObserver("accessibility.typeaheadfind",
                             this._observer, false);
@@ -896,6 +900,269 @@
       </method>
 
       <!--
+        - Determines whether a range is inside a link.
+        - @param aRange
+        -        the range to check
+        - @returns true if the range starts in a link
+        -->
+      <method name="_rangeStartsInLink">
+        <parameter name="aRange"/>
+        <body><![CDATA[
+          var isInsideLink = false;
+
+          var node = aRange.startContainer;
+
+          if (node.nodeType == node.ELEMENT_NODE) {
+            if (node.hasChildNodes) {
+              var childNode = node.childNodes[aRange.startOffset];
+              if (childNode)
+                node = childNode;
+            }
+          }
+
+          const XLink_NS = "http://www.w3.org/1999/xlink";
+          do {
+            if (node instanceof HTMLAnchorElement) {
+              isInsideLink = node.hasAttribute("href");
+              break;
+            }
+            else if (typeof node.hasAttributeNS == "function" &&
+                     node.hasAttributeNS(XLink_NS, "href")) {
+              isInsideLink = (node.getAttributeNS(XLink_NS, "type") == "simple");
+              break;
+            }
+
+            node = node.parentNode;
+          } while (node);
+
+          return isInsideLink;
+        ]]></body>
+      </method>
+
+      <!--
+        - Determines whether a range is visible.
+        - @param aRange
+        -        the range to check
+        - @param aWindow
+        -        the window to check the visibility in
+        - @returns true if the range is visible
+        -->
+      <method name="_rangeIsVisible">
+        <parameter name="aRange"/>
+        <parameter name="aWindow"/>
+        <body><![CDATA[
+          var node = aRange.startContainer;
+
+          if (node.nodeType == node.ELEMENT_NODE) {
+            if (node.hasChildNodes) {
+              var childNode = node.childNodes[aRange.startOffset];
+              if (childNode)
+                node = childNode;
+            }
+          }
+
+          return this._nodeIsVisible(node, aWindow);
+        ]]></body>
+      </method>
+
+      <!--
+        - Determines whether an element node is visible.
+        - @param aNode
+        -        the node to check
+        - @param aWindow
+        -        the window to check the visibility in. Optional.
+        - @returns true if the node is visible
+        -->
+      <method name="_nodeIsVisible">
+        <parameter name="aNode"/>
+        <parameter name="aWindow"/>
+        <body><![CDATA[
+          while (aNode && aNode.nodeType != aNode.ELEMENT_NODE)
+            aNode = aNode.parentNode;
+
+          // There is no perfect way to check if a node is visible in JavaScript,
+          // so use the best measures we can
+          if (aNode) {
+            aWindow = aWindow || aNode.ownerDocument.defaultView;
+            let style = aWindow.getComputedStyle(aNode, "");
+            if (style) {
+              if (style.visibility == "hidden" ||
+                  style.visibility == "collapse" ||
+                  style.display == "none") {
+                return false;
+              }
+              if (style.left != "auto" && style.width != "auto") {
+                if (style.left < 0 && style.left + style.width < 0)
+                  return false;
+              }
+              if (style.top != "auto" && style.height != "auto") {
+                if (style.top < 0 && style.top + style.height < 0)
+                  return false;
+              }
+            }
+          }
+
+          return true;
+        ]]></body>
+      </method>
+
+      <!-- The maximum number of matches shown (for performance reasons) -->
+      <field name="matchLimit">100</field>
+      <field name="_pluralForm">null</field>
+      <property name="pluralForm">
+        <getter><![CDATA[
+          if (!this._pluralForm) {
+            this._pluralForm = Components.utils.import(
+                               "resource://gre/modules/PluralForm.jsm", {}).PluralForm;
+          }
+          return this._pluralForm;
+        ]]></getter>
+      </property>
+
+      <!--
+        - Counts the number of matches for the searched word in the passed
+        - window's content.
+        - @param aWord
+        -        the word to search for
+        - @param aWindow
+        -        the window to search in. Passing undefined will search the
+        -        current content window.
+        - @returns the number of matches, or -1 stating too many matches
+        -->
+      <method name="_countMatches">
+        <parameter name="aWord"/>
+        <parameter name="aWindow"/>
+        <body><![CDATA[
+          let win = aWindow || this.browser.contentWindow;
+
+          let countFound = 0;
+          let countCurrent = 0;
+          for (let i = 0, count; win.frames && i < win.frames.length; i++) {
+            // Don't count matches in hidden frames.
+            if (!win.frames[i] || !this._nodeIsVisible(win.frames[i]))
+              continue;
+            countFound += this._countMatches(aWord, win.frames[i]).total;
+          }
+
+          let doc = win.document;
+          if (!doc || !(doc instanceof HTMLDocument))
+            return {current: countCurrent, total: countFound};
+
+          let body = doc.body;
+
+          let count = body.childNodes.length;
+          let searchRange = doc.createRange();
+          let startPt = doc.createRange();
+          let endPt = doc.createRange();
+
+          searchRange.setStart(body, 0);
+          searchRange.setEnd(body, count);
+
+          startPt.setStart(body, 0);
+          startPt.setEnd(body, 0);
+          endPt.setStart(body, count);
+          endPt.setEnd(body, count);
+
+          let retRange = null;
+          let incr = false;
+          let foundRange = this.browser.fastFind.getFoundRange();
+          let currentFound = false;
+          let isSameRange = false;
+          let finder = Components.classes["@mozilla.org/embedcomp/rangefind;1"]
+                                 .createInstance()
+                                 .QueryInterface(Components.interfaces.nsIFind);
+
+          finder.caseSensitive = this._shouldBeCaseSensitive(aWord);
+
+          countFound = 0;
+          while ((retRange = finder.Find(aWord, searchRange, startPt, endPt))) {
+            isSameRange = (foundRange &&
+                           retRange.startContainer == foundRange.startContainer &&
+                           retRange.startOffset == foundRange.startOffset &&
+                           retRange.endContainer == foundRange.endContainer &&
+                           retRange.endOffset == foundRange.endOffset);
+            incr = false;
+            if (this._rangeIsVisible(retRange, win)) {
+              if (this._findMode == this.FIND_LINKS) {
+                if (this._rangeStartsInLink(retRange))
+                  incr = true;
+              } else {
+                incr = true;
+              }
+            }
+            if (incr) {
+              ++countFound;
+              if (!currentFound) {
+                ++countCurrent;
+                if (isSameRange)
+                  currentFound = true;
+              }
+            }
+            if (countFound == this.matchLimit) {
+              countFound = -1;
+              break;
+            }
+            startPt = doc.createRange();
+            startPt.setStart(retRange.startContainer, retRange.startOffset + 1);
+          }
+
+          return {current: countCurrent, total: countFound};
+        ]]></body>
+      </method>
+
+      <method name="_updateMatchesCountWorker">
+        <parameter name="aRes"/>
+        <body><![CDATA[
+          let word = this._findField.value;
+          if (aRes == this.nsITypeAheadFind.FIND_NOTFOUND || !word) {
+            this._foundMatches.hidden = true;
+            this._foundMatches.value = "";
+          } else {
+            let matchesCount = this._countMatches(word);
+            if (matchesCount.total !== 0) {
+              if (matchesCount.total == -1) {
+                this._foundMatches.value = this.pluralForm.get(
+                  this.matchLimit,
+                  this.strBundle.GetStringFromName("FoundTooManyMatches")
+                ).replace("#1", this.matchLimit);
+              } else {
+                this._foundMatches.value = this.pluralForm.get(
+                  matchesCount.total,
+                  this.strBundle.GetStringFromName("FoundMatches")
+                ).replace("#1", matchesCount.current)
+                 .replace("#2", matchesCount.total);
+              }
+              this._foundMatches.hidden = false;
+            } else {
+              this._foundMatches.hidden = true;
+              this._foundMatches.value = "";
+            }
+
+            window.clearTimeout(this._updateMatchCountTimeout);
+            this._updateMatchCountTimeout = null;
+          }
+        ]]></body>
+      </method>
+
+      <!--
+        - Updates the search match count after each find operation on a new string.
+        - @param aRes
+        -        the result of the find operation
+        -->
+      <method name="_updateMatchesCount">
+        <parameter name="aRes"/>
+        <body><![CDATA[
+          if (this._updateMatchCountTimeout) {
+            window.clearTimeout(this._updateMatchCountTimeout);
+            this._updateMatchCountTimeout = null;
+          }
+          this._updateMatchCountTimeout =
+            window.setTimeout(() => this._updateMatchesCountWorker(aRes),
+                              this._matchCountTimeoutLength);
+        ]]></body>
+      </method>
+
+      <!--
         - Turns highlight on or off.
         - @param aHighlight (boolean)
         -        Whether to turn the highlight on or off
@@ -1082,6 +1349,9 @@
 
           var fastFind = this.browser.fastFind;
           fastFind.caseSensitive = caseSensitive;
+		  
+		  // Update the matches count
+		  this._updateMatchesCount(this.nsITypeAheadFind.FIND_FOUND);
         ]]></body>
       </method>
 
@@ -1104,6 +1374,19 @@
           this._dispatchFindEvent("casesensitivitychange");
         ]]></body>
       </method>
+	  
+	  <field name="_strBundle">null</field>
+	  <property name="strBundle">
+	    <getter><![CDATA[
+		  if (!this._strBundle) {
+		    this._strBundle =
+			  Components.classes["@mozilla.org/intl/stringbundle;1"]
+			            .getService(Components.interfaces.nsIStringBundleService)
+						.createBundle("chrome://global/locale/findbar.properties");
+		  }
+		  return this._strBundle;
+		]]></getter>
+      </property>
 
       <!--
         - Opens and displays the find bar.
@@ -1121,10 +1404,7 @@
             this._findMode = aMode;
 
           if (!this._notFoundStr) {
-            var stringsBundle =
-              Components.classes["@mozilla.org/intl/stringbundle;1"]
-                        .getService(Components.interfaces.nsIStringBundleService)
-                        .createBundle("chrome://global/locale/findbar.properties");
+            var stringsBundle = this.strBundle;
             this._notFoundStr = stringsBundle.GetStringFromName("NotFound");
             this._wrappedToTopStr =
               stringsBundle.GetStringFromName("WrappedToTop");
@@ -1675,6 +1955,7 @@
               this._findField.removeAttribute("status");
               break;
           }
+		  this._updateMatchesCount(res);
         ]]></body>
       </method>
 

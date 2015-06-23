@@ -20,8 +20,6 @@ Cu.import("resource://gre/modules/devtools/gcli.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 
 var require = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools.require;
-let Telemetry = require("devtools/shared/telemetry");
-let telemetry = new Telemetry();
 
 XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
                                   "resource:///modules/devtools/gDevTools.jsm");
@@ -1978,11 +1976,6 @@ gcli.addCommand({
     var window = context.environment.window;
     var wUtils = window.QueryInterface(Ci.nsIInterfaceRequestor)
                        .getInterface(Ci.nsIDOMWindowUtils);
-    if (wUtils.paintFlashing) {
-      telemetry.toolOpened("paintflashing");
-    } else {
-      telemetry.toolClosed("paintflashing");
-    }
   }
 }(this));
 
