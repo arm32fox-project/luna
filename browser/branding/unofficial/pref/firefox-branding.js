@@ -69,11 +69,6 @@ pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW6
 // Enable Firefox compatibility mode globally?
 pref("general.useragent.compatMode.firefox", false);
 
-// ****************** Networking config ******************
-
-pref("network.dnsCacheEntries", 128); //cache up to this many entries in-browser
-pref("network.dnsCacheExpiration", 300); //TTL 5 minutes
-
 // ****************** UI config ******************
 
 pref("browser.tabs.insertRelatedAfterCurrent", false); //use old method of tabbed browsing instead of "Chrome" style

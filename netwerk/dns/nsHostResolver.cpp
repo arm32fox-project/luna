@@ -544,15 +544,13 @@ nsHostResolver::ResolveHost(const char            *host,
                 // put reference to host record on stack...
                 result = he->rec;
 
-                // For entries that are in the grace period with a failed connect,
-                // or all cached negative entries, use the cache but start a new lookup in
-                // the background
+                // For entries that are in the grace period or all cached negative entries,
+                // use the cache but start a new lookup in the background.
                 {
                     MutexAutoLock lock(he->rec->addr_info_lock);
 
-                    if ((((TimeStamp::NowLoRes() > he->rec->expiration) &&
-                          he->rec->mBlacklistedItems.Length()) ||
-                         he->rec->negative) && !he->rec->resolving) {
+                    if (((TimeStamp::NowLoRes() > he->rec->expiration) ||
+                          he->rec->negative) && !he->rec->resolving) {
                         LOG(("Using %s cache entry for host [%s] but starting async renewal.",
                              he->rec->negative ? "negative" :"positive", host));
                         IssueLookup(he->rec);

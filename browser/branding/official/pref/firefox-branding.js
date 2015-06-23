@@ -83,11 +83,6 @@ pref("general.useragent.compatMode.firefox", true);
 pref("plugin.default.state", 2); //Allow plugins to run by default
 pref("plugin.expose_full_path", true); //Security: expose the full path to the plugin
 
-// ****************** Networking config ******************
-
-pref("network.dnsCacheEntries", 128); //cache up to this many entries in-browser
-pref("network.dnsCacheExpiration", 300); //TTL 5 minutes
-
 // ****************** Renderer config ******************
 
 pref("gfx.color_management.mode",2); //Use CMS for images with ICC profile.

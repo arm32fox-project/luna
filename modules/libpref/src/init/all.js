@@ -1264,10 +1264,16 @@ pref("network.dns.ipv4OnlyDomains", "");
 // This preference can be used to turn off IPv6 name lookups. See bug 68796.
 pref("network.dns.disableIPv6", false);
 
+//Cache up to this many DNS entries in-browser
+pref("network.dnsCacheEntries", 256); 
+
+//TTL for cached positive DNS responses in seconds
+pref("network.dnsCacheExpiration", 600); 
+
 // The grace period allows the DNS cache to use expired entries, while kicking off
-// a revalidation in the background. In seconds, but rounded to minutes in goanna.
-// Default to 30 days. (basically forever)
-pref("network.dnsCacheExpirationGracePeriod", 2592000);
+// a revalidation in the background. In seconds, but rounded to minutes in Goanna.
+// Defaults to 2 minutes.
+pref("network.dnsCacheExpirationGracePeriod", 120);
 
 // This preference can be used to turn off DNS prefetch.
 // Disable DNS prefetching to prevent router hangups
