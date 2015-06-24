@@ -1383,7 +1383,12 @@ CSPSource.fromString = function(aStr, aCSPRep, self, enforceSelfChecks) {
 
   // check for 'unsafe-inline' (case insensitive)
   if (aStr.toUpperCase() === "'UNSAFE-INLINE'"){
-    sObj._allowUnsafeInline = true;
+    //ignore this if we have a nonce specified
+    if (CSPPrefObserver.experimentalEnabled && R_NONCESRC.test(aStr)) {
+      sObj._allowUnsafeInline = false;
+    } else {
+      sObj._allowUnsafeInline = true;
+    }
     return sObj;
   }
 
