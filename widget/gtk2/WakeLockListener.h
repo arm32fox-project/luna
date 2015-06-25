@@ -30,7 +30,8 @@ public:
   static WakeLockListener* GetSingleton(bool aCreate = true);
   static void Shutdown();
 
-  nsresult Callback(const nsAString& topic, const nsAString& state);
+  nsresult Callback(const nsAString& topic,
+                    const nsAString& state) override;
 
 private:
   WakeLockListener();
