@@ -69,6 +69,8 @@
 #include "CanvasImageCache.h"
 
 #include <algorithm>
+#include <stdlib.h>
+#include <time.h>
 
 #include "jsapi.h"
 #include "jsfriendapi.h"
@@ -1021,6 +1023,15 @@ CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
   ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
   ctx->SetSource(surface, gfxPoint(0, 0));
   ctx->Paint();
+  
+  bool PoisonData = Preferences::GetBool("canvas.poisondata",false);
+  if (PoisonData) {
+    srand(time(NULL));
+    for (int32_t j = 0; j < mWidth * mHeight * 4; ++j) {
+      if (imageBuffer[j] !=0 && imageBuffer[j] != 255)
+        imageBuffer[j] += rand() % 3 - 1;
+    }
+  }
 
   rv = encoder->InitFromData(imageBuffer.get(),
                               mWidth * mHeight * 4, mWidth, mHeight, mWidth * 4,
@@ -3470,6 +3481,14 @@ CanvasRenderingContext2D::GetImageData(JSContext* aCx, double aSx,
   return imageData.forget();
 }
 
+inline uint8_t PoisonValue(uint8_t v)
+{
+  if (v==0 || v==255)
+    return v; //don't fuzz edges to prevent overflow/underflow
+    
+  return v + rand() %3 -1;
+}
+
 nsresult
 CanvasRenderingContext2D::GetImageDataArray(JSContext* aCx,
                                             int32_t aX,
@@ -3479,6 +3498,10 @@ CanvasRenderingContext2D::GetImageDataArray(JSContext* aCx,
                                             JSObject** aRetval)
 {
   MOZ_ASSERT(aWidth && aHeight);
+  
+  bool PoisonData = Preferences::GetBool("canvas.poisondata",false);
+  if (PoisonData)
+    srand(time(NULL));
 
   CheckedInt<uint32_t> len = CheckedInt<uint32_t>(aWidth) * aHeight * 4;
   if (!len.isValid()) {
@@ -3534,20 +3557,31 @@ CanvasRenderingContext2D::GetImageDataArray(JSContext* aCx,
   // inherited from Thebes canvas and is no longer true
   uint8_t* dst = data + dstWriteRect.y * (aWidth * 4) + dstWriteRect.x * 4;
 
+  uint8_t a,r,g,b;
+  
   for (int32_t j = 0; j < dstWriteRect.height; ++j) {
     for (int32_t i = 0; i < dstWriteRect.width; ++i) {
       // XXX Is there some useful swizzle MMX we can use here?
 #ifdef IS_LITTLE_ENDIAN
-      uint8_t b = *src++;
-      uint8_t g = *src++;
-      uint8_t r = *src++;
-      uint8_t a = *src++;
+      b = *src++;
+      g = *src++;
+      r = *src++;
+      a = *src++;
 #else
-      uint8_t a = *src++;
-      uint8_t r = *src++;
-      uint8_t g = *src++;
-      uint8_t b = *src++;
+      a = *src++;
+      r = *src++;
+      g = *src++;
+      b = *src++;
 #endif
+
+      // Poison data for trackers if enabled
+      if (PoisonData) {
+        PoisonValue(a);
+        PoisonValue(r);
+        PoisonValue(g);
+        PoisonValue(b);
+      }
+      
       // Convert to non-premultiplied color
       *dst++ = gfxUtils::sUnpremultiplyTable[a * 256 + r];
       *dst++ = gfxUtils::sUnpremultiplyTable[a * 256 + g];

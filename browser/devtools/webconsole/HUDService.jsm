@@ -36,8 +36,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "Promise",
 XPCOMUtils.defineLazyModuleGetter(this, "Heritage",
     "resource:///modules/devtools/ViewHelpers.jsm");
 
-let Telemetry = devtools.require("devtools/shared/telemetry");
-
 const STRINGS_URI = "chrome://browser/locale/devtools/webconsole.properties";
 let l10n = new WebConsoleUtils.l10n(STRINGS_URI);
 
@@ -527,7 +525,6 @@ WebConsole.prototype = {
 function BrowserConsole()
 {
   WebConsole.apply(this, arguments);
-  this._telemetry = new Telemetry();
 }
 
 BrowserConsole.prototype = Heritage.extend(WebConsole.prototype,
@@ -565,8 +562,6 @@ BrowserConsole.prototype = Heritage.extend(WebConsole.prototype,
     // Make sure Ctrl-W closes the Browser Console window.
     window.document.getElementById("cmd_close").removeAttribute("disabled");
 
-    this._telemetry.toolOpened("browserconsole");
-
     this._bc_init = this.$init();
     return this._bc_init;
   },
@@ -584,8 +579,6 @@ BrowserConsole.prototype = Heritage.extend(WebConsole.prototype,
     if (this._bc_destroyer) {
       return this._bc_destroyer.promise;
     }
-
-    this._telemetry.toolClosed("browserconsole");
 
     this._bc_destroyer = Promise.defer();
 

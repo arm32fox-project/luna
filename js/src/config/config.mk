@@ -381,7 +381,7 @@ JAVA_IFACES_PKG_NAME = org/mozilla/interfaces
 OS_INCLUDES += $(MOZ_JPEG_CFLAGS) $(MOZ_PNG_CFLAGS) $(MOZ_ZLIB_CFLAGS)
 
 ifndef MOZ_TREE_PIXMAN
-OS_INCLUDES += $(pkg-config --cflags pixman-1)
+OS_INCLUDES += $(shell pkg-config --cflags pixman-1 || true)
 endif
 
 # NSPR_CFLAGS and NSS_CFLAGS must appear ahead of OS_INCLUDES to avoid Linux

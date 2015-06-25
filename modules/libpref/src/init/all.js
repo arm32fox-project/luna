@@ -391,6 +391,7 @@ pref("accessibility.typeaheadfind.enabletimeout", true);
 pref("accessibility.typeaheadfind.soundURL", "beep");
 pref("accessibility.typeaheadfind.enablesound", true);
 pref("accessibility.typeaheadfind.prefillwithselection", true);
+pref("accessibility.typeaheadfind.matchCountTimeout", 250);
 
 // use Mac OS X Appearance panel text smoothing setting when rendering text, disabled by default
 pref("gfx.use_text_smoothing_setting", false);
@@ -862,6 +863,14 @@ pref("network.protocol-handler.external.disk", false);
 pref("network.protocol-handler.external.disks", false);
 pref("network.protocol-handler.external.afp", false);
 pref("network.protocol-handler.external.moz-icon", false);
+
+// Don't allow  external protocol handlers for common typos.
+pref("network.protocol-handler.external.ttp", false);  // http
+pref("network.protocol-handler.external.ttps", false); // https
+pref("network.protocol-handler.external.tps", false);  // https
+pref("network.protocol-handler.external.ps", false);   // https
+pref("network.protocol-handler.external.ile", false);  // file
+pref("network.protocol-handler.external.le", false);   // file
 
 // An exposed protocol handler is one that can be used in all contexts.  A
 // non-exposed protocol handler is one that can only be used internally by the
@@ -1491,6 +1500,7 @@ pref("security.notification_enable_delay", 500);
 
 pref("security.csp.enable", true);
 pref("security.csp.debug", false);
+pref("security.csp.experimentalEnabled", false);
 
 // Mixed content blocking
 pref("security.mixed_content.block_active_content", false);
@@ -3657,6 +3667,7 @@ pref("signon.autofillForms",                true);
 pref("signon.autologin.proxy",              false);
 pref("signon.storeWhenAutocompleteOff",     true);
 pref("signon.debug",                        false);
+pref("signon.ignoreAutocomplete",           true);
 
 // Satchel (Form Manager) prefs
 pref("browser.formfill.debug",            false);
@@ -3775,6 +3786,10 @@ pref("image.multithreaded_decoding.limit", -1);
 // Limit for the canvas image cache. 0 means we don't limit the size of the
 // cache.
 pref("canvas.image.cache.limit", 0);
+
+// Allow track-fobics to deliberately poison canvas data for
+// toDataURL() and getImageData()
+pref("canvas.poisondata", false);
 
 // How many images to eagerly decode on a given page. 0 means "no limit".
 pref("image.onload.decode.limit", 0);

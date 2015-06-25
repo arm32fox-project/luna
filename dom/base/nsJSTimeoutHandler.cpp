@@ -270,7 +270,8 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
           csp->LogViolationDetails(nsIContentSecurityPolicy::VIOLATION_TYPE_EVAL,
                                    NS_ConvertUTF8toUTF16(aFileName),
                                    scriptSample,
-                                   lineNum);
+                                   lineNum,
+                                   EmptyString());
         }
 
         if (!allowsEval) {
