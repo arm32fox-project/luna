@@ -361,7 +361,7 @@ WakeLockListener::Callback(const nsAString& topic, const nsAString& state)
     mTopics.Put(topic, topicLock);
   }
 
-  // Treat "locked-background" the same as "unlocked" on desktop linux.
+  // Treat "locked-background" the same as "unlocked" on desktop Linux.
   bool shouldLock = state.EqualsLiteral("locked-foreground");
 
   return shouldLock ?

@@ -81,8 +81,8 @@ nsAppShell::Init()
 #endif
 
 #ifdef MOZ_ENABLE_DBUS
-    nsCOMPtr<nsIPowerManagerService> sPowerManagerService = nullptr;
-    nsCOMPtr<nsIDOMMozWakeLockListener> sWakeLockListener = nullptr;
+    nsCOMPtr<nsIPowerManagerService> sPowerManagerService =
+      do_GetService(POWERMANAGERSERVICE_CONTRACTID);
 
     if (sPowerManagerService) {
         sPowerManagerService->AddWakeLockListener(WakeLockListener::GetSingleton());
