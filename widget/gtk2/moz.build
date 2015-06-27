@@ -27,7 +27,6 @@ CPP_SOURCES += [
     'nsScreenManagerGtk.cpp',
     'nsSound.cpp',
     'nsToolkit.cpp',
-    'WakeLockListener.cpp',
     'nsWidgetFactory.cpp',
     'nsWindow.cpp',
 ]
