@@ -25,6 +25,13 @@ HOST_CPPSRCS = \
 
 OS_CXXFLAGS := $(filter-out -fno-exceptions,$(OS_CXXFLAGS)) -fexceptions
 
+FNO_LTO_CFLAGS:=$(filter-out -flto, $(CFLAGS))
+test-array.c: test-array.c ...
+        $(CC) $(FNO_LTO_CFLAGS) -o $@ -c $<
+
+test-ctors.c: test-ctors.c ...
+        $(CC) $(FNO_LTO_CFLAGS) -o $@ -c $<
+
 ifneq (,$(filter %86,$(TARGET_CPU)))
 CPU := x86
 else
