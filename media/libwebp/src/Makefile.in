@@ -57,8 +57,11 @@ EXPORTS_webp = \
   utils/huffman_encode.h \
   utils/rescaler.h \
   dsp/dsp.h \
-  dsp/yuv.h \
   dsp/lossless.h \
+  dsp/neon.h \
+  dsp/yuv.h \
+  dsp/yuv_tables_sse2.h \
+  dec/alphai.h \
   dec/vp8i.h \
   dec/decode_vp8.h \
   dec/vp8li.h \
@@ -73,6 +76,8 @@ EXPORTS_webp = \
 CSRCS += \
   enc/alpha.c \
   dec/alpha.c \
+  dsp/alpha_processing.c \
+  dsp/alpha_processing_sse2.c \
   enc/analysis.c \
   utils/bit_reader.c \
   utils/bit_writer.c \
@@ -81,9 +86,14 @@ CSRCS += \
   enc/config.c \
   dsp/cpu.c \
   dsp/dec.c \
+  dsp/dec_clip_tables.c \
+  dsp/dec_mips32.c \
   dsp/dec_neon.c \
   dsp/dec_sse2.c \
   dsp/enc.c \
+  dsp/enc_avx2.c \
+  dsp/enc_mips32.c \
+  dsp/enc_neon.c \
   dsp/enc_sse2.c \
   utils/filters.c \
   dec/frame.c \
@@ -92,14 +102,20 @@ CSRCS += \
   utils/huffman_encode.c \
   dec/idec.c \
   dec/io.c \
-  dec/layer.c \
-  enc/layer.c \
   dsp/lossless.c \
+  dsp/lossless_mips32.c \
+  dsp/lossless_neon.c \
+  dsp/lossless_sse2.c\
   enc/picture.c \
+  enc/picture_csp.c \
+  enc/picture_psnr.c \
+  enc/picture_rescale.c \
+  enc/picture_tools.c \
   dec/quant.c \
   enc/quant.c \
   utils/quant_levels.c \
   utils/quant_levels_dec.c \
+  utils/random.c \
   utils/rescaler.c \
   enc/syntax.c \
   utils/thread.c \
@@ -107,6 +123,7 @@ CSRCS += \
   enc/tree.c \
   enc/token.c \
   dsp/upsampling.c \
+  dsp/upsampling_neon.c \
   dsp/upsampling_sse2.c \
   utils/utils.c \
   dec/vp8.c \
@@ -120,6 +137,8 @@ CSRCS += \
   enc/histogram.c \
   enc/backward_references.c \
   dsp/yuv.c \
+  dsp/yuv_mips32.c \
+  dsp/yuv_sse2.c \
   $(NULL)
 
 include $(topsrcdir)/config/rules.mk

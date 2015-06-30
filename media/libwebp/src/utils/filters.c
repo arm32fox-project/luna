@@ -1,8 +1,10 @@
 // Copyright 2011 Google Inc. All Rights Reserved.
 //
-// This code is licensed under the same terms as WebM:
-//  Software License Agreement:  http://www.webmproject.org/license/software/
-//  Additional IP Rights Grant:  http://www.webmproject.org/license/additional/
+// Use of this source code is governed by a BSD-style license
+// that can be found in the COPYING file in the root of the source
+// tree. An additional intellectual property rights grant can be found
+// in the file PATENTS. All contributing project authors may
+// be found in the AUTHORS file in the root of the source tree.
 // -----------------------------------------------------------------------------
 //
 // Spatial prediction using various filters
@@ -14,19 +16,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-#if defined(__cplusplus) || defined(c_plusplus)
-extern "C" {
-#endif
-
 //------------------------------------------------------------------------------
 // Helpful macro.
 
-# define SANITY_CHECK(in, out)                              \
-  assert(in != NULL);                                       \
-  assert(out != NULL);                                      \
-  assert(width > 0);                                        \
-  assert(height > 0);                                       \
-  assert(stride >= width);
+# define SANITY_CHECK(in, out)                                                 \
+  assert(in != NULL);                                                          \
+  assert(out != NULL);                                                         \
+  assert(width > 0);                                                           \
+  assert(height > 0);                                                          \
+  assert(stride >= width);                                                     \
+  assert(row >= 0 && num_rows > 0 && row + num_rows <= height);                \
+  (void)height;  // Silence unused warning.
 
 static WEBP_INLINE void PredictLine(const uint8_t* src, const uint8_t* pred,
                                     uint8_t* dst, int length, int inverse) {
@@ -43,20 +43,32 @@ static WEBP_INLINE void PredictLine(const uint8_t* src, const uint8_t* pred,
 
 static WEBP_INLINE void DoHorizontalFilter(const uint8_t* in,
                                            int width, int height, int stride,
+                                           int row, int num_rows,
                                            int inverse, uint8_t* out) {
-  int h;
-  const uint8_t* preds = (inverse ? out : in);
+  const uint8_t* preds;
+  const size_t start_offset = row * stride;
+  const int last_row = row + num_rows;
   SANITY_CHECK(in, out);
+  in += start_offset;
+  out += start_offset;
+  preds = inverse ? out : in;
+
+  if (row == 0) {
+    // Leftmost pixel is the same as input for topmost scanline.
+    out[0] = in[0];
+    PredictLine(in + 1, preds, out + 1, width - 1, inverse);
+    row = 1;
+    preds += stride;
+    in += stride;
+    out += stride;
+  }
 
   // Filter line-by-line.
-  for (h = 0; h < height; ++h) {
-    // Leftmost pixel is predicted from above (except for topmost scanline).
-    if (h == 0) {
-      out[0] = in[0];
-    } else {
-      PredictLine(in, preds - stride, out, 1, inverse);
-    }
+  while (row < last_row) {
+    // Leftmost pixel is predicted from above.
+    PredictLine(in, preds - stride, out, 1, inverse);
     PredictLine(in + 1, preds, out + 1, width - 1, inverse);
+    ++row;
     preds += stride;
     in += stride;
     out += stride;
@@ -65,12 +77,12 @@ static WEBP_INLINE void DoHorizontalFilter(const uint8_t* in,
 
 static void HorizontalFilter(const uint8_t* data, int width, int height,
                              int stride, uint8_t* filtered_data) {
-  DoHorizontalFilter(data, width, height, stride, 0, filtered_data);
+  DoHorizontalFilter(data, width, height, stride, 0, height, 0, filtered_data);
 }
 
-static void HorizontalUnfilter(int width, int height, int stride,
-                               uint8_t* data) {
-  DoHorizontalFilter(data, width, height, stride, 1, data);
+static void HorizontalUnfilter(int width, int height, int stride, int row,
+                               int num_rows, uint8_t* data) {
+  DoHorizontalFilter(data, width, height, stride, row, num_rows, 1, data);
 }
 
 //------------------------------------------------------------------------------
@@ -78,32 +90,47 @@ static void HorizontalUnfilter(int width, int height, int stride,
 
 static WEBP_INLINE void DoVerticalFilter(const uint8_t* in,
                                          int width, int height, int stride,
+                                         int row, int num_rows,
                                          int inverse, uint8_t* out) {
-  int h;
-  const uint8_t* preds = (inverse ? out : in);
+  const uint8_t* preds;
+  const size_t start_offset = row * stride;
+  const int last_row = row + num_rows;
   SANITY_CHECK(in, out);
+  in += start_offset;
+  out += start_offset;
+  preds = inverse ? out : in;
 
-  // Very first top-left pixel is copied.
-  out[0] = in[0];
-  // Rest of top scan-line is left-predicted.
-  PredictLine(in + 1, preds, out + 1, width - 1, inverse);
-
-  // Filter line-by-line.
-  for (h = 1; h < height; ++h) {
+  if (row == 0) {
+    // Very first top-left pixel is copied.
+    out[0] = in[0];
+    // Rest of top scan-line is left-predicted.
+    PredictLine(in + 1, preds, out + 1, width - 1, inverse);
+    row = 1;
     in += stride;
     out += stride;
+  } else {
+    // We are starting from in-between. Make sure 'preds' points to prev row.
+    preds -= stride;
+  }
+
+  // Filter line-by-line.
+  while (row < last_row) {
     PredictLine(in, preds, out, width, inverse);
+    ++row;
     preds += stride;
+    in += stride;
+    out += stride;
   }
 }
 
 static void VerticalFilter(const uint8_t* data, int width, int height,
                            int stride, uint8_t* filtered_data) {
-  DoVerticalFilter(data, width, height, stride, 0, filtered_data);
+  DoVerticalFilter(data, width, height, stride, 0, height, 0, filtered_data);
 }
 
-static void VerticalUnfilter(int width, int height, int stride, uint8_t* data) {
-  DoVerticalFilter(data, width, height, stride, 1, data);
+static void VerticalUnfilter(int width, int height, int stride, int row,
+                             int num_rows, uint8_t* data) {
+  DoVerticalFilter(data, width, height, stride, row, num_rows, 1, data);
 }
 
 //------------------------------------------------------------------------------
@@ -114,23 +141,31 @@ static WEBP_INLINE int GradientPredictor(uint8_t a, uint8_t b, uint8_t c) {
   return ((g & ~0xff) == 0) ? g : (g < 0) ? 0 : 255;  // clip to 8bit
 }
 
-static WEBP_INLINE
-void DoGradientFilter(const uint8_t* in, int width, int height,
-                      int stride, int inverse, uint8_t* out) {
-  const uint8_t* preds = (inverse ? out : in);
-  int h;
+static WEBP_INLINE void DoGradientFilter(const uint8_t* in,
+                                         int width, int height, int stride,
+                                         int row, int num_rows,
+                                         int inverse, uint8_t* out) {
+  const uint8_t* preds;
+  const size_t start_offset = row * stride;
+  const int last_row = row + num_rows;
   SANITY_CHECK(in, out);
+  in += start_offset;
+  out += start_offset;
+  preds = inverse ? out : in;
 
   // left prediction for top scan-line
-  out[0] = in[0];
-  PredictLine(in + 1, preds, out + 1, width - 1, inverse);
-
-  // Filter line-by-line.
-  for (h = 1; h < height; ++h) {
-    int w;
+  if (row == 0) {
+    out[0] = in[0];
+    PredictLine(in + 1, preds, out + 1, width - 1, inverse);
+    row = 1;
     preds += stride;
     in += stride;
     out += stride;
+  }
+
+  // Filter line-by-line.
+  while (row < last_row) {
+    int w;
     // leftmost pixel: predict from above.
     PredictLine(in, preds - stride, out, 1, inverse);
     for (w = 1; w < width; ++w) {
@@ -139,23 +174,27 @@ void DoGradientFilter(const uint8_t* in, int width, int height,
                                          preds[w - stride - 1]);
       out[w] = in[w] + (inverse ? pred : -pred);
     }
+    ++row;
+    preds += stride;
+    in += stride;
+    out += stride;
   }
 }
 
 static void GradientFilter(const uint8_t* data, int width, int height,
                            int stride, uint8_t* filtered_data) {
-  DoGradientFilter(data, width, height, stride, 0, filtered_data);
+  DoGradientFilter(data, width, height, stride, 0, height, 0, filtered_data);
 }
 
-static void GradientUnfilter(int width, int height, int stride, uint8_t* data) {
-  DoGradientFilter(data, width, height, stride, 1, data);
+static void GradientUnfilter(int width, int height, int stride, int row,
+                             int num_rows, uint8_t* data) {
+  DoGradientFilter(data, width, height, stride, row, num_rows, 1, data);
 }
 
 #undef SANITY_CHECK
 
 // -----------------------------------------------------------------------------
-// Quick estimate of a potentially interesting filter mode to try, in addition
-// to the default NONE.
+// Quick estimate of a potentially interesting filter mode to try.
 
 #define SMAX 16
 #define SDIFF(a, b) (abs((a) - (b)) >> 4)   // Scoring diff, in [0..SMAX)
@@ -165,6 +204,7 @@ WEBP_FILTER_TYPE EstimateBestFilter(const uint8_t* data,
   int i, j;
   int bins[WEBP_FILTER_LAST][SMAX];
   memset(bins, 0, sizeof(bins));
+
   // We only sample every other pixels. That's enough.
   for (j = 2; j < height - 1; j += 2) {
     const uint8_t* const p = data + j * stride;
@@ -184,7 +224,8 @@ WEBP_FILTER_TYPE EstimateBestFilter(const uint8_t* data,
     }
   }
   {
-    WEBP_FILTER_TYPE filter, best_filter = WEBP_FILTER_NONE;
+    int filter;
+    WEBP_FILTER_TYPE best_filter = WEBP_FILTER_NONE;
     int best_score = 0x7fffffff;
     for (filter = WEBP_FILTER_NONE; filter < WEBP_FILTER_LAST; ++filter) {
       int score = 0;
@@ -195,7 +236,7 @@ WEBP_FILTER_TYPE EstimateBestFilter(const uint8_t* data,
       }
       if (score < best_score) {
         best_score = score;
-        best_filter = filter;
+        best_filter = (WEBP_FILTER_TYPE)filter;
       }
     }
     return best_filter;
@@ -223,6 +264,3 @@ const WebPUnfilterFunc WebPUnfilters[WEBP_FILTER_LAST] = {
 
 //------------------------------------------------------------------------------
 
-#if defined(__cplusplus) || defined(c_plusplus)
-}    // extern "C"
-#endif
