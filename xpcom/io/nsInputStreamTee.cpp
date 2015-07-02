@@ -24,7 +24,7 @@ GetTeeLog()
 {
     static PRLogModuleInfo *sLog;
     if (!sLog)
-        sLog = PR_NewLogModule("nsInputStreamTee");
+        sLog = PR_NewLogModule("nsStreamTees");
     return sLog;
 }
 #define LOG(args) PR_LOG(GetTeeLog(), PR_LOG_DEBUG, args)
@@ -44,7 +44,7 @@ public:
     void InvalidateSink();
 
 private:
-    ~nsInputStreamTee() {}
+    ~nsInputStreamTee();
 
     nsresult TeeSegment(const char *buf, uint32_t count);
     
@@ -58,7 +58,8 @@ private:
     nsWriteSegmentFun         mWriter;  // for implementing ReadSegments
     void                      *mClosure; // for implementing ReadSegments
     nsAutoPtr<Mutex>          mLock; // synchronize access to mSinkIsValid
-    bool                      mSinkIsValid; // False if TeeWriteEvent fails 
+    bool                      mSinkIsValid; // False if TeeWriteEvent fails
+    bool                      mClosed; 
 };
 
 class nsInputStreamTeeWriteEvent : public nsRunnable {
@@ -133,7 +134,15 @@ private:
 
 nsInputStreamTee::nsInputStreamTee(): mLock(nullptr)
                                     , mSinkIsValid(true)
+                                    , mClosed(false)
 {
+    LOG(("nsInputStreamTee [%p]", this));
+}
+
+nsInputStreamTee::~nsInputStreamTee()
+{
+    if (!mClosed)
+        Close();
 }
 
 bool
@@ -211,6 +220,8 @@ NS_IMPL_THREADSAFE_ISUPPORTS2(nsInputStreamTee,
 NS_IMETHODIMP
 nsInputStreamTee::Close()
 {
+    LOG(("nsInputStreamTee::Close [%p]", this));
+    mClosed = true;
     NS_ENSURE_TRUE(mSource, NS_ERROR_NOT_INITIALIZED);
     nsresult rv = mSource->Close();
     mSource = 0;

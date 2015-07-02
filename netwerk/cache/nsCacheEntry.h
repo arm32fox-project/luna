@@ -47,49 +47,55 @@ public:
     nsCString *  Key()  { return &mKey; }
 
     int32_t  FetchCount()                              { return mFetchCount; }
-    void     SetFetchCount( int32_t   count)           { mFetchCount = count; }
+    void     SetFetchCount(int32_t   count)            { mFetchCount = count; }
     void     Fetched();
 
     uint32_t LastFetched()                             { return mLastFetched; }
-    void     SetLastFetched( uint32_t  lastFetched)    { mLastFetched = lastFetched; }
+    void     SetLastFetched(uint32_t  lastFetched)     { mLastFetched = lastFetched; }
 
     uint32_t LastModified()                            { return mLastModified; }
-    void     SetLastModified( uint32_t lastModified)   { mLastModified = lastModified; }
+    void     SetLastModified(uint32_t lastModified)    { mLastModified = lastModified; }
 
     uint32_t ExpirationTime()                     { return mExpirationTime; }
-    void     SetExpirationTime( uint32_t expires) { mExpirationTime = expires; }
+    void     SetExpirationTime(uint32_t expires)  { mExpirationTime = expires; }
 
     uint32_t Size()                               
         { return mDataSize + mMetaData.Size() + mKey.Length() ; }
 
     nsCacheDevice * CacheDevice()                            { return mCacheDevice; }
-    void            SetCacheDevice( nsCacheDevice * device)  { mCacheDevice = device; }
-    void            SetCustomCacheDevice( nsCacheDevice * device )
+    void            SetCacheDevice(nsCacheDevice * device)   { mCacheDevice = device; }
+    void            SetCustomCacheDevice(nsCacheDevice * device)
                                                              { mCustomDevice = device; }
     nsCacheDevice * CustomCacheDevice()                      { return mCustomDevice; }
     const char *    GetDeviceID();
 
+    nsCacheDevice * SecondaryCacheDevice()        { return mSecondaryCacheDevice; }
+    void            SetSecondaryCacheDevice(nsCacheDevice * device)
+                                                  { mSecondaryCacheDevice = device; }
     /**
      * Data accessors
      */
     nsISupports *Data()                           { return mData; }
-    void         SetData( nsISupports * data);
+    void         SetData(nsISupports * data);
+
+    nsISupports *GetBinding()                     { return mBinding; }
+    void         SetBinding(nsISupports * binding);
 
     int64_t  PredictedDataSize()                  { return mPredictedDataSize; }
     void     SetPredictedDataSize(int64_t size)   { mPredictedDataSize = size; }
 
     uint32_t DataSize()                           { return mDataSize; }
-    void     SetDataSize( uint32_t  size)         { mDataSize = size; }
+    void     SetDataSize(uint32_t  size)          { mDataSize = size; }
 
     void     TouchData();
     
     /**
      * Meta data accessors
      */
-    const char * GetMetaDataElement( const char *  key) { return mMetaData.GetElement(key); }
-    nsresult     SetMetaDataElement( const char *  key,
-                                     const char *  value) { return mMetaData.SetElement(key, value); }
-    nsresult VisitMetaDataElements( nsICacheMetaDataVisitor * visitor) { return mMetaData.VisitElements(visitor); }
+    const char * GetMetaDataElement(const char *  key) { return mMetaData.GetElement(key); }
+    nsresult     SetMetaDataElement(const char *  key,
+                                    const char *  value) { return mMetaData.SetElement(key, value); }
+    nsresult VisitMetaDataElements(nsICacheMetaDataVisitor * visitor) { return mMetaData.VisitElements(visitor); }
     nsresult FlattenMetaData(char * buffer, uint32_t bufSize) { return mMetaData.FlattenMetaData(buffer, bufSize); }
     nsresult UnflattenMetaData(const char * buffer, uint32_t bufSize) { return mMetaData.UnflattenMetaData(buffer, bufSize); }
     uint32_t MetaDataSize() { return mMetaData.Size(); }  
@@ -221,8 +227,10 @@ private:
     uint32_t                mDataSize;       // 4
     nsCacheDevice *         mCacheDevice;    // 4
     nsCacheDevice *         mCustomDevice;   // 4
+    nsCacheDevice *         mSecondaryCacheDevice;// 4
     nsCOMPtr<nsISupports>   mSecurityInfo;   // 
     nsISupports *           mData;           // strong ref
+    nsISupports *           mBinding;        // strong ref
     nsCOMPtr<nsIThread>     mThread;
     nsCacheMetaData         mMetaData;       // 4
     PRCList                 mRequestQ;       // 8

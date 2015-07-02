@@ -16,6 +16,7 @@
 
 #include "nsDiskCacheMap.h"
 #include "nsDiskCacheStreams.h"
+#include "nsIStorageStream.h"
 
 
 /******************************************************************************
