@@ -13,6 +13,7 @@
 #include "nsIMemoryReporter.h"
 #include "nsCRT.h"
 #include "nsReadableUtils.h"
+#include "nsOutputStreamTee.h"
 #include <algorithm>
 
 // The memory cache implements the "LRU-SP" caching algorithm
@@ -154,12 +155,28 @@ nsMemoryCacheDevice::DeactivateEntry(nsCacheEntry * entry)
 {
     CACHE_LOG_DEBUG(("nsMemoryCacheDevice::DeactivateEntry for entry 0x%p\n",
                      entry));
+
+    // If there is a secondary device ask it to deactivate entry also
+    nsCacheDevice *backupDevice = entry->SecondaryCacheDevice();
+    if (backupDevice) {
+        CACHE_LOG_DEBUG(("  deactivating %p in device %s\n",
+                          entry, backupDevice->GetDeviceID()));
+        backupDevice->DeactivateEntry(entry); // ignore result...
+    } else {
+        // This just means it has not been written to...
+        CACHE_LOG_DEBUG(("  no secondary device [entry 0x%p]\n", entry));
+    }
+
     if (entry->IsDoomed()) {
 #ifdef DEBUG
         // XXX verify we've removed it from mMemCacheEntries & eviction list
 #endif
-        delete entry;
-        CACHE_LOG_DEBUG(("deleted doomed entry 0x%p\n", entry));
+        // If there was a backupdevice, it will process the deactivation in
+        // an async event later so we cannot delete the entry here...
+        if (!backupDevice) {
+            delete entry;
+            CACHE_LOG_DEBUG(("deleted doomed entry 0x%p\n", entry));
+        }
         return NS_OK;
     }
 
@@ -181,6 +198,7 @@ nsMemoryCacheDevice::DeactivateEntry(nsCacheEntry * entry)
 nsresult
 nsMemoryCacheDevice::BindEntry(nsCacheEntry * entry)
 {
+    CACHE_LOG_DEBUG(("Binding entry %p in memory cache\n", entry));
     if (!entry->IsDoomed()) {
         NS_ASSERTION(PR_CLIST_IS_EMPTY(entry),"entry is already on a list!");
 
@@ -217,6 +235,17 @@ nsMemoryCacheDevice::DoomEntry(nsCacheEntry * entry)
 #endif
     CACHE_LOG_DEBUG(("Dooming entry 0x%p in memory cache\n", entry));
     EvictEntry(entry, DO_NOT_DELETE_ENTRY);
+
+    // ask secondary device to doom it also
+    // TODO if this is happening from OnDataSizeChange we may not want to fwd this?
+    // Or maybe better: Don't doom entries from nsMemoryCacheDevice::OnDataSizeChange..
+    // if there is a secondary device...
+    nsCacheDevice *secondaryDevice = entry->SecondaryCacheDevice();
+    if (secondaryDevice) {
+        CACHE_LOG_DEBUG(("  dooming %p in device %s\n",
+                          entry, secondaryDevice->GetDeviceID()));
+        secondaryDevice->DoomEntry(entry);
+    }
 }
 
 
@@ -274,7 +303,57 @@ nsMemoryCacheDevice::OpenOutputStreamForEntry( nsCacheEntry *     entry,
         entry->SetData(storage);
     }
 
-    return storage->GetOutputStream(offset, result);
+    // grab the output stream for memory
+    rv = storage->GetOutputStream(offset, result); // addrefs storage
+    if (NS_FAILED(rv)) {
+        NS_WARNING("  failed getting mem-os. Dooming entry!");
+        nsCacheService::DoomEntry(entry);
+        return rv;
+    }
+
+    // Establish backup storage (on disk) for the entry if settings allow it.
+    // If we were called from OpenInputStreamForEntry() in another device,
+    // the secondary device is already set.
+    // Note that |result| is already set properly - just return NS_OK to use it
+    if (!entry->IsDoomed() && (entry->SecondaryCacheDevice() == nullptr)) {
+        nsCacheDevice * backupDevice = nsCacheService::FindRebindDevice(entry);
+        if (backupDevice) {
+            if (NS_FAILED(backupDevice->BindEntry(entry))) {
+                NS_WARNING("  failed binding secondary device");
+                return NS_OK;
+            }
+
+            // Do this *before* calling OpenOutputStreamForEntry()
+            // because the latter grabs a ref to secondary device
+            entry->SetSecondaryCacheDevice(backupDevice);
+            CACHE_LOG_DEBUG(("  backupdevice is %s\n",
+                            backupDevice->GetDeviceID()));
+
+            // Get outputstream to the backup-device
+            nsCOMPtr<nsIOutputStream> backupOStream;
+            rv = backupDevice->OpenOutputStreamForEntry(
+                                  entry,
+                                  nsICache::ACCESS_WRITE, // just store it
+                                  offset, getter_AddRefs(backupOStream)
+                                  );
+
+            if (NS_FAILED(rv)) {
+                NS_WARNING("  failed getting output stream - disabling backup storage");
+                entry->SetSecondaryCacheDevice(nullptr);
+                return NS_OK;
+            }
+
+            // We need to decrease refcount here because it was addref'ed
+            // twice above. At this point we know we will return a wrapper and
+            // the extra refcount will make it leak.
+            ((nsIStorageStream *)storage.get())->Release();
+
+            // Create the tee and return it
+            nsCOMPtr<nsIOutputStream> memOStream = *result;
+            NS_ADDREF(*result = new nsOutputStreamTee(memOStream, backupOStream));
+        }
+    }
+    return NS_OK;
 }
 
 
@@ -313,6 +392,13 @@ nsMemoryCacheDevice::OnDataSizeChange( nsCacheEntry * entry, int32_t deltaSize)
 #ifdef DEBUG
             nsresult rv =
 #endif
+            // TODO: we might want to handle the situation where this device
+            // refuses more data, but the secondary device is ok.  We should
+            // doom only if we don't have a secondary device. If we do, we
+            // must detach the entry from this device somehow, or at least from
+            // our outputstream. Practically speaking, this is probably at most
+            // a corner case (disk cache not accepting, but memory cache not
+            // full) so we can probably safely ignore this circumstance.
                 nsCacheService::DoomEntry(entry);
             NS_ASSERTION(NS_SUCCEEDED(rv),"DoomEntry() failed.");
             return NS_ERROR_ABORT;
@@ -327,6 +413,11 @@ nsMemoryCacheDevice::OnDataSizeChange( nsCacheEntry * entry, int32_t deltaSize)
         PR_REMOVE_AND_INIT_LINK(entry);
         PR_APPEND_LINK(entry, &mEvictionList[EvictionList(entry, deltaSize)]);
     }
+
+    // Inform the secondary device - don't bother with retval
+    nsCacheDevice *secondaryDevice = entry->SecondaryCacheDevice();
+    if (secondaryDevice)
+        secondaryDevice->OnDataSizeChange(entry, deltaSize);
 
     EvictEntriesIfNecessary();
     return NS_OK;
@@ -535,7 +626,7 @@ void
 nsMemoryCacheDevice::SetCapacity(int32_t  capacity)
 {
     int32_t hardLimit = capacity * 1024;  // convert k into bytes
-    int32_t softLimit = (hardLimit * 9) / 10;
+    int32_t softLimit = (hardLimit * 9) / 10; // 90%
     AdjustMemoryLimits(softLimit, hardLimit);
 }
 

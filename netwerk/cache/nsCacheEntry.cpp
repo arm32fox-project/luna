@@ -34,7 +34,9 @@ nsCacheEntry::nsCacheEntry(const nsACString &   key,
       mDataSize(0),
       mCacheDevice(nullptr),
       mCustomDevice(nullptr),
-      mData(nullptr)
+      mSecondaryCacheDevice(nullptr),
+      mData(nullptr),
+      mBinding(nullptr)
 {
     MOZ_COUNT_CTOR(nsCacheEntry);
     PR_INIT_CLIST(this);
@@ -54,8 +56,9 @@ nsCacheEntry::~nsCacheEntry()
 {
     MOZ_COUNT_DTOR(nsCacheEntry);
     
-    if (mData)
-        nsCacheService::ReleaseObject_Locked(mData, mThread);
+    SetData(nullptr);
+    SetBinding(nullptr);
+    SetSecondaryCacheDevice(nullptr);
 }
 
 
@@ -114,6 +117,18 @@ nsCacheEntry::SetData(nsISupports * data)
     }
 }
 
+void
+nsCacheEntry::SetBinding(nsISupports * binding)
+{
+    if (mBinding) {
+        // NS_RELEASE(mBinding);
+        nsCacheService::ReleaseObject_Locked(mBinding, mThread);
+        mBinding = nullptr;
+    }
+
+    if (binding)
+        NS_ADDREF(mBinding = binding);
+}
 
 void
 nsCacheEntry::TouchMetaData()

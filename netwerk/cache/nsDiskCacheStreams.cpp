@@ -69,6 +69,7 @@ nsDiskCacheInputStream::nsDiskCacheInputStream( nsDiskCacheStreamIO * parent,
     , mPos(0)
     , mClosed(false)
 {
+    CACHE_LOG_DEBUG(("nsDiskCacheInputStream [%p]", this));
     NS_ADDREF(mStreamIO);
     mStreamIO->IncrementInputStreamCount();
 }
@@ -76,6 +77,7 @@ nsDiskCacheInputStream::nsDiskCacheInputStream( nsDiskCacheStreamIO * parent,
 
 nsDiskCacheInputStream::~nsDiskCacheInputStream()
 {
+    CACHE_LOG_DEBUG(("~nsDiskCacheInputStream [%p]", this));
     Close();
     mStreamIO->DecrementInputStreamCount();
     NS_RELEASE(mStreamIO);
@@ -199,7 +201,10 @@ nsDiskCacheStreamIO::nsDiskCacheStreamIO(nsDiskCacheBinding *   binding)
     , mBuffer(nullptr)
     , mOutputStreamIsOpen(false)
 {
-    mDevice = (nsDiskCacheDevice *)mBinding->mCacheEntry->CacheDevice();
+    // Give priority to the write-through cache, but init disk if unavailable.
+    mDevice = (nsDiskCacheDevice *)mBinding->mCacheEntry->SecondaryCacheDevice();
+    if (!mDevice)
+        mDevice = (nsDiskCacheDevice *)mBinding->mCacheEntry->CacheDevice();
 
     // acquire "death grip" on cache service
     nsCacheService *service = nsCacheService::GlobalInstance();
@@ -233,12 +238,17 @@ nsDiskCacheStreamIO::~nsDiskCacheStreamIO()
 nsresult
 nsDiskCacheStreamIO::GetInputStream(uint32_t offset, nsIInputStream ** inputStream)
 {
+    CACHE_LOG_DEBUG(("  GetInputStream...\n"));
     NS_ENSURE_ARG_POINTER(inputStream);
     NS_ENSURE_TRUE(offset == 0, NS_ERROR_NOT_IMPLEMENTED);
 
     *inputStream = nullptr;
     
-    if (!mBinding)  return NS_ERROR_NOT_AVAILABLE;
+    if (!mBinding)  {
+        NS_WARNING("no binding-object?");
+        return NS_ERROR_NOT_AVAILABLE;
+    }
+    CACHE_LOG_DEBUG(("    entry is %p\n", mBinding->mCacheEntry));
 
     if (mOutputStreamIsOpen) {
         NS_WARNING("already have an output stream open");

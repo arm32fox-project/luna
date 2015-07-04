@@ -39,6 +39,7 @@
 
 #include "nsICacheVisitor.h"
 #include "nsReadableUtils.h"
+#include "nsIInputStreamTee.h"
 #include "nsIInputStream.h"
 #include "nsIOutputStream.h"
 #include "nsCRT.h"
@@ -79,7 +80,7 @@ private:
     bool mCanceled;
     nsCacheEntry *mEntry;
     nsDiskCacheDevice *mDevice;
-    nsDiskCacheBinding *mBinding;
+    nsCOMPtr<nsDiskCacheBinding> mBinding;
 };
 
 class nsEvictDiskCacheEntriesEvent : public nsRunnable {
@@ -598,8 +599,22 @@ nsDiskCacheDevice::DeactivateEntry_Private(nsCacheEntry * entry,
         }
     }
 
+    // If we are the primary device, delete the entry. Otherwise, we are
+    // the secondary device and must disconnect as such.
+    // If the entry is doomed we know that the primary (mem) device did not
+    // remove it upon deactivation, so we remove it here.
+    // XXX: The latter is hack-y. It depends on internals of the mem-device
+    if (entry->CacheDevice() == this)
+        delete entry;   // which will release binding
+    else
+        if (entry->IsDoomed())
+            delete entry;
+        else {
+            entry->SetBinding(nullptr);
+            entry->SetSecondaryCacheDevice(nullptr);
+        }
+
     mBindery.RemoveBinding(binding); // extract binding from collision detection stuff
-    delete entry;   // which will release binding
     return rv;
 }
 
@@ -628,6 +643,7 @@ nsDiskCacheDevice::BindEntry(nsCacheEntry * entry)
     nsDiskCacheRecord record, oldRecord;
     nsDiskCacheBinding *binding;
     PLDHashNumber hashNumber = nsDiskCache::Hash(entry->Key()->get());
+    bool alreadyInMap = false;
 
     // Find out if there is already an active binding for this hash. If yes it
     // should have another key since BindEntry() shouldn't be called twice for
@@ -649,6 +665,7 @@ nsDiskCacheDevice::BindEntry(nsCacheEntry * entry)
     // Lookup hash number in cache map. There can be a colliding inactive entry.
     // See bug #321361 comment 21 for the scenario. If there is such entry,
     // delete it.
+    bool doInitializeRecord = true;
     rv = mCacheMap.FindRecord(hashNumber, &record);
     if (NS_SUCCEEDED(rv)) {
         nsDiskCacheEntry * diskEntry = mCacheMap.ReadDiskCacheEntry(&record);
@@ -658,20 +675,35 @@ nsDiskCacheDevice::BindEntry(nsCacheEntry * entry)
                 mCacheMap.DeleteStorage(&record);
                 rv = mCacheMap.DeleteRecord(&record);
                 if (NS_FAILED(rv))  return rv;
+            } else { // A record on disk has the same key as the entry we're
+                     // binding. This means we are used as backup device
+                     // (otherwise, the record would have been found and bound
+                     // in FindEntry() ). It also means that we should not
+                     // re-write certain values of the record because they were
+                     // just filled in above by ReadDiskCacheEntry()
+
+                CACHE_LOG_DEBUG(("CACHE: BindEntry [%p %x] found backup entry",
+                                 entry, record.HashNumber()));
+                alreadyInMap = true; // a valid record is in map
+                doInitializeRecord = false;
             }
         }
-        record = nsDiskCacheRecord();
     }
 
-    // create a new record for this entry
-    record.SetHashNumber(nsDiskCache::Hash(entry->Key()->get()));
-    record.SetEvictionRank(ULONG_MAX - SecondsFromPRTime(PR_Now()));
+    if (doInitializeRecord) {
+        record = nsDiskCacheRecord();
+        record.SetHashNumber(nsDiskCache::Hash(entry->Key()->get()));
+        
+        // XXX: Should we always set this or only when initializing?
+        record.SetEvictionRank(ULONG_MAX - SecondsFromPRTime(PR_Now()));
+    }
 
     CACHE_LOG_DEBUG(("CACHE: disk BindEntry [%p %x]\n",
         entry, record.HashNumber()));
 
-    if (!entry->IsDoomed()) {
-        // if entry isn't doomed, add it to the cache map
+    if (!alreadyInMap && !entry->IsDoomed()) {
+        // If we didn't find a valid record in map, and entry isn't doomed,
+        // so add it to the cache map
         rv = mCacheMap.AddRecord(&record, &oldRecord); // deletes old record, if any
         if (NS_FAILED(rv))  return rv;
         
@@ -752,16 +784,69 @@ nsDiskCacheDevice::OpenInputStreamForEntry(nsCacheEntry *      entry,
     NS_ENSURE_ARG_POINTER(result);
 
     nsresult             rv;
-    nsDiskCacheBinding * binding = GetCacheEntryBinding(entry);
+    nsDiskCacheBinding * binding =
+        GetCacheEntryBinding(entry); // addrefs mStreamIO
     if (!IsValidBinding(binding))
         return NS_ERROR_UNEXPECTED;
 
     NS_ASSERTION(binding->mCacheEntry == entry, "binding & entry don't point to each other");
 
-    rv = binding->EnsureStreamIO();
+    rv = binding->EnsureStreamIO(); // addrefs mStreamIO
     if (NS_FAILED(rv)) return rv;
 
-    return binding->mStreamIO->GetInputStream(offset, result);
+    // Get the inputstream from disk
+    rv = binding->mStreamIO->GetInputStream(offset, result); // addref mStreamIO
+    if (NS_FAILED(rv)) {
+        NS_WARNING("  Cannot get disk-is. Dooming entry!");
+        nsCacheService::DoomEntry(entry);
+        return rv;
+    }
+
+    // Try to transfer the entry to a faster device (memory device), i.e. "rebind"
+    // Note that |result| is set correctly, so if anything fails just return ok
+    if (!entry->IsDoomed())  {
+        nsCacheDevice * targetDevice = nsCacheService::FindRebindDevice(entry);
+        if (targetDevice) {
+            CACHE_LOG_DEBUG(("Trying to rebind %p to device %s\n",
+                             entry, targetDevice->GetDeviceID()));
+
+            entry->MarkBinding();  // enter state of binding
+            nsresult rv = targetDevice->BindEntry(entry);
+            entry->ClearBinding(); // exit state of binding
+
+            if (NS_SUCCEEDED(rv)) {
+                entry->SetCacheDevice(targetDevice);
+                entry->SetSecondaryCacheDevice(this);
+
+                // Get an outputstream from the target device to tee data into when
+                // the client reads it. (Note: ownership was transferred above,
+                // so the entry is now bound to the target device.)
+                nsCOMPtr<nsIOutputStream> tmpOStream;
+                entry->CacheDevice()->OpenOutputStreamForEntry(entry,
+                        nsICache::ACCESS_READ_WRITE, offset, getter_AddRefs(tmpOStream));
+                // TODO: must sort out storage-policies:
+                //  - we get an IS, so the entry obviously must have read access
+                //  - we need write access in order to write into the mem cache,
+                //  - but what if the original entry had read-only access??
+
+                nsIInputStream * kungFuDeathGrip = *result;
+                nsCOMPtr<nsIInputStream> tmpIStream;
+                rv = NS_NewInputStreamTee(getter_AddRefs(tmpIStream), *result,
+                                          tmpOStream);
+                NS_ADDREF(*result = tmpIStream);
+
+                // We need to decrease the refcount here because it was addref'ed
+                // twice above (calls to EnsureStreamIO() and GetInputStream())
+                // At this point we know we will return a wrapper, and the
+                // extra refcount makes it leak.
+                NS_RELEASE(kungFuDeathGrip);
+            } else {
+                CACHE_LOG_DEBUG(("  rebind failed...(%x)\n", rv));
+            }
+        }
+    }
+
+    return rv;
 }
 
 
