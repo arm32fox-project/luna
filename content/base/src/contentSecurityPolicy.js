@@ -327,6 +327,18 @@ ContentSecurityPolicy.prototype = {
    */
   appendPolicy:
   function csp_appendPolicy(aPolicy, selfURI, aReportOnly, aSpecCompliant) {
+    return this._appendPolicyInternal(aPolicy, selfURI, aReportOnly,
+                                      aSpecCompliant, true);
+  },
+
+  /**
+   * Adds a new policy to our list of policies for this CSP context.
+   * Only to be called from this module (not exported)
+   * @returns the count of policies.
+   */
+  _appendPolicyInternal:
+  function csp_appendPolicy(aPolicy, selfURI, aReportOnly, aSpecCompliant,
+                            aEnforceSelfChecks) {
 #ifndef MOZ_B2G
     CSPdebug("APPENDING POLICY: " + aPolicy);
     CSPdebug("            SELF: " + selfURI.asciiSpec);
@@ -359,13 +371,15 @@ ContentSecurityPolicy.prototype = {
                                                  selfURI,
                                                  aReportOnly,
                                                  this._docRequest,
-                                                 this);
+                                                 this,
+                                                 aEnforceSelfChecks);
     } else {
       newpolicy = CSPRep.fromString(aPolicy,
                                     selfURI,
                                     aReportOnly,
                                     this._docRequest,
-                                    this);
+                                    this,
+                                    aEnforceSelfChecks);
     }
 
     newpolicy._specCompliant = !!aSpecCompliant;
