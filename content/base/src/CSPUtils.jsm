@@ -1467,10 +1467,10 @@ CSPSource.prototype = {
       return this._self.toString();
 
     if (this._allowUnsafeInline)
-      return "unsafe-inline";
+      return "'unsafe-inline'";
 
     if (this._allowUnsafeEval)
-      return "unsafe-eval";
+      return "'unsafe-eval'";
 
     var s = "";
     if (this.scheme)
