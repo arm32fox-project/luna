@@ -233,18 +233,6 @@ const SEARCH_ENGINES = {
   }
 };
 
-// The process of adding a new default snippet involves:
-//   * add a new entity to aboutHome.dtd
-//   * add a <span/> for it in aboutHome.xhtml
-//   * add an entry here in the proper ordering (based on spans)
-// The <a/> part of the snippet will be linked to the corresponding url.
-const DEFAULT_SNIPPETS_URLS = [
-  "https://www.mozilla.org/firefox/features/?utm_source=snippet&utm_medium=snippet&utm_campaign=default+feature+snippet"
-, "https://addons.mozilla.org/firefox/?utm_source=snippet&utm_medium=snippet&utm_campaign=addons"
-];
-
-const SNIPPETS_UPDATE_INTERVAL_MS = 86400000; // 1 Day.
-
 // This global tracks if the page has been set up before, to prevent double inits
 let gInitialized = false;
 let gObserver = new MutationObserver(function (mutations) {
@@ -252,7 +240,6 @@ let gObserver = new MutationObserver(function (mutations) {
     if (mutation.attributeName == "searchEngineURL") {
       setupSearchEngine();
       if (!gInitialized) {
-        ensureSnippetsMapThen(loadSnippets);
         gInitialized = true;
       }
       return;
@@ -272,70 +259,6 @@ window.addEventListener("pagehide", function() {
   window.gObserver.disconnect();
   window.removeEventListener("resize", fitToWidth);
 });
-
-// This object has the same interface as Map and is used to store and retrieve
-// the snippets data.  It is lazily initialized by ensureSnippetsMapThen(), so
-// be sure its callback returned before trying to use it.
-let gSnippetsMap;
-let gSnippetsMapCallbacks = [];
-
-/**
- * Ensure the snippets map is properly initialized.
- *
- * @param aCallback
- *        Invoked once the map has been initialized, gets the map as argument.
- * @note Snippets should never directly manage the underlying storage, since
- *       it may change inadvertently.
- */
-function ensureSnippetsMapThen(aCallback)
-{
-  if (gSnippetsMap) {
-    aCallback(gSnippetsMap);
-    return;
-  }
-
-  // Handle multiple requests during the async initialization.
-  gSnippetsMapCallbacks.push(aCallback);
-  if (gSnippetsMapCallbacks.length > 1) {
-    // We are already updating, the callbacks will be invoked when done.
-    return;
-  }
-
-  // TODO (bug 789348): use a real asynchronous storage here.  This setTimeout
-  // is done just to catch bugs with the asynchronous behavior.
-  setTimeout(function() {
-    // Populate the cache from the persistent storage.
-    let cache = new Map();
-    for (let key of [ "snippets-last-update",
-                      "snippets-cached-version",
-                      "snippets" ]) {
-      cache.set(key, localStorage[key]);
-    }
-
-    gSnippetsMap = Object.freeze({
-      get: function (aKey) cache.get(aKey),
-      set: function (aKey, aValue) {
-        localStorage[aKey] = aValue;
-        return cache.set(aKey, aValue);
-      },
-      has: function(aKey) cache.has(aKey),
-      delete: function(aKey) {
-        delete localStorage[aKey];
-        return cache.delete(aKey);
-      },
-      clear: function() {
-        localStorage.clear();
-        return cache.clear();
-      },
-      get size() cache.size
-    });
-
-    for (let callback of gSnippetsMapCallbacks) {
-      callback(gSnippetsMap);
-    }
-    gSnippetsMapCallbacks.length = 0;
-  }, 0);
-}
 
 function onSearchSubmit(aEvent)
 {
@@ -419,140 +342,6 @@ function setupSearchEngine()
     searchText.placeholder = searchEngineName;
   }
 
-}
-
-/**
- * Update the local snippets from the remote storage, then show them through
- * showSnippets.
- */
-function loadSnippets()
-{
-  if (!gSnippetsMap)
-    throw new Error("Snippets map has not properly been initialized");
-
-  // Check cached snippets version.
-  let cachedVersion = gSnippetsMap.get("snippets-cached-version") || 0;
-  let currentVersion = document.documentElement.getAttribute("snippetsVersion");
-  if (cachedVersion < currentVersion) {
-    // The cached snippets are old and unsupported, restart from scratch.
-    gSnippetsMap.clear();
-  }
-
-  // Check last snippets update.
-  let lastUpdate = gSnippetsMap.get("snippets-last-update");
-  let updateURL = document.documentElement.getAttribute("snippetsURL");
-  let shouldUpdate = !lastUpdate ||
-                     Date.now() - lastUpdate > SNIPPETS_UPDATE_INTERVAL_MS;
-  if (updateURL && shouldUpdate) {
-    // Try to update from network.
-    let xhr = new XMLHttpRequest();
-    try {
-      xhr.open("GET", updateURL, true);
-    } catch (ex) {
-      showSnippets();
-      return;
-    }
-    // Even if fetching should fail we don't want to spam the server, thus
-    // set the last update time regardless its results.  Will retry tomorrow.
-    gSnippetsMap.set("snippets-last-update", Date.now());
-    xhr.onerror = function (event) {
-      showSnippets();
-    };
-    xhr.onload = function (event)
-    {
-      if (xhr.status == 200) {
-        gSnippetsMap.set("snippets", xhr.responseText);
-        gSnippetsMap.set("snippets-cached-version", currentVersion);
-      }
-      showSnippets();
-    };
-    xhr.send(null);
-  } else {
-    showSnippets();
-  }
-}
-
-/**
- * Shows locally cached remote snippets, or default ones when not available.
- *
- * @note: snippets should never invoke showSnippets(), or they may cause
- *        a "too much recursion" exception.
- */
-let _snippetsShown = false;
-function showSnippets()
-{
-  let snippetsElt = document.getElementById("snippets");
-
-  // Show about:rights notification, if needed.
-  let showRights = document.documentElement.getAttribute("showKnowYourRights");
-  if (showRights) {
-    let rightsElt = document.getElementById("rightsSnippet");
-    let anchor = rightsElt.getElementsByTagName("a")[0];
-    anchor.href = "about:rights";
-    snippetsElt.appendChild(rightsElt);
-    rightsElt.removeAttribute("hidden");
-    return;
-  }
-
-  if (!gSnippetsMap)
-    throw new Error("Snippets map has not properly been initialized");
-  if (_snippetsShown) {
-    // There's something wrong with the remote snippets, just in case fall back
-    // to the default snippets.
-    showDefaultSnippets();
-    throw new Error("showSnippets should never be invoked multiple times");
-  }
-  _snippetsShown = true;
-
-  let snippets = gSnippetsMap.get("snippets");
-  // If there are remotely fetched snippets, try to to show them.
-  if (snippets) {
-    // Injecting snippets can throw if they're invalid XML.
-    try {
-      snippetsElt.innerHTML = snippets;
-      // Scripts injected by innerHTML are inactive, so we have to relocate them
-      // through DOM manipulation to activate their contents.
-      Array.forEach(snippetsElt.getElementsByTagName("script"), function(elt) {
-        let relocatedScript = document.createElement("script");
-        relocatedScript.type = "text/javascript;version=1.8";
-        relocatedScript.text = elt.text;
-        elt.parentNode.replaceChild(relocatedScript, elt);
-      });
-      return;
-    } catch (ex) {
-      // Bad content, continue to show default snippets.
-    }
-  }
-
-  showDefaultSnippets();
-}
-
-/**
- * Clear snippets element contents and show default snippets.
- */
-function showDefaultSnippets()
-{
-  // Clear eventual contents...
-  let snippetsElt = document.getElementById("snippets");
-  snippetsElt.innerHTML = "";
-
-  // ...then show default snippets.
-  let defaultSnippetsElt = document.getElementById("defaultSnippets");
-  let entries = defaultSnippetsElt.querySelectorAll("span");
-  // Choose a random snippet.  Assume there is always at least one.
-  let randIndex = Math.floor(Math.random() * entries.length);
-  let entry = entries[randIndex];
-  // Inject url in the eventual link.
-  if (DEFAULT_SNIPPETS_URLS[randIndex]) {
-    let links = entry.getElementsByTagName("a");
-    // Default snippets can have only one link, otherwise something is messed
-    // up in the translation.
-    if (links.length == 1) {
-      links[0].href = DEFAULT_SNIPPETS_URLS[randIndex];
-    }
-  }
-  // Move the default snippet to the snippets element.
-  snippetsElt.appendChild(entry);
 }
 
 function fitToWidth() {
