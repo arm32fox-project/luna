@@ -1,17 +1,17 @@
-<!ENTITY status4evar.window.title "Pale Moon status bar preferences">
-<!ENTITY status4evar.pane.status "Сообщения">
+<!ENTITY status4evar.window.title "Настройки Панели Состояния Pale Moon">
+<!ENTITY status4evar.pane.status "Статус">
 <!ENTITY status4evar.pane.progress "Индикатор">
 <!ENTITY status4evar.pane.download "Загрузки">
-<!ENTITY status4evar.pane.addonbar "Панель дополнений">
+<!ENTITY status4evar.pane.addonbar "Панель состояния">
 <!ENTITY status4evar.pane.advanced "Расширенные">
 <!ENTITY status4evar.tab.general "Общие">
-<!ENTITY status4evar.tab.toolbar "Панель иснтрументов">
+<!ENTITY status4evar.tab.toolbar "Панель состояния">
 <!ENTITY status4evar.tab.urlbar "Адресная строка">
 <!ENTITY status4evar.tab.popup "Всплывающая">
 <!ENTITY status4evar.tab.tabs "Вкладки">
 <!ENTITY status4evar.option.none "не показывать">
 <!ENTITY status4evar.option.nothing "Ничего">
-<!ENTITY status4evar.option.toolbar "в панели инструментов">
+<!ENTITY status4evar.option.toolbar "в панели состояния">
 <!ENTITY status4evar.option.urlbar "в адресной строке">
 <!ENTITY status4evar.option.popup "во всплывающей строке">
 <!ENTITY status4evar.option.tooltip "Всплывающая подсказка">
@@ -57,13 +57,13 @@
 <!ENTITY status4evar.status.urlbar.color.label "Цвет текста:">
 <!ENTITY status4evar.status.currentUrl "Адрес страницы">
 <!ENTITY status4evar.status.statusText "Сообщение">
-<!ENTITY status4evar.status.firefox.compat.caption "Особенности Firefox">
+<!ENTITY status4evar.status.firefox.compat.caption "Особенности совместимости Firefox">
 <!ENTITY browser.urlbar.formatting.enabled.label "Включить подсветку домена">
 <!ENTITY browser.urlbar.trimming.enabled.label "Включить скрытие протокола (http:// и ftp://)">
 <!ENTITY browser.urlbar.autofill.enabled.label "Включить автозавершение ссылки">
 <!ENTITY status4evar.status.popup.invertMirror.label "По умолчанию прижимать к правой стороне">
 <!ENTITY status4evar.status.popup.mouseMirror.label "Обратный порядок при наведении мыши">
-<!ENTITY status4evar.status.popup.findMirror.label "Start on the opposite side when the Find Bar is open">
+<!ENTITY status4evar.status.popup.findMirror.label "Начать с противоположной стороны, когда открыта панель поиска">
 <!ENTITY status4evar.progress.style.label "Собственный стиль индикатора">
 <!ENTITY status4evar.progress.urlbar.enable.label "Показывать индикатор в адресной строке">
 <!ENTITY status4evar.progress.urlbar.line.label "Стиль:">
