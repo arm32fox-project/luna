@@ -1254,7 +1254,9 @@ InitSystemMetrics()
 	  case LookAndFeel::eOperatingSystemVersion_Windows8:
 		sSystemMetrics->AppendElement(nsGkAtoms::windows_version_win8);
 		break;
-	  // don't add anything for future versions
+	  case LookAndFeel::eOperatingSystemVersion_Windows10:
+		sSystemMetrics->AppendElement(nsGkAtoms::windows_version_win10);
+		break;
 	}
   }
 

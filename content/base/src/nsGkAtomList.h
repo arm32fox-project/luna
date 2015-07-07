@@ -2024,6 +2024,7 @@ GK_ATOM(windows_version_xp, "windows-version-xp")
 GK_ATOM(windows_version_vista, "windows-version-vista")
 GK_ATOM(windows_version_win7, "windows-version-win7")
 GK_ATOM(windows_version_win8, "windows-version-win8")
+GK_ATOM(windows_version_win10, "windows-version-win10")
 
 // And the same again, as media query keywords.
 GK_ATOM(_moz_scrollbar_start_backward, "-moz-scrollbar-start-backward")
