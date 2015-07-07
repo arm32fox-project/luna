@@ -729,6 +729,8 @@ public:
   typedef nsTArray_Impl<E, Alloc>                    self_type;
   typedef nsTArrayElementTraits<E>                   elem_traits;
   typedef nsTArray_SafeElementAtHelper<E, self_type> safeelementat_helper_type;
+  typedef elem_type*                                 iterator;
+  typedef const elem_type*                           const_iterator;
 
   using safeelementat_helper_type::SafeElementAt;
   using base_type::EmptyHdr;
@@ -924,6 +926,14 @@ public:
   const elem_type& SafeLastElement(const elem_type& def) const {
     return SafeElementAt(Length() - 1, def);
   }
+
+  // Methods for range-based for loops.
+  iterator begin() { return Elements(); }
+  const_iterator begin() const { return Elements(); }
+  const_iterator cbegin() const { return begin(); }
+  iterator end() { return Elements() + Length(); }
+  const_iterator end() const { return Elements() + Length(); }
+  const_iterator cend() const { return end(); }
 
   //
   // Search methods
