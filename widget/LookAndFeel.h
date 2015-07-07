@@ -352,6 +352,10 @@ public:
      */
     eIntID_WindowsThemeIdentifier,
     /**
+	 * Return an appropriate OS version identifier.
+	 */
+	eIntID_OperatingSystemVersionIdentifier,
+	/**
      * 0: scrollbar button repeats to scroll only when cursor is on the button.
      * 1: scrollbar button repeats to scroll even if cursor is outside of it.
      */
@@ -388,6 +392,18 @@ public:
     eWindowsTheme_Royale,
     eWindowsTheme_Zune,
     eWindowsTheme_AeroLite
+  };
+  
+  /**
+   * Operating System versions.
+   */
+  enum OperatingSystemVersion {
+	eOperatingSystemVersion_WindowsXP = 0,
+	eOperatingSystemVersion_WindowsVista,
+	eOperatingSystemVersion_Windows7,
+	eOperatingSystemVersion_Windows8,
+	eOperatingSystemVersion_Windows10,
+	eOperatingSystemVersion_Unknown
   };
 
   enum {
