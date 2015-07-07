@@ -968,7 +968,7 @@ public:
   template<class Item, class Comparator>
   index_type IndexOf(const Item& item, index_type start,
                      const Comparator& comp) const {
-    const elem_type* iter = Elements() + aStart;
+    const elem_type* iter = Elements() + start;
     const elem_type* iend = Elements() + Length();
     for (; iter != iend; ++iter) {
       if (comp.Equals(*iter, item))
@@ -1398,8 +1398,8 @@ typename Alloc::ResultType EnsureLengthAtLeast(size_type minLen) {
     }
 
     // Initialize the extra array elements
-    elem_type* iter = Elements() + aIndex;
-    elem_type* iend = iter + aCount;
+    elem_type* iter = Elements() + index;
+    elem_type* iend = iter + count;
     for (; iter != iend; ++iter) {
       elem_traits::Construct(iter);
     }
@@ -1422,8 +1422,8 @@ typename Alloc::ResultType EnsureLengthAtLeast(size_type minLen) {
     }
 
     // Initialize the extra array elements
-    elem_type* iter = Elements() + aIndex;
-    elem_type* iend = iter + aCount;
+    elem_type* iter = Elements() + index;
+    elem_type* iend = iter + count;
     for (; iter != iend; ++iter) {
       elem_traits::Construct(iter, item);
     }
@@ -1544,8 +1544,8 @@ protected:
   // @param start  The index of the first element to destroy.
   // @param count  The number of elements to destroy.
   void DestructRange(index_type start, size_type count) {
-    elem_type* iter = Elements() + aStart;
-    elem_type *iend = iter + aCount;
+    elem_type* iter = Elements() + start;
+    elem_type *iend = iter + count;
     for (; iter != iend; ++iter) {
       elem_traits::Destruct(iter);
     }
