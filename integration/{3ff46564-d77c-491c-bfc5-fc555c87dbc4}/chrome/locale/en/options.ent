@@ -1,0 +1,25 @@
+<!ENTITY	rubyTextSize.title	"Ruby text size">
+<!ENTITY	rubyTextSize.description	"The size of the ruby text. The specification calls for about half (0.5em) of the base text size, but feel free to adjust this to your preference. 1em is the same size as the base text.">
+<!ENTITY	rubyTextSize.default	"Default: 0.55em">
+
+<!ENTITY	spaceRubyText.title	"Space ruby text">
+<!ENTITY	spaceRubyText.description	"If enabled, HTML Ruby will space out the ruby and base text. When disabled, ruby and base text will be centered.">
+<!ENTITY	spaceRubyText.default	"Default: enabled">
+
+<!ENTITY	processInsertedContent.title	"Process inserted content">
+<!ENTITY	processInsertedContent.description	"If enabled, HTML Ruby will process dynamically inserted content by other Firefox extensions and such. Disabling will provide a slight increase in performance for pages with heavy DOM interaction such as Gmail and Google Reader.">
+<!ENTITY	processInsertedContent.default	"Default: enabled">
+
+<!ENTITY	rubyLineHeight.title	"Ruby line height">
+<!ENTITY	rubyLineHeight.description	"The space between base and ruby text. Adjust this to your preference. 1em means that the baseline of the ruby text should be just above the top of the base text.">
+<!ENTITY	rubyLineHeight.default	"Default: 0.92em">
+
+<!ENTITY	adjustLineHeight.title	"Adjust line height">
+<!ENTITY	adjustLineHeight.description	"If enabled, HTML Ruby will adjust the line height to make space for the ruby text. When disabled, the ruby may overlap the text above it.">
+<!ENTITY	adjustLineHeight.default	"Default: enabled">
+
+<!ENTITY	prefpane.preview.label	"Preview text size and line height">
+<!ENTITY	prefpane.pane1.label	"Apperance">
+<!ENTITY	prefpane.pane2.label	"Other">
+
+<!ENTITY	statusbar.stop.tooltip	"Stop">

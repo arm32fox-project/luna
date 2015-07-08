@@ -1,0 +1,4 @@
+content htmlruby chrome/content/
+overlay chrome://browser/content/browser.xul chrome://htmlruby/content/overlay.xul
+locale htmlruby en chrome/locale/en/
+locale htmlruby ja chrome/locale/ja/
