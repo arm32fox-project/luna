@@ -8,6 +8,6 @@ DIRS += [
     'ico',
     'png',
     'jpeg',
-    'webp',
+#    'webp',
     'bmp',
 ]
