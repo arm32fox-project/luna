@@ -341,7 +341,11 @@ LayerManagerD3D9::PaintToTarget()
   device()->GetRenderTargetData(backBuff, destSurf);
 
   D3DLOCKED_RECT rect;
-  destSurf->LockRect(&rect, NULL, D3DLOCK_READONLY);
+  HRESULT hr = destSurf->LockRect(&rect, NULL, D3DLOCK_READONLY);
+  if (FAILED(hr) || !rect.pBits) {
+    NS_WARNING("Failed to lock rect in paint to target D3D9");
+    return;
+  }
 
   nsRefPtr<gfxImageSurface> imageSurface =
     new gfxImageSurface((unsigned char*)rect.pBits,
