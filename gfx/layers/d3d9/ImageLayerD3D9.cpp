@@ -66,7 +66,7 @@ DataToTexture(IDirect3DDevice9 *aDevice,
 
     tmpTexture->GetSurfaceLevel(0, getter_AddRefs(surface));
     HRESULT hr = surface->LockRect(&lockedRect, NULL, 0);
-    if (FAILED(hr) || !aLockedRect.pBits) {
+    if (FAILED(hr) || !lockedRect.pBits) {
       NS_WARNING("Imagelayer D3D9: Could not lock surface");
       return NULL;
     }
