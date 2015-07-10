@@ -1571,7 +1571,7 @@ protected:
     elem_type *elem = Elements();
     elem_type item = elem[index];
     index_type iend = Length() - 1;
-    while ((aIndex * 2) < iend) {
+    while ((index * 2) < iend) {
       const index_type left = (index * 2) + 1;
       const index_type right = (index * 2) + 2;
       const index_type parent_index = index;
