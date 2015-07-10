@@ -279,7 +279,7 @@ WebPMemoryWrite
 WebPPictureInitInternal
 WebPPictureAlloc
 WebPPictureFree
-WebPEncode
+;+# WebPEncode
 #endif
 qcms_enable_iccv4
 qcms_profile_create_rgb_with_gamma
