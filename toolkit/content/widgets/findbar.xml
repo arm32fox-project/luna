@@ -1479,6 +1479,9 @@
             this._quickFindTimeout = null;
           }
 
+          this.toggleHighlight(false);
+          this.getElement("highlight").checked = false;
+
           this._findFailedString = null;
         ]]></body>
       </method>
