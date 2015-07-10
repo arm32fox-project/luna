@@ -108,6 +108,8 @@ static PRLogModuleInfo *sTextrunuiLog = nullptr;
 static PRLogModuleInfo *sCmapDataLog = nullptr;
 #endif
 
+void InitLayersAccelerationPrefs();
+
 /* Class to listen for pref changes so that chrome code can dynamically
    force sRGB as an output profile. See Bug #452125. */
 class SRGBOverrideObserver MOZ_FINAL : public nsIObserver,
@@ -327,6 +329,8 @@ gfxPlatform::Init()
 #ifdef DEBUG
     mozilla::gl::GLContext::StaticInit();
 #endif
+
+    InitLayersAccelerationPrefs();
 
     bool useOffMainThreadCompositing = GetPrefLayersOffMainThreadCompositionEnabled() ||
         Preferences::GetBool("browser.tabs.remote", false);
