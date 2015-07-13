@@ -2657,9 +2657,11 @@ class MTypeOf
     public BoxInputsPolicy
 {
     MIRType inputType_;
+    bool inputMaybeCallableOrEmulatesUndefined_;
 
     MTypeOf(MDefinition *def, MIRType inputType)
-      : MUnaryInstruction(def), inputType_(inputType)
+      : MUnaryInstruction(def), inputType_(inputType),
+        inputMaybeCallableOrEmulatesUndefined_(true)
     {
         setResultType(MIRType_String);
         setMovable();
@@ -2681,7 +2683,17 @@ class MTypeOf
     MDefinition *input() const {
         return getOperand(0);
     }
+    
     MDefinition *foldsTo(bool useValueNumbers);
+    
+    void infer(JSContext *cx);
+
+    bool inputMaybeCallableOrEmulatesUndefined() const {
+        return inputMaybeCallableOrEmulatesUndefined_;
+    }
+    void markInputNotCallableOrEmulatesUndefined() {
+        inputMaybeCallableOrEmulatesUndefined_ = false;
+    }
 
     AliasSet getAliasSet() const {
         return AliasSet::None();
