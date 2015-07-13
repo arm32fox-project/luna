@@ -61,10 +61,7 @@ ClearEntry(PLDHashTable *      /* table */,
 nsDiskCacheBinding *
 GetCacheEntryBinding(nsCacheEntry * entry)
 {
-    // Previously, the binding for the disk-device was stored in |mData|.
-    // Since we are now allowing an entry to exist in mem-device and disk-device
-    // simultaneously, this binding is stored in a new field.
-    return (nsDiskCacheBinding *)entry->GetBinding();
+    return (nsDiskCacheBinding *) entry->Data();
 }
 
 
@@ -174,22 +171,24 @@ nsDiskCacheBindery::CreateBinding(nsCacheEntry *       entry,
                                   nsDiskCacheRecord *  record)
 {
     NS_ASSERTION(initialized, "nsDiskCacheBindery not initialized");
-    if (GetCacheEntryBinding(entry)) {
+    nsCOMPtr<nsISupports> data = entry->Data();
+    if (data) {
         NS_ERROR("cache entry already has bind data");
         return nullptr;
     }
     
     nsDiskCacheBinding * binding = new nsDiskCacheBinding(entry, record);
+    if (!binding)  return nullptr;
+        
+    // give ownership of the binding to the entry
+    entry->SetData(binding);
     
     // add binding to collision detection system
     nsresult rv = AddBinding(binding);
     if (NS_FAILED(rv)) {
-        entry->SetBinding(nullptr);
+        entry->SetData(nullptr);
         return nullptr;
     }
-
-    // give ownership of the binding to the entry
-    entry->SetBinding(binding);
 
     return binding;
 }
@@ -381,7 +380,7 @@ AccumulateHeapUsage(PLDHashTable *table, PLDHashEntryHdr *hdr, uint32_t number,
                     void *arg)
 {
     nsDiskCacheBinding *binding = ((HashTableEntry *)hdr)->mBinding;
-    NS_ASSERTION(binding, "### disk cache binding = null!");
+    NS_ASSERTION(binding, "### disk cache binding = nsnull!");
 
     AccumulatorArg *acc = (AccumulatorArg *)arg;
 

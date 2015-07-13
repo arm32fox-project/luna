@@ -1698,46 +1698,6 @@ nsCacheService::RemoveCustomOfflineDevice(nsOfflineCacheDevice *aDevice)
     return NS_OK;
 }
 
-nsCacheDevice *
-nsCacheService::FindRebindDevice_Internal(nsCacheEntry *entry)
-{
-    // Find out which device which currently holds the entry
-    bool fromDisk = (entry->CacheDevice() == mDiskDevice);
-    PRInt64 size = entry->Size();
-
-    // TODO sanity checks?
-
-    if (fromDisk) {
-        // The entry is bound to disk-device so we re-bind it to memory
-
-        // TODO should we actually check if it is allowed in memory?
-        // We re-bind it, so the STORE_AS_FILE flag may not be relevant..
-        if (mEnableMemoryDevice && entry->IsAllowedInMemory()) {
-
-            if (!mMemoryDevice)
-                (void)CreateMemoryDevice();  // ignore the error (check for mMemoryDevice instead)
-
-            if (mMemoryDevice && !mMemoryDevice->EntryIsTooBig(size))
-                return mMemoryDevice;
-        }
-    }
-    else
-    {
-        // The entry is in memory and is being evicted by the memory device
-        // so we re-bind it to disk to keep it around, if allowed
-        if (entry->IsStreamData() && entry->IsAllowedOnDisk() && mEnableDiskDevice) {
-
-            if (!mDiskDevice)
-                (void)CreateDiskDevice();  // ignore the error (check for mDiskDevice instead)
-
-            if (mDiskDevice && !mDiskDevice->EntryIsTooBig(size))
-                return mDiskDevice;
-        }
-    }
-
-    return nullptr;
-}
-
 nsresult
 nsCacheService::CreateRequest(nsCacheSession *   session,
                               const nsACString & clientKey,
@@ -2174,32 +2134,8 @@ nsCacheService::EnsureEntryHasDevice(nsCacheEntry * entry)
     if (device || entry->IsDoomed())  return device;
 
     int64_t predictedDataSize = entry->PredictedDataSize();
-
-    // Try using the memory-device first
-    if (!device && mEnableMemoryDevice && entry->IsAllowedInMemory()) {        
-        if (!mMemoryDevice) {
-            (void)CreateMemoryDevice();  // ignore the error (check for mMemoryDevice instead)
-        }
-        if (mMemoryDevice) {
-            // Bypass the cache if Content-Length says entry will be too big
-            if (predictedDataSize != -1 &&
-                mMemoryDevice->EntryIsTooBig(predictedDataSize)) {
-                DebugOnly<nsresult> rv = nsCacheService::DoomEntry(entry);
-                NS_ASSERTION(NS_SUCCEEDED(rv),"DoomEntry() failed.");
-                return nullptr;
-            }
-
-            entry->MarkBinding();  // enter state of binding
-            nsresult rv = mMemoryDevice->BindEntry(entry);
-            entry->ClearBinding(); // exit state of binding
-            if (NS_SUCCEEDED(rv)) {
-                entry->SetCacheDevice(mMemoryDevice);
-                return mMemoryDevice;
-            }
-        }
-    }
-
     if (entry->IsStreamData() && entry->IsAllowedOnDisk() && mEnableDiskDevice) {
+        // this is the default
         if (!mDiskDevice) {
             (void)CreateDiskDevice();  // ignore the error (check for mDiskDevice instead)
         }
@@ -2220,7 +2156,29 @@ nsCacheService::EnsureEntryHasDevice(nsCacheEntry * entry)
                 device = mDiskDevice;
         }
     }
-         
+
+    // if we can't use mDiskDevice, try mMemoryDevice
+    if (!device && mEnableMemoryDevice && entry->IsAllowedInMemory()) {        
+        if (!mMemoryDevice) {
+            (void)CreateMemoryDevice();  // ignore the error (check for mMemoryDevice instead)
+        }
+        if (mMemoryDevice) {
+            // Bypass the cache if Content-Length says entry will be too big
+            if (predictedDataSize != -1 &&
+                mMemoryDevice->EntryIsTooBig(predictedDataSize)) {
+                DebugOnly<nsresult> rv = nsCacheService::DoomEntry(entry);
+                NS_ASSERTION(NS_SUCCEEDED(rv),"DoomEntry() failed.");
+                return nullptr;
+            }
+
+            entry->MarkBinding();  // enter state of binding
+            nsresult rv = mMemoryDevice->BindEntry(entry);
+            entry->ClearBinding(); // exit state of binding
+            if (NS_SUCCEEDED(rv))
+                device = mMemoryDevice;
+        }
+    }
+
     if (!device && entry->IsStreamData() &&
         entry->IsAllowedOffline() && mEnableOfflineDevice) {
         if (!mOfflineDevice) {

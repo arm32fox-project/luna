@@ -10,7 +10,6 @@
 #include "nspr.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/Mutex.h"
-#include "nsThreadUtils.h"
 #include "nsCOMPtr.h"
 #include "nsICache.h"
 #include "nsICacheListener.h"
@@ -38,7 +37,6 @@ private:
           mInfo(0),
           mListener(listener),
           mLock("nsCacheRequest.mLock"),
-          mThread(do_GetCurrentThread()),
           mCondVar(mLock, "nsCacheRequest.mCondVar"),
           mProfileDir(session->ProfileDir())
     {

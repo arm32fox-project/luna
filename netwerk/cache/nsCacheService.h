@@ -211,11 +211,6 @@ public:
     static void      AssertOwnsLock()
     { gService->mLock.AssertCurrentThreadOwns(); }
 
-    // Returns the device to which the given entry should re-bind if flags
-    // and other settings allow for it. Returns null if rebinding is not allowed.
-    static nsCacheDevice *  FindRebindDevice(nsCacheEntry *entry)
-        { return gService->FindRebindDevice_Internal(entry); }
-
     static void      LeavePrivateBrowsing();
     bool             IsDoomListEmpty();
 
@@ -307,9 +302,6 @@ private:
     PLDHashOperator  ShutdownCustomCacheDeviceEnum(const nsAString& aProfileDir,
                                                    nsRefPtr<nsOfflineCacheDevice>& aDevice,
                                                    void* aUserArg);
-    
-    nsCacheDevice *  FindRebindDevice_Internal(nsCacheEntry *entry);
-
 #if defined(PR_LOGGING)
     void LogCacheStatistics();
 #endif
