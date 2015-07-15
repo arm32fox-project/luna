@@ -1,6 +1,6 @@
 <!ENTITY status4evar.status.widget.title "Texte d'état">
 <!ENTITY status4evar.progress.widget.title "Barre de progression">
 <!ENTITY status4evar.download.widget.title "État du téléchargement">
-<!ENTITY status4evar.options.widget.title "Options de la barre d’état Pale Moon">
-<!ENTITY status4evar.options.widget.label "Barre d’état Pale Moon">
-<!ENTITY status4evar.menu.options.label "Options de la barre d’état...">
+<!ENTITY status4evar.options.widget.title "Options de Pale Moon barre d'état">
+<!ENTITY status4evar.options.widget.label "Pale Moon barre d'état">
+<!ENTITY status4evar.menu.options.label "Options de barre d'état...">
