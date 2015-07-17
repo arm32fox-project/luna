@@ -1,0 +1,6 @@
+<!ENTITY status4evar.status.widget.title "Tekst statusa">
+<!ENTITY status4evar.progress.widget.title "Stanje napredka">
+<!ENTITY status4evar.download.widget.title "Status prenosov">
+<!ENTITY status4evar.options.widget.title "Možnosti Pale Moon statusne vrstice">
+<!ENTITY status4evar.options.widget.label "Pale Moon statusna vrstica">
+<!ENTITY status4evar.menu.options.label "Možnosti statusne vrstice …">

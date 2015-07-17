@@ -341,13 +341,6 @@ public:
   {
     MOZ_ASSERT(aBuffer);
     MOZ_ASSERT(NS_IsMainThread());
-
-    nsCOMPtr<nsPIDOMWindow> pWindow = do_QueryInterface(mDecodeJob.mContext->GetParentObject());
-    nsCOMPtr<nsIScriptObjectPrincipal> scriptPrincipal =
-      do_QueryInterface(pWindow);
-    if (scriptPrincipal) {
-      mPrincipal = scriptPrincipal->GetPrincipal();
-    }
   }
 
   NS_IMETHOD Run();
@@ -389,7 +382,6 @@ private:
   WebAudioDecodeJob& mDecodeJob;
   PhaseEnum mPhase;
   nsCOMPtr<nsIThreadPool> mThreadPool;
-  nsCOMPtr<nsIPrincipal> mPrincipal;
   nsRefPtr<BufferDecoder> mBufferDecoder;
   nsAutoPtr<MediaDecoderReader> mDecoderReader;
 };
@@ -418,9 +410,15 @@ MediaDecodeTask::CreateReader()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
+  nsCOMPtr<nsIPrincipal> principal;
+  nsCOMPtr<nsIScriptObjectPrincipal> sop = do_QueryInterface(mDecodeJob.mContext->GetParentObject());
+  if (sop) {
+    principal = sop->GetPrincipal();
+  }
+
   nsRefPtr<BufferMediaResource> resource =
     new BufferMediaResource(static_cast<uint8_t*> (mBuffer),
-                            mLength, mPrincipal, mContentType);
+                            mLength, principal, mContentType);
 
   MOZ_ASSERT(!mBufferDecoder);
   mBufferDecoder = new BufferDecoder(resource);

@@ -45,7 +45,16 @@ const R_GETSCHEME  = new RegExp ("^" + R_SCHEME.source + "(?=\\:)", 'i');
 const R_SCHEMESRC  = new RegExp ("^" + R_SCHEME.source + "\\:$", 'i');
 
 // host-char       = ALPHA / DIGIT / "-"
-const R_HOSTCHAR   = new RegExp ("[a-zA-Z0-9\\-]", 'i');
+// For the app: protocol, we need to add {} to the valid character set
+const HOSTCHAR     = "{}a-zA-Z0-9\\-";
+const R_HOSTCHAR   = new RegExp ("[" + HOSTCHAR + "]", 'i');
+
+// Complementary character set of HOSTCHAR (characters that can't appear)
+const R_COMP_HCHAR = new RegExp ("[^" + HOSTCHAR + "]", "i");
+
+// Invalid character set for host strings (which can include dots and star)
+const R_INV_HCHAR  = new RegExp ("[^" + HOSTCHAR + "\\.\\*]", 'i');
+
 
 // host            = "*" / [ "*." ] 1*host-char *( "." 1*host-char )
 const R_HOST       = new RegExp ("\\*|(((\\*\\.)?" + R_HOSTCHAR.source +
@@ -272,10 +281,14 @@ CSPRep.ALLOW_DIRECTIVE   = "allow";
   *        while the policy-uri is asynchronously fetched
   * @param csp (optional)
   *        the CSP object to update once the policy has been fetched
+  * @param enforceSelfChecks (optional)
+  *        if present, and "true", will check to be sure "self" has the
+  *        appropriate values to inherit when they are omitted from the source.
   * @returns
   *        an instance of CSPRep
   */
-CSPRep.fromString = function(aStr, self, reportOnly, docRequest, csp) {
+CSPRep.fromString = function(aStr, self, reportOnly, docRequest, csp,
+                             enforceSelfChecks) {
   var SD = CSPRep.SRC_DIRECTIVES_OLD;
   var UD = CSPRep.URI_DIRECTIVES;
   var aCSPR = new CSPRep();
@@ -302,7 +315,7 @@ CSPRep.fromString = function(aStr, self, reportOnly, docRequest, csp) {
     dir = dir.trim();
     if (dir.length < 1) continue;
 
-    var dirname = dir.split(/\s+/)[0];
+    var dirname = dir.split(/\s+/)[0].toLowerCase();
     var dirvalue = dir.substring(dirname.length).trim();
 
     if (aCSPR._directives.hasOwnProperty(dirname)) {
@@ -349,7 +362,8 @@ CSPRep.fromString = function(aStr, self, reportOnly, docRequest, csp) {
         CSPdebug("Skipping duplicate directive: \"" + dir + "\"");
         continue directive;
       }
-      var dv = CSPSourceList.fromString(dirvalue, aCSPR, selfUri, true);
+      var dv = CSPSourceList.fromString(dirvalue, aCSPR, selfUri,
+                                        enforceSelfChecks);
       if (dv) {
         aCSPR._directives[SD.DEFAULT_SRC] = dv;
         continue directive;
@@ -360,7 +374,8 @@ CSPRep.fromString = function(aStr, self, reportOnly, docRequest, csp) {
     for each(var sdi in SD) {
       if (dirname === sdi) {
         // process dirs, and enforce that 'self' is defined.
-        var dv = CSPSourceList.fromString(dirvalue, aCSPR, selfUri, true);
+        var dv = CSPSourceList.fromString(dirvalue, aCSPR, selfUri,
+                                          enforceSelfChecks);
         if (dv) {
           aCSPR._directives[sdi] = dv;
           continue directive;
@@ -514,12 +529,16 @@ CSPRep.fromString = function(aStr, self, reportOnly, docRequest, csp) {
   *        while the policy-uri is asynchronously fetched
   * @param csp (optional)
   *        the CSP object to update once the policy has been fetched
+  * @param enforceSelfChecks (optional)
+  *        if present, and "true", will check to be sure "self" has the
+  *        appropriate values to inherit when they are omitted from the source.
   * @returns
   *        an instance of CSPRep
   */
 // When we deprecate our original CSP implementation, we rename this to
 // CSPRep.fromString and remove the existing CSPRep.fromString above.
-CSPRep.fromStringSpecCompliant = function(aStr, self, reportOnly, docRequest, csp) {
+CSPRep.fromStringSpecCompliant = function(aStr, self, reportOnly, docRequest, csp,
+                                          enforceSelfChecks) {
   var SD = CSPRep.SRC_DIRECTIVES_NEW;
   var UD = CSPRep.URI_DIRECTIVES;
   var aCSPR = new CSPRep(true);
@@ -545,7 +564,7 @@ CSPRep.fromStringSpecCompliant = function(aStr, self, reportOnly, docRequest, cs
     dir = dir.trim();
     if (dir.length < 1) continue;
 
-    var dirname = dir.split(/\s+/)[0];
+    var dirname = dir.split(/\s+/)[0].toLowerCase();
     var dirvalue = dir.substring(dirname.length).trim();
     dirs[dirname] = dirvalue;
   }
@@ -595,7 +614,8 @@ CSPRep.fromStringSpecCompliant = function(aStr, self, reportOnly, docRequest, cs
     for each(var sdi in SD) {
       if (dirname === sdi) {
         // process dirs, and enforce that 'self' is defined.
-        var dv = CSPSourceList.fromString(dirvalue, aCSPR, self, true);
+        var dv = CSPSourceList.fromString(dirvalue, aCSPR, self,
+                                          enforceSelfChecks);
         if (dv) {
           // Check for unsafe-inline in style-src
           if (sdi === "style-src" && dv._allowUnsafeInline) {
@@ -957,7 +977,7 @@ CSPSourceList.fromString = function(aStr, aCSPRep, self, enforceSelfChecks) {
   slObj._CSPRep = aCSPRep;
   aStr = aStr.trim();
   // w3 specifies case insensitive equality
-  if (aStr.toUpperCase() === "'NONE'") {
+  if (aStr.toLowerCase() === "'none'") {
     slObj._permitAllSources = false;
     return slObj;
   }
@@ -1019,7 +1039,7 @@ CSPSourceList.prototype = {
     // sort both arrays and compare like a zipper
     // XXX (sid): I think we can make this more efficient
     var sortfn = function(a,b) {
-      return a.toString() > b.toString();
+      return a.toString.toLowerCase() > b.toString.toLowerCase();
     };
     var a_sorted = this._sources.sort(sortfn);
     var b_sorted = that._sources.sort(sortfn);
@@ -1294,6 +1314,24 @@ CSPSource.fromString = function(aStr, aCSPRep, self, enforceSelfChecks) {
     self = CSPSource.create(self, aCSPRep, undefined, false);
   }
 
+
+  // check for 'unsafe-inline' (case insensitive)
+  if (aStr.toLowerCase() === "'unsafe-inline'"){
+    //ignore this if we have a nonce specified
+    if (CSPPrefObserver.experimentalEnabled && R_NONCESRC.test(aStr)) {
+      sObj._allowUnsafeInline = false;
+    } else {
+      sObj._allowUnsafeInline = true;
+    }
+    return sObj;
+  }
+
+  // check for 'unsafe-eval' (case insensitive)
+  if (aStr.toLowerCase() === "'unsafe-eval'"){
+    sObj._allowUnsafeEval = true;
+    return sObj;
+  }
+  
   // Check for scheme-source match - this only matches if the source
   // string is just a scheme with no host.
   if (R_SCHEMESRC.test(aStr)) {
@@ -1371,30 +1409,13 @@ CSPSource.fromString = function(aStr, aCSPRep, self, enforceSelfChecks) {
   }
 
   // check for 'self' (case insensitive)
-  if (aStr.toUpperCase() === "'SELF'") {
+  if (aStr.toLowerCase() === "'self'") {
     if (!self) {
       cspError(aCSPRep, CSPLocalizer.getStr("selfKeywordNoSelfData"));
       return null;
     }
     sObj._self = self.clone();
     sObj._isSelf = true;
-    return sObj;
-  }
-
-  // check for 'unsafe-inline' (case insensitive)
-  if (aStr.toUpperCase() === "'UNSAFE-INLINE'"){
-    //ignore this if we have a nonce specified
-    if (CSPPrefObserver.experimentalEnabled && R_NONCESRC.test(aStr)) {
-      sObj._allowUnsafeInline = false;
-    } else {
-      sObj._allowUnsafeInline = true;
-    }
-    return sObj;
-  }
-
-  // check for 'unsafe-eval' (case insensitive)
-  if (aStr.toUpperCase() === "'UNSAFE-EVAL'"){
-    sObj._allowUnsafeEval = true;
     return sObj;
   }
 
@@ -1467,10 +1488,10 @@ CSPSource.prototype = {
       return this._self.toString();
 
     if (this._allowUnsafeInline)
-      return "unsafe-inline";
+      return "'unsafe-inline'";
 
     if (this._allowUnsafeEval)
-      return "unsafe-eval";
+      return "'unsafe-eval'";
 
     var s = "";
     if (this.scheme)
@@ -1530,7 +1551,7 @@ CSPSource.prototype = {
       aSource = CSPSource.create(aSource, this._CSPRep);
 
     // verify scheme
-    if (this.scheme != aSource.scheme)
+    if (this.scheme.toLowerCase() != aSource.scheme.toLowerCase())
       return false;
 
     // port is defined in 'this' (undefined means it may not be relevant
@@ -1566,14 +1587,14 @@ CSPSource.prototype = {
     // 2. ports match
     // 3. either both hosts are undefined, or one equals the other.
     if (resolveSelf)
-      return this.scheme === that.scheme
-          && this.port   === that.port
+      return this.scheme.toLowerCase() === that.scheme.toLowerCase()
+          && this.port === that.port
           && (!(this.host || that.host) ||
                (this.host && this.host.equals(that.host)));
 
     // otherwise, compare raw (non-self-resolved values)
-    return this._scheme === that._scheme
-        && this._port   === that._port
+    return this._scheme.toLowerCase() === that._scheme.toLowerCase()
+        && this._port === that._port
         && (!(this._host || that._host) ||
               (this._host && this._host.equals(that._host)));
   },
@@ -1600,7 +1621,7 @@ CSPHost.fromString = function(aStr) {
   if (!aStr) return null;
 
   // host string must be LDH with dots and stars.
-  var invalidChar = aStr.match(/[^a-zA-Z0-9\-\.\*]/);
+  var invalidChar = aStr.match(R_INV_HCHAR);
   if (invalidChar) {
     CSPdebug("Invalid character '" + invalidChar + "' in host " + aStr);
     return null;
@@ -1621,7 +1642,7 @@ CSPHost.fromString = function(aStr) {
         return null;
       }
     }
-    else if (seg.match(/[^a-zA-Z0-9\-]/)) {
+    else if (seg.match(R_COMP_HCHAR)) {
       // Non-wildcard segment must be LDH string
       CSPdebug("Invalid segment '" + seg + "' in host value");
       return null;
@@ -1662,7 +1683,9 @@ CSPHost.prototype = {
    */
   permits:
   function(aHost) {
-    if (!aHost) aHost = CSPHost.fromString("*");
+    if (!aHost) {
+      aHost = CSPHost.fromString("*");
+    }
 
     if (!(aHost instanceof CSPHost)) {
       // -- compare CSPHost to String
@@ -1688,7 +1711,8 @@ CSPHost.prototype = {
     // * Compare from right to left.
     for (var i=1; i <= thislen; i++) {
       if (this._segments[thislen-i] != "*" &&
-          (this._segments[thislen-i] != aHost._segments[thatlen-i])) {
+          (this._segments[thislen-i].toLowerCase() !=
+           aHost._segments[thatlen-i].toLowerCase())) {
         return false;
       }
     }
@@ -1711,7 +1735,8 @@ CSPHost.prototype = {
       return false;
 
     for (var i=0; i<this._segments.length; i++) {
-      if (this._segments[i] != that._segments[i])
+      if (this._segments[i].toLowerCase() !=
+          that._segments[i].toLowerCase())
         return false;
     }
     return true;

@@ -12,7 +12,7 @@
 		<em:name>Pale Moon status bar</em:name>
 		<em:description>Status bar functionality for Pale Moon</em:description>
 		<em:id>statusbar@palemoon.org</em:id>
-		<em:version>5.3.0</em:version>
+		<em:version>5.4.0</em:version>
 		<em:creator>Moonchild/Sparky Bluefang</em:creator>
 		<em:type>2</em:type>
 		<em:optionsURL>chrome://status4evar/content/prefs.xul</em:optionsURL>
