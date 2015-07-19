@@ -604,6 +604,7 @@ protected:
                       const nsStyleFont* aParentFont,
                       nsStyleFont* aFont,
                       bool aStartStruct,
+                      bool aPreferDefault,
                       bool& aCanStoreInRuleTree);
 
   static void SetGenericFont(nsPresContext* aPresContext,
