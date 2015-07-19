@@ -839,7 +839,7 @@ pref("security.fileuri.strict_origin_policy", true);
 // Allow necko to do A/B testing. Will generally only happen if
 // telemetry is also enabled as otherwise there is no way to report
 // the results
-pref("network.allow-experiments", true);
+pref("network.allow-experiments", false);
 
 // Turn off interprocess security checks. Needed to run xpcshell tests.
 pref("network.disable.ipc.security", false);
@@ -1507,7 +1507,7 @@ pref("security.notification_enable_delay", 500);
 
 pref("security.csp.enable", true);
 pref("security.csp.debug", false);
-pref("security.csp.experimentalEnabled", false);
+pref("security.csp.experimentalEnabled", true);
 
 // Mixed content blocking
 pref("security.mixed_content.block_active_content", false);

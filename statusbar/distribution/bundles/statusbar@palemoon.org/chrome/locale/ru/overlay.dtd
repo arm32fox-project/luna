@@ -1,7 +1,6 @@
-﻿<!ENTITY status4evar.status.widget.title "Текст сообщения">
+<!ENTITY status4evar.status.widget.title "Текст сообщения">
 <!ENTITY status4evar.progress.widget.title "Индикатор выполнения">
 <!ENTITY status4evar.download.widget.title "Состояние загрузок">
-<!ENTITY status4evar.options.widget.title "Настройки Pale Moon status bar	">
-<!ENTITY status4evar.options.widget.label "Pale Moon status bar">
-<!ENTITY status4evar.menu.options.label "Настройки Status bar...">
-
+<!ENTITY status4evar.options.widget.title "Настройки панели состояния Pale Moon">
+<!ENTITY status4evar.options.widget.label "Панель состояния Pale Moon">
+<!ENTITY status4evar.menu.options.label "Настройки панели состояния...">

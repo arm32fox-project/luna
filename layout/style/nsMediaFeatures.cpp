@@ -45,6 +45,20 @@ const WindowsThemeName themeStrings[] = {
     { LookAndFeel::eWindowsTheme_Zune,       L"zune" },
     { LookAndFeel::eWindowsTheme_Generic,    L"generic" }
 };
+
+struct OperatingSystemVersionInfo {
+	LookAndFeel::OperatingSystemVersion id;
+	const wchar_t* name;
+};
+
+// OS version identities used in the -moz-os-version media query.
+const OperatingSystemVersionInfo osVersionStrings[] = {
+	{ LookAndFeel::eOperatingSystemVersion_WindowsXP,     L"windows-xp" },
+	{ LookAndFeel::eOperatingSystemVersion_WindowsVista,  L"windows-vista" },
+	{ LookAndFeel::eOperatingSystemVersion_Windows7,      L"windows-win7" },
+	{ LookAndFeel::eOperatingSystemVersion_Windows8,      L"windows-win8" },
+	{ LookAndFeel::eOperatingSystemVersion_Windows10,     L"windows-win10" }
+};
 #endif
 
 // A helper for four features below
@@ -328,6 +342,28 @@ GetWindowsTheme(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
 }
 
 static nsresult
+GetOperatinSystemVersion(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
+						 nsCSSValue& aResult)
+{
+	aResult.Reset();
+#ifdef XP_WIN
+	int32_t metricResult;
+	if (NS_SUCCEEDED(
+		  LookAndFeel::GetInt(LookAndFeel::eIntID_OperatingSystemVersionIdentifier,
+							  &metricResult))) {
+		for (size_t i = 0; i < ArrayLength(osVersionStrings); ++i) {
+			if (metricResult == osVersionStrings[i].id) {
+				aResult.SetStringValue(nsDependentString(osVersionStrings[i].name),
+									   eCSSUnit_Ident);
+				break;
+			}
+		}
+	}
+#endif
+	return NS_OK;
+}
+
+static nsresult
 GetIsGlyph(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
           nsCSSValue& aResult)
 {
@@ -586,6 +622,13 @@ nsMediaFeatures::features[] = {
         { nullptr },
         GetWindowsTheme
     },
+	{
+		&nsGkAtoms::_moz_os_version,
+		nsMediaFeature::eMinMaxNotAllowed,
+		nsMediaFeature::eIdent,
+		{ nullptr },
+		GetOperatinSystemVersion
+	},
 
     {
         &nsGkAtoms::_moz_swipe_animation_enabled,

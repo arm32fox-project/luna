@@ -46,7 +46,8 @@ public:
     VISTA_VERSION     = 0x600,
     WIN7_VERSION      = 0x601,
     WIN8_VERSION      = 0x602,
-    WIN8_1_VERSION    = 0x603
+    WIN8_1_VERSION    = 0x603,
+    WIN10_VERSION     = 0xa00
   };
   static WinVersion GetWindowsVersion();
 

@@ -381,6 +381,34 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
     case eIntID_WindowsThemeIdentifier:
         aResult = nsUXThemeData::GetNativeThemeId();
         break;
+
+	case eIntID_OperatingSystemVersionIdentifier:
+	{
+		switch(WinUtils::GetWindowsVersion()) {
+			case WinUtils::WINXP_VERSION:
+			case WinUtils::WIN2K3_VERSION:
+				aResult = LookAndFeel::eOperatingSystemVersion_WindowsXP;
+				break;
+			case WinUtils::VISTA_VERSION:
+				aResult = LookAndFeel::eOperatingSystemVersion_WindowsVista;
+				break;
+			case WinUtils::WIN7_VERSION:
+				aResult = LookAndFeel::eOperatingSystemVersion_Windows7;
+				break;
+			case WinUtils::WIN8_VERSION:
+			case WinUtils::WIN8_1_VERSION:
+				aResult = LookAndFeel::eOperatingSystemVersion_Windows8;
+				break;
+			case WinUtils::WIN10_VERSION:
+				aResult = LookAndFeel::eOperatingSystemVersion_Windows10;
+				break;
+			default:
+				aResult = LookAndFeel::eOperatingSystemVersion_Unknown;
+				break;
+		}
+		break;
+	}
+	
     case eIntID_MacGraphiteTheme:
     case eIntID_MacLionTheme:
     case eIntID_MaemoClassic:
