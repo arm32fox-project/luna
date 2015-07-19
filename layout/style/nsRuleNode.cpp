@@ -3028,6 +3028,7 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
                     uint8_t aGenericFontID, const nsRuleData* aRuleData,
                     const nsStyleFont* aParentFont,
                     nsStyleFont* aFont, bool aUsedStartStruct,
+                    bool aPreferDefault,
                     bool& aCanStoreInRuleTree)
 {
   bool atRoot = !aContext->GetParent();
@@ -3128,14 +3129,24 @@ nsRuleNode::SetFont(nsPresContext* aPresContext, nsStyleContext* aContext,
   NS_ASSERTION(eCSSUnit_Enumerated != familyValue->GetUnit(),
                "system fonts should not be in mFamily anymore");
   if (eCSSUnit_Families == familyValue->GetUnit()) {
-    // set the correct font if we are using DocumentFonts OR we are overriding for XUL
+    // Set the correct font if we are using DocumentFonts OR we are overriding for XUL
     // MJA: bug 31816
     if (aGenericFontID == kGenericFont_NONE) {
-      // only bother appending fallback fonts if this isn't a fallback generic font itself
-      if (!aFont->mFont.name.IsEmpty())
-        aFont->mFont.name.Append((PRUnichar)',');
+      // Only add a fallback if this isn't a generic fallback font itself.
       // defaultVariableFont.name should always be "serif" or "sans-serif".
-      aFont->mFont.name.Append(defaultVariableFont->name);
+      if (aPreferDefault) {
+        // When a default font is preferred over document fonts, prepend it.
+        if (!aFont->mFont.name.IsEmpty()) {
+          aFont->mFont.name.Insert((PRUnichar)',', 0);
+        }
+        aFont->mFont.name.Insert(defaultVariableFont->name, 0);
+      } else {
+        // If a default font is not preferred, append it to the list as a fallback.
+        if (!aFont->mFont.name.IsEmpty()) {
+          aFont->mFont.name.Append((PRUnichar)',');
+        }
+        aFont->mFont.name.Append(defaultVariableFont->name);
+      }
     }
     aFont->mFont.systemFont = false;
     // Technically this is redundant with the code below, but it's good
@@ -3595,7 +3606,7 @@ nsRuleNode::SetGenericFont(nsPresContext* aPresContext,
 
     nsRuleNode::SetFont(aPresContext, context,
                         aGenericFontID, &ruleData, &parentFont, aFont,
-                        false, dummy);
+                        false, false, dummy);
 
     parentFont = *aFont;
   }
@@ -3651,45 +3662,47 @@ nsRuleNode::ComputeFontData(void* aStartStruct,
   // XXXldb What if we would have had a string if we hadn't been doing
   // the optimization with a non-null aStartStruct?
   const nsCSSValue* familyValue = aRuleData->ValueForFontFamily();
+  bool preferDefault = false;
   if (eCSSUnit_Families == familyValue->GetUnit()) {
     familyValue->GetStringValue(font->mFont.name);
     // XXXldb Do we want to extract the generic for this if it's not only a
     // generic?
     nsFont::GetGenericID(font->mFont.name, &generic);
 
-    // If we aren't allowed to use document fonts, then we are only entitled
+    // If we aren't supposed to use document fonts, then we are only entitled
     // to use the user's default variable-width font and fixed-width font
     if (!useDocumentFonts) {
-      // Extract the generic from the specified font family...
+      // Extract the generic family from the specified font family.
       nsAutoString genericName;
       if (!font->mFont.EnumerateFamilies(ExtractGeneric, &genericName)) {
-        // The specified font had a generic family.
-        font->mFont.name = genericName;
+        // The specified font has a generic family.
         nsFont::GetGenericID(genericName, &generic);
 
-        // ... and only use it if it's -moz-fixed or monospace
-        if (generic != kGenericFont_moz_fixed &&
-            generic != kGenericFont_monospace) {
-          font->mFont.name.Truncate();
+        if (generic == kGenericFont_moz_fixed ||
+            generic == kGenericFont_monospace) {
+          // If it's -moz-fixed or monospace, copy it to the beginning of the list.  
+          font->mFont.name.Insert(PRUnichar(','), 0);
+          font->mFont.name.Insert(genericName, 0);
+        } else {
+          // Otherwise, we should ignore the font override.
           generic = kGenericFont_NONE;
         }
-      } else {
-        // The specified font did not have a generic family.
-        font->mFont.name.Truncate();
-        generic = kGenericFont_NONE;
       }
+      // When we don't want to use document fonts, we will prepend (rather
+      // than append) the user's default variable-width font in SetFont().
+      preferDefault = true;
     }
   }
 
   // Now compute our font struct
   if (generic == kGenericFont_NONE) {
-    // continue the normal processing
+    // The font is not a generic family font, so should be allowed to be used
     nsRuleNode::SetFont(mPresContext, aContext, generic,
                         aRuleData, parentFont, font,
-                        aStartStruct != nullptr, canStoreInRuleTree);
-  }
-  else {
-    // re-calculate the font as a generic font
+                        aStartStruct != nullptr, preferDefault,
+                        canStoreInRuleTree);
+  } else {
+    // The font has a generic family, so re-calculate
     canStoreInRuleTree = false;
     nsRuleNode::SetGenericFont(mPresContext, aContext, generic,
                                font);
