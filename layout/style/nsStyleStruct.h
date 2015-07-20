@@ -1791,8 +1791,11 @@ struct nsStyleDisplay {
    * or a related property. */
   bool HasTransformStyle() const {
     return mSpecifiedTransform != nullptr || 
-           mTransformStyle == NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D ||
-           mBackfaceVisibility == NS_STYLE_BACKFACE_VISIBILITY_HIDDEN;
+           mTransformStyle == NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D;
+  }
+
+  bool BackfaceIsHidden() const {
+    return mBackfaceVisibility == NS_STYLE_BACKFACE_VISIBILITY_HIDDEN;
   }
 
   // These are defined in nsStyleStructInlines.h.

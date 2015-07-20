@@ -1016,11 +1016,10 @@ nsIFrame::Preserves3DChildren() const
 bool
 nsIFrame::Preserves3D() const
 {
-  if (!GetParent() || !GetParent()->Preserves3DChildren() ||
-      !StyleDisplay()->HasTransform(this)) {
+  if (!GetParent() || !GetParent()->Preserves3DChildren()) {
     return false;
   }
-  return true;
+  return StyleDisplay()->HasTransform(this) || StyleDisplay()->BackfaceIsHidden();
 }
 
 bool
@@ -1712,7 +1711,16 @@ WrapPreserve3DListInternal(nsIFrame* aFrame, nsDisplayListBuilder *aBuilder, nsD
           break;
         }
         default: {
-          aTemp->AppendToTop(item);
+          // Look for backface hidden display items to wrap
+          if (childFrame->StyleDisplay()->BackfaceIsHidden()) {
+            if (!aTemp->IsEmpty()) {
+              aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder, aFrame, aTemp, aIndex++));
+            }
+
+            aOutput->AppendToTop(new (aBuilder) nsDisplayTransform(aBuilder, childFrame, item, aIndex++));
+          } else {
+            aTemp->AppendToTop(item);
+          };
           break;
         }
       } 
@@ -2092,6 +2100,9 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   const nsStylePosition* pos = child->StylePosition();
   bool isVisuallyAtomic = child->HasOpacity()
     || child->IsTransformed()
+    // strictly speaking, 'perspective' doesn't require visual atomicity,
+    // but the spec says it acts like the rest of these
+    || disp->mChildPerspective.GetUnit() == eStyleUnit_Coord
     || nsSVGIntegrationUtils::UsingEffectsForFrame(child);
 
   bool isPositioned = disp->IsPositioned(child);

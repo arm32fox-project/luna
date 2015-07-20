@@ -3475,6 +3475,21 @@ nsDisplayTransform::nsDisplayTransform(nsDisplayListBuilder* aBuilder, nsIFrame 
   mStoredList.SetClip(aBuilder, DisplayItemClip::NoClip());
 }
 
+nsDisplayTransform::nsDisplayTransform(nsDisplayListBuilder* aBuilder, nsIFrame *aFrame,
+                                       nsDisplayItem *aItem, uint32_t aIndex)
+  : nsDisplayItem(aBuilder, aFrame)
+  , mStoredList(aBuilder, aFrame, aItem)
+  , mTransformGetter(nullptr)
+  , mIndex(aIndex)
+{
+  MOZ_COUNT_CTOR(nsDisplayTransform);
+  NS_ABORT_IF_FALSE(aFrame, "Must have a frame!");
+  mReferenceFrame =
+    aBuilder->FindReferenceFrameFor(GetTransformRootFrame(aFrame));
+  mToReferenceFrame = aFrame->GetOffsetToCrossDoc(mReferenceFrame);
+  mStoredList.SetClip(aBuilder, DisplayItemClip::NoClip());
+}
+
 /* Returns the delta specified by the -moz-transform-origin property.
  * This is a positive delta, meaning that it indicates the direction to move
  * to get from (0, 0) of the frame to the transform origin.  This function is
@@ -3486,8 +3501,13 @@ nsDisplayTransform::GetDeltaToMozTransformOrigin(const nsIFrame* aFrame,
                                                  const nsRect* aBoundsOverride)
 {
   NS_PRECONDITION(aFrame, "Can't get delta for a null frame!");
-  NS_PRECONDITION(aFrame->IsTransformed(),
+  NS_PRECONDITION(aFrame->IsTransformed() || aFrame->StyleDisplay()->BackfaceIsHidden(),
                   "Shouldn't get a delta for an untransformed frame!");
+
+  if (aFrame->StyleDisplay()->BackfaceIsHidden() &&
+      !aFrame->IsTransformed()) {
+    return gfxPoint3D();
+  }
 
   /* For both of the coordinates, if the value of -moz-transform is a
    * percentage, it's relative to the size of the frame.  Otherwise, if it's
@@ -3551,8 +3571,13 @@ nsDisplayTransform::GetDeltaToMozPerspectiveOrigin(const nsIFrame* aFrame,
                                                    float aAppUnitsPerPixel)
 {
   NS_PRECONDITION(aFrame, "Can't get delta for a null frame!");
-  NS_PRECONDITION(aFrame->IsTransformed(),
+  NS_PRECONDITION(aFrame->IsTransformed() || aFrame->StyleDisplay()->BackfaceIsHidden(),
                   "Shouldn't get a delta for an untransformed frame!");
+
+  if (aFrame->StyleDisplay()->BackfaceIsHidden() &&
+      !aFrame->IsTransformed()) {
+    return gfxPoint3D();
+  }
 
   /* For both of the coordinates, if the value of -moz-perspective-origin is a
    * percentage, it's relative to the size of the frame.  Otherwise, if it's
