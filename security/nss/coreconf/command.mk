@@ -11,7 +11,8 @@
 AS            = $(CC)
 ASFLAGS      += $(CFLAGS)
 CCF           = $(CC) $(CFLAGS)
-LINK_DLL      = $(LINK) $(OS_DLLFLAGS) $(DLLFLAGS) $(XLDFLAGS)
+LINK_DLL      = $(LINK) $(OS_DLLFLAGS) $(DLLFLAGS)
+LINK_EXE      = $(LINK) $(OS_LFLAGS) $(LFLAGS)
 CFLAGS        = $(OPTIMIZER) $(OS_CFLAGS) $(XP_DEFINE) $(DEFINES) $(INCLUDES) \
 		$(XCFLAGS)
 PERL          = perl

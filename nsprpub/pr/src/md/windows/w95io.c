@@ -90,6 +90,7 @@ _PR_MD_WAIT(PRThread *thread, PRIntervalTime ticks)
     {
         case WAIT_OBJECT_0:
             return PR_SUCCESS;
+            break;
         case WAIT_TIMEOUT:
             _PR_THREAD_LOCK(thread);
             if (thread->state == _PR_IO_WAIT) {
@@ -109,8 +110,10 @@ _PR_MD_WAIT(PRThread *thread, PRIntervalTime ticks)
                 }
             }
             return PR_SUCCESS;
+            break;
         default:
             return PR_FAILURE;
+            break;
     }
 }
 PRStatus
@@ -955,10 +958,9 @@ _PR_MD_LOCKFILE(PROsfd f)
 		0l, 0l,
 		0x0l, 0xffffffffl ); 
 	if ( rv == 0 ) {
-        DWORD err = GetLastError();
-        _PR_MD_MAP_DEFAULT_ERROR(err);
+        DWORD rc = GetLastError();
         PR_LOG( _pr_io_lm, PR_LOG_ERROR,
-            ("_PR_MD_LOCKFILE() failed. Error: %d", err ));
+            ("_PR_MD_LOCKFILE() failed. Error: %d", rc ));
         rc = PR_FAILURE;
     }
 

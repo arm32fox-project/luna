@@ -130,9 +130,8 @@ PR_IMPLEMENT(PRStatus) PR_NewThreadPrivateIndex(
 ** destructor function and a non-NULL per-thread-private data value,
 ** the destructor function is invoked.
 **
-** This can return PR_FAILURE if index is invalid (ie., beyond the limit
-** on the TPD slots) or memory is insufficient to allocate an expanded
-** vector.
+** This can return PR_FAILURE if index is invalid (ie., beyond the current
+** high water mark) or memory is insufficient to allocate an exanded vector.
 */
 
 PR_IMPLEMENT(PRStatus) PR_SetThreadPrivate(PRUintn index, void *priv)
@@ -140,10 +139,11 @@ PR_IMPLEMENT(PRStatus) PR_SetThreadPrivate(PRUintn index, void *priv)
     PRThread *self = PR_GetCurrentThread();
 
     /*
-    ** To improve performance, we don't check if the index has been
-    ** allocated.
+    ** The index being set might not have a sufficient vector in this
+    ** thread. But if the index has been allocated, it's okay to go
+    ** ahead and extend this one now.
     */
-    if (index >= _PR_TPD_LIMIT)
+    if ((index >= _PR_TPD_LIMIT) || (index >= _pr_tpd_highwater))
     {
         PR_SetError(PR_TPD_RANGE_ERROR, 0);
         return PR_FAILURE;
@@ -152,10 +152,6 @@ PR_IMPLEMENT(PRStatus) PR_SetThreadPrivate(PRUintn index, void *priv)
     PR_ASSERT(((NULL == self->privateData) && (0 == self->tpdLength))
         || ((NULL != self->privateData) && (0 != self->tpdLength)));
 
-    /*
-    ** If this thread does not have a sufficient vector for the index
-    ** being set, go ahead and extend this vector now.
-    */
     if ((NULL == self->privateData) || (self->tpdLength <= index))
     {
         void *extension = PR_CALLOC(_pr_tpd_length * sizeof(void*));

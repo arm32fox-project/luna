@@ -437,12 +437,10 @@ smime_choose_cipher(CERTCertificate *scert, CERTCertificate **rcerts)
 	     */
 	    key = CERT_ExtractPublicKey(rcerts[rcount]);
 	    pklen_bits = 0;
-	    key_type = nullKey;
 	    if (key != NULL) {
 		pklen_bits = SECKEY_PublicKeyStrengthInBits (key);
 		key_type = SECKEY_GetPublicKeyType(key);
 		SECKEY_DestroyPublicKey (key);
-		key = NULL;
 	    }
 
 	    if (key_type == ecKey) {

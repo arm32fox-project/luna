@@ -537,9 +537,6 @@ PR_IMPLEMENT(void) PR_LogFlush(void)
 PR_IMPLEMENT(void) PR_Abort(void)
 {
     PR_LogPrint("Aborting");
-#ifdef ANDROID
-    __android_log_write(ANDROID_LOG_ERROR, "PRLog", "Aborting");
-#endif
     abort();
 }
 
@@ -550,11 +547,9 @@ PR_IMPLEMENT(void) PR_Assert(const char *s, const char *file, PRIntn ln)
     fflush(stderr);
 #ifdef WIN32
     DebugBreak();
-#elif defined(XP_OS2)
+#endif
+#ifdef XP_OS2
     asm("int $3");
-#elif defined(ANDROID)
-    __android_log_assert(NULL, "PRLog", "Assertion failure: %s, at %s:%d\n",
-                         s, file, ln);
 #endif
     abort();
 }

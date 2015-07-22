@@ -428,6 +428,7 @@ ssl2_CreateMAC(sslSecurityInfo *sec, SECItem *readKey, SECItem *writeKey,
           int cipherChoice)
 {
     switch (cipherChoice) {
+
       case SSL_CK_RC2_128_CBC_EXPORT40_WITH_MD5:
       case SSL_CK_RC2_128_CBC_WITH_MD5:
       case SSL_CK_RC4_128_EXPORT40_WITH_MD5:
@@ -435,10 +436,8 @@ ssl2_CreateMAC(sslSecurityInfo *sec, SECItem *readKey, SECItem *writeKey,
       case SSL_CK_DES_64_CBC_WITH_MD5:
       case SSL_CK_DES_192_EDE3_CBC_WITH_MD5:
 	sec->hash = HASH_GetHashObject(HASH_AlgMD5);
-	if (SECITEM_CopyItem(0, &sec->sendSecret, writeKey) ||
-	    SECITEM_CopyItem(0, &sec->rcvSecret, readKey)) {
-	    return SECFailure;
-	}
+	SECITEM_CopyItem(0, &sec->sendSecret, writeKey);
+	SECITEM_CopyItem(0, &sec->rcvSecret, readKey);
 	break;
 
       default:

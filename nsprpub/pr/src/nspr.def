@@ -451,7 +451,3 @@ EXPORTS ;-
 		PR_GetThreadName;
 		PR_SetCurrentThreadName;
 ;+} NSPR_4.8.9;
-;+NSPR_4.10.3 {
-;+      global:
-		PR_SyncMemMap;
-;+} NSPR_4.9.2;

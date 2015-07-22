@@ -137,8 +137,7 @@ nss_dbm_db_set_label
 
   /* Locked region */ 
   {
-    rv = NSSCKFWMutex_Lock(db->crustylock);
-    if( CKR_OK != rv ) {
+    if( CKR_OK != NSSCKFWMutex_Lock(db->crustylock) ) {
       return rv;
     }
 

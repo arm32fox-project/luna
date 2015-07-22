@@ -25,6 +25,7 @@ CSRCS = \
 	certhigh.c \
  	certvfy.c \
  	certvfypkix.c \
+ 	certvfypkixprint.c \
  	xcrldist.c \
 	$(NULL)
 

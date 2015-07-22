@@ -831,16 +831,20 @@ nssTrustDomain_FindCertificateByEncodedCertificate (
     NSSCertificate *rvCert = NULL;
     NSSDER issuer = { 0 };
     NSSDER serial = { 0 };
+    NSSArena *arena = nssArena_Create();
+    if (!arena) {
+	return (NSSCertificate *)NULL;
+    }
     /* XXX this is not generic...  will any cert crack into issuer/serial? */
-    status = nssPKIX509_GetIssuerAndSerialFromDER(ber, &issuer, &serial);
+    status = nssPKIX509_GetIssuerAndSerialFromDER(ber, arena, &issuer, &serial);
     if (status != PR_SUCCESS) {
-	return NULL;
+	goto finish;
     }
     rvCert = nssTrustDomain_FindCertificateByIssuerAndSerialNumber(td,
                                                                    &issuer,
                                                                    &serial);
-    PORT_Free(issuer.data);
-    PORT_Free(serial.data);
+finish:
+    nssArena_Destroy(arena);
     return rvCert;
 }
 

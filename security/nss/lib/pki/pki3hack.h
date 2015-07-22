@@ -77,7 +77,7 @@ NSS_EXTERN PRStatus
 STAN_ChangeCertTrust(CERTCertificate *cc, CERTCertTrust *trust);
 
 NSS_EXTERN PRStatus
-nssPKIX509_GetIssuerAndSerialFromDER(NSSDER *der,
+nssPKIX509_GetIssuerAndSerialFromDER(NSSDER *der, NSSArena *arena, 
                                      NSSDER *issuer, NSSDER *serial);
 
 NSS_EXTERN char *

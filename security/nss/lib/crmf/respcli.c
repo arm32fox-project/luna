@@ -92,13 +92,11 @@ CMMF_CertRepContentGetResponseAtIndex(CMMFCertRepContent *inCertRepContent,
         return NULL;
     }
     certResponse = PORT_ZNew(CMMFCertResponse);
-    if (certResponse){
-	rv = cmmf_CopyCertResponse(NULL, certResponse, 
-				   inCertRepContent->response[inIndex]);
-	if (rv != SECSuccess) {
-	    CMMF_DestroyCertResponse(certResponse);
-	    certResponse = NULL;
-	}
+    rv = cmmf_CopyCertResponse(NULL, certResponse, 
+			       inCertRepContent->response[inIndex]);
+    if (rv != SECSuccess) {
+        CMMF_DestroyCertResponse(certResponse);
+	certResponse = NULL;
     }
     return certResponse;
 }

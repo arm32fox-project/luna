@@ -987,13 +987,10 @@ AddNameConstraints(void *extHandle)
             GEN_BREAK(SECFailure);
         }
 
-        if (PrintChoicesAndGetAnswer("Type of Name Constraint?\n"
+        PrintChoicesAndGetAnswer("Type of Name Constraint?\n"
             "\t1 - permitted\n\t2 - excluded\n\tAny"
             "other number to finish\n\tChoice",
-            buffer, sizeof(buffer)) != SECSuccess) {
-            GEN_BREAK(SECFailure);
-        }
-
+            buffer, sizeof(buffer));
         intValue = PORT_Atoi(buffer);
         switch (intValue) {
         case 1:
@@ -1829,13 +1826,11 @@ AddInfoAccess(void *extHandle, PRBool addSIAExt, PRBool isCACert)
                 intValue = timeStamping;
             }
         } else {
-            if (PrintChoicesAndGetAnswer("Enter access method type "
+            PrintChoicesAndGetAnswer("Enter access method type "
                 "for Authority Information Access extension:\n"
                 "\t1 - CA Issuers\n\t2 - OCSP\n\tAny"
                 "other number to finish\n\tChoice",
-                buffer, sizeof(buffer)) != SECSuccess) {
-                GEN_BREAK (SECFailure);
-            }
+                buffer, sizeof(buffer));
             intValue = PORT_Atoi(buffer);
         }
         if (addSIAExt) {

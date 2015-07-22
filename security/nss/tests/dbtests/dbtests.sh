@@ -168,29 +168,19 @@ dbtest_main()
         cat $RONLY_DIR/* > /dev/null
     fi
 
-    # skipping the next two tests when user is root,
-    # otherwise they would fail due to rooty powers
-    if [ $UID -ne 0 ]; then
-      ${BINDIR}/dbtest -d $RONLY_DIR
+    ${BINDIR}/dbtest -d $RONLY_DIR
     ret=$?
     if [ $ret -ne 46 ]; then
-      html_failed "Dbtest r/w succeeded in a readonly directory $ret"
+      html_failed "Dbtest r/w succeeded in an readonly directory $ret"
     else
       html_passed "Dbtest r/w didn't work in an readonly dir $ret" 
     fi
-    else
-      html_passed "Skipping Dbtest r/w in a readonly dir because user is root"
-    fi
-    if [ $UID -ne 0 ]; then
-      ${BINDIR}/certutil -D -n "TestUser" -d .
+    ${BINDIR}/certutil -D -n "TestUser" -d .
     ret=$?
     if [ $ret -ne 255 ]; then
-      html_failed "Certutil succeeded in deleting a cert in a readonly directory $ret"
+      html_failed "Certutil succeeded in deleting a cert in an readonly directory $ret"
     else
-      html_passed "Certutil didn't work in an readonly dir $ret"
-    fi
-    else
-        html_passed "Skipping Certutil delete cert in a readonly directory test because user is root" 
+        html_passed "Certutil didn't work in an readonly dir $ret"
     fi
     
     Echo "test opening the database ronly in a readonly directory"

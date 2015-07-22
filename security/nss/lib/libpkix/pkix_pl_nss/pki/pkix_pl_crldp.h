@@ -45,9 +45,4 @@ pkix_pl_CrlDp_Create(const CRLDistributionPoint *dp,
                      const CERTName *certIssuerName,
                      pkix_pl_CrlDp **pPkixDP,
                      void *plContext);
-
-#ifdef __cplusplus
-}
-#endif
-
 #endif /* _PKIX_PL_CRLDP_H */

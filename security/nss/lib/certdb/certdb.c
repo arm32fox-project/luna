@@ -1051,11 +1051,6 @@ SEC_CheckCrlTimes(CERTCrl *crl, PRTime t) {
     PRTime notBefore, notAfter, llPendingSlop, tmp1;
     SECStatus rv;
 
-    if (!crl) {
-        PORT_SetError(SEC_ERROR_INVALID_ARGS);
-        return(secCertTimeUndetermined);
-    }
-
     rv = SEC_GetCrlTimes(crl, &notBefore, &notAfter);
     
     if (rv) {
@@ -1068,7 +1063,6 @@ SEC_CheckCrlTimes(CERTCrl *crl, PRTime t) {
     LL_MUL(llPendingSlop, llPendingSlop, tmp1);
     LL_SUB(notBefore, notBefore, llPendingSlop);
     if ( LL_CMP( t, <, notBefore ) ) {
-	PORT_SetError(SEC_ERROR_CRL_EXPIRED);
 	return(secCertTimeNotValidYet);
     }
 
@@ -1080,7 +1074,6 @@ SEC_CheckCrlTimes(CERTCrl *crl, PRTime t) {
     }
 
     if ( LL_CMP( t, >, notAfter) ) {
-	PORT_SetError(SEC_ERROR_CRL_EXPIRED);
 	return(secCertTimeExpired);
     }
 
@@ -1432,6 +1425,7 @@ cert_VerifySubjectAltName(const CERTCertificate *cert, const char *hn)
     CERTGeneralName * current;
     char *            cn;
     int               cnBufLen;
+    unsigned int      hnLen;
     int               DNSextCount    = 0;
     int               IPextCount     = 0;
     PRBool            isIPaddr       = PR_FALSE;
@@ -1441,6 +1435,7 @@ cert_VerifySubjectAltName(const CERTCertificate *cert, const char *hn)
     char              cnbuf[128];
 
     subAltName.data = NULL;
+    hnLen    = strlen(hn);
     cn       = cnbuf;
     cnBufLen = sizeof cnbuf;
 
@@ -2316,7 +2311,7 @@ CERT_DecodeTrustString(CERTCertTrust *trust, const char *trusts)
 {
     unsigned int i;
     unsigned int *pflags;
-
+    
     if (!trust) {
 	PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	return SECFailure;
@@ -2330,7 +2325,7 @@ CERT_DecodeTrustString(CERTCertTrust *trust, const char *trusts)
     }
 
     pflags = &trust->sslFlags;
-
+    
     for (i=0; i < PORT_Strlen(trusts); i++) {
 	switch (trusts[i]) {
 	  case 'p':
@@ -2376,7 +2371,6 @@ CERT_DecodeTrustString(CERTCertTrust *trust, const char *trusts)
 	      }
 	      break;
 	  default:
-              PORT_SetError(SEC_ERROR_INVALID_ARGS);
 	      return SECFailure;
 	}
     }

@@ -401,6 +401,8 @@ main(int argc, char **argv)
         Usage(progName);
     }
 
+    if (!doPriv && !doPub) doPriv = PR_TRUE;
+
     if (doIters && doTime) Usage(progName);
 
     if (!doTime) {
@@ -428,7 +430,9 @@ main(int argc, char **argv)
 
     if (useTokenKey) {
         CK_OBJECT_HANDLE kh = CK_INVALID_HANDLE;
-
+        CERTCertDBHandle* certdb = NULL;
+	certdb = CERT_GetDefaultCertDB();
+        
         cert = PK11_FindCertFromNickname(nickname, &pwData);
         if (cert == NULL) {
             fprintf(stderr,
@@ -486,7 +490,9 @@ main(int argc, char **argv)
             exit(1);
         }
 
-        /* do a temporary keygen in selected slot */
+        doKeyGen = PR_TRUE; /* Always do a keygen for session keys.
+                               Import of hardcoded key is not supported */
+        /* do a temporary keygen in selected slot */        
         if (!keybits) {
             keybits = DEFAULT_KEY_BITS;
         }

@@ -15,7 +15,8 @@ PR_BEGIN_EXTERN_C
 */
 #if defined(_WIN32) && (_MSC_VER >= 1300) && \
     (defined(_M_IX86) || defined(_M_AMD64) || defined(_M_ARM))
-# include <intrin.h>
+  unsigned char _BitScanForward(unsigned long * Index, unsigned long Mask);
+  unsigned char _BitScanReverse(unsigned long * Index, unsigned long Mask);
 # pragma  intrinsic(_BitScanForward,_BitScanReverse)
   __forceinline static int __prBitScanForward32(unsigned int val)
   { 

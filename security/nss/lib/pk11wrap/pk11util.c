@@ -1185,7 +1185,7 @@ end_wait:
 SECStatus
 SECMOD_CancelWait(SECMODModule *mod)
 {
-    unsigned long controlMask;
+    unsigned long controlMask = mod->evControlMask;
     SECStatus rv = SECSuccess;
     CK_RV crv;
 
