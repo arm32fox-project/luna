@@ -41,7 +41,7 @@ endif
 DISABLED_CSRCS           += \
                 cubeb_opensl.c \
                 $(NULL)
-DISABLED_CSRCS     += \                
+DISABLED_CSRCS     += \
                 cubeb_resampler.cpp \
                 $(NULL)
 DEFINES         += -DUSE_OPENSL
