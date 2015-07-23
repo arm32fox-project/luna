@@ -983,7 +983,13 @@
           // There is no perfect way to check if a node is visible in JavaScript,
           // so use the best measures we can
           if (aNode) {
-            aWindow = aWindow || aNode.ownerDocument.defaultView;
+            try {
+              aWindow = aWindow || aNode.ownerDocument.defaultView;
+            } catch(e) {
+              // XXX: If a node doesn't have an ownerDocument, it's assumed
+              // here to not be visible to the user. Is this always the case?
+              return false;
+            }
             let style = aWindow.getComputedStyle(aNode, "");
             if (style) {
               if (style.visibility == "hidden" ||
