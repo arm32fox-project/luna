@@ -499,7 +499,6 @@ nsTextControlFrame::Reflow(nsPresContext*   aPresContext,
                            const nsHTMLReflowState& aReflowState,
                            nsReflowStatus&          aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsTextControlFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
 
   // make sure that the form registers itself on the initial/first reflow
@@ -1431,8 +1430,6 @@ nsTextControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
    * with the difference that we filter-out the placeholder frame when it
    * should not be visible.
    */
-  DO_GLOBAL_REFLOW_COUNT_DSP("nsTextControlFrame");
-
   nsCOMPtr<nsITextControlElement> txtCtrl = do_QueryInterface(GetContent());
   NS_ASSERTION(txtCtrl, "Content not a text control element!");
 

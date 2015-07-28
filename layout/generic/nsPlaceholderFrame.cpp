@@ -129,7 +129,6 @@ nsPlaceholderFrame::Reflow(nsPresContext*           aPresContext,
   }
 #endif
 
-  DO_GLOBAL_REFLOW_COUNT("nsPlaceholderFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
   aDesiredSize.width = 0;
   aDesiredSize.height = 0;
@@ -206,29 +205,20 @@ PaintDebugPlaceholder(nsIFrame* aFrame, nsRenderingContext* aCtx,
                  nsPresContext::CSSPixelsToAppUnits(3),
                  nsPresContext::CSSPixelsToAppUnits(10));
 }
-#endif // DEBUG
-
-#if defined(DEBUG)
 
 void
 nsPlaceholderFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                      const nsRect&           aDirtyRect,
                                      const nsDisplayListSet& aLists)
 {
-  DO_GLOBAL_REFLOW_COUNT_DSP("nsPlaceholderFrame");
-  
-#ifdef DEBUG
   if (GetShowFrameBorders()) {
     aLists.Outlines()->AppendNewToTop(
       new (aBuilder) nsDisplayGeneric(aBuilder, this, PaintDebugPlaceholder,
                                       "DebugPlaceholder",
                                       nsDisplayItem::TYPE_DEBUG_PLACEHOLDER));
   }
-#endif
 }
-#endif // DEBUG
 
-#ifdef DEBUG
 NS_IMETHODIMP
 nsPlaceholderFrame::GetFrameName(nsAString& aResult) const
 {

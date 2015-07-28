@@ -274,8 +274,6 @@ nsBulletFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!IsVisibleForPainting(aBuilder))
     return;
 
-  DO_GLOBAL_REFLOW_COUNT_DSP("nsBulletFrame");
-  
   aLists.Content()->AppendNewToTop(
     new (aBuilder) nsDisplayBullet(aBuilder, this));
 }
@@ -1452,7 +1450,6 @@ nsBulletFrame::Reflow(nsPresContext* aPresContext,
                       const nsHTMLReflowState& aReflowState,
                       nsReflowStatus& aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsBulletFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aMetrics, aStatus);
 
   float inflation = nsLayoutUtils::FontSizeInflationFor(this);

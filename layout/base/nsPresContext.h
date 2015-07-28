@@ -1456,6 +1456,4 @@ protected:
   uint32_t mDOMGeneration;
 };
 
-#define DO_GLOBAL_REFLOW_COUNT(_name)
-
 #endif /* nsPresContext_h___ */
