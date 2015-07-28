@@ -71,10 +71,6 @@ class nsAnimationManager;
 class imgIContainer;
 class nsIDOMMediaQueryList;
 
-#ifdef MOZ_REFLOW_PERF
-class nsRenderingContext;
-#endif
-
 // supported values for cached bool types
 enum nsPresContext_CachedBoolPrefType {
   kPresContext_UseDocumentColors = 1,
@@ -794,11 +790,6 @@ public:
   */
   NS_HIDDEN_(bool) EnsureVisible();
   
-#ifdef MOZ_REFLOW_PERF
-  NS_HIDDEN_(void) CountReflows(const char * aName,
-                                nsIFrame * aFrame);
-#endif
-
   /**
    * This table maps border-width enums 'thin', 'medium', 'thick'
    * to actual nscoord values.
@@ -1465,12 +1456,6 @@ protected:
   uint32_t mDOMGeneration;
 };
 
-#ifdef MOZ_REFLOW_PERF
-
-#define DO_GLOBAL_REFLOW_COUNT(_name) \
-  aPresContext->CountReflows((_name), (nsIFrame*)this); 
-#else
 #define DO_GLOBAL_REFLOW_COUNT(_name)
-#endif // MOZ_REFLOW_PERF
 
 #endif /* nsPresContext_h___ */

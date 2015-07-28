@@ -208,7 +208,7 @@ PaintDebugPlaceholder(nsIFrame* aFrame, nsRenderingContext* aCtx,
 }
 #endif // DEBUG
 
-#if defined(DEBUG) || (defined(MOZ_REFLOW_PERF_DSP) && defined(MOZ_REFLOW_PERF))
+#if defined(DEBUG)
 
 void
 nsPlaceholderFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
@@ -226,7 +226,7 @@ nsPlaceholderFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   }
 #endif
 }
-#endif // DEBUG || (MOZ_REFLOW_PERF_DSP && MOZ_REFLOW_PERF)
+#endif // DEBUG
 
 #ifdef DEBUG
 NS_IMETHODIMP

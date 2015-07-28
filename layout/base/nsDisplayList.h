@@ -1726,84 +1726,9 @@ protected:
   Type mType;
 };
 
-#if defined(MOZ_REFLOW_PERF_DSP) && defined(MOZ_REFLOW_PERF)
-/**
- * This class implements painting of reflow counts.  Ideally, we would simply
- * make all the frame names be those returned by nsFrame::GetFrameName
- * (except that tosses in the content tag name!)  and support only one color
- * and eliminate this class altogether in favor of nsDisplayGeneric, but for
- * the time being we can't pass args to a PaintCallback, so just have a
- * separate class to do the right thing.  Sadly, this alsmo means we need to
- * hack all leaf frame classes to handle this.
- *
- * XXXbz the color thing is a bit of a mess, but 0 basically means "not set"
- * here...  I could switch it all to nscolor, but why bother?
- */
-class nsDisplayReflowCount : public nsDisplayItem {
-public:
-  nsDisplayReflowCount(nsDisplayListBuilder* aBuilder, nsIFrame* aFrame,
-                       const char* aFrameName,
-                       uint32_t aColor = 0)
-    : nsDisplayItem(aBuilder, aFrame),
-      mFrameName(aFrameName),
-      mColor(aColor)
-  {
-    MOZ_COUNT_CTOR(nsDisplayReflowCount);
-  }
-#ifdef NS_BUILD_REFCNT_LOGGING
-  virtual ~nsDisplayReflowCount() {
-    MOZ_COUNT_DTOR(nsDisplayReflowCount);
-  }
-#endif
-
-  virtual void Paint(nsDisplayListBuilder* aBuilder, nsRenderingContext* aCtx) MOZ_OVERRIDE {
-    mFrame->PresContext()->PresShell()->PaintCount(mFrameName, aCtx,
-                                                   mFrame->PresContext(),
-                                                   mFrame, ToReferenceFrame(),
-                                                   mColor);
-  }
-  NS_DISPLAY_DECL_NAME("nsDisplayReflowCount", TYPE_REFLOW_COUNT)
-protected:
-  const char* mFrameName;
-  nscolor mColor;
-};
-
-#define DO_GLOBAL_REFLOW_COUNT_DSP(_name)                                     \
-  PR_BEGIN_MACRO                                                              \
-    if (!aBuilder->IsBackgroundOnly() && !aBuilder->IsForEventDelivery() &&   \
-        PresContext()->PresShell()->IsPaintingFrameCounts()) {                \
-        aLists.Outlines()->AppendNewToTop(                                    \
-            new (aBuilder) nsDisplayReflowCount(aBuilder, this, _name));      \
-    }                                                                         \
-  PR_END_MACRO
-
-#define DO_GLOBAL_REFLOW_COUNT_DSP_COLOR(_name, _color)                       \
-  PR_BEGIN_MACRO                                                              \
-    if (!aBuilder->IsBackgroundOnly() && !aBuilder->IsForEventDelivery() &&   \
-        PresContext()->PresShell()->IsPaintingFrameCounts()) {                \
-        aLists.Outlines()->AppendNewToTop(                                    \
-             new (aBuilder) nsDisplayReflowCount(aBuilder, this, _name, _color)); \
-    }                                                                         \
-  PR_END_MACRO
-
-/*
-  Macro to be used for classes that don't actually implement BuildDisplayList
- */
-#define DECL_DO_GLOBAL_REFLOW_COUNT_DSP(_class, _super)                   \
-  void BuildDisplayList(nsDisplayListBuilder*   aBuilder,                 \
-                        const nsRect&           aDirtyRect,               \
-                        const nsDisplayListSet& aLists) {                 \
-    DO_GLOBAL_REFLOW_COUNT_DSP(#_class);                                  \
-    _super::BuildDisplayList(aBuilder, aDirtyRect, aLists);               \
-  }
-
-#else // MOZ_REFLOW_PERF_DSP && MOZ_REFLOW_PERF
-
 #define DO_GLOBAL_REFLOW_COUNT_DSP(_name)
 #define DO_GLOBAL_REFLOW_COUNT_DSP_COLOR(_name, _color)
 #define DECL_DO_GLOBAL_REFLOW_COUNT_DSP(_class, _super)
-
-#endif // MOZ_REFLOW_PERF_DSP && MOZ_REFLOW_PERF
 
 class nsDisplayCaret : public nsDisplayItem {
 public:
