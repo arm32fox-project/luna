@@ -90,9 +90,10 @@ static void Output(const char *fmt, ... )
 #if MOZ_WINCONSOLE
   fwprintf_s(stderr, wide_msg);
 #else
-  MessageBoxW(NULL, wide_msg, L"Firefox", MB_OK
-                                        | MB_ICONERROR
-                                        | MB_SETFOREGROUND);
+  MessageBoxW(NULL, 
+              wide_msg,
+              L"Pale Moon",
+              MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
 #endif
 #endif
 
@@ -190,7 +191,16 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
   nsresult rv;
   uint32_t mainFlags = 0;
 
-  // Allow firefox.exe to launch XULRunner apps via -app <application.ini>
+#ifdef XP_WIN
+  HKEY hKey;
+  LONG lRes = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\WPA\\PosReady", 0, KEY_READ, &hKey);
+  if (lRes == ERROR_SUCCESS) {
+    Output("Unsupported operating system.");
+    return 255;
+  }
+#endif
+
+  // Allow palemoon.exe to launch XULRunner apps via -app <application.ini>
   // Note that -app must be the *first* argument.
   const char *appDataFile = getenv("XUL_APP_FILE");
   if (appDataFile && *appDataFile) {
