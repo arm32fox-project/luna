@@ -116,6 +116,7 @@ public:
   bool mLastUploadLengthComputable;
   bool mSeenLoadStart;
   bool mSeenUploadLoadStart;
+  bool mOpening;
 
   // Only touched on the main thread.
   uint32_t mSyncQueueKey;
@@ -135,7 +136,7 @@ public:
     mOuterEventStreamId(0), mOuterChannelId(0), mLastLoaded(0), mLastTotal(0),
     mLastUploadLoaded(0), mLastUploadTotal(0), mIsSyncXHR(false),
     mLastLengthComputable(false), mLastUploadLengthComputable(false),
-    mSeenLoadStart(false), mSeenUploadLoadStart(false),
+    mSeenLoadStart(false), mSeenUploadLoadStart(false), mOpening(false),
     mSyncQueueKey(UINT32_MAX),
     mSyncEventResponseSyncQueueKey(UINT32_MAX),
     mUploadEventListenersAttached(false), mMainThreadSeenLoadStart(false),
@@ -199,7 +200,7 @@ public:
   }
 
   void
-  Teardown();
+  Teardown(bool aSendUnpin);
 
   bool
   AddRemoveEventListeners(bool aUpload, bool aAdd);
@@ -367,7 +368,9 @@ public:
   {
     AssertIsOnMainThread();
 
-    mProxy->Teardown();
+    // This means the XHR was GCed, so we can't be pinned here,
+    // and we don't need to try to unpin.
+    mProxy->Teardown(/* aSendUnpin */ false);
     mProxy = nullptr;
 
     return NS_OK;
@@ -857,7 +860,7 @@ public:
   {
     AssertIsOnMainThread();
 
-    mProxy->Teardown();
+    mProxy->Teardown(/* aSendUnpin */ true);
 
     return NS_OK;
   }
@@ -1162,7 +1165,10 @@ public:
       variant = wvariant;
     }
 
-    NS_ASSERTION(!mProxy->mWorkerPrivate, "Should be null!");
+    // Send() has already been called if this is not null, so bail.
+    if (mProxy->mWorkerPrivate) {
+      return NS_ERROR_FAILURE;
+    }
     mProxy->mWorkerPrivate = mWorkerPrivate;
 
     NS_ASSERTION(mProxy->mSyncQueueKey == UINT32_MAX, "Should be unset!");
@@ -1259,7 +1265,7 @@ private:
 } // anonymous namespace
 
 void
-Proxy::Teardown()
+Proxy::Teardown(bool aSendUnpin)
 {
   AssertIsOnMainThread();
 
@@ -1272,10 +1278,12 @@ Proxy::Teardown()
     mXHR->Abort();
 
     if (mOutstandingSendCount) {
-      nsRefPtr<XHRUnpinRunnable> runnable =
-        new XHRUnpinRunnable(mWorkerPrivate, mXMLHttpRequestPrivate);
-      if (!runnable->Dispatch(nullptr)) {
-        NS_RUNTIMEABORT("We're going to hang at shutdown anyways.");
+      if (aSendUnpin) {
+        nsRefPtr<XHRUnpinRunnable> runnable =
+          new XHRUnpinRunnable(mWorkerPrivate, mXMLHttpRequestPrivate);
+        if (!runnable->Dispatch(nullptr)) {
+          NS_RUNTIMEABORT("We're going to hang at shutdown anyways.");
+        }
       }
 
       mWorkerPrivate = nullptr;
@@ -1650,6 +1658,12 @@ XMLHttpRequest::SendInternal(const nsAString& aStringBody,
                              ErrorResult& aRv)
 {
   mWorkerPrivate->AssertIsOnWorkerThread();
+  
+  // Hold off on send() calls when open is running.
+  if (mProxy->mOpening) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return;
+  }
 
   bool hasUploadListeners = mUpload ? mUpload->HasListeners() : false;
 
@@ -1744,12 +1758,15 @@ XMLHttpRequest::Open(const nsACString& aMethod, const nsAString& aUrl,
                      mBackgroundRequest, mWithCredentials,
                      mTimeout);
 
+  mProxy->mOpening = true;
   if (!runnable->Dispatch(GetJSContext())) {
     ReleaseProxy();
+    mProxy->mOpening = false;
     aRv.Throw(NS_ERROR_FAILURE);
     return;
   }
-
+  
+  mProxy->mOpening = false;
   mProxy->mIsSyncXHR = !aAsync;
 }
 

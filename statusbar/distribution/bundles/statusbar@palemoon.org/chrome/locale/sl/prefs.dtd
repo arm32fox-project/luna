@@ -1,0 +1,97 @@
+<!ENTITY status4evar.window.title "Pale Moon nastavitve statusne vrstice">
+<!ENTITY status4evar.pane.status "Status">
+<!ENTITY status4evar.pane.progress "Napredek">
+<!ENTITY status4evar.pane.download "Prenos">
+<!ENTITY status4evar.pane.addonbar "Statusna vrstica">
+<!ENTITY status4evar.pane.advanced "Napredno">
+<!ENTITY status4evar.tab.general "Splošno">
+<!ENTITY status4evar.tab.toolbar "Statusna vrstica">
+<!ENTITY status4evar.tab.urlbar "Naslovna vrstica">
+<!ENTITY status4evar.tab.popup "Pojavno okno">
+<!ENTITY status4evar.tab.tabs "Zavihki">
+<!ENTITY status4evar.option.none "Noben">
+<!ENTITY status4evar.option.nothing "Nič">
+<!ENTITY status4evar.option.toolbar "Orodna vrstica">
+<!ENTITY status4evar.option.urlbar "Naslovna vrstica">
+<!ENTITY status4evar.option.popup "Pojavno okno">
+<!ENTITY status4evar.option.tooltip "Zaslonski namig">
+<!ENTITY status4evar.option.bottom "Spodaj">
+<!ENTITY status4evar.option.top "Na vrhu">
+<!ENTITY status4evar.option.fill "Polnilo">
+<!ENTITY status4evar.option.dlcount "Število prenosov">
+<!ENTITY status4evar.option.dltime "Preostali čas">
+<!ENTITY status4evar.option.both "Oba">
+<!ENTITY status4evar.option.right "Desno">
+<!ENTITY status4evar.option.left "Levo">
+<!ENTITY status4evar.option.fixed "Fiksno">
+<!ENTITY status4evar.option.simple "Enostavno">
+<!ENTITY status4evar.option.advanced "Napredno">
+<!ENTITY status4evar.option.browse "Brskanje">
+<!ENTITY status4evar.option.clear "Počisti">
+<!ENTITY status4evar.option.center "Na sredo">
+<!ENTITY status4evar.option.offset "Odmik">
+<!ENTITY status4evar.option.repeat "Ponovi">
+<!ENTITY status4evar.option.no-repeat "Ni ponavljanja">
+<!ENTITY status4evar.option.space "Presledki">
+<!ENTITY status4evar.option.round "Okroglo">
+<!ENTITY status4evar.option.firefoxdefault "Pale Moon privzeto">
+<!ENTITY status4evar.option.download.panel "Plošča">
+<!ENTITY status4evar.option.download.library "Knjižnica">
+<!ENTITY status4evar.option.download.classic "Klasični">
+<!ENTITY status4evar.unit.milliseconds "milisekund">
+<!ENTITY status4evar.unit.seconds "sekund">
+<!ENTITY status4evar.unit.px "px">
+<!ENTITY status4evar.status.general.status.caption "Statusno besedilo">
+<!ENTITY status4evar.status.label "Prikaži status v:">
+<!ENTITY status4evar.status.timeout.label "Skrij stanje po">
+<!ENTITY status4evar.status.default.label "Prikaži privzeto stanje">
+<!ENTITY status4evar.status.network.label "Pokaži status omrežja">
+<!ENTITY status4evar.status.network.xhr.label "Prikaži ozadje stanja omrežja">
+<!ENTITY toolkit.dom.status.change.label "Dovoli da spletne strani spremenijo status">
+<!ENTITY status4evar.status.general.linkOver.caption "Povezave">
+<!ENTITY status4evar.status.linkOver.label "Prikaži povezave v:">
+<!ENTITY status4evar.status.linkOver.delay.show.label "Zakasnitev prikazovanja povezave:">
+<!ENTITY status4evar.status.linkOver.delay.hide.label "Zakasnitev skrivanja povezave:">
+<!ENTITY status4evar.status.toolbar.maxLength.label "Maksimalna dolžina statusnega teksta:">
+<!ENTITY status4evar.status.urlbar.align.label "Poravnava statusa:">
+<!ENTITY status4evar.status.urlbar.color.label "Barva statusa:">
+<!ENTITY status4evar.status.currentUrl "Trenutna lokacija">
+<!ENTITY status4evar.status.statusText "Statusno besedilo">
+<!ENTITY status4evar.status.firefox.compat.caption "Lastnosti združljivosti za Firefox">
+<!ENTITY browser.urlbar.formatting.enabled.label "Omogoči poudarjanje domen">
+<!ENTITY browser.urlbar.trimming.enabled.label "Omogoči skrivanje protokola (http:// in ftp://)">
+<!ENTITY browser.urlbar.autofill.enabled.label "Omogoči samodokončanje URL-jev">
+<!ENTITY status4evar.status.popup.invertMirror.label "Privzeto na desni strani">
+<!ENTITY status4evar.status.popup.mouseMirror.label "Zamenjava strani, ko gre miška čez">
+<!ENTITY status4evar.status.popup.findMirror.label "Začni na nasprotni strani, ko je odprta iskalna vrstica">
+<!ENTITY status4evar.progress.style.label "Uporabi slog po meri">
+<!ENTITY status4evar.progress.urlbar.enable.label "Pokaži napredek v naslovni vrstici">
+<!ENTITY status4evar.progress.urlbar.line.label "Slog črte:">
+<!ENTITY status4evar.progress.toolbar.force.label "Vedno pokaži element statusne vrstice">
+<!ENTITY status4evar.editor.label "Urejevalnik:">
+<!ENTITY status4evar.editor.css.color.label "Barva:">
+<!ENTITY status4evar.editor.css.image.label "Slika:">
+<!ENTITY status4evar.editor.css.image.repeat "Ponovi">
+<!ENTITY status4evar.editor.css.image.position "Položaj">
+<!ENTITY status4evar.editor.css.image.offset "Odmik">
+<!ENTITY status4evar.download.button.action.label "Dejanje gumba statusa prenosa:">
+<!ENTITY status4evar.download.force.label "Vedno pokaži Indikator statusa prenosa">
+<!ENTITY status4evar.download.label.force.label "Vedno pokaži tekst gumba">
+<!ENTITY status4evar.download.label.label "Tekst indikatorja statusa prenosa:">
+<!ENTITY status4evar.download.tooltip.label "Zaslonski namig indikatorja statusa prenosa:">
+<!ENTITY status4evar.download.progress.label "Prikaži potek prenosa na kazalnik">
+<!ENTITY status4evar.download.progress.average.label "Prikaži povprečno dokončanje prenosa">
+<!ENTITY status4evar.download.progress.max.label "Prikaši najbolj dokončan prenos">
+<!ENTITY status4evar.download.progress.min.label "Prikaži zadnji dokončan prenos">
+<!ENTITY status4evar.download.color.active.label "Barva napredka za aktivne prenose:">
+<!ENTITY status4evar.download.color.paused.label "Barva napredka za zaustavljene prenose:">
+<!ENTITY status4evar.download.notify.animate.label "Animirati gumb, ko je prenos končan">
+<!ENTITY status4evar.download.notify.timeout.label "Označiti gumb ko je prenos končan:">
+<!ENTITY status4evar.addonbar.borderStyle "Uporabi alternativne robove orodne vrstice">
+<!ENTITY status4evar.addonbar.windowGripper "Prikaži prijemalo za spreminjanje velikosti okna">
+<!ENTITY status4evar.addonbar.closeButton "Prikaži gumb za zaprtje">
+<!ENTITY status4evar.advanced.warning "Te napredne nastavitve lahko povzročajo težave s Status-4-evar ali drugimi razširitvami. Spreminjate na lastno odgovornost.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding "Poskusi na silo vezati naslovno vrstico XBL.">
+<!ENTITY status4evar.advanced.urlbar.forceBinding.desc "Izberite to, samo če imate težave z napredkom naslovne vrstice ali statusni tekst ni pravilno prikaz. To bo lahko povzroča probleme drugim razširitvam, ki poskušajo vezati XBL na naslovno vrstico.">
+<!ENTITY status4evar.advanced.status.detectFullScreen "Zaznaj celozaslonski način in pokaži povezave/stanje za to primerno.">
+<!ENTITY toolkit.classic.download.window.label "Uporabi klasično okno za prenose">
