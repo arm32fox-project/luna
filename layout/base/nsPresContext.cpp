@@ -1863,16 +1863,6 @@ nsPresContext::EnsureVisible()
   return false;
 }
 
-#ifdef MOZ_REFLOW_PERF
-void
-nsPresContext::CountReflows(const char * aName, nsIFrame * aFrame)
-{
-  if (mShell) {
-    mShell->CountReflows(aName, aFrame);
-  }
-}
-#endif
-
 bool
 nsPresContext::IsChromeSlow() const
 {

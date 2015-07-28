@@ -859,7 +859,6 @@ nsHTMLFramesetFrame::Reflow(nsPresContext*           aPresContext,
                             const nsHTMLReflowState& aReflowState,
                             nsReflowStatus&          aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsHTMLFramesetFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
   nsIPresShell *shell = aPresContext->PresShell();
   nsStyleSet *styleSet = shell->StyleSet();
@@ -1468,7 +1467,6 @@ nsHTMLFramesetBorderFrame::Reflow(nsPresContext*           aPresContext,
                                   const nsHTMLReflowState& aReflowState,
                                   nsReflowStatus&          aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsHTMLFramesetBorderFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
 
   // Override Reflow(), since we don't want to deal with what our
@@ -1676,8 +1674,6 @@ nsHTMLFramesetBlankFrame::Reflow(nsPresContext*           aPresContext,
                                  const nsHTMLReflowState& aReflowState,
                                  nsReflowStatus&          aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsHTMLFramesetBlankFrame");
-
   // Override Reflow(), since we don't want to deal with what our
   // computed values are.
   SizeToAvailSize(aReflowState, aDesiredSize);
