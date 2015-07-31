@@ -279,6 +279,8 @@ public:
   }
 
   bool UpdateOverflow();
+  
+  bool IsRectNearlyVisible(const nsRect& aRect) const;
 
   // adjust the scrollbar rectangle aRect to account for any visible resizer.
   // aHasResizer specifies if there is a content resizer, however this method
@@ -401,6 +403,18 @@ protected:
                           nsIScrollableFrame::ScrollMode aMode,
                           nsIAtom *aOrigin, // nullptr indicates "other" origin
                           const nsRect* aRange);
+
+  static nsRect ExpandRect(const nsRect& aRect);
+  static void EnsureImageVisPrefsCached();
+  static bool sImageVisPrefsCached;
+  // The number of scrollports horizontally/vertically to expand when looking
+  // for almost-visible images.
+  static uint32_t sHorzExpandScrollPort;
+  static uint32_t sVertExpandScrollPort;
+  // The fraction of the scrollport we allow to scroll by before we schedule
+  // an update of image visibility.
+  static int32_t sHorzScrollFraction;
+  static int32_t sVertScrollFraction;
 };
 
 /**
@@ -620,6 +634,9 @@ public:
   }
   virtual void ClearDidHistoryRestore() MOZ_OVERRIDE {
     mInner.mDidHistoryRestore = false;
+  }
+  virtual bool IsRectNearlyVisible(const nsRect& aRect) MOZ_OVERRIDE {
+    return mInner.IsRectNearlyVisible(aRect);
   }
 
   // nsIStatefulFrame
@@ -902,6 +919,9 @@ public:
   }
   virtual void ClearDidHistoryRestore() MOZ_OVERRIDE {
     mInner.mDidHistoryRestore = false;
+  }
+  virtual bool IsRectNearlyVisible(const nsRect& aRect) MOZ_OVERRIDE {
+    return mInner.IsRectNearlyVisible(aRect);
   }
 
   // nsIStatefulFrame
