@@ -495,10 +495,8 @@ nsSVGImageFrame::ReflowSVG()
 
     if (!mReflowCallbackPosted) {
       nsIPresShell* shell = PresContext()->PresShell();
-      if (shell && !shell->AssumeAllImagesVisible()) {
-        mReflowCallbackPosted = true;
-        shell->PostReflowCallback(this);
-      }
+      mReflowCallbackPosted = true;
+      shell->PostReflowCallback(this);
     }
   }
 
