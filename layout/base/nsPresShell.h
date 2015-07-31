@@ -323,6 +323,8 @@ public:
   virtual void EnsureImageInVisibleList(nsIImageLoadingContent* aImage) MOZ_OVERRIDE;
   
   virtual void RemoveImageFromVisibleList(nsIImageLoadingContent* aImage) MOZ_OVERRIDE;
+  
+  virtual bool AssumeAllImagesVisible() MOZ_OVERRIDE;
 
 protected:
   virtual ~PresShell();
