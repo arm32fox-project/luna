@@ -5296,14 +5296,15 @@ PresShell::RemoveImageFromVisibleList(nsIImageLoadingContent* aImage)
 #endif
 
   if (AssumeAllImagesVisible()) {
-    MOZ_ASSERT(mVisibleImages.Count() == 0, "shouldn't have any images in the table");
+    MOZ_ASSERT(mVisibleImages.Length() == 0, "shouldn't have any images in the table");
     return;
   }
 
-  uint32_t count = mVisibleImages.Count();
-  mVisibleImages.RemoveEntry(aImage);
-  if (mVisibleImages.Count() < count) {
-    // aImage was in the hashtable, so we need to decrement its visible count
+  uint32_t count = mVisibleImages.Length();
+  if (mVisibleImages.Contains(aImage)) //XXX: we probably don't need this check.
+    mVisibleImages.RemoveElement(aImage);
+  if (mVisibleImages.Length() < count) {
+    // aImage was in the array, so we need to decrement its visible count
     aImage->DecrementVisibleCount();
   }
 }
