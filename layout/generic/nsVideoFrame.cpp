@@ -258,7 +258,6 @@ nsVideoFrame::Reflow(nsPresContext*           aPresContext,
                      const nsHTMLReflowState& aReflowState,
                      nsReflowStatus&          aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsVideoFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aMetrics, aStatus);
   NS_FRAME_TRACE(NS_FRAME_TRACE_CALLS,
                   ("enter nsVideoFrame::Reflow: availSize=%d,%d",
@@ -436,8 +435,6 @@ nsVideoFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
 {
   if (!IsVisibleForPainting(aBuilder))
     return;
-
-  DO_GLOBAL_REFLOW_COUNT_DSP("nsVideoFrame");
 
   DisplayBorderBackgroundOutline(aBuilder, aLists);
 

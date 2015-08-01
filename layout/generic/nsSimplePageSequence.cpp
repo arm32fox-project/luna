@@ -153,7 +153,6 @@ nsSimplePageSequenceFrame::Reflow(nsPresContext*          aPresContext,
 {
   NS_PRECONDITION(aPresContext->IsRootPaginatedDocument(),
                   "A Page Sequence is only for real pages");
-  DO_GLOBAL_REFLOW_COUNT("nsSimplePageSequenceFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
   NS_FRAME_TRACE_REFLOW_IN("nsSimplePageSequenceFrame::Reflow");
 

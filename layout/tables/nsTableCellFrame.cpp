@@ -431,7 +431,6 @@ nsTableCellFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                    const nsRect&           aDirtyRect,
                                    const nsDisplayListSet& aLists)
 {
-  DO_GLOBAL_REFLOW_COUNT_DSP("nsTableCellFrame");
   if (IsVisibleInSelection(aBuilder)) {
     nsTableFrame* tableFrame = nsTableFrame::GetTableFrame(this);
     int32_t emptyCellStyle = GetContentEmpty() && !tableFrame->IsBorderCollapse() ?
@@ -809,7 +808,6 @@ NS_METHOD nsTableCellFrame::Reflow(nsPresContext*           aPresContext,
                                    const nsHTMLReflowState& aReflowState,
                                    nsReflowStatus&          aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsTableCellFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
 
   if (aReflowState.mFlags.mSpecialHeightReflow) {

@@ -190,8 +190,6 @@ nsLeafBoxFrame::Reflow(nsPresContext*   aPresContext,
   // We aren't able to share an implementation because of the frame
   // class hierarchy.  If you make changes here, please keep
   // nsBoxFrame::Reflow in sync.
-
-  DO_GLOBAL_REFLOW_COUNT("nsLeafBoxFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
 
   NS_ASSERTION(aReflowState.ComputedWidth() >=0 &&

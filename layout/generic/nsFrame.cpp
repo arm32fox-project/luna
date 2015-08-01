@@ -4144,7 +4144,6 @@ nsFrame::Reflow(nsPresContext*          aPresContext,
                 const nsHTMLReflowState& aReflowState,
                 nsReflowStatus&          aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsFrame");
   aDesiredSize.width = 0;
   aDesiredSize.height = 0;
   aStatus = NS_FRAME_COMPLETE;
@@ -7897,8 +7896,6 @@ nsFrame::BoxReflow(nsBoxLayoutState&        aState,
                    nscoord                  aHeight,
                    bool                     aMoveFrame)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsBoxToBlockAdaptor");
-
 #ifdef DEBUG_REFLOW
   nsAdaptorAddIndents();
   printf("Reflowing: ");

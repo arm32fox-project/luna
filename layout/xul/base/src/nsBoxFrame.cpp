@@ -625,8 +625,6 @@ nsBoxFrame::Reflow(nsPresContext*          aPresContext,
 {
   // If you make changes to this method, please keep nsLeafBoxFrame::Reflow
   // in sync, if the changes are applicable there.
-
-  DO_GLOBAL_REFLOW_COUNT("nsBoxFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
 
   NS_ASSERTION(aReflowState.ComputedWidth() >=0 &&

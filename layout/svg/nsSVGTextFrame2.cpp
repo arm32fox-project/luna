@@ -12,6 +12,7 @@
 #include "gfxSkipChars.h"
 #include "gfxTypes.h"
 #include "LookAndFeel.h"
+#include "mozilla/Likely.h"
 #include "nsAlgorithm.h"
 #include "nsBlockFrame.h"
 #include "nsCaret.h"
@@ -289,7 +290,7 @@ GetNonEmptyTextFrameAndNode(nsIFrame* aFrame,
                             nsTextNode*& aTextNode)
 {
   nsTextFrame* text = do_QueryFrame(aFrame);
-  if (!text) {
+  if (!text || text->GetContentLength() == 0) {
     return false;
   }
 
@@ -298,9 +299,7 @@ GetNonEmptyTextFrameAndNode(nsIFrame* aFrame,
                "unexpected content type for nsTextFrame");
 
   nsTextNode* node = static_cast<nsTextNode*>(content);
-  if (node->TextLength() == 0) {
-    return false;
-  }
+  MOZ_ASSERT(node->TextLength() != 0);
 
   aTextFrame = text;
   aTextNode = node;
@@ -4085,23 +4084,28 @@ ShouldStartRunAtIndex(const nsTArray<CharPosition>& aPositions,
   return false;
 }
 
-uint32_t
-nsSVGTextFrame2::ResolvePositions(nsIContent* aContent,
-                                  uint32_t aIndex,
-                                  bool aInTextPath,
-                                  bool& aForceStartOfChunk,
-                                  nsTArray<gfxPoint>& aDeltas)
+bool
+nsSVGTextFrame2::ResolvePositionsForNode(nsIContent* aContent,
+                                         uint32_t aIndex,
+                                         bool aInTextPath,
+                                         bool& aForceStartOfChunk,
+                                         nsTArray<gfxPoint>& aDeltas)                                  
 {
   if (aContent->IsNodeOfType(nsINode::eTEXT)) {
     // We found a text node.
     uint32_t length = static_cast<nsTextNode*>(aContent)->TextLength();
     if (length) {
+      uint32_t end = aIndex + length;
+      if (MOZ_UNLIKELY(end > mPositions.Length())) {
+        MOZ_ASSERT(false, "Length of mPositions does not match characters "
+                          "found by iterating content");
+        return false;
+      }
       if (aForceStartOfChunk) {
         // Note this character as starting a new anchored chunk.
         mPositions[aIndex].mStartOfChunk = true;
         aForceStartOfChunk = false;
       }
-      uint32_t end = aIndex + length;
       while (aIndex < end) {
         // Record whether each of these characters should start a new rendered
         // run.  That is always the case for characters on a text path.
@@ -4114,18 +4118,23 @@ nsSVGTextFrame2::ResolvePositions(nsIContent* aContent,
         aIndex++;
       }
     }
-    return aIndex;
+    return true;
   }
 
   // Skip past elements that aren't text content elements.
   if (!IsTextContentElement(aContent)) {
-    return aIndex;
+    return true;
   }
 
   if (aContent->Tag() == nsGkAtoms::textPath) {
     // <textPath> elements are as if they are specified with x="0" y="0", but
     // only if they actually have some text content.
     if (HasTextContent(aContent)) {
+      if (MOZ_UNLIKELY(aIndex >= mPositions.Length())) {
+        MOZ_ASSERT(false, "Length of mPositions does not match characters "
+                          "found by iterating content");
+        return false;
+      }
       mPositions[aIndex].mPosition = gfxPoint();
     }
   } else if (aContent->Tag() != nsGkAtoms::a) {
@@ -4144,9 +4153,15 @@ nsSVGTextFrame2::ResolvePositions(nsIContent* aContent,
       rotate = &animatedRotate->GetAnimValue();
     }
 
-    uint32_t count = GetTextContentLength(aContent);
     bool percentages = false;
+    uint32_t count = GetTextContentLength(aContent);
 
+    if (MOZ_UNLIKELY(aIndex + count > mPositions.Length())) {
+      MOZ_ASSERT(false, "Length of mPositions does not match characters "
+                        "found by iterating content");
+      return false;
+    }
+    
     // New text anchoring chunks start at each character assigned a position
     // with x="" or y="", or if we forced one with aForceStartOfChunk due to
     // being just after a <textPath>.
@@ -4224,8 +4239,11 @@ nsSVGTextFrame2::ResolvePositions(nsIContent* aContent,
   for (nsIContent* child = aContent->GetFirstChild();
        child;
        child = child->GetNextSibling()) {
-    aIndex = ResolvePositions(child, aIndex, inTextPath, aForceStartOfChunk,
-                              aDeltas);
+    bool ok = ResolvePositionsForNode(child, aIndex, inTextPath,
+                                      aForceStartOfChunk, aDeltas);
+    if (!ok) {
+      return false;
+    }
   }
 
   if (aContent->Tag() == nsGkAtoms::textPath) {
@@ -4233,7 +4251,7 @@ nsSVGTextFrame2::ResolvePositions(nsIContent* aContent,
     aForceStartOfChunk = true;
   }
 
-  return aIndex;
+  return true;
 }
 
 bool
@@ -4268,7 +4286,10 @@ nsSVGTextFrame2::ResolvePositions(nsTArray<gfxPoint>& aDeltas)
 
   // Recurse over the content and fill in character positions as we go.
   bool forceStartOfChunk = false;
-  return ResolvePositions(mContent, 0, false, forceStartOfChunk, aDeltas) != 0;
+  index = 0;
+  bool ok = ResolvePositionsForNode(mContent, index, false,
+                                    forceStartOfChunk, aDeltas);
+  return ok && index > 0;
 }
 
 void
@@ -4690,9 +4711,10 @@ nsSVGTextFrame2::DoGlyphPositioning()
   // Get the x, y, dx, dy, rotate values for the subtree.
   nsTArray<gfxPoint> deltas;
   if (!ResolvePositions(deltas)) {
-    // If ResolvePositions returned false, it means that there were some
-    // characters in the DOM but none of them are displayed.  Clear out
-    // mPositions so that we don't attempt to do any painting later.
+    // If ResolvePositions returned false, it means either there were some
+    // characters in the DOM but none of them are displayed, or there was
+    // an error in processing mPositions. Clear out mPositions so that we
+    // don't attempt to do any painting later.
     mPositions.Clear();
     return;
   }

@@ -84,7 +84,6 @@ BRFrame::Reflow(nsPresContext* aPresContext,
                 const nsHTMLReflowState& aReflowState,
                 nsReflowStatus& aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("BRFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aMetrics, aStatus);
   aMetrics.height = 0; // BR frames with height 0 are ignored in quirks
                        // mode by nsLineLayout::VerticalAlignFrames .

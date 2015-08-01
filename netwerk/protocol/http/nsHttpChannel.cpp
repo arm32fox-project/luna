@@ -38,7 +38,6 @@
 #include "base/compiler_specific.h"
 #include "NullHttpTransaction.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/VisualEventTracer.h"
 
 namespace mozilla { namespace net {
 
@@ -151,14 +150,9 @@ AutoRedirectVetoNotifier::ReportRedirectResult(bool succeeded)
                                   NS_GET_IID(nsIRedirectResultListener),
                                   getter_AddRefs(vetoHook));
 
-#ifdef MOZ_VISUAL_EVENT_TRACER
-    nsHttpChannel* channel = mChannel;
-#endif
     mChannel = nullptr;
     if (vetoHook)
         vetoHook->OnRedirectResult(succeeded);
-
-    MOZ_EVENT_TRACER_DONE(channel, "net::http::redirect-callbacks");
 }
 
 class HttpCacheQuery : public nsRunnable, public nsICacheListener
@@ -312,12 +306,6 @@ nsHttpChannel::Init(nsIURI *uri,
                     uint32_t proxyResolveFlags,
                     nsIURI *proxyURI)
 {
-#ifdef MOZ_VISUAL_EVENT_TRACER
-    nsAutoCString url;
-    uri->GetAsciiSpec(url);
-    MOZ_EVENT_TRACER_NAME_OBJECT(this, url.get());
-#endif
-
     nsresult rv = HttpBaseChannel::Init(uri, caps, proxyInfo,
                                         proxyResolveFlags, proxyURI);
     if (NS_FAILED(rv))
@@ -2304,8 +2292,6 @@ IsSubRangeRequest(nsHttpRequestHead &aRequestHead)
 nsresult
 nsHttpChannel::OpenCacheEntry(bool usingSSL)
 {
-    MOZ_EVENT_TRACER_EXEC(this, "net::http::OpenCacheEntry");
-
     nsresult rv;
 
     MOZ_ASSERT(!mOnCacheEntryAvailableCallback, "Unexpected state");
@@ -3932,8 +3918,6 @@ nsHttpChannel::AsyncProcessRedirection(uint32_t redirectType)
 
     // The channel is actually starting its operation now, at least because
     // we want it to appear like being in the waiting phase until now.
-    MOZ_EVENT_TRACER_EXEC(this, "net::http::channel");
-    MOZ_EVENT_TRACER_EXEC(this, "net::http::redirect-callbacks");
 
     const char *location = mResponseHead->PeekHeader(nsHttp::Location);
 
@@ -4288,8 +4272,6 @@ nsHttpChannel::GetSecurityInfo(nsISupports **securityInfo)
 NS_IMETHODIMP
 nsHttpChannel::AsyncOpen(nsIStreamListener *listener, nsISupports *context)
 {
-    MOZ_EVENT_TRACER_WAIT(this, "net::http::channel");
-
     LOG(("nsHttpChannel::AsyncOpen [this=%p]\n", this));
 
     NS_ENSURE_ARG_POINTER(listener);
@@ -5013,8 +4995,6 @@ nsHttpChannel::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult st
         mListener->OnStopRequest(this, mListenerContext, status);
     }
 
-    MOZ_EVENT_TRACER_DONE(this, "net::http::channel");
-
     CloseCacheEntry(!contentComplete);
 
     if (mOfflineCacheEntry)
@@ -5087,9 +5067,6 @@ nsHttpChannel::OnDataAvailable(nsIRequest *request, nsISupports *ctxt,
         // already streamed some data from another source (see, for example,
         // OnDoneReadingPartialCacheEntry).
         //
-        if (!mLogicalOffset)
-            MOZ_EVENT_TRACER_EXEC(this, "net::http::channel");
-
         nsresult rv =  mListener->OnDataAvailable(this,
                                                   mListenerContext,
                                                   input,
@@ -5385,10 +5362,6 @@ nsHttpChannel::OnCacheEntryAvailable(nsICacheEntryDescriptor *entry,
                                      nsresult status)
 {
     MOZ_ASSERT(NS_IsMainThread());
-
-    mozilla::eventtracer::AutoEventTracer profiler(this,
-             eventtracer::eNone, eventtracer::eDone,
-             "net::http::OpenCacheEntry");
 
     nsresult rv;
 
@@ -5734,7 +5707,6 @@ nsHttpChannel::OnRedirectVerifyCallback(nsresult result)
         // We are not waiting for the callback. At this moment we must release
         // reference to the redirect target channel, otherwise we may leak.
         mRedirectChannel = nullptr;
-        MOZ_EVENT_TRACER_DONE(this, "net::http::channel");
     }
 
     // We always resume the pumps here. If all functions on stack have been

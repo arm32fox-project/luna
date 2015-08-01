@@ -17,7 +17,6 @@
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
 
-#include "mozilla/VisualEventTracer.h"
 #include <algorithm>
 
 using namespace mozilla;
@@ -886,12 +885,6 @@ nsDiskCacheMap::WriteDiskCacheEntry(nsDiskCacheBinding *  binding)
     CACHE_LOG_DEBUG(("CACHE: WriteDiskCacheEntry [%x]\n",
         binding->mRecord.HashNumber()));
 
-    mozilla::eventtracer::AutoEventTracer writeDiskCacheEntry(
-        binding->mCacheEntry,
-        mozilla::eventtracer::eExec,
-        mozilla::eventtracer::eDone,
-        "net::cache::WriteDiskCacheEntry");
-
     nsresult            rv        = NS_OK;
     uint32_t            size;
     nsDiskCacheEntry *  diskEntry =  CreateDiskCacheEntry(binding, &size);
@@ -1015,12 +1008,6 @@ nsDiskCacheMap::WriteDataCacheBlocks(nsDiskCacheBinding * binding, char * buffer
 {
     CACHE_LOG_DEBUG(("CACHE: WriteDataCacheBlocks [%x size=%u]\n",
         binding->mRecord.HashNumber(), size));
-
-    mozilla::eventtracer::AutoEventTracer writeDataCacheBlocks(
-        binding->mCacheEntry,
-        mozilla::eventtracer::eExec,
-        mozilla::eventtracer::eDone,
-        "net::cache::WriteDataCacheBlocks");
 
     nsresult  rv = NS_OK;
     

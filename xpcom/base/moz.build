@@ -26,7 +26,6 @@ XPIDL_SOURCES += [
     'nsITraceRefcnt.idl',
     'nsIUUIDGenerator.idl',
     'nsIVersionComparator.idl',
-    'nsIVisualEventTracer.idl',
     'nsIWeakReference.idl',
     'nsrootidl.idl',
 ]
@@ -67,7 +66,6 @@ EXPORTS.mozilla += [
     'StackWalk.h',
     'StaticMutex.h',
     'StaticPtr.h',
-    'VisualEventTracer.h',
     'nsMemoryInfoDumper.h',
 ]
 
@@ -75,7 +73,6 @@ CPP_SOURCES += [
     'AvailableMemoryTracker.cpp',
     'ClearOnShutdown.cpp',
     'CycleCollectedJSRuntime.cpp',
-    'VisualEventTracer.cpp',
     'nsConsoleMessage.cpp',
     'nsConsoleService.cpp',
     'nsCycleCollector.cpp',

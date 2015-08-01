@@ -4439,8 +4439,6 @@ nsTextFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (!IsVisibleForPainting(aBuilder))
     return;
   
-  DO_GLOBAL_REFLOW_COUNT_DSP("nsTextFrame");
-
   aLists.Content()->AppendNewToTop(
     new (aBuilder) nsDisplayText(aBuilder, this));
 }
@@ -7440,7 +7438,6 @@ nsTextFrame::Reflow(nsPresContext*           aPresContext,
                     const nsHTMLReflowState& aReflowState,
                     nsReflowStatus&          aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsTextFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aMetrics, aStatus);
 
   // XXX If there's no line layout, we shouldn't even have created this
