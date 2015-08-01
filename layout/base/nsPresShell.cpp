@@ -5201,8 +5201,8 @@ PresShell::UpdateImageVisibility()
   list.DeleteAll();
 }
 
-static bool
-AssumeAllImagesVisible(nsPresContext* aPresContext, nsIDocument* aDocument)
+bool
+PresShell::AssumeAllImagesVisible()
 {
   static bool sImageVisibilityEnabled = true;
   static bool sImageVisibilityPrefCached = false;
@@ -5213,17 +5213,16 @@ AssumeAllImagesVisible(nsPresContext* aPresContext, nsIDocument* aDocument)
     sImageVisibilityPrefCached = true;
   }
 
-
-  if (!sImageVisibilityEnabled || !aPresContext || !aDocument)
+  if (!sImageVisibilityEnabled || !mPresContext || !mDocument)
     return true;
 
   // We assume all images are visible in print, print preview, chrome, xul, and
   // resource docs and don't keep track of them.
-  if (aPresContext->Type() == nsPresContext::eContext_PrintPreview ||
-      aPresContext->Type() == nsPresContext::eContext_Print ||
-      aPresContext->IsChrome() ||
-      aDocument->IsResourceDoc() ||
-      aDocument->IsXUL()) {
+  if (mPresContext->Type() == nsPresContext::eContext_PrintPreview ||
+      mPresContext->Type() == nsPresContext::eContext_Print ||
+      mPresContext->IsChrome() ||
+      mDocument->IsResourceDoc() ||
+      mDocument->IsXUL()) {
     return true;
   }
 
@@ -5233,7 +5232,7 @@ AssumeAllImagesVisible(nsPresContext* aPresContext, nsIDocument* aDocument)
 void
 PresShell::ScheduleImageVisibilityUpdate()
 {
-  if (AssumeAllImagesVisible(mPresContext, mDocument))
+  if (AssumeAllImagesVisible())
     return;
 
   if (!mPresContext->IsRootContentDocument()) {
@@ -5262,7 +5261,7 @@ PresShell::ScheduleImageVisibilityUpdate()
 void
 PresShell::EnsureImageInVisibleList(nsIImageLoadingContent* aImage)
 {
-  if (AssumeAllImagesVisible(mPresContext, mDocument)) {
+  if (AssumeAllImagesVisible()) {
     aImage->IncrementVisibleCount();
     return;
   }
@@ -5282,6 +5281,32 @@ PresShell::EnsureImageInVisibleList(nsIImageLoadingContent* aImage)
   MOZ_ASSERT(!mVisibleImages.Contains(aImage), "image already in the array");
   mVisibleImages.AppendElement(aImage);
   aImage->IncrementVisibleCount();
+}
+
+void
+PresShell::RemoveImageFromVisibleList(nsIImageLoadingContent* aImage)
+{
+#ifdef DEBUG
+  // If it has a frame, make sure it's in this presshell
+  nsCOMPtr<nsIContent> content = do_QueryInterface(aImage);
+  if (content) {
+    PresShell* shell = static_cast<PresShell*>(content->OwnerDoc()->GetShell());
+    MOZ_ASSERT(!shell || shell == this, "wrong shell");
+  }
+#endif
+
+  if (AssumeAllImagesVisible()) {
+    MOZ_ASSERT(mVisibleImages.Length() == 0, "shouldn't have any images in the table");
+    return;
+  }
+
+  uint32_t count = mVisibleImages.Length();
+  if (mVisibleImages.Contains(aImage)) //XXX: we probably don't need this check.
+    mVisibleImages.RemoveElement(aImage);
+  if (mVisibleImages.Length() < count) {
+    // aImage was in the array, so we need to decrement its visible count
+    aImage->DecrementVisibleCount();
+  }
 }
 
 class nsAutoNotifyDidPaint
