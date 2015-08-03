@@ -2422,8 +2422,8 @@ ParseSelectorList(nsINode* aNode,
 
 
 bool
-Element::Matches(const nsAString& aSelector,
-				 ErrorResult& aError)
+Element::MozMatchesSelector(const nsAString& aSelector,
+                            ErrorResult& aError)
 {
   nsAutoPtr<nsCSSSelectorList> selectorList;
 

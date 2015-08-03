@@ -49,10 +49,7 @@ interface Element : Node {
   void removeAttributeNS(DOMString? namespace, DOMString localName);
   boolean hasAttribute(DOMString name);
   boolean hasAttributeNS(DOMString? namespace, DOMString localName);
-  
-  [Throws, Pure]
-  boolean matches(DOMString selector);
-  
+
   HTMLCollection getElementsByTagName(DOMString localName);
   [Throws]
   HTMLCollection getElementsByTagNameNS(DOMString? namespace, DOMString localName);
