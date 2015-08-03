@@ -592,7 +592,7 @@ public:
   bool HasAttributeNS(const nsAString& aNamespaceURI,
                       const nsAString& aLocalName) const;
   bool Matches(const nsAString& aSelector,
-               ErrorResult& aError)
+               ErrorResult& aError);
   already_AddRefed<nsIHTMLCollection>
     GetElementsByTagName(const nsAString& aQualifiedName);
   already_AddRefed<nsIHTMLCollection>
