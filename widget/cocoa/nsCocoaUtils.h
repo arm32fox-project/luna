@@ -141,7 +141,7 @@ class nsCocoaUtils
   }
 
   // Returns the given y coordinate, which must be in screen coordinates,
-  // flipped from Gecko to Cocoa or Cocoa to Gecko.
+  // flipped from Goanna to Cocoa or Cocoa to Goanna.
   static float FlippedScreenY(float y);
 
   // The following functions come in "DevPix" variants that work with
@@ -150,23 +150,23 @@ class nsCocoaUtils
   // The difference becomes important in HiDPI display modes, where Cocoa
   // points and backing-store pixels are no longer 1:1.
 
-  // Gecko rects (nsRect) contain an origin (x,y) in a coordinate
+  // Goanna rects (nsRect) contain an origin (x,y) in a coordinate
   // system with (0,0) in the top-left of the primary screen. Cocoa rects
   // (NSRect) contain an origin (x,y) in a coordinate system with (0,0)
   // in the bottom-left of the primary screen. Both nsRect and NSRect
   // contain width/height info, with no difference in their use.
-  // This function does no scaling, so the Gecko coordinates are
+  // This function does no scaling, so the Goanna coordinates are
   // expected to be CSS pixels, which we treat as equal to Cocoa points.
-  static NSRect GeckoRectToCocoaRect(const nsIntRect &geckoRect);
+  static NSRect GoannaRectToCocoaRect(const nsIntRect &goannaRect);
 
-  // Converts aGeckoRect in dev pixels to points in Cocoa coordinates
-  static NSRect GeckoRectToCocoaRectDevPix(const nsIntRect &aGeckoRect,
+  // Converts aGoannaRect in dev pixels to points in Cocoa coordinates
+  static NSRect GoannaRectToCocoaRectDevPix(const nsIntRect &aGoannaRect,
                                            CGFloat aBackingScale);
 
-  // See explanation for geckoRectToCocoaRect, guess what this does...
-  static nsIntRect CocoaRectToGeckoRect(const NSRect &cocoaRect);
+  // See explanation for goannaRectToCocoaRect, guess what this does...
+  static nsIntRect CocoaRectToGoannaRect(const NSRect &cocoaRect);
 
-  static nsIntRect CocoaRectToGeckoRectDevPix(const NSRect &aCocoaRect,
+  static nsIntRect CocoaRectToGoannaRectDevPix(const NSRect &aCocoaRect,
                                               CGFloat aBackingScale);
 
   // Gives the location for the event in screen coordinates. Do not call this
@@ -235,20 +235,20 @@ class nsCocoaUtils
   static NSString* ToNSString(const nsAString& aString);
 
   /**
-   * Returns NSRect for aGeckoRect.
+   * Returns NSRect for aGoannaRect.
    * Just copies values between the two types; it does no coordinate-system
    * conversion, so both rects must have the same coordinate origin/direction.
    */
-  static void GeckoRectToNSRect(const nsIntRect& aGeckoRect,
+  static void GoannaRectToNSRect(const nsIntRect& aGoannaRect,
                                 NSRect& aOutCocoaRect);
 
   /**
-   * Returns Gecko rect for aCocoaRect.
+   * Returns Goanna rect for aCocoaRect.
    * Just copies values between the two types; it does no coordinate-system
    * conversion, so both rects must have the same coordinate origin/direction.
    */
-  static void NSRectToGeckoRect(const NSRect& aCocoaRect,
-                                nsIntRect& aOutGeckoRect);
+  static void NSRectToGoannaRect(const NSRect& aCocoaRect,
+                                nsIntRect& aOutGoannaRect);
 
   /**
    * Makes NSEvent instance for aEventTytpe and aEvent.

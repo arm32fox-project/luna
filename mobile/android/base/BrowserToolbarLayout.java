@@ -3,15 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.MotionEvent;
 import android.widget.RelativeLayout;
 
-public class BrowserToolbarLayout extends GeckoRelativeLayout {
-    private static final String LOGTAG = "GeckoToolbarLayout";
+public class BrowserToolbarLayout extends GoannaRelativeLayout {
+    private static final String LOGTAG = "GoannaToolbarLayout";
 
     public BrowserToolbarLayout(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -39,7 +39,7 @@ public class BrowserToolbarLayout extends GeckoRelativeLayout {
             post(new Runnable() {
                 @Override
                 public void run() {
-                    ((BrowserApp)GeckoAppShell.getContext()).refreshToolbarHeight();
+                    ((BrowserApp)GoannaAppShell.getContext()).refreshToolbarHeight();
                 }
             });
         }

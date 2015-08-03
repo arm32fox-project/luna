@@ -635,7 +635,7 @@ static bool InitLog(const char* envVar, const char* msg, FILE* *result)
     else {
       FILE *stream;
       nsAutoCString fname(value);
-      if (XRE_GetProcessType() != GeckoProcessType_Default) {
+      if (XRE_GetProcessType() != GoannaProcessType_Default) {
         bool hasLogExtension = 
             fname.RFind(".log", true, -1, 4) == kNotFound ? false : true;
         if (hasLogExtension)

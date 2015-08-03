@@ -199,10 +199,10 @@ UpdatePrompt.prototype = {
   },
 
   setUpdateStatus: function UP_setUpdateStatus(aStatus) {
-    log("Setting gecko.updateStatus: " + aStatus);
+    log("Setting goanna.updateStatus: " + aStatus);
 
     let lock = Services.settings.createLock();
-    lock.set("gecko.updateStatus", aStatus, null);
+    lock.set("goanna.updateStatus", aStatus, null);
   },
 
   showApplyPrompt: function UP_showApplyPrompt(aUpdate) {
@@ -327,7 +327,7 @@ UpdatePrompt.prototype = {
 
   finishUpdate: function UP_finishUpdate() {
     if (!this._update.isOSUpdate) {
-      // Standard gecko+gaia updates will just need to restart the process
+      // Standard goanna+gaia updates will just need to restart the process
       this.restartProcess();
       return;
     }

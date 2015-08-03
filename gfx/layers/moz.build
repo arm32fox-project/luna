@@ -111,8 +111,8 @@ EXPORTS.mozilla.layers += [
     'ContentHost.h',
     'D3D9SurfaceImage.h',
     'Effects.h',
-    'GeckoContentController.h',
     'GestureEventListener.h',
+    'GoannaContentController.h',
     'ISurfaceAllocator.h',
     'ImageBridgeChild.h',
     'ImageBridgeParent.h',
@@ -156,7 +156,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
     ]
 
 # NB: Gralloc is available on other platforms that use the android GL
-# libraries, but only Gonk is able to use it reliably because Gecko
+# libraries, but only Gonk is able to use it reliably because Goanna
 # has full system permissions there.
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
     EXPORTS.mozilla.layers += [

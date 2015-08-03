@@ -1,0 +1,144 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+
+DEPTH = @DEPTH@
+topsrcdir = @top_srcdir@
+srcdir = @srcdir@
+VPATH = @srcdir@
+
+include $(DEPTH)/config/autoconf.mk
+
+LIBRARY_NAME = mozwebp
+FORCE_STATIC_LIB = 1
+ifeq (WINNT,$(OS_ARCH))
+VISIBILITY_FLAGS=
+endif
+
+LOCAL_INCLUDES += \
+  -I. \
+  -I$(topsrcdir)/media/libwebp \
+  -I$(topsrcdir)/media/libwebp/src/ \
+  -I$(topsrcdir)/media/libwebp/src/dec/ \
+  -I$(topsrcdir)/media/libwebp/src/dsp/ \
+  -I$(topsrcdir)/media/libwebp/src/enc/ \
+  -I$(topsrcdir)/media/libwebp/src/utils/ \
+  -I$(topsrcdir)/media/libwebp/src/webp/ \
+  $(NULL)
+
+VPATH += \
+ $(srcdir)/dec/ \
+ $(srcdir)/enc/ \
+ $(srcdir)/dsp/ \
+ $(srcdir)/utils/ \
+ $(NULL)
+
+EXPORTS_NAMESPACES = webp
+
+EXPORTS_webp = \
+  webp/types.h \
+  webp/decode.h \
+  webp/encode.h \
+  webp/format_constants.h \
+  webp/mux.h \
+  webp/mux_types.h \
+  webp/demux.h \
+  mux/muxi.h \
+  utils/quant_levels_dec.h \
+  utils/huffman.h \
+  utils/thread.h \
+  utils/bit_writer.h \
+  utils/bit_reader.h \
+  utils/color_cache.h \
+  utils/quant_levels.h \
+  utils/utils.h \
+  utils/filters.h \
+  utils/huffman_encode.h \
+  utils/rescaler.h \
+  dsp/dsp.h \
+  dsp/lossless.h \
+  dsp/neon.h \
+  dsp/yuv.h \
+  dsp/yuv_tables_sse2.h \
+  dec/alphai.h \
+  dec/vp8i.h \
+  dec/decode_vp8.h \
+  dec/vp8li.h \
+  dec/webpi.h \
+  enc/backward_references.h \
+  enc/vp8encli.h \
+  enc/vp8enci.h \
+  enc/histogram.h \
+  enc/cost.h \
+  $(NULL)
+
+CSRCS += \
+  enc/alpha.c \
+  dec/alpha.c \
+  dsp/alpha_processing.c \
+  dsp/alpha_processing_sse2.c \
+  enc/analysis.c \
+  utils/bit_reader.c \
+  utils/bit_writer.c \
+  dec/buffer.c \
+  utils/color_cache.c \
+  enc/config.c \
+  dsp/cpu.c \
+  dsp/dec.c \
+  dsp/dec_clip_tables.c \
+  dsp/dec_mips32.c \
+  dsp/dec_neon.c \
+  dsp/dec_sse2.c \
+  dsp/enc.c \
+  dsp/enc_avx2.c \
+  dsp/enc_mips32.c \
+  dsp/enc_neon.c \
+  dsp/enc_sse2.c \
+  utils/filters.c \
+  dec/frame.c \
+  enc/frame.c \
+  utils/huffman.c \
+  utils/huffman_encode.c \
+  dec/idec.c \
+  dec/io.c \
+  dsp/lossless.c \
+  dsp/lossless_mips32.c \
+  dsp/lossless_neon.c \
+  dsp/lossless_sse2.c\
+  enc/picture.c \
+  enc/picture_csp.c \
+  enc/picture_psnr.c \
+  enc/picture_rescale.c \
+  enc/picture_tools.c \
+  dec/quant.c \
+  enc/quant.c \
+  utils/quant_levels.c \
+  utils/quant_levels_dec.c \
+  utils/random.c \
+  utils/rescaler.c \
+  enc/syntax.c \
+  utils/thread.c \
+  dec/tree.c \
+  enc/tree.c \
+  enc/token.c \
+  dsp/upsampling.c \
+  dsp/upsampling_neon.c \
+  dsp/upsampling_sse2.c \
+  utils/utils.c \
+  dec/vp8.c \
+  dec/vp8l.c \
+  enc/vp8l.c \
+  dec/webp.c \
+  enc/webpenc.c \
+  enc/iterator.c \
+  enc/cost.c \
+  enc/filter.c \
+  enc/histogram.c \
+  enc/backward_references.c \
+  dsp/yuv.c \
+  dsp/yuv_mips32.c \
+  dsp/yuv_sse2.c \
+  $(NULL)
+
+include $(topsrcdir)/config/rules.mk

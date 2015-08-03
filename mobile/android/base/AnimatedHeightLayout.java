@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.animation.HeightChangeAnimation;
+import org.mozilla.goanna.animation.HeightChangeAnimation;
 
 import android.content.Context;
 import android.util.AttributeSet;
@@ -13,7 +13,7 @@ import android.view.animation.DecelerateInterpolator;
 import android.widget.RelativeLayout;
 
 public class AnimatedHeightLayout extends RelativeLayout {
-    private static final String LOGTAG = "GeckoAnimatedHeightLayout";
+    private static final String LOGTAG = "GoannaAnimatedHeightLayout";
     private static final int ANIMATION_DURATION = 100;
     private boolean mAnimating = false;
 

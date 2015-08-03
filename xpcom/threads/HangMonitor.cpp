@@ -136,7 +136,7 @@ Startup()
   // The hang detector only runs in chrome processes. If you change this,
   // you must also deal with the threadsafety of AnnotateCrashReport in
   // non-chrome processes!
-  if (GeckoProcessType_Default != XRE_GetProcessType())
+  if (GoannaProcessType_Default != XRE_GetProcessType())
     return;
 
   MOZ_ASSERT(!gMonitor, "Hang monitor already initialized");
@@ -160,7 +160,7 @@ Startup()
 void
 Shutdown()
 {
-  if (GeckoProcessType_Default != XRE_GetProcessType())
+  if (GoannaProcessType_Default != XRE_GetProcessType())
     return;
 
   MOZ_ASSERT(gMonitor, "Hang monitor not started");

@@ -34,7 +34,7 @@ public class testDoorHanger extends BaseTest {
         String LOGIN_ALLOW = "Save";
         String LOGIN_DENY = "Don't save";
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // Test geolocation notification
         loadUrl(GEO_URL);

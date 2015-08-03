@@ -9,7 +9,7 @@ interface ElementReplaceEvent : Event
 {
   readonly attribute Element? upgrade;
 
-  // initElementReplaceEvent is a Gecko specific deprecated method.
+  // initElementReplaceEvent is a Goanna specific deprecated method.
   [Throws]
   void initElementReplaceEvent(DOMString type,
                                boolean canBubble,

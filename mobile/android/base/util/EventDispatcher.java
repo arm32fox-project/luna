@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.util;
+package org.mozilla.goanna.util;
 
 import org.json.JSONObject;
 
@@ -13,19 +13,19 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 public final class EventDispatcher {
-    private static final String LOGTAG = "GeckoEventDispatcher";
+    private static final String LOGTAG = "GoannaEventDispatcher";
 
-    private final Map<String, CopyOnWriteArrayList<GeckoEventListener>> mEventListeners
-                  = new HashMap<String, CopyOnWriteArrayList<GeckoEventListener>>();
+    private final Map<String, CopyOnWriteArrayList<GoannaEventListener>> mEventListeners
+                  = new HashMap<String, CopyOnWriteArrayList<GoannaEventListener>>();
 
-    public void registerEventListener(String event, GeckoEventListener listener) {
+    public void registerEventListener(String event, GoannaEventListener listener) {
         synchronized (mEventListeners) {
-            CopyOnWriteArrayList<GeckoEventListener> listeners = mEventListeners.get(event);
+            CopyOnWriteArrayList<GoannaEventListener> listeners = mEventListeners.get(event);
             if (listeners == null) {
                 // create a CopyOnWriteArrayList so that we can modify it
-                // concurrently with iterating through it in handleGeckoMessage.
+                // concurrently with iterating through it in handleGoannaMessage.
                 // Otherwise we could end up throwing a ConcurrentModificationException.
-                listeners = new CopyOnWriteArrayList<GeckoEventListener>();
+                listeners = new CopyOnWriteArrayList<GoannaEventListener>();
             } else if (listeners.contains(listener)) {
                 Log.w(LOGTAG, "EventListener already registered for event '" + event + "'",
                       new IllegalArgumentException());
@@ -35,9 +35,9 @@ public final class EventDispatcher {
         }
     }
 
-    public void unregisterEventListener(String event, GeckoEventListener listener) {
+    public void unregisterEventListener(String event, GoannaEventListener listener) {
         synchronized (mEventListeners) {
-            CopyOnWriteArrayList<GeckoEventListener> listeners = mEventListeners.get(event);
+            CopyOnWriteArrayList<GoannaEventListener> listeners = mEventListeners.get(event);
             if (listeners == null) {
                 Log.w(LOGTAG, "unregisterEventListener: event '" + event + "' has no listeners");
                 return;
@@ -69,18 +69,18 @@ public final class EventDispatcher {
         //   "event_specific": "value",
         //   ...
         try {
-            JSONObject gecko = json.has("gecko") ? json.getJSONObject("gecko") : null;
-            if (gecko != null) {
-                json = gecko;
+            JSONObject goanna = json.has("goanna") ? json.getJSONObject("goanna") : null;
+            if (goanna != null) {
+                json = goanna;
             }
 
             String type = json.getString("type");
 
-            if (gecko != null) {
-                Log.w(LOGTAG, "Message '" + type + "' has deprecated 'gecko' property!");
+            if (goanna != null) {
+                Log.w(LOGTAG, "Message '" + type + "' has deprecated 'goanna' property!");
             }
 
-            CopyOnWriteArrayList<GeckoEventListener> listeners;
+            CopyOnWriteArrayList<GoannaEventListener> listeners;
             synchronized (mEventListeners) {
                 listeners = mEventListeners.get(type);
             }
@@ -92,10 +92,10 @@ public final class EventDispatcher {
 
             String response = null;
 
-            for (GeckoEventListener listener : listeners) {
+            for (GoannaEventListener listener : listeners) {
                 listener.handleMessage(type, json);
-                if (listener instanceof GeckoEventResponder) {
-                    String newResponse = ((GeckoEventResponder)listener).getResponse(json);
+                if (listener instanceof GoannaEventResponder) {
+                    String newResponse = ((GoannaEventResponder)listener).getResponse(json);
                     if (response != null && newResponse != null) {
                         Log.e(LOGTAG, "Received two responses for message of type " + type);
                     }
@@ -107,7 +107,7 @@ public final class EventDispatcher {
                 return response;
 
         } catch (Exception e) {
-            Log.e(LOGTAG, "handleGeckoMessage throws " + e, e);
+            Log.e(LOGTAG, "handleGoannaMessage throws " + e, e);
         }
 
         return "";

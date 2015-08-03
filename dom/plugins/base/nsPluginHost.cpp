@@ -127,7 +127,7 @@
 
 #ifdef ANDROID
 #include <android/log.h>
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GeckoPlugins" , ## args)
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GoannaPlugins" , ## args)
 #endif
 
 using namespace mozilla;
@@ -2069,7 +2069,7 @@ nsresult nsPluginHost::ScanPluginsDirectoryList(nsISimpleEnumerator *dirEnum,
 nsresult nsPluginHost::LoadPlugins()
 {
 #ifdef ANDROID
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     return NS_OK;
   }
 #endif
@@ -2334,7 +2334,7 @@ nsPluginHost::RegisterWithCategoryManager(nsCString &aMimeType,
     "@mozilla.org/content/plugin/document-loader-factory;1";
 
   if (aType == ePluginRegister) {
-    catMan->AddCategoryEntry("Gecko-Content-Viewers",
+    catMan->AddCategoryEntry("Goanna-Content-Viewers",
                              aMimeType.get(),
                              contractId,
                              false, /* persist: broken by bug 193031 */
@@ -2343,11 +2343,11 @@ nsPluginHost::RegisterWithCategoryManager(nsCString &aMimeType,
   } else {
     // Only delete the entry if a plugin registered for it
     nsXPIDLCString value;
-    nsresult rv = catMan->GetCategoryEntry("Gecko-Content-Viewers",
+    nsresult rv = catMan->GetCategoryEntry("Goanna-Content-Viewers",
                                            aMimeType.get(),
                                            getter_Copies(value));
     if (NS_SUCCEEDED(rv) && strcmp(value, contractId) == 0) {
-      catMan->DeleteCategoryEntry("Gecko-Content-Viewers",
+      catMan->DeleteCategoryEntry("Goanna-Content-Viewers",
                                   aMimeType.get(),
                                   true);
     }

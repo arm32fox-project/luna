@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.content.Context;
 import android.text.Editable;
@@ -15,7 +15,7 @@ import android.view.inputmethod.InputMethodManager;
 import android.widget.LinearLayout;
 
 public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnClickListener {
-    private static final String LOGTAG = "GeckoFindInPagePopup";
+    private static final String LOGTAG = "GoannaFindInPagePopup";
 
     private final Context mContext;
     private CustomEditText mFindText;
@@ -82,7 +82,7 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
     public void hide() {
         setVisibility(GONE);
         getInputMethodManager(mFindText).hideSoftInputFromWindow(mFindText.getWindowToken(), 0);
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Closed", null));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("FindInPage:Closed", null));
     }
 
     private InputMethodManager getInputMethodManager(View view) {
@@ -94,7 +94,7 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
 
     @Override
     public void afterTextChanged(Editable s) {
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Find", s.toString()));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("FindInPage:Find", s.toString()));
     }
 
     @Override
@@ -113,11 +113,11 @@ public class FindInPageBar extends LinearLayout implements TextWatcher, View.OnC
     public void onClick(View v) {
         switch (v.getId()) {
             case R.id.find_prev:
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Prev", mFindText.getText().toString()));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("FindInPage:Prev", mFindText.getText().toString()));
                 getInputMethodManager(mFindText).hideSoftInputFromWindow(mFindText.getWindowToken(), 0);
                 break;
             case R.id.find_next:
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("FindInPage:Next", mFindText.getText().toString()));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("FindInPage:Next", mFindText.getText().toString()));
                 getInputMethodManager(mFindText).hideSoftInputFromWindow(mFindText.getWindowToken(), 0);
                 break;
             case R.id.find_close:

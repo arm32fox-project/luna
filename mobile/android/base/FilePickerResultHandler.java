@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.mozglue.GeckoLoader;
-import org.mozilla.gecko.util.ActivityResultHandler;
+import org.mozilla.goanna.mozglue.GoannaLoader;
+import org.mozilla.goanna.util.ActivityResultHandler;
 
 import android.app.Activity;
 import android.content.ContentResolver;
@@ -21,7 +21,7 @@ import java.io.InputStream;
 import java.util.Queue;
 
 abstract class FilePickerResultHandler implements ActivityResultHandler {
-    private static final String LOGTAG = "GeckoFilePickerResultHandler";
+    private static final String LOGTAG = "GoannaFilePickerResultHandler";
 
     protected final Queue<String> mFilePickerResult;
     protected final ActivityHandlerHelper.FileResultHandler mHandler;
@@ -42,7 +42,7 @@ abstract class FilePickerResultHandler implements ActivityResultHandler {
             return path == null ? "" : path;
         }
         try {
-            ContentResolver cr = GeckoAppShell.getContext().getContentResolver();
+            ContentResolver cr = GoannaAppShell.getContext().getContentResolver();
             Cursor cursor = cr.query(uri, new String[] { OpenableColumns.DISPLAY_NAME },
                                      null, null, null);
             String name = null;
@@ -62,13 +62,13 @@ abstract class FilePickerResultHandler implements ActivityResultHandler {
             int period;
             if (name == null || (period = name.lastIndexOf('.')) == -1) {
                 String mimeType = cr.getType(uri);
-                fileExt = "." + GeckoAppShell.getExtensionFromMimeType(mimeType);
+                fileExt = "." + GoannaAppShell.getExtensionFromMimeType(mimeType);
             } else {
                 fileExt = name.substring(period);
                 fileName += name.substring(0, period);
             }
             Log.i(LOGTAG, "Filename: " + fileName + " . " + fileExt);
-            File file = File.createTempFile(fileName, fileExt, GeckoLoader.getGREDir(GeckoAppShell.getContext()));
+            File file = File.createTempFile(fileName, fileExt, GoannaLoader.getGREDir(GoannaAppShell.getContext()));
             FileOutputStream fos = new FileOutputStream(file);
             InputStream is = cr.openInputStream(uri);
             byte[] buf = new byte[4096];

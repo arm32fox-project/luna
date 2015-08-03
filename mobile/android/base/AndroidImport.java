@@ -3,11 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.db.LocalBrowserDB;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserContract.Bookmarks;
+import org.mozilla.goanna.db.LocalBrowserDB;
 
 import android.content.ContentProviderOperation;
 import android.content.ContentResolver;
@@ -36,7 +36,7 @@ class AndroidImport implements Runnable {
         mOnDoneRunnable = onDoneRunnable;
         mOperations = new ArrayList<ContentProviderOperation>();
         mCr = mContext.getContentResolver();
-        mDB = new LocalBrowserDB(GeckoProfile.get(context).getName());
+        mDB = new LocalBrowserDB(GoannaProfile.get(context).getName());
         mImportBookmarks = doBookmarks;
         mImportHistory = doHistory;
     }

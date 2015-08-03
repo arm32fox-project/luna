@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.content.Context;
 import android.content.res.TypedArray;
@@ -19,7 +19,7 @@ public class FlowLayout extends ViewGroup {
 
     public FlowLayout(Context context, AttributeSet attrs) {
         super(context, attrs);
-        TypedArray a = context.obtainStyledAttributes(attrs, org.mozilla.gecko.R.styleable.FlowLayout);
+        TypedArray a = context.obtainStyledAttributes(attrs, org.mozilla.goanna.R.styleable.FlowLayout);
         mSpacing = a.getDimensionPixelSize(R.styleable.FlowLayout_spacing, (int) context.getResources().getDimension(R.dimen.flow_layout_spacing));
         a.recycle();
     }

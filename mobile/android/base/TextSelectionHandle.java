@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
-import org.mozilla.gecko.gfx.LayerView;
+import org.mozilla.goanna.gfx.ImmutableViewportMetrics;
+import org.mozilla.goanna.gfx.LayerView;
 
 import org.json.JSONObject;
 
@@ -20,7 +20,7 @@ import android.widget.ImageView;
 import android.widget.RelativeLayout;
 
 class TextSelectionHandle extends ImageView implements View.OnTouchListener {
-    private static final String LOGTAG = "GeckoTextSelectionHandle";
+    private static final String LOGTAG = "GoannaTextSelectionHandle";
 
     private enum HandleType { START, MIDDLE, END }; 
 
@@ -32,7 +32,7 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
     private float mLeft;
     private float mTop;
     private boolean mIsRTL; 
-    private PointF mGeckoPoint;
+    private PointF mGoannaPoint;
     private float mTouchStartX;
     private float mTouchStartY;
     private int mLayerViewX;
@@ -58,7 +58,7 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
             mHandleType = HandleType.END;
 
         mIsRTL = false;
-        mGeckoPoint = new PointF(0.0f, 0.0f);
+        mGoannaPoint = new PointF(0.0f, 0.0f);
 
         mWidth = getResources().getDimensionPixelSize(R.dimen.text_selection_handle_width);
         mHeight = getResources().getDimensionPixelSize(R.dimen.text_selection_handle_height);
@@ -73,7 +73,7 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
                 mTouchStartY = event.getY();
 
                 int[] rect = new int[2];
-                GeckoAppShell.getLayerView().getLocationOnScreen(rect);
+                GoannaAppShell.getLayerView().getLocationOnScreen(rect);
                 mLayerViewX = rect[0];
                 mLayerViewY = rect[1];
                 break;
@@ -89,7 +89,7 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
                 } catch (Exception e) {
                     Log.e(LOGTAG, "Error building JSON arguments for TextSelection:Position");
                 }
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("TextSelection:Position", args.toString()));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("TextSelection:Position", args.toString()));
                 break;
             }
             case MotionEvent.ACTION_MOVE: {
@@ -108,7 +108,7 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
         mLeft = newX - mLayerViewX - mTouchStartX;
         mTop = newY - mLayerViewY - mTouchStartY;
 
-        LayerView layerView = GeckoAppShell.getLayerView();
+        LayerView layerView = GoannaAppShell.getLayerView();
         if (layerView == null) {
             Log.e(LOGTAG, "Can't move selection because layerView is null");
             return;
@@ -116,20 +116,20 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
         // Send x coordinate on the right side of the start handle, left side of the end handle.
         float left = mLeft + adjustLeftForHandle();
 
-        PointF geckoPoint = new PointF(left, mTop);
-        geckoPoint = layerView.convertViewPointToLayerPoint(geckoPoint);
+        PointF goannaPoint = new PointF(left, mTop);
+        goannaPoint = layerView.convertViewPointToLayerPoint(goannaPoint);
 
         JSONObject args = new JSONObject();
         try {
             args.put("handleType", mHandleType.toString());
-            args.put("x", (int) geckoPoint.x);
-            args.put("y", (int) geckoPoint.y);
+            args.put("x", (int) goannaPoint.x);
+            args.put("y", (int) goannaPoint.y);
         } catch (Exception e) {
             Log.e(LOGTAG, "Error building JSON arguments for TextSelection:Move");
         }
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("TextSelection:Move", args.toString()));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("TextSelection:Move", args.toString()));
 
-        // If we're positioning a cursor, don't move the handle here. Gecko
+        // If we're positioning a cursor, don't move the handle here. Goanna
         // will tell us the position of the caret, so we set the handle
         // position then. This allows us to lock the handle to wherever the
         // caret appears.
@@ -138,14 +138,14 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
         }
     }
 
-    void positionFromGecko(int left, int top, boolean rtl) {
-        LayerView layerView = GeckoAppShell.getLayerView();
+    void positionFromGoanna(int left, int top, boolean rtl) {
+        LayerView layerView = GoannaAppShell.getLayerView();
         if (layerView == null) {
             Log.e(LOGTAG, "Can't position handle because layerView is null");
             return;
         }
 
-        mGeckoPoint = new PointF(left, top);
+        mGoannaPoint = new PointF(left, top);
         if (mIsRTL != rtl) {
             mIsRTL = rtl;
             setImageLevel(mIsRTL ? IMAGE_LEVEL_RTL : IMAGE_LEVEL_LTR);
@@ -157,8 +157,8 @@ class TextSelectionHandle extends ImageView implements View.OnTouchListener {
     }
 
     void repositionWithViewport(float x, float y, float zoom) {
-        PointF viewPoint = new PointF((mGeckoPoint.x * zoom) - x,
-                                      (mGeckoPoint.y * zoom) - y);
+        PointF viewPoint = new PointF((mGoannaPoint.x * zoom) - x,
+                                      (mGoannaPoint.y * zoom) - y);
 
         mLeft = viewPoint.x - adjustLeftForHandle();
         mTop = viewPoint.y;

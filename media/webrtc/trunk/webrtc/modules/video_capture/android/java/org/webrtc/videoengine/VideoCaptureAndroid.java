@@ -33,10 +33,10 @@ import android.view.TextureView;
 import android.view.TextureView.SurfaceTextureListener;
 import android.view.View;
 
-import org.mozilla.gecko.GeckoApp;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoAppShell.AppStateListener;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.GoannaApp;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaAppShell.AppStateListener;
+import org.mozilla.goanna.util.ThreadUtils;
 
 public class VideoCaptureAndroid implements PreviewCallback, Callback {
 
@@ -110,7 +110,7 @@ public class VideoCaptureAndroid implements PreviewCallback, Callback {
     void DeleteVideoCaptureAndroid(VideoCaptureAndroid captureAndroid) {
         Log.d(TAG, "DeleteVideoCaptureAndroid");
 
-        GeckoAppShell.getGeckoInterface().removeAppStateListener(captureAndroid.mAppStateListener);
+        GoannaAppShell.getGoannaInterface().removeAppStateListener(captureAndroid.mAppStateListener);
 
         captureAndroid.StopCapture();
         if (captureAndroid.camera != null) {
@@ -119,7 +119,7 @@ public class VideoCaptureAndroid implements PreviewCallback, Callback {
         }
         captureAndroid.context = 0;
 
-        View cameraView = GeckoAppShell.getGeckoInterface().getCameraView();
+        View cameraView = GoannaAppShell.getGoannaInterface().getCameraView();
         if (cameraView instanceof SurfaceView) {
             ((SurfaceView)cameraView).getHolder().removeCallback(captureAndroid);
         } else if (cameraView instanceof TextureView) {
@@ -131,7 +131,7 @@ public class VideoCaptureAndroid implements PreviewCallback, Callback {
             @Override
             public void run() {
                 try {
-                    GeckoAppShell.getGeckoInterface().disableCameraView();
+                    GoannaAppShell.getGoannaInterface().disableCameraView();
                 } catch (Exception e) {
                     Log.e(TAG,
                           "VideoCaptureAndroid disableCameraView exception: " +
@@ -152,7 +152,7 @@ public class VideoCaptureAndroid implements PreviewCallback, Callback {
         mCaptureRotation = GetRotateAmount();
 
         try {
-            View cameraView = GeckoAppShell.getGeckoInterface().getCameraView();
+            View cameraView = GoannaAppShell.getGoannaInterface().getCameraView();
             if (cameraView instanceof SurfaceView) {
                 ((SurfaceView)cameraView).getHolder().addCallback(this);
             } else if (cameraView instanceof TextureView) {
@@ -163,7 +163,7 @@ public class VideoCaptureAndroid implements PreviewCallback, Callback {
                 @Override
                 public void run() {
                     try {
-                        GeckoAppShell.getGeckoInterface().enableCameraView();
+                        GoannaAppShell.getGoannaInterface().enableCameraView();
                     } catch (Exception e) {
                         Log.e(TAG,
                               "VideoCaptureAndroid enableCameraView exception: "
@@ -207,14 +207,14 @@ public class VideoCaptureAndroid implements PreviewCallback, Callback {
             }
         };
 
-        GeckoAppShell.getGeckoInterface().addAppStateListener(mAppStateListener);
+        GoannaAppShell.getGoannaInterface().addAppStateListener(mAppStateListener);
     }
 
     public int GetRotateAmount() {
         android.hardware.Camera.CameraInfo info =
             new android.hardware.Camera.CameraInfo();
         android.hardware.Camera.getCameraInfo(cameraId, info);
-        int rotation = GeckoAppShell.getGeckoInterface().getActivity().getWindowManager().getDefaultDisplay().getRotation();
+        int rotation = GoannaAppShell.getGoannaInterface().getActivity().getWindowManager().getDefaultDisplay().getRotation();
         int degrees = 0;
         switch (rotation) {
             case Surface.ROTATION_0: degrees = 0; break;

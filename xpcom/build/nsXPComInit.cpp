@@ -122,7 +122,7 @@ extern nsresult nsStringInputStreamConstructor(nsISupports *, REFNSIID, void **)
 #include "mozilla/AvailableMemoryTracker.h"
 #include "mozilla/ClearOnShutdown.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #include "jsapi.h" // for JS_Init/JS_Shutdown
 
@@ -349,7 +349,7 @@ NS_InitXPCOM2(nsIServiceManager* *result,
         NS_ENSURE_STATE(sMessageLoop);
     }
 
-    if (XRE_GetProcessType() == GeckoProcessType_Default &&
+    if (XRE_GetProcessType() == GoannaProcessType_Default &&
         !BrowserProcessSubThread::GetMessageLoop(BrowserProcessSubThread::IO)) {
         scoped_ptr<BrowserProcessSubThread> ioThread(
             new BrowserProcessSubThread(BrowserProcessSubThread::IO));

@@ -359,7 +359,7 @@ FUNCTIONS = {
 
         Tiers are how the build system is organized. The build process is
         divided into major phases called tiers. The most important tiers are
-        "platform" and "apps." The platform tier builds the Gecko platform
+        "platform" and "apps." The platform tier builds the Goanna platform
         (typically outputting libxul). The apps tier builds the configured
         application (browser, mobile/android, b2g, etc).
 

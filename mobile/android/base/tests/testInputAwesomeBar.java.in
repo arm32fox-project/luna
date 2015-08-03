@@ -18,7 +18,7 @@ public final class testInputAwesomeBar extends BaseTest {
     private EditText    mAwesomeBarEditText;
 
     public void testInputAwesomeBar() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         openAwesomeScreen();
         assertAwesomeBarText("about:home");

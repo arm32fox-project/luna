@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
 import android.content.Context;
 import android.graphics.Canvas;
@@ -16,7 +16,7 @@ import android.widget.ImageView;
  * ratio and so that the images width and height are the same size or greater than the view size
  */
 public class ThumbnailView extends ImageView {
-    private static final String LOGTAG = "GeckoThumbnailView";
+    private static final String LOGTAG = "GoannaThumbnailView";
     final private Matrix mMatrix;
     private int mWidthSpec = -1;
     private int mHeightSpec = -1;

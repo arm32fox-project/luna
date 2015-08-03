@@ -525,7 +525,7 @@ nsOfflineCacheUpdateService::Schedule(nsIURI *aManifestURI,
                                       nsIOfflineCacheUpdate **aUpdate)
 {
     nsCOMPtr<nsIOfflineCacheUpdate> update;
-    if (GeckoProcessType_Default != XRE_GetProcessType()) {
+    if (GoannaProcessType_Default != XRE_GetProcessType()) {
         update = new OfflineCacheUpdateChild(aWindow);
     }
     else {
@@ -598,7 +598,7 @@ NS_IMETHODIMP nsOfflineCacheUpdateService::CheckForUpdate(nsIURI *aManifestURI,
                                                           bool aInBrowser,
                                                           nsIObserver *aObserver)
 {
-    if (GeckoProcessType_Default != XRE_GetProcessType()) {
+    if (GoannaProcessType_Default != XRE_GetProcessType()) {
         // Not intended to support this on child processes
         return NS_ERROR_NOT_IMPLEMENTED;
     }

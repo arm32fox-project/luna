@@ -18,7 +18,7 @@ public class testWebContentContextMenu extends PixelTest {
     }
 
     public void testWebContentContextMenu() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         String urls [] = { "/robocop/robocop_big_link.html", "/robocop/robocop_big_mailto.html", "/robocop/robocop_picture_link.html"};
         String linkMenuItems [] = { "Open Link in New Tab", "Open Link in Private Tab", "Copy Link", "Share Link", "Bookmark Link"};
@@ -36,8 +36,8 @@ public class testWebContentContextMenu extends PixelTest {
         getActivity().getWindowManager().getDefaultDisplay().getMetrics(dm);
 
         // The link has a 60px height, so let's try to hit the middle
-        float top = mDriver.getGeckoTop() + 30 * dm.density;
-        float left = mDriver.getGeckoLeft() + mDriver.getGeckoWidth() / 2;
+        float top = mDriver.getGoannaTop() + 30 * dm.density;
+        float left = mDriver.getGoannaLeft() + mDriver.getGoannaWidth() / 2;
 
         String url = getAbsoluteUrl(urls [i]);
         getInstrumentation().waitForIdleSync();
@@ -57,8 +57,8 @@ public class testWebContentContextMenu extends PixelTest {
             if (opt.equals("Open Link in New Tab")) {
                 openContextMenu(0, urls);
                 mAsserter.ok(mSolo.waitForText(opt), "Waiting for  " + opt + "  option", "The " + opt + "  option is present");
-                Actions.EventExpecter tabEventExpecter = mActions.expectGeckoEvent("Tab:Added");
-                Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+                Actions.EventExpecter tabEventExpecter = mActions.expectGoannaEvent("Tab:Added");
+                Actions.EventExpecter contentEventExpecter = mActions.expectGoannaEvent("DOMContentLoaded");
                 mSolo.clickOnText(opt);
 
                 // Wait for the new tab and page to load

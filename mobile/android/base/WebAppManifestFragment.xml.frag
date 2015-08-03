@@ -3,15 +3,15 @@
                   android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation|screenSize"
                   android:windowSoftInputMode="stateUnspecified|adjustResize"
                   android:launchMode="singleTask"
-                  android:taskAffinity="org.mozilla.gecko.WEBAPP@APPNUM@"
+                  android:taskAffinity="org.mozilla.goanna.WEBAPP@APPNUM@"
                   android:process=":@ANDROID_PACKAGE_NAME@.WebApp@APPNUM@"
                   android:excludeFromRecents="true"
-                  android:theme="@style/Gecko.App">
+                  android:theme="@style/Goanna.App">
             <intent-filter>
-                <action android:name="org.mozilla.gecko.WEBAPP@APPNUM@" />
+                <action android:name="org.mozilla.goanna.WEBAPP@APPNUM@" />
             </intent-filter>
             <intent-filter>
-                <action android:name="org.mozilla.gecko.ACTION_ALERT_CALLBACK" />
+                <action android:name="org.mozilla.goanna.ACTION_ALERT_CALLBACK" />
             </intent-filter>
         </activity>
 

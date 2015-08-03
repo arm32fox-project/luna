@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
 import android.content.Context;
 import android.os.Build;
@@ -43,7 +43,7 @@ import java.util.Locale;
 public class DateTimePicker extends FrameLayout {
 
     private static final boolean DEBUG = true;
-    private static final String LOGTAG = "GeckoDateTimePicker";
+    private static final String LOGTAG = "GoannaDateTimePicker";
     private static final String DATE_FORMAT = "MM/dd/yyyy";
     private static final int DEFAULT_START_YEAR = 1;
     private static final int DEFAULT_END_YEAR = 9999;

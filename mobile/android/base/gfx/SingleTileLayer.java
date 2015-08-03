@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -19,7 +19,7 @@ import java.nio.FloatBuffer;
  * TODO: Repeating textures really should be their own type of layer.
  */
 public class SingleTileLayer extends TileLayer {
-    private static final String LOGTAG = "GeckoSingleTileLayer";
+    private static final String LOGTAG = "GoannaSingleTileLayer";
 
     private Rect mMask;
 

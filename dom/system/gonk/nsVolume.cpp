@@ -173,7 +173,7 @@ void nsVolume::Set(nsIVolume* aVolume)
 
   mMountGeneration = volMountGeneration;
 
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+  if (XRE_GetProcessType() != GoannaProcessType_Default) {
     // Child processes just track the state, not maintain it.
     aVolume->GetIsMountLocked(&mMountLocked);
     return;
@@ -195,7 +195,7 @@ void nsVolume::Set(nsIVolume* aVolume)
 void
 nsVolume::UpdateMountLock(const nsAString& aMountLockState)
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
+  MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Default);
   MOZ_ASSERT(NS_IsMainThread());
 
   // There are 3 states, unlocked, locked-background, and locked-foreground
@@ -206,7 +206,7 @@ nsVolume::UpdateMountLock(const nsAString& aMountLockState)
 void
 nsVolume::UpdateMountLock(bool aMountLocked)
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
+  MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Default);
   MOZ_ASSERT(NS_IsMainThread());
 
   if (aMountLocked == mMountLocked) {

@@ -86,18 +86,18 @@ MetroAppShell::Run(void)
   nsresult rv = NS_OK;
 
   switch(XRE_GetProcessType()) {
-    case  GeckoProcessType_Content:
-    case GeckoProcessType_IPDLUnitTest:
+    case  GoannaProcessType_Content:
+    case GoannaProcessType_IPDLUnitTest:
       mozilla::widget::StartAudioSession();
       rv = nsBaseAppShell::Run();
       mozilla::widget::StopAudioSession();
     break;
-    case  GeckoProcessType_Plugin:
+    case  GoannaProcessType_Plugin:
       NS_WARNING("We don't support plugins currently.");
       // Just exit
       rv = NS_ERROR_NOT_IMPLEMENTED;
     break;
-    case GeckoProcessType_Default:
+    case GoannaProcessType_Default:
       // Nothing to do, just return.
     break;
   }
@@ -213,7 +213,7 @@ MetroAppShell::ScheduleNativeEventCallback()
 }
 
 void
-MetroAppShell::DoProcessMoreGeckoEvents()
+MetroAppShell::DoProcessMoreGoannaEvents()
 {
   ScheduleNativeEventCallback();
 }

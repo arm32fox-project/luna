@@ -1,0 +1,39 @@
+ruby,rbc,rtc,rb,rt{
+	line-height:1.4em!important;
+	margin:0px!important;
+	padding:0px!important;
+	width:auto!important;
+	height:auto!important;
+	vertical-align:baseline!important;
+	text-align:center!important;
+	top:auto!important;
+	left:auto!important;
+	right:auto!important;
+	bottom:auto!important;
+	text-decoration:none!important;
+	white-space:nowrap!important;
+	border-style:none!important;
+	overflow:visible!important;
+	text-indent:0px;
+	letter-spacing:0px;
+}
+rtc,rbc{
+	display:block!important;
+}
+rb,rt{
+	display:inline-block!important;
+}
+rp,rtc+rtc{
+	display:none!important;
+}
+rt{
+	font-size:1em!important;
+}
+rtc,ruby>rt{
+	font-size:.55em!important;
+	-moz-transform:translateY(-1em)!important;
+}
+ruby{
+	display:-moz-inline-stack!important;
+	margin-top:.55em!important;
+}

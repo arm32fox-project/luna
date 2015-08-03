@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -24,9 +24,9 @@ public class Telemetry {
             jsonData.put("name", name);
             jsonData.put("value", value);
 
-            GeckoEvent event =
-                GeckoEvent.createBroadcastEvent("Telemetry:Add", jsonData.toString());
-            GeckoAppShell.sendEventToGecko(event);
+            GoannaEvent event =
+                GoannaEvent.createBroadcastEvent("Telemetry:Add", jsonData.toString());
+            GoannaAppShell.sendEventToGoanna(event);
         } catch (JSONException e) {
             Log.e(LOGTAG, "JSON exception: ", e);
         }

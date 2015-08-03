@@ -467,7 +467,7 @@ Navigator::GetVendorSub(nsAString& aVendorSub)
 NS_IMETHODIMP
 Navigator::GetProduct(nsAString& aProduct)
 {
-  aProduct.AssignLiteral("Gecko");
+  aProduct.AssignLiteral("Goanna");
   return NS_OK;
 }
 

@@ -11,7 +11,7 @@
 #include "RestyleTracker.h"
 #include "nsCSSFrameConstructor.h"
 #include "nsStyleChangeList.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 namespace mozilla {
 namespace css {

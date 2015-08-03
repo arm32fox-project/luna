@@ -1,0 +1,65 @@
+<?xml version="1.0"?>
+<?xml-stylesheet href="chrome://global/skin/" type="text/css"?>
+<!DOCTYPE prefwindow SYSTEM "chrome://htmlruby/locale/options.ent">
+<prefwindow ondialogaccept="onUnload()" ondialogcancel="onUnload()" id="htmlruby-prefs" title="HTML Ruby Options" xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
+<prefpane onpaneload="onPaneLoad()" label="&prefpane.pane1.label;" id="htmlruby-prefpane-pane1">
+	<preferences>
+		<preference id="htmlruby-rubyTextSize" name="browser.ruby.rubyTextSize" type="string"/>
+		<preference id="htmlruby-rubyLineHeight" name="browser.ruby.rubyLineHeight" type="string"/>
+		<preference id="htmlruby-adjustLineHeight" name="browser.ruby.adjustLineHeight" type="bool"/>
+	</preferences>
+	<vbox width="500">
+		<groupbox>
+			<caption label="&prefpane.preview.label;" style="font-size:1.2em;font-weight:800;"/>
+			<description height="75" style="font-size:16px">
+				點燈後程經た<ruby><rbc><rb>日本語</rb></rbc><rtc><rt>にほんご</rt></rtc></ruby><ruby><rbc><rb>英語</rb></rbc><rtc><rt>English</rt></rtc></ruby>頃であるからして船も<ruby><rbc><rb>Japanese</rb></rbc><rtc><rt>日本語</rt></rtc></ruby><ruby><rbc><rb>Japanese</rb></rbc><rtc><rt>English</rt></rtc></ruby>人も周圍の自然も極めて<ruby><rbc><rb>日本語</rb></rbc><rtc><rt>にほんご</rt></rtc></ruby><ruby><rbc><rb>英語</rb></rbc><rtc><rt>English</rt></rtc></ruby>
+			</description>
+		</groupbox>
+		<groupbox>
+			<caption label="&rubyTextSize.title;" style="font-size:1.2em;font-weight:800;"/>
+			<description height="50">&rubyTextSize.description;</description>
+			<label value="&rubyTextSize.default;"/>
+			<hbox>
+				<scale width="200" flex="1" id="rubyTextSizeScale" onchange="onChange(this)" onsynctopreference="return onSyncToPreference(this);" preference="htmlruby-rubyTextSize" min="30" max="100" increment="1"  />
+				<label width="50" id="rubyTextSizeScaleLabel" control="rubyTextSizeScale"/>
+			</hbox>
+		</groupbox>
+		<groupbox>
+			<caption label="&rubyLineHeight.title;" style="font-size:1.2em;font-weight:800;"/>
+			<description height="50">&rubyLineHeight.description;</description>
+			<label value="&rubyLineHeight.default;"/>
+			<hbox>
+				<scale width="200" flex="1" id="rubyLineHeightScale" onchange="onChange(this)" onsynctopreference="return onSyncToPreference(this);" preference="htmlruby-rubyLineHeight" min="30" max="180" increment="1"  />
+				<label width="50" id="rubyLineHeightScaleLabel" control="rubyLineHeightScale"/>
+			</hbox>
+		</groupbox>
+		<groupbox>
+			<caption label="&adjustLineHeight.title;" style="font-size:1.2em;font-weight:800;"/>
+			<description height="50">&adjustLineHeight.description;</description>
+			<label value="&adjustLineHeight.default;"/>
+			<checkbox id="adjustLineHeightControl" preference="htmlruby-adjustLineHeight" label="&adjustLineHeight.title;" oncommand="onChangeCheckBox(this)" />
+		</groupbox>
+	</vbox>
+</prefpane>
+<prefpane label="&prefpane.pane2.label;" id="htmlruby-prefpane-pane2">
+	<preferences>
+		<preference id="htmlruby-spaceRubyText" name="browser.ruby.spaceRubyText" type="bool"/>
+		<preference id="htmlruby-processInsertedContent" name="browser.ruby.processInsertedContent" type="bool"/>
+	</preferences>
+	<vbox width="500">
+		<groupbox>
+			<caption label="&spaceRubyText.title;" style="font-size:1.2em;font-weight:800;"/>
+			<description height="50">&spaceRubyText.description;</description>
+			<label value="&spaceRubyText.default;"/>
+			<checkbox id="spaceRubyTextControl" preference="htmlruby-spaceRubyText" label="&spaceRubyText.title;" />
+		</groupbox>
+		<groupbox>
+			<caption label="&processInsertedContent.title;" style="font-size:1.2em;font-weight:800;"/>
+			<description height="50">&processInsertedContent.description;</description>
+			<label value="&processInsertedContent.default;"/>
+			<checkbox id="processInsertedContentControl" preference="htmlruby-processInsertedContent" label="&processInsertedContent.title;" />
+		</groupbox>
+	</vbox>
+</prefpane>
+<script type="application/x-javascript" src="scripts/options.js"/>
+</prefwindow>

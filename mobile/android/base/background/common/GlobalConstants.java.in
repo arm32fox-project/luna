@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.common;
+package org.mozilla.goanna.background.common;
 
 /**
  * Preprocessed class for storing preprocessed values common to all
@@ -44,6 +44,6 @@ public class GlobalConstants {
   // Fennec's prefs branch and pref name.
   // Eventually Fennec might listen to startup notifications and
   // do this automatically, but this will do for now. See Bug 800244.
-  public static String GECKO_PREFERENCES_CLASS = "org.mozilla.gecko.GeckoPreferences";
-  public static String GECKO_BROADCAST_HEALTHREPORT_UPLOAD_PREF_METHOD  = "broadcastHealthReportUploadPref";
+  public static String GOANNA_PREFERENCES_CLASS = "org.mozilla.goanna.GoannaPreferences";
+  public static String GOANNA_BROADCAST_HEALTHREPORT_UPLOAD_PREF_METHOD  = "broadcastHealthReportUploadPref";
 }

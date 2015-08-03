@@ -1,0 +1,29 @@
+<?xml version="1.0"?>
+<!DOCTYPE overlay SYSTEM "chrome://htmlruby/locale/options.ent">
+<overlay xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"> 
+<script type="application/x-javascript" src="scripts/htmlruby.js"/>
+
+<statusbar id="status-bar">
+  <statusbarpanel id="htmlruby-entities" context="htmlruby-menu">
+    <image 
+        id="htmlruby-icon" 
+        src="chrome://htmlruby/content/images/statusbar.png"
+        tooltiptext="HTML Ruby"
+        style="width:16px;height:16px"
+        onclick="window.openDialog('chrome://htmlruby/content/options.xul', '_blank','chrome,all,dialog=no');"
+        collapsed="true"/>
+    <progressmeter 
+        id="htmlruby-meter"
+        mode="determined"
+        value="100"
+        max="100"
+        collapsed="true" />
+    <image 
+        id="htmlruby-stop"
+        src="chrome://htmlruby/content/images/stop.png"
+        tooltiptext="&statusbar.stop.tooltip;"
+        style="width:15px;height:16px"
+        collapsed="true"/>
+  </statusbarpanel>
+</statusbar>
+</overlay>

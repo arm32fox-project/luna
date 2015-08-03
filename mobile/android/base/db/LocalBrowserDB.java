@@ -3,18 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.db.BrowserContract.Combined;
-import org.mozilla.gecko.db.BrowserContract.ExpirePriority;
-import org.mozilla.gecko.db.BrowserContract.FaviconColumns;
-import org.mozilla.gecko.db.BrowserContract.Favicons;
-import org.mozilla.gecko.db.BrowserContract.History;
-import org.mozilla.gecko.db.BrowserContract.SyncColumns;
-import org.mozilla.gecko.db.BrowserContract.Thumbnails;
-import org.mozilla.gecko.db.BrowserContract.URLColumns;
-import org.mozilla.gecko.gfx.BitmapUtils;
+import org.mozilla.goanna.db.BrowserContract.Bookmarks;
+import org.mozilla.goanna.db.BrowserContract.Combined;
+import org.mozilla.goanna.db.BrowserContract.ExpirePriority;
+import org.mozilla.goanna.db.BrowserContract.FaviconColumns;
+import org.mozilla.goanna.db.BrowserContract.Favicons;
+import org.mozilla.goanna.db.BrowserContract.History;
+import org.mozilla.goanna.db.BrowserContract.SyncColumns;
+import org.mozilla.goanna.db.BrowserContract.Thumbnails;
+import org.mozilla.goanna.db.BrowserContract.URLColumns;
+import org.mozilla.goanna.gfx.BitmapUtils;
 
 import android.content.ContentProviderOperation;
 import android.content.ContentResolver;
@@ -37,7 +37,7 @@ import java.util.List;
 public class LocalBrowserDB implements BrowserDB.BrowserDBIface {
     // Calculate these once, at initialization. isLoggable is too expensive to
     // have in-line in each log call.
-    private static final String LOGTAG = "GeckoLocalBrowserDB";
+    private static final String LOGTAG = "GoannaLocalBrowserDB";
     private static boolean logDebug = Log.isLoggable(LOGTAG, Log.DEBUG);
     protected static void debug(String message) {
         if (logDebug) {

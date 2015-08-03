@@ -8,7 +8,7 @@
 #include "nsIDOMApplicationRegistry.idl"
 
 /**
- * We expose Gecko-internal helpers related to "web apps" through this
+ * We expose Goanna-internal helpers related to "web apps" through this
  * sub-interface.
  */
 [scriptable, uuid(05c57885-27cf-47fc-8da7-eeec9eb853a7)]

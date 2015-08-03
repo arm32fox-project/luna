@@ -3,16 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.db.BrowserContract.Combined;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.gfx.BitmapUtils;
-// import org.mozilla.gecko.health.BrowserHealthRecorder;
-import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.StringUtils;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
+import org.mozilla.goanna.db.BrowserContract.Combined;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.gfx.BitmapUtils;
+// import org.mozilla.goanna.health.BrowserHealthRecorder;
+import org.mozilla.goanna.util.GamepadUtils;
+import org.mozilla.goanna.util.StringUtils;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UiAsyncTask;
 
 import android.app.Activity;
 import android.content.Context;
@@ -51,10 +51,10 @@ interface AutocompleteHandler {
     void onAutocomplete(String res);
 }
 
-public class AwesomeBar extends GeckoActivity
+public class AwesomeBar extends GoannaActivity
                         implements AutocompleteHandler,
                                    TextWatcher {
-    private static final String LOGTAG = "GeckoAwesomeBar";
+    private static final String LOGTAG = "GoannaAwesomeBar";
 
     public static final String URL_KEY = "url";
     public static final String TAB_KEY = "tab";
@@ -236,13 +236,13 @@ public class AwesomeBar extends GeckoActivity
 
     /*
      * Only one factory can be set on the inflater; however, we want to use two
-     * factories (GeckoViewsFactory and the FragmentActivity factory).
+     * factories (GoannaViewsFactory and the FragmentActivity factory).
      * Overriding onCreateView() here allows us to dispatch view creation to
      * both factories.
      */
     @Override
     public View onCreateView(String name, Context context, AttributeSet attrs) {
-        View view = GeckoViewsFactory.getInstance().onCreateView(name, context, attrs);
+        View view = GoannaViewsFactory.getInstance().onCreateView(name, context, attrs);
         if (view == null) {
             view = super.onCreateView(name, context, attrs);
         }
@@ -379,7 +379,7 @@ public class AwesomeBar extends GeckoActivity
             message.put("type", BrowserHealthRecorder.EVENT_SEARCH);
             message.put("location", where);
             message.put("identifier", identifier);
-            GeckoAppShell.getEventDispatcher().dispatchEvent(message);
+            GoannaAppShell.getEventDispatcher().dispatchEvent(message);
         } catch (Exception e) {
             Log.w(LOGTAG, "Error recording search.", e);
         } */
@@ -593,12 +593,12 @@ public class AwesomeBar extends GeckoActivity
                         if (mInReadingList) {
                             messageId = R.string.reading_list_removed;
 
-                            GeckoEvent e = GeckoEvent.createBroadcastEvent("Reader:Remove", url);
-                            GeckoAppShell.sendEventToGecko(e);
+                            GoannaEvent e = GoannaEvent.createBroadcastEvent("Reader:Remove", url);
+                            GoannaAppShell.sendEventToGoanna(e);
 
                             // Delete from Awesomebar context menu can alter reading list bookmark count
-                            e = GeckoEvent.createBroadcastEvent("Reader:ListCountUpdated", Integer.toString(aCount));
-                            GeckoAppShell.sendEventToGecko(e);
+                            e = GoannaEvent.createBroadcastEvent("Reader:ListCountUpdated", Integer.toString(aCount));
+                            GoannaAppShell.sendEventToGoanna(e);
                         }
 
                         Toast.makeText(AwesomeBar.this, messageId, Toast.LENGTH_SHORT).show();
@@ -633,7 +633,7 @@ public class AwesomeBar extends GeckoActivity
                 }
 
                 String shortcutTitle = TextUtils.isEmpty(title) ? url.replaceAll("^([a-z]+://)?(www\\.)?", "") : title;
-                GeckoAppShell.createShortcut(shortcutTitle, url, bitmap, "");
+                GoannaAppShell.createShortcut(shortcutTitle, url, bitmap, "");
                 break;
             }
             case R.id.share: {
@@ -642,7 +642,7 @@ public class AwesomeBar extends GeckoActivity
                     break;
                 }
 
-                GeckoAppShell.openUriExternal(url, "text/plain", "", "",
+                GoannaAppShell.openUriExternal(url, "text/plain", "", "",
                                               Intent.ACTION_SEND, title);
                 break;
             }

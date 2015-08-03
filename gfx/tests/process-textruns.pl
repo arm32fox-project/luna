@@ -5,7 +5,7 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 # This script is a bunch of utilities for computing statistics about the textruns
-# created during a Gecko run.
+# created during a Goanna run.
 #
 # Usage:
 # 1) Uncomment #define DUMP_TEXT_RUNS in gfxAtsuiFonts.cpp

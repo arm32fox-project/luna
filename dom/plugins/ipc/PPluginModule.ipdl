@@ -78,7 +78,7 @@ child:
 
   async SetParentHangTimeout(uint32_t seconds);
 
-  rpc GeckoGetProfile()
+  rpc GoannaGetProfile()
     returns (nsCString aProfile);
 
 parent:

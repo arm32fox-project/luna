@@ -33,7 +33,7 @@ public class testPrefsObserver extends BaseTest {
         jsonPref.put("name", PREF_TEST_PREF);
         jsonPref.put("type", "bool");
         jsonPref.put("value", value);
-        mActions.sendGeckoEvent("Preferences:Set", jsonPref.toString());
+        mActions.sendGoannaEvent("Preferences:Set", jsonPref.toString());
     }
 
     public void waitAndCheckPref(boolean value) throws JSONException {
@@ -85,18 +85,18 @@ public class testPrefsObserver extends BaseTest {
         JSONObject message = new JSONObject();
         message.put("requestId", PREF_REQUEST_ID);
         message.put("preferences", getPrefData);
-        mExpecter = mActions.expectGeckoEvent("Preferences:Data");
-        mActions.sendGeckoEvent("Preferences:Observe", message.toString());
+        mExpecter = mActions.expectGoannaEvent("Preferences:Data");
+        mActions.sendGoannaEvent("Preferences:Observe", message.toString());
     }
 
     public void removePrefObserver() {
         mAsserter.dumpLog("Removing pref observer");
 
-        mActions.sendGeckoEvent("Preferences:RemoveObservers", PREF_REQUEST_ID);
+        mActions.sendGoannaEvent("Preferences:RemoveObservers", PREF_REQUEST_ID);
     }
 
     public void testPrefsObserver() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         try {
             setPref(false);

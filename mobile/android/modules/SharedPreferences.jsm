@@ -15,7 +15,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 function sendMessageToJava(message) {
   return Cc["@mozilla.org/android/bridge;1"]
     .getService(Ci.nsIAndroidBridge)
-    .handleGeckoMessage(JSON.stringify(message));
+    .handleGoannaMessage(JSON.stringify(message));
 }
 
 /**

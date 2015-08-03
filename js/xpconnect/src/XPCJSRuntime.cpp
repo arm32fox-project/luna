@@ -37,7 +37,7 @@
 #include "mozilla/Attributes.h"
 #include "AccessCheck.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsJSPrincipals.h"
 #include <algorithm>
 

@@ -1896,7 +1896,7 @@ function stop_httpserver(callback) {
  * @param   version
  *          The version of the application
  * @param   platformVersion
- *          The gecko version of the application
+ *          The goanna version of the application
  */
 function createAppInfo(id, name, version, platformVersion) {
   const XULAPPINFO_CONTRACTID = "@mozilla.org/xre/app-info;1";

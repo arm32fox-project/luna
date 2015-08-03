@@ -3,7 +3,7 @@ Data Reporting Service
 ======================
 
 This directory contains files related to data collection and reporting
-within Gecko applications.
+within Goanna applications.
 
 The important files in this directory are:
 
@@ -15,7 +15,7 @@ policy.jsm
   and upload of data.
 
 sessions.jsm
-  Records Gecko application session history. This is loaded as part of
+  Records Goanna application session history. This is loaded as part of
   the XPCOM service because it needs to capture state from very early in
   the application lifecycle. Bug 841561 tracks implementing this in C++.
 

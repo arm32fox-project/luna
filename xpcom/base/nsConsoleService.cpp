@@ -192,7 +192,7 @@ nsConsoleService::LogMessageWithMode(nsIConsoleMessage *message, nsConsoleServic
         {
             nsXPIDLString msg;
             message->GetMessageMoz(getter_Copies(msg));
-            __android_log_print(ANDROID_LOG_ERROR, "GeckoConsole",
+            __android_log_print(ANDROID_LOG_ERROR, "GoannaConsole",
                         "%s",
                         NS_LossyConvertUTF16toASCII(msg).get());
         }

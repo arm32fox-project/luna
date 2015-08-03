@@ -29,7 +29,7 @@
 
 #include "mozilla/Likely.h"
 #include "mozilla/StaticPtr.h"
-#include "mozilla/layers/GeckoContentController.h"
+#include "mozilla/layers/GoannaContentController.h"
 #include "mozilla/TimeStamp.h"
 
 // Some debug #defines
@@ -43,7 +43,7 @@ class nsIDOMMozSmsMessage;
 extern "C" JNIEnv * GetJNIForThread();
 
 extern bool mozilla_AndroidBridge_SetMainThread(void *);
-extern jclass GetGeckoAppShellClass();
+extern jclass GetGoannaAppShellClass();
 
 namespace base {
 class Thread;
@@ -70,7 +70,7 @@ class CompositorParent;
 } // namespace layers
 
 // The order and number of the members in this structure must correspond
-// to the attrsAppearance array in GeckoAppShell.getSystemColors()
+// to the attrsAppearance array in GoannaAppShell.getSystemColors()
 typedef struct AndroidSystemColors {
     nscolor textColorPrimary;
     nscolor textColorPrimaryInverse;
@@ -120,21 +120,21 @@ private:
 };
 
 
-class AndroidBridge MOZ_FINAL : public mozilla::layers::GeckoContentController
+class AndroidBridge MOZ_FINAL : public mozilla::layers::GoannaContentController
 {
 public:
     enum {
-        // Values for NotifyIME, in addition to values from the Gecko
+        // Values for NotifyIME, in addition to values from the Goanna
         // NotificationToIME enum; use negative values here to prevent conflict
         NOTIFY_IME_REPLY_EVENT = -1,
     };
 
     enum {
         LAYER_CLIENT_TYPE_NONE = 0,
-        LAYER_CLIENT_TYPE_GL = 2            // AndroidGeckoGLLayerClient
+        LAYER_CLIENT_TYPE_GL = 2            // AndroidGoannaGLLayerClient
     };
 
-    static void ConstructBridge(JNIEnv *jEnv, jclass jGeckoAppShellClass);
+    static void ConstructBridge(JNIEnv *jEnv, jclass jGoannaAppShellClass);
 
     static AndroidBridge *Bridge() {
         return sBridge.get();
@@ -161,12 +161,12 @@ public:
         return nullptr;
     }
 
-    static jclass GetGeckoAppShellClass() {
-        return sBridge->mGeckoAppShellClass;
+    static jclass GetGoannaAppShellClass() {
+        return sBridge->mGoannaAppShellClass;
     }
 
     // The bridge needs to be constructed via ConstructBridge first,
-    // and then once the Gecko main thread is spun up (Gecko side),
+    // and then once the Goanna main thread is spun up (Goanna side),
     // SetMainThread should be called which will create the JNIEnv for
     // us to use.  toolkit/xre/nsAndroidStartup.cpp calls
     // SetMainThread.
@@ -210,7 +210,7 @@ public:
     void ScheduleRestart();
 
     void SetLayerClient(JNIEnv* env, jobject jobj);
-    AndroidGeckoLayerClient &GetLayerClient() { return *mLayerClient; }
+    AndroidGoannaLayerClient &GetLayerClient() { return *mLayerClient; }
 
     bool GetHandlersForURL(const char *aURL, 
                              nsIMutableArray* handlersArray = nullptr,
@@ -286,7 +286,7 @@ public:
 
     bool GetShowPasswordSetting();
 
-    // Switch Java to composite with the Gecko Compositor thread
+    // Switch Java to composite with the Goanna Compositor thread
     void RegisterCompositor(JNIEnv* env = NULL);
     EGLSurface ProvideEGLSurface();
 
@@ -339,7 +339,7 @@ public:
     bool LockWindow(void *window, unsigned char **bits, int *width, int *height, int *format, int *stride);
     bool UnlockWindow(void *window);
     
-    void HandleGeckoMessage(const nsAString& message, nsAString &aRet);
+    void HandleGoannaMessage(const nsAString& message, nsAString &aRet);
 
     void CheckURIVisited(const nsAString& uri);
     void MarkURIVisited(const nsAString& uri);
@@ -404,7 +404,7 @@ public:
     void RegisterSurfaceTextureFrameListener(jobject surfaceTexture, int id);
     void UnregisterSurfaceTextureFrameListener(jobject surfaceTexture);
 
-    jclass jGeckoJavaSamplerClass;
+    jclass jGoannaJavaSamplerClass;
     jmethodID jStart;
     jmethodID jStop;
     jmethodID jPause;
@@ -430,17 +430,17 @@ protected:
     JNIEnv *mJNIEnv;
     void *mThread;
 
-    AndroidGeckoLayerClient *mLayerClient;
+    AndroidGoannaLayerClient *mLayerClient;
 
-    // the GeckoAppShell java class
-    jclass mGeckoAppShellClass;
+    // the GoannaAppShell java class
+    jclass mGoannaAppShellClass;
     // the android.telephony.SmsMessage class
     jclass mAndroidSmsMessageClass;
 
     AndroidBridge();
     ~AndroidBridge();
 
-    bool Init(JNIEnv *jEnv, jclass jGeckoApp);
+    bool Init(JNIEnv *jEnv, jclass jGoannaApp);
 
     bool mOpenedGraphicsLibraries;
     void OpenGraphicsLibraries();
@@ -506,7 +506,7 @@ protected:
     jmethodID jEnableBatteryNotifications;
     jmethodID jDisableBatteryNotifications;
     jmethodID jGetCurrentBatteryInformation;
-    jmethodID jHandleGeckoMessage;
+    jmethodID jHandleGoannaMessage;
     jmethodID jCheckUriVisited;
     jmethodID jMarkUriVisited;
     jmethodID jSetUriTitle;
@@ -594,7 +594,7 @@ private:
 
 public:
     jobject SetNativePanZoomController(jobject obj);
-    // GeckoContentController methods
+    // GoannaContentController methods
     void RequestContentRepaint(const mozilla::layers::FrameMetrics& aFrameMetrics) MOZ_OVERRIDE;
     void HandleDoubleTap(const CSSIntPoint& aPoint) MOZ_OVERRIDE;
     void HandleSingleTap(const CSSIntPoint& aPoint) MOZ_OVERRIDE;

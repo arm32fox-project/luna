@@ -345,16 +345,16 @@ AccessibleWrap::get_accRole(
                "Does not support nsIAccessibleText when it should");
 #endif
 
-  a11y::role geckoRole = xpAccessible->Role();
+  a11y::role goannaRole = xpAccessible->Role();
   uint32_t msaaRole = 0;
 
-#define ROLE(_geckoRole, stringRole, atkRole, macRole, \
+#define ROLE(_goannaRole, stringRole, atkRole, macRole, \
              _msaaRole, ia2Role, nameRule) \
-  case roles::_geckoRole: \
+  case roles::_goannaRole: \
     msaaRole = _msaaRole; \
     break;
 
-  switch (geckoRole) {
+  switch (goannaRole) {
 #include "RoleMap.h"
     default:
       MOZ_NOT_REACHED("Unknown role.");
@@ -365,7 +365,7 @@ AccessibleWrap::get_accRole(
   // Special case, if there is a ROLE_ROW inside of a ROLE_TREE_TABLE, then call the MSAA role
   // a ROLE_OUTLINEITEM for consistency and compatibility.
   // We need this because ARIA has a role of "row" for both grid and treegrid
-  if (geckoRole == roles::ROW) {
+  if (goannaRole == roles::ROW) {
     Accessible* xpParent = Parent();
     if (xpParent && xpParent->Role() == roles::TREE_TABLE)
       msaaRole = ROLE_SYSTEM_OUTLINEITEM;
@@ -439,7 +439,7 @@ AccessibleWrap::get_accState(
 
   // MSAA only has 31 states and the lowest 31 bits of our state bit mask
   // are the same states as MSAA.
-  // Note: we map the following Gecko states to different MSAA states:
+  // Note: we map the following Goanna states to different MSAA states:
   //   REQUIRED -> ALERT_LOW
   //   ALERT -> ALERT_MEDIUM
   //   INVALID -> ALERT_HIGH
@@ -1118,14 +1118,14 @@ AccessibleWrap::role(long *aRole)
   if (IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-#define ROLE(_geckoRole, stringRole, atkRole, macRole, \
+#define ROLE(_goannaRole, stringRole, atkRole, macRole, \
              msaaRole, ia2Role, nameRule) \
-  case roles::_geckoRole: \
+  case roles::_goannaRole: \
     *aRole = ia2Role; \
     break;
 
-  a11y::role geckoRole = Role();
-  switch (geckoRole) {
+  a11y::role goannaRole = Role();
+  switch (goannaRole) {
 #include "RoleMap.h"
     default:
       MOZ_NOT_REACHED("Unknown role.");
@@ -1135,7 +1135,7 @@ AccessibleWrap::role(long *aRole)
 
   // Special case, if there is a ROLE_ROW inside of a ROLE_TREE_TABLE, then call
   // the IA2 role a ROLE_OUTLINEITEM.
-  if (geckoRole == roles::ROW) {
+  if (goannaRole == roles::ROW) {
     Accessible* xpParent = Parent();
     if (xpParent && xpParent->Role() == roles::TREE_TABLE)
       *aRole = ROLE_SYSTEM_OUTLINEITEM;
@@ -1169,11 +1169,11 @@ AccessibleWrap::scrollToPoint(enum IA2CoordinateType aCoordType,
   if (IsDefunct())
       return CO_E_OBJNOTCONNECTED;
 
-  uint32_t geckoCoordType = (aCoordType == IA2_COORDTYPE_SCREEN_RELATIVE) ?
+  uint32_t goannaCoordType = (aCoordType == IA2_COORDTYPE_SCREEN_RELATIVE) ?
     nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE :
     nsIAccessibleCoordinateType::COORDTYPE_PARENT_RELATIVE;
 
-  nsresult rv = ScrollToPoint(geckoCoordType, aX, aY);
+  nsresult rv = ScrollToPoint(goannaCoordType, aX, aY);
   return GetHRESULT(rv);
 
   A11Y_TRYBLOCK_END
@@ -1222,7 +1222,7 @@ AccessibleWrap::get_states(AccessibleStates *aStates)
   if (state & states::REQUIRED)
     *aStates |= IA2_STATE_REQUIRED;
 
-  // The following IA2 states are not supported by Gecko
+  // The following IA2 states are not supported by Goanna
   // IA2_STATE_ARMED
   // IA2_STATE_MANAGES_DESCENDANTS
   // IA2_STATE_ICONIFIED
@@ -1754,7 +1754,7 @@ AccessibleWrap::GetXPAccessibleFor(const VARIANT& aVarChild)
     return nullptr;
   }
 
-  // Gecko child indices are 0-based in contrast to indices used in MSAA.
+  // Goanna child indices are 0-based in contrast to indices used in MSAA.
   return GetChildAt(aVarChild.lVal - 1);
 }
 
@@ -1778,7 +1778,7 @@ AccessibleWrap::UpdateSystemCaret()
   }
 
   // Create invisible bitmap for caret, otherwise its appearance interferes
-  // with Gecko caret
+  // with Goanna caret
   HBITMAP caretBitMap = CreateBitmap(1, caretRect.height, 1, 1, nullptr);
   if (::CreateCaret(caretWnd, caretBitMap, 1, caretRect.height)) {  // Also destroys the last caret
     ::ShowCaret(caretWnd);

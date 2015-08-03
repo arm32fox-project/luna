@@ -3,9 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.mozglue.DirectBufferAllocator;
+import org.mozilla.goanna.mozglue.DirectBufferAllocator;
 
 import android.graphics.Bitmap;
 import android.util.Log;
@@ -18,7 +18,7 @@ public class BufferedCairoImage extends CairoImage {
     private IntSize mSize;
     private int mFormat;
 
-    private static String LOGTAG = "GeckoBufferedCairoImage";
+    private static String LOGTAG = "GoannaBufferedCairoImage";
 
     /** Creates a buffered Cairo image from a byte buffer. */
     public BufferedCairoImage(ByteBuffer inBuffer, int inWidth, int inHeight, int inFormat) {

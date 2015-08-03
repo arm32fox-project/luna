@@ -17,7 +17,7 @@ interface CloseEvent : Event
   readonly attribute unsigned short code;
   readonly attribute DOMString? reason;
 
-  // initCloseEvent is a Gecko specific deprecated method.
+  // initCloseEvent is a Goanna specific deprecated method.
   [Throws]
   void initCloseEvent(DOMString type,
                       boolean canBubble,

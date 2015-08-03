@@ -60,7 +60,7 @@
 #include <errno.h>
 #include <stdarg.h>
 #include "platform.h"
-#include "GeckoProfilerImpl.h"
+#include "GoannaProfilerImpl.h"
 #include "mozilla/Mutex.h"
 #include "ProfileEntry.h"
 #include "nsThreadUtils.h"

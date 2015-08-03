@@ -16,7 +16,7 @@
 
 // Profiler
 #include "PlatformMacros.h"
-#include "GeckoProfilerImpl.h"
+#include "GoannaProfilerImpl.h"
 #include "platform.h"
 #include "nsXULAppAPI.h"
 #include "nsThreadUtils.h"
@@ -47,7 +47,7 @@
 // JS
 #include "jsdbgapi.h"
 
-// This file's exports are listed in GeckoProfilerImpl.h.
+// This file's exports are listed in GoannaProfilerImpl.h.
 
 /* These will be set to something sensible before we take the first
    sample. */

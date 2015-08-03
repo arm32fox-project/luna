@@ -12,7 +12,7 @@
 #include "mozilla/dom/PContentParent.h"
 #include "mozilla/dom/PMemoryReportRequestParent.h"
 #include "mozilla/dom/TabContext.h"
-#include "mozilla/ipc/GeckoChildProcessHost.h"
+#include "mozilla/ipc/GoannaChildProcessHost.h"
 #include "mozilla/dom/ipc/Blob.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/HalTypes.h"
@@ -65,7 +65,7 @@ class ContentParent : public PContentParent
                     , public mozilla::dom::ipc::MessageManagerCallback
                     , public mozilla::LinkedListElement<ContentParent>
 {
-    typedef mozilla::ipc::GeckoChildProcessHost GeckoChildProcessHost;
+    typedef mozilla::ipc::GoannaChildProcessHost GoannaChildProcessHost;
     typedef mozilla::ipc::OptionalURIParams OptionalURIParams;
     typedef mozilla::ipc::TestShellParent TestShellParent;
     typedef mozilla::ipc::URIParams URIParams;
@@ -139,7 +139,7 @@ public:
 
     void SetChildMemoryReporters(const InfallibleTArray<MemoryReport>& report);
 
-    GeckoChildProcessHost* Process() {
+    GoannaChildProcessHost* Process() {
         return mSubprocess;
     }
 
@@ -410,7 +410,7 @@ private:
 
     virtual void ProcessingError(Result what) MOZ_OVERRIDE;
 
-    GeckoChildProcessHost* mSubprocess;
+    GoannaChildProcessHost* mSubprocess;
     base::ChildPrivileges mOSPrivileges;
 
     uint64_t mChildID;

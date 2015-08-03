@@ -14,7 +14,7 @@ CPP_SOURCES += [
     'APKOpen.cpp',
     'NSSBridge.cpp',
     'SQLiteBridge.cpp',
-    'nsGeckoUtils.cpp',
+    'nsGoannaUtils.cpp',
 ]
 
 LIBRARY_NAME = 'android'

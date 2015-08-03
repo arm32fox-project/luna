@@ -19,7 +19,7 @@ extern "C" void __real_free(void *);
 #endif
 
 #ifdef DEBUG
-#define LOG(x...) __android_log_print(ANDROID_LOG_INFO, "GeckoJNI", x)
+#define LOG(x...) __android_log_print(ANDROID_LOG_INFO, "GoannaJNI", x)
 #else
 #define LOG(x...)
 #endif
@@ -85,14 +85,14 @@ JNI_Setup(JNIEnv* jenv)
     jclass lObjectClass       = jenv->FindClass("java/lang/Object");
     jclass lStringClass       = jenv->FindClass("java/lang/String");
     jclass lByteBufferClass   = jenv->FindClass("java/nio/ByteBuffer");
-    jclass lCursorClass       = jenv->FindClass("org/mozilla/gecko/sqlite/MatrixBlobCursor");
+    jclass lCursorClass       = jenv->FindClass("org/mozilla/goanna/sqlite/MatrixBlobCursor");
 
     if (lStringClass == NULL
         || lObjectClass == NULL
         || lByteBufferClass == NULL
         || lCursorClass == NULL) {
         LOG("Error finding classes");
-        JNI_Throw(jenv, "org/mozilla/gecko/sqlite/SQLiteBridgeException",
+        JNI_Throw(jenv, "org/mozilla/goanna/sqlite/SQLiteBridgeException",
                   "FindClass error");
         return;
     }
@@ -108,7 +108,7 @@ JNI_Setup(JNIEnv* jenv)
         || byteBufferClass == NULL
         || cursorClass == NULL) {
         LOG("Error getting global references");
-        JNI_Throw(jenv, "org/mozilla/gecko/sqlite/SQLiteBridgeException",
+        JNI_Throw(jenv, "org/mozilla/goanna/sqlite/SQLiteBridgeException",
                   "NewGlobalRef error");
         return;
     }
@@ -127,7 +127,7 @@ JNI_Setup(JNIEnv* jenv)
         || jCursorConstructor == NULL
         || jCursorAddRow == NULL) {
         LOG("Error finding methods");
-        JNI_Throw(jenv, "org/mozilla/gecko/sqlite/SQLiteBridgeException",
+        JNI_Throw(jenv, "org/mozilla/goanna/sqlite/SQLiteBridgeException",
                   "GetMethodId error");
         return;
     }
@@ -136,7 +136,7 @@ JNI_Setup(JNIEnv* jenv)
 }
 
 extern "C" NS_EXPORT jobject JNICALL
-Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
                                                       jstring jDb,
                                                       jstring jQuery,
                                                       jobjectArray jParams,
@@ -156,7 +156,7 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
     if (rc != SQLITE_OK) {
         asprintf(&errorMsg, "Can't open database: %s\n", f_sqlite3_errmsg(db));
         LOG("Error in SQLiteBridge: %s\n", errorMsg);
-        JNI_Throw(jenv, "org/mozilla/gecko/sqlite/SQLiteBridgeException", errorMsg);
+        JNI_Throw(jenv, "org/mozilla/goanna/sqlite/SQLiteBridgeException", errorMsg);
         // errorMsg is allocated by asprintf, it needs to be freed by libc.
         __real_free(errorMsg);
     } else {
@@ -167,7 +167,7 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCall(JNIEnv* jenv, jclass,
 }
 
 extern "C" NS_EXPORT jobject JNICALL
-Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCallWithDb(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_sqlite_SQLiteBridge_sqliteCallWithDb(JNIEnv* jenv, jclass,
                                                             jlong jDb,
                                                             jstring jQuery,
                                                             jobjectArray jParams,
@@ -182,7 +182,7 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_sqliteCallWithDb(JNIEnv* jenv, jclass
 }
 
 extern "C" NS_EXPORT jlong JNICALL
-Java_org_mozilla_gecko_sqlite_SQLiteBridge_openDatabase(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_sqlite_SQLiteBridge_openDatabase(JNIEnv* jenv, jclass,
                                                         jstring jDb)
 {
     JNI_Setup(jenv);
@@ -198,7 +198,7 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_openDatabase(JNIEnv* jenv, jclass,
     if (rc != SQLITE_OK) {
         asprintf(&errorMsg, "Can't open database: %s\n", f_sqlite3_errmsg(db));
         LOG("Error in SQLiteBridge: %s\n", errorMsg);
-        JNI_Throw(jenv, "org/mozilla/gecko/sqlite/SQLiteBridgeException", errorMsg);
+        JNI_Throw(jenv, "org/mozilla/goanna/sqlite/SQLiteBridgeException", errorMsg);
         // errorMsg is allocated by asprintf, it needs to be freed by libc.
         __real_free(errorMsg);
     }
@@ -206,7 +206,7 @@ Java_org_mozilla_gecko_sqlite_SQLiteBridge_openDatabase(JNIEnv* jenv, jclass,
 }
 
 extern "C" NS_EXPORT void JNICALL
-Java_org_mozilla_gecko_sqlite_SQLiteBridge_closeDatabase(JNIEnv* jenv, jclass,
+Java_org_mozilla_goanna_sqlite_SQLiteBridge_closeDatabase(JNIEnv* jenv, jclass,
                                                         jlong jDb)
 {
     JNI_Setup(jenv);
@@ -402,7 +402,7 @@ sqliteInternalCall(JNIEnv* jenv,
 
 error_close:
     LOG("Error in SQLiteBridge: %s\n", errorMsg);
-    JNI_Throw(jenv, "org/mozilla/gecko/sqlite/SQLiteBridgeException", errorMsg);
+    JNI_Throw(jenv, "org/mozilla/goanna/sqlite/SQLiteBridgeException", errorMsg);
     // errorMsg is allocated by asprintf, it needs to be freed by libc.
     __real_free(errorMsg);
     return jCursor;

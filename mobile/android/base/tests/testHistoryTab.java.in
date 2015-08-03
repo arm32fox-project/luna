@@ -38,7 +38,7 @@ public class testHistoryTab extends PixelTest {
     }
 
     public void testHistoryTab() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // very approximate date-rollover detection
         Calendar cal = new GregorianCalendar();
@@ -226,7 +226,7 @@ public class testHistoryTab extends PixelTest {
             }
         }, MAX_WAIT_MS);
         if (success == true && mChild != null) {
-            Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+            Actions.EventExpecter contentEventExpecter = mActions.expectGoannaEvent("DOMContentLoaded");
             mSolo.clickOnView(mChild);
             contentEventExpecter.blockForEvent();
             contentEventExpecter.unregisterListener();

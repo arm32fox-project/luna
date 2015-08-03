@@ -103,10 +103,10 @@
 
     <!--
         TextAppearance
-        Note: Gecko uses light theme as default, while Android uses dark.
+        Note: Goanna uses light theme as default, while Android uses dark.
         If Android convention has to be followd, the list of colors specified 
         in themes.xml would be inverse, and things would get confusing.
-        Hence, Gecko's TextAppearance is based on text over light theme and
+        Hence, Goanna's TextAppearance is based on text over light theme and
         TextAppearance.Inverse is based on text over dark theme.
     -->
     <style name="TextAppearance">
@@ -451,11 +451,11 @@
         <item name="android:textColor">@color/abouthome_section_subtitle</item>
     </style>
 
-    <style name="GeckoDialogTitle">
+    <style name="GoannaDialogTitle">
         <item name="android:textAppearance">@android:style/TextAppearance.DialogWindowTitle</item>
     </style>
 
-    <style name="GeckoDialogTitle.SubTitle" />
+    <style name="GoannaDialogTitle.SubTitle" />
 
     <style name="PopupAnimation">
         <item name="@android:windowEnterAnimation">@anim/popup_show</item>

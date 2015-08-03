@@ -70,7 +70,7 @@ PreparePatternForUntiledDrawing(gfxPattern* aPattern,
             // Downscaling means that device-space coordinates are
             // scaled *up* to find the image pixel coordinates.
             //
-            // Cairo, and hence Gecko, can use RepeatPad on Xorg 1.7. We
+            // Cairo, and hence Goanna, can use RepeatPad on Xorg 1.7. We
             // enable EXTEND_PAD provided that we're running on a recent
             // enough X server.
             if (static_cast<gfxXlibSurface*>(currentTarget)->IsPadSlow()) {

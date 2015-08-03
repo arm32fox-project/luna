@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
 import java.util.EnumSet;
 
-import org.mozilla.gecko.GeckoApplication;
-import org.mozilla.gecko.LightweightTheme;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.db.BrowserContract;
+import org.mozilla.goanna.GoannaApplication;
+import org.mozilla.goanna.LightweightTheme;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.db.BrowserContract;
 
 import android.app.Activity;
 import android.content.res.Configuration;
@@ -60,7 +60,7 @@ public class AboutHome extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        mLightweightTheme = ((GeckoApplication) getActivity().getApplication()).getLightweightTheme();
+        mLightweightTheme = ((GoannaApplication) getActivity().getApplication()).getLightweightTheme();
     }
 
     @Override

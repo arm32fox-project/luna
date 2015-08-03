@@ -3,16 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.BrowserApp;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.TabsAccessor;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
+import org.mozilla.goanna.BrowserApp;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.TabsAccessor;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
+import org.mozilla.goanna.util.GamepadUtils;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UiAsyncTask;
 
 import android.content.Context;
 import android.text.TextUtils;

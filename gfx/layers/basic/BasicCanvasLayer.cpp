@@ -14,7 +14,7 @@
 #include "SurfaceStream.h"
 #include "SharedSurfaceGL.h"
 #include "SharedSurfaceEGL.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #include "nsXULAppAPI.h"
 

@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.util.EventDispatcher;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.util.EventDispatcher;
 
 import android.graphics.PointF;
 import android.view.KeyEvent;
@@ -16,7 +16,7 @@ import android.view.View;
 public interface PanZoomController {
     // The distance the user has to pan before we recognize it as such (e.g. to avoid 1-pixel pans
     // between the touch-down and touch-up of a click). In units of density-independent pixels.
-    public static final float PAN_THRESHOLD = 1/16f * GeckoAppShell.getDpi();
+    public static final float PAN_THRESHOLD = 1/16f * GoannaAppShell.getDpi();
 
     static class Factory {
         static PanZoomController create(PanZoomTarget target, View view, EventDispatcher dispatcher) {

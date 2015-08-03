@@ -15,10 +15,10 @@ void xxxNeverCalledXUL()
   XRE_CreateAppData(nullptr, nullptr);
   XRE_ParseAppData(nullptr, nullptr);
   XRE_FreeAppData(nullptr);
-  XRE_ChildProcessTypeToString(GeckoProcessType_Default);
+  XRE_ChildProcessTypeToString(GoannaProcessType_Default);
   XRE_StringToChildProcessType("");
   XRE_GetProcessType();
-  XRE_InitChildProcess(0, nullptr, GeckoProcessType_Default);
+  XRE_InitChildProcess(0, nullptr, GoannaProcessType_Default);
   XRE_InitParentProcess(0, nullptr, nullptr, nullptr);
   XRE_RunAppShell();
   XRE_ShutdownChildProcess();

@@ -43,7 +43,7 @@ nsClipboard::SetData(nsITransferable *aTransferable,
   nsAutoString buffer;
   supportsString->GetData(buffer);
 
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     if (AndroidBridge::Bridge())
       AndroidBridge::Bridge()->SetClipboardText(buffer);
     else
@@ -66,7 +66,7 @@ nsClipboard::GetData(nsITransferable *aTransferable, int32_t aWhichClipboard)
     return NS_ERROR_NOT_IMPLEMENTED;
 
   nsAutoString buffer;
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     if (!AndroidBridge::Bridge())
       return NS_ERROR_NOT_IMPLEMENTED;
     if (!AndroidBridge::Bridge()->GetClipboardText(buffer))
@@ -100,7 +100,7 @@ nsClipboard::EmptyClipboard(int32_t aWhichClipboard)
 {
   if (aWhichClipboard != kGlobalClipboard)
     return NS_ERROR_NOT_IMPLEMENTED;
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     if (AndroidBridge::Bridge())
       AndroidBridge::Bridge()->EmptyClipboard();
   } else {
@@ -118,7 +118,7 @@ nsClipboard::HasDataMatchingFlavors(const char **aFlavorList,
   *aHasText = false;
   if (aWhichClipboard != kGlobalClipboard)
     return NS_ERROR_NOT_IMPLEMENTED;
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     if (AndroidBridge::Bridge())
       *aHasText = AndroidBridge::Bridge()->ClipboardHasText();
   } else {

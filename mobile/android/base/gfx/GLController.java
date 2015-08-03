@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoThread;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.GoannaThread;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.util.Log;
 
@@ -22,15 +22,15 @@ import javax.microedition.khronos.egl.EGLSurface;
  * This class is a singleton that tracks EGL and compositor things over
  * the lifetime of Fennec running.
  * We only ever create one C++ compositor over Fennec's lifetime, but
- * most of the Java-side objects (e.g. LayerView, GeckoLayerClient,
- * LayerRenderer) can all get destroyed and re-created if the GeckoApp
+ * most of the Java-side objects (e.g. LayerView, GoannaLayerClient,
+ * LayerRenderer) can all get destroyed and re-created if the GoannaApp
  * activity is destroyed. This GLController is never destroyed, so that
  * the mCompositorCreated field and other state variables are always
  * accurate.
  */
 public class GLController {
     private static final int EGL_CONTEXT_CLIENT_VERSION = 0x3098;
-    private static final String LOGTAG = "GeckoGLController";
+    private static final String LOGTAG = "GoannaGLController";
 
     private static GLController sInstance;
 
@@ -60,7 +60,7 @@ public class GLController {
 
     private GLController() {
         // Here we start the GfxInfo thread, which will query OpenGL
-        // system information for Gecko. This must be done early enough that the data will be
+        // system information for Goanna. This must be done early enough that the data will be
         // ready by the time it's needed to initialize the compositor (it takes about 100 ms
         // to obtain).
         GfxInfoThread.startThread();
@@ -80,16 +80,16 @@ public class GLController {
         mSurfaceValid = false;
         mEGLSurface = null;
 
-        // We need to coordinate with Gecko when pausing composition, to ensure
-        // that Gecko never executes a draw event while the compositor is paused.
+        // We need to coordinate with Goanna when pausing composition, to ensure
+        // that Goanna never executes a draw event while the compositor is paused.
         // This is sent synchronously to make sure that we don't attempt to use
         // any outstanding Surfaces after we call this (such as from a
         // surfaceDestroyed notification), and to make sure that any in-flight
-        // Gecko draw events have been processed.  When this returns, composition is
-        // definitely paused -- it'll synchronize with the Gecko event loop, which
+        // Goanna draw events have been processed.  When this returns, composition is
+        // definitely paused -- it'll synchronize with the Goanna event loop, which
         // in turn will synchronize with the compositor thread.
         if (mCompositorCreated) {
-            GeckoAppShell.sendEventToGeckoSync(GeckoEvent.createCompositorPauseEvent());
+            GoannaAppShell.sendEventToGoannaSync(GoannaEvent.createCompositorPauseEvent());
         }
     }
 
@@ -171,18 +171,18 @@ public class GLController {
             return;
         }
 
-        // Only try to create the compositor if we have a valid surface and gecko is up. When these
+        // Only try to create the compositor if we have a valid surface and goanna is up. When these
         // two conditions are satisfied, we can be relatively sure that the compositor creation will
-        // happen without needing to block anyhwere. Do it with a sync gecko event so that the
+        // happen without needing to block anyhwere. Do it with a sync goanna event so that the
         // android doesn't have a chance to destroy our surface in between.
-        if (mEGLSurface != null && GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
-            GeckoAppShell.sendEventToGeckoSync(GeckoEvent.createCompositorCreateEvent(mWidth, mHeight));
+        if (mEGLSurface != null && GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
+            GoannaAppShell.sendEventToGoannaSync(GoannaEvent.createCompositorCreateEvent(mWidth, mHeight));
         }
     }
 
     void compositorCreated() {
         // This is invoked on the compositor thread, while the java UI thread
-        // is blocked on the gecko sync event in createCompositor() above
+        // is blocked on the goanna sync event in createCompositor() above
         mCompositorCreated = true;
     }
 
@@ -239,15 +239,15 @@ public class GLController {
     }
 
     void resumeCompositor(int width, int height) {
-        // Asking Gecko to resume the compositor takes too long (see
+        // Asking Goanna to resume the compositor takes too long (see
         // https://bugzilla.mozilla.org/show_bug.cgi?id=735230#c23), so we
-        // resume the compositor directly. We still need to inform Gecko about
-        // the compositor resuming, so that Gecko knows that it can now draw.
-        // It is important to not notify Gecko until after the compositor has
-        // been resumed, otherwise Gecko may send updates that get dropped.
+        // resume the compositor directly. We still need to inform Goanna about
+        // the compositor resuming, so that Goanna knows that it can now draw.
+        // It is important to not notify Goanna until after the compositor has
+        // been resumed, otherwise Goanna may send updates that get dropped.
         if (mCompositorCreated) {
-            GeckoAppShell.scheduleResumeComposition(width, height);
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createCompositorResumeEvent());
+            GoannaAppShell.scheduleResumeComposition(width, height);
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createCompositorResumeEvent());
         }
     }
 

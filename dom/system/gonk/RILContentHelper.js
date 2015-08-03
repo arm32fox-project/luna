@@ -336,9 +336,9 @@ CallBarringOption.prototype = {
 
 function RILContentHelper() {
   this.rilContext = {
-    cardState:            RIL.GECKO_CARDSTATE_UNKNOWN,
+    cardState:            RIL.GOANNA_CARDSTATE_UNKNOWN,
     retryCount:           0,
-    networkSelectionMode: RIL.GECKO_NETWORK_SELECTION_UNKNOWN,
+    networkSelectionMode: RIL.GOANNA_NETWORK_SELECTION_UNKNOWN,
     iccInfo:              new MobileICCInfo(),
     voiceConnectionInfo:  new MobileConnectionInfo(),
     dataConnectionInfo:   new MobileConnectionInfo()
@@ -513,7 +513,7 @@ RILContentHelper.prototype = {
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
 
-    if (this.rilContext.networkSelectionMode == RIL.GECKO_NETWORK_SELECTION_MANUAL &&
+    if (this.rilContext.networkSelectionMode == RIL.GOANNA_NETWORK_SELECTION_MANUAL &&
         this.rilContext.voiceConnectionInfo.network === network) {
 
       // Already manually selected this network, so schedule
@@ -547,7 +547,7 @@ RILContentHelper.prototype = {
     let request = Services.DOMRequest.createRequest(window);
     let requestId = this.getRequestId(request);
 
-    if (this.rilContext.networkSelectionMode == RIL.GECKO_NETWORK_SELECTION_AUTOMATIC) {
+    if (this.rilContext.networkSelectionMode == RIL.GOANNA_NETWORK_SELECTION_AUTOMATIC) {
       // Already using automatic selection mode, so schedule
       // onsuccess to be be fired on the next tick
       this.dispatchFireRequestSuccess(requestId, null);
@@ -1162,11 +1162,11 @@ RILContentHelper.prototype = {
         break;
       case "RIL:SelectNetwork":
         this.handleSelectNetwork(msg.json,
-                                 RIL.GECKO_NETWORK_SELECTION_MANUAL);
+                                 RIL.GOANNA_NETWORK_SELECTION_MANUAL);
         break;
       case "RIL:SelectNetworkAuto":
         this.handleSelectNetwork(msg.json,
-                                 RIL.GECKO_NETWORK_SELECTION_AUTOMATIC);
+                                 RIL.GOANNA_NETWORK_SELECTION_AUTOMATIC);
         break;
       case "RIL:CallStateChanged":
         this._deliverEvent("_telephonyListeners",

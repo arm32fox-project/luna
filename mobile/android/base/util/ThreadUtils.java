@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.util;
+package org.mozilla.goanna.util;
 
 import android.os.Handler;
 import android.util.Log;
@@ -14,7 +14,7 @@ public final class ThreadUtils {
     private static final String LOGTAG = "ThreadUtils";
 
     private static Thread sUiThread;
-    private static Thread sGeckoThread;
+    private static Thread sGoannaThread;
     private static Thread sBackgroundThread;
 
     private static Handler sUiHandler;
@@ -55,8 +55,8 @@ public final class ThreadUtils {
         sUiHandler = handler;
     }
 
-    public static void setGeckoThread(Thread thread) {
-        sGeckoThread = thread;
+    public static void setGoannaThread(Thread thread) {
+        sGoannaThread = thread;
     }
 
     public static void setBackgroundThread(Thread thread) {
@@ -75,8 +75,8 @@ public final class ThreadUtils {
         sUiHandler.post(runnable);
     }
 
-    public static Thread getGeckoThread() {
-        return sGeckoThread;
+    public static Thread getGoannaThread() {
+        return sGoannaThread;
     }
 
     public static Thread getBackgroundThread() {
@@ -84,19 +84,19 @@ public final class ThreadUtils {
     }
 
     public static Handler getBackgroundHandler() {
-        return GeckoBackgroundThread.getHandler();
+        return GoannaBackgroundThread.getHandler();
     }
 
     public static void postToBackgroundThread(Runnable runnable) {
-        GeckoBackgroundThread.post(runnable);
+        GoannaBackgroundThread.post(runnable);
     }
 
     public static void assertOnUiThread() {
         assertOnThread(getUiThread());
     }
 
-    public static void assertOnGeckoThread() {
-        assertOnThread(getGeckoThread());
+    public static void assertOnGoannaThread() {
+        assertOnThread(getGoannaThread());
     }
 
     public static void assertOnBackgroundThread() {

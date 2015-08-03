@@ -134,7 +134,7 @@ NotificationPermissionRequest::Run()
     return DispatchCallback();
   }
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     // because owner implements nsITabChild, we can assume that it is
     // the one and only TabChild.
     TabChild* child = GetTabChildFrom(mWindow->GetDocShell());
@@ -433,7 +433,7 @@ Notification::GetPermissionInternal(nsISupports* aGlobal, ErrorResult& aRv)
 
   uint32_t permission = nsIPermissionManager::UNKNOWN_ACTION;
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
 
     cpc->SendTestPermissionFromPrincipal(IPC::Principal(principal),

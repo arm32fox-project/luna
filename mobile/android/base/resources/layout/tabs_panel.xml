@@ -4,13 +4,13 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <merge xmlns:android="http://schemas.android.com/apk/res/android"
-       xmlns:gecko="http://schemas.android.com/apk/res-auto">
+       xmlns:goanna="http://schemas.android.com/apk/res-auto">
 
     <RelativeLayout android:id="@+id/tabs_panel_header"
                     android:layout_width="fill_parent"
                     android:layout_height="@dimen/browser_toolbar_height">
 
-        <view class="org.mozilla.gecko.TabsPanel$TabsPanelToolbar"
+        <view class="org.mozilla.goanna.TabsPanel$TabsPanelToolbar"
               android:layout_width="fill_parent"
               android:layout_height="fill_parent"
               android:background="@color/background_tabs">
@@ -26,28 +26,28 @@
 
     </RelativeLayout>
 
-    <view class="org.mozilla.gecko.TabsPanel$TabsListContainer"
+    <view class="org.mozilla.goanna.TabsPanel$TabsListContainer"
           android:id="@+id/tabs_container"
           android:layout_width="fill_parent"
           android:layout_height="wrap_content">
 
-        <org.mozilla.gecko.TabsTray android:id="@+id/normal_tabs"
+        <org.mozilla.goanna.TabsTray android:id="@+id/normal_tabs"
                                     style="@style/TabsList"
                                     android:layout_width="fill_parent"
                                     android:layout_height="fill_parent"
                                     android:choiceMode="singleChoice"
                                     android:visibility="gone"
-                                    gecko:tabs="tabs_normal"/>
+                                    goanna:tabs="tabs_normal"/>
 
-        <org.mozilla.gecko.TabsTray android:id="@+id/private_tabs"
+        <org.mozilla.goanna.TabsTray android:id="@+id/private_tabs"
                                     style="@style/TabsList"
                                     android:layout_width="fill_parent"
                                     android:layout_height="fill_parent"
                                     android:choiceMode="singleChoice"
                                     android:visibility="gone"
-                                    gecko:tabs="tabs_private"/>
+                                    goanna:tabs="tabs_private"/>
 
-        <org.mozilla.gecko.RemoteTabs android:id="@+id/synced_tabs"
+        <org.mozilla.goanna.RemoteTabs android:id="@+id/synced_tabs"
                                       style="@style/RemoteTabsList"
                                       android:layout_width="fill_parent"
                                       android:layout_height="fill_parent"

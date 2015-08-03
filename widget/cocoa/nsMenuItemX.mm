@@ -184,7 +184,7 @@ static const macKeyCodeData gMacKeyCodes[] = {
 
 };
 
-uint32_t nsMenuItemX::ConvertGeckoToMacKeyCode(nsAString& aKeyCodeName)
+uint32_t nsMenuItemX::ConvertGoannaToMacKeyCode(nsAString& aKeyCodeName)
 {
   if (aKeyCodeName.IsEmpty()) {
     return 0;
@@ -396,7 +396,7 @@ void nsMenuItemX::SetKeyEquiv()
       if (!hasKey || keyChar.IsEmpty()) {
         nsAutoString keyCodeName;
         keyContent->GetAttr(kNameSpaceID_None, nsGkAtoms::keycode, keyCodeName);
-        uint32_t keycode = ConvertGeckoToMacKeyCode(keyCodeName);
+        uint32_t keycode = ConvertGoannaToMacKeyCode(keyCodeName);
         if (keycode) {
           keyChar.Assign(keycode);
         }
@@ -407,9 +407,9 @@ void nsMenuItemX::SetKeyEquiv()
 
       nsAutoString modifiersStr;
       keyContent->GetAttr(kNameSpaceID_None, nsGkAtoms::modifiers, modifiersStr);
-      uint8_t modifiers = nsMenuUtilsX::GeckoModifiersForNodeAttribute(modifiersStr);
+      uint8_t modifiers = nsMenuUtilsX::GoannaModifiersForNodeAttribute(modifiersStr);
 
-      unsigned int macModifiers = nsMenuUtilsX::MacModifiersForGeckoModifiers(modifiers);
+      unsigned int macModifiers = nsMenuUtilsX::MacModifiersForGoannaModifiers(modifiers);
       [mNativeMenuItem setKeyEquivalentModifierMask:macModifiers];
 
       NSString *keyEquivalent = [[NSString stringWithCharacters:(unichar*)keyChar.get()

@@ -369,7 +369,7 @@ JS_FLOOR_LOG2W(size_t n)
  * Low-level memory management in SpiderMonkey:
  *
  *  ** Do not use the standard malloc/free/realloc: SpiderMonkey allows these
- *     to be redefined (via JS_USE_CUSTOM_ALLOCATOR) and Gecko even #define's
+ *     to be redefined (via JS_USE_CUSTOM_ALLOCATOR) and Goanna even #define's
  *     these symbols.
  *
  *  ** Do not use the builtin C++ operator new and delete: these throw on

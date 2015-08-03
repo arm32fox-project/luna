@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 class SmsManager
 {
@@ -12,7 +12,7 @@ class SmsManager
     static public ISmsManager getInstance() {
         if (AppConstants.MOZ_WEBSMS_BACKEND) {
             if (sInstance == null) {
-                sInstance = new GeckoSmsManager();
+                sInstance = new GoannaSmsManager();
             }
         }
         return sInstance;

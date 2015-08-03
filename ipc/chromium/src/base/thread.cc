@@ -8,7 +8,7 @@
 #include "base/string_util.h"
 #include "base/thread_local.h"
 #include "base/waitable_event.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 namespace base {
 

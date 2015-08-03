@@ -159,9 +159,6 @@ extern JSBool
 SetElementHelper(JSContext *cx, HandleObject obj, HandleObject Receiver, uint32_t index,
                  unsigned defineHow, MutableHandleValue vp, JSBool strict);
 
-extern JSType
-TypeOf(JSContext *cx, HandleObject obj);
-
 extern JSBool
 GetAttributes(JSContext *cx, HandleObject obj, HandleId id, unsigned *attrsp);
 

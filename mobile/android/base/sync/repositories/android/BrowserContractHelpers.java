@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync.repositories.android;
+package org.mozilla.goanna.sync.repositories.android;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.mozilla.gecko.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserContract;
 
 import android.net.Uri;
 

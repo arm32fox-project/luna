@@ -8,7 +8,7 @@
 #ifdef MOZ_INSTRUMENT_EVENT_LOOP
 #include "EventTracer.h"
 #endif
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsProfiler.h"
 #include "nsMemory.h"
 #include "nsString.h"

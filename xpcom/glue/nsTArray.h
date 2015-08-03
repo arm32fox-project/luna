@@ -729,6 +729,8 @@ public:
   typedef nsTArray_Impl<E, Alloc>                    self_type;
   typedef nsTArrayElementTraits<E>                   elem_traits;
   typedef nsTArray_SafeElementAtHelper<E, self_type> safeelementat_helper_type;
+  typedef elem_type*                                 iterator;
+  typedef const elem_type*                           const_iterator;
 
   using safeelementat_helper_type::SafeElementAt;
   using base_type::EmptyHdr;
@@ -925,6 +927,14 @@ public:
     return SafeElementAt(Length() - 1, def);
   }
 
+  // Methods for range-based for loops.
+  iterator begin() { return Elements(); }
+  const_iterator begin() const { return Elements(); }
+  const_iterator cbegin() const { return begin(); }
+  iterator end() { return Elements() + Length(); }
+  const_iterator end() const { return Elements() + Length(); }
+  const_iterator cend() const { return end(); }
+
   //
   // Search methods
   //
@@ -958,8 +968,9 @@ public:
   template<class Item, class Comparator>
   index_type IndexOf(const Item& item, index_type start,
                      const Comparator& comp) const {
-    const elem_type* iter = Elements() + start, *end = Elements() + Length();
-    for (; iter != end; ++iter) {
+    const elem_type* iter = Elements() + start;
+    const elem_type* iend = Elements() + Length();
+    for (; iter != iend; ++iter) {
       if (comp.Equals(*iter, item))
         return index_type(iter - Elements());
     }
@@ -988,8 +999,9 @@ public:
   index_type LastIndexOf(const Item& item, index_type start,
                          const Comparator& comp) const {
     size_type endOffset = start >= Length() ? Length() : start + 1;
-    const elem_type* end = Elements() - 1, *iter = end + endOffset;
-    for (; iter != end; --iter) {
+    const elem_type* iend = Elements() - 1;
+    const elem_type* iter = iend + endOffset;
+    for (; iter != iend; --iter) {
       if (comp.Equals(*iter, item))
         return index_type(iter - Elements());
     }
@@ -1386,8 +1398,9 @@ typename Alloc::ResultType EnsureLengthAtLeast(size_type minLen) {
     }
 
     // Initialize the extra array elements
-    elem_type *iter = Elements() + index, *end = iter + count;
-    for (; iter != end; ++iter) {
+    elem_type* iter = Elements() + index;
+    elem_type* iend = iter + count;
+    for (; iter != iend; ++iter) {
       elem_traits::Construct(iter);
     }
 
@@ -1409,8 +1422,9 @@ typename Alloc::ResultType EnsureLengthAtLeast(size_type minLen) {
     }
 
     // Initialize the extra array elements
-    elem_type *iter = Elements() + index, *end = iter + count;
-    for (; iter != end; ++iter) {
+    elem_type* iter = Elements() + index;
+    elem_type* iend = iter + count;
+    for (; iter != iend; ++iter) {
       elem_traits::Construct(iter, item);
     }
 
@@ -1530,8 +1544,9 @@ protected:
   // @param start  The index of the first element to destroy.
   // @param count  The number of elements to destroy.
   void DestructRange(index_type start, size_type count) {
-    elem_type *iter = Elements() + start, *end = iter + count;
-    for (; iter != end; ++iter) {
+    elem_type* iter = Elements() + start;
+    elem_type *iend = iter + count;
+    for (; iter != iend; ++iter) {
       elem_traits::Destruct(iter);
     }
   }
@@ -1555,19 +1570,19 @@ protected:
   void SiftDown(index_type index, const Comparator& comp) {
     elem_type *elem = Elements();
     elem_type item = elem[index];
-    index_type end = Length() - 1;
-    while ((index * 2) < end) {
+    index_type iend = Length() - 1;
+    while ((index * 2) < iend) {
       const index_type left = (index * 2) + 1;
       const index_type right = (index * 2) + 2;
       const index_type parent_index = index;
       if (comp.LessThan(item, elem[left])) {
-        if (left < end &&
+        if (left < iend &&
             comp.LessThan(elem[left], elem[right])) {
           index = right;
         } else {
           index = left;
         }
-      } else if (left < end &&
+      } else if (left < iend &&
                  comp.LessThan(item, elem[right])) {
         index = right;
       } else {

@@ -5,7 +5,7 @@
 
 <merge xmlns:android="http://schemas.android.com/apk/res/android">
 
-    <Gecko.IconTabWidget android:id="@+id/tab_widget"
+    <Goanna.IconTabWidget android:id="@+id/tab_widget"
                          android:layout_width="wrap_content"
                          android:layout_height="fill_parent"
                          android:tabStripEnabled="false"

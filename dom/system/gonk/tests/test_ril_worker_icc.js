@@ -455,12 +455,12 @@ add_test(function test_is_icc_service_available() {
   let worker = newUint8Worker();
   let ICCUtilsHelper = worker.ICCUtilsHelper;
 
-  function test_table(sst, geckoService, simEnabled, usimEnabled) {
+  function test_table(sst, goannaService, simEnabled, usimEnabled) {
     worker.RIL.iccInfoPrivate.sst = sst;
     worker.RIL.appType = CARD_APPTYPE_SIM;
-    do_check_eq(ICCUtilsHelper.isICCServiceAvailable(geckoService), simEnabled);
+    do_check_eq(ICCUtilsHelper.isICCServiceAvailable(goannaService), simEnabled);
     worker.RIL.appType = CARD_APPTYPE_USIM;
-    do_check_eq(ICCUtilsHelper.isICCServiceAvailable(geckoService), usimEnabled);
+    do_check_eq(ICCUtilsHelper.isICCServiceAvailable(goannaService), usimEnabled);
   }
 
   test_table([0x08], "ADN", true, false);
@@ -643,7 +643,7 @@ add_test(function test_write_disconnecting_cause() {
   let pduHelper = worker.GsmPDUHelper;
   let tlvHelper = worker.ComprehensionTlvHelper;
 
-  tlvHelper.writeCauseTlv(RIL_ERROR_TO_GECKO_ERROR[ERROR_GENERIC_FAILURE]);
+  tlvHelper.writeCauseTlv(RIL_ERROR_TO_GOANNA_ERROR[ERROR_GENERIC_FAILURE]);
   let tag = pduHelper.readHexOctet();
   do_check_eq(tag, COMPREHENSIONTLV_TAG_CAUSE | COMPREHENSIONTLV_FLAG_CR);
   let len = pduHelper.readHexOctet();
@@ -2540,7 +2540,7 @@ add_test(function test_card_state_corporateLocked() {
   };
 
   ril._processICCStatus(iccStatus);
-  do_check_eq(ril.cardState, GECKO_CARDSTATE_CORPORATE_LOCKED);
+  do_check_eq(ril.cardState, GOANNA_CARDSTATE_CORPORATE_LOCKED);
 
   run_next_test();
 });
@@ -2561,7 +2561,7 @@ add_test(function test_card_state_serviceProviderLocked() {
   };
 
   ril._processICCStatus(iccStatus);
-  do_check_eq(ril.cardState, GECKO_CARDSTATE_SERVICE_PROVIDER_LOCKED);
+  do_check_eq(ril.cardState, GOANNA_CARDSTATE_SERVICE_PROVIDER_LOCKED);
 
   run_next_test();
 });

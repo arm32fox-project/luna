@@ -155,7 +155,7 @@ function getBridge() {
 }
 
 function sendMessageToJava(aMessage) {
-  return getBridge().handleGeckoMessage(JSON.stringify(aMessage));
+  return getBridge().handleGoannaMessage(JSON.stringify(aMessage));
 }
 
 function doChangeMaxLineBoxWidth(aWidth) {
@@ -197,7 +197,7 @@ XPCOMUtils.defineLazyGetter(this, "ContentAreaUtils", function() {
 XPCOMUtils.defineLazyModuleGetter(this, "Rect",
                                   "resource://gre/modules/Geometry.jsm");
 
-function resolveGeckoURI(aURI) {
+function resolveGoannaURI(aURI) {
   if (aURI.startsWith("chrome://")) {
     let registry = Cc['@mozilla.org/chrome/chrome-registry;1'].getService(Ci["nsIChromeRegistry"]);
     return registry.convertChromeURL(Services.io.newURI(aURI, null, null)).spec;
@@ -371,8 +371,8 @@ var BrowserApp = {
     // Store the low-precision buffer pref
     this.gUseLowPrecision = Services.prefs.getBoolPref("layers.low-precision-buffer");
 
-    // notify java that gecko has loaded
-    sendMessageToJava({ type: "Gecko:Ready" });
+    // notify java that goanna has loaded
+    sendMessageToJava({ type: "Goanna:Ready" });
 
 #ifdef MOZ_SAFE_BROWSING
     // Bug 778855 - Perf regression if we do this here. To be addressed in bug 779008.
@@ -1059,7 +1059,7 @@ var BrowserApp = {
         continue;
       }
 
-      // Some Gecko preferences use integers or strings to reference
+      // Some Goanna preferences use integers or strings to reference
       // state instead of directly representing the value.
       // Since the Java UI uses the type to determine which ui elements
       // to show and how to handle them, we need to normalize these
@@ -2227,11 +2227,11 @@ var UserAgent = {
     UserAgentOverrides.init();
     UserAgentOverrides.addComplexOverride(this.onRequest.bind(this));
 
-    // See https://developer.mozilla.org/en/Gecko_user_agent_string_reference
+    // See https://developer.mozilla.org/en/Goanna_user_agent_string_reference
     this.DESKTOP_UA = Cc["@mozilla.org/network/protocol;1?name=http"]
                         .getService(Ci.nsIHttpProtocolHandler).userAgent
                         .replace(/Android; [a-zA-Z]+/, "X11; Linux x86_64")
-                        .replace(/Gecko\/[0-9\.]+/, "Gecko/20100101");
+                        .replace(/Goanna\/[0-9\.]+/, "Goanna/20100101");
   },
 
   uninit: function ua_uninit() {
@@ -2499,9 +2499,9 @@ Tab.prototype = {
     } catch (e) {}
 
     // When the tab is stubbed from Java, there's a window between the stub
-    // creation and the tab creation in Gecko where the stub could be removed
+    // creation and the tab creation in Goanna where the stub could be removed
     // (which is easiest to hit during startup).  We need to differentiate
-    // between tab stubs from Java and new tabs from Gecko to prevent breakage.
+    // between tab stubs from Java and new tabs from Goanna to prevent breakage.
     let stub = false;
 
     if (!aParams.zombifying) {
@@ -2510,7 +2510,7 @@ Tab.prototype = {
         stub = true;
       } else {
         let jni = new JNI();
-        let cls = jni.findClass("org/mozilla/gecko/Tabs");
+        let cls = jni.findClass("org/mozilla/goanna/Tabs");
         let method = jni.getStaticMethodID(cls, "getNextTabId", "()I");
         this.id = jni.callStaticIntMethod(cls, method);
         jni.close();
@@ -2744,11 +2744,11 @@ Tab.prototype = {
       return;
 
     // "zoom" is the user-visible zoom of the "this" tab
-    // "resolution" is the zoom at which we wish gecko to render "this" tab at
+    // "resolution" is the zoom at which we wish goanna to render "this" tab at
     // these two may be different if we are, for example, trying to render a
     // large area of the page at low resolution because the user is panning real
     // fast.
-    // The gecko scroll position is in CSS pixels. The display port rect
+    // The goanna scroll position is in CSS pixels. The display port rect
     // values (aDisplayPort), however, are in CSS pixels multiplied by the desired
     // rendering resolution. Therefore care must be taken when doing math with
     // these sets of values, to ensure that they are normalized to the same coordinate
@@ -2773,18 +2773,18 @@ Tab.prototype = {
 
     // Finally, we set the display port, taking care to convert everything into the CSS-pixel
     // coordinate space, because that is what the function accepts. Also we have to fudge the
-    // displayport somewhat to make sure it gets through all the conversions gecko will do on it
+    // displayport somewhat to make sure it gets through all the conversions goanna will do on it
     // without deforming too much. See https://bugzilla.mozilla.org/show_bug.cgi?id=737510#c10
     // for details on what these operations are.
-    let geckoScrollX = this.browser.contentWindow.scrollX;
-    let geckoScrollY = this.browser.contentWindow.scrollY;
-    aDisplayPort = this._dirtiestHackEverToWorkAroundGeckoRounding(aDisplayPort, geckoScrollX, geckoScrollY);
+    let goannaScrollX = this.browser.contentWindow.scrollX;
+    let goannaScrollY = this.browser.contentWindow.scrollY;
+    aDisplayPort = this._dirtiestHackEverToWorkAroundGoannaRounding(aDisplayPort, goannaScrollX, goannaScrollY);
 
     cwu = this.browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
 
     let displayPort = {
-      x: (aDisplayPort.left / resolution) - geckoScrollX,
-      y: (aDisplayPort.top / resolution) - geckoScrollY,
+      x: (aDisplayPort.left / resolution) - goannaScrollX,
+      y: (aDisplayPort.top / resolution) - goannaScrollY,
       width: (aDisplayPort.right - aDisplayPort.left) / resolution,
       height: (aDisplayPort.bottom - aDisplayPort.top) / resolution
     };
@@ -2801,16 +2801,16 @@ Tab.prototype = {
         // axis, as display-list building and invalidation cost scales with the
         // size of the display-port.
         let pageRect = cwu.getRootBounds();
-        let pageXMost = pageRect.right - geckoScrollX;
-        let pageYMost = pageRect.bottom - geckoScrollY;
+        let pageXMost = pageRect.right - goannaScrollX;
+        let pageYMost = pageRect.bottom - goannaScrollY;
 
         let dpW = Math.min(pageRect.right - pageRect.left, displayPort.width * 4);
         let dpH = Math.min(pageRect.bottom - pageRect.top, displayPort.height * 4);
 
         let dpX = Math.min(Math.max(displayPort.x - displayPort.width * 1.5,
-                                    pageRect.left - geckoScrollX), pageXMost - dpW);
+                                    pageRect.left - goannaScrollX), pageXMost - dpW);
         let dpY = Math.min(Math.max(displayPort.y - displayPort.height * 1.5,
-                                    pageRect.top - geckoScrollY), pageYMost - dpH);
+                                    pageRect.top - goannaScrollY), pageYMost - dpH);
         cwu.setDisplayPortForElement(dpX, dpY, dpW, dpH, element);
         cwu.setCriticalDisplayPortForElement(displayPort.x, displayPort.y,
                                              displayPort.width, displayPort.height,
@@ -2827,11 +2827,11 @@ Tab.prototype = {
 
   /*
    * Yes, this is ugly. But it's currently the safest way to account for the rounding errors that occur
-   * when we pump the displayport coordinates through gecko and they pop out in the compositor.
+   * when we pump the displayport coordinates through goanna and they pop out in the compositor.
    *
    * In general, the values are converted from page-relative device pixels to viewport-relative app units,
    * and then back to page-relative device pixels (now as ints). The first half of this is only slightly
-   * lossy, but it's enough to throw off the numbers a little. Because of this, when gecko calls
+   * lossy, but it's enough to throw off the numbers a little. Because of this, when goanna calls
    * ScaleToOutsidePixels to generate the final rect, the rect may get expanded more than it should,
    * ending up a pixel larger than it started off. This is undesirable in general, but specifically
    * bad for tiling, because it means we means we end up painting one line of pixels from a tile,
@@ -2842,13 +2842,13 @@ Tab.prototype = {
    * expanding the rect more than it should. If so, it determines how much rounding error was introduced
    * up until that point, and adjusts the original values to compensate for that rounding error.
    */
-  _dirtiestHackEverToWorkAroundGeckoRounding: function(aDisplayPort, aGeckoScrollX, aGeckoScrollY) {
+  _dirtiestHackEverToWorkAroundGoannaRounding: function(aDisplayPort, aGoannaScrollX, aGoannaScrollY) {
     const APP_UNITS_PER_CSS_PIXEL = 60.0;
     const EXTRA_FUDGE = 0.04;
 
     let resolution = aDisplayPort.resolution;
 
-    // Some helper functions that simulate conversion processes in gecko
+    // Some helper functions that simulate conversion processes in goanna
 
     function cssPixelsToAppUnits(aVal) {
       return Math.floor((aVal * APP_UNITS_PER_CSS_PIXEL) + 0.5);
@@ -2870,30 +2870,30 @@ Tab.prototype = {
     // This is the first conversion the displayport goes through, going from page-relative
     // device pixels to viewport-relative app units.
     let appUnitDisplayPort = {
-      x: cssPixelsToAppUnits((aDisplayPort.left / resolution) - aGeckoScrollX),
-      y: cssPixelsToAppUnits((aDisplayPort.top / resolution) - aGeckoScrollY),
+      x: cssPixelsToAppUnits((aDisplayPort.left / resolution) - aGoannaScrollX),
+      y: cssPixelsToAppUnits((aDisplayPort.top / resolution) - aGoannaScrollY),
       w: cssPixelsToAppUnits((aDisplayPort.right - aDisplayPort.left) / resolution),
       h: cssPixelsToAppUnits((aDisplayPort.bottom - aDisplayPort.top) / resolution)
     };
 
-    // This is the translation gecko applies when converting back from viewport-relative
+    // This is the translation goanna applies when converting back from viewport-relative
     // device pixels to page-relative device pixels.
-    let geckoTransformX = -Math.floor((-aGeckoScrollX * resolution) + 0.5);
-    let geckoTransformY = -Math.floor((-aGeckoScrollY * resolution) + 0.5);
+    let goannaTransformX = -Math.floor((-aGoannaScrollX * resolution) + 0.5);
+    let goannaTransformY = -Math.floor((-aGoannaScrollY * resolution) + 0.5);
 
-    // The final "left" value as calculated in gecko is:
-    //    left = geckoTransformX + Math.floor(appUnitsToDevicePixels(appUnitDisplayPort.x))
+    // The final "left" value as calculated in goanna is:
+    //    left = goannaTransformX + Math.floor(appUnitsToDevicePixels(appUnitDisplayPort.x))
     // In a perfect world, this value would be identical to aDisplayPort.left, which is what
     // we started with. However, this may not be the case if the value being floored has accumulated
     // enough error to drop below what it should be.
-    // For example, assume geckoTransformX is 0, and aDisplayPort.left is 4, but
+    // For example, assume goannaTransformX is 0, and aDisplayPort.left is 4, but
     // appUnitsToDevicePixels(appUnitsToDevicePixels.x) comes out as 3.9 because of rounding error.
     // That's bad, because the -0.1 error has caused it to floor to 3 instead of 4. (If it had errored
     // the other way and come out as 4.1, there's no problem). In this example, we need to increase the
     // "left" value by some amount so that the 3.9 actually comes out as >= 4, and it gets floored into
     // the expected value of 4. The delta values calculated below calculate that error amount (e.g. -0.1).
-    let errorLeft = (geckoTransformX + appUnitsToDevicePixels(appUnitDisplayPort.x)) - aDisplayPort.left;
-    let errorTop = (geckoTransformY + appUnitsToDevicePixels(appUnitDisplayPort.y)) - aDisplayPort.top;
+    let errorLeft = (goannaTransformX + appUnitsToDevicePixels(appUnitDisplayPort.x)) - aDisplayPort.left;
+    let errorTop = (goannaTransformY + appUnitsToDevicePixels(appUnitDisplayPort.y)) - aDisplayPort.top;
 
     // If the error was negative, that means it will floor incorrectly, so we need to bump up the
     // original aDisplayPort.left and/or aDisplayPort.top values. The amount we bump it up by is
@@ -2902,13 +2902,13 @@ Tab.prototype = {
     if (errorLeft < 0) {
       aDisplayPort.left += appUnitsToDevicePixels(devicePixelsToAppUnits(EXTRA_FUDGE - errorLeft));
       // After we modify the left value, we need to re-simulate some values to take that into account
-      appUnitDisplayPort.x = cssPixelsToAppUnits((aDisplayPort.left / resolution) - aGeckoScrollX);
+      appUnitDisplayPort.x = cssPixelsToAppUnits((aDisplayPort.left / resolution) - aGoannaScrollX);
       appUnitDisplayPort.w = cssPixelsToAppUnits((aDisplayPort.right - aDisplayPort.left) / resolution);
     }
     if (errorTop < 0) {
       aDisplayPort.top += appUnitsToDevicePixels(devicePixelsToAppUnits(EXTRA_FUDGE - errorTop));
       // After we modify the top value, we need to re-simulate some values to take that into account
-      appUnitDisplayPort.y = cssPixelsToAppUnits((aDisplayPort.top / resolution) - aGeckoScrollY);
+      appUnitDisplayPort.y = cssPixelsToAppUnits((aDisplayPort.top / resolution) - aGoannaScrollY);
       appUnitDisplayPort.h = cssPixelsToAppUnits((aDisplayPort.bottom - aDisplayPort.top) / resolution);
     }
 
@@ -2916,7 +2916,7 @@ Tab.prototype = {
     // for the error in conversion such that they end up where we want them. Now we need to also do the
     // same for the right/bottom values so that the width/height end up where we want them.
 
-    // This is the final conversion that the displayport goes through before gecko spits it back to
+    // This is the final conversion that the displayport goes through before goanna spits it back to
     // us. Note that the width/height calculates are of the form "ceil(transform(right)) - floor(transform(left))"
     let scaledOutDevicePixels = {
       x: Math.floor(appUnitsToDevicePixels(appUnitDisplayPort.x)),
@@ -2925,7 +2925,7 @@ Tab.prototype = {
       h: Math.ceil(appUnitsToDevicePixels(appUnitDisplayPort.y + appUnitDisplayPort.h)) - Math.floor(appUnitsToDevicePixels(appUnitDisplayPort.y))
     };
 
-    // The final "width" value as calculated in gecko is scaledOutDevicePixels.w.
+    // The final "width" value as calculated in goanna is scaledOutDevicePixels.w.
     // In a perfect world, this would equal originalWidth. However, things are not perfect, and as before,
     // we need to calculate how much rounding error has been introduced. In this case the rounding error is causing
     // the Math.ceil call above to ceiling to the wrong final value. For example, 4 gets converted 4.1 and gets
@@ -3101,7 +3101,7 @@ Tab.prototype = {
        * send updates regardless of page size; we'll zoom to fit the content as needed.
        *
        * In the check below, we floor the viewport size because there might be slight rounding errors
-       * introduced in the CSS page size due to the conversion to and from app units in Gecko. The
+       * introduced in the CSS page size due to the conversion to and from app units in Goanna. The
        * error should be no more than one app unit so doing the floor is overkill, but safe in the
        * sense that the extra page size updates that get sent as a result will be mostly harmless.
        */
@@ -3282,7 +3282,7 @@ Tab.prototype = {
           let json = {
             type: "Link:Favicon",
             tabID: this.id,
-            href: resolveGeckoURI(target.href),
+            href: resolveGoannaURI(target.href),
             charset: target.ownerDocument.characterSet,
             title: target.title,
             rel: list.join(" "),
@@ -4675,7 +4675,7 @@ var ErrorPageEventHandler = {
         let errorDoc = target.ownerDocument;
 
         // If the event came from an ssl error page, it is probably either the "Add
-        // Exception…" or "Get me out of here!" button
+        // Exception???" or "Get me out of here!" button
         if (errorDoc.documentURI.startsWith("about:certerror?e=nssBadCert")) {
           let perm = errorDoc.getElementById("permanentExceptionButton");
           let temp = errorDoc.getElementById("temporaryExceptionButton");
@@ -5069,7 +5069,7 @@ var FormAssistant = {
 };
 
 /**
- * An object to watch for Gecko status changes -- add-on installs, pref changes
+ * An object to watch for Goanna status changes -- add-on installs, pref changes
  * -- and reflect them back to Java.
  */
 let HealthReportStatusListener = {
@@ -6614,7 +6614,7 @@ var WebappsUI = {
     let iconSize = 64;
     try {
       let jni = new JNI();
-      let cls = jni.findClass("org/mozilla/gecko/GeckoAppShell");
+      let cls = jni.findClass("org/mozilla/goanna/GoannaAppShell");
       let method = jni.getStaticMethodID(cls, "getPreferredIconSize", "()I");
       iconSize = jni.callStaticIntMethod(cls, method);
       jni.close();

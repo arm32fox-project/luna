@@ -3,11 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.util.GeckoEventResponder;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.widget.DateTimePicker;
+import org.mozilla.goanna.util.GoannaEventResponder;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.widget.DateTimePicker;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -47,7 +47,7 @@ class PromptInput {
     protected final String mId;
     protected final String mValue;
     protected View mView;
-    public static final String LOGTAG = "GeckoPromptInput";
+    public static final String LOGTAG = "GoannaPromptInput";
 
     public static class EditInput extends PromptInput {
         protected final String mHint;

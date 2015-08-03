@@ -115,7 +115,7 @@ Prompt.prototype = {
   },
 
   _innerShow: function() {
-    this.bridge.handleGeckoMessage(JSON.stringify(this.msg));
+    this.bridge.handleGoannaMessage(JSON.stringify(this.msg));
   },
 
   observe: function(aSubject, aTopic, aData) {

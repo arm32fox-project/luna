@@ -20,7 +20,7 @@ function dump(a) {
 function sendMessageToJava(aMessage) {
   return Cc["@mozilla.org/android/bridge;1"]
            .getService(Ci.nsIAndroidBridge)
-           .handleGeckoMessage(JSON.stringify(aMessage));
+           .handleGoannaMessage(JSON.stringify(aMessage));
 }
 
 this.EXPORTED_SYMBOLS = ["Sanitizer"];

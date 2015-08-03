@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.health;
+package org.mozilla.goanna.health;
 
 import java.util.ArrayList;
 
@@ -12,23 +12,23 @@ import android.content.ContentProviderClient;
 import android.content.SharedPreferences;
 import android.util.Log;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.GeckoApp;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.PrefsHelper;
-import org.mozilla.gecko.PrefsHelper.PrefHandler;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.GoannaApp;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.PrefsHelper;
+import org.mozilla.goanna.PrefsHelper.PrefHandler;
 
-import org.mozilla.gecko.background.healthreport.EnvironmentBuilder;
-import org.mozilla.gecko.background.healthreport.HealthReportDatabaseStorage;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.Field;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.MeasurementFields;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.MeasurementFields.FieldSpec;
-import org.mozilla.gecko.background.healthreport.ProfileInformationCache;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder;
+import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.Field;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.MeasurementFields;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.MeasurementFields.FieldSpec;
+import org.mozilla.goanna.background.healthreport.ProfileInformationCache;
 
-import org.mozilla.gecko.util.EventDispatcher;
-import org.mozilla.gecko.util.GeckoEventListener;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.util.EventDispatcher;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -58,15 +58,15 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *
  * Shut it down when you're done being a browser: {@link #close()}.
  */
-public class BrowserHealthRecorder implements GeckoEventListener {
-    private static final String LOG_TAG = "GeckoHealthRec";
+public class BrowserHealthRecorder implements GoannaEventListener {
+    private static final String LOG_TAG = "GoannaHealthRec";
     private static final String PREF_BLOCKLIST_ENABLED = "extensions.blocklist.enabled";
     private static final String EVENT_ADDONS_ALL = "Addons:All";
     private static final String EVENT_ADDONS_CHANGE = "Addons:Change";
     private static final String EVENT_ADDONS_UNINSTALLING = "Addons:Uninstalling";
     private static final String EVENT_PREF_CHANGE = "Pref:Change";
  
-    // This is raised from Gecko. It avoids browser.js having to know about the
+    // This is raised from Goanna. It avoids browser.js having to know about the
     // location that invoked it (the URL bar).
     public static final String EVENT_KEYWORD_SEARCH = "Search:Keyword";
 
@@ -92,7 +92,7 @@ public class BrowserHealthRecorder implements GeckoEventListener {
     private final EventDispatcher dispatcher;
 
     public static class SessionInformation {
-        private static final String LOG_TAG = "GeckoSessInfo";
+        private static final String LOG_TAG = "GoannaSessInfo";
 
         public static final String PREFS_SESSION_START = "sessionStart";
 
@@ -102,11 +102,11 @@ public class BrowserHealthRecorder implements GeckoEventListener {
         private final boolean wasOOM;
         private final boolean wasStopped;
 
-        private volatile long timedGeckoStartup = -1;
+        private volatile long timedGoannaStartup = -1;
         private volatile long timedJavaStartup = -1;
 
         // Current sessions don't (right now) care about wasOOM/wasStopped.
-        // Eventually we might want to lift that logic out of GeckoApp.
+        // Eventually we might want to lift that logic out of GoannaApp.
         public SessionInformation(long wallTime, long realTime) {
             this(wallTime, realTime, false, false);
         }
@@ -129,8 +129,8 @@ public class BrowserHealthRecorder implements GeckoEventListener {
          * wallStartTime is returned.
          */
         public static SessionInformation fromSharedPrefs(SharedPreferences prefs) {
-            boolean wasOOM = prefs.getBoolean(GeckoApp.PREFS_OOM_EXCEPTION, false);
-            boolean wasStopped = prefs.getBoolean(GeckoApp.PREFS_WAS_STOPPED, true);
+            boolean wasOOM = prefs.getBoolean(GoannaApp.PREFS_OOM_EXCEPTION, false);
+            boolean wasStopped = prefs.getBoolean(GoannaApp.PREFS_WAS_STOPPED, true);
             long wallStartTime = prefs.getLong(PREFS_SESSION_START, 0L);
             long realStartTime = 0L;
             Log.d(LOG_TAG, "Building SessionInformation from prefs: " +
@@ -185,8 +185,8 @@ public class BrowserHealthRecorder implements GeckoEventListener {
             JSONObject out = new JSONObject();
             out.put("r", reason);
             out.put("d", durationSecs);
-            if (this.timedGeckoStartup > 0) {
-                out.put("sg", this.timedGeckoStartup);
+            if (this.timedGoannaStartup > 0) {
+                out.put("sg", this.timedGoannaStartup);
             }
             if (this.timedJavaStartup > 0) {
                 out.put("sj", this.timedJavaStartup);
@@ -218,11 +218,11 @@ public class BrowserHealthRecorder implements GeckoEventListener {
         this.session = session;
     }
 
-    public void recordGeckoStartupTime(long duration) {
+    public void recordGoannaStartupTime(long duration) {
         if (this.session == null) {
             return;
         }
-        this.session.timedGeckoStartup = duration;
+        this.session.timedGoannaStartup = duration;
     }
     public void recordJavaStartupTime(long duration) {
         if (this.session == null) {
@@ -593,9 +593,9 @@ public class BrowserHealthRecorder implements GeckoEventListener {
 
             @Override
             public void finish() {
-                Log.d(LOG_TAG, "Requesting all add-ons from Gecko.");
+                Log.d(LOG_TAG, "Requesting all add-ons from Goanna.");
                 dispatcher.registerEventListener(EVENT_ADDONS_ALL, self);
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Addons:FetchAll", null));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Addons:FetchAll", null));
                 // Wait for the broadcast event which completes our initialization.
             }
         };
@@ -618,7 +618,7 @@ public class BrowserHealthRecorder implements GeckoEventListener {
             return;
         }
 
-        final SharedPreferences prefs = GeckoApp.getAppSharedPreferences();
+        final SharedPreferences prefs = GoannaApp.getAppSharedPreferences();
         final SharedPreferences.Editor editor = prefs.edit();
 
         recordSessionEnd("E", editor, prev);
@@ -906,7 +906,7 @@ public class BrowserHealthRecorder implements GeckoEventListener {
      *
      * "r": reason. Values are "P" (activity paused), "A" (abnormal termination)
      * "d": duration. Value in seconds.
-     * "sg": Gecko startup time. Present if this is a clean launch.
+     * "sg": Goanna startup time. Present if this is a clean launch.
      * "sj": Java startup time. Present if this is a clean launch.
      *
      * Abnormal terminations will be missing a duration and will feature these keys:

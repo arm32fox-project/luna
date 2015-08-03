@@ -226,11 +226,11 @@ class B2GOptions(MochitestOptions):
                         help="name of the pidfile to generate")
         defaults["pidFile"] = ""
 
-        self.add_option("--gecko-path", action="store",
-                        type="string", dest="geckoPath",
-                        help="the path to a gecko distribution that should "
+        self.add_option("--goanna-path", action="store",
+                        type="string", dest="goannaPath",
+                        help="the path to a goanna distribution that should "
                         "be installed on the emulator prior to test")
-        defaults["geckoPath"] = None
+        defaults["goannaPath"] = None
 
         self.add_option("--profile", action="store",
                         type="string", dest="profile",
@@ -277,8 +277,8 @@ class B2GOptions(MochitestOptions):
                 self.error("You must specify a --remote-webserver=<ip address>")
         options.webServer = options.remoteWebServer
 
-        if options.geckoPath and not options.emulator:
-            self.error("You must specify --emulator if you specify --gecko-path")
+        if options.goannaPath and not options.emulator:
+            self.error("You must specify --emulator if you specify --goanna-path")
 
         if options.logcat_dir and not options.emulator:
             self.error("You must specify --emulator if you specify --logcat-dir")
@@ -610,8 +610,8 @@ def run_remote_mochitests(automation, parser, options):
         automation.setEmulator(True)
         if options.noWindow:
             kwargs['noWindow'] = True
-        if options.geckoPath:
-            kwargs['gecko_path'] = options.geckoPath
+        if options.goannaPath:
+            kwargs['goanna_path'] = options.goannaPath
         if options.logcat_dir:
             kwargs['logcat_dir'] = options.logcat_dir
         if options.busybox:

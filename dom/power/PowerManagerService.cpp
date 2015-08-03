@@ -138,7 +138,7 @@ NS_IMETHODIMP
 PowerManagerService::Restart()
 {
   // FIXME/bug 796826 this implementation is currently gonk-specific,
-  // because it relies on the Gonk to initialize the Gecko processes to
+  // because it relies on the Gonk to initialize the Goanna processes to
   // restart B2G. It's better to do it here to have a real "restart".
   StartForceQuitWatchdog(eHalShutdownMode_Restart, mWatchdogTimeoutSecs);
   // Ensure all content processes are dead before we continue

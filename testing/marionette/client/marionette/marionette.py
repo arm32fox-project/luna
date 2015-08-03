@@ -14,7 +14,7 @@ from application_cache import ApplicationCache
 from keys import Keys
 from errors import *
 from emulator import Emulator
-import geckoinstance
+import goannainstance
 
 
 class HTMLElement(object):
@@ -200,7 +200,7 @@ class Marionette(object):
 
     def __init__(self, host='localhost', port=2828, app=None, bin=None,
                  profile=None, emulator=None, sdcard=None, emulatorBinary=None,
-                 emulatorImg=None, emulator_res=None, gecko_path=None,
+                 emulatorImg=None, emulator_res=None, goanna_path=None,
                  connectToRunningEmulator=False, homedir=None, baseurl=None,
                  noWindow=False, logcat_dir=None, busybox=None, symbols_path=None, timeout=None):
         self.host = host
@@ -229,12 +229,12 @@ class Marionette(object):
             if app:
                 # select instance class for the given app
                 try:
-                    instance_class = geckoinstance.apps[app]
+                    instance_class = goannainstance.apps[app]
                 except KeyError:
                     msg = 'Application "%s" unknown (should be one of %s)'
-                    raise NotImplementedError(msg % (app, geckoinstance.apps.keys()))
+                    raise NotImplementedError(msg % (app, goannainstance.apps.keys()))
             else:
-                instance_class = geckoinstance.GeckoInstance
+                instance_class = goannainstance.GoannaInstance
             self.instance = instance_class(host=self.host, port=self.port,
                                            bin=self.bin, profile=self.profile)
             self.instance.start()
@@ -264,7 +264,7 @@ class Marionette(object):
 
         if emulator:
             self.emulator.setup(self,
-                                gecko_path=gecko_path,
+                                goanna_path=goanna_path,
                                 busybox=busybox)
 
     def __del__(self):
@@ -292,8 +292,8 @@ class Marionette(object):
         try:
             m = cls(*args, **kwargs)
             return m
-        except InstallGeckoError:
-            # Bug 812395 - the process of installing gecko into the emulator
+        except InstallGoannaError:
+            # Bug 812395 - the process of installing goanna into the emulator
             # and then restarting B2G tickles some bug in the emulator/b2g
             # that intermittently causes B2G to fail to restart.  To work
             # around this in TBPL runs, we will fail gracefully from this
@@ -301,7 +301,7 @@ class Marionette(object):
 
             # This string will get caught by mozharness and will cause it
             # to retry the tests.
-            print "Error installing gecko!"
+            print "Error installing goanna!"
 
             # Exit without a normal exception to prevent mozharness from
             # flagging the error.

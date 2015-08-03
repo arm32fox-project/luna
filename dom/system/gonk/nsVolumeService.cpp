@@ -65,7 +65,7 @@ nsVolumeService::Shutdown()
   if (!sSingleton) {
     return;
   }
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+  if (XRE_GetProcessType() != GoannaProcessType_Default) {
     sSingleton = nullptr;
     return;
   }
@@ -88,7 +88,7 @@ nsVolumeService::nsVolumeService()
 {
   sSingleton = this;
 
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+  if (XRE_GetProcessType() != GoannaProcessType_Default) {
     // Request the initial state for all volumes.
     ContentChild::GetSingleton()->SendBroadcastVolume(NS_LITERAL_STRING(""));
     return;
@@ -123,7 +123,7 @@ nsVolumeService::Callback(const nsAString& aTopic, const nsAString& aState)
 NS_IMETHODIMP
 nsVolumeService::BroadcastVolume(const nsAString& aVolName)
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
+  MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Default);
 
   if (aVolName.EqualsLiteral("")) {
     nsVolume::Array volumeArray;
@@ -281,7 +281,7 @@ void
 nsVolumeService::CheckMountLock(const nsAString& aMountLockName,
                                 const nsAString& aMountLockState)
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
+  MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Default);
   MOZ_ASSERT(NS_IsMainThread());
 
   nsRefPtr<nsVolume> vol = FindVolumeByMountLockName(aMountLockName);

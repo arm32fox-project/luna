@@ -2422,8 +2422,8 @@ ParseSelectorList(nsINode* aNode,
 
 
 bool
-Element::MozMatchesSelector(const nsAString& aSelector,
-                            ErrorResult& aError)
+Element::Matches(const nsAString& aSelector,
+				 ErrorResult& aError)
 {
   nsAutoPtr<nsCSSSelectorList> selectorList;
 
@@ -3000,7 +3000,7 @@ ShouldEscape(nsIContent* aParent)
     // Per the current spec noscript should be escaped in case
     // scripts are disabled or if document doesn't have
     // browsing context. However the latter seems to be a spec bug
-    // and Gecko hasn't traditionally done the former.
+    // and Goanna hasn't traditionally done the former.
     nsGkAtoms::noscript    
   };
   static mozilla::BloomFilter<12, nsIAtom> sFilter;

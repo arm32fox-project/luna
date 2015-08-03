@@ -257,7 +257,7 @@ HandleWatchRemove(DBusThread* aDbt)
   p.events = events;
   int index = aDbt->mPollData.IndexOf(p, 0, PollFdComparator());
   // There are times where removes can be requested for watches that
-  // haven't been added (for example, whenever gecko comes up after
+  // haven't been added (for example, whenever goanna comes up after
   // adapters have already been enabled), so check to make sure we're
   // using the watch in the first place
   if (index < 0) {

@@ -51,7 +51,7 @@ MozQOrientationSensorFilter::filter(QOrientationReading* reading)
     mWindowRotationTransform.rotate(mWindowRotationAngle);
 
 #ifdef MOZ_ENABLE_MEEGOTOUCH
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    if (XRE_GetProcessType() == GoannaProcessType_Default) {
         MWindow* window = MApplication::activeWindow();
         if (window && window->sceneManager()) {
             window->sceneManager()->
@@ -70,7 +70,7 @@ int
 MozQOrientationSensorFilter::GetWindowRotationAngle()
 {
 #ifdef MOZ_ENABLE_MEEGOTOUCH
-    if (XRE_GetProcessType() == GeckoProcessType_Default) {
+    if (XRE_GetProcessType() == GoannaProcessType_Default) {
         MWindow* window = MApplication::activeWindow();
         if (window) {
             M::OrientationAngle angle = window->orientationAngle();

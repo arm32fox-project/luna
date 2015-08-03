@@ -250,7 +250,7 @@ nsPrintSettingsGTK::GetStartPageRange(int32_t *aStartPageRange)
   if (ctRanges < 1) {
     *aStartPageRange = 1;
   } else {
-    // GTK supports multiple page ranges; gecko only supports 1. So find
+    // GTK supports multiple page ranges; goanna only supports 1. So find
     // the lowest start page.
     int32_t start(lstRanges[0].start);
     for (gint ii = 1; ii < ctRanges; ii++) {
@@ -517,7 +517,7 @@ nsPrintSettingsGTK::SetPaperName(const PRUnichar * aPaperName)
 {
   NS_ConvertUTF16toUTF8 gtkPaperName(aPaperName);
 
-  // Convert these Gecko names to GTK names
+  // Convert these Goanna names to GTK names
   if (gtkPaperName.EqualsIgnoreCase("letter"))
     gtkPaperName.AssignLiteral(GTK_PAPER_NAME_LETTER);
   else if (gtkPaperName.EqualsIgnoreCase("legal"))
@@ -541,9 +541,9 @@ nsPrintSettingsGTK::SetPaperName(const PRUnichar * aPaperName)
 }
 
 GtkUnit
-nsPrintSettingsGTK::GetGTKUnit(int16_t aGeckoUnit)
+nsPrintSettingsGTK::GetGTKUnit(int16_t aGoannaUnit)
 {
-  if (aGeckoUnit == kPaperSizeMillimeters)
+  if (aGoannaUnit == kPaperSizeMillimeters)
     return GTK_UNIT_MM;
   else
     return GTK_UNIT_INCH;

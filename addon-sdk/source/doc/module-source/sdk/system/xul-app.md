@@ -42,7 +42,7 @@ information, see the [MDC documentation][].
 
 <api name="platformVersion">
 @property {string}
-  The Gecko/XULRunner platform version.
+  The Goanna/XULRunner platform version.
 </api>
 
 <api name="ids">

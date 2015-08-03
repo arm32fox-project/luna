@@ -17,7 +17,7 @@ class gfxASurface;
 struct ANPEvent;
 
 namespace mozilla {
-    class AndroidGeckoEvent;
+    class AndroidGoannaEvent;
 
     namespace layers {
         class CompositorParent;
@@ -38,19 +38,19 @@ public:
 
     NS_DECL_ISUPPORTS_INHERITED
 
-    static void OnGlobalAndroidEvent(mozilla::AndroidGeckoEvent *ae);
+    static void OnGlobalAndroidEvent(mozilla::AndroidGoannaEvent *ae);
     static gfxIntSize GetAndroidScreenBounds();
     static nsWindow* TopWindow();
 
     nsWindow* FindWindowForPoint(const nsIntPoint& pt);
 
-    void OnAndroidEvent(mozilla::AndroidGeckoEvent *ae);
-    void OnDraw(mozilla::AndroidGeckoEvent *ae);
-    bool OnMultitouchEvent(mozilla::AndroidGeckoEvent *ae);
-    void OnNativeGestureEvent(mozilla::AndroidGeckoEvent *ae);
-    void OnMouseEvent(mozilla::AndroidGeckoEvent *ae);
-    void OnKeyEvent(mozilla::AndroidGeckoEvent *ae);
-    void OnIMEEvent(mozilla::AndroidGeckoEvent *ae);
+    void OnAndroidEvent(mozilla::AndroidGoannaEvent *ae);
+    void OnDraw(mozilla::AndroidGoannaEvent *ae);
+    bool OnMultitouchEvent(mozilla::AndroidGoannaEvent *ae);
+    void OnNativeGestureEvent(mozilla::AndroidGoannaEvent *ae);
+    void OnMouseEvent(mozilla::AndroidGoannaEvent *ae);
+    void OnKeyEvent(mozilla::AndroidGoannaEvent *ae);
+    void OnIMEEvent(mozilla::AndroidGoannaEvent *ae);
 
     void OnSizeChanged(const gfxIntSize& aSize);
 
@@ -189,7 +189,7 @@ protected:
     nsString mIMEComposingText;
     nsAutoTArray<nsTextRange, 4> mIMERanges;
     bool mIMEUpdatingContext;
-    nsAutoTArray<mozilla::AndroidGeckoEvent, 8> mIMEKeyEvents;
+    nsAutoTArray<mozilla::AndroidGoannaEvent, 8> mIMEKeyEvents;
 
     struct IMEChange {
         int32_t mStart, mOldEnd, mNewEnd;
@@ -217,14 +217,14 @@ protected:
     static void LogWindow(nsWindow *win, int index, int indent);
 
 private:
-    void InitKeyEvent(nsKeyEvent& event, mozilla::AndroidGeckoEvent& key,
+    void InitKeyEvent(nsKeyEvent& event, mozilla::AndroidGoannaEvent& key,
                       ANPEvent* pluginEvent);
     void DispatchMotionEvent(nsInputEvent &event,
-                             mozilla::AndroidGeckoEvent *ae,
+                             mozilla::AndroidGoannaEvent *ae,
                              const nsIntPoint &refPoint);
     void DispatchGestureEvent(uint32_t msg, uint32_t direction, double delta,
                               const nsIntPoint &refPoint, uint64_t time);
-    void HandleSpecialKey(mozilla::AndroidGeckoEvent *ae);
+    void HandleSpecialKey(mozilla::AndroidGoannaEvent *ae);
     void CreateLayerManager(int aCompositorWidth, int aCompositorHeight);
     void RedrawAll();
 

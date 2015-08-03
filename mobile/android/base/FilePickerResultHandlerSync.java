@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.content.Intent;
 import android.util.Log;
@@ -10,7 +10,7 @@ import android.util.Log;
 import java.util.Queue;
 
 class FilePickerResultHandlerSync extends FilePickerResultHandler {
-    private static final String LOGTAG = "GeckoFilePickerResultHandlerSync";
+    private static final String LOGTAG = "GoannaFilePickerResultHandlerSync";
 
     FilePickerResultHandlerSync(Queue<String> resultQueue) {
         super(resultQueue, null);

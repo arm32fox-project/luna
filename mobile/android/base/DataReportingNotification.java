@@ -3,11 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.GeckoPreferences;
-import org.mozilla.gecko.GeckoPreferenceFragment;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.GoannaPreferences;
+import org.mozilla.goanna.GoannaPreferenceFragment;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -45,10 +45,10 @@ public class DataReportingNotification {
             (DATA_REPORTING_VERSION != dataPrefs.getInt(PREFS_POLICY_VERSION, -1))) {
 
             // Launch main App to launch Data choices when notification is clicked.
-            Intent prefIntent = new Intent(GeckoApp.ACTION_LAUNCH_SETTINGS);
+            Intent prefIntent = new Intent(GoannaApp.ACTION_LAUNCH_SETTINGS);
             prefIntent.setClassName(AppConstants.ANDROID_PACKAGE_NAME, AppConstants.BROWSER_INTENT_CLASS);
 
-            GeckoPreferences.setResourceToOpen(prefIntent, "preferences_datareporting");
+            GoannaPreferences.setResourceToOpen(prefIntent, "preferences_datareporting");
             prefIntent.putExtra(ALERT_NAME_DATAREPORTING_NOTIFICATION, true);
 
             PendingIntent contentIntent = PendingIntent.getActivity(context, 0, prefIntent, PendingIntent.FLAG_UPDATE_CURRENT);
@@ -95,7 +95,7 @@ public class DataReportingNotification {
 
             // If healthreport is enabled, set default preference value.
             if (AppConstants.MOZ_SERVICES_HEALTHREPORT) {
-                editor.putBoolean(GeckoPreferences.PREFS_HEALTHREPORT_UPLOAD_ENABLED, true);
+                editor.putBoolean(GoannaPreferences.PREFS_HEALTHREPORT_UPLOAD_ENABLED, true);
             }
 
             editor.commit();

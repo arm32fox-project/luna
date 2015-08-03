@@ -215,7 +215,7 @@ bool test_findinreadable()
     nsMemory::Free(r);
 
     // Should not find a match
-    if (FindInReadable(NS_LITERAL_CSTRING("gecko"), delim_begin, delim_end))
+    if (FindInReadable(NS_LITERAL_CSTRING("goanna"), delim_begin, delim_end))
         return false;
 
     // When no match is found, range should be empty
@@ -307,7 +307,7 @@ bool test_rfindinreadable()
     // Should not find a match
     delim_begin = begin;
     delim_end = end;
-    if (RFindInReadable(NS_LITERAL_CSTRING("gecko"), delim_begin, delim_end)) {
+    if (RFindInReadable(NS_LITERAL_CSTRING("goanna"), delim_begin, delim_end)) {
         printf("Should not find a match\n");
         return false;
     }

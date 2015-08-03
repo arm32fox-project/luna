@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.sync;
+package org.mozilla.goanna.sync;
 
 import java.io.BufferedReader;
 import java.io.FileInputStream;
@@ -27,8 +27,8 @@ import java.util.TreeMap;
 import org.json.simple.JSONArray;
 import org.mozilla.apache.commons.codec.binary.Base32;
 import org.mozilla.apache.commons.codec.binary.Base64;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.sync.setup.Constants;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.setup.Constants;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -508,7 +508,7 @@ public class Utils {
 
   /**
    * This will take a string containing a UTF-8 representation of a UTF-8
-   * byte array — e.g., "pÃ¯gÃ©ons1" — and return UTF-8 (e.g., "pïgéons1").
+   * byte array ??? e.g., "p????g????ons1" ??? and return UTF-8 (e.g., "p??g??ons1").
    *
    * This is the format produced by desktop Firefox when exchanging credentials
    * containing non-ASCII characters.

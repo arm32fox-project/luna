@@ -75,12 +75,12 @@ ia2AccessibleImage::get_imagePosition(enum IA2CoordinateType aCoordType,
   if (imageAcc->IsDefunct())
     return CO_E_OBJNOTCONNECTED;
 
-  uint32_t geckoCoordType = (aCoordType == IA2_COORDTYPE_SCREEN_RELATIVE) ?
+  uint32_t goannaCoordType = (aCoordType == IA2_COORDTYPE_SCREEN_RELATIVE) ?
     nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE :
     nsIAccessibleCoordinateType::COORDTYPE_PARENT_RELATIVE;
   int32_t x = 0, y = 0;
 
-  nsresult rv = imageAcc->GetImagePosition(geckoCoordType, &x, &y);
+  nsresult rv = imageAcc->GetImagePosition(goannaCoordType, &x, &y);
   if (NS_FAILED(rv))
     return GetHRESULT(rv);
 

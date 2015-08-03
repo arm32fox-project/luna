@@ -1729,7 +1729,7 @@ SET_JITINFO(JSFunction * func, const JSJitInfo *info)
 
 /*
  * Engine-internal extensions of jsid.  This code is here only until we
- * eliminate Gecko's dependencies on it!
+ * eliminate Goanna's dependencies on it!
  */
 
 static JS_ALWAYS_INLINE jsid

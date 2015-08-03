@@ -13,54 +13,54 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 
-jclass AndroidGeckoEvent::jGeckoEventClass = 0;
-jfieldID AndroidGeckoEvent::jActionField = 0;
-jfieldID AndroidGeckoEvent::jTypeField = 0;
-jfieldID AndroidGeckoEvent::jAckNeededField = 0;
-jfieldID AndroidGeckoEvent::jTimeField = 0;
-jfieldID AndroidGeckoEvent::jPoints = 0;
-jfieldID AndroidGeckoEvent::jPointIndicies = 0;
-jfieldID AndroidGeckoEvent::jPressures = 0;
-jfieldID AndroidGeckoEvent::jPointRadii = 0;
-jfieldID AndroidGeckoEvent::jOrientations = 0;
-jfieldID AndroidGeckoEvent::jXField = 0;
-jfieldID AndroidGeckoEvent::jYField = 0;
-jfieldID AndroidGeckoEvent::jZField = 0;
-jfieldID AndroidGeckoEvent::jDistanceField = 0;
-jfieldID AndroidGeckoEvent::jRectField = 0;
-jfieldID AndroidGeckoEvent::jNativeWindowField = 0;
+jclass AndroidGoannaEvent::jGoannaEventClass = 0;
+jfieldID AndroidGoannaEvent::jActionField = 0;
+jfieldID AndroidGoannaEvent::jTypeField = 0;
+jfieldID AndroidGoannaEvent::jAckNeededField = 0;
+jfieldID AndroidGoannaEvent::jTimeField = 0;
+jfieldID AndroidGoannaEvent::jPoints = 0;
+jfieldID AndroidGoannaEvent::jPointIndicies = 0;
+jfieldID AndroidGoannaEvent::jPressures = 0;
+jfieldID AndroidGoannaEvent::jPointRadii = 0;
+jfieldID AndroidGoannaEvent::jOrientations = 0;
+jfieldID AndroidGoannaEvent::jXField = 0;
+jfieldID AndroidGoannaEvent::jYField = 0;
+jfieldID AndroidGoannaEvent::jZField = 0;
+jfieldID AndroidGoannaEvent::jDistanceField = 0;
+jfieldID AndroidGoannaEvent::jRectField = 0;
+jfieldID AndroidGoannaEvent::jNativeWindowField = 0;
 
-jfieldID AndroidGeckoEvent::jCharactersField = 0;
-jfieldID AndroidGeckoEvent::jCharactersExtraField = 0;
-jfieldID AndroidGeckoEvent::jDataField = 0;
-jfieldID AndroidGeckoEvent::jKeyCodeField = 0;
-jfieldID AndroidGeckoEvent::jMetaStateField = 0;
-jfieldID AndroidGeckoEvent::jDomKeyLocationField = 0;
-jfieldID AndroidGeckoEvent::jFlagsField = 0;
-jfieldID AndroidGeckoEvent::jUnicodeCharField = 0;
-jfieldID AndroidGeckoEvent::jBaseUnicodeCharField = 0;
-jfieldID AndroidGeckoEvent::jRepeatCountField = 0;
-jfieldID AndroidGeckoEvent::jCountField = 0;
-jfieldID AndroidGeckoEvent::jStartField = 0;
-jfieldID AndroidGeckoEvent::jEndField = 0;
-jfieldID AndroidGeckoEvent::jPointerIndexField = 0;
-jfieldID AndroidGeckoEvent::jRangeTypeField = 0;
-jfieldID AndroidGeckoEvent::jRangeStylesField = 0;
-jfieldID AndroidGeckoEvent::jRangeLineStyleField = 0;
-jfieldID AndroidGeckoEvent::jRangeBoldLineField = 0;
-jfieldID AndroidGeckoEvent::jRangeForeColorField = 0;
-jfieldID AndroidGeckoEvent::jRangeBackColorField = 0;
-jfieldID AndroidGeckoEvent::jRangeLineColorField = 0;
-jfieldID AndroidGeckoEvent::jLocationField = 0;
-jfieldID AndroidGeckoEvent::jBandwidthField = 0;
-jfieldID AndroidGeckoEvent::jCanBeMeteredField = 0;
-jfieldID AndroidGeckoEvent::jScreenOrientationField = 0;
-jfieldID AndroidGeckoEvent::jByteBufferField = 0;
-jfieldID AndroidGeckoEvent::jWidthField = 0;
-jfieldID AndroidGeckoEvent::jHeightField = 0;
+jfieldID AndroidGoannaEvent::jCharactersField = 0;
+jfieldID AndroidGoannaEvent::jCharactersExtraField = 0;
+jfieldID AndroidGoannaEvent::jDataField = 0;
+jfieldID AndroidGoannaEvent::jKeyCodeField = 0;
+jfieldID AndroidGoannaEvent::jMetaStateField = 0;
+jfieldID AndroidGoannaEvent::jDomKeyLocationField = 0;
+jfieldID AndroidGoannaEvent::jFlagsField = 0;
+jfieldID AndroidGoannaEvent::jUnicodeCharField = 0;
+jfieldID AndroidGoannaEvent::jBaseUnicodeCharField = 0;
+jfieldID AndroidGoannaEvent::jRepeatCountField = 0;
+jfieldID AndroidGoannaEvent::jCountField = 0;
+jfieldID AndroidGoannaEvent::jStartField = 0;
+jfieldID AndroidGoannaEvent::jEndField = 0;
+jfieldID AndroidGoannaEvent::jPointerIndexField = 0;
+jfieldID AndroidGoannaEvent::jRangeTypeField = 0;
+jfieldID AndroidGoannaEvent::jRangeStylesField = 0;
+jfieldID AndroidGoannaEvent::jRangeLineStyleField = 0;
+jfieldID AndroidGoannaEvent::jRangeBoldLineField = 0;
+jfieldID AndroidGoannaEvent::jRangeForeColorField = 0;
+jfieldID AndroidGoannaEvent::jRangeBackColorField = 0;
+jfieldID AndroidGoannaEvent::jRangeLineColorField = 0;
+jfieldID AndroidGoannaEvent::jLocationField = 0;
+jfieldID AndroidGoannaEvent::jBandwidthField = 0;
+jfieldID AndroidGoannaEvent::jCanBeMeteredField = 0;
+jfieldID AndroidGoannaEvent::jScreenOrientationField = 0;
+jfieldID AndroidGoannaEvent::jByteBufferField = 0;
+jfieldID AndroidGoannaEvent::jWidthField = 0;
+jfieldID AndroidGoannaEvent::jHeightField = 0;
 
-jclass AndroidGeckoEvent::jDomKeyLocationClass = 0;
-jfieldID AndroidGeckoEvent::jDomKeyLocationValueField = 0;
+jclass AndroidGoannaEvent::jDomKeyLocationClass = 0;
+jfieldID AndroidGoannaEvent::jDomKeyLocationValueField = 0;
 
 jclass AndroidPoint::jPointClass = 0;
 jfieldID AndroidPoint::jXField = 0;
@@ -87,23 +87,23 @@ jmethodID AndroidLocation::jGetBearingMethod = 0;
 jmethodID AndroidLocation::jGetSpeedMethod = 0;
 jmethodID AndroidLocation::jGetTimeMethod = 0;
 
-jclass AndroidGeckoLayerClient::jGeckoLayerClientClass = 0;
-jclass AndroidGeckoLayerClient::jViewportClass = 0;
-jclass AndroidGeckoLayerClient::jDisplayportClass = 0;
-jmethodID AndroidGeckoLayerClient::jSetFirstPaintViewport = 0;
-jmethodID AndroidGeckoLayerClient::jSetPageRect = 0;
-jmethodID AndroidGeckoLayerClient::jSyncViewportInfoMethod = 0;
-jmethodID AndroidGeckoLayerClient::jSyncFrameMetricsMethod = 0;
-jmethodID AndroidGeckoLayerClient::jCreateFrameMethod = 0;
-jmethodID AndroidGeckoLayerClient::jActivateProgramMethod = 0;
-jmethodID AndroidGeckoLayerClient::jDeactivateProgramMethod = 0;
-jmethodID AndroidGeckoLayerClient::jGetDisplayPort = 0;
-jmethodID AndroidGeckoLayerClient::jContentDocumentChanged = 0;
-jmethodID AndroidGeckoLayerClient::jIsContentDocumentDisplayed = 0;
-jmethodID AndroidGeckoLayerClient::jViewportCtor = 0;
-jfieldID AndroidGeckoLayerClient::jDisplayportPosition = 0;
-jfieldID AndroidGeckoLayerClient::jDisplayportResolution = 0;
-jmethodID AndroidGeckoLayerClient::jProgressiveUpdateCallbackMethod = 0;
+jclass AndroidGoannaLayerClient::jGoannaLayerClientClass = 0;
+jclass AndroidGoannaLayerClient::jViewportClass = 0;
+jclass AndroidGoannaLayerClient::jDisplayportClass = 0;
+jmethodID AndroidGoannaLayerClient::jSetFirstPaintViewport = 0;
+jmethodID AndroidGoannaLayerClient::jSetPageRect = 0;
+jmethodID AndroidGoannaLayerClient::jSyncViewportInfoMethod = 0;
+jmethodID AndroidGoannaLayerClient::jSyncFrameMetricsMethod = 0;
+jmethodID AndroidGoannaLayerClient::jCreateFrameMethod = 0;
+jmethodID AndroidGoannaLayerClient::jActivateProgramMethod = 0;
+jmethodID AndroidGoannaLayerClient::jDeactivateProgramMethod = 0;
+jmethodID AndroidGoannaLayerClient::jGetDisplayPort = 0;
+jmethodID AndroidGoannaLayerClient::jContentDocumentChanged = 0;
+jmethodID AndroidGoannaLayerClient::jIsContentDocumentDisplayed = 0;
+jmethodID AndroidGoannaLayerClient::jViewportCtor = 0;
+jfieldID AndroidGoannaLayerClient::jDisplayportPosition = 0;
+jfieldID AndroidGoannaLayerClient::jDisplayportResolution = 0;
+jmethodID AndroidGoannaLayerClient::jProgressiveUpdateCallbackMethod = 0;
 
 jclass AndroidLayerRendererFrame::jLayerRendererFrameClass = 0;
 jmethodID AndroidLayerRendererFrame::jBeginDrawingMethod = 0;
@@ -202,23 +202,23 @@ RefCountedJavaObject::~RefCountedJavaObject() {
 void
 mozilla::InitAndroidJavaWrappers(JNIEnv *jEnv)
 {
-    AndroidGeckoEvent::InitGeckoEventClass(jEnv);
+    AndroidGoannaEvent::InitGoannaEventClass(jEnv);
     AndroidPoint::InitPointClass(jEnv);
     AndroidLocation::InitLocationClass(jEnv);
     AndroidRect::InitRectClass(jEnv);
     AndroidRectF::InitRectFClass(jEnv);
-    AndroidGeckoLayerClient::InitGeckoLayerClientClass(jEnv);
+    AndroidGoannaLayerClient::InitGoannaLayerClientClass(jEnv);
     AndroidLayerRendererFrame::InitLayerRendererFrameClass(jEnv);
     AndroidViewTransform::InitViewTransformClass(jEnv);
     AndroidProgressiveUpdateData::InitProgressiveUpdateDataClass(jEnv);
 }
 
 void
-AndroidGeckoEvent::InitGeckoEventClass(JNIEnv *jEnv)
+AndroidGoannaEvent::InitGoannaEventClass(JNIEnv *jEnv)
 {
     initInit();
 
-    jGeckoEventClass = getClassGlobalRef("org/mozilla/gecko/GeckoEvent");
+    jGoannaEventClass = getClassGlobalRef("org/mozilla/goanna/GoannaEvent");
 
     jActionField = getField("mAction", "I");
     jTypeField = getField("mType", "I");
@@ -239,7 +239,7 @@ AndroidGeckoEvent::InitGeckoEventClass(JNIEnv *jEnv)
     jDataField = getField("mData", "Ljava/lang/String;");
     jKeyCodeField = getField("mKeyCode", "I");
     jMetaStateField = getField("mMetaState", "I");
-    jDomKeyLocationField = getField("mDomKeyLocation", "Lorg/mozilla/gecko/GeckoEvent$DomKeyLocation;");
+    jDomKeyLocationField = getField("mDomKeyLocation", "Lorg/mozilla/goanna/GoannaEvent$DomKeyLocation;");
     jFlagsField = getField("mFlags", "I");
     jUnicodeCharField = getField("mUnicodeChar", "I");
     jBaseUnicodeCharField = getField("mBaseUnicodeChar", "I");
@@ -263,8 +263,8 @@ AndroidGeckoEvent::InitGeckoEventClass(JNIEnv *jEnv)
     jWidthField = getField("mWidth", "I");
     jHeightField = getField("mHeight", "I");
 
-    // Init GeckoEvent.DomKeyLocation enum
-    jDomKeyLocationClass = getClassGlobalRef("org/mozilla/gecko/GeckoEvent$DomKeyLocation");
+    // Init GoannaEvent.DomKeyLocation enum
+    jDomKeyLocationClass = getClassGlobalRef("org/mozilla/goanna/GoannaEvent$DomKeyLocation");
     jDomKeyLocationValueField = getField("value", "I");
 }
 
@@ -347,33 +347,33 @@ AndroidRectF::InitRectFClass(JNIEnv *jEnv)
 }
 
 void
-AndroidGeckoLayerClient::InitGeckoLayerClientClass(JNIEnv *jEnv)
+AndroidGoannaLayerClient::InitGoannaLayerClientClass(JNIEnv *jEnv)
 {
     initInit();
 
-    jGeckoLayerClientClass = getClassGlobalRef("org/mozilla/gecko/gfx/GeckoLayerClient");
+    jGoannaLayerClientClass = getClassGlobalRef("org/mozilla/goanna/gfx/GoannaLayerClient");
 
     jSetFirstPaintViewport = getMethod("setFirstPaintViewport", "(FFFFFFF)V");
     jSetPageRect = getMethod("setPageRect", "(FFFF)V");
     jSyncViewportInfoMethod = getMethod("syncViewportInfo",
-                                        "(IIIIFZ)Lorg/mozilla/gecko/gfx/ViewTransform;");
+                                        "(IIIIFZ)Lorg/mozilla/goanna/gfx/ViewTransform;");
     jSyncFrameMetricsMethod = getMethod("syncFrameMetrics",
-                                        "(FFFFFFFZIIIIFZ)Lorg/mozilla/gecko/gfx/ViewTransform;");
-    jCreateFrameMethod = getMethod("createFrame", "()Lorg/mozilla/gecko/gfx/LayerRenderer$Frame;");
+                                        "(FFFFFFFZIIIIFZ)Lorg/mozilla/goanna/gfx/ViewTransform;");
+    jCreateFrameMethod = getMethod("createFrame", "()Lorg/mozilla/goanna/gfx/LayerRenderer$Frame;");
     jActivateProgramMethod = getMethod("activateProgram", "()V");
     jDeactivateProgramMethod = getMethod("deactivateProgram", "()V");
-    jGetDisplayPort = getMethod("getDisplayPort", "(ZZILorg/mozilla/gecko/gfx/ImmutableViewportMetrics;)Lorg/mozilla/gecko/gfx/DisplayPortMetrics;");
+    jGetDisplayPort = getMethod("getDisplayPort", "(ZZILorg/mozilla/goanna/gfx/ImmutableViewportMetrics;)Lorg/mozilla/goanna/gfx/DisplayPortMetrics;");
     jContentDocumentChanged = getMethod("contentDocumentChanged", "()V");
     jIsContentDocumentDisplayed = getMethod("isContentDocumentDisplayed", "()Z");
 
-    jViewportClass = GetClassGlobalRef(jEnv, "org/mozilla/gecko/gfx/ImmutableViewportMetrics");
+    jViewportClass = GetClassGlobalRef(jEnv, "org/mozilla/goanna/gfx/ImmutableViewportMetrics");
     jViewportCtor = GetMethodID(jEnv, jViewportClass, "<init>", "(FFFFFFFFFFFFF)V");
 
-    jDisplayportClass = GetClassGlobalRef(jEnv, "org/mozilla/gecko/gfx/DisplayPortMetrics");
+    jDisplayportClass = GetClassGlobalRef(jEnv, "org/mozilla/goanna/gfx/DisplayPortMetrics");
     jDisplayportPosition = GetFieldID(jEnv, jDisplayportClass, "mPosition", "Landroid/graphics/RectF;");
     jDisplayportResolution = GetFieldID(jEnv, jDisplayportClass, "resolution", "F");
     jProgressiveUpdateCallbackMethod = getMethod("progressiveUpdateCallback",
-                                                 "(ZFFFFFZ)Lorg/mozilla/gecko/gfx/ProgressiveUpdateData;");
+                                                 "(ZFFFFFZ)Lorg/mozilla/goanna/gfx/ProgressiveUpdateData;");
 }
 
 void
@@ -381,7 +381,7 @@ AndroidLayerRendererFrame::InitLayerRendererFrameClass(JNIEnv *jEnv)
 {
     initInit();
 
-    jLayerRendererFrameClass = getClassGlobalRef("org/mozilla/gecko/gfx/LayerRenderer$Frame");
+    jLayerRendererFrameClass = getClassGlobalRef("org/mozilla/goanna/gfx/LayerRenderer$Frame");
 
     jBeginDrawingMethod = getMethod("beginDrawing", "()V");
     jDrawBackgroundMethod = getMethod("drawBackground", "()V");
@@ -394,7 +394,7 @@ AndroidViewTransform::InitViewTransformClass(JNIEnv *jEnv)
 {
     initInit();
 
-    jViewTransformClass = getClassGlobalRef("org/mozilla/gecko/gfx/ViewTransform");
+    jViewTransformClass = getClassGlobalRef("org/mozilla/goanna/gfx/ViewTransform");
 
     jXField = getField("x", "F");
     jYField = getField("y", "F");
@@ -412,7 +412,7 @@ AndroidProgressiveUpdateData::InitProgressiveUpdateDataClass(JNIEnv *jEnv)
 {
     initInit();
 
-    jProgressiveUpdateDataClass = getClassGlobalRef("org/mozilla/gecko/gfx/ProgressiveUpdateData");
+    jProgressiveUpdateDataClass = getClassGlobalRef("org/mozilla/goanna/gfx/ProgressiveUpdateData");
 
     jXField = getField("x", "F");
     jYField = getField("y", "F");
@@ -428,7 +428,7 @@ AndroidProgressiveUpdateData::InitProgressiveUpdateDataClass(JNIEnv *jEnv)
 #undef getMethod
 
 void
-AndroidGeckoEvent::ReadPointArray(nsTArray<nsIntPoint> &points,
+AndroidGoannaEvent::ReadPointArray(nsTArray<nsIntPoint> &points,
                                   JNIEnv *jenv,
                                   jfieldID field,
                                   int32_t count)
@@ -444,7 +444,7 @@ AndroidGeckoEvent::ReadPointArray(nsTArray<nsIntPoint> &points,
 }
 
 void
-AndroidGeckoEvent::ReadIntArray(nsTArray<int> &aVals,
+AndroidGoannaEvent::ReadIntArray(nsTArray<int> &aVals,
                                 JNIEnv *jenv,
                                 jfieldID field,
                                 int32_t count)
@@ -458,7 +458,7 @@ AndroidGeckoEvent::ReadIntArray(nsTArray<int> &aVals,
 }
 
 void
-AndroidGeckoEvent::ReadFloatArray(nsTArray<float> &aVals,
+AndroidGoannaEvent::ReadFloatArray(nsTArray<float> &aVals,
                                   JNIEnv *jenv,
                                   jfieldID field,
                                   int32_t count)
@@ -472,7 +472,7 @@ AndroidGeckoEvent::ReadFloatArray(nsTArray<float> &aVals,
 }
 
 void
-AndroidGeckoEvent::ReadRectField(JNIEnv *jenv)
+AndroidGoannaEvent::ReadRectField(JNIEnv *jenv)
 {
     AndroidRect r(jenv, jenv->GetObjectField(wrappedObject(), jRectField));
     if (!r.isNull()) {
@@ -486,7 +486,7 @@ AndroidGeckoEvent::ReadRectField(JNIEnv *jenv)
 }
 
 void
-AndroidGeckoEvent::ReadCharactersField(JNIEnv *jenv)
+AndroidGoannaEvent::ReadCharactersField(JNIEnv *jenv)
 {
     jstring s = (jstring) jenv->GetObjectField(wrapped_obj, jCharactersField);
     if (!s) {
@@ -500,7 +500,7 @@ AndroidGeckoEvent::ReadCharactersField(JNIEnv *jenv)
 }
 
 void
-AndroidGeckoEvent::ReadCharactersExtraField(JNIEnv *jenv)
+AndroidGoannaEvent::ReadCharactersExtraField(JNIEnv *jenv)
 {
     jstring s = (jstring) jenv->GetObjectField(wrapped_obj, jCharactersExtraField);
     if (!s) {
@@ -514,7 +514,7 @@ AndroidGeckoEvent::ReadCharactersExtraField(JNIEnv *jenv)
 }
 
 void
-AndroidGeckoEvent::ReadDataField(JNIEnv *jenv)
+AndroidGoannaEvent::ReadDataField(JNIEnv *jenv)
 {
     jstring s = (jstring) jenv->GetObjectField(wrapped_obj, jDataField);
     if (!s) {
@@ -528,15 +528,15 @@ AndroidGeckoEvent::ReadDataField(JNIEnv *jenv)
 }
 
 void
-AndroidGeckoEvent::UnionRect(nsIntRect const& aRect)
+AndroidGoannaEvent::UnionRect(nsIntRect const& aRect)
 {
     mRect = aRect.Union(mRect);
 }
 
 uint32_t
-AndroidGeckoEvent::ReadDomKeyLocation(JNIEnv* jenv, jobject jGeckoEventObj)
+AndroidGoannaEvent::ReadDomKeyLocation(JNIEnv* jenv, jobject jGoannaEventObj)
 {
-    jobject enumObject = jenv->GetObjectField(jGeckoEventObj,
+    jobject enumObject = jenv->GetObjectField(jGoannaEventObj,
                                              jDomKeyLocationField);
     MOZ_ASSERT(enumObject);
     int enumValue = jenv->GetIntField(enumObject, jDomKeyLocationValueField);
@@ -546,7 +546,7 @@ AndroidGeckoEvent::ReadDomKeyLocation(JNIEnv* jenv, jobject jGeckoEventObj)
 }
 
 void
-AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
+AndroidGoannaEvent::Init(JNIEnv *jenv, jobject jobj)
 {
     NS_ASSERTION(!wrapped_obj, "Init called on non-null wrapped_obj!");
 
@@ -710,19 +710,19 @@ AndroidGeckoEvent::Init(JNIEnv *jenv, jobject jobj)
     }
 
 #ifdef DEBUG_ANDROID_EVENTS
-    ALOG("AndroidGeckoEvent: %p : %d", (void*)jobj, mType);
+    ALOG("AndroidGoannaEvent: %p : %d", (void*)jobj, mType);
 #endif
 }
 
 void
-AndroidGeckoEvent::Init(int aType)
+AndroidGoannaEvent::Init(int aType)
 {
     mType = aType;
     mAckNeeded = false;
 }
 
 void
-AndroidGeckoEvent::Init(AndroidGeckoEvent *aResizeEvent)
+AndroidGoannaEvent::Init(AndroidGoannaEvent *aResizeEvent)
 {
     NS_ASSERTION(aResizeEvent->Type() == SIZE_CHANGED, "Init called on non-SIZE_CHANGED event");
 
@@ -733,7 +733,7 @@ AndroidGeckoEvent::Init(AndroidGeckoEvent *aResizeEvent)
 }
 
 nsTouchEvent
-AndroidGeckoEvent::MakeTouchEvent(nsIWidget* widget)
+AndroidGoannaEvent::MakeTouchEvent(nsIWidget* widget)
 {
     int type = NS_EVENT_NULL;
     int startIndex = 0;
@@ -793,7 +793,7 @@ AndroidGeckoEvent::MakeTouchEvent(nsIWidget* widget)
 }
 
 MultiTouchInput
-AndroidGeckoEvent::MakeMultiTouchInput(nsIWidget* widget)
+AndroidGoannaEvent::MakeMultiTouchInput(nsIWidget* widget)
 {
     MultiTouchInput::MultiTouchType type = (MultiTouchInput::MultiTouchType)-1;
     int startIndex = 0;
@@ -863,7 +863,7 @@ AndroidPoint::Init(JNIEnv *jenv, jobject jobj)
 }
 
 void
-AndroidGeckoLayerClient::Init(jobject jobj)
+AndroidGoannaLayerClient::Init(jobject jobj)
 {
     NS_ASSERTION(wrapped_obj == nullptr, "Init called on non-null wrapped_obj!");
     wrapped_obj = jobj;
@@ -905,7 +905,7 @@ AndroidProgressiveUpdateData::Init(jobject jobj)
 }
 
 void
-AndroidGeckoLayerClient::SetFirstPaintViewport(const LayerIntPoint& aOffset, const CSSToLayerScale& aZoom, const CSSRect& aCssPageRect)
+AndroidGoannaLayerClient::SetFirstPaintViewport(const LayerIntPoint& aOffset, const CSSToLayerScale& aZoom, const CSSRect& aCssPageRect)
 {
     NS_ASSERTION(!isNull(), "SetFirstPaintViewport called on null layer client!");
     JNIEnv *env = GetJNIForThread();    // this is called on the compositor thread
@@ -918,7 +918,7 @@ AndroidGeckoLayerClient::SetFirstPaintViewport(const LayerIntPoint& aOffset, con
 }
 
 void
-AndroidGeckoLayerClient::SetPageRect(const CSSRect& aCssPageRect)
+AndroidGoannaLayerClient::SetPageRect(const CSSRect& aCssPageRect)
 {
     NS_ASSERTION(!isNull(), "SetPageRect called on null layer client!");
     JNIEnv *env = GetJNIForThread();    // this is called on the compositor thread
@@ -931,7 +931,7 @@ AndroidGeckoLayerClient::SetPageRect(const CSSRect& aCssPageRect)
 }
 
 void
-AndroidGeckoLayerClient::SyncViewportInfo(const LayerIntRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
+AndroidGoannaLayerClient::SyncViewportInfo(const LayerIntRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
                                           bool aLayersUpdated, ScreenPoint& aScrollOffset, CSSToScreenScale& aScale,
                                           gfx::Margin& aFixedLayerMargins, ScreenPoint& aOffset)
 {
@@ -963,7 +963,7 @@ AndroidGeckoLayerClient::SyncViewportInfo(const LayerIntRect& aDisplayPort, cons
 }
 
 void
-AndroidGeckoLayerClient::SyncFrameMetrics(const ScreenPoint& aScrollOffset, float aZoom, const CSSRect& aCssPageRect,
+AndroidGoannaLayerClient::SyncFrameMetrics(const ScreenPoint& aScrollOffset, float aZoom, const CSSRect& aCssPageRect,
                                           bool aLayersUpdated, const CSSRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
                                           bool aIsFirstPaint, gfx::Margin& aFixedLayerMargins, ScreenPoint& aOffset)
 {
@@ -998,7 +998,7 @@ AndroidGeckoLayerClient::SyncFrameMetrics(const ScreenPoint& aScrollOffset, floa
 }
 
 bool
-AndroidGeckoLayerClient::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
+AndroidGoannaLayerClient::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
                                                    const LayerRect& aDisplayPort,
                                                    float aDisplayResolution,
                                                    bool aDrawingCritical,
@@ -1057,7 +1057,7 @@ jobject ConvertToJavaViewportMetrics(JNIEnv* env, nsIAndroidViewport* metrics) {
     metrics->GetCssPageBottom(&cssPageBottom);
     metrics->GetZoom(&zoom);
 
-    jobject jobj = env->NewObject(AndroidGeckoLayerClient::jViewportClass, AndroidGeckoLayerClient::jViewportCtor,
+    jobject jobj = env->NewObject(AndroidGoannaLayerClient::jViewportClass, AndroidGoannaLayerClient::jViewportCtor,
                                   pageLeft, pageTop, pageRight, pageBottom,
                                   cssPageLeft, cssPageTop, cssPageRight, cssPageBottom,
                                   x, y, x + width, y + height,
@@ -1092,15 +1092,15 @@ NS_IMPL_ISUPPORTS1(nsAndroidDisplayport, nsIAndroidDisplayport)
 
 void createDisplayPort(AutoLocalJNIFrame *jniFrame, jobject jobj, nsIAndroidDisplayport** displayPort) {
     JNIEnv* env = jniFrame->GetEnv();
-    AndroidRectF rect(env, env->GetObjectField(jobj, AndroidGeckoLayerClient::jDisplayportPosition));
+    AndroidRectF rect(env, env->GetObjectField(jobj, AndroidGoannaLayerClient::jDisplayportPosition));
     if (jniFrame->CheckForException()) return;
-    float resolution = env->GetFloatField(jobj, AndroidGeckoLayerClient::jDisplayportResolution);
+    float resolution = env->GetFloatField(jobj, AndroidGoannaLayerClient::jDisplayportResolution);
     if (jniFrame->CheckForException()) return;
     *displayPort = new nsAndroidDisplayport(rect, resolution);
 }
 
 void
-AndroidGeckoLayerClient::GetDisplayPort(AutoLocalJNIFrame *jniFrame, bool aPageSizeUpdate, bool aIsBrowserContentDisplayed, int32_t tabId, nsIAndroidViewport* metrics, nsIAndroidDisplayport** displayPort)
+AndroidGoannaLayerClient::GetDisplayPort(AutoLocalJNIFrame *jniFrame, bool aPageSizeUpdate, bool aIsBrowserContentDisplayed, int32_t tabId, nsIAndroidViewport* metrics, nsIAndroidDisplayport** displayPort)
 {
     jobject jmetrics = ConvertToJavaViewportMetrics(jniFrame->GetEnv(), metrics);
     if (jniFrame->CheckForException()) return;
@@ -1113,19 +1113,19 @@ AndroidGeckoLayerClient::GetDisplayPort(AutoLocalJNIFrame *jniFrame, bool aPageS
 }
 
 void
-AndroidGeckoLayerClient::ContentDocumentChanged(AutoLocalJNIFrame *jniFrame)
+AndroidGoannaLayerClient::ContentDocumentChanged(AutoLocalJNIFrame *jniFrame)
 {
     jniFrame->GetEnv()->CallVoidMethod(wrapped_obj, jContentDocumentChanged);
 }
 
 bool
-AndroidGeckoLayerClient::IsContentDocumentDisplayed(AutoLocalJNIFrame *jniFrame)
+AndroidGoannaLayerClient::IsContentDocumentDisplayed(AutoLocalJNIFrame *jniFrame)
 {
     return jniFrame->GetEnv()->CallBooleanMethod(wrapped_obj, jIsContentDocumentDisplayed);
 }
 
 bool
-AndroidGeckoLayerClient::CreateFrame(AutoLocalJNIFrame *jniFrame, AndroidLayerRendererFrame& aFrame)
+AndroidGoannaLayerClient::CreateFrame(AutoLocalJNIFrame *jniFrame, AndroidLayerRendererFrame& aFrame)
 {
     if (!jniFrame || !jniFrame->GetEnv())
         return false;
@@ -1140,7 +1140,7 @@ AndroidGeckoLayerClient::CreateFrame(AutoLocalJNIFrame *jniFrame, AndroidLayerRe
 }
 
 bool
-AndroidGeckoLayerClient::ActivateProgram(AutoLocalJNIFrame *jniFrame)
+AndroidGoannaLayerClient::ActivateProgram(AutoLocalJNIFrame *jniFrame)
 {
     if (!jniFrame || !jniFrame->GetEnv())
         return false;
@@ -1153,7 +1153,7 @@ AndroidGeckoLayerClient::ActivateProgram(AutoLocalJNIFrame *jniFrame)
 }
 
 bool
-AndroidGeckoLayerClient::DeactivateProgram(AutoLocalJNIFrame *jniFrame)
+AndroidGoannaLayerClient::DeactivateProgram(AutoLocalJNIFrame *jniFrame)
 {
     if (!jniFrame || !jniFrame->GetEnv())
         return false;

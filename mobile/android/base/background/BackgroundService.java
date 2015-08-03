@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background;
+package org.mozilla.goanna.background;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-import org.mozilla.gecko.background.common.log.Logger;
+import org.mozilla.goanna.background.common.log.Logger;
 
 import android.app.AlarmManager;
 import android.app.IntentService;
@@ -83,8 +83,8 @@ public abstract class BackgroundService extends IntentService {
 
   /**
    * To avoid tight coupling to Fennec, we use reflection to find
-   * <code>GeckoPreferences</code>, invoking the same code path that
-   * <code>GeckoApp</code> uses on startup to send the <i>other</i>
+   * <code>GoannaPreferences</code>, invoking the same code path that
+   * <code>GoannaApp</code> uses on startup to send the <i>other</i>
    * notification to which we listen.
    *
    * Invoke this to handle one of the system intents to which we listen to
@@ -96,8 +96,8 @@ public abstract class BackgroundService extends IntentService {
   protected static void reflectContextToFennec(Context context, String className, String methodName) {
     // Ask the browser to tell us the current state of the preference.
     try {
-      Class<?> geckoPreferences = Class.forName(className);
-      Method broadcastSnippetsPref = geckoPreferences.getMethod(methodName, Context.class);
+      Class<?> goannaPreferences = Class.forName(className);
+      Method broadcastSnippetsPref = goannaPreferences.getMethod(methodName, Context.class);
       broadcastSnippetsPref.invoke(null, context);
       return;
     } catch (ClassNotFoundException e) {

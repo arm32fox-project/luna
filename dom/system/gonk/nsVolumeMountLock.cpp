@@ -64,7 +64,7 @@ nsresult nsVolumeMountLock::Init()
 
   // Request the sdcard info, so we know the state/generation without having
   // to wait for a state change.
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     ContentChild::GetSingleton()->SendBroadcastVolume(mVolumeName);
     return NS_OK;
   }

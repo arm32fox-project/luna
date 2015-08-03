@@ -46,7 +46,7 @@ class MarionetteException(Exception):
         else:
             return str(self.msg)
 
-class InstallGeckoError(MarionetteException):
+class InstallGoannaError(MarionetteException):
     pass
 
 class TimeoutException(MarionetteException):

@@ -101,7 +101,7 @@ public class testMigration extends ContentProviderTest {
         // Set up BrowserDB
         try {
             Class browserDBClass =
-                mClassLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
+                mClassLoader.loadClass("org.mozilla.goanna.db.BrowserDB");
             Method initializeMethod =
                 browserDBClass.getDeclaredMethod("initialize", String.class);
             initializeMethod.invoke(null, "default");
@@ -118,7 +118,7 @@ public class testMigration extends ContentProviderTest {
         Class pmClass;
 
         try {
-            pmClass = mClassLoader.loadClass("org.mozilla.gecko.ProfileMigrator");
+            pmClass = mClassLoader.loadClass("org.mozilla.goanna.ProfileMigrator");
             launchPlacesTest = pmClass.getMethod("launchPlacesTest", File.class);
             constructor = pmClass.getConstructor(Context.class, ContentResolver.class);
         } catch(ClassNotFoundException ex) {
@@ -163,7 +163,7 @@ public class testMigration extends ContentProviderTest {
 
         try {
             Class browserDB =
-                mClassLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
+                mClassLoader.loadClass("org.mozilla.goanna.db.BrowserDB");
             clearHistory =
                 browserDB.getMethod("clearHistory", ContentResolver.class);
         } catch (java.lang.ClassNotFoundException ex) {
@@ -190,7 +190,7 @@ public class testMigration extends ContentProviderTest {
 
         try {
             Class localBrowserDB =
-                mClassLoader.loadClass("org.mozilla.gecko.db.LocalBrowserDB");
+                mClassLoader.loadClass("org.mozilla.goanna.db.LocalBrowserDB");
             isBookmarked =
                 localBrowserDB.getMethod("isBookmark", ContentResolver.class, String.class);
             getAllVisitedHistory =
@@ -269,15 +269,15 @@ public class testMigration extends ContentProviderTest {
 
         try {
             Class browserContract =
-                mClassLoader.loadClass("org.mozilla.gecko.db.BrowserContract");
+                mClassLoader.loadClass("org.mozilla.goanna.db.BrowserContract");
             Class browserContractControl =
-                mClassLoader.loadClass("org.mozilla.gecko.db.BrowserContract$Control");
+                mClassLoader.loadClass("org.mozilla.goanna.db.BrowserContract$Control");
             Class browserContractHistory =
-                mClassLoader.loadClass("org.mozilla.gecko.db.BrowserContract$History");
+                mClassLoader.loadClass("org.mozilla.goanna.db.BrowserContract$History");
             Class browserContractUrl =
-                mClassLoader.loadClass("org.mozilla.gecko.db.BrowserContract$URLColumns");
+                mClassLoader.loadClass("org.mozilla.goanna.db.BrowserContract$URLColumns");
             Class browserContractHistoryColumns =
-                mClassLoader.loadClass("org.mozilla.gecko.db.BrowserContract$HistoryColumns");
+                mClassLoader.loadClass("org.mozilla.goanna.db.BrowserContract$HistoryColumns");
 
             controlUri = (Uri)browserContractControl.getField("CONTENT_URI").get(null);
             historyUri = (Uri)browserContractHistory.getField("CONTENT_URI").get(null);
@@ -332,7 +332,7 @@ public class testMigration extends ContentProviderTest {
 
     @Override
     public void setUp() throws Exception {
-        super.setUp("org.mozilla.gecko.db.BrowserProvider", "AUTHORITY");
+        super.setUp("org.mozilla.goanna.db.BrowserProvider", "AUTHORITY");
     }
 
     @Override

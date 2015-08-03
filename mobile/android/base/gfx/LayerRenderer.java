@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.Tab;
-import org.mozilla.gecko.Tabs;
-import org.mozilla.gecko.gfx.Layer.RenderContext;
-import org.mozilla.gecko.mozglue.DirectBufferAllocator;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
+import org.mozilla.goanna.gfx.Layer.RenderContext;
+import org.mozilla.goanna.mozglue.DirectBufferAllocator;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -38,8 +38,8 @@ import javax.microedition.khronos.egl.EGLConfig;
  * The layer renderer implements the rendering logic for a layer view.
  */
 public class LayerRenderer implements Tabs.OnTabsChangedListener {
-    private static final String LOGTAG = "GeckoLayerRenderer";
-    private static final String PROFTAG = "GeckoLayerRendererProf";
+    private static final String LOGTAG = "GoannaLayerRenderer";
+    private static final String PROFTAG = "GoannaLayerRendererProf";
 
     /*
      * The amount of time a frame is allowed to take to render before we declare it a dropped
@@ -230,7 +230,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
     }
 
     // Deactivates the shader program. This must be done to avoid crashes after returning to the
-    // Gecko C++ compositor from Java.
+    // Goanna C++ compositor from Java.
     public void deactivateDefaultProgram() {
         GLES20.glDisableVertexAttribArray(mTextureHandle);
         GLES20.glDisableVertexAttribArray(mPositionHandle);
@@ -339,7 +339,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             @Override
             public void run() {
                 Context context = mView.getContext();
-                SharedPreferences preferences = context.getSharedPreferences("GeckoApp", 0);
+                SharedPreferences preferences = context.getSharedPreferences("GoannaApp", 0);
                 if (preferences.getBoolean("showFrameRate", false)) {
                     IntSize frameRateLayerSize = new IntSize(FRAME_RATE_METER_WIDTH, FRAME_RATE_METER_HEIGHT);
                     mFrameRateLayer = TextLayer.create(frameRateLayerSize, "-- ms/--");
@@ -598,7 +598,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
             if ((rootLayer != null) &&
                 (mProfileRender || PanningPerfAPI.isRecordingCheckerboard())) {
                 // Calculate the incompletely rendered area of the page
-                float checkerboard =  1.0f - GeckoAppShell.computeRenderIntegrity();
+                float checkerboard =  1.0f - GoannaAppShell.computeRenderIntegrity();
 
                 PanningPerfAPI.recordCheckerboard(checkerboard);
                 if (checkerboard < 0.0f || checkerboard > 1.0f) {
@@ -644,7 +644,7 @@ public class LayerRenderer implements Tabs.OnTabsChangedListener {
                 }
             }
 
-            // Remove background color once we've painted. GeckoLayerClient is
+            // Remove background color once we've painted. GoannaLayerClient is
             // responsible for setting this flag before current document is
             // composited.
             if (mView.getPaintState() == LayerView.PAINT_BEFORE_FIRST) {

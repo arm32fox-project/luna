@@ -343,12 +343,12 @@ waitFor(
         # setup DNS fix for networking
         self._run_adb(['shell', 'setprop', 'net.dns1', '10.0.2.3'])
 
-    def setup(self, marionette, gecko_path=None, busybox=None):
+    def setup(self, marionette, goanna_path=None, busybox=None):
         if busybox:
             self.install_busybox(busybox)
 
-        if gecko_path:
-            self.install_gecko(gecko_path, marionette)
+        if goanna_path:
+            self.install_goanna(goanna_path, marionette)
 
         self.wait_for_system_message(marionette)
         self.set_prefs(marionette)
@@ -382,16 +382,16 @@ waitFor(
         if not self.wait_for_port():
             raise TimeoutException("Timeout waiting for marionette on port '%s'" % self.marionette_port)
 
-    def install_gecko(self, gecko_path, marionette):
+    def install_goanna(self, goanna_path, marionette):
         """
-        Install gecko into the emulator using adb push.  Restart b2g after the
+        Install goanna into the emulator using adb push.  Restart b2g after the
         installation.
         """
         # See bug 800102.  We use this particular method of installing
-        # gecko in order to avoid an adb bug in which adb will sometimes
+        # goanna in order to avoid an adb bug in which adb will sometimes
         # hang indefinitely while copying large files to the system
         # partition.
-        print 'installing gecko binaries...'
+        print 'installing goanna binaries...'
 
         # see bug 809437 for the path that lead to this madness
         try:
@@ -399,13 +399,13 @@ waitFor(
             self._run_adb(['remount'])
             self.dm.removeDir('/data/local/b2g')
             self.dm.mkDir('/data/local/b2g')
-            self.dm.pushDir(gecko_path, '/data/local/b2g', retryLimit=10)
+            self.dm.pushDir(goanna_path, '/data/local/b2g', retryLimit=10)
 
             self.dm.shellCheckOutput(['stop', 'b2g'])
 
-            for root, dirs, files in os.walk(gecko_path):
+            for root, dirs, files in os.walk(goanna_path):
                 for filename in files:
-                    rel_path = os.path.relpath(os.path.join(root, filename), gecko_path)
+                    rel_path = os.path.relpath(os.path.join(root, filename), goanna_path)
                     data_local_file = os.path.join('/data/local/b2g', rel_path)
                     system_b2g_file = os.path.join('/system/b2g', rel_path)
 
@@ -424,7 +424,7 @@ waitFor(
             exc = exc.replace('Traceback', '_traceback')
             print exc
 
-            raise InstallGeckoError("unable to restart B2G after installing gecko")
+            raise InstallGoannaError("unable to restart B2G after installing goanna")
 
     def install_busybox(self, busybox):
         self._run_adb(['remount'])

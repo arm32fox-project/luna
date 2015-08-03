@@ -6,7 +6,7 @@
 <resources>
 
     <!-- Theme level attributes -->
-    <declare-styleable name="GeckoTheme">
+    <declare-styleable name="GoannaTheme">
 
         <!-- Style for MenuItemActionBar -->
         <attr name="menuItemActionBarStyle" format="reference"/>
@@ -171,7 +171,7 @@
         <attr name="android:listSelector"/>
     </declare-styleable>
 
-    <declare-styleable name="GeckoView">
+    <declare-styleable name="GoannaView">
         <attr name="url" format="string"/>
     </declare-styleable>
 

@@ -93,7 +93,7 @@ ThirdPartyUtil::IsThirdPartyWindow(nsIDOMWindow* aWindow,
 
   // Get the URI of the window, and its base domain.
   nsCOMPtr<nsIURI> currentURI = GetURIFromWindow(aWindow);
-  NS_ENSURE_TRUE(currentURI, NS_ERROR_INVALID_ARG);
+  //NS_ENSURE_TRUE(currentURI, NS_ERROR_INVALID_ARG);
 
   nsCString bottomDomain;
   nsresult rv = GetBaseDomain(currentURI, bottomDomain);

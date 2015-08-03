@@ -5,7 +5,7 @@
 var memory = require("sdk/deprecated/memory");
 
 exports.testMemory = function(test) {
-  test.pass("Skipping this test until Gecko memory debugging issues " +
+  test.pass("Skipping this test until Goanna memory debugging issues " +
             "are resolved (see bug 592774).");
   return;
 

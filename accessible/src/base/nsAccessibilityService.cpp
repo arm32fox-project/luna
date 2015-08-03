@@ -546,9 +546,9 @@ nsAccessibilityService::GetAccessibleFor(nsIDOMNode *aNode,
 NS_IMETHODIMP
 nsAccessibilityService::GetStringRole(uint32_t aRole, nsAString& aString)
 {
-#define ROLE(geckoRole, stringRole, atkRole, \
+#define ROLE(goannaRole, stringRole, atkRole, \
              macRole, msaaRole, ia2Role, nameRule) \
-  case roles::geckoRole: \
+  case roles::goannaRole: \
     CopyUTF8toUTF16(stringRole, aString); \
     return NS_OK;
 

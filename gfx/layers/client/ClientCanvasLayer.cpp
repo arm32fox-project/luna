@@ -33,7 +33,7 @@ ClientCanvasLayer::Initialize(const Data& aData)
     if (!mForceReadback) {
       if (ClientManager()->GetCompositorBackendType() == mozilla::layers::LAYERS_OPENGL) {
         if (mGLContext->GetEGLContext()) {
-          bool isCrossProcess = !(XRE_GetProcessType() == GeckoProcessType_Default);
+          bool isCrossProcess = !(XRE_GetProcessType() == GoannaProcessType_Default);
 
           if (!isCrossProcess) {
             // [Basic/OGL Layers, OMTC] WebGL layer init.
@@ -79,7 +79,7 @@ ClientCanvasLayer::RenderLayer()
       flags |= NeedsYFlip;
     }
 
-    bool isCrossProcess = !(XRE_GetProcessType() == GeckoProcessType_Default);
+    bool isCrossProcess = !(XRE_GetProcessType() == GoannaProcessType_Default);
     //Append OwnByClient flag for streaming buffer under OOPC case
     if (isCrossProcess && mGLContext) {
       GLScreenBuffer* screen = mGLContext->Screen();

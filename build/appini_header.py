@@ -36,8 +36,8 @@ def main(file):
                  NULL, // copyright
                  %(flags)s,
                  NULL, // xreDirectory
-                 "%(Gecko:minversion)s",
-                 "%(Gecko:maxversion)s",
+                 "%(Goanna:minversion)s",
+                 "%(Goanna:maxversion)s",
                  %(App:profile)s
              };''' % appdata
 

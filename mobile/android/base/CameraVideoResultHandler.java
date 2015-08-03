@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.util.ActivityResultHandler;
+import org.mozilla.goanna.util.ActivityResultHandler;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -15,7 +15,7 @@ import android.util.Log;
 import java.util.Queue;
 
 class CameraVideoResultHandler implements ActivityResultHandler {
-    private static final String LOGTAG = "GeckoCameraVideoResultHandler";
+    private static final String LOGTAG = "GoannaCameraVideoResultHandler";
 
     private final Queue<String> mFilePickerResult;
     private final ActivityHandlerHelper.FileResultHandler mHandler;
@@ -46,7 +46,7 @@ class CameraVideoResultHandler implements ActivityResultHandler {
             return;
         }
 
-        Cursor cursor = GeckoAppShell.getGeckoInterface().getActivity().managedQuery(data.getData(),
+        Cursor cursor = GoannaAppShell.getGoannaInterface().getActivity().managedQuery(data.getData(),
                 new String[] { MediaStore.Video.Media.DATA },
                 null,
                 null,

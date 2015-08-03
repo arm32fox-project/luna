@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.content.Context;
 import android.graphics.drawable.ColorDrawable;
@@ -21,10 +21,10 @@ import android.widget.TabWidget;
 
 public class AwesomeBarTabs extends TabHost
                             implements LightweightTheme.OnChangeListener { 
-    private static final String LOGTAG = "GeckoAwesomeBarTabs";
+    private static final String LOGTAG = "GoannaAwesomeBarTabs";
 
     private Context mContext;
-    private GeckoActivity mActivity;
+    private GoannaActivity mActivity;
 
     private boolean mInflated;
     private LayoutInflater mInflater;
@@ -107,7 +107,7 @@ public class AwesomeBarTabs extends TabHost
         Log.d(LOGTAG, "Creating AwesomeBarTabs");
 
         mContext = context;
-        mActivity = (GeckoActivity) context;
+        mActivity = (GoannaActivity) context;
 
         mInflated = false;
         mInflater = (LayoutInflater) mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
@@ -226,7 +226,7 @@ public class AwesomeBarTabs extends TabHost
         }
 
         for (int i = 0; i < tabWidget.getTabCount(); i++) {
-            GeckoTextView view = (GeckoTextView) tabWidget.getChildTabViewAt(i);
+            GoannaTextView view = (GoannaTextView) tabWidget.getChildTabViewAt(i);
             if (isPrivate) {
                 view.resetTheme();
                 view.setPrivateMode((i == selIndex) ? false : true);
@@ -262,7 +262,7 @@ public class AwesomeBarTabs extends TabHost
 
 
     private View addAwesomeTab(String id, int titleId, final int contentId) {
-        GeckoTextView indicatorView = (GeckoTextView) mInflater.inflate(R.layout.awesomebar_tab_indicator, null);
+        GoannaTextView indicatorView = (GoannaTextView) mInflater.inflate(R.layout.awesomebar_tab_indicator, null);
         indicatorView.setText(titleId);
 
         getTabWidget().addView(indicatorView);
@@ -338,12 +338,12 @@ public class AwesomeBarTabs extends TabHost
         }
     }
 
-    public static class BackgroundLayout extends GeckoLinearLayout {
-        private GeckoActivity mActivity;
+    public static class BackgroundLayout extends GoannaLinearLayout {
+        private GoannaActivity mActivity;
 
         public BackgroundLayout(Context context, AttributeSet attrs) {
             super(context, attrs);
-            mActivity = (GeckoActivity) context;
+            mActivity = (GoannaActivity) context;
         }
 
         @Override

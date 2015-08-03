@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.mozglue.GeckoLoader;
+import org.mozilla.goanna.mozglue.GoannaLoader;
 
 import android.content.Context;
 
@@ -17,16 +17,16 @@ public class NSSBridge {
     static public String encrypt(Context context, String aValue)
       throws Exception {
         String resourcePath = context.getPackageResourcePath();
-        GeckoLoader.loadNSSLibs(context, resourcePath);
+        GoannaLoader.loadNSSLibs(context, resourcePath);
 
-        String path = GeckoProfile.get(context).getDir().toString();
+        String path = GoannaProfile.get(context).getDir().toString();
         return nativeEncrypt(path, aValue);
     }
 
     static public String encrypt(Context context, String profilePath, String aValue)
       throws Exception {
         String resourcePath = context.getPackageResourcePath();
-        GeckoLoader.loadNSSLibs(context, resourcePath);
+        GoannaLoader.loadNSSLibs(context, resourcePath);
 
         return nativeEncrypt(profilePath, aValue);
     }
@@ -34,16 +34,16 @@ public class NSSBridge {
     static public String decrypt(Context context, String aValue)
       throws Exception {
         String resourcePath = context.getPackageResourcePath();
-        GeckoLoader.loadNSSLibs(context, resourcePath);
+        GoannaLoader.loadNSSLibs(context, resourcePath);
 
-        String path = GeckoProfile.get(context).getDir().toString();
+        String path = GoannaProfile.get(context).getDir().toString();
         return nativeDecrypt(path, aValue);
     }
 
     static public String decrypt(Context context, String profilePath, String aValue)
       throws Exception {
         String resourcePath = context.getPackageResourcePath();
-        GeckoLoader.loadNSSLibs(context, resourcePath);
+        GoannaLoader.loadNSSLibs(context, resourcePath);
 
         return nativeDecrypt(profilePath, aValue);
     }

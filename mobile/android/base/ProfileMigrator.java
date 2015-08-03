@@ -3,18 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.db.BrowserContract.Passwords;
-import org.mozilla.gecko.db.LocalBrowserDB;
-import org.mozilla.gecko.mozglue.GeckoLoader;
-import org.mozilla.gecko.sqlite.SQLiteBridge;
-import org.mozilla.gecko.sqlite.SQLiteBridgeException;
-import org.mozilla.gecko.sync.setup.SyncAccounts;
-import org.mozilla.gecko.sync.setup.SyncAccounts.SyncAccountParameters;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserContract.Bookmarks;
+import org.mozilla.goanna.db.BrowserContract.Passwords;
+import org.mozilla.goanna.db.LocalBrowserDB;
+import org.mozilla.goanna.mozglue.GoannaLoader;
+import org.mozilla.goanna.sqlite.SQLiteBridge;
+import org.mozilla.goanna.sqlite.SQLiteBridgeException;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
+import org.mozilla.goanna.sync.setup.SyncAccounts.SyncAccountParameters;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.accounts.Account;
 import android.content.ContentProviderOperation;
@@ -433,7 +433,7 @@ public class ProfileMigrator {
             // if we get here, we know that oldMozDir exists
             File currentMozDir;
             try {
-                currentMozDir = GeckoProfile.ensureMozillaDirectory(mContext);
+                currentMozDir = GoannaProfile.ensureMozillaDirectory(mContext);
                 if (currentMozDir.equals(oldMozDir)) {
                     return;
                 }
@@ -662,7 +662,7 @@ public class ProfileMigrator {
 
     private class MiscTask implements Runnable {
         protected void cleanupXULLibCache() {
-            File cacheFile = GeckoLoader.getCacheDir(mContext);
+            File cacheFile = GoannaLoader.getCacheDir(mContext);
             File[] files = cacheFile.listFiles();
             if (files != null) {
                 Iterator<File> cacheFiles = Arrays.asList(files).iterator();
@@ -696,7 +696,7 @@ public class ProfileMigrator {
         public PlacesRunnable(File profileDir, int limit) {
             mProfileDir = profileDir;
             mMaxEntries = limit;
-            mDB = new LocalBrowserDB(GeckoProfile.get(mContext).getName());
+            mDB = new LocalBrowserDB(GoannaProfile.get(mContext).getName());
         }
 
         private long getFolderId(String guid) {
@@ -921,13 +921,13 @@ public class ProfileMigrator {
                 setMigratedHistory();
             }
 
-            // GlobalHistory access communicates with Gecko
+            // GlobalHistory access communicates with Goanna
             // and must run on its thread.
             ThreadUtils.postToBackgroundThread(new Runnable() {
                     @Override
                     public void run() {
                         for (String url : placesHistory) {
-                            GlobalHistory.getInstance().addToGeckoOnly(url);
+                            GlobalHistory.getInstance().addToGoannaOnly(url);
                         }
                     }
              });
@@ -1266,7 +1266,7 @@ public class ProfileMigrator {
             File dbFileShm = new File(dbPathShm);
 
             SQLiteBridge db = null;
-            GeckoLoader.loadSQLiteLibs(mContext, mContext.getPackageResourcePath());
+            GoannaLoader.loadSQLiteLibs(mContext, mContext.getPackageResourcePath());
             try {
                 db = new SQLiteBridge(dbPath);
                 if (!checkPlacesSchema(db)) {

@@ -75,8 +75,8 @@ class JavaScriptShared
     bool toValue(JSContext *cx, const JSVariant &from, JS::MutableHandleValue to);
     bool fromDescriptor(JSContext *cx, const JSPropertyDescriptor &desc, PPropertyDescriptor *out);
     bool toDescriptor(JSContext *cx, const PPropertyDescriptor &in, JSPropertyDescriptor *out);
-    bool convertIdToGeckoString(JSContext *cx, JS::HandleId id, nsString *to);
-    bool convertGeckoStringToId(JSContext *cx, const nsString &from, JS::MutableHandleId id);
+    bool convertIdToGoannaString(JSContext *cx, JS::HandleId id, nsString *to);
+    bool convertGoannaStringToId(JSContext *cx, const nsString &from, JS::MutableHandleId id);
 
     bool toValue(JSContext *cx, const JSVariant &from, jsval *to) {
         JS::RootedValue v(cx);

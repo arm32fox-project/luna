@@ -107,7 +107,7 @@ JavaScriptParent::getPropertyDescriptor(JSContext *cx, HandleObject proxy, Handl
     ObjectId objId = idOf(proxy);
 
     nsString idstr;
-    if (!convertIdToGeckoString(cx, id, &idstr))
+    if (!convertIdToGoannaString(cx, id, &idstr))
         return false;
 
     ReturnStatus status;
@@ -134,7 +134,7 @@ JavaScriptParent::getOwnPropertyDescriptor(JSContext *cx, HandleObject proxy, Ha
     ObjectId objId = idOf(proxy);
 
     nsString idstr;
-    if (!convertIdToGeckoString(cx, id, &idstr))
+    if (!convertIdToGoannaString(cx, id, &idstr))
         return false;
 
     ReturnStatus status;
@@ -175,7 +175,7 @@ JavaScriptParent::getOwnPropertyNames(JSContext *cx, HandleObject proxy, AutoIdV
 
     RootedId name(cx);
     for (size_t i = 0; i < names.Length(); i++) {
-        if (!convertGeckoStringToId(cx, names[i], &name))
+        if (!convertGoannaStringToId(cx, names[i], &name))
             return false;
         if (!props.append(name))
             return false;
@@ -204,7 +204,7 @@ JavaScriptParent::keys(JSContext *cx, HandleObject proxy, AutoIdVector &props)
 
     RootedId name(cx);
     for (size_t i = 0; i < names.Length(); i++) {
-        if (!convertGeckoStringToId(cx, names[i], &name))
+        if (!convertGoannaStringToId(cx, names[i], &name))
             return false;
         if (!props.append(name))
             return false;
@@ -276,7 +276,7 @@ JavaScriptParent::has(JSContext *cx, HandleObject proxy, HandleId id, bool *bp)
     ObjectId objId = idOf(proxy);
 
     nsString idstr;
-    if (!convertIdToGeckoString(cx, id, &idstr))
+    if (!convertIdToGoannaString(cx, id, &idstr))
         return false;
 
     ReturnStatus status;
@@ -298,7 +298,7 @@ JavaScriptParent::hasOwn(JSContext *cx, HandleObject proxy, HandleId id, bool *b
     ObjectId objId = idOf(proxy);
 
     nsString idstr;
-    if (!convertIdToGeckoString(cx, id, &idstr))
+    if (!convertIdToGoannaString(cx, id, &idstr))
         return false;
 
     ReturnStatus status;
@@ -323,7 +323,7 @@ JavaScriptParent::get(JSContext *cx, HandleObject proxy, HandleObject receiver,
     ObjectId receiverId = idOf(receiver);
 
     nsString idstr;
-    if (!convertIdToGeckoString(cx, id, &idstr))
+    if (!convertIdToGoannaString(cx, id, &idstr))
         return false;
 
     JSVariant val;
@@ -352,7 +352,7 @@ JavaScriptParent::set(JSContext *cx, JS::HandleObject proxy, JS::HandleObject re
     ObjectId receiverId = idOf(receiver);
 
     nsString idstr;
-    if (!convertIdToGeckoString(cx, id, &idstr))
+    if (!convertIdToGoannaString(cx, id, &idstr))
         return false;
 
     JSVariant val;

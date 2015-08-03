@@ -58,7 +58,7 @@ int32_t gXULModalLevel = 0;
 // current app-modal window.  So we need to keep a linked list of app-modal
 // windows.  (A non-sheet window that appears above an app-modal window is
 // also made app-modal.)  See nsCocoaWindow::SetModal().
-nsCocoaWindowList *gGeckoAppModalWindowList = NULL;
+nsCocoaWindowList *gGoannaAppModalWindowList = NULL;
 
 // defined in nsMenuBarX.mm
 extern NSMenu* sApplicationMenu; // Application menu shared by all menubars
@@ -85,7 +85,7 @@ extern "C" {
 NS_IMPL_ISUPPORTS_INHERITED1(nsCocoaWindow, Inherited, nsPIWidgetCocoa)
 
 // A note on testing to see if your object is a sheet...
-// |mWindowType == eWindowType_sheet| is true if your gecko nsIWidget is a sheet
+// |mWindowType == eWindowType_sheet| is true if your goanna nsIWidget is a sheet
 // widget - whether or not the sheet is showing. |[mWindow isSheet]| will return
 // true *only when the sheet is actually showing*. Choose your test wisely.
 
@@ -187,7 +187,7 @@ static NSScreen *FindTargetScreenForRect(const nsIntRect& aRect)
   NSEnumerator *screenEnum = [[NSScreen screens] objectEnumerator];
   int largestIntersectArea = 0;
   while (NSScreen *screen = [screenEnum nextObject]) {
-    nsIntRect screenRect(nsCocoaUtils::CocoaRectToGeckoRect([screen visibleFrame]));
+    nsIntRect screenRect(nsCocoaUtils::CocoaRectToGoannaRect([screen visibleFrame]));
     screenRect = screenRect.Intersect(aRect);
     int area = screenRect.width * screenRect.height;
     if (area > largestIntersectArea) {
@@ -208,7 +208,7 @@ static void FitRectToVisibleAreaForScreen(nsIntRect &aRect, NSScreen *aScreen,
     aScreen = FindTargetScreenForRect(aRect);
   }
 
-  nsIntRect screenBounds(nsCocoaUtils::CocoaRectToGeckoRect([aScreen visibleFrame]));
+  nsIntRect screenBounds(nsCocoaUtils::CocoaRectToGoannaRect([aScreen visibleFrame]));
 
   if (aRect.width > screenBounds.width) {
     aRect.width = screenBounds.width;
@@ -291,7 +291,7 @@ nsresult nsCocoaWindow::Create(nsIWidget *aParent,
     return NS_OK;
 
   nsresult rv =
-    CreateNativeWindow(nsCocoaUtils::GeckoRectToCocoaRect(newBounds),
+    CreateNativeWindow(nsCocoaUtils::GoannaRectToCocoaRect(newBounds),
                        mBorderStyle, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -401,12 +401,12 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
   } else {
     /* 
      * We pass a content area rect to initialize the native Cocoa window. The
-     * content rect we give is the same size as the size we're given by gecko.
+     * content rect we give is the same size as the size we're given by goanna.
      * The origin we're given for non-popup windows is moved down by the height
-     * of the menu bar so that an origin of (0,100) from gecko puts the window
+     * of the menu bar so that an origin of (0,100) from goanna puts the window
      * 100 pixels below the top of the available desktop area. We also move the
      * origin down by the height of a title bar if it exists. This is so the
-     * origin that gecko gives us for the top-left of  the window turns out to
+     * origin that goanna gives us for the top-left of  the window turns out to
      * be the top-left of the window we create. This is how it was done in
      * Carbon. If it ought to be different we'll probably need to look at all
      * the callers.
@@ -452,7 +452,7 @@ nsresult nsCocoaWindow::CreateNativeWindow(const NSRect &aRect,
                                  backing:NSBackingStoreBuffered defer:YES];
 
   // setup our notification delegate. Note that setDelegate: does NOT retain.
-  mDelegate = [[WindowDelegate alloc] initWithGeckoWindow:this];
+  mDelegate = [[WindowDelegate alloc] initWithGoannaWindow:this];
   [mWindow setDelegate:mDelegate];
 
   // Make sure that the content rect we gave has been honored.
@@ -607,7 +607,7 @@ NS_IMETHODIMP nsCocoaWindow::SetModal(bool aState)
   if (aState) {
     ++gXULModalLevel;
     if (gCocoaAppModalWindowList)
-      gCocoaAppModalWindowList->PushGecko(mWindow, this);
+      gCocoaAppModalWindowList->PushGoanna(mWindow, this);
     // When a non-sheet window gets "set modal", make the window(s) that it
     // appears over behave as they should.  We can't rely on native methods to
     // do this, for the following reason:  The OS runs modal non-sheet windows
@@ -631,8 +631,8 @@ NS_IMETHODIMP nsCocoaWindow::SetModal(bool aState)
       nsCocoaWindowList *windowList = new nsCocoaWindowList;
       if (windowList) {
         windowList->window = this; // Don't ADDREF
-        windowList->prev = gGeckoAppModalWindowList;
-        gGeckoAppModalWindowList = windowList;
+        windowList->prev = gGoannaAppModalWindowList;
+        gGoannaAppModalWindowList = windowList;
       }
     }
   }
@@ -640,7 +640,7 @@ NS_IMETHODIMP nsCocoaWindow::SetModal(bool aState)
     --gXULModalLevel;
     NS_ASSERTION(gXULModalLevel >= 0, "Mismatched call to nsCocoaWindow::SetModal(false)!");
     if (gCocoaAppModalWindowList)
-      gCocoaAppModalWindowList->PopGecko(mWindow, this);
+      gCocoaAppModalWindowList->PopGoanna(mWindow, this);
     if (mWindowType != eWindowType_sheet) {
       while (aParent) {
         if (--aParent->mNumModalDescendents == 0) {
@@ -654,10 +654,10 @@ NS_IMETHODIMP nsCocoaWindow::SetModal(bool aState)
         NS_ASSERTION(aParent->mNumModalDescendents >= 0, "Widget hierarchy changed while modal!");
         aParent = static_cast<nsCocoaWindow*>(aParent->mParent);
       }
-      if (gGeckoAppModalWindowList) {
-        NS_ASSERTION(gGeckoAppModalWindowList->window == this, "Widget hierarchy changed while modal!");
-        nsCocoaWindowList *saved = gGeckoAppModalWindowList;
-        gGeckoAppModalWindowList = gGeckoAppModalWindowList->prev;
+      if (gGoannaAppModalWindowList) {
+        NS_ASSERTION(gGoannaAppModalWindowList->window == this, "Widget hierarchy changed while modal!");
+        nsCocoaWindowList *saved = gGoannaAppModalWindowList;
+        gGoannaAppModalWindowList = gGoannaAppModalWindowList->prev;
         delete saved; // "window" not ADDREFed
       }
       if (mWindowType == eWindowType_popup)
@@ -762,7 +762,7 @@ NS_IMETHODIMP nsCocoaWindow::Show(bool bState)
           [(PopupWindow*) mWindow isContextMenu]) {
         [[NSDistributedNotificationCenter defaultCenter]
           postNotificationName:@"com.apple.HIToolbox.beginMenuTrackingNotification"
-                        object:@"org.mozilla.gecko.PopupWindow"];
+                        object:@"org.mozilla.goanna.PopupWindow"];
       }
 
       // If a parent window was supplied and this is a popup at the parent
@@ -893,7 +893,7 @@ NS_IMETHODIMP nsCocoaWindow::Show(bool bState)
           [(PopupWindow*) mWindow isContextMenu]) {
         [[NSDistributedNotificationCenter defaultCenter]
           postNotificationName:@"com.apple.HIToolbox.endMenuTrackingNotification"
-                        object:@"org.mozilla.gecko.PopupWindow"];
+                        object:@"org.mozilla.goanna.PopupWindow"];
       }
     }
   }
@@ -1157,7 +1157,7 @@ NS_IMETHODIMP nsCocoaWindow::Move(double aX, double aY)
     return NS_OK;
   }
 
-  // The point we have is in Gecko coordinates (origin top-left). Convert
+  // The point we have is in Goanna coordinates (origin top-left). Convert
   // it to Cocoa ones (origin bottom-left).
   NSPoint coord = {
     static_cast<float>(aX),
@@ -1363,7 +1363,7 @@ nsresult nsCocoaWindow::DoResize(double aX, double aY,
                                 mUsesNativeFullScreen);
 
   // convert requested bounds into Cocoa coordinate system
-  NSRect newFrame = nsCocoaUtils::GeckoRectToCocoaRect(newBounds);
+  NSRect newFrame = nsCocoaUtils::GoannaRectToCocoaRect(newBounds);
 
   NSRect frame = [mWindow frame];
   BOOL isMoving = newFrame.origin.x != frame.origin.x ||
@@ -1407,7 +1407,7 @@ NS_IMETHODIMP nsCocoaWindow::GetClientBounds(nsIntRect &aRect)
 
   CGFloat scaleFactor = BackingScaleFactor();
   if (!mWindow) {
-    aRect = nsCocoaUtils::CocoaRectToGeckoRectDevPix(NSZeroRect, scaleFactor);
+    aRect = nsCocoaUtils::CocoaRectToGoannaRectDevPix(NSZeroRect, scaleFactor);
     return NS_OK;
   }
 
@@ -1419,7 +1419,7 @@ NS_IMETHODIMP nsCocoaWindow::GetClientBounds(nsIntRect &aRect)
     r = [mWindow contentRectForFrameRect:[mWindow frame]];
   }
 
-  aRect = nsCocoaUtils::CocoaRectToGeckoRectDevPix(r, scaleFactor);
+  aRect = nsCocoaUtils::CocoaRectToGoannaRectDevPix(r, scaleFactor);
 
   return NS_OK;
 
@@ -1433,7 +1433,7 @@ nsCocoaWindow::UpdateBounds()
   if (mWindow) {
     frame = [mWindow frame];
   }
-  mBounds = nsCocoaUtils::CocoaRectToGeckoRectDevPix(frame, BackingScaleFactor());
+  mBounds = nsCocoaUtils::CocoaRectToGoannaRectDevPix(frame, BackingScaleFactor());
 }
 
 NS_IMETHODIMP nsCocoaWindow::GetScreenBounds(nsIntRect &aRect)
@@ -1441,7 +1441,7 @@ NS_IMETHODIMP nsCocoaWindow::GetScreenBounds(nsIntRect &aRect)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
 #ifdef DEBUG
-  nsIntRect r = nsCocoaUtils::CocoaRectToGeckoRectDevPix([mWindow frame], BackingScaleFactor());
+  nsIntRect r = nsCocoaUtils::CocoaRectToGoannaRectDevPix([mWindow frame], BackingScaleFactor());
   NS_ASSERTION(mWindow && mBounds == r, "mBounds out of sync!");
 #endif
 
@@ -1498,7 +1498,7 @@ GetBackingScaleFactor(NSWindow* aWindow)
 
   // Then identify the screen it belongs to, and return its scale factor.
   NSScreen *screen =
-    FindTargetScreenForRect(nsCocoaUtils::CocoaRectToGeckoRect(frame));
+    FindTargetScreenForRect(nsCocoaUtils::CocoaRectToGoannaRect(frame));
   return nsCocoaUtils::GetBackingScaleFactor(screen);
 }
 
@@ -1599,12 +1599,12 @@ NS_IMETHODIMP nsCocoaWindow::Invalidate(const nsIntRect & aRect)
   return NS_OK;
 }
 
-// Pass notification of some drag event to Gecko
+// Pass notification of some drag event to Goanna
 //
 // The drag manager has let us know that something related to a drag has
 // occurred in this window. It could be any number of things, ranging from 
 // a drop, to a drag enter/leave, or a drag over event. The actual event
-// is passed in |aMessage| and is passed along to our event hanlder so Gecko
+// is passed in |aMessage| and is passed along to our event hanlder so Goanna
 // knows about it.
 bool nsCocoaWindow::DragEvent(unsigned int aMessage, Point aMouseGlobal, UInt16 aKeyModifiers)
 {
@@ -1710,7 +1710,7 @@ nsCocoaWindow::ReportMoveEvent()
 
   UpdateBounds();
 
-  // Dispatch the move event to Gecko
+  // Dispatch the move event to Goanna
   if (mWidgetListener)
     mWidgetListener->WindowMoved(this, mBounds.x, mBounds.y);
 
@@ -1802,7 +1802,7 @@ nsIntPoint nsCocoaWindow::WidgetToScreenOffset()
   if (mWindow) {
     rect = [mWindow contentRectForFrameRect:[mWindow frame]];
   }
-  r = nsCocoaUtils::CocoaRectToGeckoRectDevPix(rect, BackingScaleFactor());
+  r = nsCocoaUtils::CocoaRectToGoannaRectDevPix(rect, BackingScaleFactor());
 
   return r.TopLeft();
 
@@ -1833,7 +1833,7 @@ nsIntSize nsCocoaWindow::ClientToWindowSize(const nsIntSize& aClientSize)
   NSRect rect = nsCocoaUtils::DevPixelsToCocoaPoints(r, backingScale);
 
   NSRect inflatedRect = [mWindow frameRectForContentRect:rect];
-  return nsCocoaUtils::CocoaRectToGeckoRectDevPix(inflatedRect, backingScale).Size();
+  return nsCocoaUtils::CocoaRectToGoannaRectDevPix(inflatedRect, backingScale).Size();
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntSize(0,0));
 }
@@ -2087,7 +2087,7 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
 
 @implementation WindowDelegate
 
-// We try to find a gecko menu bar to paint. If one does not exist, just paint
+// We try to find a goanna menu bar to paint. If one does not exist, just paint
 // the application menu by itself so that a window doesn't have some other
 // window's menu bar.
 + (void)paintMenubarForWindow:(NSWindow*)aWindow
@@ -2100,12 +2100,12 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
   if ([windowDelegate class] != [self class])
     return;
 
-  nsCocoaWindow* geckoWidget = [windowDelegate geckoWidget];
-  NS_ASSERTION(geckoWidget, "Window delegate not returning a gecko widget!");
+  nsCocoaWindow* goannaWidget = [windowDelegate goannaWidget];
+  NS_ASSERTION(goannaWidget, "Window delegate not returning a goanna widget!");
   
-  nsMenuBarX* geckoMenuBar = geckoWidget->GetMenuBar();
-  if (geckoMenuBar) {
-    geckoMenuBar->Paint();
+  nsMenuBarX* goannaMenuBar = goannaWidget->GetMenuBar();
+  if (goannaMenuBar) {
+    goannaMenuBar->Paint();
   }
   else {
     // sometimes we don't have a native application menu early in launching
@@ -2116,9 +2116,9 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
     NS_ASSERTION([mainMenu numberOfItems] > 0, "Main menu does not have any items, something is terribly wrong!");
 
     // Create a new menu bar.
-    // We create a GeckoNSMenu because all menu bar NSMenu objects should use that subclass for
+    // We create a GoannaNSMenu because all menu bar NSMenu objects should use that subclass for
     // key handling reasons.
-    GeckoNSMenu* newMenuBar = [[GeckoNSMenu alloc] initWithTitle:@"MainMenuBar"];
+    GoannaNSMenu* newMenuBar = [[GoannaNSMenu alloc] initWithTitle:@"MainMenuBar"];
 
     // move the application menu from the existing menu bar to the new one
     NSMenuItem* firstMenuItem = [[mainMenu itemAtIndex:0] retain];
@@ -2134,12 +2134,12 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (id)initWithGeckoWindow:(nsCocoaWindow*)geckoWind
+- (id)initWithGoannaWindow:(nsCocoaWindow*)goannaWind
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
   [super init];
-  mGeckoWindow = geckoWind;
+  mGoannaWindow = goannaWind;
   mToplevelActiveState = false;
   mHasEverBeenZoomed = false;
   return self;
@@ -2159,17 +2159,17 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
   BaseWindow* window = [aNotification object];
   [window updateTrackingArea];
 
-  if (!mGeckoWindow)
+  if (!mGoannaWindow)
     return;
 
   // Resizing might have changed our zoom state.
-  mGeckoWindow->DispatchSizeModeEvent();
-  mGeckoWindow->ReportSizeEvent();
+  mGoannaWindow->DispatchSizeModeEvent();
+  mGoannaWindow->ReportSizeEvent();
 }
 
 - (void)windowDidChangeScreen:(NSNotification *)aNotification
 {
-  if (!mGeckoWindow)
+  if (!mGoannaWindow)
     return;
 
   // Because of Cocoa's peculiar treatment of zero-size windows (see comments
@@ -2191,12 +2191,12 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
   // Retina backing scale.
   NSWindow *window = (NSWindow *)[aNotification object];
   if ([window respondsToSelector:@selector(backingScaleFactor)]) {
-    if (GetBackingScaleFactor(window) != mGeckoWindow->BackingScaleFactor()) {
-      mGeckoWindow->BackingScaleFactorChanged();
+    if (GetBackingScaleFactor(window) != mGoannaWindow->BackingScaleFactor()) {
+      mGoannaWindow->BackingScaleFactorChanged();
     }
   }
 
-  mGeckoWindow->ReportMoveEvent();
+  mGoannaWindow->ReportMoveEvent();
 }
 
 // Lion's full screen mode will bypass our internal fullscreen tracking, so
@@ -2204,38 +2204,38 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
 // turn will fire "fullscreen" events.
 - (void)windowDidEnterFullScreen:(NSNotification *)notification
 {
-  if (!mGeckoWindow) {
+  if (!mGoannaWindow) {
     return;
   }
 
-  mGeckoWindow->EnteredFullScreen(true);
+  mGoannaWindow->EnteredFullScreen(true);
 }
 
 - (void)windowDidExitFullScreen:(NSNotification *)notification
 {
-  if (!mGeckoWindow) {
+  if (!mGoannaWindow) {
     return;
   }
 
-  mGeckoWindow->EnteredFullScreen(false);
+  mGoannaWindow->EnteredFullScreen(false);
 }
 
 - (void)windowDidFailToEnterFullScreen:(NSWindow *)window
 {
-  if (!mGeckoWindow) {
+  if (!mGoannaWindow) {
     return;
   }
 
-  mGeckoWindow->EnteredFullScreen(false);
+  mGoannaWindow->EnteredFullScreen(false);
 }
 
 - (void)windowDidFailToExitFullScreen:(NSWindow *)window
 {
-  if (!mGeckoWindow) {
+  if (!mGoannaWindow) {
     return;
   }
 
-  mGeckoWindow->EnteredFullScreen(true);
+  mGoannaWindow->EnteredFullScreen(true);
 }
 
 - (void)windowDidBecomeMain:(NSNotification *)aNotification
@@ -2309,16 +2309,16 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
 
 - (void)windowDidMove:(NSNotification *)aNotification
 {
-  if (mGeckoWindow)
-    mGeckoWindow->ReportMoveEvent();
+  if (mGoannaWindow)
+    mGoannaWindow->ReportMoveEvent();
 }
 
 - (BOOL)windowShouldClose:(id)sender
 {
-  nsIWidgetListener* listener = mGeckoWindow ? mGeckoWindow->GetWidgetListener() : nullptr;
+  nsIWidgetListener* listener = mGoannaWindow ? mGoannaWindow->GetWidgetListener() : nullptr;
   if (listener)
-    listener->RequestWindowClose(mGeckoWindow);
-  return NO; // gecko will do it
+    listener->RequestWindowClose(mGoannaWindow);
+  return NO; // goanna will do it
 }
 
 - (void)windowWillClose:(NSNotification *)aNotification
@@ -2333,14 +2333,14 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
 
 - (void)windowDidMiniaturize:(NSNotification *)aNotification
 {
-  if (mGeckoWindow)
-    mGeckoWindow->DispatchSizeModeEvent();
+  if (mGoannaWindow)
+    mGoannaWindow->DispatchSizeModeEvent();
 }
 
 - (void)windowDidDeminiaturize:(NSNotification *)aNotification
 {
-  if (mGeckoWindow)
-    mGeckoWindow->DispatchSizeModeEvent();
+  if (mGoannaWindow)
+    mGoannaWindow->DispatchSizeModeEvent();
 }
 
 - (BOOL)windowShouldZoom:(NSWindow *)window toFrame:(NSRect)proposedFrame
@@ -2382,16 +2382,16 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
       [[[aNotification userInfo]
          objectForKey:@"NSBackingPropertyOldScaleFactorKey"] doubleValue];
     if ([window backingScaleFactor] != oldFactor) {
-      mGeckoWindow->BackingScaleFactorChanged();
+      mGoannaWindow->BackingScaleFactorChanged();
     }
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
-- (nsCocoaWindow*)geckoWidget
+- (nsCocoaWindow*)goannaWidget
 {
-  return mGeckoWindow;
+  return mGoannaWindow;
 }
 
 - (bool)toplevelActiveState
@@ -2401,8 +2401,8 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
 
 - (void)sendToplevelActivateEvents
 {
-  if (!mToplevelActiveState && mGeckoWindow) {
-    nsIWidgetListener* listener = mGeckoWindow->GetWidgetListener();
+  if (!mToplevelActiveState && mGoannaWindow) {
+    nsIWidgetListener* listener = mGoannaWindow->GetWidgetListener();
     if (listener)
       listener->WindowActivated();
     mToplevelActiveState = true;
@@ -2411,8 +2411,8 @@ nsCocoaWindow::SetInputContext(const InputContext& aContext,
 
 - (void)sendToplevelDeactivateEvents
 {
-  if (mToplevelActiveState && mGeckoWindow) {
-    nsIWidgetListener* listener = mGeckoWindow->GetWidgetListener();
+  if (mToplevelActiveState && mGoannaWindow) {
+    nsIWidgetListener* listener = mGoannaWindow->GetWidgetListener();
     if (listener)
       listener->WindowDeactivated();
     mToplevelActiveState = false;
@@ -2801,7 +2801,7 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
 // 1) In the style sheet we set the toolbar's -moz-appearance to toolbar or
 //    -moz-mac-unified-toolbar.
 // 2) When the toolbar is visible and we paint the application chrome
-//    window, the array that Gecko passes nsChildView::UpdateThemeGeometries
+//    window, the array that Goanna passes nsChildView::UpdateThemeGeometries
 //    will contain an entry for the widget type NS_THEME_TOOLBAR or
 //    NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR.
 // 3) nsChildView::UpdateThemeGeometries finds the toolbar frame's ToolbarWindow
@@ -2955,10 +2955,10 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
     // by nsCocoaWindow::GetClientBounds. GetClientBounds bases its return
     // value on what we return from drawsContentsIntoWindowFrame.
     WindowDelegate *windowDelegate = (WindowDelegate *)[self delegate];
-    nsCocoaWindow *geckoWindow = [windowDelegate geckoWidget];
-    if (geckoWindow) {
+    nsCocoaWindow *goannaWindow = [windowDelegate goannaWidget];
+    if (goannaWindow) {
       // Re-layout our contents.
-      geckoWindow->ReportSizeEvent();
+      goannaWindow->ReportSizeEvent();
     }
 
     // Resizing the content area causes a reflow which would send a synthesized
@@ -2977,7 +2977,7 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
   return YES;
 }
 
-// Dispatch a toolbar pill button clicked message to Gecko.
+// Dispatch a toolbar pill button clicked message to Goanna.
 - (void)_toolbarPillButtonClicked:(id)sender
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -2986,11 +2986,11 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
 
   if ([[self delegate] isKindOfClass:[WindowDelegate class]]) {
     WindowDelegate *windowDelegate = (WindowDelegate *)[self delegate];
-    nsCocoaWindow *geckoWindow = [windowDelegate geckoWidget];
-    if (!geckoWindow)
+    nsCocoaWindow *goannaWindow = [windowDelegate goannaWidget];
+    if (!goannaWindow)
       return;
 
-    nsIWidgetListener* listener = geckoWindow->GetWidgetListener();
+    nsIWidgetListener* listener = goannaWindow->GetWidgetListener();
     if (listener)
       listener->OSToolbarButtonPressed();
   }
@@ -3036,12 +3036,12 @@ static const NSString* kStateShowsToolbarButton = @"showsToolbarButton";
       // event loop.
       id delegate = [self delegate];
       if (delegate && [delegate isKindOfClass:[WindowDelegate class]]) {
-        nsCocoaWindow *widget = [(WindowDelegate *)delegate geckoWidget];
+        nsCocoaWindow *widget = [(WindowDelegate *)delegate goannaWidget];
         if (widget) {
           if (type == NSMouseMoved) {
             [[self mainChildView] updateWindowDraggableStateOnMouseMove:anEvent];
           }
-          if (gGeckoAppModalWindowList && (widget != gGeckoAppModalWindowList->window))
+          if (gGoannaAppModalWindowList && (widget != gGoannaAppModalWindowList->window))
             return;
           if (widget->HasModalDescendents())
             return;
@@ -3221,9 +3221,9 @@ TitlebarDrawCallback(void* aInfo, CGContextRef aContext)
       // event loop.
       id delegate = [self delegate];
       if (delegate && [delegate isKindOfClass:[WindowDelegate class]]) {
-        nsCocoaWindow *widget = [(WindowDelegate *)delegate geckoWidget];
+        nsCocoaWindow *widget = [(WindowDelegate *)delegate goannaWidget];
         if (widget) {
-          if (gGeckoAppModalWindowList && (widget != gGeckoAppModalWindowList->window))
+          if (gGoannaAppModalWindowList && (widget != gGoannaAppModalWindowList->window))
             return;
           if (widget->HasModalDescendents())
             return;

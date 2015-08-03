@@ -341,11 +341,11 @@ gfxAndroidPlatform::FontHintingEnabled()
     // might not want hinting.  Let's see.
 
 #ifdef MOZ_USING_ANDROID_JAVA_WIDGETS
-    // On android-java, we currently only use gecko to render web
+    // On android-java, we currently only use goanna to render web
     // content that can always be be non-reflow-zoomed.  So turn off
     // hinting.
     // 
-    // XXX when gecko-android-java is used as an "app runtime", we may
+    // XXX when goanna-android-java is used as an "app runtime", we may
     // want to re-enable hinting for non-browser processes there.
     return false;
 #endif //  MOZ_USING_ANDROID_JAVA_WIDGETS
@@ -367,10 +367,10 @@ bool
 gfxAndroidPlatform::RequiresLinearZoom()
 {
 #ifdef MOZ_USING_ANDROID_JAVA_WIDGETS
-    // On android-java, we currently only use gecko to render web
+    // On android-java, we currently only use goanna to render web
     // content that can always be be non-reflow-zoomed.
     //
-    // XXX when gecko-android-java is used as an "app runtime", we may
+    // XXX when goanna-android-java is used as an "app runtime", we may
     // want to treat it like B2G and use linear zoom only for the web
     // browser process, not other apps.
     return true;
@@ -380,7 +380,7 @@ gfxAndroidPlatform::RequiresLinearZoom()
     // On B2G, we need linear zoom for the browser, but otherwise prefer
     // the improved glyph spacing that results from respecting the device
     // pixel resolution for glyph layout (see bug 816614).
-    return XRE_GetProcessType() == GeckoProcessType_Content &&
+    return XRE_GetProcessType() == GoannaProcessType_Content &&
            ContentChild::GetSingleton()->IsForBrowser();
 #endif
 

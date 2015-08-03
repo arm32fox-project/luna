@@ -349,9 +349,9 @@ TabChild::Observe(nsISupports *aSubject,
         mLastMetrics.mCompositionBounds = ScreenIntRect(ScreenIntPoint(), mInnerSize);
         CSSToScreenScale resolution =
           AsyncPanZoomController::CalculateResolution(mLastMetrics);
-        // We use ScreenToLayerScale(1) below in order to ask gecko to render
+        // We use ScreenToLayerScale(1) below in order to ask goanna to render
         // what's currently visible on the screen. This is effectively turning
-        // the async zoom amount into the gecko zoom amount.
+        // the async zoom amount into the goanna zoom amount.
         mLastMetrics.mResolution =
           resolution / mLastMetrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
         mLastMetrics.mScrollOffset = CSSPoint(0, 0);

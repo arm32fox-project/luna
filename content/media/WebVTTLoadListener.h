@@ -28,7 +28,7 @@ namespace mozilla {
 namespace dom {
 /**
  * Class that manages the libwebvtt parsing library and functions as an
- * interface between Gecko and libwebvtt.
+ * interface between Goanna and libwebvtt.
  *
  * Currently it's only designed to work with an HTMLTrackElement. The
  * HTMLTrackElement controls the lifetime of the WebVTTLoadListener.

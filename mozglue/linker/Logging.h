@@ -7,7 +7,7 @@
 
 #ifdef ANDROID
 #include <android/log.h>
-#define log(...) __android_log_print(ANDROID_LOG_ERROR, "GeckoLinker", __VA_ARGS__)
+#define log(...) __android_log_print(ANDROID_LOG_ERROR, "GoannaLinker", __VA_ARGS__)
 #else
 #include <cstdio>
 

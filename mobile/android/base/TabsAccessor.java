@@ -2,11 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UiAsyncTask;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -23,7 +23,7 @@ import java.util.Collections;
 import java.util.List;
 
 public final class TabsAccessor {
-    private static final String LOGTAG = "GeckoTabsAccessor";
+    private static final String LOGTAG = "GoannaTabsAccessor";
 
     private static final String[] CLIENTS_AVAILABILITY_PROJECTION = new String[] {
                                                                         BrowserContract.Clients.GUID

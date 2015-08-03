@@ -3489,12 +3489,12 @@ protected:
                        uint32_t aScriptRunEnd,
                        int32_t aRunScript);
 
-    /* If aResolveGeneric is true, then CSS/Gecko generic family names are
+    /* If aResolveGeneric is true, then CSS/Goanna generic family names are
      * replaced with preferred fonts.
      *
      * If aResolveFontName is true then fc() is called only for existing fonts
      * and with actual font names.  If false then fc() is called with each
-     * family name in aFamilies (after resolving CSS/Gecko generic family names
+     * family name in aFamilies (after resolving CSS/Goanna generic family names
      * if aResolveGeneric).
      * If aUseFontSet is true, the fontgroup's user font set is checked;
      * if false then it is skipped.

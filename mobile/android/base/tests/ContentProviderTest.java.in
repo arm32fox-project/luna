@@ -172,7 +172,7 @@ abstract class ContentProviderTest extends BaseTest {
 
     private void setUpProviderClassAndAuthority(String providerClassName,
             String authorityField) throws Exception {
-        mProviderContract = mClassLoader.loadClass("org.mozilla.gecko.db.BrowserContract");
+        mProviderContract = mClassLoader.loadClass("org.mozilla.goanna.db.BrowserContract");
         mProviderAuthority = (String) mProviderContract.getField(authorityField).get(null);
         mProviderClass = mClassLoader.loadClass(providerClassName);
     }
@@ -203,17 +203,17 @@ abstract class ContentProviderTest extends BaseTest {
     }
 
     public Uri getUriColumn(String className, String columnId) throws Exception {
-        Class aClass = mClassLoader.loadClass("org.mozilla.gecko.db.BrowserContract$" + className);
+        Class aClass = mClassLoader.loadClass("org.mozilla.goanna.db.BrowserContract$" + className);
         return (Uri) aClass.getField(columnId).get(null);
     }
 
     public String getStringColumn(String className, String columnId) throws Exception {
-        Class aClass = mClassLoader.loadClass("org.mozilla.gecko.db.BrowserContract$" + className);
+        Class aClass = mClassLoader.loadClass("org.mozilla.goanna.db.BrowserContract$" + className);
         return (String) aClass.getField(columnId).get(null);
     }
 
     public int getIntColumn(String className, String columnId) throws Exception {
-        Class aClass = mClassLoader.loadClass("org.mozilla.gecko.db.BrowserContract$" + className);
+        Class aClass = mClassLoader.loadClass("org.mozilla.goanna.db.BrowserContract$" + className);
         Integer intColumn = (Integer) aClass.getField(columnId).get(null);
         return intColumn.intValue();
     }

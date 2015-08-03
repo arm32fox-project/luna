@@ -153,7 +153,7 @@ JavaScriptChild::AnswerHas(const ObjectId &objId, const nsString &id,
     JSAutoCompartment comp(cx, obj);
 
     RootedId internedId(cx);
-    if (!convertGeckoStringToId(cx, id, &internedId))
+    if (!convertGoannaStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
     JSBool found;
@@ -178,7 +178,7 @@ JavaScriptChild::AnswerHasOwn(const ObjectId &objId, const nsString &id,
     JSAutoCompartment comp(cx, obj);
 
     RootedId internedId(cx);
-    if (!convertGeckoStringToId(cx, id, &internedId))
+    if (!convertGoannaStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
     JSPropertyDescriptor desc;
@@ -208,7 +208,7 @@ JavaScriptChild::AnswerGet(const ObjectId &objId, const ObjectId &receiverId,
     JSAutoCompartment comp(cx, obj);
 
     RootedId internedId(cx);
-    if (!convertGeckoStringToId(cx, id, &internedId))
+    if (!convertGoannaStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
     JS::Value val;
@@ -245,7 +245,7 @@ JavaScriptChild::AnswerSet(const ObjectId &objId, const ObjectId &receiverId,
     JSAutoCompartment comp(cx, obj);
 
     RootedId internedId(cx);
-    if (!convertGeckoStringToId(cx, id, &internedId))
+    if (!convertGoannaStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
     MOZ_ASSERT(obj == receiver);
@@ -417,7 +417,7 @@ JavaScriptChild::AnswerGetPropertyDescriptor(const ObjectId &objId,
     JSAutoCompartment comp(cx, obj);
 
     RootedId internedId(cx);
-    if (!convertGeckoStringToId(cx, id, &internedId))
+    if (!convertGoannaStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
     JSPropertyDescriptor desc;
@@ -452,7 +452,7 @@ JavaScriptChild::AnswerGetOwnPropertyDescriptor(const ObjectId &objId,
     JSAutoCompartment comp(cx, obj);
 
     RootedId internedId(cx);
-    if (!convertGeckoStringToId(cx, id, &internedId))
+    if (!convertGoannaStringToId(cx, id, &internedId))
         return fail(cx, rs);
 
     JSPropertyDescriptor desc;
@@ -490,7 +490,7 @@ JavaScriptChild::AnswerGetOwnPropertyNames(const ObjectId &objId,
 
     for (size_t i = 0; i < props.length(); i++) {
         nsString name;
-        if (!convertIdToGeckoString(cx, props.handleAt(i), &name))
+        if (!convertIdToGoannaString(cx, props.handleAt(i), &name))
             return false;
 
         names->AppendElement(name);
@@ -519,7 +519,7 @@ JavaScriptChild::AnswerKeys(const ObjectId &objId,
 
     for (size_t i = 0; i < props.length(); i++) {
         nsString name;
-        if (!convertIdToGeckoString(cx, props.handleAt(i), &name))
+        if (!convertIdToGoannaString(cx, props.handleAt(i), &name))
             return false;
 
         names->AppendElement(name);
