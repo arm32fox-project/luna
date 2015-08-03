@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <blocklist xmlns="http://www.mozilla.org/2006/addons-blocklist"
-lastupdate="1431308782000">
+lastupdate="1438587652000">
   <emItems>
     <emItem blockID="i58" id="webmaster@buzzzzvideos.info">
       <versionRange minVersion="0" maxVersion="*"></versionRange>
@@ -327,6 +327,12 @@ lastupdate="1431308782000">
     </emItem>
     <emItem blockID="i52" id="ff-ext@youtube">
       <versionRange minVersion="0" maxVersion="*"></versionRange>
+      <prefs></prefs>
+    </emItem>
+    <emItem blockID="i966"
+    id="{5C655500-E712-41e7-9349-CE462F844B19}">
+      <versionRange minVersion="0" maxVersion="1.0.1-signed"
+      severity="1"></versionRange>
       <prefs></prefs>
     </emItem>
     <emItem blockID="i504" id="aytac@abc.com">
@@ -2341,6 +2347,11 @@ lastupdate="1431308782000">
     <emItem blockID="i21" id="support@update-firefox.com">
       <prefs></prefs>
     </emItem>
+    <emItem id="{d10d0bf8-f5b5-c8b4-a8b2-2b9879e08c5d}">
+      <versionRange minVersion="0" maxVersion="*" severity="2">
+      </versionRange>
+      <prefs></prefs>
+    </emItem>
   </emItems>
   <pluginItems>
     <pluginItem blockID="p26">
@@ -2421,7 +2432,7 @@ lastupdate="1431308782000">
           <versionRange minVersion="0.1" maxVersion="17.0.1" />
         </targetApplication>
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p102">
       <match name="filename" exp="npmozax\.dll" />
@@ -2530,7 +2541,7 @@ lastupdate="1431308782000">
           <versionRange minVersion="4.0" maxVersion="16.*" />
         </targetApplication>
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p176">
       <match name="filename"
@@ -2542,7 +2553,7 @@ lastupdate="1431308782000">
           <versionRange minVersion="19.0a1" maxVersion="*" />
         </targetApplication>
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p176">
       <match name="filename"
@@ -2554,7 +2565,7 @@ lastupdate="1431308782000">
           <versionRange minVersion="17.0.4" maxVersion="17.0.*" />
         </targetApplication>
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p178">
       <match name="filename"
@@ -2566,7 +2577,7 @@ lastupdate="1431308782000">
           <versionRange minVersion="19.0a1" maxVersion="*" />
         </targetApplication>
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p178">
       <match name="filename"
@@ -2578,7 +2589,7 @@ lastupdate="1431308782000">
           <versionRange minVersion="17.0.4" maxVersion="17.0.*" />
         </targetApplication>
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p180">
       <match name="filename" exp="JavaAppletPlugin\.plugin" />
@@ -2727,7 +2738,7 @@ lastupdate="1431308782000">
           <versionRange minVersion="18.0a1" maxVersion="*" />
         </targetApplication>
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p260">
       <match name="filename"
@@ -2739,7 +2750,7 @@ lastupdate="1431308782000">
           <versionRange minVersion="17.0.4" maxVersion="17.0.*" />
         </targetApplication>
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p290">
       <match name="filename"
@@ -2752,7 +2763,7 @@ lastupdate="1431308782000">
           <versionRange minVersion="19.0a1" maxVersion="*" />
         </targetApplication>
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p290">
       <match name="filename"
@@ -2765,7 +2776,7 @@ lastupdate="1431308782000">
           <versionRange minVersion="17.0.4" maxVersion="17.0.*" />
         </targetApplication>
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p292">
       <match name="filename" exp="JavaAppletPlugin\.plugin" />
@@ -2863,7 +2874,7 @@ lastupdate="1431308782000">
           <versionRange minVersion="19.0a1" maxVersion="*" />
         </targetApplication>
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p330">
       <match name="description"
@@ -2875,7 +2886,7 @@ lastupdate="1431308782000">
           <versionRange minVersion="17.0.4" maxVersion="17.0.*" />
         </targetApplication>
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p332">
       <match name="description"
@@ -2887,7 +2898,7 @@ lastupdate="1431308782000">
           <versionRange minVersion="19.0a1" maxVersion="*" />
         </targetApplication>
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p332">
       <match name="description"
@@ -2899,7 +2910,7 @@ lastupdate="1431308782000">
           <versionRange minVersion="17.0.4" maxVersion="17.0.*" />
         </targetApplication>
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p366">
       <match name="filename" exp="Scorch\.plugin" />
@@ -3065,62 +3076,203 @@ lastupdate="1431308782000">
       <versionRange minVersion="10.3.183.66"
       maxVersion="13.0.0.258" severity="0" vulnerabilitystatus="1">
       </versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem os="Linux" blockID="p796">
       <match name="filename" exp="libflashplayer\.so" />
       <versionRange minVersion="0" maxVersion="11.2.202.424"
       severity="0" vulnerabilitystatus="1"></versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p798">
       <match name="filename"
       exp="(NPSWF32.*\.dll)|(Flash\ Player\.plugin)" />
       <versionRange minVersion="14.0" maxVersion="15.0.0.242"
       severity="0" vulnerabilitystatus="1"></versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p824">
       <match name="filename"
       exp="(NPSWF32.*\.dll)|(Flash\ Player\.plugin)" />
       <versionRange minVersion="13.0.0.259" maxVersion="13.0.0.263"
       severity="0" vulnerabilitystatus="1"></versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem os="Linux" blockID="p826">
       <match name="filename" exp="libflashplayer\.so" />
       <versionRange minVersion="11.2.202.425"
       maxVersion="11.2.202.439" severity="0"
       vulnerabilitystatus="1"></versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p828">
       <match name="filename"
       exp="(NPSWF32.*\.dll)|(Flash\ Player\.plugin)" />
       <versionRange minVersion="15.0.0.243" maxVersion="16.0.0.287"
       severity="0" vulnerabilitystatus="1"></versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem os="Linux" blockID="p830">
       <match name="filename" exp="libflashplayer\.so" />
       <versionRange minVersion="11.2.202.439"
       maxVersion="11.2.202.441" severity="0"
       vulnerabilitystatus="1"></versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p832">
       <match name="filename"
       exp="(NPSWF32.*\.dll)|(Flash\ Player\.plugin)" />
       <versionRange minVersion="16.0.0.295" maxVersion="16.0.0.304"
       severity="0" vulnerabilitystatus="1"></versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
     </pluginItem>
     <pluginItem blockID="p834">
       <match name="filename"
       exp="(NPSWF32.*\.dll)|(Flash\ Player\.plugin)" />
       <versionRange minVersion="13.0.0.263" maxVersion="13.0.0.268"
       severity="0" vulnerabilitystatus="1"></versionRange>
-      <infoURL>https://get.adobe.com/flashplayer/</infoURL>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p902">
+      <match name="filename" exp="JavaAppletPlugin\.plugin" />
+      <versionRange minVersion="Java 7 Update 45"
+      maxVersion="Java 7 Update 78" severity="0"
+      vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://java.com/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p904">
+      <match name="filename" exp="JavaAppletPlugin\.plugin" />
+      <versionRange minVersion="Java 8"
+      maxVersion="Java 8 Update 44" severity="0"
+      vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://java.com/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p906">
+      <match name="name"
+      exp="Java\(TM\) Platform SE 7 U(4[5-9]|(5|6)\d|7[0-8])(\s[^\d\._U]|$)" />
+      <match name="filename" exp="npjp2\.dll" />
+      <versionRange severity="0" vulnerabilitystatus="1">
+      </versionRange>
+      <infoURL>https://java.com/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p908">
+      <match name="name"
+      exp="Java\(TM\) Platform SE 8( U([1-3]?\d|4[0-4]))?(\s[^\d\._U]|$)" />
+      <match name="filename" exp="npjp2\.dll" />
+      <versionRange severity="0" vulnerabilitystatus="1">
+      </versionRange>
+      <infoURL>https://java.com/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p910">
+      <match name="name"
+      exp="Java(\(TM\))? Plug-in 10\.(4[5-9]|(5|6)\d|7[0-8])(\.[0-9]+)?([^\d\._]|$)" />
+      <match name="filename" exp="libnpjp2\.so" />
+      <versionRange severity="0" vulnerabilitystatus="1">
+      </versionRange>
+      <infoURL>https://java.com/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p912">
+      <match name="name"
+      exp="Java(\(TM\))? Plug-in 11\.(\d|[1-3]\d|4[0-4])(\.[0-9]+)?([^\d\._]|$)" />
+      <match name="filename" exp="libnpjp2\.so" />
+      <versionRange severity="0" vulnerabilitystatus="1">
+      </versionRange>
+      <infoURL>https://java.com/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p928">
+      <match name="filename"
+      exp="(NPSWF32.*\.dll)|(NPSWF64.*\.dll)|(Flash\ Player\.plugin)" />
+      <versionRange minVersion="13.0.0.269" maxVersion="13.0.0.295"
+      severity="0" vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p930">
+      <match name="filename"
+      exp="(NPSWF32.*\.dll)|(NPSWF64.*\.dll)|(Flash\ Player\.plugin)" />
+      <versionRange minVersion="16.0.0.305" maxVersion="18.0.0.193"
+      severity="0" vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
+    </pluginItem>
+    <pluginItem os="Linux" blockID="p932">
+      <match name="filename" exp="libflashplayer\.so" />
+      <versionRange minVersion="11.2.202.442"
+      maxVersion="11.2.202.467" severity="0"
+      vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
+    </pluginItem>
+    <pluginItem os="Linux" blockID="p936">
+      <match name="filename" exp="libflashplayer\.so" />
+      <versionRange minVersion="11.2.202.468"
+      maxVersion="11.2.202.480" severity="0"
+      vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p938">
+      <match name="filename"
+      exp="(NPSWF32.*\.dll)|(NPSWF64.*\.dll)|(Flash\ Player\.plugin)" />
+      <versionRange minVersion="18.0.0.194" maxVersion="18.0.0.202"
+      severity="0" vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p940">
+      <match name="filename"
+      exp="(NPSWF32.*\.dll)|(NPSWF64.*\.dll)|(Flash\ Player\.plugin)" />
+      <versionRange minVersion="13.0.0.296" maxVersion="13.0.0.301"
+      severity="0" vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
+    </pluginItem>
+    <pluginItem os="Linux" blockID="p948">
+      <match name="filename" exp="libflashplayer\.so" />
+      <versionRange minVersion="11.2.202.481"
+      maxVersion="11.2.202.481" severity="0"
+      vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://www.adobe.com/products/flashplayer/distribution3.html</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p954">
+      <match name="filename" exp="JavaAppletPlugin\.plugin" />
+      <versionRange minVersion="Java 7 Update 79"
+      maxVersion="Java 7 Update 80" severity="0"
+      vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://java.com/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p956">
+      <match name="filename" exp="JavaAppletPlugin\.plugin" />
+      <versionRange minVersion="Java 8 Update 45"
+      maxVersion="Java 8 Update 45" severity="0"
+      vulnerabilitystatus="1"></versionRange>
+      <infoURL>https://java.com/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p958">
+      <match name="name"
+      exp="Java\(TM\) Platform SE 7 U(79|80)(\s[^\d\._U]|$)" />
+      <match name="filename" exp="npjp2\.dll" />
+      <versionRange severity="0" vulnerabilitystatus="1">
+      </versionRange>
+      <infoURL>https://java.com/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p960">
+      <match name="name"
+      exp="Java\(TM\) Platform SE 8 U45(\s[^\d\._U]|$)" />
+      <match name="filename" exp="npjp2\.dll" />
+      <versionRange severity="0" vulnerabilitystatus="1">
+      </versionRange>
+      <infoURL>https://java.com/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p962">
+      <match name="name"
+      exp="Java(\(TM\))? Plug-in 10\.(79|80)(\.[0-9]+)?([^\d\._]|$)" />
+      <match name="filename" exp="libnpjp2\.so" />
+      <versionRange severity="0" vulnerabilitystatus="1">
+      </versionRange>
+      <infoURL>https://java.com/</infoURL>
+    </pluginItem>
+    <pluginItem blockID="p964">
+      <match name="name"
+      exp="Java(\(TM\))? Plug-in 11\.45(\.[0-9]+)?([^\d\._]|$)" />
+      <match name="filename" exp="libnpjp2\.so" />
+      <versionRange severity="0" vulnerabilitystatus="1">
+      </versionRange>
+      <infoURL>https://java.com/</infoURL>
     </pluginItem>
   </pluginItems>
   <gfxItems>
