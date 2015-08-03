@@ -8,7 +8,7 @@ let bridge = SpecialPowers.Cc["@mozilla.org/android/bridge;1"]
 
 function sendMessageToJava(message) {
   let data = JSON.stringify(message);
-  bridge.handleGeckoMessage(data);
+  bridge.handleGoannaMessage(data);
 }
 
 function _evalURI(uri, sandbox) {

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
 import android.animation.Animator;
 import android.animation.AnimatorListenerAdapter;
@@ -28,8 +28,8 @@ import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.animation.PropertyAnimator;
+import org.mozilla.goanna.R;
 
 public class ButtonToast {
     private final static int TOAST_DURATION = 5000;

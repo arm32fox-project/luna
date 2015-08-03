@@ -2,11 +2,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.util.FloatUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.util.FloatUtils;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.graphics.Rect;
 import android.graphics.RectF;
@@ -39,7 +39,7 @@ public class PluginLayer extends TileLayer {
         super(new BufferedCairoImage(null, 0, 0, 0), TileLayer.PaintMode.NORMAL);
 
         mView = view;
-        mContainer = GeckoAppShell.getGeckoInterface().getPluginContainer();
+        mContainer = GoannaAppShell.getGoannaInterface().getPluginContainer();
 
         mView.setWillNotDraw(false);
         if (mView instanceof SurfaceView) {
@@ -119,7 +119,7 @@ public class PluginLayer extends TileLayer {
 
     class PluginLayoutParams extends AbsoluteLayout.LayoutParams
     {
-        private static final String LOGTAG = "GeckoApp.PluginLayoutParams";
+        private static final String LOGTAG = "GoannaApp.PluginLayoutParams";
 
         private RectF mRect;
         private int mMaxDimension;

@@ -497,7 +497,7 @@ nsNativeAppSupportUnix::Start(bool *aRetVal)
 
 #if defined(MOZ_X11) && (MOZ_WIDGET_GTK == 2)
   if (!gnome_program_get()) {
-    gnome_program_init("Gecko", "1.0", libgnomeui_module_info_get(), gArgc, gArgv, NULL);
+    gnome_program_init("Goanna", "1.0", libgnomeui_module_info_get(), gArgc, gArgv, NULL);
   }
 #endif /* MOZ_X11 && (MOZ_WIDGET_GTK == 2) */
 

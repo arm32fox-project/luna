@@ -249,7 +249,7 @@ HealthReporterState.prototype = Object.freeze({
 /**
  * This is the abstract base class of `HealthReporter`. It exists so that
  * we can sanely divide work on platforms where control of Firefox Health
- * Report is outside of Gecko (e.g., Android).
+ * Report is outside of Goanna (e.g., Android).
  */
 function AbstractHealthReporter(branch, policy, sessionRecorder) {
   if (!branch.endsWith(".")) {
@@ -898,7 +898,7 @@ AbstractHealthReporter.prototype = Object.freeze({
     let o = {
       version: 2,
       thisPingDate: pingDateString,
-      geckoAppInfo: this.obtainAppInfo(this._log),
+      goannaAppInfo: this.obtainAppInfo(this._log),
       data: {last: {}, days: {}},
     };
 

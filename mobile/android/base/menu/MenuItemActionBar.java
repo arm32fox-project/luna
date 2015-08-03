@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.menu;
+package org.mozilla.goanna.menu;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
 import android.content.Context;
 import android.graphics.drawable.Drawable;
@@ -13,8 +13,8 @@ import android.view.ViewGroup;
 import android.widget.ImageButton;
 
 public class MenuItemActionBar extends ImageButton
-                               implements GeckoMenuItem.Layout {
-    private static final String LOGTAG = "GeckoMenuItemActionBar";
+                               implements GoannaMenuItem.Layout {
+    private static final String LOGTAG = "GoannaMenuItemActionBar";
 
     public MenuItemActionBar(Context context) {
         this(context, null);
@@ -32,7 +32,7 @@ public class MenuItemActionBar extends ImageButton
     }
 
     @Override
-    public void initialize(GeckoMenuItem item) {
+    public void initialize(GoannaMenuItem item) {
         if (item == null)
             return;
 

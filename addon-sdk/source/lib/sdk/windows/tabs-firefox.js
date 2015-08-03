@@ -62,7 +62,7 @@ const WindowTabTracker = Trait.compose({
     this._onTabUnpinned = this._onTabEvent.bind(this, "unpinned");
 
     for each (let tab in getTabs(this._window)) {
-      // We emulate "open" events for all open tabs since gecko does not emits
+      // We emulate "open" events for all open tabs since goanna does not emits
       // them on the tabs that new windows are open with. Also this is
       // necessary to synchronize tabs lists with an actual state.
       this._onTabOpen(tab);
@@ -80,7 +80,7 @@ const WindowTabTracker = Trait.compose({
     tabsObserver.on("unpinned", this._onTabUnpinned);
   },
   _destroyWindowTabTracker: function _destroyWindowTabTracker() {
-    // We emulate close events on all tabs, since gecko does not emits such
+    // We emulate close events on all tabs, since goanna does not emits such
     // events by itself.
     for each (let tab in this.tabs)
       this._emitEvent("close", tab);

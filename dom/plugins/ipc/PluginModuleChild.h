@@ -136,7 +136,7 @@ protected:
     RecvProcessNativeEventsInRPCCall() MOZ_OVERRIDE;
 
     virtual bool
-    AnswerGeckoGetProfile(nsCString* aProfile);
+    AnswerGoannaGetProfile(nsCString* aProfile);
 
 public:
     PluginModuleChild();

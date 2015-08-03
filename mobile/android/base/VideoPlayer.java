@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -19,7 +19,7 @@ import java.net.URL;
 import java.net.URLConnection;
 
 public final class VideoPlayer extends Activity {
-    public static final String VIDEO_ACTION = "org.mozilla.gecko.PLAY_VIDEO";
+    public static final String VIDEO_ACTION = "org.mozilla.goanna.PLAY_VIDEO";
 
     private VideoView mVideoView;
 

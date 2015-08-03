@@ -1377,6 +1377,23 @@ class AutoIdRooter : private AutoGCRooter
 
 #define JSFUN_CONSTRUCTOR      0x400    /* native that can be called as a ctor */
 
+/*
+ * The following property flags fall outside of the uint8 space used for some
+ * of the data structures to store this information. Keep this in mind if
+ * ever reorganizing these bitfield values
+ */
+#define JSPROP_IGNORE_ENUMERATE 0x1000  /* Ignore the value in JSPROP_ENUMERATE.
+                                           This flag is only valid when defining over
+                                           an existing property. */
+#define JSPROP_IGNORE_READONLY  0x2000  /* Ignore the value in JSPROP_READONLY.
+                                           This flag is only valid when defining over
+                                           an existing property. */
+#define JSPROP_IGNORE_PERMANENT 0x4000  /* Ignore the value in JSPROP_PERMANENT.
+                                           This flag is only valid when defining over
+                                           an existing property. */
+#define JSPROP_IGNORE_VALUE     0x8000  /* Ignore the Value in the descriptor. Nothing was
+                                           specified when passed to Object.defineProperty
+                                           from script. */
 
 /*
  * Specify a generic native prototype methods, i.e., methods of a class
@@ -2202,7 +2219,7 @@ JS_GetGlobalForScopeChain(JSContext *cx);
  * frame, which may not match the cx's current compartment. This is extremely
  * dangerous, because it can bypass compartment security invariants in subtle
  * ways. To use it safely, the caller must perform a subsequent security
- * check. There is currently only one consumer of this function in Gecko, and
+ * check. There is currently only one consumer of this function in Goanna, and
  * it should probably stay that way. If you'd like to use it, please consult
  * the XPConnect module owner first.
  */

@@ -27,12 +27,12 @@ public:
   }
 
   /*
-   * Init a standard gecko event for this widget.
+   * Init a standard goanna event for this widget.
    */
   virtual void InitEvent(nsGUIEvent& aEvent, nsIntPoint* aPoint = nullptr) = 0;
 
   /*
-   * Dispatch a gecko event for this widget.
+   * Dispatch a goanna event for this widget.
    */
   virtual bool DispatchWindowEvent(nsGUIEvent* aEvent) = 0;
 

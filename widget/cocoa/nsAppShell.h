@@ -5,7 +5,7 @@
 
 /*
  * Runs the main native Cocoa run loop, interrupting it as needed to process
- * Gecko events.  
+ * Goanna events.  
  */
 
 #ifndef nsAppShell_h_
@@ -34,22 +34,22 @@ public:
   nsresult PushCocoa(NSWindow *aWindow, NSModalSession aSession);
   // Pop the topmost Cocoa app-modal window off our list.
   nsresult PopCocoa(NSWindow *aWindow, NSModalSession aSession);
-  // Push a Gecko-modal window onto the top of our list.
-  nsresult PushGecko(NSWindow *aWindow, nsCocoaWindow *aWidget);
-  // Pop the topmost Gecko-modal window off our list.
-  nsresult PopGecko(NSWindow *aWindow, nsCocoaWindow *aWidget);
+  // Push a Goanna-modal window onto the top of our list.
+  nsresult PushGoanna(NSWindow *aWindow, nsCocoaWindow *aWidget);
+  // Pop the topmost Goanna-modal window off our list.
+  nsresult PopGoanna(NSWindow *aWindow, nsCocoaWindow *aWidget);
   // Return the "session" of the top-most visible Cocoa app-modal window.
   NSModalSession CurrentSession();
-  // Has a Gecko modal dialog popped up over a Cocoa app-modal dialog?
-  bool GeckoModalAboveCocoaModal();
+  // Has a Goanna modal dialog popped up over a Cocoa app-modal dialog?
+  bool GoannaModalAboveCocoaModal();
 private:
   nsTArray<nsCocoaAppModalWindowListItem> mList;
 };
 
-// GeckoNSApplication
+// GoannaNSApplication
 //
 // Subclass of NSApplication for filtering out certain events.
-@interface GeckoNSApplication : NSApplication
+@interface GoannaNSApplication : NSApplication
 {
 }
 @end
@@ -81,9 +81,9 @@ protected:
   virtual void ScheduleNativeEventCallback();
   virtual bool ProcessNextNativeEvent(bool aMayWait);
 
-  bool InGeckoMainEventLoop();
+  bool InGoannaMainEventLoop();
 
-  static void ProcessGeckoEvents(void* aInfo);
+  static void ProcessGoannaEvents(void* aInfo);
 
 protected:
   CFMutableArrayRef  mAutoreleasePools;

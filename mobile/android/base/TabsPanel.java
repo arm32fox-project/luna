@@ -3,11 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.ViewHelper;
-import org.mozilla.gecko.widget.IconTabWidget;
+import org.mozilla.goanna.animation.PropertyAnimator;
+import org.mozilla.goanna.animation.ViewHelper;
+import org.mozilla.goanna.widget.IconTabWidget;
 
 import android.content.Context;
 import android.content.res.Resources;
@@ -26,7 +26,7 @@ import android.widget.RelativeLayout;
 public class TabsPanel extends LinearLayout
                        implements LightweightTheme.OnChangeListener,
                                   IconTabWidget.OnTabChangedListener {
-    private static final String LOGTAG = "GeckoTabsPanel";
+    private static final String LOGTAG = "GoannaTabsPanel";
 
     public static enum Panel {
         NORMAL_TABS,
@@ -47,7 +47,7 @@ public class TabsPanel extends LinearLayout
     }
 
     private Context mContext;
-    private GeckoApp mActivity;
+    private GoannaApp mActivity;
     private RelativeLayout mHeader;
     private TabsListContainer mTabsContainer;
     private PanelView mPanel;
@@ -67,7 +67,7 @@ public class TabsPanel extends LinearLayout
     public TabsPanel(Context context, AttributeSet attrs) {
         super(context, attrs);
         mContext = context;
-        mActivity = (GeckoApp) context;
+        mActivity = (GoannaApp) context;
 
         setLayoutParams(new LinearLayout.LayoutParams(LinearLayout.LayoutParams.FILL_PARENT,
                                                       LinearLayout.LayoutParams.FILL_PARENT));
@@ -222,7 +222,7 @@ public class TabsPanel extends LinearLayout
 
         @Override
         protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            if (!GeckoAppShell.getGeckoInterface().hasTabsSideBar()) {
+            if (!GoannaAppShell.getGoannaInterface().hasTabsSideBar()) {
                 int heightSpec = MeasureSpec.makeMeasureSpec(getTabContainerHeight(TabsListContainer.this), MeasureSpec.EXACTLY);
                 super.onMeasure(widthMeasureSpec, heightSpec);
             } else {

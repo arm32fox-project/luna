@@ -159,7 +159,7 @@ CheckQuotaHelper::Run()
       // set the permission when the prompt was shown in the parent, as
       // we cannot set the permission from the child).
       if (mPromptResult != nsIPermissionManager::UNKNOWN_ACTION &&
-          XRE_GetProcessType() == GeckoProcessType_Default) {
+          XRE_GetProcessType() == GoannaProcessType_Default) {
         nsCOMPtr<nsIScriptObjectPrincipal> sop = do_QueryInterface(mWindow);
         NS_ENSURE_TRUE(sop, NS_ERROR_FAILURE);
 

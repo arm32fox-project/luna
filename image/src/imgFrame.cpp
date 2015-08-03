@@ -17,7 +17,7 @@
 static bool gDisableOptimize = false;
 
 #include "cairo.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "mozilla/Likely.h"
 
 #if defined(XP_WIN)

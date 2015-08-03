@@ -3,9 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import org.json.JSONObject;
 
@@ -40,10 +40,10 @@ import java.util.regex.Pattern;
 public final class ANRReporter extends BroadcastReceiver
 {
     private static final boolean DEBUG = false;
-    private static final String LOGTAG = "GeckoANRReporter";
+    private static final String LOGTAG = "GoannaANRReporter";
 
     private static final String ANR_ACTION = "android.intent.action.ANR";
-    // Number of lines to search traces.txt to decide whether it's a Gecko ANR
+    // Number of lines to search traces.txt to decide whether it's a Goanna ANR
     private static final int LINES_TO_IDENTIFY_TRACES = 10;
     // ANRs may happen because of memory pressure,
     //  so don't use up too much memory here
@@ -186,10 +186,10 @@ public final class ANRReporter extends BroadcastReceiver
     }
 
     private static File getPingFile() {
-        if (GeckoAppShell.getContext() == null) {
+        if (GoannaAppShell.getContext() == null) {
             return null;
         }
-        GeckoProfile profile = GeckoAppShell.getGeckoInterface().getProfile();
+        GoannaProfile profile = GoannaAppShell.getGoannaInterface().getProfile();
         if (profile == null) {
             return null;
         }
@@ -205,8 +205,8 @@ public final class ANRReporter extends BroadcastReceiver
         return new File(pingDir, UUID.randomUUID().toString());
     }
 
-    // Return true if the traces file corresponds to a Gecko ANR
-    private static boolean isGeckoTraces(String pkgName, File tracesFile) {
+    // Return true if the traces file corresponds to a Goanna ANR
+    private static boolean isGoannaTraces(String pkgName, File tracesFile) {
         try {
             final String END_OF_PACKAGE_NAME = "([^a-zA-Z0-9_]|$)";
             // Regex for finding our package name in the traces file
@@ -268,9 +268,9 @@ public final class ANRReporter extends BroadcastReceiver
 
     private static long getTotalMem() {
 
-        if (Build.VERSION.SDK_INT >= 16 && GeckoAppShell.getContext() != null) {
+        if (Build.VERSION.SDK_INT >= 16 && GoannaAppShell.getContext() != null) {
             ActivityManager am = (ActivityManager)
-                GeckoAppShell.getContext().getSystemService(Context.ACTIVITY_SERVICE);
+                GoannaAppShell.getContext().getSystemService(Context.ACTIVITY_SERVICE);
             ActivityManager.MemoryInfo mi = new ActivityManager.MemoryInfo();
             am.getMemoryInfo(mi);
             mi.totalMem /= 1024L * 1024L;
@@ -609,14 +609,14 @@ public final class ANRReporter extends BroadcastReceiver
             return;
         }
 
-        // We get ANR intents from all ANRs in the system, but we only want Gecko ANRs
-        if (!isGeckoTraces(context.getPackageName(), tracesFile)) {
+        // We get ANR intents from all ANRs in the system, but we only want Goanna ANRs
+        if (!isGoannaTraces(context.getPackageName(), tracesFile)) {
             if (DEBUG) {
-                Log.d(LOGTAG, "traces is not Gecko ANR");
+                Log.d(LOGTAG, "traces is not Goanna ANR");
             }
             return;
         }
-        Log.i(LOGTAG, "processing Gecko ANR");
+        Log.i(LOGTAG, "processing Goanna ANR");
         processTraces(tracesFile, pingFile);
     }
 }

@@ -63,7 +63,7 @@ public class testBrowserProviderPerf extends ContentProviderTest {
     }
 
     private void loadFilterMethod() throws Exception {
-        Class browserDBClass = mClassLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
+        Class browserDBClass = mClassLoader.loadClass("org.mozilla.goanna.db.BrowserDB");
 
         mFilterMethod =
             browserDBClass.getDeclaredMethod("filter", ContentResolver.class,
@@ -71,7 +71,7 @@ public class testBrowserProviderPerf extends ContentProviderTest {
     }
 
     private void initializeBrowserProvider() throws Exception {
-        Class browserDBClass = mClassLoader.loadClass("org.mozilla.gecko.db.BrowserDB");
+        Class browserDBClass = mClassLoader.loadClass("org.mozilla.goanna.db.BrowserDB");
 
         Method initializeMethod =
             browserDBClass.getDeclaredMethod("initialize", String.class);
@@ -250,7 +250,7 @@ public class testBrowserProviderPerf extends ContentProviderTest {
 
     @Override
     public void setUp() throws Exception {
-        super.setUp("org.mozilla.gecko.db.BrowserProvider", "AUTHORITY");
+        super.setUp("org.mozilla.goanna.db.BrowserProvider", "AUTHORITY");
 
         mGenerator = new Random(19580427);
 

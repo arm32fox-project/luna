@@ -3,7 +3,7 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
-<Gecko.TabRow xmlns:android="http://schemas.android.com/apk/res/android"
+<Goanna.TabRow xmlns:android="http://schemas.android.com/apk/res/android"
               style="@style/TabsItem"
               android:focusable="true"
               android:id="@+id/info"
@@ -22,7 +22,7 @@
                     android:background="@drawable/tab_thumbnail"
                     android:duplicateParentState="true">
 
-        <Gecko.ThumbnailView android:id="@+id/thumbnail"
+        <Goanna.ThumbnailView android:id="@+id/thumbnail"
                              android:layout_width="@dimen/tab_thumbnail_width"
                              android:layout_height="@dimen/tab_thumbnail_height"
                              android:src="@drawable/tab_thumbnail_default"/>
@@ -59,4 +59,4 @@
 
     </RelativeLayout>
 
-</Gecko.TabRow>
+</Goanna.TabRow>

@@ -4,18 +4,18 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-                xmlns:gecko="http://schemas.android.com/apk/res-auto"
+                xmlns:goanna="http://schemas.android.com/apk/res-auto"
                 style="@style/AwesomeBar">
 
-    <org.mozilla.gecko.BrowserToolbarBackground android:id="@+id/address_bar_bg"
+    <org.mozilla.goanna.BrowserToolbarBackground android:id="@+id/address_bar_bg"
                                                 android:layout_width="fill_parent"
                                                 android:layout_height="fill_parent"
                                                 android:layout_alignParentTop="true"
                                                 android:layout_alignParentRight="true"
-                                                gecko:curveTowards="none"
+                                                goanna:curveTowards="none"
                                                 android:background="@drawable/address_bar_bg"/>
 
-    <view class="org.mozilla.gecko.CustomEditText"
+    <view class="org.mozilla.goanna.CustomEditText"
           android:id="@+id/awesomebar_text"
           style="@style/AddressBar.Button"
           android:background="@drawable/address_bar_url"
@@ -40,7 +40,7 @@
           android:selectAllOnFocus="true"
           android:singleLine="true"
           android:gravity="center_vertical|left"
-          gecko:autoUpdateTheme="false">
+          goanna:autoUpdateTheme="false">
     </view>
 
     <LinearLayout android:layout_width="4dp"

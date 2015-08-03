@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.AwesomeBar.ContextMenuSubject;
-import org.mozilla.gecko.db.BrowserDB.URLColumns;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.widget.FaviconView;
+import org.mozilla.goanna.AwesomeBar.ContextMenuSubject;
+import org.mozilla.goanna.db.BrowserDB.URLColumns;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.widget.FaviconView;
 
 import android.content.ContentResolver;
 import android.content.Context;

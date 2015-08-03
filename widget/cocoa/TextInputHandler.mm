@@ -49,7 +49,7 @@ enum {
 // methods (when the ChildView is a plugin view) bypasses Cocoa's IME
 // infrastructure and (instead) causes Carbon TSM events to be sent on each
 // NSKeyDown event.  We install a Carbon event handler
-// (PluginKeyEventsHandler()) to catch these events and pass them to Gecko
+// (PluginKeyEventsHandler()) to catch these events and pass them to Goanna
 // (which in turn passes them to the plugin).
 extern "C" long TSMProcessRawKeyEvent(EventRef carbonEvent);
 #endif // __LP64__
@@ -253,7 +253,7 @@ GetNativeKeyEventType(NSEvent* aNativeEvent)
 }
 
 static const char*
-GetGeckoKeyEventType(const nsEvent &aEvent)
+GetGoannaKeyEventType(const nsEvent &aEvent)
 {
   switch (aEvent.message) {
     case NS_KEY_DOWN:    return "NS_KEY_DOWN";
@@ -771,7 +771,7 @@ TISInputSourceWrapper::InitKeyEvent(NSEvent *aNativeKeyEvent,
   PR_LOG(gLog, PR_LOG_ALWAYS,
     ("%p TISInputSourceWrapper::InitKeyEvent, aNativeKeyEvent=%p, "
      "aKeyEvent.message=%s, aInsertString=%p",
-     this, aNativeKeyEvent, GetGeckoKeyEventType(aKeyEvent), aInsertString));
+     this, aNativeKeyEvent, GetGoannaKeyEventType(aKeyEvent), aInsertString));
 
   NS_ENSURE_TRUE(aNativeKeyEvent, );
 
@@ -788,7 +788,7 @@ TISInputSourceWrapper::InitKeyEvent(NSEvent *aNativeKeyEvent,
 
   UInt32 nativeKeyCode = [aNativeKeyEvent keyCode];
 
-  bool isPrintableKey = !TextInputHandler::IsSpecialGeckoKey(nativeKeyCode);
+  bool isPrintableKey = !TextInputHandler::IsSpecialGoannaKey(nativeKeyCode);
   if (isPrintableKey &&
       [aNativeKeyEvent type] != NSKeyDown &&
       [aNativeKeyEvent type] != NSKeyUp) {
@@ -876,7 +876,7 @@ TISInputSourceWrapper::InitKeyEvent(NSEvent *aNativeKeyEvent,
   }
 
   aKeyEvent.keyCode =
-    ComputeGeckoKeyCode(nativeKeyCode, kbType, aKeyEvent.IsMeta());
+    ComputeGoannaKeyCode(nativeKeyCode, kbType, aKeyEvent.IsMeta());
 
   switch (nativeKeyCode) {
     case kVK_Command:
@@ -940,7 +940,7 @@ TISInputSourceWrapper::InitKeyEvent(NSEvent *aNativeKeyEvent,
   }
 
   // Compute the key for non-printable keys and some special printable keys.
-  aKeyEvent.mKeyNameIndex = ComputeGeckoKeyNameIndex(nativeKeyCode);
+  aKeyEvent.mKeyNameIndex = ComputeGoannaKeyNameIndex(nativeKeyCode);
   if (isPrintableKey &&
       aKeyEvent.mKeyNameIndex == KEY_NAME_INDEX_Unidentified) {
     // If the key name isn't in the list and the key is a printable key but
@@ -989,7 +989,7 @@ TISInputSourceWrapper::InitKeyPressEvent(NSEvent *aNativeKeyEvent,
        "[aNativeKeyEvent characters]=\"%s\", aInsertChar=0x%X(%s), "
        "aKeyEvent.message=%s, aKbType=0x%X, IsOpenedIMEMode()=%s",
        this, aNativeKeyEvent, utf8Chars.get(), aInsertChar,
-       utf8ExpectedChar.get(), GetGeckoKeyEventType(aKeyEvent), aKbType,
+       utf8ExpectedChar.get(), GetGoannaKeyEventType(aKeyEvent), aKbType,
        TrueOrFalse(IsOpenedIMEMode())));
   }
 #endif // #ifdef PR_LOGGING
@@ -1148,12 +1148,12 @@ TISInputSourceWrapper::InitKeyPressEvent(NSEvent *aNativeKeyEvent,
 }
 
 uint32_t
-TISInputSourceWrapper::ComputeGeckoKeyCode(UInt32 aNativeKeyCode,
+TISInputSourceWrapper::ComputeGoannaKeyCode(UInt32 aNativeKeyCode,
                                            UInt32 aKbType,
                                            bool aCmdIsPressed)
 {
   PR_LOG(gLog, PR_LOG_ALWAYS,
-    ("%p TISInputSourceWrapper::ComputeGeckoKeyCode, aNativeKeyCode=0x%X, "
+    ("%p TISInputSourceWrapper::ComputeGoannaKeyCode, aNativeKeyCode=0x%X, "
      "aKbType=0x%X, aCmdIsPressed=%s, IsOpenedIMEMode()=%s, "
      "IsASCIICapable()=%s",
      this, aNativeKeyCode, aKbType, TrueOrFalse(aCmdIsPressed),
@@ -1292,7 +1292,7 @@ TISInputSourceWrapper::ComputeGeckoKeyCode(UInt32 aNativeKeyCode,
   TISInputSourceWrapper currentKeyboardLayout;
   currentKeyboardLayout.InitByCurrentASCIICapableKeyboardLayout();
   NS_ENSURE_TRUE(mInputSource != currentKeyboardLayout.mInputSource, 0);
-  keyCode = currentKeyboardLayout.ComputeGeckoKeyCode(aNativeKeyCode, aKbType,
+  keyCode = currentKeyboardLayout.ComputeGoannaKeyCode(aNativeKeyCode, aKbType,
                                                       aCmdIsPressed);
 
   // However, if keyCode isn't for an alphabet keys or a numeric key, we should
@@ -1306,7 +1306,7 @@ TISInputSourceWrapper::ComputeGeckoKeyCode(UInt32 aNativeKeyCode,
 
 // static
 KeyNameIndex
-TISInputSourceWrapper::ComputeGeckoKeyNameIndex(UInt32 aNativeKeyCode)
+TISInputSourceWrapper::ComputeGoannaKeyNameIndex(UInt32 aNativeKeyCode)
 {
   switch (aNativeKeyCode) {
 
@@ -1627,7 +1627,7 @@ TextInputHandler::HandleFlagsChanged(NSEvent* aNativeEvent)
       // Fire key down event for caps lock.
       DispatchKeyEventForFlagsChanged(aNativeEvent, true);
       // XXX should we fire keyup event too? The keyup event for CapsLock key
-      // is never dispatched on Gecko.
+      // is never dispatched on Goanna.
       // XXX WebKit dispatches keydown event when CapsLock is locked, otherwise,
       // keyup event.  If we do so, we cannot keep the consistency with other
       // platform's behavior...
@@ -2266,7 +2266,7 @@ IMEInputHandler::ResetIMEWindowLevel()
     return;
   }
 
-  // When the focus of Gecko is on a text box of a popup panel, the actual
+  // When the focus of Goanna is on a text box of a popup panel, the actual
   // focused view is the panel's parent view (mView). But the editor is
   // displayed on the popuped widget's view (editorView).  So, their window
   // level may be different.
@@ -2509,9 +2509,9 @@ IMEInputHandler::SetTextRangeList(nsTArray<nsTextRange>& aTextRangeList,
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  // Convert the Cocoa range into the nsTextRange Array used in Gecko.
+  // Convert the Cocoa range into the nsTextRange Array used in Goanna.
   // Iterate through the attributed string and map the underline attribute to
-  // Gecko IME textrange attributes.  We may need to change the code here if
+  // Goanna IME textrange attributes.  We may need to change the code here if
   // we change the implementation of validAttributesForMarkedText.
   NSRange limitRange = NSMakeRange(0, [aAttrString length]);
   uint32_t rangeCount = GetRangeCount(aAttrString);
@@ -3031,15 +3031,15 @@ IMEInputHandler::~IMEInputHandler()
 }
 
 void
-IMEInputHandler::OnFocusChangeInGecko(bool aFocus)
+IMEInputHandler::OnFocusChangeInGoanna(bool aFocus)
 {
   PR_LOG(gLog, PR_LOG_ALWAYS,
-    ("%p IMEInputHandler::OnFocusChangeInGecko, aFocus=%s, Destroyed()=%s, "
+    ("%p IMEInputHandler::OnFocusChangeInGoanna, aFocus=%s, Destroyed()=%s, "
      "sFocusedIMEHandler=%p",
      this, TrueOrFalse(aFocus), TrueOrFalse(Destroyed()), sFocusedIMEHandler));
 
   // This is called when the native focus is changed and when the native focus
-  // isn't changed but the focus is changed in Gecko.
+  // isn't changed but the focus is changed in Goanna.
   if (!aFocus) {
     if (sFocusedIMEHandler == this)
       sFocusedIMEHandler = nullptr;
@@ -3050,8 +3050,8 @@ IMEInputHandler::OnFocusChangeInGecko(bool aFocus)
   mIsInFocusProcessing = true;
 
   // We need to reset the IME's window level by the current focused view of
-  // Gecko.  It may be different from mView.  However, we cannot get the
-  // new focused view here because the focus change process in Gecko hasn't
+  // Goanna.  It may be different from mView.  However, we cannot get the
+  // new focused view here because the focus change process in Goanna hasn't
   // been finished yet.  So, we should post the job to the todo list.
   mPendingMethods |= kResetIMEWindowLevel;
   ResetTimer();
@@ -3641,13 +3641,13 @@ PluginTextInputHandler::HandleCarbonPluginKeyEvent(EventRef aKeyEvent)
       nsCocoaUtils::InitInputEvent(keydownEvent, cocoaModifiers);
 
       uint32_t keyCode =
-        currentInputSource.ComputeGeckoKeyCode(macKeyCode, ::LMGetKbdType(),
+        currentInputSource.ComputeGoannaKeyCode(macKeyCode, ::LMGetKbdType(),
                                                keydownEvent.IsMeta());
       uint32_t charCode(charCodes.ElementAt(i));
 
       keydownEvent.time = PR_IntervalNow();
       keydownEvent.pluginEvent = &eventRec;
-      if (IsSpecialGeckoKey(macKeyCode)) {
+      if (IsSpecialGoannaKey(macKeyCode)) {
         keydownEvent.keyCode = keyCode;
       } else {
         // XXX This is wrong. charCode must be 0 for keydown event.
@@ -4121,7 +4121,7 @@ TextInputHandlerBase::IsPrintableChar(PRUnichar aChar)
 
 
 /* static */ bool
-TextInputHandlerBase::IsSpecialGeckoKey(UInt32 aNativeKeyCode)
+TextInputHandlerBase::IsSpecialGoannaKey(UInt32 aNativeKeyCode)
 {
   // this table is used to determine which keys are special and should not
   // generate a charCode

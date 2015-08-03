@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
-import org.mozilla.gecko.GeckoAppShell;
+import org.mozilla.goanna.GoannaAppShell;
 
 import android.content.ContentValues;
 import android.database.sqlite.SQLiteOpenHelper;
@@ -12,7 +12,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 public class DBUtils {
-    private static final String LOGTAG = "GeckoDBUtils";
+    private static final String LOGTAG = "GoannaDBUtils";
 
     public static final String qualifyColumn(String table, String column) {
         return table + "." + column;
@@ -72,13 +72,13 @@ public class DBUtils {
             } catch (Exception e) {
                 // Things could get very bad if we don't find a way to unlock the DB
                 Log.d(LOGTAG, "Database is locked, trying to kill any zombie processes: " + databasePath);
-                GeckoAppShell.killAnyZombies();
+                GoannaAppShell.killAnyZombies();
                 try {
                     Thread.sleep(retries * 100);
                 } catch (InterruptedException ie) { }
             }
         }
         Log.d(LOGTAG, "Failed to unlock database");
-        GeckoAppShell.listOfOpenFiles();
+        GoannaAppShell.listOfOpenFiles();
     }
 }

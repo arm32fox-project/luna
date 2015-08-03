@@ -4,7 +4,7 @@
 
 #include "ProfilerIOInterposeObserver.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 using namespace mozilla;
 

@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.content.Context;
 import android.content.SharedPreferences;
@@ -14,22 +14,22 @@ import android.graphics.Bitmap;
 import android.util.Log;
 
 public class WebAppAllocator {
-    private final String LOGTAG = "GeckoWebAppAllocator";
+    private final String LOGTAG = "GoannaWebAppAllocator";
     // The number of WebApp# and WEBAPP# activites/apps/intents
     private final static int MAX_WEB_APPS = 100;
 
-    protected static GeckoApp sContext = null;
+    protected static GoannaApp sContext = null;
     protected static WebAppAllocator sInstance = null;
     public static WebAppAllocator getInstance() {
-        return getInstance(GeckoAppShell.getContext());
+        return getInstance(GoannaAppShell.getContext());
     }
 
     public static synchronized WebAppAllocator getInstance(Context cx) {
         if (sInstance == null) {
-            if (!(cx instanceof GeckoApp))
-                throw new RuntimeException("Context needs to be a GeckoApp");
+            if (!(cx instanceof GoannaApp))
+                throw new RuntimeException("Context needs to be a GoannaApp");
 
-            sContext = (GeckoApp) cx;
+            sContext = (GoannaApp) cx;
             sInstance = new WebAppAllocator(cx);
         }
 
@@ -37,7 +37,7 @@ public class WebAppAllocator {
         // Rather than just failing, we want to create a new Allocator instead
         if (cx != sContext) {
             sInstance = null;
-            sContext = (GeckoApp) cx;
+            sContext = (GoannaApp) cx;
             sInstance = new WebAppAllocator(cx);
         }
 

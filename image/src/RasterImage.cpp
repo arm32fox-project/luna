@@ -31,6 +31,7 @@
 #include "nsBMPDecoder.h"
 #include "nsICODecoder.h"
 #include "nsIconDecoder.h"
+#include "nsWEBPDecoder.h"
 
 #ifdef MOZ_WBMP
 #include "nsWBMPDecoder.h"
@@ -45,7 +46,7 @@
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/gfx/Scale.h"
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include <algorithm>
 
 #include "pixman.h"
@@ -2138,6 +2139,9 @@ RasterImage::InitDecoder(bool aDoSizeDecode)
       break;
     case eDecoderType_icon:
       mDecoder = new nsIconDecoder(*this);
+      break;
+    case eDecoderType_webp:
+      mDecoder = new nsWEBPDecoder(*this);
       break;
 #ifdef MOZ_WBMP
     case eDecoderType_wbmp:

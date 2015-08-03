@@ -7,7 +7,7 @@
 #define MOZ_PROFILE_ENTRY_H
 
 #include <ostream>
-#include "GeckoProfilerImpl.h"
+#include "GoannaProfilerImpl.h"
 #include "JSAObjectBuilder.h"
 #include "platform.h"
 #include "mozilla/Mutex.h"

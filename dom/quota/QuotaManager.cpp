@@ -22,7 +22,7 @@
 #include "nsIUsageCallback.h"
 
 #include <algorithm>
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "mozilla/dom/file/FileService.h"
 #include "mozilla/dom/indexedDB/Client.h"
 #include "mozilla/LazyIdleThread.h"
@@ -316,7 +316,7 @@ private:
 bool
 IsMainProcess()
 {
-  return XRE_GetProcessType() == GeckoProcessType_Default;
+  return XRE_GetProcessType() == GoannaProcessType_Default;
 }
 
 void

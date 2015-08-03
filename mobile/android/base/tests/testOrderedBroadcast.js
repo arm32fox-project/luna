@@ -31,7 +31,7 @@ add_task(function test_send() {
 
   let observer = makeObserver();
 
-  sendOrderedBroadcast("org.mozilla.gecko.test.receiver",
+  sendOrderedBroadcast("org.mozilla.goanna.test.receiver",
                        { a: "bcde", b: 1234 }, observer.callback);
 
   let value = yield observer.promise;
@@ -43,7 +43,7 @@ add_task(function test_send() {
   do_check_neq(value.token, null);
   do_check_eq(value.token.a, "bcde");
   do_check_eq(value.token.b, 1234);
-  do_check_eq(value.action, "org.mozilla.gecko.test.receiver");
+  do_check_eq(value.action, "org.mozilla.goanna.test.receiver");
 
   // Data is provided by testOrderedBroadcast.java.in.
   do_check_neq(value.data, null);
@@ -56,7 +56,7 @@ add_task(function test_null_token() {
 
   let observer = makeObserver();
 
-  sendOrderedBroadcast("org.mozilla.gecko.test.receiver",
+  sendOrderedBroadcast("org.mozilla.goanna.test.receiver",
                        null, observer.callback);
 
   let value = yield observer.promise;
@@ -66,7 +66,7 @@ add_task(function test_null_token() {
   // We get back the correct action and token.
   do_check_neq(value, null);
   do_check_eq(value.token, null);
-  do_check_eq(value.action, "org.mozilla.gecko.test.receiver");
+  do_check_eq(value.action, "org.mozilla.goanna.test.receiver");
 
   // Data is provided by testOrderedBroadcast.java.in.
   do_check_neq(value.data, null);
@@ -79,9 +79,9 @@ add_task(function test_permission() {
 
   let observer = makeObserver();
 
-  sendOrderedBroadcast("org.mozilla.gecko.test.receiver",
+  sendOrderedBroadcast("org.mozilla.goanna.test.receiver",
                        null, observer.callback,
-                       "org.mozilla.gecko.fake.permission");
+                       "org.mozilla.goanna.fake.permission");
 
   let value = yield observer.promise;
 
@@ -90,7 +90,7 @@ add_task(function test_permission() {
   // We get back the correct action and token.
   do_check_neq(value, null);
   do_check_eq(value.token, null);
-  do_check_eq(value.action, "org.mozilla.gecko.test.receiver");
+  do_check_eq(value.action, "org.mozilla.goanna.test.receiver");
 
   // Data would be provided by testOrderedBroadcast.java.in, except
   // the no package has the permission, so no responder exists.
@@ -102,7 +102,7 @@ add_task(function test_send_no_receiver() {
 
   let observer = makeObserver();
 
-  sendOrderedBroadcast("org.mozilla.gecko.test.no.receiver",
+  sendOrderedBroadcast("org.mozilla.goanna.test.no.receiver",
                        { a: "bcd", b: 123 }, observer.callback);
 
   let value = yield observer.promise;
@@ -115,7 +115,7 @@ add_task(function test_send_no_receiver() {
   do_check_neq(value.token, null);
   do_check_eq(value.token.a, "bcd");
   do_check_eq(value.token.b, 123);
-  do_check_eq(value.action, "org.mozilla.gecko.test.no.receiver");
+  do_check_eq(value.action, "org.mozilla.goanna.test.no.receiver");
   do_check_eq(value.data, null);
 });
 

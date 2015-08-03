@@ -34,7 +34,7 @@ AudioChannelService::GetAudioChannelService()
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+  if (XRE_GetProcessType() != GoannaProcessType_Default) {
     return AudioChannelServiceChild::GetAudioChannelService();
   }
 
@@ -54,7 +54,7 @@ AudioChannelService::GetAudioChannelService()
 void
 AudioChannelService::Shutdown()
 {
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+  if (XRE_GetProcessType() != GoannaProcessType_Default) {
     return AudioChannelServiceChild::Shutdown();
   }
 
@@ -73,7 +73,7 @@ AudioChannelService::AudioChannelService()
   // Creation of the hash table.
   mAgents.Init();
 
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
     if (obs) {
       obs->AddObserver(this, "ipc:content-shutdown", false);
@@ -102,7 +102,7 @@ AudioChannelService::RegisterType(AudioChannelType aType, uint64_t aChildID)
   AudioChannelInternalType type = GetInternalType(aType, true);
   mChannelCounters[type].AppendElement(aChildID);
 
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     // Since there is another telephony registered, we can unregister old one
     // immediately.
     if (mDeferTelChannelTimer && aType == AUDIO_CHANNEL_TELEPHONY) {
@@ -137,7 +137,7 @@ AudioChannelService::UnregisterType(AudioChannelType aType,
   // There are two reasons to defer the decrease of telephony channel.
   // 1. User can have time to remove device from his ear before music resuming.
   // 2. Give BT SCO to be disconnected before starting to connect A2DP.
-  if (XRE_GetProcessType() == GeckoProcessType_Default &&
+  if (XRE_GetProcessType() == GoannaProcessType_Default &&
       aType == AUDIO_CHANNEL_TELEPHONY &&
       (mChannelCounters[AUDIO_CHANNEL_INT_TELEPHONY_HIDDEN].Length() +
        mChannelCounters[AUDIO_CHANNEL_INT_TELEPHONY].Length()) == 1) {
@@ -164,7 +164,7 @@ AudioChannelService::UnregisterTypeInternal(AudioChannelType aType,
 
   // In order to avoid race conditions, it's safer to notify any existing
   // agent any time a new one is registered.
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     // We only remove ChildID when it is in the foreground.
     // If in the background, we kept ChildID for allowing it to play next song.
     if (aType == AUDIO_CHANNEL_CONTENT &&
@@ -300,7 +300,7 @@ AudioChannelService::ProcessContentOrNormalChannelIsActive(uint64_t aChildID)
 void
 AudioChannelService::SendAudioChannelChangedNotification(uint64_t aChildID)
 {
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+  if (XRE_GetProcessType() != GoannaProcessType_Default) {
     return;
   }
 

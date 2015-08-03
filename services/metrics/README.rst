@@ -3,7 +3,7 @@ Metrics Collection Framework
 ============================
 
 This directory contains generic code for collecting and persisting
-metrics data for Gecko applications.
+metrics data for Goanna applications.
 
 Overview
 ========

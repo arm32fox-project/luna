@@ -14,7 +14,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 function sendMessageToJava(message) {
   return Cc["@mozilla.org/android/bridge;1"]
     .getService(Ci.nsIAndroidBridge)
-    .handleGeckoMessage(JSON.stringify(message));
+    .handleGoannaMessage(JSON.stringify(message));
 }
 
 let _callbackId = 1;
@@ -25,7 +25,7 @@ let _callbackId = 1;
  * Internally calls Context.sendOrderedBroadcast.
  *
  * action {String} should be a string with a qualified name (like
- * org.mozilla.gecko.action) that will be broadcast.
+ * org.mozilla.goanna.action) that will be broadcast.
  *
  * token {Object} is a piece of arbitrary data that will be given as
  * a parameter to the callback (possibly null).

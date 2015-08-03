@@ -65,7 +65,7 @@
 
     <application android:label="@MOZ_APP_DISPLAYNAME@"
 		 android:icon="@drawable/icon"
-                 android:name="org.mozilla.gecko.GeckoApplication"
+                 android:name="org.mozilla.goanna.GoannaApplication"
 		 android:hardwareAccelerated="true"
 #if MOZILLA_OFFICIAL
 		 android:debuggable="false">
@@ -78,17 +78,17 @@
                   android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation|screenSize"
                   android:windowSoftInputMode="stateUnspecified|adjustResize"
                   android:launchMode="singleTask"
-                  android:theme="@style/Gecko.App">
+                  android:theme="@style/Goanna.App">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
             <intent-filter>
-                <action android:name="org.mozilla.gecko.ACTION_ALERT_CALLBACK" />
+                <action android:name="org.mozilla.goanna.ACTION_ALERT_CALLBACK" />
             </intent-filter>
 
             <intent-filter>
-                <action android:name="org.mozilla.gecko.UPDATE"/>
+                <action android:name="org.mozilla.goanna.UPDATE"/>
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
 
@@ -141,7 +141,7 @@
 
             <!-- For debugging -->
             <intent-filter>
-                <action android:name="org.mozilla.gecko.DEBUG" />
+                <action android:name="org.mozilla.goanna.DEBUG" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
@@ -151,15 +151,15 @@
                   android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation|screenSize"
                   android:windowSoftInputMode="stateUnspecified|adjustResize"
                   android:launchMode="singleTask"
-                  android:taskAffinity="org.mozilla.gecko.WEBAPP"
+                  android:taskAffinity="org.mozilla.goanna.WEBAPP"
                   android:process=":@ANDROID_PACKAGE_NAME@.WebApp"
                   android:excludeFromRecents="true"
-                  android:theme="@style/Gecko.App">
+                  android:theme="@style/Goanna.App">
             <intent-filter>
-                <action android:name="org.mozilla.gecko.WEBAPP" />
+                <action android:name="org.mozilla.goanna.WEBAPP" />
             </intent-filter>
             <intent-filter>
-                <action android:name="org.mozilla.gecko.ACTION_ALERT_CALLBACK" />
+                <action android:name="org.mozilla.goanna.ACTION_ALERT_CALLBACK" />
             </intent-filter>
         </activity>
 
@@ -171,57 +171,57 @@
             android:targetActivity=".App"
             android:exported="true" />
 
-        <receiver android:name="org.mozilla.gecko.GeckoUpdateReceiver">
+        <receiver android:name="org.mozilla.goanna.GoannaUpdateReceiver">
             <intent-filter>
                 <action android:name="@ANDROID_PACKAGE_NAME@.CHECK_UPDATE_RESULT" />
             </intent-filter>
         </receiver>
 
-        <receiver android:name="org.mozilla.gecko.GeckoMessageReceiver"
+        <receiver android:name="org.mozilla.goanna.GoannaMessageReceiver"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.PASSWORD_PROVIDER">
             <intent-filter>
-                  <action android:name="org.mozilla.gecko.INIT_PW"></action>
+                  <action android:name="org.mozilla.goanna.INIT_PW"></action>
             </intent-filter>
         </receiver>
 
-        <receiver android:name="org.mozilla.gecko.ReferrerReceiver" android:exported="true">
+        <receiver android:name="org.mozilla.goanna.ReferrerReceiver" android:exported="true">
             <intent-filter>
                 <action android:name="com.android.vending.INSTALL_REFERRER" />
             </intent-filter>
         </receiver>
 
-        <activity android:name="org.mozilla.gecko.Restarter"
+        <activity android:name="org.mozilla.goanna.Restarter"
                   android:process="@ANDROID_PACKAGE_NAME@Restarter"
-                  android:theme="@style/Gecko">
+                  android:theme="@style/Goanna">
           <intent-filter>
-            <action android:name="org.mozilla.gecko.restart"/>
-            <action android:name="org.mozilla.gecko.restart_update"/>
+            <action android:name="org.mozilla.goanna.restart"/>
+            <action android:name="org.mozilla.goanna.restart_update"/>
           </intent-filter>
         </activity>
 
 #include ../services/manifests/SyncAndroidManifest_activities.xml.in
 #include ../services/manifests/HealthReportAndroidManifest_activities.xml.in
 
-        <activity android:name="org.mozilla.gecko.VideoPlayer"
+        <activity android:name="org.mozilla.goanna.VideoPlayer"
                   android:configChanges="keyboard|keyboardHidden|mcc|mnc|orientation"
                   android:theme="@android:style/Theme.NoTitleBar">
             <intent-filter>
-                <action android:name="org.mozilla.gecko.PLAY_VIDEO" />
+                <action android:name="org.mozilla.goanna.PLAY_VIDEO" />
             </intent-filter>
         </activity>
 
-        <activity android:name="org.mozilla.gecko.AwesomeBar"
-                  android:theme="@style/Gecko.AwesomeBar"
+        <activity android:name="org.mozilla.goanna.AwesomeBar"
+                  android:theme="@style/Goanna.AwesomeBar"
                   android:configChanges="orientation|screenSize"
                   android:windowSoftInputMode="stateUnspecified|adjustResize"/>
 
-        <activity android:name="org.mozilla.gecko.GeckoPreferences"
-                  android:theme="@style/Gecko.Preferences"
+        <activity android:name="org.mozilla.goanna.GoannaPreferences"
+                  android:theme="@style/Goanna.Preferences"
                   android:label="@string/settings_title"
                   android:configChanges="orientation|screenSize"
                   android:excludeFromRecents="true"/>
 
-        <provider android:name="org.mozilla.gecko.db.BrowserProvider"
+        <provider android:name="org.mozilla.goanna.db.BrowserProvider"
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.browser"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.BROWSER_PROVIDER">
 
@@ -236,29 +236,29 @@
           Fennec versions into the same process. (Bug 749727.)
           Process name is a mangled version to avoid a Talos bug. (Bug 750548.)
           -->
-        <provider android:name="org.mozilla.gecko.db.PasswordsProvider"
+        <provider android:name="org.mozilla.goanna.db.PasswordsProvider"
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.passwords"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.PASSWORD_PROVIDER"
                   android:process="@MANGLED_ANDROID_PACKAGE_NAME@.PasswordsProvider"/>
 
-        <provider android:name="org.mozilla.gecko.db.FormHistoryProvider"
+        <provider android:name="org.mozilla.goanna.db.FormHistoryProvider"
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.formhistory"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.FORMHISTORY_PROVIDER"
                   android:protectionLevel="signature"/>
 
-        <provider android:name="org.mozilla.gecko.db.TabsProvider"
+        <provider android:name="org.mozilla.goanna.db.TabsProvider"
                   android:authorities="@ANDROID_PACKAGE_NAME@.db.tabs"
                   android:permission="@ANDROID_PACKAGE_NAME@.permissions.BROWSER_PROVIDER"/>
 
         <service
             android:exported="false"
-            android:name="org.mozilla.gecko.updater.UpdateService"
+            android:name="org.mozilla.goanna.updater.UpdateService"
             android:process="@MANGLED_ANDROID_PACKAGE_NAME@.UpdateService">
         </service>
 
         <service
             android:exported="false"
-            android:name="org.mozilla.gecko.NotificationService">
+            android:name="org.mozilla.goanna.NotificationService">
         </service>
 
 

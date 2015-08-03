@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.PrefsHelper;
-import org.mozilla.gecko.TouchEventInterceptor;
-import org.mozilla.gecko.util.FloatUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.PrefsHelper;
+import org.mozilla.goanna.TouchEventInterceptor;
+import org.mozilla.goanna.util.FloatUtils;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.graphics.PointF;
 import android.graphics.RectF;
@@ -24,7 +24,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 public class LayerMarginsAnimator implements TouchEventInterceptor {
-    private static final String LOGTAG = "GeckoLayerMarginsAnimator";
+    private static final String LOGTAG = "GoannaLayerMarginsAnimator";
     private static final float MS_PER_FRAME = 1000.0f / 60.0f;
     private static final long MARGIN_ANIMATION_DURATION = 250;
     private static final String PREF_SHOW_MARGINS_THRESHOLD = "browser.ui.show-margins-threshold";
@@ -44,15 +44,15 @@ public class LayerMarginsAnimator implements TouchEventInterceptor {
     private Timer mAnimationTimer;
     /* This interpolator is used for the above mentioned animation */
     private final DecelerateInterpolator mInterpolator;
-    /* The GeckoLayerClient whose margins will be animated */
-    private final GeckoLayerClient mTarget;
+    /* The GoannaLayerClient whose margins will be animated */
+    private final GoannaLayerClient mTarget;
     /* The distance that has been scrolled since either the first touch event,
      * or since the margins were last fully hidden */
     private final PointF mTouchTravelDistance;
     /* The ID of the prefs listener for the show-marginss threshold */
     private Integer mPrefObserverId;
 
-    public LayerMarginsAnimator(GeckoLayerClient aTarget, LayerView aView) {
+    public LayerMarginsAnimator(GoannaLayerClient aTarget, LayerView aView) {
         // Assign member variables from parameters
         mTarget = aTarget;
 
@@ -93,9 +93,9 @@ public class LayerMarginsAnimator implements TouchEventInterceptor {
 
         mMaxMargins.set(left, top, right, bottom);
 
-        // Update the Gecko-side global for fixed viewport margins.
-        GeckoAppShell.sendEventToGecko(
-            GeckoEvent.createBroadcastEvent("Viewport:FixedMarginsChanged",
+        // Update the Goanna-side global for fixed viewport margins.
+        GoannaAppShell.sendEventToGoanna(
+            GoannaEvent.createBroadcastEvent("Viewport:FixedMarginsChanged",
                 "{ \"top\" : " + top + ", \"right\" : " + right
                 + ", \"bottom\" : " + bottom + ", \"left\" : " + left + " }"));
     }
@@ -151,7 +151,7 @@ public class LayerMarginsAnimator implements TouchEventInterceptor {
                             mAnimationTimer = null;
                         }
 
-                        // Force a redraw and update Gecko
+                        // Force a redraw and update Goanna
                         mTarget.forceViewportMetrics(newMetrics, true, true);
                     } else {
                         mTarget.forceViewportMetrics(newMetrics, false, false);

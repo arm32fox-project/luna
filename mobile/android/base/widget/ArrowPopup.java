@@ -3,11 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.GeckoApp;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.util.HardwareUtils;
+import org.mozilla.goanna.GoannaApp;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.util.HardwareUtils;
 
 import android.graphics.drawable.BitmapDrawable;
 import android.view.Gravity;
@@ -20,7 +20,7 @@ import android.widget.PopupWindow;
 import android.widget.RelativeLayout;
 
 public class ArrowPopup extends PopupWindow {
-    protected final GeckoApp mActivity;
+    protected final GoannaApp mActivity;
 
     private View mAnchor;
     private ImageView mArrow;
@@ -31,7 +31,7 @@ public class ArrowPopup extends PopupWindow {
     protected LinearLayout mContent;
     protected boolean mInflated;
 
-    public ArrowPopup(GeckoApp aActivity, View aAnchor) {
+    public ArrowPopup(GoannaApp aActivity, View aAnchor) {
         super(aActivity);
         mActivity = aActivity;
         mAnchor = aAnchor;
@@ -67,7 +67,7 @@ public class ArrowPopup extends PopupWindow {
 
     /*
      * Shows the popup with the arrow pointing to the center of the anchor view. If an anchor hasn't
-     * been set or isn't visible, the popup will just be shown at the top of the gecko app view.
+     * been set or isn't visible, the popup will just be shown at the top of the goanna app view.
      */
     public void show() {
         int[] anchorLocation = new int[2];
@@ -75,7 +75,7 @@ public class ArrowPopup extends PopupWindow {
             mAnchor.getLocationInWindow(anchorLocation);
 
         // If there's no anchor or the anchor is out of the window bounds,
-        // just show the popup at the top of the gecko app view.
+        // just show the popup at the top of the goanna app view.
         if (mAnchor == null || anchorLocation[1] < 0) {
             showAtLocation(mActivity.getView(), Gravity.TOP, 0, 0);
             return;

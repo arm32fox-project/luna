@@ -4,13 +4,13 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <selector xmlns:android="http://schemas.android.com/apk/res/android"
-          xmlns:gecko="http://schemas.android.com/apk/res-auto">
+          xmlns:goanna="http://schemas.android.com/apk/res-auto">
 
     <!-- dark theme -->
-    <item gecko:state_dark="true" android:color="#80FFFFFF" />
+    <item goanna:state_dark="true" android:color="#80FFFFFF" />
 
     <!-- light theme -->
-    <item gecko:state_light="true" android:color="#80222222" />
+    <item goanna:state_light="true" android:color="#80222222" />
 
     <!-- default -->
     <item android:color="#FF22629E"/>

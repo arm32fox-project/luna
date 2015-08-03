@@ -31,7 +31,7 @@ public class testSearchSuggestions extends BaseTest {
     }
 
     public void testSearchSuggestions() {
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // Map of expected values. See robocop_suggestions.sjs.
         final HashMap<String, ArrayList<String>> suggestMap = new HashMap<String, ArrayList<String>>();
@@ -40,7 +40,7 @@ public class testSearchSuggestions extends BaseTest {
         final int suggestionLayoutId = mDriver.findElement(getActivity(), "suggestion_layout").getId();
         final int suggestionTextId = mDriver.findElement(getActivity(), "suggestion_text").getId();
 
-        Actions.EventExpecter enginesEventExpecter = mActions.expectGeckoEvent("SearchEngines:Data");
+        Actions.EventExpecter enginesEventExpecter = mActions.expectGoannaEvent("SearchEngines:Data");
         final Activity awesomeBarActivity = clickOnAwesomeBar();
         enginesEventExpecter.blockForEvent();
         enginesEventExpecter.unregisterListener();
@@ -94,7 +94,7 @@ public class testSearchSuggestions extends BaseTest {
         try {
             // create a SuggestClient that uses robocop_suggestions.sjs
             ClassLoader classLoader = getActivity().getApplicationContext().getClassLoader();
-            Class suggestClass = classLoader.loadClass("org.mozilla.gecko.SuggestClient");
+            Class suggestClass = classLoader.loadClass("org.mozilla.goanna.SuggestClient");
             Constructor suggestConstructor = suggestClass.getConstructor(
                     new Class[] { Context.class, String.class, int.class, int.class });
             String suggestTemplate = getAbsoluteRawUrl(SUGGESTION_TEMPLATE);
@@ -106,10 +106,10 @@ public class testSearchSuggestions extends BaseTest {
             checkNetworkField.setBoolean(client, false);
 
             // replace mSuggestClient with test client
-            final Class awesomeBarTabsClass = classLoader.loadClass("org.mozilla.gecko.AwesomeBarTabs");
+            final Class awesomeBarTabsClass = classLoader.loadClass("org.mozilla.goanna.AwesomeBarTabs");
             final Method getAllPagesTabMethod = awesomeBarTabsClass.getMethod("getAllPagesTab");
             final View awesomeBarTabs = (View) awesomeBarActivity.findViewById(awesomeBarTabsId);
-            final Class allPagesTabClass = classLoader.loadClass("org.mozilla.gecko.AllPagesTab");
+            final Class allPagesTabClass = classLoader.loadClass("org.mozilla.goanna.AllPagesTab");
             final Field suggestClientField = allPagesTabClass.getDeclaredField("mSuggestClient");
             final Object allPagesTab = getAllPagesTabMethod.invoke(awesomeBarTabs);
             suggestClientField.setAccessible(true);

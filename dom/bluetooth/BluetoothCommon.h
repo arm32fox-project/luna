@@ -21,12 +21,12 @@ extern bool gBluetoothDebugFlag;
 #define BT_LOG(args...)                                              \
   do {                                                               \
     if (gBluetoothDebugFlag) {                                       \
-      __android_log_print(ANDROID_LOG_INFO, "GeckoBluetooth", args); \
+      __android_log_print(ANDROID_LOG_INFO, "GoannaBluetooth", args); \
     }                                                                \
   } while(0)
 
 #define BT_WARNING(args...)                                          \
-  __android_log_print(ANDROID_LOG_WARN, "GeckoBluetooth", args)
+  __android_log_print(ANDROID_LOG_WARN, "GoannaBluetooth", args)
 
 #else
 #define BT_LOG(args, ...)                                            \

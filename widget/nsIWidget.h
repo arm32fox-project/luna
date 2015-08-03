@@ -607,13 +607,13 @@ class nsIWidget : public nsISupports {
      * Return the default scale factor for the window. This is the
      * default number of device pixels per CSS pixel to use. This should
      * depend on OS/platform settings such as the Mac's "UI scale factor"
-     * or Windows' "font DPI". This will take into account Gecko preferences
+     * or Windows' "font DPI". This will take into account Goanna preferences
      * overriding the system setting.
      */
     double GetDefaultScale();
 
     /**
-     * Return the Gecko override of the system default scale, if any;
+     * Return the Goanna override of the system default scale, if any;
      * returns <= 0.0 if the system scale should be used as-is.
      * nsIWidget::GetDefaultScale() [above] takes this into account.
      * It is exposed here so that code that wants to check for a
@@ -1193,7 +1193,7 @@ class nsIWidget : public nsISupports {
     virtual void DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect) = 0;
 
     /**
-     * Called when Gecko knows which themed widgets exist in this window.
+     * Called when Goanna knows which themed widgets exist in this window.
      * The passed array contains an entry for every themed widget of the right
      * type (currently only NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR and
      * NS_THEME_TOOLBAR) within the window, except for themed widgets which are
@@ -1594,7 +1594,7 @@ class nsIWidget : public nsISupports {
     static bool
     UsePuppetWidgets()
     {
-      return XRE_GetProcessType() == GeckoProcessType_Content;
+      return XRE_GetProcessType() == GoannaProcessType_Content;
     }
 
     /**
@@ -1647,7 +1647,7 @@ class nsIWidget : public nsISupports {
 
     /**
      * Get the natural bounds of this widget.  This method is only
-     * meaningful for widgets for which Gecko implements screen
+     * meaningful for widgets for which Goanna implements screen
      * rotation natively.  When this is the case, GetBounds() returns
      * the widget bounds taking rotation into account, and
      * GetNaturalBounds() returns the bounds *not* taking rotation
@@ -1709,7 +1709,7 @@ class nsIWidget : public nsISupports {
 protected:
     /**
      * Like GetDefaultScale, but taking into account only the system settings
-     * and ignoring Gecko preferences.
+     * and ignoring Goanna preferences.
      */
     virtual double GetDefaultScaleInternal() { return 1.0; }
 

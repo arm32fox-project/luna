@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
 import android.os.SystemClock;
 import android.util.Log;
@@ -12,7 +12,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class PanningPerfAPI {
-    private static final String LOGTAG = "GeckoPanningPerfAPI";
+    private static final String LOGTAG = "GoannaPanningPerfAPI";
 
     // make this large enough to avoid having to resize the frame time
     // list, as that may be expensive and impact the thing we're trying

@@ -13,7 +13,7 @@
 #include "nsNPAPIPlugin.h"
 #include "PluginPRLibrary.h"
 
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GeckoPlugins" , ## args)
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GoannaPlugins" , ## args)
 #define ASSIGN(obj, name)   (obj)->name = anp_system_##name
 
 const char*
@@ -58,7 +58,7 @@ jclass anp_system_loadJavaClass(NPP instance, const char* className)
   if (!env)
     return nullptr;
 
-  jclass cls = env->FindClass("org/mozilla/gecko/GeckoAppShell");
+  jclass cls = env->FindClass("org/mozilla/goanna/GoannaAppShell");
   jmethodID method = env->GetStaticMethodID(cls,
                                             "loadPluginClass",
                                             "(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/Class;");

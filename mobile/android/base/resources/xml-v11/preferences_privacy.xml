@@ -4,7 +4,7 @@
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
 <PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
-                  xmlns:gecko="http://schemas.android.com/apk/res-auto"
+                  xmlns:goanna="http://schemas.android.com/apk/res-auto"
                   android:title="@string/pref_category_privacy"
                   android:enabled="false">
 
@@ -14,15 +14,15 @@
                     android:entryValues="@array/pref_cookies_values"
                     android:persistent="false" />
 
-    <!-- keys prefixed with "android.not_a_preference." are not synced with Gecko -->
-    <org.mozilla.gecko.PrivateDataPreference
+    <!-- keys prefixed with "android.not_a_preference." are not synced with Goanna -->
+    <org.mozilla.goanna.PrivateDataPreference
                         android:key="android.not_a_preference.privacy.clear"
                         android:title="@string/pref_clear_private_data"
                         android:persistent="true"
                         android:positiveButtonText="@string/button_clear_data"
-                        gecko:entries="@array/pref_private_data_entries"
-                        gecko:entryKeys="@array/pref_private_data_keys"
-                        gecko:initialValues="@array/pref_private_data_values" />
+                        goanna:entries="@array/pref_private_data_entries"
+                        goanna:entryKeys="@array/pref_private_data_keys"
+                        goanna:initialValues="@array/pref_private_data_values" />
 
     <ListPreference android:key="privacy.donottrackheader"
                     android:title="@string/pref_donottrack_menu"
@@ -53,7 +53,7 @@
 
     <PreferenceScreen android:key="android.not_a_preference.datareporting.preferences"
                       android:title="@string/pref_category_datareporting"
-                      android:fragment="org.mozilla.gecko.GeckoPreferenceFragment" >
+                      android:fragment="org.mozilla.goanna.GoannaPreferenceFragment" >
 
         <extra android:name="resource"
                android:value="preferences_datareporting" />

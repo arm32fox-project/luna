@@ -10,7 +10,7 @@ interface PopStateEvent : Event
   [Throws]
   readonly attribute any state;
 
-  // initPopStateEvent is a Gecko specific deprecated method.
+  // initPopStateEvent is a Goanna specific deprecated method.
   [Throws]
   void initPopStateEvent(DOMString type,
                          boolean canBubble,

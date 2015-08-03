@@ -27,7 +27,7 @@ public:
   typedef mozilla::TimeStamp TimeStamp;
 
   nsresult Init();
-  void DoProcessMoreGeckoEvents();
+  void DoProcessMoreGoannaEvents();
 
   static UINT GetTaskbarButtonCreatedMessage();
 

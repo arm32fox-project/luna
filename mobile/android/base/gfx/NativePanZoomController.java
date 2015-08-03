@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.GeckoThread;
-import org.mozilla.gecko.util.EventDispatcher;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.GoannaThread;
+import org.mozilla.goanna.util.EventDispatcher;
+import org.mozilla.goanna.util.GoannaEventListener;
 
 import org.json.JSONObject;
 
@@ -17,7 +17,7 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.View;
 
-class NativePanZoomController implements PanZoomController, GeckoEventListener {
+class NativePanZoomController implements PanZoomController, GoannaEventListener {
     private final PanZoomTarget mTarget;
     private final EventDispatcher mDispatcher;
     private final CallbackRunnable mCallbackRunnable;
@@ -26,22 +26,22 @@ class NativePanZoomController implements PanZoomController, GeckoEventListener {
         mTarget = target;
         mDispatcher = dispatcher;
         mCallbackRunnable = new CallbackRunnable();
-        if (GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning)) {
+        if (GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
             init();
         } else {
-            mDispatcher.registerEventListener("Gecko:Ready", this);
+            mDispatcher.registerEventListener("Goanna:Ready", this);
         }
     }
 
     public void handleMessage(String event, JSONObject message) {
-        if ("Gecko:Ready".equals(event)) {
-            mDispatcher.unregisterEventListener("Gecko:Ready", this);
+        if ("Goanna:Ready".equals(event)) {
+            mDispatcher.unregisterEventListener("Goanna:Ready", this);
             init();
         }
     }
 
     public boolean onTouchEvent(MotionEvent event) {
-        GeckoEvent wrapped = GeckoEvent.createMotionEvent(event, true);
+        GoannaEvent wrapped = GoannaEvent.createMotionEvent(event, true);
         handleTouchEvent(wrapped);
         return false;
     }
@@ -74,8 +74,8 @@ class NativePanZoomController implements PanZoomController, GeckoEventListener {
     }
 
     private native void init();
-    private native void handleTouchEvent(GeckoEvent event);
-    private native void handleMotionEvent(GeckoEvent event);
+    private native void handleTouchEvent(GoannaEvent event);
+    private native void handleMotionEvent(GoannaEvent event);
     private native long runDelayedCallback();
 
     public native void destroy();

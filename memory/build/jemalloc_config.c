@@ -18,7 +18,7 @@ MFBT_DATA const char * je_(malloc_conf) = "narenas:1,lg_chunk:20";
 static void
 _je_malloc_message(void *cbopaque, const char *s)
 {
-  __android_log_print(ANDROID_LOG_INFO, "GeckoJemalloc", "%s", s);
+  __android_log_print(ANDROID_LOG_INFO, "GoannaJemalloc", "%s", s);
 }
 
 void (*je_(malloc_message))(void *, const char *s) = _je_malloc_message;

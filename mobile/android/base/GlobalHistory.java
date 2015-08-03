@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.database.Cursor;
 import android.net.Uri;
@@ -20,7 +20,7 @@ import java.util.Queue;
 import java.util.Set;
 
 class GlobalHistory {
-    private static final String LOGTAG = "GeckoGlobalHistory";
+    private static final String LOGTAG = "GoannaGlobalHistory";
 
     private static GlobalHistory sInstance = new GlobalHistory();
 
@@ -51,7 +51,7 @@ class GlobalHistory {
                     // the cache was wiped away, repopulate it
                     Log.w(LOGTAG, "Rebuilding visited link set...");
                     visitedSet = new HashSet<String>();
-                    Cursor c = BrowserDB.getAllVisitedHistory(GeckoAppShell.getContext().getContentResolver());
+                    Cursor c = BrowserDB.getAllVisitedHistory(GoannaAppShell.getContext().getContentResolver());
                     if (c.moveToFirst()) {
                         do {
                             visitedSet.add(c.getString(0));
@@ -69,7 +69,7 @@ class GlobalHistory {
                         break;
                     }
                     if (visitedSet.contains(uri)) {
-                        GeckoAppShell.notifyUriVisited(uri);
+                        GoannaAppShell.notifyUriVisited(uri);
                     }
                 }
                 mProcessing = false;
@@ -77,12 +77,12 @@ class GlobalHistory {
         };
     }
 
-    public void addToGeckoOnly(String uri) {
+    public void addToGoannaOnly(String uri) {
         Set<String> visitedSet = mVisitedCache.get();
         if (visitedSet != null) {
             visitedSet.add(uri);
         }
-        GeckoAppShell.notifyUriVisited(uri);
+        GoannaAppShell.notifyUriVisited(uri);
     }
 
     // Logic ported from nsNavHistory::CanAddURI.
@@ -120,15 +120,15 @@ class GlobalHistory {
         if (!canAddURI(uri))
             return;
 
-        BrowserDB.updateVisitedHistory(GeckoAppShell.getContext().getContentResolver(), uri);
-        addToGeckoOnly(uri);
+        BrowserDB.updateVisitedHistory(GoannaAppShell.getContext().getContentResolver(), uri);
+        addToGoannaOnly(uri);
     }
 
     public void update(String uri, String title) {
         if (!canAddURI(uri))
             return;
 
-        BrowserDB.updateHistoryTitle(GeckoAppShell.getContext().getContentResolver(), uri, title);
+        BrowserDB.updateHistoryTitle(GoannaAppShell.getContext().getContentResolver(), uri, title);
     }
 
     public void checkUriVisited(final String uri) {

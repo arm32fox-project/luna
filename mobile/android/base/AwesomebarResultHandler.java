@@ -2,15 +2,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.util.ActivityResultHandler;
+import org.mozilla.goanna.util.ActivityResultHandler;
 
 import android.content.Intent;
 import android.util.Log;
 
 class AwesomebarResultHandler implements ActivityResultHandler {
-    private static final String LOGTAG = "GeckoAwesomebarResultHandler";
+    private static final String LOGTAG = "GoannaAwesomebarResultHandler";
 
     @Override
     public void onActivityResult(int resultCode, Intent data) {

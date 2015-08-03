@@ -107,7 +107,7 @@ JavaScriptShared::init()
 }
 
 bool
-JavaScriptShared::convertIdToGeckoString(JSContext *cx, JS::HandleId id, nsString *to)
+JavaScriptShared::convertIdToGoannaString(JSContext *cx, JS::HandleId id, nsString *to)
 {
     RootedValue idval(cx);
     if (!JS_IdToValue(cx, id, idval.address()))
@@ -126,7 +126,7 @@ JavaScriptShared::convertIdToGeckoString(JSContext *cx, JS::HandleId id, nsStrin
 }
 
 bool
-JavaScriptShared::convertGeckoStringToId(JSContext *cx, const nsString &from, JS::MutableHandleId to)
+JavaScriptShared::convertGoannaStringToId(JSContext *cx, const nsString &from, JS::MutableHandleId to)
 {
     RootedString str(cx, JS_NewUCStringCopyN(cx, from.BeginReading(), from.Length()));
     if (!str)

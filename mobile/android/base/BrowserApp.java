@@ -3,27 +3,27 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.db.BrowserContract.Combined;
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.gfx.GeckoLayerClient;
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.gfx.PanZoomController;
-import org.mozilla.gecko.health.BrowserHealthReporter;
-import org.mozilla.gecko.menu.GeckoMenu;
-import org.mozilla.gecko.util.Clipboard;
-import org.mozilla.gecko.util.FloatUtils;
-import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.util.HardwareUtils;
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
-import org.mozilla.gecko.widget.AboutHome;
-import org.mozilla.gecko.widget.GeckoActionProvider;
-import org.mozilla.gecko.widget.ButtonToast;
+import org.mozilla.goanna.animation.PropertyAnimator;
+import org.mozilla.goanna.db.BrowserContract.Combined;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.gfx.GoannaLayerClient;
+import org.mozilla.goanna.gfx.ImmutableViewportMetrics;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.gfx.PanZoomController;
+import org.mozilla.goanna.health.BrowserHealthReporter;
+import org.mozilla.goanna.menu.GoannaMenu;
+import org.mozilla.goanna.util.Clipboard;
+import org.mozilla.goanna.util.FloatUtils;
+import org.mozilla.goanna.util.GamepadUtils;
+import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UiAsyncTask;
+import org.mozilla.goanna.widget.AboutHome;
+import org.mozilla.goanna.widget.GoannaActionProvider;
+import org.mozilla.goanna.widget.ButtonToast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -71,14 +71,14 @@ import java.net.URL;
 import java.util.EnumSet;
 import java.util.Vector;
 
-abstract public class BrowserApp extends GeckoApp
+abstract public class BrowserApp extends GoannaApp
                                  implements TabsPanel.TabsLayoutChangeListener,
                                             PropertyAnimator.PropertyAnimationListener,
                                             View.OnKeyListener,
-                                            GeckoLayerClient.OnMetricsChangedListener,
+                                            GoannaLayerClient.OnMetricsChangedListener,
                                             AboutHome.UriLoadListener,
                                             AboutHome.LoadCompleteListener {
-    private static final String LOGTAG = "GeckoBrowserApp";
+    private static final String LOGTAG = "GoannaBrowserApp";
 
     private static final String PREF_CHROME_DYNAMICTOOLBAR = "browser.chrome.dynamictoolbar";
 
@@ -240,7 +240,7 @@ abstract public class BrowserApp extends GeckoApp
     @Override
     public boolean onKey(View v, int keyCode, KeyEvent event) {
         // Global onKey handler. This is called if the focused UI doesn't
-        // handle the key event, and before Gecko swallows the events.
+        // handle the key event, and before Goanna swallows the events.
         if (event.getAction() != KeyEvent.ACTION_DOWN) {
             return false;
         }
@@ -331,7 +331,7 @@ abstract public class BrowserApp extends GeckoApp
             @Override
             public void run() {
                 final int count = BrowserDB.getReadingListCount(getContentResolver());
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Reader:ListCountReturn", Integer.toString(count)));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Reader:ListCountReturn", Integer.toString(count)));
             }
         });
     }
@@ -354,7 +354,7 @@ abstract public class BrowserApp extends GeckoApp
                 showToast(R.string.reading_list_added, Toast.LENGTH_SHORT);
 
                 final int count = BrowserDB.getReadingListCount(getContentResolver());
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Reader:ListCountUpdated", Integer.toString(count)));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Reader:ListCountUpdated", Integer.toString(count)));
             }
         });
     }
@@ -367,7 +367,7 @@ abstract public class BrowserApp extends GeckoApp
                 showToast(R.string.reading_list_removed, Toast.LENGTH_SHORT);
 
                 final int count = BrowserDB.getReadingListCount(getContentResolver());
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Reader:ListCountUpdated", Integer.toString(count)));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Reader:ListCountUpdated", Integer.toString(count)));
             }
         });
     }
@@ -400,8 +400,8 @@ abstract public class BrowserApp extends GeckoApp
             }
         });
 
-        ((GeckoApp.MainLayout) mMainLayout).setTouchEventInterceptor(new HideTabsTouchListener());
-        ((GeckoApp.MainLayout) mMainLayout).setMotionEventInterceptor(new MotionEventInterceptor() {
+        ((GoannaApp.MainLayout) mMainLayout).setTouchEventInterceptor(new HideTabsTouchListener());
+        ((GoannaApp.MainLayout) mMainLayout).setMotionEventInterceptor(new MotionEventInterceptor() {
             @Override
             public boolean onInterceptMotionEvent(View view, MotionEvent event) {
                 // If we get a gamepad panning MotionEvent while the focus is not on the layerview,
@@ -530,7 +530,7 @@ abstract public class BrowserApp extends GeckoApp
                     String title = tab.getDisplayTitle();
                     Bitmap favicon = tab.getFavicon();
                     if (url != null && title != null) {
-                        GeckoAppShell.createShortcut(title, url, url, favicon == null ? null : favicon, "");
+                        GoannaAppShell.createShortcut(title, url, url, favicon == null ? null : favicon, "");
                     }
                 }
             }
@@ -590,7 +590,7 @@ abstract public class BrowserApp extends GeckoApp
                 return true;
             }
             case R.id.site_settings: {
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Permissions:Get", null));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Permissions:Get", null));
                 return true;
             }
             case R.id.paste: {
@@ -613,7 +613,7 @@ abstract public class BrowserApp extends GeckoApp
                     } catch (JSONException e) {
                         Log.e(LOGTAG, "error building json arguments");
                     }
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Feeds:Subscribe", args.toString()));
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Feeds:Subscribe", args.toString()));
                 }
                 return true;
             }
@@ -634,7 +634,7 @@ abstract public class BrowserApp extends GeckoApp
                     String title = tab.getDisplayTitle();
                     Bitmap favicon = tab.getFavicon();
                     if (url != null && title != null) {
-                        GeckoAppShell.createShortcut(title, url, url, favicon == null ? null : favicon, "");
+                        GoannaAppShell.createShortcut(title, url, url, favicon == null ? null : favicon, "");
                     }
                 }
                 return true;
@@ -671,7 +671,7 @@ abstract public class BrowserApp extends GeckoApp
             }
         }
 
-        int requestCode = GeckoAppShell.sActivityHelper.makeRequestCodeForAwesomebar();
+        int requestCode = GoannaAppShell.sActivityHelper.makeRequestCodeForAwesomebar();
         startActivityForResult(intent, requestCode);
         overridePendingTransition (R.anim.awesomebar_fade_in, R.anim.awesomebar_hold_still);
         return true;
@@ -777,7 +777,7 @@ abstract public class BrowserApp extends GeckoApp
         if (ReaderModeUtils.isAboutReader(url))
             url = ReaderModeUtils.getUrlFromAboutReader(url);
 
-        GeckoAppShell.openUriExternal(url, "text/plain", "", "",
+        GoannaAppShell.openUriExternal(url, "text/plain", "", "",
                                       Intent.ACTION_SEND, tab.getDisplayTitle());
     }
 
@@ -787,8 +787,8 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     private void setToolbarMargin(int margin) {
-        ((RelativeLayout.LayoutParams) mGeckoLayout.getLayoutParams()).topMargin = margin;
-        mGeckoLayout.requestLayout();
+        ((RelativeLayout.LayoutParams) mGoannaLayout.getLayoutParams()).topMargin = margin;
+        mGoannaLayout.requestLayout();
     }
 
     @Override
@@ -1026,7 +1026,7 @@ abstract public class BrowserApp extends GeckoApp
                     public void onClick(DialogInterface dialog, int which) {
                         try {
                             JSONObject charset = charsets.getJSONObject(which);
-                            GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("CharEncoding:Set", charset.getString("code")));
+                            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("CharEncoding:Set", charset.getString("code")));
                             dialog.dismiss();
                         } catch (JSONException e) {
                             Log.e(LOGTAG, "error parsing json", e);
@@ -1047,7 +1047,7 @@ abstract public class BrowserApp extends GeckoApp
                 });
             } else if (event.equals("CharEncoding:State")) {
                 final boolean visible = message.getString("visible").equals("true");
-                GeckoPreferences.setCharEncodingState(visible);
+                GoannaPreferences.setCharEncodingState(visible);
                 final Menu menu = mMenu;
                 ThreadUtils.postToUiThread(new Runnable() {
                     @Override
@@ -1064,8 +1064,8 @@ abstract public class BrowserApp extends GeckoApp
                 resetFeedbackLaunchCount();
             } else if (event.equals("Feedback:LastUrl")) {
                 getLastUrl();
-            } else if (event.equals("Gecko:Ready")) {
-                // Handle this message in GeckoApp, but also enable the Settings
+            } else if (event.equals("Goanna:Ready")) {
+                // Handle this message in GoannaApp, but also enable the Settings
                 // menuitem, which is specific to BrowserApp.
                 super.handleMessage(event, message);
                 final Menu menu = mMenu;
@@ -1079,7 +1079,7 @@ abstract public class BrowserApp extends GeckoApp
 
                 // Display notification for Mozilla data reporting, if data should be collected.
                 if (AppConstants.MOZ_DATA_REPORTING) {
-                    DataReportingNotification.checkAndNotifyPolicy(GeckoAppShell.getContext());
+                    DataReportingNotification.checkAndNotifyPolicy(GoannaAppShell.getContext());
                 }
 
             } else if (event.equals("Reader:ListCountRequest")) {
@@ -1095,16 +1095,16 @@ abstract public class BrowserApp extends GeckoApp
             } else if (event.equals("Reader:Share")) {
                 final String title = message.getString("title");
                 final String url = message.getString("url");
-                GeckoAppShell.openUriExternal(url, "text/plain", "", "",
+                GoannaAppShell.openUriExternal(url, "text/plain", "", "",
                                               Intent.ACTION_SEND, title);
             } else if (event.equals("Settings:Show")) {
                 // null strings return "null" (http://code.google.com/p/android/issues/detail?id=13830)
                 String resource = null;
-                if (!message.isNull(GeckoPreferences.INTENT_EXTRA_RESOURCES)) {
-                    resource = message.getString(GeckoPreferences.INTENT_EXTRA_RESOURCES);
+                if (!message.isNull(GoannaPreferences.INTENT_EXTRA_RESOURCES)) {
+                    resource = message.getString(GoannaPreferences.INTENT_EXTRA_RESOURCES);
                 }
-                Intent settingsIntent = new Intent(this, GeckoPreferences.class);
-                GeckoPreferences.setResourceToOpen(settingsIntent, resource);
+                Intent settingsIntent = new Intent(this, GoannaPreferences.class);
+                GoannaPreferences.setResourceToOpen(settingsIntent, resource);
                 startActivity(settingsIntent);
             } else if (event.equals("Updater:Launch")) {
                 handleUpdaterLaunch();
@@ -1298,13 +1298,13 @@ abstract public class BrowserApp extends GeckoApp
         // We use commitAllowingStateLoss() instead of commit() here to avoid an
         // IllegalStateException. showAboutHome() and hideAboutHome() are
         // executed inside of tab's onChange() callback. Since that callback can
-        // be triggered asynchronously from Gecko, it's possible that this
+        // be triggered asynchronously from Goanna, it's possible that this
         // method can be called while Fennec is in the background. If that
         // happens, using commit() would throw an IllegalStateException since
         // it can't be used between the Activity's onSaveInstanceState() and
         // onResume().
         getSupportFragmentManager().beginTransaction()
-                .add(R.id.gecko_layout, mAboutHome, ABOUTHOME_TAG).commitAllowingStateLoss();
+                .add(R.id.goanna_layout, mAboutHome, ABOUTHOME_TAG).commitAllowingStateLoss();
         mAboutHome.setUserVisibleHint(true);
 
         mBrowserToolbar.setNextFocusDownId(R.id.abouthome_content);
@@ -1403,7 +1403,7 @@ abstract public class BrowserApp extends GeckoApp
             @Override
             public boolean onMenuItemClick(MenuItem item) {
                 Log.i(LOGTAG, "menu item clicked");
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Menu:Clicked", Integer.toString(info.id - ADDON_MENU_OFFSET)));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Menu:Clicked", Integer.toString(info.id - ADDON_MENU_OFFSET)));
                 return true;
             }
         });
@@ -1516,8 +1516,8 @@ abstract public class BrowserApp extends GeckoApp
         super.onCreateOptionsMenu(menu);
 
         // Inform the menu about the action-items bar. 
-        if (menu instanceof GeckoMenu && HardwareUtils.isTablet())
-            ((GeckoMenu) menu).setActionItemBarPresenter(mBrowserToolbar);
+        if (menu instanceof GoannaMenu && HardwareUtils.isTablet())
+            ((GoannaMenu) menu).setActionItemBarPresenter(mBrowserToolbar);
 
         MenuInflater inflater = getMenuInflater();
         inflater.inflate(R.menu.browser_app_menu, mMenu);
@@ -1534,7 +1534,7 @@ abstract public class BrowserApp extends GeckoApp
         // Action providers are available only ICS+.
         if (Build.VERSION.SDK_INT >= 14) {
             MenuItem share = mMenu.findItem(R.id.share);
-            GeckoActionProvider provider = new GeckoActionProvider(this);
+            GoannaActionProvider provider = new GoannaActionProvider(this);
             share.setActionProvider(provider);
         }
 
@@ -1591,7 +1591,7 @@ abstract public class BrowserApp extends GeckoApp
         if (aMenu == null)
             return false;
 
-        if (!GeckoThread.checkLaunchState(GeckoThread.LaunchState.GeckoRunning))
+        if (!GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning))
             aMenu.findItem(R.id.settings).setEnabled(false);
 
         Tab tab = Tabs.getInstance().getSelectedTab();
@@ -1639,12 +1639,12 @@ abstract public class BrowserApp extends GeckoApp
 
         // Action providers are available only ICS+.
         if (Build.VERSION.SDK_INT >= 14) {
-            GeckoActionProvider provider = (GeckoActionProvider) share.getActionProvider();
+            GoannaActionProvider provider = (GoannaActionProvider) share.getActionProvider();
             if (provider != null) {
                 Intent shareIntent = provider.getIntent();
 
                 if (shareIntent == null) {
-                    shareIntent = GeckoAppShell.getShareIntent(this, url,
+                    shareIntent = GoannaAppShell.getShareIntent(this, url,
                                                                "text/plain", tab.getDisplayTitle());
                     provider.setIntent(shareIntent);
                 } else {
@@ -1661,7 +1661,7 @@ abstract public class BrowserApp extends GeckoApp
         // Disable find in page for about:home, since it won't work on Java content
         findInPage.setEnabled(!isAboutHome(tab));
 
-        charEncoding.setVisible(GeckoPreferences.getCharEncodingState());
+        charEncoding.setVisible(GoannaPreferences.getCharEncodingState());
 
         return true;
     }
@@ -1703,10 +1703,10 @@ abstract public class BrowserApp extends GeckoApp
                     tab.doForward();
                 return true;
             case R.id.save_as_pdf:
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("SaveAs:PDF", null));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("SaveAs:PDF", null));
                 return true;
             case R.id.settings:
-                intent = new Intent(this, GeckoPreferences.class);
+                intent = new Intent(this, GoannaPreferences.class);
                 startActivity(intent);
                 return true;
             case R.id.addons:
@@ -1716,7 +1716,7 @@ abstract public class BrowserApp extends GeckoApp
                 Tabs.getInstance().loadUrlInTab("about:downloads");
                 return true;
             case R.id.char_encoding:
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("CharEncoding:Get", null));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("CharEncoding:Get", null));
                 return true;
             case R.id.find_in_page:
                 mFindInPageBar.show();
@@ -1732,7 +1732,7 @@ abstract public class BrowserApp extends GeckoApp
                 } catch (JSONException e) {
                     Log.e(LOGTAG, "error building json arguments");
                 }
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("DesktopMode:Change", args.toString()));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("DesktopMode:Change", args.toString()));
                 return true;
             case R.id.new_tab:
                 addTab();
@@ -1771,7 +1771,7 @@ abstract public class BrowserApp extends GeckoApp
 
         if (AppConstants.MOZ_ANDROID_BEAM && Build.VERSION.SDK_INT >= 10 && NfcAdapter.ACTION_NDEF_DISCOVERED.equals(action)) {
             String uri = intent.getDataString();
-            GeckoAppShell.sendEventToGecko(GeckoEvent.createURILoadEvent(uri));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createURILoadEvent(uri));
         }
 
         if (!Intent.ACTION_MAIN.equals(action) || !mInitialized) {
@@ -1799,7 +1799,7 @@ abstract public class BrowserApp extends GeckoApp
             @Override
             public void onPostExecute(Boolean shouldShowFeedbackPage) {
                 if (shouldShowFeedbackPage)
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Feedback:Show", null));
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Feedback:Show", null));
             }
         }).execute();
     }
@@ -1839,7 +1839,7 @@ abstract public class BrowserApp extends GeckoApp
             public void onPostExecute(String url) {
                 // Don't bother sending a message if there is no URL.
                 if (url.length() > 0)
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Feedback:LastUrl", url));
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Feedback:LastUrl", url));
             }
         }).execute();
     }
@@ -1855,11 +1855,11 @@ abstract public class BrowserApp extends GeckoApp
     }
 
     @Override
-    public int getLayout() { return R.layout.gecko_app; }
+    public int getLayout() { return R.layout.goanna_app; }
 
     @Override
     protected String getDefaultProfileName() {
-        String profile = GeckoProfile.findDefaultProfile(this);
+        String profile = GoannaProfile.findDefaultProfile(this);
         return (profile != null ? profile : "default");
     }
 

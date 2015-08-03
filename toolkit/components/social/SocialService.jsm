@@ -800,7 +800,7 @@ SocialProvider.prototype = {
       // resolve potentially relative URLs but there is no same-origin check
       // for images to help providers utilize content delivery networks...
       // Also note no scheme checks are necessary - even a javascript: URL
-      // is safe as gecko evaluates them in a sandbox.
+      // is safe as goanna evaluates them in a sandbox.
       let imgUri = this.resolveUri(url);
       if (!imgUri) {
         reportError('images["' + sub + '"] is an invalid URL');

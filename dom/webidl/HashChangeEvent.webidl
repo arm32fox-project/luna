@@ -10,7 +10,7 @@ interface HashChangeEvent : Event
   readonly attribute DOMString? oldURL;
   readonly attribute DOMString? newURL;
 
-  // initHashChangeEvent is a Gecko specific deprecated method.
+  // initHashChangeEvent is a Goanna specific deprecated method.
   [Throws]
   void initHashChangeEvent(DOMString type,
                            boolean canBubble,

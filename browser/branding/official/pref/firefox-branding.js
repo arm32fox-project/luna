@@ -57,6 +57,7 @@ pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/f
 pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/firefox/geolocation/");
 //add-on/plugin blocklist -> Palemoon.org
 pref("extensions.blocklist.url","http://blocklist.palemoon.org/%VERSION%/blocklist.xml");
+pref("extensions.blocklist.itemURL", "http://blocklist.palemoon.org/info/?id=%blockID%");
 
 // ****************** domain-specific UAs ******************
 
@@ -82,11 +83,6 @@ pref("general.useragent.compatMode.firefox", true);
 
 pref("plugin.default.state", 2); //Allow plugins to run by default
 pref("plugin.expose_full_path", true); //Security: expose the full path to the plugin
-
-// ****************** Networking config ******************
-
-pref("network.dnsCacheEntries", 128); //cache up to this many entries in-browser
-pref("network.dnsCacheExpiration", 300); //TTL 5 minutes
 
 // ****************** Renderer config ******************
 

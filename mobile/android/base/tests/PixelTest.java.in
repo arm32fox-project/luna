@@ -62,7 +62,7 @@ abstract class PixelTest extends BaseTest {
         } catch (InterruptedException ie) {
             ie.printStackTrace();
         }
-        mAsserter.is(expecter.eventReceived(), false, "Checking gecko didn't draw unnecessarily");
+        mAsserter.is(expecter.eventReceived(), false, "Checking goanna didn't draw unnecessarily");
         PaintedSurface p = mDriver.getPaintedSurface();
         if (p == null) {
             mAsserter.ok(p != null, "checking that painted surface loaded", 

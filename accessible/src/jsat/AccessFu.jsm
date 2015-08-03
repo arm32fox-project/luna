@@ -30,7 +30,7 @@ this.AccessFu = {
 
     try {
       Cc['@mozilla.org/android/bridge;1'].
-        getService(Ci.nsIAndroidBridge).handleGeckoMessage(
+        getService(Ci.nsIAndroidBridge).handleGoannaMessage(
           JSON.stringify({ type: 'Accessibility:Ready' }));
       Services.obs.addObserver(this, 'Accessibility:Settings', false);
     } catch (x) {
@@ -465,7 +465,7 @@ var Output = {
       androidEvent.type = 'Accessibility:Event';
       if (androidEvent.bounds)
         androidEvent.bounds = this._adjustBounds(androidEvent.bounds, aBrowser);
-      this._bridge.handleGeckoMessage(JSON.stringify(androidEvent));
+      this._bridge.handleGoannaMessage(JSON.stringify(androidEvent));
     }
   },
 
@@ -647,7 +647,7 @@ var Input = {
         if (Utils.MozBuildApp == 'mobile/android')
           // Return focus to native Android browser chrome.
           Cc['@mozilla.org/android/bridge;1'].
-            getService(Ci.nsIAndroidBridge).handleGeckoMessage(
+            getService(Ci.nsIAndroidBridge).handleGoannaMessage(
               JSON.stringify({ type: 'ToggleChrome:Focus' }));
         break;
       case aEvent.DOM_VK_RETURN:

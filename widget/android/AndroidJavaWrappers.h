@@ -25,7 +25,7 @@
 
 #ifndef ALOG
 #if defined(DEBUG) || defined(FORCE_ALOG)
-#define ALOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gecko" , ## args)
+#define ALOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Goanna" , ## args)
 #else
 #define ALOG(args...) ((void)0)
 #endif
@@ -37,7 +37,7 @@ class nsIWidget;
 
 namespace mozilla {
 
-class AndroidGeckoLayerClient;
+class AndroidGoannaLayerClient;
 class AutoLocalJNIFrame;
 
 void InitAndroidJavaWrappers(JNIEnv *jEnv);
@@ -261,14 +261,14 @@ private:
     static jmethodID jEndDrawingMethod;
 };
 
-class AndroidGeckoLayerClient : public WrappedJavaObject {
+class AndroidGoannaLayerClient : public WrappedJavaObject {
 public:
-    static void InitGeckoLayerClientClass(JNIEnv *jEnv);
+    static void InitGoannaLayerClientClass(JNIEnv *jEnv);
 
     void Init(jobject jobj);
 
-    AndroidGeckoLayerClient() {}
-    AndroidGeckoLayerClient(jobject jobj) { Init(jobj); }
+    AndroidGoannaLayerClient() {}
+    AndroidGoannaLayerClient(jobject jobj) { Init(jobj); }
 
     void SetFirstPaintViewport(const LayerIntPoint& aOffset, const CSSToLayerScale& aZoom, const CSSRect& aCssPageRect);
     void SetPageRect(const CSSRect& aCssPageRect);
@@ -287,7 +287,7 @@ public:
     bool IsContentDocumentDisplayed(AutoLocalJNIFrame *jniFrame);
 
 protected:
-    static jclass jGeckoLayerClientClass;
+    static jclass jGoannaLayerClientClass;
     static jmethodID jSetFirstPaintViewport;
     static jmethodID jSetPageRect;
     static jmethodID jSyncViewportInfoMethod;
@@ -478,61 +478,61 @@ public:
     static jmethodID jGetTimeMethod;
 };
 
-class AndroidGeckoEvent : public WrappedJavaObject
+class AndroidGoannaEvent : public WrappedJavaObject
 {
 private:
-    AndroidGeckoEvent() {
+    AndroidGoannaEvent() {
     }
 
     void Init(JNIEnv *jenv, jobject jobj);
     void Init(int aType);
-    void Init(AndroidGeckoEvent *aResizeEvent);
+    void Init(AndroidGoannaEvent *aResizeEvent);
 
 public:
-    static void InitGeckoEventClass(JNIEnv *jEnv);
+    static void InitGoannaEventClass(JNIEnv *jEnv);
 
-    static AndroidGeckoEvent* MakeNativePoke() {
-        AndroidGeckoEvent *event = new AndroidGeckoEvent();
+    static AndroidGoannaEvent* MakeNativePoke() {
+        AndroidGoannaEvent *event = new AndroidGoannaEvent();
         event->Init(NATIVE_POKE);
         return event;
     }
 
-    static AndroidGeckoEvent* MakeIMEEvent(int aAction) {
-        AndroidGeckoEvent *event = new AndroidGeckoEvent();
+    static AndroidGoannaEvent* MakeIMEEvent(int aAction) {
+        AndroidGoannaEvent *event = new AndroidGoannaEvent();
         event->Init(IME_EVENT);
         event->mAction = aAction;
         return event;
     }
 
-    static AndroidGeckoEvent* MakeDrawEvent(const nsIntRect& aRect) {
-        AndroidGeckoEvent *event = new AndroidGeckoEvent();
+    static AndroidGoannaEvent* MakeDrawEvent(const nsIntRect& aRect) {
+        AndroidGoannaEvent *event = new AndroidGoannaEvent();
         event->Init(DRAW);
         event->mRect = aRect;
         return event;
     }
 
-    static AndroidGeckoEvent* MakeFromJavaObject(JNIEnv *jenv, jobject jobj) {
-        AndroidGeckoEvent *event = new AndroidGeckoEvent();
+    static AndroidGoannaEvent* MakeFromJavaObject(JNIEnv *jenv, jobject jobj) {
+        AndroidGoannaEvent *event = new AndroidGoannaEvent();
         event->Init(jenv, jobj);
         return event;
     }
 
-    static AndroidGeckoEvent* CopyResizeEvent(AndroidGeckoEvent *aResizeEvent) {
-        AndroidGeckoEvent *event = new AndroidGeckoEvent();
+    static AndroidGoannaEvent* CopyResizeEvent(AndroidGoannaEvent *aResizeEvent) {
+        AndroidGoannaEvent *event = new AndroidGoannaEvent();
         event->Init(aResizeEvent);
         return event;
     }
 
-    static AndroidGeckoEvent* MakeBroadcastEvent(const nsCString& topic, const nsCString& data) {
-        AndroidGeckoEvent* event = new AndroidGeckoEvent();
+    static AndroidGoannaEvent* MakeBroadcastEvent(const nsCString& topic, const nsCString& data) {
+        AndroidGoannaEvent* event = new AndroidGoannaEvent();
         event->Init(BROADCAST);
         CopyUTF8toUTF16(topic, event->mCharacters);
         CopyUTF8toUTF16(data, event->mCharactersExtra);
         return event;
     }
 
-    static AndroidGeckoEvent* MakeAddObserver(const nsAString &key, nsIObserver *observer) {
-        AndroidGeckoEvent *event = new AndroidGeckoEvent();
+    static AndroidGoannaEvent* MakeAddObserver(const nsAString &key, nsIObserver *observer) {
+        AndroidGoannaEvent *event = new AndroidGoannaEvent();
         event->Init(ADD_OBSERVER);
         event->mCharacters.Assign(key);
         event->mObserver = observer;
@@ -637,9 +637,9 @@ protected:
     void ReadCharactersExtraField(JNIEnv *jenv);
     void ReadDataField(JNIEnv *jenv);
 
-    uint32_t ReadDomKeyLocation(JNIEnv* jenv, jobject jGeckoEventObj);
+    uint32_t ReadDomKeyLocation(JNIEnv* jenv, jobject jGoannaEventObj);
 
-    static jclass jGeckoEventClass;
+    static jclass jGoannaEventClass;
     static jfieldID jActionField;
     static jfieldID jTypeField;
     static jfieldID jAckNeededField;
@@ -735,10 +735,10 @@ public:
     };
 
     enum {
-        // Internal Gecko events
+        // Internal Goanna events
         IME_FLUSH_CHANGES = -2,
         IME_UPDATE_CONTEXT = -1,
-        // Events from Java to Gecko
+        // Events from Java to Goanna
         IME_SYNCHRONIZE = 0,
         IME_REPLACE_TEXT = 1,
         IME_SET_SELECTION = 2,

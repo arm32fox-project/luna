@@ -7,9 +7,9 @@
  *
  * ***** END LICENSE BLOCK ***** */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -32,7 +32,7 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class Distribution {
-    private static final String LOGTAG = "GeckoDistribution";
+    private static final String LOGTAG = "GoannaDistribution";
 
     private static final int STATE_UNKNOWN = 0;
     private static final int STATE_NONE = 1;
@@ -49,16 +49,16 @@ public final class Distribution {
             @Override
             public void run() {
                 // Bail if we've already initialized the distribution.
-                SharedPreferences settings = context.getSharedPreferences(GeckoApp.PREFS_NAME, Activity.MODE_PRIVATE);
+                SharedPreferences settings = context.getSharedPreferences(GoannaApp.PREFS_NAME, Activity.MODE_PRIVATE);
                 String keyName = context.getPackageName() + ".distribution_state";
                 int state = settings.getInt(keyName, STATE_UNKNOWN);
                 if (state == STATE_NONE) {
                     return;
                 }
 
-                // Send a message to Gecko if we've set a distribution.
+                // Send a message to Goanna if we've set a distribution.
                 if (state == STATE_SET) {
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Distribution:Set", ""));
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Distribution:Set", ""));
                     return;
                 }
 
@@ -79,7 +79,7 @@ public final class Distribution {
                 }
 
                 if (distributionSet) {
-                    GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Distribution:Set", ""));
+                    GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Distribution:Set", ""));
                     settings.edit().putInt(keyName, STATE_SET).commit();
                 } else {
                     settings.edit().putInt(keyName, STATE_NONE).commit();
@@ -136,7 +136,7 @@ public final class Distribution {
      * This method should only be called from a background thread.
      */
     public static JSONArray getBookmarks(Context context) {
-        SharedPreferences settings = context.getSharedPreferences(GeckoApp.PREFS_NAME, Activity.MODE_PRIVATE);
+        SharedPreferences settings = context.getSharedPreferences(GoannaApp.PREFS_NAME, Activity.MODE_PRIVATE);
         String keyName = context.getPackageName() + ".distribution_state";
         int state = settings.getInt(keyName, STATE_UNKNOWN);
         if (state == STATE_NONE) {

@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.updater;
+package org.mozilla.goanna.updater;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.util.GeckoJarReader;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.util.GoannaJarReader;
 
 import android.content.Context;
 import android.content.Intent;
@@ -84,7 +84,7 @@ public class UpdateServiceHelper {
             ApplicationInfo info = pm.getApplicationInfo(AppConstants.ANDROID_PACKAGE_NAME, 0);
             String updateLocaleUrl = "jar:jar:file://" + info.sourceDir + "!/" + AppConstants.OMNIJAR_NAME + "!/update.locale";
 
-            locale = GeckoJarReader.getText(updateLocaleUrl);
+            locale = GoannaJarReader.getText(updateLocaleUrl);
 
             if (locale != null)
                 locale = locale.trim();

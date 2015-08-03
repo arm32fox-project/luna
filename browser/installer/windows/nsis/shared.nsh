@@ -551,7 +551,7 @@ FunctionEnd
   ${WriteRegStr2} $TmpVal "$0" "Plugins" "$8\plugins" 0
 
   StrCpy $0 "Software\Mozilla\${BrandFullNameInternal} ${AppVersion}"
-  ${WriteRegStr2} $TmpVal "$0" "GeckoVer" "${GREVersion}" 0
+  ${WriteRegStr2} $TmpVal "$0" "GoannaVer" "${GREVersion}" 0
 
   StrCpy $0 "Software\Mozilla\${BrandFullNameInternal}"
   ${WriteRegStr2} $TmpVal "$0" "" "${GREVersion}" 0
@@ -1033,15 +1033,15 @@ FunctionEnd
           ${If} $5 == ""
             ${Break}
           ${EndIf}
-          ${If} $5 == 233 ; ansi é
+          ${If} $5 == 233 ; ansi ??
             StrCpy $0 "1"
             FileWriteByte $4 195
             FileWriteByte $4 169
-          ${ElseIf} $5 == 241 ; ansi ñ
+          ${ElseIf} $5 == 241 ; ansi ??
             StrCpy $0 "1"
             FileWriteByte $4 195
             FileWriteByte $4 177
-          ${ElseIf} $5 == 252 ; ansi ü
+          ${ElseIf} $5 == 252 ; ansi ??
             StrCpy $0 "1"
             FileWriteByte $4 195
             FileWriteByte $4 188

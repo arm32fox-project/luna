@@ -679,12 +679,16 @@ const int32_t nsCSSProps::kBackgroundRepeatKTable[] = {
   eCSSKeyword_repeat,     NS_STYLE_BG_REPEAT_REPEAT,
   eCSSKeyword_repeat_x,   NS_STYLE_BG_REPEAT_REPEAT_X,
   eCSSKeyword_repeat_y,   NS_STYLE_BG_REPEAT_REPEAT_Y,
+  eCSSKeyword_round,      NS_STYLE_BG_REPEAT_ROUND,
+  eCSSKeyword_space,      NS_STYLE_BG_REPEAT_SPACE,
   eCSSKeyword_UNKNOWN,-1
 };
 
 const int32_t nsCSSProps::kBackgroundRepeatPartKTable[] = {
   eCSSKeyword_no_repeat,  NS_STYLE_BG_REPEAT_NO_REPEAT,
   eCSSKeyword_repeat,     NS_STYLE_BG_REPEAT_REPEAT,
+  eCSSKeyword_round,      NS_STYLE_BG_REPEAT_ROUND,
+  eCSSKeyword_space,      NS_STYLE_BG_REPEAT_SPACE,
   eCSSKeyword_UNKNOWN,-1
 };
 

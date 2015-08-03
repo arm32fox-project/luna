@@ -15,7 +15,7 @@ Cu.import("resource://gre/modules/SharedPreferences.jsm");
 // health reports.
 const PREF_UPLOAD_ENABLED = "android.not_a_preference.healthreport.uploadEnabled";
 
-// Name of Gecko Pref specifying report content location.
+// Name of Goanna Pref specifying report content location.
 const PREF_REPORTURL = "datareporting.healthreport.about.reportUrl";
 
 // Monotonically increasing wrapper API version number.
@@ -27,7 +27,7 @@ const EVENT_HEALTH_RESPONSE = "HealthReport:Response";
 function sendMessageToJava(message) {
   return Cc["@mozilla.org/android/bridge;1"]
     .getService(Ci.nsIAndroidBridge)
-    .handleGeckoMessage(JSON.stringify(message));
+    .handleGoannaMessage(JSON.stringify(message));
 }
 
 // about:healthreport prefs are stored in Firefox's default Android

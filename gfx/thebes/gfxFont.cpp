@@ -47,7 +47,7 @@
 #include "graphite2/Font.h"
 
 #include "nsCRT.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 #include <algorithm>
 

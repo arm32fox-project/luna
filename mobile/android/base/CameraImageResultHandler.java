@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.util.ActivityResultHandler;
+import org.mozilla.goanna.util.ActivityResultHandler;
 
 import android.app.Activity;
 import android.content.Intent;
@@ -16,7 +16,7 @@ import java.io.File;
 import java.util.Queue;
 
 class CameraImageResultHandler implements ActivityResultHandler {
-    private static final String LOGTAG = "GeckoCameraImageResultHandler";
+    private static final String LOGTAG = "GoannaCameraImageResultHandler";
 
     private final Queue<String> mFilePickerResult;
     private final ActivityHandlerHelper.FileResultHandler mHandler;

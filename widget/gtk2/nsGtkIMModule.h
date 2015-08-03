@@ -72,8 +72,8 @@ public:
     void OnBlurWindow(nsWindow* aWindow);
     // OnDestroyWindow is a notification that aWindow is going to be destroyed.
     void OnDestroyWindow(nsWindow* aWindow);
-    // OnFocusChangeInGecko is a notification that an editor gets focus.
-    void OnFocusChangeInGecko(bool aFocus);
+    // OnFocusChangeInGoanna is a notification that an editor gets focus.
+    void OnFocusChangeInGoanna(bool aFocus);
 
     // OnKeyEvent is called when aWindow gets a native key press event or a
     // native key release event.  If this returns TRUE, the key event was
@@ -291,7 +291,7 @@ protected:
 
     /**
      *  WARNING:
-     *    Following methods dispatch gecko events.  Then, the focused widget
+     *    Following methods dispatch goanna events.  Then, the focused widget
      *    can be destroyed, and also it can be stolen focus.  If they returns
      *    FALSE, callers cannot continue the composition.
      *      - CommitCompositionBy

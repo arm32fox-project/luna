@@ -113,7 +113,7 @@ NS_IMETHODIMP
 nsSpeechTask::Setup(nsISpeechTaskCallback* aCallback,
                     uint32_t aChannels, uint32_t aRate, uint8_t argc)
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
+  MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Default);
 
   LOG(PR_LOG_DEBUG, ("nsSpeechTask::Setup"));
 
@@ -148,7 +148,7 @@ NS_IMETHODIMP
 nsSpeechTask::SendAudio(const JS::Value& aData, const JS::Value& aLandmarks,
                         JSContext* aCx)
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
+  MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Default);
 
   NS_ENSURE_TRUE(mStream, NS_ERROR_NOT_AVAILABLE);
   NS_ENSURE_FALSE(mStream->IsDestroyed(), NS_ERROR_NOT_AVAILABLE);
@@ -401,7 +401,7 @@ nsSpeechTask::DispatchMarkImpl(const nsAString& aName,
 void
 nsSpeechTask::Pause()
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
+  MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Default);
 
   if (mUtterance->IsPaused() ||
       mUtterance->GetState() == SpeechSynthesisUtterance::STATE_ENDED) {
@@ -423,7 +423,7 @@ nsSpeechTask::Pause()
 void
 nsSpeechTask::Resume()
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
+  MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Default);
 
   if (!mUtterance->IsPaused()) {
     return;
@@ -444,7 +444,7 @@ nsSpeechTask::Resume()
 void
 nsSpeechTask::Cancel()
 {
-  MOZ_ASSERT(XRE_GetProcessType() == GeckoProcessType_Default);
+  MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Default);
 
   LOG(PR_LOG_DEBUG, ("nsSpeechTask::Cancel"));
 

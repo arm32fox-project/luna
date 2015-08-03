@@ -50,7 +50,7 @@ const observer = Trait.compose(DOMEventAssembler, EventEmitter).create({
   }
 });
 
-// Currently Gecko does not dispatch any event on the previously selected
+// Currently Goanna does not dispatch any event on the previously selected
 // tab before / after "TabSelect" is dispatched. In order to work around this
 // limitation we keep track of selected tab and emit "deactivate" event with
 // that before emitting "activate" on selected tab.
@@ -84,7 +84,7 @@ function onWindowClose(chromeWindow) {
 windowObserver.on("close", onWindowClose);
 
 
-// Currently gecko does not dispatches "TabSelect" events when different
+// Currently goanna does not dispatches "TabSelect" events when different
 // window gets activated. To work around this limitation we emulate "select"
 // event for this case.
 windowObserver.on("activate", function onWindowActivate(chromeWindow) {

@@ -20,10 +20,10 @@ public class testJarReader extends BaseTest {
         try {
             ClassLoader classLoader = getActivity().getClassLoader();
 
-            Class appConstantsClass = classLoader.loadClass("org.mozilla.gecko.AppConstants");
+            Class appConstantsClass = classLoader.loadClass("org.mozilla.goanna.AppConstants");
             String omniJarName = (String) appConstantsClass.getField("OMNIJAR_NAME").get(null);
 
-            Class gjrClass = classLoader.loadClass("org.mozilla.gecko.util.GeckoJarReader");
+            Class gjrClass = classLoader.loadClass("org.mozilla.goanna.util.GoannaJarReader");
             Method getStreamMethod = gjrClass.getMethod("getStream", String.class);
             String appPath = getActivity().getApplication().getPackageResourcePath();
             mAsserter.isnot(appPath, null, "getPackageResourcePath is non-null");
@@ -68,7 +68,7 @@ public class testJarReader extends BaseTest {
         // This test completes very quickly. If it completes too soon, the
         // minidumps directory may not be created before the process is
         // taken down, causing bug 722166.
-        blockForGeckoReady();
+        blockForGoannaReady();
     }
 
     private String getData(InputStream stream) {

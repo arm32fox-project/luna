@@ -177,7 +177,7 @@ class MarionetteTestRunner(object):
                  app=None, bin=None, profile=None, autolog=False, revision=None,
                  es_server=None, rest_server=None, logger=None,
                  testgroup="marionette", noWindow=False, logcat_dir=None,
-                 xml_output=None, repeat=0, gecko_path=None, testvars=None,
+                 xml_output=None, repeat=0, goanna_path=None, testvars=None,
                  tree=None, type=None, device_serial=None, symbols_path=None,
                  timeout=None, **kwargs):
         self.address = address
@@ -202,7 +202,7 @@ class MarionetteTestRunner(object):
         self.logcat_dir = logcat_dir
         self.xml_output = xml_output
         self.repeat = repeat
-        self.gecko_path = gecko_path
+        self.goanna_path = goanna_path
         self.testvars = {}
         self.test_kwargs = kwargs
         self.tree = tree
@@ -312,7 +312,7 @@ class MarionetteTestRunner(object):
                                              homedir=self.homedir,
                                              baseurl=self.baseurl,
                                              logcat_dir=self.logcat_dir,
-                                             gecko_path=self.gecko_path,
+                                             goanna_path=self.goanna_path,
                                              symbols_path=self.symbols_path,
                                              timeout=self.timeout)
             else:
@@ -330,7 +330,7 @@ class MarionetteTestRunner(object):
                                          baseurl=self.baseurl,
                                          noWindow=self.noWindow,
                                          logcat_dir=self.logcat_dir,
-                                         gecko_path=self.gecko_path,
+                                         goanna_path=self.goanna_path,
                                          symbols_path=self.symbols_path,
                                          timeout=self.timeout)
         else:
@@ -629,7 +629,7 @@ class MarionetteTestOptions(OptionParser):
         self.add_option('--address',
                         dest='address',
                         action='store',
-                        help='host:port of running Gecko instance to connect to')
+                        help='host:port of running Goanna instance to connect to')
         self.add_option('--device',
                         dest='device_serial',
                         action='store',
@@ -654,11 +654,11 @@ class MarionetteTestOptions(OptionParser):
         self.add_option('--binary',
                         dest='bin',
                         action='store',
-                        help='gecko executable to launch before running the test')
+                        help='goanna executable to launch before running the test')
         self.add_option('--profile',
                         dest='profile',
                         action='store',
-                        help='profile to use when launching the gecko process. if not passed, then a profile will be '
+                        help='profile to use when launching the goanna process. if not passed, then a profile will be '
                              'constructed and used')
         self.add_option('--repeat',
                         dest='repeat',
@@ -670,10 +670,10 @@ class MarionetteTestOptions(OptionParser):
                         action='store',
                         dest='xml_output',
                         help='xml output')
-        self.add_option('--gecko-path',
-                        dest='gecko_path',
+        self.add_option('--goanna-path',
+                        dest='goanna_path',
                         action='store',
-                        help='path to b2g gecko binaries that should be installed on the device or emulator')
+                        help='path to b2g goanna binaries that should be installed on the device or emulator')
         self.add_option('--testvars',
                         dest='testvars',
                         action='store',

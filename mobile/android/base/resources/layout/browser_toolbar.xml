@@ -3,8 +3,8 @@
    - License, v. 2.0. If a copy of the MPL was not distributed with this
    - file, You can obtain one at http://mozilla.org/MPL/2.0/. -->
 
-<org.mozilla.gecko.BrowserToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              xmlns:gecko="http://schemas.android.com/apk/res-auto"
+<org.mozilla.goanna.BrowserToolbarLayout xmlns:android="http://schemas.android.com/apk/res/android"
+              xmlns:goanna="http://schemas.android.com/apk/res-auto"
               android:id="@+id/browser_toolbar"
               style="@style/BrowserToolbar"
               android:layout_centerVertical="true"
@@ -17,7 +17,7 @@
     <ImageButton android:id="@+id/forward"
                  style="@style/AddressBar.ImageButton.Forward"/>
 
-    <org.mozilla.gecko.BrowserToolbarBackground android:id="@+id/address_bar_bg"
+    <org.mozilla.goanna.BrowserToolbarBackground android:id="@+id/address_bar_bg"
                                                 android:layout_width="fill_parent"
                                                 android:layout_height="fill_parent"
                                                 android:background="@drawable/address_bar_bg"/>
@@ -53,7 +53,7 @@
     <LinearLayout android:id="@+id/menu_items"
                   style="@style/AddressBar.ImageButton.Unused"/>
 
-    <Gecko.ShapedButton android:id="@+id/menu"
+    <Goanna.ShapedButton android:id="@+id/menu"
                         style="@style/AddressBar.ImageButton"
                         android:layout_width="48dip"
                         android:layout_alignParentRight="true"
@@ -61,7 +61,7 @@
                         android:background="@drawable/shaped_button"
                         android:visibility="gone"/>
 
-    <Gecko.ImageView android:id="@+id/menu_icon"
+    <Goanna.ImageView android:id="@+id/menu_icon"
                      style="@style/AddressBar.ImageButton"
                      android:layout_alignLeft="@id/menu"
                      android:layout_alignRight="@id/menu"
@@ -69,12 +69,12 @@
                      android:src="@drawable/menu_level"
                      android:visibility="gone"/>
 
-    <Gecko.ShapedButton android:id="@+id/tabs"
+    <Goanna.ShapedButton android:id="@+id/tabs"
                         style="@style/AddressBar.ImageButton"
                         android:layout_width="72dip"
                         android:layout_toLeftOf="@id/menu"
                         android:layout_alignWithParentIfMissing="true"
-                        gecko:curveTowards="right"
+                        goanna:curveTowards="right"
                         android:background="@drawable/shaped_button"
                         android:gravity="center_vertical"
                         android:paddingLeft="37dip"
@@ -86,7 +86,7 @@
          2 layers. Hence to center this, an additional 4dp is added to the left.
          The margins will be 40dp on left, 8dp on right, instead of ideal 30dp
          and 12dp. -->
-    <org.mozilla.gecko.TabCounter android:id="@+id/tabs_counter"
+    <org.mozilla.goanna.TabCounter android:id="@+id/tabs_counter"
                         style="@style/AddressBar.ImageButton.TabCount"
                         android:layout_width="24dip"
                         android:layout_height="24dip"
@@ -120,7 +120,7 @@
                      android:contentDescription="@string/site_security"
                      android:visibility="gone"/>
 
-        <Gecko.TextView android:id="@+id/awesome_bar_title"
+        <Goanna.TextView android:id="@+id/awesome_bar_title"
                         style="@style/AddressBar.Button"
                         android:layout_width="fill_parent"
                         android:layout_height="fill_parent"
@@ -132,7 +132,7 @@
                         android:gravity="center_vertical|left"
                         android:hint="@string/awesomebar_default_text"
                         android:layout_gravity="center_vertical"
-                        gecko:autoUpdateTheme="false"/>
+                        goanna:autoUpdateTheme="false"/>
 
         <ImageButton android:id="@+id/reader"
                      style="@style/AddressBar.ImageButton.Icon"
@@ -156,4 +156,4 @@
                android:contentDescription="@null"
                android:visibility="gone"/>
 
-</org.mozilla.gecko.BrowserToolbarLayout>
+</org.mozilla.goanna.BrowserToolbarLayout>

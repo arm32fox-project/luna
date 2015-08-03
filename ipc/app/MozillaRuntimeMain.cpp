@@ -36,7 +36,7 @@
 # define LOGE_IF(cond, ...) \
      ( (CONDITION(cond)) \
      ? ((void)__android_log_print(ANDROID_LOG_ERROR, \
-       "Gecko:MozillaRntimeMain", __VA_ARGS__)) \
+       "Goanna:MozillaRntimeMain", __VA_ARGS__)) \
      : (void)0 )
 
 #endif
@@ -70,13 +70,13 @@ main(int argc, char* argv[])
     // forward here. We expect the last arg to be the child process type.
     if (argc < 1)
       return 1;
-    GeckoProcessType proctype = XRE_StringToChildProcessType(argv[--argc]);
+    GoannaProcessType proctype = XRE_StringToChildProcessType(argv[--argc]);
 
 #ifdef XP_WIN
     // For plugins, this is done in PluginProcessChild::Init, as we need to
     // avoid it for unsupported plugins.  See PluginProcessChild::Init for
     // the details.
-    if (proctype != GeckoProcessType_Plugin) {
+    if (proctype != GoannaProcessType_Plugin) {
         mozilla::SanitizeEnvironmentVariables();
         SetDllDirectory(L"");
     }

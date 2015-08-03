@@ -21,14 +21,14 @@ fi
 MARIONETTE_HOME=$(cd `dirname $BASH_SOURCE`; dirname `pwd`)
 echo "Detected Marionette home in $MARIONETTE_HOME"
 
-# If a GECKO_OBJDIR environemnt variable exists, we will create the Python
+# If a GOANNA_OBJDIR environemnt variable exists, we will create the Python
 # virtual envirnoment there. Otherwise we create it in the PWD.
 VENV_DIR="marionette_venv"
-if [ -z $GECKO_OBJDIR ]
+if [ -z $GOANNA_OBJDIR ]
 then
     VENV_DIR="$MARIONETTE_HOME/$VENV_DIR"
 else
-    VENV_DIR="$GECKO_OBJDIR/$VENV_DIR"
+    VENV_DIR="$GOANNA_OBJDIR/$VENV_DIR"
 fi
 
 # Check if environment exists, if not, create a virtualenv:

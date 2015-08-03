@@ -3,28 +3,28 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
-import org.mozilla.gecko.AppConstants;
-import org.mozilla.gecko.Distribution;
-import org.mozilla.gecko.GeckoProfile;
-import org.mozilla.gecko.ProfileMigrator;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.db.BrowserContract.Bookmarks;
-import org.mozilla.gecko.db.BrowserContract.Combined;
-import org.mozilla.gecko.db.BrowserContract.CommonColumns;
-import org.mozilla.gecko.db.BrowserContract.Control;
-import org.mozilla.gecko.db.BrowserContract.FaviconColumns;
-import org.mozilla.gecko.db.BrowserContract.Favicons;
-import org.mozilla.gecko.db.BrowserContract.History;
-import org.mozilla.gecko.db.BrowserContract.Schema;
-import org.mozilla.gecko.db.BrowserContract.SyncColumns;
-import org.mozilla.gecko.db.BrowserContract.Thumbnails;
-import org.mozilla.gecko.db.BrowserContract.URLColumns;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.sync.Utils;
-import org.mozilla.gecko.util.GeckoJarReader;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.Distribution;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.ProfileMigrator;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.db.BrowserContract.Bookmarks;
+import org.mozilla.goanna.db.BrowserContract.Combined;
+import org.mozilla.goanna.db.BrowserContract.CommonColumns;
+import org.mozilla.goanna.db.BrowserContract.Control;
+import org.mozilla.goanna.db.BrowserContract.FaviconColumns;
+import org.mozilla.goanna.db.BrowserContract.Favicons;
+import org.mozilla.goanna.db.BrowserContract.History;
+import org.mozilla.goanna.db.BrowserContract.Schema;
+import org.mozilla.goanna.db.BrowserContract.SyncColumns;
+import org.mozilla.goanna.db.BrowserContract.Thumbnails;
+import org.mozilla.goanna.db.BrowserContract.URLColumns;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.sync.Utils;
+import org.mozilla.goanna.util.GoannaJarReader;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -65,7 +65,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class BrowserProvider extends ContentProvider {
-    private static final String LOGTAG = "GeckoBrowserProvider";
+    private static final String LOGTAG = "GoannaBrowserProvider";
     private Context mContext;
 
     static final String DATABASE_NAME = "browser.db";
@@ -1238,7 +1238,7 @@ public class BrowserProvider extends ContentProvider {
                 String apkPath = mContext.getPackageResourcePath();
                 File apkFile = new File(apkPath);
                 String bitmapPath = "jar:jar:" + apkFile.toURI() + "!/" + AppConstants.OMNIJAR_NAME + "!/" + path;
-                return GeckoJarReader.getBitmap(mContext.getResources(), bitmapPath);
+                return GoannaJarReader.getBitmap(mContext.getResources(), bitmapPath);
             } catch (java.lang.IllegalAccessException ex) {
                 Log.e(LOGTAG, "[Path] Can't create favicon " + name, ex);
             } catch (java.lang.NoSuchFieldException ex) {
@@ -1961,7 +1961,7 @@ public class BrowserProvider extends ContentProvider {
 
         // Always fallback to default profile if none has been provided.
         if (TextUtils.isEmpty(profile)) {
-            profile = GeckoProfile.get(mContext).getName();
+            profile = GoannaProfile.get(mContext).getName();
         }
 
         DatabaseHelper dbHelper;
@@ -2000,7 +2000,7 @@ public class BrowserProvider extends ContentProvider {
             return DATABASE_NAME;
         }
 
-        File profileDir = GeckoProfile.get(mContext, profile).getDir();
+        File profileDir = GoannaProfile.get(mContext, profile).getDir();
         if (profileDir == null) {
             debug("Couldn't find directory for profile: " + profile);
             return null;
@@ -2554,12 +2554,12 @@ public class BrowserProvider extends ContentProvider {
             throw new UnsupportedOperationException("No selection in virtual CONTROL queries");
         }
 
-        File profileDir = GeckoProfile.get(mContext).getDir();
+        File profileDir = GoannaProfile.get(mContext).getDir();
 
         if (uri != null) {
             String profile = uri.getQueryParameter(BrowserContract.PARAM_PROFILE);
             if (!TextUtils.isEmpty(profile)) {
-                profileDir = GeckoProfile.get(mContext, profile).getDir();
+                profileDir = GoannaProfile.get(mContext, profile).getDir();
             }
         }
 

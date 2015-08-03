@@ -3,9 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.menu;
+package org.mozilla.goanna.menu;
 
-import org.mozilla.gecko.R;
+import org.mozilla.goanna.R;
 
 import android.annotation.TargetApi;
 import android.content.Context;
@@ -18,8 +18,8 @@ import android.widget.LinearLayout;
 import android.widget.ImageButton;
 
 public class MenuItemActionView extends LinearLayout
-                                implements GeckoMenuItem.Layout {
-    private static final String LOGTAG = "GeckoMenuItemActionView";
+                                implements GoannaMenuItem.Layout {
+    private static final String LOGTAG = "GoannaMenuItemActionView";
 
     private MenuItemDefault mMenuItem;
     private ImageButton mActionButton;
@@ -48,7 +48,7 @@ public class MenuItemActionView extends LinearLayout
     }
 
     @Override
-    public void initialize(GeckoMenuItem item) {
+    public void initialize(GoannaMenuItem item) {
         if (item == null)
             return;
 

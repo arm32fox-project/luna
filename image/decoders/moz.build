@@ -31,6 +31,7 @@ CPP_SOURCES += [
     'nsIconDecoder.cpp',
     'nsJPEGDecoder.cpp',
     'nsPNGDecoder.cpp',
+    'nsWEBPDecoder.cpp',
 ]
 
 if CONFIG['MOZ_WBMP']:

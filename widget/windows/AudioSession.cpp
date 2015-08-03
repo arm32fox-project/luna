@@ -145,7 +145,7 @@ AudioSession::GetSingleton()
     service.forget(&AudioSession::sService);
   }
 
-  // We don't refcount AudioSession on the Gecko side, we hold one single ref
+  // We don't refcount AudioSession on the Goanna side, we hold one single ref
   // as long as the appshell is running.
   return AudioSession::sService;
 }
@@ -193,10 +193,10 @@ AudioSession::Start()
     mState = FAILED;
 
     // XXXkhuey implement this for content processes
-    if (XRE_GetProcessType() == GeckoProcessType_Content)
+    if (XRE_GetProcessType() == GoannaProcessType_Content)
       return NS_ERROR_FAILURE;
 
-    NS_ABORT_IF_FALSE(XRE_GetProcessType() == GeckoProcessType_Default,
+    NS_ABORT_IF_FALSE(XRE_GetProcessType() == GoannaProcessType_Default,
                       "Should only get here in a chrome process!");
 
     nsCOMPtr<nsIStringBundleService> bundleService = 
@@ -315,7 +315,7 @@ AudioSession::Stop()
   nsRefPtr<AudioSession> kungFuDeathGrip;
   kungFuDeathGrip.swap(sService);
 
-  if (XRE_GetProcessType() != GeckoProcessType_Content)
+  if (XRE_GetProcessType() != GoannaProcessType_Content)
     StopInternal();
 
   // At this point kungFuDeathGrip should be the only reference to AudioSession
@@ -362,7 +362,7 @@ AudioSession::SetSessionData(const nsID& aID,
 {
   NS_ABORT_IF_FALSE(mState == UNINITIALIZED,
                     "State invariants violated");
-  NS_ABORT_IF_FALSE(XRE_GetProcessType() != GeckoProcessType_Default,
+  NS_ABORT_IF_FALSE(XRE_GetProcessType() != GoannaProcessType_Default,
                     "Should never get here in a chrome process!");
   mState = CLONED;
 

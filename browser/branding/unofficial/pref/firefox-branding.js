@@ -56,6 +56,7 @@ pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/f
 pref("browser.geolocation.warning.infoURL", "http://www.mozilla.com/%LOCALE%/firefox/geolocation/");
 //add-on/plugin blocklist -> Palemoon.org
 pref("extensions.blocklist.url","http://blocklist.palemoon.org/%VERSION%/blocklist.xml");
+pref("extensions.blocklist.itemURL", "http://blocklist.palemoon.org/info/?id=%blockID%");
 
 // ****************** domain-specific UAs ******************
 
@@ -68,11 +69,6 @@ pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW6
 
 // Enable Firefox compatibility mode globally?
 pref("general.useragent.compatMode.firefox", false);
-
-// ****************** Networking config ******************
-
-pref("network.dnsCacheEntries", 128); //cache up to this many entries in-browser
-pref("network.dnsCacheExpiration", 300); //TTL 5 minutes
 
 // ****************** UI config ******************
 

@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -39,7 +39,7 @@ public final class PointUtils {
     }
 
     public static JSONObject toJSON(PointF point) throws JSONException {
-        // Ensure we put ints, not longs, because Gecko message handlers call getInt().
+        // Ensure we put ints, not longs, because Goanna message handlers call getInt().
         int x = Math.round(point.x);
         int y = Math.round(point.y);
         JSONObject json = new JSONObject();

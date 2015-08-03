@@ -266,7 +266,7 @@ function copyRawDataToClipboard(button) {
       };
       Cc["@mozilla.org/android/bridge;1"].
         getService(Ci.nsIAndroidBridge).
-        handleGeckoMessage(JSON.stringify(message));
+        handleGoannaMessage(JSON.stringify(message));
 #endif
     });
   }
@@ -322,7 +322,7 @@ function copyContentsToClipboard() {
   };
   Cc["@mozilla.org/android/bridge;1"].
     getService(Ci.nsIAndroidBridge).
-    handleGeckoMessage(JSON.stringify(message));
+    handleGoannaMessage(JSON.stringify(message));
 #endif
 }
 

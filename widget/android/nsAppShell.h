@@ -15,7 +15,7 @@
 #include "nsIAndroidBridge.h"
 
 namespace mozilla {
-class AndroidGeckoEvent;
+class AndroidGoannaEvent;
 bool ProcessNextEvent();
 void NotifyEvent();
 }
@@ -30,7 +30,7 @@ class nsAppShell :
 
 public:
     static nsAppShell *gAppShell;
-    static mozilla::AndroidGeckoEvent *gEarlyEvent;
+    static mozilla::AndroidGoannaEvent *gEarlyEvent;
 
     nsAppShell();
 
@@ -43,7 +43,7 @@ public:
 
     virtual bool ProcessNextNativeEvent(bool mayWait);
 
-    void PostEvent(mozilla::AndroidGeckoEvent *event);
+    void PostEvent(mozilla::AndroidGoannaEvent *event);
     void OnResume();
 
     nsresult AddObserver(const nsAString &aObserverKey, nsIObserver *aObserver);
@@ -64,15 +64,15 @@ protected:
     Mutex mQueueLock;
     Mutex mCondLock;
     CondVar mQueueCond;
-    mozilla::AndroidGeckoEvent *mQueuedDrawEvent;
-    mozilla::AndroidGeckoEvent *mQueuedViewportEvent;
+    mozilla::AndroidGoannaEvent *mQueuedDrawEvent;
+    mozilla::AndroidGoannaEvent *mQueuedViewportEvent;
     bool mAllowCoalescingNextDraw;
     bool mAllowCoalescingTouches;
-    nsTArray<mozilla::AndroidGeckoEvent *> mEventQueue;
+    nsTArray<mozilla::AndroidGoannaEvent *> mEventQueue;
     nsInterfaceHashtable<nsStringHashKey, nsIObserver> mObserversHash;
 
-    mozilla::AndroidGeckoEvent *PopNextEvent();
-    mozilla::AndroidGeckoEvent *PeekNextEvent();
+    mozilla::AndroidGoannaEvent *PopNextEvent();
+    mozilla::AndroidGoannaEvent *PeekNextEvent();
 
     nsCOMPtr<nsIAndroidBrowserApp> mBrowserApp;
 };

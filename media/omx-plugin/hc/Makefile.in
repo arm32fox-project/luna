@@ -22,10 +22,10 @@ include $(DEPTH)/config/autoconf.mk
 MODULE_NAME = omxpluginhc
 FORCE_SHARED_LIB = 1
 
-# Don't use STL wrappers; this isn't Gecko code
+# Don't use STL wrappers; this isn't Goanna code
 STL_FLAGS =
 
-# must link statically with the CRT; this isn't Gecko code
+# must link statically with the CRT; this isn't Goanna code
 USE_STATIC_LIBS = 1
 
 # Need to custom install OMX media plugin

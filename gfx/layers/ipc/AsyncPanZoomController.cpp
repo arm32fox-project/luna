@@ -144,9 +144,9 @@ static void InitAZPCPrefs()
   }
 }
 
-AsyncPanZoomController::AsyncPanZoomController(GeckoContentController* aGeckoContentController,
+AsyncPanZoomController::AsyncPanZoomController(GoannaContentController* aGoannaContentController,
                                                GestureBehavior aGestures)
-  :  mGeckoContentController(aGeckoContentController),
+  :  mGoannaContentController(aGoannaContentController),
      mTouchListenerTimeoutTask(nullptr),
      mX(this),
      mY(this),
@@ -198,7 +198,7 @@ void
 AsyncPanZoomController::Destroy()
 {
   // These memebrs can only be used on the controller/UI thread.
-  mGeckoContentController = nullptr;
+  mGoannaContentController = nullptr;
   mGestureEventListener = nullptr;
 }
 
@@ -642,7 +642,7 @@ nsEventStatus AsyncPanZoomController::OnScaleEnd(const PinchGestureInput& aEvent
 }
 
 nsEventStatus AsyncPanZoomController::OnLongPress(const TapGestureInput& aEvent) {
-  if (mGeckoContentController) {
+  if (mGoannaContentController) {
     MonitorAutoLock monitor(mMonitor);
 
     CSSToScreenScale resolution = CalculateResolution(mFrameMetrics);
@@ -650,7 +650,7 @@ nsEventStatus AsyncPanZoomController::OnLongPress(const TapGestureInput& aEvent)
       ScreenPoint::FromUnknownPoint(gfx::Point(
         aEvent.mPoint.x, aEvent.mPoint.y)),
       resolution);
-    mGeckoContentController->HandleLongTap(gfx::RoundedToInt(point));
+    mGoannaContentController->HandleLongTap(gfx::RoundedToInt(point));
     return nsEventStatus_eConsumeNoDefault;
   }
   return nsEventStatus_eIgnore;
@@ -661,7 +661,7 @@ nsEventStatus AsyncPanZoomController::OnSingleTapUp(const TapGestureInput& aEven
 }
 
 nsEventStatus AsyncPanZoomController::OnSingleTapConfirmed(const TapGestureInput& aEvent) {
-  if (mGeckoContentController) {
+  if (mGoannaContentController) {
     MonitorAutoLock monitor(mMonitor);
 
     CSSToScreenScale resolution = CalculateResolution(mFrameMetrics);
@@ -669,14 +669,14 @@ nsEventStatus AsyncPanZoomController::OnSingleTapConfirmed(const TapGestureInput
       ScreenPoint::FromUnknownPoint(gfx::Point(
         aEvent.mPoint.x, aEvent.mPoint.y)),
       resolution);
-    mGeckoContentController->HandleSingleTap(gfx::RoundedToInt(point));
+    mGoannaContentController->HandleSingleTap(gfx::RoundedToInt(point));
     return nsEventStatus_eConsumeNoDefault;
   }
   return nsEventStatus_eIgnore;
 }
 
 nsEventStatus AsyncPanZoomController::OnDoubleTap(const TapGestureInput& aEvent) {
-  if (mGeckoContentController) {
+  if (mGoannaContentController) {
     MonitorAutoLock monitor(mMonitor);
 
     if (mAllowZoom) {
@@ -685,7 +685,7 @@ nsEventStatus AsyncPanZoomController::OnDoubleTap(const TapGestureInput& aEvent)
         ScreenPoint::FromUnknownPoint(gfx::Point(
           aEvent.mPoint.x, aEvent.mPoint.y)),
         resolution);
-      mGeckoContentController->HandleDoubleTap(gfx::RoundedToInt(point));
+      mGoannaContentController->HandleDoubleTap(gfx::RoundedToInt(point));
     }
 
     return nsEventStatus_eConsumeNoDefault;
@@ -1048,8 +1048,8 @@ void AsyncPanZoomController::RequestContentRepaint() {
   // for the purposes of content calling window.scrollTo().
   mPaintThrottler.PostTask(
     FROM_HERE,
-    NewRunnableMethod(mGeckoContentController.get(),
-                      &GeckoContentController::RequestContentRepaint,
+    NewRunnableMethod(mGoannaContentController.get(),
+                      &GoannaContentController::RequestContentRepaint,
                       mFrameMetrics));
   mFrameMetrics.mPresShellId = mLastContentPaintMetrics.mPresShellId;
   mLastPaintRequestMetrics = mFrameMetrics;
@@ -1133,7 +1133,7 @@ bool AsyncPanZoomController::SampleContentTransformForFrame(const TimeStamp& aSa
     // Current local transform; this is not what's painted but rather
     // what PZC has transformed due to touches like panning or
     // pinching. Eventually, the root layer transform will become this
-    // during runtime, but we must wait for Gecko to repaint.
+    // during runtime, but we must wait for Goanna to repaint.
     localScale = CalculateResolution(mFrameMetrics);
 
     if (frame.IsScrollable()) {
@@ -1431,9 +1431,9 @@ void AsyncPanZoomController::SetZoomAndResolution(const ScreenToScreenScale& aZo
   mMonitor.AssertCurrentThreadOwns();
   mFrameMetrics.mZoom = aZoom;
   CSSToScreenScale resolution = CalculateResolution(mFrameMetrics);
-  // We use ScreenToLayerScale(1) below in order to ask gecko to render
+  // We use ScreenToLayerScale(1) below in order to ask goanna to render
   // what's currently visible on the screen. This is effectively turning
-  // the async zoom amount into the gecko zoom amount.
+  // the async zoom amount into the goanna zoom amount.
   mFrameMetrics.mResolution = resolution / mFrameMetrics.mDevPixelsPerCSSPixel * ScreenToLayerScale(1);
 }
 
@@ -1446,15 +1446,15 @@ void AsyncPanZoomController::UpdateZoomConstraints(bool aAllowZoom,
 }
 
 void AsyncPanZoomController::PostDelayedTask(Task* aTask, int aDelayMs) {
-  if (!mGeckoContentController) {
+  if (!mGoannaContentController) {
     return;
   }
 
-  mGeckoContentController->PostDelayedTask(aTask, aDelayMs);
+  mGoannaContentController->PostDelayedTask(aTask, aDelayMs);
 }
 
 void AsyncPanZoomController::SendAsyncScrollEvent() {
-  if (!mGeckoContentController) {
+  if (!mGoannaContentController) {
     return;
   }
 
@@ -1466,7 +1466,7 @@ void AsyncPanZoomController::SendAsyncScrollEvent() {
     contentRect.MoveTo(mCurrentAsyncScrollOffset);
   }
 
-  mGeckoContentController->SendAsyncScrollDOMEvent(contentRect, scrollableSize);
+  mGoannaContentController->SendAsyncScrollDOMEvent(contentRect, scrollableSize);
 }
 }
 }

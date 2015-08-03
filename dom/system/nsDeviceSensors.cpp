@@ -25,7 +25,7 @@ using namespace hal;
 
 #undef near
 
-// also see sDefaultSensorHint in mobile/android/base/GeckoAppShell.java
+// also see sDefaultSensorHint in mobile/android/base/GoannaAppShell.java
 #define DEFAULT_SENSOR_POLL 100
 
 static const nsTArray<nsIDOMWindow*>::index_type NoIndex =

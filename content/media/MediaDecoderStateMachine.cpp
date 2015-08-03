@@ -417,7 +417,7 @@ MediaDecoderStateMachine::MediaDecoderStateMachine(MediaDecoder* aDecoder,
 #if defined(MOZ_OMX_DECODER) || defined(MOZ_MEDIA_PLUGINS)
   // On B2G and Android this is decided by a similar value which varies for
   // each OMX decoder |OMX_PARAM_PORTDEFINITIONTYPE::nBufferCountMin|. This
-  // number must be less than the OMX equivalent or gecko will think it is
+  // number must be less than the OMX equivalent or goanna will think it is
   // chronically starved of video frames. All decoders seen so far have a value
   // of at least 4.
   mAmpleVideoFrames = Preferences::GetUint("media.video-queue.default-size", 3);

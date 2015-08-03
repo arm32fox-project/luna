@@ -23,7 +23,7 @@ bool
 CreateTransport(ProcessHandle /*unused*/, ProcessHandle /*unused*/,
                 TransportDescriptor* aOne, TransportDescriptor* aTwo)
 {
-  // Gecko doesn't care about this random ID, and the argument to this
+  // Goanna doesn't care about this random ID, and the argument to this
   // function isn't really necessary, it can be just any random
   // pointer value
   wstring id = ChildProcessInfo::GenerateRandomChannelID(aOne);

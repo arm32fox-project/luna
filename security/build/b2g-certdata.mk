@@ -20,7 +20,7 @@
 #       < b2g-app-root-cert.der > b2g-certdata.txt
 #
 # Then, commit the changes. We don't do this step as part of the build because
-# we do not build addbuiltin as part of a Gecko build.
+# we do not build addbuiltin as part of a Goanna build.
 
 # Distrust all existing builtin CAs for code-signing
 hacked-certdata.txt : $(srcdir)/../nss/lib/ckfw/builtins/certdata.txt

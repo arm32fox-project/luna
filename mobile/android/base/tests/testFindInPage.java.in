@@ -16,11 +16,11 @@ public class testFindInPage extends PixelTest {
     }
 
     public void testFindInPage() {
-        blockForGeckoReady();
+        blockForGoannaReady();
         String url = getAbsoluteUrl("/robocop/robocop_text_page.html");
         loadAndPaint(url);
-        height = mDriver.getGeckoHeight()/8;
-        width = mDriver.getGeckoWidth()/2;
+        height = mDriver.getGoannaHeight()/8;
+        width = mDriver.getGoannaWidth()/2;
 
         // Search that does not find the term and therefor should not pan the page
         Actions.RepeatedEventExpecter paintExpecter = mActions.expectPaint();

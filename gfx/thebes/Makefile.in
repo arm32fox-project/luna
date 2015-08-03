@@ -47,7 +47,7 @@ ACDEFINES +=	-UWIN32_LEAN_AND_MEAN
 endif
 
 ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-# This is set for "normal Android", that is, when Gecko is running on
+# This is set for "normal Android", that is, when Goanna is running on
 # top of the android java runtime.
 DEFINES +=	-DMOZ_USING_ANDROID_JAVA_WIDGETS
 endif

@@ -287,7 +287,7 @@ printf_stderr(const char *fmt, ...)
 {
   va_list args;
   va_start(args, fmt);
-  __android_log_vprint(ANDROID_LOG_INFO, "Gecko", fmt, args);
+  __android_log_vprint(ANDROID_LOG_INFO, "Goanna", fmt, args);
   va_end(args);
 }
 #else

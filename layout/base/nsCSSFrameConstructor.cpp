@@ -124,7 +124,7 @@
 
 #include "nsRefreshDriver.h"
 #include "nsRuleProcessorData.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsTextNode.h"
 
 using namespace mozilla;
@@ -212,7 +212,7 @@ NS_NewSVGFEUnstyledLeafFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 #include "nsIServiceManager.h"
 
 #ifdef DEBUG
-// Set the environment variable GECKO_FRAMECTOR_DEBUG_FLAGS to one or
+// Set the environment variable GOANNA_FRAMECTOR_DEBUG_FLAGS to one or
 // more of the following flags (comma separated) for handy debug
 // output.
 static bool gNoisyContentUpdates = false;
@@ -1437,7 +1437,7 @@ nsCSSFrameConstructor::nsCSSFrameConstructor(nsIDocument *aDocument,
   static bool gFirstTime = true;
   if (gFirstTime) {
     gFirstTime = false;
-    char* flags = PR_GetEnv("GECKO_FRAMECTOR_DEBUG_FLAGS");
+    char* flags = PR_GetEnv("GOANNA_FRAMECTOR_DEBUG_FLAGS");
     if (flags) {
       bool error = false;
       for (;;) {
@@ -1469,14 +1469,14 @@ nsCSSFrameConstructor::nsCSSFrameConstructor(nsIDocument *aDocument,
       }
 
       if (error) {
-        printf("Here are the available GECKO_FRAMECTOR_DEBUG_FLAGS:\n");
+        printf("Here are the available GOANNA_FRAMECTOR_DEBUG_FLAGS:\n");
         FrameCtorDebugFlags* flag = gFlags;
         FrameCtorDebugFlags* limit = gFlags + NUM_DEBUG_FLAGS;
         while (flag < limit) {
           printf("  %s\n", flag->name);
           ++flag;
         }
-        printf("Note: GECKO_FRAMECTOR_DEBUG_FLAGS is a comma separated list of flag\n");
+        printf("Note: GOANNA_FRAMECTOR_DEBUG_FLAGS is a comma separated list of flag\n");
         printf("names (no whitespace)\n");
       }
     }

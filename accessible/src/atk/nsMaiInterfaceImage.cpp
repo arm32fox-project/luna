@@ -26,11 +26,11 @@ getImagePositionCB(AtkImage* aImage, gint* aAccX, gint* aAccY,
     return;
 
   ImageAccessible* image = accWrap->AsImage();
-  uint32_t geckoCoordType = (aCoordType == ATK_XY_WINDOW) ?
+  uint32_t goannaCoordType = (aCoordType == ATK_XY_WINDOW) ?
     nsIAccessibleCoordinateType::COORDTYPE_WINDOW_RELATIVE :
     nsIAccessibleCoordinateType::COORDTYPE_SCREEN_RELATIVE;
   // Returned in screen coordinates
-  image->GetImagePosition(geckoCoordType, aAccX, aAccY);
+  image->GetImagePosition(goannaCoordType, aAccX, aAccY);
 }
 
 static const gchar*

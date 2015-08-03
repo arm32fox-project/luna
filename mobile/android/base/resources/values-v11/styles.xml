@@ -49,8 +49,8 @@
     <!-- ActionBar -->
     <style name="ActionBar" parent="android:style/Widget.Holo.ActionBar" />
  
-    <!-- GeckoPreferences ActionBar -->
-    <style name="ActionBar.GeckoPreferences">
+    <!-- GoannaPreferences ActionBar -->
+    <style name="ActionBar.GoannaPreferences">
          <item name="android:displayOptions">showHome|homeAsUp|showTitle</item>
     </style>
  

@@ -22,7 +22,7 @@
 #include "ShadowLayerChild.h"
 #include "gfxipc/ShadowLayerUtils.h"
 #include "RenderTrace.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsXULAppAPI.h"
 #include "mozilla/layers/ImageClient.h"
 #include "mozilla/layers/CanvasClient.h"
@@ -299,7 +299,7 @@ void
 ShadowLayerForwarder::PaintedTiledLayerBuffer(CompositableClient* aCompositable,
                                               BasicTiledLayerBuffer* aTiledLayerBuffer)
 {
-  if (XRE_GetProcessType() != GeckoProcessType_Default)
+  if (XRE_GetProcessType() != GoannaProcessType_Default)
     NS_RUNTIMEABORT("PaintedTiledLayerBuffer must be made IPC safe (not share pointers)");
   mTxn->AddNoSwapPaint(OpPaintTiledLayerBuffer(NULL, aCompositable->GetIPDLActor(),
                                                uintptr_t(aTiledLayerBuffer)));

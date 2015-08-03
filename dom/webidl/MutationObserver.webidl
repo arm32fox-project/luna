@@ -10,7 +10,7 @@
 interface MutationRecord {
   readonly attribute DOMString type;
   // .target is not nullable per the spec, but in order to prevent crashes,
-  // if there are GC/CC bugs in Gecko, we let the property to be null.
+  // if there are GC/CC bugs in Goanna, we let the property to be null.
   readonly attribute Node? target;
   readonly attribute NodeList addedNodes;
   readonly attribute NodeList removedNodes;

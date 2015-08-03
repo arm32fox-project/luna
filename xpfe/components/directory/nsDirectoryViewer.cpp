@@ -1291,7 +1291,7 @@ nsDirectoryViewerFactory::CreateInstance(const char *aCommand,
     if (NS_FAILED(rv))
       return rv;
     nsXPIDLCString contractID;
-    rv = catMan->GetCategoryEntry("Gecko-Content-Viewers", "application/vnd.mozilla.xul+xml",
+    rv = catMan->GetCategoryEntry("Goanna-Content-Viewers", "application/vnd.mozilla.xul+xml",
                                   getter_Copies(contractID));
     if (NS_FAILED(rv))
       return rv;
@@ -1345,7 +1345,7 @@ nsDirectoryViewerFactory::CreateInstance(const char *aCommand,
   if (NS_FAILED(rv))
     return rv;
   nsXPIDLCString contractID;
-  rv = catMan->GetCategoryEntry("Gecko-Content-Viewers", "text/html",
+  rv = catMan->GetCategoryEntry("Goanna-Content-Viewers", "text/html",
                                 getter_Copies(contractID));
   if (NS_FAILED(rv))
     return rv;

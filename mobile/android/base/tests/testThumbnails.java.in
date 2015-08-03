@@ -43,7 +43,7 @@ public class testThumbnails extends BaseTest {
         // should be plenty of time, even on slow devices
         final int thumbnailDelay = 3000;
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // load sites; both will return HTTP 200 with a green background
         loadUrl(site1Url);
@@ -70,7 +70,7 @@ public class testThumbnails extends BaseTest {
         // test dropping thumbnails
         try {
             ClassLoader cl = getActivity().getApplicationContext().getClassLoader();
-            Class browserDB = cl.loadClass("org.mozilla.gecko.db.BrowserDB");
+            Class browserDB = cl.loadClass("org.mozilla.goanna.db.BrowserDB");
             // check that the thumbnail is non-null
             byte[] thumbnailData = (byte[])browserDB
                 .getMethod("getThumbnailForUrl", ContentResolver.class, String.class)

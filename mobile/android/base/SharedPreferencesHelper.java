@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.util.EventDispatcher;
-import org.mozilla.gecko.util.GeckoEventResponder;
+import org.mozilla.goanna.util.EventDispatcher;
+import org.mozilla.goanna.util.GoannaEventResponder;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -24,16 +24,16 @@ import java.util.HashMap;
  * Helper class to get, set, and observe Android Shared Preferences.
  */
 public final class SharedPreferencesHelper
-             implements GeckoEventResponder
+             implements GoannaEventResponder
 {
-    public static final String LOGTAG = "GeckoAndSharedPrefs";
+    public static final String LOGTAG = "GoannaAndSharedPrefs";
 
     protected final Context mContext;
 
     protected String mResponse;
 
     // mListeners is not synchronized because it is only updated in
-    // handleObserve, which is called from Gecko serially.
+    // handleObserve, which is called from Goanna serially.
     protected final Map<String, SharedPreferences.OnSharedPreferenceChangeListener> mListeners;
 
     public SharedPreferencesHelper(Context context) {
@@ -41,9 +41,9 @@ public final class SharedPreferencesHelper
 
         mListeners = new HashMap<String, SharedPreferences.OnSharedPreferenceChangeListener>();
 
-        EventDispatcher dispatcher = GeckoAppShell.getEventDispatcher();
+        EventDispatcher dispatcher = GoannaAppShell.getEventDispatcher();
         if (dispatcher == null) {
-            Log.e(LOGTAG, "Gecko event dispatcher must not be null", new RuntimeException());
+            Log.e(LOGTAG, "Goanna event dispatcher must not be null", new RuntimeException());
             return;
         }
         dispatcher.registerEventListener("SharedPreferences:Set", this);
@@ -52,9 +52,9 @@ public final class SharedPreferencesHelper
     }
 
     public synchronized void uninit() {
-        EventDispatcher dispatcher = GeckoAppShell.getEventDispatcher();
+        EventDispatcher dispatcher = GoannaAppShell.getEventDispatcher();
         if (dispatcher == null) {
-            Log.e(LOGTAG, "Gecko event dispatcher must not be null", new RuntimeException());
+            Log.e(LOGTAG, "Goanna event dispatcher must not be null", new RuntimeException());
             return;
         }
 
@@ -182,7 +182,7 @@ public final class SharedPreferencesHelper
                 // SharedPreferences instance.
                 msg.put("value", sharedPreferences.getAll().get(key));
 
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("SharedPreferences:Changed", msg.toString()));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("SharedPreferences:Changed", msg.toString()));
             } catch (JSONException e) {
                 Log.e(LOGTAG, "Got exception creating JSON object", e);
                 return;
@@ -209,7 +209,7 @@ public final class SharedPreferencesHelper
         boolean enable = message.getBoolean("enable");
 
         // mListeners is only modified in this one observer, which is called
-        // from Gecko serially.
+        // from Goanna serially.
         if (enable && !this.mListeners.containsKey(branch)) {
             SharedPreferences.OnSharedPreferenceChangeListener listener = new ChangeListener(branch);
             this.mListeners.put(branch, listener);

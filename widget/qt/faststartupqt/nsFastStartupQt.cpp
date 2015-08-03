@@ -21,7 +21,7 @@
 static nsFastStartup* sFastStartup = NULL;
 
 void
-GeckoThread::run()
+GoannaThread::run()
 {
   Q_EMIT symbolsLoadingFinished(mFunc(mExecPath));
 }
@@ -100,14 +100,14 @@ nsFastStartup::RemoveFakeLayout()
 bool
 nsFastStartup::CreateFastStartup(int& argc, char ** argv,
                                  const char* execPath,
-                                 GeckoLoaderFunc aFunc)
+                                 GoannaLoaderFunc aFunc)
 {
   gArgc = argc;
   gArgv = argv;
   // Create main QApplication instance
   nsQAppInstance::AddRef(argc, argv, true);
   // Create symbols loading thread
-  mThread = new GeckoThread();
+  mThread = new GoannaThread();
   // Setup thread loading finished callbacks
   connect(mThread, SIGNAL(symbolsLoadingFinished(bool)),
           this, SLOT(symbolsLoadingFinished(bool)));

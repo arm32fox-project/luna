@@ -34,7 +34,7 @@
                   android:isScrollContainer="false"
                   android:duplicateParentState="true"/>
 
-    <org.mozilla.gecko.LinkTextView android:id="@+id/more_text"
+    <org.mozilla.goanna.LinkTextView android:id="@+id/more_text"
                                     android:layout_width="fill_parent"
                                     android:layout_height="@dimen/abouthome_rowitem_height"
                                     android:textColor="@color/abouthome_section_more_text"

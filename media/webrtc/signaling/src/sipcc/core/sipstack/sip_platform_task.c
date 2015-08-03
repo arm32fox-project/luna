@@ -148,7 +148,7 @@ sip_platform_task_init (void)
  * appended to the end.
  *
  * The primary motivation for using TMPDIR is that that is how Fennec
- * (GeckoAppShell.java) passes in a scratch directory that is guaranteed to be
+ * (GoannaAppShell.java) passes in a scratch directory that is guaranteed to be
  * writable on Android, and there's no other reliable way to get such a thing.
  *
  * @param[out] out    buffer to be written to

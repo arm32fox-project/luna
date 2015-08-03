@@ -18,9 +18,9 @@ public class testOverscroll extends PixelTest {
     public void testOverscroll() {
         String url = getAbsoluteUrl("/robocop/robocop_boxes.html");
 
-        MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGeckoLeft(), mDriver.getGeckoTop());
+        MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGoannaLeft(), mDriver.getGoannaTop());
 
-        blockForGeckoReady();
+        blockForGoannaReady();
 
         // load page and check we're at 0,0
         loadAndVerifyBoxes(url);
@@ -28,7 +28,7 @@ public class testOverscroll extends PixelTest {
         // drag page downwards by 100 pixels so that it goes into overscroll.
         // wait for it to bounce back and check we're at the right spot.
         // the screen size is small). Note that since we only go into overscroll
-        // and back this should NOT trigger a gecko-paint
+        // and back this should NOT trigger a goanna-paint
         Actions.RepeatedEventExpecter paintExpecter = mActions.expectPaint();
         meh.dragSync(10, 50, 10, 150);
         PaintedSurface painted = waitWithNoPaint(paintExpecter);

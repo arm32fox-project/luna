@@ -45,7 +45,7 @@ typedef HRESULT (WINAPI*DwmGetCompositionTimingInfoProc)(HWND hWnd, DWM_TIMING_I
 #include "nsCxPusher.h"
 #include "mozilla/Preferences.h"
 #include "nsViewManager.h"
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsPerformance.h"
 #include "mozilla/dom/WindowBinding.h"

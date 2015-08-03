@@ -7,7 +7,7 @@
 #ifndef mozilla_dom_indexeddb_profilerhelpers_h__
 #define mozilla_dom_indexeddb_profilerhelpers_h__
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 // Uncomment this if you want IndexedDB operations to be marked in the profiler.
 //#define IDB_PROFILER_USE_MARKS

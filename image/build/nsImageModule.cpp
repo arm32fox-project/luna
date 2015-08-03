@@ -19,6 +19,8 @@
 #include "nsPNGEncoder.h"
 #include "nsJPEGEncoder.h"
 #include "nsBMPEncoder.h"
+//Disable WebP encoding for now (crash-prone)
+//#include "nsWEBPEncoder.h"
 
 // objects that just require generic constructors
 using namespace mozilla::image;
@@ -30,6 +32,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsICOEncoder)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsJPEGEncoder)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsPNGEncoder)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBMPEncoder)
+//NS_GENERIC_FACTORY_CONSTRUCTOR(nsWEBPEncoder)
 NS_DEFINE_NAMED_CID(NS_IMGLOADER_CID);
 NS_DEFINE_NAMED_CID(NS_IMGREQUESTPROXY_CID);
 NS_DEFINE_NAMED_CID(NS_IMGTOOLS_CID);
@@ -37,6 +40,7 @@ NS_DEFINE_NAMED_CID(NS_ICOENCODER_CID);
 NS_DEFINE_NAMED_CID(NS_JPEGENCODER_CID);
 NS_DEFINE_NAMED_CID(NS_PNGENCODER_CID);
 NS_DEFINE_NAMED_CID(NS_BMPENCODER_CID);
+//NS_DEFINE_NAMED_CID(NS_WEBPENCODER_CID);
 
 static const mozilla::Module::CIDEntry kImageCIDs[] = {
   { &kNS_IMGLOADER_CID, false, NULL, imgLoaderConstructor, },
@@ -46,6 +50,7 @@ static const mozilla::Module::CIDEntry kImageCIDs[] = {
   { &kNS_JPEGENCODER_CID, false, NULL, nsJPEGEncoderConstructor, },
   { &kNS_PNGENCODER_CID, false, NULL, nsPNGEncoderConstructor, },
   { &kNS_BMPENCODER_CID, false, NULL, nsBMPEncoderConstructor, },
+//  { &kNS_WEBPENCODER_CID, false, NULL, nsWEBPEncoderConstructor, },
   { NULL }
 };
 
@@ -58,23 +63,25 @@ static const mozilla::Module::ContractIDEntry kImageContracts[] = {
   { "@mozilla.org/image/encoder;2?type=" IMAGE_JPEG, &kNS_JPEGENCODER_CID },
   { "@mozilla.org/image/encoder;2?type=" IMAGE_PNG, &kNS_PNGENCODER_CID },
   { "@mozilla.org/image/encoder;2?type=" IMAGE_BMP, &kNS_BMPENCODER_CID },
+//  { "@mozilla.org/image/encoder;2?type=" IMAGE_WEBP, &kNS_WEBPENCODER_CID },
   { NULL }
 };
 
 static const mozilla::Module::CategoryEntry kImageCategories[] = {
-  { "Gecko-Content-Viewers", IMAGE_GIF, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_JPEG, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_PJPEG, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_JPG, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_ICO, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_ICO_MS, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_BMP, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_BMP_MS, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_ICON_MS, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_PNG, "@mozilla.org/content/document-loader-factory;1" },
-  { "Gecko-Content-Viewers", IMAGE_X_PNG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_GIF, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_JPEG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_PJPEG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_JPG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_ICO, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_ICO_MS, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_BMP, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_BMP_MS, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_ICON_MS, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_PNG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_X_PNG, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_WEBP, "@mozilla.org/content/document-loader-factory;1" },
 #ifdef MOZ_WBMP
-  { "Gecko-Content-Viewers", IMAGE_WBMP, "@mozilla.org/content/document-loader-factory;1" },
+  { "Goanna-Content-Viewers", IMAGE_WBMP, "@mozilla.org/content/document-loader-factory;1" },
 #endif
   { "content-sniffing-services", "@mozilla.org/image/loader;1", "@mozilla.org/image/loader;1" },
   { NULL }

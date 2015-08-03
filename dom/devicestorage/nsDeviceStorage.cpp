@@ -419,7 +419,7 @@ FileUpdateDispatcher::Observe(nsISupports *aSubject,
                               const char *aTopic,
                               const PRUnichar *aData)
 {
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+  if (XRE_GetProcessType() != GoannaProcessType_Default) {
 
     DeviceStorageFile* file = static_cast<DeviceStorageFile*>(aSubject);
     if (!file || !file->mFile) {
@@ -524,7 +524,7 @@ DeviceStorageFile::Dump(const char* label)
     path = NS_LITERAL_STRING("(null)");
   }
   const char* ptStr;
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     ptStr = "parent";
   } else {
     ptStr = "child";
@@ -1541,7 +1541,7 @@ ContinueCursorEvent::~ContinueCursorEvent() {}
 void
 ContinueCursorEvent::Continue()
 {
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     NS_DispatchToMainThread(this);
     return;
   }
@@ -1708,7 +1708,7 @@ nsDOMDeviceStorageCursor::Allow()
     return NS_OK;
   }
 
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+  if (XRE_GetProcessType() != GoannaProcessType_Default) {
     PDeviceStorageRequestChild* child = new DeviceStorageRequestChild(this, mFile);
     DeviceStorageEnumerationParams params(mFile->mStorageType,
                                           mFile->mStorageName,
@@ -2095,7 +2095,7 @@ public:
       return NS_OK;
     }
 
-    if (XRE_GetProcessType() == GeckoProcessType_Content) {
+    if (XRE_GetProcessType() == GoannaProcessType_Content) {
 
       // because owner implements nsITabChild, we can assume that it is
       // the one and only TabChild.
@@ -2202,7 +2202,7 @@ public:
           return NS_OK;
         }
 
-        if (XRE_GetProcessType() != GeckoProcessType_Default) {
+        if (XRE_GetProcessType() != GoannaProcessType_Default) {
 
           BlobChild* actor = ContentChild::GetSingleton()->GetOrCreateActorForBlob(mBlob);
           if (!actor) {
@@ -2241,7 +2241,7 @@ public:
           return NS_OK;
         }
 
-        if (XRE_GetProcessType() != GeckoProcessType_Default) {
+        if (XRE_GetProcessType() != GoannaProcessType_Default) {
           PDeviceStorageRequestChild* child = new DeviceStorageRequestChild(mRequest, mFile);
           DeviceStorageGetParams params(mFile->mStorageType,
                                         mFile->mStorageName,
@@ -2272,7 +2272,7 @@ public:
           return NS_OK;
         }
 
-        if (XRE_GetProcessType() != GeckoProcessType_Default) {
+        if (XRE_GetProcessType() != GoannaProcessType_Default) {
           PDeviceStorageRequestChild* child = new DeviceStorageRequestChild(mRequest, mFile);
           DeviceStorageDeleteParams params(mFile->mStorageType,
                                            mFile->mStorageName,
@@ -2286,7 +2286,7 @@ public:
 
       case DEVICE_STORAGE_REQUEST_FREE_SPACE:
       {
-        if (XRE_GetProcessType() != GeckoProcessType_Default) {
+        if (XRE_GetProcessType() != GoannaProcessType_Default) {
           PDeviceStorageRequestChild* child = new DeviceStorageRequestChild(mRequest, mFile);
           DeviceStorageFreeSpaceParams params(mFile->mStorageType,
                                               mFile->mStorageName);
@@ -2299,7 +2299,7 @@ public:
 
       case DEVICE_STORAGE_REQUEST_USED_SPACE:
       {
-        if (XRE_GetProcessType() != GeckoProcessType_Default) {
+        if (XRE_GetProcessType() != GoannaProcessType_Default) {
           PDeviceStorageRequestChild* child = new DeviceStorageRequestChild(mRequest, mFile);
           DeviceStorageUsedSpaceParams params(mFile->mStorageType,
                                               mFile->mStorageName);
@@ -2317,7 +2317,7 @@ public:
 
       case DEVICE_STORAGE_REQUEST_AVAILABLE:
       {
-        if (XRE_GetProcessType() != GeckoProcessType_Default) {
+        if (XRE_GetProcessType() != GoannaProcessType_Default) {
           PDeviceStorageRequestChild* child = new DeviceStorageRequestChild(mRequest, mFile);
           DeviceStorageAvailableParams params(mFile->mStorageType,
                                               mFile->mStorageName);
@@ -3111,7 +3111,7 @@ nsDOMDeviceStorage::EnumerateInternal(const nsAString& aPath,
     return cursor.forget();
   }
 
-  if (XRE_GetProcessType() == GeckoProcessType_Content) {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
     // because owner implements nsITabChild, we can assume that it is
     // the one and only TabChild.
     TabChild* child = GetTabChildFrom(win->GetDocShell());

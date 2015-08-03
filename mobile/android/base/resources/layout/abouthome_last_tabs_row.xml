@@ -9,7 +9,7 @@
                 android:gravity="left|center_vertical"
                 style="@style/AboutHome.RowItem">
 
-    <Gecko.FaviconView android:id="@+id/last_tab_favicon"
+    <Goanna.FaviconView android:id="@+id/last_tab_favicon"
                        android:layout_width="@dimen/favicon_bg"
                        android:layout_height="@dimen/favicon_bg"
                        android:layout_marginBottom="6dip"
@@ -19,7 +19,7 @@
                        android:minHeight="@dimen/favicon_bg"
                        android:background="@drawable/favicon"/>
 
-    <Gecko.TextView android:id="@+id/last_tab_title"
+    <Goanna.TextView android:id="@+id/last_tab_title"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_toRightOf="@id/last_tab_favicon"
@@ -28,7 +28,7 @@
                     android:layout_marginRight="12dip"
                     style="@style/AboutHome.LastTabRow.Title"/>
 
-    <Gecko.TextView android:id="@+id/last_tab_url"
+    <Goanna.TextView android:id="@+id/last_tab_url"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginLeft="12dip"

@@ -35,7 +35,7 @@ enum eHtml5TreeOperation {
   eTreeOpAppendCommentToDocument,
   eTreeOpAppendDoctypeToDocument,
   eTreeOpGetDocumentFragmentForTemplate,
-  // Gecko-specific on-pop ops
+  // Goanna-specific on-pop ops
   eTreeOpMarkAsBroken,
   eTreeOpRunScript,
   eTreeOpRunScriptAsyncDefer,

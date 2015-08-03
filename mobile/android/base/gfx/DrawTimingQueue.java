@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
 import android.os.SystemClock;
 
@@ -24,7 +24,7 @@ import android.os.SystemClock;
  * since the range itself will not shrink.
  */
 final class DrawTimingQueue {
-    private static final String LOGTAG = "GeckoDrawTimingQueue";
+    private static final String LOGTAG = "GoannaDrawTimingQueue";
     private static final int BUFFER_SIZE = 16;
 
     private final DisplayPortMetrics[] mMetrics;

@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.content.Context;
 import android.content.res.Resources;
@@ -15,9 +15,9 @@ import android.graphics.drawable.Drawable;
 import android.graphics.drawable.StateListDrawable;
 import android.util.AttributeSet;
 
-public class ShapedButton extends GeckoImageButton
+public class ShapedButton extends GoannaImageButton
                           implements CanvasDelegate.DrawManager {
-    protected GeckoActivity mActivity;
+    protected GoannaActivity mActivity;
 
     private Path mPath;
     private CurveTowards mSide;
@@ -28,7 +28,7 @@ public class ShapedButton extends GeckoImageButton
 
     public ShapedButton(Context context, AttributeSet attrs) {
         super(context, attrs);
-        mActivity = (GeckoActivity) context;
+        mActivity = (GoannaActivity) context;
 
         TypedArray a = context.obtainStyledAttributes(attrs, R.styleable.BrowserToolbarCurve);
         int curveTowards = a.getInt(R.styleable.BrowserToolbarCurve_curveTowards, 0x00);

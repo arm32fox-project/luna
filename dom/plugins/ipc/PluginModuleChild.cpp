@@ -55,7 +55,7 @@
 #include "PluginUtilsOSX.h"
 #endif
 
-#include "GeckoProfiler.h"
+#include "GoannaProfiler.h"
 
 using namespace mozilla;
 using namespace mozilla::plugins;
@@ -2399,7 +2399,7 @@ PluginModuleChild::ProcessNativeEvents() {
 #endif
 
 bool
-PluginModuleChild::AnswerGeckoGetProfile(nsCString* aProfile) {
+PluginModuleChild::AnswerGoannaGetProfile(nsCString* aProfile) {
     char* profile = profiler_get_profile();
     if (profile != NULL) {
         *aProfile = nsCString(profile, strlen(profile));

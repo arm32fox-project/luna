@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.widget.ArrowPopup;
+import org.mozilla.goanna.widget.ArrowPopup;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -23,7 +23,7 @@ import android.widget.TextView;
  */
 public class SiteIdentityPopup extends ArrowPopup
                                implements DoorHanger.OnButtonClickListener {
-    private static final String LOGTAG = "GeckoSiteIdentityPopup";
+    private static final String LOGTAG = "GoannaSiteIdentityPopup";
 
     public static final String UNKNOWN = "unknown";
     public static final String VERIFIED = "verified";
@@ -122,15 +122,15 @@ public class SiteIdentityPopup extends ArrowPopup
             try {
                 JSONObject data = new JSONObject();
                 data.put("allowMixedContent", true);
-                GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Reload", data.toString());
-                GeckoAppShell.sendEventToGecko(e);
+                GoannaEvent e = GoannaEvent.createBroadcastEvent("Session:Reload", data.toString());
+                GoannaAppShell.sendEventToGoanna(e);
             } catch (JSONException e) {
                 Log.e(LOGTAG, "Exception creating message to allow mixed content", e);
             }
         } else if (tag.equals("enable")) {
             // To enable mixed content blocking, reload the page without any flags.
-            GeckoEvent e = GeckoEvent.createBroadcastEvent("Session:Reload", "");
-            GeckoAppShell.sendEventToGecko(e);
+            GoannaEvent e = GoannaEvent.createBroadcastEvent("Session:Reload", "");
+            GoannaAppShell.sendEventToGoanna(e);
         }
 
         dismiss();

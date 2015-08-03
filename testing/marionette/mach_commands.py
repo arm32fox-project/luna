@@ -23,7 +23,7 @@ class MachCommands(MachCommandBase):
     @CommandArgument('--emulator', choices=['x86', 'arm'],
         help='Run an emulator of the specified architecture.')
     @CommandArgument('--address',
-        help='host:port of running Gecko instance to connect to.')
+        help='host:port of running Goanna instance to connect to.')
     @CommandArgument('--type', dest='testtype',
         help='Test type, usually one of: browser, b2g, b2g-qemu.')
     @CommandArgument('tests', nargs='*', metavar='TESTS',

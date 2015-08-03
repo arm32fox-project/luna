@@ -132,7 +132,7 @@ AsyncCompositionManager::TransformFixedLayers(Layer* aLayer,
 
     // Offset this translation by the fixed layer margins, depending on what
     // side of the viewport the layer is anchored to, reconciling the
-    // difference between the current fixed layer margins and the Gecko-side
+    // difference between the current fixed layer margins and the Goanna-side
     // fixed layer margins.
     // aFixedLayerMargins are the margins we expect to be at at the current
     // time, obtained via SyncViewportInfo, and fixedMargins are the margins
@@ -406,15 +406,15 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
 
   gfx3DMatrix treeTransform;
 
-  CSSToLayerScale geckoZoom = metrics.mDevPixelsPerCSSPixel /
+  CSSToLayerScale goannaZoom = metrics.mDevPixelsPerCSSPixel /
     LayerToLayoutDeviceScale(aRootTransform.GetXScale(), aRootTransform.GetYScale());
 
-  LayerIntPoint scrollOffsetLayerPixels = RoundedToInt(metrics.mScrollOffset * geckoZoom);
+  LayerIntPoint scrollOffsetLayerPixels = RoundedToInt(metrics.mScrollOffset * goannaZoom);
 
   if (mIsFirstPaint) {
     mContentRect = metrics.mScrollableRect;
     SetFirstPaintViewport(scrollOffsetLayerPixels,
-                          geckoZoom,
+                          goannaZoom,
                           mContentRect);
     mIsFirstPaint = false;
   } else if (!metrics.mScrollableRect.IsEqualEdges(mContentRect)) {
@@ -429,7 +429,7 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
     (metrics.mCriticalDisplayPort.IsEmpty()
       ? metrics.mDisplayPort
       : metrics.mCriticalDisplayPort
-    ) * geckoZoom);
+    ) * goannaZoom);
   displayPort += scrollOffsetLayerPixels;
 
   gfx::Margin fixedLayerMargins(0, 0, 0, 0);
@@ -442,7 +442,7 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
   // works fine.
   CSSToScreenScale userZoom(metrics.mDevPixelsPerCSSPixel.scale * metrics.mResolution.scale);
   ScreenPoint userScroll = metrics.mScrollOffset * userZoom;
-  SyncViewportInfo(displayPort, geckoZoom, mLayersUpdated,
+  SyncViewportInfo(displayPort, goannaZoom, mLayersUpdated,
                    userScroll, userZoom, fixedLayerMargins,
                    offset);
   mLayersUpdated = false;
@@ -451,45 +451,45 @@ AsyncCompositionManager::TransformScrollableLayer(Layer* aLayer, const gfx3DMatr
   mLayerManager->GetCompositor()->SetScreenRenderOffset(offset);
 
   // Handle transformations for asynchronous panning and zooming. We determine the
-  // zoom used by Gecko from the transformation set on the root layer, and we
-  // determine the scroll offset used by Gecko from the frame metrics of the
+  // zoom used by Goanna from the transformation set on the root layer, and we
+  // determine the scroll offset used by Goanna from the frame metrics of the
   // primary scrollable layer. We compare this to the user zoom and scroll
   // offset in the view transform we obtained from Java in order to compute the
   // transformation we need to apply.
-  LayerToScreenScale zoomAdjust = userZoom / geckoZoom;
+  LayerToScreenScale zoomAdjust = userZoom / goannaZoom;
 
-  LayerIntPoint geckoScroll(0, 0);
+  LayerIntPoint goannaScroll(0, 0);
   if (metrics.IsScrollable()) {
-    geckoScroll = scrollOffsetLayerPixels;
+    goannaScroll = scrollOffsetLayerPixels;
   }
 
-  LayerPoint translation = (userScroll / zoomAdjust) - geckoScroll;
+  LayerPoint translation = (userScroll / zoomAdjust) - goannaScroll;
   treeTransform = gfx3DMatrix(ViewTransform(-translation, userZoom / metrics.mDevPixelsPerCSSPixel));
 
   // Translate fixed position layers so that they stay in the correct position
-  // when userScroll and geckoScroll differ.
+  // when userScroll and goannaScroll differ.
   gfxPoint fixedOffset;
   gfxSize scaleDiff;
 
-  LayerRect content = mContentRect * geckoZoom;
+  LayerRect content = mContentRect * goannaZoom;
   // If the contents can fit entirely within the widget area on a particular
   // dimension, we need to translate and scale so that the fixed layers remain
   // within the page boundaries.
   if (mContentRect.width * userZoom.scale < metrics.mCompositionBounds.width) {
-    fixedOffset.x = -geckoScroll.x;
+    fixedOffset.x = -goannaScroll.x;
     scaleDiff.width = std::min(1.0f, metrics.mCompositionBounds.width / content.width);
   } else {
     fixedOffset.x = clamped(userScroll.x / zoomAdjust.scale, content.x,
-        content.XMost() - metrics.mCompositionBounds.width / zoomAdjust.scale) - geckoScroll.x;
+        content.XMost() - metrics.mCompositionBounds.width / zoomAdjust.scale) - goannaScroll.x;
     scaleDiff.width = zoomAdjust.scale;
   }
 
   if (mContentRect.height * userZoom.scale < metrics.mCompositionBounds.height) {
-    fixedOffset.y = -geckoScroll.y;
+    fixedOffset.y = -goannaScroll.y;
     scaleDiff.height = std::min(1.0f, metrics.mCompositionBounds.height / content.height);
   } else {
     fixedOffset.y = clamped(userScroll.y / zoomAdjust.scale, content.y,
-        content.YMost() - metrics.mCompositionBounds.height / zoomAdjust.scale) - geckoScroll.y;
+        content.YMost() - metrics.mCompositionBounds.height / zoomAdjust.scale) - goannaScroll.y;
     scaleDiff.height = zoomAdjust.scale;
   }
 
@@ -525,12 +525,12 @@ AsyncCompositionManager::TransformShadowTree(TimeStamp aCurrentFrame)
   //
   // Attempt to apply an async content transform to any layer that has
   // an async pan zoom controller (which means that it is rendered
-  // async using Gecko). If this fails, fall back to transforming the
+  // async using Goanna). If this fails, fall back to transforming the
   // primary scrollable layer.  "Failing" here means that we don't
   // find a frame that is async scrollable.  Note that the fallback
   // code also includes Fennec which is rendered async.  Fennec uses
   // its own platform-specific async rendering that is done partially
-  // in Gecko and partially in Java.
+  // in Goanna and partially in Java.
   if (!ApplyAsyncContentTransformToTree(aCurrentFrame, root, &wantNextFrame)) {
     nsAutoTArray<Layer*,1> scrollableLayers;
 #ifdef MOZ_WIDGET_ANDROID

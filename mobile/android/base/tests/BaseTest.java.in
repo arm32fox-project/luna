@@ -37,7 +37,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     public static final int TEST_MOCHITEST = 0;
     public static final int TEST_TALOS = 1;
 
-    private static final String TARGET_PACKAGE_ID = "org.mozilla.gecko";
+    private static final String TARGET_PACKAGE_ID = "org.mozilla.goanna";
     private static final String LAUNCH_ACTIVITY_FULL_CLASSNAME="@ANDROID_PACKAGE_NAME@.App";
     private static final int VERIFY_URL_TIMEOUT = 2000;
     private static final int MAX_LIST_ATTEMPTS = 3;
@@ -55,21 +55,21 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     protected String mProfile;
     public Device mDevice;
 
-    protected void blockForGeckoReady() {
+    protected void blockForGoannaReady() {
         try {
-            Actions.EventExpecter geckoReadyExpector = mActions.expectGeckoEvent("Gecko:Ready");
+            Actions.EventExpecter goannaReadyExpector = mActions.expectGoannaEvent("Goanna:Ready");
             ClassLoader classLoader = getActivity().getClassLoader();
-            Class appsCls = classLoader.loadClass("org.mozilla.gecko.GeckoThread");
-            Class launchStateCls = classLoader.loadClass("org.mozilla.gecko.GeckoThread$LaunchState");
+            Class appsCls = classLoader.loadClass("org.mozilla.goanna.GoannaThread");
+            Class launchStateCls = classLoader.loadClass("org.mozilla.goanna.GoannaThread$LaunchState");
             Method checkLaunchState =  appsCls.getMethod("checkLaunchState", launchStateCls);
             Object states[] =  launchStateCls.getEnumConstants();
             Boolean ret = (Boolean)checkLaunchState.invoke(null, states[3]);
             if (!ret.booleanValue()) {
-                geckoReadyExpector.blockForEvent();
+                goannaReadyExpector.blockForEvent();
             }
-            geckoReadyExpector.unregisterListener();
+            goannaReadyExpector.unregisterListener();
         } catch (Exception e) {
-            mAsserter.dumpLog("Exception in blockForGeckoReady", e);
+            mAsserter.dumpLog("Exception in blockForGoannaReady", e);
         }
     }
 
@@ -223,7 +223,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
     }
 
     protected final void hitEnterAndWait() {
-        Actions.EventExpecter contentEventExpecter = mActions.expectGeckoEvent("DOMContentLoaded");
+        Actions.EventExpecter contentEventExpecter = mActions.expectGoannaEvent("DOMContentLoaded");
         mActions.sendSpecialKey(Actions.SpecialKey.ENTER);
         // wait for screen to load
         contentEventExpecter.blockForEvent();
@@ -234,7 +234,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
      * Load <code>url</code> using the awesome bar UI and sending key strokes.
      *
      * This method waits synchronously for the <code>DOMContentLoaded</code>
-     * message from Gecko before returning.
+     * message from Goanna before returning.
      */
     protected final void loadUrl(String url) {
         enterUrl(url);
@@ -243,15 +243,15 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
 
     /**
      * Load <code>url</code> using reflection and the internal
-     * <code>org.mozilla.gecko.Tabs</code> API.
+     * <code>org.mozilla.goanna.Tabs</code> API.
      *
-     * This method does not wait for any confirmation from Gecko before
+     * This method does not wait for any confirmation from Goanna before
      * returning.
      */
     protected final void loadUrlInTab(final String url) {
         try {
             ClassLoader classLoader = getActivity().getClassLoader();
-            Class tabsClass = classLoader.loadClass("org.mozilla.gecko.Tabs");
+            Class tabsClass = classLoader.loadClass("org.mozilla.goanna.Tabs");
             Method getInstance = tabsClass.getMethod("getInstance");
             Method loadUrlInTab = tabsClass.getMethod("loadUrlInTab", String.class);
             Object tabs = getInstance.invoke(null);
@@ -746,7 +746,7 @@ abstract class BaseTest extends ActivityInstrumentationTestCase2<Activity> {
             type = "phone";
             try {
                 ClassLoader classLoader = getActivity().getClassLoader();
-                Class appsCls = classLoader.loadClass("org.mozilla.gecko.GeckoAppShell");
+                Class appsCls = classLoader.loadClass("org.mozilla.goanna.GoannaAppShell");
                 Method isTabletMethod = appsCls.getMethod("isTablet", (Class[]) null);
                 boolean isTablet = (Boolean)isTabletMethod.invoke(null);
                 if (isTablet) {

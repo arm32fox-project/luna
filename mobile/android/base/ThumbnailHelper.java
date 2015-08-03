@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.db.BrowserDB;
-import org.mozilla.gecko.gfx.BitmapUtils;
-import org.mozilla.gecko.gfx.IntSize;
-import org.mozilla.gecko.mozglue.DirectBufferAllocator;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.gfx.IntSize;
+import org.mozilla.goanna.mozglue.DirectBufferAllocator;
 
 import android.graphics.Bitmap;
 import android.util.Log;
@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
  * be used for all thumbnails.
  */
 public final class ThumbnailHelper {
-    private static final String LOGTAG = "GeckoThumbnailHelper";
+    private static final String LOGTAG = "GoannaThumbnailHelper";
 
     public static final float THUMBNAIL_ASPECT_RATIO = 0.714f;  // this is a 5:7 ratio (as per UX decision)
 
@@ -52,7 +52,7 @@ public final class ThumbnailHelper {
 
     private ThumbnailHelper() {
         mPendingThumbnails = new LinkedList<Tab>();
-        mPendingWidth = new AtomicInteger((int)GeckoAppShell.getContext().getResources().getDimension(R.dimen.tab_thumbnail_width));
+        mPendingWidth = new AtomicInteger((int)GoannaAppShell.getContext().getResources().getDimension(R.dimen.tab_thumbnail_width));
         mWidth = -1;
         mHeight = -1;
     }
@@ -66,7 +66,7 @@ public final class ThumbnailHelper {
         if (tab.getState() == Tab.STATE_DELAYED) {
             String url = tab.getURL();
             if (url != null) {
-                byte[] thumbnail = BrowserDB.getThumbnailForUrl(GeckoAppShell.getContext().getContentResolver(), url);
+                byte[] thumbnail = BrowserDB.getThumbnailForUrl(GoannaAppShell.getContext().getContentResolver(), url);
                 if (thumbnail != null) {
                     setTabThumbnail(tab, null, thumbnail);
                 }
@@ -137,8 +137,8 @@ public final class ThumbnailHelper {
             return;
         }
 
-        GeckoEvent e = GeckoEvent.createThumbnailEvent(tab.getId(), mWidth, mHeight, mBuffer);
-        GeckoAppShell.sendEventToGecko(e);
+        GoannaEvent e = GoannaEvent.createThumbnailEvent(tab.getId(), mWidth, mHeight, mBuffer);
+        GoannaAppShell.sendEventToGoanna(e);
     }
 
     /* This method is invoked by JNI once the thumbnail data is ready. */
@@ -198,6 +198,6 @@ public final class ThumbnailHelper {
     }
 
     private boolean shouldUpdateThumbnail(Tab tab) {
-        return (Tabs.getInstance().isSelectedTab(tab) || (GeckoAppShell.getGeckoInterface() != null && GeckoAppShell.getGeckoInterface().areTabsShown()));
+        return (Tabs.getInstance().isSelectedTab(tab) || (GoannaAppShell.getGoannaInterface() != null && GoannaAppShell.getGoannaInterface().areTabsShown()));
     }
 }

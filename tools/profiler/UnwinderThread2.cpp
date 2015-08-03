@@ -63,7 +63,7 @@
 //////////////////////////////////////////////////////////
 //// BEGIN externally visible functions (WINDOWS STUBS)
 
-// On Windows this will all need reworking.  GeckoProfilerImpl.h
+// On Windows this will all need reworking.  GoannaProfilerImpl.h
 // will ensure these functions are never actually called,
 // so just provide no-op stubs for now.
 

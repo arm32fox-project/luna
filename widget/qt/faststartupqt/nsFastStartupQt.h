@@ -27,14 +27,14 @@ typedef MozQGraphicsView MozGraphicsView;
 #endif
 
 class nsFastStartup;
-typedef bool (*GeckoLoaderFunc)(const char* execPath);
-class GeckoThread : public QThread
+typedef bool (*GoannaLoaderFunc)(const char* execPath);
+class GoannaThread : public QThread
 {
   Q_OBJECT
 
 public:
   void run();
-  void SetLoader(GeckoLoaderFunc aFunc, const char* execPath)
+  void SetLoader(GoannaLoaderFunc aFunc, const char* execPath)
   {
     mExecPath = execPath;
     mFunc = aFunc;
@@ -45,7 +45,7 @@ Q_SIGNALS:
 
 private:
   const char* mExecPath;
-  GeckoLoaderFunc mFunc;
+  GoannaLoaderFunc mFunc;
 };
 
 class NS_EXPORT nsFastStartup : public QObject
@@ -60,7 +60,7 @@ public:
   virtual ~nsFastStartup();
   virtual bool CreateFastStartup(int& argc, char ** argv,
                                  const char* execPath,
-                                 GeckoLoaderFunc aFunc);
+                                 GoannaLoaderFunc aFunc);
   // Called when first real mozilla paint happend
   void RemoveFakeLayout();
   // Final notification that Static UI show and painted
@@ -74,7 +74,7 @@ private:
   QGraphicsWidget* mFakeWidget;
   bool mSymbolsLoaded;
   bool mWidgetPainted;
-  GeckoThread* mThread;
+  GoannaThread* mThread;
   QEventLoop mLoop;
 };
 

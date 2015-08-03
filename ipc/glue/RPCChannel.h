@@ -111,7 +111,7 @@ public:
 
 #ifdef OS_WIN
     void ProcessNativeEventsInRPCCall();
-    static void NotifyGeckoEventDispatch();
+    static void NotifyGoannaEventDispatch();
 
 protected:
     bool WaitForNotify();

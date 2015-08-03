@@ -1,0 +1,25 @@
+<!ENTITY	rubyTextSize.title	"ルビの大きさ">
+<!ENTITY	rubyTextSize.description	"ルビの文字の大きさ。標準ではベーステキストの半分ぐらい（0.5em）と指定されていますが、好みに合わせて調節できます。1emでベーステキストと同じ大きさになります。">
+<!ENTITY	rubyTextSize.default	"既定値: 0.55em">
+
+<!ENTITY	spaceRubyText.title	"字間の調整">
+<!ENTITY	spaceRubyText.description	"有効な場合、ルビテキストとベーステキストの字間を調整します。無効にされた場合、ルビテキストとベーステキストはセンター表示されます。">
+<!ENTITY	spaceRubyText.default	"既定値： 有効">
+
+<!ENTITY	processInsertedContent.title	"挿入されたルビの処理">
+<!ENTITY	processInsertedContent.description	"有効な場合、他のアドオンなどからページに動的に挿入されたルビを感知し処理します。無効にした場合、GmailやGoogle Readerなどの重度にDOMを操作するページがほんの少し速くなります。">
+<!ENTITY	processInsertedContent.default	"既定値： 有効">
+
+<!ENTITY	rubyLineHeight.title	"ルビの行間">
+<!ENTITY	rubyLineHeight.description	"ルビとベーステキストの行間を調節できます。1emでルビのベースラインがベーステキストの天辺にきます。">
+<!ENTITY	rubyLineHeight.default	"既定値： 0.92em">
+
+<!ENTITY	adjustLineHeight.title	"行間を空ける">
+<!ENTITY	adjustLineHeight.description	"有効な場合、ルビのために行間を空けます。無効にした場合、ルビが上の行に重なる可能性があります。">
+<!ENTITY	adjustLineHeight.default	"既定値： 有効">
+
+<!ENTITY	prefpane.preview.label	"ルビのサイズと行間のプレビュー">
+<!ENTITY	prefpane.pane1.label	"ルビの調節">
+<!ENTITY	prefpane.pane2.label	"その他">
+
+<!ENTITY	statusbar.stop.tooltip	"停止">

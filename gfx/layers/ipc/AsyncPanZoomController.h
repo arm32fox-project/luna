@@ -7,7 +7,7 @@
 #ifndef mozilla_layers_AsyncPanZoomController_h
 #define mozilla_layers_AsyncPanZoomController_h
 
-#include "GeckoContentController.h"
+#include "GoannaContentController.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/RefPtr.h"
@@ -69,7 +69,7 @@ public:
    */
   static float GetTouchStartTolerance();
 
-  AsyncPanZoomController(GeckoContentController* aController,
+  AsyncPanZoomController(GoannaContentController* aController,
                          GestureBehavior aGestures = DEFAULT_GESTURES);
   ~AsyncPanZoomController();
 
@@ -323,7 +323,7 @@ protected:
   nsEventStatus OnDoubleTap(const TapGestureInput& aEvent);
 
   /**
-   * Helper method to cancel any gesture currently going to Gecko. Used
+   * Helper method to cancel any gesture currently going to Goanna. Used
    * primarily when a user taps the screen over some clickable content but then
    * pans down instead of letting go (i.e. to cancel a previous touch so that a
    * new one can properly take effect.
@@ -418,8 +418,8 @@ protected:
                                           float* aDisplayPortLength);
 
   /**
-   * Utility function to send updated FrameMetrics to Gecko so that it can paint
-   * the displayport area. Calls into GeckoContentController to do the actual
+   * Utility function to send updated FrameMetrics to Goanna so that it can paint
+   * the displayport area. Calls into GoannaContentController to do the actual
    * work. Note that only one paint request can be active at a time. If a paint
    * request is made while a paint is currently happening, it gets queued up. If
    * a new paint request arrives before a paint is completed, the old request
@@ -436,7 +436,7 @@ protected:
   bool DoFling(const TimeDuration& aDelta);
 
   /**
-   * Gets the current frame metrics. This is *not* the Gecko copy stored in the
+   * Gets the current frame metrics. This is *not* the Goanna copy stored in the
    * layers code.
    */
   const FrameMetrics& GetFrameMetrics();
@@ -488,7 +488,7 @@ private:
 
   nsRefPtr<CompositorParent> mCompositorParent;
   TaskThrottler mPaintThrottler;
-  nsRefPtr<GeckoContentController> mGeckoContentController;
+  nsRefPtr<GoannaContentController> mGoannaContentController;
   nsRefPtr<GestureEventListener> mGestureEventListener;
 
   // Both |mFrameMetrics| and |mLastContentPaintMetrics| are protected by the

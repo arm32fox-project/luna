@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -19,7 +19,7 @@ import java.util.HashMap;
 public class ReferrerReceiver
     extends BroadcastReceiver
 {
-    private static final String LOGTAG = "GeckoReferrerReceiver";
+    private static final String LOGTAG = "GoannaReferrerReceiver";
 
     public static final String ACTION_INSTALL_REFERRER = "com.android.vending.INSTALL_REFERRER";
     public static final String UTM_SOURCE = "mozilla";
@@ -51,8 +51,8 @@ public class ReferrerReceiver
                     data.put("version", campaign);
 
                     // Try to make sure the prefs are written as a group
-                    GeckoEvent event = GeckoEvent.createBroadcastEvent("Campaign:Set", data.toString());
-                    GeckoAppShell.sendEventToGecko(event);
+                    GoannaEvent event = GoannaEvent.createBroadcastEvent("Campaign:Set", data.toString());
+                    GoannaAppShell.sendEventToGoanna(event);
                 } catch (JSONException e) {
                     Log.e(LOGTAG, "Error setting distribution", e);
                 }

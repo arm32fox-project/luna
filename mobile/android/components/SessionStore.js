@@ -75,7 +75,7 @@ SessionStore.prototype = {
   },
 
   _sendMessageToJava: function (aMsg) {
-    let data = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge).handleGeckoMessage(JSON.stringify(aMsg));
+    let data = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge).handleGoannaMessage(JSON.stringify(aMsg));
     return JSON.parse(data);
   },
 
@@ -220,7 +220,7 @@ SessionStore.prototype = {
           let data = JSON.parse(aData);
           this.restoreLastSession(data.normalRestore, data.sessionString);
         } else if (this._shouldRestore) {
-          // Do a restore triggered by Gecko (e.g., if
+          // Do a restore triggered by Goanna (e.g., if
           // browser.sessionstore.resume_session_once is true). In these cases,
           // our Java front-end doesn't know we're doing a restore, so it has
           // already opened an about:home tab.

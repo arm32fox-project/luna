@@ -98,7 +98,7 @@ using mozilla::plugins::PluginModuleParent;
 #include "ANPBase.h"
 #include "AndroidBridge.h"
 #undef LOG
-#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GeckoPlugins" , ## args)
+#define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GoannaPlugins" , ## args)
 #endif
 
 using namespace mozilla;
@@ -770,7 +770,7 @@ nsPluginThreadRunnable::Run()
     PluginDestructionGuard guard(mInstance);
 
     NS_TRY_SAFE_CALL_VOID(mFunc(mUserData), nullptr,
-                          NS_PLUGIN_CALL_SAFE_TO_REENTER_GECKO);
+                          NS_PLUGIN_CALL_SAFE_TO_REENTER_GOANNA);
   }
 
   return NS_OK;

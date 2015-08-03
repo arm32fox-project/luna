@@ -16,13 +16,13 @@
 #include "base/waitable_event.h"
 #include "chrome/common/child_process_host.h"
 
-#include "mozilla/ipc/GeckoChildProcessHost.h"
+#include "mozilla/ipc/GoannaChildProcessHost.h"
 
 namespace mozilla {
 namespace plugins {
 //-----------------------------------------------------------------------------
 
-class PluginProcessParent : public mozilla::ipc::GeckoChildProcessHost
+class PluginProcessParent : public mozilla::ipc::GoannaChildProcessHost
 {
 public:
     PluginProcessParent(const std::string& aPluginFilePath);
@@ -43,9 +43,9 @@ public:
 
     const std::string& GetPluginFilePath() { return mPluginFilePath; }
 
-    using mozilla::ipc::GeckoChildProcessHost::GetShutDownEvent;
-    using mozilla::ipc::GeckoChildProcessHost::GetChannel;
-    using mozilla::ipc::GeckoChildProcessHost::GetChildProcessHandle;
+    using mozilla::ipc::GoannaChildProcessHost::GetShutDownEvent;
+    using mozilla::ipc::GoannaChildProcessHost::GetChannel;
+    using mozilla::ipc::GoannaChildProcessHost::GetChildProcessHandle;
 
 private:
     std::string mPluginFilePath;

@@ -3,17 +3,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.util.FloatUtils;
+import org.mozilla.goanna.util.FloatUtils;
 
 import android.graphics.RectF;
 
 /*
- * This class keeps track of the area we request Gecko to paint, as well
+ * This class keeps track of the area we request Goanna to paint, as well
  * as the resolution of the paint. The area may be different from the visible
  * area of the page, and the resolution may be different from the resolution
- * used in the compositor to render the page. This is so that we can ask Gecko
+ * used in the compositor to render the page. This is so that we can ask Goanna
  * to paint a much larger area without using extra memory, and then render some
  * subsection of that with compositor scaling.
  */

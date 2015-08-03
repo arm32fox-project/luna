@@ -3,10 +3,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.util.EventDispatcher;
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.goanna.util.EventDispatcher;
+import org.mozilla.goanna.util.GoannaEventListener;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -24,9 +24,9 @@ import android.util.Log;
  * Helper class to send Android Ordered Broadcasts.
  */
 public final class OrderedBroadcastHelper
-             implements GeckoEventListener
+             implements GoannaEventListener
 {
-    public static final String LOGTAG = "GeckoOrdBroadcast";
+    public static final String LOGTAG = "GoannaOrdBroadcast";
 
     public static final String SEND_EVENT = "OrderedBroadcast:Send";
 
@@ -35,18 +35,18 @@ public final class OrderedBroadcastHelper
     public OrderedBroadcastHelper(Context context) {
         mContext = context;
 
-        EventDispatcher dispatcher = GeckoAppShell.getEventDispatcher();
+        EventDispatcher dispatcher = GoannaAppShell.getEventDispatcher();
         if (dispatcher == null) {
-            Log.e(LOGTAG, "Gecko event dispatcher must not be null", new RuntimeException());
+            Log.e(LOGTAG, "Goanna event dispatcher must not be null", new RuntimeException());
             return;
         }
         dispatcher.registerEventListener(SEND_EVENT, this);
     }
 
     public synchronized void uninit() {
-        EventDispatcher dispatcher = GeckoAppShell.getEventDispatcher();
+        EventDispatcher dispatcher = GoannaAppShell.getEventDispatcher();
         if (dispatcher == null) {
-            Log.e(LOGTAG, "Gecko event dispatcher must not be null", new RuntimeException());
+            Log.e(LOGTAG, "Goanna event dispatcher must not be null", new RuntimeException());
             return;
         }
         dispatcher.unregisterEventListener(SEND_EVENT, this);
@@ -98,8 +98,8 @@ public final class OrderedBroadcastHelper
                             return;
                         }
 
-                        GeckoEvent event = GeckoEvent.createBroadcastEvent(responseEvent, res.toString());
-                        GeckoAppShell.sendEventToGecko(event);
+                        GoannaEvent event = GoannaEvent.createBroadcastEvent(responseEvent, res.toString());
+                        GoannaAppShell.sendEventToGoanna(event);
                     }
                 }
             };

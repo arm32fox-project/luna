@@ -42,7 +42,7 @@
 #endif
 
 #ifdef ANDROID
-#define LOG(...) __android_log_print(ANDROID_LOG_INFO, "Gecko:MemoryInfoDumper", ## __VA_ARGS__)
+#define LOG(...) __android_log_print(ANDROID_LOG_INFO, "Goanna:MemoryInfoDumper", ## __VA_ARGS__)
 #else
 #define LOG(...)
 #endif
@@ -373,7 +373,7 @@ public:
   {
     MOZ_ASSERT(NS_IsMainThread());
 
-    if (XRE_GetProcessType() != GeckoProcessType_Default) {
+    if (XRE_GetProcessType() != GoannaProcessType_Default) {
       // We want this to be main-process only, since two processes can't listen
       // to the same fifo.
       return;
@@ -609,7 +609,7 @@ DumpReport(nsIGZFileWriter *aWriter, bool aIsFirst,
   // (pid $PID)", or just "(pid $PID)" if we don't have a process name.  If
   // we're the main process, we let $PROCESS_NAME be "Main Process".
   nsAutoCString processId;
-  if (XRE_GetProcessType() == GeckoProcessType_Default) {
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
     // We're the main process.
     processId.AssignLiteral("Main Process ");
   } else if (ContentChild *cc = ContentChild::GetSingleton()) {

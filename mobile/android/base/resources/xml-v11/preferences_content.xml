@@ -19,7 +19,7 @@
                     android:entryValues="@array/pref_plugins_values"
                     android:persistent="false" />
 
-    <org.mozilla.gecko.FontSizePreference
+    <org.mozilla.goanna.FontSizePreference
                     android:key="font.size.inflation.minTwips"
                     android:title="@string/pref_text_size"
                     android:positiveButtonText="@string/pref_font_size_set"

@@ -338,7 +338,7 @@ public:
 
     /**
      * True when hinting should be enabled.  This setting shouldn't
-     * change per gecko process, while the process is live.  If so the
+     * change per goanna process, while the process is live.  If so the
      * results are not defined.
      *
      * NB: this bit is only honored by the FT2 backend, currently.
@@ -354,7 +354,7 @@ public:
      * is only true for the browser process, not Gaia or other apps.
      *
      * Like FontHintingEnabled (above), this setting shouldn't
-     * change per gecko process, while the process is live.  If so the
+     * change per goanna process, while the process is live.  If so the
      * results are not defined.
      *
      * NB: this bit is only honored by the FT2 backend, currently.

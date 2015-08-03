@@ -49,18 +49,21 @@ public:
    * background positioning area, background-size, and the image's intrinsic
    * dimensions (if any).
    */
-  nsSize ComputeSize(const nsStyleBackground::Size& aLayerSize,
+  nsSize ComputeSize(const nsStyleBackground::Layer& aLayer,
                      const nsSize& aBgPositioningArea);
   /**
    * Draws the image to the target rendering context.
    * @see nsLayoutUtils::DrawImage() for other parameters
+   * @see nsLayoutUtils::DrawBackgroundImage() for aSpacing and aGapCount.
    */
   void Draw(nsPresContext*       aPresContext,
             nsRenderingContext& aRenderingContext,
             const nsRect&        aDest,
             const nsRect&        aFill,
             const nsPoint&       aAnchor,
-            const nsRect&        aDirty);
+            const nsRect&        aDirty,
+            const nsSize&        aSpacing,
+            const nsIntSize&     aGapCount);
 
   bool IsRasterImage();
   bool IsAnimatedImage();
@@ -136,6 +139,18 @@ struct nsBackgroundLayerState {
    * PrepareBackgroundLayer.
    */
   nsPoint mAnchor;
+  /**
+   * The background-repeat property space keyword computation requires
+   * images to be tiled with spacing between the images. The mSpacing width 
+   * and height members specify the total number of pixels that are available
+   * for use as spacing. mSpacing is in app units.
+   */
+  nsSize mSpacing;
+  /**
+   * mGapCount represents the number of gaps that mSpacing needs to be 
+   *           distributed across. Always equal to the number of images - 1.
+   */
+  nsIntSize mGapCount;
 };
 
 struct nsCSSRendering {

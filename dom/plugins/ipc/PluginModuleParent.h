@@ -44,11 +44,11 @@ class PluginHangUIParent;
  * PluginModuleParent
  *
  * This class implements the NPP API from the perspective of the rest
- * of Gecko, forwarding NPP calls along to the child process that is
+ * of Goanna, forwarding NPP calls along to the child process that is
  * actually running the plugin.
  *
  * This class /also/ implements a version of the NPN API, because the
- * child process needs to make these calls back into Gecko proper.
+ * child process needs to make these calls back into Goanna proper.
  * This class is responsible for "actually" making those function calls.
  */
 class PluginModuleParent
@@ -200,7 +200,7 @@ private:
     NPError NP_GetEntryPoints(NPPluginFuncs* nppIface);
 #endif
 
-    // NPP-like API that Gecko calls are trampolined into.  These 
+    // NPP-like API that Goanna calls are trampolined into.  These 
     // messages then get forwarded along to the plugin instance,
     // and then eventually the child process.
 

@@ -63,11 +63,11 @@ public class testDistribution extends ContentProviderTest {
         try {
             // Call Distribution.init with the mock package.
             ClassLoader classLoader = mActivity.getClassLoader();
-            Class distributionClass = classLoader.loadClass("org.mozilla.gecko.Distribution");
+            Class distributionClass = classLoader.loadClass("org.mozilla.goanna.Distribution");
             Class contextClass = classLoader.loadClass("android.content.Context");
             Method init = distributionClass.getMethod("init", contextClass, String.class);
 
-            Actions.EventExpecter distributionSetExpecter = mActions.expectGeckoEvent("Distribution:Set:OK");
+            Actions.EventExpecter distributionSetExpecter = mActions.expectGoannaEvent("Distribution:Set:OK");
             init.invoke(null, mActivity, aPackagePath);
             distributionSetExpecter.blockForEvent();
             distributionSetExpecter.unregisterListener();
@@ -98,8 +98,8 @@ public class testDistribution extends ContentProviderTest {
             message.put("requestId", PREF_REQUEST_ID);
             message.put("preferences", getPrefData);
 
-            Actions.RepeatedEventExpecter eventExpecter = mActions.expectGeckoEvent("Preferences:Data");
-            mActions.sendGeckoEvent("Preferences:Get", message.toString());
+            Actions.RepeatedEventExpecter eventExpecter = mActions.expectGoannaEvent("Preferences:Data");
+            mActions.sendGoannaEvent("Preferences:Get", message.toString());
 
             JSONObject data = null;
             String requestId = "";
@@ -137,8 +137,8 @@ public class testDistribution extends ContentProviderTest {
     }
 
     private void checkSearchPlugin() {
-        Actions.RepeatedEventExpecter eventExpecter = mActions.expectGeckoEvent("SearchEngines:Data");
-        mActions.sendGeckoEvent("SearchEngines:Get", null);
+        Actions.RepeatedEventExpecter eventExpecter = mActions.expectGoannaEvent("SearchEngines:Data");
+        mActions.sendGoannaEvent("SearchEngines:Get", null);
 
         try {
             JSONObject data = new JSONObject(eventExpecter.blockForEventData());
@@ -169,7 +169,7 @@ public class testDistribution extends ContentProviderTest {
             jsonPref.put("name", prefUseragentLocale);
             jsonPref.put("type", "string");
             jsonPref.put("value", aLocale);
-            mActions.sendGeckoEvent("Preferences:Set", jsonPref.toString());
+            mActions.sendGoannaEvent("Preferences:Set", jsonPref.toString());
 
             // Wait for confirmation of the pref change.
             JSONArray getPrefData = new JSONArray();
@@ -179,8 +179,8 @@ public class testDistribution extends ContentProviderTest {
             message.put("requestId", PREF_REQUEST_ID);
             message.put("preferences", getPrefData);
 
-            Actions.RepeatedEventExpecter eventExpecter = mActions.expectGeckoEvent("Preferences:Data");
-            mActions.sendGeckoEvent("Preferences:Get", message.toString());
+            Actions.RepeatedEventExpecter eventExpecter = mActions.expectGoannaEvent("Preferences:Data");
+            mActions.sendGoannaEvent("Preferences:Get", message.toString());
 
             JSONObject data = null;
             String requestId = "";
@@ -213,8 +213,8 @@ public class testDistribution extends ContentProviderTest {
             message.put("requestId", PREF_REQUEST_ID);
             message.put("preferences", getPrefData);
 
-            Actions.RepeatedEventExpecter eventExpecter = mActions.expectGeckoEvent("Preferences:Data");
-            mActions.sendGeckoEvent("Preferences:Get", message.toString());
+            Actions.RepeatedEventExpecter eventExpecter = mActions.expectGoannaEvent("Preferences:Data");
+            mActions.sendGoannaEvent("Preferences:Get", message.toString());
 
             JSONObject data = null;
             String requestId = "";
@@ -285,7 +285,7 @@ public class testDistribution extends ContentProviderTest {
 
     // Clears the distribution pref to return distribution state to STATE_UNKNOWN
     private void clearDistributionPref() {
-        SharedPreferences settings = mActivity.getSharedPreferences("GeckoApp", Activity.MODE_PRIVATE);
+        SharedPreferences settings = mActivity.getSharedPreferences("GoannaApp", Activity.MODE_PRIVATE);
         String keyName = mActivity.getPackageName() + ".distribution_state";
         settings.edit().remove(keyName).commit();
     }
@@ -293,7 +293,7 @@ public class testDistribution extends ContentProviderTest {
     @Override
     public void setUp() throws Exception {
         // TODO: Set up the content provider after setting the distribution.
-        super.setUp("org.mozilla.gecko.db.BrowserProvider", "AUTHORITY");
+        super.setUp("org.mozilla.goanna.db.BrowserProvider", "AUTHORITY");
     }
 
     private void delete(File file) throws Exception {

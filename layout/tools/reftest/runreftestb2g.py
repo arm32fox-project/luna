@@ -91,11 +91,11 @@ class B2GOptions(ReftestOptions):
                     type = "string", dest = "pidFile",
                     help = "name of the pidfile to generate")
         defaults["pidFile"] = ""
-        self.add_option("--gecko-path", action="store",
-                        type="string", dest="geckoPath",
-                        help="the path to a gecko distribution that should "
+        self.add_option("--goanna-path", action="store",
+                        type="string", dest="goannaPath",
+                        help="the path to a goanna distribution that should "
                         "be installed on the emulator prior to test")
-        defaults["geckoPath"] = None
+        defaults["goannaPath"] = None
         self.add_option("--logcat-dir", action="store",
                         type="string", dest="logcat_dir",
                         help="directory to store logcat dump files")
@@ -134,8 +134,8 @@ class B2GOptions(ReftestOptions):
 
         options.webServer = options.remoteWebServer
 
-        if options.geckoPath and not options.emulator:
-            self.error("You must specify --emulator if you specify --gecko-path")
+        if options.goannaPath and not options.emulator:
+            self.error("You must specify --emulator if you specify --goanna-path")
 
         if options.logcat_dir and not options.emulator:
             self.error("You must specify --emulator if you specify --logcat-dir")
@@ -484,8 +484,8 @@ def main(args=sys.argv[1:]):
         auto.setEmulator(True)
         if options.noWindow:
             kwargs['noWindow'] = True
-        if options.geckoPath:
-            kwargs['gecko_path'] = options.geckoPath
+        if options.goannaPath:
+            kwargs['goanna_path'] = options.goannaPath
         if options.logcat_dir:
             kwargs['logcat_dir'] = options.logcat_dir
         if options.busybox:

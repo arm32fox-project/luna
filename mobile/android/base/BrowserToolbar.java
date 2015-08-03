@@ -3,22 +3,22 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.ViewHelper;
-import org.mozilla.gecko.gfx.ImmutableViewportMetrics;
-import org.mozilla.gecko.gfx.LayerView;
-import org.mozilla.gecko.menu.GeckoMenu;
-import org.mozilla.gecko.menu.MenuPopup;
-import org.mozilla.gecko.util.Clipboard;
-import org.mozilla.gecko.util.StringUtils;
-import org.mozilla.gecko.util.HardwareUtils;
+import org.mozilla.goanna.animation.PropertyAnimator;
+import org.mozilla.goanna.animation.ViewHelper;
+import org.mozilla.goanna.gfx.ImmutableViewportMetrics;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.menu.GoannaMenu;
+import org.mozilla.goanna.menu.MenuPopup;
+import org.mozilla.goanna.util.Clipboard;
+import org.mozilla.goanna.util.StringUtils;
+import org.mozilla.goanna.util.HardwareUtils;
 
-import org.mozilla.gecko.util.ThreadUtils;
-import org.mozilla.gecko.util.UiAsyncTask;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.UiAsyncTask;
 
-import org.mozilla.gecko.PrefsHelper;
+import org.mozilla.goanna.PrefsHelper;
 
 import org.json.JSONObject;
 
@@ -67,17 +67,17 @@ import java.util.Arrays;
 import java.util.List;
 
 public class BrowserToolbar implements Tabs.OnTabsChangedListener,
-                                       GeckoMenu.ActionItemBarPresenter,
+                                       GoannaMenu.ActionItemBarPresenter,
                                        Animation.AnimationListener {
-    private static final String LOGTAG = "GeckoToolbar";
+    private static final String LOGTAG = "GoannaToolbar";
     public static final String PREF_TITLEBAR_MODE = "browser.chrome.titlebarMode";
-    private GeckoRelativeLayout mLayout;
+    private GoannaRelativeLayout mLayout;
     private LayoutParams mAwesomeBarParams;
     private View mUrlDisplayContainer;
     private View mAwesomeBarEntry;
     private ImageView mAwesomeBarRightEdge;
     private BrowserToolbarBackground mAddressBarBg;
-    private GeckoTextView mTitle;
+    private GoannaTextView mTitle;
     private int mTitlePadding;
     private boolean mSiteSecurityVisible;
     private boolean mSwitchingTabs;
@@ -91,8 +91,8 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
     private AnimationDrawable mProgressSpinner;
     private TabCounter mTabsCounter;
     private ImageView mShadow;
-    private GeckoImageButton mMenu;
-    private GeckoImageView mMenuIcon;
+    private GoannaImageButton mMenu;
+    private GoannaImageView mMenuIcon;
     private LinearLayout mActionItemBar;
     private MenuPopup mMenuPopup;
     private List<View> mFocusOrder;
@@ -182,7 +182,7 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
             layout.setVisibility(mLayout.getVisibility());
         }
 
-        mLayout = (GeckoRelativeLayout) layout;
+        mLayout = (GoannaRelativeLayout) layout;
 
         mLayout.setOnClickListener(new Button.OnClickListener() {
             @Override
@@ -242,7 +242,7 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
             mAwesomeBarRightEdge.getDrawable().setLevel(5000);
         }
 
-        mTitle = (GeckoTextView) mLayout.findViewById(R.id.awesome_bar_title);
+        mTitle = (GoannaTextView) mLayout.findViewById(R.id.awesome_bar_title);
         mTitlePadding = mTitle.getPaddingRight();
 
         mTabs = (ShapedButton) mLayout.findViewById(R.id.tabs);
@@ -382,8 +382,8 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
         mTitleSlideLeft.setDuration(lockAnimDuration);
         mTitleSlideRight.setDuration(lockAnimDuration);
 
-        mMenu = (GeckoImageButton) mLayout.findViewById(R.id.menu);
-        mMenuIcon = (GeckoImageView) mLayout.findViewById(R.id.menu_icon);
+        mMenu = (GoannaImageButton) mLayout.findViewById(R.id.menu);
+        mMenuIcon = (GoannaImageView) mLayout.findViewById(R.id.menu_icon);
         mActionItemBar = (LinearLayout) mLayout.findViewById(R.id.menu_items);
         mHasSoftMenuButton = !HardwareUtils.hasMenuButton();
 
@@ -1167,7 +1167,7 @@ public class BrowserToolbar implements Tabs.OnTabsChangedListener,
         if (!mHasSoftMenuButton)
             return false;
 
-        GeckoAppShell.getGeckoInterface().invalidateOptionsMenu();
+        GoannaAppShell.getGoannaInterface().invalidateOptionsMenu();
         if (mMenuPopup != null && !mMenuPopup.isShowing())
             mMenuPopup.showAsDropDown(mMenu);
 

@@ -9,7 +9,7 @@ interface PageTransitionEvent : Event
 {
   readonly attribute boolean persisted;
 
-  // initPageTransitionEvent is a Gecko specific deprecated method.
+  // initPageTransitionEvent is a Goanna specific deprecated method.
   [Throws]
   void initPageTransitionEvent(DOMString type,
                                boolean canBubble,

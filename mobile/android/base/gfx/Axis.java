@@ -3,11 +3,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.PrefsHelper;
-import org.mozilla.gecko.util.FloatUtils;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.PrefsHelper;
+import org.mozilla.goanna.util.FloatUtils;
 
 import org.json.JSONArray;
 
@@ -24,7 +24,7 @@ import java.util.Map;
  * a particular axis.
  */
 abstract class Axis {
-    private static final String LOGTAG = "GeckoAxis";
+    private static final String LOGTAG = "GoannaAxis";
 
     private static final String PREF_SCROLLING_FRICTION_SLOW = "ui.scrolling.friction_slow";
     private static final String PREF_SCROLLING_FRICTION_FAST = "ui.scrolling.friction_fast";
@@ -100,7 +100,7 @@ abstract class Axis {
         FRICTION_SLOW = getFrameAdjustedFriction(getFloatPref(prefs, PREF_SCROLLING_FRICTION_SLOW, 850));
         FRICTION_FAST = getFrameAdjustedFriction(getFloatPref(prefs, PREF_SCROLLING_FRICTION_FAST, 970));
         VELOCITY_THRESHOLD = 10 / FRAMERATE_MULTIPLIER;
-        MAX_EVENT_ACCELERATION = getFloatPref(prefs, PREF_SCROLLING_MAX_EVENT_ACCELERATION, GeckoAppShell.getDpi() > 300 ? 100 : 40);
+        MAX_EVENT_ACCELERATION = getFloatPref(prefs, PREF_SCROLLING_MAX_EVENT_ACCELERATION, GoannaAppShell.getDpi() > 300 ? 100 : 40);
         OVERSCROLL_DECEL_RATE = getFrameAdjustedFriction(getFloatPref(prefs, PREF_SCROLLING_OVERSCROLL_DECEL_RATE, 40));
         SNAP_LIMIT = getFloatPref(prefs, PREF_SCROLLING_OVERSCROLL_SNAP_LIMIT, 300);
         MIN_SCROLLABLE_DISTANCE = getFloatPref(prefs, PREF_SCROLLING_MIN_SCROLLABLE_DISTANCE, 500);

@@ -711,7 +711,19 @@ ParsePropertyDescriptorObject(JSContext *cx, HandleObject obj, const Value &v,
     desc->obj = obj;
     desc->value = d->hasValue() ? d->value() : UndefinedValue();
     JS_ASSERT(!(d->attributes() & JSPROP_SHORTID));
-    desc->attrs = d->attributes();
+    
+    // Honor "has" notions
+    unsigned attrs = d->attributes();
+    if (!d->hasEnumerable())
+      attrs |= JSPROP_IGNORE_ENUMERATE;
+    if (!d->hasWritable())
+      attrs |= JSPROP_IGNORE_READONLY;
+    if (!d->hasConfigurable())
+      attrs |= JSPROP_IGNORE_PERMANENT;
+    if (!d->hasValue())
+      attrs |= JSPROP_IGNORE_VALUE;
+    desc->attrs = attrs;
+    
     desc->getter = d->getter();
     desc->setter = d->setter();
     desc->shortid = 0;

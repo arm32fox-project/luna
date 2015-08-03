@@ -441,7 +441,7 @@ private:
      * |mIMModule| takes all IME related stuff.
      *
      * This is owned by the top-level nsWindow or the topmost child
-     * nsWindow embedded in a non-Gecko widget.
+     * nsWindow embedded in a non-Goanna widget.
      *
      * The instance is created when the top level widget is created.  And when
      * the widget is destroyed, it's released.  All child windows refer its

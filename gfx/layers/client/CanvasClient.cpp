@@ -100,7 +100,7 @@ CanvasClientSurfaceStream::Update(gfx::IntSize aSize, ClientCanvasLayer* aLayer)
   GLScreenBuffer* screen = aLayer->mGLContext->Screen();
   SurfaceStream* stream = screen->Stream();
 
-  bool isCrossProcess = !(XRE_GetProcessType() == GeckoProcessType_Default);
+  bool isCrossProcess = !(XRE_GetProcessType() == GoannaProcessType_Default);
   if (isCrossProcess) {
     // swap staging -> consumer so we can send it to the compositor
     SharedSurface* surf = stream->SwapConsumer();

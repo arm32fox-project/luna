@@ -3,9 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.util.GeckoEventListener;
+import org.mozilla.goanna.util.GoannaEventListener;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -17,10 +17,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Helper class to get/set gecko prefs.
+ * Helper class to get/set goanna prefs.
  */
 public final class PrefsHelper {
-    private static final String LOGTAG = "GeckoPrefsHelper";
+    private static final String LOGTAG = "GoannaPrefsHelper";
 
     private static boolean sRegistered = false;
     private static final Map<Integer, PrefHandler> sCallbacks = new HashMap<Integer, PrefHandler>();
@@ -49,14 +49,14 @@ public final class PrefsHelper {
             sCallbacks.put(requestId, callback);
         }
 
-        GeckoEvent event;
+        GoannaEvent event;
         try {
             JSONObject message = new JSONObject();
             message.put("requestId", Integer.toString(requestId));
             message.put("preferences", prefNames);
-            event = GeckoEvent.createBroadcastEvent(callback.isObserver() ?
+            event = GoannaEvent.createBroadcastEvent(callback.isObserver() ?
                 "Preferences:Observe" : "Preferences:Get", message.toString());
-            GeckoAppShell.sendEventToGecko(event);
+            GoannaAppShell.sendEventToGoanna(event);
         } catch (Exception e) {
             Log.e(LOGTAG, "Error while composing Preferences:" +
                   (callback.isObserver() ? "Observe" : "Get") + " message", e);
@@ -78,7 +78,7 @@ public final class PrefsHelper {
             return;
         }
 
-        GeckoAppShell.getEventDispatcher().registerEventListener("Preferences:Data", new GeckoEventListener() {
+        GoannaAppShell.getEventDispatcher().registerEventListener("Preferences:Data", new GoannaEventListener() {
             @Override public void handleMessage(String event, JSONObject message) {
                 try {
                     PrefHandler callback;
@@ -145,8 +145,8 @@ public final class PrefsHelper {
                 jsonPref.put("value", String.valueOf(value));
             }
 
-            GeckoEvent event = GeckoEvent.createBroadcastEvent("Preferences:Set", jsonPref.toString());
-            GeckoAppShell.sendEventToGecko(event);
+            GoannaEvent event = GoannaEvent.createBroadcastEvent("Preferences:Set", jsonPref.toString());
+            GoannaAppShell.sendEventToGoanna(event);
         } catch (JSONException e) {
             Log.e(LOGTAG, "Error setting pref [" + pref + "]", e);
         }
@@ -165,9 +165,9 @@ public final class PrefsHelper {
             }
         }
 
-        GeckoEvent event = GeckoEvent.createBroadcastEvent("Preferences:RemoveObserver",
+        GoannaEvent event = GoannaEvent.createBroadcastEvent("Preferences:RemoveObserver",
                                                            Integer.toString(requestId));
-        GeckoAppShell.sendEventToGecko(event);
+        GoannaAppShell.sendEventToGoanna(event);
     }
 
     public interface PrefHandler {

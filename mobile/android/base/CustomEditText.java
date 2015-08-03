@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
 import android.content.Context;
 import android.util.AttributeSet;
 import android.view.KeyEvent;
 import android.view.View;
 
-public class CustomEditText extends GeckoEditText {
+public class CustomEditText extends GoannaEditText {
     private OnKeyPreImeListener mOnKeyPreImeListener;
     private OnSelectionChangedListener mOnSelectionChangedListener;
     private OnWindowFocusChangeListener mOnWindowFocusChangeListener;

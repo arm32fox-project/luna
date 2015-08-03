@@ -86,7 +86,7 @@ Crypto::GetRandomValues(const JS::Value& aData, JSContext *cx,
   unsigned char* data =
     static_cast<unsigned char*>(dataptr);
 
-  if (XRE_GetProcessType() != GeckoProcessType_Default) {
+  if (XRE_GetProcessType() != GoannaProcessType_Default) {
     InfallibleTArray<uint8_t> randomValues;
     // Tell the parent process to generate random values via PContent
     ContentChild* cc = ContentChild::GetSingleton();

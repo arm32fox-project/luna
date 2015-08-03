@@ -335,7 +335,7 @@ function testOneRule(testrule) {
 }
 
 function testFontFeatureValuesRuleParsing() {
-  // Gecko-specific check - if pref not set, skip these tests
+  // Goanna-specific check - if pref not set, skip these tests
   if (window.SpecialPowers && !window.SpecialPowers.getBoolPref("layout.css.font-features.enabled")) {
     return;
   }

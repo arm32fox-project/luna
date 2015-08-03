@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.background.healthreport;
+package org.mozilla.goanna.background.healthreport;
 
 import java.util.HashSet;
 import java.util.Iterator;
@@ -10,8 +10,8 @@ import java.util.Set;
 
 import org.json.JSONException;
 import org.json.JSONObject;
-import org.mozilla.gecko.background.common.log.Logger;
-import org.mozilla.gecko.background.healthreport.HealthReportStorage.Field;
+import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.Field;
 
 import android.database.Cursor;
 import android.util.SparseArray;
@@ -19,7 +19,7 @@ import android.util.SparseArray;
 public class HealthReportGenerator {
   private static final int PAYLOAD_VERSION = 3;
 
-  private static final String LOG_TAG = "GeckoHealthGen";
+  private static final String LOG_TAG = "GoannaHealthGen";
 
   private final HealthReportStorage storage;
 
@@ -265,7 +265,7 @@ public class HealthReportGenerator {
   public static JSONObject jsonify(Environment e, Environment current) throws JSONException {
     JSONObject age = getProfileAge(e, current);
     JSONObject sysinfo = getSysInfo(e, current);
-    JSONObject gecko = getGeckoInfo(e, current);
+    JSONObject goanna = getGoannaInfo(e, current);
     JSONObject appinfo = getAppInfo(e, current);
     JSONObject counts = getAddonCounts(e, current);
 
@@ -274,8 +274,8 @@ public class HealthReportGenerator {
       out.put("org.mozilla.profile.age", age);
     if (sysinfo != null)
       out.put("org.mozilla.sysinfo.sysinfo", sysinfo);
-    if (gecko != null)
-      out.put("geckoAppInfo", gecko);
+    if (goanna != null)
+      out.put("goannaAppInfo", goanna);
     if (appinfo != null)
       out.put("org.mozilla.appInfo.appinfo", appinfo);
     if (counts != null)
@@ -335,54 +335,54 @@ public class HealthReportGenerator {
     return sysinfo;
   }
 
-  private static JSONObject getGeckoInfo(Environment e, Environment current) throws JSONException {
-    JSONObject gecko = new JSONObject();
+  private static JSONObject getGoannaInfo(Environment e, Environment current) throws JSONException {
+    JSONObject goanna = new JSONObject();
     int changes = 0;
     if (current == null || !current.vendor.equals(e.vendor)) {
-      gecko.put("vendor", e.vendor);
+      goanna.put("vendor", e.vendor);
       changes++;
     }
     if (current == null || !current.appName.equals(e.appName)) {
-      gecko.put("name", e.appName);
+      goanna.put("name", e.appName);
       changes++;
     }
     if (current == null || !current.appID.equals(e.appID)) {
-      gecko.put("id", e.appID);
+      goanna.put("id", e.appID);
       changes++;
     }
     if (current == null || !current.appVersion.equals(e.appVersion)) {
-      gecko.put("version", e.appVersion);
+      goanna.put("version", e.appVersion);
       changes++;
     }
     if (current == null || !current.appBuildID.equals(e.appBuildID)) {
-      gecko.put("appBuildID", e.appBuildID);
+      goanna.put("appBuildID", e.appBuildID);
       changes++;
     }
     if (current == null || !current.platformVersion.equals(e.platformVersion)) {
-      gecko.put("platformVersion", e.platformVersion);
+      goanna.put("platformVersion", e.platformVersion);
       changes++;
     }
     if (current == null || !current.platformBuildID.equals(e.platformBuildID)) {
-      gecko.put("platformBuildID", e.platformBuildID);
+      goanna.put("platformBuildID", e.platformBuildID);
       changes++;
     }
     if (current == null || !current.os.equals(e.os)) {
-      gecko.put("os", e.os);
+      goanna.put("os", e.os);
       changes++;
     }
     if (current == null || !current.xpcomabi.equals(e.xpcomabi)) {
-      gecko.put("xpcomabi", e.xpcomabi);
+      goanna.put("xpcomabi", e.xpcomabi);
       changes++;
     }
     if (current == null || !current.updateChannel.equals(e.updateChannel)) {
-      gecko.put("updateChannel", e.updateChannel);
+      goanna.put("updateChannel", e.updateChannel);
       changes++;
     }
     if (current != null && changes == 0) {
       return null;
     }
-    gecko.put("_v", 1);
-    return gecko;
+    goanna.put("_v", 1);
+    return goanna;
   }
 
   private static JSONObject getAppInfo(Environment e, Environment current) throws JSONException {

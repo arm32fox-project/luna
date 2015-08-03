@@ -57,7 +57,7 @@ public:
   nsresult      DispatchDOMEvent(const nsString &eventName, bool* preventDefaultCalled);
   void          SetupIcon();
 
-  static uint32_t   ConvertGeckoToMacKeyCode(nsAString& aKeyCodeName);
+  static uint32_t   ConvertGoannaToMacKeyCode(nsAString& aKeyCodeName);
 
 protected:
   void UncheckRadioSiblings(nsIContent* inCheckedElement);

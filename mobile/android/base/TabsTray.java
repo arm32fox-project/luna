@@ -3,12 +3,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko;
+package org.mozilla.goanna;
 
-import org.mozilla.gecko.animation.PropertyAnimator;
-import org.mozilla.gecko.animation.PropertyAnimator.Property;
-import org.mozilla.gecko.animation.ViewHelper;
-import org.mozilla.gecko.widget.TwoWayView;
+import org.mozilla.goanna.animation.PropertyAnimator;
+import org.mozilla.goanna.animation.PropertyAnimator.Property;
+import org.mozilla.goanna.animation.ViewHelper;
+import org.mozilla.goanna.widget.TwoWayView;
 
 import android.content.Context;
 import android.content.res.TypedArray;
@@ -33,7 +33,7 @@ import java.util.List;
 
 public class TabsTray extends TwoWayView
                       implements TabsPanel.PanelView {
-    private static final String LOGTAG = "GeckoTabsTray";
+    private static final String LOGTAG = "GoannaTabsTray";
 
     private Context mContext;
     private TabsPanel mTabsPanel;
@@ -102,7 +102,7 @@ public class TabsTray extends TwoWayView
     public void hide() {
         setVisibility(View.GONE);
         Tabs.unregisterOnTabsChangedListener(mTabsAdapter);
-        GeckoAppShell.sendEventToGecko(GeckoEvent.createBroadcastEvent("Tab:Screenshot:Cancel",""));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Tab:Screenshot:Cancel",""));
         mTabsAdapter.clear();
     }
 

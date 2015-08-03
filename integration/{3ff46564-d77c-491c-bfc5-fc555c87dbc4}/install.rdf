@@ -1,0 +1,30 @@
+<?xml version='1.0' encoding='utf-8'?>
+<RDF xmlns="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:em="http://www.mozilla.org/2004/em-rdf#">
+<Description about="urn:mozilla:install-manifest">
+	<em:id>{3ff46564-d77c-491c-bfc5-fc555c87dbc4}</em:id>
+	<em:version>1.0</em:version>
+	<em:type>2</em:type>
+
+	<em:targetApplication>
+	<Description>
+		<em:id>{8de7fcbb-c55c-4fbe-bfc5-fc555c87dbc4}</em:id>
+		<em:minVersion>26.0a1</em:minVersion>
+		<em:maxVersion>29.*</em:maxVersion>
+	</Description>
+	</em:targetApplication>
+
+	<em:name>Integrated Ruby Annotations</em:name>
+	<em:description>Adds support for the rendering of ruby annotations</em:description>
+	<em:creator>Moonchild</em:creator>
+	<em:optionsURL>chrome://htmlruby/content/options.xul</em:optionsURL>
+	<em:iconURL>chrome://htmlruby/content/images/icon.png</em:iconURL>
+
+	<em:localized>
+		<Description>
+	  		<em:locale>ja-JP</em:locale>
+	  		<em:name>Ruby Annotations</em:name>
+	  		<em:description>ルビ（振り仮名など）が表示できるようになります。</em:description>
+		</Description>
+	</em:localized>
+</Description>
+</RDF>

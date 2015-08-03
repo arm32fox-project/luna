@@ -8,6 +8,7 @@ Fennec/M
 Firefox/M
 Flock/M
 Gecko/M
+Goanna/M
 JavaScript/M
 Lightning/M
 Mozilla/M

@@ -16,9 +16,9 @@ public class testSettingsMenuItems extends PixelTest {
     }
 
     public void testSettingsMenuItems() {
-        blockForGeckoReady();
-        midWidth = mDriver.getGeckoWidth()/2;
-        midHeight = mDriver.getGeckoHeight()/2;
+        blockForGoannaReady();
+        midWidth = mDriver.getGoannaWidth()/2;
+        midHeight = mDriver.getGoannaHeight()/2;
 
         // In this First Section I've declared the strings that contain the Menu sections
 
@@ -76,7 +76,7 @@ public class testSettingsMenuItems extends PixelTest {
                 if (subMenu.equals("Offline website data")) {
                     Device mDevice = new Device();
                     if (mDevice.type.equals("phone")) {
-                        MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGeckoLeft(), mDriver.getGeckoTop());
+                        MotionEventHelper meh = new MotionEventHelper(getInstrumentation(), mDriver.getGoannaLeft(), mDriver.getGoannaTop());
                         meh.dragSync(midWidth, midHeight+100, midWidth, midHeight-100);
                     }
                 }

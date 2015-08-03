@@ -10,7 +10,7 @@ from errors import InvalidResponseException, ErrorCodes
 
 class MarionetteClient(object):
     """ The Marionette socket client.  This speaks the same protocol
-        as the remote debugger inside Gecko, in which messages are
+        as the remote debugger inside Goanna, in which messages are
         always preceded by the message length and a colon, e.g.,
 
         20:{'command': 'test'}
@@ -53,7 +53,7 @@ class MarionetteClient(object):
             return json.loads(response)
         else:
             raise InvalidResponseException("Could not successfully complete " \
-                                           "transport of message to Gecko, "
+                                           "transport of message to Goanna, "
                                            "socket closed?",
                                            status=ErrorCodes.INVALID_RESPONSE)
 

@@ -2,19 +2,19 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.db;
+package org.mozilla.goanna.db;
 
 import java.io.File;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.mozilla.gecko.GeckoProfile;
-import org.mozilla.gecko.db.BrowserContract.Clients;
-import org.mozilla.gecko.db.BrowserContract.Tabs;
-import org.mozilla.gecko.db.BrowserContract;
-import org.mozilla.gecko.db.DBUtils;
-import org.mozilla.gecko.util.ThreadUtils;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.db.BrowserContract.Clients;
+import org.mozilla.goanna.db.BrowserContract.Tabs;
+import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.DBUtils;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import android.content.ContentProvider;
 import android.content.ContentUris;
@@ -32,7 +32,7 @@ import android.text.TextUtils;
 import android.util.Log;
 
 public class TabsProvider extends ContentProvider {
-    private static final String LOGTAG = "GeckoTabsProvider";
+    private static final String LOGTAG = "GoannaTabsProvider";
     private Context mContext;
 
     static final String DATABASE_NAME = "tabs.db";
@@ -216,7 +216,7 @@ public class TabsProvider extends ContentProvider {
 
         // Always fallback to default profile if none has been provided.
         if (TextUtils.isEmpty(profile)) {
-            profile = GeckoProfile.get(getContext()).getName();
+            profile = GoannaProfile.get(getContext()).getName();
         }
 
         DatabaseHelper dbHelper;
@@ -251,7 +251,7 @@ public class TabsProvider extends ContentProvider {
     private String getDatabasePath(String profile) {
         trace("Getting database path for profile: " + profile);
 
-        File profileDir = GeckoProfile.get(mContext, profile).getDir();
+        File profileDir = GoannaProfile.get(mContext, profile).getDir();
         if (profileDir == null) {
             debug("Couldn't find directory for profile: " + profile);
             return null;

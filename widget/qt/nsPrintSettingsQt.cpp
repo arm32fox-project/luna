@@ -317,9 +317,9 @@ nsPrintSettingsQt::SetPaperName(const PRUnichar* aPaperName)
     return NS_ERROR_FAILURE;
 }
 
-QPrinter::Unit GetQtUnit(int16_t aGeckoUnit)
+QPrinter::Unit GetQtUnit(int16_t aGoannaUnit)
 {
-    if (aGeckoUnit == nsIPrintSettings::kPaperSizeMillimeters) {
+    if (aGoannaUnit == nsIPrintSettings::kPaperSizeMillimeters) {
         return QPrinter::Millimeter;
     } else {
         return QPrinter::Inch;

@@ -3,15 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.gfx;
+package org.mozilla.goanna.gfx;
 
-import org.mozilla.gecko.GeckoAccessibility;
-import org.mozilla.gecko.GeckoAppShell;
-import org.mozilla.gecko.GeckoEvent;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.TouchEventInterceptor;
-import org.mozilla.gecko.ZoomConstraints;
-import org.mozilla.gecko.util.EventDispatcher;
+import org.mozilla.goanna.GoannaAccessibility;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.TouchEventInterceptor;
+import org.mozilla.goanna.ZoomConstraints;
+import org.mozilla.goanna.util.EventDispatcher;
 
 import android.content.Context;
 import android.graphics.Bitmap;
@@ -45,9 +45,9 @@ import java.util.ArrayList;
  * Note that LayerView is accessed by Robocop via reflection.
  */
 public class LayerView extends FrameLayout {
-    private static String LOGTAG = "GeckoLayerView";
+    private static String LOGTAG = "GoannaLayerView";
 
-    private GeckoLayerClient mLayerClient;
+    private GoannaLayerClient mLayerClient;
     private PanZoomController mPanZoomController;
     private LayerMarginsAnimator mMarginsAnimator;
     private GLController mGLController;
@@ -105,7 +105,7 @@ public class LayerView extends FrameLayout {
     }
 
     public void initializeView(EventDispatcher eventDispatcher) {
-        mLayerClient = new GeckoLayerClient(getContext(), this, eventDispatcher);
+        mLayerClient = new GoannaLayerClient(getContext(), this, eventDispatcher);
         mPanZoomController = mLayerClient.getPanZoomController();
         mMarginsAnimator = mLayerClient.getLayerMarginsAnimator();
 
@@ -115,11 +115,11 @@ public class LayerView extends FrameLayout {
         setFocusable(true);
         setFocusableInTouchMode(true);
 
-        GeckoAccessibility.setDelegate(this);
+        GoannaAccessibility.setDelegate(this);
     }
 
-    public void geckoConnected() {
-        mLayerClient.notifyGeckoReady();
+    public void goannaConnected() {
+        mLayerClient.notifyGoannaReady();
         addTouchInterceptor(new TouchEventInterceptor() {
             private PointF mInitialTouchPoint = null;
 
@@ -151,7 +151,7 @@ public class LayerView extends FrameLayout {
                     }
                 }
 
-                GeckoAppShell.sendEventToGecko(GeckoEvent.createMotionEvent(event, false));
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createMotionEvent(event, false));
                 return true;
             }
         });
@@ -272,7 +272,7 @@ public class LayerView extends FrameLayout {
         }
     }
 
-    public GeckoLayerClient getLayerClient() { return mLayerClient; }
+    public GoannaLayerClient getLayerClient() { return mLayerClient; }
     public PanZoomController getPanZoomController() { return mPanZoomController; }
     public LayerMarginsAnimator getLayerMarginsAnimator() { return mMarginsAnimator; }
 
@@ -450,7 +450,7 @@ public class LayerView extends FrameLayout {
      *
      * The second phase is the SurfaceView size change. At this point, the
      * backing GL surface is resized and another synchronous draw is performed.
-     * Gecko is also sent the new window size, and this will likely cause an
+     * Goanna is also sent the new window size, and this will likely cause an
      * extra draw a few frames later, after it's re-rendered and caught up.
      *
      * In the case that there is no valid GL surface (for example, when
@@ -487,10 +487,10 @@ public class LayerView extends FrameLayout {
         return mTextureView.getSurfaceTexture();
     }
 
-    /** This function is invoked by Gecko (compositor thread) via JNI; be careful when modifying signature. */
+    /** This function is invoked by Goanna (compositor thread) via JNI; be careful when modifying signature. */
     public static GLController registerCxxCompositor() {
         try {
-            LayerView layerView = GeckoAppShell.getLayerView();
+            LayerView layerView = GoannaAppShell.getLayerView();
             GLController controller = layerView.getGLController();
             controller.compositorCreated();
             return controller;
@@ -592,7 +592,7 @@ public class LayerView extends FrameLayout {
     @Override
     public void onFocusChanged (boolean gainFocus, int direction, Rect previouslyFocusedRect) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect);
-        GeckoAccessibility.onLayerViewFocusChanged(this, gainFocus);
+        GoannaAccessibility.onLayerViewFocusChanged(this, gainFocus);
     }
 
     public void setFullScreen(boolean fullScreen) {

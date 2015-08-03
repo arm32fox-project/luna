@@ -94,7 +94,7 @@ HHOOK gDeferredGetMsgHook = NULL;
 HHOOK gDeferredCallWndProcHook = NULL;
 
 DWORD gUIThreadId = 0;
-static UINT sAppShellGeckoMsgId;
+static UINT sAppShellGoannaMsgId;
 
 LRESULT CALLBACK
 DeferredMessageHook(int nCode,
@@ -274,7 +274,7 @@ ProcessOrDeferMessage(HWND hwnd,
       return 0;
 
     default: {
-      if (uMsg && uMsg == sAppShellGeckoMsgId) {
+      if (uMsg && uMsg == sAppShellGoannaMsgId) {
         // Widget's registered native event callback
         deferred = new DeferredSendMessage(hwnd, uMsg, wParam, lParam);
       } else {
@@ -363,7 +363,7 @@ WindowIsDeferredWindow(HWND hWnd)
   // Common mozilla windows we must defer messages to.
   nsDependentString className(buffer, length);
   if (StringBeginsWith(className, NS_LITERAL_STRING("Mozilla")) ||
-      StringBeginsWith(className, NS_LITERAL_STRING("Gecko")) ||
+      StringBeginsWith(className, NS_LITERAL_STRING("Goanna")) ||
       className.EqualsLiteral("nsToolkitClass") ||
       className.EqualsLiteral("nsAppShell:EventWindowClass")) {
     return true;
@@ -525,7 +525,7 @@ Init()
   NS_ASSERTION(gUIThreadId, "ThreadId should not be 0!");
   NS_ASSERTION(gUIThreadId == GetCurrentThreadId(),
                "Running on different threads!");
-  sAppShellGeckoMsgId = RegisterWindowMessageW(kAppShellEventId);
+  sAppShellGoannaMsgId = RegisterWindowMessageW(kAppShellEventId);
 }
 
 // This timeout stuff assumes a sane value of mTimeoutMs (less than the overflow
@@ -606,12 +606,12 @@ RPCChannel::SyncStackFrame::~SyncStackFrame()
 
 SyncChannel::SyncStackFrame* SyncChannel::sStaticTopFrame;
 
-// nsAppShell's notification that gecko events are being processed.
+// nsAppShell's notification that goanna events are being processed.
 // If we are here and there is an RPC Incall active, we are spinning
-// a nested gecko event loop. In which case the remote process needs
+// a nested goanna event loop. In which case the remote process needs
 // to know about it.
 void /* static */
-RPCChannel::NotifyGeckoEventDispatch()
+RPCChannel::NotifyGoannaEventDispatch()
 {
   // sStaticTopFrame is only valid for RPC channels
   if (!sStaticTopFrame || sStaticTopFrame->mListenerNotified)

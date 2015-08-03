@@ -2,12 +2,12 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-package org.mozilla.gecko.widget;
+package org.mozilla.goanna.widget;
 
-import org.mozilla.gecko.GeckoLinearLayout;
-import org.mozilla.gecko.R;
-import org.mozilla.gecko.util.GamepadUtils;
-import org.mozilla.gecko.widget.Divider;
+import org.mozilla.goanna.GoannaLinearLayout;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.util.GamepadUtils;
+import org.mozilla.goanna.widget.Divider;
 
 import android.content.Context;
 import android.content.res.TypedArray;
@@ -18,7 +18,7 @@ import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 
-public class AboutHomeSection extends GeckoLinearLayout {
+public class AboutHomeSection extends GoannaLinearLayout {
     private TextView mTitle;
     private TextView mSubtitle;
     private LinearLayout mItemsContainer;
