@@ -50,7 +50,7 @@ interface Element : Node {
   boolean hasAttribute(DOMString name);
   boolean hasAttributeNS(DOMString? namespace, DOMString localName);
   
-  [Throws, Pure]
+  [Throws]
   boolean matches(DOMString selector);
   
   HTMLCollection getElementsByTagName(DOMString localName);
