@@ -217,12 +217,12 @@ PropDesc::initFromPropertyDescriptor(const PropertyDescriptor &desc)
         get_.setUndefined();
         hasSet_ = false;
         set_.setUndefined();
-        hasValue_ = true;
-        value_ = desc.value;
-        hasWritable_ = true;
+        hasValue_ = !(desc.attrs & JSPROP_IGNORE_VALUE);
+        value_ = hasValue_ ? desc.value : UndefinedValue();
+        hasWritable_ = !(desc.attrs & JSPROP_IGNORE_READONLY);
     }
-    hasEnumerable_ = true;
-    hasConfigurable_ = true;
+    hasEnumerable_ = !(desc.attrs & JSPROP_IGNORE_ENUMERATE);
+    hasConfigurable_ = !(desc.attrs & JSPROP_IGNORE_PERMANENT);
 }
 
 bool
@@ -545,6 +545,59 @@ Reject(JSContext *cx, HandleId id, unsigned errorNumber, bool throwError, bool *
     return true;
 }
 
+static unsigned
+ApplyAttributes(unsigned attrs, bool enumerable, bool writable, bool configurable)
+{
+    /*
+     * Respect the fact that some callers may want to preserve existing attributes
+     * as much as possible, or install defaults otherwise, when redefining properties.
+     */
+    if (attrs & JSPROP_IGNORE_ENUMERATE) {
+        attrs &= ~JSPROP_IGNORE_ENUMERATE;
+        if (enumerable)
+            attrs |= JSPROP_ENUMERATE;
+        else
+            attrs &= ~JSPROP_ENUMERATE;
+    }
+    if (attrs & JSPROP_IGNORE_READONLY) {
+        attrs &= ~JSPROP_IGNORE_READONLY;
+        // Only update the writability if it's relevant
+        if (!(attrs & (JSPROP_GETTER | JSPROP_SETTER))) {
+            if (!writable)
+                attrs |= JSPROP_READONLY;
+            else
+                attrs &= ~JSPROP_READONLY;
+        }
+    }
+    if (attrs & JSPROP_IGNORE_PERMANENT) {
+        attrs &= ~JSPROP_IGNORE_PERMANENT;
+        if (!configurable)
+            attrs |= JSPROP_PERMANENT;
+        else
+            attrs &= ~JSPROP_PERMANENT;
+    }
+    return attrs;
+}
+
+static unsigned
+ApplyOrDefaultAttributes(unsigned attrs, const Shape *shape = nullptr)
+{
+    bool enumerable = shape ? shape->enumerable() : false;
+    bool writable = shape ? shape->writable() : false;
+    bool configurable = shape ? shape->configurable() : false;
+    return ApplyAttributes(attrs, enumerable, writable, configurable);
+}
+
+static unsigned
+ApplyOrDefaultAttributes(unsigned attrs, PropertyDescriptor *desc)
+{
+    bool present = !!desc->obj;
+    bool enumerable = present ? (desc->attrs & JSPROP_ENUMERATE) : false;
+    bool writable = present ? !(desc->attrs & JSPROP_READONLY) : false;
+    bool configurable = present ? !(desc->attrs & JSPROP_PERMANENT) : false;
+    return ApplyAttributes(attrs, enumerable, writable, configurable);
+}
+
 // See comments on CheckDefineProperty in jsobj.h.
 //
 // DefinePropertyOnObject has its own implementation of these checks.
@@ -561,6 +614,11 @@ js::CheckDefineProperty(JSContext *cx, HandleObject obj, HandleId id, HandleValu
     AutoPropertyDescriptorRooter desc(cx);
     if (!GetOwnPropertyDescriptor(cx, obj, id, &desc))
         return false;
+
+    // Properly handle the potential situation for ignored attributes.
+    // Since the proxy code calls us directly, these might flow in legitimately.
+    // Ensure that we compare against the values that are intended.
+    attrs = ApplyOrDefaultAttributes(attrs, &desc) & ~JSPROP_IGNORE_VALUE;
 
     // This does not have to check obj->isExtensible() when !desc.obj (steps
     // 2-3) because the low-level methods JSObject::{add,put}Property check
@@ -3434,12 +3492,15 @@ js::DefineNativeProperty(JSContext *cx, HandleObject obj, HandleId id, HandleVal
 
     AutoRooterGetterSetter gsRoot(cx, attrs, &getter, &setter);
 
+    RootedShape shape(cx);
+    RootedValue updateValue(cx, value);
+    bool shouldDefine = true;
+
     /*
      * If defining a getter or setter, we must check for its counterpart and
      * update the attributes and property ops.  A getter or setter is really
      * only half of a property.
      */
-    RootedShape shape(cx);
     if (attrs & (JSPROP_GETTER | JSPROP_SETTER)) {
         /* Type information for getter/setter properties is unknown. */
         AddTypePropertyId(cx, obj, id, types::Type::UnknownType());
@@ -3460,6 +3521,7 @@ js::DefineNativeProperty(JSContext *cx, HandleObject obj, HandleId id, HandleVal
                 shape = obj->nativeLookup(cx, id);
             }
             if (shape->isAccessorDescriptor()) {
+                attrs = ApplyOrDefaultAttributes(attrs, shape);
                 shape = JSObject::changeProperty(cx, obj, shape, attrs,
                                                  JSPROP_GETTER | JSPROP_SETTER,
                                                  (attrs & JSPROP_GETTER)
@@ -3470,11 +3532,42 @@ js::DefineNativeProperty(JSContext *cx, HandleObject obj, HandleId id, HandleVal
                                                  : shape->setter());
                 if (!shape)
                     return false;
-            } else {
-                shape = NULL;
+                shouldDefine = false;
             }
         } else {
             shape = NULL;
+        }
+    } else if (!(attrs & JSPROP_IGNORE_VALUE)) {
+        /*
+         * We might still want to ignore redefining some of our attributes, if the
+         * request came through a proxy after Object.defineProperty(), but only if we're redefining
+         * a data property.
+         */
+        shape = obj->nativeLookup(cx, id);
+        if (shape && shape->isDataDescriptor())
+            attrs = ApplyOrDefaultAttributes(attrs, shape);
+    } else {
+        /*
+         * We have been asked merely to update some attributes by a caller of
+         * Object.defineProperty, fed through the proxy system, and returning here.
+         * This means we can just use JSObject::changeProperty here.
+         */
+        RootedObject pobj(cx);
+        if (!baseops::LookupProperty<CanGC>(cx, obj, id, &pobj, &shape))
+            return false;
+
+        if (shape) {
+            attrs = ApplyOrDefaultAttributes(attrs, shape);
+
+            /* Keep everything from the shape that isn't the things we're changing */
+            unsigned attrMask = ~(JSPROP_ENUMERATE | JSPROP_READONLY | JSPROP_PERMANENT);
+            shape = JSObject::changeProperty(cx, obj, shape, attrs, attrMask,
+                                             shape->getter(), shape->setter());
+            if (!shape)
+                return false;
+            if (shape->hasSlot())
+                updateValue = obj->getSlot(shape->slot());
+            shouldDefine = false;
         }
     }
 
@@ -3505,15 +3598,19 @@ js::DefineNativeProperty(JSContext *cx, HandleObject obj, HandleId id, HandleVal
             MarkTypePropertyConfigured(cx, obj, id);
     }
 
-    if (!shape) {
+    if (shouldDefine) {
+        // Handle the default cases here. Anyone that wanted to set non-default attributes has
+        // cleared the IGNORE flags by now. Since we can never get here with JSPROP_IGNORE_VALUE
+        // relevant, just clear it.
+        attrs = ApplyOrDefaultAttributes(attrs) & ~JSPROP_IGNORE_VALUE;
         return DefinePropertyOrElement(cx, obj, id, getter, setter,
                                        attrs, flags, shortid, value, false, false);
     }
 
     if (shape->hasSlot())
-        obj->nativeSetSlot(shape->slot(), value);
+        obj->nativeSetSlot(shape->slot(), updateValue);
 
-    return CallAddPropertyHook(cx, clasp, obj, shape, value);
+    return CallAddPropertyHook(cx, clasp, obj, shape, updateValue);
 }
 
 /*
