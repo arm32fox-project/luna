@@ -155,16 +155,27 @@
 }
 
 
-/* Compositor style for Win 8 */
+/* Compositor style for Win 8/10 */
 
 @media all and (-moz-windows-compositor) {
   @media not all and (-moz-windows-glass) {
 
     #main-window::after {
-      top: -13px;
-      font-size: 15px;
       background-position: 4px 17px;
-      text-align: center;
+      top: -13px;
+    }
+    
+    @media (-moz-os-version: windows-win8) {
+      #main-window::after {
+        font-size: 15px;
+        text-align: center;
+      }
+    }
+    
+    @media (-moz-os-version: windows-win10) {    
+      #main-window::after {
+        text-align: left;
+      }
     }
 
     #main-window[sizemode="maximized"]::after {
