@@ -354,7 +354,6 @@ NS_METHOD nsTableColGroupFrame::Reflow(nsPresContext*          aPresContext,
                                        const nsHTMLReflowState& aReflowState,
                                        nsReflowStatus&          aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsTableColGroupFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
   NS_ASSERTION(nullptr!=mContent, "bad state -- null content for frame");
   nsresult rv=NS_OK;

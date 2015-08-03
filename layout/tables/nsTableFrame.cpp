@@ -1295,8 +1295,6 @@ nsTableFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                const nsRect&           aDirtyRect,
                                const nsDisplayListSet& aLists)
 {
-  DO_GLOBAL_REFLOW_COUNT_DSP_COLOR("nsTableFrame", NS_RGB(255,128,255));
-
   nsDisplayTableItem* item = nullptr;
   if (IsVisibleInSelection(aBuilder)) {
     if (StyleVisibility()->IsVisible()) {
@@ -1727,7 +1725,6 @@ NS_METHOD nsTableFrame::Reflow(nsPresContext*           aPresContext,
                                const nsHTMLReflowState& aReflowState,
                                nsReflowStatus&          aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsTableFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
   bool isPaginated = aPresContext->IsPaginated();
 

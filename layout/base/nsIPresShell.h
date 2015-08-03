@@ -880,19 +880,6 @@ public:
 
   virtual nsIFrame* GetAbsoluteContainingBlock(nsIFrame* aFrame);
 
-#ifdef MOZ_REFLOW_PERF
-  virtual NS_HIDDEN_(void) DumpReflows() = 0;
-  virtual NS_HIDDEN_(void) CountReflows(const char * aName, nsIFrame * aFrame) = 0;
-  virtual NS_HIDDEN_(void) PaintCount(const char * aName,
-                                      nsRenderingContext* aRenderingContext,
-                                      nsPresContext * aPresContext,
-                                      nsIFrame * aFrame,
-                                      const nsPoint& aOffset,
-                                      uint32_t aColor) = 0;
-  virtual NS_HIDDEN_(void) SetPaintFrameCount(bool aOn) = 0;
-  virtual bool IsPaintingFrameCounts() = 0;
-#endif
-
 #ifdef DEBUG
   // Debugging hooks
   virtual void ListStyleContexts(nsIFrame *aRootFrame, FILE *out,

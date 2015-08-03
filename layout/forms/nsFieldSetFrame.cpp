@@ -236,8 +236,6 @@ nsFieldSetFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
       nsDisplayFieldSetBorderBackground(aBuilder, this));
   
     DisplayOutlineUnconditional(aBuilder, aLists);
-
-    DO_GLOBAL_REFLOW_COUNT_DSP("nsFieldSetFrame");
   }
 
   if (GetPrevInFlow()) {
@@ -412,7 +410,6 @@ nsFieldSetFrame::Reflow(nsPresContext*           aPresContext,
                         const nsHTMLReflowState& aReflowState,
                         nsReflowStatus&          aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsFieldSetFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
 
   NS_PRECONDITION(aReflowState.ComputedWidth() != NS_INTRINSICSIZE,
