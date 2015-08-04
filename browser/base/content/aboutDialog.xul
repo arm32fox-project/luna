@@ -91,13 +91,7 @@
           Pale Moon is released by <label class="text-link" href="http://www.moonchildproductions.info">Moonchild Productions</label>.
         </description>
         <description class="text-pmcreds">
-          Testers and moral support: Jose Arellano, Cole Hughes, Tobias Olsson, Duco Quanjer, Gerardo Rubio, Daryl Sprint, Jason Sullivan.
-        </description>
-        <description class="text-pmcreds">
-          Special thanks to: Lee Brown, Jacob M. Ross, Phil Chan, Colin Moran, and all other supporters!
-        </description>
-        <description class="text-blurb">
-          If you wish to contribute, please consider helping out by providing support to other users or becoming a beta tester on the <label class="text-link" href="http://forum.palemoon.org/">Pale Moon forum</label>
+          This is an experimental version. Use at your own risk!
         </description>    
         </vbox>
       </vbox>
