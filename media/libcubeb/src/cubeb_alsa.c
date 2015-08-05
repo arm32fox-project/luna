@@ -5,7 +5,6 @@
  * accompanying file LICENSE for details.
  */
 #undef NDEBUG
-#define _DEFAULT_SOURCE
 #define _BSD_SOURCE
 #define _XOPEN_SOURCE 500
 #include <pthread.h>
@@ -107,7 +106,6 @@ struct cubeb_stream {
      PulseAudio where streams would stop requesting new data despite still
      being logically active and playing. */
   struct timeval last_activity;
-  float volume;
 };
 
 static int
@@ -222,9 +220,7 @@ rebuild(cubeb * ctx)
 static void
 poll_wake(cubeb * ctx)
 {
-  if (write(ctx->control_fd_write, "x", 1) < 0) {
-    /* ignore write error */
-  }
+  write(ctx->control_fd_write, "x", 1);
 }
 
 static void
@@ -315,20 +311,7 @@ alsa_refill_stream(cubeb_stream * stm)
     return ERROR;
   }
   if (got > 0) {
-    snd_pcm_sframes_t wrote;
-
-    if (stm->params.format == CUBEB_SAMPLE_FLOAT32NE) {
-      float * b = (float *) p;
-      for (uint32_t i = 0; i < got * stm->params.channels; i++) {
-        b[i] *= stm->volume;
-      }
-    } else {
-      short * b = (short *) p;
-      for (uint32_t i = 0; i < got * stm->params.channels; i++) {
-        b[i] *= stm->volume;
-      }
-    }
-    wrote = snd_pcm_writei(stm->pcm, p, got);
+    snd_pcm_sframes_t wrote = snd_pcm_writei(stm->pcm, p, got);
     if (wrote == -EPIPE) {
       snd_pcm_recover(stm->pcm, wrote, 1);
       wrote = snd_pcm_writei(stm->pcm, p, got);
@@ -389,9 +372,7 @@ alsa_run(cubeb * ctx)
 
   if (r > 0) {
     if (ctx->fds[0].revents & POLLIN) {
-      if (read(ctx->control_fd_read, &dummy, 1) < 0) {
-        /* ignore read error */
-      }
+      read(ctx->control_fd_read, &dummy, 1);
 
       if (ctx->shutdown) {
         pthread_mutex_unlock(&ctx->mutex);
@@ -588,6 +569,7 @@ init_local_config_with_workaround(char const * pcm_name)
 
   return NULL;
 }
+
 
 static int
 alsa_locked_pcm_open(snd_pcm_t ** pcm, snd_pcm_stream_t stream, snd_config_t * local_config)
@@ -828,7 +810,6 @@ alsa_stream_init(cubeb * ctx, cubeb_stream ** stream, char const * stream_name,
   stm->user_ptr = user_ptr;
   stm->params = stream_params;
   stm->state = INACTIVE;
-  stm->volume = 1.0;
 
   r = pthread_mutex_init(&stm->mutex, NULL);
   assert(r == 0);
@@ -887,17 +868,12 @@ alsa_stream_destroy(cubeb_stream * stm)
   int r;
   cubeb * ctx;
 
-  assert(stm && (stm->state == INACTIVE ||
-                 stm->state == ERROR ||
-                 stm->state == DRAINING));
+  assert(stm && (stm->state == INACTIVE || stm->state == ERROR));
 
   ctx = stm->context;
 
   pthread_mutex_lock(&stm->mutex);
   if (stm->pcm) {
-    if (stm->state == DRAINING) {
-      snd_pcm_drain(stm->pcm);
-    }
     alsa_locked_pcm_close(stm->pcm);
     stm->pcm = NULL;
   }
@@ -921,7 +897,7 @@ alsa_stream_destroy(cubeb_stream * stm)
 static int
 alsa_get_max_channel_count(cubeb * ctx, uint32_t * max_channels)
 {
-  int r;
+  int rv;
   cubeb_stream * stm;
   snd_pcm_hw_params_t* hw_params;
   cubeb_stream_params params;
@@ -933,18 +909,18 @@ alsa_get_max_channel_count(cubeb * ctx, uint32_t * max_channels)
 
   assert(ctx);
 
-  r = alsa_stream_init(ctx, &stm, "", params, 100, NULL, NULL, NULL);
-  if (r != CUBEB_OK) {
+  rv = alsa_stream_init(ctx, &stm, "", params, 100, NULL, NULL, NULL);
+  if (rv != CUBEB_OK) {
     return CUBEB_ERROR;
   }
 
-  r = snd_pcm_hw_params_any(stm->pcm, hw_params);
-  if (r < 0) {
+  rv = snd_pcm_hw_params_any(stm->pcm, hw_params);
+  if (rv < 0) {
     return CUBEB_ERROR;
   }
 
-  r = snd_pcm_hw_params_get_channels_max(hw_params, max_channels);
-  if (r < 0) {
+  rv = snd_pcm_hw_params_get_channels_max(hw_params, max_channels);
+  if (rv < 0) {
     return CUBEB_ERROR;
   }
 
@@ -953,57 +929,6 @@ alsa_get_max_channel_count(cubeb * ctx, uint32_t * max_channels)
   return CUBEB_OK;
 }
 
-static int
-alsa_get_preferred_sample_rate(cubeb * ctx, uint32_t * rate) {
-  int r, dir;
-  snd_pcm_t * pcm;
-  snd_pcm_hw_params_t * hw_params;
-
-  snd_pcm_hw_params_alloca(&hw_params);
-
-  /* get a pcm, disabling resampling, so we get a rate the
-   * hardware/dmix/pulse/etc. supports. */
-  r = snd_pcm_open(&pcm, "default", SND_PCM_STREAM_PLAYBACK | SND_PCM_NO_AUTO_RESAMPLE, 0);
-  if (r < 0) {
-    return CUBEB_ERROR;
-  }
-
-  r = snd_pcm_hw_params_any(pcm, hw_params);
-  if (r < 0) {
-    snd_pcm_close(pcm);
-    return CUBEB_ERROR;
-  }
-
-  r = snd_pcm_hw_params_get_rate(hw_params, rate, &dir);
-  if (r >= 0) {
-    /* There is a default rate: use it. */
-    snd_pcm_close(pcm);
-    return CUBEB_OK;
-  }
-
-  /* Use a common rate, alsa may adjust it based on hw/etc. capabilities. */
-  *rate = 44100;
-
-  r = snd_pcm_hw_params_set_rate_near(pcm, hw_params, rate, NULL);
-  if (r < 0) {
-    snd_pcm_close(pcm);
-    return CUBEB_ERROR;
-  }
-
-  snd_pcm_close(pcm);
-
-  return CUBEB_OK;
-}
-
-static int
-alsa_get_min_latency(cubeb * ctx, cubeb_stream_params params, uint32_t * latency_ms)
-{
-  /* This is found to be an acceptable minimum, even on a super low-end
-   * machine. */
-  *latency_ms = 40;
-
-  return CUBEB_OK;
-}
 
 static int
 alsa_stream_start(cubeb_stream * stm)
@@ -1084,48 +1009,14 @@ alsa_stream_get_position(cubeb_stream * stm, uint64_t * position)
   return CUBEB_OK;
 }
 
-int
-alsa_stream_get_latency(cubeb_stream * stm, uint32_t * latency)
-{
-  snd_pcm_sframes_t delay;
-  /* This function returns the delay in frames until a frame written using
-     snd_pcm_writei is sent to the DAC. The DAC delay should be < 1ms anyways. */
-  if (snd_pcm_delay(stm->pcm, &delay)) {
-    return CUBEB_ERROR;
-  }
-
-  *latency = delay;
-
-  return CUBEB_OK;
-}
-
-int
-alsa_stream_set_volume(cubeb_stream * stm, float volume)
-{
-  /* setting the volume using an API call does not seem very stable/supported */
-  pthread_mutex_lock(&stm->mutex);
-  stm->volume = volume;
-  pthread_mutex_unlock(&stm->mutex);
-
-  return CUBEB_OK;
-}
-
 static struct cubeb_ops const alsa_ops = {
   .init = alsa_init,
   .get_backend_id = alsa_get_backend_id,
   .get_max_channel_count = alsa_get_max_channel_count,
-  .get_min_latency = alsa_get_min_latency,
-  .get_preferred_sample_rate = alsa_get_preferred_sample_rate,
   .destroy = alsa_destroy,
   .stream_init = alsa_stream_init,
   .stream_destroy = alsa_stream_destroy,
   .stream_start = alsa_stream_start,
   .stream_stop = alsa_stream_stop,
-  .stream_get_position = alsa_stream_get_position,
-  .stream_get_latency = alsa_stream_get_latency,
-  .stream_set_volume = alsa_stream_set_volume,
-  .stream_set_panning = NULL,
-  .stream_get_current_device = NULL,
-  .stream_device_destroy = NULL,
-  .stream_register_device_changed_callback = NULL
+  .stream_get_position = alsa_stream_get_position
 };
