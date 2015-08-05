@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <blocklist xmlns="http://www.mozilla.org/2006/addons-blocklist"
-lastupdate="1438587652000">
+lastupdate="1438760568000">
   <emItems>
     <emItem blockID="i58" id="webmaster@buzzzzvideos.info">
       <versionRange minVersion="0" maxVersion="*"></versionRange>
@@ -2348,7 +2348,7 @@ lastupdate="1438587652000">
       <prefs></prefs>
     </emItem>
     <emItem blockID="pm100" id="{d10d0bf8-f5b5-c8b4-a8b2-2b9879e08c5d}">
-      <versionRange minVersion="0" maxVersion="*" severity="2">
+      <versionRange minVersion="0" maxVersion="*" severity="1">
       </versionRange>
       <prefs></prefs>
     </emItem>
