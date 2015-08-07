@@ -60,11 +60,20 @@ pref("extensions.blocklist.itemURL", "http://blocklist.palemoon.org/info/?id=%bl
 
 // ****************** domain-specific UAs ******************
 
+// Required for domains that have proven unresponsive to requests from users
 pref("general.useragent.override.live.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
 pref("general.useragent.override.outlook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
 pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
 pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
-pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
+
+// UA-Sniffing domains below are pending responses from their operators - temp workaround
+pref("general.useragent.override.netflix.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.5) Gecko/20100101 Firefox/31.9 PaleMoon/25.5.0");
+pref("general.useragent.override.facebook.com","Opera/9.80 (Pale Moon)");
+
+// UA-Sniffing domains below have indicated no interest in supporting Pale Moon (BOO!)
+pref("general.useragent.override.humblebundle.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:33.0) Gecko/20100101 Firefox/33.0 (Pale Moon)");
+pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0");
+pref("general.useragent.override.icloud.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
 
 
 // Enable Firefox compatibility mode globally?
