@@ -261,6 +261,7 @@ nsHttpHandler::Init()
 
     mMisc.AssignLiteral("rv:" MOZILLA_UAVERSION);
 
+    mCompatGecko.AssignLiteral("Gecko/20100101");
     mCompatFirefox.AssignLiteral("Firefox/31.9");
 
     nsCOMPtr<nsIXULAppInfo> appInfo =
@@ -313,6 +314,7 @@ nsHttpHandler::Init()
     LOG(("> app-name = %s\n", mAppName.get()));
     LOG(("> app-version = %s\n", mAppVersion.get()));
     LOG(("> compat-firefox = %s\n", mCompatFirefox.get()));
+    LOG(("> compat-gecko = %s\n", mCompatGecko.get()));
     LOG(("> user-agent = %s\n", UserAgent().get()));
 #endif
 
@@ -573,9 +575,10 @@ nsHttpHandler::BuildUserAgent()
                            mProductSub.Length() +
                            mAppName.Length() +
                            mAppVersion.Length() +
+                           mCompatGecko.Length() +
                            mCompatFirefox.Length() +
                            mCompatDevice.Length() +
-                           13);
+                           14);
 
     // Application portion
     mUserAgent.Assign(mLegacyAppName);
@@ -607,13 +610,20 @@ nsHttpHandler::BuildUserAgent()
     mUserAgent += mProduct;
     mUserAgent += '/';
     mUserAgent += mProductSub;
+    
+    if (mCompatGeckoEnabled) {
+        // Provide frozen Gecko/20100101 (compatibility) slice
+        mUserAgent += ' ';
+        mUserAgent += mCompatGecko;
+    }
 
     bool isFirefox = mAppName.EqualsLiteral("Firefox");
     if (isFirefox || mCompatFirefoxEnabled) {
-        // "Firefox/x.y" (compatibility) app token
+        // Provide "Firefox/x.y" (compatibility) app token
         mUserAgent += ' ';
         mUserAgent += mCompatFirefox;
     }
+    
     if (!isFirefox) {
         // App portion
         mUserAgent += ' ';
@@ -774,6 +784,12 @@ nsHttpHandler::PrefsChanged(nsIPrefBranch *prefs, const char *pref)
 
     bool cVar = false;
 
+    // compatibility mode prefs
+    if (PREF_CHANGED(UA_PREF("compatMode.gecko"))) {
+        rv = prefs->GetBoolPref(UA_PREF("compatMode.gecko"), &cVar);
+        mCompatGeckoEnabled = (NS_SUCCEEDED(rv) && cVar);
+        mUserAgentIsDirty = true;
+    }
     if (PREF_CHANGED(UA_PREF("compatMode.firefox"))) {
         rv = prefs->GetBoolPref(UA_PREF("compatMode.firefox"), &cVar);
         mCompatFirefoxEnabled = (NS_SUCCEEDED(rv) && cVar);
