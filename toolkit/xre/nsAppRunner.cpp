@@ -212,6 +212,7 @@ static char **gQtOnlyArgv;
 #endif
 
 #if defined(MOZ_WIDGET_GTK)
+#include <glib.h>
 #if defined(DEBUG) || defined(NS_BUILD_REFCNT_LOGGING) \
   || defined(NS_TRACE_MALLOC)
 #define CLEANUP_MEMORY 1
@@ -3421,6 +3422,25 @@ XREMain::XRE_mainRun()
   return rv;
 }
 
+#if defined(MOZ_WIDGET_GTK2)
+void XRE_GlibInit()
+{
+  static bool ran_once = false;
+  
+  // glib < 2.24 doesn't want g_thread_init to be invoked twice, so ensure
+  // it's only done once. No need for thread safety here, since this is invoked
+  // well before any thread is spawned.
+  if (!ran_once) {
+	// glib version < 2.36 doesn't initialize g_slice in a static initializer.
+	// Ensure this happens through g_thread_init (glib version < 2.32) or
+	// g_type_init (2.32 <= gLib version < 2.36)."
+	g_thread_init(nullptr);
+	g_type_init();
+	ran_once = true;
+  }
+}
+#endif
+
 /*
  * XRE_main - A class based main entry point used by most platforms.
  */
@@ -3446,15 +3466,8 @@ XREMain::XRE_main(int argc, char* argv[], const nsXREAppData* aAppData)
 
   ScopedLogging log;
 
-#if defined(MOZ_WIDGET_GTK)
-#if defined(MOZ_MEMORY) || defined(__FreeBSD__) \
-  || defined(__NetBSD__) && __NetBSD_Version__ >= 500000000
-  // Disable the slice allocator, since jemalloc already uses similar layout
-  // algorithms, and using a sub-allocator tends to increase fragmentation.
-  // This must be done before g_thread_init() is called.
-  g_slice_set_config(G_SLICE_CONFIG_ALWAYS_MALLOC, 1);
-#endif
-  g_thread_init(NULL);
+#if defined(MOZ_WIDGET_GTK2)
+  XRE_GlibInit();
 #endif
 
   // init
