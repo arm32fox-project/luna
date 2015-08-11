@@ -143,6 +143,13 @@ class nsHtml5Highlighter
      */
     void AddErrorToCurrentSlash(const char* aMsgId);
 
+    /**
+     * Enqueues a tree op for adding base to the urls with the view-source:
+     *
+     * @param aValue the base URL to add
+     */
+    void AddBase(const nsString& aValue);
+
   private:
 
     /**
@@ -400,6 +407,11 @@ class nsHtml5Highlighter
      * The string "pi"
      */
     static PRUnichar sPi[];
+
+    /**
+     * Whether base is already visited once.
+     */
+    bool mSeenBase;
 };
 
 #endif // nsHtml5Highlighter_h_

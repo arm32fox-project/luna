@@ -402,6 +402,8 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
     void SetSpeculationBase(const nsAString& aURL);
 
+    void AddBase(const nsAString& aURL);
+
     static void InitializeStatics();
 
   private:
