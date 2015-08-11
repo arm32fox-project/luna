@@ -4501,6 +4501,10 @@ nsBrowserAccess.prototype = {
                                           inBackground: loadInBackground});
         let browser = win.gBrowser.getBrowserForTab(tab);
 
+        if (gPrefService.getBoolPref("browser.tabs.noWindowActivationOnExternal")) {
+          isExternal = false; // this is a hack, but it works
+        }
+
         newWindow = browser.contentWindow;
         if (needToFocusWin || (!loadInBackground && isExternal))
           newWindow.focus();
