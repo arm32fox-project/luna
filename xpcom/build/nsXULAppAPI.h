@@ -465,4 +465,9 @@ XRE_API(WindowsEnvironmentType,
         XRE_GetWindowsEnvironment, ())
 #endif // XP_WIN
 
+#if defined(MOZ_WIDGET_GTK2)
+XRE_API(void,
+         XRE_GlibInit, ())
+#endif
+
 #endif // _nsXULAppAPI_h__
