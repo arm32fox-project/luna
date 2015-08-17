@@ -45,7 +45,7 @@
 #include "SurfaceTypes.h"
 #include "GLScreenBuffer.h"
 
-typedef char realGLboolean;
+// typedef char realGLboolean; //in gldefs -> gltypes
 
 #include "GLContextSymbols.h"
 
