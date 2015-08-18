@@ -44,9 +44,6 @@ PARALLEL_DIRS += [
     'workerloader',
 ]
 
-if CONFIG['MOZ_SOCIAL']:
-    PARALLEL_DIRS += ['social']
-
 if CONFIG['BUILD_CTYPES']:
     PARALLEL_DIRS += ['ctypes']
 

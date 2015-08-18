@@ -148,15 +148,15 @@ nsContextMenu.prototype = {
   initNavigationItems: function CM_initNavigationItems() {
     var shouldShow = !(this.isContentSelected || this.onLink || this.onImage ||
                        this.onCanvas || this.onVideo || this.onAudio ||
-                       this.onTextInput || this.onSocial);
+                       this.onTextInput);
     this.showItem("context-back", shouldShow);
     this.showItem("context-forward", shouldShow);
 
     let stopped = XULBrowserWindow.stopCommand.getAttribute("disabled") == "true";
 
     let stopReloadItem = "";
-    if (shouldShow || this.onSocial) {
-      stopReloadItem = (stopped || this.onSocial) ? "reload" : "stop";
+    if (shouldShow) {
+      stopReloadItem = stopped ? "reload" : "stop";
     }
 
     this.showItem("context-reload", stopReloadItem == "reload");
@@ -217,7 +217,7 @@ nsContextMenu.prototype = {
     this.showItem("context-viewsource", shouldShow);
     this.showItem("context-viewinfo", shouldShow);
 #ifdef MOZ_DEVTOOLS
-    var showInspect = !this.onSocial && gPrefService.getBoolPref("devtools.inspector.enabled");
+    var showInspect = gPrefService.getBoolPref("devtools.inspector.enabled");
     this.showItem("inspect-separator", showInspect);
     this.showItem("context-inspect", showInspect);
 #endif
@@ -273,9 +273,9 @@ nsContextMenu.prototype = {
     // Use "Bookmark This Link" if on a link.
     this.showItem("context-bookmarkpage",
                   !(this.isContentSelected || this.onTextInput || this.onLink ||
-                    this.onImage || this.onVideo || this.onAudio || this.onSocial));
-    this.showItem("context-bookmarklink", (this.onLink && !this.onMailtoLink &&
-                                           !this.onSocial) || this.onPlainTextLink);
+                    this.onImage || this.onVideo || this.onAudio));
+    this.showItem("context-bookmarklink", (this.onLink && !this.onMailtoLink) ||
+                                          this.onPlainTextLink);
     this.showItem("context-searchselect", isTextSelected);
     this.showItem("context-keywordfield",
                   this.onTextInput && this.onKeywordField);
@@ -308,45 +308,6 @@ nsContextMenu.prototype = {
                   this.onTextInput && top.gBidiUI);
     this.showItem("context-bidi-page-direction-toggle",
                   !this.onTextInput && top.gBidiUI);
-    
-    // SocialMarks
-    let marksEnabled = SocialUI.enabled && Social.provider.pageMarkInfo;
-    let enablePageMark = marksEnabled && !(this.isContentSelected ||
-                            this.onTextInput || this.onLink || this.onImage ||
-                            this.onVideo || this.onAudio || this.onSocial);
-    let enableLinkMark = marksEnabled && ((this.onLink && !this.onMailtoLink &&
-                                           !this.onSocial) || this.onPlainTextLink);
-    if (enablePageMark) {
-      Social.isURIMarked(gBrowser.currentURI, function(marked) {
-        let label = marked ? "social.unmarkpage.label" : "social.markpage.label";
-        let provider = Social.provider || Social.defaultProvider;
-        let menuLabel = gNavigatorBundle.getFormattedString(label, [provider.name]);
-        this.setItemAttr("context-markpage", "label", menuLabel);
-      }.bind(this));
-    }
-    this.showItem("context-markpage", enablePageMark);
-    if (enableLinkMark) {
-      Social.isURIMarked(this.linkURI, function(marked) {
-        let label = marked ? "social.unmarklink.label" : "social.marklink.label";
-        let provider = Social.provider || Social.defaultProvider;
-        let menuLabel = gNavigatorBundle.getFormattedString(label, [provider.name]);
-        this.setItemAttr("context-marklink", "label", menuLabel);
-      }.bind(this));
-    }
-    this.showItem("context-marklink", enableLinkMark);
-
-    // SocialShare
-    let shareButton = SocialShare.shareButton;
-    let shareEnabled = shareButton && !shareButton.disabled && !this.onSocial;
-    let pageShare = shareEnabled && !(this.isContentSelected ||
-                            this.onTextInput || this.onLink || this.onImage ||
-                            this.onVideo || this.onAudio);
-    this.showItem("context-sharepage", pageShare);
-    this.showItem("context-shareselect", shareEnabled && this.isContentSelected);
-    this.showItem("context-sharelink", shareEnabled && (this.onLink || this.onPlainTextLink) && !this.onMailtoLink);
-    this.showItem("context-shareimage", shareEnabled && this.onImage);
-    this.showItem("context-sharevideo", shareEnabled && this.onVideo);
-    this.setItemAttr("context-sharevideo", "disabled", !this.mediaURL);
   },
 
   initSpellingItems: function() {
@@ -547,7 +508,6 @@ nsContextMenu.prototype = {
                                 .getInterface(Ci.nsIWebNavigation)
                                 .QueryInterface(Ci.nsIDocShell)
                                 .chromeEventHandler;
-    this.onSocial = !!this.browser.getAttribute("origin");
 
     // Check if we are in a synthetic document (stand alone image, video, etc.).
     this.inSyntheticDoc =  this.target.ownerDocument.mozSyntheticDocument;
@@ -869,15 +829,7 @@ nsContextMenu.prototype = {
   },
 
   reload: function(event) {
-    if (this.onSocial) {
-      // full reload of social provider
-      Social.enabled = false;
-      Services.tm.mainThread.dispatch(function() {
-        Social.enabled = true;
-      }, Components.interfaces.nsIThread.DISPATCH_NORMAL);
-    } else {
-      BrowserReloadOrDuplicate(event);
-    }
+    BrowserReloadOrDuplicate(event);
   },
 
   // View Partial Source
@@ -1557,27 +1509,6 @@ nsContextMenu.prototype = {
                                        , itemId: itemId
                                        }, window.top);
     }
-  },
-
-  markLink: function CM_markLink() {
-    // send link to social
-    SocialMark.toggleURIMark(this.linkURI);
-  },
-
-  shareLink: function CM_shareLink() {
-    SocialShare.sharePage(null, { url: this.linkURI.spec });
-  },
-
-  shareImage: function CM_shareImage() {
-    SocialShare.sharePage(null, { url: this.imageURL, previews: [ this.mediaURL ] });
-  },
-
-  shareVideo: function CM_shareVideo() {
-    SocialShare.sharePage(null, { url: this.mediaURL, source: this.mediaURL });
-  },
-
-  shareSelect: function CM_shareSelect(selection) {
-    SocialShare.sharePage(null, { url: this.browser.currentURI.spec, text: selection });
   },
 
   savePageAs: function CM_savePageAs() {
