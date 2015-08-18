@@ -1519,70 +1519,6 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   list-style-image: url("chrome://browser/skin/Info.png");
 }
 
-
-/* social share panel */
-
-.social-share-frame {
-  background: linear-gradient(to bottom, rgba(242,242,242,.99), rgba(242,242,242,.95));
-  border-left: 1px solid #f8f8f8;
-  width: 330px;
-  height: 150px;
-  /* we resize our panels dynamically, make it look nice */
-  transition: height 100ms ease-out, width 100ms ease-out;
-}
-
-#social-share-button {
-  list-style-image: url("chrome://browser/skin/social/share-button.png");
-}
-
-#social-share-button[open],
-#social-share-button:hover:active {
-  list-style-image: url("chrome://browser/skin/social/share-button-active.png");
-}
-
-.social-share-toolbar {
-  border-right: 1px solid #dedede;
-  background: linear-gradient(to bottom, rgba(247,247,247,.99), rgba(247,247,247,.95));
-}
-
-#social-share-provider-buttons {
-  border-right: 1px solid #fbfbfb;
-  padding: 6px;
-}
-
-#social-share-provider-buttons > .share-provider-button {
-  padding: 6px;
-  margin: 0;
-  border: none;
-  border-radius: 2px;
-}
-
-#social-share-provider-buttons > .share-provider-button[checked],
-#social-share-provider-buttons > .share-provider-button:active {
-  padding: 5px;
-  border: 1px solid #b5b5b8;
-  box-shadow: inset 1px 1px 3px rgba(0, 0, 0, 0.2);
-}
-
-#social-share-provider-buttons > .share-provider-button[checked] {
-  background: linear-gradient(to bottom, #d9d9d9, #e3e3e3);
-}
-
-#social-share-provider-buttons > .share-provider-button > .toolbarbutton-text {
-  display: none;
-}
-#social-share-provider-buttons > .share-provider-button > .toolbarbutton-icon {
-  width: 16px;
-  min-height: 16px;
-  max-height: 16px;
-}
-
-/* social recommending panel */
-
-#social-mark-button {
-  -moz-image-region: rect(0, 16px, 16px, 0);
-}
-
 /* Star button */
 #star-button {
   list-style-image: url("chrome://browser/skin/places/starPage.png");
@@ -2198,15 +2134,6 @@ toolbar[mode="text"] toolbarbutton.chevron > .toolbarbutton-icon {
 }
 %endif
 
-#social-provider-button {
-  -moz-image-region: rect(0, 16px, 16px, 0);
-  list-style-image: url(chrome://browser/skin/social/services-16.png);
-}
-
-#social-provider-button > .toolbarbutton-menu-dropmarker {
-  display: none;
-}
-
 .toolbarbutton-badge-container {
   margin: 5px 3px;
   position: relative;
@@ -2234,89 +2161,6 @@ toolbar[iconsize="small"] .toolbarbutton-badge-container {
 .toolbarbutton-badge[badge]:not([badge=""]):-moz-locale-dir(rtl)::after {
   left: 2px;
   right: auto;
-}
-
-.popup-notification-icon[popupid="servicesInstall"] {
-  list-style-image: url(chrome://browser/skin/social/services-64.png);
-}
-#servicesInstall-notification-icon {
-  list-style-image: url(chrome://browser/skin/social/services-16.png);
-}
-#social-undoactivation-button,
-#servicesInstall-learnmore-link {
-  -moz-margin-start: 0; /* override default label margin to match description margin */
-}
-
-.social-activation-icon {
-  width: auto;
-  height: auto;
-  max-height: 64px;
-  max-width: 64px;
-}
-
-#social-activation-message {
-  max-width: 250px;
-}
-
-#social-activation-message > label {
-  margin: 0;
-}
-
-/* social toolbar provider menu */
-#social-statusarea-popup {
-  margin-top: 0;
-  margin-left: -12px;
-  margin-right: -12px;
-}
-
-.social-statusarea-user {
-  list-style-image:url("chrome://global/skin/icons/information-32.png");
-}
-
-.social-statusarea-user-portrait {
-  width: 32px;
-  height: 32px;
-  border-radius: 2px;
-  margin: 10px;
-}
-
-.social-panel > .panel-arrowcontainer > .panel-arrowcontent {
-  padding: 0;
-}
-
-%include ../shared/social/chat.inc.css
-
-.chat-titlebar {
-  background-color: #d9d9d9;
-  background-image: linear-gradient(@toolbarHighlight@, rgba(255,255,255,0));
-}
-
-.chat-titlebar[selected] {
-  background-color: #f0f0f0;
-}
-
-.chatbar-button {
-  -moz-appearance: none;
-  background-color: #d9d9d9;
-  background-image: linear-gradient(@toolbarHighlight@, rgba(255,255,255,0));
-}
-
-.chatbar-button > .toolbarbutton-icon {
-  -moz-margin-end: 0;
-}
-
-.chatbar-button:hover,
-.chatbar-button[open="true"] {
-  background-color: #f0f0f0;
-}
-
-.chatbar-button[activity] {
-  background-image: radial-gradient(circle farthest-corner at center 3px, rgb(233,242,252) 3%, rgba(172,206,255,0.75) 40%, rgba(87,151,201,0.5) 80%, rgba(87,151,201,0));
-}
-
-chatbox {
-  border-top-left-radius: 2.5px;
-  border-top-right-radius: 2.5px;
 }
 
 #main-window[privatebrowsingmode=temporary] #TabsToolbar::before {

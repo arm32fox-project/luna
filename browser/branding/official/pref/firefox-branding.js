@@ -102,8 +102,6 @@ pref("browser.identity.ssl_domain_display", 1); //show domain verified SSL (blue
 pref("browser.urlbar.autoFill", true);
 pref("browser.urlbar.autoFill.typed", true);
 
-pref("social.enabled", false);
-
 //Set tabs NOT on top
 pref("browser.tabs.onTop",false); 
 

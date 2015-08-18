@@ -61,7 +61,6 @@ let AboutReader = function(doc, win) {
   this._setupAllDropdowns();
   this._setupButton("toggle-button", this._onReaderToggle.bind(this));
   this._setupButton("list-button", this._onList.bind(this));
-  this._setupButton("share-button", this._onShare.bind(this));
 
   let colorSchemeOptions = [
     { name: gStrings.GetStringFromName("aboutReader.colorSchemeDark"),
@@ -328,17 +327,6 @@ AboutReader.prototype = {
       return;
 
     gChromeWin.sendMessageToJava({ type: "Reader:GoToReadingList" });
-  },
-
-  _onShare: function Reader_onShare() {
-    if (!this._article)
-      return;
-
-    gChromeWin.sendMessageToJava({
-      type: "Reader:Share",
-      url: this._article.url,
-      title: this._article.title
-    });
   },
 
   _setFontSize: function Reader_setFontSize(newFontSize) {

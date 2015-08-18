@@ -123,9 +123,6 @@ XPCOMUtils.defineLazyGetter(this, "BrowserDebuggerProcess", function() {
 });
 #endif
 
-XPCOMUtils.defineLazyModuleGetter(this, "Social",
-  "resource:///modules/Social.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
   "resource://gre/modules/PageThumbs.jsm");
 
@@ -158,7 +155,6 @@ let gInitialPages = [
 #ifdef MOZ_SAFE_BROWSING
 #include browser-safebrowsing.js
 #endif
-#include browser-social.js
 #include browser-tabPreviews.js
 #include browser-thumbnails.js
 #include browser-webrtcUI.js
@@ -805,10 +801,6 @@ var gBrowserInit = {
     // setup our MozApplicationManifest listener
     gBrowser.addEventListener("MozApplicationManifest",
                               OfflineApps, false);
-    // listen for offline apps on social
-    let socialBrowser = document.getElementById("social-sidebar-browser");
-    socialBrowser.addEventListener("MozApplicationManifest",
-                              OfflineApps, false);
 
     // setup simple gestures support
     gGestureSupport.init(true);
@@ -1025,7 +1017,6 @@ var gBrowserInit = {
     OfflineApps.init();
     IndexedDBPromptHelper.init();
     gFormSubmitObserver.init();
-    SocialUI.init();
     AddonManager.addAddonListener(AddonsMgrListener);
     WebrtcIndicator.init();
 
@@ -1396,7 +1387,6 @@ var gBrowserInit = {
       OfflineApps.uninit();
       IndexedDBPromptHelper.uninit();
       AddonManager.removeAddonListener(AddonsMgrListener);
-      SocialUI.uninit();
     }
 
     // Final window teardown, do this last.
@@ -1462,8 +1452,6 @@ var gBrowserInit = {
         }
       }
     }
-
-    SocialUI.nonBrowserWindowInit();
 
     if (PrivateBrowsingUtils.permanentPrivateBrowsing) {
       document.getElementById("macDockMenuNewWindow").hidden = true;
@@ -3474,8 +3462,6 @@ function BrowserToolboxCustomizeDone(aToolboxChanged) {
     URLBarSetURI();
     XULBrowserWindow.asyncUpdateUI();
     BookmarkingUI.updateStarState();
-    SocialMark.updateMarkState();
-    SocialShare.update();
   }
 
   TabsInTitlebar.allowedBy("customizing-toolbars", true);
@@ -3767,7 +3753,6 @@ var XULBrowserWindow = {
   // Called before links are navigated to to allow us to retarget them if needed.
   onBeforeLinkTraversal: function(originalTarget, linkURI, linkNode, isAppTab) {
     let target = this._onBeforeLinkTraversal(originalTarget, linkURI, linkNode, isAppTab);
-    SocialUI.closeSocialPanelForLinkTraversal(target, linkNode);
     return target;
   },
 
@@ -3959,8 +3944,6 @@ var XULBrowserWindow = {
 
         // Update starring UI
         BookmarkingUI.updateStarState();
-        SocialMark.updateMarkState();
-        SocialShare.update();
       }
 
       // Show or hide browser chrome based on the whitelist

@@ -5833,10 +5833,6 @@ var ClipboardHelper = {
     SelectionHandler.selectAll(aElement, aX, aY);
   },
 
-  share: function() {
-    SelectionHandler.shareSelection();
-  },
-
   paste: function(aElement) {
     if (!aElement || !(aElement instanceof Ci.nsIDOMNSEditableElement))
       return;
