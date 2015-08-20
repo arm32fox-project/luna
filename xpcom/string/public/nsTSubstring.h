@@ -6,6 +6,8 @@
 
 // IWYU pragma: private, include "nsAString.h"
 
+#include "mozilla/CheckedInt.h"
+
 #ifndef MOZILLA_INTERNAL_API
 #error Cannot use internal string classes without MOZILLA_INTERNAL_API defined. Use the frozen header nsStringAPI.h instead.
 #endif
@@ -728,14 +730,22 @@ class nsTSubstring_CharT
                        size_type newLength) NS_WARN_UNUSED_RESULT
       {
         cutLength = XPCOM_MIN(cutLength, mLength - cutStart);
-        uint32_t newTotalLen = mLength - cutLength + newLength;
-        if (cutStart == mLength && Capacity() > newTotalLen) {
+        
+        mozilla::CheckedInt<size_type> newTotalLen = mLength;
+        newTotalLen -= cutLength;
+        newTotalLen += newLength;
+        if (!newTotalLen.isValid()) {
+          return false;
+        }
+        
+        if (cutStart == mLength && Capacity() > newTotalLen.value()) {
           mFlags &= ~F_VOIDED;
-          mData[newTotalLen] = char_type(0);
-          mLength = newTotalLen;
+          mData[newTotalLen.value()] = char_type(0);
+          mLength = newTotalLen.value();
           return true;
         }
-        return ReplacePrepInternal(cutStart, cutLength, newLength, newTotalLen);
+        
+        return ReplacePrepInternal(cutStart, cutLength, newLength, newTotalLen.value());
       }
 
       bool NS_FASTCALL ReplacePrepInternal(index_type cutStart,

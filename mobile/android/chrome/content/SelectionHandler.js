@@ -377,17 +377,6 @@ var SelectionHandler = {
     this._closeSelection();
   },
 
-  shareSelection: function sh_shareSelection() {
-    let selectedText = this._getSelectedText();
-    if (selectedText.length) {
-      sendMessageToJava({
-        type: "Share:Text",
-        text: selectedText
-      });
-    }
-    this._closeSelection();
-  },
-
   /*
    * Called if for any reason we fail during the selection
    * process. Cancels the selection.

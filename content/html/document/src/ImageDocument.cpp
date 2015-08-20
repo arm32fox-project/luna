@@ -204,6 +204,7 @@ ImageDocument::Destroy()
   if (mImageContent) {
     // Remove our event listener from the image content.
     nsCOMPtr<EventTarget> target = do_QueryInterface(mImageContent);
+    target->RemoveEventListener(NS_LITERAL_STRING("load"), this, false);
     target->RemoveEventListener(NS_LITERAL_STRING("click"), this, false);
 
     // Break reference cycle with mImageContent, if we have one
@@ -248,6 +249,7 @@ ImageDocument::SetScriptGlobalObject(nsIScriptGlobalObject* aScriptGlobalObject)
       NS_ASSERTION(NS_SUCCEEDED(rv), "failed to create synthetic document");
 
       target = do_QueryInterface(mImageContent);
+      target->AddEventListener(NS_LITERAL_STRING("load"), this, false);
       target->AddEventListener(NS_LITERAL_STRING("click"), this, false);
     }
 
@@ -504,8 +506,11 @@ ImageDocument::SetModeClass(eModeClasses mode)
 nsresult
 ImageDocument::OnStartContainer(imgIRequest* aRequest, imgIContainer* aImage)
 {
+  // Styles have not yet been applied, so we don't know the final size yet.
+  // For now, default to the image's intrinsic size.
   aImage->GetWidth(&mImageWidth);
   aImage->GetHeight(&mImageHeight);
+  
   nsCOMPtr<nsIRunnable> runnable =
     NS_NewRunnableMethod(this, &ImageDocument::DefaultCheckOverflowing);
   nsContentUtils::AddScriptRunner(runnable);

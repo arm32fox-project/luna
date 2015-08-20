@@ -3509,6 +3509,10 @@ nsStyleAnimation::Value::Value(nscolor aColor, ColorConstructorType)
 nsStyleAnimation::Value&
 nsStyleAnimation::Value::operator=(const Value& aOther)
 {
+  if (this == &aOther) {
+    return *this;
+  }
+  
   FreeValue();
 
   mUnit = aOther.mUnit;

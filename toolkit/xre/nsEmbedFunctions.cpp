@@ -336,8 +336,8 @@ XRE_InitChildProcess(int aArgc,
   gArgv = aArgv;
   gArgc = aArgc;
 
-#if defined(MOZ_WIDGET_GTK)
-  g_thread_init(NULL);
+#if defined(MOZ_WIDGET_GTK2)
+  XRE_GlibInit();
 #endif
 
 #if defined(MOZ_WIDGET_QT)

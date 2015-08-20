@@ -181,65 +181,6 @@
       </hbox>
     </panel>
 
-    <panel id="socialActivatedNotification"
-           type="arrow"
-           hidden="true"
-           consumeoutsideclicks="true"
-           align="start"
-           orient="horizontal"
-           role="alert">
-      <image id="social-activation-icon" class="popup-notification-icon"/>
-      <vbox flex="1">
-        <description id="social-activation-message" class="popup-notification-description">&social.activated.description;</description>
-        <spacer flex="1"/>
-        <hbox pack="start" align="center" class="popup-notification-button-container">
-          <label  id="social-undoactivation-button"
-                  class="text-link"
-                  value="&social.activated.undo.label;"
-                  accesskey="&social.activated.undo.accesskey;"
-                  onclick="SocialUI.undoActivation(this);"/>
-          <spacer flex="1"/>
-          <button id="social-activation-button"
-                  default="true"
-                  autofocus="autofocus"
-                  label="&social.ok.label;"
-                  accesskey="&social.ok.accesskey;"
-                  oncommand="SocialUI.activationPanel.hidePopup();"/>
-        </hbox>
-      </vbox>
-    </panel>
-
-    <panel id="social-share-panel"
-           class="social-panel"
-           type="arrow"
-           orient="horizontal"
-           onpopupshowing="SocialShare.onShowing()"
-           onpopuphidden="SocialShare.onHidden()"
-           consumeoutsideclicks="true"
-           hidden="true">
-      <vbox class="social-share-toolbar">
-        <vbox id="social-share-provider-buttons" flex="1"/>
-      </vbox>
-    </panel>
-
-    <panel id="social-notification-panel"
-           class="social-panel"
-           type="arrow"
-           hidden="true"
-           noautofocus="true"/>
-    <panel id="social-flyout-panel"
-           class="social-panel"
-           onpopupshown="SocialFlyout.onShown()"
-           onpopuphidden="SocialFlyout.onHidden()"
-           side="right"
-           type="arrow"
-           hidden="true"
-           flip="slide"
-           rolluponmousewheel="true"
-           consumeoutsideclicks="false"
-           noautofocus="true"
-           position="topcenter topright"/>
-
     <menupopup id="toolbar-context-menu"
                onpopupshowing="onViewToolbarsPopupShowing(event);">
       <menuseparator/>
@@ -664,69 +605,6 @@
         </menupopup>
       </toolbarbutton>
 
-      <toolbarbutton id="social-share-button"
-                     class="toolbarbutton-1 chromeclass-toolbar-additional"
-                     hidden="true"
-                     label="&sharePageCmd.label;"
-                     tooltiptext="&sharePageCmd.label;"
-                     command="Social:SharePage"/>
-
-      <toolbaritem id="social-toolbar-item"
-                   class="chromeclass-toolbar-additional"
-                   removable="false"
-                   title="&socialToolbar.title;"
-                   hidden="true"
-                   skipintoolbarset="true"
-                   observes="socialActiveBroadcaster">
-        <toolbarbutton id="social-notification-icon" class="default-notification-icon toolbarbutton-1 notification-anchor-icon"
-                   oncommand="PopupNotifications._reshowNotifications(this,
-                                document.getElementById('social-sidebar-browser'));"/>
-        <toolbarbutton id="social-provider-button"
-                       class="toolbarbutton-1"
-                       type="menu">
-          <menupopup id="social-statusarea-popup">
-            <menuitem class="social-statusarea-user menuitem-iconic" pack="start" align="center"
-                      observes="socialBroadcaster_userDetails"
-                      oncommand="SocialUI.showProfile(); document.getElementById('social-statusarea-popup').hidePopup();">
-              <image class="social-statusarea-user-portrait"
-                     observes="socialBroadcaster_userDetails"/>
-              <vbox>
-                <label class="social-statusarea-loggedInStatus"
-                       observes="socialBroadcaster_userDetails"/>
-              </vbox>
-            </menuitem>
-#ifndef XP_WIN
-            <menuseparator class="social-statusarea-separator"/>
-#endif
-            <menuitem class="social-toggle-sidebar-menuitem"
-                      type="checkbox"
-                      autocheck="false"
-                      command="Social:ToggleSidebar"
-                      label="&social.toggleSidebar.label;"
-                      accesskey="&social.toggleSidebar.accesskey;"/>
-            <menuitem class="social-toggle-notifications-menuitem"
-                      type="checkbox"
-                      autocheck="false"
-                      command="Social:ToggleNotifications"
-                      label="&social.toggleNotifications.label;"
-                      accesskey="&social.toggleNotifications.accesskey;"/>
-            <menuitem class="social-toggle-menuitem" command="Social:Toggle"/>
-            <menuseparator/>
-            <menuseparator class="social-provider-menu" hidden="true"/>
-            <menuitem class="social-addons-menuitem" command="Social:Addons"
-                      label="&social.addons.label;"/>
-            <menuitem label="&social.learnMore.label;"
-                      accesskey="&social.learnMore.accesskey;"
-                      oncommand="SocialUI.showLearnMore();"/>
-          </menupopup>
-        </toolbarbutton>
-        <toolbarbutton id="social-mark-button"
-                       class="toolbarbutton-1"
-                       hidden="true"
-                       disabled="true"
-                       command="Social:TogglePageMark"/>
-      </toolbaritem>
-
       <hbox id="window-controls" hidden="true" pack="end">
         <toolbarbutton id="minimize-button"
                        tooltiptext="&fullScreenMinimize.tooltip;"
@@ -992,22 +870,6 @@
                   autocompletepopup="PopupAutoComplete"/>
       <chatbar id="pinnedchats" layer="true" mousethrough="always" hidden="true"/>
       <statuspanel id="statusbar-display" inactive="true"/>
-    </vbox>
-    <splitter id="social-sidebar-splitter"
-              class="chromeclass-extrachrome sidebar-splitter"
-              observes="socialSidebarBroadcaster"/>
-    <vbox id="social-sidebar-box"
-          class="chromeclass-extrachrome"
-          observes="socialSidebarBroadcaster"
-          persist="width">
-      <browser id="social-sidebar-browser"
-               type="content"
-               context="contentAreaContextMenu"
-               disableglobalhistory="true"
-               tooltip="aHTMLTooltip"
-               popupnotificationanchor="social-notification-icon"
-               flex="1"
-               style="min-width: 14em; width: 18em; max-width: 36em;"/>
     </vbox>
     <vbox id="browser-border-end" hidden="true" layer="true"/>
   </hbox>

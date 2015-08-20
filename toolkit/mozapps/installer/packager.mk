@@ -109,7 +109,7 @@ UNPACK_TAR       = tar -xf-
 ifeq ($(MOZ_PKG_FORMAT),TAR)
 PKG_SUFFIX	= .tar
 ifdef MOZ_PHOENIX
-INNER_MAKE_PACKAGE 	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) > $(PACKAGE)
+INNER_MAKE_PACKAGE 	= mkdir -p $(MOZ_PKG_DIR)/distribution/bundles/ && cp -r $(topsrcdir)/integration/* $(MOZ_PKG_DIR)/distribution/bundles/ && $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) > $(PACKAGE)
 else
 INNER_MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) > $(PACKAGE)
 endif
@@ -119,7 +119,7 @@ endif
 ifeq ($(MOZ_PKG_FORMAT),TGZ)
 PKG_SUFFIX	= .tar.gz
 ifdef MOZ_PHOENIX
-INNER_MAKE_PACKAGE 	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | gzip -vf9 > $(PACKAGE)
+INNER_MAKE_PACKAGE 	= mkdir -p $(MOZ_PKG_DIR)/distribution/bundles/ && cp -r $(topsrcdir)/integration/* $(MOZ_PKG_DIR)/distribution/bundles/ && $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | gzip -vf9 > $(PACKAGE)
 else
 INNER_MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | gzip -vf9 > $(PACKAGE)
 endif
@@ -130,13 +130,13 @@ ifeq ($(MOZ_PKG_FORMAT),BZ2)
 PKG_SUFFIX	= .tar.bz2
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 ifdef MOZ_PHOENIX
-INNER_MAKE_PACKAGE 	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && $(CREATE_FINAL_TAR) - -C $(STAGEPATH)$(MOZ_PKG_DIR) $(_APPNAME) | bzip2 -vf > $(PACKAGE)
+INNER_MAKE_PACKAGE 	= mkdir -p $(MOZ_PKG_DIR)/distribution/bundles/ && cp -r $(topsrcdir)/integration/* $(MOZ_PKG_DIR)/distribution/bundles/ && $(CREATE_FINAL_TAR) - -C $(STAGEPATH)$(MOZ_PKG_DIR) $(_APPNAME) | bzip2 -vf > $(PACKAGE)
 else
 INNER_MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - -C $(STAGEPATH)$(MOZ_PKG_DIR) $(_APPNAME) | bzip2 -vf > $(PACKAGE)
 endif
 else
 ifdef MOZ_PHOENIX
-INNER_MAKE_PACKAGE 	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | bzip2 -vf > $(PACKAGE)
+INNER_MAKE_PACKAGE 	= mkdir -p $(MOZ_PKG_DIR)/distribution/bundles/ && cp -r $(topsrcdir)/integration/* $(MOZ_PKG_DIR)/distribution/bundles/ && $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | bzip2 -vf > $(PACKAGE)
 else
 INNER_MAKE_PACKAGE 	= $(CREATE_FINAL_TAR) - $(MOZ_PKG_DIR) | bzip2 -vf > $(PACKAGE)
 endif
@@ -151,7 +151,7 @@ MOZ_EXTERNAL_SIGNING_FORMAT := $(filter-out signcode,$(MOZ_EXTERNAL_SIGNING_FORM
 endif
 PKG_SUFFIX	= .zip
 ifdef MOZ_PHOENIX
-INNER_MAKE_PACKAGE	= cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && $(ZIP) -r9D $(PACKAGE) $(MOZ_PKG_DIR) -x \*/.mkdir.done
+INNER_MAKE_PACKAGE	= mkdir -p $(MOZ_PKG_DIR)/distribution/bundles/ && cp -r $(topsrcdir)/integration/* $(MOZ_PKG_DIR)/distribution/bundles/ && $(ZIP) -r9D $(PACKAGE) $(MOZ_PKG_DIR) -x \*/.mkdir.done
 else
 INNER_MAKE_PACKAGE	= $(ZIP) -r9D $(PACKAGE) $(MOZ_PKG_DIR) -x \*/.mkdir.done
 endif
