@@ -510,10 +510,6 @@ body {
   background-image: url('chrome://browser/skin/images/reader-list-off-icon-mdpi.png');
 }
 
-.share-button {
-  background-image: url('chrome://browser/skin/images/reader-share-icon-mdpi.png');
-}
-
 .style-button {
   background-image: url('chrome://browser/skin/images/reader-style-icon-mdpi.png');
 }
@@ -545,10 +541,6 @@ body {
 
   .list-button {
     background-image: url('chrome://browser/skin/images/reader-list-off-icon-hdpi.png');
-  }
-
-  .share-button {
-    background-image: url('chrome://browser/skin/images/reader-share-icon-hdpi.png');
   }
 
   .style-button {
@@ -583,10 +575,6 @@ body {
 
   .list-button {
     background-image: url('chrome://browser/skin/images/reader-list-off-icon-xhdpi.png');
-  }
-
-  .share-button {
-    background-image: url('chrome://browser/skin/images/reader-share-icon-xhdpi.png');
   }
 
   .style-button {

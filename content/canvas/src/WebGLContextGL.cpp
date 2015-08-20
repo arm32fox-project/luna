@@ -5569,16 +5569,23 @@ WebGLTexelFormat mozilla::GetWebGLTexelFormat(GLenum format, GLenum type)
     if (type == LOCAL_GL_UNSIGNED_BYTE) {
         switch (format) {
             case LOCAL_GL_RGBA:
-            //case LOCAL_GL_SRGB_ALPHA_EXT:
+            case LOCAL_GL_SRGB_ALPHA_EXT:
+            case LOCAL_GL_RGBA8:
+            case LOCAL_GL_SRGB8_ALPHA8:
                 return WebGLTexelConversions::RGBA8;
             case LOCAL_GL_RGB:
-            //case LOCAL_GL_SRGB_EXT:
+            case LOCAL_GL_SRGB_EXT:
+            case LOCAL_GL_RGB8:
+            case LOCAL_GL_SRGB8:
                 return WebGLTexelConversions::RGB8;
             case LOCAL_GL_ALPHA:
+            case LOCAL_GL_ALPHA8:
                 return WebGLTexelConversions::A8;
             case LOCAL_GL_LUMINANCE:
+            case LOCAL_GL_LUMINANCE8:
                 return WebGLTexelConversions::R8;
             case LOCAL_GL_LUMINANCE_ALPHA:
+            case LOCAL_GL_LUMINANCE8_ALPHA8:
                 return WebGLTexelConversions::RA8;
         }
         
@@ -5593,12 +5600,16 @@ WebGLTexelFormat mozilla::GetWebGLTexelFormat(GLenum format, GLenum type)
             case LOCAL_GL_RGBA32F:
                 return WebGLTexelConversions::RGBA32F;
             case LOCAL_GL_RGB:
+            case LOCAL_GL_RGB32F:
                 return WebGLTexelConversions::RGB32F;
             case LOCAL_GL_ALPHA:
+            case LOCAL_GL_ALPHA32F_EXT:
                 return WebGLTexelConversions::A32F;
             case LOCAL_GL_LUMINANCE:
+            case LOCAL_GL_LUMINANCE32F_EXT:
                 return WebGLTexelConversions::R32F;
             case LOCAL_GL_LUMINANCE_ALPHA:
+            case LOCAL_GL_LUMINANCE_ALPHA32F_EXT:
                 return WebGLTexelConversions::RA32F;
         }
         MOZ_NOT_REACHED("Invalid WebGL texture format/type?");
@@ -5607,10 +5618,13 @@ WebGLTexelFormat mozilla::GetWebGLTexelFormat(GLenum format, GLenum type)
     
     switch (type) {
         case LOCAL_GL_UNSIGNED_SHORT_4_4_4_4:
+        case LOCAL_GL_RGBA4:
             return WebGLTexelConversions::RGBA4444;
         case LOCAL_GL_UNSIGNED_SHORT_5_5_5_1:
+        case LOCAL_GL_RGB5_A1:
             return WebGLTexelConversions::RGBA5551;
         case LOCAL_GL_UNSIGNED_SHORT_5_6_5:
+        case LOCAL_GL_RGB565:
             return WebGLTexelConversions::RGB565;
         default:
             NS_ABORT_IF_FALSE(false, "Coding mistake?! Should never reach this point.");
