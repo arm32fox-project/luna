@@ -66,6 +66,8 @@ pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT 6.1; WOW64; rv
 pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
 pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
 
+// The following domains don't like the Goanna slice
+pref("general.useragent.override.hitbox.tv","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Firefox/31.9");
 
 // Enable Firefox compatibility mode globally?
 pref("general.useragent.compatMode.firefox", false);
