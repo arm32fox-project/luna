@@ -363,7 +363,14 @@ nsMixedContentBlocker::ShouldLoad(uint32_t aContentType,
   // Check the parent scheme. If it is not an HTTPS page then mixed content
   // restrictions do not apply.
   bool parentIsHttps;
-  nsresult rv = aRequestingLocation->SchemeIs("https", &parentIsHttps);
+  nsCOMPtr<nsIURI> innerURI = NS_GetInnermostURI(aRequestingLocation);
+  if (!innerURI) {
+    NS_ERROR("Can't get innerURI from aRequestingLocation");
+    *aDecision = REJECT_REQUEST;
+    return NS_OK;
+  }
+
+  nsresult rv = innerURI->SchemeIs("https", &parentIsHttps);
   if (NS_FAILED(rv)) {
     NS_ERROR("aRequestingLocation->SchemeIs failed");
     *aDecision = REJECT_REQUEST;
