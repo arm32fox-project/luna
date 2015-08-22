@@ -6,7 +6,6 @@
 #include "mozilla/HangMonitor.h"
 #include "mozilla/Monitor.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/ProcessedStack.h"
 #include "nsXULAppAPI.h"
 #include "nsThreadUtils.h"
 #include "nsStackWalk.h"

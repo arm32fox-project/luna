@@ -44,8 +44,7 @@
 #include "BinaryPath.h"
 
 #include "nsXPCOMPrivate.h" // for MAXPATHLEN and XPCOM_DLL
-
-#include "mozilla/Telemetry.h"
+#include "mozilla/StartupTimeline.h"
 
 using namespace mozilla;
 

@@ -3566,14 +3566,12 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData, uint32_t aFlags)
 #if !defined(XP_WIN)
   XREMain main;
   int result = main.XRE_main(argc, argv, aAppData);
-  mozilla::RecordShutdownEndTimeStamp();
   return result;
 #else
   // Windows Desktop
   if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Desktop) {
     XREMain main;
     int result = main.XRE_main(argc, argv, aAppData);
-    mozilla::RecordShutdownEndTimeStamp();
     return result;
   }
 
