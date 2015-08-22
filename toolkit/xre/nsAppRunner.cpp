@@ -3661,7 +3661,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData, uint32_t aFlags)
 #if !defined(MOZ_METRO) || !defined(XP_WIN)
   XREMain main;
   int result = main.XRE_main(argc, argv, aAppData);
-  mozilla::RecordShutdownEndTimeStamp();
   return result;
 #else
   if (aFlags == XRE_MAIN_FLAG_USE_METRO) {
@@ -3672,7 +3671,6 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData, uint32_t aFlags)
   if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Desktop) {
     XREMain main;
     int result = main.XRE_main(argc, argv, aAppData);
-    mozilla::RecordShutdownEndTimeStamp();
     return result;
   }
 

@@ -240,7 +240,6 @@
 @BINPATH@/components/shistory.xpt
 @BINPATH@/components/spellchecker.xpt
 @BINPATH@/components/storage.xpt
-@BINPATH@/components/telemetry.xpt
 @BINPATH@/components/toolkitprofile.xpt
 #ifdef MOZ_ENABLE_XREMOTE
 @BINPATH@/components/toolkitremote.xpt
@@ -371,8 +370,6 @@
 @BINPATH@/components/nsINIProcessor.js
 @BINPATH@/components/nsPrompter.manifest
 @BINPATH@/components/nsPrompter.js
-@BINPATH@/components/TelemetryPing.js
-@BINPATH@/components/TelemetryPing.manifest
 @BINPATH@/components/Webapps.js
 @BINPATH@/components/Webapps.manifest
 @BINPATH@/components/AppsService.js
