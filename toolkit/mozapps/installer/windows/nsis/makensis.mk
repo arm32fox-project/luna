@@ -69,7 +69,7 @@ $(CONFIG_DIR)/7zSD.sfx:
 installer::
 	$(INSTALL) $(CONFIG_DIR)/setup.exe $(DEPTH)/installer-stage
 ifdef MOZ_PHOENIX
-	cd $(DEPTH)/installer-stage && cp -r $(topsrcdir)/statusbar/* core && $(CYGWIN_WRAPPER) 7z a -r -t7z $(ABS_CONFIG_DIR)/app.7z -mx -m0=BCJ2 -m1=LZMA:d25 -m2=LZMA:d19 -m3=LZMA:d19 -mb0:1 -mb0s1:2 -mb0s2:3
+	cd $(DEPTH)/installer-stage && mkdir -p core/distribution/bundles/ && cp -r $(topsrcdir)/integration/* core/distribution/bundles/ && $(CYGWIN_WRAPPER) 7z a -r -t7z $(ABS_CONFIG_DIR)/app.7z -mx -m0=BCJ2 -m1=LZMA:d25 -m2=LZMA:d19 -m3=LZMA:d19 -mb0:1 -mb0s1:2 -mb0s2:3
 else
 	cd $(DEPTH)/installer-stage && $(CYGWIN_WRAPPER) 7z a -r -t7z $(ABS_CONFIG_DIR)/app.7z -mx -m0=BCJ2 -m1=LZMA:d25 -m2=LZMA:d19 -m3=LZMA:d19 -mb0:1 -mb0s1:2 -mb0s2:3
 endif
