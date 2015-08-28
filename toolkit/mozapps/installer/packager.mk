@@ -162,7 +162,8 @@ ifeq ($(MOZ_PKG_FORMAT),SFX7Z)
 PKG_SUFFIX	= .exe
 ifdef MOZ_PHOENIX
 INNER_MAKE_PACKAGE	= rm -f app.7z && \
-  cp -r $(topsrcdir)/statusbar/* $(MOZ_PKG_DIR) && \
+  mkdir -p $(MOZ_PKG_DIR)/distribution/bundles/ && \
+  cp -r $(topsrcdir)/integration/* $(MOZ_PKG_DIR)/distribution/bundles/ && \
   mv $(MOZ_PKG_DIR) core && \
   $(CYGWIN_WRAPPER) 7z a -r -t7z app.7z -mx -m0=BCJ2 -m1=LZMA:d25 \
     -m2=LZMA:d19 -m3=LZMA:d19 -mb0:1 -mb0s1:2 -mb0s2:3 && \
