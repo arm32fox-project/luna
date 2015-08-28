@@ -464,7 +464,8 @@ ifndef PKG_DMG_SOURCE
 PKG_DMG_SOURCE = $(STAGEPATH)$(MOZ_PKG_DIR)
 endif
 ifdef MOZ_PHOENIX
-INNER_MAKE_PACKAGE = cp -r $(_ABS_MOZSRCDIR)/statusbar/* $(MOZ_PKG_DIR)/$(MOZ_APP_DISPLAYNAME).app/Contents/MacOS/. && \
+INNER_MAKE_PACKAGE = mkdir -p $(MOZ_PKG_DIR)/$(MOZ_APP_DISPLAYNAME).app/Contents/MacOS/distribution/bundles/ && \
+  cp -r $(_ABS_MOZSRCDIR)/integration/* $(MOZ_PKG_DIR)/$(MOZ_APP_DISPLAYNAME).app/Contents/MacOS/distribution/bundles/. && \
   $(_ABS_MOZSRCDIR)/build/package/mac_osx/pkg-dmg \
   --source "$(PKG_DMG_SOURCE)" --target "$(PACKAGE)" \
   --volname "$(MOZ_APP_DISPLAYNAME)" $(PKG_DMG_FLAGS)
