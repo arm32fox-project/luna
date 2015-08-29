@@ -662,33 +662,12 @@ function getCanStageUpdates() {
 }
 
 XPCOMUtils.defineLazyGetter(this, "gIsMetro", function aus_gIsMetro() {
-#ifdef XP_WIN
-#ifdef MOZ_METRO
-  try {
-    let metroUtils = Cc["@mozilla.org/windows-metroutils;1"].
-                    createInstance(Ci.nsIWinMetroUtils);
-    return metroUtils && metroUtils.immersive;
-  } catch (e) {}
-#endif
-#endif
-
+  // Stub, always false. Cleanup later!
   return false;
 });
 
 XPCOMUtils.defineLazyGetter(this, "gMetroUpdatesEnabled", function aus_gMetroUpdatesEnabled() {
-#ifdef XP_WIN
-#ifdef MOZ_METRO
-  if (gIsMetro) {
-    let metroUpdate = getPref("getBoolPref", PREF_APP_UPDATE_METRO_ENABLED, true);
-    if (!metroUpdate) {
-      LOG("gMetroUpdatesEnabled - unable to automatically check for metro " +
-          "updates, disabled by pref");
-      return false;
-    }
-  }
-#endif
-#endif
-
+  // Stub. Cleanup later!
   return true;
 });
 
