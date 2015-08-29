@@ -36,29 +36,15 @@ nsAppShellInit()
 {
   NS_ASSERTION(!sAppShell, "already initialized");
 
-#if !defined(XP_WIN)
   sAppShell = new nsAppShell();
-#else
-  if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
-    sAppShell = new MetroAppShell();
-  } else {
-    sAppShell = new nsAppShell();
-  }
-#endif
+  
   if (!sAppShell)
     return NS_ERROR_OUT_OF_MEMORY;
   NS_ADDREF(sAppShell);
 
   nsresult rv;
-#if !defined(XP_WIN)
   rv = static_cast<nsAppShell*>(sAppShell)->Init();
-#else
-  if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
-    rv = static_cast<MetroAppShell*>(sAppShell)->Init();
-  } else {
-    rv = static_cast<nsAppShell*>(sAppShell)->Init();
-  }
-#endif
+
   if (NS_FAILED(rv)) {
     NS_RELEASE(sAppShell);
     return rv;
