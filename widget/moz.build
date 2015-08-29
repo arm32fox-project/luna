@@ -83,12 +83,6 @@ XPIDL_SOURCES += [
     'nsITransferable.idl',
 ]
 
-if CONFIG['MOZ_METRO']:
-    XPIDL_SOURCES += [
-        'MetroUIUtils.idl',
-        'nsIWinMetroUtils.idl',
-    ]
-
 MODULE = 'widget'
 
 EXPORTS += [

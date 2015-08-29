@@ -33,9 +33,6 @@ struct ITfDisplayAttributeMgr;
 struct ITfCategoryMgr;
 class nsWindow;
 class nsTextEvent;
-#ifdef MOZ_METRO
-class MetroWidget;
-#endif
 
 // It doesn't work well when we notify TSF of text change
 // during a mutation observer call because things get broken.
@@ -252,7 +249,7 @@ protected:
                                const TS_ATTRID *paFilterAttrs);
   void     SetInputScope(const nsString& aHTMLInputType);
 
-  // Holds the pointer to our current win32 or metro widget
+  // Holds the pointer to our current win32 widget
   nsRefPtr<nsWindowBase>       mWidget;
   // Document manager for the currently focused editor
   nsRefPtr<ITfDocumentMgr>     mDocumentMgr;

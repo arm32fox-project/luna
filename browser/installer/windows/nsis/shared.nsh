@@ -6,37 +6,6 @@
 ; to launch the Win8 metro browser or desktop browser.
 !define DELEGATE_EXECUTE_HANDLER_ID {5100FEC1-212B-4BF5-9BF8-3E650FD794A3}
 
-; Does metro registration for the command execute handler
-Function RegisterCEH
-!ifdef MOZ_METRO
-  ${If} ${AtLeastWin8}
-    ${CleanupMetroBrowserHandlerValues} ${DELEGATE_EXECUTE_HANDLER_ID}
-    ${AddMetroBrowserHandlerValues} ${DELEGATE_EXECUTE_HANDLER_ID} \
-                                    "$INSTDIR\CommandExecuteHandler.exe" \
-                                    $AppUserModelID \
-                                    "PaleMoonURL" \
-                                    "PaleMoonHTML"
-  ${EndIf}
-!endif
-FunctionEnd
-
-; If we're in Win8 make sure we have a start menu shortcut and that it has
-; the correct AppuserModelID so that the Metro browser has a Metro tile.
-Function RegisterStartMenuTile
-!ifdef MOZ_METRO
-  ${If} ${AtLeastWin8}
-    CreateShortCut "$SMPROGRAMS\${BrandFullName}.lnk" "$INSTDIR\${FileMainEXE}"
-    ${If} ${FileExists} "$SMPROGRAMS\${BrandFullName}.lnk"
-      ShellLink::SetShortCutWorkingDirectory "$SMPROGRAMS\${BrandFullName}.lnk" \
-                                             "$INSTDIR"
-      ${If} "$AppUserModelID" != ""
-        ApplicationID::Set "$SMPROGRAMS\${BrandFullName}.lnk" "$AppUserModelID" "true"
-      ${EndIf}
-    ${EndIf}
-  ${EndIf}
-!endif
-FunctionEnd
-
 !macro PostUpdate
 
   ; PostUpdate is called from both session 0 and from the user session
@@ -56,10 +25,6 @@ FunctionEnd
     ${GetParent} "$0" $0
     ${If} ${FileExists} "$0"
       ${GetLongPath} "$0" $0
-    ${EndIf}
-    ${If} "$0" == "$INSTDIR"
-      ; Win8 specific registration
-      Call RegisterStartMenuTile
     ${EndIf}
   ${EndIf}
 
@@ -200,21 +165,6 @@ FunctionEnd
   ${EndIf}
 !endif
 
-; Register the DEH
-!ifdef MOZ_METRO
-  ${If} ${AtLeastWin8}
-  ${AndIf} $9 != 0 ; We're not running in session 0
-    ; If RegisterCEH is called too close to changing the shortcut AppUserModelID
-    ; and if the tile image is not already in cache.  Then Windows won't refresh
-    ; the tile image on the start screen.  So wait before calling RegisterCEH.
-    ; We only need to do this when the DEH doesn't already exist.
-    ReadRegStr $0 HKCU "Software\Classes\PaleMoonURL\shell\open\command" "DelegateExecute"
-    ${If} $0 != ${DELEGATE_EXECUTE_HANDLER_ID}
-      Sleep 3000
-    ${EndIf}
-    Call RegisterCEH
-  ${EndIf}
-!endif
 !macroend
 !define PostUpdate "!insertmacro PostUpdate"
 
@@ -426,7 +376,6 @@ FunctionEnd
 
   ${AddDisabledDDEHandlerValues} "PaleMoonURL" "$2" "$8,1" "${AppRegName} URL" \
                                  "true"
-  Call RegisterCEH
 
   ; An empty string is used for the 4th & 5th params because the following
   ; protocol handlers already have a display name and the additional keys
@@ -792,34 +741,6 @@ FunctionEnd
   ${EndIf}
 !macroend
 !define RemoveDeprecatedKeys "!insertmacro RemoveDeprecatedKeys"
-
-!ifdef MOZ_METRO
-; Resets Win8+ specific toast keys Windows sets. We call this on a
-; fresh install and on uninstall.
-!macro ResetWin8PromptKeys
-  ${If} ${AtLeastWin8}
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" "PaleMoonHTML_.htm"
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" "PaleMoonHTML_.html"
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" "PaleMoonHTML_.xht"
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" "PaleMoonHTML_.xhtml"
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" "PaleMoonHTML_.shtml"
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" "PaleMoonURL_ftp"
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" "PaleMoonURL_http"
-    DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\ApplicationAssociationToasts" "PaleMoonURL_https"
-  ${EndIf}
-!macroend
-!define ResetWin8PromptKeys "!insertmacro ResetWin8PromptKeys"
-
-; Resets Win8+ Metro specific splash screen info. Relies
-; on AppUserModelID.
-!macro ResetWin8MetroSplash
-  ${If} ${AtLeastWin8}
-  ${AndIf} "$AppUserModelID" != ""
-    DeleteRegKey HKCR "Local Settings\Software\Microsoft\Windows\CurrentVersion\AppModel\SystemAppData\DefaultBrowser_NOPUBLISHERID\SplashScreen\DefaultBrowser_NOPUBLISHERID!$AppUserModelID"
-  ${EndIf}
-!macroend
-!define ResetWin8MetroSplash "!insertmacro ResetWin8MetroSplash"
-!endif
 
 ; Removes various directories and files for reasons noted below.
 !macro RemoveDeprecatedFiles
@@ -1353,7 +1274,6 @@ Function SetAsDefaultAppUserHKCU
     ${SetStartMenuInternet} "HKCU"
     ${FixShellIconHandler} "HKCU"
     ${FixClassKeys} ; Does not use SHCTX
-    Call RegisterStartMenuTile
   ${EndIf}
 
   ${SetHandlers}

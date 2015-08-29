@@ -23,9 +23,6 @@ DIRS += [
     'app',
 ]
 
-if CONFIG['MOZ_METRO']:
-    DIRS += ['metro']
-
 if CONFIG['MAKENSISU']:
     DIRS += ['installer/windows']
 

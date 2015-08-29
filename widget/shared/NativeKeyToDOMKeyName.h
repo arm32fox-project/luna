@@ -15,7 +15,7 @@
  * aKeyNameIndex is the widget::KeyNameIndex value.
  */
 
-// Windows (both Desktop and Metro)
+// Windows (Desktop)
 #define KEY_MAP_WIN(aCPPKeyName, aNativeKey)
 // OS/2
 #define KEY_MAP_OS2(aCPPKeyName, aNativeKey)
