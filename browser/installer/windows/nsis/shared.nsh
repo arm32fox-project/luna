@@ -6,17 +6,6 @@
 ; to launch the Win8 metro browser or desktop browser.
 !define DELEGATE_EXECUTE_HANDLER_ID {5100FEC1-212B-4BF5-9BF8-3E650FD794A3}
 
-; Does metro registration for the command execute handler
-Function RegisterCEH
-# Stub
-FunctionEnd
-
-; If we're in Win8 make sure we have a start menu shortcut and that it has
-; the correct AppuserModelID so that the Metro browser has a Metro tile.
-Function RegisterStartMenuTile
-# Stub
-FunctionEnd
-
 !macro PostUpdate
 
   ; PostUpdate is called from both session 0 and from the user session
