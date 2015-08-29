@@ -3569,11 +3569,7 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData, uint32_t aFlags)
   mozilla::RecordShutdownEndTimeStamp();
   return result;
 #else
-  if (aFlags == XRE_MAIN_FLAG_USE_METRO) {
-    SetWindowsEnvironment(WindowsEnvironmentType_Metro);
-  }
-
-  // Desktop
+  // Windows Desktop
   if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Desktop) {
     XREMain main;
     int result = main.XRE_main(argc, argv, aAppData);
@@ -3581,13 +3577,10 @@ XRE_main(int argc, char* argv[], const nsXREAppData* aAppData, uint32_t aFlags)
     return result;
   }
 
-  // Metro
-  NS_ASSERTION(XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro,
-               "Unknown Windows environment");
+  // Non-desktop windows based environments (e.g. WinRT).
+  // Currently not supported.
+  NS_ASSERTION(false, "Unsupported Windows environment");
 
-  int result = XRE_mainMetro(argc, argv, aAppData);
-  mozilla::RecordShutdownEndTimeStamp();
-  return result;
 #endif // !defined(XP_WIN)
 }
 
