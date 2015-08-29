@@ -28,9 +28,6 @@
  */
 
 #include "nsXULAppAPI.h"
-#if defined(MOZ_METRO) && defined(XP_WIN)
-#include "winrt/MetroAppShell.h"
-#endif
 
 static nsIAppShell *sAppShell;
 
@@ -39,7 +36,7 @@ nsAppShellInit()
 {
   NS_ASSERTION(!sAppShell, "already initialized");
 
-#if !defined(MOZ_METRO) || !defined(XP_WIN)
+#if !defined(XP_WIN)
   sAppShell = new nsAppShell();
 #else
   if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
@@ -53,7 +50,7 @@ nsAppShellInit()
   NS_ADDREF(sAppShell);
 
   nsresult rv;
-#if !defined(MOZ_METRO) || !defined(XP_WIN)
+#if !defined(XP_WIN)
   rv = static_cast<nsAppShell*>(sAppShell)->Init();
 #else
   if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
