@@ -13,9 +13,6 @@
 
 #include "nscore.h"
 #include "nsWindow.h"
-#ifdef MOZ_METRO
-#include "winrt/MetroWidget.h"
-#endif
 #include "nsPrintfCString.h"
 #include "WinUtils.h"
 #include "mozilla/Preferences.h"

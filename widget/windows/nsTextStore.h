@@ -33,9 +33,6 @@ struct ITfDisplayAttributeMgr;
 struct ITfCategoryMgr;
 class nsWindow;
 class nsTextEvent;
-#ifdef MOZ_METRO
-class MetroWidget;
-#endif
 
 // It doesn't work well when we notify TSF of text change
 // during a mutation observer call because things get broken.

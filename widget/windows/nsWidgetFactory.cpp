@@ -29,13 +29,6 @@
 #include "nsWindow.h"
 // Content processes
 #include "nsFilePickerProxy.h"
-// Metro
-#ifdef MOZ_METRO
-#include "winrt/MetroAppShell.h"
-#include "winrt/MetroWidget.h"
-#include "winrt/nsMetroFilePicker.h"
-#include "winrt/nsWinMetroUtils.h"
-#endif
 
 // Drag & Drop, Clipboard
 #include "nsClipboardHelper.h"
@@ -68,11 +61,7 @@ WindowConstructor(nsISupports *aOuter, REFNSIID aIID,
   nsCOMPtr<nsIWidget> widget;
 
   if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
-#ifdef MOZ_METRO
-    widget = new MetroWidget;
-#else
     NS_RUNTIMEABORT("build does not support metro.");
-#endif
   } else {
     widget = new nsWindow;
   }
@@ -113,11 +102,7 @@ FilePickerConstructor(nsISupports *aOuter, REFNSIID aIID,
     picker = new nsFilePickerProxy();
   } else {
     if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
-#ifdef MOZ_METRO
-      picker = new nsMetroFilePicker;
-#else
       NS_RUNTIMEABORT("build does not support metro.");
-#endif
     } else {
       picker = new nsFilePicker;
     }
@@ -140,9 +125,6 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsTransferable)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHTMLFormatConverter)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsDragService)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsBidiKeyboard)
-#ifdef MOZ_METRO
-NS_GENERIC_FACTORY_CONSTRUCTOR(nsWinMetroUtils)
-#endif
 #ifdef NS_PRINTING
 NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsPrintOptionsWin, Init)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsPrinterEnumeratorWin)
@@ -176,9 +158,6 @@ NS_DEFINE_NAMED_CID(NS_WIN_JUMPLISTITEM_CID);
 NS_DEFINE_NAMED_CID(NS_WIN_JUMPLISTSEPARATOR_CID);
 NS_DEFINE_NAMED_CID(NS_WIN_JUMPLISTLINK_CID);
 NS_DEFINE_NAMED_CID(NS_WIN_JUMPLISTSHORTCUT_CID);
-#ifdef MOZ_METRO
-NS_DEFINE_NAMED_CID(NS_WIN_METROUTILS_CID);
-#endif
 NS_DEFINE_NAMED_CID(NS_DRAGSERVICE_CID);
 NS_DEFINE_NAMED_CID(NS_BIDIKEYBOARD_CID);
 #ifdef NS_PRINTING
@@ -211,9 +190,6 @@ static const mozilla::Module::CIDEntry kWidgetCIDs[] = {
   { &kNS_WIN_JUMPLISTSHORTCUT_CID, false, NULL, JumpListShortcutConstructor },
   { &kNS_DRAGSERVICE_CID, false, NULL, nsDragServiceConstructor },
   { &kNS_BIDIKEYBOARD_CID, false, NULL, nsBidiKeyboardConstructor },
-#ifdef MOZ_METRO
-  { &kNS_WIN_METROUTILS_CID, false, NULL, nsWinMetroUtilsConstructor },
-#endif
 #ifdef NS_PRINTING
   { &kNS_PRINTSETTINGSSERVICE_CID, false, NULL, nsPrintOptionsWinConstructor },
   { &kNS_PRINTER_ENUMERATOR_CID, false, NULL, nsPrinterEnumeratorWinConstructor },
@@ -245,9 +221,6 @@ static const mozilla::Module::ContractIDEntry kWidgetContracts[] = {
   { "@mozilla.org/windows-jumplistshortcut;1", &kNS_WIN_JUMPLISTSHORTCUT_CID },
   { "@mozilla.org/widget/dragservice;1", &kNS_DRAGSERVICE_CID },
   { "@mozilla.org/widget/bidikeyboard;1", &kNS_BIDIKEYBOARD_CID },
-#ifdef MOZ_METRO
-  { "@mozilla.org/windows-metroutils;1", &kNS_WIN_METROUTILS_CID },
-#endif
 #ifdef NS_PRINTING
   { "@mozilla.org/gfx/printsettings-service;1", &kNS_PRINTSETTINGSSERVICE_CID },
   { "@mozilla.org/gfx/printerenumerator;1", &kNS_PRINTER_ENUMERATOR_CID },
