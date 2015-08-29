@@ -290,9 +290,6 @@ STATIC_LIBS += thebes gl ycbcr
 
 ifeq (windows,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += widget_windows
-ifdef MOZ_METRO
-COMPONENT_LIBS += widget_winrt
-endif
 endif
 ifeq (cocoa,$(MOZ_WIDGET_TOOLKIT))
 COMPONENT_LIBS += widget_mac
@@ -560,9 +557,6 @@ OS_LIBS += $(call EXPAND_LIBNAME,shell32 ole32 version winspool comdlg32 imm32 m
 ifdef ACCESSIBILITY
 OS_LIBS += $(call EXPAND_LIBNAME,oleacc)
 endif
-ifdef MOZ_METRO
-OS_LIBS += $(call EXPAND_LIBNAME,uiautomationcore runtimeobject)
-endif
 ifdef _MSC_VER
 OS_LIBS += $(call EXPAND_LIBNAME,delayimp)
 EXTRA_DSO_LDOPTS += \
@@ -575,18 +569,6 @@ EXTRA_DSO_LDOPTS += \
   -DELAYLOAD:secur32.dll \
   -DELAYLOAD:wininet.dll \
   $(NULL)
-
-# See nsDllMain for an explanation
-ifdef MOZ_METRO
-ifdef MOZ_DEBUG
-EXTRA_DSO_LDOPTS += -DELAYLOAD:VCCORLIB$(CRTDLLVERSION)D.DLL
-else
-EXTRA_DSO_LDOPTS += -DELAYLOAD:VCCORLIB$(CRTDLLVERSION).DLL
-endif
-EXTRA_DSO_LDOPTS += -DELAYLOAD:API-MS-WIN-CORE-WINRT-L$(CRTEXPDLLVERSION).DLL
-EXTRA_DSO_LDOPTS += -DELAYLOAD:API-MS-WIN-CORE-WINRT-STRING-L$(CRTEXPDLLVERSION).DLL
-EXTRA_DSO_LDOPTS += -DELAYLOAD:uiautomationcore.dll
-endif
 
 ifdef ACCESSIBILITY
 EXTRA_DSO_LDOPTS += -DELAYLOAD:oleacc.dll
