@@ -60,11 +60,7 @@ WindowConstructor(nsISupports *aOuter, REFNSIID aIID,
   }
   nsCOMPtr<nsIWidget> widget;
 
-  if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
-    NS_RUNTIMEABORT("build does not support metro.");
-  } else {
-    widget = new nsWindow;
-  }
+  widget = new nsWindow;
 
   return widget->QueryInterface(aIID, aResult);
 }
@@ -79,11 +75,7 @@ ChildWindowConstructor(nsISupports *aOuter, REFNSIID aIID,
   }
   nsCOMPtr<nsIWidget> widget;
 
-  if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
-    return NS_NOINTERFACE;
-  } else {
-    widget = new ChildWindow;
-  }
+  widget = new ChildWindow;
 
   return widget->QueryInterface(aIID, aResult);
 }
@@ -101,11 +93,7 @@ FilePickerConstructor(nsISupports *aOuter, REFNSIID aIID,
   if (XRE_GetProcessType() == GoannaProcessType_Content) {
     picker = new nsFilePickerProxy();
   } else {
-    if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
-      NS_RUNTIMEABORT("build does not support metro.");
-    } else {
-      picker = new nsFilePicker;
-    }
+    picker = new nsFilePicker;
   }
   return picker->QueryInterface(aIID, aResult);
 }

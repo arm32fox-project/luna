@@ -2369,50 +2369,38 @@ nsTextStore::GetScreenExtInternal(RECT &aScreenExt)
     return false;
   }
 
-  if (XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Metro) {
-    nsIntRect boundRect;
-    if (NS_FAILED(mWidget->GetClientBounds(boundRect))) {
-      PR_LOG(sTextStoreLog, PR_LOG_ERROR,
-             ("TSF: 0x%p   nsTextStore::GetScreenExtInternal() FAILED due to "
-              "failed to get the client bounds", this));
-      return false;
-    }
+  NS_ASSERTION(XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Desktop,
+               "environment isn't WindowsEnvironmentType_Desktop!");
+  nsWindow* refWindow = static_cast<nsWindow*>(
+    event.mReply.mFocusedWidget ?
+      event.mReply.mFocusedWidget : mWidget);
+  // Result rect is in top level widget coordinates
+  refWindow = refWindow->GetTopLevelWindow(false);
+  if (!refWindow) {
+    PR_LOG(sTextStoreLog, PR_LOG_ERROR,
+           ("TSF: 0x%p   nsTextStore::GetScreenExtInternal() FAILED due to "
+            "no top level window", this));
+    return false;
+  }
+  
+  nsIntRect boundRect;
+  if (NS_FAILED(refWindow->GetClientBounds(boundRect))) {
+    PR_LOG(sTextStoreLog, PR_LOG_ERROR,
+           ("TSF: 0x%p   nsTextStore::GetScreenExtInternal() FAILED due to "
+            "failed to get the client bounds", this));
+    return false;
+  }
+  
+  boundRect.MoveTo(0, 0);
+
+  // Clip frame rect to window rect
+  boundRect.IntersectRect(event.mReply.mRect, boundRect);
+  if (!boundRect.IsEmpty()) {
+    boundRect.MoveBy(refWindow->WidgetToScreenOffset());
     ::SetRect(&aScreenExt, boundRect.x, boundRect.y,
               boundRect.XMost(), boundRect.YMost());
   } else {
-    NS_ASSERTION(XRE_GetWindowsEnvironment() == WindowsEnvironmentType_Desktop,
-                 "environment isn't WindowsEnvironmentType_Desktop!");
-    nsWindow* refWindow = static_cast<nsWindow*>(
-      event.mReply.mFocusedWidget ?
-        event.mReply.mFocusedWidget : mWidget);
-    // Result rect is in top level widget coordinates
-    refWindow = refWindow->GetTopLevelWindow(false);
-    if (!refWindow) {
-      PR_LOG(sTextStoreLog, PR_LOG_ERROR,
-             ("TSF: 0x%p   nsTextStore::GetScreenExtInternal() FAILED due to "
-              "no top level window", this));
-      return false;
-    }
-
-    nsIntRect boundRect;
-    if (NS_FAILED(refWindow->GetClientBounds(boundRect))) {
-      PR_LOG(sTextStoreLog, PR_LOG_ERROR,
-             ("TSF: 0x%p   nsTextStore::GetScreenExtInternal() FAILED due to "
-              "failed to get the client bounds", this));
-      return false;
-    }
-
-    boundRect.MoveTo(0, 0);
-
-    // Clip frame rect to window rect
-    boundRect.IntersectRect(event.mReply.mRect, boundRect);
-    if (!boundRect.IsEmpty()) {
-      boundRect.MoveBy(refWindow->WidgetToScreenOffset());
-      ::SetRect(&aScreenExt, boundRect.x, boundRect.y,
-                boundRect.XMost(), boundRect.YMost());
-    } else {
-      ::SetRectEmpty(&aScreenExt);
-    }
+    ::SetRectEmpty(&aScreenExt);
   }
 
   PR_LOG(sTextStoreLog, PR_LOG_DEBUG,
