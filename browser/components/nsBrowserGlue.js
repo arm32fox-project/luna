@@ -291,32 +291,6 @@ BrowserGlue.prototype = {
       case "profile-before-change":
         this._onProfileShutdown();
         break;
-#ifdef MOZ_SERVICES_HEALTHREPORT
-      case "keyword-search":
-        // This is very similar to code in
-        // browser.js:BrowserSearch.recordSearchInHealthReport(). The code could
-        // be consolidated if there is will. We need the observer in
-        // nsBrowserGlue to prevent double counting.
-        let reporter = Cc["@mozilla.org/datareporting/service;1"]
-                         .getService()
-                         .wrappedJSObject
-                         .healthReporter;
-
-        if (!reporter) {
-          return;
-        }
-
-        reporter.onInit().then(function record() {
-          try {
-            let name = subject.QueryInterface(Ci.nsISearchEngine).name;
-            reporter.getProvider("org.mozilla.searches").recordSearch(name,
-                                                                      "urlbar");
-          } catch (ex) {
-            Cu.reportError(ex);
-          }
-        });
-        break;
-#endif
       case "browser-search-engine-modified":
         if (data != "engine-default" && data != "engine-current") {
           break;

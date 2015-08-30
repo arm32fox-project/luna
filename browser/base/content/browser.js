@@ -85,9 +85,6 @@ this.__defineSetter__("PluralForm", function (val) {
   return this.PluralForm = val;
 });
 
-XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
-  "resource://gre/modules/TelemetryStopwatch.jsm");
-
 XPCOMUtils.defineLazyModuleGetter(this, "AboutHomeUtils",
   "resource:///modules/AboutHomeUtils.jsm");
 
@@ -159,10 +156,6 @@ let gInitialPages = [
 #include browser-thumbnails.js
 #include browser-webrtcUI.js
 #include browser-gestureSupport.js
-
-#ifdef MOZ_DATA_REPORTING
-#include browser-data-submission-info-bar.js
-#endif
 
 #ifdef MOZ_SERVICES_SYNC
 #include browser-syncui.js
@@ -943,9 +936,6 @@ var gBrowserInit = {
 
   _delayedStartup: function(mustLoadSidebar) {
     let tmp = {};
-    Cu.import("resource://gre/modules/TelemetryTimestamps.jsm", tmp);
-    let TelemetryTimestamps = tmp.TelemetryTimestamps;
-    TelemetryTimestamps.add("delayedStartupStarted");
 
     this._cancelDelayedStartup();
 
@@ -1141,10 +1131,6 @@ var gBrowserInit = {
     gSyncUI.init();
 #endif
 
-#ifdef MOZ_DATA_REPORTING
-    gDataNotificationInfoBar.init();
-#endif
-
     gBrowserThumbnails.init();
 
     setUrlAndSearchBarWidthForConditionalForwardButton();
@@ -1258,7 +1244,6 @@ var gBrowserInit = {
 
     Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
     setTimeout(function () { BrowserChromeTest.markAsReady(); }, 0);
-    TelemetryTimestamps.add("delayedStartupFinished");
   },
 
   // Returns the URI(s) to load at startup.
@@ -2338,12 +2323,6 @@ function BrowserOnAboutPageLoad(doc) {
       doc.defaultView.removeEventListener("pagehide", removeObserver);
       Services.obs.removeObserver(updateSearchEngine, "browser-search-engine-modified");
     }, false);
-
-#ifdef MOZ_SERVICES_HEALTHREPORT
-    doc.addEventListener("AboutHomeSearchEvent", function onSearch(e) {
-      BrowserSearch.recordSearchInHealthReport(e.detail, "abouthome");
-    }, true, true);
-#endif
   }
 }
 
@@ -3134,9 +3113,6 @@ const BrowserSearch = {
    */
   loadSearchFromContext: function (terms) {
     let engine = BrowserSearch.loadSearch(terms, true, "contextmenu");
-    if (engine) {
-      BrowserSearch.recordSearchInHealthReport(engine, "contextmenu");
-    }
   },
 
   /**
@@ -3151,41 +3127,6 @@ const BrowserSearch = {
     var where = newWindowPref == 3 ? "tab" : "window";
     var searchEnginesURL = formatURL("browser.search.searchEnginesURL", true);
     openUILinkIn(searchEnginesURL, where);
-  },
-
-  /**
-   * Helper to record a search with Firefox Health Report.
-   *
-   * FHR records only search counts and nothing pertaining to the search itself.
-   *
-   * @param engine
-   *        (string) The name of the engine used to perform the search. This
-   *        is typically nsISearchEngine.name.
-   * @param source
-   *        (string) Where the search originated from. See the FHR
-   *        SearchesProvider for allowed values.
-   */
-  recordSearchInHealthReport: function (engine, source) {
-#ifdef MOZ_SERVICES_HEALTHREPORT
-    let reporter = Cc["@mozilla.org/datareporting/service;1"]
-                     .getService()
-                     .wrappedJSObject
-                     .healthReporter;
-
-    // This can happen if the FHR component of the data reporting service is
-    // disabled. This is controlled by a pref that most will never use.
-    if (!reporter) {
-      return;
-    }
-
-    reporter.onInit().then(function record() {
-      try {
-        reporter.getProvider("org.mozilla.searches").recordSearch(engine, source);
-      } catch (ex) {
-        Cu.reportError(ex);
-      }
-    });
-#endif
   },
 };
 
@@ -3300,15 +3241,11 @@ function toOpenWindowByType(inType, uri, features)
 
 function OpenBrowserWindow(options)
 {
-  var telemetryObj = {};
-  TelemetryStopwatch.start("FX_NEW_WINDOW_MS", telemetryObj);
-
   function newDocumentShown(doc, topic, data) {
     if (topic == "document-shown" &&
         doc != document &&
         doc.defaultView == win) {
       Services.obs.removeObserver(newDocumentShown, "document-shown");
-      TelemetryStopwatch.finish("FX_NEW_WINDOW_MS", telemetryObj);
     }
   };
   Services.obs.addObserver(newDocumentShown, "document-shown", false);
@@ -4283,19 +4220,6 @@ var CombinedStopReload = {
 
 var TabsProgressListener = {
   onStateChange: function (aBrowser, aWebProgress, aRequest, aStateFlags, aStatus) {
-
-    // Collect telemetry data about tab load times.
-    if (aWebProgress.isTopLevel) {
-      if (aStateFlags & Ci.nsIWebProgressListener.STATE_IS_WINDOW) {
-        if (aStateFlags & Ci.nsIWebProgressListener.STATE_START)
-          TelemetryStopwatch.start("FX_PAGE_LOAD_MS", aBrowser);
-        else if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP)
-          TelemetryStopwatch.finish("FX_PAGE_LOAD_MS", aBrowser);
-      } else if (aStateFlags & Ci.nsIWebProgressListener.STATE_STOP &&
-                 aStatus == Cr.NS_BINDING_ABORTED) {
-        TelemetryStopwatch.cancel("FX_PAGE_LOAD_MS", aBrowser);
-      }
-    }
 
     // Attach a listener to watch for "click" events bubbling up from error
     // pages and other similar page. This lets us fix bugs like 401575 which
@@ -6709,13 +6633,11 @@ var gIdentityHandler = {
    * Click handler for the identity-box element in primary chrome.
    */
   handleIdentityButtonEvent : function(event) {
-    TelemetryStopwatch.start("FX_IDENTITY_POPUP_OPEN_MS");
     event.stopPropagation();
 
     if ((event.type == "click" && event.button != 0) ||
         (event.type == "keypress" && event.charCode != KeyEvent.DOM_VK_SPACE &&
          event.keyCode != KeyEvent.DOM_VK_RETURN)) {
-      TelemetryStopwatch.cancel("FX_IDENTITY_POPUP_OPEN_MS");
       return; // Left click, space or enter only
     }
 
@@ -6723,7 +6645,6 @@ var gIdentityHandler = {
     // is chrome UI or the location has been modified.
     if (this._mode == this.IDENTITY_MODE_CHROMEUI ||
         gURLBar.getAttribute("pageproxystate") != "valid") {
-      TelemetryStopwatch.cancel("FX_IDENTITY_POPUP_OPEN_MS");
       return;
     }
 
@@ -6747,7 +6668,6 @@ var gIdentityHandler = {
   },
 
   onPopupShown : function(event) {
-    TelemetryStopwatch.finish("FX_IDENTITY_POPUP_OPEN_MS");
     document.getElementById('identity-popup-more-info-button').focus();
   },
 

@@ -6,7 +6,6 @@
 
 #include "mozPoisonWrite.h"
 #include "mozPoisonWriteBase.h"
-#include "mozilla/ProcessedStack.h"
 #include "mozilla/Scoped.h"
 #include "mozilla/SHA1.h"
 #include "nsAppDirectoryServiceDefs.h"
