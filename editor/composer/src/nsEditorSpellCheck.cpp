@@ -591,7 +591,6 @@ nsEditorSpellCheck::SetCurrentDictionary(const nsAString& aDictionary)
   // The purpose of mUpdateDictionaryRunning is to avoid doing all of this if
   // UpdateCurrentDictionary's helper method DictionaryFetched, which calls us,
   // is on the stack.
-  printf ("--> nsEditorSpellCheck::SetCurrentDictionary mUpdateDictionaryRunning %d\n", mUpdateDictionaryRunning);
   if (!mUpdateDictionaryRunning) {
 
     // Ignore pending dictionary fetchers by increasing this number.
@@ -604,12 +603,10 @@ nsEditorSpellCheck::SetCurrentDictionary(const nsAString& aDictionary)
       // the language might jump back to en-US although the user explicitly
       // chose otherwise.
       StoreCurrentDictionary(mEditor, aDictionary);
-      printf ("***** Writing content preferences for |%s|\n", NS_ConvertUTF16toUTF8(aDictionary).get());
     } else {
       // If user sets a dictionary matching the language defined by
       // document, we consider content pref has been canceled, and we clear it.
       ClearCurrentDictionary(mEditor);
-      printf ("***** Clearing content preferences for |%s|\n", NS_ConvertUTF16toUTF8(aDictionary).get());
     }
   }
   return mSpellChecker->SetCurrentDictionary(aDictionary);
@@ -726,12 +723,10 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
   // // http://www.w3.org/TR/html5/dom.html#the-lang-and-xml:lang-attributes
   // This is used in SetCurrentDictionary.
   mPreferredLang.Assign(aFetcher->mRootContentLang);
-  printf ("***** mPreferredLang (element) |%s|\n", NS_ConvertUTF16toUTF8(mPreferredLang).get());
 
   // If no luck, try the "Content-Language" header.
   if (mPreferredLang.IsEmpty()) {
     mPreferredLang.Assign(aFetcher->mRootDocContentLang);
-    printf ("***** mPreferredLang (content-language) |%s|\n", NS_ConvertUTF16toUTF8(mPreferredLang).get());
   }
   
   // If we successfully fetched a dictionary from content prefs, do not go
@@ -740,7 +735,6 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
   dictName.Assign(aFetcher->mDictionary);
   if (!dictName.IsEmpty()) {
     if (NS_SUCCEEDED(SetCurrentDictionary(dictName))) {
-      printf ("***** Assigned from content preferences |%s|\n", NS_ConvertUTF16toUTF8(dictName).get());
       return NS_OK;
     }
     // May be dictionary was uninstalled ?
@@ -754,19 +748,16 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
   preferredDict = Preferences::GetLocalizedString("spellchecker.dictionary.override");
   if (!preferredDict.IsEmpty()) {
     dictName.Assign(preferredDict);
-    printf ("***** Assigned from spellchecker.dictionary |%s|\n", NS_ConvertUTF16toUTF8(dictName).get());
   }
 
   if (dictName.IsEmpty() && !mPreferredLang.IsEmpty()) {
     dictName.Assign(mPreferredLang);
-    printf ("***** Assigned from element/doc |%s|\n", NS_ConvertUTF16toUTF8(dictName).get());
   }
 
   nsresult rv2;
   if (!dictName.IsEmpty()) {
     rv = SetCurrentDictionary(dictName);
     if (NS_FAILED(rv)) {
-      printf ("***** Setting of |%s| failed\n", NS_ConvertUTF16toUTF8(dictName).get());
       
       // Required dictionary was not available. Try to get a dictionary
       // matching at least language part of dictName:
@@ -794,8 +785,6 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
             // We have already tried it
             continue;
           }
-          if (nsStyleUtil::DashMatchCompare(dictStr, langCode, comparator))
-            printf ("***** Trying dictStr |%s|\n", NS_ConvertUTF16toUTF8(dictStr).get());
           if (nsStyleUtil::DashMatchCompare(dictStr, langCode, comparator) &&
               NS_SUCCEEDED(rv = SetCurrentDictionary(dictStr))) {
             break;
@@ -818,13 +807,11 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
                                               utf8DictName);
       dictName.Assign(EmptyString());
       AppendUTF8toUTF16(utf8DictName, dictName);
-      printf ("***** Assigned from locale |%s|\n", NS_ConvertUTF16toUTF8(dictName).get());
       rv = SetCurrentDictionary(dictName);
     }
   }
 
   if (NS_SUCCEEDED(rv)) {
-    printf ("***** Setting worked.\n");
     return NS_OK;
   }
   
@@ -834,13 +821,11 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
   nsAutoString currentDictionary;
   rv2 = GetCurrentDictionary(currentDictionary);
   if (NS_SUCCEEDED(rv2))
-    printf ("***** Retrieved current dict |%s|\n", NS_ConvertUTF16toUTF8(currentDictionary).get());
     
   // Try to get current dictionary from environment variable LANG.
   // LANG = language[_territory][.codeset]
   if (NS_FAILED(rv2) || currentDictionary.IsEmpty()) {
     char* env_lang = getenv("LANG");
-    printf ("***** Checking LANG |%s|\n", NS_ConvertUTF16toUTF8(lang).get());
     if (env_lang != nullptr) {
       nsString lang = NS_ConvertUTF8toUTF16(env_lang);
       
@@ -856,7 +841,6 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
         lang.Replace(underScore, 1, '-');
         // Only attempt to set if a _territory is present.
         rv = SetCurrentDictionary(lang);
-        printf ("***** Trying LANG |%s|\n", NS_ConvertUTF16toUTF8(lang).get());
       }
     }
     
@@ -866,7 +850,6 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
       rv2 = mSpellChecker->GetDictionaryList(&dictList);
       if (NS_SUCCEEDED(rv2) && dictList.Length() > 0) {
         SetCurrentDictionary(dictList[0]);
-        printf ("***** Trying first of list |%s|\n", NS_ConvertUTF16toUTF8(dictList[0]).get());
       }
     }
   }
