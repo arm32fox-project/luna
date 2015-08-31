@@ -591,6 +591,7 @@ nsEditorSpellCheck::SetCurrentDictionary(const nsAString& aDictionary)
   // The purpose of mUpdateDictionaryRunning is to avoid doing all of this if
   // UpdateCurrentDictionary's helper method DictionaryFetched, which calls us,
   // is on the stack.
+  printf ("--> nsEditorSpellCheck::SetCurrentDictionary mUpdateDictionaryRunning %d\n", mUpdateDictionaryRunning);
   if (!mUpdateDictionaryRunning) {
 
     // Ignore pending dictionary fetchers by increasing this number.
@@ -721,7 +722,8 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
   }
 
   // Get the language from the element or its closest parent according to:
-  // http://www.w3.org/TR/html401/struct/dirlang.html#h-8.1.2.
+  // http://www.w3.org/TR/html401/struct/dirlang.html#h-8.1.2 and
+  // // http://www.w3.org/TR/html5/dom.html#the-lang-and-xml:lang-attributes
   // This is used in SetCurrentDictionary.
   mPreferredLang.Assign(aFetcher->mRootContentLang);
   printf ("***** mPreferredLang (element) |%s|\n", NS_ConvertUTF16toUTF8(mPreferredLang).get());
@@ -760,30 +762,14 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
     printf ("***** Assigned from element/doc |%s|\n", NS_ConvertUTF16toUTF8(dictName).get());
   }
 
-  if (dictName.IsEmpty())
-  {
-    // Prefs, content-prefs and document didn't give us a dictionary name,
-    // so we just get the current locale and use that.
-
-    nsCOMPtr<nsIXULChromeRegistry> packageRegistry =
-      mozilla::services::GetXULChromeRegistryService();
-
-    if (packageRegistry) {
-      nsAutoCString utf8DictName;
-      rv = packageRegistry->GetSelectedLocale(NS_LITERAL_CSTRING("global"),
-                                              utf8DictName);
-      AppendUTF8toUTF16(utf8DictName, dictName);
-      printf ("***** Assigned from locale |%s|\n", NS_ConvertUTF16toUTF8(dictName).get());
-    }
-  }
-
-  if (NS_SUCCEEDED(rv) && !dictName.IsEmpty()) {
+  nsresult rv2;
+  if (!dictName.IsEmpty()) {
     rv = SetCurrentDictionary(dictName);
     if (NS_FAILED(rv)) {
       printf ("***** Setting of |%s| failed\n", NS_ConvertUTF16toUTF8(dictName).get());
-      // required dictionary was not available. Try to get a dictionary
-      // matching at least language part of dictName: 
-
+      
+      // Required dictionary was not available. Try to get a dictionary
+      // matching at least language part of dictName:
       nsAutoString langCode;
       int32_t dashIdx = dictName.FindChar('-');
       if (dashIdx != -1) {
@@ -794,32 +780,22 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
 
       nsDefaultStringComparator comparator;
 
-      // Otherwise, try langCode (if we haven't tried it already)
       if (NS_FAILED(rv)) {
-        if (!dictName.Equals(langCode) && !preferredDict.Equals(langCode)) {
-          rv = SetCurrentDictionary(langCode);
-          printf ("***** Trying langCode |%s|\n", NS_ConvertUTF16toUTF8(langCode).get());
-        }
-      }
-
-      // Otherwise, try any available dictionary aa-XX
-      if (NS_FAILED(rv)) {
-        // loop over avaible dictionaries; if we find one with required
-        // language, use it
+        // Loop over avaible dictionaries; if we find one with the required
+        // language, use it.
         nsTArray<nsString> dictList;
-        rv = mSpellChecker->GetDictionaryList(&dictList);
-        NS_ENSURE_SUCCESS(rv, rv);
+        rv2 = mSpellChecker->GetDictionaryList(&dictList);
+        NS_ENSURE_SUCCESS(rv2, rv2);
         int32_t i, count = dictList.Length();
         for (i = 0; i < count; i++) {
           nsAutoString dictStr(dictList.ElementAt(i));
 
-          if (dictStr.Equals(dictName) ||
-              dictStr.Equals(preferredDict) ||
-              dictStr.Equals(langCode)) {
+          if (dictStr.Equals(dictName)) {
             // We have already tried it
             continue;
           }
-          printf ("***** Trying dictStr |%s|\n", NS_ConvertUTF16toUTF8(dictStr).get());
+          if (nsStyleUtil::DashMatchCompare(dictStr, langCode, comparator))
+            printf ("***** Trying dictStr |%s|\n", NS_ConvertUTF16toUTF8(dictStr).get());
           if (nsStyleUtil::DashMatchCompare(dictStr, langCode, comparator) &&
               NS_SUCCEEDED(rv = SetCurrentDictionary(dictStr))) {
             break;
@@ -827,38 +803,70 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
         }
       }
     }
-    if (NS_SUCCEEDED (rv)) {
-      printf ("***** Setting worked.\n");
-      return NS_OK;
+  }
+  
+  if (dictName.IsEmpty() || NS_FAILED (rv)) {
+    // Prefs, content-prefs and document didn't give us a dictionary name,
+    // so we just get the current locale and use that.
+
+    nsCOMPtr<nsIXULChromeRegistry> packageRegistry =
+      mozilla::services::GetXULChromeRegistryService();
+
+    if (packageRegistry) {
+      nsAutoCString utf8DictName;
+      rv = packageRegistry->GetSelectedLocale(NS_LITERAL_CSTRING("global"),
+                                              utf8DictName);
+      dictName.Assign(EmptyString());
+      AppendUTF8toUTF16(utf8DictName, dictName);
+      printf ("***** Assigned from locale |%s|\n", NS_ConvertUTF16toUTF8(dictName).get());
+      rv = SetCurrentDictionary(dictName);
     }
   }
 
-  // If we have not set dictionary, and the editable element doesn't have a
-  // lang attribute, we try to get a dictionary. First try LANG environment variable.
-  // If it does not work, pick the first one.
-  if (mPreferredLang.IsEmpty()) {
-    nsAutoString currentDictionary;
-    rv = GetCurrentDictionary(currentDictionary);
-    if (NS_FAILED(rv) || currentDictionary.IsEmpty()) {
-      // Try to get current dictionary from environment variable LANG
-      char* env_lang = getenv("LANG");
-      if (env_lang != nullptr) {
-        nsString lang = NS_ConvertUTF8toUTF16(env_lang);
-        // Strip trailing charset if there is any
-        int32_t dot_pos = lang.FindChar('.');
-        if (dot_pos != -1) {
-          lang = Substring(lang, 0, dot_pos - 1);
-        }
-        rv = SetCurrentDictionary(lang);
-        printf ("***** Trying lang |%s|\n", NS_ConvertUTF16toUTF8(lang).get());
+  if (NS_SUCCEEDED(rv)) {
+    printf ("***** Setting worked.\n");
+    return NS_OK;
+  }
+  
+  // Still no success. Further fallback attempts required.
+  
+  // If we have a current dictionary, don't try anything else.
+  nsAutoString currentDictionary;
+  rv2 = GetCurrentDictionary(currentDictionary);
+  if (NS_SUCCEEDED(rv2))
+    printf ("***** Retrieved current dict |%s|\n", NS_ConvertUTF16toUTF8(currentDictionary).get());
+    
+  // Try to get current dictionary from environment variable LANG.
+  // LANG = language[_territory][.codeset]
+  if (NS_FAILED(rv2) || currentDictionary.IsEmpty()) {
+    char* env_lang = getenv("LANG");
+    printf ("***** Checking LANG |%s|\n", NS_ConvertUTF16toUTF8(lang).get());
+    if (env_lang != nullptr) {
+      nsString lang = NS_ConvertUTF8toUTF16(env_lang);
+      
+      // Strip trailing charset, if there is any.
+      int32_t dot_pos = lang.FindChar('.');
+      if (dot_pos != -1) {
+        lang = Substring(lang, 0, dot_pos);
       }
-      if (NS_FAILED(rv)) {
-        nsTArray<nsString> dictList;
-        rv = mSpellChecker->GetDictionaryList(&dictList);
-        if (NS_SUCCEEDED(rv) && dictList.Length() > 0) {
-          SetCurrentDictionary(dictList[0]);
-          printf ("***** Trying first of list |%s|\n", NS_ConvertUTF16toUTF8(dictList[0]).get());
-        }
+      
+      // Convert underscore to dash.
+      int32_t underScore = lang.FindChar('_');
+      if (underScore != -1) {
+        lang.Replace(underScore, 1, '-');
+        // Only attempt to set if a _territory is present.
+        rv = SetCurrentDictionary(lang);
+        printf ("***** Trying LANG |%s|\n", NS_ConvertUTF16toUTF8(lang).get());
+      }
+    }
+    
+    // If LANG does not work either, pick the first one.
+    if (NS_FAILED(rv)) {
+      nsTArray<nsString> dictList;
+      rv2 = mSpellChecker->GetDictionaryList(&dictList);
+      if (NS_SUCCEEDED(rv2) && dictList.Length() > 0) {
+        SetCurrentDictionary(dictList[0]);
+        printf ("***** Trying first of list |%s|\n", NS_ConvertUTF16toUTF8(dictList[0]).get());
       }
     }
   }
