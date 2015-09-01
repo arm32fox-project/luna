@@ -248,10 +248,15 @@
   }
 }
 
+/* Round top corners on Vista/7/8, but now Win10 because it's flush against the window edge */
+@media (-moz-os-version: windows-vista),
+       (-moz-os-version: windows-win7),
+       (-moz-os-version: windows-win8) {
   #main-window[sizemode=normal][tabsontop=false] #PersonalToolbar:not(:-moz-lwtheme) {
     border-top-left-radius: 2.5px;
     border-top-right-radius: 2.5px;
   }
+}
 
   /* Toolbar shadow behind tabs */
   /* This code is only needed for restored windows (i.e. sizemode=normal)
