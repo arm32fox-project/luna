@@ -22,7 +22,7 @@
 %define conditionalForwardWithUrlbarWidth 27
 
 %ifdef MOZ_OFFICIAL_BRANDING
-%define appMenuButtonBorderColor rgba(255,255,255,.5) rgba(83,42,6,.9)
+%define appMenuButtonBorderColor rgba(255,255,255,.5) rgba(6,42,83,.9)
 %else
 %if MOZ_UPDATE_CHANNEL == aurora
 %define appMenuButtonBorderColor hsla(0,0%,100%,.5) hsla(214,89%,21%,.9)
