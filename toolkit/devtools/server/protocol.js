@@ -1111,7 +1111,7 @@ let frontProto = function(proto) {
 
     proto[name] = function(...args) {
       if (spec.telemetry) {
-        //Telemetry stub
+        //Telemetry stub (left here for safety and compatibility reasons)
       }
 
       let packet = spec.request.write(args, this);
