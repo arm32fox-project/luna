@@ -357,9 +357,6 @@ BrowserGlue.prototype = {
     this._isPlacesShutdownObserver = true;
     os.addObserver(this, "handle-xul-text-link", false);
     os.addObserver(this, "profile-before-change", false);
-#ifdef MOZ_SERVICES_HEALTHREPORT
-    os.addObserver(this, "keyword-search", false);
-#endif
     os.addObserver(this, "browser-search-engine-modified", false);
     os.addObserver(this, "browser-search-service", false);
   },
@@ -392,9 +389,6 @@ BrowserGlue.prototype = {
       os.removeObserver(this, "places-shutdown");
     os.removeObserver(this, "handle-xul-text-link");
     os.removeObserver(this, "profile-before-change");
-#ifdef MOZ_SERVICES_HEALTHREPORT
-    os.removeObserver(this, "keyword-search");
-#endif
     os.removeObserver(this, "browser-search-engine-modified");
     try {
       os.removeObserver(this, "browser-search-service");
@@ -1753,7 +1747,7 @@ ContentPermissionPrompt.prototype = {
       action: null,
       expireType: null,
       callback: function() {
-        // Telemetry stub
+        // Telemetry stub (left here for safety and compatibility reasons)
       },
     }];
 
@@ -1769,7 +1763,7 @@ ContentPermissionPrompt.prototype = {
         action: Ci.nsIPermissionManager.ALLOW_ACTION,
         expireType: null,
         callback: function() {
-          // Telemetry stub
+          // Telemetry stub (left here for safety and compatibility reasons)
         },
       });
 
@@ -1779,7 +1773,7 @@ ContentPermissionPrompt.prototype = {
         action: Ci.nsIPermissionManager.DENY_ACTION,
         expireType: null,
         callback: function() {
-          // Telemetry stub
+          // Telemetry stub (left here for safety and compatibility reasons)
         },
       });
     }
