@@ -376,7 +376,12 @@ public:
      * home button. Used on gaia to determine whether a home button
      * is shown.
      */
-    eIntID_PhysicalHomeButton
+    eIntID_PhysicalHomeButton,
+
+    /**
+     * Return the appropriate UnixThemeIdentifier for the current theme.
+     */
+    eIntID_UnixThemeIdentifier
   };
 
   /**
@@ -393,7 +398,13 @@ public:
     eWindowsTheme_Zune,
     eWindowsTheme_AeroLite
   };
-  
+
+  enum UnixThemeIdentifier {
+    eUnixThemeGTK2 = 0,
+    eUnixThemeGTK3, // not yet
+    eUnixThemeQt4,
+  };
+
   /**
    * Operating System versions.
    */
@@ -403,6 +414,8 @@ public:
 	eOperatingSystemVersion_Windows7,
 	eOperatingSystemVersion_Windows8,
 	eOperatingSystemVersion_Windows10,
+	eOperatingSystemVersion_GNULinux,
+	eOperatingSystemVersion_BSD,
 	eOperatingSystemVersion_Unknown
   };
 

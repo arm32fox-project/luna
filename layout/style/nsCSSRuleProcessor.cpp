@@ -1237,7 +1237,7 @@ InitSystemMetrics()
   }
 #endif
 
-  // OS version metrics, currently only defined for Windows.
+  // OS version metrics, currently defined for Windows / GNU-Linux and *BSD
   if (NS_SUCCEEDED(
 		LookAndFeel::GetInt(LookAndFeel::eIntID_OperatingSystemVersionIdentifier,
 							&metricResult))) {
@@ -1256,6 +1256,12 @@ InitSystemMetrics()
 		break;
 	  case LookAndFeel::eOperatingSystemVersion_Windows10:
 		sSystemMetrics->AppendElement(nsGkAtoms::windows_version_win10);
+		break;
+	  case LookAndFeel::eOperatingSystemVersion_GNULinux:
+		sSystemMetrics->AppendElement(nsGkAtoms::nixlike_version_linux);
+		break;
+	  case LookAndFeel::eOperatingSystemVersion_BSD:
+		sSystemMetrics->AppendElement(nsGkAtoms::nixlike_version_bsd);
 		break;
 	}
   }
