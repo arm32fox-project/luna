@@ -31,29 +31,3 @@ postflight_all:
 # actually does a universal staging with both OBJDIR_ARCH_1 and OBJDIR_ARCH_2.
 	$(MAKE) -C $(OBJDIR_ARCH_1)/$(MOZ_BUILD_APP)/installer \
 	   PKG_SKIP_STRIP=1 stage-package
-ifdef ENABLE_TESTS
-# Now, repeat the process for the test package.
-	$(MAKE) -C $(OBJDIR_ARCH_1) UNIVERSAL_BINARY= CHROME_JAR= package-tests
-	$(MAKE) -C $(OBJDIR_ARCH_2) UNIVERSAL_BINARY= CHROME_JAR= package-tests
-	rm -rf $(DIST_UNI)/test-package-stage
-# automation.py differs because it hardcodes a path to
-# dist/bin. It doesn't matter which one we use.
-	if test -d $(DIST_ARCH_1)/test-package-stage -a                 \
-                -d $(DIST_ARCH_2)/test-package-stage; then              \
-           cp $(DIST_ARCH_1)/test-package-stage/mochitest/automation.py \
-             $(DIST_ARCH_2)/test-package-stage/mochitest/;              \
-           cp -RL $(DIST_ARCH_1)/test-package-stage/mochitest/extensions/specialpowers \
-             $(DIST_ARCH_2)/test-package-stage/mochitest/extensions/;              \
-           cp $(DIST_ARCH_1)/test-package-stage/xpcshell/automation.py  \
-             $(DIST_ARCH_2)/test-package-stage/xpcshell/;               \
-           cp $(DIST_ARCH_1)/test-package-stage/reftest/automation.py   \
-             $(DIST_ARCH_2)/test-package-stage/reftest/;                \
-           cp -RL $(DIST_ARCH_1)/test-package-stage/reftest/specialpowers \
-             $(DIST_ARCH_2)/test-package-stage/reftest/;              \
-           $(TOPSRCDIR)/build/macosx/universal/unify                 \
-             --unify-with-sort "\.manifest$$" \
-             --unify-with-sort "all-test-dirs\.list$$"               \
-             $(DIST_ARCH_1)/test-package-stage                          \
-             $(DIST_ARCH_2)/test-package-stage                          \
-             $(DIST_UNI)/test-package-stage; fi
-endif
