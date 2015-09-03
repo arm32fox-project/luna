@@ -1939,9 +1939,14 @@ RENDER_AGAIN:
     // are because we might have drawn something above them (like a background-image).
     ctx->Save();
     ctx->ResetClip();
-    ctx->Translate(dr.TopLeft());
 
-    // Create a rounded rectangle to follow the buttons' look.
+    // Create a border rim to draw the top border on Windows 10
+    // XXX: Find out how to get the full window rect width!
+    /* 
+    gfxRect borderrim(0.0, 0.0, window.Width(), 1.0);
+    */    
+
+    // Create a rounded rectangle to follow the buttons' look for Win Vista/7
     gfxRect buttonbox1(0.0, 0.0, dr.Width(), dr.Height() - 2.0);
     gfxRect buttonbox2(1.0, dr.Height() - 2.0, dr.Width() - 1.0, 1.0);
     gfxRect buttonbox3(2.0, dr.Height() - 1.0, dr.Width() - 3.0, 1.0);
@@ -1949,20 +1954,31 @@ RENDER_AGAIN:
     gfxContext::GraphicsOperator currentOp = ctx->CurrentOperator();
     ctx->SetOperator(gfxContext::OPERATOR_CLEAR);
 
-   // Each rectangle is drawn individually because OPERATOR_CLEAR takes
-   // the fallback path to cairo_d2d_acquire_dest if the area to fill
-   // is a complex region.
-    ctx->NewPath();
-    ctx->Rectangle(buttonbox1, true);
-    ctx->Fill();
+    // Each rectangle is drawn individually because OPERATOR_CLEAR takes
+    // the fallback path to cairo_d2d_acquire_dest if the area to fill
+    // is a complex region.
+    if (WinUtils::GetWindowsVersion() >= WinUtils::WIN10_VERSION) {
+      // On Win10, force show the top border, but don't draw the cutout
+      // XXX need width first
+      /* ctx->NewPath();
+      ctx->Rectangle(borderrim, true);
+      ctx->Fill();*/
+    } else {
+      // Draw the cutout
+      ctx->Translate(dr.TopLeft());
 
-    ctx->NewPath();
-    ctx->Rectangle(buttonbox2, true);
-    ctx->Fill();
+      ctx->NewPath();
+      ctx->Rectangle(buttonbox1, true);
+      ctx->Fill();
 
-    ctx->NewPath();
-    ctx->Rectangle(buttonbox3, true);
-    ctx->Fill();
+      ctx->NewPath();
+      ctx->Rectangle(buttonbox2, true);
+      ctx->Fill();
+
+      ctx->NewPath();
+      ctx->Rectangle(buttonbox3, true);
+      ctx->Fill();
+    }
 
     ctx->Restore();
     ctx->SetOperator(currentOp);
