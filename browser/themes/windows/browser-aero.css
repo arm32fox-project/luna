@@ -185,6 +185,27 @@
         #titlebar-close:hover {
           list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
         }
+
+        /* dark persona */
+
+        #titlebar-min:-moz-lwtheme-brighttext {
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#minimize-highlight);
+        }
+
+        #titlebar-max:-moz-lwtheme-brighttext {
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#maximize-highlight);
+        }
+
+        #main-window[sizemode="maximized"]:-moz-lwtheme-brighttext #titlebar-max:-moz-lwtheme-brighttext {
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#restore-highlight);
+        }
+
+        #titlebar-close:-moz-lwtheme-brighttext {
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
+        }
+        #titlebar-close:hover:-moz-lwtheme-brighttext {
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
+        }
         
         /* the 12px image renders a 10px icon, and the 10px upscaled gets rounded to 12.5, which
          * rounds up to 13px, which makes the icon one pixel too big on 1.25dppx. Fix: */
@@ -249,6 +270,17 @@
           #titlebar-close:hover:active {
             background-color: hsl(355, 82%, 69%);
           }
+          
+          /* dark persona */
+          .titlebar-button:-moz-lwtheme-brighttext:hover {
+            background-color: hsla(0, 0%, 255%, .22);
+          }
+
+          .titlebar-button:-moz-lwtheme-brighttext:hover:active {
+            background-color: hsla(0, 0%, 255%, .32);
+          }
+        }
+        
         @media not all and (-moz-windows-default-theme) {
           .titlebar-button {
             background-color: -moz-field;
