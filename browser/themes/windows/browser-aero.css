@@ -135,9 +135,10 @@
   @media not all and (-moz-os-version: windows-vista) {
     @media not all and (-moz-os-version: windows-win7) {
       @media not all and (-moz-os-version: windows-win8) {
-        /* Draw XUL background for caption buttons on Win10 and use our own overlay */
+        /* Draw XUL caption buttons and background on Win10 */
         @media (-moz-windows-default-theme) {
           #main-window {
+            /* Bleach it a little less than bright white, thanks. */
             background-color: hsl(0, 0%, 90%);
           }
         }
