@@ -187,25 +187,46 @@
           list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
         }
 
+        /* light persona */
+
+        #titlebar-min:-moz-lwtheme-darktext {
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#minimize-outline);
+        }
+
+        #titlebar-max:-moz-lwtheme-darktext {
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#maximize-outline);
+        }
+
+        #main-window[sizemode="maximized"]:-moz-lwtheme-darktext #titlebar-max:-moz-lwtheme-darktext {
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#restore-outline);
+        }
+
+        #titlebar-close:-moz-lwtheme-darktext {
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-outline);
+        }
+        #titlebar-close:hover:-moz-lwtheme-darktext {
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-outline);
+        }
+        
         /* dark persona */
 
         #titlebar-min:-moz-lwtheme-brighttext {
-          list-style-image: url(chrome://browser/skin/caption-buttons.svg#minimize-highlight);
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#minimize-outline-inverted);
         }
 
         #titlebar-max:-moz-lwtheme-brighttext {
-          list-style-image: url(chrome://browser/skin/caption-buttons.svg#maximize-highlight);
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#maximize-outline-inverted);
         }
 
         #main-window[sizemode="maximized"]:-moz-lwtheme-brighttext #titlebar-max:-moz-lwtheme-brighttext {
-          list-style-image: url(chrome://browser/skin/caption-buttons.svg#restore-highlight);
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#restore-outline-inverted);
         }
 
         #titlebar-close:-moz-lwtheme-brighttext {
-          list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-outline-inverted);
         }
         #titlebar-close:hover:-moz-lwtheme-brighttext {
-          list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
+          list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-outline-inverted);
         }
         
         /* the 12px image renders a 10px icon, and the 10px upscaled gets rounded to 12.5, which
@@ -306,6 +327,12 @@
             list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
           }
         }
+        
+        #appmenu-button {
+          margin-top: -1px;
+          margin-bottom: 5px;
+        }
+
       }
     }
   }
@@ -352,21 +379,21 @@
     #main-window[sizemode="normal"] > #titlebar > #titlebar-content:-moz-lwtheme:-moz-window-inactive {
       -moz-border-top-colors: @glassInactiveBorderColor@ rgba(255,255,255,.6);
     }
+    
+    #main-window[sizemode="normal"] > #titlebar > #titlebar-content > #appmenu-button-container:-moz-lwtheme {
+      margin-top: -1px;
+    }
+
+    #main-window[sizemode="normal"] #titlebar-buttonbox:-moz-lwtheme {
+      margin-top: -2px;
+    }
+
+    #appmenu-button {
+      margin-bottom: -1px; /* compensate white outer border */
+    }
   }
   
 /* ==== ==== */
-
-  #main-window[sizemode="normal"] > #titlebar > #titlebar-content > #appmenu-button-container:-moz-lwtheme {
-    margin-top: -1px;
-  }
-
-  #main-window[sizemode="normal"] #titlebar-buttonbox:-moz-lwtheme {
-    margin-top: -2px;
-  }
-
-  #appmenu-button {
-    margin-bottom: -1px; /* compensate white outer border */
-  }
 
   #main-window[sizemode=fullscreen]:not(:-moz-lwtheme) {
     -moz-appearance: none;
