@@ -36,9 +36,6 @@
 #endif
 #define _WIN32_WINNT 0x0600
 #define INITGUID
-#undef NTDDI_VERSION
-#define NTDDI_VERSION NTDDI_WIN8
-// Needed for access to IApplicationActivationManager
 #include <shlobj.h>
 
 #include <mbstring.h>
@@ -321,15 +318,6 @@ IsWin8OrLater()
   GetVersionExW(&osInfo);
   return osInfo.dwMajorVersion > 6 || 
          (osInfo.dwMajorVersion >= 6 && osInfo.dwMinorVersion >= 2);
-}
-
-static bool
-IsWin10OrLater()
-{
-  OSVERSIONINFOW osInfo;
-  osInfo.dwOSVersionInfoSize = sizeof(OSVERSIONINFOW);
-  GetVersionExW(&osInfo);
-  return osInfo.dwMajorVersion >= 10;
 }
 
 static bool
@@ -673,28 +661,6 @@ nsWindowsShellService::LaunchControlPanelDefaultPrograms()
 }
 
 nsresult
-nsWindowsShellService::LaunchModernSettingsDialogDefaultApps()
-{
-  IApplicationActivationManager* pActivator;
-  HRESULT hr = CoCreateInstance(CLSID_ApplicationActivationManager,
-                                nullptr,
-                                CLSCTX_INPROC,
-                                IID_IApplicationActivationManager,
-                                (void**)&pActivator);
-
-  if (SUCCEEDED(hr)) {
-    DWORD pid = 0;
-    hr = pActivator->ActivateApplication(
-           L"windows.immersivecontrolpanel_cw5n1h2txyewy"
-           L"!microsoft.windows.immersivecontrolpanel",
-           L"page=SettingsPageAppsDefaults", AO_NONE, &pid);
-    pActivator->Release();
-    return SUCCEEDED(hr) ? NS_OK : NS_ERROR_FAILURE;
-  }
-  return NS_OK;
-}
-
-nsresult
 nsWindowsShellService::LaunchHTTPHandlerPane()
 {
   OPENASINFO info;
@@ -729,17 +695,9 @@ nsWindowsShellService::SetDefaultBrowser(bool aClaimAllTypes, bool aForAllUsers)
         rv = LaunchHTTPHandlerPane();
       }
     } else {
-      // Windows 10 blocks attempts to load the HTTP Handler
-      // association dialog, so the modern Settings dialog
-      // is opened with the Default Apps view loaded.
-      if (IsWin10OrLater()) {
-        rv = LaunchModernSettingsDialogDefaultApps();
-      } else {
-        rv = LaunchHTTPHandlerPane();
-      }
-
-      // The above call should never really fail, but just in case
-      // fallback to showing control panel for all defaults
+      rv = LaunchHTTPHandlerPane();
+      // The above calls hould never really fail, but just in case
+      // fallb ack to showing control panel for all defaults
       if (NS_FAILED(rv)) {
         rv = LaunchControlPanelDefaultPrograms();
       }
