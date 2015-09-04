@@ -2028,6 +2028,7 @@ GK_ATOM(windows_version_win10, "windows-version-win10")
 
 GK_ATOM(nixlike_version_linux, "nixlike-version-gnu-linux")
 GK_ATOM(nixlike_version_bsd, "nixlike-version-bsd")
+GK_ATOM(nixlike_version_macosx, "nixlike-version-macos-x")
 
 // And the same again, as media query keywords.
 GK_ATOM(_moz_scrollbar_start_backward, "-moz-scrollbar-start-backward")

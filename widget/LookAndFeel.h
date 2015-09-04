@@ -416,6 +416,7 @@ public:
 	eOperatingSystemVersion_Windows10,
 	eOperatingSystemVersion_GNULinux,
 	eOperatingSystemVersion_BSD,
+	eOperatingSystemVersion_MacOSX,
 	eOperatingSystemVersion_Unknown
   };
 

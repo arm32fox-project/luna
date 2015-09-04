@@ -1263,6 +1263,9 @@ InitSystemMetrics()
 	  case LookAndFeel::eOperatingSystemVersion_BSD:
 		sSystemMetrics->AppendElement(nsGkAtoms::nixlike_version_bsd);
 		break;
+	  case LookAndFeel::eOperatingSystemVersion_MacOSX:
+		sSystemMetrics->AppendElement(nsGkAtoms::nixlike_version_macosx);
+		break;
 	}
   }
 

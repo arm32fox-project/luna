@@ -86,6 +86,8 @@ const OperatingSystemVersionInfo osVersionStrings[] = {
 #elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
 # define INTERNAL_OS_VERSION_OK
 	{ LookAndFeel::eOperatingSystemVersion_BSD,           (const PRUnichar *)u"bsd" },
+#elif XP_MACOSX
+	{ LookAndFeel::eOperatingSystemVersion_MacOSX,        (const PRUnichar *)u"macos-x" },
 #else
 # undef INTERNAL_OS_VERSION_OK
 #endif
