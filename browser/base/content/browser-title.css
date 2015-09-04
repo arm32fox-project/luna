@@ -20,6 +20,13 @@
     color: InactiveCaptionText;
 }
 
+/* Win10 doesn't respond to inactive caption, so dim it instead */
+@media (-moz-os-version: windows-win10) {
+    #main-window:-moz-window-inactive::after {
+      opacity: 0.5;
+    }
+}
+
 /* Hide in fullscreen/TiT mode */
 #main-window[inFullscreen="true"]::after,
 #main-window[sizemode="maximized"][tabsintitlebar="true"]::after,
