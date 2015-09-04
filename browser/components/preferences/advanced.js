@@ -705,14 +705,16 @@ var gAdvancedPane = {
       claimAllTypes = true;
 #ifdef XP_WIN
       try {
-        // In Windows 8+, the UI for selecting default protocol is much
+        // In Windows 10+, the UI for selecting default protocol is much
         // nicer than the UI for setting file type associations. So we
-        // only show the protocol association screen on Windows 8+.
-        // Windows 8 is version 6.2.
+        // only show the protocol association screen on Windows 10+.
+        // Windows 8.1 is version 6.3. The startup code still uses
+        // the default protocol dialog, but the preferences is more "advanced"
+        // and as such uses the file type associations.
         let version = Components.classes["@mozilla.org/system-info;1"]
                         .getService(Components.interfaces.nsIPropertyBag2)
                         .getProperty("version");
-        claimAllTypes = (parseFloat(version) < 6.2);
+        claimAllTypes = (parseFloat(version) <= 6.3);
       } catch (ex) { }
 #endif
       shellSvc.setDefaultBrowser(claimAllTypes, false);
