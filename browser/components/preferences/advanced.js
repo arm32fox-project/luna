@@ -709,15 +709,15 @@ var gAdvancedPane = {
         // nicer than the UI for setting file type associations. So we
         // only show the protocol association screen on Windows 8+.
         // Windows 8 is version 6.2.
-        let version = Cc["@mozilla.org/system-info;1"]
-                        .getService(Ci.nsIPropertyBag2)
+        let version = Components.classes["@mozilla.org/system-info;1"]
+                        .getService(Components.interfaces.nsIPropertyBag2)
                         .getProperty("version");
         claimAllTypes = (parseFloat(version) < 6.2);
       } catch (ex) { }
 #endif
       shellSvc.setDefaultBrowser(claimAllTypes, false);
     } catch (ex) {
-      Components.utils.reporterror(ex);
+      Components.utils.reportError(ex);
       return;
     }
     let selectedIndex =
