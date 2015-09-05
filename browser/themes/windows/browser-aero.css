@@ -395,9 +395,12 @@
   }
 
 /* ==== Windows Vista/7 (true glass) styling ==== */
+/* Also apply this to Windows 8 because the system coloring the background
+   of #main-window is out of our control, and may kill readability */
 
   @media (-moz-os-version: windows-vista),
-         (-moz-os-version: windows-win7) {
+         (-moz-os-version: windows-win7),
+         (-moz-os-version: windows-win8) {
 
     #toolbar-menubar:not(:-moz-lwtheme),
     #TabsToolbar[tabsontop=true]:not(:-moz-lwtheme),
