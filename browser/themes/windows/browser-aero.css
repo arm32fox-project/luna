@@ -391,8 +391,28 @@
     #appmenu-button {
       margin-bottom: -1px; /* compensate white outer border */
     }
+    
   }
+
+/* ==== Windows Vista/7 (true glass) styling ==== */
+
+  @media (-moz-os-version: windows-vista),
+         (-moz-os-version: windows-win7) {
+
+    #toolbar-menubar:not(:-moz-lwtheme),
+    #TabsToolbar[tabsontop=true]:not(:-moz-lwtheme),
+    #nav-bar[tabsontop=false]:not(:-moz-lwtheme),
+    #nav-bar + #customToolbars + #PersonalToolbar[collapsed=true] + #TabsToolbar[tabsontop=false]:last-child:not(:-moz-lwtheme) {
+      text-shadow: 0 0 .5em white, 0 0 .5em white, 0 1px 0 rgba(255,255,255,.4);
+    }
   
+    #main-menubar:not(:-moz-lwtheme):not(:-moz-window-inactive) {
+      background-color: rgba(255,255,255,.5);
+      border-radius: 4px;
+    }
+    
+  }
+ 
 /* ==== ==== */
 
   #main-window[sizemode=fullscreen]:not(:-moz-lwtheme) {
@@ -406,7 +426,6 @@
   #nav-bar + #customToolbars + #PersonalToolbar[collapsed=true] + #TabsToolbar[tabsontop=false]:last-child:not(:-moz-lwtheme) {
     background-color: transparent !important;
     color: black;
-    text-shadow: 0 0 .5em white, 0 0 .5em white, 0 1px 0 rgba(255,255,255,.4);
     border-left-style: none !important;
     border-right-style: none !important;
   }
@@ -528,11 +547,6 @@
 
   #appcontent:not(:-moz-lwtheme) {
     background-color: -moz-dialog;
-  }
-
-  #main-menubar:not(:-moz-lwtheme):not(:-moz-window-inactive) {
-    background-color: rgba(255,255,255,.5);
-    border-radius: 4px;
   }
 
   #navigator-toolbox[tabsontop=false] #urlbar:not(:-moz-lwtheme),
