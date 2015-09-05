@@ -437,8 +437,7 @@ nsHTMLCSSUtils::IsCSSEditableProperty(nsIContent* aNode,
        || nsEditProperty::dd == tagName
        || nsEditProperty::dt == tagName
        || nsEditProperty::address == tagName
-       || nsEditProperty::pre == tagName
-       || nsEditProperty::ul == tagName)) {
+       || nsEditProperty::pre == tagName)) {
     return true;
   }
 
