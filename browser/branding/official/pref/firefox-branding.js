@@ -76,6 +76,9 @@ pref("general.useragent.override.humblebundle.com","Mozilla/5.0 (Windows NT 6.1;
 pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:28.0) Gecko/20100101 Firefox/28.0");
 pref("general.useragent.override.icloud.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
 
+// UA-sniffing domains that are "app/vendor-specific" and don't like Pale Moon
+pref("general.useragent.override.web.whatsapp.com","Mozilla/5.0 (Windows NT 6.3; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/37.0.2049.0 Safari/537.36");
+
 // The following domains don't like the Goanna slice
 pref("general.useragent.override.hitbox.tv","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Firefox/31.9");
 
