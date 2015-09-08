@@ -1884,15 +1884,25 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   background: @toolbarShadowOnTab@, @bgTabTexture@,
               linear-gradient(-moz-dialog, -moz-dialog);
   background-origin: border-box;
-  background-position: 1px 2px;
-  background-size: calc(100% - 2px) calc(100% - 2px);
   background-repeat: no-repeat;
-  margin: 0;
-  padding: 2px 0 4px;
-  border-width: 4px 3px 0;
-  border-style: solid;
-  border-image: url(tabbrowser/tab.png) 4 3 0 fill repeat stretch;
-  border-radius: 0;
+  /* top margin of 0 is important for Fitts' Law in ToT/FS */
+  margin: 0px 0.5px 0px;
+  padding: 3px 3px 4px 1px;
+  border: 1px solid #929292;
+  border-bottom: 0px;
+  border-radius: 5px 5px 0px 0px;
+  box-shadow: inset 0.5px 1px 1px rgba(255,255,255,.7);
+}
+
+.tabs-newtab-button {
+  padding: 3px 1px 4px 1px;
+}
+
+/* Make sure extra margin is added when tabs are not in the title bar so it doesn't
+   "glue" right up against the AppMenu button/caption */
+#main-window[sizemode="normal"][tabsontop=true] .tabbrowser-tab,
+#main-window[sizemode="normal"][tabsontop=true] .tabs-newtab-button {
+  margin-top: 5px;
 }
 
 .tabbrowser-tab:hover,
@@ -1938,12 +1948,20 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   opacity: 0.9;
 }
 
+/* Remove highlight fuzz on dark themes */
+.tabbrowser-tab:-moz-lwtheme-brighttext,
+.tabs-newtab-button:-moz-lwtheme-brighttext {
+  box-shadow:none;
+  border-color: #707070;
+}
+
 .tabbrowser-tab[selected="true"]:-moz-lwtheme {
   background-image: linear-gradient(rgba(255,255,255,.6), rgba(255,255,255,.8) 50%);
 }
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme-brighttext {
   background-image: linear-gradient(rgba(128,128,128,.9), rgba(32,32,32,.9) 50%, rgba(32,32,32,.9) 80%, rgba(32,32,32,.8) 100%);
+  border-color: #D0D0D0;
 }
 
 .tabbrowser-tab:-moz-lwtheme-brighttext:not([selected="true"]),
@@ -2120,6 +2138,10 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 #alltabs-button {
   list-style-image: url("chrome://browser/skin/tabbrowser/alltabs.png");
   -moz-image-region: rect(0, 14px, 16px, 0);
+}
+
+#main-window[sizemode="normal"][tabsontop=true] #alltabs-button {
+  margin-top: 5px;
 }
 
 #alltabs-button[type="menu"] {
