@@ -153,6 +153,10 @@
           margin: 0 !important;
           padding: 8px 17px;
         }
+        
+        #main-window[sizemode="maximized"][tabsontop=true] #tabbrowser-tabs {
+          min-height: 28px;
+        }
 
         #main-window[sizemode=maximized] .titlebar-button {
           padding-top: 8px;
