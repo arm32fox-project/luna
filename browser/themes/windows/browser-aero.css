@@ -513,10 +513,11 @@
   }
 
   #navigator-toolbox[tabsontop=false] > #PersonalToolbar {
-    margin-top: 3px;
+    margin-top: 1px;
   }
+  
   #navigator-toolbox[tabsontop=false] > #PersonalToolbar:not(:-moz-lwtheme) {
-    margin-top: 2px;
+    margin-top: 0px;
     border-top: 1px solid @toolbarShadowColor@;
     background-image: linear-gradient(@toolbarHighlight@, rgba(255,255,255,0));
   }
