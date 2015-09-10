@@ -149,12 +149,20 @@ private:
                 m_state = AfterCharacterClass;
                 m_delegate.atomCharacterClassBuiltIn(classID, invert);
                 return;
-
+                
+                // If we hit either of these cases, we have an invalid range
+                // that looks something like /[x-\d]/ or /[\d-\d]/.
+                // According to ECMA-262 this should be a syntax error, but
+                // mainstream browser parity (as opposed to spec compliance)
+                // has allowed the web to be broken. Instead, we comply with
+                // the ECMA-262 grammar, and assume the grammar to have matched
+                // the range correctly, but tweak our interpretation of
+                // CharacterRange. Effectively we implicitly handle the hyphen
+                // as if it were escaped, e.g. /[\w-_]/ is treated as /[\w\-_]/.
             case CachedCharacterHyphen:
-                // Error! We have a range that looks like [x-\d]. We require
-                // the end of the range to be a single character.
-                m_err = CharacterClassInvalidRange;
-                return;
+                m_delegate.atomCharacterClassAtom(m_character);
+                m_delegate.atomCharacterClassAtom('-');
+                // Fall through
             case AfterCharacterClassHyphen:
                 m_delegate.atomCharacterClassBuiltIn(classID, invert);
                 m_state = Empty;
