@@ -426,9 +426,6 @@ function Statusbar() {
 	   me.icon.collapsed = false;
 		me.meter = document.getElementById('htmlruby-meter');
 		me.stop = document.getElementById('htmlruby-stop');
-		document.getElementById('htmlruby-reportProblem').addEventListener('command', function(e) {
-			me.reportProblem();
-		}, true);
 	}, false);
 }
 Statusbar.prototype = {
