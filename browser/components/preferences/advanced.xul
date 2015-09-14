@@ -126,9 +126,6 @@
 
       <tabs id="tabsElement">
         <tab id="generalTab" label="&generalTab.label;" helpTopic="prefs-advanced-general"/>
-#ifdef MOZ_DATA_REPORTING
-        <tab id="dataChoicesTab" label="&dataChoicesTab.label;" helpTopic="prefs-advanced-data-choices"/>
-#endif
         <tab id="networkTab" label="&networkTab.label;" helpTopic="prefs-advanced-network"/>
         <tab id="updateTab" label="&updateTab.label;"  helpTopic="prefs-advanced-update"/>
         <tab id="encryptionTab" label="&certificateTab.label;" helpTopic="prefs-advanced-encryption"/>
@@ -205,28 +202,6 @@
           </groupbox>
         </tabpanel>
 
-#ifdef MOZ_DATA_REPORTING
-        <!-- Data Choices -->
-        <tabpanel id="dataChoicesPanel" orient="vertical">
-#ifdef MOZ_SERVICES_HEALTHREPORT
-          <groupbox>
-            <caption label="&healthReportSection.label;"/>
-            <description>&healthReportDesc.label;</description>
-            <hbox>
-              <checkbox id="submitHealthReportBox"
-                        oncommand="gAdvancedPane.updateSubmitHealthReport();"
-                        label="&enableHealthReport.label;"
-                        accesskey="&enableHealthReport.accesskey;"/>
-              <spacer flex="1"/>
-              <label id="FHRLearnMore"
-                     class="text-link"
-                     value="&healthReportLearnMore.label;"
-                     onclick="gAdvancedPane.openTextLink(event)"/>
-            </hbox>
-          </groupbox>
-#endif
-        </tabpanel>
-#endif
         <!-- Network -->
         <tabpanel id="networkPanel" orient="vertical">
 

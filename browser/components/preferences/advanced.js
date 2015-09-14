@@ -69,10 +69,6 @@ var gAdvancedPane = {
     this.updateReadPrefs();
 #endif
     this.updateOfflineApps();
-    this.initTelemetry();
-#ifdef MOZ_SERVICES_HEALTHREPORT
-    this.initSubmitHealthReport();
-#endif
 
     this.updateActualCacheSize("disk");
     this.updateActualCacheSize("offline");
@@ -190,57 +186,6 @@ var gAdvancedPane = {
       el.setAttribute("hidden", "true");
     }
   },
-
-  /**
-   * The preference/checkbox is configured in XUL.
-   *
-   * In all cases, set up the Learn More link sanely
-   */
-  initTelemetry: function ()
-  {
-  // Telemetry stub
-  },
-
-#ifdef MOZ_SERVICES_HEALTHREPORT
-  /**
-   * Initialize the health report service reference and checkbox.
-   */
-  initSubmitHealthReport: function () {
-    this._setupLearnMoreLink("datareporting.healthreport.infoURL", "FHRLearnMore");
-
-    let policy = Components.classes["@mozilla.org/datareporting/service;1"]
-                                   .getService(Components.interfaces.nsISupports)
-                                   .wrappedJSObject
-                                   .policy;
-
-    let checkbox = document.getElementById("submitHealthReportBox");
-
-    if (!policy) {
-      checkbox.setAttribute("disabled", "true");
-      return;
-    }
-
-    checkbox.checked = policy.healthReportUploadEnabled;
-  },
-
-  /**
-   * Update the health report policy acceptance with state from checkbox.
-   */
-  updateSubmitHealthReport: function () {
-    let policy = Components.classes["@mozilla.org/datareporting/service;1"]
-                                   .getService(Components.interfaces.nsISupports)
-                                   .wrappedJSObject
-                                   .policy;
-
-    if (!policy) {
-      return;
-    }
-
-    let checkbox = document.getElementById("submitHealthReportBox");
-    policy.recordHealthReportUploadEnabled(checkbox.checked,
-                                           "Checkbox from preferences pane");
-  },
-#endif
 
   // NETWORK TAB
 

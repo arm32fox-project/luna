@@ -364,12 +364,6 @@
                       label="&helpMenu.label;"
                       oncommand="openHelpLink('firefox-help')"
                       onclick="checkForMiddleClick(this, event);"/>
-#ifdef MOZ_SERVICES_HEALTHREPORT
-            <menuitem id="appmenu_healthReport"
-                      label="&healthReport.label;"
-                      oncommand="openHealthReport()"
-                      onclick="checkForMiddleClick(this, event);"/>
-#endif
             <menuitem id="appmenu_troubleshootingInfo"
                       label="&helpTroubleshootingInfo.label;"
                       oncommand="openTroubleshootingPage()"

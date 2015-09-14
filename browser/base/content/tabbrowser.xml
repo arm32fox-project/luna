@@ -929,7 +929,6 @@
               return;
 
             if (!aForceUpdate) {
-              TelemetryStopwatch.start("FX_TAB_SWITCH_UPDATE_MS");
               window.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils)
                                                              .beginTabSwitch();
             }
@@ -1113,9 +1112,6 @@
             }
 
             this.tabContainer._setPositionalAttributes();
-
-            if (!aForceUpdate)
-              TelemetryStopwatch.finish("FX_TAB_SWITCH_UPDATE_MS");
           ]]>
         </body>
       </method>
@@ -3822,7 +3818,7 @@
         <body>
         <![CDATA[
           // Animation-smoothness telemetry/logging
-          if (Services.telemetry.canRecord || this._tabAnimationLoggingEnabled) {
+          if (this._tabAnimationLoggingEnabled) {
             if (aURI == "about:newtab" && (aTab._tPos == 1 || aTab._tPos == 2)) {
               // Indicate newtab page animation where other tabs are unaffected
               // (for which case, the 2nd or 3rd tabs are good representatives, even if not absolute)

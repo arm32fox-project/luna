@@ -437,9 +437,6 @@ XRE_API(void,
 #endif
 
 XRE_API(void,
-        XRE_TelemetryAccumulate, (int aID, uint32_t aSample))
-
-XRE_API(void,
         XRE_StartupTimelineRecord, (int aEvent, PRTime aWhen))
 
 XRE_API(void,

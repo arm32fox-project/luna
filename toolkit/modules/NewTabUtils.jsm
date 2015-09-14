@@ -50,9 +50,6 @@ const PREF_NEWTAB_COLUMNS = "browser.newtabpage.columns";
 // The maximum number of results we want to retrieve from history.
 const HISTORY_RESULTS_LIMIT = 100;
 
-// The gather telemetry topic.
-const TOPIC_GATHER_TELEMETRY = "gather-telemetry";
-
 /**
  * Calculate the MD5 hash for a string.
  * @param aValue
@@ -703,33 +700,6 @@ let Links = {
 };
 
 /**
- * Singleton used to collect telemetry data.
- *
- */
-let Telemetry = {
-  /**
-   * Initializes object.
-   */
-  init: function Telemetry_init() {
-    Services.obs.addObserver(this, TOPIC_GATHER_TELEMETRY, false);
-  },
-
-  /**
-   * Collects data.
-   */
-  _collect: function Telemetry_collect() {
-    // Telemetry stub
-  },
-
-  /**
-   * Listens for gather telemetry topic.
-   */
-  observe: function Telemetry_observe(aSubject, aTopic, aData) {
-    this._collect();
-  }
-};
-
-/**
  * Singleton that checks if a given link should be displayed on about:newtab
  * or if we should rather not do it for security reasons. URIs that inherit
  * their caller's principal will be filtered.
@@ -797,7 +767,6 @@ this.NewTabUtils = {
     if (!this._initialized) {
       this._initialized = true;
       ExpirationFilter.init();
-      Telemetry.init();
     }
   },
 
