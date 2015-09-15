@@ -1144,7 +1144,7 @@ nsDocumentViewer::PermitUnload(bool aCallerClosesWindow, bool *aPermitUnload)
   // This is checked here and not before, so the unload events still fire.
   if (!sIsBeforeUnloadDisabled &&
       (event->GetInternalNSEvent()->mFlags.mDefaultPrevented ||
-       !text.IsEmpty()) {
+       !text.IsEmpty())) {
     // Ask the user if it's ok to unload the current page
 
     nsCOMPtr<nsIPrompt> prompt = do_GetInterface(docShellNode);
