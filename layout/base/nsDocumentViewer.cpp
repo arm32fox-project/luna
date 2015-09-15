@@ -158,12 +158,7 @@ static const char sPrintOptionsContractID[]         = "@mozilla.org/gfx/printset
 using namespace mozilla;
 using namespace mozilla::dom;
 
-#ifdef DEBUG
-
-#undef NOISY_VIEWER
-#else
-#undef NOISY_VIEWER
-#endif
+#define BEFOREUNLOAD_DISABLED_PREFNAME "dom.disable_beforeunload"
 
 //-----------------------------------------------------
 // PR LOGGING
@@ -597,10 +592,6 @@ nsDocumentViewer::~nsDocumentViewer()
 NS_IMETHODIMP
 nsDocumentViewer::LoadStart(nsISupports *aDoc)
 {
-#ifdef NOISY_VIEWER
-  printf("nsDocumentViewer::LoadStart\n");
-#endif
-
   nsresult rv = NS_OK;
   if (!mDocument) {
     mDocument = do_QueryInterface(aDoc, &rv);
@@ -1094,6 +1085,15 @@ nsDocumentViewer::PermitUnload(bool aCallerClosesWindow, bool *aPermitUnload)
     return NS_OK;
   }
 
+  static bool sIsBeforeUnloadDisabled;
+  static bool sBeforeUnloadPrefCached = false;
+
+  if (!sBeforeUnloadPrefCached ) {
+    sBeforeUnloadPrefCached = true;
+    Preferences::AddBoolVarCache(&sIsBeforeUnloadDisabled,
+                                 BEFOREUNLOAD_DISABLED_PREFNAME);
+  }
+
   // First, get the script global object from the document...
   nsPIDOMWindow *window = mDocument->GetWindow();
 
@@ -1139,8 +1139,12 @@ nsDocumentViewer::PermitUnload(bool aCallerClosesWindow, bool *aPermitUnload)
   nsCOMPtr<nsIDocShellTreeNode> docShellNode(do_QueryReferent(mContainer));
   nsAutoString text;
   beforeUnload->GetReturnValue(text);
-  if (event->GetInternalNSEvent()->mFlags.mDefaultPrevented ||
-      !text.IsEmpty()) {
+  // If the user has turned off unbeforeunload warnings, we don't ask
+  // them anything and pretend they OKed this.
+  // This is checked here and not before, so the unload events still fire.
+  if (!sIsBeforeUnloadDisabled &&
+      (event->GetInternalNSEvent()->mFlags.mDefaultPrevented ||
+       !text.IsEmpty()) {
     // Ask the user if it's ok to unload the current page
 
     nsCOMPtr<nsIPrompt> prompt = do_GetInterface(docShellNode);
