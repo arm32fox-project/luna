@@ -68,7 +68,6 @@ private:
   bool mShutdown;
   bool mWaiting;
   bool mSleeping;
-  TimeStamp mLastTimerEventLoopRun;
   
   nsTArray<nsTimerImpl*> mTimers;
 };
