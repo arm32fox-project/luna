@@ -28,6 +28,12 @@ class TimeRanges;
 
 class AbstractMediaDecoder;
 
+typedef enum {
+  GST_AUTOPLUG_SELECT_TRY,
+  GST_AUTOPLUG_SELECT_EXPOSE,
+  GST_AUTOPLUG_SELECT_SKIP
+} GstAutoplugSelectResult;
+
 class GStreamerReader : public MediaDecoderReader
 {
 public:
@@ -135,6 +141,12 @@ private:
    * or ignored.
    */
   static bool ShouldAutoplugFactory(GstElementFactory* aFactory, GstCaps* aCaps);
+  #if GST_CHECK_VERSION(1,2,3)
+  static GstAutoplugSelectResult AutoplugSelectCb(GstElement* aDecodeBin,
+                                                  GstPad* aPad, GstCaps* aCaps,
+                                                  GstElementFactory* aFactory,
+                                                  void* aGroup);
+  #else
 
   /* Called by decodebin during autoplugging. We use it to apply our
    * container/codec whitelist.
@@ -142,6 +154,7 @@ private:
   static GValueArray* AutoplugSortCb(GstElement* aElement,
                                      GstPad* aPad, GstCaps* aCaps,
                                      GValueArray* aFactories);
+  #endif
 
   GstElement* mPlayBin;
   GstBus* mBus;
