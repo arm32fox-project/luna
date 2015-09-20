@@ -43,9 +43,6 @@ class nsCSSStyleSheet;
 
 struct RangePaintInfo;
 struct nsCallbackEventRequest;
-#ifdef MOZ_REFLOW_PERF
-class ReflowCountMgr;
-#endif
 
 class nsPresShellEventCB;
 class nsAutoCauseReflowNotifier;
@@ -259,19 +256,6 @@ public:
   NS_DECL_NSIMUTATIONOBSERVER_CONTENTREMOVED
 
   NS_DECL_NSIOBSERVER
-
-#ifdef MOZ_REFLOW_PERF
-  virtual NS_HIDDEN_(void) DumpReflows() MOZ_OVERRIDE;
-  virtual NS_HIDDEN_(void) CountReflows(const char * aName, nsIFrame * aFrame) MOZ_OVERRIDE;
-  virtual NS_HIDDEN_(void) PaintCount(const char * aName,
-                                      nsRenderingContext* aRenderingContext,
-                                      nsPresContext* aPresContext,
-                                      nsIFrame * aFrame,
-                                      const nsPoint& aOffset,
-                                      uint32_t aColor) MOZ_OVERRIDE;
-  virtual NS_HIDDEN_(void) SetPaintFrameCount(bool aOn) MOZ_OVERRIDE;
-  virtual bool IsPaintingFrameCounts() MOZ_OVERRIDE;
-#endif
 
 #ifdef DEBUG
   virtual void ListStyleContexts(nsIFrame *aRootFrame, FILE *out,
@@ -735,10 +719,6 @@ protected:
   // not in reflow.
   nsIFrame*                 mCurrentReflowRoot;
   uint32_t                  mUpdateCount;
-#endif
-
-#ifdef MOZ_REFLOW_PERF
-  ReflowCountMgr*           mReflowCountMgr;
 #endif
 
   // This is used for synthetic mouse events that are sent when what is under

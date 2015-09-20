@@ -629,7 +629,7 @@ protected:
                             nsStyleContext* aContext,
                             bool aIsBoxShadow,
                             bool& aCanStoreInRuleTree);
-  void SetStyleFilterToCSSValue(nsStyleFilter* aStyleFilter,
+  bool SetStyleFilterToCSSValue(nsStyleFilter* aStyleFilter,
                                 const nsCSSValue& aValue,
                                 nsStyleContext* aStyleContext,
                                 nsPresContext* aPresContext,

@@ -19,7 +19,6 @@
 #include "mozilla/StartupTimeline.h"
 #include "mozilla/unused.h"
 #include "mozilla/Util.h"
-#include "mozilla/VisualEventTracer.h"
 
 #ifdef MOZ_LOGGING
 // so we can get logging even in release builds (but only for some things)
@@ -6560,8 +6559,6 @@ nsDocShell::EndPageLoad(nsIWebProgress * aProgress,
 {
     if(!aChannel)
         return NS_ERROR_NULL_POINTER;
-    
-    MOZ_EVENT_TRACER_DONE(this, "docshell::pageload");
 
     nsCOMPtr<nsIURI> url;
     nsresult rv = aChannel->GetURI(getter_AddRefs(url));
@@ -9314,13 +9311,6 @@ nsDocShell::DoURILoad(nsIURI * aURI,
                       bool aForceAllowCookies,
                       const nsAString &aSrcdoc)
 {
-#ifdef MOZ_VISUAL_EVENT_TRACER
-    nsAutoCString urlSpec;
-    aURI->GetAsciiSpec(urlSpec);
-    MOZ_EVENT_TRACER_NAME_OBJECT(this, urlSpec.BeginReading());
-    MOZ_EVENT_TRACER_EXEC(this, "docshell::pageload");
-#endif
-
     nsresult rv;
     nsCOMPtr<nsIURILoader> uriLoader;
 

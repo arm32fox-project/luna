@@ -183,7 +183,6 @@ nsHTMLButtonControlFrame::Reflow(nsPresContext* aPresContext,
                                const nsHTMLReflowState& aReflowState,
                                nsReflowStatus& aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsHTMLButtonControlFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
 
   NS_PRECONDITION(aReflowState.ComputedWidth() != NS_INTRINSICSIZE,

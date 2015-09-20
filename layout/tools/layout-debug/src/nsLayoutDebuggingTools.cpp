@@ -291,15 +291,7 @@ nsLayoutDebuggingTools::SetReflowCounts(bool aShow)
     NS_ENSURE_TRUE(mDocShell, NS_ERROR_NOT_INITIALIZED);
     nsCOMPtr<nsIPresShell> shell(pres_shell(mDocShell)); 
     if (shell) {
-#ifdef MOZ_REFLOW_PERF
-        shell->SetPaintFrameCount(aShow);
-        SetBoolPrefAndRefresh("layout.reflow.showframecounts", aShow);
-        mReflowCounts = aShow;
-#else
-        printf("************************************************\n");
-        printf("Sorry, you have not built with MOZ_REFLOW_PERF=1\n");
-        printf("************************************************\n");
-#endif
+        printf("Sorry, reflow performance tracing is not available\n");
     }
     return NS_OK;
 }
@@ -503,13 +495,7 @@ nsLayoutDebuggingTools::DumpReflowStats()
 #ifdef DEBUG
     nsCOMPtr<nsIPresShell> shell(pres_shell(mDocShell)); 
     if (shell) {
-#ifdef MOZ_REFLOW_PERF
-        shell->DumpReflows();
-#else
-        printf("************************************************\n");
-        printf("Sorry, you have not built with MOZ_REFLOW_PERF=1\n");
-        printf("************************************************\n");
-#endif
+        printf("Sorry, reflow performance tracing is not available\n");
     }
 #endif
     return NS_OK;

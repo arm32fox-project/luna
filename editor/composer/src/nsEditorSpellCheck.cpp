@@ -45,16 +45,16 @@
 
 using namespace mozilla;
 
-class UpdateDictionnaryHolder {
+class UpdateDictionaryHolder {
   private:
     nsEditorSpellCheck* mSpellCheck;
   public:
-    UpdateDictionnaryHolder(nsEditorSpellCheck* esc): mSpellCheck(esc) {
+    UpdateDictionaryHolder(nsEditorSpellCheck* esc): mSpellCheck(esc) {
       if (mSpellCheck) {
         mSpellCheck->BeginUpdateDictionary();
       }
     }
-    ~UpdateDictionnaryHolder() {
+    ~UpdateDictionaryHolder() {
       if (mSpellCheck) {
         mSpellCheck->EndUpdateDictionary();
       }
@@ -640,6 +640,9 @@ nsEditorSpellCheck::CheckCurrentDictionary()
   NS_ENSURE_SUCCESS(rv, rv);
 
   if (dictList.Length() > 0) {
+    // Use RAII object to prevent content preferences being written during
+    // this call.
+    UpdateDictionaryHolder holder(this);
     rv = SetCurrentDictionary(dictList[0]);
     NS_ENSURE_SUCCESS(rv, rv);
   }
@@ -720,7 +723,7 @@ nsEditorSpellCheck::DictionaryFetched(DictionaryFetcher* aFetcher)
   // Important: declare the holder after the callback caller so that the former
   // is destructed first so that it's not active when the callback is called.
   CallbackCaller callbackCaller(aFetcher->mCallback);
-  UpdateDictionnaryHolder holder(this);
+  UpdateDictionaryHolder holder(this);
 
   if (aFetcher->mGroup < mDictionaryFetcherGroup) {
     // SetCurrentDictionary was called after the fetch started.  Don't overwrite

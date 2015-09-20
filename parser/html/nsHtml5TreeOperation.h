@@ -56,6 +56,7 @@ enum eHtml5TreeOperation {
   eTreeOpMaybeComplainAboutCharset,
   eTreeOpAddClass,
   eTreeOpAddViewSourceHref,
+  eTreeOpAddViewSourceBase,
   eTreeOpAddError,
   eTreeOpAddLineNumberId,
   eTreeOpAddErrorAtom,

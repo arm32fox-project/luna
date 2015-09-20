@@ -60,3 +60,6 @@ toolkit/devtools/chrome.manifest
 
 # Ignore misc files that need not be in the repo
 other-licenses/7zstub/firefox/7zSD - Copy.sfx.exe
+
+# Ignore official beta branding
+browser/branding/officialbeta/

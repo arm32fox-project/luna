@@ -168,8 +168,6 @@ nsListControlFrame::BuildDisplayList(nsDisplayListBuilder*   aBuilder,
   if (aBuilder->IsBackgroundOnly())
     return;
 
-  DO_GLOBAL_REFLOW_COUNT_DSP("nsListControlFrame");
-
   if (IsInDropDownMode()) {
     NS_ASSERTION(NS_GET_A(mLastDropdownBackstopColor) == 255,
                  "need an opaque backstop color");

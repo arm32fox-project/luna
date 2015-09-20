@@ -70,7 +70,7 @@ GCONF_VERSION=1.2.1
 GIO_VERSION=2.20
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.8.10.1
+SQLITE_VERSION=3.8.11.1
 
 MSMANIFEST_TOOL=
 
@@ -4088,7 +4088,6 @@ MOZ_SOCIAL=1
 MOZ_PREF_EXTENSIONS=1
 MOZ_PROFILELOCKING=1
 MOZ_PSM=1
-MOZ_REFLOW_PERF=
 MOZ_SAFE_BROWSING=
 MOZ_HELP_VIEWER=
 MOZ_SPELLCHECK=1
@@ -7402,28 +7401,6 @@ dnl ========================================================
 MOZ_ARG_HEADER(Profiling and Instrumenting)
 
 dnl ========================================================
-dnl = Enable runtime visual profiling logger
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(visual-event-tracer,
-[  --enable-visual-event-tracer   Enable visual event tracer instrumentation],
-    MOZ_VISUAL_EVENT_TRACER=1,
-    MOZ_VISUAL_EVENT_TRACER=)
-if test -n "$MOZ_VISUAL_EVENT_TRACER"; then
-    AC_DEFINE(MOZ_VISUAL_EVENT_TRACER)
-fi
-
-dnl ========================================================
-dnl Turn on reflow counting
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(reflow-perf,
-[  --enable-reflow-perf    Enable reflow performance tracing],
-    MOZ_REFLOW_PERF=1,
-    MOZ_REFLOW_PERF= )
-if test -n "$MOZ_REFLOW_PERF"; then
-    AC_DEFINE(MOZ_REFLOW_PERF)
-fi
-
-dnl ========================================================
 dnl Enable code size metrics.
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(codesighs,
@@ -8310,12 +8287,6 @@ if test -n "$MOZ_SERVICES_CRYPTO"; then
   AC_DEFINE(MOZ_SERVICES_CRYPTO)
 fi
 
-dnl Build Firefox Health Reporter Service
-AC_SUBST(MOZ_SERVICES_HEALTHREPORT)
-if test -n "$MOZ_SERVICES_HEALTHREPORT"; then
-  AC_DEFINE(MOZ_SERVICES_HEALTHREPORT)
-fi
-
 dnl Build Services metrics component
 AC_SUBST(MOZ_SERVICES_METRICS)
 if test -n "$MOZ_SERVICES_METRICS"; then
@@ -8594,15 +8565,6 @@ AC_SUBST(MOZ_PKG_SPECIAL)
 
 AC_SUBST(MOZILLA_OFFICIAL)
 
-dnl If we have any service that uploads data (and requires data submission
-dnl policy alert), set MOZ_DATA_REPORTING.
-dnl We need SUBST for build system and DEFINE for xul preprocessor.
-if test -n "$MOZ_SERVICES_HEALTHREPORT"; then
-  MOZ_DATA_REPORTING=1
-  AC_DEFINE(MOZ_DATA_REPORTING)
-  AC_SUBST(MOZ_DATA_REPORTING)
-fi
-
 dnl win32 options
 AC_SUBST(MOZ_MAPINFO)
 AC_SUBST(MOZ_BROWSE_INFO)
@@ -8826,11 +8788,6 @@ if test "$OS_ARCH" = "Darwin"; then
   AC_DEFINE(XP_UNIX)
 elif test "$OS_ARCH" != "WINNT"; then
   AC_DEFINE(XP_UNIX)
-fi
-
-if test "$MOZ_DEBUG"; then
-    AC_DEFINE(MOZ_REFLOW_PERF)
-    AC_DEFINE(MOZ_REFLOW_PERF_DSP)
 fi
 
 if test "$ACCESSIBILITY" -a "$MOZ_ENABLE_GTK" ; then

@@ -101,7 +101,6 @@ NS_IMETHODIMP nsMeterFrame::Reflow(nsPresContext*           aPresContext,
                                    const nsHTMLReflowState& aReflowState,
                                    nsReflowStatus&          aStatus)
 {
-  DO_GLOBAL_REFLOW_COUNT("nsMeterFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
 
   NS_ASSERTION(mBarDiv, "Meter bar div must exist!");

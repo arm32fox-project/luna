@@ -43,9 +43,6 @@
     <div id="messages">
       <p id="distributionAbout" hidden="true"/>
       <p id="distributionID" hidden="true"/>
-      <p id="telemetry" hidden="true">
-        &aboutPage.warningVersion;
-      </p>
     </div>
 
   </div>
@@ -80,7 +77,6 @@
         versionPara.appendChild(br);
         let date = document.createTextNode("(" + buildDate + ")");
         versionPara.appendChild(date);
-        document.getElementById("telemetry").hidden = false;
       }
 
       // Include the Distribution information if available
