@@ -7543,7 +7543,6 @@ var Tabs = {
       let tabAgeMs = Date.now() - lruTab.lastTouchedAt;
       if (tabAgeMs > expireTimeMs) {
         MemoryObserver.zombify(lruTab);
-        Telemetry.addData("FENNEC_TAB_EXPIRED", tabAgeMs / 1000);
         return true;
       }
     }

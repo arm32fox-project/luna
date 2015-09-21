@@ -454,6 +454,10 @@ NS_IMETHODIMP nsDefaultURIFixup::KeywordToURI(const nsACString& aKeyword,
                 // possibility we'll increment the counter without actually
                 // incurring a search. A robust solution would involve currying
                 // the search engine's name through various function calls.
+                // NOTE: there is no more telemetry, but this event left intact
+                //       'cause there can be some addon that's using it, this
+                //       event costs us nothing, and we can avoid possible
+                //       breakage.
                 nsCOMPtr<nsIObserverService> obsSvc = mozilla::services::GetObserverService();
                 if (obsSvc) {
                     obsSvc->NotifyObservers(defaultEngine, "keyword-search", NS_ConvertUTF8toUTF16(keyword).get());

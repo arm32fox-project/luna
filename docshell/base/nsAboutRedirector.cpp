@@ -60,8 +60,6 @@ static RedirEntry kRedirMap[] = {
       nsIAboutModule::HIDE_FROM_ABOUTABOUT },
     { "support", "chrome://global/content/aboutSupport.xhtml",
       nsIAboutModule::ALLOW_SCRIPT },
-    { "telemetry", "chrome://global/content/aboutTelemetry.xhtml",
-      nsIAboutModule::ALLOW_SCRIPT },
     // about:srcdoc is unresolvable by specification.  It is included here
     // because the security manager would disallow srcdoc iframes otherwise.
     { "srcdoc", "about:blank",
