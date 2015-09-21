@@ -34,16 +34,12 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/osfile.jsm");
 Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
 
-XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch",
-  "resource://gre/modules/TelemetryStopwatch.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
   "resource://gre/modules/NetUtil.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
   "resource://gre/modules/FileUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
   "resource://gre/modules/Task.jsm");
-XPCOMUtils.defineLazyServiceGetter(this, "Telemetry",
-  "@mozilla.org/base/telemetry;1", "nsITelemetry");
 
 // An encoder to UTF-8.
 XPCOMUtils.defineLazyGetter(this, "gEncoder", function () {
@@ -184,16 +180,12 @@ let SessionFileInternal = {
    * instead.
    */
   syncRead: function ssfi_syncRead() {
-    // Start measuring the duration of the synchronous read.
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_SYNC_READ_FILE_MS");
     // First read the sessionstore.js.
     let text = this.readAuxSync(this.path);
     if (typeof text === "undefined") {
       // If sessionstore.js does not exist or is corrupted, read sessionstore.bak.
       text = this.readAuxSync(this.backupPath);
     }
-    // Finish the telemetry probe and return an empty string.
-    TelemetryStopwatch.finish("FX_SESSION_RESTORE_SYNC_READ_FILE_MS");
     return text || "";
   },
 
@@ -259,22 +251,12 @@ let SessionFileInternal = {
     let refObj = {};
     let self = this;
     return TaskUtils.spawn(function task() {
-      TelemetryStopwatch.start("FX_SESSION_RESTORE_WRITE_FILE_MS", refObj);
-      TelemetryStopwatch.start("FX_SESSION_RESTORE_WRITE_FILE_LONGEST_OP_MS", refObj);
-
       let bytes = gEncoder.encode(aData);
 
       try {
         let promise = OS.File.writeAtomic(self.path, bytes, {tmpPath: self.path + ".tmp"});
-        // At this point, we measure how long we stop the main thread
-        TelemetryStopwatch.finish("FX_SESSION_RESTORE_WRITE_FILE_LONGEST_OP_MS", refObj);
-
-        // Now wait for the result and measure how long we had to wait for the result
         yield promise;
-        TelemetryStopwatch.finish("FX_SESSION_RESTORE_WRITE_FILE_MS", refObj);
       } catch (ex) {
-        TelemetryStopwatch.cancel("FX_SESSION_RESTORE_WRITE_FILE_LONGEST_OP_MS", refObj);
-        TelemetryStopwatch.cancel("FX_SESSION_RESTORE_WRITE_FILE_MS", refObj);
         Cu.reportError("Could not write session state file " + self.path
                        + ": " + aReason);
       }

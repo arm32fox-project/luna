@@ -285,9 +285,6 @@ class FirefoxProfile(Profile):
                    'security.notification_enable_delay' : 0,
                    # Suppress automatic safe mode after crashes
                    'toolkit.startup.max_resumed_crashes' : -1,
-                   # Don't report telemetry information
-                   'toolkit.telemetry.enabled' : False,
-                   'toolkit.telemetry.enabledPreRelease' : False,
                    }
 
 class ThunderbirdProfile(Profile):

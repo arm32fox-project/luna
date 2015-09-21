@@ -41,8 +41,6 @@
 # include <binder/ProcessState.h>
 #endif
 
-#include "mozilla/Telemetry.h"
-
 static void Output(const char *fmt, ... )
 {
   va_list ap;
@@ -104,7 +102,6 @@ static const nsDynamicFunctionLoad kXULFuncs[] = {
 #ifdef XRE_HAS_DLL_BLOCKLIST
     { "XRE_SetupDllBlocklist", (NSFuncPtr*) &XRE_SetupDllBlocklist },
 #endif
-    { "XRE_TelemetryAccumulate", (NSFuncPtr*) &XRE_TelemetryAccumulate },
     { "XRE_main", (NSFuncPtr*) &XRE_main },
     { nullptr, nullptr }
 };

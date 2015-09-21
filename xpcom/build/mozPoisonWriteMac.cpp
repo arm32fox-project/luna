@@ -12,7 +12,6 @@
 #include "mozilla/Scoped.h"
 #include "mozilla/Mutex.h"
 #include "mozilla/DebugOnly.h"
-#include "mozilla/ProcessedStack.h"
 #include "nsStackWalk.h"
 #include "nsPrintfCString.h"
 #include "mach_override.h"

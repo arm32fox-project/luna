@@ -31,7 +31,6 @@ EXTRA_JS_MODULES := \
   RemoteWebProgress.jsm \
   Sqlite.jsm \
   Task.jsm \
-  TelemetryTimestamps.jsm \
   Timer.jsm \
   $(NULL)
 

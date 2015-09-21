@@ -438,7 +438,6 @@ var AddonManagerInternal = {
   }),
 
   recordTimestamp: function AMI_recordTimestamp(name, value) {
-    this.TelemetryTimestamps.add(name, value);
   },
 
   /**
@@ -2497,7 +2496,6 @@ this.AddonManager = {
 };
 
 // load the timestamps module into AddonManagerInternal
-Cu.import("resource://gre/modules/TelemetryTimestamps.jsm", AddonManagerInternal);
 Object.freeze(AddonManagerInternal);
 Object.freeze(AddonManagerPrivate);
 Object.freeze(AddonManager);

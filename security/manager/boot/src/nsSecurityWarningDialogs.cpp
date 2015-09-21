@@ -143,9 +143,6 @@ nsSecurityWarningDialogs::ConfirmDialog(nsIInterfaceRequestor *ctx, const char *
   if (NS_FAILED(rv)) return rv;
 
   *_result = (buttonPressed != 1);
-  if (*_result) {
-    // Telemetry stub
-  }
 
   if (!prefValue && prefName) {
     mPrefBranch->SetBoolPref(prefName, false);
