@@ -595,6 +595,7 @@ void HTMLMediaElement::AbortExistingLoads()
     mAudioStream = nullptr;
   }
 
+  RemoveMediaElementFromURITable();
   mLoadingSrc = nullptr;
 
   if (mNetworkState == nsIDOMHTMLMediaElement::NETWORK_LOADING ||
@@ -791,6 +792,7 @@ void HTMLMediaElement::SelectResource()
       NS_ASSERTION(!mIsLoadingFromSourceChildren,
         "Should think we're not loading from source children by default");
 
+      RemoveMediaElementFromURITable();
       mLoadingSrc = uri;
       if (mPreloadAction == HTMLMediaElement::PRELOAD_NONE) {
         // preload:none media, suspend the load here before we make any
@@ -916,6 +918,7 @@ void HTMLMediaElement::LoadFromSourceChildren()
       continue;
     }
 
+    RemoveMediaElementFromURITable();
     mLoadingSrc = uri;
     NS_ASSERTION(mNetworkState == nsIDOMHTMLMediaElement::NETWORK_LOADING,
                  "Network state should be loading");
@@ -1813,11 +1816,7 @@ HTMLMediaElement::AddMediaElementToURITable()
 void
 HTMLMediaElement::RemoveMediaElementFromURITable()
 {
-  NS_ASSERTION(MediaElementTableCount(this, mLoadingSrc) == 1,
-    "Before remove, should have a single entry for element in element table");
-  NS_ASSERTION(mDecoder, "Don't call this without decoder!");
-  NS_ASSERTION(mLoadingSrc, "Can't have decoder without source!");
-  if (!gElementTable)
+  if (!mDecoder || !mLoadingSrc || !gElementTable)
     return;
   MediaElementSetForURI* entry = gElementTable->GetEntry(mLoadingSrc);
   if (!entry)
@@ -2796,6 +2795,7 @@ void HTMLMediaElement::DecodeError()
   if (mDecoder) {
     ShutdownDecoder();
   }
+  RemoveMediaElementFromURITable();
   mLoadingSrc = nullptr;
   if (mIsLoadingFromSourceChildren) {
     mError = nullptr;
