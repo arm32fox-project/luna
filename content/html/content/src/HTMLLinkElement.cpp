@@ -245,9 +245,12 @@ HTMLLinkElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
          aName == nsGkAtoms::media ||
          aName == nsGkAtoms::type)) {
       bool dropSheet = false;
-      if (aName == nsGkAtoms::rel && GetSheet()) {
-        uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(aValue);
-        dropSheet = !(linkTypes & STYLESHEET);          
+      if (aName == nsGkAtoms::rel) {
+        nsAutoString value;
+        aValue->ToString(value);       
+        uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(value);
+        if (GetSheet())
+          dropSheet = !(linkTypes & STYLESHEET);          
       }
     
       UpdateStyleSheetInternal(nullptr,
