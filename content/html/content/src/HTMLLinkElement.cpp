@@ -224,42 +224,53 @@ HTMLLinkElement::CreateAndDispatchEvent(nsIDocument* aDoc,
 }
 
 nsresult
-HTMLLinkElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
-                         nsIAtom* aPrefix, const nsAString& aValue,
-                         bool aNotify)
+HTMLLinkElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+                              const nsAttrValue* aValue, bool aNotify)
 {
-  nsresult rv = nsGenericHTMLElement::SetAttr(aNameSpaceID, aName, aPrefix,
-                                              aValue, aNotify);
-
-  // The ordering of the parent class's SetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not set until SetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
+  // It's safe to call ResetLinkState here because our new attr value has
+  // already been set or unset.  ResetLinkState needs the updated attribute
+  // value because notifying the document that content states have changed will
+  // call IntrinsicState, which will try to get updated information about the
+  // visited state from Link.
   if (aName == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState(!!aNotify, true);
+    bool hasHref = aValue;
+    Link::ResetLinkState(!!aNotify, hasHref);
   }
 
-  if (NS_SUCCEEDED(rv) && aNameSpaceID == kNameSpaceID_None &&
-      (aName == nsGkAtoms::href ||
-       aName == nsGkAtoms::rel ||
-       aName == nsGkAtoms::title ||
-       aName == nsGkAtoms::media ||
-       aName == nsGkAtoms::type)) {
-    bool dropSheet = false;
-    if (aName == nsGkAtoms::rel && GetSheet()) {
-      uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(aValue);
-      dropSheet = !(linkTypes & STYLESHEET);          
-    }
+  if (aValue) {
+    if (aNameSpaceID == kNameSpaceID_None &&
+        (aName == nsGkAtoms::href ||
+         aName == nsGkAtoms::rel ||
+         aName == nsGkAtoms::title ||
+         aName == nsGkAtoms::media ||
+         aName == nsGkAtoms::type)) {
+      bool dropSheet = false;
+      if (aName == nsGkAtoms::rel && GetSheet()) {
+        uint32_t linkTypes = nsStyleLinkElement::ParseLinkTypes(aValue);
+        dropSheet = !(linkTypes & STYLESHEET);          
+      }
     
-    UpdateStyleSheetInternal(nullptr,
-                             dropSheet ||
-                             (aName == nsGkAtoms::title ||
-                              aName == nsGkAtoms::media ||
-                              aName == nsGkAtoms::type));
+      UpdateStyleSheetInternal(nullptr,
+                               dropSheet ||
+                               (aName == nsGkAtoms::title ||
+                                aName == nsGkAtoms::media ||
+                                aName == nsGkAtoms::type));
+    }
+  } else {
+    // Since removing href or rel makes us no longer link to a
+    // stylesheet, force updates for those too.
+    if (aNameSpaceID == kNameSpaceID_None &&
+        (aName == nsGkAtoms::href ||
+         aName == nsGkAtoms::rel ||
+         aName == nsGkAtoms::title ||
+         aName == nsGkAtoms::media ||
+         aName == nsGkAtoms::type)) {
+      UpdateStyleSheetInternal(nullptr, true);
+    }
   }
-
-  return rv;
+  
+  return nsGenericHTMLElement::AfterSetAttr(aNameSpaceID, aName, aValue,
+                                            aNotify);
 }
 
 nsresult
