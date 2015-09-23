@@ -274,35 +274,6 @@ HTMLLinkElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
 }
 
 nsresult
-HTMLLinkElement::UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
-                           bool aNotify)
-{
-  nsresult rv = nsGenericHTMLElement::UnsetAttr(aNameSpaceID, aAttribute,
-                                                aNotify);
-  // Since removing href or rel makes us no longer link to a
-  // stylesheet, force updates for those too.
-  if (NS_SUCCEEDED(rv) && aNameSpaceID == kNameSpaceID_None &&
-      (aAttribute == nsGkAtoms::href ||
-       aAttribute == nsGkAtoms::rel ||
-       aAttribute == nsGkAtoms::title ||
-       aAttribute == nsGkAtoms::media ||
-       aAttribute == nsGkAtoms::type)) {
-    UpdateStyleSheetInternal(nullptr, true);
-  }
-
-  // The ordering of the parent class's UnsetAttr call and Link::ResetLinkState
-  // is important here!  The attribute is not unset until UnsetAttr returns, and
-  // we will need the updated attribute value because notifying the document
-  // that content states have changed will call IntrinsicState, which will try
-  // to get updated information about the visitedness from Link.
-  if (aAttribute == nsGkAtoms::href && kNameSpaceID_None == aNameSpaceID) {
-    Link::ResetLinkState(!!aNotify, false);
-  }
-
-  return rv;
-}
-
-nsresult
 HTMLLinkElement::PreHandleEvent(nsEventChainPreVisitor& aVisitor)
 {
   return PreHandleEventForAnchors(aVisitor);
