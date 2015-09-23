@@ -7,6 +7,7 @@
 // Global functions and data [declaration]
 #include "nsUCSupport.h"
 #include "nsUnicodeToUTF8.h"
+#include "mozilla/CheckedInt.h"
 #include <string.h>
 
 NS_IMPL_ISUPPORTS1(nsUnicodeToUTF8, nsIUnicodeEncoder)
@@ -23,7 +24,15 @@ NS_IMETHODIMP nsUnicodeToUTF8::GetMaxLength(const PRUnichar * aSrc,
   // need to complete it here. If the first word in following buffer is not
   // in valid surrogate range, we need to convert the remaining of last buffer
   // to 3 bytes.
-  *aDestLength = 3*aSrcLength + 3;
+  mozilla::CheckedInt32 length = aSrcLength;
+  length *= 3;
+  length += 3;
+
+  if (!length.isValid()) {
+    return NS_ERROR_FAILURE;
+  }
+
+  *aDestLength = length.value();
   return NS_OK;
 }
 

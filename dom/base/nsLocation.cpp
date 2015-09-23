@@ -362,6 +362,10 @@ nsLocation::GetHost(nsAString& aHost)
 NS_IMETHODIMP
 nsLocation::SetHost(const nsAString& aHost)
 {
+  if (aHost.IsEmpty()) {
+    return NS_OK; // Ignore empty string
+  }
+  
   if (!CallerSubsumes())
     return NS_ERROR_DOM_SECURITY_ERR;
 
@@ -407,6 +411,10 @@ nsLocation::GetHostname(nsAString& aHostname)
 NS_IMETHODIMP
 nsLocation::SetHostname(const nsAString& aHostname)
 {
+  if (aHostname.IsEmpty()) {
+    return NS_OK; // Ignore empty string
+  }
+
   if (!CallerSubsumes())
     return NS_ERROR_DOM_SECURITY_ERR;
 
@@ -495,6 +503,10 @@ nsresult
 nsLocation::SetHrefWithBase(const nsAString& aHref, nsIURI* aBase,
                             bool aReplace)
 {
+  if (aHref.IsEmpty()) {
+    return NS_OK; // Ignore empty string
+  }
+
   nsresult result;
   nsCOMPtr<nsIURI> newUri;
 
@@ -699,6 +711,10 @@ nsLocation::GetProtocol(nsAString& aProtocol)
 NS_IMETHODIMP
 nsLocation::SetProtocol(const nsAString& aProtocol)
 {
+  if (aProtocol.IsEmpty()) {
+    return NS_OK; // Ignore empty string
+  }
+
   if (!CallerSubsumes())
     return NS_ERROR_DOM_SECURITY_ERR;
 
@@ -747,6 +763,10 @@ nsLocation::GetSearch(nsAString& aSearch)
 NS_IMETHODIMP
 nsLocation::SetSearch(const nsAString& aSearch)
 {
+  if (aSearch.IsEmpty()) {
+    return NS_OK; // Ignore empty string
+  }
+
   if (!CallerSubsumes())
     return NS_ERROR_DOM_SECURITY_ERR;
 
