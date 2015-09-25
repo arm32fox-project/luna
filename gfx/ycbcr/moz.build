@@ -61,7 +61,7 @@ else:
         'yuv_row_other.cpp',
     ]
 
-if CONFIG['OS_TEST'] == 'arm' and CONFIG['HAVE_ARM_NEON']:
+if CONFIG['OS_TEST'].startswith('arm') and CONFIG['HAVE_ARM_NEON']:
     CPP_SOURCES += [
         'yuv_convert_arm.cpp',
     ]
