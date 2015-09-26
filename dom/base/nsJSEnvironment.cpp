@@ -2479,6 +2479,8 @@ nsJSContext::GarbageCollectNow(JS::gcreason::Reason aReason,
   JS::PrepareForFullGC(nsJSRuntime::sRuntime);
   if (aIncremental == IncrementalGC) {
     JS::IncrementalGC(nsJSRuntime::sRuntime, aReason, aSliceMillis);
+  } else if (aShrinking == ShrinkingGC) {
+    JS::ShrinkingGC(sRuntime, aReason);
   } else {
     JS::GCForReason(nsJSRuntime::sRuntime, aReason);
   }
