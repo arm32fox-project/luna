@@ -8857,13 +8857,21 @@ nsDocShell::InternalLoad(nsIURI * aURI,
         aLoadType == LOAD_HISTORY ||
         aLoadType == LOAD_LINK) {
 
+        nsCOMPtr<nsIURI> currentURI;
+        if (sURIFixup && mCurrentURI) {
+            rv = sURIFixup->CreateExposableURI(mCurrentURI,
+                                               getter_AddRefs(currentURI));
+            NS_ENSURE_SUCCESS(rv, rv);
+        } else {
+            currentURI = mCurrentURI;
+        }
         // Split mCurrentURI and aURI on the '#' character.  Make sure we read
         // the return values of SplitURIAtHash; if it fails, we don't want to
         // allow a short-circuited navigation.
         nsAutoCString curBeforeHash, curHash, newBeforeHash, newHash;
         nsresult splitRv1, splitRv2;
-        splitRv1 = mCurrentURI ?
-            nsContentUtils::SplitURIAtHash(mCurrentURI,
+        splitRv1 = currentURI ?
+            nsContentUtils::SplitURIAtHash(currentURI,
                                            curBeforeHash, curHash) :
             NS_ERROR_FAILURE;
         splitRv2 = nsContentUtils::SplitURIAtHash(aURI, newBeforeHash, newHash);
@@ -8908,9 +8916,6 @@ nsDocShell::InternalLoad(nsIURI * aURI,
            sameExceptHashes && !newHash.IsEmpty());
 
         if (doShortCircuitedLoad) {
-            // Save the current URI; we need it if we fire a hashchange later.
-            nsCOMPtr<nsIURI> oldURI = mCurrentURI;
-
             // Save the position of the scrollers.
             nscoord cx = 0, cy = 0;
             GetCurScrollPos(ScrollOrientation_X, &cx);
@@ -9042,10 +9047,6 @@ nsDocShell::InternalLoad(nsIURI * aURI,
 
             SetDocCurrentStateObj(mOSHE);
 
-            // Inform the favicon service that the favicon for oldURI also
-            // applies to aURI.
-            CopyFavicon(oldURI, aURI, mInPrivateBrowsing);
-
             // ScrollToAnchor doesn't necessarily cause us to scroll the window;
             // the function decides whether a scroll is appropriate based on the
             // arguments it receives.  But even if we don't end up scrolling,
@@ -9074,12 +9075,17 @@ nsDocShell::InternalLoad(nsIURI * aURI,
                 }
 
                 if (doHashchange) {
-                    // Make sure to use oldURI here, not mCurrentURI, because by
-                    // now, mCurrentURI has changed!
-                    mScriptGlobal->DispatchAsyncHashchange(oldURI, aURI);
+                    // Note that currentURI hasn't changed, because it's on the
+                    // stack. This means we can just use it as the old URI.
+                    // Keep this in mind when changing this code in the future.
+                    mScriptGlobal->DispatchAsyncHashchange(currentURI, aURI);
                 }
             }
 
+            // Inform the favicon service that the favicon for oldURI also
+            // applies to aURI.
+            CopyFavicon(currentURI, aURI, mInPrivateBrowsing);
+            
             return NS_OK;
         }
     }
