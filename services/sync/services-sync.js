@@ -45,7 +45,7 @@ pref("services.sync.addons.ignoreRepositoryChecking", true);
 pref("services.sync.addons.ignoreUserEnabledChanges", false);
 
 // Comma-delimited list of hostnames to trust for add-on install.
-pref("services.sync.addons.trustedSourceHostnames", "addons.mozilla.org");
+pref("services.sync.addons.trustedSourceHostnames", "addons.palemoon.org,addons.mozilla.org");
 
 pref("services.sync.log.appender.console", "Warn");
 pref("services.sync.log.appender.dump", "Error");
