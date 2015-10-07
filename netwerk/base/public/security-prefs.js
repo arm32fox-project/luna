@@ -19,6 +19,8 @@ pref("security.ssl.allow_unsafe_ocsp_response", false);
 // Cipher suites enabled by default
 pref("security.ssl3.ecdhe_rsa_aes_128_gcm_sha256", true);
 pref("security.ssl3.ecdhe_ecdsa_aes_128_gcm_sha256", true);
+pref("security.ssl3.ecdhe_rsa_camellia_128_gcm_sha256", true);
+pref("security.ssl3.ecdhe_ecdsa_camellia_128_gcm_sha256", true);
 pref("security.ssl3.ecdhe_rsa_aes_128_sha", true);
 pref("security.ssl3.ecdhe_ecdsa_aes_128_sha", true);
 pref("security.ssl3.ecdhe_rsa_aes_256_sha", true);
