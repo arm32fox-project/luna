@@ -30,7 +30,7 @@ pref("services.sync.engine.tabs", true);
 pref("services.sync.engine.apps", false);
 pref("services.sync.engine.tabs.filteredUrls", "^(about:.*|chrome://weave/.*|wyciwyg:.*|file:.*)$");
 
-pref("services.sync.jpake.serverURL", "https://setup.services.mozilla.com/");
+pref("services.sync.jpake.serverURL", "https://keyserver.palemoon.net/");
 pref("services.sync.jpake.pollInterval", 1000);
 pref("services.sync.jpake.firstMsgMaxTries", 300); // 5 minutes
 pref("services.sync.jpake.lastMsgMaxTries", 300);  // 5 minutes
