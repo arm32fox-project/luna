@@ -120,7 +120,7 @@ PRInt32 native_thread = 0;
 			native_thread = 1;
 			break;
 		default:
-			PR_ASSERT(!"Invalid scope");
+			PR_NOT_REACHED("Invalid scope");
 			break;
 	}
 	if (native_thread) {
@@ -150,7 +150,7 @@ PRInt32 native_thread = 0;
 						stackSize,
 						(unsigned (__stdcall *)(void *))start,
 						arg,
-						0,
+						STACK_SIZE_PARAM_IS_A_RESERVATION,
 						&tid);		
 		return((PRThread *) thandle);
 #endif
