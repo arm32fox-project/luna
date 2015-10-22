@@ -377,7 +377,7 @@ ParseTypeAttribute(const nsAString& aType, JSVersion* aVersion)
 {
   MOZ_ASSERT(!aType.IsEmpty());
   MOZ_ASSERT(aVersion);
-  MOZ_ASSERT(*aVersion == JSVERSION_DEFAULT);
+  MOZ_ASSERT(*aVersion == JSVERSION_LATEST);
 
   nsContentTypeParser parser(aType);
 
@@ -395,6 +395,9 @@ ParseTypeAttribute(const nsAString& aType, JSVersion* aVersion)
 
   if (NS_SUCCEEDED(rv)) {
     *aVersion = nsContentUtils::ParseJavascriptVersion(versionName);
+    // this will fix the common ";version=1.8" declaration,
+    // which in reality means "use the latest version of ECMA5"
+    if (*aVersion == JSVERSION_1_8) *aVersion = JSVERSION_ECMA_5;
   } else if (rv != NS_ERROR_INVALID_ARG) {
     return false;
   }
@@ -444,7 +447,11 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
     return false;
   }
 
-  JSVersion version = JSVERSION_DEFAULT;
+  // set js version to latest, so we can use
+  // `let`, `Iterator` and other nice things
+  // ECMA6 is somewhat... strange, so we will
+  // not turn it on by default
+  JSVersion version = JSVERSION_ECMA_5;
 
   // Check the type attribute to determine language and version.
   // If type exists, it trumps the deprecated 'language='
