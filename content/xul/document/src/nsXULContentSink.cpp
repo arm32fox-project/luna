@@ -49,6 +49,7 @@
 
 #include "nsXULPrototypeDocument.h"     // XXXbe temporary
 #include "mozilla/css/Loader.h"
+#include "mozilla/CheckedInt.h" // for overflow checking
 
 #include "nsUnicharUtils.h"
 #include "nsGkAtoms.h"
@@ -1082,9 +1083,14 @@ XULContentSinkImpl::AddText(const PRUnichar* aText,
         if (NS_OK != rv) {
             return rv;
         }
-      }
-      else {
-        mTextSize += aLength;
+      } else {
+        mozilla::CheckedInt32 size = mTextSize;
+        size += aLength;
+        if (!size.isValid()) {
+          return NS_ERROR_OUT_OF_MEMORY;
+        }
+        mTextSize = size.value();
+
         mText = (PRUnichar *) moz_realloc(mText, sizeof(PRUnichar) * mTextSize);
         if (nullptr == mText) {
             return NS_ERROR_OUT_OF_MEMORY;

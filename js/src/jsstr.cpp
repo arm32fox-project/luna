@@ -1098,6 +1098,13 @@ js::StringHasPattern(const jschar *text, uint32_t textlen,
     return StringMatch(text, textlen, pat, patlen) != -1;
 }
 
+int
+js::StringFindPattern(const jschar *text, uint32_t textlen,
+                      const jschar *pat, uint32_t patlen)
+{
+    return StringMatch(text, textlen, pat, patlen);
+}
+
 /*
  * RopeMatch takes the text to search and the pattern to search for in the text.
  * RopeMatch returns false on OOM and otherwise returns the match index through
@@ -1594,6 +1601,12 @@ HasRegExpMetaChars(const jschar *chars, size_t length)
             return true;
     }
     return false;
+}
+
+bool
+js::StringHasRegExpMetaChars(const jschar *chars, size_t length)
+{
+    return HasRegExpMetaChars(chars, length);
 }
 
 /*

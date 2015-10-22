@@ -3630,6 +3630,176 @@ ParseOptionsObject(JSContext *cx, jsval from, SandboxOptions &options)
     return NS_OK;
 }
 
+
+/*
+// helper that tries to get a property form the options object
+nsresult BaseOptions::GetProp(JSContext *cx, HandleObject from, const char *name,
+                              MutableHandleValue prop, JSBool *found)
+{
+    return GetPropFromOptions(cx, from, name, prop, found);
+}
+
+// helper that tries to get a boolean property form the options object
+nsresult BaseOptions::GetBoolProp(JSContext *cx, HandleObject from, const char *name,
+                                  bool *prop)
+{
+    return GetBoolPropFromOptions(cx, from, name, prop);
+}
+
+// helper that tries to get an object property form the options object
+nsresult BaseOptions::GetObjProp(JSContext *cx, HandleObject from, const char *name,
+                                 JSObject **prop)
+{
+    return GetObjPropFromOptions(cx, from, name, prop);
+}
+
+// helper that tries to get a string property form the options object
+nsresult BaseOptions::GetStringProp(JSContext *cx, HandleObject from, const char *name,
+                                    nsCString &prop)
+{
+    return GetStringPropFromOptions(cx, from, name, prop);
+}
+*/
+
+bool
+OptionsBase::ParseValue(const char* name, MutableHandleValue prop, bool* aFound)
+{
+    JSBool found;
+    bool ok = JS_HasProperty(mCx, mObject, name, &found);
+    NS_ENSURE_TRUE(ok, false);
+
+    if (aFound)
+        *aFound = found;
+
+    if (!found)
+        return true;
+
+    return JS_GetProperty(mCx, mObject, name, prop.address()); //not sure
+}
+
+/*
+ * Helper that tries to get a boolean property from the options object.
+ */
+bool
+OptionsBase::ParseBoolean(const char* name, bool* prop)
+{
+    MOZ_ASSERT(prop);
+    RootedValue value(mCx);
+    bool found;
+    bool ok = ParseValue(name, &value, &found);
+    NS_ENSURE_TRUE(ok, false);
+
+    if (!found)
+        return true;
+
+    if (!value.isBoolean()) {
+        JS_ReportError(mCx, "Expected a boolean value for property %s", name);
+        return false;
+    }
+
+    *prop = value.toBoolean();
+    return true;
+}
+
+/*
+ * Helper that tries to get an object property from the options object.
+ */
+bool
+OptionsBase::ParseObject(const char* name, MutableHandleObject prop)
+{
+    RootedValue value(mCx);
+    bool found;
+    bool ok = ParseValue(name, &value, &found);
+    NS_ENSURE_TRUE(ok, false);
+
+    if (!found)
+        return true;
+
+    if (!value.isObject()) {
+        JS_ReportError(mCx, "Expected an object value for property %s", name);
+        return false;
+    }
+    prop.set(&value.toObject());
+    return true;
+}
+
+/*
+ * Helper that tries to get an object property from the options object.
+ */
+bool
+OptionsBase::ParseJSString(const char* name, MutableHandleString prop)
+{
+    RootedValue value(mCx);
+    bool found;
+    bool ok = ParseValue(name, &value, &found);
+    NS_ENSURE_TRUE(ok, false);
+
+    if (!found)
+        return true;
+
+    if (!value.isString()) {
+        JS_ReportError(mCx, "Expected a string value for property %s", name);
+        return false;
+    }
+    prop.set(value.toString());
+    return true;
+}
+
+/*
+ * Helper that tries to get a string property from the options object.
+ */
+bool
+OptionsBase::ParseString(const char* name, nsCString& prop)
+{
+    RootedValue value(mCx);
+    bool found;
+    bool ok = ParseValue(name, &value, &found);
+    NS_ENSURE_TRUE(ok, false);
+
+    if (!found)
+        return true;
+
+    if (!value.isString()) {
+        JS_ReportError(mCx, "Expected a string value for property %s", name);
+        return false;
+    }
+
+    char* tmp = JS_EncodeString(mCx, value.toString());
+    NS_ENSURE_TRUE(tmp, false);
+    prop.Assign(tmp, strlen(tmp));
+    js_free(tmp);
+    return true;
+}
+
+/*
+ * Helper that tries to get a string property from the options object.
+ */
+//TODO!
+/*
+bool
+OptionsBase::ParseString(const char* name, nsString& prop)
+{
+}
+*/
+
+/*
+ * Helper that tries to get jsid property from the options object.
+ */
+bool
+OptionsBase::ParseId(const char* name, MutableHandleId prop)
+{
+    RootedValue value(mCx);
+    bool found;
+    bool ok = ParseValue(name, &value, &found);
+    NS_ENSURE_TRUE(ok, false);
+
+    if (!found)
+        return true;
+
+    return JS_ValueToId(mCx, value, prop.address()); //not sure
+}
+
+
 static nsresult
 AssembleSandboxMemoryReporterName(JSContext *cx, nsCString &sandboxName)
 {

@@ -38,9 +38,6 @@
 #if defined(XP_WIN)
 #include <tchar.h>
 #include "nsString.h"
-#ifdef MOZ_METRO
-#include "nsWindowsHelpers.h"
-#endif
 #endif
 
 #if defined(XP_MACOSX)
@@ -208,12 +205,7 @@ static nsAssertBehavior GetAssertBehavior()
   if (gAssertBehavior != NS_ASSERT_UNINITIALIZED)
     return gAssertBehavior;
 
-#if defined(XP_WIN) && defined(MOZ_METRO)
-  if (IsRunningInWindowsMetro())
-    gAssertBehavior = NS_ASSERT_WARN;
-  else
-    gAssertBehavior = NS_ASSERT_TRAP;
-#elif defined(XP_WIN)
+#if defined(XP_WIN)
   gAssertBehavior = NS_ASSERT_TRAP;
 #else
   gAssertBehavior = NS_ASSERT_WARN;

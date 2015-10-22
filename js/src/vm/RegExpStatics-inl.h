@@ -252,7 +252,7 @@ RegExpStatics::makeMatch(JSContext *cx, size_t checkValidIndex, size_t pairNum,
     if (matches.empty() || checkPair >= matches.pairCount() ||
         (checkWhich ? matches[checkPair].limit : matches[checkPair].start) < 0)
     {
-        out.setString(cx->runtime()->emptyString);
+        out.setUndefined();
         return true;
     }
     const MatchPair &pair = matches[pairNum];

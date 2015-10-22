@@ -100,9 +100,6 @@
 @BINPATH@/msvcp110.dll
 @BINPATH@/msvcr110.dll
 ; @BINPATH@/vcomp110.dll
-#ifdef MOZ_METRO
-@BINPATH@/vccorlib110.dll
-#endif
 #endif
 #endif
 #endif
@@ -324,7 +321,6 @@
 @BINPATH@/components/xuldoc.xpt
 @BINPATH@/components/xultmpl.xpt
 @BINPATH@/components/zipwriter.xpt
-@BINPATH@/components/telemetry.xpt
 
 ; JavaScript components
 @BINPATH@/components/ConsoleAPI.manifest
@@ -464,13 +460,6 @@
 @BINPATH@/components/nsINIProcessor.js
 @BINPATH@/components/nsPrompter.manifest
 @BINPATH@/components/nsPrompter.js
-#ifdef MOZ_DATA_REPORTING
-@BINPATH@/components/DataReporting.manifest
-@BINPATH@/components/DataReportingService.js
-#endif
-#ifdef MOZ_SERVICES_HEALTHREPORT
-@BINPATH@/components/HealthReportComponents.manifest
-#endif
 #ifdef MOZ_SERVICES_SYNC
 @BINPATH@/components/SyncComponents.manifest
 @BINPATH@/components/Weave.js
@@ -481,8 +470,6 @@
 #endif
 @BINPATH@/components/servicesComponents.manifest
 @BINPATH@/components/cryptoComponents.manifest
-@BINPATH@/components/TelemetryPing.js
-@BINPATH@/components/TelemetryPing.manifest
 @BINPATH@/components/messageWakeupService.js
 @BINPATH@/components/messageWakeupService.manifest
 @BINPATH@/components/SettingsManager.js
@@ -730,31 +717,4 @@ bin/libfreebl_32int64_3.so
 @BINPATH@/webapprt/modules/Startup.jsm
 @BINPATH@/webapprt/modules/WebappRT.jsm
 @BINPATH@/webapprt/modules/WebappsHandler.jsm
-#endif
-
-#ifdef MOZ_METRO
-@BINPATH@/components/MetroUIUtils.js
-@BINPATH@/components/MetroUIUtils.manifest
-[metro]
-; gre resources
-@BINPATH@/CommandExecuteHandler@BIN_SUFFIX@
-@BINPATH@/dummyvccorlib.dll
-@BINPATH@/resources.pri
-@BINPATH@/VisualElementsManifest.xml
-@BINPATH@/tileresources
-; app dir resources
-@BINPATH@/metro/chrome.manifest
-@BINPATH@/metro/searchplugins
-@BINPATH@/metro/metroapp.ini
-@BINPATH@/metro/chrome/browser@JAREXT@
-@BINPATH@/metro/chrome/browser.manifest
-@BINPATH@/metro/chrome/chrome@JAREXT@
-@BINPATH@/metro/chrome/chrome.manifest
-@BINPATH@/metro/chrome/@AB_CD@@JAREXT@
-@BINPATH@/metro/chrome/@AB_CD@.manifest
-@BINPATH@/metro/chrome/pdfjs.manifest
-@BINPATH@/metro/chrome/pdfjs/*
-@BINPATH@/metro/components
-@BINPATH@/metro/defaults
-@BINPATH@/metro/modules
 #endif

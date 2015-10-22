@@ -2302,6 +2302,9 @@ abstract public class GoannaApp
     {
     }
 
+    private static final String CPU = "cpu";
+    private static final String SCREEN = "screen";
+    
     // Called when a Goanna Hal WakeLock is changed
     public void notifyWakeLockChanged(String topic, String state) {
         PowerManager.WakeLock wl = mWakeLocks.get(topic);

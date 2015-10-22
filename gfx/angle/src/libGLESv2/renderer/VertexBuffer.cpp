@@ -87,6 +87,12 @@ bool VertexBufferInterface::discard()
     return mVertexBuffer->discard();
 }
 
+// Helper function for alignment
+unsigned int roundUp(unsigned int value, unsigned int alignment)
+{
+   return ((value / alignment) + 1 ) * alignment;
+}
+
 bool VertexBufferInterface::storeVertexAttributes(const gl::VertexAttribute &attrib,  GLint start, GLsizei count, GLsizei instances,
                                                   unsigned int *outStreamOffset)
 {
@@ -96,7 +102,12 @@ bool VertexBufferInterface::storeVertexAttributes(const gl::VertexAttribute &att
         return false;
     }
 
-    if (mWritePosition + spaceRequired < mWritePosition)
+    // Align to 16-byte boundary
+    unsigned int alignedSpaceRequired = roundUp(spaceRequired, 16);
+
+    // Protect against integer overflow
+    if ((mWritePosition + alignedSpaceRequired < mWritePosition) ||
+        alignedSpaceRequired < spaceRequired)
     {
         return false;
     }
@@ -117,7 +128,7 @@ bool VertexBufferInterface::storeVertexAttributes(const gl::VertexAttribute &att
         *outStreamOffset = mWritePosition;
     }
 
-    mWritePosition += spaceRequired;
+    mWritePosition += alignedSpaceRequired;
 
     return true;
 }
@@ -158,13 +169,17 @@ bool VertexBufferInterface::reserveVertexSpace(const gl::VertexAttribute &attrib
         return false;
     }
 
+    // Align to 16-byte boundary
+    unsigned int alignedRequiredSpace = roundUp(requiredSpace, 16);
+
     // Protect against integer overflow
-    if (mReservedSpace + requiredSpace < mReservedSpace)
+    if ((mReservedSpace + requiredSpace < mReservedSpace) ||
+        alignedRequiredSpace < requiredSpace)
     {
          return false;
     }
 
-    mReservedSpace += requiredSpace;
+    mReservedSpace += alignedRequiredSpace;
     return true;
 }
 

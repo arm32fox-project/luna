@@ -1130,38 +1130,32 @@ nsLineLayout::CanPlaceFrame(PerFrameData* pfd,
   NS_PRECONDITION(pfd && pfd->mFrame, "bad args, null pointers for frame data");
   
   *aOptionalBreakAfterFits = true;
-  // Compute right margin to use
-  if (0 != pfd->mBounds.width) {
-    // XXXwaterson this is probably not exactly right; e.g., embeddings, etc.
-    bool ltr = (NS_STYLE_DIRECTION_LTR == aFrameDirection);
+  // XXXwaterson this is probably not exactly right; e.g., embeddings, etc.
+  bool ltr = (NS_STYLE_DIRECTION_LTR == aFrameDirection);
 
-    /*
-     * We want to only apply the end margin if we're the last continuation and
-     * either not in an {ib} split or the last inline in it.  In all other
-     * cases we want to zero it out.  That means zeroing it out if any of these
-     * conditions hold:
-     * 1) The frame is not complete (in this case it will get a next-in-flow)
-     * 2) The frame is complete but has a non-fluid continuation on its
-     *    continuation chain.  Note that if it has a fluid continuation, that
-     *    continuation will get destroyed later, so we don't want to drop the
-     *    end-margin in that case.
-     * 3) The frame is in an {ib} split and is not the last part.
-     *
-     * However, none of that applies if this is a letter frame (XXXbz why?)
-     */
-    if ((NS_FRAME_IS_NOT_COMPLETE(aStatus) ||
-         pfd->mFrame->GetLastInFlow()->GetNextContinuation() ||
-         nsLayoutUtils::FrameIsNonLastInIBSplit(pfd->mFrame))
-        && !pfd->GetFlag(PFD_ISLETTERFRAME)) {
-      if (ltr)
-        pfd->mMargin.right = 0;
-      else
-        pfd->mMargin.left = 0;
+  /*
+   * We want to only apply the end margin if we're the last continuation and
+   * either not in an {ib} split or the last inline in it.  In all other
+   * cases we want to zero it out.  That means zeroing it out if any of these
+   * conditions hold:
+   * 1) The frame is not complete (in this case it will get a next-in-flow)
+   * 2) The frame is complete but has a non-fluid continuation on its
+   *    continuation chain.  Note that if it has a fluid continuation, that
+   *    continuation will get destroyed later, so we don't want to drop the
+   *    end-margin in that case.
+   * 3) The frame is in an {ib} split and is not the last part.
+   *
+   * However, none of that applies if this is a letter frame (XXXbz why?)
+   */
+  if ((NS_FRAME_IS_NOT_COMPLETE(aStatus) ||
+       pfd->mFrame->GetLastInFlow()->GetNextContinuation() ||
+       nsLayoutUtils::FrameIsNonLastInIBSplit(pfd->mFrame))
+      && !pfd->GetFlag(PFD_ISLETTERFRAME)) {
+    if (ltr) {
+      pfd->mMargin.right = 0;
+    } else {
+      pfd->mMargin.left = 0;
     }
-  }
-  else {
-    // Don't apply margin to empty frames.
-    pfd->mMargin.left = pfd->mMargin.right = 0;
   }
 
   PerSpanData* psd = mCurrentSpan;
@@ -1170,7 +1164,6 @@ nsLineLayout::CanPlaceFrame(PerFrameData* pfd,
     return true;
   }
 
-  bool ltr = NS_STYLE_DIRECTION_LTR == aFrameDirection;
   nscoord endMargin = ltr ? pfd->mMargin.right : pfd->mMargin.left;
 
 #ifdef NOISY_CAN_PLACE_FRAME
@@ -1287,15 +1280,6 @@ nsLineLayout::CanPlaceFrame(PerFrameData* pfd,
 void
 nsLineLayout::PlaceFrame(PerFrameData* pfd, nsHTMLReflowMetrics& aMetrics)
 {
-  // If frame is zero width then do not apply its left and right margins.
-  PerSpanData* psd = mCurrentSpan;
-  bool emptyFrame = false;
-  if ((0 == pfd->mBounds.width) && (0 == pfd->mBounds.height)) {
-    pfd->mBounds.x = psd->mX;
-    pfd->mBounds.y = mTopEdge;
-    emptyFrame = true;
-  }
-
   // Record ascent and update max-ascent and max-descent values
   if (aMetrics.ascent == nsHTMLReflowMetrics::ASK_FOR_BASELINE)
     pfd->mAscent = pfd->mFrame->GetBaseline();
@@ -1304,10 +1288,16 @@ nsLineLayout::PlaceFrame(PerFrameData* pfd, nsHTMLReflowMetrics& aMetrics)
 
   bool ltr = (NS_STYLE_DIRECTION_LTR == pfd->mFrame->StyleVisibility()->mDirection);
   // Advance to next X coordinate
-  psd->mX = pfd->mBounds.XMost() + (ltr ? pfd->mMargin.right : pfd->mMargin.left);
+  mCurrentSpan->mX = pfd->mBounds.XMost() +
+                     (ltr ? pfd->mMargin.right : pfd->mMargin.left);
 
-  // Count the number of non-empty frames on the line...
-  if (!emptyFrame) {
+  // Count the number of non-placeholder frames on the line...
+  if (pfd->mFrame->GetType() == nsGkAtoms::placeholderFrame) {
+    NS_ASSERTION(pfd->mBounds.width == 0 && pfd->mBounds.height == 0,
+                 "placeholders should have 0 width/height (checking "
+                 "placeholders were never counted by the old code in "
+                 "this function)");
+  } else {
     mTotalPlacedFrames++;
   }
 }

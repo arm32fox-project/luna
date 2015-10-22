@@ -3443,13 +3443,5 @@ lastupdate="1438760568000">
       <feature>DIRECT3D_9_LAYERS</feature>
       <featureStatus>BLOCKED_DEVICE</featureStatus>
     </gfxBlacklistEntry>
-    <gfxBlacklistEntry blockID="g511">
-      <os>WINNT 5.1</os>
-      <vendor>0x8086</vendor>
-      <feature>DIRECT3D_9_LAYERS, WEBGL_ANGLE</feature>
-      <featureStatus>BLOCKED_DRIVER_VERSION</featureStatus>
-      <driverVersion>6.14.10.5218</driverVersion>
-      <driverVersionComparator>LESS_THAN</driverVersionComparator>
-    </gfxBlacklistEntry>
   </gfxItems>
 </blocklist>

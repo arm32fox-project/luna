@@ -76,9 +76,6 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 !insertmacro RegCleanAppHandler
 !insertmacro RegCleanMain
 !insertmacro RegCleanUninstall
-!ifdef MOZ_METRO
-!insertmacro RemoveDEHRegistrationIfMatching
-!endif
 !insertmacro SetAppLSPCategories
 !insertmacro SetBrandNameVars
 !insertmacro UpdateShortcutAppModelIDs
@@ -103,9 +100,6 @@ VIAddVersionKey "OriginalFilename" "helper.exe"
 !insertmacro un.RegCleanMain
 !insertmacro un.RegCleanUninstall
 !insertmacro un.RegCleanProtocolHandler
-!ifdef MOZ_METRO
-!insertmacro un.RemoveDEHRegistrationIfMatching
-!endif
 !insertmacro un.RemoveQuotesFromPath
 !insertmacro un.SetAppLSPCategories
 !insertmacro un.SetBrandNameVars
@@ -291,14 +285,6 @@ Section "Uninstall"
     ${un.DeleteShortcuts}
     ${un.SetAppLSPCategories}
   ${EndIf}
-
-!ifdef MOZ_METRO
-  ${If} ${AtLeastWin8}
-    ${un.CleanupMetroBrowserHandlerValues} ${DELEGATE_EXECUTE_HANDLER_ID}
-  ${EndIf}
-  ${ResetWin8PromptKeys}
-  ${ResetWin8MetroSplash}
-!endif
 
   ${un.RegCleanAppHandler} "PaleMoonURL"
   ${un.RegCleanAppHandler} "PaleMoonHTML"
