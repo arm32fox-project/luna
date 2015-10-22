@@ -28,6 +28,7 @@
 #include "jsdbgapi.h"
 #include "jsfriendapi.h"
 #include "nsJSPrincipals.h"
+#include "xpcprivate.h" // For xpc::OptionsBase
 
 #include "mozilla/scache/StartupCache.h"
 #include "mozilla/scache/StartupCacheUtils.h"
@@ -35,6 +36,7 @@
 
 using namespace mozilla::scache;
 using namespace JS;
+using namespace xpc;
 
 /* load() error msgs, XXX localize? */
 #define LOAD_ERROR_NOSERVICE "Error creating IO Service."
@@ -49,6 +51,42 @@ using namespace JS;
 #define LOAD_ERROR_NOPRINCIPALS "Failed to get principals."
 #define LOAD_ERROR_NOSPEC "Failed to get URI spec.  This is bad."
 #define LOAD_ERROR_CONTENTTOOBIG "ContentLength is too large"
+
+
+struct LoadSubScriptOptions : OptionsBase {
+    LoadSubScriptOptions(JSContext* cx = xpc_GetSafeJSContext(),
+                                  JSObject* options = nullptr)
+        : OptionsBase(cx, options)
+        , target(cx)
+        , charset(NullString())
+        , ignoreCache(false)
+    { }
+
+    virtual bool Parse()
+    {
+        //k8: i know, this looks wrong and overcomplicated. i'll fix this later
+        nsCString str;
+        if (!ParseString("charset", str)) return false;
+        // convert to unicode
+        PRUnichar *stra = ToNewUnicode(str);
+        if (stra && stra[0])
+        {
+            charset.Assign(stra);
+            NS_Free(stra);
+        }
+        else
+        {
+            charset = NullString();
+        }
+        return ParseObject("target", &target) &&
+               ParseBoolean("ignoreCache", &ignoreCache);
+    }
+
+    RootedObject target;
+    nsString charset;
+    bool ignoreCache;
+};
+
 
 mozJSSubScriptLoader::mozJSSubScriptLoader() : mSystemPrincipal(nullptr)
 {
@@ -180,6 +218,34 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
      * Should ONLY (O N L Y !) be called from JavaScript code.
      */
 
+    LoadSubScriptOptions options(cx);
+    options.charset = charset;
+    if (!JS_ValueToObject(cx, target, options.target.address()))
+        return NS_ERROR_ILLEGAL_VALUE;
+    return DoLoadSubScriptWithOptions(url, options, cx, retval);
+}
+
+NS_IMETHODIMP
+mozJSSubScriptLoader::LoadSubScriptWithOptions(const nsAString& url,
+                                               const JS::Value& optionsVal,
+                                               JSContext* cx,
+                                               JS::Value* retval)
+{
+    if (!optionsVal.isObject())
+        return NS_ERROR_INVALID_ARG;
+    LoadSubScriptOptions options(cx, &optionsVal.toObject());
+    if (!options.Parse())
+        return NS_ERROR_INVALID_ARG;
+    return DoLoadSubScriptWithOptions(url, options, cx, retval);
+}
+
+nsresult
+mozJSSubScriptLoader::DoLoadSubScriptWithOptions(const nsAString& url,
+                                                 LoadSubScriptOptions& options,
+                                                 JSContext* cx,
+                                                 JS::Value* retval)
+{
+
     nsresult rv = NS_OK;
 
     /* set the system principal if it's not here already */
@@ -199,16 +265,12 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
     rv = loader->FindTargetObject(cx, &targetObj);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    bool reusingGlobal = !JS_IsGlobalObject(targetObj);
-
     // We base reusingGlobal off of what the loader told us, but we may not
     // actually be using that object.
-    RootedObject passedObj(cx);
-    if (!JS_ValueToObject(cx, target, passedObj.address()))
-        return NS_ERROR_ILLEGAL_VALUE;
+    bool reusingGlobal = !JS_IsGlobalObject(targetObj);
 
-    if (passedObj)
-        targetObj = passedObj;
+    if (options.target)
+        targetObj = options.target;
 
     // Remember an object out of the calling compartment so that we
     // can properly wrap the result later.
@@ -295,13 +357,14 @@ mozJSSubScriptLoader::LoadSubScript(const nsAString& url,
 
     RootedFunction function(cx);
     script = nullptr;
-    if (cache)
+    if (cache && !options.ignoreCache)
         rv = ReadCachedScript(cache, cachePath, cx, mSystemPrincipal, script.address());
     if (!script) {
-        rv = ReadScript(uri, cx, targetObj, charset,
+        rv = ReadScript(uri, cx, targetObj, options.charset,
                         static_cast<const char*>(uriStr.get()), serv,
                         principal, reusingGlobal, script.address(), function.address());
         writeScript = !!script;
+        if (options.ignoreCache) cache = nullptr; // do not write this script to cache
     }
 
     if (NS_FAILED(rv) || (!script && !function))
