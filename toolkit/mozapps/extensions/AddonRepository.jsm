@@ -39,8 +39,9 @@ const KEY_PROFILEDIR = "ProfD";
 const FILE_DATABASE  = "addons.sqlite";
 const DB_SCHEMA      = 4;
 
-const TOOLKIT_ID     = "toolkit@mozilla.org";
-const FIREFOX_ID     = "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}";
+const TOOLKIT_ID_COMPAT = "toolkit@mozilla.org";
+const TOOLKIT_ID        = "toolkit@palemoon.org";
+const FIREFOX_ID        = "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}";
 
 ["LOG", "WARN", "ERROR"].forEach(function(aName) {
   this.__defineGetter__(aName, function logFuncGetter() {
@@ -1288,7 +1289,7 @@ this.AddonRepository = {
       let toolkitAppRange = null;
       for (let node of aNodes) {
         let appID = this._getDescendantTextContent(node, "appID");
-        if (appID != Services.appinfo.ID && appID != TOOLKIT_ID)
+        if (appID != Services.appinfo.ID && appID != TOOLKIT_ID && appID != TOOLKIT_ID_COMPAT)
           continue;
 
         let minVersion = this._getDescendantTextContent(node, "min_version");
@@ -1301,7 +1302,7 @@ this.AddonRepository = {
                          appMaxVersion: maxVersion };
 
         // Only use Toolkit app ranges if no ranges match the application ID.
-        if (appID == TOOLKIT_ID)
+        if (appID == TOOLKIT_ID || appID == TOOLKIT_ID_COMPAT)
           toolkitAppRange = appRange;
         else
           return appRange;
@@ -1460,7 +1461,7 @@ this.AddonRepository = {
     for (let override of aCompatOverrides) {
 
       let appVersion = null;
-      if (override.appID == TOOLKIT_ID)
+      if (override.appID == TOOLKIT_ID || override.appID == TOOLKIT_ID_COMPAT)
         appVersion = aPlatformVersion || Services.appinfo.platformVersion;
       else
         appVersion = aAppVersion || Services.appinfo.version;
