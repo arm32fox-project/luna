@@ -38,6 +38,17 @@ LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/libvpx/vpx_mem/include \
   -I$(topsrcdir)/media/libvpx/vpx_ports/ \
   -I$(topsrcdir)/media/libvpx/vpx_scale/ \
+  -I$(topsrcdir)/media/libvpx/vp8/encoder \
+  -I$(topsrcdir)/media/libvpx/vp8/encoder/arm \
+  -I$(topsrcdir)/media/libvpx/vp8/encoder/arm/armv5te \
+  -I$(topsrcdir)/media/libvpx/vp8/encoder/arm/neon \
+  -I$(topsrcdir)/media/libvpx/vp8/encoder/arm/armv6 \
+  -I$(topsrcdir)/media/libvpx/vpx_scale/arm \
+  -I$(topsrcdir)/media/libvpx/vpx_scale/arm/neon \
+  -I$(topsrcdir)/media/libvpx/vp8/encoder/x86 \
+  -I$(topsrcdir)/media/libvpx/vp9/encoder \
+  -I$(topsrcdir)/media/libvpx/vp9/encoder/x86 \
+  -I$(topsrcdir)/media/libvpx/third_party/x86inc \
   $(NULL)
 
 VPATH += \
@@ -71,6 +82,18 @@ VPATH += \
   $(srcdir)/vp9/common/generic \
   $(srcdir)/vp9/common/x86 \
   $(srcdir)/vp9/decoder \
+  $(srcdir)/vp8/encoder \
+  $(srcdir)/vp8/encoder/arm \
+  $(srcdir)/vp8/encoder/arm/armv5te \
+  $(srcdir)/vp8/encoder/arm/armv6 \
+  $(srcdir)/vp8/encoder/arm/neon \
+  $(srcdir)/vp8/encoder/generic \
+  $(srcdir)/vp8/encoder/x86 \
+  $(srcdir)/vp9/encoder \
+  $(srcdir)/vp9/encoder/x86 \
+  $(srcdir)/vpx_scale/arm \
+  $(srcdir)/vpx_scale/arm/neon \
+  $(srcdir)/third_party/x86inc \
   $(NULL)
 
 #Setup the libvpx assembler config.
@@ -157,45 +180,6 @@ CSRCS += \
   yv12config.c \
   yv12extend.c \
   vpx_scale_rtcd.c \
-  $(NULL)
-
-ifdef MOZ_VP8_ERROR_CONCEALMENT
-CSRCS += \
-  error_concealment.c \
-  $(NULL)
-endif
-
-ifdef MOZ_VP8_ENCODER
-LOCAL_INCLUDES += \
-  -I$(topsrcdir)/media/libvpx/vp8/encoder \
-  -I$(topsrcdir)/media/libvpx/vp8/encoder/arm \
-  -I$(topsrcdir)/media/libvpx/vp8/encoder/arm/armv5te \
-  -I$(topsrcdir)/media/libvpx/vp8/encoder/arm/neon \
-  -I$(topsrcdir)/media/libvpx/vp8/encoder/arm/armv6 \
-  -I$(topsrcdir)/media/libvpx/vpx_scale/arm \
-  -I$(topsrcdir)/media/libvpx/vpx_scale/arm/neon \
-  -I$(topsrcdir)/media/libvpx/vp8/encoder/x86 \
-  -I$(topsrcdir)/media/libvpx/vp9/encoder \
-  -I$(topsrcdir)/media/libvpx/vp9/encoder/x86 \
-  -I$(topsrcdir)/media/libvpx/third_party/x86inc \
-  $(NULL)
-
-VPATH += \
-  $(srcdir)/vp8/encoder \
-  $(srcdir)/vp8/encoder/arm \
-  $(srcdir)/vp8/encoder/arm/armv5te \
-  $(srcdir)/vp8/encoder/arm/armv6 \
-  $(srcdir)/vp8/encoder/arm/neon \
-  $(srcdir)/vp8/encoder/generic \
-  $(srcdir)/vp8/encoder/x86 \
-  $(srcdir)/vp9/encoder \
-  $(srcdir)/vp9/encoder/x86 \
-  $(srcdir)/vpx_scale/arm \
-  $(srcdir)/vpx_scale/arm/neon \
-  $(srcdir)/third_party/x86inc \
-  $(NULL)
-
-CSRCS += \
   bitstream.c \
   dct.c \
   denoising.c \
@@ -250,6 +234,11 @@ CSRCS += \
   vp9_cx_iface.c \
   svc_encodeframe.c \
   $(NULL)
+
+ifdef MOZ_VP8_ERROR_CONCEALMENT
+CSRCS += \
+  error_concealment.c \
+  $(NULL)
 endif
 
 ifdef VPX_X86_ASM
@@ -273,6 +262,19 @@ CSRCS += \
   vp9_idct_intrin_sse2.c \
   vp9_loopfilter_intrin_sse2.c \
   x86_cpuid.c \
+  denoising_sse2.c \
+  quantize_sse2.c \
+  vp8_enc_stubs_mmx.c \
+  vp8_enc_stubs_sse2.c \
+  vp9_dct32x32_sse2.c \
+  vp9_dct_sse2.c \
+  vp9_variance_mmx.c \
+  vp9_variance_sse2.c \
+  $(NULL)
+
+VPX_ASM_ENC_OFFSETS_SRCS = \
+  quantize_sse4.asm \
+  quantize_ssse3.asm \
   $(NULL)
 
 ASFILES += \
@@ -306,48 +308,6 @@ ASFILES += \
   vp9_subpixel_8t_sse2.asm \
   vp9_subpixel_8t_ssse3.asm \
   emms.asm \
-  $(NULL)
-
-ifeq (64,$(findstring 64,$(OS_TEST)))
-VPATH += \
-  $(srcdir)/third_party/x86inc \
-  $(NULL)
-
-ASFILES += \
-  x86inc.asm \
-  loopfilter_block_sse2.asm \
-  $(NULL)
-endif
-
-# AVX2 only supported on
-# Darwin toolchain right now
-ifeq ($(OS_ARCH),Darwin)
-CSRCS += \
-  vp9_loopfilter_intrin_avx2.c\
-  $(NULL)
-
-vp9_loopfilter_intrin_avx2.o: CFLAGS += -mavx2
-endif
-
-ifdef MOZ_VP8_ENCODER
-
-CSRCS += \
-  denoising_sse2.c \
-  quantize_sse2.c \
-  vp8_enc_stubs_mmx.c \
-  vp8_enc_stubs_sse2.c \
-  vp9_dct32x32_sse2.c \
-  vp9_dct_sse2.c \
-  vp9_variance_mmx.c \
-  vp9_variance_sse2.c \
-  $(NULL)
-
-VPX_ASM_ENC_OFFSETS_SRCS = \
-  quantize_sse4.asm \
-  quantize_ssse3.asm \
-  $(NULL)
-
-ASFILES += \
   dct_mmx.asm \
   dct_sse2.asm \
   encodeopt.asm \
@@ -373,11 +333,25 @@ ASFILES += \
   $(NULL)
 
 ifeq (64,$(findstring 64,$(OS_TEST)))
+VPATH += \
+  $(srcdir)/third_party/x86inc \
+  $(NULL)
+
 ASFILES += \
+  x86inc.asm \
+  loopfilter_block_sse2.asm \
   vp9_quantize_ssse3.asm \
   $(NULL)
 endif
 
+# AVX2 only supported on
+# Darwin toolchain right now
+ifeq ($(OS_ARCH),Darwin)
+CSRCS += \
+  vp9_loopfilter_intrin_avx2.c\
+  $(NULL)
+
+vp9_loopfilter_intrin_avx2.o: CFLAGS += -mavx2
 endif
 
 endif
@@ -414,6 +388,10 @@ CSRCS += \
   vp9_idct16x16_neon.c \
   arm_cpudetect.c \
   yv12extend_arm.c \
+  boolhuff_arm.c \
+  dct_arm.c \
+  picklpf_arm.c \
+  quantize_arm.c \
   $(NULL)
 
 # Files which depend on asm_com_offsets.asm (Apparently not used in libvpx 1.3.0 for ARM)
@@ -494,22 +472,6 @@ VPX_ASFILES = \
    vp8_vpxyv12_copyframe_func_neon.asm \
    vp8_vpxyv12_copysrcframe_func_neon.asm \
    vp8_vpxyv12_extendframeborders_neon.asm \
-  $(NULL)
-
-ifdef MOZ_VP8_ENCODER
-CSRCS += \
-   boolhuff_arm.c \
-   dct_arm.c \
-   picklpf_arm.c \
-   quantize_arm.c \
-  $(NULL)
-
-# Files which depend on asm_enc_offsets.asm (Apparently not used in libvpx 1.3.0 for ARM)
-VPX_ASM_ENC_OFFSETS_SRCS = \
-  boolhuff_armv5te.asm \
-  $(NULL)
-
-VPX_ASFILES += \
    boolhuff_armv5te.asm \
    vp8_packtokens_armv5.asm \
    vp8_packtokens_mbrow_armv5.asm \
@@ -527,7 +489,10 @@ VPX_ASFILES += \
    vp8_shortwalsh4x4_neon.asm \
   $(NULL)
 
-endif
+# Files which depend on asm_enc_offsets.asm (Apparently not used in libvpx 1.3.0 for ARM)
+VPX_ASM_ENC_OFFSETS_SRCS = \
+  boolhuff_armv5te.asm \
+  $(NULL)
 
 ifdef VPX_AS_CONVERSION
 # The ARM asm is written in ARM RVCT syntax, but we actually build it with
@@ -544,11 +509,9 @@ ASFILES += $(VPX_ASFILES)
 endif
 
 else
-ifdef MOZ_VP8_ENCODER
 # boolhuff_armv5te.asm defines the same functions as boolhuff.c instead of
 # using RTCD, so we have to make sure we only add one of the two.
 CSRCS += boolhuff.c
-endif
 endif
 
 ifdef VPX_NEED_OBJ_INT_EXTRACT
@@ -570,11 +533,9 @@ CSRCS += vpx_scale_asm_offsets.c
 
 GARBAGE += vpx_scale_asm_offsets.$(OBJ_SUFFIX) vpx_scale_asm_offsets.asm
 
-ifdef MOZ_VP8_ENCODER
 CSRCS += vp8_asm_enc_offsets.c
 
 GARBAGE += vp8_asm_enc_offsets.$(OBJ_SUFFIX) vp8_asm_enc_offsets.asm
-endif
 
 else
 
@@ -591,8 +552,6 @@ vpx_scale_asm_offsets.asm: vpx_scale_asm_offsets.s
 
 GARBAGE += vpx_scale_asm_offsets.s vpx_scale_asm_offsets.asm
 
-ifdef MOZ_VP8_ENCODER
-
 vp8_asm_enc_offsets.s: CFLAGS += -DINLINE_ASM
 
 vp8_asm_enc_offsets.s: $(srcdir)/vp8/encoder/vp8_asm_enc_offsets.c
@@ -604,8 +563,6 @@ vp8_asm_enc_offsets.asm: vp8_asm_enc_offsets.s
 	    $(if $(VPX_AS_CONVERSION),| $(VPX_AS_CONVERSION)) > $@
 
 GARBAGE += vp8_asm_enc_offsets.s vp8_asm_enc_offsets.asm
-
-endif
 
 endif
 
@@ -630,8 +587,6 @@ vpx_scale_asm_offsets.asm: vpx_scale_asm_offsets.$(OBJ_SUFFIX) $(HOST_PROGRAM)
 # It was generated solely so it could be parsed by obj_int_extract.
 OBJS := $(filter-out vpx_scale_asm_offsets.$(OBJ_SUFFIX),$(OBJS))
 
-ifdef MOZ_VP8_ENCODER
-
 ifdef _MSC_VER
 vp8_asm_enc_offsets.$(OBJ_SUFFIX): CFLAGS += -GL-
 endif
@@ -644,18 +599,12 @@ vp8_asm_enc_offsets.asm: vp8_asm_enc_offsets.$(OBJ_SUFFIX) $(HOST_PROGRAM)
 # It was generated solely so it could be parsed by obj_int_extract.
 OBJS := $(filter-out vp8_asm_enc_offsets.$(OBJ_SUFFIX),$(OBJS))
 
-endif
-endif
-
 # These dependencies are not generated automatically, so do it manually.
 ifdef VPX_AS_CONVERSION
 $(addsuffix .$(OBJ_SUFFIX), $(VPX_ASM_COM_OFFSETS_SRCS)): vpx_scale_asm_offsets.asm
-ifdef MOZ_VP8_ENCODER
 $(addsuffix .$(OBJ_SUFFIX), $(VPX_ASM_ENC_OFFSETS_SRCS)): vp8_asm_enc_offsets.asm
-endif
 else
 $(patsubst %.$(ASM_SUFFIX),%.$(OBJ_SUFFIX), $(VPX_ASM_COM_OFFSETS_SRCS)): vpx_scale_asm_offsets.asm
-ifdef MOZ_VP8_ENCODER
 $(patsubst %.$(ASM_SUFFIX),%.$(OBJ_SUFFIX), $(VPX_ASM_ENC_OFFSETS_SRCS)): vp8_asm_enc_offsets.asm
 endif
 endif
