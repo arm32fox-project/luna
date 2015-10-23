@@ -29,7 +29,7 @@ nestegg_tstamp_scale
 nestegg_has_cues
 nestegg_sniff
 #endif
-#ifdef MOZ_VP8
+#ifdef MOZ_VPX
 #ifndef MOZ_NATIVE_LIBVPX
 vpx_codec_control_
 vpx_codec_dec_init_ver

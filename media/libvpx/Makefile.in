@@ -235,7 +235,7 @@ CSRCS += \
   svc_encodeframe.c \
   $(NULL)
 
-ifdef MOZ_VP8_ERROR_CONCEALMENT
+ifdef MOZ_VPX_ERROR_CONCEALMENT
 CSRCS += \
   error_concealment.c \
   $(NULL)
