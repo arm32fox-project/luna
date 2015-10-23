@@ -21,7 +21,8 @@ const PREFIX_NS_EM          = "http://www.mozilla.org/2004/em-rdf#";
 const PREFIX_ITEM           = "urn:mozilla:item:";
 const PREFIX_EXTENSION      = "urn:mozilla:extension:";
 const PREFIX_THEME          = "urn:mozilla:theme:";
-const TOOLKIT_ID            = "toolkit@mozilla.org"
+const TOOLKIT_ID_COMPAT     = "toolkit@mozilla.org"
+const TOOLKIT_ID            = "toolkit@palemoon.org"
 const FIREFOX_ID            = "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}"
 const XMLURI_PARSE_ERROR    = "http://www.mozilla.org/newlayout/xml/parsererror.xml"
 
@@ -595,7 +596,7 @@ function matchesVersions(aUpdate, aAppVersion, aPlatformVersion,
       return (Services.vc.compare(aAppVersion, app.minVersion) >= 0) &&
              (aIgnoreMaxVersion || (Services.vc.compare(aAppVersion, app.maxVersion) <= 0));
     }
-    if (app.id == TOOLKIT_ID) {
+    if (app.id == TOOLKIT_ID || app.id == TOOLKIT_ID_COMPAT) {
       result = (Services.vc.compare(aPlatformVersion, app.minVersion) >= 0) &&
                (aIgnoreMaxVersion || (Services.vc.compare(aPlatformVersion, app.maxVersion) <= 0));
     }
@@ -653,7 +654,8 @@ this.AddonUpdateChecker = {
         if (aIgnoreCompatibility) {
           for (let targetApp of update.targetApplications) {
             let id = targetApp.id;
-            if (id == Services.appinfo.ID || id == FIREFOX_ID || id == TOOLKIT_ID)
+            if (id == Services.appinfo.ID || id == FIREFOX_ID ||
+                id == TOOLKIT_ID || id == TOOLKIT_ID_COMPAT)
               return update;
           }
         }

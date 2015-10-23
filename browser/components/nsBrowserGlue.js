@@ -291,32 +291,6 @@ BrowserGlue.prototype = {
       case "profile-before-change":
         this._onProfileShutdown();
         break;
-#ifdef MOZ_SERVICES_HEALTHREPORT
-      case "keyword-search":
-        // This is very similar to code in
-        // browser.js:BrowserSearch.recordSearchInHealthReport(). The code could
-        // be consolidated if there is will. We need the observer in
-        // nsBrowserGlue to prevent double counting.
-        let reporter = Cc["@mozilla.org/datareporting/service;1"]
-                         .getService()
-                         .wrappedJSObject
-                         .healthReporter;
-
-        if (!reporter) {
-          return;
-        }
-
-        reporter.onInit().then(function record() {
-          try {
-            let name = subject.QueryInterface(Ci.nsISearchEngine).name;
-            reporter.getProvider("org.mozilla.searches").recordSearch(name,
-                                                                      "urlbar");
-          } catch (ex) {
-            Cu.reportError(ex);
-          }
-        });
-        break;
-#endif
       case "browser-search-engine-modified":
         if (data != "engine-default" && data != "engine-current") {
           break;
@@ -383,9 +357,6 @@ BrowserGlue.prototype = {
     this._isPlacesShutdownObserver = true;
     os.addObserver(this, "handle-xul-text-link", false);
     os.addObserver(this, "profile-before-change", false);
-#ifdef MOZ_SERVICES_HEALTHREPORT
-    os.addObserver(this, "keyword-search", false);
-#endif
     os.addObserver(this, "browser-search-engine-modified", false);
     os.addObserver(this, "browser-search-service", false);
   },
@@ -418,9 +389,6 @@ BrowserGlue.prototype = {
       os.removeObserver(this, "places-shutdown");
     os.removeObserver(this, "handle-xul-text-link");
     os.removeObserver(this, "profile-before-change");
-#ifdef MOZ_SERVICES_HEALTHREPORT
-    os.removeObserver(this, "keyword-search");
-#endif
     os.removeObserver(this, "browser-search-engine-modified");
     try {
       os.removeObserver(this, "browser-search-service");
@@ -1779,7 +1747,7 @@ ContentPermissionPrompt.prototype = {
       action: null,
       expireType: null,
       callback: function() {
-        // Telemetry stub
+        // Telemetry stub (left here for safety and compatibility reasons)
       },
     }];
 
@@ -1795,7 +1763,7 @@ ContentPermissionPrompt.prototype = {
         action: Ci.nsIPermissionManager.ALLOW_ACTION,
         expireType: null,
         callback: function() {
-          // Telemetry stub
+          // Telemetry stub (left here for safety and compatibility reasons)
         },
       });
 
@@ -1805,7 +1773,7 @@ ContentPermissionPrompt.prototype = {
         action: Ci.nsIPermissionManager.DENY_ACTION,
         expireType: null,
         callback: function() {
-          // Telemetry stub
+          // Telemetry stub (left here for safety and compatibility reasons)
         },
       });
     }

@@ -6,6 +6,8 @@
 
 #include "vm/RegExpObject.h"
 
+#include "jsstr.h"
+
 #include "frontend/TokenStream.h"
 
 #include "vm/MatchPairs.h"
@@ -381,7 +383,7 @@ RegExpObject::toString(JSContext *cx) const
 /* RegExpShared */
 
 RegExpShared::RegExpShared(JSRuntime *rt, JSAtom *source, RegExpFlag flags)
-  : source(source), flags(flags), parenCount(0),
+  : source(source), flags(flags), parenCount(0), canStringMatch(false),
 #if ENABLE_YARR_JIT
     codeBlock(),
 #endif
@@ -470,6 +472,12 @@ RegExpShared::compile(JSContext *cx, bool matchOnly)
 bool
 RegExpShared::compile(JSContext *cx, JSLinearString &pattern, bool matchOnly)
 {
+    if (!ignoreCase() && !StringHasRegExpMetaChars(pattern.chars(), pattern.length())) {
+        canStringMatch = true;
+        parenCount = 0;
+        return true;
+    }
+
     /* Parse the pattern. */
     ErrorCode yarrError;
     YarrPattern yarrPattern(pattern, ignoreCase(), multiline(), &yarrError);
@@ -511,7 +519,7 @@ RegExpShared::compile(JSContext *cx, JSLinearString &pattern, bool matchOnly)
 bool
 RegExpShared::compileIfNecessary(JSContext *cx)
 {
-    if (hasCode() || hasBytecode())
+    if (hasCode() || hasBytecode() || canStringMatch)
         return true;
     return compile(cx, false);
 }
@@ -519,7 +527,7 @@ RegExpShared::compileIfNecessary(JSContext *cx)
 bool
 RegExpShared::compileMatchOnlyIfNecessary(JSContext *cx)
 {
-    if (hasMatchOnlyCode() || hasBytecode())
+    if (hasMatchOnlyCode() || hasBytecode() || canStringMatch)
         return true;
     return compile(cx, true);
 }
@@ -553,6 +561,20 @@ RegExpShared::execute(JSContext *cx, const jschar *chars, size_t length,
 
     unsigned *outputBuf = matches.rawBuf();
     unsigned result;
+
+    if (canStringMatch) {
+        int res = StringFindPattern(chars+start, length-start, source->chars(), source->length());
+        if (res == -1)
+            return RegExpRunStatus_Success_NotFound;
+
+        outputBuf[0] = res + start;
+        outputBuf[1] = outputBuf[0] + source->length();
+
+        matches.displace(displacement);
+        matches.checkAgainst(origLength);
+        *lastIndex = matches[0].limit;
+        return RegExpRunStatus_Success;
+    }
 
 #if ENABLE_YARR_JIT
     if (codeBlock.isFallBack())
@@ -594,6 +616,17 @@ RegExpShared::executeMatchOnly(JSContext *cx, const jschar *chars, size_t length
         chars += displacement;
         length -= displacement;
         start = 0;
+    }
+
+    if (canStringMatch) {
+        int res = StringFindPattern(chars+start, length-start, source->chars(), source->length());
+        if (res == -1)
+            return RegExpRunStatus_Success_NotFound;
+
+        match = MatchPair(res + start, res + start + source->length());
+        match.displace(displacement);
+        *lastIndex = match.limit;
+        return RegExpRunStatus_Success;
     }
 
 #if ENABLE_YARR_JIT

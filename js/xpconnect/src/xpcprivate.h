@@ -3705,6 +3705,26 @@ xpc_GetSafeJSContext()
 }
 
 namespace xpc {
+struct OptionsBase {
+    OptionsBase(JSContext* cx = xpc_GetSafeJSContext(), JSObject* options = nullptr)
+        : mCx(cx)
+        , mObject(cx, options)
+    { }
+
+    virtual bool Parse() = 0;
+
+    bool ParseValue(const char* name, JS::MutableHandleValue prop, bool* found = nullptr);
+    bool ParseBoolean(const char* name, bool* prop);
+    bool ParseObject(const char* name, JS::MutableHandleObject prop);
+    bool ParseJSString(const char* name, JS::MutableHandleString prop);
+    bool ParseString(const char* name, nsCString& prop);
+    //TODO:bool ParseString(const char* name, nsString& prop);
+    bool ParseId(const char* name, JS::MutableHandleId id);
+
+    JSContext* mCx;
+    JS::RootedObject mObject;
+};
+
 struct SandboxOptions {
     SandboxOptions(JSContext *cx)
         : wantXrays(true)

@@ -75,8 +75,6 @@ Cu.import("resource://gre/modules/Services.jsm", this);
 Cu.import("resource://gre/modules/XPCOMUtils.jsm", this);
 // debug.js adds NS_ASSERT. cf. bug 669196
 Cu.import("resource://gre/modules/debug.js", this);
-Cu.import("resource://gre/modules/TelemetryTimestamps.jsm", this);
-Cu.import("resource://gre/modules/TelemetryStopwatch.jsm", this);
 Cu.import("resource://gre/modules/osfile.jsm", this);
 Cu.import("resource://gre/modules/PrivateBrowsingUtils.jsm", this);
 Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js", this);
@@ -351,7 +349,6 @@ let SessionStoreInternal = {
     if (this._sessionInitialized) {
       return;
     }
-    TelemetryTimestamps.add("sessionRestoreInitialized");
     OBSERVING.forEach(function(aTopic) {
       Services.obs.addObserver(this, aTopic, true);
     }, this);
@@ -716,7 +713,6 @@ let SessionStoreInternal = {
           // Nothing to restore now, notify observers things are complete.
           Services.obs.notifyObservers(null, NOTIFY_WINDOWS_RESTORED, "");
         } else {
-          TelemetryTimestamps.add("sessionRestoreRestoring");
           // make sure that the restored tabs are first in the window
           this._initialState._firstTabs = true;
           this._restoreCount = this._initialState.windows ? this._initialState.windows.length : 0;
@@ -3646,13 +3642,8 @@ let SessionStoreInternal = {
     // if we crash.
     let pinnedOnly = this._loadState == STATE_RUNNING && !this._resume_from_crash;
 
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_COLLECT_DATA_MS");
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_COLLECT_DATA_LONGEST_OP_MS");
-
     var oState = this._getCurrentState(aUpdateAll, pinnedOnly);
     if (!oState) {
-      TelemetryStopwatch.cancel("FX_SESSION_RESTORE_COLLECT_DATA_MS");
-      TelemetryStopwatch.cancel("FX_SESSION_RESTORE_COLLECT_DATA_LONGEST_OP_MS");
       return;
     }
 
@@ -3712,9 +3703,6 @@ let SessionStoreInternal = {
       oState.windows = this._deferredInitialState.windows || [];
     }
 
-    TelemetryStopwatch.finish("FX_SESSION_RESTORE_COLLECT_DATA_MS");
-    TelemetryStopwatch.finish("FX_SESSION_RESTORE_COLLECT_DATA_LONGEST_OP_MS");
-
     this._saveStateObject(oState);
   },
 
@@ -3722,11 +3710,7 @@ let SessionStoreInternal = {
    * write a state object to disk
    */
   _saveStateObject: function ssi_saveStateObject(aStateObj) {
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_SERIALIZE_DATA_MS");
-    TelemetryStopwatch.start("FX_SESSION_RESTORE_SERIALIZE_DATA_LONGEST_OP_MS");
     let data = this._toJSONString(aStateObj);
-    TelemetryStopwatch.finish("FX_SESSION_RESTORE_SERIALIZE_DATA_MS");
-    TelemetryStopwatch.finish("FX_SESSION_RESTORE_SERIALIZE_DATA_LONGEST_OP_MS");
 
     let stateString = this._createSupportsString(data);
     Services.obs.notifyObservers(stateString, "sessionstore-state-write", "");

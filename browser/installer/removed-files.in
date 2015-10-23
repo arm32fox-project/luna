@@ -116,7 +116,6 @@ defaults/pref/xpinstall.js
 defaults/preferences/services-aitc.js
 defaults/preferences/services-notifications.js
 defaults/preferences/services-sync.js
-defaults/preferences/healthreport-prefs.js
 defaults/profile/US/
 defaults/profile/extensions/
 defaults/profile/extensions/Extensions.rdf
@@ -700,9 +699,6 @@ xpicleanup@BIN_SUFFIX@
   #if MOZ_MSVC_REDIST != 1700
     msvcp110.dll
     msvcr110.dll
-    #ifdef MOZ_METRO
-      vccorlib110.dll
-    #endif
   #endif
   plugins/npnul32.dll
 #endif

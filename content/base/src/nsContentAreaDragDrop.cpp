@@ -538,10 +538,12 @@ DragDataProducer::Produce(nsDOMDataTransfer* aDataTransfer,
         }
 
         nsCOMPtr<nsIDOMElement> imageElement(do_QueryInterface(image));
-        // XXXbz Shouldn't we use the "title" attr for title?  Using
-        // "alt" seems very wrong....
+        // Use the "title" attr for title, or "alt" as fallback, if present.
         if (imageElement) {
-          imageElement->GetAttribute(NS_LITERAL_STRING("alt"), mTitleString);
+          imageElement->GetAttribute(NS_LITERAL_STRING("title"), mTitleString);
+          if (mTitleString.IsEmpty()) {
+            imageElement->GetAttribute(NS_LITERAL_STRING("alt"), mTitleString);
+          }
         }
 
         if (mTitleString.IsEmpty()) {

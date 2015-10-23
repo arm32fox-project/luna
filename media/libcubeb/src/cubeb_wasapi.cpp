@@ -944,8 +944,11 @@ handle_channel_layout(cubeb_stream * stm,  WAVEFORMATEX ** mix_format, const cub
       format_pcm->dwChannelMask = KSAUDIO_SPEAKER_STEREO;
       break;
     default:
-      XASSERT(false && "Channel layout not supported.");
-      break;
+      /* Channel layout is not supported (e.g. quad) and WASAPI doesn't
+       * gracefully handle this. Instead of trying to force the issue,
+       * we bail here and let the regular resampler decide on an
+       * acceptable format */
+      return;
   }
   (*mix_format)->nChannels = stream_params->channels;
   (*mix_format)->nBlockAlign = ((*mix_format)->wBitsPerSample * (*mix_format)->nChannels) / 8;

@@ -41,6 +41,7 @@
 #include "nsITimer.h"
 
 #include "nsEventDispatcher.h"
+#include "nsEventStateManager.h"
 #include "MediaError.h"
 #include "MediaDecoder.h"
 #include "nsICategoryManager.h"
@@ -595,6 +596,7 @@ void HTMLMediaElement::AbortExistingLoads()
     mAudioStream = nullptr;
   }
 
+  RemoveMediaElementFromURITable();
   mLoadingSrc = nullptr;
 
   if (mNetworkState == nsIDOMHTMLMediaElement::NETWORK_LOADING ||
@@ -791,6 +793,7 @@ void HTMLMediaElement::SelectResource()
       NS_ASSERTION(!mIsLoadingFromSourceChildren,
         "Should think we're not loading from source children by default");
 
+      RemoveMediaElementFromURITable();
       mLoadingSrc = uri;
       if (mPreloadAction == HTMLMediaElement::PRELOAD_NONE) {
         // preload:none media, suspend the load here before we make any
@@ -916,6 +919,7 @@ void HTMLMediaElement::LoadFromSourceChildren()
       continue;
     }
 
+    RemoveMediaElementFromURITable();
     mLoadingSrc = uri;
     NS_ASSERTION(mNetworkState == nsIDOMHTMLMediaElement::NETWORK_LOADING,
                  "Network state should be loading");
@@ -1268,7 +1272,14 @@ NS_IMETHODIMP HTMLMediaElement::GetCurrentTime(double* aCurrentTime)
 void
 HTMLMediaElement::SetCurrentTime(double aCurrentTime, ErrorResult& aRv)
 {
+  // aCurrentTime should be non-NaN
   MOZ_ASSERT(aCurrentTime == aCurrentTime);
+
+  // Detect if user has interacted with element by seeking so that
+  // play will not be blocked when initiated by a script.
+  if (nsEventStateManager::IsHandlingUserInput() || nsContentUtils::IsCallerChrome()) {
+    mHasUserInteraction = true;
+  }
 
   StopSuspendingAfterFirstFrame();
 
@@ -1813,11 +1824,7 @@ HTMLMediaElement::AddMediaElementToURITable()
 void
 HTMLMediaElement::RemoveMediaElementFromURITable()
 {
-  NS_ASSERTION(MediaElementTableCount(this, mLoadingSrc) == 1,
-    "Before remove, should have a single entry for element in element table");
-  NS_ASSERTION(mDecoder, "Don't call this without decoder!");
-  NS_ASSERTION(mLoadingSrc, "Can't have decoder without source!");
-  if (!gElementTable)
+  if (!mDecoder || !mLoadingSrc || !gElementTable)
     return;
   MediaElementSetForURI* entry = gElementTable->GetEntry(mLoadingSrc);
   if (!entry)
@@ -1908,7 +1915,8 @@ HTMLMediaElement::HTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     mHasVideo(false),
     mDownloadSuspendedByCache(false),
     mAudioChannelType(AUDIO_CHANNEL_NORMAL),
-    mPlayingThroughTheAudioChannel(false)
+    mPlayingThroughTheAudioChannel(false),
+    mHasUserInteraction(false)
 {
 #ifdef PR_LOGGING
   if (!gMediaElementLog) {
@@ -2002,6 +2010,21 @@ void HTMLMediaElement::SetPlayedOrSeeked(bool aValue)
 void
 HTMLMediaElement::Play(ErrorResult& aRv)
 {
+  // Prevent media element from being auto-started by a script when
+  // media.autoplay.enabled=false
+  if (!mHasUserInteraction
+      && !IsAutoplayEnabled()
+      && !nsEventStateManager::IsHandlingUserInput()
+      && !nsContentUtils::IsCallerChrome()) {
+    LOG(PR_LOG_DEBUG, ("%p Blocked attempt to autoplay media.", this));
+    return;
+  }
+
+  // Play was not blocked; assume that the user has interacted with the element.
+  // This will set the state of the element for future script-interaction
+  // in a player with custom player controls.
+  mHasUserInteraction = true;
+
   StopSuspendingAfterFirstFrame();
   SetPlayedOrSeeked(true);
 
@@ -2796,6 +2819,7 @@ void HTMLMediaElement::DecodeError()
   if (mDecoder) {
     ShutdownDecoder();
   }
+  RemoveMediaElementFromURITable();
   mLoadingSrc = nullptr;
   if (mIsLoadingFromSourceChildren) {
     mError = nullptr;

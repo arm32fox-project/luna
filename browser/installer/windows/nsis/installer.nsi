@@ -91,9 +91,6 @@ VIAddVersionKey "OriginalFilename" "setup.exe"
 !insertmacro RegCleanAppHandler
 !insertmacro RegCleanMain
 !insertmacro RegCleanUninstall
-!ifdef MOZ_METRO
-!insertmacro RemoveDEHRegistrationIfMatching
-!endif
 !insertmacro SetAppLSPCategories
 !insertmacro SetBrandNameVars
 !insertmacro UpdateShortcutAppModelIDs
@@ -286,9 +283,6 @@ Section "-Application" APP_IDX
   SetShellVarContext current  ; Set SHCTX to HKCU
   ${RegCleanMain} "Software\Mozilla"
   ${RegCleanUninstall}
-!ifdef MOZ_METRO
-  ${ResetWin8PromptKeys}
-!endif
   ${UpdateProtocolHandlers}
 
   ClearErrors
@@ -309,9 +303,6 @@ Section "-Application" APP_IDX
     ${EndIf}
   ${EndIf}
 
-!ifdef MOZ_METRO
-  ${ResetWin8MetroSplash}
-!endif
   ${RemoveDeprecatedKeys}
 
   ; The previous installer adds several regsitry values to both HKLM and HKCU.
@@ -377,14 +368,6 @@ Section "-Application" APP_IDX
     ${Else}
       WriteRegDWORD HKCU "$0" "IconsVisible" 0
     ${EndIf}
-!ifdef MOZ_METRO
-    ${CleanupMetroBrowserHandlerValues} ${DELEGATE_EXECUTE_HANDLER_ID}
-    ${AddMetroBrowserHandlerValues} ${DELEGATE_EXECUTE_HANDLER_ID} \
-                                    "$INSTDIR\CommandExecuteHandler.exe" \
-                                    $AppUserModelID \
-                                    "PaleMoonURL" \
-                                    "PaleMoonHTML"
-!endif
   ${EndIf}
 
 !ifdef MOZ_MAINTENANCE_SERVICE
@@ -840,13 +823,7 @@ Function leaveShortcuts
   ${MUI_INSTALLOPTIONS_READ} $AddDesktopSC "shortcuts.ini" "Field 2" "State"
 
   ; If we have a Metro browser and are Win8, then we don't have a Field 3
-!ifdef MOZ_METRO
-  ${Unless} ${AtLeastWin8}
-!endif
     ${MUI_INSTALLOPTIONS_READ} $AddStartMenuSC "shortcuts.ini" "Field 3" "State"
-!ifdef MOZ_METRO
-  ${EndIf}
-!endif
 
   ; Don't install the quick launch shortcut on Windows 7
   ${Unless} ${AtLeastWin7}
@@ -1117,21 +1094,13 @@ Function .onInit
   WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" State  "1"
   WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 2" Flags  "GROUP"
 
-  ; Don't offer to install the start menu shortcut on Windows 8
-  ; for Metro builds.
-!ifdef MOZ_METRO
-  ${Unless} ${AtLeastWin8}
-!endif
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Type   "checkbox"
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Text   "$(ICONS_STARTMENU)"
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Left   "0"
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Right  "-1"
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Top    "40"
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Bottom "50"
-    WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" State  "1"
-!ifdef MOZ_METRO
-  ${EndIf}
-!endif
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Type   "checkbox"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Text   "$(ICONS_STARTMENU)"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Left   "0"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Right  "-1"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Top    "40"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" Bottom "50"
+  WriteINIStr "$PLUGINSDIR\shortcuts.ini" "Field 3" State  "1"
 
   ; Don't offer to install the quick launch shortcut on Windows 7
   ${Unless} ${AtLeastWin7}

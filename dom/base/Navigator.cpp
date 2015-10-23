@@ -467,7 +467,10 @@ Navigator::GetVendorSub(nsAString& aVendorSub)
 NS_IMETHODIMP
 Navigator::GetProduct(nsAString& aProduct)
 {
-  aProduct.AssignLiteral("Goanna");
+  // All browsers return "Gecko" for navigator.product, even IE
+  // So this is a legacy value as a leftover from the browser wars.
+  // Setting this to anything else breaks libs that check for this.
+  aProduct.AssignLiteral("Gecko");
   return NS_OK;
 }
 

@@ -454,6 +454,8 @@ class Runner(object):
                                 (os.environ.get("ProgramFiles(x86)"),'Nightly', 'firefox.exe'),
                                 (program_files, 'Aurora', 'firefox.exe'),
                                 (os.environ.get("ProgramFiles(x86)"),'Aurora', 'firefox.exe')
+                                (program_files, 'Pale Moon', 'palemoon.exe'),
+                                (os.environ.get("ProgramFiles(x86)"),'Pale Moon', 'palemoon.exe')
                                 ]:
                         path = os.path.join(*bin)
                         if os.path.isfile(path):

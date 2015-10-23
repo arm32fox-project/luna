@@ -536,7 +536,6 @@ public:
   static const MappedAttributeEntry sDivAlignAttributeMap[];
   static const MappedAttributeEntry sBackgroundAttributeMap[];
   static const MappedAttributeEntry sBackgroundColorAttributeMap[];
-  static const MappedAttributeEntry sScrollingAttributeMap[];
   
   /**
    * Helper to map the align attribute into a style struct.

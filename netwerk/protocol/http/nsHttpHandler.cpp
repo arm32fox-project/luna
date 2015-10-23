@@ -262,7 +262,7 @@ nsHttpHandler::Init()
     mMisc.AssignLiteral("rv:" MOZILLA_UAVERSION);
 
     mCompatGecko.AssignLiteral("Gecko/20100101");
-    mCompatFirefox.AssignLiteral("Firefox/31.9");
+    mCompatFirefox.AssignLiteral("Firefox/38.9");
 
     nsCOMPtr<nsIXULAppInfo> appInfo =
         do_GetService("@mozilla.org/xre/app-info;1");

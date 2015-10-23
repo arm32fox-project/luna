@@ -60,6 +60,9 @@ public:
                            bool aNotify) MOZ_OVERRIDE;
   virtual nsresult UnsetAttr(int32_t aNameSpaceID, nsIAtom* aAttribute,
                              bool aNotify) MOZ_OVERRIDE;
+  virtual nsresult AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
+                                const nsAttrValue* aValue,
+                                bool aNotify) MOZ_OVERRIDE;
   virtual void DestroyContent() MOZ_OVERRIDE;
 
   nsresult CopyInnerTo(mozilla::dom::Element* aDest);
@@ -70,6 +73,16 @@ public:
                                                      nsGenericHTMLElement)
 
   void SwapFrameLoaders(nsXULElement& aOtherOwner, mozilla::ErrorResult& aError);
+
+  /**
+   * Helper method to map a HTML 'scrolling' attribute value to a nsIScrollable
+   * enum value.  scrolling="no" (and its synonyms) maps to
+   * nsIScrollable::Scrollbar_Never, and anything else (including nullptr) maps
+   * to nsIScrollable::Scrollbar_Auto.
+   * @param aValue the attribute value to map or nullptr
+   * @return nsIScrollable::Scrollbar_Never or nsIScrollable::Scrollbar_Auto
+   */
+  static int32_t MapScrollingAttribute(const nsAttrValue* aValue);
 
 protected:
   // This doesn't really ensure a frame loade in all cases, only when

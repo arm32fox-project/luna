@@ -190,6 +190,12 @@ public:
 
   NS_DISPLAY_DECL_NAME("Remote", TYPE_REMOTE)
 
+  virtual nsRegion GetOpaqueRegion(nsDisplayListBuilder* aBuilder,
+                                   bool* aSnap)
+  {
+    return GetBounds(aBuilder, aSnap);
+  }
+
 private:
   RenderFrameParent* mRemoteFrame;
 };

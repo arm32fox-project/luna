@@ -102,7 +102,8 @@ const RDFURI_ITEM_ROOT                = "urn:mozilla:item:root"
 const RDFURI_INSTALL_MANIFEST_ROOT    = "urn:mozilla:install-manifest";
 const PREFIX_NS_EM                    = "http://www.mozilla.org/2004/em-rdf#";
 
-const TOOLKIT_ID                      = "toolkit@mozilla.org";
+const TOOLKIT_ID_COMPAT               = "toolkit@mozilla.org";
+const TOOLKIT_ID                      = "toolkit@palemoon.org";
 const FIREFOX_ID                      = "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}"
 const FIREFOX_APPCOMPATVERSION        = "24.9"
 
@@ -5781,7 +5782,7 @@ AddonInternal.prototype = {
         return false;
     }
 #endif
-    else if (app.id == TOOLKIT_ID)
+    else if (app.id == TOOLKIT_ID || app.id == TOOLKIT_ID_COMPAT)
       version = aPlatformVersion;
 
     // Only extensions and dictionaries can be compatible by default; themes
@@ -5805,7 +5806,7 @@ AddonInternal.prototype = {
       let minCompatVersion;
       if (app.id == Services.appinfo.ID || app.id == FIREFOX_ID)
         minCompatVersion = XPIProvider.minCompatibleAppVersion;
-      else if (app.id == TOOLKIT_ID)
+      else if (app.id == TOOLKIT_ID || app.id == TOOLKIT_ID_COMPAT)
         minCompatVersion = XPIProvider.minCompatiblePlatformVersion;
 
       if (minCompatVersion &&
@@ -5824,7 +5825,7 @@ AddonInternal.prototype = {
     for (let targetApp of this.targetApplications) {
       if (targetApp.id == Services.appinfo.ID)
         return targetApp;
-      if (targetApp.id == TOOLKIT_ID)
+      if (targetApp.id == TOOLKIT_ID || targetApp.id == TOOLKIT_ID_COMPAT)
         app = targetApp;
     }
 #ifdef MOZ_MULTI_GUID

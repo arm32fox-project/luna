@@ -66,7 +66,7 @@ MozTaggedMemoryIsSupported(void)
   if (supported == -1) {
     // Tagging an empty range always "succeeds" if the feature is supported,
     // regardless of the start pointer.
-    supported = mozilla::TagAnonymousMemoryAligned(nullptr, 0, nullptr) == 0;
+    supported = mozilla::TagAnonymousMemoryAligned(NULL, 0, NULL) == 0;
   }
   return supported;
 }
