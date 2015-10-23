@@ -72,7 +72,7 @@ this.NetworkStatsService = {
 
     // Stats for all interfaces are updated periodically
     this.timer.initWithCallback(this, this._db.sampleRate,
-                                Ci.nsITimer.TYPE_REPEATING_PRECISE);
+                                Ci.nsITimer.TYPE_REPEATING_PRECISE_CAN_SKIP);
 
     this.updateQueue = [];
     this.isQueueRunning = false;
