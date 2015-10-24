@@ -49,6 +49,7 @@ LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/libvpx/vp9/encoder \
   -I$(topsrcdir)/media/libvpx/vp9/encoder/x86 \
   -I$(topsrcdir)/media/libvpx/third_party/x86inc \
+  -I$(topsrcdir)/media/libvpx/vpx_dsp \
   $(NULL)
 
 VPATH += \
@@ -94,6 +95,7 @@ VPATH += \
   $(srcdir)/vpx_scale/arm \
   $(srcdir)/vpx_scale/arm/neon \
   $(srcdir)/third_party/x86inc \
+  $(srcdir)/vpx_dsp \
   $(NULL)
 
 #Setup the libvpx assembler config.
@@ -105,6 +107,7 @@ ASM_SUFFIX=$(VPX_ASM_SUFFIX)
 CSRCS += \
   alloccommon.c \
   blockd.c \
+  copy_c.c \
   debugmodes.c \
   dequantize.c \
   entropy.c \
@@ -125,61 +128,16 @@ CSRCS += \
   reconintra.c \
   reconintra4x4.c \
   rtcd.c \
-  sad_c.c \
   setupintrarecon.c \
   swapyv12buffer.c \
   treecoder.c \
   variance_c.c \
   dboolhuff.c \
+  decodeframe.c \
   decodemv.c \
-  decodframe.c \
   detokenize.c \
   onyxd_if.c \
   threading.c \
-  vp8_dx_iface.c \
-  vp9_systemdependent.c \
-  vp9_alloccommon.c \
-  vp9_common_data.c \
-  vp9_convolve.c \
-  vp9_debugmodes.c \
-  vp9_entropy.c \
-  vp9_entropymode.c \
-  vp9_entropymv.c \
-  vp9_extend.c \
-  vp9_filter.c \
-  vp9_findnearmv.c \
-  vp9_idct.c \
-  vp9_loopfilter.c \
-  vp9_loopfilter_filters.c \
-  vp9_mvref_common.c \
-  vp9_pred_common.c \
-  vp9_quant_common.c \
-  vp9_reconinter.c \
-  vp9_reconintra.c \
-  vp9_rtcd.c \
-  vp9_scale.c \
-  vp9_scan.c \
-  vp9_seg_common.c \
-  vp9_tile_common.c \
-  vp9_treecoder.c \
-  vp9_dboolhuff.c \
-  vp9_decodemv.c \
-  vp9_decodframe.c \
-  vp9_detokenize.c \
-  vp9_dsubexp.c \
-  vp9_onyxd_if.c \
-  vp9_thread.c \
-  vp9_dx_iface.c \
-  vpx_codec.c \
-  vpx_decoder.c \
-  vpx_encoder.c \
-  vpx_image.c \
-  vpx_mem.c \
-  gen_scalers.c \
-  vpx_scale.c \
-  yv12config.c \
-  yv12extend.c \
-  vpx_scale_rtcd.c \
   bitstream.c \
   dct.c \
   denoising.c \
@@ -196,7 +154,6 @@ CSRCS += \
   onyx_if.c \
   pickinter.c \
   picklpf.c \
-  psnr.c \
   quantize.c \
   ratectrl.c \
   rdopt.c \
@@ -205,34 +162,93 @@ CSRCS += \
   tokenize.c \
   treewriter.c \
   vp8_cx_iface.c \
+  vp8_dx_iface.c \
+  vp9_alloccommon.c \
+  vp9_blockd.c \
+  vp9_common_data.c \
+  vp9_convolve.c \
+  vp9_debugmodes.c \
+  vp9_entropy.c \
+  vp9_entropymode.c \
+  vp9_entropymv.c \
+  vp9_filter.c \
+  vp9_frame_buffers.c \
+  vp9_idct.c \
+  vp9_loopfilter.c \
+  vp9_loopfilter_filters.c \
+  vp9_mvref_common.c \
+  vp9_pred_common.c \
+  vp9_prob.c \
+  vp9_quant_common.c \
+  vp9_reconinter.c \
+  vp9_reconintra.c \
+  vp9_rtcd.c \
+  vp9_scale.c \
+  vp9_scan.c \
+  vp9_seg_common.c \
+  vp9_thread.c \
+  vp9_thread_common.c \
+  vp9_tile_common.c \
+  vp9_decodeframe.c \
+  vp9_decodemv.c \
+  vp9_decoder.c \
+  vp9_detokenize.c \
+  vp9_dsubexp.c \
+  vp9_dthread.c \
+  vp9_read_bit_buffer.c \
+  vp9_reader.c \
+  vp9_aq_complexity.c \
+  vp9_aq_cyclicrefresh.c \
+  vp9_aq_variance.c \
+  vp9_avg.c \
   vp9_bitstream.c \
-  vp9_boolhuff.c \
+  vp9_context_tree.c \
+  vp9_cost.c \
   vp9_dct.c \
   vp9_encodeframe.c \
-  vp9_encodeintra.c \
   vp9_encodemb.c \
   vp9_encodemv.c \
+  vp9_encoder.c \
+  vp9_ethread.c \
+  vp9_extend.c \
   vp9_firstpass.c \
   vp9_lookahead.c \
   vp9_mbgraph.c \
   vp9_mcomp.c \
-  vp9_modecosts.c \
-  vp9_onyx_if.c \
   vp9_picklpf.c \
-  vp9_psnr.c \
+  vp9_pickmode.c \
   vp9_quantize.c \
   vp9_ratectrl.c \
+  vp9_rd.c \
   vp9_rdopt.c \
-  vp9_sad_c.c \
+  vp9_resize.c \
   vp9_segmentation.c \
+  vp9_skin_detection.c \
+  vp9_speed_features.c \
   vp9_subexp.c \
+  vp9_svc_layercontext.c \
   vp9_temporal_filter.c \
   vp9_tokenize.c \
   vp9_treewriter.c \
-  vp9_vaq.c \
-  vp9_variance_c.c \
+  vp9_variance.c \
+  vp9_write_bit_buffer.c \
+  vp9_writer.c \
   vp9_cx_iface.c \
-  svc_encodeframe.c \
+  vp9_dx_iface.c \
+  vpx_codec.c \
+  vpx_decoder.c \
+  vpx_encoder.c \
+  vpx_image.c \
+  vpx_psnr.c \
+  sad.c \
+  variance.c \
+  vpx_dsp_rtcd.c \
+  vpx_mem.c \
+  gen_scalers.c \
+  vpx_scale.c \
+  yv12config.c \
+  yv12extend.c \
+  vpx_scale_rtcd.c \
   $(NULL)
 
 ifdef MOZ_VPX_ERROR_CONCEALMENT
@@ -252,32 +268,36 @@ CSRCS += \
   idct_blk_mmx.c \
   idct_blk_sse2.c \
   loopfilter_x86.c \
-  postproc_x86.c \
   recon_wrapper_sse2.c \
-  variance_mmx.c \
-  variance_sse2.c \
   variance_ssse3.c \
   vp8_asm_stubs.c \
+  vp8_variance_mmx.c \
+  vp8_variance_sse2.c \
+  denoising_sse2.c \
+  quantize_sse2.c \
+  quantize_sse4.c \
+  quantize_ssse3.c \
+  vp8_enc_stubs_mmx.c \
+  vp8_enc_stubs_sse2.c \
   vp9_asm_stubs.c \
   vp9_idct_intrin_sse2.c \
   vp9_loopfilter_intrin_sse2.c \
-  x86_cpuid.c \
-  denoising_sse2.c \
-  quantize_sse2.c \
-  vp8_enc_stubs_mmx.c \
-  vp8_enc_stubs_sse2.c \
-  vp9_dct32x32_sse2.c \
+  vp9_subpixel_8t_intrin_ssse3.c \
+  vp9_avg_intrin_sse2.c \
   vp9_dct_sse2.c \
-  vp9_variance_mmx.c \
+  vp9_dct_ssse3.c \
+  vp9_quantize_sse2.c \
   vp9_variance_sse2.c \
+  variance_mmx.c \
+  variance_sse2.c \
   $(NULL)
 
 VPX_ASM_ENC_OFFSETS_SRCS = \
-  quantize_sse4.asm \
-  quantize_ssse3.asm \
   $(NULL)
 
 ASFILES += \
+  copy_sse2.asm \
+  copy_sse3.asm \
   dequantize_mmx.asm \
   idctllm_mmx.asm \
   idctllm_sse2.asm \
@@ -290,24 +310,12 @@ ASFILES += \
   postproc_sse2.asm \
   recon_mmx.asm \
   recon_sse2.asm \
-  sad_mmx.asm \
-  sad_sse2.asm \
-  sad_sse3.asm \
-  sad_sse4.asm \
-  sad_ssse3.asm \
   subpixel_mmx.asm \
   subpixel_sse2.asm \
   subpixel_ssse3.asm \
-  variance_impl_mmx.asm \
   variance_impl_sse2.asm \
   variance_impl_ssse3.asm \
-  vp9_copy_sse2.asm \
-  vp9_intrapred_sse2.asm \
-  vp9_intrapred_ssse3.asm \
-  vp9_loopfilter_mmx.asm \
-  vp9_subpixel_8t_sse2.asm \
-  vp9_subpixel_8t_ssse3.asm \
-  emms.asm \
+  vp8_variance_impl_mmx.asm \
   dct_mmx.asm \
   dct_sse2.asm \
   encodeopt.asm \
@@ -316,19 +324,27 @@ ASFILES += \
   subtract_mmx.asm \
   subtract_sse2.asm \
   temporal_filter_apply_sse2.asm \
+  vp9_copy_sse2.asm \
+  vp9_intrapred_sse2.asm \
+  vp9_intrapred_ssse3.asm \
+  vp9_loopfilter_mmx.asm \
+  vp9_subpixel_8t_sse2.asm \
+  vp9_subpixel_8t_ssse3.asm \
+  vp9_subpixel_bilinear_sse2.asm \
+  vp9_subpixel_bilinear_ssse3.asm \
+  vp9_dct_mmx.asm \
   vp9_error_sse2.asm \
-  vp9_sad4d_sse2.asm \
-  vp9_sad_mmx.asm \
-  vp9_sad_sse2.asm \
-  vp9_sad_sse3.asm \
-  vp9_sad_sse4.asm \
-  vp9_sad_ssse3.asm \
   vp9_subpel_variance.asm \
-  vp9_subpel_variance_impl_sse2.asm \
   vp9_subtract_sse2.asm \
   vp9_temporal_filter_apply_sse2.asm \
-  vp9_variance_impl_mmx.asm \
-  vp9_variance_impl_sse2.asm \
+  sad4d_sse2.asm \
+  sad_mmx.asm \
+  sad_sse2.asm \
+  sad_sse3.asm \
+  sad_sse4.asm \
+  sad_ssse3.asm \
+  variance_impl_mmx.asm \
+  emms.asm \
   $(VPX_ASM_ENC_OFFSETS_SRCS) \
   $(NULL)
 
@@ -339,8 +355,12 @@ VPATH += \
 
 ASFILES += \
   x86inc.asm \
-  loopfilter_block_sse2.asm \
-  vp9_quantize_ssse3.asm \
+  loopfilter_block_sse2_x86_64.asm \
+  ssim_opt_x86_64.asm \
+  vp9_idct_ssse3_x86_64.asm \
+  vp9_dct_ssse3_x86_64.asm \
+  vp9_quantize_ssse3_x86_64.asm \
+  vp9_ssim_opt_x86_64.asm \
   $(NULL)
 endif
 
@@ -348,7 +368,16 @@ endif
 # Darwin toolchain right now
 ifeq ($(OS_ARCH),Darwin)
 CSRCS += \
-  vp9_loopfilter_intrin_avx2.c\
+  vp9_loopfilter_intrin_avx2.c \
+  vp9_subpixel_8t_intrin_avx2.c \
+  vp9_dct_avx2.c \
+  vp9_error_intrin_avx2.c \
+  vp9_subpel_variance_impl_intrin_avx2.c \
+  vp9_variance_avx2.c \
+  sad4d_avx2.c \
+  sad_avx2.c \
+  variance_avx2.c \
+  variance_impl_avx2.c \
   $(NULL)
 
 vp9_loopfilter_intrin_avx2.o: CFLAGS += -mavx2
@@ -377,116 +406,95 @@ endif
 
 CSRCS += \
   idct_blk_v6.c \
-  idct_blk_neon.c \
   bilinearfilter_arm.c \
   dequantize_arm.c \
   filter_arm.c \
   loopfilter_arm.c \
-  reconintra_arm.c \
+  bilinearpredict_neon.c \
+  copymem_neon.c \
+  dc_only_idct_add_neon.c \
+  dequant_idct_neon.c \
+  dequantizeb_neon.c \
+  idct_blk_neon.c \
+  idct_dequant_0_2x_neon.c \
+  idct_dequant_full_2x_neon.c \
+  iwalsh_neon.c \
+  loopfilter_neon.c \
+  loopfiltersimplehorizontaledge_neon.c \
+  loopfiltersimpleverticaledge_neon.c \
+  mbloopfilter_neon.c \
+  reconintra_neon.c \
+  shortidct4x4llm_neon.c \
+  sixtappredict_neon.c \
+  vp8_subpixelvariance_neon.c \
   variance_arm.c \
-  vp9_convolve_neon.c \
-  vp9_idct16x16_neon.c \
-  arm_cpudetect.c \
-  yv12extend_arm.c \
-  boolhuff_arm.c \
   dct_arm.c \
-  picklpf_arm.c \
-  quantize_arm.c \
+  denoising_neon.c \
+  fastquantizeb_neon.c \
+  shortfdct_neon.c \
+  subtract_neon.c \
+  vp8_shortwalsh4x4_neon.c \
+  vp9_convolve_neon.c \
+  vp9_iht4x4_add_neon.c \
+  vp9_iht8x8_add_neon.c \
+  vp9_loopfilter_neon.c \
+  vp9_reconintra_neon.c \
+  vp9_dct_neon.c \
+  vp9_quantize_neon.c \
+  vp9_subtract_neon.c \
+  vp9_variance_neon.c \
+  vp9enc_avg_neon.c \
+  sad4d_neon.c \
+  sad_neon.c \
+  variance_neon.c \
+  arm_cpudetect.c \
+  $(NULL)
+
+VPX_ASFILES = \
+  bilinearfilter_v6.asm \
+  copymem16x16_v6.asm \
+  copymem8x4_v6.asm \
+  copymem8x8_v6.asm \
+  dc_only_idct_add_v6.asm \
+  dequant_idct_v6.asm \
+  dequantize_v6.asm \
+  filter_v6.asm \
+  idct_v6.asm \
+  intra4x4_predict_v6.asm \
+  iwalsh_v6.asm \
+  loopfilter_v6.asm \
+  simpleloopfilter_v6.asm \
+  sixtappredict8x4_v6.asm \
+  vp8_variance_halfpixvar16x16_h_armv6.asm \
+  vp8_variance_halfpixvar16x16_hv_armv6.asm \
+  vp8_variance_halfpixvar16x16_v_armv6.asm \
+  vp8_short_fdct4x4_armv6.asm \
+  walsh_v6.asm \
+  vp9_convolve8_avg_neon_asm.asm \
+  vp9_convolve8_neon_asm.asm \
+  vp9_convolve_avg_neon_asm.asm \
+  vp9_copy_neon_asm.asm \
+  vp9_idct16x16_1_add_neon_asm.asm \
+  vp9_idct16x16_add_neon_asm.asm \
+  vp9_idct16x16_neon.c
+  vp9_idct32x32_1_add_neon_asm.asm \
+  vp9_idct32x32_add_neon_asm.asm \
+  vp9_idct4x4_1_add_neon_asm.asm \
+  vp9_idct4x4_add_neon_asm.asm \
+  vp9_idct8x8_1_add_neon_asm.asm \
+  vp9_idct8x8_add_neon_asm.asm \
+  vp9_loopfilter_16_neon_asm.asm \
+  vp9_loopfilter_4_neon_asm.asm \
+  vp9_loopfilter_8_neon_asm.asm \
+  vp9_mb_lpf_neon.asm \
+  vp9_reconintra_neon_asm.asm \
+  vp9_save_reg_neon.asm \
+  sad_media.asm \
+  variance_media.asm \
   $(NULL)
 
 # Files which depend on asm_com_offsets.asm (Apparently not used in libvpx 1.3.0 for ARM)
 VPX_ASM_COM_OFFSETS_SRCS = \
-  vp8_vpxyv12_copy_y_neon.asm \
-  $(NULL)
-
-VPX_ASFILES = \
-   bilinearfilter_v6.asm \
-   copymem16x16_v6.asm \
-   copymem8x4_v6.asm \
-   copymem8x8_v6.asm \
-   dc_only_idct_add_v6.asm \
-   dequant_idct_v6.asm \
-   dequantize_v6.asm \
-   filter_v6.asm \
-   idct_v6.asm \
-   intra4x4_predict_v6.asm \
-   iwalsh_v6.asm \
-   loopfilter_v6.asm \
-   simpleloopfilter_v6.asm \
-   sixtappredict8x4_v6.asm \
-   vp8_sad16x16_armv6.asm \
-   vp8_variance16x16_armv6.asm \
-   vp8_variance8x8_armv6.asm \
-   vp8_variance_halfpixvar16x16_h_armv6.asm \
-   vp8_variance_halfpixvar16x16_hv_armv6.asm \
-   vp8_variance_halfpixvar16x16_v_armv6.asm \
-   bilinearpredict16x16_neon.asm \
-   bilinearpredict4x4_neon.asm \
-   bilinearpredict8x4_neon.asm \
-   bilinearpredict8x8_neon.asm \
-   buildintrapredictorsmby_neon.asm \
-   copymem16x16_neon.asm \
-   copymem8x4_neon.asm \
-   copymem8x8_neon.asm \
-   dc_only_idct_add_neon.asm \
-   dequant_idct_neon.asm \
-   dequantizeb_neon.asm \
-   idct_dequant_0_2x_neon.asm \
-   idct_dequant_full_2x_neon.asm \
-   iwalsh_neon.asm \
-   loopfilter_neon.asm \
-   loopfiltersimplehorizontaledge_neon.asm \
-   loopfiltersimpleverticaledge_neon.asm \
-   mbloopfilter_neon.asm \
-   sad16_neon.asm \
-   sad8_neon.asm \
-   save_reg_neon.asm \
-   shortidct4x4llm_neon.asm \
-   sixtappredict16x16_neon.asm \
-   sixtappredict4x4_neon.asm \
-   sixtappredict8x4_neon.asm \
-   sixtappredict8x8_neon.asm \
-   variance_neon.asm \
-   vp8_subpixelvariance16x16_neon.asm \
-   vp8_subpixelvariance16x16s_neon.asm \
-   vp8_subpixelvariance8x8_neon.asm \
-   vp9_avg_neon.asm \
-   vp9_convolve8_avg_neon.asm \
-   vp9_convolve8_neon.asm \
-   vp9_copy_neon.asm \
-   vp9_dc_only_idct_add_neon.asm \
-   vp9_loopfilter_neon.asm \
-   vp9_mb_lpf_neon.asm \
-   vp9_save_reg_neon.asm \
-   vp9_short_idct16x16_1_add_neon.asm \
-   vp9_short_idct16x16_add_neon.asm \
-   vp9_short_idct32x32_1_add_neon.asm \
-   vp9_short_idct32x32_add_neon.asm \
-   vp9_short_idct4x4_1_add_neon.asm \
-   vp9_short_idct4x4_add_neon.asm \
-   vp9_short_idct8x8_1_add_neon.asm \
-   vp9_short_idct8x8_add_neon.asm \
-   vp9_short_iht4x4_add_neon.asm \
-   vp9_short_iht8x8_add_neon.asm \
-   vp8_vpxyv12_copy_y_neon.asm \
-   vp8_vpxyv12_copyframe_func_neon.asm \
-   vp8_vpxyv12_copysrcframe_func_neon.asm \
-   vp8_vpxyv12_extendframeborders_neon.asm \
-   boolhuff_armv5te.asm \
-   vp8_packtokens_armv5.asm \
-   vp8_packtokens_mbrow_armv5.asm \
-   vp8_packtokens_partitions_armv5.asm \
-   vp8_fast_quantize_b_armv6.asm \
-   vp8_mse16x16_armv6.asm \
-   vp8_short_fdct4x4_armv6.asm \
-   vp8_subtract_armv6.asm \
-   walsh_v6.asm \
-   fastquantizeb_neon.asm \
-   shortfdct_neon.asm \
-   subtract_neon.asm \
-   vp8_memcpy_neon.asm \
-   vp8_mse16x16_neon.asm \
-   vp8_shortwalsh4x4_neon.asm \
   $(NULL)
 
 # Files which depend on asm_enc_offsets.asm (Apparently not used in libvpx 1.3.0 for ARM)
