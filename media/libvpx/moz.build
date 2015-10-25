@@ -13,6 +13,7 @@ EXPORTS.vpx += [
     'vpx/vpx_codec.h',
     'vpx/vpx_decoder.h',
     'vpx/vpx_encoder.h',
+    'vpx/vpx_frame_buffer.h',
     'vpx/vpx_image.h',
     'vpx/vpx_integer.h',
     'vpx_mem/include/vpx_mem_intrnl.h',
@@ -22,7 +23,7 @@ EXPORTS.vpx += [
     'vpx_ports/vpx_timer.h',
     'vpx_ports/x86.h',
     'vpx_scale/vpx_scale.h',
-    'vpx_scale/yv12config.h',
+    'vpx_scale/yv12config.h'
 ]
 
 LIBRARY_NAME = 'vpx'
