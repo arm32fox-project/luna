@@ -25,10 +25,5 @@ EXPORTS.vpx += [
     'vpx_scale/yv12config.h',
 ]
 
-if CONFIG['VPX_NEED_OBJ_INT_EXTRACT']:
-    HOST_CSRCS += [
-        'obj_int_extract.c',
-    ]
-
 LIBRARY_NAME = 'vpx'
 

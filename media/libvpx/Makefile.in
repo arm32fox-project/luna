@@ -50,6 +50,8 @@ LOCAL_INCLUDES += \
   -I$(topsrcdir)/media/libvpx/vp9/encoder/x86 \
   -I$(topsrcdir)/media/libvpx/third_party/x86inc \
   -I$(topsrcdir)/media/libvpx/vpx_dsp \
+  -I$(topsrcdir)/media/libvpx/vpx_dsp/x86 \
+  -I$(topsrcdir)/media/libvpx/vpx_dsp/arm \
   $(NULL)
 
 VPATH += \
@@ -96,6 +98,8 @@ VPATH += \
   $(srcdir)/vpx_scale/arm/neon \
   $(srcdir)/third_party/x86inc \
   $(srcdir)/vpx_dsp \
+  $(srcdir)/vpx_dsp/x86 \
+  $(srcdir)/vpx_dsp/arm \
   $(NULL)
 
 #Setup the libvpx assembler config.
@@ -107,6 +111,7 @@ ASM_SUFFIX=$(VPX_ASM_SUFFIX)
 CSRCS += \
   alloccommon.c \
   blockd.c \
+  boolhuff.c \
   copy_c.c \
   debugmodes.c \
   dequantize.c \
@@ -493,15 +498,6 @@ VPX_ASFILES = \
   variance_media.asm \
   $(NULL)
 
-# Files which depend on asm_com_offsets.asm (Apparently not used in libvpx 1.3.0 for ARM)
-VPX_ASM_COM_OFFSETS_SRCS = \
-  $(NULL)
-
-# Files which depend on asm_enc_offsets.asm (Apparently not used in libvpx 1.3.0 for ARM)
-VPX_ASM_ENC_OFFSETS_SRCS = \
-  boolhuff_armv5te.asm \
-  $(NULL)
-
 ifdef VPX_AS_CONVERSION
 # The ARM asm is written in ARM RVCT syntax, but we actually build it with
 # gas using GNU syntax. Add some rules to perform the conversion.
@@ -512,110 +508,11 @@ GARBAGE += $(VPX_CONVERTED_ASFILES)
 
 %.asm.$(ASM_SUFFIX): %.asm
 	$(VPX_AS_CONVERSION) < $< > $@
-else
-ASFILES += $(VPX_ASFILES)
-endif
-
-else
-# boolhuff_armv5te.asm defines the same functions as boolhuff.c instead of
-# using RTCD, so we have to make sure we only add one of the two.
-CSRCS += boolhuff.c
-endif
-
-ifdef VPX_NEED_OBJ_INT_EXTRACT
-
-# We don't have a compiler that supports a compatible inline asm syntax, so we
-# have to resort to extracting asm offsets from a compiled object. This only
-# works if we have the appropriate system headers obj_int_extract needs to
-# parse that format, and so only has limited support for cross-compilation.
-
-ifdef VPX_ARM_ASM
-VPX_OIE_FORMAT := rvds
-else
-VPX_OIE_FORMAT := gas
-endif
-
-HOST_PROGRAM = host_obj_int_extract$(HOST_BIN_SUFFIX)
-
-CSRCS += vpx_scale_asm_offsets.c
-
-GARBAGE += vpx_scale_asm_offsets.$(OBJ_SUFFIX) vpx_scale_asm_offsets.asm
-
-CSRCS += vp8_asm_enc_offsets.c
-
-GARBAGE += vp8_asm_enc_offsets.$(OBJ_SUFFIX) vp8_asm_enc_offsets.asm
-
-else
-
-# We can extract the asm offsets directly from generated assembly using inline
-# asm. This is the preferred method.
-
-vpx_scale_asm_offsets.s: CFLAGS += -DINLINE_ASM
-
-OFFSET_PATTERN := '^[a-zA-Z0-9_]* EQU'
-
-vpx_scale_asm_offsets.asm: vpx_scale_asm_offsets.s
-	grep $(OFFSET_PATTERN) $< | sed -e 's/[$$\#]//g' \
-	    $(if $(VPX_AS_CONVERSION),| $(VPX_AS_CONVERSION)) > $@
-
-GARBAGE += vpx_scale_asm_offsets.s vpx_scale_asm_offsets.asm
-
-vp8_asm_enc_offsets.s: CFLAGS += -DINLINE_ASM
-
-vp8_asm_enc_offsets.s: $(srcdir)/vp8/encoder/vp8_asm_enc_offsets.c
-	$(REPORT_BUILD)
-	$(CC) -S $(COMPILE_CFLAGS) $(NO_INTEGRATED_AS_CFLAGS) $(TARGET_LOCAL_INCLUDES) $(_VPATH_SRCS)
-
-vp8_asm_enc_offsets.asm: vp8_asm_enc_offsets.s
-	grep $(OFFSET_PATTERN) $< | sed -e 's/[$$\#]//g' \
-	    $(if $(VPX_AS_CONVERSION),| $(VPX_AS_CONVERSION)) > $@
-
-GARBAGE += vp8_asm_enc_offsets.s vp8_asm_enc_offsets.asm
 
 endif
-
-EXTRA_MDDEPEND_FILES = vp8_asm_enc_offsets.s.pp vp8_asm_enc_offsets.$(OBJ_SUFFIX).pp vpx_scale_asm_offsets.s.pp vpx_scale_asm_offsets.$(OBJ_SUFFIX).pp
+endif
 
 include $(topsrcdir)/config/rules.mk
-
-# This must be after rules.mk in order to use $(OBJ_SUFFIX) outside a
-# recursively-expanded variable.
-ifdef VPX_NEED_OBJ_INT_EXTRACT
-
-# only for MSVC
-ifdef _MSC_VER
-vpx_scale_asm_offsets.$(OBJ_SUFFIX): CFLAGS += -GL-
-endif
-
-vpx_scale_asm_offsets.asm: vpx_scale_asm_offsets.$(OBJ_SUFFIX) $(HOST_PROGRAM)
-	./$(HOST_PROGRAM) $(VPX_OIE_FORMAT) $< \
-	    $(if $(VPX_AS_CONVERSION),| $(VPX_AS_CONVERSION)) > $@
-
-# Filter out this object, because we don't want to link against it.
-# It was generated solely so it could be parsed by obj_int_extract.
-OBJS := $(filter-out vpx_scale_asm_offsets.$(OBJ_SUFFIX),$(OBJS))
-
-ifdef _MSC_VER
-vp8_asm_enc_offsets.$(OBJ_SUFFIX): CFLAGS += -GL-
-endif
-
-vp8_asm_enc_offsets.asm: vp8_asm_enc_offsets.$(OBJ_SUFFIX) $(HOST_PROGRAM)
-	./$(HOST_PROGRAM) $(VPX_OIE_FORMAT) $< \
-	    $(if $(VPX_AS_CONVERSION),| $(VPX_AS_CONVERSION)) > $@
-
-# Filter out this object, because we don't want to link against it.
-# It was generated solely so it could be parsed by obj_int_extract.
-OBJS := $(filter-out vp8_asm_enc_offsets.$(OBJ_SUFFIX),$(OBJS))
-
-# These dependencies are not generated automatically, so do it manually.
-ifdef VPX_AS_CONVERSION
-$(addsuffix .$(OBJ_SUFFIX), $(VPX_ASM_COM_OFFSETS_SRCS)): vpx_scale_asm_offsets.asm
-$(addsuffix .$(OBJ_SUFFIX), $(VPX_ASM_ENC_OFFSETS_SRCS)): vp8_asm_enc_offsets.asm
-else
-$(patsubst %.$(ASM_SUFFIX),%.$(OBJ_SUFFIX), $(VPX_ASM_COM_OFFSETS_SRCS)): vpx_scale_asm_offsets.asm
-$(patsubst %.$(ASM_SUFFIX),%.$(OBJ_SUFFIX), $(VPX_ASM_ENC_OFFSETS_SRCS)): vp8_asm_enc_offsets.asm
-endif
-endif
 
 # Workaround a bug of Sun Studio (CR 6963410)
 ifdef SOLARIS_SUNPRO_CC
