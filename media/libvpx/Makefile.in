@@ -514,6 +514,31 @@ endif
 
 include $(topsrcdir)/config/rules.mk
 
+# Workaround GCC 4.9 and CLANG x86 instruction set issues
+ifndef _MSC_VER
+ifneq ($(OS_TARGET),Android)
+idct_blk_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2 -xarch=sse2 -xO4
+recon_wrapper_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2 -xarch=sse2 -xO4
+variance_ssse3.$(OBJ_SUFFIX): CFLAGS += -mssse3
+vp8_variance_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2 -xarch=sse2 -xO4
+denoising_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2 -xarch=sse2 -xO4
+quantize_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2 -xarch=sse2 -xO4
+quantize_sse4.$(OBJ_SUFFIX): CFLAGS += -msse4.1
+quantize_ssse3.$(OBJ_SUFFIX): CFLAGS += -mssse3
+vp8_enc_stubs_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2 -xarch=sse2 -xO4
+vp9_idct_intrin_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2 -xarch=sse2 -xO4
+vp9_loopfilter_intrin_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2 -xarch=sse2 -xO4
+vp9_subpixel_8t_intrin_ssse3.$(OBJ_SUFFIX): CFLAGS += -msse4.1
+vp9_avg_intrin_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2 -xarch=sse2 -xO4
+vp9_dct_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2 -xarch=sse2 -xO4
+vp9_dct_ssse3.$(OBJ_SUFFIX): CFLAGS += -mssse3
+vp9_quantize_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2 -xarch=sse2 -xO4
+vp9_variance_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2 -xarch=sse2 -xO4
+variance_sse2.$(OBJ_SUFFIX): CFLAGS += -msse2 -xarch=sse2 -xO4
+endif
+endif
+
+
 # Workaround a bug of Sun Studio (CR 6963410)
 ifdef SOLARIS_SUNPRO_CC
 ifeq (86,$(findstring 86,$(OS_TEST)))
