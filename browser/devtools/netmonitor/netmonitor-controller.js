@@ -9,7 +9,7 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js");
+let promise = Cu.import("resource://gre/modules/commonjs/sdk/core/promise.js").Promise;
 Cu.import("resource:///modules/source-editor.jsm");
 Cu.import("resource:///modules/devtools/shared/event-emitter.js");
 Cu.import("resource:///modules/devtools/SideMenuWidget.jsm");
@@ -42,7 +42,7 @@ let NetMonitorController = {
     }
     this._isInitialized = true;
 
-    let deferred = this._startup = Promise.defer();
+    let deferred = this._startup = promise.defer();
 
     NetMonitorView.initialize(() => {
       NetMonitorView._isInitialized = true;
@@ -65,7 +65,7 @@ let NetMonitorController = {
     this._isDestroyed = true;
     this._startup = null;
 
-    let deferred = this._shutdown = Promise.defer();
+    let deferred = this._shutdown = promise.defer();
 
     NetMonitorView.destroy(() => {
       NetMonitorView._isDestroyed = true;
@@ -91,7 +91,7 @@ let NetMonitorController = {
       return this._connection.promise;
     }
 
-    let deferred = this._connection = Promise.defer();
+    let deferred = this._connection = promise.defer();
 
     let target = this._target;
     let { client, form } = target;
@@ -493,14 +493,14 @@ NetworkEventsHandler.prototype = {
   getString: function(aStringGrip) {
     // Make sure this is a long string.
     if (typeof aStringGrip != "object" || aStringGrip.type != "longString") {
-      return Promise.resolve(aStringGrip); // Go home string, you're drunk.
+      return promise.resolve(aStringGrip); // Go home string, you're drunk.
     }
     // Fetch the long string only once.
     if (aStringGrip._fullText) {
       return aStringGrip._fullText.promise;
     }
 
-    let deferred = aStringGrip._fullText = Promise.defer();
+    let deferred = aStringGrip._fullText = promise.defer();
     let { actor, initial, length } = aStringGrip;
     let longStringClient = this.webConsoleClient.longString(aStringGrip);
 
