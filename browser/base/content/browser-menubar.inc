@@ -322,6 +322,7 @@
 #ifndef XP_MACOSX
                          placespopup="true"
 #endif
+                         context="placesContext"
                          oncommand="this.parentNode._placesView._onCommand(event);"
                          onclick="checkForMiddleClick(this, event);"
                          onpopupshowing="if (!this.parentNode._placesView)
