@@ -264,6 +264,7 @@
                  command="Browser:ShowAllHistory">
           <menupopup id="appmenu_historyMenupopup"
                      placespopup="true"
+                     context="placesContext"
                      oncommand="this.parentNode._placesView._onCommand(event);"
                      onclick="checkForMiddleClick(this, event);"
                      onpopupshowing="if (!this.parentNode._placesView)
