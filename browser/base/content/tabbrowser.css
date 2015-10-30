@@ -4,6 +4,9 @@
 
 .tabbrowser-tabbox {
   -moz-binding: url("chrome://browser/content/tabbrowser.xml#tabbrowser-tabbox");
+  /* Make the content area follow the system colors before load */
+  background: Menu;
+  color: MenuText;
 }
 
 .tabbrowser-arrowscrollbox {
