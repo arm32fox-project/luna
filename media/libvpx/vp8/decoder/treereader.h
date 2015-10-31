@@ -9,15 +9,11 @@
  */
 
 
-#ifndef VP8_DECODER_TREEREADER_H_
-#define VP8_DECODER_TREEREADER_H_
+#ifndef TREEREADER_H_
+#define TREEREADER_H_
 
 #include "vp8/common/treecoder.h"
 #include "dboolhuff.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 typedef BOOL_DECODER vp8_reader;
 
@@ -41,8 +37,4 @@ static int vp8_treed_read(
     return -i;
 }
 
-#ifdef __cplusplus
-}  // extern "C"
-#endif
-
-#endif  // VP8_DECODER_TREEREADER_H_
+#endif  // TREEREADER_H_

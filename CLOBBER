@@ -18,4 +18,4 @@
 # Modifying this file will now automatically clobber the buildbot machines \o/
 #
 
-libVPX 1.4.x has a lot of file renames.. So clobber.. OR ELSE!
+26.0 Milestone branch merge requires a clobber ( Are you surprised? ;) )

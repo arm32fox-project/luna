@@ -9,8 +9,8 @@
  */
 
 
-#ifndef VPX_SCALE_VPX_SCALE_H_
-#define VPX_SCALE_VPX_SCALE_H_
+#ifndef VPXSCALE_H
+#define VPXSCALE_H
 
 #include "vpx_scale/yv12config.h"
 
@@ -24,4 +24,4 @@ extern void vpx_scale_frame(YV12_BUFFER_CONFIG *src,
                             unsigned int vratio,
                             unsigned int interlaced);
 
-#endif  // VPX_SCALE_VPX_SCALE_H_
+#endif

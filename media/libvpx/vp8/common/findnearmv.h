@@ -9,17 +9,13 @@
  */
 
 
-#ifndef VP8_COMMON_FINDNEARMV_H_
-#define VP8_COMMON_FINDNEARMV_H_
+#ifndef __INC_FINDNEARMV_H
+#define __INC_FINDNEARMV_H
 
 #include "mv.h"
 #include "blockd.h"
 #include "modecont.h"
 #include "treecoder.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 
 static void mv_bias(int refmb_ref_frame_sign_bias, int refframe, int_mv *mvp,
@@ -183,8 +179,4 @@ static B_PREDICTION_MODE above_block_mode(const MODE_INFO *cur_mb, int b, int mi
     return (cur_mb->bmi + b - 4)->as_mode;
 }
 
-#ifdef __cplusplus
-}  // extern "C"
 #endif
-
-#endif  // VP8_COMMON_FINDNEARMV_H_

@@ -9,14 +9,10 @@
  */
 
 
-#ifndef VPX_PORTS_ARM_H_
-#define VPX_PORTS_ARM_H_
+#ifndef VPX_PORTS_ARM_H
+#define VPX_PORTS_ARM_H
 #include <stdlib.h>
 #include "vpx_config.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /*ARMv5TE "Enhanced DSP" instructions.*/
 #define HAS_EDSP  0x01
@@ -27,15 +23,5 @@ extern "C" {
 
 int arm_cpu_caps(void);
 
-// Earlier gcc compilers have issues with some neon intrinsics
-#if !defined(__clang__) && defined(__GNUC__) && \
-    __GNUC__ == 4 && __GNUC_MINOR__ <= 6
-#define VPX_INCOMPATIBLE_GCC
 #endif
-
-#ifdef __cplusplus
-}  // extern "C"
-#endif
-
-#endif  // VPX_PORTS_ARM_H_
 

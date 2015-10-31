@@ -9,8 +9,8 @@
  */
 
 
-#ifndef VP8_ENCODER_TREEWRITER_H_
-#define VP8_ENCODER_TREEWRITER_H_
+#ifndef __INC_TREEWRITER_H
+#define __INC_TREEWRITER_H
 
 /* Trees map alphabets into huffman-like codes suitable for an arithmetic
    bit coder.  Timothy S Murphy  11 October 2004 */
@@ -18,10 +18,6 @@
 #include "vp8/common/treecoder.h"
 
 #include "boolhuff.h"       /* for now */
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 typedef BOOL_CODER vp8_writer;
 
@@ -127,8 +123,4 @@ void vp8_cost_tokens2(
     int *Costs, const vp8_prob *, vp8_tree, int
 );
 
-#ifdef __cplusplus
-}  // extern "C"
 #endif
-
-#endif  // VP8_ENCODER_TREEWRITER_H_

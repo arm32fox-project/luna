@@ -29,7 +29,7 @@ nestegg_tstamp_scale
 nestegg_has_cues
 nestegg_sniff
 #endif
-#ifdef MOZ_VPX
+#ifdef MOZ_VP8
 #ifndef MOZ_NATIVE_LIBVPX
 vpx_codec_control_
 vpx_codec_dec_init_ver
@@ -42,8 +42,10 @@ vpx_codec_vp9_dx
 vpx_img_free
 vpx_codec_enc_config_set
 vpx_codec_enc_init_ver
+#ifdef MOZ_VP8_ENCODER
 vpx_codec_vp8_cx
 vpx_codec_vp9_cx
+#endif
 vpx_img_set_rect
 vpx_img_wrap
 vpx_codec_get_cx_data
@@ -263,6 +265,21 @@ jpeg_stdio_dest
 jpeg_abort
 jpeg_abort_decompress
 jpeg_read_raw_data
+#endif
+#ifndef MOZ_NATIVE_WEBP
+WebPInitDecBufferInternal
+WebPFreeDecBuffer
+WebPINewDecoder
+WebPIDelete
+WebPIAppend
+WebPIDecGetRGB
+WebPConfigInitInternal
+WebPMemoryWriterInit
+WebPMemoryWrite
+WebPPictureInitInternal
+WebPPictureAlloc
+WebPPictureFree
+;+# WebPEncode
 #endif
 qcms_enable_iccv4
 qcms_profile_create_rgb_with_gamma
