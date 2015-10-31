@@ -71,6 +71,11 @@ static const unsigned char MV_REFERENCE_FRAME_colors[MAX_REF_FRAMES][3] =
 };
 #endif
 
+static const short kernel5[] =
+{
+    1, 1, 4, 1, 1
+};
+
 const short vp8_rv[] =
 {
     8, 5, 2, 2, 8, 12, 4, 9, 8, 3,
@@ -214,7 +219,6 @@ static int q2mbl(int x)
     x = 50 + (x - 50) * 10 / 8;
     return x * x / 3;
 }
-
 void vp8_mbpost_proc_across_ip_c(unsigned char *src, int pitch, int rows, int cols, int flimit)
 {
     int r, c, i;
@@ -227,14 +231,14 @@ void vp8_mbpost_proc_across_ip_c(unsigned char *src, int pitch, int rows, int co
         int sumsq = 0;
         int sum   = 0;
 
-        for (i = -8; i < 0; i++)
+        for (i = -8; i<0; i++)
           s[i]=s[0];
 
         /* 17 avoids valgrind warning - we buffer values in c in d
          * and only write them when we've read 8 ahead...
          */
-        for (i = 0; i < 17; i++)
-          s[i+cols]=s[cols-1];
+        for (i = cols; i<cols+17; i++)
+          s[i]=s[cols-1];
 
         for (i = -8; i <= 6; i++)
         {
@@ -265,6 +269,7 @@ void vp8_mbpost_proc_across_ip_c(unsigned char *src, int pitch, int rows, int co
     }
 }
 
+
 void vp8_mbpost_proc_down_c(unsigned char *dst, int pitch, int rows, int cols, int flimit)
 {
     int r, c, i;
@@ -284,8 +289,8 @@ void vp8_mbpost_proc_down_c(unsigned char *dst, int pitch, int rows, int cols, i
         /* 17 avoids valgrind warning - we buffer values in c in d
          * and only write them when we've read 8 ahead...
          */
-        for (i = 0; i < 17; i++)
-          s[(i+rows)*pitch]=s[(rows-1)*pitch];
+        for (i = rows; i < rows+17; i++)
+          s[i*pitch]=s[(rows-1)*pitch];
 
         for (i = -8; i <= 6; i++)
         {
@@ -303,14 +308,13 @@ void vp8_mbpost_proc_down_c(unsigned char *dst, int pitch, int rows, int cols, i
             {
                 d[r&15] = (rv2[r&127] + sum + s[0]) >> 4;
             }
-            if (r >= 8)
-              s[-8*pitch] = d[(r-8)&15];
+
+            s[-8*pitch] = d[(r-8)&15];
             s += pitch;
         }
     }
 }
 
-#if CONFIG_POSTPROC
 static void vp8_de_mblock(YV12_BUFFER_CONFIG         *post,
                           int                         q)
 {
@@ -355,8 +359,8 @@ void vp8_deblock(VP8_COMMON                 *cm,
                 else
                     mb_ppl = (unsigned char)ppl;
 
-                memset(ylptr, mb_ppl, 16);
-                memset(uvlptr, mb_ppl, 8);
+                vpx_memset(ylptr, mb_ppl, 16);
+                vpx_memset(uvlptr, mb_ppl, 8);
 
                 ylptr += 16;
                 uvlptr += 8;
@@ -383,27 +387,26 @@ void vp8_deblock(VP8_COMMON                 *cm,
         vp8_yv12_copy_frame(source, post);
     }
 }
-#endif
 
+#if !(CONFIG_TEMPORAL_DENOISING)
 void vp8_de_noise(VP8_COMMON                 *cm,
                   YV12_BUFFER_CONFIG         *source,
                   YV12_BUFFER_CONFIG         *post,
                   int                         q,
                   int                         low_var_thresh,
-                  int                         flag,
-                  int                         uvfilter)
+                  int                         flag)
 {
-    int mbr;
     double level = 6.0e-05 * q * q * q - .0067 * q * q + .306 * q + .0065;
     int ppl = (int)(level + .5);
-    int mb_rows = cm->mb_rows;
-    int mb_cols = cm->mb_cols;
+    int mb_rows = source->y_width >> 4;
+    int mb_cols = source->y_height >> 4;
     unsigned char *limits = cm->pp_limits_buffer;;
+    int mbr, mbc;
     (void) post;
     (void) low_var_thresh;
     (void) flag;
 
-    memset(limits, (unsigned char)ppl, 16 * mb_cols);
+    vpx_memset(limits, (unsigned char)ppl, 16 * mb_cols);
 
     /* TODO: The original code don't filter the 2 outer rows and columns. */
     for (mbr = 0; mbr < mb_rows; mbr++)
@@ -412,22 +415,20 @@ void vp8_de_noise(VP8_COMMON                 *cm,
             source->y_buffer + 16 * mbr * source->y_stride,
             source->y_buffer + 16 * mbr * source->y_stride,
             source->y_stride, source->y_stride, source->y_width, limits, 16);
-        if (uvfilter == 1) {
-          vp8_post_proc_down_and_across_mb_row(
-              source->u_buffer + 8 * mbr * source->uv_stride,
-              source->u_buffer + 8 * mbr * source->uv_stride,
-              source->uv_stride, source->uv_stride, source->uv_width, limits,
-              8);
-          vp8_post_proc_down_and_across_mb_row(
-              source->v_buffer + 8 * mbr * source->uv_stride,
-              source->v_buffer + 8 * mbr * source->uv_stride,
-              source->uv_stride, source->uv_stride, source->uv_width, limits,
-              8);
-        }
+
+        vp8_post_proc_down_and_across_mb_row(
+            source->u_buffer + 8 * mbr * source->uv_stride,
+            source->u_buffer + 8 * mbr * source->uv_stride,
+            source->uv_stride, source->uv_stride, source->uv_width, limits, 8);
+        vp8_post_proc_down_and_across_mb_row(
+            source->v_buffer + 8 * mbr * source->uv_stride,
+            source->v_buffer + 8 * mbr * source->uv_stride,
+            source->uv_stride, source->uv_stride, source->uv_width, limits, 8);
     }
 }
+#endif
 
-static double gaussian(double sigma, double mu, double x)
+double vp8_gaussian(double sigma, double mu, double x)
 {
     return 1 / (sigma * sqrt(2.0 * 3.14159265)) *
            (exp(-(x - mu) * (x - mu) / (2 * sigma * sigma)));
@@ -455,7 +456,7 @@ static void fillrd(struct postproc_state *state, int q, int a)
 
         for (i = -32; i < 32; i++)
         {
-            const int v = (int)(.5 + 256 * gaussian(sigma, 0, i));
+            const int v = (int)(.5 + 256 * vp8_gaussian(sigma, 0, i));
 
             if (v)
             {
@@ -518,7 +519,6 @@ void vp8_plane_add_noise_c(unsigned char *Start, char *noise,
                            unsigned int Width, unsigned int Height, int Pitch)
 {
     unsigned int i, j;
-    (void)bothclamp;
 
     for (i = 0; i < Height; i++)
     {
@@ -763,7 +763,7 @@ int vp8_post_proc_frame(VP8_COMMON *oci, YV12_BUFFER_CONFIG *dest, vp8_ppflags_t
             /* insure that postproc is set to all 0's so that post proc
              * doesn't pull random data in from edge
              */
-            memset((&oci->post_proc_buffer_int)->buffer_alloc,128,(&oci->post_proc_buffer)->frame_size);
+            vpx_memset((&oci->post_proc_buffer_int)->buffer_alloc,128,(&oci->post_proc_buffer)->frame_size);
 
         }
     }

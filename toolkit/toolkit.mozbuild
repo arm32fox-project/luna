@@ -42,13 +42,16 @@ if CONFIG['MOZ_AUTH_EXTENSION']:
 if not CONFIG['MOZ_NATIVE_JPEG']:
     add_tier_dir('platform', 'media/libjpeg')
 
+if CONFIG['MOZ_WEBP']:
+    add_tier_dir('platform', 'media/libwebp')
+
 if CONFIG['MOZ_UPDATER']:
     if not CONFIG['MOZ_NATIVE_BZ2']:
         add_tier_dir('platform', 'modules/libbz2')
 
     add_tier_dir('platform', 'other-licenses/bsdiff')
 
-# Gecko/Core components.
+# Goanna/Core components.
 
 add_tier_dir('platform', ['ipc', 'js/ipc'])
 
@@ -78,7 +81,7 @@ if CONFIG['MOZ_WEBM']:
 
 add_tier_dir('platform', 'media/webvtt')
 
-if CONFIG['MOZ_VPX'] and not CONFIG['MOZ_NATIVE_LIBVPX']:
+if CONFIG['MOZ_VP8'] and not CONFIG['MOZ_NATIVE_LIBVPX']:
     add_tier_dir('platform', 'media/libvpx')
 
 if CONFIG['MOZ_OGG']:

@@ -9,14 +9,10 @@
  */
 
 
-#ifndef VP8_COMMON_ENTROPYMV_H_
-#define VP8_COMMON_ENTROPYMV_H_
+#ifndef __INC_ENTROPYMV_H
+#define __INC_ENTROPYMV_H
 
 #include "treecoder.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 enum
 {
@@ -45,8 +41,4 @@ typedef struct mv_context
 
 extern const MV_CONTEXT vp8_mv_update_probs[2], vp8_default_mv_context[2];
 
-#ifdef __cplusplus
-}  // extern "C"
 #endif
-
-#endif  // VP8_COMMON_ENTROPYMV_H_

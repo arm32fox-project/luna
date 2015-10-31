@@ -9,12 +9,8 @@
  */
 
 
-#ifndef VP8_COMMON_ARM_BILINEARFILTER_ARM_H_
-#define VP8_COMMON_ARM_BILINEARFILTER_ARM_H_
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef BILINEARFILTER_ARM_H
+#define BILINEARFILTER_ARM_H
 
 extern void vp8_filter_block2d_bil_first_pass_armv6
 (
@@ -36,8 +32,4 @@ extern void vp8_filter_block2d_bil_second_pass_armv6
     const short         *vp8_filter
 );
 
-#ifdef __cplusplus
-}  // extern "C"
-#endif
-
-#endif  // VP8_COMMON_ARM_BILINEARFILTER_ARM_H_
+#endif /* BILINEARFILTER_ARM_H */

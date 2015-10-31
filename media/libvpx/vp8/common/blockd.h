@@ -9,8 +9,8 @@
  */
 
 
-#ifndef VP8_COMMON_BLOCKD_H_
-#define VP8_COMMON_BLOCKD_H_
+#ifndef __INC_BLOCKD_H
+#define __INC_BLOCKD_H
 
 void vpx_log(const char *format, ...);
 
@@ -19,10 +19,6 @@ void vpx_log(const char *format, ...);
 #include "mv.h"
 #include "treecoder.h"
 #include "vpx_ports/mem.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /*#define DCPRED 1*/
 #define DCPREDSIMTHRESH 0
@@ -187,12 +183,8 @@ typedef struct
 {
     FRAME_TYPE frame_type;
     int is_frame_dropped;
-    // The frame rate for the lowest resolution.
-    double low_res_framerate;
     /* The frame number of each reference frames */
     unsigned int low_res_ref_frames[MAX_REF_FRAMES];
-    // The video frame counter value for the key frame, for lowest resolution.
-    unsigned int key_frame_counter_value;
     LOWER_RES_MB_INFO *mb_info;
 } LOWER_RES_FRAME_INFO;
 #endif
@@ -305,8 +297,4 @@ typedef struct macroblockd
 extern void vp8_build_block_doffsets(MACROBLOCKD *x);
 extern void vp8_setup_block_dptrs(MACROBLOCKD *x);
 
-#ifdef __cplusplus
-}  // extern "C"
-#endif
-
-#endif  // VP8_COMMON_BLOCKD_H_
+#endif  /* __INC_BLOCKD_H */

@@ -9,12 +9,8 @@
  */
 
 
-#ifndef VP8_COMMON_PPFLAGS_H_
-#define VP8_COMMON_PPFLAGS_H_
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef __INC_PPFLAGS_H
+#define __INC_PPFLAGS_H
 enum
 {
     VP8D_NOFILTERING            = 0,
@@ -42,8 +38,4 @@ typedef struct
     int display_mv_flag;
 } vp8_ppflags_t;
 
-#ifdef __cplusplus
-}  // extern "C"
 #endif
-
-#endif  // VP8_COMMON_PPFLAGS_H_

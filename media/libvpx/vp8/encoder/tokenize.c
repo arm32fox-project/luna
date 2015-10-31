@@ -213,7 +213,6 @@ static void tokenize1st_order_b
     /* Luma */
     for (block = 0; block < 16; block++, b++)
     {
-        const int eob = *b->eob;
         tmp1 = vp8_block2above[block];
         tmp2 = vp8_block2left[block];
         qcoeff_ptr = b->qcoeff;
@@ -224,7 +223,7 @@ static void tokenize1st_order_b
 
         c = type ? 0 : 1;
 
-        if(c >= eob)
+        if(c >= *b->eob)
         {
             /* c = band for this case */
             t->Token = DCT_EOB_TOKEN;
@@ -251,8 +250,7 @@ static void tokenize1st_order_b
         t++;
         c++;
 
-        assert(eob <= 16);
-        for (; c < eob; c++)
+        for (; c < *b->eob; c++)
         {
             rc = vp8_default_zig_zag1d[c];
             band = vp8_coef_bands[c];
@@ -288,7 +286,6 @@ static void tokenize1st_order_b
     /* Chroma */
     for (block = 16; block < 24; block++, b++)
     {
-        const int eob = *b->eob;
         tmp1 = vp8_block2above[block];
         tmp2 = vp8_block2left[block];
         qcoeff_ptr = b->qcoeff;
@@ -297,7 +294,7 @@ static void tokenize1st_order_b
 
         VP8_COMBINEENTROPYCONTEXTS(pt, *a, *l);
 
-        if(!eob)
+        if(!(*b->eob))
         {
             /* c = band for this case */
             t->Token = DCT_EOB_TOKEN;
@@ -324,8 +321,7 @@ static void tokenize1st_order_b
         t++;
         c = 1;
 
-        assert(eob <= 16);
-        for (; c < eob; c++)
+        for (; c < *b->eob; c++)
         {
             rc = vp8_default_zig_zag1d[c];
             band = vp8_coef_bands[c];
@@ -421,7 +417,7 @@ void vp8_tokenize_mb(VP8_COMP *cpi, MACROBLOCK *x, TOKENEXTRA **t)
 
 void init_context_counters(void)
 {
-    memset(context_counters, 0, sizeof(context_counters));
+    vpx_memset(context_counters, 0, sizeof(context_counters));
 }
 
 void print_context_counters()
@@ -596,13 +592,13 @@ void vp8_fix_contexts(MACROBLOCKD *x)
     /* Clear entropy contexts for Y2 blocks */
     if (x->mode_info_context->mbmi.mode != B_PRED && x->mode_info_context->mbmi.mode != SPLITMV)
     {
-        memset(x->above_context, 0, sizeof(ENTROPY_CONTEXT_PLANES));
-        memset(x->left_context, 0, sizeof(ENTROPY_CONTEXT_PLANES));
+        vpx_memset(x->above_context, 0, sizeof(ENTROPY_CONTEXT_PLANES));
+        vpx_memset(x->left_context, 0, sizeof(ENTROPY_CONTEXT_PLANES));
     }
     else
     {
-        memset(x->above_context, 0, sizeof(ENTROPY_CONTEXT_PLANES)-1);
-        memset(x->left_context, 0, sizeof(ENTROPY_CONTEXT_PLANES)-1);
+        vpx_memset(x->above_context, 0, sizeof(ENTROPY_CONTEXT_PLANES)-1);
+        vpx_memset(x->left_context, 0, sizeof(ENTROPY_CONTEXT_PLANES)-1);
     }
 
 }

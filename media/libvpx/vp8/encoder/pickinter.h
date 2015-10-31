@@ -9,14 +9,10 @@
  */
 
 
-#ifndef VP8_ENCODER_PICKINTER_H_
-#define VP8_ENCODER_PICKINTER_H_
+#ifndef __INC_PICKINTER_H
+#define __INC_PICKINTER_H
 #include "vpx_config.h"
 #include "vp8/common/onyxc_int.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 extern void vp8_pick_inter_mode(VP8_COMP *cpi, MACROBLOCK *x, int recon_yoffset,
                                 int recon_uvoffset, int *returnrate,
@@ -28,8 +24,4 @@ extern int vp8_get_inter_mbpred_error(MACROBLOCK *mb,
                                       const vp8_variance_fn_ptr_t *vfp,
                                       unsigned int *sse,
                                       int_mv this_mv);
-#ifdef __cplusplus
-}  // extern "C"
 #endif
-
-#endif  // VP8_ENCODER_PICKINTER_H_

@@ -7,8 +7,8 @@
  *  in the file PATENTS.  All contributing project authors may
  *  be found in the AUTHORS file in the root of the source tree.
  */
-#ifndef VPX_VPX_ENCODER_H_
-#define VPX_VPX_ENCODER_H_
+#ifndef VPX_ENCODER_H
+#define VPX_ENCODER_H
 
 /*!\defgroup encoder Encoder Algorithm Interface
  * \ingroup codec
@@ -29,7 +29,7 @@
 extern "C" {
 #endif
 
-#include "./vpx_codec.h"
+#include "vpx_codec.h"
 
   /*! Temporal Scalability: Maximum length of the sequence defining frame
    * layer membership
@@ -42,17 +42,14 @@ extern "C" {
   /*!\deprecated Use #VPX_TS_MAX_PERIODICITY instead. */
 #define MAX_PERIODICITY VPX_TS_MAX_PERIODICITY
 
-/*! Temporal+Spatial Scalability: Maximum number of coding layers */
-#define VPX_MAX_LAYERS  12  // 3 temporal + 4 spatial layers are allowed.
-
-/*!\deprecated Use #VPX_MAX_LAYERS instead. */
-#define MAX_LAYERS    VPX_MAX_LAYERS  // 3 temporal + 4 spatial layers allowed.
+  /*!\deprecated Use #VPX_TS_MAX_LAYERS instead. */
+#define MAX_LAYERS      VPX_TS_MAX_LAYERS
 
 /*! Spatial Scalability: Maximum number of coding layers */
 #define VPX_SS_MAX_LAYERS       5
 
 /*! Spatial Scalability: Default number of coding layers */
-#define VPX_SS_DEFAULT_LAYERS       1
+#define VPX_SS_DEFAULT_LAYERS       3
 
   /*!\brief Current ABI version number
    *
@@ -62,7 +59,7 @@ extern "C" {
    * types, removing or reassigning enums, adding/removing/rearranging
    * fields to structures
    */
-#define VPX_ENCODER_ABI_VERSION (5 + VPX_CODEC_ABI_VERSION) /**<\hideinitializer*/
+#define VPX_ENCODER_ABI_VERSION (3 + VPX_CODEC_ABI_VERSION) /**<\hideinitializer*/
 
 
   /*! \brief Encoder capabilities bitfield
@@ -83,9 +80,6 @@ extern "C" {
    */
 #define VPX_CODEC_CAP_OUTPUT_PARTITION  0x20000
 
-/*! Can support input images at greater than 8 bitdepth.
- */
-#define VPX_CODEC_CAP_HIGHBITDEPTH  0x40000
 
   /*! \brief Initialization-time Feature Enabling
    *
@@ -97,7 +91,6 @@ extern "C" {
 #define VPX_CODEC_USE_PSNR  0x10000 /**< Calculate PSNR on each frame */
 #define VPX_CODEC_USE_OUTPUT_PARTITION  0x20000 /**< Make the encoder output one
   partition at a time. */
-#define VPX_CODEC_USE_HIGHBITDEPTH 0x40000 /**< Use high bitdepth */
 
 
   /*!\brief Generic fixed size buffer structure
@@ -162,14 +155,7 @@ extern "C" {
   enum vpx_codec_cx_pkt_kind {
     VPX_CODEC_CX_FRAME_PKT,    /**< Compressed video frame */
     VPX_CODEC_STATS_PKT,       /**< Two-pass statistics for this frame */
-    VPX_CODEC_FPMB_STATS_PKT,  /**< first pass mb statistics for this frame */
     VPX_CODEC_PSNR_PKT,        /**< PSNR statistics for this frame */
-    // Spatial SVC is still experimental and may be removed before the next ABI
-    // bump.
-#if VPX_ENCODER_ABI_VERSION > (5 + VPX_CODEC_ABI_VERSION)
-    VPX_CODEC_SPATIAL_SVC_LAYER_SIZES, /**< Sizes for each layer in this frame*/
-    VPX_CODEC_SPATIAL_SVC_LAYER_PSNR, /**< PSNR for each layer in this frame*/
-#endif
     VPX_CODEC_CUSTOM_PKT = 256 /**< Algorithm extensions  */
   };
 
@@ -198,20 +184,13 @@ extern "C" {
                                               has id 0.*/
 
       } frame;  /**< data for compressed frame packet */
-      vpx_fixed_buf_t twopass_stats;  /**< data for two-pass packet */
-      vpx_fixed_buf_t firstpass_mb_stats; /**< first pass mb packet */
+      struct vpx_fixed_buf twopass_stats;  /**< data for two-pass packet */
       struct vpx_psnr_pkt {
         unsigned int samples[4];  /**< Number of samples, total/y/u/v */
         uint64_t     sse[4];      /**< sum squared error, total/y/u/v */
         double       psnr[4];     /**< PSNR, total/y/u/v */
       } psnr;                       /**< data for PSNR packet */
-      vpx_fixed_buf_t raw;     /**< data for arbitrary packets */
-      // Spatial SVC is still experimental and may be removed before the next
-      // ABI bump.
-#if VPX_ENCODER_ABI_VERSION > (5 + VPX_CODEC_ABI_VERSION)
-      size_t layer_sizes[VPX_SS_MAX_LAYERS];
-      struct vpx_psnr_pkt layer_psnr[VPX_SS_MAX_LAYERS];
-#endif
+      struct vpx_fixed_buf raw;     /**< data for arbitrary packets */
 
       /* This packet size is fixed to allow codecs to extend this
        * interface without having to manage storage for raw packets,
@@ -222,22 +201,6 @@ extern "C" {
     } data; /**< packet data */
   } vpx_codec_cx_pkt_t; /**< alias for struct vpx_codec_cx_pkt */
 
-
-  /*!\brief Encoder return output buffer callback
-   *
-   * This callback function, when registered, returns with packets when each
-   * spatial layer is encoded.
-   */
-  // putting the definitions here for now. (agrange: find if there
-  // is a better place for this)
-  typedef void (* vpx_codec_enc_output_cx_pkt_cb_fn_t)(vpx_codec_cx_pkt_t *pkt,
-                                                       void *user_data);
-
-  /*!\brief Callback function pointer / user data pair storage */
-  typedef struct vpx_codec_enc_output_cx_cb_pair {
-    vpx_codec_enc_output_cx_pkt_cb_fn_t output_cx_pkt; /**< Callback function */
-    void                            *user_priv; /**< Pointer to private data */
-  } vpx_codec_priv_output_cx_pkt_cb_pair_t;
 
   /*!\brief Rational Number
    *
@@ -353,21 +316,6 @@ extern "C" {
      */
     unsigned int           g_h;
 
-    /*!\brief Bit-depth of the codec
-     *
-     * This value identifies the bit_depth of the codec,
-     * Only certain bit-depths are supported as identified in the
-     * vpx_bit_depth_t enum.
-     */
-    vpx_bit_depth_t        g_bit_depth;
-
-    /*!\brief Bit-depth of the input frames
-     *
-     * This value identifies the bit_depth of the input frames in bits.
-     * Note that the frames passed as input to the encoder must have
-     * this bit-depth.
-     */
-    unsigned int           g_input_bit_depth;
 
     /*!\brief Stream timebase units
      *
@@ -448,19 +396,6 @@ extern "C" {
      */
     unsigned int           rc_resize_allowed;
 
-    /*!\brief Internal coded frame width.
-     *
-     * If spatial resampling is enabled this specifies the width of the
-     * encoded frame.
-     */
-    unsigned int           rc_scaled_width;
-
-    /*!\brief Internal coded frame height.
-     *
-     * If spatial resampling is enabled this specifies the height of the
-     * encoded frame.
-     */
-    unsigned int           rc_scaled_height;
 
     /*!\brief Spatial resampling up watermark.
      *
@@ -496,14 +431,8 @@ extern "C" {
      * A buffer containing all of the stats packets produced in the first
      * pass, concatenated.
      */
-    vpx_fixed_buf_t   rc_twopass_stats_in;
+    struct vpx_fixed_buf   rc_twopass_stats_in;
 
-    /*!\brief first pass mb stats buffer.
-     *
-     * A buffer containing all of the first pass mb stats packets produced
-     * in the first pass, concatenated.
-     */
-    vpx_fixed_buf_t   rc_firstpass_mb_stats_in;
 
     /*!\brief Target data rate
      *
@@ -675,93 +604,49 @@ extern "C" {
      * Spatial scalability settings (ss)
      */
 
-    /*!\brief Number of spatial coding layers.
+    /*!\brief Number of coding layers (spatial)
      *
-     * This value specifies the number of spatial coding layers to be used.
+     * This value specifies the number of coding layers to be used.
      */
     unsigned int           ss_number_layers;
 
-    /*!\brief Enable auto alt reference flags for each spatial layer.
+    /*!\brief Number of coding layers
      *
-     * These values specify if auto alt reference frame is enabled for each
-     * spatial layer.
-     */
-    int                    ss_enable_auto_alt_ref[VPX_SS_MAX_LAYERS];
-
-    /*!\brief Target bitrate for each spatial layer.
-     *
-     * These values specify the target coding bitrate to be used for each
-     * spatial layer.
-     */
-    unsigned int           ss_target_bitrate[VPX_SS_MAX_LAYERS];
-
-    /*!\brief Number of temporal coding layers.
-     *
-     * This value specifies the number of temporal layers to be used.
+     * This value specifies the number of coding layers to be used.
      */
     unsigned int           ts_number_layers;
 
-    /*!\brief Target bitrate for each temporal layer.
+    /*!\brief Target bitrate for each layer
      *
-     * These values specify the target coding bitrate to be used for each
-     * temporal layer.
+     * These values specify the target coding bitrate for each coding layer.
      */
     unsigned int           ts_target_bitrate[VPX_TS_MAX_LAYERS];
 
-    /*!\brief Frame rate decimation factor for each temporal layer.
+    /*!\brief Frame rate decimation factor for each layer
      *
      * These values specify the frame rate decimation factors to apply
-     * to each temporal layer.
+     * to each layer.
      */
     unsigned int           ts_rate_decimator[VPX_TS_MAX_LAYERS];
 
-    /*!\brief Length of the sequence defining frame temporal layer membership.
+    /*!\brief Length of the sequence defining frame layer membership
      *
      * This value specifies the length of the sequence that defines the
-     * membership of frames to temporal layers. For example, if the
-     * ts_periodicity = 8, then the frames are assigned to coding layers with a
-     * repeated sequence of length 8.
-    */
+     * membership of frames to layers. For example, if ts_periodicity=8 then
+     * frames are assigned to coding layers with a repeated sequence of
+     * length 8.
+     */
     unsigned int           ts_periodicity;
 
-    /*!\brief Template defining the membership of frames to temporal layers.
+    /*!\brief Template defining the membership of frames to coding layers
      *
-     * This array defines the membership of frames to temporal coding layers.
-     * For a 2-layer encoding that assigns even numbered frames to one temporal
-     * layer (0) and odd numbered frames to a second temporal layer (1) with
-     * ts_periodicity=8, then ts_layer_id = (0,1,0,1,0,1,0,1).
-    */
+     * This array defines the membership of frames to coding layers. For a
+     * 2-layer encoding that assigns even numbered frames to one layer (0)
+     * and odd numbered frames to a second layer (1) with ts_periodicity=8,
+     * then ts_layer_id = (0,1,0,1,0,1,0,1).
+     */
     unsigned int           ts_layer_id[VPX_TS_MAX_PERIODICITY];
-
-    /*!\brief Target bitrate for each spatial/temporal layer.
-     *
-     * These values specify the target coding bitrate to be used for each
-     * spatial/temporal layer.
-     *
-     */
-    unsigned int           layer_target_bitrate[VPX_MAX_LAYERS];
-
-    /*!\brief Temporal layering mode indicating which temporal layering scheme to use.
-     *
-     * The value (refer to VP9E_TEMPORAL_LAYERING_MODE) specifies the
-     * temporal layering mode to use.
-     *
-     */
-    int                    temporal_layering_mode;
   } vpx_codec_enc_cfg_t; /**< alias for struct vpx_codec_enc_cfg */
-
-  /*!\brief  vp9 svc extra configure parameters
-   *
-   * This defines max/min quantizers and scale factors for each layer
-   *
-   */
-  typedef struct vpx_svc_parameters {
-    int max_quantizers[VPX_MAX_LAYERS]; /**< Max Q for each layer */
-    int min_quantizers[VPX_MAX_LAYERS]; /**< Min Q for each layer */
-    int scaling_factor_num[VPX_MAX_LAYERS]; /**< Scaling factor-numerator */
-    int scaling_factor_den[VPX_MAX_LAYERS]; /**< Scaling factor-denominator */
-    int temporal_layering_mode; /**< Temporal layering mode */
-  } vpx_svc_extra_cfg_t;
 
 
   /*!\brief Initialize an encoder instance
@@ -774,6 +659,10 @@ extern "C" {
    * If the library was configured with --disable-multithread, this call
    * is not thread safe and should be guarded with a lock if being used
    * in a multithreaded context.
+   *
+   * In XMA mode (activated by setting VPX_CODEC_USE_XMA in the flags
+   * parameter), the storage pointed to by the cfg parameter must be
+   * kept readable and stable until all memory maps have been set.
    *
    * \param[in]    ctx     Pointer to this instance's context.
    * \param[in]    iface   Pointer to the algorithm interface to use.
@@ -788,7 +677,7 @@ extern "C" {
    */
   vpx_codec_err_t vpx_codec_enc_init_ver(vpx_codec_ctx_t      *ctx,
                                          vpx_codec_iface_t    *iface,
-                                         const vpx_codec_enc_cfg_t *cfg,
+                                         vpx_codec_enc_cfg_t  *cfg,
                                          vpx_codec_flags_t     flags,
                                          int                   ver);
 
@@ -807,6 +696,10 @@ extern "C" {
    * Applications should call the vpx_codec_enc_init_multi convenience macro
    * instead of this function directly, to ensure that the ABI version number
    * parameter is properly initialized.
+   *
+   * In XMA mode (activated by setting VPX_CODEC_USE_XMA in the flags
+   * parameter), the storage pointed to by the cfg parameter must be
+   * kept readable and stable until all memory maps have been set.
    *
    * \param[in]    ctx     Pointer to this instance's context.
    * \param[in]    iface   Pointer to the algorithm interface to use.
@@ -847,9 +740,9 @@ extern "C" {
    * be called by all applications to initialize the configuration structure
    * before specializing the configuration with application specific values.
    *
-   * \param[in]    iface     Pointer to the algorithm interface to use.
-   * \param[out]   cfg       Configuration buffer to populate.
-   * \param[in]    reserved  Must set to 0 for VP8 and VP9.
+   * \param[in]    iface   Pointer to the algorithm interface to use.
+   * \param[out]   cfg     Configuration buffer to populate
+   * \param[in]    usage   End usage. Set to 0 or use codec specific values.
    *
    * \retval #VPX_CODEC_OK
    *     The configuration was populated.
@@ -860,7 +753,7 @@ extern "C" {
    */
   vpx_codec_err_t  vpx_codec_enc_config_default(vpx_codec_iface_t    *iface,
                                                 vpx_codec_enc_cfg_t  *cfg,
-                                                unsigned int          reserved);
+                                                unsigned int          usage);
 
 
   /*!\brief Set or change configuration
@@ -1039,5 +932,5 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-#endif  // VPX_VPX_ENCODER_H_
+#endif
 
