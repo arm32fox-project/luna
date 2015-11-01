@@ -62,7 +62,7 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(NULL)
 endif
 
-ifdef MOZ_VP8
+ifdef MOZ_VPX
 ifndef MOZ_NATIVE_LIBVPX
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/media/libvpx/$(LIB_PREFIX)vpx.$(LIB_SUFFIX) \
