@@ -2041,12 +2041,12 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 .tab-close-button:hover,
 .tab-close-button:hover[selected="true"] {
-  -moz-image-region: rect(0, 48px, 16px, 32px);
+  -moz-image-region: rect(0, 32px, 16px, 16px);
 }
 
 .tab-close-button:hover:active,
 .tab-close-button:hover:active[selected="true"] {
-  -moz-image-region: rect(0, 32px, 16px, 16px);
+  -moz-image-region: rect(0, 48px, 16px, 32px);
 }
 
 .tab-close-button[selected="true"] {
