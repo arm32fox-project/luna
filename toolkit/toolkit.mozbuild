@@ -50,6 +50,8 @@ if CONFIG['MOZ_UPDATER']:
         add_tier_dir('platform', 'modules/libbz2')
 
     add_tier_dir('platform', 'other-licenses/bsdiff')
+    
+add_tier_dir('platform', 'modules/brotli')
 
 # Goanna/Core components.
 

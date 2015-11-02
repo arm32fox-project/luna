@@ -1,0 +1,10 @@
+This is the Brotli data compression library taken from the Google code library.
+This code is released under the Apache 2.0 license.
+
+We import only the Brotli decoder (the /dec/ subdirectory), not the
+encoder (/enc/ subdirectory).
+
+Upstream code can be found at
+  https://github.com/google/brotli
+
+Current version: [commit 1bf4f9b8e6323bfd0f1e0c2f30297faf9d5d3c1c].
