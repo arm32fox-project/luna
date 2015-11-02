@@ -4,6 +4,24 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-DIRS += ['dec']
+EXPORTS += [
+    'bit_reader.h',
+    'decode.h',
+    'huffman.h',
+    'port.h',
+    'state.h',
+    'streams.h',
+    'types.h',
+]
+
+CSRCS += [
+    'bit_reader.c',
+    'decode.c',
+    'dictionary.c',
+    'huffman.c',
+    'state.c',
+    'streams.c',
+]
 
 MODULE = 'brotlidec'
+LIBRARY_NAME = 'brotli'

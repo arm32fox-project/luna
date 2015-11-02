@@ -12,6 +12,7 @@ perl -p -i -e "s/\[commit [0-9a-f]{40}\]/[${COMMIT}]/" README.mozilla;
 
 rm -rf dec
 mv ${MY_TEMP_DIR}/brotli/dec dec
+cp mozbuild.dec dec/moz.build
 rm -rf ${MY_TEMP_DIR}
 hg add dec
 
