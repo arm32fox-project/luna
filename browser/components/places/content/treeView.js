@@ -1471,7 +1471,7 @@ PlacesTreeView.prototype = {
       case this.COLUMN_TYPE_PARENTFOLDER:
         if (PlacesUtils.nodeIsQuery(node.parent) &&
             PlacesUtils.asQuery(node.parent).queryOptions.queryType ==
-			Components.interfaces.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY && node.uri)
+            Components.interfaces.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY && node.uri)
           return "";
         var bmsvc = Components.classes["@mozilla.org/browser/nav-bookmarks-service;1"]
                               .getService(Components.interfaces.nsINavBookmarksService);
@@ -1486,7 +1486,7 @@ PlacesTreeView.prototype = {
       case this.COLUMN_TYPE_PARENTFOLDERPATH:
         if (PlacesUtils.nodeIsQuery(node.parent) &&
             PlacesUtils.asQuery(node.parent).queryOptions.queryType ==
-			Components.interfaces.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY && node.uri)
+            Components.interfaces.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY && node.uri)
           return "";
         var bmsvc = Components.classes["@mozilla.org/browser/nav-bookmarks-service;1"]
                               .getService(Components.interfaces.nsINavBookmarksService);
