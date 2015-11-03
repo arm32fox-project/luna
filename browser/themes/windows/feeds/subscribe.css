@@ -66,6 +66,10 @@ html {
   padding-top: 0.2em;
 }
 
+img {
+  max-width: 100%;
+}
+
 /* Don't print subscription UI */
 @media print {
   #feedHeaderContainer {
