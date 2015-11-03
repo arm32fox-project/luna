@@ -510,6 +510,8 @@ PlacesTreeView.prototype = {
   COLUMN_TYPE_DATEADDED: 7,
   COLUMN_TYPE_LASTMODIFIED: 8,
   COLUMN_TYPE_TAGS: 9,
+  COLUMN_TYPE_PARENTFOLDER: 10,
+  COLUMN_TYPE_PARENTFOLDERPATH: 11,
 
   _getColumnType: function PTV__getColumnType(aColumn) {
     let columnType = aColumn.element.getAttribute("anonid") || aColumn.id;
@@ -533,6 +535,10 @@ PlacesTreeView.prototype = {
         return this.COLUMN_TYPE_LASTMODIFIED;
       case "tags":
         return this.COLUMN_TYPE_TAGS;
+      case "parentFolder":
+        return this.COLUMN_TYPE_PARENTFOLDER;
+      case "parentFolderPath":
+        return this.COLUMN_TYPE_PARENTFOLDERPATH;
     }
     return this.COLUMN_TYPE_UNKNOWN;
   },
@@ -1462,6 +1468,47 @@ PlacesTreeView.prototype = {
         if (node.lastModified)
           return this._convertPRTimeToString(node.lastModified);
         return "";
+      case this.COLUMN_TYPE_PARENTFOLDER:
+        if (PlacesUtils.nodeIsQuery(node.parent) &&
+            PlacesUtils.asQuery(node.parent).queryOptions.queryType ==
+			Components.interfaces.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY && node.uri)
+          return "";
+        var bmsvc = Components.classes["@mozilla.org/browser/nav-bookmarks-service;1"]
+                              .getService(Components.interfaces.nsINavBookmarksService);
+        var rowId = node.itemId;
+        try {
+          var parentFolderId = bmsvc.getFolderIdForItem(rowId);
+          var folderTitle = bmsvc.getItemTitle(parentFolderId);
+        } catch(ex) {
+          var folderTitle = "";
+        }
+        return folderTitle;
+      case this.COLUMN_TYPE_PARENTFOLDERPATH:
+        if (PlacesUtils.nodeIsQuery(node.parent) &&
+            PlacesUtils.asQuery(node.parent).queryOptions.queryType ==
+			Components.interfaces.nsINavHistoryQueryOptions.QUERY_TYPE_HISTORY && node.uri)
+          return "";
+        var bmsvc = Components.classes["@mozilla.org/browser/nav-bookmarks-service;1"]
+                              .getService(Components.interfaces.nsINavBookmarksService);
+        var rowId = node.itemId;
+        try {
+          var FolderId;
+          var parentFolderId = bmsvc.getFolderIdForItem(rowId);
+          var folderTitle = bmsvc.getItemTitle(parentFolderId);
+          while ((FolderId = bmsvc.getFolderIdForItem(parentFolderId))) {
+            if (FolderId == parentFolderId)
+              break;
+            parentFolderId = FolderId;
+            var text = bmsvc.getItemTitle(parentFolderId);
+            if (!text)
+              break;
+            folderTitle = text + " /"+ folderTitle;
+          }
+          folderTitle = folderTitle.replace(/^\s/,"");
+        } catch(ex) {
+          var folderTitle = "";
+        }
+        return folderTitle;
     }
     return "";
   },
@@ -1631,6 +1678,14 @@ PlacesTreeView.prototype = {
           newSort = NHQO.SORT_BY_NONE;
         else
           newSort = NHQO.SORT_BY_TAGS_ASCENDING;
+
+        break;
+      case this.COLUMN_TYPE_PARENTFOLDER:
+        return;
+
+        break;
+      case this.COLUMN_TYPE_PARENTFOLDERPATH:
+        return;
 
         break;
       default:
