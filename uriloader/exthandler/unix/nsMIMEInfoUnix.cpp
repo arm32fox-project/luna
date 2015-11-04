@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
+#if (MOZ_PLATFORM_MAEMO == 5)
 #include <glib.h>
 #include <hildon-uri.h>
 #include <hildon-mime.h>
@@ -35,7 +35,7 @@ nsMIMEInfoUnix::LoadUriInternal(nsIURI * aURI)
 {
   nsresult rv = nsGNOMERegistry::LoadURL(aURI);
 
-#if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
+#if (MOZ_PLATFORM_MAEMO == 5)
   if (NS_FAILED(rv)){
     HildonURIAction *action = hildon_uri_get_default_action(mSchemeOrType.get(), nullptr);
     if (action) {
@@ -85,7 +85,7 @@ nsMIMEInfoUnix::GetHasDefaultHandler(bool *_retval)
   if (*_retval)
     return NS_OK;
 
-#if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
+#if (MOZ_PLATFORM_MAEMO == 5)
   HildonURIAction *action = hildon_uri_get_default_action(mSchemeOrType.get(), nullptr);
   if (action) {
     *_retval = true;
@@ -118,7 +118,7 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
   nsAutoCString nativePath;
   aFile->GetNativePath(nativePath);
 
-#if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
+#if (MOZ_PLATFORM_MAEMO == 5)
   if(NS_SUCCEEDED(LaunchDefaultWithDBus(PromiseFlatCString(nativePath).get())))
     return NS_OK;
 #endif
@@ -157,7 +157,7 @@ nsMIMEInfoUnix::LaunchDefaultWithFile(nsIFile *aFile)
 return app->Launch(uriSpec);
 }
 
-#if (MOZ_PLATFORM_MAEMO == 5) && defined (MOZ_ENABLE_GNOMEVFS)
+#if (MOZ_PLATFORM_MAEMO == 5)
 
 /* This method tries to launch the associated default handler for the given 
  * mime/file via hildon specific APIs (in this case hildon_mime_open_file* 
