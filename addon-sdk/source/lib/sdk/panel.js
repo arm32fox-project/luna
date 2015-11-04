@@ -28,6 +28,7 @@ const { contract } = require("./util/contract");
 const { on, off, emit, setListeners } = require("./event/core");
 const { EventTarget } = require("./event/target");
 const domPanel = require("./panel/utils");
+const { getDocShell } = require('./frame/utils');
 const { events } = require("./panel/events");
 const systemEvents = require("./system/events");
 const { filter, pipe } = require("./event/utils");
@@ -66,8 +67,27 @@ let displayContract = contract({
   position: rect
 });
 
-let panelContract = contract(merge({}, displayContract.rules, loaderContract.rules));
+let panelContract = contract(merge({
+    allow: {
+      is: ['object', 'undefined', 'null'],
+      map: function (allow) { return { script: !allow || allow.script !== false }}
+    },
+  },
+  displayContract.rules, loaderContract.rules));
 
+function Allow(panel) {
+  return {
+    get script() { return getDocShell(viewFor(panel).backgroundFrame).allowJavascript; },
+    set script(value) { return setScriptState(panel, value); },
+  };
+}
+
+function setScriptState(panel, value) {
+  let view = viewFor(panel);
+  getDocShell(view.backgroundFrame).allowJavascript = value;
+  getDocShell(view.viewFrame).allowJavascript = value;
+  view.setAttribute("sdkscriptenabled", "" + value);
+}
 
 function isDisposed(panel) !views.has(panel);
 
@@ -130,7 +150,8 @@ const Panel = Class({
     setListeners(this, options);
 
     // Setup view
-    let view = domPanel.make();
+    let viewOptions = {allowJavascript: !model.allow || (model.allow.script !== false)};
+    let view = domPanel.make(null, viewOptions);
     panels.set(view, this);
     views.set(this, view);
 
@@ -176,6 +197,12 @@ const Panel = Class({
     let model = modelFor(this);
     model.contentURL = panelContract({ contentURL: value }).contentURL;
     domPanel.setURL(viewFor(this), model.contentURL);
+  },
+
+  get allow() { return Allow(this); },
+  set allow(value) {
+    let allowJavascript = panelContract({ allow: value }).allow.script;
+    return setScriptState(this, value);
   },
 
   /* Public API: Panel.isShowing */
