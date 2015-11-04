@@ -54,6 +54,11 @@ public:
     return mCanvasElement;
   }
 
+  // Dimensions of the canvas, in pixels.
+  // Virtual functions so they can apply to 2D canvas and WebGL
+  virtual int32_t GetWidth() const = 0;
+  virtual int32_t GetHeight() const = 0;
+
   // Sets the dimensions of the canvas, in pixels.  Called
   // whenever the size of the element changes.
   NS_IMETHOD SetDimensions(int32_t width, int32_t height) = 0;
