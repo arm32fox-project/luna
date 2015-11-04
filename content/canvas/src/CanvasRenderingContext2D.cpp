@@ -846,6 +846,18 @@ CanvasRenderingContext2D::EnsureTarget()
   }
 }
 
+int32_t
+CanvasRenderingContext2D::GetWidth() const
+{
+  return mWidth;
+}
+
+int32_t
+CanvasRenderingContext2D::GetHeight() const
+{
+  return mHeight;
+}
+
 NS_IMETHODIMP
 CanvasRenderingContext2D::SetDimensions(int32_t width, int32_t height)
 {

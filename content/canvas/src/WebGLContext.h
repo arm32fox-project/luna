@@ -154,6 +154,9 @@ public:
     NS_DECL_NSIDOMWEBGLRENDERINGCONTEXT
 
     // nsICanvasRenderingContextInternal
+    virtual int32_t GetWidth() const MOZ_OVERRIDE;
+    virtual int32_t GetHeight() const MOZ_OVERRIDE;
+    
     NS_IMETHOD SetDimensions(int32_t width, int32_t height) MOZ_OVERRIDE;
     NS_IMETHOD InitializeWithSurface(nsIDocShell *docShell, gfxASurface *surface, int32_t width, int32_t height) MOZ_OVERRIDE
         { return NS_ERROR_NOT_IMPLEMENTED; }

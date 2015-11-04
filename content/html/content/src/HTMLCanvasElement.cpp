@@ -552,7 +552,6 @@ HTMLCanvasElement::ToDataURLImpl(JSContext* aCx,
   return Base64EncodeInputStream(stream, aDataURL, (uint32_t)count, aDataURL.Length());
 }
 
-// XXXkhuey the encoding should be off the main thread, but we're lazy.
 NS_IMETHODIMP
 HTMLCanvasElement::ToBlob(nsIFileCallback* aCallback,
                           const nsAString& aType)
@@ -586,6 +585,21 @@ HTMLCanvasElement::ToBlob(nsIFileCallback* aCallback,
   rv = stream->Available(&imgSize);
   NS_ENSURE_SUCCESS(rv, rv);
   NS_ENSURE_TRUE(imgSize <= UINT32_MAX, NS_ERROR_FILE_TOO_BIG);
+
+  if (mCurrentContext) {
+    // Check if element size = canvas size
+    // We disallow canvases of width or height zero, and set them to 1, so
+    // we will have a discrepancy with the sizes of the canvas and the context.
+    // in that case.
+    // That special case is OK, anything else is not.
+    nsIntSize elementSize = GetWidthHeight();
+    if ((elementSize.width != mCurrentContext->GetWidth() &&
+         (elementSize.width != 0 || mCurrentContext->GetWidth() != 1)) ||
+        (elementSize.height != mCurrentContext->GetHeight() &&
+         (elementSize.height != 0 || mCurrentContext->GetHeight() != 1))) {
+      return NS_ERROR_FAILURE;
+    }
+  }
 
   void* imgData = nullptr;
   rv = NS_ReadInputStreamToBuffer(stream, &imgData, imgSize);
