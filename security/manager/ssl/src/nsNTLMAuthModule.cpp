@@ -12,6 +12,9 @@
 #include "pk11pub.h"
 #include "md4.h"
 #include "mozilla/Likely.h"
+#include "mozilla/Preferences.h"
+
+static bool sNTLMv1Enabled = false;
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo *
@@ -572,6 +575,7 @@ GenerateType3Msg(const nsString &domain,
 #ifdef IS_BIG_ENDIAN
   nsAutoString ucsDomainBuf, ucsUserBuf;
 #endif
+  nsAutoCString hostBuf;
   nsAutoString ucsHostBuf; 
   // temporary buffers for oem strings
   nsAutoCString oemDomainBuf, oemUserBuf, oemHostBuf;
@@ -627,26 +631,30 @@ GenerateType3Msg(const nsString &domain,
   }
 
   //
-  // get workstation name (use local machine's hostname)
+  // Get workstation name. Previously this was the local machine name but
+  // we now get this from a fixed pref to avoid information disclosure.
+  // See also: CVE-2015-4515
   //
-  char hostBuf[SYS_INFO_BUFFER_LENGTH];
-  if (PR_GetSystemInfo(PR_SI_HOSTNAME, hostBuf, sizeof(hostBuf)) == PR_FAILURE)
-    return NS_ERROR_UNEXPECTED;
-  hostLen = strlen(hostBuf);
+  rv = mozilla::Preferences::GetCString("network.generic-ntlm-auth.workstation",
+                                        &hostBuf);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  
   if (unicode)
   {
-    // hostname is ASCII, so we can do a simple zero-pad expansion:
-    CopyASCIItoUTF16(nsDependentCString(hostBuf, hostLen), ucsHostBuf);
+    ucsHostBuf = NS_ConvertUTF8toUTF16(hostBuf);
     hostPtr = ucsHostBuf.get();
     hostLen = ucsHostBuf.Length() * 2;
 #ifdef IS_BIG_ENDIAN
     WriteUnicodeLE((void *) hostPtr, (const PRUnichar *) hostPtr,
                    ucsHostBuf.Length());
 #endif
+  } else {
+    hostPtr = hostBuf.get();
+    hostLen = hostBuf.Length();
   }
-  else
-    hostPtr = hostBuf;
-
+  
   //
   // now that we have generated all of the strings, we can allocate outBuf.
   //
@@ -754,6 +762,19 @@ nsresult
 nsNTLMAuthModule::InitTest()
 {
   nsNSSShutDownPreventionLock locker;
+  
+  static bool prefObserved = false;
+  if (!prefObserved) {
+    mozilla::Preferences::AddBoolVarCache(
+      &sNTLMv1Enabled, "network.negotiate-auth.allow-insecure-ntlm-v1", sNTLMv1Enabled);
+    prefObserved = true;
+  }
+
+  if (!sNTLMv1Enabled) {
+    // Unconditionally disallow usage of the generic module.
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
   //
   // disable NTLM authentication when FIPS mode is enabled.
   //

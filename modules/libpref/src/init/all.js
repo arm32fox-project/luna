@@ -1340,8 +1340,10 @@ pref("network.auth.use-sspi", true);
 // with native NTLM. (See bug 520607 for details.) Using generic NTLM authentication
 // can expose the user to reflection attack vulnerabilities. Do not change this
 // unless you know what you're doing!
-// This pref should be removed 6 months after the release of firefox 3.6. 
 pref("network.auth.force-generic-ntlm", false);
+
+// Allow insecure NTLMv1 when needed.
+pref("network.negotiate-auth.allow-insecure-ntlm-v1", false);
 
 // The following prefs are used to enable automatic use of the operating
 // system's NTLM implementation to silently authenticate the user with their
@@ -1350,6 +1352,16 @@ pref("network.auth.force-generic-ntlm", false);
 pref("network.automatic-ntlm-auth.allow-proxies", true);
 pref("network.automatic-ntlm-auth.allow-non-fqdn", false);
 pref("network.automatic-ntlm-auth.trusted-uris", "");
+
+// The string to return to the server as the 'workstation' that the
+// user is using.  Bug 1046421 notes that the previous default, of the
+// system hostname, could be used for user fingerprinting.
+//
+// However, in some network environments where allowedWorkstations is in use
+// to provide a level of host-based access control, it must be set to a string
+// that is listed in allowedWorkstations for the user's account in their
+// AD Domain.
+pref("network.generic-ntlm-auth.workstation", "WORKSTATION");
 
 // This preference controls whether or not the LM hash will be included in
 // response to a NTLM challenge.  By default, this is disabled since servers
