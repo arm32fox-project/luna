@@ -2532,6 +2532,7 @@ js::array_concat(JSContext *cx, unsigned argc, Value *vp)
         arr = NewDenseEmptyArray(cx);
         if (!arr)
             return false;
+        TryReuseArrayType(obj, arr);
     }
 
     /* Step 9. */
