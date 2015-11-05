@@ -459,6 +459,7 @@ nsWindow::DispatchResized(int32_t aWidth, int32_t aHeight)
     }
     if (mAttachedWidgetListener) {
         mAttachedWidgetListener->WindowResized(this, aWidth, aHeight);
+    }
 }
 
 nsresult
