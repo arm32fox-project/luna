@@ -2438,6 +2438,32 @@ nsINode::QuerySelectorAll(const nsAString& aSelector, ErrorResult& aResult)
   return contentList.forget();
 }
 
+Element*
+nsINode::GetElementById(const nsAString& aId)
+{
+  MOZ_ASSERT(IsElement() || IsNodeOfType(eDOCUMENT_FRAGMENT),
+             "Bogus |this| object for GetElementById call");
+  
+  // Use fast(er) path if possible
+  if (IsInDoc()) {
+    ElementHolder holder;
+    FindMatchingElementsWithId<true>(aId, this, nullptr, holder);
+    return holder.mElement;
+  }
+
+  // Fall back to slower method
+  for (nsIContent* kid = GetFirstChild(); kid; kid = kid->GetNextNode(this)) {
+    if (!kid->IsElement()) {
+      continue;
+    }
+    nsIAtom* id = kid->AsElement()->GetID();
+    if (id && id->Equals(aId)) {
+      return kid->AsElement();
+    }
+  }
+  return nullptr;
+}
+
 JSObject*
 nsINode::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
