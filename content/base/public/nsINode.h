@@ -1086,6 +1086,12 @@ public:
   already_AddRefed<nsINodeList> QuerySelectorAll(const nsAString& aSelector,
                                                  mozilla::ErrorResult& aResult);
 
+protected:
+  // nsIDocument overrides this with its own (faster) version. This
+  // should really only be called for elements and document fragments.
+  mozilla::dom::Element* GetElementById(const nsAString& aId);
+  
+public:
   /**
    * Associate an object aData to aKey on this node. If aData is null any
    * previously registered object and UserDataHandler associated to aKey on

@@ -59,7 +59,6 @@ interface SVGSVGElement : SVGGraphicsElement {
   SVGTransform createSVGTransform();
   [Creator]
   SVGTransform createSVGTransformFromMatrix(SVGMatrix matrix);
-  [Throws]
   Element? getElementById(DOMString elementId);
 };
 
