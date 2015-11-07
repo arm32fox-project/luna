@@ -1028,30 +1028,20 @@ nsIFrame::HasPerspective() const
   if (!IsTransformed()) {
     return false;
   }
-  const nsStyleDisplay* parentDisp = nullptr;
+  
   nsStyleContext* parentStyleContext = StyleContext()->GetParent();
-  if (parentStyleContext) {
-    parentDisp = parentStyleContext->StyleDisplay();
+  if (!parentStyleContext) {
+    return false;
   }
 
-  if (parentDisp &&
-      parentDisp->mChildPerspective.GetUnit() == eStyleUnit_Coord &&
-      parentDisp->mChildPerspective.GetCoordValue() > 0.0) {
-    return true;
-  }
-  return false;
+  const nsStyleDisplay* parentDisp = parentStyleContext->StyleDisplay();
+  return parentDisp->mChildPerspective.GetUnit() == eStyleUnit_Coord;
 }
 
 bool
 nsIFrame::ChildrenHavePerspective() const
 {
-  const nsStyleDisplay *disp = StyleDisplay();
-  if (disp &&
-      disp->mChildPerspective.GetUnit() == eStyleUnit_Coord &&
-      disp->mChildPerspective.GetCoordValue() > 0.0) {
-    return true;
-  }
-  return false;
+  return StyleDisplay()->HasPerspectiveStyle();
 }
 
 nsRect
@@ -2100,6 +2090,9 @@ nsIFrame::BuildDisplayListForChild(nsDisplayListBuilder*   aBuilder,
   const nsStylePosition* pos = child->StylePosition();
   bool isVisuallyAtomic = child->HasOpacity()
     || child->IsTransformed()
+    // strictly speaking, 'perspective' doesn't require visual atomicity,
+    // but the spec says it acts like the rest of these
+    || disp->mChildPerspective.GetUnit() == eStyleUnit_Coord
     || nsSVGIntegrationUtils::UsingEffectsForFrame(child);
 
   bool isPositioned = disp->IsPositioned(child);

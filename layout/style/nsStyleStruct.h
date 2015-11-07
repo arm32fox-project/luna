@@ -1794,6 +1794,10 @@ struct nsStyleDisplay {
            mTransformStyle == NS_STYLE_TRANSFORM_STYLE_PRESERVE_3D;
   }
 
+  bool HasPerspectiveStyle() const {
+    return mChildPerspective.GetUnit() == eStyleUnit_Coord;
+  }
+
   bool BackfaceIsHidden() const {
     return mBackfaceVisibility == NS_STYLE_BACKFACE_VISIBILITY_HIDDEN;
   }
