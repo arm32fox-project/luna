@@ -2289,6 +2289,59 @@ AddScopeElements(TreeMatchContext& aMatchContext,
   }
 }
 
+// Selector match struct for fast path below
+namespace {
+struct SelectorMatchInfo {
+  nsCSSSelectorList* const mSelectorList;
+  TreeMatchContext& mMatchContext;
+};
+}
+
+// Given an id, find elements with that id under aRoot that match aMatchInfo if
+// any is provided. If no SelectorMatchInfo is provided, just find the ones
+// with the given id. aRoot must be in the document.
+template<bool onlyFirstMatch, class T>
+inline static void
+FindMatchingElementsWithId(const nsAString& aId, nsINode* aRoot,
+                           SelectorMatchInfo* aMatchInfo,
+                           T& aList)
+{  
+  NS_ASSERTION(!aRoot->IsInDoc(),
+               "Called FindMatchingElementsWithId while the root is not in the "
+               "document.");
+  NS_ASSERTION(aRoot->IsElement() || aRoot->IsNodeOfType(nsINode::eDOCUMENT),
+               "The optimization below to check ContentIsDescendantOf only for "
+               "elements depends on aRoot being either an element or a "
+               "document if it is in the document.  Note that document fragments "
+               "cannot be IsInDoc(), so should never show up here.");
+               
+  const nsSmallVoidArray* elements = aRoot->OwnerDoc()->GetAllElementsForId(aId);
+    
+  if (!elements) {
+    // No elements to search through
+    return;
+  }
+
+  for (int32_t i = 0; i < elements->Count(); ++i) {
+    Element *element = static_cast<Element*>(elements->ElementAt(i));
+    if (!aRoot->IsElement() ||
+        (element != aRoot &&
+         nsContentUtils::ContentIsDescendantOf(element, aRoot))) {
+      // We have an element with the right id and it's a strict descendant
+      // of aRoot. Make sure it really matches the selector.
+      if (!aMatchInfo ||
+          nsCSSRuleProcessor::SelectorListMatches(element,
+                                                  aMatchInfo->mMatchContext,
+                                                  aMatchInfo->mSelectorList)) {
+        aList.AppendElement(element);
+        if (onlyFirstMatch) {
+          return;
+        }
+      }
+    }
+  }
+}
+
 // Actually find elements matching aSelectorList (which must not be
 // null) and which are descendants of aRoot and put them in aList.  If
 // onlyFirstMatch, then stop once the first one is found.
@@ -2315,48 +2368,28 @@ FindMatchingElements(nsINode* aRoot, const nsAString& aSelector, T &aList)
                                    doc, TreeMatchContext::eNeverMatchVisited);
   doc->FlushPendingLinkUpdates();
   AddScopeElements(matchingContext, aRoot);
-
-  // Fast-path selectors involving IDs.  We can only do this if aRoot
+  // Fast-path selectors involving IDs. We can only do this if aRoot
   // is in the document and the document is not in quirks mode, since
-  // ID selectors are case-insensitive in quirks mode.  Also, only do
+  // ID selectors are case-insensitive in quirks mode. Also, only do
   // this if selectorList only has one selector, because otherwise
   // ordering the elements correctly is a pain.
-  NS_ASSERTION(aRoot->IsElement() || aRoot->IsNodeOfType(nsINode::eDOCUMENT) ||
-               !aRoot->IsInDoc(),
+  NS_ASSERTION(!aRoot->IsInDoc(),
+               "Called FindMatchingElements while the root is not in the "
+               "document.");
+  NS_ASSERTION(aRoot->IsElement() || aRoot->IsNodeOfType(nsINode::eDOCUMENT),               
                "The optimization below to check ContentIsDescendantOf only for "
                "elements depends on aRoot being either an element or a "
-               "document if it's in the document.");
+               "document if it is in the document.");
+
   if (aRoot->IsInDoc() &&
       doc->GetCompatibilityMode() != eCompatibility_NavQuirks &&
       !selectorList->mNext &&
       selectorList->mSelectors->mIDList) {
     nsIAtom* id = selectorList->mSelectors->mIDList->mAtom;
-    const nsSmallVoidArray* elements =
-      doc->GetAllElementsForId(nsDependentAtomString(id));
 
-    // XXXbz: Should we fall back to the tree walk if aRoot is not the
-    // document and |elements| is long, for some value of "long"?
-    if (elements) {
-      for (int32_t i = 0; i < elements->Count(); ++i) {
-        Element *element = static_cast<Element*>(elements->ElementAt(i));
-        if (!aRoot->IsElement() ||
-            (element != aRoot &&
-             nsContentUtils::ContentIsDescendantOf(element, aRoot))) {
-          // We have an element with the right id and it's a strict descendant
-          // of aRoot.  Make sure it really matches the selector.
-          if (nsCSSRuleProcessor::SelectorListMatches(element, matchingContext,
-                                                      selectorList)) {
-            aList.AppendElement(element);
-            if (onlyFirstMatch) {
-              return NS_OK;
-            }
-          }
-        }
-      }
-    }
-
-    // No elements with this id, or none of them are our descendants,
-    // or none of them match.  We're done here.
+    SelectorMatchInfo info = { selectorList, matchingContext };
+    FindMatchingElementsWithId<onlyFirstMatch, T>(nsDependentAtomString(id),
+                                                  aRoot, &info, aList);
     return NS_OK;
   }
 
