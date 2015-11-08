@@ -31,9 +31,10 @@ interface MutationObserver {
 
 callback MutationCallback = void (sequence<MutationRecord> mutations, MutationObserver observer);
 
+/* we need `WasPassed()` for `attributes` */
 dictionary MutationObserverInit {
   boolean childList = false;
-  boolean attributes = false;
+  boolean attributes;
   boolean characterData = false;
   boolean subtree = false;
   boolean attributeOldValue = false;
