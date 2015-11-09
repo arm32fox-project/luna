@@ -267,7 +267,8 @@ CloneAndAppend(nsIFile* aBase, const nsACString& append)
     if (!f)
         return nullptr;
 
-    f->AppendNative(append);
+    if (append.Length() > 0)
+        f->AppendNative(append);
     return f.forget();
 }
 
@@ -1877,7 +1878,10 @@ nsComponentManagerImpl::AddBootstrappedManifestLocation(nsIFile* aLocation)
   }
 
   nsCOMPtr<nsIFile> manifest =
-    CloneAndAppend(aLocation, NS_LITERAL_CSTRING("chrome.manifest"));
+    CloneAndAppend(aLocation,
+      (Substring(path, path.Length()-9).Equals(NS_LITERAL_STRING(".manifest")) ?
+        NS_LITERAL_CSTRING("") :
+        NS_LITERAL_CSTRING("chrome.manifest")));
   return XRE_AddManifestLocation(NS_BOOTSTRAPPED_LOCATION, manifest);
 }
 
@@ -1900,7 +1904,11 @@ nsComponentManagerImpl::RemoveBootstrappedManifestLocation(nsIFile* aLocation)
   if (Substring(path, path.Length() - 4).Equals(NS_LITERAL_STRING(".xpi"))) {
     elem.location.Init(aLocation, "chrome.manifest");
   } else {
-    nsCOMPtr<nsIFile> lf = CloneAndAppend(aLocation, NS_LITERAL_CSTRING("chrome.manifest"));
+    nsCOMPtr<nsIFile> lf =
+      CloneAndAppend(aLocation,
+        (Substring(path, path.Length()-9).Equals(NS_LITERAL_STRING(".manifest")) ?
+          NS_LITERAL_CSTRING("") :
+          NS_LITERAL_CSTRING("chrome.manifest")));
     elem.location.Init(lf);
   }
 
