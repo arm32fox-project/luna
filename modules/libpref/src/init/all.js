@@ -229,6 +229,8 @@ pref("media.webaudio.enabled", false);
 
 // Whether to autostart a media element with an |autoplay| attribute
 pref("media.autoplay.enabled", true);
+// Whether to autostart a media element with an autoplaying script event
+pref("media.autoplay.allowscripted", true);
 
 // The default number of decoded video frames that are enqueued in
 // MediaDecoderReader's mVideoQueue.
