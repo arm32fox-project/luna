@@ -425,11 +425,6 @@ NS_IMETHODIMP nsTimerImpl::SetDelay(uint32_t aDelay)
     return NS_ERROR_NOT_INITIALIZED;
   }
 
-  // If we're already repeating precisely, update mTimeout now so that the
-  // new delay takes effect in the future.
-  if (!mTimeout.IsNull() && mType == TYPE_REPEATING_PRECISE)
-    mTimeout = TimeStamp::Now();
-
   SetDelayInternal(aDelay);
 
   if (!mFiring && gThread)
@@ -589,10 +584,9 @@ void nsTimerImpl::Fire()
   }
 #endif
 
-  // Reschedule repeating timers, except REPEATING_PRECISE which already did
-  // that in PostTimerEvent, but make sure that we aren't armed already (which
-  // can happen if the callback reinitialized the timer).
-  if (IsRepeating() && mType != TYPE_REPEATING_PRECISE && !mArmed) {
+  // Reschedule repeating timers, but make sure that we aren't armed already
+  // (which can happen if the callback reinitialized the timer).
+  if (IsRepeating() && !mArmed) {
     if (mType == TYPE_REPEATING_SLACK)
       SetDelayInternal(mDelay); // force mTimeout to be recomputed.  For
                                 // REPEATING_PRECISE_CAN_SKIP timers this has
@@ -674,16 +668,9 @@ already_AddRefed<nsTimerImpl> nsTimerImpl::PostTimerEvent(already_AddRefed<nsTim
 #endif
 
   // If this is a repeating precise timer, we need to calculate the time for
-  // the next timer to fire before we make the callback.
+  // the next timer to fire before we make the callback. But don't re-arm.
   if (timer->IsRepeatingPrecisely()) {
     timer->SetDelayInternal(timer->mDelay);
-
-    // But only re-arm REPEATING_PRECISE timers.
-    if (gThread && timer->mType == TYPE_REPEATING_PRECISE) {
-      nsresult rv = gThread->AddTimer(timer);
-      if (NS_FAILED(rv))
-        return timer.forget();
-    }
   }
 
   nsIEventTarget* target = timer->mEventTarget;
@@ -707,8 +694,7 @@ void nsTimerImpl::SetDelayInternal(uint32_t aDelay)
   mDelay = aDelay;
 
   TimeStamp now = TimeStamp::Now();
-  if (mTimeout.IsNull() || mType != TYPE_REPEATING_PRECISE)
-    mTimeout = now;
+  mTimeout = now;
 
   mTimeout += delayInterval;
 

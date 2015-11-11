@@ -428,6 +428,39 @@ nsStandardURL::NormalizeIDN(const nsCSubstring &host, nsCString &result)
     return false;
 }
 
+bool
+nsStandardURL::ValidIPv6orHostname(const char *host, uint32_t length)
+{
+    if (!host) {
+        return false;
+    }
+
+    if (length != strlen(host)) {
+        // Embedded null
+        return false;
+    }
+ 
+     bool openBracket = host[0] == '[';
+     bool closeBracket = host[length - 1] == ']';
+ 
+     if (openBracket && closeBracket) {
+         return net_IsValidIPv6Addr(host + 1, length - 2);
+     }
+
+    if (openBracket || closeBracket) {
+        // Fail if only one of the brackets is present
+        return false;
+    }
+
+    const char *end = host + length;
+    if (end != net_FindCharInSet(host, end, "\t\n\v\f\r #/:?@[\\]")) {
+        // % is allowed because we don't do hostname percent decoding yet.
+        return false;
+    }
+
+    return true;
+}
+
 void
 nsStandardURL::CoalescePath(netCoalesceFlags coalesceFlag, char *path)
 {
@@ -551,6 +584,11 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
             approxLen += encHost.Length();
         else
             approxLen += mHost.mLen;
+            
+        if ((useEncHost && !ValidIPv6orHostname(encHost.BeginReading(), encHost.Length())) ||
+            (!useEncHost && !ValidIPv6orHostname(tempHost.BeginReading(), tempHost.Length()))) {
+            return NS_ERROR_MALFORMED_URI;
+        }
     }
 
     //
@@ -1446,23 +1484,8 @@ nsStandardURL::SetHost(const nsACString &input)
     InvalidateCache();
     mHostEncoding = eEncoding_ASCII;
 
-    if (!*host) {
-        // remove existing hostname
-        if (mHost.mLen > 0) {
-            // remove entire authority
-            mSpec.Cut(mAuthority.mPos, mAuthority.mLen);
-            ShiftFromPath(-mAuthority.mLen);
-            mAuthority.mLen = 0;
-            mUsername.mLen = -1;
-            mPassword.mLen = -1;
-            mHost.mLen = -1;
-            mPort = -1;
-        }
-        return NS_OK;
-    }
-
     // handle IPv6 unescaped address literal
-    int32_t len;
+    uint32_t len;
     nsAutoCString hostBuf;
     if (EscapeIPv6(host, hostBuf)) {
         host = hostBuf.get();
@@ -1474,6 +1497,10 @@ nsStandardURL::SetHost(const nsACString &input)
     }
     else
         len = flat.Length();
+
+    if (!ValidIPv6orHostname(host, len)) {
+        return NS_ERROR_MALFORMED_URI;
+    }
 
     if (mHost.mLen < 0) {
         int port_length = 0;
