@@ -74,6 +74,18 @@
 
 #include "prlog.h"
 
+// This will turn on temporary hack for `addBootstrappedManifestLocation()` API:
+// If passed local file path ends with ".manifest", we'll load the file without
+// appending "chrome.manifest" to the path.
+// This is temporary solution to make writing some tools easier, and it will be
+// replaced by proper API to (de)register "chrome:" pathes. Please, don't use
+// this behavior in your code, as this hack *will* be removed.
+// Note: only xulrunner builds will include this hack, there's no need for it in
+//       browser.
+#ifdef MOZ_XULRUNNER
+#define MZI_TEMP_ABML_HACK
+#endif
+
 using namespace mozilla;
 
 PRLogModuleInfo* nsComponentManagerLog = nullptr;
@@ -267,7 +279,12 @@ CloneAndAppend(nsIFile* aBase, const nsACString& append)
     if (!f)
         return nullptr;
 
+#ifdef MZI_TEMP_ABML_HACK
+    if (append.Length() > 0)
+        f->AppendNative(append);
+#else
     f->AppendNative(append);
+#endif
     return f.forget();
 }
 
@@ -1876,8 +1893,16 @@ nsComponentManagerImpl::AddBootstrappedManifestLocation(nsIFile* aLocation)
     return XRE_AddJarManifestLocation(NS_BOOTSTRAPPED_LOCATION, aLocation);
   }
 
+#ifdef MZI_TEMP_ABML_HACK
+  nsCOMPtr<nsIFile> manifest =
+    CloneAndAppend(aLocation,
+      (Substring(path, path.Length()-9).Equals(NS_LITERAL_STRING(".manifest")) ?
+        NS_LITERAL_CSTRING("") :
+        NS_LITERAL_CSTRING("chrome.manifest")));
+#else
   nsCOMPtr<nsIFile> manifest =
     CloneAndAppend(aLocation, NS_LITERAL_CSTRING("chrome.manifest"));
+#endif
   return XRE_AddManifestLocation(NS_BOOTSTRAPPED_LOCATION, manifest);
 }
 
@@ -1900,7 +1925,15 @@ nsComponentManagerImpl::RemoveBootstrappedManifestLocation(nsIFile* aLocation)
   if (Substring(path, path.Length() - 4).Equals(NS_LITERAL_STRING(".xpi"))) {
     elem.location.Init(aLocation, "chrome.manifest");
   } else {
+#ifdef MZI_TEMP_ABML_HACK
+    nsCOMPtr<nsIFile> lf =
+      CloneAndAppend(aLocation,
+        (Substring(path, path.Length()-9).Equals(NS_LITERAL_STRING(".manifest")) ?
+          NS_LITERAL_CSTRING("") :
+          NS_LITERAL_CSTRING("chrome.manifest")));
+#else
     nsCOMPtr<nsIFile> lf = CloneAndAppend(aLocation, NS_LITERAL_CSTRING("chrome.manifest"));
+#endif
     elem.location.Init(lf);
   }
 
