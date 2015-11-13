@@ -67,6 +67,9 @@ pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; r
 pref("general.useragent.override.privat24.ua","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0");
 pref("general.useragent.override.facebook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:26.0) Gecko/20100101 Firefox/3.6.32 (Pale Moon)");
 pref("general.useragent.override.fbcdn.net","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:26.0) Gecko/20100101 Firefox/3.6.32 (Pale Moon)");
+pref("general.useragent.override.google.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Goanna/2.0 Firefox/31.9 PaleMoon/26.0");
+pref("general.useragent.override.googlevideos.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Goanna/2.0 Firefox/31.9 PaleMoon/26.0");
+pref("general.useragent.override.youtube.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Goanna/2.0 Firefox/31.9 PaleMoon/26.0");
 
 // The following domains don't like the Goanna slice
 pref("general.useragent.override.hitbox.tv","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Firefox/31.9");
