@@ -826,6 +826,16 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   transition-duration: 150ms;
 }
 
+@media (-moz-os-version: windows-win10) {
+  /* Square is the new round, courtesy of microsoft */
+  @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-icon,
+  @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-badge-container,
+  @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
+  @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker > .dropmarker-icon {
+    border-radius: 0px;
+  }
+}
+
 @navbarLargeIcons@ .toolbarbutton-1:not(:-moz-any(@primaryToolbarButtons@)) > .toolbarbutton-icon,
 @navbarLargeIcons@ .toolbarbutton-1:not(:-moz-any(@primaryToolbarButtons@)) > .toolbarbutton-badge-container,
 @navbarLargeIcons@ .toolbarbutton-1:not(:-moz-any(@primaryToolbarButtons@)) > .toolbarbutton-menubutton-button > .toolbarbutton-icon {
@@ -1896,6 +1906,15 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 .tabs-newtab-button {
   padding: 3px 1px 4px 1px;
+}
+
+@media (-moz-os-version: windows-win10) {
+  /* Square is the new round, courtesy of microsoft */
+  .tabbrowser-tab,
+  .tabs-newtab-button {
+    border-radius: 0px;
+    box-shadow: none;
+  }
 }
 
 /* Make sure extra margin is added when tabs are not in the title bar so it doesn't
