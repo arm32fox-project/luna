@@ -57,6 +57,9 @@
 <!ENTITY cmd.open_all_in_tabs.label      "Open All in Tabs">
 <!ENTITY cmd.open_all_in_tabs.accesskey  "O">
 
+<!ENTITY cmd.openParentFolder.label      "Open Parent Folder">
+<!ENTITY cmd.openParentFolder.accesskey  "P">
+
 <!ENTITY cmd.properties.label      "Properties">
 <!ENTITY cmd.properties.accesskey  "i">
 

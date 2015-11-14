@@ -75,6 +75,8 @@
              oncommand="goDoPlacesCommand('placesCmd_deleteDataHost');"/>
     <command id="placesCmd_createBookmark"
              oncommand="goDoPlacesCommand('placesCmd_createBookmark');"/>
+    <command id="placesCmd_openParentFolder"
+             oncommand="goDoPlacesCommand('placesCmd_openParentFolder');"/>
 
     <!-- Special versions of cut/copy/paste/delete which check for an open context menu. -->
     <command id="placesCmd_cut"
@@ -86,6 +88,20 @@
     <command id="placesCmd_delete"
              oncommand="goDoPlacesCommand('placesCmd_delete');"/>
   </commandset>
+
+  <keyset id="placesCommandKeys">
+#ifdef XP_UNIX
+    <key id="key_placesCmd_openParentFolder"
+         keycode="VK_F1"
+         command="placesCmd_openParentFolder"
+         modifiers="accel,shift"/>
+#else
+    <key id="key_placesCmd_openParentFolder"
+         keycode="VK_F1"
+         command="placesCmd_openParentFolder"
+         modifiers="accel"/>
+#endif
+  </keyset>
 
   <menupopup id="placesContext"
              onpopupshowing="this._view = PlacesUIUtils.getViewForNode(document.popupNode);
@@ -210,6 +226,15 @@
               closemenu="single"
               selection="folder"/>
     <menuseparator id="placesContext_sortSeparator"/>
+    <menuitem id="placesContext_openParentFolder"
+              command="placesCmd_openParentFolder"
+              label="&cmd.openParentFolder.label;"
+              key="key_placesCmd_openParentFolder"
+              accesskey="&cmd.openParentFolder.accesskey;"
+              selectiontype="single"
+              selection="bookmark"
+              forcehideselection="livemarkChild|livemark/feedURI|PlacesOrganizer/OrganizerQuery"/>
+    <menuseparator id="placesContext_parentFolderSeparator"/>
     <menuitem id="placesContext_show:info"
               command="placesCmd_show:info"
               label="&cmd.properties.label;" 
