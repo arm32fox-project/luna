@@ -786,7 +786,7 @@ PlacesController.prototype = {
   /**
    * Open the parent folder for the selected bookmarks search result
    */
-  openParentFolder: function PC_openParentFolder(){
+  openParentFolder: function PC_openParentFolder() {
     var view;
     if (!document.popupNode) {
       view = document.commandDispatcher.focusedElement;
