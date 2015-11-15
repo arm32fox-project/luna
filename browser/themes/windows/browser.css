@@ -997,7 +997,6 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 }
 
 @conditionalForwardWithUrlbar@ > #forward-button > .toolbarbutton-icon {
-  /* mask: url(keyhole-forward-mask.svg#mask); XXX: this regresses twinopen */
   clip-path: url(chrome://browser/content/browser.xul#windows-keyhole-forward-clip-path);
   -moz-margin-start: -6px !important;
   border-left-style: none;
@@ -1012,15 +1011,7 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   box-shadow: 0 0 1px hsla(210,54%,20%,.03),
               0 0 2px hsla(210,54%,20%,.1);
 }
-/*
-@conditionalForwardWithUrlbar@:not([switchingtabs]) > #forward-button {
-  transition: opacity @forwardTransitionLength@ ease-out;
-}
 
-@conditionalForwardWithUrlbar@:not(:hover) > #forward-button[disabled] {
-  opacity: 0;
-}
-*/
 @conditionalForwardWithUrlbar@ > #back-button {
   -moz-image-region: rect(18px, 20px, 38px, 0);
   padding-top: 3px;
@@ -1049,10 +1040,6 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
               0 0 0 1px hsla(0,0%,100%,.3) inset,
               0 0 0 1px hsla(210,54%,20%,.25),
               0 1px 0 hsla(210,54%,20%,.35);
-/*
-  transition-property: background-color, box-shadow;
-  transition-duration: 250ms;
-*/
 }
 
 @conditionalForwardWithUrlbar@ > #back-button:not([disabled="true"]):not([open="true"]):not(:active):hover > .toolbarbutton-icon {
@@ -1071,17 +1058,11 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
               0 0 1px hsla(210,54%,20%,.2) inset,
               0 0 0 1px hsla(210,54%,20%,.4),
               0 1px 0 hsla(210,54%,20%,.2);
-/*
-  transition: none;
-*/
 }
 
 @conditionalForwardWithUrlbar@ > #back-button[disabled] > .toolbarbutton-icon {
   box-shadow: 0 0 0 1px hsla(210,54%,20%,.55),
               0 1px 0 hsla(210,54%,20%,.65);
-/*
-  transition: none;
-*/
 }
 
 .unified-nav-back[_moz-menuactive]:-moz-locale-dir(ltr),
