@@ -19,6 +19,7 @@
 %define navbarLargeIcons #navigator-toolbox[iconsize=large][mode=icons] > #nav-bar
 %define forwardTransitionLength 150ms
 %define conditionalForwardWithUrlbar window:not([chromehidden~=toolbar]) #navigator-toolbox[iconsize=large][mode=icons] > :-moz-any(#nav-bar[currentset*="unified-back-forward-button"],#nav-bar:not([currentset])) > #unified-back-forward-button
+%define conditionalForwardWithoutUrlbar window:not([chromehidden~=toolbar]) #navigator-toolbox[iconsize=large][mode=icons] > :-moz-any(#nav-bar:not([currentset*="unified-back-forward-button,urlbar-container"]),#nav-bar:not([currentset])) > #unified-back-forward-button
 %define conditionalForwardWithUrlbarWidth 27
 
 %ifdef MOZ_OFFICIAL_BRANDING
@@ -1004,6 +1005,18 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   padding-left: 7px;
   padding-right: 3px;
 }
+
+%ifdef WINDOWS_AERO
+@conditionalForwardWithoutUrlbar@ > #forward-button > .toolbarbutton-icon {
+  border-top-right-radius: 2.5px !important;
+  border-bottom-right-radius: 2.5px !important;
+}
+
+@conditionalForwardWithoutUrlbar@ > #forward-button:-moz-locale-dir(rtl) > .toolbarbutton-icon {
+  border-top-left-radius: 2.5px !important;
+  border-bottom-left-radius: 2.5px !important;
+}
+%endif
 
 @conditionalForwardWithUrlbar@ > #forward-button:not([disabled]):not([open]):not(:active):hover > .toolbarbutton-icon {
   background-color: hsla(210,48%,96%,.75);
