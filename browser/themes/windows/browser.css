@@ -833,6 +833,16 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker > .dropmarker-icon {
     border-radius: 0px;
   }
+
+  @conditionalForwardWithUrlbar2@ > #forward-button > .toolbarbutton-icon {
+    border-top-right-radius: 0px !important;
+    border-bottom-right-radius: 0px !important;
+  }
+
+  @conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(rtl) > .toolbarbutton-icon {
+    border-top-left-radius: 0px !important;
+    border-bottom-left-radius: 0px !important;
+  }
 }
 
 @navbarLargeIcons@ .toolbarbutton-1:not(:-moz-any(@primaryToolbarButtons@)) > .toolbarbutton-icon,
@@ -1006,7 +1016,6 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   padding-right: 3px;
 }
 
-%ifdef WINDOWS_AERO
 @conditionalForwardWithUrlbar2@ > #forward-button > .toolbarbutton-icon {
   border-top-right-radius: 2.5px !important;
   border-bottom-right-radius: 2.5px !important;
@@ -1016,7 +1025,6 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   border-top-left-radius: 2.5px !important;
   border-bottom-left-radius: 2.5px !important;
 }
-%endif
 
 @conditionalForwardWithUrlbar@ > #forward-button:not([disabled]):not([open]):not(:active):hover > .toolbarbutton-icon {
   background-color: hsla(210,48%,96%,.75);
