@@ -90,17 +90,10 @@
   </commandset>
 
   <keyset id="placesCommandKeys">
-#ifdef XP_UNIX
     <key id="key_placesCmd_openParentFolder"
          keycode="VK_F1"
          command="placesCmd_openParentFolder"
          modifiers="accel,shift"/>
-#else
-    <key id="key_placesCmd_openParentFolder"
-         keycode="VK_F1"
-         command="placesCmd_openParentFolder"
-         modifiers="accel"/>
-#endif
   </keyset>
 
   <menupopup id="placesContext"
