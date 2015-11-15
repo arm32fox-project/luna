@@ -7,6 +7,7 @@
 %undef WINDOWS_AERO
 
 %define customToolbarColor hsl(210,75%,92%)
+%define customToolbarColorWin10 hsl(210,0%,92%)
 %define glassActiveBorderColor rgb(37, 44, 51)
 %define glassInactiveBorderColor rgb(102, 102, 102)
 
@@ -42,6 +43,8 @@
 }
 
 @media (-moz-windows-default-theme) {
+ @media (-moz-os-version: windows-vista),
+        (-moz-os-version: windows-win7) {
   #navigator-toolbox > toolbar:not(:-moz-lwtheme),
   #browser-bottombox:not(:-moz-lwtheme) {
     background-color: @customToolbarColor@;
@@ -73,7 +76,44 @@
   #navigator-toolbox:not(:-moz-lwtheme)::after {
     background-color: #aabccf;
   }
+ }
 
+ @media (-moz-os-version: windows-win8),
+        (-moz-os-version: windows-win10) {
+  #navigator-toolbox > toolbar:not(:-moz-lwtheme),
+  #browser-bottombox:not(:-moz-lwtheme) {
+    background-color: @customToolbarColorWin10@;
+  }
+
+  .tabbrowser-tab:not(:-moz-lwtheme),
+  .tabs-newtab-button:not(:-moz-lwtheme) {
+    background-image: @toolbarShadowOnTab@, @bgTabTexture@,
+                      linear-gradient(@customToolbarColorWin10@, @customToolbarColorWin10@);
+  }
+
+  .tabbrowser-tab:not(:-moz-lwtheme):hover,
+  .tabs-newtab-button:not(:-moz-lwtheme):hover {
+    background-image: @toolbarShadowOnTab@, @bgTabTextureHover@,
+                      linear-gradient(@customToolbarColorWin10@, @customToolbarColorWin10@);
+  }
+
+  .tabbrowser-tab[selected="true"]:not(:-moz-lwtheme) {
+    background-image: linear-gradient(#fff, @toolbarHighlight@ 50%),
+                      linear-gradient(@customToolbarColorWin10@, @customToolbarColorWin10@);
+  }
+
+  #main-window[tabsontop=false]:not([disablechrome]) .tabbrowser-tab[selected=true]:not(:-moz-lwtheme) {
+    background-image: @toolbarShadowOnTab@,
+                      linear-gradient(#fff, @toolbarHighlight@ 50%),
+                      linear-gradient(@customToolbarColorWin10@, @customToolbarColorWin10@);
+  }
+
+  #navigator-toolbox:not(:-moz-lwtheme)::after {
+    background-color: #bcbcbc;
+  }
+ }
+ 
+ 
   #navigator-toolbox[tabsontop=true] #urlbar:not(:-moz-lwtheme),
   #navigator-toolbox[tabsontop=true] .searchbar-textbox:not(:-moz-lwtheme) {
     border-color: hsla(210,54%,20%,.25) hsla(210,54%,20%,.27) hsla(210,54%,20%,.3);
@@ -520,6 +560,14 @@
     margin-top: 0px;
     border-top: 1px solid @toolbarShadowColor@;
     background-image: linear-gradient(@toolbarHighlight@, rgba(255,255,255,0));
+  }
+  
+  @media (-moz-os-version: windows-win10) {
+    /* Remove gradient and make border faded */
+    #navigator-toolbox[tabsontop=false] > #PersonalToolbar:not(:-moz-lwtheme) {
+      border-top: 1px solid rgba(10%,10%,10%,.2);
+      background-image: none;
+    }
   }
 
   #main-window[sizemode=normal] #TabsToolbar[tabsontop=true] {
