@@ -1,7 +1,7 @@
 
 /* pngrutil.c - utilities to read a PNG file
  *
- * Last changed in libpng 1.5.22 [March 26, 2015]
+ * Last changed in libpng 1.5.24 [November 12, 2015]
  * Copyright (c) 1998-2015 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
@@ -89,7 +89,13 @@ png_get_int_32)(png_const_bytep buf)
       return uval;
 
    uval = (uval ^ 0xffffffff) + 1;  /* 2's complement: -x = ~x+1 */
-   return -(png_int_32)uval;
+   if ((uval & 0x80000000) == 0) /* no overflow */
+       return -(png_int_32)uval;
+   /* The following has to be safe; this function only gets called on PNG data
+    * and if we get here that data is invalid.  0 is the most safe value and
+    * if not then an attacker would surely just generate a PNG with 0 instead.
+    */
+   return 0;
 }
 
 /* Grab an unsigned 16-bit integer from a buffer in big-endian format. */
@@ -610,7 +616,7 @@ void /* PRIVATE */
 png_handle_PLTE(png_structp png_ptr, png_infop info_ptr, png_uint_32 length)
 {
    png_color palette[PNG_MAX_PALETTE_LENGTH];
-   int num, i;
+   int max_palette_length, num, i;
 #ifdef PNG_POINTER_INDEXING_SUPPORTED
    png_colorp pal_ptr;
 #endif
@@ -663,7 +669,21 @@ png_handle_PLTE(png_structp png_ptr, png_infop info_ptr, png_uint_32 length)
       }
    }
 
+   /* The cast is safe because 'length' is less than 3*PNG_MAX_PALETTE_LENGTH */
    num = (int)length / 3;
+
+   /* If the palette has 256 or fewer entries but is too large for the bit
+    * depth, we don't issue an error, to preserve the behavior of previous
+    * libpng versions. We silently truncate the unused extra palette entries
+    * here.
+    */
+   if (png_ptr->color_type == PNG_COLOR_TYPE_PALETTE)
+      max_palette_length = (1 << png_ptr->bit_depth);
+   else
+      max_palette_length = PNG_MAX_PALETTE_LENGTH;
+
+   if (num > max_palette_length)
+      num = max_palette_length;
 
 #ifdef PNG_POINTER_INDEXING_SUPPORTED
    for (i = 0, pal_ptr = palette; i < num; i++, pal_ptr++)
@@ -697,7 +717,7 @@ png_handle_PLTE(png_structp png_ptr, png_infop info_ptr, png_uint_32 length)
    if (png_ptr->color_type == PNG_COLOR_TYPE_PALETTE)
 #endif
    {
-      png_crc_finish(png_ptr, 0);
+      png_crc_finish(png_ptr, (int) length - num * 3);
    }
 
 #ifndef PNG_READ_OPT_PLTE_SUPPORTED
