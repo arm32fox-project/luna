@@ -19,6 +19,7 @@
 %define navbarLargeIcons #navigator-toolbox[iconsize=large][mode=icons] > #nav-bar
 %define forwardTransitionLength 150ms
 %define conditionalForwardWithUrlbar window:not([chromehidden~=toolbar]) #navigator-toolbox[iconsize=large][mode=icons] > :-moz-any(#nav-bar[currentset*="unified-back-forward-button"],#nav-bar:not([currentset])) > #unified-back-forward-button
+%define conditionalForwardWithUrlbar2 window:not([chromehidden~=toolbar]) #navigator-toolbox[iconsize=large][mode=icons] > :-moz-any(#nav-bar[currentset*="unified-back-forward-button"]:not([currentset*="unified-back-forward-button,urlbar-container"]),#nav-bar:not([currentset])) > #unified-back-forward-button
 %define conditionalForwardWithUrlbarWidth 27
 
 %ifdef MOZ_OFFICIAL_BRANDING
@@ -822,8 +823,6 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   box-shadow: 0 1px hsla(0,0%,100%,.05) inset,
               0 1px hsla(210,54%,20%,.05),
               0 0 2px hsla(210,54%,20%,.05);
-  transition-property: background-image, background-color, border-color, box-shadow;
-  transition-duration: 150ms;
 }
 
 @media (-moz-os-version: windows-win10) {
@@ -833,6 +832,16 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
   @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker > .dropmarker-icon {
     border-radius: 0px;
+  }
+
+  @conditionalForwardWithUrlbar2@ > #forward-button > .toolbarbutton-icon {
+    border-top-right-radius: 0px !important;
+    border-bottom-right-radius: 0px !important;
+  }
+
+  @conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(rtl) > .toolbarbutton-icon {
+    border-top-left-radius: 0px !important;
+    border-bottom-left-radius: 0px !important;
   }
 }
 
@@ -885,33 +894,30 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   border-bottom-left-radius: 0;
 }
 
-@navbarLargeIcons@ .toolbarbutton-1:not([disabled]):-moz-any(:hover,[open]) > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
-@navbarLargeIcons@ .toolbarbutton-1:not([disabled]):hover > .toolbarbutton-menubutton-dropmarker > .dropmarker-icon,
 @navbarLargeIcons@ .toolbarbutton-1:not([disabled]):not([checked]):not([open]):not(:active):hover > .toolbarbutton-icon,
 @navbarLargeIcons@ .toolbarbutton-1:not([disabled]):not([checked]):not([open]):not(:active):hover > .toolbarbutton-badge-container,
-@conditionalForwardWithUrlbar@ > .toolbarbutton-1:-moz-any([disabled],:not([open]):not([disabled]):not(:active)) > .toolbarbutton-icon {
-  background-image: linear-gradient(hsla(0,0%,100%,.8), hsla(0,0%,100%,.5));
+@navbarLargeIcons@ .toolbarbutton-1:not([disabled]):-moz-any(:hover,[open]) > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
+@navbarLargeIcons@ .toolbarbutton-1:not([disabled]):hover > .toolbarbutton-menubutton-dropmarker > .dropmarker-icon {
+  background-image: linear-gradient(hsla(0,0%,100%,.6), hsla(0,0%,100%,.1));
+  background-color: hsla(210,48%,96%,.75);
   border-color: hsla(210,54%,20%,.25) hsla(210,54%,20%,.3) hsla(210,54%,20%,.35);
   box-shadow: 0 1px hsla(0,0%,100%,.3) inset,
               0 1px hsla(210,54%,20%,.03),
               0 0 2px hsla(210,54%,20%,.1);
-  transition-property: background-image, background-color, border-color, box-shadow;
-  transition-duration: 150ms;
 }
 
 @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-button:not([disabled]):not([open]):not(:active):hover > .toolbarbutton-icon,
-@navbarLargeIcons@ .toolbarbutton-1:not([buttonover]):not([open]):not(:active):hover > .toolbarbutton-menubutton-dropmarker:not([disabled]) > .dropmarker-icon,
-@conditionalForwardWithUrlbar@ > #forward-button:not([open]):not(:active):not([disabled]):hover > .toolbarbutton-icon {
-  border-color: hsla(210,54%,20%,.3) hsla(210,54%,20%,.35) hsla(210,54%,20%,.4);
+@navbarLargeIcons@ .toolbarbutton-1:not([buttonover]):not([open]):not(:active):hover > .toolbarbutton-menubutton-dropmarker:not([disabled]) > .dropmarker-icon {
   background-color: hsla(210,48%,96%,.75);
+  border-color: hsla(210,54%,20%,.3) hsla(210,54%,20%,.35) hsla(210,54%,20%,.4);
   box-shadow: 0 0 1px hsla(210,54%,20%,.03),
               0 0 2px hsla(210,54%,20%,.1);
 }
 
-@navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-button:not([disabled]):hover:active > .toolbarbutton-icon,
-@navbarLargeIcons@ .toolbarbutton-1[open] > .toolbarbutton-menubutton-dropmarker:not([disabled]) > .dropmarker-icon,
 @navbarLargeIcons@ .toolbarbutton-1:not([disabled]):-moz-any([open],[checked],:hover:active) > .toolbarbutton-icon,
-@navbarLargeIcons@ .toolbarbutton-1:not([disabled]):-moz-any([open],[checked],:hover:active) > .toolbarbutton-badge-container {
+@navbarLargeIcons@ .toolbarbutton-1:not([disabled]):-moz-any([open],[checked],:hover:active) > .toolbarbutton-badge-container,
+@navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-button:not([disabled]):hover:active > .toolbarbutton-icon,
+@navbarLargeIcons@ .toolbarbutton-1[open] > .toolbarbutton-menubutton-dropmarker:not([disabled]) > .dropmarker-icon {
   background-image: linear-gradient(hsla(0,0%,100%,.6), hsla(0,0%,100%,.1));
   background-color: hsla(210,54%,20%,.15);
   border-color: hsla(210,54%,20%,.3) hsla(210,54%,20%,.35) hsla(210,54%,20%,.4);
@@ -921,7 +927,6 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
               0 1px 0 hsla(210,54%,20%,0),
               0 0 2px hsla(210,54%,20%,0);
   text-shadow: none;
-  transition: none;
 }
 
 @navbarLargeIcons@ .toolbarbutton-1:-moz-any(:hover,[open]) > .toolbarbutton-menubutton-dropmarker:not([disabled]) > .dropmarker-icon {
@@ -986,6 +991,14 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   -moz-box-align: center;
 }
 
+@conditionalForwardWithUrlbar@ > .toolbarbutton-1:-moz-any([disabled],:not([disabled]):not([open]):not(:active)) > .toolbarbutton-icon {
+  background-image: linear-gradient(hsla(0,0%,100%,.6), hsla(0,0%,100%,.1));
+  border-color: hsla(210,54%,20%,.25) hsla(210,54%,20%,.3) hsla(210,54%,20%,.35);
+  box-shadow: 0 1px hsla(0,0%,100%,.3) inset,
+              0 1px hsla(210,54%,20%,.03),
+              0 0 2px hsla(210,54%,20%,.1);
+}
+
 @conditionalForwardWithUrlbar@ > #forward-button {
   padding: 0;
 }
@@ -995,7 +1008,6 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 }
 
 @conditionalForwardWithUrlbar@ > #forward-button > .toolbarbutton-icon {
-  /*mask: url(keyhole-forward-mask.svg#mask); XXX: this regresses twinopen */
   clip-path: url(chrome://browser/content/browser.xul#windows-keyhole-forward-clip-path);
   -moz-margin-start: -6px !important;
   border-left-style: none;
@@ -1004,12 +1016,21 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   padding-right: 3px;
 }
 
-@conditionalForwardWithUrlbar@:not([switchingtabs]) > #forward-button {
-  transition: opacity @forwardTransitionLength@ ease-out;
+@conditionalForwardWithUrlbar2@ > #forward-button > .toolbarbutton-icon {
+  border-top-right-radius: 2.5px !important;
+  border-bottom-right-radius: 2.5px !important;
 }
 
-@conditionalForwardWithUrlbar@:not(:hover) > #forward-button[disabled] {
-/*  opacity: 0; */
+@conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(rtl) > .toolbarbutton-icon {
+  border-top-left-radius: 2.5px !important;
+  border-bottom-left-radius: 2.5px !important;
+}
+
+@conditionalForwardWithUrlbar@ > #forward-button:not([disabled]):not([open]):not(:active):hover > .toolbarbutton-icon {
+  background-color: hsla(210,48%,96%,.75);
+  border-color: hsla(210,54%,20%,.3) hsla(210,54%,20%,.35) hsla(210,54%,20%,.4);
+  box-shadow: 0 0 1px hsla(210,54%,20%,.03),
+              0 0 2px hsla(210,54%,20%,.1);
 }
 
 @conditionalForwardWithUrlbar@ > #back-button {
@@ -1040,8 +1061,6 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
               0 0 0 1px hsla(0,0%,100%,.3) inset,
               0 0 0 1px hsla(210,54%,20%,.25),
               0 1px 0 hsla(210,54%,20%,.35);
-  transition-property: background-color, box-shadow;
-  transition-duration: 250ms;
 }
 
 @conditionalForwardWithUrlbar@ > #back-button:not([disabled="true"]):not([open="true"]):not(:active):hover > .toolbarbutton-icon {
@@ -1060,13 +1079,11 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
               0 0 1px hsla(210,54%,20%,.2) inset,
               0 0 0 1px hsla(210,54%,20%,.4),
               0 1px 0 hsla(210,54%,20%,.2);
-  transition: none;
 }
 
 @conditionalForwardWithUrlbar@ > #back-button[disabled] > .toolbarbutton-icon {
   box-shadow: 0 0 0 1px hsla(210,54%,20%,.55),
               0 1px 0 hsla(210,54%,20%,.65);
-  transition: none;
 }
 
 .unified-nav-back[_moz-menuactive]:-moz-locale-dir(ltr),

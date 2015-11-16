@@ -53,13 +53,13 @@
     <stringbundle id="brandStrings" src="chrome://branding/locale/brand.properties"/>
   </stringbundleset>
 
-
 #ifdef XP_MACOSX
 #include ../../../base/content/browserMountPoints.inc
 #else
   <commandset id="editMenuCommands"/>
   <commandset id="placesCommands"/>
 #endif
+  <keyset id="placesCommandKeys"/>
 
   <commandset id="organizerCommandSet">
     <command id="OrganizerCommand_find:all"
@@ -83,7 +83,6 @@
     <command id="OrganizerCommand:Forward"
              oncommand="PlacesOrganizer.forward();"/>
   </commandset>
-
 
   <keyset id="placesOrganizerKeyset">
     <!-- Instantiation Keys -->
