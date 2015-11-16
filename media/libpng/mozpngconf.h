@@ -287,7 +287,6 @@
 #define png_progressive_combine_row     MOZ_PNG_progressive_combine_row
 #define png_push_check_crc              MOZ_PNG_push_check_crc
 #define png_push_crc_finish             MOZ_PNG_push_crc_finish
-#define png_push_crc_skip               MOZ_PNG_push_crc_skip
 #define png_push_fill_buffer            MOZ_PNG_push_fill_buffer
 #define png_push_handle_iTXt            MOZ_PNG_push_handle_iTXt
 #define png_push_handle_tEXt            MOZ_PNG_push_handle_tEXt
