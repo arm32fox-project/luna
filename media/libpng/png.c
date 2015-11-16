@@ -1,7 +1,7 @@
 
 /* png.c - location for general purpose libpng functions
  *
- * Last changed in libpng 1.5.22 [March 26, 2015]
+ * Last changed in libpng 1.5.23 [July 23, 2015]
  * Copyright (c) 1998-2015 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
@@ -14,7 +14,7 @@
 #include "pngpriv.h"
 
 /* Generate a compiler error if there is an old png.h in the search path. */
-typedef png_libpng_version_1_5_22 Your_png_h_is_not_version_1_5_22;
+typedef png_libpng_version_1_5_24 Your_png_h_is_not_version_1_5_24;
 
 /* Tells libpng that we have already handled the first "num_bytes" bytes
  * of the PNG file signature.  If the PNG data is embedded into another
@@ -26,15 +26,20 @@ typedef png_libpng_version_1_5_22 Your_png_h_is_not_version_1_5_22;
 void PNGAPI
 png_set_sig_bytes(png_structp png_ptr, int num_bytes)
 {
+   unsigned int nb = (unsigned int)num_bytes;
+
    png_debug(1, "in png_set_sig_bytes");
 
    if (png_ptr == NULL)
       return;
 
-   if (num_bytes > 8)
+   if (num_bytes < 0)
+      nb = 0;
+
+   if (nb > 8)
       png_error(png_ptr, "Too many bytes for PNG signature");
 
-   png_ptr->sig_bytes = (png_byte)(num_bytes < 0 ? 0 : num_bytes);
+   png_ptr->sig_bytes = (png_byte)nb;
 }
 
 /* Checks whether the supplied bytes match the PNG signature.  We allow
@@ -306,6 +311,8 @@ png_info_init_3(png_infopp ptr_ptr, png_size_t png_info_struct_size)
       png_destroy_struct(info_ptr);
       info_ptr = (png_infop)png_create_struct(PNG_STRUCT_INFO);
       *ptr_ptr = info_ptr;
+      if (info_ptr == NULL)
+         return;
    }
 
    /* Set everything to 0 */
@@ -648,13 +655,13 @@ png_get_copyright(png_const_structp png_ptr)
 #else
 #  ifdef __STDC__
    return PNG_STRING_NEWLINE \
-     "libpng version 1.5.22 - March 26, 2015" PNG_STRING_NEWLINE \
+     "libpng version 1.5.24 - November 12, 2015" PNG_STRING_NEWLINE \
      "Copyright (c) 1998-2015 Glenn Randers-Pehrson" PNG_STRING_NEWLINE \
      "Copyright (c) 1996-1997 Andreas Dilger" PNG_STRING_NEWLINE \
      "Copyright (c) 1995-1996 Guy Eric Schalnat, Group 42, Inc." \
      PNG_STRING_NEWLINE;
 #  else
-      return "libpng version 1.5.22 - March 26, 2015\
+      return "libpng version 1.5.24 - November 12, 2015\
       Copyright (c) 1998-2015 Glenn Randers-Pehrson\
       Copyright (c) 1996-1997 Andreas Dilger\
       Copyright (c) 1995-1996 Guy Eric Schalnat, Group 42, Inc.";
@@ -885,7 +892,8 @@ int png_XYZ_from_xy(png_XYZ *XYZ, png_xy xy)
 
    /* Check xy and, implicitly, z.  Note that wide gamut color spaces typically
     * have end points with 0 tristimulus values (these are impossible end
-    * points, but they are used to cover the possible colors.)
+    * points, but they are used to cover the possible colors).  We check
+    * xy.whitey against 5, not 0, to avoid a possible integer overflow.
     */
    if (xy.redx < 0 || xy.redx > PNG_FP_1) return 1;
    if (xy.redy < 0 || xy.redy > PNG_FP_1-xy.redx) return 1;
@@ -894,7 +902,7 @@ int png_XYZ_from_xy(png_XYZ *XYZ, png_xy xy)
    if (xy.bluex < 0 || xy.bluex > PNG_FP_1) return 1;
    if (xy.bluey < 0 || xy.bluey > PNG_FP_1-xy.bluex) return 1;
    if (xy.whitex < 0 || xy.whitex > PNG_FP_1) return 1;
-   if (xy.whitey < 0 || xy.whitey > PNG_FP_1-xy.whitex) return 1;
+   if (xy.whitey < 5 || xy.whitey > PNG_FP_1-xy.whitex) return 1;
 
    /* The reverse calculation is more difficult because the original tristimulus
     * value had 9 independent values (red,green,blue)x(X,Y,Z) however only 8
