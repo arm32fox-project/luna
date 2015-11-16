@@ -1,8 +1,8 @@
 
 /* pngread.c - read a PNG file
  *
- * Last changed in libpng 1.5.19 [August 21, 2014]
- * Copyright (c) 1998-2014 Glenn Randers-Pehrson
+ * Last changed in libpng 1.5.23 [July 23, 2015]
+ * Copyright (c) 1998-2015 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
  *
@@ -734,7 +734,7 @@ png_read_row(png_structp png_ptr, png_bytep row, png_bytep dsp_row)
 #ifdef PNG_READ_INTERLACING_SUPPORTED
    /* Blow up interlaced rows to full size */
    if (png_ptr->interlaced &&
-      (png_ptr->transformations & PNG_INTERLACE))
+       (png_ptr->transformations & PNG_INTERLACE))
    {
       if (png_ptr->pass < 6)
          png_do_read_interlace(&row_info, png_ptr->row_buf + 1, png_ptr->pass,
@@ -1236,9 +1236,8 @@ png_set_read_status_fn(png_structp png_ptr, png_read_status_ptr read_row_fn)
 #ifdef PNG_SEQUENTIAL_READ_SUPPORTED
 #ifdef PNG_INFO_IMAGE_SUPPORTED
 void PNGAPI
-png_read_png(png_structp png_ptr, png_infop info_ptr,
-                           int transforms,
-                           voidp params)
+png_read_png(png_structp png_ptr, png_infop info_ptr, int transforms,
+    voidp params)
 {
    int row;
 
@@ -1398,7 +1397,7 @@ png_read_png(png_structp png_ptr, png_infop info_ptr,
 
       for (row = 0; row < (int)info_ptr->height; row++)
          info_ptr->row_pointers[row] = (png_bytep)png_malloc(png_ptr,
-            png_get_rowbytes(png_ptr, info_ptr));
+             png_get_rowbytes(png_ptr, info_ptr));
    }
 
    png_read_image(png_ptr, info_ptr->row_pointers);
