@@ -3748,7 +3748,7 @@ pref("image.cache.size", 5242880);
 pref("image.cache.timeweight", 500);
 
 // The default Accept header sent for images loaded over HTTP(S)
-pref("image.http.accept", "image/png,image/*;q=0.8,*/*;q=0.5");
+pref("image.http.accept", "image/webp,image/png,image/*;q=0.8,*/*;q=0.5");
 
 // Whether we do high-quality image downscaling. OS X natively supports
 // high-quality image scaling.
