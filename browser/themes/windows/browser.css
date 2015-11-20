@@ -834,14 +834,14 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
     border-radius: 0px;
   }
 
-  @conditionalForwardWithUrlbar2@ > #forward-button > .toolbarbutton-icon {
-    border-top-right-radius: 0px !important;
-    border-bottom-right-radius: 0px !important;
+  @conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(ltr) > .toolbarbutton-icon {
+    border-top-right-radius: 0px;
+    border-bottom-right-radius: 0px;
   }
 
   @conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(rtl) > .toolbarbutton-icon {
-    border-top-left-radius: 0px !important;
-    border-bottom-left-radius: 0px !important;
+    border-top-left-radius: 0px;
+    border-bottom-left-radius: 0px;
   }
 }
 
@@ -1015,14 +1015,14 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   padding-right: 3px;
 }
 
-@conditionalForwardWithUrlbar2@ > #forward-button > .toolbarbutton-icon {
-  border-top-right-radius: 2.5px !important;
-  border-bottom-right-radius: 2.5px !important;
+@conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(ltr) > .toolbarbutton-icon {
+  border-top-right-radius: 2.5px;
+  border-bottom-right-radius: 2.5px;
 }
 
 @conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(rtl) > .toolbarbutton-icon {
-  border-top-left-radius: 2.5px !important;
-  border-bottom-left-radius: 2.5px !important;
+  border-top-left-radius: 2.5px;
+  border-bottom-left-radius: 2.5px;
 }
 
 @conditionalForwardWithUrlbar@ > #forward-button:not([disabled]):not([open]):not(:active):hover > .toolbarbutton-icon {
