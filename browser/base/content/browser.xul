@@ -528,6 +528,8 @@
                      persist="class"
                      removable="true"
                      type="menu"
+                     onclick="if (event.button == 1)
+                                toggleSidebar('viewBookmarksSidebar');"
                      label="&bookmarksMenuButton.label;"
                      tooltiptext="&bookmarksMenuButton.tooltip;"
                      ondragenter="PlacesMenuDNDHandler.onDragEnter(event);"
