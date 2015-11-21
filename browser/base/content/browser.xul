@@ -830,7 +830,7 @@
                      tooltiptext="&historyButton.tooltip;"/>
 
       <toolbarbutton id="bookmarks-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
-                     observes="viewBookmarksSidebar"
+                     observes="viewBookmarksSidebar" label="&bookmarksButton.label;"
                      tooltiptext="&bookmarksButton.tooltip;"
                      ondrop="bookmarksButtonObserver.onDrop(event)"
                      ondragover="bookmarksButtonObserver.onDragOver(event)"
