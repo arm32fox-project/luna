@@ -1031,10 +1031,10 @@ pref("network.http.bypass-cachelock-threshold", 200000);
 pref("network.http.bypass-cachelock-threshold", 250);
 #endif
 
-// Try and use SPDY when using SSL
-pref("network.http.spdy.enabled", true);
-pref("network.http.spdy.enabled.v2", true);
-pref("network.http.spdy.enabled.v3", true);
+// SPDY is being deprecated, so don't use it by default.
+pref("network.http.spdy.enabled", false);
+pref("network.http.spdy.enabled.v2", false);
+pref("network.http.spdy.enabled.v3", false);
 pref("network.http.spdy.chunk-size", 4096);
 pref("network.http.spdy.timeout", 180);
 pref("network.http.spdy.coalesce-hostnames", true);
