@@ -634,8 +634,13 @@ toolbar[mode="full"] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   -moz-image-region: rect(0px 24px 24px 0px);
 }
 
-#history-button {
+#history-button,
+#history-menu-button {
   -moz-image-region: rect(0px 48px 24px 24px);
+}
+
+#history-menu-button.toolbarbutton-1 {
+  -moz-box-orient: horizontal;
 }
 
 #bookmarks-button,
@@ -800,7 +805,8 @@ toolbar[iconsize="small"] #downloads-button {
 }
 
 toolbar[iconsize="small"] #webrtc-status-button /* temporary placeholder (bug 824825) */,
-toolbar[iconsize="small"] #history-button {
+toolbar[iconsize="small"] #history-button,
+toolbar[iconsize=small] > #history-menu-button {
   -moz-image-region: rect(0px 32px 16px 16px);
 }
 
@@ -1535,6 +1541,16 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 #bookmarks-menu-button[disabled] > .toolbarbutton-menubutton-dropmarker,
 #bookmarks-menu-button[disabled] > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
 #bookmarks-menu-button > .toolbarbutton-menubutton-button[disabled] > .toolbarbutton-icon {
+  opacity: .4;
+}
+
+/* history menu-button */
+
+#history-menu-button[disabled] > .toolbarbutton-icon,
+#history-menu-button[disabled] > .toolbarbutton-menu-dropmarker,
+#history-menu-button[disabled] > .toolbarbutton-menubutton-dropmarker,
+#history-menu-button[disabled] > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
+#history-menu-button > .toolbarbutton-menubutton-button[disabled] > .toolbarbutton-icon {
   opacity: .4;
 }
 

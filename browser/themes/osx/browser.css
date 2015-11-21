@@ -601,7 +601,8 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
     -moz-image-region: rect(0, 108px, 18px, 90px);
 }
 
-#history-button {
+#history-button,
+#history-menu-button {
     -moz-image-region: rect(0, 126px, 18px, 108px);
 }
 

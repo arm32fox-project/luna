@@ -356,7 +356,7 @@
              toolbarname="&navbarCmd.label;" accesskey="&navbarCmd.accesskey;"
              fullscreentoolbar="true" mode="icons" customizable="true"
              iconsize="large"
-             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,bookmarks-menu-button,downloads-button,window-controls"
+             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,bookmarks-menu-button,history-menu-button,downloads-button,window-controls"
              context="toolbar-context-menu">
 
       <toolbaritem id="unified-back-forward-button" class="chromeclass-toolbar-additional"
@@ -602,6 +602,65 @@
                     label="&bookmarksMenuButton.unsorted.label;"
                     oncommand="PlacesCommandHook.showPlacesOrganizer('UnfiledBookmarks');"
                     class="menuitem-iconic"/>
+        </menupopup>
+      </toolbarbutton>
+
+      <toolbarbutton id="history-menu-button"
+                     class="toolbarbutton-1 chromeclass-toolbar-additional"
+                     type="menu"
+                     label="&historyButton.label;"
+                     onclick="if (event.button == 1)
+                                toggleSidebar('viewHistorySidebar');"
+                     tooltiptext="&historyButton.tooltip;">
+        <menupopup id="HMB_historyPopup"
+                   placespopup="true"
+                   context="placesContext"
+                   oncommand="this.parentNode._placesView._onCommand(event);"
+                   onclick="checkForMiddleClick(this, event);"
+                   onpopupshowing="if (!this.parentNode._placesView)
+                                     new HistoryMenu(event);"
+                   tooltip="bhTooltip"
+                   popupsinherittooltip="true">
+          <menuitem id="HMB_showAllHistory"
+                    label="&showAllHistoryCmd2.label;"
+#ifndef XP_MACOSX
+                    key="showAllHistoryKb"
+#endif
+                    command="Browser:ShowAllHistory"/>
+          <menuitem id="HMB_sanitizeItem"
+                    label="&clearRecentHistory.label;"
+                    key="key_sanitize"
+                    command="Tools:Sanitize"/>
+          <menuseparator id="HMB_sanitizeSeparator"/>
+#ifdef MOZ_SERVICES_SYNC
+          <menuitem id="HMB_sync-tabs-menuitem"
+                    class="syncTabsMenuItem"
+                    label="&syncTabsMenu2.label;"
+                    oncommand="BrowserOpenSyncTabs();"
+                    disabled="true"/>
+#endif
+          <menuitem id="HMB_historyRestoreLastSession"
+                    label="&historyRestoreLastSession.label;"
+                    command="Browser:RestoreLastSession"/>
+          <menu id="HMB_historyUndoMenu"
+                class="recentlyClosedTabsMenu"
+                label="&historyUndoMenu.label;"
+                disabled="true">
+            <menupopup id="HMB_historyUndoPopup"
+                       placespopup="true"
+                       onpopupshowing="document.getElementById('history-menu-button')._placesView.populateUndoSubmenu();"/>
+          </menu>
+          <menu id="HMB_historyUndoWindowMenu"
+                class="recentlyClosedWindowsMenu"
+                label="&historyUndoWindowMenu.label;"
+                disabled="true">
+            <menupopup id="HMB_historyUndoWindowPopup"
+                       placespopup="true"
+                       onpopupshowing="document.getElementById('history-menu-button')._placesView.populateUndoWindowSubmenu();"/>
+          </menu>
+          <menuseparator id="HMB_startHistorySeparator"
+                         class="hide-if-empty-places-result"/>
+          <!-- History menu items -->
         </menupopup>
       </toolbarbutton>
 
