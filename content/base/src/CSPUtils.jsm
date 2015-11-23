@@ -64,7 +64,7 @@ const R_HOST       = new RegExp ("\\*|(((\\*\\.)?" + R_HOSTCHAR.source +
 const R_PORT       = new RegExp ("(\\:([0-9]+|\\*))", 'i');
 
 // path
-const R_PATH       = new RegExp("(\\/(([a-zA-Z0-9\\-\\_]+)\\/?)*)", 'i');
+const R_PATH       = new RegExp("(\\/(([a-zA-Z0-9\\-\\_\\$\\;\\,\\=\\+\\&\\!\\(\\)\\*\\%\\:\\@]+)\\/?)*)", 'i');
 
 // file
 const R_FILE       = new RegExp("(\\/([a-zA-Z0-9\\-\\_]+)\\.([a-zA-Z]+))", 'i');
