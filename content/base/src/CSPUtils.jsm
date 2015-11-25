@@ -1370,8 +1370,13 @@ CSPSource.fromString = function(aStr, aCSPRep, self, enforceSelfChecks) {
     hostMatch[0] = hostMatch[0].replace(R_FILE, "");
     hostMatch[0] = hostMatch[0].replace(R_PATH, "");
 
-    var portMatch = R_PORT.exec(hostMatch);
-
+    // Host regex also gets port, so grab it from there to avoid :nnnn sequence
+    // matches later on in the path/URLs.
+    // XXX: If paths are going to be checked, this will probably need to be
+    // changed to use the host-only string as a source (which is now just the
+    // main source string).
+    var portMatch = R_PORT.exec(hostMatch[0]);
+    
     // Host regex also gets port, so remove the port here.
     if (portMatch)
       hostMatch = R_HOSTSRC.exec(hostMatch[0].substring(0, hostMatch[0].length - portMatch[0].length));
