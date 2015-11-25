@@ -806,7 +806,7 @@ toolbar[iconsize="small"] #downloads-button {
 
 toolbar[iconsize="small"] #webrtc-status-button /* temporary placeholder (bug 824825) */,
 toolbar[iconsize="small"] #history-button,
-toolbar[iconsize=small] > #history-menu-button {
+toolbar[iconsize="small"] #history-menu-button {
   -moz-image-region: rect(0px 32px 16px 16px);
 }
 
