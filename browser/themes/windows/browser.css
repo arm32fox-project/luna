@@ -558,6 +558,12 @@
   list-style-image: url("chrome://browser/skin/places/history.png");
 }
 
+#appmenu_sanitizeHistory,
+#sanitizeItem,
+#HMB_sanitizeItem {
+  list-style-image: url("chrome://browser/skin/sanitize.png");
+}
+
 /* ::::: titlebar ::::: */
 
 #main-window[sizemode="normal"] > #titlebar {

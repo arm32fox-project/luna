@@ -366,6 +366,9 @@
 #endif
                           command="Browser:ShowAllHistory"/>
                 <menuitem id="sanitizeItem"
+#ifndef XP_MACOSX
+                          class="menuitem-iconic"
+#endif
                           label="&clearRecentHistory.label;"
                           key="key_sanitize"
                           command="Tools:Sanitize"/>
