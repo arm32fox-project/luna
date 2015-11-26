@@ -464,18 +464,22 @@ menuitem:not([type]):not(.menuitem-tooltip):not(.menuitem-iconic-tooltip) {
 
 #appmenu_history,
 #appmenu_showAllHistory,
-#menu_showAllHistory {
+#menu_showAllHistory,
+#HMB_showAllHistory {
   list-style-image: url("chrome://browser/skin/Toolbar-small.png");
   -moz-image-region: rect(0px 32px 16px 16px);
 }
 
 #appmenu_bookmarks,
 #appmenu_showAllBookmarks,
-#bookmarksShowAll {
+#bookmarksShowAll,
+#BMB_bookmarksShowAll {
   list-style-image: url("chrome://browser/skin/Toolbar-small.png");
   -moz-image-region: rect(0px 48px 16px 32px);
 }
 
+#appmenu_subscribeToPage:not([disabled]),
+#appmenu_subscribeToPageMenu,
 #subscribeToPageMenuitem:not([disabled]),
 #subscribeToPageMenupopup,
 #BMB_subscribeToPageMenuitem:not([disabled]),
@@ -483,15 +487,20 @@ menuitem:not([type]):not(.menuitem-tooltip):not(.menuitem-iconic-tooltip) {
   list-style-image: url("chrome://browser/skin/page-livemarks.png");
 }
 
+#appmenu_bookmarksToolbar,
 #bookmarksToolbarFolderMenu,
 #BMB_bookmarksToolbar {
   list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");
 }
 
+#appmenu_bookmarkThisPage,
+#menu_bookmarkThisPage,
 #BMB_bookmarkThisPage {
   list-style-image: url("chrome://browser/skin/places/starPage.png");
 }
 
+#appmenu_unsortedBookmarks,
+#menu_unsortedBookmarks,
 #BMB_unsortedBookmarks {
   list-style-image: url("chrome://browser/skin/places/unsortedBookmarks.png");
 }
@@ -524,7 +533,8 @@ menuitem:not([type]):not(.menuitem-tooltip):not(.menuitem-iconic-tooltip) {
 }
 
 #appmenu_sanitizeHistory,
-#sanitizeItem {
+#sanitizeItem,
+#HMB_sanitizeItem {
   list-style-image: url("moz-icon://stock/gtk-clear?size=menu");
 }
 
