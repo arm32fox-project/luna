@@ -554,6 +554,9 @@
                     label="&viewBookmarksToolbar.label;"/>
           <menuseparator/>
           <menuitem id="BMB_bookmarksShowAll"
+#ifndef XP_MACOSX
+                    class="menuitem-iconic"
+#endif
                     label="&palemoon.menu.allBookmarks.label;"
                     command="Browser:ShowAllBookmarks"
                     key="manBookmarkKb"/>
@@ -601,9 +604,9 @@
           <menuseparator builder="end"
                          class="hide-if-empty-places-result"/>
           <menuitem id="BMB_unsortedBookmarks"
+                    class="menuitem-iconic"
                     label="&bookmarksMenuButton.unsorted.label;"
-                    oncommand="PlacesCommandHook.showPlacesOrganizer('UnfiledBookmarks');"
-                    class="menuitem-iconic"/>
+                    oncommand="PlacesCommandHook.showPlacesOrganizer('UnfiledBookmarks');"/>
         </menupopup>
       </toolbarbutton>
 
@@ -626,6 +629,7 @@
           <menuitem id="HMB_showAllHistory"
                     label="&showAllHistoryCmd2.label;"
 #ifndef XP_MACOSX
+                    class="menuitem-iconic"
                     key="showAllHistoryKb"
 #endif
                     command="Browser:ShowAllHistory"/>

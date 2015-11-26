@@ -539,10 +539,23 @@
   }
 }
 
-#BMB_bookmarkThisPage,
-#appmenu_bookmarkThisPage {
+#appmenu_showAllBookmarks,
+#bookmarksShowAll,
+#BMB_bookmarksShowAll {
+  list-style-image: url("chrome://browser/skin/places/allBookmarks.png"
+}
+
+#appmenu_bookmarkThisPage,
+#menu_bookmarkThisPage,
+#BMB_bookmarkThisPage {
   list-style-image: url("chrome://browser/skin/places/bookmark.png");
   -moz-image-region: rect(0 16px 16px 0);
+}
+
+#appmenu_showAllHistory,
+#menu_showAllHistory,
+#HMB_showAllHistory {
+  list-style-image: url("chrome://browser/skin/places/history.png");
 }
 
 /* ::::: titlebar ::::: */
@@ -2651,14 +2664,15 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   list-style-image: url("chrome://browser/skin/feeds/feedIcon16.png");
 }
 
-#bookmarksToolbarFolderMenu,
 #appmenu_bookmarksToolbar,
+#bookmarksToolbarFolderMenu,
 #BMB_bookmarksToolbar {
   list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");
   -moz-image-region: auto;
 }
 
 #appmenu_unsortedBookmarks,
+#menu_unsortedBookmarks,
 #BMB_unsortedBookmarks {
   list-style-image: url("chrome://browser/skin/places/unsortedBookmarks.png");
   -moz-image-region: auto;

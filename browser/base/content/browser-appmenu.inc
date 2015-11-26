@@ -211,6 +211,7 @@
                      tooltip="bhTooltip"
                      popupsinherittooltip="true">
             <menuitem id="appmenu_showAllBookmarks"
+                      class="menuitem-iconic"
                       label="&palemoon.menu.allBookmarks.label;"
                       command="Browser:ShowAllBookmarks"
                       context=""
@@ -253,9 +254,9 @@
             <menuseparator builder="end"
                            class="hide-if-empty-places-result"/>
             <menuitem id="appmenu_unsortedBookmarks"
+                      class="menuitem-iconic"
                       label="&appMenuUnsorted.label;"
-                      oncommand="PlacesCommandHook.showPlacesOrganizer('UnfiledBookmarks');"
-                      class="menuitem-iconic"/>
+                      oncommand="PlacesCommandHook.showPlacesOrganizer('UnfiledBookmarks');"/>
           </menupopup>
       </splitmenu>
       <splitmenu id="appmenu_history"
@@ -272,6 +273,7 @@
                      tooltip="bhTooltip"
                      popupsinherittooltip="true">
             <menuitem id="appmenu_showAllHistory"
+                      class="menuitem-iconic"
                       label="&showAllHistoryCmd2.label;"
                       command="Browser:ShowAllHistory"
                       key="showAllHistoryKb"/>
