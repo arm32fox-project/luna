@@ -361,6 +361,7 @@
                 <menuitem id="menu_showAllHistory"
                           label="&showAllHistoryCmd2.label;"
 #ifndef XP_MACOSX
+                          class="menuitem-iconic"
                           key="showAllHistoryKb"
 #endif
                           command="Browser:ShowAllHistory"/>
@@ -423,11 +424,17 @@
                                  new PlacesMenu(event, 'place:folder=BOOKMARKS_MENU');"
                tooltip="bhTooltip" popupsinherittooltip="true">
       <menuitem id="bookmarksShowAll"
+#ifndef XP_MACOSX
+                class="menuitem-iconic"
+#endif
                 label="&palemoon.menu.allBookmarks.label;"
                 command="Browser:ShowAllBookmarks"
                 key="manBookmarkKb"/>
       <menuseparator id="organizeBookmarksSeparator"/>
       <menuitem id="menu_bookmarkThisPage"
+#ifndef XP_MACOSX
+                class="menuitem-iconic"
+#endif
                 label="&bookmarkThisPageCmd.label;"
                 command="Browser:AddBookmarkAs"
                 key="addBookmarkAsKb"/>
@@ -473,6 +480,9 @@
       <menuseparator builder="end"
                      class="hide-if-empty-places-result"/>
       <menuitem id="menu_unsortedBookmarks"
+#ifndef XP_MACOSX
+                class="menuitem-iconic"
+#endif
                 label="&unsortedBookmarksCmd.label;"
                 oncommand="PlacesCommandHook.showPlacesOrganizer('UnfiledBookmarks');"/>
     </menupopup>
