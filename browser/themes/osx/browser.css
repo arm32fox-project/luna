@@ -2030,8 +2030,8 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
     list-style-image: url("chrome://browser/skin/feeds/feedIcon16.png");
 }
 
-#bookmarksToolbarFolderMenu,
 #appmenu_bookmarksToolbar,
+#bookmarksToolbarFolderMenu,
 #BMB_bookmarksToolbar {
     list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");
     -moz-image-region: auto;
