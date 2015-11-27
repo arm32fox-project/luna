@@ -541,7 +541,8 @@
                    context="placesContext"
                    openInTabs="children"
                    oncommand="BookmarksEventHandler.onCommand(event, this.parentNode._placesView);"
-                   onclick="BookmarksEventHandler.onClick(event, this.parentNode._placesView);"
+                   onclick="event.stopPropagation();
+                            BookmarksEventHandler.onClick(event, this.parentNode._placesView);"
                    onpopupshowing="BookmarkingUI.onPopupShowing(event);
                                    if (!this.parentNode._placesView)
                                      new PlacesMenu(event, 'place:folder=BOOKMARKS_MENU');"
@@ -621,7 +622,8 @@
                    placespopup="true"
                    context="placesContext"
                    oncommand="this.parentNode._placesView._onCommand(event);"
-                   onclick="checkForMiddleClick(this, event);"
+                   onclick="event.stopPropagation();
+                            checkForMiddleClick(this, event);"
                    onpopupshowing="if (!this.parentNode._placesView)
                                      new HistoryMenu(event);"
                    tooltip="bhTooltip"
