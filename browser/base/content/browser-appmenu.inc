@@ -279,6 +279,7 @@
                       key="showAllHistoryKb"/>
             <menuseparator/>
             <menuitem id="appmenu_sanitizeHistory"
+                      class="menuitem-iconic"
                       label="&clearRecentHistory.label;"
                       key="key_sanitize"
                       command="Tools:Sanitize"/>
