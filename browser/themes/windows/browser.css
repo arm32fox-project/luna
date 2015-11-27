@@ -542,11 +542,7 @@
 #appmenu_showAllBookmarks,
 #bookmarksShowAll,
 #BMB_bookmarksShowAll {
-%ifdef WINDOWS_AERO
-  list-style-image: url("chrome://browser/skin/places/allBookmarks-aero.png"
-%else
   list-style-image: url("chrome://browser/skin/places/allBookmarks.png"
-%endif
 }
 
 #appmenu_bookmarkThisPage,
@@ -559,11 +555,7 @@
 #appmenu_showAllHistory,
 #menu_showAllHistory,
 #HMB_showAllHistory {
-%ifdef WINDOWS_AERO
-  list-style-image: url("chrome://browser/skin/places/history-aero.png");
-%else
   list-style-image: url("chrome://browser/skin/places/history.png");
-%endif
 }
 
 #appmenu_sanitizeHistory,
