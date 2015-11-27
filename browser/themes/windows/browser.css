@@ -542,7 +542,7 @@
 #appmenu_showAllBookmarks,
 #bookmarksShowAll,
 #BMB_bookmarksShowAll {
-  list-style-image: url("chrome://browser/skin/places/allBookmarks.png"
+  list-style-image: url("chrome://browser/skin/places/allBookmarks.png");
 }
 
 #appmenu_bookmarkThisPage,
