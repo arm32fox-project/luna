@@ -404,7 +404,7 @@ public:
 #elif WTF_CPU_MIPS
     static void cacheFlush(void* code, size_t size)
     {
-#if defined(__GNUC__)
+#if WTF_COMPILER_GCC
         intptr_t end = reinterpret_cast<intptr_t>(code) + size;
         __builtin___clear_cache(reinterpret_cast<char*>(code), reinterpret_cast<char*>(end));
 #else
