@@ -48,7 +48,6 @@ const PREF_APP_UPDATE_NOTIFIEDUNSUPPORTED = "app.update.notifiedUnsupported";
 const PREF_APP_UPDATE_URL                 = "app.update.url";
 const PREF_APP_UPDATE_URL_DETAILS         = "app.update.url.details";
 const PREF_APP_UPDATE_URL_OVERRIDE        = "app.update.url.override";
-const PREF_APP_UPDATE_SERVICE_ENABLED     = "app.update.service.enabled";
 const PREF_APP_UPDATE_SERVICE_ERRORS      = "app.update.service.errors";
 const PREF_APP_UPDATE_SERVICE_MAX_ERRORS  = "app.update.service.maxErrors";
 const PREF_APP_UPDATE_SOCKET_ERRORS       = "app.update.socket.maxErrors";
@@ -81,14 +80,6 @@ const KEY_EXECUTABLE      = "XREExeF";
 const KEY_UPDATE_ARCHIVE_DIR = "UpdArchD"
 #endif
 
-#ifdef XP_WIN
-#define CHECK_CAN_USE_SERVICE
-#elifdef MOZ_WIDGET_GONK
-// In Gonk, the updater will remount the /system partition to move staged files
-// into place, so we skip the test here to keep things isolated.
-#define CHECK_CAN_USE_SERVICE
-#endif
-
 const DIR_UPDATES         = "updates";
 #ifdef XP_MACOSX
 const UPDATED_DIR         = "Updated.app";
@@ -114,10 +105,8 @@ const FILE_UPDATE_LOCALE  = "update.locale";
 const STATE_NONE            = "null";
 const STATE_DOWNLOADING     = "downloading";
 const STATE_PENDING         = "pending";
-const STATE_PENDING_SVC     = "pending-service";
 const STATE_APPLYING        = "applying";
 const STATE_APPLIED         = "applied";
-const STATE_APPLIED_SVC     = "applied-service";
 const STATE_SUCCEEDED       = "succeeded";
 const STATE_DOWNLOAD_FAILED = "download-failed";
 const STATE_FAILED          = "failed";
@@ -126,19 +115,6 @@ const STATE_FAILED          = "failed";
 const WRITE_ERROR        = 7;
 // const UNEXPECTED_ERROR   = 8; // Replaced with errors 38-42
 const ELEVATION_CANCELED = 9;
-
-// Windows service specific errors
-const SERVICE_UPDATER_COULD_NOT_BE_STARTED = 24;
-const SERVICE_NOT_ENOUGH_COMMAND_LINE_ARGS = 25;
-const SERVICE_UPDATER_SIGN_ERROR           = 26;
-const SERVICE_UPDATER_COMPARE_ERROR        = 27;
-const SERVICE_UPDATER_IDENTITY_ERROR       = 28;
-const SERVICE_STILL_APPLYING_ON_SUCCESS    = 29;
-const SERVICE_STILL_APPLYING_ON_FAILURE    = 30;
-const SERVICE_UPDATER_NOT_FIXED_DRIVE      = 31;
-const SERVICE_COULD_NOT_LOCK_UPDATER       = 32;
-const SERVICE_INSTALLDIR_ERROR             = 33;
-const SERVICE_COULD_NOT_COPY_UPDATER       = 49;
 
 const WRITE_ERROR_ACCESS_DENIED                     = 35;
 // const WRITE_ERROR_SHARING_VIOLATION                 = 36; // Replaced with errors 46-48
@@ -169,10 +145,6 @@ const DOWNLOAD_BACKGROUND_INTERVAL  = 600;    // seconds
 const DOWNLOAD_FOREGROUND_INTERVAL  = 0;
 
 const UPDATE_WINDOW_NAME      = "Update:Wizard";
-
-// The number of consecutive failures when updating using the service before
-// setting the app.update.service.enabled preference to false.
-const DEFAULT_SERVICE_MAX_ERRORS = 10;
 
 // The number of consecutive socket errors to allow before falling back to
 // downloading a different MAR file or failing if already downloading the full.
@@ -599,15 +571,6 @@ function getCanStageUpdates() {
     return false;
   }
 
-#ifdef CHECK_CAN_USE_SERVICE
-  if (getPref("getBoolPref", PREF_APP_UPDATE_SERVICE_ENABLED, false)) {
-    // No need to perform directory write checks, the maintenance service will
-    // be able to write to all directories.
-    LOG("getCanStageUpdates - able to stage updates because we'll use the service");
-    return true;
-  }
-#endif
-
   if (!hasUpdateMutex()) {
     LOG("getCanStageUpdates - unable to apply updates because another " +
         "instance of the application is already handling updates for this " +
@@ -998,22 +961,6 @@ function releaseSDCardMountLock() {
 }
 
 /**
- * Determines if the service should be used to attempt an update
- * or not.  For now this is only when PREF_APP_UPDATE_SERVICE_ENABLED
- * is true and we have Firefox.
- *
- * @return  true if the service should be used for updates.
- */
-function shouldUseService() {
-#ifdef MOZ_MAINTENANCE_SERVICE
-  return getPref("getBoolPref",
-                 PREF_APP_UPDATE_SERVICE_ENABLED, false);
-#else
-  return false;
-#endif
-}
-
-/**
 #  Writes the update's application version to a file in the patch directory. If
 #  the update doesn't provide application version information via the
 #  appVersion attribute the string "null" will be written to the file.
@@ -1321,40 +1268,6 @@ function handleUpdateFailure(update, errorCode) {
   }
 
   if (update.errorCode == ELEVATION_CANCELED) {
-    writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
-    return true;
-  }
-
-  if (update.errorCode == SERVICE_UPDATER_COULD_NOT_BE_STARTED ||
-      update.errorCode == SERVICE_NOT_ENOUGH_COMMAND_LINE_ARGS ||
-      update.errorCode == SERVICE_UPDATER_SIGN_ERROR ||
-      update.errorCode == SERVICE_UPDATER_COMPARE_ERROR ||
-      update.errorCode == SERVICE_UPDATER_IDENTITY_ERROR ||
-      update.errorCode == SERVICE_STILL_APPLYING_ON_SUCCESS ||
-      update.errorCode == SERVICE_STILL_APPLYING_ON_FAILURE ||
-      update.errorCode == SERVICE_UPDATER_NOT_FIXED_DRIVE ||
-      update.errorCode == SERVICE_COULD_NOT_LOCK_UPDATER ||
-      update.errorCode == SERVICE_COULD_NOT_COPY_UPDATER ||
-      update.errorCode == SERVICE_INSTALLDIR_ERROR) {
-
-    var failCount = getPref("getIntPref",
-                            PREF_APP_UPDATE_SERVICE_ERRORS, 0);
-    var maxFail = getPref("getIntPref",
-                          PREF_APP_UPDATE_SERVICE_MAX_ERRORS,
-                          DEFAULT_SERVICE_MAX_ERRORS);
-
-    // As a safety, when the service reaches maximum failures, it will
-    // disable itself and fallback to using the normal update mechanism
-    // without the service.
-    if (failCount >= maxFail) {
-      Services.prefs.setBoolPref(PREF_APP_UPDATE_SERVICE_ENABLED, false);
-      Services.prefs.clearUserPref(PREF_APP_UPDATE_SERVICE_ERRORS);
-    } else {
-      failCount++;
-      Services.prefs.setIntPref(PREF_APP_UPDATE_SERVICE_ERRORS,
-                                failCount);
-    }
-
     writeStatusFile(getUpdatesDir(), update.state = STATE_PENDING);
     return true;
   }
@@ -2002,7 +1915,7 @@ UpdateService.prototype = {
       // If it's "applying", we know that we've already been here once, so
       // we really want to start from a clean state.
       if (update &&
-          (update.state == STATE_PENDING || update.state == STATE_PENDING_SVC)) {
+          (update.state == STATE_PENDING)) {
         LOG("UpdateService:_postUpdateProcessing - patch found in applying " +
             "state for the first time");
         update.state = STATE_APPLYING;
@@ -2952,8 +2865,7 @@ UpdateManager.prototype = {
       for (let i = updates.length - 1; i >= 0; --i) {
         let state = updates[i].state;
         if (state == STATE_NONE || state == STATE_DOWNLOADING ||
-            state == STATE_APPLIED || state == STATE_APPLIED_SVC ||
-            state == STATE_PENDING || state == STATE_PENDING_SVC) {
+            state == STATE_APPLIED || state == STATE_PENDING) {
           updates.splice(i, 1);
         }
       }
@@ -2974,14 +2886,11 @@ UpdateManager.prototype = {
         handleFallbackToCompleteUpdate(update, true);
       }
     }
-    if (update.state == STATE_APPLIED && shouldUseService()) {
-      writeStatusFile(getUpdatesDir(), update.state = STATE_APPLIED_SVC);
-    }
     var um = Cc["@mozilla.org/updates/update-manager;1"].
              getService(Ci.nsIUpdateManager);
     um.saveUpdates();
 
-    if (update.state != STATE_PENDING && update.state != STATE_PENDING_SVC) {
+    if (update.state != STATE_PENDING) {
       // Destroy the updates directory, since we're done with it.
       // Make sure to not do this when the updater has fallen back to
       // non-staged updates.
@@ -3015,8 +2924,7 @@ UpdateManager.prototype = {
       return;
     }
 
-    if (update.state == STATE_APPLIED || update.state == STATE_APPLIED_SVC ||
-        update.state == STATE_PENDING || update.state == STATE_PENDING_SVC) {
+    if (update.state == STATE_APPLIED || update.state == STATE_PENDING) {
       // Notify the user that an update has been staged and is ready for
       // installation (i.e. that they should restart the application).
       var prompter = Cc["@mozilla.org/updates/update-prompt;1"].
@@ -3389,8 +3297,7 @@ Downloader.prototype = {
     // Note that if we decide to download and apply new updates after another
     // update has been successfully applied in the background, we need to stop
     // checking for the APPLIED state here.
-    return readState == STATE_PENDING || readState == STATE_PENDING_SVC ||
-           readState == STATE_APPLIED || readState == STATE_APPLIED_SVC;
+    return readState == STATE_PENDING || readState == STATE_APPLIED;
   },
 
   /**
@@ -3496,7 +3403,6 @@ Downloader.prototype = {
         LOG("Downloader:_selectPatch - resuming interrupted apply");
         return selectedPatch;
 #else
-      case STATE_PENDING_SVC:
       case STATE_PENDING:
         LOG("Downloader:_selectPatch - already downloaded and staged");
         return null;
@@ -3854,7 +3760,7 @@ Downloader.prototype = {
         "max fail: " + maxFail + ", " + "retryTimeout: " + retryTimeout);
     if (Components.isSuccessCode(status)) {
       if (this._verifyDownload()) {
-        state = shouldUseService() ? STATE_PENDING_SVC : STATE_PENDING
+        state = STATE_PENDING
         if (this.background) {
           shouldShowPrompt = !getCanStageUpdates();
         }
@@ -3995,7 +3901,7 @@ Downloader.prototype = {
       return;
     }
 
-    if (state == STATE_PENDING || state == STATE_PENDING_SVC) {
+    if (state == STATE_PENDING) {
       if (getCanStageUpdates()) {
         LOG("Downloader:onStopRequest - attempting to stage update: " +
             this._update.name);
