@@ -148,23 +148,24 @@
         if (className == "expertBadCert") {
           showSecuritySection();
         }
-
-        if (err == "remoteXUL") {
-          // Remove the "Try again" button for remote XUL errors given that
-          // it is useless.
-          document.getElementById("errorTryAgain").style.display = "none";
-        }
-
-        if (err == "cspFrameAncestorBlocked") {
-          // Remove the "Try again" button for CSP frame ancestors violation, since it's
-          // almost certainly useless. (Bug 553180)
-          document.getElementById("errorTryAgain").style.display = "none";
+        
+        // Remove the "Try again" button for errors where it's useless.
+        switch (err) {
+          case "malformedURI":
+          case "protocolNotFound":
+          case "unknownSocketType":
+          case "deniedPortAccess":
+          case "remoteXUL":
+          case "cspFrameAncestorBlocked":
+          case "nssBadCert":
+            document.getElementById("errorTryAgain").style.display = 'none';
+            break;
+          default:
+            // Nothing to do on the page for retry-able errors
+            break;
         }
 
         if (err == "nssBadCert") {
-          // Remove the "Try again" button for security exceptions, since it's
-          // almost certainly useless.
-          document.getElementById("errorTryAgain").style.display = "none";
           document.getElementById("errorPageContainer").setAttribute("class", "certerror");
           addDomainErrorLink();
         }
