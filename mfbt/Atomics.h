@@ -46,8 +46,7 @@
  */
 #elif defined(__GNUC__) && !defined(__ANDROID__)
 #  include "mozilla/Compiler.h"
-#  if (defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L) && \
-      MOZ_GCC_VERSION_AT_LEAST(4, 5, 2)
+#  if (defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L)
 #    define MOZ_HAVE_CXX11_ATOMICS
 #  endif
 #elif defined(_MSC_VER) && _MSC_VER >= 1700
@@ -260,8 +259,7 @@ struct IntrinsicAddSub<T*, Order> : public IntrinsicBase<T*, Order>
     static ptrdiff_t fixupAddend(ptrdiff_t val) {
 #if defined(__clang__) || defined(_MSC_VER)
       return val;
-#elif defined(__GNUC__) && MOZ_GCC_VERSION_AT_LEAST(4, 6, 0) && \
-      !MOZ_GCC_VERSION_AT_LEAST(4, 7, 0)
+#elif defined(__GNUC__) && !MOZ_GCC_VERSION_AT_LEAST(4, 7, 0)
       return val * sizeof(T);
 #else
       return val;
