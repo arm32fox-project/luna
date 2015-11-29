@@ -7439,7 +7439,7 @@ class MultiCompartmentMatcher : public js::CompartmentFilter {
   }
   
 public: 
-  virtual bool match(JSCompartment* c) const override
+  virtual bool match(JSCompartment* c) const MOZ_OVERRIDE
   {
     return compartments.has(c);
   }
