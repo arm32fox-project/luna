@@ -253,9 +253,7 @@ __BitScanReverse64(unsigned __int64 val)
 # define js_bitscan_clz64(val)  __BitScanReverse64(val)
 #elif MOZ_IS_GCC
 
-#if MOZ_GCC_VERSION_AT_LEAST(3, 4, 0)
 # define USE_BUILTIN_CTZ
-#endif
 
 #elif defined(__clang__)
 

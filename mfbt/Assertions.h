@@ -50,9 +50,6 @@
  *
  * This macro can be used in any location where both an extern declaration and a
  * typedef could be used.
- *
- * Be aware of the gcc 4.2 concerns noted further down when writing patches that
- * use this macro, particularly if a patch only bounces on OS X.
  */
 #ifdef __cplusplus
 #  if defined(__clang__)
@@ -316,23 +313,8 @@ MOZ_ReportAssertionFailure(const char* s, const char* file, int ln)
  * probably use the higher level MOZ_NOT_REACHED, which uses this when
  * appropriate.
  */
-#if defined(__clang__)
+#if defined(__clang__) || defined(__GNUC__)
 #  define MOZ_NOT_REACHED_MARKER() __builtin_unreachable()
-#elif defined(__GNUC__)
-   /*
-    * __builtin_unreachable() was implemented in gcc 4.5.  If we don't have
-    * that, call a noreturn function; abort() will do nicely.  Qualify the call
-    * in C++ in case there's another abort() visible in local scope.
-    */
-#  if MOZ_GCC_VERSION_AT_LEAST(4, 5, 0)
-#    define MOZ_NOT_REACHED_MARKER() __builtin_unreachable()
-#  else
-#    ifdef __cplusplus
-#      define MOZ_NOT_REACHED_MARKER() ::abort()
-#    else
-#      define MOZ_NOT_REACHED_MARKER() abort()
-#    endif
-#  endif
 #elif defined(_MSC_VER)
 #  define MOZ_NOT_REACHED_MARKER() __assume(0)
 #else
