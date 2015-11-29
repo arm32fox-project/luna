@@ -53,12 +53,10 @@ USE_VMX=1
 VMX_CFLAGS=-maltivec
 endif
 ifeq (86,$(findstring 86,$(OS_TEST)))
+USE_SSE2=1
 USE_MMX=1
 MMX_CFLAGS=-mmmx -Winline
 ifeq (64,$(findstring 64,$(OS_TEST)))
-USE_SSE2=1
-endif
-ifdef HAVE_GCC_ALIGN_ARG_POINTER
 USE_SSE2=1
 endif
 ifdef USE_SSE2
