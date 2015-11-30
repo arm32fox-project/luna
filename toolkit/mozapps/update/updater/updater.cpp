@@ -2511,7 +2511,7 @@ int NS_main(int argc, NS_tchar **argv)
   // when write access is denied to the installation directory.
   HANDLE updateLockFileHandle = INVALID_HANDLE_VALUE;
   NS_tchar elevatedLockFilePath[MAXPATHLEN] = {NS_T('\0')};
-  if ((argc > callbackIndex || sBackgroundUpdate || sReplaceRequest)) {
+  if (argc > callbackIndex || sBackgroundUpdate || sReplaceRequest) {
     NS_tchar updateLockFilePath[MAXPATHLEN];
     if (sBackgroundUpdate) {
       // When updating in the background, the lock file is:
@@ -2572,11 +2572,10 @@ int NS_main(int argc, NS_tchar **argv)
     bool startedFromUnelevatedUpdater =
       GetFileAttributesW(elevatedLockFilePath) != INVALID_FILE_ATTRIBUTES;
     
-    // If we're
-    // running from an elevated updater that was started from an unelevated 
-    // updater, then we drop the permissions here. We do not drop the 
-    // permissions on the originally called updater because we use its token
-    // to start the callback application.
+    // If we're running from an elevated updater that was started from an 
+    // unelevated updater, then we drop the permissions here. We do not drop 
+    // the permissions on the originally called updater because we use its
+    // token to start the callback application.
     if (startedFromUnelevatedUpdater) {
       // Disable every privilege we don't need. Processes started using
       // CreateProcess will use the same token as this process.
@@ -2958,13 +2957,7 @@ int NS_main(int argc, NS_tchar **argv)
   if (argc > callbackIndex) {
 #if defined(XP_WIN)
     if (gSucceeded) {
-      // The service update will only be executed if it is already installed.
-      // For first time installs of the service, the install will happen from
-      // the PostUpdate process. We do the service update process here 
-      // because it's possible we are updating with updater.exe without the 
-      // service if the service failed to apply the update. We want to update
-      // the service to a newer version in that case. If we are not running
-      // through the service, then MOZ_USING_SERVICE will not exist.
+      // Windows PostUpdate process.
       NS_tchar installDir[MAXPATHLEN];
       if (GetInstallationDir(installDir)) {
         if (!LaunchWinPostProcess(installDir, gSourcePath, false, NULL)) {
