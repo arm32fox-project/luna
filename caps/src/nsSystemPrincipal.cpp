@@ -139,6 +139,20 @@ nsSystemPrincipal::SetCsp(nsIContentSecurityPolicy* aCsp)
 }
 
 NS_IMETHODIMP
+nsSystemPrincipal::GetXSSFilter(nsXSSFilter** aXSS)
+{
+  *aXSS = nullptr;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSystemPrincipal::SetXSSFilter(nsXSSFilter* aXSS)
+{
+  // no filter for system principal
+  return NS_OK;
+}
+
+NS_IMETHODIMP
 nsSystemPrincipal::GetDomain(nsIURI** aDomain)
 {
     *aDomain = nullptr;

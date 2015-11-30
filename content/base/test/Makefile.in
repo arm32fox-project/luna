@@ -15,6 +15,7 @@ CPP_UNIT_TESTS = \
                  TestNativeXMLHttpRequest.cpp \
                  TestGetURL.cpp \
                  TestPlainTextSerializer.cpp \
+                 TestXSSUtils.cpp \
                  $(NULL)
 
 # Split files arbitrarily in three groups to not run into too-long command lines
@@ -643,6 +644,12 @@ MOCHITEST_FILES_C= \
 		test_CSP_bug888172.html \
 		file_CSP_bug888172.html \
 		file_CSP_bug888172.sjs \
+		test_XSS.html \
+		file_XSS.js \
+		file_XSS.sjs \
+		file_XSS_title.js \
+		file_XSS_title.jpg \
+		file_XSS_binding.xml \
 		$(NULL)
 
 # OOP tests don't work on Windows (bug 763081) or native-fennec

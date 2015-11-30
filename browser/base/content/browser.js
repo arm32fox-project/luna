@@ -615,6 +615,43 @@ var gPopupBlockerObserver = {
   }
 };
 
+const gXSSObserver = {
+
+  observe: function (aSubject, aTopic, aData)
+  {
+
+    if (!gPrefService.getBoolPref("security.xssfilter.displayWarning"))
+      return;
+
+    // parse incoming xss array
+    aSubject.QueryInterface(Ci.nsIArray);
+    var policy = aSubject.queryElementAt(0, Ci.nsISupportsCString).data;
+    var content = aSubject.queryElementAt(1, Ci.nsISupportsCString).data;
+    var url = aSubject.queryElementAt(2, Ci.nsISupportsCString).data;
+    var blockMode = aSubject.queryElementAt(3, Ci.nsISupportsPRBool).data;
+
+    // if it is a block mode event, do not display the warning
+    if (blockMode)
+      return;
+
+    var nb = gBrowser.getNotificationBox();
+    const priority = nb.PRIORITY_WARNING_MEDIUM;
+
+    var buttons = [{
+      label: 'View Unsafe Content',
+      accessKey: 'V',
+      popup: null,
+      callback: function () {
+        alert(content);
+      }
+    }];
+
+    nb.appendNotification("The XSS Filter has detected a potential XSS attack. Type: " +
+                          policy, 'popup-blocked', 'chrome://browser/skin/Info.png',
+                          priority, buttons);
+  }
+};
+
 const gFormSubmitObserver = {
   QueryInterface : XPCOMUtils.generateQI([Ci.nsIFormSubmitObserver]),
 
@@ -1001,6 +1038,7 @@ var gBrowserInit = {
     Services.obs.addObserver(gXPInstallObserver, "addon-install-blocked", false);
     Services.obs.addObserver(gXPInstallObserver, "addon-install-failed", false);
     Services.obs.addObserver(gXPInstallObserver, "addon-install-complete", false);
+    Services.obs.addObserver(gXSSObserver, "xss-on-violate-policy", false);
     Services.obs.addObserver(gFormSubmitObserver, "invalidformsubmit", false);
 
     BrowserOffline.init();
@@ -1344,6 +1382,7 @@ var gBrowserInit = {
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-failed");
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-complete");
       Services.obs.removeObserver(gFormSubmitObserver, "invalidformsubmit");
+      Services.obs.removeObserver(gXSSObserver, "xss-on-violate-policy");
 
       try {
         gPrefService.removeObserver(gHomeButton.prefDomain, gHomeButton);

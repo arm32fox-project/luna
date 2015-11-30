@@ -24,6 +24,7 @@
 #include "mozilla/Likely.h"
 #include <algorithm>
 #include "mozilla/dom/FunctionBinding.h"
+#include "nsXSSFilter.h"
 
 static const char kSetIntervalStr[] = "setInterval";
 static const char kSetTimeoutStr[] = "setTimeout";
@@ -186,6 +187,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
   ncc->GetArgc(&argc);
   ncc->GetArgvPtr(&argv);
 
+  JSString* str = nullptr;
   JS::Rooted<JSFlatString*> expr(cx);
   JS::Rooted<JSObject*> funobj(cx);
 
@@ -217,7 +219,7 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
   case JSTYPE_STRING:
   case JSTYPE_OBJECT:
     {
-      JSString *str = ::JS_ValueToString(cx, argv[0]);
+      str = ::JS_ValueToString(cx, argv[0]);
       if (!str)
         return NS_ERROR_OUT_OF_MEMORY;
 
@@ -279,6 +281,21 @@ nsJSScriptTimeoutHandler::Init(nsGlobalWindow *aWindow, bool *aIsInterval,
           return NS_ERROR_DOM_TYPE_ERR;
         }
       }
+
+      nsRefPtr<nsXSSFilter> xss;
+      rv = doc->NodePrincipal()->GetXSSFilter(getter_AddRefs(xss));
+      NS_ENSURE_SUCCESS(rv, rv);
+      if (xss) {
+        //xss settimeout
+        nsDependentJSString ns_str;
+        ns_str.init(cx, str);
+        if (!xss->PermitsJSAction(ns_str)) {
+          ::JS_ReportError(cx, "call to %s blocked by XSS Filter",
+                           *aIsInterval ? kSetIntervalStr : kSetTimeoutStr);
+          return NS_ERROR_DOM_TYPE_ERR;
+        }
+      }
+
     } // if there's no document, we don't have to do anything.
 
     NS_HOLD_JS_OBJECTS(this, nsJSScriptTimeoutHandler);

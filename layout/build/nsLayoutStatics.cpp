@@ -116,6 +116,8 @@ using namespace mozilla::system;
 #include "mozilla/dom/time/DateCacheCleaner.h"
 #include "nsIMEStateManager.h"
 #include "nsDocument.h"
+#include "nsXSSFilter.h"
+
 
 extern void NS_ShutdownEventTargetChainItemRecyclePool();
 
@@ -254,6 +256,8 @@ nsLayoutStatics::Initialize()
   nsLayoutUtils::Initialize();
   nsIPresShell::InitializeStatics();
   nsRefreshDriver::InitializeStatics();
+  nsXSSFilter::InitializeStatics();
+
 
   nsCORSListenerProxy::Startup();
 
