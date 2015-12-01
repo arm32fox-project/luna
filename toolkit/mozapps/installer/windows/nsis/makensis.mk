@@ -94,13 +94,6 @@ uninstaller::
 	$(NSINSTALL) -D $(DIST)/bin/uninstall
 	cp $(CONFIG_DIR)/helper.exe $(DIST)/bin/uninstall
 
-ifdef MOZ_MAINTENANCE_SERVICE
-maintenanceservice_installer::
-	cd $(CONFIG_DIR) && $(MAKENSISU) maintenanceservice_installer.nsi
-	$(NSINSTALL) -D $(DIST)/bin/
-	cp $(CONFIG_DIR)/maintenanceservice_installer.exe $(DIST)/bin
-endif
-
 ifdef MOZ_WEBAPP_RUNTIME
 webapp_uninstaller::
 	$(INSTALL) $(addprefix $(MOZILLA_DIR)/toolkit/mozapps/installer/windows/nsis/,$(TOOLKIT_NSIS_FILES)) $(CONFIG_DIR)

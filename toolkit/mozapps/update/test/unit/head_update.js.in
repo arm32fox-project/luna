@@ -291,11 +291,7 @@ var DEBUG_AUS_TEST = true;
 
 #include ../shared.js
 
-#ifdef MOZ_MAINTENANCE_SERVICE
-const STATE_APPLIED_PLATFORM = STATE_APPLIED_SVC;
-#else
 const STATE_APPLIED_PLATFORM = STATE_APPLIED;
-#endif
 
 // This makes it possible to run most tests on xulrunner where the update
 // channel default preference is not set.
