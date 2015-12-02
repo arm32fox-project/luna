@@ -1,0 +1,20 @@
+<?xml version='1.0' encoding='utf-8'?>
+<!-- This file is unused and here for originator purposes only -->
+<RDF:RDF xmlns:RDF="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns="http://www.mozilla.org/2004/em-rdf#">
+ <RDF:Description about="urn:mozilla:install-manifest">
+  <id>polypromise@palemoon.org</id>
+  <name>Self-hosted ES6 promises.</name>
+  <description>Provides support for ES6 promises.</description>
+  <version>1.0.0</version>
+  <creator>Ketmar Dark</creator>
+  <type>2</type>
+  <!-- Pale Moon -->
+  <targetApplication>
+   <RDF:Description>
+    <id>{8de7fcbb-c55c-4fbe-bfc5-fc555c87dbc4}</id>
+    <minVersion>26.0.0a1</minVersion>
+    <maxVersion>26.*</maxVersion>
+   </RDF:Description>
+  </targetApplication>
+ </RDF:Description>
+</RDF:RDF>
