@@ -613,6 +613,8 @@
 
       <toolbarbutton id="history-menu-button"
                      class="toolbarbutton-1 chromeclass-toolbar-additional"
+                     persist="class"
+                     removable="true"                     
                      type="menu"
                      label="&historyButton.label;"
                      onclick="if (event.button == 1)
