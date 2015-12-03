@@ -3270,7 +3270,7 @@ nsDocument::SetBaseURI(nsIURI* aURI)
   nsresult rv = NodePrincipal()->GetXSSFilter(getter_AddRefs(xss));
   NS_ENSURE_SUCCESS(rv, rv);
   // only check if origin changed
-  if (xss && !xss->PermitsBaseElement(mDocumentBaseURI, aURI)) {
+  if (xss && !xss->PermitsBaseElement(GetDocBaseURI(), aURI)) {
     PR_LOG(gXssPRLog, PR_LOG_DEBUG, ("XSS Filter blocked <base> attack"));
     return NS_OK;
   }
