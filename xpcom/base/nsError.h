@@ -141,8 +141,7 @@
   } nsresult;
 #elif defined(__cplusplus)
   /*
-   * We're C++ in an old compiler lacking enum classes *and* typed enums (likely
-   * gcc < 4.5.1 as clang/MSVC have long supported one or both), or compiler
+   * We're C++ in an old compiler lacking enum classes *and* typed enums, or compiler
    * support is unknown.  Yet nsresult must have unsigned 32-bit representation.
    * So just make it a typedef, and implement the constants with global consts.
    */
