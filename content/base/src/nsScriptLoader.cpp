@@ -260,7 +260,7 @@ nsScriptLoader::ShouldLoadScript(nsIDocument* aDocument,
     return rv;
   }
 
-  // xss filter for external script
+  // XSS filter for external script injection.
   nsRefPtr<nsXSSFilter> xss;
   rv = aDocument->NodePrincipal()->GetXSSFilter(getter_AddRefs(xss));
   NS_ENSURE_SUCCESS(rv, rv);

@@ -195,7 +195,7 @@ nsNullPrincipal::GetXSSFilter(nsXSSFilter** aXSS)
 NS_IMETHODIMP
 nsNullPrincipal::SetXSSFilter(nsXSSFilter* aXSS)
 {
-  // filter on a null principal makes no sense
+  // Setting XSS filters on a null principal makes no sense
   return NS_ERROR_NOT_AVAILABLE;
 }
 

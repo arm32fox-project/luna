@@ -83,9 +83,9 @@ nsXSSFilter::InitializeStatics()
 
 
 /**
- * Two Utility function to parse the X-XSS-Protection header.
- * note: the code for parsing the header purposedly copies Webkit, I
- * hope that's fine. Returns true if there is more to parse.
+ * Two Utility functions to parse the X-XSS-Protection header.
+ * Note: the code for parsing the header purposely copies Webkit.
+ * Returns true if there is more to parse.
  */
 bool
 skipWhiteSpace(const nsACString& str, PRUint32& pos,
@@ -144,19 +144,22 @@ nsXSSFilter::ScanRequestData()
   // 3. if the first char is 1 enabled the filter
   // 4. if it is "1[ ]*mode[ ]*=[ ]*block$", then enabled in block mode
   // https://bugs.webkit.org/show_bug.cgi?id=27312
-  nsAutoCString xssHeaderValue, strippedHeaderValue;
+  nsAutoCString xssHeaderValue;
   httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("X-Xss-Protection"),
                                  xssHeaderValue);
   LOG_XSS_1("Header: '%s'", xssHeaderValue.get());
 
-  // no need to skip spaces before the beginning of the string, firefox
-  // does this for us
+  // No need to skip spaces before the beginning of the string; 
+  // the header parser does this for us.
 
   if (xssHeaderValue.IsEmpty()) {
+    // If the header is missing, assume the filter should be enabled.
     mIsEnabled = true;
     return NS_OK;
   }
+  
   if (xssHeaderValue[0] == '0') {
+    // Explicity disabled by the web server.
     mIsEnabled = false;
     return NS_OK;
   }
@@ -180,7 +183,7 @@ nsXSSFilter::ScanRequestData()
     return NS_OK;
   }
 
-  // else, do as the header was not there
+  // Any other value is invalid, so act as if the header was missing.
   mIsEnabled = true;
   return NS_OK;
 }
@@ -223,7 +226,7 @@ nsXSSFilter::PermitsExternalScript(nsIURI *aURI)
     return true;
   }
 
-  // fetch value from cache
+  // Fetch value from cache.
   bool c;
   nsAutoString domain;
   DomainMap& cache = GetDomainCache();
@@ -308,7 +311,7 @@ nsXSSFilter::PermitsBaseElement(nsIURI *aOldURI, nsIURI* aNewURI)
     return true;
   }
 
-  // allow the base element to change the base url on the same
+  // Allow the base element to change the base url on the same
   // registered domain.
   nsAutoString oldD, newD;
   nsXSSUtils::GetDomain(aOldURI, oldD);
@@ -346,7 +349,7 @@ nsXSSFilter::PermitsExternalObject(nsIURI *aURI)
     return true;
   }
 
-  // fetch value from cache
+  // Fetch value from cache.
   bool c;
   nsAutoString domain;
   DomainMap& cache = GetDomainCache();
@@ -416,10 +419,10 @@ nsXSSFilter::GetParams()
 {
   if (!mParamsInitialized) {
 
-    //get params
+    // Get params
     nsXSSUtils::ParseURI(GetURI(), mParams, mParentDoc);
 
-    //post params
+    // Post params
     nsCOMPtr<nsIHttpChannel> httpChannel =
       do_QueryInterface(mParentDoc->GetChannel());
     nsAutoCString method;
@@ -429,7 +432,7 @@ nsXSSFilter::GetParams()
         do_QueryInterface(httpChannel);
       nsCOMPtr<nsIInputStream> uploadStream;
       uploadChannel->GetUploadStream(getter_AddRefs(uploadStream));
-      // rewind the stream;
+      // Rewind the stream.
       nsCOMPtr<nsISeekableStream> seekStream = do_QueryInterface(uploadStream);
       seekStream->Seek(nsISeekableStream::NS_SEEK_SET, 0);
 
@@ -489,8 +492,8 @@ public:
       return NS_OK;
     }
 
-    // the nsIArray will contain four parameters: violated policy,
-    // content, url and blockMode
+    // The nsIArray will contain four parameters:
+    // violated policy, content, url and blockMode
     nsresult rv = NS_OK;
     nsCOMPtr<nsIMutableArray> params = do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -538,7 +541,7 @@ nsXSSFilter::NotifyViolation(const nsAString& policy, const nsAString& content, 
   nsAutoCString spec;
   url->GetSpec(spec);
 
-  // send to console
+  // Send to console.
   nsCOMPtr<nsIConsoleService> aConsoleService =
     do_GetService( "@mozilla.org/consoleservice;1" );
   nsAutoString msg;
@@ -549,7 +552,7 @@ nsXSSFilter::NotifyViolation(const nsAString& policy, const nsAString& content, 
   aConsoleService->
     LogStringMessage(msg.get());
 
-  // send to observers as xss-on-violate-policy
+  // Send to observers as xss-on-violate-policy.
   nsCOMPtr<nsIThread> thread = do_GetMainThread();
   if (!thread) {
     LOG_XSS("Main thread unavailable");
@@ -558,7 +561,7 @@ nsXSSFilter::NotifyViolation(const nsAString& policy, const nsAString& content, 
   nsCOMPtr<nsIRunnable> runnable = new nsXSSNotifier(policy, content, url, IsBlockMode());
   thread->Dispatch(runnable, nsIEventTarget::DISPATCH_NORMAL);
 
-  // block the page is block mode is enabled
+  // Block the page load if block mode is enabled.
   if (IsBlockMode()) {
     nsCOMPtr<nsIHttpChannel> httpChannel =
       do_QueryInterface(mParentDoc->GetChannel());

@@ -1981,8 +1981,7 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
     }
 
     if (allowLoad) {
-      // xss filter
-      // TODO: this changed a lot since FF 18
+      // XSS filter
       nsRefPtr<nsXSSFilter> xss;
       rv = doc->NodePrincipal()->GetXSSFilter(getter_AddRefs(xss));
       NS_ENSURE_SUCCESS(rv, rv);

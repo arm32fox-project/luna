@@ -525,7 +525,7 @@ nsScriptSecurityManager::XSSFilterPermitsJSAction(JSContext *cx, JSString *str)
 
     nsRefPtr<nsXSSFilter> xss;
     rv = subjectPrincipal->GetXSSFilter(getter_AddRefs(xss));
-    // don't do anything unless there's a filter
+    // Don't do anything if we don't have a filter to use.
     if (!xss) {
         return true;
     }

@@ -2405,11 +2405,10 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  // Only set CSP if this is not a data document
+  // Only initialize CSP and the XSS filter if this is not a data document.
   if (!mLoadedAsData) {
     nsresult rv = InitCSP(aChannel);
     NS_ENSURE_SUCCESS(rv, rv);
-    // TODO: this condition was not there in the original patch
     InitXSSFilter();
   }
 

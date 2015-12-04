@@ -148,7 +148,7 @@ nsBasePrincipal::GetXSSFilter(nsXSSFilter** aXSS)
 NS_IMETHODIMP
 nsBasePrincipal::SetXSSFilter(nsXSSFilter* aXSS)
 {
-  // once assigned, the filter cannot be changed.
+  // Once assigned, the filter cannot be changed.
   if (mXSS)
     return NS_ERROR_ALREADY_INITIALIZED;
 
