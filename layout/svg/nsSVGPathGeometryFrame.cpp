@@ -259,6 +259,11 @@ nsSVGPathGeometryFrame::GetFrameForPoint(const nsPoint &aPoint)
     isHit = tmpCtx->PointInFill(userSpacePoint);
   if (!isHit && (hitTestFlags & SVG_HIT_TEST_STROKE)) {
     nsSVGUtils::SetupCairoStrokeHitGeometry(this, tmpCtx);
+    // tmpCtx's matrix may have transformed by SetupCairoStrokeGeometry
+    // if there is a non-scaling stroke. We need to transform userSpacePoint
+    // so that everything is using the same coordinate system.
+    userSpacePoint =
+      nsSVGUtils::GetStrokeTransform(this).Invert().Transform(userSpacePoint);
     isHit = tmpCtx->PointInStroke(userSpacePoint);
   }
 

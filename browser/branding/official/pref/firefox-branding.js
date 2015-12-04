@@ -68,12 +68,14 @@ pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT 6.1; WOW64; rv
 pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
 pref("general.useragent.override.google.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Goanna/2.0 Firefox/31.9 PaleMoon/26.0");
 pref("general.useragent.override.googlevideos.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Goanna/2.0 Firefox/31.9 PaleMoon/26.0");
+pref("general.useragent.override.gstatic.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Goanna/2.0 Firefox/31.9 PaleMoon/26.0");
 pref("general.useragent.override.youtube.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Goanna/2.0 Firefox/31.9 PaleMoon/26.0");
 
 // UA-Sniffing domains below are pending responses from their operators - temp workaround
 pref("general.useragent.override.netflix.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:25.7) Gecko/20100101 Firefox/31.9 PaleMoon/25.7");
-pref("general.useragent.override.facebook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:26.0) Gecko/20100101 Firefox/3.6.32 (Pale Moon)");
-pref("general.useragent.override.fbcdn.net","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:26.0) Gecko/20100101 Firefox/3.6.32 (Pale Moon)");
+pref("general.useragent.override.facebook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
+pref("general.useragent.override.fbcdn.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
+pref("general.useragent.override.fbcdn.net","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
 
 // UA-Sniffing domains below have indicated no interest in supporting Pale Moon (BOO!)
 pref("general.useragent.override.humblebundle.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:33.0) Gecko/20100101 Firefox/33.0 (Pale Moon)");

@@ -1417,7 +1417,10 @@
             this.tabContainer._setPositionalAttributes();
 
             // Prevent the superfluous initial load of a blank document
-            b.setAttribute("nodefaultsrc", "true");
+            // if we're going to load something other than about:blank.
+            if (!uriIsAboutBlank) {
+              b.setAttribute("nodefaultsrc", "true");
+            }
 
             // NB: this appendChild call causes us to run constructors for the
             // browser element, which fires off a bunch of notifications. Some

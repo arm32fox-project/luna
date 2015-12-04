@@ -182,7 +182,7 @@ JS_BEGIN_EXTERN_C
  * Replace bit-scanning code sequences with CPU-specific instructions to
  * speedup calculations of ceiling/floor log2.
  *
- * With GCC 3.4 or later we can use __builtin_clz for that, see bug 327129.
+ * With GCC we can use __builtin_clz for that.
  *
  * SWS: Added MSVC intrinsic bitscan support.  See bugs 349364 and 356856.
  */

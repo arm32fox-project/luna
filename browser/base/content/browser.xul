@@ -528,10 +528,10 @@
                      persist="class"
                      removable="true"
                      type="menu"
-                     onclick="if (event.button == 1)
-                                toggleSidebar('viewBookmarksSidebar');"
                      label="&bookmarksMenuButton.label;"
                      tooltiptext="&bookmarksMenuButton.tooltip;"
+                     onclick="if (event.button == 1)
+                                toggleSidebar('viewBookmarksSidebar');"
                      ondragenter="PlacesMenuDNDHandler.onDragEnter(event);"
                      ondragover="PlacesMenuDNDHandler.onDragOver(event);"
                      ondragleave="PlacesMenuDNDHandler.onDragLeave(event);"
@@ -613,11 +613,13 @@
 
       <toolbarbutton id="history-menu-button"
                      class="toolbarbutton-1 chromeclass-toolbar-additional"
+                     persist="class"
+                     removable="true"                     
                      type="menu"
                      label="&historyButton.label;"
+                     tooltiptext="&historyButton.tooltip;"
                      onclick="if (event.button == 1)
-                                toggleSidebar('viewHistorySidebar');"
-                     tooltiptext="&historyButton.tooltip;">
+                                toggleSidebar('viewHistorySidebar');">
         <menupopup id="HMB_historyPopup"
                    placespopup="true"
                    context="placesContext"
