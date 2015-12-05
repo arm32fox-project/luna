@@ -16,12 +16,17 @@ int main(int argc, char** argv)
     return 1;
   }
 
+  int retval = 0;
   nsresult rv;
   nsCOMPtr<nsIXSSUtils> xss =
     do_GetService("@mozilla.com/xssutils;1", &rv);
   if (!xss) {
     printf("XSS: null ptr\n");
-    return NS_OK;
+    retval = 1;
   }
-  return xss->Test();
+  
+  if (xss->Test() != NS_OK)
+    retval = 1;
+    
+  return retval;
 }
