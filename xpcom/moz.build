@@ -35,8 +35,5 @@ TEST_TOOL_DIRS += [
 #    'reflect/xptcall/tests,
 #]
 
-if CONFIG['DEHYDRA_PATH']:
-    DIRS += ['analysis']
-
 MODULE = 'xpcom'
 
