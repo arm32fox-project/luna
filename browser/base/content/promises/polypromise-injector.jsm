@@ -13,7 +13,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 
-const debugLog = false;
+const debugLog = true;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -58,7 +58,7 @@ function loadTextContentsFromUrl (url, encoding) {
 
 ////////////////////////////////////////////////////////////////////////////////
 // load promise library
-let ppfsrc = loadTextContentsFromUrl("chrome://pm-polypromise/content/data/es6-promise.code.js");
+let ppfsrc = loadTextContentsFromUrl("chrome://browser/content/promises/data/es6-promise.code.js");
 //Cu.reportError("ppfsrc.length="+ppfsrc.length);
 
 
@@ -128,6 +128,7 @@ ContentObserver.prototype = {
       let prmObject = null;
       let prmLoaded = false;
       let unloadListenerAdded = false;
+     if (!w.Promise) {
       Object.defineProperty(w, "Promise", {
         get: (function () {
           if (debugLog) Cu.reportError("***["+doc.documentURI+"] getter");
@@ -135,7 +136,7 @@ ContentObserver.prototype = {
           prmLoaded = true;
           if (debugLog) Cu.reportError("***["+doc.documentURI+"] calculating...");
           let sandbox = createSandbox(win);
-          Cu.evalInSandbox(ppfsrc, sandbox, "ECMAv5", "pm-polypromise.js", 1);
+          Cu.evalInSandbox(ppfsrc, sandbox, "ECMAv5", "chrome://browser/content/promises/pm-polypromise.js", 1);
           if (debugLog) Cu.reportError("***["+doc.documentURI+"] calculated: "+typeof(prmObject));
           return prmObject;
         }).bind(win),
@@ -155,6 +156,7 @@ ContentObserver.prototype = {
         configurable: true,
         enumerable: true,
       });
+     }
       if (debugLog) Cu.reportError("***["+doc.documentURI+"] API set");
     }
   }
