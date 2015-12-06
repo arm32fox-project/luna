@@ -91,9 +91,6 @@ StartupCache::GetSingleton()
     if (XRE_GetProcessType() != GoannaProcessType_Default) {
       return nullptr;
     }
-#ifdef MOZ_DISABLE_STARTUPCACHE
-    return nullptr;
-#endif
 
     StartupCache::InitSingleton();
   }

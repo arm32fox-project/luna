@@ -7382,12 +7382,12 @@ if test -n "$_ENABLE_CODESIGHS"; then
 fi
 
 dnl ========================================================
-dnl = Allow disabling the startup cache
+dnl = Don't precompile the startup cache
 dnl ========================================================
 MOZ_DISABLE_STARTUPCACHE=
 
 MOZ_ARG_DISABLE_BOOL(startupcache,
-[  --disable-startupcache          Disable the startup cache ],
+[  --disable-startupcache          Don't precompile the startup cache ],
     MOZ_DISABLE_STARTUPCACHE=1,
 	MOZ_DISABLE_STARTUPCACHE=)
 
