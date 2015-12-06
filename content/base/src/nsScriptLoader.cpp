@@ -245,7 +245,8 @@ nsresult
 nsScriptLoader::ShouldLoadScript(nsIDocument* aDocument,
                                  nsISupports* aContext,
                                  nsIURI* aURI,
-                                 const nsAString &aType)
+                                 const nsAString &aType,
+                                 bool isDynamic)
 {
   // Check that the containing page is allowed to load this URI.
   nsresult rv = nsContentUtils::GetSecurityManager()->
@@ -267,7 +268,7 @@ nsScriptLoader::ShouldLoadScript(nsIDocument* aDocument,
 
   if (xss) {
     PR_LOG(gXssPRLog, PR_LOG_DEBUG, ("Scriptloader:XSSFilter:external"));
-    if (!xss->PermitsExternalScript(aURI)) {
+    if (!xss->PermitsExternalScript(aURI, isDynamic)) {
       PR_LOG(gXssPRLog, PR_LOG_DEBUG, ("XSSFilter blocked external script."));
       return NS_ERROR_XSS_BLOCK;
     }
@@ -284,7 +285,7 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType,
   nsISupports *context = aRequest->mElement.get()
                          ? static_cast<nsISupports *>(aRequest->mElement.get())
                          : static_cast<nsISupports *>(mDocument);
-  nsresult rv = ShouldLoadScript(mDocument, context, aRequest->mURI, aType);
+  nsresult rv = ShouldLoadScript(mDocument, context, aRequest->mURI, aType, aRequest->mElement.get() != nullptr);
   if (NS_FAILED(rv)) {
     return rv;
   }

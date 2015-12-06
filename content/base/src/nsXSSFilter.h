@@ -79,7 +79,7 @@ class nsXSSFilter {
    * Checks whether an external <script src=...></script> element
    * should be fetched and executed.
    */
-  bool PermitsExternalScript(nsIURI *aURI);
+  bool PermitsExternalScript(nsIURI *aURI, bool isDynamic);
   /**
    * Checks whether a URL with the javascript: protocol should be
    * allowed. Lazy.
@@ -132,6 +132,11 @@ class nsXSSFilter {
    * display an error page.
    */
   static bool sBlockMode;
+  /**
+   * Synced to security.xssfilter.blockDynamic. When set to false, DOM
+   * based vectors will be ignored.
+   */
+  static bool sBlockDynamic;
 
  private:
   /**
@@ -173,6 +178,10 @@ class nsXSSFilter {
    * Returns true if block mode is enabled (pref || header).
    */
   bool IsBlockMode();
+  /**
+   * Returns true if DOM-Based blocking is enabled (pref).
+   */
+  bool IsBlockDynamic();
   /**
    * Gets the URL of the document for origin checks
    */

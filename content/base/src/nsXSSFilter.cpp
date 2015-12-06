@@ -47,6 +47,7 @@ using namespace mozilla;
 bool nsXSSFilter::sXSSEnabled = true;
 bool nsXSSFilter::sReportOnly = false;
 bool nsXSSFilter::sBlockMode = false;
+bool nsXSSFilter::sBlockDynamic = true;
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo *gXssPRLog;
@@ -78,6 +79,7 @@ nsXSSFilter::InitializeStatics()
   Preferences::AddBoolVarCache(&sXSSEnabled, "security.xssfilter.enable");
   Preferences::AddBoolVarCache(&sReportOnly, "security.xssfilter.reportOnly");
   Preferences::AddBoolVarCache(&sBlockMode, "security.xssfilter.blockMode");
+  Preferences::AddBoolVarCache(&sBlockDynamic, "security.xssfilter.blockDynamic");
   LOG_XSS("Initialized Statics for XSS Filter");
 }
 
@@ -209,7 +211,7 @@ nsXSSFilter::PermitsInlineScript(const nsAString& aScript)
 }
 
 bool
-nsXSSFilter::PermitsExternalScript(nsIURI *aURI)
+nsXSSFilter::PermitsExternalScript(nsIURI *aURI, bool isDynamic)
 {
   if (!aURI) {
     return true;
@@ -226,6 +228,9 @@ nsXSSFilter::PermitsExternalScript(nsIURI *aURI)
     return true;
   }
 
+  if (isDynamic && !IsBlockDynamic()) {
+    return true;
+  }
   // Fetch value from cache.
   bool c;
   nsAutoString domain;
@@ -475,6 +480,7 @@ nsXSSFilter::GetDomainCache()
 bool nsXSSFilter::IsEnabled() { return sXSSEnabled && mIsEnabled; }
 bool nsXSSFilter::IsBlockMode() { return sBlockMode || mBlockMode; }
 bool nsXSSFilter::IsReportOnly() { return sReportOnly; }
+bool nsXSSFilter::IsBlockDynamic() { return sBlockDynamic; }
 
 
 class nsXSSNotifier: public nsRunnable
