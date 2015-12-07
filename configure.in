@@ -7384,7 +7384,7 @@ fi
 dnl ========================================================
 dnl = Don't precompile the startup cache
 dnl ========================================================
-MOZ_DISABLE_STARTUPCACHE=
+MOZ_DISABLE_PRECOMPILED_STARTUPCACHE=
 
 MOZ_ARG_DISABLE_BOOL(startupcache,
 [  --disable-precompiled-startupcache      Don't precompile the startup cache ],
