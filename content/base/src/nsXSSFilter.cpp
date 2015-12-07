@@ -69,7 +69,6 @@ nsXSSFilter::~nsXSSFilter()
 
 int
 nsXSSFilter::InitializeWhiteList(const char*, void*) {
-  printf("InitializeWhiteList\n");
   if (!sWhiteList.IsInitialized()) {
     sWhiteList.Init();
   } else {
