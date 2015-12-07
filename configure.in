@@ -7387,15 +7387,15 @@ dnl ========================================================
 MOZ_DISABLE_STARTUPCACHE=
 
 MOZ_ARG_DISABLE_BOOL(startupcache,
-[  --disable-startupcache          Don't precompile the startup cache ],
-    MOZ_DISABLE_STARTUPCACHE=1,
-	MOZ_DISABLE_STARTUPCACHE=)
+[  --disable-precompiled-startupcache      Don't precompile the startup cache ],
+    MOZ_DISABLE_PRECOMPILED_STARTUPCACHE=1,
+	MOZ_DISABLE_PRECOMPILED_STARTUPCACHE=)
 
-if test -n "$MOZ_DISABLE_STARTUPCACHE"; then
-  AC_DEFINE(MOZ_DISABLE_STARTUPCACHE)
+if test -n "$MOZ_DISABLE_PRECOMPILED_STARTUPCACHE"; then
+  AC_DEFINE(MOZ_DISABLE_PRECOMPILED_STARTUPCACHE)
 fi
 
-AC_SUBST(MOZ_DISABLE_STARTUPCACHE)
+AC_SUBST(MOZ_DISABLE_PRECOMPILED_STARTUPCACHE)
 
 dnl ========================================================
 dnl = Enable Radio Interface for B2G (Gonk usually)
