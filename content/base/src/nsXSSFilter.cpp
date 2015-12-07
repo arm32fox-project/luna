@@ -34,7 +34,6 @@
 #include "nsIDocShell.h"
 #include "nsIWebNavigation.h"
 #include "nsIDocShellTreeItem.h"
-//#include "nsContentErrors.h"
 #include "nsXSSFilter.h"
 #include "nsIInputStream.h"
 #include "nsISeekableStream.h"
@@ -48,6 +47,7 @@ bool nsXSSFilter::sXSSEnabled = true;
 bool nsXSSFilter::sReportOnly = false;
 bool nsXSSFilter::sBlockMode = false;
 bool nsXSSFilter::sBlockDynamic = true;
+DomainMap nsXSSFilter::sWhiteList;
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo *gXssPRLog;
@@ -67,6 +67,29 @@ nsXSSFilter::nsXSSFilter(nsIDocument *parent)
 nsXSSFilter::~nsXSSFilter()
 { }
 
+int
+nsXSSFilter::InitializeWhiteList(const char*, void*) {
+  printf("InitializeWhiteList\n");
+  if (!sWhiteList.IsInitialized()) {
+    sWhiteList.Init();
+  } else {
+    sWhiteList.Clear();
+  }
+
+  int cur = 0, next = -1;
+  nsAdoptingCString str = Preferences::GetCString("security.xssfilter.whitelist");
+  while ((next = str.Find(NS_LITERAL_CSTRING(","), false, cur, -1)) != kNotFound) {
+    const nsACString& domain = Substring(str, cur, next-cur);
+    sWhiteList.Put(NS_ConvertUTF8toUTF16(domain), true);
+    cur = next+1;
+  }
+  next = str.Length() - 1;
+  if (cur < next) {
+    const nsACString& domain = Substring(str, cur, next-cur+1);
+    sWhiteList.Put(NS_ConvertUTF8toUTF16(domain), true);
+  }
+  return 0;
+}
 
 void
 nsXSSFilter::InitializeStatics()
@@ -80,6 +103,7 @@ nsXSSFilter::InitializeStatics()
   Preferences::AddBoolVarCache(&sReportOnly, "security.xssfilter.reportOnly");
   Preferences::AddBoolVarCache(&sBlockMode, "security.xssfilter.blockMode");
   Preferences::AddBoolVarCache(&sBlockDynamic, "security.xssfilter.blockDynamic");
+  Preferences::RegisterCallbackAndCall(InitializeWhiteList, "security.xssfilter.whitelist");
   LOG_XSS("Initialized Statics for XSS Filter");
 }
 
@@ -235,9 +259,13 @@ nsXSSFilter::PermitsExternalScript(nsIURI *aURI, bool isDynamic)
   bool c;
   nsAutoString domain;
   DomainMap& cache = GetDomainCache();
+  DomainMap& whiteList = GetWhiteList();
   nsXSSUtils::GetDomain(aURI, domain);
   if (cache.Get(domain, &c)) {
     return c;
+  }
+  if (whiteList.Get(domain, &c)) {
+    return true;
   }
 
   nsXSSUtils::CheckExternal(aURI, GetURI(), GetParams());
@@ -466,6 +494,11 @@ nsIURI*
 nsXSSFilter::GetURI()
 {
   return mParentDoc->GetDocumentURI();
+}
+
+DomainMap&
+nsXSSFilter::GetWhiteList() {
+  return sWhiteList;
 }
 
 DomainMap&
