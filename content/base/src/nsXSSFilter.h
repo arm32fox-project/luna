@@ -112,6 +112,10 @@ class nsXSSFilter {
   bool PermitsJSAction(const nsAString& code);
 
   /**
+   * Sync the whitelist preference to the memory structure
+   */
+  static int InitializeWhiteList(const char*, void*);
+  /**
    * Sets up Observers for the static preferences described below.
    */
   static void InitializeStatics();
@@ -137,6 +141,10 @@ class nsXSSFilter {
    * based vectors will be ignored.
    */
   static bool sBlockDynamic;
+  /**
+   * Synced to security.xssfilter.whitelist.
+   */
+  static DomainMap sWhiteList;
 
  private:
   /**
@@ -182,6 +190,10 @@ class nsXSSFilter {
    * Returns true if DOM-Based blocking is enabled (pref).
    */
   bool IsBlockDynamic();
+  /**
+   * Gets the whitelist
+   */
+  DomainMap& GetWhiteList();
   /**
    * Gets the URL of the document for origin checks
    */
