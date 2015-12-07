@@ -1528,6 +1528,8 @@ pref("security.xssfilter.enable", true);
 pref("security.xssfilter.reportOnly", false);
 pref("security.xssfilter.blockMode", false);
 pref("security.xssfilter.displayWarning", true);
+pref("security.xssfilter.blockDynamic", true);
+
 
 // Mixed content blocking
 pref("security.mixed_content.block_active_content", false);
