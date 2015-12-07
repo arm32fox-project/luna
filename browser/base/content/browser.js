@@ -644,6 +644,40 @@ const gXSSObserver = {
       callback: function () {
         alert(content);
       }
+    },
+    { label: 'Add Domain Exception',
+      accessKey: 'A',
+      popup: null,
+      callback: function () {
+        let hostURL = content.match(/^((?:http|https):\/\/(?:[^\/]+@)?)([^\/:]+)/);
+        if (!hostURL) {
+          // No parseable URL found in unsafe content
+          alert("No domain found. Please add manually.");
+          return;
+        }
+        let [, , domain] = hostURL;
+        let baseDomain = "";
+        try { 
+          baseDomain = Services.eTLD.getBaseDomainFromHost(domain);
+        } catch(e) { }
+        let whitelist = gPrefService.getCharPref("security.xssfilter.whitelist");
+        if (baseDomain != "") {
+          // We actually extracted a base domain from XSS injected content
+          if (whitelist != "") {
+            whitelist = whitelist + "," + baseDomain;
+          } else {
+            whitelist = baseDomain;
+          }
+          // Write the updated whitelist. Since this is observed by the XSS filter,
+          // it will automatically sync to the back-end and update immediately.
+          gPrefService.setCharPref("security.xssfilter.whitelist", whitelist);
+          // After setting this, we automatically reload the page.
+          BrowserReloadSkipCache();
+        } else {
+          // No base domain to add found in unsafe content URL
+          alert("No domain found. Please add manually.");
+        }
+      }
     }];
 
     nb.appendNotification("The XSS Filter has detected a potential XSS attack. Type: " +
