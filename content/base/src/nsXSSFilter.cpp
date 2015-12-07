@@ -227,7 +227,7 @@ nsXSSFilter::PermitsInlineScript(const nsAString& aScript)
   nsXSSUtils::CheckInline(aScript, GetParams());
 
   if (nsXSSUtils::HasAttack(GetParams())) {
-    NotifyViolation(NS_LITERAL_STRING("Inline Script"), aScript, GetURI());
+    NotifyViolation(NS_LITERAL_STRING("Inline Script"), aScript, NS_LITERAL_STRING(""));
     return IsReportOnly();
   }
   return true;
@@ -272,7 +272,7 @@ nsXSSFilter::PermitsExternalScript(nsIURI *aURI, bool isDynamic)
     nsAutoCString spec;
     aURI->GetSpec(spec);
     NotifyViolation(NS_LITERAL_STRING("External Script"), 
-                    NS_ConvertUTF8toUTF16(spec), GetURI());
+                    NS_ConvertUTF8toUTF16(spec), domain);
     cache.Put(domain, false);
     return IsReportOnly();
   }
@@ -299,7 +299,7 @@ nsXSSFilter::PermitsJSUrl(const nsAString& aURI)
   nsXSSUtils::CheckInline(escUri, GetParams());
 
   if (nsXSSUtils::HasAttack(GetParams())) {
-    NotifyViolation(NS_LITERAL_STRING("JS URL"), aURI, GetURI());
+    NotifyViolation(NS_LITERAL_STRING("JS URL"), aURI, NS_LITERAL_STRING(""));
     return IsReportOnly();
   }
   return true;
@@ -319,7 +319,7 @@ nsXSSFilter::PermitsEventListener(const nsAString& aScript)
   nsXSSUtils::CheckInline(aScript, GetParams());
 
   if (nsXSSUtils::HasAttack(GetParams())) {
-    NotifyViolation(NS_LITERAL_STRING("Event Listener"), aScript, GetURI());
+    NotifyViolation(NS_LITERAL_STRING("Event Listener"), aScript, NS_LITERAL_STRING(""));
     return IsReportOnly();
   }
   return true;
@@ -352,14 +352,25 @@ nsXSSFilter::PermitsBaseElement(nsIURI *aOldURI, nsIURI* aNewURI)
     return true;
   }
 
+  bool c;
+  DomainMap& cache = GetDomainCache();
+  DomainMap& whiteList = GetWhiteList();
+  if (cache.Get(newD, &c)) {
+    return c;
+  }
+  if (whiteList.Get(newD, &c)) {
+    return true;
+  }
+
   nsXSSUtils::CheckExternal(aNewURI, GetURI(), GetParams());
   if (nsXSSUtils::HasAttack(GetParams())) {
     nsAutoCString spec;
     aNewURI->GetSpec(spec);
     NotifyViolation(NS_LITERAL_STRING("Base Element"), 
-                    NS_ConvertUTF8toUTF16(spec), GetURI());
+                    NS_ConvertUTF8toUTF16(spec), newD);
     return IsReportOnly();
   }
+  cache.Put(newD, true);
   return true;
 }
 
@@ -385,9 +396,13 @@ nsXSSFilter::PermitsExternalObject(nsIURI *aURI)
   bool c;
   nsAutoString domain;
   DomainMap& cache = GetDomainCache();
+  DomainMap& whiteList = GetWhiteList();
   nsXSSUtils::GetDomain(aURI, domain);
   if (cache.Get(domain, &c)) {
     return c;
+  }
+  if (whiteList.Get(domain, &c)) {
+    return true;
   }
 
   nsXSSUtils::CheckExternal(aURI, GetURI(), GetParams());
@@ -395,7 +410,7 @@ nsXSSFilter::PermitsExternalObject(nsIURI *aURI)
     nsAutoCString spec;
     aURI->GetSpec(spec);
     NotifyViolation(NS_LITERAL_STRING("Object"),
-                    NS_ConvertUTF8toUTF16(spec), GetURI());
+                    NS_ConvertUTF8toUTF16(spec), NS_LITERAL_STRING(""));
     return IsReportOnly();
   }
   return true;
@@ -421,7 +436,7 @@ nsXSSFilter::PermitsDataURL(nsIURI *aURI)
 
   if (nsXSSUtils::HasAttack(GetParams())) {
     NotifyViolation(NS_LITERAL_STRING("Data URL"),
-                    NS_ConvertUTF8toUTF16(spec), GetURI());
+                    NS_ConvertUTF8toUTF16(spec), NS_LITERAL_STRING(""));
     return IsReportOnly();
   }
   return true;
@@ -440,7 +455,7 @@ nsXSSFilter::PermitsJSAction(const nsAString& aCode)
   nsXSSUtils::CheckInline(aCode, GetParams());
 
   if (nsXSSUtils::HasAttack(GetParams())) {
-    NotifyViolation(NS_LITERAL_STRING("JS Action"), aCode, GetURI());
+    NotifyViolation(NS_LITERAL_STRING("JS Action"), aCode, NS_LITERAL_STRING(""));
     return IsReportOnly();
   }
   return true;
@@ -518,8 +533,9 @@ bool nsXSSFilter::IsBlockDynamic() { return sBlockDynamic; }
 class nsXSSNotifier: public nsRunnable
 {
 public:
-  nsXSSNotifier(const nsAString& policy, const nsAString& content, nsIURI* url, bool blockMode) :
-    mPolicy(policy), mContent(content),  mURI(url), mBlockMode(blockMode)
+  nsXSSNotifier(const nsAString& policy, const nsAString& content,
+                const nsAString& domain, nsIURI* url, bool blockMode) :
+    mPolicy(policy), mContent(content), mDomain(domain), mURI(url), mBlockMode(blockMode)
   { };
 
   NS_IMETHOD Run() {
@@ -536,13 +552,17 @@ public:
     nsCOMPtr<nsIMutableArray> params = do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
 
-    nsCOMPtr<nsISupportsCString>
-      wrappedPolicy(do_CreateInstance("@mozilla.org/supports-cstring;1"));
-    wrappedPolicy->SetData(NS_ConvertUTF16toUTF8(mPolicy));
+    nsCOMPtr<nsISupportsString>
+      wrappedPolicy(do_CreateInstance("@mozilla.org/supports-string;1"));
+    wrappedPolicy->SetData(mPolicy);
 
-    nsCOMPtr<nsISupportsCString>
-      wrappedContent(do_CreateInstance("@mozilla.org/supports-cstring;1"));
-    wrappedContent->SetData(NS_ConvertUTF16toUTF8(mContent));
+    nsCOMPtr<nsISupportsString>
+      wrappedContent(do_CreateInstance("@mozilla.org/supports-string;1"));
+    wrappedContent->SetData(mContent);
+
+    nsCOMPtr<nsISupportsString>
+      wrappedDomain(do_CreateInstance("@mozilla.org/supports-string;1"));
+    wrappedDomain->SetData(mDomain);
 
     nsCOMPtr<nsISupportsCString>
       wrappedUrl(do_CreateInstance("@mozilla.org/supports-cstring;1"));
@@ -556,6 +576,7 @@ public:
     
     params->AppendElement(wrappedPolicy, false);
     params->AppendElement(wrappedContent, false);
+    params->AppendElement(wrappedDomain, false);
     params->AppendElement(wrappedUrl, false);
     params->AppendElement(wrappedBlock, false);
     observerService->NotifyObservers(params, "xss-on-violate-policy", NULL);
@@ -566,16 +587,17 @@ public:
 
 private:
   ~nsXSSNotifier() { };
-  nsString mPolicy, mContent;
+  nsString mPolicy, mContent, mDomain;
   nsIURI* mURI;
   bool mBlockMode;
 };
 
 nsresult
-nsXSSFilter::NotifyViolation(const nsAString& policy, const nsAString& content, nsIURI* url)
+nsXSSFilter::NotifyViolation(const nsAString& policy, const nsAString& content, const nsAString& domain)
 {
   LOG_XSS("Violation");
 
+  nsIURI* url = GetURI();
   nsAutoCString spec;
   url->GetSpec(spec);
 
@@ -596,7 +618,7 @@ nsXSSFilter::NotifyViolation(const nsAString& policy, const nsAString& content, 
     LOG_XSS("Main thread unavailable");
     return NS_OK;
   }
-  nsCOMPtr<nsIRunnable> runnable = new nsXSSNotifier(policy, content, url, IsBlockMode());
+  nsCOMPtr<nsIRunnable> runnable = new nsXSSNotifier(policy, content, domain, url, IsBlockMode());
   thread->Dispatch(runnable, nsIEventTarget::DISPATCH_NORMAL);
 
   // Block the page load if block mode is enabled.

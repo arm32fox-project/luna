@@ -216,7 +216,7 @@ class nsXSSFilter {
    * 3) If block mode is enabled, it also navigates away the tab to an
    * error page.
    */
-  nsresult NotifyViolation(const nsAString& policy, const nsAString& content, nsIURI* url);
+  nsresult NotifyViolation(const nsAString& policy, const nsAString& content, const nsAString& domain);
 };
 
 

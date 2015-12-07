@@ -625,10 +625,11 @@ const gXSSObserver = {
 
     // parse incoming xss array
     aSubject.QueryInterface(Ci.nsIArray);
-    var policy = aSubject.queryElementAt(0, Ci.nsISupportsCString).data;
-    var content = aSubject.queryElementAt(1, Ci.nsISupportsCString).data;
-    var url = aSubject.queryElementAt(2, Ci.nsISupportsCString).data;
-    var blockMode = aSubject.queryElementAt(3, Ci.nsISupportsPRBool).data;
+    var policy = aSubject.queryElementAt(0, Ci.nsISupportsString).data;
+    var content = aSubject.queryElementAt(1, Ci.nsISupportsString).data;
+    var domain = aSubject.queryElementAt(2, Ci.nsISupportsString).data;
+    var url = aSubject.queryElementAt(3, Ci.nsISupportsCString).data;
+    var blockMode = aSubject.queryElementAt(4, Ci.nsISupportsPRBool).data;
 
     // if it is a block mode event, do not display the warning
     if (blockMode)
@@ -644,42 +645,28 @@ const gXSSObserver = {
       callback: function () {
         alert(content);
       }
-    },
-    { label: 'Add Domain Exception',
-      accessKey: 'A',
-      popup: null,
-      callback: function () {
-        let hostURL = content.match(/^((?:http|https):\/\/(?:[^\/]+@)?)([^\/:]+)/);
-        if (!hostURL) {
-          // No parseable URL found in unsafe content
-          alert("No domain found. Please add manually.");
-          return;
-        }
-        let [, , domain] = hostURL;
-        let baseDomain = "";
-        try { 
-          baseDomain = Services.eTLD.getBaseDomainFromHost(domain);
-        } catch(e) { }
-        let whitelist = gPrefService.getCharPref("security.xssfilter.whitelist");
-        if (baseDomain != "") {
-          // We actually extracted a base domain from XSS injected content
+    }];
+
+    if (domain !== "")
+      buttons.push({
+        label: 'Add Domain Exception',
+        accessKey: 'A',
+        popup: null,
+        callback: function () {
+          let whitelist = gPrefService.getCharPref("security.xssfilter.whitelist");
           if (whitelist != "") {
-            whitelist = whitelist + "," + baseDomain;
+            whitelist = whitelist + "," + domain;
           } else {
-            whitelist = baseDomain;
+            whitelist = domain;
           }
           // Write the updated whitelist. Since this is observed by the XSS filter,
           // it will automatically sync to the back-end and update immediately.
           gPrefService.setCharPref("security.xssfilter.whitelist", whitelist);
           // After setting this, we automatically reload the page.
           BrowserReloadSkipCache();
-        } else {
-          // No base domain to add found in unsafe content URL
-          alert("No domain found. Please add manually.");
         }
-      }
-    }];
-
+      });
+    
     nb.appendNotification("The XSS Filter has detected a potential XSS attack. Type: " +
                           policy, 'popup-blocked', 'chrome://browser/skin/Info.png',
                           priority, buttons);
