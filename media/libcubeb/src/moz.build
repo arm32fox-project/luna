@@ -40,6 +40,9 @@ if CONFIG['OS_TARGET'] == 'Darwin':
         'cubeb_audiounit.c',
         'cubeb_osx_run_loop.c',
     ]
+    CPP_SOURCES += [
+        'OSXRunLoopSingleton.cpp',
+    ]
 
 if CONFIG['OS_TARGET'] == 'WINNT':
     CSRCS += [
