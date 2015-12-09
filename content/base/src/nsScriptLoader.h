@@ -159,7 +159,8 @@ public:
   static nsresult ShouldLoadScript(nsIDocument* aDocument,
                                    nsISupports* aContext,
                                    nsIURI* aURI,
-                                   const nsAString &aType);
+                                   const nsAString &aType,
+                                   bool isDynamic);
 
   /**
    * Starts deferring deferred scripts and puts them in the mDeferredRequests

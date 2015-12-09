@@ -1,0 +1,28 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+<title>Test for XSS Filter</title>
+<script type="text/javascript" src="/MochiKit/packed.js"></script>
+<script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+<!--<script type="text/javascript" src="file_jquery.js"></script>-->
+<script type="text/javascript"
+  src="/tests/dom/tests/mochitest/ajax/jquery/dist/jquery.js">
+</script>
+<script>jQuery.noConflict();</script>
+<script type="text/javascript" src="file_XSS.js"></script>
+<link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
+</head>
+<body>
+
+  <p id="display"></p>
+  <div id="content" style="display: none"></div>
+
+  <pre id="debug">
+  </pre>
+
+<a href="javascript:setXss(true)">Filter on</a>
+<a href="javascript:setXss(false)">Filter off</a>
+<br>
+
+</body>
+</html>

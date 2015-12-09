@@ -184,6 +184,22 @@ nsNullPrincipal::SetCsp(nsIContentSecurityPolicy* aCsp)
 }
 
 NS_IMETHODIMP
+nsNullPrincipal::GetXSSFilter(nsXSSFilter** aXSS)
+{
+  // Null principals are never loaded from anywhere, and thus can
+  // never have an XSS filter
+  *aXSS = nullptr;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsNullPrincipal::SetXSSFilter(nsXSSFilter* aXSS)
+{
+  // Setting XSS filters on a null principal makes no sense
+  return NS_ERROR_NOT_AVAILABLE;
+}
+
+NS_IMETHODIMP
 nsNullPrincipal::GetDomain(nsIURI** aDomain)
 {
   return NS_EnsureSafeToReturn(mURI, aDomain);

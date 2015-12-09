@@ -1524,6 +1524,13 @@ pref("security.csp.enable", true);
 pref("security.csp.debug", false);
 pref("security.csp.experimentalEnabled", true);
 
+pref("security.xssfilter.enable", true);
+pref("security.xssfilter.reportOnly", false);
+pref("security.xssfilter.blockMode", false);
+pref("security.xssfilter.displayWarning", true);
+pref("security.xssfilter.blockDynamic", true);
+pref("security.xssfilter.whitelist", "");
+
 // Mixed content blocking
 pref("security.mixed_content.block_active_content", false);
 pref("security.mixed_content.block_display_content", false);

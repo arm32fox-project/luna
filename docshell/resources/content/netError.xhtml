@@ -158,6 +158,7 @@
           case "remoteXUL":
           case "cspFrameAncestorBlocked":
           case "nssBadCert":
+          case "xssBlockMode":
             document.getElementById("errorTryAgain").style.display = 'none';
             break;
           default:
@@ -293,6 +294,7 @@
         <h1 id="et_nssBadCert">&nssBadCert.title;</h1>
         <h1 id="et_malwareBlocked">&malwareBlocked.title;</h1>
         <h1 id="et_cspFrameAncestorBlocked">&cspFrameAncestorBlocked.title;</h1>
+        <h1 id="et_xssBlockMode">&xssBlockMode.title;</h1>
         <h1 id="et_remoteXUL">&remoteXUL.title;</h1>
         <h1 id="et_corruptedContentError">&corruptedContentError.title;</h1>
       </div>
@@ -319,6 +321,7 @@
         <div id="ed_nssBadCert">&nssBadCert.longDesc2;</div>
         <div id="ed_malwareBlocked">&malwareBlocked.longDesc;</div>
         <div id="ed_cspFrameAncestorBlocked">&cspFrameAncestorBlocked.longDesc;</div>
+        <div id="ed_xssBlockMode">&xssBlockMode.longDesc;</div>
         <div id="ed_remoteXUL">&remoteXUL.longDesc;</div>
         <div id="ed_corruptedContentError">&corruptedContentError.longDesc;</div>
       </div>

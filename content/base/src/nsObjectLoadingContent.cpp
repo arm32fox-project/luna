@@ -74,6 +74,7 @@
 #include "nsObjectFrame.h"
 #include "nsDOMClassInfo.h"
 #include "nsWrapperCacheInlines.h"
+#include "nsXSSFilter.h"
 
 #include "nsWidgetsCID.h"
 #include "nsContentCID.h"
@@ -93,6 +94,7 @@ GetObjectLog()
     sLog = PR_NewLogModule("objlc");
   return sLog;
 }
+static PRLogModuleInfo* gXssPRLog = PR_NewLogModule("XSS");
 #endif
 
 #define LOG(args) PR_LOG(GetObjectLog(), PR_LOG_DEBUG, args)
@@ -1975,6 +1977,22 @@ nsObjectLoadingContent::LoadObject(bool aNotify,
         fallbackType = eFallbackUserDisabled;
       } else {
         fallbackType = eFallbackSuppressed;
+      }
+    }
+
+    if (allowLoad) {
+      // XSS filter
+      nsRefPtr<nsXSSFilter> xss;
+      rv = doc->NodePrincipal()->GetXSSFilter(getter_AddRefs(xss));
+      NS_ENSURE_SUCCESS(rv, rv);
+  
+      if (xss) {
+        PR_LOG(gXssPRLog, PR_LOG_DEBUG,
+               ("nsObjectLoadingContent:XSSFilter:LoadObject"));
+        if (!xss->PermitsExternalObject(mURI)) {
+          PR_LOG(gXssPRLog, PR_LOG_DEBUG, ("XSSFilter blocked object loading."));
+          fallbackType = eFallbackSuppressed;
+        }
       }
     }
   }

@@ -25,6 +25,8 @@
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
 #include "jswrapper.h"
+#include "nsXSSFilter.h"
+
 
 #include "nsPrincipal.h"
 
@@ -135,6 +137,25 @@ nsBasePrincipal::SetCsp(nsIContentSecurityPolicy* aCsp)
   mCSP = aCsp;
   return NS_OK;
 }
+
+NS_IMETHODIMP
+nsBasePrincipal::GetXSSFilter(nsXSSFilter** aXSS)
+{
+  NS_IF_ADDREF(*aXSS = mXSS);
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsBasePrincipal::SetXSSFilter(nsXSSFilter* aXSS)
+{
+  // Once assigned, the filter cannot be changed.
+  if (mXSS)
+    return NS_ERROR_ALREADY_INITIALIZED;
+
+  mXSS = aXSS;
+  return NS_OK;
+}
+
 
 #ifdef DEBUG
 void nsPrincipal::dumpImpl()
