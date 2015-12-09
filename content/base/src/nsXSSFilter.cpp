@@ -546,8 +546,8 @@ public:
       return NS_OK;
     }
 
-    // The nsIArray will contain four parameters:
-    // violated policy, content, url and blockMode
+    // The nsIArray will contain five parameters:
+    // violated policy, content, violating domain (if applicable), url and blockMode
     nsresult rv = NS_OK;
     nsCOMPtr<nsIMutableArray> params = do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -602,15 +602,16 @@ nsXSSFilter::NotifyViolation(const nsAString& policy, const nsAString& content, 
   url->GetSpec(spec);
 
   // Send to console.
-  nsCOMPtr<nsIConsoleService> aConsoleService =
-    do_GetService( "@mozilla.org/consoleservice;1" );
-  nsAutoString msg;
-  msg.Assign(NS_LITERAL_STRING("XSS Violation on URL "));
-  msg.Append(NS_ConvertUTF8toUTF16(spec));
-  msg.Append(NS_LITERAL_STRING(": "));
-  msg.Append(policy);
-  aConsoleService->
-    LogStringMessage(msg.get());
+  nsCOMPtr<nsIConsoleService>
+    aConsoleService(do_GetService(NS_CONSOLESERVICE_CONTRACTID));
+  if (aConsoleService) {
+    nsString msg;
+    msg += NS_LITERAL_STRING("XSS violation at URL: ");
+    msg += NS_ConvertUTF8toUTF16(spec);
+    msg += NS_LITERAL_STRING(" - Type: ");
+    msg += policy;
+    aConsoleService->LogStringMessage(msg.get());
+  }
 
   // Send to observers as xss-on-violate-policy.
   nsCOMPtr<nsIThread> thread = do_GetMainThread();

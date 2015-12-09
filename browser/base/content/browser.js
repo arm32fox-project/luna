@@ -620,6 +620,7 @@ const gXSSObserver = {
   observe: function (aSubject, aTopic, aData)
   {
 
+    // Don't do anything if the notification is disabled.
     if (!gPrefService.getBoolPref("security.xssfilter.displayWarning"))
       return;
 
@@ -630,8 +631,8 @@ const gXSSObserver = {
     var domain = aSubject.queryElementAt(2, Ci.nsISupportsString).data;
     var url = aSubject.queryElementAt(3, Ci.nsISupportsCString).data;
     var blockMode = aSubject.queryElementAt(4, Ci.nsISupportsPRBool).data;
-
-    // if it is a block mode event, do not display the warning
+       
+    // If it is a block mode event, do not display the warning
     if (blockMode)
       return;
 
