@@ -24,9 +24,6 @@ if CONFIG['WRAP_STL_INCLUDES']:
         'TestSTLWrappers.cpp',
     ]
 
-if CONFIG['DEHYDRA_PATH']:
-    DIRS += ['static-checker']
-
 MODULE = 'xpcom'
 
 XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']
