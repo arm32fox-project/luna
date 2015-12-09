@@ -18,4 +18,4 @@
 # Modifying this file will now automatically clobber the buildbot machines \o/
 #
 
-MutationObserver webidl change requires a clobber
+2015-12-09 Merge Day clobber required.
