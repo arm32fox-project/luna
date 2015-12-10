@@ -13,7 +13,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 
-const debugLog = true;
+const debugLog = false;
 
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -128,7 +128,6 @@ ContentObserver.prototype = {
       let prmObject = null;
       let prmLoaded = false;
       let unloadListenerAdded = false;
-     if (!w.Promise) {
       Object.defineProperty(w, "Promise", {
         get: (function () {
           if (debugLog) Cu.reportError("***["+doc.documentURI+"] getter");
@@ -156,7 +155,6 @@ ContentObserver.prototype = {
         configurable: true,
         enumerable: true,
       });
-     }
       if (debugLog) Cu.reportError("***["+doc.documentURI+"] API set");
     }
   }
