@@ -624,15 +624,15 @@ const gXSSObserver = {
     if (!gPrefService.getBoolPref("security.xssfilter.displayWarning"))
       return;
 
-    // parse incoming xss array
+    // Parse incoming XSS array
     aSubject.QueryInterface(Ci.nsIArray);
     var policy = aSubject.queryElementAt(0, Ci.nsISupportsString).data;
     var content = aSubject.queryElementAt(1, Ci.nsISupportsString).data;
     var domain = aSubject.queryElementAt(2, Ci.nsISupportsString).data;
     var url = aSubject.queryElementAt(3, Ci.nsISupportsCString).data;
     var blockMode = aSubject.queryElementAt(4, Ci.nsISupportsPRBool).data;
-       
-    // If it is a block mode event, do not display the warning
+
+    // If it is a block mode event, do not display the infobar
     if (blockMode)
       return;
 

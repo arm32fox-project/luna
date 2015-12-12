@@ -382,10 +382,10 @@ nsXSSFilter::PermitsExternalObject(nsIURI *aURI)
   }
 
 #ifdef PR_LOGGING
-  LOG_XSS_CALL("Object");
+  LOG_XSS_CALL("Embedded object");
   nsAutoCString spec;
   aURI->GetSpec(spec);
-  LOG_XSS_1("object URI: %s", spec.get());
+  LOG_XSS_1("Embedded object URI: %s", spec.get());
 #endif
 
   if (!IsEnabled()) {
@@ -409,8 +409,8 @@ nsXSSFilter::PermitsExternalObject(nsIURI *aURI)
   if (nsXSSUtils::HasAttack(GetParams())) {
     nsAutoCString spec;
     aURI->GetSpec(spec);
-    NotifyViolation(NS_LITERAL_STRING("Object"),
-                    NS_ConvertUTF8toUTF16(spec), NS_LITERAL_STRING(""));
+    NotifyViolation(NS_LITERAL_STRING("Embedded object"),
+                    NS_ConvertUTF8toUTF16(spec), domain);
     return IsReportOnly();
   }
   return true;
@@ -567,7 +567,12 @@ public:
     nsCOMPtr<nsISupportsCString>
       wrappedUrl(do_CreateInstance("@mozilla.org/supports-cstring;1"));
     nsAutoCString spec;
-    mURI->GetSpec(spec);
+    rv = mURI->GetSpec(spec);
+    if (NS_FAILED(rv)) { 
+      // In rare cases, this can fail. Return an empty string in that case.
+      NS_WARNING("XSS Filter notifier runner: failed to get URI spec.");
+      spec = "";
+    } 
     wrappedUrl->SetData(spec);
 
     nsCOMPtr<nsISupportsPRBool>
