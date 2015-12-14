@@ -27,6 +27,7 @@ XPIDL_SOURCES += [
     'nsISelectionListener.idl',
     'nsISelectionPrivate.idl',
     'nsIXMLHttpRequest.idl',
+    'nsIXSSUtils.idl',
 ]
 
 XPIDL_MODULE = 'content_base'

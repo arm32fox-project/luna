@@ -254,6 +254,17 @@ EvalKernel(JSContext *cx, const CallArgs &args, EvalType evalType, AbstractFrame
     }
     RootedString str(cx, args[0].toString());
 
+    // TODO: the above string was not rooted before
+    // xss filter
+    const JSSecurityCallbacks *callbacks = 
+        JS_GetSecurityCallbacks(js::GetRuntime(cx));
+    if (callbacks && callbacks->xssFilterAllows) {
+        if (!callbacks->xssFilterAllows(cx, str)) {
+            JS_ReportError(cx, "call to eval() is an xss attack");
+            return false;
+        }
+    }
+
     // ES5 15.1.2.1 steps 2-8.
 
     // Per ES5, indirect eval runs in the global scope. (eval is specified this

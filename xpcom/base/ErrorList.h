@@ -618,6 +618,10 @@
   /* Error code for CSP */
   ERROR(NS_ERROR_CSP_FRAME_ANCESTOR_VIOLATION,     FAILURE(99)),
 
+  /* Error code for XSSFilter */
+  ERROR(NS_ERROR_XSS_BLOCK,                        FAILURE(100)),
+
+
   /* CMS specific nsresult error codes.  Note: the numbers used here correspond
    * to the values in nsICMSMessageErrors.idl. */
   ERROR(NS_ERROR_CMS_VERIFY_NOT_SIGNED,            FAILURE(1024)),

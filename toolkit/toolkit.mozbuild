@@ -50,6 +50,8 @@ if CONFIG['MOZ_UPDATER']:
         add_tier_dir('platform', 'modules/libbz2')
 
     add_tier_dir('platform', 'other-licenses/bsdiff')
+    
+add_tier_dir('platform', 'modules/brotli')
 
 # Goanna/Core components.
 
@@ -81,7 +83,7 @@ if CONFIG['MOZ_WEBM']:
 
 add_tier_dir('platform', 'media/webvtt')
 
-if CONFIG['MOZ_VP8'] and not CONFIG['MOZ_NATIVE_LIBVPX']:
+if CONFIG['MOZ_VPX'] and not CONFIG['MOZ_NATIVE_LIBVPX']:
     add_tier_dir('platform', 'media/libvpx')
 
 if CONFIG['MOZ_OGG']:

@@ -13,7 +13,19 @@
 // window.unexpectedException.
 window.unexpectedException = null;
 
+function setXss(value) {        
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefService = Components.classes["@mozilla.org/preferences-service;1"]
+    .getService(Components.interfaces.nsIPrefService);
+  var xssBranch = prefService.getBranch("security.xssfilter.");
+  var originalValue = xssBranch.getBoolPref("enable");
+  xssBranch.setBoolPref("enable", value);
+}
+
 function run() {
+
+        setXss(false);
+
 	try {
 		window.unexpectedException = null;
 
@@ -48,6 +60,8 @@ function run() {
 		window.testRange = range;
 	} catch(e) {
 		window.unexpectedException = e;
+	} finally {
+                setXss(true);
 	}
 }
 

@@ -4,7 +4,7 @@
 
 
 html {
-  background: -moz-Dialog;
+  background: #833;
 }
 
 body {
@@ -29,8 +29,9 @@ h2 {
   min-width: 13em;
   max-width: 52em;
   margin: 4em auto;
-  border: 1px solid #FFBD09; /* pale yellow extracted from yellow passport icon */
+  border: 2px solid #DD0D09;
   border-radius: 10px;
+  box-shadow: 0px 0px 8px red;
   padding: 3em;
   -moz-padding-start: 30px;
   background: url("chrome://global/skin/icons/sslWarning.png") left 0 no-repeat -moz-Field;

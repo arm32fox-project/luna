@@ -843,7 +843,10 @@ var BrowserApp = {
     // There's nothing to do if the tab is already selected
     if (aTab == this.selectedTab)
       return;
-
+      
+    // Exit FS if we're switching tabs
+    this.selectedBrowser.contentDocument.mozCancelFullScreen();
+    
     let message = {
       type: "Tab:Select",
       tabID: aTab.id

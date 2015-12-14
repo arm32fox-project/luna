@@ -396,9 +396,9 @@ fi
 MOZ_TOOL_VARIABLES
 
 if test -n "$GNU_CC" -a -z "$CLANG_CC" ; then
-    if test "$GCC_MAJOR_VERSION" -eq 4 -a "$GCC_MINOR_VERSION" -lt 4 ||
+    if test "$GCC_MAJOR_VERSION" -eq 4 -a "$GCC_MINOR_VERSION" -lt 6 ||
        test "$GCC_MAJOR_VERSION" -lt 4; then
-        AC_MSG_ERROR([Only GCC 4.4 or newer supported])
+        AC_MSG_ERROR([Only GCC 4.6 or newer is supported])
     fi
 fi
 
@@ -1570,13 +1570,8 @@ ia64*-hpux*)
         MOZ_OPTIMIZE_FLAGS="-O2"
         MOZ_DEBUG_FLAGS="-g"
     elif test "$GNU_CC" -o "$GNU_CXX"; then
-        case $GCC_VERSION in
-        4.5.*)
-            # -Os is broken on gcc 4.5.x we need to tweak it to get good results.
-            MOZ_OPTIMIZE_SIZE_TWEAK="-finline-limit=50"
-        esac
         MOZ_PGO_OPTIMIZE_FLAGS="-O3"
-        MOZ_OPTIMIZE_FLAGS="-O3 $MOZ_OPTIMIZE_SIZE_TWEAK"
+        MOZ_OPTIMIZE_FLAGS="-O3"
         if test -z "$CLANG_CC"; then
            MOZ_OPTIMIZE_FLAGS="-freorder-blocks $MOZ_OPTIMIZE_FLAGS"
         fi
@@ -2368,7 +2363,6 @@ AC_SUBST(WRAP_SYSTEM_INCLUDES)
 AC_SUBST(VISIBILITY_FLAGS)
 
 MOZ_GCC_PR49911
-MOZ_GCC_PR39608
 if test "$OS_TARGET" != WINNT; then
     # Only run this test with clang on non-Windows platforms, because clang
     # cannot do enough code gen for now to make this test work correctly.
@@ -2660,24 +2654,6 @@ dnl    AC_CHECK_LIB(bind, res_ninit, AC_DEFINE(HAVE_RES_NINIT),
 dnl        AC_CHECK_LIB(resolv, res_ninit, AC_DEFINE(HAVE_RES_NINIT)))
 fi
 
-AC_LANG_CPLUSPLUS
-AC_CACHE_CHECK(
-    [for gnu_get_libc_version()],
-    ac_cv_func_gnu_get_libc_version,
-    [AC_TRY_LINK([
-        #ifdef HAVE_GNU_LIBC_VERSION_H
-        #include <gnu/libc-version.h>
-        #endif
-        ],
-        [const char *glibc_version = gnu_get_libc_version();],
-        [ac_cv_func_gnu_get_libc_version=yes],
-        [ac_cv_func_gnu_get_libc_version=no]
-        )]
-    )
-
-if test "$ac_cv_func_gnu_get_libc_version" = "yes"; then
-    AC_DEFINE(HAVE_GNU_GET_LIBC_VERSION)
-fi
 AC_LANG_C
 
 dnl **********************
@@ -3274,7 +3250,6 @@ AC_SUBST(MOZ_OPTIMIZE)
 AC_SUBST(MOZ_FRAMEPTR_FLAGS)
 AC_SUBST(MOZ_OPTIMIZE_FLAGS)
 AC_SUBST(MOZ_OPTIMIZE_LDFLAGS)
-AC_SUBST(MOZ_OPTIMIZE_SIZE_TWEAK)
 AC_SUBST(MOZ_PGO_OPTIMIZE_FLAGS)
 
 dnl ========================================================
@@ -3700,24 +3675,6 @@ fi
 
 MOZ_CHECK_CCACHE
 MOZ_CHECK_COMPILER_WRAPPER
-
-dnl ========================================================
-dnl = Enable static checking using gcc-dehydra
-dnl ========================================================
-
-MOZ_ARG_WITH_STRING(static-checking,
-[  --with-static-checking=path/to/gcc_dehydra.so
-                          Enable static checking of code using GCC-dehydra],
-    DEHYDRA_PATH=$withval,
-    DEHYDRA_PATH= )
-
-if test -n "$DEHYDRA_PATH"; then
-    if test ! -f "$DEHYDRA_PATH"; then
-        AC_MSG_ERROR([The dehydra plugin is not at the specified path.])
-    fi
-    AC_DEFINE(NS_STATIC_CHECKING)
-fi
-AC_SUBST(DEHYDRA_PATH)
 
 dnl ========================================================
 dnl = Enable using the clang plugin to build

@@ -6,7 +6,7 @@
 
 const {Cc, Ci, Cu} = require("chrome");
 
-var Promise = require("sdk/core/promise");
+var promise = require("sdk/core/promise");
 var EventEmitter = require("devtools/shared/event-emitter");
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
@@ -51,13 +51,13 @@ exports.TargetFactory = {
    * @return A promise of a target object
    */
   forRemoteTab: function TF_forRemoteTab(options) {
-    let promise = promiseTargets.get(options);
-    if (promise == null) {
+    let targetPromise = promiseTargets.get(options);
+    if (targetPromise == null) {
       let target = new TabTarget(options);
-      promise = target.makeRemote().then(() => target);
-      promiseTargets.set(options, promise);
+      targetPromise = target.makeRemote().then(() => target);
+      promiseTargets.set(options, targetPromise);
     }
-    return promise;
+    return targetPromise;
   },
 
   /**
@@ -260,7 +260,7 @@ TabTarget.prototype = {
       return this._remote.promise;
     }
 
-    this._remote = Promise.defer();
+    this._remote = promise.defer();
 
     if (this.isLocalTab) {
       // Since a remote protocol connection will be made, let's start the
@@ -388,7 +388,7 @@ TabTarget.prototype = {
       return this._destroyer.promise;
     }
 
-    this._destroyer = Promise.defer();
+    this._destroyer = promise.defer();
 
     // Before taking any action, notify listeners that destruction is imminent.
     this.emit("close");
@@ -592,7 +592,7 @@ WindowTarget.prototype = {
       this._window = null;
     }
 
-    return Promise.resolve(null);
+    return promise.resolve(null);
   },
 
   toString: function() {

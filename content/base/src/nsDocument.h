@@ -1323,6 +1323,7 @@ private:
 
   nsresult CheckFrameOptions();
   nsresult InitCSP(nsIChannel* aChannel);
+  void InitXSSFilter();
 
   void FlushCSPWebConsoleErrorQueue()
   {

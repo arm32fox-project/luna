@@ -111,6 +111,7 @@ int16_t gBadPortList[] = {
   139,  // netbios
   143,  // imap2  
   179,  // BGP
+  366,  // ODMR
   389,  // ldap        
   465,  // smtp+ssl
   512,  // print / exec          
@@ -124,8 +125,8 @@ int16_t gBadPortList[] = {
   540,  // uucp       
   556,  // remotefs    
   563,  // nntp+ssl
-  587,  //
-  601,  //       
+  587,  // MSA (smtp+auth)
+  601,  // Syslog-conn (RFC3195)      
   636,  // ldap+ssl
   993,  // imap+ssl
   995,  // pop3+ssl

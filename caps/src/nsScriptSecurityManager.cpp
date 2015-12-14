@@ -62,12 +62,20 @@
 #include "mozilla/StaticPtr.h"
 #include "nsContentUtils.h"
 #include "nsCxPusher.h"
+#include "nsXSSFilter.h"
+#include "jspubtd.h"
+#include "prlog.h"
+#include "nsJSUtils.h"
 
 // This should be probably defined on some other place... but I couldn't find it
 #define WEBAPPS_PERM_NAME "webapps-manage"
 
 using namespace mozilla;
 using namespace mozilla::dom;
+
+#ifdef PR_LOGGING
+static PRLogModuleInfo *gXssPRLog = PR_NewLogModule("XSS");
+#endif
 
 static NS_DEFINE_CID(kZipReaderCID, NS_ZIPREADER_CID);
 
@@ -481,6 +489,54 @@ nsScriptSecurityManager::ContentSecurityPolicyPermitsJSAction(JSContext *cx)
     }
 
     return evalOK;
+}
+
+JSBool
+nsScriptSecurityManager::XSSFilterPermitsJSAction(JSContext *cx, JSString *str)
+{
+
+    PR_LOG(gXssPRLog, PR_LOG_DEBUG, (">>>> XSSFilterPermitsJSAction"));
+
+    if (!str) {
+        NS_ERROR("XSS: str is null.");
+        return true;
+    }
+
+
+    // Get the security manager
+    nsScriptSecurityManager *ssm =
+        nsScriptSecurityManager::GetScriptSecurityManager();
+
+    NS_ASSERTION(ssm, "Failed to get security manager service");
+
+    nsresult rv;
+    nsIPrincipal* subjectPrincipal = ssm->GetSubjectPrincipal(cx, &rv);
+
+    NS_ASSERTION(NS_SUCCEEDED(rv),
+                 "XSS: Failed to get nsIPrincipal from js context");
+
+    if (!subjectPrincipal) {
+        // See bug 553448 for discussion of this case.
+        NS_ASSERTION(!JS_GetSecurityCallbacks(js::GetRuntime(cx))->findObjectPrincipals,
+                     "XSS: Should have been able to find subject principal."
+                     "Reluctantly allowing script.");
+        return true;
+    }
+
+    nsRefPtr<nsXSSFilter> xss;
+    rv = subjectPrincipal->GetXSSFilter(getter_AddRefs(xss));
+    // Don't do anything if we don't have a filter to use.
+    if (!xss) {
+        return true;
+    }
+
+    nsDependentJSString ns_str;
+    if (!ns_str.init(cx, str)) {
+        NS_WARNING("Failed to initialize nsDependentJSString");
+        return true;
+    }
+
+    return xss->PermitsJSAction(ns_str);
 }
 
 
@@ -2386,7 +2442,8 @@ nsresult nsScriptSecurityManager::Init()
 
     static const JSSecurityCallbacks securityCallbacks = {
         CheckObjectAccess,
-        ContentSecurityPolicyPermitsJSAction
+        ContentSecurityPolicyPermitsJSAction,
+        XSSFilterPermitsJSAction
     };
 
     MOZ_ASSERT(!JS_GetSecurityCallbacks(sRuntime));

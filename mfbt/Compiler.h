@@ -13,13 +13,13 @@
 #define MOZ_IS_GCC 1
    /*
     * This macro should simplify gcc version checking. For example, to check
-    * for gcc 4.5.1 or later, check `#ifdef MOZ_GCC_VERSION_AT_LEAST(4, 5, 1)`.
+    * for gcc 4.6.0 or later, check `#ifdef MOZ_GCC_VERSION_AT_LEAST(4, 6, 0)`.
     */
 #  define MOZ_GCC_VERSION_AT_LEAST(major, minor, patchlevel)          \
      ((__GNUC__ * 10000 + __GNUC_MINOR__ * 100 + __GNUC_PATCHLEVEL__) \
       >= ((major) * 10000 + (minor) * 100 + (patchlevel)))
-#if !MOZ_GCC_VERSION_AT_LEAST(4, 4, 0)
-#  error "mfbt (and Goanna) require at least gcc 4.4 to build."
+#if !MOZ_GCC_VERSION_AT_LEAST(4, 6, 0)
+#  error "mfbt (and Goanna) require at least gcc 4.6 to build."
 #endif
 
 #else

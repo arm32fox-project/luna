@@ -398,9 +398,9 @@ fi
 MOZ_TOOL_VARIABLES
 
 if test -n "$GNU_CC" -a -z "$CLANG_CC" ; then
-    if test "$GCC_MAJOR_VERSION" -eq 4 -a "$GCC_MINOR_VERSION" -lt 4 ||
+    if test "$GCC_MAJOR_VERSION" -eq 4 -a "$GCC_MINOR_VERSION" -lt 6 ||
        test "$GCC_MAJOR_VERSION" -lt 4; then
-        AC_MSG_ERROR([Only GCC 4.4 or newer supported])
+        AC_MSG_ERROR([Only GCC 4.6 or newer is supported])
     fi
 fi
 
@@ -1949,13 +1949,8 @@ ia64*-hpux*)
         MOZ_OPTIMIZE_FLAGS="-O2"
         MOZ_DEBUG_FLAGS="-g"
     elif test "$GNU_CC" -o "$GNU_CXX"; then
-        case $GCC_VERSION in
-        4.5.*)
-            # -Os is broken on gcc 4.5.x we need to tweak it to get good results.
-            MOZ_OPTIMIZE_SIZE_TWEAK="-finline-limit=50"
-        esac
         MOZ_PGO_OPTIMIZE_FLAGS="-O3"
-        MOZ_OPTIMIZE_FLAGS="-Os $MOZ_OPTIMIZE_SIZE_TWEAK"
+        MOZ_OPTIMIZE_FLAGS="-Os"
         if test -z "$CLANG_CC"; then
           MOZ_OPTIMIZE_FLAGS="-freorder-blocks $MOZ_OPTIMIZE_FLAGS"
         fi 
@@ -2745,32 +2740,11 @@ AC_SUBST(WRAP_SYSTEM_INCLUDES)
 AC_SUBST(VISIBILITY_FLAGS)
 
 MOZ_GCC_PR49911
-MOZ_GCC_PR39608
 if test "$OS_TARGET" != WINNT; then
     # Only run this test with clang on non-Windows platforms, because clang
     # cannot do enough code gen for now to make this test work correctly.
     MOZ_LLVM_PR8927
 fi
-
-dnl Check for __force_align_arg_pointer__ for SSE2 on gcc
-dnl ========================================================
-if test "$GNU_CC"; then
-  CFLAGS_save="${CFLAGS}"
-  CFLAGS="${CFLAGS} -Werror"
-  AC_CACHE_CHECK(for __force_align_arg_pointer__ attribute,
-                 ac_cv_force_align_arg_pointer,
-                 [AC_TRY_COMPILE([__attribute__ ((__force_align_arg_pointer__)) void test() {}],
-                                 [],
-                                 ac_cv_force_align_arg_pointer="yes",
-                                 ac_cv_force_align_arg_pointer="no")])
-  CFLAGS="${CFLAGS_save}"
-  if test "$ac_cv_force_align_arg_pointer" = "yes"; then
-    HAVE_GCC_ALIGN_ARG_POINTER=1
-  else
-    HAVE_GCC_ALIGN_ARG_POINTER=
-  fi
-fi
-AC_SUBST(HAVE_GCC_ALIGN_ARG_POINTER)
 
 dnl Checks for header files.
 dnl ========================================================
@@ -3189,23 +3163,6 @@ dnl        AC_CHECK_LIB(resolv, res_ninit, AC_DEFINE(HAVE_RES_NINIT)))
 fi
 
 AC_LANG_CPLUSPLUS
-AC_CACHE_CHECK(
-    [for gnu_get_libc_version()],
-    ac_cv_func_gnu_get_libc_version,
-    [AC_TRY_LINK([
-        #ifdef HAVE_GNU_LIBC_VERSION_H
-        #include <gnu/libc-version.h>
-        #endif
-        ],
-        [const char *glibc_version = gnu_get_libc_version();],
-        [ac_cv_func_gnu_get_libc_version=yes],
-        [ac_cv_func_gnu_get_libc_version=no]
-        )]
-    )
-
-if test "$ac_cv_func_gnu_get_libc_version" = "yes"; then
-    AC_DEFINE(HAVE_GNU_GET_LIBC_VERSION)
-fi
 
 case $target_os in
     darwin*|mingw*)
@@ -3680,7 +3637,7 @@ MOZ_ARG_WITH_BOOL(system-nspr,
     _USE_SYSTEM_NSPR=1 )
 
 if test -n "$_USE_SYSTEM_NSPR"; then
-    AM_PATH_NSPR(4.10.2, [MOZ_NATIVE_NSPR=1], [AC_MSG_ERROR([your don't have NSPR installed or your version is too old])])
+    AM_PATH_NSPR(4.10.10, [MOZ_NATIVE_NSPR=1], [AC_MSG_ERROR([your don't have NSPR installed or your version is too old])])
 fi
 
 if test -n "$MOZ_NATIVE_NSPR"; then
@@ -3791,7 +3748,8 @@ MOZ_ARG_WITH_BOOL(system-nss,
     _USE_SYSTEM_NSS=1 )
 
 if test -n "$_USE_SYSTEM_NSS"; then
-    AM_PATH_NSS(3.16.2.2, [MOZ_NATIVE_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
+    AC_MSG_ERROR([Using a system-provided NSS library is currently not supported.])
+dnl    AM_PATH_NSS(3.19.4, [MOZ_NATIVE_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
 fi
 
 if test -n "$MOZ_NATIVE_NSS"; then
@@ -4075,9 +4033,8 @@ MOZ_MEDIA_NAVIGATOR=
 MOZ_OMX_PLUGIN=
 MOZ_WEBP=1
 MOZ_NATIVE_LIBWEBP=
-MOZ_VP8=
-MOZ_VP8_ERROR_CONCEALMENT=
-MOZ_VP8_ENCODER=1
+MOZ_VPX=
+MOZ_VPX_ERROR_CONCEALMENT=
 MOZ_WEBSPEECH=1
 VPX_AS=
 VPX_ASFLAGS=
@@ -5211,8 +5168,8 @@ if test -n "$MOZ_WEBRTC"; then
     dnl opt/production builds (via MOZ_CRASH())
     AC_DEFINE(MOZ_WEBRTC_ASSERT_ALWAYS)
     MOZ_RAW=1
-    MOZ_VP8=1
-    MOZ_VP8_ERROR_CONCEALMENT=1
+    MOZ_VPX=1
+    MOZ_VPX_ERROR_CONCEALMENT=1
 
 dnl enable once Signaling lands
     MOZ_WEBRTC_SIGNALING=1
@@ -5331,7 +5288,7 @@ MOZ_ARG_DISABLE_BOOL(webm,
 
 if test -n "$MOZ_WEBM"; then
     AC_DEFINE(MOZ_WEBM)
-    MOZ_VP8=1
+    MOZ_VPX=1
 fi;
 
 dnl ========================================================
@@ -5415,13 +5372,10 @@ MOZ_ARG_WITH_BOOL(system-libvpx,
 MOZ_LIBVPX_CFLAGS=
 MOZ_LIBVPX_LIBS=
 
-if test -n "$MOZ_VP8"; then
-    AC_DEFINE(MOZ_VP8)
-    if test -n "$MOZ_VP8_ERROR_CONCEALMENT" ; then
-        AC_DEFINE(MOZ_VP8_ERROR_CONCEALMENT)
-    fi
-    if test -n "$MOZ_VP8_ENCODER" ; then
-        AC_DEFINE(MOZ_VP8_ENCODER)
+if test -n "$MOZ_VPX"; then
+    AC_DEFINE(MOZ_VPX)
+    if test -n "$MOZ_VPX_ERROR_CONCEALMENT" ; then
+        AC_DEFINE(MOZ_VPX_ERROR_CONCEALMENT)
     fi
 
     if test -n "$MOZ_NATIVE_LIBVPX"; then
@@ -5458,7 +5412,7 @@ if test "$MOZ_WEBM"; then
     fi
 fi
 
-if test -n "$MOZ_VP8" -a -z "$MOZ_NATIVE_LIBVPX"; then
+if test -n "$MOZ_VPX" -a -z "$MOZ_NATIVE_LIBVPX"; then
 
     dnl Detect if we can use an assembler to compile optimized assembly for libvpx.
     dnl We currently require yasm on all x86 platforms and require yasm 1.1.0 on Win32.
@@ -5523,8 +5477,7 @@ if test -n "$MOZ_VP8" -a -z "$MOZ_NATIVE_LIBVPX"; then
       AC_MSG_ERROR([yasm is a required build tool for this architecture when webm is enabled. You may either install yasm or --disable-webm (which disables the WebM video format). See https://developer.mozilla.org/en/YASM for more details.])
     fi
 
-    if test -n "$MOZ_VP8_ENCODER" -a \
-            -z "$GNU_CC" -a -z "$INTEL_CC" -a -z "$CLANG_CC" ; then
+    if test -z "$GNU_CC" -a -z "$INTEL_CC" -a -z "$CLANG_CC" ; then
       dnl We prefer to get asm offsets using inline assembler, which the above
       dnl compilers can do. When we're not using one of those, we have to fall
       dnl back to obj_int_extract, which reads them from a compiled object
@@ -6138,23 +6091,6 @@ dnl ========================================================
 
 if test -n "$MOZ_SIGN_CMD"; then
     AC_DEFINE(MOZ_SIGNING)
-fi
-
-dnl ========================================================
-dnl Maintenance Service
-dnl ========================================================
-
-MOZ_ARG_ENABLE_BOOL(maintenance-service,
-[  --enable-maintenance-service       Enable building of maintenanceservice],
-    MOZ_MAINTENANCE_SERVICE=1,
-    MOZ_MAINTENANCE_SERVICE= )
-
-if test -n "$MOZ_MAINTENANCE_SERVICE"; then
-  if test "$OS_ARCH" = "WINNT"; then
-    AC_DEFINE(MOZ_MAINTENANCE_SERVICE)
-  else
-    AC_MSG_ERROR([Can only build with --enable-maintenance-service with a Windows target])
-  fi
 fi
 
 dnl ========================================================
@@ -6807,7 +6743,6 @@ AC_SUBST(MOZ_FRAMEPTR_FLAGS)
 AC_SUBST(MOZ_OPTIMIZE_FLAGS)
 AC_SUBST(MOZ_OPTIMIZE_LDFLAGS)
 AC_SUBST(MOZ_ALLOW_HEAP_EXECUTE_FLAGS)
-AC_SUBST(MOZ_OPTIMIZE_SIZE_TWEAK)
 AC_SUBST(MOZ_PGO_OPTIMIZE_FLAGS)
 
 dnl ========================================================
@@ -7251,24 +7186,6 @@ MOZ_CHECK_CCACHE
 MOZ_CHECK_COMPILER_WRAPPER
 
 dnl ========================================================
-dnl = Enable static checking using gcc-dehydra
-dnl ========================================================
-
-MOZ_ARG_WITH_STRING(static-checking,
-[  --with-static-checking=path/to/gcc_dehydra.so
-                          Enable static checking of code using GCC-dehydra],
-    DEHYDRA_PATH=$withval,
-    DEHYDRA_PATH= )
-
-if test -n "$DEHYDRA_PATH"; then
-    if test ! -f "$DEHYDRA_PATH"; then
-        AC_MSG_ERROR([The dehydra plugin is not at the specified path.])
-    fi
-    AC_DEFINE(NS_STATIC_CHECKING)
-fi
-AC_SUBST(DEHYDRA_PATH)
-
-dnl ========================================================
 dnl = Enable using the clang plugin to build
 dnl ========================================================
 
@@ -7427,6 +7344,22 @@ if test -n "$_ENABLE_CODESIGHS"; then
         AC_MSG_ERROR([Codesighs directory $srcdir/tools/codesighs required.])
     fi
 fi
+
+dnl ========================================================
+dnl = Don't precompile the startup cache
+dnl ========================================================
+MOZ_DISABLE_PRECOMPILED_STARTUPCACHE=
+
+MOZ_ARG_DISABLE_BOOL(precompiled-startupcache,
+[  --disable-precompiled-startupcache      Don't precompile the startup cache ],
+    MOZ_DISABLE_PRECOMPILED_STARTUPCACHE=1,
+	MOZ_DISABLE_PRECOMPILED_STARTUPCACHE= )
+
+if test -n "$MOZ_DISABLE_PRECOMPILED_STARTUPCACHE"; then
+  AC_DEFINE(MOZ_DISABLE_PRECOMPILED_STARTUPCACHE)
+fi
+
+AC_SUBST(MOZ_DISABLE_PRECOMPILED_STARTUPCACHE)
 
 dnl ========================================================
 dnl = Enable Radio Interface for B2G (Gonk usually)
@@ -8408,7 +8341,6 @@ AC_SUBST(MOZ_SPELLCHECK)
 AC_SUBST(MOZ_ANDROID_OMTC)
 AC_SUBST(MOZ_ANDROID_ANR_REPORTER)
 AC_SUBST(MOZ_ONLY_TOUCH_EVENTS)
-AC_SUBST(MOZ_MAINTENANCE_SERVICE)
 AC_SUBST(MOZ_STUB_INSTALLER)
 AC_SUBST(MOZ_VERIFY_MAR_SIGNATURE)
 AC_SUBST(MOZ_ENABLE_SIGNMAR)
@@ -8705,9 +8637,8 @@ AC_SUBST(MOZ_DASH)
 AC_SUBST(MOZ_WMF)
 AC_SUBST(MOZ_MEDIA_PLUGINS)
 AC_SUBST(MOZ_OMX_PLUGIN)
-AC_SUBST(MOZ_VP8_ERROR_CONCEALMENT)
-AC_SUBST(MOZ_VP8_ENCODER)
-AC_SUBST(MOZ_VP8)
+AC_SUBST(MOZ_VPX_ERROR_CONCEALMENT)
+AC_SUBST(MOZ_VPX)
 AC_SUBST(MOZ_OGG)
 AC_SUBST(VPX_AS)
 AC_SUBST(VPX_ASFLAGS)

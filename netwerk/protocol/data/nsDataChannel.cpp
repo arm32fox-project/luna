@@ -16,6 +16,13 @@
 #include "nsIOutputStream.h"
 #include "nsReadableUtils.h"
 #include "nsEscape.h"
+#include "nsXSSFilter.h"
+#include "nsIPrincipal.h"
+#include "prlog.h"
+
+#ifdef PR_LOGGING
+static PRLogModuleInfo* gXssPRLog;
+#endif
 
 using namespace mozilla;
 
@@ -25,7 +32,30 @@ nsDataChannel::OpenContentStream(bool async, nsIInputStream **result,
 {
     NS_ENSURE_TRUE(URI(), NS_ERROR_NOT_INITIALIZED);
 
+#ifdef PR_LOGGING
+    if (!gXssPRLog)
+        gXssPRLog = PR_NewLogModule("XSS");
+#endif
+
     nsresult rv;
+
+    nsCOMPtr<nsIPrincipal> principal;
+    GetOwner(getter_AddRefs(principal));
+    if (principal) {
+        //PR_LOG(gXssPRLog, PR_LOG_DEBUG, ("data url: Got principal"));
+        nsRefPtr<nsXSSFilter> xss;
+        rv = principal->GetXSSFilter(getter_AddRefs(xss));
+        NS_ENSURE_SUCCESS(rv, rv);
+        if (xss) {
+            // TODO: some of these might not be scripts! do we want to
+            // whitelist static content such as images?
+            if (!xss->PermitsDataURL(URI())) {
+                PR_LOG(gXssPRLog, PR_LOG_DEBUG, ("XSS in data URL"));
+                return NS_ERROR_FAILURE;
+            }
+        }
+    }
+
 
     nsAutoCString spec;
     rv = URI()->GetAsciiSpec(spec);

@@ -601,7 +601,8 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
     -moz-image-region: rect(0, 108px, 18px, 90px);
 }
 
-#history-button {
+#history-button,
+#history-menu-button {
     -moz-image-region: rect(0, 126px, 18px, 108px);
 }
 
@@ -2029,8 +2030,8 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
     list-style-image: url("chrome://browser/skin/feeds/feedIcon16.png");
 }
 
-#bookmarksToolbarFolderMenu,
 #appmenu_bookmarksToolbar,
+#bookmarksToolbarFolderMenu,
 #BMB_bookmarksToolbar {
     list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");
     -moz-image-region: auto;

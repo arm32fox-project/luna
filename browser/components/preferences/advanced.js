@@ -499,42 +499,6 @@ var gAdvancedPane = {
     // the warnIncompatible checkbox value is set by readAddonWarn
     warnIncompatible.disabled = radiogroup.disabled || modePref.locked ||
                                 !enabledPref.value || !autoPref.value;
-#ifdef MOZ_MAINTENANCE_SERVICE
-    // Check to see if the maintenance service is installed.
-    // If it is don't show the preference at all.
-    var installed;
-    try {
-      var wrk = Components.classes["@mozilla.org/windows-registry-key;1"]
-                .createInstance(Components.interfaces.nsIWindowsRegKey);
-      wrk.open(wrk.ROOT_KEY_LOCAL_MACHINE,
-               "SOFTWARE\\Mozilla\\MaintenanceService",
-               wrk.ACCESS_READ | wrk.WOW64_64);
-      installed = wrk.readIntValue("Installed");
-      wrk.close();
-    } catch(e) {
-    }
-    if (installed != 1) {
-      document.getElementById("useService").hidden = true;
-    }
-    try {
-      const DRIVE_FIXED = 3;
-      const LPCWSTR = ctypes.jschar.ptr;
-      const UINT = ctypes.uint32_t;
-      let kernel32 = ctypes.open("kernel32");
-      let GetDriveType = kernel32.declare("GetDriveTypeW", ctypes.default_abi, UINT, LPCWSTR);
-      var UpdatesDir = Components.classes["@mozilla.org/updates/update-service;1"].
-                       getService(Components.interfaces.nsIApplicationUpdateService);
-      let rootPath = UpdatesDir.getUpdatesDirectory();
-      while (rootPath.parent != null) {
-        rootPath = rootPath.parent;
-      }
-      if (GetDriveType(rootPath.path) != DRIVE_FIXED) {
-        document.getElementById("useService").hidden = true;
-      }
-      kernel32.close();
-    } catch(e) {
-    }
-#endif
   },
 
   /**

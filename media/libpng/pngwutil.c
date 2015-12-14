@@ -1,8 +1,8 @@
 
 /* pngwutil.c - utilities to write a PNG file
  *
- * Last changed in libpng 1.5.19 [August 21, 2014]
- * Copyright (c) 1998-2014 Glenn Randers-Pehrson
+ * Last changed in libpng 1.5.24 [November 12, 2015]
+ * Copyright (c) 1998-2015 Glenn Randers-Pehrson
  * (Version 0.96 Copyright (c) 1996, 1997 Andreas Dilger)
  * (Version 0.88 Copyright (c) 1995, 1996 Guy Eric Schalnat, Group 42, Inc.)
  *
@@ -30,19 +30,20 @@ png_save_uint_32(png_bytep buf, png_uint_32 i)
 }
 
 #ifdef PNG_SAVE_INT_32_SUPPORTED
-/* The png_save_int_32 function assumes integers are stored in two's
- * complement format.  If this isn't the case, then this routine needs to
- * be modified to write data in two's complement format.  Note that,
- * the following works correctly even if png_int_32 has more than 32 bits
- * (compare the more complex code required on read for sign extention.)
+/* PNG signed integers are saved in 32-bit 2's complement format.  ANSI C-90
+ * defines a cast of a signed integer to an unsigned integer either to preserve
+ * the value, if it is positive, or to calculate:
+ *
+ *     (UNSIGNED_MAX+1) + integer
+ *
+ * Where UNSIGNED_MAX is the appropriate maximum unsigned value, so when the
+ * negative integral value is added the result will be an unsigned value
+ * correspnding to the 2's complement representation.
  */
 void PNGAPI
 png_save_int_32(png_bytep buf, png_int_32 i)
 {
-   buf[0] = (png_byte)((i >> 24) & 0xff);
-   buf[1] = (png_byte)((i >> 16) & 0xff);
-   buf[2] = (png_byte)((i >> 8) & 0xff);
-   buf[3] = (png_byte)(i & 0xff);
+   png_save_uint_32(buf, i);
 }
 #endif
 
@@ -900,17 +901,20 @@ void /* PRIVATE */
 png_write_PLTE(png_structp png_ptr, png_const_colorp palette,
     png_uint_32 num_pal)
 {
-   png_uint_32 i;
+   png_uint_32 max_palette_length, i;
    png_const_colorp pal_ptr;
    png_byte buf[3];
 
    png_debug(1, "in png_write_PLTE");
 
+   max_palette_length = (png_ptr->color_type == PNG_COLOR_TYPE_PALETTE) ?
+      (1 << png_ptr->bit_depth) : PNG_MAX_PALETTE_LENGTH;
+
    if ((
 #ifdef PNG_MNG_FEATURES_SUPPORTED
        !(png_ptr->mng_features_permitted & PNG_FLAG_MNG_EMPTY_PLTE) &&
 #endif
-       num_pal == 0) || num_pal > 256)
+       num_pal == 0) || num_pal > max_palette_length)
    {
       if (png_ptr->color_type == PNG_COLOR_TYPE_PALETTE)
       {
@@ -2513,19 +2517,8 @@ png_write_find_filter(png_structp png_ptr, png_row_infop row_info)
    png_uint_32 mins, bpp;
    png_byte filter_to_do = png_ptr->do_filter;
    png_size_t row_bytes = row_info->rowbytes;
-#ifdef PNG_WRITE_WEIGHTED_FILTER_SUPPORTED
-   int num_p_filters = png_ptr->num_prev_filters;
-#endif
 
    png_debug(1, "in png_write_find_filter");
-
-#ifndef PNG_WRITE_WEIGHTED_FILTER_SUPPORTED
-  if (png_ptr->row_number == 0 && filter_to_do == PNG_ALL_FILTERS)
-  {
-     /* These will never be selected so we need not test them. */
-     filter_to_do &= ~(PNG_FILTER_UP | PNG_FILTER_PAETH);
-  }
-#endif
 
    /* Find out how many bytes offset each pixel is */
    bpp = (row_info->pixel_depth + 7) >> 3;
@@ -2578,44 +2571,6 @@ png_write_find_filter(png_structp png_ptr, png_row_infop row_info)
          sum += (v < 128) ? v : 256 - v;
       }
 
-#ifdef PNG_WRITE_WEIGHTED_FILTER_SUPPORTED
-      if (png_ptr->heuristic_method == PNG_FILTER_HEURISTIC_WEIGHTED)
-      {
-         png_uint_32 sumhi, sumlo;
-         int j;
-         sumlo = sum & PNG_LOMASK;
-         sumhi = (sum >> PNG_HISHIFT) & PNG_HIMASK; /* Gives us some footroom */
-
-         /* Reduce the sum if we match any of the previous rows */
-         for (j = 0; j < num_p_filters; j++)
-         {
-            if (png_ptr->prev_filters[j] == PNG_FILTER_VALUE_NONE)
-            {
-               sumlo = (sumlo * png_ptr->filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-
-               sumhi = (sumhi * png_ptr->filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-            }
-         }
-
-         /* Factor in the cost of this filter (this is here for completeness,
-          * but it makes no sense to have a "cost" for the NONE filter, as
-          * it has the minimum possible computational cost - none).
-          */
-         sumlo = (sumlo * png_ptr->filter_costs[PNG_FILTER_VALUE_NONE]) >>
-             PNG_COST_SHIFT;
-
-         sumhi = (sumhi * png_ptr->filter_costs[PNG_FILTER_VALUE_NONE]) >>
-             PNG_COST_SHIFT;
-
-         if (sumhi > PNG_HIMASK)
-            sum = PNG_MAXSUM;
-
-         else
-            sum = (sumhi << PNG_HISHIFT) + sumlo;
-      }
-#endif
       mins = sum;
    }
 
@@ -2648,44 +2603,6 @@ png_write_find_filter(png_structp png_ptr, png_row_infop row_info)
       png_size_t i;
       int v;
 
-#ifdef PNG_WRITE_WEIGHTED_FILTER_SUPPORTED
-      /* We temporarily increase the "minimum sum" by the factor we
-       * would reduce the sum of this filter, so that we can do the
-       * early exit comparison without scaling the sum each time.
-       */
-      if (png_ptr->heuristic_method == PNG_FILTER_HEURISTIC_WEIGHTED)
-      {
-         int j;
-         png_uint_32 lmhi, lmlo;
-         lmlo = lmins & PNG_LOMASK;
-         lmhi = (lmins >> PNG_HISHIFT) & PNG_HIMASK;
-
-         for (j = 0; j < num_p_filters; j++)
-         {
-            if (png_ptr->prev_filters[j] == PNG_FILTER_VALUE_SUB)
-            {
-               lmlo = (lmlo * png_ptr->inv_filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-
-               lmhi = (lmhi * png_ptr->inv_filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-            }
-         }
-
-         lmlo = (lmlo * png_ptr->inv_filter_costs[PNG_FILTER_VALUE_SUB]) >>
-             PNG_COST_SHIFT;
-
-         lmhi = (lmhi * png_ptr->inv_filter_costs[PNG_FILTER_VALUE_SUB]) >>
-             PNG_COST_SHIFT;
-
-         if (lmhi > PNG_HIMASK)
-            lmins = PNG_MAXSUM;
-
-         else
-            lmins = (lmhi << PNG_HISHIFT) + lmlo;
-      }
-#endif
-
       for (i = 0, rp = row_buf + 1, dp = png_ptr->sub_row + 1; i < bpp;
            i++, rp++, dp++)
       {
@@ -2704,40 +2621,6 @@ png_write_find_filter(png_structp png_ptr, png_row_infop row_info)
          if (sum > lmins)  /* We are already worse, don't continue. */
             break;
       }
-
-#ifdef PNG_WRITE_WEIGHTED_FILTER_SUPPORTED
-      if (png_ptr->heuristic_method == PNG_FILTER_HEURISTIC_WEIGHTED)
-      {
-         int j;
-         png_uint_32 sumhi, sumlo;
-         sumlo = sum & PNG_LOMASK;
-         sumhi = (sum >> PNG_HISHIFT) & PNG_HIMASK;
-
-         for (j = 0; j < num_p_filters; j++)
-         {
-            if (png_ptr->prev_filters[j] == PNG_FILTER_VALUE_SUB)
-            {
-               sumlo = (sumlo * png_ptr->inv_filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-
-               sumhi = (sumhi * png_ptr->inv_filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-            }
-         }
-
-         sumlo = (sumlo * png_ptr->inv_filter_costs[PNG_FILTER_VALUE_SUB]) >>
-             PNG_COST_SHIFT;
-
-         sumhi = (sumhi * png_ptr->inv_filter_costs[PNG_FILTER_VALUE_SUB]) >>
-             PNG_COST_SHIFT;
-
-         if (sumhi > PNG_HIMASK)
-            sum = PNG_MAXSUM;
-
-         else
-            sum = (sumhi << PNG_HISHIFT) + sumlo;
-      }
-#endif
 
       if (sum < mins)
       {
@@ -2769,41 +2652,6 @@ png_write_find_filter(png_structp png_ptr, png_row_infop row_info)
       png_size_t i;
       int v;
 
-
-#ifdef PNG_WRITE_WEIGHTED_FILTER_SUPPORTED
-      if (png_ptr->heuristic_method == PNG_FILTER_HEURISTIC_WEIGHTED)
-      {
-         int j;
-         png_uint_32 lmhi, lmlo;
-         lmlo = lmins & PNG_LOMASK;
-         lmhi = (lmins >> PNG_HISHIFT) & PNG_HIMASK;
-
-         for (j = 0; j < num_p_filters; j++)
-         {
-            if (png_ptr->prev_filters[j] == PNG_FILTER_VALUE_UP)
-            {
-               lmlo = (lmlo * png_ptr->inv_filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-
-               lmhi = (lmhi * png_ptr->inv_filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-            }
-         }
-
-         lmlo = (lmlo * png_ptr->inv_filter_costs[PNG_FILTER_VALUE_UP]) >>
-             PNG_COST_SHIFT;
-
-         lmhi = (lmhi * png_ptr->inv_filter_costs[PNG_FILTER_VALUE_UP]) >>
-             PNG_COST_SHIFT;
-
-         if (lmhi > PNG_HIMASK)
-            lmins = PNG_MAXSUM;
-
-         else
-            lmins = (lmhi << PNG_HISHIFT) + lmlo;
-      }
-#endif
-
       for (i = 0, rp = row_buf + 1, dp = png_ptr->up_row + 1,
           pp = prev_row + 1; i < row_bytes; i++)
       {
@@ -2814,40 +2662,6 @@ png_write_find_filter(png_structp png_ptr, png_row_infop row_info)
          if (sum > lmins)  /* We are already worse, don't continue. */
             break;
       }
-
-#ifdef PNG_WRITE_WEIGHTED_FILTER_SUPPORTED
-      if (png_ptr->heuristic_method == PNG_FILTER_HEURISTIC_WEIGHTED)
-      {
-         int j;
-         png_uint_32 sumhi, sumlo;
-         sumlo = sum & PNG_LOMASK;
-         sumhi = (sum >> PNG_HISHIFT) & PNG_HIMASK;
-
-         for (j = 0; j < num_p_filters; j++)
-         {
-            if (png_ptr->prev_filters[j] == PNG_FILTER_VALUE_UP)
-            {
-               sumlo = (sumlo * png_ptr->filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-
-               sumhi = (sumhi * png_ptr->filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-            }
-         }
-
-         sumlo = (sumlo * png_ptr->filter_costs[PNG_FILTER_VALUE_UP]) >>
-             PNG_COST_SHIFT;
-
-         sumhi = (sumhi * png_ptr->filter_costs[PNG_FILTER_VALUE_UP]) >>
-             PNG_COST_SHIFT;
-
-         if (sumhi > PNG_HIMASK)
-            sum = PNG_MAXSUM;
-
-         else
-            sum = (sumhi << PNG_HISHIFT) + sumlo;
-      }
-#endif
 
       if (sum < mins)
       {
@@ -2883,40 +2697,6 @@ png_write_find_filter(png_structp png_ptr, png_row_infop row_info)
       png_size_t i;
       int v;
 
-#ifdef PNG_WRITE_WEIGHTED_FILTER_SUPPORTED
-      if (png_ptr->heuristic_method == PNG_FILTER_HEURISTIC_WEIGHTED)
-      {
-         int j;
-         png_uint_32 lmhi, lmlo;
-         lmlo = lmins & PNG_LOMASK;
-         lmhi = (lmins >> PNG_HISHIFT) & PNG_HIMASK;
-
-         for (j = 0; j < num_p_filters; j++)
-         {
-            if (png_ptr->prev_filters[j] == PNG_FILTER_VALUE_AVG)
-            {
-               lmlo = (lmlo * png_ptr->inv_filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-
-               lmhi = (lmhi * png_ptr->inv_filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-            }
-         }
-
-         lmlo = (lmlo * png_ptr->inv_filter_costs[PNG_FILTER_VALUE_AVG]) >>
-             PNG_COST_SHIFT;
-
-         lmhi = (lmhi * png_ptr->inv_filter_costs[PNG_FILTER_VALUE_AVG]) >>
-             PNG_COST_SHIFT;
-
-         if (lmhi > PNG_HIMASK)
-            lmins = PNG_MAXSUM;
-
-         else
-            lmins = (lmhi << PNG_HISHIFT) + lmlo;
-      }
-#endif
-
       for (i = 0, rp = row_buf + 1, dp = png_ptr->avg_row + 1,
            pp = prev_row + 1; i < bpp; i++)
       {
@@ -2935,40 +2715,6 @@ png_write_find_filter(png_structp png_ptr, png_row_infop row_info)
          if (sum > lmins)  /* We are already worse, don't continue. */
             break;
       }
-
-#ifdef PNG_WRITE_WEIGHTED_FILTER_SUPPORTED
-      if (png_ptr->heuristic_method == PNG_FILTER_HEURISTIC_WEIGHTED)
-      {
-         int j;
-         png_uint_32 sumhi, sumlo;
-         sumlo = sum & PNG_LOMASK;
-         sumhi = (sum >> PNG_HISHIFT) & PNG_HIMASK;
-
-         for (j = 0; j < num_p_filters; j++)
-         {
-            if (png_ptr->prev_filters[j] == PNG_FILTER_VALUE_NONE)
-            {
-               sumlo = (sumlo * png_ptr->filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-
-               sumhi = (sumhi * png_ptr->filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-            }
-         }
-
-         sumlo = (sumlo * png_ptr->filter_costs[PNG_FILTER_VALUE_AVG]) >>
-             PNG_COST_SHIFT;
-
-         sumhi = (sumhi * png_ptr->filter_costs[PNG_FILTER_VALUE_AVG]) >>
-             PNG_COST_SHIFT;
-
-         if (sumhi > PNG_HIMASK)
-            sum = PNG_MAXSUM;
-
-         else
-            sum = (sumhi << PNG_HISHIFT) + sumlo;
-      }
-#endif
 
       if (sum < mins)
       {
@@ -3024,40 +2770,6 @@ png_write_find_filter(png_structp png_ptr, png_row_infop row_info)
       png_size_t i;
       int v;
 
-#ifdef PNG_WRITE_WEIGHTED_FILTER_SUPPORTED
-      if (png_ptr->heuristic_method == PNG_FILTER_HEURISTIC_WEIGHTED)
-      {
-         int j;
-         png_uint_32 lmhi, lmlo;
-         lmlo = lmins & PNG_LOMASK;
-         lmhi = (lmins >> PNG_HISHIFT) & PNG_HIMASK;
-
-         for (j = 0; j < num_p_filters; j++)
-         {
-            if (png_ptr->prev_filters[j] == PNG_FILTER_VALUE_PAETH)
-            {
-               lmlo = (lmlo * png_ptr->inv_filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-
-               lmhi = (lmhi * png_ptr->inv_filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-            }
-         }
-
-         lmlo = (lmlo * png_ptr->inv_filter_costs[PNG_FILTER_VALUE_PAETH]) >>
-             PNG_COST_SHIFT;
-
-         lmhi = (lmhi * png_ptr->inv_filter_costs[PNG_FILTER_VALUE_PAETH]) >>
-             PNG_COST_SHIFT;
-
-         if (lmhi > PNG_HIMASK)
-            lmins = PNG_MAXSUM;
-
-         else
-            lmins = (lmhi << PNG_HISHIFT) + lmlo;
-      }
-#endif
-
       for (i = 0, rp = row_buf + 1, dp = png_ptr->paeth_row + 1,
           pp = prev_row + 1; i < bpp; i++)
       {
@@ -3111,40 +2823,6 @@ png_write_find_filter(png_structp png_ptr, png_row_infop row_info)
             break;
       }
 
-#ifdef PNG_WRITE_WEIGHTED_FILTER_SUPPORTED
-      if (png_ptr->heuristic_method == PNG_FILTER_HEURISTIC_WEIGHTED)
-      {
-         int j;
-         png_uint_32 sumhi, sumlo;
-         sumlo = sum & PNG_LOMASK;
-         sumhi = (sum >> PNG_HISHIFT) & PNG_HIMASK;
-
-         for (j = 0; j < num_p_filters; j++)
-         {
-            if (png_ptr->prev_filters[j] == PNG_FILTER_VALUE_PAETH)
-            {
-               sumlo = (sumlo * png_ptr->filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-
-               sumhi = (sumhi * png_ptr->filter_weights[j]) >>
-                   PNG_WEIGHT_SHIFT;
-            }
-         }
-
-         sumlo = (sumlo * png_ptr->filter_costs[PNG_FILTER_VALUE_PAETH]) >>
-             PNG_COST_SHIFT;
-
-         sumhi = (sumhi * png_ptr->filter_costs[PNG_FILTER_VALUE_PAETH]) >>
-             PNG_COST_SHIFT;
-
-         if (sumhi > PNG_HIMASK)
-            sum = PNG_MAXSUM;
-
-         else
-            sum = (sumhi << PNG_HISHIFT) + sumlo;
-      }
-#endif
-
       if (sum < mins)
       {
          best_row = png_ptr->paeth_row;
@@ -3154,25 +2832,7 @@ png_write_find_filter(png_structp png_ptr, png_row_infop row_info)
 
    /* Do the actual writing of the filtered row data from the chosen filter. */
    png_write_filtered_row(png_ptr, best_row, row_info->rowbytes+1);
-
-#ifdef PNG_WRITE_FILTER_SUPPORTED
-#ifdef PNG_WRITE_WEIGHTED_FILTER_SUPPORTED
-   /* Save the type of filter we picked this time for future calculations */
-   if (png_ptr->num_prev_filters > 0)
-   {
-      int j;
-
-      for (j = 1; j < num_p_filters; j++)
-      {
-         png_ptr->prev_filters[j] = png_ptr->prev_filters[j - 1];
-      }
-
-      png_ptr->prev_filters[j] = best_row[0];
-   }
-#endif
-#endif /* PNG_WRITE_FILTER_SUPPORTED */
 }
-
 
 /* Do the actual writing of a previously filtered row. */
 static void

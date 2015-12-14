@@ -175,7 +175,7 @@ let NetMonitorView = {
    * @param string aId
    *        The id of the editor placeholder node.
    * @return object
-   *         A Promise that is resolved when the editor is available.
+   *         A promise that is resolved when the editor is available.
    */
   editor: function(aId) {
     dumpn("Getting a NetMonitorView editor: " + aId);
@@ -184,7 +184,7 @@ let NetMonitorView = {
       return this._editorPromises.get(aId);
     }
 
-    let deferred = Promise.defer();
+    let deferred = promise.defer();
     this._editorPromises.set(aId, deferred.promise);
 
     // Initialize the source editor and store the newly created instance

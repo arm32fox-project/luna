@@ -426,24 +426,6 @@ Section "Uninstall"
   ; clients registry key by the OS under some conditions.
   System::Call "shell32::SHChangeNotify(i ${SHCNE_ASSOCCHANGED}, i 0, i 0, i 0)"
 
-!ifdef MOZ_MAINTENANCE_SERVICE
-  ; Get the path the allowed cert is at and remove it
-  ; Keep this block of code last since it modfies the reg view
-  ServicesHelper::PathToUniqueRegistryPath "$INSTDIR"
-  Pop $MaintCertKey
-  ${If} $MaintCertKey != ""
-    ; We always use the 64bit registry for certs
-    ${If} ${RunningX64}
-      SetRegView 64
-    ${EndIf}
-    DeleteRegKey HKLM "$MaintCertKey"
-    ${If} ${RunningX64}
-      SetRegView lastused
-    ${EndIf}
-  ${EndIf}
-  Call un.UninstallServiceIfNotUsed
-!endif
-
 SectionEnd
 
 ################################################################################

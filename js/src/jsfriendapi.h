@@ -854,8 +854,9 @@ GetEnterCompartmentDepth(JSContext* cx);
 
 /* Implemented in jswrapper.cpp. */
 typedef enum NukeReferencesToWindow {
-    NukeWindowReferences,
-    DontNukeWindowReferences
+    NukeWindowReferences = 0,
+    DontNukeWindowReferences,
+    NUM_NukeReferencesToWindow
 } NukeReferencesToWindow;
 
 /*

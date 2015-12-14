@@ -28,6 +28,8 @@ class DocumentFragment : public FragmentOrElement,
 {
 public:
   using FragmentOrElement::GetFirstChild;
+  // Make sure bindings can see our superclass' protected GetElementById method.
+  using nsINode::GetElementById;
 
   // nsISupports
   NS_DECL_ISUPPORTS_INHERITED

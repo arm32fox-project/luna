@@ -32,7 +32,6 @@ import os
 from StringIO import StringIO
 import subprocess
 import platform
-import sys
 
 # List of libraries to shlibsign.
 SIGN_LIBS = [
@@ -350,24 +349,23 @@ def main():
             if key in log:
                 f.preload(log[key])
 
-    # Fill startup cache on Windows and Linux only
-    # (this currently causes build failure on BSD, so skip on that platfom)
-    if sys.platform == 'win32' or sys.platform.startswith ('linux'):
-      if isinstance(formatter, OmniJarFormatter) and launcher.can_launch():
-          if buildconfig.substs['LIBXUL_SDK']:
-              gre_path = mozpack.path.join(buildconfig.substs['LIBXUL_DIST'],
-                                           'bin')
-          else:
-              gre_path = None
-          for base in sorted([[p for p in [mozpack.path.join('bin', b), b]
-                              if os.path.exists(os.path.join(args.source, p))][0]
-                             for b in sink.packager.get_bases()]):
-              if not gre_path:
-                  gre_path = base
-              base_path = sink.normalize_path(base)
-              if base_path in formatter.omnijars:
-                  precompile_cache(formatter.omnijars[base_path],
-                                   args.source, gre_path, base)
+    # Fill startup cache
+    if isinstance(formatter, OmniJarFormatter) and launcher.can_launch() \
+	  and buildconfig.substs['MOZ_DISABLE_PRECOMPILED_STARTUPCACHE'] != '1':
+        if buildconfig.substs['LIBXUL_SDK']:
+            gre_path = mozpack.path.join(buildconfig.substs['LIBXUL_DIST'],
+                                         'bin')
+        else:
+            gre_path = None
+        for base in sorted([[p for p in [mozpack.path.join('bin', b), b]
+                            if os.path.exists(os.path.join(args.source, p))][0]
+                           for b in sink.packager.get_bases()]):
+            if not gre_path:
+                gre_path = base
+            base_path = sink.normalize_path(base)
+            if base_path in formatter.omnijars:
+                precompile_cache(formatter.omnijars[base_path],
+                                 args.source, gre_path, base)
 
     copier.copy(args.destination)
     generate_precomplete(os.path.normpath(os.path.join(args.destination,

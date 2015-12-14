@@ -3,7 +3,20 @@
     <script type="text/javascript" src="/tests/SimpleTest/EventUtils.js"></script>
     <script src="NavigationUtils.js"></script>
     <script>
+
+    function setXss(value) {        
+        netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+        var prefService = Components.classes["@mozilla.org/preferences-service;1"]
+	  .getService(Components.interfaces.nsIPrefService);
+        var xssBranch = prefService.getBranch("security.xssfilter.");
+        originalValue = xssBranch.getBoolPref("enable");
+        xssBranch.setBoolPref("enable", value);
+    }
+
     function navigate() {
+        // some tests using this page will trigger an xss violation
+        setXss(false);
+
         var arguments = window.location.hash.substring(1).split(",");
         var target = arguments[0];
         var mechanism = arguments[1];
@@ -22,6 +35,9 @@
           navigateByHyperlink(target);
           break;
         }
+
+        setXss(true);
+
     }
     </script>
 </head>

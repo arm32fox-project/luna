@@ -239,8 +239,6 @@ namespace detail {
 #if !__has_builtin(__builtin_ctz) || !__has_builtin(__builtin_clz)
 #error "A clang providing __builtin_clz and __builtin_ctz is required to build"
 #endif
-#else
-     // gcc has had builtin clz and friends since v3.4: no need to check.
 #endif
 
   inline uint_fast8_t

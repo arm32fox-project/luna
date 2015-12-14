@@ -6,9 +6,6 @@
 
 DIRS += ['config']
 
-if CONFIG['DEHYDRA_PATH']:
-    DIRS += ['analysis-tests']
-
 if CONFIG['JS_NATIVE_EDITLINE']:
     DIRS += ['editline']
 

@@ -452,11 +452,25 @@ nsDOMMutationObserver::Observe(nsINode& aTarget,
                                mozilla::ErrorResult& aRv)
 {
 
-  if (!(aOptions.mChildList || aOptions.mAttributes || aOptions.mCharacterData)) {
+  bool hasAttributesOption = aOptions.mAttributes.WasPassed();
+  // default value for `attributes` is `false`
+  bool attributesVal = (hasAttributesOption ? aOptions.mAttributes.Value() : false);
+
+  // if `attributes` was not set, but `attributeFilter` is set, assume `attributes:true`
+  if (!hasAttributesOption && aOptions.mAttributeFilter.WasPassed()) {
+    attributesVal = true; // change default value to `true`
+    // show warning
+    if (aTarget.OwnerDoc()) {
+      aTarget.OwnerDoc()->WarnOnceAbout(
+        nsIDocument::eMutationObserverAttrFilterWithoutAttr);
+    }
+  }
+
+  if (!(aOptions.mChildList || attributesVal || aOptions.mCharacterData)) {
     aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
     return;
   }
-  if (aOptions.mAttributeOldValue && !aOptions.mAttributes) {
+  if (aOptions.mAttributeOldValue && !attributesVal) {
     aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
     return;
   }
@@ -473,10 +487,6 @@ nsDOMMutationObserver::Observe(nsINode& aTarget,
       aOptions.mAttributeFilter.Value();
     uint32_t len = filtersAsString.Length();
 
-    if (len != 0 && !aOptions.mAttributes) {
-      aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
-      return;
-    }
     filters.SetCapacity(len);
 
     for (uint32_t i = 0; i < len; ++i) {
@@ -487,7 +497,7 @@ nsDOMMutationObserver::Observe(nsINode& aTarget,
 
   nsMutationReceiver* r = GetReceiverFor(&aTarget, true);
   r->SetChildList(aOptions.mChildList);
-  r->SetAttributes(aOptions.mAttributes);
+  r->SetAttributes(attributesVal);
   r->SetCharacterData(aOptions.mCharacterData);
   r->SetSubtree(aOptions.mSubtree);
   r->SetAttributeOldValue(aOptions.mAttributeOldValue);

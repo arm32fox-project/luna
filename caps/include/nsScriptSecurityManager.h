@@ -20,6 +20,8 @@
 #include "pldhash.h"
 #include "plstr.h"
 #include "nsIScriptExternalNameSet.h"
+#include "nsXSSFilter.h"
+
 
 #include "mozilla/StandardInteger.h"
 
@@ -379,6 +381,9 @@ private:
     // Decides, based on CSP, whether or not eval() and stuff can be executed.
     static JSBool
     ContentSecurityPolicyPermitsJSAction(JSContext *cx);
+
+    static JSBool
+    XSSFilterPermitsJSAction(JSContext *cx, JSString *str);
 
     // Returns null if a principal cannot be found; generally callers
     // should error out at that point.

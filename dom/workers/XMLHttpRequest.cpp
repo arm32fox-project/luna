@@ -526,6 +526,7 @@ class EventRunnable : public MainThreadProxyRunnable
   nsTArray<nsCOMPtr<nsISupports> > mClonedObjects;
   jsval mResponse;
   nsString mResponseText;
+  nsString mResponseURL;
   nsCString mStatusText;
   uint64_t mLoaded;
   uint64_t mTotal;
@@ -607,6 +608,8 @@ public:
     xhr->GetStatusText(mStatusText);
 
     mReadyState = xhr->ReadyState();
+
+    xhr->GetResponseURL(mResponseURL);
 
     return true;
   }
@@ -717,6 +720,8 @@ public:
     state.mStatusText = mStatusText;
 
     state.mReadyState = mReadyState;
+
+    state.mResponseURL = mResponseURL;
 
     XMLHttpRequest* xhr = mProxy->mXMLHttpRequestPrivate;
     xhr->UpdateState(state);
