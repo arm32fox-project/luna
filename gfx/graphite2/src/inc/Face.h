@@ -34,6 +34,7 @@ of the License or (at your option) any later version.
 #include "inc/FeatureMap.h"
 #include "inc/TtfUtil.h"
 #include "inc/Silf.h"
+#include "inc/Error.h"
 
 namespace graphite2 {
 
@@ -42,6 +43,7 @@ class FileFace;
 class GlyphCache;
 class NameTable;
 class json;
+class Font;
 
 
 using TtfUtil::Tag;
@@ -55,7 +57,7 @@ class Face
     Face& operator=(const Face&);
 
 public:
-	class Table;
+    class Table;
     static float default_glyph_advance(const void* face_ptr, gr_uint16 glyphid);
 
     Face(const void* appFaceHandle/*non-NULL*/, const gr_face_ops & ops);
@@ -88,6 +90,12 @@ public:
     uint16 getGlyphMetric(uint16 gid, uint8 metric) const;
     uint16 findPseudo(uint32 uid) const;
 
+    // Errors
+    unsigned int        error() const { return m_error; }
+    bool                error(Error e) { m_error = e.error(); return false; }
+    unsigned int        error_context() const { return m_error; }
+    void                error_context(unsigned int errcntxt) { m_errcntxt = errcntxt; }
+
     CLASS_NEW_DELETE;
 private:
     SillMap                 m_Sill;
@@ -98,12 +106,18 @@ private:
     mutable Cmap          * m_cmap;             // cmap cache if available
     mutable NameTable     * m_pNames;
     mutable json          * m_logger;
+    unsigned int            m_error;
+    unsigned int            m_errcntxt;
 protected:
     Silf                  * m_silfs;    // silf subtables.
     uint16                  m_numSilf;  // num silf subtables in the silf table
 private:
     uint16 m_ascent,
            m_descent;
+#ifdef GRAPHITE2_TELEMETRY
+public:
+    mutable telemetry   tele;
+#endif
 };
 
 
@@ -135,7 +149,7 @@ const FeatureRef *Face::feature(uint16 index) const
 inline
 const GlyphCache & Face::glyphs() const
 {
-	return *m_pGlyphFaceCache;
+    return *m_pGlyphFaceCache;
 }
 
 inline
@@ -157,10 +171,15 @@ class Face::Table
     const Face *            _f;
     mutable const byte *    _p;
     uint32                  _sz;
+    bool                    _compressed;
+
+    Error decompress();
+
+    void releaseBuffers();
 
 public:
     Table() throw();
-    Table(const Face & face, const Tag n) throw();
+    Table(const Face & face, const Tag n, uint32 version=0xffffffff) throw();
     Table(const Table & rhs) throw();
     ~Table() throw();
 
@@ -172,34 +191,33 @@ public:
 
 inline
 Face::Table::Table() throw()
-: _f(0), _p(0), _sz(0)
+: _f(0), _p(0), _sz(0), _compressed(false)
 {
 }
 
 inline
 Face::Table::Table(const Table & rhs) throw()
-: _f(rhs._f), _p(rhs._p), _sz(rhs._sz)
+: _f(rhs._f), _p(rhs._p), _sz(rhs._sz), _compressed(rhs._compressed)
 {
-	rhs._p = 0;
+    rhs._p = 0;
 }
 
 inline
 Face::Table::~Table() throw()
 {
-	if (_p && _f->m_ops.release_table)
-		(*_f->m_ops.release_table)(_f->m_appFaceHandle, _p);
+    releaseBuffers();
 }
 
 inline
 Face::Table::operator const byte * () const throw()
 {
-	return _p;
+    return _p;
 }
 
 inline
-size_t 	Face::Table::size() const throw()
+size_t  Face::Table::size() const throw()
 {
-	return _sz;
+    return _sz;
 }
 
 } // namespace graphite2

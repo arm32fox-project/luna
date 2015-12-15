@@ -1,0 +1,12 @@
+This directory contains the Graphite2 library from https://github.com/silnrsi/graphite/
+
+Current version derived from upstream release version 1.3.4
+
+
+Note about updating:
+The .sh script in this directory is defunct, but kept in place as a guide to follow manually.
+
+Most notably:
+  * <cstdio> needs to be replaced with <stdio.h> in *.cpp/*.h #includes
+  * Windows.h needs to be replaced with windows.h (caps) -- currently not an issue.
+  
