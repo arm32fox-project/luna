@@ -1481,7 +1481,6 @@ gfxContext::Mask(gfxASurface *surface, float alpha, const gfxPoint& offset)
     // We clip here to bind to the mask surface bounds, see above.
     mDT->MaskSurface(GeneralPattern(this), 
               sourceSurf,
-              1.0f,
               Point(offset.x - pt.x, offset.y -  pt.y),
               DrawOptions(alpha, CurrentState().op, CurrentState().aaMode));
               
