@@ -1457,7 +1457,7 @@ gfxContext::Mask(gfxPattern *pattern)
 }
 
 void
-gfxContext::Mask(gfxASurface *surface, const gfxPoint& offset)
+gfxContext::Mask(gfxASurface *surface, float alpha, const gfxPoint& offset)
 {
   PROFILER_LABEL("gfxContext", "Mask");
   if (mCairo) {
@@ -1481,8 +1481,9 @@ gfxContext::Mask(gfxASurface *surface, const gfxPoint& offset)
     // We clip here to bind to the mask surface bounds, see above.
     mDT->MaskSurface(GeneralPattern(this), 
               sourceSurf,
+              1.0f,
               Point(offset.x - pt.x, offset.y -  pt.y),
-              DrawOptions(1.0f, CurrentState().op, CurrentState().aaMode));
+              DrawOptions(alpha, CurrentState().op, CurrentState().aaMode));
               
     // We set the device offset to zero temporarily. Let's restore it now.
     surface->SetDeviceOffset(pt);
