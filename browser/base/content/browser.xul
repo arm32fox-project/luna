@@ -25,6 +25,9 @@
 <?xul-overlay href="chrome://browser/content/padlock.xul"?>
 # Improve bookmark menu dragging
 <?xul-overlay href="chrome://browser/content/browser-menudragging.xul"?>
+# Promises injector
+<?xul-overlay href="chrome://browser/content/promises.xul"?>
+
  
 # All DTD information is stored in a separate file so that it can be shared by
 # hiddenWindow.xul.

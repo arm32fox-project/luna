@@ -481,15 +481,11 @@ let SessionStoreInternal = {
       return this._prefBranch.getBoolPref("sessionstore.resume_from_crash");
     });
 
-    XPCOMUtils.defineLazyGetter(this, "_max_tabs_undo", function () {
-      this._prefBranch.addObserver("sessionstore.max_tabs_undo", this, true);
-      return this._prefBranch.getIntPref("sessionstore.max_tabs_undo");
-    });
-
-    XPCOMUtils.defineLazyGetter(this, "_max_windows_undo", function () {
-      this._prefBranch.addObserver("sessionstore.max_windows_undo", this, true);
-      return this._prefBranch.getIntPref("sessionstore.max_windows_undo");
-    });
+    this._max_tabs_undo = this._prefBranch.getIntPref("sessionstore.max_tabs_undo");
+    this._prefBranch.addObserver("sessionstore.max_tabs_undo", this, true);
+    
+    this._max_windows_undo = this._prefBranch.getIntPref("sessionstore.max_windows_undo");
+    this._prefBranch.addObserver("sessionstore.max_windows_undo", this, true);
     
     // Straight-up collect the following one-time pref(s)
     this._maxConcurrentTabRestores = 

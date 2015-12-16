@@ -2,6 +2,15 @@
 <head>
 </head>
 <script type="text/javascript">
+// some tests using this page will trigger an xss violation
+netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+var prefService = Components.classes["@mozilla.org/preferences-service;1"]
+  .getService(Components.interfaces.nsIPrefService);
+var cspBranch = prefService.getBranch("security.xssfilter.");
+cspBranch.setBoolPref("enabled", false);
+</script>
+
+<script type="text/javascript">
 function doTest()
 {
   var query = location.search.substring(1);
@@ -20,6 +29,11 @@ function doTest()
 
   parent.SimpleTest.finish();
   localStorage.clear();
+  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
+  var prefService = Components.classes["@mozilla.org/preferences-service;1"]
+    .getService(Components.interfaces.nsIPrefService);
+  var cspBranch = prefService.getBranch("security.xssfilter.");
+  cspBranch.setBoolPref("enabled", true);
 }
 </script>
 <body onload="doTest();">

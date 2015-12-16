@@ -28,6 +28,7 @@ of the License or (at your option) any later version.
 #include "graphite2/Segment.h"
 #include "inc/CmapCache.h"
 #include "inc/debug.h"
+#include "inc/Decompressor.h"
 #include "inc/Endian.h"
 #include "inc/Face.h"
 #include "inc/FileFace.h"
@@ -36,9 +37,19 @@ of the License or (at your option) any later version.
 #include "inc/SegCacheStore.h"
 #include "inc/Segment.h"
 #include "inc/NameTable.h"
-
+#include "inc/Error.h"
 
 using namespace graphite2;
+
+namespace
+{
+enum compression
+{
+    NONE,
+    LZ4
+};
+
+}
 
 Face::Face(const void* appFaceHandle/*non-NULL*/, const gr_face_ops & ops)
 : m_appFaceHandle(appFaceHandle),
@@ -47,6 +58,7 @@ Face::Face(const void* appFaceHandle/*non-NULL*/, const gr_face_ops & ops)
   m_cmap(NULL),
   m_pNames(NULL),
   m_logger(NULL),
+  m_error(0), m_errcntxt(0),
   m_silfs(NULL),
   m_numSilf(0),
   m_ascent(0),
@@ -78,17 +90,26 @@ float Face::default_glyph_advance(const void* font_ptr, gr_uint16 glyphid)
 
 bool Face::readGlyphs(uint32 faceOptions)
 {
-    if (faceOptions & gr_face_cacheCmap)
-    	m_cmap = new CachedCmap(*this);
-    else
-    	m_cmap = new DirectCmap(*this);
-
+    Error e;
+#ifdef GRAPHITE2_TELEMETRY
+    telemetry::category _glyph_cat(tele.glyph);
+#endif
+    error_context(EC_READGLYPHS);
     m_pGlyphFaceCache = new GlyphCache(*this, faceOptions);
-    if (!m_pGlyphFaceCache
-        || m_pGlyphFaceCache->numGlyphs() == 0
-        || m_pGlyphFaceCache->unitsPerEm() == 0
-    	|| !m_cmap || !*m_cmap)
-    	return false;
+
+    if (e.test(!m_pGlyphFaceCache, E_OUTOFMEM)
+        || e.test(m_pGlyphFaceCache->numGlyphs() == 0, E_NOGLYPHS)
+        || e.test(m_pGlyphFaceCache->unitsPerEm() == 0, E_BADUPEM))
+    {
+        return error(e);
+    }
+
+    if (faceOptions & gr_face_cacheCmap)
+        m_cmap = new CachedCmap(*this);
+    else
+        m_cmap = new DirectCmap(*this);
+    if (e.test(!m_cmap, E_OUTOFMEM) || e.test(!*m_cmap, E_BADCMAP))
+        return error(e);
 
     if (faceOptions & gr_face_preloadGlyphs)
         nameTable();        // preload the name table along with the glyphs.
@@ -98,24 +119,32 @@ bool Face::readGlyphs(uint32 faceOptions)
 
 bool Face::readGraphite(const Table & silf)
 {
+#ifdef GRAPHITE2_TELEMETRY
+    telemetry::category _silf_cat(tele.silf);
+#endif
+    Error e;
+    error_context(EC_READSILF);
     const byte * p = silf;
-    if (!p) return false;
+    if (e.test(!p, E_NOSILF) || e.test(silf.size() < 20, E_BADSIZE)) return error(e);
 
     const uint32 version = be::read<uint32>(p);
-    if (version < 0x00020000) return false;
+    if (e.test(version < 0x00020000, E_TOOOLD)) return error(e);
     if (version >= 0x00030000)
-    	be::skip<uint32>(p);		// compilerVersion
+        be::skip<uint32>(p);        // compilerVersion
     m_numSilf = be::read<uint16>(p);
-    be::skip<uint16>(p);			// reserved
+
+    be::skip<uint16>(p);            // reserved
 
     bool havePasses = false;
     m_silfs = new Silf[m_numSilf];
+    if (e.test(!m_silfs, E_OUTOFMEM)) return error(e);
     for (int i = 0; i < m_numSilf; i++)
     {
+        error_context(EC_ASILF + (i << 8));
         const uint32 offset = be::read<uint32>(p),
-        			 next   = i == m_numSilf - 1 ? silf.size() : be::peek<uint32>(p);
-        if (next > silf.size() || offset >= next)
-            return false;
+                     next   = i == m_numSilf - 1 ? silf.size() : be::peek<uint32>(p);
+        if (e.test(next > silf.size() || offset >= next, E_BADSIZE))
+            return error(e);
 
         if (!m_silfs[i].readGraphite(silf + offset, next - offset, *this, version))
             return false;
@@ -138,33 +167,43 @@ bool Face::runGraphite(Segment *seg, const Silf *aSilf) const
     json * dbgout = logger();
     if (dbgout)
     {
-    	*dbgout << json::object
-    				<< "id"			<< objectid(seg)
-    				<< "passes"		<< json::array;
+        *dbgout << json::object
+                    << "id"         << objectid(seg)
+                    << "passes"     << json::array;
     }
 #endif
 
-    bool res = aSilf->runGraphite(seg, 0, aSilf->justificationPass());
+//    if ((seg->dir() & 1) != aSilf->dir())
+//        seg->reverseSlots();
+    if ((seg->dir() & 3) == 3 && aSilf->bidiPass() == 0xFF)
+        seg->doMirror(aSilf->aMirror());
+    bool res = aSilf->runGraphite(seg, 0, aSilf->positionPass(), true);
     if (res)
-        res = aSilf->runGraphite(seg, aSilf->positionPass(), aSilf->numPasses());
+    {
+        seg->associateChars(0, seg->charInfoCount());
+        if (aSilf->flags() & 0x20)
+            res &= seg->initCollisions();
+        res &= aSilf->runGraphite(seg, aSilf->positionPass(), aSilf->numPasses(), false);
+    }
 
 #if !defined GRAPHITE2_NTRACING
-	if (dbgout)
+    if (dbgout)
 {
-		*dbgout 			<< json::item
-							<< json::close // Close up the passes array
-				<< "output" << json::array;
-		for(Slot * s = seg->first(); s; s = s->next())
-			*dbgout		<< dslot(seg, s);
-		seg->finalise(0);					// Call this here to fix up charinfo back indexes.
-		*dbgout			<< json::close
-				<< "advance" << seg->advance()
-				<< "chars"	 << json::array;
-		for(size_t i = 0, n = seg->charInfoCount(); i != n; ++i)
-			*dbgout 	<< json::flat << *seg->charinfo(i);
-		*dbgout			<< json::close	// Close up the chars array
-					<< json::close;		// Close up the segment object
-	}
+        seg->positionSlots(0, 0, 0, aSilf->dir());
+        *dbgout             << json::item
+                            << json::close // Close up the passes array
+                << "output" << json::array;
+        for(Slot * s = seg->first(); s; s = s->next())
+            *dbgout     << dslot(seg, s);
+        seg->finalise(0);                   // Call this here to fix up charinfo back indexes.
+        *dbgout         << json::close
+                << "advance" << seg->advance()
+                << "chars"   << json::array;
+        for(size_t i = 0, n = seg->charInfoCount(); i != n; ++i)
+            *dbgout     << json::flat << *seg->charinfo(i);
+        *dbgout         << json::close  // Close up the chars array
+                    << json::close;     // Close up the segment object
+    }
 #endif
 
     return res;
@@ -199,7 +238,9 @@ uint16 Face::getGlyphMetric(uint16 gid, uint8 metric) const
     {
         case kgmetAscent : return m_ascent;
         case kgmetDescent : return m_descent;
-        default: return glyphs().glyph(gid)->getMetric(metric);
+        default: 
+            if (gid > glyphs().numGlyphs()) return 0;
+            return glyphs().glyph(gid)->getMetric(metric);
     }
 }
 
@@ -231,17 +272,32 @@ uint16 Face::languageForLocale(const char * locale) const
     return 0;
 }
 
-Face::Table::Table(const Face & face, const Tag n) throw()
-: _f(&face)
+
+
+Face::Table::Table(const Face & face, const Tag n, uint32 version) throw()
+: _f(&face), _compressed(false)
 {
     size_t sz = 0;
-    _p = reinterpret_cast<const byte *>((*_f->m_ops.get_table)(_f->m_appFaceHandle, n, &sz));
+    _p = static_cast<const byte *>((*_f->m_ops.get_table)(_f->m_appFaceHandle, n, &sz));
     _sz = uint32(sz);
+
     if (!TtfUtil::CheckTable(n, _p, _sz))
     {
         this->~Table();     // Make sure we release the table buffer even if the table filed it's checks
-        _p = 0; _sz = 0;
+        return;
     }
+
+    if (be::peek<uint32>(_p) >= version)
+        decompress();
+}
+
+void Face::Table::releaseBuffers()
+{
+    if (_compressed)
+        free(const_cast<byte *>(_p));
+    else if (_p && _f->m_ops.release_table)
+        (*_f->m_ops.release_table)(_f->m_appFaceHandle, _p);
+    _p = 0; _sz = 0;
 }
 
 Face::Table & Face::Table::operator = (const Table & rhs) throw()
@@ -253,3 +309,58 @@ Face::Table & Face::Table::operator = (const Table & rhs) throw()
     return *this;
 }
 
+Error Face::Table::decompress()
+{
+    Error e;
+    if (e.test(_sz < 5 * sizeof(uint32), E_BADSIZE))
+        return e;
+    byte * uncompressed_table = 0;
+    size_t uncompressed_size = 0;
+
+    const byte * p = _p;
+    const uint32 version = be::read<uint32>(p);    // Table version number.
+
+    // The scheme is in the top 5 bits of the 1st uint32.
+    const uint32 hdr = be::read<uint32>(p);
+    switch(compression(hdr >> 27))
+    {
+    case NONE: return e;
+
+    case LZ4:
+    {
+        uncompressed_size  = hdr & 0x07ffffff;
+        uncompressed_table = gralloc<byte>(uncompressed_size);
+        if (!e.test(!uncompressed_table, E_OUTOFMEM))
+            // coverity[forward_null : FALSE] - uncompressed_table has been checked so can't be null
+            // coverity[checked_return : FALSE] - we test e later
+            e.test(lz4::decompress(p, _sz - 2*sizeof(uint32), uncompressed_table, uncompressed_size) != signed(uncompressed_size), E_SHRINKERFAILED);
+        break;
+    }
+
+    default:
+        e.error(E_BADSCHEME);
+    };
+
+    // Check the uncompressed version number against the original.
+    if (!e)
+        // coverity[forward_null : FALSE] - uncompressed_table has already been tested so can't be null
+        // coverity[checked_return : FALSE] - we test e later
+        e.test(be::peek<uint32>(uncompressed_table) != version, E_SHRINKERFAILED);
+
+    // Tell the provider to release the compressed form since were replacing
+    //   it anyway.
+    releaseBuffers();
+
+    if (e)
+    {
+        free(uncompressed_table);
+        uncompressed_table = 0;
+        uncompressed_size  = 0;
+    }
+
+    _p = uncompressed_table;
+    _sz = uncompressed_size;
+    _compressed = true;
+
+    return e;
+}

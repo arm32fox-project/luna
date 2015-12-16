@@ -162,6 +162,12 @@
           document.getElementById("errorTryAgain").style.display = "none";
         }
 
+        if (err == "xssBlockMode") {
+          // Remove the "Try again" button for XSS violations. We might instead consider
+          // putting a "Load Anyway" button.
+          document.getElementById("errorTryAgain").style.display = "none";
+        }
+
         if (err == "nssBadCert") {
           // Remove the "Try again" button for security exceptions, since it's
           // almost certainly useless.
@@ -296,6 +302,7 @@
         <h1 id="et_nssFailure2">&nssFailure2.title;</h1>
         <h1 id="et_nssBadCert">&nssBadCert.title;</h1>
         <h1 id="et_cspFrameAncestorBlocked">&cspFrameAncestorBlocked.title;</h1>
+        <h1 id="et_xssBlockMode">&xssBlockMode.title;</h1>
         <h1 id="et_remoteXUL">&remoteXUL.title;</h1>
         <h1 id="et_corruptedContentError">&corruptedContentError.title;</h1>
       </div>
@@ -325,6 +332,7 @@
         <div id="ed_nssFailure2">&nssFailure2.longDesc;</div>
         <div id="ed_nssBadCert">&nssBadCert.longDesc2;</div>
         <div id="ed_cspFrameAncestorBlocked">&cspFrameAncestorBlocked.longDesc;</div>
+        <div id="ed_xssBlockMode">&xssBlockMode.longDesc;</div>
         <div id="ed_remoteXUL">&remoteXUL.longDesc;</div>
         <div id="ed_corruptedContentError">&corruptedContentError.longDesc;</div>
       </div>

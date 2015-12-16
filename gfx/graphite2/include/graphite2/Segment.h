@@ -120,11 +120,45 @@ enum gr_attrCode {
     /// Justification weight for this glyph (not implemented)
     gr_slatJWeight,         
     /// Amount this slot mush shrink or stretch in design units
-    gr_slatJWidth,          
+    gr_slatJWidth = 29,
     /// SubSegment split point
     gr_slatSegSplit = gr_slatJStretch + 29,
     /// User defined attribute, see subattr for user attr number
     gr_slatUserDefn,
+    /// Bidi level
+    gr_slatBidiLevel = 56,
+    /// Collision flags
+    gr_slatColFlags,
+    /// Collision constraint rectangle left (bl.x)
+    gr_slatColLimitblx,
+    /// Collision constraint rectangle lower (bl.y)
+    gr_slatColLimitbly,
+    /// Collision constraint rectangle right (tr.x)
+    gr_slatColLimittrx,
+    /// Collision constraint rectangle upper (tr.y)
+    gr_slatColLimittry,
+    /// Collision shift x
+    gr_slatColShiftx,
+    /// Collision shift y
+    gr_slatColShifty,
+    /// Collision margin
+    gr_slatColMargin,
+    /// Margin cost weight
+    gr_slatColMarginWt,
+    // Additional glyph that excludes movement near this one:
+    gr_slatColExclGlyph,
+    gr_slatColExclOffx,
+    gr_slatColExclOffy,
+    // Collision sequence enforcing attributes:
+    gr_slatSeqClass,
+    gr_slatSeqProxClass,
+    gr_slatSeqOrder,
+    gr_slatSeqAboveXoff,
+    gr_slatSeqAboveWt,
+    gr_slatSeqBelowXlim,
+    gr_slatSeqBelowWt,
+    gr_slatSeqValignHt,
+    gr_slatSeqValignWt,
                             
     /// not implemented
     gr_slatMax,             
@@ -136,7 +170,8 @@ enum gr_bidirtl {
     /// Underlying paragraph direction is RTL
     gr_rtl = 1,
     /// Set this to not run the bidi pass internally, even if the font asks for it.
-    /// This presumes that the segment is in a single direction.
+    /// This presumes that the segment is in a single direction. Most of the time
+    /// this bit should be set unless you know you are passing full paragraphs of text.
     gr_nobidi = 2,
     /// Disable auto mirroring for rtl text
     gr_nomirror = 4
@@ -327,8 +362,8 @@ GR2_API const gr_slot* gr_slot_first_attachment(const gr_slot* p);
   *
   * This returns the next slot in the singly linked list of slots attached to this
   * slot's parent. If there are no more such slots, NULL is returned. If there is
-  * no parent, i.e. the passed slot is a base, then the next base in graphical order
-  * (ltr even for rtl text) is returned.
+  * no parent, i.e. the passed slot is a cluster base, then the next cluster base
+  * in graphical order (ltr, even for rtl text) is returned.
   *
   * if gr_slot_next_sibling_attachment(p) != NULL then gr_slot_attached_to(gr_slot_next_sibling_attachment(p)) == gr_slot_attached_to(p).
   */
@@ -398,7 +433,13 @@ GR2_API unsigned int gr_slot_index(const gr_slot* p/*not NULL*/);
   */
 GR2_API int gr_slot_attr(const gr_slot* p/*not NULL*/, const gr_segment* pSeg/*not NULL*/, enum gr_attrCode index, gr_uint8 subindex); //tbd - do we need to expose this?
 
-/** Returns whether text may be inserted before this glyph [check this isn't inverted] **/
+/** Returns whether text may be inserted before this glyph.
+  *
+  * This indicates whether a cursor can be put before this slot. It applies to
+  * base glyphs that have no parent as well as attached glyphs that have the
+  * .insert attribute explicitly set to true. This is the primary mechanism
+  * for identifying contiguous sequences of base plus diacritics.
+  */
 GR2_API int gr_slot_can_insert_before(const gr_slot* p);
 
 /** Returns the original gr_char_info index this slot refers to.

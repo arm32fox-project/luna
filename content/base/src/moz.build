@@ -32,6 +32,8 @@ EXPORTS += [
     'nsStubMutationObserver.h',
     'nsStyledElement.h',
     'nsTextFragment.h',
+    'nsXSSFilter.h',
+    'nsXSSUtils.h',
 ]
 
 if CONFIG['MOZ_WEBRTC']:
@@ -151,6 +153,9 @@ CPP_SOURCES += [
     'nsXMLContentSerializer.cpp',
     'nsXMLHttpRequest.cpp',
     'nsXMLNameSpaceMap.cpp',
+    'nsXSSFilter.cpp',
+    'nsXSSUtils.cpp',
+    'nsXSSUtilsModule.cpp',
 ]
 
 EXTRA_PP_COMPONENTS += [

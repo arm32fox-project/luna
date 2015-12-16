@@ -46,12 +46,14 @@
 #include "mozilla/dom/Element.h"
 #include "nsCrossSiteListenerProxy.h"
 #include "nsSandboxFlags.h"
+#include "nsXSSFilter.h"
 
 #include "mozilla/CORSMode.h"
 #include "mozilla/Attributes.h"
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gCspPRLog;
+static PRLogModuleInfo* gXssPRLog;
 #endif
 
 using namespace mozilla;
@@ -122,6 +124,8 @@ nsScriptLoader::nsScriptLoader(nsIDocument *aDocument)
 #ifdef PR_LOGGING
   if (!gCspPRLog)
     gCspPRLog = PR_NewLogModule("CSP");
+  if (!gXssPRLog)
+    gXssPRLog = PR_NewLogModule("XSS");
 #endif
 }
 
@@ -241,7 +245,8 @@ nsresult
 nsScriptLoader::ShouldLoadScript(nsIDocument* aDocument,
                                  nsISupports* aContext,
                                  nsIURI* aURI,
-                                 const nsAString &aType)
+                                 const nsAString &aType,
+                                 bool isDynamic)
 {
   // Check that the containing page is allowed to load this URI.
   nsresult rv = nsContentUtils::GetSecurityManager()->
@@ -256,6 +261,20 @@ nsScriptLoader::ShouldLoadScript(nsIDocument* aDocument,
     return rv;
   }
 
+  // XSS filter for external script injection.
+  nsRefPtr<nsXSSFilter> xss;
+  rv = aDocument->NodePrincipal()->GetXSSFilter(getter_AddRefs(xss));
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  if (xss) {
+    PR_LOG(gXssPRLog, PR_LOG_DEBUG, ("Scriptloader:XSSFilter:external"));
+    if (!xss->PermitsExternalScript(aURI, isDynamic)) {
+      PR_LOG(gXssPRLog, PR_LOG_DEBUG, ("XSSFilter blocked external script."));
+      return NS_ERROR_XSS_BLOCK;
+    }
+  }
+
+
   return NS_OK;
 }
 
@@ -266,7 +285,7 @@ nsScriptLoader::StartLoad(nsScriptLoadRequest *aRequest, const nsAString &aType,
   nsISupports *context = aRequest->mElement.get()
                          ? static_cast<nsISupports *>(aRequest->mElement.get())
                          : static_cast<nsISupports *>(mDocument);
-  nsresult rv = ShouldLoadScript(mDocument, context, aRequest->mURI, aType);
+  nsresult rv = ShouldLoadScript(mDocument, context, aRequest->mURI, aType, aRequest->mElement.get() != nullptr);
   if (NS_FAILED(rv)) {
     return rv;
   }
@@ -674,6 +693,22 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
       return false;
     }
   }
+
+  // xss filter for inline script
+  nsRefPtr<nsXSSFilter> xss;
+  rv = mDocument->NodePrincipal()->GetXSSFilter(getter_AddRefs(xss));
+  NS_ENSURE_SUCCESS(rv, false);
+  if (xss) {
+    PR_LOG(gXssPRLog, PR_LOG_DEBUG, ("Scriptloader:XSSFilter:inline"));
+    nsAutoString scriptText;
+    aElement->GetScriptText(scriptText);
+    if (!xss->PermitsInlineScript(scriptText)) {
+      PR_LOG(gXssPRLog, PR_LOG_DEBUG, ("XSSFilter blocked inline script."));
+      return false;
+    }
+  }
+
+
 
   // Inline scripts ignore ther CORS mode and are always CORS_NONE
   request = new nsScriptLoadRequest(aElement, version, CORS_NONE);

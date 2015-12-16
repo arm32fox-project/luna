@@ -4166,6 +4166,11 @@ nsDocShell::DisplayLoadError(nsresult aError, nsIURI *aURI,
         cssClass.AssignLiteral("neterror");
         error.AssignLiteral("cspFrameAncestorBlocked");
     }
+    else if (NS_ERROR_XSS_BLOCK == aError) {
+        // XSS violation in block mode
+        cssClass.AssignLiteral("neterror");
+        error.AssignLiteral("xssBlockMode");
+    }
     else if (NS_ERROR_GET_MODULE(aError) == NS_ERROR_MODULE_SECURITY) {
         nsCOMPtr<nsINSSErrorsService> nsserr =
             do_GetService(NS_NSS_ERRORS_SERVICE_CONTRACTID);

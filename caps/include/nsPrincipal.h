@@ -35,6 +35,8 @@ public:
   NS_IMETHOD SetSecurityPolicy(void* aSecurityPolicy);
   NS_IMETHOD GetCsp(nsIContentSecurityPolicy** aCsp);
   NS_IMETHOD SetCsp(nsIContentSecurityPolicy* aCsp);
+  NS_IMETHOD GetXSSFilter(nsXSSFilter** aXss);
+  NS_IMETHOD SetXSSFilter(nsXSSFilter* aXss);
 public:
 
   static const char sInvalid[];
@@ -48,6 +50,7 @@ protected:
   DomainPolicy* mSecurityPolicy;
 
   nsCOMPtr<nsIContentSecurityPolicy> mCSP;
+  nsRefPtr<nsXSSFilter> mXSS;
 };
 
 class nsPrincipal : public nsBasePrincipal

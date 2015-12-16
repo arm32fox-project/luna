@@ -1053,6 +1053,13 @@ typedef JSBool
 (* JSCSPEvalChecker)(JSContext *cx);
 
 /*
+ * Used to check if an xss filter wants to disable eval() and friends.
+ * See js_CheckXSSPermitsJSAction() in jsobj.
+ */
+typedef JSBool
+(* JSXSSFilterChecker)(JSContext *cx, JSString *str);
+
+/*
  * Callback used to ask the embedding for the cross compartment wrapper handler
  * that implements the desired prolicy for this kind of object in the
  * destination compartment. |obj| is the object to be wrapped. If |existing| is
@@ -3807,6 +3814,7 @@ JS_DropPrincipals(JSRuntime *rt, JSPrincipals *principals);
 struct JSSecurityCallbacks {
     JSCheckAccessOp            checkObjectAccess;
     JSCSPEvalChecker           contentSecurityPolicyAllows;
+    JSXSSFilterChecker         xssFilterAllows;
 };
 
 extern JS_PUBLIC_API(void)

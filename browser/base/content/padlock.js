@@ -71,15 +71,19 @@ var padlock_PadLock =
         catch (ex) {}
         
         let ub = document.getElementById("urlbar");
-        if (highlight_urlbar) {
-          ub.setAttribute("security_level", level);
-        } else {
-          ub.removeAttribute("security_level");
+        if (ub) { // Only call if URL bar is present.
+          if (highlight_urlbar) {
+            ub.setAttribute("security_level", level);
+          } else {
+            ub.removeAttribute("security_level");
+          }
         }
 
-        padlock_PadLock.setPadlockLevel("padlock-ib", level);
-        padlock_PadLock.setPadlockLevel("padlock-ib-left", level);
-        padlock_PadLock.setPadlockLevel("padlock-ub-right", level);
+        try { // URL bar may be hidden
+          padlock_PadLock.setPadlockLevel("padlock-ib", level);
+          padlock_PadLock.setPadlockLevel("padlock-ib-left", level);
+          padlock_PadLock.setPadlockLevel("padlock-ub-right", level);
+        } catch(e) {}
         padlock_PadLock.setPadlockLevel("padlock-sb", level);
         padlock_PadLock.setPadlockLevel("padlock-tab", level);
     },
@@ -197,7 +201,9 @@ var padlock_PadLock =
       default: 
         colshow = ""; // 0 or anything else: no shading
     }
-    document.getElementById("urlbar").setAttribute("https_color", colshow);
+    try { // URL bar may be hidden
+      document.getElementById("urlbar").setAttribute("https_color", colshow);
+    } catch(e) {}
 
     var lockenabled = padlock_PadLock.prefbranch.getBoolPref("shown");
     if (lockenabled)
@@ -205,15 +211,19 @@ var padlock_PadLock =
     else
       padshow = "";
 
-    document.getElementById("padlock-ib").setAttribute("padshow", padshow);
-    document.getElementById("padlock-ib-left").setAttribute("padshow", padshow);
-    document.getElementById("padlock-ub-right").setAttribute("padshow", padshow);
+    try { // URL bar may be hidden
+      document.getElementById("padlock-ib").setAttribute("padshow", padshow);
+      document.getElementById("padlock-ib-left").setAttribute("padshow", padshow);
+      document.getElementById("padlock-ub-right").setAttribute("padshow", padshow);
+    } catch(e) {}
     document.getElementById("padlock-sb").setAttribute("padshow", padshow);
     document.getElementById("padlock-tab").setAttribute("padshow", padshow);
 
-    document.getElementById("padlock-ib").setAttribute("padstyle", padstyle);
-    document.getElementById("padlock-ib-left").setAttribute("padstyle", padstyle);
-    document.getElementById("padlock-ub-right").setAttribute("padstyle", padstyle);
+    try { // URL bar may be hidden
+      document.getElementById("padlock-ib").setAttribute("padstyle", padstyle);
+      document.getElementById("padlock-ib-left").setAttribute("padstyle", padstyle);
+      document.getElementById("padlock-ub-right").setAttribute("padstyle", padstyle);
+    } catch(e) {}
     document.getElementById("padlock-sb").setAttribute("padstyle", padstyle);
     document.getElementById("padlock-tab").setAttribute("padstyle", padstyle);
 

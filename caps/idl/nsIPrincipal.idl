@@ -10,6 +10,7 @@
 %{C++
 struct JSContext;
 struct JSPrincipals;
+class nsXSSFilter;
 #include "nsCOMPtr.h"
 #include "nsTArray.h"
 %}
@@ -19,6 +20,7 @@ interface nsIContentSecurityPolicy;
 
 [ptr] native JSContext(JSContext);
 [ptr] native JSPrincipals(JSPrincipals);
+[ptr] native nsXSSFilter(nsXSSFilter);
 [ptr] native PrincipalArray(nsTArray<nsCOMPtr<nsIPrincipal> >);
 
 [scriptable, builtinclass, uuid(dbda8bb0-3023-4aec-ad98-8e9931a29d70)]
@@ -161,6 +163,12 @@ interface nsIPrincipal : nsISerializable
      * A Content Security Policy associated with this principal.
      */
     [noscript] attribute nsIContentSecurityPolicy csp;
+
+    /**
+     * Refcounted XSS Filter associated with the principal.
+     */
+    // TODO: why can't I use notxpcom here?
+    [noscript] attribute nsXSSFilter XSSFilter;
 
     /**
      * Returns the extended origin of the principal.

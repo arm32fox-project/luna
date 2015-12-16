@@ -602,8 +602,9 @@ PlacesController.prototype = {
         // We allow pasting into tag containers, so special case that.
         var hideIfNoIP = item.getAttribute("hideifnoinsertionpoint") == "true" &&
                          noIp && !(ip && ip.isTag && item.id == "placesContext_paste");
-        // Display the "Open Parent Folder" menu-item only when the context is in
-        // the Library or in the Sidebar, and only when there's no insertion point.
+        // Display the "Open Containing Folder" menu-item only when the
+        // context is in the Library or in the Sidebar, and only when
+        // there's no insertion point.
         var hideParentFolderItem = item.id == "placesContext_openParentFolder" &&
                                    (!/tree/i.test(this._view.localName) || ip);
         item.hidden = hideIfNoIP || hideParentFolderItem ||
@@ -803,8 +804,8 @@ PlacesController.prototype = {
   },
 
   getParentFolderByItemId: function PC_getParentFolderByItemId(aItemId) {
-    var bmsvc = Components.classes["@mozilla.org/browser/nav-bookmarks-service;1"]
-                          .getService(Components.interfaces.nsINavBookmarksService);
+    var bmsvc = Components.classes["@mozilla.org/browser/nav-bookmarks-service;1"].
+                           getService(Components.interfaces.nsINavBookmarksService);
     var parentFolderId = bmsvc.getFolderIdForItem(aItemId);
 
     return parentFolderId;
