@@ -46,6 +46,7 @@ using namespace mozilla;
 bool nsXSSFilter::sXSSEnabled = true;
 bool nsXSSFilter::sReportOnly = false;
 bool nsXSSFilter::sBlockMode = false;
+bool nsXSSFilter::sIgnoreHeaders = false;
 bool nsXSSFilter::sBlockDynamic = true;
 DomainMap nsXSSFilter::sWhiteList;
 
