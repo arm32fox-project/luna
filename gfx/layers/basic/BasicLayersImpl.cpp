@@ -84,8 +84,13 @@ PaintWithMask(gfxContext* aContext, float aOpacity, Layer* aMaskLayer)
 {
   AutoMaskData mask;
   if (GetMaskData(aMaskLayer, &mask)) {
+    if (aOpacity < 1.0) {
+      aContext->PushGroup(gfxASurface::CONTENT_COLOR_ALPHA);
+      aContext->Paint(aOpacity);
+      aContext->PopGroupToSource();
+    }
     aContext->SetMatrix(mask.GetTransform());
-    aContext->Mask(mask.GetSurface(), aOpacity);
+    aContext->Mask(mask.GetSurface());
     return;
   }
 
