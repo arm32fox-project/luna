@@ -974,9 +974,9 @@ pref("network.http.pipelining.maxrequests" , 4);
 
 // An optimistic request is one pipelined when policy might allow a new
 // connection instead
-pref("network.http.pipelining.max-optimistic-requests" , 4);
+pref("network.http.pipelining.max-optimistic-requests" , 2);
 
-pref("network.http.pipelining.aggressive", true);
+pref("network.http.pipelining.aggressive", false);
 pref("network.http.pipelining.maxsize" , 300000);
 pref("network.http.pipelining.reschedule-on-timeout", true);
 pref("network.http.pipelining.reschedule-timeout", 1000);
