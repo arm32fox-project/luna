@@ -613,8 +613,10 @@ nsXSSFilter::NotifyViolation(const nsAString& policy, const nsAString& content, 
     nsString msg;
     msg += NS_LITERAL_STRING("XSS violation at URL: ");
     msg += NS_ConvertUTF8toUTF16(spec);
-    msg += NS_LITERAL_STRING(" - Type: ");
+    msg += NS_LITERAL_STRING("\nType: ");
     msg += policy;
+    msg += NS_LITERAL_STRING("\nUnsafe content: ");
+    msg += content;
     aConsoleService->LogStringMessage(msg.get());
   }
 
