@@ -427,7 +427,7 @@ public:
      * Shorthand for creating a pattern and calling the pattern-taking
      * variant of Mask.
      */
-    void Mask(gfxASurface *surface, float alpha = 1.0f, const gfxPoint& offset = gfxPoint(0.0, 0.0));
+    void Mask(gfxASurface *surface, const gfxPoint& offset = gfxPoint(0.0, 0.0));
 
     /**
      ** Shortcuts
