@@ -21,6 +21,15 @@ richlistitem.download[active] {
   -moz-binding: url('chrome://browser/content/downloads/download.xml#download-full-ui');
 }
 
+richlistitem.download[active]:-moz-any([state="-1"],/* Starting (initial) */
+                                       [state="0"], /* Downloading        */
+                                       [state="4"], /* Paused             */
+                                       [state="5"], /* Starting (queued)  */
+                                       [state="7"]) /* Scanning           */
+{
+  -moz-binding: url('chrome://browser/content/downloads/download.xml#download-in-progress-full-ui');
+}
+
 .download-state:not(          [state="0"]  /* Downloading        */)
                                            .downloadPauseMenuItem,
 .download-state:not(          [state="4"]  /* Paused             */)
@@ -41,7 +50,7 @@ richlistitem.download[active] {
                               [state="4"], /* Paused             */
                               [state="5"]) /* Starting (queued)  */)
                                            .downloadShowMenuItem,
-.download-state[state="7"]                 .downloadCommandsSeparator
+.download-state[state="7"] /* Scanning */  .downloadCommandsSeparator
 {
   display: none;
 }
