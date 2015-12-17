@@ -167,7 +167,7 @@
       <xul:image class="downloadTypeIcon blockedIcon"/>
       <xul:vbox pack="center" flex="1">
         <xul:description class="downloadDisplayName"
-                         crop="center"
+                         crop="end"
                          xbl:inherits="value=extendedDisplayName,tooltiptext=extendedDisplayNameTip"/>
         <xul:progressmeter anonid="progressmeter"
                            class="downloadProgress"
