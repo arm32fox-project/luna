@@ -1066,6 +1066,10 @@ function DownloadsViewItem(aDataItem, aElement)
   // (double slash) from the icon URI specification (see test_moz_icon_uri.js).
   this.image = "moz-icon://" + this.dataItem.file + "?size=32";
 
+  let s = DownloadsCommon.strings;
+  let [displayHost, fullHost] =
+    DownloadUtils.getURIHost(this.dataItem.referrer || this.dataItem.uri);
+
   let attributes = {
     "type": "download",
     "class": "download-state",
@@ -1073,7 +1077,9 @@ function DownloadsViewItem(aDataItem, aElement)
     "downloadGuid": this.dataItem.downloadGuid,
     "state": this.dataItem.state,
     "progress": this.dataItem.inProgress ? this.dataItem.percentComplete : 100,
-    "target": this.dataItem.target,
+    "displayName": this.dataItem.target,
+    "extendedDisplayName": s.statusSeparator(this.dataItem.target, displayHost),
+    "extendedDisplayNameTip": s.statusSeparator(this.dataItem.target, fullHost),
     "image": this.image
   };
 
