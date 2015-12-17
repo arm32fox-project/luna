@@ -3752,7 +3752,7 @@ fi
 AC_SUBST(MOZ_DEMANGLE_SYMBOLS)
 
 dnl ========================================================
-dnl = Support for gcc stack unwinding (from gcc 3.3)
+dnl = Support for gcc stack unwinding
 dnl ========================================================
 if test -z "$SKIP_LIBRARY_CHECKS"; then
     MOZ_CHECK_HEADER(unwind.h, AC_CHECK_FUNCS(_Unwind_Backtrace))
@@ -3803,7 +3803,7 @@ dnl Check for gcc -pipe support
 dnl ========================================================
 AC_MSG_CHECKING([for -pipe support])
 if test -n "$GNU_CC" -a -n "$GNU_CXX"; then
-    dnl Any gcc that supports firefox supports -pipe.
+    dnl Any gcc that supports Pale Moon supports -pipe.
     CFLAGS="$CFLAGS -pipe"
     CXXFLAGS="$CXXFLAGS -pipe"
     AC_MSG_RESULT([yes])
@@ -3815,7 +3815,7 @@ dnl ========================================================
 dnl Profile guided optimization (gcc checks)
 dnl ========================================================
 dnl Test for profiling options
-dnl Under gcc 3.4+, use -fprofile-generate/-fprofile-use
+dnl Under gcc, use -fprofile-generate/-fprofile-use
 
 _SAVE_CFLAGS="$CFLAGS"
 CFLAGS="$CFLAGS -fprofile-generate -fprofile-correction"
