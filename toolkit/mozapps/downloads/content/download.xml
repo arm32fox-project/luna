@@ -84,7 +84,7 @@
         </xul:vbox>
         <xul:vbox pack="start" flex="1">
           <xul:label xbl:inherits="value=extendedDisplayName,tooltiptext=extendedDisplayNameTip"
-                     crop="center" class="name"/>
+                     crop="end" class="name"/>
           <xul:progressmeter mode="normal" value="0" flex="1"
                              anonid="progressmeter"/>
           <xul:label value="&starting.label;" class="status"/>
@@ -108,7 +108,7 @@
         </xul:vbox>
         <xul:vbox flex="1">
           <xul:label xbl:inherits="value=extendedDisplayName,tooltiptext=extendedDisplayNameTip"
-                     crop="center" flex="2" class="name"/>
+                     crop="end" flex="2" class="name"/>
           <xul:hbox>
             <xul:vbox flex="1">
               <xul:progressmeter mode="normal" value="0" flex="1"
@@ -139,7 +139,7 @@
         </xul:vbox>
         <xul:vbox flex="1">
           <xul:label xbl:inherits="value=extendedDisplayName,tooltiptext=extendedDisplayNameTip"
-                     crop="center" flex="2" class="name"/>
+                     crop="end" flex="2" class="name"/>
           <xul:hbox>
             <xul:vbox flex="1">
               <xul:progressmeter mode="normal" value="0" flex="1"
@@ -289,7 +289,7 @@
         </xul:vbox>
         <xul:vbox pack="start" flex="1">
           <xul:label xbl:inherits="value=extendedDisplayName,tooltiptext=extendedDisplayNameTip"
-                     crop="center" flex="2" class="name"/>
+                     crop="end" flex="2" class="name"/>
           <xul:hbox>
             <xul:vbox flex="1">
               <xul:progressmeter mode="undetermined" flex="1" />
