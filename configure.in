@@ -2482,41 +2482,6 @@ else
   AC_MSG_RESULT(no)
 fi
 
-dnl On the gcc trunk (as of 2001-02-09) _GNU_SOURCE, and thus __USE_GNU,
-dnl are defined when compiling C++ but not C.  Since the result of this
-dnl test is used only in C++, do it in C++.
-AC_LANG_CPLUSPLUS
-
-AC_MSG_CHECKING(for uname.domainname)
-AC_CACHE_VAL(ac_cv_have_uname_domainname_field,
-    [AC_TRY_COMPILE([#include <sys/utsname.h>],
-        [ struct utsname *res; char *domain;
-            (void)uname(res);  if (res != 0) { domain = res->domainname; } ],
-        [ac_cv_have_uname_domainname_field=true],
-        [ac_cv_have_uname_domainname_field=false])])
-
-if test "$ac_cv_have_uname_domainname_field" = "true"; then
-    AC_DEFINE(HAVE_UNAME_DOMAINNAME_FIELD)
-    AC_MSG_RESULT(yes)
-else
-    AC_MSG_RESULT(no)
-fi
-
-AC_MSG_CHECKING(for uname.__domainname)
-AC_CACHE_VAL(ac_cv_have_uname_us_domainname_field,
-    [AC_TRY_COMPILE([#include <sys/utsname.h>],
-        [ struct utsname *res; char *domain;
-            (void)uname(res);  if (res != 0) { domain = res->__domainname; } ],
-        [ac_cv_have_uname_us_domainname_field=true],
-        [ac_cv_have_uname_us_domainname_field=false])])
-
-if test "$ac_cv_have_uname_us_domainname_field" = "true"; then
-    AC_DEFINE(HAVE_UNAME_US_DOMAINNAME_FIELD)
-    AC_MSG_RESULT(yes)
-else
-    AC_MSG_RESULT(no)
-fi
-
 dnl Check whether we can use gcc's c++0x mode
 AC_LANG_CPLUSPLUS
 
@@ -2583,7 +2548,7 @@ if test "$ac_cv_have_usable_wchar_v2" = "yes"; then
 elif test "$ac_cv_have_usable_char16_t" != "yes"; then
 dnl This is really gcc-only
 dnl Do this test using CXX only since some versions of gcc
-dnl 2.95-2.97 have a signed wchar_t in c++ only and some versions
+dnl have a signed wchar_t in c++ only and some versions
 dnl only have short-wchar support for c++.
 dnl Note that we assume that mac & win32 have short wchar (see nscore.h)
 
@@ -7457,7 +7422,7 @@ fi
 AC_SUBST(MOZ_DEMANGLE_SYMBOLS)
 
 dnl ========================================================
-dnl = Support for gcc stack unwinding (from gcc 3.3)
+dnl = Support for gcc stack unwinding
 dnl ========================================================
 if test -z "$SKIP_LIBRARY_CHECKS"; then
     MOZ_CHECK_HEADER(unwind.h, AC_CHECK_FUNCS(_Unwind_Backtrace))
@@ -7618,7 +7583,7 @@ dnl Check for gcc -pipe support
 dnl ========================================================
 AC_MSG_CHECKING([for -pipe support])
 if test -n "$GNU_CC" -a -n "$GNU_CXX"; then
-    dnl Any gcc that supports firefox supports -pipe.
+    dnl Any gcc that supports Pale Moon supports -pipe.
     CFLAGS="$CFLAGS -pipe"
     CXXFLAGS="$CXXFLAGS -pipe"
     AC_MSG_RESULT([yes])
@@ -7630,7 +7595,7 @@ dnl ========================================================
 dnl Profile guided optimization (gcc checks)
 dnl ========================================================
 dnl Test for profiling options
-dnl Under gcc 3.4+, use -fprofile-generate/-fprofile-use
+dnl Under gcc, use -fprofile-generate/-fprofile-use
 
 _SAVE_CFLAGS="$CFLAGS"
 CFLAGS="$CFLAGS -fprofile-generate -fprofile-correction"
@@ -7689,49 +7654,6 @@ CFLAGS="$_SAVE_CFLAGS"
 
 AC_SUBST(NO_INTEGRATED_AS_CFLAGS)
 
-AC_LANG_CPLUSPLUS
-
-dnl ========================================================
-dnl Autoconf test for gcc 2.7.2.x (and maybe others?) so that we don't
-dnl provide non-const forms of the operator== for comparing nsCOMPtrs to
-dnl raw pointers in nsCOMPtr.h.  (VC++ has the same bug.)
-dnl ========================================================
-_SAVE_CXXFLAGS=$CXXFLAGS
-CXXFLAGS="$CXXFLAGS ${_WARNINGS_CXXFLAGS}"
-AC_CACHE_CHECK(for correct overload resolution with const and templates,
-    ac_nscap_nonconst_opeq_bug,
-    [AC_TRY_COMPILE([
-                      template <class T>
-                      class Pointer
-                        {
-                        public:
-                          T* myPtr;
-                        };
-
-                      template <class T, class U>
-                      int operator==(const Pointer<T>& rhs, U* lhs)
-                        {
-                          return rhs.myPtr == lhs;
-                        }
-
-                      template <class T, class U>
-                      int operator==(const Pointer<T>& rhs, const U* lhs)
-                        {
-                          return rhs.myPtr == lhs;
-                        }
-                    ],
-                    [
-                      Pointer<int> foo;
-                      const int* bar;
-                      return foo == bar;
-                    ],
-                    ac_nscap_nonconst_opeq_bug="no",
-                    ac_nscap_nonconst_opeq_bug="yes")])
-CXXFLAGS="$_SAVE_CXXFLAGS"
-
-if test "$ac_nscap_nonconst_opeq_bug" = "yes" ; then
-    AC_DEFINE(NSCAP_DONT_PROVIDE_NONCONST_OPEQ)
-fi
 fi # ! SKIP_COMPILER_CHECKS
 
 AC_DEFINE(CPP_THROW_NEW, [throw()])
