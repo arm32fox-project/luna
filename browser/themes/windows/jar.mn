@@ -56,6 +56,7 @@ browser.jar:
         skin/classic/browser/privatebrowsing-light.png
         skin/classic/browser/privatebrowsing-dark.png
         skin/classic/browser/reload-stop-go.png
+        skin/classic/browser/sanitize.png
         skin/classic/browser/searchbar.css
         skin/classic/browser/searchbar-dropdown-arrow.png
         skin/classic/browser/Secure24.png
@@ -301,6 +302,7 @@ browser.jar:
         skin/classic/aero/browser/privatebrowsing-light.png
         skin/classic/aero/browser/privatebrowsing-dark.png
         skin/classic/aero/browser/reload-stop-go.png
+        skin/classic/aero/browser/sanitize.png
         skin/classic/aero/browser/searchbar.css
         skin/classic/aero/browser/searchbar-dropdown-arrow.png       (searchbar-dropdown-arrow-aero.png)
         skin/classic/aero/browser/Secure24.png                       (Secure24-aero.png)
