@@ -319,14 +319,12 @@ DownloadElementShell.prototype = {
         let referrer = this._dataItem.referrer || this._dataItem.uri;
         let [displayHost, fullHost] = DownloadUtils.getURIHost(referrer);
         this._metaData = {
-          state:              this._dataItem.state,
-          endTime:            this._dataItem.endTime,
-          fileName:           this._dataItem.target,
-          displayName:        this._dataItem.target,
-          extendedDisplayName:
-            s.statusSeparator(this._dataItem.target, displayHost),
-          extendedDisplayNameTip:
-            s.statusSeparator(this._dataItem.target, fullHost)
+          state:                  this._dataItem.state,
+          endTime:                this._dataItem.endTime,
+          fileName:               this._dataItem.target,
+          displayName:            this._dataItem.target,
+          extendedDisplayName:    s.statusSeparator(this._dataItem.target, displayHost),
+          extendedDisplayNameTip: s.statusSeparator(this._dataItem.target, fullHost)
         };
         if (this._dataItem.done)
           this._metaData.fileSize = this._dataItem.maxBytes;
