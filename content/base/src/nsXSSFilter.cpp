@@ -46,6 +46,7 @@ using namespace mozilla;
 bool nsXSSFilter::sXSSEnabled = true;
 bool nsXSSFilter::sReportOnly = false;
 bool nsXSSFilter::sBlockMode = false;
+bool nsXSSFilter::sIgnoreHeaders = false;
 bool nsXSSFilter::sBlockDynamic = true;
 DomainMap nsXSSFilter::sWhiteList;
 
@@ -101,6 +102,7 @@ nsXSSFilter::InitializeStatics()
   Preferences::AddBoolVarCache(&sXSSEnabled, "security.xssfilter.enable");
   Preferences::AddBoolVarCache(&sReportOnly, "security.xssfilter.reportOnly");
   Preferences::AddBoolVarCache(&sBlockMode, "security.xssfilter.blockMode");
+  Preferences::AddBoolVarCache(&sIgnoreHeaders, "security.xssfilter.ignoreHeaders");
   Preferences::AddBoolVarCache(&sBlockDynamic, "security.xssfilter.blockDynamic");
   Preferences::RegisterCallbackAndCall(InitializeWhiteList, "security.xssfilter.whitelist");
   LOG_XSS("Initialized Statics for XSS Filter");
@@ -177,8 +179,9 @@ nsXSSFilter::ScanRequestData()
   // No need to skip spaces before the beginning of the string; 
   // the header parser does this for us.
 
-  if (xssHeaderValue.IsEmpty()) {
-    // If the header is missing, assume the filter should be enabled.
+  if (xssHeaderValue.IsEmpty() || sIgnoreHeaders) {
+    // If the header is missing or should be ignored, then assume the
+    // filter should be enabled.
     mIsEnabled = true;
     return NS_OK;
   }

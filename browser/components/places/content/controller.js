@@ -602,9 +602,9 @@ PlacesController.prototype = {
         // We allow pasting into tag containers, so special case that.
         var hideIfNoIP = item.getAttribute("hideifnoinsertionpoint") == "true" &&
                          noIp && !(ip && ip.isTag && item.id == "placesContext_paste");
-        // Display the "Open Containing Folder" menu-item only when the
-        // context is in the Library or in the Sidebar, and only when
-        // there's no insertion point.
+        // Show the "Open Containing Folder" menu-item only when the context is
+        // in the Library or in the Sidebar, and only when there's no insertion
+        // point.
         var hideParentFolderItem = item.id == "placesContext_openParentFolder" &&
                                    (!/tree/i.test(this._view.localName) || ip);
         item.hidden = hideIfNoIP || hideParentFolderItem ||
@@ -776,7 +776,7 @@ PlacesController.prototype = {
   },
 
   /**
-   * Sort the selected folder by name
+   * Sort the selected folder by name.
    */
   sortFolderByName: function PC_sortFolderByName() {
     var itemId = PlacesUtils.getConcreteItemId(this._view.selectedNode);
@@ -785,18 +785,18 @@ PlacesController.prototype = {
   },
 
   /**
-   * Open the parent folder for the selected bookmarks search result
+   * Open the parent folder for the selected bookmarks search result.
    */
   openParentFolder: function PC_openParentFolder() {
     var view;
     if (!document.popupNode) {
       view = document.commandDispatcher.focusedElement;
     } else {
-      view = PlacesUIUtils.getViewForNode(document.popupNode);    // XULElement
+      view = PlacesUIUtils.getViewForNode(document.popupNode); // XULElement
     }
     if (!view || view.getAttribute("type") != "places")
       return;
-    var node = view.selectedNode;    // nsINavHistoryResultNode
+    var node = view.selectedNode; // nsINavHistoryResultNode
     var aItemId = node.itemId;
     var aFolderItemId = this.getParentFolderByItemId(aItemId);
     if (aFolderItemId)
@@ -812,7 +812,7 @@ PlacesController.prototype = {
   },
 
   selectItems2: function PC_selectItems2(view, aIDs) {
-    var ids = aIDs; // don't manipulate the caller's array
+    var ids = aIDs; // Don't manipulate the caller's array.
 
     // Array of nodes found by findNodes which are to be selected
     var nodes = [];
@@ -856,7 +856,7 @@ PlacesController.prototype = {
         return foundOne;
 
       nodesURIChecked.push(node.uri);
-      PlacesUtils.asContainer(node); //xxx Bug 556739 3.7a6pre
+      PlacesUtils.asContainer(node); // xxx Bug 556739 3.7a6pre
 
       // Remember the beginning state so that we can re-close
       // this node if we don't find any additional results here.
@@ -876,7 +876,7 @@ PlacesController.prototype = {
         nodesToOpen.unshift(node);
       node.containerOpen = previousOpenness;
       return foundOne;
-    } //findNodes
+    } // findNodes
 
     // Disable notifications while looking for nodes.
     let result = view.result;
@@ -897,7 +897,7 @@ PlacesController.prototype = {
     var selection = resultview.selection;
     selection.selectEventsSuppressed = true;
     selection.clearSelection();
-    // Open nodes containing found items
+    // Open nodes containing found items.
     for (var i = 0; i < nodesToOpen.length; i++) {
       nodesToOpen[i].containerOpen = true;
     }
@@ -912,15 +912,15 @@ PlacesController.prototype = {
   },
 
   selectFolderByItemId: function PC_selectFolderByItemId(view, aFolderItemId, aItemId) {
-    //Library
+    // Library
     if (view.getAttribute("id") == "placeContent") {
       view = document.getElementById("placesList");
-      //Select a folder node in folder pane
+      // Select a folder node in folder pane.
       this.selectItems2(view, [aFolderItemId]);
       view.selectItems([aFolderItemId]);
       if (view.currentIndex)
         view.treeBoxObject.ensureRowIsVisible(view.currentIndex);
-      //Reselect child node
+      // Reselect child node.
       setTimeout(function(aItemId, view) {
         var aView = view.ownerDocument.getElementById("placeContent");
         aView.selectItems([aItemId]);
@@ -930,7 +930,7 @@ PlacesController.prototype = {
       return;
     }
 
-    //Bookmarks Sidebar
+    // Bookmarks Sidebar
     if (!view)
       return;
     view.place = view.place;
@@ -949,7 +949,7 @@ PlacesController.prototype = {
     }
 
     view.findNode = function flatChildNodes(node, aIDs) {
-      var ids = aIDs; // don't manipulate the caller's array
+      var ids = aIDs; // Don't manipulate the caller's array.
 
       // Array of nodes found by findNodes which are to be selected
       var nodes = [];
@@ -979,7 +979,7 @@ PlacesController.prototype = {
         var index = ids.indexOf(node.itemId);
         if (index == -1 &&
             node.type == Components.interfaces.nsINavHistoryResultNode.RESULT_TYPE_FOLDER_SHORTCUT) {
-          index = ids.indexOf(PlacesUtils.asQuery(node).folderItemId); //xxx Bug 556739 3.7a5pre
+          index = ids.indexOf(PlacesUtils.asQuery(node).folderItemId); // xxx Bug 556739 3.7a5pre
         }
 
         if (index != -1) {
@@ -993,7 +993,7 @@ PlacesController.prototype = {
           return foundOne;
 
         nodesURIChecked.push(node.uri);
-        PlacesUtils.asContainer(node); //xxx Bug 556739 3.7a6pre
+        PlacesUtils.asContainer(node); // xxx Bug 556739 3.7a6pre
         // Remember the beginning state so that we can re-close
         // this node if we don't find any additional results here.
         var previousOpenness = node.containerOpen;
@@ -1014,7 +1014,7 @@ PlacesController.prototype = {
           nodesToOpen.unshift(node);
         node.containerOpen = previousOpenness;
         return foundOne;
-      }//findNodes
+      } // findNodes
 
       // Disable notifications while looking for nodes.
       let result = this.result;
@@ -1029,12 +1029,12 @@ PlacesController.prototype = {
           result.suppressNotifications = false;
       }
 
-      // Open nodes containing found items
+      // Open nodes containing found items.
       for (var i = 0; i < nodesToOpen.length; i++) {
         nodesToOpen[i].containerOpen = true;
       }
       return nodes;
-    };//findNode
+    }; // findNode
 
     // For all the nodes we've found, highlight the corresponding
     // index in the tree.

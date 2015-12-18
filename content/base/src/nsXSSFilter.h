@@ -137,6 +137,11 @@ class nsXSSFilter {
    */
   static bool sBlockMode;
   /**
+   * Synced to security.xssfilter.ignoreHeaders. When set to true,
+   * the X-Xss-Protection headers in pages will be ignored.
+   */
+  static bool sIgnoreHeaders;
+  /**
    * Synced to security.xssfilter.blockDynamic. When set to false, DOM
    * based vectors will be ignored.
    */
