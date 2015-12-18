@@ -886,10 +886,8 @@ function createDownloadItem(aAttrs)
     DownloadUtils.getURIHost(aAttrs.referrer || aAttrs.uri);
   dl.setAttribute("type", "download");
   dl.setAttribute("id", "dl" + aAttrs.dlid);
-  dl.setAttribute("extendedDisplayName",
-                  s.statusSeparator(displayName, displayHost));
-  dl.setAttribute("extendedDisplayNameTip",
-                  s.statusSeparator(displayName, fullHost));
+  dl.setAttribute("extendedDisplayName", s.statusSeparator(displayName, displayHost));
+  dl.setAttribute("extendedDisplayNameTip", s.statusSeparator(displayName, fullHost));
   dl.setAttribute("image", "moz-icon://" + aAttrs.file + "?size=32");
   dl.setAttribute("lastSeconds", Infinity);
 
