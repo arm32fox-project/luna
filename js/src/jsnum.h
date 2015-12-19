@@ -13,6 +13,21 @@
 
 #include "vm/NumericConversions.h"
 
+// This macro should be "1" if the compiler used supports built-in
+// functions like __builtin_sadd_overflow.
+#if __GNUC__ >= 5
+    // GCC 5.0 and above supports these functions.
+	#define BUILTIN_CHECKED_ARITHMETIC_SUPPORTED(x) 1
+#else
+	// For Clang, we can use its own function to check for this.
+    #ifdef __has_builtin
+	    #define BUILTIN_CHECKED_ARITHMETIC_SUPPORTED(x) __has_builtin(x)
+    #endif
+#endif
+#ifndef BUILTIN_CHECKED_ARITHMETIC_SUPPORTED
+    #define BUILTIN_CHECKED_ARITHMETIC_SUPPORTED(x) 0
+#endif
+
 extern double js_PositiveInfinity;
 extern double js_NegativeInfinity;
 
@@ -242,25 +257,38 @@ ToInteger(JSContext *cx, const js::Value &v, double *dp)
 inline bool
 SafeAdd(int32_t one, int32_t two, int32_t *res)
 {
+#if BUILTIN_CHECKED_ARITHMETIC_SUPPORTED(__builtin_sadd_overflow)
+    // Use the compiler's built-in function.
+	return !__builtin_sadd_overflow(one, two, res);
+#else
     *res = one + two;
     int64_t ores = (int64_t)one + (int64_t)two;
     return ores == (int64_t)*res;
+#endif
 }
 
 inline bool
 SafeSub(int32_t one, int32_t two, int32_t *res)
 {
+#if BUILTIN_CHECKED_ARITHMETIC_SUPPORTED(__builtin_ssub_overflow)
+    return !__builtin_ssub_overflow(one, two, res);
+#else
     *res = one - two;
     int64_t ores = (int64_t)one - (int64_t)two;
     return ores == (int64_t)*res;
+#endif
 }
 
 inline bool
 SafeMul(int32_t one, int32_t two, int32_t *res)
 {
+#if BUILTIN_CHECKED_ARITHMETIC_SUPPORTED(__builtin_smul_overflow)
+    return !__builtin_smul_overflow(one, two, res);
+#else
     *res = one * two;
     int64_t ores = (int64_t)one * (int64_t)two;
     return ores == (int64_t)*res;
+#endif
 }
 
 } /* namespace js */
