@@ -12,14 +12,16 @@
 #include "mozAutoDocUpdate.h"
 #include "mozilla/dom/HTMLFormElement.h"
 
-NS_IMPL_NS_NEW_HTML_ELEMENT(Output)
+NS_IMPL_NS_NEW_HTML_ELEMENT_CHECK_PARSER(Output)
 
 namespace mozilla {
 namespace dom {
 
-HTMLOutputElement::HTMLOutputElement(already_AddRefed<nsINodeInfo> aNodeInfo)
+HTMLOutputElement::HTMLOutputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                                     FromParser aFromParser)
   : nsGenericHTMLFormElement(aNodeInfo)
   , mValueModeFlag(eModeDefault)
+  , mIsDoneAddingChildren(!aFromParser)
 {
   SetIsDOMBinding();
 
@@ -107,6 +109,12 @@ HTMLOutputElement::ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
 
   return nsGenericHTMLFormElement::ParseAttribute(aNamespaceID, aAttribute,
                                                   aValue, aResult);
+}
+
+void
+HTMLOutputElement::DoneAddingChildren(bool aHaveNotified)
+{
+  mIsDoneAddingChildren = true;
 }
 
 nsEventStates
@@ -214,7 +222,7 @@ HTMLOutputElement::GetHtmlFor(nsISupports** aResult)
 
 void HTMLOutputElement::DescendantsChanged()
 {
-  if (mValueModeFlag == eModeDefault) {
+  if (mIsDoneAddingChildren && mValueModeFlag == eModeDefault) {
     nsContentUtils::GetNodeTextContent(this, true, mDefaultValue);
   }
 }
