@@ -498,8 +498,10 @@ DownloadElementShell.prototype = {
   _updateDisplayNameAndIcon: function DES__updateDisplayNameAndIcon() {
     let metaData = this.getDownloadMetaData();
     this._element.setAttribute("displayName", metaData.displayName);
-    this._element.setAttribute("extendedDisplayName", metaData.extendedDisplayName);
-    this._element.setAttribute("extendedDisplayNameTip", metaData.extendedDisplayNameTip);
+    if ("extendedDisplayName" in metaData)
+      this._element.setAttribute("extendedDisplayName", metaData.extendedDisplayName);
+    if ("extendedDisplayNameTip" in metaData)
+      this._element.setAttribute("extendedDisplayNameTip", metaData.extendedDisplayNameTip);
     this._element.setAttribute("image", this._getIcon());
   },
 
