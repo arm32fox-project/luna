@@ -4068,7 +4068,8 @@ nsRuleNode::ComputeTextResetData(void* aStartStruct,
 
   // text-blink: enum, inherit, initial
   SetDiscrete(*aRuleData->ValueForTextBlink(), text->mTextBlink,
-              canStoreInRuleTree, SETDSC_ENUMERATED, parentText->mTextBlink,
+              canStoreInRuleTree, SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
+              parentText->mTextBlink,
               NS_STYLE_TEXT_BLINK_NONE, 0, 0, 0, 0);
 
   // text-decoration-line: enum (bit field), inherit, initial
@@ -5109,7 +5110,7 @@ nsRuleNode::ComputeDisplayData(void* aStartStruct,
 
   SetDiscrete(*aRuleData->ValueForOverflowClipBox(), display->mOverflowClipBox,
               canStoreInRuleTree,
-              SETDSC_ENUMERATED, //XXX: Also | SETDSC_UNSET_INITIAL here or not?
+              SETDSC_ENUMERATED | SETDSC_UNSET_INITIAL,
               parentDisplay->mOverflowClipBox,
               NS_STYLE_OVERFLOW_CLIP_BOX_PADDING_BOX, 0, 0, 0, 0);
 
