@@ -1572,16 +1572,21 @@ typedef nsRuleNode::RuleDetail
 /**
  * @param aValue the value being examined
  * @param aSpecifiedCount to be incremented by one if the value is specified
- * @param aInherited to be incremented by one if the value is set to inherit
+ * @param aInheritedCount to be incremented by one if the value is set to inherit
+ * @param aUnsetCount to be incremented by one if the value is set to unset
  */
 inline void
 ExamineCSSValue(const nsCSSValue& aValue,
-                uint32_t& aSpecifiedCount, uint32_t& aInheritedCount)
+                uint32_t& aSpecifiedCount,
+                uint32_t& aInheritedCount,
+                uint32_t& aUnsetCount)
 {
   if (aValue.GetUnit() != eCSSUnit_Null) {
     ++aSpecifiedCount;
     if (aValue.GetUnit() == eCSSUnit_Inherit) {
       ++aInheritedCount;
+    } else if (aValue.GetUnit() == eCSSUnit_Unset) {
+      ++aUnsetCount;
     }
   }
 }
@@ -1840,8 +1845,9 @@ nsRuleNode::CheckSpecifiedProperties(const nsStyleStructID aSID,
   // Build a count of the:
   uint32_t total = 0,      // total number of props in the struct
            specified = 0,  // number that were specified for this node
-           inherited = 0;  // number that were 'inherit' (and not
+           inherited = 0,  // number that were 'inherit' (and not
                            //   eCSSUnit_Inherit) for this node
+           unset = 0;      // number that were 'unset'
 
   // See comment in nsRuleData.h above mValueOffsets.
   NS_ABORT_IF_FALSE(aRuleData->mValueOffsets[aSID] == 0,
@@ -1850,7 +1856,13 @@ nsRuleNode::CheckSpecifiedProperties(const nsStyleStructID aSID,
               *values_end = values + nsCSSProps::PropertyCountInStruct(aSID);
        values != values_end; ++values) {
     ++total;
-    ExamineCSSValue(*values, specified, inherited);
+    ExamineCSSValue(*values, specified, inherited, unset);
+  }
+
+  if (!nsCachedStyleData::IsReset(aSID)) {
+    // For inherited properties, 'unset' means the same as 'inherit'.
+    inherited += unset;
+    unset = 0;
   }
 
 #if 0
