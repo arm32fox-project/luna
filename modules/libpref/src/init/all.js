@@ -1840,7 +1840,10 @@ pref("layout.css.vertical-text.enabled", false);
 pref("layout.css.overflow-clip-box.enabled", true);
 
 // Is support for the CSS-wide "unset" value enabled?
-pref("layout.css.unset-value.enabled", true); 
+pref("layout.css.unset-value.enabled", true);
+
+// Is support for the "all" shorthand enabled?
+pref("layout.css.all-shorthand.enabled", true);
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
