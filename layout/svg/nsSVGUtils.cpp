@@ -1856,7 +1856,15 @@ nsSVGUtils::GetSVGGlyphExtents(Element* aElement,
   if (!svgFrame) {
     return false;
   }
-  *aResult = svgFrame->GetBBoxContribution(aSVGToAppSpace,
+
+  gfxMatrix transform(aSVGToAppSpace);
+  nsIContent* content = frame->GetContent();
+  if (content->IsSVG()) {
+    transform = static_cast<nsSVGElement*>(content)->
+                  PrependLocalTransformsTo(aSVGToAppSpace);
+  }
+
+  *aResult = svgFrame->GetBBoxContribution(transform,
     nsSVGUtils::eBBoxIncludeFill | nsSVGUtils::eBBoxIncludeFillGeometry |
     nsSVGUtils::eBBoxIncludeStroke | nsSVGUtils::eBBoxIncludeStrokeGeometry |
     nsSVGUtils::eBBoxIncludeMarkers);
