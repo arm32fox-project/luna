@@ -19,7 +19,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "UpdateChannel",
                                   "resource://gre/modules/UpdateChannel.jsm");
 
-const TOOLKIT_ID                      = "toolkit@mozilla.org"
+const TOOLKIT_ID_COMPAT               = "toolkit@mozilla.org"
+const TOOLKIT_ID                      = "toolkit@palemoon.org"
 const KEY_PROFILEDIR                  = "ProfD";
 const KEY_APPDIR                      = "XCurProcD";
 const FILE_BLOCKLIST                  = "blocklist.xml";
@@ -1120,7 +1121,8 @@ BlocklistItemData.prototype = {
       return true;
 
     // Check if the toolkit version matches
-    return this.matchesTargetRange(TOOLKIT_ID, toolkitVersion);
+    return (this.matchesTargetRange(TOOLKIT_ID, toolkitVersion) ||
+            this.matchesTargetRange(TOOLKIT_ID_COMPAT, toolkitVersion));
   },
 
   /**

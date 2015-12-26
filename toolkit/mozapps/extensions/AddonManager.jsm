@@ -38,7 +38,8 @@ var PREF_EM_CHECK_COMPATIBILITY = PREF_EM_CHECK_COMPATIBILITY_BASE + ".nightly";
 var PREF_EM_CHECK_COMPATIBILITY;
 #endif
 
-const TOOLKIT_ID                      = "toolkit@mozilla.org";
+const TOOLKIT_ID_COMPAT               = "toolkit@mozilla.org";
+const TOOLKIT_ID                      = "toolkit@palemoon.org";
 
 const VALID_TYPES_REGEXP = /^[\w\-]+$/;
 

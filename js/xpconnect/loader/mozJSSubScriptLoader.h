@@ -18,6 +18,7 @@
 }
 
 class nsIIOService;
+struct LoadSubScriptOptions;
 
 class mozJSSubScriptLoader : public mozIJSSubScriptLoader
 {
@@ -35,6 +36,11 @@ private:
                         nsIIOService *serv, nsIPrincipal *principal,
                         bool reuseGlobal, JSScript **scriptp,
                         JSFunction **functionp);
+
+    nsresult DoLoadSubScriptWithOptions(const nsAString& url,
+                                        LoadSubScriptOptions& options,
+                                        JSContext* cx,
+                                        JS::Value* retval);
 
     nsCOMPtr<nsIPrincipal> mSystemPrincipal;
 };

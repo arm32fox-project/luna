@@ -1505,6 +1505,17 @@ js::Function(JSContext *cx, unsigned argc, Value *vp)
     if (!linear)
         return false;
 
+    // TODO: this changed a little, seems similar though
+    const JSSecurityCallbacks *callbacks = JS_GetSecurityCallbacks(js::GetRuntime(cx));
+    // this callback is not always defined
+    if (callbacks && callbacks->xssFilterAllows) {
+        if (!callbacks->xssFilterAllows(cx, str)) {
+            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL,
+                                 JSMSG_XSS_BLOCKED_FUNCTION);
+            return false;
+        }
+    }
+
     JS::Anchor<JSString *> strAnchor(str);
     const jschar *chars = linear->chars();
     size_t length = linear->length();

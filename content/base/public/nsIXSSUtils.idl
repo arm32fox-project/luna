@@ -1,0 +1,22 @@
+/* -*- Mode: IDL; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+#include "nsISupports.idl"
+
+
+[uuid(1db76755-1e01-45fe-92b5-25679cbeb085)]
+interface nsIXSSUtils : nsISupports
+{
+
+  /**
+   * This interface is provided for testing purposes only, because it
+   * is not currently possible to directly reference libxul internal
+   * classes from testing code. normally, XPCOM interfaces are used,
+   * but nsXSSUtils is not an XPCOM component. So this is a thin
+   * wrapper that calls testing code which lives inside libxul.
+   */
+  [noscript] void test();
+
+};

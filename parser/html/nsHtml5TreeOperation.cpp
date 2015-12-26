@@ -71,7 +71,7 @@ class MOZ_STACK_CLASS nsHtml5OtherDocUpdate {
       }
     }
   private:
-    nsIDocument* mDocument;
+    nsCOMPtr<nsIDocument> mDocument;
 };
 
 nsHtml5TreeOperation::nsHtml5TreeOperation()
@@ -120,34 +120,27 @@ nsHtml5TreeOperation::~nsHtml5TreeOperation()
 nsresult
 nsHtml5TreeOperation::AppendTextToTextNode(const PRUnichar* aBuffer,
                                            uint32_t aLength,
-                                           nsIContent* aTextNode,
-                                           nsHtml5TreeOpExecutor* aBuilder)
+                                           nsIContent* aTextNode)
 {
   NS_PRECONDITION(aTextNode, "Got null text node.");
 
-  if (aBuilder->HaveNotified(aTextNode)) {
-    // This text node has already been notified on, so it's necessary to
-    // notify on the append
-    nsresult rv = NS_OK;
-    uint32_t oldLength = aTextNode->TextLength();
-    CharacterDataChangeInfo info = {
-      true,
-      oldLength,
-      oldLength,
-      aLength
-    };
-    nsNodeUtils::CharacterDataWillChange(aTextNode, &info);
+  nsCOMPtr<nsIContent> textNode = aTextNode;
+  mozAutoDocUpdate batch(textNode->OwnerDoc(), UPDATE_CONTENT_MODEL, true);
+  uint32_t oldLength = textNode->TextLength();
+  CharacterDataChangeInfo info = {
+    true,
+    oldLength,
+    oldLength,
+    aLength
+  };
+  nsNodeUtils::CharacterDataWillChange(textNode, &info);
 
-    rv = aTextNode->AppendText(aBuffer, aLength, false);
-    NS_ENSURE_SUCCESS(rv, rv);
+  nsresult rv = textNode->AppendText(aBuffer, aLength, false);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-    nsNodeUtils::CharacterDataChanged(aTextNode, &info);
-    return rv;
-  }
-
-  return aTextNode->AppendText(aBuffer, aLength, false);
+  nsNodeUtils::CharacterDataChanged(textNode, &info);
+  return rv;
 }
-
 
 nsresult
 nsHtml5TreeOperation::AppendText(const PRUnichar* aBuffer,
@@ -162,8 +155,7 @@ nsHtml5TreeOperation::AppendText(const PRUnichar* aBuffer,
                                  aBuilder->GetDocument());
     return AppendTextToTextNode(aBuffer, 
                                 aLength, 
-                                lastChild, 
-                                aBuilder);
+                                lastChild);
   }
 
   nsRefPtr<nsTextNode> text = new nsTextNode(aBuilder->GetNodeInfoManager());
@@ -171,38 +163,22 @@ nsHtml5TreeOperation::AppendText(const PRUnichar* aBuffer,
   rv = text->SetText(aBuffer, aLength, false);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return Append(text, aParent, aBuilder);
+  return Append(text, aParent);
 }
 
 nsresult
 nsHtml5TreeOperation::Append(nsIContent* aNode,
-                             nsIContent* aParent,
-                             nsHtml5TreeOpExecutor* aBuilder)
+                             nsIContent* aParent)
 {
-  nsresult rv = NS_OK;
-  nsIDocument* executorDoc = aBuilder->GetDocument();
-  NS_ASSERTION(executorDoc, "Null doc on executor");
-  nsIDocument* parentDoc = aParent->OwnerDoc();
-  NS_ASSERTION(parentDoc, "Null owner doc on old node.");
-
-  if (MOZ_LIKELY(executorDoc == parentDoc)) {
-    // the usual case. the parent is in the parser's doc
-    rv = aParent->AppendChildTo(aNode, false);
-    if (NS_SUCCEEDED(rv)) {
-      aBuilder->PostPendingAppendNotification(aParent, aNode);
-    }
-    return rv;
-  }
-
-  // The parent has been moved to another doc
-  parentDoc->BeginUpdate(UPDATE_CONTENT_MODEL);
-
-  uint32_t childCount = aParent->GetChildCount();
-  rv = aParent->AppendChildTo(aNode, false);
+  nsCOMPtr<nsIContent> parent = aParent;
+  nsCOMPtr<nsIContent> node = aNode;
+  mozAutoDocUpdate batch(parent->OwnerDoc(), UPDATE_CONTENT_MODEL, true);
+  uint32_t childCount = parent->GetChildCount();
+  nsresult rv = parent->AppendChildTo(node, false);
   if (NS_SUCCEEDED(rv)) {
-    nsNodeUtils::ContentAppended(aParent, aNode, childCount);
+    node->SetParserHasNotified();
+    nsNodeUtils::ContentAppended(parent, node, childCount);
   }
-  parentDoc->EndUpdate(UPDATE_CONTENT_MODEL);
   return rv;
 }
 
@@ -210,19 +186,17 @@ nsresult
 nsHtml5TreeOperation::AppendToDocument(nsIContent* aNode,
                                        nsHtml5TreeOpExecutor* aBuilder)
 {
-  nsresult rv = NS_OK;
-  aBuilder->FlushPendingAppendNotifications();
-  nsIDocument* doc = aBuilder->GetDocument();
-  uint32_t childCount = doc->GetChildCount();
-  rv = doc->AppendChildTo(aNode, false);
-  if (rv == NS_ERROR_DOM_HIERARCHY_REQUEST_ERR) {
-    return NS_OK;
-  }
-  NS_ENSURE_SUCCESS(rv, rv);
-  nsNodeUtils::ContentInserted(doc, aNode, childCount);
-
   NS_ASSERTION(!nsContentUtils::IsSafeToRunScript(),
                "Someone forgot to block scripts");
+
+  nsCOMPtr<nsIDocument> doc = aBuilder->GetDocument();
+  mozAutoDocUpdate batch(doc, UPDATE_CONTENT_MODEL, true);
+  uint32_t childCount = doc->GetChildCount();
+  nsresult rv = doc->AppendChildTo(aNode, false);
+  NS_ENSURE_SUCCESS(rv, rv);
+  aNode->SetParserHasNotified();
+  nsNodeUtils::ContentInserted(doc, aNode, childCount);
+
   if (aNode->IsElement()) {
     nsContentUtils::AddScriptRunner(
         new nsDocElementCreatedNotificationRunner(doc));
@@ -239,11 +213,10 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     case eTreeOpAppend: {
       nsIContent* node = *(mOne.node);
       nsIContent* parent = *(mTwo.node);
-      return Append(node, parent, aBuilder);
+      return Append(node, parent);
     }
     case eTreeOpDetach: {
       nsIContent* node = *(mOne.node);
-      aBuilder->FlushPendingAppendNotifications();
       nsCOMPtr<nsINode> parent = node->GetParentNode();
       if (parent) {
         nsHtml5OtherDocUpdate update(parent->OwnerDoc(),
@@ -256,13 +229,13 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     }
     case eTreeOpAppendChildrenToNewParent: {
       nsCOMPtr<nsIContent> node = *(mOne.node);
-      nsIContent* parent = *(mTwo.node);
-      aBuilder->FlushPendingAppendNotifications();
+      nsCOMPtr<nsIContent> parent = *(mTwo.node);
 
       nsHtml5OtherDocUpdate update(parent->OwnerDoc(),
                                    aBuilder->GetDocument());
 
       uint32_t childCount = parent->GetChildCount();
+      mozAutoDocUpdate batch(node->OwnerDoc(), UPDATE_CONTENT_MODEL, true);
       bool didAppend = false;
       while (node->HasChildren()) {
         nsCOMPtr<nsIContent> child = node->GetFirstChild();
@@ -284,7 +257,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsIContent* foster = table->GetParent();
 
       if (foster && foster->IsElement()) {
-        aBuilder->FlushPendingAppendNotifications();
 
         nsHtml5OtherDocUpdate update(foster->OwnerDoc(),
                                      aBuilder->GetDocument());
@@ -296,7 +268,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         return rv;
       }
 
-      return Append(node, parent, aBuilder);
+      return Append(node, parent);
     }
     case eTreeOpAppendToDocument: {
       nsIContent* node = *(mOne.node);
@@ -495,8 +467,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       nsIContent* foster = table->GetParent();
 
       if (foster && foster->IsElement()) {
-        aBuilder->FlushPendingAppendNotifications();
-
         nsHtml5OtherDocUpdate update(foster->OwnerDoc(),
                                      aBuilder->GetDocument());
 
@@ -506,20 +476,17 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
         if (previousSibling && previousSibling->IsNodeOfType(nsINode::eTEXT)) {
           return AppendTextToTextNode(buffer, 
                                       length, 
-                                      previousSibling, 
-                                      aBuilder);
+                                      previousSibling);
         }
-        
+
         nsRefPtr<nsTextNode> text =
           new nsTextNode(aBuilder->GetNodeInfoManager());
         NS_ASSERTION(text, "Infallible malloc failed?");
-        rv = text->SetText(buffer, length, false);
+        rv = text->SetText(buffer, length, true);
         NS_ENSURE_SUCCESS(rv, rv);
-        
-        rv = foster->InsertChildAt(text, pos, false);
-        NS_ENSURE_SUCCESS(rv, rv);
-        nsNodeUtils::ContentInserted(foster, text, pos);
-        return rv;
+
+        nsCOMPtr<nsIContent> fosterParent = foster;
+        return fosterParent->InsertChildAt(text, pos, true);
       }
       
       return AppendText(buffer, length, stackParent, aBuilder);
@@ -535,7 +502,7 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
       rv = comment->SetText(buffer, length, false);
       NS_ENSURE_SUCCESS(rv, rv);
       
-      return Append(comment, parent, aBuilder);
+      return Append(comment, parent);
     }
     case eTreeOpAppendCommentToDocument: {
       PRUnichar* buffer = mTwo.unicharPtr;
@@ -604,16 +571,12 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     }
     case eTreeOpDoneAddingChildren: {
       nsIContent* node = *(mOne.node);
-      node->DoneAddingChildren(aBuilder->HaveNotified(node));
+      node->DoneAddingChildren(node->HasParserNotified());
       return rv;
     }
     case eTreeOpDoneCreatingElement: {
       nsIContent* node = *(mOne.node);
       node->DoneCreatingElement();
-      return rv;
-    }
-    case eTreeOpFlushPendingAppendNotifications: {
-      aBuilder->FlushPendingAppendNotifications();
       return rv;
     }
     case eTreeOpSetDocumentCharset: {
@@ -632,7 +595,6 @@ nsHtml5TreeOperation::Perform(nsHtml5TreeOpExecutor* aBuilder,
     }
     case eTreeOpUpdateStyleSheet: {
       nsIContent* node = *(mOne.node);
-      aBuilder->FlushPendingAppendNotifications();
       aBuilder->UpdateStyleSheet(node);
       return rv;
     }

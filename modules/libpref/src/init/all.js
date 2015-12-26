@@ -217,8 +217,8 @@ pref("media.peerconnection.noise", 1);
 pref("media.navigator.enabled", true);
 #endif
 #endif
-// TextTrack support
-pref("media.webvtt.enabled", true);
+// TextTrack support -- not mature enough to enable by default.
+pref("media.webvtt.enabled", false);
 
 #ifdef MOZ_WEBSPEECH
 pref("media.webspeech.recognition.enable", false);
@@ -229,6 +229,8 @@ pref("media.webaudio.enabled", false);
 
 // Whether to autostart a media element with an |autoplay| attribute
 pref("media.autoplay.enabled", true);
+// Whether to autostart a media element with an autoplaying script event
+pref("media.autoplay.allowscripted", true);
 
 // The default number of decoded video frames that are enqueued in
 // MediaDecoderReader's mVideoQueue.
@@ -972,9 +974,9 @@ pref("network.http.pipelining.maxrequests" , 4);
 
 // An optimistic request is one pipelined when policy might allow a new
 // connection instead
-pref("network.http.pipelining.max-optimistic-requests" , 4);
+pref("network.http.pipelining.max-optimistic-requests" , 2);
 
-pref("network.http.pipelining.aggressive", true);
+pref("network.http.pipelining.aggressive", false);
 pref("network.http.pipelining.maxsize" , 300000);
 pref("network.http.pipelining.reschedule-on-timeout", true);
 pref("network.http.pipelining.reschedule-timeout", 1000);
@@ -1029,10 +1031,10 @@ pref("network.http.bypass-cachelock-threshold", 200000);
 pref("network.http.bypass-cachelock-threshold", 250);
 #endif
 
-// Try and use SPDY when using SSL
-pref("network.http.spdy.enabled", true);
-pref("network.http.spdy.enabled.v2", true);
-pref("network.http.spdy.enabled.v3", true);
+// SPDY is being deprecated, so don't use it by default.
+pref("network.http.spdy.enabled", false);
+pref("network.http.spdy.enabled.v2", false);
+pref("network.http.spdy.enabled.v3", false);
 pref("network.http.spdy.chunk-size", 4096);
 pref("network.http.spdy.timeout", 180);
 pref("network.http.spdy.coalesce-hostnames", true);
@@ -1340,8 +1342,10 @@ pref("network.auth.use-sspi", true);
 // with native NTLM. (See bug 520607 for details.) Using generic NTLM authentication
 // can expose the user to reflection attack vulnerabilities. Do not change this
 // unless you know what you're doing!
-// This pref should be removed 6 months after the release of firefox 3.6. 
 pref("network.auth.force-generic-ntlm", false);
+
+// Allow insecure NTLMv1 when needed.
+pref("network.negotiate-auth.allow-insecure-ntlm-v1", false);
 
 // The following prefs are used to enable automatic use of the operating
 // system's NTLM implementation to silently authenticate the user with their
@@ -1350,6 +1354,16 @@ pref("network.auth.force-generic-ntlm", false);
 pref("network.automatic-ntlm-auth.allow-proxies", true);
 pref("network.automatic-ntlm-auth.allow-non-fqdn", false);
 pref("network.automatic-ntlm-auth.trusted-uris", "");
+
+// The string to return to the server as the 'workstation' that the
+// user is using.  Bug 1046421 notes that the previous default, of the
+// system hostname, could be used for user fingerprinting.
+//
+// However, in some network environments where allowedWorkstations is in use
+// to provide a level of host-based access control, it must be set to a string
+// that is listed in allowedWorkstations for the user's account in their
+// AD Domain.
+pref("network.generic-ntlm-auth.workstation", "WORKSTATION");
 
 // This preference controls whether or not the LM hash will be included in
 // response to a NTLM challenge.  By default, this is disabled since servers
@@ -1509,6 +1523,14 @@ pref("security.notification_enable_delay", 500);
 pref("security.csp.enable", true);
 pref("security.csp.debug", false);
 pref("security.csp.experimentalEnabled", true);
+
+pref("security.xssfilter.enable", true);
+pref("security.xssfilter.reportOnly", false);
+pref("security.xssfilter.blockMode", false);
+pref("security.xssfilter.ignoreHeaders", false);
+pref("security.xssfilter.displayWarning", true);
+pref("security.xssfilter.blockDynamic", true);
+pref("security.xssfilter.whitelist", "");
 
 // Mixed content blocking
 pref("security.mixed_content.block_active_content", false);
@@ -1816,6 +1838,12 @@ pref("layout.css.vertical-text.enabled", false);
 
 // Is support for CSS overflow-clip-box enabled for content?
 pref("layout.css.overflow-clip-box.enabled", true);
+
+// Is support for the CSS-wide "unset" value enabled?
+pref("layout.css.unset-value.enabled", true);
+
+// Is support for the "all" shorthand enabled?
+pref("layout.css.all-shorthand.enabled", true);
 
 // pref for which side vertical scrollbars should be on
 // 0 = end-side in UI direction
@@ -3633,6 +3661,8 @@ pref("ui.panel.default_level_parent", true);
 
 pref("mousewheel.system_scroll_override_on_root_content.enabled", false);
 
+pref("ui.key.menuAccessKeyFocuses", true);
+
 # XP_UNIX
 #endif
 #endif
@@ -3734,7 +3764,7 @@ pref("image.cache.size", 5242880);
 pref("image.cache.timeweight", 500);
 
 // The default Accept header sent for images loaded over HTTP(S)
-pref("image.http.accept", "image/png,image/*;q=0.8,*/*;q=0.5");
+pref("image.http.accept", "image/webp,image/png,image/*;q=0.8,*/*;q=0.5");
 
 // Whether we do high-quality image downscaling. OS X natively supports
 // high-quality image scaling.

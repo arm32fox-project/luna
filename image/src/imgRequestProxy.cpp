@@ -522,6 +522,14 @@ NS_IMETHODIMP imgRequestProxy::GetURI(nsIURI **aURI)
   return NS_OK;
 }
 
+nsresult imgRequestProxy::GetCurrentURI(nsIURI **aURI)
+{
+  if (!GetOwner())
+    return NS_ERROR_FAILURE;
+
+  return GetOwner()->GetCurrentURI(aURI);
+}
+
 /* readonly attribute imgINotificationObserver notificationObserver; */
 NS_IMETHODIMP imgRequestProxy::GetNotificationObserver(imgINotificationObserver **aObserver)
 {

@@ -127,6 +127,7 @@ nsSystemPrincipal::GetOrigin(char** aOrigin)
 NS_IMETHODIMP
 nsSystemPrincipal::GetCsp(nsIContentSecurityPolicy** aCsp)
 {
+  // System principals should never have CSP applied.
   *aCsp = nullptr;
   return NS_OK;
 }
@@ -134,7 +135,22 @@ nsSystemPrincipal::GetCsp(nsIContentSecurityPolicy** aCsp)
 NS_IMETHODIMP
 nsSystemPrincipal::SetCsp(nsIContentSecurityPolicy* aCsp)
 {
-  // CSP on a null principal makes no sense
+  // Setting a CSP on a system principal makes no sense.
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSystemPrincipal::GetXSSFilter(nsXSSFilter** aXSS)
+{
+  // System principals should never have XSS filters.
+  *aXSS = nullptr;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSystemPrincipal::SetXSSFilter(nsXSSFilter* aXSS)
+{
+  // Setting an XSS filter on a system principal makes no sense.
   return NS_OK;
 }
 

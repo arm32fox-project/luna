@@ -689,13 +689,6 @@ bin/libfreebl_32int64_3.so
 #endif
 #endif
 
-; [MaintenanceService]
-;
-#ifdef MOZ_MAINTENANCE_SERVICE
-@BINPATH@/maintenanceservice.exe
-@BINPATH@/maintenanceservice_installer.exe
-#endif
-
 #ifdef MOZ_WEBAPP_RUNTIME
 [WebappRuntime]
 #ifdef XP_WIN

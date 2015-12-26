@@ -41,6 +41,9 @@
 
       <!-- Passwords -->
       <preference id="signon.rememberSignons" name="signon.rememberSignons" type="bool"/>
+      
+      <!-- XSS Filter -->
+      <preference id="security.xssfilter.enable" name="security.xssfilter.enable" type="bool"/>
 
     </preferences>
     
@@ -108,6 +111,19 @@
                 oncommand="gSecurityPane.showPasswords();"
                 preference="pref.privacy.disable_button.view_passwords"/>
       </hbox>
+    </groupbox>
+
+    <!-- XSS Filter -->
+    <groupbox id="XSSFiltGroup">
+      <caption label="&XSSFilt.label;"/>
+    
+      <hbox id="XSSFiltBox">
+        <checkbox id="enableXSSFilt" flex="1"
+                  label="&enableXSSFilt.label;"
+                  accesskey="&enableXSSFilt.accesskey;"
+                  preference="security.xssfilter.enable" />
+      </hbox>
+
     </groupbox>
 
   </prefpane>

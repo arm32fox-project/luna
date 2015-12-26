@@ -8,7 +8,7 @@ const {Cc, Ci, Cu, Cr} = require("chrome");
 
 Cu.import("resource://gre/modules/Services.jsm");
 
-let Promise = require("sdk/core/promise");
+let promise = require("sdk/core/promise");
 let EventEmitter = require("devtools/shared/event-emitter");
 let {CssLogic} = require("devtools/styleinspector/css-logic");
 
@@ -44,7 +44,7 @@ InspectorPanel.prototype = {
    * open is effectively an asynchronous constructor
    */
   open: function InspectorPanel_open() {
-    let deferred = Promise.defer();
+    let deferred = promise.defer();
 
     this.onNavigatedAway = this.onNavigatedAway.bind(this);
     this.target.on("navigate", this.onNavigatedAway);
@@ -325,7 +325,7 @@ InspectorPanel.prototype = {
    */
   destroy: function InspectorPanel__destroy() {
     if (this._destroyed) {
-      return Promise.resolve(null);
+      return promise.resolve(null);
     }
     this._destroyed = true;
 
@@ -374,7 +374,7 @@ InspectorPanel.prototype = {
     this.nodemenu = null;
     this.highlighter = null;
 
-    return Promise.resolve(null);
+    return promise.resolve(null);
   },
 
   /**

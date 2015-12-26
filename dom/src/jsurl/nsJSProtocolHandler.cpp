@@ -46,8 +46,14 @@
 #include "nsIWritablePropertyBag2.h"
 #include "nsIContentSecurityPolicy.h"
 #include "nsSandboxFlags.h"
+#include "nsXSSFilter.h"
+#include "prlog.h"
 
 using mozilla::AutoPushJSContext;
+
+#ifdef PR_LOGGING
+static PRLogModuleInfo* gXssPRLog;
+#endif
 
 static NS_DEFINE_CID(kJSURICID, NS_JSURI_CID);
 
@@ -98,6 +104,11 @@ nsresult nsJSThunk::Init(nsIURI* uri)
     // Get the url.
     rv = uri->GetSpec(mURL);
     if (NS_FAILED(rv)) return rv;
+
+#ifdef PR_LOGGING
+    if (!gXssPRLog)
+        gXssPRLog = PR_NewLogModule("XSS");
+#endif
 
     return NS_OK;
 }
@@ -189,6 +200,16 @@ nsresult nsJSThunk::EvaluateScript(nsIChannel *aChannel,
         //return early if inline scripts are not allowed
         if (!allowsInline) {
           return NS_ERROR_DOM_RETVAL_UNDEFINED;
+        }
+    }
+
+    nsRefPtr<nsXSSFilter> xss;
+    rv = principal->GetXSSFilter(getter_AddRefs(xss));
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (xss) {
+        NS_ConvertUTF8toUTF16 arg(mScript);
+        if (!xss->PermitsJSUrl(arg)) {
+            return NS_ERROR_DOM_RETVAL_UNDEFINED;
         }
     }
 

@@ -41,6 +41,7 @@
 #include "nsITimer.h"
 
 #include "nsEventDispatcher.h"
+#include "nsEventStateManager.h"
 #include "MediaError.h"
 #include "MediaDecoder.h"
 #include "nsICategoryManager.h"
@@ -975,6 +976,11 @@ static bool IsAutoplayEnabled()
   return Preferences::GetBool("media.autoplay.enabled");
 }
 
+static bool IsScriptedAutoplayEnabled()
+{
+  return Preferences::GetBool("media.autoplay.allowscripted");
+}
+
 static bool UseAudioChannelService()
 {
   return Preferences::GetBool("media.useAudioChannelService");
@@ -1271,7 +1277,14 @@ NS_IMETHODIMP HTMLMediaElement::GetCurrentTime(double* aCurrentTime)
 void
 HTMLMediaElement::SetCurrentTime(double aCurrentTime, ErrorResult& aRv)
 {
+  // aCurrentTime should be non-NaN
   MOZ_ASSERT(aCurrentTime == aCurrentTime);
+
+  // Detect if user has interacted with element by seeking so that
+  // play will not be blocked when initiated by a script.
+  if (nsEventStateManager::IsHandlingUserInput() || nsContentUtils::IsCallerChrome()) {
+    mHasUserInteraction = true;
+  }
 
   StopSuspendingAfterFirstFrame();
 
@@ -1907,7 +1920,8 @@ HTMLMediaElement::HTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     mHasVideo(false),
     mDownloadSuspendedByCache(false),
     mAudioChannelType(AUDIO_CHANNEL_NORMAL),
-    mPlayingThroughTheAudioChannel(false)
+    mPlayingThroughTheAudioChannel(false),
+    mHasUserInteraction(false)
 {
 #ifdef PR_LOGGING
   if (!gMediaElementLog) {
@@ -2001,6 +2015,22 @@ void HTMLMediaElement::SetPlayedOrSeeked(bool aValue)
 void
 HTMLMediaElement::Play(ErrorResult& aRv)
 {
+  // Prevent media element from being auto-started by a script when
+  // media.autoplay.enabled=false and media.autoplay.allowscripted=false
+  if (!mHasUserInteraction
+      && !IsAutoplayEnabled()
+      && !IsScriptedAutoplayEnabled()
+      && !nsEventStateManager::IsHandlingUserInput()
+      && !nsContentUtils::IsCallerChrome()) {
+    LOG(PR_LOG_DEBUG, ("%p Blocked attempt to autoplay media.", this));
+    return;
+  }
+
+  // Play was not blocked; assume that the user has interacted with the element.
+  // This will set the state of the element for future script-interaction
+  // in a player with custom player controls.
+  mHasUserInteraction = true;
+
   StopSuspendingAfterFirstFrame();
   SetPlayedOrSeeked(true);
 

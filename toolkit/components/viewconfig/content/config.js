@@ -195,9 +195,6 @@ var gPrefListener =
     if (topic != "nsPref:changed")
       return;
 
-    if (/^capability\./.test(prefName)) // avoid displaying "private" preferences
-      return;
-
     var arrayIndex = gPrefArray.length;
     var viewIndex = arrayIndex;
     var selectedIndex = view.selection.currentIndex;
@@ -350,10 +347,8 @@ function ShowPrefs()
 {
   var prefArray = gPrefBranch.getChildList("");
 
+  // Fill the array
   prefArray.forEach(function (prefName) {
-    if (/^capability\./.test(prefName)) // avoid displaying "private" preferences
-      return;
-
     fetchPref(prefName, gPrefArray.length);
   });
 

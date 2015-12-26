@@ -24,4 +24,19 @@ interface mozIJSSubScriptLoader : nsISupports
      */
     [implicit_jscontext]
     jsval loadSubScript(in AString url, [optional] in jsval obj, [optional] in AString charset);
+
+    /**
+     * This method should only be called from JS!
+     * In JS, the signature looks like:
+     * rv = loadSubScript (url, optionsObject)
+     * @param url the url of the sub-script, it MUST be either a file:,
+     *            resource:, or chrome: url, and MUST be local.
+     * @param optionsObject an object with parameters. Valid parameters are:
+     *                      - charset: specifying the character encoding of the file (default: ASCII)
+     *                      - target:  an object to evaluate onto (default: global object of the caller)
+     *                      - ignoreCache: if set to true, will bypass the cache for reading the file.
+     * @retval rv the value returned by the sub-script
+     */
+    [implicit_jscontext]
+    jsval loadSubScriptWithOptions(in AString url, in jsval options);
 };

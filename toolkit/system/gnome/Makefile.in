@@ -18,7 +18,6 @@ EXTRA_DSO_LDOPTS += \
 		$(XPCOM_FROZEN_LDOPTS) \
 		$(NSPR_LIBS) \
 		$(MOZ_GCONF_LIBS) \
-		$(MOZ_GNOMEVFS_LIBS) \
 		$(GLIB_LIBS) \
 		$(MOZ_GIO_LIBS) \
 		$(NULL)
@@ -29,7 +28,6 @@ include $(topsrcdir)/config/rules.mk
 
 CXXFLAGS += \
 	$(MOZ_GCONF_CFLAGS) \
-	$(MOZ_GNOMEVFS_CFLAGS) \
 	$(MOZ_GIO_CFLAGS) \
 	$(GLIB_CFLAGS) \
 	$(NULL)

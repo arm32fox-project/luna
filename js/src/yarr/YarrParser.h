@@ -322,7 +322,8 @@ private:
             
             // Not a backreference, and not octal.
             if (peek() >= '8') {
-                delegate.atomPatternCharacter('\\');
+                // Swallow the backslash and break.
+                // Was: delegate.atomPatternCharacter('\\');
                 break;
             }
 

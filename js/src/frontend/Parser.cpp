@@ -6512,18 +6512,6 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
       {
         Node pnval;
 
-        /*
-         * A map from property names we've seen thus far to a mask of property
-         * assignment types, stored and retrieved with ALE_SET_INDEX/ALE_INDEX.
-         */
-        AtomIndexMap seen;
-
-        enum AssignmentType {
-            GET     = 0x1,
-            SET     = 0x2,
-            VALUE   = 0x4 | GET | SET
-        };
-
         pn = handler.newList(PNK_OBJECT, null(), JSOP_NEWINIT);
         if (!pn)
             return null();
@@ -6677,51 +6665,6 @@ Parser<ParseHandler>::primaryExpr(TokenKind tt)
             if (!pn2)
                 return null();
             handler.addList(pn, pn2);
-
-            /*
-             * Check for duplicate property names.  Duplicate data properties
-             * only conflict in strict mode.  Duplicate getter or duplicate
-             * setter halves always conflict.  A data property conflicts with
-             * any part of an accessor property.
-             */
-            AssignmentType assignType;
-            if (op == JSOP_INITPROP) {
-                assignType = VALUE;
-            } else if (op == JSOP_INITPROP_GETTER) {
-                assignType = GET;
-            } else if (op == JSOP_INITPROP_SETTER) {
-                assignType = SET;
-            } else {
-                JS_NOT_REACHED("bad opcode in object initializer");
-                assignType = VALUE; /* try to error early */
-            }
-
-            AtomIndexAddPtr p = seen.lookupForAdd(atom);
-            if (p) {
-                jsatomid index = p.value();
-                AssignmentType oldAssignType = AssignmentType(index);
-                if ((oldAssignType & assignType) &&
-                    (oldAssignType != VALUE || assignType != VALUE || pc->sc->needStrictChecks()))
-                {
-                    JSAutoByteString name;
-                    if (!js_AtomToPrintableString(context, atom, &name))
-                        return null();
-
-                    ParseReportKind reportKind =
-                        (oldAssignType == VALUE && assignType == VALUE && !pc->sc->needStrictChecks())
-                        ? ParseWarning
-                        : (pc->sc->needStrictChecks() ? ParseStrictError : ParseError);
-                    if (!report(reportKind, pc->sc->strict, null(),
-                                JSMSG_DUPLICATE_PROPERTY, name.ptr()))
-                    {
-                        return null();
-                    }
-                }
-                p.value() = assignType | oldAssignType;
-            } else {
-                if (!seen.add(p, atom, assignType))
-                    return null();
-            }
 
             tt = tokenStream.getToken();
             if (tt == TOK_RC)

@@ -714,8 +714,6 @@ components/@DLL_PREFIX@jar50@DLL_SUFFIX@
   components/nsUpdateService.js
   components/nsUpdateServiceStub.js
 #endif
-#ifndef MOZ_MAINTENANCE_SERVICE
 maintenanceservice.exe
 maintenanceservice_installer.exe
-#endif
 jssubloader/

@@ -206,6 +206,7 @@
 #include "nsIEditor.h"
 #include "nsIDOMCSSStyleRule.h"
 #include "mozilla/css/Rule.h"
+#include "nsXSSFilter.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -215,6 +216,7 @@ typedef nsTArray<Link*> LinkArray;
 #ifdef PR_LOGGING
 static PRLogModuleInfo* gDocumentLeakPRLog;
 static PRLogModuleInfo* gCspPRLog;
+static PRLogModuleInfo* gXssPRLog;
 #endif
 
 #define NAME_NOT_VALID ((nsSimpleContentList*)1)
@@ -1384,6 +1386,9 @@ nsDocument::nsDocument(const char* aContentType)
 
   if (!gCspPRLog)
     gCspPRLog = PR_NewLogModule("CSP");
+
+  if (!gXssPRLog)
+    gXssPRLog = PR_NewLogModule("XSS");
 #endif
 
   // Start out mLastStyleSheetSet as null, per spec
@@ -2400,10 +2405,11 @@ nsDocument::StartDocumentLoad(const char* aCommand, nsIChannel* aChannel,
     NS_ENSURE_SUCCESS(rv, rv);
   }
 
-  // Only set CSP if this is not a data document
+  // Only initialize CSP and the XSS filter if this is not a data document.
   if (!mLoadedAsData) {
     nsresult rv = InitCSP(aChannel);
     NS_ENSURE_SUCCESS(rv, rv);
+    InitXSSFilter();
   }
 
   return NS_OK;
@@ -2687,6 +2693,52 @@ nsDocument::InitCSP(nsIChannel* aChannel)
 
   return NS_OK;
 }
+
+void nsDocument::InitXSSFilter()
+{
+  if (!nsXSSFilter::sXSSEnabled) {
+    return;
+  }
+
+  bool system = false;
+  nsIScriptSecurityManager *ssm = nsContentUtils::GetSecurityManager();
+
+  if (NS_SUCCEEDED(ssm->IsSystemPrincipal(NodePrincipal(), &system)) && system) {
+    // TODO: protection for privileged documents? how would attackers
+    // provide untrusted input to it?
+    return;
+  }
+
+  nsIPrincipal* principal = GetPrincipal();
+  if (!principal) {
+#ifdef PR_LOGGING
+    PR_LOG(gXssPRLog, PR_LOG_DEBUG,
+           ("XSS: no principal to put filter in"));
+    return;
+#endif
+  }
+
+  // since there is a principal and the pref is enabled, create the object.
+  nsRefPtr<nsXSSFilter> xss = new nsXSSFilter(this);
+
+  nsresult rv = xss->ScanRequestData();
+  if (NS_FAILED(rv)) {
+    // not necessarily a failure if we bail out on X-XSS protection header
+    return;
+  }
+  rv = principal->SetXSSFilter(xss);
+  if (NS_FAILED(rv)) {
+    return;
+  }
+
+#ifdef PR_LOGGING
+  PR_LOG(gXssPRLog, PR_LOG_DEBUG,
+         ("XSS: Inserted XSSFilter at %p into principal %p", xss.get(), principal));
+#endif
+
+  return;
+}
+
 
 void
 nsDocument::StopDocumentLoad()
@@ -3211,6 +3263,17 @@ nsDocument::SetBaseURI(nsIURI* aURI)
       return NS_OK;
     }
   }
+
+  // xss filter check
+  nsRefPtr<nsXSSFilter> xss;
+  nsresult rv = NodePrincipal()->GetXSSFilter(getter_AddRefs(xss));
+  NS_ENSURE_SUCCESS(rv, rv);
+  // only check if origin changed
+  if (xss && !xss->PermitsBaseElement(GetDocBaseURI(), aURI)) {
+    PR_LOG(gXssPRLog, PR_LOG_DEBUG, ("XSS Filter blocked <base> attack"));
+    return NS_OK;
+  }
+
 
   if (aURI) {
     mDocumentBaseURI = NS_TryToMakeImmutable(aURI);

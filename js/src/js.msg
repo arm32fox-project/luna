@@ -401,3 +401,4 @@ MSG_DEF(JSMSG_WRONG_VALUE,            347, 2, JSEXN_ERR, "expected {0} but found
 MSG_DEF(JSMSG_PAR_ARRAY_SCATTER_BAD_TARGET, 348, 1, JSEXN_ERR, "target for index {0} is not an integer")
 MSG_DEF(JSMSG_SELFHOSTED_UNBOUND_NAME,349, 0, JSEXN_TYPEERR, "self-hosted code may not contain unbound name lookups")
 MSG_DEF(JSMSG_DEPRECATED_SOURCE_MAP,  350, 0, JSEXN_SYNTAXERR, "Using //@ to indicate source map URL pragmas is deprecated. Use //# instead")
+MSG_DEF(JSMSG_XSS_BLOCKED_FUNCTION,   351, 0, JSEXN_ERR, "call to Function() blocked by XSS Filter")

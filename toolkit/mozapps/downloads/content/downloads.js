@@ -18,6 +18,7 @@ var Ci = Components.interfaces;
 let Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/DownloadUtils.jsm");
+Cu.import("resource:///modules/DownloadsCommon.jsm");
 Cu.import("resource://gre/modules/PluralForm.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
@@ -50,7 +51,7 @@ const gListBuildChunk = 3;
 
 // Array of download richlistitem attributes to check when searching
 const gSearchAttributes = [
-  "target",
+  "displayName",
   "status",
   "dateTime",
 ];
@@ -268,7 +269,7 @@ function openDownload(aDownload)
 
     if (!dontAsk) {
       var strings = document.getElementById("downloadStrings");
-      var name = aDownload.getAttribute("target");
+      var name = aDownload.getAttribute("displayName");
       var message = strings.getFormattedString("fileExecutableSecurityWarning", [name, name]);
 
       let title = gStr.fileExecutableSecurityWarningTitle;
@@ -866,7 +867,7 @@ function openExternal(aFile)
  *
  * @param aAttrs
  *        An object that must have the following properties: dlid, file,
- *        target, uri, state, progress, startTime, endTime, currBytes,
+ *        displayName, uri, state, progress, startTime, endTime, currBytes,
  *        maxBytes; optional properties: referrer
  * @return An initialized download richlistitem
  */
@@ -879,8 +880,14 @@ function createDownloadItem(aAttrs)
     dl.setAttribute(attr, aAttrs[attr]);
 
   // Initialize other attributes
+  let s = DownloadsCommon.strings;
+  let displayName = aAttrs.displayName;
+  let [displayHost, fullHost] =
+    DownloadUtils.getURIHost(aAttrs.referrer || aAttrs.uri);
   dl.setAttribute("type", "download");
   dl.setAttribute("id", "dl" + aAttrs.dlid);
+  dl.setAttribute("extendedDisplayName", s.statusSeparator(displayName, displayHost));
+  dl.setAttribute("extendedDisplayNameTip", s.statusSeparator(displayName, fullHost));
   dl.setAttribute("image", "moz-icon://" + aAttrs.file + "?size=32");
   dl.setAttribute("lastSeconds", Infinity);
 
@@ -1160,7 +1167,7 @@ function stepListBuilder(aNumItems) {
     let attrs = {
       dlid: gStmt.getInt64(0),
       file: gStmt.getString(1),
-      target: gStmt.getString(2),
+      displayName: gStmt.getString(2),
       uri: gStmt.getString(3),
       state: gStmt.getInt32(4),
       startTime: Math.round(gStmt.getInt64(5) / 1000),
@@ -1222,7 +1229,7 @@ function prependList(aDownload)
   let attrs = {
     dlid: aDownload.id,
     file: aDownload.target.spec,
-    target: aDownload.displayName,
+    displayName: aDownload.displayName,
     uri: aDownload.source.spec,
     state: aDownload.state,
     progress: aDownload.percentComplete,

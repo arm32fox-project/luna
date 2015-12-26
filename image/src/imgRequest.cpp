@@ -278,6 +278,21 @@ nsresult imgRequest::GetURI(nsIURI **aURI)
   return NS_ERROR_FAILURE;
 }
 
+nsresult imgRequest::GetCurrentURI(nsIURI **aURI)
+{
+  MOZ_ASSERT(aURI);
+
+  LOG_FUNC(GetImgLog(), "imgRequest::GetCurrentURI");
+
+  if (mCurrentURI) {
+    *aURI = mCurrentURI;
+    NS_ADDREF(*aURI);
+    return NS_OK;
+  }
+
+  return NS_ERROR_FAILURE;
+}
+
 nsresult imgRequest::GetSecurityInfo(nsISupports **aSecurityInfo)
 {
   LOG_FUNC(GetImgLog(), "imgRequest::GetSecurityInfo");
@@ -885,15 +900,27 @@ imgRequest::OnRedirectVerifyCallback(nsresult result)
   mNewRedirectChannel = nullptr;
 
 #if defined(PR_LOGGING)
-  nsAutoCString oldspec;
-  if (mCurrentURI)
-    mCurrentURI->GetSpec(oldspec);
-  LOG_MSG_WITH_PARAM(GetImgLog(), "imgRequest::OnChannelRedirect", "old", oldspec.get());
+  {
+    nsAutoCString spec;
+    if (mCurrentURI)
+      mCurrentURI->GetSpec(spec);
+    LOG_MSG_WITH_PARAM(GetImgLog(), "imgRequest::OnChannelRedirect", "old", spec.get());
+  }
 #endif
 
   // make sure we have a protocol that returns data rather than opens
   // an external application, e.g. mailto:
   mChannel->GetURI(getter_AddRefs(mCurrentURI));
+  
+#if defined(PR_LOGGING)
+  {
+    nsAutoCString spec;
+    if (mCurrentURI)
+      mCurrentURI->GetSpec(spec);
+    LOG_MSG_WITH_PARAM(GetImgLog(), "imgRequest::OnChannelRedirect", "new", spec.get());
+  }
+#endif
+
   bool doesNotReturnData = false;
   nsresult rv =
     NS_URIChainHasFlags(mCurrentURI, nsIProtocolHandler::URI_DOES_NOT_RETURN_DATA,

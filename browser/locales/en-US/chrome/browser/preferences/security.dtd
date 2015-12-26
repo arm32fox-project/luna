@@ -36,3 +36,7 @@
 
 <!ENTITY  savedPasswords.label            "Saved Passwords…">
 <!ENTITY  savedPasswords.accesskey        "P">
+
+<!ENTITY  XSSFilt.label              "XSS Filter">
+<!ENTITY  enableXSSFilt.label        "Enable XSS filter">
+<!ENTITY  enableXSSFilt.accesskey    "f">

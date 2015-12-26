@@ -62,7 +62,7 @@ SHARED_LIBRARY_LIBS 	+= \
 	$(NULL)
 endif
 
-ifdef MOZ_VP8
+ifdef MOZ_VPX
 ifndef MOZ_NATIVE_LIBVPX
 SHARED_LIBRARY_LIBS 	+= \
 	$(DEPTH)/media/libvpx/$(LIB_PREFIX)vpx.$(LIB_SUFFIX) \
@@ -118,10 +118,6 @@ SHARED_LIBRARY_LIBS 	+= \
 ifdef MOZ_ENABLE_SKIA
 SHARED_LIBRARY_LIBS += $(MOZ_SKIA_LIBS)
 endif
-
-SHARED_LIBRARY_LIBS += \
-  $(DEPTH)/media/webvtt/$(LIB_PREFIX)webvtt.$(LIB_SUFFIX) \
-  $(NULL)
 
 ifdef MOZ_WEBRTC
 ifndef MOZ_WEBRTC_IN_LIBXUL

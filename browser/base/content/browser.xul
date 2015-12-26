@@ -25,6 +25,9 @@
 <?xul-overlay href="chrome://browser/content/padlock.xul"?>
 # Improve bookmark menu dragging
 <?xul-overlay href="chrome://browser/content/browser-menudragging.xul"?>
+# Promises injector
+<?xul-overlay href="chrome://browser/content/promises.xul"?>
+
  
 # All DTD information is stored in a separate file so that it can be shared by
 # hiddenWindow.xul.
@@ -356,7 +359,7 @@
              toolbarname="&navbarCmd.label;" accesskey="&navbarCmd.accesskey;"
              fullscreentoolbar="true" mode="icons" customizable="true"
              iconsize="large"
-             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,bookmarks-menu-button,downloads-button,window-controls"
+             defaultset="unified-back-forward-button,reload-button,stop-button,home-button,urlbar-container,search-container,bookmarks-menu-button,history-menu-button,downloads-button,window-controls"
              context="toolbar-context-menu">
 
       <toolbaritem id="unified-back-forward-button" class="chromeclass-toolbar-additional"
@@ -530,6 +533,8 @@
                      type="menu"
                      label="&bookmarksMenuButton.label;"
                      tooltiptext="&bookmarksMenuButton.tooltip;"
+                     onclick="if (event.button == 1)
+                                toggleSidebar('viewBookmarksSidebar');"
                      ondragenter="PlacesMenuDNDHandler.onDragEnter(event);"
                      ondragover="PlacesMenuDNDHandler.onDragOver(event);"
                      ondragleave="PlacesMenuDNDHandler.onDragLeave(event);"
@@ -539,7 +544,8 @@
                    context="placesContext"
                    openInTabs="children"
                    oncommand="BookmarksEventHandler.onCommand(event, this.parentNode._placesView);"
-                   onclick="BookmarksEventHandler.onClick(event, this.parentNode._placesView);"
+                   onclick="event.stopPropagation();
+                            BookmarksEventHandler.onClick(event, this.parentNode._placesView);"
                    onpopupshowing="BookmarkingUI.onPopupShowing(event);
                                    if (!this.parentNode._placesView)
                                      new PlacesMenu(event, 'place:folder=BOOKMARKS_MENU');"
@@ -552,6 +558,9 @@
                     label="&viewBookmarksToolbar.label;"/>
           <menuseparator/>
           <menuitem id="BMB_bookmarksShowAll"
+#ifndef XP_MACOSX
+                    class="menuitem-iconic"
+#endif
                     label="&palemoon.menu.allBookmarks.label;"
                     command="Browser:ShowAllBookmarks"
                     key="manBookmarkKb"/>
@@ -599,9 +608,75 @@
           <menuseparator builder="end"
                          class="hide-if-empty-places-result"/>
           <menuitem id="BMB_unsortedBookmarks"
+                    class="menuitem-iconic"
                     label="&bookmarksMenuButton.unsorted.label;"
-                    oncommand="PlacesCommandHook.showPlacesOrganizer('UnfiledBookmarks');"
-                    class="menuitem-iconic"/>
+                    oncommand="PlacesCommandHook.showPlacesOrganizer('UnfiledBookmarks');"/>
+        </menupopup>
+      </toolbarbutton>
+
+      <toolbarbutton id="history-menu-button"
+                     class="toolbarbutton-1 chromeclass-toolbar-additional"
+                     persist="class"
+                     removable="true"                     
+                     type="menu"
+                     label="&historyButton.label;"
+                     tooltiptext="&historyButton.tooltip;"
+                     onclick="if (event.button == 1)
+                                toggleSidebar('viewHistorySidebar');">
+        <menupopup id="HMB_historyPopup"
+                   placespopup="true"
+                   context="placesContext"
+                   oncommand="this.parentNode._placesView._onCommand(event);"
+                   onclick="event.stopPropagation();
+                            checkForMiddleClick(this, event);"
+                   onpopupshowing="if (!this.parentNode._placesView)
+                                     new HistoryMenu(event);"
+                   tooltip="bhTooltip"
+                   popupsinherittooltip="true">
+          <menuitem id="HMB_showAllHistory"
+                    label="&showAllHistoryCmd2.label;"
+#ifndef XP_MACOSX
+                    class="menuitem-iconic"
+                    key="showAllHistoryKb"
+#endif
+                    command="Browser:ShowAllHistory"/>
+          <menuitem id="HMB_sanitizeItem"
+#ifndef XP_MACOSX
+                    class="menuitem-iconic"
+#endif
+                    label="&clearRecentHistory.label;"
+                    key="key_sanitize"
+                    command="Tools:Sanitize"/>
+          <menuseparator id="HMB_sanitizeSeparator"/>
+#ifdef MOZ_SERVICES_SYNC
+          <menuitem id="HMB_sync-tabs-menuitem"
+                    class="syncTabsMenuItem"
+                    label="&syncTabsMenu2.label;"
+                    oncommand="BrowserOpenSyncTabs();"
+                    disabled="true"/>
+#endif
+          <menuitem id="HMB_historyRestoreLastSession"
+                    label="&historyRestoreLastSession.label;"
+                    command="Browser:RestoreLastSession"/>
+          <menu id="HMB_historyUndoMenu"
+                class="recentlyClosedTabsMenu"
+                label="&historyUndoMenu.label;"
+                disabled="true">
+            <menupopup id="HMB_historyUndoPopup"
+                       placespopup="true"
+                       onpopupshowing="document.getElementById('history-menu-button')._placesView.populateUndoSubmenu();"/>
+          </menu>
+          <menu id="HMB_historyUndoWindowMenu"
+                class="recentlyClosedWindowsMenu"
+                label="&historyUndoWindowMenu.label;"
+                disabled="true">
+            <menupopup id="HMB_historyUndoWindowPopup"
+                       placespopup="true"
+                       onpopupshowing="document.getElementById('history-menu-button')._placesView.populateUndoWindowSubmenu();"/>
+          </menu>
+          <menuseparator id="HMB_startHistorySeparator"
+                         class="hide-if-empty-places-result"/>
+          <!-- History menu items -->
         </menupopup>
       </toolbarbutton>
 
@@ -769,7 +844,7 @@
                      tooltiptext="&historyButton.tooltip;"/>
 
       <toolbarbutton id="bookmarks-button" class="toolbarbutton-1 chromeclass-toolbar-additional"
-                     observes="viewBookmarksSidebar"
+                     observes="viewBookmarksSidebar" label="&bookmarksButton.label;"
                      tooltiptext="&bookmarksButton.tooltip;"
                      ondrop="bookmarksButtonObserver.onDrop(event)"
                      ondragover="bookmarksButtonObserver.onDragOver(event)"

@@ -51,11 +51,7 @@ GetIndexedDBPermissions(nsIDOMWindow* aWindow)
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
-  if (!Preferences::GetBool(PREF_INDEXEDDB_ENABLED)) {
-    return PERMISSION_DENIED;
-  }
-
-  // No window here means chrome access.
+  // No window here means chrome access -- always allowed
   if (!aWindow) {
     return PERMISSION_ALLOWED;
   }
@@ -63,8 +59,14 @@ GetIndexedDBPermissions(nsIDOMWindow* aWindow)
   nsCOMPtr<nsIScriptObjectPrincipal> sop(do_QueryInterface(aWindow));
   NS_ENSURE_TRUE(sop, nsIPermissionManager::DENY_ACTION);
 
+  // If it's a script with the system principal -- always allowed
   if (nsContentUtils::IsSystemPrincipal(sop->GetPrincipal())) {
     return PERMISSION_ALLOWED;
+  }
+
+  // Now, check the preference
+  if (!Preferences::GetBool(PREF_INDEXEDDB_ENABLED)) {
+    return PERMISSION_DENIED;
   }
 
   nsCOMPtr<nsIWebNavigation> webNav = do_GetInterface(aWindow);

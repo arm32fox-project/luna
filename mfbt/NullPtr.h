@@ -22,9 +22,7 @@
 #  endif
 #elif defined(__GNUC__)
 #  if defined(__GXX_EXPERIMENTAL_CXX0X__) || __cplusplus >= 201103L
-#    if MOZ_GCC_VERSION_AT_LEAST(4, 6, 0)
 #      define MOZ_HAVE_CXX11_NULLPTR
-#    endif
 #  endif
 #elif _MSC_VER >= 1600
 # define MOZ_HAVE_CXX11_NULLPTR

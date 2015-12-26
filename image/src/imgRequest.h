@@ -123,6 +123,7 @@ public:
   void UpdateCacheEntrySize();
 
   nsresult GetURI(nsIURI **aURI);
+  nsresult GetCurrentURI(nsIURI **aURI);
 
 private:
   friend class imgCacheEntry;

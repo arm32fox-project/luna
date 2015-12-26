@@ -53,10 +53,15 @@
 #include "xpcpublic.h"
 #include "nsSandboxFlags.h"
 #include "mozilla/dom/time/TimeChangeObserver.h"
+#include "nsXSSFilter.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::hal;
+
+#ifdef PR_LOGGING
+static PRLogModuleInfo* gXssPRLog;
+#endif
 
 #define EVENT_TYPE_EQUALS(ls, type, userType, allEvents) \
   ((ls->mEventType == type && \
@@ -116,6 +121,13 @@ nsEventListenerManager::nsEventListenerManager(EventTarget* aTarget) :
   NS_ASSERTION(aTarget, "unexpected null pointer");
 
   ++sCreatedCount;
+
+  // enable logging for XSS
+#ifdef PR_LOGGING
+  if (!gXssPRLog)
+    gXssPRLog = PR_NewLogModule("XSS");
+#endif
+
 }
 
 nsEventListenerManager::~nsEventListenerManager() 
@@ -717,6 +729,17 @@ nsEventListenerManager::SetEventHandler(nsIAtom *aName,
 
       // return early if CSP wants us to block inline scripts
       if (!inlineOK) {
+        return NS_OK;
+      }
+    }
+
+    nsRefPtr<nsXSSFilter> xss;
+    rv = doc->NodePrincipal()->GetXSSFilter(getter_AddRefs(xss));
+    NS_ENSURE_SUCCESS(rv, rv);
+    if (xss) {
+      if (!xss->PermitsEventListener(aBody)) {
+        PR_LOG(gXssPRLog, PR_LOG_DEBUG,
+               ("XSS:Onload:blocked onload event"));
         return NS_OK;
       }
     }

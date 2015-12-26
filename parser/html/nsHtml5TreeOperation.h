@@ -42,7 +42,6 @@ enum eHtml5TreeOperation {
   eTreeOpPreventScriptExecution,
   eTreeOpDoneAddingChildren,
   eTreeOpDoneCreatingElement,
-  eTreeOpFlushPendingAppendNotifications,
   eTreeOpSetDocumentCharset,
   eTreeOpNeedsCharsetSwitchTo,
   eTreeOpUpdateStyleSheet,
@@ -372,8 +371,7 @@ class nsHtml5TreeOperation {
 
     nsresult AppendTextToTextNode(const PRUnichar* aBuffer,
                                   uint32_t aLength,
-                                  nsIContent* aTextNode,
-                                  nsHtml5TreeOpExecutor* aBuilder);
+                                  nsIContent* aTextNode);
 
     nsresult AppendText(const PRUnichar* aBuffer,
                         uint32_t aLength,
@@ -381,8 +379,7 @@ class nsHtml5TreeOperation {
                         nsHtml5TreeOpExecutor* aBuilder);
 
     nsresult Append(nsIContent* aNode,
-                    nsIContent* aParent,
-                    nsHtml5TreeOpExecutor* aBuilder);
+                    nsIContent* aParent);
 
     nsresult AppendToDocument(nsIContent* aNode,
                               nsHtml5TreeOpExecutor* aBuilder);

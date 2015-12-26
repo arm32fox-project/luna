@@ -397,7 +397,8 @@ CodeGeneratorShared::ensureOsiSpace()
         for (int32_t i = 0; i < paddingSize; ++i)
             masm.nop();
     }
-    JS_ASSERT(masm.currentOffset() - lastOsiPointOffset_ >= Assembler::patchWrite_NearCallSize());
+    JS_ASSERT_IF(!masm.oom(),
+                 masm.currentOffset() - lastOsiPointOffset_ >= Assembler::patchWrite_NearCallSize());
     lastOsiPointOffset_ = masm.currentOffset();
 }
 

@@ -124,7 +124,6 @@ PrepareAndDispatch(nsXPTCStubBase * self, uint32_t methodIndex,
     return result;
 }
 
-// Linux/x86-64 uses gcc >= 3.1
 #define STUB_ENTRY(n) \
 asm(".section	\".text\"\n\t" \
     ".align	2\n\t" \

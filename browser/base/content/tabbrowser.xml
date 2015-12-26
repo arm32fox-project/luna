@@ -3293,22 +3293,21 @@
                         this.tabbrowser._removingTabs.length;
           // modes for tabstrip
           // 0 - button on active tab only
-          // 1 - close buttons on all tabs
+          // 1 - close buttons on all tabs, if available space allows
           // 2 - no close buttons at all
           // 3 - close button at the end of the tabstrip
           switch (this.mCloseButtons) {
           case 0:
-            if (numTabs == 1 && this._closeWindowWithLastTab)
-              this.setAttribute("closebuttons", "hidden");
-            else
-              this.setAttribute("closebuttons", "activetab");
+            // If we decide we want to hide the close tab button on the last tab
+            // when closing the window with the last tab, then we should check
+            // if (numTabs == 1 && this._closeWindowWithLastTab) here and set
+            // this.setAttribute("closebuttons", "hidden") appropriately
+            this.setAttribute("closebuttons", "activetab");
             break;
           case 1:
             if (numTabs == 1) {
-              if (this._closeWindowWithLastTab)
-                this.setAttribute("closebuttons", "hidden");
-              else
-                this.setAttribute("closebuttons", "alltabs");
+              // See remark about potentially hiding the close tab button, above.
+              this.setAttribute("closebuttons", "alltabs");
             } else if (numTabs == 2) {
               // This is an optimization to avoid layout flushes by calling
               // getBoundingClientRect() when we just opened a second tab. In

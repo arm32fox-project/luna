@@ -34,6 +34,9 @@ public:
   NS_DECL_NSISERIALIZABLE
   NS_DECL_NSICLASSINFO
 
+  // Override SetScheme to disable -- should not be allowed here.
+  NS_IMETHOD SetScheme(const nsACString &aProtocol) MOZ_OVERRIDE;
+  
   // Override CloneInternal() and EqualsInternal()
   virtual nsresult CloneInternal(RefHandlingEnum aRefHandlingMode,
                                  nsIURI** aClone) MOZ_OVERRIDE;

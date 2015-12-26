@@ -1127,6 +1127,10 @@ protected:
 
   // List of our attached text track objects.
   nsRefPtr<TextTrackList> mTextTracks;
+  
+  // Indicates if user has interacted with the media element.
+  // Used to block autoplay of media.
+  bool mHasUserInteraction;  
 };
 
 } // namespace dom

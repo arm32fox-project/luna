@@ -1055,7 +1055,8 @@ nsFrameConstructorState::PushAbsoluteContainingBlock(nsIFrame* aNewAbsoluteConta
    * we're a transformed element.
    */
   mFixedPosIsAbsPos = aPositionedFrame &&
-      aPositionedFrame->StyleDisplay()->HasTransform(aPositionedFrame);
+      (aPositionedFrame->StyleDisplay()->HasTransform(aPositionedFrame) ||
+       aPositionedFrame->StyleDisplay()->HasPerspectiveStyle());
 
   if (aNewAbsoluteContainingBlock) {
     aNewAbsoluteContainingBlock->MarkAsAbsoluteContainingBlock();
@@ -1954,11 +1955,7 @@ nsCSSFrameConstructor::ConstructTable(nsFrameConstructorState& aState,
 
   // Mark the table frame as an absolute container if needed
   newFrame->AddStateBits(NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN);
-  if ((display->IsRelativelyPositionedStyle() ||
-       display->IsAbsolutelyPositionedStyle() ||
-       (display->HasTransformStyle() &&
-        aParentFrame->IsFrameOfType(nsIFrame::eSupportsCSSTransforms))) &&
-      !aParentFrame->IsSVGText()) {
+  if (display->IsPositioned(newFrame)) {
     aState.PushAbsoluteContainingBlock(newFrame, newFrame, absoluteSaveState);
   }
   if (aItem.mFCData->mBits & FCDATA_USE_CHILD_ITEMS) {
@@ -1997,9 +1994,7 @@ MakeTablePartAbsoluteContainingBlockIfNeeded(nsFrameConstructorState&     aState
   // However, in this case flag serves the additional purpose of indicating that
   // the frame was registered with its table frame. This allows us to avoid the
   // overhead of unregistering the frame in most cases.
-  if (aDisplay->IsRelativelyPositionedStyle() ||
-      aDisplay->IsAbsolutelyPositionedStyle() ||
-      aDisplay->HasTransform(aFrame)) {
+  if (aDisplay->IsPositioned(aFrame)) {
     aFrame->AddStateBits(NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN);
     aState.PushAbsoluteContainingBlock(aFrame, aFrame, aAbsSaveState);
     nsTableFrame::RegisterPositionedTablePart(aFrame);
@@ -3664,10 +3659,15 @@ nsCSSFrameConstructor::ConstructFrameFromItemInternal(FrameConstructionItem& aIt
     } else if (!(bits & FCDATA_SKIP_ABSPOS_PUSH)) {
       nsIFrame* cb = maybeAbsoluteContainingBlock;
       cb->AddStateBits(NS_FRAME_CAN_HAVE_ABSPOS_CHILDREN);
+      // This check is identical to nsStyleDisplay::IsPositioned except without
+      // the assertion that the style display and frame match. When constructing
+      // scroll frames we intentionally use the style display for the outer, but
+      // make the inner the containing block.
       if ((maybeAbsoluteContainingBlockDisplay->IsAbsolutelyPositionedStyle() ||
            maybeAbsoluteContainingBlockDisplay->IsRelativelyPositionedStyle() ||
            (maybeAbsoluteContainingBlockDisplay->HasTransformStyle() &&
-            cb->IsFrameOfType(nsIFrame::eSupportsCSSTransforms))) &&
+            cb->IsFrameOfType(nsIFrame::eSupportsCSSTransforms)) ||
+           maybeAbsoluteContainingBlockDisplay->HasPerspectiveStyle()) &&
           !cb->IsSVGText()) {
         aState.PushAbsoluteContainingBlock(cb, primaryFrame, absoluteSaveState);
       }
@@ -5595,7 +5595,9 @@ nsCSSFrameConstructor::GetAbsoluteContainingBlock(nsIFrame* aFrame,
     // If we're looking for a fixed-pos containing block and the frame is
     // not transformed, skip it.
     if (!frame->IsPositioned() ||
-        (aType == FIXED_POS && !frame->StyleDisplay()->HasTransform(frame))) {
+        (aType == FIXED_POS &&
+         !frame->StyleDisplay()->HasTransform(frame) &&
+         !frame->StyleDisplay()->HasPerspectiveStyle())) {
       continue;
     }
     nsIFrame* absPosCBCandidate = nullptr;

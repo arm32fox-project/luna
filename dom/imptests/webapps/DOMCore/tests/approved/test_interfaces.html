@@ -132,7 +132,7 @@ callback MutationCallback = void (sequence<MutationRecord> mutations, MutationOb
 
 dictionary MutationObserverInit {
   boolean childList = false;
-  boolean attributes = false;
+  boolean attributes;
   boolean characterData = false;
   boolean subtree = false;
   boolean attributeOldValue = false;

@@ -19,6 +19,7 @@
 %define navbarLargeIcons #navigator-toolbox[iconsize=large][mode=icons] > #nav-bar
 %define forwardTransitionLength 150ms
 %define conditionalForwardWithUrlbar window:not([chromehidden~=toolbar]) #navigator-toolbox[iconsize=large][mode=icons] > :-moz-any(#nav-bar[currentset*="unified-back-forward-button"],#nav-bar:not([currentset])) > #unified-back-forward-button
+%define conditionalForwardWithUrlbar2 window:not([chromehidden~=toolbar]) #navigator-toolbox[iconsize=large][mode=icons] > :-moz-any(#nav-bar[currentset*="unified-back-forward-button"]:not([currentset*="unified-back-forward-button,urlbar-container"]),#nav-bar:not([currentset])) > #unified-back-forward-button
 %define conditionalForwardWithUrlbarWidth 27
 
 %ifdef MOZ_OFFICIAL_BRANDING
@@ -538,10 +539,29 @@
   }
 }
 
-#BMB_bookmarkThisPage,
-#appmenu_bookmarkThisPage {
+#appmenu_showAllBookmarks,
+#bookmarksShowAll,
+#BMB_bookmarksShowAll {
+  list-style-image: url("chrome://browser/skin/places/allBookmarks.png");
+}
+
+#appmenu_bookmarkThisPage,
+#menu_bookmarkThisPage,
+#BMB_bookmarkThisPage {
   list-style-image: url("chrome://browser/skin/places/bookmark.png");
   -moz-image-region: rect(0 16px 16px 0);
+}
+
+#appmenu_showAllHistory,
+#menu_showAllHistory,
+#HMB_showAllHistory {
+  list-style-image: url("chrome://browser/skin/places/history.png");
+}
+
+#appmenu_sanitizeHistory,
+#sanitizeItem,
+#HMB_sanitizeItem {
+  list-style-image: url("chrome://browser/skin/sanitize.png");
 }
 
 /* ::::: titlebar ::::: */
@@ -822,8 +842,26 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   box-shadow: 0 1px hsla(0,0%,100%,.05) inset,
               0 1px hsla(210,54%,20%,.05),
               0 0 2px hsla(210,54%,20%,.05);
-  transition-property: background-image, background-color, border-color, box-shadow;
-  transition-duration: 150ms;
+}
+
+@media (-moz-os-version: windows-win10) {
+  /* Square is the new round, courtesy of microsoft */
+  @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-icon,
+  @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-badge-container,
+  @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
+  @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-dropmarker > .dropmarker-icon {
+    border-radius: 0px;
+  }
+
+  @conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(ltr) > .toolbarbutton-icon {
+    border-top-right-radius: 0px;
+    border-bottom-right-radius: 0px;
+  }
+
+  @conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(rtl) > .toolbarbutton-icon {
+    border-top-left-radius: 0px;
+    border-bottom-left-radius: 0px;
+  }
 }
 
 @navbarLargeIcons@ .toolbarbutton-1:not(:-moz-any(@primaryToolbarButtons@)) > .toolbarbutton-icon,
@@ -875,33 +913,29 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   border-bottom-left-radius: 0;
 }
 
-@navbarLargeIcons@ .toolbarbutton-1:not([disabled]):-moz-any(:hover,[open]) > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
-@navbarLargeIcons@ .toolbarbutton-1:not([disabled]):hover > .toolbarbutton-menubutton-dropmarker > .dropmarker-icon,
 @navbarLargeIcons@ .toolbarbutton-1:not([disabled]):not([checked]):not([open]):not(:active):hover > .toolbarbutton-icon,
 @navbarLargeIcons@ .toolbarbutton-1:not([disabled]):not([checked]):not([open]):not(:active):hover > .toolbarbutton-badge-container,
-@conditionalForwardWithUrlbar@ > .toolbarbutton-1:-moz-any([disabled],:not([open]):not([disabled]):not(:active)) > .toolbarbutton-icon {
+@navbarLargeIcons@ .toolbarbutton-1:not([disabled]):-moz-any(:hover,[open]) > .toolbarbutton-menubutton-button > .toolbarbutton-icon,
+@navbarLargeIcons@ .toolbarbutton-1:not([disabled]):hover > .toolbarbutton-menubutton-dropmarker > .dropmarker-icon {
   background-image: linear-gradient(hsla(0,0%,100%,.8), hsla(0,0%,100%,.5));
   border-color: hsla(210,54%,20%,.25) hsla(210,54%,20%,.3) hsla(210,54%,20%,.35);
   box-shadow: 0 1px hsla(0,0%,100%,.3) inset,
               0 1px hsla(210,54%,20%,.03),
               0 0 2px hsla(210,54%,20%,.1);
-  transition-property: background-image, background-color, border-color, box-shadow;
-  transition-duration: 150ms;
 }
 
 @navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-button:not([disabled]):not([open]):not(:active):hover > .toolbarbutton-icon,
-@navbarLargeIcons@ .toolbarbutton-1:not([buttonover]):not([open]):not(:active):hover > .toolbarbutton-menubutton-dropmarker:not([disabled]) > .dropmarker-icon,
-@conditionalForwardWithUrlbar@ > #forward-button:not([open]):not(:active):not([disabled]):hover > .toolbarbutton-icon {
-  border-color: hsla(210,54%,20%,.3) hsla(210,54%,20%,.35) hsla(210,54%,20%,.4);
+@navbarLargeIcons@ .toolbarbutton-1:not([buttonover]):not([open]):not(:active):hover > .toolbarbutton-menubutton-dropmarker:not([disabled]) > .dropmarker-icon {
   background-color: hsla(210,48%,96%,.75);
+  border-color: hsla(210,54%,20%,.3) hsla(210,54%,20%,.35) hsla(210,54%,20%,.4);
   box-shadow: 0 0 1px hsla(210,54%,20%,.03),
               0 0 2px hsla(210,54%,20%,.1);
 }
 
-@navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-button:not([disabled]):hover:active > .toolbarbutton-icon,
-@navbarLargeIcons@ .toolbarbutton-1[open] > .toolbarbutton-menubutton-dropmarker:not([disabled]) > .dropmarker-icon,
 @navbarLargeIcons@ .toolbarbutton-1:not([disabled]):-moz-any([open],[checked],:hover:active) > .toolbarbutton-icon,
-@navbarLargeIcons@ .toolbarbutton-1:not([disabled]):-moz-any([open],[checked],:hover:active) > .toolbarbutton-badge-container {
+@navbarLargeIcons@ .toolbarbutton-1:not([disabled]):-moz-any([open],[checked],:hover:active) > .toolbarbutton-badge-container,
+@navbarLargeIcons@ .toolbarbutton-1 > .toolbarbutton-menubutton-button:not([disabled]):hover:active > .toolbarbutton-icon,
+@navbarLargeIcons@ .toolbarbutton-1[open] > .toolbarbutton-menubutton-dropmarker:not([disabled]) > .dropmarker-icon {
   background-image: linear-gradient(hsla(0,0%,100%,.6), hsla(0,0%,100%,.1));
   background-color: hsla(210,54%,20%,.15);
   border-color: hsla(210,54%,20%,.3) hsla(210,54%,20%,.35) hsla(210,54%,20%,.4);
@@ -911,7 +945,6 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
               0 1px 0 hsla(210,54%,20%,0),
               0 0 2px hsla(210,54%,20%,0);
   text-shadow: none;
-  transition: none;
 }
 
 @navbarLargeIcons@ .toolbarbutton-1:-moz-any(:hover,[open]) > .toolbarbutton-menubutton-dropmarker:not([disabled]) > .dropmarker-icon {
@@ -976,6 +1009,14 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   -moz-box-align: center;
 }
 
+@conditionalForwardWithUrlbar@ > .toolbarbutton-1:-moz-any([disabled],:not([disabled]):not([open]):not(:active)) > .toolbarbutton-icon {
+  background-image: linear-gradient(hsla(0,0%,100%,.6), hsla(0,0%,100%,.1));
+  border-color: hsla(210,54%,20%,.25) hsla(210,54%,20%,.3) hsla(210,54%,20%,.35);
+  box-shadow: 0 1px hsla(0,0%,100%,.3) inset,
+              0 1px hsla(210,54%,20%,.03),
+              0 0 2px hsla(210,54%,20%,.1);
+}
+
 @conditionalForwardWithUrlbar@ > #forward-button {
   padding: 0;
 }
@@ -985,7 +1026,6 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
 }
 
 @conditionalForwardWithUrlbar@ > #forward-button > .toolbarbutton-icon {
-  /*mask: url(keyhole-forward-mask.svg#mask); XXX: this regresses twinopen */
   clip-path: url(chrome://browser/content/browser.xul#windows-keyhole-forward-clip-path);
   -moz-margin-start: -6px !important;
   border-left-style: none;
@@ -994,12 +1034,21 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   padding-right: 3px;
 }
 
-@conditionalForwardWithUrlbar@:not([switchingtabs]) > #forward-button {
-  transition: opacity @forwardTransitionLength@ ease-out;
+@conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(ltr) > .toolbarbutton-icon {
+  border-top-right-radius: 2.5px;
+  border-bottom-right-radius: 2.5px;
 }
 
-@conditionalForwardWithUrlbar@:not(:hover) > #forward-button[disabled] {
-/*  opacity: 0; */
+@conditionalForwardWithUrlbar2@ > #forward-button:-moz-locale-dir(rtl) > .toolbarbutton-icon {
+  border-top-left-radius: 2.5px;
+  border-bottom-left-radius: 2.5px;
+}
+
+@conditionalForwardWithUrlbar@ > #forward-button:not([disabled]):not([open]):not(:active):hover > .toolbarbutton-icon {
+  background-color: hsla(210,48%,96%,.75);
+  border-color: hsla(210,54%,20%,.3) hsla(210,54%,20%,.35) hsla(210,54%,20%,.4);
+  box-shadow: 0 0 1px hsla(210,54%,20%,.03),
+              0 0 2px hsla(210,54%,20%,.1);
 }
 
 @conditionalForwardWithUrlbar@ > #back-button {
@@ -1030,8 +1079,6 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
               0 0 0 1px hsla(0,0%,100%,.3) inset,
               0 0 0 1px hsla(210,54%,20%,.25),
               0 1px 0 hsla(210,54%,20%,.35);
-  transition-property: background-color, box-shadow;
-  transition-duration: 250ms;
 }
 
 @conditionalForwardWithUrlbar@ > #back-button:not([disabled="true"]):not([open="true"]):not(:active):hover > .toolbarbutton-icon {
@@ -1050,13 +1097,11 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
               0 0 1px hsla(210,54%,20%,.2) inset,
               0 0 0 1px hsla(210,54%,20%,.4),
               0 1px 0 hsla(210,54%,20%,.2);
-  transition: none;
 }
 
 @conditionalForwardWithUrlbar@ > #back-button[disabled] > .toolbarbutton-icon {
   box-shadow: 0 0 0 1px hsla(210,54%,20%,.55),
               0 1px 0 hsla(210,54%,20%,.65);
-  transition: none;
 }
 
 .unified-nav-back[_moz-menuactive]:-moz-locale-dir(ltr),
@@ -1097,7 +1142,8 @@ toolbar[mode=full] .toolbarbutton-1 > .toolbarbutton-menubutton-button {
   -moz-image-region: rect(0, 108px, 18px, 90px);
 }
 
-#history-button {
+#history-button,
+#history-menu-button {
   -moz-image-region: rect(0, 126px, 18px, 108px);
 }
 
@@ -1898,6 +1944,15 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   padding: 3px 1px 4px 1px;
 }
 
+@media (-moz-os-version: windows-win10) {
+  /* Square is the new round, courtesy of microsoft */
+  .tabbrowser-tab,
+  .tabs-newtab-button {
+    border-radius: 0px;
+    box-shadow: none;
+  }
+}
+
 /* Make sure extra margin is added when tabs are not in the title bar so it doesn't
    "glue" right up against the AppMenu button/caption */
 #main-window[sizemode="normal"][tabsontop=true] .tabbrowser-tab,
@@ -2041,12 +2096,12 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 .tab-close-button:hover,
 .tab-close-button:hover[selected="true"] {
-  -moz-image-region: rect(0, 48px, 16px, 32px);
+  -moz-image-region: rect(0, 32px, 16px, 16px);
 }
 
 .tab-close-button:hover:active,
 .tab-close-button:hover:active[selected="true"] {
-  -moz-image-region: rect(0, 32px, 16px, 16px);
+  -moz-image-region: rect(0, 48px, 16px, 32px);
 }
 
 .tab-close-button[selected="true"] {
@@ -2615,14 +2670,15 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
   list-style-image: url("chrome://browser/skin/feeds/feedIcon16.png");
 }
 
-#bookmarksToolbarFolderMenu,
 #appmenu_bookmarksToolbar,
+#bookmarksToolbarFolderMenu,
 #BMB_bookmarksToolbar {
   list-style-image: url("chrome://browser/skin/places/bookmarksToolbar.png");
   -moz-image-region: auto;
 }
 
 #appmenu_unsortedBookmarks,
+#menu_unsortedBookmarks,
 #BMB_unsortedBookmarks {
   list-style-image: url("chrome://browser/skin/places/unsortedBookmarks.png");
   -moz-image-region: auto;
