@@ -405,6 +405,22 @@ nsLayoutUtils::CSSFiltersEnabled()
   return sCSSFiltersEnabled;
 }
 
+bool
+nsLayoutUtils::UnsetValueEnabled()
+{
+  static bool sUnsetValueEnabled;
+  static bool sUnsetValuePrefCached = false;
+
+  if (!sUnsetValuePrefCached) {
+    sUnsetValuePrefCached = true;
+    Preferences::AddBoolVarCache(&sUnsetValueEnabled,
+                                 "layout.css.unset-value.enabled",
+                                 false);
+  }
+
+  return sUnsetValueEnabled;
+}
+
 void
 nsLayoutUtils::UnionChildOverflow(nsIFrame* aFrame,
                                   nsOverflowAreas& aOverflowAreas)
