@@ -660,7 +660,7 @@ nsSVGUtils::GetCanvasTM(nsIFrame *aFrame, uint32_t aFor,
 
   nsSVGContainerFrame *containerFrame = do_QueryFrame(aFrame);
   if (containerFrame) {
-    return containerFrame->GetCanvasTM(aFor, aTransformRootm);
+    return containerFrame->GetCanvasTM(aFor, aTransformRoot);
   }
 
   return static_cast<nsSVGGeometryFrame*>(aFrame)->
