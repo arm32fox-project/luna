@@ -17,6 +17,7 @@ pref(gfx.font_rendering.opentype_svg.enabled,true)    random-if(winWidget) == sv
 pref(gfx.font_rendering.opentype_svg.enabled,true)    == svg-glyph-cachedopacity.svg svg-glyph-cachedopacity-ref.svg
 pref(gfx.font_rendering.opentype_svg.enabled,true)    == svg-glyph-objectvalue.svg svg-glyph-objectvalue-ref.svg
 pref(gfx.font_rendering.opentype_svg.enabled,true)    fails == svg-glyph-mask.svg svg-glyph-mask-ref.svg # bug 872483
+pref(gfx.font_rendering.opentype_svg.enabled,true)    == svg-glyph-transform.svg svg-glyph-transform-ref.svg # bug 875329
 
 # test for a non-BMP character in the glyphchar attribute (bug 875629)
 pref(gfx.font_rendering.opentype_svg.enabled,true)  != cat_face-bmp.html cat_face-notref.html
