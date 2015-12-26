@@ -126,7 +126,7 @@ nsSVGPatternFrame::GetType() const
 // matrix, which depends on our units parameters
 // and X, Y, Width, and Height
 gfxMatrix
-nsSVGPatternFrame::GetCanvasTM(uint32_t aFor)
+nsSVGPatternFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
 {
   if (mCTM) {
     return *mCTM;
@@ -135,7 +135,7 @@ nsSVGPatternFrame::GetCanvasTM(uint32_t aFor)
   // Do we know our rendering parent?
   if (mSource) {
     // Yes, use it!
-    return mSource->GetCanvasTM(aFor);
+    return mSource->GetCanvasTM(aFor, aTransformRoot);
   }
 
   // We get here when geometry in the <pattern> container is updated
