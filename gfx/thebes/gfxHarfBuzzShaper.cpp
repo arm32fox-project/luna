@@ -939,8 +939,7 @@ gfxHarfBuzzShaper::ShapeText(gfxContext      *aContext,
                       entry->mFeatureSettings,
                       aShapedText->DisableLigatures(),
                       entry->FamilyName(),
-                      addSmallCaps,
-                      AddOpenTypeFeature,
+                      AddFeature,
                       &features);
 
     bool isRightToLeft = aShapedText->IsRightToLeft();

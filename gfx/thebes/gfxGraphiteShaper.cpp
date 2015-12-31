@@ -150,7 +150,6 @@ gfxGraphiteShaper::ShapeText(gfxContext      *aContext,
                       mFont->GetFontEntry()->mFeatureSettings,
                       aShapedText->DisableLigatures(),
                       mFont->GetFontEntry()->FamilyName(),
-                      mFallbackToSmallCaps,
                       AddFeature,
                       &f); 
 
