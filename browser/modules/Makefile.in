@@ -16,7 +16,6 @@ EXTRA_JS_MODULES = \
 	openLocationLastURL.jsm \
 	NetworkPrioritizer.jsm \
 	offlineAppCache.jsm \
-	SignInToWebsite.jsm \
 	webappsUI.jsm \
 	webrtcUI.jsm \
 	SharedFrame.jsm \
