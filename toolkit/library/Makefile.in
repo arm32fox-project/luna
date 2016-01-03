@@ -136,7 +136,6 @@ COMPONENT_LIBS += \
   startupcache \
   pref \
   htmlpars \
-  identity \
   imglib2 \
   mediasniffer \
   gkgfx \
