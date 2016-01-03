@@ -31,7 +31,6 @@ EXPORTS += [
     'nsHtml5NamedCharactersAccel.h',
     'nsHtml5OwningUTF16Buffer.h',
     'nsHtml5Parser.h',
-    'nsHtml5PendingNotification.h',
     'nsHtml5PlainTextUtils.h',
     'nsHtml5SVGLoadDispatcher.h',
     'nsHtml5Speculation.h',

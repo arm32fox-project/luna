@@ -30,3 +30,4 @@ skip-if(B2G) == columnfill-overflow.html columnfill-overflow-ref.html # bug 7734
 == margin-collapsing-bug616722-2.html margin-collapsing-bug616722-2-ref.html
 == column-balancing-nested-000.html column-balancing-nested-000-ref.html
 == column-balancing-nested-001.html column-balancing-nested-001-ref.html
+== positioning-transforms-bug1112501.html positioning-transforms-bug1112501-ref.html

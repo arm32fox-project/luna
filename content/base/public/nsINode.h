@@ -1323,6 +1323,8 @@ private:
     // Set if the element has a parser insertion mode other than "in body"
     // See: HTML5 draft "parser state" section
     ElementInsertsOOB,
+    // Set if the parser has notified about the node.
+    ParserHasNotified,
     // Guard value
     BooleanFlagCount
   };
@@ -1459,6 +1461,8 @@ public:
   bool IsScopedStyleRoot() { return GetBoolFlag(ElementIsScopedStyleRoot); }
   bool HasRelevantHoverRules() const { return GetBoolFlag(NodeHasRelevantHoverRules); }
   void SetHasRelevantHoverRules() { SetBoolFlag(NodeHasRelevantHoverRules); }
+  void SetParserHasNotified() { SetBoolFlag(ParserHasNotified); };
+  bool HasParserNotified() { return GetBoolFlag(ParserHasNotified); }
   bool HasOOBInsertion() const { return GetBoolFlag(ElementInsertsOOB); }
 protected:
   void SetParentIsContent(bool aValue) { SetBoolFlag(ParentIsContent, aValue); }

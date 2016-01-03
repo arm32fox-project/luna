@@ -458,12 +458,6 @@ nsHtml5TreeBuilder::elementPushed(int32_t aNamespace, nsIAtom* aName, nsIContent
   }
   if (aName == nsHtml5Atoms::input ||
       aName == nsHtml5Atoms::button) {
-    if (!formPointer) {
-      // If form inputs don't belong to a form, their state preservation
-      // won't work right without an append notification flush at this
-      // point. See bug 497861.
-      mOpQueue.AppendElement()->Init(eTreeOpFlushPendingAppendNotifications);
-    }
     mOpQueue.AppendElement()->Init(eTreeOpDoneCreatingElement, aElement);
     return;
   }
@@ -508,12 +502,6 @@ nsHtml5TreeBuilder::elementPopped(int32_t aNamespace, nsIAtom* aName, nsIContent
     treeOp->InitScript(aElement);
     return;
   }
-  if (aName == nsHtml5Atoms::title) {
-    nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
-    NS_ASSERTION(treeOp, "Tree op allocation failed.");
-    treeOp->Init(eTreeOpDoneAddingChildren, aElement);
-    return;
-  }
   if (aName == nsHtml5Atoms::style || (aNamespace == kNameSpaceID_XHTML && aName == nsHtml5Atoms::link)) {
     nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
     NS_ASSERTION(treeOp, "Tree op allocation failed.");
@@ -533,22 +521,11 @@ nsHtml5TreeBuilder::elementPopped(int32_t aNamespace, nsIAtom* aName, nsIContent
   // properly (e.g. form state restoration).
   // XXX expose ElementName group here and do switch
   if (aName == nsHtml5Atoms::object ||
-      aName == nsHtml5Atoms::applet) {
-    nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
-    NS_ASSERTION(treeOp, "Tree op allocation failed.");
-    treeOp->Init(eTreeOpDoneAddingChildren, aElement);
-    return;
-  }
-  if (aName == nsHtml5Atoms::select || 
-      aName == nsHtml5Atoms::textarea) {
-    if (!formPointer) {
-      // If form inputs don't belong to a form, their state preservation
-      // won't work right without an append notification flush at this 
-      // point. See bug 497861 and bug 539895.
-      nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
-      NS_ASSERTION(treeOp, "Tree op allocation failed.");
-      treeOp->Init(eTreeOpFlushPendingAppendNotifications);
-    }
+      aName == nsHtml5Atoms::applet ||
+      aName == nsHtml5Atoms::select ||
+      aName == nsHtml5Atoms::textarea ||
+      aName == nsHtml5Atoms::title ||
+      aName == nsHtml5Atoms::output) {
     nsHtml5TreeOperation* treeOp = mOpQueue.AppendElement();
     NS_ASSERTION(treeOp, "Tree op allocation failed.");
     treeOp->Init(eTreeOpDoneAddingChildren, aElement);

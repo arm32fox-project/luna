@@ -12,7 +12,6 @@
 #include "nsTraceRefcnt.h"
 #include "nsHtml5TreeOperation.h"
 #include "nsHtml5SpeculativeLoad.h"
-#include "nsHtml5PendingNotification.h"
 #include "nsTArray.h"
 #include "nsContentSink.h"
 #include "nsNodeInfoManager.h"
@@ -69,8 +68,6 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     
     bool                                 mReadingFromStage;
     nsTArray<nsHtml5TreeOperation>       mOpQueue;
-    nsTArray<nsIContentPtr>              mElementsSeenInThisAppendBatch;
-    nsTArray<nsHtml5PendingNotification> mPendingNotifications;
     nsHtml5StreamParser*                 mStreamParser;
     nsTArray<nsCOMPtr<nsIContent> >      mOwnedElements;
     
@@ -242,71 +239,8 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     inline void EndDocUpdate() {
       NS_PRECONDITION(mFlushState != eNotifying, "mFlushState out of sync");
       if (mFlushState == eInDocUpdate) {
-        FlushPendingAppendNotifications();
         mFlushState = eInFlush;
         mDocument->EndUpdate(UPDATE_CONTENT_MODEL);
-      }
-    }
-
-    void PostPendingAppendNotification(nsIContent* aParent, nsIContent* aChild) {
-      bool newParent = true;
-      const nsIContentPtr* first = mElementsSeenInThisAppendBatch.Elements();
-      const nsIContentPtr* last = first + mElementsSeenInThisAppendBatch.Length() - 1;
-      for (const nsIContentPtr* iter = last; iter >= first; --iter) {
-#ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
-        sAppendBatchSlotsExamined++;
-#endif
-        if (*iter == aParent) {
-          newParent = false;
-          break;
-        }
-      }
-      if (aChild->IsElement()) {
-        mElementsSeenInThisAppendBatch.AppendElement(aChild);
-      }
-      mElementsSeenInThisAppendBatch.AppendElement(aParent);
-      if (newParent) {
-        mPendingNotifications.AppendElement(aParent);
-      }
-#ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
-      sAppendBatchExaminations++;
-#endif
-    }
-
-    void FlushPendingAppendNotifications() {
-      NS_PRECONDITION(mFlushState == eInDocUpdate, "Notifications flushed outside update");
-      mFlushState = eNotifying;
-      const nsHtml5PendingNotification* start = mPendingNotifications.Elements();
-      const nsHtml5PendingNotification* end = start + mPendingNotifications.Length();
-      for (nsHtml5PendingNotification* iter = (nsHtml5PendingNotification*)start; iter < end; ++iter) {
-        iter->Fire();
-      }
-      mPendingNotifications.Clear();
-#ifdef DEBUG_NS_HTML5_TREE_OP_EXECUTOR_FLUSH
-      if (mElementsSeenInThisAppendBatch.Length() > sAppendBatchMaxSize) {
-        sAppendBatchMaxSize = mElementsSeenInThisAppendBatch.Length();
-      }
-#endif
-      mElementsSeenInThisAppendBatch.Clear();
-      NS_ASSERTION(mFlushState == eNotifying, "mFlushState out of sync");
-      mFlushState = eInDocUpdate;
-    }
-    
-    inline bool HaveNotified(nsIContent* aNode) {
-      NS_PRECONDITION(aNode, "HaveNotified called with null argument.");
-      const nsHtml5PendingNotification* start = mPendingNotifications.Elements();
-      const nsHtml5PendingNotification* end = start + mPendingNotifications.Length();
-      for (;;) {
-        nsIContent* parent = aNode->GetParent();
-        if (!parent) {
-          return true;
-        }
-        for (nsHtml5PendingNotification* iter = (nsHtml5PendingNotification*)start; iter < end; ++iter) {
-          if (iter->Contains(parent)) {
-            return iter->HaveNotifiedIndex(parent->IndexOf(aNode));
-          }
-        }
-        aNode = parent;
       }
     }
 
