@@ -5540,22 +5540,22 @@ if test -n "$MOZ_OPUS"; then
     AC_DEFINE(MOZ_OPUS)
 fi
 
-dnl ====================================================
-dnl = Check alsa availability on Linux if using libcubeb
-dnl ====================================================
+dnl ========================================================
+dnl = Check alsa availability on Linux if using sydneyaudio
+dnl ========================================================
 
-dnl If using libcubeb with Linux, ensure that the alsa library is available
+dnl If using sydneyaudio with Linux, ensure that the alsa library is available
 if test -n "$MOZ_CUBEB" -a "$OS_TARGET" = "Linux"; then
     MOZ_ALSA=1
 fi
 
 MOZ_ARG_ENABLE_BOOL(alsa,
 [  --enable-alsa          Enable Alsa support (default on Linux)],
-   MOZ_ALSA=1,
-   MOZ_ALSA=)
+MOZ_ALSA=1,
+MOZ_ALSA=)
 
 MOZ_ARG_ENABLE_BOOL(oss,
-[  --enable-oss          Enable OSS support],
+[ --enable-oss          Enable OSS support],
    MOZ_OSS=1,
    MOZ_OSS=)
 
@@ -5577,41 +5577,31 @@ AC_SUBST(MOZ_ALSA_CFLAGS)
 AC_SUBST(MOZ_ALSA_LIBS)
 
 dnl ========================================================
-dnl = Disable PulseAudio
+dnl = Enable PulseAudio
 dnl ========================================================
 
-dnl If using libcubeb with Linux, ensure that the PA library is available
-if test -n "$MOZ_CUBEB" -a "$OS_TARGET" = "Linux" -a -z "$MOZ_B2G"; then
-    MOZ_PULSEAUDIO=1
-fi
-MOZ_ARG_DISABLE_BOOL(pulseaudio,
-[  --disable-pulseaudio          Disable PulseAudio support],
-   MOZ_PULSEAUDIO=,
-   MOZ_PULSEAUDIO=1)
+MOZ_ARG_ENABLE_BOOL(pulseaudio,
+[  --enable-pulseaudio          Enable PulseAudio support (experimental)],
+MOZ_PULSEAUDIO=1,
+MOZ_PULSEAUDIO=)
 
 if test -n "$MOZ_PULSEAUDIO"; then
     AC_DEFINE(MOZ_CUBEB)
-    if test -z "$gonkdir"; then
     PKG_CHECK_MODULES(MOZ_PULSEAUDIO, libpulse, ,
          [echo "$MOZ_PULSEAUDIO_PKG_ERRORS"
           AC_MSG_ERROR([pulseaudio audio backend requires libpulse package])])
-    else
-        MOZ_PULSEAUDIO_CFLAGS="-I$gonkdir/external/pulseaudio/pulseaudio/src"
-    fi
 fi
 
 AC_SUBST(MOZ_PULSEAUDIO)
+AC_SUBST(MOZ_PULSEAUDIO_CFLAGS)
+AC_SUBST(MOZ_PULSEAUDIO_LIBS)
 
 dnl ========================================================
 dnl = Enable GStreamer
 dnl ========================================================
-case "$OS_TARGET" in
-WINNT|Darwin|Android)
-    ;;
-*)
-MOZ_GSTREAMER=1
-    ;;
-esac
+if test "$OS_TARGET" = "Linux"; then
+  MOZ_GSTREAMER=1
+fi
 
 MOZ_ARG_ENABLE_BOOL(gstreamer,
 [  --enable-gstreamer           Enable GStreamer support],
@@ -5864,7 +5854,7 @@ if test -z "$MOZ_NATIVE_JPEG"; then
 fi
 
 MOZ_ARG_DISABLE_BOOL(libjpeg_turbo,
-[   --disable-libjpeg-turbo  Disable optimized jpeg decoding routines],
+[ --disable-libjpeg-turbo  Disable optimized jpeg decoding routines],
     MOZ_LIBJPEG_TURBO=,
     MOZ_LIBJPEG_TURBO=1)
 
@@ -7926,7 +7916,7 @@ MOZ_TREE_CAIRO=1 )
 
 MOZ_TREE_PIXMAN=1
 MOZ_ARG_ENABLE_BOOL(system-pixman,
-[  --enable-system-pixman Use system pixman (located with pkgconfig)],
+[ --enable-system-pixman Use system pixman (located with pkgconfig)],
 MOZ_TREE_PIXMAN=,
 MOZ_TREE_PIXMAN=force,
 MOZ_TREE_PIXMAN=1 )
