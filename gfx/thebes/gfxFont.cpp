@@ -1592,33 +1592,36 @@ LookupAlternateValues(gfxFontFeatureValueSet *featureLookup,
     }
 }
 
-/* static */ bool
+/* static */ void
 gfxFontShaper::MergeFontFeatures(
     const gfxFontStyle *aStyle,
     const nsTArray<gfxFontFeature>& aFontFeatures,
     bool aDisableLigatures,
     const nsAString& aFamilyName,
-    nsDataHashtable<nsUint32HashKey,uint32_t>& aMergedFeatures)
+    PLDHashOperator (*aHandleFeature)(const uint32_t&, uint32_t&, void*),
+    void* aHandleFeatureData)
 {
     uint32_t numAlts = aStyle->alternateValues.Length();
     const nsTArray<gfxFontFeature>& styleRuleFeatures =
         aStyle->featureSettings;
 
-    // bail immediately if nothing to do
+    // Bail immediately if nothing to do, which is the common case.
     if (styleRuleFeatures.IsEmpty() &&
         aFontFeatures.IsEmpty() &&
         !aDisableLigatures &&
         numAlts == 0) {
-        return false;
+        return;
     }
 
-    aMergedFeatures.Init();
+    nsDataHashtable<nsUint32HashKey,uint32_t> mergedFeatures;
+
+    mergedFeatures.Init();
 
     // Ligature features are enabled by default in the generic shaper,
     // so we explicitly turn them off if necessary (for letter-spacing)
     if (aDisableLigatures) {
-        aMergedFeatures.Put(HB_TAG('l','i','g','a'), 0);
-        aMergedFeatures.Put(HB_TAG('c','l','i','g'), 0);
+        mergedFeatures.Put(HB_TAG('l','i','g','a'), 0);
+        mergedFeatures.Put(HB_TAG('c','l','i','g'), 0);
     }
 
     // add feature values from font
@@ -1627,7 +1630,7 @@ gfxFontShaper::MergeFontFeatures(
     count = aFontFeatures.Length();
     for (i = 0; i < count; i++) {
         const gfxFontFeature& feature = aFontFeatures.ElementAt(i);
-        aMergedFeatures.Put(feature.mTag, feature.mValue);
+        mergedFeatures.Put(feature.mTag, feature.mValue);
     }
 
     // add font-specific feature values from style rules
@@ -1641,7 +1644,7 @@ gfxFontShaper::MergeFontFeatures(
         count = featureList.Length();
         for (i = 0; i < count; i++) {
             const gfxFontFeature& feature = featureList.ElementAt(i);
-            aMergedFeatures.Put(feature.mTag, feature.mValue);
+            mergedFeatures.Put(feature.mTag, feature.mValue);
         }
     }
 
@@ -1649,10 +1652,12 @@ gfxFontShaper::MergeFontFeatures(
     count = styleRuleFeatures.Length();
     for (i = 0; i < count; i++) {
         const gfxFontFeature& feature = styleRuleFeatures.ElementAt(i);
-        aMergedFeatures.Put(feature.mTag, feature.mValue);
+        mergedFeatures.Put(feature.mTag, feature.mValue);
     }
 
-    return aMergedFeatures.Count() != 0;
+    if (mergedFeatures.Count() != 0) {
+      mergedFeatures.Enumerate(aHandleFeature, aHandleFeatureData);
+    }
 }
 
 void
