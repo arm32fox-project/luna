@@ -12,7 +12,6 @@ const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource:///modules/SignInToWebsite.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "AddonManager",
                                   "resource://gre/modules/AddonManager.jsm");
@@ -427,7 +426,6 @@ BrowserGlue.prototype = {
     PageThumbs.init();
     NewTabUtils.init();
     BrowserNewTabPreloader.init();
-    SignInToWebsiteUX.init();
     PdfJs.init();
     webrtcUI.init();
 
@@ -534,7 +532,6 @@ BrowserGlue.prototype = {
     BrowserNewTabPreloader.uninit();
     UserAgentOverrides.uninit();
     webappsUI.uninit();
-    SignInToWebsiteUX.uninit();
     webrtcUI.uninit();
     this._dispose();
   },

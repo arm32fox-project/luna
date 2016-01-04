@@ -518,6 +518,7 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
   display: none;
 }
 
+/* This was added with the identity toolkit, does it have any other purpose? */
 #notification-popup .text-link.custom-link {
   -moz-binding: url("chrome://global/content/bindings/text.xml#text-label");
   text-decoration: none;
@@ -529,10 +530,6 @@ window[chromehidden~="toolbar"] toolbar:not(.toolbar-primary):not(.chromeclass-m
 
 #addon-progress-notification {
   -moz-binding: url("chrome://browser/content/urlbarBindings.xml#addon-progress-notification");
-}
-
-#identity-request-notification {
-  -moz-binding: url("chrome://browser/content/urlbarBindings.xml#identity-request-notification");
 }
 
 #click-to-play-plugins-notification {

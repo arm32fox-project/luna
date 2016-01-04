@@ -67,7 +67,6 @@ PARALLEL_DIRS += [
     'indexedDB',
     'system',
     'ipc',
-    'identity',
     'workers',
     'camera',
     'audiochannel',
