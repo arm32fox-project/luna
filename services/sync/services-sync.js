@@ -23,7 +23,7 @@ pref("services.sync.errorhandler.networkFailureReportTimeout", 1209600); // 2 we
 
 pref("services.sync.engine.addons", false);
 pref("services.sync.engine.bookmarks", true);
-pref("services.sync.engine.history", true);
+pref("services.sync.engine.history", false);
 pref("services.sync.engine.passwords", true);
 pref("services.sync.engine.prefs", true);
 pref("services.sync.engine.tabs", true);
