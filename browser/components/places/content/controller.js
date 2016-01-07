@@ -1819,7 +1819,7 @@ let PlacesControllerDragHelper = {
                       type: PlacesUtils.TYPE_X_MOZ_URL};
       }
       else
-        throw("bogus data was passed as a tab")
+        throw("bogus data was passed as a tab");
 
       let index = insertionPoint.index;
 
