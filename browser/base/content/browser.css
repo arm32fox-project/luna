@@ -127,6 +127,11 @@ toolbar[printpreview="true"] {
 }
 %endif
 
+#main-window[inDOMFullscreen] #sidebar-box,
+#main-window[inDOMFullscreen] #sidebar-splitter {
+  visibility: collapse;
+}
+
 .bookmarks-toolbar-customize,
 #wrapper-personal-bookmarks > #personal-bookmarks > #PlacesToolbar > hbox > #PlacesToolbarItems {
   display: none;
