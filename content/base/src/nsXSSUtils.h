@@ -88,7 +88,7 @@ class MatchRes {
   bool HasMatches() { return !elem_.IsEmpty(); };
   MatchResElem& operator[] (PRUint32 i) { return elem_.ElementAt(i); };
   PRUint32 Length() const { return elem_.Length(); };
-  void ClearInvalidMatches(double threshold);
+  void ClearInvalidMatches(double threshold, bool isInline);
 };
 
 class DistMetric {
