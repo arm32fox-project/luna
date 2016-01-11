@@ -118,6 +118,15 @@ pref("browser.urlbar.autoFill.typed", true);
 //Set tabs NOT on top
 pref("browser.tabs.onTop",false); 
 
+// ****************** Security ******************
+
+// Known embedding domains that do NOT do things properly and should provide
+// a disabling header, but don't.
+pref("security.xssfilter.srcwhitelist", "googleusercontent.com,embed.ly");
+
+// Known embedded target domains that do things properly (no XSS vulnerability)
+pref("security.xssfilter.whitelist", "yimg.com");
+
 // ****************** Misc. config ******************
 
 // Download manager

@@ -113,7 +113,7 @@ nsXSSFilter::InitializeStatics()
   Preferences::AddBoolVarCache(&sIgnoreHeaders, "security.xssfilter.ignoreHeaders");
   Preferences::AddBoolVarCache(&sBlockDynamic, "security.xssfilter.blockDynamic");
   Preferences::RegisterCallbackAndCall(InitializeList, "security.xssfilter.srcwhitelist");
-  Preferences::RegisterCallbackAndCall(InitializeList, "security.xssfilter.destwhitelist");
+  Preferences::RegisterCallbackAndCall(InitializeList, "security.xssfilter.whitelist");
 
   LOG_XSS("Initialized Statics for XSS Filter");
 }

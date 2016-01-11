@@ -151,7 +151,7 @@ class nsXSSFilter {
    */
   static bool sBlockDynamic;
   /**
-   * Synced to security.xssfilter.srcwhitelist/destwhitelist.
+   * Synced to security.xssfilter.srcwhitelist/whitelist.
    */
   static DomainMap sSrcWhiteList;
   static DomainMap sDestWhiteList;
