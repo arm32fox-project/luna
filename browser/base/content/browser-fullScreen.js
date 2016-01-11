@@ -83,6 +83,8 @@ var FullScreen = {
       // This is needed if they use the context menu to quit fullscreen
       this._isPopupOpen = false;
 
+      document.documentElement.removeAttribute("inDOMFullscreen");
+
       this.cleanup();
     }
   },
@@ -129,9 +131,7 @@ var FullScreen = {
       return;
     }
 
-    // Ensure the sidebar is hidden.
-    if (!document.getElementById("sidebar-box").hidden)
-      toggleSidebar();
+    document.documentElement.setAttribute("inDOMFullscreen", true);
 
     if (gFindBarInitialized)
       gFindBar.close();
