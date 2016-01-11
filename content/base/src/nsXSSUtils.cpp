@@ -35,15 +35,17 @@ static PRLogModuleInfo *gXssPRLog;
 
 
 #define THRESHOLD 0.2
-#define MIN_INL_LEN 10
-#define MIN_EXT_LEN 5
-#define MIN_PARAM_LEN 5
-#define MIN_MATCH_LEN 5
-#define SCRIPT_LEN 40
+
+#define MIN_INL_PARAM_LEN 10
+#define MIN_EXT_PARAM_LEN 5
+#define MIN_INL_MATCH_LEN 10
+#define MIN_EXT_MATCH_LEN 5
+
 
 #define PATH_CHARS " -/.;"
 #define QUERY_CHARS " &=-"
 #define REF_CHARS "-"
+#define MATCH_CHARS "-" // includes alphanumeric, so it is really [\w-]
 
 Parameter::Parameter(const nsAString& aName, const nsAString& aValue,
                      bool aDangerous, bool aSpecial, bool aAttack)
@@ -379,13 +381,20 @@ nsXSSUtils::FindInlineXSS(const nsAString& aParam, const nsAString& aScript)
     // makes sense to match only if the length is close enough.
     nsXSSUtils::P1FastMatch(aParam, aScript, THRESHOLD, mres);
   }
-  mres.ClearInvalidMatches(THRESHOLD);
+  mres.ClearInvalidMatches(THRESHOLD, true);
 
   for (PRUint32 i = 0; i < mres.elem_.Length(); i++) {
-    LOG_XSS_2("Examining Match in FindInlineXSS: %d %d\n", mres[i].matchBeg_,
-              mres[i].matchEnd_);
+    PRUint32 beg = mres[i].matchBeg_, end = mres[i].matchEnd_;
+    const nsAString &match = Substring(aScript, beg, end-beg+1);
+    nsAutoString tMatch;
+    nsXSSUtils::TrimSafeChars(match, tMatch, MATCH_CHARS);
+    if (tMatch.IsEmpty())
+      continue; // does not contain interesting chars
+
+    LOG_XSS_2("Examining Match in FindInlineXSS: %d %d\n", beg, end);
+    LOG_XSS_1("Matched string: %s\n", NS_ConvertUTF16toUTF8(match).get());
     // check: tainted string must not be at the beginning of the script
-    if (mres[i].matchBeg_ == 0) {
+    if (beg == 0) {
       LOG_XSS("Match is at the beginning of script!");
       return true;
     }
@@ -410,7 +419,7 @@ nsXSSUtils::FindExternalXSS(const nsAString& aParam, nsIURI *aURI)
   } else if (aParam.Length() >= url.Length() * (1-THRESHOLD)) {
     nsXSSUtils::P1FastMatch(aParam, url, THRESHOLD, mres);
   }
-  mres.ClearInvalidMatches(THRESHOLD);
+  mres.ClearInvalidMatches(THRESHOLD, false);
   PRUint32 safeIndex = GetHostLimit(aURI);
   for (PRUint32 i = 0; i < mres.Length(); i++) {
     LOG_XSS_2("Match in FindExternalXSS: %d %d\n", mres[i].matchBeg_,
@@ -433,7 +442,7 @@ nsXSSUtils::CheckInline(const nsAString& aScript, ParameterArray& aParams)
     if (!aParams[i].dangerous) {
       continue;
     }
-    if (aParams[i].value.Length() < MIN_INL_LEN) {
+    if (aParams[i].value.Length() < MIN_INL_PARAM_LEN) {
       continue;
     }
     aParams[i].attack = nsXSSUtils::FindInlineXSS(aParams[i].value, aScript);
@@ -459,7 +468,7 @@ nsXSSUtils::CheckExternal(nsIURI *aURI, nsIURI *aPageURI,
     if (!aParams[i].dangerous) {
       continue;
     }
-    if (aParams[i].value.Length() < MIN_EXT_LEN) {
+    if (aParams[i].value.Length() < MIN_EXT_PARAM_LEN) {
       continue;
     }
     // TODO: utf8.Lenth() returns bytes, not code points. the length
@@ -485,11 +494,16 @@ nsXSSUtils::HasAttack(ParameterArray& aParams)
  ****************/
 
 void
-MatchRes::ClearInvalidMatches(double threshold)
+MatchRes::ClearInvalidMatches(double threshold, bool isInline = false)
 {
+  PRUint32 minLen;
+  if (isInline)
+    minLen = MIN_INL_MATCH_LEN;
+  else
+    minLen = MIN_EXT_MATCH_LEN;
   for (PRUint32 i = 0; i < elem_.Length(); i++) {
     if (elem_[i].dist_ > costThresh_ ||
-        (elem_[i].matchEnd_ - elem_[i].matchBeg_ < MIN_MATCH_LEN)) {
+        (elem_[i].matchEnd_ - elem_[i].matchBeg_ < minLen)) {
       elem_.RemoveElementAt(i);
       i--;
     }

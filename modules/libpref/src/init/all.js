@@ -1526,7 +1526,8 @@ pref("security.xssfilter.blockMode", false);
 pref("security.xssfilter.ignoreHeaders", false);
 pref("security.xssfilter.displayWarning", true);
 pref("security.xssfilter.blockDynamic", true);
-pref("security.xssfilter.whitelist", "");
+pref("security.xssfilter.srcwhitelist", "");
+pref("security.xssfilter.destwhitelist", "");
 
 // Mixed content blocking
 pref("security.mixed_content.block_active_content", false);
