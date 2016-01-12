@@ -1221,7 +1221,7 @@ PlacesController.prototype = {
           try {
             gen.next();
           } catch (ex if ex instanceof StopIteration) {}
-        }, Ci.nsIThread.DISPATCH_NORMAL); 
+        }, Ci.nsIThread.DISPATCH_NORMAL);
         yield;
       }
     }
@@ -1552,7 +1552,7 @@ PlacesController.prototype = {
                                       insertionIndex, action == "copy")
       );
     }
- 
+
     let aggregatedTxn = new PlacesAggregatedTransaction("Paste", transactions);
     PlacesUtils.transactionManager.doTransaction(aggregatedTxn);
 
@@ -1654,8 +1654,8 @@ let PlacesControllerDragHelper = {
         return aFlavors[i];
     }
 
-    // If no supported flavor is found, check if data includes text/plain 
-    // contents.  If so, request them as text/unicode, a conversion will happen 
+    // If no supported flavor is found, check if data includes text/plain
+    // contents.  If so, request them as text/unicode, a conversion will happen
     // automatically.
     if (aFlavors.contains("text/plain")) {
         return PlacesUtils.TYPE_UNICODE;
@@ -1819,7 +1819,7 @@ let PlacesControllerDragHelper = {
                       type: PlacesUtils.TYPE_X_MOZ_URL};
       }
       else
-        throw("bogus data was passed as a tab")
+        throw("bogus data was passed as a tab");
 
       let index = insertionPoint.index;
 
@@ -1829,7 +1829,7 @@ let PlacesControllerDragHelper = {
       let dragginUp = insertionPoint.itemId == unwrapped.parent &&
                       index < PlacesUtils.bookmarks.getItemIndex(unwrapped.id);
       if (index != -1 && dragginUp)
-        index+= movedCount++;
+        index += movedCount++;
 
       // If dragging over a tag container we should tag the item.
       if (insertionPoint.isTag &&
@@ -1913,7 +1913,7 @@ function doGetPlacesControllerForCommand(aCommand)
 {
   // A context menu may be built for non-focusable views.  Thus, we first try
   // to look for a view associated with document.popupNode
-  let popupNode; 
+  let popupNode;
   try {
     popupNode = document.popupNode;
   } catch (e) {

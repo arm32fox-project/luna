@@ -48,7 +48,8 @@ bool nsXSSFilter::sReportOnly = false;
 bool nsXSSFilter::sBlockMode = false;
 bool nsXSSFilter::sIgnoreHeaders = false;
 bool nsXSSFilter::sBlockDynamic = true;
-DomainMap nsXSSFilter::sWhiteList;
+DomainMap nsXSSFilter::sSrcWhiteList;
+DomainMap nsXSSFilter::sDestWhiteList;
 
 #ifdef PR_LOGGING
 static PRLogModuleInfo *gXssPRLog;
@@ -69,24 +70,31 @@ nsXSSFilter::~nsXSSFilter()
 { }
 
 int
-nsXSSFilter::InitializeWhiteList(const char*, void*) {
-  if (!sWhiteList.IsInitialized()) {
-    sWhiteList.Init();
+nsXSSFilter::InitializeList(const char* pref, void*) {
+  DomainMap *list;
+  if (strcmp(pref, "security.xssfilter.srcwhitelist") == 0) {
+    list = &sSrcWhiteList;
   } else {
-    sWhiteList.Clear();
+    list = &sDestWhiteList;
+  }
+  
+  if (!list->IsInitialized()) {
+    list->Init();
+  } else {
+    list->Clear();
   }
 
   int cur = 0, next = -1;
-  nsAdoptingCString str = Preferences::GetCString("security.xssfilter.whitelist");
+  nsAdoptingCString str = Preferences::GetCString(pref);
   while ((next = str.Find(NS_LITERAL_CSTRING(","), false, cur, -1)) != kNotFound) {
     const nsACString& domain = Substring(str, cur, next-cur);
-    sWhiteList.Put(NS_ConvertUTF8toUTF16(domain), true);
+    list->Put(NS_ConvertUTF8toUTF16(domain), true);
     cur = next+1;
   }
   next = str.Length() - 1;
   if (cur < next) {
     const nsACString& domain = Substring(str, cur, next-cur+1);
-    sWhiteList.Put(NS_ConvertUTF8toUTF16(domain), true);
+    list->Put(NS_ConvertUTF8toUTF16(domain), true);
   }
   return 0;
 }
@@ -104,7 +112,9 @@ nsXSSFilter::InitializeStatics()
   Preferences::AddBoolVarCache(&sBlockMode, "security.xssfilter.blockMode");
   Preferences::AddBoolVarCache(&sIgnoreHeaders, "security.xssfilter.ignoreHeaders");
   Preferences::AddBoolVarCache(&sBlockDynamic, "security.xssfilter.blockDynamic");
-  Preferences::RegisterCallbackAndCall(InitializeWhiteList, "security.xssfilter.whitelist");
+  Preferences::RegisterCallbackAndCall(InitializeList, "security.xssfilter.srcwhitelist");
+  Preferences::RegisterCallbackAndCall(InitializeList, "security.xssfilter.whitelist");
+
   LOG_XSS("Initialized Statics for XSS Filter");
 }
 
@@ -216,6 +226,17 @@ nsXSSFilter::ScanRequestData()
   return NS_OK;
 }
 
+void
+nsXSSFilter::CheckSrcWhiteList() {
+  bool c;
+  nsAutoString domain;
+  DomainMap& whiteList = GetSrcWhiteList();
+  nsXSSUtils::GetDomain(GetURI(), domain);
+  if (whiteList.Get(domain, &c)) {
+    mIsEnabled = false;
+  }
+}
+
 bool
 nsXSSFilter::PermitsInlineScript(const nsAString& aScript)
 {
@@ -261,7 +282,7 @@ nsXSSFilter::PermitsExternalScript(nsIURI *aURI, bool isDynamic)
   bool c;
   nsAutoString domain;
   DomainMap& cache = GetDomainCache();
-  DomainMap& whiteList = GetWhiteList();
+  DomainMap& whiteList = GetDestWhiteList();
   nsXSSUtils::GetDomain(aURI, domain);
   if (cache.Get(domain, &c)) {
     return c;
@@ -357,7 +378,7 @@ nsXSSFilter::PermitsBaseElement(nsIURI *aOldURI, nsIURI* aNewURI)
 
   bool c;
   DomainMap& cache = GetDomainCache();
-  DomainMap& whiteList = GetWhiteList();
+  DomainMap& whiteList = GetDestWhiteList();
   if (cache.Get(newD, &c)) {
     return c;
   }
@@ -399,7 +420,7 @@ nsXSSFilter::PermitsExternalObject(nsIURI *aURI)
   bool c;
   nsAutoString domain;
   DomainMap& cache = GetDomainCache();
-  DomainMap& whiteList = GetWhiteList();
+  DomainMap& whiteList = GetDestWhiteList();
   nsXSSUtils::GetDomain(aURI, domain);
   if (cache.Get(domain, &c)) {
     return c;
@@ -514,8 +535,13 @@ nsXSSFilter::GetURI()
 }
 
 DomainMap&
-nsXSSFilter::GetWhiteList() {
-  return sWhiteList;
+nsXSSFilter::GetSrcWhiteList() {
+  return sSrcWhiteList;
+}
+
+DomainMap&
+nsXSSFilter::GetDestWhiteList() {
+  return sDestWhiteList;
 }
 
 DomainMap&
