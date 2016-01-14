@@ -302,7 +302,7 @@ nsAppShell::~nsAppShell()
   NS_OBJC_END_TRY_ABORT_BLOCK
 }
 
-NS_IMPL_ISUPPORTS(MacWakeLockListener, nsIDOMMozWakeLockListener)
+NS_IMPL_ISUPPORTS1(MacWakeLockListener, nsIDOMMozWakeLockListener)
 nsCOMPtr<nsIPowerManagerService> sPowerManagerService = nullptr;
 nsCOMPtr<nsIDOMMozWakeLockListener> sWakeLockListener = nullptr;
 
