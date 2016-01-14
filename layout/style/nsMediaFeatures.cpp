@@ -378,7 +378,7 @@ GetUnixTheme(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
                 nsCSSValue& aResult)
 {
     aResult.Reset();
-#if !defined(XP_WIN)
+#if !defined(XP_WIN) && !defined(XP_MACOSX)
     int32_t metricResult;
     if (NS_SUCCEEDED(
         LookAndFeel::GetInt(LookAndFeel::eIntID_UnixThemeIdentifier,
