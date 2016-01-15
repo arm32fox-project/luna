@@ -221,7 +221,6 @@
     JSCTYPES_MODULE                          \
     MODULE(jsreflect)                        \
     MODULE(jsperf)                           \
-    MODULE(identity)                         \
     MODULE(nsServicesCryptoModule)           \
     MOZ_APP_COMPONENT_MODULES                \
     MODULE(jsinspector)                      \

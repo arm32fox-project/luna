@@ -23,7 +23,8 @@ class HTMLOutputElement : public nsGenericHTMLFormElement,
 public:
   using nsIConstraintValidation::GetValidationMessage;
 
-  HTMLOutputElement(already_AddRefed<nsINodeInfo> aNodeInfo);
+  HTMLOutputElement(already_AddRefed<nsINodeInfo> aNodeInfo,
+                    FromParser aFromParser = NOT_FROM_PARSER);
   virtual ~HTMLOutputElement();
 
   // nsISupports
@@ -53,6 +54,8 @@ public:
   bool ParseAttribute(int32_t aNamespaceID, nsIAtom* aAttribute,
                         const nsAString& aValue, nsAttrValue& aResult) MOZ_OVERRIDE;
 
+  virtual void DoneAddingChildren(bool aHaveNotified) MOZ_OVERRIDE;
+  
   nsEventStates IntrinsicState() const MOZ_OVERRIDE;
 
   virtual nsresult BindToTree(nsIDocument* aDocument, nsIContent* aParent,
@@ -112,6 +115,7 @@ protected:
   };
 
   ValueModeFlag                     mValueModeFlag;
+  bool                              mIsDoneAddingChildren;
   nsString                          mDefaultValue;
   nsRefPtr<nsDOMSettableTokenList>  mTokenList;
 };

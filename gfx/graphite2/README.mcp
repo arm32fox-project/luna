@@ -1,0 +1,18 @@
+This directory contains the Graphite2 library from https://github.com/silnrsi/graphite/
+
+Current version derived from upstream release version 1.3.4
+Edits were made to make it suitable for the Pale Moon source tree (as outlined below)
+but the library is otherwise direct from upstream and unaltered.
+
+
+Note about updating:
+The .sh script in this directory is defunct, but kept in place as a guide to follow manually.
+
+Most notably:
+  * <cstdio> needs to be replaced with <stdio.h> in *.cpp/*.h #includes due to build issues
+    otherwise.
+  * Windows.h needs to be replaced with windows.h (caps) -- currently not an issue.
+  * MozGrMalloc.h, Makefile.in and moz.build need to be preserved in src/
+  * Update source files and exports in moz.build with added/removed files in files.mk
+    (_SOURCES => CPP_SOURCES and _PUBLIC_HEADERS => EXPORTS.graphite2)
+  

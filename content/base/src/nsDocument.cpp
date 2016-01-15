@@ -2723,9 +2723,9 @@ void nsDocument::InitXSSFilter()
 
   nsresult rv = xss->ScanRequestData();
   if (NS_FAILED(rv)) {
-    // not necessarily a failure if we bail out on X-XSS protection header
     return;
   }
+  xss->CheckSrcWhiteList(); // does not fail, just sets mIsEnabled
   rv = principal->SetXSSFilter(xss);
   if (NS_FAILED(rv)) {
     return;

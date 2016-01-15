@@ -1966,6 +1966,12 @@ RENDER_AGAIN:
     } else {
       // Draw the cutout
       ctx->Translate(dr.TopLeft());
+      
+      if (aWidgetType == NS_THEME_WINDOW_BUTTON_BOX_MAXIMIZED) {
+        // Adjust position for maximized window
+        // This is unrelated to the window border width!
+        ctx->Translate(gfxPoint(-3.0, 0.0));
+      }
 
       ctx->NewPath();
       ctx->Rectangle(buttonbox1, true);

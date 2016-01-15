@@ -9,7 +9,6 @@ PARALLEL_DIRS += [
     'content',
     'devtools',
     'forgetaboutsite',
-    'identity',
     'locales',
     'modules',
     'mozapps/downloads',

@@ -131,11 +131,21 @@ void nsDeque::Erase() {
  */
 bool nsDeque::GrowCapacity() {
   int32_t theNewSize=mCapacity<<2;
-  NS_ASSERTION(theNewSize>mCapacity, "Overflow");
-  if (theNewSize<=mCapacity)
+  NS_ASSERTION(theNewSize>mCapacity, "nsDeque GrowCapacity() overflow");
+  if (theNewSize <= mCapacity)
     return false;
-  void** temp=(void**)malloc(theNewSize * sizeof(void*));
+  
+  // Do this: void** temp=(void**)malloc(theNewSize * sizeof(void*));
+  // But sanity-check the new byte size first.
+  size_t oldByteSize = mCapacity * sizeof(void*);
+  size_t newByteSize = theNewSize * sizeof(void*);
+  NS_ASSERTION(newByteSize > oldByteSize, "nsDeque GrowCapacity() overflow");
+  if (newByteSize <= oldByteSize)
+    return false;
+  
+  void** temp = (void**)malloc(newByteSize);
   if (!temp)
+    // malloc() failed, so can't continue.
     return false;
 
   //Here's the interesting part: You can't just move the elements

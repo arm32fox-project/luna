@@ -44,19 +44,56 @@ typedef gr_int16        int16;
 typedef gr_int32        int32;
 typedef size_t          uintptr;
 
+#ifdef GRAPHITE2_TELEMETRY
+struct telemetry
+{
+    class category;
+
+    static size_t   * _category;
+    static void set_category(size_t & t) throw()    { _category = &t; }
+    static void stop() throw()                      { _category = 0; }
+    static void count_bytes(size_t n) throw()       { if (_category) *_category += n; }
+
+    size_t  misc,
+            silf,
+            glyph,
+            code,
+            states,
+            starts,
+            transitions;
+
+    telemetry() : misc(0), silf(0), glyph(0), code(0), states(0), starts(0), transitions(0) {}
+};
+
+class telemetry::category
+{
+    size_t * _prev;
+public:
+    category(size_t & t) : _prev(_category) { _category = &t; }
+    ~category() { _category = _prev; }
+};
+
+#else
 struct telemetry  {};
+#endif
 
 // typesafe wrapper around malloc for simple types
 // use free(pointer) to deallocate
 
 template <typename T> T * gralloc(size_t n)
 {
-    return reinterpret_cast<T*>(malloc(sizeof(T) * n));
+#ifdef GRAPHITE2_TELEMETRY
+    telemetry::count_bytes(sizeof(T) * n);
+#endif
+    return static_cast<T*>(malloc(sizeof(T) * n));
 }
 
 template <typename T> T * grzeroalloc(size_t n)
 {
-    return reinterpret_cast<T*>(calloc(n, sizeof(T)));
+#ifdef GRAPHITE2_TELEMETRY
+    telemetry::count_bytes(sizeof(T) * n);
+#endif
+    return static_cast<T*>(calloc(n, sizeof(T)));
 }
 
 template <typename T>
@@ -83,8 +120,27 @@ inline T max(const T a, const T b)
     void operator delete[] (void * p)throw() { free(p); } \
     void operator delete[] (void *, void *) throw() {}
 
-#ifdef __GNUC__
+#if defined(__GNUC__)  || defined(__clang__)
 #define GR_MAYBE_UNUSED __attribute__((unused))
 #else
 #define GR_MAYBE_UNUSED
+#endif
+
+#if defined(__clang__) && __cplusplus >= 201103L
+   /* clang's fallthrough annotations are only available starting in C++11. */
+    #define GR_FALLTHROUGH [[clang::fallthrough]]
+#elif defined(_MSC_VER)
+   /*
+    * MSVC's __fallthrough annotations are checked by /analyze (Code Analysis):
+    * https://msdn.microsoft.com/en-us/library/ms235402%28VS.80%29.aspx
+    */
+    #include <sal.h>
+    #define GR_FALLTHROUGH __fallthrough
+#else
+    #define GR_FALLTHROUGH /* fallthrough */
+#endif
+
+#ifdef _MSC_VER
+#pragma warning(disable: 4800)
+#pragma warning(disable: 4355)
 #endif

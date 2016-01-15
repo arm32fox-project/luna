@@ -70,6 +70,10 @@ class nsXSSFilter {
    * X-XSS-Protection header and configure the filter.
    */
   nsresult ScanRequestData();
+  /** Called right after ScanRequestData, sets mIsEnabled to true if the
+   *  domain of the current HTML page is whitelisted.
+   */
+  void CheckSrcWhiteList();
   /**
    * Checks whether an inlined <script>...</script> element should be
    * executed.
@@ -112,9 +116,9 @@ class nsXSSFilter {
   bool PermitsJSAction(const nsAString& code);
 
   /**
-   * Sync the whitelist preference to the memory structure
+   * Sync a whitelist preference to the memory structure
    */
-  static int InitializeWhiteList(const char*, void*);
+  static int InitializeList(const char*, void*);
   /**
    * Sets up Observers for the static preferences described below.
    */
@@ -137,14 +141,20 @@ class nsXSSFilter {
    */
   static bool sBlockMode;
   /**
+   * Synced to security.xssfilter.ignoreHeaders. When set to true,
+   * the X-Xss-Protection headers in pages will be ignored.
+   */
+  static bool sIgnoreHeaders;
+  /**
    * Synced to security.xssfilter.blockDynamic. When set to false, DOM
    * based vectors will be ignored.
    */
   static bool sBlockDynamic;
   /**
-   * Synced to security.xssfilter.whitelist.
+   * Synced to security.xssfilter.srcwhitelist/whitelist.
    */
-  static DomainMap sWhiteList;
+  static DomainMap sSrcWhiteList;
+  static DomainMap sDestWhiteList;
 
  private:
   /**
@@ -191,9 +201,13 @@ class nsXSSFilter {
    */
   bool IsBlockDynamic();
   /**
-   * Gets the whitelist
+   * Gets the src whitelist
    */
-  DomainMap& GetWhiteList();
+  DomainMap& GetSrcWhiteList();
+  /**
+   * Gets the dest whitelist
+   */
+  DomainMap& GetDestWhiteList();
   /**
    * Gets the URL of the document for origin checks
    */

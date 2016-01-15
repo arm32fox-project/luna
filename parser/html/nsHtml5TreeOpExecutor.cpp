@@ -546,9 +546,6 @@ nsHtml5TreeOpExecutor::RunFlushLoop()
     BeginDocUpdate();
 
     uint32_t numberOfOpsToFlush = mOpQueue.Length();
-
-    mElementsSeenInThisAppendBatch.SetCapacity(numberOfOpsToFlush * 2);
-
     const nsHtml5TreeOperation* first = mOpQueue.Elements();
     const nsHtml5TreeOperation* last = first + numberOfOpsToFlush - 1;
     for (nsHtml5TreeOperation* iter = const_cast<nsHtml5TreeOperation*>(first);;) {
@@ -649,9 +646,6 @@ nsHtml5TreeOpExecutor::FlushDocumentWrite()
   BeginDocUpdate();
 
   uint32_t numberOfOpsToFlush = mOpQueue.Length();
-
-  mElementsSeenInThisAppendBatch.SetCapacity(numberOfOpsToFlush * 2);
-
   const nsHtml5TreeOperation* start = mOpQueue.Elements();
   const nsHtml5TreeOperation* end = start + numberOfOpsToFlush;
   for (nsHtml5TreeOperation* iter = const_cast<nsHtml5TreeOperation*>(start);

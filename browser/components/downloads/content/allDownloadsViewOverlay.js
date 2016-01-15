@@ -301,12 +301,12 @@ DownloadElementShell.prototype = {
    *   was downloaded.  The file may not exist.  This is set for session
    *   downloads that have a local file set, and for history downloads done
    *   after the landing of bug 591289.
-   * - fileName: the downloaded file name on the file system. Set if filePath
+   * - fileName: the downloaded file name on the file system.  Set if filePath
    *   is set.
    * - displayName: the user-facing label for the download.  This is always
    *   set.  If available, it's set to the downloaded file name.  If not,
-   *   the places title for the download uri is used it's set.  As a last
-   *   resort, we fallback to the download uri.
+   *   the places title for the download uri is used.  As a last resort,
+   *   we fallback to the download uri.
    * - fileSize (only set for downloads which completed succesfully):
    *   the downloaded file size.  For downloads done after the landing of
    *   bug 826991, this value is "static" - that is, it does not necessarily
@@ -315,11 +315,16 @@ DownloadElementShell.prototype = {
   getDownloadMetaData: function DES_getDownloadMetaData() {
     if (!this._metaData) {
       if (this._dataItem) {
+        let s = DownloadsCommon.strings;
+        let referrer = this._dataItem.referrer || this._dataItem.uri;
+        let [displayHost, fullHost] = DownloadUtils.getURIHost(referrer);
         this._metaData = {
-          state:       this._dataItem.state,
-          endTime:     this._dataItem.endTime,
-          fileName:    this._dataItem.target,
-          displayName: this._dataItem.target
+          state:                  this._dataItem.state,
+          endTime:                this._dataItem.endTime,
+          fileName:               this._dataItem.target,
+          displayName:            this._dataItem.target,
+          extendedDisplayName:    s.statusSeparator(this._dataItem.target, displayHost),
+          extendedDisplayNameTip: s.statusSeparator(this._dataItem.target, fullHost)
         };
         if (this._dataItem.done)
           this._metaData.fileSize = this._dataItem.maxBytes;
@@ -365,9 +370,9 @@ DownloadElementShell.prototype = {
           DownloadUtils.getTransferTotal(this._dataItem.currBytes,
                                          this._dataItem.maxBytes);
 
-         // We use the same XUL label to display both the state and the amount
-         // transferred, for example "Paused -  1.1 MB".
-         return s.statusSeparatorBeforeNumber(s.statePaused, transfer);
+        // We use the same XUL label to display both the state and the amount
+        // transferred, for example "Paused -  1.1 MB".
+        return s.statusSeparatorBeforeNumber(s.statePaused, transfer);
       }
       if (this._dataItem.state == nsIDM.DOWNLOAD_DOWNLOADING) {
         let [status, newEstimatedSecondsLeft] =
@@ -493,6 +498,10 @@ DownloadElementShell.prototype = {
   _updateDisplayNameAndIcon: function DES__updateDisplayNameAndIcon() {
     let metaData = this.getDownloadMetaData();
     this._element.setAttribute("displayName", metaData.displayName);
+    if ("extendedDisplayName" in metaData)
+      this._element.setAttribute("extendedDisplayName", metaData.extendedDisplayName);
+    if ("extendedDisplayNameTip" in metaData)
+      this._element.setAttribute("extendedDisplayNameTip", metaData.extendedDisplayNameTip);
     this._element.setAttribute("image", this._getIcon());
   },
 

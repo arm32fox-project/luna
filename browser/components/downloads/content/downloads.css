@@ -8,6 +8,15 @@ richlistitem[type="download"] {
   -moz-binding: url('chrome://browser/content/downloads/download.xml#download');
 }
 
+richlistitem[type="download"]:-moz-any([state="-1"],/* Starting (initial) */
+                                       [state="0"], /* Downloading        */
+                                       [state="4"], /* Paused             */
+                                       [state="5"], /* Starting (queued)  */
+                                       [state="7"]) /* Scanning           */
+{
+  -moz-binding: url('chrome://browser/content/downloads/download.xml#download-in-progress');
+}
+
 richlistitem[type="download"]:not([selected]) button {
   /* Only focus buttons in the selected item. */
   -moz-user-focus: none;
@@ -26,9 +35,9 @@ richlistitem[type="download"]:not([selected]) button {
                                            .downloadTypeIcon.blockedIcon,
 
 .download-state:not(:-moz-any([state="-1"],/* Starting (initial) */
-                              [state="5"], /* Starting (queued)  */
                               [state="0"], /* Downloading        */
                               [state="4"], /* Paused             */
+                              [state="5"], /* Starting (queued)  */
                               [state="7"]) /* Scanning           */)
                                            .downloadProgress,
 
@@ -57,7 +66,7 @@ richlistitem[type="download"]:not([selected]) button {
                               [state="5"]) /* Starting (queued)  */)
                                            .downloadShowMenuItem,
 
-.download-state[state="7"]                 .downloadCommandsSeparator
+.download-state[state="7"] /* Scanning */  .downloadCommandsSeparator
 
 {
   display: none;
@@ -66,9 +75,9 @@ richlistitem[type="download"]:not([selected]) button {
 /*** Visibility of download buttons and indicator controls. ***/
 
 .download-state:not(:-moz-any([state="-1"],/* Starting (initial) */
-                              [state="5"], /* Starting (queued)  */
                               [state="0"], /* Downloading        */
-                              [state="4"]) /* Paused             */)
+                              [state="4"], /* Paused             */
+                              [state="5"]) /* Starting (queued)  */)
                                            .downloadCancel,
 
 .download-state:not(:-moz-any([state="2"], /* Failed             */

@@ -1421,20 +1421,21 @@ function appendWarningElements(aP, aHasKnownHeapAllocated,
 {
   if (!aHasKnownHeapAllocated && !aHasMozMallocUsableSize) {
     appendElementWithText(aP, "p", "",
-      "WARNING: the 'heap-allocated' memory reporter and the " +
-      "moz_malloc_usable_size() function do not work for this platform " +
-      "and/or configuration.  This means that 'heap-unclassified' is not " +
-      "shown and the 'explicit' tree shows much less memory than it should.\n\n");
+      "NOTE: The build configuration used does not include the 'heap-allocated' memory reporter and the " +
+      "moz_malloc_usable_size() function.\nThis is expected for release builds since these do not work for " +
+      "system memory allocators.\nThis means that 'heap-unclassified' is not shown and the 'explicit' tree " +
+      "shows an severely incomplete accounting of memory used.\n\n");
 
   } else if (!aHasKnownHeapAllocated) {
     appendElementWithText(aP, "p", "",
-      "WARNING: the 'heap-allocated' memory reporter does not work for this " +
-      "platform and/or configuration. This means that 'heap-unclassified' " +
-      "is not shown and the 'explicit' tree shows less memory than it should.\n\n");
+      "NOTE: The build configuration used does not include the 'heap-allocated' memory reporter.\n" +
+      "This is expected for release builds since this does not work for system memory allocators.\n" +
+      "This means that 'heap-unclassified' is not shown and the 'explicit' tree " +
+      "shows an incomplete accounting of memory used.\n\n");
 
   } else if (!aHasMozMallocUsableSize) {
     appendElementWithText(aP, "p", "",
-      "WARNING: the moz_malloc_usable_size() function does not work for " +
+      "NOTE: the moz_malloc_usable_size() function does not work for " +
       "this platform and/or configuration.  This means that much of the " +
       "heap-allocated memory is not measured by individual memory reporters " +
       "and so will fall under 'heap-unclassified'.\n\n");

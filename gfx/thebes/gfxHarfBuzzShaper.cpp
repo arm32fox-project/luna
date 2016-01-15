@@ -932,19 +932,15 @@ gfxHarfBuzzShaper::ShapeText(gfxContext      *aContext,
     }
 
     const gfxFontStyle *style = mFont->GetStyle();
-
+    
+    // Insert any merged features into hb_feature array.
     nsAutoTArray<hb_feature_t,20> features;
-    nsDataHashtable<nsUint32HashKey,uint32_t> mergedFeatures;
-
-    if (MergeFontFeatures(style,
-                          entry->mFeatureSettings,
-                          aShapedText->DisableLigatures(),
-                          entry->FamilyName(),
-                          mergedFeatures))
-    {
-        // enumerate result and insert into hb_feature array
-        mergedFeatures.Enumerate(AddFeature, &features);
-    }
+    MergeFontFeatures(style,
+                      entry->mFeatureSettings,
+                      aShapedText->DisableLigatures(),
+                      entry->FamilyName(),
+                      AddFeature,
+                      &features);
 
     bool isRightToLeft = aShapedText->IsRightToLeft();
     hb_buffer_t *buffer = hb_buffer_create();

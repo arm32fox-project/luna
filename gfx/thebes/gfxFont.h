@@ -245,6 +245,7 @@ public:
         mUserFontData(nullptr),
         mSVGGlyphs(nullptr),
         mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE),
+        mUnitsPerEm(0),
         mHBFace(nullptr),
         mGrFace(nullptr),
         mGrFaceRefCnt(0)
@@ -395,6 +396,16 @@ public:
     hb_blob_t *ShareFontTableAndGetBlob(uint32_t aTag,
                                         FallibleTArray<uint8_t>* aTable);
 
+    // Get the font's unitsPerEm from the 'head' table, in the case of an
+    // sfnt resource. Will return kInvalidUPEM for non-sfnt fonts,
+    // if present on the platform.
+    uint16_t UnitsPerEm();
+    enum {
+        kMinUPEM = 16,    // Limits on valid unitsPerEm range, from the
+        kMaxUPEM = 16384, // OpenType spec
+        kInvalidUPEM = uint16_t(-1)
+    };
+
     // Shaper face accessors:
     // NOTE that harfbuzz and graphite handle ownership/lifetime of the face
     // object in completely different ways.
@@ -487,6 +498,7 @@ protected:
         mUserFontData(nullptr),
         mSVGGlyphs(nullptr),
         mLanguageOverride(NO_FONT_LANGUAGE_OVERRIDE),
+        mUnitsPerEm(0),
         mHBFace(nullptr),
         mGrFace(nullptr),
         mGrFaceRefCnt(0)
@@ -508,6 +520,10 @@ protected:
     }
 
 protected:
+    // Font's unitsPerEm from the 'head' table, if available (will be set to
+    // kInvalidUPEM for non-sfnt font formats)
+    uint16_t mUnitsPerEm;
+
     // Shaper-specific face objects, shared by all instantiations of the same
     // physical font, regardless of size.
     // Usually, only one of these will actually be created for any given font
@@ -1273,13 +1289,14 @@ public:
 
     gfxFont *GetFont() const { return mFont; }
 
-    // returns true if features exist in output, false otherwise
-    static bool
+    static void
     MergeFontFeatures(const gfxFontStyle *aStyle,
                       const nsTArray<gfxFontFeature>& aFontFeatures,
                       bool aDisableLigatures,
                       const nsAString& aFamilyName,
-                      nsDataHashtable<nsUint32HashKey,uint32_t>& aMergedFeatures);
+                      PLDHashOperator (*aHandleFeature)(const uint32_t&,
+                                                        uint32_t&, void*),
+                      void* aHandleFeatureData);
 
 protected:
     // the font this shaper is working with

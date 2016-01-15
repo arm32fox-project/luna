@@ -84,6 +84,21 @@ nsAppShell::Init()
     if (PR_GetEnv("MOZ_DEBUG_PAINTS"))
         gdk_window_set_debug_updates(TRUE);
 
+    // Disable JasPer module (jpeg2000) in GDK-PixBuf.
+    // Also disable known buggy TGA and icns formats
+    GSList* pixbufFormats = gdk_pixbuf_get_formats();
+    for (GSList* iter = pixbufFormats; iter; iter = iter->next) {
+        GdkPixbufFormat* format = static_cast<GdkPixbufFormat*>(iter->data);
+        gchar* name = gdk_pixbuf_format_get_name(format);
+        if (strcmp(name, "jpeg2000") == 0 ||
+            strcmp(name, "tga") == 0 ||
+            strcmp(name, "icns") == 0) {
+            gdk_pixbuf_format_set_disabled(format, TRUE);
+        }
+        g_free(name);
+    }
+    g_slist_free(pixbufFormats);
+
     int err = pipe(mPipeFDs);
     if (err)
         return NS_ERROR_OUT_OF_MEMORY;

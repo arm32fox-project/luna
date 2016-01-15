@@ -136,7 +136,6 @@ COMPONENT_LIBS += \
   startupcache \
   pref \
   htmlpars \
-  identity \
   imglib2 \
   mediasniffer \
   gkgfx \
@@ -406,9 +405,6 @@ endif
 ifdef MOZ_CUBEB
 ifdef MOZ_ALSA
 EXTRA_DSO_LDOPTS += $(MOZ_ALSA_LIBS)
-endif
-ifdef MOZ_PULSEAUDIO
-EXTRA_DSO_LDOPTS += $(MOZ_PULSEAUDIO_LIBS)
 endif
 endif
 

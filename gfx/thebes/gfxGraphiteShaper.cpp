@@ -143,27 +143,23 @@ gfxGraphiteShaper::ShapeText(gfxContext      *aContext,
         grLang = GetGraphiteTagForLang(langString);
     }
     gr_feature_val *grFeatures = gr_face_featureval_for_lang(mGrFace, grLang);
-
-    nsDataHashtable<nsUint32HashKey,uint32_t> mergedFeatures;
-
-    // if style contains font-specific features
-    if (MergeFontFeatures(style,
-                          mFont->GetFontEntry()->mFeatureSettings,
-                          aShapedText->DisableLigatures(),
-                          mFont->GetFontEntry()->FamilyName(),
-                          mergedFeatures))
-    {
-        // enumerate result and insert into Graphite feature list
-        GrFontFeatures f = {mGrFace, grFeatures};
-        mergedFeatures.Enumerate(AddFeature, &f);
-    }
+    
+    // Insert any merged features into Graphite feature list.
+    GrFontFeatures f = {mGrFace, grFeatures};
+    MergeFontFeatures(style,
+                      mFont->GetFontEntry()->mFeatureSettings,
+                      aShapedText->DisableLigatures(),
+                      mFont->GetFontEntry()->FamilyName(),
+                      AddFeature,
+                      &f); 
 
     size_t numChars = gr_count_unicode_characters(gr_utf16,
                                                   aText, aText + aLength,
                                                   nullptr);
+    gr_bidirtl grBidi = gr_bidirtl(aShapedText->IsRightToLeft()
+                                   ? (gr_rtl | gr_nobidi) : gr_nobidi);
     gr_segment *seg = gr_make_seg(mGrFont, mGrFace, 0, grFeatures,
-                                  gr_utf16, aText, numChars,
-                                  aShapedText->IsRightToLeft());
+                                  gr_utf16, aText, numChars, grBidi);
 
     gr_featureval_destroy(grFeatures);
 

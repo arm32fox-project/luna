@@ -38,11 +38,11 @@ const void * bmp_subtable(const Face::Table & cmap)
 {
     const void * stbl;
     if (!cmap.size()) return 0;
-    if (TtfUtil::CheckCmapSubtable4(stbl = TtfUtil::FindCmapSubtable(cmap, 3, 1, cmap.size()))
-     || TtfUtil::CheckCmapSubtable4(stbl = TtfUtil::FindCmapSubtable(cmap, 0, 3, cmap.size()))
-     || TtfUtil::CheckCmapSubtable4(stbl = TtfUtil::FindCmapSubtable(cmap, 0, 2, cmap.size()))
-     || TtfUtil::CheckCmapSubtable4(stbl = TtfUtil::FindCmapSubtable(cmap, 0, 1, cmap.size()))
-     || TtfUtil::CheckCmapSubtable4(stbl = TtfUtil::FindCmapSubtable(cmap, 0, 0, cmap.size())))
+    if (TtfUtil::CheckCmapSubtable4(stbl = TtfUtil::FindCmapSubtable(cmap, 3, 1, cmap.size()), cmap.size())
+     || TtfUtil::CheckCmapSubtable4(stbl = TtfUtil::FindCmapSubtable(cmap, 0, 3, cmap.size()), cmap.size())
+     || TtfUtil::CheckCmapSubtable4(stbl = TtfUtil::FindCmapSubtable(cmap, 0, 2, cmap.size()), cmap.size())
+     || TtfUtil::CheckCmapSubtable4(stbl = TtfUtil::FindCmapSubtable(cmap, 0, 1, cmap.size()), cmap.size())
+     || TtfUtil::CheckCmapSubtable4(stbl = TtfUtil::FindCmapSubtable(cmap, 0, 0, cmap.size()), cmap.size()))
         return stbl;
     return 0;
 }
@@ -51,8 +51,8 @@ const void * smp_subtable(const Face::Table & cmap)
 {
     const void * stbl;
     if (!cmap.size()) return 0;
-    if (TtfUtil::CheckCmapSubtable12(stbl = TtfUtil::FindCmapSubtable(cmap, 3, 10, cmap.size()))
-     || TtfUtil::CheckCmapSubtable12(stbl = TtfUtil::FindCmapSubtable(cmap, 0, 4, cmap.size())))
+    if (TtfUtil::CheckCmapSubtable12(stbl = TtfUtil::FindCmapSubtable(cmap, 3, 10, cmap.size()), cmap.size())
+     || TtfUtil::CheckCmapSubtable12(stbl = TtfUtil::FindCmapSubtable(cmap, 0, 4, cmap.size()), cmap.size()))
         return stbl;
     return 0;
 }
@@ -89,7 +89,7 @@ CachedCmap::CachedCmap(const Face & face)
   m_blocks(0)
 {
     const Face::Table cmap(face, Tag::cmap);
-    if (!cmap)	return;
+    if (!cmap)  return;
 
     const void * bmp_cmap = bmp_subtable(cmap);
     const void * smp_cmap = smp_subtable(cmap);
@@ -114,7 +114,7 @@ CachedCmap::~CachedCmap() throw()
     if (!m_blocks) return;
     unsigned int numBlocks = (m_isBmpOnly)? 0x100 : 0x1100;
     for (unsigned int i = 0; i < numBlocks; i++)
-    	free(m_blocks[i]);
+        free(m_blocks[i]);
     free(m_blocks);
 }
 
@@ -130,7 +130,7 @@ uint16 CachedCmap::operator [] (const uint32 usv) const throw()
 
 CachedCmap::operator bool() const throw()
 {
-	return m_blocks != 0;
+    return m_blocks != 0;
 }
 
 
@@ -150,6 +150,6 @@ uint16 DirectCmap::operator [] (const uint32 usv) const throw()
 
 DirectCmap::operator bool () const throw()
 {
-	return _cmap && _bmp;
+    return _cmap && _bmp;
 }
 

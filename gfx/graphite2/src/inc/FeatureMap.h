@@ -52,11 +52,11 @@ private:
 
 class FeatureRef
 {
-	typedef uint32		chunk_t;
-	static const uint8	SIZEOF_CHUNK = sizeof(chunk_t)*8;
+    typedef uint32      chunk_t;
+    static const uint8  SIZEOF_CHUNK = sizeof(chunk_t)*8;
 
 public:
-	FeatureRef() : m_nameValues(0) {}
+    FeatureRef();
     FeatureRef(const Face & face, unsigned short & bits_offset, uint32 max_val,
                uint32 name, uint16 uiName, uint16 flags,
                FeatureSetting *settings, uint16 num_set) throw();
@@ -64,8 +64,8 @@ public:
 
     bool applyValToFeature(uint32 val, Features& pDest) const; //defined in GrFaceImp.h
     void maskFeature(Features & pDest) const {
-	if (m_index < pDest.size()) 				//defensive
-	    pDest[m_index] |= m_mask; 
+    if (m_index < pDest.size())                 //defensive
+        pDest[m_index] |= m_mask; 
     }
 
     uint32 getFeatureVal(const Features& feats) const; //defined in GrFaceImp.h
@@ -83,20 +83,30 @@ public:
 private:
     FeatureRef(const FeatureRef & rhs);
 
-    const Face 	   * m_pFace;   //not NULL
+    const Face     * m_pFace;   //not NULL
     FeatureSetting * m_nameValues; // array of name table ids for feature values
     chunk_t m_mask,             // bit mask to get the value from the vector
-    		m_max;              // max value the value can take
-    uint32 	m_id;               // feature identifier/name
-    uint16 	m_nameid,            // Name table id for feature name
-    		m_flags,             // feature flags (unused at the moment but read from the font)
-    		m_numSet;            // number of values (number of entries in m_nameValues)
-    byte 	m_bits,             // how many bits to shift the value into place
-    	 	m_index;            // index into the array to find the ulong to mask
+            m_max;              // max value the value can take
+    uint32  m_id;               // feature identifier/name
+    uint16  m_nameid,            // Name table id for feature name
+            m_flags,             // feature flags (unused at the moment but read from the font)
+            m_numSet;            // number of values (number of entries in m_nameValues)
+    byte    m_bits,             // how many bits to shift the value into place
+            m_index;            // index into the array to find the ulong to mask
 
 private:        //unimplemented
     FeatureRef& operator=(const FeatureRef&);
 };
+
+
+inline
+FeatureRef::FeatureRef()
+: m_pFace(0), m_nameValues(0),
+  m_mask(0), m_max(0), m_id(0),
+  m_nameid(0), m_flags(0), m_numSet(0),
+  m_bits(0), m_index(0)
+{
+}
 
 
 class NameAndFeatureRef
@@ -117,9 +127,8 @@ class NameAndFeatureRef
 class FeatureMap
 {
 public:
-    FeatureMap() : m_numFeats(0), m_feats(NULL), m_pNamedFeats(NULL),
-        m_defaultFeatures(NULL) {}
-    ~FeatureMap() { delete [] m_feats; delete[] m_pNamedFeats; delete m_defaultFeatures; }
+    FeatureMap() : m_numFeats(0), m_feats(NULL), m_pNamedFeats(NULL) {}
+    ~FeatureMap() { delete [] m_feats; delete[] m_pNamedFeats; }
 
     bool readFeats(const Face & face);
     const FeatureRef *findFeatureRef(uint32 name) const;
@@ -135,9 +144,9 @@ friend class SillMap;
 
     FeatureRef *m_feats;
     NameAndFeatureRef* m_pNamedFeats;   //owned
-    FeatureVal* m_defaultFeatures;        //owned
+    FeatureVal m_defaultFeatures;        //owned
     
-private:		//defensive on m_feats, m_pNamedFeats, and m_defaultFeatures
+private:        //defensive on m_feats, m_pNamedFeats, and m_defaultFeatures
     FeatureMap(const FeatureMap&);
     FeatureMap& operator=(const FeatureMap&);
 };

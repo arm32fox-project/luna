@@ -1213,8 +1213,6 @@ pref("pdfjs.previousHandler.alwaysAskBeforeHandling", false);
 // (This is intentionally on the high side; see bug 746055.)
 pref("image.mem.max_decoded_image_kb", 256000);
 
-pref("dom.identity.enabled", false);
-
 // Turn on the CSP 1.0 parser for Content Security Policy headers
 pref("security.csp.speccompliant", true);
 
