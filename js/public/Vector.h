@@ -527,7 +527,7 @@ class Vector : private AllocPolicy
 
 // Clang unnecessarily warns 'uninitialized use of storage', and since
 // this is a header it warns for a huge number of files... #298
-#if defined(__GNUC__) && defined(__clang__)
+#if defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wuninitialized"
 #endif
@@ -542,7 +542,7 @@ Vector<T,N,AllocPolicy>::Vector(AllocPolicy ap)
 #endif
 {}
 
-#if defined(__GNUC__) && defined(__clang__)
+#if defined(__clang__)
 #pragma GCC diagnostic pop
 #endif
 
