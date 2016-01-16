@@ -530,6 +530,7 @@ class Vector : private AllocPolicy
 #if defined(__GNUC__) && defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wuninitialized"
+#endif
 
 template <class T, size_t N, class AllocPolicy>
 JS_ALWAYS_INLINE
@@ -541,18 +542,8 @@ Vector<T,N,AllocPolicy>::Vector(AllocPolicy ap)
 #endif
 {}
 
+#if defined(__GNUC__) && defined(__clang__)
 #pragma GCC diagnostic pop
-#else /* is MSVC */
-
-template <class T, size_t N, class AllocPolicy>
-JS_ALWAYS_INLINE
-Vector<T,N,AllocPolicy>::Vector(AllocPolicy ap)
-  : AllocPolicy(ap), mBegin((T *)storage.addr()), mLength(0),
-    mCapacity(sInlineCapacity)
-#ifdef DEBUG
-  , mReserved(sInlineCapacity), entered(false)
-#endif
-{}
 #endif
 
 /* Move constructor. */
