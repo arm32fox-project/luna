@@ -527,6 +527,7 @@ class Vector : private AllocPolicy
 
 // Clang unnecessarily warns 'uninitialized use of storage', and since
 // this is a header it warns for a huge number of files... #298
+#if defined(__GNUC__) && defined(__clang__)
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wuninitialized"
 
@@ -541,6 +542,18 @@ Vector<T,N,AllocPolicy>::Vector(AllocPolicy ap)
 {}
 
 #pragma GCC diagnostic pop
+#else /* is MSVC */
+
+template <class T, size_t N, class AllocPolicy>
+JS_ALWAYS_INLINE
+Vector<T,N,AllocPolicy>::Vector(AllocPolicy ap)
+  : AllocPolicy(ap), mBegin((T *)storage.addr()), mLength(0),
+    mCapacity(sInlineCapacity)
+#ifdef DEBUG
+  , mReserved(sInlineCapacity), entered(false)
+#endif
+{}
+#endif
 
 /* Move constructor. */
 template <class T, size_t N, class AllocPolicy>
