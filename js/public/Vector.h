@@ -527,8 +527,10 @@ class Vector : private AllocPolicy
 
 // Clang unnecessarily warns 'uninitialized use of storage', and since
 // this is a header it warns for a huge number of files... #298
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wuninitialized"
+#if defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuninitialized"
+#endif
 
 template <class T, size_t N, class AllocPolicy>
 JS_ALWAYS_INLINE
@@ -540,7 +542,9 @@ Vector<T,N,AllocPolicy>::Vector(AllocPolicy ap)
 #endif
 {}
 
-#pragma clang diagnostic pop
+#if defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
 /* Move constructor. */
 template <class T, size_t N, class AllocPolicy>
