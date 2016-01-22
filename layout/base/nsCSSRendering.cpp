@@ -2223,7 +2223,40 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
       // to the previous stop position, if necessary
       position = std::max(position, stops[i - 1].mPosition);
     }
-    stops.AppendElement(ColorStop(position, stop.mColor));
+    
+    gfxRGBA color = stop.mColor;
+    if (color.r == 0 && color.g == 0 && color.b == 0 && color.a == 0) {
+      // We have (0,0,0,0) as a color stop - this means 'transparent'.
+      // In this case for the usually intended effect, we add stops on
+      // either side of the transparent point with the adjacent color value.
+      // XXX: We should probably track the use of the transparent keyword
+      // down from the CSS parsing level to here with a flag in mStops, if
+      // rgba(0,0,0,0) ever is an intended thing (very much a corner case).
+      if (i > 0) {
+        // Add stop adjacent-previous (color->T)
+        color = aGradient->mStops[i - 1].mColor;
+        color.a = 0;
+        stops.AppendElement(ColorStop(position, color));
+        if (i < aGradient->mStops.Length() - 1) {
+          // We're in the middle somewhere: add stop adjacent-next (T->color)
+          gfxRGBA color2 = aGradient->mStops[i + 1].mColor;
+          color2.a = 0;
+          if (color != color2) {
+            // Only add if c1 is different than c2 in c1->T->c2
+            stops.AppendElement(ColorStop(position, color2));
+          }
+        }
+      } else if (i < aGradient->mStops.Length() - 1) {
+        // Add stop adjacent-next (T->color)
+        color = aGradient->mStops[i + 1].mColor;
+        color.a = 0;
+        stops.AppendElement(ColorStop(position, color));
+      }
+    } else {
+      // Just add the stop for a normal RGBA 4-tuple
+      stops.AppendElement(ColorStop(position, stop.mColor));
+    }    
+    
     if (firstUnsetPosition > 0) {
       // Interpolate positions for all stops that didn't have a specified position
       double p = stops[firstUnsetPosition - 1].mPosition;
@@ -2431,7 +2464,7 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
     gradientPattern->SetColorStops(gs);
   } else {
     for (uint32_t i = 0; i < stops.Length(); i++) {
-      double pos = stopScale*(stops[i].mPosition - firstStop);
+      double pos = stopScale * (stops[i].mPosition - firstStop);
       gradientPattern->AddColorStop(pos, stops[i].mColor);
     }
     // Set repeat mode. Default cairo extend mode is PAD.
