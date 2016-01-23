@@ -1954,6 +1954,13 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   }
 }
 
+/* Make sure the Navigation toolbar buttons are more or less vertically centered
+   between the tabs and the AppMenu button */
+#main-window[tabsontop=false] .tabbrowser-tab,
+#main-window[tabsontop=false] .tabs-newtab-button {
+  margin-top: 1px;
+}
+
 /* Make sure extra margin is added when tabs are not in the title bar so it doesn't
    "glue" right up against the AppMenu button/caption */
 #main-window[sizemode="normal"][tabsontop=true] .tabbrowser-tab,
