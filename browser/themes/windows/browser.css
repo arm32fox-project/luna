@@ -1981,6 +1981,14 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   -moz-border-right-colors: transparent #929292;
 }
 
+/* Increase the width of the tabs to compensate for the transparent outer border
+   that's added in tabs-on-top mode */
+#main-window[sizemode="maximized"][tabsontop=true] .tabbrowser-tab:not([pinned]),
+#main-window[sizemode="fullscreen"][tabsontop=true] .tabbrowser-tab:not([pinned]) {
+  max-width: 252px;
+  min-width: 102px;
+}
+
 .tabbrowser-tab:hover,
 .tabs-newtab-button:hover {
   background-image: @toolbarShadowOnTab@, @bgTabTextureHover@,
@@ -2223,6 +2231,13 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 .tabs-newtab-button {
   width: 28px;
+}
+
+/* Increase the width of the New Tab button to compensate for the transparent
+   outer border that's added in tabs-on-top mode */
+#main-window[sizemode="maximized"][tabsontop=true] .tabs-newtab-button,
+#main-window[sizemode="fullscreen"][tabsontop=true] .tabs-newtab-button {
+  width: 30px;
 }
 
 #TabsToolbar > #new-tab-button {
