@@ -2252,7 +2252,7 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
       // down from the CSS parsing level to here with a flag in mStops, if
       // rgba(0,0,0,0) ever is an intended thing (very much a corner case).
       if (i > 0) {
-        // Add stop adjacent-previous (color->T)
+        // Change stop color to adjacent-previous (color->T)
         color = stops[i - 1].mColor;
         color.a = 0;
         stops[i].mColor = color;
@@ -2261,12 +2261,12 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
           gfxRGBA color2 = stops[i + 1].mColor;
           color2.a = 0;
           if (color != color2) {
-            // Only add if c1 is different than c2 in c1->T->c2
+            // Only insert an extra stop if c1 is different than c2 in c1->T->c2
             stops.InsertElementAt(i + 1,ColorStop(stops[i].mPosition, color2));
           }
         }
       } else if (i < stops.Length() - 1) {
-        // Add stop adjacent-next (T->color)
+        // Change stop color to adjacent-next (T->color)
         color = stops[i + 1].mColor;
         color.a = 0;
         stops[i].mColor = color;
