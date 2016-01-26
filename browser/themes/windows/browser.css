@@ -1931,7 +1931,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   /* top margin of 0 is important for Fitts' Law in ToT/FS */
   margin: 0px 0.5px 0px;
   padding: 3px 3px 4px 1px;
-  border-width: 1px 1px 0;
+  border-width: 1px 1px 0px;
   border-radius: 5px 5px 0px 0px;
   border-color: #929292;
   box-shadow: inset 0.5px 1px 1px rgba(255,255,255,.7);
@@ -1974,7 +1974,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 #main-window[sizemode="fullscreen"][tabsontop=true] .tabbrowser-tab,
 #main-window[sizemode="fullscreen"][tabsontop=true] .tabs-newtab-button {
   margin: 0px -0.5px 0px;
-  border-width: 2px 2px 0;
+  border-width: 2px 2px 0px;
   border-radius: 6px 6px 0px 0px;
   -moz-border-top-colors: transparent #929292;
   -moz-border-left-colors: transparent #929292;
