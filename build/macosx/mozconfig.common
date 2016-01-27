@@ -24,4 +24,12 @@ if [ -z "$CXX" ]; then
     export CXX=clang++
 fi
 
+mk_add_options MOZ_CO_PROJECT=browser
+ac_add_options --enable-application=browser
+
 ac_add_options --with-ccache
+
+ac_add_options --disable-tests
+ac_add_options --disable-mochitests
+
+ac_add_options --disable-jemalloc
