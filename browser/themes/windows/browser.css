@@ -1941,6 +1941,20 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   padding: 3px 1px 4px 1px;
 }
 
+@media (-moz-os-version: windows-win8) {
+  /* Square is the new round, courtesy of microsoft */
+  /* We keep the hinting at round here because that's the hybrid in use 
+     on our other controls in the navigation toolbars */
+  .tabbrowser-tab,
+  .tabs-newtab-button,
+  #main-window[sizemode="maximized"][tabsontop=true] .tabbrowser-tab,
+  #main-window[sizemode="maximized"][tabsontop=true] .tabs-newtab-button,
+  #main-window[sizemode="fullscreen"][tabsontop=true] .tabbrowser-tab,
+  #main-window[sizemode="fullscreen"][tabsontop=true] .tabs-newtab-button {
+    border-radius: 2.5px 2.5px 0px 0px;
+  }
+}
+
 @media (-moz-os-version: windows-win10) {
   /* Square is the new round, courtesy of microsoft */
   .tabbrowser-tab,
