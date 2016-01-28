@@ -2223,7 +2223,9 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
       // to the previous stop position, if necessary
       position = std::max(position, stops[i - 1].mPosition);
     }
+    
     stops.AppendElement(ColorStop(position, stop.mColor));
+       
     if (firstUnsetPosition > 0) {
       // Interpolate positions for all stops that didn't have a specified position
       double p = stops[firstUnsetPosition - 1].mPosition;
@@ -2233,6 +2235,42 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
         stops[j].mPosition = p;
       }
       firstUnsetPosition = -1;
+    }
+  }
+
+  // Special case for 'transparent'
+  for (uint32_t i = 0; i < stops.Length(); ++i) {
+    gfxRGBA color = stops[i].mColor;
+    if (color.r == 0 && color.g == 0 && color.b == 0 && color.a == 0) {
+      // We have (0,0,0,0) as a color stop - this means 'transparent'.
+      // In this case for the usually intended effect, we change the color
+      // of the transparent stop to the color of the adjacent stop with
+      // 0 opacity. If we are not on either edge, we add a stop on both
+      // sides of the transparent point with the adjacent color value.
+      // i.e.: c1 -> c1 (alpha 0) | c2 (alpha 0) -> c2
+      // XXX: We should probably track the use of the transparent keyword
+      // down from the CSS parsing level to here with a flag in mStops, if
+      // rgba(0,0,0,0) ever is an intended thing (very much a corner case).
+      if (i > 0) {
+        // Change stop color to adjacent-previous (color->T)
+        color = stops[i - 1].mColor;
+        color.a = 0;
+        stops[i].mColor = color;
+        if (i < stops.Length() - 1) {
+          // We're in the middle somewhere: insert stop adjacent-next (T->color)
+          gfxRGBA color2 = stops[i + 1].mColor;
+          color2.a = 0;
+          if (color != color2) {
+            // Only insert an extra stop if c1 is different than c2 in c1->T->c2
+            stops.InsertElementAt(i + 1,ColorStop(stops[i].mPosition, color2));
+          }
+        }
+      } else if (i < stops.Length() - 1) {
+        // Change stop color to adjacent-next (T->color)
+        color = stops[i + 1].mColor;
+        color.a = 0;
+        stops[i].mColor = color;
+      }
     }
   }
 
@@ -2431,7 +2469,7 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
     gradientPattern->SetColorStops(gs);
   } else {
     for (uint32_t i = 0; i < stops.Length(); i++) {
-      double pos = stopScale*(stops[i].mPosition - firstStop);
+      double pos = stopScale * (stops[i].mPosition - firstStop);
       gradientPattern->AddColorStop(pos, stops[i].mColor);
     }
     // Set repeat mode. Default cairo extend mode is PAD.
