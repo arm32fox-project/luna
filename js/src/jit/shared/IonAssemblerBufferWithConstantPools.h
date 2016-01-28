@@ -780,7 +780,7 @@ struct AssemblerBufferWithConstantPool : public AssemblerBuffer<SliceSize, Inst>
         // bind the current pool to the perforation point.
         Pool **tmp = &perforatedNode->data;
         *tmp = static_cast<Pool*>(this->LifoAlloc_.alloc(sizeof(Pool) * numPoolKinds));
-        if (tmp == NULL) {
+        if (*tmp == NULL) {
             this->fail_oom();
             return;
         }
