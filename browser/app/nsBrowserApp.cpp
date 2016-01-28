@@ -170,15 +170,6 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
   nsresult rv;
   uint32_t mainFlags = 0;
 
-#ifdef XP_WIN
-  HKEY hKey;
-  LONG lRes = RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SYSTEM\\WPA\\PosReady", 0, KEY_READ, &hKey);
-  if (lRes == ERROR_SUCCESS) {
-    Output("Unsupported operating system.");
-    return 255;
-  }
-#endif
-
   // Allow palemoon.exe to launch XULRunner apps via -app <application.ini>
   // Note that -app must be the *first* argument.
   const char *appDataFile = getenv("XUL_APP_FILE");
