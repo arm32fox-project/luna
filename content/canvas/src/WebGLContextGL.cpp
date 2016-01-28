@@ -373,6 +373,9 @@ WebGLContext::BufferData(WebGLenum target, WebGLsizeiptr size,
 
     if (size < 0)
         return ErrorInvalidValue("bufferData: negative size");
+        
+    if (size > UINT32_MAX)
+        return ErrorInvalidValue("bufferData: size too large");
 
     if (!ValidateBufferUsageEnum(usage, "bufferData: usage"))
         return;
