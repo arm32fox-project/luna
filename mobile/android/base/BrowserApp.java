@@ -170,13 +170,12 @@ abstract public class BrowserApp extends GoannaApp
                 // fall through
             case SELECTED:
                 if (Tabs.getInstance().isSelectedTab(tab)) {
+                    if (isDynamicToolbarEnabled()) {
+                        // Show the toolbar.
+                        mLayerView.getLayerMarginsAnimator().showMargins(false);
+                    }
                     if (isAboutHome(tab)) {
                         showAboutHome();
-
-                        if (isDynamicToolbarEnabled()) {
-                            // Show the toolbar.
-                            mLayerView.getLayerMarginsAnimator().showMargins(false);
-                        }
                     } else {
                         hideAboutHome();
                     }
