@@ -107,7 +107,6 @@ pref("gfx.color_management.enablev4", true); //Use "new" handler to prevent disp
 // ****************** UI config ******************
 
 pref("browser.tabs.insertRelatedAfterCurrent", false); //use old method of tabbed browsing instead of "Chrome" style
-pref("general.warnOnAboutConfig", false); //about:config warning. annoying. I don't give warranty.
 pref("browser.download.useDownloadDir", false); //don't use default download location as standard. ASK.
 pref("browser.search.context.loadInBackground", true); //don't swap focus to the context search tab.
 pref("browser.ctrlTab.previews", true);
