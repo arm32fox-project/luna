@@ -61,9 +61,11 @@ struct PRFileDesc;
  * each nsZipItem represents one file in the archive and all the
  * information needed to manipulate it.
  */
-class nsZipItem
+class nsZipItem final
 {
 public:
+  nsZipItem();
+  
   const char* Name() { return ((const char*)central) + ZIPCENTRAL_SIZE; }
 
   uint32_t LocalOffset();
@@ -94,7 +96,7 @@ class nsZipHandle;
  * nsZipArchive -- a class for reading the PKZIP file format.
  *
  */
-class nsZipArchive 
+class nsZipArchive final
 {
   friend class nsZipFind;
 
@@ -236,7 +238,7 @@ private:
  *
  * a helper class for nsZipArchive, representing a search
  */
-class nsZipFind
+class nsZipFind final
 {
 public:
   nsZipFind(nsZipArchive* aZip, char* aPattern, bool regExp);
@@ -258,7 +260,8 @@ private:
 /** 
  * nsZipCursor -- a low-level class for reading the individual items in a zip.
  */
-class nsZipCursor {
+class nsZipCursor final
+{
 public:
   /**
    * Initializes the cursor
@@ -313,7 +316,8 @@ private:
  * for decompression.
  * Do not use when the file may be very large.
  */
-class nsZipItemPtr_base {
+class nsZipItemPtr_base
+{
 public:
   /**
    * Initializes the reader
@@ -336,7 +340,8 @@ protected:
 };
 
 template <class T>
-class nsZipItemPtr : public nsZipItemPtr_base {
+class nsZipItemPtr final : public nsZipItemPtr_base
+{
 public:
   nsZipItemPtr(nsZipArchive *aZip, const char *aEntryName, bool doCRC = false) : nsZipItemPtr_base(aZip, aEntryName, doCRC) { }
   /**
@@ -371,7 +376,8 @@ public:
   }
 };
 
-class nsZipHandle {
+class nsZipHandle final
+{
 friend class nsZipArchive;
 friend class mozilla::FileLocation;
 public:

@@ -41,6 +41,7 @@ var dialog = {
   _itemChoose: null,
   _okButton: null,
   _windowCtxt: null,
+  _dialogDisabled: true,
   
   //////////////////////////////////////////////////////////////////////////////
   //// Methods
@@ -57,8 +58,6 @@ var dialog = {
       this._windowCtxt.QueryInterface(Ci.nsIInterfaceRequestor);
     this._itemChoose  = document.getElementById("item-choose");
     this._okButton    = document.documentElement.getButton("accept");
-
-    this.updateOKButton();
 
     var description = {
       image: document.getElementById("description-image"),
@@ -85,6 +84,16 @@ var dialog = {
 
     // UI is ready, lets populate our list
     this.populateList();
+
+    let prefs = Cc["@mozilla.org/preferences-service;1"]
+                  .getService(Ci.nsIPrefService)
+                  .QueryInterface(Ci.nsIPrefBranch);
+    let ok_delay = prefs.getIntPref("security.dialog_enable_delay");
+
+    setTimeout(() => {
+      this._dialogDisabled = false;
+      this.updateOKButton();
+    }, ok_delay);
   },
 
  /**
@@ -222,7 +231,8 @@ var dialog = {
   */
   updateOKButton: function updateOKButton()
   {
-    this._okButton.disabled = this._itemChoose.selected;
+    this._okButton.disabled = this._itemChoose.selected ||
+                              this._dialogDisabled;
   },
 
  /**
