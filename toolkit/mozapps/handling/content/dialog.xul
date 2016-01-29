@@ -13,6 +13,7 @@
         onload="dialog.initialize();"
         style="min-width: &window.emWidth;; min-height: &window.emHeight;;"
         persist="width height screenX screenY"
+        buttondisabledaccept="true"
         xmlns="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul">
 
   <script src="chrome://mozapps/content/handling/dialog.js" type="application/javascript"/>

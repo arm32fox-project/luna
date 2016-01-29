@@ -78,6 +78,7 @@ pref("general.useragent.override.facebook.com","Mozilla/5.0 (Windows NT 6.1; WOW
 pref("general.useragent.override.fbcdn.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
 pref("general.useragent.override.fbcdn.net","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
 pref("general.useragent.override.chase.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Firefox/31.9");
+pref("general.useragent.override.citi.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:2.0) Goanna/20160101 PaleMoon/26.0");
 
 // UA-Sniffing domains below have indicated no interest in supporting Pale Moon (BOO!)
 pref("general.useragent.override.humblebundle.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:33.0) Gecko/20100101 Firefox/33.0 (Pale Moon)");
@@ -106,7 +107,6 @@ pref("gfx.color_management.enablev4", true); //Use "new" handler to prevent disp
 // ****************** UI config ******************
 
 pref("browser.tabs.insertRelatedAfterCurrent", false); //use old method of tabbed browsing instead of "Chrome" style
-pref("general.warnOnAboutConfig", false); //about:config warning. annoying. I don't give warranty.
 pref("browser.download.useDownloadDir", false); //don't use default download location as standard. ASK.
 pref("browser.search.context.loadInBackground", true); //don't swap focus to the context search tab.
 pref("browser.ctrlTab.previews", true);

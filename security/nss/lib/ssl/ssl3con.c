@@ -4390,7 +4390,6 @@ static const struct {
     int tlsHash;
     SECOidTag oid;
 } tlsHashOIDMap[] = {
-    { tls_hash_md5, SEC_OID_MD5 },
     { tls_hash_sha1, SEC_OID_SHA1 },
     { tls_hash_sha224, SEC_OID_SHA224 },
     { tls_hash_sha256, SEC_OID_SHA256 },
@@ -6862,7 +6861,7 @@ ssl3_HandleServerKeyExchange(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
 	    goto no_memory;
 	}
 
-    	ss->sec.peerKey = peerKey = PORT_ArenaZNew(arena, SECKEYPublicKey);
+    	peerKey = peerKey = PORT_ArenaZNew(arena, SECKEYPublicKey);
     	if (peerKey == NULL) {
 	    goto no_memory;
 	}
