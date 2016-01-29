@@ -1908,6 +1908,22 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   padding: 0;
 }
 
+%ifdef WINDOWS_AERO
+/* Make sure the Navigation toolbar buttons are vertically centered between
+   the tabs and the AppMenu button when the tabs are not on top and the
+   Bookmarks toolbar is disabled */
+#nav-bar + #customToolbars + #PersonalToolbar:-moz-any([collapsed=true],[moz-collapsed=true]) + #TabsToolbar[tabsontop=false] {
+  margin-top: 2px;
+}
+%else
+/* Make sure the Navigation toolbar buttons are vertically centered between
+   the tabs and the title bar when the tabs are not on top and the Bookmarks
+   toolbar is disabled */
+#nav-bar + #customToolbars + #PersonalToolbar:-moz-any([collapsed=true],[moz-collapsed=true]) + #TabsToolbar[tabsontop=false] {
+  margin-top: 1px;
+}
+%endif
+
 #TabsToolbar:not(:-moz-lwtheme),
 #TabsToolbar[tabsontop=false] {
   background-image: linear-gradient(to top, @toolbarShadowColor@ 1px, rgba(0,0,0,.05) 1px, transparent 50%);
