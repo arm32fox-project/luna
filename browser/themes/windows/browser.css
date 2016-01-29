@@ -1950,8 +1950,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   -moz-appearance: none;
   background: @toolbarShadowOnTab@, @bgTabTexture@,
               linear-gradient(-moz-dialog, -moz-dialog);
-  background-origin: border-box;
-  background-repeat: no-repeat;
+  background-clip: padding-box;
   /* top margin of 0 is important for Fitts' Law in ToT/FS */
   margin: 0px 0.5px 0px;
   padding: 3px 3px 4px 1px;
