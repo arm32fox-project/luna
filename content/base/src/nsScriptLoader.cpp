@@ -396,7 +396,7 @@ ParseTypeAttribute(const nsAString& aType, JSVersion* aVersion)
 {
   MOZ_ASSERT(!aType.IsEmpty());
   MOZ_ASSERT(aVersion);
-  MOZ_ASSERT(*aVersion == JSVERSION_LATEST);
+  MOZ_ASSERT(*aVersion == JSVERSION_DEFAULT);
 
   nsContentTypeParser parser(aType);
 
@@ -463,11 +463,7 @@ nsScriptLoader::ProcessScriptElement(nsIScriptElement *aElement)
     return false;
   }
 
-  // set js version to latest, so we can use
-  // `let`, `Iterator` and other nice things
-  // ECMA6 is somewhat... strange, so we will
-  // not turn it on by default
-  JSVersion version = JSVERSION_ECMA_5;
+  JSVersion version = JSVERSION_DEFAULT;
 
   // Check the type attribute to determine language and version.
   // If type exists, it trumps the deprecated 'language='
