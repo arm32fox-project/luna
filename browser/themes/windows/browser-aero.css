@@ -466,7 +466,7 @@
   #toolbar-menubar:not(:-moz-lwtheme),
   #TabsToolbar[tabsontop=true]:not(:-moz-lwtheme),
   #nav-bar[tabsontop=false]:not(:-moz-lwtheme),
-  #nav-bar + #customToolbars + #PersonalToolbar[collapsed=true] + #TabsToolbar[tabsontop=false]:last-child:not(:-moz-lwtheme) {
+  #nav-bar + #customToolbars + #PersonalToolbar:-moz-any([collapsed=true],[moz-collapsed=true]) + #TabsToolbar[tabsontop=false]:last-child:not(:-moz-lwtheme) {
     background-color: transparent !important;
     color: black;
     border-left-style: none !important;
