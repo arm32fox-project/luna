@@ -2203,6 +2203,12 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   background-origin: border-box;
 }
 
+/* Make sure scrolling down to the last tab with the mousewheel disables
+   the scroll-down arrow */
+.tabbrowser-arrowscrollbox > .scrollbutton-down {
+  -moz-margin-end: -0.5px;
+}
+
 /* Add margin to the icon to compensate for the transparent outer border
    that's added to the tabs when the tabs are on top and the window is
    maximized or in full-screen mode */
