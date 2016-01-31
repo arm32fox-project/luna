@@ -92,21 +92,11 @@ static const char NTLM_TYPE3_MARKER[] = { 0x03, 0x00, 0x00, 0x00 };
 #define NTLM_TYPE2_HEADER_LEN 32
 #define NTLM_TYPE3_HEADER_LEN 64
 
-#define LM_HASH_LEN 16
+/** We don't actually send a LM response, but we still have to send something in this spot */
 #define LM_RESP_LEN 24
 
 #define NTLM_HASH_LEN 16
 #define NTLM_RESP_LEN 24
-
-//-----------------------------------------------------------------------------
-
-static bool sendLM = false;
-
-/*static*/ void
-nsNTLMAuthModule::SetSendLM(bool newSendLM)
-{
-  sendLM = newSendLM;
-}
 
 //-----------------------------------------------------------------------------
 
@@ -327,48 +317,9 @@ ZapBuf(void *buf, size_t bufLen)
 }
 
 static void
-ZapString(nsCString &s)
-{
-  ZapBuf(s.BeginWriting(), s.Length());
-}
-
-static void
 ZapString(nsString &s)
 {
   ZapBuf(s.BeginWriting(), s.Length() * 2);
-}
-
-static const unsigned char LM_MAGIC[] = "KGS!@#$%";
-
-/**
- * LM_Hash computes the LM hash of the given password.
- *
- * @param password
- *        null-terminated unicode password.
- * @param hash
- *        16-byte result buffer
- */
-static void
-LM_Hash(const nsString &password, unsigned char *hash)
-{
-  // convert password to OEM character set.  we'll just use the native
-  // filesystem charset.
-  nsAutoCString passbuf;
-  NS_CopyUnicodeToNative(password, passbuf);
-  ToUpperCase(passbuf);
-  uint32_t n = passbuf.Length();
-  passbuf.SetLength(14);
-  for (uint32_t i=n; i<14; ++i)
-    passbuf.SetCharAt('\0', i);
-
-  unsigned char k1[8], k2[8];
-  des_makekey((const unsigned char *) passbuf.get()    , k1);
-  des_makekey((const unsigned char *) passbuf.get() + 7, k2);
-  ZapString(passbuf);
-
-  // use password keys to hash LM magic string twice.
-  des_encrypt(k1, LM_MAGIC, hash);
-  des_encrypt(k2, LM_MAGIC, hash + 8);
 }
 
 /**
@@ -682,25 +633,10 @@ GenerateType3Msg(const nsString &domain,
 
     NTLM_Hash(password, ntlmHash);
     LM_Response(ntlmHash, sessionHash, ntlmResp);
-  }
-  else
-  {
+  } else {
     NTLM_Hash(password, ntlmHash);
     LM_Response(ntlmHash, msg.challenge, ntlmResp);
 
-    if (sendLM)
-    {
-      uint8_t lmHash[LM_HASH_LEN];
-      LM_Hash(password, lmHash);
-      LM_Response(lmHash, msg.challenge, lmResp);
-    }
-    else
-    {
-      // According to http://davenport.sourceforge.net/ntlm.html#ntlmVersion2,
-      // the correct way to not send the LM hash is to send the NTLM hash twice
-      // in both the LM and NTLM response fields.
-      LM_Response(ntlmHash, msg.challenge, lmResp);
-    }
   }
 
   //

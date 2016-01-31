@@ -1362,14 +1362,6 @@ pref("network.automatic-ntlm-auth.trusted-uris", "");
 // AD Domain.
 pref("network.generic-ntlm-auth.workstation", "WORKSTATION");
 
-// This preference controls whether or not the LM hash will be included in
-// response to a NTLM challenge.  By default, this is disabled since servers
-// should almost never need the LM hash, and the LM hash is what makes NTLM
-// authentication less secure.  See bug 250691 for further details.
-// NOTE: automatic-ntlm-auth which leverages the OS-provided NTLM
-//       implementation will not be affected by this preference.
-pref("network.ntlm.send-lm-response", false);
-
 pref("permissions.default.image",           1); // 1-Accept, 2-Deny, 3-dontAcceptForeign
 
 pref("network.proxy.type",                  5);
