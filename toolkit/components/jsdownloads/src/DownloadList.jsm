@@ -13,6 +13,7 @@
 
 this.EXPORTED_SYMBOLS = [
   "DownloadList",
+  "DownloadCombinedList",
 ];
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -247,5 +248,116 @@ DownloadList.prototype = {
   onVisit: function () {},
   onPageChanged: function () {},
   onDeleteVisits: function () {},
+};
+
+////////////////////////////////////////////////////////////////////////////////
+//// DownloadCombinedList
+
+/**
+ * Provides a unified, unordered list combining public and private downloads.
+ *
+ * Download objects added to this list are also added to one of the two
+ * underlying lists, based on their "source.isPrivate" property.  Views on this
+ * list will receive notifications for both public and private downloads.
+ *
+ * @param aPublicList
+ *        Underlying DownloadList containing public downloads.
+ * @param aPrivateList
+ *        Underlying DownloadList containing private downloads.
+ */
+this.DownloadCombinedList = function (aPublicList, aPrivateList)
+{
+  DownloadList.call(this);
+  this._publicList = aPublicList;
+  this._privateList = aPrivateList;
+  aPublicList.addView(this).then(null, Cu.reportError);
+  aPrivateList.addView(this).then(null, Cu.reportError);
+}
+
+this.DownloadCombinedList.prototype = {
+  __proto__: DownloadList.prototype,
+
+  /**
+   * Underlying DownloadList containing public downloads.
+   */
+  _publicList: null,
+
+  /**
+   * Underlying DownloadList containing private downloads.
+   */
+  _privateList: null,
+
+  /**
+   * Adds a new download to the end of the items list.
+   *
+   * @note When a download is added to the list, its "onchange" event is
+   *       registered by the list, thus it cannot be used to monitor the
+   *       download.  To receive change notifications for downloads that are
+   *       added to the list, use the addView method to register for
+   *       onDownloadChanged notifications.
+   *
+   * @param aDownload
+   *        The Download object to add.
+   *
+   * @return {Promise}
+   * @resolves When the download has been added.
+   * @rejects JavaScript exception.
+   */
+  add: function (aDownload)
+  {
+    if (aDownload.source.isPrivate) {
+      return this._privateList.add(aDownload);
+    } else {
+      return this._publicList.add(aDownload);
+    }
+  },
+
+  /**
+   * Removes a download from the list.  If the download was already removed,
+   * this method has no effect.
+   *
+   * This method does not change the state of the download, to allow adding it
+   * to another list, or control it directly.  If you want to dispose of the
+   * download object, you should cancel it afterwards, and remove any partially
+   * downloaded data if needed.
+   *
+   * @param aDownload
+   *        The Download object to remove.
+   *
+   * @return {Promise}
+   * @resolves When the download has been removed.
+   * @rejects JavaScript exception.
+   */
+  remove: function (aDownload)
+  {
+    if (aDownload.source.isPrivate) {
+      return this._privateList.remove(aDownload);
+    } else {
+      return this._publicList.remove(aDownload);
+    }
+  },
+
+  //////////////////////////////////////////////////////////////////////////////
+  //// DownloadList view
+
+  onDownloadAdded: function (aDownload)
+  {
+    this._downloads.push(aDownload);
+    this._notifyAllViews("onDownloadAdded", aDownload);
+  },
+
+  onDownloadChanged: function (aDownload)
+  {
+    this._notifyAllViews("onDownloadChanged", aDownload);
+  },
+
+  onDownloadRemoved: function (aDownload)
+  {
+    let index = this._downloads.indexOf(aDownload);
+    if (index != -1) {
+      this._downloads.splice(index, 1);
+    }
+    this._notifyAllViews("onDownloadRemoved", aDownload);
+  },
 };
 
