@@ -27,6 +27,8 @@ Cu.import("resource://gre/modules/DownloadCore.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadIntegration",
                                   "resource://gre/modules/DownloadIntegration.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadCombinedList",
+                                  "resource://gre/modules/DownloadList.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadList",
                                   "resource://gre/modules/DownloadList.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadStore",
@@ -52,6 +54,25 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
  * and provides the only entry point to get references to back-end objects.
  */
 this.Downloads = {
+  /**
+   * Work on downloads that were not started from a private browsing window.
+   */
+  get PUBLIC() {
+    return "{Downloads.PUBLIC}";
+  },
+  /**
+   * Work on downloads that were started from a private browsing window.
+   */
+  get PRIVATE() {
+    return "{Downloads.PRIVATE}";
+  },
+  /**
+   * Work on both Downloads.PRIVATE and Downloads.PUBLIC downloads.
+   */
+  get ALL() {
+    return "{Downloads.ALL}";
+  },
+
   /**
    * Creates a new Download object.
    *
@@ -173,12 +194,8 @@ this.Downloads = {
    */
   getPublicDownloadList: function D_getPublicDownloadList()
   {
-    if (!this._publicDownloadList) {
-      this._publicDownloadList = new DownloadList(true);
-    }
-    return Promise.resolve(this._publicDownloadList);
+    return this.getList(Downloads.PUBLIC);
   },
-  _publicDownloadList: null,
 
   /**
    * Retrieves the DownloadList object for downloads that were started from
@@ -192,12 +209,79 @@ this.Downloads = {
    */
   getPrivateDownloadList: function D_getPrivateDownloadList()
   {
-    if (!this._privateDownloadList) {
-      this._privateDownloadList = new DownloadList(false);
-    }
-    return Promise.resolve(this._privateDownloadList);
+    return this.getList(Downloads.PRIVATE);
   },
-  _privateDownloadList: null,
+
+  /**
+   * Retrieves the DownloadList object for all downloads.
+   *
+   * This method always retrieves a reference to the same download list.
+   *
+   * @return {Promise}
+   * @resolves The DownloadList object for all downloads.
+   * @rejects JavaScript exception.
+   */
+  getAllDownloadList: function D_getPrivateDownloadList()
+  {
+    return this.getList(Downloads.ALL);
+  },
+
+  /**
+   * Retrieves the specified type of DownloadList object.  There is one download
+   * list for each type, and this method always retrieves a reference to the
+   * same download list when called with the same argument.
+   *
+   * Calling this function may cause the list of public downloads to be reloaded
+   * from the previous session, if it wasn't loaded already.
+   *
+   * @param aType
+   *        This can be Downloads.PUBLIC, Downloads.PRIVATE, or Downloads.ALL.
+   *        Downloads added to the Downloads.PUBLIC and Downloads.PRIVATE lists
+   *        are reflected in the Downloads.ALL list, and downloads added to the
+   *        Downloads.ALL list are also added to either the Downloads.PUBLIC or
+   *        the Downloads.PRIVATE list based on their properties.
+   *
+   * @return {Promise}
+   * @resolves The requested DownloadList or DownloadCombinedList object.
+   * @rejects JavaScript exception.
+   */
+  getList: function (aType)
+  {
+    if (!this._promiseListsInitialized) {
+      this._promiseListsInitialized = Task.spawn(function* () {
+        let publicList = new DownloadList();
+        let privateList = new DownloadList();
+        let combinedList = new DownloadCombinedList(publicList, privateList);
+
+        try {
+          yield DownloadIntegration.addListObservers(publicList, false);
+          yield DownloadIntegration.addListObservers(privateList, true);
+          yield DownloadIntegration.initializePublicDownloadList(publicList);
+        } catch (ex) {
+          Cu.reportError(ex);
+        }
+
+        this._lists[Downloads.PUBLIC] = publicList;
+        this._lists[Downloads.PRIVATE] = privateList;
+        this._lists[Downloads.ALL] = combinedList;
+      }.bind(this));
+    }
+
+    return this._promiseListsInitialized.then(() => this._lists[aType]);
+  },
+
+  /**
+   * Promise resolved when the initialization of the download lists has
+   * completed, or null if initialization has never been requested.
+   */
+  _promiseListsInitialized: null,
+
+  /**
+   * After initialization, this object is populated with one key for each type
+   * of download list that can be returned (Downloads.PUBLIC, Downloads.PRIVATE,
+   * or Downloads.ALL).  The values are the DownloadList objects.
+   */
+  _lists: {},
 
   /**
    * Returns the system downloads directory asynchronously.
