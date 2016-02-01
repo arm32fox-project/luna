@@ -1344,9 +1344,6 @@ pref("network.auth.use-sspi", true);
 // unless you know what you're doing!
 pref("network.auth.force-generic-ntlm", false);
 
-// Allow insecure NTLMv1 when needed.
-pref("network.negotiate-auth.allow-insecure-ntlm-v1", false);
-
 // The following prefs are used to enable automatic use of the operating
 // system's NTLM implementation to silently authenticate the user with their
 // Window's domain logon.  The trusted-uris pref follows the format of the

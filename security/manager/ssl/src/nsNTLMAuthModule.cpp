@@ -261,7 +261,7 @@ WriteBytes(void *buf, const void *data, uint32_t dataLen)
 static void *
 WriteDWORD(void *buf, uint32_t dword)
 {
-#ifdef IS_BIG_ENDIAN 
+#ifdef IS_BIG_ENDIAN
   // NTLM uses little endian on the wire
   dword = SWAP32(dword);
 #endif
@@ -987,19 +987,6 @@ nsNTLMAuthModule::InitTest()
   }
 
   nsNSSShutDownPreventionLock locker;
-  
-  static bool prefObserved = false;
-  if (!prefObserved) {
-    mozilla::Preferences::AddBoolVarCache(
-      &sNTLMv1Enabled, "network.negotiate-auth.allow-insecure-ntlm-v1", sNTLMv1Enabled);
-    prefObserved = true;
-  }
-
-  if (!sNTLMv1Enabled) {
-    // Unconditionally disallow usage of the generic module.
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
   //
   // disable NTLM authentication when FIPS mode is enabled.
   //
