@@ -2263,6 +2263,7 @@ nsCSSRendering::PaintGradient(nsPresContext* aPresContext,
           if (color != color2) {
             // Only insert an extra stop if c1 is different than c2 in c1->T->c2
             stops.InsertElementAt(i + 1,ColorStop(stops[i].mPosition, color2));
+            i++;
           }
         }
       } else if (i < stops.Length() - 1) {
