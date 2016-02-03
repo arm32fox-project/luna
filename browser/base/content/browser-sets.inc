@@ -348,10 +348,14 @@
     <key id="viewBookmarksSidebarWinKb" key="&bookmarksWinCmd.commandkey;" command="viewBookmarksSidebar" modifiers="accel"/>
 #endif
 
+# Navigation cancel keys: Esc performs a cancel on loading (i.e.: stop button equivalent)
+# Shift-Esc (and similar Shift-modified stop on Mac) performs a "superstop": this halts all
+# networking requests, XHR, animated gifs, etc.
     <key id="key_stop" keycode="VK_ESCAPE" command="Browser:Stop"/>
-
+    <key id="key_stop_all" keycode="VK_ESCAPE" modifiers="shift" oncommand="BrowserStop();"/>
 #ifdef XP_MACOSX
     <key id="key_stop_mac" modifiers="accel" key="&stopCmd.macCommandKey;" command="Browser:Stop"/>
+    <key id="key_stop_all_mac" modifiers="accel,shift" key="&stopCmd.macCommandKey;" oncommand="BrowserStop();"/>
 #endif
 
     <key id="key_gotoHistory"
