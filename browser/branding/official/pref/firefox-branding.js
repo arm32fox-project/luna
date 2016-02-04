@@ -125,11 +125,11 @@ pref("browser.tabs.onTop",false);
 // ****************** Security ******************
 
 // Known embedding domains that do NOT do things properly and should provide
-// a disabling header, but don't.
-pref("security.xssfilter.srcwhitelist", "googleusercontent.com,embed.ly");
+// a filter-disabling header, but don't.
+pref("security.xssfilter.srcwhitelist", "googleusercontent.com,embed.ly,msads.net");
 
 // Known embedded target domains that do things properly (no XSS vulnerability)
-pref("security.xssfilter.whitelist", "yimg.com");
+pref("security.xssfilter.whitelist", "paypalobjects.com,yimg.com");
 
 // ****************** Misc. config ******************
 
