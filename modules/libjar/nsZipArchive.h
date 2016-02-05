@@ -61,7 +61,7 @@ struct PRFileDesc;
  * each nsZipItem represents one file in the archive and all the
  * information needed to manipulate it.
  */
-class nsZipItem final
+class nsZipItem MOZ_FINAL
 {
 public:
   nsZipItem();
@@ -96,7 +96,7 @@ class nsZipHandle;
  * nsZipArchive -- a class for reading the PKZIP file format.
  *
  */
-class nsZipArchive final
+class nsZipArchive MOZ_FINAL
 {
   friend class nsZipFind;
 
@@ -238,7 +238,7 @@ private:
  *
  * a helper class for nsZipArchive, representing a search
  */
-class nsZipFind final
+class nsZipFind MOZ_FINAL
 {
 public:
   nsZipFind(nsZipArchive* aZip, char* aPattern, bool regExp);
@@ -260,7 +260,7 @@ private:
 /** 
  * nsZipCursor -- a low-level class for reading the individual items in a zip.
  */
-class nsZipCursor final
+class nsZipCursor MOZ_FINAL
 {
 public:
   /**
@@ -340,7 +340,7 @@ protected:
 };
 
 template <class T>
-class nsZipItemPtr final : public nsZipItemPtr_base
+class nsZipItemPtr MOZ_FINAL : public nsZipItemPtr_base
 {
 public:
   nsZipItemPtr(nsZipArchive *aZip, const char *aEntryName, bool doCRC = false) : nsZipItemPtr_base(aZip, aEntryName, doCRC) { }
@@ -376,7 +376,7 @@ public:
   }
 };
 
-class nsZipHandle final
+class nsZipHandle MOZ_FINAL
 {
 friend class nsZipArchive;
 friend class mozilla::FileLocation;
