@@ -62,6 +62,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "Promise",
                                   "resource://gre/modules/commonjs/sdk/core/promise.js");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadsCommon",
+                                  "resource://gre/modules/DownloadsCommon.jsm");
 
 const BackgroundFileSaverStreamListener = Components.Constructor(
       "@mozilla.org/network/background-file-saver;1?mode=streamlistener",
@@ -411,6 +413,34 @@ Download.prototype = {
       }
     }
     this._notifyChange();
+  },
+
+  /**
+   * Opens the downloaded file in the system file manager.
+   *
+   * @returns {Promise}
+   * @resolves When the file manager has been opened.
+   * @rejects Javascript exception.
+   */
+  showContainingDirectory: function() {
+    if (this.succeeded) {
+      DownloadsCommon.showDownloadedFile(this.target.file);
+    }
+    return Promise.resolve();
+  },
+
+  /**
+   * Launches the downloaded file.
+   *
+   * @returns {Promise}
+   * @resolves When the file manager has been opened.
+   * @rejects Javascript exception.
+   */
+  launch: function() {
+    if (this.succeeded) {
+      this.target.file.launch();
+    }
+    return Promise.resolve();
   },
 };
 
