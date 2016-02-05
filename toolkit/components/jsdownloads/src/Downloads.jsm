@@ -53,18 +53,99 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
  */
 this.Downloads = {
   /**
+   * Identifier indicating the public download list.
+   */
+  get PUBLIC() {
+    return "{Downloads.PUBLIC}";
+  },
+
+  /**
+   * Identifier indicating the private download list.
+   */
+  get PRIVATE() {
+    return "{Downloads.PRIVATE}";
+  },
+
+  /**
+   * Identifier which is supposed to indicate all downloads.
+   * This will act identically to Downloads.PUBLIC.
+   */
+  get ALL() {
+    return "{Downloads.ALL}";
+  },
+
+  /**
+   * Performs the decoding functionality for createDownload and
+   * simpleDownload.
+   *
+   * Semantics are loosened because of how newer Firefox
+   * decodes the objects involved. Source can be a string, for
+   * example, not a URI object.
+   *
+   * This means some inputs here are accepted which
+   * wouldn't have before with FF 25-style API, but it still
+   * works as before with the usual old-style input.
+   */
+  _backendDownload: function (aSource, aTarget, aSaver, aProperties)
+  {
+    return Task.spawn(function task_D_createDownload() {
+      let download = new Download();
+
+      // Initialize the DownloadSource properties.
+      download.source = new DownloadSource();
+
+      if (aSource instanceof Ci.nsIURI) {
+        source.uri = aSource;
+      } else if (typeof aSource == "string" ||
+                 (typeof aSource == "object" && "charAt" in aSource)) {
+        download.source.uri = NetUtil.newURI(aSource);
+      } else {
+        download.source.uri = aSource.uri;
+        if ("isPrivate" in aSource || "isPrivate" in aOptions)
+          download.source.isPrivate = aOptions.isPrivate || aSource.isPrivate;
+        if ("referrer" in aSource || "referrer" in aOptions)
+          download.source.referrer = aOptions.referrer || aSource.referrer;
+      }
+
+      // And the DownloadTarget.
+      download.target = new DownloadTarget();
+
+      if ((typeof aTarget == "object" && "charAt" in aTarget) ||
+          typeof aTarget == "string")
+        download.target.file = new FileUtils.File(aTarget);
+      else
+        download.target.file = aTarget;
+
+      // Support for different aProperties.saver values isn't implemented yet.
+      if (aSaver && "type" in aSaver) {
+        download.saver = aSaver.type == "legacy"
+                  ? new DownloadLegacySaver()
+                  : new DownloadCopySaver();
+      } else {
+        download.saver = new DownloadCopySaver();
+      }
+      download.saver.download = download;
+
+      // This explicitly makes this function a generator for Task.jsm, so that
+      // exceptions in the above calls can be reported asynchronously.
+      yield;
+      throw new Task.Result(download);
+    });
+  },
+
+  /**
    * Creates a new Download object.
    *
    * @param aProperties
    *        Provides the initial properties for the newly created download.
    *        {
    *          source: {
-   *            uri: The nsIURI for the download source.
+   *            uri: The nsIURI for the download source, or a string indicating the URI.
    *            isPrivate: Indicates whether the download originated from a
    *                       private window.
    *          },
    *          target: {
-   *            file: The nsIFile for the download target.
+   *            file: The nsIFile for the download target, or a string of the path.
    *          },
    *          saver: {
    *            type: String representing the class of download operation
@@ -78,31 +159,8 @@ this.Downloads = {
    */
   createDownload: function D_createDownload(aProperties)
   {
-    return Task.spawn(function task_D_createDownload() {
-      let download = new Download();
-
-      download.source = new DownloadSource();
-      download.source.uri = aProperties.source.uri;
-      if ("isPrivate" in aProperties.source) {
-        download.source.isPrivate = aProperties.source.isPrivate;
-      }
-      if ("referrer" in aProperties.source) {
-        download.source.referrer = aProperties.source.referrer;
-      }
-      download.target = new DownloadTarget();
-      download.target.file = aProperties.target.file;
-
-      // Support for different aProperties.saver values isn't implemented yet.
-      download.saver = aProperties.saver.type == "legacy"
-                       ? new DownloadLegacySaver()
-                       : new DownloadCopySaver();
-      download.saver.download = download;
-
-      // This explicitly makes this function a generator for Task.jsm, so that
-      // exceptions in the above calls can be reported asynchronously.
-      yield;
-      throw new Task.Result(download);
-    });
+    return this._backendDownload(aProperties.source, aProperties.target, 
+                                 aProperties.saver, null);
   },
 
   /**
@@ -129,33 +187,29 @@ this.Downloads = {
    * @rejects JavaScript exception if the download failed.
    */
   simpleDownload: function D_simpleDownload(aSource, aTarget, aOptions) {
-    // Wrap the arguments into simple objects resembling DownloadSource and
-    // DownloadTarget, if they are not objects of that type already.
-    if (aSource instanceof Ci.nsIURI) {
-      aSource = { uri: aSource };
-    } else if (typeof aSource == "string" ||
-               (typeof aSource == "object" && "charAt" in aSource)) {
-      aSource = { uri: NetUtil.newURI(aSource) };
-    }
+    return this._createDownload(aSource, aTarget, null, aOptions).
+      then(function D_SD_onSuccess(aDownload) {
+        return aDownload.start();
+      });
+  },
 
-    if (aSource && aOptions && ("isPrivate" in aOptions)) {
-      aSource.isPrivate = aOptions.isPrivate;
-    }
-    if (aTarget instanceof Ci.nsIFile) {
-      aTarget = { file: aTarget };
-    } else if (typeof aTarget == "string" ||
-               (typeof aTarget == "object" && "charAt" in aTarget)) {
-      aTarget = { file: new FileUtils.File(aTarget) };
-    }
-
-    // Create and start the actual download.
-    return this.createDownload({
-      source: aSource,
-      target: aTarget,
-      saver: { type: "copy" },
-    }).then(function D_SD_onSuccess(aDownload) {
-      return aDownload.start();
-    });
+  /**
+   * Wrapper function that is otherwise identical to simpleDownload.
+   * Mozilla has since renamed simpleDownload to fetch. This is for
+   * API compatibility.
+   *
+   * See simpleDownload for more information on usage.
+   *
+   * @param aSource
+   * @param aTarget
+   * @param aOptions
+   *
+   * @return {Promise}
+   * @resolves When the download has finished successfully.
+   * @rejects JavaScript exception if the download failed.
+   */
+  fetch: function(aSource, aTarget, aOptions) {
+    return this.simpleDownload(aSource, aTarget, aOptions);
   },
 
   /**
@@ -198,6 +252,38 @@ this.Downloads = {
     return Promise.resolve(this._privateDownloadList);
   },
   _privateDownloadList: null,
+
+  /**
+   * Retrieves the proper DownloadList passed in. Compatibility shim.
+   *
+   * @param aType
+   *        The type of list requested. One of Downloads.PUBLIC,
+   *        Downloads.PRIVATE or Downloads.ALL, though Downloads.ALL
+   *        will be resolved the same as Downloads.PUBLIC.
+   *
+   * @return {Promise}
+   * @resolves The DownloadList specified by aType.
+   * @rejects JavaScript exception.
+   */
+  getList: function D_getList(aType)
+  {
+    switch(aType) {
+      case Downloads.PUBLIC:
+      case Downloads.ALL:
+        // I'm aware this isn't technically correct behavior.
+        // The reasoning behind it - once we drag in DownloadCombinedList
+        // the porting complexity goes through the roof and we would
+        // require newer mozilla core jsm. Which isn't happening.
+        // Not to mention, I'm not entirely sure mixing public and private mode is
+        // even a good idea.
+        return this.getPublicDownloadList();
+        break;
+      case Downloads.PRIVATE:
+        return this.getPrivateDownloadList();
+        break;
+    }
+    return Promise.reject();
+  },
 
   /**
    * Returns the system downloads directory asynchronously.
