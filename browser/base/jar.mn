@@ -72,7 +72,7 @@ browser.jar:
         content/browser/promises.xul                      (content/promises.xul)
         content/browser/promises.js                       (content/promises.js)
         content/browser/promises/polypromise-injector.jsm (content/promises/polypromise-injector.jsm)
-        content/browser/promises/data/es6-promise.code.js (content/promises/data/es6-promise.code.js)
+        content/browser/promises/data/es6-shim.js     (content/promises/data/es6-shim.js)
         content/browser/newtab/newTab.xul             (content/newtab/newTab.xul)
 *       content/browser/newtab/newTab.js              (content/newtab/newTab.js)
         content/browser/newtab/newTab.css             (content/newtab/newTab.css)
