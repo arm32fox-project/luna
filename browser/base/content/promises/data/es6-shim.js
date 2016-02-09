@@ -3,28 +3,15 @@
   * @license es6-shim Copyright 2013-2016 by Paul Miller (http://paulmillr.com)
   *   and contributors,  MIT License
   * es6-shim: v0.34.2
+  * Modified for Pale Moon by M.C. Straver
   * see https://github.com/paulmillr/es6-shim/blob/0.34.2/LICENSE
   * Details and documentation:
   * https://github.com/paulmillr/es6-shim/
   */
 
-// UMD (Universal Module Definition)
-// see https://github.com/umdjs/umd/blob/master/returnExports.js
 (function (root, factory) {
-  /*global define, module, exports */
-  /* 
-  if (typeof define === 'function' && define.amd) {
-    // AMD. Register as an anonymous module.
-    define(factory);
-  } else if (typeof exports === 'object') {
-    // Node. Does not work with strict CommonJS, but
-    // only CommonJS-like environments that support module.exports,
-    // like Node.
-    module.exports = factory();
-  } else { */
-    // Browser globals (root is window)
-    root.returnExports = factory();
-  // }
+  // Browser globals (root is window)
+  root.returnExports = factory();
 }(this, function () {
   'use strict';
 
