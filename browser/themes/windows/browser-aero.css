@@ -466,7 +466,7 @@
   #toolbar-menubar:not(:-moz-lwtheme),
   #TabsToolbar[tabsontop=true]:not(:-moz-lwtheme),
   #nav-bar[tabsontop=false]:not(:-moz-lwtheme),
-  #nav-bar + #customToolbars + #PersonalToolbar[collapsed=true] + #TabsToolbar[tabsontop=false]:last-child:not(:-moz-lwtheme) {
+  #nav-bar + #customToolbars + #PersonalToolbar:-moz-any([collapsed=true],[moz-collapsed=true]) + #TabsToolbar[tabsontop=false]:last-child:not(:-moz-lwtheme) {
     background-color: transparent !important;
     color: black;
     border-left-style: none !important;
@@ -553,11 +553,11 @@
   }
 
   #navigator-toolbox[tabsontop=false] > #PersonalToolbar {
-    margin-top: 1px;
+    margin-top: 3px;
   }
   
   #navigator-toolbox[tabsontop=false] > #PersonalToolbar:not(:-moz-lwtheme) {
-    margin-top: 0px;
+    margin-top: 2px;
     border-top: 1px solid @toolbarShadowColor@;
     background-image: linear-gradient(@toolbarHighlight@, rgba(255,255,255,0));
   }
