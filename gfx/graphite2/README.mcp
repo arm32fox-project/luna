@@ -1,6 +1,8 @@
 This directory contains the Graphite2 library from https://github.com/silnrsi/graphite/
 
-Current version derived from upstream release version 1.3.4
+Current version derived from upstream release version 1.3.5 with additional fixes.
+Commit used: e569e28
+
 Edits were made to make it suitable for the Pale Moon source tree (as outlined below)
 but the library is otherwise direct from upstream and unaltered.
 
