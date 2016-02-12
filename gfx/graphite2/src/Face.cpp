@@ -195,7 +195,6 @@ bool Face::runGraphite(Segment *seg, const Silf *aSilf) const
                 << "output" << json::array;
         for(Slot * s = seg->first(); s; s = s->next())
             *dbgout     << dslot(seg, s);
-        seg->finalise(0);                   // Call this here to fix up charinfo back indexes.
         *dbgout         << json::close
                 << "advance" << seg->advance()
                 << "chars"   << json::array;
@@ -239,7 +238,7 @@ uint16 Face::getGlyphMetric(uint16 gid, uint8 metric) const
         case kgmetAscent : return m_ascent;
         case kgmetDescent : return m_descent;
         default: 
-            if (gid > glyphs().numGlyphs()) return 0;
+            if (gid >= glyphs().numGlyphs()) return 0;
             return glyphs().glyph(gid)->getMetric(metric);
     }
 }
