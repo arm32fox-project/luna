@@ -1953,11 +1953,14 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   background-clip: padding-box;
   /* top margin of 0 is important for Fitts' Law in ToT/FS */
   margin: 0px 0.5px 0px;
-  padding: 3px 3px 4px 1px;
   border: 1px solid #929292;
   border-bottom: none;
   border-radius: 5px 5px 0px 0px;
   box-shadow: inset 0.5px 1px 1px rgba(255,255,255,.7);
+}
+
+.tabbrowser-tab {
+  padding: 3px 3px 4px 1px;
 }
 
 .tabs-newtab-button {
@@ -1970,12 +1973,19 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 #main-window[sizemode="maximized"][tabsontop=true] .tabs-newtab-button,
 #main-window[sizemode="fullscreen"][tabsontop=true] .tabbrowser-tab,
 #main-window[sizemode="fullscreen"][tabsontop=true] .tabs-newtab-button {
-  margin: 0px -0.5px 0px;
   border-width: 2px 2px 0px;
   border-radius: 6px 6px 0px 0px;
   -moz-border-top-colors: transparent #929292;
   -moz-border-left-colors: transparent #929292;
   -moz-border-right-colors: transparent #929292;
+}
+#main-window[sizemode="maximized"][tabsontop=true] .tabbrowser-tab,
+#main-window[sizemode="fullscreen"][tabsontop=true] .tabbrowser-tab {
+  margin: 0px -0.5px 0px;
+}
+#main-window[sizemode="maximized"][tabsontop=true] .tabs-newtab-button,
+#main-window[sizemode="fullscreen"][tabsontop=true] .tabs-newtab-button {
+  margin: 0px 0px 0px -0.5px;
 }
 
 /* Increase the width of the tabs to compensate for the transparent outer
