@@ -49,6 +49,10 @@ class MacWakeLockListener MOZ_FINAL : public nsIDOMMozWakeLockListener {
 public:
 NS_DECL_ISUPPORTS;
 
+  MacWakeLockListener() {
+    mLockedTopics.Init();
+  }
+
 private:
   IOPMAssertionID mAssertionID = kIOPMNullAssertionID;
   NS_IMETHOD Callback(const nsAString& aTopic, const nsAString& aState) {
@@ -302,7 +306,7 @@ nsAppShell::~nsAppShell()
   NS_OBJC_END_TRY_ABORT_BLOCK
 }
 
-NS_IMPL_ISUPPORTS(MacWakeLockListener, nsIDOMMozWakeLockListener)
+NS_IMPL_ISUPPORTS1(MacWakeLockListener, nsIDOMMozWakeLockListener)
 nsCOMPtr<nsIPowerManagerService> sPowerManagerService = nullptr;
 nsCOMPtr<nsIDOMMozWakeLockListener> sWakeLockListener = nullptr;
 
