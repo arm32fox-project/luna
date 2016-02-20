@@ -95,26 +95,45 @@ this.Downloads = {
       download.source = new DownloadSource();
 
       if (aSource instanceof Ci.nsIURI) {
-        source.uri = aSource;
+        // The source is an nsIURI, directly assign it (FF 26+)
+        download.source.uri = aSource;
       } else if (typeof aSource == "string" ||
                  (typeof aSource == "object" && "charAt" in aSource)) {
+        // The above check is an implementation of isString which isn't
+        // supported by PM. It should be replaced if ever supported.
+
+        // The source is a string, convert it to a URI
         download.source.uri = NetUtil.newURI(aSource);
-      } else {
+      } else if ("uri" in aSource && aSource.uri instanceof Ci.nsIURI) { // FF 25 behavior
         download.source.uri = aSource.uri;
-        if ("isPrivate" in aSource || "isPrivate" in aOptions)
-          download.source.isPrivate = aOptions.isPrivate || aSource.isPrivate;
-        if ("referrer" in aSource || "referrer" in aOptions)
-          download.source.referrer = aOptions.referrer || aSource.referrer;
+
+        if (aProperties && "isPrivate" in aProperties) {
+          download.source.isPrivate = aProperties.isPrivate;
+        }
+        else if ("isPrivate" in aSource) {
+          download.source.isPrivate = aSource.isPrivate;
+        }
+
+        if (aProperties && "referrer" in aProperties) {
+          download.source.referrer = aProperties.referrer;
+        }
+        else if ("referrer" in aSource) {
+          download.source.referrer = aSource.referrer;
+        }
       }
+      // TODO - We should handle errors if we didn't get a valid source.
 
       // And the DownloadTarget.
       download.target = new DownloadTarget();
 
       if ((typeof aTarget == "object" && "charAt" in aTarget) ||
-          typeof aTarget == "string")
-        download.target.file = new FileUtils.File(aTarget);
-      else
-        download.target.file = aTarget;
+          typeof aTarget == "string") {
+        download.target.file = new FileUtils.File(aTarget); // Create file from string
+      } else if ("file" in aTarget && aTarget.file instanceof Ci.nsIFile) { // Current FF 25-based behavior
+        download.target.file = aTarget.file;
+      } else {
+        download.target.file = aTarget; // TODO - Make sure this is actually a correct argument.
+      }
 
       // Support for different aProperties.saver values isn't implemented yet.
       if (aSaver && "type" in aSaver) {
@@ -122,7 +141,7 @@ this.Downloads = {
                   ? new DownloadLegacySaver()
                   : new DownloadCopySaver();
       } else {
-        download.saver = new DownloadCopySaver();
+        download.saver = new DownloadCopySaver(); // Default is copy saver.
       }
       download.saver.download = download;
 
@@ -159,8 +178,17 @@ this.Downloads = {
    */
   createDownload: function D_createDownload(aProperties)
   {
-    return this._backendDownload(aProperties.source, aProperties.target, 
-                                 aProperties.saver, null);
+    if (aProperties && "source" in aProperties && "target" in aProperties) {
+      if ("saver" in aProperties) {
+        return this._backendDownload(aProperties.source, aProperties.target, 
+                                     aProperties.saver, null);
+      } else {
+        return this._backendDownload(aProperties.source, aProperties.target, 
+                                     null, null);
+      }
+    } else {
+      return Promise.reject(); // Invalid arguments.
+    }
   },
 
   /**
@@ -187,7 +215,7 @@ this.Downloads = {
    * @rejects JavaScript exception if the download failed.
    */
   simpleDownload: function D_simpleDownload(aSource, aTarget, aOptions) {
-    return this._createDownload(aSource, aTarget, null, aOptions).
+    return this._backendDownload(aSource, aTarget, null, aOptions).
       then(function D_SD_onSuccess(aDownload) {
         return aDownload.start();
       });
