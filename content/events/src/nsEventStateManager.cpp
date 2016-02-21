@@ -3289,6 +3289,12 @@ nsEventStateManager::PostHandleEvent(nsPresContext* aPresContext,
 
       widget::WheelEvent* wheelEvent = static_cast<widget::WheelEvent*>(aEvent);
       switch (WheelPrefs::GetInstance()->ComputeActionFor(wheelEvent)) {
+        case WheelPrefs::ACTION_HSCROLL: {
+          // Swap axes and fall through
+          double deltaX = wheelEvent->deltaX;
+          wheelEvent->deltaX = wheelEvent->deltaY;
+          wheelEvent->deltaY = deltaX;
+        }
         case WheelPrefs::ACTION_SCROLL: {
           if (!wheelEvent->deltaX && !wheelEvent->deltaY) {
             break;
