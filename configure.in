@@ -7001,7 +7001,7 @@ else
   AC_DEFINE(MOZ_MEMORY)
   
   dnl If using jemalloc, use the full jemalloc lib
-  MOZ_JEMALLOC3=1
+  dnl MOZ_JEMALLOC3=1
   
   if test -n "$MOZ_JEMALLOC3"; then
     AC_DEFINE(MOZ_JEMALLOC3)
