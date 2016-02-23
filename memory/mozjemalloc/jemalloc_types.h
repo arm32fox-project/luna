@@ -2,6 +2,8 @@
 /* vim:set softtabstop=8 shiftwidth=8: */
 /*-
  * Copyright (C) 2006-2008 Jason Evans <jasone@FreeBSD.org>.
+ * Portions Copyright (C) Mozilla contributors.
+ * Portions Copyright (C) 2015-2016 M.C. Straver BASc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
