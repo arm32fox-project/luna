@@ -2273,6 +2273,8 @@ nsListControlFrame::KeyDown(nsIDOMEvent* aKeyEvent)
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED))
     return NS_OK;
 
+  AutoIncrementalSearchResetter incrementalSearchResetter;
+
   // Don't check defaultPrevented value because other browsers don't prevent
   // the key navigation of list control even if preventDefault() is called.
 
@@ -2324,41 +2326,44 @@ nsListControlFrame::KeyDown(nsIDOMEvent* aKeyEvent)
                                 1, 1);
       break;
     case NS_VK_RETURN:
-      if (mComboboxFrame) {
-        nsWeakFrame weakFrame(this);
+      if (IsInDropDownMode()) {
+        // If the select element is a dropdown list, the Enter key should be
+        // consumed every time since the Enter key may be pressed accidentally
+        // after the dropdown is closed by the Enter key.
+        aKeyEvent->PreventDefault();
+
         if (mComboboxFrame->IsDroppedDown()) {
-          // When closing a dropdown, there shouldn't be additional behavior
-          // for this key event. So, consume the event.
-          aKeyEvent->PreventDefault();        
+          nsWeakFrame weakFrame(this);        
           ComboboxFinish(mEndSelectionIndex);
           if (!weakFrame.IsAlive())
             return NS_OK;
         }
+        // Note: On other browsers, the "change" event is fired immediately
+        // after the selected item is changed, rather than the Enter key
+        // being pressed. Is this OK?
         FireOnChange();
-        if (!weakFrame.IsAlive()) {
-          // If the keydown event causes this to be destroyed, keypresses on
-          // another element may cause additional actions which would not be
-          // expected by the user. So, consume the event.
-          aKeyEvent->PreventDefault();
-        }
+        return NS_OK;
+      }      
+
+      // If this is a single-select listbox, the Enter key has no effect.
+      if (!GetMultiple()) {
         return NS_OK;
       }
+
       newIndex = mEndSelectionIndex;
       break;
     case NS_VK_ESCAPE: {
-      nsWeakFrame weakFrame(this);
-      // XXX: When the Escape keydown causes the dropdown to close, we probably
-      // shouldn't cause any additonal actions here.
-      // We should probably call preventDefault() here in all cases?
-      AboutToRollup();
-      if (!weakFrame.IsAlive()) {
-        // If the keydown event causes this to be destroyed, keypresses on
-        // another element may cause additional actions which would not be
-        // expected by the user. So, consume the event.
-        aKeyEvent->PreventDefault();
+      // If the select element is a listbox, the Escape key has no effect.
+      if (!IsInDropDownMode()) {
         return NS_OK;
       }
-      break;
+
+      AboutToRollup();
+      // If the select element is a dropdown list, the Escape key should be
+      // consumed every time since the Escape key may be pressed accidentally
+      // after the dropdown is closed by the Escape key.
+      aKeyEvent->PreventDefault();
+      return NS_OK;      
     }
     case NS_VK_PAGE_UP: {
       int32_t itemsPerPage =
@@ -2394,13 +2399,11 @@ nsListControlFrame::KeyDown(nsIDOMEvent* aKeyEvent)
 #endif
 
     default: // Printable keys will be handled by the keypress event.
+      incrementalSearchResetter.Cancel();
       return NS_OK;
   }
 
   aKeyEvent->PreventDefault();
-
-  // Cancel incremental search if it's being performed.
-  GetIncrementalString().Truncate();
 
   // Actually process the new index and let the selection code
   // do the scrolling for us
@@ -2417,6 +2420,8 @@ nsListControlFrame::KeyPress(nsIDOMEvent* aKeyEvent)
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     return NS_OK;
   }
+
+  AutoIncrementalSearchResetter incrementalSearchResetter;
 
   const nsKeyEvent* keyEvent =
     static_cast<nsKeyEvent*>(aKeyEvent->GetInternalNSEvent());
@@ -2451,16 +2456,24 @@ nsListControlFrame::KeyPress(nsIDOMEvent* aKeyEvent)
   // NOTE: If keyCode of keypress event is not 0, charCode is always 0.
   //       Therefore, all non-printable keys are not handled after this block.
   if (!keyEvent->charCode) {
-    // Backspace key will delete the last char in the string
-    // XXX Backspace key causes "go back the history" on Windows.  Shouldn't we
-    //     prevent its default action if incremental search is used since
-    //     getting focus?  When I tested this, it worked accidentally.
-    if (keyEvent->keyCode == NS_VK_BACK && !GetIncrementalString().IsEmpty()) {
-      GetIncrementalString().Truncate(GetIncrementalString().Length() - 1);
+    // Backspace key will delete the last char in the string. Otherwise,
+    // non-printable keypresses should reset incremental search.
+    if (keyEvent->keyCode == NS_VK_BACK) {
+      incrementalSearchResetter.Cancel();
+      if (!GetIncrementalString().IsEmpty()) {
+        GetIncrementalString().Truncate(GetIncrementalString().Length() - 1);
+      }
       aKeyEvent->PreventDefault();
+    } else {
+      // When a select element has focus, even if the key has no effect,
+      // it might be better to call preventDefault() here because nobody
+      // should expect another element, including chrome, to handle the
+      // key event.
     }
     return NS_OK;
   }
+
+  incrementalSearchResetter.Cancel();
 
   // We ate the key if we got this far.
   aKeyEvent->PreventDefault();
