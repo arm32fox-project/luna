@@ -26,6 +26,11 @@ ifeq (Linux,$(OS_TARGET))
 # See bug 419470
 NO_PROFILE_GUIDED_OPTIMIZE = 1
 endif
+
+ifdef _MSC_VER
+# See bug 558163: inconsistent dll linkage warnings
+CFLAGS += -wd4273
+endif
 endif
 
 LOCAL_INCLUDES += -I$(topsrcdir)/memory/build
