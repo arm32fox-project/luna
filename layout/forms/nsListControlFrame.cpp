@@ -2327,12 +2327,11 @@ nsListControlFrame::KeyDown(nsIDOMEvent* aKeyEvent)
       break;
     case NS_VK_RETURN:
       if (IsInDropDownMode()) {
-        // If the select element is a dropdown list, the Enter key should be
-        // consumed every time since the Enter key may be pressed accidentally
-        // after the dropdown is closed by the Enter key.
-        aKeyEvent->PreventDefault();
-
         if (mComboboxFrame->IsDroppedDown()) {
+          // If the select element is a dropdown list, the Enter key should be
+          // consumed while the dropdown is open for security.
+          aKeyEvent->PreventDefault();
+
           nsWeakFrame weakFrame(this);        
           ComboboxFinish(mEndSelectionIndex);
           if (!weakFrame.IsAlive())
