@@ -449,6 +449,10 @@ function _computeKeyCodeFromChar(aChar)
     case '?':
     case '/':
       return nsIDOMKeyEvent.DOM_VK_SLASH;
+    case '\n':
+      return nsIDOMKeyEvent.DOM_VK_RETURN;
+    case ' ':
+      return nsIDOMKeyEvent.DOM_VK_SPACE;
     default:
       return 0;
   }
