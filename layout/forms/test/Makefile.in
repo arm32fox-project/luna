@@ -46,6 +46,7 @@ MOCHITEST_FILES =	test_bug231389.html \
 		test_bug869314.html \
 		test_listcontrol_search.html \
 		test_select_prevent_default.html \
+		test_select_propagatekeys.html \
 		$(NULL)
 
 MOCHITEST_CHROME_FILES = \

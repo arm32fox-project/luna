@@ -2325,22 +2325,37 @@ nsListControlFrame::KeyDown(nsIDOMEvent* aKeyEvent)
       break;
     case NS_VK_RETURN:
       if (mComboboxFrame) {
+        nsWeakFrame weakFrame(this);
         if (mComboboxFrame->IsDroppedDown()) {
-          nsWeakFrame weakFrame(this);
+          // When closing a dropdown, there shouldn't be additional behavior
+          // for this key event. So, consume the event.
+          aKeyEvent->PreventDefault();        
           ComboboxFinish(mEndSelectionIndex);
           if (!weakFrame.IsAlive())
             return NS_OK;
         }
         FireOnChange();
+        if (!weakFrame.IsAlive()) {
+          // If the keydown event causes this to be destroyed, keypresses on
+          // another element may cause additional actions which would not be
+          // expected by the user. So, consume the event.
+          aKeyEvent->PreventDefault();
+        }
         return NS_OK;
       }
       newIndex = mEndSelectionIndex;
       break;
     case NS_VK_ESCAPE: {
       nsWeakFrame weakFrame(this);
+      // XXX: When the Escape keydown causes the dropdown to close, we probably
+      // shouldn't cause any additonal actions here.
+      // We should probably call preventDefault() here in all cases?
       AboutToRollup();
       if (!weakFrame.IsAlive()) {
-        aKeyEvent->PreventDefault(); // since we won't reach the one below
+        // If the keydown event causes this to be destroyed, keypresses on
+        // another element may cause additional actions which would not be
+        // expected by the user. So, consume the event.
+        aKeyEvent->PreventDefault();
         return NS_OK;
       }
       break;
