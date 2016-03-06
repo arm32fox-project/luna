@@ -175,7 +175,7 @@ Name[vi]=Mở thẻ mới
 Name[xh]=Vula ithebhu entsha
 Name[zh_CN]=打开新标签页
 Name[zh_TW]=開啟新分頁
-Exec=palemoon -new-tab http://start.palemoon.org
+Exec=palemoon -new-tab https://start.palemoon.org
 
 [Desktop Action NewWindow]
 Name=Open new window
