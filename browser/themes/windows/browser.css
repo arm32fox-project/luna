@@ -1975,8 +1975,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   padding: 3px 1px 4px 1px;
 }
 
-/* Add a small visual gap between the tabs and the Menu bar / the top edge
-   of the screen */
+/* top margin of 0 is important for Fitts' Law in ToT/FS */
 #main-window[sizemode="maximized"][tabsontop=true] .tabbrowser-tab,
 #main-window[sizemode="maximized"][tabsontop=true] .tabs-newtab-button,
 #main-window[sizemode="fullscreen"][tabsontop=true] .tabbrowser-tab,
