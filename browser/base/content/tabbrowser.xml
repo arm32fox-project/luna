@@ -3397,7 +3397,10 @@
             if (aTab.owner)
               return;
 
-            //Pale Moon: Resize immediately if preffed
+            // Resize immediately if preffed
+            // XXX: we may want to make this a three-state pref to disable this early
+            // exit if people prefer a mix of behavior (don't resize in overflow,
+            // but resize if not overflowing)
             if (Services.prefs.getBoolPref("browser.tabs.resize_immediately"))
               return;
 
@@ -3407,7 +3410,10 @@
             if (isEndTab && !this._hasTabTempMaxWidth)
               return;
               
-            //Pale Moon: Resize immediately if preffed
+            // Resize immediately if preffed
+            // XXX: we may want to make this a three-state pref to disable this early
+            // exit if people prefer a mix of behavior (don't resize in overflow,
+            // but resize if not overflowing)
             if (Services.prefs.getBoolPref("browser.tabs.resize_immediately"))
               return;
 
