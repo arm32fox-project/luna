@@ -174,19 +174,24 @@ Promise::Reject(const GlobalObject& aGlobal, JSContext* aCx,
 }
 
 already_AddRefed<Promise>
-Promise::Then(AnyCallback* aResolveCallback, AnyCallback* aRejectCallback)
+Promise::Then(const Optional<OwningNonNull<AnyCallback> >& aResolveCallback,
+              const Optional<OwningNonNull<AnyCallback> >& aRejectCallback)
 {
   nsRefPtr<Promise> promise = new Promise(GetParentObject());
 
   nsRefPtr<PromiseCallback> resolveCb =
     PromiseCallback::Factory(promise->mResolver,
-                            aResolveCallback,
-                            PromiseCallback::Resolve);
+                             aResolveCallback.WasPassed()
+                               ? &aResolveCallback.Value()
+                               : nullptr,
+                             PromiseCallback::Resolve);
 
   nsRefPtr<PromiseCallback> rejectCb =
     PromiseCallback::Factory(promise->mResolver,
-                            aRejectCallback,
-                            PromiseCallback::Reject);
+                             aRejectCallback.WasPassed()
+                               ? &aRejectCallback.Value()
+                               : nullptr,
+                             PromiseCallback::Reject);
 
   AppendCallbacks(resolveCb, rejectCb);
 
@@ -194,9 +199,10 @@ Promise::Then(AnyCallback* aResolveCallback, AnyCallback* aRejectCallback)
 }
 
 already_AddRefed<Promise>
-Promise::Catch(AnyCallback* aRejectCallback)
+Promise::Catch(const Optional<OwningNonNull<AnyCallback> >& aRejectCallback)
 {
-  return Then(nullptr, aRejectCallback);
+  Optional<OwningNonNull<AnyCallback> > resolveCb;
+  return Then(resolveCb, aRejectCallback);
 }
 
 void
