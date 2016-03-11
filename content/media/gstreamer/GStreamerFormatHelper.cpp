@@ -153,7 +153,7 @@ bool GStreamerFormatHelper::CanHandleMediaType(const nsACString& aMIMEType,
 	// that we don't overreport MIME types we are able to play.
 	caps = GetDefaultCapsFromMIMEType(type);
   }
-  
+
   if (!caps) {
     return false;
   }
@@ -298,7 +298,11 @@ bool GStreamerFormatHelper::CanHandleCodecCaps(GstCaps* aCaps)
 GList* GStreamerFormatHelper::GetFactories() {
   NS_ASSERTION(sLoadOK, "GStreamer library not linked");
 
-  uint32_t cookie = gst_default_registry_get_feature_list_cookie ();
+#if GST_VERSION_MAJOR >= 1
+  uint32_t cookie = gst_registry_get_feature_list_cookie(gst_registry_get());
+#else
+  uint32_t cookie = gst_default_registry_get_feature_list_cookie();
+#endif
   if (cookie != mCookie) {
     g_list_free(mFactories);
     mFactories =
