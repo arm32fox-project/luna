@@ -200,26 +200,6 @@ Promise::Catch(AnyCallback* aRejectCallback)
 }
 
 void
-Promise::Done(AnyCallback* aResolveCallback, AnyCallback* aRejectCallback)
-{
-  if (!aResolveCallback && !aRejectCallback) {
-    return;
-  }
-
-  nsRefPtr<PromiseCallback> resolveCb;
-  if (aResolveCallback) {
-    resolveCb = new SimpleWrapperPromiseCallback(this, aResolveCallback);
-  }
-
-  nsRefPtr<PromiseCallback> rejectCb;
-  if (aRejectCallback) {
-    rejectCb = new SimpleWrapperPromiseCallback(this, aRejectCallback);
-  }
-
-  AppendCallbacks(resolveCb, rejectCb);
-}
-
-void
 Promise::AppendCallbacks(PromiseCallback* aResolveCallback,
                          PromiseCallback* aRejectCallback)
 {

@@ -30,7 +30,4 @@ interface Promise {
 
   [Creator]
   Promise catch(optional AnyCallback? rejectCallback = null);
-
-  void done(optional AnyCallback? resolveCallback = null,
-            optional AnyCallback? rejectCallback = null);
 };

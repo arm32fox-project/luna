@@ -70,7 +70,6 @@ public:
   already_AddRefed<Promise>
   Catch(AnyCallback* aRejectCallback);
 
-  void Done(AnyCallback* aResolveCallback, AnyCallback* aRejectCallback);
 
 private:
   enum PromiseState {
