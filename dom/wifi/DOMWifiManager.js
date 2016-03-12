@@ -55,7 +55,8 @@ DOMWifiManager.prototype = {
                                     flags: Ci.nsIClassInfo.DOM_OBJECT}),
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMWifiManager,
-                                         Ci.nsIDOMGlobalPropertyInitializer]),
+                                         Ci.nsIDOMGlobalPropertyInitializer,
+                                         Ci.nsISupportsWeakReference]),
 
   // nsIDOMGlobalPropertyInitializer implementation
   init: function(aWindow) {
@@ -92,7 +93,7 @@ DOMWifiManager.prototype = {
                       "WifiManager:onwpstimeout", "WifiManager:onwpsfail",
                       "WifiManager:onwpsoverlap", "WifiManager:connectionInfoUpdate",
                       "WifiManager:onconnectingfailed"];
-    this.initHelper(aWindow, messages);
+    this.initDOMRequestHelper(aWindow, messages);
     this._mm = Cc["@mozilla.org/childprocessmessagemanager;1"].getService(Ci.nsISyncMessageSender);
 
     var state = this._mm.sendSyncMessage("WifiManager:getState")[0];
