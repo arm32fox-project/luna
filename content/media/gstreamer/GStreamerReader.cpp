@@ -418,7 +418,7 @@ nsresult GStreamerReader::CheckSupportedFormats()
           const char* klass = gst_element_factory_get_klass(factory);
           GstPad* pad = gst_element_get_static_pad(element, "sink");
           if (pad) {
-            GstCaps* caps
+            GstCaps* caps;
 
 #if GST_VERSION_MAJOR >= 1
             caps = gst_pad_get_current_caps(pad);
@@ -683,7 +683,6 @@ bool GStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
 
   VideoData::YCbCrBuffer buf;
   FillYCbCrBuffer(buffer, &buf);
-  bool isKeyframe = !GST_BUFFER_FLAG_IS_SET(buffer, GST_BUFFER_FLAG_DELTA_UNIT);
   int64_t offset = 0;
   VideoData* video = VideoData::Create(mInfo, image, offset,
                                        timestamp, nextTimestamp, buf,

@@ -20,10 +20,10 @@
 #include <map>
 #include "MediaDecoderReader.h"
 
-#pragma GCC visibility push (default)
+#if GST_VERSION_MAJOR == 1
 #include <gst/video/gstvideometa.h>
 #include <gst/video/gstvideopool.h>
-#pragma GCC visibility pop
+#endif
 
 namespace mozilla {
 
@@ -74,7 +74,6 @@ private:
   void NotifyBytesConsumed();
   int64_t QueryDuration();
   nsRefPtr<layers::PlanarYCbCrImage> GetImageFromBuffer(GstBuffer* aBuffer);
-  bool ConfigureBufferPool(GstBufferPool *aBufferPool, gsize aSize);
   void CopyIntoImageBuffer(GstBuffer *aBuffer, GstBuffer** aOutBuffer, nsRefPtr<layers::PlanarYCbCrImage> &image);
   void FillYCbCrBuffer(GstBuffer* aBuffer, VideoData::YCbCrBuffer* aYCbCrBuffer);
   GstCaps* BuildAudioSinkCaps();
@@ -181,6 +180,7 @@ private:
 #if GST_VERSION_MAJOR >= 1
   GstAllocator *mAllocator;
   GstBufferPool *mBufferPool;
+  GstVideoInfo mVideoInfo;
 #endif
   GstElement* mPlayBin;
   GstBus* mBus;
@@ -216,10 +216,12 @@ private:
   gint64 mByteOffset;
   /* the last offset we reported with NotifyBytesConsumed */
   gint64 mLastReportedByteOffset;
+  /* the input video format info */
+#if GST_VERSION_MAJOR >= 1
+  bool mIsVideoConfigured;
+#endif
   int fpsNum;
   int fpsDen;
-  /* the input video format info */
-  GstVideoInfo mVideoInfo;
 };
 
 } // namespace mozilla
