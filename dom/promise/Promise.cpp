@@ -108,6 +108,16 @@ Promise::PrefEnabled()
   return Preferences::GetBool("dom.promise.enabled", false);
 }
 
+static void
+EnterCompartment(Maybe<JSAutoCompartment>& aAc, JSContext* aCx,
+                 const Optional<JS::Handle<JS::Value> >& aValue)
+{
+  if (aValue.WasPassed() && aValue.Value().isObject()) {
+    JS::Rooted<JSObject*> rooted(aCx, &aValue.Value().toObject());
+    aAc.construct(aCx, rooted);
+  }
+}
+
 /* static */ already_AddRefed<Promise>
 Promise::Constructor(const GlobalObject& aGlobal, JSContext* aCx,
                     PromiseInit& aInit, ErrorResult& aRv)
@@ -129,6 +139,9 @@ Promise::Constructor(const GlobalObject& aGlobal, JSContext* aCx,
   if (aRv.IsJSException()) {
     Optional<JS::Handle<JS::Value> > value(aCx);
     aRv.StealJSException(aCx, &value.Value());
+
+    Maybe<JSAutoCompartment> ac;
+    EnterCompartment(ac, aCx, value);
     promise->mResolver->Reject(aCx, value);
   }
 
