@@ -33,6 +33,17 @@ PromiseCallback::~PromiseCallback()
   MOZ_COUNT_DTOR(PromiseCallback);
 }
 
+static void
+EnterCompartment(Maybe<JSAutoCompartment>& aAc, JSContext* aCx,
+                 const Optional<JS::Handle<JS::Value> >& aValue)
+{
+  // FIXME Bug 878849
+  if (aValue.WasPassed() && aValue.Value().isObject()) {
+    JS::Rooted<JSObject*> rooted(aCx, &aValue.Value().toObject());
+    aAc.construct(aCx, rooted);
+  }
+}
+
 // ResolvePromiseCallback
 
 NS_IMPL_CYCLE_COLLECTION_INHERITED_1(ResolvePromiseCallback,
@@ -62,12 +73,8 @@ ResolvePromiseCallback::Call(const Optional<JS::Handle<JS::Value> >& aValue)
 {
   // Run resolver's algorithm with value and the synchronous flag set.
   AutoJSContext cx;
-  // FIXME Bug 878849
   Maybe<JSAutoCompartment> ac;
-  if (aValue.WasPassed() && aValue.Value().isObject()) {
-    JS::Rooted<JSObject*> rooted(cx, &aValue.Value().toObject());
-    ac.construct(cx, rooted);
-  }
+  EnterCompartment(ac, cx, aValue);
 
   mPromise->ResolveInternal(cx, aValue, Promise::SyncTask);
 }
@@ -101,12 +108,8 @@ RejectPromiseCallback::Call(const Optional<JS::Handle<JS::Value> >& aValue)
 {
   // Run resolver's algorithm with value and the synchronous flag set.
   AutoJSContext cx;
-  // FIXME Bug 878849
   Maybe<JSAutoCompartment> ac;
-  if (aValue.WasPassed() && aValue.Value().isObject()) {
-    JS::Rooted<JSObject*> rooted(cx, &aValue.Value().toObject());
-    ac.construct(cx, rooted);
-  }
+  EnterCompartment(ac, cx, aValue);
 
   mPromise->RejectInternal(cx, aValue, Promise::SyncTask);
 }
@@ -141,12 +144,8 @@ void
 WrapperPromiseCallback::Call(const Optional<JS::Handle<JS::Value> >& aValue)
 {
   AutoJSContext cx;
-  // FIXME Bug 878849
   Maybe<JSAutoCompartment> ac;
-  if (aValue.WasPassed() && aValue.Value().isObject()) {
-    JS::Rooted<JSObject*> rooted(cx, &aValue.Value().toObject());
-    ac.construct(cx, rooted);
-  }
+  EnterCompartment(ac, cx, aValue);
 
   ErrorResult rv;
 
@@ -163,13 +162,18 @@ WrapperPromiseCallback::Call(const Optional<JS::Handle<JS::Value> >& aValue)
   if (rv.Failed() && rv.IsJSException()) {
     Optional<JS::Handle<JS::Value> > value(cx);
     rv.StealJSException(cx, &value.Value());
+
+    Maybe<JSAutoCompartment> ac2;
+    EnterCompartment(ac2, cx, value);
     mNextPromise->RejectInternal(cx, value, Promise::SyncTask);
     return;
   }
 
   // Otherwise, run resolver's resolve with value and the synchronous flag
   // set.
-  mNextPromise->ResolveInternal(cx, /* aValue */ value, Promise::SyncTask);
+  Maybe<JSAutoCompartment> ac2;
+  EnterCompartment(ac2, cx, value);
+  mNextPromise->ResolveInternal(cx, value, Promise::SyncTask);
 }
 
 // SimpleWrapperPromiseCallback
