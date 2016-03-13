@@ -775,7 +775,8 @@ NativeKey::DispatchKeyEvent(nsKeyEvent& aKeyEvent,
                             const MSG* aMsgSentToPlugin) const
 {
   if (mWidget->Destroyed()) {
-    MOZ_CRASH("NativeKey tries to dispatch a key event on destroyed widget");
+    MOZ_NOT_REACHED("NativeKey tries to dispatch a key event on destroyed widget");
+    return false;
   }
 
   KeyboardLayout::NotifyIdleServiceOfUserActivity();
@@ -1119,7 +1120,8 @@ NativeKey::RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg,
     WinUtils::GetMessage(&msg, mMsg.hwnd, aFirstMsg, aLastMsg);
   }
   if (mWidget->Destroyed()) {
-    MOZ_CRASH("NativeKey tries to dispatch a plugin event on destroyed widget");
+    MOZ_NOT_REACHED("NativeKey tries to dispatch a plugin event on destroyed widget");
+    return false;
   }
   mWidget->DispatchPluginEvent(msg);
   return mWidget->Destroyed();

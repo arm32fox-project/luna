@@ -43,7 +43,7 @@
       &pairDevice.dialog.description.label;
       <label class="text-link"
              value="&addDevice.showMeHow.label;"
-             href="https://services.mozilla.com/sync/help/add-device"/>
+             href="http://www.palemoon.org/sync/help/easy-setup.shtml"/>
     </description>
     <separator class="groove-thin"/>
     <description>

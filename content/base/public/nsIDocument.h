@@ -622,6 +622,13 @@ public:
    * Return the root element for this document.
    */
   Element* GetRootElement() const;
+  
+  /**
+   * Clears the reference to the element last returned from GetRootElement().
+   */
+  void ClearCachedRootElement() {
+    mCachedRootElement = nullptr;
+  }
 
   virtual nsViewportInfo GetViewportInfo(uint32_t aDisplayWidth,
                                          uint32_t aDisplayHeight) = 0;

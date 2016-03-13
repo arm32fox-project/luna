@@ -1858,9 +1858,9 @@
       <property name="_notificationLink">
         <getter><![CDATA[
           if (this._notificationType == "addons-sync-disabled") {
-            return "https://support.mozilla.org/kb/how-do-i-enable-add-sync";
+            return "https://forum.palemoon.org/viewforum.php?f=52";
           }
-          return "https://services.mozilla.com/sync/";
+          return "http://www.palemoon.org/sync/";
         ]]></getter>
       </property>
       <method name="onCloseButtonCommand">
