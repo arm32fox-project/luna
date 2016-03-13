@@ -35,9 +35,7 @@ AlarmsManager.prototype = {
 
   classID : ALARMSMANAGER_CID,
 
-  QueryInterface : XPCOMUtils.generateQI([nsIDOMMozAlarmsManager,
-                                          Ci.nsIDOMGlobalPropertyInitializer,
-                                          Ci.nsISupportsWeakReference]),
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMMozAlarmsManager, Ci.nsIDOMGlobalPropertyInitializer]),
 
   classInfo : XPCOMUtils.generateCI({ classID: ALARMSMANAGER_CID,
                                       contractID: ALARMSMANAGER_CONTRACTID,
@@ -170,7 +168,7 @@ AlarmsManager.prototype = {
     this._cpmm = Cc["@mozilla.org/childprocessmessagemanager;1"].getService(Ci.nsISyncMessageSender);
 
     // Add the valid messages to be listened.
-    this.initDOMRequestHelper(aWindow, ["AlarmsManager:Add:Return:OK", "AlarmsManager:Add:Return:KO",
+    this.initHelper(aWindow, ["AlarmsManager:Add:Return:OK", "AlarmsManager:Add:Return:KO", 
                               "AlarmsManager:GetAll:Return:OK", "AlarmsManager:GetAll:Return:KO"]);
 
     // Get the manifest URL if this is an installed app
