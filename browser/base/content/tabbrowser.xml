@@ -3386,9 +3386,15 @@
           this._lastTabClosedByMouse = true;
 
           if (this.getAttribute("overflow") == "true") {
+#ifdef XP_WIN
+            // Don't need to do anything if we're in overflow mode and we're closing
+            // the last tab.
+            if (isEndTab)
+#else
             // Don't need to do anything if we're in overflow mode and aren't scrolled
             // all the way to the right, or if we're closing the last tab.
             if (isEndTab || !this.mTabstrip._scrollButtonDown.disabled)
+#endif
               return;
 
             // If the tab has an owner that will become the active tab, the owner will
@@ -3397,7 +3403,10 @@
             if (aTab.owner)
               return;
 
-            //Pale Moon: Resize immediately if preffed
+            // Resize immediately if preffed
+            // XXX: we may want to make this a three-state pref to disable this early
+            // exit if people prefer a mix of behavior (don't resize in overflow,
+            // but resize if not overflowing)
             if (Services.prefs.getBoolPref("browser.tabs.resize_immediately"))
               return;
 
@@ -3407,7 +3416,10 @@
             if (isEndTab && !this._hasTabTempMaxWidth)
               return;
               
-            //Pale Moon: Resize immediately if preffed
+            // Resize immediately if preffed
+            // XXX: we may want to make this a three-state pref to disable this early
+            // exit if people prefer a mix of behavior (don't resize in overflow,
+            // but resize if not overflowing)
             if (Services.prefs.getBoolPref("browser.tabs.resize_immediately"))
               return;
 

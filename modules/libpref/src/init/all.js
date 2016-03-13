@@ -1885,8 +1885,8 @@ pref("dom.max_script_run_time", 10);
 // If true, ArchiveReader will be enabled
 pref("dom.archivereader.enabled", false);
 
-// If true, Promise will be enabled
-pref("dom.promise.enabled", false);
+// If true, DOM Promise implementation will be enabled
+pref("dom.promise.enabled", true);
 
 // Hang monitor timeout after which we kill the browser, in seconds
 // (0 is disabled)
