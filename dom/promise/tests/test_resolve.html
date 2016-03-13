@@ -44,16 +44,16 @@ function runTest() {
 
   var test = tests.pop();
 
-  new Promise(function(resolve, reject) {
-    resolve(test);
+  new Promise(function(resolver) {
+    resolver.resolve(test);
   }).then(function(what) {
     ok(test === what, "What is: " + what);
-  }, cbError).then(function() {
-    new Promise(function(resolve, reject) {
-      reject(test)
+  }, cbError).done(function() {
+    new Promise(function(resolver) {
+      resolver.reject(test)
     }).then(cbError, function(what) {
       ok(test === what, "What is: " + what);
-    }).then(runTest, cbError);
+    }).done(runTest, cbError);
   });
 }
 
