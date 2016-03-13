@@ -1942,20 +1942,43 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   background: @toolbarShadowOnTab@, @bgTabTexture@,
               linear-gradient(-moz-dialog, -moz-dialog);
   background-clip: padding-box;
-  /* top margin of 0 is important for Fitts' Law in ToT/FS */
-  margin: 0px 0.5px 0px;
-  border: 1px solid #929292;
+  padding: 3px 1px 4px;
+  /* Setting a transparent outer border allows us to have a 1px gap
+     between the tabs and the top edge of the screen, even when the
+     tabs have a top margin of 0, which is important for Fitts' law
+     compliance */
+  border: 2px solid;
   border-bottom: none;
-  border-radius: 5px 5px 0px 0px;
+  border-radius: 6px 6px 0px 0px;
+  -moz-border-top-colors: transparent #929292;
+  -moz-border-left-colors: transparent #929292;
+  -moz-border-right-colors: transparent #929292;
+  /* Hide the transparent top border by default */
+  margin-top: -1px;
+  /* Reduce the gap between the tabs */
+  -moz-margin-start: -1px;
   box-shadow: inset 0.5px 1px 1px rgba(255,255,255,.7);
 }
 
 .tabbrowser-tab {
-  padding: 3px 3px 4px 1px;
+  -moz-padding-end: 3px;
 }
 
-.tabs-newtab-button {
-  padding: 3px 1px 4px 1px;
+/* Override the default (globally-set) tab width values; increase by
+   2px to compensate for the transparent outer border of the tabs */
+.tabbrowser-tab:not([pinned]) {
+  max-width: 252px;
+  min-width: 102px;
+}
+
+/* When the tabs are on top and the window is maximized or in full-
+   screen mode, unhide the transparent top border of the tabs so we
+   have a 1px gap between the tabs and the top edge of the screen */
+#main-window[sizemode="maximized"][tabsontop=true] .tabbrowser-tab,
+#main-window[sizemode="maximized"][tabsontop=true] .tabs-newtab-button,
+#main-window[sizemode="fullscreen"][tabsontop=true] .tabbrowser-tab,
+#main-window[sizemode="fullscreen"][tabsontop=true] .tabs-newtab-button {
+  margin-top: 0px;
 }
 
 @media (-moz-os-version: windows-win8) {
@@ -1964,7 +1987,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
      on our other controls in the navigation toolbars */
   .tabbrowser-tab,
   .tabs-newtab-button {
-    border-radius: 2.5px 2.5px 0px 0px;
+    border-radius: 3.5px 3.5px 0px 0px;
   }
 }
 
@@ -2024,7 +2047,9 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 .tabbrowser-tab:-moz-lwtheme-brighttext,
 .tabs-newtab-button:-moz-lwtheme-brighttext {
   box-shadow:none;
-  border-color: #707070;
+  -moz-border-top-colors: transparent #707070;
+  -moz-border-left-colors: transparent #707070;
+  -moz-border-right-colors: transparent #707070;
 }
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme {
@@ -2033,7 +2058,9 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 .tabbrowser-tab[selected="true"]:-moz-lwtheme-brighttext {
   background-image: linear-gradient(rgba(128,128,128,.9), rgba(32,32,32,.9) 50%, rgba(32,32,32,.9) 80%, rgba(32,32,32,.8) 100%);
-  border-color: #D0D0D0;
+  -moz-border-top-colors: transparent #D0D0D0;
+  -moz-border-left-colors: transparent #D0D0D0;
+  -moz-border-right-colors: transparent #D0D0D0;
 }
 
 .tabbrowser-tab:-moz-lwtheme-brighttext:not([selected="true"]),
@@ -2136,10 +2163,14 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   background-origin: border-box;
 }
 
-/* Make sure scrolling down to the last tab with the mousewheel
-   disables the scroll-down arrow */
-.tabbrowser-arrowscrollbox > .scrollbutton-down {
-  -moz-margin-end: -0.5px;
+/* Prevent the icon from being vertically stretched when we unhide
+   the transparent top border of the tabs (when the tabs are on top
+   and the window is maximized or in full-screen mode) */
+#main-window[sizemode="maximized"][tabsontop=true] .tabbrowser-arrowscrollbox > .scrollbutton-up > .toolbarbutton-icon,
+#main-window[sizemode="maximized"][tabsontop=true] .tabbrowser-arrowscrollbox > .scrollbutton-down > .toolbarbutton-icon,
+#main-window[sizemode="fullscreen"][tabsontop=true] .tabbrowser-arrowscrollbox > .scrollbutton-up > .toolbarbutton-icon,
+#main-window[sizemode="fullscreen"][tabsontop=true] .tabbrowser-arrowscrollbox > .scrollbutton-down > .toolbarbutton-icon {
+  margin-bottom: 1px;
 }
 
 %ifdef WINDOWS_AERO
@@ -2205,8 +2236,10 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   list-style-image: url(chrome://browser/skin/tabbrowser/newtab-inverted.png);
 }
 
+/* The New Tab button "as a tab" will appear to be only 28px wide
+   because just like the tabs, it has a transparent outer border */
 .tabs-newtab-button {
-  width: 28px;
+  width: 30px;
 }
 
 #TabsToolbar > #new-tab-button {
