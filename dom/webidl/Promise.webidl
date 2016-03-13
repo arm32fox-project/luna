@@ -7,24 +7,30 @@
  * http://dom.spec.whatwg.org/#promises
  */
 
-// TODO We use object instead Function.  There is an open issue on WebIDL to
-// have different types for "platform-provided function" and "user-provided
-// function"; for now, we just use "object".
-callback PromiseInit = void (object resolve, object reject);
+interface PromiseResolver {
+  void resolve(optional any value);
+  void reject(optional any value);
+};
+
+callback PromiseInit = void (PromiseResolver resolver);
 callback AnyCallback = any (optional any value);
 
 [PrefControlled, Constructor(PromiseInit init)]
 interface Promise {
-  // TODO bug 875289 - static Promise fulfill(any value);
+  // TODO: update this interface - bug 875289
+
   [Creator, Throws]
   static Promise resolve(any value); // same as any(value)
   [Creator, Throws]
   static Promise reject(any value);
 
   [Creator]
-  Promise then([TreatUndefinedAs=Missing] optional AnyCallback fulfillCallback,
-               [TreatUndefinedAs=Missing] optional AnyCallback rejectCallback);
+  Promise then(optional AnyCallback? resolveCallback = null,
+               optional AnyCallback? rejectCallback = null);
 
   [Creator]
-  Promise catch([TreatUndefinedAs=Missing] optional AnyCallback rejectCallback);
+  Promise catch(optional AnyCallback? rejectCallback = null);
+
+  void done(optional AnyCallback? resolveCallback = null,
+            optional AnyCallback? rejectCallback = null);
 };

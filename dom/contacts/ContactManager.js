@@ -911,7 +911,7 @@ ContactManager.prototype = {
   },
 
   init: function(aWindow) {
-    this.initDOMRequestHelper(aWindow, ["Contacts:Find:Return:OK", "Contacts:Find:Return:KO",
+    this.initHelper(aWindow, ["Contacts:Find:Return:OK", "Contacts:Find:Return:KO",
                               "Contacts:Clear:Return:OK", "Contacts:Clear:Return:KO",
                               "Contact:Save:Return:OK", "Contact:Save:Return:KO",
                               "Contact:Remove:Return:OK", "Contact:Remove:Return:KO",
@@ -929,9 +929,7 @@ ContactManager.prototype = {
   },
 
   classID : CONTACTMANAGER_CID,
-  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactManager,
-                                          Ci.nsIDOMGlobalPropertyInitializer,
-                                          Ci.nsISupportsWeakReference]),
+  QueryInterface : XPCOMUtils.generateQI([nsIDOMContactManager, Ci.nsIDOMGlobalPropertyInitializer]),
 
   classInfo : XPCOMUtils.generateCI({classID: CONTACTMANAGER_CID,
                                      contractID: CONTACTMANAGER_CONTRACTID,
