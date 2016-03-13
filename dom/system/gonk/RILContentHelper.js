@@ -345,8 +345,7 @@ function RILContentHelper() {
   };
   this.voicemailInfo = new VoicemailInfo();
 
-  this.initRequests();
-  this.initMessageListener(RIL_IPC_MSG_NAMES);
+  this.initDOMRequestHelper(/* aWindow */ null, RIL_IPC_MSG_NAMES);
   this._windowsMap = [];
   Services.obs.addObserver(this, "xpcom-shutdown", false);
 }
@@ -359,7 +358,8 @@ RILContentHelper.prototype = {
                                          Ci.nsIVoicemailProvider,
                                          Ci.nsITelephonyProvider,
                                          Ci.nsIIccProvider,
-                                         Ci.nsIObserver]),
+                                         Ci.nsIObserver,
+                                         Ci.nsISupportsWeakReference]),
   classID:   RILCONTENTHELPER_CID,
   classInfo: XPCOMUtils.generateCI({classID: RILCONTENTHELPER_CID,
                                     classDescription: "RILContentHelper",
@@ -1066,7 +1066,7 @@ RILContentHelper.prototype = {
 
   observe: function observe(subject, topic, data) {
     if (topic == "xpcom-shutdown") {
-      this.removeMessageListener();
+      this.destroyDOMRequestHelper();
       Services.obs.removeObserver(this, "xpcom-shutdown");
     }
   },
