@@ -1908,16 +1908,17 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   padding: 0;
 }
 
-/* Make sure the Navigation toolbar buttons are more or less vertically
-   centered between the tabs and the AppMenu button when the tabs are not
-   on top and the Bookmarks toolbar is disabled */
+/* Make sure the Navigation toolbar buttons are more or less
+   vertically centered between the tabs and the AppMenu button
+   when the tabs are not on top and the Bookmarks toolbar is
+   disabled */
 #nav-bar + #customToolbars + #PersonalToolbar:-moz-any([collapsed=true],[moz-collapsed=true]) + #TabsToolbar[tabsontop=false] {
   margin-top: 1px;
 }
 
-/* Make sure the elements on the Tab bar are not "glued" right up against
-   the AppMenu button / the caption when the tabs are on top and the window
-   is unmaximized */
+/* Make sure the elements on the Tab bar are not "glued" right
+   up against the AppMenu button / the caption when the tabs are
+   on top and the window is unmaximized */
 #main-window[sizemode="normal"] #TabsToolbar[tabsontop=true] {
   margin-top: 1px;
 }
@@ -2236,9 +2237,9 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   list-style-image: url(chrome://browser/skin/tabbrowser/newtab-inverted.png);
 }
 
-/* The New Tab button "as a tab" will appear to be only 28px wide
-   because just like the tabs, it has a transparent outer border */
 .tabs-newtab-button {
+/* The button has a transparent outer border, so it will appear
+   to be 2px narrower than the width we set for it here */
   width: 30px;
 }
 
