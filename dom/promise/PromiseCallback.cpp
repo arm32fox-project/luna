@@ -149,17 +149,14 @@ WrapperPromiseCallback::Call(const Optional<JS::Handle<JS::Value> >& aValue)
 
   ErrorResult rv;
 
-  // If invoking callback threw an exception, run resolver's reject with the
-  // thrown exception as argument and the synchronous flag set.
-/*  Optional<JS::Handle<JS::Value> > value(cx,
-    mCallback->Call(mNextPromise->GetParentObject(), aValue, rv,
-                    CallbackObject::eRethrowExceptions)); */
   Optional<JS::Handle<JS::Value> > value(cx,                
     mCallback->Call(mNextPromise, aValue, rv));
 
   rv.WouldReportJSException();
 
   if (rv.Failed() && rv.IsJSException()) {
+    // If invoking callback threw an exception, run resolver's reject with the
+    // thrown exception as argument and the synchronous flag set.
     Optional<JS::Handle<JS::Value> > value(cx);
     rv.StealJSException(cx, &value.Value());
 
