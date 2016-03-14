@@ -138,6 +138,8 @@ HTMLSelectElement::~HTMLSelectElement()
 
 // ISupports
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLSelectElement)
+
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLSelectElement,
                                                   nsGenericHTMLFormElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mValidity)

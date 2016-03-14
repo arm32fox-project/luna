@@ -20,6 +20,8 @@ DOMCI_DATA(PropertyNodeList, mozilla::dom::PropertyNodeList)
 namespace mozilla {
 namespace dom {
 
+NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLPropertiesCollection)
+
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(HTMLPropertiesCollection)
   // SetDocument(nullptr) ensures that we remove ourselves as a mutation observer
   tmp->SetDocument(nullptr);
@@ -407,6 +409,8 @@ PropertyNodeList::WrapObject(JSContext *cx, JS::Handle<JSObject*> scope)
 {
   return PropertyNodeListBinding::Wrap(cx, scope, this);
 }
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(PropertyNodeList)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(PropertyNodeList)
   // SetDocument(nullptr) ensures that we remove ourselves as a mutation observer
