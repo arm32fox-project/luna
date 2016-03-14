@@ -72,13 +72,12 @@ class NS_CYCLE_COLLECTION_INNERCLASS                                        \
  : public nsXPCOMCycleCollectionParticipant                                 \
 {                                                                           \
 public:                                                                     \
-  static NS_METHOD UnlinkImpl(void *p);                                     \
-  static NS_METHOD TraverseImpl(NS_CYCLE_COLLECTION_INNERCLASS *that,       \
-                                void *p,                                    \
-                                nsCycleCollectionTraversalCallback &cb);    \
-  static NS_METHOD_(void) UnmarkIfPurpleImpl(void *p)                       \
+  NS_IMETHOD Unlink(void *p);                                               \
+  NS_IMETHOD Traverse(void *p, nsCycleCollectionTraversalCallback &cb);     \
+  NS_IMETHOD_(void) DeleteCycleCollectable(void* p)                         \
   {                                                                         \
-    Downcast(static_cast<nsISupports *>(p))->UnmarkIfPurple();              \
+    NS_CYCLE_COLLECTION_CLASSNAME(_class)::                                 \
+      Downcast(static_cast<nsISupports*>(p))->DeleteCycleCollectable();     \
   }                                                                         \
   static _class* Downcast(nsISupports* s)                                   \
   {                                                                         \
@@ -88,16 +87,12 @@ public:                                                                     \
   {                                                                         \
     return p->InnerObject();                                                \
   }                                                                         \
-  static nsXPCOMCycleCollectionParticipant* GetParticipant()                   \
-  {                                                                            \
-    static const CCParticipantVTable<NS_CYCLE_COLLECTION_CLASSNAME(_class)>    \
-    ::Type participant = {                                                     \
-      NS_IMPL_CYCLE_COLLECTION_VTABLE(NS_CYCLE_COLLECTION_CLASSNAME(_class))   \
-    };                                                                         \
-    return NS_PARTICIPANT_AS(nsXPCOMCycleCollectionParticipant,                \
-                                    &participant);                             \
-  }                                                                            \
-};
+  static nsXPCOMCycleCollectionParticipant* GetParticipant()                \
+  {                                                                         \
+    return &_class::NS_CYCLE_COLLECTION_INNERNAME;                          \
+  }                                                                         \
+};                                                                          \
+static NS_CYCLE_COLLECTION_INNERCLASS NS_CYCLE_COLLECTION_INNERNAME;
 
 // Put this in your class's constructor:
 #define NS_INIT_AGGREGATED(outer)                                           \
@@ -149,11 +144,10 @@ _class::Internal::AddRef(void)                                              \
     MOZ_ASSERT(int32_t(agg->mRefCnt) >= 0, "illegal refcnt");               \
     NS_CheckThreadSafe(agg->_mOwningThread.GetThread(),                     \
                        #_class " not thread-safe");                         \
-    nsrefcnt count = agg->mRefCnt.incr(this);                               \
+    nsrefcnt count = agg->mRefCnt.incr();                                   \
     NS_LOG_ADDREF(this, count, #_class, sizeof(*agg));                      \
     return count;                                                           \
 }                                                                           \
-                                                                            \
 NS_IMETHODIMP_(nsrefcnt)                                                    \
 _class::Internal::Release(void)                                             \
 {                                                                           \
@@ -163,12 +157,12 @@ _class::Internal::Release(void)                                             \
                        #_class " not thread-safe");                         \
     nsrefcnt count = agg->mRefCnt.decr(this);                               \
     NS_LOG_RELEASE(this, count, #_class);                                   \
-    if (count == 0) {                                                       \
-        agg->mRefCnt.stabilizeForDeletion();                                \
-        delete agg;                                                         \
-        return 0;                                                           \
-    }                                                                       \
     return count;                                                           \
+}                                                                           \
+NS_IMETHODIMP_(void)                                                        \
+_class::DeleteCycleCollectable(void)                                        \
+{                                                                           \
+  delete this;                                                              \
 }
 
 #define NS_IMPL_AGGREGATED_HELPER(_class)                                   \
@@ -276,10 +270,9 @@ _class::AggregatedQueryInterface(REFNSIID aIID, void** aInstancePtr)        \
   else
 
 #define NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_AGGREGATED(_class)          \
-  NS_METHOD                                                                 \
-  NS_CYCLE_COLLECTION_CLASSNAME(_class)::TraverseImpl                       \
-                         (NS_CYCLE_COLLECTION_CLASSNAME(_class) *that,      \
-                          void *p, nsCycleCollectionTraversalCallback &cb)  \
+  NS_IMETHODIMP                                                             \
+  NS_CYCLE_COLLECTION_CLASSNAME(_class)::Traverse                           \
+                         (void *p, nsCycleCollectionTraversalCallback &cb)  \
   {                                                                         \
     nsISupports *s = static_cast<nsISupports*>(p);                          \
     MOZ_ASSERT(CheckForRightISupports(s),                                   \

@@ -244,6 +244,12 @@ IDBDatabase::IDBDatabase()
 IDBDatabase::~IDBDatabase()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+}
+
+void
+IDBDatabase::LastRelease()
+{
+  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   NS_ASSERTION(!mActorParent, "Actor parent owns us, how can we be dying?!");
   if (mActorChild) {
@@ -259,6 +265,7 @@ IDBDatabase::~IDBDatabase()
     if (quotaManager) {
       quotaManager->UnregisterStorage(this);
     }
+    mRegistered = false;
   }
 }
 
@@ -444,6 +451,8 @@ IDBDatabase::CreateObjectStoreInternal(IDBTransaction* aTransaction,
 
   return NS_OK;
 }
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(IDBDatabase)
 
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBDatabase, IDBWrapperCache)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFactory)

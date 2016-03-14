@@ -769,6 +769,7 @@ InMemoryDataSource::InMemoryDataSource(nsISupports* aOuter)
     mForwardArcs.ops = nullptr;
     mReverseArcs.ops = nullptr;
     mPropagateChanges = true;
+    MOZ_COUNT_CTOR(InMemoryDataSource);
 }
 
 
@@ -822,6 +823,7 @@ InMemoryDataSource::~InMemoryDataSource()
     PR_LOG(gLog, PR_LOG_NOTICE,
            ("InMemoryDataSource(%p): destroyed.", this));
 
+    MOZ_COUNT_DTOR(InMemoryDataSource);
 }
 
 PLDHashOperator
@@ -844,6 +846,8 @@ InMemoryDataSource::DeleteForwardArcsEntry(PLDHashTable* aTable, PLDHashEntryHdr
 
 
 ////////////////////////////////////////////////////////////////////////
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(InMemoryDataSource)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(InMemoryDataSource)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mObservers)
