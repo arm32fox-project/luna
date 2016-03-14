@@ -1965,8 +1965,8 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
   -moz-padding-end: 3px;
 }
 
-/* Override the default (globally-set) tab width values; increase by
-   2px to compensate for the transparent outer border of the tabs */
+/* Override the default (globally-set) tab width values; increase
+   by 2px to compensate for the transparent outer border of the tabs */
 .tabbrowser-tab:not([pinned]) {
   max-width: 252px;
   min-width: 102px;
@@ -1984,7 +1984,7 @@ richlistitem[type~="action"][actiontype="switchtab"] > .ac-url-box > .ac-action-
 
 @media (-moz-os-version: windows-win8) {
   /* Square is the new round, courtesy of microsoft */
-  /* We keep the hinting at round here because that's the hybrid in use 
+  /* We keep the hinting at round here because that's the hybrid in use
      on our other controls in the navigation toolbars */
   .tabbrowser-tab,
   .tabs-newtab-button {
