@@ -139,10 +139,29 @@ class nsStyleSet
                           nsStyleContext* aParentContext,
                           TreeMatchContext& aTreeMatchContext);
 
+  /**
+   * Bit-flags that can be passed to ResolveAnonymousBoxStyle and GetContext
+   * in their parameter 'aFlags'.
+   */
+  enum {
+    eNoFlags =          0,
+    eIsLink =           1 << 0,
+    eIsVisitedLink =    1 << 1,
+    eDoAnimation =      1 << 2,
+
+    // Indicates that we should skip the flex-item-specific chunk of
+    // ApplyStyleFixups().  This is useful if our parent has "display: flex"
+    // but we can tell it's not going to actually be a flex container (e.g. if
+    // it's the outer frame of a button widget, and we're the inline frame for
+    // the button's label).
+    eSkipFlexItemStyleFixup = 1 << 3
+  };
+
   // Get a style context for an anonymous box.  aPseudoTag is the
   // pseudo-tag to use and must be non-null.
   already_AddRefed<nsStyleContext>
-  ResolveAnonymousBoxStyle(nsIAtom* aPseudoTag, nsStyleContext* aParentContext);
+  ResolveAnonymousBoxStyle(nsIAtom* aPseudoTag, nsStyleContext* aParentContext,
+                           uint32_t aFlags = eNoFlags);
 
 #ifdef MOZ_XUL
   // Get a style context for a XUL tree pseudo.  aPseudoTag is the
@@ -362,23 +381,6 @@ class nsStyleSet
   void WalkRuleProcessors(nsIStyleRuleProcessor::EnumFunc aFunc,
                           ElementDependentRuleProcessorData* aData,
                           bool aWalkAllXBLStylesheets);
-
-  /**
-   * Bit-flags that can be passed to GetContext() in its parameter 'aFlags'.
-   */
-  enum {
-    eNoFlags =          0,
-    eIsLink =           1 << 0,
-    eIsVisitedLink =    1 << 1,
-    eDoAnimation =      1 << 2,
-
-    // Indicates that we should skip the flex-item-specific chunk of
-    // ApplyStyleFixups().  This is useful if our parent has "display: flex"
-    // but we can tell it's not going to actually be a flex container (e.g. if
-    // it's the outer frame of a button widget, and we're the inline frame for
-    // the button's label).
-    eSkipFlexItemStyleFixup = 1 << 3
-  };
 
   already_AddRefed<nsStyleContext>
   GetContext(nsStyleContext* aParentContext,
