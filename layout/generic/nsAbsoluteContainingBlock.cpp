@@ -139,19 +139,14 @@ nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
                           aConstrainHeight, kidFrame, kidStatus,
                           aOverflowAreas);
       nsIFrame* nextFrame = kidFrame->GetNextInFlow();
-      if (!NS_FRAME_IS_FULLY_COMPLETE(kidStatus)) {
-        // Need a continuation
-        if (!nextFrame) {
-          nextFrame =
-            aPresContext->PresShell()->FrameConstructor()->
-              CreateContinuingFrame(aPresContext, kidFrame, aDelegatingFrame);
+      if (!NS_FRAME_IS_FULLY_COMPLETE(kidStatus)  &&
+          aDelegatingFrame->IsFrameOfType(nsIFrame::eCanContainOverflowContainers)) {
+        // We should create a continuation if there is no next-in-flow, but in this
+        // case the flexbox is seemingly overflowing itself, so we don't.
+        if (nextFrame) {
+          tracker.Insert(nextFrame, kidStatus);
+          NS_MergeReflowStatusInto(&reflowStatus, kidStatus);
         }
-        // Add it as an overflow container.
-        //XXXfr This is a hack to fix some of our printing dataloss.
-        // See bug 154892. Not sure how to do it "right" yet; probably want
-        // to keep continuations within an nsAbsoluteContainingBlock eventually.
-        tracker.Insert(nextFrame, kidStatus);
-        NS_MergeReflowStatusInto(&reflowStatus, kidStatus);
       }
       else {
         // Delete any continuations
