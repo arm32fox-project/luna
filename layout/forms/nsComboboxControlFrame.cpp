@@ -1274,7 +1274,9 @@ nsComboboxDisplayFrame::Reflow(nsPresContext*           aPresContext,
   }
   state.SetComputedWidth(computedWidth);
 
-  return nsBlockFrame::Reflow(aPresContext, aDesiredSize, state, aStatus);
+  nsresult rv = nsBlockFrame::Reflow(aPresContext, aDesiredSize, state, aStatus);
+  aStatus = NS_FRAME_COMPLETE; // This type of frame can never be split.
+  return rv;
 }
 
 void
@@ -1313,7 +1315,8 @@ nsComboboxControlFrame::CreateFrameFor(nsIContent*      aContent)
   nsRefPtr<nsStyleContext> styleContext;
   styleContext = styleSet->
     ResolveAnonymousBoxStyle(nsCSSAnonBoxes::mozDisplayComboboxControlFrame,
-                             mStyleContext);
+                             mStyleContext,
+                             nsStyleSet::eSkipFlexItemStyleFixup);
   if (MOZ_UNLIKELY(!styleContext)) {
     return nullptr;
   }
