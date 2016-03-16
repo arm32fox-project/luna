@@ -216,9 +216,14 @@ nsHTMLButtonControlFrame::Reflow(nsPresContext* aPresContext,
 
   aDesiredSize.SetOverflowAreasToDesiredBounds();
   ConsiderChildOverflow(aDesiredSize.mOverflowAreas, firstKid);
+  
+  aStatus = NS_FRAME_COMPLETE;
   FinishReflowWithAbsoluteFrames(aPresContext, aDesiredSize, aReflowState, aStatus);
 
+  // We're always complete and we don't support overflow containers,
+  // so we shouldn't have a next-in-flow ever.
   aStatus = NS_FRAME_COMPLETE;
+  MOZ_ASSERT(!GetNextInFlow());
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
   return NS_OK;
