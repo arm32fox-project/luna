@@ -305,9 +305,16 @@ GList* GStreamerFormatHelper::GetFactories() {
 #endif
   if (cookie != mCookie) {
     g_list_free(mFactories);
+#if GST_VERSION_MAJOR >= 1
     mFactories =
+      gst_registry_feature_filter(gst_registry_get(),
+	                              (GstPluginFeatureFilter)FactoryFilter,
+								  false, nullptr);
+#else
+	mFactories =
       gst_default_registry_feature_filter((GstPluginFeatureFilter)FactoryFilter,
                                           false, nullptr);
+#endif
     mCookie = cookie;
   }
 

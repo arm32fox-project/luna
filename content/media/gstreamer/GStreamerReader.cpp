@@ -9,10 +9,10 @@
 #include "AbstractMediaDecoder.h"
 #include "MediaResource.h"
 #include "GStreamerReader.h"
+#include "GStreamerFormatHelper.h"
 #if GST_VERSION_MAJOR >= 1
 #include "GStreamerAllocator.h"
 #endif
-#include "GStreamerFormatHelper.h"
 #include "VideoUtils.h"
 #include "mozilla/dom/TimeRanges.h"
 #include "mozilla/Preferences.h"
@@ -78,7 +78,10 @@ GStreamerReader::GStreamerReader(AbstractMediaDecoder* aDecoder)
   mByteOffset(0),
   mLastReportedByteOffset(0),
   fpsNum(0),
-  fpsDen(0)
+  fpsDen(0),
+#if GST_VERSION_MAJOR >= 1
+  mConfigureAlignment(true),
+#endif
 {
   MOZ_COUNT_CTOR(GStreamerReader);
 
@@ -138,7 +141,6 @@ nsresult GStreamerReader::Init(MediaDecoderReader* aCloneDonor)
   moz_gfx_memory_allocator_set_reader(mAllocator, this);
 
   mBufferPool = static_cast<GstBufferPool*>(g_object_new(GST_TYPE_MOZ_GFX_BUFFER_POOL, NULL));
-  gst_buffer_pool_set_active (mBufferPool, TRUE);
 #endif
 
 #if GST_VERSION_MAJOR >= 1
@@ -154,7 +156,7 @@ nsresult GStreamerReader::Init(MediaDecoderReader* aCloneDonor)
   mBus = gst_pipeline_get_bus(GST_PIPELINE(mPlayBin));
 
   mVideoSink = gst_parse_bin_from_description("capsfilter name=filter ! "
-      "appsink name=videosink sync=true max-buffers=1 "
+      "appsink name=videosink sync=false max-buffers=1 "
 #if GST_VERSION_MAJOR >= 1
       "caps=video/x-raw,format=I420"
 #else
@@ -164,7 +166,7 @@ nsresult GStreamerReader::Init(MediaDecoderReader* aCloneDonor)
   mVideoAppSink = GST_APP_SINK(gst_bin_get_by_name(GST_BIN(mVideoSink),
         "videosink"));
   mAudioSink = gst_parse_bin_from_description("capsfilter name=filter ! "
-        "appsink name=audiosink sync=true", TRUE, nullptr);
+        "appsink name=audiosink sync=false max-buffers=1", TRUE, nullptr);
   mAudioAppSink = GST_APP_SINK(gst_bin_get_by_name(GST_BIN(mAudioSink),
                                                    "audiosink"));
   GstCaps* caps = BuildAudioSinkCaps();
@@ -249,10 +251,8 @@ void GStreamerReader::PlayBinSourceSetup(GstAppSrc* aSource)
   }
 
   // Set the source MIME type to stop typefind trying every. single. format.
-  GstCaps *caps =
-    GStreamerFormatHelper::ConvertFormatsToCaps(mDecoder->GetResource()->GetContentType().get(),
-                                                nullptr);
-
+  GstCaps *caps = GStreamerFormatHelper::ConvertFormatsToCaps(mDecoder->GetResource()->GetContentType().get(),
+                                                              nullptr);
   gst_app_src_set_caps(aSource, caps);
   gst_caps_unref(caps);
 }
@@ -381,7 +381,11 @@ nsresult GStreamerReader::ReadMetadata(VideoInfo* aInfo,
   *aTags = nullptr;
 
   // Watch the pipeline for fatal errors
+#if GST_VERSION_MAJOR >= 1
+  gst_bus_set_sync_handler(mBus, GStreamerReader::ErrorCb, this, nullptr);
+#else
   gst_bus_set_sync_handler(mBus, GStreamerReader::ErrorCb, this);
+#endif
 
   /* set the pipeline to PLAYING so that it starts decoding and queueing data in
    * the appsinks */
@@ -409,7 +413,6 @@ nsresult GStreamerReader::CheckSupportedFormats()
     switch(res) {
       case GST_ITERATOR_OK:
       {
-
 #if GST_VERSION_MAJOR >= 1
         element = GST_ELEMENT (g_value_get_object (&value));
 #endif
@@ -441,6 +444,8 @@ nsresult GStreamerReader::CheckSupportedFormats()
 
 #if GST_VERSION_MAJOR >= 1
         g_value_unset (&value);
+#else
+	    gst_object_unref(element);
 #endif
         done = unsupported;
         break;
@@ -477,6 +482,9 @@ nsresult GStreamerReader::ResetDecode()
   mVideoSinkBufferCount = 0;
   mAudioSinkBufferCount = 0;
   mReachedEos = false;
+#if GST_VERSION_MAJOR >= 1
+  mConfigureAlignment = true;
+#endif
   mLastReportedByteOffset = 0;
   mByteOffset = 0;
 
@@ -661,16 +669,18 @@ bool GStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
     return false;
 
 #if GST_VERSION_MAJOR >= 1
-  if (buffer->pool) {
+  if (mConfigureAlignment && buffer->pool) {
     GstStructure *config = gst_buffer_pool_get_config(buffer->pool);
     GstVideoAlignment align;
-    gst_buffer_pool_config_get_video_alignment(config, &align);
-    gst_video_info_align(&mVideoInfo, &align);
+    if (gst_buffer_pool_config_get_video_alignment(config, &align))
+      gst_video_info_align(&mVideoInfo, &align);
     gst_structure_free(config);
+	mConfigureAlignment = false;
   }
 #endif
 
   nsRefPtr<PlanarYCbCrImage> image = GetImageFromBuffer(buffer);
+
   if (!image) {
     /* Ugh, upstream is not calling gst_pad_alloc_buffer(). Fallback to
      * allocating a PlanarYCbCrImage backed GstBuffer here and memcpy.
@@ -684,12 +694,13 @@ bool GStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
   VideoData::YCbCrBuffer buf;
   FillYCbCrBuffer(buffer, &buf);
   int64_t offset = 0;
-  VideoData* video = VideoData::Create(mInfo, image, offset,
-                                       timestamp, nextTimestamp, buf,
-                                       isKeyframe, -1, mPicture);
+  VideoData* video = VideoData::Create(mInfo, GetImageContainer(),
+                                       offset, timestamp,
+                                       nextTimestamp, image,
+									   isKeyframe, -1, mPicture);
   mVideoQueue.Push(video);
-  gst_buffer_unref(buffer);
 
+  gst_buffer_unref(buffer);
   return true;
 }
 
@@ -699,6 +710,8 @@ nsresult GStreamerReader::Seek(int64_t aTarget,
                                  int64_t aCurrentTime)
 {
   NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+
+  ResetDecode();
 
   gint64 seekPos = aTarget * GST_USECOND;
   LOG(PR_LOG_DEBUG, ("%p About to seek to %" GST_TIME_FORMAT,
@@ -1252,80 +1265,70 @@ GstPadProbeReturn GStreamerReader::QueryProbe(GstPad* aPad, GstPadProbeInfo* aIn
   return ret;
 }
 
+void
+GStreamerReader::ImageDataFromVideoFrame(GstVideoFrame *aFrame,
+                                         PlanarYCbCrImage::Data *aData)
+{
+  GstVideoInfo *info = &mVideoInfo;
+  NS_ASSERTION(GST_VIDEO_INFO_IS_YUV(info),
+               "Non-YUV video frame formats not supported");
+  NS_ASSERTION(GST_VIDEO_FRAME_N_COMPONENTS(aFrame) == 3,
+                "Unsupported number of components in video frame");
+
+  aData->mPicX = aData->mPicY = 0;
+  aData->mPicSize = gfxIntSize(mPicture.width, mPicture.height);
+  
+  aData->mYChannel = GST_VIDEO_FRAME_COMP_DATA(aFrame, 0);
+  aData->mYStride = GST_VIDEO_FRAME_COMP_STRIDE(aFrame, 0);
+  aData->mYSize = nsIntSize(GST_VIDEO_FRAME_COMP_WIDTH(aFrame, 0),
+                          GST_VIDEO_FRAME_COMP_HEIGHT(aFrame, 0));
+  aData->mYSkip = GST_VIDEO_FRAME_COMP_PSTRIDE(aFrame, 0) - 1;
+  aData->mCbCrSize = nsIntSize(GST_VIDEO_FRAME_COMP_WIDTH(aFrame, 1),
+                             GST_VIDEO_FRAME_COMP_HEIGHT(aFrame, 1));
+
+  aData->mCbChannel = GST_VIDEO_FRAME_COMP_DATA(aFrame, 1);
+  aData->mCrChannel = GST_VIDEO_FRAME_COMP_DATA(aFrame, 2);
+  aData->mCbCrStride = GST_VIDEO_FRAME_COMP_STRIDE(aFrame, 1);
+  aData->mCbSkip = GST_VIDEO_FRAME_COMP_PSTRIDE(aFrame, 1) - 1;
+  aData->mCrSkip = GST_VIDEO_FRAME_COMP_PSTRIDE(aFrame, 2) - 1;
+}
+
 nsRefPtr<PlanarYCbCrImage> GStreamerReader::GetImageFromBuffer(GstBuffer* aBuffer)
 {
   nsRefPtr<PlanarYCbCrImage> image = nullptr;
-
+  
   if (gst_buffer_n_memory(aBuffer) == 1) {
     GstMemory* mem = gst_buffer_peek_memory(aBuffer, 0);
-    if (GST_IS_MOZ_GFX_MEMORY_ALLOCATOR(mem->allocator))
+    if (GST_IS_MOZ_GFX_MEMORY_ALLOCATOR(mem->allocator)) {
       image = moz_gfx_memory_get_image(mem);
+
+	  GstVideoFrame frame;
+	  gst_video_frame_map(&frame, &mVideoInfo, aBuffer, GST_MAP_READ);
+	  PlanarYCbCrImage::Data data;
+      ImageDataFromVideoFrame(&frame, &data);
+      gst_video_frame_unmap(&frame);
+	}
   }
 
   return image;
 }
 
-bool GStreamerReader::ConfigureBufferPool(GstBufferPool *aBufferPool,
-                                          gsize aBufferSize)
-{
-  if (gst_buffer_pool_is_active(aBufferPool)) {
-    return true;
-  }
-
-  GstStructure* config = gst_buffer_pool_get_config(mBufferPool);
-
-  gst_buffer_pool_config_set_allocator(config, mAllocator, NULL);
-  gst_buffer_pool_config_set_params(config, GST_CAPS_ANY, aBufferSize,
-                                    0 /* min_buffers */, 0 /* max_buffers */);
-
-  return gst_buffer_pool_set_config(mBufferPool, config);
-}
-
 void GStreamerReader::CopyIntoImageBuffer(GstBuffer* aBuffer,
-                                          GstBuffer** aOutBuffer,
-                                          nsRefPtr<PlanarYCbCrImage> &image)
+	                                      GstBuffer** aOutBuffer,
+	                                      nsRefPtr<PlanarYCbCrImage> &image)
 {
-  gsize bufferSize = gst_buffer_get_size(aBuffer);
-
-  if (GST_BUFFER_POOL_IS_FLUSHING (mBufferPool)) {
-    if (!ConfigureBufferPool(mBufferPool, bufferSize)) {
-      NS_WARNING("Failed to configure buffer pool");
-      return;
-    }
-    gst_buffer_pool_set_active (mBufferPool, TRUE);
-  }
-
-  gst_buffer_pool_acquire_buffer(mBufferPool, aOutBuffer, nullptr);
+  *aOutBuffer = gst_buffer_new_allocate(mAllocator, gst_buffer_get_size(aBuffer), nullptr);
   GstMemory *mem = gst_buffer_peek_memory(*aOutBuffer, 0);
   GstMapInfo map_info;
   gst_memory_map(mem, &map_info, GST_MAP_WRITE);
-  gst_buffer_extract(aBuffer, 0, map_info.data, bufferSize);
+  gst_buffer_extract(aBuffer, 0, map_info.data, gst_buffer_get_size(aBuffer));
   gst_memory_unmap(mem, &map_info);
 
   /* create a new gst buffer with the newly created memory and copy the
    * metadata over from the incoming buffer */
   gst_buffer_copy_into(*aOutBuffer, aBuffer,
       (GstBufferCopyFlags)(GST_BUFFER_COPY_METADATA), 0, -1);
-  image = moz_gfx_memory_get_image(mem);
-}
-
-void GStreamerReader::FillYCbCrBuffer(GstBuffer* aBuffer,
-                                      VideoData::YCbCrBuffer* aYCbCrBuffer)
-{
-  GstMapInfo map_info[3];
-  GstVideoMeta* meta = gst_buffer_get_video_meta(aBuffer);
-  int width = mPicture.width;
-  int height = mPicture.height;
-
-  for(int i = 0; i < 3; i++) {
-    gst_video_meta_map(meta, i, &map_info[i],
-        (void **) &aYCbCrBuffer->mPlanes[i].mData, (gint *) &aYCbCrBuffer->mPlanes[i].mStride, GST_MAP_READ);
-    aYCbCrBuffer->mPlanes[i].mHeight = GST_VIDEO_FORMAT_INFO_SCALE_HEIGHT(mVideoInfo.finfo, i, height);
-    aYCbCrBuffer->mPlanes[i].mWidth = GST_VIDEO_FORMAT_INFO_SCALE_WIDTH(mVideoInfo.finfo, i, width);
-    aYCbCrBuffer->mPlanes[i].mOffset = 0;
-    aYCbCrBuffer->mPlanes[i].mSkip = 0;
-    gst_video_meta_unmap(meta, i, &map_info[i]);
-  }
+  image = GetImageFromBuffer(*aOutBuffer);
 }
 #endif
 

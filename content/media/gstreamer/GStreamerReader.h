@@ -21,8 +21,10 @@
 #include "MediaDecoderReader.h"
 
 #if GST_VERSION_MAJOR == 1
+#pragma GCC visibility push (default)
 #include <gst/video/gstvideometa.h>
 #include <gst/video/gstvideopool.h>
+#pragma GCC visibility pop
 #endif
 
 namespace mozilla {
@@ -75,9 +77,12 @@ private:
   int64_t QueryDuration();
   nsRefPtr<layers::PlanarYCbCrImage> GetImageFromBuffer(GstBuffer* aBuffer);
   void CopyIntoImageBuffer(GstBuffer *aBuffer, GstBuffer** aOutBuffer, nsRefPtr<layers::PlanarYCbCrImage> &image);
-  void FillYCbCrBuffer(GstBuffer* aBuffer, VideoData::YCbCrBuffer* aYCbCrBuffer);
   GstCaps* BuildAudioSinkCaps();
   void InstallPadCallbacks();
+
+#if GST_VERSION_MAJOR >= 1
+  void ImageDataFromVideoFrame(GstVideoFrame *aFrame, layers::PlanarYCbCrImage::Data *aData);
+#endif
 
   /* Called once the pipeline is setup to check that the stream only contains
    * supported formats
@@ -216,9 +221,8 @@ private:
   gint64 mByteOffset;
   /* the last offset we reported with NotifyBytesConsumed */
   gint64 mLastReportedByteOffset;
-  /* the input video format info */
 #if GST_VERSION_MAJOR >= 1
-  bool mIsVideoConfigured;
+  bool mConfigureAlignment;
 #endif
   int fpsNum;
   int fpsDen;

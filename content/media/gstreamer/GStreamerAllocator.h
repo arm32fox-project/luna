@@ -12,9 +12,14 @@
 #define GST_TYPE_MOZ_GFX_BUFFER_POOL   (moz_gfx_buffer_pool_get_type())
 #define GST_IS_MOZ_GFX_BUFFER_POOL(obj) (G_TYPE_CHECK_INSTANCE_TYPE ((obj), GST_TYPE_MOZ_GFX_BUFFER_POOL))
 
+namespace mozilla {
+
 GType moz_gfx_memory_allocator_get_type();
 void moz_gfx_memory_allocator_set_reader(GstAllocator *aAllocator, mozilla::GStreamerReader* aReader);
 nsRefPtr<mozilla::layers::PlanarYCbCrImage> moz_gfx_memory_get_image(GstMemory *aMemory);
 
 GType moz_gfx_buffer_pool_get_type();
+
+} // namespace mozilla
+
 #endif

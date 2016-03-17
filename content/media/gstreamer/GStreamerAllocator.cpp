@@ -7,8 +7,11 @@
 #include <gst/video/video.h>
 #include <gst/video/gstvideometa.h>
 
-using namespace mozilla;
+#include "GStreamerLoader.h"
+
 using namespace mozilla::layers;
+
+using namespace mozilla {
 
 typedef struct
 {
@@ -65,9 +68,9 @@ moz_gfx_memory_allocator_alloc(GstAllocator* aAllocator, gsize aSize,
   MozGfxMemory* mem = g_slice_new (MozGfxMemory);
   gsize maxsize = aSize + aParams->prefix + aParams->padding;
   gst_memory_init (GST_MEMORY_CAST (mem),
-      (GstMemoryFlags)aParams->flags,
-      aAllocator, NULL, maxsize, aParams->align,
-      aParams->prefix, aSize);
+                   (GstMemoryFlags)aParams->flags,
+                   aAllocator, NULL, maxsize, aParams->align,
+                   aParams->prefix, aSize);
   mem->image = NULL;
   moz_gfx_memory_reset(mem);
 
@@ -92,6 +95,9 @@ sub_mem:
 static gpointer
 moz_gfx_memory_map (MozGfxMemory * mem, gsize maxsize, GstMapFlags flags)
 {
+  // check that the allocation didn't fail
+  if (mem->data == nullptr)
+
   return mem->data + mem->memory.offset;
 }
 
@@ -111,7 +117,7 @@ moz_gfx_memory_share (MozGfxMemory * mem, gssize offset, gsize size)
   if ((parent = mem->memory.parent) == NULL)
     parent = (GstMemory *) mem;
 
-  if (size == -1)
+  if (size == (gsize)-1)
     size = mem->memory.size - offset;
 
   /* the shared memory is always readonly */
@@ -186,4 +192,6 @@ moz_gfx_buffer_pool_class_init (MozGfxBufferPoolClass * klass)
 static void
 moz_gfx_buffer_pool_init (MozGfxBufferPool * pool)
 {
+}
+
 }
