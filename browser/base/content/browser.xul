@@ -310,6 +310,7 @@
       <button id="appmenu-button"
               type="menu"
               label="&brandShortName;"
+              tooltiptext="&appMenuButton.tooltip;"
               style="-moz-user-focus: ignore;">
 #include browser-appmenu.inc
       </button>
