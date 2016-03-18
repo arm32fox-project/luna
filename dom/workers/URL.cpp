@@ -543,8 +543,30 @@ URL*
 URL::Constructor(const WorkerGlobalObject& aGlobal, const nsAString& aUrl,
                  URL& aBase, mozilla::ErrorResult& aRv)
 {
-  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
-  return nullptr;
+  JSContext* cx = aGlobal.GetContext();
+  WorkerPrivate* workerPrivate = GetWorkerPrivateFromContext(cx);
+
+  nsRefPtr<ConstructorRunnable> runnable =
+    new ConstructorRunnable(workerPrivate, aUrl, aBase.GetURLProxy(), aRv);
+
+  if (!runnable->Dispatch(cx)) {
+    JS_ReportPendingException(cx);
+  }
+
+  nsRefPtr<URLProxy> proxy = runnable->GetURLProxy();
+  if (!proxy) {
+    aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
+    return nullptr;
+  }
+
+  nsRefPtr<URL> url = new URL(workerPrivate, proxy);
+
+  if (!Wrap(aGlobal.GetContext(), aGlobal.Get(), url)) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  return url;
 }
 
 // static
@@ -552,113 +574,322 @@ URL*
 URL::Constructor(const WorkerGlobalObject& aGlobal, const nsAString& aUrl,
                  const nsAString& aBase, mozilla::ErrorResult& aRv)
 {
-  aRv.Throw(NS_ERROR_NOT_IMPLEMENTED);
-  return nullptr;
+  JSContext* cx = aGlobal.GetContext();
+  WorkerPrivate* workerPrivate = GetWorkerPrivateFromContext(cx);
+
+  nsRefPtr<ConstructorRunnable> runnable =
+    new ConstructorRunnable(workerPrivate, aUrl, aBase, aRv);
+
+  if (!runnable->Dispatch(cx)) {
+    JS_ReportPendingException(cx);
+  }
+
+  nsRefPtr<URLProxy> proxy = runnable->GetURLProxy();
+  if (!proxy) {
+    aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
+    return nullptr;
+  }
+
+  nsRefPtr<URL> url = new URL(workerPrivate, proxy);
+
+  if (!Wrap(aGlobal.GetContext(), aGlobal.Get(), url)) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return nullptr;
+  }
+
+  return url;
+}
+
+URL::URL(WorkerPrivate* aWorkerPrivate, URLProxy* aURLProxy)
+  : DOMBindingBase(aWorkerPrivate->GetJSContext())
+  , mWorkerPrivate(aWorkerPrivate)
+  , mURLProxy(aURLProxy)
+{
+}
+
+URL::~URL()
+{
+  if (mURLProxy) {
+    nsRefPtr<TeardownRunnable> runnable = new TeardownRunnable(mURLProxy);
+    mURLProxy = nullptr;
+
+    if (NS_FAILED(NS_DispatchToMainThread(runnable))) {
+      NS_ERROR("Failed to dispatch teardown runnable!");
+    }
+  }
+}
+
+void
+URL::_trace(JSTracer* aTrc)
+{
+  DOMBindingBase::_trace(aTrc);
+}
+
+void
+URL::_finalize(JSFreeOp* aFop)
+{
+  DOMBindingBase::_finalize(aFop);
 }
 
 void
 URL::GetHref(nsString& aHref) const
 {
+  nsRefPtr<GetterRunnable> runnable =
+    new GetterRunnable(mWorkerPrivate, GetterRunnable::GetterHref, aHref,
+                       mURLProxy);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::SetHref(const nsAString& aHref, mozilla::ErrorResult& aRv)
 {
+  nsRefPtr<SetterRunnable> runnable =
+    new SetterRunnable(mWorkerPrivate, SetterRunnable::SetterHref, aHref,
+                       mURLProxy, aRv);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::GetOrigin(nsString& aOrigin) const
 {
+  nsRefPtr<GetterRunnable> runnable =
+    new GetterRunnable(mWorkerPrivate, GetterRunnable::GetterOrigin, aOrigin,
+                       mURLProxy);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::GetProtocol(nsString& aProtocol) const
 {
+  nsRefPtr<GetterRunnable> runnable =
+    new GetterRunnable(mWorkerPrivate, GetterRunnable::GetterProtocol, aProtocol,
+                       mURLProxy);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::SetProtocol(const nsAString& aProtocol)
 {
+  ErrorResult rv;
+  nsRefPtr<SetterRunnable> runnable =
+    new SetterRunnable(mWorkerPrivate, SetterRunnable::SetterProtocol,
+                       aProtocol, mURLProxy, rv);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::GetUsername(nsString& aUsername) const
 {
+  nsRefPtr<GetterRunnable> runnable =
+    new GetterRunnable(mWorkerPrivate, GetterRunnable::GetterUsername, aUsername,
+                       mURLProxy);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::SetUsername(const nsAString& aUsername)
 {
+  ErrorResult rv;
+  nsRefPtr<SetterRunnable> runnable =
+    new SetterRunnable(mWorkerPrivate, SetterRunnable::SetterUsername,
+                       aUsername, mURLProxy, rv);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::GetPassword(nsString& aPassword) const
 {
+  nsRefPtr<GetterRunnable> runnable =
+    new GetterRunnable(mWorkerPrivate, GetterRunnable::GetterPassword, aPassword,
+                       mURLProxy);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::SetPassword(const nsAString& aPassword)
 {
+  ErrorResult rv;
+  nsRefPtr<SetterRunnable> runnable =
+    new SetterRunnable(mWorkerPrivate, SetterRunnable::SetterPassword,
+                       aPassword, mURLProxy, rv);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::GetHost(nsString& aHost) const
 {
+  nsRefPtr<GetterRunnable> runnable =
+    new GetterRunnable(mWorkerPrivate, GetterRunnable::GetterHost, aHost,
+                       mURLProxy);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::SetHost(const nsAString& aHost)
 {
+  ErrorResult rv;
+  nsRefPtr<SetterRunnable> runnable =
+    new SetterRunnable(mWorkerPrivate, SetterRunnable::SetterHost,
+                       aHost, mURLProxy, rv);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::GetHostname(nsString& aHostname) const
 {
+  nsRefPtr<GetterRunnable> runnable =
+    new GetterRunnable(mWorkerPrivate, GetterRunnable::GetterHostname, aHostname,
+                       mURLProxy);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::SetHostname(const nsAString& aHostname)
 {
+  ErrorResult rv;
+  nsRefPtr<SetterRunnable> runnable =
+    new SetterRunnable(mWorkerPrivate, SetterRunnable::SetterHostname,
+                       aHostname, mURLProxy, rv);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::GetPort(nsString& aPort) const
 {
+  nsRefPtr<GetterRunnable> runnable =
+    new GetterRunnable(mWorkerPrivate, GetterRunnable::GetterPort, aPort,
+                       mURLProxy);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::SetPort(const nsAString& aPort)
 {
+  ErrorResult rv;
+  nsRefPtr<SetterRunnable> runnable =
+    new SetterRunnable(mWorkerPrivate, SetterRunnable::SetterPort,
+                       aPort, mURLProxy, rv);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::GetPathname(nsString& aPathname) const
 {
+  nsRefPtr<GetterRunnable> runnable =
+    new GetterRunnable(mWorkerPrivate, GetterRunnable::GetterPathname, aPathname,
+                       mURLProxy);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::SetPathname(const nsAString& aPathname)
 {
+  ErrorResult rv;
+  nsRefPtr<SetterRunnable> runnable =
+    new SetterRunnable(mWorkerPrivate, SetterRunnable::SetterPathname,
+                       aPathname, mURLProxy, rv);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::GetSearch(nsString& aSearch) const
 {
+  nsRefPtr<GetterRunnable> runnable =
+    new GetterRunnable(mWorkerPrivate, GetterRunnable::GetterSearch, aSearch,
+                       mURLProxy);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::SetSearch(const nsAString& aSearch)
 {
+  ErrorResult rv;
+  nsRefPtr<SetterRunnable> runnable =
+    new SetterRunnable(mWorkerPrivate, SetterRunnable::SetterSearch,
+                       aSearch, mURLProxy, rv);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::GetHash(nsString& aHash) const
 {
+  nsRefPtr<GetterRunnable> runnable =
+    new GetterRunnable(mWorkerPrivate, GetterRunnable::GetterHash, aHash,
+                       mURLProxy);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 void
 URL::SetHash(const nsAString& aHash)
 {
+  ErrorResult rv;
+  nsRefPtr<SetterRunnable> runnable =
+    new SetterRunnable(mWorkerPrivate, SetterRunnable::SetterHash,
+                       aHash, mURLProxy, rv);
+
+  if (!runnable->Dispatch(mWorkerPrivate->GetJSContext())) {
+    JS_ReportPendingException(mWorkerPrivate->GetJSContext());
+  }
 }
 
 // static
