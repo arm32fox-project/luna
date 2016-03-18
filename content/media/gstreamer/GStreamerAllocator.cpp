@@ -11,7 +11,7 @@
 
 using namespace mozilla::layers;
 
-using namespace mozilla {
+namespace mozilla {
 
 typedef struct
 {
@@ -97,6 +97,7 @@ moz_gfx_memory_map (MozGfxMemory * mem, gsize maxsize, GstMapFlags flags)
 {
   // check that the allocation didn't fail
   if (mem->data == nullptr)
+    return nullptr;
 
   return mem->data + mem->memory.offset;
 }

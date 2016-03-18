@@ -77,11 +77,11 @@ GStreamerReader::GStreamerReader(AbstractMediaDecoder* aDecoder)
   mReachedEos(false),
   mByteOffset(0),
   mLastReportedByteOffset(0),
-  fpsNum(0),
-  fpsDen(0),
 #if GST_VERSION_MAJOR >= 1
   mConfigureAlignment(true),
 #endif
+  fpsNum(0),
+  fpsDen(0)
 {
   MOZ_COUNT_CTOR(GStreamerReader);
 
@@ -691,13 +691,12 @@ bool GStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
     buffer = tmp;
   }
 
-  VideoData::YCbCrBuffer buf;
-  FillYCbCrBuffer(buffer, &buf);
   int64_t offset = 0;
-  VideoData* video = VideoData::Create(mInfo, GetImageContainer(),
-                                       offset, timestamp,
-                                       nextTimestamp, image,
-									   isKeyframe, -1, mPicture);
+  VideoData* video = VideoData::CreateFromImage(mInfo,
+                                       GetImageContainer(),
+                                       offset, timestamp, nextTimestamp,
+                                       static_cast<Image*>(image.get()),
+                                       isKeyframe, -1, mPicture);
   mVideoQueue.Push(video);
 
   gst_buffer_unref(buffer);
@@ -1277,7 +1276,7 @@ GStreamerReader::ImageDataFromVideoFrame(GstVideoFrame *aFrame,
 
   aData->mPicX = aData->mPicY = 0;
   aData->mPicSize = gfxIntSize(mPicture.width, mPicture.height);
-  
+
   aData->mYChannel = GST_VIDEO_FRAME_COMP_DATA(aFrame, 0);
   aData->mYStride = GST_VIDEO_FRAME_COMP_STRIDE(aFrame, 0);
   aData->mYSize = nsIntSize(GST_VIDEO_FRAME_COMP_WIDTH(aFrame, 0),
@@ -1296,18 +1295,19 @@ GStreamerReader::ImageDataFromVideoFrame(GstVideoFrame *aFrame,
 nsRefPtr<PlanarYCbCrImage> GStreamerReader::GetImageFromBuffer(GstBuffer* aBuffer)
 {
   nsRefPtr<PlanarYCbCrImage> image = nullptr;
-  
+
   if (gst_buffer_n_memory(aBuffer) == 1) {
     GstMemory* mem = gst_buffer_peek_memory(aBuffer, 0);
     if (GST_IS_MOZ_GFX_MEMORY_ALLOCATOR(mem->allocator)) {
       image = moz_gfx_memory_get_image(mem);
 
-	  GstVideoFrame frame;
-	  gst_video_frame_map(&frame, &mVideoInfo, aBuffer, GST_MAP_READ);
-	  PlanarYCbCrImage::Data data;
+	    GstVideoFrame frame;
+	    gst_video_frame_map(&frame, &mVideoInfo, aBuffer, GST_MAP_READ);
+	    PlanarYCbCrImage::Data data;
       ImageDataFromVideoFrame(&frame, &data);
+      image->SetDataNoCopy(data);
       gst_video_frame_unmap(&frame);
-	}
+	  }
   }
 
   return image;
