@@ -14,14 +14,56 @@
 #include "nsPIDOMWindow.h"
 #include "nsGlobalWindow.h"
 #include "nsHostObjectProtocolHandler.h"
+#include "nsServiceManagerUtils.h"
 
 #include "nsIDocument.h"
 #include "nsIDOMFile.h"
 
-USING_WORKERS_NAMESPACE
+#include "DOMBindingInlines.h"
+#include "mozilla/dom/URL.h"
+#include "nsIIOService.h"
+#include "nsNetCID.h"
+
+BEGIN_WORKERS_NAMESPACE
 using mozilla::dom::WorkerGlobalObject;
 
-// Base class for the Revoke and Create runnable objects.
+class URLProxy MOZ_FINAL
+{
+public:
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(URLProxy)
+
+  URLProxy(mozilla::dom::URL* aURL)
+    : mURL(aURL)
+  {
+    AssertIsOnMainThread();
+  }
+
+  ~URLProxy()
+  {
+     MOZ_ASSERT(!mURL);
+  }
+
+  mozilla::dom::URL* URL()
+  {
+    return mURL;
+  }
+
+  nsIURI* URI()
+  {
+    return mURL->GetURI();
+  }
+
+  void ReleaseURI()
+  {
+    AssertIsOnMainThread();
+    mURL = nullptr;
+  }
+
+private:
+  nsRefPtr<mozilla::dom::URL> mURL;
+};
+
+// Base class for the URL runnable objects.
 class URLRunnable : public nsRunnable
 {
 protected:
@@ -225,6 +267,277 @@ public:
   }
 };
 
+// This class creates a URL object on the main thread.
+class ConstructorRunnable : public URLRunnable
+{
+private:
+  const nsString mURL;
+
+  const nsString mBase;
+  nsRefPtr<URLProxy> mBaseProxy;
+  mozilla::ErrorResult& mRv;
+
+  nsRefPtr<URLProxy> mRetval;
+
+public:
+  ConstructorRunnable(WorkerPrivate* aWorkerPrivate,
+                      const nsAString& aURL, const nsAString& aBase,
+                      mozilla::ErrorResult& aRv)
+  : URLRunnable(aWorkerPrivate)
+  , mURL(aURL)
+  , mBase(aBase)
+  , mRv(aRv)
+  {
+    mWorkerPrivate->AssertIsOnWorkerThread();
+  }
+
+  ConstructorRunnable(WorkerPrivate* aWorkerPrivate,
+                      const nsAString& aURL, URLProxy* aBaseProxy,
+                      mozilla::ErrorResult& aRv)
+  : URLRunnable(aWorkerPrivate)
+  , mURL(aURL)
+  , mBaseProxy(aBaseProxy)
+  , mRv(aRv)
+  {
+    mWorkerPrivate->AssertIsOnWorkerThread();
+  }
+
+  void
+  MainThreadRun()
+  {
+    AssertIsOnMainThread();
+
+    nsresult rv;
+    nsCOMPtr<nsIIOService> ioService(do_GetService(NS_IOSERVICE_CONTRACTID, &rv));
+    if (NS_FAILED(rv)) {
+      mRv.Throw(rv);
+      return;
+    }
+
+    nsCOMPtr<nsIURI> baseURL;
+
+    if (!mBaseProxy) {
+      rv = ioService->NewURI(NS_ConvertUTF16toUTF8(mBase), nullptr, nullptr,
+                             getter_AddRefs(baseURL));
+      if (NS_FAILED(rv)) {
+        mRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
+        return;
+      }
+    } else {
+      baseURL = mBaseProxy->URI();
+    }
+
+    nsCOMPtr<nsIURI> url;
+    rv = ioService->NewURI(NS_ConvertUTF16toUTF8(mURL), nullptr, baseURL,
+                           getter_AddRefs(url));
+    if (NS_FAILED(rv)) {
+      mRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
+      return;
+    }
+
+    mRetval = new URLProxy(new mozilla::dom::URL(nullptr, url));
+  }
+
+  URLProxy*
+  GetURLProxy()
+  {
+    return mRetval;
+  }
+};
+
+class TeardownRunnable : public nsRunnable
+{
+public:
+  TeardownRunnable(URLProxy* aURLProxy)
+    : mURLProxy(aURLProxy)
+  {
+  }
+
+  NS_IMETHOD Run()
+  {
+    AssertIsOnMainThread();
+
+    mURLProxy->ReleaseURI();
+    mURLProxy = nullptr;
+
+    return NS_OK;
+  }
+
+private:
+  nsRefPtr<URLProxy> mURLProxy;
+};
+
+// This class is the generic getter for any URL property.
+class GetterRunnable : public URLRunnable
+{
+public:
+  enum GetterType {
+    GetterHref,
+    GetterOrigin,
+    GetterProtocol,
+    GetterUsername,
+    GetterPassword,
+    GetterHost,
+    GetterHostname,
+    GetterPort,
+    GetterPathname,
+    GetterSearch,
+    GetterHash,
+  };
+
+  GetterRunnable(WorkerPrivate* aWorkerPrivate,
+                 GetterType aType, nsString& aValue,
+                 URLProxy* aURLProxy)
+  : URLRunnable(aWorkerPrivate)
+  , mValue(aValue)
+  , mType(aType)
+  , mURLProxy(aURLProxy)
+  {
+    mWorkerPrivate->AssertIsOnWorkerThread();
+  }
+
+  void
+  MainThreadRun()
+  {
+    AssertIsOnMainThread();
+
+    switch (mType) {
+      case GetterHref:
+        mURLProxy->URL()->GetHref(mValue);
+        break;
+
+      case GetterOrigin:
+        mURLProxy->URL()->GetOrigin(mValue);
+        break;
+
+      case GetterProtocol:
+        mURLProxy->URL()->GetProtocol(mValue);
+        break;
+
+      case GetterUsername:
+        mURLProxy->URL()->GetUsername(mValue);
+        break;
+
+      case GetterPassword:
+        mURLProxy->URL()->GetPassword(mValue);
+        break;
+
+      case GetterHost:
+        mURLProxy->URL()->GetHost(mValue);
+        break;
+
+      case GetterHostname:
+        mURLProxy->URL()->GetHostname(mValue);
+        break;
+
+      case GetterPort:
+        mURLProxy->URL()->GetPort(mValue);
+        break;
+
+      case GetterPathname:
+        mURLProxy->URL()->GetPathname(mValue);
+        break;
+
+      case GetterSearch:
+        mURLProxy->URL()->GetSearch(mValue);
+        break;
+
+      case GetterHash:
+        mURLProxy->URL()->GetHash(mValue);
+        break;
+    }
+  }
+
+private:
+  nsString& mValue;
+  GetterType mType;
+  nsRefPtr<URLProxy> mURLProxy;
+};
+
+// This class is the generic setter for any URL property.
+class SetterRunnable : public URLRunnable
+{
+public:
+  enum SetterType {
+    SetterHref,
+    SetterProtocol,
+    SetterUsername,
+    SetterPassword,
+    SetterHost,
+    SetterHostname,
+    SetterPort,
+    SetterPathname,
+    SetterSearch,
+    SetterHash,
+  };
+
+  SetterRunnable(WorkerPrivate* aWorkerPrivate,
+                 SetterType aType, const nsAString& aValue,
+                 URLProxy* aURLProxy, mozilla::ErrorResult& aRv)
+  : URLRunnable(aWorkerPrivate)
+  , mValue(aValue)
+  , mType(aType)
+  , mURLProxy(aURLProxy)
+  , mRv(aRv)
+  {
+    mWorkerPrivate->AssertIsOnWorkerThread();
+  }
+
+  void
+  MainThreadRun()
+  {
+    AssertIsOnMainThread();
+
+    switch (mType) {
+      case SetterHref:
+        mURLProxy->URL()->SetHref(mValue, mRv);
+        break;
+
+      case SetterProtocol:
+        mURLProxy->URL()->SetProtocol(mValue);
+        break;
+
+      case SetterUsername:
+        mURLProxy->URL()->SetUsername(mValue);
+        break;
+
+      case SetterPassword:
+        mURLProxy->URL()->SetPassword(mValue);
+        break;
+
+      case SetterHost:
+        mURLProxy->URL()->SetHost(mValue);
+        break;
+
+      case SetterHostname:
+        mURLProxy->URL()->SetHostname(mValue);
+        break;
+
+      case SetterPort:
+        mURLProxy->URL()->SetPort(mValue);
+        break;
+
+      case SetterPathname:
+        mURLProxy->URL()->SetPathname(mValue);
+        break;
+
+      case SetterSearch:
+        mURLProxy->URL()->SetSearch(mValue);
+        break;
+
+      case SetterHash:
+        mURLProxy->URL()->SetHash(mValue);
+        break;
+    }
+  }
+
+private:
+  const nsString mValue;
+  SetterType mType;
+  nsRefPtr<URLProxy> mURLProxy;
+  mozilla::ErrorResult& mRv;
+};
+
 // static
 URL*
 URL::Constructor(const WorkerGlobalObject& aGlobal, const nsAString& aUrl,
@@ -399,3 +712,4 @@ URL::RevokeObjectURL(const WorkerGlobalObject& aGlobal, const nsAString& aUrl)
   }
 }
 
+END_WORKERS_NAMESPACE
