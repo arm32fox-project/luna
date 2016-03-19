@@ -13,6 +13,12 @@
 #define LIBGSTAPP 1
 #define LIBGSTVIDEO 2
 
+#ifdef __OpenBSD__
+#define LIB_GST_SUFFIX ".so"
+#else
+#define LIB_GST_SUFFIX ".so.0"
+#endif
+
 namespace mozilla {
 
 /*
@@ -63,13 +69,13 @@ load_gstreamer()
   if (major == GST_VERSION_MAJOR && minor == GST_VERSION_MINOR) {
     gstreamerLib = RTLD_DEFAULT;
   } else {
-    gstreamerLib = dlopen("libgstreamer-" GST_API_VERSION ".so.0", RTLD_NOW | RTLD_LOCAL);
+    gstreamerLib = dlopen("libgstreamer-" GST_API_VERSION LIB_GST_SUFFIX, RTLD_NOW | RTLD_LOCAL);
   }
 
   void *handles[3] = {
     gstreamerLib,
-    dlopen("libgstapp-" GST_API_VERSION ".so.0", RTLD_NOW | RTLD_LOCAL),
-    dlopen("libgstvideo-" GST_API_VERSION ".so.0", RTLD_NOW | RTLD_LOCAL)
+    dlopen("libgstapp-" GST_API_VERSION LIB_GST_SUFFIX, RTLD_NOW | RTLD_LOCAL),
+    dlopen("libgstvideo-" GST_API_VERSION LIB_GST_SUFFIX, RTLD_NOW | RTLD_LOCAL)
   };
 
   for (size_t i = 0; i < sizeof(handles) / sizeof(handles[0]); i++) {
