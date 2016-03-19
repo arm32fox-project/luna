@@ -691,12 +691,22 @@ bool GStreamerReader::DecodeVideoFrame(bool &aKeyFrameSkip,
     buffer = tmp;
   }
 
+#if GST_VERSION_MAJOR == 0
+  VideoData::YCbCrBuffer buf;
+  FillYCbCrBuffer(buffer, &buf);
+#endif
   int64_t offset = 0;
+#if GST_VERSION_MAJOR >= 1
   VideoData* video = VideoData::CreateFromImage(mInfo,
                                        GetImageContainer(),
                                        offset, timestamp, nextTimestamp,
                                        static_cast<Image*>(image.get()),
                                        isKeyframe, -1, mPicture);
+#else
+  VideoData* video = VideoData::Create(mInfo, image, offset,
+                                       timestamp, nextTimestamp, buf,
+                                       isKeyframe, -1, mPicture);
+#endif
   mVideoQueue.Push(video);
 
   gst_buffer_unref(buffer);

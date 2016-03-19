@@ -77,6 +77,9 @@ private:
   int64_t QueryDuration();
   nsRefPtr<layers::PlanarYCbCrImage> GetImageFromBuffer(GstBuffer* aBuffer);
   void CopyIntoImageBuffer(GstBuffer *aBuffer, GstBuffer** aOutBuffer, nsRefPtr<layers::PlanarYCbCrImage> &image);
+#if GST_VERSION_MAJOR == 0
+  void FillYCbCrBuffer(GstBuffer* aBuffer, VideoData::YCbCrBuffer* aYCbCrBuffer);
+#endif
   GstCaps* BuildAudioSinkCaps();
   void InstallPadCallbacks();
 
