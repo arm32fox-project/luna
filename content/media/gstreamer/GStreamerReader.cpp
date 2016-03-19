@@ -37,9 +37,16 @@ IsYV12Format(const VideoData::YCbCrBuffer::Plane& aYPlane,
              const VideoData::YCbCrBuffer::Plane& aCbPlane,
              const VideoData::YCbCrBuffer::Plane& aCrPlane);
 
+#if DEBUG
 static const unsigned int MAX_CHANNELS = 4;
-// Let the demuxer work in pull mode for short files
-static const int SHORT_FILE_SIZE = 1024 * 1024;
+#endif
+// Let the demuxer work in pull mode for short files. This used to be a micro
+// optimization to have more accurate durations for ogg files in mochitests.
+// Since we aren't using gstreamer to demux ogg, and having demuxers
+// work in pull mode over http makes them slower (since they really assume
+// near-zero latency in pull mode) set the constant to 0 for now, which
+// effectively disables it.
+static const int SHORT_FILE_SIZE = 0;
 // The default resource->Read() size when working in push mode
 static const int DEFAULT_SOURCE_READ_SIZE = 50 * 1024;
 
