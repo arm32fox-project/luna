@@ -312,6 +312,7 @@ nsresult GStreamerReader::ReadMetadata(VideoInfo* aInfo,
     }
 
     /* start the pipeline */
+    LOG(PR_LOG_DEBUG, ("starting metadata pipeline"));
     gst_element_set_state(mPlayBin, GST_STATE_PAUSED);
 
     /* Wait for ASYNC_DONE, which is emitted when the pipeline is built,
@@ -332,6 +333,7 @@ nsresult GStreamerReader::ReadMetadata(VideoInfo* aInfo,
       gst_message_unref(message);
       ret = NS_ERROR_FAILURE;
     } else {
+      LOG(PR_LOG_DEBUG, ("read metadata pipeline prerolled"));
       gst_message_unref(message);
       ret = NS_OK;
       break;
@@ -494,6 +496,8 @@ nsresult GStreamerReader::ResetDecode()
 #endif
   mLastReportedByteOffset = 0;
   mByteOffset = 0;
+
+  LOG(PR_LOG_DEBUG, ("reset decode done"));
 
   return res;
 }
