@@ -347,20 +347,6 @@ nsresult GStreamerReader::ReadMetadata(VideoInfo* aInfo,
     /* we couldn't get this to play */
     return ret;
 
-  /* FIXME: workaround for a bug in matroskademux. This seek makes matroskademux
-   * parse the index */
-  if (gst_element_seek_simple(mPlayBin, GST_FORMAT_TIME,
-        GST_SEEK_FLAG_FLUSH, 0)) {
-    /* after a seek we need to wait again for ASYNC_DONE */
-    message = gst_bus_timed_pop_filtered(mBus, GST_CLOCK_TIME_NONE,
-       (GstMessageType)(GST_MESSAGE_ASYNC_DONE | GST_MESSAGE_ERROR));
-    if (GST_MESSAGE_TYPE(message) == GST_MESSAGE_ERROR) {
-      gst_element_set_state(mPlayBin, GST_STATE_NULL);
-      gst_message_unref(message);
-      return NS_ERROR_FAILURE;
-    }
-  }
-
   /* report the duration */
   gint64 duration;
 #if GST_VERSION_MAJOR >= 1
