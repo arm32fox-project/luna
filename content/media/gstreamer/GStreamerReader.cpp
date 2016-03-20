@@ -37,9 +37,16 @@ IsYV12Format(const VideoData::YCbCrBuffer::Plane& aYPlane,
              const VideoData::YCbCrBuffer::Plane& aCbPlane,
              const VideoData::YCbCrBuffer::Plane& aCrPlane);
 
+#if DEBUG
 static const unsigned int MAX_CHANNELS = 4;
-// Let the demuxer work in pull mode for short files
-static const int SHORT_FILE_SIZE = 1024 * 1024;
+#endif
+// Let the demuxer work in pull mode for short files. This used to be a micro
+// optimization to have more accurate durations for ogg files in mochitests.
+// Since we aren't using gstreamer to demux ogg, and having demuxers
+// work in pull mode over http makes them slower (since they really assume
+// near-zero latency in pull mode) set the constant to 0 for now, which
+// effectively disables it.
+static const int SHORT_FILE_SIZE = 0;
 // The default resource->Read() size when working in push mode
 static const int DEFAULT_SOURCE_READ_SIZE = 50 * 1024;
 
@@ -305,6 +312,7 @@ nsresult GStreamerReader::ReadMetadata(VideoInfo* aInfo,
     }
 
     /* start the pipeline */
+    LOG(PR_LOG_DEBUG, ("starting metadata pipeline"));
     gst_element_set_state(mPlayBin, GST_STATE_PAUSED);
 
     /* Wait for ASYNC_DONE, which is emitted when the pipeline is built,
@@ -325,6 +333,7 @@ nsresult GStreamerReader::ReadMetadata(VideoInfo* aInfo,
       gst_message_unref(message);
       ret = NS_ERROR_FAILURE;
     } else {
+      LOG(PR_LOG_DEBUG, ("read metadata pipeline prerolled"));
       gst_message_unref(message);
       ret = NS_OK;
       break;
@@ -337,20 +346,6 @@ nsresult GStreamerReader::ReadMetadata(VideoInfo* aInfo,
   if (NS_FAILED(ret))
     /* we couldn't get this to play */
     return ret;
-
-  /* FIXME: workaround for a bug in matroskademux. This seek makes matroskademux
-   * parse the index */
-  if (gst_element_seek_simple(mPlayBin, GST_FORMAT_TIME,
-        GST_SEEK_FLAG_FLUSH, 0)) {
-    /* after a seek we need to wait again for ASYNC_DONE */
-    message = gst_bus_timed_pop_filtered(mBus, GST_CLOCK_TIME_NONE,
-       (GstMessageType)(GST_MESSAGE_ASYNC_DONE | GST_MESSAGE_ERROR));
-    if (GST_MESSAGE_TYPE(message) == GST_MESSAGE_ERROR) {
-      gst_element_set_state(mPlayBin, GST_STATE_NULL);
-      gst_message_unref(message);
-      return NS_ERROR_FAILURE;
-    }
-  }
 
   /* report the duration */
   gint64 duration;
@@ -487,6 +482,8 @@ nsresult GStreamerReader::ResetDecode()
 #endif
   mLastReportedByteOffset = 0;
   mByteOffset = 0;
+
+  LOG(PR_LOG_DEBUG, ("reset decode done"));
 
   return res;
 }
