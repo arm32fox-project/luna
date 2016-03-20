@@ -313,30 +313,40 @@ nsresult GStreamerReader::ReadMetadata(VideoInfo* aInfo,
 
     /* start the pipeline */
     LOG(PR_LOG_DEBUG, ("starting metadata pipeline"));
-    gst_element_set_state(mPlayBin, GST_STATE_PAUSED);
+    if (gst_element_set_state(mPlayBin, GST_STATE_PAUSED) == GST_STATE_CHANGE_FAILURE) {
+      LOG(PR_LOG_DEBUG, ("metadata pipeline state change failed"));
+      ret = NS_ERROR_FAILURE;
+      continue;
+    }
 
     /* Wait for ASYNC_DONE, which is emitted when the pipeline is built,
      * prerolled and ready to play. Also watch for errors.
      */
     message = gst_bus_timed_pop_filtered(mBus, GST_CLOCK_TIME_NONE,
-                 (GstMessageType)(GST_MESSAGE_ASYNC_DONE | GST_MESSAGE_ERROR));
-    if (GST_MESSAGE_TYPE(message) == GST_MESSAGE_ERROR) {
-      GError* error;
-      gchar* debug;
-
-      gst_message_parse_error(message, &error, &debug);
-      LOG(PR_LOG_ERROR, ("read metadata error: %s: %s", error->message,
-                         debug));
-      g_error_free(error);
-      g_free(debug);
-      gst_element_set_state(mPlayBin, GST_STATE_NULL);
-      gst_message_unref(message);
-      ret = NS_ERROR_FAILURE;
-    } else {
+                 (GstMessageType)(GST_MESSAGE_ASYNC_DONE | GST_MESSAGE_ERROR | GST_MESSAGE_EOS));
+    if (GST_MESSAGE_TYPE(message) == GST_MESSAGE_ASYNC_DONE) {
       LOG(PR_LOG_DEBUG, ("read metadata pipeline prerolled"));
       gst_message_unref(message);
       ret = NS_OK;
       break;
+    } else {
+      LOG(PR_LOG_DEBUG, ("read metadata pipeline failed to preroll: %s",
+            gst_message_type_get_name (GST_MESSAGE_TYPE (message))));
+
+      if (GST_MESSAGE_TYPE(message) == GST_MESSAGE_ERROR) {
+        GError* error;
+        gchar* debug;
+        gst_message_parse_error(message, &error, &debug);
+        LOG(PR_LOG_ERROR, ("read metadata error: %s: %s", error->message,
+                           debug));
+        g_error_free(error);
+        g_free(debug);
+      }
+      /* Unexpected stream close/EOS or other error. We'll give up if all
+       * * streams are in error/EOS. */
+      gst_element_set_state(mPlayBin, GST_STATE_NULL);
+      gst_message_unref(message);
+      ret = NS_ERROR_FAILURE;
     }
   }
 
