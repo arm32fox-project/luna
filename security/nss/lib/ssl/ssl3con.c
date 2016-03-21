@@ -6750,7 +6750,6 @@ ssl3_HandleServerKeyExchange(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
 
     	peerKey = PORT_ArenaZNew(arena, SECKEYPublicKey);
     	if (peerKey == NULL) {
-            PORT_FreeArena(arena, PR_FALSE);
 	    goto no_memory;
 	}
 
@@ -6761,7 +6760,6 @@ ssl3_HandleServerKeyExchange(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
 	if (SECITEM_CopyItem(arena, &peerKey->u.rsa.modulus,        &modulus) ||
 	    SECITEM_CopyItem(arena, &peerKey->u.rsa.publicExponent, &exponent))
 	{
-            PORT_FreeArena(arena, PR_FALSE);
 	    goto no_memory;
         }
     	ss->sec.peerKey = peerKey;
@@ -6861,7 +6859,7 @@ ssl3_HandleServerKeyExchange(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
 	    goto no_memory;
 	}
 
-    	peerKey = peerKey = PORT_ArenaZNew(arena, SECKEYPublicKey);
+    	peerKey = PORT_ArenaZNew(arena, SECKEYPublicKey);
     	if (peerKey == NULL) {
 	    goto no_memory;
 	}
@@ -6875,7 +6873,6 @@ ssl3_HandleServerKeyExchange(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
 	    SECITEM_CopyItem(arena, &peerKey->u.dh.base,         &dh_g) ||
 	    SECITEM_CopyItem(arena, &peerKey->u.dh.publicValue,  &dh_Ys))
 	{
-            PORT_FreeArena(arena, PR_FALSE);
 	    goto no_memory;
         }
     	ss->sec.peerKey = peerKey;
@@ -6898,10 +6895,16 @@ ssl3_HandleServerKeyExchange(sslSocket *ss, SSL3Opaque *b, PRUint32 length)
 alert_loser:
     (void)SSL3_SendAlert(ss, alert_fatal, desc);
 loser:
+    if (arena) {
+        PORT_FreeArena(arena, PR_FALSE);
+    }
     PORT_SetError( errCode );
     return SECFailure;
 
 no_memory:	/* no-memory error has already been set. */
+    if (arena) {
+        PORT_FreeArena(arena, PR_FALSE);
+    }
     ssl_MapLowLevelError(SSL_ERROR_SERVER_KEY_EXCHANGE_FAILURE);
     return SECFailure;
 }
