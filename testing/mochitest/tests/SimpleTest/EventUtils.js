@@ -449,6 +449,10 @@ function _computeKeyCodeFromChar(aChar)
     case '?':
     case '/':
       return nsIDOMKeyEvent.DOM_VK_SLASH;
+    case '\n':
+      return nsIDOMKeyEvent.DOM_VK_RETURN;
+    case ' ':
+      return nsIDOMKeyEvent.DOM_VK_SPACE;
     default:
       return 0;
   }
@@ -550,10 +554,7 @@ function synthesizeKey(aKey, aEvent, aWindow)
       // Send keydown + (optional) keypress + keyup events.
       var keyDownDefaultHappened =
         utils.sendKeyEvent("keydown", keyCode, 0, modifiers, flags);
-      if (isKeypressFiredKey(keyCode)) {
-        if (!keyDownDefaultHappened) {
-          flags |= utils.KEY_FLAG_PREVENT_DEFAULT;
-        }
+      if (isKeypressFiredKey(keyCode) && keyDownDefaultHappened) {
         utils.sendKeyEvent("keypress", keyCode, charCode, modifiers, flags);
       }
       utils.sendKeyEvent("keyup", keyCode, 0, modifiers, flags);

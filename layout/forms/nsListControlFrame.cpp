@@ -142,14 +142,16 @@ nsListControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 
   mEventListener->SetFrame(nullptr);
 
-  mContent->RemoveEventListener(NS_LITERAL_STRING("keypress"), mEventListener,
-                                false);
-  mContent->RemoveEventListener(NS_LITERAL_STRING("mousedown"), mEventListener,
-                                false);
-  mContent->RemoveEventListener(NS_LITERAL_STRING("mouseup"), mEventListener,
-                                false);
-  mContent->RemoveEventListener(NS_LITERAL_STRING("mousemove"), mEventListener,
-                                false);
+  mContent->RemoveSystemEventListener(NS_LITERAL_STRING("keydown"),
+                                      mEventListener, false);
+  mContent->RemoveSystemEventListener(NS_LITERAL_STRING("keypress"),
+                                      mEventListener, false);
+  mContent->RemoveSystemEventListener(NS_LITERAL_STRING("mousedown"),
+                                      mEventListener, false);
+  mContent->RemoveSystemEventListener(NS_LITERAL_STRING("mouseup"),
+                                      mEventListener, false);
+  mContent->RemoveSystemEventListener(NS_LITERAL_STRING("mousemove"),
+                                      mEventListener, false);
 
   nsFormControlFrame::RegUnRegAccessKey(static_cast<nsIFrame*>(this), false);
   nsHTMLScrollFrame::DestroyFrom(aDestructRoot);
@@ -1002,14 +1004,16 @@ nsListControlFrame::Init(nsIContent*     aContent,
   // we need to hook up our listeners before the editor is initialized
   mEventListener = new nsListEventListener(this);
 
-  mContent->AddEventListener(NS_LITERAL_STRING("keypress"), mEventListener,
-                             false, false);
-  mContent->AddEventListener(NS_LITERAL_STRING("mousedown"), mEventListener,
-                             false, false);
-  mContent->AddEventListener(NS_LITERAL_STRING("mouseup"), mEventListener,
-                             false, false);
-  mContent->AddEventListener(NS_LITERAL_STRING("mousemove"), mEventListener,
-                             false, false);
+  mContent->AddSystemEventListener(NS_LITERAL_STRING("keydown"),
+                                   mEventListener, false, false);
+  mContent->AddSystemEventListener(NS_LITERAL_STRING("keypress"),
+                                   mEventListener, false, false);
+  mContent->AddSystemEventListener(NS_LITERAL_STRING("mousedown"),
+                                   mEventListener, false, false);
+  mContent->AddSystemEventListener(NS_LITERAL_STRING("mouseup"),
+                                   mEventListener, false, false);
+  mContent->AddSystemEventListener(NS_LITERAL_STRING("mousemove"),
+                                   mEventListener, false, false);
 
   mStartSelectionIndex = kNothingSelected;
   mEndSelectionIndex = kNothingSelected;
@@ -2261,7 +2265,7 @@ nsListControlFrame::DropDownToggleKey(nsIDOMEvent* aKeyEvent)
 }
 
 nsresult
-nsListControlFrame::KeyPress(nsIDOMEvent* aKeyEvent)
+nsListControlFrame::KeyDown(nsIDOMEvent* aKeyEvent)
 {
   NS_ASSERTION(aKeyEvent, "keyEvent is null.");
 
@@ -2269,280 +2273,332 @@ nsListControlFrame::KeyPress(nsIDOMEvent* aKeyEvent)
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED))
     return NS_OK;
 
-  // Start by making sure we can query for a key event
-  nsCOMPtr<nsIDOMKeyEvent> keyEvent = do_QueryInterface(aKeyEvent);
-  NS_ENSURE_TRUE(keyEvent, NS_ERROR_FAILURE);
+  AutoIncrementalSearchResetter incrementalSearchResetter;
 
-  uint32_t keycode = 0;
-  uint32_t charcode = 0;
-  keyEvent->GetKeyCode(&keycode);
-  keyEvent->GetCharCode(&charcode);
+  // Don't check defaultPrevented value because other browsers don't prevent
+  // the key navigation of list control even if preventDefault() is called.
 
-  bool isAlt = false;
+  const nsKeyEvent* keyEvent =
+    static_cast<nsKeyEvent*>(aKeyEvent->GetInternalNSEvent());
+  MOZ_ASSERT(keyEvent, "DOM event must have internal event");
+  MOZ_ASSERT(keyEvent->eventStructType == NS_KEY_EVENT,
+             "The keydown event's internal event struct must be nsKeyEvent");
 
-  keyEvent->GetAltKey(&isAlt);
-  if (isAlt) {
-    if (keycode == nsIDOMKeyEvent::DOM_VK_UP || keycode == nsIDOMKeyEvent::DOM_VK_DOWN) {
+  if (keyEvent->IsAlt()) {
+    if (keyEvent->keyCode == NS_VK_UP || keyEvent->keyCode == NS_VK_DOWN) {
       DropDownToggleKey(aKeyEvent);
     }
     return NS_OK;
   }
 
-  // Get control / shift modifiers
-  bool isControl = false;
-  bool isShift   = false;
-  keyEvent->GetCtrlKey(&isControl);
-  if (!isControl) {
-    keyEvent->GetMetaKey(&isControl);
-  }
-  keyEvent->GetShiftKey(&isShift);
-
-  // now make sure there are options or we are wasting our time
+  // Now make sure there are options or we are wasting our time
   nsCOMPtr<nsIDOMHTMLOptionsCollection> options = GetOptions(mContent);
   NS_ENSURE_TRUE(options, NS_ERROR_FAILURE);
 
   uint32_t numOptions = 0;
   options->GetLength(&numOptions);
 
-  // Whether we did an incremental search or another action
-  bool didIncrementalSearch = false;
-  
-  // this is the new index to set
-  // DOM_VK_RETURN & DOM_VK_ESCAPE will not set this
+  // This is the new index to set
   int32_t newIndex = kNothingSelected;
 
-  // set up the old and new selected index and process it
-  // DOM_VK_RETURN selects the item
-  // DOM_VK_ESCAPE cancels the selection
-  // default processing checks to see if the pressed the first 
-  //   letter of an item in the list and advances to it
-  
-  if (isControl && (keycode == nsIDOMKeyEvent::DOM_VK_UP ||
-                    keycode == nsIDOMKeyEvent::DOM_VK_LEFT ||
-                    keycode == nsIDOMKeyEvent::DOM_VK_DOWN ||
-                    keycode == nsIDOMKeyEvent::DOM_VK_RIGHT)) {
+  bool isControlOrMeta = (keyEvent->IsControl() || keyEvent->IsMeta());
+  if (isControlOrMeta && (keyEvent->keyCode == NS_VK_UP ||
+                          keyEvent->keyCode == NS_VK_LEFT ||
+                          keyEvent->keyCode == NS_VK_DOWN ||
+                          keyEvent->keyCode == NS_VK_RIGHT)) {
     // Don't go into multiple select mode unless this list can handle it
-    isControl = mControlSelectMode = GetMultiple();
-  } else if (charcode != ' ') {
+    isControlOrMeta = mControlSelectMode = GetMultiple();
+  } else if (keyEvent->keyCode != NS_VK_SPACE) {
     mControlSelectMode = false;
   }
-  switch (keycode) {
-
-    case nsIDOMKeyEvent::DOM_VK_UP:
-    case nsIDOMKeyEvent::DOM_VK_LEFT: {
+  
+  switch (keyEvent->keyCode) {
+    case NS_VK_UP:
+    case NS_VK_LEFT:  
       AdjustIndexForDisabledOpt(mEndSelectionIndex, newIndex,
-                                (int32_t)numOptions,
+                                static_cast<int32_t>(numOptions),
                                 -1, -1);
-      } break;
-    
-    case nsIDOMKeyEvent::DOM_VK_DOWN:
-    case nsIDOMKeyEvent::DOM_VK_RIGHT: {
+      break;
+    case NS_VK_DOWN:
+    case NS_VK_RIGHT:
       AdjustIndexForDisabledOpt(mEndSelectionIndex, newIndex,
-                                (int32_t)numOptions,
+                                static_cast<int32_t>(numOptions),
                                 1, 1);
-      } break;
-
-    case nsIDOMKeyEvent::DOM_VK_RETURN: {
-      if (mComboboxFrame != nullptr) {
+      break;
+    case NS_VK_RETURN:
+      if (IsInDropDownMode()) {
         if (mComboboxFrame->IsDroppedDown()) {
-          nsWeakFrame weakFrame(this);
+          // If the select element is a dropdown list, the Enter key should be
+          // consumed while the dropdown is open for security.
+          aKeyEvent->PreventDefault();
+
+          nsWeakFrame weakFrame(this);        
           ComboboxFinish(mEndSelectionIndex);
           if (!weakFrame.IsAlive())
             return NS_OK;
         }
+        // Note: On other browsers, the "change" event is fired immediately
+        // after the selected item is changed, rather than the Enter key
+        // being pressed. Is this OK?
         FireOnChange();
         return NS_OK;
-      } else {
-        newIndex = mEndSelectionIndex;
-      }
-      } break;
+      }      
 
-    case nsIDOMKeyEvent::DOM_VK_ESCAPE: {
-      nsWeakFrame weakFrame(this);
-      AboutToRollup();
-      if (!weakFrame.IsAlive()) {
-        aKeyEvent->PreventDefault(); // since we won't reach the one below
+      // If this is a single-select listbox, the Enter key has no effect.
+      if (!GetMultiple()) {
         return NS_OK;
       }
-    } break;
 
-    case nsIDOMKeyEvent::DOM_VK_PAGE_UP: {
+      newIndex = mEndSelectionIndex;
+      break;
+    case NS_VK_ESCAPE: {
+      // If the select element is a listbox, the Escape key has no effect.
+      if (!IsInDropDownMode()) {
+        return NS_OK;
+      }
+
+      AboutToRollup();
+      // If the select element is a dropdown list, the Escape key should be
+      // consumed every time since the Escape key may be pressed accidentally
+      // after the dropdown is closed by the Escape key.
+      aKeyEvent->PreventDefault();
+      return NS_OK;      
+    }
+    case NS_VK_PAGE_UP: {
+      int32_t itemsPerPage =
+        std::max(1, static_cast<int32_t>(mNumDisplayRows - 1));
       AdjustIndexForDisabledOpt(mEndSelectionIndex, newIndex,
-                                (int32_t)numOptions,
-                                -std::max(1, int32_t(mNumDisplayRows-1)), -1);
-      } break;
-
-    case nsIDOMKeyEvent::DOM_VK_PAGE_DOWN: {
+                                static_cast<int32_t>(numOptions),
+                                -itemsPerPage, -1);
+      break;
+    }
+    case NS_VK_PAGE_DOWN: {
+      int32_t itemsPerPage =
+        std::max(1, static_cast<int32_t>(mNumDisplayRows - 1));
       AdjustIndexForDisabledOpt(mEndSelectionIndex, newIndex,
-                                (int32_t)numOptions,
-                                std::max(1, int32_t(mNumDisplayRows-1)), 1);
-      } break;
-
-    case nsIDOMKeyEvent::DOM_VK_HOME: {
+                                static_cast<int32_t>(numOptions),
+                                itemsPerPage, 1);
+      break;
+    }
+    case NS_VK_HOME:
       AdjustIndexForDisabledOpt(0, newIndex,
-                                (int32_t)numOptions,
+                                static_cast<int32_t>(numOptions),
                                 0, 1);
-      } break;
-
-    case nsIDOMKeyEvent::DOM_VK_END: {
-      AdjustIndexForDisabledOpt(numOptions-1, newIndex,
-                                (int32_t)numOptions,
+      break;
+    case NS_VK_END:
+      AdjustIndexForDisabledOpt(static_cast<int32_t>(numOptions) - 1, newIndex,
+                                static_cast<int32_t>(numOptions),
                                 0, -1);
-      } break;
+      break;
 
 #if defined(XP_WIN)
-    case nsIDOMKeyEvent::DOM_VK_F4: {
+    case NS_VK_F4:
       DropDownToggleKey(aKeyEvent);
       return NS_OK;
-    } break;
 #endif
 
-    case nsIDOMKeyEvent::DOM_VK_TAB: {
+    default: // Printable keys will be handled by the keypress event.
+      incrementalSearchResetter.Cancel();
       return NS_OK;
+  }
+
+  aKeyEvent->PreventDefault();
+
+  // Actually process the new index and let the selection code
+  // do the scrolling for us
+  PostHandleKeyEvent(newIndex, 0, keyEvent->IsShift(), isControlOrMeta);
+  return NS_OK;
+}
+
+nsresult
+nsListControlFrame::KeyPress(nsIDOMEvent* aKeyEvent)
+{
+  MOZ_ASSERT(aKeyEvent, "aKeyEvent is null.");
+
+  nsEventStates eventStates = mContent->AsElement()->State();
+  if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
+    return NS_OK;
+  }
+
+  AutoIncrementalSearchResetter incrementalSearchResetter;
+
+  const nsKeyEvent* keyEvent =
+    static_cast<nsKeyEvent*>(aKeyEvent->GetInternalNSEvent());
+  MOZ_ASSERT(keyEvent, "DOM event must have internal event");
+  MOZ_ASSERT(keyEvent->eventStructType == NS_KEY_EVENT,
+             "The keydown event's internal event struct must be nsKeyEvent");
+
+  // Select option with this as the first character
+  // XXX Not I18N compliant
+
+  // Don't do incremental search if the key event has already consumed.
+  if (keyEvent->mFlags.mDefaultPrevented) {
+    return NS_OK;
+  }
+
+  if (keyEvent->IsAlt()) {
+    return NS_OK;
+  }
+
+  // With some keyboard layout, space key causes non-ASCII space.
+  // So, the check in keydown event handler isn't enough, we need to check it
+  // again with keypress event.
+  if (keyEvent->charCode != ' ') {
+    mControlSelectMode = false;
+  }
+
+  bool isControlOrMeta = (keyEvent->IsControl() || keyEvent->IsMeta());
+  if (isControlOrMeta && keyEvent->charCode != ' ') {
+    return NS_OK;
+  }
+
+  // NOTE: If keyCode of keypress event is not 0, charCode is always 0.
+  //       Therefore, all non-printable keys are not handled after this block.
+  if (!keyEvent->charCode) {
+    // Backspace key will delete the last char in the string. Otherwise,
+    // non-printable keypresses should reset incremental search.
+    if (keyEvent->keyCode == NS_VK_BACK) {
+      incrementalSearchResetter.Cancel();
+      if (!GetIncrementalString().IsEmpty()) {
+        GetIncrementalString().Truncate(GetIncrementalString().Length() - 1);
+      }
+      aKeyEvent->PreventDefault();
+    } else {
+      // When a select element has focus, even if the key has no effect,
+      // it might be better to call preventDefault() here because nobody
+      // should expect another element, including chrome, to handle the
+      // key event.
     }
+    return NS_OK;
+  }
 
-    default: { // Select option with this as the first character
-               // XXX Not I18N compliant
-      
-      if (isControl && charcode != ' ') {
-        return NS_OK;
-      }
-
-      didIncrementalSearch = true;
-      if (charcode == 0) {
-        // Backspace key will delete the last char in the string
-        if (keycode == NS_VK_BACK && !GetIncrementalString().IsEmpty()) {
-          GetIncrementalString().Truncate(GetIncrementalString().Length() - 1);
-          aKeyEvent->PreventDefault();
-        }
-        return NS_OK;
-      }
-      
-      DOMTimeStamp keyTime;
-      aKeyEvent->GetTimeStamp(&keyTime);
-
-      // Incremental Search: if time elapsed is below
-      // INCREMENTAL_SEARCH_KEYPRESS_TIME, append this keystroke to the search
-      // string we will use to find options and start searching at the current
-      // keystroke.  Otherwise, Truncate the string if it's been a long time
-      // since our last keypress.
-      if (keyTime - gLastKeyTime > INCREMENTAL_SEARCH_KEYPRESS_TIME) {
-        // If this is ' ' and we are at the beginning of the string, treat it as
-        // "select this option" (bug 191543)
-        if (charcode == ' ') {
-          newIndex = mEndSelectionIndex;
-          break;
-        }
-        GetIncrementalString().Truncate();
-      }
-      gLastKeyTime = keyTime;
-
-      // Append this keystroke to the search string. 
-      PRUnichar uniChar = ToLowerCase(static_cast<PRUnichar>(charcode));
-      GetIncrementalString().Append(uniChar);
-
-      // See bug 188199, if all letters in incremental string are same, just try to match the first one
-      nsAutoString incrementalString(GetIncrementalString());
-      uint32_t charIndex = 1, stringLength = incrementalString.Length();
-      while (charIndex < stringLength && incrementalString[charIndex] == incrementalString[charIndex - 1]) {
-        charIndex++;
-      }
-      if (charIndex == stringLength) {
-        incrementalString.Truncate(1);
-        stringLength = 1;
-      }
-
-      // Determine where we're going to start reading the string
-      // If we have multiple characters to look for, we start looking *at* the
-      // current option.  If we have only one character to look for, we start
-      // looking *after* the current option.	
-      // Exception: if there is no option selected to start at, we always start
-      // *at* 0.
-      int32_t startIndex = GetSelectedIndex();
-      if (startIndex == kNothingSelected) {
-        startIndex = 0;
-      } else if (stringLength == 1) {
-        startIndex++;
-      }
-
-      nsWeakFrame weakFrame(this);
-      for (uint32_t i = 0; i < numOptions; ++i) {
-        uint32_t index = (i + startIndex) % numOptions;
-        nsCOMPtr<nsIDOMHTMLOptionElement> optionElement = GetOption(options, index);
-        if (!optionElement) {
-          continue;
-        }
-
-        nsAutoString text;
-        if (NS_FAILED(optionElement->GetText(text)) ||
-            !StringBeginsWith(nsContentUtils::TrimWhitespace<nsContentUtils::IsHTMLWhitespaceOrNBSP>(text, false),
-                              incrementalString,
-                              nsCaseInsensitiveStringComparator())) {
-          continue;
-        }
-
-        bool wasChanged = PerformSelection(index, isShift, isControl);
-        if (!weakFrame.IsAlive()) {
-          return NS_OK;
-        }
-        if (!wasChanged) {
-          break;
-        }
-
-        // If UpdateSelection() returns false, that means the frame is no longer
-        // alive. We should stop doing anything.
-        if (!UpdateSelection()) {
-          return NS_OK;
-        }
-        break;
-      }
-
-    } break;//case
-  } // switch
+  incrementalSearchResetter.Cancel();
 
   // We ate the key if we got this far.
   aKeyEvent->PreventDefault();
 
-  // If we didn't do an incremental search, clear the string
-  if (!didIncrementalSearch) {
+  // Incremental Search: if time elapsed is below
+  // INCREMENTAL_SEARCH_KEYPRESS_TIME, append this keystroke to the search
+  // string we will use to find options and start searching at the current
+  // keystroke.  Otherwise, Truncate the string if it's been a long time
+  // since our last keypress.
+  if (keyEvent->time - gLastKeyTime > INCREMENTAL_SEARCH_KEYPRESS_TIME) {
+    // If this is ' ' and we are at the beginning of the string, treat it as
+    // "select this option" (bug 191543)
+    if (keyEvent->charCode == ' ') {
+      // Actually process the new index and let the selection code
+      // do the scrolling for us
+      PostHandleKeyEvent(mEndSelectionIndex, keyEvent->charCode,
+                         keyEvent->IsShift(), isControlOrMeta);
+
+      return NS_OK;
+    }
+
     GetIncrementalString().Truncate();
   }
 
-  // Actually process the new index and let the selection code
-  // do the scrolling for us
-  if (newIndex != kNothingSelected) {
-    // If you hold control, but not shift, no key will actually do anything
-    // except space.
-    nsWeakFrame weakFrame(this);
-    bool wasChanged = false;
-    if (isControl && !isShift && charcode != ' ') {
-      mStartSelectionIndex = newIndex;
-      mEndSelectionIndex = newIndex;
-      InvalidateFocus();
-      ScrollToIndex(newIndex);
-      if (!weakFrame.IsAlive()) {
-        return NS_OK;
-      }
+  gLastKeyTime = keyEvent->time;
 
-#ifdef ACCESSIBILITY
-      FireMenuItemActiveEvent();
-#endif
-    } else if (mControlSelectMode && charcode == ' ') {
-      wasChanged = SingleSelection(newIndex, true);
-    } else {
-      wasChanged = PerformSelection(newIndex, isShift, isControl);
+  // Append this keystroke to the search string. 
+  PRUnichar uniChar = ToLowerCase(static_cast<PRUnichar>(keyEvent->charCode));
+  GetIncrementalString().Append(uniChar);
+
+  // See bug 188199, if all letters in incremental string are same, just try to
+  // match the first one
+  nsAutoString incrementalString(GetIncrementalString());
+  uint32_t charIndex = 1, stringLength = incrementalString.Length();
+  while (charIndex < stringLength &&
+         incrementalString[charIndex] == incrementalString[charIndex - 1]) {
+    charIndex++;
+  }
+  if (charIndex == stringLength) {
+    incrementalString.Truncate(1);
+    stringLength = 1;
+  }
+
+  // Determine where we're going to start reading the string
+  // If we have multiple characters to look for, we start looking *at* the
+  // current option.  If we have only one character to look for, we start
+  // looking *after* the current option.	
+  // Exception: if there is no option selected to start at, we always start
+  // *at* 0.
+  int32_t startIndex = GetSelectedIndex();
+  if (startIndex == kNothingSelected) {
+    startIndex = 0;
+  } else if (stringLength == 1) {
+    startIndex++;
+  }
+
+  // Now make sure there are options, or we are wasting our time.
+  nsCOMPtr<nsIDOMHTMLOptionsCollection> options = GetOptions(mContent);
+  NS_ENSURE_TRUE(options, NS_ERROR_FAILURE);
+
+  uint32_t numOptions = 0;
+  options->GetLength(&numOptions);
+
+  for (uint32_t i = 0; i < numOptions; ++i) {
+    uint32_t index = (i + startIndex) % numOptions;
+    nsCOMPtr<nsIDOMHTMLOptionElement> optionElement = GetOption(options, index);
+    if (!optionElement) {
+      continue;
     }
-    if (wasChanged && weakFrame.IsAlive()) {
-       // dispatch event, update combobox, etc.
-      if (!UpdateSelection()) {
-        return NS_OK;
-      }
+    
+    nsAutoString text;
+    if (NS_FAILED(optionElement->GetText(text)) ||
+        !StringBeginsWith(
+           nsContentUtils::TrimWhitespace<
+             nsContentUtils::IsHTMLWhitespaceOrNBSP>(text, false),
+           incrementalString, nsCaseInsensitiveStringComparator())) {
+      continue;
     }
+
+    if (!PerformSelection(index, keyEvent->IsShift(), isControlOrMeta)) {
+      break;
+    }
+
+    // If UpdateSelection() returns false, that means the frame is no longer
+    // alive. We should stop doing what we're doing.
+    if (!UpdateSelection()) {
+      return NS_OK;
+    }
+    break;
   }
 
   return NS_OK;
 }
 
+void
+nsListControlFrame::PostHandleKeyEvent(int32_t aNewIndex,
+                                       uint32_t aCharCode,
+                                       bool aIsShift,
+                                       bool aIsControlOrMeta)
+{
+  if (aNewIndex == kNothingSelected) {
+    return;
+  }
+
+  // If you hold control, but not shift, no key will actually do anything
+  // except space.
+  bool wasChanged = false;
+  if (aIsControlOrMeta && !aIsShift && aCharCode != ' ') {
+    mStartSelectionIndex = aNewIndex;
+    mEndSelectionIndex = aNewIndex;
+    InvalidateFocus();
+    ScrollToIndex(aNewIndex);
+
+#ifdef ACCESSIBILITY
+    FireMenuItemActiveEvent();
+#endif
+  } else if (mControlSelectMode && aCharCode == ' ') {
+    wasChanged = SingleSelection(aNewIndex, true);
+  } else {
+    wasChanged = PerformSelection(aNewIndex, aIsShift, aIsControlOrMeta);
+  }
+  if (wasChanged) {
+    // dispatch event, update combobox, etc.
+    UpdateSelection();
+  }
+}
 
 /******************************************************************************
  * nsListEventListener
@@ -2558,6 +2614,8 @@ nsListEventListener::HandleEvent(nsIDOMEvent* aEvent)
 
   nsAutoString eventType;
   aEvent->GetType(eventType);
+  if (eventType.EqualsLiteral("keydown"))
+    return mFrame->nsListControlFrame::KeyDown(aEvent);
   if (eventType.EqualsLiteral("keypress"))
     return mFrame->nsListControlFrame::KeyPress(aEvent);
   if (eventType.EqualsLiteral("mousedown"))

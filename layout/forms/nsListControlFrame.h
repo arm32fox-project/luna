@@ -163,6 +163,7 @@ public:
   nsresult MouseUp(nsIDOMEvent* aMouseEvent);
   nsresult MouseMove(nsIDOMEvent* aMouseEvent);
   nsresult DragMove(nsIDOMEvent* aMouseEvent);
+  nsresult KeyDown(nsIDOMEvent* aKeyEvent);
   nsresult KeyPress(nsIDOMEvent* aKeyEvent);
 
   /**
@@ -394,6 +395,8 @@ protected:
    */
   bool     HandleListSelection(nsIDOMEvent * aDOMEvent, int32_t selectedIndex);
   void     InitSelectionRange(int32_t aClickedIndex);
+  void     PostHandleKeyEvent(int32_t aNewIndex, uint32_t aCharCode,
+                              bool aIsShift, bool aIsControlOrMeta);
 
 public:
   nsSelectsAreaFrame* GetOptionsContainer() const {
@@ -467,6 +470,27 @@ private:
   // for incremental typing navigation
   static nsAString& GetIncrementalString ();
   static DOMTimeStamp gLastKeyTime;
+  
+  class MOZ_STACK_CLASS AutoIncrementalSearchResetter
+  {
+  public:
+    AutoIncrementalSearchResetter() :
+      mCancelled(false)
+    {
+    }
+    ~AutoIncrementalSearchResetter()
+    {
+      if (!mCancelled) {
+        nsListControlFrame::GetIncrementalString().Truncate();
+      }
+    }
+    void Cancel()
+    {
+      mCancelled = true;
+    }
+  private:
+    bool mCancelled;
+  };
 };
 
 #endif /* nsListControlFrame_h___ */
