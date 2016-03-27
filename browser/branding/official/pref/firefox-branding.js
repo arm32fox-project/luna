@@ -66,9 +66,8 @@ pref("general.useragent.override.live.com","Mozilla/5.0 (Windows NT 6.1; WOW64; 
 pref("general.useragent.override.outlook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
 pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
 pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
-pref("general.useragent.override.mail.google.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
-pref("general.useragent.override.google.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Goanna/2.0 Firefox/31.9 PaleMoon/26.0");
-pref("general.useragent.override.googlevideos.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Goanna/2.0 Firefox/31.9 PaleMoon/26.0");
+pref("general.useragent.override.google.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:45.9) Gecko/20100101 Goanna/2.0 Firefox/45.9 PaleMoon/26.0");
+pref("general.useragent.override.googlevideos.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
 pref("general.useragent.override.gstatic.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Goanna/2.0 Firefox/31.9 PaleMoon/26.0");
 pref("general.useragent.override.youtube.com","Mozilla/5.0 (Windows NT 5.1; rv:42.0) Gecko/20100101 Firefox/42.0 PaleMoon/26.0");
 pref("general.useragent.override.netflix.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:26.0) Gecko/20100101 Firefox/31.9");
@@ -77,7 +76,6 @@ pref("general.useragent.override.calendar.yahoo.com","Mozilla/5.0 (Windows NT 6.
 // UA-Sniffing domains below are pending responses from their operators - temp workaround
 pref("general.useragent.override.facebook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
 pref("general.useragent.override.fbcdn.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
-pref("general.useragent.override.fbcdn.net","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
 pref("general.useragent.override.chase.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Firefox/31.9");
 // Citi requires native mode. Or it blocks.. "too old firefox"
 pref("general.useragent.override.citi.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:2.0) Goanna/20160101 PaleMoon/26.0");
@@ -127,7 +125,7 @@ pref("browser.tabs.onTop",false);
 
 // Known embedding domains that do NOT do things properly and should provide
 // a filter-disabling header, but don't.
-pref("security.xssfilter.srcwhitelist", "googleusercontent.com,embed.ly,msads.net");
+pref("security.xssfilter.srcwhitelist", "googleusercontent.com,embed.ly,embedly.com,msads.net");
 
 // Known embedded target domains that do things properly (no XSS vulnerability)
 pref("security.xssfilter.whitelist", "paypalobjects.com,yimg.com");
