@@ -629,6 +629,13 @@ GLContext::InitWithPrefix(const char *prefix, bool trygl)
             mMaxCubeMapTextureSize = std::min(mMaxCubeMapTextureSize, 2048);
             mNeedsTextureSizeChecks = true;
         }
+        if (mWorkAroundDriverBugs &&
+            mVendor == VendorIntel) {
+            // Driver seems to report a larger max size than actually supported.
+            mMaxTextureSize /= 2;
+            mMaxRenderbufferSize /= 2;
+            mNeedsTextureSizeChecks = true;
+        }
 #endif
 
         mMaxTextureImageSize = mMaxTextureSize;
