@@ -779,8 +779,8 @@ HTMLTableElement::InsertRow(int32_t aIndex, ErrorResult& aError)
       refIndex = rowCount - 1;
     }
 
-    Element* refRow = rows->Item(refIndex);
-    nsINode* parent = refRow->GetParentNode();
+    nsRefPtr<Element> refRow = rows->Item(refIndex);
+    nsCOMPtr<nsINode> parent = refRow->GetParentNode();
 
     // create the row
     nsCOMPtr<nsINodeInfo> nodeInfo;
