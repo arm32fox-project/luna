@@ -244,12 +244,6 @@ IDBDatabase::IDBDatabase()
 IDBDatabase::~IDBDatabase()
 {
   NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-}
-
-void
-IDBDatabase::LastRelease()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
 
   NS_ASSERTION(!mActorParent, "Actor parent owns us, how can we be dying?!");
   if (mActorChild) {
@@ -265,7 +259,6 @@ IDBDatabase::LastRelease()
     if (quotaManager) {
       quotaManager->UnregisterStorage(this);
     }
-    mRegistered = false;
   }
 }
 

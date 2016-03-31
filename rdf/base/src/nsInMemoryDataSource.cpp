@@ -769,7 +769,6 @@ InMemoryDataSource::InMemoryDataSource(nsISupports* aOuter)
     mForwardArcs.ops = nullptr;
     mReverseArcs.ops = nullptr;
     mPropagateChanges = true;
-    MOZ_COUNT_CTOR(InMemoryDataSource);
 }
 
 
@@ -823,7 +822,6 @@ InMemoryDataSource::~InMemoryDataSource()
     PR_LOG(gLog, PR_LOG_NOTICE,
            ("InMemoryDataSource(%p): destroyed.", this));
 
-    MOZ_COUNT_DTOR(InMemoryDataSource);
 }
 
 PLDHashOperator

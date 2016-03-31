@@ -445,14 +445,11 @@ public:
     // This is done on purpose since we want to crash if the order array is out
     // of date.
     //
-    /* Disabled because the current cycle collector doesn't delete
-       cycle collectable objects synchronously, nor doesn't guarantee any order.
     if (sDestructorOrderArr && mVal != sDestructorOrderArr[sDestructorCount]) {
       fail("~SimpleTransaction expected %d got %d.\n",
            mVal, sDestructorOrderArr[sDestructorCount]);
       exit(-1);
     }
-    */
 
     ++sDestructorCount;
 
@@ -2605,13 +2602,11 @@ quick_test(TestTransactionFactory *factory)
    *
    *******************************************************************/
 
-  /* Disabled because the current cycle collector doesn't delete
-     cycle collectable objects synchronously.
   if (sConstructorCount != sDestructorCount) {
     fail("Transaction constructor count (%d) != destructor count (%d).\n",
          sConstructorCount, sDestructorCount);
     return NS_ERROR_FAILURE;
-  }*/
+  }
 
   passed("Number of transactions created and destroyed match");
   passed("%d transactions processed during quick test", sConstructorCount);
@@ -4274,13 +4269,11 @@ quick_batch_test(TestTransactionFactory *factory)
    *
    *******************************************************************/
 
-  /* Disabled because the current cycle collector doesn't delete
-     cycle collectable objects synchronously.
   if (sConstructorCount != sDestructorCount) {
     fail("Transaction constructor count (%d) != destructor count (%d).\n",
          sConstructorCount, sDestructorCount);
     return NS_ERROR_FAILURE;
-  }*/
+  }
 
   passed("Number of transactions created and destroyed match");
   passed("%d transactions processed during quick batch test",
@@ -4466,13 +4459,11 @@ stress_test(TestTransactionFactory *factory, int32_t iterations)
     return result;
   }
 
-  /* Disabled because the current cycle collector doesn't delete
-     cycle collectable objects synchronously.
   if (sConstructorCount != sDestructorCount) {
     fail("Transaction constructor count (%d) != destructor count (%d).\n",
          sConstructorCount, sDestructorCount);
     return NS_ERROR_FAILURE;
-  }*/
+  }
 
   passed("%d transactions processed during stress test", sConstructorCount);
 

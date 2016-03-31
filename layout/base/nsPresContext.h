@@ -1322,8 +1322,6 @@ protected:
 
   nscolor MakeColorPref(const nsString& aColor);
 
-  void LastRelease();
-
 #ifdef DEBUG
 private:
   friend struct nsAutoLayoutPhase;

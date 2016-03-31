@@ -126,8 +126,6 @@ protected:
   nsresult DispatchTrustedEvent(const nsAString& aEventName);
   // Make |event| trusted and dispatch |aEvent| to |this|.
   nsresult DispatchTrustedEvent(nsIDOMEvent* aEvent);
-
-  virtual void LastRelease() {}
 private:
   // Inner window or sandbox.
   nsIGlobalObject*           mParentObject;

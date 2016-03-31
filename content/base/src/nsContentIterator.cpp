@@ -134,8 +134,6 @@ protected:
 
   void MakeEmpty();
 
-  virtual void LastRelease();
-
   nsCOMPtr<nsINode> mCurNode;
   nsCOMPtr<nsINode> mFirst;
   nsCOMPtr<nsINode> mLast;
@@ -202,8 +200,7 @@ NS_NewPreContentIterator()
  ******************************************************/
 
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsContentIterator)
-NS_IMPL_CYCLE_COLLECTING_RELEASE_WITH_LAST_RELEASE(nsContentIterator,
-                                                   LastRelease())
+NS_IMPL_CYCLE_COLLECTING_RELEASE(nsContentIterator)
 
 NS_INTERFACE_MAP_BEGIN(nsContentIterator)
   NS_INTERFACE_MAP_ENTRY(nsIContentIterator)
@@ -216,15 +213,6 @@ NS_IMPL_CYCLE_COLLECTION_4(nsContentIterator,
                            mFirst,
                            mLast,
                            mCommonParent)
-
-void
-nsContentIterator::LastRelease()
-{
-  mCurNode = nullptr;
-  mFirst = nullptr;
-  mLast = nullptr;
-  mCommonParent = nullptr;
-}
 
 /******************************************************
  * constructor/destructor
@@ -1143,8 +1131,6 @@ protected:
   nsContentSubtreeIterator(const nsContentSubtreeIterator&);
   nsContentSubtreeIterator& operator=(const nsContentSubtreeIterator&);
 
-  virtual void LastRelease() MOZ_OVERRIDE;
-
   nsRefPtr<nsRange> mRange;
 
   // these arrays all typically are used and have elements
@@ -1161,12 +1147,8 @@ NS_INTERFACE_MAP_END_INHERITING(nsContentIterator)
 NS_IMPL_CYCLE_COLLECTION_INHERITED_1(nsContentSubtreeIterator, nsContentIterator,
                                      mRange)
 
-void
-nsContentSubtreeIterator::LastRelease()
-{
-  mRange = nullptr;
-  nsContentIterator::LastRelease();
-}
+
+
 
 /******************************************************
  * repository cruft

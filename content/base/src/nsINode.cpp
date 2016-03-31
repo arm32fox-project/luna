@@ -140,8 +140,8 @@ nsINode::nsSlots::Unlink()
 
 nsINode::~nsINode()
 {
-  MOZ_ASSERT(!HasSlots(), "nsNodeUtils::LastRelease was not called?");
-  MOZ_ASSERT(mSubtreeRoot == this, "Didn't restore state properly?");
+  NS_ASSERTION(!HasSlots(), "nsNodeUtils::LastRelease was not called?");
+  NS_ASSERTION(mSubtreeRoot == this, "Didn't restore state properly?");
 }
 
 void*
