@@ -1098,8 +1098,6 @@ FragmentOrElement::ClearContentUnbinder()
   ContentUnbinder::UnbindAll();
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(FragmentOrElement)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(FragmentOrElement)
   nsINode::Unlink(tmp);
 

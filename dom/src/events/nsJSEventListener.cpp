@@ -77,8 +77,6 @@ nsJSEventListener::UpdateScopeObject(JS::Handle<JSObject*> aScopeObject)
   mScopeObject = aScopeObject;
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsJSEventListener)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsJSEventListener)
   if (tmp->mScopeObject) {
     tmp->mScopeObject = nullptr;

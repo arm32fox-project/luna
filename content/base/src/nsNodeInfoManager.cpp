@@ -159,8 +159,6 @@ nsNodeInfoManager::~nsNodeInfoManager()
   nsLayoutStatics::Release();
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsNodeInfoManager)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsNodeInfoManager)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsNodeInfoManager)
   if (tmp->mDocument &&

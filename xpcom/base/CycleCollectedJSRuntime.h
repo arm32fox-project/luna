@@ -22,53 +22,54 @@ namespace mozilla {
 class JSGCThingParticipant: public nsCycleCollectionParticipant
 {
 public:
-  NS_IMETHOD Root(void *n)
+  static NS_METHOD RootImpl(void *n)
   {
     return NS_OK;
   }
 
-  NS_IMETHOD Unlink(void *n)
+  static NS_METHOD UnlinkImpl(void *n)
   {
     return NS_OK;
   }
 
-  NS_IMETHOD Unroot(void *n)
+  static NS_METHOD UnrootImpl(void *n)
   {
     return NS_OK;
   }
 
-  NS_IMETHOD_(void) DeleteCycleCollectable(void *n)
+  static NS_METHOD_(void) DeleteCycleCollectableImpl(void *n)
   {
   }
 
-  NS_IMETHOD Traverse(void *n, nsCycleCollectionTraversalCallback &cb);
+  static NS_METHOD TraverseImpl(JSGCThingParticipant *that, void *n,
+                                nsCycleCollectionTraversalCallback &cb);
 };
 
 class JSZoneParticipant : public nsCycleCollectionParticipant
 {
 public:
-  MOZ_CONSTEXPR JSZoneParticipant(): nsCycleCollectionParticipant() {}
-  
-  NS_IMETHOD Root(void *p)
+
+  static NS_METHOD RootImpl(void *p)
   {
     return NS_OK;
   }
 
-  NS_IMETHOD Unlink(void *p)
+  static NS_METHOD UnlinkImpl(void *p)
   {
     return NS_OK;
   }
 
-  NS_IMETHOD Unroot(void *p)
+  static NS_METHOD UnrootImpl(void *p)
   {
     return NS_OK;
   }
 
-  NS_IMETHOD_(void) DeleteCycleCollectable(void *n)
+  static NS_METHOD_(void) DeleteCycleCollectableImpl(void *n)
   {
   }
 
-  NS_IMETHOD Traverse(void *p, nsCycleCollectionTraversalCallback &cb);
+  static NS_METHOD TraverseImpl(JSZoneParticipant *that, void *p,
+                                nsCycleCollectionTraversalCallback &cb);
 };
 
 class CycleCollectedJSRuntime
@@ -157,8 +158,8 @@ public:
   // This returns the singleton nsCycleCollectionParticipant for JSContexts.
   static nsCycleCollectionParticipant* JSContextParticipant();
 
-  nsCycleCollectionParticipant* GCThingParticipant();
-  nsCycleCollectionParticipant* ZoneParticipant();
+  nsCycleCollectionParticipant* GCThingParticipant() const;
+  nsCycleCollectionParticipant* ZoneParticipant() const;
 
   bool NotifyLeaveMainThread() const;
   void NotifyEnterCycleCollectionThread() const;
@@ -174,9 +175,11 @@ public:
   virtual void PrepareForCollection() {}
 
 private:
-  JSGCThingParticipant mGCThingCycleCollectorGlobal;
+  typedef const CCParticipantVTable<JSGCThingParticipant>::Type GCThingParticipantVTable;
+  const GCThingParticipantVTable mGCThingCycleCollectorGlobal;
 
-  JSZoneParticipant mJSZoneCycleCollectorGlobal;
+  typedef const CCParticipantVTable<JSZoneParticipant>::Type JSZoneParticipantVTable;
+  const JSZoneParticipantVTable mJSZoneCycleCollectorGlobal;
 
   JSRuntime* mJSRuntime;
 

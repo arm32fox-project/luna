@@ -118,8 +118,6 @@ nsAnonymousContentList::~nsAnonymousContentList()
 NS_IMPL_CYCLE_COLLECTING_ADDREF(nsAnonymousContentList)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(nsAnonymousContentList)
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsAnonymousContentList)
-
 NS_INTERFACE_TABLE_HEAD(nsAnonymousContentList)
   NS_WRAPPERCACHE_INTERFACE_MAP_ENTRY
   NS_INTERFACE_TABLE3(nsAnonymousContentList, nsINodeList, nsIDOMNodeList,
@@ -348,8 +346,6 @@ SetOrRemoveObject(PLDHashTable& table, nsIContent* aKey, nsISupports* aValue)
 // Static member variable initialization
 
 // Implement our nsISupports methods
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsBindingManager)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsBindingManager)
   tmp->mDestroyed = true;

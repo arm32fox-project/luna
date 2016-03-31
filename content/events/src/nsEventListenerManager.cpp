@@ -176,8 +176,6 @@ ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
                            aFlags);
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsEventListenerManager)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsEventListenerManager)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mListeners)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END

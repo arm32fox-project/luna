@@ -163,8 +163,6 @@ nsXULPrototypeDocument::~nsXULPrototypeDocument()
     }
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULPrototypeDocument)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPrototypeDocument)
     tmp->mPrototypeWaiters.Clear();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END
@@ -723,8 +721,6 @@ nsXULPDGlobalObject::nsXULPDGlobalObject(nsXULPrototypeDocument* owner)
 nsXULPDGlobalObject::~nsXULPDGlobalObject()
 {
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULPDGlobalObject)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_0(nsXULPDGlobalObject)
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(nsXULPDGlobalObject)

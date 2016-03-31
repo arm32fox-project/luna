@@ -240,22 +240,23 @@ private:
 class JSContextParticipant : public nsCycleCollectionParticipant
 {
 public:
-  NS_IMETHOD Root(void *n)
+  static NS_METHOD RootImpl(void *n)
   {
     return NS_OK;
   }
-  NS_IMETHOD Unlink(void *n)
+  static NS_METHOD UnlinkImpl(void *n)
   {
     return NS_OK;
   }
-  NS_IMETHOD Unroot(void *n)
+  static NS_METHOD UnrootImpl(void *n)
   {
     return NS_OK;
   }
-  NS_IMETHOD_(void) DeleteCycleCollectable(void *n)
+  static NS_METHOD_(void) DeleteCycleCollectableImpl(void *n)
   {
   }
-  NS_IMETHOD Traverse(void *n, nsCycleCollectionTraversalCallback &cb)
+  static NS_METHOD TraverseImpl(JSContextParticipant *that, void *n,
+                                nsCycleCollectionTraversalCallback &cb)
   {
     JSContext *cx = static_cast<JSContext*>(n);
 
@@ -276,7 +277,11 @@ public:
   }
 };
 
-static JSContextParticipant JSContext_cycleCollectorGlobal;
+static const CCParticipantVTable<JSContextParticipant>::Type
+JSContext_cycleCollectorGlobal =
+{
+  NS_IMPL_CYCLE_COLLECTION_NATIVE_VTABLE(JSContextParticipant)
+};
 
 struct Closure
 {
@@ -314,11 +319,12 @@ NoteJSHolder(void *holder, nsScriptObjectTracer *&tracer, void *arg)
   return PL_DHASH_NEXT;
 }
 
-NS_IMETHODIMP
-JSGCThingParticipant::Traverse(void* p, nsCycleCollectionTraversalCallback& cb)
+NS_METHOD
+JSGCThingParticipant::TraverseImpl(JSGCThingParticipant* that, void* p,
+                                   nsCycleCollectionTraversalCallback& cb)
 {
   CycleCollectedJSRuntime* runtime = reinterpret_cast<CycleCollectedJSRuntime*>
-    (reinterpret_cast<char*>(this) -
+    (reinterpret_cast<char*>(that) -
      offsetof(CycleCollectedJSRuntime, mGCThingCycleCollectorGlobal));
 
   runtime->TraverseGCThing(CycleCollectedJSRuntime::TRAVERSE_FULL,
@@ -328,13 +334,18 @@ JSGCThingParticipant::Traverse(void* p, nsCycleCollectionTraversalCallback& cb)
 
 // NB: This is only used to initialize the participant in
 // CycleCollectedJSRuntime. It should never be used directly.
-static JSGCThingParticipant sGCThingCycleCollectorGlobal;
+static const CCParticipantVTable<JSGCThingParticipant>::Type
+sGCThingCycleCollectorGlobal =
+{
+  NS_IMPL_CYCLE_COLLECTION_NATIVE_VTABLE(JSGCThingParticipant)
+};
 
-NS_IMETHODIMP
-JSZoneParticipant::Traverse(void* p, nsCycleCollectionTraversalCallback& cb)
+NS_METHOD
+JSZoneParticipant::TraverseImpl(JSZoneParticipant* that, void* p,
+                                nsCycleCollectionTraversalCallback& cb)
 {
   CycleCollectedJSRuntime* runtime = reinterpret_cast<CycleCollectedJSRuntime*>
-    (reinterpret_cast<char*>(this) -
+    (reinterpret_cast<char*>(that) -
      offsetof(CycleCollectedJSRuntime, mJSZoneCycleCollectorGlobal));
 
   MOZ_ASSERT(!cb.WantAllTraces());
@@ -431,7 +442,10 @@ NoteJSChildGrayWrapperShim(void* aData, void* aThing)
 
 // NB: This is only used to initialize the participant in
 // CycleCollectedJSRuntime. It should never be used directly.
-static const JSZoneParticipant sJSZoneCycleCollectorGlobal;
+static const CCParticipantVTable<JSZoneParticipant>::Type
+sJSZoneCycleCollectorGlobal = {
+  NS_IMPL_CYCLE_COLLECTION_NATIVE_VTABLE(JSZoneParticipant)
+};
 
 CycleCollectedJSRuntime::CycleCollectedJSRuntime(uint32_t aMaxbytes,
                                                  JSUseHelperThreads aUseHelperThreads,
@@ -778,6 +792,7 @@ CycleCollectedJSRuntime::TraceNativeGrayRoots(JSTracer* aTracer)
 void
 CycleCollectedJSRuntime::AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer)
 {
+  MOZ_ASSERT(aTracer->Trace, "AddJSHolder needs a non-null Trace function");
   bool wasEmpty = mJSHolders.Count() == 0;
   mJSHolders.Put(aHolder, aTracer);
   if (wasEmpty && mJSHolders.Count() == 1) {
@@ -821,7 +836,7 @@ void
 CycleCollectedJSRuntime::AssertNoObjectsToTrace(void* aPossibleJSHolder)
 {
   nsScriptObjectTracer* tracer = mJSHolders.Get(aPossibleJSHolder);
-  if (tracer) {
+  if (tracer && tracer->Trace) {
     tracer->Trace(aPossibleJSHolder, TraceCallbackFunc(AssertNoGcThing), nullptr);
   }
 }
@@ -831,19 +846,19 @@ CycleCollectedJSRuntime::AssertNoObjectsToTrace(void* aPossibleJSHolder)
 nsCycleCollectionParticipant*
 CycleCollectedJSRuntime::JSContextParticipant()
 {
-  return &JSContext_cycleCollectorGlobal;
+  return JSContext_cycleCollectorGlobal.GetParticipant();
 }
 
 nsCycleCollectionParticipant*
-CycleCollectedJSRuntime::GCThingParticipant()
+CycleCollectedJSRuntime::GCThingParticipant() const
 {
-    return &mGCThingCycleCollectorGlobal;
+    return mGCThingCycleCollectorGlobal.GetParticipant();
 }
 
 nsCycleCollectionParticipant*
-CycleCollectedJSRuntime::ZoneParticipant()
+CycleCollectedJSRuntime::ZoneParticipant() const
 {
-    return &mJSZoneCycleCollectorGlobal;
+    return mJSZoneCycleCollectorGlobal.GetParticipant();
 }
 
 bool

@@ -325,8 +325,6 @@ NS_TrustedNewXULElement(nsIContent** aResult, already_AddRefed<nsINodeInfo> aNod
 //----------------------------------------------------------------------
 // nsISupports interface
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULElement)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(nsXULElement,
                                                   nsStyledElement)
     {
@@ -1932,8 +1930,6 @@ nsXULElement::WrapNode(JSContext *aCx, JS::Handle<JSObject*> aScope)
 {
     return dom::XULElementBinding::Wrap(aCx, aScope, this);
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXULPrototypeNode)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXULPrototypeNode)
     if (tmp->mType == nsXULPrototypeNode::eType_Element) {

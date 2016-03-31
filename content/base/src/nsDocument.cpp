@@ -1803,7 +1803,6 @@ CustomPrototypeTrace(const nsAString& aName, JS::Heap<JSObject*>& aObject, void 
   return PL_DHASH_NEXT;
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsDocument)
 
 NS_IMPL_CYCLE_COLLECTION_TRACE_BEGIN(nsDocument)
   CustomPrototypeTraceArgs customPrototypeArgs = { aCallbacks, aClosure };

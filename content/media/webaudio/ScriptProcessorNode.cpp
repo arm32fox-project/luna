@@ -20,8 +20,6 @@
 namespace mozilla {
 namespace dom {
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(ScriptProcessorNode)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(ScriptProcessorNode)
   if (tmp->Context()) {
     tmp->Context()->UnregisterScriptProcessorNode(tmp);

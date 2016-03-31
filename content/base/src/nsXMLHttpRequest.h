@@ -698,7 +698,8 @@ class nsXMLHttpRequestXPCOMifier MOZ_FINAL : public nsIStreamListener,
                                              public nsIChannelEventSink,
                                              public nsIProgressEventSink,
                                              public nsIInterfaceRequestor,
-                                             public nsITimerCallback
+                                             public nsITimerCallback,
+                                             public nsCycleCollectionParticipant
 {
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsXMLHttpRequestXPCOMifier,

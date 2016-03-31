@@ -703,8 +703,6 @@ HTMLInputElement::GetEditorState() const
 
 // nsISupports
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLInputElement)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLInputElement,
                                                   nsGenericHTMLFormElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mValidity)

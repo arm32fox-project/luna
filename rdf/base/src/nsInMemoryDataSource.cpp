@@ -847,8 +847,6 @@ InMemoryDataSource::DeleteForwardArcsEntry(PLDHashTable* aTable, PLDHashEntryHdr
 
 ////////////////////////////////////////////////////////////////////////
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(InMemoryDataSource)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(InMemoryDataSource)
     NS_IMPL_CYCLE_COLLECTION_UNLINK(mObservers)
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END

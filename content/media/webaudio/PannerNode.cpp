@@ -15,8 +15,6 @@ namespace dom {
 
 using namespace std;
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(PannerNode)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(PannerNode)
   if (tmp->Context()) {
     tmp->Context()->UnregisterPannerNode(tmp);

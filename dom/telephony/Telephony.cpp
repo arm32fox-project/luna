@@ -222,8 +222,6 @@ Telephony::DialInternal(bool isEmergency,
   return NS_OK;
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(Telephony)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(Telephony,
                                                   nsDOMEventTargetHelper)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE_SCRIPT_OBJECTS

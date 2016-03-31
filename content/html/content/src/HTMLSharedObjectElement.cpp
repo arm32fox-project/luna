@@ -82,8 +82,6 @@ HTMLSharedObjectElement::DoneAddingChildren(bool aHaveNotified)
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLSharedObjectElement)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLSharedObjectElement,
                                                   nsGenericHTMLElement)
   nsObjectLoadingContent::Traverse(tmp, cb);

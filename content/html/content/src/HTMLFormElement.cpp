@@ -303,8 +303,6 @@ ElementTraverser(const nsAString& key, nsIDOMHTMLInputElement* element,
   return PL_DHASH_NEXT;
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLFormElement)
-
 NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(HTMLFormElement,
                                                   nsGenericHTMLElement)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mControls)
@@ -2421,8 +2419,6 @@ nsFormControlList::FlushPendingNotifications()
     }
   }
 }
-
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsFormControlList)
 
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsFormControlList)
   tmp->Clear();

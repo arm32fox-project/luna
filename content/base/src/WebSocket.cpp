@@ -577,8 +577,6 @@ WebSocket::Constructor(const GlobalObject& aGlobal,
   return webSocket.forget();
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(WebSocket)
-
 NS_IMPL_CYCLE_COLLECTION_CAN_SKIP_BEGIN(WebSocket)
   bool isBlack = tmp->IsBlack();
   if (isBlack|| tmp->mKeepingAlive) {

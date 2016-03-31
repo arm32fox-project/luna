@@ -40,8 +40,6 @@ nsTreeColumn::~nsTreeColumn()
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsTreeColumn)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsTreeColumn)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mContent)
   if (tmp->mNext) {

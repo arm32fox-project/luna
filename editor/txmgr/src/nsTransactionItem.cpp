@@ -43,8 +43,6 @@ NS_IMPL_CYCLE_COLLECTING_NATIVE_ADDREF(nsTransactionItem)
 NS_IMPL_CYCLE_COLLECTING_NATIVE_RELEASE_WITH_LAST_RELEASE(nsTransactionItem,
                                                           CleanUp())
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsTransactionItem)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsTransactionItem)
   tmp->CleanUp();
 NS_IMPL_CYCLE_COLLECTION_UNLINK_END

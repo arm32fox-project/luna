@@ -151,8 +151,6 @@ protected:
   uint32_t mInsertionIndex;
 };
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(nsXBLInsertionPointEntry)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN(nsXBLInsertionPointEntry)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mInsertionParent)
   if (tmp->mDefaultContent) {

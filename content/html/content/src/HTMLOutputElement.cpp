@@ -38,8 +38,6 @@ HTMLOutputElement::~HTMLOutputElement()
   }
 }
 
-NS_IMPL_CYCLE_COLLECTION_CLASS(HTMLOutputElement)
-
 NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(HTMLOutputElement,
                                                 nsGenericHTMLFormElement)
   NS_IMPL_CYCLE_COLLECTION_UNLINK(mValidity)
