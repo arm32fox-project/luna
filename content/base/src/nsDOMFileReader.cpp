@@ -38,6 +38,7 @@
 #include "nsHostObjectProtocolHandler.h"
 #include "mozilla/Base64.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/CheckedInt.h"
 #include "mozilla/dom/EncodingUtils.h"
 #include "mozilla/dom/FileReaderBinding.h"
 #include "xpcpublic.h"
@@ -340,11 +341,16 @@ nsDOMFileReader::DoOnDataAvailable(nsIRequest *aRequest,
     NS_ASSERTION(bytesRead == aCount, "failed to read data");
   }
   else {
-    //Update memory buffer to reflect the contents of the file
-    if (aOffset + aCount > UINT32_MAX) {
-      // PR_Realloc doesn't support over 4GB memory size even if 64-bit OS
+    CheckedInt<uint64_t> size = aOffset;
+    size += aCount;
+    
+    // Update memory buffer to reflect the contents of the file
+    if (!size.isValid() ||
+        // PR_Realloc doesn't support over 4GB memory size even if 64-bit OS
+        size.value() > UINT32_MAX) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
+
     mFileData = (char *)moz_realloc(mFileData, aOffset + aCount);
     NS_ENSURE_TRUE(mFileData, NS_ERROR_OUT_OF_MEMORY);
 
