@@ -720,15 +720,27 @@ nsLocation::SetProtocol(const nsAString& aProtocol)
 
   nsCOMPtr<nsIURI> uri;
   nsresult rv = GetWritableURI(getter_AddRefs(uri));
-
-  if (uri) {
-    rv = uri->SetScheme(NS_ConvertUTF16toUTF8(aProtocol));
-    if (NS_SUCCEEDED(rv)) {
-      SetURI(uri);
-    }
+  if (NS_FAILED(rv) || !uri) {
+    return rv;
   }
 
-  return rv;
+  rv = uri->SetScheme(NS_ConvertUTF16toUTF8(aProtocol));
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  nsAutoCString newSpec;
+  rv = uri->GetSpec(newSpec);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+  // We may want a new URI class for the new URI, so recreate it:
+  rv = NS_NewURI(getter_AddRefs(uri), newSpec);
+  if (NS_FAILED(rv)) {
+    return rv;
+  }
+
+  return SetURI(uri);
 }
 
 NS_IMETHODIMP
