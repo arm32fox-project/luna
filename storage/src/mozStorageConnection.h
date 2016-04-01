@@ -157,10 +157,17 @@ public:
   }
 
   /**
-   * True if this is an async connection, it is shutting down and it is not
-   * closed yet.
+   * True if this connection is currently shutting down.
+   *
+   * In particular, if |isClosing(true)| returns |true|, any sqlite3 statement
+   * belonging to this connection must be discarded as its memory has already
+   * been released to sqlite3.
+   *
+   * @param aIgnoreConnectionReady
+   *        If true, only asks isClosing() to return true if the connection is
+   *        either closing or closed.
    */
-  bool isAsyncClosing();
+  bool isClosing(bool aIgnoreConnectionReady = false);
 
 private:
   ~Connection();
@@ -228,10 +235,17 @@ private:
    */
   nsCOMPtr<nsIThread> mAsyncExecutionThread;
   /**
-   * Set to true by Close() prior to actually shutting down the thread.  This
-   * lets getAsyncExecutionTarget() know not to hand out any more thread
-   * references (or to create the thread in the first place).  This variable
-   * should be accessed while holding the mAsyncExecutionMutex.
+   * Set to true by Close() or AsyncClose() prior to shutdown.
+   *
+   * If false, we guarantee both that the underlying sqlite3 database
+   * connection is still open and that getAsyncExecutionTarget() can
+   * return a thread. Once true, either the sqlite3 database
+   * connection is being shutdown or it has been
+   * shutdown. Additionally, once true, getAsyncExecutionTarget()
+   * returns null.
+   *
+   * This variable should be accessed while holding the
+   * mAsyncExecutionMutex.
    */
   bool mAsyncExecutionThreadShuttingDown;
 
