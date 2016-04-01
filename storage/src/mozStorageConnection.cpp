@@ -715,9 +715,10 @@ Connection::setClosedState()
 }
 
 bool
-Connection::isAsyncClosing() {
+Connection::isClosing(bool aIgnoreConnectionReady) {
   MutexAutoLock lockedScope(sharedAsyncExecutionMutex);
-  return mAsyncExecutionThreadShuttingDown && ConnectionReady();
+  return mAsyncExecutionThreadShuttingDown && 
+    (aIgnoreConnectionReady || ConnectionReady());
 }
 
 nsresult
