@@ -4284,7 +4284,7 @@ public abstract class TreeBuilder<T> implements TokenHandler,
         int eltGroup = stack[eltPos].getGroup();
         while (currentPtr > eltPos) { // > not >= intentional
             if (stack[currentPtr].getGroup() == TEMPLATE
-                    && (eltGroup == TABLE || eltGroup == TBODY_OR_THEAD_OR_TFOOT|| eltGroup == TR || eltGroup == HTML)) {
+                    && (eltGroup == TABLE || eltGroup == TBODY_OR_THEAD_OR_TFOOT|| eltGroup == TR || eltPos == 0)) {
                 return;
             }
             pop();

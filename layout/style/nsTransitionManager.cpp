@@ -1125,6 +1125,8 @@ nsTransitionManager::FlushTransitions(FlushFlags aFlags)
   if (didThrottle) {
     mPresContext->Document()->SetNeedStyleFlush();
   }
+  
+  nsRefPtr<nsTransitionManager> kungFuDeathGrip(this);
 
   for (uint32_t i = 0, i_end = events.Length(); i < i_end; ++i) {
     TransitionEventInfo &info = events[i];

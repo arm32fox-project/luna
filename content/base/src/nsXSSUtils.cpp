@@ -277,6 +277,10 @@ nsresult
 nsXSSUtils::DecodeHTMLEntities(const nsAString& aString, nsAString& result,
                                nsIDocument* doc)
 {
+  // Too short to be an entity
+  if (aString.Length() < 4)
+    return NS_OK;
+  
   // 2 bugs so far, both in svg reftest. one seems to be a random
   // failure, while the second seems to be triggered by the call to
   // setinnerhtml. specifically, an assert condition is violated.
@@ -285,6 +289,7 @@ nsXSSUtils::DecodeHTMLEntities(const nsAString& aString, nsAString& result,
   result = aString;
 
   Element *rootElement = doc->GetRootElement();
+  
   if (rootElement) {
     LOG_XSS("Has root element.");
     if (rootElement->GetNameSpaceID() == kNameSpaceID_SVG) {

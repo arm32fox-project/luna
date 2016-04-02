@@ -6,5 +6,6 @@
 
 EXPORTS.vorbis += [
     'codec.h',
+    'vorbisenc.h',
 ]
 

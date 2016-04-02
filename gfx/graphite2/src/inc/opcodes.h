@@ -76,7 +76,7 @@ of the License or (at your option) any later version.
 #define push(n)             { *++sp = n; }
 #define pop()               (*sp--)
 #define slotat(x)           (map[(x)])
-#define DIE                 { is=seg.last(); EXIT(1); }
+#define DIE                 { is=seg.last(); status = Machine::died_early; EXIT(1); }
 #define POSITIONED          1
 
 STARTOP(nop)
@@ -242,7 +242,7 @@ ENDOP
 STARTOP(put_copy)
     declare_params(1);
     const int  slot_ref = int8(*param);
-    if (is)
+    if (is && !is->isDeleted())
     {
         slotref ref = slotat(slot_ref);
         if (ref && ref != is)
@@ -267,6 +267,7 @@ STARTOP(put_copy)
 ENDOP
 
 STARTOP(insert)
+    if (smap.decMax() <= 0) DIE;
     Slot *newSlot = seg.newSlot();
     if (!newSlot) DIE;
     Slot *iss = is;
@@ -392,7 +393,7 @@ STARTOP(attr_add)
     const          int  val  = int(pop());
     if ((slat == gr_slatPosX || slat == gr_slatPosY) && (flags & POSITIONED) == 0)
     {
-        seg.positionSlots(0, *smap.begin(), *(smap.end()-1), dir);
+        seg.positionSlots(0, *smap.begin(), *(smap.end()-1), seg.currdir());
         flags |= POSITIONED;
     }
     int res = is->getAttr(&seg, slat, 0);
@@ -405,7 +406,7 @@ STARTOP(attr_sub)
     const          int  val  = int(pop());
     if ((slat == gr_slatPosX || slat == gr_slatPosY) && (flags & POSITIONED) == 0)
     {
-        seg.positionSlots(0, *smap.begin(), *(smap.end()-1), dir);
+        seg.positionSlots(0, *smap.begin(), *(smap.end()-1), seg.currdir());
         flags |= POSITIONED;
     }
     int res = is->getAttr(&seg, slat, 0);
@@ -434,7 +435,7 @@ STARTOP(push_slot_attr)
     const int           slot_ref = int8(param[1]);
     if ((slat == gr_slatPosX || slat == gr_slatPosY) && (flags & POSITIONED) == 0)
     {
-        seg.positionSlots(0, *smap.begin(), *(smap.end()-1), dir);
+        seg.positionSlots(0, *smap.begin(), *(smap.end()-1), seg.currdir());
         flags |= POSITIONED;
     }
     slotref slot = slotat(slot_ref);
@@ -510,7 +511,7 @@ STARTOP(push_islot_attr)
                         idx      = uint8(param[2]);
     if ((slat == gr_slatPosX || slat == gr_slatPosY) && (flags & POSITIONED) == 0)
     {
-        seg.positionSlots(0, *smap.begin(), *(smap.end()-1), dir);
+        seg.positionSlots(0, *smap.begin(), *(smap.end()-1), seg.currdir());
         flags |= POSITIONED;
     }
     slotref slot = slotat(slot_ref);
@@ -555,7 +556,7 @@ STARTOP(iattr_add)
     const          int  val  = int(pop());
     if ((slat == gr_slatPosX || slat == gr_slatPosY) && (flags & POSITIONED) == 0)
     {
-        seg.positionSlots(0, *smap.begin(), *(smap.end()-1), dir);
+        seg.positionSlots(0, *smap.begin(), *(smap.end()-1), seg.currdir());
         flags |= POSITIONED;
     }
     int res = is->getAttr(&seg, slat, idx);
@@ -569,7 +570,7 @@ STARTOP(iattr_sub)
     const          int  val  = int(pop());
     if ((slat == gr_slatPosX || slat == gr_slatPosY) && (flags & POSITIONED) == 0)
     {
-        seg.positionSlots(0, *smap.begin(), *(smap.end()-1), dir);
+        seg.positionSlots(0, *smap.begin(), *(smap.end()-1), seg.currdir());
         flags |= POSITIONED;
     }
     int res = is->getAttr(&seg, slat, idx);
