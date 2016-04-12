@@ -61,7 +61,7 @@ bool CachedFace::runGraphite(Segment *seg, const Silf *pSilf) const
     if (silfIndex == m_numSilf)  return false;
     SegCache * const segCache = m_cacheStore->getOrCreate(silfIndex, seg->getFeatures(0));
     if (!segCache)
-    	return false;
+        return false;
 
     assert(m_cacheStore);
     // find where the segment can be broken
@@ -69,25 +69,25 @@ bool CachedFace::runGraphite(Segment *seg, const Silf *pSilf) const
     Slot * subSegEndSlot = subSegStartSlot;
     uint16 cmapGlyphs[eMaxSpliceSize];
     int subSegStart = 0;
-    for (unsigned int i = 0; i < seg->charInfoCount(); ++i)
+    for (unsigned int i = 0; i < seg->charInfoCount() && subSegEndSlot; ++i)
     {
-    	const unsigned int length = i - subSegStart + 1;
-        if (length < eMaxSpliceSize)
+        const unsigned int length = i - subSegStart + 1;
+        if (length < eMaxSpliceSize && subSegEndSlot->gid() < m_cacheStore->maxCmapGid())
             cmapGlyphs[length-1] = subSegEndSlot->gid();
         else return false;
         const bool spaceOnly = m_cacheStore->isSpaceGlyph(subSegEndSlot->gid());
         // at this stage the character to slot mapping is still 1 to 1
-        const int	breakWeight = seg->charinfo(i)->breakWeight(),
-        		 	nextBreakWeight = (i + 1 < seg->charInfoCount())?
-        		 			seg->charinfo(i+1)->breakWeight() : 0;
+        const int   breakWeight = seg->charinfo(i)->breakWeight(),
+                    nextBreakWeight = (i + 1 < seg->charInfoCount())?
+                            seg->charinfo(i+1)->breakWeight() : 0;
         const uint8 f = seg->charinfo(i)->flags();
         if (((spaceOnly
-				|| (breakWeight > 0 && breakWeight <= gr_breakWord)
-				|| i + 1 == seg->charInfoCount()
-				|| ((nextBreakWeight < 0 && nextBreakWeight >= gr_breakBeforeWord)
-					|| (subSegEndSlot->next() && m_cacheStore->isSpaceGlyph(subSegEndSlot->next()->gid()))))
-				&& f != 1)
-			|| f == 2)
+                || (breakWeight > 0 && breakWeight <= gr_breakWord)
+                || i + 1 == seg->charInfoCount()
+                || ((nextBreakWeight < 0 && nextBreakWeight >= gr_breakBeforeWord)
+                    || (subSegEndSlot->next() && m_cacheStore->isSpaceGlyph(subSegEndSlot->next()->gid()))))
+                && f != 1)
+            || f == 2)
         {
             // record the next slot before any splicing
             Slot * nextSlot = subSegEndSlot->next();
@@ -103,8 +103,8 @@ bool CachedFace::runGraphite(Segment *seg, const Silf *pSilf) const
                     pSilf->runGraphite(seg, pSilf->substitutionPass(), pSilf->numPasses());
                     if (length < eMaxSpliceSize)
                     {
-                        seg->associateChars();
-                        entry = segCache->cache(m_cacheStore, cmapGlyphs, length, seg, subSegStart);
+                        seg->associateChars(subSegStart, length);
+                        segCache->cache(m_cacheStore, cmapGlyphs, length, seg, subSegStart);
                     }
                     seg->removeScope(scopeState);
                 }
