@@ -188,7 +188,11 @@
     #main-window[sizemode="maximized"]::after {
       top: -5px;
     }
-
+    
+    #main-window[darkwindowframe="true"]::after {
+      /* Dark window frame/accent color on Win 8/10 */
+      color: white;
+    }
   }
   
 }

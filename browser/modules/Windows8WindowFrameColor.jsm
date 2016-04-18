@@ -17,11 +17,13 @@ const Windows8WindowFrameColor = {
   get: function() {
     if (this._windowFrameColor)
       return this._windowFrameColor;
-
-    let windowFrameColor = WindowsRegistry.readRegKey(Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER,
-                                                      "Software\\Microsoft\\Windows\\DWM",
+    
+    let HKCU = Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER;
+    let dwmKey = "Software\\Microsoft\\Windows\\DWM";
+    
+    let windowFrameColor = WindowsRegistry.readRegKey(HKCU, dwmKey,
                                                       "ColorizationColor");
-    if (!customizationColor) {
+    if (!windowFrameColor) {
       // This seems to be the default color if unset
       return [158, 158, 158];
     }
