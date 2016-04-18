@@ -21,13 +21,26 @@ const Windows8WindowFrameColor = {
     let windowFrameColor = WindowsRegistry.readRegKey(Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER,
                                                       "Software\\Microsoft\\Windows\\DWM",
                                                       "ColorizationColor");
+    if (!customizationColor) {
+      // This seems to be the default color if unset
+      return [158, 158, 158];
+    }
     // The color returned from the Registry is in decimal form.
     let windowFrameColorHex = windowFrameColor.toString(16);
     // Zero-pad the number just to make sure that it is 8 digits.
     windowFrameColorHex = ("00000000" + windowFrameColorHex).substr(-8);
     let windowFrameColorArray = windowFrameColorHex.match(/../g);
-    let [pixelA, pixelR, pixelG, pixelB] = windowFrameColorArray.map(function(val) parseInt(val, 16));
+    let [unused, fgR, fgG, fgB] = windowFrameColorArray.map(function(val) parseInt(val, 16));
+    let windowFrameColorBalance = WindowsRegistry.readRegKey(HKCU, dwmKey,
+                                                             "ColorizationColorBalance") || 0.5;
+    // Window frame base color when Color Intensity is at 0.
+    let frameBaseColor = 217;
+    let alpha = windowFrameColorBalance / 100;
 
-    return this._windowFrameColor = [pixelR, pixelG, pixelB];
+    // Alpha-blend the foreground color with the frame base color.
+    let r = Math.round(fgR * alpha + frameBaseColor * (1 - alpha));
+    let g = Math.round(fgG * alpha + frameBaseColor * (1 - alpha));
+    let b = Math.round(fgB * alpha + frameBaseColor * (1 - alpha));
+    return this._windowFrameColor = [r, g, b];
   },
 };
