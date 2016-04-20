@@ -1953,7 +1953,7 @@ TextInputHandler::InsertText(NSAttributedString *aAttrString)
      TrueOrFalse(IgnoreIMEComposition()),
      currentKeyEvent ? currentKeyEvent->mKeyEvent : nullptr,
      currentKeyEvent ?
-       TTrueOrFalse(currentKeyEvent->mKeyDownHandled) : "N/A",
+       TrueOrFalse(currentKeyEvent->mKeyDownHandled) : "N/A",
      currentKeyEvent ?
        TrueOrFalse(currentKeyEvent->mKeyPressDispatched) : "N/A",
      currentKeyEvent ?
