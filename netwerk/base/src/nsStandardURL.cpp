@@ -477,16 +477,10 @@ nsStandardURL::CoalescePath(netCoalesceFlags coalesceFlag, char *path)
 }
 
 uint32_t
-nsStandardURL::AppendSegmentToBuf(char *buf, uint32_t i, const char *str, 
-                                  URLSegment &seg, const nsCString *escapedStr, 
-                                  bool useEscaped, uint32_t *diff)
+nsStandardURL::AppendSegmentToBuf(char *buf, uint32_t i, const char *str, URLSegment &seg, const nsCString *escapedStr, bool useEscaped)
 {
-    if (diff) *diff = 0;
-    
     if (seg.mLen > 0) {
         if (useEscaped) {
-            MOZ_ASSERT(diff);
-            *diff = escapedStr->Length() - seg.mLen;
             seg.mLen = escapedStr->Length();
             memcpy(buf + i, escapedStr->get(), seg.mLen);
         }
@@ -606,7 +600,7 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
         return NS_ERROR_OUT_OF_MEMORY;
     char *buf;
     mSpec.BeginWriting(buf);
-    uint32_t i = 0, diff = 0;
+    uint32_t i = 0;
 
     if (mScheme.mLen > 0) {
         i = AppendSegmentToBuf(buf, i, spec, mScheme);
@@ -619,27 +613,15 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
 
     // append authority
     if (mUsername.mLen > 0) {
-        i = AppendSegmentToBuf(buf, i, spec, mUsername, &encUsername,
-                               useEncUsername, &diff);
-        if (diff) {
-            ShiftFromUsername(diff);
-        }
+        i = AppendSegmentToBuf(buf, i, spec, mUsername, &encUsername, useEncUsername);
         if (mPassword.mLen >= 0) {
             buf[i++] = ':';
-            i = AppendSegmentToBuf(buf, i, spec, mPassword, &encPassword,
-                                   useEncPassword, &diff);
-            if (diff) {
-                ShiftFromPassword(diff);
-            }
+            i = AppendSegmentToBuf(buf, i, spec, mPassword, &encPassword, useEncPassword);
         }
         buf[i++] = '@';
     }
     if (mHost.mLen > 0) {
-        i = AppendSegmentToBuf(buf, i, spec, mHost, &encHost, useEncHost,
-                               &diff);
-        if (diff) {
-            ShiftFromHost(diff);
-        }
+        i = AppendSegmentToBuf(buf, i, spec, mHost, &encHost, useEncHost);
         net_ToLowerCase(buf + mHost.mPos, mHost.mLen);
         NS_ABORT_IF_FALSE(mPort > 0 || mPort == -1, "Invalid negative mPort");
         if (mPort != -1 && mPort != mDefaultPort) {
@@ -678,11 +660,7 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
         // record corrected (file)path starting position
         mPath.mPos = mFilepath.mPos = i - leadingSlash;
 
-        i = AppendSegmentToBuf(buf, i, spec, mDirectory, &encDirectory,
-                               useEncDirectory, &diff);
-        if (diff) {
-            ShiftFromDirectory(diff);
-        }
+        i = AppendSegmentToBuf(buf, i, spec, mDirectory, &encDirectory, useEncDirectory);
 
         // the directory must end with a '/'
         if (buf[i-1] != '/') {
@@ -690,11 +668,7 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
             mDirectory.mLen++;
         }
 
-        i = AppendSegmentToBuf(buf, i, spec, mBasename, &encBasename,
-                               useEncBasename, &diff);
-        if (diff) {
-            ShiftFromBasename(diff);
-        }
+        i = AppendSegmentToBuf(buf, i, spec, mBasename, &encBasename, useEncBasename);
 
         // make corrections to directory segment if leadingSlash
         if (leadingSlash) {
@@ -707,30 +681,18 @@ nsStandardURL::BuildNormalizedSpec(const char *spec)
 
         if (mExtension.mLen >= 0) {
             buf[i++] = '.';
-            i = AppendSegmentToBuf(buf, i, spec, mExtension, &encExtension,
-                                   useEncExtension, &diff);
-            if (diff) {
-                ShiftFromExtension(diff);
-            }
+            i = AppendSegmentToBuf(buf, i, spec, mExtension, &encExtension, useEncExtension);
         }
         // calculate corrected filepath length
         mFilepath.mLen = i - mFilepath.mPos;
 
         if (mQuery.mLen >= 0) {
             buf[i++] = '?';
-            i = AppendSegmentToBuf(buf, i, spec, mQuery, &encQuery, useEncQuery,
-                                   &diff);
-            if (diff) {
-                ShiftFromQuery(diff);
-            }
+            i = AppendSegmentToBuf(buf, i, spec, mQuery, &encQuery, useEncQuery);
         }
         if (mRef.mLen >= 0) {
             buf[i++] = '#';
-            i = AppendSegmentToBuf(buf, i, spec, mRef, &encRef, useEncRef,
-                                   &diff);
-            if (diff) {
-                ShiftFromRef(diff);
-            }
+            i = AppendSegmentToBuf(buf, i, spec, mRef, &encRef, useEncRef);
         }
         // calculate corrected path length
         mPath.mLen = i - mPath.mPos;
