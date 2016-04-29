@@ -491,6 +491,7 @@ void
 js_ReportOutOfMemory(JSContext *cx)
 {
     cx->runtime()->hadOutOfMemory = true;
+    AutoSuppressGC suppressGC(cx);
 
     if (JS_IsRunning(cx)) {
         cx->setPendingException(StringValue(cx->names().outOfMemory));
@@ -511,7 +512,6 @@ js_ReportOutOfMemory(JSContext *cx)
 
     /* Report the error. */
     if (JSErrorReporter onError = cx->errorReporter) {
-        AutoSuppressGC suppressGC(cx);
         onError(cx, msg, &report);
     }
 }
