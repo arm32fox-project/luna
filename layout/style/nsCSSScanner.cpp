@@ -1130,11 +1130,11 @@ nsCSSScanner::Next(nsCSSToken& aToken, bool aSkipWS)
   }
 
   // '-' can start an identifier-family token, a number-family token,
-  // or an HTML-comment
+  // a variable, or an HTML-comment
   if (ch == '-') {
     int32_t c2 = Peek(1);
     int32_t c3 = Peek(2);
-    if (IsIdentStart(c2)) {
+    if (IsIdentStart(c2) || (c2 == '-' && c3 != '>')) {
       return ScanIdent(aToken);
     }
     if (IsDigit(c2) || (c2 == '.' && IsDigit(c3))) {
