@@ -46,4 +46,8 @@ ifneq (Android,$(OS_TARGET))
 EXTRA_PP_JS_MODULES += LightweightThemeConsumer.jsm
 endif
 
+ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
+EXTRA_JS_MODULES += WindowsRegistry.jsm
+endif
+
 include $(topsrcdir)/config/rules.mk
