@@ -160,6 +160,7 @@
 
 @media (-moz-windows-compositor) {
   #main-window {
+    background-color: transparent;
     -moz-appearance: -moz-win-glass;
   }
 
@@ -173,13 +174,15 @@
 /* ==== Windows 10 styling ==== */
 
   @media (-moz-os-version: windows-win10) {
-    /* Draw XUL caption buttons and background on Win10 */
-    @media (-moz-windows-default-theme) {
+    /* Draw XUL caption buttons Win10 in lwthemes */
+    /*
+	@media (-moz-windows-default-theme) {
       #main-window {
-        /* Bleach it a little less than bright white, thanks. */
+        /* Bleach it a little less than bright white, thanks.
         background-color: hsl(0, 0%, 90%);
       }
-    }
+    } 
+	*/
 
     #titlebar-buttonbox,
     .titlebar-button {
@@ -189,7 +192,7 @@
     .titlebar-button {
       border: none;
       margin: 0 !important;
-      padding: 8px 17px;
+      padding: 9px 17px;
     }
         
     #main-window[sizemode="maximized"][tabsontop=true] #tabbrowser-tabs {
@@ -210,6 +213,7 @@
       margin-top: -4px;
     }
 
+	/*
     #titlebar-min {
       list-style-image: url(chrome://browser/skin/caption-buttons.svg#minimize);
     }
@@ -225,6 +229,12 @@
     #titlebar-close {
       list-style-image: url(chrome://browser/skin/caption-buttons.svg#close);
     }
+	*/
+	
+	#main-window[sizemode="maximized"] #titlebar-close {
+      padding-right: 19px;
+    }
+	
     #titlebar-close:hover {
       list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
     }
@@ -314,13 +324,15 @@
       }
     }
 
-    @media (-moz-windows-default-theme) {
+    /*@media (-moz-windows-default-theme) {*/
       .titlebar-button:hover {
         background-color: hsla(0, 0%, 0%, .12);
+        transition: background-color linear 100ms;
       }
 
       .titlebar-button:hover:active {
         background-color: hsla(0, 0%, 0%, .22);
+        transition: none;
       }
 
       .titlebar-button:not(:hover) > .toolbarbutton-icon:-moz-window-inactive {
@@ -335,16 +347,19 @@
         background-color: hsl(355, 82%, 69%);
       }
           
-      /* dark persona */
-      .titlebar-button:-moz-lwtheme-brighttext:hover {
+      /* dark persona/titlebar */
+      .titlebar-button:-moz-lwtheme-brighttext:hover,
+      #main-window[darkwindowframe="true"] .titlebar-button:hover {
         background-color: hsla(0, 0%, 255%, .22);
       }
 
-      .titlebar-button:-moz-lwtheme-brighttext:hover:active {
+      .titlebar-button:-moz-lwtheme-brighttext:hover:active,
+      #main-window[darkwindowframe="true"] .titlebar-button:hover:active	{
         background-color: hsla(0, 0%, 255%, .32);
       }
-    }
-        
+    /*}*/
+      
+    /*  
     @media not all and (-moz-windows-default-theme) {
       .titlebar-button {
         background-color: -moz-field;
@@ -369,6 +384,7 @@
         list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
       }
     }
+	*/
         
     #appmenu-button {
       margin-top: -1px;
@@ -386,7 +402,6 @@
      * We can't use -moz-win-glass there because the border sizing would
      * not be correct. */
     #main-window {
-      background-color: transparent;
       -moz-appearance: -moz-win-borderless-glass;
     }
     
