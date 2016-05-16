@@ -983,7 +983,7 @@ var gBrowserInit = {
 
 #ifdef XP_WIN
     if ((window.matchMedia("(-moz-os-version: windows-win8)").matches ||
-         window.matchMedia("(-moz-os-version: windows-win10)").matches || true) &&
+         window.matchMedia("(-moz-os-version: windows-win10)").matches) &&
         window.matchMedia("(-moz-windows-default-theme)").matches) {
       let windows8WindowFrameColor = Cu.import("resource:///modules/Windows8WindowFrameColor.jsm", {}).Windows8WindowFrameColor;
       let windowFrameColor = windows8WindowFrameColor.get();
