@@ -982,7 +982,8 @@ var gBrowserInit = {
     retrieveToolbarIconsizesFromTheme();
 
 #ifdef XP_WIN
-    if (window.matchMedia("(-moz-os-version: windows-win8)").matches &&
+    if ((window.matchMedia("(-moz-os-version: windows-win8)").matches ||
+         window.matchMedia("(-moz-os-version: windows-win10)").matches || true) &&
         window.matchMedia("(-moz-windows-default-theme)").matches) {
       let windows8WindowFrameColor = Cu.import("resource:///modules/Windows8WindowFrameColor.jsm", {}).Windows8WindowFrameColor;
       let windowFrameColor = windows8WindowFrameColor.get();
@@ -1000,7 +1001,7 @@ var gBrowserInit = {
                                 windowFrameColor[2] * 0.0722;
       let foregroundLuminance = 0; // Default to black for foreground text.
       let contrastRatio = (backgroundLuminance + 0.05) / (foregroundLuminance + 0.05);
-      if (contrastRatio < 3) {
+      if (contrastRatio < 4.7) {
         document.documentElement.setAttribute("darkwindowframe", "true");
       }
     }
