@@ -209,10 +209,22 @@
       padding-right: 19px;
     }
 	
-    #titlebar-close:hover {
+    #titlebar-close {
       list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
+      background-color: hsl(0, 86%, 49%) !important; 
+      opacity: 0;
+    }
+    
+    #titlebar-close:hover {
+      opacity: 1;
+      transition: opacity linear 100ms;
     }
 
+    #titlebar-close:hover:active {
+      background-color: hsl(0, 86%, 42%) !important; 
+      transition: none;
+    }
+    
     /* light persona */
     
     #titlebar-min:-moz-lwtheme-darktext {
