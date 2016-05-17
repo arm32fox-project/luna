@@ -321,3 +321,22 @@ label[disabled="true"]:-moz-system-metric(windows-classic) {
   background-position: left bottom;
 %endif
 }
+
+/* :::::: Close button icons ::::: */
+
+.close-icon {
+  list-style-image: url("chrome://global/skin/icons/close.png");
+  -moz-image-region: rect(0, 16px, 16px, 0);
+}
+
+.close-icon:hover {
+  -moz-image-region: rect(0, 32px, 16px, 16px);
+}
+
+.close-icon:hover:active {
+  -moz-image-region: rect(0, 48px, 16px, 32px);
+}
+
+.close-icon[selected="true"]:not(:hover):not(:active) {
+  -moz-image-region: rect(0, 16px, 16px, 0);
+}

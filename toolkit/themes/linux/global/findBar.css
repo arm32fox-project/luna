@@ -4,10 +4,6 @@
 
 @namespace url("http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul");
 
-.findbar-closebutton {
-  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
-}
-
 findbar {
   border-top: 2px solid;
   -moz-border-top-colors: ThreeDShadow ThreeDHighlight;
