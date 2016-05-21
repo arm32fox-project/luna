@@ -1456,6 +1456,10 @@ richlistitem[type~="action"][actiontype="switchtab"][selected="true"] > .ac-url-
     padding: 0px;
 }
 
+.tab-close-button:-moz-lwtheme-brighttext {
+    list-style-image: url("chrome://global/skin/icons/close-inverted.png");
+}
+
 @media (min-resolution: 2dppx) {
     .tab-close-button:-moz-lwtheme-brighttext {
         list-style-image: url("chrome://global/skin/icons/close-inverted@2x.png");
@@ -1582,9 +1586,13 @@ toolbar[brighttext] #alltabs-button[type="menu"] {
     border: none;
 }
 
+toolbar[brighttext] .tabs-closebutton {
+    list-style-image: url("chrome://global/skin/icons/close-inverted.png");
+}
+
 @media (min-resolution: 2dppx) {
     toolbar[brighttext] .tabs-closebutton {
-        list-style-image: url("chrome://global/skin/icons/close-inverted.png");
+        list-style-image: url("chrome://global/skin/icons/close-inverted@2x.png");
     }
 }
   
@@ -2186,10 +2194,13 @@ toolbarbutton.bookmark-item[dragover="true"][open="true"] {
     -moz-appearance: none;
 }
 
+toolbar[brighttext] #addonbar-closebutton {
+    list-style-image: url("chrome://global/skin/icons/close-inverted.png");
+}
 
 @media (min-resolution: 2dppx) {
     toolbar[brighttext] #addonbar-closebutton {
-        list-style-image: url("chrome://global/skin/icons/close-inverted.png");
+        list-style-image: url("chrome://global/skin/icons/close-inverted@2x.png");
     }
 }
 
