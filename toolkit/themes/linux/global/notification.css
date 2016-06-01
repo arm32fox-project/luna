@@ -66,7 +66,3 @@ notification[type="critical"] {
 .popup-notification-button-container {
   margin-top: 17px;
 }
-
-.popup-notification-closeitem {
-  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
-}

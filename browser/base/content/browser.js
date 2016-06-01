@@ -980,9 +980,11 @@ var gBrowserInit = {
     gPrivateBrowsingUI.init();
     TabsInTitlebar.init();
     retrieveToolbarIconsizesFromTheme();
+	ToolbarIconColor.init();
 
 #ifdef XP_WIN
-    if (window.matchMedia("(-moz-os-version: windows-win8)").matches &&
+    if ((window.matchMedia("(-moz-os-version: windows-win8)").matches ||
+         window.matchMedia("(-moz-os-version: windows-win10)").matches) &&
         window.matchMedia("(-moz-windows-default-theme)").matches) {
       let windows8WindowFrameColor = Cu.import("resource:///modules/Windows8WindowFrameColor.jsm", {}).Windows8WindowFrameColor;
       let windowFrameColor = windows8WindowFrameColor.get();
@@ -1000,7 +1002,7 @@ var gBrowserInit = {
                                 windowFrameColor[2] * 0.0722;
       let foregroundLuminance = 0; // Default to black for foreground text.
       let contrastRatio = (backgroundLuminance + 0.05) / (foregroundLuminance + 0.05);
-      if (contrastRatio < 3) {
+      if (contrastRatio < 4.7) {
         document.documentElement.setAttribute("darkwindowframe", "true");
       }
     }
@@ -1398,6 +1400,8 @@ var gBrowserInit = {
     TabsOnTop.uninit();
 
     TabsInTitlebar.uninit();
+	
+	ToolbarIconColor.uninit();
 
     var enumerator = Services.wm.getEnumerator(null);
     enumerator.getNext();
@@ -4566,6 +4570,9 @@ function setToolbarVisibility(toolbar, isVisible) {
 #ifdef MENUBAR_CAN_AUTOHIDE
   updateAppButtonDisplay();
 #endif
+
+  if (isVisible)
+	ToolbarIconColor.inferFromText();
 }
 
 var TabsOnTop = {
@@ -4716,6 +4723,8 @@ var TabsInTitlebar = {
 
       titlebar.style.marginBottom = "";
     }
+	
+    ToolbarIconColor.inferFromText();
   },
 
   _sizePlaceholder: function (type, width) {
@@ -7167,3 +7176,79 @@ let BrowserChromeTest = {
       this._cb = cb;
   }
 };
+
+let ToolbarIconColor = {
+  init: function () {
+    this._initialized = true;
+
+    window.addEventListener("activate", this);
+    window.addEventListener("deactivate", this);
+    Services.obs.addObserver(this, "lightweight-theme-styling-update", false);
+
+    // If the window isn't active now, we assume that it has never been active
+    // before and will soon become active such that inferFromText will be
+    // called from the initial activate event.
+    if (Services.focus.activeWindow == window)
+      this.inferFromText();
+  },
+
+  uninit: function () {
+    this._initialized = false;
+
+    window.removeEventListener("activate", this);
+    window.removeEventListener("deactivate", this);
+    Services.obs.removeObserver(this, "lightweight-theme-styling-update");
+  },
+
+  handleEvent: function (event) {
+    switch (event.type) {
+      case "activate":
+      case "deactivate":
+        this.inferFromText();
+        break;
+    }
+  },
+
+  observe: function (aSubject, aTopic, aData) {
+    switch (aTopic) {
+      case "lightweight-theme-styling-update":
+        // inferFromText needs to run after LightweightThemeConsumer.jsm's
+        // lightweight-theme-styling-update observer.
+        setTimeout(() => { this.inferFromText(); }, 0);
+        break;
+    }
+  },
+
+  inferFromText: function () {
+    if (!this._initialized)
+      return;
+
+    function parseRGB(aColorString) {
+      let rgb = aColorString.match(/^rgba?\((\d+), (\d+), (\d+)/);
+      rgb.shift();
+      return rgb.map(x => parseInt(x));
+    }
+
+    let toolbarSelector = "toolbar:not([collapsed=true])";
+#ifdef XP_MACOSX
+    toolbarSelector += ":not([type=menubar])";
+#endif
+
+    // The getComputedStyle calls and setting the brighttext are separated in
+    // two loops to avoid flushing layout and making it dirty repeatedly.
+
+    let luminances = new Map;
+    for (let toolbar of document.querySelectorAll(toolbarSelector)) {
+      let [r, g, b] = parseRGB(getComputedStyle(toolbar).color);
+      let luminance = 0.2125 * r + 0.7154 * g + 0.0721 * b;
+	  luminances.set(toolbar, luminance);
+    }
+
+    for (let [toolbar, luminance] of luminances) {
+      if (luminance <= 110)
+        toolbar.removeAttribute("brighttext");
+      else
+        toolbar.setAttribute("brighttext", "true");
+    }
+  }
+}

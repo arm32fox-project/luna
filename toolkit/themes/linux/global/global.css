@@ -306,3 +306,9 @@ notification > button {
 .autoscroller[scrolldir="EW"] {
   background-position: right bottom;
 }
+
+/* :::::: Close button icons ::::: */
+
+.close-icon {
+  list-style-image: url("moz-icon://stock/gtk-close?size=menu");
+}
