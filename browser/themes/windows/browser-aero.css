@@ -211,12 +211,12 @@
 	
     #titlebar-close:hover {
       list-style-image: url(chrome://browser/skin/caption-buttons.svg#close-highlight);
-      background-color: hsla(0, 86%, 49%, 1) !important; 
-      transition: opacity linear 100ms;
+      background-color: hsla(0, 86%, 49%, 1);
+      transition: background-color linear 160ms;
     }
 
     #titlebar-close:hover:active {
-      background-color: hsla(0, 86%, 49%, 0.6) !important; 
+      background-color: hsla(0, 86%, 49%, 0.6); 
       transition: none;
     }
     
@@ -306,12 +306,12 @@
     }
 
     .titlebar-button:hover {
-      background-color: hsla(0, 0%, 0%, .12);
-      transition: background-color linear 100ms;
+      background-color: hsla(0, 0%, 0%, .17);
+      transition: background-color linear 160ms;
     }
 
     .titlebar-button:hover:active {
-      background-color: hsla(0, 0%, 0%, .22);
+      background-color: hsla(0, 0%, 0%, .27);
       transition: none;
     }
 
@@ -322,13 +322,13 @@
     /* dark persona/titlebar */
     .titlebar-button:-moz-lwtheme-brighttext:hover,
     #main-window[darkwindowframe="true"] .titlebar-button:not(:-moz-window-inactive):not(:-moz-lwtheme):hover {
-      background-color: hsla(0, 0%, 100%, .12);
-      transition: background-color linear 100ms;
+      background-color: hsla(0, 0%, 100%, .17);
+      transition: background-color linear 160ms;
     }
 
     .titlebar-button:-moz-lwtheme-brighttext:hover:active,
     #main-window[darkwindowframe="true"] .titlebar-button:not(:-moz-window-inactive):not(:-moz-lwtheme):hover:active	{
-      background-color: hsla(0, 0%, 100%, .22);
+      background-color: hsla(0, 0%, 100%, .27);
       transition: none;
     }
       
