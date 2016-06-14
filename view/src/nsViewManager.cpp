@@ -385,7 +385,7 @@ void nsViewManager::ProcessPendingUpdatesForView(nsView* aView,
     if (widget && widget->NeedsPaint()) {
       // If an ancestor widget was hidden and then shown, we could
       // have a delayed resize to handle.
-      for (nsViewManager *vm = this; vm;
+      for (nsRefPtr<nsViewManager> vm = this; vm;
            vm = vm->mRootView->GetParent()
                   ? vm->mRootView->GetParent()->GetViewManager()
                   : nullptr) {
@@ -1024,6 +1024,7 @@ nsViewManager::ProcessPendingUpdates()
 
   // Flush things like reflows by calling WillPaint on observer presShells.
   if (mPresShell) {
+    nsRefPtr<nsViewManager> strongThis(this);
     CallWillPaintOnObservers();
   }
   ProcessPendingUpdatesForView(mRootView, true);
@@ -1039,6 +1040,7 @@ nsViewManager::UpdateWidgetGeometry()
 
   if (mHasPendingWidgetGeometryChanges) {
     mHasPendingWidgetGeometryChanges = false;
+    nsRefPtr<nsViewManager> strongThis(this);
     ProcessPendingUpdatesForView(mRootView, false);
   }
 }
