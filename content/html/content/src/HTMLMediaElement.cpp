@@ -1931,6 +1931,14 @@ HTMLMediaElement::HTMLMediaElement(already_AddRefed<nsINodeInfo> aNodeInfo)
     gMediaElementEventsLog = PR_NewLogModule("nsMediaElementEvents");
   }
 #endif
+  ErrorResult rv;
+
+  double defaultVolume = Preferences::GetFloat("media.default_volume", 1.0);
+  if (defaultVolume < 0.0 || defaultVolume > 1.0) {
+    // Invalid, set to default 1.0
+    defaultVolume = 1.0;
+  }
+  SetVolume(defaultVolume, rv);
 
   mPaused.SetOuter(this);
 

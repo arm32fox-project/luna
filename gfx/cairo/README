@@ -208,6 +208,8 @@ xlib-flush-glyphs.patch: bug 839745, flush glyphs when necessary
 
 dasharray-zero-gap.patch: bug 885585, ensure strokes get painted when the gaps in a dash array are all zero length
 
+no-pixman-image-reuse-across-threads.patch, Don't reuse pixman images when not thread-safe
+
 ==== pixman patches ====
 
 pixman-android-cpu-detect.patch: Add CPU detection support for Android, where we can't reliably access /proc/self/auxv.

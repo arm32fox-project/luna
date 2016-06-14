@@ -336,7 +336,3 @@ label[disabled="true"]:-moz-system-metric(windows-classic) {
 .close-icon:hover:active {
   -moz-image-region: rect(0, 48px, 16px, 32px);
 }
-
-.close-icon[selected="true"]:not(:hover):not(:active) {
-  -moz-image-region: rect(0, 16px, 16px, 0);
-}
