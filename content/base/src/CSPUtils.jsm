@@ -237,6 +237,7 @@ CSPRep.SRC_DIRECTIVES_OLD = {
   IMG_SRC:          "img-src",
   OBJECT_SRC:       "object-src",
   FRAME_SRC:        "frame-src",
+  CHILD_SRC:        "child-src",
   FRAME_ANCESTORS:  "frame-ancestors",
   FONT_SRC:         "font-src",
   XHR_SRC:          "xhr-src"
@@ -251,6 +252,7 @@ CSPRep.SRC_DIRECTIVES_NEW = {
   IMG_SRC:          "img-src",
   OBJECT_SRC:       "object-src",
   FRAME_SRC:        "frame-src",
+  CHILD_SRC:        "child-src",
   FRAME_ANCESTORS:  "frame-ancestors",
   FONT_SRC:         "font-src",
   CONNECT_SRC:      "connect-src"
@@ -377,7 +379,16 @@ CSPRep.fromString = function(aStr, self, reportOnly, docRequest, csp,
         var dv = CSPSourceList.fromString(dirvalue, aCSPR, selfUri,
                                           enforceSelfChecks);
         if (dv) {
-          aCSPR._directives[sdi] = dv;
+          if (dirname === CHILD_SRC) {
+            if(!aCSPR._directives[FRAME_SRC]) {
+              // We have a child-src but no frame-src, so fill the subdocument
+              // policy with the child-src policy value.
+              // Otherwise, let frame-src take precedence.
+              aCSPR._directives[FRAME_SRC] = dv;
+            }
+          } else {
+            aCSPR._directives[sdi] = dv;
+          }
           continue directive;
         }
       }
