@@ -95,7 +95,7 @@ static NS_DEFINE_CID(kSocketProviderServiceCID, NS_SOCKETPROVIDERSERVICE_CID);
 #define NS_HTTP_PROTOCOL_FLAGS (URI_STD | ALLOWS_PROXY | ALLOWS_PROXY_HTTP | URI_LOADABLE_BY_ANYONE)
 
 // Firefox compatibility version we claim in our UA
-#define MOZILLA_COMPATVERSION "45.9"
+#define MOZILLA_COMPATVERSION "38.9"
 
 //-----------------------------------------------------------------------------
 
