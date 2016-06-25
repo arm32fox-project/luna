@@ -25,8 +25,8 @@ const Windows8WindowFrameColor = {
                                                       "ColorizationColor");
     let colorizationUsed = WindowsRegistry.readRegKey(HKCU, dwmKey,
                                                       "EnableWindowColorization");
-    if (!windowFrameColor ||
-        !colorizationUsed ||
+    if (typeof windowFrameColor === "undefined" ||
+        typeof colorizationUsed === "undefined" ||
         colorizationUsed = 0) {
       // Return the default color if unset or colorization not used
       return [158, 158, 158];
@@ -38,7 +38,11 @@ const Windows8WindowFrameColor = {
     let windowFrameColorArray = windowFrameColorHex.match(/../g);
     let [unused, fgR, fgG, fgB] = windowFrameColorArray.map(function(val) parseInt(val, 16));
     let windowFrameColorBalance = WindowsRegistry.readRegKey(HKCU, dwmKey,
-                                                             "ColorizationColorBalance") || 78;
+                                                             "ColorizationColorBalance");
+    // Default to balance=78 if reg key isn't defined
+    if (typeof windowFrameColorBalance === "undefined") {
+      windowFrameColorBalance = 78;
+    }
     // Window frame base color when Color Intensity is at 0.
     let frameBaseColor = 217;
     let alpha = windowFrameColorBalance / 100;
