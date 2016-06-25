@@ -23,8 +23,12 @@ const Windows8WindowFrameColor = {
     
     let windowFrameColor = WindowsRegistry.readRegKey(HKCU, dwmKey,
                                                       "ColorizationColor");
-    if (!windowFrameColor) {
-      // This seems to be the default color if unset
+    let colorizationUsed = WindowsRegistry.readRegKey(HKCU, dwmKey,
+                                                      "EnableWindowColorization");
+    if (!windowFrameColor ||
+        !colorizationUsed ||
+        colorizationUsed = 0) {
+      // Return the default color if unset or colorization not used
       return [158, 158, 158];
     }
     // The color returned from the Registry is in decimal form.
