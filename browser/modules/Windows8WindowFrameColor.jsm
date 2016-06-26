@@ -20,6 +20,9 @@ const Windows8WindowFrameColor = {
     
     let HKCU = Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER;
     let dwmKey = "Software\\Microsoft\\Windows\\DWM";
+
+    // Window frame base color component values when Color Intensity is at 0.
+    let frameBaseColor = 217;
     
     let windowFrameColor = WindowsRegistry.readRegKey(HKCU, dwmKey,
                                                       "ColorizationColor");
@@ -31,7 +34,7 @@ const Windows8WindowFrameColor = {
     }
     if (typeof windowFrameColor === "undefined" || !win10ColorPrevalence) {
       // Return the default color if unset or colorization not used
-      return this._windowFrameColor = [158, 158, 158];
+      return this._windowFrameColor = [frameBaseColor, frameBaseColor, frameBaseColor];
     }
     // The color returned from the Registry is in decimal form.
     let windowFrameColorHex = windowFrameColor.toString(16);
@@ -45,8 +48,6 @@ const Windows8WindowFrameColor = {
     if (typeof windowFrameColorBalance === "undefined") {
       windowFrameColorBalance = 78;
     }
-    // Window frame base color when Color Intensity is at 0.
-    let frameBaseColor = 217;
     let alpha = windowFrameColorBalance / 100;
 
     // Alpha-blend the foreground color with the frame base color.
