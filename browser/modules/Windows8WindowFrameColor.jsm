@@ -23,13 +23,15 @@ const Windows8WindowFrameColor = {
     
     let windowFrameColor = WindowsRegistry.readRegKey(HKCU, dwmKey,
                                                       "ColorizationColor");
-    let colorizationUsed = WindowsRegistry.readRegKey(HKCU, dwmKey,
-                                                      "EnableWindowColorization");
-    if (typeof windowFrameColor === "undefined" ||
-        typeof colorizationUsed === "undefined" ||
-        colorizationUsed = 0) {
+    let win10ColorPrevalence = WindowsRegistry.readRegKey(HKCU, dwmKey,
+                                                          "ColorPrevalence");
+    if (typeof win10ColorPrevalence === "undefined") {
+      // Key doesn't exist, meaning we are on Win 8.x, where this is always true.
+      win10ColorPrevalence = 1;
+    }
+    if (typeof windowFrameColor === "undefined" || !win10ColorPrevalence) {
       // Return the default color if unset or colorization not used
-      return [158, 158, 158];
+      return this._windowFrameColor = [158, 158, 158];
     }
     // The color returned from the Registry is in decimal form.
     let windowFrameColorHex = windowFrameColor.toString(16);
