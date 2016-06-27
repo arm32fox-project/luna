@@ -237,7 +237,6 @@ CSPRep.SRC_DIRECTIVES_OLD = {
   IMG_SRC:          "img-src",
   OBJECT_SRC:       "object-src",
   FRAME_SRC:        "frame-src",
-  CHILD_SRC:        "child-src",
   FRAME_ANCESTORS:  "frame-ancestors",
   FONT_SRC:         "font-src",
   XHR_SRC:          "xhr-src"
@@ -252,7 +251,6 @@ CSPRep.SRC_DIRECTIVES_NEW = {
   IMG_SRC:          "img-src",
   OBJECT_SRC:       "object-src",
   FRAME_SRC:        "frame-src",
-  CHILD_SRC:        "child-src",
   FRAME_ANCESTORS:  "frame-ancestors",
   FONT_SRC:         "font-src",
   CONNECT_SRC:      "connect-src"
