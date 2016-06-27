@@ -379,16 +379,7 @@ CSPRep.fromString = function(aStr, self, reportOnly, docRequest, csp,
         var dv = CSPSourceList.fromString(dirvalue, aCSPR, selfUri,
                                           enforceSelfChecks);
         if (dv) {
-          if (dirname === CHILD_SRC) {
-            if(!aCSPR._directives[FRAME_SRC]) {
-              // We have a child-src but no frame-src, so fill the subdocument
-              // policy with the child-src policy value.
-              // Otherwise, let frame-src take precedence.
-              aCSPR._directives[FRAME_SRC] = dv;
-            }
-          } else {
-            aCSPR._directives[sdi] = dv;
-          }
+          aCSPR._directives[sdi] = dv;
           continue directive;
         }
       }
