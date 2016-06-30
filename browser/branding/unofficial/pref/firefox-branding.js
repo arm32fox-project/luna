@@ -65,7 +65,6 @@ pref("general.useragent.override.live.com","Mozilla/5.0 (Windows NT 6.1; WOW64; 
 pref("general.useragent.override.outlook.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
 pref("general.useragent.override.web.de","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
 pref("general.useragent.override.aol.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.0) Gecko/20100101 Firefox/38.0 (Pale Moon)");
-pref("general.useragent.override.docs.google.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
 pref("general.useragent.override.mail.google.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Goanna/2.0 Firefox/38.9 PaleMoon/26.0");
 pref("general.useragent.override.google.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Goanna/2.0 Firefox/31.9 PaleMoon/26.0");
 pref("general.useragent.override.googlevideos.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Goanna/2.0 Firefox/31.9 PaleMoon/26.0");
