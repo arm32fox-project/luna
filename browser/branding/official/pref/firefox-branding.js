@@ -80,6 +80,7 @@ pref("general.useragent.override.fbcdn.com","Mozilla/5.0 (Windows NT 6.1; WOW64;
 pref("general.useragent.override.chase.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:31.9) Gecko/20100101 Firefox/31.9");
 // Citi requires native mode. Or it blocks.. "too old firefox"
 pref("general.useragent.override.citi.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:2.0) Goanna/20160101 PaleMoon/26.0");
+pref("general.useragent.override.base.consultant.ru","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Firefox/38.9 (Pale Moon)");
 // Yuku fora don't like the Goanna slice (result: broken mobile site)
 pref("general.useragent.override.yuku.com","Mozilla/5.0 (Windows NT 6.1; WOW64; rv:38.9) Gecko/20100101 Firefox/38.9 PaleMoon/26.0");
 
