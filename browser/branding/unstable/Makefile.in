@@ -44,7 +44,7 @@ BRANDING_FILES := \
 	$(NULL)
 endif
 
-ifdef MOZ_WIDGET_GTK
+ifeq ($(MOZ_WIDGET_TOOLKIT),gtk2)
 BRANDING_FILES := \
 	default16.png \
 	default32.png \
@@ -52,7 +52,6 @@ BRANDING_FILES := \
 	mozicon128.png \
 	$(NULL)
 endif
-
 
 BRANDING_DEST := $(DIST)/branding
 BRANDING_TARGET := export
