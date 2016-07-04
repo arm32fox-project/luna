@@ -25,10 +25,12 @@ DOMError::DOMError(nsPIDOMWindow* aWindow, nsresult aValue)
   : mWindow(aWindow)
 {
   const char *name, *message;
-  NS_GetNameAndMessageForDOMNSResult(aValue, &name, &message);
+  nsresult rv = NS_GetNameAndMessageForDOMNSResult(aValue, &name, &message);
 
-  mName = NS_ConvertASCIItoUTF16(name);
-  mMessage = NS_ConvertASCIItoUTF16(message);
+  if (rv == NS_OK) {
+    mName = NS_ConvertASCIItoUTF16(name);
+    mMessage = NS_ConvertASCIItoUTF16(message);
+  }
 
   SetIsDOMBinding();
 }
