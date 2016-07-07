@@ -6,8 +6,8 @@ pref("startup.homepage_welcome_url","http://www.palemoon.org/firstrun.shtml");
 pref("app.update.interval", 172800);
 pref("app.update.auto", false);
 pref("app.update.enabled", true);
-// URL for update checks, re-enabled on palemoon.org (369)
-pref("app.update.url", "http://www.palemoon.org/update/unstable/update.xml");
+// URL for update checks
+pref("app.update.url", "http://www.palemoon.org/update/unstable/update.php?build=%BUILD_ID%");
 pref("app.update.promptWaitTime", 86400); 
 // The time interval between the downloading of mar file chunks in the
 // background (in seconds)
