@@ -2,12 +2,12 @@
 
 pref("startup.homepage_override_url","http://www.palemoon.org/releasenotes.shtml");
 pref("startup.homepage_welcome_url","http://www.palemoon.org/firstrun.shtml");
-// Interval: Time between checks for a new version (in seconds) -- 2 days for Pale Moon
-pref("app.update.interval", 172800);
-pref("app.update.auto", false);
+// Interval: Time between checks for a new version (in seconds) -- 6 hours for unstable
+pref("app.update.interval", 21600);
+pref("app.update.auto", true);
 pref("app.update.enabled", true);
 // URL for update checks
-pref("app.update.url", "http://www.palemoon.org/update/unstable/update.php?build=%BUILD_ID%");
+pref("app.update.url", "http://www.palemoon.org/unstable/update.xml");
 pref("app.update.promptWaitTime", 86400); 
 // The time interval between the downloading of mar file chunks in the
 // background (in seconds)
