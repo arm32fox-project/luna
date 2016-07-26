@@ -8976,6 +8976,9 @@ if test -z "$MOZ_NATIVE_JEMALLOC" -a "$MOZ_MEMORY" && test -n "$MOZ_JEMALLOC3" -
   _save_cache_file="$cache_file"
   cache_file=$_objdir/memory/jemalloc/src/config.cache
 
+  # Make Linux builds munmap freed chunks instead of recycling them.
+  ac_configure_args="$ac_configure_args --enable-munmap"
+
   if ! test -e memory/jemalloc; then
     mkdir -p memory/jemalloc
   fi
