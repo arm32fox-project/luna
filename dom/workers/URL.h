@@ -93,6 +93,11 @@ public:
 
   void SetHash(const nsAString& aHash);
 
+  void Stringify(nsString& aRetval) const
+  {
+    GetHref(aRetval);
+  }
+
 private:
   URLProxy* GetURLProxy() const
   {

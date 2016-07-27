@@ -103,6 +103,11 @@ public:
 
   void SetHash(const nsAString& aArg);
 
+  void Stringify(nsString& aRetval) const
+  {
+    GetHref(aRetval);
+  }
+
 private:
   nsIURI* GetURI() const
   {
