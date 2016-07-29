@@ -2725,7 +2725,7 @@ dnl Checks for header files.
 dnl ========================================================
 AC_HEADER_DIRENT
 case "$target_os" in
-bitrig*|dragonfly*|freebsd*|openbsd*)
+freebsd*|openbsd*)
 # for stuff like -lXshm
     CPPFLAGS="${CPPFLAGS} ${X_CFLAGS}"
     ;;
@@ -3122,9 +3122,6 @@ AC_CACHE_CHECK(
         #ifdef linux
         #define _BSD_SOURCE 1
         #endif
-        #include <sys/types.h>
-        #include <netinet/in.h>
-        #include <arpa/nameser.h>
         #include <resolv.h>
         ],
         [int foo = res_ninit(&_res);],
@@ -4048,6 +4045,7 @@ NS_PRINTING=1
 MOZ_PDF_PRINTING=
 MOZ_DISABLE_CRYPTOLEGACY=
 NSS_DISABLE_DBM=
+NECKO_WIFI=1
 NECKO_COOKIES=1
 NECKO_PROTOCOLS_DEFAULT="about data file ftp http res viewsource websocket wyciwyg device"
 USE_ARM_KUSER=
@@ -4077,6 +4075,11 @@ case "${target}" in
         fi
 
         NSS_DISABLE_DBM=1
+        if test -z "$gonkdir"; then
+          NECKO_WIFI=
+        else
+          NECKO_WIFI=1
+        fi
         MOZ_THEME_FASTSTRIPE=1
         MOZ_TREE_FREETYPE=1
         MOZ_MEMORY=1
@@ -5554,16 +5557,9 @@ dnl = Disable PulseAudio
 dnl ========================================================
 
 dnl If using libcubeb with Linux, ensure that the PA library is available
-case "$OS_TARGET" in
-WINNT|Darwin|Android|OpenBSD)
-    ;;
-*)
-    if test -n "$MOZ_CUBEB" -a -z "$MOZ_B2G"; then
-        MOZ_PULSEAUDIO=1
-    fi
-    ;;
-esac
-
+if test -n "$MOZ_CUBEB" -a "$OS_TARGET" = "Linux" -a -z "$MOZ_B2G"; then
+    MOZ_PULSEAUDIO=1
+fi
 MOZ_ARG_DISABLE_BOOL(pulseaudio,
 [  --disable-pulseaudio          Disable PulseAudio support],
    MOZ_PULSEAUDIO=,
@@ -5586,14 +5582,10 @@ AC_SUBST(MOZ_PULSEAUDIO_CFLAGS)
 dnl ========================================================
 dnl = Enable GStreamer
 dnl ========================================================
-case "$OS_TARGET" in
-WINNT|Darwin|Android)
-    ;;
-*)
-    MOZ_GSTREAMER=1
-    GST_API_VERSION=1.0
-    ;;
-esac
+if test "$OS_TARGET" = "Linux"; then
+  MOZ_GSTREAMER=1
+  GST_API_VERSION=1.0
+fi
 
 MOZ_ARG_ENABLE_STRING(gstreamer,
 [ --enable-gstreamer[=0.10]     Enable GStreamer support],
@@ -8146,36 +8138,24 @@ done
 dnl
 dnl option to disable necko's wifi scanner
 dnl
-
-case "$OS_TARGET" in
-  Android)
-    if test -n "$gonkdir"; then
-      NECKO_WIFI=1
-    fi
-    ;;
-  Darwin|DragonFly|FreeBSD|SunOS|WINNT)
-    NECKO_WIFI=1
-    ;;
-  Linux)
-    NECKO_WIFI=1
-    NECKO_WIFI_DBUS=1
-    ;;
-esac
-
 MOZ_ARG_DISABLE_BOOL(necko-wifi,
 [  --disable-necko-wifi    Disable necko wifi scanner],
     NECKO_WIFI=,
     NECKO_WIFI=1)
 
+if test "$NECKO_WIFI" -a \
+        "$OS_ARCH" != "Linux" -a \
+        "$OS_ARCH" != "Darwin" -a \
+        "$OS_ARCH" != "SunOS" -a \
+        "$OS_ARCH" != "WINNT"; then
+  AC_MSG_ERROR([Necko WiFi scanning not supported on your platform, use --disable-necko-wifi])
+fi
+
 if test "$NECKO_WIFI"; then
-  if test -z "$MOZ_ENABLE_DBUS" -a -n "$NECKO_WIFI_DBUS"; then
-    AC_MSG_ERROR([Necko WiFi scanning needs DBus on your platform, remove --disable-dbus or use --disable-necko-wifi])
-  fi
   AC_DEFINE(NECKO_WIFI)
   _NON_GLOBAL_ACDEFINES="$_NON_GLOBAL_ACDEFINES NECKO_WIFI"
 fi
 AC_SUBST(NECKO_WIFI)
-AC_SUBST(NECKO_WIFI_DBUS)
 
 dnl
 dnl option to disable cookies
@@ -8655,7 +8635,19 @@ AC_SUBST(MOZ_SZIP_FLAGS)
 AC_DEFINE(MOZ_MULTI_GUID)
 AC_SUBST(MOZ_MULTI_GUID)
 
-AC_CHECK_FUNCS(posix_fadvise posix_fallocate)
+AC_MSG_CHECKING([for posix_fallocate])
+AC_TRY_LINK([#define _XOPEN_SOURCE 600
+  #include <fcntl.h>],
+                 [posix_fallocate(0, 0, 0);],
+                 [ac_cv___posix_fallocate=true],
+                 [ac_cv___posix_fallocate=false])
+
+if test "$ac_cv___posix_fallocate" = true ; then
+  AC_DEFINE(HAVE_POSIX_FALLOCATE)
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+fi
 
 dnl Check for missing components
 if test "$COMPILE_ENVIRONMENT"; then

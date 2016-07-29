@@ -31,10 +31,6 @@ if CONFIG['OS_ARCH'] == 'Darwin':
     CPP_SOURCES += [
         'nsWifiScannerMac.cpp',
     ]
-elif CONFIG['OS_ARCH'] in ('DragonFly', 'FreeBSD'):
-    CPP_SOURCES += [
-        'nsWifiScannerFreeBSD.cpp',
-    ]
 elif CONFIG['OS_ARCH'] == 'WINNT':
     CPP_SOURCES += [
         'nsWifiScannerWin.cpp',
@@ -44,7 +40,7 @@ elif CONFIG['OS_ARCH'] == 'SunOS':
         'nsWifiScannerSolaris.cpp',
     ]
 
-if CONFIG['NECKO_WIFI_DBUS']:
+if CONFIG['MOZ_ENABLE_DBUS']:
     CPP_SOURCES += [
         'nsWifiScannerDBus.cpp',
     ]
