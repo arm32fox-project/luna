@@ -2,6 +2,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-# Mac OS X build mozconfig, x86_64 only.
+# Mac OS X build mozconfig, x86_64 only, include debug symbols.
+
+#ac_add_options --enable-debug
+ac_add_options --enable-debug-symbols
+ac_add_options --disable-install-strip
+ac_add_options --disable-strip
 
 . $topsrcdir/build/macosx/universal/mozconfig.common
