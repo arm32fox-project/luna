@@ -7,13 +7,11 @@
 # the two OBJDIRs.
 
 ifndef OBJDIR
-OBJDIR_ARCH_1 = $(MOZ_OBJDIR)/$(firstword $(MOZ_BUILD_PROJECTS))
-OBJDIR_ARCH_2 = $(MOZ_OBJDIR)/$(word 2,$(MOZ_BUILD_PROJECTS))
-DIST_ARCH_1 = $(OBJDIR_ARCH_1)/dist
-DIST_ARCH_2 = $(OBJDIR_ARCH_2)/dist
-DIST_UNI = $(DIST_ARCH_1)/universal
-OBJDIR = $(OBJDIR_ARCH_1)
+OBJDIR = $(MOZ_OBJDIR)/$(firstword $(MOZ_BUILD_PROJECTS))
 endif
+
+DIST_ARCH = $(OBJDIR)/dist
+DIST_UNI = $(DIST_ARCH)/universal
 
 topsrcdir = $(TOPSRCDIR)
 DEPTH = $(OBJDIR)
@@ -25,9 +23,6 @@ DIST = $(OBJDIR)/dist
 
 postflight_all:
 	mkdir -p $(DIST_UNI)/$(MOZ_PKG_APPNAME)
-	rm -f $(DIST_ARCH_2)/universal
-	ln -s $(call core_abspath,$(DIST_UNI)) $(DIST_ARCH_2)/universal
-# Stage a package for buildsymbols to be happy. Doing so in OBJDIR_ARCH_1
-# actually does a universal staging with both OBJDIR_ARCH_1 and OBJDIR_ARCH_2.
-	$(MAKE) -C $(OBJDIR_ARCH_1)/$(MOZ_BUILD_APP)/installer \
+# Stage a package for buildsymbols to be happy.
+	$(MAKE) -C $(OBJDIR)/$(MOZ_BUILD_APP)/installer \
 	   PKG_SKIP_STRIP=1 stage-package
