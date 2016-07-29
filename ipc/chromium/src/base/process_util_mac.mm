@@ -20,12 +20,6 @@
 #include "base/string_util.h"
 #include "base/time.h"
 
-namespace {
-
-static mozilla::EnvironmentLog gProcessLog("MOZ_PROCESS_LOG");
-
-}  // namespace
-
 namespace base {
 
 void FreeEnvVarsArray(char* array[], int length)
@@ -177,8 +171,6 @@ bool LaunchApp(const std::vector<std::string>& argv,
   if (!spawn_succeeded || !process_handle_valid) {
     retval = false;
   } else {
-    gProcessLog.print("==> process %d launched child process %d\n",
-                      GetCurrentProcId(), pid);
     if (wait)
       HANDLE_EINTR(waitpid(pid, 0, 0));
 

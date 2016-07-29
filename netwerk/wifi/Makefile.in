@@ -26,7 +26,7 @@ ifeq ($(OS_ARCH),SunOS)
 OS_INCLUDES += $(GLIB_CFLAGS)
 endif
 
-ifdef NECKO_WIFI_DBUS
+ifdef MOZ_ENABLE_DBUS
 OS_INCLUDES += $(MOZ_DBUS_GLIB_CFLAGS)
 endif
 

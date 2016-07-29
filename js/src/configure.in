@@ -2611,9 +2611,6 @@ AC_CACHE_CHECK(
         #ifdef linux
         #define _BSD_SOURCE 1
         #endif
-        #include <sys/types.h>
-        #include <netinet/in.h>
-        #include <arpa/nameser.h>
         #include <resolv.h>
         ],
         [int foo = res_ninit(&_res);],
@@ -4126,7 +4123,19 @@ AC_SUBST(CC_VERSION)
 AC_SUBST(CXX_VERSION)
 AC_SUBST(MSMANIFEST_TOOL)
 
-AC_CHECK_FUNCS(posix_fadvise posix_fallocate)
+AC_MSG_CHECKING([for posix_fallocate])
+AC_TRY_LINK([#define _XOPEN_SOURCE 600
+  #include <fcntl.h>],
+                 [posix_fallocate(0, 0, 0);],
+                 [ac_cv___posix_fallocate=true],
+                 [ac_cv___posix_fallocate=false])
+
+if test "$ac_cv___posix_fallocate" = true ; then
+  AC_DEFINE(HAVE_POSIX_FALLOCATE)
+  AC_MSG_RESULT(yes)
+else
+  AC_MSG_RESULT(no)
+fi
 
 dnl Check for missing components
 if test "$COMPILE_ENVIRONMENT"; then
