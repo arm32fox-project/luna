@@ -16,3 +16,9 @@ DISABLED_CSRCS = kiss_fft.c kiss_fftr.c
 
 include $(topsrcdir)/config/rules.mk
 
+#kiss_fft causes OOM error with some 32bit versions of GCC when using -O2
+ifndef HAVE_64BIT_OS
+ifndef _MSC_VER
+CFLAGS += -O1
+endif
+endif
