@@ -2406,8 +2406,7 @@ array_splice(JSContext *cx, unsigned argc, Value *vp)
          */
         if (obj->isArray() && obj->arrayLengthIsWritable()) {
             JSObject::EnsureDenseResult res =
-                obj->ensureDenseElements(cx, obj->getArrayLength(),
-                                         itemCount - actualDeleteCount);
+                obj->ensureDenseElements(cx, len, itemCount - actualDeleteCount);
             if (res == JSObject::ED_FAILED)
                 return false;
         }
