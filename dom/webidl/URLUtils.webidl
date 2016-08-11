@@ -29,5 +29,9 @@ interface URLUtils {
            attribute DOMString search;
            // attribute URLQuery? query;
            attribute DOMString hash;
+
+  // This can be removed when stringification of attributes is implemented
+  // in WebIDL -- see also bug 824857.
+  stringifier;
 };
 

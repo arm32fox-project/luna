@@ -622,7 +622,7 @@ public:
 private:
   ~nsXSSNotifier() { };
   nsString mPolicy, mContent, mDomain;
-  nsIURI* mURI;
+  nsCOMPtr<nsIURI> mURI;
   bool mBlockMode;
 };
 

@@ -388,8 +388,8 @@ pgo-profile-run:
 # Package up the tests and test harnesses
 include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
 
-ifndef UNIVERSAL_BINARY
 PKG_STAGE = $(DIST)/test-package-stage
+
 package-tests: \
   stage-config \
   stage-mochitest \
@@ -403,16 +403,10 @@ package-tests: \
   stage-modules \
   stage-marionette \
   $(NULL)
-else
-# This staging area has been built for us by universal/flight.mk
-PKG_STAGE = $(DIST)/universal/test-package-stage
-endif
 
 package-tests:
 	@rm -f "$(DIST)/$(PKG_PATH)$(TEST_PACKAGE)"
-ifndef UNIVERSAL_BINARY
 	$(NSINSTALL) -D $(DIST)/$(PKG_PATH)
-endif
 	find $(PKG_STAGE) -name "*.pyc" -exec rm {} \;
 	cd $(PKG_STAGE) && \
 	  zip -rq9D "$(call core_abspath,$(DIST)/$(PKG_PATH)$(TEST_PACKAGE))" \

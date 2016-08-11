@@ -151,6 +151,9 @@ static DllBlockInfo sWindowsDllBlocklist[] = {
 
   // Crashes with DesktopTemperature, bug 1046382
   { "dtwxsvc.dll", ALL_VERSIONS },
+  
+  // f-secure DeepGuard, causes stack overflow crashes
+  { "fshook64.dll", ALL_VERSIONS },
 
   { NULL, 0 }
 };

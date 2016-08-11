@@ -1,0 +1,3 @@
+. build/macosx/universal/mozconfig.debug
+
+ac_add_options --enable-gstreamer=1.0
