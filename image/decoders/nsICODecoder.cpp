@@ -134,6 +134,7 @@ nsICODecoder::FixBitmapHeight(int8_t *bih)
   height = LITTLE_TO_NATIVE32(height);
   if (height == 0) {
     return false;
+  }
 
   // BMPs can be stored inverted by having a negative height
   height = abs(height);
