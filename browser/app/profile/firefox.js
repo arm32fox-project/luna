@@ -320,7 +320,7 @@ pref("browser.download.panel.shown", false);
 pref("browser.download.panel.firstSessionCompleted", false);
 
 // search engines URL
-pref("browser.search.searchEnginesURL",      "https://addons.palemoon.org/more/search-plugins/");
+pref("browser.search.searchEnginesURL",      "https://addons.palemoon.org/intergration/addon-mananger/external/searchplugins/");
 
 // pointer to the default engine name
 pref("browser.search.defaultenginename",      "chrome://browser-region/locale/region.properties");
