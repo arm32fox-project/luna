@@ -1210,9 +1210,9 @@ RopeMatch(JSContext *cx, JSString *textstr, const jschar *pat, uint32_t patlen, 
     return true;
 }
 
-/* ES6 20121026 draft 15.5.4.24. */
+/* ES6 2015 ST 21.1.3.7 String.prototype.includes */
 static JSBool
-str_contains(JSContext *cx, unsigned argc, Value *vp)
+str_includes(JSContext *cx, unsigned argc, Value *vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
@@ -1259,6 +1259,13 @@ str_contains(JSContext *cx, unsigned argc, Value *vp)
     int match = StringMatch(textChars, textLen, searchChars, searchLen);
     args.rval().setBoolean(match != -1);
     return true;
+}
+
+/* ES6 draft <RC4 String.prototype.contains kept for compatibility */
+static bool
+str_contains(JSContext *cx, unsigned argc, Value *vp)
+{
+    return str_includes(cx, argc, vp);
 }
 
 /* ES6 20120927 draft 15.5.4.7. */
@@ -3550,6 +3557,7 @@ static const JSFunctionSpec string_methods[] = {
     JS_FN("toUpperCase",       str_toUpperCase,       0,JSFUN_GENERIC_NATIVE),
     JS_FN("charAt",            js_str_charAt,         1,JSFUN_GENERIC_NATIVE),
     JS_FN("charCodeAt",        js_str_charCodeAt,     1,JSFUN_GENERIC_NATIVE),
+    JS_FN("includes",          str_includes,          1,JSFUN_GENERIC_NATIVE),
     JS_FN("contains",          str_contains,          1,JSFUN_GENERIC_NATIVE),
     JS_FN("indexOf",           str_indexOf,           1,JSFUN_GENERIC_NATIVE),
     JS_FN("lastIndexOf",       str_lastIndexOf,       1,JSFUN_GENERIC_NATIVE),
