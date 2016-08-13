@@ -1262,7 +1262,7 @@ str_includes(JSContext *cx, unsigned argc, Value *vp)
 }
 
 /* ES6 draft <RC4 String.prototype.contains kept for compatibility */
-static bool
+static JSBool
 str_contains(JSContext *cx, unsigned argc, Value *vp)
 {
     return str_includes(cx, argc, vp);
