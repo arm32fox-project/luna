@@ -1463,10 +1463,10 @@ else
     _DEFINES_CXXFLAGS='-DMOZILLA_CLIENT -D_MOZILLA_CONFIG_H_ $(ACDEFINES)'
 fi
 
-#FIXME: Work around breaking optimizations performed by GCC 6. Also force LTO to be enabled (required for a successful build).
+#FIXME: Work around breaking optimizations performed by GCC 6.x
 if test "$GCC_MAJOR_VERSION" -eq "6" ; then
-    CFLAGS="$CFLAGS -flto -fno-delete-null-pointer-checks -fno-lifetime-dse -fno-schedule-insns2"
-    CXXFLAGS="$CXXFLAGS -flto -fno-delete-null-pointer-checks -fno-lifetime-dse -fno-schedule-insns2"
+    CFLAGS="$CFLAGS -fno-delete-null-pointer-checks -fno-lifetime-dse -fno-schedule-insns2"
+    CXXFLAGS="$CXXFLAGS -fno-delete-null-pointer-checks -fno-lifetime-dse -fno-schedule-insns2"
 fi
 
 dnl gcc can come with its own linker so it is better to use the pass-thru calls
