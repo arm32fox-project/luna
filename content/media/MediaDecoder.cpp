@@ -1452,7 +1452,7 @@ void MediaDecoder::Invalidate()
 // Constructs the time ranges representing what segments of the media
 // are buffered and playable.
 nsresult MediaDecoder::GetBuffered(TimeRanges* aBuffered) {
-  if (mDecoderStateMachine) {
+  if (mDecoderStateMachine && !mShuttingDown) {
     return mDecoderStateMachine->GetBuffered(aBuffered);
   }
   return NS_ERROR_FAILURE;
