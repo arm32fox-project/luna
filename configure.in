@@ -5584,7 +5584,7 @@ dnl = Enable GStreamer
 dnl ========================================================
 if test "$OS_TARGET" = "Linux"; then
   MOZ_GSTREAMER=1
-  GST_API_VERSION=1.0
+  GST_API_VERSION=0.10
 fi
 
 MOZ_ARG_ENABLE_STRING(gstreamer,
