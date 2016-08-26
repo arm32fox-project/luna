@@ -886,13 +886,30 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
   });
 
   /**
-   * The cookie 'expires' value needs converting into something more readable
+   * Check host value and remove port part as it is not used
+   * for storing cookies.
+   */
+  function sanitizeHost(host) {
+    if (host == null || host == "") {
+      throw new Error(gcli.lookup("cookieListOutNonePage"));
+    }
+    return host.split(":")[0];
+  }
+  
+  /**
+   * The cookie 'expires' value needs converting into something more readable.
+   *
+   * And the unit of expires is sec, the unit that in argument of Date() needs
+   * millisecond.
    */
   function translateExpires(expires) {
     if (expires == 0) {
       return gcli.lookup("cookieListOutSession");
     }
-    return new Date(expires).toLocaleString();
+
+  let expires_msec = expires * 1000;
+
+  return (new Date(expires_msec)).toLocaleString();
   }
 
   /**
@@ -903,11 +920,12 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
       return host == null;
     }
     if (cookie.host.startsWith(".")) {
-      return cookie.host === "." + host;
+      return ("." + host).endsWith(cookie.host);
     }
-    else {
-      return cookie.host == host;
+    if (cookie.host === "") {
+      return host.startsWith("file://" + cookie.path);
     }
+    return cookie.host == host;
   }
 
   /**
@@ -929,10 +947,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
     returnType: "cookies",
     exec: function(args, context) {
       let host = context.environment.document.location.host;
-      if (host == null || host == "") {
-        throw new Error(gcli.lookup("cookieListOutNonePage"));
-      }
 
+      host = sanitizeHost(host);
       let enm = cookieMgr.getCookiesFromHost(host);
 
       let cookies = [];
@@ -972,6 +988,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
     ],
     exec: function(args, context) {
       let host = context.environment.document.location.host;
+      host = sanitizeHost(host);
       let enm = cookieMgr.getCookiesFromHost(host);
 
       let cookies = [];
@@ -1045,6 +1062,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
     ],
     exec: function(args, context) {
       let host = context.environment.document.location.host;
+      host = sanitizeHost(host);
       let time = Date.parse(args.expires) / 1000;
 
       cookieMgr.add(args.domain ? "." + args.domain : host,
