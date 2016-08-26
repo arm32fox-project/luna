@@ -853,12 +853,24 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
     "</ul>" +
     "";
 
+  /**
+   * Check host value and remove port part as it is not used
+   * for storing cookies.
+   */
+  function sanitizeHost(host) {
+    if (host == null || host == "") {
+      throw new Error(gcli.lookup("cookieListOutNonePage"));
+    }
+    return host.split(":")[0];
+  }
+  
   gcli.addConverter({
     from: "cookies",
     to: "view",
     exec: function(cookies, context) {
       if (cookies.length == 0) {
         let host = context.environment.document.location.host;
+        host = sanitizeHost(host);
         let msg = gcli.lookupFormat("cookieListOutNoneHost", [ host ]);
         return context.createView({ html: "<span>" + msg + "</span>" });
       }
@@ -885,17 +897,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
     }
   });
 
-  /**
-   * Check host value and remove port part as it is not used
-   * for storing cookies.
-   */
-  function sanitizeHost(host) {
-    if (host == null || host == "") {
-      throw new Error(gcli.lookup("cookieListOutNonePage"));
-    }
-    return host.split(":")[0];
-  }
-  
+
   /**
    * The cookie 'expires' value needs converting into something more readable.
    *
@@ -947,7 +949,6 @@ XPCOMUtils.defineLazyModuleGetter(this, "AppCacheUtils",
     returnType: "cookies",
     exec: function(args, context) {
       let host = context.environment.document.location.host;
-
       host = sanitizeHost(host);
       let enm = cookieMgr.getCookiesFromHost(host);
 
