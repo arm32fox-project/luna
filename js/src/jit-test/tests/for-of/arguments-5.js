@@ -1,6 +1,8 @@
 // for-of can iterate strict arguments objects in non-strict code.
 
-Object.prototype.iterator = Array.prototype.iterator;
+load(libdir + "iteration.js");
+
+Object.prototype[Symbol.iterator] = Array.prototype[Symbol.iterator];
 
 var s;
 function g(obj) {

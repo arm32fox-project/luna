@@ -955,7 +955,7 @@ PlacesToolbar.prototype = {
     else {
       button = document.createElement("toolbarbutton");
       button.className = "bookmark-item";
-      button.setAttribute("label", aChild.title);
+      button.setAttribute("label", aChild.title || "");
       let icon = aChild.icon;
       if (icon)
         button.setAttribute("image", icon);
@@ -1314,7 +1314,7 @@ PlacesToolbar.prototype = {
       let eltRect = elt.getBoundingClientRect();
       let eltIndex = Array.indexOf(this._rootElt.childNodes, elt);
       if (PlacesUtils.nodeIsFolder(elt._placesNode) &&
-          !PlacesUtils.nodeIsReadOnly(elt._placesNode)) {
+          !PlacesUIUtils.isContentsReadOnly(elt._placesNode)) {
         // This is a folder.
         // If we are in the middle of it, drop inside it.
         // Otherwise, drop before it, with regards to RTL mode.

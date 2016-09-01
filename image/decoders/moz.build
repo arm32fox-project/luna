@@ -21,23 +21,30 @@ if toolkit == 'cocoa':
 elif toolkit == 'android':
     DIRS += ['icon/android', 'icon']
 
-MODULE = 'imgdecoders'
-
-CPP_SOURCES += [
+UNIFIED_SOURCES += [
     'EXIF.cpp',
-    'nsBMPDecoder.cpp',
     'nsGIFDecoder2.cpp',
     'nsICODecoder.cpp',
     'nsIconDecoder.cpp',
-    'nsJPEGDecoder.cpp',
-    'nsPNGDecoder.cpp',
-    'nsWEBPDecoder.cpp',
 ]
 
-if CONFIG['MOZ_WBMP']:
-    CPP_SOURCES += [
-        'nsWBMPDecoder.cpp',
-    ]
+# These files cannot be built in unified mode because they want to force NSPR
+# logging.
+SOURCES += [
+    'nsBMPDecoder.cpp',
+    'nsJPEGDecoder.cpp',
+    'nsPNGDecoder.cpp',
+]
 
-LIBRARY_NAME = 'imgdecoders_s'
+FAIL_ON_WARNINGS = True
 
+SOURCES += [
+    'iccjpeg.c',
+]
+
+# Decoders need RasterImage.h
+LOCAL_INCLUDES += [
+    '/image/src',
+]
+
+FINAL_LIBRARY = 'xul'

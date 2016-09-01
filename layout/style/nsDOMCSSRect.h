@@ -9,7 +9,6 @@
 #define nsDOMCSSRect_h_
 
 #include "mozilla/Attributes.h"
-#include "nsISupportsImpl.h"
 #include "nsIDOMRect.h"
 #include "nsAutoPtr.h"
 #include "nsCycleCollectionParticipant.h"
@@ -25,7 +24,6 @@ public:
                nsROCSSPrimitiveValue* aRight,
                nsROCSSPrimitiveValue* aBottom,
                nsROCSSPrimitiveValue* aLeft);
-  virtual ~nsDOMCSSRect(void);
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_NSIDOMRECT
@@ -39,8 +37,11 @@ public:
 
   nsISupports* GetParentObject() const { return nullptr; }
 
-  virtual JSObject* WrapObject(JSContext* cx, JS::Handle<JSObject*> scope)
-    MOZ_OVERRIDE MOZ_FINAL;
+  virtual JSObject* WrapObject(JSContext* cx)
+    override final;
+
+protected:
+  virtual ~nsDOMCSSRect(void);
 
 private:
   nsRefPtr<nsROCSSPrimitiveValue> mTop;

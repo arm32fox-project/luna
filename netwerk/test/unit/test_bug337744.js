@@ -1,10 +1,6 @@
 /* verify that certain invalid URIs are not parsed by the resource
    protocol handler */
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cr = Components.results;
-
 const specs = [
   "resource:////",
   "resource:///http://www.mozilla.org/",
@@ -22,7 +18,14 @@ function check_for_exception(spec)
     getService(Ci.nsIIOService);
 
   try {
-    var channel = ios.newChannel(spec, null, null);
+    var channel = ios.newChannel2(spec,
+                                  null,
+                                  null,
+                                  null,      // aLoadingNode
+                                  Services.scriptSecurityManager.getSystemPrincipal(),
+                                  null,      // aTriggeringPrincipal
+                                  Ci.nsILoadInfo.SEC_NORMAL,
+                                  Ci.nsIContentPolicy.TYPE_OTHER);
   }
   catch (e) {
     return;

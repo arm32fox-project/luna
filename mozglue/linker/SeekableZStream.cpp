@@ -6,20 +6,12 @@
 #include "SeekableZStream.h"
 #include "Logging.h"
 
-#ifndef PAGE_SIZE
-#define PAGE_SIZE 4096
-#endif
-
-#ifndef PAGE_MASK
-#define PAGE_MASK (~ (PAGE_SIZE - 1))
-#endif
-
 bool
 SeekableZStream::Init(const void *buf, size_t length)
 {
   const SeekableZStreamHeader *header = SeekableZStreamHeader::validate(buf);
   if (!header) {
-    log("Not a seekable zstream");
+    ERROR("Not a seekable zstream");
     return false;
   }
 
@@ -35,13 +27,13 @@ SeekableZStream::Init(const void *buf, size_t length)
 
   /* Sanity check */
   if ((chunkSize == 0) ||
-      (chunkSize % PAGE_SIZE) ||
-      (chunkSize > 8 * PAGE_SIZE) ||
+      (!IsPageAlignedSize(chunkSize)) ||
+      (chunkSize > 8 * PageSize()) ||
       (offsetTable.numElements() < 1) ||
       (lastChunkSize == 0) ||
       (lastChunkSize > chunkSize) ||
       (length < totalSize)) {
-    log("Malformed or broken seekable zstream");
+    ERROR("Malformed or broken seekable zstream");
     return false;
   }
 
@@ -66,7 +58,7 @@ bool
 SeekableZStream::DecompressChunk(void *where, size_t chunk, size_t length)
 {
   if (chunk >= offsetTable.numElements()) {
-    log("DecompressChunk: chunk #%" PRIdSize " out of range [0-%" PRIdSize ")",
+    ERROR("DecompressChunk: chunk #%" PRIdSize " out of range [0-%" PRIdSize ")",
         chunk, offsetTable.numElements());
     return false;
   }
@@ -78,10 +70,9 @@ SeekableZStream::DecompressChunk(void *where, size_t chunk, size_t length)
   if (length == 0 || length > chunkLen)
     length = chunkLen;
 
-  debug("DecompressChunk #%" PRIdSize " @%p (%" PRIdSize "/% " PRIdSize ")",
+  DEBUG_LOG("DecompressChunk #%" PRIdSize " @%p (%" PRIdSize "/% " PRIdSize ")",
         chunk, where, length, chunkLen);
-  z_stream zStream;
-  memset(&zStream, 0, sizeof(zStream));
+  zxx_stream zStream(&allocator);
   zStream.avail_in = (isLastChunk ? totalSize : uint32_t(offsetTable[chunk + 1]))
                      - uint32_t(offsetTable[chunk]);
   zStream.next_in = const_cast<Bytef *>(buffer + uint32_t(offsetTable[chunk]));
@@ -90,21 +81,21 @@ SeekableZStream::DecompressChunk(void *where, size_t chunk, size_t length)
 
   /* Decompress chunk */
   if (inflateInit2(&zStream, windowBits) != Z_OK) {
-    log("inflateInit failed: %s", zStream.msg);
+    ERROR("inflateInit failed: %s", zStream.msg);
     return false;
   }
   if (dictionary && inflateSetDictionary(&zStream, dictionary,
                                          dictionary.numElements()) != Z_OK) {
-    log("inflateSetDictionary failed: %s", zStream.msg);
+    ERROR("inflateSetDictionary failed: %s", zStream.msg);
     return false;
   }
   if (inflate(&zStream, (length == chunkLen) ? Z_FINISH : Z_SYNC_FLUSH)
       != (length == chunkLen) ? Z_STREAM_END : Z_OK) {
-    log("inflate failed: %s", zStream.msg);
+    ERROR("inflate failed: %s", zStream.msg);
     return false;
   }
   if (inflateEnd(&zStream) != Z_OK) {
-    log("inflateEnd failed: %s", zStream.msg);
+    ERROR("inflateEnd failed: %s", zStream.msg);
     return false;
   }
   if (filter)
@@ -188,7 +179,7 @@ BCJ_X86_filter(off_t offset, SeekableZStream::FilterDirection dir,
   uint32_t prev_mask = 0;
   uint32_t prev_pos = 0;
 
-  for (size_t i = 0; i <= size - 5;) {
+  for (size_t i = 0; i + 5 <= size;) {
     uint8_t b = buf[i];
     if (b != 0xe8 && b != 0xe9) {
       ++i;
@@ -264,7 +255,7 @@ SeekableZStream::GetFilter(SeekableZStream::FilterId id)
   case BCJ_X86:
     return BCJ_X86_filter;
   default:
-    return NULL;
+    return nullptr;
   }
-  return NULL;
+  return nullptr;
 }

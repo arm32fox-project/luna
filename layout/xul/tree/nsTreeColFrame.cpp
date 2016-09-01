@@ -8,11 +8,10 @@
 #include "nsGkAtoms.h"
 #include "nsIContent.h"
 #include "nsStyleContext.h"
-#include "nsINameSpaceManager.h" 
+#include "nsNameSpaceManager.h"
 #include "nsIBoxObject.h"
-#include "nsTreeBoxObject.h"
+#include "mozilla/dom/TreeBoxObject.h"
 #include "nsIDOMElement.h"
-#include "nsITreeBoxObject.h"
 #include "nsITreeColumns.h"
 #include "nsIDOMXULTreeElement.h"
 #include "nsDisplayList.h"
@@ -26,7 +25,7 @@
 nsIFrame*
 NS_NewTreeColFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
-  return new (aPresShell) nsTreeColFrame(aPresShell, aContext);
+  return new (aPresShell) nsTreeColFrame(aContext);
 }
 
 NS_IMPL_FRAMEARENA_HELPERS(nsTreeColFrame)
@@ -37,9 +36,9 @@ nsTreeColFrame::~nsTreeColFrame()
 }
 
 void
-nsTreeColFrame::Init(nsIContent*      aContent,
-                     nsIFrame*        aParent,
-                     nsIFrame*        aPrevInFlow)
+nsTreeColFrame::Init(nsIContent*       aContent,
+                     nsContainerFrame* aParent,
+                     nsIFrame*         aPrevInFlow)
 {
   nsBoxFrame::Init(aContent, aParent, aPrevInFlow);
   InvalidateColumns();
@@ -66,7 +65,8 @@ public:
 #endif
 
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
+                       HitTestState* aState,
+                       nsTArray<nsIFrame*> *aOutFrames) override;
   NS_DISPLAY_DECL_NAME("XULTreeColSplitterTarget", TYPE_XUL_TREE_COL_SPLITTER_TARGET)
 };
 
@@ -127,7 +127,7 @@ nsTreeColFrame::BuildDisplayListForChildren(nsDisplayListBuilder*   aBuilder,
     nsDisplayXULTreeColSplitterTarget(aBuilder, this));
 }
 
-NS_IMETHODIMP
+nsresult
 nsTreeColFrame::AttributeChanged(int32_t aNameSpaceID,
                                  nsIAtom* aAttribute,
                                  int32_t aModType)
@@ -187,7 +187,8 @@ nsTreeColFrame::InvalidateColumns(bool aCanWalkFrameTree)
     if (aCanWalkFrameTree) {
       treeBoxObject->GetColumns(getter_AddRefs(columns));
     } else {
-      nsTreeBodyFrame* body = static_cast<nsTreeBoxObject*>(treeBoxObject)->GetCachedTreeBody();
+      nsTreeBodyFrame* body = static_cast<mozilla::dom::TreeBoxObject*>
+        (treeBoxObject)->GetCachedTreeBodyFrame();
       if (body) {
         columns = body->Columns();
       }

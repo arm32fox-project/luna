@@ -11,9 +11,9 @@
 #ifndef WEBRTC_VIDEO_ENGINE_VIE_IMAGE_PROCESS_IMPL_H_
 #define WEBRTC_VIDEO_ENGINE_VIE_IMAGE_PROCESS_IMPL_H_
 
-#include "typedefs.h"  // NOLINT
-#include "video_engine/include/vie_image_process.h"
-#include "video_engine/vie_ref_count.h"
+#include "webrtc/typedefs.h"
+#include "webrtc/video_engine/include/vie_image_process.h"
+#include "webrtc/video_engine/vie_ref_count.h"
 
 namespace webrtc {
 
@@ -35,9 +35,27 @@ class ViEImageProcessImpl
                                          ViEEffectFilter& render_filter);
   virtual int DeregisterRenderEffectFilter(const int video_channel);
   virtual int EnableDeflickering(const int capture_id, const bool enable);
-  virtual int EnableDenoising(const int capture_id, const bool enable);
   virtual int EnableColorEnhancement(const int video_channel,
                                      const bool enable);
+  virtual void RegisterPreEncodeCallback(
+      int video_channel,
+      I420FrameCallback* pre_encode_callback) OVERRIDE;
+  virtual void DeRegisterPreEncodeCallback(int video_channel) OVERRIDE;
+
+  virtual void RegisterPostEncodeImageCallback(
+      int video_channel,
+      EncodedImageCallback* post_encode_callback) OVERRIDE;
+  virtual void DeRegisterPostEncodeCallback(int video_channel) OVERRIDE;
+
+  virtual void RegisterPreDecodeImageCallback(
+        int video_channel,
+        EncodedImageCallback* post_encode_callback) OVERRIDE;
+  virtual void DeRegisterPreDecodeCallback(int video_channel) OVERRIDE;
+
+  virtual void RegisterPreRenderCallback(
+      int video_channel,
+      I420FrameCallback* pre_render_callback) OVERRIDE;
+  virtual void DeRegisterPreRenderCallback(int video_channel) OVERRIDE;
 
  protected:
   explicit ViEImageProcessImpl(ViESharedData* shared_data);

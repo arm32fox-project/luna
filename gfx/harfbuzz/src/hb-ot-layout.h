@@ -41,6 +41,7 @@ HB_BEGIN_DECLS
 #define HB_OT_TAG_GDEF HB_TAG('G','D','E','F')
 #define HB_OT_TAG_GSUB HB_TAG('G','S','U','B')
 #define HB_OT_TAG_GPOS HB_TAG('G','P','O','S')
+#define HB_OT_TAG_JSTF HB_TAG('J','S','T','F')
 
 
 /*
@@ -91,9 +92,9 @@ hb_ot_layout_get_ligature_carets (hb_font_t      *font,
  * GSUB/GPOS feature query and enumeration interface
  */
 
-#define HB_OT_LAYOUT_NO_SCRIPT_INDEX		((unsigned int) 0xFFFF)
-#define HB_OT_LAYOUT_NO_FEATURE_INDEX		((unsigned int) 0xFFFF)
-#define HB_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX	((unsigned int) 0xFFFF)
+#define HB_OT_LAYOUT_NO_SCRIPT_INDEX		0xFFFFu
+#define HB_OT_LAYOUT_NO_FEATURE_INDEX		0xFFFFu
+#define HB_OT_LAYOUT_DEFAULT_LANGUAGE_INDEX	0xFFFFu
 
 unsigned int
 hb_ot_layout_table_get_script_tags (hb_face_t    *face,
@@ -145,6 +146,14 @@ hb_ot_layout_language_get_required_feature_index (hb_face_t    *face,
 						  unsigned int  language_index,
 						  unsigned int *feature_index);
 
+hb_bool_t
+hb_ot_layout_language_get_required_feature (hb_face_t    *face,
+					    hb_tag_t      table_tag,
+					    unsigned int  script_index,
+					    unsigned int  language_index,
+					    unsigned int *feature_index,
+					    hb_tag_t     *feature_tag);
+
 unsigned int
 hb_ot_layout_language_get_feature_indexes (hb_face_t    *face,
 					   hb_tag_t      table_tag,
@@ -179,6 +188,11 @@ hb_ot_layout_feature_get_lookups (hb_face_t    *face,
 				  unsigned int *lookup_count /* IN/OUT */,
 				  unsigned int *lookup_indexes /* OUT */);
 
+unsigned int
+hb_ot_layout_table_get_lookup_count (hb_face_t    *face,
+				     hb_tag_t      table_tag);
+
+
 void
 hb_ot_layout_collect_lookups (hb_face_t      *face,
 			      hb_tag_t        table_tag,
@@ -186,11 +200,6 @@ hb_ot_layout_collect_lookups (hb_face_t      *face,
 			      const hb_tag_t *languages,
 			      const hb_tag_t *features,
 			      hb_set_t       *lookup_indexes /* OUT */);
-
-void
-hb_ot_shape_plan_collect_lookups (hb_shape_plan_t *shape_plan,
-				  hb_tag_t         table_tag,
-				  hb_set_t        *lookup_indexes /* OUT */);
 
 void
 hb_ot_layout_lookup_collect_glyphs (hb_face_t    *face,

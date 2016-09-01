@@ -8,10 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <cassert>
+#include <assert.h>
 
-#include "common_types.h"
-#include "rtp_header_extension.h"
+#include "webrtc/common_types.h"
+#include "webrtc/modules/rtp_rtcp/source/rtp_header_extension.h"
 
 namespace webrtc {
 
@@ -39,7 +39,14 @@ int32_t RtpHeaderExtensionMap::Register(const RTPExtensionType type,
   std::map<uint8_t, HeaderExtension*>::iterator it =
       extensionMap_.find(id);
   if (it != extensionMap_.end()) {
-    return -1;
+    if (it->second->type != type) {
+      // An extension is already registered with the same id
+      // but a different type, so return failure.
+      return -1;
+    }
+    // This extension type is already registered with this id,
+    // so return success.
+    return 0;
   }
   extensionMap_[id] = new HeaderExtension(type);
   return 0;
@@ -52,12 +59,20 @@ int32_t RtpHeaderExtensionMap::Deregister(const RTPExtensionType type) {
   }
   std::map<uint8_t, HeaderExtension*>::iterator it =
       extensionMap_.find(id);
-  if (it == extensionMap_.end()) {
-    return -1;
-  }
+  assert(it != extensionMap_.end());
   delete it->second;
   extensionMap_.erase(it);
   return 0;
+}
+
+bool RtpHeaderExtensionMap::IsRegistered(RTPExtensionType type) const {
+  std::map<uint8_t, HeaderExtension*>::const_iterator it =
+    extensionMap_.begin();
+  for (; it != extensionMap_.end(); ++it) {
+    if (it->second->type == type)
+      return true;
+  }
+  return false;
 }
 
 int32_t RtpHeaderExtensionMap::GetType(const uint8_t id,
@@ -102,7 +117,7 @@ uint16_t RtpHeaderExtensionMap::GetTotalLengthInBytes() const {
   }
   // Add RTP extension header length.
   if (length > 0) {
-    length += RTP_ONE_BYTE_HEADER_LENGTH_IN_BYTES;
+    length += kRtpOneByteHeaderLength;
   }
   return length;
 }
@@ -115,7 +130,7 @@ int32_t RtpHeaderExtensionMap::GetLengthUntilBlockStartInBytes(
     return -1;
   }
   // Get length until start of extension block type.
-  uint16_t length = RTP_ONE_BYTE_HEADER_LENGTH_IN_BYTES;
+  uint16_t length = kRtpOneByteHeaderLength;
 
   std::map<uint8_t, HeaderExtension*>::const_iterator it =
       extensionMap_.begin();
@@ -173,4 +188,4 @@ void RtpHeaderExtensionMap::GetCopy(RtpHeaderExtensionMap* map) const {
     it++;
   }
 }
-} // namespace webrtc
+}  // namespace webrtc

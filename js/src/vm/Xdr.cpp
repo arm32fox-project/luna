@@ -8,14 +8,10 @@
 
 #include <string.h>
 
-#include "jsprf.h"
 #include "jsapi.h"
-#include "jscntxt.h"
 #include "jsscript.h"
 
 #include "vm/Debugger.h"
-
-#include "jsscriptinlines.h"
 
 using namespace js;
 
@@ -31,22 +27,25 @@ XDRBuffer::freeBuffer()
 bool
 XDRBuffer::grow(size_t n)
 {
-    JS_ASSERT(n > size_t(limit - cursor));
+    MOZ_ASSERT(n > size_t(limit - cursor));
 
-    const size_t MEM_BLOCK = 8192;
+    const size_t MIN_CAPACITY = 8192;
     size_t offset = cursor - base;
-    size_t newCapacity = JS_ROUNDUP(offset + n, MEM_BLOCK);
+    size_t newCapacity = mozilla::RoundUpPow2(offset + n);
+    if (newCapacity < MIN_CAPACITY)
+        newCapacity = MIN_CAPACITY;
     if (isUint32Overflow(newCapacity)) {
-        JS_ReportErrorNumber(cx(), js_GetErrorMessage, NULL, JSMSG_TOO_BIG_TO_ENCODE);
+        js::gc::AutoSuppressGC suppressGC(cx());
+        JS_ReportErrorNumber(cx(), js_GetErrorMessage, nullptr, JSMSG_TOO_BIG_TO_ENCODE);
         return false;
     }
 
-    void *data = js_realloc(base, newCapacity);
+    void* data = js_realloc(base, newCapacity);
     if (!data) {
         js_ReportOutOfMemory(cx());
         return false;
     }
-    base = static_cast<uint8_t *>(data);
+    base = static_cast<uint8_t*>(data);
     cursor = base + offset;
     limit = base + newCapacity;
     return true;
@@ -54,16 +53,32 @@ XDRBuffer::grow(size_t n)
 
 template<XDRMode mode>
 bool
-XDRState<mode>::codeChars(jschar *chars, size_t nchars)
+XDRState<mode>::codeChars(const Latin1Char* chars, size_t nchars)
 {
-    size_t nbytes = nchars * sizeof(jschar);
+    static_assert(sizeof(Latin1Char) == sizeof(uint8_t), "Latin1Char must fit in 1 byte");
+
+    MOZ_ASSERT(mode == XDR_ENCODE);
+
+    uint8_t* ptr = buf.write(nchars);
+    if (!ptr)
+        return false;
+
+    mozilla::PodCopy(ptr, chars, nchars);
+    return true;
+}
+
+template<XDRMode mode>
+bool
+XDRState<mode>::codeChars(char16_t* chars, size_t nchars)
+{
+    size_t nbytes = nchars * sizeof(char16_t);
     if (mode == XDR_ENCODE) {
-        uint8_t *ptr = buf.write(nbytes);
+        uint8_t* ptr = buf.write(nbytes);
         if (!ptr)
             return false;
         mozilla::NativeEndian::copyAndSwapToLittleEndian(ptr, chars, nchars);
     } else {
-        const uint8_t *ptr = buf.read(nbytes);
+        const uint8_t* ptr = buf.read(nbytes);
         mozilla::NativeEndian::copyAndSwapFromLittleEndian(chars, ptr, nchars);
     }
     return true;
@@ -71,7 +86,7 @@ XDRState<mode>::codeChars(jschar *chars, size_t nchars)
 
 template<XDRMode mode>
 static bool
-VersionCheck(XDRState<mode> *xdr)
+VersionCheck(XDRState<mode>* xdr)
 {
     uint32_t bytecodeVer;
     if (mode == XDR_ENCODE)
@@ -82,7 +97,7 @@ VersionCheck(XDRState<mode> *xdr)
 
     if (mode == XDR_DECODE && bytecodeVer != XDR_BYTECODE_VERSION) {
         /* We do not provide binary compatibility with older scripts. */
-        JS_ReportErrorNumber(xdr->cx(), js_GetErrorMessage, NULL, JSMSG_BAD_SCRIPT_MAGIC);
+        JS_ReportErrorNumber(xdr->cx(), js_GetErrorMessage, nullptr, JSMSG_BAD_SCRIPT_MAGIC);
         return false;
     }
 
@@ -91,10 +106,10 @@ VersionCheck(XDRState<mode> *xdr)
 
 template<XDRMode mode>
 bool
-XDRState<mode>::codeFunction(MutableHandleObject objp)
+XDRState<mode>::codeFunction(MutableHandleFunction objp)
 {
     if (mode == XDR_DECODE)
-        objp.set(NULL);
+        objp.set(nullptr);
 
     if (!VersionCheck(this))
         return false;
@@ -106,55 +121,29 @@ template<XDRMode mode>
 bool
 XDRState<mode>::codeScript(MutableHandleScript scriptp)
 {
-    RootedScript script(cx());
-    if (mode == XDR_DECODE) {
-        script = NULL;
-        scriptp.set(NULL);
-    } else {
-        script = scriptp.get();
-    }
+    if (mode == XDR_DECODE)
+        scriptp.set(nullptr);
 
     if (!VersionCheck(this))
         return false;
 
-    if (!XDRScript(this, NullPtr(), NullPtr(), NullPtr(), &script))
+    if (!XDRScript(this, NullPtr(), NullPtr(), NullPtr(), scriptp))
         return false;
-
-    if (mode == XDR_DECODE) {
-        JS_ASSERT(!script->compileAndGo);
-        CallNewScriptHook(cx(), script, NullPtr());
-        Debugger::onNewScript(cx(), script, NULL);
-        scriptp.set(script);
-    }
 
     return true;
 }
 
 template<XDRMode mode>
-void
-XDRState<mode>::initScriptPrincipals(JSScript *script)
+bool
+XDRState<mode>::codeConstValue(MutableHandleValue vp)
 {
-    JS_ASSERT(mode == XDR_DECODE);
-
-    /* The origin principals must be normalized at this point. */
-    JS_ASSERT_IF(principals, originPrincipals);
-    JS_ASSERT(!script->originPrincipals);
-    if (principals)
-        JS_ASSERT(script->principals() == principals);
-
-    if (originPrincipals) {
-        script->originPrincipals = originPrincipals;
-        JS_HoldPrincipals(originPrincipals);
-    }
+    return XDRScriptConst(this, vp);
 }
 
-XDRDecoder::XDRDecoder(JSContext *cx, const void *data, uint32_t length,
-                       JSPrincipals *principals, JSPrincipals *originPrincipals)
+XDRDecoder::XDRDecoder(JSContext* cx, const void* data, uint32_t length)
   : XDRState<XDR_DECODE>(cx)
 {
     buf.setData(data, length);
-    this->principals = principals;
-    this->originPrincipals = JSScript::normalizeOriginPrincipals(principals, originPrincipals);
 }
 
 template class js::XDRState<XDR_ENCODE>;

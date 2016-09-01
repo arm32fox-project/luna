@@ -1,6 +1,9 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+// IWYU pragma: private, include "nsISupports.h"
 
 #ifndef nsISupportsBase_h__
 #define nsISupportsBase_h__
@@ -32,7 +35,8 @@
  * and a reference counted memory model (AddRef/Release). This is
  * modelled after the win32 IUnknown API.
  */
-class NS_NO_VTABLE nsISupports {
+class NS_NO_VTABLE nsISupports
+{
 public:
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_ISUPPORTS_IID)
@@ -60,7 +64,7 @@ public:
    *
    * @return The resulting reference count.
    */
-  NS_IMETHOD_(nsrefcnt) AddRef(void) = 0;
+  NS_IMETHOD_(MozExternalRefCountType) AddRef(void) = 0;
 
   /**
    * Decreases the reference count for this interface.
@@ -69,7 +73,7 @@ public:
    *
    * @return The resulting reference count.
    */
-  NS_IMETHOD_(nsrefcnt) Release(void) = 0;
+  NS_IMETHOD_(MozExternalRefCountType) Release(void) = 0;
 
   //@}
 };

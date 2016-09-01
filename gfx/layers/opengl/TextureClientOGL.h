@@ -6,55 +6,120 @@
 #ifndef MOZILLA_GFX_TEXTURECLIENTOGL_H
 #define MOZILLA_GFX_TEXTURECLIENTOGL_H
 
-#include "mozilla/layers/TextureClient.h"
-#include "ISurfaceAllocator.h" // For IsSurfaceDescriptorValid
+#include "GLContextTypes.h"             // for SharedTextureHandle, etc
+#include "GLImages.h"
+#include "gfxTypes.h"
+#include "mozilla/Attributes.h"         // for override
+#include "mozilla/gfx/Point.h"          // for IntSize
+#include "mozilla/layers/CompositorTypes.h"
+#include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
+#include "mozilla/layers/TextureClient.h"  // for TextureClient, etc
+#include "AndroidSurfaceTexture.h"
 
 namespace mozilla {
+
 namespace layers {
 
-class TextureClientSharedOGL : public TextureClient
+class CompositableForwarder;
+
+class EGLImageTextureClient : public TextureClient
 {
 public:
-  TextureClientSharedOGL(CompositableForwarder* aForwarder, const TextureInfo& aTextureInfo);
-  ~TextureClientSharedOGL() { ReleaseResources(); }
+  EGLImageTextureClient(ISurfaceAllocator* aAllocator,
+                        TextureFlags aFlags,
+                        EGLImageImage* aImage,
+                        gfx::IntSize aSize);
 
-  virtual bool SupportsType(TextureClientType aType) MOZ_OVERRIDE { return aType == TEXTURE_SHARED_GL; }
-  virtual void EnsureAllocated(gfx::IntSize aSize, gfxASurface::gfxContentType aType);
-  virtual void ReleaseResources();
-  virtual gfxASurface::gfxContentType GetContentType() MOZ_OVERRIDE { return gfxASurface::CONTENT_COLOR_ALPHA; }
+  virtual bool IsAllocated() const override { return true; }
+
+  virtual bool HasInternalBuffer() const override { return false; }
+
+  virtual gfx::IntSize GetSize() const override { return mSize; }
+
+  virtual bool ToSurfaceDescriptor(SurfaceDescriptor& aOutDescriptor) override;
+
+  // Useless functions.
+  virtual bool Lock(OpenMode mode) override;
+
+  virtual void Unlock() override;
+
+  virtual bool IsLocked() const override { return mIsLocked; }
+
+  virtual gfx::SurfaceFormat GetFormat() const override
+  {
+    return gfx::SurfaceFormat::UNKNOWN;
+  }
+
+  virtual TemporaryRef<TextureClient>
+  CreateSimilar(TextureFlags aFlags = TextureFlags::DEFAULT,
+                TextureAllocationFlags aAllocFlags = ALLOC_DEFAULT) const override
+  {
+    return nullptr;
+  }
+
+  virtual bool AllocateForSurface(gfx::IntSize aSize, TextureAllocationFlags aFlags) override
+  {
+    return false;
+  }
 
 protected:
-  gl::GLContext* mGL;
-  gfx::IntSize mSize;
-
-  friend class CompositingFactory;
+  RefPtr<EGLImageImage> mImage;
+  const gfx::IntSize mSize;
+  bool mIsLocked;
 };
 
-// Doesn't own the surface descriptor, so we shouldn't delete it
-class TextureClientSharedOGLExternal : public TextureClientSharedOGL
+#ifdef MOZ_WIDGET_ANDROID
+
+class SurfaceTextureClient : public TextureClient
 {
 public:
-  TextureClientSharedOGLExternal(CompositableForwarder* aForwarder, const TextureInfo& aTextureInfo)
-    : TextureClientSharedOGL(aForwarder, aTextureInfo)
-  {}
+  SurfaceTextureClient(ISurfaceAllocator* aAllocator,
+                       TextureFlags aFlags,
+                       gl::AndroidSurfaceTexture* aSurfTex,
+                       gfx::IntSize aSize,
+                       gl::OriginPos aOriginPos);
 
-  virtual bool SupportsType(TextureClientType aType) MOZ_OVERRIDE { return aType == TEXTURE_SHARED_GL_EXTERNAL; }
-  virtual void ReleaseResources() {}
+  ~SurfaceTextureClient();
+
+  virtual bool IsAllocated() const override { return true; }
+
+  virtual bool HasInternalBuffer() const override { return false; }
+
+  virtual gfx::IntSize GetSize() const { return mSize; }
+
+  virtual bool ToSurfaceDescriptor(SurfaceDescriptor& aOutDescriptor) override;
+
+  // Useless functions.
+  virtual bool Lock(OpenMode mode) override;
+
+  virtual void Unlock() override;
+
+  virtual bool IsLocked() const override { return mIsLocked; }
+
+  virtual gfx::SurfaceFormat GetFormat() const override
+  {
+    return gfx::SurfaceFormat::UNKNOWN;
+  }
+
+  virtual TemporaryRef<TextureClient>
+  CreateSimilar(TextureFlags aFlags = TextureFlags::DEFAULT,
+                TextureAllocationFlags aAllocFlags = ALLOC_DEFAULT) const override
+  {
+    return nullptr;
+  }
+
+  virtual bool AllocateForSurface(gfx::IntSize aSize, TextureAllocationFlags aFlags) override
+  {
+    return false;
+  }
+
+protected:
+  const RefPtr<gl::AndroidSurfaceTexture> mSurfTex;
+  const gfx::IntSize mSize;
+  bool mIsLocked;
 };
 
-class TextureClientStreamOGL : public TextureClient
-{
-public:
-  TextureClientStreamOGL(CompositableForwarder* aForwarder, const TextureInfo& aTextureInfo)
-    : TextureClient(aForwarder, aTextureInfo)
-  {}
-  ~TextureClientStreamOGL() { ReleaseResources(); }
-
-  virtual bool SupportsType(TextureClientType aType) MOZ_OVERRIDE { return aType == TEXTURE_STREAM_GL; }
-  virtual void EnsureAllocated(gfx::IntSize aSize, gfxASurface::gfxContentType aType) { }
-  virtual void ReleaseResources() { mDescriptor = SurfaceDescriptor(); }
-  virtual gfxASurface::gfxContentType GetContentType() MOZ_OVERRIDE { return gfxASurface::CONTENT_COLOR_ALPHA; }
-};
+#endif // MOZ_WIDGET_ANDROID
 
 } // namespace
 } // namespace

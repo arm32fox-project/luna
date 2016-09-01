@@ -37,7 +37,9 @@ class ThreadWindows : public ThreadWrapper {
  protected:
   virtual void Run();
 
- private:
+  void SetThreadNameHelper();
+  void ThreadStoppedHelper();
+
   ThreadRunFunction    run_function_;
   ThreadObj            obj_;
 
@@ -60,6 +62,41 @@ class ThreadWindows : public ThreadWrapper {
 
 };
 
-} // namespace webrtc
+class ThreadWindowsUI : public ThreadWindows {
+ public:
+  ThreadWindowsUI(ThreadRunFunction func, ThreadObj obj, ThreadPriority prio,
+                  const char* thread_name) :
+  ThreadWindows(func, obj, prio, thread_name),
+  hwnd_(nullptr),
+  timerid_(0) {
+ }
+
+ virtual bool Start(unsigned int& id);
+ virtual bool Stop();
+
+ /**
+  * Request an async callback soon.
+  */
+ void RequestCallback();
+
+ /**
+  * Request a recurring callback.
+  */
+ bool RequestCallbackTimer(unsigned int milliseconds);
+
+ protected:
+  virtual void Run();
+
+ private:
+  static LRESULT CALLBACK EventWindowProc(HWND, UINT, WPARAM, LPARAM);
+  void NativeEventCallback();
+  bool InternalInit();
+
+  HWND hwnd_;
+  UINT_PTR timerid_;
+};
+
+
+}  // namespace webrtc
 
 #endif  // WEBRTC_SYSTEM_WRAPPERS_SOURCE_THREAD_WIN_H_

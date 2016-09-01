@@ -4,13 +4,26 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MODULE = 'ipc'
-
 EXPORTS.mozilla.ipc += [
+    'ConnectionOrientedSocket.h',
+    'ListenSocket.h',
+    'SocketBase.h',
+    'StreamSocket.h',
     'UnixSocket.h',
+    'UnixSocketConnector.h'
 ]
 
-CPP_SOURCES += [
+SOURCES += [
+    'ConnectionOrientedSocket.cpp',
+    'ListenSocket.cpp',
+    'SocketBase.cpp',
+    'StreamSocket.cpp',
     'UnixSocket.cpp',
+    'UnixSocketConnector.cpp'
 ]
 
+FAIL_ON_WARNINGS = True
+
+include('/ipc/chromium/chromium-config.mozbuild')
+
+FINAL_LIBRARY = 'xul'

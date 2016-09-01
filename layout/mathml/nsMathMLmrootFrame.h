@@ -7,8 +7,8 @@
 #define nsMathMLmrootFrame_h___
 
 #include "mozilla/Attributes.h"
-#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
+#include "nsMathMLChar.h"
 
 //
 // <msqrt> and <mroot> -- form a radical
@@ -22,33 +22,46 @@ public:
 
   virtual void
   SetAdditionalStyleContext(int32_t          aIndex, 
-                            nsStyleContext*  aStyleContext) MOZ_OVERRIDE;
+                            nsStyleContext*  aStyleContext) override;
   virtual nsStyleContext*
-  GetAdditionalStyleContext(int32_t aIndex) const MOZ_OVERRIDE;
+  GetAdditionalStyleContext(int32_t aIndex) const override;
 
   virtual void
-  Init(nsIContent*      aContent,
-       nsIFrame*        aParent,
-       nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  Init(nsIContent*       aContent,
+       nsContainerFrame* aParent,
+       nsIFrame*         aPrevInFlow) override;
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE;
+  TransmitAutomaticData() override;
 
-  NS_IMETHOD
+  virtual void
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
-         nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+         nsReflowStatus&          aStatus) override;
 
-  virtual nscoord
-  GetIntrinsicWidth(nsRenderingContext* aRenderingContext) MOZ_OVERRIDE;
+  void
+  GetRadicalXOffsets(nscoord aIndexWidth, nscoord aSqrWidth,
+                     nsFontMetrics* aFontMetrics,
+                     nscoord* aIndexOffset,
+                     nscoord* aSqrOffset);
+
+  virtual void
+  GetIntrinsicISizeMetrics(nsRenderingContext* aRenderingContext,
+                           nsHTMLReflowMetrics& aDesiredSize) override;
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                                const nsDisplayListSet& aLists) override;
+
+  uint8_t
+  ScriptIncrement(nsIFrame* aFrame) override
+  {
+    return (aFrame && aFrame == mFrames.LastChild()) ? 2 : 0;
+  }
 
 protected:
-  nsMathMLmrootFrame(nsStyleContext* aContext);
+  explicit nsMathMLmrootFrame(nsStyleContext* aContext);
   virtual ~nsMathMLmrootFrame();
   
   nsMathMLChar mSqrChar;

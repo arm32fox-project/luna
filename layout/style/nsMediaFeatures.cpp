@@ -11,18 +11,22 @@
 #include "nsStyleConsts.h"
 #include "nsPresContext.h"
 #include "nsCSSValue.h"
+#ifdef XP_WIN
 #include "mozilla/LookAndFeel.h"
+#endif
 #include "nsCSSRuleProcessor.h"
+#include "nsDeviceContext.h"
+#include "nsIDocument.h"
 
 using namespace mozilla;
 
-static const int32_t kOrientationKeywords[] = {
+static const nsCSSProps::KTableValue kOrientationKeywords[] = {
   eCSSKeyword_portrait,                 NS_STYLE_ORIENTATION_PORTRAIT,
   eCSSKeyword_landscape,                NS_STYLE_ORIENTATION_LANDSCAPE,
   eCSSKeyword_UNKNOWN,                  -1
 };
 
-static const int32_t kScanKeywords[] = {
+static const nsCSSProps::KTableValue kScanKeywords[] = {
   eCSSKeyword_progressive,              NS_STYLE_SCAN_PROGRESSIVE,
   eCSSKeyword_interlace,                NS_STYLE_SCAN_INTERLACE,
   eCSSKeyword_UNKNOWN,                  -1
@@ -45,53 +49,21 @@ const WindowsThemeName themeStrings[] = {
     { LookAndFeel::eWindowsTheme_Zune,       L"zune" },
     { LookAndFeel::eWindowsTheme_Generic,    L"generic" }
 };
-#else
-struct UnixThemeName {
-    LookAndFeel::UnixThemeIdentifier id;
-    const PRUnichar* name;
-};
-
-const UnixThemeName unixThemeStrings[] = {
-#if defined(MOZ_WIDGET_GTK2)
-    { LookAndFeel::eUnixThemeGTK2, (const PRUnichar *)u"gtk-2" },
-#endif
-#if defined(MOZ_WIDGET_QT)
-    { LookAndFeel::eUnixThemeQt4,  (const PRUnichar *)u"qt4" },
-#endif
-};
-#endif
 
 struct OperatingSystemVersionInfo {
-	LookAndFeel::OperatingSystemVersion id;
-#ifdef XP_WIN
-	const wchar_t* name;
-#else
-	const PRUnichar* name;
-#endif
+    LookAndFeel::OperatingSystemVersion id;
+    const wchar_t* name;
 };
 
-#define INTERNAL_OS_VERSION_OK
-// OS version identities used in the -moz-os-version media query.
+// Os version identities used in the -moz-os-version media query.
 const OperatingSystemVersionInfo osVersionStrings[] = {
-#ifdef XP_WIN
-	{ LookAndFeel::eOperatingSystemVersion_WindowsXP,     L"windows-xp" },
-	{ LookAndFeel::eOperatingSystemVersion_WindowsVista,  L"windows-vista" },
-	{ LookAndFeel::eOperatingSystemVersion_Windows7,      L"windows-win7" },
-	{ LookAndFeel::eOperatingSystemVersion_Windows8,      L"windows-win8" },
-	{ LookAndFeel::eOperatingSystemVersion_Windows10,     L"windows-win10" }
-  // check for `__linux__`, as *BSD version can use GTK+2 too
-#elif defined(__linux__) && (__linux__ == 1)
-# define INTERNAL_OS_VERSION_OK
-	{ LookAndFeel::eOperatingSystemVersion_GNULinux,      (const PRUnichar *)u"gnu-linux" },
-#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__)
-# define INTERNAL_OS_VERSION_OK
-	{ LookAndFeel::eOperatingSystemVersion_BSD,           (const PRUnichar *)u"bsd" },
-#elif XP_MACOSX
-	{ LookAndFeel::eOperatingSystemVersion_MacOSX,        (const PRUnichar *)u"macos-x" },
-#else
-# undef INTERNAL_OS_VERSION_OK
-#endif
+    { LookAndFeel::eOperatingSystemVersion_WindowsXP,     L"windows-xp" },
+    { LookAndFeel::eOperatingSystemVersion_WindowsVista,  L"windows-vista" },
+    { LookAndFeel::eOperatingSystemVersion_Windows7,      L"windows-win7" },
+    { LookAndFeel::eOperatingSystemVersion_Windows8,      L"windows-win8" },
+    { LookAndFeel::eOperatingSystemVersion_Windows10,     L"windows-win10" }
 };
+#endif
 
 // A helper for four features below
 static nsSize
@@ -142,14 +114,18 @@ static nsSize
 GetDeviceSize(nsPresContext* aPresContext)
 {
     nsSize size;
-    if (aPresContext->IsRootPaginatedDocument())
+
+    if (aPresContext->IsDeviceSizePageSize()) {
+        size = GetSize(aPresContext);
+    } else if (aPresContext->IsRootPaginatedDocument()) {
         // We want the page size, including unprintable areas and margins.
         // XXX The spec actually says we want the "page sheet size", but
         // how is that different?
         size = aPresContext->GetPageSize();
-    else
+    } else {
         GetDeviceContextFor(aPresContext)->
             GetDeviceSurfaceDimensions(size.width, size.height);
+    }
     return size;
 }
 
@@ -293,15 +269,7 @@ GetResolution(nsPresContext* aPresContext, const nsMediaFeature*,
 {
     // Resolution measures device pixels per CSS (inch/cm/pixel).  We
     // return it in device pixels per CSS inches.
-    //
-    // However, on platforms where the CSS viewport is not fixed to the
-    // screen viewport, use the device resolution instead (bug 779527).
-    nsIPresShell *shell = aPresContext->PresShell();
-    float appUnitsPerInch = shell->GetIsViewportOverridden() ?
-            GetDeviceContextFor(aPresContext)->AppUnitsPerPhysicalInch() :
-            nsPresContext::AppUnitsPerCSSInch();
-
-    float dpi = appUnitsPerInch /
+    float dpi = float(nsPresContext::AppUnitsPerCSSInch()) /
                 float(aPresContext->AppUnitsPerDevPixel());
     aResult.SetFloatValue(dpi, eCSSUnit_Inch);
     return NS_OK;
@@ -340,8 +308,8 @@ static nsresult
 GetSystemMetric(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
                 nsCSSValue& aResult)
 {
-    NS_ABORT_IF_FALSE(aFeature->mValueType == nsMediaFeature::eBoolInteger,
-                      "unexpected type");
+    MOZ_ASSERT(aFeature->mValueType == nsMediaFeature::eBoolInteger,
+               "unexpected type");
     nsIAtom *metricAtom = *aFeature->mData.mMetric;
     bool hasMetric = nsCSSRuleProcessor::HasSystemMetric(metricAtom);
     aResult.SetIntValue(hasMetric ? 1 : 0, eCSSUnit_Integer);
@@ -374,19 +342,18 @@ GetWindowsTheme(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
 }
 
 static nsresult
-GetUnixTheme(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
-                nsCSSValue& aResult)
+GetOperatinSystemVersion(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
+                         nsCSSValue& aResult)
 {
     aResult.Reset();
-#if !defined(XP_WIN) && !defined(XP_MACOSX)
+#ifdef XP_WIN
     int32_t metricResult;
     if (NS_SUCCEEDED(
-        LookAndFeel::GetInt(LookAndFeel::eIntID_UnixThemeIdentifier,
-                            &metricResult)))
-    {
-        for (size_t i = 0; i < ArrayLength(unixThemeStrings); ++i) {
-            if (metricResult == unixThemeStrings[i].id) {
-                aResult.SetStringValue(nsDependentString(unixThemeStrings[i].name),
+          LookAndFeel::GetInt(LookAndFeel::eIntID_OperatingSystemVersionIdentifier,
+                              &metricResult))) {
+        for (size_t i = 0; i < ArrayLength(osVersionStrings); ++i) {
+            if (metricResult == osVersionStrings[i].id) {
+                aResult.SetStringValue(nsDependentString(osVersionStrings[i].name),
                                        eCSSUnit_Ident);
                 break;
             }
@@ -394,28 +361,6 @@ GetUnixTheme(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
     }
 #endif
     return NS_OK;
-}
-
-static nsresult
-GetOperatinSystemVersion(nsPresContext* aPresContext, const nsMediaFeature* aFeature,
-						 nsCSSValue& aResult)
-{
-	aResult.Reset();
-#ifdef INTERNAL_OS_VERSION_OK
-	int32_t metricResult;
-	if (NS_SUCCEEDED(
-		  LookAndFeel::GetInt(LookAndFeel::eIntID_OperatingSystemVersionIdentifier,
-							  &metricResult))) {
-		for (size_t i = 0; i < ArrayLength(osVersionStrings); ++i) {
-			if (metricResult == osVersionStrings[i].id) {
-				aResult.SetStringValue(nsDependentString(osVersionStrings[i].name),
-									   eCSSUnit_Ident);
-				break;
-			}
-		}
-	}
-#endif
-	return NS_OK;
 }
 
 static nsresult
@@ -552,6 +497,13 @@ nsMediaFeatures::features[] = {
         GetIsResourceDocument
     },
     {
+        &nsGkAtoms::_moz_color_picker_available,
+        nsMediaFeature::eMinMaxNotAllowed,
+        nsMediaFeature::eBoolInteger,
+        { &nsGkAtoms::color_picker_available },
+        GetSystemMetric
+    },
+    {
         &nsGkAtoms::_moz_scrollbar_start_backward,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,
@@ -629,6 +581,13 @@ nsMediaFeatures::features[] = {
         GetSystemMetric
     },
     {
+      &nsGkAtoms::_moz_mac_yosemite_theme,
+      nsMediaFeature::eMinMaxNotAllowed,
+      nsMediaFeature::eBoolInteger,
+      { &nsGkAtoms::mac_yosemite_theme },
+      GetSystemMetric
+    },
+    {
         &nsGkAtoms::_moz_windows_compositor,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,
@@ -657,13 +616,6 @@ nsMediaFeatures::features[] = {
         GetSystemMetric
     },
     {
-        &nsGkAtoms::_moz_maemo_classic,
-        nsMediaFeature::eMinMaxNotAllowed,
-        nsMediaFeature::eBoolInteger,
-        { &nsGkAtoms::maemo_classic },
-        GetSystemMetric
-    },
-    {
         &nsGkAtoms::_moz_menubar_drag,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eBoolInteger,
@@ -678,19 +630,12 @@ nsMediaFeatures::features[] = {
         GetWindowsTheme
     },
     {
-        &nsGkAtoms::_moz_unix_theme,
+        &nsGkAtoms::_moz_os_version,
         nsMediaFeature::eMinMaxNotAllowed,
         nsMediaFeature::eIdent,
         { nullptr },
-        GetUnixTheme
+        GetOperatinSystemVersion
     },
-	{
-		&nsGkAtoms::_moz_os_version,
-		nsMediaFeature::eMinMaxNotAllowed,
-		nsMediaFeature::eIdent,
-		{ nullptr },
-		GetOperatinSystemVersion
-	},
 
     {
         &nsGkAtoms::_moz_swipe_animation_enabled,

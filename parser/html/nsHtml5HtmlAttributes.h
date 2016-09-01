@@ -26,13 +26,13 @@
  * Please edit HtmlAttributes.java instead and regenerate.
  */
 
-#ifndef nsHtml5HtmlAttributes_h__
-#define nsHtml5HtmlAttributes_h__
+#ifndef nsHtml5HtmlAttributes_h
+#define nsHtml5HtmlAttributes_h
 
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
 #include "nsString.h"
-#include "nsINameSpaceManager.h"
+#include "nsNameSpaceManager.h"
 #include "nsIContent.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
@@ -42,6 +42,7 @@
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsHtml5Macros.h"
+#include "nsIContentHandle.h"
 
 class nsHtml5StreamParser;
 
@@ -65,7 +66,7 @@ class nsHtml5HtmlAttributes
     autoJArray<nsHtml5AttributeName*,int32_t> names;
     autoJArray<nsString*,int32_t> values;
   public:
-    nsHtml5HtmlAttributes(int32_t mode);
+    explicit nsHtml5HtmlAttributes(int32_t mode);
     ~nsHtml5HtmlAttributes();
     int32_t getIndex(nsHtml5AttributeName* name);
     nsString* getValue(nsHtml5AttributeName* name);

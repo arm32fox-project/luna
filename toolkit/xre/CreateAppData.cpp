@@ -101,20 +101,20 @@ XRE_ParseAppData(nsIFile* aINIFile, nsXREAppData *aAppData)
   nsCString str;
 
   ReadString strings[] = {
-    { "App", "Vendor",    &aAppData->vendor },
-    { "App", "Name",      &aAppData->name },
-    { "App", "Version",   &aAppData->version },
-    { "App", "BuildID",   &aAppData->buildID },
-    { "App", "ID",        &aAppData->ID },
-    { "App", "Copyright", &aAppData->copyright },
-    { "App", "Profile",   &aAppData->profile },
+    { "App", "Vendor",        &aAppData->vendor },
+    { "App", "Name",          &aAppData->name },
+    { "App", "RemotingName",  &aAppData->remotingName },
+    { "App", "Version",       &aAppData->version },
+    { "App", "BuildID",       &aAppData->buildID },
+    { "App", "ID",            &aAppData->ID },
+    { "App", "Copyright",     &aAppData->copyright },
+    { "App", "Profile",       &aAppData->profile },
     { nullptr }
   };
   ReadStrings(parser, strings);
 
   ReadFlag flags[] = {
     { "XRE", "EnableProfileMigrator", NS_XRE_ENABLE_PROFILE_MIGRATOR },
-    { "XRE", "EnableExtensionManager", NS_XRE_ENABLE_EXTENSION_MANAGER },
     { nullptr }
   };
   ReadFlags(parser, flags, &aAppData->flags);
@@ -128,12 +128,25 @@ XRE_ParseAppData(nsIFile* aINIFile, nsXREAppData *aAppData)
     ReadStrings(parser, strings2);
   }
 
-  if (aAppData->size > offsetof(nsXREAppData, UAName)) {
+  if (aAppData->size > offsetof(nsXREAppData, crashReporterURL)) {
     ReadString strings3[] = {
-      { "App", "UAName",    &aAppData->UAName },
+      { "Crash Reporter", "ServerURL", &aAppData->crashReporterURL },
       { nullptr }
     };
     ReadStrings(parser, strings3);
+    ReadFlag flags2[] = {
+      { "Crash Reporter", "Enabled", NS_XRE_ENABLE_CRASH_REPORTER },
+      { nullptr }
+    };
+    ReadFlags(parser, flags2, &aAppData->flags);
+  }
+
+  if (aAppData->size > offsetof(nsXREAppData, UAName)) {
+    ReadString strings4[] = {
+      { "App", "UAName",    &aAppData->UAName },
+      { nullptr }
+    };
+    ReadStrings(parser, strings4);
   }
 
   return NS_OK;

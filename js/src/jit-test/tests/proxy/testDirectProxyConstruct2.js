@@ -1,6 +1,9 @@
+load(libdir + "asserts.js");
 /*
  * Call the trap with the handler as the this value, the target as the first
  * argument, and the original arguments as the third argument.
+ *
+ * Hooks that don't return an object must throw.
  */
 var target = function () {};
 var handler = {
@@ -12,4 +15,5 @@ var handler = {
         assertEq(args[1], 3);
     }
 }
-assertEq(new (new Proxy(target, handler))(2, 3), undefined);
+for (let p of [new Proxy(target, handler), Proxy.revocable(target, handler).proxy])
+    assertThrowsInstanceOf(function () {new p(2, 3)}, TypeError);

@@ -52,10 +52,15 @@ class ThreadWrapper {
   // prio        Thread priority. May require root/admin rights.
   // thread_name  NULL terminated thread name, will be visable in the Windows
   //             debugger.
-  static ThreadWrapper* CreateThread(ThreadRunFunction func = 0,
-                                     ThreadObj obj = 0,
+  static ThreadWrapper* CreateThread(ThreadRunFunction func,
+                                     ThreadObj obj,
                                      ThreadPriority prio = kNormalPriority,
-                                     const char* thread_name = 0);
+                                     const char* thread_name = NULL);
+
+  static ThreadWrapper* CreateUIThread(ThreadRunFunction func,
+                                       ThreadObj obj,
+                                       ThreadPriority prio = kNormalPriority,
+                                       const char* thread_name = NULL);
 
   // Get the current thread's kernel thread ID.
   static uint32_t GetThreadId();
@@ -78,17 +83,19 @@ class ThreadWrapper {
   // should be lower than (number of CPUs - 1). amount_of_processors should be
   // equal to the number of processors listed in processor_numbers.
   virtual bool SetAffinity(const int* processor_numbers,
-                           const unsigned int amount_of_processors) {
-    return false;
-  }
+                           const unsigned int amount_of_processors);
 
   // Stops the spawned thread and waits for it to be reclaimed with a timeout
   // of two seconds. Will return false if the thread was not reclaimed.
   // Multiple tries to Stop are allowed (e.g. to wait longer than 2 seconds).
   // It's ok to call Stop() even if the spawned thread has been reclaimed.
   virtual bool Stop() = 0;
+
+  // Request a timed callback for ThreadRunFunction. Currently only
+  // implemented for a specific type of thread on Windows.
+  virtual bool RequestCallbackTimer(unsigned int milliseconds);
 };
 
-} // namespace webrtc
+}  // namespace webrtc
 
 #endif  // WEBRTC_SYSTEM_WRAPPERS_INTERFACE_THREAD_WRAPPER_H_

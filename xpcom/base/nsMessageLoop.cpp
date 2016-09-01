@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -31,8 +32,8 @@ class MessageLoopIdleTask
   , public SupportsWeakPtr<MessageLoopIdleTask>
 {
 public:
+  MOZ_DECLARE_WEAKREFERENCE_TYPENAME(MessageLoopIdleTask)
   MessageLoopIdleTask(nsIRunnable* aTask, uint32_t aEnsureRunsAfterMS);
-  virtual ~MessageLoopIdleTask() {}
   virtual void Run();
 
 private:
@@ -40,6 +41,8 @@ private:
 
   nsCOMPtr<nsIRunnable> mTask;
   nsCOMPtr<nsITimer> mTimer;
+
+  virtual ~MessageLoopIdleTask() {}
 };
 
 /**
@@ -56,14 +59,15 @@ class MessageLoopTimerCallback
   : public nsITimerCallback
 {
 public:
-  MessageLoopTimerCallback(MessageLoopIdleTask* aTask);
-  virtual ~MessageLoopTimerCallback() {};
+  explicit MessageLoopTimerCallback(MessageLoopIdleTask* aTask);
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSITIMERCALLBACK
 
 private:
   WeakPtr<MessageLoopIdleTask> mTask;
+
+  virtual ~MessageLoopTimerCallback() {}
 };
 
 MessageLoopIdleTask::MessageLoopIdleTask(nsIRunnable* aTask,
@@ -87,7 +91,9 @@ nsresult
 MessageLoopIdleTask::Init(uint32_t aEnsureRunsAfterMS)
 {
   mTimer = do_CreateInstance("@mozilla.org/timer;1");
-  NS_ENSURE_STATE(mTimer);
+  if (NS_WARN_IF(!mTimer)) {
+    return NS_ERROR_UNEXPECTED;
+  }
 
   nsRefPtr<MessageLoopTimerCallback> callback =
     new MessageLoopTimerCallback(this);
@@ -115,8 +121,9 @@ MessageLoopIdleTask::Run()
 }
 
 MessageLoopTimerCallback::MessageLoopTimerCallback(MessageLoopIdleTask* aTask)
-  : mTask(aTask->asWeakPtr())
-{}
+  : mTask(aTask)
+{
+}
 
 NS_IMETHODIMP
 MessageLoopTimerCallback::Notify(nsITimer* aTimer)
@@ -132,11 +139,11 @@ MessageLoopTimerCallback::Notify(nsITimer* aTimer)
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS1(MessageLoopTimerCallback, nsITimerCallback)
+NS_IMPL_ISUPPORTS(MessageLoopTimerCallback, nsITimerCallback)
 
 } // anonymous namespace
 
-NS_IMPL_ISUPPORTS1(nsMessageLoop, nsIMessageLoop)
+NS_IMPL_ISUPPORTS(nsMessageLoop, nsIMessageLoop)
 
 NS_IMETHODIMP
 nsMessageLoop::PostIdleTask(nsIRunnable* aTask, uint32_t aEnsureRunsAfterMS)
@@ -153,7 +160,9 @@ nsMessageLoopConstructor(nsISupports* aOuter,
                          const nsIID& aIID,
                          void** aInstancePtr)
 {
-  NS_ENSURE_FALSE(aOuter, NS_ERROR_NO_AGGREGATION);
+  if (NS_WARN_IF(aOuter)) {
+    return NS_ERROR_NO_AGGREGATION;
+  }
   nsISupports* messageLoop = new nsMessageLoop();
   return messageLoop->QueryInterface(aIID, aInstancePtr);
 }

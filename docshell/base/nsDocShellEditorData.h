@@ -1,6 +1,6 @@
-/* -*- Mode: C++; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #ifndef nsDocShellEditorData_h__
@@ -10,43 +10,33 @@
 #include "nsCOMPtr.h"
 #endif
 
-#ifndef __gen_nsIDocShell_h__
-#include "nsIDocShell.h"
-#endif
-
-#ifndef __gen_nsIEditingSession_h__
-#include "nsIEditingSession.h"
-#endif
-
-
 #include "nsIHTMLDocument.h"
-#include "nsIEditor.h"
 
-class nsIDOMWindow;
+class nsIDocShell;
+class nsIEditingSession;
+class nsIEditor;
 
 class nsDocShellEditorData
 {
 public:
-
-  nsDocShellEditorData(nsIDocShell* inOwningDocShell);
+  explicit nsDocShellEditorData(nsIDocShell* aOwningDocShell);
   ~nsDocShellEditorData();
 
-  nsresult MakeEditable(bool inWaitForUriLoad);
+  nsresult MakeEditable(bool aWaitForUriLoad);
   bool GetEditable();
   nsresult CreateEditor();
-  nsresult GetEditingSession(nsIEditingSession **outEditingSession);
-  nsresult GetEditor(nsIEditor **outEditor);
-  nsresult SetEditor(nsIEditor *inEditor);
+  nsresult GetEditingSession(nsIEditingSession** aResult);
+  nsresult GetEditor(nsIEditor** aResult);
+  nsresult SetEditor(nsIEditor* aEditor);
   void TearDownEditor();
   nsresult DetachFromWindow();
-  nsresult ReattachToWindow(nsIDocShell *aDocShell);
+  nsresult ReattachToWindow(nsIDocShell* aDocShell);
   bool WaitingForLoad() const { return mMakeEditable; }
 
 protected:
-
   nsresult EnsureEditingSession();
 
-  // The doc shell that owns us. Weak ref, since it always outlives us.  
+  // The doc shell that owns us. Weak ref, since it always outlives us.
   nsIDocShell* mDocShell;
 
   // Only present for the content root docShell. Session is owned here.
@@ -54,7 +44,7 @@ protected:
 
   // Indicates whether to make an editor after a url load.
   bool mMakeEditable;
-  
+
   // If this frame is editable, store editor here. Editor is owned here.
   nsCOMPtr<nsIEditor> mEditor;
 
@@ -70,6 +60,5 @@ protected:
   nsIHTMLDocument::EditingState mDetachedEditingState;
 
 };
-
 
 #endif // nsDocShellEditorData_h__

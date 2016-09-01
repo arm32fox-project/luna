@@ -5,14 +5,20 @@
 
 package org.mozilla.goanna;
 
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.concurrent.SynchronousQueue;
+
+import org.mozilla.goanna.AppConstants.Versions;
 import org.mozilla.goanna.gfx.InputConnectionHandler;
 import org.mozilla.goanna.util.Clipboard;
 import org.mozilla.goanna.util.GamepadUtils;
 import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.ThreadUtils.AssertBehavior;
 
 import android.R;
 import android.content.Context;
-import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -33,17 +39,16 @@ import android.view.inputmethod.ExtractedTextRequest;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethodManager;
 
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
-import java.util.concurrent.SynchronousQueue;
-
 class GoannaInputConnection
     extends BaseInputConnection
     implements InputConnectionHandler, GoannaEditableListener {
 
     private static final boolean DEBUG = false;
     protected static final String LOGTAG = "GoannaInputConnection";
+
+    private static final String CUSTOM_HANDLER_TEST_METHOD = "testInputConnection";
+    private static final String CUSTOM_HANDLER_TEST_CLASS =
+        "org.mozilla.goanna.tests.components.GoannaViewComponent$TextInput";
 
     private static final int INLINE_IME_MIN_DISPLAY_SIZE = 480;
 
@@ -111,7 +116,7 @@ class GoannaInputConnection
 
         public void waitForUiThread(Handler icHandler) {
             if (DEBUG) {
-                ThreadUtils.assertOnThread(icHandler.getLooper().getThread());
+                ThreadUtils.assertOnThread(icHandler.getLooper().getThread(), AssertBehavior.THROW);
                 Log.d(LOGTAG, "waitForUiThread() blocking on thread " +
                               icHandler.getLooper().getThread().getName());
             }
@@ -137,10 +142,20 @@ class GoannaInputConnection
             runOnIcThread(icHandler, runnable);
         }
 
+        public void sendEventFromUiThread(final Handler uiHandler,
+                                          final GoannaEditableClient client,
+                                          final GoannaEvent event) {
+            runOnIcThread(uiHandler, client, new Runnable() {
+                @Override public void run() {
+                    client.sendEvent(event);
+                }
+            });
+        }
+
         public Editable getEditableForUiThread(final Handler uiHandler,
                                                final GoannaEditableClient client) {
             if (DEBUG) {
-                ThreadUtils.assertOnThread(uiHandler.getLooper().getThread());
+                ThreadUtils.assertOnThread(uiHandler.getLooper().getThread(), AssertBehavior.THROW);
             }
             final Handler icHandler = client.getInputConnectionHandler();
             if (icHandler.getLooper() == uiHandler.getLooper()) {
@@ -157,7 +172,7 @@ class GoannaInputConnection
                                                final Method method,
                                                final Object[] args) throws Throwable {
                     if (DEBUG) {
-                        ThreadUtils.assertOnThread(uiHandler.getLooper().getThread());
+                        ThreadUtils.assertOnThread(uiHandler.getLooper().getThread(), AssertBehavior.THROW);
                         Log.d(LOGTAG, "UiEditable." + method.getName() + "() blocking");
                     }
                     synchronized (icHandler) {
@@ -235,7 +250,7 @@ class GoannaInputConnection
     @Override
     public synchronized boolean beginBatchEdit() {
         mBatchEditCount++;
-        mEditableClient.setUpdateGoanna(false);
+        mEditableClient.setUpdateGoanna(false, false);
         return true;
     }
 
@@ -244,6 +259,10 @@ class GoannaInputConnection
         if (mBatchEditCount > 0) {
             mBatchEditCount--;
             if (mBatchEditCount == 0) {
+                // Force Goanna update for cancelled auto-correction of single-
+                // character words to prevent character duplication. (bug 1133802)
+                boolean forceUpdate = !mBatchTextChanged && !mBatchSelectionChanged;
+
                 if (mBatchTextChanged) {
                     notifyTextChange();
                     mBatchTextChanged = false;
@@ -254,7 +273,7 @@ class GoannaInputConnection
                                            Selection.getSelectionEnd(editable));
                     mBatchSelectionChanged = false;
                 }
-                mEditableClient.setUpdateGoanna(true);
+                mEditableClient.setUpdateGoanna(true, forceUpdate);
             }
         } else {
             Log.w(LOGTAG, "endBatchEdit() called, but mBatchEditCount == 0?!");
@@ -415,9 +434,16 @@ class GoannaInputConnection
     }
 
     @Override
-    public void onTextChange(String text, int start, int oldEnd, int newEnd) {
+    public void onTextChange(CharSequence text, int start, int oldEnd, int newEnd) {
 
         if (mUpdateRequest == null) {
+            // Android always expects selection updates when not in extracted mode;
+            // in extracted mode, the selection is reported through updateExtractedText
+            final Editable editable = getEditable();
+            if (editable != null) {
+                onSelectionChange(Selection.getSelectionStart(editable),
+                                  Selection.getSelectionEnd(editable));
+            }
             return;
         }
 
@@ -495,7 +521,8 @@ class GoannaInputConnection
                     GoannaInputConnection.class.notify();
                 }
                 Looper.loop();
-                sBackgroundHandler = null;
+                // We should never be exiting the thread loop.
+                throw new IllegalThreadStateException("unreachable code");
             }
         }, LOGTAG);
         backgroundThread.setDaemon(true);
@@ -526,6 +553,11 @@ class GoannaInputConnection
                 // only return our own Handler to InputMethodManager
                 return true;
             }
+            if (CUSTOM_HANDLER_TEST_METHOD.equals(frame.getMethodName()) &&
+                CUSTOM_HANDLER_TEST_CLASS.equals(frame.getClassName())) {
+                // InputConnection tests should also run on the custom handler
+                return true;
+            }
         }
         return false;
     }
@@ -535,11 +567,7 @@ class GoannaInputConnection
         if (!canReturnCustomHandler()) {
             return defHandler;
         }
-        // getBackgroundHandler() is synchronized and requires locking,
-        // but if we already have our handler, we don't have to lock
-        final Handler newHandler = sBackgroundHandler != null
-                                 ? sBackgroundHandler
-                                 : getBackgroundHandler();
+        final Handler newHandler = getBackgroundHandler();
         if (mEditableClient.setInputConnectionHandler(newHandler)) {
             return newHandler;
         }
@@ -598,9 +626,12 @@ class GoannaInputConnection
                 outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_CAP_CHARACTERS;
             else if (mIMEModeHint.equalsIgnoreCase("titlecase"))
                 outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_CAP_WORDS;
-            else if (mIMEModeHint.equalsIgnoreCase("autocapitalized"))
+            else if (mIMETypeHint.equalsIgnoreCase("text") &&
+                    !mIMEModeHint.equalsIgnoreCase("autocapitalized"))
+                outAttrs.inputType |= InputType.TYPE_TEXT_VARIATION_NORMAL;
+            else if (!mIMEModeHint.equalsIgnoreCase("lowercase"))
                 outAttrs.inputType |= InputType.TYPE_TEXT_FLAG_CAP_SENTENCES;
-            // lowercase mode is the default
+            // auto-capitalized mode is the default for types other than text
         }
 
         if (mIMEActionHint.equalsIgnoreCase("go"))
@@ -794,7 +825,8 @@ class GoannaInputConnection
 
         View view = getView();
         if (view == null) {
-            mEditableClient.sendEvent(GoannaEvent.createKeyEvent(event, 0));
+            InputThreadUtils.sInstance.sendEventFromUiThread(ThreadUtils.getUiHandler(),
+                mEditableClient, GoannaEvent.createKeyEvent(event, 0));
             return true;
         }
 
@@ -811,7 +843,7 @@ class GoannaInputConnection
         if (skip ||
             (down && !keyListener.onKeyDown(view, uiEditable, keyCode, event)) ||
             (!down && !keyListener.onKeyUp(view, uiEditable, keyCode, event))) {
-            mEditableClient.sendEvent(
+            InputThreadUtils.sInstance.sendEventFromUiThread(uiHandler, mEditableClient,
                 GoannaEvent.createKeyEvent(event, TextKeyListener.getMetaState(uiEditable)));
             if (skip && down) {
                 // Usually, the down key listener call above adjusts meta states for us.
@@ -905,6 +937,10 @@ class GoannaInputConnection
                 resetInputConnection();
                 break;
 
+            case NOTIFY_IME_OPEN_VKB:
+                showSoftInput();
+                break;
+
             default:
                 if (DEBUG) {
                     throw new IllegalArgumentException("Unexpected NOTIFY_IME=" + type);
@@ -921,10 +957,10 @@ class GoannaInputConnection
         if (typeHint != null &&
             (typeHint.equalsIgnoreCase("date") ||
              typeHint.equalsIgnoreCase("time") ||
-             (Build.VERSION.SDK_INT >= 11 && (typeHint.equalsIgnoreCase("datetime") ||
-                                              typeHint.equalsIgnoreCase("month") ||
-                                              typeHint.equalsIgnoreCase("week") ||
-                                              typeHint.equalsIgnoreCase("datetime-local"))))) {
+             (Versions.feature11Plus && (typeHint.equalsIgnoreCase("datetime") ||
+                                         typeHint.equalsIgnoreCase("month") ||
+                                         typeHint.equalsIgnoreCase("week") ||
+                                         typeHint.equalsIgnoreCase("datetime-local"))))) {
             state = IME_STATE_DISABLED;
         }
 
@@ -968,7 +1004,7 @@ final class DebugGoannaInputConnection
         implements InvocationHandler {
 
     private InputConnection mProxy;
-    private StringBuilder mCallLevel;
+    private final StringBuilder mCallLevel;
 
     private DebugGoannaInputConnection(View targetView,
                                       GoannaEditableClient editable) {
@@ -978,7 +1014,7 @@ final class DebugGoannaInputConnection
 
     public static GoannaEditableListener create(View targetView,
                                                GoannaEditableClient editable) {
-        final Class[] PROXY_INTERFACES = { InputConnection.class,
+        final Class<?>[] PROXY_INTERFACES = { InputConnection.class,
                 InputConnectionHandler.class,
                 GoannaEditableListener.class };
         DebugGoannaInputConnection dgic =
@@ -995,21 +1031,23 @@ final class DebugGoannaInputConnection
 
         StringBuilder log = new StringBuilder(mCallLevel);
         log.append("> ").append(method.getName()).append("(");
-        for (Object arg : args) {
-            // translate argument values to constant names
-            if ("notifyIME".equals(method.getName()) && arg == args[0]) {
-                log.append(GoannaEditable.getConstantName(
-                    GoannaEditableListener.class, "NOTIFY_IME_", arg));
-            } else if ("notifyIMEContext".equals(method.getName()) && arg == args[0]) {
-                log.append(GoannaEditable.getConstantName(
-                    GoannaEditableListener.class, "IME_STATE_", arg));
-            } else {
-                GoannaEditable.debugAppend(log, arg);
+        if (args != null) {
+            for (Object arg : args) {
+                // translate argument values to constant names
+                if ("notifyIME".equals(method.getName()) && arg == args[0]) {
+                    log.append(GoannaEditable.getConstantName(
+                        GoannaEditableListener.class, "NOTIFY_IME_", arg));
+                } else if ("notifyIMEContext".equals(method.getName()) && arg == args[0]) {
+                    log.append(GoannaEditable.getConstantName(
+                        GoannaEditableListener.class, "IME_STATE_", arg));
+                } else {
+                    GoannaEditable.debugAppend(log, arg);
+                }
+                log.append(", ");
             }
-            log.append(", ");
-        }
-        if (args.length > 0) {
-            log.setLength(log.length() - 2);
+            if (args.length > 0) {
+                log.setLength(log.length() - 2);
+            }
         }
         log.append(")");
         Log.d(LOGTAG, log.toString());

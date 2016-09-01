@@ -8,7 +8,6 @@
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsCOMArray.h"
-#include "nsISupportsArray.h"
 #include "nsIBFCacheEntry.h"
 #include "nsIMutationObserver.h"
 #include "nsExpirationTracker.h"
@@ -23,6 +22,7 @@ class nsIContentViewer;
 class nsIDocShellTreeItem;
 class nsILayoutHistoryState;
 class nsDocShellEditorData;
+class nsISupportsArray;
 
 // A document may have multiple SHEntries, either due to hash navigations or
 // calls to history.pushState.  SHEntries corresponding to the same document
@@ -30,21 +30,22 @@ class nsDocShellEditorData;
 // back/forward cache.
 //
 // nsSHEntryShared is the vehicle for this sharing.
-class nsSHEntryShared MOZ_FINAL : public nsIBFCacheEntry,
+class nsSHEntryShared final : public nsIBFCacheEntry,
                                   public nsIMutationObserver
 {
   public:
-    static void Startup();
+    static void EnsureHistoryTracker();
     static void Shutdown();
 
     nsSHEntryShared();
-    ~nsSHEntryShared();
 
     NS_DECL_ISUPPORTS
     NS_DECL_NSIMUTATIONOBSERVER
     NS_DECL_NSIBFCACHEENTRY
 
   private:
+    ~nsSHEntryShared();
+
     friend class nsSHEntry;
 
     friend class HistoryTracker;

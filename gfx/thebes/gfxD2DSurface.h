@@ -8,11 +8,11 @@
 
 #include "gfxASurface.h"
 #include "nsPoint.h"
-#include "nsRect.h"
 
 #include <windows.h>
 
 struct ID3D10Texture2D;
+struct nsIntRect;
 
 class gfxD2DSurface : public gfxASurface {
 public:
@@ -21,19 +21,13 @@ public:
                   gfxContentType aContent);
 
     gfxD2DSurface(const gfxIntSize& size,
-                  gfxImageFormat imageFormat = ImageFormatRGB24);
+                  gfxImageFormat imageFormat = gfxImageFormat::RGB24);
 
     gfxD2DSurface(HANDLE handle, gfxContentType aContent);
 
     gfxD2DSurface(ID3D10Texture2D *texture, gfxContentType aContent);
 
     gfxD2DSurface(cairo_surface_t *csurf);
-
-    void MovePixels(const nsIntRect& aSourceRect,
-                    const nsIntPoint& aDestTopLeft)
-    {
-        FastMovePixels(aSourceRect, aDestTopLeft);
-    }
 
     virtual ~gfxD2DSurface();
 

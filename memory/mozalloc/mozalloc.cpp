@@ -24,8 +24,6 @@
 #  define MOZALLOC_EXPORT __declspec(dllexport)
 #endif
 
-// Make sure that "malloc" et al. resolve to their libc variants.
-#define MOZALLOC_DONT_DEFINE_MACRO_WRAPPERS
 #include "mozilla/mozalloc.h"
 #include "mozilla/mozalloc_oom.h"  // for mozalloc_handle_oom
 
@@ -83,12 +81,6 @@ moz_calloc(size_t nmemb, size_t size)
 void*
 moz_xrealloc(void* ptr, size_t size)
 {
-    // Ensure that we have reasonable realloc semantics, regardless of the
-    // underlying malloc implementation.
-    if (UNLIKELY(!ptr && !size)) {
-        return nullptr;
-    }
-
     void* newptr = realloc(ptr, size);
     if (UNLIKELY(!newptr && size)) {
         mozalloc_handle_oom(size);
@@ -96,16 +88,9 @@ moz_xrealloc(void* ptr, size_t size)
     }
     return newptr;
 }
-
 void*
 moz_realloc(void* ptr, size_t size)
 {
-    // Ensure that we have reasonable realloc semantics, regardless of the
-    // underlying malloc implementation.
-    if (UNLIKELY(!ptr && !size)) {
-        return nullptr;
-    }
-
     return realloc(ptr, size);
 }
 
@@ -236,9 +221,3 @@ size_t moz_malloc_size_of(const void *ptr)
 {
     return moz_malloc_usable_size((void *)ptr);
 }
-
-namespace mozilla {
-
-const fallible_t fallible = fallible_t();
-
-} // namespace mozilla

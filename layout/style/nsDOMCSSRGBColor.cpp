@@ -6,7 +6,6 @@
 
 #include "nsDOMCSSRGBColor.h"
 
-#include "nsContentUtils.h"
 #include "mozilla/dom/RGBColorBinding.h"
 #include "nsROCSSPrimitiveValue.h"
 
@@ -20,21 +19,20 @@ nsDOMCSSRGBColor::nsDOMCSSRGBColor(nsROCSSPrimitiveValue* aRed,
   : mRed(aRed), mGreen(aGreen), mBlue(aBlue), mAlpha(aAlpha)
   , mHasAlpha(aHasAlpha)
 {
-  SetIsDOMBinding();
 }
 
 nsDOMCSSRGBColor::~nsDOMCSSRGBColor(void)
 {
 }
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_4(nsDOMCSSRGBColor, mAlpha,  mBlue, mGreen, mRed)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(nsDOMCSSRGBColor, mAlpha,  mBlue, mGreen, mRed)
 
 NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(nsDOMCSSRGBColor, AddRef)
 NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(nsDOMCSSRGBColor, Release)
 
 JSObject*
-nsDOMCSSRGBColor::WrapObject(JSContext *aCx, JS::Handle<JSObject*> aScope)
+nsDOMCSSRGBColor::WrapObject(JSContext *aCx)
 {
-  return dom::RGBColorBinding::Wrap(aCx, aScope, this);
+  return dom::RGBColorBinding::Wrap(aCx, this);
 }
 

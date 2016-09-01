@@ -18,10 +18,10 @@
 #ifndef WEBRTC_MODULES_RTP_RTCP_SOURCE_RTP_FORMAT_VP8_TEST_HELPER_H_
 #define WEBRTC_MODULES_RTP_RTCP_SOURCE_RTP_FORMAT_VP8_TEST_HELPER_H_
 
-#include "modules/interface/module_common_types.h"
-#include "modules/rtp_rtcp/source/rtp_format_vp8.h"
-#include "system_wrappers/interface/constructor_magic.h"
-#include "typedefs.h"
+#include "webrtc/base/constructormagic.h"
+#include "webrtc/modules/interface/module_common_types.h"
+#include "webrtc/modules/rtp_rtcp/source/rtp_format_vp8.h"
+#include "webrtc/typedefs.h"
 
 namespace webrtc {
 
@@ -32,7 +32,7 @@ class RtpFormatVp8TestHelper {
   explicit RtpFormatVp8TestHelper(const RTPVideoHeaderVP8* hdr);
   ~RtpFormatVp8TestHelper();
   bool Init(const int* partition_sizes, int num_partitions);
-  void GetAllPacketsAndCheck(RtpFormatVp8* packetizer,
+  void GetAllPacketsAndCheck(RtpPacketizerVp8* packetizer,
                              const int* expected_sizes,
                              const int* expected_part,
                              const bool* expected_frag_start,

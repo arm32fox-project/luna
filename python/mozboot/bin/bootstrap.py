@@ -32,13 +32,15 @@ REPOSITORY_PATH_PREFIX = 'python/mozboot'
 
 REPOSITORY_PATHS = [
     'mozboot/__init__.py',
+    'mozboot/android-ndk.rb',
+    'mozboot/android.py',
     'mozboot/base.py',
     'mozboot/bootstrap.py',
     'mozboot/centos.py',
     'mozboot/debian.py',
     'mozboot/fedora.py',
+    'mozboot/freebsd.py',
     'mozboot/gentoo.py',
-    'mozboot/mint.py',
     'mozboot/openbsd.py',
     'mozboot/osx.py',
     'mozboot/ubuntu.py',
@@ -46,7 +48,17 @@ REPOSITORY_PATHS = [
 
 TEMPDIR = None
 
+def setup_proxy():
+    # Some Linux environments define ALL_PROXY, which is a SOCKS proxy
+    # intended for all protocols. Python doesn't currently automatically
+    # detect this like it does for http_proxy and https_proxy.
+    if 'ALL_PROXY' in os.environ and 'https_proxy' not in os.environ:
+        os.environ['https_proxy'] = os.environ['ALL_PROXY']
+    if 'ALL_PROXY' in os.environ and 'http_proxy' not in os.environ:
+        os.environ['http_proxy'] = os.environ['ALL_PROXY']
+
 def fetch_files(repo_url, repo_type):
+    setup_proxy()
     repo_url = repo_url.rstrip('/')
 
     files = {}

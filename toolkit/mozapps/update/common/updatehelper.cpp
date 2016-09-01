@@ -2,6 +2,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifdef MOZ_METRO
+// Needed for COM calls to launch Metro applications
+#undef WINVER
+#undef _WIN32_WINNT
+#define WINVER 0x602
+#define _WIN32_WINNT 0x602
+#include <objbase.h>
+#include <shobjidl.h>
+#pragma comment(lib, "ole32.lib")
+#endif
+
 #include <windows.h>
 
 // Needed for CreateToolhelp32Snapshot
@@ -11,15 +22,20 @@
 #include <stdio.h>
 #include "shlobj.h"
 #include "updatehelper.h"
+#include "uachelper.h"
 #include "pathhash.h"
-#include "mozilla/Scoped.h"
+#include "mozilla/UniquePtr.h"
 
 // Needed for PathAppendW
 #include <shlwapi.h>
-#pragma comment(lib, "shlwapi.lib")
 
-WCHAR* MakeCommandLine(int argc, WCHAR **argv);
+using mozilla::MakeUnique;
+using mozilla::UniquePtr;
+
 BOOL PathAppendSafe(LPWSTR base, LPCWSTR extra);
+BOOL PathGetSiblingFilePath(LPWSTR destinationBuffer,
+                            LPCWSTR siblingFilePath,
+                            LPCWSTR newFileName);
 
 /**
  * Obtains the path of a file in the same directory as the specified file.
@@ -51,137 +67,6 @@ PathGetSiblingFilePath(LPWSTR destinationBuffer,
 }
 
 /**
- * Launch the post update application as the specified user (helper.exe).
- * It takes in the path of the callback application to calculate the path
- * of helper.exe.  For service updates this is called from both the system
- * account and the current user account.
- *
- * @param  installationDir The path to the callback application binary.
- * @param  updateInfoDir   The directory where update info is stored.
- * @param  forceSync       If true even if the ini file specifies async, the
- *                         process will wait for termination of PostUpdate.
- * @param  userToken       The user token to run as, if NULL the current user
- *                         will be used.
- * @return TRUE if there was no error starting the process.
- */
-BOOL
-LaunchWinPostProcess(const WCHAR *installationDir,
-                     const WCHAR *updateInfoDir,
-                     bool forceSync,
-                     HANDLE userToken)
-{
-  WCHAR workingDirectory[MAX_PATH + 1] = { L'\0' };
-  wcsncpy(workingDirectory, installationDir, MAX_PATH);
-
-  // Launch helper.exe to perform post processing (e.g. registry and log file
-  // modifications) for the update.
-  WCHAR inifile[MAX_PATH + 1] = { L'\0' };
-  wcsncpy(inifile, installationDir, MAX_PATH);
-  if (!PathAppendSafe(inifile, L"updater.ini")) {
-    return FALSE;
-  }
-
-  WCHAR exefile[MAX_PATH + 1];
-  WCHAR exearg[MAX_PATH + 1];
-  WCHAR exeasync[10];
-  bool async = true;
-  if (!GetPrivateProfileStringW(L"PostUpdateWin", L"ExeRelPath", NULL, exefile,
-                                MAX_PATH + 1, inifile)) {
-    return FALSE;
-  }
-
-  if (!GetPrivateProfileStringW(L"PostUpdateWin", L"ExeArg", NULL, exearg,
-                                MAX_PATH + 1, inifile)) {
-    return FALSE;
-  }
-
-  if (!GetPrivateProfileStringW(L"PostUpdateWin", L"ExeAsync", L"TRUE",
-                                exeasync,
-                                sizeof(exeasync)/sizeof(exeasync[0]),
-                                inifile)) {
-    return FALSE;
-  }
-
-  WCHAR exefullpath[MAX_PATH + 1] = { L'\0' };
-  wcsncpy(exefullpath, installationDir, MAX_PATH);
-  if (!PathAppendSafe(exefullpath, exefile)) {
-    return false;
-  }
-
-  WCHAR dlogFile[MAX_PATH + 1];
-  if (!PathGetSiblingFilePath(dlogFile, exefullpath, L"uninstall.update")) {
-    return FALSE;
-  }
-
-  WCHAR slogFile[MAX_PATH + 1] = { L'\0' };
-  wcsncpy(slogFile, updateInfoDir, MAX_PATH);
-  if (!PathAppendSafe(slogFile, L"update.log")) {
-    return FALSE;
-  }
-
-  WCHAR dummyArg[14] = { L'\0' };
-  wcsncpy(dummyArg, L"argv0ignored ", sizeof(dummyArg) / sizeof(dummyArg[0]) - 1);
-
-  size_t len = wcslen(exearg) + wcslen(dummyArg);
-  WCHAR *cmdline = (WCHAR *) malloc((len + 1) * sizeof(WCHAR));
-  if (!cmdline) {
-    return FALSE;
-  }
-
-  wcsncpy(cmdline, dummyArg, len);
-  wcscat(cmdline, exearg);
-
-  if (forceSync ||
-      !_wcsnicmp(exeasync, L"false", 6) ||
-      !_wcsnicmp(exeasync, L"0", 2)) {
-    async = false;
-  }
-
-  // We want to launch the post update helper app to update the Windows
-  // registry even if there is a failure with removing the uninstall.update
-  // file or copying the update.log file.
-  CopyFileW(slogFile, dlogFile, false);
-
-  STARTUPINFOW si = {sizeof(si), 0};
-  si.lpDesktop = L"";
-  PROCESS_INFORMATION pi = {0};
-
-  bool ok;
-  if (userToken) {
-    ok = CreateProcessAsUserW(userToken,
-                              exefullpath,
-                              cmdline,
-                              NULL,  // no special security attributes
-                              NULL,  // no special thread attributes
-                              false, // don't inherit filehandles
-                              0,     // No special process creation flags
-                              NULL,  // inherit my environment
-                              workingDirectory,
-                              &si,
-                              &pi);
-  } else {
-    ok = CreateProcessW(exefullpath,
-                        cmdline,
-                        NULL,  // no special security attributes
-                        NULL,  // no special thread attributes
-                        false, // don't inherit filehandles
-                        0,     // No special process creation flags
-                        NULL,  // inherit my environment
-                        workingDirectory,
-                        &si,
-                        &pi);
-  }
-  free(cmdline);
-  if (ok) {
-    if (!async)
-      WaitForSingleObject(pi.hProcess, INFINITE);
-    CloseHandle(pi.hProcess);
-    CloseHandle(pi.hThread);
-  }
-  return ok;
-}
-
-/**
  * Starts the upgrade process for update of the service if it is
  * already installed.
  *
@@ -193,7 +78,7 @@ BOOL
 StartServiceUpdate(LPCWSTR installDir)
 {
   // Get a handle to the local computer SCM database
-  SC_HANDLE manager = OpenSCManager(NULL, NULL,
+  SC_HANDLE manager = OpenSCManager(nullptr, nullptr,
                                     SC_MANAGER_ALL_ACCESS);
   if (!manager) {
     return FALSE;
@@ -222,7 +107,7 @@ StartServiceUpdate(LPCWSTR installDir)
 
   // Get the service config information, in particular we want the binary
   // path of the service.
-  mozilla::ScopedDeleteArray<char> serviceConfigBuffer(new char[bytesNeeded]);
+  UniquePtr<char[]> serviceConfigBuffer = MakeUnique<char[]>(bytesNeeded);
   if (!QueryServiceConfigW(svc,
       reinterpret_cast<QUERY_SERVICE_CONFIGW*>(serviceConfigBuffer.get()),
       bytesNeeded, &bytesNeeded)) {
@@ -257,7 +142,6 @@ StartServiceUpdate(LPCWSTR installDir)
   }
 
   // Start the upgrade comparison process
-
   STARTUPINFOW si = {0};
   si.cb = sizeof(STARTUPINFOW);
   // No particular desktop because no UI
@@ -268,9 +152,9 @@ StartServiceUpdate(LPCWSTR installDir)
           sizeof(cmdLine) / sizeof(cmdLine[0]) - 1);
   BOOL svcUpdateProcessStarted = CreateProcessW(tmpService,
                                                 cmdLine,
-                                                NULL, NULL, FALSE,
+                                                nullptr, nullptr, FALSE,
                                                 0,
-                                                NULL, installDir, &si, &pi);
+                                                nullptr, installDir, &si, &pi);
   if (svcUpdateProcessStarted) {
     CloseHandle(pi.hProcess);
     CloseHandle(pi.hThread);
@@ -301,7 +185,7 @@ StartServiceCommand(int argc, LPCWSTR* argv)
   }
 
   // Get a handle to the SCM database.
-  SC_HANDLE serviceManager = OpenSCManager(NULL, NULL,
+  SC_HANDLE serviceManager = OpenSCManager(nullptr, nullptr,
                                            SC_MANAGER_CONNECT |
                                            SC_MANAGER_ENUMERATE_SERVICE);
   if (!serviceManager)  {
@@ -389,36 +273,6 @@ PathAppendSafe(LPWSTR base, LPCWSTR extra)
 }
 
 /**
- * Sets update.status to pending so that the next startup will not use
- * the service and instead will attempt an update the with a UAC prompt.
- *
- * @param  updateDirPath The path of the update directory
- * @return TRUE if successful
- */
-BOOL
-WriteStatusPending(LPCWSTR updateDirPath)
-{
-  WCHAR updateStatusFilePath[MAX_PATH + 1] = { L'\0' };
-  wcsncpy(updateStatusFilePath, updateDirPath, MAX_PATH);
-  if (!PathAppendSafe(updateStatusFilePath, L"update.status")) {
-    return FALSE;
-  }
-
-  const char pending[] = "pending";
-  HANDLE statusFile = CreateFileW(updateStatusFilePath, GENERIC_WRITE, 0,
-                                  NULL, CREATE_ALWAYS, 0, NULL);
-  if (statusFile == INVALID_HANDLE_VALUE) {
-    return FALSE;
-  }
-
-  DWORD wrote;
-  BOOL ok = WriteFile(statusFile, pending,
-                      sizeof(pending) - 1, &wrote, NULL);
-  CloseHandle(statusFile);
-  return ok && (wrote == sizeof(pending) - 1);
-}
-
-/**
  * Sets update.status to a specific failure code
  *
  * @param  updateDirPath The path of the update directory
@@ -427,26 +281,41 @@ WriteStatusPending(LPCWSTR updateDirPath)
 BOOL
 WriteStatusFailure(LPCWSTR updateDirPath, int errorCode)
 {
+  // The temp file is not removed on failure since there is client code that
+  // will remove it.
+  WCHAR tmpUpdateStatusFilePath[MAX_PATH + 1] = { L'\0' };
+  GetTempFileNameW(updateDirPath, L"svc", 0, tmpUpdateStatusFilePath);
+
+  HANDLE tmpStatusFile = CreateFileW(tmpUpdateStatusFilePath, GENERIC_WRITE, 0,
+                                     nullptr, CREATE_ALWAYS, 0, nullptr);
+  if (tmpStatusFile == INVALID_HANDLE_VALUE) {
+    return FALSE;
+  }
+
+  char failure[32];
+  sprintf(failure, "failed: %d", errorCode);
+  DWORD toWrite = strlen(failure);
+  DWORD wrote;
+  BOOL ok = WriteFile(tmpStatusFile, failure,
+                      toWrite, &wrote, nullptr);
+  CloseHandle(tmpStatusFile);
+
+  if (!ok || wrote != toWrite) {
+    return FALSE;
+  }
+
   WCHAR updateStatusFilePath[MAX_PATH + 1] = { L'\0' };
   wcsncpy(updateStatusFilePath, updateDirPath, MAX_PATH);
   if (!PathAppendSafe(updateStatusFilePath, L"update.status")) {
     return FALSE;
   }
 
-  HANDLE statusFile = CreateFileW(updateStatusFilePath, GENERIC_WRITE, 0,
-                                  NULL, CREATE_ALWAYS, 0, NULL);
-  if (statusFile == INVALID_HANDLE_VALUE) {
+  if (MoveFileExW(tmpUpdateStatusFilePath, updateStatusFilePath,
+                  MOVEFILE_REPLACE_EXISTING) == 0) {
     return FALSE;
   }
-  char failure[32];
-  sprintf(failure, "failed: %d", errorCode);
 
-  DWORD toWrite = strlen(failure);
-  DWORD wrote;
-  BOOL ok = WriteFile(statusFile, failure,
-                      toWrite, &wrote, NULL);
-  CloseHandle(statusFile);
-  return ok && wrote == toWrite;
+  return TRUE;
 }
 
 #endif
@@ -490,7 +359,7 @@ WaitForServiceStop(LPCWSTR serviceName, DWORD maxWaitSeconds)
   DWORD lastServiceState = 0x000000CF;
 
   // Get a handle to the SCM database.
-  SC_HANDLE serviceManager = OpenSCManager(NULL, NULL,
+  SC_HANDLE serviceManager = OpenSCManager(nullptr, nullptr,
                                            SC_MANAGER_CONNECT |
                                            SC_MANAGER_ENUMERATE_SERVICE);
   if (!serviceManager)  {
@@ -705,7 +574,7 @@ static BOOL
 GetDWORDValue(HKEY key, LPCWSTR valueName, DWORD &retValue)
 {
   DWORD regDWORDValueSize = sizeof(DWORD);
-  LONG retCode = RegQueryValueExW(key, valueName, 0, NULL,
+  LONG retCode = RegQueryValueExW(key, valueName, 0, nullptr,
                                   reinterpret_cast<LPBYTE>(&retValue),
                                   &regDWORDValueSize);
   return ERROR_SUCCESS == retCode;
@@ -713,16 +582,20 @@ GetDWORDValue(HKEY key, LPCWSTR valueName, DWORD &retValue)
 
 /**
  * Determines if the the system's elevation type allows
- * unprmopted elevation.  This may not 100% reflect reality since
- * a reboot is necessary to change the UAC level.
+ * unprmopted elevation.
  *
  * @param isUnpromptedElevation Out parameter which specifies if unprompted
  *                              elevation is allowed.
- * @return TRUE if the value was obtained successfully.
+ * @return TRUE if the user can actually elevate and the value was obtained
+ *         successfully.
 */
 BOOL
 IsUnpromptedElevation(BOOL &isUnpromptedElevation)
 {
+  if (!UACHelper::CanUserElevate()) {
+    return FALSE;
+  }
+
   LPCWSTR UACBaseRegKey =
     L"SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Policies\\System";
   HKEY baseKey;
@@ -733,14 +606,81 @@ IsUnpromptedElevation(BOOL &isUnpromptedElevation)
     return FALSE;
   }
 
-  DWORD enabled, consent, secureDesktop;
-  BOOL success = GetDWORDValue(baseKey, L"EnableLUA", enabled);
-  success = success &&
-            GetDWORDValue(baseKey, L"ConsentPromptBehaviorAdmin", consent);
+  DWORD consent, secureDesktop;
+  BOOL success = GetDWORDValue(baseKey, L"ConsentPromptBehaviorAdmin",
+                               consent);
   success = success &&
             GetDWORDValue(baseKey, L"PromptOnSecureDesktop", secureDesktop);
-  isUnpromptedElevation = enabled && !consent && !secureDesktop;
+  isUnpromptedElevation = !consent && !secureDesktop;
 
   RegCloseKey(baseKey);
   return success;
 }
+
+#ifdef MOZ_METRO
+  /*
+  * Retrieve the app model id of the firefox metro browser.
+  *
+  * @aPathBuffer Buffer to fill
+  * @aCharLength Length of buffer to fill in characters
+  */
+  bool GetDefaultBrowserAppModelID(WCHAR* aIDBuffer, long aCharLength)
+  {
+    if (!aIDBuffer || aCharLength <= 0)
+      return false;
+
+    memset(aIDBuffer, 0, (sizeof(WCHAR)*aCharLength));
+    static const WCHAR* kDefaultMetroBrowserIDPathKey = L"FirefoxURL";
+
+    HKEY key;
+    if (RegOpenKeyExW(HKEY_CLASSES_ROOT, kDefaultMetroBrowserIDPathKey,
+                      0, KEY_READ, &key) != ERROR_SUCCESS) {
+      return false;
+    }
+    DWORD len = aCharLength * sizeof(WCHAR);
+    memset(aIDBuffer, 0, len);
+    if (RegQueryValueExW(key, L"AppUserModelID", nullptr, nullptr,
+                         (LPBYTE)aIDBuffer, &len) != ERROR_SUCCESS || !len) {
+      RegCloseKey(key);
+      return false;
+    }
+    RegCloseKey(key);
+    return true;
+  }
+
+  HRESULT
+  LaunchDefaultMetroBrowser()
+  {
+    CoInitialize(nullptr);
+    HRESULT hr = E_FAIL;
+    // The interface that allows us to activate the browser
+    IApplicationActivationManager *activateMgr;
+    if (FAILED(hr = CoCreateInstance(CLSID_ApplicationActivationManager,
+                                     nullptr, CLSCTX_LOCAL_SERVER,
+                                     IID_IApplicationActivationManager,
+                                     (void**)&activateMgr))) {
+      CoUninitialize();
+      return hr;
+    }
+
+    // Activation is based on the browser's registered app model id
+    WCHAR appModelID[256];
+    if (!GetDefaultBrowserAppModelID(appModelID, (sizeof(appModelID)/sizeof(WCHAR)))) {
+      activateMgr->Release();
+      CoUninitialize();
+      return hr;
+    }
+
+    // Hand off focus rights to the out-of-process activation server. Without
+    // this the metro interface won't launch.
+    CoAllowSetForegroundWindow(activateMgr, nullptr);
+
+    // Launch default browser in Metro
+    DWORD processID;
+    hr = activateMgr->ActivateApplication(appModelID, L"", AO_NOERRORUI,
+                                          &processID);
+    activateMgr->Release();
+    CoUninitialize();
+    return hr;
+  }
+#endif

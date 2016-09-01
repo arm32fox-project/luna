@@ -4,23 +4,23 @@
  * Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/licenses/publicdomain/
  */
-#include "Unicode.h"
+#include "vm/Unicode.h"
 
 using namespace js;
 using namespace js::unicode;
 
 /*
  * So how does indexing work?
- * First let's have a look at a jschar, 16-bits:
+ * First let's have a look at a char16_t, 16-bits:
  *              [................]
  * Step 1:
- *  Extracting the upper 11 bits from the jschar.
+ *  Extracting the upper 11 bits from the char16_t.
  *   upper = char >>  5 ([***********.....])
  * Step 2:
  *  Using these bits to get an reduced index from index1.
  *   index = index1[upper]
  * Step 3:
- *  Combining the index and the bottom 5 bits of the original jschar.
+ *  Combining the index and the bottom 5 bits of the original char16_t.
  *   real_index = index2[(index << 5) + (char & ((1 << 5) - 1))] ([...********+++++])
  *
  * The advantage here is that the biggest number in index1 doesn't need 10 bits,
@@ -31,7 +31,7 @@ using namespace js::unicode;
  *
  * Pseudocode of generation:
  *
- * let table be the mapping of jschar => js_charinfo_index
+ * let table be the mapping of char16_t => js_charinfo_index
  * let index1 be an empty array
  * let index2 be an empty array
  * let cache be a hash map
@@ -110,8 +110,8 @@ const CharacterInfo unicode::js_charinfo[] = {
     {65334, 0, 2},
     {65333, 0, 2},
     {65329, 0, 2},
-    {42893, 613, 10},
-    {42922, 614, 10},
+    {42280, 0, 2},
+    {42308, 0, 2},
     {65327, 0, 2},
     {65325, 0, 2},
     {10743, 0, 2},
@@ -152,7 +152,7 @@ const CharacterInfo unicode::js_charinfo[] = {
     {0, 48, 2},
     {65488, 0, 2},
     {0, 7264, 2},
-    {42877, 7545, 10},
+    {35332, 0, 2},
     {3814, 0, 2},
     {65477, 0, 2},
     {0, 57921, 2},
@@ -193,6 +193,9 @@ const CharacterInfo unicode::js_charinfo[] = {
     {0, 54754, 2},
     {0, 54721, 2},
     {58272, 0, 2},
+    {0, 30204, 2},
+    {0, 23256, 2},
+    {0, 23228, 2},
 };
 
 const uint8_t unicode::index1[] = {
@@ -687,10 +690,10 @@ const uint8_t unicode::index2[] = {
       0,   5,   5,   5,   5,   5,   5,   5,   5,   5,   0,   0,   8,   9,   8,   9,   8,   9,
       8,   9,   8,   9,   8,   9,   8,   9,   5,   5,   8,   9,   8,   9,   8,   9,   8,   9,
       8,   9,   8,   9,   8,   9,   8,   9,   8,   9,   8,   9,   8,   9,   8,   9,   8,   9,
-      8,   9,   8,   9,   5,   5,   5,   5,   5,   5,   5,   5,   5,   8,   9,   8,   9,  98,
-      8,   9,   8,   9,   8,   9,   8,   9,   8,   9,   5,   0,   0,   8,   9,  56,   5,   0,
+      8,   9,   8,   9,   5,   5,   5,   5,   5,   5,   5,   5,   5,   8,   9,   8,   9, 139,
+      8,   9,   8,   9,   8,   9,   8,   9,   8,   9,   5,   0,   0,   8,   9, 140,   5,   0,
       8,   9,   8,   9,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   8,   9,
-      8,   9,   8,   9,   8,   9,   8,   9,  57,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+      8,   9,   8,   9,   8,   9,   8,   9, 141,   0,   0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
       0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
       5,   5,   5,   5,   5,   5,   5,   5,   5,   5,   2,   5,   5,   5,   2,   5,   5,   5,

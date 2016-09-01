@@ -9,6 +9,8 @@ import org.mozilla.goanna.gfx.FloatSize;
 import org.mozilla.goanna.gfx.ImmutableViewportMetrics;
 import org.mozilla.goanna.util.GoannaEventListener;
 import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.widget.SwipeDismissListViewTouchListener;
+import org.mozilla.goanna.widget.SwipeDismissListViewTouchListener.OnDismissCallback;
 
 import org.json.JSONArray;
 import org.json.JSONException;
@@ -32,14 +34,15 @@ import android.widget.ArrayAdapter;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.RelativeLayout;
+import android.widget.RelativeLayout.LayoutParams;
 import android.widget.TextView;
 
 import java.util.Arrays;
 import java.util.Collection;
 
 public class FormAssistPopup extends RelativeLayout implements GoannaEventListener {
-    private Context mContext;
-    private Animation mAnimation;
+    private final Context mContext;
+    private final Animation mAnimation;
 
     private ListView mAutoCompleteList;
     private RelativeLayout mValidationMessage;
@@ -51,25 +54,32 @@ public class FormAssistPopup extends RelativeLayout implements GoannaEventListen
     private double mY;
     private double mW;
     private double mH;
-    private boolean mIsAutoComplete = true;
 
-    private static int sAutoCompleteMinWidth = 0;
-    private static int sAutoCompleteRowHeight = 0;
-    private static int sValidationMessageHeight = 0;
-    private static int sValidationTextMarginTop = 0;
-    private static RelativeLayout.LayoutParams sValidationTextLayoutNormal;
-    private static RelativeLayout.LayoutParams sValidationTextLayoutInverted;
+    private enum PopupType {
+        AUTOCOMPLETE,
+        VALIDATIONMESSAGE;
+    }
+    private PopupType mPopupType;
+
+    private static final int MAX_VISIBLE_ROWS = 5;
+
+    private static int sAutoCompleteMinWidth;
+    private static int sAutoCompleteRowHeight;
+    private static int sValidationMessageHeight;
+    private static int sValidationTextMarginTop;
+    private static LayoutParams sValidationTextLayoutNormal;
+    private static LayoutParams sValidationTextLayoutInverted;
 
     private static final String LOGTAG = "GoannaFormAssistPopup";
 
     // The blocklist is so short that ArrayList is probably cheaper than HashSet.
-    private static final Collection<String> sInputMethodBlocklist = Arrays.asList(new String[] {
+    private static final Collection<String> sInputMethodBlocklist = Arrays.asList(
                                             InputMethods.METHOD_GOOGLE_JAPANESE_INPUT, // bug 775850
                                             InputMethods.METHOD_OPENWNN_PLUS,          // bug 768108
                                             InputMethods.METHOD_SIMEJI,                // bug 768108
                                             InputMethods.METHOD_SWYPE,                 // bug 755909
-                                            InputMethods.METHOD_SWYPE_BETA,            // bug 755909
-                                            });
+                                            InputMethods.METHOD_SWYPE_BETA            // bug 755909
+                                            );
 
     public FormAssistPopup(Context context, AttributeSet attrs) {
         super(context, attrs);
@@ -80,15 +90,17 @@ public class FormAssistPopup extends RelativeLayout implements GoannaEventListen
 
         setFocusable(false);
 
-        registerEventListener("FormAssist:AutoComplete");
-        registerEventListener("FormAssist:ValidationMessage");
-        registerEventListener("FormAssist:Hide");
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
+            "FormAssist:AutoComplete",
+            "FormAssist:ValidationMessage",
+            "FormAssist:Hide");
     }
 
     void destroy() {
-        unregisterEventListener("FormAssist:AutoComplete");
-        unregisterEventListener("FormAssist:ValidationMessage");
-        unregisterEventListener("FormAssist:Hide");
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this,
+            "FormAssist:AutoComplete",
+            "FormAssist:ValidationMessage",
+            "FormAssist:Hide");
     }
 
     @Override
@@ -154,6 +166,35 @@ public class FormAssistPopup extends RelativeLayout implements GoannaEventListen
                 }
             });
 
+            // Create a ListView-specific touch listener. ListViews are given special treatment because
+            // by default they handle touches for their list items... i.e. they're in charge of drawing
+            // the pressed state (the list selector), handling list item clicks, etc.
+            final SwipeDismissListViewTouchListener touchListener = new SwipeDismissListViewTouchListener(mAutoCompleteList, new OnDismissCallback() {
+                @Override
+                public void onDismiss(ListView listView, final int position) {
+                    // Use the value stored with the autocomplete view, not the label text,
+                    // since they can be different.
+                    AutoCompleteListAdapter adapter = (AutoCompleteListAdapter) listView.getAdapter();
+                    Pair<String, String> item = adapter.getItem(position);
+
+                    // Remove the item from form history.
+                    broadcastGoannaEvent("FormAssist:Remove", item.second);
+
+                    // Update the list
+                    adapter.remove(item);
+                    adapter.notifyDataSetChanged();
+                    positionAndShowPopup();
+                }
+            });
+            mAutoCompleteList.setOnTouchListener(touchListener);
+
+            // Setting this scroll listener is required to ensure that during ListView scrolling,
+            // we don't look for swipes.
+            mAutoCompleteList.setOnScrollListener(touchListener.makeScrollListener());
+
+            // Setting this recycler listener is required to make sure animated views are reset.
+            mAutoCompleteList.setRecyclerListener(touchListener.makeRecyclerListener());
+
             addView(mAutoCompleteList);
         }
         
@@ -176,10 +217,10 @@ public class FormAssistPopup extends RelativeLayout implements GoannaEventListen
 
             sValidationTextMarginTop = (int) (mContext.getResources().getDimension(R.dimen.validation_message_margin_top));
 
-            sValidationTextLayoutNormal = new RelativeLayout.LayoutParams(mValidationMessageText.getLayoutParams());
+            sValidationTextLayoutNormal = new LayoutParams(mValidationMessageText.getLayoutParams());
             sValidationTextLayoutNormal.setMargins(0, sValidationTextMarginTop, 0, 0);
 
-            sValidationTextLayoutInverted = new RelativeLayout.LayoutParams(sValidationTextLayoutNormal);
+            sValidationTextLayoutInverted = new LayoutParams((ViewGroup.MarginLayoutParams) sValidationTextLayoutNormal);
             sValidationTextLayoutInverted.setMargins(0, 0, 0, 0);
 
             mValidationMessageArrow = (ImageView) mValidationMessage.findViewById(R.id.validation_message_arrow);
@@ -208,7 +249,8 @@ public class FormAssistPopup extends RelativeLayout implements GoannaEventListen
             return false;
         }
 
-        mIsAutoComplete = isAutoComplete;
+        mPopupType = (isAutoComplete ?
+                      PopupType.AUTOCOMPLETE : PopupType.VALIDATIONMESSAGE);
         return true;
     }
 
@@ -221,15 +263,18 @@ public class FormAssistPopup extends RelativeLayout implements GoannaEventListen
 
         // Don't show the form assist popup when using fullscreen VKB
         InputMethodManager imm =
-                (InputMethodManager) GoannaAppShell.getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
-        if (imm.isFullscreenMode())
+                (InputMethodManager) mContext.getSystemService(Context.INPUT_METHOD_SERVICE);
+        if (imm.isFullscreenMode()) {
             return;
+        }
 
         // Hide/show the appropriate popup contents
-        if (mAutoCompleteList != null)
-            mAutoCompleteList.setVisibility(mIsAutoComplete ? VISIBLE : GONE);
-        if (mValidationMessage != null)
-            mValidationMessage.setVisibility(mIsAutoComplete ? GONE : VISIBLE);
+        if (mAutoCompleteList != null) {
+            mAutoCompleteList.setVisibility((mPopupType == PopupType.AUTOCOMPLETE) ? VISIBLE : GONE);
+        }
+        if (mValidationMessage != null) {
+            mValidationMessage.setVisibility((mPopupType == PopupType.AUTOCOMPLETE) ? GONE : VISIBLE);
+        }
 
         if (sAutoCompleteMinWidth == 0) {
             Resources res = mContext.getResources();
@@ -248,14 +293,14 @@ public class FormAssistPopup extends RelativeLayout implements GoannaEventListen
         int width = (int) (mW * zoom);
         int height = (int) (mH * zoom);
 
-        int popupWidth = RelativeLayout.LayoutParams.FILL_PARENT;
+        int popupWidth = LayoutParams.MATCH_PARENT;
         int popupLeft = left < 0 ? 0 : left;
 
         FloatSize viewport = aMetrics.getSize();
 
         // For autocomplete suggestions, if the input is smaller than the screen-width,
-        // shrink the popup's width. Otherwise, keep it as FILL_PARENT.
-        if (mIsAutoComplete && (left + width) < viewport.width) {
+        // shrink the popup's width. Otherwise, keep it as MATCH_PARENT.
+        if ((mPopupType == PopupType.AUTOCOMPLETE) && (left + width) < viewport.width) {
             popupWidth = left < 0 ? left + width : width;
 
             // Ensure the popup has a minimum width.
@@ -263,20 +308,28 @@ public class FormAssistPopup extends RelativeLayout implements GoannaEventListen
                 popupWidth = sAutoCompleteMinWidth;
 
                 // Move the popup to the left if there isn't enough room for it.
-                if ((popupLeft + popupWidth) > viewport.width)
+                if ((popupLeft + popupWidth) > viewport.width) {
                     popupLeft = (int) (viewport.width - popupWidth);
+                }
             }
         }
 
         int popupHeight;
-        if (mIsAutoComplete)
-            popupHeight = sAutoCompleteRowHeight * mAutoCompleteList.getAdapter().getCount();
-        else
+        if (mPopupType == PopupType.AUTOCOMPLETE) {
+            // Limit the amount of visible rows.
+            int rows = mAutoCompleteList.getAdapter().getCount();
+            if (rows > MAX_VISIBLE_ROWS) {
+                rows = MAX_VISIBLE_ROWS;
+            }
+
+            popupHeight = sAutoCompleteRowHeight * rows;
+        } else {
             popupHeight = sValidationMessageHeight;
+        }
 
         int popupTop = top + height;
 
-        if (!mIsAutoComplete) {
+        if (mPopupType == PopupType.VALIDATIONMESSAGE) {
             mValidationMessageText.setLayoutParams(sValidationTextLayoutNormal);
             mValidationMessageArrow.setVisibility(VISIBLE);
             mValidationMessageArrowInverted.setVisibility(GONE);
@@ -299,7 +352,7 @@ public class FormAssistPopup extends RelativeLayout implements GoannaEventListen
                     popupHeight = top;
                 }
 
-                if (!mIsAutoComplete) {
+                if (mPopupType == PopupType.VALIDATIONMESSAGE) {
                     mValidationMessageText.setLayoutParams(sValidationTextLayoutInverted);
                     mValidationMessageArrow.setVisibility(GONE);
                     mValidationMessageArrowInverted.setVisibility(VISIBLE);
@@ -307,8 +360,7 @@ public class FormAssistPopup extends RelativeLayout implements GoannaEventListen
            }
         }
 
-        RelativeLayout.LayoutParams layoutParams =
-                new RelativeLayout.LayoutParams(popupWidth, popupHeight);
+        LayoutParams layoutParams = new LayoutParams(popupWidth, popupHeight);
         layoutParams.setMargins(popupLeft, popupTop, 0, 0);
         setLayoutParams(layoutParams);
         requestLayout();
@@ -349,13 +401,13 @@ public class FormAssistPopup extends RelativeLayout implements GoannaEventListen
     }
 
     private class AutoCompleteListAdapter extends ArrayAdapter<Pair<String, String>> {
-        private LayoutInflater mInflater;
-        private int mTextViewResourceId;
+        private final LayoutInflater mInflater;
+        private final int mTextViewResourceId;
 
         public AutoCompleteListAdapter(Context context, int textViewResourceId) {
             super(context, textViewResourceId);
 
-            mInflater = (LayoutInflater) mContext.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
+            mInflater = (LayoutInflater) context.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
             mTextViewResourceId = textViewResourceId;
         }
 
@@ -376,8 +428,9 @@ public class FormAssistPopup extends RelativeLayout implements GoannaEventListen
 
         @Override
         public View getView(int position, View convertView, ViewGroup parent) {
-            if (convertView == null)
+            if (convertView == null) {
                 convertView = mInflater.inflate(mTextViewResourceId, null);
+            }
 
             Pair<String, String> item = getItem(position);
             TextView itemView = (TextView) convertView;
@@ -390,13 +443,5 @@ public class FormAssistPopup extends RelativeLayout implements GoannaEventListen
 
             return convertView;
         }
-    }
-
-    private void registerEventListener(String event) {
-        GoannaAppShell.getEventDispatcher().registerEventListener(event, this);
-    }
-
-    private void unregisterEventListener(String event) {
-        GoannaAppShell.getEventDispatcher().unregisterEventListener(event, this);
     }
 }

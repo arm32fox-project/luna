@@ -2,19 +2,28 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef __IPC_GLUE_GOANNACHILDPROCESSHOST_H__
-#define __IPC_GLUE_GOANNACHILDPROCESSHOST_H__
+#ifndef __IPC_GLUE_GECKOCHILDPROCESSHOST_H__
+#define __IPC_GLUE_GECKOCHILDPROCESSHOST_H__
 
 #include "base/file_path.h"
 #include "base/process_util.h"
-#include "base/scoped_ptr.h"
 #include "base/waitable_event.h"
 #include "chrome/common/child_process_host.h"
 
+#include "mozilla/DebugOnly.h"
+#include "mozilla/ipc/FileDescriptor.h"
 #include "mozilla/Monitor.h"
+#include "mozilla/StaticPtr.h"
 
+#include "nsCOMPtr.h"
 #include "nsXULAppAPI.h"        // for GoannaProcessType
 #include "nsString.h"
+
+#if defined(XP_WIN) && defined(MOZ_SANDBOX)
+#include "sandboxBroker.h"
+#endif
+
+class nsIFile;
 
 namespace mozilla {
 namespace ipc {
@@ -31,8 +40,8 @@ public:
 
   static ChildPrivileges DefaultChildPrivileges();
 
-  GoannaChildProcessHost(GoannaProcessType aProcessType,
-                        ChildPrivileges aPrivileges=base::PRIVILEGES_DEFAULT);
+  explicit GoannaChildProcessHost(GoannaProcessType aProcessType,
+                                 ChildPrivileges aPrivileges=base::PRIVILEGES_DEFAULT);
 
   ~GoannaChildProcessHost();
 
@@ -43,7 +52,10 @@ public:
   // Block until the IPC channel for our subprocess is initialized,
   // but no longer.  The child process may or may not have been
   // created when this method returns.
-  bool AsyncLaunch(StringVector aExtraOpts=StringVector());
+  bool AsyncLaunch(StringVector aExtraOpts=StringVector(),
+                   base::ProcessArchitecture arch=base::GetCurrentProcessArchitecture());
+
+  virtual bool WaitUntilConnected(int32_t aTimeoutMs = 0);
 
   // Block until the IPC channel for our subprocess is initialized and
   // the OS process is created.  The subprocess may or may not have
@@ -66,15 +78,15 @@ public:
                   int32_t timeoutMs=0,
                   base::ProcessArchitecture arch=base::GetCurrentProcessArchitecture());
 
-  bool PerformAsyncLaunch(StringVector aExtraOpts=StringVector(),
-                          base::ProcessArchitecture arch=base::GetCurrentProcessArchitecture());
+  virtual bool PerformAsyncLaunch(StringVector aExtraOpts=StringVector(),
+                                  base::ProcessArchitecture aArch=base::GetCurrentProcessArchitecture());
 
   virtual void OnChannelConnected(int32_t peer_pid);
   virtual void OnMessageReceived(const IPC::Message& aMsg);
   virtual void OnChannelError();
   virtual void GetQueuedMessages(std::queue<IPC::Message>& queue);
 
-  void InitializeChannel();
+  virtual void InitializeChannel();
 
   virtual bool CanShutdown() { return true; }
 
@@ -88,8 +100,26 @@ public:
     return GetProcessEvent();
   }
 
+  // Returns a "borrowed" handle to the child process - the handle returned
+  // by this function must not be closed by the caller.
   ProcessHandle GetChildProcessHandle() {
     return mChildProcessHandle;
+  }
+
+  // Returns an "owned" handle to the child process - the handle returned
+  // by this function must be closed by the caller.
+  ProcessHandle GetOwnedChildProcessHandle() {
+    ProcessHandle handle;
+    // We use OpenPrivilegedProcessHandle as that is where our
+    // mChildProcessHandle initially came from.
+    bool ok = base::OpenPrivilegedProcessHandle(base::GetProcId(mChildProcessHandle),
+                                                &handle);
+    NS_ASSERTION(ok, "Failed to get owned process handle");
+    return ok ? handle : 0;
+  }
+
+  GoannaProcessType GetProcessType() {
+    return mProcessType;
   }
 
 #ifdef XP_MACOSX
@@ -104,11 +134,15 @@ public:
    */
   void Join();
 
+  // For bug 943174: Skip the EnsureProcessTerminated call in the destructor.
+  void SetAlreadyDead();
+
 protected:
   GoannaProcessType mProcessType;
   ChildPrivileges mPrivileges;
   Monitor mMonitor;
   FilePath mProcessPath;
+
   // This value must be accessed while holding mMonitor.
   enum {
     // This object has been constructed, but the OS process has not
@@ -133,7 +167,16 @@ protected:
 #ifdef XP_WIN
   void InitWindowsGroupID();
   nsString mGroupId;
+
+#ifdef MOZ_SANDBOX
+  SandboxBroker mSandboxBroker;
+  std::vector<std::wstring> mAllowedFilesRead;
+  std::vector<std::wstring> mAllowedFilesReadWrite;
+  bool mEnableSandboxLogging;
+  int32_t mSandboxLevel;
+  bool mMoreStrictSandbox;
 #endif
+#endif // XP_WIN
 
 #if defined(OS_POSIX)
   base::file_handle_mapping_vector mFileMap;
@@ -146,6 +189,8 @@ protected:
   task_t mChildTask;
 #endif
 
+  void OpenPrivilegedHandle(base::ProcessId aPid);
+
 private:
   DISALLOW_EVIL_CONSTRUCTORS(GoannaChildProcessHost);
 
@@ -153,7 +198,10 @@ private:
   bool PerformAsyncLaunchInternal(std::vector<std::string>& aExtraOpts,
                                   base::ProcessArchitecture arch);
 
-  void OpenPrivilegedHandle(base::ProcessId aPid);
+  bool RunPerformAsyncLaunch(StringVector aExtraOpts=StringVector(),
+			     base::ProcessArchitecture aArch=base::GetCurrentProcessArchitecture());
+
+  static void GetPathToBinary(FilePath& exePath);
 
   // In between launching the subprocess and handing off its IPC
   // channel, there's a small window of time in which *we* might still
@@ -165,7 +213,29 @@ private:
   std::queue<IPC::Message> mQueue;
 };
 
+#ifdef MOZ_NUWA_PROCESS
+class GoannaExistingProcessHost final : public GoannaChildProcessHost
+{
+public:
+  GoannaExistingProcessHost(GoannaProcessType aProcessType,
+                           base::ProcessHandle aProcess,
+                           const FileDescriptor& aFileDescriptor,
+                           ChildPrivileges aPrivileges=base::PRIVILEGES_DEFAULT);
+
+  ~GoannaExistingProcessHost();
+
+  virtual bool PerformAsyncLaunch(StringVector aExtraOpts=StringVector(),
+          base::ProcessArchitecture aArch=base::GetCurrentProcessArchitecture()) override;
+
+  virtual void InitializeChannel() override;
+
+private:
+  base::ProcessHandle mExistingProcessHandle;
+  mozilla::ipc::FileDescriptor mExistingFileDescriptor;
+};
+#endif /* MOZ_NUWA_PROCESS */
+
 } /* namespace ipc */
 } /* namespace mozilla */
 
-#endif /* __IPC_GLUE_GOANNACHILDPROCESSHOST_H__ */
+#endif /* __IPC_GLUE_GECKOCHILDPROCESSHOST_H__ */

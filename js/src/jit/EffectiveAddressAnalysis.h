@@ -7,18 +7,17 @@
 #ifndef jit_EffectiveAddressAnalysis_h
 #define jit_EffectiveAddressAnalysis_h
 
-#include "MIR.h"
-#include "MIRGraph.h"
-
 namespace js {
 namespace jit {
 
+class MIRGraph;
+
 class EffectiveAddressAnalysis
 {
-    MIRGraph &graph_;
+    MIRGraph& graph_;
 
   public:
-    EffectiveAddressAnalysis(MIRGraph &graph)
+    explicit EffectiveAddressAnalysis(MIRGraph& graph)
       : graph_(graph)
     {}
 

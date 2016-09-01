@@ -13,7 +13,8 @@
 callback DecodeSuccessCallback = void (AudioBuffer decodedData);
 callback DecodeErrorCallback = void ();
 
-[Constructor, PrefControlled]
+[Constructor,
+ Constructor(AudioChannel audioChannelType)]
 interface AudioContext : EventTarget {
 
     readonly attribute AudioDestinationNode destination;
@@ -21,75 +22,77 @@ interface AudioContext : EventTarget {
     readonly attribute double currentTime;
     readonly attribute AudioListener listener;
 
-    [Creator, Throws]
+    [NewObject, Throws]
     AudioBuffer createBuffer(unsigned long numberOfChannels, unsigned long length, float sampleRate);
 
-    void decodeAudioData(ArrayBuffer audioData,
-                         DecodeSuccessCallback successCallback,
-                         optional DecodeErrorCallback errorCallback);
+    [Throws]
+    Promise<AudioBuffer> decodeAudioData(ArrayBuffer audioData,
+                                         optional DecodeSuccessCallback successCallback,
+                                         optional DecodeErrorCallback errorCallback);
 
-    // AudioNode creation 
-    [Creator]
+    // AudioNode creation
+    [NewObject]
     AudioBufferSourceNode createBufferSource();
 
-    [Creator, Throws]
+    [NewObject, Throws]
     MediaStreamAudioDestinationNode createMediaStreamDestination();
 
-    [Creator, Throws]
+    [NewObject, Throws]
     ScriptProcessorNode createScriptProcessor(optional unsigned long bufferSize = 0,
                                               optional unsigned long numberOfInputChannels = 2,
                                               optional unsigned long numberOfOutputChannels = 2);
 
-    [Creator]
+    [NewObject]
+    StereoPannerNode createStereoPanner();
+    [NewObject]
     AnalyserNode createAnalyser();
-    [Creator]
+    [NewObject, Throws, UnsafeInPrerendering]
+    MediaElementAudioSourceNode createMediaElementSource(HTMLMediaElement mediaElement);
+    [NewObject, Throws, UnsafeInPrerendering]
+    MediaStreamAudioSourceNode createMediaStreamSource(MediaStream mediaStream);
+    [NewObject]
     GainNode createGain();
-    [Creator, Throws]
+    [NewObject, Throws]
     DelayNode createDelay(optional double maxDelayTime = 1);
-    [Creator]
+    [NewObject]
     BiquadFilterNode createBiquadFilter();
-    [Creator]
+    [NewObject]
     WaveShaperNode createWaveShaper();
-    [Creator]
+    [NewObject]
     PannerNode createPanner();
-    [Creator]
+    [NewObject]
     ConvolverNode createConvolver();
 
-    [Creator, Throws]
+    [NewObject, Throws]
     ChannelSplitterNode createChannelSplitter(optional unsigned long numberOfOutputs = 6);
-    [Creator, Throws]
+    [NewObject, Throws]
     ChannelMergerNode createChannelMerger(optional unsigned long numberOfInputs = 6);
 
-    [Creator]
+    [NewObject]
     DynamicsCompressorNode createDynamicsCompressor();
 
-    [Creator, Throws]
+    [NewObject]
+    OscillatorNode createOscillator();
+    [NewObject, Throws]
     PeriodicWave createPeriodicWave(Float32Array real, Float32Array imag);
 
 };
 
-/*
- * The origin of this IDL file is
- * https://dvcs.w3.org/hg/audio/raw-file/tip/webaudio/specification.html#AlternateNames
- */
-[PrefControlled]
+// Mozilla extensions
 partial interface AudioContext {
-    [Creator, Throws]
-    AudioBuffer? createBuffer(ArrayBuffer buffer, boolean mixToMono);
+  // Read AudioChannel.webidl for more information about this attribute.
+  [Pref="media.useAudioChannelService"]
+  readonly attribute AudioChannel mozAudioChannelType;
 
-    // Same as createGain()
-    [Creator,Pref="media.webaudio.legacy.AudioContext"]
-    GainNode createGainNode();
+  // These 2 events are dispatched when the AudioContext object is muted by
+  // the AudioChannelService. It's call 'interrupt' because when this event is
+  // dispatched on a HTMLMediaElement, the audio stream is paused.
+  [Pref="media.useAudioChannelService"]
+  attribute EventHandler onmozinterruptbegin;
 
-    // Same as createDelay()
-    [Creator, Throws, Pref="media.webaudio.legacy.AudioContext"]
-    DelayNode createDelayNode(optional double maxDelayTime = 1);
+  [Pref="media.useAudioChannelService"]
+  attribute EventHandler onmozinterruptend;
 
-    // Same as createScriptProcessor()
-    [Creator, Throws, Pref="media.webaudio.legacy.AudioContext"]
-    ScriptProcessorNode createJavaScriptNode(optional unsigned long bufferSize = 0,
-                                             optional unsigned long numberOfInputChannels = 2,
-                                             optional unsigned long numberOfOutputChannels = 2);
+  // This method is for test only.
+  [ChromeOnly] AudioChannel testAudioChannelInAudioNodeStream();
 };
-
-

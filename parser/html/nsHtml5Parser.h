@@ -3,8 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef NS_HTML5_PARSER__
-#define NS_HTML5_PARSER__
+#ifndef NS_HTML5_PARSER
+#define NS_HTML5_PARSER
 
 #include "nsAutoPtr.h"
 #include "nsIParser.h"
@@ -12,7 +12,6 @@
 #include "nsIURL.h"
 #include "nsParserCIID.h"
 #include "nsITokenizer.h"
-#include "nsThreadUtils.h"
 #include "nsIContentSink.h"
 #include "nsIRequest.h"
 #include "nsIChannel.h"
@@ -26,9 +25,10 @@
 #include "nsHtml5StreamParser.h"
 #include "nsHtml5AtomTable.h"
 #include "nsWeakReference.h"
+#include "nsHtml5StreamListener.h"
 
-class nsHtml5Parser : public nsIParser,
-                      public nsSupportsWeakReference
+class nsHtml5Parser final : public nsIParser,
+                                public nsSupportsWeakReference
 {
   public:
     NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
@@ -37,33 +37,32 @@ class nsHtml5Parser : public nsIParser,
     NS_DECL_CYCLE_COLLECTION_CLASS_AMBIGUOUS(nsHtml5Parser, nsIParser)
 
     nsHtml5Parser();
-    virtual ~nsHtml5Parser();
 
     /* Start nsIParser */
     /**
      * No-op for backwards compat.
      */
-    NS_IMETHOD_(void) SetContentSink(nsIContentSink* aSink);
+    NS_IMETHOD_(void) SetContentSink(nsIContentSink* aSink) override;
 
     /**
      * Returns the tree op executor for backwards compat.
      */
-    NS_IMETHOD_(nsIContentSink*) GetContentSink();
+    NS_IMETHOD_(nsIContentSink*) GetContentSink() override;
 
     /**
      * Always returns "view" for backwards compat.
      */
-    NS_IMETHOD_(void) GetCommand(nsCString& aCommand);
+    NS_IMETHOD_(void) GetCommand(nsCString& aCommand) override;
 
     /**
      * No-op for backwards compat.
      */
-    NS_IMETHOD_(void) SetCommand(const char* aCommand);
+    NS_IMETHOD_(void) SetCommand(const char* aCommand) override;
 
     /**
      * No-op for backwards compat.
      */
-    NS_IMETHOD_(void) SetCommand(eParserCommands aParserCommand);
+    NS_IMETHOD_(void) SetCommand(eParserCommands aParserCommand) override;
 
     /**
      *  Call this method once you've created a parser, and want to instruct it
@@ -72,12 +71,12 @@ class nsHtml5Parser : public nsIParser,
      *  @param   aCharset the charset of a document
      *  @param   aCharsetSource the source of the charset
      */
-    NS_IMETHOD_(void) SetDocumentCharset(const nsACString& aCharset, int32_t aSource);
+    NS_IMETHOD_(void) SetDocumentCharset(const nsACString& aCharset, int32_t aSource) override;
 
     /**
      * Don't call. For interface compat only.
      */
-    NS_IMETHOD_(void) GetDocumentCharset(nsACString& aCharset, int32_t& aSource)
+    NS_IMETHOD_(void) GetDocumentCharset(nsACString& aCharset, int32_t& aSource) override
     {
       NS_NOTREACHED("No one should call this.");
     }
@@ -87,47 +86,47 @@ class nsHtml5Parser : public nsIParser,
      * @param aChannel out param that will contain the result
      * @return NS_OK if successful or NS_NOT_AVAILABLE if not
      */
-    NS_IMETHOD GetChannel(nsIChannel** aChannel);
+    NS_IMETHOD GetChannel(nsIChannel** aChannel) override;
 
     /**
      * Return |this| for backwards compat.
      */
-    NS_IMETHOD GetDTD(nsIDTD** aDTD);
+    NS_IMETHOD GetDTD(nsIDTD** aDTD) override;
 
     /**
      * Get the stream parser for this parser
      */
-    virtual nsIStreamListener* GetStreamListener();
+    virtual nsIStreamListener* GetStreamListener() override;
 
     /**
      * Don't call. For interface compat only.
      */
-    NS_IMETHOD ContinueInterruptedParsing();
+    NS_IMETHOD ContinueInterruptedParsing() override;
 
     /**
      * Blocks the parser.
      */
-    NS_IMETHOD_(void) BlockParser();
+    NS_IMETHOD_(void) BlockParser() override;
 
     /**
      * Unblocks the parser.
      */
-    NS_IMETHOD_(void) UnblockParser();
+    NS_IMETHOD_(void) UnblockParser() override;
 
     /**
      * Asynchronously continues parsing.
      */
-    NS_IMETHOD_(void) ContinueInterruptedParsingAsync();
+    NS_IMETHOD_(void) ContinueInterruptedParsingAsync() override;
 
     /**
      * Query whether the parser is enabled (i.e. not blocked) or not.
      */
-    NS_IMETHOD_(bool) IsParserEnabled();
+    NS_IMETHOD_(bool) IsParserEnabled() override;
 
     /**
      * Query whether the parser thinks it's done with parsing.
      */
-    NS_IMETHOD_(bool) IsComplete();
+    NS_IMETHOD_(bool) IsComplete() override;
 
     /**
      * Set up request observer.
@@ -140,7 +139,7 @@ class nsHtml5Parser : public nsIParser,
     NS_IMETHOD Parse(nsIURI* aURL,
                      nsIRequestObserver* aListener = nullptr,
                      void* aKey = 0,
-                     nsDTDMode aMode = eDTDMode_autodetect);
+                     nsDTDMode aMode = eDTDMode_autodetect) override;
 
     /**
      * document.write and document.close
@@ -151,57 +150,52 @@ class nsHtml5Parser : public nsIParser,
      * @param   aLastCall true if .close() false if .write()
      * @param   aMode ignored (for interface compat only)
      */
-    NS_IMETHOD Parse(const nsAString& aSourceBuffer,
-                     void* aKey,
-                     const nsACString& aContentType,
-                     bool aLastCall,
-                     nsDTDMode aMode = eDTDMode_autodetect);
+    nsresult Parse(const nsAString& aSourceBuffer,
+                   void* aKey,
+                   const nsACString& aContentType,
+                   bool aLastCall,
+                   nsDTDMode aMode = eDTDMode_autodetect);
 
     /**
      * Stops the parser prematurely
      */
-    NS_IMETHOD Terminate();
+    NS_IMETHOD Terminate() override;
 
     /**
      * Don't call. For interface backwards compat only.
      */
     NS_IMETHOD ParseFragment(const nsAString& aSourceBuffer,
-                             nsTArray<nsString>& aTagStack);
+                             nsTArray<nsString>& aTagStack) override;
 
     /**
      * Don't call. For interface compat only.
      */
-    NS_IMETHOD BuildModel();
+    NS_IMETHOD BuildModel() override;
 
     /**
      * Don't call. For interface compat only.
      */
-    NS_IMETHODIMP CancelParsingEvents();
+    NS_IMETHODIMP CancelParsingEvents() override;
 
     /**
      * Don't call. For interface compat only.
      */
-    virtual void Reset();
-    
-    /**
-     * True in fragment mode and during synchronous document.write
-     */
-    virtual bool CanInterrupt();
+    virtual void Reset() override;
 
     /**
      * True if the insertion point (per HTML5) is defined.
      */
-    virtual bool IsInsertionPointDefined();
+    virtual bool IsInsertionPointDefined() override;
 
     /**
      * Call immediately before starting to evaluate a parser-inserted script.
      */
-    virtual void BeginEvaluatingParserInsertedScript();
+    virtual void BeginEvaluatingParserInsertedScript() override;
 
     /**
      * Call immediately after having evaluated a parser-inserted script.
      */
-    virtual void EndEvaluatingParserInsertedScript();
+    virtual void EndEvaluatingParserInsertedScript() override;
 
     /**
      * Marks the HTML5 parser as not a script-created parser: Prepares the 
@@ -210,12 +204,12 @@ class nsHtml5Parser : public nsIParser,
      * @param aCommand the parser command (Yeah, this is bad API design. Let's
      * make this better when retiring nsIParser)
      */
-    virtual void MarkAsNotScriptCreated(const char* aCommand);
+    virtual void MarkAsNotScriptCreated(const char* aCommand) override;
 
     /**
      * True if this is a script-created HTML5 parser.
      */
-    virtual bool IsScriptCreated();
+    virtual bool IsScriptCreated() override;
 
     /* End nsIParser  */
 
@@ -238,10 +232,12 @@ class nsHtml5Parser : public nsIParser,
 
     void InitializeDocWriteParserState(nsAHtml5TreeBuilderState* aState, int32_t aLine);
 
-    void DropStreamParser() {
-      if (mStreamParser) {
-        mStreamParser->DropTimer();
-        mStreamParser = nullptr;
+    void DropStreamParser()
+    {
+      if (GetStreamParser()) {
+        GetStreamParser()->DropTimer();
+        mStreamListener->DropDelegate();
+        mStreamListener = nullptr;
       }
     }
     
@@ -249,8 +245,12 @@ class nsHtml5Parser : public nsIParser,
     
     void ContinueAfterFailedCharsetSwitch();
 
-    nsHtml5StreamParser* GetStreamParser() {
-      return mStreamParser;
+    nsHtml5StreamParser* GetStreamParser()
+    {
+      if (!mStreamListener) {
+        return nullptr;
+      }
+      return mStreamListener->GetDelegate();
     }
 
     /**
@@ -258,9 +258,9 @@ class nsHtml5Parser : public nsIParser,
      */
     nsresult ParseUntilBlocked();
 
-    bool IsSrcdocDocument();
-
   private:
+
+    virtual ~nsHtml5Parser();
 
     // State variables
 
@@ -335,9 +335,9 @@ class nsHtml5Parser : public nsIParser,
     nsAutoPtr<nsHtml5Tokenizer>   mDocWriteSpeculativeTokenizer;
 
     /**
-     * The stream parser.
+     * The stream listener holding the stream parser.
      */
-    nsRefPtr<nsHtml5StreamParser>       mStreamParser;
+    nsRefPtr<nsHtml5StreamListener>     mStreamListener;
 
     /**
      *

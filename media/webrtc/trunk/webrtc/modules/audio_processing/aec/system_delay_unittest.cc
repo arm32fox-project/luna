@@ -8,11 +8,14 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "gtest/gtest.h"
-
-#include "modules/audio_processing/aec/include/echo_cancellation.h"
-#include "modules/audio_processing/aec/echo_cancellation_internal.h"
-#include "typedefs.h"
+#include "testing/gtest/include/gtest/gtest.h"
+extern "C" {
+#include "webrtc/modules/audio_processing/aec/aec_core.h"
+}
+#include "webrtc/modules/audio_processing/aec/echo_cancellation_internal.h"
+#include "webrtc/modules/audio_processing/aec/include/echo_cancellation.h"
+#include "webrtc/test/testsupport/gtest_disable.h"
+#include "webrtc/typedefs.h"
 
 namespace {
 
@@ -43,18 +46,19 @@ class SystemDelayTest : public ::testing::Test {
   aecpc_t* self_;
   int samples_per_frame_;
   // Dummy input/output speech data.
-  int16_t far_[160];
-  int16_t near_[160];
-  int16_t out_[160];
+  static const int kSamplesPerChunk = 160;
+  float far_[kSamplesPerChunk];
+  float near_[kSamplesPerChunk];
+  float out_[kSamplesPerChunk];
 };
 
 SystemDelayTest::SystemDelayTest()
-    : handle_(NULL),
-      self_(NULL),
-      samples_per_frame_(0) {
+    : handle_(NULL), self_(NULL), samples_per_frame_(0) {
   // Dummy input data are set with more or less arbitrary non-zero values.
-  memset(far_, 1, sizeof(far_));
-  memset(near_, 2, sizeof(near_));
+  for (int i = 0; i < kSamplesPerChunk; i++) {
+    far_[i] = 257.0;
+    near_[i] = 514.0;
+  }
   memset(out_, 0, sizeof(out_));
 }
 
@@ -71,7 +75,7 @@ void SystemDelayTest::TearDown() {
 
 // In SWB mode nothing is added to the buffer handling with respect to
 // functionality compared to WB. We therefore only verify behavior in NB and WB.
-static const int kSampleRateHz[] = { 8000, 16000 };
+static const int kSampleRateHz[] = {8000, 16000};
 static const size_t kNumSampleRates =
     sizeof(kSampleRateHz) / sizeof(*kSampleRateHz);
 
@@ -97,8 +101,15 @@ void SystemDelayTest::Init(int sample_rate_hz) {
 
 void SystemDelayTest::RenderAndCapture(int device_buffer_ms) {
   EXPECT_EQ(0, WebRtcAec_BufferFarend(handle_, far_, samples_per_frame_));
-  EXPECT_EQ(0, WebRtcAec_Process(handle_, near_, NULL, out_, NULL,
-                                 samples_per_frame_, device_buffer_ms, 0));
+  EXPECT_EQ(0,
+            WebRtcAec_Process(handle_,
+                              near_,
+                              NULL,
+                              out_,
+                              NULL,
+                              samples_per_frame_,
+                              device_buffer_ms,
+                              0));
 }
 
 int SystemDelayTest::BufferFillUp() {
@@ -109,7 +120,7 @@ int SystemDelayTest::BufferFillUp() {
   for (int i = 0; i < kDeviceBufMs / 10; i++) {
     EXPECT_EQ(0, WebRtcAec_BufferFarend(handle_, far_, samples_per_frame_));
     buffer_size += samples_per_frame_;
-    EXPECT_EQ(buffer_size, self_->aec->system_delay);
+    EXPECT_EQ(buffer_size, WebRtcAec_system_delay(self_->aec));
   }
   return buffer_size;
 }
@@ -125,7 +136,7 @@ void SystemDelayTest::RunStableStartup() {
   for (; process_time_ms < kStableConvergenceMs; process_time_ms += 10) {
     RenderAndCapture(kDeviceBufMs);
     buffer_size += samples_per_frame_;
-    if (self_->ECstartup == 0) {
+    if (self_->startup_phase == 0) {
       // We have left the startup phase.
       break;
     }
@@ -133,7 +144,7 @@ void SystemDelayTest::RunStableStartup() {
   // Verify convergence time.
   EXPECT_GT(kStableConvergenceMs, process_time_ms);
   // Verify that the buffer has been flushed.
-  EXPECT_GE(buffer_size, self_->aec->system_delay);
+  EXPECT_GE(buffer_size, WebRtcAec_system_delay(self_->aec));
 }
 
 int SystemDelayTest::MapBufferSizeToSamples(int size_in_ms) {
@@ -172,7 +183,7 @@ TEST_F(SystemDelayTest, CorrectIncreaseWhenBufferFarend) {
     // correctly.
     for (int j = 1; j <= 5; j++) {
       EXPECT_EQ(0, WebRtcAec_BufferFarend(handle_, far_, samples_per_frame_));
-      EXPECT_EQ(j * samples_per_frame_, self_->aec->system_delay);
+      EXPECT_EQ(j * samples_per_frame_, WebRtcAec_system_delay(self_->aec));
     }
   }
 }
@@ -191,8 +202,9 @@ TEST_F(SystemDelayTest, CorrectDelayAfterStableStartup) {
     // |system_delay| is in the interval [75%, 100%] of what's reported on the
     // average.
     int average_reported_delay = kDeviceBufMs * samples_per_frame_ / 10;
-    EXPECT_GE(average_reported_delay, self_->aec->system_delay);
-    EXPECT_LE(average_reported_delay * 3 / 4, self_->aec->system_delay);
+    EXPECT_GE(average_reported_delay, WebRtcAec_system_delay(self_->aec));
+    EXPECT_LE(average_reported_delay * 3 / 4,
+              WebRtcAec_system_delay(self_->aec));
   }
 }
 
@@ -218,7 +230,7 @@ TEST_F(SystemDelayTest, CorrectDelayAfterUnstableStartup) {
       RenderAndCapture(reported_delay_ms);
       buffer_size += samples_per_frame_;
       buffer_offset_ms = -buffer_offset_ms;
-      if (self_->ECstartup == 0) {
+      if (self_->startup_phase == 0) {
         // We have left the startup phase.
         break;
       }
@@ -226,22 +238,26 @@ TEST_F(SystemDelayTest, CorrectDelayAfterUnstableStartup) {
     // Verify convergence time.
     EXPECT_GE(kMaxConvergenceMs, process_time_ms);
     // Verify that the buffer has been flushed.
-    EXPECT_GE(buffer_size, self_->aec->system_delay);
+    EXPECT_GE(buffer_size, WebRtcAec_system_delay(self_->aec));
 
     // Verify system delay with respect to requirements, i.e., the
     // |system_delay| is in the interval [60%, 100%] of what's last reported.
     EXPECT_GE(reported_delay_ms * samples_per_frame_ / 10,
-              self_->aec->system_delay);
+              WebRtcAec_system_delay(self_->aec));
     EXPECT_LE(reported_delay_ms * samples_per_frame_ / 10 * 3 / 5,
-              self_->aec->system_delay);
+              WebRtcAec_system_delay(self_->aec));
   }
 }
 
-TEST_F(SystemDelayTest, CorrectDelayAfterStableBufferBuildUp) {
+TEST_F(SystemDelayTest,
+       DISABLED_ON_ANDROID(CorrectDelayAfterStableBufferBuildUp)) {
   // In this test we start by establishing the device buffer size during stable
   // conditions, but with an empty internal far-end buffer. Once that is done we
   // verify that the system delay is increased correctly until we have reach an
   // internal buffer size of 75% of what's been reported.
+
+  // This test assumes the reported delays are used.
+  WebRtcAec_enable_reported_delay(WebRtcAec_aec_core(handle_), 1);
   for (size_t i = 0; i < kNumSampleRates; i++) {
     Init(kSampleRateHz[i]);
 
@@ -250,8 +266,15 @@ TEST_F(SystemDelayTest, CorrectDelayAfterStableBufferBuildUp) {
     // can make that assumption since we have a separate stability test.
     int process_time_ms = 0;
     for (; process_time_ms < kStableConvergenceMs; process_time_ms += 10) {
-      EXPECT_EQ(0, WebRtcAec_Process(handle_, near_, NULL, out_, NULL,
-                                     samples_per_frame_, kDeviceBufMs, 0));
+      EXPECT_EQ(0,
+                WebRtcAec_Process(handle_,
+                                  near_,
+                                  NULL,
+                                  out_,
+                                  NULL,
+                                  samples_per_frame_,
+                                  kDeviceBufMs,
+                                  0));
     }
     // Verify that a buffer size has been established.
     EXPECT_EQ(0, self_->checkBuffSize);
@@ -264,7 +287,7 @@ TEST_F(SystemDelayTest, CorrectDelayAfterStableBufferBuildUp) {
     for (; process_time_ms <= kMaxConvergenceMs; process_time_ms += 10) {
       RenderAndCapture(kDeviceBufMs);
       buffer_size += samples_per_frame_;
-      if (self_->ECstartup == 0) {
+      if (self_->startup_phase == 0) {
         // We have left the startup phase.
         break;
       }
@@ -272,14 +295,14 @@ TEST_F(SystemDelayTest, CorrectDelayAfterStableBufferBuildUp) {
     // Verify convergence time.
     EXPECT_GT(kMaxConvergenceMs, process_time_ms);
     // Verify that the buffer has reached the desired size.
-    EXPECT_LE(target_buffer_size, self_->aec->system_delay);
+    EXPECT_LE(target_buffer_size, WebRtcAec_system_delay(self_->aec));
 
     // Verify normal behavior (system delay is kept constant) after startup by
     // running a couple of calls to BufferFarend() and Process().
     for (int j = 0; j < 6; j++) {
-      int system_delay_before_calls = self_->aec->system_delay;
+      int system_delay_before_calls = WebRtcAec_system_delay(self_->aec);
       RenderAndCapture(kDeviceBufMs);
-      EXPECT_EQ(system_delay_before_calls, self_->aec->system_delay);
+      EXPECT_EQ(system_delay_before_calls, WebRtcAec_system_delay(self_->aec));
     }
   }
 }
@@ -297,18 +320,28 @@ TEST_F(SystemDelayTest, CorrectDelayWhenBufferUnderrun) {
     // |kStableConvergenceMs| in the buffer. Keep on calling Process() until
     // we run out of data and verify that the system delay is non-negative.
     for (int j = 0; j <= kStableConvergenceMs; j += 10) {
-      EXPECT_EQ(0, WebRtcAec_Process(handle_, near_, NULL, out_, NULL,
-                                     samples_per_frame_, kDeviceBufMs, 0));
-      EXPECT_LE(0, self_->aec->system_delay);
+      EXPECT_EQ(0,
+                WebRtcAec_Process(handle_,
+                                  near_,
+                                  NULL,
+                                  out_,
+                                  NULL,
+                                  samples_per_frame_,
+                                  kDeviceBufMs,
+                                  0));
+      EXPECT_LE(0, WebRtcAec_system_delay(self_->aec));
     }
   }
 }
 
-TEST_F(SystemDelayTest, CorrectDelayDuringDrift) {
+TEST_F(SystemDelayTest, DISABLED_ON_ANDROID(CorrectDelayDuringDrift)) {
   // This drift test should verify that the system delay is never exceeding the
   // device buffer. The drift is simulated by decreasing the reported device
   // buffer size by 1 ms every 100 ms. If the device buffer size goes below 30
   // ms we jump (add) 10 ms to give a repeated pattern.
+
+  // This test assumes the reported delays are used.
+  WebRtcAec_enable_reported_delay(WebRtcAec_aec_core(handle_), 1);
   for (size_t i = 0; i < kNumSampleRates; i++) {
     Init(kSampleRateHz[i]);
     RunStableStartup();
@@ -327,21 +360,24 @@ TEST_F(SystemDelayTest, CorrectDelayDuringDrift) {
       RenderAndCapture(device_buf_ms);
 
       // Verify that the system delay does not exceed the device buffer.
-      EXPECT_GE(device_buf, self_->aec->system_delay);
+      EXPECT_GE(device_buf, WebRtcAec_system_delay(self_->aec));
 
       // Verify that the system delay is non-negative.
-      EXPECT_LE(0, self_->aec->system_delay);
+      EXPECT_LE(0, WebRtcAec_system_delay(self_->aec));
     }
   }
 }
 
-TEST_F(SystemDelayTest, ShouldRecoverAfterGlitch) {
+TEST_F(SystemDelayTest, DISABLED_ON_ANDROID(ShouldRecoverAfterGlitch)) {
   // This glitch test should verify that the system delay recovers if there is
   // a glitch in data. The data glitch is constructed as 200 ms of buffering
   // after which the stable procedure continues. The glitch is never reported by
   // the device.
   // The system is said to be in a non-causal state if the difference between
   // the device buffer and system delay is less than a block (64 samples).
+
+  // This test assumes the reported delays are used.
+  WebRtcAec_enable_reported_delay(WebRtcAec_aec_core(handle_), 1);
   for (size_t i = 0; i < kNumSampleRates; i++) {
     Init(kSampleRateHz[i]);
     RunStableStartup();
@@ -353,15 +389,15 @@ TEST_F(SystemDelayTest, ShouldRecoverAfterGlitch) {
     }
     // Verify that we are in a non-causal state, i.e.,
     // |system_delay| > |device_buf|.
-    EXPECT_LT(device_buf, self_->aec->system_delay);
+    EXPECT_LT(device_buf, WebRtcAec_system_delay(self_->aec));
 
     // Recover state. Should recover at least 4 ms of data per 10 ms, hence a
     // glitch of 200 ms will take at most 200 * 10 / 4 = 500 ms to recover from.
     bool non_causal = true;  // We are currently in a non-causal state.
     for (int j = 0; j < 50; j++) {
-      int system_delay_before = self_->aec->system_delay;
+      int system_delay_before = WebRtcAec_system_delay(self_->aec);
       RenderAndCapture(kDeviceBufMs);
-      int system_delay_after = self_->aec->system_delay;
+      int system_delay_after = WebRtcAec_system_delay(self_->aec);
 
       // We have recovered if |device_buf| - |system_delay_after| >= 64 (one
       // block). During recovery |system_delay_after| < |system_delay_before|,
@@ -375,7 +411,7 @@ TEST_F(SystemDelayTest, ShouldRecoverAfterGlitch) {
         EXPECT_EQ(system_delay_before, system_delay_after);
       }
       // Verify that the system delay is non-negative.
-      EXPECT_LE(0, self_->aec->system_delay);
+      EXPECT_LE(0, WebRtcAec_system_delay(self_->aec));
     }
     // Check that we have recovered.
     EXPECT_FALSE(non_causal);
@@ -397,7 +433,7 @@ TEST_F(SystemDelayTest, UnaffectedWhenSpuriousDeviceBufferValues) {
 
     // Run 1 s and replace device buffer size with 500 ms every 100 ms.
     for (int j = 0; j < 100; j++) {
-      int system_delay_before_calls = self_->aec->system_delay;
+      int system_delay_before_calls = WebRtcAec_system_delay(self_->aec);
       int device_buf_ms = kDeviceBufMs;
       if (j % 10 == 0) {
         device_buf_ms = 500;
@@ -405,14 +441,14 @@ TEST_F(SystemDelayTest, UnaffectedWhenSpuriousDeviceBufferValues) {
       RenderAndCapture(device_buf_ms);
 
       // Check for non-causality.
-      if (device_buf - self_->aec->system_delay < 64) {
+      if (device_buf - WebRtcAec_system_delay(self_->aec) < 64) {
         non_causal = true;
       }
       EXPECT_FALSE(non_causal);
-      EXPECT_EQ(system_delay_before_calls, self_->aec->system_delay);
+      EXPECT_EQ(system_delay_before_calls, WebRtcAec_system_delay(self_->aec));
 
       // Verify that the system delay is non-negative.
-      EXPECT_LE(0, self_->aec->system_delay);
+      EXPECT_LE(0, WebRtcAec_system_delay(self_->aec));
     }
   }
 }
@@ -440,16 +476,16 @@ TEST_F(SystemDelayTest, CorrectImpactWhenTogglingDeviceBufferValues) {
     // data. Every odd frame we set the device buffer size to 2 * |kDeviceBufMs|
     // and even frames we set the device buffer size to zero.
     for (int j = 0; j < 100; j++) {
-      int system_delay_before_calls = self_->aec->system_delay;
+      int system_delay_before_calls = WebRtcAec_system_delay(self_->aec);
       int device_buf_ms = 2 * (j % 2) * kDeviceBufMs;
       RenderAndCapture(device_buf_ms);
 
       // Check for non-causality, compared with the average device buffer size.
-      non_causal |= (device_buf - self_->aec->system_delay < 64);
-      EXPECT_GE(system_delay_before_calls, self_->aec->system_delay);
+      non_causal |= (device_buf - WebRtcAec_system_delay(self_->aec) < 64);
+      EXPECT_GE(system_delay_before_calls, WebRtcAec_system_delay(self_->aec));
 
       // Verify that the system delay is non-negative.
-      EXPECT_LE(0, self_->aec->system_delay);
+      EXPECT_LE(0, WebRtcAec_system_delay(self_->aec));
     }
     // Verify we are not in a non-causal state.
     EXPECT_FALSE(non_causal);

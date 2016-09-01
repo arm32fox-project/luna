@@ -8,13 +8,19 @@
 #define mozilla_dom_domerror_h__
 
 #include "mozilla/Attributes.h"
-#include "mozilla/ErrorResult.h"
-#include "mozilla/dom/BindingUtils.h"
-#include "nsCycleCollectionParticipant.h"
-#include "nsPIDOMWindow.h"
 #include "nsWrapperCache.h"
+#include "nsCOMPtr.h"
+#include "nsString.h"
+#include "nsPIDOMWindow.h"
+
+#define DOMERROR_IID \
+{ 0x220cb63f, 0xa37d, 0x4ba4, \
+ { 0x8e, 0x31, 0xfc, 0xde, 0xec, 0x48, 0xe1, 0x66 } }
 
 namespace mozilla {
+
+class ErrorResult;
+
 namespace dom {
 
 class GlobalObject;
@@ -26,12 +32,19 @@ class DOMError : public nsISupports,
   nsString mName;
   nsString mMessage;
 
+protected:
+  virtual ~DOMError();
+
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(DOMError)
 
+  NS_DECLARE_STATIC_IID_ACCESSOR(DOMERROR_IID)
+
   // aWindow can be null if this DOMError is not associated with a particular
   // window.
+
+  explicit DOMError(nsPIDOMWindow* aWindow);
 
   DOMError(nsPIDOMWindow* aWindow, nsresult aValue);
 
@@ -40,15 +53,13 @@ public:
   DOMError(nsPIDOMWindow* aWindow, const nsAString& aName,
            const nsAString& aMessage);
 
-  virtual ~DOMError();
-
   nsPIDOMWindow* GetParentObject() const
   {
     return mWindow;
   }
 
   virtual JSObject*
-  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  WrapObject(JSContext* aCx) override;
 
   static already_AddRefed<DOMError>
   Constructor(const GlobalObject& global, const nsAString& name,
@@ -64,6 +75,8 @@ public:
     aRetval = mMessage;
   }
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(DOMError, DOMERROR_IID)
 
 } // namespace dom
 } // namespace mozilla

@@ -26,23 +26,28 @@ class FileWrapperImpl : public FileWrapper {
   virtual ~FileWrapperImpl();
 
   virtual int FileName(char* file_name_utf8,
-                       size_t size) const;
+                       size_t size) const OVERRIDE;
 
-  virtual bool Open() const;
+  virtual bool Open() const OVERRIDE;
 
   virtual int OpenFile(const char* file_name_utf8,
                        bool read_only,
                        bool loop = false,
-                       bool text = false);
+                       bool text = false) OVERRIDE;
 
-  virtual int CloseFile();
-  virtual int SetMaxFileSize(size_t bytes);
-  virtual int Flush();
+  virtual int OpenFromFileHandle(FILE* handle,
+                                 bool manage_file,
+                                 bool read_only,
+                                 bool loop = false) OVERRIDE;
 
-  virtual int Read(void* buf, int length);
-  virtual bool Write(const void* buf, int length);
-  virtual int WriteText(const char* format, ...);
-  virtual int Rewind();
+  virtual int CloseFile() OVERRIDE;
+  virtual int SetMaxFileSize(size_t bytes) OVERRIDE;
+  virtual int Flush() OVERRIDE;
+
+  virtual int Read(void* buf, int length) OVERRIDE;
+  virtual bool Write(const void* buf, int length) OVERRIDE;
+  virtual int WriteText(const char* format, ...) OVERRIDE;
+  virtual int Rewind() OVERRIDE;
 
  private:
   int CloseFileImpl();
@@ -51,6 +56,7 @@ class FileWrapperImpl : public FileWrapper {
   scoped_ptr<RWLockWrapper> rw_lock_;
 
   FILE* id_;
+  bool managed_file_handle_;
   bool open_;
   bool looping_;
   bool read_only_;
@@ -59,6 +65,6 @@ class FileWrapperImpl : public FileWrapper {
   char file_name_utf8_[kMaxFileNameSize];
 };
 
-} // namespace webrtc
+}  // namespace webrtc
 
 #endif  // WEBRTC_SYSTEM_WRAPPERS_SOURCE_FILE_IMPL_H_

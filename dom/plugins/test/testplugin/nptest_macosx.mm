@@ -50,12 +50,6 @@ pluginSupportsWindowlessMode()
   return true;
 }
 
-bool
-pluginSupportsAsyncBitmapDrawing()
-{
-  return false;
-}
-
 NPError
 pluginInstanceInit(InstanceData* instanceData)
 {
@@ -98,9 +92,9 @@ RectEquals(const NPRect& r1, const NPRect& r2)
 void
 pluginDoSetWindow(InstanceData* instanceData, NPWindow* newWindow)
 {
-  // Ugh. Due to a terrible Gecko bug, we have to ignore position changes
+  // Ugh. Due to a terrible Goanna bug, we have to ignore position changes
   // when the clip rect doesn't change; the position can be wrong
-  // when set by a path other than nsObjectFrame::FixUpPluginWindow.
+  // when set by a path other than nsPluginFrame::FixUpPluginWindow.
   int32_t oldX = instanceData->window.x;
   int32_t oldY = instanceData->window.y;
   bool clipChanged =
@@ -244,6 +238,7 @@ pluginHandleEvent(InstanceData* instanceData, void* event)
     case NPCocoaEventMouseDown:
     case NPCocoaEventMouseUp:
     case NPCocoaEventMouseMoved:
+    case NPCocoaEventMouseDragged:
       instanceData->lastMouseX = (int32_t)cocoaEvent->data.mouse.pluginX;
       instanceData->lastMouseY = (int32_t)cocoaEvent->data.mouse.pluginY;
       if (cocoaEvent->type == NPCocoaEventMouseUp) {

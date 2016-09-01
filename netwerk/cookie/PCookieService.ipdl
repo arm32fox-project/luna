@@ -6,12 +6,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 include protocol PNecko;
-include protocol PBrowser;
 include URIParams;
 
-include "SerializedLoadContext.h";
 
-using IPC::SerializedLoadContext;
+using class IPC::SerializedLoadContext from "SerializedLoadContext.h";
 
 namespace mozilla {
 namespace net {
@@ -29,7 +27,7 @@ namespace net {
  * @see nsICookiePermission
  */
 
-sync protocol PCookieService
+prio(normal upto urgent) sync protocol PCookieService
 {
   manager PNecko;
 
@@ -62,11 +60,10 @@ parent:
    *
    * @return the resulting cookie string.
    */
-  sync GetCookieString(URIParams host,
-                       bool isForeign,
-                       bool fromHttp,
-                       SerializedLoadContext loadContext,
-                       nullable PBrowser browser)
+  prio(urgent) sync GetCookieString(URIParams host,
+                                    bool isForeign,
+                                    bool fromHttp,
+                                    SerializedLoadContext loadContext)
        returns (nsCString result);
 
   /*
@@ -98,13 +95,12 @@ parent:
    * @see nsICookieService.setCookieStringFromHttp
    * @see mozIThirdPartyUtil.isThirdPartyChannel
    */
-  SetCookieString(URIParams host,
-                  bool isForeign,
-                  nsCString cookieString,
-                  nsCString serverTime,
-                  bool fromHttp,
-                  SerializedLoadContext loadContext,
-                  nullable PBrowser browser);
+  prio(urgent) async SetCookieString(URIParams host,
+                                     bool isForeign,
+                                     nsCString cookieString,
+                                     nsCString serverTime,
+                                     bool fromHttp,
+                                     SerializedLoadContext loadContext);
 
   __delete__();
 };

@@ -32,8 +32,8 @@ public abstract class MiddlewareRepositorySession extends RepositorySession {
 
   public class MiddlewareRepositorySessionBeginDelegate implements RepositorySessionBeginDelegate {
 
-    private MiddlewareRepositorySession outerSession;
-    private RepositorySessionBeginDelegate next;
+    private final MiddlewareRepositorySession outerSession;
+    private final RepositorySessionBeginDelegate next;
 
     public MiddlewareRepositorySessionBeginDelegate(MiddlewareRepositorySession outerSession, RepositorySessionBeginDelegate next) {
       this.outerSession = outerSession;
@@ -75,6 +75,7 @@ public abstract class MiddlewareRepositorySession extends RepositorySession {
     }
   }
 
+  @Override
   public void begin(RepositorySessionBeginDelegate delegate) throws InvalidSessionTransitionException {
     inner.begin(new MiddlewareRepositorySessionBeginDelegate(this, delegate));
   }
@@ -160,5 +161,25 @@ public abstract class MiddlewareRepositorySession extends RepositorySession {
   @Override
   public void storeDone(long storeEnd) {
     inner.storeDone(storeEnd);
+  }
+
+  @Override
+  public boolean shouldSkip() {
+    return inner.shouldSkip();
+  }
+
+  @Override
+  public boolean dataAvailable() {
+    return inner.dataAvailable();
+  }
+
+  @Override
+  public void unbundle(RepositorySessionBundle bundle) {
+    inner.unbundle(bundle);
+  }
+
+  @Override
+  public long getLastSyncTimestamp() {
+    return inner.getLastSyncTimestamp();
   }
 }

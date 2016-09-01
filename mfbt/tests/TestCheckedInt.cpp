@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -8,31 +9,28 @@
 #include <iostream>
 #include <climits>
 
-#ifndef MOZ_CHECKEDINT_USE_MFBT
-#  error "MOZ_CHECKEDINT_USE_MFBT should be defined by CheckedInt.h"
-#endif
-
 using namespace mozilla;
 
 int gIntegerTypesTested = 0;
 int gTestsPassed = 0;
 int gTestsFailed = 0;
 
-void verifyImplFunction(bool x, bool expected,
-                        const char* file, int line,
-                        int size, bool isTSigned)
+void verifyImplFunction(bool aX, bool aExpected,
+                        const char* aFile, int aLine,
+                        int aSize, bool aIsTSigned)
 {
-  if (x == expected) {
+  if (aX == aExpected) {
     gTestsPassed++;
   } else {
     gTestsFailed++;
-    std::cerr << "Test failed at " << file << ":" << line;
+    std::cerr << "Test failed at " << aFile << ":" << aLine;
     std::cerr << " with T a ";
-    if (isTSigned)
+    if (aIsTSigned) {
       std::cerr << "signed";
-    else
+    } else {
       std::cerr << "unsigned";
-    std::cerr << " " << CHAR_BIT*size << "-bit integer type" << std::endl;
+    }
+    std::cerr << " " << CHAR_BIT * aSize << "-bit integer type" << std::endl;
   }
 }
 
@@ -42,7 +40,7 @@ void verifyImplFunction(bool x, bool expected,
     __FILE__, \
     __LINE__, \
     sizeof(T), \
-    detail::IsSigned<T>::value)
+    IsSigned<T>::value)
 
 #define VERIFY(x)            VERIFY_IMPL(x, true)
 #define VERIFY_IS_FALSE(x)   VERIFY_IMPL(x, false)
@@ -53,25 +51,24 @@ void verifyImplFunction(bool x, bool expected,
 template<typename T, size_t Size = sizeof(T)>
 struct testTwiceBiggerType
 {
-    static void run()
-    {
-      VERIFY(detail::IsSupported<typename detail::TwiceBiggerType<T>::Type>::value);
-      VERIFY(sizeof(typename detail::TwiceBiggerType<T>::Type)
-               == 2 * sizeof(T));
-      VERIFY(bool(detail::IsSigned<typename detail::TwiceBiggerType<T>::Type>::value)
-               == bool(detail::IsSigned<T>::value));
-    }
+  static void run()
+  {
+    VERIFY(detail::IsSupported<typename detail::TwiceBiggerType<T>::Type>::value);
+    VERIFY(sizeof(typename detail::TwiceBiggerType<T>::Type) == 2 * sizeof(T));
+    VERIFY(bool(IsSigned<typename detail::TwiceBiggerType<T>::Type>::value) ==
+           bool(IsSigned<T>::value));
+  }
 };
 
 template<typename T>
 struct testTwiceBiggerType<T, 8>
 {
-    static void run()
-    {
-      VERIFY_IS_FALSE(detail::IsSupported<
-                        typename detail::TwiceBiggerType<T>::Type
-                      >::value);
-    }
+  static void run()
+  {
+    VERIFY_IS_FALSE(detail::IsSupported<
+                      typename detail::TwiceBiggerType<T>::Type
+                    >::value);
+  }
 };
 
 
@@ -79,34 +76,36 @@ template<typename T>
 void test()
 {
   static bool alreadyRun = false;
-  // Integer types from different families may just be typedefs for types from other families.
-  // e.g. int32_t might be just a typedef for int. No point re-running the same tests then.
-  if (alreadyRun)
-      return;
+  // Integer types from different families may just be typedefs for types from
+  // other families. E.g. int32_t might be just a typedef for int. No point
+  // re-running the same tests then.
+  if (alreadyRun) {
+    return;
+  }
   alreadyRun = true;
 
   VERIFY(detail::IsSupported<T>::value);
-  const bool isTSigned = detail::IsSigned<T>::value;
+  const bool isTSigned = IsSigned<T>::value;
   VERIFY(bool(isTSigned) == !bool(T(-1) > T(0)));
 
   testTwiceBiggerType<T>::run();
 
-  typedef typename detail::UnsignedType<T>::Type unsignedT;
+  typedef typename MakeUnsigned<T>::Type unsignedT;
 
   VERIFY(sizeof(unsignedT) == sizeof(T));
-  VERIFY(detail::IsSigned<unsignedT>::value == false);
+  VERIFY(IsSigned<unsignedT>::value == false);
 
-  const CheckedInt<T> max(detail::MaxValue<T>::value);
-  const CheckedInt<T> min(detail::MinValue<T>::value);
+  const CheckedInt<T> max(MaxValue<T>::value);
+  const CheckedInt<T> min(MinValue<T>::value);
 
-  // Check MinValue and MaxValue, since they are custom implementations and a mistake there
-  // could potentially NOT be caught by any other tests... while making everything wrong!
+  // Check MinValue and MaxValue, since they are custom implementations and a
+  // mistake there could potentially NOT be caught by any other tests... while
+  // making everything wrong!
 
   unsignedT bit = 1;
   unsignedT unsignedMinValue(min.value());
   unsignedT unsignedMaxValue(max.value());
-  for (size_t i = 0; i < sizeof(T) * CHAR_BIT - 1; i++)
-  {
+  for (size_t i = 0; i < sizeof(T) * CHAR_BIT - 1; i++) {
     VERIFY((unsignedMinValue & bit) == 0);
     bit <<= 1;
   }
@@ -123,7 +122,7 @@ void test()
 
   VERIFY_IS_VALID(zero + zero);
   VERIFY(zero + zero == zero);
-  VERIFY_IS_FALSE(zero + zero == one); // Check that == doesn't always return true
+  VERIFY_IS_FALSE(zero + zero == one); // Check == doesn't always return true
   VERIFY_IS_VALID(zero + one);
   VERIFY(zero + one == one);
   VERIFY_IS_VALID(one + one);
@@ -377,7 +376,8 @@ void test()
   VERIFY_IS_INVALID(someInvalid / someInvalid);
   VERIFY_IS_INVALID(someInvalid % someInvalid);
 
-  /* Check that mixing checked integers with plain integers in expressions is allowed */
+  // Check that mixing checked integers with plain integers in expressions is
+  // allowed
 
   VERIFY(one + T(2) == three);
   VERIFY(2 + one == three);
@@ -422,6 +422,62 @@ void test()
   VERIFY_IS_FALSE(someInvalid == 1);
   VERIFY_IS_FALSE(1 == someInvalid);
 
+  // Check that compound operators work when both sides of the expression
+  // are checked integers
+  {
+    CheckedInt<T> x = one;
+    x += two;
+    VERIFY(x == three);
+  }
+  {
+    CheckedInt<T> x = two;
+    x -= one;
+    VERIFY(x == one);
+  }
+  {
+    CheckedInt<T> x = one;
+    x *= two;
+    VERIFY(x == two);
+  }
+  {
+    CheckedInt<T> x = four;
+    x /= two;
+    VERIFY(x == two);
+  }
+  {
+    CheckedInt<T> x = three;
+    x %= two;
+    VERIFY(x == one);
+  }
+
+  // Check that compound operators work when both sides of the expression
+  // are checked integers and the right-hand side is invalid
+  {
+    CheckedInt<T> x = one;
+    x += someInvalid;
+    VERIFY_IS_INVALID(x);
+  }
+  {
+    CheckedInt<T> x = two;
+    x -= someInvalid;
+    VERIFY_IS_INVALID(x);
+  }
+  {
+    CheckedInt<T> x = one;
+    x *= someInvalid;
+    VERIFY_IS_INVALID(x);
+  }
+  {
+    CheckedInt<T> x = four;
+    x /= someInvalid;
+    VERIFY_IS_INVALID(x);
+  }
+  {
+    CheckedInt<T> x = three;
+    x %= someInvalid;
+    VERIFY_IS_INVALID(x);
+  }
+
   // Check simple casting between different signedness and sizes.
   {
     CheckedInt<uint8_t> foo = CheckedInt<uint16_t>(2).toChecked<uint8_t>();
@@ -442,28 +498,30 @@ void test()
     VERIFY_IS_INVALID(foo);
   }
 
-  // Check that construction of CheckedInt from an integer value of a mismatched type is checked
-  // Also check casting between all types.
+  // Check that construction of CheckedInt from an integer value of a
+  // mismatched type is checked Also check casting between all types.
 
   #define VERIFY_CONSTRUCTION_FROM_INTEGER_TYPE2(U,V,PostVExpr) \
   { \
-    bool isUSigned = detail::IsSigned<U>::value; \
+    bool isUSigned = IsSigned<U>::value; \
     VERIFY_IS_VALID(CheckedInt<T>(V(  0)PostVExpr)); \
     VERIFY_IS_VALID(CheckedInt<T>(V(  1)PostVExpr)); \
     VERIFY_IS_VALID(CheckedInt<T>(V(100)PostVExpr)); \
-    if (isUSigned) \
+    if (isUSigned) { \
       VERIFY_IS_VALID_IF(CheckedInt<T>(V(-1)PostVExpr), isTSigned); \
-    if (sizeof(U) > sizeof(T)) \
-      VERIFY_IS_INVALID(CheckedInt<T>(V(detail::MaxValue<T>::value)PostVExpr + one.value())); \
-    VERIFY_IS_VALID_IF(CheckedInt<T>(detail::MaxValue<U>::value), \
+    } \
+    if (sizeof(U) > sizeof(T)) { \
+      VERIFY_IS_INVALID(CheckedInt<T>(V(MaxValue<T>::value)PostVExpr + one.value())); \
+    } \
+    VERIFY_IS_VALID_IF(CheckedInt<T>(MaxValue<U>::value), \
       (sizeof(T) > sizeof(U) || ((sizeof(T) == sizeof(U)) && (isUSigned || !isTSigned)))); \
-    VERIFY_IS_VALID_IF(CheckedInt<T>(detail::MinValue<U>::value), \
+    VERIFY_IS_VALID_IF(CheckedInt<T>(MinValue<U>::value), \
       isUSigned == false ? 1 \
                          : bool(isTSigned) == false ? 0 \
                                                     : sizeof(T) >= sizeof(U)); \
   }
   #define VERIFY_CONSTRUCTION_FROM_INTEGER_TYPE(U) \
-    VERIFY_CONSTRUCTION_FROM_INTEGER_TYPE2(U,U,+0) \
+    VERIFY_CONSTRUCTION_FROM_INTEGER_TYPE2(U,U,+zero) \
     VERIFY_CONSTRUCTION_FROM_INTEGER_TYPE2(U,CheckedInt<U>,.toChecked<T>())
 
   VERIFY_CONSTRUCTION_FROM_INTEGER_TYPE(int8_t)
@@ -526,7 +584,8 @@ void test()
   gIntegerTypesTested++;
 }
 
-int main()
+int
+main()
 {
   test<int8_t>();
   test<uint8_t>();

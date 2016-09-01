@@ -5,121 +5,113 @@
 
 package org.mozilla.goanna;
 
+import org.mozilla.goanna.mozglue.JNITarget;
+import org.mozilla.goanna.util.NativeEventListener;
+import org.mozilla.goanna.util.NativeJSObject;
+import org.mozilla.goanna.util.EventCallback;
+
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
+import android.net.DhcpInfo;
 import android.net.NetworkInfo;
+import android.net.wifi.WifiManager;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
 /*
- * A part of the work of GoannaNetworkManager is to give an estimation of the
- * download speed of the current connection. For known to be fast connection, we
- * simply use a predefined value (we don't care about being precise). For mobile
- * connections, we sort them in groups (generations) and estimate the average
- * real life download speed of that specific generation. This value comes from
- * researches (eg. Wikipedia articles) or is simply an arbitrary estimation.
- * Precision isn't important, we mostly need an order of magnitude.
+ * A part of the work of GoannaNetworkManager is to give an general connection
+ * type based on the current connection. According to spec of NetworkInformation
+ * API version 3, connection types include: bluetooth, cellular, ethernet, none,
+ * wifi and other. The objective of providing such general connection is due to
+ * some security concerns. In short, we don't want to expose the information of
+ * exact network type, especially the cellular network type.
  *
- * Each group is composed with networks represented by the constant from
- * Android's ConnectivityManager and the description comming from the same
- * class.
- *
- * 2G (15 bk/s):
- * int NETWORK_TYPE_IDEN     Current network is iDen
- * int NETWORK_TYPE_CDMA     Current network is CDMA: Either IS95A or IS95B
- *
- * 2.5G (60 kb/s)
- * int NETWORK_TYPE_GPRS     Current network is GPRS
- * int NETWORK_TYPE_1xRTT    Current network is 1xRTT
- *
- * 2.75G (200 kb/s)
- * int NETWORK_TYPE_EDGE     Current network is EDGE
- *
- * 3G (300 kb/s)
- * int NETWORK_TYPE_UMTS     Current network is UMTS
- * int NETWORK_TYPE_EVDO_0   Current network is EVDO revision 0
- *
- * 3.5G (7 Mb/s)
- * int NETWORK_TYPE_HSPA     Current network is HSPA
- * int NETWORK_TYPE_HSDPA    Current network is HSDPA
- * int NETWORK_TYPE_HSUPA    Current network is HSUPA
- * int NETWORK_TYPE_EVDO_A   Current network is EVDO revision A
- * int NETWORK_TYPE_EVDO_B   Current network is EVDO revision B
- * int NETWORK_TYPE_EHRPD    Current network is eHRPD
- *
- * 3.75G (20 Mb/s)
- * int NETWORK_TYPE_HSPAP    Current network is HSPA+
- *
- * 3.9G (50 Mb/s)
- * int NETWORK_TYPE_LTE      Current network is LTE
+ * Current connection is firstly obtained from Android's ConnectivityManager,
+ * which is represented by the constant, and then will be mapped into the
+ * connection type defined in Network Information API version 3.
  */
 
-public class GoannaNetworkManager extends BroadcastReceiver {
+public class GoannaNetworkManager extends BroadcastReceiver implements NativeEventListener {
     private static final String LOGTAG = "GoannaNetworkManager";
 
-    static private final GoannaNetworkManager sInstance = new GoannaNetworkManager();
+    private static GoannaNetworkManager sInstance;
 
-    static private final double  kDefaultBandwidth    = -1.0;
-    static private final boolean kDefaultCanBeMetered = false;
-
-    static private final double  kMaxBandwidth = 20.0;
-
-    static private final double  kNetworkSpeedEthernet = 20.0;           // 20 Mb/s
-    static private final double  kNetworkSpeedWifi     = 20.0;           // 20 Mb/s
-    static private final double  kNetworkSpeedWiMax    = 40.0;           // 40 Mb/s
-    static private final double  kNetworkSpeed_2_G     = 15.0 / 1024.0;  // 15 kb/s
-    static private final double  kNetworkSpeed_2_5_G   = 60.0 / 1024.0;  // 60 kb/s
-    static private final double  kNetworkSpeed_2_75_G  = 200.0 / 1024.0; // 200 kb/s
-    static private final double  kNetworkSpeed_3_G     = 300.0 / 1024.0; // 300 kb/s
-    static private final double  kNetworkSpeed_3_5_G   = 7.0;            // 7 Mb/s
-    static private final double  kNetworkSpeed_3_75_G  = 20.0;           // 20 Mb/s
-    static private final double  kNetworkSpeed_3_9_G   = 50.0;           // 50 Mb/s
-
-    private enum NetworkType {
-        NETWORK_NONE,
-        NETWORK_ETHERNET,
-        NETWORK_WIFI,
-        NETWORK_WIMAX,
-        NETWORK_2_G,    // 2G
-        NETWORK_2_5_G,  // 2.5G
-        NETWORK_2_75_G, // 2.75G
-        NETWORK_3_G,    // 3G
-        NETWORK_3_5_G,  // 3.5G
-        NETWORK_3_75_G, // 3.75G
-        NETWORK_3_9_G,  // 3.9G
-        NETWORK_UNKNOWN
+    public static void destroy() {
+        if (sInstance != null) {
+            sInstance.onDestroy();
+            sInstance = null;
+        }
     }
 
-    private Context mApplicationContext;
-    private NetworkType  mNetworkType = NetworkType.NETWORK_NONE;
-    private IntentFilter mNetworkFilter = new IntentFilter();
+    // Connection Type defined in Network Information API v3.
+    private enum ConnectionType {
+        CELLULAR(0),
+        BLUETOOTH(1),
+        ETHERNET(2),
+        WIFI(3),
+        OTHER(4),
+        NONE(5);
+
+        public final int value;
+
+        private ConnectionType(int value) {
+            this.value = value;
+        }
+    }
+
+    private enum InfoType {
+        MCC,
+        MNC
+    }
+
+    private GoannaNetworkManager() {
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, "Wifi:Enable");
+    }
+
+    private void onDestroy() {
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this, "Wifi:Enable");
+    }
+
+    private volatile ConnectionType mConnectionType = ConnectionType.NONE;
+    private final IntentFilter mNetworkFilter = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
+
     // Whether the manager should be listening to Network Information changes.
-    private boolean mShouldBeListening = false;
+    private boolean mShouldBeListening;
+
     // Whether the manager should notify Goanna that a change in Network
     // Information happened.
-    private boolean mShouldNotify      = false;
+    private boolean mShouldNotify;
+
+    // The application context used for registering receivers, so
+    // we can unregister them again later.
+    private volatile Context mApplicationContext;
+    private boolean mIsListening;
 
     public static GoannaNetworkManager getInstance() {
+        if (sInstance == null) {
+            sInstance = new GoannaNetworkManager();
+        }
+
         return sInstance;
     }
 
     @Override
     public void onReceive(Context aContext, Intent aIntent) {
-        updateNetworkType();
+        updateConnectionType();
     }
 
-    public void init(Context context) {
+    public void start(final Context context) {
+        // Note that this initialization clause only runs once.
         mApplicationContext = context.getApplicationContext();
-        mNetworkFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
-        mNetworkType = getNetworkType();
-    }
+        if (mConnectionType == ConnectionType.NONE) {
+            mConnectionType = getConnectionType();
+        }
 
-    public void start() {
         mShouldBeListening = true;
-        updateNetworkType();
+        updateConnectionType();
 
         if (mShouldNotify) {
             startListening();
@@ -127,43 +119,121 @@ public class GoannaNetworkManager extends BroadcastReceiver {
     }
 
     private void startListening() {
-        mApplicationContext.registerReceiver(sInstance, mNetworkFilter);
+        if (mIsListening) {
+            Log.w(LOGTAG, "Already started!");
+            return;
+        }
+
+        final Context appContext = mApplicationContext;
+        if (appContext == null) {
+            Log.w(LOGTAG, "Not registering receiver: no context!");
+            return;
+        }
+
+        // registerReceiver will return null if registering fails.
+        if (appContext.registerReceiver(this, mNetworkFilter) == null) {
+            Log.e(LOGTAG, "Registering receiver failed");
+        } else {
+            mIsListening = true;
+        }
     }
 
     public void stop() {
         mShouldBeListening = false;
 
         if (mShouldNotify) {
-        stopListening();
+            stopListening();
+        }
+    }
+
+    @Override
+    public void handleMessage(final String event, final NativeJSObject message,
+                              final EventCallback callback) {
+        if (event.equals("Wifi:Enable")) {
+            final WifiManager mgr = (WifiManager) mApplicationContext.getSystemService(Context.WIFI_SERVICE);
+
+            if (!mgr.isWifiEnabled()) {
+                mgr.setWifiEnabled(true);
+            } else {
+                // If Wifi is enabled, maybe you need to select a network
+                Intent intent = new Intent(android.provider.Settings.ACTION_WIFI_SETTINGS);
+                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+                mApplicationContext.startActivity(intent);
+            }
         }
     }
 
     private void stopListening() {
-        mApplicationContext.unregisterReceiver(sInstance);
+        if (null == mApplicationContext) {
+            return;
+        }
+
+        if (!mIsListening) {
+            Log.w(LOGTAG, "Already stopped!");
+            return;
+        }
+
+        mApplicationContext.unregisterReceiver(this);
+        mIsListening = false;
     }
 
-    private void updateNetworkType() {
-        NetworkType previousNetworkType = mNetworkType;
-        mNetworkType = getNetworkType();
+    private int wifiDhcpGatewayAddress() {
+        if (mConnectionType != ConnectionType.WIFI) {
+            return 0;
+        }
 
-        if (mNetworkType == previousNetworkType || !mShouldNotify) {
+        if (null == mApplicationContext) {
+            return 0;
+        }
+
+        try {
+            WifiManager mgr = (WifiManager) mApplicationContext.getSystemService(Context.WIFI_SERVICE);
+            DhcpInfo d = mgr.getDhcpInfo();
+            if (d == null) {
+                return 0;
+            }
+
+            return d.gateway;
+
+        } catch (Exception ex) {
+            // getDhcpInfo() is not documented to require any permissions, but on some devices
+            // requires android.permission.ACCESS_WIFI_STATE. Just catch the generic exception
+            // here and returning 0. Not logging because this could be noisy.
+            return 0;
+        }
+    }
+
+    private void updateConnectionType() {
+        final ConnectionType previousConnectionType = mConnectionType;
+        final ConnectionType newConnectionType = getConnectionType();
+        if (newConnectionType == previousConnectionType) {
+            return;
+        }
+
+        mConnectionType = newConnectionType;
+
+        if (!mShouldNotify) {
             return;
         }
 
         GoannaAppShell.sendEventToGoanna(GoannaEvent.createNetworkEvent(
-                                       getNetworkSpeed(mNetworkType),
-                                       isNetworkUsuallyMetered(mNetworkType)));
+                                       newConnectionType.value,
+                                       newConnectionType == ConnectionType.WIFI,
+                                       wifiDhcpGatewayAddress()));
     }
 
     public double[] getCurrentInformation() {
-        return new double[] { getNetworkSpeed(mNetworkType),
-                              isNetworkUsuallyMetered(mNetworkType) ? 1.0 : 0.0 };
+        final ConnectionType connectionType = mConnectionType;
+        return new double[] { connectionType.value,
+                              connectionType == ConnectionType.WIFI ? 1.0 : 0.0,
+                              wifiDhcpGatewayAddress() };
     }
 
     public void enableNotifications() {
-        // We set mShouldNotify *after* calling updateNetworkType() to make sure we
-        // don't notify an eventual change in mNetworkType.
-        updateNetworkType();
+        // We set mShouldNotify *after* calling updateConnectionType() to make sure we
+        // don't notify an eventual change in mConnectionType.
+        mConnectionType = ConnectionType.NONE; // force a notification
+        updateConnectionType();
         mShouldNotify = true;
 
         if (mShouldBeListening) {
@@ -179,119 +249,84 @@ public class GoannaNetworkManager extends BroadcastReceiver {
         }
     }
 
-    private static NetworkType getNetworkType() {
-        ConnectivityManager cm =
-            (ConnectivityManager)sInstance.mApplicationContext.getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (cm == null) {
-            Log.e(LOGTAG, "Connectivity service does not exist");
-            return NetworkType.NETWORK_NONE;
+    private ConnectionType getConnectionType() {
+        final Context appContext = mApplicationContext;
+
+        if (null == appContext) {
+            return ConnectionType.NONE;
         }
 
-        NetworkInfo ni = cm.getActiveNetworkInfo();
+        ConnectivityManager cm = (ConnectivityManager) appContext.getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) {
+            Log.e(LOGTAG, "Connectivity service does not exist");
+            return ConnectionType.NONE;
+        }
+
+        NetworkInfo ni = null;
+        try {
+            ni = cm.getActiveNetworkInfo();
+        } catch (SecurityException se) {} // if we don't have the permission, fall through to null check
+
         if (ni == null) {
-            return NetworkType.NETWORK_NONE;
+            return ConnectionType.NONE;
         }
 
         switch (ni.getType()) {
+        case ConnectivityManager.TYPE_BLUETOOTH:
+            return ConnectionType.BLUETOOTH;
         case ConnectivityManager.TYPE_ETHERNET:
-            return NetworkType.NETWORK_ETHERNET;
-        case ConnectivityManager.TYPE_WIFI:
-            return NetworkType.NETWORK_WIFI;
-        case ConnectivityManager.TYPE_WIMAX:
-            return NetworkType.NETWORK_WIMAX;
+            return ConnectionType.ETHERNET;
         case ConnectivityManager.TYPE_MOBILE:
-            break; // We will handle sub-types after the switch.
+        case ConnectivityManager.TYPE_WIMAX:
+            return ConnectionType.CELLULAR;
+        case ConnectivityManager.TYPE_WIFI:
+            return ConnectionType.WIFI;
         default:
             Log.w(LOGTAG, "Ignoring the current network type.");
-            return NetworkType.NETWORK_UNKNOWN;
+            return ConnectionType.OTHER;
+        }
+    }
+
+    private static int getNetworkOperator(InfoType type, Context context) {
+        if (null == context) {
+            return -1;
         }
 
-        TelephonyManager tm =
-            (TelephonyManager)sInstance.mApplicationContext.getSystemService(Context.TELEPHONY_SERVICE);
-        if (tm == null) {
+        TelephonyManager tel = (TelephonyManager) context.getSystemService(Context.TELEPHONY_SERVICE);
+        if (tel == null) {
             Log.e(LOGTAG, "Telephony service does not exist");
-            return NetworkType.NETWORK_UNKNOWN;
+            return -1;
         }
 
-        switch (tm.getNetworkType()) {
-        case TelephonyManager.NETWORK_TYPE_IDEN:
-        case TelephonyManager.NETWORK_TYPE_CDMA:
-            return NetworkType.NETWORK_2_G;
-        case TelephonyManager.NETWORK_TYPE_GPRS:
-        case TelephonyManager.NETWORK_TYPE_1xRTT:
-            return NetworkType.NETWORK_2_5_G;
-        case TelephonyManager.NETWORK_TYPE_EDGE:
-            return NetworkType.NETWORK_2_75_G;
-        case TelephonyManager.NETWORK_TYPE_UMTS:
-        case TelephonyManager.NETWORK_TYPE_EVDO_0:
-            return NetworkType.NETWORK_3_G;
-        case TelephonyManager.NETWORK_TYPE_HSPA:
-        case TelephonyManager.NETWORK_TYPE_HSDPA:
-        case TelephonyManager.NETWORK_TYPE_HSUPA:
-        case TelephonyManager.NETWORK_TYPE_EVDO_A:
-        case TelephonyManager.NETWORK_TYPE_EVDO_B:
-        case TelephonyManager.NETWORK_TYPE_EHRPD:
-            return NetworkType.NETWORK_3_5_G;
-        case TelephonyManager.NETWORK_TYPE_HSPAP:
-            return NetworkType.NETWORK_3_75_G;
-        case TelephonyManager.NETWORK_TYPE_LTE:
-            return NetworkType.NETWORK_3_9_G;
-        case TelephonyManager.NETWORK_TYPE_UNKNOWN:
-        default:
-            Log.w(LOGTAG, "Connected to an unknown mobile network!");
-            return NetworkType.NETWORK_UNKNOWN;
+        String networkOperator = tel.getNetworkOperator();
+        if (networkOperator == null || networkOperator.length() <= 3) {
+            return -1;
         }
+
+        if (type == InfoType.MNC) {
+            return Integer.parseInt(networkOperator.substring(3));
+        }
+
+        if (type == InfoType.MCC) {
+            return Integer.parseInt(networkOperator.substring(0, 3));
+        }
+
+        return -1;
     }
 
-    private static double getNetworkSpeed(NetworkType aType) {
-        switch (aType) {
-        case NETWORK_NONE:
-            return 0.0;
-        case NETWORK_ETHERNET:
-            return kNetworkSpeedEthernet;
-        case NETWORK_WIFI:
-            return kNetworkSpeedWifi;
-        case NETWORK_WIMAX:
-            return kNetworkSpeedWiMax;
-        case NETWORK_2_G:
-            return kNetworkSpeed_2_G;
-        case NETWORK_2_5_G:
-            return kNetworkSpeed_2_5_G;
-        case NETWORK_2_75_G:
-            return kNetworkSpeed_2_75_G;
-        case NETWORK_3_G:
-            return kNetworkSpeed_3_G;
-        case NETWORK_3_5_G:
-            return kNetworkSpeed_3_5_G;
-        case NETWORK_3_75_G:
-            return kNetworkSpeed_3_75_G;
-        case NETWORK_3_9_G:
-            return kNetworkSpeed_3_9_G;
-        case NETWORK_UNKNOWN:
-        default:
-            return kDefaultBandwidth;
-        }
+    /**
+     * These are called from JavaScript ctypes. Avoid letting ProGuard delete them.
+     *
+     * Note that these methods must only be called after GoannaAppShell has been
+     * initialized: they depend on access to the context.
+     */
+    @JNITarget
+    public static int getMCC() {
+        return getNetworkOperator(InfoType.MCC, GoannaAppShell.getContext().getApplicationContext());
     }
 
-    private static boolean isNetworkUsuallyMetered(NetworkType aType) {
-        switch (aType) {
-        case NETWORK_NONE:
-        case NETWORK_UNKNOWN:
-        case NETWORK_ETHERNET:
-        case NETWORK_WIFI:
-        case NETWORK_WIMAX:
-            return false;
-        case NETWORK_2_G:
-        case NETWORK_2_5_G:
-        case NETWORK_2_75_G:
-        case NETWORK_3_G:
-        case NETWORK_3_5_G:
-        case NETWORK_3_75_G:
-        case NETWORK_3_9_G:
-            return true;
-        default:
-            Log.e(LOGTAG, "Got an unexpected network type!");
-            return false;
-        }
+    @JNITarget
+    public static int getMNC() {
+        return getNetworkOperator(InfoType.MNC, GoannaAppShell.getContext().getApplicationContext());
     }
 }

@@ -185,12 +185,24 @@ let kSpecialIds = {
     return null;
   },
 
-  get menu()    PlacesUtils.bookmarksMenuFolderId,
-  get places()  PlacesUtils.placesRootId,
-  get tags()    PlacesUtils.tagsFolderId,
-  get toolbar() PlacesUtils.toolbarFolderId,
-  get unfiled() PlacesUtils.unfiledBookmarksFolderId,
-  get mobile()  this.findMobileRoot(true),
+  get menu() {
+    return PlacesUtils.bookmarksMenuFolderId;
+  },
+  get places() {
+    return PlacesUtils.placesRootId;
+  },
+  get tags() {
+    return PlacesUtils.tagsFolderId;
+  },
+  get toolbar() {
+    return PlacesUtils.toolbarFolderId;
+  },
+  get unfiled() {
+    return PlacesUtils.unfiledBookmarksFolderId;
+  },
+  get mobile() {
+    return this.findMobileRoot(true);
+  },
 };
 
 this.BookmarksEngine = function BookmarksEngine(service) {
@@ -202,6 +214,9 @@ BookmarksEngine.prototype = {
   _storeObj: BookmarksStore,
   _trackerObj: BookmarksTracker,
   version: 2,
+  _defaultSort: "index",
+
+  syncPriority: 4,
 
   _sync: function _sync() {
     let engine = this;
@@ -349,31 +364,42 @@ BookmarksEngine.prototype = {
     Task.spawn(function() {
       // For first-syncs, make a backup for the user to restore
       if (this.lastSync == 0) {
+        this._log.debug("Bookmarks backup starting.");
         yield PlacesBackups.create(null, true);
+        this._log.debug("Bookmarks backup done.");
       }
+    }.bind(this)).then(
+      cb, ex => {
+        // Failure to create a backup is somewhat bad, but probably not bad
+        // enough to prevent syncing of bookmarks - so just log the error and
+        // continue.
+        this._log.warn("Got exception \"" + Utils.exceptionStr(ex) +
+                       "\" backing up bookmarks, but continuing with sync.");
+        cb();
+      }
+    );
 
-      this.__defineGetter__("_guidMap", function() {
-        // Create a mapping of folder titles and separator positions to GUID.
-        // We do this lazily so that we don't do any work unless we reconcile
-        // incoming items.
-        let guidMap;
-        try {
-          guidMap = this._buildGUIDMap();
-        } catch (ex) {
-          this._log.warn("Got exception \"" + Utils.exceptionStr(ex) +
-                         "\" building GUID map." +
-                         " Skipping all other incoming items.");
-          throw {code: Engine.prototype.eEngineAbortApplyIncoming,
-                 cause: ex};
-        }
-        delete this._guidMap;
-        return this._guidMap = guidMap;
-      });
-
-      this._store._childrenToOrder = {};
-      cb();
-    }.bind(this));
     cb.wait();
+
+    this.__defineGetter__("_guidMap", function() {
+      // Create a mapping of folder titles and separator positions to GUID.
+      // We do this lazily so that we don't do any work unless we reconcile
+      // incoming items.
+      let guidMap;
+      try {
+        guidMap = this._buildGUIDMap();
+      } catch (ex) {
+        this._log.warn("Got exception \"" + Utils.exceptionStr(ex) +
+                       "\" building GUID map." +
+                       " Skipping all other incoming items.");
+        throw {code: Engine.prototype.eEngineAbortApplyIncoming,
+               cause: ex};
+      }
+      delete this._guidMap;
+      return this._guidMap = guidMap;
+    });
+
+    this._store._childrenToOrder = {};
   },
 
   _processIncoming: function (newitems) {
@@ -428,7 +454,7 @@ function BookmarksStore(name, engine) {
 
   // Explicitly nullify our references to our cached services so we don't leak
   Svc.Obs.add("places-shutdown", function() {
-    for each ([query, stmt] in Iterator(this._stmts)) {
+    for each (let [query, stmt] in Iterator(this._stmts)) {
       stmt.finalize();
     }
     this._stmts = {};
@@ -731,10 +757,10 @@ BookmarksStore.prototype = {
                          feedURI: Utils.makeURI(record.feedUri),
                          siteURI: siteURI,
                          guid: record.id};
-      PlacesUtils.livemarks.addLivemark(livemarkObj,
-        function (aStatus, aLivemark) {
-          spinningCb(null, [aStatus, aLivemark]);
-        });
+      PlacesUtils.livemarks.addLivemark(livemarkObj).then(
+        aLivemark => { spinningCb(null, [Components.results.NS_OK, aLivemark]) },
+        () => { spinningCb(null, [Components.results.NS_ERROR_UNEXPECTED, aLivemark]) }
+      );
 
       let [status, livemark] = spinningCb.wait();
       if (!Components.isSuccessCode(status)) {
@@ -1257,7 +1283,7 @@ BookmarksStore.prototype = {
     }
 
     // Filter out any null/undefined/empty tags.
-    tags = tags.filter(function(t) t);
+    tags = tags.filter(t => t);
 
     // Temporarily tag a dummy URI to preserve tag ids when untagging.
     let dummyURI = Utils.makeURI("about:weave#BStore_tagURI");
@@ -1298,34 +1324,28 @@ function BookmarksTracker(name, engine) {
   Tracker.call(this, name, engine);
 
   Svc.Obs.add("places-shutdown", this);
-  Svc.Obs.add("weave:engine:start-tracking", this);
-  Svc.Obs.add("weave:engine:stop-tracking", this);
 }
 BookmarksTracker.prototype = {
   __proto__: Tracker.prototype,
 
-  _enabled: false,
-  observe: function observe(subject, topic, data) {
-    switch (topic) {
-      case "weave:engine:start-tracking":
-        if (!this._enabled) {
-          PlacesUtils.bookmarks.addObserver(this, true);
-          Svc.Obs.add("bookmarks-restore-begin", this);
-          Svc.Obs.add("bookmarks-restore-success", this);
-          Svc.Obs.add("bookmarks-restore-failed", this);
-          this._enabled = true;
-        }
-        break;
-      case "weave:engine:stop-tracking":
-        if (this._enabled) {
-          PlacesUtils.bookmarks.removeObserver(this);
-          Svc.Obs.remove("bookmarks-restore-begin", this);
-          Svc.Obs.remove("bookmarks-restore-success", this);
-          Svc.Obs.remove("bookmarks-restore-failed", this);
-          this._enabled = false;
-        }
-        break;
+  startTracking: function() {
+    PlacesUtils.bookmarks.addObserver(this, true);
+    Svc.Obs.add("bookmarks-restore-begin", this);
+    Svc.Obs.add("bookmarks-restore-success", this);
+    Svc.Obs.add("bookmarks-restore-failed", this);
+  },
 
+  stopTracking: function() {
+    PlacesUtils.bookmarks.removeObserver(this);
+    Svc.Obs.remove("bookmarks-restore-begin", this);
+    Svc.Obs.remove("bookmarks-restore-success", this);
+    Svc.Obs.remove("bookmarks-restore-failed", this);
+  },
+
+  observe: function observe(subject, topic, data) {
+    Tracker.prototype.observe.call(this, subject, topic, data);
+
+    switch (topic) {
       case "bookmarks-restore-begin":
         this._log.debug("Ignoring changes from importing bookmarks.");
         this.ignoreAll = true;
@@ -1437,9 +1457,9 @@ BookmarksTracker.prototype = {
   },
 
   _ensureMobileQuery: function _ensureMobileQuery() {
-    let find = function (val)
+    let find = val =>
       PlacesUtils.annotations.getItemsWithAnnotation(ORGANIZERQUERY_ANNO, {}).filter(
-        function (id) PlacesUtils.annotations.getItemAnnotation(id, ORGANIZERQUERY_ANNO) == val
+        id => PlacesUtils.annotations.getItemAnnotation(id, ORGANIZERQUERY_ANNO) == val
       );
 
     // Don't continue if the Library isn't ready

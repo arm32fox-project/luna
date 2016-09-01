@@ -2,11 +2,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+%filter substitution
+%include defines.inc
+
 html {
-  font-family: Roboto,"Droid Sans",helvetica,arial,clean,sans-serif;
-  font-size: 12px;
-  background-color: #ced7de;
+  font-family: "Clear Sans",sans-serif;
+  font-size: 14px;
+  background-color: @color_about_background@;
   -moz-text-size-adjust: none;
+  --icon-size: 1.8em;
+  --icon-margin: 1.35em;
 }
 
 body {
@@ -14,7 +19,7 @@ body {
 }
 
 .header {
-  color: black;
+  color: #363B40;
   font-size: 1.1em;
   font-weight: bold;
   border-bottom: 2px solid;
@@ -45,40 +50,36 @@ body {
 }
 
 .list-item {
-  color: black;
-  background-color: #e6e9eb;
-  border-bottom: 2px solid;
-  -moz-border-bottom-colors: #ffffff #bac2ac;
+  color: #363B40;
+  background-color: @color_about_item@;
+  border-bottom: 1px solid @color_about_item_border@;
   position: relative;
   list-style-type: none;
   list-style-image: none;
   margin: 0px;
   padding: 0px;
+  min-height: calc(var(--icon-size) + var(--icon-margin) * 2);
+}
+
+.list-item:active {
+  background-color: #eeeeee;
 }
 
 .list-item[isDisabled="true"] {
   color: #999999;
 }
 
-.list-item:active,
-.list-item:active > .inner {
-  background-image: none;
-}
-
-/* Icons */
-body[dir="ltr"] .icon {
-  left: 1.35em;
-}
-
-body[dir="ltr"] .icon {
-  right: 1.35em;
+.inner {
+  -moz-margin-start: calc(var(--icon-size) + var(--icon-margin) * 2 - 1em);
+  padding: 1em;
 }
 
 .icon {
   border: none;
-  top: 1.35em;
-  width: 1.8em;
-  height: 1.8em;
+  width: var(--icon-size);
+  height: var(--icon-size);
+  top: var(--icon-margin);
+  -moz-margin-start: var(--icon-margin);
   position: absolute;
   pointer-events: none;
 }
@@ -96,17 +97,17 @@ body[dir="ltr"] .icon {
 
 .buttons > button {
   -moz-appearance: none;
-  color: black;
-  font-size: 1em !important;
+  font-size: 1em;
   border: 1px solid transparent;
-  border-top-color: #bac2ac;
-  -moz-border-start-color: #bac2ac;
-  background-image: none;
-  background-color: #edf0f5;
-  border-radius: 0px !important;
-
+  border-top-color: @color_about_item_border@;
+  -moz-border-start-color: @color_about_item_border@;
+  background-color: @color_about_item@;
   flex: 1;
   padding: 0.75em 0.5em;
+}
+
+.buttons > button:active {
+  background-color: #eeeeee;
 }
 
 .buttons > button[disabled="true"] {
@@ -127,8 +128,15 @@ body[dir="ltr"] .icon {
 }
 
 .title {
-  font-size: 1.2em;
   font-weight: bold;
   overflow: hidden;
   flex: 1;
+}
+
+#browse-title {
+  margin: 0.5em 0;
+  background-image: url("chrome://browser/skin/images/chevron.png");
+  background-size: 8px 20px;
+  background-position: right;
+  background-repeat: no-repeat;
 }

@@ -7,37 +7,48 @@
 #ifndef mozilla_dom_indexeddb_indexeddatabasemanager_h__
 #define mozilla_dom_indexeddb_indexeddatabasemanager_h__
 
-#include "mozilla/dom/indexedDB/IndexedDatabase.h"
-
-#include "nsIIndexedDatabaseManager.h"
 #include "nsIObserver.h"
 
+#include "js/TypeDecls.h"
+#include "mozilla/Atomics.h"
+#include "mozilla/dom/quota/PersistenceType.h"
 #include "mozilla/Mutex.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
 
-#define INDEXEDDB_MANAGER_CONTRACTID "@mozilla.org/dom/indexeddb/manager;1"
-
-class nsIAtom;
 class nsPIDOMWindow;
-class nsEventChainPostVisitor;
+struct PRLogModuleInfo;
 
 namespace mozilla {
-namespace dom {
-class TabContext;
-}
-}
 
-BEGIN_INDEXEDDB_NAMESPACE
+class DOMEventTargetHelper;
+class EventChainPostVisitor;
+
+namespace dom {
+
+class TabContext;
+
+namespace indexedDB {
 
 class FileManager;
+class FileManagerInfo;
+class IDBFactory;
 
-class IndexedDatabaseManager MOZ_FINAL : public nsIIndexedDatabaseManager,
-                                         public nsIObserver
+class IndexedDatabaseManager final : public nsIObserver
 {
+  typedef mozilla::dom::quota::PersistenceType PersistenceType;
+
 public:
+  enum LoggingMode
+  {
+    Logging_Disabled = 0,
+    Logging_Concise,
+    Logging_Detailed,
+    Logging_ConciseProfilerMarks,
+    Logging_DetailedProfilerMarks
+  };
+
   NS_DECL_ISUPPORTS
-  NS_DECL_NSIINDEXEDDATABASEMANAGER
   NS_DECL_NSIOBSERVER
 
   // Returns a non-owning reference.
@@ -47,10 +58,6 @@ public:
   // Returns a non-owning reference.
   static IndexedDatabaseManager*
   Get();
-
-  // Returns an owning reference! No one should call this but the factory.
-  static IndexedDatabaseManager*
-  FactoryCreate();
 
   static bool
   IsClosed();
@@ -75,8 +82,38 @@ public:
   }
 #endif
 
+  static bool
+  InTestingMode();
+
+  static bool
+  FullSynchronous();
+
+  static LoggingMode
+  GetLoggingMode()
+#ifdef DEBUG
+  ;
+#else
+  {
+    return sLoggingMode;
+  }
+#endif
+
+  static PRLogModuleInfo*
+  GetLoggingModule()
+#ifdef DEBUG
+  ;
+#else
+  {
+    return sLoggingModule;
+  }
+#endif
+
+  static bool
+  ExperimentalFeaturesEnabled(JSContext* aCx, JSObject* aGlobal);
+
   already_AddRefed<FileManager>
-  GetFileManager(const nsACString& aOrigin,
+  GetFileManager(PersistenceType aPersistenceType,
+                 const nsACString& aOrigin,
                  const nsAString& aDatabaseName);
 
   void
@@ -86,10 +123,12 @@ public:
   InvalidateAllFileManagers();
 
   void
-  InvalidateFileManagersForPattern(const nsACString& aPattern);
+  InvalidateFileManagers(PersistenceType aPersistenceType,
+                         const nsACString& aOrigin);
 
   void
-  InvalidateFileManager(const nsACString& aOrigin,
+  InvalidateFileManager(PersistenceType aPersistenceType,
+                        const nsACString& aOrigin,
                         const nsAString& aDatabaseName);
 
   nsresult
@@ -100,7 +139,8 @@ public:
   // It is intended to be used by mochitests to test correctness of the special
   // reference counting of stored blobs/files.
   nsresult
-  BlockAndGetFileReferences(const nsACString& aOrigin,
+  BlockAndGetFileReferences(PersistenceType aPersistenceType,
+                            const nsACString& aOrigin,
                             const nsAString& aDatabaseName,
                             int64_t aFileId,
                             int32_t* aRefCnt,
@@ -118,12 +158,14 @@ public:
   }
 
   static nsresult
-  FireWindowOnError(nsPIDOMWindow* aOwner,
-                    nsEventChainPostVisitor& aVisitor);
+  CommonPostHandleEvent(EventChainPostVisitor& aVisitor, IDBFactory* aFactory);
 
   static bool
   TabContextMayAccessOrigin(const mozilla::dom::TabContext& aContext,
                             const nsACString& aOrigin);
+
+  static bool
+  DefineIndexedDB(JSContext* aCx, JS::Handle<JSObject*> aGlobal);
 
 private:
   IndexedDatabaseManager();
@@ -135,20 +177,27 @@ private:
   void
   Destroy();
 
+  static void
+  LoggingModePrefChangedCallback(const char* aPrefName, void* aClosure);
+
   // Maintains a list of all file managers per origin. This list isn't
   // protected by any mutex but it is only ever touched on the IO thread.
-  nsClassHashtable<nsCStringHashKey,
-                   nsTArray<nsRefPtr<FileManager> > > mFileManagers;
+  nsClassHashtable<nsCStringHashKey, FileManagerInfo> mFileManagerInfos;
 
-  // Lock protecting FileManager.mFileInfos and nsDOMFileBase.mFileInfos
+  // Lock protecting FileManager.mFileInfos and FileImplBase.mFileInfos
   // It's s also used to atomically update FileInfo.mRefCnt, FileInfo.mDBRefCnt
   // and FileInfo.mSliceRefCnt
   mozilla::Mutex mFileMutex;
 
   static bool sIsMainProcess;
-  static int32_t sLowDiskSpaceMode;
+  static bool sFullSynchronousMode;
+  static PRLogModuleInfo* sLoggingModule;
+  static Atomic<LoggingMode> sLoggingMode;
+  static mozilla::Atomic<bool> sLowDiskSpaceMode;
 };
 
-END_INDEXEDDB_NAMESPACE
+} // namespace indexedDB
+} // namespace dom
+} // namespace mozilla
 
-#endif /* mozilla_dom_indexeddb_indexeddatabasemanager_h__ */
+#endif // mozilla_dom_indexeddb_indexeddatabasemanager_h__

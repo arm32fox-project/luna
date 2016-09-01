@@ -8,10 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "gtest/gtest.h"
+#include "testing/gtest/include/gtest/gtest.h"
 
-#include "audio_frame_operations.h"
-#include "module_common_types.h"
+#include "webrtc/modules/interface/module_common_types.h"
+#include "webrtc/modules/utility/interface/audio_frame_operations.h"
 
 namespace webrtc {
 namespace {
@@ -62,7 +62,8 @@ TEST_F(AudioFrameOperationsTest, MonoToStereoFailsWithBadParameters) {
 TEST_F(AudioFrameOperationsTest, MonoToStereoSucceeds) {
   frame_.num_channels_ = 1;
   SetFrameData(&frame_, 1);
-  AudioFrame temp_frame = frame_;
+  AudioFrame temp_frame;
+  temp_frame.CopyFrom(frame_);
   EXPECT_EQ(0, AudioFrameOperations::MonoToStereo(&frame_));
 
   AudioFrame stereo_frame;
@@ -86,7 +87,8 @@ TEST_F(AudioFrameOperationsTest, StereoToMonoFailsWithBadParameters) {
 
 TEST_F(AudioFrameOperationsTest, StereoToMonoSucceeds) {
   SetFrameData(&frame_, 4, 2);
-  AudioFrame temp_frame = frame_;
+  AudioFrame temp_frame;
+  temp_frame.CopyFrom(frame_);
   EXPECT_EQ(0, AudioFrameOperations::StereoToMono(&frame_));
 
   AudioFrame mono_frame;
@@ -131,7 +133,8 @@ TEST_F(AudioFrameOperationsTest, SwapStereoChannelsFailsOnMono) {
   // Set data to "stereo", despite it being a mono frame.
   SetFrameData(&frame_, 0, 1);
 
-  AudioFrame orig_frame = frame_;
+  AudioFrame orig_frame;
+  orig_frame.CopyFrom(frame_);
   AudioFrameOperations::SwapStereoChannels(&frame_);
   // Verify that no swap occurred.
   VerifyFramesAreEqual(orig_frame, frame_);
@@ -139,17 +142,13 @@ TEST_F(AudioFrameOperationsTest, SwapStereoChannelsFailsOnMono) {
 
 TEST_F(AudioFrameOperationsTest, MuteSucceeds) {
   SetFrameData(&frame_, 1000, 1000);
-  frame_.energy_ = 1000 * 1000 * frame_.samples_per_channel_ *
-      frame_.num_channels_;
   AudioFrameOperations::Mute(frame_);
 
   AudioFrame muted_frame;
   muted_frame.samples_per_channel_ = 320;
   muted_frame.num_channels_ = 2;
   SetFrameData(&muted_frame, 0, 0);
-  muted_frame.energy_ = 0;
   VerifyFramesAreEqual(muted_frame, frame_);
-  EXPECT_EQ(muted_frame.energy_, frame_.energy_);
 }
 
 // TODO(andrew): should not allow negative scales.

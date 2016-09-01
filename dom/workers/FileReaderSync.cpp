@@ -6,129 +6,100 @@
 
 #include "FileReaderSync.h"
 
+#include "jsfriendapi.h"
+#include "mozilla/Base64.h"
+#include "mozilla/dom/EncodingUtils.h"
+#include "mozilla/dom/File.h"
+#include "nsContentUtils.h"
+#include "mozilla/dom/FileReaderSyncBinding.h"
 #include "nsCExternalHandlerService.h"
 #include "nsComponentManagerUtils.h"
 #include "nsCOMPtr.h"
 #include "nsDOMClassInfoID.h"
 #include "nsError.h"
-#include "nsIDOMFile.h"
-#include "nsICharsetDetector.h"
 #include "nsIConverterInputStream.h"
 #include "nsIInputStream.h"
-#include "nsIPlatformCharset.h"
 #include "nsISeekableStream.h"
-#include "nsISupportsImpl.h"
 #include "nsISupportsImpl.h"
 #include "nsNetUtil.h"
 #include "nsServiceManagerUtils.h"
-#include "File.h"
-#include "RuntimeService.h"
-#include "DOMBindingInlines.h"
 
-#include "mozilla/Base64.h"
-#include "mozilla/dom/EncodingUtils.h"
+#include "RuntimeService.h"
 
 USING_WORKERS_NAMESPACE
 using namespace mozilla;
+using namespace mozilla::dom;
 using mozilla::dom::Optional;
-using mozilla::dom::WorkerGlobalObject;
-
-NS_IMPL_ADDREF_INHERITED(FileReaderSync, DOMBindingBase)
-NS_IMPL_RELEASE_INHERITED(FileReaderSync, DOMBindingBase)
-NS_INTERFACE_MAP_BEGIN(FileReaderSync)
-  NS_INTERFACE_MAP_ENTRY(nsICharsetDetectionObserver)
-NS_INTERFACE_MAP_END_INHERITING(DOMBindingBase)
-
-FileReaderSync::FileReaderSync(JSContext* aCx)
-  : DOMBindingBase(aCx)
-{
-}
-
-void
-FileReaderSync::_trace(JSTracer* aTrc)
-{
-  DOMBindingBase::_trace(aTrc);
-}
-
-void
-FileReaderSync::_finalize(JSFreeOp* aFop)
-{
-  DOMBindingBase::_finalize(aFop);
-}
+using mozilla::dom::GlobalObject;
 
 // static
-FileReaderSync*
-FileReaderSync::Constructor(const WorkerGlobalObject& aGlobal, ErrorResult& aRv)
+already_AddRefed<FileReaderSync>
+FileReaderSync::Constructor(const GlobalObject& aGlobal, ErrorResult& aRv)
 {
-  nsRefPtr<FileReaderSync> frs = new FileReaderSync(aGlobal.GetContext());
+  nsRefPtr<FileReaderSync> frs = new FileReaderSync();
 
-  if (!Wrap(aGlobal.GetContext(), aGlobal.Get(), frs)) {
-    aRv.Throw(NS_ERROR_FAILURE);
-    return nullptr;
-  }
-
-  return frs;
+  return frs.forget();
 }
 
-JSObject*
-FileReaderSync::ReadAsArrayBuffer(JSContext* aCx, JS::Handle<JSObject*> aBlob,
-                                  ErrorResult& aRv)
+bool
+FileReaderSync::WrapObject(JSContext* aCx,
+                           JS::MutableHandle<JSObject*> aReflector)
 {
-  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
-  if (!blob) {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
-    return nullptr;
-  }
-
-  uint64_t blobSize;
-  nsresult rv = blob->GetSize(&blobSize);
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return nullptr;
-  }
-
-  JS::Rooted<JSObject*> jsArrayBuffer(aCx, JS_NewArrayBuffer(aCx, blobSize));
-  if (!jsArrayBuffer) {
-    // XXXkhuey we need a way to indicate to the bindings that the call failed
-    // but there's already a pending exception that we should not clobber.
-    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
-    return nullptr;
-  }
-
-  uint32_t bufferLength = JS_GetArrayBufferByteLength(jsArrayBuffer);
-  uint8_t* arrayBuffer = JS_GetArrayBufferData(jsArrayBuffer);
-
-  nsCOMPtr<nsIInputStream> stream;
-  rv = blob->GetInternalStream(getter_AddRefs(stream));
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return nullptr;
-  }
-
-  uint32_t numRead;
-  rv = stream->Read((char*)arrayBuffer, bufferLength, &numRead);
-  if (NS_FAILED(rv)) {
-    aRv.Throw(rv);
-    return nullptr;
-  }
-  NS_ASSERTION(numRead == bufferLength, "failed to read data");
-
-  return jsArrayBuffer;
+  return FileReaderSyncBinding_workers::Wrap(aCx, this, aReflector);
 }
 
 void
-FileReaderSync::ReadAsBinaryString(JS::Handle<JSObject*> aBlob,
-                                   nsAString& aResult,
-                                   ErrorResult& aRv)
+FileReaderSync::ReadAsArrayBuffer(JSContext* aCx,
+                                  JS::Handle<JSObject*> aScopeObj,
+                                  File& aBlob,
+                                  JS::MutableHandle<JSObject*> aRetval,
+                                  ErrorResult& aRv)
 {
-  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
-  if (!blob) {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
+  uint64_t blobSize;
+  nsresult rv = aBlob.GetSize(&blobSize);
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
+    return;
+  }
+
+  UniquePtr<char[], JS::FreePolicy> bufferData(js_pod_malloc<char>(blobSize));
+  if (!bufferData) {
+    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
   }
 
   nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = blob->GetInternalStream(getter_AddRefs(stream));
+  rv = aBlob.GetInternalStream(getter_AddRefs(stream));
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
+    return;
+  }
+
+  uint32_t numRead;
+  rv = stream->Read(bufferData.get(), blobSize, &numRead);
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
+    return;
+  }
+  NS_ASSERTION(numRead == blobSize, "failed to read data");
+
+  JSObject* arrayBuffer = JS_NewArrayBufferWithContents(aCx, blobSize, bufferData.get());
+  if (!arrayBuffer) {
+    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+    return;
+  }
+  bufferData.release();
+
+  aRetval.set(arrayBuffer);
+}
+
+void
+FileReaderSync::ReadAsBinaryString(File& aBlob,
+                                   nsAString& aResult,
+                                   ErrorResult& aRv)
+{
+  nsCOMPtr<nsIInputStream> stream;
+  nsresult rv = aBlob.GetInternalStream(getter_AddRefs(stream));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return;
@@ -153,55 +124,69 @@ FileReaderSync::ReadAsBinaryString(JS::Handle<JSObject*> aBlob,
 }
 
 void
-FileReaderSync::ReadAsText(JS::Handle<JSObject*> aBlob,
+FileReaderSync::ReadAsText(File& aBlob,
                            const Optional<nsAString>& aEncoding,
                            nsAString& aResult,
                            ErrorResult& aRv)
 {
-  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
-  if (!blob) {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
-    return;
-  }
-
   nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = blob->GetInternalStream(getter_AddRefs(stream));
+  nsresult rv = aBlob.GetInternalStream(getter_AddRefs(stream));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return;
   }
 
-  nsCString charsetGuess;
-  if (!aEncoding.WasPassed() || aEncoding.Value().IsEmpty()) {
-    rv = GuessCharset(stream, charsetGuess);
-    if (NS_FAILED(rv)) {
-      aRv.Throw(rv);
-      return;
-    }
-
-    nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(stream);
-    if (!seekable) {
-      aRv.Throw(NS_ERROR_FAILURE);
-      return;
-    }
-
-    // Seek to 0 because guessing the charset advances the stream.
-    rv = seekable->Seek(nsISeekableStream::NS_SEEK_SET, 0);
-    if (NS_FAILED(rv)) {
-      aRv.Throw(rv);
-      return;
-    }
-  } else {
-    CopyUTF16toUTF8(aEncoding.Value(), charsetGuess);
-  }
-
-  nsCString charset;
-  if (!EncodingUtils::FindEncodingForLabel(charsetGuess, charset)) {
-    aRv.Throw(NS_ERROR_DOM_ENCODING_NOT_SUPPORTED_ERR);
+  nsAutoCString encoding;
+  unsigned char sniffBuf[3] = { 0, 0, 0 };
+  uint32_t numRead;
+  rv = stream->Read(reinterpret_cast<char*>(sniffBuf),
+                    sizeof(sniffBuf), &numRead);
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
     return;
   }
 
-  rv = ConvertStream(stream, charset.get(), aResult);
+  // The BOM sniffing is baked into the "decode" part of the Encoding
+  // Standard, which the File API references.
+  if (!nsContentUtils::CheckForBOM(sniffBuf, numRead, encoding)) {
+    // BOM sniffing failed. Try the API argument.
+    if (!aEncoding.WasPassed() ||
+        !EncodingUtils::FindEncodingForLabel(aEncoding.Value(),
+                                             encoding)) {
+      // API argument failed. Try the type property of the blob.
+      nsAutoString type16;
+      aBlob.GetType(type16);
+      NS_ConvertUTF16toUTF8 type(type16);
+      nsAutoCString specifiedCharset;
+      bool haveCharset;
+      int32_t charsetStart, charsetEnd;
+      NS_ExtractCharsetFromContentType(type,
+                                       specifiedCharset,
+                                       &haveCharset,
+                                       &charsetStart,
+                                       &charsetEnd);
+      if (!EncodingUtils::FindEncodingForLabel(specifiedCharset, encoding)) {
+        // Type property failed. Use UTF-8.
+        encoding.AssignLiteral("UTF-8");
+      }
+    }
+  }
+
+  nsCOMPtr<nsISeekableStream> seekable = do_QueryInterface(stream);
+  if (!seekable) {
+    aRv.Throw(NS_ERROR_FAILURE);
+    return;
+  }
+
+  // Seek to 0 because to undo the BOM sniffing advance. UTF-8 and UTF-16
+  // decoders will swallow the BOM.
+  rv = seekable->Seek(nsISeekableStream::NS_SEEK_SET, 0);
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
+    return;
+  }
+
+  rv = ConvertStream(stream, encoding.get(), aResult);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return;
@@ -209,20 +194,14 @@ FileReaderSync::ReadAsText(JS::Handle<JSObject*> aBlob,
 }
 
 void
-FileReaderSync::ReadAsDataURL(JS::Handle<JSObject*> aBlob, nsAString& aResult,
+FileReaderSync::ReadAsDataURL(File& aBlob, nsAString& aResult,
                               ErrorResult& aRv)
 {
-  nsIDOMBlob* blob = file::GetDOMBlobFromJSObject(aBlob);
-  if (!blob) {
-    aRv.Throw(NS_ERROR_INVALID_ARG);
-    return;
-  }
-
   nsAutoString scratchResult;
   scratchResult.AssignLiteral("data:");
 
   nsString contentType;
-  blob->GetType(contentType);
+  aBlob.GetType(contentType);
 
   if (contentType.IsEmpty()) {
     scratchResult.AppendLiteral("application/octet-stream");
@@ -232,14 +211,14 @@ FileReaderSync::ReadAsDataURL(JS::Handle<JSObject*> aBlob, nsAString& aResult,
   scratchResult.AppendLiteral(";base64,");
 
   nsCOMPtr<nsIInputStream> stream;
-  nsresult rv = blob->GetInternalStream(getter_AddRefs(stream));
+  nsresult rv = aBlob.GetInternalStream(getter_AddRefs(stream));
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return;
   }
 
   uint64_t size;
-  rv = blob->GetSize(&size);
+  rv = aBlob.GetSize(&size);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return;
@@ -295,91 +274,3 @@ FileReaderSync::ConvertStream(nsIInputStream *aStream,
   return rv;
 }
 
-nsresult
-FileReaderSync::GuessCharset(nsIInputStream *aStream, nsACString &aCharset)
-{
-  // First try the universal charset detector
-  nsCOMPtr<nsICharsetDetector> detector
-    = do_CreateInstance(NS_CHARSET_DETECTOR_CONTRACTID_BASE
-                        "universal_charset_detector");
-  if (!detector) {
-    RuntimeService* runtime = RuntimeService::GetService();
-    NS_ASSERTION(runtime, "This should never be null!");
-
-    // No universal charset detector, try the default charset detector
-    const nsACString& detectorName = runtime->GetDetectorName();
-
-    if (!detectorName.IsEmpty()) {
-      nsAutoCString detectorContractID;
-      detectorContractID.AssignLiteral(NS_CHARSET_DETECTOR_CONTRACTID_BASE);
-      detectorContractID += detectorName;
-      detector = do_CreateInstance(detectorContractID.get());
-    }
-  }
-
-  nsresult rv;
-  if (detector) {
-    detector->Init(this);
-
-    bool done;
-    uint32_t numRead;
-    do {
-      char readBuf[4096];
-      rv = aStream->Read(readBuf, sizeof(readBuf), &numRead);
-      NS_ENSURE_SUCCESS(rv, rv);
-      if (numRead <= 0) {
-        break;
-      }
-      rv = detector->DoIt(readBuf, numRead, &done);
-      NS_ENSURE_SUCCESS(rv, rv);
-    } while (!done);
-
-    rv = detector->Done();
-    NS_ENSURE_SUCCESS(rv, rv);
-  } else {
-    // no charset detector available, check the BOM
-    unsigned char sniffBuf[4];
-    uint32_t numRead;
-    rv = aStream->Read(reinterpret_cast<char*>(sniffBuf),
-                       sizeof(sniffBuf), &numRead);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (numRead >= 2 &&
-        sniffBuf[0] == 0xfe &&
-        sniffBuf[1] == 0xff) {
-      mCharset = "UTF-16BE";
-    } else if (numRead >= 2 &&
-               sniffBuf[0] == 0xff &&
-               sniffBuf[1] == 0xfe) {
-      mCharset = "UTF-16LE";
-    } else if (numRead >= 3 &&
-               sniffBuf[0] == 0xef &&
-               sniffBuf[1] == 0xbb &&
-               sniffBuf[2] == 0xbf) {
-      mCharset = "UTF-8";
-    }
-  }
-
-  if (mCharset.IsEmpty()) {
-    RuntimeService* runtime = RuntimeService::GetService();
-    mCharset = runtime->GetSystemCharset();
-  }
-
-  if (mCharset.IsEmpty()) {
-    // no sniffed or default charset, try UTF-8
-    mCharset.AssignLiteral("UTF-8");
-  }
-
-  aCharset = mCharset;
-  mCharset.Truncate();
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-FileReaderSync::Notify(const char* aCharset, nsDetectionConfident aConf)
-{
-  mCharset.Assign(aCharset);
-
-  return NS_OK;
-}

@@ -8,13 +8,16 @@
 #ifndef nsDOMCSSDeclaration_h___
 #define nsDOMCSSDeclaration_h___
 
-#include "mozilla/Attributes.h"
 #include "nsICSSDeclaration.h"
+
+#include "mozilla/Attributes.h"
+#include "nsIURI.h"
 #include "nsCOMPtr.h"
-#include "mozilla/dom/CSS2PropertiesBinding.h"
 
 class nsIPrincipal;
 class nsIDocument;
+struct JSContext;
+class JSObject;
 
 namespace mozilla {
 namespace css {
@@ -29,35 +32,35 @@ class nsDOMCSSDeclaration : public nsICSSDeclaration
 public:
   // Only implement QueryInterface; subclasses have the responsibility
   // of implementing AddRef/Release.
-  NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr) MOZ_OVERRIDE;
+  NS_IMETHOD QueryInterface(REFNSIID aIID, void** aInstancePtr) override;
 
   // Declare addref and release so they can be called on us, but don't
   // implement them.  Our subclasses must handle their own
   // refcounting.
-  NS_IMETHOD_(nsrefcnt) AddRef() MOZ_OVERRIDE = 0;
-  NS_IMETHOD_(nsrefcnt) Release() MOZ_OVERRIDE = 0;
+  NS_IMETHOD_(MozExternalRefCountType) AddRef() override = 0;
+  NS_IMETHOD_(MozExternalRefCountType) Release() override = 0;
 
   NS_DECL_NSICSSDECLARATION
   using nsICSSDeclaration::GetLength;
 
   // Require subclasses to implement |GetParentRule|.
   //NS_DECL_NSIDOMCSSSTYLEDECLARATION
-  NS_IMETHOD GetCssText(nsAString & aCssText) MOZ_OVERRIDE;
-  NS_IMETHOD SetCssText(const nsAString & aCssText) MOZ_OVERRIDE;
+  NS_IMETHOD GetCssText(nsAString & aCssText) override;
+  NS_IMETHOD SetCssText(const nsAString & aCssText) override;
   NS_IMETHOD GetPropertyValue(const nsAString & propertyName,
-                              nsAString & _retval) MOZ_OVERRIDE;
+                              nsAString & _retval) override;
   virtual already_AddRefed<mozilla::dom::CSSValue>
     GetPropertyCSSValue(const nsAString & propertyName,
-                        mozilla::ErrorResult& aRv) MOZ_OVERRIDE;
+                        mozilla::ErrorResult& aRv) override;
   using nsICSSDeclaration::GetPropertyCSSValue;
   NS_IMETHOD RemoveProperty(const nsAString & propertyName,
-                            nsAString & _retval) MOZ_OVERRIDE;
+                            nsAString & _retval) override;
   NS_IMETHOD GetPropertyPriority(const nsAString & propertyName,
-                                 nsAString & _retval) MOZ_OVERRIDE;
+                                 nsAString & _retval) override;
   NS_IMETHOD SetProperty(const nsAString & propertyName,
-                         const nsAString & value, const nsAString & priority) MOZ_OVERRIDE;
-  NS_IMETHOD GetLength(uint32_t *aLength) MOZ_OVERRIDE;
-  NS_IMETHOD GetParentRule(nsIDOMCSSRule * *aParentRule) MOZ_OVERRIDE = 0;
+                         const nsAString & value, const nsAString & priority) override;
+  NS_IMETHOD GetLength(uint32_t *aLength) override;
+  NS_IMETHOD GetParentRule(nsIDOMCSSRule * *aParentRule) override = 0;
 
   // WebIDL interface for CSS2Properties
 #define CSS_PROP_PUBLIC_OR_PRIVATE(publicname_, privatename_) publicname_
@@ -76,6 +79,7 @@ public:
   }
 
 #define CSS_PROP_LIST_EXCLUDE_INTERNAL
+#define CSS_PROP_LIST_INCLUDE_LOGICAL
 #define CSS_PROP_SHORTHAND(name_, id_, method_, flags_, pref_)  \
   CSS_PROP(name_, id_, method_, flags_, pref_, X, X, X, X, X)
 #include "nsCSSPropList.h"
@@ -86,17 +90,14 @@ public:
 #undef CSS_PROP_ALIAS
 
 #undef CSS_PROP_SHORTHAND
+#undef CSS_PROP_LIST_INCLUDE_LOGICAL
 #undef CSS_PROP_LIST_EXCLUDE_INTERNAL
 #undef CSS_PROP
 #undef CSS_PROP_PUBLIC_OR_PRIVATE
 
-  virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName) MOZ_OVERRIDE;
+  virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName) override;
 
-  virtual JSObject* WrapObject(JSContext *cx,
-                               JS::Handle<JSObject*> scope) MOZ_OVERRIDE
-  {
-    return mozilla::dom::CSS2PropertiesBinding::Wrap(cx, scope, this);
-  }
+  virtual JSObject* WrapObject(JSContext* aCx) override;
 
 protected:
   // This method can return null regardless of the value of aAllocate;
@@ -141,12 +142,22 @@ protected:
   // return the old value; it just does a straight removal.
   nsresult RemoveProperty(const nsCSSProperty aPropID);
 
+  void GetCustomPropertyValue(const nsAString& aPropertyName, nsAString& aValue);
+  nsresult RemoveCustomProperty(const nsAString& aPropertyName);
+  nsresult ParseCustomPropertyValue(const nsAString& aPropertyName,
+                                    const nsAString& aPropValue,
+                                    bool aIsImportant);
+
 protected:
   virtual ~nsDOMCSSDeclaration();
-  nsDOMCSSDeclaration()
-  {
-    SetIsDOMBinding();
-  }
 };
+
+bool IsCSSPropertyExposedToJS(nsCSSProperty aProperty, JSContext* cx, JSObject* obj);
+
+template <nsCSSProperty Property>
+MOZ_ALWAYS_INLINE bool IsCSSPropertyExposedToJS(JSContext* cx, JSObject* obj)
+{
+  return IsCSSPropertyExposedToJS(Property, cx, obj);
+}
 
 #endif // nsDOMCSSDeclaration_h___

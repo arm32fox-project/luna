@@ -3,7 +3,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Hal.h"
+#include "Hal.h"
 #include "mozilla/HalWakeLock.h"
 #include "mozilla/Services.h"
 #include "mozilla/StaticPtr.h"
@@ -12,7 +12,7 @@
 #include "nsDataHashtable.h"
 #include "nsHashKeys.h"
 #include "nsIPropertyBag2.h"
-#include "nsObserverService.h"
+#include "nsIObserverService.h"
 
 using namespace mozilla;
 using namespace mozilla::hal;
@@ -96,16 +96,17 @@ RemoveChildFromList(const nsAString& aKey, nsAutoPtr<ProcessLockTable>& aTable,
   return op;
 }
 
-class ClearHashtableOnShutdown MOZ_FINAL : public nsIObserver {
+class ClearHashtableOnShutdown final : public nsIObserver {
+  ~ClearHashtableOnShutdown() {}
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 };
 
-NS_IMPL_ISUPPORTS1(ClearHashtableOnShutdown, nsIObserver)
+NS_IMPL_ISUPPORTS(ClearHashtableOnShutdown, nsIObserver)
 
 NS_IMETHODIMP
-ClearHashtableOnShutdown::Observe(nsISupports* aSubject, const char* aTopic, const PRUnichar* data)
+ClearHashtableOnShutdown::Observe(nsISupports* aSubject, const char* aTopic, const char16_t* data)
 {
   MOZ_ASSERT(!strcmp(aTopic, "xpcom-shutdown"));
 
@@ -115,16 +116,17 @@ ClearHashtableOnShutdown::Observe(nsISupports* aSubject, const char* aTopic, con
   return NS_OK;
 }
 
-class CleanupOnContentShutdown MOZ_FINAL : public nsIObserver {
+class CleanupOnContentShutdown final : public nsIObserver {
+  ~CleanupOnContentShutdown() {}
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIOBSERVER
 };
 
-NS_IMPL_ISUPPORTS1(CleanupOnContentShutdown, nsIObserver)
+NS_IMPL_ISUPPORTS(CleanupOnContentShutdown, nsIObserver)
 
 NS_IMETHODIMP
-CleanupOnContentShutdown::Observe(nsISupports* aSubject, const char* aTopic, const PRUnichar* data)
+CleanupOnContentShutdown::Observe(nsISupports* aSubject, const char* aTopic, const char16_t* data)
 {
   MOZ_ASSERT(!strcmp(aTopic, "ipc:content-shutdown"));
 
@@ -153,7 +155,6 @@ void
 Init()
 {
   sLockTable = new LockTable();
-  sLockTable->Init();
   sInitialized = true;
 
   nsCOMPtr<nsIObserverService> obs = mozilla::services::GetObserverService();
@@ -218,7 +219,6 @@ ModifyWakeLock(const nsAString& aTopic,
   LockCount totalCount;
   if (!table) {
     table = new ProcessLockTable();
-    table->Init();
     sLockTable->Put(aTopic, table);
   } else {
     table->Get(aProcessID, &processCount);
@@ -256,7 +256,7 @@ ModifyWakeLock(const nsAString& aTopic,
        processWasLocked != (processCount.numLocks > 0))) {
 
     WakeLockInformation info;
-    GetWakeLockInfo(aTopic, &info);
+    hal::GetWakeLockInfo(aTopic, &info);
     NotifyWakeLockChange(info);
   }
 }

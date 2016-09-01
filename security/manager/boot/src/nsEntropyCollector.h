@@ -18,15 +18,16 @@ class nsEntropyCollector : public nsIBufEntropyCollector
 {
   public:
     nsEntropyCollector();
-    virtual ~nsEntropyCollector();
 
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIENTROPYCOLLECTOR
     NS_DECL_NSIBUFENTROPYCOLLECTOR
 
     enum { entropy_buffer_size = 1024 };
 
   protected:
+    virtual ~nsEntropyCollector();
+
     unsigned char mEntropyCache[entropy_buffer_size];
     int32_t mBytesCollected;
     unsigned char *mWritePointer;

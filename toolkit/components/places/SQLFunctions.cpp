@@ -181,6 +181,10 @@ namespace places {
   //////////////////////////////////////////////////////////////////////////////
   //// MatchAutoCompleteFunction
 
+  MatchAutoCompleteFunction::~MatchAutoCompleteFunction()
+  {
+  }
+
   /* static */
   nsresult
   MatchAutoCompleteFunction::create(mozIStorageConnection *aDBConn)
@@ -314,7 +318,7 @@ namespace places {
     };
   }
 
-  NS_IMPL_THREADSAFE_ISUPPORTS1(
+  NS_IMPL_ISUPPORTS(
     MatchAutoCompleteFunction,
     mozIStorageFunction
   )
@@ -355,16 +359,25 @@ namespace places {
     nsAutoCString tags;
     (void)aArguments->GetUTF8String(kArgIndexTags, tags);
     int32_t openPageCount = aArguments->AsInt32(kArgIndexOpenPageCount);
+    bool matches = false;
+    if (HAS_BEHAVIOR(RESTRICT)) {
+      // Make sure we match all the filter requirements.  If a given restriction
+      // is active, make sure the corresponding condition is not true.
+      matches = (!HAS_BEHAVIOR(HISTORY) || visitCount > 0) &&
+                (!HAS_BEHAVIOR(TYPED) || typed) &&
+                (!HAS_BEHAVIOR(BOOKMARK) || bookmark) &&
+                (!HAS_BEHAVIOR(TAG) || !tags.IsVoid()) &&
+                (!HAS_BEHAVIOR(OPENPAGE) || openPageCount > 0);
+    } else {
+      // Make sure that we match all the filter requirements and that the
+      // corresponding condition is true if at least a given restriction is active.
+      matches = (HAS_BEHAVIOR(HISTORY) && visitCount > 0) ||
+                (HAS_BEHAVIOR(TYPED) && typed) ||
+                (HAS_BEHAVIOR(BOOKMARK) && bookmark) ||
+                (HAS_BEHAVIOR(TAG) && !tags.IsVoid()) ||
+                (HAS_BEHAVIOR(OPENPAGE) && openPageCount > 0);
+    }
 
-    // Make sure we match all the filter requirements.  If a given restriction
-    // is active, make sure the corresponding condition is not true.
-    bool matches = !(
-      (HAS_BEHAVIOR(HISTORY) && visitCount == 0) ||
-      (HAS_BEHAVIOR(TYPED) && !typed) ||
-      (HAS_BEHAVIOR(BOOKMARK) && !bookmark) ||
-      (HAS_BEHAVIOR(TAG) && tags.IsVoid()) ||
-      (HAS_BEHAVIOR(OPENPAGE) && openPageCount == 0)
-    );
     if (!matches) {
       NS_ADDREF(*_result = new IntegerVariant(0));
       return NS_OK;
@@ -415,6 +428,10 @@ namespace places {
   //////////////////////////////////////////////////////////////////////////////
   //// CalculateFrecencyFunction
 
+  CalculateFrecencyFunction::~CalculateFrecencyFunction()
+  {
+  }
+
   /* static */
   nsresult
   CalculateFrecencyFunction::create(mozIStorageConnection *aDBConn)
@@ -430,7 +447,7 @@ namespace places {
     return NS_OK;
   }
 
-  NS_IMPL_THREADSAFE_ISUPPORTS1(
+  NS_IMPL_ISUPPORTS(
     CalculateFrecencyFunction,
     mozIStorageFunction
   )
@@ -605,6 +622,10 @@ namespace places {
 ////////////////////////////////////////////////////////////////////////////////
 //// GUID Creation Function
 
+  GenerateGUIDFunction::~GenerateGUIDFunction()
+  {
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   //// GenerateGUIDFunction
 
@@ -621,7 +642,7 @@ namespace places {
     return NS_OK;
   }
 
-  NS_IMPL_THREADSAFE_ISUPPORTS1(
+  NS_IMPL_ISUPPORTS(
     GenerateGUIDFunction,
     mozIStorageFunction
   )
@@ -644,6 +665,10 @@ namespace places {
 ////////////////////////////////////////////////////////////////////////////////
 //// Get Unreversed Host Function
 
+  GetUnreversedHostFunction::~GetUnreversedHostFunction()
+  {
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   //// GetUnreversedHostFunction
 
@@ -660,7 +685,7 @@ namespace places {
     return NS_OK;
   }
 
-  NS_IMPL_THREADSAFE_ISUPPORTS1(
+  NS_IMPL_ISUPPORTS(
     GetUnreversedHostFunction,
     mozIStorageFunction
   )
@@ -698,6 +723,10 @@ namespace places {
 ////////////////////////////////////////////////////////////////////////////////
 //// Fixup URL Function
 
+  FixupURLFunction::~FixupURLFunction()
+  {
+  }
+
   //////////////////////////////////////////////////////////////////////////////
   //// FixupURLFunction
 
@@ -714,7 +743,7 @@ namespace places {
     return NS_OK;
   }
 
-  NS_IMPL_THREADSAFE_ISUPPORTS1(
+  NS_IMPL_ISUPPORTS(
     FixupURLFunction,
     mozIStorageFunction
   )
@@ -742,6 +771,68 @@ namespace places {
     }
 
     result->SetAsAString(src);
+    NS_ADDREF(*_result = result);
+    return NS_OK;
+  }
+
+////////////////////////////////////////////////////////////////////////////////
+//// Frecency Changed Notification Function
+
+  FrecencyNotificationFunction::~FrecencyNotificationFunction()
+  {
+  }
+
+  /* static */
+  nsresult
+  FrecencyNotificationFunction::create(mozIStorageConnection *aDBConn)
+  {
+    nsRefPtr<FrecencyNotificationFunction> function =
+      new FrecencyNotificationFunction();
+    nsresult rv = aDBConn->CreateFunction(
+      NS_LITERAL_CSTRING("notify_frecency"), 5, function
+    );
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    return NS_OK;
+  }
+
+  NS_IMPL_ISUPPORTS(
+    FrecencyNotificationFunction,
+    mozIStorageFunction
+  )
+
+  NS_IMETHODIMP
+  FrecencyNotificationFunction::OnFunctionCall(mozIStorageValueArray *aArgs,
+                                               nsIVariant **_result)
+  {
+    uint32_t numArgs;
+    nsresult rv = aArgs->GetNumEntries(&numArgs);
+    NS_ENSURE_SUCCESS(rv, rv);
+    MOZ_ASSERT(numArgs == 5);
+
+    int32_t newFrecency = aArgs->AsInt32(0);
+
+    nsAutoCString spec;
+    rv = aArgs->GetUTF8String(1, spec);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    nsAutoCString guid;
+    rv = aArgs->GetUTF8String(2, guid);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    bool hidden = static_cast<bool>(aArgs->AsInt32(3));
+    PRTime lastVisitDate = static_cast<PRTime>(aArgs->AsInt64(4));
+
+    const nsNavHistory* navHistory = nsNavHistory::GetConstHistoryService();
+    NS_ENSURE_STATE(navHistory);
+    navHistory->DispatchFrecencyChangedNotification(spec, newFrecency, guid,
+                                                    hidden, lastVisitDate);
+
+    nsCOMPtr<nsIWritableVariant> result =
+      do_CreateInstance("@mozilla.org/variant;1");
+    NS_ENSURE_STATE(result);
+    rv = result->SetAsInt32(newFrecency);
+    NS_ENSURE_SUCCESS(rv, rv);
     NS_ADDREF(*_result = result);
     return NS_OK;
   }

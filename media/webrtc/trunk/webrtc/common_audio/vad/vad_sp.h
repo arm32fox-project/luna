@@ -14,8 +14,8 @@
 #ifndef WEBRTC_COMMON_AUDIO_VAD_VAD_SP_H_
 #define WEBRTC_COMMON_AUDIO_VAD_VAD_SP_H_
 
-#include "typedefs.h"
-#include "vad_core.h"
+#include "webrtc/common_audio/vad/vad_core.h"
+#include "webrtc/typedefs.h"
 
 // Downsamples the signal by a factor 2, eg. 32->16 or 16->8.
 //
@@ -30,7 +30,7 @@
 //
 // Output:
 //      - signal_out    : Downsampled signal (of length |in_length| / 2).
-void WebRtcVad_Downsampling(int16_t* signal_in,
+void WebRtcVad_Downsampling(const int16_t* signal_in,
                             int16_t* signal_out,
                             int32_t* filter_state,
                             int in_length);

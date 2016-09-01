@@ -25,8 +25,11 @@
 #include "nsStringStream.h"
 #include "plbase64.h"
 #include "nsIClassInfoImpl.h"
+#include "mozilla/ArrayUtils.h"
 #include "mozilla/Preferences.h"
-#include "mozilla/Util.h"
+#include "nsILoadInfo.h"
+#include "nsIContentPolicy.h"
+#include "nsContentUtils.h"
 
 // For large favicons optimization.
 #include "imgITools.h"
@@ -35,10 +38,10 @@
 // Default value for mOptimizedIconDimension
 #define OPTIMIZED_FAVICON_DIMENSION 16
 
-#define MAX_FAVICON_CACHE_SIZE 256
+#define MAX_FAILED_FAVICONS 256
 #define FAVICON_CACHE_REDUCE_COUNT 64
 
-#define MAX_UNASSOCIATED_FAVICONS 64
+#define UNASSOCIATED_FAVICONS_LENGTH 32
 
 // When replaceFaviconData is called, we store the icons in an in-memory cache
 // instead of in storage. Icons in the cache are expired according to this
@@ -66,8 +69,8 @@ public:
 
 PLACES_FACTORY_SINGLETON_IMPLEMENTATION(nsFaviconService, gFaviconService)
 
-NS_IMPL_CLASSINFO(nsFaviconService, NULL, 0, NS_FAVICONSERVICE_CID)
-NS_IMPL_ISUPPORTS3_CI(
+NS_IMPL_CLASSINFO(nsFaviconService, nullptr, 0, NS_FAVICONSERVICE_CID)
+NS_IMPL_ISUPPORTS_CI(
   nsFaviconService
 , nsIFaviconService
 , mozIAsyncFavicons
@@ -77,6 +80,8 @@ NS_IMPL_ISUPPORTS3_CI(
 nsFaviconService::nsFaviconService()
   : mOptimizedIconDimension(OPTIMIZED_FAVICON_DIMENSION)
   , mFailedFaviconSerial(0)
+  , mFailedFavicons(MAX_FAILED_FAVICONS / 2)
+  , mUnassociatedIcons(UNASSOCIATED_FAVICONS_LENGTH)
 {
   NS_ASSERTION(!gFaviconService,
                "Attempting to create two instances of the service!");
@@ -98,9 +103,6 @@ nsFaviconService::Init()
 {
   mDB = Database::GetDatabase();
   NS_ENSURE_STATE(mDB);
-
-  mFailedFavicons.Init(MAX_FAVICON_CACHE_SIZE);
-  mUnassociatedIcons.Init(MAX_UNASSOCIATED_FAVICONS);
 
   mOptimizedIconDimension = Preferences::GetInt(
     "places.favicons.optimizeToDimension", OPTIMIZED_FAVICON_DIMENSION
@@ -329,8 +331,15 @@ nsFaviconService::ReplaceFaviconDataFromDataURL(nsIURI* aFaviconURI,
   rv = ioService->GetProtocolHandler("data", getter_AddRefs(protocolHandler));
   NS_ENSURE_SUCCESS(rv, rv);
 
+  nsCOMPtr<nsILoadInfo> loadInfo =
+    new mozilla::LoadInfo(nsContentUtils::GetSystemPrincipal(),
+                          nullptr, // aTriggeringPrincipal
+                          nullptr, // aLoadingNode
+                          nsILoadInfo::SEC_NORMAL,
+                          nsIContentPolicy::TYPE_IMAGE);
+
   nsCOMPtr<nsIChannel> channel;
-  rv = protocolHandler->NewChannel(dataURI, getter_AddRefs(channel));
+  rv = protocolHandler->NewChannel2(dataURI, loadInfo, getter_AddRefs(channel));
   NS_ENSURE_SUCCESS(rv, rv);
 
   // Blocking stream is OK for data URIs.
@@ -436,11 +445,11 @@ nsFaviconService::AddFailedFavicon(nsIURI* aFaviconURI)
   mFailedFavicons.Put(spec, mFailedFaviconSerial);
   mFailedFaviconSerial ++;
 
-  if (mFailedFavicons.Count() > MAX_FAVICON_CACHE_SIZE) {
+  if (mFailedFavicons.Count() > MAX_FAILED_FAVICONS) {
     // need to expire some entries, delete the FAVICON_CACHE_REDUCE_COUNT number
     // of items that are the oldest
     uint32_t threshold = mFailedFaviconSerial -
-                         MAX_FAVICON_CACHE_SIZE + FAVICON_CACHE_REDUCE_COUNT;
+                         MAX_FAILED_FAVICONS + FAVICON_CACHE_REDUCE_COUNT;
     mFailedFavicons.Enumerate(ExpireFailedFaviconsCallback, &threshold);
   }
   return NS_OK;
@@ -580,7 +589,12 @@ nsFaviconService::GetFaviconDataAsync(nsIURI* aFaviconURI,
   );
   NS_ENSURE_STATE(stmt);
 
-  nsresult rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("icon_url"), aFaviconURI);
+  // Ignore the ref part of the URI before querying the database because
+  // we may have added the #-moz-resolution ref for rendering purposes.
+
+  nsAutoCString faviconURI;
+  aFaviconURI->GetSpecIgnoringRef(faviconURI);
+  nsresult rv = URIBinder::Bind(stmt, NS_LITERAL_CSTRING("icon_url"), faviconURI);
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsCOMPtr<mozIStoragePendingStatement> pendingStatement;

@@ -58,7 +58,6 @@
     // Force a menu to update itself. All of the menus parents will be updated
     // as well. An empty string will force a complete menu system reload.
     function forceUpdateNativeMenuAt(location) {
-      netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
       var utils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
                                           getInterface(Components.interfaces.nsIDOMWindowUtils);
       try {
@@ -72,7 +71,6 @@
     var executedCommandID = "";
 
     function testItem(location, targetID) {
-      netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
       var utils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor).
                                           getInterface(Components.interfaces.nsIDOMWindowUtils);
       var correctCommandHandler = false;
@@ -226,6 +224,14 @@
 
         // At this point in the tests the state of the menus has been returned
         // to the originally diagramed state.
+
+        // Test command disabling
+        var cmd_NewItem0 = document.getElementById("cmd_NewItem0");
+        ok(testItem("1|0", "cmd_NewItem0"), sa);
+        cmd_NewItem0.setAttribute("disabled", "true");
+        ok(!testItem("1|0", "cmd_NewItem0"), sna);
+        cmd_NewItem0.removeAttribute("disabled");
+        ok(testItem("1|0", "cmd_NewItem0"), sa);
 
         // Remove menu.
         menubarNode.removeChild(newMenu0);

@@ -48,7 +48,7 @@ class nsIFile;
  *
  * This function does not modify appDir.
  */
-NS_HIDDEN_(nsresult) ProcessUpdates(nsIFile *greDir, nsIFile *appDir,
+nsresult ProcessUpdates(nsIFile *greDir, nsIFile *appDir,
                                     nsIFile *updRootDir,
                                     int argc, char **argv,
                                     const char *appVersion,
@@ -59,25 +59,27 @@ NS_HIDDEN_(nsresult) ProcessUpdates(nsIFile *greDir, nsIFile *appDir,
 
 #ifdef MOZ_UPDATER
 // The implementation of the update processor handles the task of loading the
-// updater application in the background for applying an update.
+// updater application for staging an update.
 // XXX ehsan this is living in this file in order to make use of the existing
 // stuff here, we might want to move it elsewhere in the future.
-class nsUpdateProcessor MOZ_FINAL : public nsIUpdateProcessor
+class nsUpdateProcessor final : public nsIUpdateProcessor
 {
 public:
   nsUpdateProcessor();
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIUPDATEPROCESSOR
 
 private:
-  struct BackgroundUpdateInfo {
-    BackgroundUpdateInfo()
+  ~nsUpdateProcessor();
+
+  struct StagedUpdateInfo {
+    StagedUpdateInfo()
       : mArgc(0),
         mArgv(nullptr),
         mIsOSUpdate(false)
     {}
-    ~BackgroundUpdateInfo() {
+    ~StagedUpdateInfo() {
       for (int i = 0; i < mArgc; ++i) {
         delete[] mArgv[i];
       }
@@ -95,7 +97,7 @@ private:
   };
 
 private:
-  void StartBackgroundUpdate();
+  void StartStagedUpdate();
   void WaitForProcess();
   void UpdateDone();
   void ShutdownWatcherThread();
@@ -103,8 +105,7 @@ private:
 private:
   ProcessType mUpdaterPID;
   nsCOMPtr<nsIThread> mProcessWatcher;
-  nsCOMPtr<nsIUpdate> mUpdate;
-  BackgroundUpdateInfo mInfo;
+  StagedUpdateInfo mInfo;
 };
 #endif
 

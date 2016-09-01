@@ -39,14 +39,28 @@ function Number_toLocaleString() {
     return intl_FormatNumber(numberFormat, x);
 }
 
-// ES6 draft 2015-02-20 20.1.2.5
+// ES6 draft ES6 20.1.2.4
+function Number_isFinite(num) {
+    if (typeof num !== "number")
+        return false;
+    return num - num === 0;
+}
+
+// ES6 draft ES6 20.1.2.2
+function Number_isNaN(num) {
+    if (typeof num !== "number")
+        return false;
+    return num !== num;
+}
+
+// ES6 draft ES6 20.1.2.5
 function Number_isSafeInteger(number) {
     // Step 1.
     if (typeof number !== 'number')
         return false;
 
     // Step 2.
-    if (!std_isFinite(number))
+    if (!Number_isFinite(number))
         return false;
 
     // Step 3.
@@ -62,4 +76,12 @@ function Number_isSafeInteger(number) {
 
     // Step 6.
     return false;
+}
+
+function Global_isNaN(number) {
+    return Number_isNaN(ToNumber(number));
+}
+
+function Global_isFinite(number){
+    return Number_isFinite(ToNumber(number));
 }

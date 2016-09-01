@@ -4,25 +4,30 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-interface Selection;
-
 [OverrideBuiltins]
 interface HTMLDocument : Document {
-           [Throws]
+           [SetterThrows]
            attribute DOMString? domain;
            [Throws]
            attribute DOMString cookie;
   // DOM tree accessors
   [Throws]
   getter object (DOMString name);
-           [SetterThrows]
+  [Pure, SetterThrows]
            attribute HTMLElement? body;
+  [Pure]
   readonly attribute HTMLHeadElement? head;
+  [Pure]
   readonly attribute HTMLCollection images;
+  [Pure]
   readonly attribute HTMLCollection embeds;
+  [Pure]
   readonly attribute HTMLCollection plugins;
+  [Pure]
   readonly attribute HTMLCollection links;
+  [Pure]
   readonly attribute HTMLCollection forms;
+  [Pure]
   readonly attribute HTMLCollection scripts;
   NodeList getElementsByName(DOMString elementName);
   NodeList getItems(optional DOMString typeNames = ""); // microdata
@@ -60,22 +65,38 @@ interface HTMLDocument : Document {
   [TreatNullAs=EmptyString] attribute DOMString alinkColor;
   [TreatNullAs=EmptyString] attribute DOMString bgColor;
 
+  [Pure]
   readonly attribute HTMLCollection anchors;
+  [Pure]
   readonly attribute HTMLCollection applets;
 
   void clear();
 
-  [Throws]
-  readonly attribute object all;
+  readonly attribute HTMLAllCollection all;
 
   // https://dvcs.w3.org/hg/editing/raw-file/tip/editing.html#selections
   [Throws]
-  Selection getSelection();
+  Selection? getSelection();
 
   // @deprecated These are old Netscape 4 methods. Do not use,
   //             the implementation is no-op.
   // XXXbz do we actually need these anymore?
-  void                      captureEvents(long eventFlags);
-  void                      releaseEvents(long eventFlags);
-  void                      routeEvent(Event evt);
+  void                      captureEvents();
+  void                      releaseEvents();
+};
+
+partial interface HTMLDocument {
+  /*
+   * Number of nodes that have been blocked by
+   * the Safebrowsing API to prevent tracking.
+   */
+  [ChromeOnly, Pure]
+  readonly attribute long blockedTrackingNodeCount;
+
+  /*
+   * List of nodes that have been blocked by
+   * the Safebrowsing API to prevent tracking.
+   */
+  [ChromeOnly, Pure]
+  readonly attribute NodeList blockedTrackingNodes;
 };

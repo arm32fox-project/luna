@@ -43,7 +43,7 @@ static void notify_closed_marshal(GClosure* closure,
                                   gpointer invocation_hint,
                                   gpointer marshal_data)
 {
-  NS_ABORT_IF_FALSE(n_param_values >= 1, "No object in params");
+  MOZ_ASSERT(n_param_values >= 1, "No object in params");
 
   nsAlertsIconListener* alert =
     static_cast<nsAlertsIconListener*>(closure->data);
@@ -51,12 +51,27 @@ static void notify_closed_marshal(GClosure* closure,
   NS_RELEASE(alert);
 }
 
-NS_IMPL_ISUPPORTS3(nsAlertsIconListener, imgINotificationObserver,
-                   nsIObserver, nsISupportsWeakReference)
+static GdkPixbuf*
+GetPixbufFromImgRequest(imgIRequest* aRequest)
+{
+  nsCOMPtr<imgIContainer> image;
+  nsresult rv = aRequest->GetImage(getter_AddRefs(image));
+  if (NS_FAILED(rv)) {
+    return nullptr;
+  }
+
+  nsCOMPtr<nsIImageToPixbuf> imgToPixbuf =
+    do_GetService("@mozilla.org/widget/image-to-gdk-pixbuf;1");
+
+  return imgToPixbuf->ConvertImageToPixbuf(image);
+}
+
+NS_IMPL_ISUPPORTS(nsAlertsIconListener, imgINotificationObserver,
+                  nsIObserver, nsISupportsWeakReference)
 
 nsAlertsIconListener::nsAlertsIconListener()
 : mLoadedFrame(false),
-  mNotification(NULL)
+  mNotification(nullptr)
 {
   if (!libNotifyHandle && !libNotifyNotAvail) {
     libNotifyHandle = dlopen("libnotify.so.4", RTLD_LAZY);
@@ -93,67 +108,78 @@ NS_IMETHODIMP
 nsAlertsIconListener::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData)
 {
   if (aType == imgINotificationObserver::LOAD_COMPLETE) {
-    return OnStopRequest(aRequest);
+    return OnLoadComplete(aRequest);
   }
 
   if (aType == imgINotificationObserver::FRAME_COMPLETE) {
-    return OnStopFrame(aRequest);
+    return OnFrameComplete(aRequest);
   }
 
   return NS_OK;
 }
 
 nsresult
-nsAlertsIconListener::OnStopRequest(imgIRequest* aRequest)
+nsAlertsIconListener::OnLoadComplete(imgIRequest* aRequest)
 {
+  NS_ASSERTION(mIconRequest == aRequest, "aRequest does not match!");
+
   uint32_t imgStatus = imgIRequest::STATUS_ERROR;
   nsresult rv = aRequest->GetImageStatus(&imgStatus);
   NS_ENSURE_SUCCESS(rv, rv);
-  if (imgStatus == imgIRequest::STATUS_ERROR && !mLoadedFrame) {
+  if ((imgStatus & imgIRequest::STATUS_ERROR) && !mLoadedFrame) {
     // We have an error getting the image. Display the notification with no icon.
-    ShowAlert(NULL);
-  }
+    ShowAlert(nullptr);
 
-  if (mIconRequest) {
+    // Cancel any pending request
     mIconRequest->Cancel(NS_BINDING_ABORTED);
     mIconRequest = nullptr;
   }
+
+  nsCOMPtr<imgIContainer> image;
+  rv = aRequest->GetImage(getter_AddRefs(image));
+  if (NS_WARN_IF(NS_FAILED(rv) || !image)) {
+    return rv;
+  }
+
+  // Ask the image to decode at its intrinsic size.
+  int32_t width = 0, height = 0;
+  image->GetWidth(&width);
+  image->GetHeight(&height);
+  image->RequestDecodeForSize(nsIntSize(width, height), imgIContainer::FLAG_NONE);
+
   return NS_OK;
 }
 
 nsresult
-nsAlertsIconListener::OnStopFrame(imgIRequest* aRequest)
+nsAlertsIconListener::OnFrameComplete(imgIRequest* aRequest)
 {
-  if (aRequest != mIconRequest)
-    return NS_ERROR_FAILURE;
+  NS_ASSERTION(mIconRequest == aRequest, "aRequest does not match!");
 
   if (mLoadedFrame)
     return NS_OK; // only use one frame
 
-  nsCOMPtr<imgIContainer> image;
-  nsresult rv = aRequest->GetImage(getter_AddRefs(image));
-  if (NS_FAILED(rv))
-    return rv;
-
-  nsCOMPtr<nsIImageToPixbuf> imgToPixbuf =
-    do_GetService("@mozilla.org/widget/image-to-gdk-pixbuf;1");
-
-  GdkPixbuf* imagePixbuf = imgToPixbuf->ConvertImageToPixbuf(image);
-  if (!imagePixbuf)
-    return NS_ERROR_FAILURE;
-
-  ShowAlert(imagePixbuf);
-
-  g_object_unref(imagePixbuf);
+  GdkPixbuf* imagePixbuf = GetPixbufFromImgRequest(aRequest);
+  if (!imagePixbuf) {
+    ShowAlert(nullptr);
+  } else {
+    ShowAlert(imagePixbuf);
+    g_object_unref(imagePixbuf);
+  }
 
   mLoadedFrame = true;
+
+  // Cancel any pending request (multipart image loading/decoding for instance)
+  mIconRequest->Cancel(NS_BINDING_ABORTED);
+  mIconRequest = nullptr;
+
   return NS_OK;
 }
 
 nsresult
 nsAlertsIconListener::ShowAlert(GdkPixbuf* aPixbuf)
 {
-  mNotification = notify_notification_new(mAlertTitle.get(), mAlertText.get(), NULL, NULL);
+  mNotification = notify_notification_new(mAlertTitle.get(), mAlertText.get(),
+                                          nullptr, nullptr);
 
   if (!mNotification)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -167,7 +193,7 @@ nsAlertsIconListener::ShowAlert(GdkPixbuf* aPixbuf)
     // string is "default" then that makes the entire bubble clickable
     // rather than creating a button.
     notify_notification_add_action(mNotification, "default", "Activate",
-                                   notify_action_cb, this, NULL);
+                                   notify_action_cb, this, nullptr);
   }
 
   // Fedora 10 calls NotifyNotification "closed" signal handlers with a
@@ -177,13 +203,16 @@ nsAlertsIconListener::ShowAlert(GdkPixbuf* aPixbuf)
   GClosure* closure = g_closure_new_simple(sizeof(GClosure), this);
   g_closure_set_marshal(closure, notify_closed_marshal);
   mClosureHandler = g_signal_connect_closure(mNotification, "closed", closure, FALSE);
-  gboolean result = notify_notification_show(mNotification, NULL);
+  gboolean result = notify_notification_show(mNotification, nullptr);
+
+  if (result && mAlertListener)
+    mAlertListener->Observe(nullptr, "alertshow", mAlertCookie.get());
 
   return result ? NS_OK : NS_ERROR_FAILURE;
 }
 
 nsresult
-nsAlertsIconListener::StartRequest(const nsAString & aImageUrl)
+nsAlertsIconListener::StartRequest(const nsAString & aImageUrl, bool aInPrivateBrowsing)
 {
   if (mIconRequest) {
     // Another icon request is already in flight.  Kill it.
@@ -194,22 +223,30 @@ nsAlertsIconListener::StartRequest(const nsAString & aImageUrl)
   nsCOMPtr<nsIURI> imageUri;
   NS_NewURI(getter_AddRefs(imageUri), aImageUrl);
   if (!imageUri)
-    return ShowAlert(NULL);
+    return ShowAlert(nullptr);
 
   nsCOMPtr<imgILoader> il(do_GetService("@mozilla.org/image/loader;1"));
   if (!il)
-    return ShowAlert(NULL);
+    return ShowAlert(nullptr);
 
-  return il->LoadImageXPCOM(imageUri, nullptr, nullptr, nullptr, nullptr, this,
-			    nullptr, nsIRequest::LOAD_NORMAL, nullptr, nullptr,
-			    getter_AddRefs(mIconRequest));
+  nsresult rv = il->LoadImageXPCOM(imageUri, nullptr, nullptr,
+                                   NS_LITERAL_STRING("default"), nullptr, nullptr,
+                                   this, nullptr,
+                                   aInPrivateBrowsing ? nsIRequest::LOAD_ANONYMOUS :
+                                                        nsIRequest::LOAD_NORMAL,
+                                   nullptr, 0 /* use default */,
+                                   getter_AddRefs(mIconRequest));
+  if (NS_FAILED(rv))
+    return rv;
+
+  return NS_OK;
 }
 
 void
 nsAlertsIconListener::SendCallback()
 {
   if (mAlertListener)
-    mAlertListener->Observe(NULL, "alertclickcallback", mAlertCookie.get());
+    mAlertListener->Observe(nullptr, "alertclickcallback", mAlertCookie.get());
 }
 
 void
@@ -217,21 +254,21 @@ nsAlertsIconListener::SendClosed()
 {
   if (mNotification) {
     g_object_unref(mNotification);
-    mNotification = NULL;
+    mNotification = nullptr;
   }
   if (mAlertListener)
-    mAlertListener->Observe(NULL, "alertfinished", mAlertCookie.get());
+    mAlertListener->Observe(nullptr, "alertfinished", mAlertCookie.get());
 }
 
 NS_IMETHODIMP
 nsAlertsIconListener::Observe(nsISupports *aSubject, const char *aTopic,
-                              const PRUnichar *aData) {
+                              const char16_t *aData) {
   // We need to close any open notifications upon application exit, otherwise
   // we will leak since libnotify holds a ref for us.
   if (!nsCRT::strcmp(aTopic, "quit-application") && mNotification) {
     g_signal_handler_disconnect(mNotification, mClosureHandler);
     g_object_unref(mNotification);
-    mNotification = NULL;
+    mNotification = nullptr;
     Release(); // equivalent to NS_RELEASE(this)
   }
   return NS_OK;
@@ -243,7 +280,8 @@ nsAlertsIconListener::InitAlertAsync(const nsAString & aImageUrl,
                                      const nsAString & aAlertText,
                                      bool aAlertTextClickable,
                                      const nsAString & aAlertCookie,
-                                     nsIObserver * aAlertListener)
+                                     nsIObserver * aAlertListener,
+                                     bool aInPrivateBrowsing)
 {
   if (!libNotifyHandle)
     return NS_ERROR_FAILURE;
@@ -261,7 +299,7 @@ nsAlertsIconListener::InitAlertAsync(const nsAString & aImageUrl,
       nsAutoString appName;
 
       if (bundle) {
-        bundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(),
+        bundle->GetStringFromName(MOZ_UTF16("brandShortName"),
                                   getter_Copies(appName));
         appShortName = NS_ConvertUTF16toUTF8(appName);
       } else {
@@ -278,13 +316,13 @@ nsAlertsIconListener::InitAlertAsync(const nsAString & aImageUrl,
     GList *server_caps = notify_get_server_caps();
     if (server_caps) {
       gHasCaps = true;
-      for (GList* cap = server_caps; cap != NULL; cap = cap->next) {
+      for (GList* cap = server_caps; cap != nullptr; cap = cap->next) {
         if (!strcmp((char*) cap->data, "actions")) {
           gHasActions = true;
           break;
         }
       }
-      g_list_foreach(server_caps, (GFunc)g_free, NULL);
+      g_list_foreach(server_caps, (GFunc)g_free, nullptr);
       g_list_free(server_caps);
     }
   }
@@ -317,5 +355,5 @@ nsAlertsIconListener::InitAlertAsync(const nsAString & aImageUrl,
   mAlertListener = aAlertListener;
   mAlertCookie = aAlertCookie;
 
-  return StartRequest(aImageUrl);
+  return StartRequest(aImageUrl, aInPrivateBrowsing);
 }

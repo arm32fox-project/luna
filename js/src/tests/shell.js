@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -834,6 +834,45 @@ function jsTestDriverEnd()
 function jit(on)
 {
 }
+
+function assertEqArray(a1, a2) {
+  assertEq(a1.length, a2.length);
+  for (var i = 0; i < a1.length; i++) {
+    try {
+      assertEq(a1[i], a2[i]);
+    } catch (e) {
+      throw new Error("At index " + i + ": " + e);
+    }
+  }
+}
+
+function assertThrows(f) {
+    var ok = false;
+    try {
+        f();
+    } catch (exc) {
+        ok = true;
+    }
+    if (!ok)
+        throw new Error("Assertion failed: " + f + " did not throw as expected");
+}
+
+
+function assertThrowsInstanceOf(f, ctor, msg) {
+  var fullmsg;
+  try {
+    f();
+  } catch (exc) {
+    if (exc instanceof ctor)
+      return;
+    fullmsg = "Assertion failed: expected exception " + ctor.name + ", got " + exc;
+  }
+  if (fullmsg === undefined)
+    fullmsg = "Assertion failed: expected exception " + ctor.name + ", no exception thrown";
+  if (msg !== undefined)
+    fullmsg += " - " + msg;
+  throw new Error(fullmsg);
+};
 
 /*
  * Some tests need to know if we are in Rhino as opposed to SpiderMonkey

@@ -15,8 +15,7 @@
 !define AppRegName            "Pale Moon"
 
 !define BrandShortName        "@MOZ_APP_DISPLAYNAME@"
-!define PreReleaseSuffix      "@PRE_RELEASE_SUFFIX@"
-!define BrandFullName         "${BrandFullNameInternal}${PreReleaseSuffix}"
+!define BrandFullName         "${BrandFullNameInternal}"
 
 !define NO_UNINSTALL_SURVEY
 
@@ -43,19 +42,10 @@
 
 !define BaseURLStubPing "http://download-stats.mozilla.org/stub"
 
-# NO_INSTDIR_FROM_REG is defined for pre-releases which have a PreReleaseSuffix
-# (e.g. Alpha X, Beta X, etc.) to prevent finding a non-default installation
-# directory in the registry and using that as the default. This prevents
-# Beta releases built with official branding from finding an existing install
-# of an official release and defaulting to its installation directory.
-!if "@PRE_RELEASE_SUFFIX@" != ""
-!define NO_INSTDIR_FROM_REG
-!endif
-
 # ARCH is used when it is necessary to differentiate the x64 registry keys from
 # the x86 registry keys (e.g. the uninstall registry key).
-#ifdef HAVE_64BIT_OS
-!define HAVE_64BIT_OS
+#ifdef HAVE_64BIT_BUILD
+!define HAVE_64BIT_BUILD
 !define ARCH "x64"
 !define MinSupportedVer "Microsoft Windows Vista x64"
 #else

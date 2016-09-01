@@ -15,12 +15,7 @@
 #include "nsSVGContainerFrame.h"
 #include "nsSVGUtils.h"
 
-class nsIAtom;
-class nsIContent;
-class nsIFrame;
-class nsIPresShell;
-class nsRenderingContext;
-class nsStyleContext;
+class gfxContext;
 class nsSVGPathGeometryFrame;
 
 namespace mozilla {
@@ -35,16 +30,17 @@ typedef nsSVGContainerFrame nsSVGMarkerFrameBase;
 
 class nsSVGMarkerFrame : public nsSVGMarkerFrameBase
 {
-  friend nsIFrame*
+  friend class nsSVGMarkerAnonChildFrame;
+  friend nsContainerFrame*
   NS_NewSVGMarkerFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  nsSVGMarkerFrame(nsStyleContext* aContext)
+  explicit nsSVGMarkerFrame(nsStyleContext* aContext)
     : nsSVGMarkerFrameBase(aContext)
     , mMarkedFrame(nullptr)
     , mInUse(false)
     , mInUse2(false)
   {
-    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
+    AddStateBits(NS_FRAME_IS_NONDISPLAY);
   }
 
 public:
@@ -52,39 +48,49 @@ public:
 
   // nsIFrame interface:
 #ifdef DEBUG
-  virtual void Init(nsIContent*      aContent,
-                    nsIFrame*        aParent,
-                    nsIFrame*        aPrevInFlow) MOZ_OVERRIDE;
+  virtual void Init(nsIContent*       aContent,
+                    nsContainerFrame* aParent,
+                    nsIFrame*         aPrevInFlow) override;
 #endif
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE {}
+                                const nsDisplayListSet& aLists) override {}
 
-  NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
-                              nsIAtom*        aAttribute,
-                              int32_t         aModType) MOZ_OVERRIDE;
+  virtual nsresult AttributeChanged(int32_t         aNameSpaceID,
+                                    nsIAtom*        aAttribute,
+                                    int32_t         aModType) override;
   /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::svgMarkerFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const override;
 
-#ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+#ifdef DEBUG_FRAME_DUMP
+  virtual nsresult GetFrameName(nsAString& aResult) const override
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGMarker"), aResult);
   }
 #endif
 
+  virtual nsContainerFrame* GetContentInsertionFrame() override {
+    // Any children must be added to our single anonymous inner frame kid.
+    MOZ_ASSERT(GetFirstPrincipalChild() &&
+               GetFirstPrincipalChild()->GetType() ==
+                 nsGkAtoms::svgMarkerAnonChildFrame,
+               "Where is our anonymous child?");
+    return GetFirstPrincipalChild()->GetContentInsertionFrame();
+  }
+
   // nsSVGMarkerFrame methods:
-  nsresult PaintMark(nsRenderingContext *aContext,
+  nsresult PaintMark(gfxContext& aContext,
+                     const gfxMatrix& aToMarkedFrameUserSpace,
                      nsSVGPathGeometryFrame *aMarkedFrame,
                      nsSVGMark *aMark,
                      float aStrokeWidth);
 
-  SVGBBox GetMarkBBoxContribution(const gfxMatrix &aToBBoxUserspace,
+  SVGBBox GetMarkBBoxContribution(const Matrix &aToBBoxUserspace,
                                   uint32_t aFlags,
                                   nsSVGPathGeometryFrame *aMarkedFrame,
                                   const nsSVGMark *aMark,
@@ -94,24 +100,26 @@ private:
   // stuff needed for callback
   nsSVGPathGeometryFrame *mMarkedFrame;
   float mStrokeWidth, mX, mY, mAutoAngle;
+  bool mIsStart;  // whether the callback is for a marker-start marker
 
   // nsSVGContainerFrame methods:
-  virtual gfxMatrix GetCanvasTM(uint32_t aFor,
-                                nsIFrame* aTransformRoot = nullptr) MOZ_OVERRIDE;
+  virtual gfxMatrix GetCanvasTM() override;
 
   // A helper class to allow us to paint markers safely. The helper
   // automatically sets and clears the mInUse flag on the marker frame (to
   // prevent nasty reference loops) as well as the reference to the marked
   // frame and its coordinate context. It's easy to mess this up
   // and break things, so this helper makes the code far more robust.
-  class AutoMarkerReferencer
+  class MOZ_STACK_CLASS AutoMarkerReferencer
   {
   public:
     AutoMarkerReferencer(nsSVGMarkerFrame *aFrame,
-                         nsSVGPathGeometryFrame *aMarkedFrame);
+                         nsSVGPathGeometryFrame *aMarkedFrame
+                         MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
     ~AutoMarkerReferencer();
   private:
     nsSVGMarkerFrame *mFrame;
+    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
   };
 
   // nsSVGMarkerFrame methods:
@@ -124,4 +132,50 @@ private:
   bool mInUse2;
 };
 
+////////////////////////////////////////////////////////////////////////
+// nsMarkerAnonChildFrame class
+
+typedef nsSVGDisplayContainerFrame nsSVGMarkerAnonChildFrameBase;
+
+/**
+ */
+class nsSVGMarkerAnonChildFrame
+  : public nsSVGMarkerAnonChildFrameBase
+{
+  friend nsContainerFrame*
+  NS_NewSVGMarkerAnonChildFrame(nsIPresShell* aPresShell,
+                                nsStyleContext* aContext);
+
+  explicit nsSVGMarkerAnonChildFrame(nsStyleContext* aContext)
+    : nsSVGMarkerAnonChildFrameBase(aContext)
+  {}
+
+public:
+  NS_DECL_FRAMEARENA_HELPERS
+
+#ifdef DEBUG
+  virtual void Init(nsIContent*       aContent,
+                    nsContainerFrame* aParent,
+                    nsIFrame*         aPrevInFlow) override;
+#endif
+
+#ifdef DEBUG_FRAME_DUMP
+  virtual nsresult GetFrameName(nsAString& aResult) const override {
+    return MakeFrameName(NS_LITERAL_STRING("SVGMarkerAnonChild"), aResult);
+  }
+#endif
+
+  /**
+   * Get the "type" of the frame
+   *
+   * @see nsGkAtoms::svgMarkerAnonChildFrame
+   */
+  virtual nsIAtom* GetType() const override;
+
+  // nsSVGContainerFrame methods:
+  virtual gfxMatrix GetCanvasTM() override
+  {
+    return static_cast<nsSVGMarkerFrame*>(GetParent())->GetCanvasTM();
+  }
+};
 #endif

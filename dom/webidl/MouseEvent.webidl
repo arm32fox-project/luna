@@ -15,19 +15,22 @@ interface MouseEvent : UIEvent {
   readonly attribute long           screenY;
   readonly attribute long           clientX;
   readonly attribute long           clientY;
+  readonly attribute long           offsetX;
+  readonly attribute long           offsetY;
   readonly attribute boolean        ctrlKey;
   readonly attribute boolean        shiftKey;
   readonly attribute boolean        altKey;
   readonly attribute boolean        metaKey;
-  readonly attribute unsigned short button;
+  readonly attribute short          button;
   readonly attribute unsigned short buttons;
   readonly attribute EventTarget?   relatedTarget;
+  readonly attribute DOMString?     region;
   // Deprecated in DOM Level 3:
   [Throws]
   void                              initMouseEvent(DOMString typeArg, 
                                                    boolean canBubbleArg, 
                                                    boolean cancelableArg, 
-                                                   WindowProxy? viewArg, 
+                                                   Window? viewArg,
                                                    long detailArg, 
                                                    long screenXArg, 
                                                    long screenYArg, 
@@ -37,7 +40,7 @@ interface MouseEvent : UIEvent {
                                                    boolean altKeyArg, 
                                                    boolean shiftKeyArg, 
                                                    boolean metaKeyArg, 
-                                                   unsigned short buttonArg,
+                                                   short buttonArg,
                                                    EventTarget? relatedTargetArg);
   // Introduced in DOM Level 3:
   boolean                           getModifierState(DOMString keyArg);
@@ -51,15 +54,7 @@ partial interface MouseEvent
 };
 
 // Suggested initMouseEvent replacement initializer:
-dictionary MouseEventInit {
-  // Attributes from Event:
-  boolean        bubbles       = false;
-  boolean        cancelable    = false;
-
-  // Attributes from UIEvent:
-  WindowProxy?   view          = null;
-  long           detail        = 0;
-
+dictionary MouseEventInit : UIEventInit {
   // Attributes for MouseEvent:
   long           screenX       = 0;
   long           screenY       = 0;
@@ -69,7 +64,7 @@ dictionary MouseEventInit {
   boolean        shiftKey      = false;
   boolean        altKey        = false;
   boolean        metaKey       = false;
-  unsigned short button        = 0;
+  short          button        = 0;
   // Note: "buttons" was not previously initializable through initMouseEvent!
   unsigned short buttons       = 0;
   EventTarget?   relatedTarget = null;
@@ -99,7 +94,7 @@ partial interface MouseEvent
   void                initNSMouseEvent(DOMString typeArg,
                                        boolean canBubbleArg,
                                        boolean cancelableArg,
-                                       WindowProxy? viewArg,
+                                       Window? viewArg,
                                        long detailArg,
                                        long screenXArg,
                                        long screenYArg,
@@ -109,10 +104,12 @@ partial interface MouseEvent
                                        boolean altKeyArg,
                                        boolean shiftKeyArg,
                                        boolean metaKeyArg,
-                                       unsigned short buttonArg,
+                                       short buttonArg,
                                        EventTarget? relatedTargetArg,
                                        float pressure,
                                        unsigned short inputSourceArg);
+  [ChromeOnly]
+  readonly attribute boolean hitCluster; // True when touch occurs in a cluster of links
 
 };
 

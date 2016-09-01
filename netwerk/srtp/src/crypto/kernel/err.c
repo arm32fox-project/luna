@@ -95,7 +95,7 @@ void
 err_report(int priority, char *format, ...) {
   va_list args;
 
-  if (priority <= err_level) {
+  if ((err_reporting_level_t)priority <= err_level) {
 
     va_start(args, format);
     if (err_file != NULL) {
@@ -136,6 +136,7 @@ err_report(int priority, char *format, ...) {
       }
 
       vsyslog(syslogpri, format, args);
+    }
 #endif
     va_end(args);
   }

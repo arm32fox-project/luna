@@ -14,10 +14,12 @@
 interface nsIURI;
 interface nsIInputStream;
 interface nsISHEntry;
+interface nsIDocShell;
 
 typedef long nsDocShellInfoLoadType;
+typedef unsigned long nsDocShellInfoReferrerPolicy;
 
-[scriptable, uuid(5df91211-37db-47e9-8f83-2d5b0cb2eb9e)]
+[scriptable, uuid(c63e9d64-490d-48bf-8013-b5d8ee4dbc25)]
 interface nsIDocShellLoadInfo : nsISupports
 {
     /** This is the referrer for the load. */
@@ -61,7 +63,8 @@ interface nsIDocShellLoadInfo : nsISupports
     const long loadNormalBypassProxyAndCache = 16;
     const long loadPushState = 17;                 // history.pushState or replaceState
     const long loadReplaceBypassCache = 18;
-    const long loadMixedContent = 19;
+    const long loadReloadMixedContent = 19;
+    const long loadNormalAllowMixedContent = 20;
 
     /** Contains a load type as specified by the load* constants */
     attribute nsDocShellInfoLoadType loadType;
@@ -83,6 +86,11 @@ interface nsIDocShellLoadInfo : nsISupports
      */
     attribute boolean sendReferrer;
 
+    /** Referrer policy for the load. This attribute holds one of
+     *  the values (REFERRER_POLICY_*) defined in nsIHttpChannel.
+     */
+    attribute nsDocShellInfoReferrerPolicy referrerPolicy;
+
     /** True if the docshell has been created to load an iframe where the
      * srcdoc attribute has been set.  Set when srcdocData is specified.
      */
@@ -94,4 +102,26 @@ interface nsIDocShellLoadInfo : nsISupports
      */
     attribute AString srcdocData;
 
+    /** When set, this is the Source Browsing Context for the navigation. */
+    attribute nsIDocShell sourceDocShell;
+
+    /**
+     * Used for srcdoc loads to give view-source knowledge of the load's base
+     * URI as this information isn't embedded in the load's URI.
+     */
+    attribute nsIURI baseURI;
+};
+
+[scriptable, uuid(009bf87b-3f6c-435f-9c92-b9ab8265ff4e)]
+interface nsIDocShellLoadInfo_ESR38 : nsIDocShellLoadInfo
+{
+    /**
+     * The originalURI to be passed to nsIDocShell.internalLoad. May be null.
+     */
+    attribute nsIURI originalURI;
+
+    /**
+     * loadReplace flag to be passed to nsIDocShell.internalLoad.
+     */
+    attribute boolean loadReplace;
 };

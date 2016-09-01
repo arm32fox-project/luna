@@ -17,9 +17,9 @@ namespace jit {
 
 struct PcScriptCacheEntry
 {
-    uint8_t *returnAddress; // Key into the hash table.
-    jsbytecode *pc;         // Cached PC.
-    JSScript *script;       // Cached script.
+    uint8_t* returnAddress; // Key into the hash table.
+    jsbytecode* pc;         // Cached PC.
+    JSScript* script;       // Cached script.
 };
 
 struct PcScriptCache
@@ -32,26 +32,44 @@ struct PcScriptCache
     uint64_t gcNumber;
 
     // List of cache entries.
-    PcScriptCacheEntry entries[Length];
+    mozilla::Array<PcScriptCacheEntry, Length> entries;
 
     void clear(uint64_t gcNumber) {
         for (uint32_t i = 0; i < Length; i++)
-            entries[i].returnAddress = NULL;
+            entries[i].returnAddress = nullptr;
         this->gcNumber = gcNumber;
     }
 
     // Get a value from the cache. May perform lazy allocation.
-    // Defined in PcScriptCache-inl.h.
-    bool get(JSRuntime *rt, uint32_t hash, uint8_t *addr,
-             JSScript **scriptRes, jsbytecode **pcRes);
+    bool get(JSRuntime* rt, uint32_t hash, uint8_t* addr,
+             JSScript** scriptRes, jsbytecode** pcRes)
+    {
+        // If a GC occurred, lazily clear the cache now.
+        if (gcNumber != rt->gc.gcNumber()) {
+            clear(rt->gc.gcNumber());
+            return false;
+        }
 
-    void add(uint32_t hash, uint8_t *addr, jsbytecode *pc, JSScript *script) {
+        if (entries[hash].returnAddress != addr)
+            return false;
+
+        *scriptRes = entries[hash].script;
+        if (pcRes)
+            *pcRes = entries[hash].pc;
+
+        return true;
+    }
+
+    void add(uint32_t hash, uint8_t* addr, jsbytecode* pc, JSScript* script) {
+        MOZ_ASSERT(addr);
+        MOZ_ASSERT(pc);
+        MOZ_ASSERT(script);
         entries[hash].returnAddress = addr;
         entries[hash].pc = pc;
         entries[hash].script = script;
     }
 
-    static uint32_t Hash(uint8_t *addr) {
+    static uint32_t Hash(uint8_t* addr) {
         uint32_t key = (uint32_t)((uintptr_t)addr);
         return ((key >> 3) * 2654435761u) % Length;
     }

@@ -1,4 +1,5 @@
-/* vim:set ts=4 sw=4 sts=4 et cin: */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* vim: set sw=4 ts=8 et tw=80 : */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -29,29 +30,37 @@
 #include "nsCharSeparatedTokenizer.h"
 #include "nsNetAddr.h"
 #include "nsProxyRelease.h"
+#include "nsIObserverService.h"
+#include "nsINetworkLinkService.h"
 
 #include "mozilla/Attributes.h"
+#include "mozilla/VisualEventTracer.h"
+#include "mozilla/net/NeckoCommon.h"
+#include "mozilla/net/ChildDNSService.h"
+#include "mozilla/net/DNSListenerProxy.h"
+#include "mozilla/Services.h"
 
 using namespace mozilla;
 using namespace mozilla::net;
 
-static const char kPrefDnsCacheEntries[]    = "network.dnsCacheEntries";
-static const char kPrefDnsCacheExpiration[] = "network.dnsCacheExpiration";
-static const char kPrefDnsCacheGrace[]      = "network.dnsCacheExpirationGracePeriod";
-static const char kPrefIPv4OnlyDomains[]    = "network.dns.ipv4OnlyDomains";
-static const char kPrefDisableIPv6[]        = "network.dns.disableIPv6";
-static const char kPrefDisablePrefetch[]    = "network.dns.disablePrefetch";
-static const char kPrefDnsLocalDomains[]    = "network.dns.localDomains";
+static const char kPrefDnsCacheEntries[]     = "network.dnsCacheEntries";
+static const char kPrefDnsCacheExpiration[]  = "network.dnsCacheExpiration";
+static const char kPrefDnsCacheGrace[]       = "network.dnsCacheExpirationGracePeriod";
+static const char kPrefIPv4OnlyDomains[]     = "network.dns.ipv4OnlyDomains";
+static const char kPrefDisableIPv6[]         = "network.dns.disableIPv6";
+static const char kPrefDisablePrefetch[]     = "network.dns.disablePrefetch";
+static const char kPrefDnsLocalDomains[]     = "network.dns.localDomains";
+static const char kPrefDnsNotifyResolution[] = "network.dns.notifyResolution";
 
 //-----------------------------------------------------------------------------
 
 class nsDNSRecord : public nsIDNSRecord
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIDNSRECORD
 
-    nsDNSRecord(nsHostRecord *hostRecord)
+    explicit nsDNSRecord(nsHostRecord *hostRecord)
         : mHostRecord(hostRecord)
         , mIter(nullptr)
         , mIterGenCnt(-1)
@@ -68,7 +77,7 @@ private:
     bool                    mDone;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsDNSRecord, nsIDNSRecord)
+NS_IMPL_ISUPPORTS(nsDNSRecord, nsIDNSRecord)
 
 NS_IMETHODIMP
 nsDNSRecord::GetCanonicalName(nsACString &result)
@@ -164,6 +173,46 @@ nsDNSRecord::GetNextAddr(uint16_t port, NetAddr *addr)
 }
 
 NS_IMETHODIMP
+nsDNSRecord::GetAddresses(nsTArray<NetAddr> & aAddressArray)
+{
+    if (mDone) {
+        return NS_ERROR_NOT_AVAILABLE;
+    }
+
+    mHostRecord->addr_info_lock.Lock();
+    if (mHostRecord->addr_info) {
+        for (NetAddrElement *iter = mHostRecord->addr_info->mAddresses.getFirst();
+             iter; iter = iter->getNext()) {
+            if (mHostRecord->Blacklisted(&iter->mAddress)) {
+                continue;
+            }
+            NetAddr *addr = aAddressArray.AppendElement(NetAddr());
+            memcpy(addr, &iter->mAddress, sizeof(NetAddr));
+            if (addr->raw.family == AF_INET) {
+                addr->inet.port = 0;
+            } else if (addr->raw.family == AF_INET6) {
+                addr->inet6.port = 0;
+            }
+        }
+        mHostRecord->addr_info_lock.Unlock();
+    } else {
+        mHostRecord->addr_info_lock.Unlock();
+
+        if (!mHostRecord->addr) {
+            return NS_ERROR_NOT_AVAILABLE;
+        }
+        NetAddr *addr = aAddressArray.AppendElement(NetAddr());
+        memcpy(addr, mHostRecord->addr, sizeof(NetAddr));
+        if (addr->raw.family == AF_INET) {
+            addr->inet.port = 0;
+        } else if (addr->raw.family == AF_INET6) {
+            addr->inet6.port = 0;
+        }
+    }
+    return NS_OK;
+}
+
+NS_IMETHODIMP
 nsDNSRecord::GetScriptableNextAddr(uint16_t port, nsINetAddr * *result)
 {
     NetAddr addr;
@@ -243,36 +292,42 @@ nsDNSRecord::ReportUnusable(uint16_t aPort)
 
 //-----------------------------------------------------------------------------
 
-class nsDNSAsyncRequest MOZ_FINAL : public nsResolveHostCallback
+class nsDNSAsyncRequest final : public nsResolveHostCallback
                                   , public nsICancelable
 {
+    ~nsDNSAsyncRequest() {}
+
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSICANCELABLE
 
     nsDNSAsyncRequest(nsHostResolver   *res,
                       const nsACString &host,
                       nsIDNSListener   *listener,
                       uint16_t          flags,
-                      uint16_t          af)
+                      uint16_t          af,
+                      const nsACString &netInterface)
         : mResolver(res)
         , mHost(host)
         , mListener(listener)
         , mFlags(flags)
-        , mAF(af) {}
-    ~nsDNSAsyncRequest() {}
+        , mAF(af)
+        , mNetworkInterface(netInterface) {}
 
-    void OnLookupComplete(nsHostResolver *, nsHostRecord *, nsresult);
+    void OnLookupComplete(nsHostResolver *, nsHostRecord *, nsresult) override;
     // Returns TRUE if the DNS listener arg is the same as the member listener
     // Used in Cancellations to remove DNS requests associated with a
     // particular hostname and nsIDNSListener
-    bool EqualsAsyncListener(nsIDNSListener *aListener);
+    bool EqualsAsyncListener(nsIDNSListener *aListener) override;
+
+    size_t SizeOfIncludingThis(mozilla::MallocSizeOf) const override;
 
     nsRefPtr<nsHostResolver> mResolver;
     nsCString                mHost; // hostname we're resolving
     nsCOMPtr<nsIDNSListener> mListener;
     uint16_t                 mFlags;
     uint16_t                 mAF;
+    nsCString                mNetworkInterface;
 };
 
 void
@@ -291,6 +346,8 @@ nsDNSAsyncRequest::OnLookupComplete(nsHostResolver *resolver,
             status = NS_ERROR_OUT_OF_MEMORY;
     }
 
+    MOZ_EVENT_TRACER_DONE(this, "net::dns::lookup");
+
     mListener->OnLookupComplete(this, rec, status);
     mListener = nullptr;
 
@@ -302,16 +359,36 @@ nsDNSAsyncRequest::OnLookupComplete(nsHostResolver *resolver,
 bool
 nsDNSAsyncRequest::EqualsAsyncListener(nsIDNSListener *aListener)
 {
+    nsCOMPtr<nsIDNSListenerProxy> wrapper = do_QueryInterface(mListener);
+    if (wrapper) {
+        nsCOMPtr<nsIDNSListener> originalListener;
+        wrapper->GetOriginalListener(getter_AddRefs(originalListener));
+        return aListener == originalListener;
+    }
     return (aListener == mListener);
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsDNSAsyncRequest, nsICancelable)
+size_t
+nsDNSAsyncRequest::SizeOfIncludingThis(MallocSizeOf mallocSizeOf) const
+{
+    size_t n = mallocSizeOf(this);
+
+    // The following fields aren't measured.
+    // - mHost, because it's a non-owning pointer
+    // - mResolver, because it's a non-owning pointer
+    // - mListener, because it's a non-owning pointer
+
+    return n;
+}
+
+NS_IMPL_ISUPPORTS(nsDNSAsyncRequest, nsICancelable)
 
 NS_IMETHODIMP
 nsDNSAsyncRequest::Cancel(nsresult reason)
 {
     NS_ENSURE_ARG(NS_FAILED(reason));
-    mResolver->DetachCallback(mHost.get(), mFlags, mAF, this, reason);
+    mResolver->DetachCallback(mHost.get(), mFlags, mAF, mNetworkInterface.get(),
+                              this, reason);
     return NS_OK;
 }
 
@@ -320,7 +397,7 @@ nsDNSAsyncRequest::Cancel(nsresult reason)
 class nsDNSSyncRequest : public nsResolveHostCallback
 {
 public:
-    nsDNSSyncRequest(PRMonitor *mon)
+    explicit nsDNSSyncRequest(PRMonitor *mon)
         : mDone(false)
         , mStatus(NS_OK)
         , mMonitor(mon) {}
@@ -328,6 +405,7 @@ public:
 
     void OnLookupComplete(nsHostResolver *, nsHostRecord *, nsresult);
     bool EqualsAsyncListener(nsIDNSListener *aListener);
+    size_t SizeOfIncludingThis(mozilla::MallocSizeOf) const;
 
     bool                   mDone;
     nsresult               mStatus;
@@ -358,6 +436,46 @@ nsDNSSyncRequest::EqualsAsyncListener(nsIDNSListener *aListener)
     return false;
 }
 
+size_t
+nsDNSSyncRequest::SizeOfIncludingThis(MallocSizeOf mallocSizeOf) const
+{
+    size_t n = mallocSizeOf(this);
+
+    // The following fields aren't measured.
+    // - mHostRecord, because it's a non-owning pointer
+
+    // Measurement of the following members may be added later if DMD finds it
+    // is worthwhile:
+    // - mMonitor
+
+    return n;
+}
+
+class NotifyDNSResolution: public nsRunnable
+{
+public:
+    NotifyDNSResolution(nsMainThreadPtrHandle<nsIObserverService> &aObs,
+                        const nsACString &aHostname)
+        : mObs(aObs)
+        , mHostname(aHostname)
+    {
+        MOZ_ASSERT(mObs);
+    }
+
+    NS_IMETHOD Run()
+    {
+        MOZ_ASSERT(NS_IsMainThread());
+        mObs->NotifyObservers(nullptr,
+                              "dns-resolution-request",
+                              NS_ConvertUTF8toUTF16(mHostname).get());
+        return NS_OK;
+    }
+
+private:
+    nsMainThreadPtrHandle<nsIObserverService> mObs;
+    nsCString                                 mHostname;
+};
+
 //-----------------------------------------------------------------------------
 
 nsDNSService::nsDNSService()
@@ -371,8 +489,45 @@ nsDNSService::~nsDNSService()
 {
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS3(nsDNSService, nsIDNSService, nsPIDNSService,
-                              nsIObserver)
+NS_IMPL_ISUPPORTS(nsDNSService, nsIDNSService, nsPIDNSService, nsIObserver,
+                  nsIMemoryReporter)
+
+/******************************************************************************
+ * nsDNSService impl:
+ * singleton instance ctor/dtor methods
+ ******************************************************************************/
+static nsDNSService *gDNSService;
+
+nsIDNSService*
+nsDNSService::GetXPCOMSingleton()
+{
+    if (IsNeckoChild()) {
+        return ChildDNSService::GetSingleton();
+    }
+
+    return GetSingleton();
+}
+
+nsDNSService*
+nsDNSService::GetSingleton()
+{
+    NS_ASSERTION(!IsNeckoChild(), "not a parent process");
+
+    if (gDNSService) {
+        NS_ADDREF(gDNSService);
+        return gDNSService;
+    }
+
+    gDNSService = new nsDNSService();
+    if (gDNSService) {
+        NS_ADDREF(gDNSService);
+        if (NS_FAILED(gDNSService->Init())) {
+              NS_RELEASE(gDNSService);
+        }
+    }
+
+    return gDNSService;
+}
 
 NS_IMETHODIMP
 nsDNSService::Init()
@@ -383,12 +538,13 @@ nsDNSService::Init()
 
     // prefs
     uint32_t maxCacheEntries  = 400;
-    uint32_t maxCacheLifetime = 2; // minutes
-    uint32_t lifetimeGracePeriod = 1;
+    uint32_t defaultCacheLifetime = 120; // seconds
+    uint32_t defaultGracePeriod = 60; // seconds
     bool     disableIPv6      = false;
     bool     disablePrefetch  = false;
     int      proxyType        = nsIProtocolProxyService::PROXYCONFIG_DIRECT;
-    
+    bool     notifyResolution = false;
+
     nsAdoptingCString ipv4OnlyDomains;
     nsAdoptingCString localDomains;
 
@@ -399,9 +555,9 @@ nsDNSService::Init()
         if (NS_SUCCEEDED(prefs->GetIntPref(kPrefDnsCacheEntries, &val)))
             maxCacheEntries = (uint32_t) val;
         if (NS_SUCCEEDED(prefs->GetIntPref(kPrefDnsCacheExpiration, &val)))
-            maxCacheLifetime = val / 60; // convert from seconds to minutes
+            defaultCacheLifetime = val;
         if (NS_SUCCEEDED(prefs->GetIntPref(kPrefDnsCacheGrace, &val)))
-            lifetimeGracePeriod = val / 60; // convert from seconds to minutes
+            defaultGracePeriod = val;
 
         // ASSUMPTION: pref branch does not modify out params on failure
         prefs->GetBoolPref(kPrefDisableIPv6, &disableIPv6);
@@ -411,12 +567,11 @@ nsDNSService::Init()
 
         // If a manual proxy is in use, disable prefetch implicitly
         prefs->GetIntPref("network.proxy.type", &proxyType);
+        prefs->GetBoolPref(kPrefDnsNotifyResolution, &notifyResolution);
     }
 
     if (mFirstTime) {
         mFirstTime = false;
-
-        mLocalDomains.Init();
 
         // register as prefs observer
         if (prefs) {
@@ -427,11 +582,20 @@ nsDNSService::Init()
             prefs->AddObserver(kPrefDnsLocalDomains, this, false);
             prefs->AddObserver(kPrefDisableIPv6, this, false);
             prefs->AddObserver(kPrefDisablePrefetch, this, false);
+            prefs->AddObserver(kPrefDnsNotifyResolution, this, false);
 
             // Monitor these to see if there is a change in proxy configuration
             // If a manual proxy is in use, disable prefetch implicitly
             prefs->AddObserver("network.proxy.type", this, false);
         }
+
+        nsCOMPtr<nsIObserverService> observerService =
+            mozilla::services::GetObserverService();
+        if (observerService) {
+            observerService->AddObserver(this, "last-pb-context-exited", false);
+            observerService->AddObserver(this, NS_NETWORK_LINK_TOPIC, false);
+        }
+
     }
 
     nsDNSPrefetch::Initialize(this);
@@ -443,10 +607,13 @@ nsDNSService::Init()
 
     nsCOMPtr<nsIIDNService> idn = do_GetService(NS_IDNSERVICE_CONTRACTID);
 
+    nsCOMPtr<nsIObserverService> obs =
+        do_GetService(NS_OBSERVERSERVICE_CONTRACTID);
+
     nsRefPtr<nsHostResolver> res;
     nsresult rv = nsHostResolver::Create(maxCacheEntries,
-                                         maxCacheLifetime,
-                                         lifetimeGracePeriod,
+                                         defaultCacheLifetime,
+                                         defaultGracePeriod,
                                          getter_AddRefs(res));
     if (NS_SUCCEEDED(rv)) {
         // now, set all of our member variables while holding the lock
@@ -461,23 +628,30 @@ nsDNSService::Init()
 
         mLocalDomains.Clear();
         if (localDomains) {
-            nsAdoptingString domains;
-            domains.AssignASCII(nsDependentCString(localDomains).get());
-            nsCharSeparatedTokenizer tokenizer(domains, ',',
-                                               nsCharSeparatedTokenizerTemplate<>::SEPARATOR_OPTIONAL);
- 
+            nsCCharSeparatedTokenizer tokenizer(localDomains, ',',
+                                                nsCCharSeparatedTokenizer::SEPARATOR_OPTIONAL);
+
             while (tokenizer.hasMoreTokens()) {
-                const nsSubstring& domain = tokenizer.nextToken();
-                mLocalDomains.PutEntry(nsDependentCString(NS_ConvertUTF16toUTF8(domain).get()));
+                mLocalDomains.PutEntry(tokenizer.nextToken());
             }
         }
+        mNotifyResolution = notifyResolution;
+        if (mNotifyResolution) {
+            mObserverService =
+              new nsMainThreadPtrHolder<nsIObserverService>(obs);
+        }
     }
+
+    RegisterWeakMemoryReporter(this);
+
     return rv;
 }
 
 NS_IMETHODIMP
 nsDNSService::Shutdown()
 {
+    UnregisterWeakMemoryReporter(this);
+
     nsRefPtr<nsHostResolver> res;
     {
         MutexAutoLock lock(mLock);
@@ -517,77 +691,42 @@ nsDNSService::SetPrefetchEnabled(bool inVal)
     return NS_OK;
 }
 
-namespace {
-
-class DNSListenerProxy MOZ_FINAL : public nsIDNSListener
+static inline bool PreprocessHostname(bool              aLocalDomain,
+                                      const nsACString &aInput,
+                                      nsIIDNService    *aIDN,
+                                      nsACString       &aACE)
 {
-public:
-  DNSListenerProxy(nsIDNSListener* aListener, nsIEventTarget* aTargetThread)
-    // Sometimes aListener is a main-thread only object like XPCWrappedJS, and
-    // sometimes it's a threadsafe object like nsSOCKSSocketInfo. Use a main-
-    // thread pointer holder, but disable strict enforcement of thread invariants.
-    // The AddRef implementation of XPCWrappedJS will assert if we go wrong here.
-    : mListener(new nsMainThreadPtrHolder<nsIDNSListener>(aListener, false))
-    , mTargetThread(aTargetThread)
-  { }
+    if (aLocalDomain) {
+        aACE.AssignLiteral("localhost");
+        return true;
+    }
 
-  NS_DECL_ISUPPORTS
-  NS_DECL_NSIDNSLISTENER
+    if (!aIDN || IsASCII(aInput)) {
+        aACE = aInput;
+        return true;
+    }
 
-  class OnLookupCompleteRunnable : public nsRunnable
-  {
-  public:
-    OnLookupCompleteRunnable(nsMainThreadPtrHolder<nsIDNSListener>* aListener,
-                             nsICancelable* aRequest,
-                             nsIDNSRecord* aRecord,
-                             nsresult aStatus)
-      : mListener(aListener)
-      , mRequest(aRequest)
-      , mRecord(aRecord)
-      , mStatus(aStatus)
-    { }
-
-    NS_DECL_NSIRUNNABLE
-
-  private:
-    nsMainThreadPtrHandle<nsIDNSListener> mListener;
-    nsCOMPtr<nsICancelable> mRequest;
-    nsCOMPtr<nsIDNSRecord> mRecord;
-    nsresult mStatus;
-  };
-
-private:
-  nsMainThreadPtrHandle<nsIDNSListener> mListener;
-  nsCOMPtr<nsIEventTarget> mTargetThread;
-};
-
-NS_IMPL_THREADSAFE_ISUPPORTS1(DNSListenerProxy, nsIDNSListener)
-
-NS_IMETHODIMP
-DNSListenerProxy::OnLookupComplete(nsICancelable* aRequest,
-                                   nsIDNSRecord* aRecord,
-                                   nsresult aStatus)
-{
-  nsRefPtr<OnLookupCompleteRunnable> r =
-    new OnLookupCompleteRunnable(mListener, aRequest, aRecord, aStatus);
-  return mTargetThread->Dispatch(r, NS_DISPATCH_NORMAL);
+    return IsUTF8(aInput) && NS_SUCCEEDED(aIDN->ConvertUTF8toACE(aInput, aACE));
 }
 
 NS_IMETHODIMP
-DNSListenerProxy::OnLookupCompleteRunnable::Run()
-{
-  mListener->OnLookupComplete(mRequest, mRecord, mStatus);
-  return NS_OK;
-}
-
-} // anonymous namespace
-
-NS_IMETHODIMP
-nsDNSService::AsyncResolve(const nsACString  &hostname,
+nsDNSService::AsyncResolve(const nsACString  &aHostname,
                            uint32_t           flags,
                            nsIDNSListener    *listener,
                            nsIEventTarget    *target_,
                            nsICancelable    **result)
+{
+    return AsyncResolveExtended(aHostname, flags, EmptyCString(), listener, target_,
+                                result);
+}
+
+NS_IMETHODIMP
+nsDNSService::AsyncResolveExtended(const nsACString  &aHostname,
+                                   uint32_t           flags,
+                                   const nsACString  &aNetworkInterface,
+                                   nsIDNSListener    *listener,
+                                   nsIEventTarget    *target_,
+                                   nsICancelable    **result)
 {
     // grab reference to global host resolver and IDN service.  beware
     // simultaneous shutdown!!
@@ -603,27 +742,25 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
 
         res = mResolver;
         idn = mIDN;
-        localDomain = mLocalDomains.GetEntry(hostname);
+        localDomain = mLocalDomains.GetEntry(aHostname);
     }
+
+    if (mNotifyResolution) {
+        NS_DispatchToMainThread(new NotifyDNSResolution(mObserverService,
+                                                        aHostname));
+    }
+
     if (!res)
         return NS_ERROR_OFFLINE;
 
     if (mOffline)
         flags |= RESOLVE_OFFLINE;
 
-    const nsACString *hostPtr = &hostname;
+    nsCString hostname;
+    if (!PreprocessHostname(localDomain, aHostname, idn, hostname))
+        return NS_ERROR_FAILURE;
 
-    if (localDomain) {
-        hostPtr = &(NS_LITERAL_CSTRING("localhost"));
-    }
-
-    nsresult rv;
-    nsAutoCString hostACE;
-    if (idn && !IsASCII(*hostPtr)) {
-        if (NS_SUCCEEDED(idn->ConvertUTF8toACE(*hostPtr, hostACE)))
-            hostPtr = &hostACE;
-    }
-
+    // make sure JS callers get notification on the main thread
     nsCOMPtr<nsIXPConnectWrappedJS> wrappedListener = do_QueryInterface(listener);
     if (wrappedListener && !target) {
         nsCOMPtr<nsIThread> mainThread;
@@ -632,20 +769,26 @@ nsDNSService::AsyncResolve(const nsACString  &hostname,
     }
 
     if (target) {
-      listener = new DNSListenerProxy(listener, target);
+        listener = new DNSListenerProxy(listener, target);
     }
 
-    uint16_t af = GetAFForLookup(*hostPtr, flags);
+    uint16_t af = GetAFForLookup(hostname, flags);
 
     nsDNSAsyncRequest *req =
-            new nsDNSAsyncRequest(res, *hostPtr, listener, flags, af);
+        new nsDNSAsyncRequest(res, hostname, listener, flags, af,
+                              aNetworkInterface);
     if (!req)
         return NS_ERROR_OUT_OF_MEMORY;
     NS_ADDREF(*result = req);
 
+    MOZ_EVENT_TRACER_NAME_OBJECT(req, aHostname.BeginReading());
+    MOZ_EVENT_TRACER_WAIT(req, "net::dns::lookup");
+
     // addref for resolver; will be released when OnLookupComplete is called.
     NS_ADDREF(req);
-    rv = res->ResolveHost(req->mHost.get(), flags, af, req);
+    nsresult rv = res->ResolveHost(req->mHost.get(), flags, af,
+                                   req->mNetworkInterface.get(),
+                                   req);
     if (NS_FAILED(rv)) {
         NS_RELEASE(req);
         NS_RELEASE(*result);
@@ -659,10 +802,22 @@ nsDNSService::CancelAsyncResolve(const nsACString  &aHostname,
                                  nsIDNSListener    *aListener,
                                  nsresult           aReason)
 {
+    return CancelAsyncResolveExtended(aHostname, aFlags, EmptyCString(), aListener,
+                                      aReason);
+}
+
+NS_IMETHODIMP
+nsDNSService::CancelAsyncResolveExtended(const nsACString  &aHostname,
+                                         uint32_t           aFlags,
+                                         const nsACString  &aNetworkInterface,
+                                         nsIDNSListener    *aListener,
+                                         nsresult           aReason)
+{
     // grab reference to global host resolver and IDN service.  beware
     // simultaneous shutdown!!
     nsRefPtr<nsHostResolver> res;
     nsCOMPtr<nsIIDNService> idn;
+    bool localDomain = false;
     {
         MutexAutoLock lock(mLock);
 
@@ -671,26 +826,25 @@ nsDNSService::CancelAsyncResolve(const nsACString  &aHostname,
 
         res = mResolver;
         idn = mIDN;
+        localDomain = mLocalDomains.GetEntry(aHostname);
     }
     if (!res)
         return NS_ERROR_OFFLINE;
 
-    nsCString hostname(aHostname);
-
-    nsAutoCString hostACE;
-    if (idn && !IsASCII(aHostname)) {
-        if (NS_SUCCEEDED(idn->ConvertUTF8toACE(aHostname, hostACE)))
-            hostname = hostACE;
-    }
+    nsCString hostname;
+    if (!PreprocessHostname(localDomain, aHostname, idn, hostname))
+        return NS_ERROR_FAILURE;
 
     uint16_t af = GetAFForLookup(hostname, aFlags);
 
-    res->CancelAsyncRequest(hostname.get(), aFlags, af, aListener, aReason);
+    res->CancelAsyncRequest(hostname.get(), aFlags, af,
+                            nsPromiseFlatCString(aNetworkInterface).get(), aListener,
+                            aReason);
     return NS_OK;
 }
 
 NS_IMETHODIMP
-nsDNSService::Resolve(const nsACString &hostname,
+nsDNSService::Resolve(const nsACString &aHostname,
                       uint32_t          flags,
                       nsIDNSRecord    **result)
 {
@@ -703,25 +857,22 @@ nsDNSService::Resolve(const nsACString &hostname,
         MutexAutoLock lock(mLock);
         res = mResolver;
         idn = mIDN;
-        localDomain = mLocalDomains.GetEntry(hostname);
+        localDomain = mLocalDomains.GetEntry(aHostname);
     }
+
+    if (mNotifyResolution) {
+        NS_DispatchToMainThread(new NotifyDNSResolution(mObserverService,
+                                                        aHostname));
+    }
+
     NS_ENSURE_TRUE(res, NS_ERROR_OFFLINE);
 
     if (mOffline)
         flags |= RESOLVE_OFFLINE;
 
-    const nsACString *hostPtr = &hostname;
-
-    if (localDomain) {
-        hostPtr = &(NS_LITERAL_CSTRING("localhost"));
-    }
-
-    nsresult rv;
-    nsAutoCString hostACE;
-    if (idn && !IsASCII(*hostPtr)) {
-        if (NS_SUCCEEDED(idn->ConvertUTF8toACE(*hostPtr, hostACE)))
-            hostPtr = &hostACE;
-    }
+    nsCString hostname;
+    if (!PreprocessHostname(localDomain, aHostname, idn, hostname))
+        return NS_ERROR_FAILURE;
 
     //
     // sync resolve: since the host resolver only works asynchronously, we need
@@ -738,9 +889,9 @@ nsDNSService::Resolve(const nsACString &hostname,
     PR_EnterMonitor(mon);
     nsDNSSyncRequest syncReq(mon);
 
-    uint16_t af = GetAFForLookup(*hostPtr, flags);
+    uint16_t af = GetAFForLookup(hostname, flags);
 
-    rv = res->ResolveHost(PromiseFlatCString(*hostPtr).get(), flags, af, &syncReq);
+    nsresult rv = res->ResolveHost(hostname.get(), flags, af, "", &syncReq);
     if (NS_SUCCEEDED(rv)) {
         // wait for result
         while (!syncReq.mDone)
@@ -775,11 +926,22 @@ nsDNSService::GetMyHostName(nsACString &result)
 }
 
 NS_IMETHODIMP
-nsDNSService::Observe(nsISupports *subject, const char *topic, const PRUnichar *data)
+nsDNSService::Observe(nsISupports *subject, const char *topic, const char16_t *data)
 {
-    // we are only getting called if a preference has changed. 
-    NS_ASSERTION(strcmp(topic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID) == 0,
-        "unexpected observe call");
+    // We are only getting called if a preference has changed or there's a
+    // network link event.
+    NS_ASSERTION(strcmp(topic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID) == 0 ||
+                 strcmp(topic, "last-pb-context-exited") == 0 ||
+                 strcmp(topic, NS_NETWORK_LINK_TOPIC) == 0,
+                 "unexpected observe call");
+
+    if (!strcmp(topic, NS_NETWORK_LINK_TOPIC)) {
+        nsAutoCString converted = NS_ConvertUTF16toUTF8(data);
+        if (mResolver && !strcmp(converted.get(), NS_NETWORK_LINK_DATA_CHANGED)) {
+            mResolver->FlushCache();
+        }
+        return NS_OK;
+    }
 
     //
     // Shutdown and this function are both only called on the UI thread, so we don't
@@ -862,3 +1024,31 @@ nsDNSService::GetDNSCacheEntries(nsTArray<mozilla::net::DNSCacheEntries> *args)
     mResolver->GetDNSCacheEntries(args);
     return NS_OK;
 }
+
+size_t
+nsDNSService::SizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf) const
+{
+    // Measurement of the following members may be added later if DMD finds it
+    // is worthwhile:
+    // - mIDN
+    // - mLock
+
+    size_t n = mallocSizeOf(this);
+    n += mResolver->SizeOfIncludingThis(mallocSizeOf);
+    n += mIPv4OnlyDomains.SizeOfExcludingThisMustBeUnshared(mallocSizeOf);
+    n += mLocalDomains.SizeOfExcludingThis(mallocSizeOf);
+    return n;
+}
+
+MOZ_DEFINE_MALLOC_SIZE_OF(DNSServiceMallocSizeOf)
+
+NS_IMETHODIMP
+nsDNSService::CollectReports(nsIHandleReportCallback* aHandleReport,
+                             nsISupports* aData, bool aAnonymize)
+{
+    return MOZ_COLLECT_REPORT(
+        "explicit/network/dns-service", KIND_HEAP, UNITS_BYTES,
+        SizeOfIncludingThis(DNSServiceMallocSizeOf),
+        "Memory used for the DNS service.");
+}
+

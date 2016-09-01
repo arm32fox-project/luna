@@ -17,6 +17,7 @@ from mozpack.executables import (
     ELF,
     MACHO,
 )
+from buildconfig import substs
 
 TOOLCHAIN_PREFIX = ''
 
@@ -71,7 +72,7 @@ def dependentlibs_readelf(lib):
 
 def dependentlibs_otool(lib):
     '''Returns the list of dependencies declared in the given MACH-O dylib'''
-    proc = subprocess.Popen(['otool', '-l', lib], stdout = subprocess.PIPE)
+    proc = subprocess.Popen([substs['OTOOL'], '-l', lib], stdout = subprocess.PIPE)
     deps= []
     cmd = None
     for line in proc.stdout:
@@ -103,7 +104,11 @@ def dependentlibs(lib, libpaths, func):
             deppath = os.path.join(dir, dep)
             if os.path.exists(deppath):
                 deps.extend([d for d in dependentlibs(deppath, libpaths, func) if not d in deps])
-                deps.append(dep)
+                # Black list the ICU data DLL because preloading it at startup
+                # leads to startup performance problems because of its excessive
+                # size (around 10MB).
+                if not dep.startswith("icu"):
+                    deps.append(dep)
                 break
 
     return deps

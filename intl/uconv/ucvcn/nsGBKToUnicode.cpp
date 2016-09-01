@@ -13,28 +13,6 @@
 #include "nsGBKToUnicode.h"
 #include "gbku.h"
 
-
-//------------------------------------------------------------
-// nsGBKUnique2BytesToUnicode
-//------------------------------------------------------------
-class nsGBKUnique2BytesToUnicode : public nsTableDecoderSupport 
-{
-public:
-  nsGBKUnique2BytesToUnicode();
-  virtual ~nsGBKUnique2BytesToUnicode() 
-    { }
-protected:
-};
-
-static const uint16_t g_utGBKUnique2Bytes[] = {
-#include "gbkuniq2b.ut"
-};
-nsGBKUnique2BytesToUnicode::nsGBKUnique2BytesToUnicode() 
-  : nsTableDecoderSupport(u2BytesCharset, nullptr,
-        (uMappingTable*) &g_utGBKUnique2Bytes, 1) 
-{
-}
-
 //------------------------------------------------------------
 // nsGB18030Unique2BytesToUnicode
 //------------------------------------------------------------
@@ -97,10 +75,10 @@ nsGB18030Unique4BytesToUnicode::nsGB18030Unique4BytesToUnicode()
 #define LEGAL_GBK_4BYTE_FORTH_BYTE(c) \
       (UINT8_IN_RANGE(0x30, (c), 0x39))
 
-NS_IMETHODIMP nsGBKToUnicode::ConvertNoBuff(const char* aSrc,
-                                            int32_t * aSrcLength,
-                                            PRUnichar *aDest,
-                                            int32_t * aDestLength)
+NS_IMETHODIMP nsGB18030ToUnicode::ConvertNoBuff(const char* aSrc,
+                                                int32_t * aSrcLength,
+                                                char16_t *aDest,
+                                                int32_t * aDestLength)
 {
   int32_t i=0;
   int32_t iSrcLength = (*aSrcLength);
@@ -168,7 +146,7 @@ NS_IMETHODIMP nsGBKToUnicode::ConvertNoBuff(const char* aSrc,
              {
                if(DecodeToSurrogate(aSrc, aDest))
                {
-                 // surrogte two PRUnichar
+                 // surrogte two char16_t
                  iDestlen++;
                  aDest++;
                }  else {
@@ -229,15 +207,6 @@ NS_IMETHODIMP nsGBKToUnicode::ConvertNoBuff(const char* aSrc,
   return rv;
 }
 
-
-void nsGBKToUnicode::CreateExtensionDecoder()
-{
-  mExtensionDecoder = new nsGBKUnique2BytesToUnicode();
-}
-void nsGBKToUnicode::Create4BytesDecoder()
-{
-  m4BytesDecoder =  nullptr;
-}
 void nsGB18030ToUnicode::CreateExtensionDecoder()
 {
   mExtensionDecoder = new nsGB18030Unique2BytesToUnicode();
@@ -246,7 +215,7 @@ void nsGB18030ToUnicode::Create4BytesDecoder()
 {
   m4BytesDecoder = new nsGB18030Unique4BytesToUnicode();
 }
-bool nsGB18030ToUnicode::DecodeToSurrogate(const char* aSrc, PRUnichar* aOut)
+bool nsGB18030ToUnicode::DecodeToSurrogate(const char* aSrc, char16_t* aOut)
 {
   NS_ASSERTION(FIRST_BYTE_IS_SURROGATE(aSrc[0]),       "illegal first byte");
   NS_ASSERTION(LEGAL_GBK_4BYTE_SECOND_BYTE(aSrc[1]),   "illegal second byte");
@@ -279,7 +248,7 @@ bool nsGB18030ToUnicode::DecodeToSurrogate(const char* aSrc, PRUnichar* aOut)
 
   return true;
 }
-bool nsGBKToUnicode::TryExtensionDecoder(const char* aSrc, PRUnichar* aOut)
+bool nsGB18030ToUnicode::TryExtensionDecoder(const char* aSrc, char16_t* aOut)
 {
   if(!mExtensionDecoder)
     CreateExtensionDecoder();
@@ -300,11 +269,8 @@ bool nsGBKToUnicode::TryExtensionDecoder(const char* aSrc, PRUnichar* aOut)
   }
   return  false;
 }
-bool nsGBKToUnicode::DecodeToSurrogate(const char* aSrc, PRUnichar* aOut)
-{
-  return false;
-}
-bool nsGBKToUnicode::Try4BytesDecoder(const char* aSrc, PRUnichar* aOut)
+
+bool nsGB18030ToUnicode::Try4BytesDecoder(const char* aSrc, char16_t* aOut)
 {
   if(!m4BytesDecoder)
     Create4BytesDecoder();

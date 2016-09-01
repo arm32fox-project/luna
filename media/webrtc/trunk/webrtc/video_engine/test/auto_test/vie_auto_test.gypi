@@ -13,25 +13,18 @@
       'type': 'executable',
       'dependencies': [
         '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
-        '<(webrtc_root)/modules/modules.gyp:video_render_module',
-        '<(webrtc_root)/modules/modules.gyp:video_capture_module',
-        '<(webrtc_root)/voice_engine/voice_engine.gyp:voice_engine_core',
+        '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:metrics_default',
+        '<(webrtc_root)/modules/modules.gyp:video_capture_module_internal_impl',
+        '<(webrtc_root)/modules/modules.gyp:video_render_module_internal_impl',
+        '<(webrtc_root)/voice_engine/voice_engine.gyp:voice_engine',
         '<(DEPTH)/testing/gtest.gyp:gtest',
-        '<(DEPTH)/third_party/google-gflags/google-gflags.gyp:google-gflags',
+        '<(DEPTH)/third_party/gflags/gflags.gyp:gflags',
         '<(webrtc_root)/test/metrics.gyp:metrics',
+        '<(webrtc_root)/test/test.gyp:channel_transport',
         '<(webrtc_root)/test/test.gyp:test_support',
-        '<(webrtc_root)/test/libtest/libtest.gyp:libtest',
+        '<(webrtc_root)/test/test.gyp:field_trial',
         'video_engine_core',
         'libvietest',
-      ],
-      'include_dirs': [
-        'interface/',
-        'helpers/',
-        'primitives',
-        '../../include',
-        '../..',
-        '../../../modules/video_coding/codecs/interface',
-        '../../../common_video/interface',
       ],
       'sources': [
         'interface/vie_autotest.h',
@@ -50,7 +43,7 @@
         'automated/two_windows_fixture.cc',
         'automated/vie_api_integration_test.cc',
         'automated/vie_extended_integration_test.cc',
-        'automated/vie_rtp_fuzz_test.cc',
+        'automated/vie_network_test.cc',
         'automated/vie_standard_integration_test.cc',
         'automated/vie_video_verification_test.cc',
 
@@ -76,12 +69,9 @@
         'source/vie_autotest_base.cc',
         'source/vie_autotest_capture.cc',
         'source/vie_autotest_codec.cc',
-        'source/vie_autotest_encryption.cc',
-        'source/vie_autotest_file.cc',
         'source/vie_autotest_image_process.cc',
         'source/vie_autotest_loopback.cc',
         'source/vie_autotest_main.cc',
-        'source/vie_autotest_network.cc',
         'source/vie_autotest_render.cc',
         'source/vie_autotest_record.cc',
         'source/vie_autotest_rtp_rtcp.cc',
@@ -130,12 +120,29 @@
           },
         }],
       ], # conditions
+      # Disable warnings to enable Win64 build, issue 1323.
+      'msvs_disabled_warnings': [
+        4267,  # size_t to int truncation.
+      ],
     },
   ],
+  'conditions': [
+    ['test_isolation_mode != "noop"', {
+      'targets': [
+        {
+          'target_name': 'vie_auto_test_run',
+          'type': 'none',
+          'dependencies': [
+            'vie_auto_test',
+          ],
+          'includes': [
+            '../../../build/isolate.gypi',
+          ],
+          'sources': [
+            'vie_auto_test.isolate',
+          ],
+        },
+      ],
+    }],
+  ],
 }
-
-# Local Variables:
-# tab-width:2
-# indent-tabs-mode:nil
-# End:
-# vim: set expandtab tabstop=2 shiftwidth=2:

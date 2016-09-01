@@ -3,6 +3,14 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
+var disableWorkerTest =
+  "This test requires a precise 'executeSoon()' to complete reliably. On a " +
+  "worker 'executeSoon()' currently uses 'setTimeout()', and that switches " +
+  "to the timer thread and back before completing. That gives the IndexedDB " +
+  "transaction thread time to fully complete transactions and to place " +
+  "'complete' events in the worker thread's queue before the timer event, " +
+  "causing ordering problems in the spot marked 'Worker Fails Here' below.";
+
 var testGenerator = testSteps();
 
 function testSteps()
@@ -11,7 +19,7 @@ function testSteps()
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = unexpectedSuccessHandler;
-  let event = yield;
+  let event = yield undefined;
 
   let db = event.target.result;
   db.onerror = errorHandler;
@@ -21,13 +29,13 @@ function testSteps()
 
   let os = db.createObjectStore("foo", { autoIncrement: true });
   let index = os.createIndex("bar", "foo.bar");
-  event = yield;
+  event = yield undefined;
 
   is(request.transaction, event.target,
      "request.transaction should still be set");
 
   request.onsuccess = grabEventAndContinueHandler;
-  event = yield;
+  event = yield undefined;
 
   is(request.transaction, null, "request.transaction should be cleared");
 
@@ -41,6 +49,8 @@ function testSteps()
   let wasAbleToGrabObjectStoreOutsideOfCallback = false;
   let wasAbleToGrabIndexOutsideOfCallback = false;
   executeSoon(function() {
+    // Worker Fails Here! Due to the thread switching of 'executeSoon()' the
+    // transaction can commit and fire a 'complete' event before we continue.
     ok(!requestComplete, "Ordering is correct.");
     wasAbleToGrabObjectStoreOutsideOfCallback = !!transaction.objectStore("foo");
     wasAbleToGrabIndexOutsideOfCallback =
@@ -51,7 +61,7 @@ function testSteps()
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
 
-  event = yield;
+  event = yield undefined;
 
   requestComplete = true;
 
@@ -61,7 +71,7 @@ function testSteps()
      "Should be able to get index");
 
   transaction.oncomplete = grabEventAndContinueHandler;
-  yield;
+  yield undefined;
 
   try {
     transaction.objectStore("foo");
@@ -74,7 +84,7 @@ function testSteps()
   }
 
   continueToNextStep();
-  yield;
+  yield undefined;
 
   try {
     transaction.objectStore("foo");
@@ -87,5 +97,5 @@ function testSteps()
   }
 
   finishTest();
-  yield;
+  yield undefined;
 }

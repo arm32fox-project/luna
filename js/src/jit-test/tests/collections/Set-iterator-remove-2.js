@@ -1,7 +1,9 @@
 // A map iterator can cope with removing the next entry.
 
-var set = Set("abcd");
-var iter = set.iterator();
+load(libdir + "iteration.js");
+
+var set = new Set("abcd");
+var iter = set[Symbol.iterator]();
 var log = "";
 for (let x of iter) {
     log += x;

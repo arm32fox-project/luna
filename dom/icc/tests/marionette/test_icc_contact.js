@@ -1,116 +1,81 @@
 /* Any copyright is dedicated to the Public Domain.
-   http://creativecommons.org/publicdomain/zero/1.0/ */
+ * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-MARIONETTE_TIMEOUT = 30000;
+MARIONETTE_TIMEOUT = 60000;
+MARIONETTE_HEAD_JS = "head.js";
 
-SpecialPowers.addPermission("mobileconnection", true, document);
+function testReadContacts(aIcc, aType) {
+  log("testReadContacts: type=" + aType);
+  let iccId = aIcc.iccInfo.iccid;
+  return aIcc.readContacts(aType)
+    .then((aResult) => {
+      is(Array.isArray(aResult), true);
 
-let icc = navigator.mozIccManager;
-ok(icc instanceof MozIccManager, "icc is instanceof " + icc.constructor);
+      is(aResult[0].name[0], "Mozilla");
+      is(aResult[0].tel[0].value, "15555218201");
+      is(aResult[0].id, iccId + "1");
 
-function testReadContacts(type) {
-  let request = icc.readContacts(type);
-  request.onsuccess = function onsuccess() {
-    let contacts = request.result;
+      is(aResult[1].name[0], "Saßê黃");
+      is(aResult[1].tel[0].value, "15555218202");
+      is(aResult[1].id, iccId + "2");
 
-    is(Array.isArray(contacts), true);
+      is(aResult[2].name[0], "Fire 火");
+      is(aResult[2].tel[0].value, "15555218203");
+      is(aResult[2].id, iccId + "3");
 
-    is(contacts[0].name, "Mozilla");
-    is(contacts[0].tel[0].value, "15555218201");
+      is(aResult[3].name[0], "Huang 黃");
+      is(aResult[3].tel[0].value, "15555218204");
+      is(aResult[3].id, iccId + "4");
+    }, (aError) => {
+      ok(false, "Cannot get " + aType + " contacts");
+    });
+}
 
-    is(contacts[1].name, "Saßê黃");
-    is(contacts[1].tel[0].value, "15555218202");
-
-    is(contacts[2].name, "Fire 火");
-    is(contacts[2].tel[0].value, "15555218203");
-
-    is(contacts[3].name, "Huang 黃");
-    is(contacts[3].tel[0].value, "15555218204");
-
-    runNextTest();
-  };
-
-  request.onerror = function onerror() {
-    ok(false, "Cannot get " + type + " contacts");
-    runNextTest();
-  };
-};
-
-function testAddContact(type, pin2) {
-  let contact = new mozContact();
-
-  contact.init({
-    name: "add",
-    tel: [{value: "0912345678"}]
+function testAddContact(aIcc, aType, aPin2) {
+  log("testAddContact: type=" + aType + ", pin2=" + aPin2);
+  let contact = new mozContact({
+    name: ["add"],
+    tel: [{value: "0912345678"}],
+    email:[]
   });
 
-  let updateRequest = icc.updateContact(type, contact, pin2);
+  return aIcc.updateContact(aType, contact, aPin2)
+    .then((aResult) => {
+      // Get ICC contact for checking new contact
+      return aIcc.readContacts(aType)
+        .then((aResult) => {
+          // There are 4 SIM contacts which are harded in emulator
+          is(aResult.length, 5);
 
-  updateRequest.onsuccess = function onsuccess() {
-    // Get ICC contact for checking new contact
-
-    let getRequest = icc.readContacts(type);
-
-    getRequest.onsuccess = function onsuccess() {
-      let contacts = getRequest.result;
-
-      // There are 4 SIM contacts which are harded in emulator
-      is(contacts.length, 5);
-
-      is(contacts[4].name, "add");
-      is(contacts[4].tel[0].value, "0912345678");
-
-      runNextTest();
-    };
-
-    getRequest.onerror = function onerror() {
-      ok(false, "Cannot get " + type + " contacts: " + getRequest.error.name);
-      runNextTest();
-    };
-  };
-
-  updateRequest.onerror = function onerror() {
-    ok(false, "Cannot add " + type + " contact: " + updateRequest.error.name);
-    runNextTest();
-  };
-};
-
-function testReadAdnContacts() {
-  testReadContacts("adn");
+          is(aResult[4].name[0], "add");
+          is(aResult[4].tel[0].value, "0912345678");
+        }, (aError) => {
+          ok(false, "Cannot get " + aType + " contacts: " + aError.name);
+        })
+    }, (aError) => {
+      if (aType === "fdn" && aPin2 === undefined) {
+        ok(aError.name === "SimPin2",
+           "expected error when pin2 is not provided");
+      } else {
+        ok(false, "Cannot add " + aType + " contact: " + aError.name);
+      }
+    });
 }
 
-function testAddAdnContact() {
-  testAddContact("adn");
-}
+// Start tests
+startTestCommon(function() {
+  let icc = getMozIcc();
 
-function testReadFdnContacts() {
-  testReadContacts("fdn");
-}
-
-function testAddFdnContact() {
-  testAddContact("fdn", "0000");
-}
-
-let tests = [
-  testReadAdnContacts,
-  testAddAdnContact,
-  testReadFdnContacts,
-  testAddFdnContact
-];
-
-function runNextTest() {
-  let test = tests.pop();
-  if (!test) {
-    cleanUp();
-    return;
-  }
-
-  test();
-}
-
-function cleanUp() {
-  SpecialPowers.removePermission("mobileconnection", document);
-  finish();
-}
-
-runNextTest();
+  // Test read adn contacts
+  return testReadContacts(icc, "adn")
+    // Test add adn contacts
+    .then(() => testAddContact(icc, "adn"))
+    // Test read fdn contact
+    .then(() => testReadContacts(icc, "fdn"))
+    // Test add fdn contacts
+    .then(() => testAddContact(icc, "fdn", "0000"))
+    // Test add fdn contacts without passing pin2
+    .then(() => testAddContact(icc, "fdn"))
+    // Test read sdn contacts
+    .then(() => testReadContacts(icc, "sdn"));
+});

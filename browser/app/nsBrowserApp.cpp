@@ -8,7 +8,11 @@
 #include "application.ini.h"
 #include "nsXPCOMGlue.h"
 #if defined(XP_WIN)
+#undef _WIN32_WINNT
+#define _WIN32_WINNT 0x0600
 #include <windows.h>
+#include <winbase.h>
+#include <VersionHelpers.h>
 #include <stdlib.h>
 #include <io.h>
 #include <fcntl.h>
@@ -77,7 +81,7 @@ static void Output(const char *fmt, ... )
 #if MOZ_WINCONSOLE
   fwprintf_s(stderr, wide_msg);
 #else
-  MessageBoxW(NULL, 
+  MessageBoxW(nullptr, 
               wide_msg,
               L"Pale Moon",
               MB_OK | MB_ICONERROR | MB_SETFOREGROUND);
@@ -149,7 +153,7 @@ XRE_SetupDllBlocklistType XRE_SetupDllBlocklist;
 #endif
 XRE_StartupTimelineRecordType XRE_StartupTimelineRecord;
 XRE_mainType XRE_main;
-XRE_DisableWritePoisoningType XRE_DisableWritePoisoning;
+XRE_StopLateWriteChecksType XRE_StopLateWriteChecks;
 
 static const nsDynamicFunctionLoad kXULFuncs[] = {
     { "XRE_GetFileFromPath", (NSFuncPtr*) &XRE_GetFileFromPath },
@@ -160,7 +164,7 @@ static const nsDynamicFunctionLoad kXULFuncs[] = {
 #endif
     { "XRE_StartupTimelineRecord", (NSFuncPtr*) &XRE_StartupTimelineRecord },
     { "XRE_main", (NSFuncPtr*) &XRE_main },
-    { "XRE_DisableWritePoisoning", (NSFuncPtr*) &XRE_DisableWritePoisoning },
+    { "XRE_StopLateWriteChecks", (NSFuncPtr*) &XRE_StopLateWriteChecks },
     { nullptr, nullptr }
 };
 
@@ -170,6 +174,13 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
   nsresult rv;
   uint32_t mainFlags = 0;
 
+#ifdef XP_WIN
+  if (!IsWindowsVistaOrGreater()) {
+    Output("Couldn't load valid PE image.\n");
+    return 255;
+  }
+  
+#endif
   // Allow palemoon.exe to launch XULRunner apps via -app <application.ini>
   // Note that -app must be the *first* argument.
   const char *appDataFile = getenv("XUL_APP_FILE");
@@ -247,46 +258,6 @@ static int do_main(int argc, char* argv[], nsIFile *xreDirectory)
   return 255;
 }
 
-#ifdef XP_WIN
-
-/**
- * Used only when GetTickCount64 is not available on the platform.
- * Last result of GetTickCount call. Kept in [ms].
- */
-static DWORD sLastGTCResult = 0;
-
-/**
- *  Higher part of the 64-bit value of MozGetTickCount64,
- * incremented atomically.
- */
-static DWORD sLastGTCRollover = 0;
-
-/**
- * Function protecting GetTickCount result from rolling over. The original
- * code comes from the Windows implementation of the TimeStamp class minus the
- * locking harness which isn't needed here.
- *
- * @returns The current time in milliseconds
- */
-static ULONGLONG WINAPI
-MozGetTickCount64()
-{
-  DWORD GTC = ::GetTickCount();
-
-  /* Pull the rollover counter forward only if new value of GTC goes way
-   * down under the last saved result */
-  if ((sLastGTCResult > GTC) && ((sLastGTCResult - GTC) > (1UL << 30)))
-    ++sLastGTCRollover;
-
-  sLastGTCResult = GTC;
-  return (ULONGLONG)sLastGTCRollover << 32 | sLastGTCResult;
-}
-
-typedef ULONGLONG (WINAPI* GetTickCount64_t)();
-static GetTickCount64_t sGetTickCount64 = nullptr;
-
-#endif
-
 /**
  * Local TimeStamp::Now()-compatible implementation used to record timestamps
  * which will be passed to XRE_StartupTimelineRecord().
@@ -297,18 +268,7 @@ TimeStamp_Now()
 #ifdef XP_WIN
   LARGE_INTEGER freq;
   ::QueryPerformanceFrequency(&freq);
-
-  HMODULE kernelDLL = GetModuleHandleW(L"kernel32.dll");
-  sGetTickCount64 = reinterpret_cast<GetTickCount64_t>
-    (GetProcAddress(kernelDLL, "GetTickCount64"));
-
-  if (!sGetTickCount64) {
-    /* If the platform does not support the GetTickCount64 (Windows XP doesn't),
-     * then use our fallback implementation based on GetTickCount. */
-    sGetTickCount64 = MozGetTickCount64;
-  }
-
-  return sGetTickCount64() * freq.QuadPart;
+  return GetTickCount64() * freq.QuadPart;
 #elif defined(XP_MACOSX)
   return mach_absolute_time();
 #elif defined(HAVE_CLOCK_MONOTONIC)
@@ -375,13 +335,13 @@ InitXPCOMGlue(const char *argv0, nsIFile **xreDirectory)
     }
     if (absfwurl) {
       CFURLRef xulurl =
-        CFURLCreateCopyAppendingPathComponent(NULL, absfwurl,
+        CFURLCreateCopyAppendingPathComponent(nullptr, absfwurl,
                                               CFSTR("XUL.framework"),
                                               true);
 
       if (xulurl) {
         CFURLRef xpcomurl =
-          CFURLCreateCopyAppendingPathComponent(NULL, xulurl,
+          CFURLCreateCopyAppendingPathComponent(nullptr, xulurl,
                                                 CFSTR("libxpcom.dylib"),
                                                 false);
 
@@ -480,7 +440,7 @@ int main(int argc, char* argv[])
   // at least one such write that we don't control (see bug 826029). For
   // now we enable writes again and early exits will have to use exit instead
   // of _exit.
-  XRE_DisableWritePoisoning();
+  XRE_StopLateWriteChecks();
 #endif
 
   return result;

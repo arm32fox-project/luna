@@ -6,6 +6,9 @@
 
 #include "nsWrapperCacheInlines.h"
 
+#include "js/Proxy.h"
+#include "mozilla/dom/DOMJSProxyHandler.h"
+#include "mozilla/HoldDropJSObjects.h"
 #include "nsCycleCollectionTraversalCallback.h"
 #include "nsCycleCollector.h"
 
@@ -16,7 +19,23 @@ using namespace mozilla::dom;
 nsWrapperCache::HoldJSObjects(void* aScriptObjectHolder,
                               nsScriptObjectTracer* aTracer)
 {
-  cyclecollector::AddJSHolder(aScriptObjectHolder, aTracer);
+  cyclecollector::HoldJSObjectsImpl(aScriptObjectHolder, aTracer);
+}
+
+void
+nsWrapperCache::ReleaseWrapper(void* aScriptObjectHolder)
+{
+  if (PreservingWrapper()) {
+    // PreserveWrapper puts new DOM bindings in the JS holders hash, but they
+    // can also be in the DOM expando hash, so we need to try to remove them
+    // from both here.
+    JSObject* obj = GetWrapperPreserveColor();
+    if (IsDOMBinding() && obj && js::IsProxy(obj)) {
+      DOMProxyHandler::GetAndClearExpandoObject(obj);
+    }
+    SetPreservingWrapper(false);
+    cyclecollector::DropJSObjectsImpl(aScriptObjectHolder);
+  }
 }
 
 #ifdef DEBUG
@@ -24,7 +43,7 @@ nsWrapperCache::HoldJSObjects(void* aScriptObjectHolder,
 class DebugWrapperTraversalCallback : public nsCycleCollectionTraversalCallback
 {
 public:
-  DebugWrapperTraversalCallback(void* aWrapper)
+  explicit DebugWrapperTraversalCallback(JSObject* aWrapper)
     : mFound(false)
     , mWrapper(aWrapper)
   {
@@ -36,15 +55,19 @@ public:
   {
   }
   NS_IMETHOD_(void) DescribeGCedNode(bool aIsMarked,
-                                     const char* aObjName)
+                                     const char* aObjName,
+                                     uint64_t aCompartmentAddress)
   {
   }
 
-  NS_IMETHOD_(void) NoteJSChild(void* aChild)
+  NS_IMETHOD_(void) NoteJSObject(JSObject* aChild)
   {
     if (aChild == mWrapper) {
       mFound = true;
     }
+  }
+  NS_IMETHOD_(void) NoteJSScript(JSScript* aChild)
+  {
   }
   NS_IMETHOD_(void) NoteXPCOMChild(nsISupports* aChild)
   {
@@ -61,15 +84,17 @@ public:
   bool mFound;
 
 private:
-  void* mWrapper;
+  JSObject* mWrapper;
 };
 
 static void
-DebugWrapperTraceCallback(void* aP, const char* aName, void* aClosure)
+DebugWrapperTraceCallback(JS::GCCellPtr aPtr, const char* aName, void* aClosure)
 {
   DebugWrapperTraversalCallback* callback =
     static_cast<DebugWrapperTraversalCallback*>(aClosure);
-  callback->NoteJSChild(aP);
+  if (aPtr.isObject()) {
+    callback->NoteJSObject(aPtr.toObject());
+  }
 }
 
 void
@@ -82,6 +107,10 @@ nsWrapperCache::CheckCCWrapperTraversal(void* aScriptObjectHolder,
   }
 
   DebugWrapperTraversalCallback callback(wrapper);
+
+  // The CC traversal machinery cannot trigger GC; however, the analysis cannot
+  // see through the COM layer, so we use a suppression to help it.
+  JS::AutoSuppressGCAnalysis suppress;
 
   aTracer->Traverse(aScriptObjectHolder, callback);
   MOZ_ASSERT(callback.mFound,

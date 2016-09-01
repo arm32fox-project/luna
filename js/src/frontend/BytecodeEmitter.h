@@ -10,47 +10,75 @@
 /*
  * JS bytecode generation.
  */
-#include "jsatom.h"
+
+#include "jscntxt.h"
 #include "jsopcode.h"
 #include "jsscript.h"
-#include "jspubtd.h"
 
 #include "frontend/ParseMaps.h"
-#include "frontend/SharedContext.h"
 #include "frontend/SourceNotes.h"
 
-#include "vm/ScopeObject.h"
-
 namespace js {
+
+class StaticEvalObject;
+
 namespace frontend {
 
-struct CGTryNoteList {
-    Vector<JSTryNote> list;
-    CGTryNoteList(JSContext *cx) : list(cx) {}
-
-    bool append(JSTryNoteKind kind, unsigned stackDepth, size_t start, size_t end);
-    size_t length() const { return list.length(); }
-    void finish(TryNoteArray *array);
-};
-
-struct CGObjectList {
-    uint32_t            length;     /* number of emitted so far objects */
-    ObjectBox           *lastbox;   /* last emitted object */
-
-    CGObjectList() : length(0), lastbox(NULL) {}
-
-    unsigned add(ObjectBox *objbox);
-    unsigned indexOf(JSObject *obj);
-    void finish(ObjectArray *array);
-};
+class FullParseHandler;
+class ObjectBox;
+class ParseNode;
+template <typename ParseHandler> class Parser;
+class SharedContext;
+class TokenStream;
 
 class CGConstList {
     Vector<Value> list;
   public:
-    CGConstList(JSContext *cx) : list(cx) {}
-    bool append(Value v) { JS_ASSERT_IF(v.isString(), v.toString()->isAtom()); return list.append(v); }
+    explicit CGConstList(ExclusiveContext* cx) : list(cx) {}
+    bool append(Value v) { MOZ_ASSERT_IF(v.isString(), v.toString()->isAtom()); return list.append(v); }
     size_t length() const { return list.length(); }
-    void finish(ConstArray *array);
+    void finish(ConstArray* array);
+};
+
+struct CGObjectList {
+    uint32_t            length;     /* number of emitted so far objects */
+    ObjectBox*          lastbox;   /* last emitted object */
+
+    CGObjectList() : length(0), lastbox(nullptr) {}
+
+    unsigned add(ObjectBox* objbox);
+    unsigned indexOf(JSObject* obj);
+    void finish(ObjectArray* array);
+    ObjectBox* find(uint32_t index);
+};
+
+struct CGTryNoteList {
+    Vector<JSTryNote> list;
+    explicit CGTryNoteList(ExclusiveContext* cx) : list(cx) {}
+
+    bool append(JSTryNoteKind kind, uint32_t stackDepth, size_t start, size_t end);
+    size_t length() const { return list.length(); }
+    void finish(TryNoteArray* array);
+};
+
+struct CGBlockScopeList {
+    Vector<BlockScopeNote> list;
+    explicit CGBlockScopeList(ExclusiveContext* cx) : list(cx) {}
+
+    bool append(uint32_t scopeObject, uint32_t offset, uint32_t parent);
+    uint32_t findEnclosingScope(uint32_t index);
+    void recordEnd(uint32_t index, uint32_t offset);
+    size_t length() const { return list.length(); }
+    void finish(BlockScopeArray* array);
+};
+
+struct CGYieldOffsetList {
+    Vector<uint32_t> list;
+    explicit CGYieldOffsetList(ExclusiveContext* cx) : list(cx) {}
+
+    bool append(uint32_t offset) { return list.append(offset); }
+    size_t length() const { return list.length(); }
+    void finish(YieldOffsetArray& array, uint32_t prologLength);
 };
 
 struct StmtInfoBCE;
@@ -64,11 +92,14 @@ struct BytecodeEmitter
 {
     typedef StmtInfoBCE StmtInfo;
 
-    SharedContext   *const sc;      /* context shared between parsing and bytecode generation */
+    SharedContext*  const sc;      /* context shared between parsing and bytecode generation */
 
-    BytecodeEmitter *const parent;  /* enclosing function or global context */
+    BytecodeEmitter* const parent;  /* enclosing function or global context */
 
     Rooted<JSScript*> script;       /* the JSScript we're ultimately producing */
+
+    Rooted<LazyScript*> lazyScript; /* the lazy script if mode is LazyFunction,
+                                        nullptr otherwise. */
 
     struct EmitSection {
         BytecodeVector code;        /* bytecode */
@@ -78,31 +109,38 @@ struct BytecodeEmitter
         uint32_t    lastColumn;     /* zero-based column index on currentLine of
                                        last SRC_COLSPAN-annotated opcode */
 
-        EmitSection(JSContext *cx, uint32_t lineNum)
+        EmitSection(ExclusiveContext* cx, uint32_t lineNum)
           : code(cx), notes(cx), lastNoteOffset(0), currentLine(lineNum), lastColumn(0)
         {}
     };
     EmitSection prolog, main, *current;
 
     /* the parser */
-    Parser<FullParseHandler> *const parser;
+    Parser<FullParseHandler>* const parser;
 
     HandleScript    evalCaller;     /* scripted caller info for eval and dbgapi */
+    Handle<StaticEvalObject*> evalStaticScope;
+                                   /* compile time scope for eval; does not imply stmt stack */
 
-    StmtInfoBCE     *topStmt;       /* top of statement info stack */
-    StmtInfoBCE     *topScopeStmt;  /* top lexical scope statement */
-    Rooted<StaticBlockObject *> blockChain;
-                                    /* compile time block scope chain */
+    StmtInfoBCE*    topStmt;       /* top of statement info stack */
+    StmtInfoBCE*    topScopeStmt;  /* top lexical scope statement */
+    Rooted<NestedScopeObject*> staticScope;
+                                    /* compile time scope chain */
 
     OwnedAtomIndexMapPtr atomIndices; /* literals indexed for mapping */
     unsigned        firstLine;      /* first line, for JSScript::initFromEmitter */
 
-    int             stackDepth;     /* current stack depth in script frame */
-    unsigned        maxStackDepth;  /* maximum stack depth so far */
+    /*
+     * Only unaliased locals have stack slots assigned to them. This vector is
+     * used to map a local index (which includes unaliased and aliased locals)
+     * to its stack slot index.
+     */
+    Vector<uint32_t, 16> localsToFrameSlots_;
 
-    CGTryNoteList   tryNoteList;    /* list of emitted try notes */
+    int32_t         stackDepth;     /* current stack depth in script frame */
+    uint32_t        maxStackDepth;  /* maximum stack depth so far */
 
-    unsigned        arrayCompDepth; /* stack depth of array in comprehension */
+    uint32_t        arrayCompDepth; /* stack depth of array in comprehension */
 
     unsigned        emitLevel;      /* js::frontend::EmitTree recursion level */
 
@@ -111,15 +149,27 @@ struct BytecodeEmitter
     CGObjectList    objectList;     /* list of emitted objects */
     CGObjectList    regexpList;     /* list of emitted regexp that will be
                                        cloned during execution */
+    CGTryNoteList   tryNoteList;    /* list of emitted try notes */
+    CGBlockScopeList blockScopeList;/* list of emitted block scope notes */
+
+    /*
+     * For each yield op, map the yield index (stored as bytecode operand) to
+     * the offset of the next op.
+     */
+    CGYieldOffsetList yieldOffsetList;
 
     uint16_t        typesetCount;   /* Number of JOF_TYPESET opcodes generated */
 
     bool            hasSingletons:1;    /* script contains singleton initializer JSOP_OBJECT */
 
+    bool            hasTryFinally:1;    /* script contains finally block */
+
     bool            emittingForInit:1;  /* true while emitting init expr of for; exclude 'in' */
 
     bool            emittingRunOnceLambda:1; /* true while emitting a lambda which is only
                                                 expected to run once. */
+
+    bool isRunOnceLambda();
 
     bool            insideEval:1;       /* True if compiling an eval-expression or a function
                                            nested inside an eval. */
@@ -131,8 +181,8 @@ struct BytecodeEmitter
         Normal,
 
         /*
-         * Emit JSOP_CALLINTRINSIC instead of JSOP_NAME and assert that
-         * JSOP_NAME and JSOP_*GNAME don't ever get emitted. See the comment
+         * Emit JSOP_GETINTRINSIC instead of JSOP_GETNAME and assert that
+         * JSOP_GETNAME and JSOP_*GNAME don't ever get emitted. See the comment
          * for the field |selfHostingMode| in Parser.h for details.
          */
         SelfHosting,
@@ -152,15 +202,18 @@ struct BytecodeEmitter
      * tempLifoAlloc and save the pointer beyond the next BytecodeEmitter
      * destruction.
      */
-    BytecodeEmitter(BytecodeEmitter *parent, Parser<FullParseHandler> *parser, SharedContext *sc,
-                    HandleScript script, bool insideEval, HandleScript evalCaller,
-                    bool hasGlobalScope, uint32_t lineNum, EmitterMode emitterMode = Normal);
+    BytecodeEmitter(BytecodeEmitter* parent, Parser<FullParseHandler>* parser, SharedContext* sc,
+                    HandleScript script, Handle<LazyScript*> lazyScript,
+                    bool insideEval, HandleScript evalCaller,
+                    Handle<StaticEvalObject*> evalStaticScope, bool hasGlobalScope,
+                    uint32_t lineNum, EmitterMode emitterMode = Normal);
     bool init();
+    bool updateLocalsToFrameSlots();
 
-    bool isAliasedName(ParseNode *pn);
+    bool isAliasedName(ParseNode* pn);
 
-    JS_ALWAYS_INLINE
-    bool makeAtomIndex(JSAtom *atom, jsatomid *indexp) {
+    MOZ_ALWAYS_INLINE
+    bool makeAtomIndex(JSAtom* atom, jsatomid* indexp) {
         AtomIndexAddPtr p = atomIndices->lookupForAdd(atom);
         if (p) {
             *indexp = p.value();
@@ -180,64 +233,62 @@ struct BytecodeEmitter
 
     bool needsImplicitThis();
 
-    void tellDebuggerAboutCompiledScript(JSContext *cx);
+    void tellDebuggerAboutCompiledScript(ExclusiveContext* cx);
 
-    inline TokenStream *tokenStream();
+    inline TokenStream* tokenStream();
 
-    BytecodeVector &code() const { return current->code; }
-    jsbytecode *code(ptrdiff_t offset) const { return current->code.begin() + offset; }
+    BytecodeVector& code() const { return current->code; }
+    jsbytecode* code(ptrdiff_t offset) const { return current->code.begin() + offset; }
     ptrdiff_t offset() const { return current->code.end() - current->code.begin(); }
     ptrdiff_t prologOffset() const { return prolog.code.end() - prolog.code.begin(); }
     void switchToMain() { current = &main; }
     void switchToProlog() { current = &prolog; }
 
-    SrcNotesVector &notes() const { return current->notes; }
+    SrcNotesVector& notes() const { return current->notes; }
     ptrdiff_t lastNoteOffset() const { return current->lastNoteOffset; }
     unsigned currentLine() const { return current->currentLine; }
     unsigned lastColumn() const { return current->lastColumn; }
 
-    inline ptrdiff_t countFinalSourceNotes();
-
-    bool reportError(ParseNode *pn, unsigned errorNumber, ...);
-    bool reportStrictWarning(ParseNode *pn, unsigned errorNumber, ...);
-    bool reportStrictModeError(ParseNode *pn, unsigned errorNumber, ...);
+    bool reportError(ParseNode* pn, unsigned errorNumber, ...);
+    bool reportStrictWarning(ParseNode* pn, unsigned errorNumber, ...);
+    bool reportStrictModeError(ParseNode* pn, unsigned errorNumber, ...);
 };
 
 /*
  * Emit one bytecode.
  */
 ptrdiff_t
-Emit1(JSContext *cx, BytecodeEmitter *bce, JSOp op);
+Emit1(ExclusiveContext* cx, BytecodeEmitter* bce, JSOp op);
 
 /*
  * Emit two bytecodes, an opcode (op) with a byte of immediate operand (op1).
  */
 ptrdiff_t
-Emit2(JSContext *cx, BytecodeEmitter *bce, JSOp op, jsbytecode op1);
+Emit2(ExclusiveContext* cx, BytecodeEmitter* bce, JSOp op, jsbytecode op1);
 
 /*
  * Emit three bytecodes, an opcode with two bytes of immediate operands.
  */
 ptrdiff_t
-Emit3(JSContext *cx, BytecodeEmitter *bce, JSOp op, jsbytecode op1, jsbytecode op2);
+Emit3(ExclusiveContext* cx, BytecodeEmitter* bce, JSOp op, jsbytecode op1, jsbytecode op2);
 
 /*
  * Emit (1 + extra) bytecodes, for N bytes of op and its immediate operand.
  */
 ptrdiff_t
-EmitN(JSContext *cx, BytecodeEmitter *bce, JSOp op, size_t extra);
+EmitN(ExclusiveContext* cx, BytecodeEmitter* bce, JSOp op, size_t extra);
 
 /*
  * Emit code into bce for the tree rooted at pn.
  */
 bool
-EmitTree(JSContext *cx, BytecodeEmitter *bce, ParseNode *pn);
+EmitTree(ExclusiveContext* cx, BytecodeEmitter* bce, ParseNode* pn);
 
 /*
  * Emit function code using bce for the tree rooted at body.
  */
 bool
-EmitFunctionScript(JSContext *cx, BytecodeEmitter *bce, ParseNode *body);
+EmitFunctionScript(ExclusiveContext* cx, BytecodeEmitter* bce, ParseNode* body);
 
 /*
  * Append a new source note of the given type (and therefore size) to bce's
@@ -246,53 +297,24 @@ EmitFunctionScript(JSContext *cx, BytecodeEmitter *bce, ParseNode *body);
  * memory.
  */
 int
-NewSrcNote(JSContext *cx, BytecodeEmitter *bce, SrcNoteType type);
+NewSrcNote(ExclusiveContext* cx, BytecodeEmitter* bce, SrcNoteType type);
 
 int
-NewSrcNote2(JSContext *cx, BytecodeEmitter *bce, SrcNoteType type, ptrdiff_t offset);
+NewSrcNote2(ExclusiveContext* cx, BytecodeEmitter* bce, SrcNoteType type, ptrdiff_t offset);
 
 int
-NewSrcNote3(JSContext *cx, BytecodeEmitter *bce, SrcNoteType type, ptrdiff_t offset1,
+NewSrcNote3(ExclusiveContext* cx, BytecodeEmitter* bce, SrcNoteType type, ptrdiff_t offset1,
                ptrdiff_t offset2);
 
 /* NB: this function can add at most one extra extended delta note. */
 bool
-AddToSrcNoteDelta(JSContext *cx, BytecodeEmitter *bce, jssrcnote *sn, ptrdiff_t delta);
+AddToSrcNoteDelta(ExclusiveContext* cx, BytecodeEmitter* bce, jssrcnote* sn, ptrdiff_t delta);
 
 bool
-FinishTakingSrcNotes(JSContext *cx, BytecodeEmitter *bce, jssrcnote *notes);
+FinishTakingSrcNotes(ExclusiveContext* cx, BytecodeEmitter* bce, uint32_t* out);
 
-/*
- * Finish taking source notes in cx's notePool, copying final notes to the new
- * stable store allocated by the caller and passed in via notes. Return false
- * on malloc failure, which means this function reported an error.
- *
- * Use this to compute the number of jssrcnotes to allocate and pass in via
- * notes. This method knows a lot about details of FinishTakingSrcNotes, so
- * DON'T CHANGE js::frontend::FinishTakingSrcNotes WITHOUT CHECKING WHETHER
- * THIS METHOD NEEDS CORRESPONDING CHANGES!
- */
-inline ptrdiff_t
-BytecodeEmitter::countFinalSourceNotes()
-{
-    ptrdiff_t diff = prologOffset() - prolog.lastNoteOffset;
-    ptrdiff_t cnt = prolog.notes.length() + main.notes.length() + 1;
-    if (prolog.notes.length() && prolog.currentLine != firstLine) {
-        if (diff > SN_DELTA_MASK)
-            cnt += JS_HOWMANY(diff - SN_DELTA_MASK, SN_XDELTA_MASK);
-        cnt += 2 + ((firstLine > SN_3BYTE_OFFSET_MASK) << 1);
-    } else if (diff > 0) {
-        if (main.notes.length()) {
-            jssrcnote *sn = main.notes.begin();
-            diff -= SN_IS_XDELTA(sn)
-                    ? SN_XDELTA_MASK - (*sn & SN_XDELTA_MASK)
-                    : SN_DELTA_MASK - (*sn & SN_DELTA_MASK);
-        }
-        if (diff > 0)
-            cnt += JS_HOWMANY(diff, SN_XDELTA_MASK);
-    }
-    return cnt;
-}
+void
+CopySrcNotes(BytecodeEmitter* bce, jssrcnote* destination, uint32_t nsrcnotes);
 
 } /* namespace frontend */
 } /* namespace js */

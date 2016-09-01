@@ -20,12 +20,15 @@
 #include "mozilla/Attributes.h"
 #include "nsIURI.h"
 
-class nsUnixSystemProxySettings MOZ_FINAL : public nsISystemProxySettings {
+class nsUnixSystemProxySettings final : public nsISystemProxySettings {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSISYSTEMPROXYSETTINGS
 
-  nsUnixSystemProxySettings() {}
+  nsUnixSystemProxySettings()
+    : mSchemeProxySettings(4)
+  {
+  }
   nsresult Init();
 
 private:
@@ -42,7 +45,7 @@ private:
   nsresult SetProxyResultFromGSettings(const char* aKeyBase, const char* aType, nsACString& aResult);
 };
 
-NS_IMPL_ISUPPORTS1(nsUnixSystemProxySettings, nsISystemProxySettings)
+NS_IMPL_ISUPPORTS(nsUnixSystemProxySettings, nsISystemProxySettings)
 
 NS_IMETHODIMP
 nsUnixSystemProxySettings::GetMainThreadOnly(bool *aMainThreadOnly)
@@ -55,7 +58,6 @@ nsUnixSystemProxySettings::GetMainThreadOnly(bool *aMainThreadOnly)
 nsresult
 nsUnixSystemProxySettings::Init()
 {
-  mSchemeProxySettings.Init(5);
   mGSettings = do_GetService(NS_GSETTINGSSERVICE_CONTRACTID);
   if (mGSettings) {
     mGSettings->GetCollectionForSchema(NS_LITERAL_CSTRING("org.gnome.system.proxy"),
@@ -83,7 +85,7 @@ nsUnixSystemProxySettings::GetPACURI(nsACString& aResult)
     nsCString proxyMode;
     // Check if mode is auto
     nsresult rv = mProxySettings->GetString(NS_LITERAL_CSTRING("mode"), proxyMode);
-    if (rv == NS_OK && proxyMode.Equals("auto")) {
+    if (rv == NS_OK && proxyMode.EqualsLiteral("auto")) {
       return mProxySettings->GetString(NS_LITERAL_CSTRING("autoconfig-url"), aResult);
     }
     /* The org.gnome.system.proxy schema has been found, but auto mode is not set.
@@ -311,7 +313,7 @@ proxy_MaskIPv6Addr(PRIPv6Addr &addr, uint16_t mask_len)
 }
 
 static bool ConvertToIPV6Addr(const nsACString& aName,
-                                PRIPv6Addr* aAddr)
+                                PRIPv6Addr* aAddr, int32_t* aMask)
 {
   PRNetAddr addr;
   // try to convert hostname to IP
@@ -322,6 +324,12 @@ static bool ConvertToIPV6Addr(const nsACString& aName,
   if (addr.raw.family == PR_AF_INET) {
     // convert to IPv4-mapped address
     PR_ConvertIPv4AddrToIPv6(addr.inet.ip, aAddr);
+    if (aMask) {
+      if (*aMask <= 32)
+        *aMask += 96;
+      else
+        return false;
+    }
   } else if (addr.raw.family == PR_AF_INET6) {
     // copy the address
     memcpy(aAddr, &addr.ipv6.ip, sizeof(PRIPv6Addr));
@@ -366,8 +374,8 @@ static bool HostIgnoredByProxy(const nsACString& aIgnore,
 
   nsDependentCSubstring ignoreStripped(start, slash);
   PRIPv6Addr ignoreAddr, hostAddr;
-  if (!ConvertToIPV6Addr(ignoreStripped, &ignoreAddr) ||
-      !ConvertToIPV6Addr(aHost, &hostAddr))
+  if (!ConvertToIPV6Addr(ignoreStripped, &ignoreAddr, &mask) ||
+      !ConvertToIPV6Addr(aHost, &hostAddr, nullptr))
     return false;
 
   proxy_MaskIPv6Addr(ignoreAddr, mask);
@@ -443,7 +451,7 @@ nsUnixSystemProxySettings::GetProxyFromGSettings(const nsACString& aScheme,
   NS_ENSURE_SUCCESS(rv, rv);
   
   // return NS_ERROR_FAILURE when no proxy is set
-  if (!proxyMode.Equals("manual")) {
+  if (!proxyMode.EqualsLiteral("manual")) {
     return NS_ERROR_FAILURE;
   }
 
@@ -516,13 +524,13 @@ NS_GENERIC_FACTORY_CONSTRUCTOR_INIT(nsUnixSystemProxySettings, Init)
 NS_DEFINE_NAMED_CID(NS_UNIXSYSTEMPROXYSERVICE_CID);
 
 static const mozilla::Module::CIDEntry kUnixProxyCIDs[] = {
-  { &kNS_UNIXSYSTEMPROXYSERVICE_CID, false, NULL, nsUnixSystemProxySettingsConstructor },
-  { NULL }
+  { &kNS_UNIXSYSTEMPROXYSERVICE_CID, false, nullptr, nsUnixSystemProxySettingsConstructor },
+  { nullptr }
 };
 
 static const mozilla::Module::ContractIDEntry kUnixProxyContracts[] = {
   { NS_SYSTEMPROXYSETTINGS_CONTRACTID, &kNS_UNIXSYSTEMPROXYSERVICE_CID },
-  { NULL }
+  { nullptr }
 };
 
 static const mozilla::Module kUnixProxyModule = {

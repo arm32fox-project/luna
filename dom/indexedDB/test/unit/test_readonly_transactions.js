@@ -3,13 +3,6 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
-if (!this.window) {
-  this.runTest = function() {
-    todo(false, "Test disabled in xpcshell test suite for now");
-    finishTest();
-  }
-}
-
 var testGenerator = testSteps();
 
 function testSteps()
@@ -21,14 +14,14 @@ function testSteps()
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  let event = yield;
+  let event = yield undefined;
 
   let db = event.target.result;
   is(db.objectStoreNames.length, 0, "Correct objectStoreNames list");
 
   db.createObjectStore(osName, { autoIncrement: "true" });
 
-  yield;
+  yield undefined;
 
   let key1, key2;
 
@@ -41,7 +34,7 @@ function testSteps()
     key1 = event.target.result;
     testGenerator.next();
   }
-  yield;
+  yield undefined;
 
   request = db.transaction(osName, "readwrite").objectStore(osName).add({});
   request.onerror = errorHandler;
@@ -50,7 +43,7 @@ function testSteps()
     key2 = event.target.result;
     testGenerator.next();
   }
-  yield;
+  yield undefined;
 
   request = db.transaction([osName], "readwrite")
               .objectStore(osName)
@@ -60,7 +53,7 @@ function testSteps()
     is(event.target.transaction.mode, "readwrite", "Correct mode");
     testGenerator.next();
   }
-  yield;
+  yield undefined;
 
   request = db.transaction(osName, "readwrite")
               .objectStore(osName)
@@ -70,7 +63,7 @@ function testSteps()
     is(event.target.transaction.mode, "readwrite", "Correct mode");
     testGenerator.next();
   }
-  yield;
+  yield undefined;
 
   request = db.transaction([osName], "readwrite")
               .objectStore(osName)
@@ -80,7 +73,7 @@ function testSteps()
     is(event.target.transaction.mode, "readwrite", "Correct mode");
     testGenerator.next();
   }
-  yield;
+  yield undefined;
 
   request = db.transaction(osName, "readwrite")
               .objectStore(osName)
@@ -90,7 +83,7 @@ function testSteps()
     is(event.target.transaction.mode, "readwrite", "Correct mode");
     testGenerator.next();
   }
-  yield;
+  yield undefined;
 
   request = db.transaction([osName], "readwrite")
               .objectStore(osName)
@@ -100,7 +93,7 @@ function testSteps()
     is(event.target.transaction.mode, "readwrite", "Correct mode");
     testGenerator.next();
   }
-  yield;
+  yield undefined;
 
   request = db.transaction(osName, "readwrite")
               .objectStore(osName)
@@ -110,7 +103,7 @@ function testSteps()
     is(event.target.transaction.mode, "readwrite", "Correct mode");
     testGenerator.next();
   }
-  yield;
+  yield undefined;
 
   try {
     request = db.transaction([osName]).objectStore(osName).add({});
@@ -177,5 +170,5 @@ function testSteps()
   }
 
   finishTest();
-  yield;
+  yield undefined;
 }

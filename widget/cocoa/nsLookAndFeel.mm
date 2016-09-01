@@ -10,6 +10,8 @@
 #include "nsStyleConsts.h"
 #include "nsCocoaFeatures.h"
 #include "gfxFont.h"
+#include "gfxFontConstants.h"
+#include "mozilla/gfx/2D.h"
 
 #import <Cocoa/Cocoa.h>
 
@@ -135,6 +137,13 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
       // Thanks to mpt26@student.canterbury.ac.nz for the hardcoded values that form the defaults
       //  if querying the Appearance Manager fails ;)
       //
+    case eColorID__moz_mac_buttonactivetext:
+    case eColorID__moz_mac_defaultbuttontext:
+      if (nsCocoaFeatures::OnYosemiteOrLater()) {
+        aColor = NS_RGB(0xFF,0xFF,0xFF);
+        break;
+      }
+      // Otherwise fall through and return the regular button text:
       
     case eColorID_buttontext:
     case eColorID__moz_buttonhovertext:
@@ -243,22 +252,19 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
       aColor = NS_RGB(0xA3,0xA3,0xA3);
       break;          
     case eColorID__moz_mac_menutextdisable:
-      aColor = NS_RGB(0x88,0x88,0x88);
+      aColor = NS_RGB(0x98,0x98,0x98);
       break;      
     case eColorID__moz_mac_menutextselect:
       aColor = GetColorFromNSColor([NSColor selectedMenuItemTextColor]);
       break;      
     case eColorID__moz_mac_disabledtoolbartext:
-      aColor = NS_RGB(0x3F,0x3F,0x3F);
+      aColor = GetColorFromNSColor([NSColor disabledControlTextColor]);
       break;
     case eColorID__moz_mac_menuselect:
       aColor = GetColorFromNSColor([NSColor alternateSelectedControlColor]);
       break;
     case eColorID__moz_buttondefault:
       aColor = NS_RGB(0xDC,0xDC,0xDC);
-      break;
-    case eColorID__moz_mac_alternateprimaryhighlight:
-      aColor = GetColorFromNSColor([NSColor alternateSelectedControlColor]);
       break;
     case eColorID__moz_cellhighlight:
     case eColorID__moz_html_cellhighlight:
@@ -312,7 +318,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
       break;
     case eIntID_SelectTextfieldsOnKeyFocus:
       // Select textfield content when focused by kbd
-      // used by nsEventStateManager::sTextfieldSelectModel
+      // used by EventStateManager::sTextfieldSelectModel
       aResult = 1;
       break;
     case eIntID_SubmenuDelay:
@@ -358,6 +364,15 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
     case eIntID_AllowOverlayScrollbarsOverlap:
       aResult = AllowOverlayScrollbarsOverlap() ? 1 : 0;
       break;
+    case eIntID_ScrollbarDisplayOnMouseMove:
+      aResult = 0;
+      break;
+    case eIntID_ScrollbarFadeBeginDelay:
+      aResult = 450;
+      break;
+    case eIntID_ScrollbarFadeDuration:
+      aResult = 200;
+      break;
     case eIntID_TreeOpenDelay:
       aResult = 1000;
       break;
@@ -377,20 +392,19 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
     case eIntID_WindowsClassic:
     case eIntID_WindowsDefaultTheme:
     case eIntID_TouchEnabled:
-    case eIntID_MaemoClassic:
     case eIntID_WindowsThemeIdentifier:
-    case eIntID_UnixThemeIdentifier:
+    case eIntID_OperatingSystemVersionIdentifier:
       aResult = 0;
       res = NS_ERROR_NOT_IMPLEMENTED;
-      break;
-	case eIntID_OperatingSystemVersionIdentifier:
-      aResult = LookAndFeel::eOperatingSystemVersion_MacOSX;
       break;
     case eIntID_MacGraphiteTheme:
       aResult = [NSColor currentControlTint] == NSGraphiteControlTint;
       break;
     case eIntID_MacLionTheme:
       aResult = nsCocoaFeatures::OnLionOrLater();
+      break;
+    case eIntID_MacYosemiteTheme:
+      aResult = nsCocoaFeatures::OnYosemiteOrLater();
       break;
     case eIntID_AlertNotificationOrigin:
       aResult = NS_ALERT_TOP;
@@ -441,6 +455,9 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
             isSwipeTrackingFromScrollEventsEnabled)]) {
         aResult = [NSEvent isSwipeTrackingFromScrollEventsEnabled] ? 1 : 0;
       }
+      break;
+    case eIntID_ColorPickerAvailable:
+      aResult = 1;
       break;
     default:
       aResult = 0;
@@ -495,7 +512,7 @@ bool nsLookAndFeel::AllowOverlayScrollbarsOverlap()
 static void GetStringForNSString(const NSString *aSrc, nsAString& aDest)
 {
     aDest.SetLength([aSrc length]);
-    [aSrc getCharacters:aDest.BeginWriting()];
+    [aSrc getCharacters:reinterpret_cast<unichar*>(aDest.BeginWriting())];
 }
 
 bool

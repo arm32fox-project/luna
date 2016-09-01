@@ -10,9 +10,10 @@
 
 #include <nsTArray.h>
 #include <nsAutoPtr.h>
-#include <nsThreadUtils.h>
 
 class nsISupports;
+class nsIEventTarget;
+class nsIThread;
 
 namespace mozilla {
 namespace net {
@@ -34,19 +35,17 @@ class ChannelEvent
 
 class AutoEventEnqueuerBase;
 
-class ChannelEventQueue
+class ChannelEventQueue final
 {
-  NS_INLINE_DECL_REFCOUNTING(ChannelEventQueue)
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(ChannelEventQueue)
 
  public:
-  ChannelEventQueue(nsISupports *owner)
+  explicit ChannelEventQueue(nsISupports *owner)
     : mSuspendCount(0)
     , mSuspended(false)
     , mForced(false)
     , mFlushing(false)
     , mOwner(owner) {}
-
-  ~ChannelEventQueue() {}
 
   // Checks to determine if an IPDL-generated channel event can be processed
   // immediately, or needs to be queued using Enqueue().
@@ -70,9 +69,17 @@ class ChannelEventQueue
   inline void Suspend();
   // Resume flushes the queue asynchronously, i.e. items in queue will be
   // dispatched in a new event on the current thread.
-  inline void Resume();
+  void Resume();
+
+  // Retargets delivery of events to the target thread specified.
+  nsresult RetargetDeliveryTo(nsIEventTarget* aTargetThread);
 
  private:
+  // Private destructor, to discourage deletion outside of Release():
+  ~ChannelEventQueue()
+  {
+  }
+
   inline void MaybeFlushQueue();
   void FlushQueue();
   inline void CompleteResume();
@@ -87,6 +94,9 @@ class ChannelEventQueue
   // Keep ptr to avoid refcount cycle: only grab ref during flushing.
   nsISupports *mOwner;
 
+  // EventTarget for delivery of events to the correct thread.
+  nsCOMPtr<nsIEventTarget> mTargetThread;
+
   friend class AutoEventEnqueuer;
 };
 
@@ -95,8 +105,8 @@ ChannelEventQueue::ShouldEnqueue()
 {
   bool answer =  mForced || mSuspended || mFlushing;
 
-  NS_ABORT_IF_FALSE(answer == true || mEventQueue.IsEmpty(),
-                    "Should always enqueue if ChannelEventQueue not empty");
+  MOZ_ASSERT(answer == true || mEventQueue.IsEmpty(),
+             "Should always enqueue if ChannelEventQueue not empty");
 
   return answer;
 }
@@ -141,22 +151,6 @@ ChannelEventQueue::CompleteResume()
 }
 
 inline void
-ChannelEventQueue::Resume()
-{
-  // Resuming w/o suspend: error in debug mode, ignore in build
-  MOZ_ASSERT(mSuspendCount > 0);
-  if (mSuspendCount <= 0) {
-    return;
-  }
-
-  if (!--mSuspendCount) {
-    nsRefPtr<nsRunnableMethod<ChannelEventQueue> > event =
-      NS_NewRunnableMethod(this, &ChannelEventQueue::CompleteResume);
-    NS_DispatchToCurrentThread(event);
-  }
-}
-
-inline void
 ChannelEventQueue::MaybeFlushQueue()
 {
   // Don't flush if forced queuing on, we're already being flushed, or
@@ -168,17 +162,17 @@ ChannelEventQueue::MaybeFlushQueue()
 // Ensures that ShouldEnqueue() will be true during its lifetime (letting
 // caller know incoming IPDL msgs should be queued). Flushes the queue when it
 // goes out of scope.
-class AutoEventEnqueuer
+class MOZ_STACK_CLASS AutoEventEnqueuer
 {
  public:
-  AutoEventEnqueuer(ChannelEventQueue *queue) : mEventQueue(queue) {
+  explicit AutoEventEnqueuer(ChannelEventQueue *queue) : mEventQueue(queue) {
     mEventQueue->StartForcedQueueing();
   }
   ~AutoEventEnqueuer() {
     mEventQueue->EndForcedQueueing();
   }
  private:
-  ChannelEventQueue* mEventQueue;
+  nsRefPtr<ChannelEventQueue> mEventQueue;
 };
 
 }

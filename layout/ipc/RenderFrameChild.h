@@ -16,17 +16,15 @@ namespace layout {
 class RenderFrameChild : public PRenderFrameChild
 {
 public:
-  RenderFrameChild() {}
+  RenderFrameChild() : mWasDestroyed(false) {}
   virtual ~RenderFrameChild() {}
 
-  void CancelDefaultPanZoom();
-  void DetectScrollableSubframe();
+  void ActorDestroy(ActorDestroyReason why) override;
 
   void Destroy();
 
-protected:
-  virtual PLayerTransactionChild* AllocPLayerTransaction() MOZ_OVERRIDE;
-  virtual bool DeallocPLayerTransaction(PLayerTransactionChild* aLayers) MOZ_OVERRIDE;
+private:
+  bool mWasDestroyed;
 };
 
 } // namespace layout

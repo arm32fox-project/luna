@@ -7,28 +7,25 @@ import imp
 import os
 import re
 import subprocess
-import sys
-import tempfile
 import time
 import types
-import unittest
 import weakref
 
 from b2ginstance import B2GInstance
-from client import MarionetteClient
-from errors import MarionetteException, InvalidResponseException
-from marionette import Marionette
+from marionette_driver.errors import InvalidResponseException
+from marionette_driver.marionette import Marionette
 from marionette_test import MarionetteTestCase
-from runtests import MarionetteTestRunner, cli, parse_options, startTestRunner
+from marionette_transport import MarionetteTransport
+from runtests import MarionetteTestRunner, cli
 
-class B2GUpdateMarionetteClient(MarionetteClient):
+class B2GUpdateMarionetteClient(MarionetteTransport):
     RETRY_TIMEOUT   = 5
     CONNECT_TIMEOUT = 30
     SEND_TIMEOUT    = 60 * 5
     MAX_RETRIES     = 24
 
     def __init__(self, addr, port, runner):
-        MarionetteClient.__init__(self, addr, port)
+        super(B2GUpdateMarionetteClient, self).__init__(addr, port, self.CONNECT_TIMEOUT)
         self.runner = runner
 
     def connect(self):
@@ -39,7 +36,7 @@ class B2GUpdateMarionetteClient(MarionetteClient):
         """
         for i in range(self.MAX_RETRIES):
             try:
-                MarionetteClient.connect(self, timeout=self.CONNECT_TIMEOUT)
+                MarionetteTransport.connect(self)
                 break
             except:
                 if i == self.MAX_RETRIES - 1:
@@ -157,7 +154,6 @@ class B2GUpdateTestCase(MarionetteTestCase):
 
     MAX_OTA_WAIT   = 60 * 2  # 2 minutes
     MAX_FOTA_WAIT  = 60 * 10 # 10 minutes
-    REMOTE_USER_JS = '/data/local/user.js'
 
     def __init__(self, marionette_weakref, **kwargs):
         if 'runner' in kwargs:
@@ -289,7 +285,6 @@ class B2GUpdateTestCase(MarionetteTestCase):
             'adb_path': self.runner.adb.tool,
             'update_xml': update_xml,
             'only_override': kwargs.get('only_override', False),
-            'remote_prefs_js': self.REMOTE_USER_JS
         }
         for key in ('complete_mar', 'partial_mar', 'url_template', 'update_dir'):
             test_kwargs[key] = kwargs.get(key)
@@ -361,7 +356,6 @@ class B2GUpdateTestCase(MarionetteTestCase):
         self.fail('Timed out waiting for B2G process to start during FOTA update')
 
     def flash(self, flash_script):
-        update_tools = self.runner.update_tools
         flash_build = os.path.basename(os.path.dirname(flash_script))
         self.print_status('FLASH-BUILD', flash_build)
 

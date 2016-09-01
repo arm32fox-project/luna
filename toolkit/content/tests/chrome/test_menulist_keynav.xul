@@ -55,7 +55,9 @@ function runTests()
   is(list.selectedItem, $("i1"), "letter pressed not found selectedItem");
 
   keyCheck(list, "T", 2, "letter pressed");
+  SpecialPowers.setIntPref("ui.menu.incremental_search.timeout", 0); // prevent to timeout
   keyCheck(list, "T", 2, "letter pressed");
+  SpecialPowers.clearUserPref("ui.menu.incremental_search.timeout");
   setTimeout(pressedAgain, 1200); 
 }
 
@@ -63,7 +65,9 @@ function pressedAgain()
 {
   var list = $("list");
   keyCheck(list, "T", iswin ? "2b" : 3, "letter pressed again");
+  SpecialPowers.setIntPref("ui.menu.incremental_search.timeout", 0); // prevent to timeout
   keyCheck(list, "W", 2, "second letter pressed");
+  SpecialPowers.clearUserPref("ui.menu.incremental_search.timeout");
   setTimeout(differentPressed, 1200); 
 }
 
@@ -139,7 +143,7 @@ function checkEnter()
   list.addEventListener("popuphidden", checkEnterWithModifiers, false);
   list.addEventListener("command", checkModifiers, false);
   list.open = true;
-  synthesizeKey("VK_ENTER", { });
+  synthesizeKey("VK_RETURN", { });
 }
 
 function checkEnterWithModifiers()
@@ -153,7 +157,7 @@ function checkEnterWithModifiers()
   list.addEventListener("popuphidden", done, false);
   list.open = true;
 
-  synthesizeKey("VK_ENTER", { shiftKey: true, ctrlKey: true, altKey: true, metaKey: true });
+  synthesizeKey("VK_RETURN", { shiftKey: true, ctrlKey: true, altKey: true, metaKey: true });
 }
 
 function done()

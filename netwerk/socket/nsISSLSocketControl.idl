@@ -7,14 +7,15 @@
 #include "nsISupports.idl"
 
 interface nsIInterfaceRequestor;
+interface nsIX509Cert;
 
 %{C++
-#include "nsTArray.h"
+template<class T> class nsTArray;
 class nsCString;
 %}
 [ref] native nsCStringTArrayRef(nsTArray<nsCString>);
 
-[scriptable, uuid(bb2bb490-3ba4-4254-b8f5-8b43c7b714ea)]
+[scriptable, builtinclass, uuid(c6acb521-df47-49aa-b9e8-51c4e984968a)]
 interface nsISSLSocketControl : nsISupports {
     attribute nsIInterfaceRequestor     notificationCallbacks;
 
@@ -52,9 +53,79 @@ interface nsISSLSocketControl : nsISupports {
       in ACString hostname,
       in long port);
 
+    /* Determine if existing connection should be trusted to convey information about
+     * a hostname.
+     */
+    boolean isAcceptableForHost(in ACString hostname);
+
+    /* The Key Exchange Algorithm is used when determining whether or
+       not HTTP/2 can be used.
+
+       After a handshake is complete it can be read from KEAUsed.
+       The values correspond to the SSLKEAType enum in NSS or the
+       KEY_EXCHANGE_UNKNOWN constant defined below.
+
+       KEAKeyBits is the size/security-level used for the KEA.
+    */
+
+    [infallible] readonly attribute short KEAUsed;
+    [infallible] readonly attribute unsigned long KEAKeyBits;
+
+    const short KEY_EXCHANGE_UNKNOWN = -1;
+
     /*
      * The original flags from the socket provider.
      */
     readonly attribute uint32_t providerFlags;
+
+    /* These values are defined by TLS. */
+    const short SSL_VERSION_3   = 0x0300;
+    const short TLS_VERSION_1   = 0x0301;
+    const short TLS_VERSION_1_1 = 0x0302;
+    const short TLS_VERSION_1_2 = 0x0303;
+    const short SSL_VERSION_UNKNOWN = -1;
+
+    [infallible] readonly attribute short SSLVersionUsed;
+    [infallible] readonly attribute short SSLVersionOffered;
+
+    /* These values match the NSS defined values in sslt.h */
+    const short SSL_MAC_UNKNOWN = -1;
+    const short SSL_MAC_NULL    = 0;
+    const short SSL_MAC_MD5     = 1;
+    const short SSL_MAC_SHA     = 2;
+    const short SSL_HMAC_MD5    = 3;
+    const short SSL_HMAC_SHA    = 4;
+    const short SSL_HMAC_SHA256 = 5;
+    const short SSL_MAC_AEAD    = 6;
+
+    [infallible] readonly attribute short MACAlgorithmUsed;
+
+    /**
+     * If set before the server requests a client cert (assuming it does so at
+     * all), then this cert will be presented to the server, instead of asking
+     * the user or searching the set of rememebered user cert decisions.
+     */
+    attribute nsIX509Cert clientCert;
+
+    /**
+     * If you wish to verify the host certificate using a different name than
+     * was used for the tcp connection, but without using proxy semantics, you
+     * can set authenticationName and authenticationPort
+     */
+    attribute ACString authenticationName;
+    [infallible] attribute long authenticationPort;
+
+    /**
+     * set bypassAuthentication to true if the server certificate checks should
+     * not be enforced. This is to enable non-secure transport over TLS.
+     */
+    [infallible] attribute boolean bypassAuthentication;
+
+    /*
+     * failedVerification is true if any enforced certificate checks have failed.
+     * Connections that have not yet tried to verify, have verifications bypassed,
+     * or are using acceptable exceptions will all return false.
+     */
+    [infallible] readonly attribute boolean failedVerification;
 };
 

@@ -11,7 +11,7 @@ interface nsIVariant;
 interface nsIDocument;
 
 %{C++
-struct JSContext;
+#include "js/TypeDecls.h"
 %}
 
 /**
@@ -19,7 +19,7 @@ struct JSContext;
  * structured clone algorithm.
  *
  * You can copy an object into an nsIStructuredCloneContainer using
- * initFromVariant or initFromBase64.  It's an error to initialize an
+ * initFromJSVal or initFromBase64.  It's an error to initialize an
  * nsIStructuredCloneContainer more than once.
  *
  * Once you've initialized the container, you can get a copy of the object it
@@ -27,15 +27,15 @@ struct JSContext;
  * string containing a copy of the container's serialized data, using
  * getDataAsBase64.
  */
-[scriptable, uuid(400a282d-7157-4ed0-85b4-8bdc2fa634cd)]
+[scriptable, uuid(63eeafec-63f5-42c3-aea9-5c04678784e7)]
 interface nsIStructuredCloneContainer : nsISupports
 {
   /**
    * Initialize this structured clone container so it contains a clone of the
-   * given variant. aData must be backed by a jsval.
+   * given jsval.
    */
-  [implicit_jscontext]
-  void initFromVariant(in nsIVariant aData);
+  [noscript, implicit_jscontext]
+  void initFromJSVal(in jsval aData);
 
   /**
    * Initialize this structured clone container from a base-64-encoded byte
@@ -46,7 +46,7 @@ interface nsIStructuredCloneContainer : nsISupports
   void initFromBase64(in AString aData,in unsigned long aFormatVersion);
 
   /**
-   * Deserialize the object this conatiner holds, returning it wrapped as
+   * Deserialize the object this container holds, returning it wrapped as
    * an nsIVariant.
    */
   [implicit_jscontext]

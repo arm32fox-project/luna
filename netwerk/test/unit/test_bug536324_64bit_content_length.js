@@ -1,11 +1,8 @@
 /* Test to ensure our 64-bit content length implementation works, at least for
    a simple HTTP case */
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
 
 Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
 
 // This C-L is significantly larger than (U)INT32_MAX, to make sure we do
 // 64-bit properly.
@@ -51,7 +48,15 @@ function hugeContentLength(metadata, response) {
 
 function test_hugeContentLength() {
   var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-  var chan = ios.newChannel("http://localhost:4444/", null, null)
+  var chan = ios.newChannel2("http://localhost:" +
+                             httpServer.identity.primaryPort + "/",
+                             null,
+                             null,
+                             null,      // aLoadingNode
+                             Services.scriptSecurityManager.getSystemPrincipal(),
+                             null,      // aTriggeringPrincipal
+                             Ci.nsILoadInfo.SEC_NORMAL,
+                             Ci.nsIContentPolicy.TYPE_OTHER)
                 .QueryInterface(Ci.nsIHttpChannel);
   chan.asyncOpen(listener, null);
 }
@@ -61,6 +66,6 @@ add_test(test_hugeContentLength);
 function run_test() {
   httpServer = new HttpServer();
   httpServer.registerPathHandler("/", hugeContentLength);
-  httpServer.start(4444);
+  httpServer.start(-1);
   run_next_test();
 }

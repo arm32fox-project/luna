@@ -10,7 +10,6 @@
  * liability, trademark and document use rules apply.
  */
 
-[PrefControlled]
 interface AudioBufferSourceNode : AudioNode {
 
     attribute AudioBuffer? buffer;
@@ -21,30 +20,14 @@ interface AudioBufferSourceNode : AudioNode {
     attribute double loopStart;
     attribute double loopEnd;
 
-    [Throws]
+    [Throws, UnsafeInPrerendering]
     void start(optional double when = 0, optional double grainOffset = 0,
                optional double grainDuration);
-    [Throws]
+    [Throws, UnsafeInPrerendering]
     void stop(optional double when = 0);
 
-    [SetterThrows]
     attribute EventHandler onended;
 };
 
-/*
- * The origin of this IDL file is
- * https://dvcs.w3.org/hg/audio/raw-file/tip/webaudio/specification.html#AlternateNames
- */
-[PrefControlled]
-partial interface AudioBufferSourceNode {
-    // Same as start()
-    [Throws,Pref="media.webaudio.legacy.AudioBufferSourceNode"]
-    void noteOn(double when);
-    [Throws,Pref="media.webaudio.legacy.AudioBufferSourceNode"]
-    void noteGrainOn(double when, double grainOffset, double grainDuration);
-    
-    [Throws,Pref="media.webaudio.legacy.AudioBufferSourceNode"]
-    // Same as stop()
-    void noteOff(double when);
-};
-
+// Mozilla extensions
+AudioBufferSourceNode implements AudioNodePassThrough;

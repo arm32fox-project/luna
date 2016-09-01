@@ -6,7 +6,7 @@
 package org.mozilla.goanna.gfx;
 
 import org.mozilla.goanna.GoannaAppShell;
-import org.mozilla.goanna.util.EventDispatcher;
+import org.mozilla.goanna.EventDispatcher;
 
 import android.graphics.PointF;
 import android.view.KeyEvent;
@@ -18,9 +18,16 @@ public interface PanZoomController {
     // between the touch-down and touch-up of a click). In units of density-independent pixels.
     public static final float PAN_THRESHOLD = 1/16f * GoannaAppShell.getDpi();
 
+    // Threshold for sending touch move events to content
+    public static final float CLICK_THRESHOLD = 1/50f * GoannaAppShell.getDpi();
+
     static class Factory {
         static PanZoomController create(PanZoomTarget target, View view, EventDispatcher dispatcher) {
-            return new JavaPanZoomController(target, view, dispatcher);
+            if (org.mozilla.goanna.AppConstants.MOZ_ANDROID_APZ) {
+                return new NativePanZoomController(target, view, dispatcher);
+            } else {
+                return new JavaPanZoomController(target, view, dispatcher);
+            }
         }
     }
 
@@ -40,4 +47,6 @@ public interface PanZoomController {
 
     public void setOverScrollMode(int overscrollMode);
     public int getOverScrollMode();
+
+    public void setOverscrollHandler(final Overscroll controller);
 }

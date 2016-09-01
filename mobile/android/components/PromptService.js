@@ -8,19 +8,9 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/Prompt.jsm");
 
-// Whitelist of methods we remote - to check against malicious data.
-// For example, it would be dangerous to allow content to show auth prompts.
-const REMOTABLE_METHODS = {
-  alert: { outParams: [] },
-  alertCheck: { outParams: [4] },
-  confirm: { outParams: [] },
-  prompt: { outParams: [3, 5] },
-  confirmEx: { outParams: [8] },
-  confirmCheck: { outParams: [4] },
-  select: { outParams: [5] }
-};
+XPCOMUtils.defineLazyModuleGetter(this, "Prompt",
+                                  "resource://gre/modules/Prompt.jsm");
 
 var gPromptService = null;
 
@@ -134,29 +124,47 @@ InternalPrompt.prototype = {
         PromptUtils.getLocaleString("Cancel")
       ]
     });
+    return p;
+  },
 
+  addCheckbox: function addCheckbox(aPrompt, aCheckMsg, aCheckState) {
     // Don't bother to check for aCheckSate. For nsIPomptService interfaces, aCheckState is an
     // out param and is required to be defined. If we've gotten here without it, something
     // has probably gone wrong and we should fail
     if (aCheckMsg) {
-      p.addCheckbox({
+      aPrompt.addCheckbox({
         label: PromptUtils.cleanUpLabel(aCheckMsg),
         checked: aCheckState.value
       });
     }
 
-    return p;
+    return aPrompt;
+  },
+
+  addTextbox: function(prompt, value, autofocus, hint) {
+    prompt.addTextbox({
+      value: (value !== null) ? value : "",
+      autofocus: autofocus,
+      hint: hint
+    });
+  },
+
+  addPassword: function(prompt, value, autofocus, hint) {
+    prompt.addPassword({
+      value: (value !== null) ? value : "",
+      autofocus: autofocus,
+      hint: hint
+    });
   },
 
   /* Shows a native prompt, and then spins the event loop for this thread while we wait
    * for a response
    */
   showPrompt: function showPrompt(aPrompt) {
-    let callerWin;
     if (this._domWin) {
       PromptUtils.fireDialogEvent(this._domWin, "DOMWillOpenModalDialog");
       let winUtils = this._domWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      callerWin = winUtils.enterModalStateWithWindow();
+      winUtils.enterModalState();
     }
 
     let retval = null;
@@ -171,7 +179,7 @@ InternalPrompt.prototype = {
 
     if (this._domWin) {
       let winUtils = this._domWin.QueryInterface(Ci.nsIInterfaceRequestor).getInterface(Ci.nsIDOMWindowUtils);
-      winUtils.leaveModalStateWithWindow(callerWin);
+      winUtils.leaveModalState();
       PromptUtils.fireDialogEvent(this._domWin, "DOMModalDialogClosed");
     }
 
@@ -219,28 +227,32 @@ InternalPrompt.prototype = {
 
   alert: function alert(aTitle, aText) {
     let p = this._getPrompt(aTitle, aText, [ PromptUtils.getLocaleString("OK") ]);
+    p.setHint("alert");
     this.showPrompt(p);
   },
 
   alertCheck: function alertCheck(aTitle, aText, aCheckMsg, aCheckState) {
-    let p = this._getPrompt(aTitle, aText, [ PromptUtils.getLocaleString("OK") ], aCheckMsg, aCheckState);
+    let p = this._getPrompt(aTitle, aText, [ PromptUtils.getLocaleString("OK") ]);
+    this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
-    if (aCheckState)
-      aCheckState.value = data.checkbox0 == "true";
+    if (aCheckState && data.button > -1)
+      aCheckState.value = data.checkbox0;
   },
 
   confirm: function confirm(aTitle, aText) {
     let p = this._getPrompt(aTitle, aText);
+    p.setHint("confirm");
     let data = this.showPrompt(p);
     return (data.button == 0);
   },
 
   confirmCheck: function confirmCheck(aTitle, aText, aCheckMsg, aCheckState) {
-    let p = this._getPrompt(aTitle, aText, null, aCheckMsg, aCheckState);
+    let p = this._getPrompt(aTitle, aText, null);
+    this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
     let ok = data.button == 0;
-    if (aCheckState)
-      aCheckState.value = data.checkbox0 == "true";
+    if (aCheckState && data.button > -1)
+      aCheckState.value = data.checkbox0;
     return ok;
   },
 
@@ -283,24 +295,24 @@ InternalPrompt.prototype = {
       aButtonFlags >>= 8;
     }
 
-    let p = this._getPrompt(aTitle, aText, buttons, aCheckMsg, aCheckState);
+    let p = this._getPrompt(aTitle, aText, buttons);
+    this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
-    if (aCheckState)
-      aCheckState.value = data.checkbox0 == "true";
+    if (aCheckState && data.button > -1)
+      aCheckState.value = data.checkbox0;
     return data.button;
   },
 
   nsIPrompt_prompt: function nsIPrompt_prompt(aTitle, aText, aValue, aCheckMsg, aCheckState) {
     let p = this._getPrompt(aTitle, aText, null, aCheckMsg, aCheckState);
-    p.addTextbox({
-      value: aValue.value,
-      autofocus: true
-    });
+    p.setHint("prompt");
+    this.addTextbox(p, aValue.value, true);
+    this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
 
     let ok = data.button == 0;
-    if (aCheckState)
-      aCheckState.value = data.checkbox0 == "true";
+    if (aCheckState && data.button > -1)
+      aCheckState.value = data.checkbox0;
     if (ok)
       aValue.value = data.textbox0;
     return ok;
@@ -308,17 +320,14 @@ InternalPrompt.prototype = {
 
   nsIPrompt_promptPassword: function nsIPrompt_promptPassword(
       aTitle, aText, aPassword, aCheckMsg, aCheckState) {
-    let p = this._getPrompt(aTitle, aText, null, aCheckMsg, aCheckState);
-    p.addPassword({
-      value: aPassword.value || "",
-      autofocus: true,
-      hint: PromptUtils.getLocaleString("password", "passwdmgr")
-    });
+    let p = this._getPrompt(aTitle, aText, null);
+    this.addPassword(p, aPassword.value, true, PromptUtils.getLocaleString("password", "passwdmgr"));
+    this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
 
     let ok = data.button == 0;
-    if (aCheckState)
-      aCheckState.value = data.checkbox0 == "true";
+    if (aCheckState && data.button > -1)
+      aCheckState.value = data.checkbox0;
     if (ok)
       aPassword.value = data.password0;
     return ok;
@@ -326,20 +335,16 @@ InternalPrompt.prototype = {
 
   nsIPrompt_promptUsernameAndPassword: function nsIPrompt_promptUsernameAndPassword(
       aTitle, aText, aUsername, aPassword, aCheckMsg, aCheckState) {
-    let p = this._getPrompt(aTitle, aText, null, aCheckMsg, aCheckState);
-    p.addTextbox({
-      value: aUsername.value,
-      autofocus: true,
-      hint: PromptUtils.getLocaleString("username", "passwdmgr")
-    }).addPassword({
-      value: aPassword.value,
-      hint: PromptUtils.getLocaleString("password", "passwdmgr")
-    });
+    let p = this._getPrompt(aTitle, aText, null);
+    this.addTextbox(p, aUsername.value, true, PromptUtils.getLocaleString("username", "passwdmgr"));
+    this.addPassword(p, aPassword.value, false, PromptUtils.getLocaleString("password", "passwdmgr"));
+    this.addCheckbox(p, aCheckMsg, aCheckState);
     let data = this.showPrompt(p);
 
     let ok = data.button == 0;
-    if (aCheckState)
-      aCheckState.value = data.checkbox0 == "true";
+    if (aCheckState && data.button > -1)
+      aCheckState.value = data.checkbox0;
+
     if (ok) {
       aUsername.value = data.textbox0;
       aPassword.value = data.password0;
@@ -348,7 +353,7 @@ InternalPrompt.prototype = {
   },
 
   select: function select(aTitle, aText, aCount, aSelectList, aOutSelection) {
-    let p = this._getPrompt(aTitle, aText, [ PromptUtils.getLocaleString("OK") ], "", { value: false });
+    let p = this._getPrompt(aTitle, aText, [ PromptUtils.getLocaleString("OK") ]);
     p.addMenulist({ values: aSelectList });
     let data = this.showPrompt(p);
 
@@ -379,7 +384,8 @@ InternalPrompt.prototype = {
   nsIAuthPrompt_loginPrompt: function(aTitle, aPasswordRealm, aSavePassword, aUser, aPass) {
     let checkMsg = null;
     let check = { value: false };
-    let [hostname, realm, aUser] = PromptUtils.getHostnameAndRealm(aPasswordRealm);
+    let hostname, realm;
+    [hostname, realm, aUser] = PromptUtils.getHostnameAndRealm(aPasswordRealm);
 
     let canSave = PromptUtils.canSaveLogin(hostname, aSavePassword);
     if (canSave) {
@@ -480,7 +486,7 @@ InternalPrompt.prototype = {
         prompt.inProgress = false;
         self._asyncPromptInProgress = false;
 
-        for each (let consumer in prompt.consumers) {
+        for (let consumer of prompt.consumers) {
           if (!consumer.callback)
             // Not having a callback means that consumer didn't provide it
             // or canceled the notification
@@ -678,7 +684,7 @@ let PromptUtils = {
     this.pwmgr.modifyLogin(aLogin, propBag);
   },
 
-  // JS port of http://mxr.mozilla.org/mozilla-central/source/embedding/components/windowwatcher/src/nsPrompt.cpp#388
+  // JS port of http://mxr.mozilla.org/mozilla-central/source/embedding/components/windowwatcher/nsPrompt.cpp#388
   makeDialogText: function pu_makeDialogText(aChannel, aAuthInfo) {
     let isProxy    = (aAuthInfo.flags & Ci.nsIAuthInformation.AUTH_PROXY);
     let isPassOnly = (aAuthInfo.flags & Ci.nsIAuthInformation.ONLY_PASSWORD);
@@ -710,7 +716,7 @@ let PromptUtils = {
     return text;
   },
 
-  // JS port of http://mxr.mozilla.org/mozilla-central/source/embedding/components/windowwatcher/public/nsPromptUtils.h#89
+  // JS port of http://mxr.mozilla.org/mozilla-central/source/embedding/components/windowwatcher/nsPromptUtils.h#89
   getAuthHostPort: function pu_getAuthHostPort(aChannel, aAuthInfo) {
     let uri = aChannel.URI;
     let res = { host: null, port: -1 };
@@ -804,11 +810,6 @@ let PromptUtils = {
         hostname += ":" + port;
     }
     return hostname;
-  },
-
-  sendMessageToJava: function(aMsg) {
-    let data = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge).handleGoannaMessage(JSON.stringify(aMsg));
-    return JSON.parse(data);
   },
 
   fireDialogEvent: function(aDomWin, aEventName) {

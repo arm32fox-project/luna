@@ -8,6 +8,7 @@
 #include "nsFrameTraversal.h"
 #include "nsFrameList.h"
 #include "nsPlaceholderFrame.h"
+#include "nsContainerFrame.h"
 
 
 class nsFrameIterator : public nsIFrameEnumerator
@@ -17,20 +18,20 @@ public:
 
   NS_DECL_ISUPPORTS
 
-  virtual ~nsFrameIterator() {}
+  virtual void First() override;
+  virtual void Next() override;
+  virtual nsIFrame* CurrentItem() override;
+  virtual bool IsDone() override;
 
-  virtual void First();
-  virtual void Next();
-  virtual nsIFrame* CurrentItem();
-  virtual bool IsDone();
-
-  virtual void Last();
-  virtual void Prev();
+  virtual void Last() override;
+  virtual void Prev() override;
 
   nsFrameIterator(nsPresContext* aPresContext, nsIFrame *aStart,
                   nsIteratorType aType, bool aLockScroll, bool aFollowOOFs);
 
 protected:
+  virtual ~nsFrameIterator() {}
+
   void      setCurrent(nsIFrame *aFrame){mCurrent = aFrame;}
   nsIFrame *getCurrent(){return mCurrent;}
   nsIFrame *getStart(){return mStart;}
@@ -106,11 +107,11 @@ public:
   nsFrameIterator(aPresContext, aStart, aType, aLockScroll, aFollowOOFs) {}
 
 protected:
-  nsIFrame* GetFirstChildInner(nsIFrame* aFrame);
-  nsIFrame* GetLastChildInner(nsIFrame* aFrame);  
+  nsIFrame* GetFirstChildInner(nsIFrame* aFrame) override;
+  nsIFrame* GetLastChildInner(nsIFrame* aFrame) override;  
   
-  nsIFrame* GetNextSiblingInner(nsIFrame* aFrame);
-  nsIFrame* GetPrevSiblingInner(nsIFrame* aFrame);  
+  nsIFrame* GetNextSiblingInner(nsIFrame* aFrame) override;
+  nsIFrame* GetPrevSiblingInner(nsIFrame* aFrame) override;  
 };
 
 /************IMPLEMENTATIONS**************/
@@ -165,7 +166,7 @@ nsFrameTraversal::~nsFrameTraversal()
 {
 }
 
-NS_IMPL_ISUPPORTS1(nsFrameTraversal,nsIFrameTraversal)
+NS_IMPL_ISUPPORTS(nsFrameTraversal,nsIFrameTraversal)
 
 NS_IMETHODIMP 
  nsFrameTraversal::NewFrameTraversal(nsIFrameEnumerator **aEnumerator,
@@ -183,7 +184,7 @@ NS_IMETHODIMP
 
 // nsFrameIterator implementation
 
-NS_IMPL_ISUPPORTS1(nsFrameIterator, nsIFrameEnumerator)
+NS_IMPL_ISUPPORTS(nsFrameIterator, nsIFrameEnumerator)
 
 nsFrameIterator::nsFrameIterator(nsPresContext* aPresContext, nsIFrame *aStart,
                                  nsIteratorType aType, bool aLockInScrollView,

@@ -29,6 +29,17 @@ namespace mozilla {
  * except CalculateResult might be skipped if NSS is shut down before it can
  * be called; in that case ReleaseNSSResources will be called and then
  * CallCallback will be called with an error code.
+ *
+ * That sequence of events is what happens if you call Dispatch.  If for
+ * some reason, you decide not to run the task (e.g., due to an error in the
+ * constructor), you may call Skip, in which case the task is cleaned up and
+ * not run.  In that case, only ReleaseNSSResources is called.  (So a
+ * subclass must be prepared for ReleaseNSSResources to be run without
+ * CalculateResult having been called first.)
+ *
+ * Once a CryptoTask is created, the calling code must call either
+ * Dispatch or Skip.
+ *
  */
 class CryptoTask : public nsRunnable,
                    public nsNSSShutDownObject
@@ -37,9 +48,16 @@ public:
   template <size_t LEN>
   nsresult Dispatch(const char (&taskThreadName)[LEN])
   {
-    MOZ_STATIC_ASSERT(LEN <= 15,
-                      "Thread name must be no more than 15 characters");
-    return Dispatch(nsDependentCString(taskThreadName));
+    static_assert(LEN <= 15,
+                  "Thread name must be no more than 15 characters");
+    return Dispatch(NS_LITERAL_CSTRING(taskThreadName));
+  }
+
+  nsresult Dispatch(const nsACString& taskThreadName);
+
+  void Skip()
+  {
+    virtualDestroyNSSReference();
   }
 
 protected:
@@ -73,13 +91,13 @@ protected:
   virtual void CallCallback(nsresult rv) = 0;
 
 private:
-  NS_IMETHOD Run() MOZ_OVERRIDE MOZ_FINAL;
-  virtual void virtualDestroyNSSReference() MOZ_OVERRIDE MOZ_FINAL;
-
-  nsresult Dispatch(const nsACString & taskThreadName);
+  NS_IMETHOD Run() override final;
+  virtual void virtualDestroyNSSReference() override final;
 
   nsresult mRv;
   bool mReleasedNSSResources;
+
+  nsCOMPtr<nsIThread> mThread;
 };
 
 } // namespace mozilla

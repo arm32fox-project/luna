@@ -14,10 +14,12 @@
 
 // [Constructor(DOMString url, optional (URL or DOMString) base = "about:blank")]
 [Constructor(DOMString url, URL base),
- Constructor(DOMString url, optional DOMString base = "about:blank")]
+ Constructor(DOMString url, optional DOMString base = "about:blank"),
+ Exposed=(Window,Worker)]
 interface URL {
 };
 URL implements URLUtils;
+URL implements URLUtilsSearchParams;
 
 partial interface URL {
   [Throws]
@@ -30,4 +32,10 @@ partial interface URL {
 dictionary objectURLOptions
 {
 /* boolean autoRevoke = true; */ /* not supported yet */
+};
+
+// https://dvcs.w3.org/hg/html-media/raw-file/default/media-source/media-source.html
+partial interface URL {
+  [Throws]
+  static DOMString? createObjectURL(MediaSource source, optional objectURLOptions options);
 };

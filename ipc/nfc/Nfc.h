@@ -4,31 +4,44 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+/* Copyright © 2013, Deutsche Telekom, Inc. */
+
 #ifndef mozilla_ipc_Nfc_h
 #define mozilla_ipc_Nfc_h 1
 
-#include <mozilla/dom/workers/Workers.h>
-#include <mozilla/ipc/UnixSocket.h>
+#include <mozilla/ipc/StreamSocket.h>
 
 namespace mozilla {
 namespace ipc {
 
-class NfcConsumer : public mozilla::ipc::UnixSocketConsumer
+class NfcSocketListener
 {
 public:
-    NfcConsumer(mozilla::dom::workers::WorkerCrossThreadDispatcher* aDispatcher);
-    virtual ~NfcConsumer() { }
-    void Shutdown();
-private:
-    virtual void ReceiveSocketData(nsAutoPtr<UnixSocketRawData>& aMessage);
+  virtual void ReceiveSocketData(nsAutoPtr<UnixSocketRawData>& aData) = 0;
+};
 
-    virtual void OnConnectSuccess();
-    virtual void OnConnectError();
-    virtual void OnDisconnect();
+class NfcConsumer final : public mozilla::ipc::StreamSocket
+{
+public:
+  NfcConsumer(NfcSocketListener* aListener);
+
+  void Shutdown();
+  bool PostToNfcDaemon(const uint8_t* aData, size_t aSize);
+
+  ConnectionOrientedSocketIO* GetIO() override;
 
 private:
-    nsRefPtr<mozilla::dom::workers::WorkerCrossThreadDispatcher> mDispatcher;
-    bool mShutdown;
+  void ReceiveSocketData(
+    nsAutoPtr<UnixSocketRawData>& aData) override;
+
+  void OnConnectSuccess() override;
+  void OnConnectError() override;
+  void OnDisconnect() override;
+
+private:
+  NfcSocketListener* mListener;
+  nsCString mAddress;
+  bool mShutdown;
 };
 
 } // namespace ipc

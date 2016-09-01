@@ -10,11 +10,15 @@ const Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
-                                  "resource://gre/modules/NetUtil.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Task", "resource://gre/modules/Task.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "OS", "resource://gre/modules/osfile.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "Messaging", "resource://gre/modules/Messaging.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils", "resource://gre/modules/PrivateBrowsingUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "FormData", "resource://gre/modules/FormData.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "TelemetryStopwatch", "resource://gre/modules/TelemetryStopwatch.jsm");
 
 function dump(a) {
-  Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService).logStringMessage(a);
+  Services.console.logStringMessage(a);
 }
 
 // -----------------------------------------------------------------------
@@ -23,7 +27,10 @@ function dump(a) {
 
 const STATE_STOPPED = 0;
 const STATE_RUNNING = 1;
-const STATE_QUITTING = -1;
+
+const PRIVACY_NONE = 0;
+const PRIVACY_ENCRYPTED = 1;
+const PRIVACY_FULL = 2;
 
 function SessionStore() { }
 
@@ -38,8 +45,15 @@ SessionStore.prototype = {
   _windows: {},
   _lastSaveTime: 0,
   _interval: 10000,
-  _maxTabsUndo: 1,
-  _shouldRestore: false,
+  _maxTabsUndo: 5,
+  _pendingWrite: 0,
+
+  // The index where the most recently closed tab was in the tabs array
+  // when it was closed.
+  _lastClosedTabIndex: -1,
+
+  // Whether or not to send notifications for changes to the closed tabs.
+  _notifyClosedTabs: false,
 
   init: function ss_init() {
     // Get file references
@@ -52,31 +66,11 @@ SessionStore.prototype = {
 
     this._interval = Services.prefs.getIntPref("browser.sessionstore.interval");
     this._maxTabsUndo = Services.prefs.getIntPref("browser.sessionstore.max_tabs_undo");
-
-    // Do we need to restore session just this once, in case of a restart?
-    if (this._sessionFileBackup.exists() && Services.prefs.getBoolPref("browser.sessionstore.resume_session_once")) {
-      Services.prefs.setBoolPref("browser.sessionstore.resume_session_once", false);
-      this._shouldRestore = true;
-    }
   },
 
   _clearDisk: function ss_clearDisk() {
-    if (this._sessionFile.exists()) {
-      try {
-        this._sessionFile.remove(false);
-      } catch (ex) { dump(ex + '\n'); } // couldn't remove the file - what now?
-    }
-    if (this._sessionFileBackup.exists()) {
-      try {
-        this._sessionFileBackup.remove(false);
-      } catch (ex) { dump(ex + '\n'); } // couldn't remove the file - what now?
-    }
-
-  },
-
-  _sendMessageToJava: function (aMsg) {
-    let data = Cc["@mozilla.org/android/bridge;1"].getService(Ci.nsIAndroidBridge).handleGoannaMessage(JSON.stringify(aMsg));
-    return JSON.parse(data);
+    OS.File.remove(this._sessionFile.path);
+    OS.File.remove(this._sessionFileBackup.path);
   },
 
   observe: function ss_observe(aSubject, aTopic, aData) {
@@ -87,12 +81,13 @@ SessionStore.prototype = {
         observerService.addObserver(this, "final-ui-startup", true);
         observerService.addObserver(this, "domwindowopened", true);
         observerService.addObserver(this, "domwindowclosed", true);
-        observerService.addObserver(this, "browser-lastwindow-close-granted", true);
         observerService.addObserver(this, "browser:purge-session-history", true);
-        observerService.addObserver(this, "quit-application-requested", true);
-        observerService.addObserver(this, "quit-application-granted", true);
-        observerService.addObserver(this, "quit-application", true);
         observerService.addObserver(this, "Session:Restore", true);
+        observerService.addObserver(this, "application-background", true);
+        observerService.addObserver(this, "ClosedTabs:StartNotifications", true);
+        observerService.addObserver(this, "ClosedTabs:StopNotifications", true);
+        observerService.addObserver(this, "last-pb-context-exited", true);
+        observerService.addObserver(this, "Session:RestoreRecentTabs", true);
         break;
       case "final-ui-startup":
         observerService.removeObserver(this, "final-ui-startup");
@@ -109,91 +104,34 @@ SessionStore.prototype = {
       case "domwindowclosed": // catch closed windows
         this.onWindowClose(aSubject);
         break;
-      case "browser-lastwindow-close-granted":
-        // If a save has been queued, kill the timer and save state now
-        if (this._saveTimer) {
-          this._saveTimer.cancel();
-          this._saveTimer = null;
-          this.saveState();
-        }
-
-        // Freeze the data at what we've got (ignoring closing windows)
-        this._loadState = STATE_QUITTING;
-        break;
-      case "quit-application-requested":
-        // Get a current snapshot of all windows
-        this._forEachBrowserWindow(function(aWindow) {
-          self._collectWindowData(aWindow);
-        });
-        break;
-      case "quit-application-granted":
-        // Get a current snapshot of all windows
-        this._forEachBrowserWindow(function(aWindow) {
-          self._collectWindowData(aWindow);
-        });
-
-        // Freeze the data at what we've got (ignoring closing windows)
-        this._loadState = STATE_QUITTING;
-        break;
-      case "quit-application":
-        // If we are restarting, lets restore the tabs
-        if (aData == "restart") {
-          Services.prefs.setBoolPref("browser.sessionstore.resume_session_once", true);
-
-          // Ignore purges when restarting. The notification is fired after "quit-application".
-          Services.obs.removeObserver(this, "browser:purge-session-history");
-        }
-
-        // Freeze the data at what we've got (ignoring closing windows)
-        this._loadState = STATE_QUITTING;
-
-        // Move this session to sessionstore.bak so that:
-        //   1) we can get "tabs from last time" from sessionstore.bak
-        //   2) if sessionstore.js exists on next start, we know we crashed
-        if (this._sessionFile.exists())
-          this._sessionFile.moveTo(null, this._sessionFileBackup.leafName);
-
-        observerService.removeObserver(this, "domwindowopened");
-        observerService.removeObserver(this, "domwindowclosed");
-        observerService.removeObserver(this, "browser-lastwindow-close-granted");
-        observerService.removeObserver(this, "quit-application-requested");
-        observerService.removeObserver(this, "quit-application-granted");
-        observerService.removeObserver(this, "quit-application");
-        observerService.removeObserver(this, "Session:Restore");
-
-        // If a save has been queued, kill the timer and save state now
-        if (this._saveTimer) {
-          this._saveTimer.cancel();
-          this._saveTimer = null;
-          this.saveState();
-        }
-        break;
       case "browser:purge-session-history": // catch sanitization 
         this._clearDisk();
-
-        // If the browser is shutting down, simply return after clearing the
-        // session data on disk as this notification fires after the
-        // quit-application notification so the browser is about to exit.
-        if (this._loadState == STATE_QUITTING)
-          return;
 
         // Clear all data about closed tabs
         for (let [ssid, win] in Iterator(this._windows))
           win.closedTabs = [];
 
+        this._lastClosedTabIndex = -1;
+
         if (this._loadState == STATE_RUNNING) {
           // Save the purged state immediately
-          this.saveStateNow();
+          this.saveState();
         }
 
         Services.obs.notifyObservers(null, "sessionstore-state-purge-complete", "");
+        if (this._notifyClosedTabs) {
+          this._sendClosedTabsToJava(Services.wm.getMostRecentWindow("navigator:browser"));
+        }
         break;
       case "timer-callback":
         // Timer call back for delayed saving
         this._saveTimer = null;
-        this.saveState();
+        if (this._pendingWrite) {
+          this.saveState();
+        }
         break;
       case "Session:Restore": {
+        Services.obs.removeObserver(this, "Session:Restore");
         if (aData) {
           // Be ready to handle any restore failures by making sure we have a valid tab opened
           let window = Services.wm.getMostRecentWindow("navigator:browser");
@@ -203,32 +141,46 @@ SessionStore.prototype = {
 
               if (window.BrowserApp.tabs.length == 0) {
                 window.BrowserApp.addTab("about:home", {
-                  showProgress: false,
                   selected: true
                 });
               }
-
-              // Let Java know we're done restoring tabs so tabs added after this can be animated
-              this._sendMessageToJava({
-                type: "Session:RestoreEnd"
-              });
             }.bind(this)
           };
           Services.obs.addObserver(restoreCleanup, "sessionstore-windows-restored", false);
 
           // Do a restore, triggered by Java
           let data = JSON.parse(aData);
-          this.restoreLastSession(data.normalRestore, data.sessionString);
-        } else if (this._shouldRestore) {
-          // Do a restore triggered by Goanna (e.g., if
-          // browser.sessionstore.resume_session_once is true). In these cases,
-          // our Java front-end doesn't know we're doing a restore, so it has
-          // already opened an about:home tab.
-          this.restoreLastSession(false, null);
+          this.restoreLastSession(data.sessionString);
         } else {
           // Not doing a restore; just send restore message
           Services.obs.notifyObservers(null, "sessionstore-windows-restored", "");
         }
+        break;
+      }
+      case "application-background":
+        // We receive this notification when Android's onPause callback is
+        // executed. After onPause, the application may be terminated at any
+        // point without notice; therefore, we must synchronously write out any
+        // pending save state to ensure that this data does not get lost.
+        this.flushPendingState();
+        break;
+      case "ClosedTabs:StartNotifications":
+        this._notifyClosedTabs = true;
+        this._sendClosedTabsToJava(Services.wm.getMostRecentWindow("navigator:browser"));
+        break;
+      case "ClosedTabs:StopNotifications":
+        this._notifyClosedTabs = false;
+        break;
+      case "last-pb-context-exited":
+        // Clear private closed tab data when we leave private browsing.
+        for (let [, window] in Iterator(this._windows)) {
+          window.closedTabs = window.closedTabs.filter(tab => !tab.isPrivate);
+        }
+        this._lastClosedTabIndex = -1;
+        break;
+      case "Session:RestoreRecentTabs": {
+        let data = JSON.parse(aData);
+        this._restoreTabs(data);
         break;
       }
     }
@@ -244,7 +196,7 @@ SessionStore.prototype = {
       }
       case "TabClose": {
         let browser = aEvent.target;
-        this.onTabClose(window, browser);
+        this.onTabClose(window, browser, aEvent.detail);
         this.onTabRemove(window, browser);
         break;
       }
@@ -253,9 +205,36 @@ SessionStore.prototype = {
         this.onTabSelect(window, browser);
         break;
       }
-      case "pageshow": {
+      case "DOMTitleChanged": {
         let browser = aEvent.currentTarget;
-        this.onTabLoad(window, browser, aEvent.persisted);
+
+        // Handle only top-level DOMTitleChanged event
+        if (browser.contentDocument !== aEvent.originalTarget) {
+          return;
+        }
+
+        // Use DOMTitleChanged to detect page loads over alternatives.
+        // onLocationChange happens too early, so we don't have the page title
+        // yet; pageshow happens too late, so we could lose session data if the
+        // browser were killed.
+        this.onTabLoad(window, browser);
+        break;
+      }
+      case "load": {
+        // Handle restoring the text data into the content and frames. We wait
+        // until the main content and all frames are loaded before trying to
+        // restore the text data.
+        let browser = aEvent.currentTarget;
+        if (browser.__SS_restore_data) {
+          this._restoreTextData(browser.__SS_restore_data, browser);
+        }
+        break;
+      }
+      case "change":
+      case "input":
+      case "DOMAutoComplete": {
+        let browser = aEvent.currentTarget;
+        this.onTabInput(window, browser);
         break;
       }
     }
@@ -267,7 +246,7 @@ SessionStore.prototype = {
       return;
 
     // Ignore non-browser windows and windows opened while shutting down
-    if (aWindow.document.documentElement.getAttribute("windowtype") != "navigator:browser" || this._loadState == STATE_QUITTING)
+    if (aWindow.document.documentElement.getAttribute("windowtype") != "navigator:browser")
       return;
 
     // Assign it a unique identifier (timestamp) and create its data object
@@ -321,13 +300,28 @@ SessionStore.prototype = {
   },
 
   onTabAdd: function ss_onTabAdd(aWindow, aBrowser, aNoNotification) {
-    aBrowser.addEventListener("pageshow", this, true);
+    // Use DOMTitleChange to catch the initial load and restore history
+    aBrowser.addEventListener("DOMTitleChanged", this, true);
+
+    // Use load to restore text data
+    aBrowser.addEventListener("load", this, true);
+
+    // Use a combination of events to watch for text data changes
+    aBrowser.addEventListener("change", this, true);
+    aBrowser.addEventListener("input", this, true);
+    aBrowser.addEventListener("DOMAutoComplete", this, true);
+
     if (!aNoNotification)
       this.saveStateDelayed();
   },
 
   onTabRemove: function ss_onTabRemove(aWindow, aBrowser, aNoNotification) {
-    aBrowser.removeEventListener("pageshow", this, true);
+    // Cleanup event listeners
+    aBrowser.removeEventListener("DOMTitleChanged", this, true);
+    aBrowser.removeEventListener("load", this, true);
+    aBrowser.removeEventListener("change", this, true);
+    aBrowser.removeEventListener("input", this, true);
+    aBrowser.removeEventListener("DOMAutoComplete", this, true);
 
     // If this browser is being restored, skip any session save activity
     if (aBrowser.__SS_restore)
@@ -339,7 +333,7 @@ SessionStore.prototype = {
       this.saveStateDelayed();
   },
 
-  onTabClose: function ss_onTabClose(aWindow, aBrowser) {
+  onTabClose: function ss_onTabClose(aWindow, aBrowser, aTabIndex) {
     if (this._maxTabsUndo == 0)
       return;
 
@@ -353,10 +347,16 @@ SessionStore.prototype = {
       let length = this._windows[aWindow.__SSID].closedTabs.length;
       if (length > this._maxTabsUndo)
         this._windows[aWindow.__SSID].closedTabs.splice(this._maxTabsUndo, length - this._maxTabsUndo);
+
+      this._lastClosedTabIndex = aTabIndex;
+
+      if (this._notifyClosedTabs) {
+        this._sendClosedTabsToJava(aWindow);
+      }
     }
   },
 
-  onTabLoad: function ss_onTabLoad(aWindow, aBrowser, aPersisted) {
+  onTabLoad: function ss_onTabLoad(aWindow, aBrowser) {
     // If this browser is being restored, skip any session save activity
     if (aBrowser.__SS_restore)
       return;
@@ -367,32 +367,27 @@ SessionStore.prototype = {
 
     let history = aBrowser.sessionHistory;
 
-    if (aPersisted && aBrowser.__SS_data) {
-      // Loading from the cache; just update the index
-      aBrowser.__SS_data.index = history.index + 1;
-      this.saveStateDelayed();
-    } else {
-      // Serialize the tab data
-      let entries = [];
-      let index = history.index + 1;
-      for (let i = 0; i < history.count; i++) {
-        let historyEntry = history.getEntryAtIndex(i, false);
-        // Don't try to restore wyciwyg URLs
-        if (historyEntry.URI.schemeIs("wyciwyg")) {
-          // Adjust the index to account for skipped history entries
-          if (i <= history.index)
-            index--;
-          continue;
-        }
-        let entry = this._serializeHistoryEntry(historyEntry);
-        entries.push(entry);
+    // Serialize the tab data
+    let entries = [];
+    let index = history.index + 1;
+    for (let i = 0; i < history.count; i++) {
+      let historyEntry = history.getEntryAtIndex(i, false);
+      // Don't try to restore wyciwyg URLs
+      if (historyEntry.URI.schemeIs("wyciwyg")) {
+        // Adjust the index to account for skipped history entries
+        if (i <= history.index)
+          index--;
+        continue;
       }
-      let data = { entries: entries, index: index };
-
-      delete aBrowser.__SS_data;
-      this._collectTabData(aWindow, aBrowser, data);
-      this.saveStateNow();
+      let entry = this._serializeHistoryEntry(historyEntry);
+      entries.push(entry);
     }
+    let data = { entries: entries, index: index };
+
+    delete aBrowser.__SS_data;
+    this._collectTabData(aWindow, aBrowser, data);
+    this.saveStateDelayed();
+
   },
 
   onTabSelect: function ss_onTabSelect(aWindow, aBrowser) {
@@ -406,13 +401,71 @@ SessionStore.prototype = {
     // Restore the resurrected browser
     if (aBrowser.__SS_restore) {
       let data = aBrowser.__SS_data;
-      if (data.entries.length > 0)
-        this._restoreHistory(data, aBrowser.sessionHistory);
+      this._restoreTab(data, aBrowser);
 
       delete aBrowser.__SS_restore;
+      aBrowser.removeAttribute("pending");
     }
 
     this.saveStateDelayed();
+
+    // If the selected tab has changed while listening for closed tab
+    // notifications, we may have switched between different private browsing
+    // modes.
+    if (this._notifyClosedTabs) {
+      this._sendClosedTabsToJava(aWindow);
+    }
+  },
+
+  onTabInput: function ss_onTabInput(aWindow, aBrowser) {
+    // If this browser is being restored, skip any session save activity
+    if (aBrowser.__SS_restore) {
+      return;
+    }
+
+    // Don't bother trying to save text data if we don't have history yet
+    let data = aBrowser.__SS_data;
+    if (!data || data.entries.length == 0) {
+      return;
+    }
+
+    // Start with storing the main content
+    let content = aBrowser.contentWindow;
+
+    // If the main content document has an associated URL that we are not
+    // allowed to store data for, bail out. We explicitly discard data for any
+    // children as well even if storing data for those frames would be allowed.
+    if (!this.checkPrivacyLevel(content.document.documentURI)) {
+      return;
+    }
+
+    // Store the main content
+    let formdata = FormData.collect(content) || {};
+
+    // Loop over direct child frames, and store the text data
+    let children = [];
+    for (let i = 0; i < content.frames.length; i++) {
+      let frame = content.frames[i];
+      if (!this.checkPrivacyLevel(frame.document.documentURI)) {
+        continue;
+      }
+
+      let result = FormData.collect(frame);
+      if (result && Object.keys(result).length) {
+        children[i] = result;
+      }
+    }
+
+    // If any frame had text data, add it to the main form data
+    if (children.length) {
+      formdata.children = children;
+    }
+
+    // If we found any form data, main content or frames, let's save it
+    if (Object.keys(formdata).length) {
+      data.formdata = formdata;
+      this.saveStateDelayed();
+    }
   },
 
   saveStateDelayed: function ss_saveStateDelayed() {
@@ -423,6 +476,7 @@ SessionStore.prototype = {
       // If we have to wait, set a timer, otherwise saveState directly
       let delay = Math.max(minimalDelay, 2000);
       if (delay > 0) {
+        this._pendingWrite++;
         this._saveTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
         this._saveTimer.init(this, delay, Ci.nsITimer.TYPE_ONE_SHOT);
       } else {
@@ -431,16 +485,25 @@ SessionStore.prototype = {
     }
   },
 
-  saveStateNow: function ss_saveStateNow() {
+  saveState: function ss_saveState() {
+    this._pendingWrite++;
+    this._saveState(true);
+  },
+
+  // Immediately and synchronously writes any pending state to disk.
+  flushPendingState: function ss_flushPendingState() {
+    if (this._pendingWrite) {
+      this._saveState(false);
+    }
+  },
+
+  _saveState: function ss_saveState(aAsync) {
     // Kill any queued timer and save immediately
     if (this._saveTimer) {
       this._saveTimer.cancel();
       this._saveTimer = null;
     }
-    this.saveState();
-  },
 
-  saveState: function ss_saveState() {
     let data = this._getCurrentState();
     let normalData = { windows: [] };
     let privateData = { windows: [] };
@@ -452,6 +515,10 @@ SessionStore.prototype = {
         normalWin[prop] = data[prop];
       }
       normalWin.tabs = [];
+
+      // Save normal closed tabs. Forget about private closed tabs.
+      normalWin.closedTabs = win.closedTabs.filter(tab => !tab.isPrivate);
+
       normalData.windows.push(normalWin);
       privateData.windows.push({ tabs: [] });
 
@@ -469,13 +536,13 @@ SessionStore.prototype = {
     }
 
     // Write only non-private data to disk
-    this._writeFile(this._sessionFile, JSON.stringify(normalData));
+    this._writeFile(this._sessionFile, normalData, aAsync);
 
     // If we have private data, send it to Java; otherwise, send null to
     // indicate that there is no private data
-    this._sendMessageToJava({
+    Messaging.sendRequest({
       type: "PrivateBrowsing:Data",
-      session: (privateData.windows[0].tabs.length > 0) ? JSON.stringify(privateData) : null
+      session: (privateData.windows.length > 0 && privateData.windows[0].tabs.length > 0) ? JSON.stringify(privateData) : null
     });
 
     this._lastSaveTime = Date.now();
@@ -545,58 +612,137 @@ SessionStore.prototype = {
     }
   },
 
-  _writeFile: function ss_writeFile(aFile, aData) {
-    let stateString = Cc["@mozilla.org/supports-string;1"].createInstance(Ci.nsISupportsString);
-    stateString.data = aData;
-    Services.obs.notifyObservers(stateString, "sessionstore-state-write", "");
+  /**
+   * Writes the session state to a disk file, while doing some telemetry and notification
+   * bookkeeping.
+   * @param aFile nsIFile used for saving the session
+   * @param aData JSON session state
+   * @param aAsync boolelan used to determine the method of saving the state
+   */
+  _writeFile: function ss_writeFile(aFile, aData, aAsync) {
+    TelemetryStopwatch.start("FX_SESSION_RESTORE_SERIALIZE_DATA_MS");
+    let state = JSON.stringify(aData);
+    TelemetryStopwatch.finish("FX_SESSION_RESTORE_SERIALIZE_DATA_MS");
 
-    // Don't touch the file if an observer has deleted all state data
-    if (!stateString.data)
-      return;
+    // Convert data string to a utf-8 encoded array buffer
+    let buffer = new TextEncoder().encode(state);
+    Services.telemetry.getHistogramById("FX_SESSION_RESTORE_FILE_SIZE_BYTES").add(buffer.byteLength);
 
-    // Initialize the file output stream.
-    let ostream = Cc["@mozilla.org/network/safe-file-output-stream;1"].createInstance(Ci.nsIFileOutputStream);
-    ostream.init(aFile, 0x02 | 0x08 | 0x20, 0600, ostream.DEFER_OPEN);
+    Services.obs.notifyObservers(null, "sessionstore-state-write", "");
+    let startWriteMs = Cu.now();
+ 
+    let pendingWrite = this._pendingWrite;
+    this._write(aFile, buffer, aAsync).then(() => {
+      let stopWriteMs = Cu.now();
 
-    // Obtain a converter to convert our data to a UTF-8 encoded input stream.
-    let converter = Cc["@mozilla.org/intl/scriptableunicodeconverter"].createInstance(Ci.nsIScriptableUnicodeConverter);
-    converter.charset = "UTF-8";
-
-    // Asynchronously copy the data to the file.
-    let istream = converter.convertToInputStream(aData);
-    NetUtil.asyncCopy(istream, ostream, function(rc) {
-      if (Components.isSuccessCode(rc)) {
-        Services.obs.notifyObservers(null, "sessionstore-state-write-complete", "");
+      // Make sure this._pendingWrite is the same value it was before we
+      // fired off the async write. If the count is different, another write
+      // is pending, so we shouldn't reset this._pendingWrite yet.
+      if (pendingWrite === this._pendingWrite) {
+        this._pendingWrite = 0;
       }
+
+      // We don't use a stopwatch here since the calls are async and stopwatches can only manage
+      // a single timer per histogram.
+      Services.telemetry.getHistogramById("FX_SESSION_RESTORE_WRITE_FILE_MS").add(Math.round(stopWriteMs - startWriteMs));
+      Services.obs.notifyObservers(null, "sessionstore-state-write-complete", "");
     });
   },
 
+  /**
+   * Writes the session state to a disk file, using async or sync methods
+   * @param aFile nsIFile used for saving the session
+   * @param aBuffer UTF-8 encoded ArrayBuffer of the session state
+   * @param aAsync boolelan used to determine the method of saving the state
+   * @return Promise that resolves when the file has been written
+   */
+  _write: function ss_write(aFile, aBuffer, aAsync) {
+    // Use async file writer and just return it's promise
+    if (aAsync) {
+      return OS.File.writeAtomic(aFile.path, aBuffer, { tmpPath: aFile.path + ".tmp" });
+    }
+
+    // Convert buffer to an encoded string and sync write to disk
+    let bytes = String.fromCharCode.apply(null, new Uint16Array(aBuffer));
+    let stream = Cc["@mozilla.org/network/file-output-stream;1"].createInstance(Ci.nsIFileOutputStream);
+    stream.init(aFile, 0x02 | 0x08 | 0x20, 0666, 0);
+    stream.write(bytes, bytes.length);
+    stream.close();
+
+    // Return a resolved promise to make the caller happy
+    return Promise.resolve();
+  },
+
+    if (!aWindow.BrowserApp.selectedBrowser) {
+      return;
+    }
+
+    try {
+      let currentURI = aWindow.BrowserApp.selectedBrowser.currentURI.clone();
+      // if the current URI contains a username/password, remove it
+      try {
+        currentURI.userPass = "";
+      } catch (ex) { } // ignore failures on about: URIs
+    }
+  },
+
+  /**
+   * Determines whether a given session history entry has been added dynamically.
+   */
+  isDynamic: function(aEntry) {
+    // aEntry.isDynamicallyAdded() is true for dynamically added
+    // <iframe> and <frameset>, but also for <html> (the root of the
+    // document) so we use aEntry.parent to ensure that we're not looking
+    // at the root of the document
+    return aEntry.parent && aEntry.isDynamicallyAdded();
+  },
+
+  /**
+  * Get an object that is a serialized representation of a History entry.
+  */
   _serializeHistoryEntry: function _serializeHistoryEntry(aEntry) {
     let entry = { url: aEntry.URI.spec };
 
-    if (aEntry.title && aEntry.title != entry.url)
+    if (aEntry.title && aEntry.title != entry.url) {
       entry.title = aEntry.title;
+    }
 
-    if (!(aEntry instanceof Ci.nsISHEntry))
+    if (!(aEntry instanceof Ci.nsISHEntry)) {
       return entry;
+    }
 
     let cacheKey = aEntry.cacheKey;
-    if (cacheKey && cacheKey instanceof Ci.nsISupportsPRUint32 && cacheKey.data != 0)
+    if (cacheKey && cacheKey instanceof Ci.nsISupportsPRUint32 && cacheKey.data != 0) {
       entry.cacheKey = cacheKey.data;
+    }
 
     entry.ID = aEntry.ID;
     entry.docshellID = aEntry.docshellID;
 
-    if (aEntry.referrerURI)
+    if (aEntry.referrerURI) {
       entry.referrer = aEntry.referrerURI.spec;
+    }
 
-    if (aEntry.contentType)
+    var entryESR38 = aEntry.QueryInterface(Ci.nsISHEntry_ESR38);
+    if (entryESR38) {
+      if (entryESR38.originalURI) {
+        entry.originalURI = entryESR38.originalURI.spec;
+      }
+
+      if (entryESR38.loadReplace) {
+        entry.loadReplace = entryESR38.loadReplace;
+      }
+    }
+
+    if (aEntry.contentType) {
       entry.contentType = aEntry.contentType;
+    }
 
     let x = {}, y = {};
     aEntry.getScrollPosition(x, y);
-    if (x.value != 0 || y.value != 0)
+    if (x.value != 0 || y.value != 0) {
       entry.scroll = x.value + "," + y.value;
+    }
 
     if (aEntry.owner) {
       try {
@@ -625,15 +771,16 @@ SessionStore.prototype = {
       entry.structuredCloneVersion = aEntry.stateData.formatVersion;
     }
 
-    if (!(aEntry instanceof Ci.nsISHContainer))
+    if (!(aEntry instanceof Ci.nsISHContainer)) {
       return entry;
+    }
 
     if (aEntry.childCount > 0) {
       let children = [];
       for (let i = 0; i < aEntry.childCount; i++) {
         let child = aEntry.GetChildAt(i);
 
-        if (child) {
+        if (child && !this.isDynamic(child)) {
           // don't try to restore framesets containing wyciwyg URLs (cf. bug 424689 and bug 450595)
           if (child.URI.schemeIs("wyciwyg")) {
             children = [];
@@ -641,9 +788,10 @@ SessionStore.prototype = {
           }
           children.push(this._serializeHistoryEntry(child));
         }
+      }
 
-        if (children.length)
-          entry.children = children;
+      if (children.length) {
+        entry.children = children;
       }
     }
 
@@ -651,17 +799,28 @@ SessionStore.prototype = {
   },
 
   _deserializeHistoryEntry: function _deserializeHistoryEntry(aEntry, aIdMap, aDocIdentMap) {
-    let shEntry = Cc["@mozilla.org/browser/session-history-entry;1"].createInstance(Ci.nsISHEntry);
+    let shEntry = Cc["@mozilla.org/browser/session-history-entry;1"].createInstance(Ci.nsISHEntry_ESR38);
 
     shEntry.setURI(Services.io.newURI(aEntry.url, null, null));
     shEntry.setTitle(aEntry.title || aEntry.url);
-    if (aEntry.subframe)
+    if (aEntry.subframe) {
       shEntry.setIsSubFrame(aEntry.subframe || false);
+    }
     shEntry.loadType = Ci.nsIDocShellLoadInfo.loadHistory;
-    if (aEntry.contentType)
+    if (aEntry.contentType) {
       shEntry.contentType = aEntry.contentType;
-    if (aEntry.referrer)
+    }
+    if (aEntry.referrer) {
       shEntry.referrerURI = Services.io.newURI(aEntry.referrer, null, null);
+    }
+
+    if (aEntry.originalURI) {
+      shEntry.originalURI =  Services.io.newURI(aEntry.originalURI, null, null);
+    }
+
+    if (aEntry.loadReplace) {
+      shEntry.loadReplace = aEntry.loadReplace;
+    }
 
     if (aEntry.cacheKey) {
       let cacheKey = Cc["@mozilla.org/supports-PRUint32;1"].createInstance(Ci.nsISupportsPRUint32);
@@ -681,8 +840,9 @@ SessionStore.prototype = {
       shEntry.ID = id;
     }
 
-    if (aEntry.docshellID)
+    if (aEntry.docshellID) {
       shEntry.docshellID = aEntry.docshellID;
+    }
 
     if (aEntry.structuredCloneState && aEntry.structuredCloneVersion) {
       shEntry.stateData =
@@ -727,8 +887,9 @@ SessionStore.prototype = {
 
     if (aEntry.children && shEntry instanceof Ci.nsISHContainer) {
       for (let i = 0; i < aEntry.children.length; i++) {
-        if (!aEntry.children[i].url)
+        if (!aEntry.children[i].url) {
           continue;
+        }
 
         // We're getting sessionrestore.js files with a cycle in the
         // doc-identifier graph, likely due to bug 698656.  (That is, we have
@@ -752,19 +913,64 @@ SessionStore.prototype = {
     return shEntry;
   },
 
-  _restoreHistory: function _restoreHistory(aTabData, aHistory) {
-    if (aHistory.count > 0)
+  // This function iterates through a list of tab data restoring session for each of them.
+  _restoreTabs: function ss_restoreTabs(aData) {
+    let window = Services.wm.getMostRecentWindow("navigator:browser");
+    for (let i = 0; i < aData.tabs.length; i++) {
+      let tabData = JSON.parse(aData.tabs[i]);
+      let params = {
+        selected: (i == aData.tabs.length - 1),
+        isPrivate: tabData.isPrivate,
+        desktopMode: tabData.desktopMode,
+      };
+
+      let tab = window.BrowserApp.addTab(tabData.entries[tabData.index - 1].url, params);
+      this._restoreTab(tabData, tab.browser);
+    }
+  },
+
+  /**
+   * Don't save sensitive data if the user doesn't want to
+   * (distinguishes between encrypted and non-encrypted sites)
+   */
+  checkPrivacyLevel: function ss_checkPrivacyLevel(aURL) {
+    let isHTTPS = aURL.startsWith("https:");
+    let pref = "browser.sessionstore.privacy_level";
+    return Services.prefs.getIntPref(pref) < (isHTTPS ? PRIVACY_ENCRYPTED : PRIVACY_FULL);
+  },
+
+  /**
+  * Starts the restoration process for a browser. History is restored at this
+  * point, but text data must be delayed until the content loads.
+  */
+  _restoreTab: function ss_restoreTab(aTabData, aBrowser) {
+    this._restoreHistory(aTabData, aBrowser.sessionHistory);
+
+    // Restoring the text data requires waiting for the content to load. So
+    // we set a flag and delay this until the "load" event.
+    //this._restoreTextData(aTabData, aBrowser);
+    aBrowser.__SS_restore_data = aTabData || {};
+  },
+
+  /**
+  * Takes serialized history data and create news entries into the given
+  * nsISessionHistory object.
+  */
+  _restoreHistory: function ss_restoreHistory(aTabData, aHistory) {
+    if (aHistory.count > 0) {
       aHistory.PurgeHistory(aHistory.count);
+    }
     aHistory.QueryInterface(Ci.nsISHistoryInternal);
 
-    // helper hashes for ensuring unique frame IDs and unique document
+    // Helper hashes for ensuring unique frame IDs and unique document
     // identifiers.
     let idMap = { used: {} };
     let docIdentMap = {};
 
     for (let i = 0; i < aTabData.entries.length; i++) {
-      if (!aTabData.entries[i].url)
+      if (!aTabData.entries[i].url) {
         continue;
+      }
       aHistory.addEntry(this._deserializeHistoryEntry(aTabData.entries[i], idMap, docIdentMap), true);
     }
 
@@ -773,6 +979,17 @@ SessionStore.prototype = {
     let activeIndex = (aTabData.index || aTabData.entries.length) - 1;
     aHistory.getEntryAtIndex(activeIndex, true);
     aHistory.QueryInterface(Ci.nsISHistory).reloadCurrentEntry();
+  },
+
+  /**
+  * Takes serialized form text data and restores it into the given browser.
+  */
+  _restoreTextData: function ss_restoreTextData(aTabData, aBrowser) {
+    let formdata = aTabData.formdata;
+    if (formdata) {
+      FormData.restoreTree(aBrowser.contentWindow, formdata);
+    }
+    delete aBrowser.__SS_restore_data;
   },
 
   getBrowserState: function ss_getBrowserState() {
@@ -784,22 +1001,21 @@ SessionStore.prototype = {
     try {
       state = JSON.parse(aData);
     } catch (e) {
-      Cu.reportError("SessionStore: invalid session JSON");
-      return false;
+      throw "Invalid session JSON: " + aData;
     }
 
     // To do a restore, we must have at least one window with one tab
     if (!state || state.windows.length == 0 || !state.windows[0].tabs || state.windows[0].tabs.length == 0) {
-      Cu.reportError("SessionStore: no tabs to restore");
-      return false;
+      throw "Invalid session JSON: " + aData;
     }
 
     let window = Services.wm.getMostRecentWindow("navigator:browser");
 
     let tabs = state.windows[0].tabs;
     let selected = state.windows[0].selected;
-    if (selected == null || selected > tabs.length) // Clamp the selected index if it's bogus
+    if (selected == null || selected > tabs.length) { // Clamp the selected index if it's bogus
       selected = 1;
+    }
 
     for (let i = 0; i < tabs.length; i++) {
       let tabData = tabs[i];
@@ -827,18 +1043,24 @@ SessionStore.prototype = {
       }
 
       if (window.BrowserApp.selectedTab == tab) {
-        this._restoreHistory(tabData, tab.browser.sessionHistory);
+        this._restoreTab(tabData, tab.browser);
+
         delete tab.browser.__SS_restore;
+        tab.browser.removeAttribute("pending");
       } else {
         // Make sure the browser has its session data for the delay reload
         tab.browser.__SS_data = tabData;
         tab.browser.__SS_restore = true;
+        tab.browser.setAttribute("pending", "true");
       }
 
       tab.browser.__SS_extdata = tabData.extData;
     }
 
-    return true;
+    // Restore the closed tabs array on the current window.
+    if (state.windows[0].closedTabs) {
+      this._windows[window.__SSID].closedTabs = state.windows[0].closedTabs;
+    }
   },
 
   getClosedTabCount: function ss_getClosedTabCount(aWindow) {
@@ -848,14 +1070,14 @@ SessionStore.prototype = {
     return this._windows[aWindow.__SSID].closedTabs.length;
   },
 
-  getClosedTabData: function ss_getClosedTabData(aWindow) {
+  getClosedTabs: function ss_getClosedTabs(aWindow) {
     if (!aWindow.__SSID)
       throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
 
-    return JSON.stringify(this._windows[aWindow.__SSID].closedTabs);
+    return this._windows[aWindow.__SSID].closedTabs;
   },
 
-  undoCloseTab: function ss_undoCloseTab(aWindow, aIndex) {
+  undoCloseTab: function ss_undoCloseTab(aWindow, aCloseTabData) {
     if (!aWindow.__SSID)
       throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
 
@@ -863,21 +1085,32 @@ SessionStore.prototype = {
     if (!closedTabs)
       return null;
 
-    // default to the most-recently closed tab
-    aIndex = aIndex || 0;
-    if (!(aIndex in closedTabs))
-      throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
-
-    // fetch the data of closed tab, while removing it from the array
-    let closedTab = closedTabs.splice(aIndex, 1).shift();
+    // If the tab data is in the closedTabs array, remove it.
+    closedTabs.find(function (tabData, i) {
+      if (tabData == aCloseTabData) {
+        closedTabs.splice(i, 1);
+        return true;
+      }
+    });
 
     // create a new tab and bring to front
-    let params = { selected: true };
-    let tab = aWindow.BrowserApp.addTab(closedTab.entries[closedTab.index - 1].url, params);
-    this._restoreHistory(closedTab, tab.browser.sessionHistory);
+    let params = {
+      selected: true,
+      isPrivate: aCloseTabData.isPrivate,
+      desktopMode: aCloseTabData.desktopMode,
+      tabIndex: this._lastClosedTabIndex
+    };
+    let tab = aWindow.BrowserApp.addTab(aCloseTabData.entries[aCloseTabData.index - 1].url, params);
+    this._restoreTab(aCloseTabData, tab.browser);
+
+    this._lastClosedTabIndex = -1;
 
     // Put back the extra data
-    tab.browser.__SS_extdata = closedTab.extData;
+    tab.browser.__SS_extdata = aCloseTabData.extData;
+
+    if (this._notifyClosedTabs) {
+      this._sendClosedTabsToJava(aWindow);
+    }
 
     return tab.browser;
   },
@@ -895,6 +1128,39 @@ SessionStore.prototype = {
 
     // remove closed tab from the array
     closedTabs.splice(aIndex, 1);
+
+    // Forget the last closed tab index if we're forgetting the last closed tab.
+    if (aIndex == 0) {
+      this._lastClosedTabIndex = -1;
+    }
+    if (this._notifyClosedTabs) {
+      this._sendClosedTabsToJava(aWindow);
+    }
+  },
+
+  _sendClosedTabsToJava: function ss_sendClosedTabsToJava(aWindow) {
+    if (!aWindow.__SSID)
+      throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
+
+    let closedTabs = this._windows[aWindow.__SSID].closedTabs;
+    let isPrivate = PrivateBrowsingUtils.isBrowserPrivate(aWindow.BrowserApp.selectedBrowser);
+
+    let tabs = closedTabs
+      .filter(tab => tab.isPrivate == isPrivate)
+      .map(function (tab) {
+        // Get the url and title for the last entry in the session history.
+        let lastEntry = tab.entries[tab.entries.length - 1];
+        return {
+          url: lastEntry.url,
+          title: lastEntry.title || "",
+          data: tab
+        };
+      });
+
+    Messaging.sendRequest({
+      type: "ClosedTabs:Data",
+      tabs: tabs
+    });
   },
 
   getTabValue: function ss_getTabValue(aTab, aKey) {
@@ -920,86 +1186,29 @@ SessionStore.prototype = {
       throw (Components.returnCode = Cr.NS_ERROR_INVALID_ARG);
   },
 
-  shouldRestore: function ss_shouldRestore() {
-    return this._shouldRestore;
-  },
-
-  restoreLastSession: function ss_restoreLastSession(aNormalRestore, aSessionString) {
-    let self = this;
-
-    function restoreWindow(data) {
-      if (!self._restoreWindow(data)) {
-        throw "Could not restore window";
-      }
-
-      notifyObservers();
-    }
-
-    function notifyObservers(aMessage) {
-      Services.obs.notifyObservers(null, "sessionstore-windows-restored", aMessage || "");
-    }
+  restoreLastSession: Task.async(function* (aSessionString) {
+    let notifyMessage = "";
 
     try {
-      if (!aNormalRestore && !this._shouldRestore) {
-        // If we're here, it means we're restoring from a crash. Check prefs
-        // and other conditions to make sure we want to continue with the
-        // restore.
-        // TODO: Since the tabs have already been created as stubs after
-        // crashing, it's too late to try to abort the restore here. This logic
-        // should be moved to Java; see bug 889722.
-
-        // Disable crash recovery if it has been turned off.
-        if (!Services.prefs.getBoolPref("browser.sessionstore.resume_from_crash")) {
-          throw "Restore is disabled via prefs";
-        }
-
-        // Check to see if we've exceeded the maximum number of crashes to
-        // avoid a crash loop
-        let maxCrashes = Services.prefs.getIntPref("browser.sessionstore.max_resumed_crashes");
-        let recentCrashes = Services.prefs.getIntPref("browser.sessionstore.recent_crashes") + 1;
-        Services.prefs.setIntPref("browser.sessionstore.recent_crashes", recentCrashes);
-        Services.prefs.savePrefFile(null);
-
-        if (recentCrashes > maxCrashes) {
-          throw "Exceeded maximum number of allowed restores";
-        }
-      }
-
-      // Normally, we'll receive the session string from Java, but there are
-      // cases where we may want to restore that Java cannot detect (e.g., if
-      // browser.sessionstore.resume_session_once is true). In these cases, the
-      // session will be read from sessionstore.bak (which is also used for
-      // "tabs from last time").
-      if (aSessionString == null) {
-        if (!this._sessionFileBackup.exists()) {
-          throw "Session file doesn't exist";
-        }
-
-        let channel = NetUtil.newChannel(this._sessionFileBackup);
-        channel.contentType = "application/json";
-        NetUtil.asyncFetch(channel, function(aStream, aResult) {
-          try {
-            if (!Components.isSuccessCode(aResult)) {
-              throw "Could not fetch session file";
-            }
-
-            let data = NetUtil.readInputStreamToString(aStream, aStream.available(), { charset : "UTF-8" }) || "";
-            aStream.close();
-            
-            restoreWindow(data);
-          } catch (e) {
-            Cu.reportError("SessionStore: " + e.message);
-            notifyObservers("fail");
-          }
-        });
-      } else {
-        restoreWindow(aSessionString);
-      }
+      this._restoreWindow(aSessionString);
     } catch (e) {
       Cu.reportError("SessionStore: " + e);
-      notifyObservers("fail");
+      notifyMessage = "fail";
     }
+
+    Services.obs.notifyObservers(null, "sessionstore-windows-restored", notifyMessage);
+  }),
+
+  removeWindow: function ss_removeWindow(aWindow) {
+    if (!aWindow || !aWindow.__SSID || !this._windows[aWindow.__SSID])
+      return;
+
+    delete this._windows[aWindow.__SSID];
+    delete aWindow.__SSID;
+
+    this.saveState();
   }
+
 };
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([SessionStore]);

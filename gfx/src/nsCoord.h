@@ -57,9 +57,17 @@ inline void VERIFY_COORD(nscoord aCoord) {
 #endif
 }
 
+inline nscoord NSCoordMulDiv(nscoord aMult1, nscoord aMult2, nscoord aDiv) {
+#ifdef NS_COORD_IS_FLOAT
+  return (aMult1 * aMult2 / aDiv);
+#else
+  return (int64_t(aMult1) * int64_t(aMult2) / int64_t(aDiv));
+#endif
+}
+
 inline nscoord NSToCoordRound(float aValue)
 {
-#if defined(XP_WIN32) && defined(_M_IX86) && !defined(__GNUC__)
+#if defined(XP_WIN32) && defined(_M_IX86) && !defined(__GNUC__) && !defined(__clang__)
   return NS_lroundup30(aValue);
 #else
   return nscoord(floorf(aValue + 0.5f));
@@ -68,7 +76,7 @@ inline nscoord NSToCoordRound(float aValue)
 
 inline nscoord NSToCoordRound(double aValue)
 {
-#if defined(XP_WIN32) && defined(_M_IX86) && !defined(__GNUC__)
+#if defined(XP_WIN32) && defined(_M_IX86) && !defined(__GNUC__) && !defined(__clang__)
   return NS_lroundup30((float)aValue);
 #else
   return nscoord(floor(aValue + 0.5f));
@@ -79,13 +87,9 @@ inline nscoord NSToCoordRoundWithClamp(float aValue)
 {
 #ifndef NS_COORD_IS_FLOAT
   // Bounds-check before converting out of float, to avoid overflow
-  NS_WARN_IF_FALSE(aValue <= nscoord_MAX,
-                   "Overflowed nscoord_MAX in conversion to nscoord");
   if (aValue >= nscoord_MAX) {
     return nscoord_MAX;
   }
-  NS_WARN_IF_FALSE(aValue >= nscoord_MIN,
-                   "Overflowed nscoord_MIN in conversion to nscoord");
   if (aValue <= nscoord_MIN) {
     return nscoord_MIN;
   }
@@ -103,21 +107,12 @@ inline nscoord _nscoordSaturatingMultiply(nscoord aCoord, float aScale,
                                           bool requireNotNegative) {
   VERIFY_COORD(aCoord);
   if (requireNotNegative) {
-    NS_ABORT_IF_FALSE(aScale >= 0.0f,
-                      "negative scaling factors must be handled manually");
+    MOZ_ASSERT(aScale >= 0.0f,
+               "negative scaling factors must be handled manually");
   }
 #ifdef NS_COORD_IS_FLOAT
   return floorf(aCoord * aScale);
 #else
-  // This one's only a warning because it may be possible to trigger it with
-  // valid inputs.
-  NS_WARN_IF_FALSE((requireNotNegative
-                    ? aCoord > 0
-                    : (aCoord > 0) == (aScale > 0))
-                   ? floorf(aCoord * aScale) < nscoord_MAX
-                   : ceilf(aCoord * aScale) > nscoord_MIN,
-                   "nscoord multiplication capped");
-
   float product = aCoord * aScale;
   if (requireNotNegative ? aCoord > 0 : (aCoord > 0) == (aScale > 0))
     return NSToCoordRoundWithClamp(std::min<float>(nscoord_MAX, product));
@@ -157,8 +152,6 @@ NSCoordSaturatingAdd(nscoord a, nscoord b)
 {
   VERIFY_COORD(a);
   VERIFY_COORD(b);
-  NS_ASSERTION(a != nscoord_MIN && b != nscoord_MIN,
-               "NSCoordSaturatingAdd got nscoord_MIN as argument");
 
 #ifdef NS_COORD_IS_FLOAT
   // Float math correctly handles a+b, given that neither is -infinity.
@@ -169,15 +162,6 @@ NSCoordSaturatingAdd(nscoord a, nscoord b)
     return nscoord_MAX;
   } else {
     // a + b = a + b
-    NS_ASSERTION(a < nscoord_MAX && b < nscoord_MAX,
-                 "Doing nscoord addition with values > nscoord_MAX");
-    NS_ASSERTION((int64_t)a + (int64_t)b > (int64_t)nscoord_MIN,
-                 "nscoord addition will reach or pass nscoord_MIN");
-    // This one's only a warning because the std::min below means that
-    // we'll handle this case correctly.
-    NS_WARN_IF_FALSE((int64_t)a + (int64_t)b < (int64_t)nscoord_MAX,
-                     "nscoord addition capped to nscoord_MAX");
-
     // Cap the result, just in case we're dealing with numbers near nscoord_MAX
     return std::min(nscoord_MAX, a + b);
   }
@@ -206,8 +190,6 @@ NSCoordSaturatingSubtract(nscoord a, nscoord b,
 {
   VERIFY_COORD(a);
   VERIFY_COORD(b);
-  NS_ASSERTION(a != nscoord_MIN && b != nscoord_MIN,
-               "NSCoordSaturatingSubtract got nscoord_MIN as argument");
 
   if (b == nscoord_MAX) {
     if (a == nscoord_MAX) {
@@ -228,20 +210,11 @@ NSCoordSaturatingSubtract(nscoord a, nscoord b,
       return nscoord_MAX;
     } else {
       // case (d) for integers
-      NS_ASSERTION(a < nscoord_MAX && b < nscoord_MAX,
-                   "Doing nscoord subtraction with values > nscoord_MAX");
-      NS_ASSERTION((int64_t)a - (int64_t)b > (int64_t)nscoord_MIN,
-                   "nscoord subtraction will reach or pass nscoord_MIN");
-      // This one's only a warning because the std::min below means that
-      // we'll handle this case correctly.
-      NS_WARN_IF_FALSE((int64_t)a - (int64_t)b < (int64_t)nscoord_MAX,
-                       "nscoord subtraction capped to nscoord_MAX");
-
       // Cap the result, in case we're dealing with numbers near nscoord_MAX
       return std::min(nscoord_MAX, a - b);
     }
-  }
 #endif
+  }
 }
 
 inline float NSCoordToFloat(nscoord aCoord) {
@@ -269,13 +242,9 @@ inline nscoord NSToCoordFloorClamped(float aValue)
 {
 #ifndef NS_COORD_IS_FLOAT
   // Bounds-check before converting out of float, to avoid overflow
-  NS_WARN_IF_FALSE(aValue <= nscoord_MAX,
-                   "Overflowed nscoord_MAX in conversion to nscoord");
   if (aValue >= nscoord_MAX) {
     return nscoord_MAX;
   }
-  NS_WARN_IF_FALSE(aValue >= nscoord_MIN,
-                   "Overflowed nscoord_MIN in conversion to nscoord");
   if (aValue <= nscoord_MIN) {
     return nscoord_MIN;
   }
@@ -297,18 +266,60 @@ inline nscoord NSToCoordCeilClamped(double aValue)
 {
 #ifndef NS_COORD_IS_FLOAT
   // Bounds-check before converting out of double, to avoid overflow
-  NS_WARN_IF_FALSE(aValue <= nscoord_MAX,
-                   "Overflowed nscoord_MAX in conversion to nscoord");
   if (aValue >= nscoord_MAX) {
     return nscoord_MAX;
   }
-  NS_WARN_IF_FALSE(aValue >= nscoord_MIN,
-                   "Overflowed nscoord_MIN in conversion to nscoord");
   if (aValue <= nscoord_MIN) {
     return nscoord_MIN;
   }
 #endif
   return NSToCoordCeil(aValue);
+}
+
+// The NSToCoordTrunc* functions remove the fractional component of
+// aValue, and are thus equivalent to NSToCoordFloor* for positive
+// values and NSToCoordCeil* for negative values.
+
+inline nscoord NSToCoordTrunc(float aValue)
+{
+  // There's no need to use truncf() since it matches the default
+  // rules for float to integer conversion.
+  return nscoord(aValue);
+}
+
+inline nscoord NSToCoordTrunc(double aValue)
+{
+  // There's no need to use trunc() since it matches the default
+  // rules for float to integer conversion.
+  return nscoord(aValue);
+}
+
+inline nscoord NSToCoordTruncClamped(float aValue)
+{
+#ifndef NS_COORD_IS_FLOAT
+  // Bounds-check before converting out of float, to avoid overflow
+  if (aValue >= nscoord_MAX) {
+    return nscoord_MAX;
+  }
+  if (aValue <= nscoord_MIN) {
+    return nscoord_MIN;
+  }
+#endif
+  return NSToCoordTrunc(aValue);
+}
+
+inline nscoord NSToCoordTruncClamped(double aValue)
+{
+#ifndef NS_COORD_IS_FLOAT
+  // Bounds-check before converting out of double, to avoid overflow
+  if (aValue >= nscoord_MAX) {
+    return nscoord_MAX;
+  }
+  if (aValue <= nscoord_MIN) {
+    return nscoord_MIN;
+  }
+#endif
+  return NSToCoordTrunc(aValue);
 }
 
 /*

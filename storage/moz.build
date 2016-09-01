@@ -6,7 +6,5 @@
 
 DIRS += ['public', 'src', 'build']
 
-TEST_TOOL_DIRS += ['test']
-
-MODULE = 'storage'
+TEST_DIRS += ['test']
 

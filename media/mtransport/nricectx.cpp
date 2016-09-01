@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- mode: c++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
@@ -6,6 +6,8 @@
 
 
 // Original author: ekr@rtfm.com
+// Contributors:
+//   Moonchild <moonchild@palemoon.org>
 
 // Some of this code is cut-and-pasted from nICEr. Copyright is:
 
@@ -44,10 +46,13 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string>
 #include <vector>
 
+#include "mozilla/UniquePtr.h"
+
 #include "logging.h"
 #include "nspr.h"
 #include "nss.h"
 #include "pk11pub.h"
+#include "plbase64.h"
 
 #include "nsCOMPtr.h"
 #include "nsComponentManagerUtils.h"
@@ -57,6 +62,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "nsComponentManagerUtils.h"
 #include "nsServiceManagerUtils.h"
 #include "ScopedNSSTypes.h"
+#include "runnable_utils.h"
 
 // nICEr includes
 extern "C" {
@@ -65,12 +71,15 @@ extern "C" {
 #include "async_timer.h"
 #include "r_crc32.h"
 #include "r_memory.h"
+#include "ice_reg.h"
 #include "ice_util.h"
 #include "transport_addr.h"
 #include "nr_crypto.h"
 #include "nr_socket.h"
 #include "nr_socket_local.h"
+#include "nr_proxy_tunnel.h"
 #include "stun_client_ctx.h"
+#include "stun_reg.h"
 #include "stun_server_ctx.h"
 #include "ice_codeword.h"
 #include "ice_ctx.h"
@@ -82,10 +91,23 @@ extern "C" {
 #include "nricectx.h"
 #include "nricemediastream.h"
 #include "nr_socket_prsock.h"
+#include "nrinterfaceprioritizer.h"
+#include "rlogringbuffer.h"
 
 namespace mozilla {
 
+TimeStamp nr_socket_short_term_violation_time() {
+  return NrSocketBase::short_term_violation_time();
+}
+
+TimeStamp nr_socket_long_term_violation_time() {
+  return NrSocketBase::long_term_violation_time();
+}
+
 MOZ_MTLOG_MODULE("mtransport")
+
+const char kNrIceTransportUdp[] = "udp";
+const char kNrIceTransportTcp[] = "tcp";
 
 static bool initialized = false;
 
@@ -127,6 +149,8 @@ static int nr_crypto_nss_hmac(UCHAR *key, int keyl, UCHAR *buf, int bufl,
 
   hmac_ctx = PK11_CreateContextBySymKey(mech, CKA_SIGN,
                                         skey, &param);
+  if (!hmac_ctx)
+    goto abort;
 
   status = PK11_DigestBegin(hmac_ctx);
   if (status != SECSuccess)
@@ -178,16 +202,24 @@ static nr_ice_crypto_vtbl nr_ice_crypto_nss_vtbl = {
   nr_crypto_nss_md5
 };
 
-
-
-
-nsresult NrIceStunServer::ToNicerStunStruct(nr_ice_stun_server *server) const {
+nsresult NrIceStunServer::ToNicerStunStruct(nr_ice_stun_server *server,
+                                            const std::string &transport) const {
   int r;
+  int transport_int;
 
   memset(server, 0, sizeof(nr_ice_stun_server));
+  if (transport == kNrIceTransportUdp) {
+    transport_int = IPPROTO_UDP;
+  } else if (transport == kNrIceTransportTcp) {
+    transport_int = IPPROTO_TCP;
+  } else {
+    MOZ_ASSERT(false);
+    return NS_ERROR_FAILURE;
+  }
 
   if (has_addr_) {
-    r = nr_praddr_to_transport_addr(&addr_, &server->u.addr, 0);
+    r = nr_praddr_to_transport_addr(&addr_, &server->u.addr,
+                                    transport_int, 0);
     if (r) {
       return NS_ERROR_FAILURE;
     }
@@ -208,9 +240,18 @@ nsresult NrIceStunServer::ToNicerStunStruct(nr_ice_stun_server *server) const {
 nsresult NrIceTurnServer::ToNicerTurnStruct(nr_ice_turn_server *server) const {
   memset(server, 0, sizeof(nr_ice_turn_server));
 
-  nsresult rv = ToNicerStunStruct(&server->turn_server);
+  nsresult rv = ToNicerStunStruct(&server->turn_server, transport_);
   if (NS_FAILED(rv))
     return rv;
+
+  if (transport_ == kNrIceTransportUdp) {
+    server->transport = IPPROTO_UDP;
+  } else if (transport_ == kNrIceTransportTcp) {
+    server->transport = IPPROTO_TCP;
+  } else {
+    MOZ_ASSERT(false);
+    return NS_ERROR_FAILURE;
+  }
 
   if (username_.empty())
     return NS_ERROR_INVALID_ARG;
@@ -242,16 +283,16 @@ nsresult NrIceTurnServer::ToNicerTurnStruct(nr_ice_turn_server *server) const {
 int NrIceCtx::select_pair(void *obj,nr_ice_media_stream *stream,
                    int component_id, nr_ice_cand_pair **potentials,
                    int potential_ct) {
-  MOZ_MTLOG(PR_LOG_DEBUG, "select pair called: potential_ct = "
+  MOZ_MTLOG(ML_DEBUG, "select pair called: potential_ct = "
             << potential_ct);
 
   return 0;
 }
 
 int NrIceCtx::stream_ready(void *obj, nr_ice_media_stream *stream) {
-  MOZ_MTLOG(PR_LOG_DEBUG, "stream_ready called");
+  MOZ_MTLOG(ML_DEBUG, "stream_ready called");
 
-  // Get the ICE ctx
+  // Get the ICE ctx.
   NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
 
   RefPtr<NrIceMediaStream> s = ctx->FindStream(stream);
@@ -265,7 +306,7 @@ int NrIceCtx::stream_ready(void *obj, nr_ice_media_stream *stream) {
 }
 
 int NrIceCtx::stream_failed(void *obj, nr_ice_media_stream *stream) {
-  MOZ_MTLOG(PR_LOG_DEBUG, "stream_failed called");
+  MOZ_MTLOG(ML_DEBUG, "stream_failed called");
 
   // Get the ICE ctx
   NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
@@ -274,18 +315,32 @@ int NrIceCtx::stream_failed(void *obj, nr_ice_media_stream *stream) {
   // Streams which do not exist should never fail.
   MOZ_ASSERT(s);
 
-  ctx->SetState(ICE_CTX_FAILED);
+  ctx->SetConnectionState(ICE_CTX_FAILED);
   s -> SignalFailed(s);
   return 0;
 }
 
-int NrIceCtx::ice_completed(void *obj, nr_ice_peer_ctx *pctx) {
-  MOZ_MTLOG(PR_LOG_DEBUG, "ice_completed called");
+int NrIceCtx::ice_checking(void *obj, nr_ice_peer_ctx *pctx) {
+  MOZ_MTLOG(ML_DEBUG, "ice_checking called");
 
   // Get the ICE ctx
   NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
 
-  ctx->SetState(ICE_CTX_OPEN);
+  ctx->SetConnectionState(ICE_CTX_CHECKING);
+
+  return 0;
+}
+
+int NrIceCtx::ice_completed(void *obj, nr_ice_peer_ctx *pctx) {
+  MOZ_MTLOG(ML_DEBUG, "ice_completed called");
+
+  // Get the ICE ctx
+  NrIceCtx *ctx = static_cast<NrIceCtx *>(obj);
+
+  // This is called even on failed contexts.
+  if (ctx->connection_state() != ICE_CTX_FAILED) {
+    ctx->SetConnectionState(ICE_CTX_OPEN);
+  }
 
   return 0;
 }
@@ -305,24 +360,54 @@ int NrIceCtx::msg_recvd(void *obj, nr_ice_peer_ctx *pctx,
   return 0;
 }
 
+void NrIceCtx::trickle_cb(void *arg, nr_ice_ctx *ice_ctx,
+                          nr_ice_media_stream *stream,
+                          int component_id,
+                          nr_ice_candidate *candidate) {
+  // Get the ICE ctx
+  NrIceCtx *ctx = static_cast<NrIceCtx *>(arg);
+  RefPtr<NrIceMediaStream> s = ctx->FindStream(stream);
+
+  if (!s) {
+    // This stream has been removed because it is inactive
+    return;
+  }
+
+  // Format the candidate.
+  char candidate_str[NR_ICE_MAX_ATTRIBUTE_SIZE];
+  int r = nr_ice_format_candidate_attribute(candidate, candidate_str,
+                                            sizeof(candidate_str));
+  MOZ_ASSERT(!r);
+  if (r)
+    return;
+
+  MOZ_MTLOG(ML_INFO, "NrIceCtx(" << ctx->name_ << "): trickling candidate "
+            << candidate_str);
+
+  s->SignalCandidate(s, candidate_str);
+}
 
 RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
                                   bool offerer,
-                                  bool set_interface_priorities) {
+                                  bool set_interface_priorities,
+                                  bool allow_loopback) {
+
   RefPtr<NrIceCtx> ctx = new NrIceCtx(name, offerer);
 
-  // Initialize the crypto callbacks
+  // Initialize the crypto callbacks and logging stuff
   if (!initialized) {
     NR_reg_init(NR_REG_MODE_LOCAL);
+    RLogRingBuffer::CreateInstance();
     nr_crypto_vtbl = &nr_ice_crypto_nss_vtbl;
     initialized = true;
 
-    // Set the priorites for candidate type preferences
-    NR_reg_set_uchar((char *)"ice.pref.type.srv_rflx",100);
-    NR_reg_set_uchar((char *)"ice.pref.type.peer_rflx",105);
-    NR_reg_set_uchar((char *)"ice.pref.type.prflx",99);
-    NR_reg_set_uchar((char *)"ice.pref.type.host",125);
-    NR_reg_set_uchar((char *)"ice.pref.type.relayed",126);
+    // Set the priorites for candidate type preferences.
+    // These numbers come from RFC 5245 S. 4.1.2.2
+    NR_reg_set_uchar((char *)NR_ICE_REG_PREF_TYPE_SRV_RFLX, 100);
+    NR_reg_set_uchar((char *)NR_ICE_REG_PREF_TYPE_PEER_RFLX, 110);
+    NR_reg_set_uchar((char *)NR_ICE_REG_PREF_TYPE_HOST, 126);
+    NR_reg_set_uchar((char *)NR_ICE_REG_PREF_TYPE_RELAYED, 5);
+    NR_reg_set_uchar((char *)NR_ICE_REG_PREF_TYPE_RELAYED_TCP, 0);
 
     if (set_interface_priorities) {
       NR_reg_set_uchar((char *)"ice.pref.interface.rl0", 255);
@@ -351,7 +436,12 @@ RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
       NR_reg_set_uchar((char *)"ice.pref.interface.wlan0", 232);
     }
 
-    NR_reg_set_uint4((char *)"stun.client.maximum_transmits",4);
+    NR_reg_set_uint4((char *)"stun.client.maximum_transmits",7);
+    NR_reg_set_uint4((char *)NR_ICE_REG_TRICKLE_GRACE_PERIOD, 5000);
+
+    if (allow_loopback) {
+      NR_reg_set_char((char *)NR_STUN_REG_PREF_ALLOW_LOOPBACK_ADDRS, 1);
+    }
   }
 
   // Create the ICE context
@@ -364,8 +454,30 @@ RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
   r = nr_ice_ctx_create(const_cast<char *>(name.c_str()), flags,
                         &ctx->ctx_);
   if (r) {
-    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't create ICE ctx for '" << name << "'");
+    MOZ_MTLOG(ML_ERROR, "Couldn't create ICE ctx for '" << name << "'");
     return nullptr;
+  }
+
+#ifdef USE_INTERFACE_PRIORITIZER
+  nr_interface_prioritizer *prioritizer = CreateInterfacePrioritizer();
+  if (!prioritizer) {
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't create interface prioritizer.");
+    return nullptr;
+  }
+
+  r = nr_ice_ctx_set_interface_prioritizer(ctx->ctx_, prioritizer);
+  if (r) {
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't set interface prioritizer.");
+    return nullptr;
+  }
+#endif  // USE_INTERFACE_PRIORITIZER
+
+  if (ctx->generating_trickle()) {
+    r = nr_ice_ctx_set_trickle_cb(ctx->ctx_, &NrIceCtx::trickle_cb, ctx);
+    if (r) {
+      MOZ_MTLOG(ML_ERROR, "Couldn't set trickle cb for '" << name << "'");
+      return nullptr;
+    }
   }
 
   // Create the handler objects
@@ -375,6 +487,7 @@ RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
   ctx->ice_handler_vtbl_->stream_failed = &NrIceCtx::stream_failed;
   ctx->ice_handler_vtbl_->ice_completed = &NrIceCtx::ice_completed;
   ctx->ice_handler_vtbl_->msg_recvd = &NrIceCtx::msg_recvd;
+  ctx->ice_handler_vtbl_->ice_checking = &NrIceCtx::ice_checking;
 
   ctx->ice_handler_ = new nr_ice_handler();
   ctx->ice_handler_->vtbl = ctx->ice_handler_vtbl_;
@@ -387,7 +500,7 @@ RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
                              const_cast<char *>(peer_name.c_str()),
                              &ctx->peer_);
   if (r) {
-    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't create ICE peer ctx for '" << name << "'");
+    MOZ_MTLOG(ML_ERROR, "Couldn't create ICE peer ctx for '" << name << "'");
     return nullptr;
   }
 
@@ -400,9 +513,23 @@ RefPtr<NrIceCtx> NrIceCtx::Create(const std::string& name,
   return ctx;
 }
 
+// ONLY USE THIS FOR TESTING. Will cause totally unpredictable and possibly very
+// bad effects if ICE is still live.
+void NrIceCtx::internal_DeinitializeGlobal() {
+  NR_reg_del((char *)"stun");
+  NR_reg_del((char *)"ice");
+  RLogRingBuffer::DestroyInstance();
+  nr_crypto_vtbl = nullptr;
+  initialized = false;
+}
 
 NrIceCtx::~NrIceCtx() {
-  MOZ_MTLOG(PR_LOG_DEBUG, "Destroying ICE ctx '" << name_ <<"'");
+  MOZ_MTLOG(ML_DEBUG, "Destroying ICE ctx '" << name_ <<"'");
+  for (auto stream = streams_.begin(); stream != streams_.end(); stream++) {
+    if (*stream) {
+      (*stream)->Close();
+    }
+  }
   nr_ice_peer_ctx_destroy(&peer_);
   nr_ice_ctx_destroy(&ctx_);
   delete ice_handler_vtbl_;
@@ -414,9 +541,19 @@ NrIceCtx::CreateStream(const std::string& name, int components) {
   RefPtr<NrIceMediaStream> stream =
     NrIceMediaStream::Create(this, name, components);
 
-  streams_.push_back(stream);
+  if (stream) {
+    streams_.push_back(stream);
+  }
 
   return stream;
+}
+
+std::string NrIceCtx::ufrag() const {
+  return ctx_->ufrag;
+}
+
+std::string NrIceCtx::pwd() const {
+  return ctx_->pwd;
 }
 
 void NrIceCtx::destroy_peer_ctx() {
@@ -426,9 +563,13 @@ void NrIceCtx::destroy_peer_ctx() {
 nsresult NrIceCtx::SetControlling(Controlling controlling) {
   peer_->controlling = (controlling == ICE_CONTROLLING)? 1 : 0;
 
-  MOZ_MTLOG(PR_LOG_DEBUG, "ICE ctx " << name_ << " setting controlling to" <<
+  MOZ_MTLOG(ML_DEBUG, "ICE ctx " << name_ << " setting controlling to" <<
             controlling);
   return NS_OK;
+}
+
+NrIceCtx::Controlling NrIceCtx::GetControlling() {
+  return (peer_->controlling) ? ICE_CONTROLLING : ICE_CONTROLLED;
 }
 
 nsresult NrIceCtx::SetStunServers(const std::vector<NrIceStunServer>&
@@ -436,20 +577,19 @@ nsresult NrIceCtx::SetStunServers(const std::vector<NrIceStunServer>&
   if (stun_servers.empty())
     return NS_OK;
 
-  ScopedDeleteArray<nr_ice_stun_server> servers(
-      new nr_ice_stun_server[stun_servers.size()]);
+  auto servers = MakeUnique<nr_ice_stun_server[]>(stun_servers.size());
 
   for (size_t i=0; i < stun_servers.size(); ++i) {
     nsresult rv = stun_servers[i].ToNicerStunStruct(&servers[i]);
     if (NS_FAILED(rv)) {
-      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't set STUN server for '" << name_ << "'");
+      MOZ_MTLOG(ML_ERROR, "Couldn't set STUN server for '" << name_ << "'");
       return NS_ERROR_FAILURE;
     }
   }
 
-  int r = nr_ice_ctx_set_stun_servers(ctx_, servers, stun_servers.size());
+  int r = nr_ice_ctx_set_stun_servers(ctx_, servers.get(), stun_servers.size());
   if (r) {
-    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't set STUN server for '" << name_ << "'");
+    MOZ_MTLOG(ML_ERROR, "Couldn't set STUN server for '" << name_ << "'");
     return NS_ERROR_FAILURE;
   }
 
@@ -463,20 +603,19 @@ nsresult NrIceCtx::SetTurnServers(const std::vector<NrIceTurnServer>&
   if (turn_servers.empty())
     return NS_OK;
 
-  ScopedDeleteArray<nr_ice_turn_server> servers(
-      new nr_ice_turn_server[turn_servers.size()]);
+  auto servers = MakeUnique<nr_ice_turn_server[]>(turn_servers.size());
 
   for (size_t i=0; i < turn_servers.size(); ++i) {
     nsresult rv = turn_servers[i].ToNicerTurnStruct(&servers[i]);
     if (NS_FAILED(rv)) {
-      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't set TURN server for '" << name_ << "'");
+      MOZ_MTLOG(ML_ERROR, "Couldn't set TURN server for '" << name_ << "'");
       return NS_ERROR_FAILURE;
     }
   }
 
-  int r = nr_ice_ctx_set_turn_servers(ctx_, servers, turn_servers.size());
+  int r = nr_ice_ctx_set_turn_servers(ctx_, servers.get(), turn_servers.size());
   if (r) {
-    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't set TURN server for '" << name_ << "'");
+    MOZ_MTLOG(ML_ERROR, "Couldn't set TURN server for '" << name_ << "'");
     return NS_ERROR_FAILURE;
   }
 
@@ -489,50 +628,75 @@ nsresult NrIceCtx::SetResolver(nr_resolver *resolver) {
   int r = nr_ice_ctx_set_resolver(ctx_, resolver);
 
   if (r) {
-    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't set resolver for '" << name_ << "'");
+    MOZ_MTLOG(ML_ERROR, "Couldn't set resolver for '" << name_ << "'");
     return NS_ERROR_FAILURE;
   }
 
+  return NS_OK;
+}
+
+nsresult NrIceCtx::SetProxyServer(const NrIceProxyServer& proxy_server) {
+  int r,_status;
+  nr_proxy_tunnel_config *config = nullptr;
+  nr_socket_wrapper_factory *wrapper = nullptr;
+
+  if ((r = nr_proxy_tunnel_config_create(&config))) {
+    ABORT(r);
+  }
+
+  if ((r = nr_proxy_tunnel_config_set_proxy(config,
+                                            proxy_server.host().c_str(),
+                                            proxy_server.port()))) {
+    ABORT(r);
+  }
+
+  if ((r = nr_proxy_tunnel_config_set_resolver(config, ctx_->resolver))) {
+    ABORT(r);
+  }
+
+  if ((r = nr_socket_wrapper_factory_proxy_tunnel_create(config, &wrapper))) {
+    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't create proxy tunnel wrapper.");
+    ABORT(r);
+  }
+
+  // nr_ice_ctx will own the wrapper after this call
+  if ((r = nr_ice_ctx_set_turn_tcp_socket_wrapper(ctx_, wrapper))) {
+    MOZ_MTLOG(ML_ERROR, "Couldn't set proxy for '" << name_ << "': " << r);
+    ABORT(r);
+  }
+
+  _status = 0;
+abort:
+  nr_proxy_tunnel_config_destroy(&config);
+  if (_status) {
+    nr_socket_wrapper_factory_destroy(&wrapper);
+    return NS_ERROR_FAILURE;
+  }
   return NS_OK;
 }
 
 nsresult NrIceCtx::StartGathering() {
-  MOZ_ASSERT(ctx_->state == ICE_CTX_INIT);
-  if (ctx_->state != ICE_CTX_INIT) {
-    MOZ_MTLOG(PR_LOG_ERROR, "ICE ctx in the wrong state for gathering: '"
-      << name_ << "'");
-    SetState(ICE_CTX_FAILED);
+  ASSERT_ON_THREAD(sts_target_);
+  // This might start gathering for the first time, or again after
+  // renegotiation, or might do nothing at all if gathering has already
+  // finished.
+  int r = nr_ice_gather(ctx_, &NrIceCtx::gather_cb, this);
+
+  if (r && (r != R_WOULDBLOCK)) {
+    MOZ_MTLOG(ML_ERROR, "Couldn't gather ICE candidates for '"
+                        << name_ << "', error=" << r);
+    SetConnectionState(ICE_CTX_FAILED);
     return NS_ERROR_FAILURE;
   }
 
-  int r = nr_ice_initialize(ctx_, &NrIceCtx::initialized_cb,
-                            this);
-
-  if (r && r != R_WOULDBLOCK) {
-      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't gather ICE candidates for '"
-           << name_ << "'");
-      SetState(ICE_CTX_FAILED);
-      return NS_ERROR_FAILURE;
-  }
-
-  SetState(ICE_CTX_GATHERING);
-
+  SetGatheringState(ICE_CTX_GATHER_STARTED);
   return NS_OK;
-}
-
-void NrIceCtx::EmitAllCandidates() {
-  MOZ_MTLOG(PR_LOG_NOTICE, "Gathered all ICE candidates for '"
-       << name_ << "'");
-
-  for(size_t i=0; i<streams_.size(); ++i) {
-    streams_[i]->EmitAllCandidates();
-  }
 }
 
 RefPtr<NrIceMediaStream> NrIceCtx::FindStream(
     nr_ice_media_stream *stream) {
   for (size_t i=0; i<streams_.size(); ++i) {
-    if (streams_[i]->stream() == stream) {
+    if (streams_[i] && (streams_[i]->stream() == stream)) {
       return streams_[i];
     }
   }
@@ -548,8 +712,8 @@ std::vector<std::string> NrIceCtx::GetGlobalAttributes() {
 
   r = nr_ice_get_global_attributes(ctx_, &attrs, &attrct);
   if (r) {
-    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't get ufrag and password for '"
-         << name_ << "'");
+    MOZ_MTLOG(ML_ERROR, "Couldn't get ufrag and password for '"
+              << name_ << "'");
     return ret;
   }
 
@@ -574,8 +738,8 @@ nsresult NrIceCtx::ParseGlobalAttributes(std::vector<std::string> attrs) {
                                                   &attrs_in[0] : nullptr,
                                                   attrs_in.size());
   if (r) {
-    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't parse global attributes for "
-         << name_ << "'");
+    MOZ_MTLOG(ML_ERROR, "Couldn't parse global attributes for "
+              << name_ << "'");
     return NS_ERROR_FAILURE;
   }
 
@@ -587,44 +751,40 @@ nsresult NrIceCtx::StartChecks() {
 
   r=nr_ice_peer_ctx_pair_candidates(peer_);
   if (r) {
-    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't pair candidates on "
-         << name_ << "'");
-    SetState(ICE_CTX_FAILED);
+    MOZ_MTLOG(ML_ERROR, "Couldn't pair candidates on "
+              << name_ << "'");
+    SetConnectionState(ICE_CTX_FAILED);
     return NS_ERROR_FAILURE;
   }
 
   r = nr_ice_peer_ctx_start_checks2(peer_,1);
   if (r) {
     if (r == R_NOT_FOUND) {
-      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't start peer checks on "
-           << name_ << "' assuming trickle ICE");
+      MOZ_MTLOG(ML_ERROR, "Couldn't start peer checks on "
+                << name_ << "' assuming trickle ICE");
     } else {
-      MOZ_MTLOG(PR_LOG_ERROR, "Couldn't start peer checks on "
-           << name_ << "'");
-      SetState(ICE_CTX_FAILED);
+      MOZ_MTLOG(ML_ERROR, "Couldn't start peer checks on "
+                << name_ << "'");
+      SetConnectionState(ICE_CTX_FAILED);
       return NS_ERROR_FAILURE;
     }
-  } else {
-    SetState(ICE_CTX_CHECKING);
   }
 
   return NS_OK;
 }
 
 
-void NrIceCtx::initialized_cb(NR_SOCKET s, int h, void *arg) {
+void NrIceCtx::gather_cb(NR_SOCKET s, int h, void *arg) {
   NrIceCtx *ctx = static_cast<NrIceCtx *>(arg);
 
-  ctx->EmitAllCandidates();
-
-  ctx->SetState(ICE_CTX_GATHERED);
+  ctx->SetGatheringState(ICE_CTX_GATHER_COMPLETE);
 }
 
 nsresult NrIceCtx::Finalize() {
   int r = nr_ice_ctx_finalize(ctx_, peer_);
 
   if (r) {
-    MOZ_MTLOG(PR_LOG_ERROR, "Couldn't finalize "
+    MOZ_MTLOG(ML_ERROR, "Couldn't finalize "
          << name_ << "'");
     return NS_ERROR_FAILURE;
   }
@@ -632,49 +792,47 @@ nsresult NrIceCtx::Finalize() {
   return NS_OK;
 }
 
-void NrIceCtx::SetState(State state) {
-  if (state == state_)
+void NrIceCtx::SetConnectionState(ConnectionState state) {
+  if (state == connection_state_)
     return;
 
-  MOZ_MTLOG(PR_LOG_DEBUG, "NrIceCtx(" << name_ << "): state " <<
-    state_ << "->" << state);
-  state_ = state;
+  MOZ_MTLOG(ML_INFO, "NrIceCtx(" << name_ << "): state " <<
+            connection_state_ << "->" << state);
+  connection_state_ = state;
 
-  switch(state_) {
-    case ICE_CTX_GATHERED:
-      SignalGatheringCompleted(this);
-      break;
-    case ICE_CTX_OPEN:
-      SignalCompleted(this);
-      break;
-    case ICE_CTX_FAILED:
-      SignalFailed(this);
-      break;
-    default:
-      break;
+  if (connection_state_ == ICE_CTX_FAILED) {
+    MOZ_MTLOG(ML_INFO, "NrIceCtx(" << name_ << "): dumping r_log ringbuffer... ");
+    std::deque<std::string> logs;
+    RLogRingBuffer::GetInstance()->GetAny(0, &logs);
+    for (auto l = logs.begin(); l != logs.end(); ++l) {
+      MOZ_MTLOG(ML_INFO, *l);
+    }
   }
+
+  SignalConnectionStateChange(this, state);
+}
+
+void NrIceCtx::SetGatheringState(GatheringState state) {
+  if (state == gathering_state_)
+    return;
+
+  MOZ_MTLOG(ML_DEBUG, "NrIceCtx(" << name_ << "): gathering state " <<
+            gathering_state_ << "->" << state);
+  gathering_state_ = state;
+
+  SignalGatheringStateChange(this, state);
 }
 
 }  // close namespace
 
-
-extern "C" {
-int nr_bin2hex(UCHAR *in,int len,UCHAR *out);
-}
-
 // Reimplement nr_ice_compute_codeword to avoid copyright issues
 void nr_ice_compute_codeword(char *buf, int len,char *codeword) {
     UINT4 c;
-    UCHAR cc[2];
 
     r_crc32(buf,len,&c);
-    c %= 2048;
 
-    cc[0] = (c >> 8) & 0xff;
-    cc[1] = c & 0xff;
-
-    nr_bin2hex(cc, 2, reinterpret_cast<UCHAR *>(codeword));
+    PL_Base64Encode(reinterpret_cast<char*>(&c), 3, codeword);
+    codeword[4] = 0;
 
     return;
 }
-

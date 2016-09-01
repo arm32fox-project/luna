@@ -5,48 +5,21 @@
 
 #include "nsFileControlFrame.h"
 
-#include "nsIContent.h"
-#include "nsIAtom.h"
-#include "nsPresContext.h"
 #include "nsGkAtoms.h"
-#include "nsWidgetsCID.h"
-#include "nsIComponentManager.h"
-#include "nsHTMLParts.h"
-#include "nsIDOMHTMLInputElement.h"
-#include "nsIDOMHTMLButtonElement.h"
-#include "nsIFormControl.h"
-#include "nsINameSpaceManager.h"
 #include "nsCOMPtr.h"
-#include "nsIDOMElement.h"
 #include "nsIDocument.h"
-#include "nsIPresShell.h"
-#include "nsXPCOM.h"
-#include "nsISupportsPrimitives.h"
-#include "nsPIDOMWindow.h"
-#include "nsIFilePicker.h"
-#include "nsIDOMMouseEvent.h"
-#include "nsINodeInfo.h"
-#include "nsIFile.h"
+#include "mozilla/dom/NodeInfo.h"
+#include "mozilla/dom/Element.h"
+#include "mozilla/dom/DataTransfer.h"
+#include "mozilla/dom/HTMLButtonElement.h"
 #include "mozilla/dom/HTMLInputElement.h"
 #include "nsNodeInfoManager.h"
 #include "nsContentCreatorFunctions.h"
 #include "nsContentUtils.h"
-#include "nsDisplayList.h"
-#include "nsEventListenerManager.h"
-
-#include "nsInterfaceHashtable.h"
-#include "nsURIHashKey.h"
-#include "nsNetCID.h"
-#include "nsWeakReference.h"
-#include "nsIVariant.h"
-#include "mozilla/Services.h"
-#include "nsDirectoryServiceDefs.h"
-#include "nsDOMFile.h"
-#include "nsEventStates.h"
-#include "nsTextControlFrame.h"
-
-#include "nsIDOMDOMStringList.h"
+#include "mozilla/EventStates.h"
+#include "mozilla/dom/DOMStringList.h"
 #include "nsIDOMDragEvent.h"
+#include "nsIDOMFileList.h"
 #include "nsContentList.h"
 #include "nsIDOMMutationEvent.h"
 #include "nsTextNode.h"
@@ -70,9 +43,9 @@ nsFileControlFrame::nsFileControlFrame(nsStyleContext* aContext)
 
 
 void
-nsFileControlFrame::Init(nsIContent* aContent,
-                         nsIFrame*   aParent,
-                         nsIFrame*   aPrevInFlow)
+nsFileControlFrame::Init(nsIContent*       aContent,
+                         nsContainerFrame* aParent,
+                         nsIFrame*         aPrevInFlow)
 {
   nsBlockFrame::Init(aContent, aParent, aPrevInFlow);
 
@@ -102,17 +75,13 @@ nsFileControlFrame::DestroyFrom(nsIFrame* aDestructRoot)
 nsresult
 nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 {
-  nsCOMPtr<nsIDocument> doc = mContent->GetDocument();
-  nsCOMPtr<nsINodeInfo> nodeInfo;
+  nsCOMPtr<nsIDocument> doc = mContent->GetComposedDoc();
 
   // Create and setup the file picking button.
-  nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::button, nullptr,
-                                                 kNameSpaceID_XHTML,
-                                                 nsIDOMNode::ELEMENT_NODE);
-  NS_NewHTMLElement(getter_AddRefs(mBrowse), nodeInfo.forget(),
-                    dom::NOT_FROM_PARSER);
-  // NOTE: SetNativeAnonymous() has to be called before setting any attribute.
-  mBrowse->SetNativeAnonymous();
+  mBrowse = doc->CreateHTMLElement(nsGkAtoms::button);
+  // NOTE: SetIsNativeAnonymousRoot() has to be called before setting any
+  // attribute.
+  mBrowse->SetIsNativeAnonymousRoot();
   mBrowse->SetAttr(kNameSpaceID_None, nsGkAtoms::type,
                    NS_LITERAL_STRING("button"), false);
 
@@ -133,8 +102,8 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 
   // Make sure access key and tab order for the element actually redirect to the
   // file picking button.
-  nsCOMPtr<nsIDOMHTMLInputElement> fileContent = do_QueryInterface(mContent);
-  nsCOMPtr<nsIDOMHTMLButtonElement> browseControl = do_QueryInterface(mBrowse);
+  nsRefPtr<HTMLInputElement> fileContent = HTMLInputElement::FromContentOrNull(mContent);
+  nsRefPtr<HTMLButtonElement> browseControl = HTMLButtonElement::FromContentOrNull(mBrowse);
 
   nsAutoString accessKey;
   fileContent->GetAccessKey(accessKey);
@@ -149,12 +118,14 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
   }
 
   // Create and setup the text showing the selected files.
+  nsRefPtr<NodeInfo> nodeInfo;
   nodeInfo = doc->NodeInfoManager()->GetNodeInfo(nsGkAtoms::label, nullptr,
                                                  kNameSpaceID_XUL,
                                                  nsIDOMNode::ELEMENT_NODE);
   NS_TrustedNewXULElement(getter_AddRefs(mTextContent), nodeInfo.forget());
-  // NOTE: SetNativeAnonymous() has to be called before setting any attribute.
-  mTextContent->SetNativeAnonymous();
+  // NOTE: SetIsNativeAnonymousRoot() has to be called before setting any
+  // attribute.
+  mTextContent->SetIsNativeAnonymousRoot();
   mTextContent->SetAttr(kNameSpaceID_None, nsGkAtoms::crop,
                         NS_LITERAL_STRING("center"), false);
 
@@ -179,11 +150,16 @@ nsFileControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements)
 }
 
 void
-nsFileControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
+nsFileControlFrame::AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
                                              uint32_t aFilter)
 {
-  aElements.MaybeAppendElement(mBrowse);
-  aElements.MaybeAppendElement(mTextContent);
+  if (mBrowse) {
+    aElements.AppendElement(mBrowse);
+  }
+
+  if (mTextContent) {
+    aElements.AppendElement(mTextContent);
+  }
 }
 
 NS_QUERYFRAME_HEAD(nsFileControlFrame)
@@ -211,7 +187,22 @@ nsFileControlFrame::DnDListener::HandleEvent(nsIDOMEvent* aEvent)
   }
 
   nsCOMPtr<nsIDOMDragEvent> dragEvent = do_QueryInterface(aEvent);
-  if (!dragEvent || !IsValidDropData(dragEvent)) {
+  if (!dragEvent) {
+    return NS_OK;
+  }
+
+  nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
+  dragEvent->GetDataTransfer(getter_AddRefs(dataTransfer));
+  if (!IsValidDropData(dataTransfer)) {
+    return NS_OK;
+  }
+
+
+  nsIContent* content = mFrame->GetContent();
+  bool supportsMultiple = content && content->HasAttr(kNameSpaceID_None, nsGkAtoms::multiple);
+  if (!CanDropTheseFiles(dataTransfer, supportsMultiple)) {
+    dataTransfer->SetDropEffect(NS_LITERAL_STRING("none"));
+    aEvent->StopPropagation();
     return NS_OK;
   }
 
@@ -227,14 +218,10 @@ nsFileControlFrame::DnDListener::HandleEvent(nsIDOMEvent* aEvent)
     aEvent->StopPropagation();
     aEvent->PreventDefault();
 
-    nsIContent* content = mFrame->GetContent();
     NS_ASSERTION(content, "The frame has no content???");
 
     HTMLInputElement* inputElement = HTMLInputElement::FromContent(content);
     NS_ASSERTION(inputElement, "No input element for this file upload control frame!");
-
-    nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
-    dragEvent->GetDataTransfer(getter_AddRefs(dataTransfer));
 
     nsCOMPtr<nsIDOMFileList> fileList;
     dataTransfer->GetFiles(getter_AddRefs(fileList));
@@ -249,37 +236,48 @@ nsFileControlFrame::DnDListener::HandleEvent(nsIDOMEvent* aEvent)
 }
 
 /* static */ bool
-nsFileControlFrame::DnDListener::IsValidDropData(nsIDOMDragEvent* aEvent)
+nsFileControlFrame::DnDListener::IsValidDropData(nsIDOMDataTransfer* aDOMDataTransfer)
 {
-  nsCOMPtr<nsIDOMDataTransfer> dataTransfer;
-  aEvent->GetDataTransfer(getter_AddRefs(dataTransfer));
+  nsCOMPtr<DataTransfer> dataTransfer = do_QueryInterface(aDOMDataTransfer);
   NS_ENSURE_TRUE(dataTransfer, false);
 
-  nsCOMPtr<nsIDOMDOMStringList> types;
-  dataTransfer->GetTypes(getter_AddRefs(types));
-  NS_ENSURE_TRUE(types, false);
-
   // We only support dropping files onto a file upload control
-  bool typeSupported;
-  types->Contains(NS_LITERAL_STRING("Files"), &typeSupported);
-  return typeSupported;
+  nsRefPtr<DOMStringList> types = dataTransfer->Types();
+  return types->Contains(NS_LITERAL_STRING("Files"));
+}
+
+/* static */ bool
+nsFileControlFrame::DnDListener::CanDropTheseFiles(nsIDOMDataTransfer* aDOMDataTransfer,
+                                                   bool aSupportsMultiple)
+{
+  nsCOMPtr<DataTransfer> dataTransfer = do_QueryInterface(aDOMDataTransfer);
+  NS_ENSURE_TRUE(dataTransfer, false);
+
+  nsCOMPtr<nsIDOMFileList> fileList;
+  dataTransfer->GetFiles(getter_AddRefs(fileList));
+
+  uint32_t listLength = 0;
+  if (fileList) {
+    fileList->GetLength(&listLength);
+  }
+  return listLength <= 1 || aSupportsMultiple;
 }
 
 nscoord
-nsFileControlFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+nsFileControlFrame::GetMinISize(nsRenderingContext *aRenderingContext)
 {
   nscoord result;
   DISPLAY_MIN_WIDTH(this, result);
 
   // Our min width is our pref width
-  result = GetPrefWidth(aRenderingContext);
+  result = GetPrefISize(aRenderingContext);
   return result;
 }
 
 void
 nsFileControlFrame::SyncDisabledState()
 {
-  nsEventStates eventStates = mContent->AsElement()->State();
+  EventStates eventStates = mContent->AsElement()->State();
   if (eventStates.HasState(NS_EVENT_STATE_DISABLED)) {
     mBrowse->SetAttr(kNameSpaceID_None, nsGkAtoms::disabled, EmptyString(),
                      true);
@@ -288,7 +286,7 @@ nsFileControlFrame::SyncDisabledState()
   }
 }
 
-NS_IMETHODIMP
+nsresult
 nsFileControlFrame::AttributeChanged(int32_t  aNameSpaceID,
                                      nsIAtom* aAttribute,
                                      int32_t  aModType)
@@ -307,15 +305,15 @@ nsFileControlFrame::AttributeChanged(int32_t  aNameSpaceID,
 }
 
 void
-nsFileControlFrame::ContentStatesChanged(nsEventStates aStates)
+nsFileControlFrame::ContentStatesChanged(EventStates aStates)
 {
   if (aStates.HasState(NS_EVENT_STATE_DISABLED)) {
     nsContentUtils::AddScriptRunner(new SyncDisabledStateEvent(this));
   }
 }
 
-#ifdef DEBUG
-NS_IMETHODIMP
+#ifdef DEBUG_FRAME_DUMP
+nsresult
 nsFileControlFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("FileControl"), aResult);
@@ -357,5 +355,5 @@ nsFileControlFrame::AccessibleType()
 ////////////////////////////////////////////////////////////
 // Mouse listener implementation
 
-NS_IMPL_ISUPPORTS1(nsFileControlFrame::MouseListener,
-                   nsIDOMEventListener)
+NS_IMPL_ISUPPORTS(nsFileControlFrame::MouseListener,
+                  nsIDOMEventListener)

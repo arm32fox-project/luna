@@ -12,6 +12,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.mozilla.goanna.BrowserLocaleManager;
 import org.mozilla.goanna.R;
 import org.mozilla.goanna.background.common.log.Logger;
 import org.mozilla.goanna.sync.repositories.NullCursorException;
@@ -41,7 +42,7 @@ import android.net.Uri;
  */
 public class CommandProcessor {
   private static final String LOG_TAG = "Command";
-  private static AtomicInteger currentId = new AtomicInteger();
+  private static final AtomicInteger currentId = new AtomicInteger();
   protected ConcurrentHashMap<String, CommandRunner> commands = new ConcurrentHashMap<String, CommandRunner>();
 
   private final static CommandProcessor processor = new CommandProcessor();
@@ -239,6 +240,9 @@ public class CommandProcessor {
     }
   }
 
+  private static volatile boolean didUpdateLocale = false;
+
+  @SuppressWarnings("deprecation")
   public static void displayURI(final List<String> args, final Context context) {
     // We trust the client sender that these exist.
     final String uri = args.get(0);
@@ -251,10 +255,17 @@ public class CommandProcessor {
       title = args.get(2);
     }
 
+    // We don't care too much about races, but let's try to avoid
+    // unnecessary work.
+    if (!didUpdateLocale) {
+      BrowserLocaleManager.getInstance().getAndApplyPersistedLocale(context);
+      didUpdateLocale = true;
+    }
+
     final String ns = Context.NOTIFICATION_SERVICE;
     final NotificationManager notificationManager = (NotificationManager) context.getSystemService(ns);
 
-    // Create a Notificiation.
+    // Create a Notification.
     final int icon = R.drawable.icon;
     String notificationTitle = context.getString(R.string.sync_new_tab);
     if (title != null) {

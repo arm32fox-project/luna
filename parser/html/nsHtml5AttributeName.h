@@ -25,13 +25,13 @@
  * Please edit AttributeName.java instead and regenerate.
  */
 
-#ifndef nsHtml5AttributeName_h__
-#define nsHtml5AttributeName_h__
+#ifndef nsHtml5AttributeName_h
+#define nsHtml5AttributeName_h
 
 #include "nsIAtom.h"
 #include "nsHtml5AtomTable.h"
 #include "nsString.h"
-#include "nsINameSpaceManager.h"
+#include "nsNameSpaceManager.h"
 #include "nsIContent.h"
 #include "nsTraceRefcnt.h"
 #include "jArray.h"
@@ -41,6 +41,7 @@
 #include "nsHtml5ByteReadable.h"
 #include "nsIUnicodeDecoder.h"
 #include "nsHtml5Macros.h"
+#include "nsIContentHandle.h"
 
 class nsHtml5StreamParser;
 
@@ -73,9 +74,9 @@ class nsHtml5AttributeName
     static nsIAtom** COLONIFIED_LOCAL(nsIAtom* name, nsIAtom* suffix);
   public:
     static nsIAtom** SAME_LOCAL(nsIAtom* name);
-    static nsHtml5AttributeName* nameByBuffer(PRUnichar* buf, int32_t offset, int32_t length, nsHtml5AtomTable* interner);
+    static nsHtml5AttributeName* nameByBuffer(char16_t* buf, int32_t offset, int32_t length, nsHtml5AtomTable* interner);
   private:
-    static int32_t bufToHash(PRUnichar* buf, int32_t len);
+    static int32_t bufToHash(char16_t* buf, int32_t len);
     int32_t* uri;
     nsIAtom** local;
     nsIAtom** prefix;
@@ -210,6 +211,7 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_STYLE;
     static nsHtml5AttributeName* ATTR_RULES;
     static nsHtml5AttributeName* ATTR_STEMH;
+    static nsHtml5AttributeName* ATTR_SIZES;
     static nsHtml5AttributeName* ATTR_STEMV;
     static nsHtml5AttributeName* ATTR_START;
     static nsHtml5AttributeName* ATTR_XMLNS;
@@ -264,6 +266,7 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_RADIUS;
     static nsHtml5AttributeName* ATTR_RESULT;
     static nsHtml5AttributeName* ATTR_REPEAT;
+    static nsHtml5AttributeName* ATTR_SRCSET;
     static nsHtml5AttributeName* ATTR_RSPACE;
     static nsHtml5AttributeName* ATTR_ROTATE;
     static nsHtml5AttributeName* ATTR_RQUOTE;
@@ -382,10 +385,10 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_ELEVATION;
     static nsHtml5AttributeName* ATTR_DIRECTION;
     static nsHtml5AttributeName* ATTR_DRAGGABLE;
-    static nsHtml5AttributeName* ATTR_FILTERRES;
     static nsHtml5AttributeName* ATTR_FILL_RULE;
     static nsHtml5AttributeName* ATTR_FONTSTYLE;
     static nsHtml5AttributeName* ATTR_FONT_SIZE;
+    static nsHtml5AttributeName* ATTR_KEYSYSTEM;
     static nsHtml5AttributeName* ATTR_KEYPOINTS;
     static nsHtml5AttributeName* ATTR_HIDEFOCUS;
     static nsHtml5AttributeName* ATTR_ONMESSAGE;
@@ -393,6 +396,7 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_ONDRAGEND;
     static nsHtml5AttributeName* ATTR_ONMOVEEND;
     static nsHtml5AttributeName* ATTR_ONINVALID;
+    static nsHtml5AttributeName* ATTR_INTEGRITY;
     static nsHtml5AttributeName* ATTR_ONKEYDOWN;
     static nsHtml5AttributeName* ATTR_ONFOCUSIN;
     static nsHtml5AttributeName* ATTR_ONMOUSEUP;
@@ -622,7 +626,6 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_STROKE_LINEJOIN;
     static nsHtml5AttributeName* ATTR_REPEAT_TEMPLATE;
     static nsHtml5AttributeName* ATTR_ARIA_DESCRIBEDBY;
-    static nsHtml5AttributeName* ATTR_CONTENTSTYLETYPE;
     static nsHtml5AttributeName* ATTR_FONT_SIZE_ADJUST;
     static nsHtml5AttributeName* ATTR_KERNELUNITLENGTH;
     static nsHtml5AttributeName* ATTR_ONBEFOREACTIVATE;
@@ -639,7 +642,6 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_XCHANNELSELECTOR;
     static nsHtml5AttributeName* ATTR_YCHANNELSELECTOR;
     static nsHtml5AttributeName* ATTR_ARIA_AUTOCOMPLETE;
-    static nsHtml5AttributeName* ATTR_CONTENTSCRIPTTYPE;
     static nsHtml5AttributeName* ATTR_ENABLE_BACKGROUND;
     static nsHtml5AttributeName* ATTR_DOMINANT_BASELINE;
     static nsHtml5AttributeName* ATTR_GRADIENTTRANSFORM;
@@ -668,7 +670,6 @@ class nsHtml5AttributeName
     static nsHtml5AttributeName* ATTR_VERYVERYTHICKMATHSPACE;
     static nsHtml5AttributeName* ATTR_STRIKETHROUGH_POSITION;
     static nsHtml5AttributeName* ATTR_STRIKETHROUGH_THICKNESS;
-    static nsHtml5AttributeName* ATTR_EXTERNALRESOURCESREQUIRED;
     static nsHtml5AttributeName* ATTR_GLYPH_ORIENTATION_VERTICAL;
     static nsHtml5AttributeName* ATTR_COLOR_INTERPOLATION_FILTERS;
     static nsHtml5AttributeName* ATTR_GLYPH_ORIENTATION_HORIZONTAL;

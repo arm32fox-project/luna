@@ -6,7 +6,7 @@
 #ifndef MOZILLA_GFX_HELPERSD2D_H_
 #define MOZILLA_GFX_HELPERSD2D_H_
 
-#include "moz-d2d1-1.h"
+#include <d2d1_1.h>
 
 #include <vector>
 
@@ -26,6 +26,8 @@ namespace gfx {
 
 ID2D1Factory* D2DFactory();
 
+ID2D1Factory1* D2DFactory1();
+
 static inline D2D1_POINT_2F D2DPoint(const Point &aPoint)
 {
   return D2D1::Point2F(aPoint.x, aPoint.y);
@@ -36,7 +38,8 @@ static inline D2D1_SIZE_U D2DIntSize(const IntSize &aSize)
   return D2D1::SizeU(aSize.width, aSize.height);
 }
 
-static inline D2D1_RECT_F D2DRect(const Rect &aRect)
+template <typename T>
+static inline D2D1_RECT_F D2DRect(const T &aRect)
 {
   return D2D1::RectF(aRect.x, aRect.y, aRect.XMost(), aRect.YMost());
 }
@@ -45,10 +48,10 @@ static inline D2D1_EXTEND_MODE D2DExtend(ExtendMode aExtendMode)
 {
   D2D1_EXTEND_MODE extend;
   switch (aExtendMode) {
-  case EXTEND_REPEAT:
+  case ExtendMode::REPEAT:
     extend = D2D1_EXTEND_MODE_WRAP;
     break;
-  case EXTEND_REFLECT:
+  case ExtendMode::REFLECT:
     extend = D2D1_EXTEND_MODE_MIRROR;
     break;
   default:
@@ -61,17 +64,41 @@ static inline D2D1_EXTEND_MODE D2DExtend(ExtendMode aExtendMode)
 static inline D2D1_BITMAP_INTERPOLATION_MODE D2DFilter(const Filter &aFilter)
 {
   switch (aFilter) {
-  case FILTER_POINT:
+  case Filter::POINT:
     return D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR;
   default:
     return D2D1_BITMAP_INTERPOLATION_MODE_LINEAR;
   }
 }
 
+static inline D2D1_INTERPOLATION_MODE D2DInterpolationMode(const Filter &aFilter)
+{
+  switch (aFilter) {
+  case Filter::POINT:
+    return D2D1_INTERPOLATION_MODE_NEAREST_NEIGHBOR;
+  default:
+    return D2D1_INTERPOLATION_MODE_LINEAR;
+  }
+}
+
+static inline D2D1_MATRIX_5X4_F D2DMatrix5x4(const Matrix5x4 &aMatrix)
+{
+  return D2D1::Matrix5x4F(aMatrix._11, aMatrix._12, aMatrix._13, aMatrix._14,
+                          aMatrix._21, aMatrix._22, aMatrix._23, aMatrix._24,
+                          aMatrix._31, aMatrix._32, aMatrix._33, aMatrix._34,
+                          aMatrix._41, aMatrix._42, aMatrix._43, aMatrix._44,
+                          aMatrix._51, aMatrix._52, aMatrix._53, aMatrix._54);
+}
+
+static inline D2D1_VECTOR_3F D2DVector3D(const Point3D &aPoint)
+{
+  return D2D1::Vector3F(aPoint.x, aPoint.y, aPoint.z);
+}
+
 static inline D2D1_ANTIALIAS_MODE D2DAAMode(AntialiasMode aMode)
 {
   switch (aMode) {
-  case AA_NONE:
+  case AntialiasMode::NONE:
     return D2D1_ANTIALIAS_MODE_ALIASED;
   default:
     return D2D1_ANTIALIAS_MODE_PER_PRIMITIVE;
@@ -99,15 +126,15 @@ static inline SurfaceFormat ToPixelFormat(const D2D1_PIXEL_FORMAT &aFormat)
 {
   switch(aFormat.format) {
   case DXGI_FORMAT_A8_UNORM:
-    return FORMAT_A8;
+    return SurfaceFormat::A8;
   case DXGI_FORMAT_B8G8R8A8_UNORM:
     if (aFormat.alphaMode == D2D1_ALPHA_MODE_IGNORE) {
-      return FORMAT_B8G8R8X8;
+      return SurfaceFormat::B8G8R8X8;
     } else {
-      return FORMAT_B8G8R8A8;
+      return SurfaceFormat::B8G8R8A8;
     }
   default:
-    return FORMAT_B8G8R8A8;
+    return SurfaceFormat::B8G8R8A8;
   }
 }
 
@@ -123,24 +150,29 @@ static inline Matrix ToMatrix(const D2D1_MATRIX_3X2_F &aTransform)
                 aTransform._31, aTransform._32);
 }
 
+static inline Point ToPoint(const D2D1_POINT_2F &aPoint)
+{
+  return Point(aPoint.x, aPoint.y);
+}
+
 static inline DXGI_FORMAT DXGIFormat(SurfaceFormat aFormat)
 {
   switch (aFormat) {
-  case FORMAT_B8G8R8A8:
+  case SurfaceFormat::B8G8R8A8:
     return DXGI_FORMAT_B8G8R8A8_UNORM;
-  case FORMAT_B8G8R8X8:
+  case SurfaceFormat::B8G8R8X8:
     return DXGI_FORMAT_B8G8R8A8_UNORM;
-  case FORMAT_A8:
+  case SurfaceFormat::A8:
     return DXGI_FORMAT_A8_UNORM;
   default:
     return DXGI_FORMAT_UNKNOWN;
   }
 }
 
-static inline D2D1_ALPHA_MODE AlphaMode(SurfaceFormat aFormat)
+static inline D2D1_ALPHA_MODE D2DAlphaModeForFormat(SurfaceFormat aFormat)
 {
   switch (aFormat) {
-  case FORMAT_B8G8R8X8:
+  case SurfaceFormat::B8G8R8X8:
     return D2D1_ALPHA_MODE_IGNORE;
   default:
     return D2D1_ALPHA_MODE_PREMULTIPLIED;
@@ -149,12 +181,100 @@ static inline D2D1_ALPHA_MODE AlphaMode(SurfaceFormat aFormat)
 
 static inline D2D1_PIXEL_FORMAT D2DPixelFormat(SurfaceFormat aFormat)
 {
-  return D2D1::PixelFormat(DXGIFormat(aFormat), AlphaMode(aFormat));
+  return D2D1::PixelFormat(DXGIFormat(aFormat), D2DAlphaModeForFormat(aFormat));
+}
+
+static inline bool D2DSupportsCompositeMode(CompositionOp aOp)
+{
+  switch(aOp) {
+  case CompositionOp::OP_OVER:
+  case CompositionOp::OP_ADD:
+  case CompositionOp::OP_ATOP:
+  case CompositionOp::OP_OUT:
+  case CompositionOp::OP_IN:
+  case CompositionOp::OP_SOURCE:
+  case CompositionOp::OP_DEST_IN:
+  case CompositionOp::OP_DEST_OUT:
+  case CompositionOp::OP_DEST_OVER:
+  case CompositionOp::OP_DEST_ATOP:
+  case CompositionOp::OP_XOR:
+    return true;
+  default:
+    return false;
+  }
+}
+
+static inline D2D1_COMPOSITE_MODE D2DCompositionMode(CompositionOp aOp)
+{
+  switch(aOp) {
+  case CompositionOp::OP_OVER:
+    return D2D1_COMPOSITE_MODE_SOURCE_OVER;
+  case CompositionOp::OP_ADD:
+    return D2D1_COMPOSITE_MODE_PLUS;
+  case CompositionOp::OP_ATOP:
+    return D2D1_COMPOSITE_MODE_SOURCE_ATOP;
+  case CompositionOp::OP_OUT:
+    return D2D1_COMPOSITE_MODE_SOURCE_OUT;
+  case CompositionOp::OP_IN:
+    return D2D1_COMPOSITE_MODE_SOURCE_IN;
+  case CompositionOp::OP_SOURCE:
+    return D2D1_COMPOSITE_MODE_SOURCE_COPY;
+  case CompositionOp::OP_DEST_IN:
+    return D2D1_COMPOSITE_MODE_DESTINATION_IN;
+  case CompositionOp::OP_DEST_OUT:
+    return D2D1_COMPOSITE_MODE_DESTINATION_OUT;
+  case CompositionOp::OP_DEST_OVER:
+    return D2D1_COMPOSITE_MODE_DESTINATION_OVER;
+  case CompositionOp::OP_DEST_ATOP:
+    return D2D1_COMPOSITE_MODE_DESTINATION_ATOP;
+  case CompositionOp::OP_XOR:
+    return D2D1_COMPOSITE_MODE_XOR;
+  default:
+    return D2D1_COMPOSITE_MODE_SOURCE_OVER;
+  }
+}
+
+static inline D2D1_BLEND_MODE D2DBlendMode(CompositionOp aOp)
+{
+  switch (aOp) {
+  case CompositionOp::OP_MULTIPLY:
+    return D2D1_BLEND_MODE_MULTIPLY;
+  case CompositionOp::OP_SCREEN:
+    return D2D1_BLEND_MODE_SCREEN;
+  case CompositionOp::OP_OVERLAY:
+    return D2D1_BLEND_MODE_OVERLAY;
+  case CompositionOp::OP_DARKEN:
+    return D2D1_BLEND_MODE_DARKEN;
+  case CompositionOp::OP_LIGHTEN:
+    return D2D1_BLEND_MODE_LIGHTEN;
+  case CompositionOp::OP_COLOR_DODGE:
+    return D2D1_BLEND_MODE_COLOR_DODGE;
+  case CompositionOp::OP_COLOR_BURN:
+    return D2D1_BLEND_MODE_COLOR_BURN;
+  case CompositionOp::OP_HARD_LIGHT:
+    return D2D1_BLEND_MODE_HARD_LIGHT;
+  case CompositionOp::OP_SOFT_LIGHT:
+    return D2D1_BLEND_MODE_SOFT_LIGHT;
+  case CompositionOp::OP_DIFFERENCE:
+    return D2D1_BLEND_MODE_DIFFERENCE;
+  case CompositionOp::OP_EXCLUSION:
+    return D2D1_BLEND_MODE_EXCLUSION;
+  case CompositionOp::OP_HUE:
+    return D2D1_BLEND_MODE_HUE;
+  case CompositionOp::OP_SATURATION:
+    return D2D1_BLEND_MODE_SATURATION;
+  case CompositionOp::OP_COLOR:
+    return D2D1_BLEND_MODE_COLOR;
+  case CompositionOp::OP_LUMINOSITY:
+    return D2D1_BLEND_MODE_LUMINOSITY;
+  default:
+    return D2D1_BLEND_MODE_MULTIPLY;
+  }
 }
 
 static inline bool IsPatternSupportedByD2D(const Pattern &aPattern)
 {
-  if (aPattern.GetType() != PATTERN_RADIAL_GRADIENT) {
+  if (aPattern.GetType() != PatternType::RADIAL_GRADIENT) {
     return true;
   }
 
@@ -265,7 +385,7 @@ DWriteGlyphRunFromGlyphs(const GlyphBuffer &aGlyphs, ScaledFontDWrite *aFont, Au
   run->isSideways = FALSE;
 }
 
-static TemporaryRef<ID2D1Geometry>
+static inline TemporaryRef<ID2D1Geometry>
 ConvertRectToGeometry(const D2D1_RECT_F& aRect)
 {
   RefPtr<ID2D1RectangleGeometry> rectGeom;
@@ -273,7 +393,7 @@ ConvertRectToGeometry(const D2D1_RECT_F& aRect)
   return rectGeom.forget();
 }
 
-static TemporaryRef<ID2D1Geometry>
+static inline TemporaryRef<ID2D1Geometry>
 GetTransformedGeometry(ID2D1Geometry *aGeometry, const D2D1_MATRIX_3X2_F &aTransform)
 {
   RefPtr<ID2D1PathGeometry> tmpGeometry;
@@ -283,10 +403,10 @@ GetTransformedGeometry(ID2D1Geometry *aGeometry, const D2D1_MATRIX_3X2_F &aTrans
   aGeometry->Simplify(D2D1_GEOMETRY_SIMPLIFICATION_OPTION_CUBICS_AND_LINES,
                       aTransform, currentSink);
   currentSink->Close();
-  return tmpGeometry;
+  return tmpGeometry.forget();
 }
 
-static TemporaryRef<ID2D1Geometry>
+static inline TemporaryRef<ID2D1Geometry>
 IntersectGeometry(ID2D1Geometry *aGeometryA, ID2D1Geometry *aGeometryB)
 {
   RefPtr<ID2D1PathGeometry> pathGeom;
@@ -296,10 +416,10 @@ IntersectGeometry(ID2D1Geometry *aGeometryA, ID2D1Geometry *aGeometryB)
   aGeometryA->CombineWithGeometry(aGeometryB, D2D1_COMBINE_MODE_INTERSECT, nullptr, sink);
   sink->Close();
 
-  return pathGeom;
+  return pathGeom.forget();
 }
 
-static TemporaryRef<ID2D1StrokeStyle>
+static inline TemporaryRef<ID2D1StrokeStyle>
 CreateStrokeStyleForOptions(const StrokeOptions &aStrokeOptions)
 {
   RefPtr<ID2D1StrokeStyle> style;
@@ -308,35 +428,38 @@ CreateStrokeStyleForOptions(const StrokeOptions &aStrokeOptions)
   D2D1_LINE_JOIN joinStyle;
 
   switch (aStrokeOptions.mLineCap) {
-  case CAP_BUTT:
+  case CapStyle::BUTT:
     capStyle = D2D1_CAP_STYLE_FLAT;
     break;
-  case CAP_ROUND:
+  case CapStyle::ROUND:
     capStyle = D2D1_CAP_STYLE_ROUND;
     break;
-  case CAP_SQUARE:
+  case CapStyle::SQUARE:
     capStyle = D2D1_CAP_STYLE_SQUARE;
     break;
   }
 
   switch (aStrokeOptions.mLineJoin) {
-  case JOIN_MITER:
+  case JoinStyle::MITER:
     joinStyle = D2D1_LINE_JOIN_MITER;
     break;
-  case JOIN_MITER_OR_BEVEL:
+  case JoinStyle::MITER_OR_BEVEL:
     joinStyle = D2D1_LINE_JOIN_MITER_OR_BEVEL;
     break;
-  case JOIN_ROUND:
+  case JoinStyle::ROUND:
     joinStyle = D2D1_LINE_JOIN_ROUND;
     break;
-  case JOIN_BEVEL:
+  case JoinStyle::BEVEL:
     joinStyle = D2D1_LINE_JOIN_BEVEL;
     break;
   }
 
 
   HRESULT hr;
-  if (aStrokeOptions.mDashPattern) {
+  // We need to check mDashLength in addition to mDashPattern here since if
+  // mDashPattern is set but mDashLength is zero then the stroke will fail to
+  // paint.
+  if (aStrokeOptions.mDashLength > 0 && aStrokeOptions.mDashPattern) {
     typedef std::vector<Float> FloatVector;
     // D2D "helpfully" multiplies the dash pattern by the line width.
     // That's not what cairo does, or is what <canvas>'s dash wants.
@@ -353,7 +476,7 @@ CreateStrokeStyleForOptions(const StrokeOptions &aStrokeOptions)
                                   capStyle, joinStyle,
                                   aStrokeOptions.mMiterLimit,
                                   D2D1_DASH_STYLE_CUSTOM,
-                                  aStrokeOptions.mDashOffset),
+                                  aStrokeOptions.mDashOffset / lineWidth),
       &dash[0], // data() is not C++98, although it's in recent gcc
                 // and VC10's STL
       dash.size(),
@@ -370,16 +493,17 @@ CreateStrokeStyleForOptions(const StrokeOptions &aStrokeOptions)
     gfxWarning() << "Failed to create Direct2D stroke style.";
   }
 
-  return style;
+  return style.forget();
 }
 
 // This creates a (partially) uploaded bitmap for a DataSourceSurface. It
 // uploads the minimum requirement and possibly downscales. It adjusts the
 // input Matrix to compensate.
-static TemporaryRef<ID2D1Bitmap>
+static inline TemporaryRef<ID2D1Bitmap>
 CreatePartialBitmapForSurface(DataSourceSurface *aSurface, const Matrix &aDestinationTransform,
                               const IntSize &aDestinationSize, ExtendMode aExtendMode,
-                              Matrix &aSourceTransform, ID2D1RenderTarget *aRT)
+                              Matrix &aSourceTransform, ID2D1RenderTarget *aRT,
+                              const IntRect* aSourceRect = nullptr)
 {
   RefPtr<ID2D1Bitmap> bitmap;
 
@@ -404,6 +528,9 @@ CreatePartialBitmapForSurface(DataSourceSurface *aSurface, const Matrix &aDestin
   IntSize size = aSurface->GetSize();
 
   Rect uploadRect(0, 0, Float(size.width), Float(size.height));
+  if (aSourceRect) {
+    uploadRect = Rect(aSourceRect->x, aSourceRect->y, aSourceRect->width, aSourceRect->height);
+  }
 
   // Limit the uploadRect as much as possible without supporting discontiguous uploads 
   //
@@ -422,9 +549,9 @@ CreatePartialBitmapForSurface(DataSourceSurface *aSurface, const Matrix &aDestin
     // Extend mode is irrelevant, the displayed rect is completely contained
     // by the source bitmap.
     uploadRect = rect;
-  } else if (aExtendMode == EXTEND_CLAMP && uploadRect.Intersects(rect)) {
+  } else if (aExtendMode == ExtendMode::CLAMP && uploadRect.Intersects(rect)) {
     // Calculate the rectangle on the source bitmap that touches our
-    // surface, and upload that, for EXTEND_CLAMP we can actually guarantee
+    // surface, and upload that, for ExtendMode::CLAMP we can actually guarantee
     // correct behaviour in this case.
     uploadRect = uploadRect.Intersect(rect);
 
@@ -451,9 +578,9 @@ CreatePartialBitmapForSurface(DataSourceSurface *aSurface, const Matrix &aDestin
                       D2D1::BitmapProperties(D2DPixelFormat(aSurface->GetFormat())),
                       byRef(bitmap));
 
-    aSourceTransform.Translate(uploadRect.x, uploadRect.y);
+    aSourceTransform.PreTranslate(uploadRect.x, uploadRect.y);
 
-    return bitmap;
+    return bitmap.forget();
   } else {
     int Bpp = BytesPerPixel(aSurface->GetFormat());
 
@@ -491,15 +618,19 @@ CreatePartialBitmapForSurface(DataSourceSurface *aSurface, const Matrix &aDestin
     scaler.ScaleForSize(scaleSize);
 
     IntSize newSize = scaler.GetSize();
+
+    if (newSize.IsEmpty()) {
+      return nullptr;
+    }
     
     aRT->CreateBitmap(D2D1::SizeU(newSize.width, newSize.height),
                       scaler.GetScaledData(), scaler.GetStride(),
                       D2D1::BitmapProperties(D2DPixelFormat(aSurface->GetFormat())),
                       byRef(bitmap));
 
-    aSourceTransform.Scale(Float(size.width / newSize.width),
-                           Float(size.height / newSize.height));
-    return bitmap;
+    aSourceTransform.PreScale(Float(size.width) / newSize.width,
+                              Float(size.height) / newSize.height);
+    return bitmap.forget();
   }
 }
 

@@ -9,13 +9,15 @@
   'targets': [
     {
       'target_name': 'G722',
-      'type': '<(library)',
+      'type': 'static_library',
       'include_dirs': [
         'include',
+        '<(webrtc_root)',
       ],
       'direct_dependent_settings': {
         'include_dirs': [
           'include',
+          '<(webrtc_root)',
         ],
       },
       'sources': [
@@ -44,9 +46,3 @@
     }], # include_tests
   ], # conditions
 }
-
-# Local Variables:
-# tab-width:2
-# indent-tabs-mode:nil
-# End:
-# vim: set expandtab tabstop=2 shiftwidth=2:

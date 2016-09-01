@@ -1,12 +1,8 @@
 // This testcase verifies that channels can't be reopened
 // See https://bugzilla.mozilla.org/show_bug.cgi?id=372486
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
 Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
 
 const NS_ERROR_IN_PROGRESS = 0x804b000f;
 const NS_ERROR_ALREADY_OPENED = 0x804b0049;
@@ -28,14 +24,26 @@ var httpserv = null;
 function makeChan(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"]
               .getService(Ci.nsIIOService);
-  return chan = ios.newChannel(url, null, null)
+  return chan = ios.newChannel2(url,
+                                null,
+                                null,
+                                null,      // aLoadingNode
+                                Services.scriptSecurityManager.getSystemPrincipal(),
+                                null,      // aTriggeringPrincipal
+                                Ci.nsILoadInfo.SEC_NORMAL,
+                                Ci.nsIContentPolicy.TYPE_OTHER)
                    .QueryInterface(Ci.nsIChannel);
 }
 
 function new_file_channel(file) {
   var ios = Cc["@mozilla.org/network/io-service;1"]
               .getService(Ci.nsIIOService);
-  return ios.newChannelFromURI(ios.newFileURI(file));
+  return ios.newChannelFromURI2(ios.newFileURI(file),
+                                null,      // aLoadingNode
+                                Services.scriptSecurityManager.getSystemPrincipal(),
+                                null,      // aTriggeringPrincipal
+                                Ci.nsILoadInfo.SEC_NORMAL,
+                                Ci.nsIContentPolicy.TYPE_OTHER);
 }
 
 
@@ -113,7 +121,7 @@ function test_data_channel() {
 
 function test_http_channel() {
   test_channel(function() {
-    return makeChan("http://localhost:4444/");
+    return makeChan("http://localhost:" + httpserv.identity.primaryPort + "/");
   });
 }
 
@@ -138,7 +146,7 @@ function end() {
 function run_test() {
   // start server
   httpserv = new HttpServer();
-  httpserv.start(4444);
+  httpserv.start(-1);
 
   run_next_test();
 }

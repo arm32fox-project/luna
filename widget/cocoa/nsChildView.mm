@@ -3,18 +3,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Util.h"
+#include "mozilla/ArrayUtils.h"
 
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG
-#endif
 #include "prlog.h"
 
 #include <unistd.h>
 #include <math.h>
- 
+
 #include "nsChildView.h"
 #include "nsCocoaWindow.h"
+
+#include "mozilla/MiscEvents.h"
+#include "mozilla/MouseEvents.h"
+#include "mozilla/TextEvents.h"
+#include "mozilla/TouchEvents.h"
 
 #include "nsObjCExceptions.h"
 #include "nsCOMPtr.h"
@@ -29,7 +31,6 @@
 #include "nsILocalFileMac.h"
 #include "nsGfxCIID.h"
 #include "nsIDOMSimpleGestureEvent.h"
-#include "nsNPAPIPluginInstance.h"
 #include "nsThemeConstants.h"
 #include "nsIWidgetListener.h"
 #include "nsIPresShell.h"
@@ -42,22 +43,31 @@
 #include "nsCocoaUtils.h"
 #include "nsMenuUtilsX.h"
 #include "nsMenuBarX.h"
-#ifdef __LP64__
+#include "NativeKeyBindings.h"
 #include "ComplexTextInputPanel.h"
-#endif
 
 #include "gfxContext.h"
 #include "gfxQuartzSurface.h"
 #include "gfxUtils.h"
 #include "nsRegion.h"
 #include "Layers.h"
-#include "LayerManagerOGL.h"
 #include "ClientLayerManager.h"
 #include "mozilla/layers/LayerManagerComposite.h"
 #include "GLTextureImage.h"
+#include "GLContextProvider.h"
+#include "GLContextCGL.h"
+#include "GLUploadHelpers.h"
+#include "ScopedGLHelpers.h"
+#include "HeapCopyOfStackArray.h"
+#include "mozilla/layers/APZCTreeManager.h"
 #include "mozilla/layers/GLManager.h"
-#include "mozilla/layers/CompositorCocoaWidgetHelper.h"
 #include "mozilla/layers/CompositorOGL.h"
+#include "mozilla/layers/CompositorParent.h"
+#include "mozilla/layers/BasicCompositor.h"
+#include "gfxUtils.h"
+#include "gfxPrefs.h"
+#include "mozilla/gfx/2D.h"
+#include "mozilla/gfx/BorrowedContext.h"
 #ifdef ACCESSIBILITY
 #include "nsAccessibilityService.h"
 #include "mozilla/a11y/Platform.h"
@@ -72,11 +82,18 @@
 #include "GoannaProfiler.h"
 
 #include "nsIDOMWheelEvent.h"
+#include "mozilla/layers/ChromeProcessController.h"
+#include "nsLayoutUtils.h"
+#include "InputData.h"
+#include "VibrancyManager.h"
+#include "nsNativeThemeCocoa.h"
 
 using namespace mozilla;
 using namespace mozilla::layers;
 using namespace mozilla::gl;
 using namespace mozilla::widget;
+
+using mozilla::gfx::Matrix4x4;
 
 #undef DEBUG_UPDATE
 #undef INVALIDATE_DEBUGGING  // flash areas as they are invalidated
@@ -96,12 +113,13 @@ extern "C" {
 
   typedef CFTypeRef CGSRegionObj;
   CGError CGSNewRegionWithRect(const CGRect *rect, CGSRegionObj *outRegion);
+  CGError CGSNewRegionWithRectList(const CGRect *rects, int rectCount, CGSRegionObj *outRegion);
 }
 
 // defined in nsMenuBarX.mm
 extern NSMenu* sApplicationMenu; // Application menu shared by all menubars
 
-bool gChildViewMethodsSwizzled = false;
+static bool gChildViewMethodsSwizzled = false;
 
 extern nsISupportsArray *gDraggedTransferables;
 
@@ -119,6 +137,8 @@ bool gUserCancelledDrag = false;
 
 uint32_t nsChildView::sLastInputEventCount = 0;
 
+static uint32_t gNumberOfWidgetsNeedingEventThread = 0;
+
 @interface ChildView(Private)
 
 // sets up our view, attaching it to its owning goanna view
@@ -126,14 +146,12 @@ uint32_t nsChildView::sLastInputEventCount = 0;
 - (void)forceRefreshOpenGL;
 
 // set up a goanna mouse event based on a cocoa mouse event
-- (void) convertCocoaMouseEvent:(NSEvent*)aMouseEvent toGoannaEvent:(nsInputEvent*)outGoannaEvent;
+- (void) convertCocoaMouseWheelEvent:(NSEvent*)aMouseEvent
+                        toGoannaEvent:(WidgetWheelEvent*)outWheelEvent;
+- (void) convertCocoaMouseEvent:(NSEvent*)aMouseEvent
+                   toGoannaEvent:(WidgetInputEvent*)outGoannaEvent;
 
 - (NSMenu*)contextMenu;
-
-- (void)setIsPluginView:(BOOL)aIsPlugin;
-- (void)setPluginEventModel:(NPEventModel)eventModel;
-- (void)setPluginDrawingModel:(NPDrawingModel)drawingModel;
-- (NPDrawingModel)pluginDrawingModel;
 
 - (BOOL)isRectObscuredBySubview:(NSRect)inRect;
 
@@ -169,12 +187,36 @@ uint32_t nsChildView::sLastInputEventCount = 0;
 - (id<mozAccessible>)accessible;
 #endif
 
+- (nsIntPoint)convertWindowCoordinates:(NSPoint)aPoint;
+- (APZCTreeManager*)apzctm;
+
 - (BOOL)inactiveWindowAcceptsMouseEvent:(NSEvent*)aEvent;
+- (void)updateWindowDraggableState;
+
+@end
+
+@interface EventThreadRunner : NSObject
+{
+  NSThread* mThread;
+}
+- (id)init;
+
++ (void)start;
++ (void)stop;
 
 @end
 
 @interface NSView(NSThemeFrameCornerRadius)
 - (float)roundedCornerRadius;
+@end
+
+@interface NSView(DraggableRegion)
+- (CGSRegionObj)_regionForOpaqueDescendants:(NSRect)aRect forMove:(BOOL)aForMove;
+- (CGSRegionObj)_regionForOpaqueDescendants:(NSRect)aRect forMove:(BOOL)aForMove forUnderTitlebar:(BOOL)aForUnderTitlebar;
+@end
+
+@interface NSWindow(NSWindowShouldZoomOnDoubleClick)
++ (BOOL)_shouldZoomOnDoubleClick; // present on 10.7 and above
 @end
 
 // Starting with 10.7 the bottom corners of all windows are rounded.
@@ -197,7 +239,7 @@ uint32_t nsChildView::sLastInputEventCount = 0;
 
 #pragma mark -
 
-/* Convenience routines to go from a goanna rect to cocoa NSRects and back
+/* Convenience routine to go from a Goanna rect to Cocoa NSRect.
  *
  * Goanna rects (nsRect) contain an origin (x,y) in a coordinate
  * system with (0,0) in the top-left of the screen. Cocoa rects
@@ -207,17 +249,8 @@ uint32_t nsChildView::sLastInputEventCount = 0;
  * If a Cocoa rect is from a flipped view, there is no need to
  * convert coordinate systems.
  */
-
+#ifndef __LP64__
 static inline void
-NSRectToGoannaRect(const NSRect & inCocoaRect, nsIntRect & outGoannaRect)
-{
-  outGoannaRect.x = NSToIntRound(inCocoaRect.origin.x);
-  outGoannaRect.y = NSToIntRound(inCocoaRect.origin.y);
-  outGoannaRect.width = NSToIntRound(inCocoaRect.origin.x + inCocoaRect.size.width) - outGoannaRect.x;
-  outGoannaRect.height = NSToIntRound(inCocoaRect.origin.y + inCocoaRect.size.height) - outGoannaRect.y;
-}
-
-static inline void 
 ConvertGoannaRectToMacRect(const nsIntRect& aRect, Rect& outMacRect)
 {
   outMacRect.left = aRect.x;
@@ -225,6 +258,7 @@ ConvertGoannaRectToMacRect(const nsIntRect& aRect, Rect& outMacRect)
   outMacRect.right = aRect.x + aRect.width;
   outMacRect.bottom = aRect.y + aRect.height;
 }
+#endif
 
 // Flips a screen coordinate from a point in the cocoa coordinate system (bottom-left rect) to a point
 // that is a "flipped" cocoa coordinate system (starts in the top-left).
@@ -243,35 +277,148 @@ void EnsureLogInitialized()
 #endif // PR_LOGGING
 }
 
+namespace {
+
+// Manages a texture which can resize dynamically, binds to the
+// LOCAL_GL_TEXTURE_RECTANGLE_ARB texture target and is automatically backed
+// by a power-of-two size GL texture. The latter two features are used for
+// compatibility with older Mac hardware which we block GL layers on.
+// RectTextureImages are used both for accelerated GL layers drawing and for
+// OMTC BasicLayers drawing.
+class RectTextureImage {
+public:
+  explicit RectTextureImage(GLContext* aGLContext)
+   : mGLContext(aGLContext)
+   , mTexture(0)
+   , mInUpdate(false)
+  {}
+
+  virtual ~RectTextureImage();
+
+  TemporaryRef<gfx::DrawTarget>
+    BeginUpdate(const nsIntSize& aNewSize,
+                const nsIntRegion& aDirtyRegion = nsIntRegion());
+  void EndUpdate(bool aKeepSurface = false);
+
+  void UpdateIfNeeded(const nsIntSize& aNewSize,
+                      const nsIntRegion& aDirtyRegion,
+                      void (^aCallback)(gfx::DrawTarget*, const nsIntRegion&))
+  {
+    RefPtr<gfx::DrawTarget> drawTarget = BeginUpdate(aNewSize, aDirtyRegion);
+    if (drawTarget) {
+      aCallback(drawTarget, GetUpdateRegion());
+      EndUpdate();
+    }
+  }
+
+  void UpdateFromCGContext(const nsIntSize& aNewSize,
+                           const nsIntRegion& aDirtyRegion,
+                           CGContextRef aCGContext);
+
+  void UpdateFromDrawTarget(const nsIntSize& aNewSize,
+                            const nsIntRegion& aDirtyRegion,
+                            gfx::DrawTarget* aFromDrawTarget);
+
+  nsIntRegion GetUpdateRegion() {
+    MOZ_ASSERT(mInUpdate, "update region only valid during update");
+    return mUpdateRegion;
+  }
+
+  void Draw(mozilla::layers::GLManager* aManager,
+            const nsIntPoint& aLocation,
+            const Matrix4x4& aTransform = Matrix4x4());
+
+  static nsIntSize TextureSizeForSize(const nsIntSize& aSize);
+
+protected:
+
+  RefPtr<gfx::DrawTarget> mUpdateDrawTarget;
+  GLContext* mGLContext;
+  nsIntRegion mUpdateRegion;
+  nsIntSize mUsedSize;
+  nsIntSize mBufferSize;
+  nsIntSize mTextureSize;
+  GLuint mTexture;
+  bool mInUpdate;
+};
+
+// Used for OpenGL drawing from the compositor thread for OMTC BasicLayers.
+// We need to use OpenGL for this because there seems to be no other robust
+// way of drawing from a secondary thread without locking, which would cause
+// deadlocks in our setup. See bug 882523.
+class GLPresenter : public GLManager
+{
+public:
+  static GLPresenter* CreateForWindow(nsIWidget* aWindow)
+  {
+    nsRefPtr<GLContext> context = gl::GLContextProvider::CreateForWindow(aWindow);
+    return context ? new GLPresenter(context) : nullptr;
+  }
+
+  explicit GLPresenter(GLContext* aContext);
+  virtual ~GLPresenter();
+
+  virtual GLContext* gl() const override { return mGLContext; }
+  virtual ShaderProgramOGL* GetProgram(GLenum aTarget, gfx::SurfaceFormat aFormat) override
+  {
+    MOZ_ASSERT(aTarget == LOCAL_GL_TEXTURE_RECTANGLE_ARB);
+    MOZ_ASSERT(aFormat == gfx::SurfaceFormat::R8G8B8A8);
+    return mRGBARectProgram;
+  }
+  virtual const gfx::Matrix4x4& GetProjMatrix() const override
+  {
+    return mProjMatrix;
+  }
+  virtual void ActivateProgram(ShaderProgramOGL *aProg) override
+  {
+    mGLContext->fUseProgram(aProg->GetProgram());
+  }
+  virtual void BindAndDrawQuad(ShaderProgramOGL *aProg,
+                               const gfx::Rect& aLayerRect,
+                               const gfx::Rect& aTextureRect) override;
+
+  void BeginFrame(nsIntSize aRenderSize);
+  void EndFrame();
+
+  NSOpenGLContext* GetNSOpenGLContext()
+  {
+    return GLContextCGL::Cast(mGLContext)->GetNSOpenGLContext();
+  }
+
+protected:
+  nsRefPtr<mozilla::gl::GLContext> mGLContext;
+  nsAutoPtr<mozilla::layers::ShaderProgramOGL> mRGBARectProgram;
+  gfx::Matrix4x4 mProjMatrix;
+  GLuint mQuadVBO;
+};
+
+} // unnamed namespace
+
 #pragma mark -
 
 nsChildView::nsChildView() : nsBaseWidget()
 , mView(nullptr)
 , mParentView(nullptr)
 , mParentWidget(nullptr)
+, mViewTearDownLock("ChildViewTearDown")
 , mEffectsLock("WidgetEffects")
 , mShowsResizeIndicator(false)
 , mHasRoundedBottomCorners(false)
 , mIsCoveringTitlebar(false)
-, mFailedResizerImage(false)
-, mFailedCornerMaskImage(false)
+, mIsFullscreen(false)
+, mTitlebarCGContext(nullptr)
 , mBackingScaleFactor(0.0)
 , mVisible(false)
 , mDrawing(false)
-, mPluginDrawing(false)
 , mIsDispatchPaint(false)
-, mPluginInstanceOwner(nullptr)
 {
   EnsureLogInitialized();
-
-  memset(&mPluginCGContext, 0, sizeof(mPluginCGContext));
-
-  SetBackgroundColor(NS_RGB(255, 255, 255));
-  SetForegroundColor(NS_RGB(0, 0, 0));
 }
 
 nsChildView::~nsChildView()
 {
+  ReleaseTitlebarCGContext();
+
   // Notify the children that we're gone.  childView->ResetParent() can change
   // our list of children while it's being iterated, so the way we iterate the
   // list must allow for this.
@@ -280,10 +427,17 @@ nsChildView::~nsChildView()
     kid = kid->GetPrevSibling();
     childView->ResetParent();
   }
-  
+
   NS_WARN_IF_FALSE(mOnDestroyCalled, "nsChildView object destroyed without calling Destroy()");
 
   DestroyCompositor();
+
+  if (mAPZC) {
+    gNumberOfWidgetsNeedingEventThread--;
+    if (gNumberOfWidgetsNeedingEventThread == 0) {
+      [EventThreadRunner stop];
+    }
+  }
 
   // An nsChildView object that was in use can be destroyed without Destroy()
   // ever being called on it.  So we also need to do a quick, safe cleanup
@@ -297,12 +451,18 @@ nsChildView::~nsChildView()
   TearDownView(); // Safe if called twice.
 }
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsChildView, nsBaseWidget, nsIPluginWidget)
+void
+nsChildView::ReleaseTitlebarCGContext()
+{
+  if (mTitlebarCGContext) {
+    CGContextRelease(mTitlebarCGContext);
+    mTitlebarCGContext = nullptr;
+  }
+}
 
 nsresult nsChildView::Create(nsIWidget *aParent,
                              nsNativeWidget aNativeParent,
                              const nsIntRect &aRect,
-                             nsDeviceContext *aContext,
                              nsWidgetInitData *aInitData)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
@@ -324,8 +484,6 @@ nsresult nsChildView::Create(nsIWidget *aParent,
       nsToolkit::SwizzleMethods([NSEvent class], @selector(removeMonitor:),
                                 @selector(nsChildView_NSEvent_removeMonitor:), true);
     }
-#else
-    TextInputHandler::SwizzleMethods();
 #endif
     gChildViewMethodsSwizzled = true;
   }
@@ -335,28 +493,24 @@ nsresult nsChildView::Create(nsIWidget *aParent,
   // Ensure that the toolkit is created.
   nsToolkit::GetToolkit();
 
-  BaseCreate(aParent, aRect, aContext, aInitData);
+  BaseCreate(aParent, aRect, aInitData);
 
-  // inherit things from the parent view and create our parallel 
+  // inherit things from the parent view and create our parallel
   // NSView in the Cocoa display system
   mParentView = nil;
   if (aParent) {
-    // This is the case when we're the popup content view of a popup window.
-    SetBackgroundColor(aParent->GetBackgroundColor());
-    SetForegroundColor(aParent->GetForegroundColor());
-
     // inherit the top-level window. NS_NATIVE_WIDGET is always a NSView
     // regardless of if we're asking a window or a view (for compatibility
     // with windows).
-    mParentView = (NSView<mozView>*)aParent->GetNativeData(NS_NATIVE_WIDGET); 
-    mParentWidget = aParent;   
+    mParentView = (NSView<mozView>*)aParent->GetNativeData(NS_NATIVE_WIDGET);
+    mParentWidget = aParent;
   } else {
     // This is the normal case. When we're the root widget of the view hiararchy,
     // aNativeParent will be the contentView of our window, since that's what
     // nsCocoaWindow returns when asked for an NS_NATIVE_VIEW.
     mParentView = reinterpret_cast<NSView<mozView>*>(aNativeParent);
   }
-  
+
   // create our parallel NSView and hook it up to our parent. Recall
   // that NS_NATIVE_WIDGET is the NSView.
   CGFloat scaleFactor = nsCocoaUtils::GetBackingScaleFactor(mParentView);
@@ -365,8 +519,6 @@ nsresult nsChildView::Create(nsIWidget *aParent,
   if (!mView) {
     return NS_ERROR_FAILURE;
   }
-
-  [(ChildView*)mView setIsPluginView:(mWindowType == eWindowType_plugin)];
 
   // If this view was created in a Goanna view hierarchy, the initial state
   // is hidden.  If the view is attached only to a native NSView but has
@@ -388,6 +540,8 @@ nsresult nsChildView::Create(nsIWidget *aParent,
 
   NS_ASSERTION(!mTextInputHandler, "mTextInputHandler has already existed");
   mTextInputHandler = new TextInputHandler(this, mView);
+
+  mPluginFocused = false;
 
   return NS_OK;
 
@@ -458,6 +612,10 @@ NS_IMETHODIMP nsChildView::Destroy()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
+  // Make sure that no composition is in progress while disconnecting
+  // ourselves from the view.
+  MutexAutoLock lock(mViewTearDownLock);
+
   if (mOnDestroyCalled)
     return NS_OK;
   mOnDestroyCalled = true;
@@ -497,7 +655,7 @@ void* nsChildView::GetNativeData(uint32_t aDataType)
 
   void* retVal = nullptr;
 
-  switch (aDataType) 
+  switch (aDataType)
   {
     case NS_NATIVE_WIDGET:
     case NS_NATIVE_DISPLAY:
@@ -520,18 +678,6 @@ void* nsChildView::GetNativeData(uint32_t aDataType)
     case NS_NATIVE_OFFSETY:
       retVal = 0;
       break;
-
-    case NS_NATIVE_PLUGIN_PORT:
-    case NS_NATIVE_PLUGIN_PORT_CG:
-    {
-      // The NP_CGContext pointer should always be NULL in the Cocoa event model.
-      if ([(ChildView*)mView pluginEventModel] == NPEventModelCocoa)
-        return nullptr;
-
-      UpdatePluginPort();
-      retVal = (void*)&mPluginCGContext;
-      break;
-    }
   }
 
   return retVal;
@@ -581,48 +727,27 @@ bool nsChildView::IsVisible() const
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(false);
 }
 
-void nsChildView::HidePlugin()
+// Some NSView methods (e.g. setFrame and setHidden) invalidate the view's
+// bounds in our window. However, we don't want these invalidations because
+// they are unnecessary and because they actually slow us down since we
+// block on the compositor inside drawRect.
+// When we actually need something invalidated, there will be an explicit call
+// to Invalidate from Goanna, so turning these automatic invalidations off
+// won't hurt us in the non-OMTC case.
+// The invalidations inside these NSView methods happen via a call to the
+// private method -[NSWindow _setNeedsDisplayInRect:]. Our BaseWindow
+// implementation of that method is augmented to let us ignore those calls
+// using -[BaseWindow disable/enableSetNeedsDisplay].
+static void
+ManipulateViewWithoutNeedingDisplay(NSView* aView, void (^aCallback)())
 {
-  NS_ASSERTION(mWindowType == eWindowType_plugin,
-               "HidePlugin called on non-plugin view");
-}
-
-void nsChildView::UpdatePluginPort()
-{
-  NS_ASSERTION(mWindowType == eWindowType_plugin,
-               "UpdatePluginPort called on non-plugin view");
-
-  // [NSGraphicsContext currentContext] is supposed to "return the
-  // current graphics context of the current thread."  But sometimes
-  // (when called while mView isn't focused for drawing) it returns a
-  // graphics context for the wrong window.  [window graphicsContext]
-  // (which "provides the graphics context associated with the window
-  // for the current thread") seems always to return the "right"
-  // graphics context.  See bug 500130.
-  mPluginCGContext.context = NULL;
-  mPluginCGContext.window = NULL;
-}
-
-static void HideChildPluginViews(NSView* aView)
-{
-  NSArray* subviews = [aView subviews];
-
-  for (unsigned int i = 0; i < [subviews count]; ++i) {
-    NSView* view = [subviews objectAtIndex: i];
-
-    if (![view isKindOfClass:[ChildView class]])
-      continue;
-
-    ChildView* childview = static_cast<ChildView*>(view);
-    if ([childview isPluginView]) {
-      nsChildView* widget = static_cast<nsChildView*>([childview widget]);
-      if (widget) {
-        widget->HidePlugin();
-      }
-    } else {
-      HideChildPluginViews(view);
-    }
+  BaseWindow* win = nil;
+  if ([[aView window] isKindOfClass:[BaseWindow class]]) {
+    win = (BaseWindow*)[aView window];
   }
+  [win disableSetNeedsDisplay];
+  aCallback();
+  [win enableSetNeedsDisplay];
 }
 
 // Hide or show this component
@@ -636,10 +761,11 @@ NS_IMETHODIMP nsChildView::Show(bool aState)
     // no pool in place.
     nsAutoreleasePool localPool;
 
-    [mView setHidden:!aState];
+    ManipulateViewWithoutNeedingDisplay(mView, ^{
+      [mView setHidden:!aState];
+    });
+
     mVisible = aState;
-    if (!mVisible && IsPluginView())
-      HidePlugin();
   }
   return NS_OK;
 
@@ -656,7 +782,7 @@ nsChildView::SetParent(nsIWidget* aNewParent)
     return NS_OK;
 
   nsCOMPtr<nsIWidget> kungFuDeathGrip(this);
-  
+
   if (mParentWidget) {
     mParentWidget->RemoveChild(this);
   }
@@ -690,7 +816,7 @@ nsChildView::ReparentNativeWidget(nsIWidget* aNewParent)
     return NS_OK;
 
   NSView<mozView>* newParentView =
-   (NSView<mozView>*)aNewParent->GetNativeData(NS_NATIVE_WIDGET); 
+   (NSView<mozView>*)aNewParent->GetNativeData(NS_NATIVE_WIDGET);
   NS_ENSURE_TRUE(newParentView, NS_ERROR_FAILURE);
 
   // we hold a ref to mView, so this is safe
@@ -773,7 +899,7 @@ NS_IMETHODIMP nsChildView::SetCursor(imgIContainer* aCursor,
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
   nsBaseWidget::SetCursor(aCursor, aHotspotX, aHotspotY);
-  return [[nsCursorManager sharedInstance] setCursorWithImage:aCursor hotSpotX:aHotspotX hotSpotY:aHotspotY];
+  return [[nsCursorManager sharedInstance] setCursorWithImage:aCursor hotSpotX:aHotspotX hotSpotY:aHotspotY scaleFactor:BackingScaleFactor()];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
 }
@@ -797,8 +923,7 @@ NS_IMETHODIMP nsChildView::GetClientBounds(nsIntRect &aRect)
   if (!mParentWidget) {
     // For top level widgets we want the position on screen, not the position
     // of this view inside the window.
-    MOZ_ASSERT(mWindowType != eWindowType_plugin, "plugin widgets should have parents");
-    aRect.MoveTo(WidgetToScreenOffset());
+    aRect.MoveTo(WidgetToScreenOffsetUntyped());
   }
   return NS_OK;
 }
@@ -806,7 +931,7 @@ NS_IMETHODIMP nsChildView::GetClientBounds(nsIntRect &aRect)
 NS_IMETHODIMP nsChildView::GetScreenBounds(nsIntRect &aRect)
 {
   GetBounds(aRect);
-  aRect.MoveTo(WidgetToScreenOffset());
+  aRect.MoveTo(WidgetToScreenOffsetUntyped());
   return NS_OK;
 }
 
@@ -817,7 +942,7 @@ nsChildView::GetDefaultScaleInternal()
 }
 
 CGFloat
-nsChildView::BackingScaleFactor()
+nsChildView::BackingScaleFactor() const
 {
   if (mBackingScaleFactor > 0.0) {
     return mBackingScaleFactor;
@@ -848,13 +973,15 @@ nsChildView::BackingScaleFactorChanged()
       presShell->BackingScaleFactorChanged();
     }
   }
+}
 
-  if (IsPluginView()) {
-    nsEventStatus status = nsEventStatus_eIgnore;
-    nsGUIEvent guiEvent(true, NS_PLUGIN_RESOLUTION_CHANGED, this);
-    guiEvent.time = PR_IntervalNow();
-    DispatchEvent(&guiEvent, status);
+int32_t
+nsChildView::RoundsWidgetCoordinatesTo()
+{
+  if (BackingScaleFactor() == 2.0) {
+    return 2;
   }
+  return 1;
 }
 
 NS_IMETHODIMP nsChildView::ConstrainPosition(bool aAllowSlop,
@@ -877,10 +1004,9 @@ NS_IMETHODIMP nsChildView::Move(double aX, double aY)
   mBounds.x = x;
   mBounds.y = y;
 
-  [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
-
-  if (mVisible)
-    [mView setNeedsDisplay:YES];
+  ManipulateViewWithoutNeedingDisplay(mView, ^{
+    [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
+  });
 
   NotifyRollupGeometryChange();
   ReportMoveEvent();
@@ -903,7 +1029,9 @@ NS_IMETHODIMP nsChildView::Resize(double aWidth, double aHeight, bool aRepaint)
   mBounds.width  = width;
   mBounds.height = height;
 
-  [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
+  ManipulateViewWithoutNeedingDisplay(mView, ^{
+    [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
+  });
 
   if (mVisible && aRepaint)
     [mView setNeedsDisplay:YES];
@@ -940,7 +1068,9 @@ NS_IMETHODIMP nsChildView::Resize(double aX, double aY,
     mBounds.height = height;
   }
 
-  [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
+  ManipulateViewWithoutNeedingDisplay(mView, ^{
+    [mView setFrame:DevPixelsToCocoaPoints(mBounds)];
+  });
 
   if (mVisible && aRepaint)
     [mView setNeedsDisplay:YES];
@@ -982,208 +1112,6 @@ bool nsChildView::ShowsResizeIndicator(nsIntRect* aResizerRect)
   return true;
 }
 
-// In QuickDraw mode the coordinate system used here should be that of the
-// browser window's content region (defined as everything but the 22-pixel
-// high titlebar).  But in CoreGraphics mode the coordinate system should be
-// that of the browser window as a whole (including its titlebar).  Both
-// coordinate systems have a top-left origin.  See bmo bug 474491.
-//
-// There's a bug in this method's code -- it currently uses the QuickDraw
-// coordinate system for both the QuickDraw and CoreGraphics drawing modes.
-// This bug is fixed by the patch for bug 474491.  But the Flash plugin (both
-// version 10.0.12.36 from Adobe and version 9.0 r151 from Apple) has Mozilla-
-// specific code to work around this bug, which breaks when we fix it (see bmo
-// bug 477077).  So we'll need to coordinate releasing a fix for this bug with
-// Adobe and other major plugin vendors that support the CoreGraphics mode.
-//
-// outClipRect and outOrigin are in display pixels, not device pixels.
-NS_IMETHODIMP nsChildView::GetPluginClipRect(nsIntRect& outClipRect, nsIntPoint& outOrigin, bool& outWidgetVisible)
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  NS_ASSERTION(mWindowType == eWindowType_plugin,
-               "GetPluginClipRect must only be called on a plugin widget");
-  if (mWindowType != eWindowType_plugin) return NS_ERROR_FAILURE;
-  
-  NSWindow* window = [mView window];
-  if (!window) return NS_ERROR_FAILURE;
-  
-  NSPoint viewOrigin = [mView convertPoint:NSZeroPoint toView:nil];
-  NSRect frame = [[window contentView] frame];
-  viewOrigin.y = frame.size.height - viewOrigin.y;
-  
-  // set up the clipping region for plugins.
-  NSRect visibleBounds = [mView visibleRect];
-  NSPoint clipOrigin   = [mView convertPoint:visibleBounds.origin toView:nil];
-  
-  // Convert from cocoa to QuickDraw coordinates
-  clipOrigin.y = frame.size.height - clipOrigin.y;
-  
-  outClipRect.x = NSToIntRound(clipOrigin.x);
-  outClipRect.y = NSToIntRound(clipOrigin.y);
-
-  // need to convert view's origin to window coordinates.
-  // then, encode as "SetOrigin" ready values.
-  outOrigin.x = -NSToIntRound(viewOrigin.x);
-  outOrigin.y = -NSToIntRound(viewOrigin.y);
-
-  if (IsVisible() && [mView window] != nil) {
-    outClipRect.width  = NSToIntRound(visibleBounds.origin.x + visibleBounds.size.width) - NSToIntRound(visibleBounds.origin.x);
-    outClipRect.height = NSToIntRound(visibleBounds.origin.y + visibleBounds.size.height) - NSToIntRound(visibleBounds.origin.y);
-
-    if (mClipRects) {
-      nsIntRect clipBounds;
-      for (uint32_t i = 0; i < mClipRectCount; ++i) {
-        NSRect cocoaPoints = DevPixelsToCocoaPoints(mClipRects[i]);
-        clipBounds.UnionRect(clipBounds, nsIntRect(NSToIntRound(cocoaPoints.origin.x),
-                                                   NSToIntRound(cocoaPoints.origin.y),
-                                                   NSToIntRound(cocoaPoints.size.width),
-                                                   NSToIntRound(cocoaPoints.size.height)));
-      }
-      outClipRect.IntersectRect(outClipRect, clipBounds - outOrigin);
-    }
-
-    // XXXroc should this be !outClipRect.IsEmpty()?
-    outWidgetVisible = true;
-  }
-  else {
-    outClipRect.width = 0;
-    outClipRect.height = 0;
-    outWidgetVisible = false;
-  }
-
-  return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
-}
-
-NS_IMETHODIMP nsChildView::StartDrawPlugin()
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
-
-  NS_ASSERTION(mWindowType == eWindowType_plugin,
-               "StartDrawPlugin must only be called on a plugin widget");
-  if (mWindowType != eWindowType_plugin) return NS_ERROR_FAILURE;
-
-  // This code is necessary for CoreGraphics in 32-bit builds.
-  // See comments below about why. In 64-bit CoreGraphics mode we will not keep
-  // this region up to date, plugins should not depend on it.
-#ifndef __LP64__
-  NSWindow* window = [mView window];
-  if (!window)
-    return NS_ERROR_FAILURE;
-
-  // In QuickDraw drawing mode we used to prevent reentrant handling of any
-  // plugin event. But in CoreGraphics drawing mode only do this if the current
-  // plugin event isn't an update/paint event.  This allows popupcontextmenu()
-  // to work properly from a plugin that supports the Cocoa event model,
-  // without regressing bug 409615.  See bug 435041.  (StartDrawPlugin() and
-  // EndDrawPlugin() wrap every call to nsIPluginInstance::HandleEvent() --
-  // not just calls that "draw" or paint.)
-  if (mIsDispatchPaint && mPluginDrawing) {
-    return NS_ERROR_FAILURE;
-  }
-
-  // It appears that the WindowRef from which we get the plugin port undergoes the
-  // traditional BeginUpdate/EndUpdate cycle, which, if you recall, sets the visible
-  // region to the intersection of the visible region and the update region. Since
-  // we don't know here if we're being drawn inside a BeginUpdate/EndUpdate pair
-  // (which seem to occur in [NSWindow display]), and we don't want to have the burden
-  // of correctly doing Carbon invalidates of the plugin rect, we manually set the
-  // visible region to be the entire port every time. It is necessary to set up our
-  // window's port even for CoreGraphics plugins, because they may still use Carbon
-  // internally (see bug #420527 for details).
-  //
-  // Don't use this code if any of the QuickDraw APIs it currently requires are
-  // missing (as they probably will be on OS X 10.8 and up).
-  if (::NewRgn && ::GetQDGlobalsThePort && ::GetGWorld && ::SetGWorld &&
-      ::IsPortOffscreen && ::GetMainDevice && ::SetOrigin && ::RectRgn &&
-      ::SetPortVisibleRegion && ::SetPortClipRegion && ::DisposeRgn) {
-    RgnHandle pluginRegion = ::NewRgn();
-    if (pluginRegion) {
-      CGrafPtr port = ::GetWindowPort(WindowRef([window windowRef]));
-      bool portChanged = (port != CGrafPtr(::GetQDGlobalsThePort()));
-      CGrafPtr oldPort;
-      GDHandle oldDevice;
-
-      if (portChanged) {
-        ::GetGWorld(&oldPort, &oldDevice);
-        ::SetGWorld(port, ::IsPortOffscreen(port) ? nullptr : ::GetMainDevice());
-      }
-
-      ::SetOrigin(0, 0);
-
-      nsIntRect clipRect; // this is in native window coordinates
-      nsIntPoint origin;
-      bool visible;
-      GetPluginClipRect(clipRect, origin, visible);
-
-      // XXX if we're not visible, set an empty clip region?
-      Rect pluginRect;
-      ConvertGoannaRectToMacRect(clipRect, pluginRect);
-
-      ::RectRgn(pluginRegion, &pluginRect);
-      ::SetPortVisibleRegion(port, pluginRegion);
-      ::SetPortClipRegion(port, pluginRegion);
-
-      // now set up the origin for the plugin
-      ::SetOrigin(origin.x, origin.y);
-
-      ::DisposeRgn(pluginRegion);
-
-      if (portChanged) {
-        ::SetGWorld(oldPort, oldDevice);
-      }
-    }
-  }
-#endif
-
-  mPluginDrawing = true;
-  return NS_OK;
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
-}
-
-NS_IMETHODIMP nsChildView::EndDrawPlugin()
-{
-  NS_ASSERTION(mWindowType == eWindowType_plugin,
-               "EndDrawPlugin must only be called on a plugin widget");
-  if (mWindowType != eWindowType_plugin) return NS_ERROR_FAILURE;
-
-  mPluginDrawing = false;
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsChildView::SetPluginInstanceOwner(nsIPluginInstanceOwner* aInstanceOwner)
-{
-  mPluginInstanceOwner = aInstanceOwner;
-
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsChildView::SetPluginEventModel(int inEventModel)
-{
-  [(ChildView*)mView setPluginEventModel:(NPEventModel)inEventModel];
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsChildView::GetPluginEventModel(int* outEventModel)
-{
-  *outEventModel = [(ChildView*)mView pluginEventModel];
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsChildView::SetPluginDrawingModel(int inDrawingModel)
-{
-  [(ChildView*)mView setPluginDrawingModel:(NPDrawingModel)inDrawingModel];
-  return NS_OK;
-}
-
-NS_IMETHODIMP nsChildView::StartComplexTextInputForCurrentEvent()
-{
-  return mTextInputHandler->StartComplexTextInputForCurrentEvent();
-}
-
 nsresult nsChildView::SynthesizeNativeKeyEvent(int32_t aNativeKeyboardLayout,
                                                int32_t aNativeKeyCode,
                                                uint32_t aModifierFlags,
@@ -1197,7 +1125,7 @@ nsresult nsChildView::SynthesizeNativeKeyEvent(int32_t aNativeKeyboardLayout,
                                                      aUnmodifiedCharacters);
 }
 
-nsresult nsChildView::SynthesizeNativeMouseEvent(nsIntPoint aPoint,
+nsresult nsChildView::SynthesizeNativeMouseEvent(LayoutDeviceIntPoint aPoint,
                                                  uint32_t aNativeMessage,
                                                  uint32_t aModifierFlags)
 {
@@ -1291,7 +1219,8 @@ NS_IMETHODIMP nsChildView::ActivateNativeMenuItemAt(const nsAString& indexString
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
 
-  NSString* locationString = [NSString stringWithCharacters:indexString.BeginReading() length:indexString.Length()];
+  NSString* locationString = [NSString stringWithCharacters:reinterpret_cast<const unichar*>(indexString.BeginReading())
+                                                     length:indexString.Length()];
   NSMenuItem* item = NativeMenuItemWithLocation([NSApp mainMenu], locationString);
   // We can't perform an action on an item with a submenu, that will raise
   // an obj-c exception.
@@ -1387,8 +1316,7 @@ NS_IMETHODIMP nsChildView::Invalidate(const nsIntRect &aRect)
   if (!mView || !mVisible)
     return NS_OK;
 
-  NS_ASSERTION(GetLayerManager()->GetBackendType() != LAYERS_CLIENT ||
-               Compositor::GetBackend() == LAYERS_BASIC,
+  NS_ASSERTION(GetLayerManager()->GetBackendType() != LayersBackend::LAYERS_CLIENT,
                "Shouldn't need to invalidate with accelerated OMTC layers!");
 
   if ([NSView focusView]) {
@@ -1419,11 +1347,12 @@ nsChildView::ComputeShouldAccelerate(bool aDefault)
 bool
 nsChildView::ShouldUseOffMainThreadCompositing()
 {
-  // OMTC doesn't work with Basic Layers on OS X right now. Once it works, we'll
-  // still want to disable it for certain kinds of windows (e.g. popups).
-  return nsBaseWidget::ShouldUseOffMainThreadCompositing() &&
-         (ComputeShouldAccelerate(mUseLayersAcceleration) ||
-          Preferences::GetBool("layers.offmainthreadcomposition.prefer-basic", false));
+  // Don't use OMTC for transparent windows or for popup windows.
+  if (!mView || ![[mView window] isOpaque] ||
+      [[mView window] isKindOfClass:[PopupWindow class]])
+    return false;
+
+  return nsBaseWidget::ShouldUseOffMainThreadCompositing();
 }
 
 inline uint16_t COLOR8TOCOLOR16(uint8_t color8)
@@ -1436,43 +1365,28 @@ inline uint16_t COLOR8TOCOLOR16(uint8_t color8)
 
 nsresult nsChildView::ConfigureChildren(const nsTArray<Configuration>& aConfigurations)
 {
-  for (uint32_t i = 0; i < aConfigurations.Length(); ++i) {
-    const Configuration& config = aConfigurations[i];
-    nsChildView* child = static_cast<nsChildView*>(config.mChild);
-#ifdef DEBUG
-    nsWindowType kidType;
-    child->GetWindowType(kidType);
-#endif
-    NS_ASSERTION(kidType == eWindowType_plugin,
-                 "Configured widget is not a plugin type");
-    NS_ASSERTION(child->GetParent() == this,
-                 "Configured widget is not a child of the right widget");
-
-    // nsIWidget::Show() doesn't get called on plugin widgets unless we call
-    // it from here.  See bug 592563.
-    child->Show(!config.mClipRegion.IsEmpty());
-
-    child->Resize(
-        config.mBounds.x, config.mBounds.y,
-        config.mBounds.width, config.mBounds.height,
-        false);
-
-    // Store the clip region here in case GetPluginClipRect needs it.
-    child->StoreWindowClipRegion(config.mClipRegion);
-  }
   return NS_OK;
 }
 
 // Invokes callback and ProcessEvent methods on Event Listener object
-NS_IMETHODIMP nsChildView::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStatus)
+NS_IMETHODIMP nsChildView::DispatchEvent(WidgetGUIEvent* event,
+                                         nsEventStatus& aStatus)
 {
 #ifdef DEBUG
   debug_DumpEvent(stdout, event->widget, event, nsAutoCString("something"), 0);
 #endif
 
   NS_ASSERTION(!(mTextInputHandler && mTextInputHandler->IsIMEComposing() &&
-                 NS_IS_KEY_EVENT(event)),
+                 event->HasKeyEventMessage()),
     "Any key events should not be fired during IME composing");
+
+  if (event->mFlags.mIsSynthesizedForTests) {
+    WidgetKeyboardEvent* keyEvent = event->AsKeyboardEvent();
+    if (keyEvent) {
+      nsresult rv = mTextInputHandler->AttachNativeKeyEvent(*keyEvent);
+      NS_ENSURE_SUCCESS(rv, rv);
+    }
+  }
 
   aStatus = nsEventStatus_eIgnore;
 
@@ -1483,9 +1397,7 @@ NS_IMETHODIMP nsChildView::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStat
   // listener from the parent popup instead.
   nsCOMPtr<nsIWidget> kungFuDeathGrip = do_QueryInterface(mParentWidget ? mParentWidget : this);
   if (!listener && mParentWidget) {
-    nsWindowType type;
-    mParentWidget->GetWindowType(type);
-    if (type == eWindowType_popup) {
+    if (mParentWidget->WindowType() == eWindowType_popup) {
       // Check just in case event->widget isn't this widget
       if (event->widget)
         listener = event->widget->GetWidgetListener();
@@ -1502,7 +1414,7 @@ NS_IMETHODIMP nsChildView::DispatchEvent(nsGUIEvent* event, nsEventStatus& aStat
   return NS_OK;
 }
 
-bool nsChildView::DispatchWindowEvent(nsGUIEvent &event)
+bool nsChildView::DispatchWindowEvent(WidgetGUIEvent& event)
 {
   nsEventStatus status;
   DispatchEvent(&event, status);
@@ -1513,12 +1425,9 @@ nsIWidget*
 nsChildView::GetWidgetForListenerEvents()
 {
   // If there is no listener, use the parent popup's listener if that exists.
-  if (!mWidgetListener && mParentWidget) {
-    nsWindowType type;
-    mParentWidget->GetWindowType(type);
-    if (type == eWindowType_popup) {
-      return mParentWidget;
-    }
+  if (!mWidgetListener && mParentWidget &&
+      mParentWidget->WindowType() == eWindowType_popup) {
+    return mParentWidget;
   }
 
   return this;
@@ -1560,8 +1469,7 @@ bool nsChildView::PaintWindow(nsIntRegion aRegion)
 
 void nsChildView::ReportMoveEvent()
 {
-  if (mWidgetListener)
-    mWidgetListener->WindowMoved(this, mBounds.x, mBounds.y);
+   NotifyWindowMoved(mBounds.x, mBounds.y);
 }
 
 void nsChildView::ReportSizeEvent()
@@ -1574,7 +1482,7 @@ void nsChildView::ReportSizeEvent()
 
 //    Return the offset between this child view and the screen.
 //    @return       -- widget origin in device-pixel coords
-nsIntPoint nsChildView::WidgetToScreenOffset()
+LayoutDeviceIntPoint nsChildView::WidgetToScreenOffset()
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
@@ -1592,9 +1500,9 @@ nsIntPoint nsChildView::WidgetToScreenOffset()
   FlipCocoaScreenCoordinate(origin);
 
   // convert to device pixels
-  return CocoaPointsToDevPixels(origin);
+  return LayoutDeviceIntPoint::FromUntyped(CocoaPointsToDevPixels(origin));
 
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(nsIntPoint(0,0));
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(LayoutDeviceIntPoint(0,0));
 }
 
 NS_IMETHODIMP nsChildView::CaptureRollupEvents(nsIRollupListener * aListener,
@@ -1623,7 +1531,7 @@ NS_IMETHODIMP nsChildView::GetAttention(int32_t aCycleCount)
 /* static */
 bool nsChildView::DoHasPendingInputEvent()
 {
-  return sLastInputEventCount != GetCurrentInputEventCount(); 
+  return sLastInputEventCount != GetCurrentInputEventCount();
 }
 
 /* static */
@@ -1671,10 +1579,10 @@ bool nsChildView::HasPendingInputEvent()
 
 #pragma mark -
 
-NS_IMETHODIMP
-nsChildView::NotifyIME(NotificationToIME aNotification)
+nsresult
+nsChildView::NotifyIMEInternal(const IMENotification& aIMENotification)
 {
-  switch (aNotification) {
+  switch (aIMENotification.mMessage) {
     case REQUEST_TO_COMMIT_COMPOSITION:
       NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
       mTextInputHandler->CommitIMEComposition();
@@ -1686,6 +1594,8 @@ nsChildView::NotifyIME(NotificationToIME aNotification)
     case NOTIFY_IME_OF_FOCUS:
       if (mInputContext.IsPasswordEditor()) {
         TextInputHandler::EnableSecureEventInput();
+      } else {
+        TextInputHandler::EnsureSecureEventInputDisabled();
       }
 
       NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
@@ -1699,25 +1609,70 @@ nsChildView::NotifyIME(NotificationToIME aNotification)
       NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
       mTextInputHandler->OnFocusChangeInGoanna(false);
       return NS_OK;
+    case NOTIFY_IME_OF_SELECTION_CHANGE:
+      NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
+      mTextInputHandler->OnSelectionChange();
     default:
       return NS_ERROR_NOT_IMPLEMENTED;
   }
+}
+
+NS_IMETHODIMP
+nsChildView::StartPluginIME(const mozilla::WidgetKeyboardEvent& aKeyboardEvent,
+                            int32_t aPanelX, int32_t aPanelY,
+                            nsString& aCommitted)
+{
+  NS_ENSURE_TRUE(mView, NS_ERROR_NOT_AVAILABLE);
+
+  ComplexTextInputPanel* ctiPanel =
+    ComplexTextInputPanel::GetSharedComplexTextInputPanel();
+
+  ctiPanel->PlacePanel(aPanelX, aPanelY);
+  // We deliberately don't use TextInputHandler::GetCurrentKeyEvent() to
+  // obtain the NSEvent* we pass to InterpretKeyEvent().  This works fine in
+  // non-e10s mode.  But in e10s mode TextInputHandler::HandleKeyDownEvent()
+  // has already returned, so the relevant KeyEventState* (and its NSEvent*)
+  // is already out of scope.  Furthermore we don't *need* to use it.
+  // StartPluginIME() is only ever called to start a new IME session when none
+  // currently exists.  So nested IME should never reach here, and so it should
+  // be fine to use the last key-down event received by -[ChildView keyDown:]
+  // (as we currently do).
+  ctiPanel->InterpretKeyEvent([mView lastKeyDownEvent], aCommitted);
+
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsChildView::SetPluginFocused(bool& aFocused)
+{
+  if (aFocused == mPluginFocused) {
+    return NS_OK;
+  }
+  if (!aFocused) {
+    ComplexTextInputPanel* ctiPanel =
+      ComplexTextInputPanel::GetSharedComplexTextInputPanel();
+    if (ctiPanel) {
+      ctiPanel->CancelComposition();
+    }
+  }
+  mPluginFocused = aFocused;
+  return NS_OK;
 }
 
 NS_IMETHODIMP_(void)
 nsChildView::SetInputContext(const InputContext& aContext,
                              const InputContextAction& aAction)
 {
-  // XXX Ideally, we should check if this instance has focus or not.
-  //     However, this is called only when this widget has focus, so,
-  //     it's not problem at least for now.
-  if (aContext.IsPasswordEditor()) {
-    TextInputHandler::EnableSecureEventInput();
-  } else {
-    TextInputHandler::EnsureSecureEventInputDisabled();
+  NS_ENSURE_TRUE_VOID(mTextInputHandler);
+
+  if (mTextInputHandler->IsOrWouldBeFocused()) {
+    if (aContext.IsPasswordEditor()) {
+      TextInputHandler::EnableSecureEventInput();
+    } else {
+      TextInputHandler::EnsureSecureEventInputDisabled();
+    }
   }
 
-  NS_ENSURE_TRUE_VOID(mTextInputHandler);
   mInputContext = aContext;
   switch (aContext.mIMEState.mEnabled) {
     case IMEState::ENABLED:
@@ -1768,6 +1723,113 @@ nsChildView::GetInputContext()
   return mInputContext;
 }
 
+NS_IMETHODIMP
+nsChildView::AttachNativeKeyEvent(mozilla::WidgetKeyboardEvent& aEvent)
+{
+  NS_ENSURE_TRUE(mTextInputHandler, NS_ERROR_NOT_AVAILABLE);
+  return mTextInputHandler->AttachNativeKeyEvent(aEvent);
+}
+
+bool
+nsChildView::ExecuteNativeKeyBindingRemapped(NativeKeyBindingsType aType,
+                                             const WidgetKeyboardEvent& aEvent,
+                                             DoCommandCallback aCallback,
+                                             void* aCallbackData,
+                                             uint32_t aGoannaKeyCode,
+                                             uint32_t aCocoaKeyCode)
+{
+  NSEvent *originalEvent = reinterpret_cast<NSEvent*>(aEvent.mNativeKeyEvent);
+
+  WidgetKeyboardEvent modifiedEvent(aEvent);
+  modifiedEvent.keyCode = aGoannaKeyCode;
+
+  unichar ch = nsCocoaUtils::ConvertGoannaKeyCodeToMacCharCode(aGoannaKeyCode);
+  NSString *chars =
+    [[[NSString alloc] initWithCharacters:&ch length:1] autorelease];
+
+  modifiedEvent.mNativeKeyEvent =
+    [NSEvent keyEventWithType:[originalEvent type]
+                     location:[originalEvent locationInWindow]
+                modifierFlags:[originalEvent modifierFlags]
+                    timestamp:[originalEvent timestamp]
+                 windowNumber:[originalEvent windowNumber]
+                      context:[originalEvent context]
+                   characters:chars
+  charactersIgnoringModifiers:chars
+                    isARepeat:[originalEvent isARepeat]
+                      keyCode:aCocoaKeyCode];
+
+  NativeKeyBindings* keyBindings = NativeKeyBindings::GetInstance(aType);
+  return keyBindings->Execute(modifiedEvent, aCallback, aCallbackData);
+}
+
+NS_IMETHODIMP_(bool)
+nsChildView::ExecuteNativeKeyBinding(NativeKeyBindingsType aType,
+                                     const WidgetKeyboardEvent& aEvent,
+                                     DoCommandCallback aCallback,
+                                     void* aCallbackData)
+{
+  // If the key is a cursor-movement arrow, and the current selection has
+  // vertical writing-mode, we'll remap so that the movement command
+  // generated (in terms of characters/lines) will be appropriate for
+  // the physical direction of the arrow.
+  if (aEvent.keyCode >= nsIDOMKeyEvent::DOM_VK_LEFT &&
+      aEvent.keyCode <= nsIDOMKeyEvent::DOM_VK_DOWN) {
+    WidgetQueryContentEvent query(true, NS_QUERY_SELECTED_TEXT, this);
+    DispatchWindowEvent(query);
+
+    if (query.mSucceeded && query.mReply.mWritingMode.IsVertical()) {
+      uint32_t goannaKey = 0;
+      uint32_t cocoaKey = 0;
+
+      switch (aEvent.keyCode) {
+      case nsIDOMKeyEvent::DOM_VK_LEFT:
+        if (query.mReply.mWritingMode.IsVerticalLR()) {
+          goannaKey = nsIDOMKeyEvent::DOM_VK_UP;
+          cocoaKey = kVK_UpArrow;
+        } else {
+          goannaKey = nsIDOMKeyEvent::DOM_VK_DOWN;
+          cocoaKey = kVK_DownArrow;
+        }
+        break;
+
+      case nsIDOMKeyEvent::DOM_VK_RIGHT:
+        if (query.mReply.mWritingMode.IsVerticalLR()) {
+          goannaKey = nsIDOMKeyEvent::DOM_VK_DOWN;
+          cocoaKey = kVK_DownArrow;
+        } else {
+          goannaKey = nsIDOMKeyEvent::DOM_VK_UP;
+          cocoaKey = kVK_UpArrow;
+        }
+        break;
+
+      case nsIDOMKeyEvent::DOM_VK_UP:
+        goannaKey = nsIDOMKeyEvent::DOM_VK_LEFT;
+        cocoaKey = kVK_LeftArrow;
+        break;
+
+      case nsIDOMKeyEvent::DOM_VK_DOWN:
+        goannaKey = nsIDOMKeyEvent::DOM_VK_RIGHT;
+        cocoaKey = kVK_RightArrow;
+        break;
+      }
+
+      return ExecuteNativeKeyBindingRemapped(aType, aEvent, aCallback,
+                                             aCallbackData,
+                                             goannaKey, cocoaKey);
+    }
+  }
+
+  NativeKeyBindings* keyBindings = NativeKeyBindings::GetInstance(aType);
+  return keyBindings->Execute(aEvent, aCallback, aCallbackData);
+}
+
+nsIMEUpdatePreference
+nsChildView::GetIMEUpdatePreference()
+{
+  return nsIMEUpdatePreference(nsIMEUpdatePreference::NOTIFY_SELECTION_CHANGE);
+}
+
 NS_IMETHODIMP nsChildView::GetToggledKeyState(uint32_t aKeyCode,
                                               bool* aLEDState)
 {
@@ -1799,7 +1861,7 @@ NSView<mozView>* nsChildView::GetEditorView()
   // We need to get editor's view. E.g., when the focus is in the bookmark
   // dialog, the view is <panel> element of the dialog.  At this time, the key
   // events are processed the parent window's view that has native focus.
-  nsQueryContentEvent textContent(true, NS_QUERY_TEXT_CONTENT, this);
+  WidgetQueryContentEvent textContent(true, NS_QUERY_TEXT_CONTENT, this);
   textContent.InitForQueryTextContent(0, 0);
   DispatchWindowEvent(textContent);
   if (textContent.mSucceeded && textContent.mReply.mFocusedWidget) {
@@ -1818,50 +1880,27 @@ nsChildView::CreateCompositor()
 {
   nsBaseWidget::CreateCompositor();
   if (mCompositorChild) {
-    LayerManagerComposite *manager =
-      compositor::GetLayerManager(mCompositorParent);
-    Compositor *compositor = manager->GetCompositor();
-
-    LayersBackend backend = compositor->GetBackend();
-    if (backend == LAYERS_OPENGL) {
-      CompositorOGL *compositorOGL = static_cast<CompositorOGL*>(compositor);
-
-      NSOpenGLContext *glContext = (NSOpenGLContext *)compositorOGL->gl()->GetNativeData(GLContext::NativeGLContext);
-
-      [(ChildView *)mView setGLContext:glContext];
-    }
     [(ChildView *)mView setUsingOMTCompositor:true];
   }
 }
 
-gfxASurface*
-nsChildView::GetThebesSurface()
-{
-  if (!mTempThebesSurface) {
-    mTempThebesSurface = new gfxQuartzSurface(gfxSize(1, 1), gfxASurface::ImageFormatARGB32);
-  }
-
-  return mTempThebesSurface;
-}
-
 void
-nsChildView::NotifyDirtyRegion(const nsIntRegion& aDirtyRegion)
+nsChildView::ConfigureAPZCTreeManager()
 {
-  if ([(ChildView*)mView isCoveringTitlebar]) {
-    // We store the dirty region so that we know what to repaint in the titlebar.
-    mDirtyTitlebarRegion.Or(mDirtyTitlebarRegion, aDirtyRegion);
-    mDirtyTitlebarRegion.And(mDirtyTitlebarRegion, RectContainingTitlebarControls());
-  }
-}
+  nsBaseWidget::ConfigureAPZCTreeManager();
 
-static const CGFloat kTitlebarHighlightHeight = 6;
+  if (gNumberOfWidgetsNeedingEventThread == 0) {
+    [EventThreadRunner start];
+  }
+  gNumberOfWidgetsNeedingEventThread++;
+}
 
 nsIntRect
 nsChildView::RectContainingTitlebarControls()
 {
-  // Start with a 6px high strip at the top of the window for the highlight line.
+  // Start with a thin strip at the top of the window for the highlight line.
   NSRect rect = NSMakeRect(0, 0, [mView bounds].size.width,
-                           kTitlebarHighlightHeight);
+                           [(ChildView*)mView cornerRadius]);
 
   // Add the rects of the titlebar controls.
   for (id view in [(BaseWindow*)[mView window] titlebarControls]) {
@@ -1879,9 +1918,10 @@ nsChildView::PrepareWindowEffects()
   CGFloat cornerRadius = [(ChildView*)mView cornerRadius];
   mDevPixelCornerRadius = cornerRadius * BackingScaleFactor();
   mIsCoveringTitlebar = [(ChildView*)mView isCoveringTitlebar];
+  mIsFullscreen = ([[mView window] styleMask] & NSFullScreenWindowMask) != 0;
   if (mIsCoveringTitlebar) {
     mTitlebarRect = RectContainingTitlebarControls();
-    UpdateTitlebarImageBuffer();
+    UpdateTitlebarCGContext();
   }
 }
 
@@ -1893,41 +1933,66 @@ nsChildView::CleanupWindowEffects()
   mTitlebarImage = nullptr;
 }
 
-void
-nsChildView::PreRender(LayerManager* aManager)
+bool
+nsChildView::PreRender(LayerManagerComposite* aManager)
 {
   nsAutoPtr<GLManager> manager(GLManager::CreateGLManager(aManager));
   if (!manager) {
-    return;
+    return true;
   }
-  NSOpenGLContext *glContext = (NSOpenGLContext *)manager->gl()->GetNativeData(GLContext::NativeGLContext);
-  [(ChildView*)mView preRender:glContext];
+
+  // The lock makes sure that we don't attempt to tear down the view while
+  // compositing. That would make us unable to call postRender on it when the
+  // composition is done, thus keeping the GL context locked forever.
+  mViewTearDownLock.Lock();
+
+  NSOpenGLContext *glContext = GLContextCGL::Cast(manager->gl())->GetNSOpenGLContext();
+
+  if (![(ChildView*)mView preRender:glContext]) {
+    mViewTearDownLock.Unlock();
+    return false;
+  }
+  return true;
 }
 
 void
-nsChildView::DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect)
+nsChildView::PostRender(LayerManagerComposite* aManager)
 {
   nsAutoPtr<GLManager> manager(GLManager::CreateGLManager(aManager));
   if (!manager) {
     return;
   }
+  NSOpenGLContext *glContext = GLContextCGL::Cast(manager->gl())->GetNSOpenGLContext();
+  [(ChildView*)mView postRender:glContext];
+  mViewTearDownLock.Unlock();
+}
 
-  manager->gl()->PushScissorRect(aRect);
+void
+nsChildView::DrawWindowOverlay(LayerManagerComposite* aManager, nsIntRect aRect)
+{
+  nsAutoPtr<GLManager> manager(GLManager::CreateGLManager(aManager));
+  if (manager) {
+    DrawWindowOverlay(manager, aRect);
+  }
+}
 
-  MaybeDrawTitlebar(manager, aRect);
-  MaybeDrawResizeIndicator(manager, aRect);
-  MaybeDrawRoundedCorners(manager, aRect);
+void
+nsChildView::DrawWindowOverlay(GLManager* aManager, nsIntRect aRect)
+{
+  GLContext* gl = aManager->gl();
+  ScopedGLState scopedScissorTestState(gl, LOCAL_GL_SCISSOR_TEST, false);
 
-  manager->gl()->PopScissorRect();
+  MaybeDrawTitlebar(aManager, aRect);
+  MaybeDrawResizeIndicator(aManager, aRect);
+  MaybeDrawRoundedCorners(aManager, aRect);
 }
 
 static void
-ClearRegion(gfxASurface* aSurface, nsIntRegion aRegion)
+ClearRegion(gfx::DrawTarget *aDT, nsIntRegion aRegion)
 {
-  nsRefPtr<gfxContext> ctx = new gfxContext(aSurface);
-  gfxUtils::ClipToRegion(ctx, aRegion);
-  ctx->SetOperator(gfxContext::OPERATOR_CLEAR);
-  ctx->Paint();
+  gfxUtils::ClipToRegion(aDT, aRegion);
+  aDT->ClearRect(gfx::Rect(0, 0, aDT->GetSize().width, aDT->GetSize().height));
+  aDT->PopClip();
 }
 
 static void
@@ -1967,66 +2032,23 @@ void
 nsChildView::MaybeDrawResizeIndicator(GLManager* aManager, const nsIntRect& aRect)
 {
   MutexAutoLock lock(mEffectsLock);
-  if (!mShowsResizeIndicator || mFailedResizerImage) {
+  if (!mShowsResizeIndicator) {
     return;
   }
 
   if (!mResizerImage) {
-    mResizerImage =
-      aManager->gl()->CreateTextureImage(nsIntSize(mResizeIndicatorRect.width,
-                                                   mResizeIndicatorRect.height),
-                                         gfxASurface::CONTENT_COLOR_ALPHA,
-                                         LOCAL_GL_CLAMP_TO_EDGE,
-                                         TextureImage::UseNearestFilter);
-
-    // Creation of texture images can fail.
-    if (!mResizerImage)
-      return;
-
-    nsIntRegion update(nsIntRect(0, 0, mResizeIndicatorRect.width, mResizeIndicatorRect.height));
-    gfxASurface *asurf = mResizerImage->BeginUpdate(update);
-    if (!asurf) {
-      mResizerImage = nullptr;
-      return;
-    }
-
-    // We need a Quartz surface because DrawResizer wants a CGContext.
-    if (asurf->GetType() != gfxASurface::SurfaceTypeQuartz) {
-      NS_WARN_IF_FALSE(FALSE, "mResizerImage's surface is not Quartz");
-      mResizerImage->EndUpdate();
-      mResizerImage = nullptr;
-      mFailedResizerImage = true;
-      return;
-    }
-
-    ClearRegion(asurf, update);
-
-    nsRefPtr<gfxQuartzSurface> image = static_cast<gfxQuartzSurface*>(asurf);
-    DrawResizer(image->GetCGContext());
-
-    mResizerImage->EndUpdate();
+    mResizerImage = new RectTextureImage(aManager->gl());
   }
 
-  NS_ABORT_IF_FALSE(mResizerImage, "Must have a texture allocated by now!");
+  nsIntSize size = mResizeIndicatorRect.Size();
+  mResizerImage->UpdateIfNeeded(size, nsIntRegion(), ^(gfx::DrawTarget* drawTarget, const nsIntRegion& updateRegion) {
+    ClearRegion(drawTarget, updateRegion);
+    gfx::BorrowedCGContext borrow(drawTarget);
+    DrawResizer(borrow.cg);
+    borrow.Finish();
+  });
 
-  float bottomX = aRect.XMost();
-  float bottomY = aRect.YMost();
-
-  TextureImage::ScopedBindTexture texBind(mResizerImage, LOCAL_GL_TEXTURE0);
-
-  ShaderProgramOGL *program =
-    aManager->GetProgram(mResizerImage->GetShaderProgramType());
-  program->Activate();
-  program->SetLayerQuadRect(nsIntRect(bottomX - resizeIndicatorWidth,
-                                      bottomY - resizeIndicatorHeight,
-                                      resizeIndicatorWidth,
-                                      resizeIndicatorHeight));
-  program->SetLayerTransform(gfx3DMatrix());
-  program->SetLayerOpacity(1.0);
-  program->SetRenderOffset(nsIntPoint(0,0));
-  program->SetTextureUnit(0);
-
-  aManager->BindAndDrawQuad(program);
+  mResizerImage->Draw(aManager, mResizeIndicatorRect.TopLeft());
 }
 
 // Draw the highlight line at the top of the titlebar.
@@ -2042,7 +2064,7 @@ DrawTitlebarHighlight(NSSize aWindowSize, CGFloat aRadius, CGFloat aDevicePixelW
   // masked away in a later step.
   NSBezierPath* path = [NSBezierPath bezierPath];
   [path setWindingRule:NSEvenOddWindingRule];
-  NSRect pathRect = NSMakeRect(0, 0, aWindowSize.width, kTitlebarHighlightHeight + 2);
+  NSRect pathRect = NSMakeRect(0, 0, aWindowSize.width, aRadius + 2);
   [path appendBezierPathWithRect:pathRect];
   pathRect = NSInsetRect(pathRect, aDevicePixelWidth, aDevicePixelWidth);
   CGFloat innerRadius = aRadius - aDevicePixelWidth;
@@ -2050,40 +2072,76 @@ DrawTitlebarHighlight(NSSize aWindowSize, CGFloat aRadius, CGFloat aDevicePixelW
   [path addClip];
 
   // Now we fill the path with a subtle highlight gradient.
-  NSColor* topColor = [NSColor colorWithDeviceWhite:1.0 alpha:0.4];
-  NSColor* bottomColor = [NSColor colorWithDeviceWhite:1.0 alpha:0.0];
-  NSGradient* gradient = [[NSGradient alloc] initWithStartingColor:topColor endingColor:bottomColor];
-  [gradient drawInRect:NSMakeRect(0, 0, aWindowSize.width, kTitlebarHighlightHeight) angle:90];
-  [gradient release];
+  // We don't use NSGradient because it's 5x to 15x slower than the manual fill,
+  // as indicated by the performance test in bug 880620.
+  for (CGFloat y = 0; y < aRadius; y += aDevicePixelWidth) {
+    CGFloat t = y / aRadius;
+    [[NSColor colorWithDeviceWhite:1.0 alpha:0.4 * (1.0 - t)] set];
+    NSRectFillUsingOperation(NSMakeRect(0, y, aWindowSize.width, aDevicePixelWidth), NSCompositeSourceOver);
+  }
 
   [NSGraphicsContext restoreGraphicsState];
 }
 
+static CGContextRef
+CreateCGContext(const nsIntSize& aSize)
+{
+  CGColorSpaceRef cs = CGColorSpaceCreateDeviceRGB();
+  CGContextRef ctx =
+    CGBitmapContextCreate(NULL,
+                          aSize.width,
+                          aSize.height,
+                          8 /* bitsPerComponent */,
+                          aSize.width * 4,
+                          cs,
+                          kCGBitmapByteOrder32Host | kCGImageAlphaPremultipliedFirst);
+  CGColorSpaceRelease(cs);
+
+  CGContextTranslateCTM(ctx, 0, aSize.height);
+  CGContextScaleCTM(ctx, 1, -1);
+  CGContextSetInterpolationQuality(ctx, kCGInterpolationLow);
+
+  return ctx;
+}
+
 // When this method is entered, mEffectsLock is already being held.
 void
-nsChildView::UpdateTitlebarImageBuffer()
+nsChildView::UpdateTitlebarCGContext()
 {
-  nsIntRegion dirtyTitlebarRegion = mDirtyTitlebarRegion;
-  mDirtyTitlebarRegion.SetEmpty();
-
-  if (!mTitlebarImageBuffer ||
-      mTitlebarImageBuffer->GetSize() != mTitlebarRect.Size()) {
-    dirtyTitlebarRegion = mTitlebarRect;
-
-    mTitlebarImageBuffer = new gfxQuartzSurface(mTitlebarRect.Size(),
-                                                gfxASurface::ImageFormatARGB32);
+  if (mTitlebarRect.IsEmpty()) {
+    ReleaseTitlebarCGContext();
+    return;
   }
 
-  if (dirtyTitlebarRegion.IsEmpty())
+  NSRect titlebarRect = DevPixelsToCocoaPoints(mTitlebarRect);
+  NSRect dirtyRect = [mView convertRect:[(BaseWindow*)[mView window] getAndResetNativeDirtyRect] fromView:nil];
+  NSRect dirtyTitlebarRect = NSIntersectionRect(titlebarRect, dirtyRect);
+
+  nsIntSize texSize = RectTextureImage::TextureSizeForSize(mTitlebarRect.Size());
+  if (!mTitlebarCGContext ||
+      CGBitmapContextGetWidth(mTitlebarCGContext) != size_t(texSize.width) ||
+      CGBitmapContextGetHeight(mTitlebarCGContext) != size_t(texSize.height)) {
+    dirtyTitlebarRect = titlebarRect;
+
+    ReleaseTitlebarCGContext();
+
+    mTitlebarCGContext = CreateCGContext(texSize);
+  }
+
+  if (NSIsEmptyRect(dirtyTitlebarRect)) {
     return;
+  }
 
-  ClearRegion(mTitlebarImageBuffer, dirtyTitlebarRegion);
+  CGContextRef ctx = mTitlebarCGContext;
 
-  CGContextRef ctx = mTitlebarImageBuffer->GetCGContext();
   CGContextSaveGState(ctx);
 
   double scale = BackingScaleFactor();
   CGContextScaleCTM(ctx, scale, scale);
+
+  CGContextClipToRect(ctx, NSRectToCGRect(dirtyTitlebarRect));
+  CGContextClearRect(ctx, NSRectToCGRect(dirtyTitlebarRect));
+
   NSGraphicsContext* oldContext = [NSGraphicsContext currentContext];
 
   CGContextSaveGState(ctx);
@@ -2098,17 +2156,15 @@ nsChildView::UpdateTitlebarImageBuffer()
   [NSGraphicsContext setCurrentContext:context];
 
   // Draw the title string.
-  if ([frameView respondsToSelector:@selector(_drawTitleBar:)]) {
+  if ([window wantsTitleDrawn] && [frameView respondsToSelector:@selector(_drawTitleBar:)]) {
     [frameView _drawTitleBar:[frameView bounds]];
   }
 
   // Draw the titlebar controls into the titlebar image.
   for (id view in [window titlebarControls]) {
     NSRect viewFrame = [view frame];
-    nsIntRect viewRect = CocoaPointsToDevPixels([mView convertRect:viewFrame fromView:frameView]);
-    nsIntRegion intersection;
-    intersection.And(dirtyTitlebarRegion, viewRect);
-    if (intersection.IsEmpty()) {
+    NSRect viewRect = [mView convertRect:viewFrame fromView:frameView];
+    if (!NSIntersectsRect(dirtyTitlebarRect, viewRect)) {
       continue;
     }
     // All of the titlebar controls we're interested in are subclasses of
@@ -2133,8 +2189,27 @@ nsChildView::UpdateTitlebarImageBuffer()
 
     [NSGraphicsContext setCurrentContext:[NSGraphicsContext graphicsContextWithGraphicsPort:ctx flipped:[view isFlipped]]];
 
-    NSRect intersectRect = DevPixelsToCocoaPoints(intersection.GetBounds());
-    [cell drawWithFrame:[view convertRect:intersectRect fromView:mView] inView:button];
+    if ([window useBrightTitlebarForeground] && !nsCocoaFeatures::OnYosemiteOrLater() &&
+        view == [window standardWindowButton:NSWindowFullScreenButton]) {
+      // Make the fullscreen button visible on dark titlebar backgrounds by
+      // drawing it into a new transparency layer and turning it white.
+      CGRect r = NSRectToCGRect([view bounds]);
+      CGContextBeginTransparencyLayerWithRect(ctx, r, nullptr);
+
+      // Draw twice for double opacity.
+      [cell drawWithFrame:[button bounds] inView:button];
+      [cell drawWithFrame:[button bounds] inView:button];
+
+      // Make it white.
+      CGContextSetBlendMode(ctx, kCGBlendModeSourceIn);
+      CGContextSetRGBFillColor(ctx, 1, 1, 1, 1);
+      CGContextFillRect(ctx, r);
+      CGContextSetBlendMode(ctx, kCGBlendModeNormal);
+
+      CGContextEndTransparencyLayer(ctx);
+    } else {
+      [cell drawWithFrame:[button bounds] inView:button];
+    }
 
     [NSGraphicsContext setCurrentContext:context];
     CGContextRestoreGState(ctx);
@@ -2146,48 +2221,10 @@ nsChildView::UpdateTitlebarImageBuffer()
                         DevPixelsToCocoaPoints(1));
 
   [NSGraphicsContext setCurrentContext:oldContext];
+
   CGContextRestoreGState(ctx);
 
-  mUpdatedTitlebarRegion.Or(mUpdatedTitlebarRegion, dirtyTitlebarRegion);
-}
-
-// When this method is entered, mEffectsLock is already being held.
-void
-nsChildView::UpdateTitlebarImage(GLManager* aManager, const nsIntRect& aRect)
-{
-  nsIntRegion updatedTitlebarRegion;
-  updatedTitlebarRegion.And(mUpdatedTitlebarRegion, mTitlebarRect);
-  mUpdatedTitlebarRegion.SetEmpty();
-
-  if (!mTitlebarImage || mTitlebarImage->GetSize() != mTitlebarRect.Size()) {
-    updatedTitlebarRegion = mTitlebarRect;
-
-    mTitlebarImage =
-      aManager->gl()->CreateTextureImage(mTitlebarRect.Size(),
-                                         gfxASurface::CONTENT_COLOR_ALPHA,
-                                         LOCAL_GL_CLAMP_TO_EDGE,
-                                         TextureImage::UseNearestFilter);
-
-    // Creation of texture images can fail.
-    if (!mTitlebarImage)
-      return;
-  }
-
-  if (updatedTitlebarRegion.IsEmpty())
-    return;
-
-  gfxASurface *asurf = mTitlebarImage->BeginUpdate(updatedTitlebarRegion);
-  if (!asurf) {
-    mTitlebarImage = nullptr;
-    return;
-  }
-
-  nsRefPtr<gfxContext> ctx = new gfxContext(asurf);
-  ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-  ctx->SetSource(mTitlebarImageBuffer);
-  ctx->Paint();
-
-  mTitlebarImage->EndUpdate();
+  mUpdatedTitlebarRegion.OrWith(CocoaPointsToDevPixels(dirtyTitlebarRect));
 }
 
 // This method draws an overlay in the top of the window which contains the
@@ -2204,29 +2241,23 @@ void
 nsChildView::MaybeDrawTitlebar(GLManager* aManager, const nsIntRect& aRect)
 {
   MutexAutoLock lock(mEffectsLock);
-  if (!mIsCoveringTitlebar) {
+  if (!mIsCoveringTitlebar || mIsFullscreen) {
     return;
   }
 
-  UpdateTitlebarImage(aManager, aRect);
+  nsIntRegion updatedTitlebarRegion;
+  updatedTitlebarRegion.And(mUpdatedTitlebarRegion, mTitlebarRect);
+  mUpdatedTitlebarRegion.SetEmpty();
 
   if (!mTitlebarImage) {
-    return;
+    mTitlebarImage = new RectTextureImage(aManager->gl());
   }
 
-  TextureImage::ScopedBindTexture texBind(mTitlebarImage, LOCAL_GL_TEXTURE0);
+  mTitlebarImage->UpdateFromCGContext(mTitlebarRect.Size(),
+                                      updatedTitlebarRegion,
+                                      mTitlebarCGContext);
 
-  ShaderProgramOGL *program =
-    aManager->GetProgram(mTitlebarImage->GetShaderProgramType());
-  program->Activate();
-  program->SetLayerQuadRect(nsIntRect(nsIntPoint(0, 0),
-                                      mTitlebarImage->GetSize()));
-  program->SetLayerTransform(gfx3DMatrix());
-  program->SetLayerOpacity(1.0);
-  program->SetRenderOffset(nsIntPoint(0,0));
-  program->SetTextureUnit(0);
-
-  aManager->BindAndDrawQuad(program);
+  mTitlebarImage->Draw(aManager, mTitlebarRect.TopLeft());
 }
 
 static void
@@ -2240,81 +2271,39 @@ void
 nsChildView::MaybeDrawRoundedCorners(GLManager* aManager, const nsIntRect& aRect)
 {
   MutexAutoLock lock(mEffectsLock);
-  
-  if (mFailedCornerMaskImage) {
-    return;
+
+  if (!mCornerMaskImage) {
+    mCornerMaskImage = new RectTextureImage(aManager->gl());
   }
 
-  if (!mCornerMaskImage ||
-      mCornerMaskImage->GetSize().width != mDevPixelCornerRadius) {
-    mCornerMaskImage =
-      aManager->gl()->CreateTextureImage(nsIntSize(mDevPixelCornerRadius,
-                                                   mDevPixelCornerRadius),
-                                         gfxASurface::CONTENT_COLOR_ALPHA,
-                                         LOCAL_GL_CLAMP_TO_EDGE,
-                                         TextureImage::UseNearestFilter);
-
-    // Creation of texture images can fail.
-    if (!mCornerMaskImage)
-      return;
-
-    nsIntRegion update(nsIntRect(0, 0, mDevPixelCornerRadius, mDevPixelCornerRadius));
-    gfxASurface *asurf = mCornerMaskImage->BeginUpdate(update);
-    if (!asurf) {
-      mCornerMaskImage = nullptr;
-      return;
-    }
-
-    if (asurf->GetType() != gfxASurface::SurfaceTypeQuartz) {
-      NS_WARNING("mCornerMaskImage's surface is not Quartz");
-      mCornerMaskImage->EndUpdate();
-      mCornerMaskImage = nullptr;
-      mFailedCornerMaskImage = true;
-      return;
-    }
-
-    ClearRegion(asurf, update);
-
-    nsRefPtr<gfxQuartzSurface> image = static_cast<gfxQuartzSurface*>(asurf);
-    DrawTopLeftCornerMask(image->GetCGContext(), mDevPixelCornerRadius);
-
-    mCornerMaskImage->EndUpdate();
-  }
-  
-  NS_ABORT_IF_FALSE(mCornerMaskImage, "Must have a texture allocated by now!");
-  
-  TextureImage::ScopedBindTexture texBind(mCornerMaskImage, LOCAL_GL_TEXTURE0);
-  
-  ShaderProgramOGL *program = aManager->GetProgram(mCornerMaskImage->GetShaderProgramType());
-  program->Activate();
-  program->SetLayerQuadRect(nsIntRect(nsIntPoint(0, 0),
-                                      mCornerMaskImage->GetSize()));
-  program->SetLayerOpacity(1.0);
-  program->SetRenderOffset(nsIntPoint(0,0));
-  program->SetTextureUnit(0);
+  nsIntSize size(mDevPixelCornerRadius, mDevPixelCornerRadius);
+  mCornerMaskImage->UpdateIfNeeded(size, nsIntRegion(), ^(gfx::DrawTarget* drawTarget, const nsIntRegion& updateRegion) {
+    ClearRegion(drawTarget, updateRegion);
+    RefPtr<gfx::PathBuilder> builder = drawTarget->CreatePathBuilder();
+    builder->Arc(gfx::Point(mDevPixelCornerRadius, mDevPixelCornerRadius), mDevPixelCornerRadius, 0, 2.0f * M_PI);
+    RefPtr<gfx::Path> path = builder->Finish();
+    drawTarget->Fill(path,
+                     gfx::ColorPattern(gfx::Color(1.0, 1.0, 1.0, 1.0)),
+                     gfx::DrawOptions(1.0f, gfx::CompositionOp::OP_SOURCE));
+  });
 
   // Use operator destination in: multiply all 4 channels with source alpha.
   aManager->gl()->fBlendFuncSeparate(LOCAL_GL_ZERO, LOCAL_GL_SRC_ALPHA,
                                      LOCAL_GL_ZERO, LOCAL_GL_SRC_ALPHA);
-  
-  if (mIsCoveringTitlebar) {
+
+  Matrix4x4 flipX = Matrix4x4::Scaling(-1, 1, 1);
+  Matrix4x4 flipY = Matrix4x4::Scaling(1, -1, 1);
+
+  if (mIsCoveringTitlebar && !mIsFullscreen) {
     // Mask the top corners.
-    program->SetLayerTransform(gfx3DMatrix::ScalingMatrix(1, 1, 1) *
-                               gfx3DMatrix::Translation(0, 0, 0));
-    aManager->BindAndDrawQuad(program);
-    program->SetLayerTransform(gfx3DMatrix::ScalingMatrix(-1, 1, 1) *
-                               gfx3DMatrix::Translation(aRect.width, 0, 0));
-    aManager->BindAndDrawQuad(program);
+    mCornerMaskImage->Draw(aManager, aRect.TopLeft());
+    mCornerMaskImage->Draw(aManager, aRect.TopRight(), flipX);
   }
 
-  if (mHasRoundedBottomCorners) {
+  if (mHasRoundedBottomCorners && !mIsFullscreen) {
     // Mask the bottom corners.
-    program->SetLayerTransform(gfx3DMatrix::ScalingMatrix(1, -1, 1) *
-                               gfx3DMatrix::Translation(0, aRect.height, 0));
-    aManager->BindAndDrawQuad(program);
-    program->SetLayerTransform(gfx3DMatrix::ScalingMatrix(-1, -1, 1) *
-                               gfx3DMatrix::Translation(aRect.width, aRect.height, 0));
-    aManager->BindAndDrawQuad(program);
+    mCornerMaskImage->Draw(aManager, aRect.BottomLeft(), flipY);
+    mCornerMaskImage->Draw(aManager, aRect.BottomRight(), flipY * flipX);
   }
 
   // Reset blend mode.
@@ -2329,7 +2318,7 @@ FindTitlebarBottom(const nsTArray<nsIWidget::ThemeGeometry>& aThemeGeometries,
   int32_t titlebarBottom = 0;
   for (uint32_t i = 0; i < aThemeGeometries.Length(); ++i) {
     const nsIWidget::ThemeGeometry& g = aThemeGeometries[i];
-    if ((g.mWidgetType == NS_THEME_WINDOW_TITLEBAR) &&
+    if ((g.mType == nsNativeThemeCocoa::eThemeGeometryTypeTitlebar) &&
         g.mRect.X() <= 0 &&
         g.mRect.XMost() >= aWindowWidth &&
         g.mRect.Y() <= 0) {
@@ -2346,8 +2335,7 @@ FindUnifiedToolbarBottom(const nsTArray<nsIWidget::ThemeGeometry>& aThemeGeometr
   int32_t unifiedToolbarBottom = aTitlebarBottom;
   for (uint32_t i = 0; i < aThemeGeometries.Length(); ++i) {
     const nsIWidget::ThemeGeometry& g = aThemeGeometries[i];
-    if ((g.mWidgetType == NS_THEME_MOZ_MAC_UNIFIED_TOOLBAR ||
-         g.mWidgetType == NS_THEME_TOOLBAR) &&
+    if ((g.mType == nsNativeThemeCocoa::eThemeGeometryTypeToolbar) &&
         g.mRect.X() <= 0 &&
         g.mRect.XMost() >= aWindowWidth &&
         g.mRect.Y() <= aTitlebarBottom) {
@@ -2357,12 +2345,31 @@ FindUnifiedToolbarBottom(const nsTArray<nsIWidget::ThemeGeometry>& aThemeGeometr
   return unifiedToolbarBottom;
 }
 
+static nsIntRect
+FindFirstRectOfType(const nsTArray<nsIWidget::ThemeGeometry>& aThemeGeometries,
+                    nsITheme::ThemeGeometryType aThemeGeometryType)
+{
+  for (uint32_t i = 0; i < aThemeGeometries.Length(); ++i) {
+    const nsIWidget::ThemeGeometry& g = aThemeGeometries[i];
+    if (g.mType == aThemeGeometryType) {
+      return g.mRect;
+    }
+  }
+  return nsIntRect();
+}
+
 void
 nsChildView::UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries)
 {
-  if (![mView window] || ![[mView window] isKindOfClass:[ToolbarWindow class]])
+  if (![mView window])
     return;
 
+  UpdateVibrancy(aThemeGeometries);
+
+  if (![[mView window] isKindOfClass:[ToolbarWindow class]])
+    return;
+
+  // Update unified toolbar height.
   int32_t windowWidth = mBounds.width;
   int32_t titlebarBottom = FindTitlebarBottom(aThemeGeometries, windowWidth);
   int32_t unifiedToolbarBottom =
@@ -2374,6 +2381,210 @@ nsChildView::UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometri
   int32_t contentOffset = drawsContentsIntoWindowFrame ? titlebarHeight : 0;
   int32_t devUnifiedHeight = titlebarHeight + unifiedToolbarBottom - contentOffset;
   [win setUnifiedToolbarHeight:DevPixelsToCocoaPoints(devUnifiedHeight)];
+
+  // Update titlebar control offsets.
+  nsIntRect windowButtonRect = FindFirstRectOfType(aThemeGeometries, nsNativeThemeCocoa::eThemeGeometryTypeWindowButtons);
+  [win placeWindowButtons:[mView convertRect:DevPixelsToCocoaPoints(windowButtonRect) toView:nil]];
+  nsIntRect fullScreenButtonRect = FindFirstRectOfType(aThemeGeometries, nsNativeThemeCocoa::eThemeGeometryTypeFullscreenButton);
+  [win placeFullScreenButton:[mView convertRect:DevPixelsToCocoaPoints(fullScreenButtonRect) toView:nil]];
+}
+
+static nsIntRegion
+GatherThemeGeometryRegion(const nsTArray<nsIWidget::ThemeGeometry>& aThemeGeometries,
+                          nsITheme::ThemeGeometryType aThemeGeometryType)
+{
+  nsIntRegion region;
+  for (size_t i = 0; i < aThemeGeometries.Length(); ++i) {
+    const nsIWidget::ThemeGeometry& g = aThemeGeometries[i];
+    if (g.mType == aThemeGeometryType) {
+      region.OrWith(g.mRect);
+    }
+  }
+  return region;
+}
+
+template<typename Region>
+static void MakeRegionsNonOverlappingImpl(Region& aOutUnion) { }
+
+template<typename Region, typename ... Regions>
+static void MakeRegionsNonOverlappingImpl(Region& aOutUnion, Region& aFirst, Regions& ... aRest)
+{
+  MakeRegionsNonOverlappingImpl(aOutUnion, aRest...);
+  aFirst.SubOut(aOutUnion);
+  aOutUnion.OrWith(aFirst);
+}
+
+// Subtracts parts from regions in such a way that they don't have any overlap.
+// Each region in the argument list will have the union of all the regions
+// *following* it subtracted from itself. In other words, the arguments are
+// sorted low priority to high priority.
+template<typename Region, typename ... Regions>
+static void MakeRegionsNonOverlapping(Region& aFirst, Regions& ... aRest)
+{
+  Region unionOfAll;
+  MakeRegionsNonOverlappingImpl(unionOfAll, aFirst, aRest...);
+}
+
+void
+nsChildView::UpdateVibrancy(const nsTArray<ThemeGeometry>& aThemeGeometries)
+{
+  if (!VibrancyManager::SystemSupportsVibrancy()) {
+    return;
+  }
+
+  nsIntRegion vibrantLightRegion =
+    GatherThemeGeometryRegion(aThemeGeometries, nsNativeThemeCocoa::eThemeGeometryTypeVibrancyLight);
+  nsIntRegion vibrantDarkRegion =
+    GatherThemeGeometryRegion(aThemeGeometries, nsNativeThemeCocoa::eThemeGeometryTypeVibrancyDark);
+  nsIntRegion menuRegion =
+    GatherThemeGeometryRegion(aThemeGeometries, nsNativeThemeCocoa::eThemeGeometryTypeMenu);
+  nsIntRegion tooltipRegion =
+    GatherThemeGeometryRegion(aThemeGeometries, nsNativeThemeCocoa::eThemeGeometryTypeTooltip);
+  nsIntRegion highlightedMenuItemRegion =
+    GatherThemeGeometryRegion(aThemeGeometries, nsNativeThemeCocoa::eThemeGeometryTypeHighlightedMenuItem);
+
+  MakeRegionsNonOverlapping(vibrantLightRegion, vibrantDarkRegion, menuRegion,
+                            tooltipRegion, highlightedMenuItemRegion);
+
+  auto& vm = EnsureVibrancyManager();
+  vm.UpdateVibrantRegion(VibrancyType::LIGHT, vibrantLightRegion);
+  vm.UpdateVibrantRegion(VibrancyType::TOOLTIP, tooltipRegion);
+  vm.UpdateVibrantRegion(VibrancyType::MENU, menuRegion);
+  vm.UpdateVibrantRegion(VibrancyType::HIGHLIGHTED_MENUITEM, highlightedMenuItemRegion);
+  vm.UpdateVibrantRegion(VibrancyType::DARK, vibrantDarkRegion);
+}
+
+void
+nsChildView::ClearVibrantAreas()
+{
+  if (VibrancyManager::SystemSupportsVibrancy()) {
+    EnsureVibrancyManager().ClearVibrantAreas();
+  }
+}
+
+static VibrancyType
+ThemeGeometryTypeToVibrancyType(nsITheme::ThemeGeometryType aThemeGeometryType)
+{
+  switch (aThemeGeometryType) {
+    case nsNativeThemeCocoa::eThemeGeometryTypeVibrancyLight:
+      return VibrancyType::LIGHT;
+    case nsNativeThemeCocoa::eThemeGeometryTypeVibrancyDark:
+      return VibrancyType::DARK;
+    case nsNativeThemeCocoa::eThemeGeometryTypeTooltip:
+      return VibrancyType::TOOLTIP;
+    case nsNativeThemeCocoa::eThemeGeometryTypeMenu:
+      return VibrancyType::MENU;
+    case nsNativeThemeCocoa::eThemeGeometryTypeHighlightedMenuItem:
+      return VibrancyType::HIGHLIGHTED_MENUITEM;
+    default:
+      MOZ_CRASH();
+  }
+}
+
+NSColor*
+nsChildView::VibrancyFillColorForThemeGeometryType(nsITheme::ThemeGeometryType aThemeGeometryType)
+{
+  if (VibrancyManager::SystemSupportsVibrancy()) {
+    return EnsureVibrancyManager().VibrancyFillColorForType(
+      ThemeGeometryTypeToVibrancyType(aThemeGeometryType));
+  }
+  return [NSColor whiteColor];
+}
+
+NSColor*
+nsChildView::VibrancyFontSmoothingBackgroundColorForThemeGeometryType(nsITheme::ThemeGeometryType aThemeGeometryType)
+{
+  if (VibrancyManager::SystemSupportsVibrancy()) {
+    return EnsureVibrancyManager().VibrancyFontSmoothingBackgroundColorForType(
+      ThemeGeometryTypeToVibrancyType(aThemeGeometryType));
+  }
+  return [NSColor clearColor];
+}
+
+mozilla::VibrancyManager&
+nsChildView::EnsureVibrancyManager()
+{
+  MOZ_ASSERT(mView, "Only call this once we have a view!");
+  if (!mVibrancyManager) {
+    mVibrancyManager = MakeUnique<VibrancyManager>(*this, mView);
+  }
+  return *mVibrancyManager;
+}
+
+TemporaryRef<gfx::DrawTarget>
+nsChildView::StartRemoteDrawing()
+{
+  if (!mGLPresenter) {
+    mGLPresenter = GLPresenter::CreateForWindow(this);
+
+    if (!mGLPresenter) {
+      return nullptr;
+    }
+  }
+
+  nsIntRegion dirtyRegion = mBounds;
+  nsIntSize renderSize = mBounds.Size();
+
+  if (!mBasicCompositorImage) {
+    mBasicCompositorImage = new RectTextureImage(mGLPresenter->gl());
+  }
+
+  RefPtr<gfx::DrawTarget> drawTarget =
+    mBasicCompositorImage->BeginUpdate(renderSize, dirtyRegion);
+
+  if (!drawTarget) {
+    // Composite unchanged textures.
+    DoRemoteComposition(mBounds);
+    return nullptr;
+  }
+
+  return drawTarget;
+}
+
+void
+nsChildView::EndRemoteDrawing()
+{
+  mBasicCompositorImage->EndUpdate(true);
+  DoRemoteComposition(mBounds);
+}
+
+void
+nsChildView::CleanupRemoteDrawing()
+{
+  mBasicCompositorImage = nullptr;
+  mCornerMaskImage = nullptr;
+  mResizerImage = nullptr;
+  mTitlebarImage = nullptr;
+  mGLPresenter = nullptr;
+}
+
+void
+nsChildView::DoRemoteComposition(const nsIntRect& aRenderRect)
+{
+  if (![(ChildView*)mView preRender:mGLPresenter->GetNSOpenGLContext()]) {
+    return;
+  }
+  mGLPresenter->BeginFrame(aRenderRect.Size());
+
+  // Draw the result from the basic compositor.
+  mBasicCompositorImage->Draw(mGLPresenter, nsIntPoint(0, 0));
+
+  // DrawWindowOverlay doesn't do anything for non-GL, so it didn't paint
+  // anything during the basic compositor transaction. Draw the overlay now.
+  DrawWindowOverlay(mGLPresenter, aRenderRect);
+
+  mGLPresenter->EndFrame();
+
+  [(ChildView*)mView postRender:mGLPresenter->GetNSOpenGLContext()];
+}
+
+void
+nsChildView::UpdateWindowDraggingRegion(const nsIntRegion& aRegion)
+{
+  if (mDraggableRegion != aRegion) {
+    mDraggableRegion = aRegion;
+    [(ChildView*)mView updateWindowDraggableState];
+  }
 }
 
 #ifdef ACCESSIBILITY
@@ -2392,12 +2603,283 @@ nsChildView::GetDocumentAccessible()
 
   // need to fetch the accessible anew, because it has gone away.
   // cache the accessible in our weak ptr
-  nsRefPtr<a11y::Accessible> acc = GetAccessible();
-  mAccessible = do_GetWeakReference(static_cast<nsIAccessible *>(acc.get()));
+  nsRefPtr<a11y::Accessible> acc = GetRootAccessible();
+  mAccessible = do_GetWeakReference(acc.get());
 
   return acc.forget();
 }
 #endif
+
+// RectTextureImage implementation
+
+RectTextureImage::~RectTextureImage()
+{
+  if (mTexture) {
+    mGLContext->MakeCurrent();
+    mGLContext->fDeleteTextures(1, &mTexture);
+    mTexture = 0;
+  }
+}
+
+nsIntSize
+RectTextureImage::TextureSizeForSize(const nsIntSize& aSize)
+{
+  return nsIntSize(gfx::NextPowerOfTwo(aSize.width),
+                   gfx::NextPowerOfTwo(aSize.height));
+}
+
+TemporaryRef<gfx::DrawTarget>
+RectTextureImage::BeginUpdate(const nsIntSize& aNewSize,
+                              const nsIntRegion& aDirtyRegion)
+{
+  MOZ_ASSERT(!mInUpdate, "Beginning update during update!");
+  mUpdateRegion = aDirtyRegion;
+  if (aNewSize != mUsedSize) {
+    mUsedSize = aNewSize;
+    mUpdateRegion = nsIntRect(nsIntPoint(0, 0), aNewSize);
+  }
+
+  if (mUpdateRegion.IsEmpty()) {
+    return nullptr;
+  }
+
+  nsIntSize neededBufferSize = TextureSizeForSize(mUsedSize);
+  if (!mUpdateDrawTarget || mBufferSize != neededBufferSize) {
+    gfx::IntSize size(neededBufferSize.width, neededBufferSize.height);
+    mUpdateDrawTarget =
+      gfx::Factory::CreateDrawTarget(gfx::BackendType::COREGRAPHICS, size,
+                                     gfx::SurfaceFormat::B8G8R8A8);
+    mBufferSize = neededBufferSize;
+  }
+
+  mInUpdate = true;
+
+  RefPtr<gfx::DrawTarget> drawTarget = mUpdateDrawTarget;
+  return drawTarget;
+}
+
+#define NSFoundationVersionWithProperStrideSupportForSubtextureUpload NSFoundationVersionNumber10_6_3
+
+static bool
+CanUploadSubtextures()
+{
+  return NSFoundationVersionNumber >= NSFoundationVersionWithProperStrideSupportForSubtextureUpload;
+}
+
+void
+RectTextureImage::EndUpdate(bool aKeepSurface)
+{
+  MOZ_ASSERT(mInUpdate, "Ending update while not in update");
+
+  bool overwriteTexture = false;
+  nsIntRegion updateRegion = mUpdateRegion;
+  if (!mTexture || (mTextureSize != mBufferSize)) {
+    overwriteTexture = true;
+    mTextureSize = mBufferSize;
+  }
+
+  if (overwriteTexture || !CanUploadSubtextures()) {
+    updateRegion = nsIntRect(nsIntPoint(0, 0), mTextureSize);
+  }
+
+  RefPtr<gfx::SourceSurface> snapshot = mUpdateDrawTarget->Snapshot();
+  RefPtr<gfx::DataSourceSurface> dataSnapshot = snapshot->GetDataSurface();
+
+  UploadSurfaceToTexture(mGLContext,
+                         dataSnapshot,
+                         updateRegion,
+                         mTexture,
+                         overwriteTexture,
+                         updateRegion.GetBounds().TopLeft(),
+                         false,
+                         LOCAL_GL_TEXTURE0,
+                         LOCAL_GL_TEXTURE_RECTANGLE_ARB);
+
+  if (!aKeepSurface) {
+    mUpdateDrawTarget = nullptr;
+  }
+
+  mInUpdate = false;
+}
+
+void
+RectTextureImage::UpdateFromCGContext(const nsIntSize& aNewSize,
+                                      const nsIntRegion& aDirtyRegion,
+                                      CGContextRef aCGContext)
+{
+  gfx::IntSize size = gfx::IntSize(CGBitmapContextGetWidth(aCGContext),
+                                   CGBitmapContextGetHeight(aCGContext));
+  mBufferSize.SizeTo(size.width, size.height);
+  RefPtr<gfx::DrawTarget> dt = BeginUpdate(aNewSize, aDirtyRegion);
+  if (dt) {
+    gfx::Rect rect(0, 0, size.width, size.height);
+    gfxUtils::ClipToRegion(dt, GetUpdateRegion());
+    RefPtr<gfx::SourceSurface> sourceSurface =
+      dt->CreateSourceSurfaceFromData(static_cast<uint8_t *>(CGBitmapContextGetData(aCGContext)),
+                                      size,
+                                      CGBitmapContextGetBytesPerRow(aCGContext),
+                                      gfx::SurfaceFormat::B8G8R8A8);
+    dt->DrawSurface(sourceSurface, rect, rect,
+                    gfx::DrawSurfaceOptions(),
+                    gfx::DrawOptions(1.0, gfx::CompositionOp::OP_SOURCE));
+    dt->PopClip();
+    EndUpdate();
+  }
+}
+
+void
+RectTextureImage::UpdateFromDrawTarget(const nsIntSize& aNewSize,
+                                       const nsIntRegion& aDirtyRegion,
+                                       gfx::DrawTarget* aFromDrawTarget)
+{
+  mUpdateDrawTarget = aFromDrawTarget;
+  mBufferSize.SizeTo(aFromDrawTarget->GetSize().width, aFromDrawTarget->GetSize().height);
+  RefPtr<gfx::DrawTarget> drawTarget = BeginUpdate(aNewSize, aDirtyRegion);
+  if (drawTarget) {
+    if (drawTarget != aFromDrawTarget) {
+      RefPtr<gfx::SourceSurface> source = aFromDrawTarget->Snapshot();
+      gfx::Rect rect(0, 0, aFromDrawTarget->GetSize().width, aFromDrawTarget->GetSize().height);
+      gfxUtils::ClipToRegion(drawTarget, GetUpdateRegion());
+      drawTarget->DrawSurface(source, rect, rect,
+                              gfx::DrawSurfaceOptions(),
+                              gfx::DrawOptions(1.0, gfx::CompositionOp::OP_SOURCE));
+      drawTarget->PopClip();
+    }
+    EndUpdate();
+  }
+  mUpdateDrawTarget = nullptr;
+}
+
+void
+RectTextureImage::Draw(GLManager* aManager,
+                       const nsIntPoint& aLocation,
+                       const Matrix4x4& aTransform)
+{
+  ShaderProgramOGL* program = aManager->GetProgram(LOCAL_GL_TEXTURE_RECTANGLE_ARB,
+                                                   gfx::SurfaceFormat::R8G8B8A8);
+
+  aManager->gl()->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, mTexture);
+
+  aManager->ActivateProgram(program);
+  program->SetProjectionMatrix(aManager->GetProjMatrix());
+  program->SetLayerTransform(Matrix4x4(aTransform).PostTranslate(aLocation.x, aLocation.y, 0));
+  program->SetTextureTransform(gfx::Matrix4x4());
+  program->SetRenderOffset(nsIntPoint(0, 0));
+  program->SetTexCoordMultiplier(mUsedSize.width, mUsedSize.height);
+  program->SetTextureUnit(0);
+
+  aManager->BindAndDrawQuad(program,
+                            gfx::Rect(0.0, 0.0, mUsedSize.width, mUsedSize.height),
+                            gfx::Rect(0.0, 0.0, 1.0f, 1.0f));
+
+  aManager->gl()->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, 0);
+}
+
+// GLPresenter implementation
+
+GLPresenter::GLPresenter(GLContext* aContext)
+ : mGLContext(aContext)
+{
+  mGLContext->MakeCurrent();
+  ShaderConfigOGL config;
+  config.SetTextureTarget(LOCAL_GL_TEXTURE_RECTANGLE_ARB);
+  mRGBARectProgram = new ShaderProgramOGL(mGLContext,
+    ProgramProfileOGL::GetProfileFor(config));
+
+  // Create mQuadVBO.
+  mGLContext->fGenBuffers(1, &mQuadVBO);
+  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mQuadVBO);
+
+  // 1 quad, with the number of the quad (vertexID) encoded in w.
+  GLfloat vertices[] = {
+    0.0f, 0.0f, 0.0f, 0.0f,
+    1.0f, 0.0f, 0.0f, 0.0f,
+    0.0f, 1.0f, 0.0f, 0.0f,
+    1.0f, 0.0f, 0.0f, 0.0f,
+    0.0f, 1.0f, 0.0f, 0.0f,
+    1.0f, 1.0f, 0.0f, 0.0f,
+  };
+  HeapCopyOfStackArray<GLfloat> verticesOnHeap(vertices);
+  mGLContext->fBufferData(LOCAL_GL_ARRAY_BUFFER,
+                          verticesOnHeap.ByteLength(),
+                          verticesOnHeap.Data(),
+                          LOCAL_GL_STATIC_DRAW);
+   mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
+}
+
+GLPresenter::~GLPresenter()
+{
+  if (mQuadVBO) {
+    mGLContext->MakeCurrent();
+    mGLContext->fDeleteBuffers(1, &mQuadVBO);
+    mQuadVBO = 0;
+  }
+}
+
+void
+GLPresenter::BindAndDrawQuad(ShaderProgramOGL *aProgram,
+                             const gfx::Rect& aLayerRect,
+                             const gfx::Rect& aTextureRect)
+{
+  mGLContext->MakeCurrent();
+
+  gfx::Rect layerRects[4];
+  gfx::Rect textureRects[4];
+
+  layerRects[0] = aLayerRect;
+  textureRects[0] = aTextureRect;
+
+  aProgram->SetLayerRects(layerRects);
+  aProgram->SetTextureRects(textureRects);
+
+  const GLuint coordAttribIndex = 0;
+
+  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mQuadVBO);
+  mGLContext->fVertexAttribPointer(coordAttribIndex, 4,
+                                   LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
+                                   (GLvoid*)0);
+  mGLContext->fEnableVertexAttribArray(coordAttribIndex);
+  mGLContext->fDrawArrays(LOCAL_GL_TRIANGLES, 0, 6);
+  mGLContext->fDisableVertexAttribArray(coordAttribIndex);
+}
+
+void
+GLPresenter::BeginFrame(nsIntSize aRenderSize)
+{
+  mGLContext->MakeCurrent();
+
+  mGLContext->fViewport(0, 0, aRenderSize.width, aRenderSize.height);
+
+  // Matrix to transform (0, 0, width, height) to viewport space (-1.0, 1.0,
+  // 2, 2) and flip the contents.
+  gfx::Matrix viewMatrix = gfx::Matrix::Translation(-1.0, 1.0);
+  viewMatrix.PreScale(2.0f / float(aRenderSize.width),
+                      2.0f / float(aRenderSize.height));
+  viewMatrix.PreScale(1.0f, -1.0f);
+
+  gfx::Matrix4x4 matrix3d = gfx::Matrix4x4::From2D(viewMatrix);
+  matrix3d._33 = 0.0f;
+
+  // set the projection matrix for the next time the program is activated
+  mProjMatrix = matrix3d;
+
+  // Default blend function implements "OVER"
+  mGLContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
+                                 LOCAL_GL_ONE, LOCAL_GL_ONE);
+  mGLContext->fEnable(LOCAL_GL_BLEND);
+
+  mGLContext->fClearColor(0.0, 0.0, 0.0, 0.0);
+  mGLContext->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT);
+
+  mGLContext->fEnable(LOCAL_GL_TEXTURE_RECTANGLE_ARB);
+}
+
+void
+GLPresenter::EndFrame()
+{
+  mGLContext->SwapBuffers();
+  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
+}
 
 #pragma mark -
 
@@ -2425,7 +2907,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
     NSArray *sendTypes = [[NSArray alloc] initWithObjects:NSStringPboardType,NSHTMLPboardType,nil];
     NSArray *returnTypes = [[NSArray alloc] initWithObjects:NSStringPboardType,NSHTMLPboardType,nil];
-    
+
     [NSApp registerServicesMenuSendTypes:sendTypes returnTypes:returnTypes];
 
     [sendTypes release];
@@ -2456,25 +2938,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   if ((self = [super initWithFrame:inFrame])) {
     mGoannaChild = inChild;
-    mIsPluginView = NO;
-#ifndef NP_NO_CARBON
-    // We don't support the Carbon event model but it's still the default
-    // model for i386 per NPAPI.
-    mPluginEventModel = NPEventModelCarbon;
-#else
-    mPluginEventModel = NPEventModelCocoa;
-#endif
-#ifndef NP_NO_QUICKDRAW
-    // We don't support the Quickdraw drawing model any more but it's still
-    // the default model for i386 per NPAPI.
-    mPluginDrawingModel = NPDrawingModelQuickDraw;
-#else
-    mPluginDrawingModel = NPDrawingModelCoreGraphics;
-#endif
     mPendingDisplay = NO;
     mBlockedLastMouseDown = NO;
+    mExpectingWheelStop = NO;
 
     mLastMouseDownEvent = nil;
+    mLastKeyDownEvent = nil;
     mClickThroughMouseDownEvent = nil;
     mDragService = nullptr;
 
@@ -2492,6 +2961,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 #ifdef __LP64__
     mCancelSwipeAnimation = nil;
+    mCurrentSwipeDir = 0;
 #endif
 
     mTopLeftCornerMask = NULL;
@@ -2500,14 +2970,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   // register for things we'll take from other applications
   [ChildView registerViewForDraggedTypes:self];
 
-  [[NSNotificationCenter defaultCenter] addObserver:self
-                                           selector:@selector(windowBecameMain:)
-                                               name:NSWindowDidBecomeMainNotification
-                                             object:nil];
-  [[NSNotificationCenter defaultCenter] addObserver:self
-                                           selector:@selector(windowResignedMain:)
-                                               name:NSWindowDidResignMainNotification
-                                             object:nil];
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(systemMetricsChanged)
                                                name:NSControlTintDidChangeNotification
@@ -2525,7 +2987,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
                                                       selector:@selector(systemMetricsChanged)
                                                           name:@"AppleAquaScrollBarVariantChanged"
                                                         object:nil
-                                            suspensionBehavior:NSNotificationSuspensionBehaviorDeliverImmediately]; 
+                                            suspensionBehavior:NSNotificationSuspensionBehaviorDeliverImmediately];
   [[NSNotificationCenter defaultCenter] addObserver:self
                                            selector:@selector(_surfaceNeedsUpdate:)
                                                name:NSViewGlobalFrameDidChangeNotification
@@ -2534,6 +2996,26 @@ NSEvent* gLastDragMouseDownEvent = nil;
   return self;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
+}
+
+// ComplexTextInputPanel's interpretKeyEvent hack won't work without this.
+// It makes calls to +[NSTextInputContext currentContext], deep in system
+// code, return the appropriate context.
+- (NSTextInputContext *)inputContext
+{
+  NSTextInputContext* pluginContext = NULL;
+  if (mGoannaChild && mGoannaChild->IsPluginFocused()) {
+    ComplexTextInputPanel* ctiPanel =
+      ComplexTextInputPanel::GetSharedComplexTextInputPanel();
+    if (ctiPanel) {
+      pluginContext = (NSTextInputContext*) ctiPanel->GetInputContext();
+    }
+  }
+  if (pluginContext) {
+    return pluginContext;
+  } else {
+    return [super inputContext];
+  }
 }
 
 - (void)installTextInputHandler:(TextInputHandler*)aHandler
@@ -2558,7 +3040,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
   [mGLContext clearDrawable];
-  [mGLContext setView:self];
+  [self updateGLContext];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -2573,16 +3055,35 @@ NSEvent* gLastDragMouseDownEvent = nil;
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
--(void)preRender:(NSOpenGLContext *)aGLContext
+- (bool)preRender:(NSOpenGLContext *)aGLContext
 {
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
+  if (![self window] ||
+      ([[self window] isKindOfClass:[BaseWindow class]] &&
+       ![(BaseWindow*)[self window] isVisibleOrBeingShown])) {
+    // Before the window is shown, our GL context's front FBO is not
+    // framebuffer complete, so we refuse to render.
+    return false;
+  }
 
   if (!mGLContext) {
     [self setGLContext:aGLContext];
+    [self updateGLContext];
   }
 
-  [aGLContext setView:self];
-  [aGLContext update];
+  CGLLockContext((CGLContextObj)[aGLContext CGLContextObj]);
+
+  return true;
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(false);
+}
+
+- (void)postRender:(NSOpenGLContext *)aGLContext
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  CGLUnlockContext((CGLContextObj)[aGLContext CGLContextObj]);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -2594,6 +3095,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   [mGLContext release];
   [mPendingDirtyRects release];
   [mLastMouseDownEvent release];
+  [mLastKeyDownEvent release];
   [mClickThroughMouseDownEvent release];
   CGImageRelease(mTopLeftCornerMask);
   ChildViewMouseTracker::OnDestroyView(self);
@@ -2602,46 +3104,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   [[NSDistributedNotificationCenter defaultCenter] removeObserver:self];
 
   [super dealloc];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-- (void)updatePluginTopLevelWindowStatus:(BOOL)hasMain
-{
-  if (!mGoannaChild)
-    return;
-
-  nsPluginEvent pluginEvent(true, NS_PLUGIN_FOCUS_EVENT, mGoannaChild);
-  NPCocoaEvent cocoaEvent;
-  nsCocoaUtils::InitNPCocoaEvent(&cocoaEvent);
-  cocoaEvent.type = NPCocoaEventWindowFocusChanged;
-  cocoaEvent.data.focus.hasFocus = hasMain;
-  nsCocoaUtils::InitPluginEvent(pluginEvent, cocoaEvent);
-  mGoannaChild->DispatchWindowEvent(pluginEvent);
-}
-
-- (void)windowBecameMain:(NSNotification*)inNotification
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  if (mIsPluginView && mPluginEventModel == NPEventModelCocoa) {
-    if ((NSWindow*)[inNotification object] == [self window]) {
-      [self updatePluginTopLevelWindowStatus:YES];
-    }
-  }
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-- (void)windowResignedMain:(NSNotification*)inNotification
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  if (mIsPluginView && mPluginEventModel == NPEventModelCocoa) {
-    if ((NSWindow*)[inNotification object] == [self window]) {
-      [self updatePluginTopLevelWindowStatus:NO];
-    }
-  }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -2777,93 +3239,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 - (BOOL)isOpaque
 {
-  return [[self window] isOpaque] && !mIsPluginView;
-}
-
--(void)setIsPluginView:(BOOL)aIsPlugin
-{
-  mIsPluginView = aIsPlugin;
-}
-
--(BOOL)isPluginView
-{
-  return mIsPluginView;
-}
-
-- (NSView *)hitTest:(NSPoint)aPoint
-{
-  NSView* target = [super hitTest:aPoint];
-  NSWindow *window = [self window];
-  if (window && (target == self) && [self isPluginView] && mGoannaChild) {
-    nsAutoRetainCocoaObject kungFuDeathGrip(self);
-
-    NSPoint windowLoc = [[self superview] convertPoint:aPoint toView:nil];
-    NSPoint screenLoc = [window convertBaseToScreen:windowLoc];
-    screenLoc.y = nsCocoaUtils::FlippedScreenY(screenLoc.y);
-    nsIntPoint widgetLoc = mGoannaChild->CocoaPointsToDevPixels(screenLoc) -
-      mGoannaChild->WidgetToScreenOffset();
-
-    nsQueryContentEvent hitTest(true, NS_QUERY_DOM_WIDGET_HITTEST, 
-                                mGoannaChild);
-    hitTest.InitForQueryDOMWidgetHittest(widgetLoc);
-    // This might destroy our widget.
-    mGoannaChild->DispatchWindowEvent(hitTest);
-    if (!mGoannaChild) {
-      return nil;
-    }
-    if (hitTest.mSucceeded && !hitTest.mReply.mWidgetIsHit) {
-      return nil;
-    }
-  }
-  return target;
-}
-
-// Are we processing an NSLeftMouseDown event that will fail to click through?
-// If so, we shouldn't focus or unfocus a plugin.
-- (BOOL)isInFailingLeftClickThrough
-{
-  if (!mGoannaChild)
-    return NO;
-
-  if (!mClickThroughMouseDownEvent ||
-      [mClickThroughMouseDownEvent type] != NSLeftMouseDown)
-    return NO;
-
-  BOOL retval =
-    !ChildViewMouseTracker::WindowAcceptsEvent([self window],
-                                               mClickThroughMouseDownEvent,
-                                               self, true);
-
-  // If we return YES here, this will result in us not being focused,
-  // which will stop us receiving mClickThroughMouseDownEvent in
-  // [ChildView mouseDown:].  So we need to release and null-out
-  // mClickThroughMouseDownEvent here.
-  if (retval) {
-    [mClickThroughMouseDownEvent release];
-    mClickThroughMouseDownEvent = nil;
-  }
-
-  return retval;
-}
-
-- (void)setPluginEventModel:(NPEventModel)eventModel
-{
-  mPluginEventModel = eventModel;
-}
-
-- (void)setPluginDrawingModel:(NPDrawingModel)drawingModel
-{
-  mPluginDrawingModel = drawingModel;
-}
-
-- (NPEventModel)pluginEventModel
-{
-  return mPluginEventModel;
-}
-
-- (NPDrawingModel)pluginDrawingModel
-{
-  return mPluginDrawingModel;
+  return [[self window] isOpaque];
 }
 
 - (void)sendFocusEvent:(uint32_t)eventType
@@ -2872,7 +3248,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
     return;
 
   nsEventStatus status = nsEventStatus_eIgnore;
-  nsGUIEvent focusGuiEvent(true, eventType, mGoannaChild);
+  WidgetGUIEvent focusGuiEvent(true, eventType, mGoannaChild);
   focusGuiEvent.time = PR_IntervalNow();
   mGoannaChild->DispatchEvent(&focusGuiEvent, status);
 }
@@ -2898,28 +3274,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   return YES;
 }
 
-- (void)viewWillMoveToWindow:(NSWindow *)newWindow
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  if (!newWindow)
-    HideChildPluginViews(self);
-
-  [super viewWillMoveToWindow:newWindow];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
-- (void)viewDidMoveToWindow
-{
-  if (mPluginEventModel == NPEventModelCocoa &&
-      [self window] && [self isPluginView] && mGoannaChild) {
-    mGoannaChild->UpdatePluginPort();
-  }
-
-  [super viewDidMoveToWindow];
-}
-
 - (void)scrollRect:(NSRect)aRect by:(NSSize)offset
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
@@ -2941,36 +3295,24 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 - (BOOL)mouseDownCanMoveWindow
 {
-  return [[self window] isMovableByWindowBackground];
+  // Return YES so that _regionForOpaqueDescendants gets called, where the
+  // actual draggable region will be assembled.
+  return YES;
 }
 
-- (void)lockFocus
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
-
-  [super lockFocus];
-
-  if (mGLContext) {
-    if ([mGLContext view] != self) {
-      [mGLContext setView:self];
-    }
-
-    [mGLContext makeCurrentContext];
-  }
-
-  NS_OBJC_END_TRY_ABORT_BLOCK;
-}
-
--(void)update
+-(void)updateGLContext
 {
   if (mGLContext) {
+    CGLLockContext((CGLContextObj)[mGLContext CGLContextObj]);
+    [mGLContext setView:self];
     [mGLContext update];
+    CGLUnlockContext((CGLContextObj)[mGLContext CGLContextObj]);
   }
 }
 
-- (void) _surfaceNeedsUpdate:(NSNotification*)notification
+- (void)_surfaceNeedsUpdate:(NSNotification*)notification
 {
-   [self update];
+   [self updateGLContext];
 }
 
 - (BOOL)wantsBestResolutionOpenGLSurface
@@ -2994,6 +3336,22 @@ NSEvent* gLastDragMouseDownEvent = nil;
   return [[self window] isKindOfClass:[BaseWindow class]] &&
          [(BaseWindow*)[self window] mainChildView] == self &&
          [(BaseWindow*)[self window] drawsContentsIntoWindowFrame];
+}
+
+- (NSColor*)vibrancyFillColorForThemeGeometryType:(nsITheme::ThemeGeometryType)aThemeGeometryType
+{
+  if (!mGoannaChild) {
+    return [NSColor whiteColor];
+  }
+  return mGoannaChild->VibrancyFillColorForThemeGeometryType(aThemeGeometryType);
+}
+
+- (NSColor*)vibrancyFontSmoothingBackgroundColorForThemeGeometryType:(nsITheme::ThemeGeometryType)aThemeGeometryType
+{
+  if (!mGoannaChild) {
+    return [NSColor clearColor];
+  }
+  return mGoannaChild->VibrancyFontSmoothingBackgroundColorForThemeGeometryType(aThemeGeometryType);
 }
 
 - (nsIntRegion)nativeDirtyRegionWithBoundingRect:(NSRect)aRect
@@ -3034,10 +3392,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGoannaChild || !mGoannaChild->IsVisible())
     return;
 
-  // Don't ever draw plugin views explicitly; they'll be drawn as part of their parent widget.
-  if (mIsPluginView)
-    return;
-
 #ifdef DEBUG_UPDATE
   nsIntRect goannaBounds;
   mGoannaChild->GetBounds(goannaBounds);
@@ -3061,9 +3415,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
     // Since this view is usually declared as opaque, the window's pixel
     // buffer may now contain garbage which we need to prevent from reaching
     // the screen. The only place where garbage can show is in the window
-    // corners - the rest of the window is covered by opaque content in our
-    // OpenGL surface.
-    // So we need to clear the pixel buffer contents in the corners.
+    // corners and the vibrant regions of the window - the rest of the window
+    // is covered by opaque content in our OpenGL surface.
+    // So we need to clear the pixel buffer contents in these areas.
+    mGoannaChild->ClearVibrantAreas();
     [self clearCorners];
 
     // Do GL composition and return.
@@ -3071,13 +3426,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
     return;
   }
 
-  PROFILER_LABEL("widget", "ChildView::drawRect");
-
-  // Clip to the dirty region.
-  const NSRect *rects;
-  NSInteger count;
-  [[NSView focusView] getRectsBeingDrawn:&rects count:&count];
-  CGContextClipToRects(aContext, (CGRect*)rects, count);
+  PROFILER_LABEL("ChildView", "drawRect",
+    js::ProfileEntry::Category::GRAPHICS);
 
   // The CGContext that drawRect supplies us with comes with a transform that
   // scales one user space unit to one Cocoa point, which can consist of
@@ -3095,11 +3445,30 @@ NSEvent* gLastDragMouseDownEvent = nil;
   nsIntRegion region = [self nativeDirtyRegionWithBoundingRect:aRect];
 
   // Create Cairo objects.
-  nsRefPtr<gfxQuartzSurface> targetSurface =
-    new gfxQuartzSurface(aContext, backingSize);
-  targetSurface->SetAllowUseAsSource(false);
+  nsRefPtr<gfxQuartzSurface> targetSurface;
 
-  nsRefPtr<gfxContext> targetContext = new gfxContext(targetSurface);
+  nsRefPtr<gfxContext> targetContext;
+  if (gfxPlatform::GetPlatform()->SupportsAzureContentForType(gfx::BackendType::COREGRAPHICS)) {
+    RefPtr<gfx::DrawTarget> dt =
+      gfx::Factory::CreateDrawTargetForCairoCGContext(aContext,
+                                                      gfx::IntSize(backingSize.width,
+                                                                   backingSize.height));
+    dt->AddUserData(&gfxContext::sDontUseAsSourceKey, dt, nullptr);
+    targetContext = new gfxContext(dt);
+  } else if (gfxPlatform::GetPlatform()->SupportsAzureContentForType(gfx::BackendType::CAIRO)) {
+    // This is dead code unless you mess with prefs, but keep it around for
+    // debugging.
+    targetSurface = new gfxQuartzSurface(aContext, backingSize);
+    targetSurface->SetAllowUseAsSource(false);
+    RefPtr<gfx::DrawTarget> dt =
+      gfxPlatform::GetPlatform()->CreateDrawTargetForSurface(targetSurface,
+                                                             gfx::IntSize(backingSize.width,
+                                                                          backingSize.height));
+    dt->AddUserData(&gfxContext::sDontUseAsSourceKey, dt, nullptr);
+    targetContext = new gfxContext(dt);
+  } else {
+    MOZ_ASSERT_UNREACHABLE("COREGRAPHICS is the only supported backed");
+  }
 
   // Set up the clip region.
   nsIntRegionRectIterator iter(region);
@@ -3114,16 +3483,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
   bool painted = false;
-  if (mGoannaChild->GetLayerManager()->GetBackendType() == LAYERS_BASIC) {
+  if (mGoannaChild->GetLayerManager()->GetBackendType() == LayersBackend::LAYERS_BASIC) {
     nsBaseWidget::AutoLayerManagerSetup
-      setupLayerManager(mGoannaChild, targetContext, BUFFER_NONE);
+      setupLayerManager(mGoannaChild, targetContext, BufferMode::BUFFER_NONE);
     painted = mGoannaChild->PaintWindow(region);
-  } else if (mGoannaChild->GetLayerManager()->GetBackendType() == LAYERS_CLIENT) {
+  } else if (mGoannaChild->GetLayerManager()->GetBackendType() == LayersBackend::LAYERS_CLIENT) {
     // We only need this so that we actually get DidPaintWindow fired
-    if (Compositor::GetBackend() == LAYERS_BASIC) {
-      ClientLayerManager *manager = static_cast<ClientLayerManager*>(mGoannaChild->GetLayerManager());
-      manager->SetShadowTarget(targetContext);
-    }
     painted = mGoannaChild->PaintWindow(region);
   }
 
@@ -3170,7 +3535,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGoannaChild || ![self window])
     return NO;
 
-  return mGoannaChild->GetLayerManager(nullptr)->GetBackendType() == mozilla::layers::LAYERS_OPENGL;
+  return mGoannaChild->GetLayerManager(nullptr)->GetBackendType() == mozilla::layers::LayersBackend::LAYERS_OPENGL;
 }
 
 - (BOOL)isUsingOpenGL
@@ -3178,12 +3543,13 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGoannaChild || ![self window])
     return NO;
 
-  return mGLContext || [self isUsingMainThreadOpenGL];
+  return mGLContext || mUsingOMTCompositor || [self isUsingMainThreadOpenGL];
 }
 
 - (void)drawUsingOpenGL
 {
-  PROFILER_LABEL("widget", "ChildView::drawUsingOpenGL");
+  PROFILER_LABEL("ChildView", "drawUsingOpenGL",
+    js::ProfileEntry::Category::GRAPHICS);
 
   if (![self isUsingOpenGL] || !mGoannaChild->IsVisible())
     return;
@@ -3193,19 +3559,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
   nsIntRect goannaBounds;
   mGoannaChild->GetBounds(goannaBounds);
   nsIntRegion region(goannaBounds);
-
-  if ([self isUsingMainThreadOpenGL]) {
-    LayerManagerOGL *manager = static_cast<LayerManagerOGL*>(mGoannaChild->GetLayerManager(nullptr));
-    manager->SetClippingRegion(region);
-    NSOpenGLContext *glContext = (NSOpenGLContext *)manager->GetNSOpenGLContext();
-
-    if (!mGLContext) {
-      [self setGLContext:glContext];
-    }
-
-    [glContext setView:self];
-    [glContext update];
-  }
 
   mGoannaChild->PaintWindow(region);
 
@@ -3316,7 +3669,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 - (void)drawTitleString
 {
-  NSView* frameView = [[[self window] contentView] superview];
+  BaseWindow* window = (BaseWindow*)[self window];
+  if (![window wantsTitleDrawn]) {
+    return;
+  }
+
+  NSView* frameView = [[window contentView] superview];
   if (![frameView respondsToSelector:@selector(_drawTitleBar:)]) {
     return;
   }
@@ -3382,27 +3740,15 @@ NSEvent* gLastDragMouseDownEvent = nil;
     }
 
     if ([self isUsingOpenGL]) {
-      // When our view covers the titlebar, we need to repaint the titlebar
-      // texture buffer when, for example, the window buttons are hovered.
-      // So we notify our nsChildView about any areas needing repainting.
-      mGoannaChild->NotifyDirtyRegion([self nativeDirtyRegionWithBoundingRect:[self bounds]]);
-
-      if (mGoannaChild->GetLayerManager()->GetBackendType() == LAYERS_CLIENT) {
+      if (mGoannaChild->GetLayerManager()->GetBackendType() == LayersBackend::LAYERS_CLIENT) {
         ClientLayerManager *manager = static_cast<ClientLayerManager*>(mGoannaChild->GetLayerManager());
-        manager->WindowOverlayChanged();
+        manager->AsShadowForwarder()->WindowOverlayChanged();
       }
     }
 
     mGoannaChild->WillPaintWindow();
   }
   [super viewWillDraw];
-}
-
-// Allows us to turn off setting up the clip region
-// before each drawRect. We already clip within goanna.
-- (BOOL)wantsDefaultClipping
-{
-  return NO;
 }
 
 #if USE_CLICK_HOLD_CONTEXTMENU
@@ -3521,7 +3867,15 @@ NSEvent* gLastDragMouseDownEvent = nil;
       }
 
       if (shouldRollup) {
-        consumeEvent = (BOOL)rollupListener->Rollup(popupsToRollup, nullptr);
+        if ([theEvent type] == NSLeftMouseDown) {
+          NSPoint point = [NSEvent mouseLocation];
+          FlipCocoaScreenCoordinate(point);
+          nsIntPoint pos(point.x, point.y);
+          consumeEvent = (BOOL)rollupListener->Rollup(popupsToRollup, true, &pos, nullptr);
+        }
+        else {
+          consumeEvent = (BOOL)rollupListener->Rollup(popupsToRollup, true, nullptr, nullptr);
+        }
       }
     }
   }
@@ -3556,7 +3910,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
   float deltaY = [anEvent deltaY];  // up=1.0, down=-1.0
 
   // Setup the "swipe" event.
-  nsSimpleGestureEvent goannaEvent(true, NS_SIMPLE_GESTURE_SWIPE, mGoannaChild, 0, 0.0);
+  WidgetSimpleGestureEvent goannaEvent(true, NS_SIMPLE_GESTURE_SWIPE,
+                                      mGoannaChild);
   [self convertCocoaMouseEvent:anEvent toGoannaEvent:&goannaEvent];
 
   // Record the left/right direction.
@@ -3579,8 +3934,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 - (void)beginGestureWithEvent:(NSEvent *)anEvent
 {
-  NS_ASSERTION(mGestureState == eGestureState_None, "mGestureState should be eGestureState_None");
-
   if (!anEvent)
     return;
 
@@ -3627,7 +3980,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
   }
 
   // Setup the event.
-  nsSimpleGestureEvent goannaEvent(true, msg, mGoannaChild, 0, deltaZ);
+  WidgetSimpleGestureEvent goannaEvent(true, msg, mGoannaChild);
+  goannaEvent.delta = deltaZ;
   [self convertCocoaMouseEvent:anEvent toGoannaEvent:&goannaEvent];
 
   // Send the event.
@@ -3635,7 +3989,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   // Keep track of the cumulative magnification for the final "magnify" event.
   mCumulativeMagnification += deltaZ;
-  
+
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
@@ -3650,8 +4004,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
   // Setup the "double tap" event.
-  nsSimpleGestureEvent goannaEvent(true, NS_SIMPLE_GESTURE_TAP,
-                                  mGoannaChild, 0, 0.0);
+  WidgetSimpleGestureEvent goannaEvent(true, NS_SIMPLE_GESTURE_TAP,
+                                      mGoannaChild);
   [self convertCocoaMouseEvent:anEvent toGoannaEvent:&goannaEvent];
   goannaEvent.clickCount = 1;
 
@@ -3693,7 +4047,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
   }
 
   // Setup the event.
-  nsSimpleGestureEvent goannaEvent(true, msg, mGoannaChild, 0, 0.0);
+  WidgetSimpleGestureEvent goannaEvent(true, msg, mGoannaChild);
   [self convertCocoaMouseEvent:anEvent toGoannaEvent:&goannaEvent];
   goannaEvent.delta = -rotation;
   if (rotation > 0.0) {
@@ -3729,8 +4083,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
   case eGestureState_MagnifyGesture:
     {
       // Setup the "magnify" event.
-      nsSimpleGestureEvent goannaEvent(true, NS_SIMPLE_GESTURE_MAGNIFY,
-                                      mGoannaChild, 0, mCumulativeMagnification);
+      WidgetSimpleGestureEvent goannaEvent(true, NS_SIMPLE_GESTURE_MAGNIFY,
+                                          mGoannaChild);
+      goannaEvent.delta = mCumulativeMagnification;
       [self convertCocoaMouseEvent:anEvent toGoannaEvent:&goannaEvent];
 
       // Send the event.
@@ -3741,7 +4096,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
   case eGestureState_RotateGesture:
     {
       // Setup the "rotate" event.
-      nsSimpleGestureEvent goannaEvent(true, NS_SIMPLE_GESTURE_ROTATE, mGoannaChild, 0, 0.0);
+      WidgetSimpleGestureEvent goannaEvent(true, NS_SIMPLE_GESTURE_ROTATE,
+                                          mGoannaChild);
       [self convertCocoaMouseEvent:anEvent toGoannaEvent:&goannaEvent];
       goannaEvent.delta = -mCumulativeRotation;
       if (mCumulativeRotation > 0.0) {
@@ -3795,24 +4151,14 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGoannaChild)
     return false;
 
-  nsSimpleGestureEvent goannaEvent(true, aMsg, mGoannaChild, aDirection, aDelta);
+  WidgetSimpleGestureEvent goannaEvent(true, aMsg, mGoannaChild);
+  goannaEvent.direction = aDirection;
+  goannaEvent.delta = aDelta;
   goannaEvent.allowedDirections = *aAllowedDirections;
   [self convertCocoaMouseEvent:aEvent toGoannaEvent:&goannaEvent];
   bool eventCancelled = mGoannaChild->DispatchWindowEvent(goannaEvent);
   *aAllowedDirections = goannaEvent.allowedDirections;
   return eventCancelled; // event cancelled == swipe should start
-}
-
-- (void)cancelSwipeIfRunning
-{
-  // Clear gesture state.
-  mGestureState = eGestureState_None;
-
-  if (mCancelSwipeAnimation) {
-    mCancelSwipeAnimation();
-    [mCancelSwipeAnimation release];
-    mCancelSwipeAnimation = nil;
-  }
 }
 
 - (void)sendSwipeEndEvent:(NSEvent *)anEvent
@@ -3827,17 +4173,20 @@ NSEvent* gLastDragMouseDownEvent = nil;
                    delta:0.0];
 }
 
-// Support fluid swipe tracking on OS X 10.7 and higher.  We must be careful
-// to only invoke this support on a horizontal two-finger gesture that really
+// Support fluid swipe tracking on OS X 10.7 and higher. We must be careful
+// to only invoke this support on a two-finger gesture that really
 // is a swipe (and not a scroll) -- in other words, the app is responsible
-// for deciding which is which.  But once the decision is made, the OS tracks
+// for deciding which is which. But once the decision is made, the OS tracks
 // the swipe until it has finished, and decides whether or not it succeeded.
-// A swipe has the same functionality as the Back and Forward buttons.  For
-// now swipe animation is unsupported (e.g. no bounces).  This method is
-// partly based on Apple sample code available at
-// http://developer.apple.com/library/mac/#releasenotes/Cocoa/AppKit.html
+// A horizontal swipe has the same functionality as the Back and Forward
+// buttons.
+// This method is partly based on Apple sample code available at
+// developer.apple.com/library/mac/#releasenotes/Cocoa/AppKitOlderNotes.html
+// (under Fluid Swipe Tracking API).
 - (void)maybeTrackScrollEventAsSwipe:(NSEvent *)anEvent
-                      scrollOverflow:(double)overflow
+                     scrollOverflowX:(double)anOverflowX
+                     scrollOverflowY:(double)anOverflowY
+              viewPortIsOverscrolled:(BOOL)aViewPortIsOverscrolled
 {
   if (!nsCocoaFeatures::OnLionOrLater()) {
     return;
@@ -3852,23 +4201,24 @@ NSEvent* gLastDragMouseDownEvent = nil;
     return;
   }
 
-  if ([anEvent type] != NSScrollWheel) {
+  // We should only track scroll events as swipe if the viewport is being
+  // overscrolled.
+  if (!aViewPortIsOverscrolled) {
+    return;
+  }
+
+  NSEventPhase eventPhase = nsCocoaUtils::EventPhase(anEvent);
+  // Verify that this is a scroll wheel event with proper phase to be tracked
+  // by the OS.
+  if ([anEvent type] != NSScrollWheel || eventPhase == NSEventPhaseNone) {
     return;
   }
 
   // Only initiate tracking if the user has tried to scroll past the edge of
-  // the current page (as indicated by 'overflow' being non-zero).  Goanna only
-  // sets nsMouseScrollEvent.scrollOverflow when it's processing
-  // NS_MOUSE_PIXEL_SCROLL events (not NS_MOUSE_SCROLL events).
-  // nsMouseScrollEvent.scrollOverflow only indicates left or right overflow
-  // for horizontal NS_MOUSE_PIXEL_SCROLL events.
-  if (!overflow) {
-    return;
-  }
-
-  // Only initiate tracking for gestures that have just begun -- otherwise a
-  // scroll to one side of the page can have a swipe tacked on to it.
-  if ([anEvent phase] != NSEventPhaseBegan) {
+  // the current page (as indicated by 'anOverflowX' or 'anOverflowY' being
+  // non-zero). Goanna only sets WidgetMouseScrollEvent.scrollOverflow when it's
+  // processing NS_MOUSE_PIXEL_SCROLL events (not NS_MOUSE_SCROLL events).
+  if (anOverflowX == 0.0 && anOverflowY == 0.0) {
     return;
   }
 
@@ -3877,41 +4227,93 @@ NSEvent* gLastDragMouseDownEvent = nil;
     deltaX = [anEvent scrollingDeltaX];
     deltaY = [anEvent scrollingDeltaY];
   } else {
-    deltaX = [anEvent deltaX];
-    deltaY = [anEvent deltaY];
-  }
-  // Only initiate tracking for events whose horizontal element is at least
-  // eight times larger than its vertical element.  This minimizes performance
-  // problems with vertical scrolls (by minimizing the possibility that they'll
-  // be misinterpreted as horizontal swipes), while still tolerating a small
-  // vertical element to a true horizontal swipe.  The number '8' was arrived
-  // at by trial and error.
-  if ((deltaX == 0) || (fabs(deltaX) <= fabs(deltaY) * 8)) {
     return;
   }
 
-  // If a swipe is currently being tracked kill it -- it's been interrupted by
-  // another gesture or legacy scroll wheel event.
-  [self cancelSwipeIfRunning];
+  uint32_t vDirs = (uint32_t)nsIDOMSimpleGestureEvent::DIRECTION_DOWN |
+                   (uint32_t)nsIDOMSimpleGestureEvent::DIRECTION_UP;
+  uint32_t direction = 0;
 
+  // Only initiate horizontal tracking for events whose horizontal element is
+  // at least eight times larger than its vertical element. This minimizes
+  // performance problems with vertical scrolls (by minimizing the possibility
+  // that they'll be misinterpreted as horizontal swipes), while still
+  // tolerating a small vertical element to a true horizontal swipe.  The number
+  // '8' was arrived at by trial and error.
+  if (anOverflowX != 0.0 && deltaX != 0.0 &&
+      std::abs(deltaX) > std::abs(deltaY) * 8) {
+    // Only initiate horizontal tracking for gestures that have just begun --
+    // otherwise a scroll to one side of the page can have a swipe tacked on
+    // to it.
+    if (eventPhase != NSEventPhaseBegan) {
+      return;
+    }
+
+    if (deltaX < 0.0) {
+      direction = (uint32_t)nsIDOMSimpleGestureEvent::DIRECTION_RIGHT;
+    } else {
+      direction = (uint32_t)nsIDOMSimpleGestureEvent::DIRECTION_LEFT;
+    }
+  }
+  // Only initiate vertical tracking for events whose vertical element is
+  // at least two times larger than its horizontal element. This minimizes
+  // performance problems. The number '2' was arrived at by trial and error.
+  else if (anOverflowY != 0.0 && deltaY != 0.0 &&
+           std::abs(deltaY) > std::abs(deltaX) * 2) {
+    if (deltaY < 0.0) {
+      direction = (uint32_t)nsIDOMSimpleGestureEvent::DIRECTION_DOWN;
+    } else {
+      direction = (uint32_t)nsIDOMSimpleGestureEvent::DIRECTION_UP;
+    }
+
+    if ((mCurrentSwipeDir & vDirs) && (mCurrentSwipeDir != direction)) {
+      // If a swipe is currently being tracked kill it -- it's been interrupted
+      // by another gesture event.
+      if (mCancelSwipeAnimation && *mCancelSwipeAnimation == NO) {
+        *mCancelSwipeAnimation = YES;
+        mCancelSwipeAnimation = nil;
+        [self sendSwipeEndEvent:anEvent allowedDirections:0];
+      }
+      return;
+    }
+  } else {
+    return;
+  }
+
+  // Track the direction we're going in.
+  mCurrentSwipeDir = direction;
+
+  uint32_t allowedDirections = 0;
   // We're ready to start the animation. Tell Goanna about it, and at the same
   // time ask it if it really wants to start an animation for this event.
   // This event also reports back the directions that we can swipe in.
-  uint32_t allowedDirections = 0;
   bool shouldStartSwipe = [self sendSwipeEvent:anEvent
-                                        withKind:NS_SIMPLE_GESTURE_SWIPE_START
-                               allowedDirections:&allowedDirections
-                                       direction:0
-                                           delta:0.0];
+                                      withKind:NS_SIMPLE_GESTURE_SWIPE_START
+                             allowedDirections:&allowedDirections
+                                     direction:direction
+                                         delta:0.0];
 
   if (!shouldStartSwipe) {
     return;
   }
 
-  double min = (allowedDirections & nsIDOMSimpleGestureEvent::DIRECTION_RIGHT) ? -1 : 0;
-  double max = (allowedDirections & nsIDOMSimpleGestureEvent::DIRECTION_LEFT) ? 1 : 0;
+  // If a swipe is currently being tracked kill it -- it's been interrupted
+  // by another gesture event.
+  if (mCancelSwipeAnimation && *mCancelSwipeAnimation == NO) {
+    *mCancelSwipeAnimation = YES;
+    mCancelSwipeAnimation = nil;
+  }
 
-  __block BOOL animationCancelled = NO;
+  CGFloat min = 0.0;
+  CGFloat max = 0.0;
+  if (!(direction & vDirs)) {
+    min = (allowedDirections & nsIDOMSimpleGestureEvent::DIRECTION_RIGHT) ?
+          -1.0 : 0.0;
+    max = (allowedDirections & nsIDOMSimpleGestureEvent::DIRECTION_LEFT) ?
+          1.0 : 0.0;
+  }
+
+  __block BOOL animationCanceled = NO;
   __block BOOL goannaSwipeEventSent = NO;
   // At this point, anEvent is the first scroll wheel event in a two-finger
   // horizontal gesture that we've decided to treat as a swipe.  When we call
@@ -3928,67 +4330,73 @@ NSEvent* gLastDragMouseDownEvent = nil;
   // the anEvent object because it's retained by the block, see bug 682445.
   // The block will release it when the block goes away at the end of the
   // animation, or when the animation is canceled.
-  [anEvent trackSwipeEventWithOptions:NSEventSwipeTrackingLockDirection
+  [anEvent trackSwipeEventWithOptions:NSEventSwipeTrackingLockDirection |
+                                      NSEventSwipeTrackingClampGestureAmount
              dampenAmountThresholdMin:min
                                   max:max
-                         usingHandler:^(CGFloat gestureAmount, NSEventPhase phase, BOOL isComplete, BOOL *stop) {
-      // Since this tracking handler can be called asynchronously, mGoannaChild
-      // might have become NULL here (our child widget might have been
-      // destroyed).
-      if (animationCancelled || !mGoannaChild) {
-        *stop = YES;
-        return;
+                         usingHandler:^(CGFloat gestureAmount,
+                                        NSEventPhase phase,
+                                        BOOL isComplete,
+                                        BOOL *stop) {
+    uint32_t allowedDirectionsCopy = allowedDirections;
+    // Since this tracking handler can be called asynchronously, mGoannaChild
+    // might have become NULL here (our child widget might have been
+    // destroyed).
+    // Checking for gestureAmount == 0.0 also works around bug 770626, which
+    // happens when DispatchWindowEvent() triggers a modal dialog, which spins
+    // the event loop and confuses the OS. This results in several re-entrant
+    // calls to this handler.
+    if (animationCanceled || !mGoannaChild || gestureAmount == 0.0) {
+      *stop = YES;
+      animationCanceled = YES;
+      if (gestureAmount == 0.0 ||
+          ((direction & vDirs) && (direction != mCurrentSwipeDir))) {
+        if (mCancelSwipeAnimation)
+          *mCancelSwipeAnimation = YES;
+        mCancelSwipeAnimation = nil;
+        [self sendSwipeEndEvent:anEvent
+              allowedDirections:allowedDirectionsCopy];
       }
+      mCurrentSwipeDir = 0;
+      return;
+    }
 
-      uint32_t allowedDirectionsCopy = allowedDirections;
+    // Update animation overlay to match gestureAmount.
+    [self sendSwipeEvent:anEvent
+                withKind:NS_SIMPLE_GESTURE_SWIPE_UPDATE
+       allowedDirections:&allowedDirectionsCopy
+               direction:0.0
+                   delta:gestureAmount];
 
-      // Update animation overlay to match gestureAmount.
+    if (phase == NSEventPhaseEnded && !goannaSwipeEventSent) {
+      // The result of the swipe is now known, so the main event can be sent.
+      // The animation might continue even after this event was sent, so
+      // don't tear down the animation overlay yet.
+
+      uint32_t directionCopy = direction;
+
+      // gestureAmount is documented to be '-1', '0' or '1' when isComplete
+      // is TRUE, but the docs don't say anything about its value at other
+      // times.  However, tests show that, when phase == NSEventPhaseEnded,
+      // gestureAmount is negative when it will be '-1' at isComplete, and
+      // positive when it will be '1'.  And phase is never equal to
+      // NSEventPhaseEnded when gestureAmount will be '0' at isComplete.
+      goannaSwipeEventSent = YES;
       [self sendSwipeEvent:anEvent
-                  withKind:NS_SIMPLE_GESTURE_SWIPE_UPDATE
+                  withKind:NS_SIMPLE_GESTURE_SWIPE
          allowedDirections:&allowedDirectionsCopy
-                 direction:0
-                     delta:gestureAmount];
+                 direction:directionCopy
+                     delta:0.0];
+    }
 
-      if (phase == NSEventPhaseEnded && !goannaSwipeEventSent) {
-        // The result of the swipe is now known, so the main event can be sent.
-        // The animation might continue even after this event was sent, so
-        // don't tear down the animation overlay yet.
-        // gestureAmount is documented to be '-1', '0' or '1' when isComplete
-        // is TRUE, but the docs don't say anything about its value at other
-        // times.  However, tests show that, when phase == NSEventPhaseEnded,
-        // gestureAmount is negative when it will be '-1' at isComplete, and
-        // positive when it will be '1'.  And phase is never equal to
-        // NSEventPhaseEnded when gestureAmount will be '0' at isComplete.
-        uint32_t direction = gestureAmount > 0 ?
-          (uint32_t)nsIDOMSimpleGestureEvent::DIRECTION_LEFT :
-          (uint32_t)nsIDOMSimpleGestureEvent::DIRECTION_RIGHT;
-        // If DispatchWindowEvent() does something to trigger a modal dialog
-        // (which spins the event loop), the OS gets confused and makes
-        // several re-entrant calls to this handler, all of which have
-        // 'phase' set to NSEventPhaseEnded.  Unless we do something about
-        // it, this results in an equal number of re-entrant calls to
-        // DispatchWindowEvent(), and to our modal-event handling code.
-        // Probably because of bug 478703, this really messes things up,
-        // and requires a force quit to get out of.  We avoid this by
-        // avoiding re-entrant calls to DispatchWindowEvent().  See bug
-        // 770626.
-        goannaSwipeEventSent = YES;
-        [self sendSwipeEvent:anEvent
-                    withKind:NS_SIMPLE_GESTURE_SWIPE
-           allowedDirections:&allowedDirectionsCopy
-                  direction:direction
-                       delta:0.0];
-      }
+    if (isComplete) {
+      [self sendSwipeEndEvent:anEvent allowedDirections:allowedDirectionsCopy];
+      mCurrentSwipeDir = 0;
+      mCancelSwipeAnimation = nil;
+    }
+  }];
 
-      if (isComplete) {
-        [self cancelSwipeIfRunning];
-        [self sendSwipeEndEvent:anEvent allowedDirections:allowedDirections];
-      }
-    }];
-
-  mCancelSwipeAnimation = [^{
-    animationCancelled = YES;
-  } copy];
+  mCancelSwipeAnimation = &animationCanceled;
 }
 #endif // #ifdef __LP64__
 
@@ -3996,7 +4404,6 @@ NSEvent* gLastDragMouseDownEvent = nil;
 {
   mUsingOMTCompositor = aUseOMTC;
 }
-
 
 // Returning NO from this method only disallows ordering on mousedown - in order
 // to prevent it for mouseup too, we need to call [NSApp preventWindowOrdering]
@@ -4062,7 +4469,8 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   NSUInteger modifierFlags = [theEvent modifierFlags];
 
-  nsMouseEvent goannaEvent(true, NS_MOUSE_BUTTON_DOWN, mGoannaChild, nsMouseEvent::eReal);
+  WidgetMouseEvent goannaEvent(true, NS_MOUSE_BUTTON_DOWN, mGoannaChild,
+                              WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGoannaEvent:&goannaEvent];
 
   NSInteger clickCount = [theEvent clickCount];
@@ -4074,28 +4482,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
   goannaEvent.clickCount = clickCount;
 
   if (modifierFlags & NSControlKeyMask)
-    goannaEvent.button = nsMouseEvent::eRightButton;
+    goannaEvent.button = WidgetMouseEvent::eRightButton;
   else
-    goannaEvent.button = nsMouseEvent::eLeftButton;
-
-  // Create event for use by plugins.
-  // This is going to our child view so we don't need to look up the destination
-  // event type.
-  NPCocoaEvent cocoaEvent;
-  if (mPluginEventModel == NPEventModelCocoa) {
-    nsCocoaUtils::InitNPCocoaEvent(&cocoaEvent);
-    NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
-    cocoaEvent.type = NPCocoaEventMouseDown;
-    cocoaEvent.data.mouse.modifierFlags = modifierFlags;
-    cocoaEvent.data.mouse.pluginX = point.x;
-    cocoaEvent.data.mouse.pluginY = point.y;
-    cocoaEvent.data.mouse.buttonNumber = [theEvent buttonNumber];
-    cocoaEvent.data.mouse.clickCount = clickCount;
-    cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
-    cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
-    cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
-    goannaEvent.pluginEvent = &cocoaEvent;
-  }
+    goannaEvent.button = WidgetMouseEvent::eLeftButton;
 
   mGoannaChild->DispatchWindowEvent(goannaEvent);
   mBlockedLastMouseDown = NO;
@@ -4114,75 +4503,30 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
-  NPCocoaEvent cocoaEvent;
-	
-  nsMouseEvent goannaEvent(true, NS_MOUSE_BUTTON_UP, mGoannaChild, nsMouseEvent::eReal);
+  WidgetMouseEvent goannaEvent(true, NS_MOUSE_BUTTON_UP, mGoannaChild,
+                              WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGoannaEvent:&goannaEvent];
   if ([theEvent modifierFlags] & NSControlKeyMask)
-    goannaEvent.button = nsMouseEvent::eRightButton;
+    goannaEvent.button = WidgetMouseEvent::eRightButton;
   else
-    goannaEvent.button = nsMouseEvent::eLeftButton;
-
-  // Create event for use by plugins.
-  // This is going to our child view so we don't need to look up the destination
-  // event type.
-  if (mIsPluginView) {
-    if (mPluginEventModel == NPEventModelCocoa) {
-      nsCocoaUtils::InitNPCocoaEvent(&cocoaEvent);
-      NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
-      cocoaEvent.type = NPCocoaEventMouseUp;
-      cocoaEvent.data.mouse.modifierFlags = [theEvent modifierFlags];
-      cocoaEvent.data.mouse.pluginX = point.x;
-      cocoaEvent.data.mouse.pluginY = point.y;
-      cocoaEvent.data.mouse.buttonNumber = [theEvent buttonNumber];
-      cocoaEvent.data.mouse.clickCount = [theEvent clickCount];
-      cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
-      cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
-      cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
-      goannaEvent.pluginEvent = &cocoaEvent;
-    }
-  }
+    goannaEvent.button = WidgetMouseEvent::eLeftButton;
 
   // This might destroy our widget (and null out mGoannaChild).
   bool defaultPrevented = mGoannaChild->DispatchWindowEvent(goannaEvent);
 
   // Check to see if we are double-clicking in the titlebar.
   CGFloat locationInTitlebar = [[self window] frame].size.height - [theEvent locationInWindow].y;
+  LayoutDeviceIntPoint pos = goannaEvent.refPoint;
   if (!defaultPrevented && [theEvent clickCount] == 2 &&
-      [[self window] isMovableByWindowBackground] &&
-      [self shouldMinimizeOnTitlebarDoubleClick] &&
+      mGoannaChild->GetDraggableRegion().Contains(pos.x, pos.y) &&
       [[self window] isKindOfClass:[ToolbarWindow class]] &&
       (locationInTitlebar < [(ToolbarWindow*)[self window] titlebarHeight] ||
        locationInTitlebar < [(ToolbarWindow*)[self window] unifiedToolbarHeight])) {
-
-    NSButton *minimizeButton = [[self window] standardWindowButton:NSWindowMiniaturizeButton];
-    [minimizeButton performClick:self];
-  }
-
-  // If our mouse-up event's location is over some other object (as might
-  // happen if it came at the end of a dragging operation), also send our
-  // Goanna frame a mouse-exit event.
-  if (mGoannaChild && mIsPluginView) {
-    if (mPluginEventModel == NPEventModelCocoa) {
-      if (ChildViewMouseTracker::ViewForEvent(theEvent) != self) {
-        nsMouseEvent goannaExitEvent(true, NS_MOUSE_EXIT, mGoannaChild, nsMouseEvent::eReal);
-        [self convertCocoaMouseEvent:theEvent toGoannaEvent:&goannaExitEvent];
-
-        NPCocoaEvent cocoaEvent;
-        nsCocoaUtils::InitNPCocoaEvent(&cocoaEvent);
-        NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
-        cocoaEvent.type = NPCocoaEventMouseExited;
-        cocoaEvent.data.mouse.modifierFlags = [theEvent modifierFlags];
-        cocoaEvent.data.mouse.pluginX = point.x;
-        cocoaEvent.data.mouse.pluginY = point.y;
-        cocoaEvent.data.mouse.buttonNumber = [theEvent buttonNumber];
-        cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
-        cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
-        cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
-        goannaExitEvent.pluginEvent = &cocoaEvent;
-
-        mGoannaChild->DispatchWindowEvent(goannaExitEvent);
-      }
+    if ([self shouldZoomOnDoubleClick]) {
+      [[self window] performZoom:nil];
+    } else if ([self shouldMinimizeOnTitlebarDoubleClick]) {
+      NSButton *minimizeButton = [[self window] standardWindowButton:NSWindowMiniaturizeButton];
+      [minimizeButton performClick:self];
     }
   }
 
@@ -4191,7 +4535,7 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
 - (void)sendMouseEnterOrExitEvent:(NSEvent*)aEvent
                             enter:(BOOL)aEnter
-                             type:(nsMouseEvent::exitType)aType
+                             type:(WidgetMouseEvent::exitType)aType
 {
   if (!mGoannaChild)
     return;
@@ -4200,27 +4544,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
   NSPoint localEventLocation = [self convertPoint:windowEventLocation fromView:nil];
 
   uint32_t msg = aEnter ? NS_MOUSE_ENTER : NS_MOUSE_EXIT;
-  nsMouseEvent event(true, msg, mGoannaChild, nsMouseEvent::eReal);
-  event.refPoint = mGoannaChild->CocoaPointsToDevPixels(localEventLocation);
-
-  // Create event for use by plugins.
-  // This is going to our child view so we don't need to look up the destination
-  // event type.
-  NPCocoaEvent cocoaEvent;
-  if (mIsPluginView) {
-    if (mPluginEventModel == NPEventModelCocoa) {
-      nsCocoaUtils::InitNPCocoaEvent(&cocoaEvent);
-      cocoaEvent.type = ((msg == NS_MOUSE_ENTER) ? NPCocoaEventMouseEntered : NPCocoaEventMouseExited);
-      cocoaEvent.data.mouse.modifierFlags = [aEvent modifierFlags];
-      cocoaEvent.data.mouse.pluginX = 5;
-      cocoaEvent.data.mouse.pluginY = 5;
-      cocoaEvent.data.mouse.buttonNumber = [aEvent buttonNumber];
-      cocoaEvent.data.mouse.deltaX = [aEvent deltaX];
-      cocoaEvent.data.mouse.deltaY = [aEvent deltaY];
-      cocoaEvent.data.mouse.deltaZ = [aEvent deltaZ];
-      event.pluginEvent = &cocoaEvent;
-    }
-  }
+  WidgetMouseEvent event(true, msg, mGoannaChild, WidgetMouseEvent::eReal);
+  event.refPoint = LayoutDeviceIntPoint::FromUntyped(
+    mGoannaChild->CocoaPointsToDevPixels(localEventLocation));
 
   event.exit = aType;
 
@@ -4228,23 +4554,77 @@ NSEvent* gLastDragMouseDownEvent = nil;
   mGoannaChild->DispatchEvent(&event, status);
 }
 
-- (void)updateWindowDraggableStateOnMouseMove:(NSEvent*)theEvent
+- (void)updateWindowDraggableState
 {
-  if (!theEvent || !mGoannaChild) {
-    return;
+  // Trigger update to the window server.
+  [[self window] setMovableByWindowBackground:NO];
+  [[self window] setMovableByWindowBackground:YES];
+}
+
+// aRect is in view coordinates relative to this NSView.
+- (CGRect)convertToFlippedWindowCoordinates:(NSRect)aRect
+{
+  // First, convert the rect to regular window coordinates...
+  NSRect inWindowCoords = [self convertRect:aRect toView:nil];
+  // ... and then flip it again because window coordinates have their origin
+  // in the bottom left corner, and we need it to be in the top left corner.
+  inWindowCoords.origin.y = [[self window] frame].size.height - NSMaxY(inWindowCoords);
+  return NSRectToCGRect(inWindowCoords);
+}
+
+static CGSRegionObj
+NewCGSRegionFromRegion(const nsIntRegion& aRegion,
+                       CGRect (^aRectConverter)(const nsIntRect&))
+{
+  nsTArray<CGRect> rects;
+  nsIntRegionRectIterator iter(aRegion);
+  for (;;) {
+    const nsIntRect* r = iter.Next();
+    if (!r)
+      break;
+    rects.AppendElement(aRectConverter(*r));
   }
 
-  nsCocoaWindow* windowWidget = mGoannaChild->GetXULWindowWidget();
-  if (!windowWidget) {
-    return;
+  CGSRegionObj region;
+  CGSNewRegionWithRectList(rects.Elements(), rects.Length(), &region);
+  return region;
+}
+
+// This function is called with forMove:YES to calculate the draggable region
+// of the window which will be submitted to the window server. Window dragging
+// is handled on the window server without calling back into our process, so it
+// also works while our app is unresponsive.
+- (CGSRegionObj)_regionForOpaqueDescendants:(NSRect)aRect forMove:(BOOL)aForMove
+{
+  if (!aForMove || !mGoannaChild) {
+    return [super _regionForOpaqueDescendants:aRect forMove:aForMove];
   }
 
-  // We assume later on that sending a hit test event won't cause widget destruction.
-  nsMouseEvent hitTestEvent(true, NS_MOUSE_MOZHITTEST, mGoannaChild, nsMouseEvent::eReal);
-  [self convertCocoaMouseEvent:theEvent toGoannaEvent:&hitTestEvent];
-  bool result = mGoannaChild->DispatchWindowEvent(hitTestEvent);
+  nsIntRect boundingRect = mGoannaChild->CocoaPointsToDevPixels(aRect);
 
-  [windowWidget->GetCocoaWindow() setMovableByWindowBackground:result];
+  nsIntRegion opaqueRegion;
+  opaqueRegion.Sub(boundingRect, mGoannaChild->GetDraggableRegion());
+
+  return NewCGSRegionFromRegion(opaqueRegion, ^(const nsIntRect& r) {
+    return [self convertToFlippedWindowCoordinates:mGoannaChild->DevPixelsToCocoaPoints(r)];
+  });
+}
+
+// Starting with 10.10, in addition to the traditional
+// -[NSView _regionForOpaqueDescendants:forMove:] method, there's a new form with
+// an additional forUnderTitlebar argument, which is sometimes called instead of
+// the old form. We need to override the new variant as well.
+- (CGSRegionObj)_regionForOpaqueDescendants:(NSRect)aRect
+                                    forMove:(BOOL)aForMove
+                           forUnderTitlebar:(BOOL)aForUnderTitlebar
+{
+  if (!aForMove || !mGoannaChild) {
+    return [super _regionForOpaqueDescendants:aRect
+                                      forMove:aForMove
+                             forUnderTitlebar:aForUnderTitlebar];
+  }
+
+  return [self _regionForOpaqueDescendants:aRect forMove:aForMove];
 }
 
 - (void)handleMouseMoved:(NSEvent*)theEvent
@@ -4254,29 +4634,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGoannaChild)
     return;
 
-  nsMouseEvent goannaEvent(true, NS_MOUSE_MOVE, mGoannaChild, nsMouseEvent::eReal);
+  WidgetMouseEvent goannaEvent(true, NS_MOUSE_MOVE, mGoannaChild,
+                              WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGoannaEvent:&goannaEvent];
 
-  // Create event for use by plugins.
-  // This is going to our child view so we don't need to look up the destination
-  // event type.
-  NPCocoaEvent cocoaEvent;
-  if (mIsPluginView) {
-    if (mPluginEventModel == NPEventModelCocoa) {
-      nsCocoaUtils::InitNPCocoaEvent(&cocoaEvent);
-      NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
-      cocoaEvent.type = NPCocoaEventMouseMoved;
-      cocoaEvent.data.mouse.modifierFlags = [theEvent modifierFlags];
-      cocoaEvent.data.mouse.pluginX = point.x;
-      cocoaEvent.data.mouse.pluginY = point.y;
-      cocoaEvent.data.mouse.buttonNumber = [theEvent buttonNumber];
-      cocoaEvent.data.mouse.clickCount = [theEvent clickCount];
-      cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
-      cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
-      cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
-      goannaEvent.pluginEvent = &cocoaEvent;
-    }
-  }
   mGoannaChild->DispatchWindowEvent(goannaEvent);
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -4291,28 +4652,9 @@ NSEvent* gLastDragMouseDownEvent = nil;
 
   gLastDragView = self;
 
-  NPCocoaEvent cocoaEvent;
-
-  nsMouseEvent goannaEvent(true, NS_MOUSE_MOVE, mGoannaChild, nsMouseEvent::eReal);
+  WidgetMouseEvent goannaEvent(true, NS_MOUSE_MOVE, mGoannaChild,
+                              WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGoannaEvent:&goannaEvent];
-
-  // create event for use by plugins
-  if (mIsPluginView) {
-    if (mPluginEventModel == NPEventModelCocoa) {
-      nsCocoaUtils::InitNPCocoaEvent(&cocoaEvent);
-      NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
-      cocoaEvent.type = NPCocoaEventMouseDragged;
-      cocoaEvent.data.mouse.modifierFlags = [theEvent modifierFlags];
-      cocoaEvent.data.mouse.pluginX = point.x;
-      cocoaEvent.data.mouse.pluginY = point.y;
-      cocoaEvent.data.mouse.buttonNumber = [theEvent buttonNumber];
-      cocoaEvent.data.mouse.clickCount = [theEvent clickCount];
-      cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
-      cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
-      cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
-      goannaEvent.pluginEvent = &cocoaEvent;
-    }
-  }
 
   mGoannaChild->DispatchWindowEvent(goannaEvent);
 
@@ -4336,27 +4678,11 @@ NSEvent* gLastDragMouseDownEvent = nil;
     return;
 
   // The right mouse went down, fire off a right mouse down event to goanna
-  nsMouseEvent goannaEvent(true, NS_MOUSE_BUTTON_DOWN, mGoannaChild, nsMouseEvent::eReal);
+  WidgetMouseEvent goannaEvent(true, NS_MOUSE_BUTTON_DOWN, mGoannaChild,
+                              WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGoannaEvent:&goannaEvent];
-  goannaEvent.button = nsMouseEvent::eRightButton;
+  goannaEvent.button = WidgetMouseEvent::eRightButton;
   goannaEvent.clickCount = [theEvent clickCount];
-
-  // create event for use by plugins
-  NPCocoaEvent cocoaEvent;
-  if (mPluginEventModel == NPEventModelCocoa) {
-    nsCocoaUtils::InitNPCocoaEvent(&cocoaEvent);
-    NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
-    cocoaEvent.type = NPCocoaEventMouseDown;
-    cocoaEvent.data.mouse.modifierFlags = [theEvent modifierFlags];
-    cocoaEvent.data.mouse.pluginX = point.x;
-    cocoaEvent.data.mouse.pluginY = point.y;
-    cocoaEvent.data.mouse.buttonNumber = [theEvent buttonNumber];
-    cocoaEvent.data.mouse.clickCount = [theEvent clickCount];
-    cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
-    cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
-    cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
-    goannaEvent.pluginEvent = &cocoaEvent;
-  }
 
   mGoannaChild->DispatchWindowEvent(goannaEvent);
   if (!mGoannaChild)
@@ -4375,30 +4701,11 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGoannaChild)
     return;
 
-  NPCocoaEvent cocoaEvent;
-
-  nsMouseEvent goannaEvent(true, NS_MOUSE_BUTTON_UP, mGoannaChild, nsMouseEvent::eReal);
+  WidgetMouseEvent goannaEvent(true, NS_MOUSE_BUTTON_UP, mGoannaChild,
+                              WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGoannaEvent:&goannaEvent];
-  goannaEvent.button = nsMouseEvent::eRightButton;
+  goannaEvent.button = WidgetMouseEvent::eRightButton;
   goannaEvent.clickCount = [theEvent clickCount];
-
-  // create event for use by plugins
-  if (mIsPluginView) {
-    if (mPluginEventModel == NPEventModelCocoa) {
-      nsCocoaUtils::InitNPCocoaEvent(&cocoaEvent);
-      NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
-      cocoaEvent.type = NPCocoaEventMouseUp;
-      cocoaEvent.data.mouse.modifierFlags = [theEvent modifierFlags];
-      cocoaEvent.data.mouse.pluginX = point.x;
-      cocoaEvent.data.mouse.pluginY = point.y;
-      cocoaEvent.data.mouse.buttonNumber = [theEvent buttonNumber];
-      cocoaEvent.data.mouse.clickCount = [theEvent clickCount];
-      cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
-      cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
-      cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
-      goannaEvent.pluginEvent = &cocoaEvent;
-    }
-  }
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
   mGoannaChild->DispatchWindowEvent(goannaEvent);
@@ -4411,9 +4718,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGoannaChild)
     return;
 
-  nsMouseEvent goannaEvent(true, NS_MOUSE_MOVE, mGoannaChild, nsMouseEvent::eReal);
+  WidgetMouseEvent goannaEvent(true, NS_MOUSE_MOVE, mGoannaChild,
+                              WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGoannaEvent:&goannaEvent];
-  goannaEvent.button = nsMouseEvent::eRightButton;
+  goannaEvent.button = WidgetMouseEvent::eRightButton;
 
   // send event into Goanna by going directly to the
   // the widget.
@@ -4433,9 +4741,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGoannaChild)
     return;
 
-  nsMouseEvent goannaEvent(true, NS_MOUSE_BUTTON_DOWN, mGoannaChild, nsMouseEvent::eReal);
+  WidgetMouseEvent goannaEvent(true, NS_MOUSE_BUTTON_DOWN, mGoannaChild,
+                              WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGoannaEvent:&goannaEvent];
-  goannaEvent.button = nsMouseEvent::eMiddleButton;
+  goannaEvent.button = WidgetMouseEvent::eMiddleButton;
   goannaEvent.clickCount = [theEvent clickCount];
 
   mGoannaChild->DispatchWindowEvent(goannaEvent);
@@ -4448,10 +4757,12 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGoannaChild)
     return;
 
-  nsMouseEvent goannaEvent(true, NS_MOUSE_BUTTON_UP, mGoannaChild, nsMouseEvent::eReal);
+  WidgetMouseEvent goannaEvent(true, NS_MOUSE_BUTTON_UP, mGoannaChild,
+                              WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGoannaEvent:&goannaEvent];
-  goannaEvent.button = nsMouseEvent::eMiddleButton;
+  goannaEvent.button = WidgetMouseEvent::eMiddleButton;
 
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
   mGoannaChild->DispatchWindowEvent(goannaEvent);
 }
 
@@ -4460,9 +4771,10 @@ NSEvent* gLastDragMouseDownEvent = nil;
   if (!mGoannaChild)
     return;
 
-  nsMouseEvent goannaEvent(true, NS_MOUSE_MOVE, mGoannaChild, nsMouseEvent::eReal);
+  WidgetMouseEvent goannaEvent(true, NS_MOUSE_MOVE, mGoannaChild,
+                              WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGoannaEvent:&goannaEvent];
-  goannaEvent.button = nsMouseEvent::eMiddleButton;
+  goannaEvent.button = WidgetMouseEvent::eMiddleButton;
 
   // send event into Goanna by going directly to the
   // the widget.
@@ -4475,9 +4787,30 @@ static int32_t RoundUp(double aDouble)
                        static_cast<int32_t>(ceil(aDouble));
 }
 
+- (void)sendWheelStartOrStop:(uint32_t)msg forEvent:(NSEvent *)theEvent
+{
+  WidgetWheelEvent wheelEvent(true, msg, mGoannaChild);
+  [self convertCocoaMouseWheelEvent:theEvent toGoannaEvent:&wheelEvent];
+  mExpectingWheelStop = (msg == NS_WHEEL_START);
+  mGoannaChild->DispatchWindowEvent(wheelEvent);
+}
+
+- (void)sendWheelCondition:(BOOL)condition first:(uint32_t)first second:(uint32_t)second forEvent:(NSEvent *)theEvent
+{
+  if (mExpectingWheelStop == condition) {
+    [self sendWheelStartOrStop:first forEvent:theEvent];
+  }
+  [self sendWheelStartOrStop:second forEvent:theEvent];
+}
+
 - (void)scrollWheel:(NSEvent*)theEvent
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  if ([self apzctm]) {
+    // Disable main-thread scrolling completely when using APZC.
+    return;
+  }
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
@@ -4491,41 +4824,32 @@ static int32_t RoundUp(double aDouble)
     return;
   }
 
-  WheelEvent wheelEvent(true, NS_WHEEL_WHEEL, mGoannaChild);
-  [self convertCocoaMouseEvent:theEvent toGoannaEvent:&wheelEvent];
-  wheelEvent.deltaMode =
-    Preferences::GetBool("mousewheel.enable_pixel_scrolling", true) ?
-      nsIDOMWheelEvent::DOM_DELTA_PIXEL : nsIDOMWheelEvent::DOM_DELTA_LINE;
-
-  // Calling deviceDeltaX or deviceDeltaY on theEvent will trigger a Cocoa
-  // assertion and an Objective-C NSInternalInconsistencyException if the
-  // underlying "Carbon" event doesn't contain pixel scrolling information.
-  // For these events, carbonEventKind is kEventMouseWheelMoved instead of
-  // kEventMouseScroll.
-  if (wheelEvent.deltaMode == nsIDOMWheelEvent::DOM_DELTA_PIXEL) {
-    EventRef theCarbonEvent = [theEvent _eventRef];
-    UInt32 carbonEventKind = theCarbonEvent ? ::GetEventKind(theCarbonEvent) : 0;
-    if (carbonEventKind != kEventMouseScroll) {
-      wheelEvent.deltaMode = nsIDOMWheelEvent::DOM_DELTA_LINE;
-    }
+  NSEventPhase phase = nsCocoaUtils::EventPhase(theEvent);
+  // Fire NS_WHEEL_START/STOP events when 2 fingers touch/release the touchpad.
+  if (phase & NSEventPhaseMayBegin) {
+    [self sendWheelCondition:YES first:NS_WHEEL_STOP second:NS_WHEEL_START forEvent:theEvent];
+    return;
   }
+
+  if (phase & (NSEventPhaseEnded | NSEventPhaseCancelled)) {
+    [self sendWheelCondition:NO first:NS_WHEEL_START second:NS_WHEEL_STOP forEvent:theEvent];
+    return;
+  }
+
+  WidgetWheelEvent wheelEvent(true, NS_WHEEL_WHEEL, mGoannaChild);
+  [self convertCocoaMouseWheelEvent:theEvent toGoannaEvent:&wheelEvent];
 
   wheelEvent.lineOrPageDeltaX = RoundUp(-[theEvent deltaX]);
   wheelEvent.lineOrPageDeltaY = RoundUp(-[theEvent deltaY]);
 
+  // wheelEvent.deltaMode was set by convertCocoaMouseWheelEvent:toGoannaEvent:
+  // and depends on whether the current scrolling device supports pixel deltas.
   if (wheelEvent.deltaMode == nsIDOMWheelEvent::DOM_DELTA_PIXEL) {
-    // Some scrolling devices supports pixel scrolling, e.g. a Macbook
-    // touchpad or a Mighty Mouse. On those devices, [theEvent deviceDeltaX/Y]
-    // contains the amount of pixels to scroll. Since Lion this has changed 
-    // to [theEvent scrollingDeltaX/Y].
     double scale = mGoannaChild->BackingScaleFactor();
-    if ([theEvent respondsToSelector:@selector(scrollingDeltaX)]) {
-      wheelEvent.deltaX = -[theEvent scrollingDeltaX] * scale;
-      wheelEvent.deltaY = -[theEvent scrollingDeltaY] * scale;
-    } else {
-      wheelEvent.deltaX = -[theEvent deviceDeltaX] * scale;
-      wheelEvent.deltaY = -[theEvent deviceDeltaY] * scale;
-    }
+    CGFloat pixelDeltaX = 0, pixelDeltaY = 0;
+    nsCocoaUtils::GetScrollingDeltas(theEvent, &pixelDeltaX, &pixelDeltaY);
+    wheelEvent.deltaX = -pixelDeltaX * scale;
+    wheelEvent.deltaY = -pixelDeltaY * scale;
   } else {
     wheelEvent.deltaX = -[theEvent deltaX];
     wheelEvent.deltaY = -[theEvent deltaY];
@@ -4540,47 +4864,126 @@ static int32_t RoundUp(double aDouble)
     return;
   }
 
-  wheelEvent.isMomentum = nsCocoaUtils::IsMomentumScrollEvent(theEvent);
-
-  NPCocoaEvent cocoaEvent;
-  if (mPluginEventModel == NPEventModelCocoa) {
-    nsCocoaUtils::InitNPCocoaEvent(&cocoaEvent);
-    NSPoint point = [self convertPoint:[theEvent locationInWindow] fromView:nil];
-    cocoaEvent.type = NPCocoaEventScrollWheel;
-    cocoaEvent.data.mouse.modifierFlags = [theEvent modifierFlags];
-    cocoaEvent.data.mouse.pluginX = point.x;
-    cocoaEvent.data.mouse.pluginY = point.y;
-    cocoaEvent.data.mouse.buttonNumber = [theEvent buttonNumber];
-    cocoaEvent.data.mouse.clickCount = 0;
-    cocoaEvent.data.mouse.deltaX = [theEvent deltaX];
-    cocoaEvent.data.mouse.deltaY = [theEvent deltaY];
-    cocoaEvent.data.mouse.deltaZ = [theEvent deltaZ];
-    wheelEvent.pluginEvent = &cocoaEvent;
-  }
-
   mGoannaChild->DispatchWindowEvent(wheelEvent);
   if (!mGoannaChild) {
     return;
   }
 
 #ifdef __LP64__
-  // overflowDeltaX tells us when the user has tried to scroll past the edge
-  // of a page to the left or the right (in those cases it's non-zero).
-  if (wheelEvent.deltaMode == nsIDOMWheelEvent::DOM_DELTA_PIXEL &&
-      wheelEvent.deltaX != 0.0) {
+  // overflowDeltaX and overflowDeltaY tell us when the user has tried to
+  // scroll past the edge of a page (in those cases it's non-zero).
+  if ((wheelEvent.deltaMode == nsIDOMWheelEvent::DOM_DELTA_PIXEL) &&
+      (wheelEvent.deltaX != 0.0 || wheelEvent.deltaY != 0.0)) {
     [self maybeTrackScrollEventAsSwipe:theEvent
-                        scrollOverflow:wheelEvent.overflowDeltaX];
+                       scrollOverflowX:wheelEvent.overflowDeltaX
+                       scrollOverflowY:wheelEvent.overflowDeltaY
+                viewPortIsOverscrolled:wheelEvent.mViewPortIsOverscrolled];
   }
 #endif // #ifdef __LP64__
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
 
+- (void)handleAsyncScrollEvent:(CGEventRef)cgEvent ofType:(CGEventType)type
+{
+  APZCTreeManager* apzctm = [self apzctm];
+  if (!apzctm) {
+    return;
+  }
+
+  CGPoint loc = CGEventGetLocation(cgEvent);
+  loc.y = nsCocoaUtils::FlippedScreenY(loc.y);
+  NSPoint locationInWindow = [[self window] convertScreenToBase:NSPointFromCGPoint(loc)];
+  ScreenIntPoint location = ScreenPixel::FromUntyped([self convertWindowCoordinates:locationInWindow]);
+
+  static NSTimeInterval sStartTime = [NSDate timeIntervalSinceReferenceDate];
+  static TimeStamp sStartTimeStamp = TimeStamp::Now();
+
+  if (type == kCGEventScrollWheel) {
+    NSEvent* event = [NSEvent eventWithCGEvent:cgEvent];
+    NSEventPhase phase = nsCocoaUtils::EventPhase(event);
+    NSEventPhase momentumPhase = nsCocoaUtils::EventMomentumPhase(event);
+    CGFloat pixelDeltaX = 0, pixelDeltaY = 0;
+    nsCocoaUtils::GetScrollingDeltas(event, &pixelDeltaX, &pixelDeltaY);
+    uint32_t eventTime = ([event timestamp] - sStartTime) * 1000;
+    TimeStamp eventTimeStamp = sStartTimeStamp +
+      TimeDuration::FromSeconds([event timestamp] - sStartTime);
+    NSPoint locationInWindowMoved = NSMakePoint(
+      locationInWindow.x + pixelDeltaX,
+      locationInWindow.y - pixelDeltaY);
+    ScreenIntPoint locationMoved = ScreenPixel::FromUntyped(
+      [self convertWindowCoordinates:locationInWindowMoved]);
+    ScreenPoint delta = ScreenPoint(locationMoved - location);
+    ScrollableLayerGuid guid;
+
+    // MayBegin and Cancelled are dispatched when the fingers start or stop
+    // touching the touchpad before any scrolling has occurred. These events
+    // can be used to control scrollbar visibility or interrupt scroll
+    // animations. They are only dispatched on 10.8 or later, and only by
+    // relatively modern devices.
+    if (phase == NSEventPhaseMayBegin) {
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_MAYSTART, eventTime,
+                               eventTimeStamp, location, ScreenPoint(0, 0), 0);
+      apzctm->ReceiveInputEvent(panInput, &guid, nullptr);
+      return;
+    }
+    if (phase == NSEventPhaseCancelled) {
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_CANCELLED, eventTime,
+                               eventTimeStamp, location, ScreenPoint(0, 0), 0);
+      apzctm->ReceiveInputEvent(panInput, &guid, nullptr);
+      return;
+    }
+
+    // Legacy scroll events are dispatched by devices that do not have a
+    // concept of a scroll gesture, for example by USB mice with
+    // traditional mouse wheels.
+    // For these kinds of scrolls, we want to surround every single scroll
+    // event with a PANGESTURE_START and a PANGESTURE_END event. The APZC
+    // needs to know that the real scroll gesture can end abruptly after any
+    // one of these events.
+    bool isLegacyScroll = (phase == NSEventPhaseNone &&
+      momentumPhase == NSEventPhaseNone && delta != ScreenPoint(0, 0));
+
+    if (phase == NSEventPhaseBegan || isLegacyScroll) {
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_START, eventTime,
+                               eventTimeStamp, location, ScreenPoint(0, 0), 0);
+      apzctm->ReceiveInputEvent(panInput, &guid, nullptr);
+    }
+    if (momentumPhase == NSEventPhaseNone && delta != ScreenPoint(0, 0)) {
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_PAN, eventTime,
+                               eventTimeStamp, location, delta, 0);
+      apzctm->ReceiveInputEvent(panInput, &guid, nullptr);
+    }
+    if (phase == NSEventPhaseEnded || isLegacyScroll) {
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_END, eventTime,
+                               eventTimeStamp, location, ScreenPoint(0, 0), 0);
+      apzctm->ReceiveInputEvent(panInput, &guid, nullptr);
+    }
+
+    // Any device that can dispatch momentum events supports all three momentum phases.
+    if (momentumPhase == NSEventPhaseBegan) {
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_MOMENTUMSTART, eventTime,
+                               eventTimeStamp, location, ScreenPoint(0, 0), 0);
+      apzctm->ReceiveInputEvent(panInput, &guid, nullptr);
+    }
+    if (momentumPhase == NSEventPhaseChanged && delta != ScreenPoint(0, 0)) {
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_MOMENTUMPAN, eventTime,
+                               eventTimeStamp, location, delta, 0);
+      apzctm->ReceiveInputEvent(panInput, &guid, nullptr);
+    }
+    if (momentumPhase == NSEventPhaseEnded) {
+      PanGestureInput panInput(PanGestureInput::PANGESTURE_MOMENTUMEND, eventTime,
+                               eventTimeStamp, location, ScreenPoint(0, 0), 0);
+      apzctm->ReceiveInputEvent(panInput, &guid, nullptr);
+    }
+  }
+}
+
 -(NSMenu*)menuForEvent:(NSEvent*)theEvent
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  if (!mGoannaChild || [self isPluginView])
+  if (!mGoannaChild)
     return nil;
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
@@ -4599,9 +5002,10 @@ static int32_t RoundUp(double aDouble)
       return nil;
   }
 
-  nsMouseEvent goannaEvent(true, NS_CONTEXTMENU, mGoannaChild, nsMouseEvent::eReal);
+  WidgetMouseEvent goannaEvent(true, NS_CONTEXTMENU, mGoannaChild,
+                              WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:theEvent toGoannaEvent:&goannaEvent];
-  goannaEvent.button = nsMouseEvent::eRightButton;
+  goannaEvent.button = WidgetMouseEvent::eRightButton;
   mGoannaChild->DispatchWindowEvent(goannaEvent);
   if (!mGoannaChild)
     return nil;
@@ -4627,7 +5031,21 @@ static int32_t RoundUp(double aDouble)
   NS_OBJC_END_TRY_ABORT_BLOCK_NIL;
 }
 
-- (void) convertCocoaMouseEvent:(NSEvent*)aMouseEvent toGoannaEvent:(nsInputEvent*)outGoannaEvent
+- (void) convertCocoaMouseWheelEvent:(NSEvent*)aMouseEvent
+                        toGoannaEvent:(WidgetWheelEvent*)outWheelEvent
+{
+  [self convertCocoaMouseEvent:aMouseEvent toGoannaEvent:outWheelEvent];
+
+  bool usePreciseDeltas = nsCocoaUtils::HasPreciseScrollingDeltas(aMouseEvent) &&
+    Preferences::GetBool("mousewheel.enable_pixel_scrolling", true);
+
+  outWheelEvent->deltaMode = usePreciseDeltas ? nsIDOMWheelEvent::DOM_DELTA_PIXEL
+                                              : nsIDOMWheelEvent::DOM_DELTA_LINE;
+  outWheelEvent->isMomentum = nsCocoaUtils::IsMomentumScrollEvent(aMouseEvent);
+}
+
+- (void) convertCocoaMouseEvent:(NSEvent*)aMouseEvent
+                   toGoannaEvent:(WidgetInputEvent*)outGoannaEvent
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
@@ -4639,29 +5057,28 @@ static int32_t RoundUp(double aDouble)
 
   // convert point to view coordinate system
   NSPoint locationInWindow = nsCocoaUtils::EventLocationForWindow(aMouseEvent, [self window]);
-  NSPoint localPoint = [self convertPoint:locationInWindow fromView:nil];
 
-  outGoannaEvent->refPoint = mGoannaChild->CocoaPointsToDevPixels(localPoint);
+  outGoannaEvent->refPoint = LayoutDeviceIntPoint::FromUntyped(
+    [self convertWindowCoordinates:locationInWindow]);
 
-  nsMouseEvent_base* mouseEvent =
-    static_cast<nsMouseEvent_base*>(outGoannaEvent);
+  WidgetMouseEventBase* mouseEvent = outGoannaEvent->AsMouseEventBase();
   mouseEvent->buttons = 0;
   NSUInteger mouseButtons = [NSEvent pressedMouseButtons];
 
   if (mouseButtons & 0x01) {
-    mouseEvent->buttons |= nsMouseEvent::eLeftButtonFlag;
+    mouseEvent->buttons |= WidgetMouseEvent::eLeftButtonFlag;
   }
   if (mouseButtons & 0x02) {
-    mouseEvent->buttons |= nsMouseEvent::eRightButtonFlag;
+    mouseEvent->buttons |= WidgetMouseEvent::eRightButtonFlag;
   }
   if (mouseButtons & 0x04) {
-    mouseEvent->buttons |= nsMouseEvent::eMiddleButtonFlag;
+    mouseEvent->buttons |= WidgetMouseEvent::eMiddleButtonFlag;
   }
   if (mouseButtons & 0x08) {
-    mouseEvent->buttons |= nsMouseEvent::e4thButtonFlag;
+    mouseEvent->buttons |= WidgetMouseEvent::e4thButtonFlag;
   }
   if (mouseButtons & 0x10) {
-    mouseEvent->buttons |= nsMouseEvent::e5thButtonFlag;
+    mouseEvent->buttons |= WidgetMouseEvent::e5thButtonFlag;
   }
 
   switch ([aMouseEvent type]) {
@@ -4676,13 +5093,17 @@ static int32_t RoundUp(double aDouble)
     case NSOtherMouseDragged:
       if ([aMouseEvent subtype] == NSTabletPointEventSubtype) {
         mouseEvent->pressure = [aMouseEvent pressure];
+        MOZ_ASSERT(mouseEvent->pressure >= 0.0 && mouseEvent->pressure <= 1.0);
       }
+      break;
+
+    default:
+      // Don't check other NSEvents for pressure.
       break;
   }
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
-
 
 #pragma mark -
 // NSTextInput implementation
@@ -4691,7 +5112,7 @@ static int32_t RoundUp(double aDouble)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  NS_ENSURE_TRUE(mGoannaChild, );
+  NS_ENSURE_TRUE_VOID(mGoannaChild);
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
@@ -4733,7 +5154,7 @@ static int32_t RoundUp(double aDouble)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  NS_ENSURE_TRUE(mTextInputHandler, );
+  NS_ENSURE_TRUE_VOID(mTextInputHandler);
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
 
@@ -4759,6 +5180,14 @@ static int32_t RoundUp(double aDouble)
 {
   NS_ENSURE_TRUE(mTextInputHandler, NO);
   return mTextInputHandler->HasMarkedText();
+}
+
+- (BOOL)shouldZoomOnDoubleClick
+{
+  if ([NSWindow respondsToSelector:@selector(_shouldZoomOnDoubleClick)]) {
+    return [NSWindow _shouldZoomOnDoubleClick];
+  }
+  return nsCocoaFeatures::OnYosemiteOrLater();
 }
 
 - (BOOL)shouldMinimizeOnTitlebarDoubleClick
@@ -4804,6 +5233,15 @@ static int32_t RoundUp(double aDouble)
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSMakeRange(0, 0));
 }
 
+- (BOOL)drawsVerticallyForCharacterAtIndex:(NSUInteger)charIndex
+{
+  NS_ENSURE_TRUE(mTextInputHandler, NO);
+  if (charIndex == NSNotFound) {
+    return NO;
+  }
+  return mTextInputHandler->DrawsVerticallyForCharacterAtIndex(charIndex);
+}
+
 - (NSRect) firstRectForCharacterRange:(NSRange)theRange
 {
   NSRect rect;
@@ -4828,16 +5266,75 @@ static int32_t RoundUp(double aDouble)
 }
 
 #pragma mark -
+// NSTextInputClient implementation
 
-#ifdef __LP64__
-- (NSTextInputContext *)inputContext
+- (void)insertText:(id)aString replacementRange:(NSRange)replacementRange
 {
-  if (mIsPluginView && mPluginEventModel == NPEventModelCocoa)
-    return [[ComplexTextInputPanel sharedComplexTextInputPanel] inputContext];
-  else
-    return [super inputContext];
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  NS_ENSURE_TRUE_VOID(mGoannaChild);
+
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
+
+  NSAttributedString* attrStr;
+  if ([aString isKindOfClass:[NSAttributedString class]]) {
+    attrStr = static_cast<NSAttributedString*>(aString);
+  } else {
+    attrStr = [[[NSAttributedString alloc] initWithString:aString] autorelease];
+  }
+
+  mTextInputHandler->InsertText(attrStr, &replacementRange);
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
 }
-#endif
+
+- (void)setMarkedText:(id)aString selectedRange:(NSRange)selectedRange
+                               replacementRange:(NSRange)replacementRange
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
+
+  NS_ENSURE_TRUE_VOID(mTextInputHandler);
+
+  nsAutoRetainCocoaObject kungFuDeathGrip(self);
+
+  NSAttributedString* attrStr;
+  if ([aString isKindOfClass:[NSAttributedString class]]) {
+    attrStr = static_cast<NSAttributedString*>(aString);
+  } else {
+    attrStr = [[[NSAttributedString alloc] initWithString:aString] autorelease];
+  }
+
+  mTextInputHandler->SetMarkedText(attrStr, selectedRange, &replacementRange);
+
+  NS_OBJC_END_TRY_ABORT_BLOCK;
+}
+
+- (NSAttributedString*)attributedSubstringForProposedRange:(NSRange)aRange
+                                        actualRange:(NSRangePointer)actualRange
+{
+  NS_ENSURE_TRUE(mTextInputHandler, nil);
+  return mTextInputHandler->GetAttributedSubstringFromRange(aRange,
+                                                            actualRange);
+}
+
+- (NSRect)firstRectForCharacterRange:(NSRange)aRange
+                         actualRange:(NSRangePointer)actualRange
+{
+  NS_ENSURE_TRUE(mTextInputHandler, NSMakeRect(0.0, 0.0, 0.0, 0.0));
+  return mTextInputHandler->FirstRectForCharacterRange(aRange, actualRange);
+}
+
+- (NSInteger)windowLevel
+{
+  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
+
+  NS_ENSURE_TRUE(mTextInputHandler, [[self window] level]);
+  return mTextInputHandler->GetWindowLevel();
+
+  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(NSNormalWindowLevel);
+}
+
+#pragma mark -
 
 // This is a private API that Cocoa uses.
 // Cocoa will call this after the menu system returns "NO" for "performKeyEquivalent:".
@@ -4848,22 +5345,45 @@ static int32_t RoundUp(double aDouble)
   return YES;
 }
 
+- (NSEvent*)lastKeyDownEvent
+{
+  return mLastKeyDownEvent;
+}
+
 - (void)keyDown:(NSEvent*)theEvent
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
+  [mLastKeyDownEvent release];
+  mLastKeyDownEvent = [theEvent retain];
+
+  // Weird things can happen on keyboard input if the key window isn't in the
+  // current space.  For example see bug 1056251.  To get around this, always
+  // make sure that, if our window is key, it's also made frontmost.  Doing
+  // this automatically switches to whatever space our window is in.  Safari
+  // does something similar.  Our window should normally always be key --
+  // otherwise why is the OS sending us a key down event?  But it's just
+  // possible we're in Goanna's hidden window, so we check first.
+  NSWindow *viewWindow = [self window];
+  if (viewWindow && [viewWindow isKeyWindow]) {
+    [viewWindow orderWindow:NSWindowAbove relativeTo:0];
+  }
+
 #if !defined(RELEASE_BUILD) || defined(DEBUG)
-  if (mGoannaChild &&
-      mGoannaChild->GetInputContext().IsPasswordEditor() !=
-        TextInputHandler::IsSecureEventInputEnabled()) {
-    MOZ_NOT_REACHED("in wrong secure input mode");
+  if (mGoannaChild && mTextInputHandler && mTextInputHandler->IsFocused()) {
+    if (mGoannaChild->GetInputContext().IsPasswordEditor() &&
+               !TextInputHandler::IsSecureEventInputEnabled()) {
+      #define CRASH_MESSAGE "A password editor has focus, but not in secure input mode"
+      MOZ_CRASH(CRASH_MESSAGE);
+      #undef CRASH_MESSAGE
+    } else if (!mGoannaChild->GetInputContext().IsPasswordEditor() &&
+               TextInputHandler::IsSecureEventInputEnabled()) {
+      #define CRASH_MESSAGE "A non-password editor has focus, but in secure input mode"
+      MOZ_CRASH(CRASH_MESSAGE);
+      #undef CRASH_MESSAGE
+    }
   }
 #endif // #if !defined(RELEASE_BUILD) || defined(DEBUG)
-
-  if (mGoannaChild && mTextInputHandler && mIsPluginView) {
-    mTextInputHandler->HandleKeyDownEventForPlugin(theEvent);
-    return;
-  }
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
   bool handled = false;
@@ -4887,11 +5407,6 @@ static int32_t RoundUp(double aDouble)
   NS_ENSURE_TRUE(mGoannaChild, );
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
-
-  if (mIsPluginView) {
-    mTextInputHandler->HandleKeyUpEventForPlugin(theEvent);
-    return;
-  }
 
   mTextInputHandler->HandleKeyUpEvent(theEvent);
 
@@ -4936,31 +5451,10 @@ static int32_t RoundUp(double aDouble)
   if (!mGoannaChild)
     return YES;
 
-  nsMouseEvent goannaEvent(true, NS_MOUSE_ACTIVATE, mGoannaChild, nsMouseEvent::eReal);
+  WidgetMouseEvent goannaEvent(true, NS_MOUSE_ACTIVATE, mGoannaChild,
+                              WidgetMouseEvent::eReal);
   [self convertCocoaMouseEvent:aEvent toGoannaEvent:&goannaEvent];
   return !mGoannaChild->DispatchWindowEvent(goannaEvent);
-}
-
-// Returns NO if the plugin shouldn't be focused/unfocused.
-- (BOOL)updatePluginFocusStatus:(BOOL)getFocus
-{
-  if (!mGoannaChild)
-    return NO;
-
-  if (mPluginEventModel == NPEventModelCocoa) {
-    nsPluginEvent pluginEvent(true, NS_PLUGIN_FOCUS_EVENT, mGoannaChild);
-    NPCocoaEvent cocoaEvent;
-    nsCocoaUtils::InitNPCocoaEvent(&cocoaEvent);
-    cocoaEvent.type = NPCocoaEventFocusChanged;
-    cocoaEvent.data.focus.hasFocus = getFocus;
-    nsCocoaUtils::InitPluginEvent(pluginEvent, cocoaEvent);
-    mGoannaChild->DispatchWindowEvent(pluginEvent);
-
-    if (getFocus)
-      [self sendFocusEvent:NS_PLUGIN_FOCUS];
-  }
-
-  return YES;
 }
 
 // We must always call through to our superclass, even when mGoannaChild is
@@ -4969,28 +5463,7 @@ static int32_t RoundUp(double aDouble)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
-  if (mIsPluginView) {
-    if (![self updatePluginFocusStatus:YES])
-      return NO;
-  }
-
   return [super becomeFirstResponder];
-
-  NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(YES);
-}
-
-// We must always call through to our superclass, even when mGoannaChild is
-// nil -- otherwise the keyboard focus can end up in the wrong NSView.
-- (BOOL)resignFirstResponder
-{
-  NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
-
-  if (mIsPluginView) {
-    if (![self updatePluginFocusStatus:NO])
-      return NO;
-  }
-
-  return [super resignFirstResponder];
 
   NS_OBJC_END_TRY_ABORT_BLOCK_RETURN(YES);
 }
@@ -5071,6 +5544,21 @@ static int32_t RoundUp(double aDouble)
   return NSDragOperationNone;
 }
 
+- (nsIntPoint)convertWindowCoordinates:(NSPoint)aPoint
+{
+  if (!mGoannaChild) {
+    return nsIntPoint(0, 0);
+  }
+
+  NSPoint localPoint = [self convertPoint:aPoint fromView:nil];
+  return mGoannaChild->CocoaPointsToDevPixels(localPoint);
+}
+
+- (APZCTreeManager*)apzctm
+{
+  return mGoannaChild ? mGoannaChild->APZCTM() : nullptr;
+}
+
 // This is a utility function used by NSView drag event methods
 // to send events. It contains all of the logic needed for Goanna
 // dragging to work. Returns the appropriate cocoa drag operation code.
@@ -5117,7 +5605,7 @@ static int32_t RoundUp(double aDouble)
         return NSDragOperationNone;
       }
     }
-    
+
     unsigned int modifierFlags = [[NSApp currentEvent] modifierFlags];
     uint32_t action = nsIDragService::DRAGDROP_ACTION_MOVE;
     // force copy = option, alias = cmd-option, default is move
@@ -5131,15 +5619,15 @@ static int32_t RoundUp(double aDouble)
   }
 
   // set up goanna event
-  nsDragEvent goannaEvent(true, aMessage, mGoannaChild);
+  WidgetDragEvent goannaEvent(true, aMessage, mGoannaChild);
   nsCocoaUtils::InitInputEvent(goannaEvent, [NSApp currentEvent]);
 
   // Use our own coordinates in the goanna event.
   // Convert event from goanna global coords to goanna view coords.
   NSPoint draggingLoc = [aSender draggingLocation];
-  NSPoint localPoint = [self convertPoint:draggingLoc fromView:nil];
 
-  goannaEvent.refPoint = mGoannaChild->CocoaPointsToDevPixels(localPoint);
+  goannaEvent.refPoint = LayoutDeviceIntPoint::FromUntyped(
+    [self convertWindowCoordinates:draggingLoc]);
 
   nsAutoRetainCocoaObject kungFuDeathGrip(self);
   mGoannaChild->DispatchWindowEvent(goannaEvent);
@@ -5176,7 +5664,7 @@ static int32_t RoundUp(double aDouble)
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_RETURN;
 
   PR_LOG(sCocoaLog, PR_LOG_ALWAYS, ("ChildView draggingEntered: entered\n"));
-  
+
   // there should never be a globalDragPboard when "draggingEntered:" is
   // called, but just in case we'll take care of it here.
   [globalDragPboard release];
@@ -5255,12 +5743,12 @@ static int32_t RoundUp(double aDouble)
     FlipCocoaScreenCoordinate(pnt);
     dragService->SetDragEndPoint(nsIntPoint(NSToIntRound(pnt.x), NSToIntRound(pnt.y)));
 
-    // XXX: dropEffect should be updated per |operation|. 
+    // XXX: dropEffect should be updated per |operation|.
     // As things stand though, |operation| isn't well handled within "our"
     // events, that is, when the drop happens within the window: it is set
     // either to NSDragOperationGeneric or to NSDragOperationNone.
     // For that reason, it's not yet possible to override dropEffect per the
-    // given OS value, and it's also unclear what's the correct dropEffect 
+    // given OS value, and it's also unclear what's the correct dropEffect
     // value for NSDragOperationGeneric that is passed by other applications.
     // All that said, NSDragOperationNone is still reliable.
     if (operation == NSDragOperationNone) {
@@ -5330,17 +5818,16 @@ static int32_t RoundUp(double aDouble)
       NS_ERROR("no transferable");
       return nil;
     }
-    item->Init(nullptr);
 
     item->SetTransferData(kFilePromiseDirectoryMime, macLocalFile, sizeof(nsIFile*));
-    
+
     // now request the kFilePromiseMime data, which will invoke the data provider
     // If successful, the returned data is a reference to the resulting file.
     nsCOMPtr<nsISupports> fileDataPrimitive;
     uint32_t dataSize = 0;
     item->GetTransferData(kFilePromiseMime, getter_AddRefs(fileDataPrimitive), &dataSize);
   }
-  
+
   NSPasteboard* generalPboard = [NSPasteboard pasteboardWithName:NSDragPboard];
   NSData* data = [generalPboard dataForType:@"application/x-moz-file-promise-dest-filename"];
   NSString* name = [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding];
@@ -5387,10 +5874,11 @@ static int32_t RoundUp(double aDouble)
 
       // Keep the ChildView alive during this operation.
       nsAutoRetainCocoaObject kungFuDeathGrip(self);
-      
+
       // Determine if there is a selection (if sending to the service).
       if (sendType) {
-        nsQueryContentEvent event(true, NS_QUERY_CONTENT_STATE, mGoannaChild);
+        WidgetQueryContentEvent event(true, NS_QUERY_CONTENT_STATE,
+                                      mGoannaChild);
         // This might destroy our widget (and null out mGoannaChild).
         mGoannaChild->DispatchWindowEvent(event);
         if (!mGoannaChild || !event.mSucceeded || !event.mReply.mHasSelection)
@@ -5399,7 +5887,9 @@ static int32_t RoundUp(double aDouble)
 
       // Determine if we can paste (if receiving data from the service).
       if (mGoannaChild && returnType) {
-        nsContentCommandEvent command(true, NS_CONTENT_COMMAND_PASTE_TRANSFERABLE, mGoannaChild, true);
+        WidgetContentCommandEvent command(true,
+                                          NS_CONTENT_COMMAND_PASTE_TRANSFERABLE,
+                                          mGoannaChild, true);
         // This might possibly destroy our widget (and null out mGoannaChild).
         mGoannaChild->DispatchWindowEvent(command);
         if (!mGoannaChild || !command.mSucceeded || !command.mIsEnabled)
@@ -5436,9 +5926,9 @@ static int32_t RoundUp(double aDouble)
     return NO;
 
   // Obtain the current selection.
-  nsQueryContentEvent event(true,
-                            NS_QUERY_SELECTION_AS_TRANSFERABLE,
-                            mGoannaChild);
+  WidgetQueryContentEvent event(true,
+                                NS_QUERY_SELECTION_AS_TRANSFERABLE,
+                                mGoannaChild);
   mGoannaChild->DispatchWindowEvent(event);
   if (!event.mSucceeded || !event.mReply.mTransferable)
     return NO;
@@ -5469,7 +5959,7 @@ static int32_t RoundUp(double aDouble)
     } else if (currentKey == NSTIFFPboardType) {
       [pboard setData:currentValue forType:currentKey];
     } else if (currentKey == NSFilesPromisePboardType) {
-      [pboard setPropertyList:currentValue forType:currentKey];        
+      [pboard setPropertyList:currentValue forType:currentKey];
     }
   }
 
@@ -5496,12 +5986,12 @@ static int32_t RoundUp(double aDouble)
 
   NS_ENSURE_TRUE(mGoannaChild, false);
 
-  nsContentCommandEvent command(true,
-                                NS_CONTENT_COMMAND_PASTE_TRANSFERABLE,
-                                mGoannaChild);
+  WidgetContentCommandEvent command(true,
+                                    NS_CONTENT_COMMAND_PASTE_TRANSFERABLE,
+                                    mGoannaChild);
   command.mTransferable = trans;
   mGoannaChild->DispatchWindowEvent(command);
-  
+
   return command.mSucceeded && command.mIsEnabled;
 }
 
@@ -5698,17 +6188,18 @@ ChildViewMouseTracker::MouseExitedWindow(NSEvent* aEvent)
 }
 
 void
-ChildViewMouseTracker::ReEvaluateMouseEnterState(NSEvent* aEvent)
+ChildViewMouseTracker::ReEvaluateMouseEnterState(NSEvent* aEvent, ChildView* aOldView)
 {
-  ChildView* oldView = sLastMouseEventView;
+  ChildView* oldView = aOldView ? aOldView : sLastMouseEventView;
   sLastMouseEventView = ViewForEvent(aEvent);
   if (sLastMouseEventView != oldView) {
     // Send enter and / or exit events.
-    nsMouseEvent::exitType type = [sLastMouseEventView window] == [oldView window] ?
-                                    nsMouseEvent::eChild : nsMouseEvent::eTopLevel;
+    WidgetMouseEvent::exitType type =
+      [sLastMouseEventView window] == [oldView window] ?
+        WidgetMouseEvent::eChild : WidgetMouseEvent::eTopLevel;
     [oldView sendMouseEnterOrExitEvent:aEvent enter:NO type:type];
     // After the cursor exits the window set it to a visible regular arrow cursor.
-    if (type == nsMouseEvent::eTopLevel) {
+    if (type == WidgetMouseEvent::eTopLevel) {
       [[nsCursorManager sharedInstance] setCursor:eCursor_standard];
     }
     [sLastMouseEventView sendMouseEnterOrExitEvent:aEvent enter:YES type:type];
@@ -5780,12 +6271,9 @@ ChildViewMouseTracker::WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent,
   if (!windowWidget)
     return YES;
 
-  nsWindowType windowType;
-  windowWidget->GetWindowType(windowType);
-
   NSWindow* topLevelWindow = nil;
 
-  switch (windowType) {
+  switch (windowWidget->WindowType()) {
     case eWindowType_popup:
       // If this is a context menu, it won't have a parent. So we'll always
       // accept mouse move events on context menus even when none of our windows
@@ -5826,6 +6314,106 @@ ChildViewMouseTracker::WindowAcceptsEvent(NSWindow* aWindow, NSEvent* aEvent,
 }
 
 #pragma mark -
+
+@interface EventThreadRunner(Private)
+- (void)runEventThread;
+- (void)shutdownAndReleaseCalledOnEventThread;
+- (void)shutdownAndReleaseCalledOnAnyThread;
+- (void)handleEvent:(CGEventRef)cgEvent type:(CGEventType)type;
+@end
+
+static EventThreadRunner* sEventThreadRunner = nil;
+
+@implementation EventThreadRunner
+
++ (void)start
+{
+  sEventThreadRunner = [[EventThreadRunner alloc] init];
+}
+
++ (void)stop
+{
+  if (sEventThreadRunner) {
+    [sEventThreadRunner shutdownAndReleaseCalledOnAnyThread];
+    sEventThreadRunner = nil;
+  }
+}
+
+- (id)init
+{
+  if ((self = [super init])) {
+    mThread = nil;
+    [NSThread detachNewThreadSelector:@selector(runEventThread)
+                             toTarget:self
+                           withObject:nil];
+  }
+  return self;
+}
+
+static CGEventRef
+HandleEvent(CGEventTapProxy aProxy, CGEventType aType,
+            CGEventRef aEvent, void* aClosure)
+{
+  [(EventThreadRunner*)aClosure handleEvent:aEvent type:aType];
+  return aEvent;
+}
+
+- (void)runEventThread
+{
+  char aLocal;
+  profiler_register_thread("APZC Event Thread", &aLocal);
+  PR_SetCurrentThreadName("APZC Event Thread");
+
+  mThread = [NSThread currentThread];
+  ProcessSerialNumber currentProcess;
+  GetCurrentProcess(&currentProcess);
+  CFMachPortRef eventPort =
+    CGEventTapCreateForPSN(&currentProcess,
+                           kCGHeadInsertEventTap,
+                           kCGEventTapOptionListenOnly,
+                           CGEventMaskBit(kCGEventScrollWheel),
+                           HandleEvent,
+                           self);
+  CFRunLoopSourceRef eventPortSource =
+    CFMachPortCreateRunLoopSource(kCFAllocatorSystemDefault, eventPort, 0);
+  CFRunLoopAddSource(CFRunLoopGetCurrent(), eventPortSource, kCFRunLoopCommonModes);
+  CFRunLoopRun();
+  CFRunLoopRemoveSource(CFRunLoopGetCurrent(), eventPortSource, kCFRunLoopCommonModes);
+  CFRelease(eventPortSource);
+  CFRelease(eventPort);
+  [self release];
+}
+
+- (void)shutdownAndReleaseCalledOnEventThread
+{
+  CFRunLoopStop(CFRunLoopGetCurrent());
+}
+
+- (void)shutdownAndReleaseCalledOnAnyThread
+{
+  [self performSelector:@selector(shutdownAndReleaseCalledOnEventThread) onThread:mThread withObject:nil waitUntilDone:NO];
+}
+
+static const CGEventField kCGWindowNumberField = (const CGEventField) 51;
+
+// Called on scroll thread
+- (void)handleEvent:(CGEventRef)cgEvent type:(CGEventType)type
+{
+  if (type != kCGEventScrollWheel) {
+    return;
+  }
+
+  int windowNumber = CGEventGetIntegerValueField(cgEvent, kCGWindowNumberField);
+  NSWindow* window = [NSApp windowWithWindowNumber:windowNumber];
+  if (!window || ![window isKindOfClass:[BaseWindow class]]) {
+    return;
+  }
+
+  ChildView* childView = [(BaseWindow*)window mainChildView];
+  [childView handleAsyncScrollEvent:cgEvent ofType:type];
+}
+
+@end
 
 @interface NSView (MethodSwizzling)
 - (BOOL)nsChildView_NSView_mouseDownCanMoveWindow;

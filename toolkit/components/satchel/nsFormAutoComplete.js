@@ -10,6 +10,8 @@ const Cr = Components.results;
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "BrowserUtils",
+                                  "resource://gre/modules/BrowserUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Deprecated",
                                   "resource://gre/modules/Deprecated.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
@@ -19,6 +21,11 @@ function FormAutoComplete() {
     this.init();
 }
 
+/**
+ * FormAutoComplete
+ *
+ * Implements the nsIFormAutoComplete interface in the main process.
+ */
 FormAutoComplete.prototype = {
     classID          : Components.ID("{c11c21b2-71c9-4f87-a0f8-5e13f50495fd}"),
     QueryInterface   : XPCOMUtils.generateQI([Ci.nsIFormAutoComplete, Ci.nsISupportsWeakReference]),
@@ -267,14 +274,20 @@ FormAutoComplete.prototype = {
             this.log("getAutocompleteValues failed: " + aError.message);
           },
           handleCompletion: aReason => {
-            this._pendingQuery = null;
-            if (!aReason) {
-              callback(results);
+            // Check that the current query is still the one we created. Our
+            // query might have been canceled shortly before completing, in
+            // that case we don't want to call the callback anymore.
+            if (query == this._pendingQuery) {
+              this._pendingQuery = null;
+              if (!aReason) {
+                callback(results);
+              }
             }
           }
         };
 
-        this._pendingQuery = FormHistory.getAutoCompleteResults(searchString, params, processResults);
+        let query = FormHistory.getAutoCompleteResults(searchString, params, processResults);
+        this._pendingQuery = query;
     },
 
     /*
@@ -304,8 +317,112 @@ FormAutoComplete.prototype = {
 
 }; // end of FormAutoComplete implementation
 
+/**
+ * FormAutoCompleteChild
+ *
+ * Implements the nsIFormAutoComplete interface in a child content process,
+ * and forwards the auto-complete requests to the parent process which
+ * also implements a nsIFormAutoComplete interface and has
+ * direct access to the FormHistory database.
+ */
+function FormAutoCompleteChild() {
+  this.init();
+}
 
+FormAutoCompleteChild.prototype = {
+    classID          : Components.ID("{c11c21b2-71c9-4f87-a0f8-5e13f50495fd}"),
+    QueryInterface   : XPCOMUtils.generateQI([Ci.nsIFormAutoComplete, Ci.nsISupportsWeakReference]),
 
+    _debug: false,
+    _enabled: true,
+    _pendingSearch: null,
+
+    /*
+     * init
+     *
+     * Initializes the content-process side of the FormAutoComplete component,
+     * and add a listener for the message that the parent process sends when
+     * a result is produced.
+     */
+    init: function() {
+      this._debug    = Services.prefs.getBoolPref("browser.formfill.debug");
+      this._enabled  = Services.prefs.getBoolPref("browser.formfill.enable");
+      this.log("init");
+    },
+
+    /*
+     * log
+     *
+     * Internal function for logging debug messages
+     */
+    log : function (message) {
+      if (!this._debug)
+        return;
+      dump("FormAutoCompleteChild: " + message + "\n");
+    },
+
+    autoCompleteSearch : function (aInputName, aUntrimmedSearchString, aField, aPreviousResult) {
+      // This function is deprecated
+    },
+
+    autoCompleteSearchAsync : function (aInputName, aUntrimmedSearchString, aField, aPreviousResult, aListener) {
+      this.log("autoCompleteSearchAsync");
+
+      if (this._pendingSearch) {
+        this.stopAutoCompleteSearch();
+      }
+
+      let rect = BrowserUtils.getElementBoundingScreenRect(aField);
+
+      let window = aField.ownerDocument.defaultView;
+      let topLevelDocshell = window.QueryInterface(Ci.nsIInterfaceRequestor)
+                                   .getInterface(Ci.nsIDocShell)
+                                   .sameTypeRootTreeItem
+                                   .QueryInterface(Ci.nsIDocShell);
+
+      let mm = topLevelDocshell.QueryInterface(Ci.nsIInterfaceRequestor)
+                               .getInterface(Ci.nsIContentFrameMessageManager);
+
+      mm.sendAsyncMessage("FormHistory:AutoCompleteSearchAsync", {
+        inputName: aInputName,
+        untrimmedSearchString: aUntrimmedSearchString,
+        left: rect.left,
+        top: rect.top,
+        width: rect.width,
+        height: rect.height
+      });
+
+      let search = this._pendingSearch = {};
+      let searchFinished = message => {
+        mm.removeMessageListener("FormAutoComplete:AutoCompleteSearchAsyncResult", searchFinished);
+
+        // Check whether stopAutoCompleteSearch() was called, i.e. the search
+        // was cancelled, while waiting for a result.
+        if (search != this._pendingSearch) {
+          return;
+        }
+        this._pendingSearch = null;
+
+        let result = new FormAutoCompleteResult(
+          null,
+          [for (res of message.data.results) {text: res}],
+          null,
+          null
+        );
+        if (aListener) {
+          aListener.onSearchCompletion(result);
+        }
+      }
+
+      mm.addMessageListener("FormAutoComplete:AutoCompleteSearchAsyncResult", searchFinished);
+      this.log("autoCompleteSearchAsync message was sent");
+    },
+
+    stopAutoCompleteSearch : function () {
+      this.log("stopAutoCompleteSearch");
+      this._pendingSearch = null;
+    },
+}; // end of FormAutoCompleteChild implementation
 
 // nsIAutoCompleteResult implementation
 function FormAutoCompleteResult (formHistory, entries, fieldName, searchString) {
@@ -339,7 +456,7 @@ FormAutoCompleteResult.prototype = {
     searchString : null,
     errorDescription : "",
     get defaultIndex() {
-        if (entries.length == 0)
+        if (this.entries.length == 0)
             return -1;
         else
             return 0;
@@ -377,6 +494,10 @@ FormAutoCompleteResult.prototype = {
         return "";
     },
 
+    getFinalCompleteValueAt : function (index) {
+        return this.getValueAt(index);
+    },
+
     removeValueAt : function (index, removeFromDB) {
         this._checkIndexBounds(index);
 
@@ -390,5 +511,14 @@ FormAutoCompleteResult.prototype = {
     }
 };
 
-let component = [FormAutoComplete];
-this.NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+
+if (Services.appinfo.processType == Services.appinfo.PROCESS_TYPE_CONTENT &&
+    Services.prefs.getBoolPref("browser.tabs.remote.desktopbehavior", false)) {
+  // Register the stub FormAutoComplete module in the child which will
+  // forward messages to the parent through the process message manager.
+  let component = [FormAutoCompleteChild];
+  this.NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+} else {
+  let component = [FormAutoComplete];
+  this.NSGetFactory = XPCOMUtils.generateNSGetFactory(component);
+}

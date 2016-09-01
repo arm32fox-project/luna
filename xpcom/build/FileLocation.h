@@ -9,7 +9,6 @@
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
 #include "nsIFile.h"
-#include "nsIURI.h"
 #include "FileUtils.h"
 
 class nsZipArchive;
@@ -31,63 +30,40 @@ public:
    * When the archive is in an archive, an nsZipArchive is stored instead
    * of a file path.
    */
-  FileLocation() { }
+  FileLocation();
+  ~FileLocation();
 
   /**
    * Constructor for plain files
    */
-  FileLocation(nsIFile *file)
-  {
-    Init(file);
-  }
+  explicit FileLocation(nsIFile* aFile);
 
   /**
    * Constructors for path within an archive. The archive can be given either
    * as nsIFile or nsZipArchive.
    */
-  FileLocation(nsIFile *zip, const char *path)
-  {
-    Init(zip, path);
-  }
+  FileLocation(nsIFile* aZip, const char* aPath);
 
-  FileLocation(nsZipArchive *zip, const char *path)
-  {
-    Init(zip, path);
-  }
+  FileLocation(nsZipArchive* aZip, const char* aPath);
 
   /**
    * Creates a new file location relative to another one.
    */
-  FileLocation(const FileLocation &file, const char *path = NULL);
+  FileLocation(const FileLocation& aFile, const char* aPath = nullptr);
 
   /**
    * Initialization functions corresponding to constructors
    */
-  void Init(nsIFile *file)
-  {
-    mBaseZip = NULL;
-    mBaseFile = file;
-    mPath.Truncate();
-  }
+  void Init(nsIFile* aFile);
 
-  void Init(nsIFile *zip, const char *path)
-  {
-    mBaseZip = NULL;
-    mBaseFile = zip;
-    mPath = path;
-  }
+  void Init(nsIFile* aZip, const char* aPath);
 
-  void Init(nsZipArchive *zip, const char *path)
-  {
-    mBaseZip = zip;
-    mBaseFile = NULL;
-    mPath = path;
-  }
+  void Init(nsZipArchive* aZip, const char* aPath);
 
   /**
    * Returns an URI string corresponding to the file location
    */
-  void GetURIString(nsACString &result) const;
+  void GetURIString(nsACString& aResult) const;
 
   /**
    * Returns the base file of the location, where base file is defined as:
@@ -100,32 +76,23 @@ public:
   /**
    * Returns whether the "base file" (see GetBaseFile) is an archive
    */
-  bool IsZip() const
-  {
-    return !mPath.IsEmpty();
-  }
+  bool IsZip() const { return !mPath.IsEmpty(); }
 
   /**
    * Returns the path within the archive, when within an archive
    */
-  void GetPath(nsACString &result) const
-  {
-    result = mPath;
-  }
+  void GetPath(nsACString& aResult) const { aResult = mPath; }
 
   /**
    * Boolean value corresponding to whether the file location is initialized
    * or not.
    */
-  operator bool() const
-  {
-    return mBaseFile || mBaseZip;
-  }
+  operator bool() const { return mBaseFile || mBaseZip; }
 
   /**
    * Returns whether another FileLocation points to the same resource
    */
-  bool Equals(const FileLocation &file) const;
+  bool Equals(const FileLocation& aFile) const;
 
   /**
    * Data associated with a FileLocation.
@@ -136,15 +103,15 @@ public:
     /**
      * Returns the data size
      */
-    nsresult GetSize(uint32_t *result);
+    nsresult GetSize(uint32_t* aResult);
 
     /**
      * Copies the data in the given buffer
      */
-    nsresult Copy(char *buf, uint32_t len);
+    nsresult Copy(char* aBuf, uint32_t aLen);
   protected:
     friend class FileLocation;
-    nsZipItem *mItem;
+    nsZipItem* mItem;
     nsRefPtr<nsZipArchive> mZip;
     mozilla::AutoFDClose mFd;
   };
@@ -153,7 +120,7 @@ public:
    * Returns the data associated with the resource pointed at by the file
    * location.
    */
-  nsresult GetData(Data &data);
+  nsresult GetData(Data& aData);
 private:
   nsCOMPtr<nsIFile> mBaseFile;
   nsRefPtr<nsZipArchive> mBaseZip;

@@ -3,15 +3,17 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
-interface BluetoothDevice;
 
-[Constructor(DOMString type, optional BluetoothDeviceEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
+[CheckPermissions="bluetooth",
+ Constructor(DOMString type, optional BluetoothDeviceEventInit eventInitDict)]
 interface BluetoothDeviceEvent : Event
 {
   readonly attribute BluetoothDevice? device;
+  readonly attribute DOMString?       address;
 };
 
 dictionary BluetoothDeviceEventInit : EventInit
 {
   BluetoothDevice? device = null;
+  DOMString?       address = "";
 };

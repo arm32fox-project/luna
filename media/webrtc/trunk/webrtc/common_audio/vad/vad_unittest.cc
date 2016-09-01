@@ -8,15 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "vad_unittest.h"
+#include "webrtc/common_audio/vad/vad_unittest.h"
 
 #include <stdlib.h>
 
-#include "gtest/gtest.h"
+#include "testing/gtest/include/gtest/gtest.h"
 
-#include "common_audio/signal_processing/include/signal_processing_library.h"
-#include "common_audio/vad/include/webrtc_vad.h"
-#include "typedefs.h"
+#include "webrtc/common_audio/signal_processing/include/signal_processing_library.h"
+#include "webrtc/common_audio/vad/include/webrtc_vad.h"
+#include "webrtc/typedefs.h"
 
 VadTest::VadTest() {}
 
@@ -70,7 +70,6 @@ TEST_F(VadTest, ApiTest) {
   // NULL instance tests
   EXPECT_EQ(-1, WebRtcVad_Create(NULL));
   EXPECT_EQ(-1, WebRtcVad_Init(NULL));
-  EXPECT_EQ(-1, WebRtcVad_Free(NULL));
   EXPECT_EQ(-1, WebRtcVad_set_mode(NULL, kModes[0]));
   EXPECT_EQ(-1, WebRtcVad_Process(NULL, kRates[0], speech, kFrameLengths[0]));
 
@@ -121,7 +120,7 @@ TEST_F(VadTest, ApiTest) {
     }
   }
 
-  EXPECT_EQ(0, WebRtcVad_Free(handle));
+  WebRtcVad_Free(handle);
 }
 
 TEST_F(VadTest, ValidRatesFrameLengths) {

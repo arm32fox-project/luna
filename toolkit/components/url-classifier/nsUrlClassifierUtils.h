@@ -11,7 +11,7 @@
 #include "nsDataHashtable.h"
 #include "mozilla/Attributes.h"
 
-class nsUrlClassifierUtils MOZ_FINAL : public nsIUrlClassifierUtils
+class nsUrlClassifierUtils final : public nsIUrlClassifierUtils
 {
 private:
   /**
@@ -46,7 +46,6 @@ private:
 
 public:
   nsUrlClassifierUtils();
-  ~nsUrlClassifierUtils() {}
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIURLCLASSIFIERUTILS
@@ -73,15 +72,9 @@ public:
                     bool allowOctal,
                     nsACString & _retval);
 
-  // Convert an urlsafe base64 string to a normal base64 string.
-  // This method will leave an already-normal base64 string alone.
-  static void UnUrlsafeBase64(nsACString & str);
-
-  // Takes an urlsafe-base64 encoded client key and gives back binary
-  // key data
-  static nsresult DecodeClientKey(const nsACString & clientKey,
-                                  nsACString & _retval);
 private:
+  ~nsUrlClassifierUtils() {}
+
   // Disallow copy constructor
   nsUrlClassifierUtils(const nsUrlClassifierUtils&);
 

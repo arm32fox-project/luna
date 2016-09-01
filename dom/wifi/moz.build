@@ -5,24 +5,38 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 XPIDL_SOURCES += [
-    'nsIDOMMozWifiConnectionInfoEvent.idl',
-    'nsIDOMMozWifiStatusChangeEvent.idl',
     'nsIWifi.idl',
+    'nsIWifiCertService.idl',
+    'nsIWifiService.idl',
 ]
 
 XPIDL_MODULE = 'dom_wifi'
 
-XPIDL_FLAGS += [
-    '-I$(topsrcdir)/dom/base',
-    '-I$(topsrcdir)/dom/interfaces/base',
-    '-I$(topsrcdir)/dom/interfaces/events',
-    '-I$(topsrcdir)/dom/system/gonk',
+EXTRA_COMPONENTS += [
+    'DOMWifiManager.js',
+    'DOMWifiManager.manifest',
+    'DOMWifiP2pManager.js',
+    'DOMWifiP2pManager.manifest',
+    'WifiWorker.js',
+    'WifiWorker.manifest',
 ]
-
-MODULE = 'dom'
 
 EXTRA_JS_MODULES += [
-    'libhardware_legacy.js',
-    'wifi_worker.js',
+    'StateMachine.jsm',
+    'WifiCommand.jsm',
+    'WifiNetUtil.jsm',
+    'WifiP2pManager.jsm',
+    'WifiP2pWorkerObserver.jsm',
 ]
 
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
+    UNIFIED_SOURCES = [
+        'WifiCertService.cpp',
+        'WifiHotspotUtils.cpp',
+        'WifiProxyService.cpp',
+        'WifiUtils.cpp',
+    ]
+
+FINAL_LIBRARY = 'xul'
+
+FAIL_ON_WARNINGS = True

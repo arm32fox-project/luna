@@ -1,12 +1,11 @@
-/* -*- Mode: C++; tab-width: 3; indent-tabs-mode: nil; c-basic-offset: 2 -*-
- *
- * This Source Code Form is subject to the terms of the Mozilla Public
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
+/* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #ifndef nsDocShellLoadInfo_h__
 #define nsDocShellLoadInfo_h__
-
 
 // Helper Classes
 #include "nsCOMPtr.h"
@@ -14,34 +13,42 @@
 
 // Interfaces Needed
 #include "nsIDocShellLoadInfo.h"
-#include "nsIURI.h"
-#include "nsIInputStream.h"
-#include "nsISHEntry.h"
 
-class nsDocShellLoadInfo : public nsIDocShellLoadInfo
+class nsIInputStream;
+class nsISHEntry;
+class nsIURI;
+class nsIDocShell;
+
+class nsDocShellLoadInfo : public nsIDocShellLoadInfo_ESR38
 {
 public:
   nsDocShellLoadInfo();
 
   NS_DECL_ISUPPORTS
+  NS_DECL_NSIDOCSHELLLOADINFO_ESR38
   NS_DECL_NSIDOCSHELLLOADINFO
 
 protected:
   virtual ~nsDocShellLoadInfo();
 
 protected:
-  nsCOMPtr<nsIURI>                 mReferrer;
-  nsCOMPtr<nsISupports>            mOwner;
-  bool                             mInheritOwner;
-  bool                             mOwnerIsExplicit;
-  bool                             mSendReferrer;
-  nsDocShellInfoLoadType           mLoadType;
-  nsCOMPtr<nsISHEntry>             mSHEntry;
-  nsString                         mTarget;
-  nsCOMPtr<nsIInputStream>         mPostDataStream;
-  nsCOMPtr<nsIInputStream>         mHeadersStream;
-  bool                             mIsSrcdocLoad;
-  nsString                         mSrcdocData;
+  nsCOMPtr<nsIURI> mReferrer;
+  nsCOMPtr<nsIURI> mOriginalURI;
+  bool mLoadReplace;
+  nsCOMPtr<nsISupports> mOwner;
+  bool mInheritOwner;
+  bool mOwnerIsExplicit;
+  bool mSendReferrer;
+  nsDocShellInfoReferrerPolicy mReferrerPolicy;
+  nsDocShellInfoLoadType mLoadType;
+  nsCOMPtr<nsISHEntry> mSHEntry;
+  nsString mTarget;
+  nsCOMPtr<nsIInputStream> mPostDataStream;
+  nsCOMPtr<nsIInputStream> mHeadersStream;
+  bool mIsSrcdocLoad;
+  nsString mSrcdocData;
+  nsCOMPtr<nsIDocShell> mSourceDocShell;
+  nsCOMPtr<nsIURI> mBaseURI;
 };
 
 #endif /* nsDocShellLoadInfo_h__ */

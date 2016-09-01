@@ -8,21 +8,68 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/video_coding/main/source/codec_database.h"
+#include "webrtc/modules/video_coding/main/source/codec_database.h"
 
 #include <assert.h>
 
-#include "engine_configurations.h"
+#include "webrtc/engine_configurations.h"
 #ifdef VIDEOCODEC_I420
-#include "modules/video_coding/codecs/i420/main/interface/i420.h"
+#include "webrtc/modules/video_coding/codecs/i420/main/interface/i420.h"
 #endif
 #ifdef VIDEOCODEC_VP8
-#include "modules/video_coding/codecs/vp8/include/vp8.h"
+#include "webrtc/modules/video_coding/codecs/vp8/include/vp8.h"
 #endif
-#include "modules/video_coding/main/source/internal_defines.h"
-#include "system_wrappers/interface/trace.h"
+#ifdef VIDEOCODEC_VP9
+#include "webrtc/modules/video_coding/codecs/vp9/include/vp9.h"
+#endif
+#include "webrtc/modules/video_coding/main/source/internal_defines.h"
+#include "webrtc/system_wrappers/interface/logging.h"
 
 namespace webrtc {
+
+VideoCodecVP8 VideoEncoder::GetDefaultVp8Settings() {
+  VideoCodecVP8 vp8_settings;
+  memset(&vp8_settings, 0, sizeof(vp8_settings));
+
+  vp8_settings.resilience = kResilientStream;
+  vp8_settings.numberOfTemporalLayers = 1;
+  vp8_settings.denoisingOn = true;
+  vp8_settings.errorConcealmentOn = false;
+  vp8_settings.automaticResizeOn = false;
+  vp8_settings.frameDroppingOn = true;
+  vp8_settings.keyFrameInterval = 3000;
+
+  return vp8_settings;
+}
+
+VideoCodecVP9 VideoEncoder::GetDefaultVp9Settings() {
+  VideoCodecVP9 vp9_settings;
+  memset(&vp9_settings, 0, sizeof(vp9_settings));
+
+  vp9_settings.resilience = 1;
+  vp9_settings.numberOfTemporalLayers = 1;
+  vp9_settings.denoisingOn = false;
+  vp9_settings.frameDroppingOn = true;
+  vp9_settings.keyFrameInterval = 3000;
+  vp9_settings.adaptiveQpMode = true;
+
+  return vp9_settings;
+}
+
+VideoCodecH264 VideoEncoder::GetDefaultH264Settings() {
+  VideoCodecH264 h264_settings;
+  memset(&h264_settings, 0, sizeof(h264_settings));
+
+  h264_settings.profile = kProfileBase;
+  h264_settings.frameDroppingOn = true;
+  h264_settings.keyFrameInterval = 3000;
+  h264_settings.spsData = NULL;
+  h264_settings.spsLen = 0;
+  h264_settings.ppsData = NULL;
+  h264_settings.ppsLen = 0;
+
+  return h264_settings;
+}
 
 VCMDecoderMapItem::VCMDecoderMapItem(VideoCodec* settings,
                                      int number_of_cores,
@@ -42,11 +89,11 @@ VCMExtDecoderMapItem::VCMExtDecoderMapItem(
       internal_render_timing(internal_render_timing) {
 }
 
-VCMCodecDataBase::VCMCodecDataBase(int id)
-    : id_(id),
-      number_of_cores_(0),
+VCMCodecDataBase::VCMCodecDataBase()
+    : number_of_cores_(0),
       max_payload_size_(kDefaultPayloadSize),
       periodic_key_frames_(false),
+      pending_encoder_reset_(true),
       current_enc_is_external_(false),
       send_codec_(),
       receive_codec_(),
@@ -57,8 +104,7 @@ VCMCodecDataBase::VCMCodecDataBase(int id)
       ptr_decoder_(NULL),
       current_dec_is_external_(false),
       dec_map_(),
-      dec_external_map_() {
-}
+      dec_external_map_() {}
 
 VCMCodecDataBase::~VCMCodecDataBase() {
   ResetSender();
@@ -85,19 +131,57 @@ bool VCMCodecDataBase::Codec(int list_id,
       settings->codecType = kVideoCodecVP8;
       // 96 to 127 dynamic payload types for video codecs.
       settings->plType = VCM_VP8_PAYLOAD_TYPE;
+      settings->startBitrate = kDefaultStartBitrateKbps;
+      settings->minBitrate = VCM_MIN_BITRATE;
+      settings->maxBitrate = 0;
+      settings->maxFramerate = VCM_DEFAULT_FRAME_RATE;
+      settings->width = VCM_DEFAULT_CODEC_WIDTH;
+      settings->height = VCM_DEFAULT_CODEC_HEIGHT;
+      // consider using 2 to avoid deal with 'odd' downscales
+      settings->resolution_divisor = 1; // may not actually be needed
+      settings->numberOfSimulcastStreams = 0;
+      settings->qpMax = 56;
+      settings->codecSpecific.VP8 = VideoEncoder::GetDefaultVp8Settings();
+      return true;
+    }
+#endif
+#ifdef VIDEOCODEC_VP9
+    case VCM_VP9_IDX: {
+      strncpy(settings->plName, "VP9", 4);
+      settings->codecType = kVideoCodecVP9;
+      // 96 to 127 dynamic payload types for video codecs.
+      settings->plType = VCM_VP9_PAYLOAD_TYPE;
       settings->startBitrate = 100;
       settings->minBitrate = VCM_MIN_BITRATE;
       settings->maxBitrate = 0;
       settings->maxFramerate = VCM_DEFAULT_FRAME_RATE;
       settings->width = VCM_DEFAULT_CODEC_WIDTH;
       settings->height = VCM_DEFAULT_CODEC_HEIGHT;
+      // consider using 2 to avoid deal with 'odd' downscales
+      settings->resolution_divisor = 1; // may not actually be needed
       settings->numberOfSimulcastStreams = 0;
-      settings->codecSpecific.VP8.resilience = kResilientStream;
-      settings->codecSpecific.VP8.numberOfTemporalLayers = 1;
-      settings->codecSpecific.VP8.denoisingOn = true;
-      settings->codecSpecific.VP8.errorConcealmentOn = false;
-      settings->codecSpecific.VP8.automaticResizeOn = false;
-      settings->codecSpecific.VP8.frameDroppingOn = true;
+      settings->qpMax = 56;
+      settings->codecSpecific.VP9 = VideoEncoder::GetDefaultVp9Settings();
+      return true;
+    }
+#endif
+#ifdef VIDEOCODEC_H264
+    case VCM_H264_IDX: {
+      strncpy(settings->plName, "H264", 5);
+      settings->codecType = kVideoCodecH264;
+      // 96 to 127 dynamic payload types for video codecs.
+      settings->plType = VCM_H264_PAYLOAD_TYPE;
+      settings->startBitrate = kDefaultStartBitrateKbps;
+      settings->minBitrate = VCM_MIN_BITRATE;
+      settings->maxBitrate = 0;
+      settings->maxFramerate = VCM_DEFAULT_FRAME_RATE;
+      settings->width = VCM_DEFAULT_CODEC_WIDTH;
+      settings->height = VCM_DEFAULT_CODEC_HEIGHT;
+      // consider using 2 to avoid deal with 'odd' downscales
+      settings->resolution_divisor = 1; // may not actually be needed
+      settings->numberOfSimulcastStreams = 0;
+      settings->qpMax = 56;
+      settings->codecSpecific.H264 = VideoEncoder::GetDefaultH264Settings();
       return true;
     }
 #endif
@@ -115,8 +199,11 @@ bool VCMCodecDataBase::Codec(int list_id,
       settings->maxFramerate = VCM_DEFAULT_FRAME_RATE;
       settings->width = VCM_DEFAULT_CODEC_WIDTH;
       settings->height = VCM_DEFAULT_CODEC_HEIGHT;
+      settings->resolution_divisor = 1;
       settings->minBitrate = VCM_MIN_BITRATE;
       settings->numberOfSimulcastStreams = 0;
+      // consider using 2 to avoid deal with 'odd' downscales
+      settings->resolution_divisor = 1; // may not actually be needed
       return true;
     }
 #endif
@@ -146,17 +233,18 @@ void VCMCodecDataBase::ResetSender() {
 }
 
 // Assuming only one registered encoder - since only one used, no need for more.
-bool VCMCodecDataBase::RegisterSendCodec(
+bool VCMCodecDataBase::SetSendCodec(
     const VideoCodec* send_codec,
     int number_of_cores,
-    int max_payload_size) {
+    int max_payload_size,
+    VCMEncodedFrameCallback* encoded_frame_callback) {
   if (!send_codec) {
     return false;
   }
   if (max_payload_size <= 0) {
     max_payload_size = kDefaultPayloadSize;
   }
-  if (number_of_cores < 0 || number_of_cores > 32) {
+  if (number_of_cores <= 0) {
     return false;
   }
   if (send_codec->plType <= 0) {
@@ -169,29 +257,80 @@ bool VCMCodecDataBase::RegisterSendCodec(
   if (send_codec->codecType == kVideoCodecUnknown) {
     return false;
   }
-  number_of_cores_ = number_of_cores;
-  max_payload_size_ = max_payload_size;
+  bool reset_required = pending_encoder_reset_;
+  if (number_of_cores_ != number_of_cores) {
+    number_of_cores_ = number_of_cores;
+    reset_required = true;
+  }
+  if (max_payload_size_ != max_payload_size) {
+    max_payload_size_ = max_payload_size;
+    reset_required = true;
+  }
 
-  memcpy(&send_codec_, send_codec, sizeof(VideoCodec));
+  VideoCodec new_send_codec;
+  memcpy(&new_send_codec, send_codec, sizeof(new_send_codec));
 
-  if (send_codec_.maxBitrate == 0) {
+  if (new_send_codec.maxBitrate == 0) {
     // max is one bit per pixel
-    send_codec_.maxBitrate = (static_cast<int>(send_codec_.height) *
-        static_cast<int>(send_codec_.width) *
-        static_cast<int>(send_codec_.maxFramerate)) / 1000;
-    if (send_codec_.startBitrate > send_codec_.maxBitrate) {
+    new_send_codec.maxBitrate = (static_cast<int>(send_codec->height) *
+        static_cast<int>(send_codec->width) *
+        static_cast<int>(send_codec->maxFramerate)) / 1000;
+    if (send_codec->startBitrate > new_send_codec.maxBitrate) {
       // But if the user tries to set a higher start bit rate we will
       // increase the max accordingly.
-      send_codec_.maxBitrate = send_codec_.startBitrate;
+      new_send_codec.maxBitrate = send_codec->startBitrate;
     }
   }
+
+  if (!reset_required) {
+    reset_required = RequiresEncoderReset(new_send_codec);
+  }
+
+  memcpy(&send_codec_, &new_send_codec, sizeof(send_codec_));
+
+  if (!reset_required) {
+    encoded_frame_callback->SetPayloadType(send_codec->plType);
+    if (ptr_encoder_->RegisterEncodeCallback(encoded_frame_callback) < 0) {
+      return false;
+    }
+    return true;
+  }
+
+  // If encoder exists, will destroy it and create new one.
+  DeleteEncoder();
+  if (send_codec->plType == external_payload_type_) {
+    // External encoder.
+    ptr_encoder_ = new VCMGenericEncoder(*external_encoder_, internal_source_);
+    current_enc_is_external_ = true;
+  } else {
+    ptr_encoder_ = CreateEncoder(send_codec->codecType);
+    current_enc_is_external_ = false;
+    if (!ptr_encoder_) {
+      return false;
+    }
+  }
+  encoded_frame_callback->SetPayloadType(send_codec->plType);
+  if (ptr_encoder_->InitEncode(send_codec,
+                               number_of_cores_,
+                               max_payload_size_) < 0) {
+    DeleteEncoder();
+    return false;
+  } else if (ptr_encoder_->RegisterEncodeCallback(encoded_frame_callback) < 0) {
+    DeleteEncoder();
+    return false;
+  }
+
+  // Intentionally don't check return value since the encoder registration
+  // shouldn't fail because the codec doesn't support changing the periodic key
+  // frame setting.
+  ptr_encoder_->SetPeriodicKeyFrames(periodic_key_frames_);
+
+  pending_encoder_reset_ = false;
 
   return true;
 }
 
 bool VCMCodecDataBase::SendCodec(VideoCodec* current_send_codec) const {
-  WEBRTC_TRACE(webrtc::kTraceApiCall, webrtc::kTraceVideoCoding, VCMId(id_),
-               "SendCodec");
   if (!ptr_encoder_) {
     return false;
   }
@@ -200,8 +339,6 @@ bool VCMCodecDataBase::SendCodec(VideoCodec* current_send_codec) const {
 }
 
 VideoCodecType VCMCodecDataBase::SendCodec() const {
-  WEBRTC_TRACE(webrtc::kTraceApiCall, webrtc::kTraceVideoCoding, VCMId(id_),
-               "SendCodec type");
   if (!ptr_encoder_) {
     return kVideoCodecUnknown;
   }
@@ -237,48 +374,80 @@ void VCMCodecDataBase::RegisterExternalEncoder(
   external_encoder_ = external_encoder;
   external_payload_type_ = payload_type;
   internal_source_ = internal_source;
+  pending_encoder_reset_ = true;
 }
 
-VCMGenericEncoder* VCMCodecDataBase::GetEncoder(
-    const VideoCodec* settings,
-    VCMEncodedFrameCallback* encoded_frame_callback) {
-  // If encoder exists, will destroy it and create new one.
-  DeleteEncoder();
-  if (settings->plType == external_payload_type_) {
-    // External encoder.
-    ptr_encoder_ = new VCMGenericEncoder(*external_encoder_, internal_source_);
-    current_enc_is_external_ = true;
-  } else {
-    ptr_encoder_ = CreateEncoder(settings->codecType);
-    current_enc_is_external_ = false;
+bool VCMCodecDataBase::RequiresEncoderReset(const VideoCodec& new_send_codec) {
+  if (ptr_encoder_ == NULL) {
+    return true;
   }
-  encoded_frame_callback->SetPayloadType(settings->plType);
-  if (!ptr_encoder_) {
-    WEBRTC_TRACE(webrtc::kTraceError,
-                 webrtc::kTraceVideoCoding,
-                 VCMId(id_),
-                 "Failed to create encoder: %s.",
-                 settings->plName);
-    return NULL;
+
+  // Does not check startBitrate or maxFramerate
+  if (new_send_codec.codecType != send_codec_.codecType ||
+      strcmp(new_send_codec.plName, send_codec_.plName) != 0 ||
+      new_send_codec.plType != send_codec_.plType ||
+      new_send_codec.width != send_codec_.width ||
+      new_send_codec.height != send_codec_.height ||
+      new_send_codec.resolution_divisor != send_codec_.resolution_divisor ||
+      new_send_codec.maxBitrate != send_codec_.maxBitrate ||
+      new_send_codec.minBitrate != send_codec_.minBitrate ||
+      new_send_codec.qpMax != send_codec_.qpMax ||
+      new_send_codec.numberOfSimulcastStreams !=
+          send_codec_.numberOfSimulcastStreams ||
+      new_send_codec.mode != send_codec_.mode ||
+      new_send_codec.extra_options != send_codec_.extra_options) {
+    return true;
   }
-  if (ptr_encoder_->InitEncode(settings, number_of_cores_, max_payload_size_) <
-      0) {
-    WEBRTC_TRACE(webrtc::kTraceError,
-                 webrtc::kTraceVideoCoding,
-                 VCMId(id_),
-                 "Failed to initialize encoder: %s.",
-                 settings->plName);
-    DeleteEncoder();
-    return NULL;
-  } else if (ptr_encoder_->RegisterEncodeCallback(encoded_frame_callback) <
-      0) {
-    DeleteEncoder();
-    return NULL;
+
+  switch (new_send_codec.codecType) {
+    case kVideoCodecVP8:
+      if (memcmp(&new_send_codec.codecSpecific.VP8,
+                 &send_codec_.codecSpecific.VP8,
+                 sizeof(new_send_codec.codecSpecific.VP8)) != 0) {
+        return true;
+      }
+      break;
+    case kVideoCodecVP9:
+      if (memcmp(&new_send_codec.codecSpecific.VP9,
+                 &send_codec_.codecSpecific.VP9,
+                 sizeof(new_send_codec.codecSpecific.VP9)) != 0) {
+        return true;
+      }
+      break;
+    case kVideoCodecH264:
+      if (memcmp(&new_send_codec.codecSpecific.H264,
+                 &send_codec_.codecSpecific.H264,
+                 sizeof(new_send_codec.codecSpecific.H264)) != 0) {
+        return true;
+      }
+      break;
+    case kVideoCodecGeneric:
+      break;
+    // Known codecs without payload-specifics
+    case kVideoCodecI420:
+    case kVideoCodecRED:
+    case kVideoCodecULPFEC:
+      break;
+    // Unknown codec type, reset just to be sure.
+    case kVideoCodecUnknown:
+      return true;
   }
-  // Intentionally don't check return value since the encoder registration
-  // shouldn't fail because the codec doesn't support changing the periodic key
-  // frame setting.
-  ptr_encoder_->SetPeriodicKeyFrames(periodic_key_frames_);
+
+  if (new_send_codec.numberOfSimulcastStreams > 0) {
+    for (unsigned char i = 0; i < new_send_codec.numberOfSimulcastStreams;
+         ++i) {
+      if (memcmp(&new_send_codec.simulcastStream[i],
+                 &send_codec_.simulcastStream[i],
+                 sizeof(new_send_codec.simulcastStream[i])) !=
+          0) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+VCMGenericEncoder* VCMCodecDataBase::GetEncoder() {
   return ptr_encoder_;
 }
 
@@ -313,7 +482,11 @@ bool VCMCodecDataBase::DeregisterExternalDecoder(uint8_t payload_type) {
     // Not found
     return false;
   }
-  if (receive_codec_.plType == payload_type) {
+  // We can't use payload_type to check if the decoder is currently in use,
+  // because payload type may be out of date (e.g. before we decode the first
+  // frame after RegisterReceiveCodec)
+  if (ptr_decoder_ != NULL &&
+      &ptr_decoder_->_decoder == (*it).second->external_decoder_instance) {
     // Release it if it was registered and in use.
     ReleaseDecoder(ptr_decoder_);
     ptr_decoder_ = NULL;
@@ -352,12 +525,6 @@ bool VCMCodecDataBase::RegisterReceiveCodec(
   if (number_of_cores < 0) {
     return false;
   }
-  WEBRTC_TRACE(webrtc::kTraceStateInfo, webrtc::kTraceVideoCoding, VCMId(id_),
-               "Codec: %s, Payload type %d, Height %d, Width %d, Bitrate %d,"
-               "Framerate %d.",
-               receive_codec->plName, receive_codec->plType,
-               receive_codec->height, receive_codec->width,
-               receive_codec->startBitrate, receive_codec->maxFramerate);
   // Check if payload value already exists, if so  - erase old and insert new.
   DeregisterReceiveCodec(receive_codec->plType);
   if (receive_codec->codecType == kVideoCodecUnknown) {
@@ -419,6 +586,8 @@ VCMGenericDecoder* VCMCodecDataBase::GetDecoder(
   if (!ptr_decoder_) {
     return NULL;
   }
+  VCMReceiveCallback* callback = decoded_frame_callback->UserReceiveCallback();
+  if (callback) callback->IncomingCodecChanged(receive_codec_);
   if (ptr_decoder_->RegisterDecodeCompleteCallback(decoded_frame_callback)
       < 0) {
     ReleaseDecoder(ptr_decoder_);
@@ -437,7 +606,7 @@ VCMGenericDecoder* VCMCodecDataBase::CreateDecoderCopy() const {
   if (!decoder_copy) {
     return NULL;
   }
-  return new VCMGenericDecoder(*decoder_copy, id_, ptr_decoder_->External());
+  return new VCMGenericDecoder(*decoder_copy, ptr_decoder_->External());
 }
 
 void VCMCodecDataBase::ReleaseDecoder(VCMGenericDecoder* decoder) const {
@@ -456,8 +625,7 @@ void VCMCodecDataBase::CopyDecoder(const VCMGenericDecoder& decoder) {
   if (decoder_copy) {
     VCMDecodedFrameCallback* cb = ptr_decoder_->_callback;
     ReleaseDecoder(ptr_decoder_);
-    ptr_decoder_ = new VCMGenericDecoder(*decoder_copy, id_,
-                                         decoder.External());
+    ptr_decoder_ = new VCMGenericDecoder(*decoder_copy, decoder.External());
     if (cb && ptr_decoder_->RegisterDecodeCompleteCallback(cb)) {
       assert(false);
     }
@@ -469,6 +637,10 @@ bool VCMCodecDataBase::SupportsRenderScheduling() const {
   if (current_dec_is_external_) {
     const VCMExtDecoderMapItem* ext_item = FindExternalDecoderItem(
         receive_codec_.plType);
+    if (!ext_item) {
+      LOG(LS_ERROR) << "Unknown payload type: " << receive_codec_.plType;
+      return false;
+    }
     render_timing = ext_item->internal_render_timing;
   }
   return render_timing;
@@ -482,8 +654,8 @@ VCMGenericDecoder* VCMCodecDataBase::CreateAndInitDecoder(
   assert(new_codec);
   const VCMDecoderMapItem* decoder_item = FindDecoderItem(payload_type);
   if (!decoder_item) {
-    WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideoCoding, VCMId(id_),
-                 "Unknown payload type: %u", payload_type);
+    LOG(LS_ERROR) << "Can't find a decoder associated with payload type: "
+                  << payload_type;
     return NULL;
   }
   VCMGenericDecoder* ptr_decoder = NULL;
@@ -492,7 +664,7 @@ VCMGenericDecoder* VCMCodecDataBase::CreateAndInitDecoder(
   if (external_dec_item) {
     // External codec.
     ptr_decoder = new VCMGenericDecoder(
-        *external_dec_item->external_decoder_instance, id_, true);
+        *external_dec_item->external_decoder_instance, true);
     *external = true;
   } else {
     // Create decoder.
@@ -504,8 +676,7 @@ VCMGenericDecoder* VCMCodecDataBase::CreateAndInitDecoder(
   }
 
   if (ptr_decoder->InitDecode(decoder_item->settings.get(),
-                              decoder_item->number_of_cores,
-                              decoder_item->require_key_frame) < 0) {
+                              decoder_item->number_of_cores) < 0) {
     ReleaseDecoder(ptr_decoder);
     return NULL;
   }
@@ -520,11 +691,16 @@ VCMGenericEncoder* VCMCodecDataBase::CreateEncoder(
     case kVideoCodecVP8:
       return new VCMGenericEncoder(*(VP8Encoder::Create()));
 #endif
+#ifdef VIDEOCODEC_VP9
+    case kVideoCodecVP9:
+      return new VCMGenericEncoder(*(VP9Encoder::Create()));
+#endif
 #ifdef VIDEOCODEC_I420
     case kVideoCodecI420:
       return new VCMGenericEncoder(*(new I420Encoder));
 #endif
     default:
+      LOG(LS_WARNING) << "No internal encoder of this type exists.";
       return NULL;
   }
 }
@@ -544,13 +720,18 @@ VCMGenericDecoder* VCMCodecDataBase::CreateDecoder(VideoCodecType type) const {
   switch (type) {
 #ifdef VIDEOCODEC_VP8
     case kVideoCodecVP8:
-      return new VCMGenericDecoder(*(VP8Decoder::Create()), id_);
+      return new VCMGenericDecoder(*(VP8Decoder::Create()));
+#endif
+#ifdef VIDEOCODEC_VP9
+    case kVideoCodecVP9:
+      return new VCMGenericDecoder(*(VP9Decoder::Create()));
 #endif
 #ifdef VIDEOCODEC_I420
     case kVideoCodecI420:
-      return new VCMGenericDecoder(*(new I420Decoder), id_);
+      return new VCMGenericDecoder(*(new I420Decoder));
 #endif
     default:
+      LOG(LS_WARNING) << "No internal decoder of this type exists.";
       return NULL;
   }
 }

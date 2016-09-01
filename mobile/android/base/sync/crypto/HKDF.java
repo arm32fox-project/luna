@@ -56,7 +56,7 @@ public class HKDF {
     byte[] T  = {};
     byte[] Tn = {};
 
-    int iterations = (int) Math.ceil(((double)len) / ((double)BLOCKSIZE));
+    int iterations = (int) Math.ceil(((double)len) / (BLOCKSIZE));
     for (int i = 0; i < iterations; i++) {
       Tn = digestBytes(Utils.concatAll(Tn, info, Utils.hex2Byte(Integer.toHexString(i + 1))),
                        hmacHasher);
@@ -107,5 +107,22 @@ public class HKDF {
     byte[] ret = hasher.doFinal();
     hasher.reset();
     return ret;
+  }
+
+  public static byte[] derive(byte[] skm, byte[] xts, byte[] ctxInfo, int dkLen) throws InvalidKeyException, NoSuchAlgorithmException {
+    return hkdfExpand(hkdfExtract(xts, skm), ctxInfo, dkLen);
+  }
+
+  public static void deriveMany(byte[] skm, byte[] xts, byte[] ctxInfo, byte[]... keys) throws InvalidKeyException, NoSuchAlgorithmException {
+    int length = 0;
+    for (byte[] key : keys) {
+      length += key.length;
+    }
+    byte[] derived = hkdfExpand(hkdfExtract(xts, skm), ctxInfo, length);
+    int offset = 0;
+    for (byte[] key : keys) {
+      System.arraycopy(derived, offset, key, 0, key.length);
+      offset += key.length;
+    }
   }
 }

@@ -3,20 +3,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsParserUtils_h_
-#define nsParserUtils_h_
+#ifndef nsParserUtils_h
+#define nsParserUtils_h
 
 #include "nsIScriptableUnescapeHTML.h"
 #include "nsIParserUtils.h"
 #include "mozilla/Attributes.h"
 
-class nsParserUtils MOZ_FINAL : public nsIScriptableUnescapeHTML,
+class nsParserUtils final : public nsIScriptableUnescapeHTML,
                                 public nsIParserUtils
 {
+  ~nsParserUtils() {}
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSISCRIPTABLEUNESCAPEHTML
   NS_DECL_NSIPARSERUTILS
 };
 
-#endif // nsParserUtils_h_
+#endif // nsParserUtils_h

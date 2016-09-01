@@ -7,47 +7,52 @@
 #ifndef gc_GCInternals_h
 #define gc_GCInternals_h
 
-#include "jsapi.h"
+#include "jscntxt.h"
+
+#include "gc/Zone.h"
+#include "vm/HelperThreads.h"
+#include "vm/Runtime.h"
 
 namespace js {
 namespace gc {
 
 void
-MarkRuntime(JSTracer *trc, bool useSavedRoots = false);
+MarkPersistentRootedChains(JSTracer* trc);
 
-void
-BufferGrayRoots(GCMarker *gcmarker);
-
-class AutoCopyFreeListToArenas {
-    JSRuntime *runtime;
+class AutoCopyFreeListToArenas
+{
+    JSRuntime* runtime;
+    ZoneSelector selector;
 
   public:
-    AutoCopyFreeListToArenas(JSRuntime *rt);
+    AutoCopyFreeListToArenas(JSRuntime* rt, ZoneSelector selector);
     ~AutoCopyFreeListToArenas();
 };
 
 struct AutoFinishGC
 {
-    AutoFinishGC(JSRuntime *rt);
+    explicit AutoFinishGC(JSRuntime* rt);
 };
 
 /*
  * This class should be used by any code that needs to exclusive access to the
  * heap in order to trace through it...
  */
-class AutoTraceSession {
+class AutoTraceSession
+{
   public:
-    AutoTraceSession(JSRuntime *rt, HeapState state = Tracing);
+    explicit AutoTraceSession(JSRuntime* rt, HeapState state = Tracing);
     ~AutoTraceSession();
 
   protected:
-    JSRuntime *runtime;
+    AutoLockForExclusiveAccess lock;
+    JSRuntime* runtime;
 
   private:
-    AutoTraceSession(const AutoTraceSession&) MOZ_DELETE;
-    void operator=(const AutoTraceSession&) MOZ_DELETE;
+    AutoTraceSession(const AutoTraceSession&) = delete;
+    void operator=(const AutoTraceSession&) = delete;
 
-    js::HeapState prevState;
+    HeapState prevState;
 };
 
 struct AutoPrepareForTracing
@@ -56,90 +61,118 @@ struct AutoPrepareForTracing
     AutoTraceSession session;
     AutoCopyFreeListToArenas copy;
 
-    AutoPrepareForTracing(JSRuntime *rt);
+    AutoPrepareForTracing(JSRuntime* rt, ZoneSelector selector);
 };
 
 class IncrementalSafety
 {
-    const char *reason_;
+    const char* reason_;
 
-    IncrementalSafety(const char *reason) : reason_(reason) {}
+    explicit IncrementalSafety(const char* reason) : reason_(reason) {}
 
   public:
-    static IncrementalSafety Safe() { return IncrementalSafety(NULL); }
-    static IncrementalSafety Unsafe(const char *reason) { return IncrementalSafety(reason); }
+    static IncrementalSafety Safe() { return IncrementalSafety(nullptr); }
+    static IncrementalSafety Unsafe(const char* reason) { return IncrementalSafety(reason); }
 
-    typedef void (IncrementalSafety::* ConvertibleToBool)();
-    void nonNull() {}
-
-    operator ConvertibleToBool() const {
-        return reason_ == NULL ? &IncrementalSafety::nonNull : 0;
+    explicit operator bool() const {
+        return reason_ == nullptr;
     }
 
-    const char *reason() {
-        JS_ASSERT(reason_);
+    const char* reason() {
+        MOZ_ASSERT(reason_);
         return reason_;
     }
 };
 
 IncrementalSafety
-IsIncrementalGCSafe(JSRuntime *rt);
-
-#ifdef JSGC_ROOT_ANALYSIS
-void *
-GetAddressableGCThing(JSRuntime *rt, uintptr_t w);
-#endif
+IsIncrementalGCSafe(JSRuntime* rt);
 
 #ifdef JS_GC_ZEAL
-void
-StartVerifyPreBarriers(JSRuntime *rt);
-
-void
-EndVerifyPreBarriers(JSRuntime *rt);
-
-void
-StartVerifyPostBarriers(JSRuntime *rt);
-
-void
-EndVerifyPostBarriers(JSRuntime *rt);
-
-void
-FinishVerifier(JSRuntime *rt);
 
 class AutoStopVerifyingBarriers
 {
-    JSRuntime *runtime;
+    GCRuntime* gc;
     bool restartPreVerifier;
     bool restartPostVerifier;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 
   public:
-    AutoStopVerifyingBarriers(JSRuntime *rt, bool isShutdown
-                       MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : runtime(rt)
+    AutoStopVerifyingBarriers(JSRuntime* rt, bool isShutdown
+                              MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+      : gc(&rt->gc)
     {
-        restartPreVerifier = !isShutdown && rt->gcVerifyPreData;
-        restartPostVerifier = !isShutdown && rt->gcVerifyPostData;
-        if (rt->gcVerifyPreData)
-            EndVerifyPreBarriers(rt);
-        if (rt->gcVerifyPostData)
-            EndVerifyPostBarriers(rt);
+        restartPreVerifier = gc->endVerifyPreBarriers() && !isShutdown;
+        restartPostVerifier = gc->endVerifyPostBarriers() && !isShutdown &&
+            JS::IsGenerationalGCEnabled(rt);
         MOZ_GUARD_OBJECT_NOTIFIER_INIT;
     }
 
     ~AutoStopVerifyingBarriers() {
+        // Nasty special case: verification runs a minor GC, which *may* nest
+        // inside of an outer minor GC. This is not allowed by the
+        // gc::Statistics phase tree. So we pause the "real" GC, if in fact one
+        // is in progress.
+        gcstats::Phase outer = gc->stats.currentPhase();
+        if (outer != gcstats::PHASE_NONE)
+            gc->stats.endPhase(outer);
+        MOZ_ASSERT((gc->stats.currentPhase() == gcstats::PHASE_NONE) ||
+                   (gc->stats.currentPhase() == gcstats::PHASE_GC_BEGIN) ||
+                   (gc->stats.currentPhase() == gcstats::PHASE_GC_END));
+
         if (restartPreVerifier)
-            StartVerifyPreBarriers(runtime);
+            gc->startVerifyPreBarriers();
         if (restartPostVerifier)
-            StartVerifyPostBarriers(runtime);
+            gc->startVerifyPostBarriers();
+
+        if (outer != gcstats::PHASE_NONE)
+            gc->stats.beginPhase(outer);
     }
 };
 #else
 struct AutoStopVerifyingBarriers
 {
-    AutoStopVerifyingBarriers(JSRuntime *, bool) {}
+    AutoStopVerifyingBarriers(JSRuntime*, bool) {}
 };
 #endif /* JS_GC_ZEAL */
+
+#ifdef JSGC_HASH_TABLE_CHECKS
+void
+CheckHashTablesAfterMovingGC(JSRuntime* rt);
+#endif
+
+struct MovingTracer : JSTracer {
+    explicit MovingTracer(JSRuntime* rt) : JSTracer(rt, Visit, TraceWeakMapKeysValues) {}
+
+    static void Visit(JSTracer* jstrc, void** thingp, JSGCTraceKind kind);
+    static bool IsMovingTracer(JSTracer* trc) {
+        return trc->callback == Visit;
+    }
+};
+
+// In debug builds, set/unset the GC sweeping flag for the current thread.
+struct AutoSetThreadIsSweeping
+{
+#ifdef DEBUG
+    explicit AutoSetThreadIsSweeping(MOZ_GUARD_OBJECT_NOTIFIER_ONLY_PARAM)
+      : threadData_(js::TlsPerThreadData.get())
+    {
+        MOZ_ASSERT(!threadData_->gcSweeping);
+        threadData_->gcSweeping = true;
+        MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    }
+
+    ~AutoSetThreadIsSweeping() {
+        MOZ_ASSERT(threadData_->gcSweeping);
+        threadData_->gcSweeping = false;
+    }
+
+  private:
+    PerThreadData* threadData_;
+    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+#else
+    AutoSetThreadIsSweeping() {}
+#endif
+};
 
 } /* namespace gc */
 } /* namespace js */

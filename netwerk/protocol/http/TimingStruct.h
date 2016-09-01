@@ -8,14 +8,24 @@
 
 #include "mozilla/TimeStamp.h"
 
+namespace mozilla { namespace net {
+
 struct TimingStruct {
-  mozilla::TimeStamp domainLookupStart;
-  mozilla::TimeStamp domainLookupEnd;
-  mozilla::TimeStamp connectStart;
-  mozilla::TimeStamp connectEnd;
-  mozilla::TimeStamp requestStart;
-  mozilla::TimeStamp responseStart;
-  mozilla::TimeStamp responseEnd;
+  TimeStamp domainLookupStart;
+  TimeStamp domainLookupEnd;
+  TimeStamp connectStart;
+  TimeStamp connectEnd;
+  TimeStamp requestStart;
+  TimeStamp responseStart;
+  TimeStamp responseEnd;
 };
+
+struct ResourceTimingStruct : TimingStruct {
+  TimeStamp fetchStart;
+  TimeStamp redirectStart;
+  TimeStamp redirectEnd;
+};
+
+}} // namespace mozilla::net
 
 #endif

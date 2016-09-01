@@ -26,11 +26,11 @@ interface HTMLAreaElement : HTMLElement {
            attribute DOMString download;
            [SetterThrows]
            attribute DOMString ping;
+           [SetterThrows]
+           attribute DOMString rel;
+  readonly attribute DOMTokenList relList;
 
   // not implemented.
-  //        [SetterThrows]
-  //       attribute DOMString rel;
-  //readonly attribute DOMTokenList relList;
   //
   //       [SetterThrows]
   //       attribute DOMString hreflang;
@@ -38,6 +38,7 @@ interface HTMLAreaElement : HTMLElement {
   //       attribute DOMString type;
 };
 HTMLAreaElement implements URLUtils;
+HTMLAreaElement implements URLUtilsSearchParams;
 
 // http://www.whatwg.org/specs/web-apps/current-work/#other-elements,-attributes-and-apis
 partial interface HTMLAreaElement {

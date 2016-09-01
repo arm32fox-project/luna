@@ -15,6 +15,11 @@
 #include "nsVolume.h"
 
 namespace mozilla {
+
+namespace dom {
+class VolumeInfo;
+} // dom
+
 namespace system {
 
 class WakeLockCallback;
@@ -26,11 +31,11 @@ class Volume;
 * classes.
 */
 
-class nsVolumeService MOZ_FINAL : public nsIVolumeService,
+class nsVolumeService final : public nsIVolumeService,
                                   public nsIDOMMozWakeLockListener
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIVOLUMESERVICE
   NS_DECL_NSIDOMMOZWAKELOCKLISTENER
 
@@ -40,8 +45,11 @@ public:
   //static nsVolumeService* GetSingleton();
   static void Shutdown();
 
-  void UpdateVolume(nsIVolume* aVolume);
+  void UpdateVolume(nsIVolume* aVolume, bool aNotifyObservers = true);
   void UpdateVolumeIOThread(const Volume* aVolume);
+
+  void RecvVolumesFromParent(const nsTArray<dom::VolumeInfo>& aVolumes);
+  void GetVolumesForIPC(nsTArray<dom::VolumeInfo>* aResult);
 
 private:
   ~nsVolumeService();
@@ -50,12 +58,13 @@ private:
                       const nsAString& aMountLockState);
   already_AddRefed<nsVolume> FindVolumeByMountLockName(const nsAString& aMountLockName);
   already_AddRefed<nsVolume> FindVolumeByName(const nsAString& aName);
-  already_AddRefed<nsVolume> CreateOrFindVolumeByName(const nsAString& aName);
+  already_AddRefed<nsVolume> CreateOrFindVolumeByName(const nsAString& aName, bool aIsFake = false);
 
   Monitor mArrayMonitor;
   nsVolume::Array mVolumeArray;
 
   static StaticRefPtr<nsVolumeService> sSingleton;
+  bool mGotVolumesFromParent;
 };
 
 } // system

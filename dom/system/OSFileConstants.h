@@ -5,7 +5,6 @@
 #ifndef mozilla_osfileconstants_h__
 #define mozilla_osfileconstants_h__
 
-#include "jspubtd.h"
 #include "nsIOSFileConstantsService.h"
 #include "mozilla/Attributes.h"
 
@@ -44,7 +43,7 @@ bool DefineOSFileConstants(JSContext *cx, JS::Handle<JSObject*> global);
 /**
  * XPConnect initializer, for use in the main thread.
  */
-class OSFileConstantsService MOZ_FINAL : public nsIOSFileConstantsService
+class OSFileConstantsService final : public nsIOSFileConstantsService
 {
  public:
   NS_DECL_ISUPPORTS

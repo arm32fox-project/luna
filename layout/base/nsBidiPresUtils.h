@@ -4,18 +4,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifdef IBMBIDI
-
 #ifndef nsBidiPresUtils_h___
 #define nsBidiPresUtils_h___
 
-#include "nsTArray.h"
 #include "nsBidi.h"
 #include "nsBidiUtils.h"
-#include "nsCOMPtr.h"
-#include "nsDataHashtable.h"
-#include "nsBlockFrame.h"
-#include "nsTHashtable.h"
+#include "nsHashKeys.h"
+#include "nsCoord.h"
 
 #ifdef DrawText
 #undef DrawText
@@ -23,7 +18,19 @@
 
 struct BidiParagraphData;
 struct BidiLineData;
+class nsFontMetrics;
 class nsIFrame;
+class nsBlockFrame;
+class nsPresContext;
+class nsRenderingContext;
+class nsBlockInFlowLineIterator;
+class nsStyleContext;
+struct nsSize;
+template<class T> class nsTHashtable;
+namespace mozilla {
+  class WritingMode;
+  class LogicalMargin;
+}
 
 /**
  * A structure representing some continuation state for each frame on the line,
@@ -32,7 +39,7 @@ class nsIFrame;
  */
 struct nsFrameContinuationState : public nsVoidPtrHashKey
 {
-  nsFrameContinuationState(const void *aFrame) : nsVoidPtrHashKey(aFrame) {}
+  explicit nsFrameContinuationState(const void *aFrame) : nsVoidPtrHashKey(aFrame) {}
 
   /**
    * The first visual frame in the continuation chain containing this frame, or
@@ -104,15 +111,15 @@ public:
      * @remark The reason that the function gives a string instead of an index
      *  is that ProcessText copies and modifies the string passed to it, so
      *  passing an index would be impossible.
-     * 
+     *
      * @param aText The string of text.
      * @param aLength The length of the string of text.
      * @param aDirection The direction of the text. The string will never have
      *  mixed direction.
      */
-    virtual void SetText(const PRUnichar*   aText,
-                         int32_t            aLength,
-                         nsBidiDirection    aDirection) = 0;
+    virtual void SetText(const char16_t*   aText,
+                         int32_t           aLength,
+                         nsBidiDirection   aDirection) = 0;
 
     /**
      * Returns the measured width of the text given in SetText. If SetText was
@@ -155,8 +162,11 @@ public:
    * 
    * @lina 05/02/2000
    */
-  static void ReorderFrames(nsIFrame*            aFirstFrameOnLine,
-                            int32_t              aNumFramesOnLine);
+  static void ReorderFrames(nsIFrame* aFirstFrameOnLine,
+                            int32_t aNumFramesOnLine,
+                            mozilla::WritingMode aLineWM,
+                            const nsSize& aContainerSize,
+                            nscoord aStart);
 
   /**
    * Format Unicode text, taking into account bidi capabilities
@@ -165,11 +175,11 @@ public:
    *
    * @lina 06/18/2000 
    */
-  static nsresult FormatUnicodeText(nsPresContext* aPresContext,
-                                    PRUnichar*      aText,
+  static nsresult FormatUnicodeText(nsPresContext*  aPresContext,
+                                    char16_t*       aText,
                                     int32_t&        aTextLength,
                                     nsCharType      aCharType,
-                                    bool            aIsOddLevel);
+                                    nsBidiDirection aDir);
 
   /**
    * Reorder plain text using the Unicode Bidi algorithm and send it to
@@ -177,9 +187,16 @@ public:
    *
    * @param[in] aText  the string to be rendered (in logical order)
    * @param aLength the number of characters in the string
-   * @param aBaseDirection the base direction of the string
+   * @param aBaseLevel the base embedding level of the string
+   *  odd values are right-to-left; even values are left-to-right, plus special
+   *  constants as follows (defined in nsBidi.h)
    *  NSBIDI_LTR - left-to-right string
    *  NSBIDI_RTL - right-to-left string
+   *  NSBIDI_DEFAULT_LTR - auto direction determined by first strong character,
+   *                       default is left-to-right
+   *  NSBIDI_DEFAULT_RTL - auto direction determined by first strong character,
+   *                       default is right-to-left
+   *
    * @param aPresContext the presentation context
    * @param aRenderingContext the rendering context to render to
    * @param aTextRunConstructionContext the rendering context to be used to construct the textrun (affects font hinting)
@@ -188,30 +205,35 @@ public:
    * @param[in,out] aPosResolve array of logical positions to resolve into visual positions; can be nullptr if this functionality is not required
    * @param aPosResolveCount number of items in the aPosResolve array
    */
-  static nsresult RenderText(const PRUnichar*       aText,
+  static nsresult RenderText(const char16_t*       aText,
                              int32_t                aLength,
-                             nsBidiDirection        aBaseDirection,
+                             nsBidiLevel            aBaseLevel,
                              nsPresContext*         aPresContext,
                              nsRenderingContext&    aRenderingContext,
                              nsRenderingContext&    aTextRunConstructionContext,
+                             nsFontMetrics&         aFontMetrics,
                              nscoord                aX,
                              nscoord                aY,
                              nsBidiPositionResolve* aPosResolve = nullptr,
                              int32_t                aPosResolveCount = 0)
   {
-    return ProcessTextForRenderingContext(aText, aLength, aBaseDirection, aPresContext, aRenderingContext,
-                                          aTextRunConstructionContext, MODE_DRAW, aX, aY, aPosResolve, aPosResolveCount, nullptr);
+    return ProcessTextForRenderingContext(aText, aLength, aBaseLevel, aPresContext, aRenderingContext,
+                                          aTextRunConstructionContext,
+                                          aFontMetrics,
+                                          MODE_DRAW, aX, aY, aPosResolve, aPosResolveCount, nullptr);
   }
   
-  static nscoord MeasureTextWidth(const PRUnichar*     aText,
+  static nscoord MeasureTextWidth(const char16_t*     aText,
                                   int32_t              aLength,
-                                  nsBidiDirection      aBaseDirection,
+                                  nsBidiLevel          aBaseLevel,
                                   nsPresContext*       aPresContext,
-                                  nsRenderingContext&  aRenderingContext)
+                                  nsRenderingContext&  aRenderingContext,
+                                  nsFontMetrics&       aFontMetrics)
   {
     nscoord length;
-    nsresult rv = ProcessTextForRenderingContext(aText, aLength, aBaseDirection, aPresContext,
+    nsresult rv = ProcessTextForRenderingContext(aText, aLength, aBaseLevel, aPresContext,
                                                  aRenderingContext, aRenderingContext,
+                                                 aFontMetrics,
                                                  MODE_MEASURE, 0, 0, nullptr, 0, &length);
     return NS_SUCCEEDED(rv) ? length : 0;
   }
@@ -268,6 +290,30 @@ public:
    */
   static nsBidiLevel GetFrameBaseLevel(nsIFrame* aFrame);
 
+  /**
+   * Get an nsBidiDirection representing the direction implied by the
+   * bidi base level of the frame.
+   * @return NSBIDI_LTR (left-to-right) or NSBIDI_RTL (right-to-left)
+   *  NSBIDI_MIXED will never be returned.
+   */
+  static nsBidiDirection ParagraphDirection(nsIFrame* aFrame) {
+    return DIRECTION_FROM_LEVEL(GetFrameBaseLevel(aFrame));
+  }
+
+  /**
+   * Get an nsBidiDirection representing the direction implied by the
+   * bidi embedding level of the frame.
+   * @return NSBIDI_LTR (left-to-right) or NSBIDI_RTL (right-to-left)
+   *  NSBIDI_MIXED will never be returned.
+   */
+  static nsBidiDirection FrameDirection(nsIFrame* aFrame) {
+    return DIRECTION_FROM_LEVEL(GetFrameEmbeddingLevel(aFrame));
+  }
+
+  static bool IsFrameInParagraphDirection(nsIFrame* aFrame) {
+    return ParagraphDirection(aFrame) == FrameDirection(aFrame);
+  }
+
   enum Mode { MODE_DRAW, MODE_MEASURE };
 
   /**
@@ -276,9 +322,16 @@ public:
    *
    * @param[in] aText  the string to be processed (in logical order)
    * @param aLength the number of characters in the string
-   * @param aBaseDirection the base direction of the string
+   * @param aBaseLevel the base embedding level of the string
+   *  odd values are right-to-left; even values are left-to-right, plus special
+   *  constants as follows (defined in nsBidi.h)
    *  NSBIDI_LTR - left-to-right string
    *  NSBIDI_RTL - right-to-left string
+   *  NSBIDI_DEFAULT_LTR - auto direction determined by first strong character,
+   *                       default is left-to-right
+   *  NSBIDI_DEFAULT_RTL - auto direction determined by first strong character,
+   *                       default is right-to-left
+   *
    * @param aPresContext the presentation context
    * @param aprocessor the bidi processor
    * @param aMode the operation to process
@@ -290,9 +343,9 @@ public:
    * @param aPosResolveCount number of items in the aPosResolve array
    * @param[out] aWidth Pointer to where the width will be stored (may be null)
    */
-  static nsresult ProcessText(const PRUnichar*       aText,
+  static nsresult ProcessText(const char16_t*       aText,
                               int32_t                aLength,
-                              nsBidiDirection        aBaseDirection,
+                              nsBidiLevel            aBaseLevel,
                               nsPresContext*         aPresContext,
                               BidiProcessor&         aprocessor,
                               Mode                   aMode,
@@ -319,14 +372,29 @@ public:
                                   nsBidiLevel aBaseDirection,
                                   bool aOverride);
 
+  /**
+   * Use style attributes to determine the base paragraph level to pass to the
+   * bidi algorithm.
+   *
+   * If |unicode-bidi| is set to "[-moz-]plaintext", returns NSBIDI_DEFAULT_LTR,
+   * in other words the direction is determined from the first strong character
+   * in the text according to rules P2 and P3 of the bidi algorithm, or LTR if
+   * there is no strong character.
+   *
+   * Otherwise returns NSBIDI_LTR or NSBIDI_RTL depending on the value of
+   * |direction|
+   */
+  static nsBidiLevel BidiLevelFromStyle(nsStyleContext* aStyleContext);
+
 private:
   static nsresult
-  ProcessTextForRenderingContext(const PRUnichar*       aText,
+  ProcessTextForRenderingContext(const char16_t*       aText,
                                  int32_t                aLength,
-                                 nsBidiDirection        aBaseDirection,
+                                 nsBidiLevel            aBaseLevel,
                                  nsPresContext*         aPresContext,
                                  nsRenderingContext&    aRenderingContext,
                                  nsRenderingContext&    aTextRunConstructionContext,
+                                 nsFontMetrics&         aFontMetrics,
                                  Mode                   aMode,
                                  nscoord                aX, // DRAW only
                                  nscoord                aY, // DRAW only
@@ -346,24 +414,39 @@ private:
                              nsBlockInFlowLineIterator* aLineIter,
                              nsIFrame*                  aCurrentFrame,
                              BidiParagraphData*         aBpd);
-  
+
   /*
-   * Position aFrame and it's descendants to their visual places. Also if aFrame
-   * is not leaf, resize it to embrace it's children.
-   *
-   * @param aFrame               The frame which itself and its children are going
-   *                             to be repositioned
-   * @param aIsOddLevel          TRUE means the embedding level of this frame is odd
-   * @param[in,out] aLeft        IN value is the starting position of aFrame(without
-   *                             considering its left margin)
-   *                             OUT value will be the ending position of aFrame(after
-   *                             adding its right margin)
-   * @param aContinuationStates  A map from nsIFrame* to nsFrameContinuationState
+   * Position ruby frames. Called from RepositionFrame.
    */
-  static void RepositionFrame(nsIFrame*              aFrame,
-                              bool                   aIsOddLevel,
-                              nscoord&               aLeft,
-                              nsContinuationStates*  aContinuationStates);
+  static nscoord RepositionRubyFrame(
+    nsIFrame* aFrame,
+    const nsContinuationStates* aContinuationStates,
+    const mozilla::WritingMode aContainerWM,
+    const mozilla::LogicalMargin& aBorderPadding);
+
+  /*
+   * Position aFrame and its descendants to their visual places. Also if aFrame
+   * is not leaf, resize it to embrace its children.
+   *
+   * @param aFrame               The frame which itself and its children are
+   *                             going to be repositioned
+   * @param aIsEvenLevel         TRUE means the embedding level of this frame
+   *                             is even (LTR)
+   * @param aStartOrEnd          The distance to the start or the end of aFrame
+   *                             without considering its inline margin. If the
+   *                             container is reordering frames in reverse
+   *                             direction, it's the distance to the end,
+   *                             otherwise, it's the distance to the start.
+   * @param aContinuationStates  A map from nsIFrame* to nsFrameContinuationState
+   * @return                     The isize aFrame takes, including margins.
+   */
+  static nscoord RepositionFrame(nsIFrame* aFrame,
+                                 bool aIsEvenLevel,
+                                 nscoord aStartOrEnd,
+                                 const nsContinuationStates* aContinuationStates,
+                                 mozilla::WritingMode aContainerWM,
+                                 bool aContainerReverseOrder,
+                                 const nsSize& aContainerSize);
 
   /*
    * Initialize the continuation state(nsFrameContinuationState) to
@@ -377,24 +460,34 @@ private:
                                      nsContinuationStates*  aContinuationStates);
 
   /*
-   * Determine if aFrame is leftmost or rightmost, and set aIsLeftMost and
-   * aIsRightMost values. Also set continuation states of aContinuationStates.
+   * Determine if aFrame is first or last, and set aIsFirst and
+   * aIsLast values. Also set continuation states of
+   * aContinuationStates.
    *
-   * A frame is leftmost if it's the first appearance of its continuation chain
-   * on the line and the chain is on its first line if it's LTR or the chain is
-   * on its last line if it's RTL.
-   * A frame is rightmost if it's the last appearance of its continuation chain
-   * on the line and the chain is on its first line if it's RTL or the chain is
-   * on its last line if it's LTR.
+   * A frame is first if it's the first appearance of its continuation
+   * chain on the line and the chain is on its first line.
+   * A frame is last if it's the last appearance of its continuation
+   * chain on the line and the chain is on its last line.
    *
-   * @param aContinuationStates  A map from nsIFrame* to nsFrameContinuationState
-   * @param[out] aIsLeftMost     TRUE means aFrame is leftmost frame or continuation
-   * @param[out] aIsRightMost    TRUE means aFrame is rightmost frame or continuation
+   * N.B: "First appearance" and "Last appearance" in the previous
+   * paragraph refer to the frame's inline direction, not necessarily
+   * the line's.
+   *
+   * @param aContinuationStates        A map from nsIFrame* to
+   *                                    nsFrameContinuationState
+   * @param[in] aSpanDirMatchesLineDir TRUE means that the inline
+   *                                    direction of aFrame is the same
+   *                                    as its container
+   * @param[out] aIsFirst              TRUE means aFrame is first frame
+   *                                    or continuation
+   * @param[out] aIsLast               TRUE means aFrame is last frame
+   *                                    or continuation
    */
-   static void IsLeftOrRightMost(nsIFrame*              aFrame,
-                                 nsContinuationStates*  aContinuationStates,
-                                 bool&                aIsLeftMost /* out */,
-                                 bool&                aIsRightMost /* out */);
+   static void IsFirstOrLast(nsIFrame* aFrame,
+                             const nsContinuationStates* aContinuationStates,
+                             bool aSpanInLineOrder /* in */,
+                             bool& aIsFirst /* out */,
+                             bool& aIsLast /* out */);
 
   /**
    *  Adjust frame positions following their visual order
@@ -404,7 +497,10 @@ private:
    *  @lina 04/11/2000
    */
   static void RepositionInlineFrames(BidiLineData* aBld,
-                                     nsIFrame* aFirstChild);
+                                     nsIFrame* aFirstChild,
+                                     mozilla::WritingMode aLineWM,
+                                     const nsSize& aContainerSize,
+                                     nscoord aStart);
   
   /**
    * Helper method for Resolve()
@@ -450,7 +546,7 @@ private:
                                      int32_t            aLastIndex,
                                      int32_t&           aOffset);
   static void CalculateCharType(nsBidi*          aBidiEngine,
-                                const PRUnichar* aText,
+                                const char16_t* aText,
                                 int32_t&         aOffset,
                                 int32_t          aCharTypeLimit,
                                 int32_t&         aRunLimit,
@@ -459,20 +555,18 @@ private:
                                 uint8_t&         aCharType,
                                 uint8_t&         aPrevCharType);
   
-  static void StripBidiControlCharacters(PRUnichar* aText,
+  static void StripBidiControlCharacters(char16_t* aText,
                                          int32_t&   aTextLength);
 
-  static bool WriteLogicalToVisual(const PRUnichar* aSrc,
+  static bool WriteLogicalToVisual(const char16_t* aSrc,
                                      uint32_t aSrcLength,
-                                     PRUnichar* aDest,
+                                     char16_t* aDest,
                                      nsBidiLevel aBaseDirection,
                                      nsBidi* aBidiEngine);
 
-  static void WriteReverse(const PRUnichar* aSrc,
+  static void WriteReverse(const char16_t* aSrc,
                            uint32_t aSrcLength,
-                           PRUnichar* aDest);
+                           char16_t* aDest);
 };
 
 #endif /* nsBidiPresUtils_h___ */
-
-#endif // IBMBIDI

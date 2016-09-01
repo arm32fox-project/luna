@@ -16,8 +16,6 @@ XPIDL_SOURCES += [
 
 XPIDL_MODULE = 'xpcom_components'
 
-MODULE = 'xpcom'
-
 EXPORTS += [
     'nsCategoryManagerUtils.h',
 ]
@@ -28,12 +26,34 @@ EXPORTS.mozilla += [
     'ModuleUtils.h',
 ]
 
-CPP_SOURCES += [
-    'ManifestParser.cpp',
+# nsCategoryManager.cpp and nsComponentManager.cpp cannot be built in
+# unified mode because they use thea PL_ARENA_CONST_ALIGN_MASK macro
+# with plarena.h.
+SOURCES += [
     'nsCategoryManager.cpp',
     'nsComponentManager.cpp',
-    'nsNativeComponentLoader.cpp',
 ]
 
-LIBRARY_NAME = 'xpcomcomponents_s'
+UNIFIED_SOURCES += [
+    'ManifestParser.cpp',
+    'nsNativeModuleLoader.cpp',
+]
 
+FAIL_ON_WARNINGS = True
+
+MSVC_ENABLE_PGO = True
+
+FINAL_LIBRARY = 'xul'
+
+GENERATED_INCLUDES += ['..']
+LOCAL_INCLUDES += [
+    '../base',
+    '../build',
+    '../ds',
+    '../reflect/xptinfo',
+    '/chrome',
+    '/modules/libjar',
+]
+
+if CONFIG['MOZ_WIDGET_GTK']:
+    CXXFLAGS += CONFIG['TK_CFLAGS']

@@ -7,13 +7,20 @@
 if CONFIG['MOZ_ZIPWRITER']:
     DIRS += ['zipwriter']
 
-TEST_TOOL_DIRS += ['test']
+MOCHITEST_CHROME_MANIFESTS += ['test/chrome/chrome.ini']
+
+MOCHITEST_MANIFESTS += ['test/mochitest/mochitest.ini']
+
+XPCSHELL_TESTS_MANIFESTS += ['test/unit/xpcshell.ini']
 
 XPIDL_SOURCES += [
-    '$(MODULES_LIBJAR_LXPIDLSRCS)',
+    'nsIJARChannel.idl',
+    'nsIJARProtocolHandler.idl',
+    'nsIJARURI.idl',
+    'nsIZipReader.idl',
 ]
 
-MODULE = 'jar'
+XPIDL_MODULE = 'jar'
 
 EXPORTS += [
     'nsJARURI.h',
@@ -21,7 +28,24 @@ EXPORTS += [
     'zipstruct.h',
 ]
 
-CPP_SOURCES += [
-    '$(MODULES_LIBJAR_LCPPSRCS)',
+UNIFIED_SOURCES += [
+    'nsJARProtocolHandler.cpp',
+    'nsJARURI.cpp',
 ]
 
+# These files cannot be built in unified mode because they rely on plarena.h.
+SOURCES += [
+    'nsJAR.cpp',
+    'nsJARChannel.cpp',
+    'nsJARFactory.cpp',
+    'nsJARInputStream.cpp',
+    'nsZipArchive.cpp',
+]
+
+FAIL_ON_WARNINGS = True
+
+MSVC_ENABLE_PGO = True
+
+include('/ipc/chromium/chromium-config.mozbuild')
+
+FINAL_LIBRARY = 'xul'

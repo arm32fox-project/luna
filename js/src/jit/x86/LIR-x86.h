@@ -17,7 +17,7 @@ class LBox : public LInstructionHelper<2, 1, 0>
   public:
     LIR_HEADER(Box);
 
-    LBox(const LAllocation &in_payload, MIRType type)
+    LBox(const LAllocation& in_payload, MIRType type)
       : type_(type)
     {
         setOperand(0, in_payload);
@@ -26,16 +26,31 @@ class LBox : public LInstructionHelper<2, 1, 0>
     MIRType type() const {
         return type_;
     }
+    const char* extraName() const {
+        return StringFromMIRType(type_);
+    }
 };
 
-class LBoxDouble : public LInstructionHelper<2, 1, 1>
+class LBoxFloatingPoint : public LInstructionHelper<2, 1, 1>
 {
-  public:
-    LIR_HEADER(BoxDouble);
+    MIRType type_;
 
-    LBoxDouble(const LAllocation &in, const LDefinition &temp) {
+  public:
+    LIR_HEADER(BoxFloatingPoint);
+
+    LBoxFloatingPoint(const LAllocation& in, const LDefinition& temp, MIRType type)
+      : type_(type)
+    {
+        MOZ_ASSERT(IsFloatingPointType(type));
         setOperand(0, in);
         setTemp(0, temp);
+    }
+
+    MIRType type() const {
+        return type_;
+    }
+    const char* extraName() const {
+        return StringFromMIRType(type_);
     }
 };
 
@@ -44,40 +59,71 @@ class LUnbox : public LInstructionHelper<1, 2, 0>
   public:
     LIR_HEADER(Unbox);
 
-    MUnbox *mir() const {
+    MUnbox* mir() const {
         return mir_->toUnbox();
     }
-    const LAllocation *payload() {
+    const LAllocation* payload() {
         return getOperand(0);
     }
-    const LAllocation *type() {
+    const LAllocation* type() {
         return getOperand(1);
+    }
+    const char* extraName() const {
+        return StringFromMIRType(mir()->type());
     }
 };
 
-class LUnboxDouble : public LInstructionHelper<1, 2, 0>
+class LUnboxFloatingPoint : public LInstructionHelper<1, 2, 0>
 {
+    MIRType type_;
+
   public:
-    LIR_HEADER(UnboxDouble);
+    LIR_HEADER(UnboxFloatingPoint);
 
     static const size_t Input = 0;
 
-    MUnbox *mir() const {
+    LUnboxFloatingPoint(MIRType type)
+      : type_(type)
+    { }
+
+    MUnbox* mir() const {
         return mir_->toUnbox();
+    }
+
+    MIRType type() const {
+        return type_;
+    }
+    const char* extraName() const {
+        return StringFromMIRType(type_);
     }
 };
 
 // Convert a 32-bit unsigned integer to a double.
-class LUInt32ToDouble : public LInstructionHelper<1, 1, 1>
+class LAsmJSUInt32ToDouble : public LInstructionHelper<1, 1, 1>
 {
   public:
-    LIR_HEADER(UInt32ToDouble)
+    LIR_HEADER(AsmJSUInt32ToDouble)
 
-    LUInt32ToDouble(const LAllocation &input, const LDefinition &temp) {
+    LAsmJSUInt32ToDouble(const LAllocation& input, const LDefinition& temp) {
         setOperand(0, input);
         setTemp(0, temp);
     }
-    const LDefinition *temp() {
+    const LDefinition* temp() {
+        return getTemp(0);
+    }
+};
+
+// Convert a 32-bit unsigned integer to a float32.
+class LAsmJSUInt32ToFloat32: public LInstructionHelper<1, 1, 1>
+{
+  public:
+    LIR_HEADER(AsmJSUInt32ToFloat32)
+
+    LAsmJSUInt32ToFloat32(const LAllocation& input, const LDefinition& temp) {
+        setOperand(0, input);
+        setTemp(0, temp);
+    }
+    const LDefinition* temp() {
         return getTemp(0);
     }
 };
@@ -86,13 +132,13 @@ class LAsmJSLoadFuncPtr : public LInstructionHelper<1, 1, 0>
 {
   public:
     LIR_HEADER(AsmJSLoadFuncPtr);
-    LAsmJSLoadFuncPtr(const LAllocation &index) {
+    LAsmJSLoadFuncPtr(const LAllocation& index) {
         setOperand(0, index);
     }
-    MAsmJSLoadFuncPtr *mir() const {
+    MAsmJSLoadFuncPtr* mir() const {
         return mir_->toAsmJSLoadFuncPtr();
     }
-    const LAllocation *index() {
+    const LAllocation* index() {
         return getOperand(0);
     }
 };

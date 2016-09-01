@@ -5,7 +5,7 @@
 
 /*
  * Runs the main native Cocoa run loop, interrupting it as needed to process
- * Goanna events.  
+ * Goanna events.
  */
 
 #ifndef nsAppShell_h_
@@ -15,36 +15,6 @@ class nsCocoaWindow;
 
 #include "nsBaseAppShell.h"
 #include "nsTArray.h"
-
-typedef struct _nsCocoaAppModalWindowListItem {
-  _nsCocoaAppModalWindowListItem(NSWindow *aWindow, NSModalSession aSession) :
-    mWindow(aWindow), mSession(aSession), mWidget(nullptr) {}
-  _nsCocoaAppModalWindowListItem(NSWindow *aWindow, nsCocoaWindow *aWidget) :
-    mWindow(aWindow), mSession(nil), mWidget(aWidget) {}
-  NSWindow *mWindow;       // Weak
-  NSModalSession mSession; // Weak (not retainable)
-  nsCocoaWindow *mWidget;  // Weak
-} nsCocoaAppModalWindowListItem;
-
-class nsCocoaAppModalWindowList {
-public:
-  nsCocoaAppModalWindowList() {}
-  ~nsCocoaAppModalWindowList() {}
-  // Push a Cocoa app-modal window onto the top of our list.
-  nsresult PushCocoa(NSWindow *aWindow, NSModalSession aSession);
-  // Pop the topmost Cocoa app-modal window off our list.
-  nsresult PopCocoa(NSWindow *aWindow, NSModalSession aSession);
-  // Push a Goanna-modal window onto the top of our list.
-  nsresult PushGoanna(NSWindow *aWindow, nsCocoaWindow *aWidget);
-  // Pop the topmost Goanna-modal window off our list.
-  nsresult PopGoanna(NSWindow *aWindow, nsCocoaWindow *aWidget);
-  // Return the "session" of the top-most visible Cocoa app-modal window.
-  NSModalSession CurrentSession();
-  // Has a Goanna modal dialog popped up over a Cocoa app-modal dialog?
-  bool GoannaModalAboveCocoaModal();
-private:
-  nsTArray<nsCocoaAppModalWindowListItem> mList;
-};
 
 // GoannaNSApplication
 //
@@ -60,7 +30,7 @@ class nsAppShell : public nsBaseAppShell
 {
 public:
   NS_IMETHOD ResumeNative(void);
-	
+
   nsAppShell();
 
   nsresult Init();
@@ -70,7 +40,8 @@ public:
   NS_IMETHOD OnProcessNextEvent(nsIThreadInternal *aThread, bool aMayWait,
                                 uint32_t aRecursionDepth);
   NS_IMETHOD AfterProcessNextEvent(nsIThreadInternal *aThread,
-                                   uint32_t aRecursionDepth);
+                                   uint32_t aRecursionDepth,
+                                   bool aEventWasProcessed);
 
   // public only to be visible to Objective-C code that must call it
   void WillTerminate();
@@ -80,8 +51,6 @@ protected:
 
   virtual void ScheduleNativeEventCallback();
   virtual bool ProcessNextNativeEvent(bool aMayWait);
-
-  bool InGoannaMainEventLoop();
 
   static void ProcessGoannaEvents(void* aInfo);
 
@@ -98,17 +67,6 @@ protected:
   bool               mSkippedNativeCallback;
   bool               mRunningCocoaEmbedded;
 
-  // mHadMoreEventsCount and kHadMoreEventsCountMax are used in
-  // ProcessNextNativeEvent().
-  uint32_t               mHadMoreEventsCount;
-  // Setting kHadMoreEventsCountMax to '10' contributed to a fairly large
-  // (about 10%) increase in the number of calls to malloc (though without
-  // effecting the total amount of memory used).  Cutting it to '3'
-  // reduced the number of calls by 6%-7% (reducing the original regression
-  // to 3%-4%).  See bmo bug 395397.
-  static const uint32_t  kHadMoreEventsCountMax = 3;
-
-  int32_t            mRecursionDepth;
   int32_t            mNativeEventCallbackDepth;
   // Can be set from different threads, so must be modified atomically
   int32_t            mNativeEventScheduledDepth;

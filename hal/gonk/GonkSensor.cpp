@@ -23,22 +23,20 @@
 #include "base/thread.h"
 
 #include "Hal.h"
+#include "HalLog.h"
 #include "HalSensor.h"
 #include "hardware/sensors.h"
-
-#undef LOG
-
-#include <android/log.h>
+#include "nsThreadUtils.h"
 
 using namespace mozilla::hal;
-
-#define LOGE(args...)  __android_log_print(ANDROID_LOG_ERROR, "GonkSensor" , ## args)
-#define LOGW(args...)  __android_log_print(ANDROID_LOG_WARN, "GonkSensor" , ## args)
 
 namespace mozilla {
 
 // The value from SensorDevice.h (Android)
 #define DEFAULT_DEVICE_POLL_RATE 200000000 /*200ms*/
+// ProcessOrientation.cpp needs smaller poll rate to detect delay between
+// different orientation angles
+#define ACCELEROMETER_POLL_RATE 66667000 /*66.667ms*/
 
 double radToDeg(double a) {
   return a * (180.0 / M_PI);
@@ -173,7 +171,7 @@ PollSensors()
     // didn't check sSensorDevice because already be done on creating pollingThread.
     int n = sSensorDevice->poll(sSensorDevice, buffer, numEventMax);
     if (n < 0) {
-      LOGE("Error polling for sensor data (err=%d)", n);
+      HAL_ERR("Error polling for sensor data (err=%d)", n);
       break;
     }
 
@@ -181,6 +179,14 @@ PollSensors()
       // FIXME: bug 802004, add proper support for the magnetic field sensor.
       if (buffer[i].type == SENSOR_TYPE_MAGNETIC_FIELD)
         continue;
+
+      // Bug 938035, transfer HAL data for orientation sensor to meet w3c spec
+      // ex: HAL report alpha=90 means East but alpha=90 means West in w3c spec
+      if (buffer[i].type == SENSOR_TYPE_ORIENTATION) {
+        buffer[i].orientation.azimuth = 360 - buffer[i].orientation.azimuth;
+        buffer[i].orientation.pitch = -buffer[i].orientation.pitch;
+        buffer[i].orientation.roll = -buffer[i].orientation.roll;
+      }
 
       if (HardwareSensorToHalSensor(buffer[i].type) == SENSOR_UNKNOWN) {
         // Emulator is broken and gives us events without types set
@@ -194,7 +200,7 @@ PollSensors()
             HardwareSensorToHalSensor(sensors[index].type) != SENSOR_UNKNOWN) {
           buffer[i].type = sensors[index].type;
         } else {
-          LOGW("Could not determine sensor type of event");
+          HAL_LOG("Could not determine sensor type of event");
           continue;
         }
       }
@@ -214,8 +220,13 @@ SwitchSensor(bool aActivate, sensor_t aSensor, pthread_t aThreadId)
   sSensorDevice->activate(sSensorDevice, aSensor.handle, aActivate);
 
   if (aActivate) {
-    sSensorDevice->setDelay(sSensorDevice, aSensor.handle,
+    if (aSensor.type == SENSOR_TYPE_ACCELEROMETER) {
+      sSensorDevice->setDelay(sSensorDevice, aSensor.handle,
+                   ACCELEROMETER_POLL_RATE);
+    } else {
+      sSensorDevice->setDelay(sSensorDevice, aSensor.handle,
                    DEFAULT_DEVICE_POLL_RATE);
+    }
   }
 
   if (aActivate) {
@@ -229,7 +240,7 @@ static void
 SetSensorState(SensorType aSensor, bool activate)
 {
   int type = HalSensorToHardwareSensor(aSensor);
-  const sensor_t* sensors = NULL;
+  const sensor_t* sensors = nullptr;
 
   int size = sSensorModule->get_sensors_list(sSensorModule, &sensors);
   for (ssize_t i = 0; i < size; i++) {
@@ -247,14 +258,14 @@ EnableSensorNotifications(SensorType aSensor)
     hw_get_module(SENSORS_HARDWARE_MODULE_ID,
                        (hw_module_t const**)&sSensorModule);
     if (!sSensorModule) {
-      LOGE("Can't get sensor HAL module\n");
+      HAL_ERR("Can't get sensor HAL module\n");
       return;
     }
 
     sensors_open(&sSensorModule->common, &sSensorDevice);
     if (!sSensorDevice) {
-      sSensorModule = NULL;
-      LOGE("Can't get sensor poll device from module \n");
+      sSensorModule = nullptr;
+      HAL_ERR("Can't get sensor poll device from module \n");
       return;
     }
 

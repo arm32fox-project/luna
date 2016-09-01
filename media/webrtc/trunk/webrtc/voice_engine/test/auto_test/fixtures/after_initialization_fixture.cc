@@ -8,13 +8,14 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "after_initialization_fixture.h"
+#include "webrtc/modules/audio_processing/include/audio_processing.h"
+#include "webrtc/voice_engine/test/auto_test/fixtures/after_initialization_fixture.h"
 
 class TestErrorObserver : public webrtc::VoiceEngineObserver {
  public:
   TestErrorObserver() {}
   virtual ~TestErrorObserver() {}
-  void CallbackOnError(const int channel, const int error_code) {
+  void CallbackOnError(int channel, int error_code) {
     ADD_FAILURE() << "Unexpected error on channel " << channel <<
         ": error code " << error_code;
   }
@@ -22,7 +23,11 @@ class TestErrorObserver : public webrtc::VoiceEngineObserver {
 
 AfterInitializationFixture::AfterInitializationFixture()
     : error_observer_(new TestErrorObserver()) {
-  EXPECT_EQ(0, voe_base_->Init());
+  webrtc::Config config;
+  config.Set<webrtc::ExperimentalAgc>(new webrtc::ExperimentalAgc(false));
+  webrtc::AudioProcessing* audioproc = webrtc::AudioProcessing::Create(config);
+
+  EXPECT_EQ(0, voe_base_->Init(NULL, audioproc));
 
 #if defined(WEBRTC_ANDROID)
   EXPECT_EQ(0, voe_hardware_->SetLoudspeakerStatus(false));

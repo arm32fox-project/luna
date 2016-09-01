@@ -88,6 +88,10 @@ const SNAPSHOT_SCHEMA = {
           required: true,
           type: "string",
         },
+        buildID: {
+          required: true,
+          type: "string",
+        },
         userAgent: {
           required: true,
           type: "string",
@@ -95,8 +99,52 @@ const SNAPSHOT_SCHEMA = {
         vendor: {
           type: "string",
         },
+        updateChannel: {
+          type: "string",
+        },
         supportURL: {
           type: "string",
+        },
+        remoteAutoStart: {
+          type: "boolean",
+          required: true,
+        },
+        numTotalWindows: {
+          type: "number",
+        },
+        numRemoteWindows: {
+          type: "number",
+        },
+      },
+    },
+    crashes: {
+      required: false,
+      type: "object",
+      properties: {
+        pending: {
+          required: true,
+          type: "number",
+        },
+        submitted: {
+          required: true,
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              id: {
+                required: true,
+                type: "string",
+              },
+              date: {
+                required: true,
+                type: "number",
+              },
+              pending: {
+                required: true,
+                type: "boolean",
+              },
+            },
+          },
         },
       },
     },
@@ -126,6 +174,10 @@ const SNAPSHOT_SCHEMA = {
       },
     },
     modifiedPreferences: {
+      required: true,
+      type: "object",
+    },
+    lockedPreferences: {
       required: true,
       type: "object",
     },
@@ -159,6 +211,9 @@ const SNAPSHOT_SCHEMA = {
         adapterDeviceID: {
           type: "string",
         },
+        adapterSubsysID: {
+          type: "string",
+        },
         adapterRAM: {
           type: "string",
         },
@@ -178,6 +233,9 @@ const SNAPSHOT_SCHEMA = {
           type: "string",
         },
         adapterDeviceID2: {
+          type: "string",
+        },
+        adapterSubsysID2: {
           type: "string",
         },
         adapterRAM2: {
@@ -333,6 +391,27 @@ const SNAPSHOT_SCHEMA = {
           required: true,
           type: "boolean",
         },
+      },
+    },
+    experiments: {
+      type: "array",
+    },
+    sandbox: {
+      required: false,
+      type: "object",
+      properties: {
+	hasSeccompBPF: {
+	  required: true,
+	  type: "boolean"
+	},
+	canSandboxContent: {
+	  required: false,
+	  type: "boolean"
+	},
+	canSandboxMedia: {
+	  required: false,
+	  type: "boolean"
+	},
       },
     },
   },

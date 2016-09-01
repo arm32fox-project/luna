@@ -8,7 +8,9 @@ package org.mozilla.goanna.db;
 import org.mozilla.goanna.AppConstants;
 
 import android.net.Uri;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 
+@RobocopTarget
 public class BrowserContract {
     public static final String AUTHORITY = AppConstants.ANDROID_PACKAGE_NAME + ".db.browser";
     public static final Uri AUTHORITY_URI = Uri.parse("content://" + AUTHORITY);
@@ -22,6 +24,18 @@ public class BrowserContract {
     public static final String TABS_AUTHORITY = AppConstants.ANDROID_PACKAGE_NAME + ".db.tabs";
     public static final Uri TABS_AUTHORITY_URI = Uri.parse("content://" + TABS_AUTHORITY);
 
+    public static final String HOME_AUTHORITY = AppConstants.ANDROID_PACKAGE_NAME + ".db.home";
+    public static final Uri HOME_AUTHORITY_URI = Uri.parse("content://" + HOME_AUTHORITY);
+
+    public static final String PROFILES_AUTHORITY = AppConstants.ANDROID_PACKAGE_NAME + ".profiles";
+    public static final Uri PROFILES_AUTHORITY_URI = Uri.parse("content://" + PROFILES_AUTHORITY);
+
+    public static final String READING_LIST_AUTHORITY = AppConstants.ANDROID_PACKAGE_NAME + ".db.readinglist";
+    public static final Uri READING_LIST_AUTHORITY_URI = Uri.parse("content://" + READING_LIST_AUTHORITY);
+
+    public static final String SEARCH_HISTORY_AUTHORITY = AppConstants.ANDROID_PACKAGE_NAME + ".db.searchhistory";
+    public static final Uri SEARCH_HISTORY_AUTHORITY_URI = Uri.parse("content://" + SEARCH_HISTORY_AUTHORITY);
+
     public static final String PARAM_PROFILE = "profile";
     public static final String PARAM_PROFILE_PATH = "profilePath";
     public static final String PARAM_LIMIT = "limit";
@@ -31,6 +45,7 @@ public class BrowserContract {
     public static final String PARAM_INSERT_IF_NEEDED = "insert_if_needed";
     public static final String PARAM_INCREMENT_VISITS = "increment_visits";
     public static final String PARAM_EXPIRE_PRIORITY = "priority";
+    public static final String PARAM_DATASET_ID = "dataset_id";
 
     static public enum ExpirePriority {
         NORMAL,
@@ -50,31 +65,37 @@ public class BrowserContract {
         return order.toString();
     }
 
+    @RobocopTarget
     public interface CommonColumns {
         public static final String _ID = "_id";
     }
 
+    @RobocopTarget
     public interface DateSyncColumns {
         public static final String DATE_CREATED = "created";
         public static final String DATE_MODIFIED = "modified";
     }
 
+    @RobocopTarget
     public interface SyncColumns extends DateSyncColumns {
         public static final String GUID = "guid";
         public static final String IS_DELETED = "deleted";
     }
 
+    @RobocopTarget
     public interface URLColumns {
         public static final String URL = "url";
         public static final String TITLE = "title";
     }
 
+    @RobocopTarget
     public interface FaviconColumns {
         public static final String FAVICON = "favicon";
         public static final String FAVICON_ID = "favicon_id";
         public static final String FAVICON_URL = "favicon_url";
     }
 
+    @RobocopTarget
     public interface HistoryColumns {
         public static final String DATE_LAST_VISITED = "date";
         public static final String VISITS = "visits";
@@ -86,8 +107,11 @@ public class BrowserContract {
         public static final String TIME_DELETED = "timeDeleted";
     }
 
+    @RobocopTarget
     public static final class Favicons implements CommonColumns, DateSyncColumns {
         private Favicons() {}
+
+        public static final String TABLE_NAME = "favicons";
 
         public static final Uri CONTENT_URI = Uri.withAppendedPath(AUTHORITY_URI, "favicons");
 
@@ -96,8 +120,11 @@ public class BrowserContract {
         public static final String PAGE_URL = "page_url";
     }
 
+    @RobocopTarget
     public static final class Thumbnails implements CommonColumns {
         private Thumbnails() {}
+
+        public static final String TABLE_NAME = "thumbnails";
 
         public static final Uri CONTENT_URI = Uri.withAppendedPath(AUTHORITY_URI, "thumbnails");
 
@@ -105,8 +132,19 @@ public class BrowserContract {
         public static final String DATA = "data";
     }
 
+    public static final class Profiles {
+        private Profiles() {}
+        public static final String NAME = "name";
+        public static final String PATH = "path";
+    }
+
+    @RobocopTarget
     public static final class Bookmarks implements CommonColumns, URLColumns, FaviconColumns, SyncColumns {
         private Bookmarks() {}
+
+        public static final String TABLE_NAME = "bookmarks";
+
+        public static final String VIEW_WITH_FAVICONS = "bookmarks_with_favicons";
 
         public static final int FIXED_ROOT_ID = 0;
         public static final int FAKE_DESKTOP_FOLDER_ID = -1;
@@ -119,7 +157,6 @@ public class BrowserContract {
         public static final String TAGS_FOLDER_GUID = "tags";
         public static final String TOOLBAR_FOLDER_GUID = "toolbar";
         public static final String UNFILED_FOLDER_GUID = "unfiled";
-        public static final String READING_LIST_FOLDER_GUID = "readinglist";
         public static final String FAKE_DESKTOP_FOLDER_GUID = "desktop";
         public static final String PINNED_FOLDER_GUID = "pinned";
 
@@ -145,8 +182,14 @@ public class BrowserContract {
         public static final String KEYWORD = "keyword";
     }
 
+    @RobocopTarget
     public static final class History implements CommonColumns, URLColumns, HistoryColumns, FaviconColumns, SyncColumns {
         private History() {}
+
+        public static final String TABLE_NAME = "history";
+
+        public static final String VIEW_WITH_FAVICONS = "history_with_favicons";
+
         public static final Uri CONTENT_URI = Uri.withAppendedPath(AUTHORITY_URI, "history");
         public static final Uri CONTENT_OLD_URI = Uri.withAppendedPath(AUTHORITY_URI, "history/old");
         public static final String CONTENT_TYPE = "vnd.android.cursor.dir/browser-history";
@@ -154,16 +197,18 @@ public class BrowserContract {
     }
 
     // Combined bookmarks and history
+    @RobocopTarget
     public static final class Combined implements CommonColumns, URLColumns, HistoryColumns, FaviconColumns  {
         private Combined() {}
-        public static final Uri CONTENT_URI = Uri.withAppendedPath(AUTHORITY_URI, "combined");
 
-        public static final int DISPLAY_NORMAL = 0;
-        public static final int DISPLAY_READER = 1;
+        public static final String VIEW_NAME = "combined";
+
+        public static final String VIEW_WITH_FAVICONS = "combined_with_favicons";
+
+        public static final Uri CONTENT_URI = Uri.withAppendedPath(AUTHORITY_URI, "combined");
 
         public static final String BOOKMARK_ID = "bookmark_id";
         public static final String HISTORY_ID = "history_id";
-        public static final String DISPLAY = "display";
     }
 
     public static final class Schema {
@@ -171,18 +216,6 @@ public class BrowserContract {
         public static final Uri CONTENT_URI = Uri.withAppendedPath(AUTHORITY_URI, "schema");
 
         public static final String VERSION = "version";
-    }
-
-    public static final class Control {
-        private Control() {}
-
-        public static final Uri CONTENT_URI = Uri.withAppendedPath(AUTHORITY_URI, "control");
-
-        // These return 1 if done/finished, 0 if not.
-        // Check if history was completely migrated, do a bunch if it wasn't.
-        public static final String ENSURE_HISTORY_MIGRATED = "ensure_history_migrated";
-        // Check if bookmarks were completely migrated, migrate them if not.
-        public static final String ENSURE_BOOKMARKS_MIGRATED = "ensure_bookmarks_migrated";
     }
 
     public static final class Passwords {
@@ -282,5 +315,169 @@ public class BrowserContract {
         // Last modified time for the client's tab record. For remote records, a server
         // timestamp provided by Sync during insertion.
         public static final String LAST_MODIFIED = "last_modified";
+
+        public static final String DEVICE_TYPE = "device_type";
+    }
+
+    // Data storage for dynamic panels on about:home
+    @RobocopTarget
+    public static final class HomeItems implements CommonColumns {
+        private HomeItems() {}
+        public static final Uri CONTENT_FAKE_URI = Uri.withAppendedPath(HOME_AUTHORITY_URI, "items/fake");
+        public static final Uri CONTENT_URI = Uri.withAppendedPath(HOME_AUTHORITY_URI, "items");
+
+        public static final String CONTENT_TYPE = "vnd.android.cursor.dir/homeitem";
+        public static final String CONTENT_ITEM_TYPE = "vnd.android.cursor.item/homeitem";
+
+        public static final String DATASET_ID = "dataset_id";
+        public static final String URL = "url";
+        public static final String TITLE = "title";
+        public static final String DESCRIPTION = "description";
+        public static final String IMAGE_URL = "image_url";
+        public static final String CREATED = "created";
+        public static final String FILTER = "filter";
+
+        public static final String[] DEFAULT_PROJECTION =
+            new String[] { _ID, DATASET_ID, URL, TITLE, DESCRIPTION, IMAGE_URL, FILTER };
+    }
+
+    @RobocopTarget
+    public static final class ReadingListItems implements CommonColumns, URLColumns {
+        public static final String EXCERPT = "excerpt";
+        public static final String CLIENT_LAST_MODIFIED = "client_last_modified";
+        public static final String GUID = "guid";
+        public static final String SERVER_LAST_MODIFIED = "last_modified";
+        public static final String SERVER_STORED_ON = "stored_on";
+        public static final String ADDED_ON = "added_on";
+        public static final String MARKED_READ_ON = "marked_read_on";
+        public static final String IS_DELETED = "is_deleted";
+        public static final String IS_ARCHIVED = "is_archived";
+        public static final String IS_UNREAD = "is_unread";
+        public static final String IS_ARTICLE = "is_article";
+        public static final String IS_FAVORITE = "is_favorite";
+        public static final String RESOLVED_URL = "resolved_url";
+        public static final String RESOLVED_TITLE = "resolved_title";
+        public static final String ADDED_BY = "added_by";
+        public static final String MARKED_READ_BY = "marked_read_by";
+        public static final String WORD_COUNT = "word_count";
+        public static final String READ_POSITION = "read_position";
+        public static final String CONTENT_STATUS = "content_status";
+
+        public static final String SYNC_STATUS = "sync_status";
+        public static final String SYNC_CHANGE_FLAGS = "sync_change_flags";
+
+        private ReadingListItems() {}
+        public static final Uri CONTENT_URI = Uri.withAppendedPath(READING_LIST_AUTHORITY_URI, "items");
+
+        public static final String CONTENT_TYPE = "vnd.android.cursor.dir/readinglistitem";
+        public static final String CONTENT_ITEM_TYPE = "vnd.android.cursor.item/readinglistitem";
+
+        // CONTENT_STATUS represents the result of an attempt to fetch content for the reading list item.
+        public static final int STATUS_UNFETCHED = 0;
+        public static final int STATUS_FETCH_FAILED_TEMPORARY = 1;
+        public static final int STATUS_FETCH_FAILED_PERMANENT = 2;
+        public static final int STATUS_FETCH_FAILED_UNSUPPORTED_FORMAT = 3;
+        public static final int STATUS_FETCHED_ARTICLE = 4;
+
+        // See https://github.com/mozilla-services/readinglist/wiki/Client-phases for how this is expected to work.
+        //
+        // If an item is SYNCED, it doesn't need to be uploaded.
+        //
+        // If its status is NEW, the entire record should be uploaded.
+        //
+        // If DELETED, the record should be deleted. A record can only move into this state from SYNCED; NEW records
+        // are deleted immediately.
+        //
+
+        public static final int SYNC_STATUS_SYNCED = 0;
+        public static final int SYNC_STATUS_NEW = 1;                      // Upload everything.
+        public static final int SYNC_STATUS_DELETED = 2;                  // Delete the record from the server.
+        public static final int SYNC_STATUS_MODIFIED = 3;                 // Consult SYNC_CHANGE_FLAGS.
+
+        // SYNC_CHANGE_FLAG represents the sets of fields that need to be uploaded.
+        // If its status is only UNREAD_CHANGED (and maybe FAVORITE_CHANGED?), then it can easily be uploaded
+        // in a fire-and-forget manner. This change can never conflict.
+        //
+        // If its status is RESOLVED, then one or more of the content-oriented fields has changed, and a full
+        // upload of those fields should occur. These can result in conflicts.
+        //
+        // Note that these are flags; they should be considered together when deciding on a course of action.
+        //
+        // These flags are meaningless for records in any state other than SYNCED. They can be safely altered in
+        // other states (to avoid having to query to pre-fill a ContentValues), but should be ignored.
+        public static final int SYNC_CHANGE_NONE = 0;
+        public static final int SYNC_CHANGE_UNREAD_CHANGED   = 1 << 0;    // => marked_read_{on,by}, is_unread
+        public static final int SYNC_CHANGE_FAVORITE_CHANGED = 1 << 1;    // => is_favorite
+        public static final int SYNC_CHANGE_RESOLVED = 1 << 2;            // => is_article, resolved_{url,title}, excerpt, word_count
+
+
+        public static final String DEFAULT_SORT_ORDER = CLIENT_LAST_MODIFIED + " DESC";
+        public static final String[] DEFAULT_PROJECTION = new String[] { _ID, URL, TITLE, EXCERPT, WORD_COUNT };
+
+        // Minimum fields required to create a reading list item.
+        public static final String[] REQUIRED_FIELDS = { ReadingListItems.URL, ReadingListItems.TITLE };
+
+        // All fields that might be mapped from the DB into a record object.
+        public static final String[] ALL_FIELDS = {
+                CommonColumns._ID,
+                URLColumns.URL,
+                URLColumns.TITLE,
+                EXCERPT,
+                CLIENT_LAST_MODIFIED,
+                GUID,
+                SERVER_LAST_MODIFIED,
+                SERVER_STORED_ON,
+                ADDED_ON,
+                MARKED_READ_ON,
+                IS_DELETED,
+                IS_ARCHIVED,
+                IS_UNREAD,
+                IS_ARTICLE,
+                IS_FAVORITE,
+                RESOLVED_URL,
+                RESOLVED_TITLE,
+                ADDED_BY,
+                MARKED_READ_BY,
+                WORD_COUNT,
+                READ_POSITION,
+                CONTENT_STATUS,
+
+                SYNC_STATUS,
+                SYNC_CHANGE_FLAGS,
+        };
+
+        public static final String TABLE_NAME = "reading_list";
+    }
+
+    @RobocopTarget
+    public static final class TopSites implements CommonColumns, URLColumns {
+        private TopSites() {}
+
+        public static final int TYPE_BLANK = 0;
+        public static final int TYPE_TOP = 1;
+        public static final int TYPE_PINNED = 2;
+        public static final int TYPE_SUGGESTED = 3;
+
+        public static final String BOOKMARK_ID = "bookmark_id";
+        public static final String HISTORY_ID = "history_id";
+        public static final String TYPE = "type";
+    }
+
+    @RobocopTarget
+    public static final class SearchHistory implements CommonColumns, HistoryColumns {
+        private SearchHistory() {}
+
+        public static final String CONTENT_TYPE = "vnd.android.cursor.dir/searchhistory";
+        public static final String QUERY = "query";
+        public static final String TABLE_NAME = "searchhistory";
+
+        public static final Uri CONTENT_URI = Uri.withAppendedPath(SEARCH_HISTORY_AUTHORITY_URI, "searchhistory");
+    }
+
+    @RobocopTarget
+    public static final class SuggestedSites implements CommonColumns, URLColumns {
+        private SuggestedSites() {}
+
+        public static final Uri CONTENT_URI = Uri.withAppendedPath(AUTHORITY_URI, "suggestedsites");
     }
 }

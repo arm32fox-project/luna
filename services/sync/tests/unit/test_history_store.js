@@ -1,6 +1,7 @@
 /* Any copyright is dedicated to the Public Domain.
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
+Cu.import("resource://gre/modules/PlacesUtils.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://services-common/async.js");
 Cu.import("resource://services-sync/engines/history.js");
@@ -61,7 +62,7 @@ function ensureThrows(func) {
     try {
       func.apply(this, arguments);
     } catch (ex) {
-      PlacesUtils.history.removeAllPages();
+      PlacesTestUtils.clearHistory();
       do_throw(ex);
     }
   };
@@ -299,6 +300,5 @@ add_test(function test_remove() {
 
 add_test(function cleanup() {
   _("Clean up.");
-  PlacesUtils.history.removeAllPages();
-  run_next_test();
+  PlacesTestUtils.clearHistory().then(run_next_test);
 });

@@ -8,12 +8,14 @@
 #include "maxp.h"
 
 // OpenType horizontal and vertical common header format
-// http://www.microsoft.com/opentype/otspec/hhea.htm
-// http://www.microsoft.com/opentype/otspec/vhea.htm
+// http://www.microsoft.com/typography/otspec/hhea.htm
+// http://www.microsoft.com/typography/otspec/vhea.htm
+
+#define TABLE_NAME "metrics" // XXX: use individual table names
 
 namespace ots {
 
-bool ParseMetricsHeader(OpenTypeFile *file, Buffer *table,
+bool ParseMetricsHeader(Font *font, Buffer *table,
                         OpenTypeMetricsHeader *header) {
   if (!table->ReadS16(&header->ascent) ||
       !table->ReadS16(&header->descent) ||
@@ -25,7 +27,7 @@ bool ParseMetricsHeader(OpenTypeFile *file, Buffer *table,
       !table->ReadS16(&header->caret_slope_rise) ||
       !table->ReadS16(&header->caret_slope_run) ||
       !table->ReadS16(&header->caret_offset)) {
-    return OTS_FAILURE();
+    return OTS_FAILURE_MSG("Failed to read metrics header");
   }
 
   if (header->ascent < 0) {
@@ -37,12 +39,12 @@ bool ParseMetricsHeader(OpenTypeFile *file, Buffer *table,
     header->linegap = 0;
   }
 
-  if (!file->head) {
-    return OTS_FAILURE();
+  if (!font->head) {
+    return OTS_FAILURE_MSG("Missing head font table");
   }
 
   // if the font is non-slanted, caret_offset should be zero.
-  if (!(file->head->mac_style & 2) &&
+  if (!(font->head->mac_style & 2) &&
       (header->caret_offset != 0)) {
     OTS_WARNING("bad caret offset: %d", header->caret_offset);
     header->caret_offset = 0;
@@ -50,33 +52,34 @@ bool ParseMetricsHeader(OpenTypeFile *file, Buffer *table,
 
   // skip the reserved bytes
   if (!table->Skip(8)) {
-    return OTS_FAILURE();
+    return OTS_FAILURE_MSG("Failed to skip reserverd bytes");
   }
 
   int16_t data_format;
   if (!table->ReadS16(&data_format)) {
-    return OTS_FAILURE();
+    return OTS_FAILURE_MSG("Failed to read data format");
   }
   if (data_format) {
-    return OTS_FAILURE();
+    return OTS_FAILURE_MSG("Bad data format %d", data_format);
   }
 
   if (!table->ReadU16(&header->num_metrics)) {
-    return OTS_FAILURE();
+    return OTS_FAILURE_MSG("Failed to read number of metrics");
   }
 
-  if (!file->maxp) {
-    return OTS_FAILURE();
+  if (!font->maxp) {
+    return OTS_FAILURE_MSG("Missing maxp font table");
   }
 
-  if (header->num_metrics > file->maxp->num_glyphs) {
-    return OTS_FAILURE();
+  if (header->num_metrics > font->maxp->num_glyphs) {
+    return OTS_FAILURE_MSG("Bad number of metrics %d", header->num_metrics);
   }
 
   return true;
 }
 
-bool SerialiseMetricsHeader(OTSStream *out,
+bool SerialiseMetricsHeader(const ots::Font *font,
+                            OTSStream *out,
                             const OpenTypeMetricsHeader *header) {
   if (!out->WriteU32(header->version) ||
       !out->WriteS16(header->ascent) ||
@@ -92,13 +95,14 @@ bool SerialiseMetricsHeader(OTSStream *out,
       !out->WriteR64(0) ||  // reserved
       !out->WriteS16(0) ||  // metric data format
       !out->WriteU16(header->num_metrics)) {
-    return OTS_FAILURE();
+    return OTS_FAILURE_MSG("Failed to write metrics");
   }
 
   return true;
 }
 
-bool ParseMetricsTable(Buffer *table,
+bool ParseMetricsTable(const ots::Font *font,
+                       Buffer *table,
                        const uint16_t num_glyphs,
                        const OpenTypeMetricsHeader *header,
                        OpenTypeMetricsTable *metrics) {
@@ -107,10 +111,10 @@ bool ParseMetricsTable(Buffer *table,
   const unsigned num_metrics = header->num_metrics;
 
   if (num_metrics > num_glyphs) {
-    return OTS_FAILURE();
+    return OTS_FAILURE_MSG("Bad number of metrics %d", num_metrics);
   }
   if (!num_metrics) {
-    return OTS_FAILURE();
+    return OTS_FAILURE_MSG("No metrics!");
   }
   const unsigned num_sbs = num_glyphs - num_metrics;
 
@@ -119,22 +123,8 @@ bool ParseMetricsTable(Buffer *table,
     uint16_t adv = 0;
     int16_t sb = 0;
     if (!table->ReadU16(&adv) || !table->ReadS16(&sb)) {
-      return OTS_FAILURE();
+      return OTS_FAILURE_MSG("Failed to read metric %d", i);
     }
-
-    // Since so many fonts don't have proper value on |adv| and |sb|,
-    // we should not call ots_failure() here. For example, about 20% of fonts
-    // in http://www.princexml.com/fonts/ (200+ fonts) fails these tests.
-    if (adv > header->adv_width_max) {
-      OTS_WARNING("bad adv: %u > %u", adv, header->adv_width_max);
-      adv = header->adv_width_max;
-    }
-
-    if (sb < header->min_sb1) {
-      OTS_WARNING("bad sb: %d < %d", sb, header->min_sb1);
-      sb = header->min_sb1;
-    }
-
     metrics->entries.push_back(std::make_pair(adv, sb));
   }
 
@@ -143,34 +133,27 @@ bool ParseMetricsTable(Buffer *table,
     int16_t sb;
     if (!table->ReadS16(&sb)) {
       // Some Japanese fonts (e.g., mona.ttf) fail this test.
-      return OTS_FAILURE();
+      return OTS_FAILURE_MSG("Failed to read side bearing %d", i + num_metrics);
     }
-
-    if (sb < header->min_sb1) {
-      // The same as above. Three fonts in http://www.fontsquirrel.com/fontface
-      // (e.g., Notice2Std.otf) have weird lsb values.
-      OTS_WARNING("bad lsb: %d < %d", sb, header->min_sb1);
-      sb = header->min_sb1;
-    }
-
     metrics->sbs.push_back(sb);
   }
 
   return true;
 }
 
-bool SerialiseMetricsTable(OTSStream *out,
+bool SerialiseMetricsTable(const ots::Font *font,
+                           OTSStream *out,
                            const OpenTypeMetricsTable *metrics) {
   for (unsigned i = 0; i < metrics->entries.size(); ++i) {
     if (!out->WriteU16(metrics->entries[i].first) ||
         !out->WriteS16(metrics->entries[i].second)) {
-      return OTS_FAILURE();
+      return OTS_FAILURE_MSG("Failed to write metric %d", i);
     }
   }
 
   for (unsigned i = 0; i < metrics->sbs.size(); ++i) {
     if (!out->WriteS16(metrics->sbs[i])) {
-      return OTS_FAILURE();
+      return OTS_FAILURE_MSG("Failed to write side bearing %ld", i + metrics->entries.size());
     }
   }
 
@@ -179,3 +162,4 @@ bool SerialiseMetricsTable(OTSStream *out,
 
 }  // namespace ots
 
+#undef TABLE_NAME

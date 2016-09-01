@@ -4,26 +4,17 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-TEST_DIRS += ['test']
-
 XPIDL_SOURCES += [
     'nsIAlarmHalService.idl',
-    'nsIDOMAlarmsManager.idl',
 ]
 
 XPIDL_MODULE = 'dom_alarm'
-
-XPIDL_FLAGS += [
-    '-I$(topsrcdir)/dom/interfaces/base',
-]
-
-MODULE = 'dom'
 
 EXPORTS.mozilla.dom.alarm += [
     'AlarmHalService.h',
 ]
 
-CPP_SOURCES += [
+SOURCES += [
     'AlarmHalService.cpp',
 ]
 
@@ -36,3 +27,11 @@ EXTRA_JS_MODULES += [
     'AlarmDB.jsm',
     'AlarmService.jsm',
 ]
+
+FAIL_ON_WARNINGS = True
+
+include('/ipc/chromium/chromium-config.mozbuild')
+
+FINAL_LIBRARY = 'xul'
+
+MOCHITEST_MANIFESTS += ['test/mochitest.ini']

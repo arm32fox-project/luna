@@ -13,8 +13,8 @@
 
 #include <list>
 
-#include "modules/remote_bitrate_estimator/include/rtp_to_ntp.h"
-#include "typedefs.h"  // NOLINT
+#include "webrtc/system_wrappers/interface/rtp_to_ntp.h"
+#include "webrtc/typedefs.h"
 
 namespace webrtc {
 
@@ -24,7 +24,7 @@ class StreamSynchronization {
  public:
   struct Measurements {
     Measurements() : rtcp(), latest_receive_time_ms(0), latest_timestamp(0) {}
-    synchronization::RtcpList rtcp;
+    RtcpList rtcp;
     int64_t latest_receive_time_ms;
     uint32_t latest_timestamp;
   };
@@ -43,11 +43,16 @@ class StreamSynchronization {
   static bool ComputeRelativeDelay(const Measurements& audio_measurement,
                                    const Measurements& video_measurement,
                                    int* relative_delay_ms);
+  // Set target buffering delay - All audio and video will be delayed by at
+  // least target_delay_ms.
+  void SetTargetBufferingDelay(int target_delay_ms);
 
  private:
   ViESyncDelay* channel_delay_;
   int audio_channel_id_;
   int video_channel_id_;
+  int base_target_delay_ms_;
+  int avg_diff_ms_;
 };
 }  // namespace webrtc
 

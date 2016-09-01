@@ -10,25 +10,15 @@
   'targets': [
     {
       'target_name': 'webrtc_video_coding',
-      'type': '<(library)',
+      'type': 'static_library',
       'dependencies': [
         'webrtc_i420',
         '<(webrtc_root)/common_video/common_video.gyp:common_video',
+        '<(webrtc_root)/modules/video_coding/utility/video_coding_utility.gyp:video_coding_utility',
         '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
         '<(webrtc_vp8_dir)/vp8.gyp:webrtc_vp8',
+        '<(webrtc_vp9_dir)/vp9.gyp:webrtc_vp9',
       ],
-      'include_dirs': [
-        '../interface',
-        '../../../interface',
-        '../../codecs/interface',
-        '../../../../common_video/interface',
-      ],
-      'direct_dependent_settings': {
-        'include_dirs': [
-          '../interface',
-          '../../codecs/interface',
-        ],
-      },
       'sources': [
         # interfaces
         '../interface/video_coding.h',
@@ -41,11 +31,8 @@
         'decoding_state.h',
         'encoded_frame.h',
         'er_tables_xor.h',
-        'event.h',
-        'exp_filter.h',
         'fec_tables_xor.h',
         'frame_buffer.h',
-        'frame_dropper.h',
         'generic_decoder.h',
         'generic_encoder.h',
         'inter_frame_delay.h',
@@ -62,8 +49,6 @@
         'receiver.h',
         'rtt_filter.h',
         'session_info.h',
-        'tick_time_base.h',
-        'timestamp_extrapolator.h',
         'timestamp_map.h',
         'timing.h',
         'video_coding_impl.h',
@@ -74,14 +59,11 @@
         'content_metrics_processing.cc',
         'decoding_state.cc',
         'encoded_frame.cc',
-        'exp_filter.cc',
         'frame_buffer.cc',
-        'frame_dropper.cc',
         'generic_decoder.cc',
         'generic_encoder.cc',
         'inter_frame_delay.cc',
         'jitter_buffer.cc',
-        'jitter_buffer_common.cc',
         'jitter_estimator.cc',
         'media_opt_util.cc',
         'media_optimization.cc',
@@ -90,11 +72,14 @@
         'receiver.cc',
         'rtt_filter.cc',
         'session_info.cc',
-        'timestamp_extrapolator.cc',
         'timestamp_map.cc',
         'timing.cc',
         'video_coding_impl.cc',
+        'video_sender.cc',
+        'video_receiver.cc',
       ], # source
+      # TODO(jschuh): Bug 1348: fix size_t to int truncations.
+      'msvs_disabled_warnings': [ 4267, ],
     },
   ],
 }

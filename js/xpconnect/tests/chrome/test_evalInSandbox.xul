@@ -150,5 +150,53 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=533596
       catch (e) {
         ok(false, "sameZoneAs works");
       }
+
+      // The 'let' keyword only appears with JS 1.7 and above. We use this fact
+      // to make sure that sandboxes get explict JS versions and don't inherit
+      // them from the most recent scripted frame.
+      function checkExplicitVersions() {
+        const Cu = Components.utils;
+        var sb = new Cu.Sandbox(sop);
+        Cu.evalInSandbox('let someVariable = 42', sb, '1.7');
+        ok(true, "Didn't throw with let");
+        try {
+          Cu.evalInSandbox('let someVariable = 42', sb);
+          ok(false, "Should have thrown with let");
+        } catch (e) {
+          ok(true, "Threw with let: " + e);
+        }
+        try {
+          Cu.evalInSandbox('let someVariable = 42', sb, '1.5');
+          ok(false, "Should have thrown with let");
+        } catch (e) {
+          ok(true, "Threw with let: " + e);
+        }
+      }
+      var outerSB = new Cu.Sandbox(this);
+      Cu.evalInSandbox(checkExplicitVersions.toSource(), outerSB, '1.7');
+      outerSB.ok = ok;
+      outerSB.sop = this;
+      Cu.evalInSandbox('checkExplicitVersions();', outerSB);
+
+      Cu.import("resource://gre/modules/jsdebugger.jsm");
+      addDebuggerToGlobal(this);
+
+      try {
+        let dbg = new Debugger();
+        let sandbox = new Cu.Sandbox(this, { invisibleToDebugger: false });
+        dbg.addDebuggee(sandbox);
+        ok(true, "debugger added visible value");
+      } catch(e) {
+        ok(false, "debugger could not add visible value");
+      }
+
+      try {
+        let dbg = new Debugger();
+        let sandbox = new Cu.Sandbox(this, { invisibleToDebugger: true });
+        dbg.addDebuggee(sandbox);
+        ok(false, "debugger added invisible value");
+      } catch(e) {
+        ok(true, "debugger did not add invisible value");
+      }
   ]]></script>
 </window>

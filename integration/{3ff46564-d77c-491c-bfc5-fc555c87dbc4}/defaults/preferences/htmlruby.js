@@ -1,1 +1,0 @@
-pref("browser.ruby.enabled", false);

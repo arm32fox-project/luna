@@ -10,25 +10,20 @@
 
 #include "webrtc/system_wrappers/interface/thread_wrapper.h"
 
-#include "gtest/gtest.h"
+#include "testing/gtest/include/gtest/gtest.h"
 #include "webrtc/system_wrappers/interface/scoped_ptr.h"
+#include "webrtc/system_wrappers/interface/sleep.h"
 
 namespace webrtc {
 
-TEST(ThreadTest, NullFunctionPointer) {
-  webrtc::scoped_ptr<ThreadWrapper> thread(
-    webrtc::ThreadWrapper::CreateThread());
-  unsigned int id = 42;
-  EXPECT_FALSE(thread->Start(id));
-}
-
 // Function that does nothing, and reports success.
 bool NullRunFunction(void* obj) {
+  SleepMs(0);  // Hand over timeslice, prevents busy looping.
   return true;
 }
 
 TEST(ThreadTest, StartStop) {
-  ThreadWrapper* thread = ThreadWrapper::CreateThread(&NullRunFunction);
+  ThreadWrapper* thread = ThreadWrapper::CreateThread(&NullRunFunction, NULL);
   unsigned int id = 42;
   ASSERT_TRUE(thread->Start(id));
   EXPECT_TRUE(thread->Stop());
@@ -39,6 +34,7 @@ TEST(ThreadTest, StartStop) {
 bool SetFlagRunFunction(void* obj) {
   bool* obj_as_bool = static_cast<bool*>(obj);
   *obj_as_bool = true;
+  SleepMs(0);  // Hand over timeslice, prevents busy looping.
   return true;
 }
 

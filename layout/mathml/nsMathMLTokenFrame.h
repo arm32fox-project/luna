@@ -7,7 +7,6 @@
 #define nsMathMLTokenFrame_h___
 
 #include "mozilla/Attributes.h"
-#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
 //
@@ -21,7 +20,7 @@ public:
   friend nsIFrame* NS_NewMathMLTokenFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE {
+  TransmitAutomaticData() override {
     // The REC defines the following elements to be space-like:
     // * an mtext, mspace, maligngroup, or malignmark element;
     if (mContent->Tag() == nsGkAtoms::mtext_) {
@@ -31,55 +30,39 @@ public:
   }
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent) override;
 
-  virtual eMathMLFrameType GetMathMLFrameType() MOZ_OVERRIDE;
+  virtual eMathMLFrameType GetMathMLFrameType() override;
 
-  NS_IMETHOD
+  virtual void
   SetInitialChildList(ChildListID     aListID,
-                      nsFrameList&    aChildList) MOZ_OVERRIDE;
+                      nsFrameList&    aChildList) override;
 
-  NS_IMETHOD
+  virtual void
   AppendFrames(ChildListID            aListID,
-               nsFrameList&           aChildList) MOZ_OVERRIDE;
+               nsFrameList&           aChildList) override;
 
-  NS_IMETHOD
+  virtual void
   InsertFrames(ChildListID            aListID,
                nsIFrame*              aPrevFrame,
-               nsFrameList&           aChildList) MOZ_OVERRIDE;
+               nsFrameList&           aChildList) override;
 
-  NS_IMETHOD
+  virtual void
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
-         nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+         nsReflowStatus&          aStatus) override;
 
   virtual nsresult
   Place(nsRenderingContext& aRenderingContext,
         bool                 aPlaceOrigin,
-        nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
-
-  virtual void MarkIntrinsicWidthsDirty() MOZ_OVERRIDE;
-
-  virtual nsresult
-  ChildListChanged(int32_t aModType) MOZ_OVERRIDE
-  {
-    ProcessTextData();
-    return nsMathMLContainerFrame::ChildListChanged(aModType);
-  }
+        nsHTMLReflowMetrics& aDesiredSize) override;
 
 protected:
-  nsMathMLTokenFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
+  explicit nsMathMLTokenFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLTokenFrame();
 
-  // hook to perform MathML-specific actions depending on the tag
-  virtual void ProcessTextData();
-
-  // helper to set the style of <mi> which has to be italic or normal
-  // depending on its textual content
-  bool SetTextStyle();
-
-  void ForceTrimChildTextFrames();
+  void MarkTextFramesAsTokenMathML();
 };
 
 #endif /* nsMathMLTokentFrame_h___ */

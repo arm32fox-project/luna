@@ -6,12 +6,10 @@
 
 XPIDL_SOURCES += [
     'nsIDOMNavigatorSystemMessages.idl',
+    'nsISystemMessageCache.idl',
+    'nsISystemMessageGlue.idl',
     'nsISystemMessagesInternal.idl',
 ]
 
 XPIDL_MODULE = 'dom_messages'
-
-XPIDL_FLAGS += [
-    '-I$(topsrcdir)/dom/interfaces/base',
-]
 

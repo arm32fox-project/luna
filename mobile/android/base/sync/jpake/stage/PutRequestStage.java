@@ -12,10 +12,11 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.SyncConstants;
 import org.mozilla.goanna.sync.jpake.JPakeClient;
 import org.mozilla.goanna.sync.net.BaseResource;
-import org.mozilla.goanna.sync.net.Resource;
 import org.mozilla.goanna.sync.net.BaseResourceDelegate;
+import org.mozilla.goanna.sync.net.Resource;
 import org.mozilla.goanna.sync.setup.Constants;
 
 import ch.boye.httpclientandroidlib.Header;
@@ -92,6 +93,10 @@ public class PutRequestStage extends JPakeStage {
   private Resource createPutRequest(final PutRequestStageDelegate callbackDelegate, final JPakeClient jpakeClient) throws URISyntaxException {
     BaseResource httpResource = new BaseResource(jpakeClient.channelUrl);
     httpResource.delegate = new BaseResourceDelegate(httpResource) {
+      @Override
+      public String getUserAgent() {
+        return SyncConstants.USER_AGENT;
+      }
 
       @Override
       public void addHeaders(HttpRequestBase request, DefaultHttpClient client) {

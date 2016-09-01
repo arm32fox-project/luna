@@ -42,11 +42,11 @@
 
 
 /* function for reading audio data from PCM file */
-int readframe(WebRtc_Word16 *data, FILE *inp, int length) {
+int readframe(int16_t *data, FILE *inp, int length) {
 	
 	short k, rlen, status = 0;
 		
-	rlen = fread(data, sizeof(WebRtc_Word16), length, inp);
+	rlen = fread(data, sizeof(int16_t), length, inp);
 	if (rlen < length) {
 		for (k = rlen; k < length; k++)
 			data[k] = 0;
@@ -57,10 +57,10 @@ int readframe(WebRtc_Word16 *data, FILE *inp, int length) {
 }
 
 typedef struct {
-	WebRtc_UWord32 send_time;            /* samples */
-	WebRtc_UWord32 arrival_time;            /* samples */
-	WebRtc_UWord32 sample_count;            /* samples */
-	WebRtc_UWord16 rtp_number;
+	uint32_t send_time;            /* samples */
+	uint32_t arrival_time;            /* samples */
+	uint32_t sample_count;            /* samples */
+	uint16_t rtp_number;
 } BottleNeckModel;
 
 void get_arrival_time(int current_framesamples,   /* samples */
@@ -96,11 +96,11 @@ int main(int argc, char* argv[])
 
 
 	int i,j,errtype, plc=0;
-	WebRtc_Word16 CodingMode;
-	WebRtc_Word16 bottleneck;
+	int16_t CodingMode;
+	int16_t bottleneck;
 
-	WebRtc_Word16 framesize = 30;           /* ms */
-    //WebRtc_Word16 framesize = 60; /* To invoke cisco complexity case at frame 2252 */
+	int16_t framesize = 30;           /* ms */
+    //int16_t framesize = 60; /* To invoke cisco complexity case at frame 2252 */
 	
 	int cur_framesmpls, err;
 	
@@ -109,15 +109,15 @@ int main(int argc, char* argv[])
 	double runtime;
 	double length_file;
 	
-	WebRtc_Word16 stream_len = 0;
-	WebRtc_Word16 declen;
+	int16_t stream_len = 0;
+	int16_t declen;
 	
-	WebRtc_Word16 shortdata[FRAMESAMPLES_10ms];
-	WebRtc_Word16 decoded[MAX_FRAMESAMPLES];
-	WebRtc_UWord16 streamdata[600];
-	WebRtc_Word16	speechType[1];
+	int16_t shortdata[FRAMESAMPLES_10ms];
+	int16_t decoded[MAX_FRAMESAMPLES];
+	uint16_t streamdata[600];
+	int16_t	speechType[1];
 	
-//	WebRtc_Word16	*iSACstruct;
+//	int16_t	*iSACstruct;
 
 	char version_number[20];
 	int mode=-1, tmp, nbTest=0; /*,sss;*/
@@ -439,7 +439,9 @@ int main(int argc, char* argv[])
 			/* iSAC encoding */
 
 			if (mode==0 || mode ==1) {
-				stream_len = WebRtcIsac_Encode(ISAC_main_inst, shortdata,	streamdata);
+                          stream_len = WebRtcIsac_Encode(ISAC_main_inst,
+                                                         shortdata,
+                                                         (uint8_t*)streamdata);
 				if (stream_len < 0) {
 					/* exit if returned with error */
 					errtype=WebRtcIsac_GetErrorCode(ISAC_main_inst);
@@ -449,7 +451,10 @@ int main(int argc, char* argv[])
 			} else if (mode==2 || mode==3) {
 				/* iSAC encoding */
 				if (nbTest != 1)
-					stream_len = WebRtcIsacfix_Encode(ISACFIX_main_inst, shortdata,	streamdata);
+                                  stream_len = WebRtcIsacfix_Encode(
+                                      ISACFIX_main_inst,
+                                      shortdata,
+                                      (uint8_t*)streamdata);
 				else
 					stream_len = WebRtcIsacfix_EncodeNb(ISACFIX_main_inst, shortdata, streamdata);
 		
@@ -641,7 +646,7 @@ int main(int argc, char* argv[])
 		}
 
 		/* Write decoded speech frame to file */
-		fwrite(decoded, sizeof(WebRtc_Word16), declen, outp);
+		fwrite(decoded, sizeof(int16_t), declen, outp);
 		}
 
 		fprintf(stderr,"  \rframe = %d", framecnt);

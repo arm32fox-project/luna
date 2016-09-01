@@ -9,9 +9,9 @@
  */
 
 
-#include "modules/rtp_rtcp/source/rtp_format_vp8_test_helper.h"
+#include "webrtc/modules/rtp_rtcp/source/rtp_format_vp8_test_helper.h"
 
-#include "gtest/gtest.h"
+#include "testing/gtest/include/gtest/gtest.h"
 
 namespace webrtc {
 
@@ -46,8 +46,8 @@ bool RtpFormatVp8TestHelper::Init(const int* partition_sizes,
     payload_size_ += partition_sizes[p];
   }
   buffer_size_ = payload_size_ + 6;  // Add space for payload descriptor.
-  payload_data_ = new WebRtc_UWord8[payload_size_];
-  buffer_ = new WebRtc_UWord8[buffer_size_];
+  payload_data_ = new uint8_t[payload_size_];
+  buffer_ = new uint8_t[buffer_size_];
   int j = 0;
   // Loop through the partitions again.
   for (int p = 0; p < num_partitions; ++p) {
@@ -64,20 +64,19 @@ bool RtpFormatVp8TestHelper::Init(const int* partition_sizes,
 }
 
 void RtpFormatVp8TestHelper::GetAllPacketsAndCheck(
-    RtpFormatVp8* packetizer,
+    RtpPacketizerVp8* packetizer,
     const int* expected_sizes,
     const int* expected_part,
     const bool* expected_frag_start,
     int expected_num_packets) {
   ASSERT_TRUE(inited_);
-  int send_bytes = 0;
+  size_t send_bytes = 0;
   bool last = false;
   for (int i = 0; i < expected_num_packets; ++i) {
     std::ostringstream ss;
     ss << "Checking packet " << i;
     SCOPED_TRACE(ss.str());
-    EXPECT_EQ(expected_part[i],
-              packetizer->NextPacket(buffer_, &send_bytes, &last));
+    EXPECT_TRUE(packetizer->NextPacket(buffer_, &send_bytes, &last));
     CheckPacket(send_bytes, expected_sizes[i], last,
                 expected_frag_start[i]);
   }

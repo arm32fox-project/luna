@@ -64,9 +64,7 @@ protected:
     Mutex mQueueLock;
     Mutex mCondLock;
     CondVar mQueueCond;
-    mozilla::AndroidGoannaEvent *mQueuedDrawEvent;
     mozilla::AndroidGoannaEvent *mQueuedViewportEvent;
-    bool mAllowCoalescingNextDraw;
     bool mAllowCoalescingTouches;
     nsTArray<mozilla::AndroidGoannaEvent *> mEventQueue;
     nsInterfaceHashtable<nsStringHashKey, nsIObserver> mObserversHash;

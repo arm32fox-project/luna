@@ -4,14 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 include protocol PPluginInstance;
-include protocol PPluginIdentifier;
+include PluginTypes;
 
-include "npapi.h";
-include "npruntime.h";
-include "mozilla/plugins/PluginMessageUtils.h";
-
-using mozilla::void_t;
-using mozilla::null_t;
+using struct mozilla::void_t from "ipc/IPCMessageUtils.h";
+using struct mozilla::null_t from "ipc/IPCMessageUtils.h";
 
 namespace mozilla {
 namespace plugins {
@@ -26,7 +22,7 @@ union Variant {
   nullable PPluginScriptableObject;
 };
 
-rpc protocol PPluginScriptableObject
+intr protocol PPluginScriptableObject
 {
   manager PPluginInstance;
 
@@ -34,42 +30,42 @@ both:
   async __delete__();
 
 parent:
-  rpc NPN_Evaluate(nsCString aScript)
+  intr NPN_Evaluate(nsCString aScript)
     returns (Variant aResult,
              bool aSuccess);
 
 child:
-  rpc Invalidate();
+  intr Invalidate();
 
 both:
   // NPClass methods
-  rpc HasMethod(PPluginIdentifier aId)
+  intr HasMethod(PluginIdentifier aId)
     returns (bool aHasMethod);
 
-  rpc Invoke(PPluginIdentifier aId,
+  intr Invoke(PluginIdentifier aId,
              Variant[] aArgs)
     returns (Variant aResult,
              bool aSuccess);
 
-  rpc InvokeDefault(Variant[] aArgs)
+  intr InvokeDefault(Variant[] aArgs)
     returns (Variant aResult,
              bool aSuccess);
 
-  rpc HasProperty(PPluginIdentifier aId)
+  intr HasProperty(PluginIdentifier aId)
     returns (bool aHasProperty);
 
-  rpc SetProperty(PPluginIdentifier aId,
+  intr SetProperty(PluginIdentifier aId,
                   Variant aValue)
     returns (bool aSuccess);
 
-  rpc RemoveProperty(PPluginIdentifier aId)
+  intr RemoveProperty(PluginIdentifier aId)
     returns (bool aSuccess);
 
-  rpc Enumerate()
-    returns (PPluginIdentifier[] aProperties,
+  intr Enumerate()
+    returns (PluginIdentifier[] aProperties,
              bool aSuccess);
 
-  rpc Construct(Variant[] aArgs)
+  intr Construct(Variant[] aArgs)
     returns (Variant aResult,
              bool aSuccess);
 
@@ -90,12 +86,12 @@ both:
    * several checks at once and return all the results simultaneously.
    */
 parent:
-  rpc GetParentProperty(PPluginIdentifier aId)
+  intr GetParentProperty(PluginIdentifier aId)
     returns (Variant aResult,
              bool aSuccess);
 
 child:
-  rpc GetChildProperty(PPluginIdentifier aId)
+  intr GetChildProperty(PluginIdentifier aId)
     returns (bool aHasProperty,
              bool aHasMethod,
              Variant aResult,

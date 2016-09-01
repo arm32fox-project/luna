@@ -20,9 +20,23 @@
 //package android.widget;
 package org.mozilla.goanna.widget;
 
+// Mozilla: New import
+import android.accounts.Account;
+import android.content.pm.PackageManager;
+import org.mozilla.goanna.distribution.Distribution;
+import org.mozilla.goanna.GoannaProfile;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.overlays.ui.ShareDialog;
+import org.mozilla.goanna.sync.repositories.android.ClientsDatabaseAccessor;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
+import org.mozilla.goanna.R;
+import java.io.File;
+
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ResolveInfo;
 import android.database.DataSetObservable;
 import android.os.AsyncTask;
@@ -47,6 +61,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -165,7 +180,7 @@ public class ActivityChooserModel extends DataSetObservable {
     /**
      * Tag used for logging.
      */
-    private static final String LOG_TAG = ActivityChooserModel.class.getSimpleName();
+    static final String LOG_TAG = ActivityChooserModel.class.getSimpleName();
 
     /**
      * The root tag in the history file.
@@ -191,12 +206,6 @@ public class ActivityChooserModel extends DataSetObservable {
      * Attribute for the choice weight.
      */
     private static final String ATTRIBUTE_WEIGHT = "weight";
-
-    /**
-     * The default name of the choice history file.
-     */
-    public static final String DEFAULT_HISTORY_FILE_NAME =
-        "activity_choser_model_history.xml";
 
     /**
      * The default maximal length of the choice history.
@@ -253,19 +262,19 @@ public class ActivityChooserModel extends DataSetObservable {
      * Monitor for added and removed packages.
      */
     /**
-     * Mozilla: Not needed for the application.
+     * Mozilla: Converted from a PackageMonitor to a DataModelPackageMonitor to avoid importing a new class.
      */
-    //private final PackageMonitor mPackageMonitor = new DataModelPackageMonitor();
+    private final DataModelPackageMonitor mPackageMonitor = new DataModelPackageMonitor();
 
     /**
      * Context for accessing resources.
      */
-    private final Context mContext;
+    final Context mContext;
 
     /**
      * The name of the history file that backs this model.
      */
-    private final String mHistoryFileName;
+    final String mHistoryFileName;
 
     /**
      * The intent for which a activity is being chosen.
@@ -290,7 +299,7 @@ public class ActivityChooserModel extends DataSetObservable {
      * only after a call to {@link #persistHistoricalDataIfNeeded()} followed by change
      * of the share records.
      */
-    private boolean mCanReadHistoricalData = true;
+    boolean mCanReadHistoricalData = true;
 
     /**
      * Flag whether the choice history was read. This is used to enforce that
@@ -301,7 +310,7 @@ public class ActivityChooserModel extends DataSetObservable {
      * full and the file is rewritten. This is necessary since we need to
      * purge old records that are outside of the sliding window of past choices.
      */
-    private boolean mReadShareHistoryCalled = false;
+    private boolean mReadShareHistoryCalled;
 
     /**
      * Flag whether the choice records have changed. In general many clients can
@@ -314,24 +323,23 @@ public class ActivityChooserModel extends DataSetObservable {
     /**
      * Flag whether to reload the activities for the current intent.
      */
-    private boolean mReloadActivities = false;
+    boolean mReloadActivities;
 
     /**
      * Policy for controlling how the model handles chosen activities.
      */
-    private OnChooseActivityListener mActivityChoserModelPolicy;
+    private OnChooseActivityListener mActivityChooserModelPolicy;
+
+    /**
+     * Mozilla: Share overlay variables.
+     */
+    private final SyncStatusListener mSyncStatusListener = new SyncStatusListener();
 
     /**
      * Gets the data model backed by the contents of the provided file with historical data.
      * Note that only one data model is backed by a given file, thus multiple calls with
      * the same file name will return the same model instance. If no such instance is present
      * it is created.
-     * <p>
-     * <strong>Note:</strong> To use the default historical data file clients should explicitly
-     * pass as file name {@link #DEFAULT_HISTORY_FILE_NAME}. If no persistence of the choice
-     * history is desired clients should pass <code>null</code> for the file name. In such
-     * case a new model is returned for each invocation.
-     * </p>
      *
      * <p>
      * <strong>Always use difference historical data files for semantically different actions.
@@ -372,9 +380,15 @@ public class ActivityChooserModel extends DataSetObservable {
         }
 
         /**
-         * Mozilla: Not needed for the application.
+         * Mozilla: Uses modified receiver
          */
-        //mPackageMonitor.register(mContext, null, true);
+        mPackageMonitor.register(mContext);
+
+        /**
+         * Mozilla: Add Sync Status Listener.
+         */
+        // TODO: We only need to add a sync status listener if the ShareDialog passes the intent filter.
+        FirefoxAccounts.addSyncStatusListener(mSyncStatusListener);
     }
 
     /**
@@ -494,10 +508,10 @@ public class ActivityChooserModel extends DataSetObservable {
             Intent choiceIntent = new Intent(mIntent);
             choiceIntent.setComponent(chosenName);
 
-            if (mActivityChoserModelPolicy != null) {
+            if (mActivityChooserModelPolicy != null) {
                 // Do not allow the policy to change the intent.
                 Intent choiceIntentCopy = new Intent(choiceIntent);
-                final boolean handled = mActivityChoserModelPolicy.onChooseActivity(this,
+                final boolean handled = mActivityChooserModelPolicy.onChooseActivity(this,
                         choiceIntentCopy);
                 if (handled) {
                     return null;
@@ -506,7 +520,7 @@ public class ActivityChooserModel extends DataSetObservable {
 
             HistoricalRecord historicalRecord = new HistoricalRecord(chosenName,
                     System.currentTimeMillis(), DEFAULT_HISTORICAL_RECORD_WEIGHT);
-            addHisoricalRecord(historicalRecord);
+            addHistoricalRecord(historicalRecord);
 
             return choiceIntent;
         }
@@ -519,7 +533,7 @@ public class ActivityChooserModel extends DataSetObservable {
      */
     public void setOnChooseActivityListener(OnChooseActivityListener listener) {
         synchronized (mInstanceLock) {
-            mActivityChoserModelPolicy = listener;
+            mActivityChooserModelPolicy = listener;
         }
     }
 
@@ -573,7 +587,7 @@ public class ActivityChooserModel extends DataSetObservable {
                     newDefaultActivity.resolveInfo.activityInfo.name);
             HistoricalRecord historicalRecord = new HistoricalRecord(defaultName,
                     System.currentTimeMillis(), weight);
-            addHisoricalRecord(historicalRecord);
+            addHistoricalRecord(historicalRecord);
         }
     }
 
@@ -595,8 +609,10 @@ public class ActivityChooserModel extends DataSetObservable {
         }
         mHistoricalRecordsChanged = false;
         if (!TextUtils.isEmpty(mHistoryFileName)) {
-            new PersistHistoryAsyncTask().executeOnExecutor(AsyncTask.SERIAL_EXECUTOR,
-                    new ArrayList<HistoricalRecord>(mHistoricalRecords), mHistoryFileName);
+            /**
+             * Mozilla: Converted to a normal task.execute call so that this works on < ICS phones.
+             */
+            new PersistHistoryAsyncTask().execute(new ArrayList<HistoricalRecord>(mHistoricalRecords), mHistoryFileName);
         }
     }
 
@@ -668,6 +684,20 @@ public class ActivityChooserModel extends DataSetObservable {
         }
     }
 
+    public int getDistinctActivityCountInHistory() {
+        synchronized (mInstanceLock) {
+            ensureConsistentState();
+            final List<String> packages = new ArrayList<String>();
+            for (HistoricalRecord record : mHistoricalRecords) {
+              String activity = record.activity.flattenToString();
+              if (!packages.contains(activity)) {
+                packages.add(activity);
+              }
+            }
+            return packages.size();
+        }
+    }
+
     @Override
     protected void finalize() throws Throwable {
         super.finalize();
@@ -675,7 +705,8 @@ public class ActivityChooserModel extends DataSetObservable {
         /**
          * Mozilla: Not needed for the application.
          */
-        //mPackageMonitor.unregister();
+        mPackageMonitor.unregister();
+        FirefoxAccounts.removeSyncStatusListener(mSyncStatusListener);
     }
 
     /**
@@ -724,8 +755,37 @@ public class ActivityChooserModel extends DataSetObservable {
             List<ResolveInfo> resolveInfos = mContext.getPackageManager()
                     .queryIntentActivities(mIntent, 0);
             final int resolveInfoCount = resolveInfos.size();
+
+            /**
+             * Mozilla: Temporary variables to prevent performance degradation in the loop.
+             */
+            final PackageManager packageManager = mContext.getPackageManager();
+            final String channelToRemoveLabel = mContext.getResources().getString(R.string.overlay_share_label);
+            final String shareDialogClassName = ShareDialog.class.getCanonicalName();
+
             for (int i = 0; i < resolveInfoCount; i++) {
                 ResolveInfo resolveInfo = resolveInfos.get(i);
+
+                /**
+                 * Mozilla: We want "Add to Firefox" to appear differently inside of Firefox than
+                 * from external applications - override the name and icon here.
+                 *
+                 * Do not display the menu item if there are no devices to share to.
+                 *
+                 * Note: we check both the class name and the label to ensure we only change the
+                 * label of the current channel.
+                 */
+                if (shareDialogClassName.equals(resolveInfo.activityInfo.name) &&
+                        channelToRemoveLabel.equals(resolveInfo.loadLabel(packageManager))) {
+                    // Don't add the menu item if there are no devices to share to.
+                    if (!hasOtherSyncClients()) {
+                        continue;
+                    }
+
+                    resolveInfo.labelRes = R.string.overlay_share_send_other;
+                    resolveInfo.icon = R.drawable.icon_shareplane;
+                }
+
                 mActivities.add(new ActivityResolveInfo(resolveInfo));
             }
             return true;
@@ -757,7 +817,7 @@ public class ActivityChooserModel extends DataSetObservable {
      * @param historicalRecord The record to add.
      * @return True if the record was added.
      */
-    private boolean addHisoricalRecord(HistoricalRecord historicalRecord) {
+    private boolean addHistoricalRecord(HistoricalRecord historicalRecord) {
         final boolean added = mHistoricalRecords.add(historicalRecord);
         if (added) {
             mHistoricalRecordsChanged = true;
@@ -767,6 +827,34 @@ public class ActivityChooserModel extends DataSetObservable {
             notifyChanged();
         }
         return added;
+    }
+
+    /**
+     * Removes all historical records for this pkg.
+     *
+     * @param historicalRecord The pkg to delete records for.
+     * @return True if the record was added.
+     */
+    boolean removeHistoricalRecordsForPackage(final String pkg) {
+        boolean removed = false;
+
+        for (Iterator<HistoricalRecord> i = mHistoricalRecords.iterator(); i.hasNext();) {
+            final HistoricalRecord record = i.next();
+            if (record.activity.getPackageName().equals(pkg)) {
+                i.remove();
+                removed = true;
+            }
+        }
+
+        if (removed) {
+            mHistoricalRecordsChanged = true;
+            pruneExcessiveHistoricalRecordsIfNeeded();
+            persistHistoricalDataIfNeeded();
+            sortActivitiesIfNeeded();
+            notifyChanged();
+        }
+
+        return removed;
     }
 
     /**
@@ -927,6 +1015,7 @@ public class ActivityChooserModel extends DataSetObservable {
             return true;
         }
 
+        @Override
         public int compareTo(ActivityResolveInfo another) {
              return  Float.floatToIntBits(another.weight) - Float.floatToIntBits(weight);
         }
@@ -951,6 +1040,7 @@ public class ActivityChooserModel extends DataSetObservable {
         private final Map<String, ActivityResolveInfo> mPackageNameToActivityMap =
             new HashMap<String, ActivityResolveInfo>();
 
+        @Override
         public void sort(Intent intent, List<ActivityResolveInfo> activities,
                 List<HistoricalRecord> historicalRecords) {
             Map<String, ActivityResolveInfo> packageNameToActivityMap =
@@ -961,7 +1051,12 @@ public class ActivityChooserModel extends DataSetObservable {
             for (int i = 0; i < activityCount; i++) {
                 ActivityResolveInfo activity = activities.get(i);
                 activity.weight = 0.0f;
-                String packageName = activity.resolveInfo.activityInfo.packageName;
+
+                // Make sure we're using a non-ambiguous name here
+                ComponentName chosenName = new ComponentName(
+                        activity.resolveInfo.activityInfo.packageName,
+                        activity.resolveInfo.activityInfo.name);
+                String packageName = chosenName.flattenToString();
                 packageNameToActivityMap.put(packageName, activity);
             }
 
@@ -969,7 +1064,7 @@ public class ActivityChooserModel extends DataSetObservable {
             float nextRecordWeight = 1;
             for (int i = lastShareIndex; i >= 0; i--) {
                 HistoricalRecord historicalRecord = historicalRecords.get(i);
-                String packageName = historicalRecord.activity.getPackageName();
+                String packageName = historicalRecord.activity.flattenToString();
                 ActivityResolveInfo activity = packageNameToActivityMap.get(packageName);
                 if (activity != null) {
                     activity.weight += historicalRecord.weight * nextRecordWeight;
@@ -991,15 +1086,50 @@ public class ActivityChooserModel extends DataSetObservable {
      * Command for reading the historical records from a file off the UI thread.
      */
     private void readHistoricalDataImpl() {
-        FileInputStream fis = null;
         try {
-            fis = mContext.openFileInput(mHistoryFileName);
-        } catch (FileNotFoundException fnfe) {
-            if (DEBUG) {
-                Log.i(LOG_TAG, "Could not open historical records file: " + mHistoryFileName);
+            GoannaProfile profile = GoannaProfile.get(mContext);
+            File f = profile.getFile(mHistoryFileName);
+            if (!f.exists()) {
+                // Fall back to the non-profile aware file if it exists...
+                File oldFile = new File(mHistoryFileName);
+                oldFile.renameTo(f);
             }
-            return;
+            readHistoricalDataFromStream(new FileInputStream(f));
+        } catch (FileNotFoundException fnfe) {
+            final Distribution dist = Distribution.getInstance(mContext);
+            dist.addOnDistributionReadyCallback(new Distribution.ReadyCallback() {
+                @Override
+                public void distributionNotFound() {
+                }
+
+                @Override
+                public void distributionFound(Distribution distribution) {
+                    try {
+                        File distFile = dist.getDistributionFile("quickshare/" + mHistoryFileName);
+                        if (distFile == null) {
+                            if (DEBUG) {
+                                Log.i(LOG_TAG, "Could not open historical records file: " + mHistoryFileName);
+                            }
+                            return;
+                        }
+                        readHistoricalDataFromStream(new FileInputStream(distFile));
+                    } catch (Exception ex) {
+                        if (DEBUG) {
+                            Log.i(LOG_TAG, "Could not open historical records file: " + mHistoryFileName);
+                        }
+                        return;
+                    }
+                }
+
+                @Override
+                public void distributionArrivedLate(Distribution distribution) {
+                    distributionFound(distribution);
+                }
+            });
         }
+    }
+
+    void readHistoricalDataFromStream(FileInputStream fis) {
         try {
             XmlPullParser parser = Xml.newPullParser();
             parser.setInput(fis, null);
@@ -1046,10 +1176,8 @@ public class ActivityChooserModel extends DataSetObservable {
             if (DEBUG) {
                 Log.i(LOG_TAG, "Read " + historicalRecords.size() + " historical records.");
             }
-        } catch (XmlPullParserException xppe) {
-            Log.e(LOG_TAG, "Error reading historical recrod file: " + mHistoryFileName, xppe);
-        } catch (IOException ioe) {
-            Log.e(LOG_TAG, "Error reading historical recrod file: " + mHistoryFileName, ioe);
+        } catch (XmlPullParserException | IOException xppe) {
+            Log.e(LOG_TAG, "Error reading historical record file: " + mHistoryFileName, xppe);
         } finally {
             if (fis != null) {
                 try {
@@ -1070,14 +1198,17 @@ public class ActivityChooserModel extends DataSetObservable {
         @SuppressWarnings("unchecked")
         public Void doInBackground(Object... args) {
             List<HistoricalRecord> historicalRecords = (List<HistoricalRecord>) args[0];
-            String hostoryFileName = (String) args[1];
+            String historyFileName = (String) args[1];
 
             FileOutputStream fos = null;
 
             try {
-                fos = mContext.openFileOutput(hostoryFileName, Context.MODE_PRIVATE);
+                // Mozilla - Update the location we save files to
+                GoannaProfile profile = GoannaProfile.get(mContext);
+                File file = profile.getFile(historyFileName);
+                fos = new FileOutputStream(file);
             } catch (FileNotFoundException fnfe) {
-                Log.e(LOG_TAG, "Error writing historical recrod file: " + hostoryFileName, fnfe);
+                Log.e(LOG_TAG, "Error writing historical record file: " + historyFileName, fnfe);
                 return null;
             }
 
@@ -1108,12 +1239,8 @@ public class ActivityChooserModel extends DataSetObservable {
                 if (DEBUG) {
                     Log.i(LOG_TAG, "Wrote " + recordCount + " historical records.");
                 }
-            } catch (IllegalArgumentException iae) {
-                Log.e(LOG_TAG, "Error writing historical recrod file: " + mHistoryFileName, iae);
-            } catch (IllegalStateException ise) {
-                Log.e(LOG_TAG, "Error writing historical recrod file: " + mHistoryFileName, ise);
-            } catch (IOException ioe) {
-                Log.e(LOG_TAG, "Error writing historical recrod file: " + mHistoryFileName, ioe);
+            } catch (IllegalArgumentException | IOException | IllegalStateException e) {
+                Log.e(LOG_TAG, "Error writing historical record file: " + mHistoryFileName, e);
             } finally {
                 mCanReadHistoricalData = true;
                 if (fos != null) {
@@ -1132,16 +1259,88 @@ public class ActivityChooserModel extends DataSetObservable {
      * Keeps in sync the historical records and activities with the installed applications.
      */
     /**
-     * Mozilla: Not needed for the application.
+     * Mozilla: Adapted significantly
      */
-    /*
-    private final class DataModelPackageMonitor extends PackageMonitor {
+    private static final String LOGTAG = "GoannaActivityChooserModel";
+    private final class DataModelPackageMonitor extends BroadcastReceiver {
+        Context mContext;
+
+        public DataModelPackageMonitor() { }
+
+        public void register(Context context) {
+            mContext = context;
+
+            String[] intents = new String[] {
+                Intent.ACTION_PACKAGE_REMOVED,
+                Intent.ACTION_PACKAGE_ADDED,
+                Intent.ACTION_PACKAGE_CHANGED
+            };
+
+            for (String intent : intents) {
+                IntentFilter removeFilter = new IntentFilter(intent);
+                removeFilter.addDataScheme("package");
+                context.registerReceiver(this, removeFilter);
+            }
+        }
+
+        public void unregister() {
+            mContext.unregisterReceiver(this);
+            mContext = null;
+        }
 
         @Override
-        public void onSomePackagesChanged() {
+        public void onReceive(Context context, Intent intent) {
+            String action = intent.getAction();
+            if (Intent.ACTION_PACKAGE_REMOVED.equals(action)) {
+                String packageName = intent.getData().getSchemeSpecificPart();
+                removeHistoricalRecordsForPackage(packageName);
+            }
+
             mReloadActivities = true;
         }
     }
-    */
+
+    /**
+     * Mozilla: Return whether or not there are other synced clients.
+     */
+    private boolean hasOtherSyncClients() {
+        // ClientsDatabaseAccessor returns stale data (bug 1145896) so we work around this by
+        // checking if we have accounts set up - if not, we can't have any clients.
+        if (!FirefoxAccounts.firefoxAccountsExist(mContext) &&
+                !SyncAccounts.syncAccountsExist(mContext))  {
+            return false;
+        }
+
+        final ClientsDatabaseAccessor db = new ClientsDatabaseAccessor(mContext);
+        return db.clientsCount() > 0;
+    }
+
+    /**
+     * Mozilla: Reload activities on sync.
+     */
+    private class SyncStatusListener implements FirefoxAccounts.SyncStatusListener {
+        @Override
+        public Context getContext() {
+            return mContext;
+        }
+
+        @Override
+        public Account getAccount() {
+            return FirefoxAccounts.getFirefoxAccount(getContext());
+        }
+
+        @Override
+        public void onSyncStarted() {
+        }
+
+        @Override
+        public void onSyncFinished() {
+            // TODO: We only need to reload activities when the number of devices changes.
+            // This may not be worth it if we have to touch the DB to get the client count.
+            synchronized (mInstanceLock) {
+                mReloadActivities = true;
+            }
+        }
+    }
 }
 

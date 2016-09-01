@@ -5,6 +5,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSound.h"
+#include "nsContentUtils.h"
 #include "nsObjCExceptions.h"
 #include "nsNetUtil.h"
 #include "nsCOMPtr.h"
@@ -13,7 +14,7 @@
 
 #import <Cocoa/Cocoa.h>
 
-NS_IMPL_ISUPPORTS2(nsSound, nsISound, nsIStreamLoaderObserver)
+NS_IMPL_ISUPPORTS(nsSound, nsISound, nsIStreamLoaderObserver)
 
 nsSound::nsSound()
 {
@@ -61,7 +62,12 @@ nsSound::Play(nsIURL *aURL)
 {
   nsCOMPtr<nsIURI> uri(do_QueryInterface(aURL));
   nsCOMPtr<nsIStreamLoader> loader;
-  return NS_NewStreamLoader(getter_AddRefs(loader), uri, this);
+  return NS_NewStreamLoader(getter_AddRefs(loader),
+                            uri,
+                            this, // aObserver
+                            nsContentUtils::GetSystemPrincipal(),
+                            nsILoadInfo::SEC_NORMAL,
+                            nsIContentPolicy::TYPE_OTHER);
 }
 
 NS_IMETHODIMP
@@ -81,7 +87,7 @@ nsSound::PlaySystemSound(const nsAString &aSoundAlias)
     return NS_OK;
   }
 
-  NSString *name = [NSString stringWithCharacters:aSoundAlias.BeginReading()
+  NSString *name = [NSString stringWithCharacters:reinterpret_cast<const unichar*>(aSoundAlias.BeginReading())
                                            length:aSoundAlias.Length()];
   NSSound *sound = [NSSound soundNamed:name];
   if (sound) {

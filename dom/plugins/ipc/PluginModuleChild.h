@@ -30,7 +30,7 @@
 
 #include "mozilla/plugins/PPluginModuleChild.h"
 #include "mozilla/plugins/PluginInstanceChild.h"
-#include "mozilla/plugins/PluginIdentifierChild.h"
+#include "mozilla/plugins/PluginMessageUtils.h"
 
 // NOTE: stolen from nsNPAPIPlugin.h
 
@@ -58,95 +58,107 @@ class PluginInstanceChild;
 
 class PluginModuleChild : public PPluginModuleChild
 {
-protected:
-    virtual mozilla::ipc::RPCChannel::RacyRPCPolicy
-    MediateRPCRace(const Message& parent, const Message& child) MOZ_OVERRIDE
+    virtual mozilla::ipc::RacyInterruptPolicy
+    MediateInterruptRace(const Message& parent, const Message& child) override
     {
         return MediateRace(parent, child);
     }
 
-    virtual bool ShouldContinueFromReplyTimeout() MOZ_OVERRIDE;
+    virtual bool ShouldContinueFromReplyTimeout() override;
+
+    virtual bool RecvSettingChanged(const PluginSettings& aSettings) override;
 
     // Implement the PPluginModuleChild interface
-    virtual bool AnswerNP_GetEntryPoints(NPError* rv);
-    virtual bool AnswerNP_Initialize(const uint32_t& aFlags, NPError* rv);
+    virtual bool RecvDisableFlashProtectedMode() override;
+    virtual bool AnswerNP_GetEntryPoints(NPError* rv) override;
+    virtual bool AnswerNP_Initialize(const PluginSettings& aSettings, NPError* rv) override;
+    virtual bool RecvAsyncNP_Initialize(const PluginSettings& aSettings) override;
+    virtual bool AnswerSyncNPP_New(PPluginInstanceChild* aActor, NPError* rv)
+                                   override;
+    virtual bool RecvAsyncNPP_New(PPluginInstanceChild* aActor) override;
 
-    virtual PPluginIdentifierChild*
-    AllocPPluginIdentifier(const nsCString& aString,
-                           const int32_t& aInt,
-                           const bool& aTemporary);
-
-    virtual bool
-    RecvPPluginIdentifierConstructor(PPluginIdentifierChild* actor,
-                                     const nsCString& aString,
-                                     const int32_t& aInt,
-                                     const bool& aTemporary);
-
-    virtual bool
-    DeallocPPluginIdentifier(PPluginIdentifierChild* aActor);
+    virtual PPluginModuleChild*
+    AllocPPluginModuleChild(mozilla::ipc::Transport* aTransport,
+                            base::ProcessId aOtherProcess) override;
 
     virtual PPluginInstanceChild*
-    AllocPPluginInstance(const nsCString& aMimeType,
-                         const uint16_t& aMode,
-                         const InfallibleTArray<nsCString>& aNames,
-                         const InfallibleTArray<nsCString>& aValues,
-                         NPError* rv);
+    AllocPPluginInstanceChild(const nsCString& aMimeType,
+                              const uint16_t& aMode,
+                              const InfallibleTArray<nsCString>& aNames,
+                              const InfallibleTArray<nsCString>& aValues)
+                              override;
 
     virtual bool
-    DeallocPPluginInstance(PPluginInstanceChild* aActor);
+    DeallocPPluginInstanceChild(PPluginInstanceChild* aActor) override;
 
     virtual bool
-    AnswerPPluginInstanceConstructor(PPluginInstanceChild* aActor,
-                                     const nsCString& aMimeType,
-                                     const uint16_t& aMode,
-                                     const InfallibleTArray<nsCString>& aNames,
-                                     const InfallibleTArray<nsCString>& aValues,
-                                     NPError* rv);
+    RecvPPluginInstanceConstructor(PPluginInstanceChild* aActor,
+                                   const nsCString& aMimeType,
+                                   const uint16_t& aMode,
+                                   InfallibleTArray<nsCString>&& aNames,
+                                   InfallibleTArray<nsCString>&& aValues)
+                                   override;
     virtual bool
-    AnswerNP_Shutdown(NPError *rv);
+    AnswerNP_Shutdown(NPError *rv) override;
 
     virtual bool
     AnswerOptionalFunctionsSupported(bool *aURLRedirectNotify,
                                      bool *aClearSiteData,
-                                     bool *aGetSitesWithData);
+                                     bool *aGetSitesWithData) override;
 
     virtual bool
     AnswerNPP_ClearSiteData(const nsCString& aSite,
                             const uint64_t& aFlags,
                             const uint64_t& aMaxAge,
-                            NPError* aResult);
+                            NPError* aResult) override;
 
     virtual bool
-    AnswerNPP_GetSitesWithData(InfallibleTArray<nsCString>* aResult);
+    AnswerNPP_GetSitesWithData(InfallibleTArray<nsCString>* aResult) override;
 
     virtual bool
     RecvSetAudioSessionData(const nsID& aId,
                             const nsString& aDisplayName,
-                            const nsString& aIconPath);
+                            const nsString& aIconPath) override;
 
     virtual bool
-    RecvSetParentHangTimeout(const uint32_t& aSeconds);
+    RecvSetParentHangTimeout(const uint32_t& aSeconds) override;
 
     virtual void
-    ActorDestroy(ActorDestroyReason why);
+    ActorDestroy(ActorDestroyReason why) override;
 
     MOZ_NORETURN void QuickExit();
 
     virtual bool
-    RecvProcessNativeEventsInRPCCall() MOZ_OVERRIDE;
+    RecvProcessNativeEventsInInterruptCall() override;
 
-    virtual bool
-    AnswerGoannaGetProfile(nsCString* aProfile);
+    virtual bool RecvStartProfiler(const uint32_t& aEntries,
+                                   const double& aInterval,
+                                   nsTArray<nsCString>&& aFeatures,
+                                   nsTArray<nsCString>&& aThreadNameFilters) override;
+    virtual bool RecvStopProfiler() override;
+    virtual bool AnswerGetProfile(nsCString* aProfile) override;
 
 public:
-    PluginModuleChild();
+    explicit PluginModuleChild(bool aIsChrome);
     virtual ~PluginModuleChild();
 
+    bool CommonInit(base::ProcessHandle aParentProcessHandle,
+                    MessageLoop* aIOLoop,
+                    IPC::Channel* aChannel);
+
     // aPluginFilename is UTF8, not native-charset!
-    bool Init(const std::string& aPluginFilename,
-              base::ProcessHandle aParentProcessHandle,
-              MessageLoop* aIOLoop,
-              IPC::Channel* aChannel);
+    bool InitForChrome(const std::string& aPluginFilename,
+                       base::ProcessHandle aParentProcessHandle,
+                       MessageLoop* aIOLoop,
+                       IPC::Channel* aChannel);
+
+    bool InitForContent(base::ProcessHandle aParentProcessHandle,
+                        MessageLoop* aIOLoop,
+                        IPC::Channel* aChannel);
+
+    static PluginModuleChild*
+    CreateForContentProcess(mozilla::ipc::Transport* aTransport,
+                            base::ProcessId aOtherProcess);
 
     void CleanUp();
 
@@ -154,20 +166,7 @@ public:
 
     static const NPNetscapeFuncs sBrowserFuncs;
 
-    static PluginModuleChild* current();
-
-    bool RegisterActorForNPObject(NPObject* aObject,
-                                  PluginScriptableObjectChild* aActor);
-
-    void UnregisterActorForNPObject(NPObject* aObject);
-
-    PluginScriptableObjectChild* GetActorForNPObject(NPObject* aObject);
-
-#ifdef DEBUG
-    bool NPObjectIsRegistered(NPObject* aObject);
-#endif
-
-    bool AsyncDrawingAllowed() { return mAsyncDrawingAllowed; }
+    static PluginModuleChild* GetChrome();
 
     /**
      * The child implementation of NPN_CreateObject.
@@ -222,9 +221,7 @@ public:
     }
 
     bool GetNativeCursorsSupported() {
-        bool supported = false;
-        SendGetNativeCursorsSupported(&supported);
-        return supported;
+        return Settings().nativeCursorsSupported();
     }
 #endif
 
@@ -270,11 +267,16 @@ public:
         // CGContextRef we pass to it in NPP_HandleEvent(NPCocoaEventDrawRect)
         // outside of that call.  See bug 804606.
         QUIRK_FLASH_AVOID_CGMODE_CRASHES                = 1 << 10,
+        // Win: Addresses a Unity bug with mouse capture.
+        QUIRK_UNITY_FIXUP_MOUSE_CAPTURE                 = 1 << 11,
     };
 
     int GetQuirks() { return mQuirks; }
 
+    const PluginSettings& Settings() const { return mCachedSettings; }
+
 private:
+    NPError DoNP_Initialize(const PluginSettings& aSettings);
     void AddQuirk(PluginQuirks quirk) {
       if (mQuirks == QUIRKS_NOT_INITIALIZED)
         mQuirks = 0;
@@ -283,23 +285,30 @@ private:
     void InitQuirksModes(const nsCString& aMimeType);
     bool InitGraphics();
     void DeinitGraphics();
+
+#if defined(OS_WIN)
+    void HookProtectedMode();
+#endif
+
 #if defined(MOZ_WIDGET_GTK)
     static gboolean DetectNestedEventLoop(gpointer data);
     static gboolean ProcessBrowserEvents(gpointer data);
 
-    virtual void EnteredCxxStack() MOZ_OVERRIDE;
-    virtual void ExitedCxxStack() MOZ_OVERRIDE;
+    virtual void EnteredCxxStack() override;
+    virtual void ExitedCxxStack() override;
 #elif defined(MOZ_WIDGET_QT)
 
-    virtual void EnteredCxxStack() MOZ_OVERRIDE;
-    virtual void ExitedCxxStack() MOZ_OVERRIDE;
+    virtual void EnteredCxxStack() override;
+    virtual void ExitedCxxStack() override;
 #endif
 
     PRLibrary* mLibrary;
     nsCString mPluginFilename; // UTF8
     nsCString mUserAgent;
     int mQuirks;
-    bool mAsyncDrawingAllowed;
+
+    bool mIsChrome;
+    Transport* mTransport;
 
     // we get this from the plugin
     NP_PLUGINSHUTDOWN mShutdownFunc;
@@ -311,7 +320,8 @@ private:
 #endif
 
     NPPluginFuncs mFunctions;
-    NPSavedData mSavedData;
+
+    PluginSettings mCachedSettings;
 
 #if defined(MOZ_WIDGET_GTK)
     // If a plugin spins a nested glib event loop in response to a
@@ -355,32 +365,6 @@ private:
     NestedLoopTimer *mNestedLoopTimerObject;
 #endif
 
-    struct NPObjectData : public nsPtrHashKey<NPObject>
-    {
-        NPObjectData(const NPObject* key)
-            : nsPtrHashKey<NPObject>(key)
-            , instance(NULL)
-            , actor(NULL)
-        { }
-
-        // never NULL
-        PluginInstanceChild* instance;
-
-        // sometimes NULL (no actor associated with an NPObject)
-        PluginScriptableObjectChild* actor;
-    };
-    /**
-     * mObjectMap contains all the currently active NPObjects (from NPN_CreateObject until the
-     * final release/dealloc, whether or not an actor is currently associated with the object.
-     */
-    nsTHashtable<NPObjectData> mObjectMap;
-
-    friend class PluginIdentifierChild;
-    friend class PluginIdentifierChildString;
-    friend class PluginIdentifierChildInt;
-    nsDataHashtable<nsCStringHashKey, PluginIdentifierChildString*> mStringIdentifiers;
-    nsDataHashtable<nsUint32HashKey, PluginIdentifierChildInt*> mIntIdentifiers;
-
 public: // called by PluginInstanceChild
     /**
      * Dealloc an NPObject after last-release or when the associated instance
@@ -392,21 +376,13 @@ public: // called by PluginInstanceChild
         return mFunctions.destroy(instance->GetNPP(), 0);
     }
 
-    /**
-     * Fill PluginInstanceChild.mDeletingHash with all the remaining NPObjects
-     * associated with that instance.
-     */
-    void FindNPObjectsForInstance(PluginInstanceChild* instance);
-
 private:
-    static PLDHashOperator CollectForInstance(NPObjectData* d, void* userArg);
-
 #if defined(OS_WIN)
-    virtual void EnteredCall() MOZ_OVERRIDE;
-    virtual void ExitedCall() MOZ_OVERRIDE;
+    virtual void EnteredCall() override;
+    virtual void ExitedCall() override;
 
     // Entered/ExitedCall notifications keep track of whether the plugin has
-    // entered a nested event loop within this RPC call.
+    // entered a nested event loop within this interrupt call.
     struct IncallFrame
     {
         IncallFrame()

@@ -3,7 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#pragma once
+#ifndef _MOZILLA_GFX_SOURCESURFACECG_H
+#define _MOZILLA_GFX_SOURCESURFACECG_H
 
 #include <ApplicationServices/ApplicationServices.h>
 
@@ -14,16 +15,32 @@ class MacIOSurface;
 namespace mozilla {
 namespace gfx {
 
+CGImageRef
+CreateCGImage(CGDataProviderReleaseDataCallback aCallback,
+              void *aInfo,
+              const void *aData,
+              const IntSize &aSize,
+              int32_t aStride,
+              SurfaceFormat aFormat);
+
+CGImageRef
+CreateCGImage(void *aInfo,
+              const void *aData,
+              const IntSize &aSize,
+              int32_t aStride,
+              SurfaceFormat aFormat);
+
 class DrawTargetCG;
 
 class SourceSurfaceCG : public SourceSurface
 {
 public:
+  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(SourceSurfaceCG)
   SourceSurfaceCG() {}
-  SourceSurfaceCG(CGImageRef aImage) : mImage(aImage) {}
+  explicit SourceSurfaceCG(CGImageRef aImage) : mImage(aImage) {}
   ~SourceSurfaceCG();
 
-  virtual SurfaceType GetType() const { return SURFACE_COREGRAPHICS_IMAGE; }
+  virtual SurfaceType GetType() const { return SurfaceType::COREGRAPHICS_IMAGE; }
   virtual IntSize GetSize() const;
   virtual SurfaceFormat GetFormat() const;
   virtual TemporaryRef<DataSourceSurface> GetDataSurface();
@@ -47,13 +64,14 @@ private:
 class DataSourceSurfaceCG : public DataSourceSurface
 {
 public:
+  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceCG)
   DataSourceSurfaceCG() {}
-  DataSourceSurfaceCG(CGImageRef aImage);
+  explicit DataSourceSurfaceCG(CGImageRef aImage);
   ~DataSourceSurfaceCG();
 
-  virtual SurfaceType GetType() const { return SURFACE_DATA; }
+  virtual SurfaceType GetType() const { return SurfaceType::DATA; }
   virtual IntSize GetSize() const;
-  virtual SurfaceFormat GetFormat() const { return FORMAT_B8G8R8A8; }
+  virtual SurfaceFormat GetFormat() const { return mFormat; }
 
   CGImageRef GetImage() { return mImage; }
 
@@ -70,6 +88,7 @@ public:
 private:
   CGContextRef mCg;
   CGImageRef mImage;
+  SurfaceFormat mFormat;
   //XXX: we don't need to store mData we can just get it from the CGContext
   void *mData;
   /* It might be better to just use the bitmap info from the CGImageRef to
@@ -80,19 +99,36 @@ private:
 class SourceSurfaceCGContext : public DataSourceSurface
 {
 public:
+  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceCGContext)
   virtual void DrawTargetWillChange() = 0;
+  virtual void DrawTargetWillGoAway() = 0;
   virtual CGImageRef GetImage() = 0;
 };
 
 class SourceSurfaceCGBitmapContext : public SourceSurfaceCGContext
 {
 public:
-  SourceSurfaceCGBitmapContext(DrawTargetCG *);
+  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceCGBitmapContext)
+  explicit SourceSurfaceCGBitmapContext(DrawTargetCG *);
   ~SourceSurfaceCGBitmapContext();
 
-  virtual SurfaceType GetType() const { return SURFACE_COREGRAPHICS_CGCONTEXT; }
+  virtual SurfaceType GetType() const { return SurfaceType::COREGRAPHICS_CGCONTEXT; }
   virtual IntSize GetSize() const;
-  virtual SurfaceFormat GetFormat() const { return FORMAT_B8G8R8A8; }
+  virtual SurfaceFormat GetFormat() const { return mFormat; }
+  virtual TemporaryRef<DataSourceSurface> GetDataSurface()
+  {
+    // This call to DrawTargetWillChange() is needed to make a local copy of
+    // the data from mDrawTarget.  If we don't do that, the data can end up
+    // getting deleted before the CGImageRef it belongs to.
+    //
+    // Another reason we need a local copy of the data is that the data in
+    // mDrawTarget could change when someone touches the original DrawTargetCG
+    // object.  But a SourceSurface object should be immutable.
+    //
+    // For more information see bug 925448.
+    DrawTargetWillChange();
+    return this;
+  }
 
   CGImageRef GetImage() { EnsureImage(); return mImage; }
 
@@ -104,18 +140,23 @@ private:
   //XXX: do the other backends friend their DrawTarget?
   friend class DrawTargetCG;
   virtual void DrawTargetWillChange();
+  virtual void DrawTargetWillGoAway();
   void EnsureImage() const;
 
   // We hold a weak reference to these two objects.
   // The cycle is broken by DrawTargetWillChange
   DrawTargetCG *mDrawTarget;
   CGContextRef mCg;
+  SurfaceFormat mFormat;
 
   mutable CGImageRef mImage;
 
   // mData can be owned by three different things:
   // mImage, mCg or SourceSurfaceCGBitmapContext
   void *mData;
+
+  // The image buffer, if the buffer is owned by this class.
+  AlignedArray<uint8_t> mDataHolder;
 
   int32_t mStride;
   IntSize mSize;
@@ -124,12 +165,13 @@ private:
 class SourceSurfaceCGIOSurfaceContext : public SourceSurfaceCGContext
 {
 public:
-  SourceSurfaceCGIOSurfaceContext(DrawTargetCG *);
+  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DataSourceSurfaceCGIOSurfaceContext)
+  explicit SourceSurfaceCGIOSurfaceContext(DrawTargetCG *);
   ~SourceSurfaceCGIOSurfaceContext();
 
-  virtual SurfaceType GetType() const { return SURFACE_COREGRAPHICS_CGCONTEXT; }
+  virtual SurfaceType GetType() const { return SurfaceType::COREGRAPHICS_CGCONTEXT; }
   virtual IntSize GetSize() const;
-  virtual SurfaceFormat GetFormat() const { return FORMAT_B8G8R8A8; }
+  virtual SurfaceFormat GetFormat() const { return mFormat; }
 
   CGImageRef GetImage() { EnsureImage(); return mImage; }
 
@@ -141,8 +183,10 @@ private:
   //XXX: do the other backends friend their DrawTarget?
   friend class DrawTargetCG;
   virtual void DrawTargetWillChange();
+  virtual void DrawTargetWillGoAway() { DrawTargetWillChange(); }
   void EnsureImage() const;
 
+  SurfaceFormat mFormat;
   mutable CGImageRef mImage;
   MacIOSurface* mIOSurface;
 
@@ -155,3 +199,5 @@ private:
 
 }
 }
+
+#endif // _MOZILLA_GFX_SOURCESURFACECG_H

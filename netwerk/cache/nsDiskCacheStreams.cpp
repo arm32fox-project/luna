@@ -12,8 +12,11 @@
 #include "nsCacheService.h"
 #include "mozilla/FileUtils.h"
 #include "nsThreadUtils.h"
+#include "mozilla/MemoryReporting.h"
+#include "mozilla/Telemetry.h"
 #include "mozilla/TimeStamp.h"
 #include <algorithm>
+#include "mozilla/VisualEventTracer.h"
 
 // we pick 16k as the max buffer size because that is the threshold above which
 //      we are unable to store the data in the cache block files
@@ -39,12 +42,12 @@ public:
                             const char *          buffer,
                             uint32_t              endOfStream);
 
-    virtual ~nsDiskCacheInputStream();
-    
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIINPUTSTREAM
 
 private:
+    virtual ~nsDiskCacheInputStream();
+
     nsDiskCacheStreamIO *           mStreamIO;  // backpointer to parent
     PRFileDesc *                    mFD;
     const char *                    mBuffer;
@@ -54,7 +57,7 @@ private:
 };
 
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsDiskCacheInputStream, nsIInputStream)
+NS_IMPL_ISUPPORTS(nsDiskCacheInputStream, nsIInputStream)
 
 
 nsDiskCacheInputStream::nsDiskCacheInputStream( nsDiskCacheStreamIO * parent,
@@ -187,7 +190,7 @@ nsDiskCacheInputStream::IsNonBlocking(bool * nonBlocking)
 /******************************************************************************
  *  nsDiskCacheStreamIO
  *****************************************************************************/
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsDiskCacheStreamIO, nsIOutputStream)
+NS_IMPL_ISUPPORTS(nsDiskCacheStreamIO, nsIOutputStream)
 
 nsDiskCacheStreamIO::nsDiskCacheStreamIO(nsDiskCacheBinding *   binding)
     : mBinding(binding)
@@ -318,7 +321,7 @@ nsDiskCacheStreamIO::Close()
     mozilla::TimeStamp start = mozilla::TimeStamp::Now();
 
     // grab service lock
-    nsCacheServiceAutoLock lock;
+    nsCacheServiceAutoLock lock(LOCK_TELEM(NSDISKCACHESTREAMIO_CLOSEOUTPUTSTREAM));
 
     if (!mBinding) {    // if we're severed, just clear member variables
         mOutputStreamIsOpen = false;
@@ -328,6 +331,13 @@ nsDiskCacheStreamIO::Close()
     nsresult rv = CloseOutputStream();
     if (NS_FAILED(rv))
         NS_WARNING("CloseOutputStream() failed");
+
+    mozilla::Telemetry::ID id;
+    if (NS_IsMainThread())
+        id = mozilla::Telemetry::NETWORK_DISK_CACHE_STREAMIO_CLOSE_MAIN_THREAD;
+    else
+        id = mozilla::Telemetry::NETWORK_DISK_CACHE_STREAMIO_CLOSE;
+    mozilla::Telemetry::AccumulateTimeDelta(id, start);
 
     return rv;
 }
@@ -417,7 +427,7 @@ nsDiskCacheStreamIO::Write( const char * buffer,
     }
 
     // grab service lock
-    nsCacheServiceAutoLock lock;
+    nsCacheServiceAutoLock lock(LOCK_TELEM(NSDISKCACHESTREAMIO_WRITE));
     if (!mBinding)  return NS_ERROR_NOT_AVAILABLE;
 
     if (mInStreamCount) {
@@ -526,6 +536,12 @@ nsDiskCacheStreamIO::OpenCacheFile(int flags, PRFileDesc ** fd)
 nsresult
 nsDiskCacheStreamIO::ReadCacheBlocks(uint32_t bufferSize)
 {
+    mozilla::eventtracer::AutoEventTracer readCacheBlocks(
+        mBinding->mCacheEntry,
+        mozilla::eventtracer::eExec,
+        mozilla::eventtracer::eDone,
+        "net::cache::ReadCacheBlocks");
+
     NS_ASSERTION(mStreamEnd == mBinding->mCacheEntry->DataSize(), "bad stream");
     NS_ASSERTION(bufferSize <= kMaxBufferSize, "bufferSize too large for buffer");
     NS_ASSERTION(mStreamEnd <= bufferSize, "data too large for buffer");
@@ -549,6 +565,12 @@ nsDiskCacheStreamIO::ReadCacheBlocks(uint32_t bufferSize)
 nsresult
 nsDiskCacheStreamIO::FlushBufferToFile()
 {
+    mozilla::eventtracer::AutoEventTracer flushBufferToFile(
+        mBinding->mCacheEntry,
+        mozilla::eventtracer::eExec,
+        mozilla::eventtracer::eDone,
+        "net::cache::FlushBufferToFile");
+
     nsresult  rv;
     nsDiskCacheRecord * record = &mBinding->mRecord;
     
@@ -599,7 +621,7 @@ nsDiskCacheStreamIO::DeleteBuffer()
 }
 
 size_t
-nsDiskCacheStreamIO::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
+nsDiskCacheStreamIO::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf)
 {
     size_t usage = aMallocSizeOf(this);
 

@@ -3,6 +3,8 @@
  * http://creativecommons.org/publicdomain/zero/1.0/
  */
 
+let disableWorkerTest = "This test uses SpecialPowers";
+
 var testGenerator = testSteps();
 
 function testSteps()
@@ -10,14 +12,14 @@ function testSteps()
   let request = indexedDB.open(this.window ? window.location.pathname : "Splendid Test", 1);
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
-  let event = yield;
+  let event = yield undefined;
 
   let db = event.target.result;
   db.onerror = errorHandler;
 
   event.target.onsuccess = continueToNextStep;
   db.createObjectStore("foo");
-  yield;
+  yield undefined;
 
   let transaction1 = db.transaction("foo");
 
@@ -43,8 +45,8 @@ function testSteps()
   ok(transaction2, "Non-null transaction2");
 
   continueToNextStep();
-  yield;
+  yield undefined;
 
   finishTest();
-  yield;
+  yield undefined;
 }

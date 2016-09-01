@@ -1,4 +1,4 @@
-README for libpng version 1.5.24 - November 12, 2015 (shared library 15.0)
+README for libpng version 1.6.16 - December 22, 2014 (shared library 16.0)
 See the note about version numbers near the top of png.h
 
 See INSTALL for instructions on how to install libpng.
@@ -23,7 +23,7 @@ earlier versions if you are using a shared library.  The type of the
 png_uint_32, which will affect shared-library applications that use
 this function.
 
-To avoid problems with changes to the internals of the png info_struct,
+To avoid problems with changes to the internals of png info_struct,
 new APIs have been made available in 0.95 to avoid direct application
 access to info_ptr.  These functions are the png_set_<chunk> and
 png_get_<chunk> functions.  These functions should be used when
@@ -134,7 +134,7 @@ and ...".  If in doubt, send questions to me.  I'll bounce them
 to others, if necessary.
 
 Please do not send suggestions on how to change PNG.  We have
-been discussing PNG for twenty years now, and it is official and
+been discussing PNG for nineteen years now, and it is official and
 finished.  If you have suggestions for libpng, however, I'll
 gladly listen.  Even if your suggestion is not used immediately,
 it may be used later.
@@ -180,6 +180,7 @@ Files in this distribution:
       pngwutil.c    =>  Write utility functions
       arm           =>  Contains optimized code for the ARM platform
       contrib       =>  Contributions
+       examples         =>  Example programs
        gregbook         =>  source code for PNG reading and writing, from
                             Greg Roelofs' "PNG: The Definitive Guide",
                             O'Reilly, 1999
@@ -188,6 +189,7 @@ Files in this distribution:
                             programs demonstrating use of pngusr.dfa
        pngminus         =>  Simple pnm2png and png2pnm programs
        pngsuite         =>  Test images
+       tools            =>  Various tools
        visupng          =>  Contains a MSVC workspace for VisualPng
       projects      =>  Contains project files and workspaces for
                         building a DLL

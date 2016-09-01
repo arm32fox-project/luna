@@ -5,7 +5,5 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 DIRS += ['src', 'ui']
-TEST_DIRS += ['tests']
 
-MODULE = 'layout_debug'
-
+XPCSHELL_TESTS_MANIFESTS += ['tests/unit/xpcshell.ini']

@@ -26,13 +26,13 @@
 class nsNSSASN1Tree : public nsIASN1Tree
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIASN1TREE
   NS_DECL_NSITREEVIEW
   
   nsNSSASN1Tree();
-  virtual ~nsNSSASN1Tree();
 protected:
+  virtual ~nsNSSASN1Tree();
 
   class myNode
   {

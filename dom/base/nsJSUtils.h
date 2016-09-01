@@ -15,28 +15,32 @@
 
 #include "mozilla/Assertions.h"
 
-#include "nsISupports.h"
 #include "jsapi.h"
+#include "jsfriendapi.h"
+#include "js/Conversions.h"
 #include "nsString.h"
 
-class nsIDOMEventListener;
 class nsIScriptContext;
 class nsIScriptGlobalObject;
-class nsIPrincipal;
+
+namespace mozilla {
+namespace dom {
+class AutoJSAPI;
+class Element;
+}
+}
 
 class nsJSUtils
 {
 public:
-  static JSBool GetCallingLocation(JSContext* aContext, const char* *aFilename,
-                                   uint32_t* aLineno);
+  static bool GetCallingLocation(JSContext* aContext, nsACString& aFilename,
+                                 uint32_t* aLineno);
+  static bool GetCallingLocation(JSContext* aContext, nsAString& aFilename,
+                                 uint32_t* aLineno);
 
   static nsIScriptGlobalObject *GetStaticScriptGlobal(JSObject* aObj);
 
   static nsIScriptContext *GetStaticScriptContext(JSObject* aObj);
-
-  static nsIScriptGlobalObject *GetDynamicScriptGlobal(JSContext *aContext);
-
-  static nsIScriptContext *GetDynamicScriptContext(JSContext *aContext);
 
   /**
    * Retrieve the inner window ID based on the given JSContext.
@@ -55,8 +59,8 @@ public:
    */
   static void ReportPendingException(JSContext *aContext);
 
-  static nsresult CompileFunction(JSContext* aCx,
-                                  JS::HandleObject aTarget,
+  static nsresult CompileFunction(mozilla::dom::AutoJSAPI& jsapi,
+                                  JS::AutoObjectVector& aScopeChain,
                                   JS::CompileOptions& aOptions,
                                   const nsACString& aName,
                                   uint32_t aArgCount,
@@ -64,68 +68,158 @@ public:
                                   const nsAString& aBody,
                                   JSObject** aFunctionObject);
 
+  struct MOZ_STACK_CLASS EvaluateOptions {
+    bool coerceToString;
+    bool reportUncaught;
+    JS::AutoObjectVector scopeChain;
+
+    explicit EvaluateOptions(JSContext* cx)
+      : coerceToString(false)
+      , reportUncaught(true)
+      , scopeChain(cx)
+    {}
+
+    EvaluateOptions& setCoerceToString(bool aCoerce) {
+      coerceToString = aCoerce;
+      return *this;
+    }
+
+    EvaluateOptions& setReportUncaught(bool aReport) {
+      reportUncaught = aReport;
+      return *this;
+    }
+  };
+
+  // aEvaluationGlobal is the global to evaluate in.  The return value
+  // will then be wrapped back into the compartment aCx is in when
+  // this function is called.
+  static nsresult EvaluateString(JSContext* aCx,
+                                 const nsAString& aScript,
+                                 JS::Handle<JSObject*> aEvaluationGlobal,
+                                 JS::CompileOptions &aCompileOptions,
+                                 const EvaluateOptions& aEvaluateOptions,
+                                 JS::MutableHandle<JS::Value> aRetValue);
+
+  static nsresult EvaluateString(JSContext* aCx,
+                                 JS::SourceBufferHolder& aSrcBuf,
+                                 JS::Handle<JSObject*> aEvaluationGlobal,
+                                 JS::CompileOptions &aCompileOptions,
+                                 const EvaluateOptions& aEvaluateOptions,
+                                 JS::MutableHandle<JS::Value> aRetValue);
+
+
+  static nsresult EvaluateString(JSContext* aCx,
+                                 const nsAString& aScript,
+                                 JS::Handle<JSObject*> aEvaluationGlobal,
+                                 JS::CompileOptions &aCompileOptions);
+
+  static nsresult EvaluateString(JSContext* aCx,
+                                 JS::SourceBufferHolder& aSrcBuf,
+                                 JS::Handle<JSObject*> aEvaluationGlobal,
+                                 JS::CompileOptions &aCompileOptions,
+                                 void **aOffThreadToken);
+
+  // Returns false if an exception got thrown on aCx.  Passing a null
+  // aElement is allowed; that wil produce an empty aScopeChain.
+  static bool GetScopeChainForElement(JSContext* aCx,
+                                      mozilla::dom::Element* aElement,
+                                      JS::AutoObjectVector& aScopeChain);
+private:
+  // Implementation for our EvaluateString bits
+  static nsresult EvaluateString(JSContext* aCx,
+                                 JS::SourceBufferHolder& aSrcBuf,
+                                 JS::Handle<JSObject*> aEvaluationGlobal,
+                                 JS::CompileOptions& aCompileOptions,
+                                 const EvaluateOptions& aEvaluateOptions,
+                                 JS::MutableHandle<JS::Value> aRetValue,
+                                 void **aOffThreadToken);
 };
 
+class MOZ_STACK_CLASS AutoDontReportUncaught {
+  JSContext* mContext;
+  bool mWasSet;
 
-class nsDependentJSString : public nsDependentString
+public:
+  explicit AutoDontReportUncaught(JSContext* aContext) : mContext(aContext) {
+    MOZ_ASSERT(aContext);
+    mWasSet = JS::ContextOptionsRef(mContext).dontReportUncaught();
+    if (!mWasSet) {
+      JS::ContextOptionsRef(mContext).setDontReportUncaught(true);
+    }
+  }
+  ~AutoDontReportUncaught() {
+    if (!mWasSet) {
+      JS::ContextOptionsRef(mContext).setDontReportUncaught(false);
+    }
+  }
+};
+
+template<typename T>
+inline bool
+AssignJSString(JSContext *cx, T &dest, JSString *s)
+{
+  size_t len = js::GetStringLength(s);
+  static_assert(js::MaxStringLength < (1 << 28),
+                "Shouldn't overflow here or in SetCapacity");
+  if (MOZ_UNLIKELY(!dest.SetLength(len, mozilla::fallible))) {
+    JS_ReportOutOfMemory(cx);
+    return false;
+  }
+  return js::CopyStringChars(cx, dest.BeginWriting(), s, len);
+}
+
+inline void
+AssignJSFlatString(nsAString &dest, JSFlatString *s)
+{
+  size_t len = js::GetFlatStringLength(s);
+  static_assert(js::MaxStringLength < (1 << 28),
+                "Shouldn't overflow here or in SetCapacity");
+  dest.SetLength(len);
+  js::CopyFlatStringChars(dest.BeginWriting(), s, len);
+}
+
+class nsAutoJSString : public nsAutoString
 {
 public:
-  /**
-   * In the case of string ids, getting the string's chars is infallible, so
-   * the dependent string can be constructed directly.
-   */
-  explicit nsDependentJSString(JS::Handle<jsid> id)
-    : nsDependentString(JS_GetInternedStringChars(JSID_TO_STRING(id)),
-                        JS_GetStringLength(JSID_TO_STRING(id)))
-  {
-  }
 
   /**
-   * Ditto for flat strings.
+   * nsAutoJSString should be default constructed, which leaves it empty
+   * (this->IsEmpty()), and initialized with one of the init() methods below.
    */
-  explicit nsDependentJSString(JSFlatString* fstr)
-    : nsDependentString(JS_GetFlatStringChars(fstr),
-                        JS_GetStringLength(JS_FORGET_STRING_FLATNESS(fstr)))
+  nsAutoJSString() {}
+
+  bool init(JSContext* aContext, JSString* str)
   {
+    return AssignJSString(aContext, *this, str);
   }
 
-  /**
-   * For all other strings, the nsDependentJSString object should be default
-   * constructed, which leaves it empty (this->IsEmpty()), and initialized with
-   * one of the init() methods below.
-   */
-
-  nsDependentJSString()
+  bool init(JSContext* aContext, const JS::Value &v)
   {
+    if (v.isString()) {
+      return init(aContext, v.toString());
+    }
+
+    // Stringify, making sure not to run script.
+    JS::Rooted<JSString*> str(aContext);
+    if (v.isObject()) {
+      str = JS_NewStringCopyZ(aContext, "[Object]");
+    } else {
+      JS::Rooted<JS::Value> rootedVal(aContext, v);
+      str = JS::ToString(aContext, rootedVal);
+    }
+
+    return str && init(aContext, str);
   }
 
-  JSBool init(JSContext* aContext, JSString* str)
+  bool init(JSContext* aContext, jsid id)
   {
-      size_t length;
-      const jschar* chars = JS_GetStringCharsZAndLength(aContext, str, &length);
-      if (!chars)
-          return JS_FALSE;
-
-      NS_ASSERTION(IsEmpty(), "init() on initialized string");
-      nsDependentString* base = this;
-      new(base) nsDependentString(chars, length);
-      return JS_TRUE;
+    JS::Rooted<JS::Value> v(aContext);
+    return JS_IdToValue(aContext, id, &v) && init(aContext, v);
   }
 
-  JSBool init(JSContext* aContext, const JS::Value &v)
-  {
-      return init(aContext, JSVAL_TO_STRING(v));
-  }
+  bool init(const JS::Value &v);
 
-  void init(JSFlatString* fstr)
-  {
-      MOZ_ASSERT(IsEmpty(), "init() on initialized string");
-      new(this) nsDependentJSString(fstr);
-  }
-
-  ~nsDependentJSString()
-  {
-  }
+  ~nsAutoJSString() {}
 };
 
 #endif /* nsJSUtils_h__ */

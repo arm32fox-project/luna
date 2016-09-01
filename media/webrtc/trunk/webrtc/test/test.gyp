@@ -13,28 +13,91 @@
   ],
   'targets': [
     {
+      'target_name': 'channel_transport',
+      'type': 'static_library',
+      'dependencies': [
+        '<(DEPTH)/testing/gtest.gyp:gtest',
+        '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
+      ],
+      'sources': [
+        'channel_transport/channel_transport.cc',
+        'channel_transport/include/channel_transport.h',
+        'channel_transport/traffic_control_win.cc',
+        'channel_transport/traffic_control_win.h',
+        'channel_transport/udp_socket_manager_posix.cc',
+        'channel_transport/udp_socket_manager_posix.h',
+        'channel_transport/udp_socket_manager_wrapper.cc',
+        'channel_transport/udp_socket_manager_wrapper.h',
+        'channel_transport/udp_socket_posix.cc',
+        'channel_transport/udp_socket_posix.h',
+        'channel_transport/udp_socket_wrapper.cc',
+        'channel_transport/udp_socket_wrapper.h',
+        'channel_transport/udp_socket2_manager_win.cc',
+        'channel_transport/udp_socket2_manager_win.h',
+        'channel_transport/udp_socket2_win.cc',
+        'channel_transport/udp_socket2_win.h',
+        'channel_transport/udp_transport.h',
+        'channel_transport/udp_transport_impl.cc',
+        'channel_transport/udp_transport_impl.h',
+      ],
+    },
+    {
+      'target_name': 'frame_generator',
+      'type': 'static_library',
+      'sources': [
+        'frame_generator.cc',
+        'frame_generator.h',
+      ],
+      'dependencies': [
+        '<(webrtc_root)/common_video/common_video.gyp:common_video',
+      ],
+    },
+    {
+      'target_name': 'rtp_test_utils',
+      'type': 'static_library',
+      'sources': [
+        'rtcp_packet_parser.cc',
+        'rtcp_packet_parser.h',
+        'rtp_file_reader.cc',
+        'rtp_file_reader.h',
+      ],
+      'dependencies': [
+        '<(webrtc_root)/modules/modules.gyp:rtp_rtcp',
+      ],
+    },
+    {
+      'target_name': 'field_trial',
+      'type': 'static_library',
+      'sources': [
+        'field_trial.cc',
+        'field_trial.h',
+      ],
+      'dependencies': [
+        '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
+      ],
+    },
+    {
+      'target_name': 'test_main',
+      'type': 'static_library',
+      'sources': [
+        'test_main.cc',
+      ],
+      'dependencies': [
+        'field_trial',
+        '<(DEPTH)/testing/gtest.gyp:gtest',
+        '<(DEPTH)/third_party/gflags/gflags.gyp:gflags',
+        '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:metrics_default',
+      ],
+    },
+    {
       'target_name': 'test_support',
       'type': 'static_library',
-      'include_dirs': [
-        '.',
-      ],
-      'direct_dependent_settings': {
-        'include_dirs': [
-          '.', # Some includes are hierarchical
-        ],
-      },
       'dependencies': [
         '<(DEPTH)/testing/gtest.gyp:gtest',
         '<(DEPTH)/testing/gmock.gyp:gmock',
+        '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
       ],
-      'all_dependent_settings': {
-        'include_dirs': [
-          '.',
-        ],
-      },
       'sources': [
-        'test_suite.cc',
-        'test_suite.h',
         'testsupport/fileutils.cc',
         'testsupport/fileutils.h',
         'testsupport/frame_reader.cc',
@@ -42,12 +105,15 @@
         'testsupport/frame_writer.cc',
         'testsupport/frame_writer.h',
         'testsupport/gtest_prod_util.h',
+        'testsupport/gtest_disable.h',
         'testsupport/mock/mock_frame_reader.h',
         'testsupport/mock/mock_frame_writer.h',
         'testsupport/packet_reader.cc',
         'testsupport/packet_reader.h',
         'testsupport/perf_test.cc',
         'testsupport/perf_test.h',
+        'testsupport/trace_to_stderr.cc',
+        'testsupport/trace_to_stderr.h',
       ],
     },
     {
@@ -56,10 +122,17 @@
       'target_name': 'test_support_main',
       'type': 'static_library',
       'dependencies': [
+        'field_trial',
         'test_support',
+        '<(DEPTH)/testing/gmock.gyp:gmock',
+        '<(DEPTH)/testing/gtest.gyp:gtest',
+        '<(DEPTH)/third_party/gflags/gflags.gyp:gflags',
+        '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:metrics_default',
       ],
       'sources': [
         'run_all_unittests.cc',
+        'test_suite.cc',
+        'test_suite.h',
       ],
     },
     {
@@ -81,12 +154,18 @@
     },
     {
       'target_name': 'test_support_unittests',
-      'type': 'executable',
+      'type': '<(gtest_target_type)',
       'dependencies': [
+        'channel_transport',
         'test_support_main',
+        '<(DEPTH)/testing/gmock.gyp:gmock',
         '<(DEPTH)/testing/gtest.gyp:gtest',
       ],
       'sources': [
+        'channel_transport/udp_transport_unittest.cc',
+        'channel_transport/udp_socket_manager_unittest.cc',
+        'channel_transport/udp_socket_wrapper_unittest.cc',
+        'testsupport/always_passing_unittest.cc',
         'testsupport/unittest_utils.h',
         'testsupport/fileutils_unittest.cc',
         'testsupport/frame_reader_unittest.cc',
@@ -94,6 +173,47 @@
         'testsupport/packet_reader_unittest.cc',
         'testsupport/perf_test_unittest.cc',
       ],
+      # Disable warnings to enable Win64 build, issue 1323.
+      'msvs_disabled_warnings': [
+        4267,  # size_t to int truncation.
+      ],
+      'conditions': [
+        ['OS=="android"', {
+          'dependencies': [
+            '<(DEPTH)/testing/android/native_test.gyp:native_test_native_code',
+          ],
+        }],
+      ],
     },
+  ],
+  'conditions': [
+    ['include_tests==1 and OS=="android"', {
+      'targets': [
+        {
+          'target_name': 'test_support_unittests_apk_target',
+          'type': 'none',
+          'dependencies': [
+            '<(apk_tests_path):test_support_unittests_apk',
+          ],
+        },
+      ],
+    }],
+    ['test_isolation_mode != "noop"', {
+      'targets': [
+        {
+          'target_name': 'test_support_unittests_run',
+          'type': 'none',
+          'dependencies': [
+            'test_support_unittests',
+          ],
+          'includes': [
+            '../build/isolate.gypi',
+          ],
+          'sources': [
+            'test_support_unittests.isolate',
+          ],
+        },
+      ],
+    }],
   ],
 }

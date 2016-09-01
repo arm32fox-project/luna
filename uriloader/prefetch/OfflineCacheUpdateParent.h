@@ -40,13 +40,19 @@ public:
              const URIParams& documentURI,
              const bool& stickDocument);
 
-    OfflineCacheUpdateParent(uint32_t aAppId, bool aIsInBrowser);
-    ~OfflineCacheUpdateParent();
+    void
+    StopSendingMessagesToChild()
+    {
+      mIPCClosed = true;
+    }
 
-    virtual void ActorDestroy(ActorDestroyReason why);
+    OfflineCacheUpdateParent(uint32_t aAppId, bool aIsInBrowser);
+
+    virtual void ActorDestroy(ActorDestroyReason aWhy) override;
 
 private:
-    void RefcountHitZero();
+    ~OfflineCacheUpdateParent();
+
     bool mIPCClosed;
 
     bool     mIsInBrowserElement;

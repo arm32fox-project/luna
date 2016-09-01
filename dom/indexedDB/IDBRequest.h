@@ -7,53 +7,105 @@
 #ifndef mozilla_dom_indexeddb_idbrequest_h__
 #define mozilla_dom_indexeddb_idbrequest_h__
 
+#include "js/RootingAPI.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/dom/indexedDB/IndexedDatabase.h"
-
-#include "nsIIDBRequest.h"
-#include "nsIIDBOpenDBRequest.h"
-#include "nsDOMEventTargetHelper.h"
+#include "mozilla/EventForwards.h"
+#include "mozilla/dom/IDBRequestBinding.h"
 #include "mozilla/dom/indexedDB/IDBWrapperCache.h"
-#include "mozilla/dom/DOMError.h"
+#include "nsAutoPtr.h"
+#include "nsCycleCollectionParticipant.h"
 
-class nsIScriptContext;
+#define PRIVATE_IDBREQUEST_IID \
+  {0xe68901e5, 0x1d50, 0x4ee9, {0xaf, 0x49, 0x90, 0x99, 0x4a, 0xff, 0xc8, 0x39}}
+
 class nsPIDOMWindow;
+struct PRThread;
 
-BEGIN_INDEXEDDB_NAMESPACE
+namespace mozilla {
 
-class HelperBase;
+class ErrorResult;
+
+namespace dom {
+
+class DOMError;
+struct ErrorEventInit;
+template <typename> struct Nullable;
+class OwningIDBObjectStoreOrIDBIndexOrIDBCursor;
+
+namespace indexedDB {
+
+class IDBCursor;
+class IDBDatabase;
 class IDBFactory;
+class IDBIndex;
+class IDBObjectStore;
 class IDBTransaction;
-class IndexedDBRequestParentBase;
 
-class IDBRequest : public IDBWrapperCache,
-                   public nsIIDBRequest
+class IDBRequest
+  : public IDBWrapperCache
 {
-public:
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_NSIIDBREQUEST
-  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(IDBRequest,
-                                                         IDBWrapperCache)
+protected:
+  // mSourceAsObjectStore and mSourceAsIndex are exclusive and one must always
+  // be set. mSourceAsCursor is sometimes set also.
+  nsRefPtr<IDBObjectStore> mSourceAsObjectStore;
+  nsRefPtr<IDBIndex> mSourceAsIndex;
+  nsRefPtr<IDBCursor> mSourceAsCursor;
 
-  static
-  already_AddRefed<IDBRequest> Create(nsISupports* aSource,
-                                      IDBWrapperCache* aOwnerCache,
-                                      IDBTransaction* aTransaction);
+  nsRefPtr<IDBTransaction> mTransaction;
+
+#ifdef DEBUG
+  PRThread* mOwningThread;
+#endif
+
+  JS::Heap<JS::Value> mResultVal;
+  nsRefPtr<DOMError> mError;
+
+  nsString mFilename;
+  uint64_t mLoggingSerialNumber;
+  nsresult mErrorCode;
+  uint32_t mLineNo;
+  bool mHaveResultOrErrorCode;
+
+public:
+  class ResultCallback;
+
+  static already_AddRefed<IDBRequest>
+  Create(IDBDatabase* aDatabase, IDBTransaction* aTransaction);
+
+  static already_AddRefed<IDBRequest>
+  Create(IDBObjectStore* aSource,
+         IDBDatabase* aDatabase,
+         IDBTransaction* aTransaction);
+
+  static already_AddRefed<IDBRequest>
+  Create(IDBIndex* aSource,
+         IDBDatabase* aDatabase,
+         IDBTransaction* aTransaction);
+
+  static void
+  CaptureCaller(nsAString& aFilename, uint32_t* aLineNo);
+
+  static uint64_t
+  NextSerialNumber();
 
   // nsIDOMEventTarget
-  virtual nsresult PreHandleEvent(nsEventChainPreVisitor& aVisitor) MOZ_OVERRIDE;
+  virtual nsresult
+  PreHandleEvent(EventChainPreVisitor& aVisitor) override;
 
-  nsISupports* Source()
-  {
-    return mSource;
-  }
+  void
+  GetSource(Nullable<OwningIDBObjectStoreOrIDBIndexOrIDBCursor>& aSource) const;
 
-  void Reset();
+  void
+  Reset();
 
-  nsresult NotifyHelperCompleted(HelperBase* aHelper);
-  void NotifyHelperSentResultsToChildProcess(nsresult aRv);
+  void
+  DispatchNonTransactionError(nsresult aErrorCode);
 
-  void SetError(nsresult aRv);
+  void
+  SetResultCallback(ResultCallback* aCallback);
+
+  void
+  SetError(nsresult aRv);
 
   nsresult
   GetErrorCode() const
@@ -65,27 +117,21 @@ public:
   }
 #endif
 
-  DOMError* GetError(ErrorResult& aRv);
+  DOMError*
+  GetErrorAfterResult() const
+#ifdef DEBUG
+  ;
+#else
+  {
+    return mError;
+  }
+#endif
 
-  JSContext* GetJSContext();
+  DOMError*
+  GetError(ErrorResult& aRv);
 
   void
-  SetActor(IndexedDBRequestParentBase* aActorParent)
-  {
-    NS_ASSERTION(!aActorParent || !mActorParent,
-                 "Shouldn't have more than one!");
-    mActorParent = aActorParent;
-  }
-
-  IndexedDBRequestParentBase*
-  GetActorParent() const
-  {
-    return mActorParent;
-  }
-
-  void CaptureCaller();
-
-  void FillScriptErrorEvent(nsScriptErrorEvent* aEvent) const;
+  GetCallerLocation(nsAString& aFilename, uint32_t* aLineNo) const;
 
   bool
   IsPending() const
@@ -93,46 +139,118 @@ public:
     return !mHaveResultOrErrorCode;
   }
 
+  uint64_t
+  LoggingSerialNumber() const
+  {
+    AssertIsOnOwningThread();
+
+    return mLoggingSerialNumber;
+  }
+
+  void
+  SetLoggingSerialNumber(uint64_t aLoggingSerialNumber);
+
+  nsPIDOMWindow*
+  GetParentObject() const
+  {
+    return GetOwner();
+  }
+
+  void
+  GetResult(JS::MutableHandle<JS::Value> aResult, ErrorResult& aRv) const;
+
+  void
+  GetResult(JSContext* aCx, JS::MutableHandle<JS::Value> aResult,
+            ErrorResult& aRv) const
+  {
+    GetResult(aResult, aRv);
+  }
+
+  IDBTransaction*
+  GetTransaction() const
+  {
+    AssertIsOnOwningThread();
+
+    return mTransaction;
+  }
+
+  IDBRequestReadyState
+  ReadyState() const;
+
+  void
+  SetSource(IDBCursor* aSource);
+
+  IMPL_EVENT_HANDLER(success);
+  IMPL_EVENT_HANDLER(error);
+
+  void
+  AssertIsOnOwningThread() const
+#ifdef DEBUG
+  ;
+#else
+  { }
+#endif
+
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(IDBRequest,
+                                                         IDBWrapperCache)
+
+  // nsWrapperCache
+  virtual JSObject*
+  WrapObject(JSContext* aCx) override;
+
 protected:
-  IDBRequest();
+  explicit IDBRequest(IDBDatabase* aDatabase);
+  explicit IDBRequest(nsPIDOMWindow* aOwner);
   ~IDBRequest();
 
-  nsCOMPtr<nsISupports> mSource;
-  nsRefPtr<IDBTransaction> mTransaction;
+  void
+  InitMembers();
 
-  JS::Heap<JS::Value> mResultVal;
-  nsRefPtr<mozilla::dom::DOMError> mError;
-  IndexedDBRequestParentBase* mActorParent;
-  nsString mFilename;
-  nsresult mErrorCode;
-  uint32_t mLineNo;
-  bool mHaveResultOrErrorCode;
+  void
+  ConstructResult();
 };
 
-class IDBOpenDBRequest : public IDBRequest,
-                         public nsIIDBOpenDBRequest
+class NS_NO_VTABLE IDBRequest::ResultCallback
 {
 public:
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_FORWARD_NSIIDBREQUEST(IDBRequest::)
-  NS_DECL_NSIIDBOPENDBREQUEST
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBOpenDBRequest, IDBRequest)
+  virtual nsresult
+  GetResult(JSContext* aCx, JS::MutableHandle<JS::Value> aResult) = 0;
 
-  static
-  already_AddRefed<IDBOpenDBRequest>
-  Create(IDBFactory* aFactory,
-         nsPIDOMWindow* aOwner,
-         JS::Handle<JSObject*> aScriptOwner);
+protected:
+  ResultCallback()
+  { }
+};
 
-  void SetTransaction(IDBTransaction* aTransaction);
+class IDBOpenDBRequest final
+  : public IDBRequest
+{
+  class WorkerFeature;
+
+  // Only touched on the owning thread.
+  nsRefPtr<IDBFactory> mFactory;
+
+  nsAutoPtr<WorkerFeature> mWorkerFeature;
+
+public:
+  static already_AddRefed<IDBOpenDBRequest>
+  CreateForWindow(IDBFactory* aFactory,
+                  nsPIDOMWindow* aOwner,
+                  JS::Handle<JSObject*> aScriptOwner);
+
+  static already_AddRefed<IDBOpenDBRequest>
+  CreateForJS(IDBFactory* aFactory,
+              JS::Handle<JSObject*> aScriptOwner);
+
+  void
+  SetTransaction(IDBTransaction* aTransaction);
+
+  void
+  NoteComplete();
 
   // nsIDOMEventTarget
-  virtual nsresult PostHandleEvent(nsEventChainPostVisitor& aVisitor) MOZ_OVERRIDE;
-
-  DOMError* GetError(ErrorResult& aRv)
-  {
-    return IDBRequest::GetError(aRv);
-  }
+  virtual nsresult
+  PostHandleEvent(EventChainPostVisitor& aVisitor) override;
 
   IDBFactory*
   Factory() const
@@ -140,13 +258,24 @@ public:
     return mFactory;
   }
 
-protected:
-  ~IDBOpenDBRequest();
+  IMPL_EVENT_HANDLER(blocked);
+  IMPL_EVENT_HANDLER(upgradeneeded);
 
-  // Only touched on the main thread.
-  nsRefPtr<IDBFactory> mFactory;
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(IDBOpenDBRequest, IDBRequest)
+
+  // nsWrapperCache
+  virtual JSObject*
+  WrapObject(JSContext* aCx) override;
+
+private:
+  IDBOpenDBRequest(IDBFactory* aFactory, nsPIDOMWindow* aOwner);
+
+  ~IDBOpenDBRequest();
 };
 
-END_INDEXEDDB_NAMESPACE
+} // namespace indexedDB
+} // namespace dom
+} // namespace mozilla
 
 #endif // mozilla_dom_indexeddb_idbrequest_h__

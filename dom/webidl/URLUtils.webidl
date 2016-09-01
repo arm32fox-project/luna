@@ -13,25 +13,43 @@
  * http://www.openwebfoundation.org/legal/the-owf-1-0-agreements/owfa-1-0.
  */
 
-[NoInterfaceObject]
+[NoInterfaceObject,
+ Exposed=(Window, Worker)]
 interface URLUtils {
-  [SetterThrows]
-  stringifier attribute DOMString href;
-  readonly attribute DOMString origin;
+  // Bug 824857: no support for stringifier attributes yet.
+  //  stringifier attribute USVString href;
+  [Throws, CrossOriginWritable=Location]
+           attribute USVString href;
+  [Throws]
+  readonly attribute USVString origin;
 
-           attribute DOMString protocol;
-           attribute DOMString username;
-           attribute DOMString password;
-           attribute DOMString host;
-           attribute DOMString hostname;
-           attribute DOMString port;
-           attribute DOMString pathname;
-           attribute DOMString search;
-           // attribute URLQuery? query;
-           attribute DOMString hash;
+  [Throws]
+           attribute USVString protocol;
+  [Throws]
+           attribute USVString username;
+  [Throws]
+           attribute USVString password;
+  [Throws]
+           attribute USVString host;
+  [Throws]
+           attribute USVString hostname;
+  [Throws]
+           attribute USVString port;
+  [Throws]
+           attribute USVString pathname;
+  [Throws]
+           attribute USVString search;
 
-  // This can be removed when stringification of attributes is implemented
-  // in WebIDL -- see also bug 824857.
+  [Throws]
+           attribute USVString hash;
+
+  // Bug 824857 should remove this.
+  [Throws]
   stringifier;
 };
 
+[NoInterfaceObject,
+ Exposed=(Window, Worker)]
+interface URLUtilsSearchParams {
+           attribute URLSearchParams searchParams;
+};

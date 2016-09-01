@@ -6,16 +6,12 @@
 // HttpLog.h should generally be included first
 #include "HttpLog.h"
 
-#include "nsHttp.h"
 #include "nsHttpPipeline.h"
 #include "nsHttpHandler.h"
 #include "nsIOService.h"
-#include "nsIRequest.h"
 #include "nsISocketTransport.h"
-#include "nsIStringStream.h"
 #include "nsIPipe.h"
 #include "nsCOMPtr.h"
-#include "nsComponentManagerUtils.h"
 #include <algorithm>
 
 #ifdef DEBUG
@@ -23,6 +19,9 @@
 // defined by the socket transport service while active
 extern PRThread *gSocketThread;
 #endif
+
+namespace mozilla {
+namespace net {
 
 //-----------------------------------------------------------------------------
 // nsHttpPushBackWriter
@@ -63,8 +62,7 @@ private:
 //-----------------------------------------------------------------------------
 
 nsHttpPipeline::nsHttpPipeline()
-    : mConnection(nullptr)
-    , mStatus(NS_OK)
+    : mStatus(NS_OK)
     , mRequestIsPartial(false)
     , mResponseIsPartial(false)
     , mClosed(false)
@@ -83,8 +81,6 @@ nsHttpPipeline::~nsHttpPipeline()
 {
     // make sure we aren't still holding onto any transactions!
     Close(NS_ERROR_ABORT);
-
-    NS_IF_RELEASE(mConnection);
 
     if (mPushBackBuf)
         free(mPushBackBuf);
@@ -161,8 +157,8 @@ nsHttpPipeline::QueryPipeline()
 // nsHttpPipeline::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_THREADSAFE_ADDREF(nsHttpPipeline)
-NS_IMPL_THREADSAFE_RELEASE(nsHttpPipeline)
+NS_IMPL_ADDREF(nsHttpPipeline)
+NS_IMPL_RELEASE(nsHttpPipeline)
 
 // multiple inheritance fun :-)
 NS_INTERFACE_MAP_BEGIN(nsHttpPipeline)
@@ -409,15 +405,15 @@ nsHttpPipeline::SetConnection(nsAHttpConnection *conn)
     LOG(("nsHttpPipeline::SetConnection [this=%p conn=%x]\n", this, conn));
 
     MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
-    MOZ_ASSERT(!mConnection, "already have a connection");
+    MOZ_ASSERT(!conn || !mConnection, "already have a connection");
 
-    NS_IF_ADDREF(mConnection = conn);
+    mConnection = conn;
 }
 
 nsAHttpConnection *
 nsHttpPipeline::Connection()
 {
-    LOG(("nsHttpPipeline::Connection [this=%p conn=%x]\n", this, mConnection));
+    LOG(("nsHttpPipeline::Connection [this=%p conn=%x]\n", this, mConnection.get()));
 
     MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
     return mConnection;
@@ -444,9 +440,9 @@ nsHttpPipeline::GetSecurityCallbacks(nsIInterfaceRequestor **result)
 
 void
 nsHttpPipeline::OnTransportStatus(nsITransport* transport,
-                                  nsresult status, uint64_t progress)
+                                  nsresult status, int64_t progress)
 {
-    LOG(("nsHttpPipeline::OnStatus [this=%p status=%x progress=%llu]\n",
+    LOG(("nsHttpPipeline::OnStatus [this=%p status=%x progress=%lld]\n",
         this, status, progress));
 
     MOZ_ASSERT(PR_GetCurrentThread() == gSocketThread);
@@ -530,6 +526,16 @@ nsHttpPipeline::OnTransportStatus(nsITransport* transport,
     }
 }
 
+nsHttpConnectionInfo *
+nsHttpPipeline::ConnectionInfo()
+{
+    nsAHttpTransaction *trans = Request(0) ? Request(0) : Response(0);
+    if (!trans) {
+        return nullptr;
+    }
+    return trans->ConnectionInfo();
+}
+
 bool
 nsHttpPipeline::IsDone()
 {
@@ -560,6 +566,17 @@ nsHttpPipeline::Caps()
         trans = Response(0);
 
     return trans ? trans->Caps() : 0;
+}
+
+void
+nsHttpPipeline::SetDNSWasRefreshed()
+{
+    nsAHttpTransaction *trans = Request(0);
+    if (!trans)
+        trans = Response(0);
+
+    if (trans)
+      trans->SetDNSWasRefreshed();
 }
 
 uint64_t
@@ -894,3 +911,6 @@ nsHttpPipeline::FillSendBuf()
     }
     return NS_OK;
 }
+
+} // namespace mozilla::net
+} // namespace mozilla

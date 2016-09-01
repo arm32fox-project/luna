@@ -1,7 +1,6 @@
-// |jit-test| debug
 // Frame.prototype.script for call frames.
 
-var g = newGlobal('new-compartment');
+var g = newGlobal();
 var dbg = new Debugger(g);
 
 // Apply |f| to each frame that is |skip| frames up from each frame that

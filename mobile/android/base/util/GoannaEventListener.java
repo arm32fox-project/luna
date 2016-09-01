@@ -6,10 +6,9 @@
 package org.mozilla.goanna.util;
 
 import org.json.JSONObject;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 
-/* This class is referenced by Robocop via reflection; use care when 
- * modifying the signature.
- */
+@RobocopTarget
 public interface GoannaEventListener {
     void handleMessage(String event, JSONObject message);
 }

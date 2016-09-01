@@ -7,265 +7,169 @@
 #ifndef vm_ScopeObject_inl_h
 #define vm_ScopeObject_inl_h
 
-#include "ScopeObject.h"
+#include "vm/ScopeObject.h"
 
-#include "jsinferinlines.h"
-#include "jsobjinlines.h"
-#include "jsscriptinlines.h"
-
-template<>
-inline bool
-JSObject::is<js::ClonedBlockObject>() const
-{
-    return is<js::BlockObject>() && !!getProto();
-}
-
-template<>
-inline bool
-JSObject::is<js::StaticBlockObject>() const
-{
-    return is<js::BlockObject>() && !getProto();
-}
-
-inline JSObject *
-JSObject::enclosingScope()
-{
-    return is<js::ScopeObject>()
-           ? &as<js::ScopeObject>().enclosingScope()
-           : is<js::DebugScopeObject>()
-           ? &as<js::DebugScopeObject>().enclosingScope()
-           : getParent();
-}
+#include "vm/TypeInference-inl.h"
 
 namespace js {
 
-inline
-ScopeCoordinate::ScopeCoordinate(jsbytecode *pc)
-  : hops(GET_UINT16(pc)), slot(GET_UINT16(pc + 2))
-{
-    JS_ASSERT(JOF_OPTYPE(*pc) == JOF_SCOPECOORD);
-}
-
 inline void
-ScopeObject::setEnclosingScope(HandleObject obj)
+ScopeObject::setAliasedVar(JSContext* cx, ScopeCoordinate sc, PropertyName* name, const Value& v)
 {
-    JS_ASSERT_IF(obj->is<CallObject>() || obj->is<DeclEnvObject>() || obj->is<BlockObject>(),
-                 obj->isDelegate());
-    setFixedSlot(SCOPE_CHAIN_SLOT, ObjectValue(*obj));
-}
-
-inline const Value &
-ScopeObject::aliasedVar(ScopeCoordinate sc)
-{
-    JS_ASSERT(is<CallObject>() || is<ClonedBlockObject>());
-    return getSlot(sc.slot);
-}
-
-inline void
-ScopeObject::setAliasedVar(JSContext *cx, ScopeCoordinate sc, PropertyName *name, const Value &v)
-{
-    JS_ASSERT(is<CallObject>() || is<ClonedBlockObject>());
+    MOZ_ASSERT(is<CallObject>() || is<ClonedBlockObject>());
     JS_STATIC_ASSERT(CallObject::RESERVED_SLOTS == BlockObject::RESERVED_SLOTS);
 
-    // name may be null for non-singletons, whose types do not need to be tracked.
-    JS_ASSERT_IF(hasSingletonType(), name);
+    // name may be null if we don't need to track side effects on the object.
+    MOZ_ASSERT_IF(isSingleton(), name);
 
-    setSlot(sc.slot, v);
-    if (hasSingletonType())
-        types::AddTypePropertyId(cx, this, NameToId(name), v);
-}
+    if (isSingleton()) {
+        MOZ_ASSERT(name);
+        AddTypePropertyId(cx, this, NameToId(name), v);
 
-/*static*/ inline size_t
-ScopeObject::offsetOfEnclosingScope()
-{
-    return getFixedSlotOffset(SCOPE_CHAIN_SLOT);
-}
-
-inline bool
-CallObject::isForEval() const
-{
-    JS_ASSERT(getReservedSlot(CALLEE_SLOT).isObjectOrNull());
-    JS_ASSERT_IF(getReservedSlot(CALLEE_SLOT).isObject(),
-                 getReservedSlot(CALLEE_SLOT).toObject().is<JSFunction>());
-    return getReservedSlot(CALLEE_SLOT).isNull();
-}
-
-inline JSFunction &
-CallObject::callee() const
-{
-    return getReservedSlot(CALLEE_SLOT).toObject().as<JSFunction>();
-}
-
-inline const Value &
-CallObject::aliasedVar(AliasedFormalIter fi)
-{
-    return getSlot(fi.scopeSlot());
-}
-
-inline void
-CallObject::setAliasedVar(JSContext *cx, AliasedFormalIter fi, PropertyName *name, const Value &v)
-{
-    JS_ASSERT(name == fi->name());
-    setSlot(fi.scopeSlot(), v);
-    if (hasSingletonType())
-        types::AddTypePropertyId(cx, this, NameToId(name), v);
-}
-
-/*static*/ inline size_t
-CallObject::offsetOfCallee()
-{
-    return getFixedSlotOffset(CALLEE_SLOT);
-}
-
-inline uint32_t
-NestedScopeObject::stackDepth() const
-{
-    return getReservedSlot(DEPTH_SLOT).toPrivateUint32();
-}
-
-inline JSObject &
-WithObject::withThis() const
-{
-    return getReservedSlot(THIS_SLOT).toObject();
-}
-
-inline JSObject &
-WithObject::object() const
-{
-    return *JSObject::getProto();
-}
-
-inline uint32_t
-BlockObject::slotCount() const
-{
-    return propertyCount();
-}
-
-inline unsigned
-BlockObject::slotToLocalIndex(const Bindings &bindings, unsigned slot)
-{
-    JS_ASSERT(slot < RESERVED_SLOTS + slotCount());
-    return bindings.numVars() + stackDepth() + (slot - RESERVED_SLOTS);
-}
-
-inline unsigned
-BlockObject::localIndexToSlot(const Bindings &bindings, unsigned i)
-{
-    return RESERVED_SLOTS + (i - (bindings.numVars() + stackDepth()));
-}
-
-inline const Value &
-BlockObject::slotValue(unsigned i)
-{
-    return getSlotRef(RESERVED_SLOTS + i);
-}
-
-inline void
-BlockObject::setSlotValue(unsigned i, const Value &v)
-{
-    setSlot(RESERVED_SLOTS + i, v);
-}
-
-inline void
-StaticBlockObject::initPrevBlockChainFromParser(StaticBlockObject *prev)
-{
-    setReservedSlot(SCOPE_CHAIN_SLOT, ObjectOrNullValue(prev));
-}
-
-inline void
-StaticBlockObject::resetPrevBlockChainFromParser()
-{
-    setReservedSlot(SCOPE_CHAIN_SLOT, UndefinedValue());
-}
-
-inline void
-StaticBlockObject::initEnclosingStaticScope(JSObject *obj)
-{
-    JS_ASSERT(getReservedSlot(SCOPE_CHAIN_SLOT).isUndefined());
-    setReservedSlot(SCOPE_CHAIN_SLOT, ObjectOrNullValue(obj));
-}
-
-inline StaticBlockObject *
-StaticBlockObject::enclosingBlock() const
-{
-    JSObject *obj = getReservedSlot(SCOPE_CHAIN_SLOT).toObjectOrNull();
-    return obj && obj->is<StaticBlockObject>() ? &obj->as<StaticBlockObject>() : NULL;
-}
-
-inline JSObject *
-StaticBlockObject::enclosingStaticScope() const
-{
-    return getReservedSlot(SCOPE_CHAIN_SLOT).toObjectOrNull();
-}
-
-inline void
-StaticBlockObject::setStackDepth(uint32_t depth)
-{
-    JS_ASSERT(getReservedSlot(DEPTH_SLOT).isUndefined());
-    initReservedSlot(DEPTH_SLOT, PrivateUint32Value(depth));
-}
-
-inline void
-StaticBlockObject::setDefinitionParseNode(unsigned i, frontend::Definition *def)
-{
-    JS_ASSERT(slotValue(i).isUndefined());
-    setSlotValue(i, PrivateValue(def));
-}
-
-inline frontend::Definition *
-StaticBlockObject::maybeDefinitionParseNode(unsigned i)
-{
-    Value v = slotValue(i);
-    return v.isUndefined() ? NULL : reinterpret_cast<frontend::Definition *>(v.toPrivate());
-}
-
-inline void
-StaticBlockObject::setAliased(unsigned i, bool aliased)
-{
-    JS_ASSERT_IF(i > 0, slotValue(i-1).isBoolean());
-    setSlotValue(i, BooleanValue(aliased));
-    if (aliased && !needsClone()) {
-        setSlotValue(0, MagicValue(JS_BLOCK_NEEDS_CLONE));
-        JS_ASSERT(needsClone());
+        // Keep track of properties which have ever been overwritten.
+        if (!getSlot(sc.slot()).isUndefined()) {
+            Shape* shape = lookup(cx, name);
+            shape->setOverwritten();
+        }
     }
-}
 
-inline bool
-StaticBlockObject::isAliased(unsigned i)
-{
-    return slotValue(i).isTrue();
-}
-
-inline bool
-StaticBlockObject::needsClone()
-{
-    return !slotValue(0).isFalse();
-}
-
-inline bool
-StaticBlockObject::containsVarAtDepth(uint32_t depth)
-{
-    return depth >= stackDepth() && depth < stackDepth() + slotCount();
-}
-
-inline StaticBlockObject &
-ClonedBlockObject::staticBlock() const
-{
-    return getProto()->as<StaticBlockObject>();
-}
-
-inline const Value &
-ClonedBlockObject::var(unsigned i, MaybeCheckAliasing checkAliasing)
-{
-    JS_ASSERT_IF(checkAliasing, staticBlock().isAliased(i));
-    return slotValue(i);
+    setSlot(sc.slot(), v);
 }
 
 inline void
-ClonedBlockObject::setVar(unsigned i, const Value &v, MaybeCheckAliasing checkAliasing)
+CallObject::setAliasedVar(JSContext* cx, AliasedFormalIter fi, PropertyName* name, const Value& v)
 {
-    JS_ASSERT_IF(checkAliasing, staticBlock().isAliased(i));
-    setSlotValue(i, v);
+    MOZ_ASSERT(name == fi->name());
+    setSlot(fi.scopeSlot(), v);
+    if (isSingleton())
+        AddTypePropertyId(cx, this, NameToId(name), v);
+}
+
+inline void
+CallObject::setAliasedVarFromArguments(JSContext* cx, const Value& argsValue, jsid id, const Value& v)
+{
+    setSlot(ArgumentsObject::SlotFromMagicScopeSlotValue(argsValue), v);
+    if (isSingleton())
+        AddTypePropertyId(cx, this, id, v);
+}
+
+inline void
+CallObject::initRemainingSlotsToUninitializedLexicals(uint32_t begin)
+{
+    uint32_t end = slotSpan();
+    for (uint32_t slot = begin; slot < end; slot++)
+        initSlot(slot, MagicValue(JS_UNINITIALIZED_LEXICAL));
+}
+
+inline void
+CallObject::initAliasedLexicalsToThrowOnTouch(JSScript* script)
+{
+    initRemainingSlotsToUninitializedLexicals(script->bindings.aliasedBodyLevelLexicalBegin());
+}
+
+template <AllowGC allowGC>
+inline bool
+StaticScopeIter<allowGC>::done() const
+{
+    return !obj;
+}
+
+template <AllowGC allowGC>
+inline void
+StaticScopeIter<allowGC>::operator++(int)
+{
+    if (obj->template is<NestedScopeObject>()) {
+        obj = obj->template as<NestedScopeObject>().enclosingScopeForStaticScopeIter();
+    } else if (obj->template is<StaticEvalObject>()) {
+        obj = obj->template as<StaticEvalObject>().enclosingScopeForStaticScopeIter();
+    } else if (onNamedLambda || !obj->template as<JSFunction>().isNamedLambda()) {
+        onNamedLambda = false;
+        obj = obj->template as<JSFunction>().nonLazyScript()->enclosingStaticScope();
+    } else {
+        onNamedLambda = true;
+    }
+    MOZ_ASSERT_IF(obj, obj->template is<NestedScopeObject>() ||
+                       obj->template is<StaticEvalObject>() ||
+                       obj->template is<JSFunction>());
+    MOZ_ASSERT_IF(onNamedLambda, obj->template is<JSFunction>());
+}
+
+template <AllowGC allowGC>
+inline bool
+StaticScopeIter<allowGC>::hasDynamicScopeObject() const
+{
+    return obj->template is<StaticBlockObject>()
+           ? obj->template as<StaticBlockObject>().needsClone()
+           : (obj->template is<StaticEvalObject>()
+              ? obj->template as<StaticEvalObject>().isStrict()
+              : (obj->template is<StaticWithObject>() ||
+                 obj->template as<JSFunction>().isHeavyweight()));
+}
+
+template <AllowGC allowGC>
+inline Shape*
+StaticScopeIter<allowGC>::scopeShape() const
+{
+    MOZ_ASSERT(hasDynamicScopeObject());
+    MOZ_ASSERT(type() != NamedLambda && type() != Eval);
+    if (type() == Block)
+        return block().lastProperty();
+    return funScript()->callObjShape();
+}
+
+template <AllowGC allowGC>
+inline typename StaticScopeIter<allowGC>::Type
+StaticScopeIter<allowGC>::type() const
+{
+    if (onNamedLambda)
+        return NamedLambda;
+    return obj->template is<StaticBlockObject>()
+           ? Block
+           : (obj->template is<StaticWithObject>()
+              ? With
+              : (obj->template is<StaticEvalObject>()
+                 ? Eval
+                 : Function));
+}
+
+template <AllowGC allowGC>
+inline StaticBlockObject&
+StaticScopeIter<allowGC>::block() const
+{
+    MOZ_ASSERT(type() == Block);
+    return obj->template as<StaticBlockObject>();
+}
+
+template <AllowGC allowGC>
+inline StaticWithObject&
+StaticScopeIter<allowGC>::staticWith() const
+{
+    MOZ_ASSERT(type() == With);
+    return obj->template as<StaticWithObject>();
+}
+
+template <AllowGC allowGC>
+inline StaticEvalObject&
+StaticScopeIter<allowGC>::eval() const
+{
+    MOZ_ASSERT(type() == Eval);
+    return obj->template as<StaticEvalObject>();
+}
+
+template <AllowGC allowGC>
+inline JSScript*
+StaticScopeIter<allowGC>::funScript() const
+{
+    MOZ_ASSERT(type() == Function);
+    return obj->template as<JSFunction>().nonLazyScript();
+}
+
+template <AllowGC allowGC>
+inline JSFunction&
+StaticScopeIter<allowGC>::fun() const
+{
+    MOZ_ASSERT(type() == Function);
+    return obj->template as<JSFunction>();
 }
 
 }  /* namespace js */

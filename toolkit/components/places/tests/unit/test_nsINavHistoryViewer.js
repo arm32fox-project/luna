@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -97,12 +97,11 @@ add_test(function check_history_query() {
   var root = result.root;
   root.containerOpen = true;
 
-  // nsINavHistoryResultObserver.containerOpened
   do_check_neq(resultObserver.openedContainer, null);
 
   // nsINavHistoryResultObserver.nodeInserted
   // add a visit
-  promiseAddVisits(testURI).then(function() {
+  PlacesTestUtils.addVisits(testURI).then(function() {
     do_check_eq(testURI.spec, resultObserver.insertedNode.uri);
 
     // nsINavHistoryResultObserver.nodeHistoryDetailsChanged
@@ -110,12 +109,12 @@ add_test(function check_history_query() {
     do_check_eq(root.uri, resultObserver.nodeChangedByHistoryDetails.uri);
 
     // nsINavHistoryResultObserver.itemTitleChanged for a leaf node
-    promiseAddVisits({ uri: testURI, title: "baz" }).then(function () {
+    PlacesTestUtils.addVisits({ uri: testURI, title: "baz" }).then(function () {
       do_check_eq(resultObserver.nodeChangedByTitle.title, "baz");
 
       // nsINavHistoryResultObserver.nodeRemoved
       var removedURI = uri("http://google.com");
-      promiseAddVisits(removedURI).then(function() {
+      PlacesTestUtils.addVisits(removedURI).then(function() {
         bhist.removePage(removedURI);
         do_check_eq(removedURI.spec, resultObserver.removedNode.uri);
 
@@ -130,30 +129,30 @@ add_test(function check_history_query() {
         do_check_eq(resultObserver.invalidatedContainer, result.root);
 
         // nsINavHistoryResultObserver.invalidateContainer
-        bhist.removeAllPages();
-        do_check_eq(root.uri, resultObserver.invalidatedContainer.uri);
+        PlacesTestUtils.clearHistoryEnabled().then(() => {
+          do_check_eq(root.uri, resultObserver.invalidatedContainer.uri);
 
-        // nsINavHistoryResultObserver.batching
-        do_check_false(resultObserver.inBatchMode);
-        histsvc.runInBatchMode({
-          runBatched: function (aUserData) {
-            do_check_true(resultObserver.inBatchMode);
-          }
-        }, null);
-        do_check_false(resultObserver.inBatchMode);
-        bmsvc.runInBatchMode({
-          runBatched: function (aUserData) {
-            do_check_true(resultObserver.inBatchMode);
-          }
-        }, null);
-        do_check_false(resultObserver.inBatchMode);
+          // nsINavHistoryResultObserver.batching
+          do_check_false(resultObserver.inBatchMode);
+          histsvc.runInBatchMode({
+            runBatched: function (aUserData) {
+              do_check_true(resultObserver.inBatchMode);
+            }
+          }, null);
+          do_check_false(resultObserver.inBatchMode);
+          bmsvc.runInBatchMode({
+            runBatched: function (aUserData) {
+              do_check_true(resultObserver.inBatchMode);
+            }
+          }, null);
+          do_check_false(resultObserver.inBatchMode);
 
-        // nsINavHistoryResultObserver.containerClosed
-        root.containerOpen = false;
-        do_check_eq(resultObserver.closedContainer, resultObserver.openedContainer);
-        result.removeObserver(resultObserver);
-        resultObserver.reset();
-        promiseAsyncUpdates().then(run_next_test);
+          root.containerOpen = false;
+          do_check_eq(resultObserver.closedContainer, resultObserver.openedContainer);
+          result.removeObserver(resultObserver);
+          resultObserver.reset();
+          PlacesTestUtils.promiseAsyncUpdates().then(run_next_test);
+        });
       });
     });
   });
@@ -168,7 +167,6 @@ add_test(function check_bookmarks_query() {
   var root = result.root;
   root.containerOpen = true;
 
-  // nsINavHistoryResultObserver.containerOpened
   do_check_neq(resultObserver.openedContainer, null);
 
   // nsINavHistoryResultObserver.nodeInserted
@@ -217,12 +215,11 @@ add_test(function check_bookmarks_query() {
   }, null);
   do_check_false(resultObserver.inBatchMode);
 
-  // nsINavHistoryResultObserver.containerClosed
   root.containerOpen = false;
   do_check_eq(resultObserver.closedContainer, resultObserver.openedContainer);
   result.removeObserver(resultObserver);
   resultObserver.reset();
-  promiseAsyncUpdates().then(run_next_test);
+  PlacesTestUtils.promiseAsyncUpdates().then(run_next_test);
 });
 
 add_test(function check_mixed_query() {
@@ -234,7 +231,6 @@ add_test(function check_mixed_query() {
   var root = result.root;
   root.containerOpen = true;
 
-  // nsINavHistoryResultObserver.containerOpened
   do_check_neq(resultObserver.openedContainer, null);
 
   // nsINavHistoryResultObserver.batching
@@ -252,10 +248,9 @@ add_test(function check_mixed_query() {
   }, null);
   do_check_false(resultObserver.inBatchMode);
 
-  // nsINavHistoryResultObserver.containerClosed
   root.containerOpen = false;
   do_check_eq(resultObserver.closedContainer, resultObserver.openedContainer);
   result.removeObserver(resultObserver);
   resultObserver.reset();
-  promiseAsyncUpdates().then(run_next_test);
+  PlacesTestUtils.promiseAsyncUpdates().then(run_next_test);
 });

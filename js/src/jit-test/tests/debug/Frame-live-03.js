@@ -1,9 +1,8 @@
-// |jit-test| debug
 // frame properties throw if !frame.live
 
 load(libdir + "asserts.js");
 
-var g = newGlobal('new-compartment');
+var g = newGlobal();
 var f;
 Debugger(g).onDebuggerStatement = function (frame) {
     assertEq(frame.live, true);

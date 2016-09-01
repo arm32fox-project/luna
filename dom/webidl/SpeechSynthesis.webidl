@@ -10,15 +10,17 @@
  * liability, trademark and document use rules apply.
  */
 
-[PrefControlled]
+[Pref="media.webspeech.synth.enabled"]
 interface SpeechSynthesis {
   readonly attribute boolean pending;
   readonly attribute boolean speaking;
   readonly attribute boolean paused;
 
+  [UnsafeInPrerendering]
   void speak(SpeechSynthesisUtterance utterance);
   void cancel();
   void pause();
+  [UnsafeInPrerendering]
   void resume();
   sequence<SpeechSynthesisVoice> getVoices();
 };

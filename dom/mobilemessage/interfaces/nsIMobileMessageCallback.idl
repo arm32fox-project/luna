@@ -4,16 +4,7 @@
 
 #include "nsISupports.idl"
 
-dictionary SmsThreadListItem
-{
-  unsigned long long id;
-  DOMString senderOrReceiver;
-  unsigned long long timestamp;
-  DOMString body;
-  unsigned long long unreadCount;
-};
-
-[scriptable, builtinclass, uuid(e73baef1-7a9f-48c1-8b04-20d9d16c4974)]
+[scriptable, uuid(35279dbc-9f1d-419f-b17a-230fcf49f0c7)]
 interface nsIMobileMessageCallback : nsISupports
 {
   /**
@@ -28,12 +19,17 @@ interface nsIMobileMessageCallback : nsISupports
   const unsigned short INTERNAL_ERROR            = 4;
   const unsigned short NO_SIM_CARD_ERROR         = 5;
   const unsigned short RADIO_DISABLED_ERROR      = 6;
+  const unsigned short INVALID_ADDRESS_ERROR     = 7;
+  const unsigned short FDN_CHECK_ERROR           = 8;
+  const unsigned short NON_ACTIVE_SIM_CARD_ERROR = 9;
+  const unsigned short STORAGE_FULL_ERROR        = 10;
+  const unsigned short SIM_NOT_MATCHED_ERROR     = 11;
 
   /**
    * |message| can be nsIDOMMoz{Mms,Sms}Message.
    */
   void notifyMessageSent(in nsISupports message);
-  void notifySendMessageFailed(in long error);
+  void notifySendMessageFailed(in long error, in nsISupports message);
 
   /**
    * |message| can be nsIDOMMoz{Mms,Sms}Message.
@@ -47,4 +43,15 @@ interface nsIMobileMessageCallback : nsISupports
 
   void notifyMessageMarkedRead(in boolean read);
   void notifyMarkMessageReadFailed(in long error);
+
+  void notifySegmentInfoForTextGot(in long segments,
+                                   in long charsPerSegment,
+                                   in long charsAvailableInLastSegment);
+  void notifyGetSegmentInfoForTextFailed(in long error);
+
+  /**
+   *  SMSC Address get/set result
+   */
+  void notifyGetSmscAddress(in DOMString aSmscAddress);
+  void notifyGetSmscAddressFailed(in long error);
 };

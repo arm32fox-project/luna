@@ -3,20 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "nsPageContentFrame.h"
-#include "nsPageFrame.h"
-#include "nsPlaceholderFrame.h"
 #include "nsCSSFrameConstructor.h"
-#include "nsContainerFrame.h"
-#include "nsHTMLParts.h"
-#include "nsIContent.h"
 #include "nsPresContext.h"
 #include "nsGkAtoms.h"
 #include "nsIPresShell.h"
-#include "nsReadableUtils.h"
-#include "nsSimplePageSequence.h"
-#include "nsDisplayList.h"
+#include "nsSimplePageSequenceFrame.h"
 
-nsIFrame*
+using mozilla::LogicalSize;
+using mozilla::WritingMode;
+
+nsPageContentFrame*
 NS_NewPageContentFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsPageContentFrame(aContext);
@@ -24,20 +20,22 @@ NS_NewPageContentFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(nsPageContentFrame)
 
-NS_IMETHODIMP
+void
 nsPageContentFrame::Reflow(nsPresContext*           aPresContext,
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState,
                            nsReflowStatus&          aStatus)
 {
+  DO_GLOBAL_REFLOW_COUNT("nsPageContentFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aDesiredSize, aStatus);
   aStatus = NS_FRAME_COMPLETE;  // initialize out parameter
-  nsresult rv = NS_OK;
 
   if (GetPrevInFlow() && (GetStateBits() & NS_FRAME_FIRST_REFLOW)) {
     nsresult rv = aPresContext->PresShell()->FrameConstructor()
                     ->ReplicateFixedFrames(this);
-    NS_ENSURE_SUCCESS(rv, rv);
+    if (NS_FAILED(rv)) {
+      return;
+    }
   }
 
   // Set our size up front, since some parts of reflow depend on it
@@ -52,14 +50,14 @@ nsPageContentFrame::Reflow(nsPresContext*           aPresContext,
   // XXX Pay attention to the page's border and padding...
   if (mFrames.NotEmpty()) {
     nsIFrame* frame = mFrames.FirstChild();
-    nsHTMLReflowState kidReflowState(aPresContext, aReflowState, frame, maxSize);
-    kidReflowState.SetComputedHeight(maxSize.height);
-
-    mPD->mPageContentSize = maxSize.width;
+    WritingMode wm = frame->GetWritingMode();
+    LogicalSize logicalSize(wm, maxSize);
+    nsHTMLReflowState kidReflowState(aPresContext, aReflowState,
+                                     frame, logicalSize);
+    kidReflowState.SetComputedBSize(logicalSize.BSize(wm));
 
     // Reflow the page content area
-    rv = ReflowChild(frame, aPresContext, aDesiredSize, kidReflowState, 0, 0, 0, aStatus);
-    NS_ENSURE_SUCCESS(rv, rv);
+    ReflowChild(frame, aPresContext, aDesiredSize, kidReflowState, 0, 0, 0, aStatus);
 
     // The document element's background should cover the entire canvas, so
     // take into account the combined area and any space taken up by
@@ -78,16 +76,17 @@ nsPageContentFrame::Reflow(nsPresContext*           aPresContext,
       // The background covers the content area and padding area, so check
       // for children sticking outside the child frame's padding edge
       nscoord xmost = aDesiredSize.ScrollableOverflow().XMost();
-      if (xmost > aDesiredSize.width) {
-        mPD->mPageContentXMost =
-          xmost +
-          kidReflowState.mStyleBorder->GetComputedBorderWidth(NS_SIDE_RIGHT) +
-          padding.right;
+      if (xmost > aDesiredSize.Width()) {
+        nscoord widthToFit = xmost + padding.right +
+          kidReflowState.mStyleBorder->GetComputedBorderWidth(NS_SIDE_RIGHT);
+        float ratio = float(maxSize.width) / widthToFit;
+        NS_ASSERTION(ratio >= 0.0 && ratio < 1.0, "invalid shrink-to-fit ratio");
+        mPD->mShrinkToFitRatio = std::min(mPD->mShrinkToFitRatio, ratio);
       }
     }
 
     // Place and size the child
-    FinishReflowChild(frame, aPresContext, &kidReflowState, aDesiredSize, 0, 0, 0);
+    FinishReflowChild(frame, aPresContext, aDesiredSize, &kidReflowState, 0, 0, 0);
 
     NS_ASSERTION(aPresContext->IsDynamic() || !NS_FRAME_IS_FULLY_COMPLETE(aStatus) ||
                   !frame->GetNextInFlow(), "bad child flow list");
@@ -99,15 +98,14 @@ nsPageContentFrame::Reflow(nsPresContext*           aPresContext,
   NS_ASSERTION(NS_FRAME_IS_COMPLETE(fixedStatus), "fixed frames can be truncated, but not incomplete");
 
   // Return our desired size
-  aDesiredSize.width = aReflowState.ComputedWidth();
-  if (aReflowState.ComputedHeight() != NS_UNCONSTRAINEDSIZE) {
-    aDesiredSize.height = aReflowState.ComputedHeight();
+  WritingMode wm = aReflowState.GetWritingMode();
+  aDesiredSize.ISize(wm) = aReflowState.ComputedISize();
+  if (aReflowState.ComputedBSize() != NS_UNCONSTRAINEDSIZE) {
+    aDesiredSize.BSize(wm) = aReflowState.ComputedBSize();
   }
-
   FinishAndStoreOverflow(&aDesiredSize);
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aDesiredSize);
-  return NS_OK;
 }
 
 nsIAtom*
@@ -116,8 +114,8 @@ nsPageContentFrame::GetType() const
   return nsGkAtoms::pageContentFrame; 
 }
 
-#ifdef DEBUG
-NS_IMETHODIMP
+#ifdef DEBUG_FRAME_DUMP
+nsresult
 nsPageContentFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("PageContent"), aResult);

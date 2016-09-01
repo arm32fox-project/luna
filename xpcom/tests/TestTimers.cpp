@@ -42,7 +42,7 @@ public:
     return mThread;
   }
 
-  nsIThread* operator->() const {
+  nsIThread* operator->() const MOZ_NO_ADDREF_RELEASE_ON_RETURN {
     return mThread;
   }
 
@@ -70,15 +70,15 @@ private:
   ReentrantMonitor* mReentrantMonitor;
 };
 
-class TimerCallback MOZ_FINAL : public nsITimerCallback
+class TimerCallback final : public nsITimerCallback
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
 
   TimerCallback(nsIThread** aThreadPtr, ReentrantMonitor* aReentrantMonitor)
   : mThreadPtr(aThreadPtr), mReentrantMonitor(aReentrantMonitor) { }
 
-  NS_IMETHOD Notify(nsITimer* aTimer) {
+  NS_IMETHOD Notify(nsITimer* aTimer) override {
     NS_ASSERTION(mThreadPtr, "Callback was not supposed to be called!");
     nsCOMPtr<nsIThread> current(do_GetCurrentThread());
 
@@ -92,11 +92,13 @@ public:
     return NS_OK;
   }
 private:
+  ~TimerCallback() {}
+
   nsIThread** mThreadPtr;
   ReentrantMonitor* mReentrantMonitor;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(TimerCallback, nsITimerCallback)
+NS_IMPL_ISUPPORTS(TimerCallback, nsITimerCallback)
 
 nsresult
 TestTargetedTimers()

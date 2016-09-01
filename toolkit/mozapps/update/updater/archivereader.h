@@ -20,7 +20,7 @@
 class ArchiveReader
 {
 public:
-  ArchiveReader() : mArchive(NULL) {}
+  ArchiveReader() : mArchive(nullptr) {}
   ~ArchiveReader() { Close(); }
 
   int Open(const NS_tchar *path);

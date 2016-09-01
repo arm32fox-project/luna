@@ -1,1 +1,2 @@
-newGlobal('new-compartment').eval("eval.arguments")
+// |jit-test| error: TypeError
+newGlobal().eval("eval.arguments")

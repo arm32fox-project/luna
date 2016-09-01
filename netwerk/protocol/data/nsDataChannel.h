@@ -9,12 +9,12 @@
 #define nsDataChannel_h___
 
 #include "nsBaseChannel.h"
-#include "nsIInputStream.h"
-#include "nsCOMPtr.h"
+
+class nsIInputStream;
 
 class nsDataChannel : public nsBaseChannel {
 public:
-    nsDataChannel(nsIURI *uri) {
+    explicit nsDataChannel(nsIURI *uri) {
         SetURI(uri);
     }
 

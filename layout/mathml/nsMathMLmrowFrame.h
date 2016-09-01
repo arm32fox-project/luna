@@ -7,11 +7,12 @@
 #define nsMathMLmrowFrame_h___
 
 #include "mozilla/Attributes.h"
-#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
 //
 // <mrow> -- horizontally group any number of subexpressions 
+// <mphantom> -- make content invisible but preserve its size
+// <mstyle> -- make style changes that affect the rendering of its contents
 //
 
 class nsMathMLmrowFrame : public nsMathMLContainerFrame {
@@ -20,21 +21,33 @@ public:
 
   friend nsIFrame* NS_NewMathMLmrowFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  NS_IMETHOD
+  virtual nsresult
   AttributeChanged(int32_t  aNameSpaceID,
                    nsIAtom* aAttribute,
-                   int32_t  aModType) MOZ_OVERRIDE;
+                   int32_t  aModType) override;
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent) override;
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE {
+  TransmitAutomaticData() override {
     return TransmitAutomaticDataForMrowLikeElement();
   }
 
+  virtual eMathMLFrameType
+  GetMathMLFrameType() override; 
+
+  bool
+  IsMrowLike() override {
+    // <mrow> elements with a single child are treated identically to the case
+    // where the child wasn't within an mrow, so we pretend the mrow isn't an
+    // mrow in that situation.
+    return mFrames.FirstChild() != mFrames.LastChild() ||
+           !mFrames.FirstChild();
+  }
+
 protected:
-  nsMathMLmrowFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
+  explicit nsMathMLmrowFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmrowFrame();
 };
 

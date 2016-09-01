@@ -14,13 +14,6 @@ function sha256HMAC(message, key) {
   return Utils.digestBytes(message, h);
 }
 
-function do_check_array_eq(a1, a2) {
-  do_check_eq(a1.length, a2.length);
-  for (let i = 0; i < a1.length; ++i) {
-    do_check_eq(a1[i], a2[i]);
-  }
-}
-
 function do_check_keypair_eq(a, b) {
   do_check_eq(2, a.length);
   do_check_eq(2, b.length);
@@ -172,8 +165,8 @@ add_test(function test_keymanager() {
 });
 
 add_test(function test_collections_manager() {
-  let log = Log4Moz.repository.getLogger("Test");
-  Log4Moz.repository.rootLogger.addAppender(new Log4Moz.DumpAppender());
+  let log = Log.repository.getLogger("Test");
+  Log.repository.rootLogger.addAppender(new Log.DumpAppender());
 
   let identity = new IdentityManager();
 

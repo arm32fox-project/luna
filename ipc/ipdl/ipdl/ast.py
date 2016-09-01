@@ -4,6 +4,10 @@
 
 import sys
 
+NORMAL_PRIORITY = 1
+HIGH_PRIORITY = 2
+URGENT_PRIORITY = 3
+
 class Visitor:
     def defaultVisit(self, node):
         raise Exception, "INTERNAL ERROR: no visitor for node type `%s'"% (
@@ -186,70 +190,41 @@ class Include(Node):
         self.file = "%s.%s" % (name, suffix)
 
 class UsingStmt(Node):
-    def __init__(self, loc, cxxTypeSpec):
+    def __init__(self, loc, cxxTypeSpec, cxxHeader=None, kind=None):
         Node.__init__(self, loc)
+        assert not isinstance(cxxTypeSpec, str)
+        assert cxxHeader is None or isinstance(cxxHeader, str);
+        assert kind is None or kind == 'class' or kind == 'struct'
         self.type = cxxTypeSpec
+        self.header = cxxHeader
+        self.kind = kind
+    def canBeForwardDeclared(self):
+        return self.isClass() or self.isStruct()
+    def isClass(self):
+        return self.kind == 'class'
+    def isStruct(self):
+        return self.kind == 'struct'
 
 # "singletons"
-class ASYNC:
+class PrettyPrinted:
+    @classmethod
+    def __hash__(cls): return hash(cls.pretty)
+    @classmethod
+    def __str__(cls):  return cls.pretty
+    
+class ASYNC(PrettyPrinted):
     pretty = 'async'
-    @classmethod
-    def __hash__(cls): return hash(cls.pretty)
-    @classmethod
-    def __str__(cls):  return cls.pretty
-class RPC:
-    pretty = 'rpc'
-    @classmethod
-    def __hash__(cls): return hash(cls.pretty)
-    @classmethod
-    def __str__(cls):  return cls.pretty
-class SYNC:
+class INTR(PrettyPrinted):
+    pretty = 'intr'
+class SYNC(PrettyPrinted):
     pretty = 'sync'
-    @classmethod
-    def __hash__(cls): return hash(cls.pretty)
-    @classmethod
-    def __str__(cls):  return cls.pretty
-class URGENT:
-    pretty = 'urgent'
-    @classmethod
-    def __hash__(cls): return hash(cls.pretty)
-    @classmethod
-    def __str__(cls):  return cls.pretty
 
-class INOUT:
+class INOUT(PrettyPrinted):
     pretty = 'inout'
-    @classmethod
-    def __hash__(cls): return hash(cls.pretty)
-    @classmethod
-    def __str__(cls):  return cls.pretty
-class IN:
+class IN(PrettyPrinted):
     pretty = 'in'
-    @classmethod
-    def __hash__(cls): return hash(cls.pretty)
-    @classmethod
-    def __str__(cls):  return cls.pretty
-    @staticmethod
-    def prettySS(cls, ss): return _prettyTable['in'][ss.pretty]
-class OUT:
+class OUT(PrettyPrinted):
     pretty = 'out'
-    @classmethod
-    def __hash__(cls): return hash(cls.pretty)
-    @classmethod
-    def __str__(cls):  return cls.pretty
-    @staticmethod
-    def prettySS(ss): return _prettyTable['out'][ss.pretty]
-
-_prettyTable = {
-    IN  : { 'async': 'AsyncRecv',
-            'sync': 'SyncRecv',
-            'rpc': 'RpcAnswer',
-            'urgent': 'UrgentAnswer' },
-    OUT : { 'async': 'AsyncSend',
-            'sync': 'SyncSend',
-            'rpc': 'RpcCall',
-            'urgent': 'UrgentCall' }
-    # inout doesn't make sense here
-}
 
 
 class Namespace(Node):
@@ -261,6 +236,7 @@ class Protocol(NamespacedNode):
     def __init__(self, loc):
         NamespacedNode.__init__(self, loc)
         self.sendSemantics = ASYNC
+        self.priority = NORMAL_PRIORITY
         self.spawnsStmts = [ ]
         self.bridgesStmts = [ ]
         self.opensStmts = [ ]
@@ -320,6 +296,7 @@ class MessageDecl(Node):
         Node.__init__(self, loc)
         self.name = None
         self.sendSemantics = ASYNC
+        self.priority = NORMAL_PRIORITY
         self.direction = None
         self.inParams = [ ]
         self.outParams = [ ]
@@ -330,9 +307,6 @@ class MessageDecl(Node):
 
     def addOutParams(self, outParamsList):
         self.outParams += outParamsList
-
-    def hasReply(self):
-        return self.sendSemantics is SYNC or self.sendSemantics is RPC
 
 class Transition(Node):
     def __init__(self, loc, trigger, msg, toStates):

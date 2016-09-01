@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -28,7 +28,7 @@ function test()
 
   try
   {
-    eval('x; function  x(){}; const x;');
+    eval('x; function  x(){}; const x = undefined;');
   }
   catch(ex)
   {
@@ -36,11 +36,7 @@ function test()
 
 // Assertion failure: !pn->isPlaceholder(), at ../jsparse.cpp:4876
 // =====
-  (function(){ var x; eval("var x; x = null"); })()
-
-// Assertion failure: regs.sp == StackBase(fp), at ../jsinterp.cpp:2984
-// =====
-    function this ({x}) { function x(){} }
+  (function(){ var x; eval("var x; x = null"); })();
 
 // Assertion failure: !(pnu->pn_dflags & PND_BOUND), at ../jsemit.cpp:1818
 // =====
@@ -50,7 +46,7 @@ function test()
 // =====
     try
     {
-      (function(){(yield []) (function(){with({}){x} }); const x;})();
+      (function(){(yield []) (function(){with({}){x} }); const x = undefined;})();
     }
     catch(ex)
     {
@@ -85,7 +81,7 @@ function test()
 // =====
   try
   {
-    eval('(function(){{for(c in (function (){ for(x in (x1))window} )()) {const x;} }})();');
+    eval('(function(){{for(c in (function (){ for(x in (x1))window} )()) {const x = undefined;} }})();');
   }
   catch(ex)
   {

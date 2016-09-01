@@ -6,6 +6,9 @@
 
 DIRS += [
     'idl-parser',
+]
+
+DIRS += [
     'typelib',
     'string',
     'glue',
@@ -23,17 +26,19 @@ DIRS += [
 if CONFIG['OS_ARCH'] == 'WINNT' and CONFIG['MOZ_DEBUG']:
     DIRS += ['windbgdlg']
 
-TEST_TOOL_DIRS += [
+TEST_DIRS += [
     'tests',
     'sample',
     'typelib/xpt/tests',
 ]
 
 #  Can't build internal xptcall tests that use symbols which are not exported.
-#TEST_TOOL_DIRS += [
+#TEST_DIRS += [
 #    'reflect/xptinfo/tests',
 #    'reflect/xptcall/tests,
 #]
 
-MODULE = 'xpcom'
-
+CONFIGURE_DEFINE_FILES += [
+    'xpcom-config.h',
+    'xpcom-private.h',
+]

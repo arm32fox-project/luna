@@ -7,342 +7,472 @@
 #ifndef jit_CodeGenerator_h
 #define jit_CodeGenerator_h
 
-#if defined(JS_CPU_X86)
-# include "x86/CodeGenerator-x86.h"
-#elif defined(JS_CPU_X64)
-# include "x64/CodeGenerator-x64.h"
-#elif defined(JS_CPU_ARM)
-# include "arm/CodeGenerator-arm.h"
+#include "jit/IonCaches.h"
+#if defined(JS_ION_PERF)
+# include "jit/PerfSpewer.h"
+#endif
+
+#if defined(JS_CODEGEN_X86)
+# include "jit/x86/CodeGenerator-x86.h"
+#elif defined(JS_CODEGEN_X64)
+# include "jit/x64/CodeGenerator-x64.h"
+#elif defined(JS_CODEGEN_ARM)
+# include "jit/arm/CodeGenerator-arm.h"
+#elif defined(JS_CODEGEN_MIPS)
+# include "jit/mips/CodeGenerator-mips.h"
+#elif defined(JS_CODEGEN_NONE)
+# include "jit/none/CodeGenerator-none.h"
 #else
-#error "CPU Not Supported"
+#error "Unknown architecture!"
 #endif
 
 namespace js {
 namespace jit {
 
-class OutOfLineNewParallelArray;
 class OutOfLineTestObject;
 class OutOfLineNewArray;
 class OutOfLineNewObject;
 class CheckOverRecursedFailure;
-class ParCheckOverRecursedFailure;
-class OutOfLineParCheckInterrupt;
-class OutOfLineUnboxDouble;
+class OutOfLineInterruptCheckImplicit;
+class OutOfLineUnboxFloatingPoint;
 class OutOfLineStoreElementHole;
 class OutOfLineTypeOfV;
 class OutOfLineLoadTypedArray;
-class OutOfLineParNewGCThing;
 class OutOfLineUpdateCache;
 class OutOfLineCallPostWriteBarrier;
+class OutOfLineIsCallable;
+class OutOfLineRegExpExec;
+class OutOfLineRegExpTest;
 
 class CodeGenerator : public CodeGeneratorSpecific
 {
-    bool generateArgumentsChecks();
+    void generateArgumentsChecks(bool bailout = true);
     bool generateBody();
 
   public:
-    CodeGenerator(MIRGenerator *gen, LIRGraph *graph, MacroAssembler *masm = NULL);
+    CodeGenerator(MIRGenerator* gen, LIRGraph* graph, MacroAssembler* masm = nullptr);
     ~CodeGenerator();
 
   public:
     bool generate();
-    bool generateAsmJS();
-    bool link();
+    bool generateAsmJS(AsmJSFunctionLabels* labels);
+    bool link(JSContext* cx, CompilerConstraintList* constraints);
 
-    bool visitLabel(LLabel *lir);
-    bool visitNop(LNop *lir);
-    bool visitMop(LMop *lir);
-    bool visitOsiPoint(LOsiPoint *lir);
-    bool visitGoto(LGoto *lir);
-    bool visitTableSwitch(LTableSwitch *ins);
-    bool visitTableSwitchV(LTableSwitchV *ins);
-    bool visitParameter(LParameter *lir);
-    bool visitCallee(LCallee *lir);
-    bool visitStart(LStart *lir);
-    bool visitReturn(LReturn *ret);
-    bool visitDefVar(LDefVar *lir);
-    bool visitDefFun(LDefFun *lir);
-    bool visitOsrEntry(LOsrEntry *lir);
-    bool visitOsrScopeChain(LOsrScopeChain *lir);
-    bool visitStackArgT(LStackArgT *lir);
-    bool visitStackArgV(LStackArgV *lir);
-    bool visitValueToInt32(LValueToInt32 *lir);
-    bool visitValueToDouble(LValueToDouble *lir);
-    bool visitInt32ToDouble(LInt32ToDouble *lir);
-    void emitOOLTestObject(Register objreg, Label *ifTruthy, Label *ifFalsy, Register scratch);
-    bool visitTestOAndBranch(LTestOAndBranch *lir);
-    bool visitTestVAndBranch(LTestVAndBranch *lir);
-    bool visitFunctionDispatch(LFunctionDispatch *lir);
-    bool visitTypeObjectDispatch(LTypeObjectDispatch *lir);
-    bool visitPolyInlineDispatch(LPolyInlineDispatch *lir);
-    bool visitIntToString(LIntToString *lir);
-    bool visitInteger(LInteger *lir);
-    bool visitRegExp(LRegExp *lir);
-    bool visitRegExpTest(LRegExpTest *lir);
-    bool visitLambda(LLambda *lir);
-    bool visitLambdaForSingleton(LLambdaForSingleton *lir);
-    bool visitParLambda(LParLambda *lir);
-    bool visitPointer(LPointer *lir);
-    bool visitSlots(LSlots *lir);
-    bool visitStoreSlotV(LStoreSlotV *store);
-    bool visitElements(LElements *lir);
-    bool visitConvertElementsToDoubles(LConvertElementsToDoubles *lir);
-    bool visitTypeBarrier(LTypeBarrier *lir);
-    bool visitMonitorTypes(LMonitorTypes *lir);
-    bool visitPostWriteBarrierO(LPostWriteBarrierO *lir);
-    bool visitPostWriteBarrierV(LPostWriteBarrierV *lir);
-    bool visitOutOfLineCallPostWriteBarrier(OutOfLineCallPostWriteBarrier *ool);
-    bool visitCallNative(LCallNative *call);
-    bool emitCallInvokeFunction(LInstruction *call, Register callereg,
+    void visitLabel(LLabel* lir);
+    void visitNop(LNop* lir);
+    void visitMop(LMop* lir);
+    void visitOsiPoint(LOsiPoint* lir);
+    void visitGoto(LGoto* lir);
+    void visitTableSwitch(LTableSwitch* ins);
+    void visitTableSwitchV(LTableSwitchV* ins);
+    void visitCloneLiteral(LCloneLiteral* lir);
+    void visitParameter(LParameter* lir);
+    void visitCallee(LCallee* lir);
+    void visitIsConstructing(LIsConstructing* lir);
+    void visitStart(LStart* lir);
+    void visitReturn(LReturn* ret);
+    void visitDefVar(LDefVar* lir);
+    void visitDefFun(LDefFun* lir);
+    void visitOsrEntry(LOsrEntry* lir);
+    void visitOsrScopeChain(LOsrScopeChain* lir);
+    void visitOsrValue(LOsrValue* lir);
+    void visitOsrReturnValue(LOsrReturnValue* lir);
+    void visitOsrArgumentsObject(LOsrArgumentsObject* lir);
+    void visitStackArgT(LStackArgT* lir);
+    void visitStackArgV(LStackArgV* lir);
+    void visitMoveGroup(LMoveGroup* group);
+    void visitValueToInt32(LValueToInt32* lir);
+    void visitValueToDouble(LValueToDouble* lir);
+    void visitValueToFloat32(LValueToFloat32* lir);
+    void visitFloat32ToDouble(LFloat32ToDouble* lir);
+    void visitDoubleToFloat32(LDoubleToFloat32* lir);
+    void visitInt32ToFloat32(LInt32ToFloat32* lir);
+    void visitInt32ToDouble(LInt32ToDouble* lir);
+    void emitOOLTestObject(Register objreg, Label* ifTruthy, Label* ifFalsy, Register scratch);
+    void visitTestOAndBranch(LTestOAndBranch* lir);
+    void visitTestVAndBranch(LTestVAndBranch* lir);
+    void visitFunctionDispatch(LFunctionDispatch* lir);
+    void visitObjectGroupDispatch(LObjectGroupDispatch* lir);
+    void visitBooleanToString(LBooleanToString* lir);
+    void emitIntToString(Register input, Register output, Label* ool);
+    void visitIntToString(LIntToString* lir);
+    void visitDoubleToString(LDoubleToString* lir);
+    void visitValueToString(LValueToString* lir);
+    void visitValueToObjectOrNull(LValueToObjectOrNull* lir);
+    void visitInteger(LInteger* lir);
+    void visitRegExp(LRegExp* lir);
+    void visitRegExpExec(LRegExpExec* lir);
+    void visitOutOfLineRegExpExec(OutOfLineRegExpExec* ool);
+    void visitRegExpTest(LRegExpTest* lir);
+    void visitOutOfLineRegExpTest(OutOfLineRegExpTest* ool);
+    void visitRegExpReplace(LRegExpReplace* lir);
+    void visitStringReplace(LStringReplace* lir);
+    void visitLambda(LLambda* lir);
+    void visitLambdaArrow(LLambdaArrow* lir);
+    void visitLambdaForSingleton(LLambdaForSingleton* lir);
+    void visitPointer(LPointer* lir);
+    void visitNurseryObject(LNurseryObject* lir);
+    void visitKeepAliveObject(LKeepAliveObject* lir);
+    void visitSlots(LSlots* lir);
+    void visitLoadSlotT(LLoadSlotT* lir);
+    void visitLoadSlotV(LLoadSlotV* lir);
+    void visitStoreSlotT(LStoreSlotT* lir);
+    void visitStoreSlotV(LStoreSlotV* lir);
+    void visitElements(LElements* lir);
+    void visitConvertElementsToDoubles(LConvertElementsToDoubles* lir);
+    void visitMaybeToDoubleElement(LMaybeToDoubleElement* lir);
+    void visitMaybeCopyElementsForWrite(LMaybeCopyElementsForWrite* lir);
+    void visitGuardObjectIdentity(LGuardObjectIdentity* guard);
+    void visitGuardShapePolymorphic(LGuardShapePolymorphic* lir);
+    void visitTypeBarrierV(LTypeBarrierV* lir);
+    void visitTypeBarrierO(LTypeBarrierO* lir);
+    void visitMonitorTypes(LMonitorTypes* lir);
+    void visitPostWriteBarrierO(LPostWriteBarrierO* lir);
+    void visitPostWriteBarrierV(LPostWriteBarrierV* lir);
+    void visitOutOfLineCallPostWriteBarrier(OutOfLineCallPostWriteBarrier* ool);
+    void visitCallNative(LCallNative* call);
+    void emitCallInvokeFunction(LInstruction* call, Register callereg,
                                 uint32_t argc, uint32_t unusedStack);
-    bool visitCallGeneric(LCallGeneric *call);
-    bool visitCallKnown(LCallKnown *call);
-    bool emitCallInvokeFunction(LApplyArgsGeneric *apply, Register extraStackSize);
-    void emitPushArguments(LApplyArgsGeneric *apply, Register extraStackSpace);
-    void emitPopArguments(LApplyArgsGeneric *apply, Register extraStackSize);
-    bool visitApplyArgsGeneric(LApplyArgsGeneric *apply);
-    bool visitGetDynamicName(LGetDynamicName *lir);
-    bool visitFilterArguments(LFilterArguments *lir);
-    bool visitCallDirectEval(LCallDirectEval *lir);
-    bool visitDoubleToInt32(LDoubleToInt32 *lir);
-    bool visitNewSlots(LNewSlots *lir);
-    bool visitNewParallelArrayVMCall(LNewParallelArray *lir);
-    bool visitNewParallelArray(LNewParallelArray *lir);
-    bool visitOutOfLineNewParallelArray(OutOfLineNewParallelArray *ool);
-    bool visitNewArrayCallVM(LNewArray *lir);
-    bool visitNewArray(LNewArray *lir);
-    bool visitOutOfLineNewArray(OutOfLineNewArray *ool);
-    bool visitNewObjectVMCall(LNewObject *lir);
-    bool visitNewObject(LNewObject *lir);
-    bool visitOutOfLineNewObject(OutOfLineNewObject *ool);
-    bool visitNewDeclEnvObject(LNewDeclEnvObject *lir);
-    bool visitNewCallObject(LNewCallObject *lir);
-    bool visitParNewCallObject(LParNewCallObject *lir);
-    bool visitNewStringObject(LNewStringObject *lir);
-    bool visitParNew(LParNew *lir);
-    bool visitParNewDenseArray(LParNewDenseArray *lir);
-    bool visitParBailout(LParBailout *lir);
-    bool visitInitElem(LInitElem *lir);
-    bool visitInitProp(LInitProp *lir);
-    bool visitCreateThis(LCreateThis *lir);
-    bool visitCreateThisWithProto(LCreateThisWithProto *lir);
-    bool visitCreateThisWithTemplate(LCreateThisWithTemplate *lir);
-    bool visitCreateArgumentsObject(LCreateArgumentsObject *lir);
-    bool visitGetArgumentsObjectArg(LGetArgumentsObjectArg *lir);
-    bool visitSetArgumentsObjectArg(LSetArgumentsObjectArg *lir);
-    bool visitReturnFromCtor(LReturnFromCtor *lir);
-    bool visitArrayLength(LArrayLength *lir);
-    bool visitTypedArrayLength(LTypedArrayLength *lir);
-    bool visitTypedArrayElements(LTypedArrayElements *lir);
-    bool visitStringLength(LStringLength *lir);
-    bool visitInitializedLength(LInitializedLength *lir);
-    bool visitSetInitializedLength(LSetInitializedLength *lir);
-    bool visitNotO(LNotO *ins);
-    bool visitNotV(LNotV *ins);
-    bool visitBoundsCheck(LBoundsCheck *lir);
-    bool visitBoundsCheckRange(LBoundsCheckRange *lir);
-    bool visitBoundsCheckLower(LBoundsCheckLower *lir);
-    bool visitLoadFixedSlotV(LLoadFixedSlotV *ins);
-    bool visitLoadFixedSlotT(LLoadFixedSlotT *ins);
-    bool visitStoreFixedSlotV(LStoreFixedSlotV *ins);
-    bool visitStoreFixedSlotT(LStoreFixedSlotT *ins);
-    bool emitGetPropertyPolymorphic(LInstruction *lir, Register obj,
-                                    Register scratch, const TypedOrValueRegister &output);
-    bool visitGetPropertyPolymorphicV(LGetPropertyPolymorphicV *ins);
-    bool visitGetPropertyPolymorphicT(LGetPropertyPolymorphicT *ins);
-    bool emitSetPropertyPolymorphic(LInstruction *lir, Register obj,
-                                    Register scratch, const ConstantOrRegister &value);
-    bool visitSetPropertyPolymorphicV(LSetPropertyPolymorphicV *ins);
-    bool visitSetPropertyPolymorphicT(LSetPropertyPolymorphicT *ins);
-    bool visitAbsI(LAbsI *lir);
-    bool visitAtan2D(LAtan2D *lir);
-    bool visitPowI(LPowI *lir);
-    bool visitPowD(LPowD *lir);
-    bool visitRandom(LRandom *lir);
-    bool visitMathFunctionD(LMathFunctionD *ins);
-    bool visitModD(LModD *ins);
-    bool visitMinMaxI(LMinMaxI *lir);
-    bool visitBinaryV(LBinaryV *lir);
-    bool emitCompareS(LInstruction *lir, JSOp op, Register left, Register right,
-                      Register output, Register temp);
-    bool visitCompareS(LCompareS *lir);
-    bool visitCompareStrictS(LCompareStrictS *lir);
-    bool visitCompareVM(LCompareVM *lir);
-    bool visitIsNullOrLikeUndefined(LIsNullOrLikeUndefined *lir);
-    bool visitIsNullOrLikeUndefinedAndBranch(LIsNullOrLikeUndefinedAndBranch *lir);
-    bool visitEmulatesUndefined(LEmulatesUndefined *lir);
-    bool visitEmulatesUndefinedAndBranch(LEmulatesUndefinedAndBranch *lir);
-    bool visitConcat(LConcat *lir);
-    bool visitCharCodeAt(LCharCodeAt *lir);
-    bool visitFromCharCode(LFromCharCode *lir);
-    bool visitFunctionEnvironment(LFunctionEnvironment *lir);
-    bool visitParSlice(LParSlice *lir);
-    bool visitParWriteGuard(LParWriteGuard *lir);
-    bool visitParDump(LParDump *lir);
-    bool visitCallGetProperty(LCallGetProperty *lir);
-    bool visitCallGetElement(LCallGetElement *lir);
-    bool visitCallSetElement(LCallSetElement *lir);
-    bool visitCallInitElementArray(LCallInitElementArray *lir);
-    bool visitThrow(LThrow *lir);
-    bool visitTypeOfV(LTypeOfV *lir);
-    bool visitOutOfLineTypeOfV(OutOfLineTypeOfV *ool);
-    bool visitToIdV(LToIdV *lir);
-    bool visitLoadElementV(LLoadElementV *load);
-    bool visitLoadElementHole(LLoadElementHole *lir);
-    bool visitStoreElementT(LStoreElementT *lir);
-    bool visitStoreElementV(LStoreElementV *lir);
-    bool visitStoreElementHoleT(LStoreElementHoleT *lir);
-    bool visitStoreElementHoleV(LStoreElementHoleV *lir);
-    bool emitArrayPopShift(LInstruction *lir, const MArrayPopShift *mir, Register obj,
+    void visitCallGeneric(LCallGeneric* call);
+    void visitCallKnown(LCallKnown* call);
+    void emitCallInvokeFunction(LApplyArgsGeneric* apply, Register extraStackSize);
+    void emitPushArguments(LApplyArgsGeneric* apply, Register extraStackSpace);
+    void emitPopArguments(LApplyArgsGeneric* apply, Register extraStackSize);
+    void visitApplyArgsGeneric(LApplyArgsGeneric* apply);
+    void visitBail(LBail* lir);
+    void visitUnreachable(LUnreachable* unreachable);
+    void visitGetDynamicName(LGetDynamicName* lir);
+    void visitFilterArgumentsOrEvalS(LFilterArgumentsOrEvalS* lir);
+    void visitFilterArgumentsOrEvalV(LFilterArgumentsOrEvalV* lir);
+    void visitCallDirectEvalS(LCallDirectEvalS* lir);
+    void visitCallDirectEvalV(LCallDirectEvalV* lir);
+    void visitDoubleToInt32(LDoubleToInt32* lir);
+    void visitFloat32ToInt32(LFloat32ToInt32* lir);
+    void visitNewArrayCallVM(LNewArray* lir);
+    void visitNewArray(LNewArray* lir);
+    void visitOutOfLineNewArray(OutOfLineNewArray* ool);
+    void visitNewArrayCopyOnWrite(LNewArrayCopyOnWrite* lir);
+    void visitNewArrayDynamicLength(LNewArrayDynamicLength* lir);
+    void visitNewObjectVMCall(LNewObject* lir);
+    void visitNewObject(LNewObject* lir);
+    void visitOutOfLineNewObject(OutOfLineNewObject* ool);
+    void visitNewTypedObject(LNewTypedObject* lir);
+    void visitSimdBox(LSimdBox* lir);
+    void visitSimdUnbox(LSimdUnbox* lir);
+    void visitNewDeclEnvObject(LNewDeclEnvObject* lir);
+    void visitNewCallObject(LNewCallObject* lir);
+    void visitNewSingletonCallObject(LNewSingletonCallObject* lir);
+    void visitNewStringObject(LNewStringObject* lir);
+    void visitNewDerivedTypedObject(LNewDerivedTypedObject* lir);
+    void visitInitElem(LInitElem* lir);
+    void visitInitElemGetterSetter(LInitElemGetterSetter* lir);
+    void visitMutateProto(LMutateProto* lir);
+    void visitInitProp(LInitProp* lir);
+    void visitInitPropGetterSetter(LInitPropGetterSetter* lir);
+    void visitCreateThis(LCreateThis* lir);
+    void visitCreateThisWithProto(LCreateThisWithProto* lir);
+    void visitCreateThisWithTemplate(LCreateThisWithTemplate* lir);
+    void visitCreateArgumentsObject(LCreateArgumentsObject* lir);
+    void visitGetArgumentsObjectArg(LGetArgumentsObjectArg* lir);
+    void visitSetArgumentsObjectArg(LSetArgumentsObjectArg* lir);
+    void visitReturnFromCtor(LReturnFromCtor* lir);
+    void visitComputeThis(LComputeThis* lir);
+    void visitLoadArrowThis(LLoadArrowThis* lir);
+    void visitArrayLength(LArrayLength* lir);
+    void visitSetArrayLength(LSetArrayLength* lir);
+    void visitTypedArrayLength(LTypedArrayLength* lir);
+    void visitTypedArrayElements(LTypedArrayElements* lir);
+    void visitTypedObjectElements(LTypedObjectElements* lir);
+    void visitSetTypedObjectOffset(LSetTypedObjectOffset* lir);
+    void visitTypedObjectDescr(LTypedObjectDescr* ins);
+    void visitStringLength(LStringLength* lir);
+    void visitSubstr(LSubstr* lir);
+    void visitInitializedLength(LInitializedLength* lir);
+    void visitSetInitializedLength(LSetInitializedLength* lir);
+    void visitNotO(LNotO* ins);
+    void visitNotV(LNotV* ins);
+    void visitBoundsCheck(LBoundsCheck* lir);
+    void visitBoundsCheckRange(LBoundsCheckRange* lir);
+    void visitBoundsCheckLower(LBoundsCheckLower* lir);
+    void visitLoadFixedSlotV(LLoadFixedSlotV* ins);
+    void visitLoadFixedSlotT(LLoadFixedSlotT* ins);
+    void visitStoreFixedSlotV(LStoreFixedSlotV* ins);
+    void visitStoreFixedSlotT(LStoreFixedSlotT* ins);
+    void emitGetPropertyPolymorphic(LInstruction* lir, Register obj,
+                                    Register scratch, const TypedOrValueRegister& output);
+    void visitGetPropertyPolymorphicV(LGetPropertyPolymorphicV* ins);
+    void visitGetPropertyPolymorphicT(LGetPropertyPolymorphicT* ins);
+    void emitSetPropertyPolymorphic(LInstruction* lir, Register obj,
+                                    Register scratch, const ConstantOrRegister& value);
+    void visitSetPropertyPolymorphicV(LSetPropertyPolymorphicV* ins);
+    void visitArraySplice(LArraySplice* splice);
+    void visitSetPropertyPolymorphicT(LSetPropertyPolymorphicT* ins);
+    void visitAbsI(LAbsI* lir);
+    void visitAtan2D(LAtan2D* lir);
+    void visitHypot(LHypot* lir);
+    void visitPowI(LPowI* lir);
+    void visitPowD(LPowD* lir);
+    void visitRandom(LRandom* lir);
+    void visitMathFunctionD(LMathFunctionD* ins);
+    void visitMathFunctionF(LMathFunctionF* ins);
+    void visitModD(LModD* ins);
+    void visitMinMaxI(LMinMaxI* lir);
+    void visitBinaryV(LBinaryV* lir);
+    void emitCompareS(LInstruction* lir, JSOp op, Register left, Register right, Register output);
+    void visitCompareS(LCompareS* lir);
+    void visitCompareStrictS(LCompareStrictS* lir);
+    void visitCompareVM(LCompareVM* lir);
+    void visitIsNullOrLikeUndefinedV(LIsNullOrLikeUndefinedV* lir);
+    void visitIsNullOrLikeUndefinedT(LIsNullOrLikeUndefinedT* lir);
+    void visitIsNullOrLikeUndefinedAndBranchV(LIsNullOrLikeUndefinedAndBranchV* lir);
+    void visitIsNullOrLikeUndefinedAndBranchT(LIsNullOrLikeUndefinedAndBranchT* lir);
+    void emitConcat(LInstruction* lir, Register lhs, Register rhs, Register output);
+    void visitConcat(LConcat* lir);
+    void visitCharCodeAt(LCharCodeAt* lir);
+    void visitFromCharCode(LFromCharCode* lir);
+    void visitStringSplit(LStringSplit* lir);
+    void visitFunctionEnvironment(LFunctionEnvironment* lir);
+    void visitCallGetProperty(LCallGetProperty* lir);
+    void visitCallGetElement(LCallGetElement* lir);
+    void visitCallSetElement(LCallSetElement* lir);
+    void visitCallInitElementArray(LCallInitElementArray* lir);
+    void visitThrow(LThrow* lir);
+    void visitTypeOfV(LTypeOfV* lir);
+    void visitOutOfLineTypeOfV(OutOfLineTypeOfV* ool);
+    void visitToIdV(LToIdV* lir);
+    template<typename T> void emitLoadElementT(LLoadElementT* lir, const T& source);
+    void visitLoadElementT(LLoadElementT* lir);
+    void visitLoadElementV(LLoadElementV* load);
+    void visitLoadElementHole(LLoadElementHole* lir);
+    void visitLoadUnboxedPointerV(LLoadUnboxedPointerV* lir);
+    void visitLoadUnboxedPointerT(LLoadUnboxedPointerT* lir);
+    void visitUnboxObjectOrNull(LUnboxObjectOrNull* lir);
+    void visitStoreElementT(LStoreElementT* lir);
+    void visitStoreElementV(LStoreElementV* lir);
+    void visitStoreElementHoleT(LStoreElementHoleT* lir);
+    void visitStoreElementHoleV(LStoreElementHoleV* lir);
+    void visitStoreUnboxedPointer(LStoreUnboxedPointer* lir);
+    void visitConvertUnboxedObjectToNative(LConvertUnboxedObjectToNative* lir);
+    void emitArrayPopShift(LInstruction* lir, const MArrayPopShift* mir, Register obj,
                            Register elementsTemp, Register lengthTemp, TypedOrValueRegister out);
-    bool visitArrayPopShiftV(LArrayPopShiftV *lir);
-    bool visitArrayPopShiftT(LArrayPopShiftT *lir);
-    bool emitArrayPush(LInstruction *lir, const MArrayPush *mir, Register obj,
+    void visitArrayPopShiftV(LArrayPopShiftV* lir);
+    void visitArrayPopShiftT(LArrayPopShiftT* lir);
+    void emitArrayPush(LInstruction* lir, const MArrayPush* mir, Register obj,
                        ConstantOrRegister value, Register elementsTemp, Register length);
-    bool visitArrayPushV(LArrayPushV *lir);
-    bool visitArrayPushT(LArrayPushT *lir);
-    bool visitArrayConcat(LArrayConcat *lir);
-    bool visitLoadTypedArrayElement(LLoadTypedArrayElement *lir);
-    bool visitLoadTypedArrayElementHole(LLoadTypedArrayElementHole *lir);
-    bool visitStoreTypedArrayElement(LStoreTypedArrayElement *lir);
-    bool visitStoreTypedArrayElementHole(LStoreTypedArrayElementHole *lir);
-    bool visitClampIToUint8(LClampIToUint8 *lir);
-    bool visitClampDToUint8(LClampDToUint8 *lir);
-    bool visitClampVToUint8(LClampVToUint8 *lir);
-    bool visitCallIteratorStart(LCallIteratorStart *lir);
-    bool visitIteratorStart(LIteratorStart *lir);
-    bool visitIteratorNext(LIteratorNext *lir);
-    bool visitIteratorMore(LIteratorMore *lir);
-    bool visitIteratorEnd(LIteratorEnd *lir);
-    bool visitArgumentsLength(LArgumentsLength *lir);
-    bool visitGetArgument(LGetArgument *lir);
-    bool visitRunOncePrologue(LRunOncePrologue *lir);
-    bool emitRest(LInstruction *lir, Register array, Register numActuals,
+    void visitArrayPushV(LArrayPushV* lir);
+    void visitArrayPushT(LArrayPushT* lir);
+    void visitArrayConcat(LArrayConcat* lir);
+    void visitArrayJoin(LArrayJoin* lir);
+    void visitLoadTypedArrayElement(LLoadTypedArrayElement* lir);
+    void visitLoadTypedArrayElementHole(LLoadTypedArrayElementHole* lir);
+    void visitStoreTypedArrayElement(LStoreTypedArrayElement* lir);
+    void visitStoreTypedArrayElementHole(LStoreTypedArrayElementHole* lir);
+    void visitCompareExchangeTypedArrayElement(LCompareExchangeTypedArrayElement* lir);
+    void visitAtomicTypedArrayElementBinop(LAtomicTypedArrayElementBinop* lir);
+    void visitClampIToUint8(LClampIToUint8* lir);
+    void visitClampDToUint8(LClampDToUint8* lir);
+    void visitClampVToUint8(LClampVToUint8* lir);
+    void visitCallIteratorStart(LCallIteratorStart* lir);
+    void visitIteratorStart(LIteratorStart* lir);
+    void visitIteratorMore(LIteratorMore* lir);
+    void visitIsNoIterAndBranch(LIsNoIterAndBranch* lir);
+    void visitIteratorEnd(LIteratorEnd* lir);
+    void visitArgumentsLength(LArgumentsLength* lir);
+    void visitGetFrameArgument(LGetFrameArgument* lir);
+    void visitSetFrameArgumentT(LSetFrameArgumentT* lir);
+    void visitSetFrameArgumentC(LSetFrameArgumentC* lir);
+    void visitSetFrameArgumentV(LSetFrameArgumentV* lir);
+    void visitRunOncePrologue(LRunOncePrologue* lir);
+    void emitRest(LInstruction* lir, Register array, Register numActuals,
                   Register temp0, Register temp1, unsigned numFormals,
-                  JSObject *templateObject, const VMFunction &f);
-    bool visitRest(LRest *lir);
-    bool visitParRest(LParRest *lir);
-    bool visitCallSetProperty(LCallSetProperty *ins);
-    bool visitCallDeleteProperty(LCallDeleteProperty *lir);
-    bool visitBitNotV(LBitNotV *lir);
-    bool visitBitOpV(LBitOpV *lir);
-    bool emitInstanceOf(LInstruction *ins, JSObject *prototypeObject);
-    bool visitIn(LIn *ins);
-    bool visitInArray(LInArray *ins);
-    bool visitInstanceOfO(LInstanceOfO *ins);
-    bool visitInstanceOfV(LInstanceOfV *ins);
-    bool visitCallInstanceOf(LCallInstanceOf *ins);
-    bool visitFunctionBoundary(LFunctionBoundary *lir);
-    bool visitGetDOMProperty(LGetDOMProperty *lir);
-    bool visitSetDOMProperty(LSetDOMProperty *lir);
-    bool visitCallDOMNative(LCallDOMNative *lir);
-    bool visitCallGetIntrinsicValue(LCallGetIntrinsicValue *lir);
-    bool visitIsCallable(LIsCallable *lir);
-    bool visitHaveSameClass(LHaveSameClass *lir);
-    bool visitAsmJSCall(LAsmJSCall *lir);
-    bool visitAsmJSParameter(LAsmJSParameter *lir);
-    bool visitAsmJSReturn(LAsmJSReturn *ret);
-    bool visitAsmJSVoidReturn(LAsmJSVoidReturn *ret);
+                  JSObject* templateObject, bool saveAndRestore, Register resultreg);
+    void visitRest(LRest* lir);
+    void visitCallSetProperty(LCallSetProperty* ins);
+    void visitCallDeleteProperty(LCallDeleteProperty* lir);
+    void visitCallDeleteElement(LCallDeleteElement* lir);
+    void visitBitNotV(LBitNotV* lir);
+    void visitBitOpV(LBitOpV* lir);
+    void emitInstanceOf(LInstruction* ins, JSObject* prototypeObject);
+    void visitIn(LIn* ins);
+    void visitInArray(LInArray* ins);
+    void visitInstanceOfO(LInstanceOfO* ins);
+    void visitInstanceOfV(LInstanceOfV* ins);
+    void visitCallInstanceOf(LCallInstanceOf* ins);
+    void visitGetDOMProperty(LGetDOMProperty* lir);
+    void visitGetDOMMemberV(LGetDOMMemberV* lir);
+    void visitGetDOMMemberT(LGetDOMMemberT* lir);
+    void visitSetDOMProperty(LSetDOMProperty* lir);
+    void visitCallDOMNative(LCallDOMNative* lir);
+    void visitCallGetIntrinsicValue(LCallGetIntrinsicValue* lir);
+    void visitIsCallable(LIsCallable* lir);
+    void visitOutOfLineIsCallable(OutOfLineIsCallable* ool);
+    void visitIsObject(LIsObject* lir);
+    void visitIsObjectAndBranch(LIsObjectAndBranch* lir);
+    void visitHasClass(LHasClass* lir);
+    void visitAsmJSParameter(LAsmJSParameter* lir);
+    void visitAsmJSReturn(LAsmJSReturn* ret);
+    void visitAsmJSVoidReturn(LAsmJSVoidReturn* ret);
+    void visitLexicalCheck(LLexicalCheck* ins);
+    void visitThrowUninitializedLexical(LThrowUninitializedLexical* ins);
+    void visitDebugger(LDebugger* ins);
 
-    bool visitCheckOverRecursed(LCheckOverRecursed *lir);
-    bool visitCheckOverRecursedFailure(CheckOverRecursedFailure *ool);
-    bool visitAsmJSCheckOverRecursed(LAsmJSCheckOverRecursed *lir);
+    void visitCheckOverRecursed(LCheckOverRecursed* lir);
+    void visitCheckOverRecursedFailure(CheckOverRecursedFailure* ool);
 
-    bool visitParCheckOverRecursed(LParCheckOverRecursed *lir);
-    bool visitParCheckOverRecursedFailure(ParCheckOverRecursedFailure *ool);
+    void visitInterruptCheckImplicit(LInterruptCheckImplicit* ins);
+    void visitOutOfLineInterruptCheckImplicit(OutOfLineInterruptCheckImplicit* ins);
 
-    bool visitParCheckInterrupt(LParCheckInterrupt *lir);
-    bool visitOutOfLineParCheckInterrupt(OutOfLineParCheckInterrupt *ool);
+    void visitUnboxFloatingPoint(LUnboxFloatingPoint* lir);
+    void visitOutOfLineUnboxFloatingPoint(OutOfLineUnboxFloatingPoint* ool);
+    void visitOutOfLineStoreElementHole(OutOfLineStoreElementHole* ool);
 
-    bool visitUnboxDouble(LUnboxDouble *lir);
-    bool visitOutOfLineUnboxDouble(OutOfLineUnboxDouble *ool);
-    bool visitOutOfLineStoreElementHole(OutOfLineStoreElementHole *ool);
-
-    bool visitOutOfLineParNewGCThing(OutOfLineParNewGCThing *ool);
-    bool visitOutOfLineParallelAbort(OutOfLineParallelAbort *ool);
-    bool visitOutOfLinePropagateParallelAbort(OutOfLinePropagateParallelAbort *ool);
-    void loadJSScriptForBlock(MBasicBlock *block, Register reg);
+    void loadJSScriptForBlock(MBasicBlock* block, Register reg);
     void loadOutermostJSScript(Register reg);
 
     // Inline caches visitors.
-    bool visitOutOfLineCache(OutOfLineUpdateCache *ool);
+    void visitOutOfLineCache(OutOfLineUpdateCache* ool);
 
-    bool visitGetPropertyCacheV(LGetPropertyCacheV *ins);
-    bool visitGetPropertyCacheT(LGetPropertyCacheT *ins);
-    bool visitGetElementCacheV(LGetElementCacheV *ins);
-    bool visitGetElementCacheT(LGetElementCacheT *ins);
-    bool visitSetElementCacheV(LSetElementCacheV *ins);
-    bool visitSetElementCacheT(LSetElementCacheT *ins);
-    bool visitBindNameCache(LBindNameCache *ins);
-    bool visitCallSetProperty(LInstruction *ins);
-    bool visitSetPropertyCacheV(LSetPropertyCacheV *ins);
-    bool visitSetPropertyCacheT(LSetPropertyCacheT *ins);
-    bool visitGetNameCache(LGetNameCache *ins);
-    bool visitCallsiteCloneCache(LCallsiteCloneCache *ins);
+    void visitGetPropertyCacheV(LGetPropertyCacheV* ins);
+    void visitGetPropertyCacheT(LGetPropertyCacheT* ins);
+    void visitGetElementCacheV(LGetElementCacheV* ins);
+    void visitGetElementCacheT(LGetElementCacheT* ins);
+    void visitSetElementCacheV(LSetElementCacheV* ins);
+    void visitSetElementCacheT(LSetElementCacheT* ins);
+    void visitBindNameCache(LBindNameCache* ins);
+    void visitCallSetProperty(LInstruction* ins);
+    void visitSetPropertyCacheV(LSetPropertyCacheV* ins);
+    void visitSetPropertyCacheT(LSetPropertyCacheT* ins);
+    void visitGetNameCache(LGetNameCache* ins);
 
-    bool visitGetPropertyIC(OutOfLineUpdateCache *ool, GetPropertyIC *ic);
-    bool visitParallelGetPropertyIC(OutOfLineUpdateCache *ool, ParallelGetPropertyIC *ic);
-    bool visitSetPropertyIC(OutOfLineUpdateCache *ool, SetPropertyIC *ic);
-    bool visitGetElementIC(OutOfLineUpdateCache *ool, GetElementIC *ic);
-    bool visitSetElementIC(OutOfLineUpdateCache *ool, SetElementIC *ic);
-    bool visitBindNameIC(OutOfLineUpdateCache *ool, BindNameIC *ic);
-    bool visitNameIC(OutOfLineUpdateCache *ool, NameIC *ic);
-    bool visitCallsiteCloneIC(OutOfLineUpdateCache *ool, CallsiteCloneIC *ic);
+    void visitGetPropertyIC(OutOfLineUpdateCache* ool, DataPtr<GetPropertyIC>& ic);
+    void visitSetPropertyIC(OutOfLineUpdateCache* ool, DataPtr<SetPropertyIC>& ic);
+    void visitGetElementIC(OutOfLineUpdateCache* ool, DataPtr<GetElementIC>& ic);
+    void visitSetElementIC(OutOfLineUpdateCache* ool, DataPtr<SetElementIC>& ic);
+    void visitBindNameIC(OutOfLineUpdateCache* ool, DataPtr<BindNameIC>& ic);
+    void visitNameIC(OutOfLineUpdateCache* ool, DataPtr<NameIC>& ic);
 
-    IonScriptCounts *extractUnassociatedScriptCounts() {
-        IonScriptCounts *counts = unassociatedScriptCounts_;
-        unassociatedScriptCounts_ = NULL;  // prevent delete in dtor
+    void visitAssertRangeI(LAssertRangeI* ins);
+    void visitAssertRangeD(LAssertRangeD* ins);
+    void visitAssertRangeF(LAssertRangeF* ins);
+    void visitAssertRangeV(LAssertRangeV* ins);
+
+    void visitInterruptCheck(LInterruptCheck* lir);
+    void visitAsmJSInterruptCheck(LAsmJSInterruptCheck* lir);
+    void visitRecompileCheck(LRecompileCheck* ins);
+
+    IonScriptCounts* extractScriptCounts() {
+        IonScriptCounts* counts = scriptCounts_;
+        scriptCounts_ = nullptr;  // prevent delete in dtor
         return counts;
     }
 
   private:
-    bool addGetPropertyCache(LInstruction *ins, RegisterSet liveRegs, Register objReg,
-                             PropertyName *name, TypedOrValueRegister output,
-                             bool allowGetters);
-    bool checkForParallelBailout(LInstruction *lir);
+    void addGetPropertyCache(LInstruction* ins, RegisterSet liveRegs, Register objReg,
+                             PropertyName* name, TypedOrValueRegister output,
+                             bool monitoredResult, jsbytecode* profilerLeavePc);
+    void addGetElementCache(LInstruction* ins, Register obj, ConstantOrRegister index,
+                            TypedOrValueRegister output, bool monitoredResult,
+                            bool allowDoubleResult, jsbytecode* profilerLeavePc);
+    void addSetPropertyCache(LInstruction* ins, RegisterSet liveRegs, Register objReg,
+                             PropertyName* name, ConstantOrRegister value, bool strict,
+                             bool needsTypeBarrier, jsbytecode* profilerLeavePc);
+    void addSetElementCache(LInstruction* ins, Register obj, Register unboxIndex, Register temp,
+                            FloatRegister tempDouble, FloatRegister tempFloat32,
+                            ValueOperand index, ConstantOrRegister value,
+                            bool strict, bool guardHoles, jsbytecode* profilerLeavePc);
 
-    bool generateBranchV(const ValueOperand &value, Label *ifTrue, Label *ifFalse, FloatRegister fr);
+    bool generateBranchV(const ValueOperand& value, Label* ifTrue, Label* ifFalse, FloatRegister fr);
 
-    bool emitParAllocateGCThing(LInstruction *lir,
-                                const Register &objReg,
-                                const Register &threadContextReg,
-                                const Register &tempReg1,
-                                const Register &tempReg2,
-                                JSObject *templateObj);
+    void emitLambdaInit(Register resultReg, Register scopeChainReg,
+                        const LambdaFunctionInfo& info);
 
-    bool emitParCallToUncompiledScript(LInstruction *lir,
-                                       Register calleeReg);
+    void emitFilterArgumentsOrEval(LInstruction* lir, Register string, Register temp1,
+                                   Register temp2);
 
-    void emitLambdaInit(const Register &resultReg,
-                        const Register &scopeChainReg,
-                        JSFunction *fun);
+    IonScriptCounts* maybeCreateScriptCounts();
 
-    IonScriptCounts *maybeCreateScriptCounts();
+    // This function behaves like testValueTruthy with the exception that it can
+    // choose to let control flow fall through when the object is truthy, as
+    // an optimization. Use testValueTruthy when it's required to branch to one
+    // of the two labels.
+    void testValueTruthyKernel(const ValueOperand& value,
+                               const LDefinition* scratch1, const LDefinition* scratch2,
+                               FloatRegister fr,
+                               Label* ifTruthy, Label* ifFalsy,
+                               OutOfLineTestObject* ool,
+                               MDefinition* valueMIR);
 
     // Test whether value is truthy or not and jump to the corresponding label.
     // If the value can be an object that emulates |undefined|, |ool| must be
     // non-null; otherwise it may be null (and the scratch definitions should
     // be bogus), in which case an object encountered here will always be
     // truthy.
-    void testValueTruthy(const ValueOperand &value,
-                         const LDefinition *scratch1, const LDefinition *scratch2,
+    void testValueTruthy(const ValueOperand& value,
+                         const LDefinition* scratch1, const LDefinition* scratch2,
                          FloatRegister fr,
-                         Label *ifTruthy, Label *ifFalsy,
-                         OutOfLineTestObject *ool);
+                         Label* ifTruthy, Label* ifFalsy,
+                         OutOfLineTestObject* ool,
+                         MDefinition* valueMIR);
 
-    // Like testValueTruthy but takes an object, and |ool| must be non-null.
-    // (If it's known that an object can never emulate |undefined| it shouldn't
-    // be tested in the first place.)
-    void testObjectTruthy(Register objreg, Label *ifTruthy, Label *ifFalsy, Register scratch,
-                          OutOfLineTestObject *ool);
+    // This function behaves like testObjectEmulatesUndefined with the exception
+    // that it can choose to let control flow fall through when the object
+    // doesn't emulate undefined, as an optimization. Use the regular
+    // testObjectEmulatesUndefined when it's required to branch to one of the
+    // two labels.
+    void testObjectEmulatesUndefinedKernel(Register objreg,
+                                           Label* ifEmulatesUndefined,
+                                           Label* ifDoesntEmulateUndefined,
+                                           Register scratch, OutOfLineTestObject* ool);
+
+    // Test whether an object emulates |undefined|.  If it does, jump to
+    // |ifEmulatesUndefined|; the caller is responsible for binding this label.
+    // If it doesn't, fall through; the label |ifDoesntEmulateUndefined| (which
+    // must be initially unbound) will be bound at this point.
+    void branchTestObjectEmulatesUndefined(Register objreg,
+                                           Label* ifEmulatesUndefined,
+                                           Label* ifDoesntEmulateUndefined,
+                                           Register scratch, OutOfLineTestObject* ool);
+
+    // Test whether an object emulates |undefined|, and jump to the
+    // corresponding label.
+    //
+    // This method should be used when subsequent code can't be laid out in a
+    // straight line; if it can, branchTest* should be used instead.
+    void testObjectEmulatesUndefined(Register objreg,
+                                     Label* ifEmulatesUndefined,
+                                     Label* ifDoesntEmulateUndefined,
+                                     Register scratch, OutOfLineTestObject* ool);
+
+    // Get a label for the start of block which can be used for jumping, in
+    // place of jumpToBlock.
+    Label* getJumpLabelForBranch(MBasicBlock* block);
+
+    void emitStoreElementTyped(const LAllocation* value, MIRType valueType, MIRType elementType,
+                               Register elements, const LAllocation* index,
+                               int32_t offsetAdjustment);
 
     // Bailout if an element about to be written to is a hole.
-    bool emitStoreHoleCheck(Register elements, const LAllocation *index, LSnapshot *snapshot);
+    void emitStoreHoleCheck(Register elements, const LAllocation* index, int32_t offsetAdjustment,
+                            LSnapshot* snapshot);
 
-    // Script counts created when compiling code with no associated JSScript.
-    IonScriptCounts *unassociatedScriptCounts_;
+    void emitAssertRangeI(const Range* r, Register input);
+    void emitAssertRangeD(const Range* r, FloatRegister input, FloatRegister temp);
 
+    Vector<CodeOffsetLabel, 0, JitAllocPolicy> ionScriptLabels_;
+#ifdef DEBUG
+    void branchIfInvalidated(Register temp, Label* invalidated);
+
+    void emitDebugResultChecks(LInstruction* ins);
+    void emitObjectOrStringResultChecks(LInstruction* lir, MDefinition* mir);
+    void emitValueResultChecks(LInstruction* lir, MDefinition* mir);
+#endif
+
+    // Script counts created during code generation.
+    IonScriptCounts* scriptCounts_;
+
+#if defined(JS_ION_PERF)
     PerfSpewer perfSpewer_;
+#endif
 };
 
 } // namespace jit

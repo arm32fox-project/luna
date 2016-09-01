@@ -6,13 +6,14 @@
 #ifndef SHARED_SURFACE_GRALLOC_H_
 #define SHARED_SURFACE_GRALLOC_H_
 
-#include "SharedSurfaceGL.h"
+#include "mozilla/layers/CompositorTypes.h"
 #include "mozilla/layers/LayersSurfaces.h"
+#include "SharedSurface.h"
 
 namespace mozilla {
 namespace layers {
 class ISurfaceAllocator;
-class SurfaceDescriptorGralloc;
+class GrallocTextureClientOGL;
 }
 
 namespace gl {
@@ -20,88 +21,82 @@ class GLContext;
 class GLLibraryEGL;
 
 class SharedSurface_Gralloc
-    : public SharedSurface_GL
+    : public SharedSurface
 {
 public:
-    static SharedSurface_Gralloc* Create(GLContext* prodGL,
-                                         const GLFormats& formats,
-                                         const gfxIntSize& size,
-                                         bool hasAlpha,
-                                         layers::ISurfaceAllocator* allocator);
+    static UniquePtr<SharedSurface_Gralloc> Create(GLContext* prodGL,
+                                                   const GLFormats& formats,
+                                                   const gfx::IntSize& size,
+                                                   bool hasAlpha,
+                                                   layers::TextureFlags flags,
+                                                   layers::ISurfaceAllocator* allocator);
 
     static SharedSurface_Gralloc* Cast(SharedSurface* surf) {
-        MOZ_ASSERT(surf->Type() == SharedSurfaceType::Gralloc);
+        MOZ_ASSERT(surf->mType == SharedSurfaceType::Gralloc);
 
         return (SharedSurface_Gralloc*)surf;
     }
 
 protected:
     GLLibraryEGL* const mEGL;
-    layers::ISurfaceAllocator* const mAllocator;
-    // We keep the SurfaceDescriptor around, because we'll end up
-    // using it often and it's handy to do so.  The actual
-    // GraphicBuffer is kept alive by the sp<GraphicBuffer> in
-    // GrallocBufferActor; the actor will stay alive until we
-    // explicitly destroy this descriptor (and thus deallocate the
-    // actor) it in the destructor of this class.  This is okay to do
-    // on the client, but is very bad to do on the server (because on
-    // the client, the actor has no chance of going away unless the
-    // whole app died).
-    layers::SurfaceDescriptorGralloc mDesc;
+    EGLSync mSync;
+    RefPtr<layers::ISurfaceAllocator> mAllocator;
+    RefPtr<layers::GrallocTextureClientOGL> mTextureClient;
     const GLuint mProdTex;
 
     SharedSurface_Gralloc(GLContext* prodGL,
-                          const gfxIntSize& size,
+                          const gfx::IntSize& size,
                           bool hasAlpha,
                           GLLibraryEGL* egl,
                           layers::ISurfaceAllocator* allocator,
-                          layers::SurfaceDescriptorGralloc& desc,
-                          GLuint prodTex)
-        : SharedSurface_GL(SharedSurfaceType::Gralloc,
-                           AttachmentType::GLTexture,
-                           prodGL,
-                           size,
-                           hasAlpha)
-        , mEGL(egl)
-        , mAllocator(allocator)
-        , mDesc(desc)
-        , mProdTex(prodTex)
-    {}
+                          layers::GrallocTextureClientOGL* textureClient,
+                          GLuint prodTex);
 
     static bool HasExtensions(GLLibraryEGL* egl, GLContext* gl);
 
 public:
     virtual ~SharedSurface_Gralloc();
 
-    virtual void Fence();
-    virtual bool WaitSync();
+    virtual void Fence() override;
+    virtual bool WaitSync() override;
+    virtual bool PollSync() override;
 
-    virtual void LockProdImpl();
-    virtual void UnlockProdImpl();
+    virtual void WaitForBufferOwnership() override;
 
-    virtual GLuint Texture() const {
+    virtual void LockProdImpl() override {}
+    virtual void UnlockProdImpl() override {}
+
+    virtual GLuint ProdTexture() override {
         return mProdTex;
     }
 
-    layers::SurfaceDescriptorGralloc& GetDescriptor() {
-        return mDesc;
+    layers::GrallocTextureClientOGL* GetTextureClient() {
+        return mTextureClient;
     }
 };
 
 class SurfaceFactory_Gralloc
-    : public SurfaceFactory_GL
+    : public SurfaceFactory
 {
 protected:
-    layers::ISurfaceAllocator* mAllocator;
+    const layers::TextureFlags mFlags;
+    RefPtr<layers::ISurfaceAllocator> mAllocator;
 
 public:
     SurfaceFactory_Gralloc(GLContext* prodGL,
                            const SurfaceCaps& caps,
-                           layers::ISurfaceAllocator* allocator = nullptr);
+                           layers::TextureFlags flags,
+                           layers::ISurfaceAllocator* allocator);
 
-    virtual SharedSurface* CreateShared(const gfxIntSize& size) {
+    virtual UniquePtr<SharedSurface> CreateShared(const gfx::IntSize& size) override {
         bool hasAlpha = mReadCaps.alpha;
-        return SharedSurface_Gralloc::Create(mGL, mFormats, size, hasAlpha, mAllocator);
+
+        UniquePtr<SharedSurface> ret;
+        if (mAllocator) {
+            ret = SharedSurface_Gralloc::Create(mGL, mFormats, size, hasAlpha,
+                                                mFlags, mAllocator);
+        }
+        return Move(ret);
     }
 };
 

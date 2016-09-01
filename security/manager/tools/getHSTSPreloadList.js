@@ -3,8 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // How to run this file:
-// 1. [obtain firefox source code]
-// 2. [build/obtain firefox binaries]
+// 1. [obtain Pale Moon source code]
+// 2. [build/obtain Pale Moon binaries]
 // 3. run `[path to]/run-mozilla.sh [path to]/xpcshell \
 //                                  [path to]/getHSTSPreloadlist.js \
 //                                  [absolute path to]/nsSTSPreloadlist.inc'
@@ -30,7 +30,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource:///modules/XPCOMUtils.jsm");
 
-const SOURCE = "https://src.chromium.org/chrome/trunk/src/net/http/transport_security_state_static.json";
+const SOURCE = "https://chromium.googlesource.com/chromium/src/net/+/master/http/transport_security_state_static.json?format=TEXT";
 const OUTPUT = "nsSTSPreloadList.inc";
 const ERROR_OUTPUT = "nsSTSPreloadList.errors";
 const MINIMUM_REQUIRED_MAX_AGE = 60 * 60 * 24 * 7 * 18;
@@ -47,10 +47,10 @@ const HEADER = "/* This Source Code Form is subject to the terms of the Mozilla 
 "\n" +
 "/*****************************************************************************/\n" +
 "/* This is an automatically generated file. If you're not                    */\n" +
-"/* nsStrictTransportSecurityService.cpp, you shouldn't be #including it.     */\n" +
+"/* nsSiteSecurityService.cpp, you shouldn't be #including it.     */\n" +
 "/*****************************************************************************/\n" +
 "\n" +
-"#include \"mozilla/StandardInteger.h\"\n";
+"#include <stdint.h>\n";
 const PREFIX = "\n" +
 "class nsSTSPreload\n" +
 "{\n" +
@@ -77,8 +77,16 @@ function download() {
     throw "ERROR: problem downloading '" + SOURCE + "': status " + req.status;
   }
 
-  // we have to filter out '//' comments
-  var result = req.responseText.replace(/\/\/[^\n]*\n/g, "");
+  var resultDecoded;
+  try {
+    resultDecoded = atob(req.responseText);
+  }
+  catch (e) {
+    throw "ERROR: could not decode data as base64 from '" + SOURCE + "': " + e;
+  }
+
+  // we have to filter out '//' comments, while not mangling the json
+  var result = resultDecoded.replace(/^(\s*)?\/\/[^\n]*\n/mg, "");
   var data = null;
   try {
     data = JSON.parse(result);
@@ -96,10 +104,14 @@ function getHosts(rawdata) {
     throw "ERROR: source data not formatted correctly: 'entries' not found";
   }
 
-  for (entry of rawdata.entries) {
+  for (let entry of rawdata.entries) {
     if (entry.mode && entry.mode == "force-https") {
       if (entry.name) {
+        // We trim the entry name here to avoid malformed URI exceptions when we
+        // later try to connect to the domain.
+        entry.name = entry.name.trim();
         entry.retries = MAX_RETRIES;
+        entry.originalIncludeSubdomains = entry.include_subdomains;
         hosts.push(entry);
       } else {
         throw "ERROR: entry not formatted correctly: no name found";
@@ -110,17 +122,21 @@ function getHosts(rawdata) {
   return hosts;
 }
 
-var gSTSService = Cc["@mozilla.org/stsservice;1"]
-                  .getService(Ci.nsIStrictTransportSecurityService);
+var gSSService = Cc["@mozilla.org/ssservice;1"]
+                   .getService(Ci.nsISiteSecurityService);
 
-function processStsHeader(host, header, status) {
+function processStsHeader(host, header, status, securityInfo) {
   var maxAge = { value: 0 };
   var includeSubdomains = { value: false };
   var error = ERROR_NONE;
-  if (header != null) {
+  if (header != null && securityInfo != null) {
     try {
       var uri = Services.io.newURI("https://" + host.name, null, null);
-      gSTSService.processStsHeader(uri, header, 0, maxAge, includeSubdomains);
+      var sslStatus = securityInfo.QueryInterface(Ci.nsISSLStatusProvider)
+                                  .SSLStatus;
+      gSSService.processHeader(Ci.nsISiteSecurityService.HEADER_HSTS,
+                               uri, header, sslStatus, 0, maxAge,
+                               includeSubdomains);
     }
     catch (e) {
       dump("ERROR: could not process header '" + header + "' from " +
@@ -136,26 +152,45 @@ function processStsHeader(host, header, status) {
     }
   }
 
+  let forceInclude = (host.forceInclude || host.pins == "google");
+
+  if (error == ERROR_NONE && maxAge.value < MINIMUM_REQUIRED_MAX_AGE) {
+    error = ERROR_MAX_AGE_TOO_LOW;
+  }
+
   return { name: host.name,
            maxAge: maxAge.value,
            includeSubdomains: includeSubdomains.value,
            error: error,
-           retries: host.retries - 1 };
+           retries: host.retries - 1,
+           forceInclude: forceInclude,
+           originalIncludeSubdomains: host.originalIncludeSubdomains };
 }
 
-function RedirectStopper() {};
+// RedirectAndAuthStopper prevents redirects and HTTP authentication
+function RedirectAndAuthStopper() {};
 
-RedirectStopper.prototype = {
+RedirectAndAuthStopper.prototype = {
   // nsIChannelEventSink
   asyncOnChannelRedirect: function(oldChannel, newChannel, flags, callback) {
     throw Cr.NS_ERROR_ENTITY_CHANGED;
+  },
+
+  // nsIAuthPrompt2
+  promptAuth: function(channel, level, authInfo) {
+    return false;
+  },
+
+  asyncPromptAuth: function(channel, callback, context, level, authInfo) {
+    throw Cr.NS_ERROR_NOT_IMPLEMENTED;
   },
 
   getInterface: function(iid) {
     return this.QueryInterface(iid);
   },
 
-  QueryInterface: XPCOMUtils.generateQI([Ci.nsIChannelEventSink])
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIChannelEventSink,
+                                         Ci.nsIAuthPrompt2])
 };
 
 function getHSTSStatus(host, resultList) {
@@ -165,12 +200,13 @@ function getHSTSStatus(host, resultList) {
   var uri = "https://" + host.name + "/";
   req.open("GET", uri, true);
   req.timeout = REQUEST_TIMEOUT;
-  req.channel.notificationCallbacks = new RedirectStopper();
+  req.channel.notificationCallbacks = new RedirectAndAuthStopper();
   req.onreadystatechange = function(event) {
     if (!inResultList && req.readyState == 4) {
       inResultList = true;
       var header = req.getResponseHeader("strict-transport-security");
-      resultList.push(processStsHeader(host, header, req.status));
+      resultList.push(processStsHeader(host, header, req.status,
+                                       req.channel.securityInfo));
     }
   };
 
@@ -202,6 +238,21 @@ function getExpirationTimeString() {
   return "const PRTime gPreloadListExpirationTime = INT64_C(" + expirationMicros + ");\n";
 }
 
+function errorToString(status) {
+  return (status.error == ERROR_MAX_AGE_TOO_LOW
+          ? status.error + status.maxAge
+          : status.error);
+}
+
+function writeEntry(status, outputStream) {
+  let incSubdomainsBool = (status.forceInclude && status.error != ERROR_NONE
+                           ? status.originalIncludeSubdomains
+                           : status.includeSubdomains);
+  let includeSubdomains = (incSubdomainsBool ? "true" : "false");
+  writeTo("  { \"" + status.name + "\", " + includeSubdomains + " },\n",
+          outputStream);
+}
+
 function output(sortedStatuses, currentList) {
   try {
     var file = FileUtils.getFile("CurWorkD", [OUTPUT]);
@@ -211,27 +262,32 @@ function output(sortedStatuses, currentList) {
     writeTo(HEADER, fos);
     writeTo(getExpirationTimeString(), fos);
     writeTo(PREFIX, fos);
-    for (var status of hstsStatuses) {
+    for (var status of sortedStatuses) {
 
-      if (status.error == ERROR_CONNECTING_TO_HOST &&
+      // If we've encountered an error for this entry (other than the site not
+      // sending an HSTS header), be safe and don't remove it from the list
+      // (given that it was already on the list).
+      if (status.error != ERROR_NONE &&
+          status.error != ERROR_NO_HSTS_HEADER &&
+          status.error != ERROR_MAX_AGE_TOO_LOW &&
           status.name in currentList) {
-        dump("INFO: " + status.name + " could not be connected to - using previous status on list\n");
-        writeTo(status.name + ": " + status.error + "\n", eos);
+        dump("INFO: error connecting to or processing " + status.name + " - using previous status on list\n");
+        writeTo(status.name + ": " + errorToString(status) + "\n", eos);
         status.maxAge = MINIMUM_REQUIRED_MAX_AGE;
         status.includeSubdomains = currentList[status.name];
       }
 
-      if (status.maxAge >= MINIMUM_REQUIRED_MAX_AGE) {
-        writeTo("  { \"" + status.name + "\", " +
-                 (status.includeSubdomains ? "true" : "false") + " },\n", fos);
+      if (status.maxAge >= MINIMUM_REQUIRED_MAX_AGE || status.forceInclude) {
+        writeEntry(status, fos);
         dump("INFO: " + status.name + " ON the preload list\n");
+        if (status.forceInclude && status.error != ERROR_NONE) {
+          writeTo(status.name + ": " + errorToString(status) + " (error "
+                  + "ignored - included regardless)\n", eos);
+        }
       }
       else {
         dump("INFO: " + status.name + " NOT ON the preload list\n");
-        if (status.maxAge != 0) {
-          status.error = ERROR_MAX_AGE_TOO_LOW + status.maxAge;
-        }
-        writeTo(status.name + ": " + status.error + "\n", eos);
+        writeTo(status.name + ": " + errorToString(status) + "\n", eos);
       }
     }
     writeTo(POSTFIX, fos);
@@ -245,6 +301,7 @@ function output(sortedStatuses, currentList) {
 
 function shouldRetry(response) {
   return (response.error != ERROR_NO_HSTS_HEADER &&
+          response.error != ERROR_MAX_AGE_TOO_LOW &&
           response.error != ERROR_NONE && response.retries > 0);
 }
 

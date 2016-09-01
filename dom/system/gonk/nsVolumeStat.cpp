@@ -8,17 +8,13 @@
 namespace mozilla {
 namespace system {
 
-NS_IMPL_ISUPPORTS1(nsVolumeStat, nsIVolumeStat)
+NS_IMPL_ISUPPORTS(nsVolumeStat, nsIVolumeStat)
 
 nsVolumeStat::nsVolumeStat(const nsAString& aPath)
 {
   if (statfs(NS_ConvertUTF16toUTF8(aPath).get(), &mStat) != 0) {
     memset(&mStat, 0, sizeof(mStat));
   }
-}
-
-nsVolumeStat::~nsVolumeStat()
-{
 }
 
 /* readonly attribute long long totalBytes; */

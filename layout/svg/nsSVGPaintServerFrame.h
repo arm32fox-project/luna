@@ -14,10 +14,15 @@
 #include "nsSVGContainerFrame.h"
 #include "nsSVGUtils.h"
 
+namespace mozilla {
+namespace gfx {
+class DrawTarget;
+}
+}
+
 class gfxContext;
 class gfxPattern;
 class nsStyleContext;
-class nsSVGGeometryFrame;
 
 struct gfxRect;
 
@@ -26,10 +31,12 @@ typedef nsSVGContainerFrame nsSVGPaintServerFrameBase;
 class nsSVGPaintServerFrame : public nsSVGPaintServerFrameBase
 {
 protected:
-  nsSVGPaintServerFrame(nsStyleContext* aContext)
+  typedef mozilla::gfx::DrawTarget DrawTarget;
+
+  explicit nsSVGPaintServerFrame(nsStyleContext* aContext)
     : nsSVGPaintServerFrameBase(aContext)
   {
-    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
+    AddStateBits(NS_FRAME_IS_NONDISPLAY);
   }
 
 public:
@@ -45,26 +52,18 @@ public:
    */
   virtual already_AddRefed<gfxPattern>
     GetPaintServerPattern(nsIFrame *aSource,
+                          const DrawTarget* aDrawTarget,
                           const gfxMatrix& aContextMatrix,
                           nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
                           float aOpacity,
                           const gfxRect *aOverrideBounds = nullptr) = 0;
 
-  /**
-   * Configure paint server prior to rendering
-   * @return false to skip rendering
-   */
-  virtual bool SetupPaintServer(gfxContext *aContext,
-                                nsIFrame *aSource,
-                                nsStyleSVGPaint nsStyleSVG::*aFillOrStroke,
-                                float aOpacity);
-
   // nsIFrame methods:
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE {}
+                                const nsDisplayListSet& aLists) override {}
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const override
   {
     return nsSVGPaintServerFrameBase::IsFrameOfType(aFlags & ~nsIFrame::eSVGPaintServer);
   }

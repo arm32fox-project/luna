@@ -20,7 +20,7 @@ namespace places {
 ////////////////////////////////////////////////////////////////////////////////
 //// AsyncStatementCallback
 
-NS_IMPL_ISUPPORTS1(
+NS_IMPL_ISUPPORTS(
   AsyncStatementCallback
 , mozIStorageStatementCallback
 )
@@ -28,7 +28,7 @@ NS_IMPL_ISUPPORTS1(
 NS_IMETHODIMP
 AsyncStatementCallback::HandleResult(mozIStorageResultSet *aResultSet)
 {
-  NS_ABORT_IF_FALSE(false, "Was not expecting a resultset, but got it.");
+  MOZ_ASSERT(false, "Was not expecting a resultset, but got it.");
   return NS_OK;
 }
 
@@ -50,9 +50,9 @@ AsyncStatementCallback::HandleError(mozIStorageError *aError)
   NS_ENSURE_SUCCESS(rv, rv);
 
   nsAutoCString warnMsg;
-  warnMsg.Append("An error occurred while executing an async statement: ");
+  warnMsg.AppendLiteral("An error occurred while executing an async statement: ");
   warnMsg.AppendInt(result);
-  warnMsg.Append(" ");
+  warnMsg.Append(' ');
   warnMsg.Append(message);
   NS_WARNING(warnMsg.get());
 #endif
@@ -189,7 +189,7 @@ void
 GetReversedHostname(const nsString& aForward, nsString& aRevHost)
 {
   ReverseString(aForward, aRevHost);
-  aRevHost.Append(PRUnichar('.'));
+  aRevHost.Append(char16_t('.'));
 }
 
 void
@@ -207,12 +207,12 @@ Base64urlEncode(const uint8_t* aBytes,
                 uint32_t aNumBytes,
                 nsCString& _result)
 {
-  // SetLength does not set aside space for NULL termination.  PL_Base64Encode
-  // will not NULL terminate, however, nsCStrings must be NULL terminated.  As a
+  // SetLength does not set aside space for null termination.  PL_Base64Encode
+  // will not null terminate, however, nsCStrings must be null terminated.  As a
   // result, we set the capacity to be one greater than what we need, and the
   // length to our desired length.
   uint32_t length = (aNumBytes + 2) / 3 * 4; // +2 due to integer math.
-  NS_ENSURE_TRUE(_result.SetCapacity(length + 1, fallible_t()),
+  NS_ENSURE_TRUE(_result.SetCapacity(length + 1, fallible),
                  NS_ERROR_OUT_OF_MEMORY);
   _result.SetLength(length);
   (void)PL_Base64Encode(reinterpret_cast<const char*>(aBytes), aNumBytes,
@@ -226,10 +226,16 @@ Base64urlEncode(const uint8_t* aBytes,
 }
 
 #ifdef XP_WIN
+} // namespace places
+} // namespace mozilla
+
 // Included here because windows.h conflicts with the use of mozIStorageError
-// above.
+// above, but make sure that these are not included inside mozilla::places.
 #include <windows.h>
 #include <wincrypt.h>
+
+namespace mozilla {
+namespace places {
 #endif
 
 static
@@ -315,6 +321,16 @@ TruncateTitle(const nsACString& aTitle, nsACString& aTrimmed)
   }
 }
 
+PRTime
+RoundToMilliseconds(PRTime aTime) {
+  return aTime - (aTime % PR_USEC_PER_MSEC);
+}
+
+PRTime
+RoundedPRNow() {
+  return RoundToMilliseconds(PR_Now());
+}
+
 void
 ForceWALCheckpoint()
 {
@@ -364,9 +380,9 @@ PlacesEvent::Notify()
   }
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(
+NS_IMPL_ISUPPORTS_INHERITED0(
   PlacesEvent
-, nsIRunnable
+, nsRunnable
 )
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -383,6 +399,18 @@ AsyncStatementCallbackNotifier::HandleCompletion(uint16_t aReason)
     (void)obs->NotifyObservers(nullptr, mTopic, nullptr);
   }
 
+  return NS_OK;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+//// AsyncStatementCallbackNotifier
+
+NS_IMETHODIMP
+AsyncStatementTelemetryTimer::HandleCompletion(uint16_t aReason)
+{
+  if (aReason == mozIStorageStatementCallback::REASON_FINISHED) {
+    Telemetry::AccumulateTimeDelta(mHistogramId, mStart);
+  }
   return NS_OK;
 }
 

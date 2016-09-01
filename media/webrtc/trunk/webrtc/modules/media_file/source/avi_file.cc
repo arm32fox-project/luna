@@ -12,7 +12,7 @@
 // is detected by asserts in many places. Also a refactoring of this class would
 // be beneficial.
 
-#include "avi_file.h"
+#include "webrtc/modules/media_file/source/avi_file.h"
 
 #include <assert.h>
 #include <string.h>
@@ -21,10 +21,9 @@
 #include <windows.h>
 #endif
 
-#include "critical_section_wrapper.h"
-#include "file_wrapper.h"
-#include "list_wrapper.h"
-#include "trace.h"
+#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
+#include "webrtc/system_wrappers/interface/file_wrapper.h"
+#include "webrtc/system_wrappers/interface/trace.h"
 
 // http://msdn2.microsoft.com/en-us/library/ms779636.aspx
 // A chunk has the following form:
@@ -44,11 +43,11 @@
 
 namespace webrtc {
 namespace {
-static const WebRtc_UWord32 kAvifHasindex       = 0x00000010;
-static const WebRtc_UWord32 kAvifMustuseindex   = 0x00000020;
-static const WebRtc_UWord32 kAvifIsinterleaved  = 0x00000100;
-static const WebRtc_UWord32 kAvifTrustcktype    = 0x00000800;
-static const WebRtc_UWord32 kAvifWascapturefile = 0x00010000;
+static const uint32_t kAvifHasindex       = 0x00000010;
+static const uint32_t kAvifMustuseindex   = 0x00000020;
+static const uint32_t kAvifIsinterleaved  = 0x00000100;
+static const uint32_t kAvifTrustcktype    = 0x00000800;
+static const uint32_t kAvifWascapturefile = 0x00010000;
 
 template <class T>
 T MinValue(T a, T b)
@@ -126,10 +125,10 @@ WAVEFORMATEX::WAVEFORMATEX()
 {
 }
 
-AviFile::AVIINDEXENTRY::AVIINDEXENTRY(WebRtc_UWord32 inckid,
-                                      WebRtc_UWord32 indwFlags,
-                                      WebRtc_UWord32 indwChunkOffset,
-                                      WebRtc_UWord32 indwChunkLength)
+AviFile::AVIINDEXENTRY::AVIINDEXENTRY(uint32_t inckid,
+                                      uint32_t indwFlags,
+                                      uint32_t indwChunkOffset,
+                                      uint32_t indwChunkLength)
     : ckid(inckid),
       dwFlags(indwFlags),
       dwChunkOffset(indwChunkOffset),
@@ -178,8 +177,7 @@ AviFile::AviFile()
       _videoCodecConfigParamsLength(0),
       _videoStreamDataChunkPrefix(0),
       _audioStreamDataChunkPrefix(0),
-      _created(false),
-      _indexList(new ListWrapper())
+      _created(false)
 {
   ResetComplexMembers();
 }
@@ -188,13 +186,11 @@ AviFile::~AviFile()
 {
     Close();
 
-    delete _indexList;
     delete[] _videoCodecConfigParams;
     delete _crit;
 }
 
-WebRtc_Word32 AviFile::Open(AVIStreamType streamType, const char* fileName,
-                            bool loop)
+int32_t AviFile::Open(AVIStreamType streamType, const char* fileName, bool loop)
 {
     WEBRTC_TRACE(kTraceStateInfo, kTraceVideo, -1,  "OpenAVIFile(%s)",
                  fileName);
@@ -235,7 +231,7 @@ WebRtc_Word32 AviFile::Open(AVIStreamType streamType, const char* fileName,
     }
 
     // ReadRIFF verifies that the file is AVI and figures out the file length.
-    WebRtc_Word32 err = ReadRIFF();
+    int32_t err = ReadRIFF();
     if (err)
     {
         if (_aviFile)
@@ -269,7 +265,7 @@ WebRtc_Word32 AviFile::Open(AVIStreamType streamType, const char* fileName,
     return 0;
 }
 
-WebRtc_Word32 AviFile::Close()
+int32_t AviFile::Close()
 {
     _crit->Enter();
     switch (_aviMode)
@@ -294,19 +290,18 @@ WebRtc_Word32 AviFile::Close()
     return 0;
 }
 
-WebRtc_UWord32 AviFile::MakeFourCc(WebRtc_UWord8 ch0, WebRtc_UWord8 ch1,
-                                   WebRtc_UWord8 ch2, WebRtc_UWord8 ch3)
+uint32_t AviFile::MakeFourCc(uint8_t ch0, uint8_t ch1, uint8_t ch2, uint8_t ch3)
 {
-    return ((WebRtc_UWord32)(WebRtc_UWord8)(ch0)         |
-            ((WebRtc_UWord32)(WebRtc_UWord8)(ch1) << 8)  |
-            ((WebRtc_UWord32)(WebRtc_UWord8)(ch2) << 16) |
-            ((WebRtc_UWord32)(WebRtc_UWord8)(ch3) << 24 ));
+    return ((uint32_t)(uint8_t)(ch0)         |
+            ((uint32_t)(uint8_t)(ch1) << 8)  |
+            ((uint32_t)(uint8_t)(ch2) << 16) |
+            ((uint32_t)(uint8_t)(ch3) << 24 ));
 }
 
-WebRtc_Word32 AviFile::GetVideoStreamInfo(AVISTREAMHEADER& videoStreamHeader,
-                                          BITMAPINFOHEADER& bitmapInfo,
-                                          char* codecConfigParameters,
-                                          WebRtc_Word32& configLength)
+int32_t AviFile::GetVideoStreamInfo(AVISTREAMHEADER& videoStreamHeader,
+                                    BITMAPINFOHEADER& bitmapInfo,
+                                    char* codecConfigParameters,
+                                    int32_t& configLength)
 {
     _crit->Enter();
     if (!_reading && !_created)
@@ -332,7 +327,7 @@ WebRtc_Word32 AviFile::GetVideoStreamInfo(AVISTREAMHEADER& videoStreamHeader,
     return 0;
 }
 
-WebRtc_Word32 AviFile::GetDuration(WebRtc_Word32& durationMs)
+int32_t AviFile::GetDuration(int32_t& durationMs)
 {
     _crit->Enter();
     if (_videoStreamHeader.dwRate==0 || _videoStreamHeader.dwScale==0)
@@ -347,7 +342,7 @@ WebRtc_Word32 AviFile::GetDuration(WebRtc_Word32& durationMs)
     return 0;
 }
 
-WebRtc_Word32 AviFile::GetAudioStreamInfo(WAVEFORMATEX& waveHeader)
+int32_t AviFile::GetAudioStreamInfo(WAVEFORMATEX& waveHeader)
 {
     _crit->Enter();
     if (_aviMode != Read)
@@ -365,8 +360,7 @@ WebRtc_Word32 AviFile::GetAudioStreamInfo(WAVEFORMATEX& waveHeader)
     return 0;
 }
 
-WebRtc_Word32 AviFile::WriteAudio(const WebRtc_UWord8* data,
-                                  WebRtc_Word32 length)
+int32_t AviFile::WriteAudio(const uint8_t* data, int32_t length)
 {
     _crit->Enter();
     size_t newBytesWritten = _bytesWritten;
@@ -388,7 +382,7 @@ WebRtc_Word32 AviFile::WriteAudio(const WebRtc_UWord8* data,
     }
 
     // Start of chunk.
-    const WebRtc_UWord32 chunkOffset = ftell(_aviFile) - _moviListOffset;
+    const uint32_t chunkOffset = ftell(_aviFile) - _moviListOffset;
     _bytesWritten += PutLE32(_audioStreamDataChunkPrefix);
     // Size is unknown at this point. Update later.
     _bytesWritten += PutLE32(0);
@@ -413,11 +407,10 @@ WebRtc_Word32 AviFile::WriteAudio(const WebRtc_UWord8* data,
     ++_audioFrames;
     newBytesWritten = _bytesWritten - newBytesWritten;
     _crit->Leave();
-    return static_cast<WebRtc_Word32>(newBytesWritten);
+    return static_cast<int32_t>(newBytesWritten);
 }
 
-WebRtc_Word32 AviFile::WriteVideo(const WebRtc_UWord8* data,
-                                  WebRtc_Word32 length)
+int32_t AviFile::WriteVideo(const uint8_t* data, int32_t length)
 {
     _crit->Enter();
     size_t newBytesWritten = _bytesWritten;
@@ -438,7 +431,7 @@ WebRtc_Word32 AviFile::WriteVideo(const WebRtc_UWord8* data,
     }
 
     // Start of chunk.
-    const WebRtc_UWord32 chunkOffset = ftell(_aviFile) - _moviListOffset;
+    const uint32_t chunkOffset = ftell(_aviFile) - _moviListOffset;
     _bytesWritten += PutLE32(_videoStreamDataChunkPrefix);
     // Size is unknown at this point. Update later.
     _bytesWritten += PutLE32(0);
@@ -457,15 +450,15 @@ WebRtc_Word32 AviFile::WriteVideo(const WebRtc_UWord8* data,
     }
      //End chunk!
     AddChunkToIndexList(_videoStreamDataChunkPrefix, 0, // No flags.
-                        chunkOffset, static_cast<WebRtc_UWord32>(chunkSize));
+                        chunkOffset, static_cast<uint32_t>(chunkSize));
 
     ++_videoFrames;
     newBytesWritten = _bytesWritten - newBytesWritten;
     _crit->Leave();
-    return static_cast<WebRtc_Word32>(newBytesWritten);
+    return static_cast<int32_t>(newBytesWritten);
 }
 
-WebRtc_Word32 AviFile::PrepareDataChunkHeaders()
+int32_t AviFile::PrepareDataChunkHeaders()
 {
     // 00 video stream, 01 audio stream.
     // db uncompresses video,  dc compressed video, wb WAV audio
@@ -489,10 +482,8 @@ WebRtc_Word32 AviFile::PrepareDataChunkHeaders()
     return 0;
 }
 
-WebRtc_Word32 AviFile::ReadMoviSubChunk(WebRtc_UWord8* data,
-                                        WebRtc_Word32& length,
-                                        WebRtc_UWord32 tag1,
-                                        WebRtc_UWord32 tag2)
+int32_t AviFile::ReadMoviSubChunk(uint8_t* data, int32_t& length, uint32_t tag1,
+                                  uint32_t tag2)
 {
     if (!_reading)
     {
@@ -502,7 +493,7 @@ WebRtc_Word32 AviFile::ReadMoviSubChunk(WebRtc_UWord8* data,
         return -1;
     }
 
-    WebRtc_UWord32 size;
+    uint32_t size;
     bool isEOFReached = false;
     // Try to read one data chunk header
     while (true)
@@ -511,11 +502,11 @@ WebRtc_Word32 AviFile::ReadMoviSubChunk(WebRtc_UWord8* data,
         // _loop set to true? Seems like this while-loop would never exit!
 
         // tag = db uncompresses video,  dc compressed video or wb WAV audio.
-        WebRtc_UWord32 tag;
+        uint32_t tag;
         _bytesRead += GetLE32(tag);
         _bytesRead += GetLE32(size);
 
-        const WebRtc_Word32 eof = feof(_aviFile);
+        const int32_t eof = feof(_aviFile);
         if (!eof)
         {
             if (tag == tag1)
@@ -531,8 +522,8 @@ WebRtc_Word32 AviFile::ReadMoviSubChunk(WebRtc_UWord8* data,
 
             // Jump to next chunk. The size is in bytes but chunks are aligned
             // on 2 byte boundaries.
-            const WebRtc_UWord32 seekSize = (size % 2) ? size + 1 : size;
-            const WebRtc_Word32 err = fseek(_aviFile, seekSize, SEEK_CUR);
+            const uint32_t seekSize = (size % 2) ? size + 1 : size;
+            const int32_t err = fseek(_aviFile, seekSize, SEEK_CUR);
 
             if (err)
             {
@@ -572,14 +563,14 @@ WebRtc_Word32 AviFile::ReadMoviSubChunk(WebRtc_UWord8* data,
         _bytesRead += size;
     }
 
-    if (static_cast<WebRtc_Word32>(size) > length)
+    if (static_cast<int32_t>(size) > length)
     {
         WEBRTC_TRACE(kTraceDebug, kTraceVideo, -1,
                      "AviFile::ReadMoviSubChunk(): AVI read buffer too small!");
 
         // Jump to next chunk. The size is in bytes but chunks are aligned
         // on 2 byte boundaries.
-        const WebRtc_UWord32 seekSize = (size % 2) ? size + 1 : size;
+        const uint32_t seekSize = (size % 2) ? size + 1 : size;
         fseek(_aviFile, seekSize, SEEK_CUR);
         _bytesRead += seekSize;
         length = 0;
@@ -590,7 +581,7 @@ WebRtc_Word32 AviFile::ReadMoviSubChunk(WebRtc_UWord8* data,
     // The size is in bytes but chunks are aligned on 2 byte boundaries.
     if (size % 2)
     {
-        WebRtc_UWord8 dummy_byte;
+        uint8_t dummy_byte;
         _bytesRead += GetByte(dummy_byte);
     }
     length = size;
@@ -598,7 +589,7 @@ WebRtc_Word32 AviFile::ReadMoviSubChunk(WebRtc_UWord8* data,
     return 0;
 }
 
-WebRtc_Word32 AviFile::ReadAudio(WebRtc_UWord8* data, WebRtc_Word32& length)
+int32_t AviFile::ReadAudio(uint8_t* data, int32_t& length)
 {
     _crit->Enter();
     WEBRTC_TRACE(kTraceDebug, kTraceVideo, -1,  "AviFile::ReadAudio()");
@@ -616,7 +607,7 @@ WebRtc_Word32 AviFile::ReadAudio(WebRtc_UWord8* data, WebRtc_Word32& length)
         return -1;
     }
 
-    const WebRtc_Word32 ret = ReadMoviSubChunk(
+    const int32_t ret = ReadMoviSubChunk(
         data,
         length,
         StreamAndTwoCharCodeToTag(_audioStream.streamNumber, "wb"));
@@ -625,7 +616,7 @@ WebRtc_Word32 AviFile::ReadAudio(WebRtc_UWord8* data, WebRtc_Word32& length)
     return ret;
 }
 
-WebRtc_Word32 AviFile::ReadVideo(WebRtc_UWord8* data, WebRtc_Word32& length)
+int32_t AviFile::ReadVideo(uint8_t* data, int32_t& length)
 {
     WEBRTC_TRACE(kTraceDebug, kTraceVideo, -1, "AviFile::ReadVideo()");
 
@@ -644,7 +635,7 @@ WebRtc_Word32 AviFile::ReadVideo(WebRtc_UWord8* data, WebRtc_Word32& length)
         return -1;
     }
 
-    const WebRtc_Word32 ret = ReadMoviSubChunk(
+    const int32_t ret = ReadMoviSubChunk(
         data,
         length,
         StreamAndTwoCharCodeToTag(_videoStream.streamNumber, "dc"),
@@ -653,7 +644,7 @@ WebRtc_Word32 AviFile::ReadVideo(WebRtc_UWord8* data, WebRtc_Word32& length)
     return ret;
 }
 
-WebRtc_Word32 AviFile::Create(const char* fileName)
+int32_t AviFile::Create(const char* fileName)
 {
     _crit->Enter();
     if (_aviMode != Write)
@@ -709,11 +700,11 @@ WebRtc_Word32 AviFile::Create(const char* fileName)
     return 0;
 }
 
-WebRtc_Word32 AviFile::CreateVideoStream(
+int32_t AviFile::CreateVideoStream(
     const AVISTREAMHEADER& videoStreamHeader,
     const BITMAPINFOHEADER& bitMapInfoHeader,
-    const WebRtc_UWord8* codecConfigParams,
-    WebRtc_Word32 codecConfigParamsLength)
+    const uint8_t* codecConfigParams,
+    int32_t codecConfigParamsLength)
 {
     _crit->Enter();
     if (_aviMode == Read)
@@ -742,7 +733,7 @@ WebRtc_Word32 AviFile::CreateVideoStream(
             _videoCodecConfigParams = 0;
         }
 
-        _videoCodecConfigParams = new WebRtc_UWord8[codecConfigParamsLength];
+        _videoCodecConfigParams = new uint8_t[codecConfigParamsLength];
         _videoCodecConfigParamsLength = codecConfigParamsLength;
 
         memcpy(_videoCodecConfigParams, codecConfigParams,
@@ -752,7 +743,7 @@ WebRtc_Word32 AviFile::CreateVideoStream(
     return 0;
 }
 
-WebRtc_Word32 AviFile::CreateAudioStream(
+int32_t AviFile::CreateAudioStream(
     const AVISTREAMHEADER& audioStreamHeader,
     const WAVEFORMATEX& waveFormatHeader)
 {
@@ -778,33 +769,33 @@ WebRtc_Word32 AviFile::CreateAudioStream(
     return 0;
 }
 
-WebRtc_Word32 AviFile::WriteRIFF()
+int32_t AviFile::WriteRIFF()
 {
-    const WebRtc_UWord32 riffTag = MakeFourCc('R', 'I', 'F', 'F');
+    const uint32_t riffTag = MakeFourCc('R', 'I', 'F', 'F');
     _bytesWritten += PutLE32(riffTag);
 
     // Size is unknown at this point. Update later.
     _bytesWritten += PutLE32(0);
     _riffSizeMark = _bytesWritten;
 
-    const WebRtc_UWord32 aviTag = MakeFourCc('A', 'V', 'I', ' ');
+    const uint32_t aviTag = MakeFourCc('A', 'V', 'I', ' ');
     _bytesWritten += PutLE32(aviTag);
 
     return 0;
 }
 
 
-WebRtc_Word32 AviFile::WriteHeaders()
+int32_t AviFile::WriteHeaders()
 {
     // Main AVI header list.
-    const WebRtc_UWord32 listTag = MakeFourCc('L', 'I', 'S', 'T');
+    const uint32_t listTag = MakeFourCc('L', 'I', 'S', 'T');
     _bytesWritten += PutLE32(listTag);
 
     // Size is unknown at this point. Update later.
     _bytesWritten += PutLE32(0);
     const size_t listhdrlSizeMark = _bytesWritten;
 
-    const WebRtc_UWord32 hdrlTag = MakeFourCc('h', 'd', 'r', 'l');
+    const uint32_t hdrlTag = MakeFourCc('h', 'd', 'r', 'l');
     _bytesWritten += PutLE32(hdrlTag);
 
     WriteAVIMainHeader();
@@ -814,13 +805,13 @@ WebRtc_Word32 AviFile::WriteHeaders()
         static_cast<long>(listhdrlSizeMark));
 
     // Junk chunk to align on 2048 boundry (CD-ROM sector boundary).
-    const WebRtc_UWord32 junkTag = MakeFourCc('J', 'U', 'N', 'K');
+    const uint32_t junkTag = MakeFourCc('J', 'U', 'N', 'K');
     _bytesWritten += PutLE32(junkTag);
     // Size is unknown at this point. Update later.
     _bytesWritten += PutLE32(0);
     const size_t junkSizeMark = _bytesWritten;
 
-    const WebRtc_UWord32 junkBufferSize =
+    const uint32_t junkBufferSize =
         0x800     // 2048 byte alignment
         - 12      // RIFF SIZE 'AVI '
         - 8       // LIST SIZE
@@ -829,7 +820,7 @@ WebRtc_Word32 AviFile::WriteHeaders()
         - 12;     // LIST SIZE 'MOVI'
 
     // TODO (hellner): why not just fseek here?
-    WebRtc_UWord8* junkBuffer = new WebRtc_UWord8[junkBufferSize];
+    uint8_t* junkBuffer = new uint8_t[junkBufferSize];
     memset(junkBuffer, 0, junkBufferSize);
     _bytesWritten += PutBuffer(junkBuffer, junkBufferSize);
     delete [] junkBuffer;
@@ -840,21 +831,21 @@ WebRtc_Word32 AviFile::WriteHeaders()
     return 0;
 }
 
-WebRtc_Word32 AviFile::WriteAVIMainHeader()
+int32_t AviFile::WriteAVIMainHeader()
 {
-    const WebRtc_UWord32 avihTag = MakeFourCc('a', 'v', 'i', 'h');
+    const uint32_t avihTag = MakeFourCc('a', 'v', 'i', 'h');
     _bytesWritten += PutLE32(avihTag);
-    _bytesWritten += PutLE32(14 * sizeof(WebRtc_UWord32));
+    _bytesWritten += PutLE32(14 * sizeof(uint32_t));
 
-    const WebRtc_UWord32 scale = _videoStreamHeader.dwScale ?
+    const uint32_t scale = _videoStreamHeader.dwScale ?
         _videoStreamHeader.dwScale : 1;
-    const WebRtc_UWord32 microSecPerFrame = 1000000 /
+    const uint32_t microSecPerFrame = 1000000 /
         (_videoStreamHeader.dwRate / scale);
     _bytesWritten += PutLE32(microSecPerFrame);
     _bytesWritten += PutLE32(0);
     _bytesWritten += PutLE32(0);
 
-    WebRtc_UWord32 numStreams = 0;
+    uint32_t numStreams = 0;
     if (_writeVideoStream)
     {
         ++numStreams;
@@ -905,7 +896,7 @@ WebRtc_Word32 AviFile::WriteAVIMainHeader()
     return 0;
 }
 
-WebRtc_Word32 AviFile::WriteAVIStreamHeaders()
+int32_t AviFile::WriteAVIStreamHeaders()
 {
     if (_writeVideoStream)
     {
@@ -918,16 +909,16 @@ WebRtc_Word32 AviFile::WriteAVIStreamHeaders()
     return 0;
 }
 
-WebRtc_Word32 AviFile::WriteAVIVideoStreamHeaders()
+int32_t AviFile::WriteAVIVideoStreamHeaders()
 {
-    const WebRtc_UWord32 listTag = MakeFourCc('L', 'I', 'S', 'T');
+    const uint32_t listTag = MakeFourCc('L', 'I', 'S', 'T');
     _bytesWritten += PutLE32(listTag);
 
     // Size is unknown at this point. Update later.
     _bytesWritten += PutLE32(0);
     const size_t liststrlSizeMark = _bytesWritten;
 
-    const WebRtc_UWord32 hdrlTag = MakeFourCc('s', 't', 'r', 'l');
+    const uint32_t hdrlTag = MakeFourCc('s', 't', 'r', 'l');
     _bytesWritten += PutLE32(hdrlTag);
 
     WriteAVIVideoStreamHeaderChunks();
@@ -937,10 +928,10 @@ WebRtc_Word32 AviFile::WriteAVIVideoStreamHeaders()
     return 0;
 }
 
-WebRtc_Word32 AviFile::WriteAVIVideoStreamHeaderChunks()
+int32_t AviFile::WriteAVIVideoStreamHeaderChunks()
 {
     // Start of strh
-    const WebRtc_UWord32 strhTag = MakeFourCc('s', 't', 'r', 'h');
+    const uint32_t strhTag = MakeFourCc('s', 't', 'r', 'h');
     _bytesWritten += PutLE32(strhTag);
 
     // Size is unknown at this point. Update later.
@@ -972,7 +963,7 @@ WebRtc_Word32 AviFile::WriteAVIVideoStreamHeaderChunks()
     // End of strh
 
     // Start of strf
-    const WebRtc_UWord32 strfTag = MakeFourCc('s', 't', 'r', 'f');
+    const uint32_t strfTag = MakeFourCc('s', 't', 'r', 'f');
     _bytesWritten += PutLE32(strfTag);
 
     // Size is unknown at this point. Update later.
@@ -1010,7 +1001,7 @@ WebRtc_Word32 AviFile::WriteAVIVideoStreamHeaderChunks()
          && !isMpegFile)
     {
         // Write strd, unless it's an MPEG file
-        const WebRtc_UWord32 strdTag = MakeFourCc('s', 't', 'r', 'd');
+        const uint32_t strdTag = MakeFourCc('s', 't', 'r', 'd');
         _bytesWritten += PutLE32(strdTag);
 
         // Size is unknown at this point. Update later.
@@ -1025,7 +1016,7 @@ WebRtc_Word32 AviFile::WriteAVIVideoStreamHeaderChunks()
     }
 
     // Start of strn
-    const WebRtc_UWord32 strnTag = MakeFourCc('s', 't', 'r', 'n');
+    const uint32_t strnTag = MakeFourCc('s', 't', 'r', 'n');
     _bytesWritten += PutLE32(strnTag);
 
     // Size is unknown at this point. Update later.
@@ -1040,17 +1031,17 @@ WebRtc_Word32 AviFile::WriteAVIVideoStreamHeaderChunks()
     return 0;
 }
 
-WebRtc_Word32 AviFile::WriteAVIAudioStreamHeaders()
+int32_t AviFile::WriteAVIAudioStreamHeaders()
 {
     // Start of LIST
-    WebRtc_UWord32 listTag = MakeFourCc('L', 'I', 'S', 'T');
+    uint32_t listTag = MakeFourCc('L', 'I', 'S', 'T');
     _bytesWritten += PutLE32(listTag);
 
     // Size is unknown at this point. Update later.
     _bytesWritten += PutLE32(0);
     const size_t liststrlSizeMark = _bytesWritten;
 
-    WebRtc_UWord32 hdrlTag = MakeFourCc('s', 't', 'r', 'l');
+    uint32_t hdrlTag = MakeFourCc('s', 't', 'r', 'l');
     _bytesWritten += PutLE32(hdrlTag);
 
     WriteAVIAudioStreamHeaderChunks();
@@ -1060,10 +1051,10 @@ WebRtc_Word32 AviFile::WriteAVIAudioStreamHeaders()
     return 0;
 }
 
-WebRtc_Word32 AviFile::WriteAVIAudioStreamHeaderChunks()
+int32_t AviFile::WriteAVIAudioStreamHeaderChunks()
 {
     // Start of strh
-    const WebRtc_UWord32 strhTag = MakeFourCc('s', 't', 'r', 'h');
+    const uint32_t strhTag = MakeFourCc('s', 't', 'r', 'h');
     _bytesWritten += PutLE32(strhTag);
 
     // Size is unknown at this point. Update later.
@@ -1095,7 +1086,7 @@ WebRtc_Word32 AviFile::WriteAVIAudioStreamHeaderChunks()
     // End of strh
 
     // Start of strf
-    const WebRtc_UWord32 strfTag = MakeFourCc('s', 't', 'r', 'f');
+    const uint32_t strfTag = MakeFourCc('s', 't', 'r', 'f');
     _bytesWritten += PutLE32(strfTag);
 
     // Size is unknown at this point. Update later.
@@ -1116,7 +1107,7 @@ WebRtc_Word32 AviFile::WriteAVIAudioStreamHeaderChunks()
     // Audio doesn't have strd.
 
     // Start of strn
-    const WebRtc_UWord32 strnTag = MakeFourCc('s', 't', 'r', 'n');
+    const uint32_t strnTag = MakeFourCc('s', 't', 'r', 'n');
     _bytesWritten += PutLE32(strnTag);
 
     // Size is unknown at this point. Update later.
@@ -1131,51 +1122,51 @@ WebRtc_Word32 AviFile::WriteAVIAudioStreamHeaderChunks()
     return 0;
 }
 
-WebRtc_Word32 AviFile::WriteMoviStart()
+int32_t AviFile::WriteMoviStart()
 {
     // Create template movi list. Fill out size when known (i.e. when closing
     // file).
-    const WebRtc_UWord32 listTag = MakeFourCc('L', 'I', 'S', 'T');
+    const uint32_t listTag = MakeFourCc('L', 'I', 'S', 'T');
     _bytesWritten += PutLE32(listTag);
 
     _bytesWritten += PutLE32(0); //Size! Change later!
     _moviSizeMark = _bytesWritten;
     _moviListOffset = ftell(_aviFile);
 
-    const WebRtc_UWord32 moviTag = MakeFourCc('m', 'o', 'v', 'i');
+    const uint32_t moviTag = MakeFourCc('m', 'o', 'v', 'i');
     _bytesWritten += PutLE32(moviTag);
 
     return 0;
 }
 
-size_t AviFile::PutByte(WebRtc_UWord8 byte)
+size_t AviFile::PutByte(uint8_t byte)
 {
-    return fwrite(&byte, sizeof(WebRtc_UWord8), sizeof(WebRtc_UWord8),
+    return fwrite(&byte, sizeof(uint8_t), sizeof(uint8_t),
                   _aviFile);
 }
 
-size_t AviFile::PutLE16(WebRtc_UWord16 word)
+size_t AviFile::PutLE16(uint16_t word)
 {
-    return fwrite(&word, sizeof(WebRtc_UWord8), sizeof(WebRtc_UWord16),
+    return fwrite(&word, sizeof(uint8_t), sizeof(uint16_t),
                   _aviFile);
 }
 
-size_t AviFile::PutLE32(WebRtc_UWord32 word)
+size_t AviFile::PutLE32(uint32_t word)
 {
-    return fwrite(&word, sizeof(WebRtc_UWord8), sizeof(WebRtc_UWord32),
+    return fwrite(&word, sizeof(uint8_t), sizeof(uint32_t),
                   _aviFile);
 }
 
-size_t AviFile::PutBuffer(const WebRtc_UWord8* str, size_t size)
+size_t AviFile::PutBuffer(const uint8_t* str, size_t size)
 {
-    return fwrite(str, sizeof(WebRtc_UWord8), size,
+    return fwrite(str, sizeof(uint8_t), size,
                   _aviFile);
 }
 
 size_t AviFile::PutBufferZ(const char* str)
 {
     // Include NULL charachter, hence the + 1
-    return PutBuffer(reinterpret_cast<const WebRtc_UWord8*>(str),
+    return PutBuffer(reinterpret_cast<const uint8_t*>(str),
                      strlen(str) + 1);
 }
 
@@ -1202,7 +1193,7 @@ long AviFile::PutLE32LengthFromCurrent(long startPos)
     return len;
 }
 
-void AviFile::PutLE32AtPos(long pos, WebRtc_UWord32 word)
+void AviFile::PutLE32AtPos(long pos, uint32_t word)
 {
     const long currPos = ftell(_aviFile);
     if (currPos < 0) {
@@ -1321,31 +1312,31 @@ void AviFile::ResetComplexMembers()
     memset(&_audioStream, 0, sizeof(AVIStream));
 }
 
-size_t AviFile::GetByte(WebRtc_UWord8& word)
+size_t AviFile::GetByte(uint8_t& word)
 {
-    return fread(&word, sizeof(WebRtc_UWord8), sizeof(WebRtc_UWord8), _aviFile);
+    return fread(&word, sizeof(uint8_t), sizeof(uint8_t), _aviFile);
 }
 
-size_t AviFile::GetLE16(WebRtc_UWord16& word)
+size_t AviFile::GetLE16(uint16_t& word)
 {
-    return fread(&word, sizeof(WebRtc_UWord8), sizeof(WebRtc_UWord16),
+    return fread(&word, sizeof(uint8_t), sizeof(uint16_t),
                  _aviFile);
 }
 
-size_t AviFile::GetLE32(WebRtc_UWord32& word)
+size_t AviFile::GetLE32(uint32_t& word)
 {
-    return fread(&word, sizeof(WebRtc_UWord8), sizeof(WebRtc_UWord32),
+    return fread(&word, sizeof(uint8_t), sizeof(uint32_t),
                  _aviFile);
 }
 
-size_t AviFile::GetBuffer(WebRtc_UWord8* str, size_t size)
+size_t AviFile::GetBuffer(uint8_t* str, size_t size)
 {
-    return fread(str, sizeof(WebRtc_UWord8), size, _aviFile);
+    return fread(str, sizeof(uint8_t), size, _aviFile);
 }
 
-WebRtc_Word32 AviFile::ReadRIFF()
+int32_t AviFile::ReadRIFF()
 {
-    WebRtc_UWord32 tag;
+    uint32_t tag;
     _bytesRead = GetLE32(tag);
     if (tag != MakeFourCc('R', 'I', 'F', 'F'))
     {
@@ -1353,7 +1344,7 @@ WebRtc_Word32 AviFile::ReadRIFF()
         return -1;
     }
 
-    WebRtc_UWord32 size;
+    uint32_t size;
     _bytesRead += GetLE32(size);
     _aviLength = size;
 
@@ -1367,11 +1358,11 @@ WebRtc_Word32 AviFile::ReadRIFF()
     return 0;
 }
 
-WebRtc_Word32 AviFile::ReadHeaders()
+int32_t AviFile::ReadHeaders()
 {
-    WebRtc_UWord32 tag;
+    uint32_t tag;
     _bytesRead += GetLE32(tag);
-    WebRtc_UWord32 size;
+    uint32_t size;
     _bytesRead += GetLE32(size);
 
     if (tag != MakeFourCc('L', 'I', 'S', 'T'))
@@ -1379,14 +1370,14 @@ WebRtc_Word32 AviFile::ReadHeaders()
         return -1;
     }
 
-    WebRtc_UWord32 listTag;
+    uint32_t listTag;
     _bytesRead += GetLE32(listTag);
     if (listTag != MakeFourCc('h', 'd', 'r', 'l'))
     {
         return -1;
     }
 
-    WebRtc_Word32 err = ReadAVIMainHeader();
+    int32_t err = ReadAVIMainHeader();
     if (err)
     {
         return -1;
@@ -1395,7 +1386,7 @@ WebRtc_Word32 AviFile::ReadHeaders()
     return 0;
 }
 
-WebRtc_Word32 AviFile::ReadAVIMainHeader()
+int32_t AviFile::ReadAVIMainHeader()
 {
     _bytesRead += GetLE32(_aviHeader.fcc);
     _bytesRead += GetLE32(_aviHeader.cb);
@@ -1429,28 +1420,28 @@ WebRtc_Word32 AviFile::ReadAVIMainHeader()
     unsigned int streamsRead = 0;
     while (_aviHeader.dwStreams > streamsRead)
     {
-        WebRtc_UWord32 strltag;
+        uint32_t strltag;
         _bytesRead += GetLE32(strltag);
-        WebRtc_UWord32 strlsize;
+        uint32_t strlsize;
         _bytesRead += GetLE32(strlsize);
         const long endSeekPos = ftell(_aviFile) +
-            static_cast<WebRtc_Word32>(strlsize);
+            static_cast<int32_t>(strlsize);
 
         if (strltag != MakeFourCc('L', 'I', 'S', 'T'))
         {
             return -1;
         }
 
-        WebRtc_UWord32 listTag;
+        uint32_t listTag;
         _bytesRead += GetLE32(listTag);
         if (listTag != MakeFourCc('s', 't', 'r', 'l'))
         {
             return -1;
         }
 
-        WebRtc_UWord32 chunktag;
+        uint32_t chunktag;
         _bytesRead += GetLE32(chunktag);
-        WebRtc_UWord32 chunksize;
+        uint32_t chunksize;
         _bytesRead += GetLE32(chunksize);
 
         if (chunktag != MakeFourCc('s', 't', 'r', 'h'))
@@ -1476,16 +1467,16 @@ WebRtc_Word32 AviFile::ReadAVIMainHeader()
         _bytesRead += GetLE32(tmpStreamHeader.dwQuality);
         _bytesRead += GetLE32(tmpStreamHeader.dwSampleSize);
 
-        WebRtc_UWord16 left;
+        uint16_t left;
         _bytesRead += GetLE16(left);
         tmpStreamHeader.rcFrame.left = left;
-        WebRtc_UWord16 top;
+        uint16_t top;
         _bytesRead += GetLE16(top);
         tmpStreamHeader.rcFrame.top = top;
-        WebRtc_UWord16 right;
+        uint16_t right;
         _bytesRead += GetLE16(right);
         tmpStreamHeader.rcFrame.right = right;
-        WebRtc_UWord16 bottom;
+        uint16_t bottom;
         _bytesRead += GetLE16(bottom);
         tmpStreamHeader.rcFrame.bottom = bottom;
 
@@ -1493,7 +1484,7 @@ WebRtc_Word32 AviFile::ReadAVIMainHeader()
             && (tmpStreamHeader.fccType == MakeFourCc('v', 'i', 'd', 's')))
         {
             _videoStreamHeader = tmpStreamHeader; //Bitwise copy is OK!
-            const WebRtc_Word32 err = ReadAVIVideoStreamHeader(endSeekPos);
+            const int32_t err = ReadAVIVideoStreamHeader(endSeekPos);
             if (err)
             {
                 return -1;
@@ -1507,7 +1498,7 @@ WebRtc_Word32 AviFile::ReadAVIMainHeader()
         } else if(!readAudioStreamHeader &&
                   (tmpStreamHeader.fccType == MakeFourCc('a', 'u', 'd', 's'))) {
             _audioStreamHeader = tmpStreamHeader;
-            const WebRtc_Word32 err = ReadAVIAudioStreamHeader(endSeekPos);
+            const int32_t err = ReadAVIAudioStreamHeader(endSeekPos);
             if (err)
             {
                 return -1;
@@ -1528,9 +1519,9 @@ WebRtc_Word32 AviFile::ReadAVIMainHeader()
         return -1;
     }
 
-    WebRtc_UWord32 tag;
+    uint32_t tag;
     _bytesRead += GetLE32(tag);
-    WebRtc_UWord32 size;
+    uint32_t size;
     _bytesRead += GetLE32(size);
 
     if (tag == MakeFourCc('J', 'U', 'N', 'K'))
@@ -1544,7 +1535,7 @@ WebRtc_Word32 AviFile::ReadAVIMainHeader()
     {
         return -1;
     }
-    WebRtc_UWord32 listTag;
+    uint32_t listTag;
     _bytesRead += GetLE32(listTag);
     if (listTag != MakeFourCc('m', 'o', 'v', 'i'))
     {
@@ -1554,11 +1545,11 @@ WebRtc_Word32 AviFile::ReadAVIMainHeader()
     return 0;
 }
 
-WebRtc_Word32 AviFile::ReadAVIVideoStreamHeader(WebRtc_Word32 endpos)
+int32_t AviFile::ReadAVIVideoStreamHeader(int32_t endpos)
 {
-    WebRtc_UWord32 chunktag;
+    uint32_t chunktag;
     _bytesRead += GetLE32(chunktag);
-    WebRtc_UWord32 chunksize;
+    uint32_t chunksize;
     _bytesRead += GetLE32(chunksize);
 
     if (chunktag != MakeFourCc('s', 't', 'r', 'f'))
@@ -1580,12 +1571,12 @@ WebRtc_Word32 AviFile::ReadAVIVideoStreamHeader(WebRtc_Word32 endpos)
 
     if (chunksize >  _videoFormatHeader.biSize)
     {
-        const WebRtc_UWord32 size = chunksize - _videoFormatHeader.biSize;
-        const WebRtc_UWord32 readSize = MinValue(size, CODEC_CONFIG_LENGTH);
+        const uint32_t size = chunksize - _videoFormatHeader.biSize;
+        const uint32_t readSize = MinValue(size, CODEC_CONFIG_LENGTH);
         _bytesRead += GetBuffer(
-            reinterpret_cast<WebRtc_UWord8*>(_videoConfigParameters), readSize);
+            reinterpret_cast<uint8_t*>(_videoConfigParameters), readSize);
         _videoConfigLength = readSize;
-        WebRtc_Word32 skipSize = chunksize - _videoFormatHeader.biSize -
+        int32_t skipSize = chunksize - _videoFormatHeader.biSize -
             readSize;
         if (skipSize > 0)
         {
@@ -1596,23 +1587,22 @@ WebRtc_Word32 AviFile::ReadAVIVideoStreamHeader(WebRtc_Word32 endpos)
 
     while (static_cast<long>(_bytesRead) < endpos)
     {
-        WebRtc_UWord32 chunktag;
+        uint32_t chunktag;
         _bytesRead += GetLE32(chunktag);
-        WebRtc_UWord32 chunksize;
+        uint32_t chunksize;
         _bytesRead += GetLE32(chunksize);
 
         if (chunktag == MakeFourCc('s', 't', 'r', 'n'))
         {
-            const WebRtc_UWord32 size = MinValue(chunksize, STREAM_NAME_LENGTH);
+            const uint32_t size = MinValue(chunksize, STREAM_NAME_LENGTH);
             _bytesRead += GetBuffer(
-                reinterpret_cast<WebRtc_UWord8*>(_videoStreamName), size);
+                reinterpret_cast<uint8_t*>(_videoStreamName), size);
         }
         else if (chunktag == MakeFourCc('s', 't', 'r', 'd'))
         {
-            const WebRtc_UWord32 size = MinValue(chunksize,
-                                                 CODEC_CONFIG_LENGTH);
+            const uint32_t size = MinValue(chunksize, CODEC_CONFIG_LENGTH);
             _bytesRead += GetBuffer(
-                reinterpret_cast<WebRtc_UWord8*>(_videoConfigParameters), size);
+                reinterpret_cast<uint8_t*>(_videoConfigParameters), size);
             _videoConfigLength = size;
         }
         else
@@ -1632,11 +1622,11 @@ WebRtc_Word32 AviFile::ReadAVIVideoStreamHeader(WebRtc_Word32 endpos)
     return 0;
 }
 
-WebRtc_Word32 AviFile::ReadAVIAudioStreamHeader(WebRtc_Word32 endpos)
+int32_t AviFile::ReadAVIAudioStreamHeader(int32_t endpos)
 {
-    WebRtc_UWord32 chunktag;
+    uint32_t chunktag;
     _bytesRead += GetLE32(chunktag);
-    WebRtc_UWord32 chunksize;
+    uint32_t chunksize;
     _bytesRead += GetLE32(chunksize);
 
     if (chunktag != MakeFourCc('s', 't', 'r', 'f'))
@@ -1655,33 +1645,32 @@ WebRtc_Word32 AviFile::ReadAVIAudioStreamHeader(WebRtc_Word32 endpos)
         _bytesRead += GetLE16(_audioFormatHeader.cbSize);
     }
 
-    const WebRtc_UWord32 diffRead = chunksize - (_bytesRead - startRead);
+    const uint32_t diffRead = chunksize - (_bytesRead - startRead);
     if (diffRead > 0)
     {
-        const WebRtc_UWord32 size = MinValue(diffRead, CODEC_CONFIG_LENGTH);
+        const uint32_t size = MinValue(diffRead, CODEC_CONFIG_LENGTH);
         _bytesRead += GetBuffer(
-            reinterpret_cast<WebRtc_UWord8*>(_audioConfigParameters), size);
+            reinterpret_cast<uint8_t*>(_audioConfigParameters), size);
     }
 
     while (static_cast<long>(_bytesRead) < endpos)
     {
-        WebRtc_UWord32 chunktag;
+        uint32_t chunktag;
         _bytesRead += GetLE32(chunktag);
-        WebRtc_UWord32 chunksize;
+        uint32_t chunksize;
         _bytesRead += GetLE32(chunksize);
 
         if (chunktag == MakeFourCc('s', 't', 'r', 'n'))
         {
-            const WebRtc_UWord32 size = MinValue(chunksize, STREAM_NAME_LENGTH);
+            const uint32_t size = MinValue(chunksize, STREAM_NAME_LENGTH);
             _bytesRead += GetBuffer(
-                reinterpret_cast<WebRtc_UWord8*>(_audioStreamName), size);
+                reinterpret_cast<uint8_t*>(_audioStreamName), size);
         }
         else if (chunktag == MakeFourCc('s', 't', 'r', 'd'))
         {
-            const WebRtc_UWord32 size = MinValue(chunksize,
-                                                 CODEC_CONFIG_LENGTH);
+            const uint32_t size = MinValue(chunksize, CODEC_CONFIG_LENGTH);
             _bytesRead += GetBuffer(
-                reinterpret_cast<WebRtc_UWord8*>(_audioConfigParameters), size);
+                reinterpret_cast<uint8_t*>(_audioConfigParameters), size);
         }
         else
         {
@@ -1699,11 +1688,11 @@ WebRtc_Word32 AviFile::ReadAVIAudioStreamHeader(WebRtc_Word32 endpos)
     return 0;
 }
 
-WebRtc_UWord32 AviFile::StreamAndTwoCharCodeToTag(WebRtc_Word32 streamNum,
-                                                  const char* twoCharCode)
+uint32_t AviFile::StreamAndTwoCharCodeToTag(int32_t streamNum,
+                                            const char* twoCharCode)
 {
-    WebRtc_UWord8 a = '0';
-    WebRtc_UWord8 b;
+    uint8_t a = '0';
+    uint8_t b;
     switch (streamNum)
     {
     case 1:
@@ -1720,55 +1709,39 @@ WebRtc_UWord32 AviFile::StreamAndTwoCharCodeToTag(WebRtc_Word32 streamNum,
 
 void AviFile::ClearIndexList()
 {
-    while (!_indexList->Empty())
-    {
-        ListItem* listItem = _indexList->First();
-        if (listItem == 0)
-        {
-            break;
-        }
-
-        AVIINDEXENTRY* item = static_cast<AVIINDEXENTRY*>(listItem->GetItem());
-        if (item != NULL)
-        {
-            delete item;
-        }
-        _indexList->PopFront();
-    }
+  for (IndexList::iterator iter = _indexList.begin();
+       iter != _indexList.end(); ++iter) {
+      delete *iter;
+  }
+  _indexList.clear();
 }
 
-void AviFile::AddChunkToIndexList(WebRtc_UWord32 inChunkId,
-                                  WebRtc_UWord32 inFlags,
-                                  WebRtc_UWord32 inOffset,
-                                  WebRtc_UWord32 inSize)
+void AviFile::AddChunkToIndexList(uint32_t inChunkId,
+                                  uint32_t inFlags,
+                                  uint32_t inOffset,
+                                  uint32_t inSize)
 {
-    _indexList->PushBack(new AVIINDEXENTRY(inChunkId, inFlags, inOffset,
+    _indexList.push_back(new AVIINDEXENTRY(inChunkId, inFlags, inOffset,
                                            inSize));
 }
 
 void AviFile::WriteIndex()
 {
-    const WebRtc_UWord32 idxTag = MakeFourCc('i', 'd', 'x', '1');
+    const uint32_t idxTag = MakeFourCc('i', 'd', 'x', '1');
     _bytesWritten += PutLE32(idxTag);
 
     // Size is unknown at this point. Update later.
     _bytesWritten += PutLE32(0);
     const size_t idxChunkSize = _bytesWritten;
 
-    for (ListItem* listItem = _indexList->First();
-         listItem != NULL;
-         listItem = _indexList->Next(listItem))
-    {
-        const AVIINDEXENTRY* item =
-            static_cast<AVIINDEXENTRY*>(listItem->GetItem());
-        if (item != NULL)
-        {
-            _bytesWritten += PutLE32(item->ckid);
-            _bytesWritten += PutLE32(item->dwFlags);
-            _bytesWritten += PutLE32(item->dwChunkOffset);
-            _bytesWritten += PutLE32(item->dwChunkLength);
-        }
+    for (IndexList::iterator iter = _indexList.begin();
+         iter != _indexList.end(); ++iter) {
+        const AVIINDEXENTRY* item = *iter;
+        _bytesWritten += PutLE32(item->ckid);
+        _bytesWritten += PutLE32(item->dwFlags);
+        _bytesWritten += PutLE32(item->dwChunkOffset);
+        _bytesWritten += PutLE32(item->dwChunkLength);
     }
     PutLE32LengthFromCurrent(static_cast<long>(idxChunkSize));
 }
-} // namespace webrtc
+}  // namespace webrtc

@@ -6,15 +6,13 @@
 #ifndef GFX_RECT_H
 #define GFX_RECT_H
 
-#include "nsAlgorithm.h"
 #include "gfxTypes.h"
 #include "gfxPoint.h"
-#include "gfxCore.h"
 #include "nsDebug.h"
+#include "nsRect.h"
 #include "mozilla/gfx/BaseMargin.h"
 #include "mozilla/gfx/BaseRect.h"
 #include "mozilla/Assertions.h"
-#include "nsRect.h"
 
 struct gfxMargin : public mozilla::gfx::BaseMargin<gfxFloat, gfxMargin> {
   typedef mozilla::gfx::BaseMargin<gfxFloat, gfxMargin> Super;
@@ -65,7 +63,7 @@ struct gfxRect :
         Super(aPos, aSize) {}
     gfxRect(gfxFloat aX, gfxFloat aY, gfxFloat aWidth, gfxFloat aHeight) :
         Super(aX, aY, aWidth, aHeight) {}
-    gfxRect(const nsIntRect& aRect) :
+    MOZ_IMPLICIT gfxRect(const nsIntRect& aRect) :
         Super(aRect.x, aRect.y, aRect.width, aRect.height) {}
 
     /**
@@ -89,24 +87,24 @@ struct gfxRect :
         return gfxPoint(0.0, 0.0);
     }
 
-    gfxPoint CCWCorner(mozilla::css::Side side) const {
+    gfxPoint CCWCorner(mozilla::Side side) const {
         switch (side) {
             case NS_SIDE_TOP: return TopLeft();
             case NS_SIDE_RIGHT: return TopRight();
             case NS_SIDE_BOTTOM: return BottomRight();
             case NS_SIDE_LEFT: return BottomLeft();
         }
-        MOZ_NOT_REACHED("Incomplet switch");
+        MOZ_CRASH("Incomplete switch");
     }
 
-    gfxPoint CWCorner(mozilla::css::Side side) const {
+    gfxPoint CWCorner(mozilla::Side side) const {
         switch (side) {
             case NS_SIDE_TOP: return TopRight();
             case NS_SIDE_RIGHT: return BottomRight();
             case NS_SIDE_BOTTOM: return BottomLeft();
             case NS_SIDE_LEFT: return TopLeft();
         }
-        MOZ_NOT_REACHED("Incomplet switch");
+        MOZ_CRASH("Incomplete switch");
     }
 
     /* Conditions this border to Cairo's max coordinate space.
@@ -141,48 +139,4 @@ struct gfxRect :
     }
 };
 
-struct gfxCornerSizes {
-    gfxSize sizes[NS_NUM_CORNERS];
-
-    gfxCornerSizes () { }
-
-    gfxCornerSizes (gfxFloat v) {
-        for (int i = 0; i < NS_NUM_CORNERS; i++)
-            sizes[i].SizeTo(v, v);
-    }
-
-    gfxCornerSizes (gfxFloat tl, gfxFloat tr, gfxFloat br, gfxFloat bl) {
-        sizes[NS_CORNER_TOP_LEFT].SizeTo(tl, tl);
-        sizes[NS_CORNER_TOP_RIGHT].SizeTo(tr, tr);
-        sizes[NS_CORNER_BOTTOM_RIGHT].SizeTo(br, br);
-        sizes[NS_CORNER_BOTTOM_LEFT].SizeTo(bl, bl);
-    }
-
-    gfxCornerSizes (const gfxSize& tl, const gfxSize& tr, const gfxSize& br, const gfxSize& bl) {
-        sizes[NS_CORNER_TOP_LEFT] = tl;
-        sizes[NS_CORNER_TOP_RIGHT] = tr;
-        sizes[NS_CORNER_BOTTOM_RIGHT] = br;
-        sizes[NS_CORNER_BOTTOM_LEFT] = bl;
-    }
-
-    const gfxSize& operator[] (mozilla::css::Corner index) const {
-        return sizes[index];
-    }
-
-    gfxSize& operator[] (mozilla::css::Corner index) {
-        return sizes[index];
-    }
-
-    const gfxSize TopLeft() const { return sizes[NS_CORNER_TOP_LEFT]; }
-    gfxSize& TopLeft() { return sizes[NS_CORNER_TOP_LEFT]; }
-
-    const gfxSize TopRight() const { return sizes[NS_CORNER_TOP_RIGHT]; }
-    gfxSize& TopRight() { return sizes[NS_CORNER_TOP_RIGHT]; }
-
-    const gfxSize BottomLeft() const { return sizes[NS_CORNER_BOTTOM_LEFT]; }
-    gfxSize& BottomLeft() { return sizes[NS_CORNER_BOTTOM_LEFT]; }
-
-    const gfxSize BottomRight() const { return sizes[NS_CORNER_BOTTOM_RIGHT]; }
-    gfxSize& BottomRight() { return sizes[NS_CORNER_BOTTOM_RIGHT]; }
-};
 #endif /* GFX_RECT_H */

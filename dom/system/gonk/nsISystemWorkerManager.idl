@@ -7,7 +7,7 @@
 /**
  * Information about networks that is exposed to network manager API consumers.
  */
-[scriptable, builtinclass, uuid(02166330-2ff6-4ea5-895a-693c0c2b4c1f)]
+[scriptable, builtinclass, uuid(4984b669-0ee0-4809-ae96-3358a325a6b0)]
 interface nsISystemWorkerManager : nsISupports
 {
   [implicit_jscontext]

@@ -11,6 +11,7 @@
 #include <d2d1effecthelpers.h>
 
 #include "2D.h"
+#include "mozilla/Attributes.h"
 
 // {97143DC6-CBC4-4DD4-A8BA-13342B0BA46D}
 DEFINE_GUID(CLSID_RadialGradientEffect, 
@@ -37,8 +38,8 @@ enum {
   RADIAL_PROP_TRANSFORM
 };
 
-class RadialGradientEffectD2D1 : public ID2D1EffectImpl
-                               , public ID2D1DrawTransform
+class RadialGradientEffectD2D1 final : public ID2D1EffectImpl
+                                         , public ID2D1DrawTransform
 {
 public:
   // ID2D1EffectImpl
@@ -71,6 +72,7 @@ public:
   IFACEMETHODIMP SetDrawInfo(ID2D1DrawInfo *pDrawInfo);
 
   static HRESULT Register(ID2D1Factory1* aFactory);
+  static void Unregister(ID2D1Factory1* aFactory);
   static HRESULT __stdcall CreateEffect(IUnknown** aEffectImpl);
 
   HRESULT SetStopCollection(IUnknown *aStopCollection);

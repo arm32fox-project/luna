@@ -1,4 +1,4 @@
-// -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -41,11 +41,8 @@ var ZoomManager = {
   },
 
   getZoomForBrowser: function ZoomManager_getZoomForBrowser(aBrowser) {
-    var markupDocumentViewer = aBrowser.markupDocumentViewer;
-
-    return this.useFullZoom || 
-      aBrowser.contentDocument.mozSyntheticDocument ?
-      markupDocumentViewer.fullZoom : markupDocumentViewer.textZoom;
+    return (this.useFullZoom || aBrowser.isSyntheticDocument)
+           ? aBrowser.fullZoom : aBrowser.textZoom;
   },
 
   set zoom(aVal) {
@@ -57,14 +54,12 @@ var ZoomManager = {
     if (aVal < this.MIN || aVal > this.MAX)
       throw Components.results.NS_ERROR_INVALID_ARG;
 
-    var markupDocumentViewer = aBrowser.markupDocumentViewer;
-
-    if (this.useFullZoom || aBrowser.contentDocument.mozSyntheticDocument) {
-      markupDocumentViewer.textZoom = 1;
-      markupDocumentViewer.fullZoom = aVal;
+    if (this.useFullZoom || aBrowser.isSyntheticDocument) {
+      aBrowser.textZoom = 1;
+      aBrowser.fullZoom = aVal;
     } else {
-      markupDocumentViewer.textZoom = aVal;
-      markupDocumentViewer.fullZoom = 1;
+      aBrowser.textZoom = aVal;
+      aBrowser.fullZoom = 1;
     }
   },
 

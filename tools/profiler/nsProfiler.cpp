@@ -5,9 +5,6 @@
 
 #include <string>
 #include <sstream>
-#ifdef MOZ_INSTRUMENT_EVENT_LOOP
-#include "EventTracer.h"
-#endif
 #include "GoannaProfiler.h"
 #include "nsProfiler.h"
 #include "nsMemory.h"
@@ -19,11 +16,11 @@
 #include "nsIWebNavigation.h"
 #include "nsIInterfaceRequestorUtils.h"
 #include "shared-libraries.h"
-#include "jsapi.h"
+#include "js/Value.h"
 
 using std::string;
 
-NS_IMPL_ISUPPORTS1(nsProfiler, nsIProfiler)
+NS_IMPL_ISUPPORTS(nsProfiler, nsIProfiler)
 
 nsProfiler::nsProfiler()
   : mLockedForPrivateBrowsing(false)
@@ -52,7 +49,7 @@ nsProfiler::Init() {
 NS_IMETHODIMP
 nsProfiler::Observe(nsISupports *aSubject,
                     const char *aTopic,
-                    const PRUnichar *aData)
+                    const char16_t *aData)
 {
   if (strcmp(aTopic, "chrome-document-global-created") == 0) {
     nsCOMPtr<nsIInterfaceRequestor> requestor = do_QueryInterface(aSubject);
@@ -70,7 +67,7 @@ nsProfiler::Observe(nsISupports *aSubject,
 }
 
 NS_IMETHODIMP
-nsProfiler::StartProfiler(uint32_t aEntries, uint32_t aInterval,
+nsProfiler::StartProfiler(uint32_t aEntries, double aInterval,
                           const char** aFeatures, uint32_t aFeatureCount,
                           const char** aThreadNameFilters, uint32_t aFilterCount)
 {
@@ -81,10 +78,6 @@ nsProfiler::StartProfiler(uint32_t aEntries, uint32_t aInterval,
   profiler_start(aEntries, aInterval,
                  aFeatures, aFeatureCount,
                  aThreadNameFilters, aFilterCount);
-#ifdef MOZ_INSTRUMENT_EVENT_LOOP
-  bool printToConsole = false;
-  mozilla::InitEventTracing(printToConsole);
-#endif
   return NS_OK;
 }
 
@@ -92,6 +85,27 @@ NS_IMETHODIMP
 nsProfiler::StopProfiler()
 {
   profiler_stop();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsProfiler::IsPaused(bool *aIsPaused)
+{
+  *aIsPaused = profiler_is_paused();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsProfiler::PauseSampling()
+{
+  profiler_pause();
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsProfiler::ResumeSampling()
+{
+  profiler_resume();
   return NS_OK;
 }
 
@@ -180,13 +194,21 @@ nsProfiler::GetSharedLibraryInformation(nsAString& aOutString)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsProfiler::GetProfileData(JSContext* aCx, JS::Value* aResult)
+NS_IMETHODIMP
+nsProfiler::DumpProfileToFile(const char* aFilename)
 {
-  JSObject *obj = profiler_get_profile_jsobject(aCx);
-  if (!obj)
-    return NS_ERROR_FAILURE;
+  profiler_save_profile_to_file(aFilename);
+  return NS_OK;
+}
 
-  *aResult = OBJECT_TO_JSVAL(obj);
+NS_IMETHODIMP nsProfiler::GetProfileData(JSContext* aCx,
+                                         JS::MutableHandle<JS::Value> aResult)
+{
+  JS::RootedObject obj(aCx, profiler_get_profile_jsobject(aCx));
+  if (!obj) {
+    return NS_ERROR_FAILURE;
+  }
+  aResult.setObject(*obj);
   return NS_OK;
 }
 
@@ -194,26 +216,6 @@ NS_IMETHODIMP
 nsProfiler::IsActive(bool *aIsActive)
 {
   *aIsActive = profiler_is_active();
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsProfiler::GetResponsivenessTimes(uint32_t *aCount, double **aResult)
-{
-  unsigned int len = 100;
-  const double* times = profiler_get_responsiveness();
-  if (!times) {
-    *aCount = 0;
-    *aResult = nullptr;
-    return NS_OK;
-  }
-
-  double *fs = static_cast<double *>
-                       (nsMemory::Clone(times, len * sizeof(double)));
-
-  *aCount = len;
-  *aResult = fs;
-
   return NS_OK;
 }
 

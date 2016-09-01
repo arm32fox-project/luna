@@ -3,13 +3,39 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+// Removes a doorhanger notification if all of the installs it was notifying
+// about have ended in some way.
+function removeNotificationOnEnd(notification, installs) {
+  let count = installs.length;
+
+  function maybeRemove(install) {
+    install.removeListener(this);
+
+    if (--count == 0) {
+      // Check that the notification is still showing
+      let current = PopupNotifications.getNotification(notification.id, notification.browser);
+      if (current === notification)
+        notification.remove();
+    }
+  }
+
+  for (let install of installs) {
+    install.addListener({
+      onDownloadCancelled: maybeRemove,
+      onDownloadFailed: maybeRemove,
+      onInstallFailed: maybeRemove,
+      onInstallEnded: maybeRemove
+    });
+  }
+}
+
 const gXPInstallObserver = {
   _findChildShell: function (aDocShell, aSoughtShell)
   {
     if (aDocShell == aSoughtShell)
       return aDocShell;
 
-    var node = aDocShell.QueryInterface(Components.interfaces.nsIDocShellTreeNode);
+    var node = aDocShell.QueryInterface(Components.interfaces.nsIDocShellTreeItem);
     for (var i = 0; i < node.childCount; ++i) {
       var docShell = node.getChildAt(i);
       docShell = this._findChildShell(docShell, aSoughtShell);
@@ -32,13 +58,12 @@ const gXPInstallObserver = {
   {
     var brandBundle = document.getElementById("bundle_brand");
     var installInfo = aSubject.QueryInterface(Components.interfaces.amIWebInstallInfo);
-    var win = installInfo.originatingWindow;
-    var shell = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                   .getInterface(Components.interfaces.nsIWebNavigation)
-                   .QueryInterface(Components.interfaces.nsIDocShell);
-    var browser = this._getBrowser(shell);
-    if (!browser)
+    var browser = installInfo.browser;
+
+    // Make sure the browser is still alive.
+    if (!browser || gBrowser.browsers.indexOf(browser) == -1)
       return;
+
     const anchorID = "addons-notification-icon";
     var messageString, action;
     var brandShortName = brandBundle.getString("brandShortName");
@@ -72,9 +97,26 @@ const gXPInstallObserver = {
       PopupNotifications.show(browser, notificationID, messageString, anchorID,
                               action, null, options);
       break;
+    case "addon-install-origin-blocked": {
+      messageString = gNavigatorBundle.getFormattedString("xpinstallPromptWarningOrigin",
+                        [brandShortName]);
+
+      let popup = PopupNotifications.show(browser, notificationID,
+                                          messageString, anchorID,
+                                          null, null, options);
+      removeNotificationOnEnd(popup, installInfo.installs);
+      break; }
     case "addon-install-blocked":
+      let originatingHost;
+      try {
+        originatingHost = installInfo.originatingURI.host;
+      } catch (ex) {
+        // Need to deal with missing originatingURI and with about:/data: URIs more gracefully,
+        // see bug 1063418 - but for now, bail:
+        return;
+      }
       messageString = gNavigatorBundle.getFormattedString("xpinstallPromptWarning",
-                        [brandShortName, installInfo.originatingURI.host]);
+                        [brandShortName, originatingHost]);
 
       action = {
         label: gNavigatorBundle.getString("xpinstallPromptAllowButton"),
@@ -84,8 +126,9 @@ const gXPInstallObserver = {
         }
       };
 
-      PopupNotifications.show(browser, notificationID, messageString, anchorID,
-                              action, null, options);
+      let popup = PopupNotifications.show(browser, notificationID, messageString,
+                                          anchorID, action, null, options);
+      removeNotificationOnEnd(popup, installInfo.installs);
       break;
     case "addon-install-started":
       var needsDownload = function needsDownload(aInstall) {
@@ -122,6 +165,8 @@ const gXPInstallObserver = {
         let error = (host || install.error == 0) ? "addonError" : "addonLocalError";
         if (install.error != 0)
           error += install.error;
+        else if (install.addon.jetsdk)
+          error += "JetSDK";
         else if (install.addon.blocklistState == Ci.nsIBlocklistService.STATE_BLOCKED)
           error += "Blocklisted";
         else
@@ -412,3 +457,80 @@ var LightWeightThemeWebInstaller = {
                                     node.baseURI);
   }
 }
+
+/*
+ * Listen for Lightweight Theme styling changes and update the browser's theme accordingly.
+ */
+let LightweightThemeListener = {
+  _modifiedStyles: [],
+
+  init: function () {
+    XPCOMUtils.defineLazyGetter(this, "styleSheet", function() {
+      for (let i = document.styleSheets.length - 1; i >= 0; i--) {
+        let sheet = document.styleSheets[i];
+        if (sheet.href == "chrome://browser/skin/browser-lightweightTheme.css")
+          return sheet;
+      }
+    });
+
+    Services.obs.addObserver(this, "lightweight-theme-styling-update", false);
+    Services.obs.addObserver(this, "lightweight-theme-optimized", false);
+    if (document.documentElement.hasAttribute("lwtheme"))
+      this.updateStyleSheet(document.documentElement.style.backgroundImage);
+  },
+
+  uninit: function () {
+    Services.obs.removeObserver(this, "lightweight-theme-styling-update");
+    Services.obs.removeObserver(this, "lightweight-theme-optimized");
+  },
+
+  /**
+   * Append the headerImage to the background-image property of all rulesets in
+   * browser-lightweightTheme.css.
+   *
+   * @param headerImage - a string containing a CSS image for the lightweight theme header.
+   */
+  updateStyleSheet: function(headerImage) {
+    if (!this.styleSheet)
+      return;
+    this.substituteRules(this.styleSheet.cssRules, headerImage);
+  },
+
+  substituteRules: function(ruleList, headerImage, existingStyleRulesModified = 0) {
+    let styleRulesModified = 0;
+    for (let i = 0; i < ruleList.length; i++) {
+      let rule = ruleList[i];
+      if (rule instanceof Ci.nsIDOMCSSGroupingRule) {
+        // Add the number of modified sub-rules to the modified count
+        styleRulesModified += this.substituteRules(rule.cssRules, headerImage, existingStyleRulesModified + styleRulesModified);
+      } else if (rule instanceof Ci.nsIDOMCSSStyleRule) {
+        if (!rule.style.backgroundImage)
+          continue;
+        let modifiedIndex = existingStyleRulesModified + styleRulesModified;
+        if (!this._modifiedStyles[modifiedIndex])
+          this._modifiedStyles[modifiedIndex] = { backgroundImage: rule.style.backgroundImage };
+
+        rule.style.backgroundImage = this._modifiedStyles[modifiedIndex].backgroundImage + ", " + headerImage;
+        styleRulesModified++;
+      } else {
+        Cu.reportError("Unsupported rule encountered");
+      }
+    }
+    return styleRulesModified;
+  },
+
+  // nsIObserver
+  observe: function (aSubject, aTopic, aData) {
+    if ((aTopic != "lightweight-theme-styling-update" && aTopic != "lightweight-theme-optimized") ||
+          !this.styleSheet)
+      return;
+
+    if (aTopic == "lightweight-theme-optimized" && aSubject != window)
+      return;
+
+    let themeData = JSON.parse(aData);
+    if (!themeData)
+      return;
+    this.updateStyleSheet("url(" + themeData.headerURL + ")");
+  },
+};

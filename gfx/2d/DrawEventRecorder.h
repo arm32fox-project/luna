@@ -12,7 +12,7 @@
 #include <fstream>
 
 #if defined(_MSC_VER)
-#include <hash_set>
+#include <unordered_set>
 #else
 #include <set>
 #endif
@@ -25,7 +25,8 @@ class PathRecording;
 class DrawEventRecorderPrivate : public DrawEventRecorder
 {
 public:
-  DrawEventRecorderPrivate(std::ostream *aStream);
+  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DrawEventRecorderPrivate)
+  explicit DrawEventRecorderPrivate(std::ostream *aStream);
   virtual ~DrawEventRecorderPrivate() { }
 
   void RecordEvent(const RecordedEvent &aEvent);
@@ -52,7 +53,7 @@ protected:
   virtual void Flush() = 0;
 
 #if defined(_MSC_VER)
-  typedef stdext::hash_set<const void*> ObjectSet;
+  typedef std::unordered_set<const void*> ObjectSet;
 #else
   typedef std::set<const void*> ObjectSet;
 #endif
@@ -64,7 +65,8 @@ protected:
 class DrawEventRecorderFile : public DrawEventRecorderPrivate
 {
 public:
-  DrawEventRecorderFile(const char *aFilename);
+  MOZ_DECLARE_REFCOUNTED_VIRTUAL_TYPENAME(DrawEventRecorderFile)
+  explicit DrawEventRecorderFile(const char *aFilename);
   ~DrawEventRecorderFile();
 
 private:

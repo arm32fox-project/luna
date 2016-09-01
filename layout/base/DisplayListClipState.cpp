@@ -53,9 +53,33 @@ DisplayListClipState::ClipContainingBlockDescendants(const nsRect& aRect,
 
 void
 DisplayListClipState::ClipContentDescendants(const nsRect& aRect,
+                                             const nscoord* aRadii,
                                              DisplayItemClip& aClipOnStack)
 {
-  aClipOnStack.SetTo(aRect);
+  if (aRadii) {
+    aClipOnStack.SetTo(aRect, aRadii);
+  } else {
+    aClipOnStack.SetTo(aRect);
+  }
+  if (mClipContentDescendants) {
+    aClipOnStack.IntersectWith(*mClipContentDescendants);
+  }
+  mClipContentDescendants = &aClipOnStack;
+  mCurrentCombinedClip = nullptr;
+}
+
+void
+DisplayListClipState::ClipContentDescendants(const nsRect& aRect,
+                                             const nsRect& aRoundedRect,
+                                             const nscoord* aRadii,
+                                             DisplayItemClip& aClipOnStack)
+{
+  if (aRadii) {
+    aClipOnStack.SetTo(aRect, aRoundedRect, aRadii);
+  } else {
+    nsRect intersect = aRect.Intersect(aRoundedRect);
+    aClipOnStack.SetTo(intersect);
+  }
   if (mClipContentDescendants) {
     aClipOnStack.IntersectWith(*mClipContentDescendants);
   }

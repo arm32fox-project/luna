@@ -15,7 +15,6 @@
 #include <math.h>
 
 #include "base/eintr_wrapper.h"
-#include "base/lazy_instance.h"
 #include "base/logging.h"
 #include "base/platform_thread.h"
 
@@ -39,11 +38,7 @@ MessagePumpQt::MessagePumpQt(MessagePumpForUI &aPump)
   : pump(aPump), mTimer(new QTimer(this))
 {
   // Register our custom event type, to use in qApp event loop
-#if (QT_VERSION >= QT_VERSION_CHECK(4, 4, 0))
   sPokeEvent = QEvent::registerEventType();
-#else
-  sPokeEvent = QEvent::User+5000;
-#endif
   connect(mTimer, SIGNAL(timeout()), this, SLOT(dispatchDelayed()));
   mTimer->setSingleShot(true);
 }

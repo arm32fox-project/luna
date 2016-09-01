@@ -10,7 +10,9 @@ import java.util.Set;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.mozilla.goanna.background.common.DateUtils.DateFormatter;
 import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
 import org.mozilla.goanna.background.healthreport.HealthReportStorage.Field;
 
 import android.database.Cursor;
@@ -22,9 +24,11 @@ public class HealthReportGenerator {
   private static final String LOG_TAG = "GoannaHealthGen";
 
   private final HealthReportStorage storage;
+  private final DateFormatter dateFormatter;
 
   public HealthReportGenerator(HealthReportStorage storage) {
     this.storage = storage;
+    this.dateFormatter = new DateFormatter();
   }
 
   @SuppressWarnings("static-method")
@@ -33,18 +37,23 @@ public class HealthReportGenerator {
   }
 
   /**
+   * Ensure that you have initialized the Locale to your satisfaction
+   * prior to calling this method.
+   *
    * @return null if no environment could be computed, or else the resulting document.
    * @throws JSONException if there was an error adding environment data to the resulting document.
    */
-  public JSONObject generateDocument(long since, long lastPingTime, String profilePath) throws JSONException {
+  public JSONObject generateDocument(long since, long lastPingTime, String profilePath, ConfigurationProvider config) throws JSONException {
     Logger.info(LOG_TAG, "Generating FHR document from " + since + "; last ping " + lastPingTime);
     Logger.pii(LOG_TAG, "Generating for profile " + profilePath);
+
     ProfileInformationCache cache = new ProfileInformationCache(profilePath);
     if (!cache.restoreUnlessInitialized()) {
       Logger.warn(LOG_TAG, "Not enough profile information to compute current environment.");
       return null;
     }
-    Environment current = EnvironmentBuilder.getCurrentEnvironment(cache);
+
+    Environment current = EnvironmentBuilder.getCurrentEnvironment(cache, config);
     return generateDocument(since, lastPingTime, current);
   }
 
@@ -76,10 +85,10 @@ public class HealthReportGenerator {
     JSONObject document = new JSONObject();
 
     if (lastPingTime >= HealthReportConstants.EARLIEST_LAST_PING) {
-      document.put("lastPingDate", HealthReportUtils.getDateString(lastPingTime));
+      document.put("lastPingDate", dateFormatter.getDateString(lastPingTime));
     }
 
-    document.put("thisPingDate", HealthReportUtils.getDateString(now()));
+    document.put("thisPingDate", dateFormatter.getDateString(now()));
     document.put("version", PAYLOAD_VERSION);
 
     document.put("environments", getEnvironmentsJSON(currentEnvironment, envs));
@@ -147,7 +156,7 @@ public class HealthReportGenerator {
 
         if (dateChanged) {
           if (dateObject != null) {
-            days.put(HealthReportUtils.getDateStringForDay(lastDate), dateObject);
+            days.put(dateFormatter.getDateStringForDay(lastDate), dateObject);
           }
           dateObject = new JSONObject();
           lastDate = cDate;
@@ -179,7 +188,7 @@ public class HealthReportGenerator {
         cursor.moveToNext();
         continue;
       }
-      days.put(HealthReportUtils.getDateStringForDay(lastDate), dateObject);
+      days.put(dateFormatter.getDateStringForDay(lastDate), dateObject);
     } finally {
       cursor.close();
     }
@@ -268,6 +277,7 @@ public class HealthReportGenerator {
     JSONObject goanna = getGoannaInfo(e, current);
     JSONObject appinfo = getAppInfo(e, current);
     JSONObject counts = getAddonCounts(e, current);
+    JSONObject config = getDeviceConfig(e, current);
 
     JSONObject out = new JSONObject();
     if (age != null)
@@ -285,10 +295,63 @@ public class HealthReportGenerator {
     if (active != null)
       out.put("org.mozilla.addons.active", active);
 
+    if (config != null)
+      out.put("org.mozilla.device.config", config);
+
     if (current == null) {
       out.put("hash", e.getHash());
     }
     return out;
+  }
+
+  // v3 environment fields.
+  private static JSONObject getDeviceConfig(Environment e, Environment current) throws JSONException {
+    JSONObject config = new JSONObject();
+    int changes = 0;
+    if (e.version < 3) {
+      return null;
+    }
+
+    if (current != null && current.version < 3) {
+      return getDeviceConfig(e, null);
+    }
+
+    if (current == null || current.hasHardwareKeyboard != e.hasHardwareKeyboard) {
+      config.put("hasHardwareKeyboard", e.hasHardwareKeyboard);
+      changes++;
+    }
+
+    if (current == null || current.screenLayout != e.screenLayout) {
+      config.put("screenLayout", e.screenLayout);
+      changes++;
+    }
+
+    if (current == null || current.screenXInMM != e.screenXInMM) {
+      config.put("screenXInMM", e.screenXInMM);
+      changes++;
+    }
+
+    if (current == null || current.screenYInMM != e.screenYInMM) {
+      config.put("screenYInMM", e.screenYInMM);
+      changes++;
+    }
+
+    if (current == null || current.uiType != e.uiType) {
+      config.put("uiType", e.uiType.toString());
+      changes++;
+    }
+
+    if (current == null || current.uiMode != e.uiMode) {
+      config.put("uiMode", e.uiMode);
+      changes++;
+    }
+
+    if (current != null && changes == 0) {
+      return null;
+    }
+
+    config.put("_v", 1);
+    return config;
   }
 
   private static JSONObject getProfileAge(Environment e, Environment current) throws JSONException {
@@ -385,22 +448,117 @@ public class HealthReportGenerator {
     return goanna;
   }
 
+  // Null-safe string comparison.
+  private static boolean stringsDiffer(final String a, final String b) {
+    if (a == null) {
+      return b != null;
+    }
+    return !a.equals(b);
+  }
+
   private static JSONObject getAppInfo(Environment e, Environment current) throws JSONException {
     JSONObject appinfo = new JSONObject();
-    int changes = 0;
-    if (current == null || current.isBlocklistEnabled != e.isBlocklistEnabled) {
-      appinfo.put("isBlocklistEnabled", e.isBlocklistEnabled);
-      changes++;
+
+    Logger.debug(LOG_TAG, "Generating appinfo for v" + e.version + " env " + e.hash);
+
+    // Is the environment in question newer than the diff target, or is
+    // there no diff target?
+    final boolean outdated = current == null ||
+                             e.version > current.version;
+
+    // Is the environment in question a different version (lower or higher),
+    // or is there no diff target?
+    final boolean differ = outdated || current.version > e.version;
+
+    // Always produce an output object if there's a version mismatch or this
+    // isn't a diff. Otherwise, track as we go if there's any difference.
+    boolean changed = differ;
+
+    switch (e.version) {
+    // There's a straightforward correspondence between environment versions
+    // and appinfo versions.
+    case 3:
+    case 2:
+      appinfo.put("_v", 3);
+      break;
+    case 1:
+      appinfo.put("_v", 2);
+      break;
+    default:
+      Logger.warn(LOG_TAG, "Unknown environment version: " + e.version);
+      return appinfo;
     }
-    if (current == null || current.isTelemetryEnabled != e.isTelemetryEnabled) {
-      appinfo.put("isTelemetryEnabled", e.isTelemetryEnabled);
-      changes++;
+
+    switch (e.version) {
+    case 3:
+    case 2:
+      if (populateAppInfoV2(appinfo, e, current, outdated)) {
+        changed = true;
+      }
+      // Fall through.
+
+    case 1:
+      // There is no older version than v1, so don't check outdated.
+      if (populateAppInfoV1(e, current, appinfo)) {
+        changed = true;
+      }
     }
-    if (current != null && changes == 0) {
+
+    if (!changed) {
       return null;
     }
-    appinfo.put("_v", 2);
+
     return appinfo;
+  }
+
+  private static boolean populateAppInfoV1(Environment e,
+                                           Environment current,
+                                           JSONObject appinfo)
+    throws JSONException {
+    boolean changes = false;
+    if (current == null || current.isBlocklistEnabled != e.isBlocklistEnabled) {
+      appinfo.put("isBlocklistEnabled", e.isBlocklistEnabled);
+      changes = true;
+    }
+
+    if (current == null || current.isTelemetryEnabled != e.isTelemetryEnabled) {
+      appinfo.put("isTelemetryEnabled", e.isTelemetryEnabled);
+      changes = true;
+    }
+
+    return changes;
+  }
+
+  private static boolean populateAppInfoV2(JSONObject appinfo,
+                                           Environment e,
+                                           Environment current,
+                                           final boolean outdated)
+    throws JSONException {
+    boolean changes = false;
+    if (outdated ||
+        stringsDiffer(current.osLocale, e.osLocale)) {
+      appinfo.put("osLocale", e.osLocale);
+      changes = true;
+    }
+
+    if (outdated ||
+        stringsDiffer(current.appLocale, e.appLocale)) {
+      appinfo.put("appLocale", e.appLocale);
+      changes = true;
+    }
+
+    if (outdated ||
+        stringsDiffer(current.distribution, e.distribution)) {
+      appinfo.put("distribution", e.distribution);
+      changes = true;
+    }
+
+    if (outdated ||
+        current.acceptLangSet != e.acceptLangSet) {
+      appinfo.put("acceptLangIsUserSet", e.acceptLangSet);
+      changes = true;
+    }
+    return changes;
   }
 
   private static JSONObject getAddonCounts(Environment e, Environment current) throws JSONException {

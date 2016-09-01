@@ -53,25 +53,18 @@ typedef unsigned char	CHAR;
 #define STATIC	/* NULL */
 #endif	/* !defined(HIDE) */
 
-#if	!defined(CONST)
-#if	defined(__STDC__)
 #define CONST	const
-#else
-#define CONST
-#endif	/* defined(__STDC__) */
-#endif	/* !defined(CONST) */
-
 
 #define MEM_INC		64
 #define SCREEN_INC	256
 
-#define DISPOSE(p)	free((char *)(p))
+#define DISPOSE(p)	free((char*)(p))
 #define NEW(T, c)	\
-	((T *)malloc((unsigned int)(sizeof (T) * (c))))
+	((T*)malloc((unsigned int)(sizeof (T) * (c))))
 #define RENEW(p, T, c)	\
-	(p = (T *)realloc((char *)(p), (unsigned int)(sizeof (T) * (c))))
+	(p = (T*)realloc((char*)(p), (unsigned int)(sizeof (T) * (c))))
 #define COPYFROMTO(new, p, len)	\
-	(void)memcpy((char *)(new), (char *)(p), (int)(len))
+	(void)memcpy((char*)(new), (char*)(p), (int)(len))
 
 
 /*

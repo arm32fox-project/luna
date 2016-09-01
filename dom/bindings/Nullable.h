@@ -9,6 +9,10 @@
 
 #include "mozilla/Assertions.h"
 #include "nsTArrayForwardDeclare.h"
+#include "mozilla/Move.h"
+#include "mozilla/Maybe.h"
+
+class nsCycleCollectionTraversalCallback;
 
 namespace mozilla {
 namespace dom {
@@ -18,69 +22,100 @@ template <typename T>
 struct Nullable
 {
 private:
-  // mIsNull MUST COME FIRST because otherwise the casting in our array
-  // conversion operators would shift where it is found in the struct.
-  bool mIsNull;
-  T mValue;
+  Maybe<T> mValue;
 
 public:
   Nullable()
-    : mIsNull(true)
+    : mValue()
   {}
 
   explicit Nullable(T aValue)
-    : mIsNull(false)
-    , mValue(aValue)
+    : mValue()
+  {
+    mValue.emplace(aValue);
+  }
+
+  explicit Nullable(Nullable<T>&& aOther)
+    : mValue(mozilla::Move(aOther.mValue))
   {}
 
+  Nullable(const Nullable<T>& aOther)
+    : mValue(aOther.mValue)
+  {}
+
+  void operator=(const Nullable<T>& aOther)
+  {
+    mValue = aOther.mValue;
+  }
+
   void SetValue(T aValue) {
-    mValue = aValue;
-    mIsNull = false;
+    mValue.reset();
+    mValue.emplace(aValue);
   }
 
   // For cases when |T| is some type with nontrivial copy behavior, we may want
   // to get a reference to our internal copy of T and work with it directly
   // instead of relying on the copying version of SetValue().
   T& SetValue() {
-    mIsNull = false;
-    return mValue;
+    if (mValue.isNothing()) {
+      mValue.emplace();
+    }
+    return mValue.ref();
   }
 
   void SetNull() {
-    mIsNull = true;
+    mValue.reset();
   }
 
   const T& Value() const {
-    MOZ_ASSERT(!mIsNull);
-    return mValue;
+    return mValue.ref();
   }
 
   T& Value() {
-    MOZ_ASSERT(!mIsNull);
-    return mValue;
+    return mValue.ref();
   }
 
   bool IsNull() const {
-    return mIsNull;
+    return mValue.isNothing();
   }
 
-  // Make it possible to use a const Nullable of an array type with other
-  // array types.
-  template<typename U>
-  operator const Nullable< nsTArray<U> >&() const {
-    // Make sure that T is ok to reinterpret to nsTArray<U>
-    const nsTArray<U>& arr = mValue;
-    (void)arr;
-    return *reinterpret_cast<const Nullable< nsTArray<U> >*>(this);
+  bool Equals(const Nullable<T>& aOtherNullable) const
+  {
+    return mValue == aOtherNullable.mValue;
   }
-  template<typename U>
-  operator const Nullable< FallibleTArray<U> >&() const {
-    // Make sure that T is ok to reinterpret to FallibleTArray<U>
-    const FallibleTArray<U>& arr = mValue;
-    (void)arr;
-    return *reinterpret_cast<const Nullable< FallibleTArray<U> >*>(this);
+
+  bool operator==(const Nullable<T>& aOtherNullable) const
+  {
+    return Equals(aOtherNullable);
+  }
+
+  bool operator!=(const Nullable<T>& aOtherNullable) const
+  {
+    return !Equals(aOtherNullable);
   }
 };
+
+
+template<typename T>
+void
+ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback& aCallback,
+                            Nullable<T>& aNullable,
+                            const char* aName,
+                            uint32_t aFlags = 0)
+{
+  if (!aNullable.IsNull()) {
+    ImplCycleCollectionTraverse(aCallback, aNullable.Value(), aName, aFlags);
+  }
+}
+
+template<typename T>
+void
+ImplCycleCollectionUnlink(Nullable<T>& aNullable)
+{
+  if (!aNullable.IsNull()) {
+    ImplCycleCollectionUnlink(aNullable.Value());
+  }
+}
 
 } // namespace dom
 } // namespace mozilla

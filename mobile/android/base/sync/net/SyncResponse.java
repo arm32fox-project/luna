@@ -4,145 +4,13 @@
 
 package org.mozilla.goanna.sync.net;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.util.Scanner;
-
-import org.json.simple.parser.ParseException;
-import org.mozilla.goanna.background.common.log.Logger;
-import org.mozilla.goanna.sync.ExtendedJSONObject;
-import org.mozilla.goanna.sync.NonObjectJSONException;
 import org.mozilla.goanna.sync.Utils;
 
-import ch.boye.httpclientandroidlib.Header;
-import ch.boye.httpclientandroidlib.HttpEntity;
 import ch.boye.httpclientandroidlib.HttpResponse;
-import ch.boye.httpclientandroidlib.impl.cookie.DateParseException;
-import ch.boye.httpclientandroidlib.impl.cookie.DateUtils;
 
-public class SyncResponse {
-  private static final String HEADER_RETRY_AFTER = "retry-after";
-  private static final String LOG_TAG = "SyncResponse";
-
-  protected HttpResponse response;
-
-  public SyncResponse() {
-    super();
-  }
-
+public class SyncResponse extends MozResponse {
   public SyncResponse(HttpResponse res) {
-    response = res;
-  }
-
-  public HttpResponse httpResponse() {
-    return this.response;
-  }
-
-  public int getStatusCode() {
-    return this.response.getStatusLine().getStatusCode();
-  }
-
-  public boolean wasSuccessful() {
-    return this.getStatusCode() == 200;
-  }
-
-  private String body = null;
-  public String body() throws IllegalStateException, IOException {
-    if (body != null) {
-      return body;
-    }
-    InputStreamReader is = new InputStreamReader(this.response.getEntity().getContent());
-    // Oh, Java, you are so evil.
-    body = new Scanner(is).useDelimiter("\\A").next();
-    return body;
-  }
-
-  /**
-   * Return the body as a <b>non-null</b> <code>ExtendedJSONObject</code>.
-   *
-   * @return A non-null <code>ExtendedJSONObject</code>.
-   *
-   * @throws IllegalStateException
-   * @throws IOException
-   * @throws ParseException
-   * @throws NonObjectJSONException
-   */
-  public ExtendedJSONObject jsonObjectBody() throws IllegalStateException,
-                                            IOException, ParseException,
-                                            NonObjectJSONException {
-    if (body != null) {
-      // Do it from the cached String.
-      return ExtendedJSONObject.parseJSONObject(body);
-    }
-
-    HttpEntity entity = this.response.getEntity();
-    if (entity == null) {
-      throw new IOException("no entity");
-    }
-
-    InputStream content = entity.getContent();
-    try {
-      Reader in = new BufferedReader(new InputStreamReader(content, "UTF-8"));
-      return ExtendedJSONObject.parseJSONObject(in);
-    } finally {
-      content.close();
-    }
-  }
-
-  private boolean hasHeader(String h) {
-    return this.response.containsHeader(h);
-  }
-
-  private static boolean missingHeader(String value) {
-    return value == null ||
-           value.trim().length() == 0;
-  }
-
-  private int getIntegerHeader(String h) throws NumberFormatException {
-    if (this.hasHeader(h)) {
-      Header header = this.response.getFirstHeader(h);
-      String value  = header.getValue();
-      if (missingHeader(value)) {
-        Logger.warn(LOG_TAG, h + " header present but empty.");
-        return -1;
-      }
-      return Integer.parseInt(value, 10);
-    }
-    return -1;
-  }
-
-  /**
-   * @return A number of seconds, or -1 if the 'Retry-After' header was not present.
-   */
-  public int retryAfterInSeconds() throws NumberFormatException {
-    if (!this.hasHeader(HEADER_RETRY_AFTER)) {
-      return -1;
-    }
-
-    Header header = this.response.getFirstHeader(HEADER_RETRY_AFTER);
-    String retryAfter = header.getValue();
-    if (missingHeader(retryAfter)) {
-      Logger.warn(LOG_TAG, "Retry-After header present but empty.");
-      return -1;
-    }
-
-    try {
-      return Integer.parseInt(retryAfter, 10);
-    } catch (NumberFormatException e) {
-      // Fall through to try date format.
-    }
-
-    try {
-      final long then = DateUtils.parseDate(retryAfter).getTime();
-      final long now  = System.currentTimeMillis();
-      return (int)((then - now) / 1000);     // Convert milliseconds to seconds.
-    } catch (DateParseException e) {
-      Logger.warn(LOG_TAG, "Retry-After header neither integer nor date: " + retryAfter);
-      return -1;
-    }
+    super(res);
   }
 
   /**
@@ -154,14 +22,29 @@ public class SyncResponse {
   }
 
   /**
-   * @return A number of milliseconds, or -1 if neither the 'Retry-After' or
-   *         'X-Weave-Backoff' header was present.
+   * @return A number of seconds, or -1 if the 'X-Backoff' header was not
+   *         present.
    */
-  public long totalBackoffInMilliseconds() {
+  public int xBackoffInSeconds() throws NumberFormatException {
+    return this.getIntegerHeader("x-backoff");
+  }
+
+  /**
+   * Extract a number of seconds, or -1 if none of the specified headers were present.
+   *
+   * @param includeRetryAfter
+   *          if <code>true</code>, the Retry-After header is excluded. This is
+   *          useful for processing non-error responses where a Retry-After
+   *          header would be unexpected.
+   * @return the maximum of the three possible backoff headers, in seconds.
+   */
+  public int totalBackoffInSeconds(boolean includeRetryAfter) {
     int retryAfterInSeconds = -1;
-    try {
-      retryAfterInSeconds = retryAfterInSeconds();
-    } catch (NumberFormatException e) {
+    if (includeRetryAfter) {
+      try {
+        retryAfterInSeconds = retryAfterInSeconds();
+      } catch (NumberFormatException e) {
+      }
     }
 
     int weaveBackoffInSeconds = -1;
@@ -170,7 +53,26 @@ public class SyncResponse {
     } catch (NumberFormatException e) {
     }
 
-    long totalBackoff = (long) Math.max(retryAfterInSeconds, weaveBackoffInSeconds);
+    int backoffInSeconds = -1;
+    try {
+      backoffInSeconds = xBackoffInSeconds();
+    } catch (NumberFormatException e) {
+    }
+
+    int totalBackoff = Math.max(retryAfterInSeconds, Math.max(backoffInSeconds, weaveBackoffInSeconds));
+    if (totalBackoff < 0) {
+      return -1;
+    } else {
+      return totalBackoff;
+    }
+  }
+
+  /**
+   * @return A number of milliseconds, or -1 if neither the 'Retry-After',
+   *         'X-Backoff', or 'X-Weave-Backoff' header were present.
+   */
+  public long totalBackoffInMilliseconds() {
+    long totalBackoff = totalBackoffInSeconds(true);
     if (totalBackoff < 0) {
       return -1;
     } else {

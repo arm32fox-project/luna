@@ -18,6 +18,13 @@ function new_file(name)
 }
 function run_test()
 {
-  // Telemetry stub
+  const Telemetry = Cc["@mozilla.org/base/telemetry;1"].getService(Ci.nsITelemetry);
+  let read_hgram = Telemetry.getHistogramById("MOZ_SQLITE_OTHER_READ_B");
+  let old_sum = read_hgram.snapshot().sum;
+  const file = new_file("telemetry.sqlite");
+  var d = getDatabase(file);
+  run_sql(d, "CREATE TABLE bloat(data varchar)");
+  run_sql(d, "DROP TABLE bloat")
+  do_check_true(read_hgram.snapshot().sum > old_sum)
 }
 

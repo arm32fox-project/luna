@@ -1,3 +1,4 @@
+/* vim: set ts=2 sts=2 sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,6 +10,14 @@
 #include "nsIStringEnumerator.h"
 #include "nsICategoryManager.h"
 #include "nsISupportsPrimitives.h"
+#include "nsISimpleEnumerator.h"
+#include "mozilla/PRemoteSpellcheckEngineChild.h"
+#include "mozilla/dom/ContentChild.h"
+#include "nsXULAppAPI.h"
+
+using mozilla::dom::ContentChild;
+using mozilla::PRemoteSpellcheckEngineChild;
+using mozilla::RemoteSpellcheckEngineChild;
 
 #define DEFAULT_SPELL_CHECKER "@mozilla.org/spellchecker/engine;1"
 
@@ -21,33 +30,46 @@ NS_INTERFACE_MAP_BEGIN(mozSpellChecker)
   NS_INTERFACE_MAP_ENTRIES_CYCLE_COLLECTION(mozSpellChecker)
 NS_INTERFACE_MAP_END
 
-NS_IMPL_CYCLE_COLLECTION_2(mozSpellChecker,
-                           mTsDoc,
-                           mPersonalDictionary)
+NS_IMPL_CYCLE_COLLECTION(mozSpellChecker,
+                         mTsDoc,
+                         mPersonalDictionary)
 
 mozSpellChecker::mozSpellChecker()
+  : mEngine(nullptr)
 {
 }
 
 mozSpellChecker::~mozSpellChecker()
 {
-  if(mPersonalDictionary){
+  if (mPersonalDictionary) {
     //    mPersonalDictionary->Save();
     mPersonalDictionary->EndSession();
   }
   mSpellCheckingEngine = nullptr;
   mPersonalDictionary = nullptr;
+
+  if (mEngine) {
+    MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Content);
+    mEngine->Send__delete__(mEngine);
+    MOZ_ASSERT(!mEngine);
+  }
 }
 
-nsresult 
+nsresult
 mozSpellChecker::Init()
 {
-  mPersonalDictionary = do_GetService("@mozilla.org/spellchecker/personaldictionary;1");
-  
   mSpellCheckingEngine = nullptr;
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
+    mozilla::dom::ContentChild* contentChild = mozilla::dom::ContentChild::GetSingleton();
+    MOZ_ASSERT(contentChild);
+    mEngine = new RemoteSpellcheckEngineChild(this);
+    contentChild->SendPRemoteSpellcheckEngineConstructor(mEngine);
+  } else {
+    mPersonalDictionary = do_GetService("@mozilla.org/spellchecker/personaldictionary;1");
+  }
 
   return NS_OK;
-} 
+}
 
 NS_IMETHODIMP 
 mozSpellChecker::SetDocument(nsITextServicesDocument *aDoc, bool aFromStartofDoc)
@@ -107,16 +129,28 @@ mozSpellChecker::CheckWord(const nsAString &aWord, bool *aIsMisspelled, nsTArray
 {
   nsresult result;
   bool correct;
-  if(!mSpellCheckingEngine)
-    return NS_ERROR_NULL_POINTER;
 
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
+    nsString wordwrapped = nsString(aWord);
+    bool rv;
+    if (aSuggestions) {
+      rv = mEngine->SendCheckAndSuggest(wordwrapped, aIsMisspelled, aSuggestions);
+    } else {
+      rv = mEngine->SendCheck(wordwrapped, aIsMisspelled);
+    }
+    return rv ? NS_OK : NS_ERROR_NOT_AVAILABLE;
+  }
+
+  if(!mSpellCheckingEngine) {
+    return NS_ERROR_NULL_POINTER;
+  }
   *aIsMisspelled = false;
   result = mSpellCheckingEngine->Check(PromiseFlatString(aWord).get(), &correct);
   NS_ENSURE_SUCCESS(result, result);
   if(!correct){
     if(aSuggestions){
       uint32_t count,i;
-      PRUnichar **words;
+      char16_t **words;
       
       result = mSpellCheckingEngine->Suggest(PromiseFlatString(aWord).get(), &words, &count);
       NS_ENSURE_SUCCESS(result, result); 
@@ -236,7 +270,7 @@ NS_IMETHODIMP
 mozSpellChecker::AddWordToPersonalDictionary(const nsAString &aWord)
 {
   nsresult res;
-  PRUnichar empty=0;
+  char16_t empty=0;
   if (!mPersonalDictionary)
     return NS_ERROR_NULL_POINTER;
   res = mPersonalDictionary->AddWord(PromiseFlatString(aWord).get(),&empty);
@@ -247,7 +281,7 @@ NS_IMETHODIMP
 mozSpellChecker::RemoveWordFromPersonalDictionary(const nsAString &aWord)
 {
   nsresult res;
-  PRUnichar empty=0;
+  char16_t empty=0;
   if (!mPersonalDictionary)
     return NS_ERROR_NULL_POINTER;
   res = mPersonalDictionary->RemoveWord(PromiseFlatString(aWord).get(),&empty);
@@ -272,14 +306,19 @@ mozSpellChecker::GetPersonalDictionary(nsTArray<nsString> *aWordList)
   return NS_OK;
 }
 
-NS_IMETHODIMP 
+NS_IMETHODIMP
 mozSpellChecker::GetDictionaryList(nsTArray<nsString> *aDictionaryList)
 {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
+    ContentChild *child = ContentChild::GetSingleton();
+    child->GetAvailableDictionaries(*aDictionaryList);
+    return NS_OK;
+  }
+
   nsresult rv;
 
   // For catching duplicates
-  nsClassHashtable<nsStringHashKey, nsCString> dictionaries;
-  dictionaries.Init();
+  nsTHashtable<nsStringHashKey> dictionaries;
 
   nsCOMArray<mozISpellCheckingEngine> spellCheckingEngines;
   rv = GetEngineList(&spellCheckingEngines);
@@ -289,7 +328,7 @@ mozSpellChecker::GetDictionaryList(nsTArray<nsString> *aDictionaryList)
     nsCOMPtr<mozISpellCheckingEngine> engine = spellCheckingEngines[i];
 
     uint32_t count = 0;
-    PRUnichar **words = nullptr;
+    char16_t **words = nullptr;
     engine->GetDictionaryList(&words, &count);
     for (uint32_t k = 0; k < count; k++) {
       nsAutoString dictName;
@@ -298,10 +337,10 @@ mozSpellChecker::GetDictionaryList(nsTArray<nsString> *aDictionaryList)
 
       // Skip duplicate dictionaries. Only take the first one
       // for each name.
-      if (dictionaries.Get(dictName, nullptr))
+      if (dictionaries.Contains(dictName))
         continue;
 
-      dictionaries.Put(dictName, nullptr);
+      dictionaries.PutEntry(dictName);
 
       if (!aDictionaryList->AppendElement(dictName)) {
         NS_FREE_XPCOM_ALLOCATED_POINTER_ARRAY(count, words);
@@ -315,11 +354,16 @@ mozSpellChecker::GetDictionaryList(nsTArray<nsString> *aDictionaryList)
   return NS_OK;
 }
 
-NS_IMETHODIMP 
+NS_IMETHODIMP
 mozSpellChecker::GetCurrentDictionary(nsAString &aDictionary)
 {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
+    aDictionary = mCurrentDictionary;
+    return NS_OK;
+  }
+
   if (!mSpellCheckingEngine) {
-    aDictionary.AssignLiteral("");
+    aDictionary.Truncate();
     return NS_OK;
   }
 
@@ -329,9 +373,22 @@ mozSpellChecker::GetCurrentDictionary(nsAString &aDictionary)
   return NS_OK;
 }
 
-NS_IMETHODIMP 
+NS_IMETHODIMP
 mozSpellChecker::SetCurrentDictionary(const nsAString &aDictionary)
 {
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
+    nsString wrappedDict = nsString(aDictionary);
+    bool isSuccess;
+    mEngine->SendSetDictionary(wrappedDict, &isSuccess);
+    if (!isSuccess) {
+      mCurrentDictionary.Truncate();
+      return NS_ERROR_NOT_AVAILABLE;
+    }
+
+    mCurrentDictionary = wrappedDict;
+    return NS_OK;
+  }
+
   // Calls to mozISpellCheckingEngine::SetDictionary might destroy us
   nsRefPtr<mozSpellChecker> kungFuDeathGrip = this;
 
@@ -366,7 +423,7 @@ mozSpellChecker::SetCurrentDictionary(const nsAString &aDictionary)
   }
 
   mSpellCheckingEngine = nullptr;
-  
+
   // We could not find any engine with the requested dictionary
   return NS_ERROR_NOT_AVAILABLE;
 }
@@ -479,6 +536,8 @@ mozSpellChecker::GetCurrentBlockIndex(nsITextServicesDocument *aDoc, int32_t *ou
 nsresult
 mozSpellChecker::GetEngineList(nsCOMArray<mozISpellCheckingEngine>* aSpellCheckingEngines)
 {
+  MOZ_ASSERT(XRE_GetProcessType() != GoannaProcessType_Content);
+
   nsresult rv;
   bool hasMoreEngines;
 

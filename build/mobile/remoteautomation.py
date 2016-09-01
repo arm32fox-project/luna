@@ -2,28 +2,35 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+import glob
 import time
 import re
 import os
 import tempfile
 import shutil
 import subprocess
+import sys
 
 from automation import Automation
-from devicemanager import NetworkTools, DMError
+from devicemanager import DMError
+from mozlog.structured import get_default_logger
+import mozcrash
 
 # signatures for logcat messages that we don't care about much
 fennecLogcatFilters = [ "The character encoding of the HTML document was not declared",
-                           "Use of Mutation Events is deprecated. Use MutationObserver instead." ]
+                        "Use of Mutation Events is deprecated. Use MutationObserver instead.",
+                        "Unexpected value from nativeGetEnabledTags: 0" ]
 
 class RemoteAutomation(Automation):
     _devicemanager = None
 
-    def __init__(self, deviceManager, appName = '', remoteLog = None):
+    def __init__(self, deviceManager, appName = '', remoteLog = None,
+                 processArgs=None):
         self._devicemanager = deviceManager
         self._appName = appName
         self._remoteProfile = None
         self._remoteLog = remoteLog
+        self._processArgs = processArgs or {};
 
         # Default our product to fennec
         self._product = "fennec"
@@ -46,74 +53,60 @@ class RemoteAutomation(Automation):
         self._remoteLog = logfile
 
     # Set up what we need for the remote environment
-    def environment(self, env = None, xrePath = None):
+    def environment(self, env=None, xrePath=None, debugger=False, dmdPath=None, lsanPath=None):
         # Because we are running remote, we don't want to mimic the local env
         # so no copying of os.environ
         if env is None:
             env = {}
+
+        if dmdPath:
+            env['MOZ_REPLACE_MALLOC_LIB'] = os.path.join(dmdPath, 'libdmd.so')
 
         # Except for the mochitest results table hiding option, which isn't
         # passed to runtestsremote.py as an actual option.
         if 'MOZ_HIDE_RESULTS_TABLE' in os.environ:
             env['MOZ_HIDE_RESULTS_TABLE'] = os.environ['MOZ_HIDE_RESULTS_TABLE']
 
+        # Crash on non-local network connections by default.
+        # MOZ_DISABLE_NONLOCAL_CONNECTIONS can be set to "0" to temporarily
+        # enable non-local connections for the purposes of local testing.
+        # Don't override the user's choice here.  See bug 1049688.
+        env.setdefault('MOZ_DISABLE_NONLOCAL_CONNECTIONS', '1')
+
         return env
 
     def waitForFinish(self, proc, utilityPath, timeout, maxTime, startTime, debuggerInfo, symbolsPath):
-        """ Wait for tests to finish (as evidenced by the process exiting),
-            or for maxTime elapse, in which case kill the process regardless.
+        """ Wait for tests to finish.
+            If maxTime seconds elapse or no output is detected for timeout
+            seconds, kill the process and fail the test.
         """
         # maxTime is used to override the default timeout, we should honor that
-        status = proc.wait(timeout = maxTime)
+        status = proc.wait(timeout = maxTime, noOutputTimeout = timeout)
         self.lastTestSeen = proc.getLastTestSeen
 
-        if (status == 1 and self._devicemanager.getTopActivity() == proc.procName):
-            # Then we timed out, make sure Fennec is dead
+        topActivity = self._devicemanager.getTopActivity()
+        if topActivity == proc.procName:
+            proc.kill(True)
+        if status == 1:
             if maxTime:
                 print "TEST-UNEXPECTED-FAIL | %s | application ran for longer than " \
                       "allowed maximum time of %s seconds" % (self.lastTestSeen, maxTime)
             else:
                 print "TEST-UNEXPECTED-FAIL | %s | application ran for longer than " \
                       "allowed maximum time" % (self.lastTestSeen)
-            proc.kill()
+        if status == 2:
+            print "TEST-UNEXPECTED-FAIL | %s | application timed out after %d seconds with no output" \
+                % (self.lastTestSeen, int(timeout))
 
         return status
 
-    def checkForJavaException(self, logcat):
-        found_exception = False
-        for i, line in enumerate(logcat):
-            if "REPORTING UNCAUGHT EXCEPTION" in line or "FATAL EXCEPTION" in line:
-                # Strip away the date, time, logcat tag and pid from the next two lines and
-                # concatenate the remainder to form a concise summary of the exception. 
-                #
-                # For example:
-                #
-                # 01-30 20:15:41.937 E/GoannaAppShell( 1703): >>> REPORTING UNCAUGHT EXCEPTION FROM THREAD 9 ("GoannaBackgroundThread")
-                # 01-30 20:15:41.937 E/GoannaAppShell( 1703): java.lang.NullPointerException
-                # 01-30 20:15:41.937 E/GoannaAppShell( 1703): 	at org.mozilla.goanna.GoannaApp$21.run(GoannaApp.java:1833)
-                # 01-30 20:15:41.937 E/GoannaAppShell( 1703): 	at android.os.Handler.handleCallback(Handler.java:587)
-                # 01-30 20:15:41.937 E/GoannaAppShell( 1703): 	at android.os.Handler.dispatchMessage(Handler.java:92)
-                # 01-30 20:15:41.937 E/GoannaAppShell( 1703): 	at android.os.Looper.loop(Looper.java:123)
-                # 01-30 20:15:41.937 E/GoannaAppShell( 1703): 	at org.mozilla.goanna.util.GoannaBackgroundThread.run(GoannaBackgroundThread.java:31)
-                #
-                #   -> java.lang.NullPointerException at org.mozilla.goanna.GoannaApp$21.run(GoannaApp.java:1833)
-                found_exception = True
-                logre = re.compile(r".*\): \t?(.*)")
-                m = logre.search(logcat[i+1])
-                if m and m.group(1):
-                    top_frame = m.group(1)
-                m = logre.search(logcat[i+2])
-                if m and m.group(1):
-                    top_frame = top_frame + m.group(1)
-                print "PROCESS-CRASH | java-exception | %s" % top_frame
-                break
-        return found_exception
-
     def deleteANRs(self):
-        # delete ANR traces.txt file; usually need root permissions
+        # empty ANR traces.txt file; usually need root permissions
+        # we make it empty and writable so we can test the ANR reporter later
         traces = "/data/anr/traces.txt"
         try:
-            self._devicemanager.shellCheckOutput(['rm', traces], root=True)
+            self._devicemanager.shellCheckOutput(['echo', '', '>', traces], root=True)
+            self._devicemanager.shellCheckOutput(['chmod', '666', traces], root=True)
         except DMError:
             print "Error deleting %s" % traces
             pass
@@ -129,15 +122,59 @@ class RemoteAutomation(Automation):
                 self.deleteANRs()
             except DMError:
                 print "Error pulling %s" % traces
-                pass
+            except IOError:
+                print "Error pulling %s" % traces
         else:
             print "%s not found" % traces
 
+    def deleteTombstones(self):
+        # delete any existing tombstone files from device
+        remoteDir = "/data/tombstones"
+        try:
+            self._devicemanager.shellCheckOutput(['rm', '-r', remoteDir], root=True)
+        except DMError:
+            # This may just indicate that the tombstone directory is missing
+            pass
+
+    def checkForTombstones(self):
+        # pull any tombstones from device and move to MOZ_UPLOAD_DIR
+        remoteDir = "/data/tombstones"
+        blobberUploadDir = os.environ.get('MOZ_UPLOAD_DIR', None)
+        if blobberUploadDir:
+            if not os.path.exists(blobberUploadDir):
+                os.mkdir(blobberUploadDir)
+            if self._devicemanager.dirExists(remoteDir):
+                # copy tombstone files from device to local blobber upload directory
+                try:
+                    self._devicemanager.shellCheckOutput(['chmod', '777', remoteDir], root=True)
+                    self._devicemanager.shellCheckOutput(['chmod', '666', os.path.join(remoteDir, '*')], root=True)
+                    self._devicemanager.getDirectory(remoteDir, blobberUploadDir, False)
+                except DMError:
+                    # This may just indicate that no tombstone files are present
+                    pass
+                self.deleteTombstones()
+                # add a .txt file extension to each tombstone file name, so
+                # that blobber will upload it
+                for f in glob.glob(os.path.join(blobberUploadDir, "tombstone_??")):
+                    # add a unique integer to the file name, in case there are
+                    # multiple tombstones generated with the same name, for
+                    # instance, after multiple robocop tests
+                    for i in xrange(1, sys.maxint):
+                        newname = "%s.%d.txt" % (f, i)
+                        if not os.path.exists(newname):
+                            os.rename(f, newname)
+                            break
+            else:
+                print "%s does not exist; tombstone check skipped" % remoteDir
+        else:
+            print "MOZ_UPLOAD_DIR not defined; tombstone check skipped"
+
     def checkForCrashes(self, directory, symbolsPath):
         self.checkForANRs()
+        self.checkForTombstones()
 
         logcat = self._devicemanager.getLogcat(filterOutRegexps=fennecLogcatFilters)
-        javaException = self.checkForJavaException(logcat)
+        javaException = mozcrash.check_for_java_exception(logcat)
         if javaException:
             return True
 
@@ -164,59 +201,42 @@ class RemoteAutomation(Automation):
 #        return app, ['--environ:NO_EM_RESTART=1'] + args
         return app, args
 
-    def getLanIp(self):
-        nettools = NetworkTools()
-        return nettools.getLanIp()
-
     def Process(self, cmd, stdout = None, stderr = None, env = None, cwd = None):
         if stdout == None or stdout == -1 or stdout == subprocess.PIPE:
-          stdout = self._remoteLog
+            stdout = self._remoteLog
 
-        return self.RProcess(self._devicemanager, cmd, stdout, stderr, env, cwd)
+        return self.RProcess(self._devicemanager, cmd, stdout, stderr, env, cwd, self._appName,
+                             **self._processArgs)
 
     # be careful here as this inner class doesn't have access to outer class members
     class RProcess(object):
         # device manager process
         dm = None
-        def __init__(self, dm, cmd, stdout = None, stderr = None, env = None, cwd = None):
+        def __init__(self, dm, cmd, stdout=None, stderr=None, env=None, cwd=None, app=None,
+                     messageLogger=None):
             self.dm = dm
             self.stdoutlen = 0
             self.lastTestSeen = "remoteautomation.py"
             self.proc = dm.launchProcess(cmd, stdout, cwd, env, True)
+            self.messageLogger = messageLogger
+
             if (self.proc is None):
-              if cmd[0] == 'am':
-                self.proc = stdout
-              else:
-                raise Exception("unable to launch process")
-            exepath = cmd[0]
-            name = exepath.split('/')[-1]
-            self.procName = name
-            # Hack for Robocop: Derive the actual process name from the command line.
-            # We expect something like:
-            #  ['am', 'instrument', '-w', '-e', 'class', 'org.mozilla.fennec.tests.testBookmark', 'org.mozilla.roboexample.test/android.test.InstrumentationTestRunner']
-            # and want to derive 'org.mozilla.fennec'.
+                if cmd[0] == 'am':
+                    self.proc = stdout
+                else:
+                    raise Exception("unable to launch process")
+            self.procName = cmd[0].split('/')[-1]
             if cmd[0] == 'am' and cmd[1] == "instrument":
-              try:
-                i = cmd.index("class")
-              except ValueError:
-                # no "class" argument -- maybe this isn't robocop?
-                i = -1
-              if (i > 0):
-                classname = cmd[i+1]
-                parts = classname.split('.')
-                try:
-                  i = parts.index("tests")
-                except ValueError:
-                  # no "tests" component -- maybe this isn't robocop?
-                  i = -1
-                if (i > 0):
-                  self.procName = '.'.join(parts[0:i])
-                  print "Robocop derived process name: "+self.procName
+                self.procName = app
+                print "Robocop process name: "+self.procName
 
             # Setting timeout at 1 hour since on a remote device this takes much longer
             self.timeout = 3600
             # The benefit of the following sleep is unclear; it was formerly 15 seconds
             time.sleep(1)
+
+            # Used to buffer log messages until we meet a line break
+            self.logBuffer = ""
 
         @property
         def pid(self):
@@ -229,56 +249,111 @@ class RemoteAutomation(Automation):
                 return 0
             return pid
 
-        @property
-        def stdout(self):
+        def read_stdout(self):
             """ Fetch the full remote log file using devicemanager and return just
-                the new log entries since the last call (as a multi-line string).
+                the new log entries since the last call (as a list of messages or lines).
             """
-            if self.dm.fileExists(self.proc):
-                try:
-                    t = self.dm.pullFile(self.proc)
-                except DMError:
-                    # we currently don't retry properly in the pullFile
-                    # function in dmSUT, so an error here is not necessarily
-                    # the end of the world
-                    return ''
-                newLogContent = t[self.stdoutlen:]
-                self.stdoutlen = len(t)
-                # Match the test filepath from the last TEST-START line found in the new
-                # log content. These lines are in the form:
-                # 1234 INFO TEST-START | /filepath/we/wish/to/capture.html\n
+            if not self.dm.fileExists(self.proc):
+                return []
+            try:
+                newLogContent = self.dm.pullFile(self.proc, self.stdoutlen)
+            except DMError:
+                # we currently don't retry properly in the pullFile
+                # function in dmSUT, so an error here is not necessarily
+                # the end of the world
+                return []
+            if not newLogContent:
+                return []
+
+            self.stdoutlen += len(newLogContent)
+
+            if self.messageLogger is None:
                 testStartFilenames = re.findall(r"TEST-START \| ([^\s]*)", newLogContent)
                 if testStartFilenames:
                     self.lastTestSeen = testStartFilenames[-1]
-                return newLogContent.strip('\n').strip()
-            else:
-                return ''
+                print newLogContent
+                return [newLogContent]
+
+            self.logBuffer += newLogContent
+            lines = self.logBuffer.split('\n')
+            if not lines:
+                return
+
+            # We only keep the last (unfinished) line in the buffer
+            self.logBuffer = lines[-1]
+            del lines[-1]
+            messages = []
+            for line in lines:
+                # This passes the line to the logger (to be logged or buffered)
+                # and returns a list of structured messages (dict)
+                parsed_messages = self.messageLogger.write(line)
+                for message in parsed_messages:
+                    if message['action'] == 'test_start':
+                        self.lastTestSeen = message['test']
+                messages += parsed_messages
+            return messages
 
         @property
         def getLastTestSeen(self):
             return self.lastTestSeen
 
-        def wait(self, timeout = None):
+        # Wait for the remote process to end (or for its activity to go to background).
+        # While waiting, periodically retrieve the process output and print it.
+        # If the process is still running after *timeout* seconds, return 1;
+        # If the process is still running but no output is received in *noOutputTimeout*
+        # seconds, return 2;
+        # Else, once the process exits/goes to background, return 0.
+        def wait(self, timeout = None, noOutputTimeout = None):
             timer = 0
-            interval = 5
+            noOutputTimer = 0
+            interval = 20
 
             if timeout == None:
                 timeout = self.timeout
 
+            status = 0
             while (self.dm.getTopActivity() == self.procName):
-                t = self.stdout
-                if t != '': print t
+                # retrieve log updates every 60 seconds
+                if timer % 60 == 0:
+                    messages = self.read_stdout()
+                    if messages:
+                        noOutputTimer = 0
+
                 time.sleep(interval)
                 timer += interval
+                noOutputTimer += interval
                 if (timer > timeout):
+                    status = 1
+                    break
+                if (noOutputTimeout and noOutputTimer > noOutputTimeout):
+                    status = 2
                     break
 
             # Flush anything added to stdout during the sleep
-            print self.stdout
+            self.read_stdout()
 
-            if (timer >= timeout):
-                return 1
-            return 0
+            return status
 
-        def kill(self):
-            self.dm.killProcess(self.procName)
+        def kill(self, stagedShutdown = False):
+            if stagedShutdown:
+                # Trigger an ANR report with "kill -3" (SIGQUIT)
+                self.dm.killProcess(self.procName, 3)
+                time.sleep(3)
+                # Trigger a breakpad dump with "kill -6" (SIGABRT)
+                self.dm.killProcess(self.procName, 6)
+                # Wait for process to end
+                retries = 0
+                while retries < 3:
+                    pid = self.dm.processExist(self.procName)
+                    if pid and pid > 0:
+                        print "%s still alive after SIGABRT: waiting..." % self.procName
+                        time.sleep(5)
+                    else:
+                        return
+                    retries += 1
+                self.dm.killProcess(self.procName, 9)
+                pid = self.dm.processExist(self.procName)
+                if pid and pid > 0:
+                    self.dm.killProcess(self.procName)
+            else:
+                self.dm.killProcess(self.procName)

@@ -5,7 +5,7 @@
 @namespace html url(http://www.w3.org/1999/xhtml);
 
 /* These styles affect only the bound element, not other page content. */
-
+/* Keep any changes to these styles in sync with plugin-doorhanger.inc.css */
 .mainBox {
   font: message-box;
   font-size: 12px;
@@ -16,7 +16,6 @@
   background-color: rgb(72,72,72);
   color: white;
   -moz-user-select: none;
-  position: relative;
 }
 
 .hoverBox {
@@ -31,6 +30,15 @@
 :-moz-handler-vulnerable-no-update .hoverBox:active,
 :-moz-handler-clicktoplay .hoverBox:active {
   background-color: rgb(65, 65, 65);
+}
+
+:-moz-handler-clicktoplay .hoverBox:active .msgTapToPlay,
+:-moz-handler-clicktoplay .hoverBox:active .msgClickToPlay,
+:-moz-handler-vulnerable-updatable .hoverBox:active .msgTapToPlay,
+:-moz-handler-vulnerable-updatable .hoverBox:active .msgClickToPlay,
+:-moz-handler-vulnerable-no-update .hoverBox:active .msgTapToPlay,
+:-moz-handler-vulnerable-no-update .hoverBox:active .msgClickToPlay {
+  color: red;
 }
 
 :-moz-handler-vulnerable-updatable .hoverBox,
@@ -85,6 +93,11 @@ html|a {
   padding-left: 16px; /* width of the background image */
   background: url(chrome://global/skin/icons/loading_16.png) no-repeat;
   margin-left: 5px;
+}
+
+.msgTapToPlay,
+.msgClickToPlay {
+  text-decoration: underline;
 }
 
 @media not all and (-moz-touch-enabled) {
@@ -154,20 +167,15 @@ html|a {
 
 .closeIcon {
   display: block;
-  position: absolute;
   width: 16px;
   height: 16px;
-  top: 4px;
-  right: 4px;
+  margin-top: 4px;
+  -moz-margin-start: -20px;
+  -moz-margin-end: 4px;
   border: none;
   background-color: transparent;
   background-image: url("chrome://mozapps/skin/plugins/contentPluginClose.png");
   background-repeat: no-repeat;
-}
-
-.mainBox[chromedir="rtl"] .closeIcon {
-  right: auto;
-  left: 4px;
 }
 
 .closeIcon:hover {

@@ -12,11 +12,13 @@
 #include "mozilla/Attributes.h"
 #include "nsCOMPtr.h"
 #include "nscore.h"
-#include "nsCSSProperty.h"
+#include "nsCSSProps.h"
 #include "nsDOMCSSDeclaration.h"
 #include "nsStyleContext.h"
-#include "nsStyleStruct.h"
 #include "nsIWeakReferenceUtils.h"
+#include "mozilla/gfx/Types.h"
+#include "nsCoord.h"
+#include "nsColor.h"
 #include "nsIContent.h"
 
 namespace mozilla {
@@ -25,15 +27,48 @@ class Element;
 }
 }
 
+struct nsComputedStyleMap;
 class nsIFrame;
 class nsIPresShell;
 class nsDOMCSSValueList;
+struct nsMargin;
 class nsROCSSPrimitiveValue;
-class nsStyleContext;
+struct nsStyleBackground;
+struct nsStyleBorder;
+struct nsStyleContent;
+struct nsStyleColumn;
+struct nsStyleColor;
+class nsStyleCoord;
+class nsStyleCorners;
+struct nsStyleDisplay;
+struct nsStyleFilter;
+struct nsStyleFont;
+class nsStyleGradient;
+struct nsStyleImage;
+struct nsStyleList;
+struct nsStyleMargin;
+struct nsStyleOutline;
+struct nsStylePadding;
+struct nsStylePosition;
+struct nsStyleQuotes;
+class nsStyleSides;
+struct nsStyleSVG;
+struct nsStyleSVGReset;
+struct nsStyleTable;
+struct nsStyleText;
+struct nsStyleTextReset;
+class nsStyleTimingFunction;
+struct nsStyleUIReset;
+struct nsStyleVisibility;
+struct nsStyleXUL;
+struct nsTimingFunction;
+class gfx3DMatrix;
 
-class nsComputedDOMStyle MOZ_FINAL : public nsDOMCSSDeclaration
+class nsComputedDOMStyle final : public nsDOMCSSDeclaration
 {
 public:
+  typedef nsCSSProps::KTableValue KTableValue;
+
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SKIPPABLE_SCRIPT_HOLDER_CLASS_AMBIGUOUS(nsComputedDOMStyle,
                                                                    nsICSSDeclaration)
@@ -43,9 +78,9 @@ public:
   NS_DECL_NSIDOMCSSSTYLEDECLARATION_HELPER
   virtual already_AddRefed<mozilla::dom::CSSValue>
   GetPropertyCSSValue(const nsAString& aProp, mozilla::ErrorResult& aRv)
-    MOZ_OVERRIDE;
+    override;
   using nsICSSDeclaration::GetPropertyCSSValue;
-  virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName) MOZ_OVERRIDE;
+  virtual void IndexedGetter(uint32_t aIndex, bool& aFound, nsAString& aPropName) override;
 
   enum StyleType {
     eDefaultOnly, // Only includes UA and user sheets
@@ -56,11 +91,8 @@ public:
                      const nsAString& aPseudoElt,
                      nsIPresShell* aPresShell,
                      StyleType aStyleType);
-  virtual ~nsComputedDOMStyle();
 
-  static void Shutdown();
-
-  virtual nsINode *GetParentObject() MOZ_OVERRIDE
+  virtual nsINode *GetParentObject() override
   {
     return mContent;
   }
@@ -88,20 +120,33 @@ public:
   // nsDOMCSSDeclaration abstract methods which should never be called
   // on a nsComputedDOMStyle object, but must be defined to avoid
   // compile errors.
-  virtual mozilla::css::Declaration* GetCSSDeclaration(bool) MOZ_OVERRIDE;
-  virtual nsresult SetCSSDeclaration(mozilla::css::Declaration*) MOZ_OVERRIDE;
-  virtual nsIDocument* DocToUpdate() MOZ_OVERRIDE;
-  virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv) MOZ_OVERRIDE;
+  virtual mozilla::css::Declaration* GetCSSDeclaration(bool) override;
+  virtual nsresult SetCSSDeclaration(mozilla::css::Declaration*) override;
+  virtual nsIDocument* DocToUpdate() override;
+  virtual void GetCSSParsingEnvironment(CSSParsingEnvironment& aCSSParseEnv) override;
 
   static nsROCSSPrimitiveValue* MatrixToCSSValue(gfx3DMatrix& aMatrix);
 
+  static void RegisterPrefChangeCallbacks();
+  static void UnregisterPrefChangeCallbacks();
+
 private:
+  virtual ~nsComputedDOMStyle();
+
   void AssertFlushedPendingReflows() {
     NS_ASSERTION(mFlushedPendingReflows,
                  "property getter should have been marked layout-dependent");
   }
 
   nsMargin GetAdjustedValuesForBoxSizing();
+
+  // Helper method for DoGetTextAlign[Last].
+  mozilla::dom::CSSValue* CreateTextAlignValue(uint8_t aAlign,
+                                               bool aAlignTrue,
+                                               const KTableValue aTable[]);
+  // This indicates error by leaving mStyleContextHolder null.
+  void UpdateCurrentStyleSources(bool aNeedsLayoutFlush);
+  void ClearCurrentStyleSources();
 
 #define STYLE_STRUCT(name_, checkdata_cb_)                              \
   const nsStyle##name_ * Style##name_() {                               \
@@ -124,6 +169,8 @@ private:
 
   mozilla::dom::CSSValue* GetRelativeOffset(mozilla::css::Side aSide);
 
+  mozilla::dom::CSSValue* GetStickyOffset(mozilla::css::Side aSide);
+
   mozilla::dom::CSSValue* GetStaticOffset(mozilla::css::Side aSide);
 
   mozilla::dom::CSSValue* GetPaddingWidthFor(mozilla::css::Side aSide);
@@ -140,6 +187,12 @@ private:
 
   mozilla::dom::CSSValue* GetSVGPaintFor(bool aFill);
 
+  mozilla::dom::CSSValue* GetGridLineNames(const nsTArray<nsString>& aLineNames);
+  mozilla::dom::CSSValue* GetGridTrackSize(const nsStyleCoord& aMinSize,
+                                           const nsStyleCoord& aMaxSize);
+  mozilla::dom::CSSValue* GetGridTemplateColumnsRows(const nsStyleGridTemplate& aTrackList);
+  mozilla::dom::CSSValue* GetGridLine(const nsStyleGridLine& aGridLine);
+
   bool GetLineHeightCoord(nscoord& aCoord);
 
   mozilla::dom::CSSValue* GetCSSShadowArray(nsCSSShadowArray* aArray,
@@ -148,7 +201,7 @@ private:
 
   mozilla::dom::CSSValue* GetBackgroundList(uint8_t nsStyleBackground::Layer::* aMember,
                                             uint32_t nsStyleBackground::* aCount,
-                                            const int32_t aTable[]);
+                                            const KTableValue aTable[]);
 
   void GetCSSGradientString(const nsStyleGradient* aGradient,
                             nsAString& aString);
@@ -167,6 +220,7 @@ private:
 
   /* Box properties */
   mozilla::dom::CSSValue* DoGetBoxAlign();
+  mozilla::dom::CSSValue* DoGetBoxDecorationBreak();
   mozilla::dom::CSSValue* DoGetBoxDirection();
   mozilla::dom::CSSValue* DoGetBoxFlex();
   mozilla::dom::CSSValue* DoGetBoxOrdinalGroup();
@@ -180,6 +234,10 @@ private:
   mozilla::dom::CSSValue* DoGetMaxWidth();
   mozilla::dom::CSSValue* DoGetMinHeight();
   mozilla::dom::CSSValue* DoGetMinWidth();
+  mozilla::dom::CSSValue* DoGetMixBlendMode();
+  mozilla::dom::CSSValue* DoGetIsolation();
+  mozilla::dom::CSSValue* DoGetObjectFit();
+  mozilla::dom::CSSValue* DoGetObjectPosition();
   mozilla::dom::CSSValue* DoGetLeft();
   mozilla::dom::CSSValue* DoGetTop();
   mozilla::dom::CSSValue* DoGetRight();
@@ -194,6 +252,7 @@ private:
   mozilla::dom::CSSValue* DoGetFontLanguageOverride();
   mozilla::dom::CSSValue* DoGetFontSize();
   mozilla::dom::CSSValue* DoGetFontSizeAdjust();
+  mozilla::dom::CSSValue* DoGetOSXFontSmoothing();
   mozilla::dom::CSSValue* DoGetFontStretch();
   mozilla::dom::CSSValue* DoGetFontStyle();
   mozilla::dom::CSSValue* DoGetFontSynthesis();
@@ -206,6 +265,18 @@ private:
   mozilla::dom::CSSValue* DoGetFontVariantPosition();
   mozilla::dom::CSSValue* DoGetFontWeight();
 
+  /* Grid properties */
+  mozilla::dom::CSSValue* DoGetGridAutoFlow();
+  mozilla::dom::CSSValue* DoGetGridAutoColumns();
+  mozilla::dom::CSSValue* DoGetGridAutoRows();
+  mozilla::dom::CSSValue* DoGetGridTemplateAreas();
+  mozilla::dom::CSSValue* DoGetGridTemplateColumns();
+  mozilla::dom::CSSValue* DoGetGridTemplateRows();
+  mozilla::dom::CSSValue* DoGetGridColumnStart();
+  mozilla::dom::CSSValue* DoGetGridColumnEnd();
+  mozilla::dom::CSSValue* DoGetGridRowStart();
+  mozilla::dom::CSSValue* DoGetGridRowEnd();
+
   /* Background properties */
   mozilla::dom::CSSValue* DoGetBackgroundAttachment();
   mozilla::dom::CSSValue* DoGetBackgroundColor();
@@ -213,7 +284,7 @@ private:
   mozilla::dom::CSSValue* DoGetBackgroundPosition();
   mozilla::dom::CSSValue* DoGetBackgroundRepeat();
   mozilla::dom::CSSValue* DoGetBackgroundClip();
-  mozilla::dom::CSSValue* DoGetBackgroundInlinePolicy();
+  mozilla::dom::CSSValue* DoGetBackgroundBlendMode();
   mozilla::dom::CSSValue* DoGetBackgroundOrigin();
   mozilla::dom::CSSValue* DoGetBackgroundSize();
 
@@ -303,14 +374,17 @@ private:
 
   /* Text Properties */
   mozilla::dom::CSSValue* DoGetLineHeight();
+  mozilla::dom::CSSValue* DoGetRubyAlign();
+  mozilla::dom::CSSValue* DoGetRubyPosition();
   mozilla::dom::CSSValue* DoGetTextAlign();
   mozilla::dom::CSSValue* DoGetTextAlignLast();
-  mozilla::dom::CSSValue* DoGetMozTextBlink();
+  mozilla::dom::CSSValue* DoGetTextCombineUpright();
   mozilla::dom::CSSValue* DoGetTextDecoration();
   mozilla::dom::CSSValue* DoGetTextDecorationColor();
   mozilla::dom::CSSValue* DoGetTextDecorationLine();
   mozilla::dom::CSSValue* DoGetTextDecorationStyle();
   mozilla::dom::CSSValue* DoGetTextIndent();
+  mozilla::dom::CSSValue* DoGetTextOrientation();
   mozilla::dom::CSSValue* DoGetTextOverflow();
   mozilla::dom::CSSValue* DoGetTextTransform();
   mozilla::dom::CSSValue* DoGetTextShadow();
@@ -341,6 +415,7 @@ private:
   mozilla::dom::CSSValue* DoGetPosition();
   mozilla::dom::CSSValue* DoGetClip();
   mozilla::dom::CSSValue* DoGetImageOrientation();
+  mozilla::dom::CSSValue* DoGetWillChange();
   mozilla::dom::CSSValue* DoGetOverflow();
   mozilla::dom::CSSValue* DoGetOverflowX();
   mozilla::dom::CSSValue* DoGetOverflowY();
@@ -349,6 +424,7 @@ private:
   mozilla::dom::CSSValue* DoGetPageBreakAfter();
   mozilla::dom::CSSValue* DoGetPageBreakBefore();
   mozilla::dom::CSSValue* DoGetPageBreakInside();
+  mozilla::dom::CSSValue* DoGetTouchAction();
   mozilla::dom::CSSValue* DoGetTransform();
   mozilla::dom::CSSValue* DoGetTransformOrigin();
   mozilla::dom::CSSValue* DoGetPerspective();
@@ -356,6 +432,7 @@ private:
   mozilla::dom::CSSValue* DoGetPerspectiveOrigin();
   mozilla::dom::CSSValue* DoGetTransformStyle();
   mozilla::dom::CSSValue* DoGetOrient();
+  mozilla::dom::CSSValue* DoGetScrollBehavior();
 
   /* User interface properties */
   mozilla::dom::CSSValue* DoGetCursor();
@@ -365,6 +442,7 @@ private:
   mozilla::dom::CSSValue* DoGetUserInput();
   mozilla::dom::CSSValue* DoGetUserModify();
   mozilla::dom::CSSValue* DoGetUserSelect();
+  mozilla::dom::CSSValue* DoGetWindowDragging();
 
   /* Column properties */
   mozilla::dom::CSSValue* DoGetColumnCount();
@@ -444,10 +522,20 @@ private:
   mozilla::dom::CSSValue* DoGetMaskType();
   mozilla::dom::CSSValue* DoGetPaintOrder();
 
+  /* Custom properties */
+  mozilla::dom::CSSValue* DoGetCustomProperty(const nsAString& aPropertyName);
+
   nsDOMCSSValueList* GetROCSSValueList(bool aCommaDelimited);
+
+  /* Helper functions */
   void SetToRGBAColor(nsROCSSPrimitiveValue* aValue, nscolor aColor);
   void SetValueToStyleImage(const nsStyleImage& aStyleImage,
                             nsROCSSPrimitiveValue* aValue);
+  void SetValueToPositionCoord(
+    const nsStyleBackground::Position::PositionCoord& aCoord,
+    nsROCSSPrimitiveValue* aValue);
+  void SetValueToPosition(const nsStyleBackground::Position& aPosition,
+                          nsDOMCSSValueList* aValueList);
 
   /**
    * A method to get a percentage base for a percentage value.  Returns true
@@ -473,7 +561,7 @@ private:
                        const nsStyleCoord& aCoord,
                        bool aClampNegativeCalc,
                        PercentageBaseGetter aPercentageBaseGetter = nullptr,
-                       const int32_t aTable[] = nullptr,
+                       const KTableValue aTable[] = nullptr,
                        nscoord aMinAppUnits = nscoord_MIN,
                        nscoord aMaxAppUnits = nscoord_MAX);
 
@@ -490,6 +578,8 @@ private:
 
   bool GetCBContentWidth(nscoord& aWidth);
   bool GetCBContentHeight(nscoord& aWidth);
+  bool GetScrollFrameContentWidth(nscoord& aWidth);
+  bool GetScrollFrameContentHeight(nscoord& aHeight);
   bool GetFrameBoundsWidthForTransform(nscoord &aWidth);
   bool GetFrameBoundsHeightForTransform(nscoord &aHeight);
   bool GetFrameBorderRectWidth(nscoord& aWidth);
@@ -500,17 +590,16 @@ private:
   mozilla::dom::CSSValue* CreatePrimitiveValueForStyleFilter(
     const nsStyleFilter& aStyleFilter);
 
-  struct ComputedStyleMapEntry
-  {
-    // Create a pointer-to-member-function type.
-    typedef mozilla::dom::CSSValue* (nsComputedDOMStyle::*ComputeMethod)();
+  // Helper function for computing basic shape styles.
+  mozilla::dom::CSSValue* CreatePrimitiveValueForClipPath(
+    const nsStyleBasicShape* aStyleBasicShape, uint8_t aSizingBox);
+  void BoxValuesToString(nsAString& aString,
+                         const nsTArray<nsStyleCoord>& aBoxValues);
+  void BasicShapeRadiiToString(nsAString& aCssText,
+                               const nsStyleCorners& aCorners);
 
-    nsCSSProperty mProperty;
-    ComputeMethod mGetter;
-    bool mNeedsLayoutFlush;
-  };
 
-  static const ComputedStyleMapEntry* GetQueryablePropertyMap(uint32_t* aLength);
+  static nsComputedStyleMap* GetComputedStyleMap();
 
   // We don't really have a good immutable representation of "presentation".
   // Given the way GetComputedStyle is currently used, we should just grab the

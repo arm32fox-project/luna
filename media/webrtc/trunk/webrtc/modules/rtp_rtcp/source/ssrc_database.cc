@@ -8,13 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "ssrc_database.h"
+#include "webrtc/modules/rtp_rtcp/source/ssrc_database.h"
 
-#include "critical_section_wrapper.h"
-#include "trace.h"
-
+#include <assert.h>
 #include <stdlib.h>
-#include <cassert>
+
+#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
 
 #ifdef _WIN32
     #include <windows.h>
@@ -51,14 +50,12 @@ SSRCDatabase::ReturnSSRCDatabase()
     StaticInstance(kRelease);
 }
 
-WebRtc_UWord32
+uint32_t
 SSRCDatabase::CreateSSRC()
 {
     CriticalSectionScoped lock(_critSect);
 
-    WebRtc_UWord32 ssrc = GenerateRandom();
-
-#ifndef WEBRTC_NO_STL
+    uint32_t ssrc = GenerateRandom();
 
     while(_ssrcMap.find(ssrc) != _ssrcMap.end())
     {
@@ -66,104 +63,22 @@ SSRCDatabase::CreateSSRC()
     }
     _ssrcMap[ssrc] = 0;
 
-#else
-    if(_sizeOfSSRC <= _numberOfSSRC)
-    {
-        // allocate more space
-        const int newSize = _sizeOfSSRC + 10;
-        WebRtc_UWord32* tempSSRCVector = new WebRtc_UWord32[newSize];
-        memcpy(tempSSRCVector, _ssrcVector, _sizeOfSSRC*sizeof(WebRtc_UWord32));
-        delete [] _ssrcVector;
-
-        _ssrcVector = tempSSRCVector;
-        _sizeOfSSRC = newSize;
-    }
-
-    // check if in DB
-    if(_ssrcVector)
-    {
-        for (int i=0; i<_numberOfSSRC; i++)
-        {
-            if (_ssrcVector[i] == ssrc)
-            {
-                // we have a match
-                i = 0; // start over with a new ssrc
-                ssrc = GenerateRandom();
-            }
-
-        }
-        //  add to database
-        _ssrcVector[_numberOfSSRC] = ssrc;
-        _numberOfSSRC++;
-    }
-#endif
     return ssrc;
 }
 
-WebRtc_Word32
-SSRCDatabase::RegisterSSRC(const WebRtc_UWord32 ssrc)
+int32_t
+SSRCDatabase::RegisterSSRC(const uint32_t ssrc)
 {
     CriticalSectionScoped lock(_critSect);
-
-#ifndef WEBRTC_NO_STL
-
     _ssrcMap[ssrc] = 0;
-
-#else
-    if(_sizeOfSSRC <= _numberOfSSRC)
-    {
-        // allocate more space
-        const int newSize = _sizeOfSSRC + 10;
-        WebRtc_UWord32* tempSSRCVector = new WebRtc_UWord32[newSize];
-        memcpy(tempSSRCVector, _ssrcVector, _sizeOfSSRC*sizeof(WebRtc_UWord32));
-        delete [] _ssrcVector;
-
-        _ssrcVector = tempSSRCVector;
-        _sizeOfSSRC = newSize;
-    }
-    // check if in DB
-    if(_ssrcVector)
-    {
-        for (int i=0; i<_numberOfSSRC; i++)
-        {
-            if (_ssrcVector[i] == ssrc)
-            {
-                // we have a match
-                return -1;
-            }
-        }
-        //  add to database
-        _ssrcVector[_numberOfSSRC] = ssrc;
-        _numberOfSSRC++;
-    }
-#endif
     return 0;
 }
 
-WebRtc_Word32
-SSRCDatabase::ReturnSSRC(const WebRtc_UWord32 ssrc)
+int32_t
+SSRCDatabase::ReturnSSRC(const uint32_t ssrc)
 {
     CriticalSectionScoped lock(_critSect);
-
-#ifndef WEBRTC_NO_STL
     _ssrcMap.erase(ssrc);
-
-#else
-    if(_ssrcVector)
-    {
-        for (int i=0; i<_numberOfSSRC; i++)
-        {
-            if (_ssrcVector[i] == ssrc)
-            {
-                // we have a match
-                // remove from database
-                _ssrcVector[i] = _ssrcVector[_numberOfSSRC-1];
-                _numberOfSSRC--;
-                break;
-            }
-        }
-    }
-#endif
     return 0;
 }
 
@@ -179,31 +94,18 @@ SSRCDatabase::SSRCDatabase()
     srand(tv.tv_usec);
 #endif
 
-#ifdef WEBRTC_NO_STL
-    _sizeOfSSRC = 10;
-    _numberOfSSRC = 0;
-    _ssrcVector = new WebRtc_UWord32[10];
-#endif
     _critSect = CriticalSectionWrapper::CreateCriticalSection();
-
-    WEBRTC_TRACE(kTraceMemory, kTraceRtpRtcp, -1, "%s created", __FUNCTION__);
 }
 
 SSRCDatabase::~SSRCDatabase()
 {
-#ifdef WEBRTC_NO_STL
-    delete [] _ssrcVector;
-#else
     _ssrcMap.clear();
-#endif
     delete _critSect;
-
-    WEBRTC_TRACE(kTraceMemory, kTraceRtpRtcp, -1, "%s deleted", __FUNCTION__);
 }
 
-WebRtc_UWord32 SSRCDatabase::GenerateRandom()
+uint32_t SSRCDatabase::GenerateRandom()
 {
-    WebRtc_UWord32 ssrc = 0;
+    uint32_t ssrc = 0;
     do
     {
         ssrc = rand();
@@ -214,4 +116,4 @@ WebRtc_UWord32 SSRCDatabase::GenerateRandom()
 
     return ssrc;
 }
-} // namespace webrtc
+}  // namespace webrtc

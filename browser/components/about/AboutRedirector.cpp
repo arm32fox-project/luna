@@ -8,16 +8,20 @@
 #include "AboutRedirector.h"
 #include "nsNetUtil.h"
 #include "nsIScriptSecurityManager.h"
+#include "mozilla/ArrayUtils.h"
+#include "nsDOMString.h"
+
 
 namespace mozilla {
 namespace browser {
 
-NS_IMPL_ISUPPORTS1(AboutRedirector, nsIAboutModule)
+NS_IMPL_ISUPPORTS(AboutRedirector, nsIAboutModule)
 
 struct RedirEntry {
   const char* id;
   const char* url;
   uint32_t flags;
+  const char* idbOriginPostfix;
 };
 
 /*
@@ -26,10 +30,8 @@ struct RedirEntry {
   URI_SAFE_FOR_UNTRUSTED_CONTENT in the third argument to each map item below
   unless your about: page really needs chrome privileges. Security review is
   required before adding new map entries without
-  URI_SAFE_FOR_UNTRUSTED_CONTENT.  Also note, however, that adding
-  URI_SAFE_FOR_UNTRUSTED_CONTENT will allow random web sites to link to that
-  URI.  If you want to prevent this, add MAKE_UNLINKABLE as well.
- */
+  URI_SAFE_FOR_UNTRUSTED_CONTENT.
+*/
 static RedirEntry kRedirMap[] = {
 #ifdef MOZ_SAFE_BROWSING
   { "blocked", "chrome://browser/content/blockedSite.xhtml",
@@ -74,6 +76,7 @@ static RedirEntry kRedirMap[] = {
 #endif
   { "home", "chrome://browser/content/abouthome/aboutHome.xhtml",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
+    nsIAboutModule::MAKE_LINKABLE |
     nsIAboutModule::ALLOW_SCRIPT },
   { "newtab", "chrome://browser/content/newtab/newTab.xul",
     nsIAboutModule::ALLOW_SCRIPT },
@@ -82,7 +85,7 @@ static RedirEntry kRedirMap[] = {
   { "downloads", "chrome://browser/content/downloads/contentAreaDownloadsView.xul",
     nsIAboutModule::ALLOW_SCRIPT },
 };
-static const int kRedirTotal = NS_ARRAY_LENGTH(kRedirMap);
+static const int kRedirTotal = ArrayLength(kRedirMap);
 
 static nsAutoCString
 GetAboutModuleName(nsIURI *aURI)
@@ -103,7 +106,9 @@ GetAboutModuleName(nsIURI *aURI)
 }
 
 NS_IMETHODIMP
-AboutRedirector::NewChannel(nsIURI *aURI, nsIChannel **result) 
+AboutRedirector::NewChannel(nsIURI* aURI,
+                            nsILoadInfo* aLoadInfo,
+                            nsIChannel** result)
 {
   NS_ENSURE_ARG_POINTER(aURI);
   NS_ASSERTION(result, "must not be null");
@@ -147,6 +152,30 @@ AboutRedirector::GetURIFlags(nsIURI *aURI, uint32_t *result)
 
   return NS_ERROR_ILLEGAL_VALUE;
 }
+
+NS_IMETHODIMP
+AboutRedirector::GetIndexedDBOriginPostfix(nsIURI *aURI, nsAString &result)
+{
+  NS_ENSURE_ARG_POINTER(aURI);
+
+  nsAutoCString name = GetAboutModuleName(aURI);
+
+  for (int i = 0; i < kRedirTotal; i++) {
+    if (name.Equals(kRedirMap[i].id)) {
+      const char* postfix = kRedirMap[i].idbOriginPostfix;
+      if (!postfix) {
+        break;
+      }
+
+      result.AssignASCII(postfix);
+      return NS_OK;
+    }
+  }
+
+  SetDOMStringToNull(result);
+  return NS_ERROR_ILLEGAL_VALUE;
+}
+
 
 nsresult
 AboutRedirector::Create(nsISupports *aOuter, REFNSIID aIID, void **result)

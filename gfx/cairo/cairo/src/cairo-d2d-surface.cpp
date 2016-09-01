@@ -87,7 +87,7 @@ _cairo_d2d_set_operator(cairo_d2d_device_t *device,
 	return CAIRO_INT_STATUS_UNSUPPORTED;
     }
 
-    if (device->mBlendStates[op]) {
+    if (device->mBlendStates[static_cast<size_t>(op)]) {
 	device->mD3D10Device->OMSetBlendState(device->mBlendStates[op], NULL, 0xffffffff);
 	return CAIRO_INT_STATUS_SUCCESS;
     }
@@ -174,7 +174,7 @@ cairo_d2d_create_device_from_d3d10device(ID3D10Device1 *d3d10device)
     };
     D3D10_PASS_DESC passDesc;
     ID3D10EffectTechnique *technique;
-    Vertex vertices[] = { {0.0, 0.0}, {1.0, 0.0}, {0.0, 1.0}, {1.0, 1.0} };
+    Vertex vertices[] = { {{0.0, 0.0}}, {{1.0, 0.0}}, {{0.0, 1.0}}, {{1.0, 1.0}} };
     CD3D10_BUFFER_DESC bufferDesc(sizeof(vertices), D3D10_BIND_VERTEX_BUFFER);
     D3D10_SUBRESOURCE_DATA data;
     CD3D10_TEXTURE2D_DESC textDesc(DXGI_FORMAT_B8G8R8A8_UNORM,

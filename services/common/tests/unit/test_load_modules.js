@@ -4,7 +4,7 @@
 const modules = [
   "async.js",
   "bagheeraclient.js",
-  "log4moz.js",
+  "logmanager.js",
   "rest.js",
   "storageservice.js",
   "stringbundle.js",
@@ -25,7 +25,7 @@ function run_test() {
   }
 
   for each (let m in test_modules) {
-    let resource = "resource://testing-common/services-common/" + m;
+    let resource = "resource://testing-common/services/common/" + m;
     Components.utils.import(resource, {});
   }
 }

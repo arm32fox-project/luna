@@ -1,7 +1,3 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cr = Components.results;
-const Cu = Components.utils;
 const CC = Components.Constructor;
 
 const ServerSocket = CC("@mozilla.org/network/server-socket;1",
@@ -29,7 +25,7 @@ function TestServer() {
   // any port (-1), loopback only (true), default backlog (-1)
   this.listener = ServerSocket(-1, true, -1);
   this.port = this.listener.port;
-  do_print('server: listening on', this.port);
+  do_print('server: listening on ' + this.port);
   this.listener.asyncListen(this);
 }
 

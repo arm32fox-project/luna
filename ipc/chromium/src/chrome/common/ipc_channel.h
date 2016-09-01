@@ -5,6 +5,8 @@
 #ifndef CHROME_COMMON_IPC_CHANNEL_H_
 #define CHROME_COMMON_IPC_CHANNEL_H_
 
+#include <string>
+
 #include <queue>
 #include "chrome/common/ipc_message.h"
 
@@ -98,7 +100,13 @@ class Channel : public Message::Sender {
   //
   // If you Send() a message on a Close()'d channel, we delete the message
   // immediately.
-  virtual bool Send(Message* message);
+  virtual bool Send(Message* message) override;
+
+  // Unsound_IsClosed() and Unsound_NumQueuedMessages() are safe to call from
+  // any thread, but the value returned may be out of date, because we don't
+  // use any synchronization when reading or writing it.
+  bool Unsound_IsClosed() const;
+  uint32_t Unsound_NumQueuedMessages() const;
 
 #if defined(OS_POSIX)
   // On POSIX an IPC::Channel wraps a socketpair(), this method returns the
@@ -111,12 +119,28 @@ class Channel : public Message::Sender {
   // socketpair() in which case this method returns -1 for both parameters.
   void GetClientFileDescriptorMapping(int *src_fd, int *dest_fd) const;
 
-  // Return the server side of the socketpair.
-  int GetServerFileDescriptor() const;
+  // Return the file descriptor for communication with the peer.
+  int GetFileDescriptor() const;
+
+  // Reset the file descriptor for communication with the peer.
+  void ResetFileDescriptor(int fd);
+
+  // Close the client side of the socketpair.
+  void CloseClientFileDescriptor();
+
 #elif defined(OS_WIN)
   // Return the server pipe handle.
   void* GetServerPipeHandle() const;
 #endif  // defined(OS_POSIX)
+
+  // Generates a channel ID that's non-predictable and unique.
+  static std::wstring GenerateUniqueRandomChannelID();
+
+  // Generates a channel ID that, if passed to the client as a shared secret,
+  // will validate that the client's authenticity. On platforms that do not
+  // require additional validation this is simply calls GenerateUniqueRandomChannelID().
+  // For portability the prefix should not include the \ character.
+  static std::wstring GenerateVerifiedChannelID(const std::wstring& prefix);
 
  private:
   // PIMPL to which all channel calls are delegated.

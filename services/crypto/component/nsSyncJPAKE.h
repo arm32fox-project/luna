@@ -20,12 +20,13 @@ public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSISYNCJPAKE
   nsSyncJPAKE();
+protected:
   virtual ~nsSyncJPAKE();
 private:
   enum { JPAKENotStarted, JPAKEBeforeRound2, JPAKEAfterRound2 } round;
   PK11SymKey * key;
 };
 
-NS_IMPL_ISUPPORTS1(nsSyncJPAKE, nsISyncJPAKE)
+NS_IMPL_ISUPPORTS(nsSyncJPAKE, nsISyncJPAKE)
 
 #endif // nsSyncJPAKE_h__

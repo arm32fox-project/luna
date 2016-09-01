@@ -9,7 +9,7 @@ const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 this.EXPORTED_SYMBOLS = [
   "RESTRequest",
   "RESTResponse",
-  "TokenAuthenticatedRESTRequest"
+  "TokenAuthenticatedRESTRequest",
 ];
 
 #endif
@@ -17,7 +17,7 @@ this.EXPORTED_SYMBOLS = [
 Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://services-common/utils.js");
 
 XPCOMUtils.defineLazyModuleGetter(this, "CryptoUtils",
@@ -91,9 +91,9 @@ this.RESTRequest = function RESTRequest(uri) {
   this.uri = uri;
 
   this._headers = {};
-  this._log = Log4Moz.repository.getLogger(this._logName);
+  this._log = Log.repository.getLogger(this._logName);
   this._log.level =
-    Log4Moz.Level[Prefs.get("log.logger.rest.request")];
+    Log.Level[Prefs.get("log.logger.rest.request")];
 }
 RESTRequest.prototype = {
 
@@ -145,6 +145,11 @@ RESTRequest.prototype = {
   IN_PROGRESS: 2,
   COMPLETED:   4,
   ABORTED:     8,
+
+  /**
+   * HTTP status text of response
+   */
+  statusText: null,
 
   /**
    * Request timeout (in seconds, though decimal values can be used for
@@ -200,6 +205,23 @@ RESTRequest.prototype = {
    */
   get: function get(onComplete, onProgress) {
     return this.dispatch("GET", null, onComplete, onProgress);
+  },
+
+  /**
+   * Perform an HTTP PATCH.
+   *
+   * @param data
+   *        Data to be used as the request body. If this isn't a string
+   *        it will be JSONified automatically.
+   * @param onComplete
+   *        Short-circuit way to set the 'onComplete' method. Optional.
+   * @param onProgress
+   *        Short-circuit way to set the 'onProgress' method. Optional.
+   *
+   * @return the request object.
+   */
+  patch: function patch(data, onComplete, onProgress) {
+    return this.dispatch("PATCH", data, onComplete, onProgress);
   },
 
   /**
@@ -283,7 +305,12 @@ RESTRequest.prototype = {
     }
 
     // Create and initialize HTTP channel.
-    let channel = Services.io.newChannelFromURI(this.uri, null, null)
+    let channel = Services.io.newChannelFromURI2(this.uri,
+                                                 null,      // aLoadingNode
+                                                 Services.scriptSecurityManager.getSystemPrincipal(),
+                                                 null,      // aTriggeringPrincipal
+                                                 Ci.nsILoadInfo.SEC_NORMAL,
+                                                 Ci.nsIContentPolicy.TYPE_OTHER)
                           .QueryInterface(Ci.nsIRequest)
                           .QueryInterface(Ci.nsIHttpChannel);
     this.channel = channel;
@@ -302,14 +329,14 @@ RESTRequest.prototype = {
     }
 
     // Set HTTP request body.
-    if (method == "PUT" || method == "POST") {
+    if (method == "PUT" || method == "POST" || method == "PATCH") {
       // Convert non-string bodies into JSON.
       if (typeof data != "string") {
         data = JSON.stringify(data);
       }
 
       this._log.debug(method + " Length: " + data.length);
-      if (this._log.level <= Log4Moz.Level.Trace) {
+      if (this._log.level <= Log.Level.Trace) {
         this._log.trace(method + " Body: " + data);
       }
 
@@ -361,7 +388,7 @@ RESTRequest.prototype = {
                                      Cr.NS_ERROR_NET_TIMEOUT);
     if (!this.onComplete) {
       this._log.error("Unexpected error: onComplete not defined in " +
-                      "abortTimeout.")
+                      "abortTimeout.");
       return;
     }
     this.onComplete(error);
@@ -436,6 +463,7 @@ RESTRequest.prototype = {
     if (!statusSuccess) {
       let message = Components.Exception("", statusCode).name;
       let error = Components.Exception(message, statusCode);
+      this._log.debug(this.method + " " + uri + " failed: " + statusCode + " - " + message);
       this.onComplete(error);
       this.onComplete = this.onProgress = null;
       return;
@@ -444,7 +472,7 @@ RESTRequest.prototype = {
     this._log.debug(this.method + " " + uri + " " + this.response.status);
 
     // Additionally give the full response body when Trace logging.
-    if (this._log.level <= Log4Moz.Level.Trace) {
+    if (this._log.level <= Log.Level.Trace) {
       this._log.trace(this.method + " body: " + this.response.body);
     }
 
@@ -593,9 +621,9 @@ RESTRequest.prototype = {
  * the RESTRequest.
  */
 this.RESTResponse = function RESTResponse() {
-  this._log = Log4Moz.repository.getLogger(this._logName);
+  this._log = Log.repository.getLogger(this._logName);
   this._log.level =
-    Log4Moz.Level[Prefs.get("log.logger.rest.response")];
+    Log.Level[Prefs.get("log.logger.rest.response")];
 }
 RESTResponse.prototype = {
 
@@ -612,15 +640,30 @@ RESTResponse.prototype = {
   get status() {
     let status;
     try {
-      let channel = this.request.channel.QueryInterface(Ci.nsIHttpChannel);
-      status = channel.responseStatus;
+      status = this.request.channel.responseStatus;
     } catch (ex) {
       this._log.debug("Caught exception fetching HTTP status code:" +
                       CommonUtils.exceptionStr(ex));
       return null;
     }
-    delete this.status;
-    return this.status = status;
+    Object.defineProperty(this, "status", {value: status});
+    return status;
+  },
+
+  /**
+   * HTTP status text
+   */
+  get statusText() {
+    let statusText;
+    try {
+      statusText = this.request.channel.responseStatusText;
+    } catch (ex) {
+      this._log.debug("Caught exception fetching HTTP status text:" +
+                      CommonUtils.exceptionStr(ex));
+      return null;
+    }
+    Object.defineProperty(this, "statusText", {value: statusText});
+    return statusText;
   },
 
   /**
@@ -629,15 +672,14 @@ RESTResponse.prototype = {
   get success() {
     let success;
     try {
-      let channel = this.request.channel.QueryInterface(Ci.nsIHttpChannel);
-      success = channel.requestSucceeded;
+      success = this.request.channel.requestSucceeded;
     } catch (ex) {
       this._log.debug("Caught exception fetching HTTP success flag:" +
                       CommonUtils.exceptionStr(ex));
       return null;
     }
-    delete this.success;
-    return this.success = success;
+    Object.defineProperty(this, "success", {value: success});
+    return success;
   },
 
   /**
@@ -657,8 +699,8 @@ RESTResponse.prototype = {
       return null;
     }
 
-    delete this.headers;
-    return this.headers = headers;
+    Object.defineProperty(this, "headers", {value: headers});
+    return headers;
   },
 
   /**

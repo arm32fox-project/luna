@@ -23,6 +23,7 @@ enum nsStyleStructID {
  * one type or the other.
  */
 
+nsStyleStructID_None = -1,
 nsStyleStructID_Inherited_Start = 0,
 // a dummy value so the value after it is the same as ..._Inherited_Start
 nsStyleStructID_DUMMY1 = nsStyleStructID_Inherited_Start - 1,
@@ -62,6 +63,6 @@ eStyleStruct_BackendOnly = nsStyleStructID_Length
 };
 
 // A bit corresponding to each struct ID
-#define NS_STYLE_INHERIT_BIT(sid_)        (1 << int32_t(eStyleStruct_##sid_))
+#define NS_STYLE_INHERIT_BIT(sid_)        (1 << uint64_t(eStyleStruct_##sid_))
 
 #endif /* nsStyleStructFwd_h_ */

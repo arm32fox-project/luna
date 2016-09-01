@@ -4,7 +4,6 @@
 
 #include "domstubs.idl"
 
-interface mozIDOMApplication;
 interface mozIApplication;
 interface nsIURI;
 
@@ -17,10 +16,17 @@ interface nsIURI;
  * This service allows accessing some DOMApplicationRegistry methods from
  * non-javascript code.
  */
-[scriptable, uuid(27b995cf-bec8-47de-aa48-6117c950fce3)]
+[scriptable, uuid(76ced447-6f92-48fb-b4e6-690e4859bc7f)]
 interface nsIAppsService : nsISupports
 {
-  mozIDOMApplication getAppByManifestURL(in DOMString manifestURL);
+  mozIApplication getAppByManifestURL(in DOMString manifestURL);
+
+  /**
+   * Returns a Promise for the manifest for a given manifestURL.
+   * This is only supported in the parent process: the promise will be rejected
+   * in content processes.
+   */
+  jsval getManifestFor(in DOMString manifestURL);
 
   /**
    * Returns the |localId| of the app associated with the |manifestURL| passed
@@ -33,7 +39,7 @@ interface nsIAppsService : nsISupports
   /**
    * Returns the application associated to this localId.
    */
-  mozIDOMApplication getAppByLocalId(in unsigned long localId);
+  mozIApplication getAppByLocalId(in unsigned long localId);
 
   /**
    * Returns the manifest URL associated to this localId.
@@ -41,16 +47,14 @@ interface nsIAppsService : nsISupports
   DOMString getManifestURLByLocalId(in unsigned long localId);
 
   /**
-   * Returns the app that is related to the message.
-   * This is a helper to not have to worry about what is the actual structure
-   * of the message when listening to one.
+   * Returns the manifest CSP associated to this localId.
    */
-  mozIApplication getAppFromObserverMessage(in DOMString message);
+  DOMString getManifestCSPByLocalId(in unsigned long localId);
 
   /**
-   * Returns the CSP associated to this localId.
+   * Returns the default CSP associated to this localId.
    */
-  DOMString getCSPByLocalId(in unsigned long localId);
+  DOMString getDefaultCSPByLocalId(in unsigned long localId);
 
   /**
    * Returns the basepath for core apps

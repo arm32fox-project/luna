@@ -3,22 +3,18 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 #include "nsSelectsAreaFrame.h"
-#include "nsCOMPtr.h"
-#include "nsIDOMHTMLOptionElement.h"
 #include "nsIContent.h"
 #include "nsListControlFrame.h"
 #include "nsDisplayList.h"
 
-nsIFrame*
-NS_NewSelectsAreaFrame(nsIPresShell* aShell, nsStyleContext* aContext, uint32_t aFlags)
+nsContainerFrame*
+NS_NewSelectsAreaFrame(nsIPresShell* aShell, nsStyleContext* aContext, nsFrameState aFlags)
 {
   nsSelectsAreaFrame* it = new (aShell) nsSelectsAreaFrame(aContext);
 
-  if (it) {
-    // We need NS_BLOCK_FLOAT_MGR to ensure that the options inside the select
-    // aren't expanded by right floats outside the select.
-    it->SetFlags(aFlags | NS_BLOCK_FLOAT_MGR);
-  }
+  // We need NS_BLOCK_FLOAT_MGR to ensure that the options inside the select
+  // aren't expanded by right floats outside the select.
+  it->SetFlags(aFlags | NS_BLOCK_FLOAT_MGR);
 
   return it;
 }
@@ -40,7 +36,10 @@ public:
                               nsIFrame* aFrame, nsDisplayList* aList)
     : nsDisplayWrapList(aBuilder, aFrame, aList) {}
   virtual void HitTest(nsDisplayListBuilder* aBuilder, const nsRect& aRect,
-                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames);
+                       HitTestState* aState, nsTArray<nsIFrame*> *aOutFrames) override;
+  virtual bool ShouldFlattenAway(nsDisplayListBuilder* aBuilder) override {
+    return false;
+  }
   NS_DISPLAY_DECL_NAME("OptionEventGrabber", TYPE_OPTION_EVENT_GRABBER)
 };
 
@@ -104,7 +103,7 @@ public:
   }
 #endif
 
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) {
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) override {
     *aSnap = false;
     // override bounds because the list item focus ring may extend outside
     // the nsSelectsAreaFrame
@@ -113,7 +112,7 @@ public:
            listFrame->GetOffsetToCrossDoc(ReferenceFrame());
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx) {
+                     nsRenderingContext* aCtx) override {
     nsListControlFrame* listFrame = GetEnclosingListFrame(Frame());
     // listFrame must be non-null or we wouldn't get called.
     listFrame->PaintFocus(*aCtx, aBuilder->ToReferenceFrame(listFrame));
@@ -155,7 +154,7 @@ nsSelectsAreaFrame::BuildDisplayListInternal(nsDisplayListBuilder*   aBuilder,
   }
 }
 
-NS_IMETHODIMP 
+void
 nsSelectsAreaFrame::Reflow(nsPresContext*           aPresContext, 
                            nsHTMLReflowMetrics&     aDesiredSize,
                            const nsHTMLReflowState& aReflowState, 
@@ -181,9 +180,7 @@ nsSelectsAreaFrame::Reflow(nsPresContext*           aPresContext,
     }
   }
   
-  nsresult rv = nsBlockFrame::Reflow(aPresContext, aDesiredSize,
-                                    aReflowState, aStatus);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsBlockFrame::Reflow(aPresContext, aDesiredSize, aReflowState, aStatus);
 
   // Check whether we need to suppress scrollbar updates.  We want to do that if
   // we're in a possible first pass and our height of a row has changed.
@@ -193,12 +190,10 @@ nsSelectsAreaFrame::Reflow(nsPresContext*           aPresContext,
     // comboboxes, we'll also need it if our height changed.  If we're going
     // to do a second pass, suppress scrollbar updates for this pass.
     if (newHeightOfARow != mHeightOfARow ||
-        (isInDropdownMode && (oldHeight != aDesiredSize.height ||
+        (isInDropdownMode && (oldHeight != aDesiredSize.Height() ||
                               oldHeight != GetSize().height))) {
       mHeightOfARow = newHeightOfARow;
       list->SetSuppressScrollbarUpdate(true);
     }
   }
-
-  return rv;
 }

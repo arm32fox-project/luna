@@ -26,6 +26,7 @@
 #include <sys/resource.h>
 #include <unistd.h>
 #include <stdlib.h> // atoi
+#include <sys/prctl.h>
 #ifndef ANDROID // no Android impl
 #  include <ucontext.h>
 #endif
@@ -39,13 +40,16 @@
 static char _progname[1024] = "huh?";
 static unsigned int _gdb_sleep_duration = 300;
 
-// NB: keep me up to date with the same variable in
-// ipc/chromium/chrome/common/ipc_channel_posix.cc
-static const int kClientChannelFd = 3;
-
 #if defined(LINUX) && defined(DEBUG) && \
       (defined(__i386) || defined(__x86_64) || defined(PPC))
 #define CRAWL_STACK_ON_SIGSEGV
+#endif
+
+#ifndef PR_SET_PTRACER
+#define PR_SET_PTRACER 0x59616d61
+#endif
+#ifndef PR_SET_PTRACER_ANY
+#define PR_SET_PTRACER_ANY ((unsigned long)-1)
 #endif
 
 #if defined(CRAWL_STACK_ON_SIGSEGV)
@@ -54,16 +58,22 @@ static const int kClientChannelFd = 3;
 #include "nsISupportsUtils.h"
 #include "nsStackWalk.h"
 
+// NB: keep me up to date with the same variable in
+// ipc/chromium/chrome/common/ipc_channel_posix.cc
+static const int kClientChannelFd = 3;
+
 extern "C" {
 
-static void PrintStackFrame(void *aPC, void *aSP, void *aClosure)
+static void PrintStackFrame(uint32_t aFrameNumber, void *aPC, void *aSP,
+                            void *aClosure)
 {
   char buf[1024];
   nsCodeAddressDetails details;
 
   NS_DescribeCodeAddress(aPC, &details);
-  NS_FormatCodeAddressDetails(aPC, &details, buf, sizeof(buf));
-  fputs(buf, stdout);
+  NS_FormatCodeAddressDetails(buf, sizeof(buf), aFrameNumber, aPC, &details);
+  fprintf(stdout, "%s\n", buf);
+  fflush(stdout);
 }
 
 }
@@ -84,6 +94,9 @@ ah_crap_handler(int signum)
   printf("Type 'gdb %s %d' to attach your debugger to this thread.\n",
          _progname,
          getpid());
+
+  // Allow us to be ptraced by gdb on Linux with Yama restrictions enabled.
+  prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY);
 
   sleep(_gdb_sleep_duration);
 
@@ -109,7 +122,7 @@ child_ah_crap_handler(int signum)
 
 #if defined(MOZ_WIDGET_GTK) && (GLIB_MAJOR_VERSION > 2 || (GLIB_MAJOR_VERSION == 2 && GLIB_MINOR_VERSION >= 6))
 
-static GLogFunc orig_log_func = NULL;
+static GLogFunc orig_log_func = nullptr;
 
 extern "C" {
 static void
@@ -127,7 +140,7 @@ my_glib_log_func(const gchar *log_domain, GLogLevelFlags log_level,
     NS_DebugBreak(NS_DEBUG_WARNING, message, "glib warning", __FILE__, __LINE__);
   }
 
-  orig_log_func(log_domain, log_level, message, NULL);
+  orig_log_func(log_domain, log_level, message, nullptr);
 }
 
 #endif
@@ -246,6 +259,15 @@ void InstallSignalHandlers(const char *ProgramName)
   sigaction(SIGFPE, &sa, &osa);
 #endif
 
+  if (XRE_GetProcessType() == GoannaProcessType_Content) {
+    /*
+     * If the user is debugging a Goanna parent process in gdb and hits ^C to
+     * suspend, a SIGINT signal will be sent to the child. We ignore this signal
+     * so the child isn't killed.
+     */
+    signal(SIGINT, SIG_IGN);
+  }
+
 #if defined(DEBUG) && defined(LINUX)
   const char *memLimit = PR_GetEnv("MOZ_MEM_LIMIT");
   if (memLimit && *memLimit)
@@ -292,7 +314,7 @@ void InstallSignalHandlers(const char *ProgramName)
        !strcmp(assertString, "trap") ||
        !strcmp(assertString, "break"))) {
     // Override the default glib logging function so we get stacks for it too.
-    orig_log_func = g_log_set_default_handler(my_glib_log_func, NULL);
+    orig_log_func = g_log_set_default_handler(my_glib_log_func, nullptr);
   }
 #endif
 }
@@ -322,13 +344,6 @@ void InstallSignalHandlers(const char *ProgramName)
 #define X87CW(ctx) (ctx)->FloatSave.ControlWord
 #define X87SW(ctx) (ctx)->FloatSave.StatusWord
 #endif
-
-/*
- * SSE traps raise these exception codes, which are defined in internal NT headers
- * but not winbase.h
- */
-#define STATUS_FLOAT_MULTIPLE_FAULTS 0xC00002B4
-#define STATUS_FLOAT_MULTIPLE_TRAPS  0xC00002B5
 
 static LPTOP_LEVEL_EXCEPTION_FILTER gFPEPreviousFilter;
 

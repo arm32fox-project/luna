@@ -4,15 +4,12 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MODULE = 'xpcomsample'
+# GoannaSimplePrograms compiles a single .cpp file into an executable
+# depending on Goanna with standalone linkage.
+GoannaSimplePrograms([
+    'nsTestSample'
+], linkage='standalone')
 
-# We must specify CPP_SOURCES in order to link using the proper c++ linker
-# on certain platforms.
-CPP_SOURCES += [
-    'nsTestSample.cpp',
-]
-
-# SIMPLE_PROGRAMS compiles a single .cpp file into an executable
-SIMPLE_PROGRAMS += [
-    "nsTestSample%s" % (CONFIG['BIN_SUFFIX']),
-]
+# Need to link with CoreFoundation on Mac
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
+    OS_LIBS += CONFIG['TK_LIBS']

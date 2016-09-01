@@ -101,7 +101,11 @@
 
             const XULNS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
             var newitem = document.createElementNS(XULNS, "notification");
-            newitem.setAttribute("label", aLabel);
+            // Can't use instanceof in case this was created from a different document:
+            let labelIsDocFragment = aLabel && typeof aLabel == "object" && aLabel.nodeType &&
+                                     aLabel.nodeType == aLabel.DOCUMENT_FRAGMENT_NODE;
+            if (!labelIsDocFragment)
+              newitem.setAttribute("label", aLabel);
             newitem.setAttribute("value", aValue);
             if (aImage)
               newitem.setAttribute("image", aImage);
@@ -119,6 +123,16 @@
                 var buttonElem = document.createElementNS(XULNS, "button");
                 buttonElem.setAttribute("label", button.label);
                 buttonElem.setAttribute("accesskey", button.accessKey);
+                if (typeof button.type == "string") {
+                  buttonElem.setAttribute("type", button.type);
+                  if ((button.type == "menu-button" || button.type == "menu") &&
+                      "popup" in button) {
+                    buttonElem.appendChild(button.popup);
+                    delete button.popup;
+                  }
+                  if (typeof button.anchor == "string")
+                    buttonElem.setAttribute("anchor", button.anchor);
+                }
                 buttonElem.classList.add("notification-button");
 
                 if (button.isDefault ||
@@ -148,6 +162,13 @@
               newitem.style.opacity = "0";
             }
             this.insertBefore(newitem, insertPos);
+            // Can only insert the document fragment after the item has been created because
+            // otherwise the XBL structure isn't there yet:
+            if (labelIsDocFragment) {
+              document.getAnonymousElementByAttribute(newitem, "anonid", "messageText")
+                .appendChild(aLabel);
+            }
+
             if (!insertPos)
               this._showNotification(newitem, true);
 
@@ -359,7 +380,7 @@
 
   </binding>
 
-  <binding id="notification">
+  <binding id="notification" role="xul:alert">
     <content>
       <xul:hbox class="notification-inner outset" flex="1" xbl:inherits="type">
         <xul:hbox anonid="details" align="center" flex="1"
@@ -379,15 +400,7 @@
     <resources>
       <stylesheet src="chrome://global/skin/notification.css"/>
     </resources>
-    <implementation implements="nsIAccessibleProvider">
-      <property name="accessibleType" readonly="true">
-        <getter>
-          <![CDATA[
-            return Components.interfaces.nsIAccessibleProvider.XULAlert;
-          ]]>
-        </getter>
-      </property>
-
+    <implementation>
       <property name="label" onset="this.setAttribute('label', val); return val;"
                              onget="return this.getAttribute('label');"/>
       <property name="value" onset="this.setAttribute('value', val); return val;"
@@ -464,6 +477,8 @@
         <xul:description class="popup-notification-description"
                          xbl:inherits="xbl:text=label"/>
         <children includes="popupnotificationcontent"/>
+        <xul:label class="text-link popup-notification-learnmore-link"
+               xbl:inherits="href=learnmoreurl">&learnMore;</xul:label>
         <xul:spacer flex="1"/>
         <xul:hbox class="popup-notification-button-container"
                   pack="end" align="center">
@@ -474,9 +489,9 @@
             <xul:menupopup anonid="menupopup"
                            xbl:inherits="oncommand=menucommand">
               <children/>
-              <xul:menuitem class="menuitem-iconic popup-notification-closeitem close-icon"
+              <xul:menuitem class="menuitem-iconic popup-notification-closeitem"
                             label="&closeNotificationItem.label;"
-                            xbl:inherits="oncommand=closeitemcommand"/>
+                            xbl:inherits="oncommand=closeitemcommand,hidden=hidenotnow"/>
             </xul:menupopup>
           </xul:button>
         </xul:hbox>

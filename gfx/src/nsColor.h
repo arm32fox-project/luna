@@ -6,8 +6,10 @@
 #ifndef nsColor_h___
 #define nsColor_h___
 
-#include "gfxCore.h"
-#include "nscore.h"
+#include <stddef.h>                     // for size_t
+#include <stdint.h>                     // for uint8_t, uint32_t
+#include "gfxCore.h"                    // for NS_GFX_
+#include "nscore.h"                     // for nsAString
 
 class nsAString;
 class nsString;
@@ -26,6 +28,10 @@ typedef uint32_t nscolor;
 // values are properly constrained to 0-255.
 #define NS_RGBA(_r,_g,_b,_a) \
   ((nscolor) (((_a) << 24) | ((_b)<<16) | ((_g)<<8) | (_r)))
+
+// Make a color out of a gfxRGBA.
+#define NS_RGBA_FROM_GFXRGBA(gfxColor) \
+  ((nscolor) (gfxColor.Packed()))
 
 // Extract color components from nscolor
 #define NS_GET_R(_rgba) ((uint8_t) ((_rgba) & 0xff))
@@ -48,7 +54,7 @@ typedef uint32_t nscolor;
 // Translate a hex string to a color. Return true if it parses ok,
 // otherwise return false.
 // This accepts only 3 or 6 digits
-NS_GFX_(bool) NS_HexToRGB(const nsString& aBuf, nscolor* aResult);
+NS_GFX_(bool) NS_HexToRGB(const nsAString& aBuf, nscolor* aResult);
 
 // Compose one NS_RGB color onto another. The result is what
 // you get if you draw aFG on top of aBG with operator OVER.
@@ -65,6 +71,10 @@ NS_GFX_(bool) NS_LooseHexToRGB(const nsString& aBuf, nscolor* aResult);
 // Translate a color name to a color. Return true if it parses ok,
 // otherwise return false.
 NS_GFX_(bool) NS_ColorNameToRGB(const nsAString& aBuf, nscolor* aResult);
+
+// Returns an array of all possible color names, and sets
+// *aSizeArray to the size of that array. Do NOT call |free()| on this array.
+NS_GFX_(const char * const *) NS_AllColorNames(size_t *aSizeArray);
 
 // function to convert from HSL color space to RGB color space
 // the float parameters are all expected to be in the range 0-1

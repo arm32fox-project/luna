@@ -4,22 +4,19 @@
 
 package org.mozilla.goanna.sync.stage;
 
-import java.io.IOException;
 import java.net.URISyntaxException;
 import java.util.HashSet;
 import java.util.Set;
 
-import org.json.simple.parser.ParseException;
 import org.mozilla.goanna.background.common.log.Logger;
 import org.mozilla.goanna.sync.CollectionKeys;
 import org.mozilla.goanna.sync.CryptoRecord;
 import org.mozilla.goanna.sync.ExtendedJSONObject;
 import org.mozilla.goanna.sync.InfoCollections;
 import org.mozilla.goanna.sync.NoCollectionKeysSetException;
-import org.mozilla.goanna.sync.NonObjectJSONException;
-import org.mozilla.goanna.sync.crypto.CryptoException;
 import org.mozilla.goanna.sync.crypto.KeyBundle;
 import org.mozilla.goanna.sync.crypto.PersistedCrypto5Keys;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
 import org.mozilla.goanna.sync.net.SyncStorageRecordRequest;
 import org.mozilla.goanna.sync.net.SyncStorageRequestDelegate;
 import org.mozilla.goanna.sync.net.SyncStorageResponse;
@@ -67,8 +64,8 @@ implements SyncStorageRequestDelegate {
   }
 
   @Override
-  public String credentials() {
-    return session.credentials();
+  public AuthHeaderProvider getAuthHeaderProvider() {
+    return session.getAuthHeaderProvider();
   }
 
   @Override
@@ -136,21 +133,8 @@ implements SyncStorageRequestDelegate {
         Logger.pii(LOG_TAG, "Fetched keys: " + body.toJSONString());
       }
       keys.setKeyPairsFromWBO(CryptoRecord.fromJSONRecord(body), session.config.syncKeyBundle);
-    } catch (IllegalStateException e) {
+    } catch (Exception e) {
       session.abort(e, "Invalid keys WBO.");
-      return;
-    } catch (ParseException e) {
-      session.abort(e, "Invalid keys WBO.");
-      return;
-    } catch (NonObjectJSONException e) {
-      session.abort(e, "Invalid keys WBO.");
-      return;
-    } catch (IOException e) {
-      // Some kind of lower-level error.
-      session.abort(e, "IOException fetching keys.");
-      return;
-    } catch (CryptoException e) {
-      session.abort(e, "CryptoException handling keys WBO.");
       return;
     }
 

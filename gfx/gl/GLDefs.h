@@ -5,9 +5,8 @@
 #if !defined(LOCALGL_H_)
 #define LOCALGL_H_
 
-#include "GLTypes.h" //Split out typedefs
-#include "GLConsts.h" //Generated with GLParseRegistryXML.py
-
+#include "GLTypes.h"
+#include "GLConsts.h"
 
 // TODO: use official constant names instead of followed ones.
 // IMG_texture_compression_pvrtc
@@ -59,6 +58,5 @@
 
 #define LOCAL_EGL_D3D11_ELSE_D3D9_DISPLAY_ANGLE         ((EGLNativeDisplayType)-2)
 #define LOCAL_EGL_D3D11_ONLY_DISPLAY_ANGLE              ((EGLNativeDisplayType)-3)
-
 
 #endif

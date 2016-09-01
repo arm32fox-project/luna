@@ -4,15 +4,14 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "jsctypes-test.h"
-#include "jsapi.h"
-#include "nsCRTGlue.h"
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include "typedefs.h"
 
-#if defined(XP_WIN)
+#if defined(_MSC_VER) && _MSC_VER < 1900
 #define snprintf _snprintf
-#endif // defined(XP_WIN)
+#endif
 
 template <typename T> struct ValueTraits {
   static T literal() { return static_cast<T>(109.25); }
@@ -45,39 +44,47 @@ test_void_t_cdecl()
   return;
 }
 
-#define FUNCTION_TESTS(name, type, ffiType, suffix)                            \
+// The "AndUnderscore" bit here is an unfortunate hack: the first argument to
+// DEFINE_CDECL_FUNCTIONS and DEFINE_STDCALL_FUNCTIONS, in addition to being a
+// type, may also be a *macro* on NetBSD -- #define int8_t __int8_t and so on.
+// See <http://mail-index.netbsd.org/tech-toolchain/2014/12/18/msg002479.html>.
+// And unfortunately, passing that macro as an argument to this macro causes it
+// to be expanded -- producing get___int8_t_cdecl() and so on.  Concatenating
+// int8_t with _ slightly muddies this code but inhibits expansion. See also
+// bug 1113379.
+#define FUNCTION_TESTS(nameAndUnderscore, type, ffiType, suffix)               \
 type ABI                                                                       \
-get_##name##_##suffix()                                                        \
+get_##nameAndUnderscore##suffix()                                              \
 {                                                                              \
   return ValueTraits<type>::literal();                                         \
 }                                                                              \
                                                                                \
 type ABI                                                                       \
-set_##name##_##suffix(type x)                                                  \
+set_##nameAndUnderscore##suffix(type x)                                        \
 {                                                                              \
   return x;                                                                    \
 }                                                                              \
                                                                                \
 type ABI                                                                       \
-sum_##name##_##suffix(type x, type y)                                          \
+sum_##nameAndUnderscore##suffix(type x, type y)                                \
 {                                                                              \
   return ValueTraits<type>::sum(x, y);                                         \
 }                                                                              \
                                                                                \
 type ABI                                                                       \
-sum_alignb_##name##_##suffix(char a, type x, char b, type y, char c)           \
+sum_alignb_##nameAndUnderscore##suffix(char a, type x, char b, type y, char c)\
 {                                                                              \
   return ValueTraits<type>::sum(x, y);                                         \
 }                                                                              \
                                                                                \
 type ABI                                                                       \
-sum_alignf_##name##_##suffix(float a, type x, float b, type y, float c)        \
+sum_alignf_##nameAndUnderscore##suffix(float a, type x, float b, type y, float c)\
 {                                                                              \
   return ValueTraits<type>::sum(x, y);                                         \
 }                                                                              \
                                                                                \
 type ABI                                                                       \
-sum_many_##name##_##suffix(                                                    \
+sum_many_##nameAndUnderscore##suffix(                                          \
   type a, type b, type c, type d, type e, type f, type g, type h, type i,      \
   type j, type k, type l, type m, type n, type o, type p, type q, type r)      \
 {                                                                              \
@@ -86,8 +93,9 @@ sum_many_##name##_##suffix(                                                    \
 }
 
 #define ABI /* cdecl */
-#define DEFINE_TYPE(x, y, z) FUNCTION_TESTS(x, y, z, cdecl)
-#include "typedefs.h"
+#define DEFINE_CDECL_FUNCTIONS(x, y, z) FUNCTION_TESTS(x##_, y, z, cdecl)
+CTYPES_FOR_EACH_TYPE(DEFINE_CDECL_FUNCTIONS)
+#undef DEFINE_CDECL_FUNCTIONS
 #undef ABI
 
 #if defined(_WIN32)
@@ -100,13 +108,14 @@ test_void_t_stdcall()
 }
 
 #define ABI NS_STDCALL
-#define DEFINE_TYPE(x, y, z) FUNCTION_TESTS(x, y, z, stdcall)
-#include "typedefs.h"
+#define DEFINE_STDCALL_FUNCTIONS(x, y, z) FUNCTION_TESTS(x##_, y, z, stdcall)
+CTYPES_FOR_EACH_TYPE(DEFINE_STDCALL_FUNCTIONS)
+#undef DEFINE_STDCALL_FUNCTIONS
 #undef ABI
 
 #endif /* defined(_WIN32) */
 
-#define DEFINE_TYPE(name, type, ffiType)                                       \
+#define DEFINE_CDECL_TYPE_STATS(name, type, ffiType)                           \
 struct align_##name {                                                          \
   char x;                                                                      \
   type y;                                                                      \
@@ -129,7 +138,8 @@ get_##name##_stats(size_t* align, size_t* size, size_t* nalign, size_t* nsize, \
   offsets[1] = offsetof(nested_##name, b);                                     \
   offsets[2] = offsetof(nested_##name, c);                                     \
 }
-#include "typedefs.h"
+CTYPES_FOR_EACH_TYPE(DEFINE_CDECL_TYPE_STATS)
+#undef DEFINE_CDECL_TYPE_STATS
 
 template <typename T>
 int32_t StrLen(const T* string)
@@ -146,7 +156,7 @@ test_ansi_len(const char* string)
 }
 
 int32_t
-test_wide_len(const PRUnichar* string)
+test_wide_len(const char16_t* string)
 {
   return StrLen(string);
 }
@@ -157,10 +167,10 @@ test_ansi_ret()
   return "success";
 }
 
-const PRUnichar *
+const char16_t *
 test_wide_ret()
 {
-  static const PRUnichar kSuccess[] = {'s', 'u', 'c', 'c', 'e', 's', 's', '\0'};
+  static const char16_t kSuccess[] = {'s', 'u', 'c', 'c', 'e', 's', 's', '\0'};
   return kSuccess;
 }
 
@@ -171,7 +181,7 @@ test_ansi_echo(const char* string)
 }
 
 int32_t
-test_pt_in_rect(RECT rc, POINT pt)
+test_pt_in_rect(myRECT rc, myPOINT pt)
 {
   if (pt.x < rc.left || pt.x > rc.right)
     return 0;
@@ -181,7 +191,7 @@ test_pt_in_rect(RECT rc, POINT pt)
 }
 
 void
-test_init_pt(POINT* pt, int32_t x, int32_t y)
+test_init_pt(myPOINT* pt, int32_t x, int32_t y)
 {
   pt->x = x;
   pt->y = y;
@@ -193,25 +203,25 @@ test_nested_struct(NESTED n)
   return int32_t(n.n1 + n.n2 + n.inner.i1 + n.inner.i2 + n.inner.i3 + n.n3 + n.n4);
 }
 
-POINT
-test_struct_return(RECT r)
+myPOINT
+test_struct_return(myRECT r)
 {
-  POINT p;
+  myPOINT p;
   p.x = r.left; p.y = r.top;
   return p;
 }
 
-RECT
-test_large_struct_return(RECT a, RECT b)
+myRECT
+test_large_struct_return(myRECT a, myRECT b)
 {
-  RECT r;
+  myRECT r;
   r.left = a.left; r.right = a.right;
   r.top = b.top; r.bottom = b.bottom;
   return r;
 }
 
 ONE_BYTE
-test_1_byte_struct_return(RECT r)
+test_1_byte_struct_return(myRECT r)
 {
   ONE_BYTE s;
   s.a = r.top;
@@ -219,7 +229,7 @@ test_1_byte_struct_return(RECT r)
 }
 
 TWO_BYTE
-test_2_byte_struct_return(RECT r)
+test_2_byte_struct_return(myRECT r)
 {
   TWO_BYTE s;
   s.a = r.top;
@@ -228,7 +238,7 @@ test_2_byte_struct_return(RECT r)
 }
 
 THREE_BYTE
-test_3_byte_struct_return(RECT r)
+test_3_byte_struct_return(myRECT r)
 {
   THREE_BYTE s;
   s.a = r.top;
@@ -238,7 +248,7 @@ test_3_byte_struct_return(RECT r)
 }
 
 FOUR_BYTE
-test_4_byte_struct_return(RECT r)
+test_4_byte_struct_return(myRECT r)
 {
   FOUR_BYTE s;
   s.a = r.top;
@@ -249,7 +259,7 @@ test_4_byte_struct_return(RECT r)
 }
 
 FIVE_BYTE
-test_5_byte_struct_return(RECT r)
+test_5_byte_struct_return(myRECT r)
 {
   FIVE_BYTE s;
   s.a = r.top;
@@ -261,7 +271,7 @@ test_5_byte_struct_return(RECT r)
 }
 
 SIX_BYTE
-test_6_byte_struct_return(RECT r)
+test_6_byte_struct_return(myRECT r)
 {
   SIX_BYTE s;
   s.a = r.top;
@@ -274,7 +284,7 @@ test_6_byte_struct_return(RECT r)
 }
 
 SEVEN_BYTE
-test_7_byte_struct_return(RECT r)
+test_7_byte_struct_return(myRECT r)
 {
   SEVEN_BYTE s;
   s.a = r.top;
@@ -373,4 +383,4 @@ test_vector_add_va_cdecl(uint8_t num_vecs,
   return result;
 }
 
-RECT data_rect = { -1, -2, 3, 4 };
+myRECT data_rect = { -1, -2, 3, 4 };

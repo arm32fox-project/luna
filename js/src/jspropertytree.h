@@ -8,24 +8,24 @@
 #define jspropertytree_h
 
 #include "jsalloc.h"
+#include "jspubtd.h"
 
 #include "js/HashTable.h"
-#include "js/RootingAPI.h"
 
 namespace js {
 
 class Shape;
 struct StackShape;
 
-struct ShapeHasher {
-    typedef Shape *Key;
+struct ShapeHasher : public DefaultHasher<Shape*> {
+    typedef Shape* Key;
     typedef StackShape Lookup;
 
-    static inline HashNumber hash(const Lookup &l);
-    static inline bool match(Key k, const Lookup &l);
+    static inline HashNumber hash(const Lookup& l);
+    static inline bool match(Key k, const Lookup& l);
 };
 
-typedef HashSet<Shape *, ShapeHasher, SystemAllocPolicy> KidsHash;
+typedef HashSet<Shape*, ShapeHasher, SystemAllocPolicy> KidsHash;
 
 class KidsPointer {
   private:
@@ -42,29 +42,29 @@ class KidsPointer {
     void setNull() { w = 0; }
 
     bool isShape() const { return (w & TAG) == SHAPE && !isNull(); }
-    Shape *toShape() const {
-        JS_ASSERT(isShape());
-        return reinterpret_cast<Shape *>(w & ~uintptr_t(TAG));
+    Shape* toShape() const {
+        MOZ_ASSERT(isShape());
+        return reinterpret_cast<Shape*>(w & ~uintptr_t(TAG));
     }
-    void setShape(Shape *shape) {
-        JS_ASSERT(shape);
-        JS_ASSERT((reinterpret_cast<uintptr_t>(static_cast<Shape *>(shape)) & TAG) == 0);
-        w = reinterpret_cast<uintptr_t>(static_cast<Shape *>(shape)) | SHAPE;
+    void setShape(Shape* shape) {
+        MOZ_ASSERT(shape);
+        MOZ_ASSERT((reinterpret_cast<uintptr_t>(static_cast<Shape*>(shape)) & TAG) == 0);
+        w = reinterpret_cast<uintptr_t>(static_cast<Shape*>(shape)) | SHAPE;
     }
 
     bool isHash() const { return (w & TAG) == HASH; }
-    KidsHash *toHash() const {
-        JS_ASSERT(isHash());
-        return reinterpret_cast<KidsHash *>(w & ~uintptr_t(TAG));
+    KidsHash* toHash() const {
+        MOZ_ASSERT(isHash());
+        return reinterpret_cast<KidsHash*>(w & ~uintptr_t(TAG));
     }
-    void setHash(KidsHash *hash) {
-        JS_ASSERT(hash);
-        JS_ASSERT((reinterpret_cast<uintptr_t>(hash) & TAG) == 0);
+    void setHash(KidsHash* hash) {
+        MOZ_ASSERT(hash);
+        MOZ_ASSERT((reinterpret_cast<uintptr_t>(hash) & TAG) == 0);
         w = reinterpret_cast<uintptr_t>(hash) | HASH;
     }
 
 #ifdef DEBUG
-    void checkConsistency(Shape *aKid) const;
+    void checkConsistency(Shape* aKid) const;
 #endif
 };
 
@@ -72,9 +72,9 @@ class PropertyTree
 {
     friend class ::JSFunction;
 
-    JSCompartment *compartment;
+    JSCompartment* compartment_;
 
-    bool insertChild(JSContext *cx, Shape *parent, Shape *child);
+    bool insertChild(ExclusiveContext* cx, Shape* parent, Shape* child);
 
     PropertyTree();
 
@@ -89,17 +89,14 @@ class PropertyTree
         MAX_HEIGHT_WITH_ELEMENTS_ACCESS = 128
     };
 
-    PropertyTree(JSCompartment *comp)
-        : compartment(comp)
+    explicit PropertyTree(JSCompartment* comp)
+        : compartment_(comp)
     {
     }
 
-    Shape *newShape(JSContext *cx);
-    Shape *getChild(JSContext *cx, Shape *parent, uint32_t nfixed, const StackShape &child);
+    JSCompartment* compartment() { return compartment_; }
 
-#ifdef DEBUG
-    static void dumpShapes(JSRuntime *rt);
-#endif
+    Shape* getChild(ExclusiveContext* cx, Shape* parent, StackShape& child);
 };
 
 } /* namespace js */

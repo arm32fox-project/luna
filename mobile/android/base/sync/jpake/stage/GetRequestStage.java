@@ -11,6 +11,7 @@ import java.util.Timer;
 import java.util.TimerTask;
 
 import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.SyncConstants;
 import org.mozilla.goanna.sync.jpake.JPakeClient;
 import org.mozilla.goanna.sync.net.BaseResource;
 import org.mozilla.goanna.sync.net.BaseResourceDelegate;
@@ -27,7 +28,7 @@ import ch.boye.httpclientandroidlib.message.BasicHeader;
 
 public class GetRequestStage extends JPakeStage {
 
-  private Timer timerScheduler = new Timer();
+  private final Timer timerScheduler = new Timer();
   private int pollTries;
   private GetStepTimerTask getStepTimerTask;
 
@@ -101,6 +102,10 @@ public class GetRequestStage extends JPakeStage {
   private Resource createGetRequest(final GetRequestStageDelegate callbackDelegate, final JPakeClient jpakeClient) throws URISyntaxException {
     BaseResource httpResource = new BaseResource(jpakeClient.channelUrl);
     httpResource.delegate = new BaseResourceDelegate(httpResource) {
+      @Override
+      public String getUserAgent() {
+        return SyncConstants.USER_AGENT;
+      }
 
       @Override
       public void addHeaders(HttpRequestBase request, DefaultHttpClient client) {
@@ -183,7 +188,7 @@ public class GetRequestStage extends JPakeStage {
    *
    */
   public class GetStepTimerTask extends TimerTask {
-    private Resource request;
+    private final Resource request;
 
     public GetStepTimerTask(Resource request) {
       this.request = request;

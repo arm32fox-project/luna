@@ -42,8 +42,8 @@
 // CommandLineToArgvW and converting it back to a command line with
 // MakeCommandLine.
 static int
-verifyCmdLineCreation(PRUnichar *inCmdLine,
-                      PRUnichar *compareCmdLine,
+verifyCmdLineCreation(wchar_t *inCmdLine,
+                      wchar_t *compareCmdLine,
                       bool passes, int testNum)
 {
   int rv = 0;
@@ -64,13 +64,13 @@ verifyCmdLineCreation(PRUnichar *inCmdLine,
   // handles argv[0] differently than other arguments since argv[0] is the path
   // to the binary being executed and MakeCommandLine only handles argv[1] and
   // larger.
-  PRUnichar *inCmdLineNew = (PRUnichar *) malloc((wcslen(DUMMY_ARG1) + wcslen(inCmdLine) + 1) * sizeof(PRUnichar));
+  wchar_t *inCmdLineNew = (wchar_t *) malloc((wcslen(DUMMY_ARG1) + wcslen(inCmdLine) + 1) * sizeof(wchar_t));
   wcscpy(inCmdLineNew, DUMMY_ARG1);
   wcscat(inCmdLineNew, inCmdLine);
   LPWSTR *inArgv = CommandLineToArgvW(inCmdLineNew, &inArgc);
 
-  PRUnichar *outCmdLine = MakeCommandLine(inArgc - 1, inArgv + 1);
-  PRUnichar *outCmdLineNew = (PRUnichar *) malloc((wcslen(DUMMY_ARG1) + wcslen(outCmdLine) + 1) * sizeof(PRUnichar));
+  wchar_t *outCmdLine = MakeCommandLine(inArgc - 1, inArgv + 1);
+  wchar_t *outCmdLineNew = (wchar_t *) malloc((wcslen(DUMMY_ARG1) + wcslen(outCmdLine) + 1) * sizeof(wchar_t));
   wcscpy(outCmdLineNew, DUMMY_ARG1);
   wcscat(outCmdLineNew, outCmdLine);
   LPWSTR *outArgv = CommandLineToArgvW(outCmdLineNew, &outArgc);
@@ -160,13 +160,12 @@ verifyCmdLineCreation(PRUnichar *inCmdLine,
   return rv;
 }
 
-int wmain(int argc, PRUnichar *argv[])
+int wmain(int argc, wchar_t *argv[])
 {
   int i;
   int rv = 0;
 
-  if (argc > 1 && (_wcsicmp(argv[1], L"-check-one") != 0 ||
-                   _wcsicmp(argv[1], L"-check-one") == 0 && argc != 3)) {
+  if (argc > 1 && (_wcsicmp(argv[1], L"-check-one") != 0 || argc != 3)) {
     fwprintf(stderr, L"Displays and validates output from MakeCommandLine.\n\n");
     fwprintf(stderr, L"Usage: %s -check-one <test number>\n\n", argv[0]);
     fwprintf(stderr, L"  <test number>\tSpecifies the test number to run from the\n");
@@ -174,7 +173,7 @@ int wmain(int argc, PRUnichar *argv[])
     return 255;
   }
 
-  PRUnichar inifile[MAXPATHLEN];
+  wchar_t inifile[MAXPATHLEN];
   if (!::GetModuleFileNameW(0, inifile, MAXPATHLEN)) {
     wprintf(L"TEST-UNEXPECTED-FAIL | %s | GetModuleFileNameW\n", TEST_NAME);
     return 2;
@@ -189,12 +188,12 @@ int wmain(int argc, PRUnichar *argv[])
   wcscpy(slash + 1, L"TestXREMakeCommandLineWin.ini\0");
 
   for (i = 0; i < MAX_TESTS; ++i) {
-    PRUnichar sInputVal[MAXPATHLEN];
-    PRUnichar sOutputVal[MAXPATHLEN];
-    PRUnichar sPassesVal[MAXPATHLEN];
-    PRUnichar sInputKey[MAXPATHLEN];
-    PRUnichar sOutputKey[MAXPATHLEN];
-    PRUnichar sPassesKey[MAXPATHLEN];
+    wchar_t sInputVal[MAXPATHLEN];
+    wchar_t sOutputVal[MAXPATHLEN];
+    wchar_t sPassesVal[MAXPATHLEN];
+    wchar_t sInputKey[MAXPATHLEN];
+    wchar_t sOutputKey[MAXPATHLEN];
+    wchar_t sPassesKey[MAXPATHLEN];
 
     if (argc > 2 && _wcsicmp(argv[1], L"-check-one") == 0 && argc == 3) {
       i = _wtoi(argv[2]);
@@ -206,7 +205,7 @@ int wmain(int argc, PRUnichar *argv[])
 
     if (!GetPrivateProfileStringW(L"MakeCommandLineTests", sInputKey, nullptr,
                                   sInputVal, MAXPATHLEN, inifile)) {
-      if (i == 0 || argc > 2 && _wcsicmp(argv[1], L"-check-one") == 0) {
+      if (i == 0 || (argc > 2 && _wcsicmp(argv[1], L"-check-one") == 0)) {
         wprintf(L"TEST-UNEXPECTED-FAIL | %s | see following explanation:\n", TEST_NAME);
         wprintf(L"ERROR: Either the TestXREMakeCommandLineWin.ini file doesn't exist\n");
         if (argc > 1 && _wcsicmp(argv[1], L"-check-one") == 0 && argc == 3) {

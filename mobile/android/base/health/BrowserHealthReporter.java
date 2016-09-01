@@ -5,24 +5,25 @@
 
 package org.mozilla.goanna.health;
 
-import android.content.ContentProviderClient;
-import android.content.Context;
-import android.util.Log;
-
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.mozilla.goanna.EventDispatcher;
 import org.mozilla.goanna.GoannaAppShell;
 import org.mozilla.goanna.GoannaEvent;
 import org.mozilla.goanna.GoannaProfile;
-
+import org.mozilla.goanna.background.common.GlobalConstants;
+import org.mozilla.goanna.background.healthreport.AndroidConfigurationProvider;
 import org.mozilla.goanna.background.healthreport.EnvironmentBuilder;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
 import org.mozilla.goanna.background.healthreport.HealthReportConstants;
 import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage;
 import org.mozilla.goanna.background.healthreport.HealthReportGenerator;
-
 import org.mozilla.goanna.util.GoannaEventListener;
 import org.mozilla.goanna.util.ThreadUtils;
 
-import org.json.JSONException;
-import org.json.JSONObject;
+import android.content.ContentProviderClient;
+import android.content.Context;
+import android.util.Log;
 
 /**
  * BrowserHealthReporter is the browser's interface to the Firefox Health
@@ -41,7 +42,7 @@ public class BrowserHealthReporter implements GoannaEventListener {
     protected final Context context;
 
     public BrowserHealthReporter() {
-        GoannaAppShell.registerEventListener(EVENT_REQUEST, this);
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, EVENT_REQUEST);
 
         context = GoannaAppShell.getContext();
         if (context == null) {
@@ -50,7 +51,7 @@ public class BrowserHealthReporter implements GoannaEventListener {
     }
 
     public void uninit() {
-        GoannaAppShell.unregisterEventListener(EVENT_REQUEST, this);
+        EventDispatcher.getInstance().unregisterGoannaThreadListener(this, EVENT_REQUEST);
     }
 
     /**
@@ -87,7 +88,8 @@ public class BrowserHealthReporter implements GoannaEventListener {
             }
 
             HealthReportGenerator generator = new HealthReportGenerator(storage);
-            JSONObject report = generator.generateDocument(since, lastPingTime, profilePath);
+            ConfigurationProvider configProvider = new AndroidConfigurationProvider(context);
+            JSONObject report = generator.generateDocument(since, lastPingTime, profilePath, configProvider);
             if (report == null) {
                 throw new IllegalStateException("Not enough profile information to generate report.");
             }
@@ -124,7 +126,7 @@ public class BrowserHealthReporter implements GoannaEventListener {
         GoannaProfile profile = GoannaAppShell.getGoannaInterface().getProfile();
         String profilePath = profile.getDir().getAbsolutePath();
 
-        long since = System.currentTimeMillis() - HealthReportConstants.MILLISECONDS_PER_SIX_MONTHS;
+        long since = System.currentTimeMillis() - GlobalConstants.MILLISECONDS_PER_SIX_MONTHS;
         long lastPingTime = Math.max(getLastUploadLocalTime(), HealthReportConstants.EARLIEST_LAST_PING);
 
         return generateReport(since, lastPingTime, profilePath);

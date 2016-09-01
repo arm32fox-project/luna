@@ -39,7 +39,8 @@ function test_source_content()
     gThreadClient.getSources(function (aResponse) {
       do_check_true(!aResponse.error, "Should not get an error");
 
-      testContents(aResponse.sources, () => {
+      testContents(aResponse.sources, 0, (timesCalled) => {
+        do_check_eq(timesCalled, 3);
         finishClient(gClient);
       });
     });
@@ -51,9 +52,9 @@ function test_source_content()
     new SourceNode(1, 0, "c.js", "function c() { return 'c'; }\n"),
   ]);
 
-  node.setSourceContent("a.js", "content for a.js");
-  node.setSourceContent("b.js", "content for b.js");
-  node.setSourceContent("c.js", "content for c.js");
+  node.setSourceContent("a.js", "content for http://example.com/www/js/a.js");
+  node.setSourceContent("b.js", "content for http://example.com/www/js/b.js");
+  node.setSourceContent("c.js", "content for http://example.com/www/js/c.js");
 
   let { code, map } = node.toStringWithSourceMap({
     file: "abc.js"
@@ -65,22 +66,29 @@ function test_source_content()
                                  "http://example.com/www/js/abc.js", 1);
 }
 
-function testContents(aSources, aCallback) {
-  if (aSources.length === 0) {
-    return aCallback();
+function testContents(sources, timesCalled, callback) {
+  if (sources.length === 0) {
+    callback(timesCalled);
+    return;
   }
 
-  let source = aSources[0];
-  let sourceClient = gThreadClient.source(aSources[0]);
 
-  sourceClient.source((aResponse) => {
-    do_check_true(!aResponse.error,
-                  "Should not get an error loading the source from sourcesContent");
+  let source = sources[0];
+  let sourceClient = gThreadClient.source(sources[0]);
 
-    let expectedContent = "content for " + source.url;
-    do_check_eq(aResponse.source, expectedContent,
-                "Should have the expected source content");
+  if (sourceClient.url) {
+    sourceClient.source((aResponse) => {
+      do_check_true(!aResponse.error,
+                    "Should not get an error loading the source from sourcesContent");
 
-    testContents(aSources.slice(1), aCallback);
-  });
+      let expectedContent = "content for " + source.url;
+      do_check_eq(aResponse.source, expectedContent,
+                  "Should have the expected source content");
+
+      testContents(sources.slice(1), timesCalled + 1, callback);
+    });
+  }
+  else {
+    testContents(sources.slice(1), timesCalled, callback);
+  }
 }

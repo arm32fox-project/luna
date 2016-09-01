@@ -4,9 +4,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MODULE = 'mozglue'
-
-CPP_SOURCES += [
+SOURCES += [
+    'BaseElf.cpp',
     'CustomElf.cpp',
     'ElfLoader.cpp',
     'Mappable.cpp',
@@ -14,5 +13,25 @@ CPP_SOURCES += [
     'Zip.cpp',
 ]
 
-LIBRARY_NAME = 'linker'
+Library('linker')
 
+HOST_SOURCES += [
+    'SeekableZStream.cpp',
+    'szip.cpp',
+]
+
+HostProgram('szip')
+
+FINAL_LIBRARY = 'mozglue'
+
+DEFINES['IMPL_MFBT'] = True
+
+DISABLE_STL_WRAPPING = True
+
+TEST_DIRS += ['tests']
+
+HOST_OS_LIBS += [
+    'z',
+]
+
+FAIL_ON_WARNINGS = True

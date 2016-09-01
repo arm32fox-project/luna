@@ -4,10 +4,6 @@
 
 import os
 import struct
-from buildconfig import (
-    substs,
-    topobjdir,
-)
 import subprocess
 from mozpack.errors import errors
 
@@ -62,15 +58,16 @@ def is_executable(path):
     '''
     Return whether a given file path points to an executable or a library,
     where an executable or library is identified by:
-        - the file extension on WINNT
+        - the file extension on OS/2 and WINNT
         - the file signature on OS/X and ELF systems (GNU/Linux, Android, BSD,
           Solaris)
 
     As this function is intended for use to choose between the ExecutableFile
     and File classes in FileFinder, and choosing ExecutableFile only matters
-    on OS/X, ELF and WINNT (in GCC build) systems, we don't bother
+    on OS/2, OS/X, ELF and WINNT (in GCC build) systems, we don't bother
     detecting other kind of executables.
     '''
+    from buildconfig import substs
     if not os.path.exists(path):
         return False
 
@@ -85,6 +82,7 @@ def may_strip(path):
     '''
     Return whether strip() should be called
     '''
+    from buildconfig import substs
     return not substs['PKG_SKIP_STRIP']
 
 
@@ -92,6 +90,7 @@ def strip(path):
     '''
     Execute the STRIP command with STRIP_FLAGS on the given path.
     '''
+    from buildconfig import substs
     strip = substs['STRIP']
     flags = substs['STRIP_FLAGS'].split() if 'STRIP_FLAGS' in substs else []
     cmd = [strip] + flags + [path]
@@ -105,6 +104,7 @@ def may_elfhack(path):
     '''
     # elfhack only supports libraries. We should check the ELF header for
     # the right flag, but checking the file extension works too.
+    from buildconfig import substs
     return 'USE_ELF_HACK' in substs and substs['USE_ELF_HACK'] and \
            path.endswith(substs['DLL_SUFFIX'])
 
@@ -113,6 +113,7 @@ def elfhack(path):
     '''
     Execute the elfhack command on the given path.
     '''
+    from buildconfig import topobjdir
     cmd = [os.path.join(topobjdir, 'build/unix/elfhack/elfhack'), path]
     if 'ELF_HACK_FLAGS' in os.environ:
         cmd[1:0] = os.environ['ELF_HACK_FLAGS'].split()

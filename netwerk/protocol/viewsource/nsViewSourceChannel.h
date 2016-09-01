@@ -8,12 +8,9 @@
 
 #include "nsString.h"
 #include "nsCOMPtr.h"
-#include "nsXPIDLString.h"
 #include "nsIViewSourceChannel.h"
 #include "nsIURI.h"
 #include "nsIStreamListener.h"
-#include "nsViewSourceHandler.h"
-#include "nsNetCID.h"
 #include "nsIHttpChannel.h"
 #include "nsIHttpChannelInternal.h"
 #include "nsICachingChannel.h"
@@ -21,7 +18,7 @@
 #include "nsIUploadChannel.h"
 #include "mozilla/Attributes.h"
 
-class nsViewSourceChannel MOZ_FINAL : public nsIViewSourceChannel,
+class nsViewSourceChannel final : public nsIViewSourceChannel,
                                       public nsIStreamListener,
                                       public nsIHttpChannel,
                                       public nsIHttpChannelInternal,
@@ -50,11 +47,13 @@ public:
         : mIsDocument(false)
         , mOpened(false) {}
 
-    NS_HIDDEN_(nsresult) Init(nsIURI* uri);
+    nsresult Init(nsIURI* uri);
 
-    NS_HIDDEN_(nsresult) InitSrcdoc(nsIURI* aURI, const nsAString &aSrcdoc);
+    nsresult InitSrcdoc(nsIURI* aURI, const nsAString &aSrcdoc);
 
 protected:
+    ~nsViewSourceChannel() {}
+
     nsCOMPtr<nsIChannel>        mChannel;
     nsCOMPtr<nsIHttpChannel>    mHttpChannel;
     nsCOMPtr<nsIHttpChannelInternal>    mHttpChannelInternal;

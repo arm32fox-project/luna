@@ -5,10 +5,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsMediaSniffer.h"
-#include "nsMemory.h"
 #include "nsIHttpChannel.h"
 #include "nsString.h"
 #include "nsMimeTypes.h"
+#include "mozilla/ArrayUtils.h"
 #include "mozilla/ModuleUtils.h"
 #include "mp3sniff.h"
 #ifdef MOZ_WEBM
@@ -22,8 +22,12 @@
 static const unsigned MP4_MIN_BYTES_COUNT = 12;
 // The maximum number of bytes to consider when attempting to sniff a file.
 static const uint32_t MAX_BYTES_SNIFFED = 512;
+// The maximum number of bytes to consider when attempting to sniff for a mp3
+// bitstream.
+// This is 320kbps * 144 / 32kHz + 1 padding byte + 4 bytes of capture pattern.
+static const uint32_t MAX_BYTES_SNIFFED_MP3 = 320 * 144 / 32 + 1 + 4;
 
-NS_IMPL_ISUPPORTS1(nsMediaSniffer, nsIContentSniffer)
+NS_IMPL_ISUPPORTS(nsMediaSniffer, nsIContentSniffer)
 
 nsMediaSniffer::nsMediaSnifferEntry nsMediaSniffer::sSnifferEntries[] = {
   // The string OggS, followed by the null byte.
@@ -33,6 +37,26 @@ nsMediaSniffer::nsMediaSnifferEntry nsMediaSniffer::sSnifferEntries[] = {
   // mp3 with ID3 tags, the string "ID3".
   PATTERN_ENTRY("\xFF\xFF\xFF", "ID3", AUDIO_MP3)
 };
+
+static bool MatchesMP4orISOBrand(const uint8_t aData[4])
+{
+  // Return true if aData contains the string "mp4" (last byte ignored).
+  if (aData[0] == 0x6D &&
+      aData[1] == 0x70 &&
+      aData[2] == 0x34) {
+    return true;
+  }
+
+  // Return true if aData contains the string "isom", or "iso2".
+  if (aData[0] == 0x69 &&
+      aData[1] == 0x73 &&
+      aData[2] == 0x6F &&
+      (aData[3] == 0x6D || aData[3] == 0x32)) {
+    return true;
+  }
+
+  return false;
+}
 
 // This function implements mp4 sniffing algorithm, described at
 // http://mimesniff.spec.whatwg.org/#signature-for-mp4
@@ -55,24 +79,18 @@ static bool MatchesMP4(const uint8_t* aData, const uint32_t aLength)
       aData[7] != 0x70) {
     return false;
   }
-  for (uint32_t i = 2; i <= boxSize / 4 - 1 ; i++) {
-    if (i == 3) {
-      continue;
-    }
-    // The string "mp42" or "mp41".
-    if (aData[4*i]   == 0x6D &&
-        aData[4*i+1] == 0x70 &&
-        aData[4*i+2] == 0x34) {
-      return true;
-    }
-    // The string "isom" or "iso2".
-    if (aData[4*i]   == 0x69 &&
-        aData[4*i+1] == 0x73 &&
-        aData[4*i+2] == 0x6F &&
-        (aData[4*i+3] == 0x6D || aData[4*i+3] == 0x32)) {
-      return true;
-    }
+  if (MatchesMP4orISOBrand(&aData[8])) {
+    return true;
   }
+  // Skip minor_version (bytes 12-15).
+  uint32_t bytesRead = 16;
+  while (bytesRead < boxSize) {
+    if (MatchesMP4orISOBrand(&aData[bytesRead])) {
+      return true;
+    }
+    bytesRead += 4;
+  }
+
   return false;
 }
 
@@ -98,23 +116,27 @@ nsMediaSniffer::GetMIMETypeFromContent(nsIRequest* aRequest,
                                        const uint32_t aLength,
                                        nsACString& aSniffedType)
 {
-  // For media, we want to sniff only if the Content-Type is unknown, or if it
-  // is application/octet-stream.
   nsCOMPtr<nsIChannel> channel = do_QueryInterface(aRequest);
   if (channel) {
-    nsAutoCString contentType;
-    nsresult rv = channel->GetContentType(contentType);
-    NS_ENSURE_SUCCESS(rv, rv);
-    if (!contentType.IsEmpty() &&
-        !contentType.EqualsLiteral(APPLICATION_OCTET_STREAM) &&
-        !contentType.EqualsLiteral(UNKNOWN_CONTENT_TYPE)) {
-      return NS_ERROR_NOT_AVAILABLE;
+    nsLoadFlags loadFlags = 0;
+    channel->GetLoadFlags(&loadFlags);
+    if (!(loadFlags & nsIChannel::LOAD_MEDIA_SNIFFER_OVERRIDES_CONTENT_TYPE)) {
+      // For media, we want to sniff only if the Content-Type is unknown, or if it
+      // is application/octet-stream.
+      nsAutoCString contentType;
+      nsresult rv = channel->GetContentType(contentType);
+      NS_ENSURE_SUCCESS(rv, rv);
+      if (!contentType.IsEmpty() &&
+          !contentType.EqualsLiteral(APPLICATION_OCTET_STREAM) &&
+          !contentType.EqualsLiteral(UNKNOWN_CONTENT_TYPE)) {
+        return NS_ERROR_NOT_AVAILABLE;
+      }
     }
   }
 
   const uint32_t clampedLength = std::min(aLength, MAX_BYTES_SNIFFED);
 
-  for (uint32_t i = 0; i < NS_ARRAY_LENGTH(sSnifferEntries); ++i) {
+  for (uint32_t i = 0; i < mozilla::ArrayLength(sSnifferEntries); ++i) {
     const nsMediaSnifferEntry& currentEntry = sSnifferEntries[i];
     if (clampedLength < currentEntry.mLength || currentEntry.mLength == 0) {
       continue;
@@ -142,7 +164,8 @@ nsMediaSniffer::GetMIMETypeFromContent(nsIRequest* aRequest,
     return NS_OK;
   }
 
-  if (MatchesMP3(aData, clampedLength)) {
+  // Bug 950023: 512 bytes are often not enough to sniff for mp3.
+  if (MatchesMP3(aData, std::min(aLength, MAX_BYTES_SNIFFED_MP3))) {
     aSniffedType.AssignLiteral(AUDIO_MP3);
     return NS_OK;
   }

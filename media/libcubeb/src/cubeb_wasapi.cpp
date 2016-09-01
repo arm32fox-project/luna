@@ -368,12 +368,14 @@ float stream_to_mix_samplerate_ratio(cubeb_stream * stream)
   return float(stream->stream_params.rate) / stream->mix_params.rate;
 }
 
-/* Upmix function, copies a mono channel into L and R */
+/* Upmix function, copies a mono channel in two interleaved
+ * stereo channel. |out| has to be twice as long as |in| */
 template<typename T>
 void
-mono_to_stereo(T * in, long insamples, T * out, int32_t out_channels)
+mono_to_stereo(T * in, long insamples, T * out)
 {
-  for (int i = 0, j = 0; i < insamples; ++i, j += out_channels) {
+  int j = 0;
+  for (int i = 0; i < insamples; ++i, j += 2) {
     out[j] = out[j + 1] = in[i];
   }
 }
@@ -382,34 +384,22 @@ template<typename T>
 void
 upmix(T * in, long inframes, T * out, int32_t in_channels, int32_t out_channels)
 {
-  XASSERT(out_channels >= in_channels && in_channels > 0);
-
-  /* If we have 2 or more output channels, the first two are always L and R.
-   * If we are playing a mono stream over 2 or more output channels, copy
-   * the audio data over to the R channel.
-   */
-  if (in_channels == 1 && out_channels >= 2) {
-    mono_to_stereo(in, inframes, out, out_channels);
-  } else {
-    /* Input not mono: copy through. */
-    for (int i = 0, o = 0; i < inframes * in_channels;
-        i += in_channels, o += out_channels) {
-      for (int j = 0; j < in_channels; ++j) {
-        out[o + j] = in[i + j];
-      }
-    }
-  }
-
-  /* Check if we more than 2 output channels. */
-  if (out_channels <= 2) {
+  XASSERT(out_channels >= in_channels);
+  /* If we are playing a mono stream over stereo speakers, copy the data over. */
+  if (in_channels == 1 && out_channels == 2) {
+    mono_to_stereo(in, inframes, out);
     return;
   }
-
-  /* Put silence in the remaining channels. */
-  for (long i = 0, o = 0; i < inframes; ++i, o += out_channels) {
-    for (int j = 2; j < out_channels; ++j) {
-      out[o + j] = 0.0;
+  /* Otherwise, put silence in other channels. */
+  long out_index = 0;
+  for (long i = 0; i < inframes * in_channels; i += in_channels) {
+    for (int j = 0; j < in_channels; ++j) {
+      out[out_index + j] = in[i + j];
     }
+    for (int j = in_channels; j < out_channels; ++j) {
+      out[out_index + j] = 0.0;
+    }
+    out_index += out_channels;
   }
 }
 
@@ -438,14 +428,6 @@ frames_to_bytes_before_mix(cubeb_stream * stm, size_t frames)
   size_t stream_frame_size = stm->stream_params.channels * sizeof(float);
   return stream_frame_size * frames;
 }
-
-#if defined(_MSC_VER) && (_MSC_VER < 1800)
-// MSVC does not have rounding functions (!) in its RT before MSVC 2013,
-// so define our own on-the-fly for refill() below.
-float roundf(float v) {
-  return floor(v + 0.5);
-}
-#endif
 
 void
 refill(cubeb_stream * stm, float * data, long frames_needed)
@@ -950,11 +932,8 @@ handle_channel_layout(cubeb_stream * stm,  WAVEFORMATEX ** mix_format, const cub
       format_pcm->dwChannelMask = KSAUDIO_SPEAKER_STEREO;
       break;
     default:
-      /* Channel layout is not supported (e.g. quad) and WASAPI doesn't
-       * gracefully handle this. Instead of trying to force the issue,
-       * we bail here and let the regular resampler decide on an
-       * acceptable format */
-      return;
+      XASSERT(false && "Channel layout not supported.");
+      break;
   }
   (*mix_format)->nChannels = stream_params->channels;
   (*mix_format)->nBlockAlign = ((*mix_format)->wBitsPerSample * (*mix_format)->nChannels) / 8;

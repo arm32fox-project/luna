@@ -6,7 +6,7 @@
 #include "nsRuleData.h"
 
 #include "mozilla/Poison.h"
-#include "mozilla/StandardInteger.h"
+#include <stdint.h>
 
 inline size_t
 nsRuleData::GetPoisonOffset()
@@ -14,12 +14,12 @@ nsRuleData::GetPoisonOffset()
   // Fill in mValueOffsets such that mValueStorage + mValueOffsets[i]
   // will yield the frame poison value for all uninitialized value
   // offsets.
-  MOZ_STATIC_ASSERT(sizeof(uintptr_t) == sizeof(size_t),
-                    "expect uintptr_t and size_t to be the same size");
-  MOZ_STATIC_ASSERT(uintptr_t(-1) > uintptr_t(0),
-                    "expect uintptr_t to be unsigned");
-  MOZ_STATIC_ASSERT(size_t(-1) > size_t(0),
-                    "expect size_t to be unsigned");
+  static_assert(sizeof(uintptr_t) == sizeof(size_t),
+                "expect uintptr_t and size_t to be the same size");
+  static_assert(uintptr_t(-1) > uintptr_t(0),
+                "expect uintptr_t to be unsigned");
+  static_assert(size_t(-1) > size_t(0),
+                "expect size_t to be unsigned");
   uintptr_t framePoisonValue = mozPoisonValue();
   return size_t(framePoisonValue - uintptr_t(mValueStorage)) /
          sizeof(nsCSSValue);
@@ -48,9 +48,8 @@ nsRuleData::~nsRuleData()
   // assert nothing in mSIDs has poison value
   size_t framePoisonOffset = GetPoisonOffset();
   for (size_t i = 0; i < nsStyleStructID_Length; ++i) {
-    NS_ABORT_IF_FALSE(!(mSIDs & (1 << i)) ||
-                      mValueOffsets[i] != framePoisonOffset,
-                      "value in SIDs was left with poison offset");
+    MOZ_ASSERT(!(mSIDs & (1 << i)) || mValueOffsets[i] != framePoisonOffset,
+               "value in SIDs was left with poison offset");
   }
 #endif
 }

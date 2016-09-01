@@ -21,7 +21,7 @@
     is(event.target, worker);
 
     if (event.data.type == 'finish') {
-      SimpleTest.finish();
+      runTest();
     } else if (event.data.type == 'status') {
       ok(event.data.status, event.data.msg);
     } else if (event.data.type == 'url') {
@@ -38,12 +38,26 @@
 
   worker.onerror = function(event) {
     is(event.target, worker);
-    ok(false, "Worker had an error: " + event.data);
+    ok(false, "Worker had an error: " + event.message);
     SimpleTest.finish();
   };
 
-  worker.postMessage(true);
+  var tests = [
+    function() { worker.postMessage(0); },
+    function() { worker.postMessage(1); }
+  ];
 
+  function runTest() {
+    if (!tests.length) {
+      SimpleTest.finish();
+      return;
+    }
+
+    var test = tests.shift();
+    test();
+  }
+
+  runTest();
   SimpleTest.waitForExplicitFinish();
 
 </script>

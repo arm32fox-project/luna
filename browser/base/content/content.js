@@ -9,8 +9,14 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this,
-  "LoginManagerContent", "resource://gre/modules/LoginManagerContent.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "BrowserUtils",
+  "resource://gre/modules/BrowserUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "LoginManagerContent",
+  "resource://gre/modules/LoginManagerContent.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "InsecurePasswordUtils",
+  "resource://gre/modules/InsecurePasswordUtils.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "FormSubmitObserver",
+  "resource:///modules/FormSubmitObserver.jsm");
 
 // Bug 671101 - directly using webNavigation in this context
 // causes docshells to leak
@@ -24,6 +30,12 @@ addMessageListener("WebNavigation:LoadURI", function (message) {
   webNavigation.loadURI(message.json.uri, flags, null, null, null);
 });
 
+// TabChildGlobal
+var global = this;
+
+// Load the form validation popup handler
+var formSubmitObserver = new FormSubmitObserver(content, this);
+
 addMessageListener("Browser:HideSessionRestoreButton", function (message) {
   // Hide session restore button on about:home
   let doc = content.document;
@@ -34,12 +46,19 @@ addMessageListener("Browser:HideSessionRestoreButton", function (message) {
   }
 });
 
-addEventListener("DOMContentLoaded", function(event) {
-  LoginManagerContent.onContentLoaded(event);
+addEventListener("DOMFormHasPassword", function(event) {
+  InsecurePasswordUtils.checkForInsecurePasswords(event.target);
+  LoginManagerContent.onFormPassword(event);
 });
 addEventListener("DOMAutoComplete", function(event) {
   LoginManagerContent.onUsernameInput(event);
 });
 addEventListener("blur", function(event) {
   LoginManagerContent.onUsernameInput(event);
+});
+
+// Lazily load the finder code
+addMessageListener("Finder:Initialize", function () {
+  let {RemoteFinderListener} = Cu.import("resource://gre/modules/RemoteFinder.jsm", {});
+  new RemoteFinderListener(global);
 });

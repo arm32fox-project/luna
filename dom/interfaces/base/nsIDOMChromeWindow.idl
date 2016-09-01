@@ -10,7 +10,7 @@ interface nsIDOMElement;
 interface nsIDOMEvent;
 interface nsIMessageBroadcaster;
 
-[scriptable, uuid(6ff5df67-22da-4379-bf57-da775dad19f8)]
+[scriptable, uuid(78bdcb41-1efa-409f-aaba-70842213f80f)]
 interface nsIDOMChromeWindow : nsISupports
 {
   const unsigned short STATE_MAXIMIZED = 1;
@@ -44,6 +44,12 @@ interface nsIDOMChromeWindow : nsISupports
   void notifyDefaultButtonLoaded(in nsIDOMElement defaultButton);
 
   readonly attribute nsIMessageBroadcaster messageManager;
+
+  /**
+   * Returns the message manager identified by the given group name that
+   * manages all frame loaders belonging to that group.
+   */
+  nsIMessageBroadcaster getGroupMessageManager(in AString group);
 
   /**
    * On some operating systems, we must allow the window manager to

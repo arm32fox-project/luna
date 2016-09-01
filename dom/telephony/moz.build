@@ -5,25 +5,72 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 XPIDL_SOURCES += [
-    'nsIDOMCallEvent.idl',
-    'nsIDOMNavigatorTelephony.idl',
-    'nsIDOMTelephony.idl',
-    'nsIDOMTelephonyCall.idl',
-    'nsITelephonyProvider.idl',
+    'nsITelephonyCallInfo.idl',
+    'nsITelephonyService.idl',
 ]
 
 XPIDL_MODULE = 'dom_telephony'
 
-XPIDL_FLAGS += [
-    '-I$(topsrcdir)/dom/base',
-    '-I$(topsrcdir)/dom/interfaces/base',
-    '-I$(topsrcdir)/dom/interfaces/events',
+EXPORTS.mozilla.dom += [
+    'CallsList.h',
+    'MMICall.h',
+    'Telephony.h',
+    'TelephonyCall.h',
+    'TelephonyCallGroup.h',
+    'TelephonyCallId.h',
+    'USSDSession.h'
 ]
 
-MODULE = 'dom'
+EXPORTS.mozilla.dom.telephony += [
+    'ipc/TelephonyChild.h',
+    'ipc/TelephonyIPCSerializer.h',
+    'ipc/TelephonyParent.h',
+    'TelephonyCallback.h',
+    'TelephonyCallInfo.h',
+    'TelephonyCommon.h',
+    'TelephonyDialCallback.h',
+]
 
-CPP_SOURCES += [
+UNIFIED_SOURCES += [
+    'CallsList.cpp',
+    'ipc/TelephonyChild.cpp',
+    'ipc/TelephonyIPCService.cpp',
+    'ipc/TelephonyParent.cpp',
+    'MMICall.cpp',
     'Telephony.cpp',
     'TelephonyCall.cpp',
+    'TelephonyCallback.cpp',
+    'TelephonyCallGroup.cpp',
+    'TelephonyCallId.cpp',
+    'TelephonyCallInfo.cpp',
+    'TelephonyDialCallback.cpp',
+    'USSDSession.cpp',
 ]
 
+IPDL_SOURCES += [
+    'ipc/PTelephony.ipdl',
+    'ipc/PTelephonyRequest.ipdl',
+    'ipc/TelephonyTypes.ipdlh'
+]
+
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk' and CONFIG['MOZ_B2G_RIL']:
+    XPCSHELL_TESTS_MANIFESTS += ['test/xpcshell/xpcshell.ini']
+    XPIDL_SOURCES += [
+        'nsIGonkTelephonyService.idl',
+        'nsITelephonyAudioService.idl',
+        'nsITelephonyMessenger.idl',
+    ]
+    EXTRA_COMPONENTS += [
+        'gonk/TelephonyAudioService.js',
+        'gonk/TelephonyAudioService.manifest',
+        'gonk/TelephonyService.js',
+        'gonk/TelephonyService.manifest',
+    ]
+    EXTRA_JS_MODULES += [
+        'gonk/DialNumberUtils.jsm'
+    ]
+
+FAIL_ON_WARNINGS = True
+include('/ipc/chromium/chromium-config.mozbuild')
+
+FINAL_LIBRARY = 'xul'

@@ -14,8 +14,7 @@
 /*
  * Define the fixpoint numeric formats
  */
-#include "typedefs.h"
-
+#include "webrtc/typedefs.h"
 
 typedef struct {
   void *dummy;
@@ -35,7 +34,7 @@ extern "C" {
    *
    */
 
-  WebRtc_Word16 WebRtcIsacfix_AssignSize(int *sizeinbytes);
+  int16_t WebRtcIsacfix_AssignSize(int *sizeinbytes);
 
   /**************************************************************************
    * WebRtcIsacfix_Assign(...)
@@ -52,7 +51,7 @@ extern "C" {
    *                           -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_Assign(ISACFIX_MainStruct **inst,
+  int16_t WebRtcIsacfix_Assign(ISACFIX_MainStruct **inst,
                                      void *ISACFIX_inst_Addr);
 
   /****************************************************************************
@@ -68,7 +67,7 @@ extern "C" {
    *                           -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_Create(ISACFIX_MainStruct **ISAC_main_inst);
+  int16_t WebRtcIsacfix_Create(ISACFIX_MainStruct **ISAC_main_inst);
 
 
   /****************************************************************************
@@ -83,7 +82,7 @@ extern "C" {
    *                            -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_Free(ISACFIX_MainStruct *ISAC_main_inst);
+  int16_t WebRtcIsacfix_Free(ISACFIX_MainStruct *ISAC_main_inst);
 
 
   /****************************************************************************
@@ -104,8 +103,8 @@ extern "C" {
    *                            -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_EncoderInit(ISACFIX_MainStruct *ISAC_main_inst,
-                                          WebRtc_Word16  CodingMode);
+  int16_t WebRtcIsacfix_EncoderInit(ISACFIX_MainStruct *ISAC_main_inst,
+                                    int16_t  CodingMode);
 
 
   /****************************************************************************
@@ -129,9 +128,9 @@ extern "C" {
    *                            -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_Encode(ISACFIX_MainStruct *ISAC_main_inst,
-                                     const WebRtc_Word16 *speechIn,
-                                     WebRtc_Word16 *encoded);
+  int16_t WebRtcIsacfix_Encode(ISACFIX_MainStruct *ISAC_main_inst,
+                               const int16_t *speechIn,
+                               uint8_t* encoded);
 
 
 
@@ -161,9 +160,9 @@ extern "C" {
 
 
 #ifdef WEBRTC_ISAC_FIX_NB_CALLS_ENABLED
-  WebRtc_Word16 WebRtcIsacfix_EncodeNb(ISACFIX_MainStruct *ISAC_main_inst,
-                                       const WebRtc_Word16 *speechIn,
-                                       WebRtc_Word16 *encoded);
+  int16_t WebRtcIsacfix_EncodeNb(ISACFIX_MainStruct *ISAC_main_inst,
+                                 const int16_t *speechIn,
+                                 int16_t *encoded);
 #endif //  WEBRTC_ISAC_FIX_NB_CALLS_ENABLED
 
 
@@ -181,7 +180,7 @@ extern "C" {
    *         -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_DecoderInit(ISACFIX_MainStruct *ISAC_main_inst);
+  int16_t WebRtcIsacfix_DecoderInit(ISACFIX_MainStruct *ISAC_main_inst);
 
 
   /****************************************************************************
@@ -201,11 +200,11 @@ extern "C" {
    *                           -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_UpdateBwEstimate1(ISACFIX_MainStruct *ISAC_main_inst,
-                                                const WebRtc_UWord16 *encoded,
-                                                WebRtc_Word32  packet_size,
-                                                WebRtc_UWord16 rtp_seq_number,
-                                                WebRtc_UWord32 arr_ts);
+  int16_t WebRtcIsacfix_UpdateBwEstimate1(ISACFIX_MainStruct *ISAC_main_inst,
+                                          const uint8_t* encoded,
+                                          int32_t  packet_size,
+                                          uint16_t rtp_seq_number,
+                                          uint32_t arr_ts);
 
   /****************************************************************************
    * WebRtcIsacfix_UpdateBwEstimate(...)
@@ -226,12 +225,12 @@ extern "C" {
    *                            -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_UpdateBwEstimate(ISACFIX_MainStruct *ISAC_main_inst,
-                                               const WebRtc_UWord16   *encoded,
-                                               WebRtc_Word32          packet_size,
-                                               WebRtc_UWord16         rtp_seq_number,
-                                               WebRtc_UWord32         send_ts,
-                                               WebRtc_UWord32         arr_ts);
+  int16_t WebRtcIsacfix_UpdateBwEstimate(ISACFIX_MainStruct *ISAC_main_inst,
+                                         const uint8_t* encoded,
+                                         int32_t          packet_size,
+                                         uint16_t         rtp_seq_number,
+                                         uint32_t         send_ts,
+                                         uint32_t         arr_ts);
 
   /****************************************************************************
    * WebRtcIsacfix_Decode(...)
@@ -252,11 +251,11 @@ extern "C" {
    *                            -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_Decode(ISACFIX_MainStruct *ISAC_main_inst,
-                                     const WebRtc_UWord16 *encoded,
-                                     WebRtc_Word16 len,
-                                     WebRtc_Word16 *decoded,
-                                     WebRtc_Word16 *speechType);
+  int16_t WebRtcIsacfix_Decode(ISACFIX_MainStruct *ISAC_main_inst,
+                               const uint8_t* encoded,
+                               int16_t len,
+                               int16_t *decoded,
+                               int16_t *speechType);
 
 
   /****************************************************************************
@@ -281,11 +280,11 @@ extern "C" {
    */
 
 #ifdef WEBRTC_ISAC_FIX_NB_CALLS_ENABLED
-  WebRtc_Word16 WebRtcIsacfix_DecodeNb(ISACFIX_MainStruct *ISAC_main_inst,
-                                       const WebRtc_UWord16 *encoded,
-                                       WebRtc_Word16 len,
-                                       WebRtc_Word16 *decoded,
-                                       WebRtc_Word16 *speechType);
+  int16_t WebRtcIsacfix_DecodeNb(ISACFIX_MainStruct *ISAC_main_inst,
+                                 const uint16_t *encoded,
+                                 int16_t len,
+                                 int16_t *decoded,
+                                 int16_t *speechType);
 #endif //  WEBRTC_ISAC_FIX_NB_CALLS_ENABLED
 
 
@@ -311,9 +310,9 @@ extern "C" {
    */
 
 #ifdef WEBRTC_ISAC_FIX_NB_CALLS_ENABLED
-  WebRtc_Word16 WebRtcIsacfix_DecodePlcNb(ISACFIX_MainStruct *ISAC_main_inst,
-                                          WebRtc_Word16 *decoded,
-                                          WebRtc_Word16 noOfLostFrames );
+  int16_t WebRtcIsacfix_DecodePlcNb(ISACFIX_MainStruct *ISAC_main_inst,
+                                    int16_t *decoded,
+                                    int16_t noOfLostFrames);
 #endif // WEBRTC_ISAC_FIX_NB_CALLS_ENABLED
 
 
@@ -339,9 +338,9 @@ extern "C" {
    *                            -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_DecodePlc(ISACFIX_MainStruct *ISAC_main_inst,
-                                        WebRtc_Word16 *decoded,
-                                        WebRtc_Word16 noOfLostFrames );
+  int16_t WebRtcIsacfix_DecodePlc(ISACFIX_MainStruct *ISAC_main_inst,
+                                  int16_t *decoded,
+                                  int16_t noOfLostFrames );
 
 
   /****************************************************************************
@@ -351,14 +350,16 @@ extern "C" {
    *
    * Input:
    *      - encoded           : Encoded bitstream
+   *      - encoded_len_bytes : Length of the bitstream in bytes.
    *
    * Output:
    *      - frameLength       : Length of frame in packet (in samples)
    *
    */
 
-  WebRtc_Word16 WebRtcIsacfix_ReadFrameLen(const WebRtc_Word16* encoded,
-                                           WebRtc_Word16* frameLength);
+  int16_t WebRtcIsacfix_ReadFrameLen(const uint8_t* encoded,
+                                     int encoded_len_bytes,
+                                     int16_t* frameLength);
 
   /****************************************************************************
    * WebRtcIsacfix_Control(...)
@@ -376,9 +377,9 @@ extern "C" {
    *                           -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_Control(ISACFIX_MainStruct *ISAC_main_inst,
-                                      WebRtc_Word16          rate,
-                                      WebRtc_Word16          framesize);
+  int16_t WebRtcIsacfix_Control(ISACFIX_MainStruct *ISAC_main_inst,
+                                int16_t          rate,
+                                int16_t          framesize);
 
 
 
@@ -404,10 +405,10 @@ extern "C" {
    *                           -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_ControlBwe(ISACFIX_MainStruct *ISAC_main_inst,
-                                         WebRtc_Word16 rateBPS,
-                                         WebRtc_Word16 frameSizeMs,
-                                         WebRtc_Word16 enforceFrameSize);
+  int16_t WebRtcIsacfix_ControlBwe(ISACFIX_MainStruct *ISAC_main_inst,
+                                   int16_t rateBPS,
+                                   int16_t frameSizeMs,
+                                   int16_t enforceFrameSize);
 
 
 
@@ -438,7 +439,7 @@ extern "C" {
    * Return value             : Error code
    */
 
-  WebRtc_Word16 WebRtcIsacfix_GetErrorCode(ISACFIX_MainStruct *ISAC_main_inst);
+  int16_t WebRtcIsacfix_GetErrorCode(ISACFIX_MainStruct *ISAC_main_inst);
 
 
   /****************************************************************************
@@ -453,7 +454,7 @@ extern "C" {
    *                            else bitrate
    */
 
-  WebRtc_Word32 WebRtcIsacfix_GetUplinkBw(ISACFIX_MainStruct *ISAC_main_inst);
+  int32_t WebRtcIsacfix_GetUplinkBw(ISACFIX_MainStruct *ISAC_main_inst);
 
 
   /****************************************************************************
@@ -474,8 +475,8 @@ extern "C" {
    *                           -1 if error happens
    */
 
-  WebRtc_Word16 WebRtcIsacfix_SetMaxPayloadSize(ISACFIX_MainStruct *ISAC_main_inst,
-                                                WebRtc_Word16 maxPayloadBytes);
+  int16_t WebRtcIsacfix_SetMaxPayloadSize(ISACFIX_MainStruct *ISAC_main_inst,
+                                          int16_t maxPayloadBytes);
 
 
   /****************************************************************************
@@ -501,8 +502,8 @@ extern "C" {
    *                           -1 if error happens
    */
 
-  WebRtc_Word16 WebRtcIsacfix_SetMaxRate(ISACFIX_MainStruct *ISAC_main_inst,
-                                         WebRtc_Word32 maxRate);
+  int16_t WebRtcIsacfix_SetMaxRate(ISACFIX_MainStruct *ISAC_main_inst,
+                                   int32_t maxRate);
 
   /****************************************************************************
    * WebRtcIsacfix_CreateInternal(...)
@@ -516,7 +517,7 @@ extern "C" {
    *                           -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_CreateInternal(ISACFIX_MainStruct *ISAC_main_inst);
+  int16_t WebRtcIsacfix_CreateInternal(ISACFIX_MainStruct *ISAC_main_inst);
 
 
   /****************************************************************************
@@ -531,7 +532,7 @@ extern "C" {
    *                                -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_FreeInternal(ISACFIX_MainStruct *ISAC_main_inst);
+  int16_t WebRtcIsacfix_FreeInternal(ISACFIX_MainStruct *ISAC_main_inst);
 
 
   /****************************************************************************
@@ -553,10 +554,10 @@ extern "C" {
    *                            -1 - Error
    */
 
-  WebRtc_Word16 WebRtcIsacfix_GetNewBitStream(ISACFIX_MainStruct *ISAC_main_inst,
-                                              WebRtc_Word16          bweIndex,
-                                              float              scale,
-                                              WebRtc_Word16        *encoded);
+  int16_t WebRtcIsacfix_GetNewBitStream(ISACFIX_MainStruct *ISAC_main_inst,
+                                        int16_t          bweIndex,
+                                        float              scale,
+                                        uint8_t* encoded);
 
 
   /****************************************************************************
@@ -573,8 +574,8 @@ extern "C" {
    *
    */
 
-  WebRtc_Word16 WebRtcIsacfix_GetDownLinkBwIndex(ISACFIX_MainStruct* ISAC_main_inst,
-                                                 WebRtc_Word16*     rateIndex);
+  int16_t WebRtcIsacfix_GetDownLinkBwIndex(ISACFIX_MainStruct* ISAC_main_inst,
+                                           int16_t*     rateIndex);
 
 
   /****************************************************************************
@@ -589,8 +590,8 @@ extern "C" {
    *
    */
 
-  WebRtc_Word16 WebRtcIsacfix_UpdateUplinkBw(ISACFIX_MainStruct* ISAC_main_inst,
-                                             WebRtc_Word16     rateIndex);
+  int16_t WebRtcIsacfix_UpdateUplinkBw(ISACFIX_MainStruct* ISAC_main_inst,
+                                       int16_t     rateIndex);
 
 
   /****************************************************************************
@@ -600,14 +601,16 @@ extern "C" {
    *
    * Input:
    *      - encoded           : Encoded bitstream
+   *      - encoded_len_bytes : Length of the bitstream in bytes.
    *
    * Output:
    *      - rateIndex         : Bandwidth estimate in bitstream
    *
    */
 
-  WebRtc_Word16 WebRtcIsacfix_ReadBwIndex(const WebRtc_Word16* encoded,
-                                          WebRtc_Word16* rateIndex);
+  int16_t WebRtcIsacfix_ReadBwIndex(const uint8_t* encoded,
+                                    int encoded_len_bytes,
+                                    int16_t* rateIndex);
 
 
   /****************************************************************************
@@ -621,7 +624,7 @@ extern "C" {
    * Return value             : frame lenght in samples
    */
 
-  WebRtc_Word16 WebRtcIsacfix_GetNewFrameLen(ISACFIX_MainStruct *ISAC_main_inst);
+  int16_t WebRtcIsacfix_GetNewFrameLen(ISACFIX_MainStruct *ISAC_main_inst);
 
 
 #if defined(__cplusplus)

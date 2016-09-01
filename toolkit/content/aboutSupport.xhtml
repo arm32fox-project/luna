@@ -16,6 +16,8 @@
   <head>
     <title>&aboutSupport.pageTitle;</title>
 
+    <link rel="icon" type="image/png" id="favicon"
+          href="chrome://branding/content/icon32.png"/>
     <link rel="stylesheet" href="chrome://global/skin/aboutSupport.css"
           type="text/css"/>
 
@@ -27,14 +29,21 @@
 
   <body dir="&locale.dir;">
 
-    <div id="reset-box" style="visibility: hidden">
-      <h3>&resetProfile.title;</h3>
-      <p>&resetProfile.description;</p>
-      <button onclick="resetProfileAndRestart()">
-        &resetProfile.button.label2;
-      </button>
-    </div>
+    <div id="action-box">
+      <div id="reset-box">
+        <h3>&refreshProfile.title;</h3>
+        <button id="reset-box-button">
+          &refreshProfile.button.label;
+        </button>
+      </div>
+      <div id="safe-mode-box">
+        <h3>&aboutSupport.safeModeTitle;</h3>
+        <button id="restart-in-safe-mode-button">
+          &aboutSupport.restartInSafeMode.label;
+        </button>
+      </div>
 
+    </div>
     <h1>
       &aboutSupport.pageTitle;
     </h1>
@@ -44,11 +53,10 @@
     </div>
 
     <div>
-      <button id="copy-raw-data-to-clipboard"
-              onclick="copyRawDataToClipboard(this);">
+      <button id="copy-raw-data-to-clipboard">
         &aboutSupport.copyRawDataToClipboard.label;
       </button>
-      <button id="copy-to-clipboard" onclick="copyContentsToClipboard()">
+      <button id="copy-to-clipboard">
         &aboutSupport.copyTextToClipboard.label;
       </button>
     </div>
@@ -81,20 +89,34 @@
             </td>
           </tr>
 
+          <tr>
+            <th class="column">
+              &aboutSupport.appBasicsBuildID;
+              </th>
+            <td id="buildid-box"></td>
+          </tr>
+
 #ifndef ANDROID
-#ifdef MOZ_UPDATER
           <tr class="no-copy">
             <th class="column">
               &aboutSupport.appBasicsUpdateHistory;
             </th>
 
             <td>
-              <button onclick="showUpdateHistory()">
+              <button id="show-update-history-button">
                 &aboutSupport.appBasicsShowUpdateHistory;
               </button>
             </td>
           </tr>
-#endif          
+#endif
+
+#ifdef MOZ_UPDATER
+          <tr>
+            <th class="column">
+              &aboutSupport.appBasicsUpdateChannel;
+            </th>
+            <td id="updatechannel-box"></td>
+          </tr>
 #endif
 
           <tr>
@@ -120,7 +142,7 @@
             </th>
 
             <td>
-              <button onclick="openProfileDirectory()">
+              <button id="profile-dir-button">
 #ifdef XP_WIN
                 &aboutSupport.showWin.label;
 #else
@@ -164,6 +186,15 @@
             </td>
           </tr>
 
+          <tr>
+            <th class="column">
+              &aboutSupport.appBasicsMultiProcessSupport;
+            </th>
+
+            <td id="multiprocess-box">
+            </td>
+          </tr>
+
         </tbody>
       </table>
 
@@ -197,6 +228,23 @@
       <!-- - - - - - - - - - - - - - - - - - - - - -->
 
       <h2 class="major-section">
+        &aboutSupport.graphicsTitle;
+      </h2>
+
+      <table>
+        <tbody id="graphics-tbody">
+        </tbody>
+
+        <tbody id="graphics-info-properties">
+        </tbody>
+
+        <tbody id="graphics-failures-tbody">
+        </tbody>
+      </table>
+
+      <!-- - - - - - - - - - - - - - - - - - - - - -->
+
+      <h2 class="major-section">
         &aboutSupport.modifiedKeyPrefsTitle;
       </h2>
 
@@ -215,24 +263,29 @@
         </tbody>
       </table>
 
-      <section id="prefs-user-js-section" class="no-copy" style="display:none">
+      <section id="prefs-user-js-section" class="hidden no-copy">
         <h3>&aboutSupport.userJSTitle;</h3>
         <p>&aboutSupport.userJSDescription;</p>
       </section>
 
       <!-- - - - - - - - - - - - - - - - - - - - - -->
+
       <h2 class="major-section">
-        &aboutSupport.graphicsTitle;
+        &aboutSupport.lockedKeyPrefsTitle;
       </h2>
 
-      <table>
-        <tbody id="graphics-tbody">
-        </tbody>
+      <table class="prefs-table">
+        <thead class="no-copy">
+          <th class="name">
+            &aboutSupport.lockedPrefsName;
+          </th>
 
-        <tbody id="graphics-info-properties">
-        </tbody>
+          <th class="value">
+            &aboutSupport.lockedPrefsValue;
+          </th>
+        </thead>
 
-        <tbody id="graphics-failures-tbody">
+        <tbody id="locked-prefs-tbody">
         </tbody>
       </table>
 
@@ -289,6 +342,50 @@
         <tbody id="libversions-tbody">
         </tbody>
       </table>
+
+
+      <h2 class="major-section">
+        &aboutSupport.experimentsTitle;
+      </h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>
+              &aboutSupport.experimentName;
+            </th>
+            <th>
+              &aboutSupport.experimentId;
+            </th>
+            <th>
+              &aboutSupport.experimentDescription;
+            </th>
+            <th>
+              &aboutSupport.experimentActive;
+            </th>
+            <th>
+              &aboutSupport.experimentEndDate;
+            </th>
+            <th>
+              &aboutSupport.experimentHomepage;
+            </th>
+          </tr>
+        </thead>
+        <tbody id="experiments-tbody">
+        </tbody>
+      </table>
+      <!-- - - - - - - - - - - - - - - - - - - - - -->
+
+#if defined(XP_LINUX) && defined(MOZ_SANDBOX)
+      <h2 class="major-section" id="sandbox">
+	&aboutSupport.sandboxTitle;
+      </h2>
+
+      <table>
+	<tbody id="sandbox-tbody">
+	</tbody>
+      </table>
+#endif
 
     </div>
 

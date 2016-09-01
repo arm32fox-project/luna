@@ -12,40 +12,43 @@
 #include "pcm16b.h"
 
 #include <stdlib.h>
+#ifdef WEBRTC_ARCH_BIG_ENDIAN
+#include <string.h>
+#endif
 
-#include "typedefs.h"
+#include "webrtc/typedefs.h"
 
 #define HIGHEND 0xFF00
 #define LOWEND    0xFF
 
 
 
-/* Encoder with WebRtc_Word16 Output */
-WebRtc_Word16 WebRtcPcm16b_EncodeW16(WebRtc_Word16 *speechIn16b,
-                                     WebRtc_Word16 len,
-                                     WebRtc_Word16 *speechOut16b)
+/* Encoder with int16_t Output */
+int16_t WebRtcPcm16b_EncodeW16(const int16_t* speechIn16b,
+                               int16_t length_samples,
+                               int16_t* speechOut16b)
 {
-#ifdef WEBRTC_BIG_ENDIAN
-    memcpy(speechOut16b, speechIn16b, len * sizeof(WebRtc_Word16));
+#ifdef WEBRTC_ARCH_BIG_ENDIAN
+    memcpy(speechOut16b, speechIn16b, length_samples * sizeof(int16_t));
 #else
     int i;
-    for (i=0;i<len;i++) {
-        speechOut16b[i]=(((WebRtc_UWord16)speechIn16b[i])>>8)|((((WebRtc_UWord16)speechIn16b[i])<<8)&0xFF00);
+    for (i = 0; i < length_samples; i++) {
+        speechOut16b[i]=(((uint16_t)speechIn16b[i])>>8)|((((uint16_t)speechIn16b[i])<<8)&0xFF00);
     }
 #endif
-    return(len<<1);
+    return length_samples << 1;
 }
 
 
 /* Encoder with char Output (old version) */
-WebRtc_Word16 WebRtcPcm16b_Encode(WebRtc_Word16 *speech16b,
-                                  WebRtc_Word16 len,
-                                  unsigned char *speech8b)
+int16_t WebRtcPcm16b_Encode(int16_t *speech16b,
+                            int16_t len,
+                            unsigned char *speech8b)
 {
-    WebRtc_Word16 samples=len*2;
-    WebRtc_Word16 pos;
-    WebRtc_Word16 short1;
-    WebRtc_Word16 short2;
+    int16_t samples=len*2;
+    int16_t pos;
+    int16_t short1;
+    int16_t short2;
     for (pos=0;pos<len;pos++) {
         short1=HIGHEND & speech16b[pos];
         short2=LOWEND & speech16b[pos];
@@ -57,40 +60,36 @@ WebRtc_Word16 WebRtcPcm16b_Encode(WebRtc_Word16 *speech16b,
 }
 
 
-/* Decoder with WebRtc_Word16 Input instead of char when the WebRtc_Word16 Encoder is used */
-WebRtc_Word16 WebRtcPcm16b_DecodeW16(void *inst,
-                                     WebRtc_Word16 *speechIn16b,
-                                     WebRtc_Word16 len,
-                                     WebRtc_Word16 *speechOut16b,
-                                     WebRtc_Word16* speechType)
+/* Decoder with int16_t Input instead of char when the int16_t Encoder is used */
+int16_t WebRtcPcm16b_DecodeW16(int16_t *speechIn16b,
+                               int16_t length_bytes,
+                               int16_t *speechOut16b,
+                               int16_t* speechType)
 {
-#ifdef WEBRTC_BIG_ENDIAN
-    memcpy(speechOut16b, speechIn16b, ((len*sizeof(WebRtc_Word16)+1)>>1));
+#ifdef WEBRTC_ARCH_BIG_ENDIAN
+    memcpy(speechOut16b, speechIn16b, length_bytes);
 #else
     int i;
-    int samples=len>>1;
+    int samples = length_bytes >> 1;
 
     for (i=0;i<samples;i++) {
-        speechOut16b[i]=(((WebRtc_UWord16)speechIn16b[i])>>8)|(((WebRtc_UWord16)(speechIn16b[i]&0xFF))<<8);
+        speechOut16b[i]=(((uint16_t)speechIn16b[i])>>8)|(((uint16_t)(speechIn16b[i]&0xFF))<<8);
     }
 #endif
 
     *speechType=1;
 
-    // Avoid warning.
-    (void)(inst = NULL);
-
-    return(len>>1);
+    return length_bytes >> 1;
 }
 
 /* "old" version of the decoder that uses char as input (not used in NetEq any more) */
-WebRtc_Word16 WebRtcPcm16b_Decode(unsigned char *speech8b,
-                                  WebRtc_Word16 len,
-                                  WebRtc_Word16 *speech16b)
+int16_t WebRtcPcm16b_Decode(unsigned char *speech8b,
+                            int16_t len,
+                            int16_t *speech16b)
 {
-    WebRtc_Word16 samples=len>>1;
-    WebRtc_Word16 pos;
-    WebRtc_Word16 shortval;
+    int16_t samples=len>>1;
+    int16_t pos;
+    int16_t shortval;
     for (pos=0;pos<samples;pos++) {
         shortval=((unsigned short) speech8b[pos*2]);
         shortval=(shortval<<8)&HIGHEND;

@@ -14,6 +14,22 @@ button {
   text-shadow: none;
 }
 
+button:not([disabled="true"]):hover:active {
+  color: -moz-mac-buttonactivetext;
+}
+
+/* When the window isn't focused, the default button background isn't drawn,
+ * so don't change the text color then: */
+button[default="true"]:not([disabled="true"]):not(:-moz-window-inactive) {
+  color: -moz-mac-defaultbuttontext;
+}
+
+/* Likewise, when active (mousedown) but not hovering, the default button
+ * background isn't drawn, override the previous selector for that case: */
+button[default="true"]:not(:hover):active {
+  color: ButtonText;
+}
+
 .button-text {
   margin: 1px 0 !important;
   -moz-margin-start: 3px !important;
@@ -64,36 +80,6 @@ button.plain {
 /* ::::: help button ::::: */
 
 button[dlgtype="help"] {
-  min-width: 1px;
-  padding: 0;
-  -moz-appearance: none;
-  -moz-box-align: start;
-  height: 24px;
-  width: 24px;
-  margin: 3px 4px;
-}
-
-button[dlgtype="help"][disabled] {
-  opacity: 0.5;
-}
-
-button[dlgtype="help"]:-moz-focusring {
-  outline: 2px solid -moz-mac-focusring;
-  outline-offset: -2px;
-  -moz-outline-radius: 10000px;
-}
-
-button[dlgtype="help"] > .button-box > .button-icon {
-  list-style-image: url("chrome://global/skin/icons/question-mark.png");
-  -moz-image-region: rect(0 24px 24px 0);
-  padding: 0;
-  margin: 0;
-}
-
-button[dlgtype="help"]:active > .button-box > .button-icon {
-  -moz-image-region: rect(0 48px 24px 24px);
-}
-
-button[dlgtype="help"] > .button-box > .button-text {
-  display: none;
+  -moz-appearance: -moz-mac-help-button;
+  width: 20px;
 }

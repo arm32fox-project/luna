@@ -31,8 +31,10 @@
 #include <process.h>
 #include "platform.h"
 #include "TableTicker.h"
-#include "ProfileEntry.h"
-#include "UnwinderThread2.h"
+#include "ThreadResponsiveness.h"
+
+// Memory profile
+#include "nsMemoryReporterManager.h"
 
 class PlatformData : public Malloced {
  public:
@@ -80,10 +82,16 @@ Sampler::GetThreadHandle(PlatformData* aData)
 
 class SamplerThread : public Thread {
  public:
-  SamplerThread(int interval, Sampler* sampler)
+  SamplerThread(double interval, Sampler* sampler)
       : Thread("SamplerThread")
       , interval_(interval)
-      , sampler_(sampler) {}
+      , sampler_(sampler)
+  {
+    interval_ = floor(interval + 0.5);
+    if (interval_ <= 0) {
+      interval_ = 1;
+    }
+  }
 
   static void StartSampler(Sampler* sampler) {
     if (instance_ == NULL) {
@@ -110,22 +118,32 @@ class SamplerThread : public Thread {
         ::timeBeginPeriod(interval_);
 
     while (sampler_->IsActive()) {
-      {
+      sampler_->DeleteExpiredMarkers();
+
+      if (!sampler_->IsPaused()) {
         mozilla::MutexAutoLock lock(*Sampler::sRegisteredThreadsMutex);
         std::vector<ThreadInfo*> threads =
           sampler_->GetRegisteredThreads();
+        bool isFirstProfiledThread = true;
         for (uint32_t i = 0; i < threads.size(); i++) {
           ThreadInfo* info = threads[i];
 
           // This will be null if we're not interested in profiling this thread.
-          if (!info->Profile())
+          if (!info->Profile() || info->IsPendingDelete())
             continue;
+
+          PseudoStack::SleepState sleeping = info->Stack()->observeSleeping();
+          if (sleeping == PseudoStack::SLEEPING_AGAIN) {
+            info->Profile()->DuplicateLastSample();
+            continue;
+          }
+
+          info->Profile()->GetThreadResponsiveness()->Update();
 
           ThreadProfile* thread_profile = info->Profile();
 
-          if (!sampler_->IsPaused()) {
-            SampleContext(sampler_, thread_profile);
-          }
+          SampleContext(sampler_, thread_profile, isFirstProfiledThread);
+          isFirstProfiledThread = false;
         }
       }
       OS::Sleep(interval_);
@@ -136,7 +154,9 @@ class SamplerThread : public Thread {
         ::timeEndPeriod(interval_);
   }
 
-  void SampleContext(Sampler* sampler, ThreadProfile* thread_profile) {
+  void SampleContext(Sampler* sampler, ThreadProfile* thread_profile,
+                     bool isFirstProfiledThread)
+  {
     uintptr_t thread = Sampler::GetThreadHandle(
                                thread_profile->GetPlatformData());
     HANDLE profiled_thread = reinterpret_cast<HANDLE>(thread);
@@ -154,11 +174,26 @@ class SamplerThread : public Thread {
     sample->timestamp = mozilla::TimeStamp::Now();
     sample->threadProfile = thread_profile;
 
+    if (isFirstProfiledThread && Sampler::GetActiveSampler()->ProfileMemory()) {
+      sample->rssMemory = nsMemoryReporterManager::ResidentFast();
+    } else {
+      sample->rssMemory = 0;
+    }
+
+    // Unique Set Size is not supported on Windows.
+    sample->ussMemory = 0;
+
     static const DWORD kSuspendFailed = static_cast<DWORD>(-1);
     if (SuspendThread(profiled_thread) == kSuspendFailed)
       return;
 
+    // CONTEXT_CONTROL is faster but we can't use it on 64-bit because it
+    // causes crashes in RtlVirtualUnwind (see bug 1120126).
+#if V8_HOST_ARCH_X64
+    context.ContextFlags = CONTEXT_FULL;
+#else
     context.ContextFlags = CONTEXT_CONTROL;
+#endif
     if (GetThreadContext(profiled_thread, &context) != 0) {
 #if V8_HOST_ARCH_X64
       sample->pc = reinterpret_cast<Address>(context.Rip);
@@ -176,7 +211,7 @@ class SamplerThread : public Thread {
   }
 
   Sampler* sampler_;
-  const int interval_;
+  int interval_; // units: ms
 
   // Protects the process wide state below.
   static SamplerThread* instance_;
@@ -187,7 +222,7 @@ class SamplerThread : public Thread {
 SamplerThread* SamplerThread::instance_ = NULL;
 
 
-Sampler::Sampler(int interval, bool profiling, int entrySize)
+Sampler::Sampler(double interval, bool profiling, int entrySize)
     : interval_(interval),
       profiling_(profiling),
       paused_(false),
@@ -248,14 +283,23 @@ void Thread::Start() {
                      ThreadEntry,
                      this,
                      0,
-                     &thread_id_));
+                     (unsigned int*) &thread_id_));
 }
 
 // Wait for thread to terminate.
 void Thread::Join() {
-  if (thread_id_ != GetCurrentThreadId()) {
+  if (thread_id_ != GetCurrentId()) {
     WaitForSingleObject(thread_, INFINITE);
   }
+}
+
+/* static */ Thread::tid_t
+Thread::GetCurrentId()
+{
+  return GetCurrentThreadId();
+}
+
+void OS::Startup() {
 }
 
 void OS::Sleep(int milliseconds) {
@@ -269,10 +313,25 @@ bool Sampler::RegisterCurrentThread(const char* aName,
   if (!Sampler::sRegisteredThreadsMutex)
     return false;
 
+
   mozilla::MutexAutoLock lock(*Sampler::sRegisteredThreadsMutex);
 
-  ThreadInfo* info = new ThreadInfo(aName, GetCurrentThreadId(),
-    aIsMainThread, aPseudoStack);
+  int id = GetCurrentThreadId();
+
+  for (uint32_t i = 0; i < sRegisteredThreads->size(); i++) {
+    ThreadInfo* info = sRegisteredThreads->at(i);
+    if (info->ThreadId() == id && !info->IsPendingDelete()) {
+      // Thread already registered. This means the first unregister will be
+      // too early.
+      ASSERT(false);
+      return false;
+    }
+  }
+
+  set_tls_stack_top(stackTop);
+
+  ThreadInfo* info = new StackOwningThreadInfo(aName, id,
+    aIsMainThread, aPseudoStack, stackTop);
 
   if (sActiveSampler) {
     sActiveSampler->RegisterThread(info);
@@ -289,16 +348,49 @@ void Sampler::UnregisterCurrentThread()
   if (!Sampler::sRegisteredThreadsMutex)
     return;
 
+  tlsStackTop.set(nullptr);
+
   mozilla::MutexAutoLock lock(*Sampler::sRegisteredThreadsMutex);
 
   int id = GetCurrentThreadId();
 
   for (uint32_t i = 0; i < sRegisteredThreads->size(); i++) {
     ThreadInfo* info = sRegisteredThreads->at(i);
-    if (info->ThreadId() == id) {
-      delete info;
-      sRegisteredThreads->erase(sRegisteredThreads->begin() + i);
-      break;
+    if (info->ThreadId() == id && !info->IsPendingDelete()) {
+      if (profiler_is_active()) {
+        // We still want to show the results of this thread if you
+        // save the profile shortly after a thread is terminated.
+        // For now we will defer the delete to profile stop.
+        info->SetPendingDelete();
+        break;
+      } else {
+        delete info;
+        sRegisteredThreads->erase(sRegisteredThreads->begin() + i);
+        break;
+      }
     }
   }
 }
+
+void TickSample::PopulateContext(void* aContext)
+{
+  MOZ_ASSERT(aContext);
+  CONTEXT* pContext = reinterpret_cast<CONTEXT*>(aContext);
+  context = pContext;
+  RtlCaptureContext(pContext);
+
+#if defined(SPS_PLAT_amd64_windows)
+
+  pc = reinterpret_cast<Address>(pContext->Rip);
+  sp = reinterpret_cast<Address>(pContext->Rsp);
+  fp = reinterpret_cast<Address>(pContext->Rbp);
+
+#elif defined(SPS_PLAT_x86_windows)
+
+  pc = reinterpret_cast<Address>(pContext->Eip);
+  sp = reinterpret_cast<Address>(pContext->Esp);
+  fp = reinterpret_cast<Address>(pContext->Ebp);
+
+#endif
+}
+

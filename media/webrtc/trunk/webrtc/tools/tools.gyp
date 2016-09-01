@@ -12,35 +12,11 @@
   ],
   'targets': [
     {
-      'target_name': 'command_line_parser',
-      'type': '<(library)',
-      'include_dirs': [
-        '.',
-      ],
-      'direct_dependent_settings': {
-        'include_dirs': [
-          '.',
-        ],
-      },
-      'sources': [
-        'simple_command_line_parser.h',
-        'simple_command_line_parser.cc',
-      ],
-    }, # command_line_parser
-    {
       'target_name': 'video_quality_analysis',
-      'type': '<(library)',
+      'type': 'static_library',
       'dependencies': [
         '<(DEPTH)/third_party/libyuv/libyuv.gyp:libyuv',
       ],
-      'include_dirs': [
-        'frame_analyzer',
-      ],
-      'direct_dependent_settings': {
-        'include_dirs': [
-          'frame_analyzer',
-        ],
-      },
       'export_dependent_settings': [
         '<(DEPTH)/third_party/libyuv/libyuv.gyp:libyuv',
       ],
@@ -53,7 +29,7 @@
       'target_name': 'frame_analyzer',
       'type': 'executable',
       'dependencies': [
-        'command_line_parser',
+        '<(webrtc_root)/tools/internal_tools.gyp:command_line_parser',
         'video_quality_analysis',
       ],
       'sources': [
@@ -64,7 +40,7 @@
       'target_name': 'psnr_ssim_analyzer',
       'type': 'executable',
       'dependencies': [
-        'command_line_parser',
+        '<(webrtc_root)/tools/internal_tools.gyp:command_line_parser',
         'video_quality_analysis',
       ],
       'sources': [
@@ -75,7 +51,7 @@
       'target_name': 'rgba_to_i420_converter',
       'type': 'executable',
       'dependencies': [
-        'command_line_parser',
+        '<(webrtc_root)/tools/internal_tools.gyp:command_line_parser',
         '<(DEPTH)/third_party/libyuv/libyuv.gyp:libyuv',
       ],
       'sources': [
@@ -86,7 +62,7 @@
     }, # rgba_to_i420_converter
     {
       'target_name': 'frame_editing_lib',
-      'type': '<(library)',
+      'type': 'static_library',
       'dependencies': [
         '<(webrtc_root)/common_video/common_video.gyp:common_video',
       ],
@@ -94,35 +70,109 @@
         'frame_editing/frame_editing_lib.cc',
         'frame_editing/frame_editing_lib.h',
       ],
+      # Disable warnings to enable Win64 build, issue 1323.
+      'msvs_disabled_warnings': [
+        4267,  # size_t to int truncation.
+      ],
     }, # frame_editing_lib
     {
       'target_name': 'frame_editor',
       'type': 'executable',
       'dependencies': [
-        'command_line_parser',
+        '<(webrtc_root)/tools/internal_tools.gyp:command_line_parser',
         'frame_editing_lib',
       ],
       'sources': [
         'frame_editing/frame_editing.cc',
       ],
     }, # frame_editing
+    {
+      'target_name': 'force_mic_volume_max',
+      'type': 'executable',
+      'dependencies': [
+        '<(webrtc_root)/voice_engine/voice_engine.gyp:voice_engine',
+        '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers_default',
+      ],
+      'sources': [
+        'force_mic_volume_max/force_mic_volume_max.cc',
+      ],
+    }, # force_mic_volume_max
   ],
   'conditions': [
     ['include_tests==1', {
       'targets' : [
         {
-          'target_name': 'tools_unittests',
+          'target_name': 'audio_e2e_harness',
           'type': 'executable',
           'dependencies': [
+            '<(webrtc_root)/test/test.gyp:channel_transport',
+            '<(webrtc_root)/voice_engine/voice_engine.gyp:voice_engine',
+            '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers_default',
+            '<(DEPTH)/testing/gtest.gyp:gtest',
+            '<(DEPTH)/third_party/gflags/gflags.gyp:gflags',
+          ],
+          'sources': [
+            'e2e_quality/audio/audio_e2e_harness.cc',
+          ],
+        }, # audio_e2e_harness
+        {
+          'target_name': 'tools_unittests',
+          'type': '<(gtest_target_type)',
+          'dependencies': [
             'frame_editing_lib',
+            'video_quality_analysis',
+            '<(webrtc_root)/tools/internal_tools.gyp:command_line_parser',
             '<(webrtc_root)/test/test.gyp:test_support_main',
             '<(DEPTH)/testing/gtest.gyp:gtest',
           ],
           'sources': [
+            'simple_command_line_parser_unittest.cc',
             'frame_editing/frame_editing_unittest.cc',
+            'frame_analyzer/video_quality_analysis_unittest.cc',
+          ],
+          # Disable warnings to enable Win64 build, issue 1323.
+          'msvs_disabled_warnings': [
+            4267,  # size_t to int truncation.
+          ],
+          'conditions': [
+            ['OS=="android"', {
+              'dependencies': [
+                '<(DEPTH)/testing/android/native_test.gyp:native_test_native_code',
+              ],
+            }],
           ],
         }, # tools_unittests
       ], # targets
+      'conditions': [
+        ['OS=="android"', {
+          'targets': [
+            {
+              'target_name': 'tools_unittests_apk_target',
+              'type': 'none',
+              'dependencies': [
+                '<(apk_tests_path):tools_unittests_apk',
+              ],
+            },
+          ],
+        }],
+        ['test_isolation_mode != "noop"', {
+          'targets': [
+            {
+              'target_name': 'tools_unittests_run',
+              'type': 'none',
+              'dependencies': [
+                'tools_unittests',
+              ],
+              'includes': [
+                '../build/isolate.gypi',
+              ],
+              'sources': [
+                'tools_unittests.isolate',
+              ],
+            },
+          ],
+        }],
+      ],
     }], # include_tests
   ], # conditions
 }

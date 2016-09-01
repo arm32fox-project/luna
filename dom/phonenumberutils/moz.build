@@ -4,11 +4,21 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-TEST_DIRS += ['tests']
-
-EXTRA_JS_MODULES += [
-    'PhoneNumber.jsm',
-    'PhoneNumberMetaData.jsm',
-    'mcc_iso3166_table.jsm',
+EXTRA_COMPONENTS += [
+    'PhoneNumberService.js',
+    'PhoneNumberService.manifest',
 ]
 
+EXTRA_JS_MODULES += [
+    'mcc_iso3166_table.jsm',
+    'PhoneNumber.jsm',
+    'PhoneNumberMetaData.jsm',
+    'PhoneNumberNormalizer.jsm',
+]
+
+EXTRA_PP_JS_MODULES += [
+    'PhoneNumberUtils.jsm',
+]
+
+MOCHITEST_MANIFESTS += ['tests/mochitest.ini']
+MOCHITEST_CHROME_MANIFESTS += ['tests/chrome.ini']

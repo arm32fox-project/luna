@@ -8,10 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "device_info_impl.h"
-#include "video_capture_config.h"
-#include "trace.h"
+#include <assert.h>
 #include <stdlib.h>
+
+#include "webrtc/modules/video_capture/device_info_impl.h"
+#include "webrtc/modules/video_capture/video_capture_config.h"
+#include "webrtc/system_wrappers/interface/logging.h"
 
 #ifndef abs
 #define abs(a) (a>=0?a:-a)
@@ -21,7 +23,7 @@ namespace webrtc
 {
 namespace videocapturemodule
 {
-DeviceInfoImpl::DeviceInfoImpl(const WebRtc_Word32 id)
+DeviceInfoImpl::DeviceInfoImpl(const int32_t id)
     : _id(id), _apiLock(*RWLockWrapper::CreateRWLock()), _lastUsedDeviceName(NULL),
       _lastUsedDeviceNameLength(0)
 {
@@ -30,19 +32,12 @@ DeviceInfoImpl::DeviceInfoImpl(const WebRtc_Word32 id)
 DeviceInfoImpl::~DeviceInfoImpl(void)
 {
     _apiLock.AcquireLockExclusive();
-    // Reset old capability list
-    MapItem* item = NULL;
-    while ((item = _captureCapabilities.Last()))
-    {
-        delete (VideoCaptureCapability*) item->GetItem();
-        _captureCapabilities.Erase(item);
-    }
     free(_lastUsedDeviceName);
     _apiLock.ReleaseLockExclusive();
 
     delete &_apiLock;
 }
-WebRtc_Word32 DeviceInfoImpl::NumberOfCapabilities(
+int32_t DeviceInfoImpl::NumberOfCapabilities(
                                         const char* deviceUniqueIdUTF8)
 {
 
@@ -66,28 +61,23 @@ WebRtc_Word32 DeviceInfoImpl::NumberOfCapabilities(
         {
             //yes
             _apiLock.ReleaseLockShared();
-            return _captureCapabilities.Size();
+            return static_cast<int32_t>(_captureCapabilities.size());
         }
     }
     // Need to get exclusive rights to create the new capability map.
     _apiLock.ReleaseLockShared();
     WriteLockScoped cs2(_apiLock);
 
-    WebRtc_Word32 ret = CreateCapabilityMap(deviceUniqueIdUTF8);
+    int32_t ret = CreateCapabilityMap(deviceUniqueIdUTF8);
     return ret;
 }
 
-WebRtc_Word32 DeviceInfoImpl::GetCapability(const char* deviceUniqueIdUTF8,
-                                            const WebRtc_UWord32 deviceCapabilityNumber,
-                                            VideoCaptureCapability& capability)
+int32_t DeviceInfoImpl::GetCapability(const char* deviceUniqueIdUTF8,
+                                      const uint32_t deviceCapabilityNumber,
+                                      VideoCaptureCapability& capability)
 {
+    assert(deviceUniqueIdUTF8 != NULL);
 
-    if (!deviceUniqueIdUTF8)
-    {
-        WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideoCapture, _id,
-                   "deviceUniqueIdUTF8 parameter not set in call to GetCapability");
-        return -1;
-    }
     ReadLockScoped cs(_apiLock);
 
     if ((_lastUsedDeviceNameLength != strlen((char*) deviceUniqueIdUTF8))
@@ -115,35 +105,19 @@ WebRtc_Word32 DeviceInfoImpl::GetCapability(const char* deviceUniqueIdUTF8,
     }
 
     // Make sure the number is valid
-    if (deviceCapabilityNumber >= (unsigned int) _captureCapabilities.Size())
+    if (deviceCapabilityNumber >= (unsigned int) _captureCapabilities.size())
     {
-        WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideoCapture, _id,
-                   "deviceCapabilityNumber %d is invalid in call to GetCapability",
-                   deviceCapabilityNumber);
+        LOG(LS_ERROR) << "Invalid deviceCapabilityNumber "
+                      << deviceCapabilityNumber << ">= number of capabilities ("
+                      << _captureCapabilities.size() << ").";
         return -1;
     }
 
-    MapItem* item = _captureCapabilities.Find(deviceCapabilityNumber);
-    if (!item)
-    {
-        WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideoCapture, _id,
-                   "Failed to find capability number %d of %d possible",
-                   deviceCapabilityNumber, _captureCapabilities.Size());
-        return -1;
-    }
-
-    VideoCaptureCapability* capPointer =  static_cast<VideoCaptureCapability*>
-                                          (item->GetItem());
-    if (!capPointer)
-    {
-        return -1;
-    }
-
-    capability = *capPointer;
+    capability = _captureCapabilities[deviceCapabilityNumber];
     return 0;
 }
 
-WebRtc_Word32 DeviceInfoImpl::GetBestMatchedCapability(
+int32_t DeviceInfoImpl::GetBestMatchedCapability(
                                         const char*deviceUniqueIdUTF8,
                                         const VideoCaptureCapability& requested,
                                         VideoCaptureCapability& resulting)
@@ -175,31 +149,27 @@ WebRtc_Word32 DeviceInfoImpl::GetBestMatchedCapability(
         _apiLock.AcquireLockShared();
     }
 
-    WebRtc_Word32 bestformatIndex = -1;
-    WebRtc_Word32 bestWidth = 0;
-    WebRtc_Word32 bestHeight = 0;
-    WebRtc_Word32 bestFrameRate = 0;
+    int32_t bestformatIndex = -1;
+    int32_t bestWidth = 0;
+    int32_t bestHeight = 0;
+    int32_t bestFrameRate = 0;
     RawVideoType bestRawType = kVideoUnknown;
     webrtc::VideoCodecType bestCodecType = webrtc::kVideoCodecUnknown;
 
-    const WebRtc_Word32 numberOfCapabilies = _captureCapabilities.Size();
+    const int32_t numberOfCapabilies =
+        static_cast<int32_t>(_captureCapabilities.size());
 
-    for (WebRtc_Word32 tmp = 0; tmp < numberOfCapabilies; ++tmp) // Loop through all capabilities
+    for (int32_t tmp = 0; tmp < numberOfCapabilies; ++tmp) // Loop through all capabilities
     {
-        MapItem* item = _captureCapabilities.Find(tmp);
-        if (!item)
-            return -1;
+        VideoCaptureCapability& capability = _captureCapabilities[tmp];
 
-        VideoCaptureCapability& capability = *static_cast<VideoCaptureCapability*>
-                                              (item->GetItem());
+        const int32_t diffWidth = capability.width - requested.width;
+        const int32_t diffHeight = capability.height - requested.height;
+        const int32_t diffFrameRate = capability.maxFPS - requested.maxFPS;
 
-        const WebRtc_Word32 diffWidth = capability.width - requested.width;
-        const WebRtc_Word32 diffHeight = capability.height - requested.height;
-        const WebRtc_Word32 diffFrameRate = capability.maxFPS - requested.maxFPS;
-
-        const WebRtc_Word32 currentbestDiffWith = bestWidth - requested.width;
-        const WebRtc_Word32 currentbestDiffHeight = bestHeight - requested.height;
-        const WebRtc_Word32 currentbestDiffFrameRate = bestFrameRate - requested.maxFPS;
+        const int32_t currentbestDiffWith = bestWidth - requested.width;
+        const int32_t currentbestDiffHeight = bestHeight - requested.height;
+        const int32_t currentbestDiffFrameRate = bestFrameRate - requested.maxFPS;
 
         if ((diffHeight >= 0 && diffHeight <= abs(currentbestDiffHeight)) // Height better or equalt that previouse.
             || (currentbestDiffHeight < 0 && diffHeight >= currentbestDiffHeight))
@@ -292,35 +262,28 @@ WebRtc_Word32 DeviceInfoImpl::GetBestMatchedCapability(
         }// else height not good
     }//end for
 
-    WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideoCapture, _id,
-               "Best camera format: Width %d, Height %d, Frame rate %d, Color format %d",
-               bestWidth, bestHeight, bestFrameRate, bestRawType);
+    LOG(LS_VERBOSE) << "Best camera format: " << bestWidth << "x" << bestHeight
+                    << "@" << bestFrameRate
+                    << "fps, color format: " << bestRawType;
 
     // Copy the capability
-    MapItem* item = _captureCapabilities.Find(bestformatIndex);
-    if (!item)
+    if (bestformatIndex < 0)
         return -1;
-    VideoCaptureCapability* capPointer =
-        static_cast<VideoCaptureCapability*> (item->GetItem());
-    if (!capPointer)
-        return -1;
-
-    resulting = *capPointer;
-
+    resulting = _captureCapabilities[bestformatIndex];
     return bestformatIndex;
 }
 
 /* Returns the expected Capture delay*/
-WebRtc_Word32 DeviceInfoImpl::GetExpectedCaptureDelay(
+int32_t DeviceInfoImpl::GetExpectedCaptureDelay(
                                           const DelayValues delayValues[],
-                                          const WebRtc_UWord32 sizeOfDelayValues,
+                                          const uint32_t sizeOfDelayValues,
                                           const char* productId,
-                                          const WebRtc_UWord32 width,
-                                          const WebRtc_UWord32 height)
+                                          const uint32_t width,
+                                          const uint32_t height)
 {
-    WebRtc_Word32 bestDelay = kDefaultCaptureDelay;
+    int32_t bestDelay = kDefaultCaptureDelay;
 
-    for (WebRtc_UWord32 device = 0; device < sizeOfDelayValues; ++device)
+    for (uint32_t device = 0; device < sizeOfDelayValues; ++device)
     {
         if (delayValues[device].productId && strncmp((char*) productId,
                                                      (char*) delayValues[device].productId,
@@ -328,19 +291,19 @@ WebRtc_Word32 DeviceInfoImpl::GetExpectedCaptureDelay(
         {
             // We have found the camera
 
-            WebRtc_Word32 bestWidth = 0;
-            WebRtc_Word32 bestHeight = 0;
+            int32_t bestWidth = 0;
+            int32_t bestHeight = 0;
 
             //Loop through all tested sizes and find one that seems fitting
-            for (WebRtc_UWord32 delayIndex = 0; delayIndex < NoOfDelayValues; ++delayIndex)
+            for (uint32_t delayIndex = 0; delayIndex < NoOfDelayValues; ++delayIndex)
             {
                 const DelayValue& currentValue = delayValues[device].delayValues[delayIndex];
 
-                const WebRtc_Word32 diffWidth = currentValue.width - width;
-                const WebRtc_Word32 diffHeight = currentValue.height - height;
+                const int32_t diffWidth = currentValue.width - width;
+                const int32_t diffHeight = currentValue.height - height;
 
-                const WebRtc_Word32 currentbestDiffWith = bestWidth - width;
-                const WebRtc_Word32 currentbestDiffHeight = bestHeight - height;
+                const int32_t currentbestDiffWith = bestWidth - width;
+                const int32_t currentbestDiffHeight = bestHeight - height;
 
                 if ((diffHeight >= 0 && diffHeight <= abs(currentbestDiffHeight)) // Height better or equal than previous.
                     || (currentbestDiffHeight < 0 && diffHeight >= currentbestDiffHeight))
@@ -376,11 +339,10 @@ WebRtc_Word32 DeviceInfoImpl::GetExpectedCaptureDelay(
     }
     if (bestDelay > kMaxCaptureDelay)
     {
-        WEBRTC_TRACE(webrtc::kTraceWarning, webrtc::kTraceVideoCapture, _id,
-                   "Expected capture delay too high. %dms, will use %d", bestDelay,
-                   kMaxCaptureDelay);
+        LOG(LS_WARNING) << "Expected capture delay (" << bestDelay
+                        << " ms) too high, using " << kMaxCaptureDelay
+                        << " ms.";
         bestDelay = kMaxCaptureDelay;
-
     }
 
     return bestDelay;
@@ -388,13 +350,11 @@ WebRtc_Word32 DeviceInfoImpl::GetExpectedCaptureDelay(
 }
 
 //Default implementation. This should be overridden by Mobile implementations.
-WebRtc_Word32 DeviceInfoImpl::GetOrientation(const char* deviceUniqueIdUTF8,
-                                             VideoCaptureRotation& orientation)
+int32_t DeviceInfoImpl::GetOrientation(const char* deviceUniqueIdUTF8,
+                                       VideoCaptureRotation& orientation)
 {
     orientation = kCameraRotate0;
     return -1;
 }
-} //namespace videocapturemodule
-} // namespace webrtc
-
-
+}  // namespace videocapturemodule
+}  // namespace webrtc

@@ -4,7 +4,7 @@
 
 const {classes: Cc, interfaces: Ci, utils: Cu, results: Cr} = Components;
 
-Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://services-common/rest.js");
 Cu.import("resource://services-sync/util.js");
 Cu.import("resource://services-sync/constants.js");
@@ -86,5 +86,21 @@ SyncStorageRequest.prototype = {
       Svc.Obs.notify("weave:service:quota:remaining",
                      parseInt(headers["x-weave-quota-remaining"], 10));
     }
+  },
+
+  onStopRequest: function onStopRequest(channel, context, statusCode) {
+    if (this.status != this.ABORTED) {
+      let resp = this.response;
+      let contentLength = resp.headers ? resp.headers["content-length"] : "";
+
+      if (resp.success && contentLength &&
+          contentLength != resp.body.length) {
+        this._log.warn("The response body's length of: " + resp.body.length +
+                       " doesn't match the header's content-length of: " +
+                       contentLength + ".");
+      }
+    }
+
+    RESTRequest.prototype.onStopRequest.apply(this, arguments);
   }
 };

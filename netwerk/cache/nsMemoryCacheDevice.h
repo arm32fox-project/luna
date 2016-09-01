@@ -12,7 +12,6 @@
 #include "nsCacheEntry.h"
 
 
-class nsIMemoryReporter;
 class nsMemoryCacheDeviceInfo;
 
 /******************************************************************************
@@ -100,8 +99,6 @@ private:
     int32_t                mMaxEntrySize; // internal unit is bytes
 
     // XXX what other stats do we want to keep?
-
-    nsCOMPtr<nsIMemoryReporter> mReporter;
 };
 
 
@@ -113,14 +110,13 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSICACHEDEVICEINFO
 
-    nsMemoryCacheDeviceInfo(nsMemoryCacheDevice* device)
+    explicit nsMemoryCacheDeviceInfo(nsMemoryCacheDevice* device)
         :   mDevice(device)
     {
     }
 
-    virtual ~nsMemoryCacheDeviceInfo() {}
-    
 private:
+    virtual ~nsMemoryCacheDeviceInfo() {}
     nsMemoryCacheDevice* mDevice;
 };
 

@@ -7,7 +7,6 @@
 #define nsMathMLmunderoverFrame_h___
 
 #include "mozilla/Attributes.h"
-#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
 //
@@ -23,32 +22,35 @@ public:
   virtual nsresult
   Place(nsRenderingContext& aRenderingContext,
         bool                 aPlaceOrigin,
-        nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+        nsHTMLReflowMetrics& aDesiredSize) override;
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent) override;
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE;
+  TransmitAutomaticData() override;
 
   NS_IMETHOD
   UpdatePresentationData(uint32_t        aFlagsValues,
-                         uint32_t        aFlagsToUpdate) MOZ_OVERRIDE;
+                         uint32_t        aFlagsToUpdate) override;
 
-  NS_IMETHOD
-  UpdatePresentationDataFromChildAt(int32_t         aFirstIndex,
-                                    int32_t         aLastIndex,
-                                    uint32_t        aFlagsValues,
-                                    uint32_t        aFlagsToUpdate) MOZ_OVERRIDE;
-
-  NS_IMETHOD
+  virtual nsresult
   AttributeChanged(int32_t         aNameSpaceID,
                    nsIAtom*        aAttribute,
-                   int32_t         aModType) MOZ_OVERRIDE;
+                   int32_t         aModType) override;
+
+  uint8_t
+  ScriptIncrement(nsIFrame* aFrame) override;
 
 protected:
-  nsMathMLmunderoverFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
+  explicit nsMathMLmunderoverFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext),
+                                                               mIncrementUnder(false),
+                                                               mIncrementOver(false) {}
   virtual ~nsMathMLmunderoverFrame();
+
+private:
+  bool mIncrementUnder;
+  bool mIncrementOver;
 };
 
 

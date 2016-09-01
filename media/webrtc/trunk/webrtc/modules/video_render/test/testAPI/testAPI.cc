@@ -8,14 +8,14 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "testAPI.h"
+#include "webrtc/modules/video_render/test/testAPI/testAPI.h"
 
 #include <stdio.h>
 
 #if defined(_WIN32)
 #include <tchar.h>
 #include <windows.h>
-#include <cassert>
+#include <assert.h>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -24,26 +24,26 @@
 
 #elif defined(WEBRTC_LINUX) && !defined(WEBRTC_ANDROID)
 
-#include <iostream>
 #include <X11/Xlib.h>
 #include <X11/Xutil.h>
+#include <iostream>
 #include <sys/time.h>
 
 #endif
 
-#include "common_types.h"
-#include "process_thread.h"
-#include "module_common_types.h"
-#include "video_render_defines.h"
-#include "video_render.h"
-#include "tick_util.h"
-#include "trace.h"
-#include "system_wrappers/interface/sleep.h"
+#include "webrtc/common_types.h"
+#include "webrtc/modules/interface/module_common_types.h"
+#include "webrtc/modules/utility/interface/process_thread.h"
+#include "webrtc/modules/video_render/include/video_render.h"
+#include "webrtc/modules/video_render/include/video_render_defines.h"
+#include "webrtc/system_wrappers/interface/sleep.h"
+#include "webrtc/system_wrappers/interface/tick_util.h"
+#include "webrtc/system_wrappers/interface/trace.h"
 
 using namespace webrtc;
 
 void GetTestVideoFrame(I420VideoFrame* frame,
-                       WebRtc_UWord8 startColor);
+                       uint8_t startColor);
 int TestSingleStream(VideoRender* renderModule);
 int TestFullscreenStream(VideoRender* &renderModule,
                          void* window,
@@ -261,8 +261,8 @@ public:
     {
     }
     ;
-    virtual WebRtc_Word32 RenderFrame(const WebRtc_UWord32 streamId,
-                                      I420VideoFrame& videoFrame)
+    virtual int32_t RenderFrame(const uint32_t streamId,
+                                I420VideoFrame& videoFrame)
     {
         _cnt++;
         if (_cnt % 100 == 0)
@@ -271,13 +271,13 @@ public:
         }
         return 0;
     }
-    WebRtc_Word32 _cnt;
+    int32_t _cnt;
 };
 
 void GetTestVideoFrame(I420VideoFrame* frame,
-                       WebRtc_UWord8 startColor) {
+                       uint8_t startColor) {
     // changing color
-    static WebRtc_UWord8 color = startColor;
+    static uint8_t color = startColor;
 
     memset(frame->buffer(kYPlane), color, frame->allocated_size(kYPlane));
     memset(frame->buffer(kUPlane), color, frame->allocated_size(kUPlane));
@@ -293,11 +293,6 @@ int TestSingleStream(VideoRender* renderModule) {
     const int streamId0 = 0;
     VideoRenderCallback* renderCallback0 = renderModule->AddIncomingRenderStream(streamId0, 0, 0.0f, 0.0f, 1.0f, 1.0f);
     assert(renderCallback0 != NULL);
-
-#ifndef WEBRTC_INCLUDE_INTERNAL_VIDEO_RENDER
-    MyRenderCallback externalRender;
-    renderModule->AddExternalRenderCallback(streamId0, &externalRender);
-#endif
 
     printf("Start render\n");
     error = renderModule->StartRender(streamId0);
@@ -316,7 +311,7 @@ int TestSingleStream(VideoRender* renderModule) {
     I420VideoFrame videoFrame0;
     videoFrame0.CreateEmptyFrame(width, height, width, half_width, half_width);
 
-    const WebRtc_UWord32 renderDelayMs = 500;
+    const uint32_t renderDelayMs = 500;
 
     for (int i=0; i<TEST_FRAME_NUM; i++) {
         GetTestVideoFrame(&videoFrame0, TEST_STREAM0_START_COLOR);
@@ -374,7 +369,7 @@ int TestBitmapText(VideoRender* renderModule) {
                              0.3f);
 
     printf("Adding Text\n");
-    renderModule->SetText(1, (WebRtc_UWord8*) "WebRtc Render Demo App", 20,
+    renderModule->SetText(1, (uint8_t*) "WebRtc Render Demo App", 20,
                            RGB(255, 0, 0), RGB(0, 0, 0), 0.25f, 0.1f, 1.0f,
                            1.0f);
 
@@ -390,7 +385,7 @@ int TestBitmapText(VideoRender* renderModule) {
     I420VideoFrame videoFrame0;
     videoFrame0.CreateEmptyFrame(width, height, width, half_width, half_width);
 
-    const WebRtc_UWord32 renderDelayMs = 500;
+    const uint32_t renderDelayMs = 500;
 
     for (int i=0; i<TEST_FRAME_NUM; i++) {
         GetTestVideoFrame(&videoFrame0, TEST_STREAM0_START_COLOR);
@@ -423,6 +418,8 @@ int TestBitmapText(VideoRender* renderModule) {
 }
 
 int TestMultipleStreams(VideoRender* renderModule) {
+    int error = 0;
+
     // Add settings for a stream to render
     printf("Add stream 0\n");
     const int streamId0 = 0;
@@ -444,10 +441,19 @@ int TestMultipleStreams(VideoRender* renderModule) {
     VideoRenderCallback* renderCallback3 =
         renderModule->AddIncomingRenderStream(streamId3, 0, 0.55f, 0.55f, 1.0f, 1.0f);
     assert(renderCallback3 != NULL);
-    assert(renderModule->StartRender(streamId0) == 0);
-    assert(renderModule->StartRender(streamId1) == 0);
-    assert(renderModule->StartRender(streamId2) == 0);
-    assert(renderModule->StartRender(streamId3) == 0);
+    error = renderModule->StartRender(streamId0);
+    if (error != 0) {
+      // TODO(phoglund): This test will not work if compiled in release mode.
+      // This rather silly construct here is to avoid compilation errors when
+      // compiling in release. Release => no asserts => unused 'error' variable.
+      assert(false);
+    }
+    error = renderModule->StartRender(streamId1);
+    assert(error == 0);
+    error = renderModule->StartRender(streamId2);
+    assert(error == 0);
+    error = renderModule->StartRender(streamId3);
+    assert(error == 0);
 
     // Loop through an I420 file and render each frame
     const int width = 352;
@@ -463,7 +469,7 @@ int TestMultipleStreams(VideoRender* renderModule) {
     I420VideoFrame videoFrame3;
     videoFrame3.CreateEmptyFrame(width, height, width, half_width, half_width);
 
-    const WebRtc_UWord32 renderDelayMs = 500;
+    const uint32_t renderDelayMs = 500;
 
     // Render frames with the specified delay.
     for (int i=0; i<TEST_FRAME_NUM; i++) {
@@ -493,19 +499,28 @@ int TestMultipleStreams(VideoRender* renderModule) {
 
     // Shut down
     printf("Closing...\n");
-    assert(renderModule->StopRender(streamId0) == 0);
-    assert(renderModule->DeleteIncomingRenderStream(streamId0) == 0);
-    assert(renderModule->StopRender(streamId1) == 0);
-    assert(renderModule->DeleteIncomingRenderStream(streamId1) == 0);
-    assert(renderModule->StopRender(streamId2) == 0);
-    assert(renderModule->DeleteIncomingRenderStream(streamId2) == 0);
-    assert(renderModule->StopRender(streamId3) == 0);
-    assert(renderModule->DeleteIncomingRenderStream(streamId3) == 0);
+    error = renderModule->StopRender(streamId0);
+    assert(error == 0);
+    error = renderModule->DeleteIncomingRenderStream(streamId0);
+    assert(error == 0);
+    error = renderModule->StopRender(streamId1);
+    assert(error == 0);
+    error = renderModule->DeleteIncomingRenderStream(streamId1);
+    assert(error == 0);
+    error = renderModule->StopRender(streamId2);
+    assert(error == 0);
+    error = renderModule->DeleteIncomingRenderStream(streamId2);
+    assert(error == 0);
+    error = renderModule->StopRender(streamId3);
+    assert(error == 0);
+    error = renderModule->DeleteIncomingRenderStream(streamId3);
+    assert(error == 0);
 
     return 0;
 }
 
 int TestExternalRender(VideoRender* renderModule) {
+    int error = 0;
     MyRenderCallback *externalRender = new MyRenderCallback();
 
     const int streamId0 = 0;
@@ -513,10 +528,16 @@ int TestExternalRender(VideoRender* renderModule) {
         renderModule->AddIncomingRenderStream(streamId0, 0, 0.0f, 0.0f,
                                                    1.0f, 1.0f);
     assert(renderCallback0 != NULL);
-    assert(renderModule->AddExternalRenderCallback(streamId0,
-                                                   externalRender) == 0);
+    error = renderModule->AddExternalRenderCallback(streamId0, externalRender);
+    if (error != 0) {
+      // TODO(phoglund): This test will not work if compiled in release mode.
+      // This rather silly construct here is to avoid compilation errors when
+      // compiling in release. Release => no asserts => unused 'error' variable.
+      assert(false);
+    }
 
-    assert(renderModule->StartRender(streamId0) == 0);
+    error = renderModule->StartRender(streamId0);
+    assert(error == 0);
 
     const int width = 352;
     const int half_width = (width + 1) / 2;
@@ -524,7 +545,7 @@ int TestExternalRender(VideoRender* renderModule) {
     I420VideoFrame videoFrame0;
     videoFrame0.CreateEmptyFrame(width, height, width, half_width, half_width);
 
-    const WebRtc_UWord32 renderDelayMs = 500;
+    const uint32_t renderDelayMs = 500;
     int frameCount = TEST_FRAME_NUM;
     for (int i=0; i<frameCount; i++) {
         videoFrame0.set_render_time_ms(TickTime::MillisecondTimestamp() +
@@ -536,8 +557,12 @@ int TestExternalRender(VideoRender* renderModule) {
     // Sleep and let all frames be rendered before closing
     SleepMs(2*renderDelayMs);
 
-    assert(renderModule->StopRender(streamId0) == 0);
-    assert(renderModule->DeleteIncomingRenderStream(streamId0) == 0);
+    // Shut down
+    printf("Closing...\n");
+    error = renderModule->StopRender(streamId0);
+    assert(error == 0);
+    error = renderModule->DeleteIncomingRenderStream(streamId0);
+    assert(error == 0);
     assert(frameCount == externalRender->_cnt);
 
     delete externalRender;
@@ -547,10 +572,6 @@ int TestExternalRender(VideoRender* renderModule) {
 }
 
 void RunVideoRenderTests(void* window, VideoRenderType windowType) {
-#ifndef WEBRTC_INCLUDE_INTERNAL_VIDEO_RENDER
-    windowType = kRenderExternal;
-#endif
-
     int myId = 12345;
 
     // Create the render module
@@ -561,7 +582,6 @@ void RunVideoRenderTests(void* window, VideoRenderType windowType) {
                                                   false,
                                                   windowType);
     assert(renderModule != NULL);
-
 
     // ##### Test single stream rendering ####
     printf("#### TestSingleStream ####\n");

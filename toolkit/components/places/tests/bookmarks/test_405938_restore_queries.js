@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -186,18 +186,12 @@ var test = {
 tests.push(test);
 
 function run_test() {
-  do_test_pending();
+  run_next_test();
+}
 
-  do_check_eq(typeof PlacesUtils, "object");
-
+add_task(function () {
   // make json file
-  var jsonFile = Services.dirsvc.get("ProfD", Ci.nsILocalFile);
-  jsonFile.append("bookmarks.json");
-  if (jsonFile.exists())
-    jsonFile.remove(false);
-  jsonFile.create(Ci.nsILocalFile.NORMAL_FILE_TYPE, 0600);
-  if (!jsonFile.exists())
-    do_throw("couldn't create file: bookmarks.exported.json");
+  let jsonFile = OS.Path.join(OS.Constants.Path.profileDir, "bookmarks.json");
 
   // populate db
   tests.forEach(function(aTest) {
@@ -207,29 +201,21 @@ function run_test() {
   });
 
   // export json to file
-  Task.spawn(function() {
-    try {
-      yield BookmarkJSONUtils.exportToFile(jsonFile);
-    } catch(ex) { do_throw("couldn't export to file: " + ex); }
+  yield BookmarkJSONUtils.exportToFile(jsonFile);
 
-    // clean
-    tests.forEach(function(aTest) {
-      aTest.clean();
-    });
-
-    // restore json file
-    try {
-      yield BookmarkJSONUtils.importFromFile(jsonFile, true);
-    } catch(ex) { do_throw("couldn't import the exported file: " + ex); }
-
-    // validate
-    tests.forEach(function(aTest) {
-      aTest.validate();
-    });
-
-    // clean up
-    jsonFile.remove(false);
-
-    do_test_finished();
+  // clean
+  tests.forEach(function(aTest) {
+    aTest.clean();
   });
-}
+
+  // restore json file
+  yield BookmarkJSONUtils.importFromFile(jsonFile, true);
+
+  // validate
+  tests.forEach(function(aTest) {
+    aTest.validate();
+  });
+
+  // clean up
+  yield OS.File.remove(jsonFile);
+});

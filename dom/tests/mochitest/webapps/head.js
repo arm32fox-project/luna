@@ -1,35 +1,25 @@
 /* Any copyright is dedicated to the Public Domain.
  * http://creativecommons.org/publicdomain/zero/1.0/ */
 
-/**
- * DOMApplicationRegistry._isLaunchable() sometimes returns false right after
- * installation on Mac, perhaps because of a race condition between
- * WebappsInstaller and nsIMacWebAppUtils::pathForAppWithIdentifier().
- * That causes methods like mgmt.getAll() to exclude the app from their results,
- * even though the app is registered and installed.
- *
- * To work around this problem, set DOMApplicationRegistry.allAppsLaunchable
- * to true, which makes _isLaunchable() return true for all registered apps.
- */
-function makeAllAppsLaunchable() {
-  var Webapps = {};
-  Components.utils.import("resource://gre/modules/Webapps.jsm", Webapps);
-  var originalValue = Webapps.DOMApplicationRegistry.allAppsLaunchable;
-  Webapps.DOMApplicationRegistry.allAppsLaunchable = true;
+const { classes: Cc, interfaces: Ci, utils: Cu, results: Cr } = Components;
 
-  // Clean up after ourselves once tests are done so the test page is unloaded.
-  window.addEventListener("unload", function restoreAllAppsLaunchable(event) {
-    if (event.target == window.document) {
-      window.removeEventListener("unload", restoreAllAppsLaunchable, false);
-      Webapps.DOMApplicationRegistry.allAppsLaunchable = originalValue;
-    }
-  }, false);
-}
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 
 function runAll(steps) {
   SimpleTest.waitForExplicitFinish();
 
-  makeAllAppsLaunchable();
+  /**
+   * On Mac, apps aren't considered launchable right after they've been
+   * installed because the OS takes some time to detect them (so
+   * nsIMacWebAppUtils::pathForAppWithIdentifier() returns null).
+   * That causes methods like mgmt.getAll() to exclude the app from their
+   * results, even though the app is installed and is in the registry.
+   * See the tests under toolkit/webapps for a viable solution.
+   *
+   * To work around this problem, set allAppsLaunchable to true, which makes
+   * all apps considered as launchable.
+   */
+  SpecialPowers.setAllAppsLaunchable(true);
 
   // Clone the array so we don't modify the original.
   steps = steps.concat();
@@ -44,19 +34,63 @@ function runAll(steps) {
   next();
 }
 
-function confirmNextInstall() {
+function confirmNextPopup() {
   var Ci = SpecialPowers.Ci;
 
-  var popupPanel = SpecialPowers.wrap(window).top.
-                   QueryInterface(Ci.nsIInterfaceRequestor).
-                   getInterface(Ci.nsIWebNavigation).
-                   QueryInterface(Ci.nsIDocShell).
-                   chromeEventHandler.ownerDocument.defaultView.
-                   PopupNotifications.panel;
+  var popupNotifications = SpecialPowers.wrap(window).top.
+                           QueryInterface(Ci.nsIInterfaceRequestor).
+                           getInterface(Ci.nsIWebNavigation).
+                           QueryInterface(Ci.nsIDocShell).
+                           chromeEventHandler.ownerDocument.defaultView.
+                           PopupNotifications;
+
+  var popupPanel = popupNotifications.panel;
 
   function onPopupShown() {
     popupPanel.removeEventListener("popupshown", onPopupShown, false);
     SpecialPowers.wrap(this).childNodes[0].button.doCommand();
+    popupNotifications._dismiss();
   }
   popupPanel.addEventListener("popupshown", onPopupShown, false);
 }
+
+// We need to mock the Alerts service, otherwise the alert that is shown
+// at the end of an installation makes the test leak the app's icon.
+
+const CID = Cc["@mozilla.org/uuid-generator;1"].getService(Ci.nsIUUIDGenerator).generateUUID();
+const ALERTS_SERVICE_CONTRACT_ID = "@mozilla.org/alerts-service;1";
+const ALERTS_SERVICE_CID = Components.ID(Cc[ALERTS_SERVICE_CONTRACT_ID].number);
+
+var AlertsService = {
+  classID: Components.ID(CID),
+
+  QueryInterface: XPCOMUtils.generateQI([Ci.nsIFactory,
+                                         Ci.nsIAlertsService]),
+
+  createInstance: function(aOuter, aIID) {
+    if (aOuter) {
+      throw Cr.NS_ERROR_NO_AGGREGATION;
+    }
+
+    return this.QueryInterface(aIID);
+  },
+
+  init: function() {
+    Components.manager.nsIComponentRegistrar.registerFactory(this.classID,
+      "", ALERTS_SERVICE_CONTRACT_ID, this);
+  },
+
+  restore: function() {
+    Components.manager.nsIComponentRegistrar.registerFactory(ALERTS_SERVICE_CID,
+      "", ALERTS_SERVICE_CONTRACT_ID, null);
+  },
+
+  showAlertNotification: function() {
+  },
+};
+
+AlertsService.init();
+
+SimpleTest.registerCleanupFunction(() => {
+  AlertsService.restore();
+});

@@ -1,8 +1,10 @@
-// The .next method of array iterators works across compartment boundaries.
+// Iterators from another compartment work with both their own .next method
+// with the other compartment's .next method.
 
 load(libdir + "asserts.js");
-var g = newGlobal('new-compartment');
-g.eval("var it = [1, 2].iterator();");
-assertEq(g.it.next(), 1);
-assertEq([].iterator().next.call(g.it), 2);
-assertThrowsValue([].iterator().next.bind(g.it), StopIteration);
+load(libdir + "iteration.js");
+
+var g = newGlobal();
+g.eval(`var it = [1, 2][Symbol.iterator]();`);
+assertIteratorNext(g.it, 1);
+assertDeepEq([][Symbol.iterator]().next.call(g.it), { value: 2, done: false })

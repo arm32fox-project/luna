@@ -91,6 +91,70 @@ private:
   bool mNeedsFigureEnded;
 };
 
+class StreamingGeometrySink : public ID2D1SimplifiedGeometrySink
+{
+public:
+  StreamingGeometrySink(PathSink *aSink)
+    : mSink(aSink)
+  {
+  }
+
+  HRESULT STDMETHODCALLTYPE QueryInterface(const IID &aIID, void **aPtr)
+  {
+    if (!aPtr) {
+      return E_POINTER;
+    }
+
+    if (aIID == IID_IUnknown) {
+      *aPtr = static_cast<IUnknown*>(this);
+      return S_OK;
+    } else if (aIID == IID_ID2D1SimplifiedGeometrySink) {
+      *aPtr = static_cast<ID2D1SimplifiedGeometrySink*>(this);
+      return S_OK;
+    }
+
+    return E_NOINTERFACE;
+  }
+
+  ULONG STDMETHODCALLTYPE AddRef()
+  {
+    return 1;
+  }
+
+  ULONG STDMETHODCALLTYPE Release()
+  {
+    return 1;
+  }
+
+  // We ignore SetFillMode, this depends on the destination sink.
+  STDMETHOD_(void, SetFillMode)(D2D1_FILL_MODE aMode)
+  { return; }
+  STDMETHOD_(void, BeginFigure)(D2D1_POINT_2F aPoint, D2D1_FIGURE_BEGIN aBegin)
+  { mSink->MoveTo(ToPoint(aPoint)); }
+  STDMETHOD_(void, AddLines)(const D2D1_POINT_2F *aLines, UINT aCount)
+  { for (UINT i = 0; i < aCount; i++) { mSink->LineTo(ToPoint(aLines[i])); } }
+  STDMETHOD_(void, AddBeziers)(const D2D1_BEZIER_SEGMENT *aSegments, UINT aCount)
+  {
+    for (UINT i = 0; i < aCount; i++) {
+      mSink->BezierTo(ToPoint(aSegments[i].point1), ToPoint(aSegments[i].point2), ToPoint(aSegments[i].point3));
+    }
+  }
+  STDMETHOD(Close)()
+  { /* Should never be called! */ return S_OK; }
+  STDMETHOD_(void, SetSegmentFlags)(D2D1_PATH_SEGMENT aFlags)
+  { /* Should never be called! */ }
+
+  STDMETHOD_(void, EndFigure)(D2D1_FIGURE_END aEnd)
+  {
+    if (aEnd == D2D1_FIGURE_END_CLOSED) {
+      return mSink->Close();
+    }
+  }
+private:
+
+  PathSink *mSink;
+};
+
 PathBuilderD2D::~PathBuilderD2D()
 {
 }
@@ -235,11 +299,11 @@ PathBuilderD2D::Finish()
 
   HRESULT hr = mSink->Close();
   if (FAILED(hr)) {
-    gfxDebug() << "Failed to close PathSink. Code: " << hr;
+    gfxDebug() << "Failed to close PathSink. Code: " << hexa(hr);
     return nullptr;
   }
 
-  return new PathD2D(mGeometry, mFigureActive, mCurrentPoint, mFillRule);
+  return new PathD2D(mGeometry, mFigureActive, mCurrentPoint, mFillRule, mBackendType);
 }
 
 TemporaryRef<PathBuilder>
@@ -255,18 +319,18 @@ PathD2D::TransformedCopyToBuilder(const Matrix &aTransform, FillRule aFillRule) 
   HRESULT hr = DrawTargetD2D::factory()->CreatePathGeometry(byRef(path));
 
   if (FAILED(hr)) {
-    gfxWarning() << "Failed to create PathGeometry. Code: " << hr;
+    gfxWarning() << "Failed to create PathGeometry. Code: " << hexa(hr);
     return nullptr;
   }
 
   RefPtr<ID2D1GeometrySink> sink;
   hr = path->Open(byRef(sink));
   if (FAILED(hr)) {
-    gfxWarning() << "Failed to open Geometry for writing. Code: " << hr;
+    gfxWarning() << "Failed to open Geometry for writing. Code: " << hexa(hr);
     return nullptr;
   }
 
-  if (aFillRule == FILL_WINDING) {
+  if (aFillRule == FillRule::FILL_WINDING) {
     sink->SetFillMode(D2D1_FILL_MODE_WINDING);
   }
 
@@ -281,7 +345,7 @@ PathD2D::TransformedCopyToBuilder(const Matrix &aTransform, FillRule aFillRule) 
                         sink);
   }
 
-  RefPtr<PathBuilderD2D> pathBuilder = new PathBuilderD2D(sink, path, mFillRule);
+  RefPtr<PathBuilderD2D> pathBuilder = new PathBuilderD2D(sink, path, aFillRule, mBackendType);
   
   pathBuilder->mCurrentPoint = aTransform * mEndPoint;
   
@@ -289,9 +353,25 @@ PathD2D::TransformedCopyToBuilder(const Matrix &aTransform, FillRule aFillRule) 
     pathBuilder->mFigureActive = true;
   }
 
-  return pathBuilder;
+  return pathBuilder.forget();
 }
 
+void
+PathD2D::StreamToSink(PathSink *aSink) const
+{
+  HRESULT hr;
+
+  StreamingGeometrySink sink(aSink);
+
+  hr = mGeometry->Simplify(D2D1_GEOMETRY_SIMPLIFICATION_OPTION_CUBICS_AND_LINES,
+                           D2D1::IdentityMatrix(), &sink);
+
+  if (FAILED(hr)) {
+    gfxWarning() << "Failed to stream D2D path to sink. Code: " << hexa(hr);
+    return;
+  }
+}
+ 
 bool
 PathD2D::ContainsPoint(const Point &aPoint, const Matrix &aTransform) const
 {
@@ -332,35 +412,37 @@ PathD2D::StrokeContainsPoint(const StrokeOptions &aStrokeOptions,
 Rect
 PathD2D::GetBounds(const Matrix &aTransform) const
 {
-  D2D1_RECT_F bounds;
+  D2D1_RECT_F d2dBounds;
 
-  HRESULT hr = mGeometry->GetBounds(D2DMatrix(aTransform), &bounds);
+  HRESULT hr = mGeometry->GetBounds(D2DMatrix(aTransform), &d2dBounds);
 
-  if (FAILED(hr)) {
-    gfxWarning() << "Failed to get stroked bounds for path. Code: " << hr;
-    bounds.bottom = bounds.left = bounds.right = bounds.top = 0;
+  Rect bounds = ToRect(d2dBounds);
+  if (FAILED(hr) || !bounds.IsFinite()) {
+    gfxWarning() << "Failed to get stroked bounds for path. Code: " << hexa(hr);
+    return Rect();
   }
 
-  return ToRect(bounds);
+  return bounds;
 }
 
 Rect
 PathD2D::GetStrokedBounds(const StrokeOptions &aStrokeOptions,
                           const Matrix &aTransform) const
 {
-  D2D1_RECT_F bounds;
+  D2D1_RECT_F d2dBounds;
 
   RefPtr<ID2D1StrokeStyle> strokeStyle = CreateStrokeStyleForOptions(aStrokeOptions);
   HRESULT hr =
     mGeometry->GetWidenedBounds(aStrokeOptions.mLineWidth, strokeStyle,
-                                D2DMatrix(aTransform), &bounds);
+                                D2DMatrix(aTransform), &d2dBounds);
 
-  if (FAILED(hr)) {
-    gfxWarning() << "Failed to get stroked bounds for path. Code: " << hr;
-    bounds.bottom = bounds.left = bounds.right = bounds.top = 0;
+  Rect bounds = ToRect(d2dBounds);
+  if (FAILED(hr) || !bounds.IsFinite()) {
+    gfxWarning() << "Failed to get stroked bounds for path. Code: " << hexa(hr);
+    return Rect();
   }
 
-  return ToRect(bounds);
+  return bounds;
 }
 
 }

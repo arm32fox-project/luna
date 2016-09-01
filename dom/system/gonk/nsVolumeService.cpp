@@ -12,9 +12,11 @@
 #include "nsCOMPtr.h"
 #include "nsDependentSubstring.h"
 #include "nsIDOMWakeLockListener.h"
+#include "nsIMutableArray.h"
 #include "nsIObserver.h"
 #include "nsIObserverService.h"
 #include "nsIPowerManagerService.h"
+#include "nsISupportsPrimitives.h"
 #include "nsISupportsUtils.h"
 #include "nsIVolume.h"
 #include "nsIVolumeService.h"
@@ -28,6 +30,7 @@
 #include "mozilla/dom/ContentChild.h"
 #include "mozilla/Services.h"
 
+#undef VOLUME_MANAGER_LOG_TAG
 #define VOLUME_MANAGER_LOG_TAG  "nsVolumeService"
 #include "VolumeManagerLog.h"
 
@@ -39,9 +42,9 @@ using namespace mozilla::services;
 namespace mozilla {
 namespace system {
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsVolumeService,
-                              nsIVolumeService,
-                              nsIDOMMozWakeLockListener)
+NS_IMPL_ISUPPORTS(nsVolumeService,
+                  nsIVolumeService,
+                  nsIDOMMozWakeLockListener)
 
 StaticRefPtr<nsVolumeService> nsVolumeService::sSingleton;
 
@@ -84,13 +87,14 @@ nsVolumeService::Shutdown()
 }
 
 nsVolumeService::nsVolumeService()
-  : mArrayMonitor("nsVolumeServiceArray")
+  : mArrayMonitor("nsVolumeServiceArray"),
+    mGotVolumesFromParent(false)
 {
   sSingleton = this;
 
   if (XRE_GetProcessType() != GoannaProcessType_Default) {
-    // Request the initial state for all volumes.
-    ContentChild::GetSingleton()->SendBroadcastVolume(NS_LITERAL_STRING(""));
+    // VolumeServiceIOThread and the WakeLock listener should only run in the
+    // parent, so we return early.
     return;
   }
 
@@ -117,57 +121,6 @@ NS_IMETHODIMP
 nsVolumeService::Callback(const nsAString& aTopic, const nsAString& aState)
 {
   CheckMountLock(aTopic, aState);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsVolumeService::BroadcastVolume(const nsAString& aVolName)
-{
-  MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Default);
-
-  if (aVolName.EqualsLiteral("")) {
-    nsVolume::Array volumeArray;
-    {
-      // Copy the array since we don't want to call BroadcastVolume
-      // while we're holding the lock.
-      MonitorAutoLock autoLock(mArrayMonitor);
-      volumeArray = mVolumeArray;
-    }
-
-    // We treat being passed the empty string as "broadcast all volumes"
-    nsVolume::Array::size_type numVolumes = volumeArray.Length();
-    nsVolume::Array::index_type volIndex;
-    for (volIndex = 0; volIndex < numVolumes; volIndex++) {
-      const nsString& volName(volumeArray[volIndex]->Name());
-      if (!volName.EqualsLiteral("")) {
-        // Note: The volume service is the only entity that should be able to
-        // modify the array of volumes. So we shouldn't have any issues with
-        // the array being modified under our feet (Since we're the volume
-        // service the array can't change until after we finish iterating the
-        // the loop).
-        nsresult rv = BroadcastVolume(volName);
-        NS_ENSURE_SUCCESS(rv, rv);
-      }
-    }
-    return NS_OK;
-  }
-  nsRefPtr<nsVolume> vol;
-  {
-    MonitorAutoLock autoLock(mArrayMonitor);
-    vol = FindVolumeByName(aVolName);
-  }
-  if (!vol) {
-    ERR("BroadcastVolume: Unable to locate volume '%s'",
-        NS_LossyConvertUTF16toASCII(aVolName).get());
-    return NS_ERROR_NOT_AVAILABLE;
-  }
-
-  nsCOMPtr<nsIObserverService> obs = GetObserverService();
-  NS_ENSURE_TRUE(obs, NS_NOINTERFACE);
-
-  DBG("nsVolumeService::BroadcastVolume for '%s'", vol->NameStr().get());
-  NS_ConvertUTF8toUTF16 stateStr(vol->StateStr());
-  obs->NotifyObservers(vol, NS_VOLUME_STATE_CHANGED, stateStr.get());
   return NS_OK;
 }
 
@@ -224,7 +177,7 @@ nsVolumeService::GetVolumeByPath(const nsAString& aPath, nsIVolume **aResult)
   for (volIndex = 0; volIndex < numVolumes; volIndex++) {
     nsRefPtr<nsVolume> vol = mVolumeArray[volIndex];
     NS_ConvertUTF16toUTF8 volMountPointSlash(vol->MountPoint());
-    volMountPointSlash.Append(NS_LITERAL_CSTRING("/"));
+    volMountPointSlash.Append('/');
     nsDependentCSubstring testStr(realPathBuf, volMountPointSlash.Length());
     if (volMountPointSlash.Equals(testStr)) {
       vol.forget(aResult);
@@ -246,24 +199,104 @@ nsVolumeService::CreateOrGetVolumeByPath(const nsAString& aPath, nsIVolume** aRe
   // from the pathname, so that the caller can determine the volume size.
   nsCOMPtr<nsIVolume> vol = new nsVolume(NS_LITERAL_STRING("fake"),
                                          aPath, nsIVolume::STATE_MOUNTED,
-                                         -1 /*generation*/);
+                                         -1    /* generation */,
+                                         true  /* isMediaPresent*/,
+                                         false /* isSharing */,
+                                         false /* isFormatting */,
+                                         true  /* isFake */,
+                                         false /* isUnmounting */,
+                                         false /* isRemovable */,
+                                         false /* isHotSwappable*/);
   vol.forget(aResult);
   return NS_OK;
 }
 
 NS_IMETHODIMP
-nsVolumeService::GetVolumeNames(nsTArray<nsString>& aVolNames)
+nsVolumeService::GetVolumeNames(nsIArray** aVolNames)
 {
+  NS_ENSURE_ARG_POINTER(aVolNames);
+  MonitorAutoLock autoLock(mArrayMonitor);
+
+  *aVolNames = nullptr;
+
+  nsresult rv;
+  nsCOMPtr<nsIMutableArray> volNames =
+    do_CreateInstance(NS_ARRAY_CONTRACTID, &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  nsVolume::Array::size_type numVolumes = mVolumeArray.Length();
+  nsVolume::Array::index_type volIndex;
+  for (volIndex = 0; volIndex < numVolumes; volIndex++) {
+    nsRefPtr<nsVolume> vol = mVolumeArray[volIndex];
+    nsCOMPtr<nsISupportsString> isupportsString =
+      do_CreateInstance(NS_SUPPORTS_STRING_CONTRACTID, &rv);
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = isupportsString->SetData(vol->Name());
+    NS_ENSURE_SUCCESS(rv, rv);
+
+    rv = volNames->AppendElement(isupportsString, false);
+    NS_ENSURE_SUCCESS(rv, rv);
+  }
+
+  NS_ADDREF(*aVolNames = volNames);
+  return NS_OK;
+}
+
+void
+nsVolumeService::GetVolumesForIPC(nsTArray<VolumeInfo>* aResult)
+{
+  MOZ_ASSERT(XRE_GetProcessType() == GoannaProcessType_Default);
+  MOZ_ASSERT(NS_IsMainThread());
+
   MonitorAutoLock autoLock(mArrayMonitor);
 
   nsVolume::Array::size_type numVolumes = mVolumeArray.Length();
   nsVolume::Array::index_type volIndex;
   for (volIndex = 0; volIndex < numVolumes; volIndex++) {
     nsRefPtr<nsVolume> vol = mVolumeArray[volIndex];
-    aVolNames.AppendElement(vol->Name());
-  }
+    VolumeInfo* volInfo = aResult->AppendElement();
 
-  return NS_OK;
+    volInfo->name()             = vol->mName;
+    volInfo->mountPoint()       = vol->mMountPoint;
+    volInfo->volState()         = vol->mState;
+    volInfo->mountGeneration()  = vol->mMountGeneration;
+    volInfo->isMediaPresent()   = vol->mIsMediaPresent;
+    volInfo->isSharing()        = vol->mIsSharing;
+    volInfo->isFormatting()     = vol->mIsFormatting;
+    volInfo->isFake()           = vol->mIsFake;
+    volInfo->isUnmounting()     = vol->mIsUnmounting;
+    volInfo->isRemovable()      = vol->mIsRemovable;
+    volInfo->isHotSwappable()   = vol->mIsHotSwappable;
+  }
+}
+
+void
+nsVolumeService::RecvVolumesFromParent(const nsTArray<VolumeInfo>& aVolumes)
+{
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
+    // We are the parent. Therefore our volumes are already correct.
+    return;
+  }
+  if (mGotVolumesFromParent) {
+    // We've already done this, no need to do it again.
+    return;
+  }
+  for (uint32_t i = 0; i < aVolumes.Length(); i++) {
+    const VolumeInfo& volInfo(aVolumes[i]);
+    nsRefPtr<nsVolume> vol = new nsVolume(volInfo.name(),
+                                          volInfo.mountPoint(),
+                                          volInfo.volState(),
+                                          volInfo.mountGeneration(),
+                                          volInfo.isMediaPresent(),
+                                          volInfo.isSharing(),
+                                          volInfo.isFormatting(),
+                                          volInfo.isFake(),
+                                          volInfo.isUnmounting(),
+                                          volInfo.isRemovable(),
+                                          volInfo.isHotSwappable());
+    UpdateVolume(vol, false);
+  }
 }
 
 NS_IMETHODIMP
@@ -326,7 +359,7 @@ nsVolumeService::FindVolumeByName(const nsAString& aName)
 
 //static
 already_AddRefed<nsVolume>
-nsVolumeService::CreateOrFindVolumeByName(const nsAString& aName)
+nsVolumeService::CreateOrFindVolumeByName(const nsAString& aName, bool aIsFake /*= false*/)
 {
   MonitorAutoLock autoLock(mArrayMonitor);
 
@@ -337,29 +370,87 @@ nsVolumeService::CreateOrFindVolumeByName(const nsAString& aName)
   }
   // Volume not found - add a new one
   vol = new nsVolume(aName);
+  vol->SetIsFake(aIsFake);
   mVolumeArray.AppendElement(vol);
   return vol.forget();
 }
 
 void
-nsVolumeService::UpdateVolume(nsIVolume* aVolume)
+nsVolumeService::UpdateVolume(nsIVolume* aVolume, bool aNotifyObservers)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
   nsString volName;
   aVolume->GetName(volName);
-  nsRefPtr<nsVolume> vol = CreateOrFindVolumeByName(volName);
+  bool aIsFake;
+  aVolume->GetIsFake(&aIsFake);
+  nsRefPtr<nsVolume> vol = CreateOrFindVolumeByName(volName, aIsFake);
   if (vol->Equals(aVolume)) {
     // Nothing has really changed. Don't bother telling anybody.
     return;
   }
+
+  if (!vol->IsFake() && aIsFake) {
+    // Prevent an incoming fake volume from overriding an existing real volume.
+    return;
+  }
+
   vol->Set(aVolume);
+
+  if (!aNotifyObservers) {
+    return;
+  }
+
   nsCOMPtr<nsIObserverService> obs = GetObserverService();
   if (!obs) {
     return;
   }
   NS_ConvertUTF8toUTF16 stateStr(vol->StateStr());
   obs->NotifyObservers(vol, NS_VOLUME_STATE_CHANGED, stateStr.get());
+}
+
+NS_IMETHODIMP
+nsVolumeService::CreateFakeVolume(const nsAString& name, const nsAString& path)
+{
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
+    nsRefPtr<nsVolume> vol = new nsVolume(name, path, nsIVolume::STATE_INIT,
+                                          -1    /* mountGeneration */,
+                                          true  /* isMediaPresent */,
+                                          false /* isSharing */,
+                                          false /* isFormatting */,
+                                          true  /* isFake */,
+                                          false /* isUnmounting */,
+                                          false /* isRemovable */,
+                                          false /* isHotSwappable */);
+    vol->LogState();
+    UpdateVolume(vol.get());
+    return NS_OK;
+  }
+
+  ContentChild::GetSingleton()->SendCreateFakeVolume(nsString(name), nsString(path));
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsVolumeService::SetFakeVolumeState(const nsAString& name, int32_t state)
+{
+  if (XRE_GetProcessType() == GoannaProcessType_Default) {
+    nsRefPtr<nsVolume> vol;
+    {
+      MonitorAutoLock autoLock(mArrayMonitor);
+      vol = FindVolumeByName(name);
+    }
+    if (!vol || !vol->IsFake()) {
+      return NS_ERROR_NOT_AVAILABLE;
+    }
+    vol->SetState(state);
+    vol->LogState();
+    UpdateVolume(vol.get());
+    return NS_OK;
+  }
+
+  ContentChild::GetSingleton()->SendSetFakeVolumeState(nsString(name), state);
+  return NS_OK;
 }
 
 /***************************************************************************
@@ -379,9 +470,13 @@ public:
   NS_IMETHOD Run()
   {
     MOZ_ASSERT(NS_IsMainThread());
-    DBG("UpdateVolumeRunnable::Run '%s' state %s gen %d locked %d",
+    DBG("UpdateVolumeRunnable::Run '%s' state %s gen %d locked %d "
+        "media %d sharing %d formatting %d unmounting %d removable %d hotswappable %d",
         mVolume->NameStr().get(), mVolume->StateStr(),
-        mVolume->MountGeneration(), (int)mVolume->IsMountLocked());
+        mVolume->MountGeneration(), (int)mVolume->IsMountLocked(),
+        (int)mVolume->IsMediaPresent(), mVolume->IsSharing(),
+        mVolume->IsFormatting(), mVolume->IsUnmounting(),
+        (int)mVolume->IsRemovable(), (int)mVolume->IsHotSwappable());
 
     mVolumeService->UpdateVolume(mVolume);
     mVolumeService = nullptr;
@@ -397,9 +492,13 @@ private:
 void
 nsVolumeService::UpdateVolumeIOThread(const Volume* aVolume)
 {
-  DBG("UpdateVolumeIOThread: Volume '%s' state %s mount '%s' gen %d locked %d",
+  DBG("UpdateVolumeIOThread: Volume '%s' state %s mount '%s' gen %d locked %d "
+      "media %d sharing %d formatting %d unmounting %d removable %d hotswappable %d",
       aVolume->NameStr(), aVolume->StateStr(), aVolume->MountPoint().get(),
-      aVolume->MountGeneration(), (int)aVolume->IsMountLocked());
+      aVolume->MountGeneration(), (int)aVolume->IsMountLocked(),
+      (int)aVolume->MediaPresent(), (int)aVolume->IsSharing(),
+      (int)aVolume->IsFormatting(), (int)aVolume->IsUnmounting(),
+      (int)aVolume->IsRemovable(), (int)aVolume->IsHotSwappable());
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
   NS_DispatchToMainThread(new UpdateVolumeRunnable(this, aVolume));
 }

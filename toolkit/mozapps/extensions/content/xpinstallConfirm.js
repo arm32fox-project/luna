@@ -1,23 +1,33 @@
-// -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-var args
-
 var XPInstallConfirm = {};
 
 XPInstallConfirm.init = function XPInstallConfirm_init()
 {
+  Components.utils.import("resource://gre/modules/AddonManager.jsm");
+
   var _installCountdown;
   var _installCountdownInterval;
   var _focused;
   var _timeout;
 
+  // Default to cancelling the install when the window unloads
+  XPInstallConfirm._installOK = false;
+
   var bundle = document.getElementById("xpinstallConfirmStrings");
 
-  args = window.arguments[0].wrappedJSObject;
+  let args = window.arguments[0].wrappedJSObject;
+
+  // If all installs have already been cancelled in some way then just close
+  // the window
+  if (args.installs.every(i => i.state != AddonManager.STATE_DOWNLOADED)) {
+    window.close();
+    return;
+  }
 
   var _installCountdownLength = 5;
   try {
@@ -28,6 +38,15 @@ XPInstallConfirm.init = function XPInstallConfirm_init()
   } catch (ex) { }
   
   var itemList = document.getElementById("itemList");
+
+  let installMap = new WeakMap();
+  let installListener = {
+    onDownloadCancelled: function(install) {
+      itemList.removeChild(installMap.get(install));
+      if (--numItemsToInstall == 0)
+        window.close();
+    }
+  };
   
   var numItemsToInstall = args.installs.length;
   for (let install of args.installs) {
@@ -49,6 +68,9 @@ XPInstallConfirm.init = function XPInstallConfirm_init()
       installItem.cert = bundle.getString("unverified");
     }
     installItem.signed = install.certName ? "true" : "false";
+
+    installMap.set(install, installItem);
+    install.addListener(installListener);
   }
   
   var introString = bundle.getString("itemWarnIntroSingle");
@@ -119,15 +141,34 @@ XPInstallConfirm.init = function XPInstallConfirm_init()
   }
 
   function myUnload() {
-    document.removeEventListener("focus", myfocus, true);
-    document.removeEventListener("blur", myblur, true);
+    if (_installCountdownLength > 0) {
+      document.removeEventListener("focus", myfocus, true);
+      document.removeEventListener("blur", myblur, true);
+    }
     window.removeEventListener("unload", myUnload, false);
+
+    for (let install of args.installs)
+      install.removeListener(installListener);
+
+    // Now perform the desired action - either install the
+    // addons or cancel the installations
+    if (XPInstallConfirm._installOK) {
+      for (let install of args.installs)
+        install.install();
+    }
+    else {
+      for (let install of args.installs) {
+        if (install.state != AddonManager.STATE_CANCELLED)
+          install.cancel();
+      }
+    }
   }
+
+  window.addEventListener("unload", myUnload, false);
 
   if (_installCountdownLength > 0) {
     document.addEventListener("focus", myfocus, true);
     document.addEventListener("blur", myblur, true);
-    window.addEventListener("unload", myUnload, false);
 
     okButton.disabled = true;
     setWidgetsAfterFocus();
@@ -138,14 +179,18 @@ XPInstallConfirm.init = function XPInstallConfirm_init()
 
 XPInstallConfirm.onOK = function XPInstallConfirm_onOk()
 {
-  for (let install of args.installs)
-    install.install();
+  Components.classes["@mozilla.org/base/telemetry;1"].
+    getService(Components.interfaces.nsITelemetry).
+    getHistogramById("SECURITY_UI").
+    add(Components.interfaces.nsISecurityUITelemetry.WARNING_CONFIRM_ADDON_INSTALL_CLICK_THROUGH);
+  // Perform the install or cancel after the window has unloaded
+  XPInstallConfirm._installOK = true;
   return true;
 }
 
 XPInstallConfirm.onCancel = function XPInstallConfirm_onCancel()
 {
-  for (let install of args.installs)
-    install.cancel();
+  // Perform the install or cancel after the window has unloaded
+  XPInstallConfirm._installOK = false;
   return true;
 }

@@ -502,44 +502,44 @@ RequestsMenuView.prototype = Heritage.extend(WidgetMethods, {
    *         True if the item should be visible, false otherwise.
    */
   _onHtml: function({ attachment: { mimeType } })
-    mimeType && mimeType.contains("/html"),
+    mimeType && mimeType.includes("/html"),
 
   _onCss: function({ attachment: { mimeType } })
-    mimeType && mimeType.contains("/css"),
+    mimeType && mimeType.includes("/css"),
 
   _onJs: function({ attachment: { mimeType } })
     mimeType && (
-      mimeType.contains("/ecmascript") ||
-      mimeType.contains("/javascript") ||
-      mimeType.contains("/x-javascript")),
+      mimeType.includes("/ecmascript") ||
+      mimeType.includes("/javascript") ||
+      mimeType.includes("/x-javascript")),
 
   _onXhr: function({ attachment: { isXHR } })
     isXHR,
 
   _onFonts: function({ attachment: { url, mimeType } }) // Fonts are a mess.
     (mimeType && (
-      mimeType.contains("font/") ||
-      mimeType.contains("/font"))) ||
-    url.contains(".eot") ||
-    url.contains(".ttf") ||
-    url.contains(".otf") ||
-    url.contains(".woff"),
+      mimeType.includes("font/") ||
+      mimeType.includes("/font"))) ||
+    url.includes(".eot") ||
+    url.includes(".ttf") ||
+    url.includes(".otf") ||
+    url.includes(".woff"),
 
   _onImages: function({ attachment: { mimeType } })
-    mimeType && mimeType.contains("image/"),
+    mimeType && mimeType.includes("image/"),
 
   _onMedia: function({ attachment: { mimeType } }) // Not including images.
     mimeType && (
-      mimeType.contains("audio/") ||
-      mimeType.contains("video/") ||
-      mimeType.contains("model/")),
+      mimeType.includes("audio/") ||
+      mimeType.includes("video/") ||
+      mimeType.includes("model/")),
 
   _onFlash: function({ attachment: { url, mimeType } }) // Flash is a mess.
     (mimeType && (
-      mimeType.contains("/x-flv") ||
-      mimeType.contains("/x-shockwave-flash"))) ||
-    url.contains(".swf") ||
-    url.contains(".flv"),
+      mimeType.includes("/x-flv") ||
+      mimeType.includes("/x-shockwave-flash"))) ||
+    url.includes(".swf") ||
+    url.includes(".flv"),
 
   /**
    * Predicates used when sorting items.
@@ -1621,7 +1621,7 @@ NetworkDetailsView.prototype = {
 
     gNetwork.getString(text).then((aString) => {
       // Handle json.
-      if (mimeType.contains("/json")) {
+      if (mimeType.includes("/json")) {
         let jsonpRegex = /^[a-zA-Z0-9_$]+\(|\)$/g; // JSONP with callback.
         let sanitizedJSON = aString.replace(jsonpRegex, "");
         let callbackPadding = aString.match(jsonpRegex);
@@ -1660,7 +1660,7 @@ NetworkDetailsView.prototype = {
         }
       }
       // Handle images.
-      else if (mimeType.contains("image/")) {
+      else if (mimeType.includes("image/")) {
         $("#response-content-image-box").setAttribute("align", "center");
         $("#response-content-image-box").setAttribute("pack", "center");
         $("#response-content-image-box").hidden = false;
@@ -1694,7 +1694,7 @@ NetworkDetailsView.prototype = {
           // but avoid doing this for very large files.
           if (aString.length < SOURCE_SYNTAX_HIGHLIGHT_MAX_FILE_SIZE) {
             for (let key in CONTENT_MIME_TYPE_MAPPINGS) {
-              if (mimeType.contains(key)) {
+              if (mimeType.includes(key)) {
                 aEditor.setMode(CONTENT_MIME_TYPE_MAPPINGS[key]);
                 break;
               }

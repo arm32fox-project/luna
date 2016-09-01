@@ -16,12 +16,20 @@
 #define PREF_BDM_SHOWWHENSTARTING "browser.download.manager.showWhenStarting"
 #define PREF_BDM_FOCUSWHENSTARTING "browser.download.manager.focusWhenStarting"
 
+// This class only exists because nsDownload cannot inherit from nsITransfer
+// directly. The reason for this is that nsDownloadManager (incorrectly) keeps
+// an nsCOMArray of nsDownloads, and nsCOMArray is only intended for use with
+// abstract classes. Using a concrete class that multiply inherits from classes
+// deriving from nsISupports will throw ambiguous base class errors.
 class nsDownloadProxy : public nsITransfer
 {
+protected:
+
+  virtual ~nsDownloadProxy() { }
+
 public:
 
   nsDownloadProxy() { }
-  virtual ~nsDownloadProxy() { }
 
   NS_DECL_ISUPPORTS
 
@@ -32,7 +40,7 @@ public:
                      PRTime aStartTime,
                      nsIFile* aTempFile,
                      nsICancelable* aCancelable,
-                     bool aIsPrivate) {
+                     bool aIsPrivate) override {
     nsresult rv;
     nsCOMPtr<nsIDownloadManager> dm = do_GetService("@mozilla.org/download-manager;1", &rv);
     NS_ENSURE_SUCCESS(rv, rv);
@@ -74,7 +82,7 @@ public:
 
   NS_IMETHODIMP OnStateChange(nsIWebProgress* aWebProgress,
                               nsIRequest* aRequest, uint32_t aStateFlags,
-                              nsresult aStatus)
+                              nsresult aStatus) override
   {
     NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
     return mInner->OnStateChange(aWebProgress, aRequest, aStateFlags, aStatus);
@@ -82,7 +90,7 @@ public:
   
   NS_IMETHODIMP OnStatusChange(nsIWebProgress *aWebProgress,
                                nsIRequest *aRequest, nsresult aStatus,
-                               const PRUnichar *aMessage)
+                               const char16_t *aMessage) override
   {
     NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
     return mInner->OnStatusChange(aWebProgress, aRequest, aStatus, aMessage);
@@ -90,7 +98,7 @@ public:
 
   NS_IMETHODIMP OnLocationChange(nsIWebProgress *aWebProgress,
                                  nsIRequest *aRequest, nsIURI *aLocation,
-                                 uint32_t aFlags)
+                                 uint32_t aFlags) override
   {
     NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
     return mInner->OnLocationChange(aWebProgress, aRequest, aLocation, aFlags);
@@ -101,7 +109,7 @@ public:
                                  int32_t aCurSelfProgress,
                                  int32_t aMaxSelfProgress,
                                  int32_t aCurTotalProgress,
-                                 int32_t aMaxTotalProgress)
+                                 int32_t aMaxTotalProgress) override
   {
     NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
     return mInner->OnProgressChange(aWebProgress, aRequest,
@@ -116,7 +124,7 @@ public:
                                    int64_t aCurSelfProgress,
                                    int64_t aMaxSelfProgress,
                                    int64_t aCurTotalProgress,
-                                   int64_t aMaxTotalProgress)
+                                   int64_t aMaxTotalProgress) override
   {
     NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
     return mInner->OnProgressChange64(aWebProgress, aRequest,
@@ -130,30 +138,42 @@ public:
                                    nsIURI *aUri,
                                    int32_t aDelay,
                                    bool aSameUri,
-                                   bool *allowRefresh)
+                                   bool *allowRefresh) override
   {
     *allowRefresh = true;
     return NS_OK;
   }
 
   NS_IMETHODIMP OnSecurityChange(nsIWebProgress *aWebProgress,
-                                 nsIRequest *aRequest, uint32_t aState)
+                                 nsIRequest *aRequest, uint32_t aState) override
   {
     NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
     return mInner->OnSecurityChange(aWebProgress, aRequest, aState);
   }
 
-  NS_IMETHODIMP SetSha256Hash(const nsACString& aHash)
+  NS_IMETHODIMP SetSha256Hash(const nsACString& aHash) override
   {
     NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
     return mInner->SetSha256Hash(aHash);
+  }
+
+  NS_IMETHODIMP SetSignatureInfo(nsIArray* aSignatureInfo) override
+  {
+    NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
+    return mInner->SetSignatureInfo(aSignatureInfo);
+  }
+
+  NS_IMETHODIMP SetRedirects(nsIArray* aRedirects) override
+  {
+    NS_ENSURE_TRUE(mInner, NS_ERROR_NOT_INITIALIZED);
+    return mInner->SetRedirects(aRedirects);
   }
 
 private:
   nsCOMPtr<nsIDownload> mInner;
 };
 
-NS_IMPL_ISUPPORTS3(nsDownloadProxy, nsITransfer,
-                   nsIWebProgressListener, nsIWebProgressListener2)
+NS_IMPL_ISUPPORTS(nsDownloadProxy, nsITransfer,
+                  nsIWebProgressListener, nsIWebProgressListener2)
 
 #endif

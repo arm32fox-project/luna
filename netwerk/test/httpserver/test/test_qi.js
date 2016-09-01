@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -10,17 +10,20 @@
  * created by XPConnect.
  */
 
-var tests =
-  [
-   new Test("http://localhost:4444/test",
-            null, start_test, null),
-   new Test("http://localhost:4444/sjs/qi.sjs",
-            null, start_sjs_qi, null),
+XPCOMUtils.defineLazyGetter(this, "tests", function() {
+  return [
+    new Test("http://localhost:" + srv.identity.primaryPort + "/test",
+        null, start_test, null),
+    new Test("http://localhost:" + srv.identity.primaryPort + "/sjs/qi.sjs",
+        null, start_sjs_qi, null),
   ];
+});
+
+var srv;
 
 function run_test()
 {
-  var srv = createServer();
+  srv = createServer();
 
   var qi;
   try
@@ -37,7 +40,7 @@ function run_test()
   srv.registerPathHandler("/test", testHandler);
   srv.registerDirectory("/", do_get_file("data/"));
   srv.registerContentType("sjs", "sjs");
-  srv.start(4444);
+  srv.start(-1);
 
   runHttpTests(tests, testComplete(srv));
 }

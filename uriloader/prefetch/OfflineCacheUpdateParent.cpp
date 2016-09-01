@@ -10,7 +10,9 @@
 #include "mozilla/unused.h"
 #include "nsOfflineCacheUpdate.h"
 #include "nsIApplicationCache.h"
+#include "nsIScriptSecurityManager.h"
 #include "nsNetUtil.h"
+#include "nsContentUtils.h"
 
 using namespace mozilla::ipc;
 using mozilla::dom::TabParent;
@@ -27,8 +29,11 @@ using mozilla::dom::TabParent;
 //
 extern PRLogModuleInfo *gOfflineCacheUpdateLog;
 #endif
+
 #undef LOG
 #define LOG(args) PR_LOG(gOfflineCacheUpdateLog, 4, args)
+
+#undef LOG_ENABLED
 #define LOG_ENABLED() PR_LOG_TEST(gOfflineCacheUpdateLog, 4)
 
 namespace mozilla {
@@ -38,9 +43,9 @@ namespace docshell {
 // OfflineCacheUpdateParent::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS2(OfflineCacheUpdateParent,
-                   nsIOfflineCacheUpdateObserver,
-                   nsILoadContext)
+NS_IMPL_ISUPPORTS(OfflineCacheUpdateParent,
+                  nsIOfflineCacheUpdateObserver,
+                  nsILoadContext)
 
 //-----------------------------------------------------------------------------
 // OfflineCacheUpdateParent <public>
@@ -53,10 +58,7 @@ OfflineCacheUpdateParent::OfflineCacheUpdateParent(uint32_t aAppId,
     , mAppId(aAppId)
 {
     // Make sure the service has been initialized
-    nsOfflineCacheUpdateService* service =
-        nsOfflineCacheUpdateService::EnsureService();
-    if (!service)
-        return;
+    nsOfflineCacheUpdateService::EnsureService();
 
     LOG(("OfflineCacheUpdateParent::OfflineCacheUpdateParent [%p]", this));
 }
@@ -90,8 +92,14 @@ OfflineCacheUpdateParent::Schedule(const URIParams& aManifestURI,
         return NS_ERROR_FAILURE;
 
     bool offlinePermissionAllowed = false;
-    nsresult rv = service->OfflineAppAllowedForURI(
-        manifestURI, nullptr, &offlinePermissionAllowed);
+
+    nsCOMPtr<nsIPrincipal> principal;
+    nsContentUtils::GetSecurityManager()->
+        GetAppCodebasePrincipal(manifestURI, mAppId, mIsInBrowserElement,
+                                getter_AddRefs(principal));
+
+    nsresult rv = service->OfflineAppAllowed(
+        principal, nullptr, &offlinePermissionAllowed);
     NS_ENSURE_SUCCESS(rv, rv);
 
     if (!offlinePermissionAllowed)
@@ -104,7 +112,7 @@ OfflineCacheUpdateParent::Schedule(const URIParams& aManifestURI,
     if (!NS_SecurityCompareURIs(manifestURI, documentURI, false))
         return NS_ERROR_DOM_SECURITY_ERR;
 
-    service->FindUpdate(manifestURI, mAppId, mIsInBrowserElement,
+    service->FindUpdate(manifestURI, mAppId, mIsInBrowserElement, nullptr,
                         getter_AddRefs(update));
     if (!update) {
         update = new nsOfflineCacheUpdate();
@@ -197,6 +205,12 @@ OfflineCacheUpdateParent::GetTopFrameElement(nsIDOMElement** aElement)
 }
 
 NS_IMETHODIMP
+OfflineCacheUpdateParent::GetNestedFrameId(uint64_t* aId)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
 OfflineCacheUpdateParent::IsAppOfType(uint32_t appType, bool *_retval)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
@@ -221,6 +235,18 @@ OfflineCacheUpdateParent::SetUsePrivateBrowsing(bool aUsePrivateBrowsing)
 
 NS_IMETHODIMP
 OfflineCacheUpdateParent::SetPrivateBrowsing(bool aUsePrivateBrowsing)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+OfflineCacheUpdateParent::GetUseRemoteTabs(bool *aUseRemoteTabs)
+{
+    return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+OfflineCacheUpdateParent::SetRemoteTabs(bool aUseRemoteTabs)
 {
     return NS_ERROR_NOT_IMPLEMENTED;
 }

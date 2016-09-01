@@ -6,22 +6,38 @@
 #ifndef _NS_DEVICECONTEXT_H_
 #define _NS_DEVICECONTEXT_H_
 
-#include "nsCOMPtr.h"
-#include "nsIDeviceContextSpec.h"
-#include "nsIScreenManager.h"
-#include "nsIWidget.h"
-#include "nsCoord.h"
-#include "gfxContext.h"
+#include <stdint.h>                     // for uint32_t
+#include <sys/types.h>                  // for int32_t
+#include "gfxTypes.h"                   // for gfxFloat
+#include "gfxFont.h"                    // for gfxFont::Orientation
+#include "mozilla/Assertions.h"         // for MOZ_ASSERT_HELPER2
+#include "nsAutoPtr.h"                  // for nsRefPtr
+#include "nsCOMPtr.h"                   // for nsCOMPtr
+#include "nsCoord.h"                    // for nscoord
+#include "nsError.h"                    // for nsresult
+#include "nsISupports.h"                // for NS_INLINE_DECL_REFCOUNTING
+#include "nsMathUtils.h"                // for NS_round
+#include "nscore.h"                     // for char16_t, nsAString
+#include "mozilla/AppUnits.h"           // for AppUnits
 
-class nsIAtom;
-class nsFontCache;
+class gfxASurface;
+class gfxContext;
+class gfxTextPerfMetrics;
 class gfxUserFontSet;
+struct nsFont;
+class nsFontCache;
+class nsFontMetrics;
+class nsIAtom;
+class nsIDeviceContextSpec;
+class nsIScreen;
+class nsIScreenManager;
+class nsIWidget;
+struct nsRect;
 
-class nsDeviceContext
+class nsDeviceContext final
 {
 public:
     nsDeviceContext();
-    ~nsDeviceContext();
 
     NS_INLINE_DECL_REFCOUNTING(nsDeviceContext)
 
@@ -42,16 +58,16 @@ public:
     /**
      * Create a rendering context and initialize it.  Only call this
      * method on device contexts that were initialized for printing.
-     * @param aContext out parameter for new rendering context
-     * @return error status
+     *
+     * @return the new rendering context (guaranteed to be non-null)
      */
-    nsresult CreateRenderingContext(nsRenderingContext *&aContext);
+    already_AddRefed<gfxContext> CreateRenderingContext();
 
     /**
      * Gets the number of app units in one CSS pixel; this number is global,
      * not unique to each device context.
      */
-    static int32_t AppUnitsPerCSSPixel() { return 60; }
+    static int32_t AppUnitsPerCSSPixel() { return mozilla::AppUnitsPerCSSPixel(); }
 
     /**
      * Gets the number of app units in one device pixel; this number
@@ -84,14 +100,14 @@ public:
      * Gets the number of app units in one CSS inch; this is
      * 96 times AppUnitsPerCSSPixel.
      */
-    static int32_t AppUnitsPerCSSInch() { return 96 * AppUnitsPerCSSPixel(); }
+    static int32_t AppUnitsPerCSSInch() { return mozilla::AppUnitsPerCSSInch(); }
 
     /**
-     * Get the unscaled ratio of app units to dev pixels; useful if something
-     * needs to be converted from to unscaled pixels
+     * Get the ratio of app units to dev pixels that would be used at unit
+     * (100%) full zoom.
      */
-    int32_t UnscaledAppUnitsPerDevPixel() const
-    { return mAppUnitsPerDevNotScaledPixel; }
+    int32_t AppUnitsPerDevPixelAtUnitFullZoom() const
+    { return mAppUnitsPerDevPixelAtUnitFullZoom; }
 
     /**
      * Get the nsFontMetrics that describe the properties of
@@ -102,8 +118,11 @@ public:
      * @param aUserFontSet user font set
      * @return error status
      */
-    nsresult GetMetricsFor(const nsFont& aFont, nsIAtom* aLanguage,
+    nsresult GetMetricsFor(const nsFont& aFont,
+                           nsIAtom* aLanguage, bool aExplicitLanguage,
+                           gfxFont::Orientation aOrientation,
                            gfxUserFontSet* aUserFontSet,
+                           gfxTextPerfMetrics* aTextPerf,
                            nsFontMetrics*& aMetrics);
 
     /**
@@ -163,7 +182,7 @@ public:
      * EndDocument() or AbortDocument().
      *
      * @param aTitle - title of Document
-     * @param aPrintToFileName - name of file to print to, if NULL
+     * @param aPrintToFileName - name of file to print to, if nullptr
      * then don't print to file
      * @param aStartPage - starting page number (must be greater than zero)
      * @param aEndPage - ending page number (must be less than or
@@ -171,10 +190,10 @@ public:
      *
      * @return error status
      */
-    nsresult BeginDocument(PRUnichar  *aTitle,
-                           PRUnichar  *aPrintToFileName,
-                           int32_t     aStartPage,
-                           int32_t     aEndPage);
+    nsresult BeginDocument(const nsAString& aTitle,
+                           char16_t*       aPrintToFileName,
+                           int32_t          aStartPage,
+                           int32_t          aEndPage);
 
     /**
      * Inform the output device that output of a document is ending.
@@ -216,37 +235,40 @@ public:
     bool CheckDPIChange();
 
     /**
-     * Set the pixel scaling factor: all lengths are multiplied by this factor
+     * Set the full zoom factor: all lengths are multiplied by this factor
      * when we convert them to device pixels. Returns whether the ratio of
-     * app units to dev pixels changed because of the scale factor.
+     * app units to dev pixels changed because of the zoom factor.
      */
-    bool SetPixelScale(float aScale);
+    bool SetFullZoom(float aScale);
 
     /**
-     * Returns the pixel scaling factor (page zoom factor) applied.
+     * Returns the page full zoom factor applied.
      */
-    float GetPixelScale() const { return mPixelScale; }
+    float GetFullZoom() const { return mFullZoom; }
 
     /**
      * True if this device context was created for printing.
      */
     bool IsPrinterSurface();
 
-protected:
+private:
+    // Private destructor, to discourage deletion outside of Release():
+    ~nsDeviceContext();
+
     void SetDPI();
     void ComputeClientRectUsingScreen(nsRect *outRect);
     void ComputeFullAreaUsingScreen(nsRect *outRect);
     void FindScreen(nsIScreen **outScreen);
     void CalcPrintingSize();
-    void UpdateScaledAppUnits();
+    void UpdateAppUnitsForFullZoom();
 
     nscoord  mWidth;
     nscoord  mHeight;
     uint32_t mDepth;
     int32_t  mAppUnitsPerDevPixel;
-    int32_t  mAppUnitsPerDevNotScaledPixel;
+    int32_t  mAppUnitsPerDevPixelAtUnitFullZoom;
     int32_t  mAppUnitsPerPhysicalInch;
-    float    mPixelScale;
+    float    mFullZoom;
     float    mPrintingScale;
 
     nsFontCache*                   mFontCache;

@@ -16,7 +16,9 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://testing-common/httpd.js");
 Cu.import("resource://gre/modules/PlacesUtils.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
-                                  "resource://gre/modules/commonjs/sdk/core/promise.js");
+                                  "resource://gre/modules/Promise.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesTestUtils",
+                                  "resource://testing-common/PlacesTestUtils.jsm");
 
 var downloadUtils = { };
 XPCOMUtils.defineLazyServiceGetter(downloadUtils,
@@ -56,28 +58,10 @@ var provider = {
 };
 dirSvc.QueryInterface(Ci.nsIDirectoryService).registerProvider(provider);
 
-/**
- * Imports a download test file to use.  Works with rdf and sqlite files.
- *
- * @param aFName
- *        The name of the file to import.  This file should be located in the
- *        same directory as this file.
- */
-function importDownloadsFile(aFName)
-{
-  var file = do_get_file(aFName);
-  var newFile = dirSvc.get("ProfD", Ci.nsIFile);
-  if (/\.rdf$/i.test(aFName))
-    file.copyTo(newFile, "downloads.rdf");
-  else if (/\.sqlite$/i.test(aFName))
-    file.copyTo(newFile, "downloads.sqlite");
-  else
-    do_throw("Unexpected filename!");
-}
-
 var gDownloadCount = 0;
 /**
  * Adds a download to the DM, and starts it.
+ * @param server: a HttpServer used to serve the sourceURI
  * @param aParams (optional): an optional object which contains the function
  *                            parameters:
  *                              resultFileName: leaf node for the target file
@@ -87,8 +71,11 @@ var gDownloadCount = 0;
  *                              runBeforeStart: a function to run before starting the download
  *                              isPrivate: whether the download is private or not
  */
-function addDownload(aParams)
+function addDownload(server, aParams)
 {
+  if (!server)
+    do_throw("Must provide a valid server.");
+  const PORT = server.identity.primaryPort;
   if (!aParams)
     aParams = {};
   if (!("resultFileName" in aParams))
@@ -98,7 +85,7 @@ function addDownload(aParams)
     aParams.targetFile.append(aParams.resultFileName);
   }
   if (!("sourceURI" in aParams))
-    aParams.sourceURI = "http://localhost:4444/head_download_manager.js";
+    aParams.sourceURI = "http://localhost:" + PORT + "/head_download_manager.js";
   if (!("downloadName" in aParams))
     aParams.downloadName = null;
   if (!("runBeforeStart" in aParams))
@@ -128,7 +115,7 @@ function addDownload(aParams)
   aParams.runBeforeStart.call(undefined, dl);
 
   persist.progressListener = dl.QueryInterface(Ci.nsIWebProgressListener);
-  persist.savePrivacyAwareURI(dl.source, null, null, null, null, dl.targetFile,
+  persist.savePrivacyAwareURI(dl.source, null, null, 0, null, null, dl.targetFile,
                               aParams.isPrivate);
 
   return dl;
@@ -161,70 +148,6 @@ function getDownloadListener()
   };
 }
 
-/**
- * Asynchronously adds visits to a page.
- *
- * @param aPlaceInfo
- *        Can be an nsIURI, in such a case a single LINK visit will be added.
- *        Otherwise can be an object describing the visit to add, or an array
- *        of these objects:
- *          { uri: nsIURI of the page,
- *            transition: one of the TRANSITION_* from nsINavHistoryService,
- *            [optional] title: title of the page,
- *            [optional] visitDate: visit date in microseconds from the epoch
- *            [optional] referrer: nsIURI of the referrer for this visit
- *          }
- *
- * @return {Promise}
- * @resolves When all visits have been added successfully.
- * @rejects JavaScript exception.
- */
-function promiseAddVisits(aPlaceInfo)
-{
-  let deferred = Promise.defer();
-  let places = [];
-  if (aPlaceInfo instanceof Ci.nsIURI) {
-    places.push({ uri: aPlaceInfo });
-  }
-  else if (Array.isArray(aPlaceInfo)) {
-    places = places.concat(aPlaceInfo);
-  } else {
-    places.push(aPlaceInfo)
-  }
-
-  // Create mozIVisitInfo for each entry.
-  let now = Date.now();
-  for (let i = 0; i < places.length; i++) {
-    if (!places[i].title) {
-      places[i].title = "test visit for " + places[i].uri.spec;
-    }
-    places[i].visits = [{
-      transitionType: places[i].transition === undefined ? Ci.nsINavHistoryService.TRANSITION_LINK
-                                                         : places[i].transition,
-      visitDate: places[i].visitDate || (now++) * 1000,
-      referrerURI: places[i].referrer
-    }];
-  }
-
-  PlacesUtils.asyncHistory.updatePlaces(
-    places,
-    {
-      handleError: function handleError(aResultCode, aPlaceInfo) {
-        let ex = new Components.Exception("Unexpected error in adding visits.",
-                                          aResultCode);
-        deferred.reject(ex);
-      },
-      handleResult: function () {},
-      handleCompletion: function handleCompletion() {
-        deferred.resolve();
-      }
-    }
-  );
-
-  return deferred.promise;
-}
-
-
 XPCOMUtils.defineLazyGetter(this, "Services", function() {
   Cu.import("resource://gre/modules/Services.jsm");
   return Services;
@@ -236,3 +159,13 @@ Services.prefs.setBoolPref("browser.download.manager.showAlertOnComplete", false
 do_register_cleanup(function() {
   Services.obs.notifyObservers(null, "quit-application", null);
 });
+
+function oldDownloadManagerDisabled() {
+  try {
+    // This method throws an exception if the old Download Manager is disabled.
+    Services.downloads.activeDownloadCount;
+  } catch (ex) {
+    return true;
+  }
+  return false;
+}

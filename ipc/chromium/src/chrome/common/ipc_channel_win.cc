@@ -9,11 +9,11 @@
 
 #include "base/compiler_specific.h"
 #include "base/logging.h"
+#include "base/process_util.h"
+#include "base/rand_util.h"
+#include "base/string_util.h"
 #include "base/non_thread_safe.h"
-#include "base/stats_counters.h"
 #include "base/win_util.h"
-#include "chrome/common/chrome_counters.h"
-#include "chrome/common/ipc_logging.h"
 #include "chrome/common/ipc_message_utils.h"
 #include "mozilla/ipc/ProtocolUtils.h"
 
@@ -36,13 +36,15 @@ Channel::ChannelImpl::ChannelImpl(const std::wstring& channel_id, Mode mode,
                               Listener* listener)
     : ALLOW_THIS_IN_INITIALIZER_LIST(input_state_(this)),
       ALLOW_THIS_IN_INITIALIZER_LIST(output_state_(this)),
-      ALLOW_THIS_IN_INITIALIZER_LIST(factory_(this)) {
+      ALLOW_THIS_IN_INITIALIZER_LIST(factory_(this)),
+      shared_secret_(0),
+      waiting_for_shared_secret_(false) {
   Init(mode, listener);
 
   if (!CreatePipe(channel_id, mode)) {
     // The pipe may have been closed already.
-    LOG(WARNING) << "Unable to create pipe named \"" << channel_id <<
-                    "\" in " << (mode == 0 ? "server" : "client") << " mode.";
+    CHROMIUM_LOG(WARNING) << "Unable to create pipe named \"" << channel_id <<
+                             "\" in " << (mode == 0 ? "server" : "client") << " mode.";
   }
 }
 
@@ -51,7 +53,9 @@ Channel::ChannelImpl::ChannelImpl(const std::wstring& channel_id,
                                   Mode mode, Listener* listener)
     : ALLOW_THIS_IN_INITIALIZER_LIST(input_state_(this)),
       ALLOW_THIS_IN_INITIALIZER_LIST(output_state_(this)),
-      ALLOW_THIS_IN_INITIALIZER_LIST(factory_(this)) {
+      ALLOW_THIS_IN_INITIALIZER_LIST(factory_(this)),
+      shared_secret_(0),
+      waiting_for_shared_secret_(false) {
   Init(mode, listener);
 
   if (mode == MODE_SERVER) {
@@ -70,6 +74,19 @@ void Channel::ChannelImpl::Init(Mode mode, Listener* listener) {
   waiting_connect_ = (mode == MODE_SERVER);
   processing_incoming_ = false;
   closed_ = false;
+  output_queue_length_ = 0;
+}
+
+void Channel::ChannelImpl::OutputQueuePush(Message* msg)
+{
+  output_queue_.push(msg);
+  output_queue_length_++;
+}
+
+void Channel::ChannelImpl::OutputQueuePop()
+{
+  output_queue_.pop();
+  output_queue_length_--;
 }
 
 HANDLE Channel::ChannelImpl::GetServerPipeHandle() const {
@@ -100,7 +117,7 @@ void Channel::ChannelImpl::Close() {
 
   while (!output_queue_.empty()) {
     Message* m = output_queue_.front();
-    output_queue_.pop();
+    OutputQueuePop();
     delete m;
   }
 
@@ -114,16 +131,12 @@ bool Channel::ChannelImpl::Send(Message* message) {
   if (thread_check_.get()) {
     DCHECK(thread_check_->CalledOnValidThread());
   }
-  chrome::Counters::ipc_send_counter().Increment();
 #ifdef IPC_MESSAGE_DEBUG_EXTRA
   DLOG(INFO) << "sending message @" << message << " on channel @" << this
              << " with type " << message->type()
              << " (" << output_queue_.size() << " in queue)";
 #endif
 
-#ifdef IPC_MESSAGE_LOG_ENABLED
-  Logging::current()->OnSendMessage(message, L"");
-#endif
 
   if (closed_) {
     if (mozilla::ipc::LoggingEnabled()) {
@@ -134,7 +147,7 @@ bool Channel::ChannelImpl::Send(Message* message) {
     return false;
   }
 
-  output_queue_.push(message);
+  OutputQueuePush(message);
   // ensure waiting to write
   if (!waiting_connect_) {
     if (!output_state_.is_pending) {
@@ -147,18 +160,31 @@ bool Channel::ChannelImpl::Send(Message* message) {
 }
 
 const std::wstring Channel::ChannelImpl::PipeName(
-    const std::wstring& channel_id) const {
+    const std::wstring& channel_id, int32_t* secret) const {
+  MOZ_ASSERT(secret);
+
   std::wostringstream ss;
-  // XXX(darin): get application name from somewhere else
-  ss << L"\\\\.\\pipe\\chrome." << channel_id;
+  ss << L"\\\\.\\pipe\\chrome.";
+
+  // Prevent the shared secret from ending up in the pipe name.
+  size_t index = channel_id.find_first_of(L'\\');
+  if (index != std::string::npos) {
+    StringToInt(channel_id.substr(index + 1), secret);
+    ss << channel_id.substr(0, index - 1);
+  } else {
+    // This case is here to support predictable named pipes in tests.
+    *secret = 0;
+    ss << channel_id;
+  }
   return ss.str();
 }
 
 bool Channel::ChannelImpl::CreatePipe(const std::wstring& channel_id,
                                       Mode mode) {
   DCHECK(pipe_ == INVALID_HANDLE_VALUE);
-  const std::wstring pipe_name = PipeName(channel_id);
+  const std::wstring pipe_name = PipeName(channel_id, &shared_secret_);
   if (mode == MODE_SERVER) {
+    waiting_for_shared_secret_ = !!shared_secret_;
     pipe_ = CreateNamedPipeW(pipe_name.c_str(),
                              PIPE_ACCESS_DUPLEX | FILE_FLAG_OVERLAPPED |
                                 FILE_FLAG_FIRST_PIPE_INSTANCE,
@@ -182,7 +208,7 @@ bool Channel::ChannelImpl::CreatePipe(const std::wstring& channel_id,
   }
   if (pipe_ == INVALID_HANDLE_VALUE) {
     // If this process is being closed, the pipe may be gone already.
-    LOG(WARNING) << "failed to create pipe: " << GetLastError();
+    CHROMIUM_LOG(WARNING) << "failed to create pipe: " << GetLastError();
     return false;
   }
 
@@ -191,16 +217,24 @@ bool Channel::ChannelImpl::CreatePipe(const std::wstring& channel_id,
 }
 
 bool Channel::ChannelImpl::EnqueueHelloMessage() {
-  scoped_ptr<Message> m(new Message(MSG_ROUTING_NONE,
-                                    HELLO_MESSAGE_TYPE,
-                                    IPC::Message::PRIORITY_NORMAL));
-  if (!m->WriteInt(GetCurrentProcessId())) {
+  mozilla::UniquePtr<Message> m = mozilla::MakeUnique<Message>(MSG_ROUTING_NONE,
+                                                               HELLO_MESSAGE_TYPE,
+                                                               IPC::Message::PRIORITY_NORMAL);
+
+  // If we're waiting for our shared secret from the other end's hello message
+  // then don't give the game away by sending it in ours.
+  int32_t secret = waiting_for_shared_secret_ ? 0 : shared_secret_;
+
+  // Also, don't send if the value is zero (for IPC backwards compatability).
+  if (!m->WriteInt(GetCurrentProcessId()) ||
+      (secret && !m->WriteUInt32(secret)))
+  {
     CloseHandle(pipe_);
     pipe_ = INVALID_HANDLE_VALUE;
     return false;
   }
 
-  output_queue_.push(m.release());
+  OutputQueuePush(m.release());
   return true;
 }
 
@@ -296,7 +330,7 @@ bool Channel::ChannelImpl::ProcessIncomingMessages(
           input_state_.is_pending = true;
           return true;
         }
-        LOG(ERROR) << "pipe error: " << err;
+        CHROMIUM_LOG(ERROR) << "pipe error: " << err;
         return false;
       }
       input_state_.is_pending = true;
@@ -313,7 +347,7 @@ bool Channel::ChannelImpl::ProcessIncomingMessages(
     } else {
       if (input_overflow_buf_.size() > (kMaximumMessageSize - bytes_read)) {
         input_overflow_buf_.clear();
-        LOG(ERROR) << "IPC message is too big";
+        CHROMIUM_LOG(ERROR) << "IPC message is too big";
         return false;
       }
       input_overflow_buf_.append(input_buf_, bytes_read);
@@ -332,8 +366,19 @@ bool Channel::ChannelImpl::ProcessIncomingMessages(
 #endif
         if (m.routing_id() == MSG_ROUTING_NONE &&
             m.type() == HELLO_MESSAGE_TYPE) {
-          // The Hello message contains only the process id.
-          listener_->OnChannelConnected(MessageIterator(m).NextInt());
+          // The Hello message contains the process id and must include the
+          // shared secret, if we are waiting for it.
+          MessageIterator it = MessageIterator(m);
+          int32_t claimed_pid = it.NextInt();
+          if (waiting_for_shared_secret_ && (it.NextInt() != shared_secret_)) {
+            NOTREACHED();
+            // Something went wrong. Abort connection.
+            Close();
+            listener_->OnChannelError();
+            return false;
+          }
+          waiting_for_shared_secret_ = false;
+          listener_->OnChannelConnected(claimed_pid);
         } else {
           listener_->OnMessageReceived(m);
         }
@@ -363,13 +408,13 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages(
     output_state_.is_pending = false;
     if (!context || bytes_written == 0) {
       DWORD err = GetLastError();
-      LOG(ERROR) << "pipe error: " << err;
+      CHROMIUM_LOG(ERROR) << "pipe error: " << err;
       return false;
     }
     // Message was sent.
     DCHECK(!output_queue_.empty());
     Message* m = output_queue_.front();
-    output_queue_.pop();
+    OutputQueuePop();
     delete m;
   }
 
@@ -398,7 +443,7 @@ bool Channel::ChannelImpl::ProcessOutgoingMessages(
 
       return true;
     }
-    LOG(ERROR) << "pipe error: " << err;
+    CHROMIUM_LOG(ERROR) << "pipe error: " << err;
     return false;
   }
 
@@ -442,6 +487,16 @@ void Channel::ChannelImpl::OnIOCompleted(MessageLoopForIO::IOContext* context,
   }
 }
 
+bool Channel::ChannelImpl::Unsound_IsClosed() const
+{
+  return closed_;
+}
+
+uint32_t Channel::ChannelImpl::Unsound_NumQueuedMessages() const
+{
+  return output_queue_length_;
+}
+
 //------------------------------------------------------------------------------
 // Channel's methods simply call through to ChannelImpl.
 Channel::Channel(const std::wstring& channel_id, Mode mode,
@@ -476,6 +531,31 @@ Channel::Listener* Channel::set_listener(Listener* listener) {
 
 bool Channel::Send(Message* message) {
   return channel_impl_->Send(message);
+}
+
+bool Channel::Unsound_IsClosed() const {
+  return channel_impl_->Unsound_IsClosed();
+}
+
+uint32_t Channel::Unsound_NumQueuedMessages() const {
+  return channel_impl_->Unsound_NumQueuedMessages();
+}
+
+// static
+std::wstring Channel::GenerateVerifiedChannelID(const std::wstring& prefix) {
+  // Windows pipes can be enumerated by low-privileged processes. So, we
+  // append a strong random value after the \ character. This value is not
+  // included in the pipe name, but sent as part of the client hello, to
+  // prevent hijacking the pipe name to spoof the client.
+  std::wstring id = prefix;
+  if (!id.empty())
+    id.append(L".");
+  int secret;
+  do {  // Guarantee we get a non-zero value.
+    secret = base::RandInt(0, std::numeric_limits<int>::max());
+  } while (secret == 0);
+  id.append(GenerateUniqueRandomChannelID());
+  return id.append(StringPrintf(L"\\%d", secret));
 }
 
 }  // namespace IPC

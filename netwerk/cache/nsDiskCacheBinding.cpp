@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "mozilla/MemoryReporting.h"
 #include "nsCache.h"
 #include <limits.h>
 
@@ -69,7 +70,7 @@ GetCacheEntryBinding(nsCacheEntry * entry)
  *  nsDiskCacheBinding
  *****************************************************************************/
 
-NS_IMPL_THREADSAFE_ISUPPORTS0(nsDiskCacheBinding)
+NS_IMPL_ISUPPORTS0(nsDiskCacheBinding)
 
 nsDiskCacheBinding::nsDiskCacheBinding(nsCacheEntry* entry, nsDiskCacheRecord * record)
     :   mCacheEntry(entry)
@@ -88,7 +89,7 @@ nsDiskCacheBinding::~nsDiskCacheBinding()
     // Grab the cache lock since the binding is stored in nsCacheEntry::mData
     // and it is released using nsCacheService::ReleaseObject_Locked() which
     // releases the object outside the cache lock.
-    nsCacheServiceAutoLock lock;
+    nsCacheServiceAutoLock lock(LOCK_TELEM(NSDISKCACHEBINDING_DESTRUCTOR));
 
     NS_ASSERTION(PR_CLIST_IS_EMPTY(this), "binding deleted while still on list");
     if (!PR_CLIST_IS_EMPTY(this))
@@ -121,15 +122,12 @@ nsDiskCacheBinding::EnsureStreamIO()
  *
  *****************************************************************************/
 
-PLDHashTableOps nsDiskCacheBindery::ops =
+const PLDHashTableOps nsDiskCacheBindery::ops =
 {
-    PL_DHashAllocTable,
-    PL_DHashFreeTable,
     HashKey,
     MatchEntry,
     MoveEntry,
-    ClearEntry,
-    PL_DHashFinalizeStub
+    ClearEntry
 };
 
 
@@ -149,10 +147,9 @@ nsresult
 nsDiskCacheBindery::Init()
 {
     nsresult rv = NS_OK;
-    initialized = PL_DHashTableInit(&table, &ops, nullptr, sizeof(HashTableEntry), 0);
+    PL_DHashTableInit(&table, &ops, sizeof(HashTableEntry), 0);
+    initialized = true;
 
-    if (!initialized) rv = NS_ERROR_OUT_OF_MEMORY;
-    
     return rv;
 }
 
@@ -204,14 +201,13 @@ nsDiskCacheBindery::FindActiveBinding(uint32_t  hashNumber)
     // find hash entry for key
     HashTableEntry * hashEntry;
     hashEntry =
-      (HashTableEntry *) PL_DHashTableOperate(&table,
-                                              (void*)(uintptr_t) hashNumber,
-                                              PL_DHASH_LOOKUP);
-    if (PL_DHASH_ENTRY_IS_FREE(hashEntry)) return nullptr;
+      (HashTableEntry *) PL_DHashTableSearch(&table,
+                                             (void*)(uintptr_t) hashNumber);
+    if (!hashEntry) return nullptr;
 
     // walk list looking for active entry
     NS_ASSERTION(hashEntry->mBinding, "hash entry left with no binding");
-    nsDiskCacheBinding * binding = hashEntry->mBinding;    
+    nsDiskCacheBinding * binding = hashEntry->mBinding;
     while (binding->mCacheEntry->IsDoomed()) {
         binding = (nsDiskCacheBinding *)PR_NEXT_LINK(binding);
         if (binding == hashEntry->mBinding)  return nullptr;
@@ -239,9 +235,9 @@ nsDiskCacheBindery::AddBinding(nsDiskCacheBinding * binding)
     // find hash entry for key
     HashTableEntry * hashEntry;
     hashEntry = (HashTableEntry *)
-      PL_DHashTableOperate(&table,
-                           (void *)(uintptr_t) binding->mRecord.HashNumber(),
-                           PL_DHASH_ADD);
+      PL_DHashTableAdd(&table,
+                       (void *)(uintptr_t) binding->mRecord.HashNumber(),
+                       fallible);
     if (!hashEntry) return NS_ERROR_OUT_OF_MEMORY;
     
     if (hashEntry->mBinding == nullptr) {
@@ -303,10 +299,9 @@ nsDiskCacheBindery::RemoveBinding(nsDiskCacheBinding * binding)
     HashTableEntry * hashEntry;
     void           * key = (void *)(uintptr_t)binding->mRecord.HashNumber();
 
-    hashEntry = (HashTableEntry*) PL_DHashTableOperate(&table,
-                                                       (void*)(uintptr_t) key,
-                                                       PL_DHASH_LOOKUP);
-    if (!PL_DHASH_ENTRY_IS_BUSY(hashEntry)) {
+    hashEntry = (HashTableEntry*) PL_DHashTableSearch(&table,
+                                                      (void*)(uintptr_t) key);
+    if (!hashEntry) {
         NS_WARNING("### disk cache: binding not in hashtable!");
         return;
     }
@@ -314,9 +309,8 @@ nsDiskCacheBindery::RemoveBinding(nsDiskCacheBinding * binding)
     if (binding == hashEntry->mBinding) {
         if (PR_CLIST_IS_EMPTY(binding)) {
             // remove this hash entry
-            PL_DHashTableOperate(&table,
-                                 (void*)(uintptr_t) binding->mRecord.HashNumber(),
-                                 PL_DHASH_REMOVE);
+            PL_DHashTableRemove(&table,
+                                (void*)(uintptr_t) binding->mRecord.HashNumber());
             return;
             
         } else {
@@ -372,7 +366,7 @@ nsDiskCacheBindery::ActiveBindings()
 
 struct AccumulatorArg {
     size_t mUsage;
-    nsMallocSizeOfFun mMallocSizeOf;
+    mozilla::MallocSizeOf mMallocSizeOf;
 };
 
 PLDHashOperator
@@ -408,7 +402,7 @@ AccumulateHeapUsage(PLDHashTable *table, PLDHashEntryHdr *hdr, uint32_t number,
  * SizeOfExcludingThis: return the amount of heap memory (bytes) being used by the bindery
  */
 size_t
-nsDiskCacheBindery::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf)
+nsDiskCacheBindery::SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf)
 {
     NS_ASSERTION(initialized, "nsDiskCacheBindery not initialized");
     if (!initialized) return 0;

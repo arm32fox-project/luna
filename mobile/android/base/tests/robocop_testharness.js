@@ -1,14 +1,10 @@
-// -*- Mode: js2; tab-width: 2; indent-tabs-mode: nil; js2-basic-offset: 2; js2-skip-preprocessor-directives: t; -*-
+// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-let bridge = SpecialPowers.Cc["@mozilla.org/android/bridge;1"]
-                          .getService(SpecialPowers.Ci.nsIAndroidBridge);
-
 function sendMessageToJava(message) {
-  let data = JSON.stringify(message);
-  bridge.handleGoannaMessage(data);
+  SpecialPowers.Services.androidBridge.handleGoannaMessage(message);
 }
 
 function _evalURI(uri, sandbox) {
@@ -22,7 +18,11 @@ function _evalURI(uri, sandbox) {
   let theURI = SpecialPowers.Services.io
                             .newURI(uri, window.document.characterSet, baseURI);
 
-  req.open('GET', theURI.spec, false);
+  // We append a random slug to avoid caching: see
+  // https://developer.mozilla.org/en-US/docs/Web/API/XMLHttpRequest/Using_XMLHttpRequest#Bypassing_the_cache.
+  req.open('GET', theURI.spec + ((/\?/).test(theURI.spec) ? "&slug=" : "?slug=") + (new Date()).getTime(), false);
+  req.setRequestHeader('Cache-Control', 'no-cache');
+  req.setRequestHeader('Pragma', 'no-cache');
   req.send();
 
   return SpecialPowers.Cu.evalInSandbox(req.responseText, sandbox, "1.8", uri, 1);
@@ -36,7 +36,7 @@ function _evalURI(uri, sandbox) {
  * absolute.
  *
  * The Javascript test harness sends all output to Java via
- * Robocop:Status messages.
+ * Robocop:JS messages.
  */
 function testOneFile(uri) {
   let HEAD_JS = "robocop_head.js";
@@ -59,7 +59,7 @@ function testOneFile(uri) {
   // Output from head.js is fed, line by line, to this function.  We
   // send any such output back to the Java Robocop harness.
   testScope.dump = function (str) {
-    let message = { type: "Robocop:Status",
+    let message = { type: "Robocop:JS",
                     innerType: "progress",
                     message: str,
                   };

@@ -8,10 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "video_engine/test/libvietest/include/tb_interfaces.h"
+#include "webrtc/video_engine/test/libvietest/include/tb_interfaces.h"
 
-#include "gtest/gtest.h"
-#include "testsupport/fileutils.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "webrtc/test/testsupport/fileutils.h"
 
 TbInterfaces::TbInterfaces(const std::string& test_name) :
     video_engine(NULL),
@@ -21,8 +21,7 @@ TbInterfaces::TbInterfaces(const std::string& test_name) :
     rtp_rtcp(NULL),
     codec(NULL),
     network(NULL),
-    image_process(NULL),
-    encryption(NULL)
+    image_process(NULL)
 {
     std::string complete_path =
         webrtc::test::OutputPath() + test_name + "_trace.txt";
@@ -55,15 +54,10 @@ TbInterfaces::TbInterfaces(const std::string& test_name) :
 
     image_process = webrtc::ViEImageProcess::GetInterface(video_engine);
     EXPECT_TRUE(image_process != NULL);
-
-    encryption = webrtc::ViEEncryption::GetInterface(video_engine);
-    EXPECT_TRUE(encryption != NULL);
 }
 
 TbInterfaces::~TbInterfaces(void)
 {
-    EXPECT_EQ(0, encryption->Release());
-    encryption = NULL;
     EXPECT_EQ(0, image_process->Release());
     image_process = NULL;
     EXPECT_EQ(0, codec->Release());

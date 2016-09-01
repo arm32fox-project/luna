@@ -13,13 +13,14 @@
  */
 
 // http://www.whatwg.org/specs/web-apps/current-work/#the-object-element
-[NeedNewResolve]
+[NeedResolve, UnsafeInPrerendering]
 interface HTMLObjectElement : HTMLElement {
   [Pure, SetterThrows]
            attribute DOMString data;
   [Pure, SetterThrows]
            attribute DOMString type;
-//           attribute boolean typeMustMatch;
+  [Pure, SetterThrows]
+           attribute boolean typeMustMatch;
   [Pure, SetterThrows]
            attribute DOMString name;
   [Pure, SetterThrows]
@@ -154,12 +155,28 @@ interface MozObjectLoadingContent {
   [ChromeOnly]
   unsigned long getContentTypeForMIMEType(DOMString aMimeType);
 
+
+  [ChromeOnly]
+  sequence<MozPluginParameter> getPluginAttributes();
+
+  [ChromeOnly]
+  sequence<MozPluginParameter> getPluginParameters();
+
   /**
    * This method will play a plugin that has been stopped by the
    * click-to-play plugins or play-preview features.
    */
   [ChromeOnly, Throws]
   void playPlugin();
+
+  /**
+   * Forces a re-evaluation and reload of the tag, optionally invalidating its
+   * click-to-play state.  This can be used when the MIME type that provides a
+   * type has changed, for instance, to force the tag to re-evalulate the
+   * handler to use.
+   */
+  [ChromeOnly, Throws]
+  void reload(boolean aClearActivation);
 
   /**
    * This attribute will return true if the current content type has been
@@ -194,6 +211,15 @@ interface MozObjectLoadingContent {
    */
   [ChromeOnly, Throws]
   void cancelPlayPreview();
+};
+
+/**
+ * Name:Value pair type used for passing parameters to NPAPI or javascript
+ * plugins.
+ */
+dictionary MozPluginParameter {
+  DOMString name = "";
+  DOMString value = "";
 };
 
 HTMLObjectElement implements MozImageLoadingContent;

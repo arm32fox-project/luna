@@ -1,6 +1,12 @@
 var Cu = Components.utils;
 
-Cu.import("resource://gre/modules/Services.jsm");
+Cu.import("resource://gre/modules/devtools/Loader.jsm");
+Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
+Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
+Cu.import("resource://gre/modules/Task.jsm");
+
+const Services = devtools.require("Services");
+const {_documentWalker} = devtools.require("devtools/server/actors/inspector");
 
 // Always log packets when running tests.
 Services.prefs.setBoolPref("devtools.debugger.log", true);
@@ -8,14 +14,9 @@ SimpleTest.registerCleanupFunction(function() {
   Services.prefs.clearUserPref("devtools.debugger.log");
 });
 
-Cu.import("resource://gre/modules/devtools/Loader.jsm");
-Cu.import("resource://gre/modules/devtools/dbg-client.jsm");
-Cu.import("resource://gre/modules/devtools/dbg-server.jsm");
-
-const {_documentWalker} = devtools.require("devtools/server/actors/inspector");
 
 if (!DebuggerServer.initialized) {
-  DebuggerServer.init(() => true);
+  DebuggerServer.init();
   DebuggerServer.addBrowserActors();
   SimpleTest.registerCleanupFunction(function() {
     DebuggerServer.destroy();
@@ -61,12 +62,14 @@ function attachURL(url, callback) {
           for (let tab of response.tabs) {
             if (tab.url === url) {
               window.removeEventListener("message", loadListener, false);
-              try {
-                callback(null, client, tab, win.document);
-              } catch(ex) {
-                Cu.reportError(ex);
-                dump(ex);
-              }
+              client.attachTab(tab.actor, function(aResponse, aTabClient) {
+                try {
+                  callback(null, client, tab, win.document);
+                } catch(ex) {
+                  Cu.reportError(ex);
+                  dump(ex);
+                }
+              });
               break;
             }
           }
@@ -101,7 +104,7 @@ function serverOwnershipSubtree(walker, node) {
   }
 
   let children = [];
-  let docwalker = _documentWalker(node);
+  let docwalker = new _documentWalker(node, window);
   let child = docwalker.firstChild();
   while (child) {
     let item = serverOwnershipSubtree(walker, child);
@@ -164,7 +167,7 @@ function checkMissing(client, actorID) {
   let front = client.getActor(actorID);
   ok(!front, "Front shouldn't be accessible from the client for actorID: " + actorID);
 
-  let deferred = promise.defer();
+  deferred = promise.defer();
   client.request({
     to: actorID,
     type: "request",
@@ -181,7 +184,7 @@ function checkAvailable(client, actorID) {
   let front = client.getActor(actorID);
   ok(front, "Front should be accessible from the client for actorID: " + actorID);
 
-  let deferred = promise.defer();
+  deferred = promise.defer();
   client.request({
     to: actorID,
     type: "garbageAvailableTest",
@@ -235,6 +238,10 @@ function isChildList(change) {
   return change.type === "childList";
 }
 
+function isNewRoot(change) {
+  return change.type === "newRoot";
+}
+
 // Make sure an iframe's src attribute changed and then
 // strip that mutation out of the list.
 function assertSrcChange(mutations) {
@@ -284,10 +291,20 @@ function addTest(test) {
   _tests.push(test);
 }
 
+function addAsyncTest(generator) {
+  _tests.push(() => Task.spawn(generator).then(null, ok.bind(null, false)));
+}
+
 function runNextTest() {
   if (_tests.length == 0) {
     SimpleTest.finish()
     return;
   }
-  _tests.shift()();
+  var fn = _tests.shift();
+  try {
+    fn();
+  } catch (ex) {
+    info("Test function " + (fn.name ? "'" + fn.name + "' " : "") +
+         "threw an exception: " + ex);
+  }
 }

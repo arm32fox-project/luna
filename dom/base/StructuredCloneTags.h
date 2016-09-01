@@ -5,7 +5,7 @@
 #ifndef StructuredCloneTags_h__
 #define StructuredCloneTags_h__
 
-#include "jsapi.h"
+#include "js/StructuredClone.h"
 
 namespace mozilla {
 namespace dom {
@@ -23,11 +23,21 @@ enum StructuredCloneTags {
   SCTAG_DOM_FILE_WITHOUT_LASTMODIFIEDDATE,
 
   SCTAG_DOM_FILELIST,
-  SCTAG_DOM_FILEHANDLE,
+  SCTAG_DOM_MUTABLEFILE,
   SCTAG_DOM_FILE,
 
   // These tags are used for both main thread and workers.
   SCTAG_DOM_IMAGEDATA,
+  SCTAG_DOM_MAP_MESSAGEPORT,
+
+  SCTAG_DOM_FUNCTION,
+
+  // This tag is for WebCrypto keys
+  SCTAG_DOM_WEBCRYPTO_KEY,
+
+  SCTAG_DOM_NULL_PRINCIPAL,
+  SCTAG_DOM_SYSTEM_PRINCIPAL,
+  SCTAG_DOM_CONTENT_PRINCIPAL,
 
   SCTAG_DOM_MAX
 };

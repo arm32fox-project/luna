@@ -14,8 +14,6 @@
 #include "nsPresContext.h"
 #include "nsStyleStruct.h"
 
-#include "mozilla/StandardInteger.h"
-
 class nsStyleContext;
 struct nsRuleData;
 class nsIStyleRule;
@@ -34,14 +32,14 @@ private:
   void* mArray[Count];
 public:
   void*& operator[](nsStyleStructID aIndex) {
-    NS_ABORT_IF_FALSE(MinIndex <= aIndex && aIndex < (MinIndex + Count),
-                      "out of range");
+    MOZ_ASSERT(MinIndex <= aIndex && aIndex < (MinIndex + Count),
+               "out of range");
     return mArray[aIndex - MinIndex];
   }
 
   const void* operator[](nsStyleStructID aIndex) const {
-    NS_ABORT_IF_FALSE(MinIndex <= aIndex && aIndex < (MinIndex + Count),
-                      "out of range");
+    MOZ_ASSERT(MinIndex <= aIndex && aIndex < (MinIndex + Count),
+               "out of range");
     return mArray[aIndex - MinIndex];
   }
 };
@@ -52,10 +50,11 @@ struct nsInheritedStyleData
                         nsStyleStructID_Inherited_Count> mStyleStructs;
 
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
-    return aContext->AllocateFromShell(sz);
+    return aContext->PresShell()->
+      AllocateByObjectID(nsPresArena::nsInheritedStyleData_id, sz);
   }
 
-  void DestroyStructs(uint32_t aBits, nsPresContext* aContext) {
+  void DestroyStructs(uint64_t aBits, nsPresContext* aContext) {
 #define STYLE_STRUCT_INHERITED(name, checkdata_cb) \
     void *name##Data = mStyleStructs[eStyleStruct_##name]; \
     if (name##Data && !(aBits & NS_STYLE_INHERIT_BIT(name))) \
@@ -68,9 +67,10 @@ struct nsInheritedStyleData
 #undef STYLE_STRUCT_RESET
   }
 
-  void Destroy(uint32_t aBits, nsPresContext* aContext) {
+  void Destroy(uint64_t aBits, nsPresContext* aContext) {
     DestroyStructs(aBits, aContext);
-    aContext->FreeToShell(sizeof(nsInheritedStyleData), this);
+    aContext->PresShell()->
+      FreeByObjectID(nsPresArena::nsInheritedStyleData_id, this);
   }
 
   nsInheritedStyleData() {
@@ -97,10 +97,11 @@ struct nsResetStyleData
   }
 
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW {
-    return aContext->AllocateFromShell(sz);
+    return aContext->PresShell()->
+      AllocateByObjectID(nsPresArena::nsResetStyleData_id, sz);
   }
 
-  void Destroy(uint32_t aBits, nsPresContext* aContext) {
+  void Destroy(uint64_t aBits, nsPresContext* aContext) {
 #define STYLE_STRUCT_RESET(name, checkdata_cb) \
     void *name##Data = mStyleStructs[eStyleStruct_##name]; \
     if (name##Data && !(aBits & NS_STYLE_INHERIT_BIT(name))) \
@@ -112,7 +113,8 @@ struct nsResetStyleData
 #undef STYLE_STRUCT_RESET
 #undef STYLE_STRUCT_INHERITED
 
-    aContext->FreeToShell(sizeof(nsResetStyleData), this);
+    aContext->PresShell()->
+      FreeByObjectID(nsPresArena::nsResetStyleData_id, this);
   }
 };
 
@@ -122,9 +124,13 @@ struct nsCachedStyleData
   nsResetStyleData* mResetData;
 
   static bool IsReset(const nsStyleStructID aSID) {
-    NS_ABORT_IF_FALSE(0 <= aSID && aSID < nsStyleStructID_Length,
-                      "must be an inherited or reset SID");
+    MOZ_ASSERT(0 <= aSID && aSID < nsStyleStructID_Length,
+               "must be an inherited or reset SID");
     return nsStyleStructID_Reset_Start <= aSID;
+  }
+
+  static bool IsInherited(const nsStyleStructID aSID) {
+    return !IsReset(aSID);
   }
 
   static uint32_t GetBitForSID(const nsStyleStructID aSID) {
@@ -174,7 +180,7 @@ struct nsCachedStyleData
   #undef STYLE_STRUCT_RESET
   #undef STYLE_STRUCT_INHERITED
 
-  void Destroy(uint32_t aBits, nsPresContext* aContext) {
+  void Destroy(uint64_t aBits, nsPresContext* aContext) {
     if (mResetData)
       mResetData->Destroy(aBits, aContext);
     if (mInheritedData)
@@ -304,7 +310,13 @@ private:
                          const PLDHashEntryHdr *aHdr,
                          const void *aKey);
 
-  static PLDHashTableOps ChildrenHashOps;
+  static PLDHashOperator
+  SweepHashEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
+                 uint32_t number, void *arg);
+  void SweepChildren(nsTArray<nsRuleNode*>& aSweepQueue);
+  bool DestroyIfNotMarked();
+
+  static const PLDHashTableOps ChildrenHashOps;
 
   static PLDHashOperator
   EnqueueRuleNodeChildren(PLDHashTable *table, PLDHashEntryHdr *hdr,
@@ -361,7 +373,7 @@ private:
                  "pointer not 2-byte aligned");
     mChildren.asHash = (PLDHashTable*)(intptr_t(aHashtable) | kHashType);
   }
-  void ConvertChildrenToHash();
+  void ConvertChildrenToHash(int32_t aNumKids);
 
   nsCachedStyleData mStyleData;   // Any data we cached on the rule node.
 
@@ -399,8 +411,7 @@ private:
   uint32_t mRefCnt;
 
 public:
-  // Overloaded new operator. Initializes the memory to 0 and relies on an arena
-  // (which comes from the presShell) to perform the allocation.
+  // Overloaded new operator that allocates from a presShell arena.
   void* operator new(size_t sz, nsPresContext* aContext) CPP_THROW_NEW;
   void Destroy() { DestroyInternal(nullptr); }
 
@@ -415,9 +426,23 @@ protected:
   void PropagateDependentBit(nsStyleStructID aSID, nsRuleNode* aHighestNode,
                              void* aStruct);
   void PropagateNoneBit(uint32_t aBit, nsRuleNode* aHighestNode);
+  static void PropagateGrandancestorBit(nsStyleContext* aContext,
+                                        nsStyleContext* aContextInheritedFrom);
 
   const void* SetDefaultOnRoot(const nsStyleStructID aSID,
                                nsStyleContext* aContext);
+
+  /**
+   * Resolves any property values in aRuleData for a given style struct that
+   * have eCSSUnit_TokenStream values, by resolving them against the computed
+   * variable values on the style context and re-parsing the property.
+   *
+   * @return Whether any properties with eCSSUnit_TokenStream values were
+   *   encountered.
+   */
+  static bool ResolveVariableReferences(const nsStyleStructID aSID,
+                                        nsRuleData* aRuleData,
+                                        nsStyleContext* aContext);
 
   const void*
     WalkRuleTree(const nsStyleStructID aSID, nsStyleContext* aContext);
@@ -584,6 +609,13 @@ protected:
                         RuleDetail aRuleDetail,
                         const bool aCanStoreInRuleTree);
 
+  const void*
+    ComputeVariablesData(void* aStartStruct,
+                         const nsRuleData* aRuleData,
+                         nsStyleContext* aContext, nsRuleNode* aHighestNode,
+                         RuleDetail aRuleDetail,
+                         const bool aCanStoreInRuleTree);
+
   // helpers for |ComputeFontData| that need access to |mNoneBits|:
   static void SetFontSize(nsPresContext* aPresContext,
                           const nsRuleData* aRuleData,
@@ -604,22 +636,12 @@ protected:
                       const nsStyleFont* aParentFont,
                       nsStyleFont* aFont,
                       bool aStartStruct,
-                      bool aPreferDefault,
                       bool& aCanStoreInRuleTree);
 
   static void SetGenericFont(nsPresContext* aPresContext,
                              nsStyleContext* aContext,
                              uint8_t aGenericFontID,
                              nsStyleFont* aFont);
-
-  void AdjustLogicalBoxProp(nsStyleContext* aContext,
-                            const nsCSSValue& aLTRSource,
-                            const nsCSSValue& aRTLSource,
-                            const nsCSSValue& aLTRLogicalValue,
-                            const nsCSSValue& aRTLLogicalValue,
-                            mozilla::css::Side aSide,
-                            nsCSSRect& aValueRect,
-                            bool& aCanStoreInRuleTree);
 
   inline RuleDetail CheckSpecifiedProperties(const nsStyleStructID aSID,
                                              const nsRuleData* aRuleData);
@@ -634,6 +656,11 @@ protected:
                                 nsStyleContext* aStyleContext,
                                 nsPresContext* aPresContext,
                                 bool& aCanStoreInRuleTree);
+  void SetStyleClipPathToCSSValue(nsStyleClipPath* aStyleClipPath,
+                                  const nsCSSValue* aValue,
+                                  nsStyleContext* aStyleContext,
+                                  nsPresContext* aPresContext,
+                                  bool& aCanStoreInRuleTree);
 
 private:
   nsRuleNode(nsPresContext* aPresContext, nsRuleNode* aParent,
@@ -642,13 +669,22 @@ private:
 
 public:
   static nsRuleNode* CreateRootNode(nsPresContext* aPresContext);
-  static void EnsureBlockDisplay(uint8_t& display);
+
+  static void EnsureBlockDisplay(uint8_t& display,
+                                 bool aConvertListItem = false);
+  static void EnsureInlineDisplay(uint8_t& display);
 
   // Transition never returns null; on out of memory it'll just return |this|.
   nsRuleNode* Transition(nsIStyleRule* aRule, uint8_t aLevel,
                          bool aIsImportantRule);
   nsRuleNode* GetParent() const { return mParent; }
   bool IsRoot() const { return mParent == nullptr; }
+
+  // Return the root of the rule tree that this rule node is in.
+  nsRuleNode* RuleTree();
+  const nsRuleNode* RuleTree() const {
+    return const_cast<nsRuleNode*>(this)->RuleTree();
+  }
 
   // These uint8_ts are really nsStyleSet::sheetType values.
   uint8_t GetLevel() const {
@@ -691,6 +727,8 @@ public:
    * ancestors until it reaches a marked one.  Sweep recursively sweeps
    * the children, destroys any that are unmarked, and clears marks,
    * returning true if the node on which it was called was destroyed.
+   * If children are hashed, the mNextSibling field on the children is
+   * temporarily used internally by Sweep.
    */
   void Mark();
   bool Sweep();

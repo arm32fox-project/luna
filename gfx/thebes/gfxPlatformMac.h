@@ -6,20 +6,15 @@
 #ifndef GFX_PLATFORM_MAC_H
 #define GFX_PLATFORM_MAC_H
 
-#include "nsTArray.h"
+#include "nsTArrayForwardDeclare.h"
 #include "gfxPlatform.h"
 
-#define MAC_OS_X_VERSION_10_4_HEX 0x00001040
-#define MAC_OS_X_VERSION_10_5_HEX 0x00001050
-#define MAC_OS_X_VERSION_10_6_HEX 0x00001060
-#define MAC_OS_X_VERSION_10_7_HEX 0x00001070
-
-#define MAC_OS_X_MAJOR_VERSION_MASK 0xFFFFFFF0U
-
-class gfxTextRun;
-class gfxFontFamily;
-
-namespace mozilla { namespace gfx { class DrawTarget; }}
+namespace mozilla {
+namespace gfx {
+class DrawTarget;
+class VsyncSource;
+} // gfx
+} // mozilla
 
 class gfxPlatformMac : public gfxPlatform {
 public:
@@ -30,71 +25,63 @@ public:
         return (gfxPlatformMac*) gfxPlatform::GetPlatform();
     }
 
-    already_AddRefed<gfxASurface> CreateOffscreenSurface(const gfxIntSize& size,
-                                                         gfxASurface::gfxContentType contentType);
     virtual already_AddRefed<gfxASurface>
-      CreateOffscreenImageSurface(const gfxIntSize& aSize,
-                                  gfxASurface::gfxContentType aContentType);
-
-    already_AddRefed<gfxASurface> OptimizeImage(gfxImageSurface *aSurface,
-                                                gfxASurface::gfxImageFormat format);
+      CreateOffscreenSurface(const IntSize& size,
+                             gfxContentType contentType) override;
 
     mozilla::TemporaryRef<mozilla::gfx::ScaledFont>
-      GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont);
+      GetScaledFontForFont(mozilla::gfx::DrawTarget* aTarget, gfxFont *aFont) override;
 
-    nsresult ResolveFontName(const nsAString& aFontName,
-                             FontResolverCallback aCallback,
-                             void *aClosure, bool& aAborted);
+    nsresult GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName) override;
 
-    nsresult GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
+    gfxFontGroup*
+    CreateFontGroup(const mozilla::FontFamilyList& aFontFamilyList,
+                    const gfxFontStyle *aStyle,
+                    gfxUserFontSet *aUserFontSet) override;
 
-    gfxFontGroup *CreateFontGroup(const nsAString &aFamilies,
-                                  const gfxFontStyle *aStyle,
-                                  gfxUserFontSet *aUserFontSet);
+    virtual gfxFontEntry* LookupLocalFont(const nsAString& aFontName,
+                                          uint16_t aWeight,
+                                          int16_t aStretch,
+                                          bool aItalic) override;
 
-    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                          const nsAString& aFontName);
+    virtual gfxPlatformFontList* CreatePlatformFontList() override;
 
-    virtual gfxPlatformFontList* CreatePlatformFontList();
+    virtual gfxFontEntry* MakePlatformFont(const nsAString& aFontName,
+                                           uint16_t aWeight,
+                                           int16_t aStretch,
+                                           bool aItalic,
+                                           const uint8_t* aFontData,
+                                           uint32_t aLength) override;
 
-    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                           const uint8_t *aFontData,
-                                           uint32_t aLength);
-
-    bool IsFontFormatSupported(nsIURI *aFontURI, uint32_t aFormatFlags);
+    bool IsFontFormatSupported(nsIURI *aFontURI, uint32_t aFormatFlags) override;
 
     nsresult GetFontList(nsIAtom *aLangGroup,
                          const nsACString& aGenericFamily,
-                         nsTArray<nsString>& aListOfFonts);
-    nsresult UpdateFontList();
+                         nsTArray<nsString>& aListOfFonts) override;
+    nsresult UpdateFontList() override;
 
-    virtual void GetCommonFallbackFonts(const uint32_t aCh,
+    virtual void GetCommonFallbackFonts(uint32_t aCh, uint32_t aNextCh,
                                         int32_t aRunScript,
-                                        nsTArray<const char*>& aFontList);
+                                        nsTArray<const char*>& aFontList) override;
 
-    // Returns the OS X version as returned from Gestalt(gestaltSystemVersion, ...)
-    // Ex: Mac OS X 10.4.x ==> 0x104x
-    int32_t OSXVersion();
+    virtual bool CanRenderContentToDataSurface() const override {
+      return true;
+    }
 
     bool UseAcceleratedCanvas();
+
+    virtual bool UseProgressivePaint() override;
+    virtual already_AddRefed<mozilla::gfx::VsyncSource> CreateHardwareVsyncSource() override;
 
     // lower threshold on font anti-aliasing
     uint32_t GetAntiAliasingThreshold() { return mFontAntiAliasingThreshold; }
 
-    virtual already_AddRefed<gfxASurface>
-    GetThebesSurfaceForDrawTarget(mozilla::gfx::DrawTarget *aTarget);
-
-    virtual already_AddRefed<gfxASurface>
-    CreateThebesSurfaceAliasForDrawTarget_hack(mozilla::gfx::DrawTarget *aTarget);
 private:
-    virtual qcms_profile* GetPlatformCMSOutputProfile();
-
-    virtual bool SupportsOffMainThreadCompositing();
+    virtual void GetPlatformCMSOutputProfile(void* &mem, size_t &size) override;
 
     // read in the pref value for the lower threshold on font anti-aliasing
     static uint32_t ReadAntiAliasingThreshold();
 
-    int32_t mOSXVersion;
     uint32_t mFontAntiAliasingThreshold;
 };
 

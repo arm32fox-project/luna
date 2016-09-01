@@ -11,8 +11,9 @@
 #ifndef COMMON_VIDEO_PLANE_H
 #define COMMON_VIDEO_PLANE_H
 
-#include "system_wrappers/interface/aligned_malloc.h"
-#include "typedefs.h"  //NOLINT
+#include "webrtc/system_wrappers/interface/aligned_malloc.h"
+#include "webrtc/system_wrappers/interface/scoped_ptr.h"
+#include "webrtc/typedefs.h"
 
 namespace webrtc {
 
@@ -63,7 +64,7 @@ class Plane {
   // Return value: 0 on success ,-1 on error.
   int MaybeResize(int new_size);
 
-  Allocator<uint8_t>::scoped_ptr_aligned buffer_;
+  scoped_ptr<uint8_t, AlignedFreeDeleter> buffer_;
   int allocated_size_;
   int plane_size_;
   int stride_;

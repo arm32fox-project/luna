@@ -50,11 +50,11 @@ static const PCWSTR kXmlDescription =
         );
 
 // {FB947CDA-718E-40CC-AE7B-D255830D7D14}
-DEFINE_GUID(GUID_SampleRadialGradientPS, 
-0xfb947cda, 0x718e, 0x40cc, 0xae, 0x7b, 0xd2, 0x55, 0x83, 0xd, 0x7d, 0x14);
+static const GUID GUID_SampleRadialGradientPS =
+  {0xfb947cda, 0x718e, 0x40cc, {0xae, 0x7b, 0xd2, 0x55, 0x83, 0xd, 0x7d, 0x14}};
 // {2C468128-6546-453C-8E25-F2DF0DE10A0F}
-DEFINE_GUID(GUID_SampleRadialGradientA0PS, 
-0x2c468128, 0x6546, 0x453c, 0x8e, 0x25, 0xf2, 0xdf, 0xd, 0xe1, 0xa, 0xf);
+static const GUID GUID_SampleRadialGradientA0PS =
+  {0x2c468128, 0x6546, 0x453c, {0x8e, 0x25, 0xf2, 0xdf, 0xd, 0xe1, 0xa, 0xf}};
 
 namespace mozilla {
 namespace gfx {
@@ -116,7 +116,7 @@ RadialGradientEffectD2D1::PrepareForRender(D2D1_CHANGE_TYPE changeType)
     return S_OK;
   }
 
-  D2D1_POINT_2F dc = D2D1::Point2F(mCenter2.x - mCenter1.x, mCenter2.y - mCenter2.y);
+  D2D1_POINT_2F dc = D2D1::Point2F(mCenter2.x - mCenter1.x, mCenter2.y - mCenter1.y);
   float dr = mRadius2 - mRadius1;
   float A = dc.x * dc.x + dc.y * dc.y - dr * dr;
  
@@ -147,14 +147,18 @@ RadialGradientEffectD2D1::PrepareForRender(D2D1_CHANGE_TYPE changeType)
     float A;
     float radius1;
     float sq_radius1;
-    float padding2[3];
+    float repeat_correct;
+    float allow_odd;
+    float padding2[1];
     float transform[8];
   };
 
   PSConstantBuffer buffer = { { dc.x, dc.y, dr }, 0,
                               { mCenter1.x, mCenter1.y },
                               A, mRadius1, mRadius1 * mRadius1,
-                              { 0, 0, 0 }, { mat._11, mat._21, mat._31, 0,
+                              mStopCollection->GetExtendMode() != D2D1_EXTEND_MODE_CLAMP ? 1 : 0,
+                              mStopCollection->GetExtendMode() == D2D1_EXTEND_MODE_MIRROR ? 1 : 0,
+                              { 0 }, { mat._11, mat._21, mat._31, 0,
                                              mat._12, mat._22, mat._32, 0 } };
 
   hr = mDrawInfo->SetPixelShaderConstantBuffer((BYTE*)&buffer, sizeof(buffer));
@@ -264,12 +268,13 @@ HRESULT
 RadialGradientEffectD2D1::Register(ID2D1Factory1 *aFactory)
 {
   D2D1_PROPERTY_BINDING bindings[] = {
-    D2D1_VALUE_TYPE_BINDING(L"StopCollection", &SetStopCollection, &GetStopCollection),
-    D2D1_VALUE_TYPE_BINDING(L"Center1", &SetCenter1, &GetCenter1),
-    D2D1_VALUE_TYPE_BINDING(L"Center2", &SetCenter2, &GetCenter2),
-    D2D1_VALUE_TYPE_BINDING(L"Radius1", &SetRadius1, &GetRadius1),
-    D2D1_VALUE_TYPE_BINDING(L"Radius2", &SetRadius2, &GetRadius2),
-    D2D1_VALUE_TYPE_BINDING(L"Transform", &SetTransform, &GetTransform)
+    D2D1_VALUE_TYPE_BINDING(L"StopCollection", &RadialGradientEffectD2D1::SetStopCollection,
+                            &RadialGradientEffectD2D1::GetStopCollection),
+    D2D1_VALUE_TYPE_BINDING(L"Center1", &RadialGradientEffectD2D1::SetCenter1, &RadialGradientEffectD2D1::GetCenter1),
+    D2D1_VALUE_TYPE_BINDING(L"Center2", &RadialGradientEffectD2D1::SetCenter2, &RadialGradientEffectD2D1::GetCenter2),
+    D2D1_VALUE_TYPE_BINDING(L"Radius1", &RadialGradientEffectD2D1::SetRadius1, &RadialGradientEffectD2D1::GetRadius1),
+    D2D1_VALUE_TYPE_BINDING(L"Radius2", &RadialGradientEffectD2D1::SetRadius2, &RadialGradientEffectD2D1::GetRadius2),
+    D2D1_VALUE_TYPE_BINDING(L"Transform", &RadialGradientEffectD2D1::SetTransform, &RadialGradientEffectD2D1::GetTransform)
   };
   HRESULT hr = aFactory->RegisterEffectFromString(CLSID_RadialGradientEffect, kXmlDescription, bindings, ARRAYSIZE(bindings), CreateEffect);
 
@@ -277,6 +282,12 @@ RadialGradientEffectD2D1::Register(ID2D1Factory1 *aFactory)
     gfxWarning() << "Failed to register radial gradient effect.";
   }
   return hr;
+}
+
+void
+RadialGradientEffectD2D1::Unregister(ID2D1Factory1 *aFactory)
+{
+  aFactory->UnregisterEffect(CLSID_RadialGradientEffect);
 }
 
 HRESULT __stdcall
@@ -364,21 +375,23 @@ RadialGradientEffectD2D1::CreateGradientTexture()
   UINT32 width = 4096;
   UINT32 stride = 4096 * 4;
   D2D1_RESOURCE_TEXTURE_PROPERTIES props;
-  props.dimensions = 1;
-  props.extents = &width;
+  // Older shader models do not support 1D textures. So just use a width x 1 texture.
+  props.dimensions = 2;
+  UINT32 dims[] = { width, 1 };
+  props.extents = dims;
   props.channelDepth = D2D1_CHANNEL_DEPTH_4;
   props.bufferPrecision = D2D1_BUFFER_PRECISION_8BPC_UNORM;
   props.filter = D2D1_FILTER_MIN_MAG_MIP_LINEAR;
-  D2D1_EXTEND_MODE extendMode = mStopCollection->GetExtendMode();
-  props.extendModes = &extendMode;
+  D2D1_EXTEND_MODE extendMode[] = { mStopCollection->GetExtendMode(), mStopCollection->GetExtendMode() };
+  props.extendModes = extendMode;
 
   HRESULT hr = mEffectContext->CreateResourceTexture(nullptr, &props, &textureData.front(), &stride, 4096 * 4, byRef(tex));
 
   if (FAILED(hr)) {
-    gfxWarning() << "Failed to create resource texture: " << hr;
+    gfxWarning() << "Failed to create resource texture: " << hexa(hr);
   }
 
-  return tex;
+  return tex.forget();
 }
 
 }

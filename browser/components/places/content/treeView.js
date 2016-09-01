@@ -144,7 +144,7 @@ PlacesTreeView.prototype = {
     // A node is removed form the view either if it has no parent or if its
     // root-ancestor is not the root node (in which case that's the node
     // for which nodeRemoved was called).
-    let ancestors = [x for each (x in PlacesUtils.nodeAncestors(aNode))];
+    let ancestors = [x for (x of PlacesUtils.nodeAncestors(aNode))];
     if (ancestors.length == 0 ||
         ancestors[ancestors.length - 1] != this._rootNode) {
       throw new Error("Removed node passed to _getRowForNode");
@@ -406,7 +406,7 @@ PlacesTreeView.prototype = {
       // However, if any of the node's ancestor is closed, the node is
       // invisible.
       let ancestors = PlacesUtils.nodeAncestors(aOldNode);
-      for (let ancestor in ancestors) {
+      for (let ancestor of ancestors) {
         if (!ancestor.containerOpen)
           return -1;
       }
@@ -452,7 +452,7 @@ PlacesTreeView.prototype = {
     for (let i = 0; i < aNodesInfo.length; i++) {
       let nodeInfo = aNodesInfo[i];
       let row = this._getNewRowForRemovedNode(aUpdatedContainer,
-                                              aNodesInfo[i].node);
+                                              nodeInfo.node);
       // Select the found node, if any.
       if (row != -1) {
         selection.rangedSelect(row, row, true);
@@ -465,9 +465,11 @@ PlacesTreeView.prototype = {
     // select the node at its old row, if any.
     if (aNodesInfo.length == 1 && selection.count == 0) {
       let row = Math.min(aNodesInfo[0].oldRow, this._rows.length - 1);
-      selection.rangedSelect(row, row, true);
-      if (aNodesInfo[0].wasVisible && scrollToRow == -1)
-        scrollToRow = aNodesInfo[0].oldRow;
+      if (row != -1) {
+        selection.rangedSelect(row, row, true);
+        if (aNodesInfo[0].wasVisible && scrollToRow == -1)
+          scrollToRow = aNodesInfo[0].oldRow;
+      }
     }
 
     if (scrollToRow != -1)
@@ -711,7 +713,8 @@ PlacesTreeView.prototype = {
 
     // Restore selection.
     let rowToSelect = Math.min(oldRow, this._rows.length - 1);
-    this.selection.rangedSelect(rowToSelect, rowToSelect, true);
+    if (rowToSelect != -1)
+      this.selection.rangedSelect(rowToSelect, rowToSelect, true);
   },
 
   nodeMoved:
@@ -1700,23 +1703,39 @@ PlacesTreeView.prototype = {
     if (aColumn.index != 0)
       return false;
 
-    // Only bookmark-nodes are editable, and those are never built lazily
     let node = this._rows[aRow];
-    if (!node || node.itemId == -1)
+    if (!node) {
+      Cu.reportError("isEditable called for an unbuilt row.");
+      return false;
+    }
+    let itemId = node.itemId;
+
+    // Only bookmark-nodes are editable.  Fortunately, this check also takes
+    // care of livemark children.
+    if (itemId == -1)
       return false;
 
-    // The following items are never editable:
-    // * Read-only items.
+    // The following items are also not editable, even though they are bookmark
+    // items.
     // * places-roots
+    // * the left pane special folders and queries (those are place: uri
+    //   bookmarks)
     // * separators
-    if (PlacesUtils.nodeIsReadOnly(node) ||
-        PlacesUtils.nodeIsSeparator(node))
+    //
+    // Note that concrete itemIds aren't used intentionally.  For example, we
+    // have no reason to disallow renaming a shortcut to the Bookmarks Toolbar,
+    // except for the one under All Bookmarks.
+    if (PlacesUtils.nodeIsSeparator(node) || PlacesUtils.isRootItem(itemId))
       return false;
 
-    if (PlacesUtils.nodeIsFolder(node)) {
-      let itemId = PlacesUtils.getConcreteItemId(node);
-      if (PlacesUtils.isRootItem(itemId))
-        return false;
+    let parentId = PlacesUtils.getConcreteItemId(node.parent);
+    if (parentId == PlacesUIUtils.leftPaneFolderId ||
+        parentId == PlacesUIUtils.allBookmarksFolderId) {
+      // Note that the for the time being this is the check that actually
+      // blocks renaming places "roots", and not the isRootItem check above.
+      // That's because places root are only exposed through folder shortcuts
+      // descendants of the left pane folder.
+      return false;
     }
 
     return true;

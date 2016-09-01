@@ -148,25 +148,23 @@
         if (className == "expertBadCert") {
           showSecuritySection();
         }
-        
-        // Remove the "Try again" button for errors where it's useless.
-        switch (err) {
-          case "malformedURI":
-          case "protocolNotFound":
-          case "unknownSocketType":
-          case "deniedPortAccess":
-          case "remoteXUL":
-          case "cspFrameAncestorBlocked":
-          case "nssBadCert":
-          case "xssBlockMode":
-            document.getElementById("errorTryAgain").style.display = 'none';
-            break;
-          default:
-            // Nothing to do on the page for retry-able errors
-            break;
+
+        if (err == "remoteXUL") {
+          // Remove the "Try again" button for remote XUL errors given that
+          // it is useless.
+          document.getElementById("errorTryAgain").style.display = "none";
+        }
+
+        if (err == "cspBlocked") {
+          // Remove the "Try again" button for CSP violations, since it's
+          // almost certainly useless. (Bug 553180)
+          document.getElementById("errorTryAgain").style.display = "none";
         }
 
         if (err == "nssBadCert") {
+          // Remove the "Try again" button for security exceptions, since it's
+          // almost certainly useless.
+          document.getElementById("errorTryAgain").style.display = "none";
           document.getElementById("errorPageContainer").setAttribute("class", "certerror");
           addDomainErrorLink();
         }
@@ -276,7 +274,7 @@
         <h1 id="et_dnsNotFound">&dnsNotFound.title;</h1>
         <h1 id="et_fileNotFound">&fileNotFound.title;</h1>
         <h1 id="et_malformedURI">&malformedURI.title;</h1>
-        <h1 id="et_protocolNotFound">&protocolNotFound.title;</h1>
+        <h1 id="et_unknownProtocolFound">&unknownProtocolFound.title;</h1>
         <h1 id="et_connectionFailure">&connectionFailure.title;</h1>
         <h1 id="et_netTimeout">&netTimeout.title;</h1>
         <h1 id="et_redirectLoop">&redirectLoop.title;</h1>
@@ -293,8 +291,7 @@
         <h1 id="et_nssFailure2">&nssFailure2.title;</h1>
         <h1 id="et_nssBadCert">&nssBadCert.title;</h1>
         <h1 id="et_malwareBlocked">&malwareBlocked.title;</h1>
-        <h1 id="et_cspFrameAncestorBlocked">&cspFrameAncestorBlocked.title;</h1>
-        <h1 id="et_xssBlockMode">&xssBlockMode.title;</h1>
+        <h1 id="et_cspBlocked">&cspBlocked.title;</h1>
         <h1 id="et_remoteXUL">&remoteXUL.title;</h1>
         <h1 id="et_corruptedContentError">&corruptedContentError.title;</h1>
       </div>
@@ -303,7 +300,7 @@
         <div id="ed_dnsNotFound">&dnsNotFound.longDesc;</div>
         <div id="ed_fileNotFound">&fileNotFound.longDesc;</div>
         <div id="ed_malformedURI">&malformedURI.longDesc;</div>
-        <div id="ed_protocolNotFound">&protocolNotFound.longDesc;</div>
+        <div id="ed_unknownProtocolFound">&unknownProtocolFound.longDesc;</div>
         <div id="ed_connectionFailure">&connectionFailure.longDesc;</div>
         <div id="ed_netTimeout">&netTimeout.longDesc;</div>
         <div id="ed_redirectLoop">&redirectLoop.longDesc;</div>
@@ -317,11 +314,10 @@
         <div id="ed_proxyConnectFailure">&proxyConnectFailure.longDesc;</div>
         <div id="ed_contentEncodingError">&contentEncodingError.longDesc;</div>
         <div id="ed_unsafeContentType">&unsafeContentType.longDesc;</div>
-        <div id="ed_nssFailure2">&nssFailure2.longDesc;</div>
+        <div id="ed_nssFailure2">&nssFailure2.longDesc2;</div>
         <div id="ed_nssBadCert">&nssBadCert.longDesc2;</div>
         <div id="ed_malwareBlocked">&malwareBlocked.longDesc;</div>
-        <div id="ed_cspFrameAncestorBlocked">&cspFrameAncestorBlocked.longDesc;</div>
-        <div id="ed_xssBlockMode">&xssBlockMode.longDesc;</div>
+        <div id="ed_cspBlocked">&cspBlocked.longDesc;</div>
         <div id="ed_remoteXUL">&remoteXUL.longDesc;</div>
         <div id="ed_corruptedContentError">&corruptedContentError.longDesc;</div>
       </div>

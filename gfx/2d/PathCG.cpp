@@ -7,6 +7,7 @@
 #include <math.h>
 #include "DrawTargetCG.h"
 #include "Logging.h"
+#include "PathHelpers.h"
 
 namespace mozilla {
 namespace gfx {
@@ -19,12 +20,19 @@ PathBuilderCG::~PathBuilderCG()
 void
 PathBuilderCG::MoveTo(const Point &aPoint)
 {
+  if (!aPoint.IsFinite()) {
+    return;
+  }
   CGPathMoveToPoint(mCGPath, nullptr, aPoint.x, aPoint.y);
 }
 
 void
 PathBuilderCG::LineTo(const Point &aPoint)
 {
+  if (!aPoint.IsFinite()) {
+    return;
+  }
+
   if (CGPathIsEmpty(mCGPath))
     MoveTo(aPoint);
   else
@@ -36,6 +44,9 @@ PathBuilderCG::BezierTo(const Point &aCP1,
                          const Point &aCP2,
                          const Point &aCP3)
 {
+  if (!aCP1.IsFinite() || !aCP2.IsFinite() || !aCP3.IsFinite()) {
+    return;
+  }
 
   if (CGPathIsEmpty(mCGPath))
     MoveTo(aCP1);
@@ -48,13 +59,17 @@ PathBuilderCG::BezierTo(const Point &aCP1,
 
 void
 PathBuilderCG::QuadraticBezierTo(const Point &aCP1,
-                                  const Point &aCP2)
+                                 const Point &aCP2)
 {
+  if (!aCP1.IsFinite() || !aCP2.IsFinite()) {
+    return;
+  }
+
   if (CGPathIsEmpty(mCGPath))
     MoveTo(aCP1);
   CGPathAddQuadCurveToPoint(mCGPath, nullptr,
-                              aCP1.x, aCP1.y,
-                              aCP2.x, aCP2.y);
+                            aCP1.x, aCP1.y,
+                            aCP2.x, aCP2.y);
 }
 
 void
@@ -68,13 +83,42 @@ void
 PathBuilderCG::Arc(const Point &aOrigin, Float aRadius, Float aStartAngle,
                  Float aEndAngle, bool aAntiClockwise)
 {
+  if (!aOrigin.IsFinite() || !IsFinite(aRadius) ||
+      !IsFinite(aStartAngle) || !IsFinite(aEndAngle)) {
+    return;
+  }
+
+  // Disabled for now due to a CG bug when using CGPathAddArc with stroke
+  // dashing and rotation transforms that are multiples of 90 degrees. See:
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=949661#c8
+#if 0
+  // Core Graphic's initial coordinate system is y-axis up, whereas Moz2D's is
+  // y-axis down. Core Graphics therefore considers "clockwise" to mean "sweep
+  // in the direction of decreasing angle" whereas Moz2D considers it to mean
+  // "sweep in the direction of increasing angle". In other words if this
+  // Moz2D method is instructed to sweep anti-clockwise we need to tell
+  // CGPathAddArc to sweep clockwise, and vice versa. Hence why we pass the
+  // value of aAntiClockwise directly to CGPathAddArc's "clockwise" bool
+  // parameter.
+  CGPathAddArc(mCGPath, nullptr,
+               aOrigin.x, aOrigin.y,
+               aRadius,
+               aStartAngle,
+               aEndAngle,
+               aAntiClockwise);
+#endif
+  ArcToBezier(this, aOrigin, Size(aRadius, aRadius), aStartAngle, aEndAngle,
+              aAntiClockwise);
 }
 
 Point
 PathBuilderCG::CurrentPoint() const
 {
-  CGPoint pt = CGPathGetCurrentPoint(mCGPath);
-  Point ret(pt.x, pt.y);
+  Point ret;
+  if (!CGPathIsEmpty(mCGPath)) {
+    CGPoint pt = CGPathGetCurrentPoint(mCGPath);
+    ret.MoveTo(pt.x, pt.y);
+  }
   return ret;
 }
 
@@ -86,16 +130,14 @@ PathBuilderCG::EnsureActive(const Point &aPoint)
 TemporaryRef<Path>
 PathBuilderCG::Finish()
 {
-  RefPtr<PathCG> path = new PathCG(mCGPath, mFillRule);
-  return path;
+  return new PathCG(mCGPath, mFillRule);
 }
 
 TemporaryRef<PathBuilder>
 PathCG::CopyToBuilder(FillRule aFillRule) const
 {
   CGMutablePathRef path = CGPathCreateMutableCopy(mPath);
-  RefPtr<PathBuilderCG> builder = new PathBuilderCG(path, aFillRule);
-  return builder;
+  return new PathBuilderCG(path, aFillRule);
 }
 
 
@@ -155,10 +197,57 @@ PathCG::TransformedCopyToBuilder(const Matrix &aTransform, FillRule aFillRule) c
   ta.transform = GfxMatrixToCGAffineTransform(aTransform);
 
   CGPathApply(mPath, &ta, TransformApplier::TranformCGPathApplierFunc);
-  RefPtr<PathBuilderCG> builder = new PathBuilderCG(ta.path, aFillRule);
-  return builder;
+  return new PathBuilderCG(ta.path, aFillRule);
 }
 
+static void
+StreamPathToSinkApplierFunc(void *vinfo, const CGPathElement *element)
+{
+  PathSink *sink = reinterpret_cast<PathSink*>(vinfo);
+  switch (element->type) {
+    case kCGPathElementMoveToPoint:
+      {
+        CGPoint pt = element->points[0];
+        sink->MoveTo(CGPointToPoint(pt));
+        break;
+      }
+    case kCGPathElementAddLineToPoint:
+      {
+        CGPoint pt = element->points[0];
+        sink->LineTo(CGPointToPoint(pt));
+        break;
+      }
+    case kCGPathElementAddQuadCurveToPoint:
+      {
+        CGPoint cpt = element->points[0];
+        CGPoint pt  = element->points[1];
+        sink->QuadraticBezierTo(CGPointToPoint(cpt),
+                                CGPointToPoint(pt));
+        break;
+      }
+    case kCGPathElementAddCurveToPoint:
+      {
+        CGPoint cpt1 = element->points[0];
+        CGPoint cpt2 = element->points[1];
+        CGPoint pt   = element->points[2];
+        sink->BezierTo(CGPointToPoint(cpt1),
+                       CGPointToPoint(cpt2),
+                       CGPointToPoint(pt));
+        break;
+      }
+    case kCGPathElementCloseSubpath:
+      {
+        sink->Close();
+        break;
+      }
+  }
+}
+
+void
+PathCG::StreamToSink(PathSink *aSink) const
+{
+  CGPathApply(mPath, aSink, StreamPathToSinkApplierFunc);
+}
 
 bool
 PathCG::ContainsPoint(const Point &aPoint, const Matrix &aTransform) const
@@ -171,7 +260,7 @@ PathCG::ContainsPoint(const Point &aPoint, const Matrix &aTransform) const
 
   // The transform parameter of CGPathContainsPoint doesn't seem to work properly on OS X 10.5
   // so we transform aPoint ourselves.
-  return CGPathContainsPoint(mPath, nullptr, point, mFillRule == FILL_EVEN_ODD);
+  return CGPathContainsPoint(mPath, nullptr, point, mFillRule == FillRule::FILL_EVEN_ODD);
 }
 
 static size_t
@@ -235,7 +324,8 @@ PathCG::GetBounds(const Matrix &aTransform) const
 {
   //XXX: are these bounds tight enough
   Rect bounds = CGRectToRect(CGPathGetBoundingBox(mPath));
-  //XXX: curretnly this returns the bounds of the transformed bounds
+
+  //XXX: currently this returns the bounds of the transformed bounds
   // this is strictly looser than the bounds of the transformed path
   return aTransform.TransformBounds(bounds);
 }
@@ -259,6 +349,10 @@ PathCG::GetStrokedBounds(const StrokeOptions &aStrokeOptions,
   Rect bounds = CGRectToRect(CGContextGetPathBoundingBox(cg));
 
   CGContextRestoreGState(cg);
+
+  if (!bounds.IsFinite()) {
+    return Rect();
+  }
 
   return aTransform.TransformBounds(bounds);
 }

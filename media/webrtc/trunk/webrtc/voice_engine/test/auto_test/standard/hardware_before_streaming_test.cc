@@ -8,15 +8,11 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <cstring>
+#include <string.h>
 
-#include "after_initialization_fixture.h"
+#include "webrtc/voice_engine/test/auto_test/fixtures/after_initialization_fixture.h"
 
 using namespace webrtc;
-
-static const char* kNoDevicesErrorMessage =
-    "Either you have no recording / playout device "
-    "on your system, or the method failed.";
 
 class HardwareBeforeStreamingTest : public AfterInitializationFixture {
 };
@@ -27,17 +23,6 @@ TEST_F(HardwareBeforeStreamingTest,
        SetAudioDeviceLayerFailsSinceTheVoiceEngineHasBeenInitialized) {
   EXPECT_NE(0, voe_hardware_->SetAudioDeviceLayer(kAudioPlatformDefault));
   EXPECT_EQ(VE_ALREADY_INITED, voe_base_->LastError());
-}
-
-TEST_F(HardwareBeforeStreamingTest,
-       GetCPULoadSucceedsOnWindowsButNotOtherPlatforms) {
-  int load_percent;
-#if defined(_WIN32)
-  EXPECT_EQ(0, voe_hardware_->GetCPULoad(load_percent));
-#else
-  EXPECT_NE(0, voe_hardware_->GetCPULoad(load_percent)) <<
-      "Should fail on non-Windows platforms.";
-#endif
 }
 
 // Tests that only apply to mobile:
@@ -51,16 +36,9 @@ TEST_F(HardwareBeforeStreamingTest, ResetsAudioDeviceOnIphone) {
 // Tests that only apply to desktop:
 #if !defined(WEBRTC_IOS) & !defined(WEBRTC_ANDROID)
 
-TEST_F(HardwareBeforeStreamingTest, GetSystemCpuLoadSucceeds) {
-#ifdef _WIN32
-  // This method needs some warm-up time on Windows. We sleep a good amount
-  // of time instead of retrying to make the test simpler.
-  Sleep(2000);
-#endif
-
-  int load_percent;
-  EXPECT_EQ(0, voe_hardware_->GetSystemCPULoad(load_percent));
-}
+static const char* kNoDevicesErrorMessage =
+    "Either you have no recording / playout device "
+    "on your system, or the method failed.";
 
 TEST_F(HardwareBeforeStreamingTest, GetPlayoutDeviceStatusReturnsTrue) {
   bool play_available = false;

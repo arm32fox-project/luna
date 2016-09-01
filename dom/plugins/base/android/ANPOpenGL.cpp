@@ -10,6 +10,7 @@
 #include "nsNPAPIPluginInstance.h"
 #include "nsPluginInstanceOwner.h"
 #include "GLContextProvider.h"
+#include "GLContextEGL.h"
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "GoannaPlugins" , ## args)
 #define ASSIGN(obj, name)   (obj)->name = anp_opengl_##name
@@ -24,10 +25,10 @@ static ANPEGLContext anp_opengl_acquireContext(NPP instance) {
 
     GLContext* context = pinst->GLContext();
     if (!context)
-        return NULL;
+        return nullptr;
 
     context->MakeCurrent();
-    return context->GetNativeData(GLContext::NativeGLContext);
+    return GLContextEGL::Cast(context)->GetEGLContext();
 }
 
 static ANPTextureInfo anp_opengl_lockTexture(NPP instance) {
@@ -59,10 +60,14 @@ static void anp_opengl_releaseTexture(NPP instance, const ANPTextureInfo* info) 
 }
 
 static void anp_opengl_invertPluginContent(NPP instance, bool isContentInverted) {
+    // OpenGL is BottomLeft if uninverted.
+    gl::OriginPos newOriginPos = gl::OriginPos::BottomLeft;
+    if (isContentInverted)
+        newOriginPos = gl::OriginPos::TopLeft;
+
     nsNPAPIPluginInstance* pinst = static_cast<nsNPAPIPluginInstance*>(instance->ndata);
 
-    // Our definition of inverted is the opposite of the plugin's
-    pinst->SetInverted(!isContentInverted);
+    pinst->SetOriginPos(newOriginPos);
     pinst->RedrawPlugin();
 }
 

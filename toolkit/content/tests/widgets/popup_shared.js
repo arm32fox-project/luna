@@ -210,6 +210,17 @@ function goNextStep()
 
 function goNext()
 {
+  // We want to continue after the next animation frame so that
+  // we're in a stable state and don't get spurious mouse events at unexpected targets.
+  window.requestAnimationFrame(
+    function() {
+      setTimeout(goNextStepSync, 0);
+    }
+  );
+}
+
+function goNextStepSync()
+{
   if (gTestIndex >= 0 && "end" in gPopupTests[gTestIndex] && gPopupTests[gTestIndex].end) {
     finish();
     return;
@@ -251,7 +262,7 @@ function openMenu(menu)
   }
   else {
     var bo = menu.boxObject;
-    if (bo instanceof SpecialPowers.Ci.nsIMenuBoxObject)
+    if (bo instanceof MenuBoxObject)
       bo.openMenu(true);
     else
       synthesizeMouse(menu, 4, 4, { });
@@ -265,7 +276,7 @@ function closeMenu(menu, popup)
   }
   else {
     var bo = menu.boxObject;
-    if (bo instanceof SpecialPowers.Ci.nsIMenuBoxObject)
+    if (bo instanceof MenuBoxObject)
       bo.openMenu(false);
     else
       popup.hidePopup();
@@ -292,7 +303,7 @@ function checkOpen(menuid, testname)
   var menu = document.getElementById(menuid);
   if ("open" in menu)
     ok(menu.open, testname + " " + menuid + " menu is open");
-  else if (menu.boxObject instanceof SpecialPowers.Ci.nsIMenuBoxObject)
+  else if (menu.boxObject instanceof MenuBoxObject)
     ok(menu.getAttribute("open") == "true", testname + " " + menuid + " menu is open");
 }
 
@@ -301,7 +312,7 @@ function checkClosed(menuid, testname)
   var menu = document.getElementById(menuid);
   if ("open" in menu)
     ok(!menu.open, testname + " " + menuid + " menu is open");
-  else if (menu.boxObject instanceof SpecialPowers.Ci.nsIMenuBoxObject)
+  else if (menu.boxObject instanceof MenuBoxObject)
     ok(!menu.hasAttribute("open"), testname + " " + menuid + " menu is closed");
 }
 

@@ -4,8 +4,6 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-interface WindowProxy;
-
 // http://www.w3.org/TR/1999/WD-DOM-Level-2-19990923/events.html#Events-KeyEvent
 interface KeyEvent
 {
@@ -15,7 +13,9 @@ interface KeyEvent
   const unsigned long DOM_VK_TAB            = 0x09;
   const unsigned long DOM_VK_CLEAR          = 0x0C;
   const unsigned long DOM_VK_RETURN         = 0x0D;
-  const unsigned long DOM_VK_ENTER          = 0x0E;
+  // DOM_VK_ENTER has been never used for representing native key events.
+  // Therefore, it's removed for preventing developers being confused.
+  // const unsigned long DOM_VK_ENTER          = 0x0E;
   const unsigned long DOM_VK_SHIFT          = 0x10;
   const unsigned long DOM_VK_CONTROL        = 0x11;
   const unsigned long DOM_VK_ALT            = 0x12;
@@ -228,7 +228,7 @@ interface KeyEvent
   void initKeyEvent(DOMString type,
                     boolean canBubble,
                     boolean cancelable,
-                    WindowProxy? view,
+                    Window? view,
                     boolean ctrlKey,
                     boolean altKey,
                     boolean shiftKey,

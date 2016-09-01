@@ -6,55 +6,81 @@ package org.mozilla.goanna;
 
 import org.mozilla.goanna.db.BrowserContract;
 import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.db.LocalBrowserDB;
+import org.mozilla.goanna.home.HomePanelsManager;
+import org.mozilla.goanna.lwt.LightweightTheme;
 import org.mozilla.goanna.mozglue.GoannaLoader;
 import org.mozilla.goanna.util.Clipboard;
 import org.mozilla.goanna.util.HardwareUtils;
 import org.mozilla.goanna.util.ThreadUtils;
 
 import android.app.Application;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
+import android.content.SharedPreferences;
+import android.content.res.Configuration;
+import android.util.Log;
 
-public class GoannaApplication extends Application {
+import java.io.File;
 
-    private boolean mInited;
+public class GoannaApplication extends Application 
+    implements ContextGetter {
+    private static final String LOG_TAG = "GoannaApplication";
+
+    private static volatile GoannaApplication instance;
+
     private boolean mInBackground;
     private boolean mPausedGoanna;
-    private boolean mNeedsRestart;
 
     private LightweightTheme mLightweightTheme;
 
-    protected void initialize() {
-        if (mInited)
-            return;
-
-        // workaround for http://code.google.com/p/android/issues/detail?id=20915
-        try {
-            Class.forName("android.os.AsyncTask");
-        } catch (ClassNotFoundException e) {}
-
-        mLightweightTheme = new LightweightTheme(this);
-
-        GoannaConnectivityReceiver.getInstance().init(getApplicationContext());
-        GoannaBatteryManager.getInstance().init(getApplicationContext());
-        GoannaBatteryManager.getInstance().start();
-        GoannaNetworkManager.getInstance().init(getApplicationContext());
-        MemoryMonitor.getInstance().init(getApplicationContext());
-
-        BroadcastReceiver receiver = new BroadcastReceiver() {
-            @Override
-            public void onReceive(Context context, Intent intent) {
-                mNeedsRestart = true;
-            }
-        };
-        registerReceiver(receiver, new IntentFilter(Intent.ACTION_LOCALE_CHANGED));
-
-        mInited = true;
+    public GoannaApplication() {
+        super();
+        instance = this;
     }
 
-    protected void onActivityPause(GoannaActivityStatus activity) {
+    public static GoannaApplication get() {
+        return instance;
+    }
+
+    @Override
+    public Context getContext() {
+        return this;
+    }
+
+    @Override
+    public SharedPreferences getSharedPreferences() {
+        return GoannaSharedPrefs.forApp(this);
+    }
+
+    /**
+     * We need to do locale work here, because we need to intercept
+     * each hit to onConfigurationChanged.
+     */
+    @Override
+    public void onConfigurationChanged(Configuration config) {
+        Log.d(LOG_TAG, "onConfigurationChanged: " + config.locale +
+                       ", background: " + mInBackground);
+
+        // Do nothing if we're in the background. It'll simply cause a loop
+        // (Bug 936756 Comment 11), and it's not necessary.
+        if (mInBackground) {
+            super.onConfigurationChanged(config);
+            return;
+        }
+
+        // Otherwise, correct the locale. This catches some cases that GoannaApp
+        // doesn't get a chance to.
+        try {
+            BrowserLocaleManager.getInstance().correctLocale(this, getResources(), config);
+        } catch (IllegalStateException ex) {
+            // GoannaApp hasn't started, so we have no ContextGetter in BrowserLocaleManager.
+            Log.w(LOG_TAG, "Couldn't correct locale.", ex);
+        }
+
+        super.onConfigurationChanged(config);
+    }
+
+    public void onActivityPause(GoannaActivityStatus activity) {
         mInBackground = true;
 
         if ((activity.isFinishing() == false) &&
@@ -67,11 +93,11 @@ public class GoannaApplication extends Application {
             GoannaAppShell.sendEventToGoanna(GoannaEvent.createAppBackgroundingEvent());
             mPausedGoanna = true;
 
+            final BrowserDB db = GoannaProfile.get(this).getDB();
             ThreadUtils.postToBackgroundThread(new Runnable() {
                 @Override
                 public void run() {
-                    BrowserDB.expireHistory(getContentResolver(),
-                                            BrowserContract.ExpirePriority.NORMAL);
+                    db.expireHistory(getContentResolver(), BrowserContract.ExpirePriority.NORMAL);
                 }
             });
         }
@@ -79,26 +105,52 @@ public class GoannaApplication extends Application {
         GoannaNetworkManager.getInstance().stop();
     }
 
-    protected void onActivityResume(GoannaActivityStatus activity) {
+    public void onActivityResume(GoannaActivityStatus activity) {
         if (mPausedGoanna) {
             GoannaAppShell.sendEventToGoanna(GoannaEvent.createAppForegroundingEvent());
             mPausedGoanna = false;
         }
-        GoannaConnectivityReceiver.getInstance().start();
-        GoannaNetworkManager.getInstance().start();
+
+        final Context applicationContext = getApplicationContext();
+        GoannaBatteryManager.getInstance().start(applicationContext);
+        GoannaConnectivityReceiver.getInstance().start(applicationContext);
+        GoannaNetworkManager.getInstance().start(applicationContext);
 
         mInBackground = false;
     }
 
-    protected boolean needsRestart() {
-        return mNeedsRestart;
-    }
-
     @Override
     public void onCreate() {
-        HardwareUtils.init(getApplicationContext());
-        Clipboard.init(getApplicationContext());
-        GoannaLoader.loadMozGlue(getApplicationContext());
+        final Context context = getApplicationContext();
+        HardwareUtils.init(context);
+        Clipboard.init(context);
+        FilePicker.init(context);
+        GoannaLoader.loadMozGlue(context);
+        DownloadsIntegration.init();
+        HomePanelsManager.getInstance().init(context);
+
+        // This getInstance call will force initialization of the NotificationHelper, but does nothing with the result
+        NotificationHelper.getInstance(context).init();
+
+        // Make sure that all browser-ish applications default to the real LocalBrowserDB.
+        // GoannaView consumers use their own Application class, so this doesn't affect them.
+        // WebappImpl overrides this on creation.
+        //
+        // We need to do this before any access to the profile; it controls
+        // which database class is used.
+        //
+        // As such, this needs to occur before the GoannaView in GoannaApp is inflated -- i.e., in the
+        // GoannaApp constructor or earlier -- because GoannaView implicitly accesses the profile. This is earlier!
+        GoannaProfile.setBrowserDBFactory(new BrowserDB.Factory() {
+            @Override
+            public BrowserDB get(String profileName, File profileDir) {
+                // Note that we don't use the profile directory -- we
+                // send operations to the ContentProvider, which does
+                // its own thing.
+                return new LocalBrowserDB(profileName);
+            }
+        });
+
         super.onCreate();
     }
 
@@ -108,5 +160,9 @@ public class GoannaApplication extends Application {
 
     public LightweightTheme getLightweightTheme() {
         return mLightweightTheme;
+    }
+
+    public void prepareLightweightTheme() {
+        mLightweightTheme = new LightweightTheme(this);
     }
 }

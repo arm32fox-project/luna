@@ -3,14 +3,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-// Make sure the order of included headers
+#include "nsAppShell.h"
+
 #include "base/basictypes.h"
-#include "nspr/prtypes.h"
 #include "base/message_loop.h"
 #include "base/task.h"
-
 #include "mozilla/Hal.h"
-#include "nsAppShell.h"
+#include "nsIScreen.h"
+#include "nsIScreenManager.h"
 #include "nsWindow.h"
 #include "nsThreadUtils.h"
 #include "nsICommandLineRunner.h"
@@ -19,14 +19,14 @@
 #include "nsIGeolocationProvider.h"
 #include "nsCacheService.h"
 #include "nsIDOMEventListener.h"
-#include "nsDOMNotifyPaintEvent.h"
 #include "nsIDOMClientRectList.h"
 #include "nsIDOMClientRect.h"
 #include "nsIDOMWakeLockListener.h"
 #include "nsIPowerManagerService.h"
-#include "nsFrameManager.h"
 #include "nsINetworkLinkService.h"
+#include "nsCategoryManagerUtils.h"
 
+#include "mozilla/BackgroundHangMonitor.h"
 #include "mozilla/Services.h"
 #include "mozilla/unused.h"
 #include "mozilla/Preferences.h"
@@ -34,11 +34,15 @@
 #include "prenv.h"
 
 #include "AndroidBridge.h"
+#include "AndroidBridgeUtilities.h"
 #include <android/log.h>
 #include <pthread.h>
 #include <wchar.h>
 
 #include "mozilla/dom/ScreenOrientation.h"
+#ifdef MOZ_GAMEPAD
+#include "mozilla/dom/GamepadService.h"
+#endif
 
 #include "GoannaProfiler.h"
 #ifdef MOZ_ANDROID_HISTORY
@@ -47,7 +51,6 @@
 #endif
 
 #ifdef MOZ_LOGGING
-#define FORCE_PR_LOG
 #include "prlog.h"
 #endif
 
@@ -68,7 +71,7 @@ nsAutoPtr<mozilla::AndroidGoannaEvent> gLastSizeChange;
 
 nsAppShell *nsAppShell::gAppShell = nullptr;
 
-NS_IMPL_ISUPPORTS_INHERITED1(nsAppShell, nsBaseAppShell, nsIObserver)
+NS_IMPL_ISUPPORTS_INHERITED(nsAppShell, nsBaseAppShell, nsIObserver)
 
 class ThumbnailRunnable : public nsRunnable {
 public:
@@ -77,25 +80,26 @@ public:
         mBrowserApp(aBrowserApp), mPoints(aPoints), mTabId(aTabId), mBuffer(aBuffer) {}
 
     virtual nsresult Run() {
-        jobject buffer = mBuffer->GetObject();
+        const auto& buffer = jni::Object::Ref::From(mBuffer->GetObject());
         nsCOMPtr<nsIDOMWindow> domWindow;
         nsCOMPtr<nsIBrowserTab> tab;
         mBrowserApp->GetBrowserTab(mTabId, getter_AddRefs(tab));
         if (!tab) {
-            AndroidBridge::Bridge()->SendThumbnail(buffer, mTabId, false);
+            widget::ThumbnailHelper::SendThumbnail(buffer, mTabId, false, false);
             return NS_ERROR_FAILURE;
         }
 
         tab->GetWindow(getter_AddRefs(domWindow));
         if (!domWindow) {
-            AndroidBridge::Bridge()->SendThumbnail(buffer, mTabId, false);
+            widget::ThumbnailHelper::SendThumbnail(buffer, mTabId, false, false);
             return NS_ERROR_FAILURE;
         }
 
         NS_ASSERTION(mPoints.Length() == 1, "Thumbnail event does not have enough coordinates");
 
-        nsresult rv = AndroidBridge::Bridge()->CaptureThumbnail(domWindow, mPoints[0].x, mPoints[0].y, mTabId, buffer);
-        AndroidBridge::Bridge()->SendThumbnail(buffer, mTabId, NS_SUCCEEDED(rv));
+        bool shouldStore = true;
+        nsresult rv = AndroidBridge::Bridge()->CaptureThumbnail(domWindow, mPoints[0].x, mPoints[0].y, mTabId, buffer, shouldStore);
+        widget::ThumbnailHelper::SendThumbnail(buffer, mTabId, NS_SUCCEEDED(rv), shouldStore);
         return rv;
     }
 private:
@@ -105,27 +109,28 @@ private:
     nsRefPtr<RefCountedJavaObject> mBuffer;
 };
 
-class WakeLockListener MOZ_FINAL : public nsIDOMMozWakeLockListener {
- public:
+class WakeLockListener final : public nsIDOMMozWakeLockListener {
+private:
+  ~WakeLockListener() {}
+
+public:
   NS_DECL_ISUPPORTS;
 
   nsresult Callback(const nsAString& topic, const nsAString& state) {
-    AndroidBridge::Bridge()->NotifyWakeLockChanged(topic, state);
+    widget::GoannaAppShell::NotifyWakeLockChanged(topic, state);
     return NS_OK;
   }
 };
 
-NS_IMPL_ISUPPORTS1(WakeLockListener, nsIDOMMozWakeLockListener)
+NS_IMPL_ISUPPORTS(WakeLockListener, nsIDOMMozWakeLockListener)
 nsCOMPtr<nsIPowerManagerService> sPowerManagerService = nullptr;
-nsCOMPtr<nsIDOMMozWakeLockListener> sWakeLockListener = nullptr;
+StaticRefPtr<WakeLockListener> sWakeLockListener;
 
 nsAppShell::nsAppShell()
     : mQueueLock("nsAppShell.mQueueLock"),
       mCondLock("nsAppShell.mCondLock"),
       mQueueCond(mCondLock, "nsAppShell.mQueueCond"),
-      mQueuedDrawEvent(nullptr),
-      mQueuedViewportEvent(nullptr),
-      mAllowCoalescingNextDraw(false)
+      mQueuedViewportEvent(nullptr)
 {
     gAppShell = this;
 
@@ -162,12 +167,8 @@ nsAppShell::NotifyNativeEvent()
     mQueueCond.Notify();
 }
 
-#define PREFNAME_MATCH_OS  "intl.locale.matchOS"
-#define PREFNAME_UA_LOCALE "general.useragent.locale"
 #define PREFNAME_COALESCE_TOUCHES "dom.event.touch.coalescing.enabled"
 static const char* kObservedPrefs[] = {
-  PREFNAME_MATCH_OS,
-  PREFNAME_UA_LOCALE,
   PREFNAME_COALESCE_TOUCHES,
   nullptr
 };
@@ -180,41 +181,18 @@ nsAppShell::Init()
         gWidgetLog = PR_NewLogModule("Widget");
 #endif
 
-    mObserversHash.Init();
-
     nsresult rv = nsBaseAppShell::Init();
-    AndroidBridge* bridge = AndroidBridge::Bridge();
-
     nsCOMPtr<nsIObserverService> obsServ =
         mozilla::services::GetObserverService();
     if (obsServ) {
         obsServ->AddObserver(this, "xpcom-shutdown", false);
+        obsServ->AddObserver(this, "browser-delayed-startup-finished", false);
     }
 
     if (sPowerManagerService)
         sPowerManagerService->AddWakeLockListener(sWakeLockListener);
 
-    if (!bridge)
-        return rv;
-
     Preferences::AddStrongObservers(this, kObservedPrefs);
-
-    bool match;
-    rv = Preferences::GetBool(PREFNAME_MATCH_OS, &match);
-    NS_ENSURE_SUCCESS(rv, rv);
-
-    if (match) {
-        bridge->SetSelectedLocale(EmptyString());
-        return NS_OK;
-    }
-
-    nsAutoString locale;
-    rv = Preferences::GetLocalizedString(PREFNAME_UA_LOCALE, &locale);
-    if (NS_FAILED(rv)) {
-        rv = Preferences::GetString(PREFNAME_UA_LOCALE, &locale);
-    }
-
-    bridge->SetSelectedLocale(locale);
     mAllowCoalescingTouches = Preferences::GetBool(PREFNAME_COALESCE_TOUCHES, true);
     return rv;
 }
@@ -222,44 +200,21 @@ nsAppShell::Init()
 NS_IMETHODIMP
 nsAppShell::Observe(nsISupports* aSubject,
                     const char* aTopic,
-                    const PRUnichar* aData)
+                    const char16_t* aData)
 {
     if (!strcmp(aTopic, "xpcom-shutdown")) {
         // We need to ensure no observers stick around after XPCOM shuts down
         // or we'll see crashes, as the app shell outlives XPConnect.
         mObserversHash.Clear();
         return nsBaseAppShell::Observe(aSubject, aTopic, aData);
-    } else if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID) && aData && (
-                   nsDependentString(aData).Equals(
-                       NS_LITERAL_STRING(PREFNAME_UA_LOCALE)) ||
-                   nsDependentString(aData).Equals(
-                       NS_LITERAL_STRING(PREFNAME_COALESCE_TOUCHES)) ||
-                   nsDependentString(aData).Equals(
-                       NS_LITERAL_STRING(PREFNAME_MATCH_OS)))) {
-        AndroidBridge* bridge = AndroidBridge::Bridge();
-        if (!bridge) {
-            return NS_OK;
-        }
-
-        bool match;
-        nsresult rv = Preferences::GetBool(PREFNAME_MATCH_OS, &match);
-        NS_ENSURE_SUCCESS(rv, rv);
-
-        if (match) {
-            bridge->SetSelectedLocale(EmptyString());
-            return NS_OK;
-        }
-
-        nsAutoString locale;
-        if (NS_FAILED(Preferences::GetLocalizedString(PREFNAME_UA_LOCALE,
-                                                      &locale))) {
-            locale = Preferences::GetString(PREFNAME_UA_LOCALE);
-        }
-
-        bridge->SetSelectedLocale(locale);
-
+    } else if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID) &&
+               aData &&
+               nsDependentString(aData).Equals(NS_LITERAL_STRING(PREFNAME_COALESCE_TOUCHES))) {
         mAllowCoalescingTouches = Preferences::GetBool(PREFNAME_COALESCE_TOUCHES, true);
         return NS_OK;
+    } else if (!strcmp(aTopic, "browser-delayed-startup-finished")) {
+        NS_CreateServicesFromCategory("browser-delayed-startup-finished", nullptr,
+                                      "browser-delayed-startup-finished");
     }
     return NS_OK;
 }
@@ -278,14 +233,18 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
 {
     EVLOG("nsAppShell::ProcessNextNativeEvent %d", mayWait);
 
-    PROFILER_LABEL("nsAppShell", "ProcessNextNativeEvent");
+    PROFILER_LABEL("nsAppShell", "ProcessNextNativeEvent",
+        js::ProfileEntry::Category::EVENTS);
+
     nsAutoPtr<AndroidGoannaEvent> curEvent;
     {
         MutexAutoLock lock(mCondLock);
 
         curEvent = PopNextEvent();
         if (!curEvent && mayWait) {
-            PROFILER_LABEL("nsAppShell::ProcessNextNativeEvent", "Wait");
+            PROFILER_LABEL("nsAppShell", "ProcessNextNativeEvent::Wait",
+                js::ProfileEntry::Category::EVENTS);
+
             // hmm, should we really hardcode this 10s?
 #if defined(DEBUG_ANDROID_EVENTS)
             PRTime t0, t1;
@@ -305,6 +264,8 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     if (!curEvent)
         return false;
 
+    mozilla::BackgroundHangMonitor().NotifyActivity();
+
     EVLOG("nsAppShell: event %p %d", (void*)curEvent.get(), curEvent->Type());
 
     switch (curEvent->Type()) {
@@ -312,19 +273,25 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         NativeEventCallback();
         break;
 
-    case AndroidGoannaEvent::SENSOR_EVENT:
-      {
+    case AndroidGoannaEvent::SENSOR_EVENT: {
         InfallibleTArray<float> values;
         mozilla::hal::SensorType type = (mozilla::hal::SensorType) curEvent->Flags();
 
         switch (type) {
+          // Bug 938035, transfer HAL data for orientation sensor to meet w3c
+          // spec, ex: HAL report alpha=90 means East but alpha=90 means West
+          // in w3c spec
           case hal::SENSOR_ORIENTATION:
+            values.AppendElement(360 -curEvent->X());
+            values.AppendElement(-curEvent->Y());
+            values.AppendElement(-curEvent->Z());
+            break;
           case hal::SENSOR_LINEAR_ACCELERATION:
           case hal::SENSOR_ACCELERATION:
           case hal::SENSOR_GYROSCOPE:
           case hal::SENSOR_PROXIMITY:
             values.AppendElement(curEvent->X());
-            values.AppendElement(curEvent->Y()); 
+            values.AppendElement(curEvent->Y());
             values.AppendElement(curEvent->Z());
             break;
 
@@ -343,6 +310,17 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         hal::NotifySensorChange(sdata);
       }
       break;
+
+    case AndroidGoannaEvent::PROCESS_OBJECT: {
+
+      switch (curEvent->Action()) {
+      case AndroidGoannaEvent::ACTION_OBJECT_LAYER_CLIENT:
+        AndroidBridge::Bridge()->SetLayerClient(
+                widget::GoannaLayerClient::Ref::From(curEvent->Object().wrappedObject()));
+        break;
+      }
+      break;
+    }
 
     case AndroidGoannaEvent::LOCATION_EVENT: {
         if (!gLocationCallback)
@@ -407,21 +385,43 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         if (!mBrowserApp)
             break;
 
-        AndroidBridge* bridge = AndroidBridge::Bridge();
-        if (!bridge)
-            break;
-
         int32_t tabId = curEvent->MetaState();
         const nsTArray<nsIntPoint>& points = curEvent->Points();
         RefCountedJavaObject* buffer = curEvent->ByteBuffer();
-        nsCOMPtr<ThumbnailRunnable> sr = new ThumbnailRunnable(mBrowserApp, tabId, points, buffer);
+        nsRefPtr<ThumbnailRunnable> sr = new ThumbnailRunnable(mBrowserApp, tabId, points, buffer);
         MessageLoop::current()->PostIdleTask(FROM_HERE, NewRunnableMethod(sr.get(), &ThumbnailRunnable::Run));
+        break;
+    }
+
+    case AndroidGoannaEvent::ZOOMEDVIEW: {
+        if (!mBrowserApp)
+            break;
+        int32_t tabId = curEvent->MetaState();
+        const nsTArray<nsIntPoint>& points = curEvent->Points();
+        float scaleFactor = (float) curEvent->X();
+        nsRefPtr<RefCountedJavaObject> javaBuffer = curEvent->ByteBuffer();
+        const auto& mBuffer = jni::Object::Ref::From(javaBuffer->GetObject());
+
+        nsCOMPtr<nsIDOMWindow> domWindow;
+        nsCOMPtr<nsIBrowserTab> tab;
+        mBrowserApp->GetBrowserTab(tabId, getter_AddRefs(tab));
+        if (!tab) {
+            NS_ERROR("Can't find tab!");
+            break;
+        }
+        tab->GetWindow(getter_AddRefs(domWindow));
+        if (!domWindow) {
+            NS_ERROR("Can't find dom window!");
+            break;
+        }
+        NS_ASSERTION(points.Length() == 2, "ZoomedView event does not have enough coordinates");
+        nsIntRect r(points[0].x, points[0].y, points[1].x, points[1].y);
+        AndroidBridge::Bridge()->CaptureZoomedView(domWindow, r, mBuffer, scaleFactor);
         break;
     }
 
     case AndroidGoannaEvent::VIEWPORT:
     case AndroidGoannaEvent::BROADCAST: {
-
         if (curEvent->Characters().Length() == 0)
             break;
 
@@ -432,6 +432,57 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         const nsPromiseFlatString& data = PromiseFlatString(curEvent->CharactersExtra());
 
         obsServ->NotifyObservers(nullptr, topic.get(), data.get());
+        break;
+    }
+
+    case AndroidGoannaEvent::TELEMETRY_UI_SESSION_STOP: {
+        if (curEvent->Characters().Length() == 0)
+            break;
+
+        nsCOMPtr<nsIUITelemetryObserver> obs;
+        mBrowserApp->GetUITelemetryObserver(getter_AddRefs(obs));
+        if (!obs)
+            break;
+
+        obs->StopSession(
+                nsString(curEvent->Characters()).get(),
+                nsString(curEvent->CharactersExtra()).get(),
+                curEvent->Time()
+                );
+        break;
+    }
+
+    case AndroidGoannaEvent::TELEMETRY_UI_SESSION_START: {
+        if (curEvent->Characters().Length() == 0)
+            break;
+
+        nsCOMPtr<nsIUITelemetryObserver> obs;
+        mBrowserApp->GetUITelemetryObserver(getter_AddRefs(obs));
+        if (!obs)
+            break;
+
+        obs->StartSession(
+                nsString(curEvent->Characters()).get(),
+                curEvent->Time()
+                );
+        break;
+    }
+
+    case AndroidGoannaEvent::TELEMETRY_UI_EVENT: {
+        if (curEvent->Data().Length() == 0)
+            break;
+
+        nsCOMPtr<nsIUITelemetryObserver> obs;
+        mBrowserApp->GetUITelemetryObserver(getter_AddRefs(obs));
+        if (!obs)
+            break;
+
+        obs->AddEvent(
+                nsString(curEvent->Data()).get(),
+                nsString(curEvent->Characters()).get(),
+                curEvent->Time(),
+                nsString(curEvent->CharactersExtra()).get()
+                );
         break;
     }
 
@@ -488,8 +539,9 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     }
 
     case AndroidGoannaEvent::NETWORK_CHANGED: {
-        hal::NotifyNetworkChange(hal::NetworkInformation(curEvent->Bandwidth(),
-                                                         curEvent->CanBeMetered()));
+        hal::NotifyNetworkChange(hal::NetworkInformation(curEvent->ConnectionType(),
+                                                         curEvent->IsWifi(),
+                                                         curEvent->DHCPGateway()));
         break;
     }
 
@@ -542,6 +594,27 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         AddObserver(curEvent->Characters(), curEvent->Observer());
         break;
 
+    case AndroidGoannaEvent::PREFERENCES_GET:
+    case AndroidGoannaEvent::PREFERENCES_OBSERVE: {
+        const nsTArray<nsString> &prefNames = curEvent->PrefNames();
+        size_t count = prefNames.Length();
+        nsAutoArrayPtr<const char16_t*> prefNamePtrs(new const char16_t*[count]);
+        for (size_t i = 0; i < count; ++i) {
+            prefNamePtrs[i] = prefNames[i].get();
+        }
+
+        if (curEvent->Type() == AndroidGoannaEvent::PREFERENCES_GET) {
+            mBrowserApp->GetPreferences(curEvent->RequestId(), prefNamePtrs, count);
+        } else {
+            mBrowserApp->ObservePreferences(curEvent->RequestId(), prefNamePtrs, count);
+        }
+        break;
+    }
+
+    case AndroidGoannaEvent::PREFERENCES_REMOVE_OBSERVERS:
+        mBrowserApp->RemovePreferenceObservers(curEvent->RequestId());
+        break;
+
     case AndroidGoannaEvent::LOW_MEMORY:
         // TODO hook in memory-reduction stuff for different levels here
         if (curEvent->MetaState() >= AndroidGoannaEvent::MEMORY_PRESSURE_MEDIUM) {
@@ -549,7 +622,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
             if (os) {
                 os->NotifyObservers(nullptr,
                                     "memory-pressure",
-                                    NS_LITERAL_STRING("low-memory").get());
+                                    MOZ_UTF16("low-memory"));
             }
         }
         break;
@@ -565,6 +638,54 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
         break;
     }
 
+    case AndroidGoannaEvent::TELEMETRY_HISTOGRAM_ADD:
+        Telemetry::Accumulate(NS_ConvertUTF16toUTF8(curEvent->Characters()).get(),
+                              curEvent->Count());
+        break;
+
+    case AndroidGoannaEvent::GAMEPAD_ADDREMOVE: {
+#ifdef MOZ_GAMEPAD
+        nsRefPtr<mozilla::dom::GamepadService> svc =
+            mozilla::dom::GamepadService::GetService();
+        if (svc) {
+            if (curEvent->Action() == AndroidGoannaEvent::ACTION_GAMEPAD_ADDED) {
+                int svc_id = svc->AddGamepad("android",
+                                             mozilla::dom::GamepadMappingType::Standard,
+                                             mozilla::dom::kStandardGamepadButtons,
+                                             mozilla::dom::kStandardGamepadAxes);
+                widget::GoannaAppShell::GamepadAdded(curEvent->ID(),
+                                                    svc_id);
+            } else if (curEvent->Action() == AndroidGoannaEvent::ACTION_GAMEPAD_REMOVED) {
+                svc->RemoveGamepad(curEvent->ID());
+            }
+        }
+#endif
+        break;
+    }
+
+    case AndroidGoannaEvent::GAMEPAD_DATA: {
+#ifdef MOZ_GAMEPAD
+        nsRefPtr<mozilla::dom::GamepadService> svc =
+            mozilla::dom::GamepadService::GetService();
+        if (svc) {
+            int id = curEvent->ID();
+            if (curEvent->Action() == AndroidGoannaEvent::ACTION_GAMEPAD_BUTTON) {
+                 svc->NewButtonEvent(id, curEvent->GamepadButton(),
+                                     curEvent->GamepadButtonPressed(),
+                                     curEvent->GamepadButtonValue());
+            } else if (curEvent->Action() == AndroidGoannaEvent::ACTION_GAMEPAD_AXES) {
+                int valid = curEvent->Flags();
+                const nsTArray<float>& values = curEvent->GamepadValues();
+                for (unsigned i = 0; i < values.Length(); i++) {
+                    if (valid & (1<<i)) {
+                        svc->NewAxisMoveEvent(id, i, values[i]);
+                    }
+                }
+            }
+        }
+#endif
+        break;
+    }
     case AndroidGoannaEvent::NOOP:
         break;
 
@@ -574,7 +695,7 @@ nsAppShell::ProcessNextNativeEvent(bool mayWait)
     }
 
     if (curEvent->AckNeeded()) {
-        AndroidBridge::Bridge()->AcknowledgeEvent();
+        widget::GoannaAppShell::AcknowledgeEvent();
     }
 
     EVLOG("nsAppShell: -- done event %p %d", (void*)curEvent.get(), curEvent->Type());
@@ -597,9 +718,7 @@ nsAppShell::PopNextEvent()
     if (mEventQueue.Length()) {
         ae = mEventQueue[0];
         mEventQueue.RemoveElementAt(0);
-        if (mQueuedDrawEvent == ae) {
-            mQueuedDrawEvent = nullptr;
-        } else if (mQueuedViewportEvent == ae) {
+        if (mQueuedViewportEvent == ae) {
             mQueuedViewportEvent = nullptr;
         }
     }
@@ -648,50 +767,6 @@ nsAppShell::PostEvent(AndroidGoannaEvent *ae)
             }
             break;
 
-        case AndroidGoannaEvent::DRAW:
-            if (mQueuedDrawEvent) {
-#if defined(DEBUG) || defined(FORCE_ALOG)
-                // coalesce this new draw event with the one already in the queue
-                const nsIntRect& oldRect = mQueuedDrawEvent->Rect();
-                const nsIntRect& newRect = ae->Rect();
-                nsIntRect combinedRect = oldRect.Union(newRect);
-
-                // XXX We may want to consider using regions instead of rectangles.
-                //     Print an error if we're upload a lot more than we would
-                //     if we handled this as two separate events.
-                int combinedArea = (oldRect.width * oldRect.height) +
-                                   (newRect.width * newRect.height);
-                int boundsArea = combinedRect.width * combinedRect.height;
-                if (boundsArea > combinedArea * 8)
-                    ALOG("nsAppShell: Area of bounds greatly exceeds combined area: %d > %d",
-                         boundsArea, combinedArea);
-#endif
-
-                // coalesce into the new draw event rather than the queued one because
-                // it is not always safe to move draws earlier in the queue; there may
-                // be events between the two draws that affect scroll position or something.
-                ae->UnionRect(mQueuedDrawEvent->Rect());
-
-                EVLOG("nsAppShell: Coalescing previous DRAW event at %p into new DRAW event %p", mQueuedDrawEvent, ae);
-                mEventQueue.RemoveElement(mQueuedDrawEvent);
-                delete mQueuedDrawEvent;
-            }
-
-            if (!mAllowCoalescingNextDraw) {
-                // if we're not allowing coalescing of this draw event, then
-                // don't set mQueuedDrawEvent to point to this; that way the
-                // next draw event that comes in won't kill this one.
-                mAllowCoalescingNextDraw = true;
-                mQueuedDrawEvent = nullptr;
-            } else {
-                mQueuedDrawEvent = ae;
-            }
-
-            allowCoalescingNextViewport = true;
-
-            mEventQueue.AppendElement(ae);
-            break;
-
         case AndroidGoannaEvent::VIEWPORT:
             if (mQueuedViewportEvent) {
                 // drop the previous viewport event now that we have a new one
@@ -700,25 +775,21 @@ nsAppShell::PostEvent(AndroidGoannaEvent *ae)
                 delete mQueuedViewportEvent;
             }
             mQueuedViewportEvent = ae;
-            // temporarily turn off draw-coalescing, so that we process a draw
-            // event as soon as possible after a viewport change
-            mAllowCoalescingNextDraw = false;
             allowCoalescingNextViewport = true;
 
             mEventQueue.AppendElement(ae);
             break;
 
         case AndroidGoannaEvent::MOTION_EVENT:
-            if (ae->Action() == AndroidMotionEvent::ACTION_MOVE && mAllowCoalescingTouches) {
+        case AndroidGoannaEvent::APZ_INPUT_EVENT:
+            if (mAllowCoalescingTouches && mEventQueue.Length() > 0) {
                 int len = mEventQueue.Length();
-                if (len > 0) {
-                    AndroidGoannaEvent* event = mEventQueue[len - 1];
-                    if (event->Type() == AndroidGoannaEvent::MOTION_EVENT && event->Action() == AndroidMotionEvent::ACTION_MOVE) {
-                        // consecutive motion-move events; drop the last one before adding the new one
-                        EVLOG("nsAppShell: Dropping old move event at %p in favour of new move event %p", event, ae);
-                        mEventQueue.RemoveElementAt(len - 1);
-                        delete event;
-                    }
+                AndroidGoannaEvent* event = mEventQueue[len - 1];
+                if (ae->CanCoalesceWith(event)) {
+                    // consecutive motion-move events; drop the last one before adding the new one
+                    EVLOG("nsAppShell: Dropping old move event at %p in favour of new move event %p", event, ae);
+                    mEventQueue.RemoveElementAt(len - 1);
+                    delete event;
                 }
             }
             mEventQueue.AppendElement(ae);
@@ -760,12 +831,18 @@ namespace mozilla {
 
 bool ProcessNextEvent()
 {
+    if (!nsAppShell::gAppShell) {
+        return false;
+    }
+
     return nsAppShell::gAppShell->ProcessNextNativeEvent(true) ? true : false;
 }
 
 void NotifyEvent()
 {
-    nsAppShell::gAppShell->NotifyNativeEvent();
+    if (nsAppShell::gAppShell) {
+        nsAppShell::gAppShell->NotifyNativeEvent();
+    }
 }
 
 }

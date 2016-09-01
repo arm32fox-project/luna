@@ -10,10 +10,12 @@
  * liability, trademark and document use rules apply.
  */
 
-[PrefControlled]
 interface DelayNode : AudioNode {
 
     readonly attribute AudioParam delayTime;
 
 };
+
+// Mozilla extension
+DelayNode implements AudioNodePassThrough;
 

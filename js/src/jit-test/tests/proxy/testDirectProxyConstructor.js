@@ -1,7 +1,7 @@
 load(libdir + "asserts.js");
 
-// Throw a TypeError if Proxy is called as a function
-assertThrowsInstanceOf(function () { Proxy(); }, TypeError);
+// Throw a TypeError if Proxy is not called as a constructor
+assertThrowsInstanceOf(function () { Proxy({}, {}); }, TypeError);
 
 // Throw a TypeError if Proxy is called with less than two arguments
 assertThrowsInstanceOf(function () { new Proxy(); }, TypeError);

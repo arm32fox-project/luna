@@ -1,6 +1,6 @@
 // Basic getOwnPropertyNames tests.
 
-var g = newGlobal('new-compartment');
+var g = newGlobal();
 var dbg = Debugger();
 var gobj = dbg.addDebuggee(g);
 
@@ -26,3 +26,8 @@ test("[0, 1, 2]");
 test("[,,,,,]");
 test("/a*a/");
 test("function () {}");
+test("(function () {\n" +
+     "    var x = {};\n" +
+     "    x[Symbol()] = 1; x[Symbol.for('moon')] = 2; x[Symbol.iterator] = 3;\n" +
+     "    return x;\n" + 
+     "})()");

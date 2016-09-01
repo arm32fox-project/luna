@@ -20,7 +20,7 @@
 #define NS_KEYMODULEOBJECTFACTORY_CONTRACTID \
 "@mozilla.org/security/keyobjectfactory;1"
 
-class nsKeyObject MOZ_FINAL : public nsIKeyObject
+class nsKeyObject final : public nsIKeyObject
 {
 public:
   nsKeyObject();
@@ -47,12 +47,12 @@ private:
 };
 
 
-class nsKeyObjectFactory MOZ_FINAL : public nsIKeyObjectFactory
+class nsKeyObjectFactory final : public nsIKeyObjectFactory
 {
 public:
   nsKeyObjectFactory();
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIKEYOBJECTFACTORY
 
 private:

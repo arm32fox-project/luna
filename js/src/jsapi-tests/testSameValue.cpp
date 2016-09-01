@@ -5,8 +5,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-
-#include "tests.h"
+#include "jsapi-tests/tests.h"
 
 BEGIN_TEST(testSameValue)
 {
@@ -18,9 +17,9 @@ BEGIN_TEST(testSameValue)
      * double, and this is believed to be the only way to make such a
      * comparison possible.
      */
-    jsval v1 = DOUBLE_TO_JSVAL(0.0);
-    jsval v2 = DOUBLE_TO_JSVAL(-0.0);
-    JSBool same;
+    JS::RootedValue v1(cx, JS::DoubleValue(0.0));
+    JS::RootedValue v2(cx, JS::DoubleValue(-0.0));
+    bool same;
     CHECK(JS_SameValue(cx, v1, v2, &same));
     CHECK(!same);
     return true;

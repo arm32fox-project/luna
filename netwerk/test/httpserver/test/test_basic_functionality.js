@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -8,21 +8,28 @@
  * Basic functionality test, from the client programmer's POV.
  */
 
-var tests =
-  [
-   new Test("http://localhost:4444/objHandler",
-            null, start_objHandler, null),
-   new Test("http://localhost:4444/functionHandler",
-            null, start_functionHandler, null),
-   new Test("http://localhost:4444/nonexistent-path",
-            null, start_non_existent_path, null),
-   new Test("http://localhost:4444/lotsOfHeaders",
-            null, start_lots_of_headers, null),
+XPCOMUtils.defineLazyGetter(this, "port", function() {
+  return srv.identity.primaryPort;
+});
+
+XPCOMUtils.defineLazyGetter(this, "tests", function() {
+  return [
+    new Test("http://localhost:" + port + "/objHandler",
+          null, start_objHandler, null),
+    new Test("http://localhost:" + port + "/functionHandler",
+          null, start_functionHandler, null),
+    new Test("http://localhost:" + port + "/nonexistent-path",
+          null, start_non_existent_path, null),
+    new Test("http://localhost:" + port + "/lotsOfHeaders",
+          null, start_lots_of_headers, null),
   ];
+});
+
+var srv;
 
 function run_test()
 {
-  var srv = createServer();
+  srv = createServer();
 
   // base path
   // XXX should actually test this works with a file by comparing streams!
@@ -36,7 +43,7 @@ function run_test()
   srv.registerPathHandler("/functionHandler", functionHandler);
   srv.registerPathHandler("/lotsOfHeaders", lotsOfHeadersHandler);
 
-  srv.start(4444);
+  srv.start(-1);
 
   runHttpTests(tests, testComplete(srv));
 }
@@ -52,6 +59,7 @@ function commonCheck(ch)
   do_check_true(ch.contentLength > -1);
   do_check_eq(ch.getResponseHeader("connection"), "close");
   do_check_false(ch.isNoStoreResponse());
+  do_check_false(ch.isPrivateResponse());
 }
 
 function start_objHandler(ch, cx)
@@ -118,13 +126,13 @@ var objHandler =
       var body = "Request (slightly reformatted):\n\n";
       body += metadata.method + " " + metadata.path;
 
-      do_check_eq(metadata.port, 4444);
+      do_check_eq(metadata.port, port);
 
       if (metadata.queryString)
         body +=  "?" + metadata.queryString;
 
       body += " HTTP/" + metadata.httpVersion + "\n";
-        
+
       var headEnum = metadata.headers;
       while (headEnum.hasMoreElements())
       {
@@ -150,7 +158,7 @@ function functionHandler(metadata, response)
   response.setStatusLine("1.1", 404, "Page Not Found");
   response.setHeader("foopy", "quux-baz", false);
 
-  do_check_eq(metadata.port, 4444);
+  do_check_eq(metadata.port, port);
   do_check_eq(metadata.host, "localhost");
   do_check_eq(metadata.path.charAt(0), "/");
 

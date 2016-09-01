@@ -7,218 +7,18 @@
 #ifndef jit_Ion_h
 #define jit_Ion_h
 
-#ifdef JS_ION
+#include "mozilla/MemoryReporting.h"
 
 #include "jscntxt.h"
 #include "jscompartment.h"
-#include "IonCode.h"
-#include "CompileInfo.h"
-#include "jsinfer.h"
 
-#include "vm/Interpreter.h"
+#include "jit/CompileWrappers.h"
+#include "jit/JitOptions.h"
 
 namespace js {
 namespace jit {
 
 class TempAllocator;
-
-// Possible register allocators which may be used.
-enum IonRegisterAllocator {
-    RegisterAllocator_LSRA,
-    RegisterAllocator_Backtracking,
-    RegisterAllocator_Stupid
-};
-
-struct IonOptions
-{
-    // Toggles whether global value numbering is used.
-    //
-    // Default: true
-    bool gvn;
-
-    // Toggles whether global value numbering is optimistic (true) or
-    // pessimistic (false).
-    //
-    // Default: true
-    bool gvnIsOptimistic;
-
-    // Toggles whether loop invariant code motion is performed.
-    //
-    // Default: true
-    bool licm;
-
-    // Toggles whether functions may be entered at loop headers.
-    //
-    // Default: true
-    bool osr;
-
-    // Toggles whether large scripts are rejected.
-    //
-    // Default: true
-    bool limitScriptSize;
-
-    // Describes which register allocator to use.
-    //
-    // Default: LSRA
-    IonRegisterAllocator registerAllocator;
-
-    // Toggles whether inlining is performed.
-    //
-    // Default: true
-    bool inlining;
-
-    // Toggles whether Edge Case Analysis is used.
-    //
-    // Default: true
-    bool edgeCaseAnalysis;
-
-    // Toggles whether Range Analysis is used.
-    //
-    // Default: true
-    bool rangeAnalysis;
-
-    // Toggles whether Unreachable Code Elimination is performed.
-    //
-    // Default: true
-    bool uce;
-
-    // Toggles whether Effective Address Analysis is performed.
-    //
-    // Default: true
-    bool eaa;
-
-    // Toggles whether compilation occurs off the main thread.
-    //
-    // Default: true iff there are at least two CPUs available
-    bool parallelCompilation;
-
-    // How many invocations or loop iterations are needed before functions
-    // are compiled with the baseline compiler.
-    //
-    // Default: 10
-    uint32_t baselineUsesBeforeCompile;
-
-    // How many invocations or loop iterations are needed before functions
-    // are compiled.
-    //
-    // Default: 1,000
-    uint32_t usesBeforeCompile;
-
-    // How many invocations or loop iterations are needed before calls
-    // are inlined, as a fraction of usesBeforeCompile.
-    //
-    // Default: .125
-    double usesBeforeInliningFactor;
-
-    // How many times we will try to enter a script via OSR before
-    // invalidating the script.
-    //
-    // Default: 6,000
-    uint32_t osrPcMismatchesBeforeRecompile;
-
-    // Number of bailouts without invalidation before we set
-    // JSScript::hadFrequentBailouts and invalidate.
-    //
-    // Default: 10
-    uint32_t frequentBailoutThreshold;
-
-    // How many actual arguments are accepted on the C stack.
-    //
-    // Default: 4,096
-    uint32_t maxStackArgs;
-
-    // The maximum inlining depth.
-    //
-    // Default: 3
-    uint32_t maxInlineDepth;
-
-    // The maximum inlining depth for functions.
-    //
-    // Inlining small functions has almost no compiling overhead
-    // and removes the otherwise needed call overhead.
-    // The value is currently very low.
-    // Actually it is only needed to make sure we don't blow out the stack.
-    //
-    // Default: 10
-    uint32_t smallFunctionMaxInlineDepth;
-
-    // The bytecode length limit for small function.
-    //
-    // The default for this was arrived at empirically via benchmarking.
-    // We may want to tune it further after other optimizations have gone
-    // in.
-    //
-    // Default: 100
-    uint32_t smallFunctionMaxBytecodeLength;
-
-    // The maximum number of functions to polymorphically inline at a call site.
-    //
-    // Default: 4
-    uint32_t polyInlineMax;
-
-    // The maximum total bytecode size of an inline call site.
-    //
-    // Default: 1000
-    uint32_t inlineMaxTotalBytecodeLength;
-
-    // Minimal ratio between the use counts of the caller and the callee to
-    // enable inlining of functions.
-    //
-    // Default: 128
-    uint32_t inlineUseCountRatio;
-
-    // Whether functions are compiled immediately.
-    //
-    // Default: false
-    bool eagerCompilation;
-
-    // How many uses of a parallel kernel before we attempt compilation.
-    //
-    // Default: 1
-    uint32_t usesBeforeCompileParallel;
-
-    void setEagerCompilation() {
-        eagerCompilation = true;
-        usesBeforeCompile = 0;
-        baselineUsesBeforeCompile = 0;
-
-        parallelCompilation = false;
-    }
-
-    IonOptions()
-      : gvn(true),
-        gvnIsOptimistic(true),
-        licm(true),
-        osr(true),
-        limitScriptSize(true),
-        registerAllocator(RegisterAllocator_LSRA),
-        inlining(true),
-        edgeCaseAnalysis(true),
-        rangeAnalysis(true),
-        uce(true),
-        eaa(true),
-        parallelCompilation(false),
-        baselineUsesBeforeCompile(10),
-        usesBeforeCompile(1000),
-        usesBeforeInliningFactor(.125),
-        osrPcMismatchesBeforeRecompile(6000),
-        frequentBailoutThreshold(10),
-        maxStackArgs(4096),
-        maxInlineDepth(3),
-        smallFunctionMaxInlineDepth(10),
-        smallFunctionMaxBytecodeLength(100),
-        polyInlineMax(4),
-        inlineMaxTotalBytecodeLength(1000),
-        inlineUseCountRatio(128),
-        eagerCompilation(false),
-        usesBeforeCompileParallel(1)
-    {
-    }
-
-    uint32_t usesBeforeInlining() {
-        return usesBeforeCompile * usesBeforeInliningFactor;
-    }
-};
 
 enum MethodStatus
 {
@@ -231,131 +31,176 @@ enum MethodStatus
 enum AbortReason {
     AbortReason_Alloc,
     AbortReason_Inlining,
+    AbortReason_NewScriptProperties,
     AbortReason_Disable,
+    AbortReason_Error,
     AbortReason_NoAbort
 };
 
-// An Ion context is needed to enter into either an Ion method or an instance
-// of the Ion compiler. It points to a temporary allocator and the active
-// JSContext, either of which may be NULL, and the active compartment, which
-// will not be NULL.
+// A JIT context is needed to enter into either an JIT method or an instance
+// of a JIT compiler. It points to a temporary allocator and the active
+// JSContext, either of which may be nullptr, and the active compartment, which
+// will not be nullptr.
 
-class IonContext
+class JitContext
 {
   public:
-    IonContext(JSContext *cx, TempAllocator *temp);
-    IonContext(JSCompartment *comp, TempAllocator *temp);
-    IonContext(JSRuntime *rt);
-    ~IonContext();
+    JitContext(JSContext* cx, TempAllocator* temp);
+    JitContext(ExclusiveContext* cx, TempAllocator* temp);
+    JitContext(CompileRuntime* rt, CompileCompartment* comp, TempAllocator* temp);
+    explicit JitContext(CompileRuntime* rt);
+    ~JitContext();
 
-    JSRuntime *runtime;
-    JSContext *cx;
-    JSCompartment *compartment;
-    TempAllocator *temp;
+    // Running context when executing on the main thread. Not available during
+    // compilation.
+    JSContext* cx;
+
+    // Allocator for temporary memory during compilation.
+    TempAllocator* temp;
+
+    // Wrappers with information about the current runtime/compartment for use
+    // during compilation.
+    CompileRuntime* runtime;
+    CompileCompartment* compartment;
+
     int getNextAssemblerId() {
         return assemblerCount_++;
     }
   private:
-    IonContext *prev_;
+    JitContext* prev_;
     int assemblerCount_;
 };
-
-extern IonOptions js_IonOptions;
 
 // Initialize Ion statically for all JSRuntimes.
 bool InitializeIon();
 
-// Get and set the current Ion context.
-IonContext *GetIonContext();
-IonContext *MaybeGetIonContext();
+// Get and set the current JIT context.
+JitContext* GetJitContext();
+JitContext* MaybeGetJitContext();
 
-bool SetIonContext(IonContext *ctx);
+void SetJitContext(JitContext* ctx);
 
-bool CanIonCompileScript(JSContext *cx, HandleScript script, bool osr);
+bool CanIonCompileScript(JSContext* cx, JSScript* script, bool osr);
 
-MethodStatus CanEnterAtBranch(JSContext *cx, JSScript *script,
-                              BaselineFrame *frame, jsbytecode *pc, bool isConstructing);
-MethodStatus CanEnter(JSContext *cx, RunState &state);
-MethodStatus CompileFunctionForBaseline(JSContext *cx, HandleScript script, BaselineFrame *frame,
-                                        bool isConstructing);
-MethodStatus CanEnterUsingFastInvoke(JSContext *cx, HandleScript script, uint32_t numActualArgs);
+MethodStatus CanEnterAtBranch(JSContext* cx, JSScript* script,
+                              BaselineFrame* frame, jsbytecode* pc);
+MethodStatus CanEnter(JSContext* cx, RunState& state);
+MethodStatus CompileFunctionForBaseline(JSContext* cx, HandleScript script, BaselineFrame* frame);
+MethodStatus CanEnterUsingFastInvoke(JSContext* cx, HandleScript script, uint32_t numActualArgs);
 
-MethodStatus CanEnterInParallel(JSContext *cx, HandleScript script);
+MethodStatus
+Recompile(JSContext* cx, HandleScript script, BaselineFrame* osrFrame, jsbytecode* osrPc,
+          bool constructing, bool force);
 
-enum IonExecStatus
+enum JitExecStatus
 {
     // The method call had to be aborted due to a stack limit check. This
     // error indicates that Ion never attempted to clean up frames.
-    IonExec_Aborted,
+    JitExec_Aborted,
 
     // The method call resulted in an error, and IonMonkey has cleaned up
     // frames.
-    IonExec_Error,
+    JitExec_Error,
 
-    // The method call succeeed and returned a value.
-    IonExec_Ok
+    // The method call succeeded and returned a value.
+    JitExec_Ok
 };
 
 static inline bool
-IsErrorStatus(IonExecStatus status)
+IsErrorStatus(JitExecStatus status)
 {
-    return status == IonExec_Error || status == IonExec_Aborted;
+    return status == JitExec_Error || status == JitExec_Aborted;
 }
 
 struct EnterJitData;
 
-bool SetEnterJitData(JSContext *cx, EnterJitData &data, RunState &state, AutoValueVector &vals);
+bool SetEnterJitData(JSContext* cx, EnterJitData& data, RunState& state, AutoValueVector& vals);
 
-IonExecStatus Cannon(JSContext *cx, RunState &state);
+JitExecStatus IonCannon(JSContext* cx, RunState& state);
 
 // Used to enter Ion from C++ natives like Array.map. Called from FastInvokeGuard.
-IonExecStatus FastInvoke(JSContext *cx, HandleFunction fun, CallArgs &args);
+JitExecStatus FastInvoke(JSContext* cx, HandleFunction fun, CallArgs& args);
 
 // Walk the stack and invalidate active Ion frames for the invalid scripts.
-void Invalidate(types::TypeCompartment &types, FreeOp *fop,
-                const Vector<types::RecompileInfo> &invalid, bool resetUses = true);
-void Invalidate(JSContext *cx, const Vector<types::RecompileInfo> &invalid, bool resetUses = true);
-bool Invalidate(JSContext *cx, JSScript *script, ExecutionMode mode, bool resetUses = true);
-bool Invalidate(JSContext *cx, JSScript *script, bool resetUses = true);
+void Invalidate(TypeZone& types, FreeOp* fop,
+                const RecompileInfoVector& invalid, bool resetUses = true,
+                bool cancelOffThread = true);
+void Invalidate(JSContext* cx, const RecompileInfoVector& invalid, bool resetUses = true,
+                bool cancelOffThread = true);
+bool Invalidate(JSContext* cx, JSScript* script, bool resetUses = true,
+                bool cancelOffThread = true);
 
-void MarkValueFromIon(JSRuntime *rt, Value *vp);
-void MarkShapeFromIon(JSRuntime *rt, Shape **shapep);
-
-void ToggleBarriers(JS::Zone *zone, bool needs);
+void ToggleBarriers(JS::Zone* zone, bool needs);
 
 class IonBuilder;
 class MIRGenerator;
 class LIRGraph;
 class CodeGenerator;
 
-bool OptimizeMIR(MIRGenerator *mir);
-LIRGraph *GenerateLIR(MIRGenerator *mir);
-CodeGenerator *GenerateCode(MIRGenerator *mir, LIRGraph *lir, MacroAssembler *maybeMasm = NULL);
-CodeGenerator *CompileBackEnd(MIRGenerator *mir, MacroAssembler *maybeMasm = NULL);
+bool OptimizeMIR(MIRGenerator* mir);
+LIRGraph* GenerateLIR(MIRGenerator* mir);
+CodeGenerator* GenerateCode(MIRGenerator* mir, LIRGraph* lir);
+CodeGenerator* CompileBackEnd(MIRGenerator* mir);
 
-void AttachFinishedCompilations(JSContext *cx);
-void FinishOffThreadBuilder(IonBuilder *builder);
+void AttachFinishedCompilations(JSContext* cx);
+void FinishOffThreadBuilder(JSContext* cx, IonBuilder* builder);
+void StopAllOffThreadCompilations(Zone* zone);
+void StopAllOffThreadCompilations(JSCompartment* comp);
+
+uint8_t* LazyLinkTopActivation(JSContext* cx);
 
 static inline bool
-IsIonEnabled(JSContext *cx)
+IsIonEnabled(JSContext* cx)
 {
-    return cx->hasOption(JSOPTION_ION) &&
-        cx->hasOption(JSOPTION_BASELINE) &&
-        cx->typeInferenceEnabled();
+#ifdef JS_CODEGEN_NONE
+    return false;
+#else
+    return cx->runtime()->options().ion() &&
+           cx->runtime()->options().baseline() &&
+           cx->runtime()->jitSupportsFloatingPoint;
+#endif
 }
 
-void ForbidCompilation(JSContext *cx, JSScript *script);
-void ForbidCompilation(JSContext *cx, JSScript *script, ExecutionMode mode);
-uint32_t UsesBeforeIonRecompile(JSScript *script, jsbytecode *pc);
+inline bool
+IsIonInlinablePC(jsbytecode* pc) {
+    // CALL, FUNCALL, FUNAPPLY, EVAL, NEW (Normal Callsites)
+    // GETPROP, CALLPROP, and LENGTH. (Inlined Getters)
+    // SETPROP, SETNAME, SETGNAME (Inlined Setters)
+    return IsCallPC(pc) || IsGetPropPC(pc) || IsSetPropPC(pc);
+}
 
-void PurgeCaches(JSScript *script, JS::Zone *zone);
-size_t SizeOfIonData(JSScript *script, JSMallocSizeOfFun mallocSizeOf);
-void DestroyIonScripts(FreeOp *fop, JSScript *script);
-void TraceIonScripts(JSTracer* trc, JSScript *script);
+inline bool
+TooManyActualArguments(unsigned nargs)
+{
+    return nargs > js_JitOptions.maxStackArgs;
+}
+
+inline bool
+TooManyFormalArguments(unsigned nargs)
+{
+    return nargs >= SNAPSHOT_MAX_NARGS || TooManyActualArguments(nargs);
+}
+
+inline size_t
+NumLocalsAndArgs(JSScript* script)
+{
+    size_t num = 1 /* this */ + script->nfixed();
+    if (JSFunction* fun = script->functionNonDelazifying())
+        num += fun->nargs();
+    return num;
+}
+
+void ForbidCompilation(JSContext* cx, JSScript* script);
+
+void PurgeCaches(JSScript* script);
+size_t SizeOfIonData(JSScript* script, mozilla::MallocSizeOf mallocSizeOf);
+void DestroyJitScripts(FreeOp* fop, JSScript* script);
+void TraceJitScripts(JSTracer* trc, JSScript* script);
+
+bool JitSupportsFloatingPoint();
+bool JitSupportsSimd();
 
 } // namespace jit
 } // namespace js
-
-#endif // JS_ION
 
 #endif /* jit_Ion_h */

@@ -8,10 +8,10 @@
 #define mozilla_PreallocatedProcessManager_h
 
 #include "base/basictypes.h"
-#include "mozilla/StaticPtr.h"
 #include "nsCOMPtr.h"
 #include "nsIObserver.h"
-#include "nsAutoPtr.h"
+
+class nsIRunnable;
 
 namespace mozilla {
 namespace dom {
@@ -36,7 +36,7 @@ class ContentParent;
  * method here, you'll need to write a corresponding public method on the
  * singleton.
  */
-class PreallocatedProcessManager MOZ_FINAL
+class PreallocatedProcessManager final
 {
   typedef mozilla::dom::ContentParent ContentParent;
 
@@ -79,6 +79,14 @@ public:
    * false to true) before we'll create a new process.
    */
   static already_AddRefed<ContentParent> Take();
+
+#ifdef MOZ_NUWA_PROCESS
+  static void PublishSpareProcess(ContentParent* aContent);
+  static void MaybeForgetSpare(ContentParent* aContent);
+  static bool IsNuwaReady();
+  static void OnNuwaReady();
+  static bool PreallocatedProcessReady();
+#endif
 
 private:
   PreallocatedProcessManager();

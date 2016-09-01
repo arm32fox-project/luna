@@ -8,22 +8,22 @@
 #define dom_plugins_PluginScriptableObjectParent_h 1
 
 #include "mozilla/plugins/PPluginScriptableObjectParent.h"
+#include "mozilla/plugins/PluginMessageUtils.h"
 
-#include "jsapi.h"
 #include "npfunctions.h"
 #include "npruntime.h"
 
 namespace mozilla {
 namespace plugins {
 
+class PluginAsyncSurrogate;
 class PluginInstanceParent;
 class PluginScriptableObjectParent;
-class PPluginIdentifierParent;
 
 struct ParentNPObject : NPObject
 {
   ParentNPObject()
-    : NPObject(), parent(NULL), invalidated(false) { }
+    : NPObject(), parent(nullptr), invalidated(false) { }
 
   // |parent| is always valid as long as the actor is alive. Once the actor is
   // destroyed this will be set to null.
@@ -36,7 +36,7 @@ class PluginScriptableObjectParent : public PPluginScriptableObjectParent
   friend class PluginInstanceParent;
 
 public:
-  PluginScriptableObjectParent(ScriptableObjectType aType);
+  explicit PluginScriptableObjectParent(ScriptableObjectType aType);
   virtual ~PluginScriptableObjectParent();
 
   void
@@ -45,58 +45,61 @@ public:
   void
   InitializeLocal(NPObject* aObject);
 
-  virtual bool
-  AnswerHasMethod(PPluginIdentifierParent* aId,
-                  bool* aHasMethod);
+  virtual void
+  ActorDestroy(ActorDestroyReason aWhy) override;
 
   virtual bool
-  AnswerInvoke(PPluginIdentifierParent* aId,
-               const InfallibleTArray<Variant>& aArgs,
+  AnswerHasMethod(const PluginIdentifier& aId,
+                  bool* aHasMethod) override;
+
+  virtual bool
+  AnswerInvoke(const PluginIdentifier& aId,
+               InfallibleTArray<Variant>&& aArgs,
                Variant* aResult,
-               bool* aSuccess);
+               bool* aSuccess) override;
 
   virtual bool
-  AnswerInvokeDefault(const InfallibleTArray<Variant>& aArgs,
+  AnswerInvokeDefault(InfallibleTArray<Variant>&& aArgs,
                       Variant* aResult,
-                      bool* aSuccess);
+                      bool* aSuccess) override;
 
   virtual bool
-  AnswerHasProperty(PPluginIdentifierParent* aId,
-                    bool* aHasProperty);
+  AnswerHasProperty(const PluginIdentifier& aId,
+                    bool* aHasProperty) override;
 
   virtual bool
-  AnswerGetParentProperty(PPluginIdentifierParent* aId,
+  AnswerGetParentProperty(const PluginIdentifier& aId,
                           Variant* aResult,
-                          bool* aSuccess);
+                          bool* aSuccess) override;
 
   virtual bool
-  AnswerSetProperty(PPluginIdentifierParent* aId,
+  AnswerSetProperty(const PluginIdentifier& aId,
                     const Variant& aValue,
-                    bool* aSuccess);
+                    bool* aSuccess) override;
 
   virtual bool
-  AnswerRemoveProperty(PPluginIdentifierParent* aId,
-                       bool* aSuccess);
+  AnswerRemoveProperty(const PluginIdentifier& aId,
+                       bool* aSuccess) override;
 
   virtual bool
-  AnswerEnumerate(InfallibleTArray<PPluginIdentifierParent*>* aProperties,
-                  bool* aSuccess);
+  AnswerEnumerate(InfallibleTArray<PluginIdentifier>* aProperties,
+                  bool* aSuccess) override;
 
   virtual bool
-  AnswerConstruct(const InfallibleTArray<Variant>& aArgs,
+  AnswerConstruct(InfallibleTArray<Variant>&& aArgs,
                   Variant* aResult,
-                  bool* aSuccess);
+                  bool* aSuccess) override;
 
   virtual bool
   AnswerNPN_Evaluate(const nsCString& aScript,
                      Variant* aResult,
-                     bool* aSuccess);
+                     bool* aSuccess) override;
 
   virtual bool
-  RecvProtect();
+  RecvProtect() override;
 
   virtual bool
-  RecvUnprotect();
+  RecvUnprotect() override;
 
   static const NPClass*
   GetClass()
@@ -137,10 +140,10 @@ public:
     return mType;
   }
 
-  JSBool GetPropertyHelper(NPIdentifier aName,
-                           bool* aHasProperty,
-                           bool* aHasMethod,
-                           NPVariant* aResult);
+  bool GetPropertyHelper(NPIdentifier aName,
+                         bool* aHasProperty,
+                         bool* aHasMethod,
+                         NPVariant* aResult);
 
 private:
   static NPObject*

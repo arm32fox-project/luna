@@ -16,7 +16,7 @@
 #ifndef WEBRTC_COMMON_AUDIO_VAD_INCLUDE_WEBRTC_VAD_H_  // NOLINT
 #define WEBRTC_COMMON_AUDIO_VAD_INCLUDE_WEBRTC_VAD_H_
 
-#include "typedefs.h"  // NOLINT
+#include "webrtc/typedefs.h"
 
 typedef struct WebRtcVadInst VadInst;
 
@@ -34,9 +34,7 @@ int WebRtcVad_Create(VadInst** handle);
 // Frees the dynamic memory of a specified VAD instance.
 //
 // - handle [i] : Pointer to VAD instance that should be freed.
-//
-// returns      : 0 - (OK), -1 - (NULL pointer in)
-int WebRtcVad_Free(VadInst* handle);
+void WebRtcVad_Free(VadInst* handle);
 
 // Initializes a VAD instance.
 //
@@ -71,7 +69,7 @@ int WebRtcVad_set_mode(VadInst* handle, int mode);
 // returns              : 1 - (Active Voice),
 //                        0 - (Non-active Voice),
 //                       -1 - (Error)
-int WebRtcVad_Process(VadInst* handle, int fs, int16_t* audio_frame,
+int WebRtcVad_Process(VadInst* handle, int fs, const int16_t* audio_frame,
                       int frame_length);
 
 // Checks for valid combinations of |rate| and |frame_length|. We support 10,

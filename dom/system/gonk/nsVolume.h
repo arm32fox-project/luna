@@ -19,20 +19,32 @@ class VolumeMountLock;
 class nsVolume : public nsIVolume
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIVOLUME
 
   // This constructor is used by the UpdateVolumeRunnable constructor
   nsVolume(const Volume* aVolume);
 
-  // This constructor is used by ContentChild::RecvFileSystemUpdate
+  // This constructor is used by ContentChild::RecvFileSystemUpdate which is
+  // used to update the volume cache maintained in the child process.
   nsVolume(const nsAString& aName, const nsAString& aMountPoint,
-           const int32_t& aState, const int32_t& aMountGeneration)
+           const int32_t& aState, const int32_t& aMountGeneration,
+           const bool& aIsMediaPresent, const bool& aIsSharing,
+           const bool& aIsFormatting, const bool& aIsFake,
+           const bool& aIsUnmounting, const bool& aIsRemovable,
+           const bool& aIsHotSwappable)
     : mName(aName),
       mMountPoint(aMountPoint),
       mState(aState),
       mMountGeneration(aMountGeneration),
-      mMountLocked(false)
+      mMountLocked(false),
+      mIsFake(aIsFake),
+      mIsMediaPresent(aIsMediaPresent),
+      mIsSharing(aIsSharing),
+      mIsFormatting(aIsFormatting),
+      mIsUnmounting(aIsUnmounting),
+      mIsRemovable(aIsRemovable),
+      mIsHotSwappable(aIsHotSwappable)
   {
   }
 
@@ -42,7 +54,14 @@ public:
     : mName(aName),
       mState(STATE_INIT),
       mMountGeneration(-1),
-      mMountLocked(true)  // Needs to agree with Volume::Volume
+      mMountLocked(true),  // Needs to agree with Volume::Volume
+      mIsFake(false),
+      mIsMediaPresent(false),
+      mIsSharing(false),
+      mIsFormatting(false),
+      mIsUnmounting(false),
+      mIsRemovable(false),
+      mIsHotSwappable(false)
   {
   }
 
@@ -63,20 +82,43 @@ public:
   int32_t State() const               { return mState; }
   const char* StateStr() const        { return NS_VolumeStateStr(mState); }
 
+  bool IsFake() const                 { return mIsFake; }
+  bool IsMediaPresent() const         { return mIsMediaPresent; }
+  bool IsSharing() const              { return mIsSharing; }
+  bool IsFormatting() const           { return mIsFormatting; }
+  bool IsUnmounting() const           { return mIsUnmounting; }
+  bool IsRemovable() const            { return mIsRemovable; }
+  bool IsHotSwappable() const         { return mIsHotSwappable; }
+
   typedef nsTArray<nsRefPtr<nsVolume> > Array;
 
 private:
-  ~nsVolume() {}
+  virtual ~nsVolume() {}  // MozExternalRefCountType complains if this is non-virtual
 
   friend class nsVolumeService; // Calls the following XxxMountLock functions
   void UpdateMountLock(const nsAString& aMountLockState);
   void UpdateMountLock(bool aMountLocked);
+
+  void SetIsFake(bool aIsFake);
+  void SetIsRemovable(bool aIsRemovable);
+  void SetIsHotSwappable(bool aIsHotSwappble);
+  void SetState(int32_t aState);
+  static void FormatVolumeIOThread(const nsCString& aVolume);
+  static void MountVolumeIOThread(const nsCString& aVolume);
+  static void UnmountVolumeIOThread(const nsCString& aVolume);
 
   nsString mName;
   nsString mMountPoint;
   int32_t  mState;
   int32_t  mMountGeneration;
   bool     mMountLocked;
+  bool     mIsFake;
+  bool     mIsMediaPresent;
+  bool     mIsSharing;
+  bool     mIsFormatting;
+  bool     mIsUnmounting;
+  bool     mIsRemovable;
+  bool     mIsHotSwappable;
 };
 
 } // system

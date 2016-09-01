@@ -23,7 +23,7 @@ StatementRow::StatementRow(Statement *aStatement)
 {
 }
 
-NS_IMPL_ISUPPORTS2(
+NS_IMPL_ISUPPORTS(
   StatementRow,
   mozIStorageStatementRow,
   nsIXPCScriptable
@@ -35,7 +35,7 @@ NS_IMPL_ISUPPORTS2(
 #define XPC_MAP_CLASSNAME StatementRow
 #define XPC_MAP_QUOTED_CLASSNAME "StatementRow"
 #define XPC_MAP_WANT_GETPROPERTY
-#define XPC_MAP_WANT_NEWRESOLVE
+#define XPC_MAP_WANT_RESOLVE
 #define XPC_MAP_FLAGS nsIXPCScriptable::ALLOW_PROP_MODS_DURING_RESOLVE
 #include "xpc_map_end.h"
 
@@ -71,7 +71,7 @@ StatementRow::GetProperty(nsIXPConnectWrappedNative *aWrapper,
     }
     else if (type == mozIStorageValueArray::VALUE_TYPE_TEXT) {
       uint32_t bytes;
-      const jschar *sval = reinterpret_cast<const jschar *>(
+      const char16_t *sval = reinterpret_cast<const char16_t *>(
         static_cast<mozIStorageStatement *>(mStatement)->
           AsSharedWString(idx, &bytes)
       );
@@ -86,7 +86,7 @@ StatementRow::GetProperty(nsIXPConnectWrappedNative *aWrapper,
       uint32_t length;
       const uint8_t *blob = static_cast<mozIStorageStatement *>(mStatement)->
         AsSharedBlob(idx, &length);
-      JSObject *obj = ::JS_NewArrayObject(aCtx, length, nullptr);
+      JSObject *obj = ::JS_NewArrayObject(aCtx, length);
       if (!obj) {
         *_retval = false;
         return NS_OK;
@@ -95,8 +95,7 @@ StatementRow::GetProperty(nsIXPConnectWrappedNative *aWrapper,
 
       // Copy the blob over to the JS array.
       for (uint32_t i = 0; i < length; i++) {
-        JS::Rooted<JS::Value> val(aCtx, INT_TO_JSVAL(blob[i]));
-        if (!::JS_SetElement(aCtx, scope, i, val.address())) {
+        if (!::JS_SetElement(aCtx, scope, i, blob[i])) {
           *_retval = false;
           return NS_OK;
         }
@@ -114,14 +113,15 @@ StatementRow::GetProperty(nsIXPConnectWrappedNative *aWrapper,
 }
 
 NS_IMETHODIMP
-StatementRow::NewResolve(nsIXPConnectWrappedNative *aWrapper,
-                         JSContext *aCtx,
-                         JSObject *aScopeObj,
-                         jsid aId,
-                         uint32_t aFlags,
-                         JSObject **_objp,
-                         bool *_retval)
+StatementRow::Resolve(nsIXPConnectWrappedNative *aWrapper,
+                      JSContext *aCtx,
+                      JSObject *aScopeObj,
+                      jsid aId,
+                      bool *aResolvedp,
+                      bool *_retval)
 {
+  JS::Rooted<JSObject*> scopeObj(aCtx, aScopeObj);
+
   NS_ENSURE_TRUE(mStatement, NS_ERROR_NOT_INITIALIZED);
   // We do not throw at any point after this because we want to allow the
   // prototype chain to be checked for the property.
@@ -137,13 +137,13 @@ StatementRow::NewResolve(nsIXPConnectWrappedNative *aWrapper,
       // It's highly likely that the name doesn't exist, so let the JS engine
       // check the prototype chain and throw if that doesn't have the property
       // either.
-      *_objp = NULL;
+      *aResolvedp = false;
       return NS_OK;
     }
 
-    *_retval = ::JS_DefinePropertyById(aCtx, aScopeObj, aId, JSVAL_VOID,
-                                     nullptr, nullptr, 0);
-    *_objp = aScopeObj;
+    JS::Rooted<jsid> id(aCtx, aId);
+    *_retval = ::JS_DefinePropertyById(aCtx, scopeObj, id, JS::UndefinedHandleValue, 0);
+    *aResolvedp = true;
     return NS_OK;
   }
 

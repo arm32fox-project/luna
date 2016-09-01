@@ -8,7 +8,7 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "after_initialization_fixture.h"
+#include "webrtc/voice_engine/test/auto_test/fixtures/after_initialization_fixture.h"
 
 using namespace webrtc;
 using namespace testing;
@@ -47,10 +47,4 @@ TEST_F(RtpRtcpBeforeStreamingTest, GetLocalSsrcObeysSetLocalSsrc) {
   unsigned int result = 0;
   EXPECT_EQ(0, voe_rtp_rtcp_->GetLocalSSRC(channel_, result));
   EXPECT_EQ(1234u, result);
-}
-
-TEST_F(RtpRtcpBeforeStreamingTest, GetLastRemoteTimeStamp) {
-  uint32_t timestamp;
-  EXPECT_EQ(0, voe_rtp_rtcp_->GetLastRemoteTimeStamp(channel_, &timestamp));
-  EXPECT_EQ(0u, timestamp);
 }

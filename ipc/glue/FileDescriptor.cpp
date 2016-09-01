@@ -42,7 +42,7 @@ FileDescriptor::FileDescriptor(PlatformHandleType aHandle)
 void
 FileDescriptor::DuplicateInCurrentProcess(PlatformHandleType aHandle)
 {
-  MOZ_ASSERT_IF(mHandleCreatedByOtherProcess,
+  MOZ_ASSERT_IF(mHandleCreatedByOtherProcess && IsValid(),
                 mHandleCreatedByOtherProcessWasUsed);
 
   if (IsValid(aHandle)) {
@@ -65,7 +65,7 @@ FileDescriptor::DuplicateInCurrentProcess(PlatformHandleType aHandle)
 void
 FileDescriptor::CloseCurrentProcessHandle()
 {
-  MOZ_ASSERT_IF(mHandleCreatedByOtherProcess,
+  MOZ_ASSERT_IF(mHandleCreatedByOtherProcess && IsValid(),
                 mHandleCreatedByOtherProcessWasUsed);
 
   // Don't actually close handles created by another process.
@@ -110,8 +110,7 @@ FileDescriptor::ShareTo(const FileDescriptor::IPDLPrivate&,
   return base::FileDescriptor();
 #endif
 
-  MOZ_NOT_REACHED("Must not get here!");
-  return PickleType();
+  MOZ_CRASH("Must not get here!");
 }
 
 // static

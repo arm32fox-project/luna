@@ -24,20 +24,14 @@ using namespace mozilla::net;
 
 #include "nsFtpProtocolHandler.h"
 #include "nsFTPChannel.h"
-#include "nsIURL.h"
 #include "nsIStandardURL.h"
-#include "nsCRT.h"
-#include "nsIComponentManager.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsIInterfaceRequestorUtils.h"
-#include "nsIProgressEventSink.h"
 #include "prlog.h"
-#include "nsNetUtil.h"
 #include "nsIPrefService.h"
 #include "nsIPrefBranch.h"
 #include "nsIObserverService.h"
 #include "nsEscape.h"
 #include "nsAlgorithm.h"
+#include "nsICacheSession.h"
 
 //-----------------------------------------------------------------------------
 
@@ -94,11 +88,11 @@ nsFtpProtocolHandler::~nsFtpProtocolHandler()
     gFtpHandler = nullptr;
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS4(nsFtpProtocolHandler,
-                              nsIProtocolHandler,
-                              nsIProxiedProtocolHandler,
-                              nsIObserver,
-                              nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(nsFtpProtocolHandler,
+                  nsIProtocolHandler,
+                  nsIProxiedProtocolHandler,
+                  nsIObserver,
+                  nsISupportsWeakReference)
 
 nsresult
 nsFtpProtocolHandler::Init()
@@ -209,16 +203,25 @@ nsFtpProtocolHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsFtpProtocolHandler::NewChannel(nsIURI* url, nsIChannel* *result)
+nsFtpProtocolHandler::NewChannel2(nsIURI* url,
+                                  nsILoadInfo* aLoadInfo,
+                                  nsIChannel** result)
 {
-    return NewProxiedChannel(url, nullptr, 0, nullptr, result);
+    return NewProxiedChannel2(url, nullptr, 0, nullptr, aLoadInfo, result);
 }
 
 NS_IMETHODIMP
-nsFtpProtocolHandler::NewProxiedChannel(nsIURI* uri, nsIProxyInfo* proxyInfo,
-                                        uint32_t proxyResolveFlags,
-                                        nsIURI *proxyURI,
-                                        nsIChannel* *result)
+nsFtpProtocolHandler::NewChannel(nsIURI* url, nsIChannel* *result)
+{
+    return NewChannel2(url, nullptr, result);
+}
+
+NS_IMETHODIMP
+nsFtpProtocolHandler::NewProxiedChannel2(nsIURI* uri, nsIProxyInfo* proxyInfo,
+                                         uint32_t proxyResolveFlags,
+                                         nsIURI *proxyURI,
+                                         nsILoadInfo* aLoadInfo,
+                                         nsIChannel* *result)
 {
     NS_ENSURE_ARG_POINTER(uri);
     nsRefPtr<nsBaseChannel> channel;
@@ -231,9 +234,26 @@ nsFtpProtocolHandler::NewProxiedChannel(nsIURI* uri, nsIProxyInfo* proxyInfo,
     if (NS_FAILED(rv)) {
         return rv;
     }
-    
+
+    // set the loadInfo on the new channel
+    rv = channel->SetLoadInfo(aLoadInfo);
+    if (NS_FAILED(rv)) {
+        return rv;
+    }
+
     channel.forget(result);
     return rv;
+}
+
+NS_IMETHODIMP
+nsFtpProtocolHandler::NewProxiedChannel(nsIURI* uri, nsIProxyInfo* proxyInfo,
+                                        uint32_t proxyResolveFlags,
+                                        nsIURI *proxyURI,
+                                        nsIChannel* *result)
+{
+  return NewProxiedChannel2(uri, proxyInfo, proxyResolveFlags,
+                            proxyURI, nullptr /*loadinfo*/,
+                            result);
 }
 
 NS_IMETHODIMP 
@@ -370,7 +390,7 @@ nsFtpProtocolHandler::InsertConnection(nsIURI *aKey, nsFtpControlConnection *aCo
 NS_IMETHODIMP
 nsFtpProtocolHandler::Observe(nsISupports *aSubject,
                               const char *aTopic,
-                              const PRUnichar *aData)
+                              const char16_t *aData)
 {
     LOG(("FTP:observing [%s]\n", aTopic));
 

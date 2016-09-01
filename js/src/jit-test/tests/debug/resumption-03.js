@@ -1,9 +1,8 @@
-// |jit-test| debug
 // Returning and throwing objects.
 
 load(libdir + "asserts.js");
 
-var g = newGlobal('new-compartment');
+var g = newGlobal();
 g.debuggeeGlobal = this;
 g.eval("(" + function () {
         var how, what;

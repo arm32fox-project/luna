@@ -2,32 +2,28 @@
 # Any copyright is dedicated to the Public Domain.
 # http://creativecommons.org/publicdomain/zero/1.0/
 
-XPIDL_SOURCES += ['bar.idl', 'biz.idl', 'foo.idl']
-XPIDL_MODULE = 'module_name'
-XPIDL_FLAGS += ['-Idir1', '-Idir2', '-Idir3']
-
-ASFILES += ['fans.asm', 'tans.s']
-
-DEFINES=['-Dfans', '-Dtans']
-
 EXTRA_COMPONENTS=['fans.js', 'tans.js']
 EXTRA_PP_COMPONENTS=['fans.pp.js', 'tans.pp.js']
 
-HOST_CSRCS += ['fans.c', 'tans.c']
+FAIL_ON_WARNINGS = True
+MSVC_ENABLE_PGO = True
 
-HOST_LIBRARY_NAME = 'host_fans'
+NO_DIST_INSTALL = True
 
-LIBRARY_NAME = 'lib_name'
-LIBS += ['fans.lib', 'tans.lib']
+NO_VISIBILITY_FLAGS = True
 
-SDK_LIBRARY += ['fans.sdk', 'tans.sdk']
+DELAYLOAD_DLLS = ['foo.dll', 'bar.dll']
 
-SHARED_LIBRARY_LIBS += ['fans.sll', 'tans.sll']
+RCFILE = 'foo.rc'
+RESFILE = 'bar.res'
+RCINCLUDE = 'bar.rc'
+DEFFILE = 'baz.def'
 
-SIMPLE_PROGRAMS += ['fans.x', 'tans.x']
+USE_STATIC_LIBS = True
 
-CSRCS += ['fans.c', 'tans.c']
+CFLAGS += ['-fno-exceptions', '-w']
+CXXFLAGS += ['-fcxx-exceptions', '-include foo.h']
+LDFLAGS += ['-framework Foo', '-x']
+WIN32_EXE_LDFLAGS += ['-subsystem:console']
 
-CMMSRCS = ['fans.mm', 'tans.mm']
-
-SSRCS = ['fans.S', 'tans.S']
+DISABLE_STL_WRAPPING = True

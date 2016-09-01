@@ -24,6 +24,12 @@
 .macro DEFINE_FUNCTION name
 _\name:
 .endm
+.macro CALL_FUNCTION name
+bl _\name
+.endm
+.macro GLOBAL_LABEL name
+.global _\name
+.endm
 #else
 .macro GLOBAL_FUNCTION name
 .global \name
@@ -31,8 +37,23 @@ _\name:
 .macro DEFINE_FUNCTION name
 \name:
 .endm
+.macro CALL_FUNCTION name
+bl \name
+.endm
+.macro GLOBAL_LABEL name
+.global \name
+.endm
+#endif
+
+// With Apple's clang compiler, for instructions ldrb, strh, etc.,
+// the condition code is after the width specifier. Here we define
+// only the ones that are actually used in the assembly files.
+#if (defined __llvm__) && (defined __APPLE__)
+.macro streqh reg1, reg2, num
+strheq \reg1, \reg2, \num
+.endm
 #endif
 
 .text
 
-#endif  // WEBRTC_SYSTEM_WRAPPERS_INTERFACE_COMPILE_ASSERT_H_
+#endif  // WEBRTC_SYSTEM_WRAPPERS_INTERFACE_ASM_DEFINES_H_

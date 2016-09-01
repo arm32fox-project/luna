@@ -7,7 +7,8 @@
 #ifndef builtin_Eval_h
 #define builtin_Eval_h
 
-#include "vm/Stack.h"
+#include "jsbytecode.h"
+#include "NamespaceImports.h"
 
 namespace js {
 
@@ -16,35 +17,30 @@ namespace js {
 // JSOP_EVAL which in turn calls DirectEval. Thus, even though IndirectEval is
 // the callee function object for *all* calls to eval, it is by construction
 // only ever called in the case indirect eval.
-extern JSBool
-IndirectEval(JSContext *cx, unsigned argc, Value *vp);
+extern bool
+IndirectEval(JSContext* cx, unsigned argc, Value* vp);
 
 // Performs a direct eval for the given arguments, which must correspond to the
 // currently-executing stack frame, which must be a script frame. On completion
 // the result is returned in args.rval.
 extern bool
-DirectEval(JSContext *cx, const CallArgs &args);
+DirectEval(JSContext* cx, const CallArgs& args);
 
 // Performs a direct eval called from Ion code.
 extern bool
-DirectEvalFromIon(JSContext *cx,
-                  HandleObject scopeObj, HandleScript callerScript,
-                  HandleValue thisValue, HandleString str,
-                  jsbytecode * pc, MutableHandleValue vp);
-
-// True iff 'v' is the built-in eval function for the global object that
-// corresponds to 'scopeChain'.
+DirectEvalStringFromIon(JSContext* cx,
+                        HandleObject scopeObj, HandleScript callerScript,
+                        HandleValue thisValue, HandleString str,
+                        jsbytecode * pc, MutableHandleValue vp);
 extern bool
-IsBuiltinEvalForScope(JSObject *scopeChain, const Value &v);
+DirectEvalValueFromIon(JSContext* cx,
+                       HandleObject scopeObj, HandleScript callerScript,
+                       HandleValue thisValue, HandleValue evalArg,
+                       jsbytecode * pc, MutableHandleValue vp);
 
 // True iff fun is a built-in eval function.
 extern bool
-IsAnyBuiltinEval(JSFunction *fun);
-
-// Return the principals to assign to code compiled for a call to
-// eval or the Function constructor.
-extern JSPrincipals *
-PrincipalsForCompiledCode(const CallReceiver &call, JSContext *cx);
+IsAnyBuiltinEval(JSFunction* fun);
 
 }  // namespace js
 #endif /* builtin_Eval_h */

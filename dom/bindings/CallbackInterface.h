@@ -24,13 +24,14 @@ namespace dom {
 class CallbackInterface : public CallbackObject
 {
 public:
-  explicit CallbackInterface(JSObject* aCallback)
-    : CallbackObject(aCallback)
+  explicit CallbackInterface(JS::Handle<JSObject*> aCallback,
+                             nsIGlobalObject *aIncumbentGlobal)
+    : CallbackObject(aCallback, aIncumbentGlobal)
   {
   }
 
 protected:
-  bool GetCallableProperty(JSContext* cx, const char* aPropName,
+  bool GetCallableProperty(JSContext* cx, JS::Handle<jsid> aPropId,
                            JS::MutableHandle<JS::Value> aCallable);
 
 };

@@ -8,13 +8,14 @@
 
 #include "nscore.h"
 #include "nsAutoPtr.h"
-#include "nsEvent.h"
 #include "nsString.h"
 #include "nsWindowBase.h"
 #include "nsWindowDefs.h"
+#include "mozilla/Attributes.h"
+#include "mozilla/EventForwards.h"
 #include <windows.h>
 
-#define NS_NUM_OF_KEYS          68
+#define NS_NUM_OF_KEYS          70
 
 #define VK_OEM_1                0xBA   // ';:' for US
 #define VK_OEM_PLUS             0xBB   // '+' any country
@@ -54,92 +55,44 @@ static const uint32_t sModifierKeyMap[][3] = {
 
 class KeyboardLayout;
 
-class ModifierKeyState {
+class ModifierKeyState
+{
 public:
-  ModifierKeyState()
-  {
-    Update();
-  }
+  ModifierKeyState();
+  ModifierKeyState(bool aIsShiftDown, bool aIsControlDown, bool aIsAltDown);
+  ModifierKeyState(Modifiers aModifiers);
 
-  ModifierKeyState(bool aIsShiftDown, bool aIsControlDown, bool aIsAltDown)
-  {
-    Update();
-    Unset(MODIFIER_SHIFT | MODIFIER_CONTROL | MODIFIER_ALT | MODIFIER_ALTGRAPH);
-    Modifiers modifiers = 0;
-    if (aIsShiftDown) {
-      modifiers |= MODIFIER_SHIFT;
-    }
-    if (aIsControlDown) {
-      modifiers |= MODIFIER_CONTROL;
-    }
-    if (aIsAltDown) {
-      modifiers |= MODIFIER_ALT;
-    }
-    if (modifiers) {
-      Set(modifiers);
-    }
-  }
+  MOZ_ALWAYS_INLINE void Update();
 
-  ModifierKeyState(Modifiers aModifiers) :
-    mModifiers(aModifiers)
-  {
-    EnsureAltGr();
-  }
+  MOZ_ALWAYS_INLINE void Unset(Modifiers aRemovingModifiers);
+  void Set(Modifiers aAddingModifiers);
 
-  void Update();
+  void InitInputEvent(WidgetInputEvent& aInputEvent) const;
 
-  void Unset(Modifiers aRemovingModifiers)
-  {
-    mModifiers &= ~aRemovingModifiers;
-    // Note that we don't need to unset AltGr flag here automatically.
-    // For nsEditor, we need to remove Alt and Control flags but AltGr isn't
-    // checked in nsEditor, so, it can be kept.
-  }
+  bool IsShift() const;
+  bool IsControl() const;
+  MOZ_ALWAYS_INLINE bool IsAlt() const;
+  MOZ_ALWAYS_INLINE bool IsAltGr() const;
+  MOZ_ALWAYS_INLINE bool IsWin() const;
 
-  void Set(Modifiers aAddingModifiers)
-  {
-    mModifiers |= aAddingModifiers;
-    EnsureAltGr();
-  }
+  MOZ_ALWAYS_INLINE bool IsCapsLocked() const;
+  MOZ_ALWAYS_INLINE bool IsNumLocked() const;
+  MOZ_ALWAYS_INLINE bool IsScrollLocked() const;
 
-  void InitInputEvent(nsInputEvent& aInputEvent) const;
-
-  bool IsShift() const { return (mModifiers & MODIFIER_SHIFT) != 0; }
-  bool IsControl() const { return (mModifiers & MODIFIER_CONTROL) != 0; }
-  bool IsAlt() const { return (mModifiers & MODIFIER_ALT) != 0; }
-  bool IsAltGr() const { return IsControl() && IsAlt(); }
-  bool IsWin() const { return (mModifiers & MODIFIER_OS) != 0; }
-
-  bool IsCapsLocked() const { return (mModifiers & MODIFIER_CAPSLOCK) != 0; }
-  bool IsNumLocked() const { return (mModifiers & MODIFIER_NUMLOCK) != 0; }
-  bool IsScrollLocked() const
-  {
-    return (mModifiers & MODIFIER_SCROLLLOCK) != 0;
-  }
-
-  Modifiers GetModifiers() const { return mModifiers; }
+  MOZ_ALWAYS_INLINE Modifiers GetModifiers() const;
 
 private:
   Modifiers mModifiers;
 
-  void EnsureAltGr()
-  {
-    // If both Control key and Alt key are pressed, it means AltGr is pressed.
-    // Ideally, we should check whether the current keyboard layout has AltGr
-    // or not.  However, setting AltGr flags for keyboard which doesn't have
-    // AltGr must not be serious bug.  So, it should be OK for now.
-    if (IsAltGr()) {
-      mModifiers |= MODIFIER_ALTGRAPH;
-    }
-  }
+  MOZ_ALWAYS_INLINE void EnsureAltGr();
 
-  void InitMouseEvent(nsInputEvent& aMouseEvent) const;
+  void InitMouseEvent(WidgetInputEvent& aMouseEvent) const;
 };
 
 struct UniCharsAndModifiers
 {
   // Dead-key + up to 4 characters
-  PRUnichar mChars[5];
+  char16_t mChars[5];
   Modifiers mModifiers[5];
   uint32_t  mLength;
 
@@ -150,7 +103,7 @@ struct UniCharsAndModifiers
   /**
    * Append a pair of unicode character and the final modifier.
    */
-  void Append(PRUnichar aUniChar, Modifiers aModifiers);
+  void Append(char16_t aUniChar, Modifiers aModifiers);
   void Clear() { mLength = 0; }
   bool IsEmpty() const { return !mLength; }
 
@@ -196,57 +149,20 @@ public:
 
   typedef uint8_t ShiftState;
 
-  static ShiftState ModifiersToShiftState(Modifiers aModifiers)
-  {
-    ShiftState state = 0;
-    if (aModifiers & MODIFIER_SHIFT) {
-      state |= STATE_SHIFT;
-    }
-    if (aModifiers & MODIFIER_CONTROL) {
-      state |= STATE_CONTROL;
-    }
-    if (aModifiers & MODIFIER_ALT) {
-      state |= STATE_ALT;
-    }
-    if (aModifiers & MODIFIER_CAPSLOCK) {
-      state |= STATE_CAPSLOCK;
-    }
-    return state;
-  }
-
-  static Modifiers ShiftStateToModifiers(ShiftState aShiftState)
-  {
-    Modifiers modifiers = 0;
-    if (aShiftState & STATE_SHIFT) {
-      modifiers |= MODIFIER_SHIFT;
-    }
-    if (aShiftState & STATE_CONTROL) {
-      modifiers |= MODIFIER_CONTROL;
-    }
-    if (aShiftState & STATE_ALT) {
-      modifiers |= MODIFIER_ALT;
-    }
-    if (aShiftState & STATE_CAPSLOCK) {
-      modifiers |= MODIFIER_CAPSLOCK;
-    }
-    if ((modifiers & (MODIFIER_ALT | MODIFIER_CONTROL)) ==
-           (MODIFIER_ALT | MODIFIER_CONTROL)) {
-      modifiers |= MODIFIER_ALTGRAPH;
-    }
-    return modifiers;
-  }
+  static ShiftState ModifiersToShiftState(Modifiers aModifiers);
+  static Modifiers ShiftStateToModifiers(ShiftState aShiftState);
 
 private:
   union KeyShiftState
   {
     struct
     {
-      PRUnichar Chars[4];
+      char16_t Chars[4];
     } Normal;
     struct
     {
       const DeadKeyTable* Table;
-      PRUnichar DeadChar;
+      char16_t DeadChar;
     } DeadKey;
   };
 
@@ -276,13 +192,13 @@ public:
     mShiftStates[aShiftState].DeadKey.Table = aDeadKeyTable;
   }
 
-  void SetNormalChars(ShiftState aShiftState, const PRUnichar* aChars,
+  void SetNormalChars(ShiftState aShiftState, const char16_t* aChars,
                       uint32_t aNumOfChars);
-  void SetDeadChar(ShiftState aShiftState, PRUnichar aDeadChar);
+  void SetDeadChar(ShiftState aShiftState, char16_t aDeadChar);
   const DeadKeyTable* MatchingDeadKeyTable(const DeadKeyEntry* aDeadKeyArray,
                                            uint32_t aEntries) const;
-  inline PRUnichar GetCompositeChar(ShiftState aShiftState,
-                                    PRUnichar aBaseChar) const;
+  inline char16_t GetCompositeChar(ShiftState aShiftState,
+                                    char16_t aBaseChar) const;
   UniCharsAndModifiers GetNativeUniChars(ShiftState aShiftState) const;
   UniCharsAndModifiers GetUniChars(ShiftState aShiftState) const;
 };
@@ -297,6 +213,12 @@ public:
     UINT mCharCode;
     UINT mScanCode;
     bool mIsDeadKey;
+    bool mConsumed;
+
+    FakeCharMsg() :
+      mCharCode(0), mScanCode(0), mIsDeadKey(false), mConsumed(false)
+    {
+    }
 
     MSG GetCharMsg(HWND aWnd) const
     {
@@ -304,7 +226,7 @@ public:
       msg.hwnd = aWnd;
       msg.message = mIsDeadKey ? WM_DEADCHAR : WM_CHAR;
       msg.wParam = static_cast<WPARAM>(mCharCode);
-      msg.lParam = static_cast<LPARAM>(mScanCode);
+      msg.lParam = static_cast<LPARAM>(mScanCode << 16);
       msg.time = 0;
       msg.pt.x = msg.pt.y = 0;
       return msg;
@@ -312,9 +234,9 @@ public:
   };
 
   NativeKey(nsWindowBase* aWidget,
-            const MSG& aKeyOrCharMessage,
+            const MSG& aMessage,
             const ModifierKeyState& aModKeyState,
-            const FakeCharMsg* aFakeCharMsg = nullptr);
+            nsTArray<FakeCharMsg>* aFakeCharMsgs = nullptr);
 
   /**
    * Handle WM_KEYDOWN message or WM_SYSKEYDOWN message.  The instance must be
@@ -322,8 +244,7 @@ public:
    * Returns true if dispatched keydown event or keypress event is consumed.
    * Otherwise, false.
    */
-  bool HandleKeyDownMessage(bool* aEventDispatched = nullptr,
-                            bool* aWasKeyDownDefaultPrevented = nullptr) const;
+  bool HandleKeyDownMessage(bool* aEventDispatched = nullptr) const;
 
   /**
    * Handles WM_CHAR message or WM_SYSCHAR message.  The instance must be
@@ -339,14 +260,20 @@ public:
    */
   bool HandleKeyUpMessage(bool* aEventDispatched = nullptr) const;
 
+  /**
+   * Handles WM_APPCOMMAND message.  Returns true if the event is consumed.
+   * Otherwise, false.
+   */
+  bool HandleAppCommandMessage() const;
+
 private:
   nsRefPtr<nsWindowBase> mWidget;
   HKL mKeyboardLayout;
   MSG mMsg;
-  MSG mFakeCharMsg;
 
   uint32_t mDOMKeyCode;
   KeyNameIndex mKeyNameIndex;
+  CodeNameIndex mCodeNameIndex;
 
   ModifierKeyState mModKeyState;
 
@@ -370,11 +297,53 @@ private:
   // Please note that the event may not cause any text input even if this
   // is true.  E.g., it might be dead key state or Ctrl key may be pressed.
   bool    mIsPrintableKey;
-  bool    mIsFakeCharMsg;
+
+  nsTArray<FakeCharMsg>* mFakeCharMsgs;
+
+  // When a keydown event is dispatched at handling WM_APPCOMMAND, the computed
+  // virtual keycode is set to this.  Even if we consume WM_APPCOMMAND message,
+  // Windows may send WM_KEYDOWN and WM_KEYUP message for them.
+  // At that time, we should not dispatch key events for them.
+  static uint8_t sDispatchedKeyOfAppCommand;
 
   NativeKey()
   {
-    MOZ_NOT_REACHED("The default constructor of NativeKey isn't available");
+    MOZ_CRASH("The default constructor of NativeKey isn't available");
+  }
+
+  void InitWithAppCommand();
+
+  /**
+   * Returns true if the key event is caused by auto repeat.
+   */
+  bool IsRepeat() const
+  {
+    switch (mMsg.message) {
+      case WM_KEYDOWN:
+      case WM_SYSKEYDOWN:
+      case WM_CHAR:
+      case WM_SYSCHAR:
+      case WM_DEADCHAR:
+      case WM_SYSDEADCHAR:
+        return ((mMsg.lParam & (1 << 30)) != 0);
+      case WM_APPCOMMAND:
+        if (mVirtualKeyCode) {
+          // If we can map the WM_APPCOMMAND to a virtual keycode, we can trust
+          // the result of GetKeyboardState().
+          BYTE kbdState[256];
+          memset(kbdState, 0, sizeof(kbdState));
+          ::GetKeyboardState(kbdState);
+          return !!kbdState[mVirtualKeyCode];
+        }
+        // If there is no virtual keycode for the command, we dispatch both
+        // keydown and keyup events from WM_APPCOMMAND handler.  Therefore,
+        // even if WM_APPCOMMAND is caused by auto key repeat, web apps receive
+        // a pair of DOM keydown and keyup events.  I.e., KeyboardEvent.repeat
+        // should be never true of such keys.
+        return false;
+      default:
+        return false;
+    }
   }
 
   UINT GetScanCodeWithExtendedFlag() const;
@@ -389,19 +358,63 @@ private:
    */
   bool IsIMEDoingKakuteiUndo() const;
 
-  /*
-   * Dispatches a plugin event after the specified message is removed.
-   * Returns true if the widget is destoyed.  Otherwise, false.
-   */
-  bool RemoveMessageAndDispatchPluginEvent(UINT aFirstMsg, UINT aLastMsg) const;
-
   bool IsKeyDownMessage() const
   {
     return (mMsg.message == WM_KEYDOWN || mMsg.message == WM_SYSKEYDOWN);
   }
-  bool IsFollowedByCharMessage() const;
+  bool IsKeyUpMessage() const
+  {
+    return (mMsg.message == WM_KEYUP || mMsg.message == WM_SYSKEYUP);
+  }
+  bool IsPrintableCharMessage(const MSG& aMSG) const
+  {
+    return IsPrintableCharMessage(aMSG.message);
+  }
+  bool IsPrintableCharMessage(UINT aMessage) const
+  {
+    return (aMessage == WM_CHAR || aMessage == WM_SYSCHAR);
+  }
+  bool IsCharMessage(const MSG& aMSG) const
+  {
+    return IsCharMessage(aMSG.message);
+  }
+  bool IsCharMessage(UINT aMessage) const
+  {
+    return (IsPrintableCharMessage(aMessage) || IsDeadCharMessage(aMessage));
+  }
+  bool IsDeadCharMessage(const MSG& aMSG) const
+  {
+    return IsDeadCharMessage(aMSG.message);
+  }
+  bool IsDeadCharMessage(UINT aMessage) const
+  {
+    return (aMessage == WM_DEADCHAR || aMessage == WM_SYSDEADCHAR);
+  }
+  bool IsSysCharMessage(const MSG& aMSG) const
+  {
+    return IsSysCharMessage(aMSG.message);
+  }
+  bool IsSysCharMessage(UINT aMessage) const
+  {
+    return (aMessage == WM_SYSCHAR || aMessage == WM_SYSDEADCHAR);
+  }
+  bool MayBeSameCharMessage(const MSG& aCharMsg1, const MSG& aCharMsg2) const;
   bool IsFollowedByDeadCharMessage() const;
-  MSG RemoveFollowingCharMessage() const;
+
+  /**
+   * GetFollowingCharMessage() returns following char message of handling
+   * keydown event.  If the message is found, this method returns true.
+   * Otherwise, returns false.
+   *
+   * WARNING: Even if this returns true, aCharMsg may be WM_NULL or its
+   *          hwnd may be different window.
+   */
+  bool GetFollowingCharMessage(MSG& aCharMsg) const;
+
+  /**
+   * Whether the key event can compute virtual keycode from the scancode value.
+   */
+  bool CanComputeVirtualKeyCodeFromScanCode() const;
 
   /**
    * Wraps MapVirtualKeyEx() with MAPVK_VSC_TO_VK.
@@ -414,25 +427,33 @@ private:
   uint8_t ComputeVirtualKeyCodeFromScanCodeEx() const;
 
   /**
+   * Wraps MapVirtualKeyEx() with MAPVK_VK_TO_VSC_EX or MAPVK_VK_TO_VSC.
+   */
+  uint16_t ComputeScanCodeExFromVirtualKeyCode(UINT aVirtualKeyCode) const;
+
+  /**
    * Wraps MapVirtualKeyEx() with MAPVK_VSC_TO_VK and MAPVK_VK_TO_CHAR.
    */
-  PRUnichar ComputeUnicharFromScanCode() const;
+  char16_t ComputeUnicharFromScanCode() const;
 
   /**
    * Initializes the aKeyEvent with the information stored in the instance.
    */
-  void InitKeyEvent(nsKeyEvent& aKeyEvent,
+  void InitKeyEvent(WidgetKeyboardEvent& aKeyEvent,
                     const ModifierKeyState& aModKeyState) const;
-  void InitKeyEvent(nsKeyEvent& aKeyEvent) const
-  {
-    InitKeyEvent(aKeyEvent, mModKeyState);
-  }
+  void InitKeyEvent(WidgetKeyboardEvent& aKeyEvent) const;
+
+  /**
+   * Dispatches a command event for aEventCommand.
+   * Returns true if the event is consumed.  Otherwise, false.
+   */
+  bool DispatchCommandEvent(uint32_t aEventCommand) const;
 
   /**
    * Dispatches the key event.  Returns true if the event is consumed.
    * Otherwise, false.
    */
-  bool DispatchKeyEvent(nsKeyEvent& aKeyEvent,
+  bool DispatchKeyEvent(WidgetKeyboardEvent& aKeyEvent,
                         const MSG* aMsgSentToPlugin = nullptr) const;
 
   /**
@@ -451,10 +472,10 @@ private:
 
   /**
    * DispatchKeyPressEventForFollowingCharMessage() dispatches keypress event
-   * for following WM_*CHAR message.
+   * for following WM_*CHAR message which is removed and set to aCharMsg.
    * Returns true if the event is consumed.  Otherwise, false.
    */
-  bool DispatchKeyPressEventForFollowingCharMessage() const;
+  bool DispatchKeyPressEventForFollowingCharMessage(const MSG& aCharMsg) const;
 
   /**
    * Checkes whether the key event down message is handled without following
@@ -496,7 +517,7 @@ private:
   static inline int32_t GetKeyIndex(uint8_t aVirtualKey);
   static int CompareDeadKeyEntries(const void* aArg1, const void* aArg2,
                                    void* aData);
-  static bool AddDeadKeyEntry(PRUnichar aBaseChar, PRUnichar aCompositeChar,
+  static bool AddDeadKeyEntry(char16_t aBaseChar, char16_t aCompositeChar,
                                 DeadKeyEntry* aDeadKeyArray, uint32_t aEntries);
   bool EnsureDeadKeyActive(bool aIsActive, uint8_t aDeadKey,
                              const PBYTE aDeadKeyKbdState);
@@ -585,6 +606,13 @@ public:
    */
   KeyNameIndex ConvertNativeKeyCodeToKeyNameIndex(uint8_t aVirtualKey) const;
 
+  /**
+   * ConvertScanCodeToCodeNameIndex() returns CodeNameIndex value for
+   * the given scan code.  aScanCode can be over 0xE000 since this method
+   * doesn't use Windows API.
+   */
+  static CodeNameIndex ConvertScanCodeToCodeNameIndex(UINT aScanCode);
+
   HKL GetLayout() const
   {
     return mIsPendingToRestoreKeyboardLayout ? ::GetKeyboardLayout(0) :
@@ -620,7 +648,7 @@ public:
    * message for the redirected keydown message.  AutoFlusher class is a helper
    * class for doing it.  This must be created in the stack.
    */
-  class MOZ_STACK_CLASS AutoFlusher MOZ_FINAL
+  class MOZ_STACK_CLASS AutoFlusher final
   {
   public:
     AutoFlusher(nsWindowBase* aWidget, const MSG &aMsg) :

@@ -10,20 +10,20 @@
  * liability, trademark and document use rules apply.
  */
 
-interface SVGAnimatedEnumeration;
-interface SVGAnimatedInteger;
-
 interface SVGFilterElement : SVGElement {
+  [Constant]
   readonly attribute SVGAnimatedEnumeration filterUnits;
+  [Constant]
   readonly attribute SVGAnimatedEnumeration primitiveUnits;
+  [Constant]
   readonly attribute SVGAnimatedLength x;
+  [Constant]
   readonly attribute SVGAnimatedLength y;
+  [Constant]
   readonly attribute SVGAnimatedLength width;
+  [Constant]
   readonly attribute SVGAnimatedLength height;
-  readonly attribute SVGAnimatedInteger filterResX;
-  readonly attribute SVGAnimatedInteger filterResY;
 
-  void setFilterRes(unsigned long filterResX, unsigned long filterResY);
   // ImageData apply(ImageData source);
 };
 

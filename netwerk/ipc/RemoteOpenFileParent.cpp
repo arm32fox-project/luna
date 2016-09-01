@@ -17,11 +17,17 @@
 namespace mozilla {
 namespace net {
 
+void
+RemoteOpenFileParent::ActorDestroy(ActorDestroyReason aWhy)
+{
+  // Implement me! Bug 1005186
+}
+
 bool
 RemoteOpenFileParent::OpenSendCloseDelete()
 {
 #if defined(XP_WIN) || defined(MOZ_WIDGET_COCOA)
-  MOZ_NOT_REACHED("OS X and Windows shouldn't be doing IPDL here");
+  MOZ_CRASH("OS X and Windows shouldn't be doing IPDL here");
 #else
 
   // TODO: make this async!
@@ -41,18 +47,15 @@ RemoteOpenFileParent::OpenSendCloseDelete()
                     path.get());
     } else {
       fileDescriptor = FileDescriptor(fd);
+      // FileDescriptor does a dup() internally, so we need to close our fd
+      close(fd);
     }
   }
 
   // Sending a potentially invalid file descriptor is just fine.
   unused << Send__delete__(this, fileDescriptor);
 
-  if (fileDescriptor.IsValid()) {
-    // close file now that other process has it open, else we'll leak fds in the
-    // parent process.
-    close(fileDescriptor.PlatformHandle());
-  }
-
+  // Current process's file descriptor is closed by FileDescriptor destructor.
 #endif // OS_TYPE
 
   return true;

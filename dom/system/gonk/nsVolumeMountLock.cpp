@@ -12,9 +12,13 @@
 #include "nsIVolume.h"
 #include "nsIVolumeService.h"
 #include "nsString.h"
+#include "nsXULAppAPI.h"
 
+#undef VOLUME_MANAGER_LOG_TAG
 #define VOLUME_MANAGER_LOG_TAG  "nsVolumeMountLock"
 #include "VolumeManagerLog.h"
+#include "nsServiceManagerUtils.h"
+#include "mozilla/dom/power/PowerManagerService.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::services;
@@ -22,8 +26,8 @@ using namespace mozilla::services;
 namespace mozilla {
 namespace system {
 
-NS_IMPL_ISUPPORTS3(nsVolumeMountLock, nsIVolumeMountLock,
-                   nsIObserver, nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(nsVolumeMountLock, nsIVolumeMountLock,
+                  nsIObserver, nsISupportsWeakReference)
 
 // static
 already_AddRefed<nsVolumeMountLock>
@@ -62,18 +66,19 @@ nsresult nsVolumeMountLock::Init()
   nsCOMPtr<nsIObserverService> obs = GetObserverService();
   obs->AddObserver(this, NS_VOLUME_STATE_CHANGED, true /*weak*/);
 
-  // Request the sdcard info, so we know the state/generation without having
-  // to wait for a state change.
-  if (XRE_GetProcessType() == GoannaProcessType_Content) {
-    ContentChild::GetSingleton()->SendBroadcastVolume(mVolumeName);
-    return NS_OK;
-  }
+  // Get the initial mountGeneration and grab a lock.
   nsCOMPtr<nsIVolumeService> vs = do_GetService(NS_VOLUMESERVICE_CONTRACTID);
   NS_ENSURE_TRUE(vs, NS_ERROR_FAILURE);
 
-  vs->BroadcastVolume(mVolumeName);
+  nsCOMPtr<nsIVolume> vol;
+  nsresult rv = vs->GetVolumeByName(mVolumeName, getter_AddRefs(vol));
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+  rv = vol->GetMountGeneration(&mVolumeGeneration);
+  NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_OK;
+  return Lock(vol);
 }
 
 /* void unlock (); */
@@ -92,7 +97,7 @@ NS_IMETHODIMP nsVolumeMountLock::Unlock()
   return NS_OK;
 }
 
-NS_IMETHODIMP nsVolumeMountLock::Observe(nsISupports* aSubject, const char* aTopic, const PRUnichar* aData)
+NS_IMETHODIMP nsVolumeMountLock::Observe(nsISupports* aSubject, const char* aTopic, const char16_t* aData)
 {
   if (strcmp(aTopic, NS_VOLUME_STATE_CHANGED) != 0) {
     return NS_OK;
@@ -139,14 +144,24 @@ NS_IMETHODIMP nsVolumeMountLock::Observe(nsISupports* aSubject, const char* aTop
   mWakeLock = nullptr;
   mVolumeGeneration = mountGeneration;
 
-  nsCOMPtr<nsIPowerManagerService> pmService =
-    do_GetService(POWERMANAGERSERVICE_CONTRACTID);
+  return Lock(vol);
+}
+
+nsresult
+nsVolumeMountLock::Lock(nsIVolume* aVolume)
+{
+  nsRefPtr<power::PowerManagerService> pmService =
+    power::PowerManagerService::GetInstance();
   NS_ENSURE_TRUE(pmService, NS_ERROR_FAILURE);
 
   nsString mountLockName;
-  vol->GetMountLockName(mountLockName);
-  rv = pmService->NewWakeLock(mountLockName, nullptr, getter_AddRefs(mWakeLock));
-  NS_ENSURE_SUCCESS(rv, rv);
+  aVolume->GetMountLockName(mountLockName);
+
+  ErrorResult err;
+  mWakeLock = pmService->NewWakeLock(mountLockName, nullptr, err);
+  if (err.Failed()) {
+    return err.ErrorCode();
+  }
 
   LOG("nsVolumeMountLock acquired for '%s' gen %d",
       NS_LossyConvertUTF16toASCII(mVolumeName).get(), mVolumeGeneration);

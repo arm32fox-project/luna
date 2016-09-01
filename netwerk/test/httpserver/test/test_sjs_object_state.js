@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -8,9 +8,10 @@
  * Tests that the object-state-preservation mechanism works correctly.
  */
 
-const PORT = 4444;
 
-const PATH = "http://localhost:" + PORT + "/object-state.sjs";
+XPCOMUtils.defineLazyGetter(this, "PATH", function() {
+  return "http://localhost:" + srv.identity.primaryPort + "/object-state.sjs";
+});
 
 var srv;
 
@@ -20,7 +21,7 @@ function run_test()
   var sjsDir = do_get_file("data/sjs/");
   srv.registerDirectory("/", sjsDir);
   srv.registerContentType("sjs", "sjs");
-  srv.start(PORT);
+  srv.start(-1);
 
   do_test_pending();
 

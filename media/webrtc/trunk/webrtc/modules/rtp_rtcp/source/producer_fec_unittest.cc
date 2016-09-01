@@ -10,10 +10,10 @@
 
 #include <list>
 
-#include "gtest/gtest.h"
-#include "modules/rtp_rtcp/source/fec_test_helper.h"
-#include "modules/rtp_rtcp/source/forward_error_correction.h"
-#include "modules/rtp_rtcp/source/producer_fec.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "webrtc/modules/rtp_rtcp/source/fec_test_helper.h"
+#include "webrtc/modules/rtp_rtcp/source/forward_error_correction.h"
+#include "webrtc/modules/rtp_rtcp/source/producer_fec.h"
 
 namespace webrtc {
 
@@ -39,7 +39,7 @@ void VerifyHeader(uint16_t seq_num,
 class ProducerFecTest : public ::testing::Test {
  protected:
   virtual void SetUp() {
-    fec_ = new ForwardErrorCorrection(0);
+    fec_ = new ForwardErrorCorrection();
     producer_ = new ProducerFec(fec_);
     generator_ = new FrameGenerator;
   }

@@ -21,12 +21,12 @@ namespace mozilla {
  */
 struct Module
 {
-  static const unsigned int kVersion = 24;
+  static const unsigned int kVersion = 38;
 
   struct CIDEntry;
 
-  typedef already_AddRefed<nsIFactory> (*GetFactoryProcPtr)
-    (const Module& module, const CIDEntry& entry);
+  typedef already_AddRefed<nsIFactory> (*GetFactoryProcPtr)(
+    const Module& module, const CIDEntry& entry);
 
   typedef nsresult (*ConstructorProcPtr)(nsISupports* aOuter,
                                          const nsIID& aIID,
@@ -34,6 +34,17 @@ struct Module
 
   typedef nsresult (*LoadFuncPtr)();
   typedef void (*UnloadFuncPtr)();
+
+  /**
+   * This selector allows CIDEntrys to be marked so that they're only loaded
+   * into certain kinds of processes.
+   */
+  enum ProcessSelector
+  {
+    ANY_PROCESS = 0,
+    MAIN_PROCESS_ONLY,
+    CONTENT_PROCESS_ONLY
+  };
 
   /**
    * The constructor callback is an implementation detail of the default binary
@@ -45,12 +56,14 @@ struct Module
     bool service;
     GetFactoryProcPtr getFactoryProc;
     ConstructorProcPtr constructorProc;
+    ProcessSelector processSelector;
   };
 
   struct ContractIDEntry
   {
     const char* contractid;
-    nsID const * cid;
+    nsID const* cid;
+    ProcessSelector processSelector;
   };
 
   struct CategoryEntry
@@ -67,19 +80,19 @@ struct Module
 
   /**
    * An array of CIDs (class IDs) implemented by this module. The final entry
-   * should be { NULL }.
+   * should be { nullptr }.
    */
   const CIDEntry* mCIDs;
 
   /**
    * An array of mappings from contractid to CID. The final entry should
-   * be { NULL }.
+   * be { nullptr }.
    */
   const ContractIDEntry* mContractIDs;
 
   /**
    * An array of category manager entries. The final entry should be
-   * { NULL }.
+   * { nullptr }.
    */
   const CategoryEntry* mCategoryEntries;
 
@@ -87,8 +100,8 @@ struct Module
    * When the component manager tries to get the factory for a CID, it first
    * checks for this module-level getfactory callback. If this function is
    * not implemented, it checks the CIDEntry getfactory callback. If that is
-   * also NULL, a generic factory is generated using the CIDEntry constructor
-   * callback which must be non-NULL.
+   * also nullptr, a generic factory is generated using the CIDEntry
+   * constructor callback which must be non-nullptr.
    */
   GetFactoryProcPtr getFactoryProc;
 
@@ -103,10 +116,25 @@ struct Module
 
 } // namespace
 
-#if defined(XPCOM_TRANSLATE_NSGM_ENTRY_POINT)
+#if defined(MOZILLA_INTERNAL_API)
 #  define NSMODULE_NAME(_name) _name##_NSModule
-#  define NSMODULE_DECL(_name) extern mozilla::Module const *const NSMODULE_NAME(_name)
-#  define NSMODULE_DEFN(_name) NSMODULE_DECL(_name)
+#  if defined(_MSC_VER)
+#    pragma section(".kPStaticModules$M", read)
+#    pragma comment(linker, "/merge:.kPStaticModules=.rdata")
+#    define NSMODULE_SECTION __declspec(allocate(".kPStaticModules$M"), dllexport)
+#  elif defined(__GNUC__)
+#    if defined(__ELF__)
+#      define NSMODULE_SECTION __attribute__((section(".kPStaticModules"), visibility("protected")))
+#    elif defined(__MACH__)
+#      define NSMODULE_SECTION __attribute__((section("__DATA, .kPStaticModules"), visibility("default")))
+#    elif defined (_WIN32)
+#      define NSMODULE_SECTION __attribute__((section(".kPStaticModules"), dllexport))
+#    endif
+#  endif
+#  if !defined(NSMODULE_SECTION)
+#    error Do not know how to define sections.
+#  endif
+#  define NSMODULE_DEFN(_name) extern NSMODULE_SECTION mozilla::Module const *const NSMODULE_NAME(_name)
 #else
 #  define NSMODULE_NAME(_name) NSModule
 #  define NSMODULE_DEFN(_name) extern "C" NS_EXPORT mozilla::Module const *const NSModule

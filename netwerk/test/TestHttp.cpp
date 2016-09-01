@@ -6,6 +6,9 @@
 #include "nsIInterfaceRequestorUtils.h"
 #include "nsIProgressEventSink.h"
 #include <algorithm>
+#include "nsIContentPolicy.h"
+#include "mozilla/LoadInfo.h"
+#include "nsContentUtils.h"
 
 #define RETURN_IF_FAILED(rv, step) \
     PR_BEGIN_MACRO \
@@ -34,9 +37,9 @@ public:
     virtual ~MyListener() {}
 };
 
-NS_IMPL_ISUPPORTS2(MyListener,
-                   nsIRequestObserver,
-                   nsIStreamListener)
+NS_IMPL_ISUPPORTS(MyListener,
+                  nsIRequestObserver,
+                  nsIStreamListener)
 
 NS_IMETHODIMP
 MyListener::OnStartRequest(nsIRequest *req, nsISupports *ctxt)
@@ -88,7 +91,7 @@ class MyNotifications : public nsIInterfaceRequestor
                       , public nsIProgressEventSink
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIINTERFACEREQUESTOR
     NS_DECL_NSIPROGRESSEVENTSINK
 
@@ -96,9 +99,9 @@ public:
     virtual ~MyNotifications() {}
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(MyNotifications,
-                              nsIInterfaceRequestor,
-                              nsIProgressEventSink)
+NS_IMPL_ISUPPORTS(MyNotifications,
+                  nsIInterfaceRequestor,
+                  nsIProgressEventSink)
 
 NS_IMETHODIMP
 MyNotifications::GetInterface(const nsIID &iid, void **result)
@@ -108,7 +111,7 @@ MyNotifications::GetInterface(const nsIID &iid, void **result)
 
 NS_IMETHODIMP
 MyNotifications::OnStatus(nsIRequest *req, nsISupports *ctx,
-                          nsresult status, const PRUnichar *statusText)
+                          nsresult status, const char16_t *statusText)
 {
     printf("status: %x\n", status);
     return NS_OK;
@@ -162,8 +165,13 @@ int main(int argc, char **argv)
         rv = NS_NewURI(getter_AddRefs(uri), argv[1]);
         RETURN_IF_FAILED(rv, "NS_NewURI");
 
-        rv = NS_NewChannel(getter_AddRefs(chan), uri, nullptr, nullptr, callbacks);
-        RETURN_IF_FAILED(rv, "NS_OpenURI");
+        rv = NS_NewChannel(getter_AddRefs(chan),
+                           uri,
+                           nsContentUtils::GetSystemPrincipal(),
+                           nsILoadInfo::SEC_NORMAL,
+                           nsIContentPolicy::TYPE_OTHER);
+
+        RETURN_IF_FAILED(rv, "NS_NewChannel");
 
         rv = chan->AsyncOpen(listener, nullptr);
         RETURN_IF_FAILED(rv, "AsyncOpen");

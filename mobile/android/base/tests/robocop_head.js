@@ -1,4 +1,4 @@
-/* -*- Mode: JavaScript; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -32,8 +32,9 @@ function _dump(str) {
 
 // Disable automatic network detection, so tests work correctly when
 // not connected to a network.
-let (ios = Components.classes["@mozilla.org/network/io-service;1"]
-           .getService(Components.interfaces.nsIIOService2)) {
+{
+  let ios = Components.classes["@mozilla.org/network/io-service;1"]
+             .getService(Components.interfaces.nsIIOService2);
   ios.manageOfflineStatus = false;
   ios.offline = false;
 }
@@ -260,33 +261,32 @@ function do_get_idle() {
 // Map resource://test/ to current working directory and
 // resource://testing-common/ to the shared test modules directory.
 function _register_protocol_handlers() {
-  let (ios = Components.classes["@mozilla.org/network/io-service;1"]
-             .getService(Components.interfaces.nsIIOService)) {
-    let protocolHandler =
-      ios.getProtocolHandler("resource")
-         .QueryInterface(Components.interfaces.nsIResProtocolHandler);
-    let curDirURI = ios.newFileURI(do_get_cwd());
-    protocolHandler.setSubstitution("test", curDirURI);
+  let ios = Components.classes["@mozilla.org/network/io-service;1"]
+             .getService(Components.interfaces.nsIIOService);
+  let protocolHandler =
+    ios.getProtocolHandler("resource")
+       .QueryInterface(Components.interfaces.nsIResProtocolHandler);
+  let curDirURI = ios.newFileURI(do_get_cwd());
+  protocolHandler.setSubstitution("test", curDirURI);
 
-    if (this._TESTING_MODULES_DIR) {
-      let modulesFile = Components.classes["@mozilla.org/file/local;1"].
-                        createInstance(Components.interfaces.nsILocalFile);
-      modulesFile.initWithPath(_TESTING_MODULES_DIR);
+  if (this._TESTING_MODULES_DIR) {
+    let modulesFile = Components.classes["@mozilla.org/file/local;1"].
+                      createInstance(Components.interfaces.nsILocalFile);
+    modulesFile.initWithPath(_TESTING_MODULES_DIR);
 
-      if (!modulesFile.exists()) {
-        throw new Error("Specified modules directory does not exist: " +
-                        _TESTING_MODULES_DIR);
-      }
-
-      if (!modulesFile.isDirectory()) {
-        throw new Error("Specified modules directory is not a directory: " +
-                        _TESTING_MODULES_DIR);
-      }
-
-      let modulesURI = ios.newFileURI(modulesFile);
-
-      protocolHandler.setSubstitution("testing-common", modulesURI);
+    if (!modulesFile.exists()) {
+      throw new Error("Specified modules directory does not exist: " +
+                      _TESTING_MODULES_DIR);
     }
+
+    if (!modulesFile.isDirectory()) {
+      throw new Error("Specified modules directory is not a directory: " +
+                      _TESTING_MODULES_DIR);
+    }
+
+    let modulesURI = ios.newFileURI(modulesFile);
+
+    protocolHandler.setSubstitution("testing-common", modulesURI);
   }
 }
 
@@ -1119,3 +1119,95 @@ function run_next_test()
     do_test_finished();
   }
 }
+
+/**
+ * End of code adapted from xpcshell head.js
+ */
+
+
+/**
+ * JavaBridge facilitates communication between Java and JS. See
+ * JavascriptBridge.java for the corresponding JavascriptBridge and docs.
+ */
+
+function JavaBridge(obj) {
+
+  this._EVENT_TYPE = "Robocop:JS";
+  this._target = obj;
+  // The number of replies needed to answer all outstanding sync calls.
+  this._repliesNeeded = 0;
+  this._Services.obs.addObserver(this, this._EVENT_TYPE, false);
+
+  this._sendMessage("notify-loaded", []);
+};
+
+JavaBridge.prototype = {
+
+  _Services: Components.utils.import(
+    "resource://gre/modules/Services.jsm", {}).Services,
+
+  _sendMessageToJava: Components.utils.import(
+    "resource://gre/modules/Messaging.jsm", {}).Messaging.sendRequest,
+
+  _sendMessage: function (innerType, args) {
+    this._sendMessageToJava({
+      type: this._EVENT_TYPE,
+      innerType: innerType,
+      method: args[0],
+      args: Array.prototype.slice.call(args, 1),
+    });
+  },
+
+  observe: function(subject, topic, data) {
+    let message = JSON.parse(data);
+    if (message.innerType === "sync-reply") {
+      // Reply to our Javascript-to-Java sync call
+      this._repliesNeeded--;
+      return;
+    }
+    // Call the corresponding method on the target
+    try {
+      this._target[message.method].apply(this._target, message.args);
+    } catch (e) {
+      do_report_unexpected_exception(e, "Failed to call " + message.method);
+    }
+    if (message.innerType === "sync-call") {
+      // Reply for sync message
+      this._sendMessage("sync-reply", [message.method]);
+    }
+  },
+
+  /**
+   * Synchronously call a method in Java,
+   * given the method name followed by a list of arguments.
+   */
+  syncCall: function (methodName /*, ... */) {
+    this._sendMessage("sync-call", arguments);
+    let thread = this._Services.tm.currentThread;
+    let initialReplies = this._repliesNeeded;
+    // Need one more reply to answer the current sync call.
+    this._repliesNeeded++;
+    // Wait for the reply to arrive. Normally we would not want to
+    // spin the event loop, but here we're in a test and our API
+    // specifies a synchronous call, so we spin the loop to wait for
+    // the call to finish.
+    while (this._repliesNeeded > initialReplies) {
+      thread.processNextEvent(true);
+    }
+  },
+
+  /**
+   * Asynchronously call a method in Java,
+   * given the method name followed by a list of arguments.
+   */
+  asyncCall: function (methodName /*, ... */) {
+    this._sendMessage("async-call", arguments);
+  },
+
+  /**
+   * Disconnect with Java.
+   */
+  disconnect: function () {
+    this._Services.obs.removeObserver(this, this._EVENT_TYPE);
+  },
+};

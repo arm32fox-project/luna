@@ -21,7 +21,9 @@ var gData = [
     perm: ["cellbroadcast"],
     needParentPerm: true,
     obj: "mozCellBroadcast",
-    idl: "nsIDOMMozCellBroadcast",
+    webidl: "MozCellBroadcast",
+    settings: [["dom.cellbroadcast.enabled", true],
+               ["dom.ignore_webidl_scope_checks", true]],
   },
 ]
 </script>

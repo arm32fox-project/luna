@@ -18,14 +18,14 @@ VolumeServiceIOThread::VolumeServiceIOThread(nsVolumeService* aVolumeService)
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
 
   VolumeManager::RegisterStateObserver(this);
-  Volume::RegisterObserver(this);
+  Volume::RegisterVolumeObserver(this, "VolumeServiceIOThread");
   UpdateAllVolumes();
 }
 
 VolumeServiceIOThread::~VolumeServiceIOThread()
 {
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
-  Volume::UnregisterObserver(this);
+  Volume::UnregisterVolumeObserver(this, "VolumeServiceIOThread");
   VolumeManager::UnregisterStateObserver(this);
 }
 
@@ -75,7 +75,7 @@ void
 ShutdownVolumeServiceIOThread()
 {
   MOZ_ASSERT(MessageLoop::current() == XRE_GetIOMessageLoop());
-  sVolumeServiceIOThread = NULL;
+  sVolumeServiceIOThread = nullptr;
 }
 
 } // system

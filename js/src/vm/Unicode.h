@@ -54,8 +54,6 @@ namespace unicode {
  *   if GetFlag(char) & (FLAG_IDENTIFIER_PART | FLAG_LETTER):
  *      return True
  *
- * NO_DELTA
- *   See comment in CharacterInfo
  */
 
 struct CharFlag {
@@ -63,16 +61,15 @@ struct CharFlag {
         SPACE  = 1 << 0,
         LETTER = 1 << 1,
         IDENTIFIER_PART = 1 << 2,
-        NO_DELTA = 1 << 3
     };
 };
 
-const jschar BYTE_ORDER_MARK2 = 0xFFFE;
-const jschar NO_BREAK_SPACE  = 0x00A0;
+const char16_t BYTE_ORDER_MARK2 = 0xFFFE;
+const char16_t NO_BREAK_SPACE  = 0x00A0;
 
 class CharacterInfo {
     /*
-     * upperCase and loweCase normally store the delta between two
+     * upperCase and lowerCase normally store the delta between two
      * letters. For example the lower case alpha (a) has the char code
      * 97, and the upper case alpha (A) has 65. So for "a" we would
      * store -32 in upperCase (97 + (-32) = 65) and 0 in lowerCase,
@@ -81,10 +78,6 @@ class CharacterInfo {
      * unsigned overflow with identical mathematical behavior.
      * For upper case alpha, we would store 0 in upperCase and 32 in
      * lowerCase (65 + 32 = 97).
-     *
-     * If the delta between the chars wouldn't fit in a T, the flag
-     * FLAG_NO_DELTA is set, and you can just use upperCase and lowerCase
-     * without adding them the base char. See CharInfo.toUpperCase().
      *
      * We use deltas to reuse information for multiple characters. For
      * example the whole lower case latin alphabet fits into one entry,
@@ -114,7 +107,7 @@ extern const uint8_t index2[];
 extern const CharacterInfo js_charinfo[];
 
 inline const CharacterInfo&
-CharInfo(jschar code)
+CharInfo(char16_t code)
 {
     const size_t shift = 5;
     size_t index = index1[code >> shift];
@@ -124,7 +117,7 @@ CharInfo(jschar code)
 }
 
 inline bool
-IsIdentifierStart(jschar ch)
+IsIdentifierStart(char16_t ch)
 {
     /*
      * ES5 7.6 IdentifierStart
@@ -142,7 +135,7 @@ IsIdentifierStart(jschar ch)
 }
 
 inline bool
-IsIdentifierPart(jschar ch)
+IsIdentifierPart(char16_t ch)
 {
     /* Matches ES5 7.6 IdentifierPart. */
 
@@ -153,13 +146,13 @@ IsIdentifierPart(jschar ch)
 }
 
 inline bool
-IsLetter(jschar ch)
+IsLetter(char16_t ch)
 {
     return CharInfo(ch).isLetter();
 }
 
 inline bool
-IsSpace(jschar ch)
+IsSpace(char16_t ch)
 {
     /*
      * IsSpace checks if some character is included in the merged set
@@ -183,7 +176,7 @@ IsSpace(jschar ch)
 }
 
 inline bool
-IsSpaceOrBOM2(jschar ch)
+IsSpaceOrBOM2(char16_t ch)
 {
     if (ch < 128)
         return js_isspace[ch];
@@ -195,28 +188,18 @@ IsSpaceOrBOM2(jschar ch)
     return CharInfo(ch).isSpace();
 }
 
-inline jschar
-ToUpperCase(jschar ch)
+inline char16_t
+ToUpperCase(char16_t ch)
 {
-    const CharacterInfo &info = CharInfo(ch);
-
-    /*
-     * The delta didn't fit into T, so we had to store the
-     * actual char code.
-     */
-    if (info.flags & CharFlag::NO_DELTA)
-        return info.upperCase;
+    const CharacterInfo& info = CharInfo(ch);
 
     return uint16_t(ch) + info.upperCase;
 }
 
-inline jschar
-ToLowerCase(jschar ch)
+inline char16_t
+ToLowerCase(char16_t ch)
 {
-    const CharacterInfo &info = CharInfo(ch);
-
-    if (info.flags & CharFlag::NO_DELTA)
-        return info.lowerCase;
+    const CharacterInfo& info = CharInfo(ch);
 
     return uint16_t(ch) + info.lowerCase;
 }

@@ -7,9 +7,18 @@ import string
 
 propList = eval(sys.stdin.read())
 props = ""
-for [prop, pref] in propList:
+for [name, prop, id, flags, pref] in propList:
     extendedAttrs = ["Throws", "TreatNullAs=EmptyString"]
-    if pref is not "":
+    # To limit the overhead of Func= annotations, we only generate them when
+    # necessary, which is when the
+    # CSS_PROPERTY_ALWAYS_ENABLED_IN_CHROME_OR_CERTIFIED_APP flag is set.
+    # Otherwise, we try to get by with just a Pref= annotation or no annotation
+    # at all.
+    if "CSS_PROPERTY_ALWAYS_ENABLED_IN_CHROME_OR_CERTIFIED_APP" in flags:
+        extendedAttrs.append('Func="IsCSSPropertyExposedToJS<eCSSProperty_%s>"' % id)
+    # The following is an 'elif' because it is the responsibility of
+    # IsCSSPropertyExposedToJS to handle the pref if there is one.
+    elif pref is not "":
         extendedAttrs.append('Pref="%s"' % pref)
     if not prop.startswith("Moz"):
         prop = prop[0].lower() + prop[1:]
@@ -17,6 +26,28 @@ for [prop, pref] in propList:
     # (e.g. on nsComputedDOMStyle).
     props += "  [%s] attribute DOMString %s;\n" % (", ".join(extendedAttrs),
                                                    prop)
+    # Per spec, what's actually supposed to happen here is that we're supposed
+    # to have properties for:
+    #
+    # 1) Each supported CSS property name, camelCased.
+    # 2) Each supported name that contains dashes but doesn't start with a
+    #    dash, without any changes to the name.
+    # 3) cssFloat
+    #
+    # Note that "float" will cause a property called "float" to exist due to (1)
+    # in that list.
+    #
+    # In practice, cssFloat is the only case in which "name" doesn't contain "-"
+    # but also doesn't match "prop".  So the stuff we did with "prop" covers (3)
+    # and all of (1) except "float".   If we now output attributes for all the
+    # cases where "name" doesn't match "prop" and "name" doesn't start with "-",
+    # that will cover "float" and (2).
+    if prop != name and name[0] != "-":
+        extendedAttrs.append('BinaryName="%s"' % prop)
+        # Throw in a '_' before the attribute name, because some of these
+        # property names collide with IDL reserved words.
+        props += "  [%s] attribute DOMString _%s;\n" % (", ".join(extendedAttrs),
+                                                       name)
 
 idlFile = open(sys.argv[1], "r");
 idlTemplate = idlFile.read();

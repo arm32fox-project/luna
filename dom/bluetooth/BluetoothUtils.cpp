@@ -4,31 +4,26 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h"
-
-#include "BluetoothReplyRunnable.h"
 #include "BluetoothUtils.h"
+#include "BluetoothReplyRunnable.h"
+#include "BluetoothService.h"
 #include "jsapi.h"
-#include "mozilla/Scoped.h"
 #include "mozilla/dom/bluetooth/BluetoothTypes.h"
 #include "nsContentUtils.h"
-#include "nsCxPusher.h"
-#include "nsIScriptContext.h"
 #include "nsISystemMessagesInternal.h"
-#include "nsString.h"
-#include "nsTArray.h"
+#include "nsServiceManagerUtils.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
 bool
 SetJsObject(JSContext* aContext,
             const BluetoothValue& aValue,
-            JSObject* aObj)
+            JS::Handle<JSObject*> aObj)
 {
   MOZ_ASSERT(aContext && aObj);
 
   if (aValue.type() != BluetoothValue::TArrayOfBluetoothNamedValue) {
-    NS_WARNING("SetJsObject: Invalid parameter type");
+    BT_WARNING("SetJsObject: Invalid parameter type");
     return false;
   }
 
@@ -36,18 +31,18 @@ SetJsObject(JSContext* aContext,
     aValue.get_ArrayOfBluetoothNamedValue();
 
   for (uint32_t i = 0; i < arr.Length(); i++) {
-    JS::Value val;
+    JS::Rooted<JS::Value> val(aContext);
     const BluetoothValue& v = arr[i].value();
-    JSString* jsData;
 
     switch(v.type()) {
-      case BluetoothValue::TnsString:
-        jsData = JS_NewUCStringCopyN(aContext,
+       case BluetoothValue::TnsString: {
+        JSString* jsData = JS_NewUCStringCopyN(aContext,
                                      v.get_nsString().BeginReading(),
                                      v.get_nsString().Length());
         NS_ENSURE_TRUE(jsData, false);
         val = STRING_TO_JSVAL(jsData);
         break;
+      }
       case BluetoothValue::Tuint32_t:
         val = INT_TO_JSVAL(v.get_uint32_t());
         break;
@@ -55,14 +50,14 @@ SetJsObject(JSContext* aContext,
         val = BOOLEAN_TO_JSVAL(v.get_bool());
         break;
       default:
-        NS_WARNING("SetJsObject: Parameter is not handled");
+        BT_WARNING("SetJsObject: Parameter is not handled");
         break;
     }
 
     if (!JS_SetProperty(aContext, aObj,
                         NS_ConvertUTF16toUTF8(arr[i].name()).get(),
-                        &val)) {
-      NS_WARNING("Failed to set property");
+                        val)) {
+      BT_WARNING("Failed to set property");
       return false;
     }
   }
@@ -70,35 +65,45 @@ SetJsObject(JSContext* aContext,
   return true;
 }
 
-nsString
-GetObjectPathFromAddress(const nsAString& aAdapterPath,
-                         const nsAString& aDeviceAddress)
+bool
+BroadcastSystemMessage(const nsAString& aType,
+                       const BluetoothValue& aData)
 {
-  // The object path would be like /org/bluez/2906/hci0/dev_00_23_7F_CB_B4_F1,
-  // and the adapter path would be the first part of the object path, according
-  // to the example above, it's /org/bluez/2906/hci0.
-  nsString devicePath(aAdapterPath);
-  devicePath.AppendLiteral("/dev_");
-  devicePath.Append(aDeviceAddress);
-  devicePath.ReplaceChar(':', '_');
-  return devicePath;
-}
+  mozilla::AutoSafeJSContext cx;
+  NS_ASSERTION(!::JS_IsExceptionPending(cx),
+      "Shouldn't get here when an exception is pending!");
 
-nsString
-GetAddressFromObjectPath(const nsAString& aObjectPath)
-{
-  // The object path would be like /org/bluez/2906/hci0/dev_00_23_7F_CB_B4_F1,
-  // and the adapter path would be the first part of the object path, according
-  // to the example above, it's /org/bluez/2906/hci0.
-  nsString address(aObjectPath);
-  int addressHead = address.RFind("/") + 5;
+  nsCOMPtr<nsISystemMessagesInternal> systemMessenger =
+    do_GetService("@mozilla.org/system-message-internal;1");
+  NS_ENSURE_TRUE(systemMessenger, false);
 
-  MOZ_ASSERT(addressHead + BLUETOOTH_ADDRESS_LENGTH == address.Length());
+  JS::Rooted<JS::Value> value(cx);
+  if (aData.type() == BluetoothValue::TnsString) {
+    JSString* jsData = JS_NewUCStringCopyN(cx,
+                                           aData.get_nsString().BeginReading(),
+                                           aData.get_nsString().Length());
+    value = STRING_TO_JSVAL(jsData);
+  } else if (aData.type() == BluetoothValue::TArrayOfBluetoothNamedValue) {
+    JS::Rooted<JSObject*> obj(cx, JS_NewPlainObject(cx));
+    if (!obj) {
+      BT_WARNING("Failed to new JSObject for system message!");
+      return false;
+    }
 
-  address.Cut(0, addressHead);
-  address.ReplaceChar('_', ':');
+    if (!SetJsObject(cx, aData, obj)) {
+      BT_WARNING("Failed to set properties of system message!");
+      return false;
+    }
+    value = JS::ObjectValue(*obj);
+  } else {
+    BT_WARNING("Not support the unknown BluetoothValue type");
+    return false;
+  }
 
-  return address;
+  systemMessenger->BroadcastMessage(aType, value,
+                                    JS::UndefinedHandleValue);
+
+  return true;
 }
 
 bool
@@ -109,14 +114,14 @@ BroadcastSystemMessage(const nsAString& aType,
   NS_ASSERTION(!::JS_IsExceptionPending(cx),
       "Shouldn't get here when an exception is pending!");
 
-  JSObject* obj = JS_NewObject(cx, NULL, NULL, NULL);
+  JS::Rooted<JSObject*> obj(cx, JS_NewPlainObject(cx));
   if (!obj) {
-    NS_WARNING("Failed to new JSObject for system message!");
+    BT_WARNING("Failed to new JSObject for system message!");
     return false;
   }
 
   if (!SetJsObject(cx, aData, obj)) {
-    NS_WARNING("Failed to set properties of system message!");
+    BT_WARNING("Failed to set properties of system message!");
     return false;
   }
 
@@ -124,7 +129,9 @@ BroadcastSystemMessage(const nsAString& aType,
     do_GetService("@mozilla.org/system-message-internal;1");
   NS_ENSURE_TRUE(systemMessenger, false);
 
-  systemMessenger->BroadcastMessage(aType, OBJECT_TO_JSVAL(obj));
+  JS::Rooted<JS::Value> value(cx, JS::ObjectValue(*obj));
+  systemMessenger->BroadcastMessage(aType, value,
+                                    JS::UndefinedHandleValue);
 
   return true;
 }
@@ -146,29 +153,26 @@ DispatchBluetoothReply(BluetoothReplyRunnable* aRunnable,
 
   aRunnable->SetReply(reply);
   if (NS_FAILED(NS_DispatchToMainThread(aRunnable))) {
-    NS_WARNING("Failed to dispatch to main thread!");
+    BT_WARNING("Failed to dispatch to main thread!");
   }
 }
 
 void
-ParseAtCommand(const nsACString& aAtCommand, const int aStart,
-               nsTArray<nsCString>& aRetValues)
+DispatchStatusChangedEvent(const nsAString& aType,
+                           const nsAString& aAddress,
+                           bool aStatus)
 {
-  int length = aAtCommand.Length();
-  int begin = aStart;
+  MOZ_ASSERT(NS_IsMainThread());
 
-  for (int i = aStart; i < length; ++i) {
-    // Use ',' as separator
-    if (aAtCommand[i] == ',') {
-      nsCString tmp(nsDependentCSubstring(aAtCommand, begin, i - begin));
-      aRetValues.AppendElement(tmp);
+  InfallibleTArray<BluetoothNamedValue> data;
+  BT_APPEND_NAMED_VALUE(data, "address", nsString(aAddress));
+  BT_APPEND_NAMED_VALUE(data, "status", aStatus);
 
-      begin = i + 1;
-    }
-  }
+  BluetoothSignal signal(nsString(aType), NS_LITERAL_STRING(KEY_ADAPTER), data);
 
-  nsCString tmp(nsDependentCSubstring(aAtCommand, begin));
-  aRetValues.AppendElement(tmp);
+  BluetoothService* bs = BluetoothService::Get();
+  NS_ENSURE_TRUE_VOID(bs);
+  bs->DistributeSignal(signal);
 }
 
 END_BLUETOOTH_NAMESPACE

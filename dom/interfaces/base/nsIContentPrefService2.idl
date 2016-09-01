@@ -67,9 +67,22 @@ interface nsIContentPref;
  * See nsIContentPrefCallback2 below for more information about callbacks.
  */
 
-[scriptable, uuid(133608c7-f812-41ca-bc1c-62a4eb95e52a)]
+[scriptable, uuid(bed98666-d995-470f-bebd-62476d318576)]
 interface nsIContentPrefService2 : nsISupports
 {
+  /**
+   * Gets all the preferences with the given name.
+   *
+   * @param name      The preferences' name.
+   * @param context   The private-browsing context, if any.
+   * @param callback  handleResult is called once for each preference unless
+   *                  no such preferences exist, in which case handleResult
+   *                  is not called at all.
+   */
+  void getByName(in AString name,
+                 in nsILoadContext context,
+                 in nsIContentPrefCallback2 callback);
+
   /**
    * Gets the preference with the given domain and name.
    *
@@ -153,7 +166,7 @@ interface nsIContentPrefService2 : nsISupports
   void getCachedBySubdomainAndName(in AString domain,
                                    in AString name,
                                    in nsILoadContext context,
-                                   out unsigned long len,
+                                   [optional] out unsigned long len,
                                    [retval,array,size_is(len)] out nsIContentPref prefs);
 
   /**
@@ -285,6 +298,17 @@ interface nsIContentPrefService2 : nsISupports
    */
   void removeAllDomains(in nsILoadContext context,
                         [optional] in nsIContentPrefCallback2 callback);
+
+  /**
+   * Removes all non-global preferences created after and including |since|.
+   *
+   * @param since     Timestamp in milliseconds.
+   * @param context   The private-browsing context, if any.
+   * @param callback  handleCompletion is called when the operation completes.
+   */
+  void removeAllDomainsSince(in unsigned long long since,
+                             in nsILoadContext context,
+                             [optional] in nsIContentPrefCallback2 callback);
 
   /**
    * Removes all global preferences -- in other words, all preferences that have

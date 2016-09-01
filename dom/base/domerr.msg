@@ -30,6 +30,7 @@ DOM4_MSG_DEF(QuotaExceededError, "The quota has been exceeded.", NS_ERROR_DOM_QU
 DOM4_MSG_DEF(TimeoutError, "The operation timed out.", NS_ERROR_DOM_TIMEOUT_ERR)
 DOM4_MSG_DEF(InvalidNodeTypeError, "The supplied node is incorrect or has an incorrect ancestor for this operation.", NS_ERROR_DOM_INVALID_NODE_TYPE_ERR)
 DOM4_MSG_DEF(DataCloneError, "The object could not be cloned.", NS_ERROR_DOM_DATA_CLONE_ERR)
+DOM4_MSG_DEF(InvalidPointerId, "Invalid pointer id.", NS_ERROR_DOM_INVALID_POINTER_ERR)
 
 /* XXX Should be JavaScript native TypeError */
 DOM4_MSG_DEF(TypeError, "The method parameter is missing or invalid.", NS_ERROR_TYPE_ERR)
@@ -37,8 +38,11 @@ DOM4_MSG_DEF(RangeError, "The method parameter is out of valid range.", NS_ERROR
 
 /* StringEncoding API errors from http://wiki.whatwg.org/wiki/StringEncoding */
 DOM4_MSG_DEF(EncodingError, "The given encoding is not supported.", NS_ERROR_DOM_ENCODING_NOT_SUPPORTED_ERR)
-DOM4_MSG_DEF(EncodingError, "The encoding must be utf-8, utf-16, or utf-16be.", NS_ERROR_DOM_ENCODING_NOT_UTF_ERR)
-DOM4_MSG_DEF(EncodingError, "The decoder failed to convert.", NS_ERROR_DOM_ENCODING_DECODE_ERR)
+
+/* WebCrypto API errors from http://www.w3.org/TR/WebCryptoAPI/ */
+DOM4_MSG_DEF(UnknownError, "The operation failed for an unknown transient reason", NS_ERROR_DOM_UNKNOWN_ERR)
+DOM4_MSG_DEF(DataError, "Data provided to an operation does not meet requirements", NS_ERROR_DOM_DATA_ERR)
+DOM4_MSG_DEF(OperationError, "The operation failed for an operation-specific reason", NS_ERROR_DOM_OPERATION_ERR)
 
 /* SVG DOM errors from http://www.w3.org/TR/SVG11/svgdom.html */
 
@@ -69,6 +73,14 @@ DOM4_MSG_DEF(QuotaExceededError, "The current transaction exceeded its quota lim
 
 DOM_MSG_DEF(NS_ERROR_DOM_INDEXEDDB_RECOVERABLE_ERR, "The operation failed because the database was prevented from taking an action. The operation might be able to succeed if the application performs some recovery steps and retries the entire transaction. For example, there was not enough remaining storage space, or the storage quota was reached and the user declined to give more space to the database.")
 
+/* FileSystem DOM errors. */
+DOM4_MSG_DEF(InvalidAccessError, "Invalid file system path.", NS_ERROR_DOM_FILESYSTEM_INVALID_PATH_ERR)
+DOM4_MSG_DEF(InvalidModificationError, "Failed to modify the file.", NS_ERROR_DOM_FILESYSTEM_INVALID_MODIFICATION_ERR)
+DOM4_MSG_DEF(NoModificationAllowedError, "Modifications are not allowed for this file", NS_ERROR_DOM_FILESYSTEM_NO_MODIFICATION_ALLOWED_ERR)
+DOM4_MSG_DEF(AbortError, "File already exists.", NS_ERROR_DOM_FILESYSTEM_PATH_EXISTS_ERR)
+DOM4_MSG_DEF(TypeMismatchError, "The type of the file is incompatible with the expected type.", NS_ERROR_DOM_FILESYSTEM_TYPE_MISMATCH_ERR)
+DOM4_MSG_DEF(UnknownError, "The operation failed for reasons unrelated to the file system itself and not covered by any other error code.", NS_ERROR_DOM_FILESYSTEM_UNKNOWN_ERR)
+
 /* DOM error codes defined by us */
 
 /* XXX string should be specified by norris */
@@ -89,6 +101,19 @@ DOM_MSG_DEF(NS_ERROR_DOM_QUOTA_REACHED, "Persistent storage maximum size reached
 
 DOM4_MSG_DEF(NotFoundError, "File was not found", NS_ERROR_DOM_FILE_NOT_FOUND_ERR)
 DOM4_MSG_DEF(NotReadableError, "File could not be read", NS_ERROR_DOM_FILE_NOT_READABLE_ERR)
+
+/* Non-standard Bluetooth DOM errors. */
+DOM4_MSG_DEF(BtFailError,         "Fail",  NS_ERROR_DOM_BLUETOOTH_FAIL)
+DOM4_MSG_DEF(BtNotReadyError,     "Not ready",  NS_ERROR_DOM_BLUETOOTH_NOT_READY)
+DOM4_MSG_DEF(BtNoMemError,        "No memory",  NS_ERROR_DOM_BLUETOOTH_NOMEM)
+DOM4_MSG_DEF(BtBusyError,         "Device busy with another command",  NS_ERROR_DOM_BLUETOOTH_BUSY)
+DOM4_MSG_DEF(BtDoneError,         "Request already done",  NS_ERROR_DOM_BLUETOOTH_DONE)
+DOM4_MSG_DEF(BtUnsupportedError,  "Unsupported",  NS_ERROR_DOM_BLUETOOTH_UNSUPPORTED)
+DOM4_MSG_DEF(BtParmInvalidError,  "Invalid parameter",  NS_ERROR_DOM_BLUETOOTH_PARM_INVALID)
+DOM4_MSG_DEF(BtUnhandledError,    "Unhandled",  NS_ERROR_DOM_BLUETOOTH_UNHANDLED)
+DOM4_MSG_DEF(BtAuthFailureError,  "Authentication failure",  NS_ERROR_DOM_BLUETOOTH_AUTH_FAILURE)
+DOM4_MSG_DEF(BtRmtDevDownError,   "Remote device down",  NS_ERROR_DOM_BLUETOOTH_RMT_DEV_DOWN)
+DOM4_MSG_DEF(BtAuthRejectedError, "Authentication rejected",  NS_ERROR_DOM_BLUETOOTH_AUTH_REJECTED)
 
 /* common global codes (from nsError.h) */
 
@@ -114,10 +139,11 @@ DOM_MSG_DEF(NS_ERROR_FACTORY_NO_SIGNATURE_SUPPORT  , "Factory does not support s
 DOM_MSG_DEF(NS_ERROR_FACTORY_EXISTS                , "Factory already exists")
 
 DOM4_MSG_DEF(UnknownError, "The operation failed for reasons unrelated to the file storage itself and not covered by any other error code.", NS_ERROR_DOM_FILEHANDLE_UNKNOWN_ERR)
-DOM4_MSG_DEF(LockedFileInactiveError, "A request was placed against a locked file which is currently not active, or which is finished.", NS_ERROR_DOM_FILEHANDLE_LOCKEDFILE_INACTIVE_ERR)
-DOM4_MSG_DEF(ReadOnlyError, "A mutation operation was attempted in a READ_ONLY locked file.", NS_ERROR_DOM_FILEHANDLE_READ_ONLY_ERR)
+DOM4_MSG_DEF(FileHandleInactiveError, "A request was placed against a file handle which is currently not active, or which is finished.", NS_ERROR_DOM_FILEHANDLE_INACTIVE_ERR)
+DOM4_MSG_DEF(ReadOnlyError, "A mutation operation was attempted in a READ_ONLY file handle.", NS_ERROR_DOM_FILEHANDLE_READ_ONLY_ERR)
 
 DOM4_MSG_DEF(InvalidStateError, "A mutation operation was attempted on a file storage that did not allow mutations.", NS_ERROR_DOM_FILEHANDLE_NOT_ALLOWED_ERR)
-DOM4_MSG_DEF(AbortError, "A request was aborted, for example through a call to LockedFile.abort.", NS_ERROR_DOM_FILEHANDLE_ABORT_ERR)
+DOM4_MSG_DEF(AbortError, "A request was aborted, for example through a call to FileHandle.abort.", NS_ERROR_DOM_FILEHANDLE_ABORT_ERR)
+DOM4_MSG_DEF(QuotaExceededError, "The current file handle exceeded its quota limitations.", NS_ERROR_DOM_FILEHANDLE_QUOTA_ERR)
 
 DOM_MSG_DEF(NS_ERROR_DOM_JS_EXCEPTION, "A callback threw an exception")

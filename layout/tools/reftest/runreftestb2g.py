@@ -9,24 +9,31 @@ import tempfile
 import traceback
 
 # We need to know our current directory so that we can serve our test files from it.
-SCRIPT_DIRECTORY = os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0])))
-sys.path.insert(0, SCRIPT_DIRECTORY)
+here = os.path.abspath(os.path.dirname(__file__))
 
 from automation import Automation
 from b2gautomation import B2GRemoteAutomation
+from b2g_desktop import run_desktop_reftests
 from runreftest import RefTest
 from runreftest import ReftestOptions
 from remotereftest import ReftestServer
 
 from mozdevice import DeviceManagerADB, DMError
 from marionette import Marionette
-
+import moznetwork
 
 class B2GOptions(ReftestOptions):
 
-    def __init__(self, automation, **kwargs):
+    def __init__(self, **kwargs):
         defaults = {}
-        ReftestOptions.__init__(self, automation)
+        ReftestOptions.__init__(self)
+        # This is only used for procName in run_remote_reftests.
+        defaults["app"] = Automation.DEFAULT_APP
+
+        self.add_option("--browser-arg", action="store",
+                    type = "string", dest = "browser_arg",
+                    help = "Optional command-line arg to pass to the browser")
+        defaults["browser_arg"] = None
 
         self.add_option("--b2gpath", action="store",
                     type = "string", dest = "b2gPath",
@@ -53,9 +60,9 @@ class B2GOptions(ReftestOptions):
         defaults["noWindow"] = False
 
         self.add_option("--adbpath", action="store",
-                    type = "string", dest = "adbPath",
+                    type = "string", dest = "adb_path",
                     help = "path to adb")
-        defaults["adbPath"] = "adb"
+        defaults["adb_path"] = "adb"
 
         self.add_option("--deviceIP", action="store",
                     type = "string", dest = "deviceIP",
@@ -80,12 +87,12 @@ class B2GOptions(ReftestOptions):
         self.add_option("--http-port", action = "store",
                     type = "string", dest = "httpPort",
                     help = "ip address where the remote web server is hosted at")
-        defaults["httpPort"] = automation.DEFAULT_HTTP_PORT
+        defaults["httpPort"] = None
 
         self.add_option("--ssl-port", action = "store",
                     type = "string", dest = "sslPort",
                     help = "ip address where the remote web server is hosted at")
-        defaults["sslPort"] = automation.DEFAULT_SSL_PORT
+        defaults["sslPort"] = None
 
         self.add_option("--pidfile", action = "store",
                     type = "string", dest = "pidFile",
@@ -96,10 +103,10 @@ class B2GOptions(ReftestOptions):
                         help="the path to a goanna distribution that should "
                         "be installed on the emulator prior to test")
         defaults["goannaPath"] = None
-        self.add_option("--logcat-dir", action="store",
-                        type="string", dest="logcat_dir",
-                        help="directory to store logcat dump files")
-        defaults["logcat_dir"] = None
+        self.add_option("--logdir", action="store",
+                        type="string", dest="logdir",
+                        help="directory to store log files")
+        defaults["logdir"] = None
         self.add_option('--busybox', action='store',
                         type='string', dest='busybox',
                         help="Path to busybox binary to install on device")
@@ -108,37 +115,65 @@ class B2GOptions(ReftestOptions):
                     type = "string", dest = "httpdPath",
                     help = "path to the httpd.js file")
         defaults["httpdPath"] = None
-        defaults["remoteTestRoot"] = "/data/local/tests"
+        self.add_option("--profile", action="store",
+                    type="string", dest="profile",
+                    help="for desktop testing, the path to the "
+                         "gaia profile to use")
+        defaults["profile"] = None
+        self.add_option("--desktop", action="store_true",
+                        dest="desktop",
+                        help="Run the tests on a B2G desktop build")
+        defaults["desktop"] = False
+        self.add_option("--mulet", action="store_true",
+                        dest="mulet",
+                        help="Run the tests on a B2G desktop build")
+        defaults["mulet"] = False
+        self.add_option("--enable-oop", action="store_true",
+                        dest="oop",
+                        help="Run the tests out of process")
+        defaults["oop"] = False
+        defaults["remoteTestRoot"] = None
         defaults["logFile"] = "reftest.log"
         defaults["autorun"] = True
         defaults["closeWhenDone"] = True
         defaults["testPath"] = ""
+        defaults["runTestsInParallel"] = False
 
         self.set_defaults(**defaults)
 
-    def verifyRemoteOptions(self, options):
+    def verifyRemoteOptions(self, options, auto):
+        if options.runTestsInParallel:
+            self.error("Cannot run parallel tests here")
+
         if not options.remoteTestRoot:
-            options.remoteTestRoot = self._automation._devicemanager.getDeviceRoot() + "/reftest"
+            options.remoteTestRoot = auto._devicemanager.deviceRoot + "/reftest"
+
         options.remoteProfile = options.remoteTestRoot + "/profile"
 
-        productRoot = options.remoteTestRoot + "/" + self._automation._product
-        if options.utilityPath == self._automation.DIST_BIN:
+        productRoot = options.remoteTestRoot + "/" + auto._product
+        if options.utilityPath is None:
             options.utilityPath = productRoot + "/bin"
 
         if options.remoteWebServer == None:
             if os.name != "nt":
-                options.remoteWebServer = self._automation.getLanIp()
+                options.remoteWebServer = moznetwork.get_ip()
             else:
                 print "ERROR: you must specify a --remote-webserver=<ip address>\n"
                 return None
 
         options.webServer = options.remoteWebServer
 
+        if not options.httpPort:
+            options.httpPort = auto.DEFAULT_HTTP_PORT
+
+        if not options.sslPort:
+            options.sslPort = auto.DEFAULT_SSL_PORT
+
         if options.goannaPath and not options.emulator:
             self.error("You must specify --emulator if you specify --goanna-path")
 
-        if options.logcat_dir and not options.emulator:
-            self.error("You must specify --emulator if you specify --logcat-dir")
+        if options.logdir and not options.emulator:
+            self.error("You must specify --emulator if you specify --logdir")
 
         #if not options.emulator and not options.deviceIP:
         #    print "ERROR: you must provide a device IP"
@@ -202,33 +237,30 @@ class ProfileConfigParser(ConfigParser.RawConfigParser):
                 fp.write("%s\n" % (key))
             fp.write("\n")
 
+class B2GRemoteReftest(RefTest):
 
-class B2GReftest(RefTest):
-
-    _automation = None
     _devicemanager = None
     localProfile = None
     remoteApp = ''
     profile = None
 
     def __init__(self, automation, devicemanager, options, scriptDir):
-        self._automation = automation
-        RefTest.__init__(self, self._automation)
+        RefTest.__init__(self)
+        self.automation = automation
         self._devicemanager = devicemanager
         self.runSSLTunnel = False
         self.remoteTestRoot = options.remoteTestRoot
         self.remoteProfile = options.remoteProfile
-        self._automation.setRemoteProfile(self.remoteProfile)
+        self.automation.setRemoteProfile(self.remoteProfile)
         self.localLogName = options.localLogName
         self.remoteLogFile = options.remoteLogFile
         self.bundlesDir = '/system/b2g/distribution/bundles'
-        self.userJS = '/data/local/user.js'
         self.remoteMozillaPath = '/data/b2g/mozilla'
         self.remoteProfilesIniPath = os.path.join(self.remoteMozillaPath, 'profiles.ini')
         self.originalProfilesIni = None
         self.scriptDir = scriptDir
         self.SERVER_STARTUP_TIMEOUT = 90
-        if self._automation.IS_DEBUG_BUILD:
+        if self.automation.IS_DEBUG_BUILD:
             self.SERVER_STARTUP_TIMEOUT = 180
 
     def cleanup(self, profileDir):
@@ -241,35 +273,32 @@ class B2GReftest(RefTest):
                 sys.exit(5)
 
         # Delete any bundled extensions
-        extensionDir = os.path.join(profileDir, 'extensions', 'staged')
-        for filename in os.listdir(extensionDir):
-            try:
-                self._devicemanager._checkCmdAs(['shell', 'rm', '-rf',
-                                                 os.path.join(self.bundlesDir, filename)])
-            except DMError:
-                pass
+        if profileDir:
+            extensionDir = os.path.join(profileDir, 'extensions', 'staged')
+            for filename in os.listdir(extensionDir):
+                try:
+                    self._devicemanager._checkCmd(['shell', 'rm', '-rf',
+                                                     os.path.join(self.bundlesDir, filename)])
+                except DMError:
+                    pass
 
         # Restore the original profiles.ini.
         if self.originalProfilesIni:
             try:
-                if not self._automation._is_emulator:
+                if not self.automation._is_emulator:
                     self.restoreProfilesIni()
                 os.remove(self.originalProfilesIni)
             except:
                 pass
 
-        if not self._automation._is_emulator:
+        if not self.automation._is_emulator:
             self._devicemanager.removeFile(self.remoteLogFile)
             self._devicemanager.removeDir(self.remoteProfile)
             self._devicemanager.removeDir(self.remoteTestRoot)
 
-            # Restore the original user.js.
-            self._devicemanager._checkCmdAs(['shell', 'rm', '-f', self.userJS])
-            self._devicemanager._checkCmdAs(['shell', 'dd', 'if=%s.orig' % self.userJS, 'of=%s' % self.userJS])
-
             # We've restored the original profile, so reboot the device so that
             # it gets picked up.
-            self._automation.rebootDevice()
+            self.automation.rebootDevice()
 
         RefTest.cleanup(self, profileDir)
         if getattr(self, 'pidFile', '') != '':
@@ -310,8 +339,8 @@ class B2GReftest(RefTest):
 
         paths = [options.xrePath,
                  localAutomation.DIST_BIN,
-                 self._automation._product,
-                 os.path.join('..', self._automation._product)]
+                 self.automation._product,
+                 os.path.join('..', self.automation._product)]
         options.xrePath = self.findPath(paths)
         if options.xrePath == None:
             print "ERROR: unable to find xulrunner path for %s, please specify with --xre-path" % (os.name)
@@ -323,15 +352,13 @@ class B2GReftest(RefTest):
         if (os.name == "nt"):
             xpcshell += ".exe"
 
-        if (options.utilityPath):
-            paths.insert(0, options.utilityPath)
         options.utilityPath = self.findPath(paths, xpcshell)
         if options.utilityPath == None:
             print "ERROR: unable to find utility path for %s, please specify with --utility-path" % (os.name)
             sys.exit(1)
 
         xpcshell = os.path.join(options.utilityPath, xpcshell)
-        if self._automation.elf_arm(xpcshell):
+        if self.automation.elf_arm(xpcshell):
             raise Exception('xpcshell at %s is an ARM binary; please use '
                             'the --utility-path argument to specify the path '
                             'to a desktop version.' % xpcshell)
@@ -359,7 +386,6 @@ class B2GReftest(RefTest):
     def stopWebServer(self, options):
         if hasattr(self, 'server'):
             self.server.stop()
-
 
     def restoreProfilesIni(self):
         # restore profiles.ini on the device to its previous state
@@ -392,41 +418,45 @@ class B2GReftest(RefTest):
             pass
 
 
-    def createReftestProfile(self, options, profileDir, reftestlist):
-        print "profileDir: " + str(profileDir)
-        retVal = RefTest.createReftestProfile(self, options, profileDir, reftestlist, server=options.remoteWebServer)
+    def createReftestProfile(self, options, reftestlist):
+        profile = RefTest.createReftestProfile(self, options, reftestlist,
+                                               server=options.remoteWebServer,
+                                               special_powers=False)
+        profileDir = profile.profile
+
+        prefs = {}
 
         # Turn off the locale picker screen
-        fhandle = open(os.path.join(profileDir, "user.js"), 'a')
-        fhandle.write("""
-user_pref("browser.firstrun.show.localepicker", false);
-user_pref("browser.homescreenURL","app://system.gaiamobile.org");\n
-user_pref("browser.manifestURL","app://system.gaiamobile.org/manifest.webapp");\n
-user_pref("browser.tabs.remote", false);\n
-user_pref("dom.ipc.browser_frames.oop_by_default", true);\n
-user_pref("dom.ipc.tabs.disabled", false);\n
-user_pref("dom.mozBrowserFramesEnabled", true);\n
-user_pref("dom.mozBrowserFramesWhitelist","app://system.gaiamobile.org");\n
-user_pref("network.dns.localDomains","app://system.gaiamobile.org");\n
-user_pref("font.size.inflation.emPerLine", 0);
-user_pref("font.size.inflation.minTwips", 0);
-user_pref("reftest.browser.iframe.enabled", false);
-user_pref("reftest.remote", true);
-user_pref("reftest.uri", "%s");
-// Set a future policy version to avoid the telemetry prompt.
-user_pref("toolkit.telemetry.prompted", 999);
-user_pref("toolkit.telemetry.notifiedOptOut", 999);
-""" % reftestlist)
+        prefs["browser.firstrun.show.localepicker"] = False
+        prefs["b2g.system_startup_url"] = "app://test-container.gaiamobile.org/index.html"
+        prefs["b2g.system_manifest_url"] = "app://test-container.gaiamobile.org/manifest.webapp"
+        prefs["dom.ipc.tabs.disabled"] = False
+        prefs["dom.mozBrowserFramesEnabled"] = True
+        prefs["font.size.inflation.emPerLine"] = 0
+        prefs["font.size.inflation.minTwips"] = 0
+        prefs["network.dns.localDomains"] = "app://test-container.gaiamobile.org"
+        prefs["reftest.browser.iframe.enabled"] = False
+        prefs["reftest.remote"] = True
+        prefs["reftest.uri"] = "%s" % reftestlist
+        # Set a future policy version to avoid the telemetry prompt.
+        prefs["toolkit.telemetry.prompted"] = 999
+        prefs["toolkit.telemetry.notifiedOptOut"] = 999
+        # Make sure we disable system updates
+        prefs["app.update.enabled"] = False
+        prefs["app.update.url"] = ""
+        prefs["app.update.url.override"] = ""
+        # Disable webapp updates
+        prefs["webapps.update.enabled"] = False
+        # Disable tiles also
+        prefs["browser.newtabpage.directory.source"] = ""
+        prefs["browser.newtabpage.directory.ping"] = ""
 
-        #workaround for jsreftests.
-        if getattr(options, 'enablePrivilege', False):
-            fhandle.write("""
-user_pref("capability.principal.codebase.p2.granted", "UniversalXPConnect");
-user_pref("capability.principal.codebase.p2.id", "http://%s:%s");
-""" % (options.remoteWebServer, options.httpPort))
+        if options.oop:
+            prefs['browser.tabs.remote.autostart'] = True
+            prefs['reftest.browser.iframe.enabled'] = True
 
-        # Close the file
-        fhandle.close()
+        # Set the extra prefs.
+        profile.set_preferences(prefs)
 
         # Copy the profile to the device.
         self._devicemanager.removeDir(self.remoteProfile)
@@ -439,9 +469,9 @@ user_pref("capability.principal.codebase.p2.id", "http://%s:%s");
         # Copy the extensions to the B2G bundles dir.
         extensionDir = os.path.join(profileDir, 'extensions', 'staged')
         # need to write to read-only dir
-        self._devicemanager._checkCmdAs(['remount'])
+        self._devicemanager._checkCmd(['remount'])
         for filename in os.listdir(extensionDir):
-            self._devicemanager._checkCmdAs(['shell', 'rm', '-rf',
+            self._devicemanager._checkCmd(['shell', 'rm', '-rf',
                                              os.path.join(self.bundlesDir, filename)])
         try:
             self._devicemanager.pushDir(extensionDir, self.bundlesDir)
@@ -449,19 +479,14 @@ user_pref("capability.principal.codebase.p2.id", "http://%s:%s");
             print "Automation Error: Unable to copy extensions to device."
             raise
 
-        # In B2G, user.js is always read from /data/local, not the profile
-        # directory.  Backup the original user.js first so we can restore it.
-        self._devicemanager._checkCmdAs(['shell', 'rm', '-f', '%s.orig' % self.userJS])
-        self._devicemanager._checkCmdAs(['shell', 'dd', 'if=%s' % self.userJS, 'of=%s.orig' % self.userJS])
-        self._devicemanager.pushFile(os.path.join(profileDir, "user.js"), self.userJS)
-
         self.updateProfilesIni(self.remoteProfile)
 
         options.profilePath = self.remoteProfile
-        return retVal
+        return profile
 
-    def copyExtraFilesToProfile(self, options, profileDir):
-        RefTest.copyExtraFilesToProfile(self, options, profileDir)
+    def copyExtraFilesToProfile(self, options, profile):
+        profileDir = profile.profile
+        RefTest.copyExtraFilesToProfile(self, options, profile)
         try:
             self._devicemanager.pushDir(profileDir, options.remoteProfile)
         except DMError:
@@ -471,11 +496,26 @@ user_pref("capability.principal.codebase.p2.id", "http://%s:%s");
     def getManifestPath(self, path):
         return path
 
+    def environment(self, **kwargs):
+     return self.automation.environment(**kwargs)
 
-def main(args=sys.argv[1:]):
+    def runApp(self, profile, binary, cmdargs, env,
+               timeout=None, debuggerInfo=None,
+               symbolsPath=None, options=None):
+        status = self.automation.runApp(None, env,
+                                        binary,
+                                        profile.profile,
+                                        cmdargs,
+                                        utilityPath=options.utilityPath,
+                                        xrePath=options.xrePath,
+                                        debuggerInfo=debuggerInfo,
+                                        symbolsPath=symbolsPath,
+                                        timeout=timeout)
+        return status
+
+
+def run_remote_reftests(parser, options, args):
     auto = B2GRemoteAutomation(None, "fennec", context_chrome=True)
-    parser = B2GOptions(auto)
-    options, args = parser.parse_args(args)
 
     # create our Marionette instance
     kwargs = {}
@@ -486,8 +526,8 @@ def main(args=sys.argv[1:]):
             kwargs['noWindow'] = True
         if options.goannaPath:
             kwargs['goanna_path'] = options.goannaPath
-        if options.logcat_dir:
-            kwargs['logcat_dir'] = options.logcat_dir
+        if options.logdir:
+            kwargs['logdir'] = options.logdir
         if options.busybox:
             kwargs['busybox'] = options.busybox
         if options.symbolsPath:
@@ -500,19 +540,24 @@ def main(args=sys.argv[1:]):
         host,port = options.marionette.split(':')
         kwargs['host'] = host
         kwargs['port'] = int(port)
-    marionette = Marionette.getMarionetteOrExit(**kwargs)
+    if options.adb_path:
+        kwargs['adb_path'] = options.adb_path
+    marionette = Marionette(**kwargs)
     auto.marionette = marionette
 
-    # create the DeviceManager
-    kwargs = {'adbPath': options.adbPath,
-              'deviceRoot': options.remoteTestRoot}
-    if options.deviceIP:
-        kwargs.update({'host': options.deviceIP,
-                       'port': options.devicePort})
-    dm = DeviceManagerADB(**kwargs)
+    if options.emulator:
+        dm = marionette.emulator.dm
+    else:
+        # create the DeviceManager
+        kwargs = {'adbPath': options.adb_path,
+                  'deviceRoot': options.remoteTestRoot}
+        if options.deviceIP:
+            kwargs.update({'host': options.deviceIP,
+                           'port': options.devicePort})
+        dm = DeviceManagerADB(**kwargs)
     auto.setDeviceManager(dm)
 
-    options = parser.verifyRemoteOptions(options)
+    options = parser.verifyRemoteOptions(options, auto)
 
     if (options == None):
         print "ERROR: Invalid options specified, use --help for a list of valid options"
@@ -528,11 +573,11 @@ def main(args=sys.argv[1:]):
             return 1
 
     auto.setProduct("b2g")
-    auto.test_script = os.path.join(SCRIPT_DIRECTORY, 'b2g_start_script.js')
+    auto.test_script = os.path.join(here, 'b2g_start_script.js')
     auto.test_script_args = [options.remoteWebServer, options.httpPort]
     auto.logFinish = "REFTEST TEST-START | Shutdown"
 
-    reftest = B2GReftest(auto, dm, options, SCRIPT_DIRECTORY)
+    reftest = B2GRemoteReftest(auto, dm, options, here)
     options = parser.verifyCommonOptions(options, reftest)
 
     logParent = os.path.dirname(options.remoteLogFile)
@@ -540,12 +585,15 @@ def main(args=sys.argv[1:]):
     auto.setRemoteLog(options.remoteLogFile)
     auto.setServerInfo(options.webServer, options.httpPort, options.sslPort)
 
+    # Hack in a symbolic link for jsreftest
+    os.system("ln -s %s %s" % (os.path.join('..', 'jsreftest'), os.path.join(here, 'jsreftest')))
+
     # Dynamically build the reftest URL if possible, beware that args[0] should exist 'inside' the webroot
     manifest = args[0]
-    if os.path.exists(os.path.join(SCRIPT_DIRECTORY, args[0])):
+    if os.path.exists(os.path.join(here, args[0])):
         manifest = "http://%s:%s/%s" % (options.remoteWebServer, options.httpPort, args[0])
     elif os.path.exists(args[0]):
-        manifestPath = os.path.abspath(args[0]).split(SCRIPT_DIRECTORY)[1].strip('/')
+        manifestPath = os.path.abspath(args[0]).split(here)[1].strip('/')
         manifest = "http://%s:%s/%s" % (options.remoteWebServer, options.httpPort, manifestPath)
     else:
         print "ERROR: Could not find test manifest '%s'" % manifest
@@ -578,6 +626,15 @@ def main(args=sys.argv[1:]):
 
     reftest.stopWebServer(options)
     return retVal
+
+def main(args=sys.argv[1:]):
+    parser = B2GOptions()
+    options, args = parser.parse_args(args)
+
+    if options.desktop or options.mulet:
+        return run_desktop_reftests(parser, options, args)
+    return run_remote_reftests(parser, options, args)
+
 
 if __name__ == "__main__":
     sys.exit(main())

@@ -44,7 +44,7 @@ nsresult CheckValidHDROP(STGMEDIUM* pSTG)
   nsString s;
   unsigned long offset = 0;
   while (1) {
-    s = (PRUnichar*)((char*)pDropFiles + pDropFiles->pFiles + offset);
+    s = (char16_t*)((char*)pDropFiles + pDropFiles->pFiles + offset);
     if (s.IsEmpty())
       break;
     nsresult rv;
@@ -55,7 +55,7 @@ nsresult CheckValidHDROP(STGMEDIUM* pSTG)
       fail("File could not be opened");
       return NS_ERROR_UNEXPECTED;
     }
-    offset += sizeof(PRUnichar) * (s.Length() + 1);
+    offset += sizeof(char16_t) * (s.Length() + 1);
   }
   return NS_OK;
 }
@@ -78,7 +78,7 @@ nsresult CheckValidTEXT(STGMEDIUM* pSTG)
   nsCString string;
   string = pText;
 
-  if (!string.Equals(NS_LITERAL_CSTRING("Mozilla can drag and drop"))) {
+  if (!string.EqualsLiteral("Mozilla can drag and drop")) {
     fail("Text passed through drop object wrong");
     return NS_ERROR_UNEXPECTED;
   }
@@ -103,7 +103,7 @@ nsresult CheckValidTEXTTwo(STGMEDIUM* pSTG)
   nsCString string;
   string = pText;
 
-  if (!string.Equals(NS_LITERAL_CSTRING("Mozilla can drag and drop twice over"))) {
+  if (!string.EqualsLiteral("Mozilla can drag and drop twice over")) {
     fail("Text passed through drop object wrong");
     return NS_ERROR_UNEXPECTED;
   }
@@ -118,8 +118,8 @@ nsresult CheckValidUNICODE(STGMEDIUM* pSTG)
   }
 
   HGLOBAL hGlobal = pSTG->hGlobal;
-  PRUnichar* pText;
-  pText = (PRUnichar*)GlobalLock(hGlobal);
+  char16_t* pText;
+  pText = (char16_t*)GlobalLock(hGlobal);
   if (!pText) {
     fail("There is no data at the given HGLOBAL");
     return NS_ERROR_UNEXPECTED;
@@ -128,7 +128,7 @@ nsresult CheckValidUNICODE(STGMEDIUM* pSTG)
   nsString string;
   string = pText;
 
-  if (!string.Equals(NS_LITERAL_STRING("Mozilla can drag and drop"))) {
+  if (!string.EqualsLiteral("Mozilla can drag and drop")) {
     fail("Text passed through drop object wrong");
     return NS_ERROR_UNEXPECTED;
   }
@@ -143,8 +143,8 @@ nsresult CheckValidUNICODETwo(STGMEDIUM* pSTG)
   }
 
   HGLOBAL hGlobal = pSTG->hGlobal;
-  PRUnichar* pText;
-  pText = (PRUnichar*)GlobalLock(hGlobal);
+  char16_t* pText;
+  pText = (char16_t*)GlobalLock(hGlobal);
   if (!pText) {
     fail("There is no data at the given HGLOBAL");
     return NS_ERROR_UNEXPECTED;
@@ -153,7 +153,7 @@ nsresult CheckValidUNICODETwo(STGMEDIUM* pSTG)
   nsString string;
   string = pText;
 
-  if (!string.Equals(NS_LITERAL_STRING("Mozilla can drag and drop twice over"))) {
+  if (!string.EqualsLiteral("Mozilla can drag and drop twice over")) {
     fail("Text passed through drop object wrong");
     return NS_ERROR_UNEXPECTED;
   }
@@ -187,7 +187,7 @@ nsresult GetTransferableText(nsCOMPtr<nsITransferable>& pTransferable)
   pTransferable = do_CreateInstance("@mozilla.org/widget/transferable;1");
   pTransferable->Init(nullptr);
   rv = pTransferable->SetTransferData("text/unicode", genericWrapper,
-                                      mozString.Length() * sizeof(PRUnichar));
+                                      mozString.Length() * sizeof(char16_t));
   return rv;
 }
 
@@ -205,7 +205,7 @@ nsresult GetTransferableTextTwo(nsCOMPtr<nsITransferable>& pTransferable)
   pTransferable = do_CreateInstance("@mozilla.org/widget/transferable;1");
   pTransferable->Init(nullptr);
   rv = pTransferable->SetTransferData("text/unicode", genericWrapper,
-                                      mozString.Length() * sizeof(PRUnichar));
+                                      mozString.Length() * sizeof(char16_t));
   return rv;
 }
 
@@ -613,7 +613,7 @@ nsresult Do_CheckSetArbitraryData(bool aMultiple)
   HGLOBAL hg = GlobalAlloc(GPTR, 1024);
   stg.tymed = TYMED_HGLOBAL;
   stg.hGlobal = hg;
-  stg.pUnkForRelease = NULL;
+  stg.pUnkForRelease = nullptr;
 
   if (dataObj->SetData(&fe, &stg, true) != S_OK) {
     if (aMultiple) {

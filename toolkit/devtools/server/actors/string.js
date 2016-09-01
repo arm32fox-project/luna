@@ -5,9 +5,9 @@
 "use strict";
 
 let {Cu} = require("chrome");
-let {DebuggerServer} = Cu.import("resource://gre/modules/devtools/dbg-server.jsm", {});
+let {DebuggerServer} = require("devtools/server/main");
 
-let promise = require("sdk/core/promise");
+let {Promise: promise} = Cu.import("resource://gre/modules/Promise.jsm", {});
 let {Class} = require("sdk/core/heritage");
 
 let protocol = require("devtools/server/protocol");
@@ -79,11 +79,8 @@ exports.ShortLongString = Class({
 })
 
 exports.LongStringFront = protocol.FrontClass(exports.LongStringActor, {
-  initialize: function(client, form) {
-    // Don't give the form by default, because we're being tricky and it might just
-    // be a string.
-    protocol.Front.prototype.initialize.call(this, client, null);
-    this.form(form);
+  initialize: function(client) {
+    protocol.Front.prototype.initialize.call(this, client);
   },
 
   destroy: function() {
@@ -94,7 +91,7 @@ exports.LongStringFront = protocol.FrontClass(exports.LongStringActor, {
   },
 
   form: function(form) {
-    this.actorID = form.actorID;
+    this.actorID = form.actor;
     this.initial = form.initial;
     this.length = form.length;
   },

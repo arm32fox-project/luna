@@ -21,7 +21,7 @@
 #include "nsMappedAttributes.h"
 #include "nsGkAtoms.h"
 #include "nsPresContext.h"
-#include "nsEventStates.h"
+#include "mozilla/EventStates.h"
 #include "nsIDocument.h"
 #include "nsIPresShell.h"
 #include "nsStyleConsts.h"
@@ -30,14 +30,15 @@
 #include "nsError.h"
 #include "nsRuleProcessorData.h"
 #include "nsCSSRuleProcessor.h"
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/dom/Element.h"
-#include "nsCSSFrameConstructor.h"
 #include "nsHashKeys.h"
+#include "RestyleManager.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
 
-NS_IMPL_ISUPPORTS1(nsHTMLStyleSheet::HTMLColorRule, nsIStyleRule)
+NS_IMPL_ISUPPORTS(nsHTMLStyleSheet::HTMLColorRule, nsIStyleRule)
 
 /* virtual */ void
 nsHTMLStyleSheet::HTMLColorRule::MapRuleInfoInto(nsRuleData* aRuleData)
@@ -54,20 +55,26 @@ nsHTMLStyleSheet::HTMLColorRule::MapRuleInfoInto(nsRuleData* aRuleData)
 /* virtual */ void
 nsHTMLStyleSheet::HTMLColorRule::List(FILE* out, int32_t aIndent) const
 {
-  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
-  fputs("[html color rule] {}\n", out);
+  nsAutoCString indentStr;
+  for (int32_t index = aIndent; --index >= 0; ) {
+    indentStr.AppendLiteral("  ");
+  }
+  fprintf_stderr(out, "%s[html color rule] {}\n", indentStr.get());
 }
 #endif
 
  
-NS_IMPL_ISUPPORTS1(nsHTMLStyleSheet::GenericTableRule, nsIStyleRule)
+NS_IMPL_ISUPPORTS(nsHTMLStyleSheet::GenericTableRule, nsIStyleRule)
 
 #ifdef DEBUG
 /* virtual */ void
 nsHTMLStyleSheet::GenericTableRule::List(FILE* out, int32_t aIndent) const
 {
-  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
-  fputs("[generic table rule] {}\n", out);
+  nsAutoCString indentStr;
+  for (int32_t index = aIndent; --index >= 0; ) {
+    indentStr.AppendLiteral("  ");
+  }
+  fprintf_stderr(out, "%s[generic table rule] {}\n", indentStr.get());
 }
 #endif
 
@@ -97,7 +104,7 @@ nsHTMLStyleSheet::TableQuirkColorRule::MapRuleInfoInto(nsRuleData* aRuleData)
 }
 
 
-NS_IMPL_ISUPPORTS1(nsHTMLStyleSheet::LangRule, nsIStyleRule)
+NS_IMPL_ISUPPORTS(nsHTMLStyleSheet::LangRule, nsIStyleRule)
 
 /* virtual */ void
 nsHTMLStyleSheet::LangRule::MapRuleInfoInto(nsRuleData* aRuleData)
@@ -114,10 +121,14 @@ nsHTMLStyleSheet::LangRule::MapRuleInfoInto(nsRuleData* aRuleData)
 /* virtual */ void
 nsHTMLStyleSheet::LangRule::List(FILE* out, int32_t aIndent) const
 {
-  for (int32_t index = aIndent; --index >= 0; ) fputs("  ", out);
-  fputs("[lang rule] { language: \"", out);
-  fputs(NS_ConvertUTF16toUTF8(mLang).get(), out);
-  fputs("\" }\n", out);
+  nsAutoCString str;
+  for (int32_t index = aIndent; --index >= 0; ) {
+    str.AppendLiteral("  ");
+  }
+  str.AppendLiteral("[lang rule] { language: \"");
+  AppendUTF16toUTF8(mLang, str);
+  str.AppendLiteral("\" }\n");
+  fprintf_stderr(out, "%s", str.get());
 }
 #endif
 
@@ -157,14 +168,11 @@ MappedAttrTable_MatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return attributes->Equals(entry->mAttributes);
 }
 
-static PLDHashTableOps MappedAttrTable_Ops = {
-  PL_DHashAllocTable,
-  PL_DHashFreeTable,
+static const PLDHashTableOps MappedAttrTable_Ops = {
   MappedAttrTable_HashKey,
   MappedAttrTable_MatchEntry,
   PL_DHashMoveEntryStub,
   MappedAttrTable_ClearEntry,
-  PL_DHashFinalizeStub,
   nullptr
 };
 
@@ -200,9 +208,8 @@ LangRuleTable_MatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return entry->mRule->mLang == *lang;
 }
 
-static bool
-LangRuleTable_InitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                        const void *key)
+static void
+LangRuleTable_InitEntry(PLDHashEntryHdr *hdr, const void *key)
 {
   const nsString *lang = static_cast<const nsString*>(key);
 
@@ -210,18 +217,13 @@ LangRuleTable_InitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
 
   // Create the unique rule for this language
   entry->mRule = new nsHTMLStyleSheet::LangRule(*lang);
-
-  return true;
 }
 
-static PLDHashTableOps LangRuleTable_Ops = {
-  PL_DHashAllocTable,
-  PL_DHashFreeTable,
+static const PLDHashTableOps LangRuleTable_Ops = {
   LangRuleTable_HashKey,
   LangRuleTable_MatchEntry,
   PL_DHashMoveEntryStub,
   LangRuleTable_ClearEntry,
-  PL_DHashFinalizeStub,
   LangRuleTable_InitEntry
 };
 
@@ -233,19 +235,19 @@ nsHTMLStyleSheet::nsHTMLStyleSheet(nsIDocument* aDocument)
   , mTableTHRule(new TableTHRule())
 {
   MOZ_ASSERT(aDocument);
-  mMappedAttrTable.ops = nullptr;
-  mLangRuleTable.ops = nullptr;
 }
 
 nsHTMLStyleSheet::~nsHTMLStyleSheet()
 {
-  if (mLangRuleTable.ops)
+  if (mLangRuleTable.IsInitialized()) {
     PL_DHashTableFinish(&mLangRuleTable);
-  if (mMappedAttrTable.ops)
+  }
+  if (mMappedAttrTable.IsInitialized()) {
     PL_DHashTableFinish(&mMappedAttrTable);
+  }
 }
 
-NS_IMPL_ISUPPORTS1(nsHTMLStyleSheet, nsIStyleRuleProcessor)
+NS_IMPL_ISUPPORTS(nsHTMLStyleSheet, nsIStyleRuleProcessor)
 
 /* virtual */ void
 nsHTMLStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
@@ -257,7 +259,8 @@ nsHTMLStyleSheet::RulesMatching(ElementRuleProcessorData* aData)
     // if we have anchor colors, check if this is an anchor with an href
     if (tag == nsGkAtoms::a) {
       if (mLinkRule || mVisitedRule || mActiveRule) {
-        nsEventStates state = nsCSSRuleProcessor::GetContentStateForVisitedHandling(
+        EventStates state =
+          nsCSSRuleProcessor::GetContentStateForVisitedHandling(
                                   aData->mElement,
                                   aData->mTreeMatchContext,
                                   aData->mTreeMatchContext.VisitedHandling(),
@@ -322,6 +325,12 @@ nsHTMLStyleSheet::HasStateDependentStyle(StateRuleProcessorData* aData)
   return nsRestyleHint(0);
 }
 
+/* virtual */ nsRestyleHint
+nsHTMLStyleSheet::HasStateDependentStyle(PseudoElementStateRuleProcessorData* aData)
+{
+  return nsRestyleHint(0);
+}
+
 /* virtual */ bool
 nsHTMLStyleSheet::HasDocumentStateDependentStyle(StateRuleProcessorData* aData)
 {
@@ -372,13 +381,13 @@ nsHTMLStyleSheet::MediumFeaturesChanged(nsPresContext* aPresContext)
 }
 
 /* virtual */ size_t
-nsHTMLStyleSheet::SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+nsHTMLStyleSheet::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
 {
   return 0; // nsHTMLStyleSheets are charged to the DOM, not layout
 }
 
 /* virtual */ size_t
-nsHTMLStyleSheet::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+nsHTMLStyleSheet::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
 {
   return 0; // nsHTMLStyleSheets are charged to the DOM, not layout
 }
@@ -413,13 +422,11 @@ nsHTMLStyleSheet::Reset()
   mVisitedRule       = nullptr;
   mActiveRule        = nullptr;
 
-  if (mLangRuleTable.ops) {
+  if (mLangRuleTable.IsInitialized()) {
     PL_DHashTableFinish(&mLangRuleTable);
-    mLangRuleTable.ops = nullptr;
   }
-  if (mMappedAttrTable.ops) {
+  if (mMappedAttrTable.IsInitialized()) {
     PL_DHashTableFinish(&mMappedAttrTable);
-    mMappedAttrTable.ops = nullptr;
   }
 }
 
@@ -440,7 +447,7 @@ nsHTMLStyleSheet::ImplLinkColorSetter(nsRefPtr<HTMLColorRule>& aRule, nscolor aC
   if (mDocument && mDocument->GetShell()) {
     Element* root = mDocument->GetRootElement();
     if (root) {
-      mDocument->GetShell()->FrameConstructor()->
+      mDocument->GetShell()->GetPresContext()->RestyleManager()->
         PostRestyleEvent(root, eRestyle_Subtree, NS_STYLE_HINT_NONE);
     }
   }
@@ -469,16 +476,13 @@ nsHTMLStyleSheet::SetVisitedLinkColor(nscolor aColor)
 already_AddRefed<nsMappedAttributes>
 nsHTMLStyleSheet::UniqueMappedAttributes(nsMappedAttributes* aMapped)
 {
-  if (!mMappedAttrTable.ops) {
-    bool res = PL_DHashTableInit(&mMappedAttrTable, &MappedAttrTable_Ops,
-                                   nullptr, sizeof(MappedAttrTableEntry), 16);
-    if (!res) {
-      mMappedAttrTable.ops = nullptr;
-      return nullptr;
-    }
+  if (!mMappedAttrTable.IsInitialized()) {
+    PL_DHashTableInit(&mMappedAttrTable, &MappedAttrTable_Ops,
+                      sizeof(MappedAttrTableEntry));
   }
-  MappedAttrTableEntry *entry = static_cast<MappedAttrTableEntry*>
-                                           (PL_DHashTableOperate(&mMappedAttrTable, aMapped, PL_DHASH_ADD));
+  MappedAttrTableEntry *entry =
+    static_cast<MappedAttrTableEntry*>
+               (PL_DHashTableAdd(&mMappedAttrTable, aMapped, fallible));
   if (!entry)
     return nullptr;
   if (!entry->mAttributes) {
@@ -494,30 +498,25 @@ nsHTMLStyleSheet::DropMappedAttributes(nsMappedAttributes* aMapped)
 {
   NS_ENSURE_TRUE_VOID(aMapped);
 
-  NS_ASSERTION(mMappedAttrTable.ops, "table uninitialized");
+  NS_ASSERTION(mMappedAttrTable.IsInitialized(), "table uninitialized");
 #ifdef DEBUG
-  uint32_t entryCount = mMappedAttrTable.entryCount - 1;
+  uint32_t entryCount = mMappedAttrTable.EntryCount() - 1;
 #endif
 
-  PL_DHashTableOperate(&mMappedAttrTable, aMapped, PL_DHASH_REMOVE);
+  PL_DHashTableRemove(&mMappedAttrTable, aMapped);
 
-  NS_ASSERTION(entryCount == mMappedAttrTable.entryCount, "not removed");
+  NS_ASSERTION(entryCount == mMappedAttrTable.EntryCount(), "not removed");
 }
 
 nsIStyleRule*
 nsHTMLStyleSheet::LangRuleFor(const nsString& aLanguage)
 {
-  if (!mLangRuleTable.ops) {
-    bool res = PL_DHashTableInit(&mLangRuleTable, &LangRuleTable_Ops,
-                                 nullptr, sizeof(LangRuleTableEntry), 16);
-    if (!res) {
-      NS_ASSERTION(false, "out of memory");
-      mLangRuleTable.ops = nullptr;
-      return nullptr;
-    }
+  if (!mLangRuleTable.IsInitialized()) {
+    PL_DHashTableInit(&mLangRuleTable, &LangRuleTable_Ops,
+                      sizeof(LangRuleTableEntry));
   }
   LangRuleTableEntry *entry = static_cast<LangRuleTableEntry*>
-    (PL_DHashTableOperate(&mLangRuleTable, &aLanguage, PL_DHASH_ADD));
+    (PL_DHashTableAdd(&mLangRuleTable, &aLanguage, fallible));
   if (!entry) {
     NS_ASSERTION(false, "out of memory");
     return nullptr;
@@ -527,7 +526,7 @@ nsHTMLStyleSheet::LangRuleFor(const nsString& aLanguage)
 
 static size_t
 SizeOfAttributesEntryExcludingThis(PLDHashEntryHdr* aEntry,
-                                   nsMallocSizeOfFun aMallocSizeOf,
+                                   MallocSizeOf aMallocSizeOf,
                                    void* aArg)
 {
   NS_PRECONDITION(aEntry, "The entry should not be null!");
@@ -538,11 +537,11 @@ SizeOfAttributesEntryExcludingThis(PLDHashEntryHdr* aEntry,
 }
 
 size_t
-nsHTMLStyleSheet::DOMSizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+nsHTMLStyleSheet::DOMSizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
 {
   size_t n = aMallocSizeOf(this);
 
-  if (mMappedAttrTable.ops) {
+  if (mMappedAttrTable.IsInitialized()) {
     n += PL_DHashTableSizeOfExcludingThis(&mMappedAttrTable,
                                           SizeOfAttributesEntryExcludingThis,
                                           aMallocSizeOf);

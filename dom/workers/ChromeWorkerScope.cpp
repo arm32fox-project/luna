@@ -9,7 +9,7 @@
 
 #include "nsXPCOM.h"
 #include "nsNativeCharsetUtils.h"
-#include "nsStringGlue.h"
+#include "nsString.h"
 
 #include "WorkerPrivate.h"
 
@@ -21,7 +21,7 @@ namespace {
 #ifdef BUILD_CTYPES
 
 char*
-UnicodeToNative(JSContext* aCx, const jschar* aSource, size_t aSourceLen)
+UnicodeToNative(JSContext* aCx, const char16_t* aSource, size_t aSourceLen)
 {
   nsDependentString unicode(aSource, aSourceLen);
 
@@ -55,15 +55,15 @@ DefineChromeWorkerFunctions(JSContext* aCx, JS::Handle<JSObject*> aGlobal)
   {
     JS::Rooted<JS::Value> ctypes(aCx);
     if (!JS_InitCTypesClass(aCx, aGlobal) ||
-        !JS_GetProperty(aCx, aGlobal, "ctypes", ctypes.address())) {
+        !JS_GetProperty(aCx, aGlobal, "ctypes", &ctypes)) {
       return false;
     }
 
-    static JSCTypesCallbacks callbacks = {
+    static const JSCTypesCallbacks callbacks = {
       UnicodeToNative
     };
 
-    JS_SetCTypesCallbacks(JSVAL_TO_OBJECT(ctypes), &callbacks);
+    JS_SetCTypesCallbacks(ctypes.toObjectOrNull(), &callbacks);
   }
 #endif // BUILD_CTYPES
 

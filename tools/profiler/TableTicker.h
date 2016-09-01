@@ -3,9 +3,15 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifndef TableTicker_h
+#define TableTicker_h
+
 #include "platform.h"
-#include "ProfileEntry.h"
 #include "mozilla/Mutex.h"
+#include "IntelPowerGadget.h"
+#ifdef MOZ_TASK_TRACER
+#include "GoannaTaskTracer.h"
+#endif
 
 static bool
 hasFeature(const char** aFeatures, uint32_t aFeatureCount, const char* aFeature) {
@@ -32,36 +38,49 @@ threadSelected(ThreadInfo* aInfo, char** aThreadNameFilters, uint32_t aFeatureCo
   return false;
 }
 
-extern TimeStamp sLastTracerEvent;
+extern mozilla::TimeStamp sLastTracerEvent;
 extern int sFrameNumber;
 extern int sLastFrameNumber;
-extern unsigned int sCurrentEventGeneration;
-extern unsigned int sLastSampledEventGeneration;
-
-class BreakpadSampler;
 
 class TableTicker: public Sampler {
  public:
-  TableTicker(int aInterval, int aEntrySize,
+  TableTicker(double aInterval, int aEntrySize,
               const char** aFeatures, uint32_t aFeatureCount,
               const char** aThreadNameFilters, uint32_t aFilterCount)
     : Sampler(aInterval, true, aEntrySize)
     , mPrimaryThreadProfile(nullptr)
+    , mBuffer(new ProfileBuffer(aEntrySize))
     , mSaveRequested(false)
     , mUnwinderThread(false)
     , mFilterCount(aFilterCount)
+#if defined(XP_WIN)
+    , mIntelPowerGadget(nullptr)
+#endif
   {
     mUseStackWalk = hasFeature(aFeatures, aFeatureCount, "stackwalk");
 
-    //XXX: It's probably worth splitting the jank profiler out from the regular profiler at some point
-    mJankOnly = hasFeature(aFeatures, aFeatureCount, "jank");
     mProfileJS = hasFeature(aFeatures, aFeatureCount, "js");
     mProfileJava = hasFeature(aFeatures, aFeatureCount, "java");
-    mProfileThreads = hasFeature(aFeatures, aFeatureCount, "threads");
+    mProfileGPU = hasFeature(aFeatures, aFeatureCount, "gpu");
+    mProfilePower = hasFeature(aFeatures, aFeatureCount, "power");
+    // Users sometimes ask to filter by a list of threads but forget to request
+    // profiling non main threads. Let's make it implificit if we have a filter
+    mProfileThreads = hasFeature(aFeatures, aFeatureCount, "threads") || aFilterCount > 0;
     mUnwinderThread = hasFeature(aFeatures, aFeatureCount, "unwinder") || sps_version2();
     mAddLeafAddresses = hasFeature(aFeatures, aFeatureCount, "leaf");
     mPrivacyMode = hasFeature(aFeatures, aFeatureCount, "privacy");
     mAddMainThreadIO = hasFeature(aFeatures, aFeatureCount, "mainthreadio");
+    mProfileMemory = hasFeature(aFeatures, aFeatureCount, "memory");
+    mTaskTracer = hasFeature(aFeatures, aFeatureCount, "tasktracer");
+    mLayersDump = hasFeature(aFeatures, aFeatureCount, "layersdump");
+    mDisplayListDump = hasFeature(aFeatures, aFeatureCount, "displaylistdump");
+
+#if defined(XP_WIN)
+    if (mProfilePower) {
+      mIntelPowerGadget = new IntelPowerGadget();
+      mProfilePower = mIntelPowerGadget->Init();
+    }
+#endif
 
     // Deep copy aThreadNameFilters
     mThreadNameFilters = new char*[aFilterCount];
@@ -69,7 +88,7 @@ class TableTicker: public Sampler {
       mThreadNameFilters[i] = strdup(aThreadNameFilters[i]);
     }
 
-    sStartTime = TimeStamp::Now();
+    sStartTime = mozilla::TimeStamp::Now();
 
     {
       mozilla::MutexAutoLock lock(*sRegisteredThreadsMutex);
@@ -83,6 +102,12 @@ class TableTicker: public Sampler {
 
       SetActiveSampler(this);
     }
+
+#ifdef MOZ_TASK_TRACER
+    if (mTaskTracer) {
+      mozilla::tasktracer::StartLogging();
+    }
+#endif
   }
 
   ~TableTicker() {
@@ -102,8 +127,18 @@ class TableTicker: public Sampler {
           delete profile;
           info->SetProfile(nullptr);
         }
+        // We've stopped profiling. We no longer need to retain
+        // information for an old thread.
+        if (info->IsPendingDelete()) {
+          delete info;
+          sRegisteredThreads->erase(sRegisteredThreads->begin() + i);
+          i--;
+        }
       }
     }
+#if defined(XP_WIN)
+    delete mIntelPowerGadget;
+#endif
   }
 
   void RegisterThread(ThreadInfo* aInfo) {
@@ -115,27 +150,29 @@ class TableTicker: public Sampler {
       return;
     }
 
-    ThreadProfile* profile = new ThreadProfile(aInfo->Name(),
-                                               EntrySize(),
-                                               aInfo->Stack(),
-                                               aInfo->ThreadId(),
-                                               aInfo->GetPlatformData(),
-                                               aInfo->IsMainThread());
-    profile->addTag(ProfileEntry('m', "Start"));
-
+    ThreadProfile* profile = new ThreadProfile(aInfo, mBuffer);
     aInfo->SetProfile(profile);
   }
 
   // Called within a signal. This function must be reentrant
-  virtual void Tick(TickSample* sample);
+  virtual void Tick(TickSample* sample) override;
+
+  // Immediately captures the calling thread's call stack and returns it.
+  virtual SyncProfile* GetBacktrace() override;
 
   // Called within a signal. This function must be reentrant
-  virtual void RequestSave()
+  virtual void RequestSave() override
   {
     mSaveRequested = true;
+#ifdef MOZ_TASK_TRACER
+    if (mTaskTracer) {
+      mozilla::tasktracer::StopLogging();
+    }
+#endif
   }
 
-  virtual void HandleSaveRequest();
+  virtual void HandleSaveRequest() override;
+  virtual void DeleteExpiredMarkers() override;
 
   ThreadProfile* GetPrimaryThreadProfile()
   {
@@ -144,7 +181,7 @@ class TableTicker: public Sampler {
 
       for (uint32_t i = 0; i < sRegisteredThreads->size(); i++) {
         ThreadInfo* info = sRegisteredThreads->at(i);
-        if (info->IsMainThread()) {
+        if (info->IsMainThread() && !info->IsPendingDelete()) {
           mPrimaryThreadProfile = info->Profile();
           break;
         }
@@ -156,14 +193,20 @@ class TableTicker: public Sampler {
 
   void ToStreamAsJSON(std::ostream& stream);
   virtual JSObject *ToJSObject(JSContext *aCx);
-  JSCustomObject *GetMetaJSCustomObject(JSAObjectBuilder& b);
-
+  void StreamMetaJSCustomObject(JSStreamWriter& b);
+  void StreamTaskTracer(JSStreamWriter& b);
   bool HasUnwinderThread() const { return mUnwinderThread; }
   bool ProfileJS() const { return mProfileJS; }
   bool ProfileJava() const { return mProfileJava; }
-  bool ProfileThreads() const { return mProfileThreads; }
+  bool ProfileGPU() const { return mProfileGPU; }
+  bool ProfilePower() const { return mProfilePower; }
+  bool ProfileThreads() const override { return mProfileThreads; }
   bool InPrivacyMode() const { return mPrivacyMode; }
   bool AddMainThreadIO() const { return mAddMainThreadIO; }
+  bool ProfileMemory() const { return mProfileMemory; }
+  bool TaskTracer() const { return mTaskTracer; }
+  bool LayersDump() const { return mLayersDump; }
+  bool DisplayListDump() const { return mDisplayListDump; }
 
 protected:
   // Called within a signal. This function must be reentrant
@@ -175,18 +218,22 @@ protected:
   // Not implemented on platforms which do not support backtracing
   void doNativeBacktrace(ThreadProfile &aProfile, TickSample* aSample);
 
-  void BuildJSObject(JSAObjectBuilder& b, JSCustomObject* profile);
+  void StreamJSObject(JSStreamWriter& b);
 
   // This represent the application's main thread (SAMPLER_INIT)
   ThreadProfile* mPrimaryThreadProfile;
+  nsRefPtr<ProfileBuffer> mBuffer;
   bool mSaveRequested;
   bool mAddLeafAddresses;
   bool mUseStackWalk;
-  bool mJankOnly;
   bool mProfileJS;
+  bool mProfileGPU;
   bool mProfileThreads;
   bool mUnwinderThread;
   bool mProfileJava;
+  bool mProfilePower;
+  bool mLayersDump;
+  bool mDisplayListDump;
 
   // Keep the thread filter to check against new thread that
   // are started while profiling
@@ -194,5 +241,12 @@ protected:
   uint32_t mFilterCount;
   bool mPrivacyMode;
   bool mAddMainThreadIO;
+  bool mProfileMemory;
+  bool mTaskTracer;
+#if defined(XP_WIN)
+  IntelPowerGadget* mIntelPowerGadget;
+#endif
 };
+
+#endif
 

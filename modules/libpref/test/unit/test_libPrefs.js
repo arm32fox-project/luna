@@ -7,6 +7,8 @@ const PREF_BOOL    = 128;
 const PREF_INT     = 64;
 const PREF_STRING  = 32;
 
+const MAX_PREF_LENGTH = 1 * 1024 * 1024;
+
 function makeList(a)
 {
   var o = {};
@@ -124,6 +126,15 @@ function run_test() {
   do_check_false(pb.prefHasUserValue("UserPref.existing.char"));
 
   //**************************************************************************//
+  // Large value test
+
+  let largeStr = new Array(MAX_PREF_LENGTH + 1).join('x');
+  pb.setCharPref("UserPref.large.char", largeStr);
+  largeStr += 'x';
+  do_check_throws(function() {
+    pb.setCharPref("UserPref.large.char", largeStr); }, Cr.NS_ERROR_ILLEGAL_VALUE);
+
+  //**************************************************************************//
   // getPrefType test
 
   // bool...
@@ -155,22 +166,22 @@ function run_test() {
 
   // int ...
   pb.setIntPref("UserPref.root.intPref", 23);
-  let pb_1 = ps.getBranch("UserPref.root.");
+  pb_1 = ps.getBranch("UserPref.root.");
   do_check_eq(pb_1.getIntPref("intPref"), 23);
-  let pb_2 = ps.getBranch("UserPref.root.intPref");
+  pb_2 = ps.getBranch("UserPref.root.intPref");
   do_check_eq(pb_2.getIntPref(""), 23);
   pb_2.setIntPref(".anotherPref", 69);
-  let pb_3 = ps.getBranch("UserPref.root.intPre");
+  pb_3 = ps.getBranch("UserPref.root.intPre");
   do_check_eq(pb_3.getIntPref("f.anotherPref"), 69);
 
   // char...
   pb.setCharPref("UserPref.root.charPref", "_char");
-  let pb_1 = ps.getBranch("UserPref.root.");
+  pb_1 = ps.getBranch("UserPref.root.");
   do_check_eq(pb_1.getCharPref("charPref"), "_char");
-  let pb_2 = ps.getBranch("UserPref.root.charPref");
+  pb_2 = ps.getBranch("UserPref.root.charPref");
   do_check_eq(pb_2.getCharPref(""), "_char");
   pb_2.setCharPref(".anotherPref", "_another");
-  let pb_3 = ps.getBranch("UserPref.root.charPre");
+  pb_3 = ps.getBranch("UserPref.root.charPre");
   do_check_eq(pb_3.getCharPref("f.anotherPref"), "_another");
 
   //**************************************************************************//

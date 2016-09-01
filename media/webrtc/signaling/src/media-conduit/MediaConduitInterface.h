@@ -7,10 +7,13 @@
 
 #include "nsISupportsImpl.h"
 #include "nsXPCOM.h"
+#include "nsDOMNavigationTiming.h"
 #include "mozilla/RefPtr.h"
 #include "CodecConfig.h"
 #include "VideoTypes.h"
 #include "MediaConduitErrors.h"
+
+#include "ImageContainer.h"
 
 #include <vector>
 
@@ -22,9 +25,10 @@ namespace mozilla {
  */
 class TransportInterface
 {
-public:
+protected:
   virtual ~TransportInterface() {}
 
+public:
   /**
    * RTP Transport Function to be implemented by concrete transport implementation
    * @param data : RTP Packet (audio/video) to be transported
@@ -43,6 +47,20 @@ public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(TransportInterface)
 };
 
+/**
+ * This class wraps image object for VideoRenderer::RenderVideoFrame()
+ * callback implementation to use for rendering.
+ */
+class ImageHandle
+{
+public:
+  explicit ImageHandle(layers::Image* image) : mImage(image) {}
+
+  const RefPtr<layers::Image>& GetImage() const { return mImage; }
+
+private:
+  RefPtr<layers::Image> mImage;
+};
 
 /**
  * 1. Abstract renderer for video data
@@ -54,9 +72,10 @@ public:
  */
 class VideoRenderer
 {
- public:
+protected:
   virtual ~VideoRenderer() {}
 
+public:
   /**
    * Callback Function reportng any change in the video-frame dimensions
    * @param width:  current width of the video @ decoder
@@ -74,16 +93,21 @@ class VideoRenderer
    * @param time_stamp: Decoder timestamp, typically 90KHz as per RTP
    * @render_time: Wall-clock time at the decoder for synchronization
    *                purposes in milliseconds
-   * NOTE: It is the responsibility of the concrete implementations of this
-   * class to own copy of the frame if needed for time longer than scope of
-   * this callback.
+   * @handle: opaque handle for image object of decoded video frame.
+   * NOTE: If decoded video frame is passed through buffer , it is the
+   * responsibility of the concrete implementations of this class to own copy
+   * of the frame if needed for time longer than scope of this callback.
    * Such implementations should be quick in processing the frames and return
    * immediately.
+   * On the other hand, if decoded video frame is passed through handle, the
+   * implementations should keep a reference to the (ref-counted) image object
+   * inside until it's no longer needed.
    */
   virtual void RenderVideoFrame(const unsigned char* buffer,
                                 unsigned int buffer_size,
                                 uint32_t time_stamp,
-                                int64_t render_time) = 0;
+                                int64_t render_time,
+                                const ImageHandle& handle) = 0;
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(VideoRenderer)
 };
@@ -100,10 +124,11 @@ class VideoRenderer
  */
 class MediaSessionConduit
 {
+protected:
+  virtual ~MediaSessionConduit() {}
+
 public:
   enum Type { AUDIO, VIDEO } ;
-
-  virtual ~MediaSessionConduit() {}
 
   virtual Type type() const = 0;
 
@@ -127,19 +152,94 @@ public:
    */
   virtual MediaConduitErrorCode ReceivedRTCPPacket(const void *data, int len) = 0;
 
+  virtual MediaConduitErrorCode StopTransmitting() = 0;
+  virtual MediaConduitErrorCode StartTransmitting() = 0;
+  virtual MediaConduitErrorCode StopReceiving() = 0;
+  virtual MediaConduitErrorCode StartReceiving() = 0;
+
 
   /**
-   * Function to attach Transport end-point of the Media conduit.
+   * Function to attach transmitter transport end-point of the Media conduit.
    * @param aTransport: Reference to the concrete teansport implementation
+   * When nullptr, unsets the transmitter transport endpoint.
    * Note: Multiple invocations of this call , replaces existing transport with
    * with the new one.
+   * Note: This transport is used for RTP, and RTCP if no receiver transport is
+   * set. In the future, we should ensure that RTCP sender reports use this
+   * regardless of whether the receiver transport is set.
    */
-  virtual MediaConduitErrorCode AttachTransport(RefPtr<TransportInterface> aTransport) = 0;
+  virtual MediaConduitErrorCode SetTransmitterTransport(RefPtr<TransportInterface> aTransport) = 0;
+
+  /**
+   * Function to attach receiver transport end-point of the Media conduit.
+   * @param aTransport: Reference to the concrete teansport implementation
+   * When nullptr, unsets the receiver transport endpoint.
+   * Note: Multiple invocations of this call , replaces existing transport with
+   * with the new one.
+   * Note: This transport is used for RTCP.
+   * Note: In the future, we should avoid using this for RTCP sender reports.
+   */
+  virtual MediaConduitErrorCode SetReceiverTransport(RefPtr<TransportInterface> aTransport) = 0;
+
+  virtual bool SetLocalSSRC(unsigned int ssrc) = 0;
+  virtual bool GetLocalSSRC(unsigned int* ssrc) = 0;
+  virtual bool GetRemoteSSRC(unsigned int* ssrc) = 0;
+  virtual bool SetLocalCNAME(const char* cname) = 0;
+
+  /**
+   * Functions returning stats needed by w3c stats model.
+   */
+  virtual bool GetVideoEncoderStats(double* framerateMean,
+                                    double* framerateStdDev,
+                                    double* bitrateMean,
+                                    double* bitrateStdDev,
+                                    uint32_t* droppedFrames) = 0;
+  virtual bool GetVideoDecoderStats(double* framerateMean,
+                                    double* framerateStdDev,
+                                    double* bitrateMean,
+                                    double* bitrateStdDev,
+                                    uint32_t* discardedPackets) = 0;
+  virtual bool GetAVStats(int32_t* jitterBufferDelayMs,
+                          int32_t* playoutBufferDelayMs,
+                          int32_t* avSyncOffsetMs) = 0;
+  virtual bool GetRTPStats(unsigned int* jitterMs,
+                           unsigned int* cumulativeLost) = 0;
+  virtual bool GetRTCPReceiverReport(DOMHighResTimeStamp* timestamp,
+                                     uint32_t* jitterMs,
+                                     uint32_t* packetsReceived,
+                                     uint64_t* bytesReceived,
+                                     uint32_t* cumulativeLost,
+                                     int32_t* rttMs) = 0;
+  virtual bool GetRTCPSenderReport(DOMHighResTimeStamp* timestamp,
+                                   unsigned int* packetsSent,
+                                   uint64_t* bytesSent) = 0;
+
+  virtual uint64_t CodecPluginID() = 0;
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaSessionConduit)
 
 };
 
+// Abstract base classes for external encoder/decoder.
+class CodecPluginID
+{
+public:
+  virtual ~CodecPluginID() {}
+
+  virtual const uint64_t PluginID() = 0;
+};
+
+class VideoEncoder : public CodecPluginID
+{
+public:
+  virtual ~VideoEncoder() {}
+};
+
+class VideoDecoder : public CodecPluginID
+{
+public:
+  virtual ~VideoDecoder() {}
+};
 
 /**
  * MediaSessionConduit for video
@@ -151,10 +251,21 @@ class VideoSessionConduit : public MediaSessionConduit
 public:
   /**
    * Factory function to create and initialize a Video Conduit Session
-   * return: Concrete VideoSessionConduitObject or NULL in the case
+   * return: Concrete VideoSessionConduitObject or nullptr in the case
    *         of failure
    */
   static RefPtr<VideoSessionConduit> Create();
+
+  enum FrameRequestType
+  {
+    FrameRequestNone,
+    FrameRequestFir,
+    FrameRequestPli,
+    FrameRequestUnknown
+  };
+
+  VideoSessionConduit() : mFrameRequestMethod(FrameRequestNone),
+                          mUsingNackBasic(false) {}
 
   virtual ~VideoSessionConduit() {}
 
@@ -208,6 +319,50 @@ public:
   virtual MediaConduitErrorCode ConfigureRecvMediaCodecs(
                                 const std::vector<VideoCodecConfig* >& recvCodecConfigList) = 0;
 
+  /**
+   * Set an external encoder
+   * @param encoder
+   * @result: on success, we will use the specified encoder
+   */
+  virtual MediaConduitErrorCode SetExternalSendCodec(VideoCodecConfig* config,
+                                                     VideoEncoder* encoder) = 0;
+
+  /**
+   * Set an external decoder
+   * @param decoder
+   * @result: on success, we will use the specified decoder
+   */
+  virtual MediaConduitErrorCode SetExternalRecvCodec(VideoCodecConfig* config,
+                                                     VideoDecoder* decoder) = 0;
+
+  /**
+   * These methods allow unit tests to double-check that the
+   * max-fs and max-fr related settings are as expected.
+   */
+  virtual unsigned short SendingWidth() = 0;
+
+  virtual unsigned short SendingHeight() = 0;
+
+  virtual unsigned int SendingMaxFs() = 0;
+
+  virtual unsigned int SendingMaxFr() = 0;
+
+  /**
+    * These methods allow unit tests to double-check that the
+    * rtcp-fb settings are as expected.
+    */
+    FrameRequestType FrameRequestMethod() const {
+      return mFrameRequestMethod;
+    }
+
+    bool UsingNackBasic() const {
+      return mUsingNackBasic;
+    }
+
+   protected:
+     /* RTCP feedback settings, for unit testing purposes */
+     FrameRequestType mFrameRequestMethod;
+     bool mUsingNackBasic;
 };
 
 /**
@@ -220,11 +375,11 @@ class AudioSessionConduit : public MediaSessionConduit
 public:
 
    /**
-    * Factory function to create and initialize a Video Conduit Session
-    * return: Concrete VideoSessionConduitObject or NULL in the case
+    * Factory function to create and initialize an Audio Conduit Session
+    * return: Concrete AudioSessionConduitObject or nullptr in the case
     *         of failure
     */
-  static mozilla::RefPtr<AudioSessionConduit> Create(AudioSessionConduit *aOther);
+  static mozilla::RefPtr<AudioSessionConduit> Create();
 
   virtual ~AudioSessionConduit() {}
 
@@ -288,16 +443,14 @@ public:
     */
   virtual MediaConduitErrorCode ConfigureRecvMediaCodecs(
                                 const std::vector<AudioCodecConfig* >& recvCodecConfigList) = 0;
+   /**
+    * Function to enable the audio level extension
+    * @param enabled: enable extension
+    * @param id: id to be used for this rtp header extension
+    * NOTE: See AudioConduit for more information
+    */
+  virtual MediaConduitErrorCode EnableAudioLevelExtension(bool enabled, uint8_t id) = 0;
 
 };
-
-
 }
-
 #endif
-
-
-
-
-
-

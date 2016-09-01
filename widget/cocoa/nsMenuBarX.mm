@@ -17,9 +17,7 @@
 #include "nsCOMPtr.h"
 #include "nsString.h"
 #include "nsGkAtoms.h"
-#include "nsGUIEvent.h"
 #include "nsObjCExceptions.h"
-#include "nsHashtable.h"
 #include "nsThreadUtils.h"
 
 #include "nsIContent.h"
@@ -27,9 +25,13 @@
 #include "nsIDocument.h"
 #include "nsIDOMDocument.h"
 #include "nsIDOMElement.h"
+#include "nsIAppStartup.h"
+#include "nsIStringBundle.h"
+#include "nsToolkitCompsCID.h"
 
 NativeMenuItemTarget* nsMenuBarX::sNativeEventTarget = nil;
-nsMenuBarX* nsMenuBarX::sLastGoannaMenuBarPainted = nullptr;
+nsMenuBarX* nsMenuBarX::sLastGoannaMenuBarPainted = nullptr; // Weak
+nsMenuBarX* nsMenuBarX::sCurrentPaintDelayedMenuBar = nullptr; // Weak
 NSMenu* sApplicationMenu = nil;
 BOOL gSomeMenuBarPainted = NO;
 
@@ -38,11 +40,10 @@ BOOL gSomeMenuBarPainted = NO;
 // window does not have a quit or pref item. We don't need strong refs here because
 // these items are always strong ref'd by their owning menu bar (instance variable).
 static nsIContent* sAboutItemContent  = nullptr;
-static nsIContent* sUpdateItemContent = nullptr;
 static nsIContent* sPrefItemContent   = nullptr;
 static nsIContent* sQuitItemContent   = nullptr;
 
-NS_IMPL_ISUPPORTS1(nsNativeMenuServiceX, nsINativeMenuService)
+NS_IMPL_ISUPPORTS(nsNativeMenuServiceX, nsINativeMenuService)
 
 NS_IMETHODIMP nsNativeMenuServiceX::CreateNativeMenuBar(nsIWidget* aParent, nsIContent* aMenuBarNode)
 {
@@ -56,11 +57,11 @@ NS_IMETHODIMP nsNativeMenuServiceX::CreateNativeMenuBar(nsIWidget* aParent, nsIC
 }
 
 nsMenuBarX::nsMenuBarX()
-: nsMenuGroupOwnerX(), mParentWindow(nullptr)
+: nsMenuGroupOwnerX(), mParentWindow(nullptr), mAwaitingDelayedPaint(false)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK;
 
-  mNativeMenu = [[GoannaNSMenu alloc] initWithTitle:@"MainMenuBar"];
+  mNativeMenu = [[GoannaNSMenu alloc] initWithTitle:@"MainMenuBar" andMenuBarOwner:this];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
 }
@@ -76,15 +77,15 @@ nsMenuBarX::~nsMenuBarX()
   // hidden window, thus we need to invalidate the weak references.
   if (sAboutItemContent == mAboutItemContent)
     sAboutItemContent = nullptr;
-  if (sUpdateItemContent == mUpdateItemContent)
-    sUpdateItemContent = nullptr;
   if (sQuitItemContent == mQuitItemContent)
     sQuitItemContent = nullptr;
   if (sPrefItemContent == mPrefItemContent)
     sPrefItemContent = nullptr;
 
   // make sure we unregister ourselves as a content observer
-  UnregisterForContentChanges(mContent);
+  if (mContent) {
+    UnregisterForContentChanges(mContent);
+  }
 
   // We have to manually clear the array here because clearing causes menu items
   // to call back into the menu bar to unregister themselves. We don't want to
@@ -92,6 +93,7 @@ nsMenuBarX::~nsMenuBarX()
   // before the registration hash table is destroyed.
   mMenuArray.Clear();
 
+  [mNativeMenu resetMenuBarOwner];
   [mNativeMenu release];
 
   NS_OBJC_END_TRY_ABORT_BLOCK;
@@ -99,21 +101,24 @@ nsMenuBarX::~nsMenuBarX()
 
 nsresult nsMenuBarX::Create(nsIWidget* aParent, nsIContent* aContent)
 {
-  if (!aParent || !aContent)
+  if (!aParent)
     return NS_ERROR_INVALID_ARG;
 
   mParentWindow = aParent;
   mContent = aContent;
 
-  AquifyMenuBar();
+  if (mContent) {
+    AquifyMenuBar();
 
-  nsresult rv = nsMenuGroupOwnerX::Create(aContent);
-  if (NS_FAILED(rv))
-    return rv;
+    nsresult rv = nsMenuGroupOwnerX::Create(mContent);
+    if (NS_FAILED(rv))
+      return rv;
 
-  RegisterForContentChanges(aContent, this);
-
-  ConstructNativeMenus();
+    RegisterForContentChanges(mContent, this);
+    ConstructNativeMenus();
+  } else {
+    ConstructFallbackNativeMenus();
+  }
 
   // Give this to the parent window. The parent takes ownership.
   static_cast<nsCocoaWindow*>(mParentWindow)->SetMenuBar(this);
@@ -139,6 +144,49 @@ void nsMenuBarX::ConstructNativeMenus()
       }
     }
   }  
+}
+
+void nsMenuBarX::ConstructFallbackNativeMenus()
+{
+  if (sApplicationMenu) {
+    // Menu has already been built.
+    return;
+  }
+
+  nsCOMPtr<nsIStringBundle> stringBundle;
+
+  nsCOMPtr<nsIStringBundleService> bundleSvc = do_GetService(NS_STRINGBUNDLE_CONTRACTID);
+  bundleSvc->CreateBundle("chrome://global/locale/fallbackMenubar.properties", getter_AddRefs(stringBundle));
+
+  if (!stringBundle) {
+    return;
+  }
+
+  nsXPIDLString labelUTF16;
+  nsXPIDLString keyUTF16;
+
+  const char16_t* labelProp = MOZ_UTF16("quitMenuitem.label");
+  const char16_t* keyProp = MOZ_UTF16("quitMenuitem.key");
+
+  stringBundle->GetStringFromName(labelProp, getter_Copies(labelUTF16));
+  stringBundle->GetStringFromName(keyProp, getter_Copies(keyUTF16));
+
+  NSString* labelStr = [NSString stringWithUTF8String:
+                        NS_ConvertUTF16toUTF8(labelUTF16).get()];
+  NSString* keyStr= [NSString stringWithUTF8String:
+                     NS_ConvertUTF16toUTF8(keyUTF16).get()];
+
+  if (!nsMenuBarX::sNativeEventTarget) {
+    nsMenuBarX::sNativeEventTarget = [[NativeMenuItemTarget alloc] init];
+  }
+
+  sApplicationMenu = [[[[NSApp mainMenu] itemAtIndex:0] submenu] retain];
+  NSMenuItem* quitMenuItem = [[[NSMenuItem alloc] initWithTitle:labelStr
+                                                  action:@selector(menuItemHit:)
+                                                  keyEquivalent:keyStr] autorelease];
+  [quitMenuItem setTarget:nsMenuBarX::sNativeEventTarget];
+  [quitMenuItem setTag:eCommand_ID_Quit];
+  [sApplicationMenu addItem:quitMenuItem];
 }
 
 uint32_t nsMenuBarX::GetMenuCount()
@@ -238,7 +286,8 @@ void nsMenuBarX::ObserveContentInserted(nsIDocument* aDocument,
 
 void nsMenuBarX::ForceUpdateNativeMenuAt(const nsAString& indexString)
 {
-  NSString* locationString = [NSString stringWithCharacters:indexString.BeginReading() length:indexString.Length()];
+  NSString* locationString = [NSString stringWithCharacters:reinterpret_cast<const unichar*>(indexString.BeginReading())
+                                                     length:indexString.Length()];
   NSArray* indexes = [locationString componentsSeparatedByString:@"|"];
   unsigned int indexCount = [indexes count];
   if (indexCount == 0)
@@ -339,9 +388,14 @@ void nsMenuBarX::SetSystemHelpMenu()
   }
 }
 
-nsresult nsMenuBarX::Paint()
+nsresult nsMenuBarX::Paint(bool aDelayed)
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NSRESULT;
+
+  if (!aDelayed && mAwaitingDelayedPaint) {
+    return NS_OK;
+  }
+  mAwaitingDelayedPaint = false;
 
   // Don't try to optimize anything in this painting by checking
   // sLastGoannaMenuBarPainted because the menubar can be manipulated by
@@ -352,13 +406,36 @@ nsresult nsMenuBarX::Paint()
   NSMenu* outgoingMenu = [NSApp mainMenu];
   NS_ASSERTION([outgoingMenu numberOfItems] > 0, "Main menu does not have any items, something is terribly wrong!");
 
-  NSMenuItem* appMenuItem = [[outgoingMenu itemAtIndex:0] retain];
-  [outgoingMenu removeItemAtIndex:0];
-  [mNativeMenu insertItem:appMenuItem atIndex:0];
-  [appMenuItem release];
+  // To work around bug 722676, we sometimes need to delay making mNativeMenu
+  // the main menu.  This is an Apple bug that sometimes causes a top-level
+  // menu item to remain highlighted after pressing a Cmd+key combination that
+  // opens a new window, then closing the window.  The OS temporarily
+  // highlights the appropriate top-level menu item whenever you press the
+  // Cmd+key combination for one of its submenus.  (It does this by setting a
+  // "pressed" attribute on it.)  The OS then uses a timer to remove this
+  // "pressed" attribute.  But without our workaround we sometimes change the
+  // main menu before the timer has fired, so when it fires the menu item it
+  // was intended to unhighlight is no longer present in the main menu.  This
+  // causes the item to remain semi-permanently highlighted (until you quit
+  // Firefox or navigate the main menu by hand).
+  if ((outgoingMenu != mNativeMenu) &&
+      [outgoingMenu isKindOfClass:[GoannaNSMenu class]]) {
+    if (aDelayed) {
+      [(GoannaNSMenu *)outgoingMenu setDelayResignMainMenu:false];
+    } else if ([(GoannaNSMenu *)outgoingMenu delayResignMainMenu]) {
+      PaintMenuBarAfterDelay();
+      return NS_OK;
+    }
+  }
 
-  // Set menu bar and event target.
-  [NSApp setMainMenu:mNativeMenu];
+  if (outgoingMenu != mNativeMenu) {
+    NSMenuItem* appMenuItem = [[outgoingMenu itemAtIndex:0] retain];
+    [outgoingMenu removeItemAtIndex:0];
+    [mNativeMenu insertItem:appMenuItem atIndex:0];
+    [appMenuItem release];
+    // Set menu bar and event target.
+    [NSApp setMainMenu:mNativeMenu];
+  }
   SetSystemHelpMenu();
   nsMenuBarX::sLastGoannaMenuBarPainted = this;
 
@@ -367,6 +444,19 @@ nsresult nsMenuBarX::Paint()
   return NS_OK;
 
   NS_OBJC_END_TRY_ABORT_BLOCK_NSRESULT;
+}
+
+// Used to delay a call to nsMenuBarX::Paint().  Needed to work around
+// bug 722676.
+void nsMenuBarX::PaintMenuBarAfterDelay()
+{
+  mAwaitingDelayedPaint = true;
+  nsMenuBarX::sCurrentPaintDelayedMenuBar = this;
+  [mNativeMenu retain];
+  // The delay for Apple's unhighlight timer is 0.1f, so we make ours a bit longer.
+  [mNativeMenu performSelector:@selector(delayedPaintMenuBar:)
+                    withObject:nil
+                    afterDelay:0.15f];
 }
 
 // Returns the 'key' attribute of the 'shortcutID' object (if any) in the
@@ -381,7 +471,7 @@ char nsMenuBarX::GetLocalizedAccelKey(const char *shortcutID)
   if (!sLastGoannaMenuBarPainted)
     return 0;
 
-  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(sLastGoannaMenuBarPainted->mDocument));
+  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(sLastGoannaMenuBarPainted->mContent->OwnerDoc()));
   if (!domDoc)
     return 0;
 
@@ -428,20 +518,13 @@ void nsMenuBarX::HideItem(nsIDOMDocument* inDoc, const nsAString & inID, nsICont
 // Do what is necessary to conform to the Aqua guidelines for menus.
 void nsMenuBarX::AquifyMenuBar()
 {
-  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(mContent->GetDocument()));
+  nsCOMPtr<nsIDOMDocument> domDoc(do_QueryInterface(mContent->GetComposedDoc()));
   if (domDoc) {
     // remove the "About..." item and its separator
     HideItem(domDoc, NS_LITERAL_STRING("aboutSeparator"), nullptr);
     HideItem(domDoc, NS_LITERAL_STRING("aboutName"), getter_AddRefs(mAboutItemContent));
     if (!sAboutItemContent)
       sAboutItemContent = mAboutItemContent;
-
-    // Hide the software update menu item, since it belongs in the application
-    // menu on Mac OS X.
-    HideItem(domDoc, NS_LITERAL_STRING("updateSeparator"), nullptr);
-    HideItem(domDoc, NS_LITERAL_STRING("checkForUpdates"), getter_AddRefs(mUpdateItemContent));
-    if (!sUpdateItemContent)
-      sUpdateItemContent = mUpdateItemContent;
 
     // remove quit item and its separator
     HideItem(domDoc, NS_LITERAL_STRING("menu_FileQuitSeparator"), nullptr);
@@ -470,7 +553,7 @@ NSMenuItem* nsMenuBarX::CreateNativeAppMenuItem(nsMenuX* inMenu, const nsAString
 {
   NS_OBJC_BEGIN_TRY_ABORT_BLOCK_NIL;
 
-  nsCOMPtr<nsIDocument> doc = inMenu->Content()->GetDocument();
+  nsCOMPtr<nsIDocument> doc = inMenu->Content()->GetUncomposedDoc();
   if (!doc)
     return nil;
 
@@ -506,7 +589,8 @@ NSMenuItem* nsMenuBarX::CreateNativeAppMenuItem(nsMenuX* inMenu, const nsAString
       nsAutoString keyChar(NS_LITERAL_STRING(" "));
       keyContent->GetAttr(kNameSpaceID_None, nsGkAtoms::key, keyChar);
       if (!keyChar.EqualsLiteral(" ")) {
-        keyEquiv = [[NSString stringWithCharacters:keyChar.get() length:keyChar.Length()] lowercaseString];
+        keyEquiv = [[NSString stringWithCharacters:reinterpret_cast<const unichar*>(keyChar.get())
+                                            length:keyChar.Length()] lowercaseString];
       }
       // now grab the key equivalent modifiers
       nsAutoString modifiersStr;
@@ -516,8 +600,9 @@ NSMenuItem* nsMenuBarX::CreateNativeAppMenuItem(nsMenuX* inMenu, const nsAString
     }
   }
   // get the label into NSString-form
-  NSString* labelString = [NSString stringWithCharacters:label.get() length:label.Length()];
-  
+  NSString* labelString = [NSString stringWithCharacters:reinterpret_cast<const unichar*>(label.get())
+                                                  length:label.Length()];
+
   if (!labelString)
     labelString = @"";
   if (!keyEquiv)
@@ -556,7 +641,6 @@ nsresult nsMenuBarX::CreateApplicationMenu(nsMenuX* inMenu)
   
   ========================
   = About This App       = <- aboutName
-  = Check for Updates... = <- checkForUpdates
   ========================
   = Preferences...       = <- menu_preferences
   ========================
@@ -592,17 +676,6 @@ nsresult nsMenuBarX::CreateApplicationMenu(nsMenuX* inMenu)
     // Add the About menu item
     itemBeingAdded = CreateNativeAppMenuItem(inMenu, NS_LITERAL_STRING("aboutName"), @selector(menuItemHit:),
                                              eCommand_ID_About, nsMenuBarX::sNativeEventTarget);
-    if (itemBeingAdded) {
-      [sApplicationMenu addItem:itemBeingAdded];
-      [itemBeingAdded release];
-      itemBeingAdded = nil;
-
-      addAboutSeparator = TRUE;
-    }
-
-    // Add the software update menu item
-    itemBeingAdded = CreateNativeAppMenuItem(inMenu, NS_LITERAL_STRING("checkForUpdates"), @selector(menuItemHit:),
-                                             eCommand_ID_Update, nsMenuBarX::sNativeEventTarget);
     if (itemBeingAdded) {
       [sApplicationMenu addItem:itemBeingAdded];
       [itemBeingAdded release];
@@ -713,7 +786,6 @@ void nsMenuBarX::SetParent(nsIWidget* aParent)
   mParentWindow = aParent;
 }
 
-
 //
 // Objective-C class used to allow us to have keyboard commands
 // look like they are doing something but actually do nothing.
@@ -724,6 +796,66 @@ void nsMenuBarX::SetParent(nsIWidget* aParent)
 static BOOL gMenuItemsExecuteCommands = YES;
 
 @implementation GoannaNSMenu
+
+- (id)initWithTitle:(NSString *)aTitle
+{
+  if ((self = [super initWithTitle:aTitle])) {
+    mMenuBarOwner = nullptr;
+    mDelayResignMainMenu = false;
+  }
+  return self;
+}
+
+- (id)initWithTitle:(NSString *)aTitle andMenuBarOwner:(nsMenuBarX *)aMenuBarOwner
+{
+  if ((self = [super initWithTitle:aTitle])) {
+    mMenuBarOwner = aMenuBarOwner;
+    mDelayResignMainMenu = false;
+  }
+  return self;
+}
+
+- (void)resetMenuBarOwner
+{
+  mMenuBarOwner = nil;
+}
+
+- (bool)delayResignMainMenu
+{
+  return mDelayResignMainMenu;
+}
+
+- (void)setDelayResignMainMenu:(bool)aShouldDelay
+{
+  mDelayResignMainMenu = aShouldDelay;
+}
+
+// Used to delay a call to nsMenuBarX::Paint().  Needed to work around
+// bug 722676.
+- (void)delayedPaintMenuBar:(id)unused
+{
+  if (mMenuBarOwner) {
+    if (mMenuBarOwner == nsMenuBarX::sCurrentPaintDelayedMenuBar) {
+      mMenuBarOwner->Paint(true);
+      nsMenuBarX::sCurrentPaintDelayedMenuBar = nullptr;
+    } else {
+      mMenuBarOwner->ResetAwaitingDelayedPaint();
+    }
+  }
+  [self release];
+}
+
+// Undocumented method, present unchanged since OS X 10.6, used to temporarily
+// highlight a top-level menu item when an appropriate Cmd+key combination is
+// pressed.
+- (void)_performActionWithHighlightingForItemAtIndex:(NSInteger)index
+{
+  NSMenu *mainMenu = [NSApp mainMenu];
+  if ([mainMenu isKindOfClass:[GoannaNSMenu class]]) {
+    [(GoannaNSMenu *)mainMenu setDelayResignMainMenu:true];
+  }
+  [super _performActionWithHighlightingForItemAtIndex:index];
+}
 
 // Keyboard commands should not cause menu items to invoke their
 // commands when there is a key window because we'd rather send
@@ -750,40 +882,17 @@ static BOOL gMenuItemsExecuteCommands = YES;
     return [super performKeyEquivalent:theEvent];
   }
 
-  // Plugins normally eat all keyboard commands, this hack mitigates
-  // the problem.
-  BOOL handleForPluginHack = NO;
   NSResponder *firstResponder = [keyWindow firstResponder];
-  if (firstResponder &&
-      [firstResponder isKindOfClass:[ChildView class]] &&
-      [(ChildView*)firstResponder isPluginView]) {
-    handleForPluginHack = YES;
-    // Maintain a list of cmd+key combinations that we never act on (in the
-    // browser) when the keyboard focus is in a plugin.  What a particular
-    // cmd+key combo means here (to the browser) is governed by browser.dtd,
-    // which "contains the browser main menu items".
-    UInt32 modifierFlags = [theEvent modifierFlags] & NSDeviceIndependentModifierFlagsMask;
-    if (modifierFlags == NSCommandKeyMask) {
-      NSString *unmodchars = [theEvent charactersIgnoringModifiers];
-      if ([unmodchars length] == 1) {
-        if ([unmodchars characterAtIndex:0] == nsMenuBarX::GetLocalizedAccelKey("key_selectAll")) {
-          handleForPluginHack = NO;
-        }
-      }
-    }
-  }
 
-  gMenuItemsExecuteCommands = handleForPluginHack;
+  gMenuItemsExecuteCommands = NO;
   [super performKeyEquivalent:theEvent];
   gMenuItemsExecuteCommands = YES; // return to default
 
   // Return YES if we invoked a command and there is now no key window or we changed
   // the first responder. In this case we do not want to propagate the event because
   // we don't want it handled again.
-  if (handleForPluginHack) {
-    if (![NSApp keyWindow] || [[NSApp keyWindow] firstResponder] != firstResponder) {
-      return YES;
-    }
+  if (![NSApp keyWindow] || [[NSApp keyWindow] firstResponder] != firstResponder) {
+    return YES;
   }
 
   // Return NO so that we can handle the event via NSView's "keyDown:".
@@ -820,23 +929,25 @@ static BOOL gMenuItemsExecuteCommands = YES;
     return;
   }
 
+  int tag = [sender tag];
+
   if (!gMenuItemsExecuteCommands) {
     return;
   }
 
-  int tag = [sender tag];
-
-  MenuItemInfo* info = [sender representedObject];
-  if (!info)
-    return;
-
-  nsMenuGroupOwnerX* menuGroupOwner = [info menuGroupOwner];
-  if (!menuGroupOwner)
-    return;
-
+  nsMenuGroupOwnerX* menuGroupOwner = nullptr;
   nsMenuBarX* menuBar = nullptr;
-  if (menuGroupOwner->MenuObjectType() == eMenuBarObjectType)
-    menuBar = static_cast<nsMenuBarX*>(menuGroupOwner);
+  MenuItemInfo* info = [sender representedObject];
+
+  if (info) {
+    menuGroupOwner = [info menuGroupOwner];
+    if (!menuGroupOwner) {
+      return;
+    }
+    if (menuGroupOwner->MenuObjectType() == eMenuBarObjectType) {
+      menuBar = static_cast<nsMenuBarX*>(menuGroupOwner);
+    }
+  }
 
   // Do special processing if this is for an app-global command.
   if (tag == eCommand_ID_About) {
@@ -845,12 +956,6 @@ static BOOL gMenuItemsExecuteCommands = YES;
       mostSpecificContent = menuBar->mAboutItemContent;
     nsMenuUtilsX::DispatchCommandTo(mostSpecificContent);
     return;
-  }
-  else if (tag == eCommand_ID_Update) {
-    nsIContent* mostSpecificContent = sUpdateItemContent;
-    if (menuBar && menuBar->mUpdateItemContent)
-      mostSpecificContent = menuBar->mUpdateItemContent;
-    nsMenuUtilsX::DispatchCommandTo(mostSpecificContent);
   }
   else if (tag == eCommand_ID_Prefs) {
     nsIContent* mostSpecificContent = sPrefItemContent;
@@ -882,7 +987,10 @@ static BOOL gMenuItemsExecuteCommands = YES;
       nsMenuUtilsX::DispatchCommandTo(mostSpecificContent);
     }
     else {
-      [NSApp terminate:nil];
+      nsCOMPtr<nsIAppStartup> appStartup = do_GetService(NS_APPSTARTUP_CONTRACTID);
+      if (appStartup) {
+        appStartup->Quit(nsIAppStartup::eAttemptQuit);
+      }
     }
     return;
   }

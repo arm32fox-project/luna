@@ -18,7 +18,7 @@
     request.onerror = errorHandler;
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = unexpectedSuccessHandler;
-    let event = yield;
+    let event = yield undefined;
 
     let db = event.target.result;
     db.onerror = errorHandler;
@@ -27,7 +27,7 @@
     let index = objectStore.createIndex("foo", "index");
 
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
 
     info("Let's create a blob and store it in IndexedDB twice.");
@@ -39,24 +39,29 @@
 
     objectStore = db.transaction("foo", "readwrite").objectStore("foo");
     objectStore.add(data).onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
+
+    info("Added blob to database once");
 
     let key = event.target.result;
 
     objectStore.add(data).onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
+    info("Added blob to database twice");
 
     info("Let's retrieve the blob again and verify the contents is the same.");
 
     objectStore = db.transaction("foo").objectStore("foo");
     objectStore.get(key).onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
+
+    info("Got blob from database");
 
     let fileReader = new FileReader();
     fileReader.onload = grabEventAndContinueHandler;
     fileReader.readAsText(event.target.result.blob);
-    event = yield;
+    event = yield undefined;
 
     is(event.target.result, BLOB_DATA.join(""), "Correct text");
 
@@ -66,7 +71,9 @@
 
     objectStore = db.transaction("foo").objectStore("foo");
     objectStore.get(key).onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
+
+    info("Got blob from database");
 
     let blobURL = URL.createObjectURL(event.target.result.blob);
 
@@ -74,7 +81,7 @@
     xhr.open("GET", blobURL);
     xhr.onload = grabEventAndContinueHandler;
     xhr.send();
-    yield;
+    yield undefined;
 
     URL.revokeObjectURL(blobURL);
 
@@ -85,14 +92,14 @@
 
     objectStore = db.transaction("foo").objectStore("foo");
     objectStore.mozGetAll().onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.target.result.length, 2, "Got right number of items");
 
     fileReader = new FileReader();
     fileReader.onload = grabEventAndContinueHandler;
     fileReader.readAsText(event.target.result[0].blob);
-    event = yield;
+    event = yield undefined;
 
     is(event.target.result, BLOB_DATA.join(""), "Correct text");
 
@@ -102,48 +109,52 @@
     objectStore.openCursor().onsuccess = function(event) {
       let cursor = event.target.result;
       if (cursor) {
+        info("Got item from cursor");
         cursorResults.push(cursor.value);
         cursor.continue();
       }
       else {
+        info("Finished cursor");
         continueToNextStep();
       }
     };
-    yield;
+    yield undefined;
 
     is(cursorResults.length, 2, "Got right number of items");
 
     fileReader = new FileReader();
     fileReader.onload = grabEventAndContinueHandler;
     fileReader.readAsText(cursorResults[0].blob);
-    event = yield;
+    event = yield undefined;
 
     is(event.target.result, BLOB_DATA.join(""), "Correct text");
 
 
     info("Retrieve blobs from database via index and verify contents.");
 
-    let index = db.transaction("foo").objectStore("foo").index("foo");
+    index = db.transaction("foo").objectStore("foo").index("foo");
     index.get(INDEX_KEY).onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
+
+    info("Got blob from database");
 
     fileReader = new FileReader();
     fileReader.onload = grabEventAndContinueHandler;
     fileReader.readAsText(event.target.result.blob);
-    event = yield;
+    event = yield undefined;
 
     is(event.target.result, BLOB_DATA.join(""), "Correct text");
 
     index = db.transaction("foo").objectStore("foo").index("foo");
     index.mozGetAll().onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.target.result.length, 2, "Got right number of items");
 
     fileReader = new FileReader();
     fileReader.onload = grabEventAndContinueHandler;
     fileReader.readAsText(event.target.result[0].blob);
-    event = yield;
+    event = yield undefined;
 
     is(event.target.result, BLOB_DATA.join(""), "Correct text");
 
@@ -153,28 +164,30 @@
     index.openCursor().onsuccess = function(event) {
       let cursor = event.target.result;
       if (cursor) {
+        info("Got item from cursor");
         cursorResults.push(cursor.value);
         cursor.continue();
       }
       else {
+        info("Finished cursor");
         continueToNextStep();
       }
     };
-    yield;
+    yield undefined;
 
     is(cursorResults.length, 2, "Got right number of items");
 
     fileReader = new FileReader();
     fileReader.onload = grabEventAndContinueHandler;
     fileReader.readAsText(cursorResults[0].blob);
-    event = yield;
+    event = yield undefined;
 
     is(event.target.result, BLOB_DATA.join(""), "Correct text");
 
     fileReader = new FileReader();
     fileReader.onload = grabEventAndContinueHandler;
     fileReader.readAsText(cursorResults[1].blob);
-    event = yield;
+    event = yield undefined;
 
     is(event.target.result, BLOB_DATA.join(""), "Correct text");
 
@@ -186,7 +199,7 @@
     fileReader = new FileReader();
     fileReader.onload = grabEventAndContinueHandler;
     fileReader.readAsText(slice);
-    event = yield;
+    event = yield undefined;
 
     is(event.target.result, BLOB_DATA[0], "Correct text");
 
@@ -210,10 +223,10 @@
     let worker = new Worker(url);
     worker.postMessage(slice);
     worker.onmessage = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.data, BLOB_DATA[0], "Correct text");
-    event = yield;
+    event = yield undefined;
 
     is(event.data, BLOB_DATA[0][1], "Correct text");
 
@@ -223,28 +236,32 @@
 
     objectStore = db.transaction("foo").objectStore("foo");
     objectStore.get(key).onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     let blobFromDB = event.target.result.blob;
+    info("Got blob from database");
+
     let txn = db.transaction("foo", "readwrite");
     txn.objectStore("foo").put(event.target.result, key);
     txn.oncomplete = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
-    let fileReader = new FileReader();
+    info("Stored blob back into database");
+
+    fileReader = new FileReader();
     fileReader.onload = grabEventAndContinueHandler;
     fileReader.readAsText(blobFromDB);
-    event = yield;
+    event = yield undefined;
 
     is(event.target.result, BLOB_DATA.join(""), "Correct text");
 
-    let blobURL = URL.createObjectURL(blobFromDB);
+    blobURL = URL.createObjectURL(blobFromDB);
 
-    let xhr = new XMLHttpRequest();
+    xhr = new XMLHttpRequest();
     xhr.open("GET", blobURL);
     xhr.onload = grabEventAndContinueHandler;
     xhr.send();
-    yield;
+    yield undefined;
 
     URL.revokeObjectURL(blobURL);
 
@@ -252,7 +269,7 @@
 
 
     finishTest();
-    yield;
+    yield undefined;
   }
   </script>
   <script type="text/javascript;version=1.7" src="helpers.js"></script>

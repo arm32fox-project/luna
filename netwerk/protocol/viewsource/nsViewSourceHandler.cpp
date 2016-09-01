@@ -13,7 +13,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NS_IMPL_ISUPPORTS1(nsViewSourceHandler, nsIProtocolHandler)
+NS_IMPL_ISUPPORTS(nsViewSourceHandler, nsIProtocolHandler)
 
 ////////////////////////////////////////////////////////////////////////////////
 // nsIProtocolHandler methods:
@@ -90,7 +90,9 @@ nsViewSourceHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsViewSourceHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
+nsViewSourceHandler::NewChannel2(nsIURI* uri,
+                                 nsILoadInfo* aLoadInfo,
+                                 nsIChannel** result)
 {
     NS_ENSURE_ARG_POINTER(uri);
     nsViewSourceChannel *channel = new nsViewSourceChannel();
@@ -104,8 +106,21 @@ nsViewSourceHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
         return rv;
     }
 
+    // set the loadInfo on the new channel
+    rv = channel->SetLoadInfo(aLoadInfo);
+    if (NS_FAILED(rv)) {
+        NS_RELEASE(channel);
+        return rv;
+    }
+
     *result = static_cast<nsIViewSourceChannel*>(channel);
     return NS_OK;
+}
+
+NS_IMETHODIMP
+nsViewSourceHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
+{
+    return NewChannel2(uri, nullptr, result);
 }
 
 nsresult

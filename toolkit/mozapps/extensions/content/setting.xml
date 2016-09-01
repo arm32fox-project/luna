@@ -24,6 +24,10 @@
     <implementation>
       <constructor><![CDATA[
         this.preferenceChanged();
+
+        this.addEventListener("keypress", function(event) {
+          event.stopPropagation();
+        }, false);
         
         if (this.usePref)
           Services.prefs.addObserver(this.pref, this._observer, true);
@@ -140,6 +144,8 @@
           <xul:label class="preferences-title" flex="1" xbl:inherits="xbl:text=title"/>
         </xul:hbox>
         <xul:description class="preferences-description" flex="1" xbl:inherits="xbl:text=desc"/>
+        <xul:label class="preferences-learnmore text-link"
+                   onclick="document.getBindingParent(this).openLearnMore()">&setting.learnmore;</xul:label>
       </xul:vbox>
       <xul:hbox class="preferences-alignment">
         <xul:checkbox anonid="input" xbl:inherits="disabled,onlabel,offlabel,label=checkboxlabel" oncommand="inputChanged();"/>
@@ -167,6 +173,14 @@
 
       <property name="value" onget="return this.input.checked;" onset="return this.input.setChecked(val);"/>
       <property name="inverted" readonly="true" onget="return this.getAttribute('inverted');"/>
+
+      <method name="openLearnMore">
+        <body>
+        <![CDATA[
+          window.open(this.getAttribute("learnmore"), "_blank");
+        ]]>
+        </body>
+      </method>
     </implementation>
   </binding>
 
@@ -226,8 +240,8 @@
         <xul:description class="preferences-description" flex="1" xbl:inherits="xbl:text=desc"/>
       </xul:vbox>
       <xul:hbox class="preferences-alignment">
-        <xul:textbox type="number" anonid="input" flex="1" oninput="inputChanged();" onchange="inputChanged();"
-                     xbl:inherits="disabled,emptytext,min,max,increment,hidespinbuttons,wraparound"/>
+        <xul:textbox type="number" anonid="input" oninput="inputChanged();" onchange="inputChanged();"
+                     xbl:inherits="disabled,emptytext,min,max,increment,hidespinbuttons,wraparound,size"/>
       </xul:hbox>
     </content>
 
@@ -459,11 +473,15 @@
               return;
           }
 
-          for (let i = 0; i < this.control.itemCount; i++) {
-            if (this.control.getItemAtIndex(i).value == val) {
-              this.control.selectedIndex = i;
-              break;
+          if ("itemCount" in this.control) {
+            for (let i = 0; i < this.control.itemCount; i++) {
+              if (this.control.getItemAtIndex(i).value == val) {
+                this.control.selectedIndex = i;
+                break;
+              }
             }
+          } else {
+            this.control.setAttribute("value", val);
           }
         ]]>
         </body>

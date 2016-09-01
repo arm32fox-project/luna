@@ -25,28 +25,28 @@ class SVGViewFrame : public SVGViewFrameBase
   friend nsIFrame*
   NS_NewSVGViewFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  SVGViewFrame(nsStyleContext* aContext)
+  explicit SVGViewFrame(nsStyleContext* aContext)
     : SVGViewFrameBase(aContext)
   {
-    AddStateBits(NS_STATE_SVG_NONDISPLAY_CHILD);
+    AddStateBits(NS_FRAME_IS_NONDISPLAY);
   }
 
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
 #ifdef DEBUG
-  virtual void Init(nsIContent* aContent,
-                    nsIFrame*   aParent,
-                    nsIFrame*   aPrevInFlow) MOZ_OVERRIDE;
+  virtual void Init(nsIContent*       aContent,
+                    nsContainerFrame* aParent,
+                    nsIFrame*         aPrevInFlow) override;
 #endif
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(uint32_t aFlags) const override
   {
     return SVGViewFrameBase::IsFrameOfType(aFlags & ~(nsIFrame::eSVG));
   }
 
-#ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const
+#ifdef DEBUG_FRAME_DUMP
+  virtual nsresult GetFrameName(nsAString& aResult) const override
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGView"), aResult);
   }
@@ -57,13 +57,13 @@ public:
    *
    * @see nsGkAtoms::svgFELeafFrame
    */
-  virtual nsIAtom* GetType() const;
+  virtual nsIAtom* GetType() const override;
 
-  NS_IMETHOD AttributeChanged(int32_t  aNameSpaceID,
-                              nsIAtom* aAttribute,
-                              int32_t  aModType);
+  virtual nsresult AttributeChanged(int32_t  aNameSpaceID,
+                                    nsIAtom* aAttribute,
+                                    int32_t  aModType) override;
 
-  virtual bool UpdateOverflow() {
+  virtual bool UpdateOverflow() override {
     // We don't maintain a visual overflow rect
     return false;
   }
@@ -79,9 +79,9 @@ NS_IMPL_FRAMEARENA_HELPERS(SVGViewFrame)
 
 #ifdef DEBUG
 void
-SVGViewFrame::Init(nsIContent* aContent,
-                   nsIFrame* aParent,
-                   nsIFrame* aPrevInFlow)
+SVGViewFrame::Init(nsIContent*       aContent,
+                   nsContainerFrame* aParent,
+                   nsIFrame*         aPrevInFlow)
 {
   NS_ASSERTION(aContent->IsSVG(nsGkAtoms::view),
                "Content is not an SVG view");
@@ -96,7 +96,7 @@ SVGViewFrame::GetType() const
   return nsGkAtoms::svgViewFrame;
 }
 
-NS_IMETHODIMP
+nsresult
 SVGViewFrame::AttributeChanged(int32_t  aNameSpaceID,
                                nsIAtom* aAttribute,
                                int32_t  aModType)

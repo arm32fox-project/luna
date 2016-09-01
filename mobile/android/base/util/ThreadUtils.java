@@ -5,19 +5,49 @@
 
 package org.mozilla.goanna.util;
 
-import android.os.Handler;
-import android.util.Log;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 
 import java.util.Map;
+
+import android.os.Handler;
+import android.os.Looper;
+import android.os.MessageQueue;
+import android.util.Log;
 
 public final class ThreadUtils {
     private static final String LOGTAG = "ThreadUtils";
 
-    private static Thread sUiThread;
-    private static Thread sGoannaThread;
-    private static Thread sBackgroundThread;
+    /**
+     * Controls the action taken when a method like
+     * {@link ThreadUtils#assertOnUiThread(AssertBehavior)} detects a problem.
+     */
+    public static enum AssertBehavior {
+        NONE,
+        THROW,
+    }
 
-    private static Handler sUiHandler;
+    private static final Thread sUiThread = Looper.getMainLooper().getThread();
+    private static final Handler sUiHandler = new Handler(Looper.getMainLooper());
+
+    private static volatile Thread sBackgroundThread;
+
+    // Referenced directly from GoannaAppShell in highly performance-sensitive code (The extra
+    // function call of the getter was harming performance. (Bug 897123))
+    // Once Bug 709230 is resolved we should reconsider this as ProGuard should be able to optimise
+    // this out at compile time.
+    public static Handler sGoannaHandler;
+    public static MessageQueue sGoannaQueue;
+    public static volatile Thread sGoannaThread;
+
+    // Delayed Runnable that resets the Goanna thread priority.
+    private static final Runnable sPriorityResetRunnable = new Runnable() {
+        @Override
+        public void run() {
+            resetGoannaPriority();
+        }
+    };
+
+    private static boolean sIsGoannaPriorityReduced;
 
     @SuppressWarnings("serial")
     public static class UiThreadBlockedException extends RuntimeException {
@@ -50,15 +80,6 @@ public final class ThreadUtils {
         }
     }
 
-    public static void setUiThread(Thread thread, Handler handler) {
-        sUiThread = thread;
-        sUiHandler = handler;
-    }
-
-    public static void setGoannaThread(Thread thread) {
-        sGoannaThread = thread;
-    }
-
     public static void setBackgroundThread(Thread thread) {
         sBackgroundThread = thread;
     }
@@ -75,8 +96,12 @@ public final class ThreadUtils {
         sUiHandler.post(runnable);
     }
 
-    public static Thread getGoannaThread() {
-        return sGoannaThread;
+    public static void postDelayedToUiThread(Runnable runnable, long timeout) {
+        sUiHandler.postDelayed(runnable, timeout);
+    }
+
+    public static void removeCallbacksFromUiThread(Runnable runnable) {
+        sUiHandler.removeCallbacks(runnable);
     }
 
     public static Thread getBackgroundThread() {
@@ -91,40 +116,133 @@ public final class ThreadUtils {
         GoannaBackgroundThread.post(runnable);
     }
 
-    public static void assertOnUiThread() {
-        assertOnThread(getUiThread());
+    public static void assertOnUiThread(final AssertBehavior assertBehavior) {
+        assertOnThread(getUiThread(), assertBehavior);
     }
 
+    public static void assertOnUiThread() {
+        assertOnThread(getUiThread(), AssertBehavior.THROW);
+    }
+
+    public static void assertNotOnUiThread() {
+        assertNotOnThread(getUiThread(), AssertBehavior.THROW);
+    }
+
+    @RobocopTarget
     public static void assertOnGoannaThread() {
-        assertOnThread(getGoannaThread());
+        assertOnThread(sGoannaThread, AssertBehavior.THROW);
+    }
+
+    public static void assertNotOnGoannaThread() {
+        if (sGoannaThread == null) {
+            // Cannot be on Goanna thread if Goanna thread is not live yet.
+            return;
+        }
+        assertNotOnThread(sGoannaThread, AssertBehavior.THROW);
     }
 
     public static void assertOnBackgroundThread() {
-        assertOnThread(getBackgroundThread());
+        assertOnThread(getBackgroundThread(), AssertBehavior.THROW);
     }
 
-    public static void assertOnThread(Thread expectedThread) {
-        Thread currentThread = Thread.currentThread();
-        long currentThreadId = currentThread.getId();
-        long expectedThreadId = expectedThread.getId();
+    public static void assertOnThread(final Thread expectedThread) {
+        assertOnThread(expectedThread, AssertBehavior.THROW);
+    }
 
-        if (currentThreadId != expectedThreadId) {
-            throw new IllegalThreadStateException("Expected thread " + expectedThreadId + " (\""
-                                                  + expectedThread.getName()
-                                                  + "\"), but running on thread " + currentThreadId
-                                                  + " (\"" + currentThread.getName() + ")");
+    public static void assertOnThread(final Thread expectedThread, AssertBehavior behavior) {
+        assertOnThreadComparison(expectedThread, behavior, true);
+    }
+
+    public static void assertNotOnThread(final Thread expectedThread, AssertBehavior behavior) {
+        assertOnThreadComparison(expectedThread, behavior, false);
+    }
+
+    private static void assertOnThreadComparison(final Thread expectedThread, AssertBehavior behavior, boolean expected) {
+        final Thread currentThread = Thread.currentThread();
+        final long currentThreadId = currentThread.getId();
+        final long expectedThreadId = expectedThread.getId();
+
+        if ((currentThreadId == expectedThreadId) == expected) {
+            return;
         }
+
+        final String message;
+        if (expected) {
+            message = "Expected thread " + expectedThreadId +
+                      " (\"" + expectedThread.getName() + "\"), but running on thread " +
+                      currentThreadId + " (\"" + currentThread.getName() + "\")";
+        } else {
+            message = "Expected anything but " + expectedThreadId +
+                      " (\"" + expectedThread.getName() + "\"), but running there.";
+        }
+
+        final IllegalThreadStateException e = new IllegalThreadStateException(message);
+
+        switch (behavior) {
+        case THROW:
+            throw e;
+        default:
+            Log.e(LOGTAG, "Method called on wrong thread!", e);
+        }
+    }
+
+    public static boolean isOnGoannaThread() {
+        if (sGoannaThread != null) {
+            return isOnThread(sGoannaThread);
+        }
+        return false;
     }
 
     public static boolean isOnUiThread() {
         return isOnThread(getUiThread());
     }
 
+    @RobocopTarget
     public static boolean isOnBackgroundThread() {
+        if (sBackgroundThread == null) {
+            return false;
+        }
+
         return isOnThread(sBackgroundThread);
     }
 
+    @RobocopTarget
     public static boolean isOnThread(Thread thread) {
         return (Thread.currentThread().getId() == thread.getId());
+    }
+
+    /**
+     * Reduces the priority of the Goanna thread, allowing other operations
+     * (such as those related to the UI and database) to take precedence.
+     *
+     * Note that there are no guards in place to prevent multiple calls
+     * to this method from conflicting with each other.
+     *
+     * @param timeout Timeout in ms after which the priority will be reset
+     */
+    public static void reduceGoannaPriority(long timeout) {
+        if (Runtime.getRuntime().availableProcessors() > 1) {
+            // Don't reduce priority for multicore devices. We use availableProcessors()
+            // for its fast performance. It may give false negatives (i.e. multicore
+            // detected as single-core), but we can tolerate this behavior.
+            return;
+        }
+        if (!sIsGoannaPriorityReduced && sGoannaThread != null) {
+            sIsGoannaPriorityReduced = true;
+            sGoannaThread.setPriority(Thread.MIN_PRIORITY);
+            getUiHandler().postDelayed(sPriorityResetRunnable, timeout);
+        }
+    }
+
+    /**
+     * Resets the priority of a thread whose priority has been reduced
+     * by reduceGoannaPriority.
+     */
+    public static void resetGoannaPriority() {
+        if (sIsGoannaPriorityReduced) {
+            sIsGoannaPriorityReduced = false;
+            sGoannaThread.setPriority(Thread.NORM_PRIORITY);
+            getUiHandler().removeCallbacks(sPriorityResetRunnable);
+        }
     }
 }

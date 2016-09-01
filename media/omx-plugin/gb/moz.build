@@ -4,11 +4,26 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MODULE = 'omxplugingb'
-
-CPP_SOURCES += [
+SOURCES += [
     'OmxPlugin236.cpp',
 ]
 
-LIBRARY_NAME = 'omxplugingb'
+SharedLibrary('omxplugingb')
 
+LOCAL_INCLUDES += [
+    '../include/gb',
+    '../include/gb/media/stagefright/openmax',
+]
+
+USE_LIBS += [
+    '/media/omx-plugin/lib/gb/libstagefright/stagefright',
+    '/media/omx-plugin/lib/gb/libutils/utils',
+    'stagefright_color_conversion',
+]
+
+# Don't use STL wrappers; this isn't Goanna code
+DISABLE_STL_WRAPPING = True
+NO_VISIBILITY_FLAGS = True
+
+# Suppress warnings in third-party code.
+CXXFLAGS += ['-Wno-multichar']

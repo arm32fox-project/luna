@@ -6,13 +6,24 @@
 #ifndef GFX_BLUR_H
 #define GFX_BLUR_H
 
-#include "gfxContext.h"
-#include "gfxImageSurface.h"
 #include "gfxTypes.h"
+#include "nsSize.h"
+#include "nsAutoPtr.h"
+#include "gfxPoint.h"
+#include "mozilla/RefPtr.h"
+#include "mozilla/UniquePtr.h"
+
+class gfxContext;
+struct gfxRect;
+struct gfxRGBA;
+class gfxMatrix;
 
 namespace mozilla {
   namespace gfx {
     class AlphaBoxBlur;
+    struct RectCornerRadii;
+    class SourceSurface;
+    class DrawTarget;
   }
 }
 
@@ -37,6 +48,8 @@ namespace mozilla {
  */
 class gfxAlphaBoxBlur
 {
+    typedef mozilla::gfx::RectCornerRadii RectCornerRadii;
+
 public:
     gfxAlphaBoxBlur();
 
@@ -52,12 +65,13 @@ public:
      *   this value.  This parameter should nearly always be computed using
      *   CalculateBlurRadius, below.
      *
-     * @param aDirtyRect A pointer to a dirty rect, measured in device units, if available.
-     *  This will be used for optimizing the blur operation. It is safe to pass NULL here.
+     * @param aDirtyRect A pointer to a dirty rect, measured in device units,
+     *  if available. This will be used for optimizing the blur operation. It
+     *  is safe to pass nullptr here.
      *
-     * @param aSkipRect A pointer to a rect, measured in device units, that represents an area
-     *  where blurring is unnecessary and shouldn't be done for speed reasons. It is safe to
-     *  pass NULL here.
+     * @param aSkipRect A pointer to a rect, measured in device units, that
+     *  represents an area where blurring is unnecessary and shouldn't be done
+     *  for speed reasons. It is safe to pass nullptr here.
      */
     gfxContext* Init(const gfxRect& aRect,
                      const gfxIntSize& aSpreadRadius,
@@ -75,6 +89,8 @@ public:
         return mContext;
     }
 
+    mozilla::TemporaryRef<mozilla::gfx::SourceSurface> DoBlur(mozilla::gfx::DrawTarget* aDT, mozilla::gfx::IntPoint* aTopLeft);
+
     /**
      * Does the actual blurring/spreading and mask applying. Users of this
      * object must have drawn whatever they want to be blurred onto the internal
@@ -83,7 +99,7 @@ public:
      * @param aDestinationCtx The graphics context on which to apply the
      *  blurred mask.
      */
-    void Paint(gfxContext* aDestinationCtx, const gfxPoint& offset = gfxPoint(0.0, 0.0));
+    void Paint(gfxContext* aDestinationCtx);
 
     /**
      * Calculates a blur radius that, when used with box blur, approximates
@@ -92,6 +108,35 @@ public:
      * above.
      */
     static gfxIntSize CalculateBlurRadius(const gfxPoint& aStandardDeviation);
+
+    /**
+     * Blurs a coloured rectangle onto aDestinationCtx. This is equivalent
+     * to calling Init(), drawing a rectangle onto the returned surface
+     * and then calling Paint, but may let us optimize better in the
+     * backend.
+     *
+     * @param aDestinationCtx      The destination to blur to.
+     * @param aRect                The rectangle to blur in device pixels.
+     * @param aCornerRadii         Corner radii for aRect, if it is a rounded
+     *                             rectangle.
+     * @param aBlurRadius          The standard deviation of the blur.
+     * @param aShadowColor         The color to draw the blurred shadow.
+     * @param aDirtyRect           An area in device pixels that is dirty and needs
+     *                             to be redrawn.
+     * @param aSkipRect            An area in device pixels to avoid blurring over,
+     *                             to prevent unnecessary work.
+     */
+    static void BlurRectangle(gfxContext *aDestinationCtx,
+                              const gfxRect& aRect,
+                              RectCornerRadii* aCornerRadii,
+                              const gfxPoint& aBlurStdDev,
+                              const gfxRGBA& aShadowColor,
+                              const gfxRect& aDirtyRect,
+                              const gfxRect& aSkipRect);
+
+    static void ShutdownBlurCache();
+
+
 
 protected:
     /**
@@ -102,12 +147,12 @@ protected:
     /**
      * The temporary alpha surface.
      */
-    nsRefPtr<gfxImageSurface> mImageSurface;
+    nsAutoArrayPtr<unsigned char> mData;
 
      /**
       * The object that actually does the blurring for us.
       */
-    mozilla::gfx::AlphaBoxBlur *mBlur;
+    mozilla::UniquePtr<mozilla::gfx::AlphaBoxBlur> mBlur;
 };
 
 #endif /* GFX_BLUR_H */

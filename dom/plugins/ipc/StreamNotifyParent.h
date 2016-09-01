@@ -17,7 +17,7 @@ class StreamNotifyParent : public PStreamNotifyParent
   friend class PluginInstanceParent;
 
   StreamNotifyParent()
-    : mDestructionFlag(NULL)
+    : mDestructionFlag(nullptr)
   { }
   ~StreamNotifyParent() {
     if (mDestructionFlag)
@@ -31,11 +31,13 @@ public:
     mDestructionFlag = flag;
   }
   void ClearDestructionFlag() {
-    mDestructionFlag = NULL;
+    mDestructionFlag = nullptr;
   }
 
+  virtual void ActorDestroy(ActorDestroyReason aWhy) override;
+
 private:
-  bool RecvRedirectNotifyResponse(const bool& allow);
+  bool RecvRedirectNotifyResponse(const bool& allow) override;
 
   bool* mDestructionFlag;
 };

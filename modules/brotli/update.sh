@@ -5,18 +5,16 @@
 
 MY_TEMP_DIR=`mktemp -d -t brotli_update` || exit 1
 
-git clone https://code.google.com/p/font-compression-reference/ ${MY_TEMP_DIR}
+git clone https://github.com/google/brotli ${MY_TEMP_DIR}/brotli
 
-COMMIT=`(cd ${MY_TEMP_DIR} && git log | head -n 1)`
+COMMIT=`(cd ${MY_TEMP_DIR}/brotli && git log | head -n 1)`
 perl -p -i -e "s/\[commit [0-9a-f]{40}\]/[${COMMIT}]/" README.mozilla;
 
 rm -rf dec
+sleep 5000
 mv ${MY_TEMP_DIR}/brotli/dec dec
-cp mozbuild.dec dec/moz.build
-rm -rf ${MY_TEMP_DIR}
-hg add dec
 
-echo '###'
-echo '### Updated brotli/dec to $COMMIT.'
-echo '### Remember to verify and commit the changes to source control!'
-echo '###'
+echo "###"
+echo "### Updated brotli/dec to $COMMIT."
+echo "### Remember to verify and commit the changes to source control!"
+echo "###"

@@ -6,17 +6,14 @@
   background-color: #febc2b;
 }
 
-#header-button {
-  background-image: url("chrome://browser/skin/images/addons-amo-hdpi.png");
+#main-container {
+  padding: 2em;
+  background-color: #EEF2F5;
+  border-bottom: 1px solid #BAC2AC;
 }
 
-#main-container {
-  margin: 1em;
-  padding: 1em;
-  border-radius: 10px;
-  border: 1px solid grey;
-  background-color: white;
-  width: calc(100% - 4em);
+.hidden {
+  display: none;
 }
 
 .spacer {
@@ -43,13 +40,4 @@
 
 .app div {
   pointer-events: none;
-}
-
-#noapps {
-  padding: 1em;
-  text-align: center;
-}
-
-.hidden {
-  display: none;
 }

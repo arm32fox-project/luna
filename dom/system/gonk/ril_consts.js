@@ -36,7 +36,6 @@ this.REQUEST_HANGUP = 12;
 this.REQUEST_HANGUP_WAITING_OR_BACKGROUND = 13;
 this.REQUEST_HANGUP_FOREGROUND_RESUME_BACKGROUND = 14;
 this.REQUEST_SWITCH_WAITING_OR_HOLDING_AND_ACTIVE = 15;
-this.REQUEST_SWITCH_HOLDING_AND_ACTIVE = 15;
 this.REQUEST_CONFERENCE = 16;
 this.REQUEST_UDUB = 17;
 this.REQUEST_LAST_CALL_FAIL_CAUSE = 18;
@@ -130,29 +129,42 @@ this.REQUEST_ISIM_AUTHENTICATION = 105;
 this.REQUEST_ACKNOWLEDGE_INCOMING_GSM_SMS_WITH_PDU = 106;
 this.REQUEST_STK_SEND_ENVELOPE_WITH_STATUS = 107;
 this.REQUEST_VOICE_RADIO_TECH = 108;
+this.REQUEST_GET_CELL_INFO_LIST = 109;
+this.REQUEST_SET_UNSOL_CELL_INFO_LIST_RATE = 110;
+this.REQUEST_SET_INITIAL_ATTACH_APN = 111;
+this.REQUEST_IMS_REGISTRATION_STATE = 112;
+this.REQUEST_IMS_SEND_SMS = 113;
+this.REQUEST_SIM_TRANSMIT_APDU_BASIC = 114;
+this.REQUEST_SIM_OPEN_CHANNEL = 115;
+this.REQUEST_SIM_CLOSE_CHANNEL = 116;
+this.REQUEST_SIM_TRANSMIT_APDU_CHANNEL = 117;
+this.REQUEST_NV_READ_ITEM = 118;
+this.REQUEST_NV_WRITE_ITEM = 119;
+this.REQUEST_NV_WRITE_CDMA_PRL = 120;
+this.REQUEST_NV_RESET_CONFIG = 121;
+this.REQUEST_SET_UICC_SUBSCRIPTION = 122;
+this.REQUEST_ALLOW_DATA = 123;
+this.REQUEST_GET_HARDWARE_CONFIG = 124;
+this.REQUEST_SIM_AUTHENTICATION = 125;
+this.REQUEST_GET_DC_RT_INFO = 126;
+this.REQUEST_SET_DC_RT_INFO_RATE = 127;
+this.REQUEST_SET_DATA_PROFILE = 128;
+this.REQUEST_SHUTDOWN = 129;
+
+// CAF specific parcel type. It should be synced with latest version. But CAF
+// doesn't have l version for b2g yet, so we set REQUEST_SET_DATA_SUBSCRIPTION
+// to a value that won't get conflict with known AOSP parcel.
+this.REQUEST_SET_DATA_SUBSCRIPTION = 130;
+
+// Mozilla specific parcel type.
+this.REQUEST_GET_UNLOCK_RETRY_COUNT = 150;
+
+// Fugu specific parcel types.
+this.RIL_REQUEST_GPRS_ATTACH = 5018;
+this.RIL_REQUEST_GPRS_DETACH = 5019;
+
+// Galaxy S2 specific parcel type.
 this.REQUEST_DIAL_EMERGENCY_CALL = 10016;
-
-// Akami/Maguro specific parcel types.
-this.REQUEST_IMS_REGISTRATION_STATE = 106;
-this.REQUEST_IMS_SEND_SMS = 107;
-this.REQUEST_GET_DATA_CALL_PROFILE = 108;
-this.REQUEST_SET_UICC_SUBSCRIPTION = 109;
-this.REQUEST_SET_DATA_SUBSCRIPTION = 110;
-this.REQUEST_GET_UICC_SUBSCRIPTION = 111;
-this.REQUEST_GET_DATA_SUBSCRIPTION = 112;
-this.REQUEST_SET_SUBSCRIPTION_MODE = 113;
-this.REQUEST_SET_TRANSMIT_POWER = 114;
-this.REQUEST_SETUP_QOS = 115;
-this.REQUEST_RELEASE_QOS = 116;
-this.REQUEST_GET_QOS_STATUS = 117;
-this.REQUEST_MODIFY_QOS = 118;
-this.REQUEST_SUSPEND_QOS = 119;
-this.REQUEST_RESUME_QOS = 120;
-
-// UICC Secure Access
-this.REQUEST_SIM_OPEN_CHANNEL = 121;
-this.REQUEST_SIM_CLOSE_CHANNEL = 122;
-this.REQUEST_SIM_ACCESS_CHANNEL = 123;
 
 this.RESPONSE_TYPE_SOLICITED = 0;
 this.RESPONSE_TYPE_UNSOLICITED = 1;
@@ -193,16 +205,13 @@ this.UNSOLICITED_CDMA_SUBSCRIPTION_SOURCE_CHANGED = 1031;
 this.UNSOLICITED_CDMA_PRL_CHANGED = 1032;
 this.UNSOLICITED_EXIT_EMERGENCY_CALLBACK_MODE = 1033;
 this.UNSOLICITED_RIL_CONNECTED = 1034;
-
-// Akami/Maguro specific parcels.
-this.UNSOLICITED_VOICE_RADIO_TECH_CHANGED = 1034;
-this.UNSOLICITED_RESPONSE_IMS_NETWORK_STATE_CHANGED = 1035;
-this.UNSOLICITED_RESPONSE_TETHERED_MODE_STATE_CHANGED = 1036;
-this.UNSOLICITED_RESPONSE_DATA_NETWORK_STATE_CHANGED = 1037;
-this.UNSOLICITED_ON_SS = 1038;
-this.UNSOLICITED_STK_CC_ALPHA_NOTIFY = 1039;
-this.UNSOLICITED_UICC_SUBSCRIPTION_STATUS_CHANGED = 1040;
-this.UNSOLICITED_QOS_STATE_CHANGED_IND = 1041;
+this.UNSOLICITED_VOICE_RADIO_TECH_CHANGED = 1035;
+this.UNSOLICITED_CELL_INFO_LIST = 1036;
+this.UNSOLICITED_RESPONSE_IMS_NETWORK_STATE_CHANGED = 1037;
+this.UNSOLICITED_UICC_SUBSCRIPTION_STATUS_CHANGED = 1038;
+this.UNSOLICITED_SRVCC_STATE_NOTIFY = 1039;
+this.UNSOLICITED_HARDWARE_CONFIG_CHANGED = 1040;
+this.UNSOLICITED_DC_RT_INFO_CHANGED = 1041;
 
 this.ERROR_SUCCESS = 0;
 this.ERROR_RADIO_NOT_AVAILABLE = 1;
@@ -230,21 +239,67 @@ this.ERROR_SS_MODIFIED_TO_DIAL = 23;
 this.ERROR_SS_MODIFIED_TO_USSD = 24;
 this.ERROR_SS_MODIFIED_TO_SS = 25;
 this.ERROR_SUBSCRIPTION_NOT_SUPPORTED = 26;
+this.ERROR_INVALID_PARAMETER = 27;
+this.ERROR_REJECTED_BY_REMOTE = 28;
 
-this.GOANNA_ERROR_SUCCESS = null;
-this.GOANNA_ERROR_RADIO_NOT_AVAILABLE = "RadioNotAvailable";
-this.GOANNA_ERROR_GENERIC_FAILURE = "GenericFailure";
-this.GOANNA_ERROR_REQUEST_NOT_SUPPORTED = "RequestNotSupported";
-this.GOANNA_ERROR_ILLEGAL_SIM_OR_ME = "IllegalSIMorME";
-this.GOANNA_ERROR_PASSWORD_INCORRECT = "IncorrectPassword";
+this.GECKO_ERROR_SUCCESS = null;
+this.GECKO_ERROR_RADIO_NOT_AVAILABLE = "RadioNotAvailable";
+this.GECKO_ERROR_GENERIC_FAILURE = "GenericFailure";
+this.GECKO_ERROR_PASSWORD_INCORRECT = "IncorrectPassword";
+this.GECKO_ERROR_SIM_PIN2 = "SimPin2";
+this.GECKO_ERROR_SIM_PUK2 = "SimPuk2";
+this.GECKO_ERROR_REQUEST_NOT_SUPPORTED = "RequestNotSupported";
+this.GECKO_ERROR_CANCELLED = "Cancelled";
+this.GECKO_ERROR_ILLEGAL_SIM_OR_ME = "IllegalSIMorME";
+this.GECKO_ERROR_OP_NOT_ALLOWED_DURING_VOICE_CALL = "OpNotAllowedDuringVoiceCall";
+this.GECKO_ERROR_OP_NOT_ALLOWED_BEFORE_REG_TO_NW = "OpNotAllowedBeforeRegToNw";
+this.GECKO_ERROR_SMS_SEND_FAIL_RETRY = "SmsSendFailRetry";
+this.GECKO_ERROR_SIM_ABSENT = "SimAbsent";
+this.GECKO_ERROR_SUBSCRIPTION_NOT_AVAILABLE = "SubscriptionNotAvailable";
+this.GECKO_ERROR_MODE_NOT_SUPPORTED = "ModeNotSupported";
+this.GECKO_ERROR_FDN_CHECK_FAILURE = "FdnCheckFailure";
+this.GECKO_ERROR_DIAL_MODIFIED_TO_USSD = "DialModifiedToUssd";
+this.GECKO_ERROR_DIAL_MODIFIED_TO_SS = "DialModifiedToSs";
+this.GECKO_ERROR_DIAL_MODIFIED_TO_DIAL = "DialModifiedToDial";
+this.GECKO_ERROR_USSD_MODIFIED_TO_DIAL = "UssdModifiedToDial";
+this.GECKO_ERROR_USSD_MODIFIED_TO_SS = "UssdModifiedToSs";
+this.GECKO_ERROR_USSD_MODIFIED_TO_USSD = "UssdModifiedToUssd";
+this.GECKO_ERROR_SS_MODIFIED_TO_DIAL = "SsModifiedToDial";
+this.GECKO_ERROR_SS_MODIFIED_TO_USSD = "SsModifiedToUssd";
+this.GECKO_ERROR_SS_MODIFIED_TO_SS = "SsModifiedToSs";
+this.GECKO_ERROR_SUBSCRIPTION_NOT_SUPPORTED = "SubscriptionNotSupported";
+this.GECKO_ERROR_INVALID_PARAMETER = "InvalidParameter";
+this.GECKO_ERROR_REJECTED_BY_REMOTE = "RejectedByRemote";
 
-this.RIL_ERROR_TO_GOANNA_ERROR = {};
-RIL_ERROR_TO_GOANNA_ERROR[ERROR_SUCCESS] = GOANNA_ERROR_SUCCESS;
-RIL_ERROR_TO_GOANNA_ERROR[ERROR_RADIO_NOT_AVAILABLE] = GOANNA_ERROR_RADIO_NOT_AVAILABLE;
-RIL_ERROR_TO_GOANNA_ERROR[ERROR_GENERIC_FAILURE] = GOANNA_ERROR_GENERIC_FAILURE;
-RIL_ERROR_TO_GOANNA_ERROR[ERROR_REQUEST_NOT_SUPPORTED] = GOANNA_ERROR_REQUEST_NOT_SUPPORTED;
-RIL_ERROR_TO_GOANNA_ERROR[ERROR_ILLEGAL_SIM_OR_ME] = GOANNA_ERROR_ILLEGAL_SIM_OR_ME;
-RIL_ERROR_TO_GOANNA_ERROR[ERROR_PASSWORD_INCORRECT] = GOANNA_ERROR_PASSWORD_INCORRECT;
+this.RIL_ERROR_TO_GECKO_ERROR = {};
+RIL_ERROR_TO_GECKO_ERROR[ERROR_SUCCESS] = GECKO_ERROR_SUCCESS;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_RADIO_NOT_AVAILABLE] = GECKO_ERROR_RADIO_NOT_AVAILABLE;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_GENERIC_FAILURE] = GECKO_ERROR_GENERIC_FAILURE;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_PASSWORD_INCORRECT] = GECKO_ERROR_PASSWORD_INCORRECT;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_SIM_PIN2] = GECKO_ERROR_SIM_PIN2;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_SIM_PUK2] = GECKO_ERROR_SIM_PUK2;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_REQUEST_NOT_SUPPORTED] = GECKO_ERROR_REQUEST_NOT_SUPPORTED;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_CANCELLED] = GECKO_ERROR_CANCELLED;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_OP_NOT_ALLOWED_DURING_VOICE_CALL] = GECKO_ERROR_OP_NOT_ALLOWED_DURING_VOICE_CALL;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_OP_NOT_ALLOWED_BEFORE_REG_TO_NW] = GECKO_ERROR_OP_NOT_ALLOWED_BEFORE_REG_TO_NW;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_SMS_SEND_FAIL_RETRY] = GECKO_ERROR_SMS_SEND_FAIL_RETRY;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_SIM_ABSENT] = GECKO_ERROR_SIM_ABSENT;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_SUBSCRIPTION_NOT_AVAILABLE] = GECKO_ERROR_SUBSCRIPTION_NOT_AVAILABLE;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_MODE_NOT_SUPPORTED] = GECKO_ERROR_MODE_NOT_SUPPORTED;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_FDN_CHECK_FAILURE] = GECKO_ERROR_FDN_CHECK_FAILURE;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_ILLEGAL_SIM_OR_ME] = GECKO_ERROR_ILLEGAL_SIM_OR_ME;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_DIAL_MODIFIED_TO_USSD] = GECKO_ERROR_DIAL_MODIFIED_TO_USSD;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_DIAL_MODIFIED_TO_SS] = GECKO_ERROR_DIAL_MODIFIED_TO_SS;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_DIAL_MODIFIED_TO_DIAL] = GECKO_ERROR_DIAL_MODIFIED_TO_DIAL;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_USSD_MODIFIED_TO_DIAL] = GECKO_ERROR_USSD_MODIFIED_TO_DIAL;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_USSD_MODIFIED_TO_SS] = GECKO_ERROR_USSD_MODIFIED_TO_SS;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_USSD_MODIFIED_TO_USSD] = GECKO_ERROR_USSD_MODIFIED_TO_USSD;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_SS_MODIFIED_TO_DIAL] = GECKO_ERROR_SS_MODIFIED_TO_DIAL;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_SS_MODIFIED_TO_USSD] = GECKO_ERROR_SS_MODIFIED_TO_USSD;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_SS_MODIFIED_TO_SS] = GECKO_ERROR_SS_MODIFIED_TO_SS;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_SUBSCRIPTION_NOT_SUPPORTED] = GECKO_ERROR_SUBSCRIPTION_NOT_SUPPORTED;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_INVALID_PARAMETER] = GECKO_ERROR_INVALID_PARAMETER;
+RIL_ERROR_TO_GECKO_ERROR[ERROR_REJECTED_BY_REMOTE] = GECKO_ERROR_REJECTED_BY_REMOTE;
 
 // 3GPP 23.040 clause 9.2.3.6 TP-Message-Reference(TP-MR):
 // The number of times the MS automatically repeats the SMS-SUBMIT shall be in
@@ -321,10 +376,33 @@ this.CARD_APPTYPE_ISIM = 5;
 
 this.CARD_MAX_APPS = 8;
 
-this.NETWORK_STATE_UNKNOWN = "unknown";
-this.NETWORK_STATE_AVAILABLE = "available";
-this.NETWORK_STATE_CONNECTED = "connected";
-this.NETWORK_STATE_FORBIDDEN = "forbidden";
+this.GECKO_CARD_TYPE = [
+  null,
+  "sim",
+  "usim",
+  "ruim",
+  "csim",
+  "isim"
+];
+
+
+// Used for QUERY_AVAILABLE_NETWORKS status.
+this.QAN_STATE_UNKNOWN   = "unknown";
+this.QAN_STATE_AVAILABLE = "available";
+this.QAN_STATE_CURRENT   = "current";
+this.QAN_STATE_FORBIDDEN = "forbidden";
+
+// Must be in sync with MobileNetworkState of MozMobileNetworkInfo.webidl
+this.GECKO_QAN_STATE_UNKNOWN   = null;
+this.GECKO_QAN_STATE_AVAILABLE = "available";
+this.GECKO_QAN_STATE_CONNECTED = "connected";
+this.GECKO_QAN_STATE_FORBIDDEN = "forbidden";
+
+this.RIL_QAN_STATE_TO_GECKO_STATE = {};
+this.RIL_QAN_STATE_TO_GECKO_STATE[this.QAN_STATE_UNKNOWN]   = this.GECKO_QAN_STATE_UNKNOWN;
+this.RIL_QAN_STATE_TO_GECKO_STATE[this.QAN_STATE_AVAILABLE] = this.GECKO_QAN_STATE_AVAILABLE;
+this.RIL_QAN_STATE_TO_GECKO_STATE[this.QAN_STATE_CURRENT]   = this.GECKO_QAN_STATE_CONNECTED;
+this.RIL_QAN_STATE_TO_GECKO_STATE[this.QAN_STATE_FORBIDDEN] = this.GECKO_QAN_STATE_FORBIDDEN;
 
 this.NETWORK_SELECTION_MODE_AUTOMATIC = 0;
 this.NETWORK_SELECTION_MODE_MANUAL = 1;
@@ -333,31 +411,50 @@ this.NETWORK_INFO_VOICE_REGISTRATION_STATE = "voiceRegistrationState";
 this.NETWORK_INFO_DATA_REGISTRATION_STATE = "dataRegistrationState";
 this.NETWORK_INFO_OPERATOR = "operator";
 this.NETWORK_INFO_NETWORK_SELECTION_MODE = "networkSelectionMode";
+this.NETWORK_INFO_SIGNAL = "signal";
 this.NETWORK_INFO_MESSAGE_TYPES = [
   NETWORK_INFO_VOICE_REGISTRATION_STATE,
   NETWORK_INFO_DATA_REGISTRATION_STATE,
   NETWORK_INFO_OPERATOR,
-  NETWORK_INFO_NETWORK_SELECTION_MODE
+  NETWORK_INFO_NETWORK_SELECTION_MODE,
+  NETWORK_INFO_SIGNAL
 ];
 
-this.GOANNA_PREFERRED_NETWORK_TYPE_WCDMA_GSM = "wcdma/gsm";
-this.GOANNA_PREFERRED_NETWORK_TYPE_GSM_ONLY = "gsm";
-this.GOANNA_PREFERRED_NETWORK_TYPE_WCDMA_ONLY = "wcdma";
-this.GOANNA_PREFERRED_NETWORK_TYPE_WCDMA_GSM_AUTO = "wcdma/gsm-auto";
-this.GOANNA_PREFERRED_NETWORK_TYPE_CDMA_EVDO = "cdma/evdo";
-this.GOANNA_PREFERRED_NETWORK_TYPE_CDMA_ONLY = "cdma";
-this.GOANNA_PREFERRED_NETWORK_TYPE_EVDO_ONLY = "evdo";
-this.GOANNA_PREFERRED_NETWORK_TYPE_WCDMA_GSM_CDMA_EVDO = "wcdma/gsm/cdma/evdo";
-this.GOANNA_PREFERRED_NETWORK_TYPE_DEFAULT = GOANNA_PREFERRED_NETWORK_TYPE_WCDMA_GSM;
-this.RIL_PREFERRED_NETWORK_TYPE_TO_GOANNA = [
-  GOANNA_PREFERRED_NETWORK_TYPE_WCDMA_GSM,
-  GOANNA_PREFERRED_NETWORK_TYPE_GSM_ONLY,
-  GOANNA_PREFERRED_NETWORK_TYPE_WCDMA_ONLY,
-  GOANNA_PREFERRED_NETWORK_TYPE_WCDMA_GSM_AUTO,
-  GOANNA_PREFERRED_NETWORK_TYPE_CDMA_EVDO,
-  GOANNA_PREFERRED_NETWORK_TYPE_CDMA_ONLY,
-  GOANNA_PREFERRED_NETWORK_TYPE_EVDO_ONLY,
-  GOANNA_PREFERRED_NETWORK_TYPE_WCDMA_GSM_CDMA_EVDO
+this.GECKO_PREFERRED_NETWORK_TYPE_WCDMA_GSM = "wcdma/gsm";
+this.GECKO_PREFERRED_NETWORK_TYPE_GSM_ONLY = "gsm";
+this.GECKO_PREFERRED_NETWORK_TYPE_WCDMA_ONLY = "wcdma";
+this.GECKO_PREFERRED_NETWORK_TYPE_WCDMA_GSM_AUTO = "wcdma/gsm-auto";
+this.GECKO_PREFERRED_NETWORK_TYPE_CDMA_EVDO = "cdma/evdo";
+this.GECKO_PREFERRED_NETWORK_TYPE_CDMA_ONLY = "cdma";
+this.GECKO_PREFERRED_NETWORK_TYPE_EVDO_ONLY = "evdo";
+this.GECKO_PREFERRED_NETWORK_TYPE_WCDMA_GSM_CDMA_EVDO = "wcdma/gsm/cdma/evdo";
+this.GECKO_PREFERRED_NETWORK_TYPE_LTE_CDMA_EVDO = "lte/cdma/evdo";
+this.GECKO_PREFERRED_NETWORK_TYPE_LTE_WCDMA_GSM = "lte/wcdma/gsm";
+this.GECKO_PREFERRED_NETWORK_TYPE_LTE_WCDMA_GSM_CDMA_EVDO = "lte/wcdma/gsm/cdma/evdo";
+this.GECKO_PREFERRED_NETWORK_TYPE_LTE_ONLY = "lte";
+this.RIL_PREFERRED_NETWORK_TYPE_TO_GECKO = [
+  GECKO_PREFERRED_NETWORK_TYPE_WCDMA_GSM,
+  GECKO_PREFERRED_NETWORK_TYPE_GSM_ONLY,
+  GECKO_PREFERRED_NETWORK_TYPE_WCDMA_ONLY,
+  GECKO_PREFERRED_NETWORK_TYPE_WCDMA_GSM_AUTO,
+  GECKO_PREFERRED_NETWORK_TYPE_CDMA_EVDO,
+  GECKO_PREFERRED_NETWORK_TYPE_CDMA_ONLY,
+  GECKO_PREFERRED_NETWORK_TYPE_EVDO_ONLY,
+  GECKO_PREFERRED_NETWORK_TYPE_WCDMA_GSM_CDMA_EVDO,
+  GECKO_PREFERRED_NETWORK_TYPE_LTE_CDMA_EVDO,
+  GECKO_PREFERRED_NETWORK_TYPE_LTE_WCDMA_GSM,
+  GECKO_PREFERRED_NETWORK_TYPE_LTE_WCDMA_GSM_CDMA_EVDO,
+  GECKO_PREFERRED_NETWORK_TYPE_LTE_ONLY
+];
+
+this.GECKO_SUPPORTED_NETWORK_TYPES_DEFAULT = "gsm,wcdma";
+// Index-item pair must be in sync with nsIMobileConnection.MOBILE_NETWORK_TYPE_*
+this.GECKO_SUPPORTED_NETWORK_TYPES = [
+  "gsm",
+  "wcdma",
+  "cdma",
+  "evdo",
+  "lte"
 ];
 
 // Network registration states. See TS 27.007 7.2
@@ -389,14 +486,26 @@ this.NETWORK_CREG_TECH_EHRPD = 13;
 this.NETWORK_CREG_TECH_LTE = 14;
 this.NETWORK_CREG_TECH_HSPAP = 15;
 this.NETWORK_CREG_TECH_GSM = 16;
+this.NETWORK_CREG_TECH_DCHSPAP_1 = 18; // Some devices reports as 18
+this.NETWORK_CREG_TECH_DCHSPAP_2 = 19; // Some others report it as 19
 
+this.CELL_INFO_TYPE_GSM = 1;
+this.CELL_INFO_TYPE_CDMA = 2;
+this.CELL_INFO_TYPE_LTE = 3;
+this.CELL_INFO_TYPE_WCDMA = 4;
+
+// Order matters.
+this.AUDIO_STATE_NO_CALL  = 0;
+this.AUDIO_STATE_INCOMING = 1;
+this.AUDIO_STATE_IN_CALL  = 2;
+
+this.CALL_STATE_UNKNOWN = -1;
 this.CALL_STATE_ACTIVE = 0;
 this.CALL_STATE_HOLDING = 1;
 this.CALL_STATE_DIALING = 2;
 this.CALL_STATE_ALERTING = 3;
 this.CALL_STATE_INCOMING = 4;
 this.CALL_STATE_WAITING = 5;
-this.CALL_STATE_BUSY = 6;
 
 this.TOA_INTERNATIONAL = 0x91;
 this.TOA_UNKNOWN = 0x81;
@@ -427,6 +536,7 @@ this.ICC_EF_UST    = 0x6f38; // For USIM
 this.ICC_EF_ADN    = 0x6f3a;
 this.ICC_EF_FDN    = 0x6f3b;
 this.ICC_EF_SMS    = 0x6f3c;
+this.ICC_EF_GID1   = 0x6f3e;
 this.ICC_EF_MSISDN = 0x6f40;
 this.ICC_EF_CBMI   = 0x6f45;
 this.ICC_EF_SPN    = 0x6f46;
@@ -447,7 +557,12 @@ this.ICC_EF_MWIS   = 0x6fca;
 this.ICC_EF_CFIS   = 0x6fcb;
 this.ICC_EF_SPDI   = 0x6fcd;
 
+// CPHS files to be supported
+this.ICC_EF_CPHS_INFO = 0x6f16; // CPHS Information
+this.ICC_EF_CPHS_MBN  = 0x6f17; // Mailbox Numbers
+
 // CSIM files
+this.ICC_EF_CSIM_IMSI_M   = 0x6f22;
 this.ICC_EF_CSIM_CDMAHOME = 0x6f28;
 this.ICC_EF_CSIM_CST      = 0x6f32; // CDMA Service table
 this.ICC_EF_CSIM_SPN      = 0x6f41;
@@ -475,10 +590,16 @@ this.RESPONSE_DATA_LENGTH = 12;
 this.RESPONSE_DATA_STRUCTURE = 13;
 this.RESPONSE_DATA_RECORD_LENGTH = 14;
 
-// Types of files  TS 11.11 9.3
-this.EF_TYPE_TRANSPARENT = 0;
-this.EF_TYPE_LINEAR_FIXED = 1;
-this.EF_TYPE_CYCLIC = 3;
+// Structure of files  TS 11.11 9.3
+this.EF_STRUCTURE_TRANSPARENT = 0;
+this.EF_STRUCTURE_LINEAR_FIXED = 1;
+this.EF_STRUCTURE_CYCLIC = 3;
+
+// TS 102.221 11.1.1.4.3 Table 11.5: File descriptor byte.
+this.UICC_EF_STRUCTURE = {};
+this.UICC_EF_STRUCTURE[this.EF_STRUCTURE_TRANSPARENT]= 1;
+this.UICC_EF_STRUCTURE[this.EF_STRUCTURE_LINEAR_FIXED]= 2;
+this.UICC_EF_STRUCTURE[this.EF_STRUCTURE_CYCLIC]= 6;
 
 // Status code of EFsms
 // see 3GPP TS 51.011 clause 10.5.3
@@ -500,6 +621,9 @@ this.ADN_MAX_NUMBER_DIGITS = 20;
 // READ_RECORD mode,  TS 102.221
 this.READ_RECORD_ABSOLUTE_MODE = 4;
 
+// TS 102.221 Table 11.2, return FCP template
+this.GET_RESPONSE_FCP_TEMPLATE = 4;
+
 // GET_RESPONSE mandatory response size for EF, see TS 51.011 clause 9,
 // 'Response data in case of an EF.'
 this.GET_RESPONSE_EF_SIZE_BYTES = 15;
@@ -507,6 +631,7 @@ this.GET_RESPONSE_EF_SIZE_BYTES = 15;
 // EF path
 this.EF_PATH_MF_SIM       = "3f00";
 this.EF_PATH_DF_PHONEBOOK = "5f3a";
+this.EF_PATH_GRAPHICS     = "5f50";
 this.EF_PATH_DF_TELECOM   = "7f10";
 this.EF_PATH_DF_GSM       = "7f20";
 this.EF_PATH_DF_CDMA      = "7f25";
@@ -528,10 +653,13 @@ this.ICC_STATUS_ERROR_WRONG_PARAMETERS = 0x6a;
 this.ICC_CB_FACILITY_SIM = "SC";
 this.ICC_CB_FACILITY_FDN = "FD";
 this.ICC_CB_FACILITY_BAOC = "AO";
-this.ICC_CB_FACILITY_BOIC = "OI";
-this.ICC_CB_FACILITY_BOIC_EX_HC = "OX";
+this.ICC_CB_FACILITY_BAOIC = "OI";
+this.ICC_CB_FACILITY_BAOICxH = "OX";
 this.ICC_CB_FACILITY_BAIC = "AI";
-this.ICC_CB_FACILITY_BIC_ROAM = "IR";
+this.ICC_CB_FACILITY_BAICr = "IR";
+this.ICC_CB_FACILITY_BA_ALL = "AB";
+this.ICC_CB_FACILITY_BA_MO = "AG";
+this.ICC_CB_FACILITY_BA_MT = "AC";
 
 // ICC service class
 // TS 27.007, clause 7.4, +CLCK
@@ -545,6 +673,26 @@ this.ICC_SERVICE_CLASS_DATA_ASYNC = (1 << 5);
 this.ICC_SERVICE_CLASS_PACKET = (1 << 6);
 this.ICC_SERVICE_CLASS_PAD = (1 << 7);
 this.ICC_SERVICE_CLASS_MAX = (1 << 7); // Max ICC_SERVICE_CLASS value
+
+// ICC lock-selection codes
+// TS 27.007, clause 8.65, +CPINR
+this.ICC_SEL_CODE_SIM_PIN = "SIM PIN";
+this.ICC_SEL_CODE_SIM_PUK = "SIM PUK";
+this.ICC_SEL_CODE_PH_SIM_PIN = "PH-SIM PIN";
+this.ICC_SEL_CODE_PH_FSIM_PIN = "PH-FSIM PIN";
+this.ICC_SEL_CODE_PH_FSIM_PUK = "PH-FSIM PUK";
+this.ICC_SEL_CODE_SIM_PIN2 = "SIM PIN2";
+this.ICC_SEL_CODE_SIM_PUK2 = "SIM PUK2";
+this.ICC_SEL_CODE_PH_NET_PIN = "PH-NET PIN";
+this.ICC_SEL_CODE_PH_NET_PUK = "PH-NET PUK";
+this.ICC_SEL_CODE_PH_NETSUB_PIN = "PH-NETSUB PIN";
+this.ICC_SEL_CODE_PH_NETSUB_PUK = "PH-NETSUB PUK";
+this.ICC_SEL_CODE_PH_SP_PIN = "PH-SP PIN";
+this.ICC_SEL_CODE_PH_SP_PUK = "PH-SP PUK";
+this.ICC_SEL_CODE_PH_CORP_PIN = "PH-CORP PIN";
+this.ICC_SEL_CODE_PH_CORP_PUK = "PH-CORP PUK";
+// TODO: Bug 1116072: identify the mapping between RIL_PERSOSUBSTATE_SIM_SIM @
+//       ril.h and TS 27.007, clause 8.65 for GECKO_CARDLOCK_PCK.
 
 this.ICC_USIM_TYPE1_TAG   = 0xa8;
 this.ICC_USIM_TYPE2_TAG   = 0xa9;
@@ -561,6 +709,29 @@ this.ICC_USIM_EFGSD_TAG   = 0xc8;
 this.ICC_USIM_EFUID_TAG   = 0xc9;
 this.ICC_USIM_EFEMAIL_TAG = 0xca;
 this.ICC_USIM_EFCCP1_TAG  = 0xcb;
+
+// ICC image coding scheme
+// TS 31.102, sub-clause 4.6.1.1
+this.ICC_IMG_CODING_SCHEME_BASIC              = 0x11;
+this.ICC_IMG_CODING_SCHEME_COLOR              = 0x21;
+this.ICC_IMG_CODING_SCHEME_COLOR_TRANSPARENCY = 0x22;
+
+// Must be in sync with enum IccImageCodingScheme in MozStkCommandEvent.webidl.
+this.GECKO_IMG_CODING_SCHEME_BASIC              = "basic";
+this.GECKO_IMG_CODING_SCHEME_COLOR              = "color";
+this.GECKO_IMG_CODING_SCHEME_COLOR_TRANSPARENCY = "color-transparency";
+
+this.ICC_IMG_CODING_SCHEME_TO_GECKO = {};
+ICC_IMG_CODING_SCHEME_TO_GECKO[ICC_IMG_CODING_SCHEME_BASIC] = GECKO_IMG_CODING_SCHEME_BASIC;
+ICC_IMG_CODING_SCHEME_TO_GECKO[ICC_IMG_CODING_SCHEME_COLOR] = GECKO_IMG_CODING_SCHEME_COLOR;
+ICC_IMG_CODING_SCHEME_TO_GECKO[ICC_IMG_CODING_SCHEME_COLOR_TRANSPARENCY] = GECKO_IMG_CODING_SCHEME_COLOR_TRANSPARENCY;
+
+// ICC image header size per coding scheme
+// TS 31.102, Annex B
+this.ICC_IMG_HEADER_SIZE_BASIC = 2;
+this.ICC_IMG_HEADER_SIZE_COLOR = 6;
+
+this.ICC_CLUT_ENTRY_SIZE = 3;
 
 this.USIM_PBR_ANR = "anr";
 this.USIM_PBR_ANR0 = "anr0";
@@ -585,11 +756,40 @@ this.USIM_TAG_NAME[ICC_USIM_EFUID_TAG] = "uid";
 this.USIM_TAG_NAME[ICC_USIM_EFEMAIL_TAG] = "email";
 this.USIM_TAG_NAME[ICC_USIM_EFCCP1_TAG] = "ccp1";
 
+// Error message for ICC contact.
+this.CONTACT_ERR_REQUEST_NOT_SUPPORTED = GECKO_ERROR_REQUEST_NOT_SUPPORTED;
+this.CONTACT_ERR_CONTACT_TYPE_NOT_SUPPORTED = "ContactTypeNotSupported";
+this.CONTACT_ERR_FIELD_NOT_SUPPORTED = "FieldNotSupported";
+this.CONTACT_ERR_NO_FREE_RECORD_FOUND = "NoFreeRecordFound";
+this.CONTACT_ERR_CANNOT_ACCESS_PHONEBOOK = "CannotAccessPhoneBook";
+
+// CDMA IMSI_M's byte const.
+// 3GPP2 C.S0065 Sec. 5.2.2
+this.CSIM_IMSI_M_MIN2_BYTE = 1;
+this.CSIM_IMSI_M_MIN1_BYTE = 3;
+this.CSIM_IMSI_M_MNC_BYTE = 6;
+this.CSIM_IMSI_M_PROGRAMMED_BYTE = 7;
+this.CSIM_IMSI_M_MCC_BYTE = 8;
+
 /**
- * STK constants.
+ * Tags for Ber Tlv.
+ * See 3GPP TS 101 220 clause 7.2 - Assigned TLV tag values.
  */
-//  Tags for Ber Tlv.
 this.BER_UNKNOWN_TAG = 0x00;
+this.BER_FCP_TEMPLATE_TAG = 0x62;
+this.BER_FCP_FILE_SIZE_DATA_TAG = 0x80;
+this.BER_FCP_FILE_SIZE_TOTAL_TAG = 0x81;
+this.BER_FCP_FILE_DESCRIPTOR_TAG = 0x82;
+this.BER_FCP_FILE_IDENTIFIER_TAG = 0x83;
+this.BER_FCP_DF_NAME_TAG = 0x84; // AID.
+this.BER_FCP_PROPRIETARY_PRIMITIVE_TAG = 0x85;
+this.BER_FCP_SFI_SUPPORT_TAG = 0x88;
+this.BER_FCP_LIFE_CYCLE_STATUS_TAG = 0x8a;
+this.BER_FCP_SA_REFERENCE_FORMAT_TAG = 0x8b; // Security Attribute - Reference Format.
+this.BER_FCP_SA_COMPACT_FORMAT_TAG = 0x8c; // Security Attribute - Compact Format.
+this.BER_FCP_SAT_EXPANDED_FORMAT_TAG = 0xab; // Security Attribute Template - Expanded Format.
+this.BER_FCP_PROPRIETARY_TEMPLATE_TAG = 0xa5;
+this.BER_FCP_PIN_STATUS_DATA_OBJECTS_TAG = 0xc6;
 this.BER_PROACTIVE_COMMAND_TAG = 0xd0;
 this.BER_SMS_PP_DOWNLOAD_TAG = 0xd1;
 this.BER_MENU_SELECTION_TAG = 0xd3;
@@ -619,6 +819,7 @@ this.COMPREHENSIONTLV_TAG_IMEI = 0x14;
 this.COMPREHENSIONTLV_TAG_HELP_REQUEST = 0x15;
 this.COMPREHENSIONTLV_TAG_NMR = 0x16;
 this.COMPREHENSIONTLV_TAG_DEFAULT_TEXT = 0x17;
+this.COMPREHENSIONTLV_TAG_NEXT_ACTION_IND = 0x18;
 this.COMPREHENSIONTLV_TAG_CAUSE = 0x1a;
 this.COMPREHENSIONTLV_TAG_LOCATION_STATUS = 0x1b;
 this.COMPREHENSIONTLV_TAG_TRANSACTION_ID = 0x1c;
@@ -631,6 +832,7 @@ this.COMPREHENSIONTLV_TAG_DATE_TIME_ZONE = 0x26;
 this.COMPREHENSIONTLV_TAG_IMMEDIATE_RESPONSE = 0x2b;
 this.COMPREHENSIONTLV_TAG_LANGUAGE = 0x2d;
 this.COMPREHENSIONTLV_TAG_URL = 0x31;
+this.COMPREHENSIONTLV_TAG_BROWSER_TERMINATION_CAUSE = 0x34;
 this.COMPREHENSIONTLV_TAG_ACCESS_TECH = 0x3f;
 this.COMPREHENSIONTLV_TAG_SERVICE_RECORD = 0x41;
 this.COMPREHENSIONTLV_TAG_IMEISV = 0x62;
@@ -677,6 +879,10 @@ this.STK_CMD_SET_UP_MENU = 0x25;
 this.STK_CMD_PROVIDE_LOCAL_INFO = 0x26;
 this.STK_CMD_TIMER_MANAGEMENT = 0x27;
 this.STK_CMD_SET_UP_IDLE_MODE_TEXT = 0x28;
+this.STK_CMD_OPEN_CHANNEL = 0x40;
+this.STK_CMD_CLOSE_CHANNEL = 0x41;
+this.STK_CMD_RECEIVE_DATA = 0x42;
+this.STK_CMD_SEND_DATA = 0x43;
 
 // STK Result code.
 // TS 11.14, clause 12.12
@@ -883,6 +1089,19 @@ this.STK_TIMER_START = 0x00;
 this.STK_TIMER_DEACTIVATE = 0x01;
 this.STK_TMIER_GET_CURRENT_VALUE = 0x02;
 
+// Browser Launch Mode.
+this.STK_BROWSER_MODE_LAUNCH_IF_NOT_ALREADY_LAUNCHED = 0x00;
+this.STK_BROWSER_MODE_USING_EXISTING_BROWSER         = 0x02;
+this.STK_BROWSER_MODE_USING_NEW_BROWSER              = 0x03;
+
+// Browser Termination Cause.
+this.STK_BROWSER_TERMINATION_CAUSE_USER = 0x00;
+this.STK_BROWSER_TERMINATION_CAUSE_ERROR = 0x01;
+
+// Next Action Indicator.
+this.STK_NEXT_ACTION_NULL = 0x00;
+this.STK_NEXT_ACTION_END_PROACTIVE_SESSION = 0x81;
+
 /**
  * Supported Terminal Facilities.
  *
@@ -930,12 +1149,12 @@ this.STK_TERMINAL_SUPPORT_EVENT_MT_CALL                = 1;
 this.STK_TERMINAL_SUPPORT_EVENT_CALL_CONNECTED         = 1;
 this.STK_TERMINAL_SUPPORT_EVENT_CALL_DISCONNECTED      = 1;
 this.STK_TERMINAL_SUPPORT_EVENT_LOCATION_STATUS        = 1;
-this.STK_TERMINAL_SUPPORT_EVENT_USER_ACTIVITY          = 0;
+this.STK_TERMINAL_SUPPORT_EVENT_USER_ACTIVITY          = 1;
 this.STK_TERMINAL_SUPPORT_EVENT_IDLE_SCREEN_AVAILABLE  = 1;
 this.STK_TERMINAL_SUPPORT_EVENT_CARD_READER_STATUS     = 0;
 
 this.STK_TERMINAL_SUPPORT_EVENT_LANGUAGE_SELECTION     = 1;
-this.STK_TERMINAL_SUPPORT_EVENT_BROWSER_TERMINATION    = 0;
+this.STK_TERMINAL_SUPPORT_EVENT_BROWSER_TERMINATION    = 1;
 this.STK_TERMINAL_SUPPORT_EVENT_DATA_AVAILABLE         = 0;
 this.STK_TERMINAL_SUPPORT_EVENT_CHANNEL_STATUS         = 0;
 
@@ -956,6 +1175,12 @@ this.STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_TIME_ADVANCE = 0;
 this.STK_TERMINAL_SUPPORT_PROACTIVE_LANGUAGE_NOTIFICATION   = 0;
 this.STK_TERMINAL_SUPPORT_PROACTIVE_LAUNCH_BROWSER          = 1;
 this.STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_ACCESS_TECH  = 0;
+
+this.STK_TERMINAL_SUPPORT_BIP_COMMAND_OPEN_CHANNEL       = 1;
+this.STK_TERMINAL_SUPPORT_BIP_COMMAND_CLOSE_CHANNEL      = 1;
+this.STK_TERMINAL_SUPPORT_BIP_COMMAND_RECEIVE_DATA       = 1;
+this.STK_TERMINAL_SUPPORT_BIP_COMMAND_SEND_DATA          = 1;
+this.STK_TERMINAL_SUPPORT_BIP_COMMAND_GET_CHANNEL_STATUS = 0;
 
 /**
  * SAT profile
@@ -1038,6 +1263,13 @@ this.STK_TERMINAL_PROFILE_PROACTIVE_4 =
   (STK_TERMINAL_SUPPORT_PROACTIVE_LAUNCH_BROWSER << 6) |
   (STK_TERMINAL_SUPPORT_PROACTIVE_LOCAL_INFO_ACCESS_TECH << 7);
 
+this.STK_TERMINAL_PROFILE_BIP_COMMAND =
+  (STK_TERMINAL_SUPPORT_BIP_COMMAND_OPEN_CHANNEL << 0) |
+  (STK_TERMINAL_SUPPORT_BIP_COMMAND_CLOSE_CHANNEL << 1) |
+  (STK_TERMINAL_SUPPORT_BIP_COMMAND_RECEIVE_DATA << 2) |
+  (STK_TERMINAL_SUPPORT_BIP_COMMAND_SEND_DATA << 3) |
+  (STK_TERMINAL_SUPPORT_BIP_COMMAND_GET_CHANNEL_STATUS << 4);
+
 this.STK_SUPPORTED_TERMINAL_PROFILE = [
   STK_TERMINAL_PROFILE_DOWNLOAD,
   STK_TERMINAL_PROFILE_OTHER,
@@ -1050,7 +1282,7 @@ this.STK_SUPPORTED_TERMINAL_PROFILE = [
   STK_TERMINAL_PROFILE_PROACTIVE_4,
   0x00, // Softkey support
   0x00, // Softkey information
-  0x00, // BIP proactive commands
+  STK_TERMINAL_PROFILE_BIP_COMMAND,
   0x00, // BIP supported bearers
   0x00, // Screen height
   0x00, // Screen width
@@ -1062,41 +1294,69 @@ this.STK_SUPPORTED_TERMINAL_PROFILE = [
 ];
 
 /**
- * (U)SIM Services.
+ * ICC Services Table.
  *
  * @see 3GPP TS 51.011 10.3.7 (SIM) and 3GPP TS 31.102 4.2.8 (USIM).
  */
-this.GOANNA_ICC_SERVICES = {
+this.GECKO_ICC_SERVICES = {
+  // @see 3GPP TS 51.011 10.3.7 (SIM).
   sim: {
     ADN: 2,
     FDN: 3,
     PLMNSEL: 7,
+    MSISDN: 9,
     CBMI: 14,
+    GID1: 15,
     SPN: 17,
     SDN: 18,
     DATA_DOWNLOAD_SMS_CB: 25,
     DATA_DOWNLOAD_SMS_PP: 26,
     CBMIR: 30,
     BDN: 31,
+    IMG: 39,
     PNN: 51,
     OPL: 52,
+    MDN: 53,
+    MWIS: 54,
     SPDI: 56
   },
+  // @see 3GPP TS 31.102 4.2.8 (USIM).
   usim: {
     FDN: 2,
     SDN: 4,
     BDN: 6,
     CBMI: 15,
     CBMIR: 16,
+    GID1: 17,
     SPN: 19,
+    MSISDN: 21,
+    IMG: 22,
     DATA_DOWNLOAD_SMS_PP: 28,
     DATA_DOWNLOAD_SMS_CB: 29,
     PNN: 45,
     OPL: 46,
+    MDN: 47,
+    MWIS: 48,
     SPDI: 51
   },
+  // @see 3GPP2 C.S0023-D 3.4.18 (RUIM).
   ruim: {
-    SPN: 17
+    FDN: 3,
+    ENHANCED_PHONEBOOK: 6,
+    SPN: 17,
+    SDN: 18
+  },
+  // @see B.3.1.1 CPHS Information in CPHS Phase 2:
+  // Indicates which of the CPHS 'optional' data-fields are present in the SIM card:
+  //   EF_CPHS_CSP, EF_CPHS_SST, EF_CPHS_MBN, EF_CPHS_ONSF, EF_CPHS_INFO_NUM
+  // Note: Mandatory EFs are: (B.3.1 Enhanced SIM Requirements)
+  //   EF_CPHS_CFF, EF_CPHS_VMI, EF_CPHS_ONS, EF_CPHS_INFO
+  cphs: {
+    CSP: 1,
+    SST: 2,
+    MBN: 3,
+    ONSF: 4,
+    INFO_NUM: 5
   }
 };
 
@@ -1134,8 +1394,15 @@ this.CB_MAX_CONTENT_8BIT = 82;
 // User Data max length in chars
 this.CB_MAX_CONTENT_UCS2 = 41;
 
+// See 3GPP TS 23.041 v11.6.0 senction 9.3.19
+this.CB_MSG_PAGE_INFO_SIZE = 82;
+
 this.CB_MESSAGE_SIZE_ETWS = 56;
 this.CB_MESSAGE_SIZE_GSM  = 88;
+this.CB_MESSAGE_SIZE_UMTS_MIN = 90;
+this.CB_MESSAGE_SIZE_UMTS_MAX = 1252;
+
+
 
 // GSM Cell Broadcast Geographical Scope
 // See 3GPP TS 23.041 clause 9.4.1.2.1
@@ -1167,6 +1434,12 @@ this.CB_ETWS_WARNING_TYPE_NAMES = [
   "test",
   "other"
 ];
+
+// UMTS Message Type
+// see 3GPP TS 25.324 section 11.1
+this.CB_UMTS_MESSAGE_TYPE_CBS      = 1;
+this.CB_UMTS_MESSAGE_TYPE_SCHEDULE = 2;
+this.CB_UMTS_MESSAGE_TYPE_CBS41    = 3;
 
 /**
  * GSM PDU constants
@@ -1317,10 +1590,10 @@ this.PDU_ST_3_RESERVED_BEGIN    = 0x66;
 this.PDU_ST_3_SC_SPECIFIC_BEGIN = 0x70;
 this.PDU_ST_3_SC_SPECIFIC_END   = 0x7F;
 
-this.GOANNA_SMS_DELIVERY_STATUS_NOT_APPLICABLE = "not-applicable";
-this.GOANNA_SMS_DELIVERY_STATUS_SUCCESS        = "success";
-this.GOANNA_SMS_DELIVERY_STATUS_PENDING        = "pending";
-this.GOANNA_SMS_DELIVERY_STATUS_ERROR          = "error";
+this.GECKO_SMS_DELIVERY_STATUS_NOT_APPLICABLE = "not-applicable";
+this.GECKO_SMS_DELIVERY_STATUS_SUCCESS        = "success";
+this.GECKO_SMS_DELIVERY_STATUS_PENDING        = "pending";
+this.GECKO_SMS_DELIVERY_STATUS_ERROR          = "error";
 
 // User Data max length in septets
 this.PDU_MAX_USER_DATA_7BIT = 160;
@@ -1351,13 +1624,13 @@ this.PDU_PID_USIM_DATA_DOWNLOAD           = 0x7F;
 this.PDU_DCS_MSG_CODING_7BITS_ALPHABET  = 0x00;
 this.PDU_DCS_MSG_CODING_8BITS_ALPHABET  = 0x04;
 this.PDU_DCS_MSG_CODING_16BITS_ALPHABET = 0x08;
-this.PDU_DCS_MSG_CLASS_NORMAL           = 0xFF;
 this.PDU_DCS_MSG_CLASS_0                = 0x00;
 this.PDU_DCS_MSG_CLASS_1                = 0x01;
 this.PDU_DCS_MSG_CLASS_2                = 0x02;
 this.PDU_DCS_MSG_CLASS_3                = 0x03;
 this.PDU_DCS_MSG_CLASS_USER_1           = 0x04;
 this.PDU_DCS_MSG_CLASS_USER_2           = 0x05;
+this.PDU_DCS_MSG_CLASS_NORMAL           = 0x06;
 this.PDU_DCS_CODING_GROUP_BITS          = 0xF0;
 this.PDU_DCS_MSG_CLASS_BITS             = 0x03;
 this.PDU_DCS_MWI_ACTIVE_BITS            = 0x08;
@@ -1368,19 +1641,20 @@ this.PDU_DCS_MWI_TYPE_FAX               = 0x01;
 this.PDU_DCS_MWI_TYPE_EMAIL             = 0x02;
 this.PDU_DCS_MWI_TYPE_OTHER             = 0x03;
 
-this.GOANNA_SMS_MESSAGE_CLASSES = {};
-GOANNA_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_NORMAL] = "normal";
-GOANNA_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_0]      = "class-0";
-GOANNA_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_1]      = "class-1";
-GOANNA_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_2]      = "class-2";
-GOANNA_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_3]      = "class-3";
-GOANNA_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_USER_1] = "user-1";
-GOANNA_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_USER_2] = "user-2";
+// Set as Array instead of Object for reversed-mapping with Array.indexOf().
+this.GECKO_SMS_MESSAGE_CLASSES = [];
+GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_0]      = "class-0";
+GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_1]      = "class-1";
+GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_2]      = "class-2";
+GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_3]      = "class-3";
+GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_USER_1] = "user-1";
+GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_USER_2] = "user-2";
+GECKO_SMS_MESSAGE_CLASSES[PDU_DCS_MSG_CLASS_NORMAL] = "normal";
 
 // Because service center timestamp omit the century. Yay.
 this.PDU_TIMESTAMP_YEAR_OFFSET = 2000;
 
-// See 9.2.3.24 TP???User Data (TP???UD)
+// See 9.2.3.24 TP‑User Data (TP‑UD)
 this.PDU_IEI_CONCATENATED_SHORT_MESSAGES_8BIT         = 0x00;
 this.PDU_IEI_SPECIAL_SMS_MESSAGE_INDICATION           = 0x01;
 this.PDU_IEI_APPLICATION_PORT_ADDRESSING_SCHEME_8BIT  = 0x04;
@@ -2054,103 +2328,117 @@ this.PDU_MWI_STORE_TYPE_STORE   = 0x80;
 
 this.GSM_SMS_STRICT_7BIT_CHARMAP = {
 //"\u0024": "\u0024", // "$" => "$", already in default alphabet
-//"\u00a5": "\u00a5", // "??" => "??", already in default alphabet
-  "\u00c0": "\u0041", // "??" => "A"
-  "\u00c1": "\u0041", // "??" => "A"
-  "\u00c2": "\u0041", // "??" => "A"
-//"\u00c4": "\u00c4", // "??" => "??", already in default alphabet
-//"\u00c5": "\u00c5", // "??" => "??", already in default alphabet
-//"\u00c6": "\u00c6", // "??" => "??", already in default alphabet
-//"\u00c7": "\u00c7", // "??" => "??", already in default alphabet
-  "\u00c8": "\u0045", // "??" => "E"
-//"\u00c9": "\u00c9", // "??" => "??", already in default alphabet
-  "\u00ca": "\u0045", // "??" => "E"
-  "\u00cb": "\u0045", // "??" => "E"
-  "\u00cc": "\u0049", // "??" => "I"
-  "\u00cd": "\u0049", // "??" => "I"
-  "\u00ce": "\u0049", // "??" => "I"
-  "\u00cf": "\u0049", // "??" => "I"
-//"\u00d1": "\u00d1", // "??" => "??", already in default alphabet
-  "\u00d2": "\u004f", // "??" => "O"
-  "\u00d3": "\u004f", // "??" => "O"
-  "\u00d4": "\u004f", // "??" => "O"
-//"\u00d6": "\u00d6", // "??" => "??", already in default alphabet
-  "\u00d9": "\u0055", // "??" => "U"
-  "\u00da": "\u0055", // "??" => "U"
-  "\u00db": "\u0055", // "??" => "U"
-//"\u00dc": "\u00dc", // "??" => "??", already in default alphabet
-//"\u00df": "\u00df", // "??" => "??", already in default alphabet
-//"\u00e0": "\u00e0", // "??" => "??", already in default alphabet
-  "\u00e1": "\u0061", // "??" => "a"
-  "\u00e2": "\u0061", // "??" => "a"
-//"\u00e4": "\u00e4", // "??" => "??", already in default alphabet
-//"\u00e5": "\u00e5", // "??" => "??", already in default alphabet
-//"\u00e6": "\u00e6", // "??" => "??", already in default alphabet
-  "\u00e7": "\u00c7", // "??" => "??"
-//"\u00e8": "\u00e8", // "??" => "??", already in default alphabet
-//"\u00e9": "\u00e9", // "??" => "??", already in default alphabet
-  "\u00ea": "\u0065", // "??" => "e"
-  "\u00eb": "\u0065", // "??" => "e"
-//"\u00ec": "\u00ec", // "??" => "??", already in default alphabet
-  "\u00ed": "\u0069", // "??" => "i"
-  "\u00ee": "\u0069", // "??" => "i"
-  "\u00ef": "\u0069", // "??" => "i"
-//"\u00f1": "\u00f1", // "??" => "??", already in default alphabet
-//"\u00f2": "\u00f2", // "??" => "??", already in default alphabet
-  "\u00f3": "\u006f", // "??" => "o"
-  "\u00f4": "\u006f", // "??" => "o"
-//"\u00f6": "\u00f6", // "??" => "??", already in default alphabet
-//"\u00f8": "\u00f8", // "??" => "??", already in default alphabet
-//"\u00f9": "\u00f9", // "??" => "??", already in default alphabet
-  "\u00fa": "\u0075", // "??" => "u"
-  "\u00fb": "\u0075", // "??" => "u"
-//"\u00fc": "\u00fc", // "??" => "??", already in default alphabet
-  "\u00fe": "\u0074", // "??" => "t"
-  "\u0100": "\u0041", // "??" => "A"
-  "\u0101": "\u0061", // "??" => "a"
-  "\u0106": "\u0043", // "??" => "C"
-  "\u0107": "\u0063", // "??" => "c"
-  "\u010c": "\u0043", // "??" => "C"
-  "\u010d": "\u0063", // "??" => "c"
-  "\u010f": "\u0064", // "??" => "d"
-  "\u0110": "\u0044", // "??" => "D"
-  "\u0111": "\u0064", // "??" => "d"
-  "\u0112": "\u0045", // "??" => "E"
-  "\u0113": "\u0065", // "??" => "e"
-  "\u0118": "\u0045", // "??" => "E"
-  "\u0119": "\u0065", // "??" => "e"
-  "\u012a": "\u0049", // "??" => "I"
-  "\u012b": "\u0069", // "??" => "i"
-  "\u012e": "\u0049", // "??" => "I"
-  "\u012f": "\u0069", // "??" => "i"
-  "\u0141": "\u004c", // "??" => "L"
-  "\u0142": "\u006c", // "??" => "l"
-  "\u0143": "\u004e", // "??" => "N"
-  "\u0144": "\u006e", // "??" => "n"
-  "\u0147": "\u004e", // "??" => "N"
-  "\u0148": "\u006e", // "??" => "n"
-  "\u014c": "\u004f", // "??" => "O"
-  "\u014d": "\u006f", // "??" => "o"
-  "\u0152": "\u004f", // "??" => "O"
-  "\u0153": "\u006f", // "??" => "o"
-  "\u0158": "\u0052", // "??" => "R"
-  "\u0159": "\u0072", // "??" => "r"
-  "\u0160": "\u0053", // "??" => "S"
-  "\u0161": "\u0073", // "??" => "s"
-  "\u0165": "\u0074", // "??" => "t"
-  "\u016a": "\u0055", // "??" => "U"
-  "\u016b": "\u0075", // "??" => "u"
-  "\u0178": "\u0059", // "??" => "Y"
-  "\u0179": "\u005a", // "??" => "Z"
-  "\u017a": "\u007a", // "??" => "z"
-  "\u017b": "\u005a", // "??" => "Z"
-  "\u017c": "\u007a", // "??" => "z"
-  "\u017d": "\u005a", // "??" => "Z"
-  "\u017e": "\u007a", // "??" => "z"
-  "\u025b": "\u0045", // "??" => "E"
-//"\u0398": "\u0398", // "??" => "??", already in default alphabet
-  "\u20a4": "\u00a3", // "???" => "??"
-//"\u20ac": "\u20ac", // "???" => "???", already in default alphabet
+//"\u00a5": "\u00a5", // "¥" => "¥", already in default alphabet
+  "\u00c0": "\u0041", // "À" => "A"
+  "\u00c1": "\u0041", // "Á" => "A"
+  "\u00c2": "\u0041", // "Â" => "A"
+  "\u00c3": "\u0041", // "Ã" => "A"
+//"\u00c4": "\u00c4", // "Ä" => "Ä", already in default alphabet
+//"\u00c5": "\u00c5", // "Å" => "Å", already in default alphabet
+//"\u00c6": "\u00c6", // "Æ" => "Æ", already in default alphabet
+//"\u00c7": "\u00c7", // "Ç" => "Ç", already in default alphabet
+  "\u00c8": "\u0045", // "È" => "E"
+//"\u00c9": "\u00c9", // "É" => "É", already in default alphabet
+  "\u00ca": "\u0045", // "Ê" => "E"
+  "\u00cb": "\u0045", // "Ë" => "E"
+  "\u00cc": "\u0049", // "Ì" => "I"
+  "\u00cd": "\u0049", // "Í" => "I"
+  "\u00ce": "\u0049", // "Î" => "I"
+  "\u00cf": "\u0049", // "Ï" => "I"
+//"\u00d1": "\u00d1", // "Ñ" => "Ñ", already in default alphabet
+  "\u00d2": "\u004f", // "Ò" => "O"
+  "\u00d3": "\u004f", // "Ó" => "O"
+  "\u00d4": "\u004f", // "Ô" => "O"
+  "\u00d5": "\u004f", // "Õ" => "O"
+//"\u00d6": "\u00d6", // "Ö" => "Ö", already in default alphabet
+  "\u00d9": "\u0055", // "Ù" => "U"
+  "\u00da": "\u0055", // "Ú" => "U"
+  "\u00db": "\u0055", // "Û" => "U"
+//"\u00dc": "\u00dc", // "Ü" => "Ü", already in default alphabet
+//"\u00df": "\u00df", // "ß" => "ß", already in default alphabet
+//"\u00e0": "\u00e0", // "à" => "à", already in default alphabet
+  "\u00e1": "\u0061", // "á" => "a"
+  "\u00e2": "\u0061", // "â" => "a"
+  "\u00e3": "\u0061", // "ã" => "a"
+//"\u00e4": "\u00e4", // "ä" => "ä", already in default alphabet
+//"\u00e5": "\u00e5", // "å" => "å", already in default alphabet
+//"\u00e6": "\u00e6", // "æ" => "æ", already in default alphabet
+  "\u00e7": "\u00c7", // "ç" => "Ç"
+//"\u00e8": "\u00e8", // "è" => "è", already in default alphabet
+//"\u00e9": "\u00e9", // "é" => "é", already in default alphabet
+  "\u00ea": "\u0065", // "ê" => "e"
+  "\u00eb": "\u0065", // "ë" => "e"
+//"\u00ec": "\u00ec", // "ì" => "ì", already in default alphabet
+  "\u00ed": "\u0069", // "í" => "i"
+  "\u00ee": "\u0069", // "î" => "i"
+  "\u00ef": "\u0069", // "ï" => "i"
+//"\u00f1": "\u00f1", // "ñ" => "ñ", already in default alphabet
+//"\u00f2": "\u00f2", // "ò" => "ò", already in default alphabet
+  "\u00f3": "\u006f", // "ó" => "o"
+  "\u00f4": "\u006f", // "ô" => "o"
+  "\u00f5": "\u006f", // "õ" => "o"
+//"\u00f6": "\u00f6", // "ö" => "ö", already in default alphabet
+//"\u00f8": "\u00f8", // "ø" => "ø", already in default alphabet
+//"\u00f9": "\u00f9", // "ù" => "ù", already in default alphabet
+  "\u00fa": "\u0075", // "ú" => "u"
+  "\u00fb": "\u0075", // "û" => "u"
+//"\u00fc": "\u00fc", // "ü" => "ü", already in default alphabet
+  "\u00fe": "\u0074", // "þ" => "t"
+  "\u0100": "\u0041", // "Ā" => "A"
+  "\u0101": "\u0061", // "ā" => "a"
+  "\u0106": "\u0043", // "Ć" => "C"
+  "\u0107": "\u0063", // "ć" => "c"
+  "\u010c": "\u0043", // "Č" => "C"
+  "\u010d": "\u0063", // "č" => "c"
+  "\u010f": "\u0064", // "ď" => "d"
+  "\u0110": "\u0044", // "Đ" => "D"
+  "\u0111": "\u0064", // "đ" => "d"
+  "\u0112": "\u0045", // "Ē" => "E"
+  "\u0113": "\u0065", // "ē" => "e"
+  "\u0118": "\u0045", // "Ę" => "E"
+  "\u0119": "\u0065", // "ę" => "e"
+  "\u0128": "\u0049", // "Ĩ" => "I"
+  "\u0129": "\u0069", // "ĩ" => "i"
+  "\u012a": "\u0049", // "Ī" => "I"
+  "\u012b": "\u0069", // "ī" => "i"
+  "\u012e": "\u0049", // "Į" => "I"
+  "\u012f": "\u0069", // "į" => "i"
+  "\u0141": "\u004c", // "Ł" => "L"
+  "\u0142": "\u006c", // "ł" => "l"
+  "\u0143": "\u004e", // "Ń" => "N"
+  "\u0144": "\u006e", // "ń" => "n"
+  "\u0147": "\u004e", // "Ň" => "N"
+  "\u0148": "\u006e", // "ň" => "n"
+  "\u014c": "\u004f", // "Ō" => "O"
+  "\u014d": "\u006f", // "ō" => "o"
+  "\u0152": "\u004f", // "Œ" => "O"
+  "\u0153": "\u006f", // "œ" => "o"
+  "\u0158": "\u0052", // "Ř" => "R"
+  "\u0159": "\u0072", // "ř" => "r"
+  "\u0160": "\u0053", // "Š" => "S"
+  "\u0161": "\u0073", // "š" => "s"
+  "\u0165": "\u0074", // "ť" => "t"
+  "\u0168": "\u0055", // "Ū" => "U"
+  "\u0169": "\u0075", // "ū" => "u"
+  "\u016a": "\u0055", // "Ū" => "U"
+  "\u016b": "\u0075", // "ū" => "u"
+  "\u0178": "\u0059", // "Ÿ" => "Y"
+  "\u0179": "\u005a", // "Ź" => "Z"
+  "\u017a": "\u007a", // "ź" => "z"
+  "\u017b": "\u005a", // "Ż" => "Z"
+  "\u017c": "\u007a", // "ż" => "z"
+  "\u017d": "\u005a", // "Ž" => "Z"
+  "\u017e": "\u007a", // "ž" => "z"
+  "\u025b": "\u0045", // "ɛ" => "E"
+//"\u0398": "\u0398", // "Θ" => "Θ", already in default alphabet
+  "\u1e7c": "\u0056", // "Ṽ" => "V"
+  "\u1e7d": "\u0076", // "ṽ" => "v"
+  "\u1ebc": "\u0045", // "Ẽ" => "E"
+  "\u1ebd": "\u0065", // "ẽ" => "e"
+  "\u1ef8": "\u0059", // "Ỹ" => "Y"
+  "\u1ef9": "\u0079", // "ỹ" => "y"
+  "\u20a4": "\u00a3", // "₤" => "£"
+//"\u20ac": "\u20ac", // "€" => "€", already in default alphabet
 };
 
 this.RADIOTECH_FAMILY_3GPP = 1;  // GSM, WCDMA, LTE
@@ -2164,16 +2452,26 @@ this.DATACALL_AUTH_PAP = 1;
 this.DATACALL_AUTH_CHAP = 2;
 this.DATACALL_AUTH_PAP_OR_CHAP = 3;
 
-this.GOANNA_DATACALL_AUTH_NONE = "none";
-this.GOANNA_DATACALL_AUTH_PAP = "pap";
-this.GOANNA_DATACALL_AUTH_CHAP = "chap";
-this.GOANNA_DATACALL_AUTH_PAP_OR_CHAP = "papOrChap";
-this.GOANNA_DATACALL_AUTH_DEFAULT = GOANNA_DATACALL_AUTH_PAP_OR_CHAP;
-this.RIL_DATACALL_AUTH_TO_GOANNA = [
-  GOANNA_DATACALL_AUTH_NONE,         // DATACALL_AUTH_NONE
-  GOANNA_DATACALL_AUTH_PAP,          // DATACALL_AUTH_PAP
-  GOANNA_DATACALL_AUTH_CHAP,         // DATACALL_AUTH_CHAP
-  GOANNA_DATACALL_AUTH_PAP_OR_CHAP   // DATACALL_AUTH_PAP_OR_CHAP
+this.GECKO_DATACALL_AUTH_NONE = "none";
+this.GECKO_DATACALL_AUTH_PAP = "pap";
+this.GECKO_DATACALL_AUTH_CHAP = "chap";
+this.GECKO_DATACALL_AUTH_PAP_OR_CHAP = "papOrChap";
+this.GECKO_DATACALL_AUTH_DEFAULT = GECKO_DATACALL_AUTH_PAP_OR_CHAP;
+this.RIL_DATACALL_AUTH_TO_GECKO = [
+  GECKO_DATACALL_AUTH_NONE,         // DATACALL_AUTH_NONE
+  GECKO_DATACALL_AUTH_PAP,          // DATACALL_AUTH_PAP
+  GECKO_DATACALL_AUTH_CHAP,         // DATACALL_AUTH_CHAP
+  GECKO_DATACALL_AUTH_PAP_OR_CHAP   // DATACALL_AUTH_PAP_OR_CHAP
+];
+
+this.GECKO_DATACALL_PDP_TYPE_IP = "IP";
+this.GECKO_DATACALL_PDP_TYPE_IPV4V6 = "IPV4V6";
+this.GECKO_DATACALL_PDP_TYPE_IPV6 = "IPV6";
+this.GECKO_DATACALL_PDP_TYPE_DEFAULT = GECKO_DATACALL_PDP_TYPE_IP;
+this.RIL_DATACALL_PDP_TYPES = [
+  GECKO_DATACALL_PDP_TYPE_IP,
+  GECKO_DATACALL_PDP_TYPE_IPV4V6,
+  GECKO_DATACALL_PDP_TYPE_IPV6,
 ];
 
 this.DATACALL_PROFILE_DEFAULT = 0;
@@ -2213,176 +2511,413 @@ this.DATACALL_FAIL_TETHERED_CALL_ACTIVE = -6;
 this.DATACALL_FAIL_ERROR_UNSPECIFIED = 0xffff;
 
 // Keep consistent with nsINetworkManager.NETWORK_STATE_*.
-this.GOANNA_NETWORK_STATE_UNKNOWN = -1;
-this.GOANNA_NETWORK_STATE_CONNECTING = 0;
-this.GOANNA_NETWORK_STATE_CONNECTED = 1;
-this.GOANNA_NETWORK_STATE_DISCONNECTING = 2;
-this.GOANNA_NETWORK_STATE_DISCONNECTED = 3;
+this.GECKO_NETWORK_STATE_UNKNOWN = -1;
+this.GECKO_NETWORK_STATE_CONNECTING = 0;
+this.GECKO_NETWORK_STATE_CONNECTED = 1;
+this.GECKO_NETWORK_STATE_DISCONNECTING = 2;
+this.GECKO_NETWORK_STATE_DISCONNECTED = 3;
 
-// Used for QUERY_AVAILABLE_NETWORKS status of "unknown"
-this.GOANNA_QAN_STATE_UNKNOWN = null;
-
+// 3GPP 24.008 Annex H.
 this.CALL_FAIL_UNOBTAINABLE_NUMBER = 1;
+this.CALL_FAIL_NO_ROUTE_TO_DESTINATION = 3;
+this.CALL_FAIL_CHANNEL_UNACCEPTABLE = 6;
+this.CALL_FAIL_OPERATOR_DETERMINED_BARRING = 8;
 this.CALL_FAIL_NORMAL = 16;
 this.CALL_FAIL_BUSY = 17;
 this.CALL_FAIL_NO_USER_RESPONDING = 18;
 this.CALL_FAIL_USER_ALERTING = 19;
 this.CALL_FAIL_CALL_REJECTED = 21;
 this.CALL_FAIL_NUMBER_CHANGED = 22;
+this.CALL_FAIL_CALL_REJECTED_DESTINATION_FEATURE = 24;
 this.CALL_FAIL_CALL_PRE_EMPTION = 25;
 this.CALL_FAIL_DEST_OUT_OF_ORDER = 27;
 this.CALL_FAIL_INVALID_FORMAT = 28;
 this.CALL_FAIL_FACILITY_REJECTED = 29;
+this.CALL_FAIL_RESPONSE_TO_STATUS_ENQUIRY = 30;
+this.CALL_FAIL_NORMAL_UNSPECIFIED = 31;
 this.CALL_FAIL_CONGESTION = 34;
 this.CALL_FAIL_NETWORK_OUT_OF_ORDER = 38;
 this.CALL_FAIL_NETWORK_TEMP_FAILURE = 41;
+this.CALL_FAIL_SWITCHING_EQUIP_CONGESTION = 42;
+this.CALL_FAIL_ACCESS_INFO_DISCARDED = 43;
+this.CALL_FAIL_REQUESTED_CHANNEL_NOT_AVAILABLE = 44;
+this.CALL_FAIL_RESOURCE_UNAVAILABLE = 47;
+this.CALL_FAIL_QOS_UNAVAILABLE = 49;
+this.CALL_FAIL_REQUESTED_FACILITY_NOT_SUBSCRIBED = 50;
+this.CALL_FAIL_INCOMING_CALLS_BARRED_WITHIN_CUG = 55;
+this.CALL_FAIL_BEARER_CAPABILITY_NOT_AUTHORIZED = 57;
+this.CALL_FAIL_BEARER_CAPABILITY_NOT_AVAILABLE = 58;
+this.CALL_FAIL_SERVICE_NOT_AVAILABLE = 63;
+this.CALL_FAIL_BEARER_NOT_IMPLEMENTED = 65;
 this.CALL_FAIL_ACM_LIMIT_EXCEEDED = 68;
+this.CALL_FAIL_REQUESTED_FACILITY_NOT_IMPLEMENTED = 69;
+this.CALL_FAIL_UNRESTRICTED_BEARER_NOT_AVAILABLE = 70;
+this.CALL_FAIL_SERVICE_NOT_IMPLEMENTED = 79;
+this.CALL_FAIL_INVALID_TRANSACTION_ID = 81;
+this.CALL_FAIL_USER_NOT_CUG_MEMBER = 87;
+this.CALL_FAIL_INCOMPATIBLE_DESTINATION = 88;
+this.CALL_FAIL_INVALID_TRANSIT_NETWORK_SELECTION = 91;
+this.CALL_FAIL_SEMANTICALLY_INCORRECT_MESSAGE = 95;
+this.CALL_FAIL_INVALID_MANDATORY_INFO = 96;
+this.CALL_FAIL_MESSAGE_TYPE_NOT_IMPLEMENTED = 97;
+this.CALL_FAIL_MESSAGE_TYPE_INCOMPATIBLE_PROTOCOL_STATE = 98;
+this.CALL_FAIL_INFO_ELEMENT_NOT_IMPLEMENTED = 99;
+this.CALL_FAIL_CONDITIONAL_IE_ERROR = 100;
+this.CALL_FAIL_MESSAGE_INCOMPABITLE_PROTOCOL_STATE = 101;
+this.CALL_FAIL_RECOVERY_ON_TIMER_EXPIRY = 102;
+this.CALL_FAIL_PROTOCOL_ERROR = 111;
+this.CALL_FAIL_INTERWORKING = 127;
+// AOSP ril.h
 this.CALL_FAIL_CALL_BARRED = 240;
 this.CALL_FAIL_FDN_BLOCKED = 241;
 this.CALL_FAIL_IMSI_UNKNOWN_IN_VLR = 242;
 this.CALL_FAIL_IMEI_NOT_ACCEPTED = 243;
+this.CALL_FAIL_DIAL_MODIFIED_TO_USSD = 244; // STK Call Control
+this.CALL_FAIL_DIAL_MODIFIED_TO_SS = 245;
+this.CALL_FAIL_DIAL_MODIFIED_TO_DIAL = 246;
+this.CALL_FAIL_CDMA_LOCKED_UNTIL_POWER_CYCLE = 1000;
+this.CALL_FAIL_CDMA_DROP = 1001;
+this.CALL_FAIL_CDMA_INTERCEPT = 1002;
+this.CALL_FAIL_CDMA_REORDER = 1003;
+this.CALL_FAIL_CDMA_SO_REJECT = 1004;
+this.CALL_FAIL_CDMA_RETRY_ORDER = 1005;
+this.CALL_FAIL_CDMA_ACCESS_FAILURE = 1006;
+this.CALL_FAIL_CDMA_PREEMPTED = 1007;
+this.CALL_FAIL_CDMA_NOT_EMERGENCY = 1008; // For non-emergency number dialed
+                                          // during emergency callback mode
+this.CALL_FAIL_CDMA_ACCESS_BLOCKED = 1009;
 this.CALL_FAIL_ERROR_UNSPECIFIED = 0xffff;
 
-// Other Goanna-specific constants
-this.GOANNA_RADIOSTATE_UNAVAILABLE   = null;
-this.GOANNA_RADIOSTATE_OFF           = "off";
-this.GOANNA_RADIOSTATE_READY         = "ready";
+// See nsIMobileConnection::MOBILE_RADIO_STATE_*
+this.GECKO_RADIOSTATE_UNKNOWN   = -1;
+this.GECKO_RADIOSTATE_ENABLED   = 0;
+this.GECKO_RADIOSTATE_DISABLED  = 1;
 
-this.GOANNA_CARDSTATE_NOT_READY               = null;
-this.GOANNA_CARDSTATE_UNKNOWN                 = "unknown";
-this.GOANNA_CARDSTATE_ABSENT                  = "absent";
-this.GOANNA_CARDSTATE_PIN_REQUIRED            = "pinRequired";
-this.GOANNA_CARDSTATE_PUK_REQUIRED            = "pukRequired";
-this.GOANNA_CARDSTATE_NETWORK_LOCKED          = "networkLocked";
-this.GOANNA_CARDSTATE_CORPORATE_LOCKED        = "corporateLocked";
-this.GOANNA_CARDSTATE_SERVICE_PROVIDER_LOCKED = "serviceProviderLocked";
-this.GOANNA_CARDSTATE_READY                   = "ready";
+// Only used in ril_worker.js
+this.GECKO_CARDSTATE_UNINITIALIZED = 4294967294; // UINT32_MAX - 1
+// See nsIIccProvider::CARD_STATE_*
+this.GECKO_CARDSTATE_UNDETECTED = 4294967295; // UINT32_MAX
+this.GECKO_CARDSTATE_UNKNOWN = 0;
+this.GECKO_CARDSTATE_READY = 1;
+this.GECKO_CARDSTATE_PIN_REQUIRED = 2;
+this.GECKO_CARDSTATE_PUK_REQUIRED = 3;
+this.GECKO_CARDSTATE_PERMANENT_BLOCKED = 4;
+this.GECKO_CARDSTATE_PERSONALIZATION_IN_PROGRESS = 5;
+this.GECKO_CARDSTATE_PERSONALIZATION_READY = 6;
+this.GECKO_CARDSTATE_NETWORK_LOCKED = 7;
+this.GECKO_CARDSTATE_NETWORK_SUBSET_LOCKED = 8;
+this.GECKO_CARDSTATE_CORPORATE_LOCKED = 9;
+this.GECKO_CARDSTATE_SERVICE_PROVIDER_LOCKED = 10;
+this.GECKO_CARDSTATE_SIM_LOCKED = 11;
+this.GECKO_CARDSTATE_NETWORK_PUK_REQUIRED = 12;
+this.GECKO_CARDSTATE_NETWORK_SUBSET_PUK_REQUIRED = 13;
+this.GECKO_CARDSTATE_CORPORATE_PUK_REQUIRED = 14;
+this.GECKO_CARDSTATE_SERVICE_PROVIDER_PUK_REQUIRED = 15;
+this.GECKO_CARDSTATE_SIM_PUK_REQUIRED = 16;
+this.GECKO_CARDSTATE_NETWORK1_LOCKED = 17;
+this.GECKO_CARDSTATE_NETWORK2_LOCKED = 18;
+this.GECKO_CARDSTATE_HRPD_NETWORK_LOCKED = 19;
+this.GECKO_CARDSTATE_RUIM_CORPORATE_LOCKED = 20;
+this.GECKO_CARDSTATE_RUIM_SERVICE_PROVIDER_LOCKED = 21;
+this.GECKO_CARDSTATE_RUIM_LOCKED = 22;
+this.GECKO_CARDSTATE_NETWORK1_PUK_REQUIRED = 23;
+this.GECKO_CARDSTATE_NETWORK2_PUK_REQUIRED = 24;
+this.GECKO_CARDSTATE_HRPD_NETWORK_PUK_REQUIRED = 25;
+this.GECKO_CARDSTATE_RUIM_CORPORATE_PUK_REQUIRED = 26;
+this.GECKO_CARDSTATE_RUIM_SERVICE_PROVIDER_PUK_REQUIRED = 27;
+this.GECKO_CARDSTATE_RUIM_PUK_REQUIRED = 28;
+this.GECKO_CARDSTATE_ILLEGAL = 29;
+
+// See nsIIccProvider::CARD_LOCK_TYPE_*
+this.GECKO_CARDLOCK_PIN = 0;
+this.GECKO_CARDLOCK_PIN2 = 1;
+this.GECKO_CARDLOCK_PUK = 2;
+this.GECKO_CARDLOCK_PUK2 = 3;
+this.GECKO_CARDLOCK_NCK = 4;
+this.GECKO_CARDLOCK_NSCK = 5;
+this.GECKO_CARDLOCK_NCK1 = 6;
+this.GECKO_CARDLOCK_NCK2 = 7;
+this.GECKO_CARDLOCK_HNCK = 8;
+this.GECKO_CARDLOCK_CCK = 9;
+this.GECKO_CARDLOCK_SPCK = 10;
+this.GECKO_CARDLOCK_PCK = 11;
+this.GECKO_CARDLOCK_RCCK = 12;
+this.GECKO_CARDLOCK_RSPCK = 13;
+this.GECKO_CARDLOCK_NCK_PUK = 14;
+this.GECKO_CARDLOCK_NSCK_PUK = 15;
+this.GECKO_CARDLOCK_NCK1_PUK = 16;
+this.GECKO_CARDLOCK_NCK2_PUK = 17;
+this.GECKO_CARDLOCK_HNCK_PUK = 18;
+this.GECKO_CARDLOCK_CCK_PUK = 19;
+this.GECKO_CARDLOCK_SPCK_PUK = 20;
+this.GECKO_CARDLOCK_PCK_PUK = 21;
+this.GECKO_CARDLOCK_RCCK_PUK = 22;
+this.GECKO_CARDLOCK_RSPCK_PUK = 23;
+this.GECKO_CARDLOCK_FDN = 24;
+
+this.GECKO_CARDLOCK_TO_FACILITY = {};
+GECKO_CARDLOCK_TO_FACILITY[GECKO_CARDLOCK_PIN] = ICC_CB_FACILITY_SIM;
+GECKO_CARDLOCK_TO_FACILITY[GECKO_CARDLOCK_FDN] = ICC_CB_FACILITY_FDN;
+
+this.GECKO_CARDLOCK_TO_SEL_CODE = {};
+GECKO_CARDLOCK_TO_SEL_CODE[GECKO_CARDLOCK_PIN] = ICC_SEL_CODE_SIM_PIN;
+GECKO_CARDLOCK_TO_SEL_CODE[GECKO_CARDLOCK_PIN2] = ICC_SEL_CODE_SIM_PIN2;
+GECKO_CARDLOCK_TO_SEL_CODE[GECKO_CARDLOCK_PUK] = ICC_SEL_CODE_SIM_PUK;
+GECKO_CARDLOCK_TO_SEL_CODE[GECKO_CARDLOCK_PUK2] = ICC_SEL_CODE_SIM_PUK2;
+GECKO_CARDLOCK_TO_SEL_CODE[GECKO_CARDLOCK_NCK] = ICC_SEL_CODE_PH_NET_PIN;
+GECKO_CARDLOCK_TO_SEL_CODE[GECKO_CARDLOCK_NSCK] = ICC_SEL_CODE_PH_NETSUB_PIN;
+GECKO_CARDLOCK_TO_SEL_CODE[GECKO_CARDLOCK_CCK] = ICC_SEL_CODE_PH_CORP_PIN;
+GECKO_CARDLOCK_TO_SEL_CODE[GECKO_CARDLOCK_SPCK] = ICC_SEL_CODE_PH_SP_PIN;
+// TODO: Bug 1116072: identify the mapping between RIL_PERSOSUBSTATE_SIM_SIM @
+//       ril.h and TS 27.007, clause 8.65 for GECKO_CARDLOCK_PCK.
+
+// See nsIIccProvider::CARD_CONTACT_TYPE_*
+this.GECKO_CARDCONTACT_TYPE_ADN = 0;
+this.GECKO_CARDCONTACT_TYPE_FDN = 1;
+this.GECKO_CARDCONTACT_TYPE_SDN = 2;
+
+// See nsIIccProvider::CARD_MVNO_TYPE_*
+this.GECKO_CARDMVNO_TYPE_IMSI = 0;
+this.GECKO_CARDMVNO_TYPE_SPN = 1;
+this.GECKO_CARDMVNO_TYPE_GID = 2;
+
+// See nsIIccProvider::CARD_MVNO_TYPE_*
+this.GECKO_CARDSERVICE_FDN = 0;
 
 // See ril.h RIL_PersoSubstate
 this.PERSONSUBSTATE = {};
-PERSONSUBSTATE[CARD_PERSOSUBSTATE_UNKNOWN] = GOANNA_CARDSTATE_UNKNOWN;
-PERSONSUBSTATE[CARD_PERSOSUBSTATE_IN_PROGRESS] = "inProgress";
-PERSONSUBSTATE[CARD_PERSOSUBSTATE_READY] = GOANNA_CARDSTATE_READY;
-PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_NETWORK] = GOANNA_CARDSTATE_NETWORK_LOCKED;
-PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_NETWORK_SUBSET] = "networkSubsetLocked";
-PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_CORPORATE] = GOANNA_CARDSTATE_CORPORATE_LOCKED;
-PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_SERVICE_PROVIDER] = GOANNA_CARDSTATE_SERVICE_PROVIDER_LOCKED;
-PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_SIM] = "simPersonalizationLock";
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_UNKNOWN] = GECKO_CARDSTATE_UNKNOWN;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_IN_PROGRESS] = GECKO_CARDSTATE_PERSONALIZATION_IN_PROGRESS;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_READY] = GECKO_CARDSTATE_PERSONALIZATION_READY;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_NETWORK] = GECKO_CARDSTATE_NETWORK_LOCKED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_NETWORK_SUBSET] = GECKO_CARDSTATE_NETWORK_SUBSET_LOCKED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_CORPORATE] = GECKO_CARDSTATE_CORPORATE_LOCKED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_SERVICE_PROVIDER] = GECKO_CARDSTATE_SERVICE_PROVIDER_LOCKED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_SIM] = GECKO_CARDSTATE_SIM_LOCKED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_NETWORK_PUK] = GECKO_CARDSTATE_NETWORK_PUK_REQUIRED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_NETWORK_SUBSET_PUK] = GECKO_CARDSTATE_NETWORK_SUBSET_PUK_REQUIRED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_CORPORATE_PUK] = GECKO_CARDSTATE_CORPORATE_PUK_REQUIRED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_SERVICE_PROVIDER_PUK] = GECKO_CARDSTATE_SERVICE_PROVIDER_PUK_REQUIRED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_SIM_SIM_PUK] = GECKO_CARDSTATE_SIM_PUK_REQUIRED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_RUIM_NETWORK1] = GECKO_CARDSTATE_NETWORK1_LOCKED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_RUIM_NETWORK2] = GECKO_CARDSTATE_NETWORK2_LOCKED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_RUIM_HRPD] = GECKO_CARDSTATE_HRPD_NETWORK_LOCKED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_RUIM_CORPORATE] = GECKO_CARDSTATE_RUIM_CORPORATE_LOCKED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_RUIM_SERVICE_PROVIDER] = GECKO_CARDSTATE_RUIM_SERVICE_PROVIDER_LOCKED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_RUIM_RUIM] = GECKO_CARDSTATE_RUIM_LOCKED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_RUIM_NETWORK1_PUK] = GECKO_CARDSTATE_NETWORK1_PUK_REQUIRED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_RUIM_NETWORK2_PUK] = GECKO_CARDSTATE_NETWORK2_PUK_REQUIRED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_RUIM_HRPD_PUK] = GECKO_CARDSTATE_HRPD_NETWORK_PUK_REQUIRED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_RUIM_CORPORATE_PUK] = GECKO_CARDSTATE_RUIM_CORPORATE_PUK_REQUIRED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_RUIM_SERVICE_PROVIDER_PUK] = GECKO_CARDSTATE_RUIM_SERVICE_PROVIDER_PUK_REQUIRED;
+PERSONSUBSTATE[CARD_PERSOSUBSTATE_RUIM_RUIM_PUK] = GECKO_CARDSTATE_RUIM_PUK_REQUIRED;
 
-this.GOANNA_NETWORK_SELECTION_UNKNOWN   = null;
-this.GOANNA_NETWORK_SELECTION_AUTOMATIC = "automatic";
-this.GOANNA_NETWORK_SELECTION_MANUAL    = "manual";
+// See nsIMobileConnection::NETWORK_SELECTION_MODE_*
+this.GECKO_NETWORK_SELECTION_UNKNOWN   = -1;
+this.GECKO_NETWORK_SELECTION_AUTOMATIC = 0;
+this.GECKO_NETWORK_SELECTION_MANUAL    = 1;
 
-this.GOANNA_MOBILE_CONNECTION_STATE_UNKNOWN = null;
-this.GOANNA_MOBILE_CONNECTION_STATE_NOTSEARCHING = "notSearching";
-this.GOANNA_MOBILE_CONNECTION_STATE_SEARCHING = "searching";
-this.GOANNA_MOBILE_CONNECTION_STATE_REGISTERED = "registered";
-this.GOANNA_MOBILE_CONNECTION_STATE_DENIED = "denied";
+this.GECKO_MOBILE_CONNECTION_STATE_UNKNOWN = null;
+this.GECKO_MOBILE_CONNECTION_STATE_NOTSEARCHING = "notSearching";
+this.GECKO_MOBILE_CONNECTION_STATE_SEARCHING = "searching";
+this.GECKO_MOBILE_CONNECTION_STATE_REGISTERED = "registered";
+this.GECKO_MOBILE_CONNECTION_STATE_DENIED = "denied";
 
-this.NETWORK_CREG_TO_GOANNA_MOBILE_CONNECTION_STATE = {};
-NETWORK_CREG_TO_GOANNA_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_NOT_SEARCHING] = GOANNA_MOBILE_CONNECTION_STATE_NOTSEARCHING;
-NETWORK_CREG_TO_GOANNA_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_REGISTERED_HOME] = GOANNA_MOBILE_CONNECTION_STATE_REGISTERED;
-NETWORK_CREG_TO_GOANNA_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_SEARCHING] = GOANNA_MOBILE_CONNECTION_STATE_REGISTERED;
-NETWORK_CREG_TO_GOANNA_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_DENIED] = GOANNA_MOBILE_CONNECTION_STATE_DENIED;
-NETWORK_CREG_TO_GOANNA_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_UNKNOWN] = GOANNA_MOBILE_CONNECTION_STATE_UNKNOWN;
-NETWORK_CREG_TO_GOANNA_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_REGISTERED_ROAMING] = GOANNA_MOBILE_CONNECTION_STATE_REGISTERED;
-NETWORK_CREG_TO_GOANNA_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_NOT_SEARCHING_EMERGENCY_CALLS] = GOANNA_MOBILE_CONNECTION_STATE_NOTSEARCHING;
-NETWORK_CREG_TO_GOANNA_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_SEARCHING_EMERGENCY_CALLS] = GOANNA_MOBILE_CONNECTION_STATE_SEARCHING;
-NETWORK_CREG_TO_GOANNA_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_DENIED_EMERGENCY_CALLS] = GOANNA_MOBILE_CONNECTION_STATE_DENIED;
-NETWORK_CREG_TO_GOANNA_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_UNKNOWN_EMERGENCY_CALLS] = GOANNA_MOBILE_CONNECTION_STATE_UNKNOWN;
+this.NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE = {};
+NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_NOT_SEARCHING] = GECKO_MOBILE_CONNECTION_STATE_NOTSEARCHING;
+NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_REGISTERED_HOME] = GECKO_MOBILE_CONNECTION_STATE_REGISTERED;
+NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_SEARCHING] = GECKO_MOBILE_CONNECTION_STATE_SEARCHING;
+NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_DENIED] = GECKO_MOBILE_CONNECTION_STATE_DENIED;
+NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_UNKNOWN] = GECKO_MOBILE_CONNECTION_STATE_UNKNOWN;
+NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_REGISTERED_ROAMING] = GECKO_MOBILE_CONNECTION_STATE_REGISTERED;
+NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_NOT_SEARCHING_EMERGENCY_CALLS] = GECKO_MOBILE_CONNECTION_STATE_NOTSEARCHING;
+NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_SEARCHING_EMERGENCY_CALLS] = GECKO_MOBILE_CONNECTION_STATE_SEARCHING;
+NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_DENIED_EMERGENCY_CALLS] = GECKO_MOBILE_CONNECTION_STATE_DENIED;
+NETWORK_CREG_TO_GECKO_MOBILE_CONNECTION_STATE[NETWORK_CREG_STATE_UNKNOWN_EMERGENCY_CALLS] = GECKO_MOBILE_CONNECTION_STATE_UNKNOWN;
 
 
-this.GOANNA_CALL_ERROR_BAD_NUMBER             = "BadNumberError";
-this.GOANNA_CALL_ERROR_NORMAL_CALL_CLEARING   = "NormalCallClearingError";
-this.GOANNA_CALL_ERROR_BUSY                   = "BusyError";
-this.GOANNA_CALL_ERROR_NO_USER_RESPONDING     = "NoUserRespondingError";
-this.GOANNA_CALL_ERROR_USER_ALERTING          = "UserAlertingNoAnswerError";
-this.GOANNA_CALL_ERROR_REJECTED               = "CallRejectedError";
-this.GOANNA_CALL_ERROR_NUMBER_CHANGED         = "NumberChangedError";
-this.GOANNA_CALL_ERROR_PRE_EMPTION            = "PreEmptionError";
-this.GOANNA_CALL_ERROR_DEST_OUT_OF_ORDER      = "DestinationOutOfOrderError";
-this.GOANNA_CALL_ERROR_INVALID_NUMBER_FORMAT  = "InvalidNumberFormatError";
-this.GOANNA_CALL_ERROR_FACILITY_REJECTED      = "FacilityRejectedError";
-this.GOANNA_CALL_ERROR_CONGESTION             = "CongestionError";
-this.GOANNA_CALL_ERROR_NETWORK_OUT_OF_ORDER   = "NetworkOutOfOrderError";
-this.GOANNA_CALL_ERROR_NETWORK_TEMP_FAILURE   = "NetworkTempFailureError";
-this.GOANNA_CALL_ERROR_INCOMING_CALL_EXCEEDED = "IncomingCallExceededError";
-this.GOANNA_CALL_ERROR_BARRED                 = "BarredError";
-this.GOANNA_CALL_ERROR_FDN_BLOCKED            = "FDNBlockedError";
-this.GOANNA_CALL_ERROR_SUBSCRIBER_UNKNOWN     = "SubscriberUnknownError";
-this.GOANNA_CALL_ERROR_DEVICE_NOT_ACCEPTED    = "DeviceNotAcceptedError";
-this.GOANNA_CALL_ERROR_UNSPECIFIED            = "UnspecifiedError";
+this.GECKO_CALL_ERROR_BAD_NUMBER = "BadNumberError";
+this.GECKO_CALL_ERROR_NO_ROUTE_TO_DESTINATION = "NoRouteToDestinationError";
+this.GECKO_CALL_ERROR_CHANNEL_UNACCEPTABLE = "ChannelUnacceptableError";
+this.GECKO_CALL_ERROR_OPERATOR_DETERMINED_BARRING = "OperatorDeterminedBarringError";
+this.GECKO_CALL_ERROR_NORMAL_CALL_CLEARING = "NormalCallClearingError";
+this.GECKO_CALL_ERROR_BUSY = "BusyError";
+this.GECKO_CALL_ERROR_NO_USER_RESPONDING = "NoUserRespondingError";
+this.GECKO_CALL_ERROR_USER_ALERTING = "UserAlertingNoAnswerError";
+this.GECKO_CALL_ERROR_REJECTED = "CallRejectedError";
+this.GECKO_CALL_ERROR_NUMBER_CHANGED = "NumberChangedError";
+this.GECKO_CALL_ERROR_REJECTED_DETINATION_FEATURE = "CallRejectedDestinationFeature";
+this.GECKO_CALL_ERROR_PRE_EMPTION = "PreEmptionError";
+this.GECKO_CALL_ERROR_DEST_OUT_OF_ORDER = "DestinationOutOfOrderError";
+this.GECKO_CALL_ERROR_INVALID_NUMBER_FORMAT = "InvalidNumberFormatError";
+this.GECKO_CALL_ERROR_FACILITY_REJECTED = "FacilityRejectedError";
+this.GECKO_CALL_ERROR_RESPONSE_TO_STATUS_ENQUIRY = "ResponseToStatusEnquiryError";
+this.GECKO_CALL_ERROR_CONGESTION = "CongestionError";
+this.GECKO_CALL_ERROR_NETWORK_OUT_OF_ORDER = "NetworkOutOfOrderError";
+this.GECKO_CALL_ERROR_NETWORK_TEMP_FAILURE = "NetworkTempFailureError";
+this.GECKO_CALL_ERROR_SWITCHING_EQUIP_CONGESTION = "SwitchingEquipCongestionError";
+this.GECKO_CALL_ERROR_ACCESS_INFO_DISCARDED = "AccessInfoDiscardedError";
+this.GECKO_CALL_ERROR_REQUESTED_CHANNEL_NOT_AVAILABLE = "RequestedChannelNotAvailableError";
+this.GECKO_CALL_ERROR_RESOURCE_UNAVAILABLE = "ResourceUnavailableError";
+this.GECKO_CALL_ERROR_QOS_UNAVAILABLE = "QosUnavailableError";
+this.GECKO_CALL_ERROR_REQUESTED_FACILITY_NOT_SUBSCRIBED = "RequestedFacilityNotSubscribedError";
+this.GECKO_CALL_ERROR_INCOMING_CALLS_BARRED_WITHIN_CUG = "IncomingCallsBarredWithinCugError";
+this.GECKO_CALL_ERROR_BEARER_CAPABILITY_NOT_AUTHORIZED = "BearerCapabilityNotAuthorizedError";
+this.GECKO_CALL_ERROR_BEARER_CAPABILITY_NOT_AVAILABLE = "BearerCapabilityNotAvailableError";
+this.GECKO_CALL_ERROR_BEARER_NOT_IMPLEMENTED = "BearerNotImplementedError";
+this.GECKO_CALL_ERROR_SERVICE_NOT_AVAILABLE = "ServiceNotAvailableError";
+this.GECKO_CALL_ERROR_INCOMING_CALL_EXCEEDED = "IncomingCallExceededError";
+this.GECKO_CALL_ERROR_REQUESTED_FACILITY_NOT_IMPLEMENTED = "RequestedFacilityNotImplementedError";
+this.GECKO_CALL_ERROR_UNRESTRICTED_BEARER_NOT_AVAILABLE = "UnrestrictedBearerNotAvailableError";
+this.GECKO_CALL_ERROR_SERVICE_NOT_IMPLEMENTED = "ServiceNotImplementedError";
+this.GECKO_CALL_ERROR_INVALID_TRANSACTION_ID = "InvalidTransactionIdError";
+this.GECKO_CALL_ERROR_USER_NOT_CUG_MEMBER = "NotCugMemberError";
+this.GECKO_CALL_ERROR_INCOMPATIBLE_DESTINATION = "IncompatibleDestinationError";
+this.GECKO_CALL_ERROR_INVALID_TRANSIT_NETWORK_SELECTION = "InvalidTransitNetworkSelectionError";
+this.GECKO_CALL_ERROR_SEMANTICALLY_INCORRECT_MESSAGE = "SemanticallyIncorrectMessageError";
+this.GECKO_CALL_ERROR_INVALID_MANDATORY_INFO = "InvalidMandatoryInfoError";
+this.GECKO_CALL_ERROR_MESSAGE_TYPE_NOT_IMPLEMENTED = "MessageTypeNotImplementedError";
+this.GECKO_CALL_ERROR_MESSAGE_TYPE_INCOMPATIBLE_PROTOCOL_STATE = "MessageTypeIncompatibleProtocolStateError";
+this.GECKO_CALL_ERROR_INFO_ELEMENT_NOT_IMPLEMENTED = "InfoElementNotImplementedError";
+this.GECKO_CALL_ERROR_CONDITIONAL_IE = "ConditionalIeError";
+this.GECKO_CALL_ERROR_MESSAGE_INCOMPATIBLE_PROTOCOL_STATE = "MessageIncompatibleProtocolStateError";
+this.GECKO_CALL_ERROR_RECOVERY_ON_TIMER_EXPIRY = "RecoveryOnTimerExpiryError";
+this.GECKO_CALL_ERROR_PROTOCOL = "ProtocolError";
+this.GECKO_CALL_ERROR_INTERWORKING = "InterworkingError";
+this.GECKO_CALL_ERROR_BARRED = "BarredError";
+this.GECKO_CALL_ERROR_FDN_BLOCKED = "FDNBlockedError";
+this.GECKO_CALL_ERROR_SUBSCRIBER_UNKNOWN = "SubscriberUnknownError";
+this.GECKO_CALL_ERROR_DEVICE_NOT_ACCEPTED = "DeviceNotAcceptedError";
+this.GECKO_CALL_ERROR_MODIFIED_TO_DIAL_FAILED = "ModifiedDialError";
+this.GECKO_CALL_ERROR_CDMA_LOCKED_UNTIL_POWER_CYCLE = "CdmaLockedUntilPowerCycleError";
+this.GECKO_CALL_ERROR_CDMA_DROP = "CdmaDropError";
+this.GECKO_CALL_ERROR_CDMA_INTERCEPT = "CdmaInterceptError";
+this.GECKO_CALL_ERROR_CDMA_REORDER = "CdmaReorderError";
+this.GECKO_CALL_ERROR_CDMA_SO_REJECT = "CdmaSoRejectError";
+this.GECKO_CALL_ERROR_CDMA_RETRY_ORDER = "CdmaRetryOrderError";
+this.GECKO_CALL_ERROR_CDMA_ACCESS_FAILURE = "CdmaAcessError";
+this.GECKO_CALL_ERROR_CDMA_PREEMPTED = "CdmaPreemptedError";
+this.GECKO_CALL_ERROR_CDMA_NOT_EMERGENCY = "CdmaNotEmergencyError";
+this.GECKO_CALL_ERROR_CDMA_ACCESS_BLOCKED = "CdmaAccessBlockedError";
+this.GECKO_CALL_ERROR_UNSPECIFIED = "UnspecifiedError";
 
-this.RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR = {};
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_UNOBTAINABLE_NUMBER] = GOANNA_CALL_ERROR_BAD_NUMBER;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_NORMAL]              = GOANNA_CALL_ERROR_NORMAL_CALL_CLEARING;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_BUSY]                = GOANNA_CALL_ERROR_BUSY;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_NO_USER_RESPONDING]  = GOANNA_CALL_ERROR_NO_USER_RESPONDING;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_USER_ALERTING]       = GOANNA_CALL_ERROR_USER_ALERTING;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_CALL_REJECTED]       = GOANNA_CALL_ERROR_REJECTED;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_NUMBER_CHANGED]      = GOANNA_CALL_ERROR_NUMBER_CHANGED;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_CALL_PRE_EMPTION]    = GOANNA_CALL_ERROR_PRE_EMPTION;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_DEST_OUT_OF_ORDER]   = GOANNA_CALL_ERROR_DEST_OUT_OF_ORDER;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_INVALID_FORMAT]      = GOANNA_CALL_ERROR_INVALID_NUMBER_FORMAT;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_FACILITY_REJECTED]   = GOANNA_CALL_ERROR_FACILITY_REJECTED;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_CONGESTION]          = GOANNA_CALL_ERROR_CONGESTION;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_NETWORK_OUT_OF_ORDER]= GOANNA_CALL_ERROR_NETWORK_OUT_OF_ORDER;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_NETWORK_TEMP_FAILURE]= GOANNA_CALL_ERROR_NETWORK_TEMP_FAILURE;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_ACM_LIMIT_EXCEEDED]  = GOANNA_CALL_ERROR_INCOMING_CALL_EXCEEDED;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_CALL_BARRED]         = GOANNA_CALL_ERROR_BARRED;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_FDN_BLOCKED]         = GOANNA_CALL_ERROR_FDN_BLOCKED;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_IMSI_UNKNOWN_IN_VLR] = GOANNA_CALL_ERROR_SUBSCRIBER_UNKNOWN;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_IMEI_NOT_ACCEPTED]   = GOANNA_CALL_ERROR_DEVICE_NOT_ACCEPTED;
-RIL_CALL_FAILCAUSE_TO_GOANNA_CALL_ERROR[CALL_FAIL_ERROR_UNSPECIFIED]   = GOANNA_CALL_ERROR_UNSPECIFIED;
+this.RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR = {};
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_UNOBTAINABLE_NUMBER] = GECKO_CALL_ERROR_BAD_NUMBER;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_NO_ROUTE_TO_DESTINATION] = GECKO_CALL_ERROR_NO_ROUTE_TO_DESTINATION;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CHANNEL_UNACCEPTABLE] = GECKO_CALL_ERROR_CHANNEL_UNACCEPTABLE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_OPERATOR_DETERMINED_BARRING] = GECKO_CALL_ERROR_OPERATOR_DETERMINED_BARRING;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_NORMAL] = GECKO_CALL_ERROR_NORMAL_CALL_CLEARING;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_BUSY] = GECKO_CALL_ERROR_BUSY;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_NO_USER_RESPONDING] = GECKO_CALL_ERROR_NO_USER_RESPONDING;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_USER_ALERTING] = GECKO_CALL_ERROR_USER_ALERTING;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CALL_REJECTED] = GECKO_CALL_ERROR_REJECTED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_NUMBER_CHANGED] = GECKO_CALL_ERROR_NUMBER_CHANGED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CALL_REJECTED_DESTINATION_FEATURE] = GECKO_CALL_ERROR_REJECTED_DETINATION_FEATURE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CALL_PRE_EMPTION] = GECKO_CALL_ERROR_PRE_EMPTION;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_DEST_OUT_OF_ORDER] = GECKO_CALL_ERROR_DEST_OUT_OF_ORDER;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_INVALID_FORMAT] = GECKO_CALL_ERROR_INVALID_NUMBER_FORMAT;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_FACILITY_REJECTED] = GECKO_CALL_ERROR_FACILITY_REJECTED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_RESPONSE_TO_STATUS_ENQUIRY] = GECKO_CALL_ERROR_RESPONSE_TO_STATUS_ENQUIRY;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_NORMAL_UNSPECIFIED] = GECKO_CALL_ERROR_NORMAL_CALL_CLEARING;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CONGESTION] = GECKO_CALL_ERROR_CONGESTION;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_NETWORK_OUT_OF_ORDER] = GECKO_CALL_ERROR_NETWORK_OUT_OF_ORDER;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_NETWORK_TEMP_FAILURE] = GECKO_CALL_ERROR_NETWORK_TEMP_FAILURE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_SWITCHING_EQUIP_CONGESTION] = GECKO_CALL_ERROR_SWITCHING_EQUIP_CONGESTION;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_ACCESS_INFO_DISCARDED] = GECKO_CALL_ERROR_ACCESS_INFO_DISCARDED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_REQUESTED_CHANNEL_NOT_AVAILABLE] = GECKO_CALL_ERROR_REQUESTED_CHANNEL_NOT_AVAILABLE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_RESOURCE_UNAVAILABLE] = GECKO_CALL_ERROR_RESOURCE_UNAVAILABLE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_QOS_UNAVAILABLE] = GECKO_CALL_ERROR_QOS_UNAVAILABLE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_REQUESTED_FACILITY_NOT_SUBSCRIBED] = GECKO_CALL_ERROR_REQUESTED_FACILITY_NOT_SUBSCRIBED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_INCOMING_CALLS_BARRED_WITHIN_CUG] = GECKO_CALL_ERROR_INCOMING_CALLS_BARRED_WITHIN_CUG;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_BEARER_CAPABILITY_NOT_AUTHORIZED] = GECKO_CALL_ERROR_BEARER_CAPABILITY_NOT_AUTHORIZED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_BEARER_CAPABILITY_NOT_AVAILABLE] = GECKO_CALL_ERROR_BEARER_CAPABILITY_NOT_AVAILABLE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_SERVICE_NOT_AVAILABLE] = GECKO_CALL_ERROR_SERVICE_NOT_AVAILABLE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_BEARER_NOT_IMPLEMENTED] = GECKO_CALL_ERROR_BEARER_NOT_IMPLEMENTED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_ACM_LIMIT_EXCEEDED] = GECKO_CALL_ERROR_INCOMING_CALL_EXCEEDED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_REQUESTED_FACILITY_NOT_IMPLEMENTED] = GECKO_CALL_ERROR_REQUESTED_FACILITY_NOT_IMPLEMENTED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_UNRESTRICTED_BEARER_NOT_AVAILABLE] = GECKO_CALL_ERROR_UNRESTRICTED_BEARER_NOT_AVAILABLE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_SERVICE_NOT_IMPLEMENTED] = GECKO_CALL_ERROR_SERVICE_NOT_IMPLEMENTED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_INVALID_TRANSACTION_ID] = GECKO_CALL_ERROR_INVALID_TRANSACTION_ID;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_USER_NOT_CUG_MEMBER] = GECKO_CALL_ERROR_USER_NOT_CUG_MEMBER;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_INCOMPATIBLE_DESTINATION] = GECKO_CALL_ERROR_INCOMPATIBLE_DESTINATION;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_INVALID_TRANSIT_NETWORK_SELECTION] = GECKO_CALL_ERROR_INVALID_TRANSIT_NETWORK_SELECTION;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_SEMANTICALLY_INCORRECT_MESSAGE] = GECKO_CALL_ERROR_SEMANTICALLY_INCORRECT_MESSAGE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_INVALID_MANDATORY_INFO] = GECKO_CALL_ERROR_INVALID_MANDATORY_INFO;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_MESSAGE_TYPE_NOT_IMPLEMENTED] = GECKO_CALL_ERROR_MESSAGE_TYPE_NOT_IMPLEMENTED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_MESSAGE_TYPE_INCOMPATIBLE_PROTOCOL_STATE] = GECKO_CALL_ERROR_MESSAGE_TYPE_INCOMPATIBLE_PROTOCOL_STATE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_INFO_ELEMENT_NOT_IMPLEMENTED] = GECKO_CALL_ERROR_INFO_ELEMENT_NOT_IMPLEMENTED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CONDITIONAL_IE_ERROR] = GECKO_CALL_ERROR_CONDITIONAL_IE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_MESSAGE_INCOMPABITLE_PROTOCOL_STATE] = GECKO_CALL_ERROR_MESSAGE_INCOMPATIBLE_PROTOCOL_STATE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_RECOVERY_ON_TIMER_EXPIRY] = GECKO_CALL_ERROR_RECOVERY_ON_TIMER_EXPIRY;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_PROTOCOL_ERROR] = GECKO_CALL_ERROR_PROTOCOL;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_INTERWORKING] = GECKO_CALL_ERROR_INTERWORKING;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CALL_BARRED] = GECKO_CALL_ERROR_BARRED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_FDN_BLOCKED] = GECKO_CALL_ERROR_FDN_BLOCKED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_IMSI_UNKNOWN_IN_VLR] = GECKO_CALL_ERROR_SUBSCRIBER_UNKNOWN;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_IMEI_NOT_ACCEPTED] = GECKO_CALL_ERROR_DEVICE_NOT_ACCEPTED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_DIAL_MODIFIED_TO_USSD] = GECKO_CALL_ERROR_MODIFIED_TO_DIAL_FAILED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_DIAL_MODIFIED_TO_SS] = GECKO_CALL_ERROR_MODIFIED_TO_DIAL_FAILED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_DIAL_MODIFIED_TO_DIAL] = GECKO_CALL_ERROR_MODIFIED_TO_DIAL_FAILED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CDMA_LOCKED_UNTIL_POWER_CYCLE] = GECKO_CALL_ERROR_CDMA_LOCKED_UNTIL_POWER_CYCLE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CDMA_DROP] = GECKO_CALL_ERROR_CDMA_DROP;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CDMA_INTERCEPT] = GECKO_CALL_ERROR_CDMA_INTERCEPT;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CDMA_REORDER] = GECKO_CALL_ERROR_CDMA_REORDER;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CDMA_SO_REJECT] = GECKO_CALL_ERROR_CDMA_SO_REJECT;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CDMA_RETRY_ORDER] = GECKO_CALL_ERROR_CDMA_RETRY_ORDER;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CDMA_ACCESS_FAILURE] = GECKO_CALL_ERROR_CDMA_ACCESS_FAILURE;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CDMA_PREEMPTED] = GECKO_CALL_ERROR_CDMA_PREEMPTED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CDMA_NOT_EMERGENCY] = GECKO_CALL_ERROR_CDMA_NOT_EMERGENCY;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_CDMA_ACCESS_BLOCKED] = GECKO_CALL_ERROR_CDMA_ACCESS_BLOCKED;
+RIL_CALL_FAILCAUSE_TO_GECKO_CALL_ERROR[CALL_FAIL_ERROR_UNSPECIFIED] = GECKO_CALL_ERROR_UNSPECIFIED;
 
-this.GOANNA_DATACALL_ERROR_OPERATOR_BARRED               = "OperatorBarredError";
-this.GOANNA_DATACALL_ERROR_INSUFFICIENT_RESOURCES        = "InsufficientResourcesError";
-this.GOANNA_DATACALL_ERROR_MISSING_UKNOWN_APN            = "MissingUnknownAPNError";
-this.GOANNA_DATACALL_ERROR_UNKNOWN_PDP_ADDRESS_TYPE      = "UnknownPDPAddressTypeError";
-this.GOANNA_DATACALL_ERROR_USER_AUTHENTICATION           = "UserAuthenticationError";
-this.GOANNA_DATACALL_ERROR_ACTIVATION_REJECT_GGSN        = "ActivationRejectGGSNError";
-this.GOANNA_DATACALL_ERROR_ACTIVATION_REJECT_UNSPECIFIED = "ActivationRejectUnspecifiedError";
-this.GOANNA_DATACALL_ERROR_SERVICE_OPTION_NOT_SUPPORTED  = "ServiceOptionNotSupportedError";
-this.GOANNA_DATACALL_ERROR_SERVICE_OPTION_NOT_SUBSCRIBED = "ServiceOptionNotSubscribedError";
-this.GOANNA_DATACALL_ERROR_SERVICE_OPTION_OUT_OF_ORDER   = "ServiceOptionOutOfOrderError";
-this.GOANNA_DATACALL_ERROR_NSAPI_IN_USE                  = "NSAPIInUseError";
-this.GOANNA_DATACALL_ERROR_ONLY_IPV4_ALLOWED             = "OnlyIPv4Error";
-this.GOANNA_DATACALL_ERROR_ONLY_IPV6_ALLOWED             = "OnlyIPv6Error";
-this.GOANNA_DATACALL_ERROR_ONLY_SINGLE_BEARER_ALLOWED    = "OnlySingleBearerAllowedError";
-this.GOANNA_DATACALL_ERROR_PROTOCOL_ERRORS               = "ProtocolErrorsError";
-this.GOANNA_DATACALL_ERROR_VOICE_REGISTRATION_FAIL       = "VoiceRegistrationFailError";
-this.GOANNA_DATACALL_ERROR_DATA_REGISTRATION_FAIL        = "DataRegistrationFailError";
-this.GOANNA_DATACALL_ERROR_SIGNAL_LOST                   = "SignalLostError";
-this.GOANNA_DATACALL_ERROR_PREF_RADIO_TECH_CHANGED       = "PrefRadioTechChangedError";
-this.GOANNA_DATACALL_ERROR_RADIO_POWER_OFF               = "RadioPowerOffError";
-this.GOANNA_DATACALL_ERROR_TETHERED_CALL_ACTIVE          = "TetheredCallActiveError";
-this.GOANNA_DATACALL_ERROR_UNSPECIFIED                   = "UnspecifiedError";
+this.GECKO_DATACALL_ERROR_OPERATOR_BARRED               = "OperatorBarredError";
+this.GECKO_DATACALL_ERROR_INSUFFICIENT_RESOURCES        = "InsufficientResourcesError";
+this.GECKO_DATACALL_ERROR_MISSING_UKNOWN_APN            = "MissingUnknownAPNError";
+this.GECKO_DATACALL_ERROR_UNKNOWN_PDP_ADDRESS_TYPE      = "UnknownPDPAddressTypeError";
+this.GECKO_DATACALL_ERROR_USER_AUTHENTICATION           = "UserAuthenticationError";
+this.GECKO_DATACALL_ERROR_ACTIVATION_REJECT_GGSN        = "ActivationRejectGGSNError";
+this.GECKO_DATACALL_ERROR_ACTIVATION_REJECT_UNSPECIFIED = "ActivationRejectUnspecifiedError";
+this.GECKO_DATACALL_ERROR_SERVICE_OPTION_NOT_SUPPORTED  = "ServiceOptionNotSupportedError";
+this.GECKO_DATACALL_ERROR_SERVICE_OPTION_NOT_SUBSCRIBED = "ServiceOptionNotSubscribedError";
+this.GECKO_DATACALL_ERROR_SERVICE_OPTION_OUT_OF_ORDER   = "ServiceOptionOutOfOrderError";
+this.GECKO_DATACALL_ERROR_NSAPI_IN_USE                  = "NSAPIInUseError";
+this.GECKO_DATACALL_ERROR_ONLY_IPV4_ALLOWED             = "OnlyIPv4Error";
+this.GECKO_DATACALL_ERROR_ONLY_IPV6_ALLOWED             = "OnlyIPv6Error";
+this.GECKO_DATACALL_ERROR_ONLY_SINGLE_BEARER_ALLOWED    = "OnlySingleBearerAllowedError";
+this.GECKO_DATACALL_ERROR_PROTOCOL_ERRORS               = "ProtocolErrorsError";
+this.GECKO_DATACALL_ERROR_VOICE_REGISTRATION_FAIL       = "VoiceRegistrationFailError";
+this.GECKO_DATACALL_ERROR_DATA_REGISTRATION_FAIL        = "DataRegistrationFailError";
+this.GECKO_DATACALL_ERROR_SIGNAL_LOST                   = "SignalLostError";
+this.GECKO_DATACALL_ERROR_PREF_RADIO_TECH_CHANGED       = "PrefRadioTechChangedError";
+this.GECKO_DATACALL_ERROR_RADIO_POWER_OFF               = "RadioPowerOffError";
+this.GECKO_DATACALL_ERROR_TETHERED_CALL_ACTIVE          = "TetheredCallActiveError";
+this.GECKO_DATACALL_ERROR_UNSPECIFIED                   = "UnspecifiedError";
 
-this.RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR = {};
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_OPERATOR_BARRED]               = GOANNA_DATACALL_ERROR_OPERATOR_BARRED;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_INSUFFICIENT_RESOURCES]        = GOANNA_DATACALL_ERROR_INSUFFICIENT_RESOURCES;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_MISSING_UKNOWN_APN]            = GOANNA_DATACALL_ERROR_MISSING_UKNOWN_APN;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_UNKNOWN_PDP_ADDRESS_TYPE]      = GOANNA_DATACALL_ERROR_UNKNOWN_PDP_ADDRESS_TYPE;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_USER_AUTHENTICATION]           = GOANNA_DATACALL_ERROR_USER_AUTHENTICATION;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_ACTIVATION_REJECT_GGSN]        = GOANNA_DATACALL_ERROR_ACTIVATION_REJECT_GGSN;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_ACTIVATION_REJECT_UNSPECIFIED] = GOANNA_DATACALL_ERROR_ACTIVATION_REJECT_UNSPECIFIED;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_SERVICE_OPTION_NOT_SUPPORTED]  = GOANNA_DATACALL_ERROR_SERVICE_OPTION_NOT_SUPPORTED;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_SERVICE_OPTION_NOT_SUBSCRIBED] = GOANNA_DATACALL_ERROR_SERVICE_OPTION_NOT_SUBSCRIBED;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_SERVICE_OPTION_OUT_OF_ORDER]   = GOANNA_DATACALL_ERROR_SERVICE_OPTION_OUT_OF_ORDER;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_NSAPI_IN_USE]                  = GOANNA_DATACALL_ERROR_NSAPI_IN_USE;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_ONLY_IPV4_ALLOWED]             = GOANNA_DATACALL_ERROR_ONLY_IPV4_ALLOWED;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_ONLY_IPV6_ALLOWED]             = GOANNA_DATACALL_ERROR_ONLY_IPV6_ALLOWED;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_ONLY_SINGLE_BEARER_ALLOWED]    = GOANNA_DATACALL_ERROR_ONLY_SINGLE_BEARER_ALLOWED;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_PROTOCOL_ERRORS]               = GOANNA_DATACALL_ERROR_PROTOCOL_ERRORS;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_VOICE_REGISTRATION_FAIL]       = GOANNA_DATACALL_ERROR_VOICE_REGISTRATION_FAIL;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_DATA_REGISTRATION_FAIL]        = GOANNA_DATACALL_ERROR_DATA_REGISTRATION_FAIL;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_SIGNAL_LOST]                   = GOANNA_DATACALL_ERROR_SIGNAL_LOST;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_PREF_RADIO_TECH_CHANGED]       = GOANNA_DATACALL_ERROR_PREF_RADIO_TECH_CHANGED;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_RADIO_POWER_OFF]               = GOANNA_DATACALL_ERROR_RADIO_POWER_OFF;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_TETHERED_CALL_ACTIVE]          = GOANNA_DATACALL_ERROR_TETHERED_CALL_ACTIVE;
-RIL_DATACALL_FAILCAUSE_TO_GOANNA_DATACALL_ERROR[DATACALL_FAIL_ERROR_UNSPECIFIED]             = GOANNA_DATACALL_ERROR_UNSPECIFIED;
+this.RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR = {};
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_OPERATOR_BARRED]               = GECKO_DATACALL_ERROR_OPERATOR_BARRED;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_INSUFFICIENT_RESOURCES]        = GECKO_DATACALL_ERROR_INSUFFICIENT_RESOURCES;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_MISSING_UKNOWN_APN]            = GECKO_DATACALL_ERROR_MISSING_UKNOWN_APN;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_UNKNOWN_PDP_ADDRESS_TYPE]      = GECKO_DATACALL_ERROR_UNKNOWN_PDP_ADDRESS_TYPE;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_USER_AUTHENTICATION]           = GECKO_DATACALL_ERROR_USER_AUTHENTICATION;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_ACTIVATION_REJECT_GGSN]        = GECKO_DATACALL_ERROR_ACTIVATION_REJECT_GGSN;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_ACTIVATION_REJECT_UNSPECIFIED] = GECKO_DATACALL_ERROR_ACTIVATION_REJECT_UNSPECIFIED;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_SERVICE_OPTION_NOT_SUPPORTED]  = GECKO_DATACALL_ERROR_SERVICE_OPTION_NOT_SUPPORTED;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_SERVICE_OPTION_NOT_SUBSCRIBED] = GECKO_DATACALL_ERROR_SERVICE_OPTION_NOT_SUBSCRIBED;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_SERVICE_OPTION_OUT_OF_ORDER]   = GECKO_DATACALL_ERROR_SERVICE_OPTION_OUT_OF_ORDER;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_NSAPI_IN_USE]                  = GECKO_DATACALL_ERROR_NSAPI_IN_USE;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_ONLY_IPV4_ALLOWED]             = GECKO_DATACALL_ERROR_ONLY_IPV4_ALLOWED;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_ONLY_IPV6_ALLOWED]             = GECKO_DATACALL_ERROR_ONLY_IPV6_ALLOWED;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_ONLY_SINGLE_BEARER_ALLOWED]    = GECKO_DATACALL_ERROR_ONLY_SINGLE_BEARER_ALLOWED;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_PROTOCOL_ERRORS]               = GECKO_DATACALL_ERROR_PROTOCOL_ERRORS;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_VOICE_REGISTRATION_FAIL]       = GECKO_DATACALL_ERROR_VOICE_REGISTRATION_FAIL;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_DATA_REGISTRATION_FAIL]        = GECKO_DATACALL_ERROR_DATA_REGISTRATION_FAIL;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_SIGNAL_LOST]                   = GECKO_DATACALL_ERROR_SIGNAL_LOST;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_PREF_RADIO_TECH_CHANGED]       = GECKO_DATACALL_ERROR_PREF_RADIO_TECH_CHANGED;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_RADIO_POWER_OFF]               = GECKO_DATACALL_ERROR_RADIO_POWER_OFF;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_TETHERED_CALL_ACTIVE]          = GECKO_DATACALL_ERROR_TETHERED_CALL_ACTIVE;
+RIL_DATACALL_FAILCAUSE_TO_GECKO_DATACALL_ERROR[DATACALL_FAIL_ERROR_UNSPECIFIED]             = GECKO_DATACALL_ERROR_UNSPECIFIED;
 
-this.GOANNA_RADIO_TECH = [
+this.GECKO_RADIO_TECH = [
   null,
   "gprs",
   "edge",
@@ -2399,19 +2934,22 @@ this.GOANNA_RADIO_TECH = [
   "ehrpd",
   "lte",
   "hspa+",
-  "gsm"
+  "gsm",
+  null,
+  "hspa+", // DC-HSPA+
+  "hspa+"
 ];
 
-this.GOANNA_VOICEMAIL_MESSAGE_COUNT_UNKNOWN = -1;
+this.GECKO_VOICEMAIL_MESSAGE_COUNT_UNKNOWN = -1;
 
-// Call forwarding action. Must be in sync with nsIDOMMozMobileCFInfo interface
+// Call forwarding action. Must be in sync with nsIMobileConnectionService interface
 this.CALL_FORWARD_ACTION_DISABLE = 0;
 this.CALL_FORWARD_ACTION_ENABLE = 1;
 this.CALL_FORWARD_ACTION_QUERY_STATUS = 2;
 this.CALL_FORWARD_ACTION_REGISTRATION = 3;
 this.CALL_FORWARD_ACTION_ERASURE = 4;
 
-// Call forwarding reason. Must be in sync with nsIDOMMozMobileCFInfo interface
+// Call forwarding reason. Must be in sync with nsIMobileConnectionService interface
 this.CALL_FORWARD_REASON_UNCONDITIONAL = 0;
 this.CALL_FORWARD_REASON_MOBILE_BUSY = 1;
 this.CALL_FORWARD_REASON_NO_REPLY = 2;
@@ -2419,7 +2957,7 @@ this.CALL_FORWARD_REASON_NOT_REACHABLE = 3;
 this.CALL_FORWARD_REASON_ALL_CALL_FORWARDING = 4;
 this.CALL_FORWARD_REASON_ALL_CONDITIONAL_CALL_FORWARDING = 5;
 
-// Call barring program. Must be in sync with nsIDOMMozMobileConnection interface
+// Call barring program. Must be in sync with nsIMobileConnectionService interface
 this.CALL_BARRING_PROGRAM_ALL_OUTGOING = 0;
 this.CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL = 1;
 this.CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL_EXCEPT_HOME = 2;
@@ -2428,10 +2966,15 @@ this.CALL_BARRING_PROGRAM_INCOMING_ROAMING = 4;
 
 this.CALL_BARRING_PROGRAM_TO_FACILITY = {};
 CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_ALL_OUTGOING] = ICC_CB_FACILITY_BAOC;
-CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL] = ICC_CB_FACILITY_BOIC;
-CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL_EXCEPT_HOME] = ICC_CB_FACILITY_BOIC_EX_HC;
+CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL] = ICC_CB_FACILITY_BAOIC;
+CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_OUTGOING_INTERNATIONAL_EXCEPT_HOME] = ICC_CB_FACILITY_BAOICxH;
 CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_ALL_INCOMING] = ICC_CB_FACILITY_BAIC;
-CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_INCOMING_ROAMING] = ICC_CB_FACILITY_BIC_ROAM;
+CALL_BARRING_PROGRAM_TO_FACILITY[CALL_BARRING_PROGRAM_INCOMING_ROAMING] = ICC_CB_FACILITY_BAICr;
+
+// CLIR constants. Must be in sync with nsIMobileConnectionService interface
+this.CLIR_DEFAULT = 0;
+this.CLIR_INVOCATION  = 1;
+this.CLIR_SUPPRESSION = 2;
 
 // MMI procedure as defined in TS.22.030 6.5.2
 this.MMI_PROCEDURE_ACTIVATION = "*";
@@ -2480,6 +3023,10 @@ this.MMI_SC_CLIR = "31";
 // MMI call waiting service code
 this.MMI_SC_CALL_WAITING = "43";
 
+// MMI service code for registration new password as defined in TS 22.030 6.5.4
+this.MMI_SC_CHANGE_PASSWORD = "03";
+this.MMI_ZZ_BARRING_SERVICE = "330";
+
 // MMI call barring service codes
 this.MMI_SC_BAOC = "33";
 this.MMI_SC_BAOIC = "331";
@@ -2490,6 +3037,85 @@ this.MMI_SC_BA_ALL = "330";
 this.MMI_SC_BA_MO = "333";
 this.MMI_SC_BA_MT = "353";
 
+this.MMI_SC_TO_CB_FACILITY = {};
+
+MMI_SC_TO_CB_FACILITY[MMI_SC_BAOC] = ICC_CB_FACILITY_BAOC;
+MMI_SC_TO_CB_FACILITY[MMI_SC_BAOIC] = ICC_CB_FACILITY_BAOIC;
+MMI_SC_TO_CB_FACILITY[MMI_SC_BAOICxH] = ICC_CB_FACILITY_BAOICxH;
+MMI_SC_TO_CB_FACILITY[MMI_SC_BAIC] = ICC_CB_FACILITY_BAIC;
+MMI_SC_TO_CB_FACILITY[MMI_SC_BAICr] = ICC_CB_FACILITY_BAICr;
+MMI_SC_TO_CB_FACILITY[MMI_SC_BA_ALL] = ICC_CB_FACILITY_BA_ALL;
+MMI_SC_TO_CB_FACILITY[MMI_SC_BA_MO] = ICC_CB_FACILITY_BA_MO;
+MMI_SC_TO_CB_FACILITY[MMI_SC_BA_MT] = ICC_CB_FACILITY_BA_MT;
+
+// MMI service code key strings.
+this.MMI_KS_SC_CALL_BARRING = "scCallBarring";
+this.MMI_KS_SC_CALL_FORWARDING = "scCallForwarding";
+this.MMI_KS_SC_CLIP = "scClip";
+this.MMI_KS_SC_CLIR = "scClir";
+this.MMI_KS_SC_PWD = "scPwd";
+this.MMI_KS_SC_CALL_WAITING = "scCallWaiting";
+this.MMI_KS_SC_PIN = "scPin";
+this.MMI_KS_SC_PIN2 = "scPin2";
+this.MMI_KS_SC_PUK = "scPuk";
+this.MMI_KS_SC_PUK2 = "scPuk2";
+this.MMI_KS_SC_CHANGE_PASSWORD = "scChangePassword";
+this.MMI_KS_SC_IMEI = "scImei";
+this.MMI_KS_SC_USSD = "scUssd";
+this.MMI_KS_SC_CALL = "scCall";
+
+// MMI error messages key strings.
+this.MMI_ERROR_KS_ERROR = "emMmiError";
+this.MMI_ERROR_KS_NOT_SUPPORTED = "emMmiErrorNotSupported";
+this.MMI_ERROR_KS_INVALID_ACTION = "emMmiErrorInvalidAction";
+this.MMI_ERROR_KS_MISMATCH_PIN = "emMmiErrorMismatchPin";
+this.MMI_ERROR_KS_MISMATCH_PASSWORD = "emMmiErrorMismatchPassword";
+this.MMI_ERROR_KS_BAD_PIN = "emMmiErrorBadPin";
+this.MMI_ERROR_KS_BAD_PUK = "emMmiErrorBadPuk";
+this.MMI_ERROR_KS_INVALID_PIN = "emMmiErrorInvalidPin";
+this.MMI_ERROR_KS_INVALID_PASSWORD = "emMmiErrorInvalidPassword";
+this.MMI_ERROR_KS_NEEDS_PUK = "emMmiErrorNeedsPuk";
+this.MMI_ERROR_KS_SIM_BLOCKED = "emMmiErrorSimBlocked";
+
+// MMI status message.
+this.MMI_SM_KS_PASSWORD_CHANGED = "smPasswordChanged";
+this.MMI_SM_KS_PIN_CHANGED = "smPinChanged";
+this.MMI_SM_KS_PIN2_CHANGED = "smPin2Changed";
+this.MMI_SM_KS_PIN_UNBLOCKED = "smPinUnblocked";
+this.MMI_SM_KS_PIN2_UNBLOCKED = "smPin2Unblocked";
+this.MMI_SM_KS_SERVICE_ENABLED = "smServiceEnabled";
+this.MMI_SM_KS_SERVICE_ENABLED_FOR = "smServiceEnabledFor";
+this.MMI_SM_KS_SERVICE_DISABLED = "smServiceDisabled";
+this.MMI_SM_KS_SERVICE_REGISTERED = "smServiceRegistered";
+this.MMI_SM_KS_SERVICE_ERASED = "smServiceErased";
+this.MMI_SM_KS_SERVICE_INTERROGATED = "smServiceInterrogated";
+this.MMI_SM_KS_SERVICE_NOT_PROVISIONED = "smServiceNotProvisioned";
+this.MMI_SM_KS_CLIR_PERMANENT = "smClirPermanent";
+this.MMI_SM_KS_CLIR_DEFAULT_ON_NEXT_CALL_ON = "smClirDefaultOnNextCallOn";
+this.MMI_SM_KS_CLIR_DEFAULT_ON_NEXT_CALL_OFF = "smClirDefaultOnNextCallOff";
+this.MMI_SM_KS_CLIR_DEFAULT_OFF_NEXT_CALL_ON = "smClirDefaultOffNextCallOn";
+this.MMI_SM_KS_CLIR_DEFAULT_OFF_NEXT_CALL_OFF = "smClirDefaultOffNextCallOff";
+this.MMI_SM_KS_CALL_CONTROL = "smCallControl";
+
+// MMI Service class
+this.MMI_KS_SERVICE_CLASS_VOICE = "serviceClassVoice";
+this.MMI_KS_SERVICE_CLASS_DATA = "serviceClassData";
+this.MMI_KS_SERVICE_CLASS_FAX = "serviceClassFax";
+this.MMI_KS_SERVICE_CLASS_SMS = "serviceClassSms";
+this.MMI_KS_SERVICE_CLASS_DATA_SYNC = "serviceClassDataSync";
+this.MMI_KS_SERVICE_CLASS_DATA_ASYNC = "serviceClassDataAsync";
+this.MMI_KS_SERVICE_CLASS_PACKET = "serviceClassPacket";
+this.MMI_KS_SERVICE_CLASS_PAD = "serviceClassPad";
+
+this.MMI_KS_SERVICE_CLASS_MAPPING = {};
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_VOICE] = MMI_KS_SERVICE_CLASS_VOICE;
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_DATA] = MMI_KS_SERVICE_CLASS_DATA;
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_FAX] = MMI_KS_SERVICE_CLASS_FAX;
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_SMS] = MMI_KS_SERVICE_CLASS_SMS;
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_DATA_SYNC] = MMI_KS_SERVICE_CLASS_DATA_SYNC;
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_DATA_ASYNC] = MMI_KS_SERVICE_CLASS_DATA_ASYNC;
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_PACKET] = MMI_KS_SERVICE_CLASS_PACKET;
+MMI_KS_SERVICE_CLASS_MAPPING[ICC_SERVICE_CLASS_PAD] = MMI_KS_SERVICE_CLASS_PAD;
 /**
  * CDMA PDU constants
  */
@@ -2500,9 +3126,10 @@ this.PDU_CDMA_MSG_TYPE_BROADCAST = 0x01;  // Broadcast
 this.PDU_CDMA_MSG_TYPE_ACK = 0x02;        // Acknowledge
 
 // SMS Teleservice Identitifier, as defined in 3GPP2 N.S0005, Table 175
-this.PDU_CDMA_MSG_TELESERIVCIE_ID_SMS = 0x1002;   // SMS
-this.PDU_CDMA_MSG_TELESERIVCIE_ID_WEMT = 0x1005;  // Wireless Enhanced Messaging Teleservice
-                                                  // required for fragmented SMS
+this.PDU_CDMA_MSG_TELESERIVCIE_ID_SMS  = 0x1002;   // SMS
+this.PDU_CDMA_MSG_TELESERIVCIE_ID_WAP  = 0x1004;   // WAP
+this.PDU_CDMA_MSG_TELESERIVCIE_ID_WEMT = 0x1005;   // Wireless Enhanced Messaging Teleservice
+                                                   // required for fragmented SMS
 
 // SMS Service Category, as defined in 3GPP2 C.R1001-D, Table 9.3.1-1
 this.PDU_CDMA_MSG_CATEGORY_UNSPEC = 0x00; // Unknown/Unspecified
@@ -2538,21 +3165,219 @@ this.PDU_CDMA_MSG_CODING_7BITS_GSM = 0x09;    // GSM 7-bit default alphabet(7-bi
 this.PDU_CDMA_MSG_CODING_GSM_DCS = 0x0A;      // GSM Data-Coding-Scheme, Not supported
 
 // SMS Message Type, as defined in 3GPP2 C.S0015-A v2.0, Table 4.5.1-1
-this.PDU_CDMA_MSG_TYPE_DELIVER = 0x01;        // Receive
-this.PDU_CDMA_MSG_TYPE_SUBMIT = 0x02;         // Send
+this.PDU_CDMA_MSG_TYPE_DELIVER     = 0x01;         // Deliver
+this.PDU_CDMA_MSG_TYPE_SUBMIT      = 0x02;         // Submit
+this.PDU_CDMA_MSG_TYPE_DELIVER_ACK = 0x04;         // Delivery Acknowledgment
 
 // SMS User Data Subparameters, as defined in 3GPP2 C.S0015-A v2.0, Table 4.5-1
-this.PDU_CDMA_MSG_USERDATA_MSG_ID = 0x00;           // Message Identifier
-this.PDU_CDMA_MSG_USERDATA_BODY = 0x01;             // User Data Body
-this.PDU_CDMA_MSG_USERDATA_TIMESTAMP = 0x03;        // Message Center Time Stamp
-this.PDU_CDMA_REPLY_OPTION = 0x0A;                  // Reply Option
+this.PDU_CDMA_MSG_USERDATA_MSG_ID          = 0x00;  // Message Identifier
+this.PDU_CDMA_MSG_USERDATA_BODY            = 0x01;  // User Data Body
+this.PDU_CDMA_MSG_USERDATA_TIMESTAMP       = 0x03;  // Message Center Time Stamp
+this.PDU_CDMA_MSG_USERDATA_REPLY_OPTION    = 0x0A;  // Reply Option
+this.PDU_CDMA_LANGUAGE_INDICATOR           = 0x0D;  // Language Indicator
 this.PDU_CDMA_MSG_USERDATA_CALLBACK_NUMBER = 0x0E;  // Callback Number
+this.PDU_CDMA_MSG_USER_DATA_MSG_STATUS     = 0x14;  // Message Status
+
+// CDMA Language Indicator: Language groups
+// see 3GPP2 C.R1001-F table 9.2-1
+this.CB_CDMA_LANG_GROUP = [
+  null, "en", "fr", "es", "ja", "ko", "zh", "he"
+];
 
 // IS-91 Message Type, as defined in TIA/EIA/IS-91-A, Table 9
 this.PDU_CDMA_MSG_CODING_IS_91_TYPE_VOICEMAIL_STATUS = 0x82;
 this.PDU_CDMA_MSG_CODING_IS_91_TYPE_SMS_FULL = 0x83;
 this.PDU_CDMA_MSG_CODING_IS_91_TYPE_CLI = 0x84;
 this.PDU_CDMA_MSG_CODING_IS_91_TYPE_SMS = 0x85;
+
+// Information Record Type, reference from ril.h
+this.PDU_CDMA_INFO_REC_TYPE_DISPLAY = 0;
+this.PDU_CDMA_INFO_REC_TYPE_CALLED_PARTY_NUMBER = 1;
+this.PDU_CDMA_INFO_REC_TYPE_CALLING_PARTY_NUMBER = 2;
+this.PDU_CDMA_INFO_REC_TYPE_CONNECTED_NUMBER =3;
+this.PDU_CDMA_INFO_REC_TYPE_SIGNAL = 4;
+this.PDU_CDMA_INFO_REC_TYPE_REDIRECTING_NUMBER = 5;
+this.PDU_CDMA_INFO_REC_TYPE_LINE_CONTROL = 6;
+this.PDU_CDMA_INFO_REC_TYPE_EXTENDED_DISPLAY = 7;
+this.PDU_CDMA_INFO_REC_TYPE_T53_CLIR = 8;
+this.PDU_CDMA_INFO_REC_TYPE_T53_RELEASE = 9;
+this.PDU_CDMA_INFO_REC_TYPE_T53_AUDIO_CONTROL = 10;
+
+// Display type of extended display of information record,
+// as defined in C.S0005-F v1.0, Table 3.7.5.16-2
+this.INFO_REC_EXTENDED_DISPLAY_BLANK = 0x80;
+this.INFO_REC_EXTENDED_DISPLAY_SKIP = 0x81;
+this.INFO_REC_EXTENDED_DISPLAY_CONTINATION = 0x82;
+this.INFO_REC_EXTENDED_DISPLAY_CALLED_ADDRESS = 0x83;
+this.INFO_REC_EXTENDED_DISPLAY_CAUSE = 0x84;
+this.INFO_REC_EXTENDED_DISPLAY_PROGRESS_INDICATOR = 0x85;
+this.INFO_REC_EXTENDED_DISPLAY_NOTIFICATION_INDICATOR = 0x86;
+this.INFO_REC_EXTENDED_DISPLAY_PROMPT = 0x87;
+this.INFO_REC_EXTENDED_DISPLAY_ACCUMULATED_DIGITS = 0x88;
+this.INFO_REC_EXTENDED_DISPLAY_STATUS = 0x89;
+this.INFO_REC_EXTENDED_DISPLAY_INBAND = 0x8A;
+this.INFO_REC_EXTENDED_DISPLAY_CALLING_ADDRESS = 0x8B;
+this.INFO_REC_EXTENDED_DISPLAY_REASON = 0x8C;
+this.INFO_REC_EXTENDED_DISPLAY_CALLING_PARTY_NAME = 0x8D;
+this.INFO_REC_EXTENDED_DISPLAY_CALLED_PARTY_NAME = 0x8E;
+this.INFO_REC_EXTENDED_DISPLAY_ORIGINAL_CALLED_NAME = 0x8F;
+this.INFO_REC_EXTENDED_DISPLAY_REDIRECT_NAME = 0x90;
+this.INFO_REC_EXTENDED_DISPLAY_CONNECTED_NAME = 0x91;
+this.INFO_REC_EXTENDED_DISPLAY_ORIGINATING_RESTRICTIONS = 0x92;
+this.INFO_REC_EXTENDED_DISPLAY_DATE_TIME_OF_DAY = 0x93;
+this.INFO_REC_EXTENDED_DISPLAY_CALL_APPEARANCE_ID = 0x94;
+this.INFO_REC_EXTENDED_DISPLAY_FEATURE_ADDRESS = 0x95;
+this.INFO_REC_EXTENDED_DISPLAY_REDIRECTION_NAME = 0x96;
+this.INFO_REC_EXTENDED_DISPLAY_REDIRECTION_NUMBER = 0x97;
+this.INFO_REC_EXTENDED_DISPLAY_REDIRECTING_NUMBER = 0x98;
+this.INFO_REC_EXTENDED_DISPLAY_ORIGINAL_CALLED_NUMBER = 0x99;
+this.INFO_REC_EXTENDED_DISPLAY_CONNECTED_NUMBER = 0x9A;
+this.INFO_REC_EXTENDED_DISPLAY_TEXT = 0x9B;
+
+/**
+ * The table for MCC/MNC which the length of MNC is 3.
+ *
+ * This table is built from below links.
+ * - http://www.itu.int/pub/T-SP-E.212B-2013
+ * - http://en.wikipedia.org/wiki/Mobile_Network_Code
+ */
+this.PLMN_HAVING_3DIGITS_MNC = {
+  // Puerto Rico.
+  "330":
+    ["110", // América Móvil
+     "120"  // PR Wireless
+    ],
+  // Trinidad and Tobago.
+  "374":
+    ["130", // Digicel Trinidad and Tobago Ltd.
+     "140"  // LaqTel Ltd.
+    ],
+  // India.
+  "405":
+    ["000", // Shyam Telelink Ltd.
+     "005", // Reliance, Delhi
+     "006", // Reliance, Gujarat
+     "007", // Reliance, Haryana
+     "009", // Reliance, J&K
+     "010", // Reliance, Karnataka
+     "011", // Reliance, Kerala
+     "012", // Reliance, Andhra Pradesh
+     "013", // Reliance, Maharashtr
+     "014", // Reliance, Madhya Pradesh
+     "018", // Reliance, Punjab
+     "020", // Reliance, Tamilnadu
+     "021", // Reliance, UP (East)
+     "022", // Reliance, UP (West)
+     "025", // TATA DOCOMO, Andhra Pradesh
+     "026", // TATA DOCOMO, Assam
+     "027", // TATA DOCOMO, Bihar
+     "028", // TATA DOCOMO, Chennai
+     "029", // TATA DOCOMO, Delhi
+     "030", // TATA DOCOMO, Gujarat
+     "031", // TATA DOCOMO, Haryana
+     "032", // TATA DOCOMO, Himachal Pradesh
+     "033", // Reliance, Bihar
+     "034", // TATA DOCOMO, Kamataka
+     "035", // TATA DOCOMO, Kerala
+     "036", // TATA DOCOMO, Kolkata
+     "037", // TATA DOCOMO, Maharashtra
+     "038", // TATA DOCOMO, Madhya Pradesh
+     "039", // TATA DOCOMO, Mumbai
+     "040", // Reliance, Chennai
+     "041", // TATA DOCOMO, Orissa
+     "042", // TATA DOCOMO, Punjab
+     "043", // TATA DOCOMO, Rajasthan
+     "044", // TATA DOCOMO, Tamilnadu
+     "045", // TATA DOCOMO, UP (East)
+     "046", // TATA DOCOMO, UP (West)
+     "047", // TATA DOCOMO, West Bengal
+     "750", // Vodafone IN, J&K
+     "751", // Vodafone IN, Assam
+     "752", // Vodafone IN, Bihar
+     "753", // Vodafone IN, Orissa
+     "754", // Vodafone IN, Himachal Pradesh
+     "755", // Vodafone IN, North East
+     "756", // Vodafone IN, Madhya Pradesh & Chhattisgarh
+     "799", // Idea, MUMBAI
+     "800", // Aircell, Delhi
+     "801", // Aircell, Andhra Pradesh
+     "802", // Aircell, Gujarat
+     "803", // Aircell, Kamataka
+     "804", // Aircell, Maharashtra
+     "805", // Aircell, Mumbai
+     "806", // Aircell, Rajasthan
+     "807", // Aircell, Haryana
+     "808", // Aircell, Madhya Pradesh
+     "809", // Aircell, Kerala
+     "810", // Aircell, Uttar Pradesh (East)
+     "811", // Aircell, Uttar Pradesh (West)
+     "812", // Aircell, Punjab
+     "818", // Uninor, Uttar Pradesh (West)
+     "819", // Uninor, Andhra Pradesh
+     "820", // Uninor, Karnataka
+     "821", // Uninor, Kerala
+     "822", // Uninor, Kolkata
+     "824", // Videocon, Assam
+     "827", // Videocon, Gujarat
+     "834", // Videocon, Madhya Pradesh
+     "840", // Jio, West Bengal
+     "844", // Uninor, Delhi & NCR
+     "845", // IDEA, Assam
+     "846", // IDEA, Jammu & Kashmir
+     "847", // IDEA, Karnataka
+     "848", // IDEA, Kolkata
+     "849", // IDEA, North East
+     "850", // IDEA, Orissa
+     "851", // IDEA, Punjab
+     "852", // IDEA, Tamil Nadu
+     "853", // IDEA, West Bengal
+     "854", // Jio, Andra Pradesh
+     "855", // Jio, Assam
+     "856", // Jio, Bihar
+     "857", // Jio, Gujarat
+     "858", // Jio, Haryana
+     "859", // Jio, Himachal Pradesh
+     "860", // Jio, Jammu Kashmir
+     "861", // Jio, Karnataka
+     "862", // Jio, Kerala
+     "863", // Jio, Madhyya Pradesh
+     "864", // Jio, Maharashtra
+     "865", // Jio, North East
+     "866", // Jio, Orissa
+     "867", // Jio, Punjab
+     "868", // Jio, Rajasthan
+     "869", // Jio, Tamil Nadu Chennai
+     "870", // Jio, Uttar Pradesh West
+     "871", // Jio, Uttar Pradesh East
+     "872", // Jio, Delhi
+     "873", // Jio, Kolkatta
+     "874", // Jio, Mumbai
+     "875", // Uninor, Assam
+     "880", // Uninor, West Bengal
+     "881", // S Tel, Assam
+     "908", // IDEA, Andhra Pradesh
+     "909", // IDEA, Delhi
+     "910", // IDEA, Haryana
+     "911", // Etisalat, Maharashtra
+     "912", // Etisalat, Andhra Pradesh
+     "913", // Etisalat, Delhi & NCR
+     "914", // Etisalat, Gujarat
+     "917", // Etisalat, Kerala
+     "927", // Uninor, Gujarat
+     "929"  // Uninor, Maharashtra
+    ],
+  // Malaysia.
+  "502":
+    ["150", // Tune Talk Sdn Bhd
+     "151", // Baraka Telecom Sdn Bhd (MVNE)
+     "152", // YTL Communications Sdn Bhd
+     "156"  // Altel Communications Sdn Bhd
+    ],
+  // Brazil.
+  "724":
+    ["055"  // Sercomtel
+    ]
+};
 
 /**
  * The table for MCC which the length of MNC is 3
@@ -2584,11 +3409,54 @@ this.MCC_TABLE_FOR_MNC_LENGTH_IS_3 = [
   "365",  // Anguilla
   "366",  // Dominica
   "376",  // Turks and Caicos Islands
-  "405",  // India
   "708",  // Honduras
   "722",  // Argentina
   "732",  // Colombia
   "750"   // Falkland Islands (Malvinas)
+];
+
+// Supplementary service notifications, code2, as defined in 3GPP 27.007 7.17
+this.SUPP_SVC_NOTIFICATION_CODE2_PUT_ON_HOLD = 2;
+this.SUPP_SVC_NOTIFICATION_CODE2_RETRIEVED = 3;
+
+this.GECKO_SUPP_SVC_NOTIFICATION_REMOTE_HELD    = "RemoteHeld";
+this.GECKO_SUPP_SVC_NOTIFICATION_REMOTE_RESUMED = "RemoteResumed";
+
+this.GECKO_SUPP_SVC_NOTIFICATION_FROM_CODE2 = {};
+GECKO_SUPP_SVC_NOTIFICATION_FROM_CODE2[SUPP_SVC_NOTIFICATION_CODE2_PUT_ON_HOLD] = GECKO_SUPP_SVC_NOTIFICATION_REMOTE_HELD;
+GECKO_SUPP_SVC_NOTIFICATION_FROM_CODE2[SUPP_SVC_NOTIFICATION_CODE2_RETRIEVED]   = GECKO_SUPP_SVC_NOTIFICATION_REMOTE_RESUMED;
+
+/**
+ * The status for an Over-the-Air Service Provisioning / Over-the-Air
+ * Parameter Administration (OTASP/OTAPA) session.
+ *
+ * @see 3GPP2 C.S0016
+ */
+this.GECKO_OTA_STATUS_SPL_UNLOCKED          = "spl_unlocked";
+this.GECKO_OTA_STATUS_SPC_RETRIES_EXCEEDED  = "spc_retries_exceeded";
+this.GECKO_OTA_STATUS_A_KEY_EXCHANGED       = "a_key_exchanged";
+this.GECKO_OTA_STATUS_SSD_UPDATED           = "ssd_updated";
+this.GECKO_OTA_STATUS_NAM_DOWNLOADED        = "nam_downloaded";
+this.GECKO_OTA_STATUS_MDN_DOWNLOADED        = "mdn_downloaded";
+this.GECKO_OTA_STATUS_IMSI_DOWNLOADED       = "imsi_downloaded";
+this.GECKO_OTA_STATUS_PRL_DOWNLOADED        = "prl_downloaded";
+this.GECKO_OTA_STATUS_COMMITTED             = "committed";
+this.GECKO_OTA_STATUS_OTAPA_STARTED         = "otapa_started";
+this.GECKO_OTA_STATUS_OTAPA_STOPPED         = "otapa_stopped";
+this.GECKO_OTA_STATUS_OTAPA_ABORTED         = "otapa_aborted";
+this.CDMA_OTA_PROVISION_STATUS_TO_GECKO = [
+  GECKO_OTA_STATUS_SPL_UNLOCKED,
+  GECKO_OTA_STATUS_SPC_RETRIES_EXCEEDED,
+  GECKO_OTA_STATUS_A_KEY_EXCHANGED,
+  GECKO_OTA_STATUS_SSD_UPDATED,
+  GECKO_OTA_STATUS_NAM_DOWNLOADED,
+  GECKO_OTA_STATUS_MDN_DOWNLOADED,
+  GECKO_OTA_STATUS_IMSI_DOWNLOADED,
+  GECKO_OTA_STATUS_PRL_DOWNLOADED,
+  GECKO_OTA_STATUS_COMMITTED,
+  GECKO_OTA_STATUS_OTAPA_STARTED,
+  GECKO_OTA_STATUS_OTAPA_STOPPED,
+  GECKO_OTA_STATUS_OTAPA_ABORTED
 ];
 
 // Allow this file to be imported via Components.utils.import().

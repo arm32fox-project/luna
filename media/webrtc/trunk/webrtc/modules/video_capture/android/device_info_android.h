@@ -12,8 +12,9 @@
 #define WEBRTC_MODULES_VIDEO_CAPTURE_MAIN_SOURCE_ANDROID_DEVICE_INFO_ANDROID_H_
 
 #include <jni.h>
-#include "../video_capture_impl.h"
-#include "../device_info_impl.h"
+
+#include "webrtc/modules/video_capture/device_info_impl.h"
+#include "webrtc/modules/video_capture/video_capture_impl.h"
 
 #define AndroidJavaCaptureDeviceInfoClass "org/webrtc/videoengine/VideoCaptureDeviceInfoAndroid"
 #define AndroidJavaCaptureCapabilityClass "org/webrtc/videoengine/CaptureCapabilityAndroid"
@@ -23,40 +24,48 @@ namespace webrtc
 namespace videocapturemodule
 {
 
-// Android logging, uncomment to print trace to
-// logcat instead of trace file/callback
-// #include <android/log.h>
-// #define WEBRTC_TRACE(a,b,c,...)
-// __android_log_print(ANDROID_LOG_DEBUG, "*WEBRTCN*", __VA_ARGS__)
-
 class DeviceInfoAndroid : public DeviceInfoImpl {
-
  public:
-  DeviceInfoAndroid(const WebRtc_Word32 id);
-  WebRtc_Word32 Init();
-  virtual ~DeviceInfoAndroid();
-  virtual WebRtc_UWord32 NumberOfDevices();
-  virtual WebRtc_Word32 GetDeviceName(
-      WebRtc_UWord32 deviceNumber,
-      char* deviceNameUTF8,
-      WebRtc_UWord32 deviceNameLength,
-      char* deviceUniqueIdUTF8,
-      WebRtc_UWord32 deviceUniqueIdUTF8Length,
-      char* productUniqueIdUTF8 = 0,
-      WebRtc_UWord32 productUniqueIdUTF8Length = 0);
-  virtual WebRtc_Word32 CreateCapabilityMap(const char* deviceUniqueIdUTF8);
+  static void Initialize(JNIEnv* env);
+  static void DeInitialize();
 
-  virtual WebRtc_Word32 DisplayCaptureSettingsDialogBox(
+  DeviceInfoAndroid(int32_t id);
+  virtual ~DeviceInfoAndroid();
+
+  // Set |*index| to the index of the camera matching |deviceUniqueIdUTF8|, or
+  // return false if no match.
+  bool FindCameraIndex(const char* deviceUniqueIdUTF8, size_t* index);
+
+  virtual int32_t Init();
+  virtual uint32_t NumberOfDevices();
+  virtual int32_t GetDeviceName(
+      uint32_t deviceNumber,
+      char* deviceNameUTF8,
+      uint32_t deviceNameLength,
+      char* deviceUniqueIdUTF8,
+      uint32_t deviceUniqueIdUTF8Length,
+      char* productUniqueIdUTF8 = 0,
+      uint32_t productUniqueIdUTF8Length = 0);
+  virtual int32_t CreateCapabilityMap(const char* deviceUniqueIdUTF8);
+
+  virtual int32_t DisplayCaptureSettingsDialogBox(
       const char* /*deviceUniqueIdUTF8*/,
       const char* /*dialogTitleUTF8*/,
       void* /*parentWindow*/,
-      WebRtc_UWord32 /*positionX*/,
-      WebRtc_UWord32 /*positionY*/) { return -1; }
-  virtual WebRtc_Word32 GetOrientation(const char* deviceUniqueIdUTF8,
-                                       VideoCaptureRotation& orientation);
+      uint32_t /*positionX*/,
+      uint32_t /*positionY*/) { return -1; }
+  virtual int32_t GetOrientation(const char* deviceUniqueIdUTF8,
+                                 VideoCaptureRotation& orientation);
+
+  // Populate |min_mfps| and |max_mfps| with the closest supported range of the
+  // device to |max_fps_to_match|.
+  void GetMFpsRange(const char* deviceUniqueIdUTF8,
+                    int max_fps_to_match,
+                    int* min_mfps,
+                    int* max_mfps);
+
  private:
-  bool IsDeviceNameMatches(const char* name, const char* deviceUniqueIdUTF8);
-  enum {_expectedCaptureDelay = 190};
+  enum { kExpectedCaptureDelay = 190};
 };
 
 }  // namespace videocapturemodule

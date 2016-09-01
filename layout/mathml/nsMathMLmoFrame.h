@@ -7,8 +7,8 @@
 #define nsMathMLmoFrame_h___
 
 #include "mozilla/Attributes.h"
-#include "nsCOMPtr.h"
 #include "nsMathMLTokenFrame.h"
+#include "nsMathMLChar.h"
 
 //
 // <mo> -- operator, fence, or separator
@@ -20,39 +20,49 @@ public:
 
   friend nsIFrame* NS_NewMathMLmoFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  virtual eMathMLFrameType GetMathMLFrameType() MOZ_OVERRIDE;
+  virtual eMathMLFrameType GetMathMLFrameType() override;
 
   virtual void
   SetAdditionalStyleContext(int32_t          aIndex, 
-                            nsStyleContext*  aStyleContext) MOZ_OVERRIDE;
+                            nsStyleContext*  aStyleContext) override;
   virtual nsStyleContext*
-  GetAdditionalStyleContext(int32_t aIndex) const MOZ_OVERRIDE;
+  GetAdditionalStyleContext(int32_t aIndex) const override;
 
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
+                                const nsDisplayListSet& aLists) override;
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent) override;
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE;
+  TransmitAutomaticData() override;
 
-  NS_IMETHOD
+  virtual void
+  SetInitialChildList(ChildListID     aListID,
+                      nsFrameList&    aChildList) override;
+
+  virtual void
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
-         nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+         nsReflowStatus&          aStatus) override;
 
-  virtual void MarkIntrinsicWidthsDirty() MOZ_OVERRIDE;
+  virtual nsresult
+  Place(nsRenderingContext& aRenderingContext,
+        bool                 aPlaceOrigin,
+        nsHTMLReflowMetrics& aDesiredSize) override;
 
-  virtual nscoord
-  GetIntrinsicWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual void MarkIntrinsicISizesDirty() override;
 
-  NS_IMETHOD
+  virtual void
+  GetIntrinsicISizeMetrics(nsRenderingContext* aRenderingContext,
+                           nsHTMLReflowMetrics& aDesiredSize) override;
+
+  virtual nsresult
   AttributeChanged(int32_t         aNameSpaceID,
                    nsIAtom*        aAttribute,
-                   int32_t         aModType) MOZ_OVERRIDE;
+                   int32_t         aModType) override;
 
   // This method is called by the parent frame to ask <mo> 
   // to stretch itself.
@@ -60,10 +70,17 @@ public:
   Stretch(nsRenderingContext& aRenderingContext,
           nsStretchDirection   aStretchDirection,
           nsBoundingMetrics&   aContainerSize,
-          nsHTMLReflowMetrics& aDesiredStretchSize) MOZ_OVERRIDE;
+          nsHTMLReflowMetrics& aDesiredStretchSize) override;
+
+  virtual nsresult
+  ChildListChanged(int32_t aModType) override
+  {
+    ProcessTextData();
+    return nsMathMLContainerFrame::ChildListChanged(aModType);
+  }
 
 protected:
-  nsMathMLmoFrame(nsStyleContext* aContext) : nsMathMLTokenFrame(aContext) {}
+  explicit nsMathMLmoFrame(nsStyleContext* aContext) : nsMathMLTokenFrame(aContext) {}
   virtual ~nsMathMLmoFrame();
   
   nsMathMLChar     mMathMLChar; // Here is the MathMLChar that will deal with the operator.
@@ -74,7 +91,7 @@ protected:
   bool UseMathMLChar();
 
   // overload the base method so that we can setup our nsMathMLChar
-  virtual void ProcessTextData() MOZ_OVERRIDE;
+  void ProcessTextData();
 
   // helper to get our 'form' and lookup in the Operator Dictionary to fetch 
   // our default data that may come from there, and to complete the setup

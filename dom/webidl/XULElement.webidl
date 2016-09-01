@@ -4,13 +4,13 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-interface MozBoxObject;
 interface MozControllers;
 interface MozFrameLoader;
 interface MozRDFCompositeDataSource;
 interface MozRDFResource;
 interface MozXULTemplateBuilder;
 
+[Func="IsChromeOrXBL"]
 interface XULElement : Element {
   [SetterThrows]
   attribute DOMString className;
@@ -94,7 +94,7 @@ interface XULElement : Element {
   [Throws]
   readonly attribute MozControllers             controllers;
   [Throws]
-  readonly attribute MozBoxObject?              boxObject;
+  readonly attribute BoxObject?                 boxObject;
 
   [Throws]
   void                      focus();
@@ -122,11 +122,14 @@ interface MozFrameLoaderOwner {
   [ChromeOnly]
   readonly attribute MozFrameLoader? frameLoader;
 
+  [ChromeOnly]
+  void setIsPrerendered();
+
   [ChromeOnly, Throws]
   void swapFrameLoaders(XULElement aOtherOwner);
 };
 
 XULElement implements GlobalEventHandlers;
-XULElement implements NodeEventHandlers;
 XULElement implements TouchEventHandlers;
 XULElement implements MozFrameLoaderOwner;
+XULElement implements OnErrorEventHandlerForNodes;

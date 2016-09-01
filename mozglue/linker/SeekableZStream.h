@@ -52,8 +52,8 @@ struct SeekableZStreamHeader: public Zip::SignedEntity<SeekableZStreamHeader>
 };
 #pragma pack()
 
-MOZ_STATIC_ASSERT(sizeof(SeekableZStreamHeader) == 5 * 4,
-                  "SeekableZStreamHeader should be 5 32-bits words");
+static_assert(sizeof(SeekableZStreamHeader) == 5 * 4,
+              "SeekableZStreamHeader should be 5 32-bits words");
 
 /**
  * Helper class used to decompress Seekable ZStreams.
@@ -139,6 +139,9 @@ private:
 
   /* Deflate dictionary */
   Array<unsigned char> dictionary;
+
+  /* Special allocator for inflate to use the same buffers for every chunk */
+  zxx_stream::StaticAllocator allocator;
 };
 
 inline void

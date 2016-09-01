@@ -8,7 +8,9 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "common_video/interface/i420_video_frame.h"
+#include "webrtc/common_video/interface/i420_video_frame.h"
+
+#include <string.h>
 
 #include <algorithm>  // swap
 
@@ -18,6 +20,7 @@ I420VideoFrame::I420VideoFrame()
     : width_(0),
       height_(0),
       timestamp_(0),
+      ntp_time_ms_(0),
       render_time_ms_(0) {}
 
 I420VideoFrame::~I420VideoFrame() {}
@@ -37,6 +40,7 @@ int I420VideoFrame::CreateEmptyFrame(int width, int height,
   v_plane_.CreateEmptyPlane(size_v, stride_v, size_v);
   // Creating empty frame - reset all values.
   timestamp_ = 0;
+  ntp_time_ms_ = 0;
   render_time_ms_ = 0;
   return 0;
 }
@@ -71,8 +75,18 @@ int I420VideoFrame::CopyFrame(const I420VideoFrame& videoFrame) {
   if (ret < 0)
     return ret;
   timestamp_ = videoFrame.timestamp_;
+  ntp_time_ms_ = videoFrame.ntp_time_ms_;
   render_time_ms_ = videoFrame.render_time_ms_;
   return 0;
+}
+
+I420VideoFrame* I420VideoFrame::CloneFrame() const {
+  scoped_ptr<I420VideoFrame> new_frame(new I420VideoFrame());
+  if (new_frame->CopyFrame(*this) == -1) {
+    // CopyFrame failed.
+    return NULL;
+  }
+  return new_frame.release();
 }
 
 void I420VideoFrame::SwapFrame(I420VideoFrame* videoFrame) {
@@ -82,6 +96,7 @@ void I420VideoFrame::SwapFrame(I420VideoFrame* videoFrame) {
   std::swap(width_, videoFrame->width_);
   std::swap(height_, videoFrame->height_);
   std::swap(timestamp_, videoFrame->timestamp_);
+  std::swap(ntp_time_ms_, videoFrame->ntp_time_ms_);
   std::swap(render_time_ms_, videoFrame->render_time_ms_);
 }
 
@@ -142,6 +157,8 @@ void I420VideoFrame::ResetSize() {
   v_plane_.ResetSize();
 }
 
+void* I420VideoFrame::native_handle() const { return NULL; }
+
 int I420VideoFrame::CheckDimensions(int width, int height,
                                     int stride_y, int stride_u, int stride_v) {
   int half_width = (width + 1) / 2;
@@ -178,6 +195,5 @@ Plane* I420VideoFrame::GetPlane(PlaneType type) {
   }
   return NULL;
 }
-
 
 }  // namespace webrtc

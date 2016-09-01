@@ -41,16 +41,7 @@ public:
 
   typedef enum {eIsPrinting, eIsPrintPreview } ePrintDataType;
 
-  // This enum tells indicates what the default should be for the title
-  // if the title from the document is null
-  enum eDocTitleDefault {
-    eDocTitleDefNone,
-    eDocTitleDefBlank,
-    eDocTitleDefURLDoc
-  };
-
-
-  nsPrintData(ePrintDataType aType);
+  explicit nsPrintData(ePrintDataType aType);
   ~nsPrintData(); // non-virtual
 
   // Listener Helper Methods
@@ -91,11 +82,11 @@ public:
   nsCOMPtr<nsIPrintSettings>  mPrintSettings;
   nsPrintPreviewListener*     mPPEventListeners;
 
-  PRUnichar*            mBrandName; //  needed as a substitute name for a document
+  char16_t*            mBrandName; //  needed as a substitute name for a document
 
 private:
-  nsPrintData() MOZ_DELETE;
-  nsPrintData& operator=(const nsPrintData& aOther) MOZ_DELETE;
+  nsPrintData() = delete;
+  nsPrintData& operator=(const nsPrintData& aOther) = delete;
 
 };
 

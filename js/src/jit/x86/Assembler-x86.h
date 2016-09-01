@@ -7,55 +7,61 @@
 #ifndef jit_x86_Assembler_x86_h
 #define jit_x86_Assembler_x86_h
 
-#include "jit/shared/Assembler-shared.h"
-#include "assembler/assembler/X86Assembler.h"
+#include "mozilla/ArrayUtils.h"
+
 #include "jit/CompactBuffer.h"
 #include "jit/IonCode.h"
-#include "mozilla/Util.h"
+#include "jit/JitCompartment.h"
+#include "jit/shared/Assembler-shared.h"
+#include "jit/shared/Constants-x86-shared.h"
 
 namespace js {
 namespace jit {
 
-static const MOZ_CONSTEXPR Register eax = { JSC::X86Registers::eax };
-static const MOZ_CONSTEXPR Register ecx = { JSC::X86Registers::ecx };
-static const MOZ_CONSTEXPR Register edx = { JSC::X86Registers::edx };
-static const MOZ_CONSTEXPR Register ebx = { JSC::X86Registers::ebx };
-static const MOZ_CONSTEXPR Register esp = { JSC::X86Registers::esp };
-static const MOZ_CONSTEXPR Register ebp = { JSC::X86Registers::ebp };
-static const MOZ_CONSTEXPR Register esi = { JSC::X86Registers::esi };
-static const MOZ_CONSTEXPR Register edi = { JSC::X86Registers::edi };
+static MOZ_CONSTEXPR_VAR Register eax = { X86Encoding::rax };
+static MOZ_CONSTEXPR_VAR Register ecx = { X86Encoding::rcx };
+static MOZ_CONSTEXPR_VAR Register edx = { X86Encoding::rdx };
+static MOZ_CONSTEXPR_VAR Register ebx = { X86Encoding::rbx };
+static MOZ_CONSTEXPR_VAR Register esp = { X86Encoding::rsp };
+static MOZ_CONSTEXPR_VAR Register ebp = { X86Encoding::rbp };
+static MOZ_CONSTEXPR_VAR Register esi = { X86Encoding::rsi };
+static MOZ_CONSTEXPR_VAR Register edi = { X86Encoding::rdi };
 
-static const MOZ_CONSTEXPR FloatRegister xmm0 = { JSC::X86Registers::xmm0 };
-static const MOZ_CONSTEXPR FloatRegister xmm1 = { JSC::X86Registers::xmm1 };
-static const MOZ_CONSTEXPR FloatRegister xmm2 = { JSC::X86Registers::xmm2 };
-static const MOZ_CONSTEXPR FloatRegister xmm3 = { JSC::X86Registers::xmm3 };
-static const MOZ_CONSTEXPR FloatRegister xmm4 = { JSC::X86Registers::xmm4 };
-static const MOZ_CONSTEXPR FloatRegister xmm5 = { JSC::X86Registers::xmm5 };
-static const MOZ_CONSTEXPR FloatRegister xmm6 = { JSC::X86Registers::xmm6 };
-static const MOZ_CONSTEXPR FloatRegister xmm7 = { JSC::X86Registers::xmm7 };
+static MOZ_CONSTEXPR_VAR FloatRegister xmm0 = { X86Encoding::xmm0 };
+static MOZ_CONSTEXPR_VAR FloatRegister xmm1 = { X86Encoding::xmm1 };
+static MOZ_CONSTEXPR_VAR FloatRegister xmm2 = { X86Encoding::xmm2 };
+static MOZ_CONSTEXPR_VAR FloatRegister xmm3 = { X86Encoding::xmm3 };
+static MOZ_CONSTEXPR_VAR FloatRegister xmm4 = { X86Encoding::xmm4 };
+static MOZ_CONSTEXPR_VAR FloatRegister xmm5 = { X86Encoding::xmm5 };
+static MOZ_CONSTEXPR_VAR FloatRegister xmm6 = { X86Encoding::xmm6 };
+static MOZ_CONSTEXPR_VAR FloatRegister xmm7 = { X86Encoding::xmm7 };
 
-static const MOZ_CONSTEXPR Register InvalidReg = { JSC::X86Registers::invalid_reg };
-static const MOZ_CONSTEXPR FloatRegister InvalidFloatReg = { JSC::X86Registers::invalid_xmm };
+static MOZ_CONSTEXPR_VAR Register InvalidReg = { X86Encoding::invalid_reg };
+static MOZ_CONSTEXPR_VAR FloatRegister InvalidFloatReg = { X86Encoding::invalid_xmm };
 
-static const MOZ_CONSTEXPR Register JSReturnReg_Type = ecx;
-static const MOZ_CONSTEXPR Register JSReturnReg_Data = edx;
-static const MOZ_CONSTEXPR Register StackPointer = esp;
-static const MOZ_CONSTEXPR Register FramePointer = ebp;
-static const MOZ_CONSTEXPR Register ReturnReg = eax;
-static const MOZ_CONSTEXPR FloatRegister ReturnFloatReg = xmm0;
-static const MOZ_CONSTEXPR FloatRegister ScratchFloatReg = xmm7;
+static MOZ_CONSTEXPR_VAR Register JSReturnReg_Type = ecx;
+static MOZ_CONSTEXPR_VAR Register JSReturnReg_Data = edx;
+static MOZ_CONSTEXPR_VAR Register StackPointer = esp;
+static MOZ_CONSTEXPR_VAR Register FramePointer = ebp;
+static MOZ_CONSTEXPR_VAR Register ReturnReg = eax;
+static MOZ_CONSTEXPR_VAR FloatRegister ReturnFloat32Reg = xmm0;
+static MOZ_CONSTEXPR_VAR FloatRegister ScratchFloat32Reg = xmm7;
+static MOZ_CONSTEXPR_VAR FloatRegister ReturnDoubleReg = xmm0;
+static MOZ_CONSTEXPR_VAR FloatRegister ScratchDoubleReg = xmm7;
+static MOZ_CONSTEXPR_VAR FloatRegister ReturnSimdReg = xmm0;
+static MOZ_CONSTEXPR_VAR FloatRegister ScratchSimdReg = xmm7;
 
-static const MOZ_CONSTEXPR Register ArgumentsRectifierReg = esi;
-static const MOZ_CONSTEXPR Register CallTempReg0 = edi;
-static const MOZ_CONSTEXPR Register CallTempReg1 = eax;
-static const MOZ_CONSTEXPR Register CallTempReg2 = ebx;
-static const MOZ_CONSTEXPR Register CallTempReg3 = ecx;
-static const MOZ_CONSTEXPR Register CallTempReg4 = esi;
-static const MOZ_CONSTEXPR Register CallTempReg5 = edx;
-static const MOZ_CONSTEXPR Register CallTempReg6 = ebp;
+// Avoid ebp, which is the FramePointer, which is unavailable in some modes.
+static MOZ_CONSTEXPR_VAR Register ArgumentsRectifierReg = esi;
+static MOZ_CONSTEXPR_VAR Register CallTempReg0 = edi;
+static MOZ_CONSTEXPR_VAR Register CallTempReg1 = eax;
+static MOZ_CONSTEXPR_VAR Register CallTempReg2 = ebx;
+static MOZ_CONSTEXPR_VAR Register CallTempReg3 = ecx;
+static MOZ_CONSTEXPR_VAR Register CallTempReg4 = esi;
+static MOZ_CONSTEXPR_VAR Register CallTempReg5 = edx;
 
 // We have no arg regs, so our NonArgRegs are just our CallTempReg*
-static const MOZ_CONSTEXPR Register CallTempNonArgRegs[] = { edi, eax, ebx, ecx, esi, edx };
+static MOZ_CONSTEXPR_VAR Register CallTempNonArgRegs[] = { edi, eax, ebx, ecx, esi, edx };
 static const uint32_t NumCallTempNonArgRegs =
     mozilla::ArrayLength(CallTempNonArgRegs);
 
@@ -67,30 +73,62 @@ class ABIArgGenerator
   public:
     ABIArgGenerator();
     ABIArg next(MIRType argType);
-    ABIArg &current() { return current_; }
+    ABIArg& current() { return current_; }
     uint32_t stackBytesConsumedSoFar() const { return stackOffset_; }
 
     // Note: these registers are all guaranteed to be different
-    static const Register NonArgReturnVolatileReg0;
-    static const Register NonArgReturnVolatileReg1;
+    static const Register NonArgReturnReg0;
+    static const Register NonArgReturnReg1;
     static const Register NonVolatileReg;
+    static const Register NonArg_VolatileReg;
+    static const Register NonReturn_VolatileReg0;
 };
 
-static const MOZ_CONSTEXPR Register OsrFrameReg = edx;
-static const MOZ_CONSTEXPR Register PreBarrierReg = edx;
+static MOZ_CONSTEXPR_VAR Register OsrFrameReg = edx;
+static MOZ_CONSTEXPR_VAR Register PreBarrierReg = edx;
 
-// GCC stack is aligned on 16 bytes, but we don't maintain the invariant in
-// jitted code.
+// Registers used in the GenerateFFIIonExit Enable Activation block.
+static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegCallee = ecx;
+static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegE0 = edi;
+static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegE1 = eax;
+static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegE2 = ebx;
+static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegE3 = edx;
+
+// Registers used in the GenerateFFIIonExit Disable Activation block.
+static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegReturnData = edx;
+static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegReturnType = ecx;
+static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegD0 = edi;
+static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegD1 = eax;
+static MOZ_CONSTEXPR_VAR Register AsmJSIonExitRegD2 = esi;
+
+// GCC stack is aligned on 16 bytes. Ion does not maintain this for internal
+// calls. asm.js code does.
 #if defined(__GNUC__)
-static const uint32_t StackAlignment = 16;
+static const uint32_t ABIStackAlignment = 16;
 #else
-static const uint32_t StackAlignment = 4;
+static const uint32_t ABIStackAlignment = 4;
 #endif
-static const bool StackKeptAligned = false;
-static const uint32_t CodeAlignment = 8;
-static const uint32_t NativeFrameSize = sizeof(void*);
-static const uint32_t AlignmentAtPrologue = sizeof(void*);
-static const uint32_t AlignmentMidPrologue = AlignmentAtPrologue;
+static const uint32_t CodeAlignment = 16;
+static const uint32_t JitStackAlignment = 16;
+
+// This boolean indicates whether we support SIMD instructions flavoured for
+// this architecture or not. Rather than a method in the LIRGenerator, it is
+// here such that it is accessible from the entire codebase. Once full support
+// for SIMD is reached on all tier-1 platforms, this constant can be deleted.
+static const bool SupportsSimd = true;
+static const uint32_t SimdMemoryAlignment = 16;
+
+static_assert(CodeAlignment % SimdMemoryAlignment == 0,
+  "Code alignment should be larger than any of the alignments which are used for "
+  "the constant sections of the code buffer.  Thus it should be larger than the "
+  "alignment for SIMD constants.");
+
+static_assert(JitStackAlignment % SimdMemoryAlignment == 0,
+  "Stack alignment should be larger than any of the alignments which are used for "
+  "spilled values.  Thus it should be larger than the alignment for SIMD accesses.");
+
+static const uint32_t AsmJSStackAlignment = SimdMemoryAlignment;
+
 struct ImmTag : public Imm32
 {
     ImmTag(JSValueTag mask)
@@ -107,108 +145,6 @@ struct ImmType : public ImmTag
 
 static const Scale ScalePointer = TimesFour;
 
-class Operand
-{
-  public:
-    enum Kind {
-        REG,
-        REG_DISP,
-        FPREG,
-        SCALE,
-        ADDRESS
-    };
-
-    Kind kind_ : 4;
-    int32_t index_ : 5;
-    Scale scale_ : 3;
-    int32_t base_;
-    int32_t disp_;
-
-  public:
-    explicit Operand(Register reg)
-      : kind_(REG),
-        base_(reg.code())
-    { }
-    explicit Operand(FloatRegister reg)
-      : kind_(FPREG),
-        base_(reg.code())
-    { }
-    explicit Operand(const Address &address)
-      : kind_(REG_DISP),
-        base_(address.base.code()),
-        disp_(address.offset)
-    { }
-    explicit Operand(const BaseIndex &address)
-      : kind_(SCALE),
-        index_(address.index.code()),
-        scale_(address.scale),
-        base_(address.base.code()),
-        disp_(address.offset)
-    { }
-    Operand(Register base, Register index, Scale scale, int32_t disp = 0)
-      : kind_(SCALE),
-        index_(index.code()),
-        scale_(scale),
-        base_(base.code()),
-        disp_(disp)
-    { }
-    Operand(Register reg, int32_t disp)
-      : kind_(REG_DISP),
-        base_(reg.code()),
-        disp_(disp)
-    { }
-    explicit Operand(const AbsoluteAddress &address)
-      : kind_(ADDRESS),
-        base_(reinterpret_cast<int32_t>(address.addr))
-    { }
-    explicit Operand(const void *address)
-      : kind_(ADDRESS),
-        base_(reinterpret_cast<int32_t>(address))
-    { }
-
-    Address toAddress() {
-        JS_ASSERT(kind() == REG_DISP);
-        return Address(Register::FromCode(base()), disp());
-    }
-
-    BaseIndex toBaseIndex() {
-        JS_ASSERT(kind() == SCALE);
-        return BaseIndex(Register::FromCode(base()), Register::FromCode(index()), scale(), disp());
-    }
-
-    Kind kind() const {
-        return kind_;
-    }
-    Registers::Code reg() const {
-        JS_ASSERT(kind() == REG);
-        return (Registers::Code)base_;
-    }
-    Registers::Code base() const {
-        JS_ASSERT(kind() == REG_DISP || kind() == SCALE);
-        return (Registers::Code)base_;
-    }
-    Registers::Code index() const {
-        JS_ASSERT(kind() == SCALE);
-        return (Registers::Code)index_;
-    }
-    Scale scale() const {
-        JS_ASSERT(kind() == SCALE);
-        return scale_;
-    }
-    FloatRegisters::Code fpu() const {
-        JS_ASSERT(kind() == FPREG);
-        return (FloatRegisters::Code)base_;
-    }
-    int32_t disp() const {
-        JS_ASSERT(kind() == REG_DISP || kind() == SCALE);
-        return disp_;
-    }
-    void *address() const {
-        JS_ASSERT(kind() == ADDRESS);
-        return reinterpret_cast<void *>(base_);
-    }
-};
-
 } // namespace jit
 } // namespace js
 
@@ -224,11 +160,16 @@ PatchJump(CodeLocationJump jump, CodeLocationLabel label)
     // Assert that we're overwriting a jump instruction, either:
     //   0F 80+cc <imm32>, or
     //   E9 <imm32>
-    unsigned char *x = (unsigned char *)jump.raw() - 5;
-    JS_ASSERT(((*x >= 0x80 && *x <= 0x8F) && *(x - 1) == 0x0F) ||
-              (*x == 0xE9));
+    unsigned char* x = (unsigned char*)jump.raw() - 5;
+    MOZ_ASSERT(((*x >= 0x80 && *x <= 0x8F) && *(x - 1) == 0x0F) ||
+               (*x == 0xE9));
 #endif
-    JSC::X86Assembler::setRel32(jump.raw(), label.raw());
+    X86Encoding::SetRel32(jump.raw(), label.raw());
+}
+static inline void
+PatchBackedge(CodeLocationJump& jump_, CodeLocationLabel label, JitRuntime::BackedgeTarget target)
+{
+    PatchJump(jump_, label);
 }
 
 // Return operand from a JS -> JS call.
@@ -239,9 +180,9 @@ class Assembler : public AssemblerX86Shared
     void writeRelocation(JmpSrc src) {
         jumpRelocations_.writeUnsigned(src.offset());
     }
-    void addPendingJump(JmpSrc src, void *target, Relocation::Kind kind) {
-        enoughMemory_ &= jumps_.append(RelativePatch(src.offset(), target, kind));
-        if (kind == Relocation::IONCODE)
+    void addPendingJump(JmpSrc src, ImmPtr target, Relocation::Kind kind) {
+        enoughMemory_ &= jumps_.append(RelativePatch(src.offset(), target.value, kind));
+        if (kind == Relocation::JITCODE)
             writeRelocation(src);
     }
 
@@ -249,178 +190,242 @@ class Assembler : public AssemblerX86Shared
     using AssemblerX86Shared::movl;
     using AssemblerX86Shared::j;
     using AssemblerX86Shared::jmp;
-    using AssemblerX86Shared::movsd;
+    using AssemblerX86Shared::vmovsd;
+    using AssemblerX86Shared::vmovss;
     using AssemblerX86Shared::retarget;
     using AssemblerX86Shared::cmpl;
     using AssemblerX86Shared::call;
     using AssemblerX86Shared::push;
+    using AssemblerX86Shared::pop;
 
-    static void TraceJumpRelocations(JSTracer *trc, IonCode *code, CompactBufferReader &reader);
+    static void TraceJumpRelocations(JSTracer* trc, JitCode* code, CompactBufferReader& reader);
 
     // Copy the assembly code to the given buffer, and perform any pending
     // relocations relying on the target address.
-    void executableCopy(uint8_t *buffer);
+    void executableCopy(uint8_t* buffer);
 
     // Actual assembly emitting functions.
 
-    void push(const ImmGCPtr &ptr) {
-        push(Imm32(ptr.value));
+    void push(ImmGCPtr ptr) {
+        masm.push_i32(int32_t(ptr.value));
         writeDataRelocation(ptr);
+    }
+    void push(ImmMaybeNurseryPtr ptr) {
+        push(noteMaybeNurseryPtr(ptr));
     }
     void push(const ImmWord imm) {
         push(Imm32(imm.value));
     }
-    void push(const FloatRegister &src) {
+    void push(const ImmPtr imm) {
+        push(ImmWord(uintptr_t(imm.value)));
+    }
+    void push(FloatRegister src) {
         subl(Imm32(sizeof(double)), StackPointer);
-        movsd(src, Operand(StackPointer, 0));
+        vmovsd(src, Address(StackPointer, 0));
     }
 
-    CodeOffsetLabel pushWithPatch(const ImmWord &word) {
-        push(Imm32(word.value));
-        return masm.currentOffset();
+    CodeOffsetLabel pushWithPatch(ImmWord word) {
+        masm.push_i32(int32_t(word.value));
+        return CodeOffsetLabel(masm.currentOffset());
     }
 
-    CodeOffsetLabel movWithPatch(const ImmWord &word, const Register &dest) {
+    void pop(FloatRegister src) {
+        vmovsd(Address(StackPointer, 0), src);
+        addl(Imm32(sizeof(double)), StackPointer);
+    }
+
+    CodeOffsetLabel movWithPatch(ImmWord word, Register dest) {
         movl(Imm32(word.value), dest);
-        return masm.currentOffset();
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel movWithPatch(ImmPtr imm, Register dest) {
+        return movWithPatch(ImmWord(uintptr_t(imm.value)), dest);
     }
 
-    void movl(const ImmGCPtr &ptr, const Register &dest) {
-        masm.movl_i32r(ptr.value, dest.code());
+    void movl(ImmGCPtr ptr, Register dest) {
+        masm.movl_i32r(uintptr_t(ptr.value), dest.code());
         writeDataRelocation(ptr);
     }
-    void movl(const ImmGCPtr &ptr, const Operand &dest) {
+    void movl(ImmGCPtr ptr, const Operand& dest) {
         switch (dest.kind()) {
           case Operand::REG:
-            masm.movl_i32r(ptr.value, dest.reg());
+            masm.movl_i32r(uintptr_t(ptr.value), dest.reg());
             writeDataRelocation(ptr);
             break;
-          case Operand::REG_DISP:
-            masm.movl_i32m(ptr.value, dest.disp(), dest.base());
+          case Operand::MEM_REG_DISP:
+            masm.movl_i32m(uintptr_t(ptr.value), dest.disp(), dest.base());
             writeDataRelocation(ptr);
             break;
-          case Operand::SCALE:
-            masm.movl_i32m(ptr.value, dest.disp(), dest.base(), dest.index(), dest.scale());
+          case Operand::MEM_SCALE:
+            masm.movl_i32m(uintptr_t(ptr.value), dest.disp(), dest.base(), dest.index(), dest.scale());
             writeDataRelocation(ptr);
             break;
           default:
-            JS_NOT_REACHED("unexpected operand kind");
+            MOZ_CRASH("unexpected operand kind");
         }
     }
     void movl(ImmWord imm, Register dest) {
         masm.movl_i32r(imm.value, dest.code());
     }
+    void movl(ImmPtr imm, Register dest) {
+        movl(ImmWord(uintptr_t(imm.value)), dest);
+    }
     void mov(ImmWord imm, Register dest) {
-        movl(imm, dest);
+        // Use xor for setting registers to zero, as it is specially optimized
+        // for this purpose on modern hardware. Note that it does clobber FLAGS
+        // though.
+        if (imm.value == 0)
+            xorl(dest, dest);
+        else
+            movl(imm, dest);
     }
-    void mov(Imm32 imm, Register dest) {
-        movl(imm, dest);
+    void mov(ImmPtr imm, Register dest) {
+        mov(ImmWord(uintptr_t(imm.value)), dest);
     }
-    void mov(const Operand &src, const Register &dest) {
+    void mov(AsmJSImmPtr imm, Register dest) {
+        masm.movl_i32r(-1, dest.code());
+        append(AsmJSAbsoluteLink(CodeOffsetLabel(masm.currentOffset()), imm.kind()));
+    }
+    void mov(const Operand& src, Register dest) {
         movl(src, dest);
     }
-    void mov(const Register &src, const Operand &dest) {
+    void mov(Register src, const Operand& dest) {
         movl(src, dest);
     }
-    void mov(Imm32 imm, const Operand &dest) {
+    void mov(Imm32 imm, const Operand& dest) {
         movl(imm, dest);
     }
-    void mov(AbsoluteLabel *label, const Register &dest) {
-        JS_ASSERT(!label->bound());
+    void mov(AbsoluteLabel* label, Register dest) {
+        MOZ_ASSERT(!label->bound());
         // Thread the patch list through the unpatched address word in the
         // instruction stream.
         masm.movl_i32r(label->prev(), dest.code());
         label->setPrev(masm.size());
     }
-    void mov(const Register &src, const Register &dest) {
+    void mov(Register src, Register dest) {
         movl(src, dest);
     }
-    void lea(const Operand &src, const Register &dest) {
+    void xchg(Register src, Register dest) {
+        xchgl(src, dest);
+    }
+    void lea(const Operand& src, Register dest) {
         return leal(src, dest);
     }
 
-    void cmpl(const Register src, ImmWord ptr) {
-        masm.cmpl_ir(ptr.value, src.code());
-    }
-    void cmpl(const Register src, ImmGCPtr ptr) {
-        masm.cmpl_ir(ptr.value, src.code());
-        writeDataRelocation(ptr);
-    }
-    void cmpl(const Register &lhs, const Register &rhs) {
-        masm.cmpl_rr(rhs.code(), lhs.code());
-    }
-    void cmpl(const Operand &op, ImmGCPtr imm) {
-        switch (op.kind()) {
-          case Operand::REG:
-            masm.cmpl_ir_force32(imm.value, op.reg());
-            writeDataRelocation(imm);
-            break;
-          case Operand::REG_DISP:
-            masm.cmpl_im_force32(imm.value, op.disp(), op.base());
-            writeDataRelocation(imm);
-            break;
-          case Operand::ADDRESS:
-            masm.cmpl_im(imm.value, op.address());
-            writeDataRelocation(imm);
+    void fld32(const Operand& dest) {
+        switch (dest.kind()) {
+          case Operand::MEM_REG_DISP:
+            masm.fld32_m(dest.disp(), dest.base());
             break;
           default:
-            JS_NOT_REACHED("unexpected operand kind");
+            MOZ_CRASH("unexpected operand kind");
         }
     }
-    CodeOffsetLabel cmplWithPatch(const Register &lhs, Imm32 rhs) {
-        masm.cmpl_ir_force32(rhs.value, lhs.code());
-        return masm.currentOffset();
+
+    void fstp32(const Operand& src) {
+        switch (src.kind()) {
+          case Operand::MEM_REG_DISP:
+            masm.fstp32_m(src.disp(), src.base());
+            break;
+          default:
+            MOZ_CRASH("unexpected operand kind");
+        }
     }
 
-    void jmp(void *target, Relocation::Kind reloc = Relocation::HARDCODED) {
+    void cmpl(ImmWord rhs, Register lhs) {
+        masm.cmpl_ir(rhs.value, lhs.code());
+    }
+    void cmpl(ImmPtr rhs, Register lhs) {
+        cmpl(ImmWord(uintptr_t(rhs.value)), lhs);
+    }
+    void cmpl(ImmGCPtr rhs, Register lhs) {
+        masm.cmpl_i32r(uintptr_t(rhs.value), lhs.code());
+        writeDataRelocation(rhs);
+    }
+    void cmpl(Register rhs, Register lhs) {
+        masm.cmpl_rr(rhs.code(), lhs.code());
+    }
+    void cmpl(ImmGCPtr rhs, const Operand& lhs) {
+        switch (lhs.kind()) {
+          case Operand::REG:
+            masm.cmpl_i32r(uintptr_t(rhs.value), lhs.reg());
+            writeDataRelocation(rhs);
+            break;
+          case Operand::MEM_REG_DISP:
+            masm.cmpl_i32m(uintptr_t(rhs.value), lhs.disp(), lhs.base());
+            writeDataRelocation(rhs);
+            break;
+          case Operand::MEM_ADDRESS32:
+            masm.cmpl_i32m(uintptr_t(rhs.value), lhs.address());
+            writeDataRelocation(rhs);
+            break;
+          default:
+            MOZ_CRASH("unexpected operand kind");
+        }
+    }
+    void cmpl(ImmMaybeNurseryPtr rhs, const Operand& lhs) {
+        cmpl(noteMaybeNurseryPtr(rhs), lhs);
+    }
+    void cmpl(Register rhs, AsmJSAbsoluteAddress lhs) {
+        masm.cmpl_rm_disp32(rhs.code(), (void*)-1);
+        append(AsmJSAbsoluteLink(CodeOffsetLabel(masm.currentOffset()), lhs.kind()));
+    }
+    void cmpl(Imm32 rhs, AsmJSAbsoluteAddress lhs) {
+        JmpSrc src = masm.cmpl_im_disp32(rhs.value, (void*)-1);
+        append(AsmJSAbsoluteLink(CodeOffsetLabel(src.offset()), lhs.kind()));
+    }
+
+    void jmp(ImmPtr target, Relocation::Kind reloc = Relocation::HARDCODED) {
         JmpSrc src = masm.jmp();
         addPendingJump(src, target, reloc);
     }
-    void j(Condition cond, void *target,
+    void j(Condition cond, ImmPtr target,
            Relocation::Kind reloc = Relocation::HARDCODED) {
-        JmpSrc src = masm.jCC(static_cast<JSC::X86Assembler::Condition>(cond));
+        JmpSrc src = masm.jCC(static_cast<X86Encoding::Condition>(cond));
         addPendingJump(src, target, reloc);
     }
 
-    void jmp(IonCode *target) {
-        jmp(target->raw(), Relocation::IONCODE);
+    void jmp(JitCode* target) {
+        jmp(ImmPtr(target->raw()), Relocation::JITCODE);
     }
-    void j(Condition cond, IonCode *target) {
-        j(cond, target->raw(), Relocation::IONCODE);
+    void j(Condition cond, JitCode* target) {
+        j(cond, ImmPtr(target->raw()), Relocation::JITCODE);
     }
-    void call(IonCode *target) {
+    void call(JitCode* target) {
         JmpSrc src = masm.call();
-        addPendingJump(src, target->raw(), Relocation::IONCODE);
+        addPendingJump(src, ImmPtr(target->raw()), Relocation::JITCODE);
     }
     void call(ImmWord target) {
+        call(ImmPtr((void*)target.value));
+    }
+    void call(ImmPtr target) {
         JmpSrc src = masm.call();
-        addPendingJump(src, target.asPointer(), Relocation::HARDCODED);
+        addPendingJump(src, target, Relocation::HARDCODED);
     }
 
     // Emit a CALL or CMP (nop) instruction. ToggleCall can be used to patch
     // this instruction.
-    CodeOffsetLabel toggledCall(IonCode *target, bool enabled) {
+    CodeOffsetLabel toggledCall(JitCode* target, bool enabled) {
         CodeOffsetLabel offset(size());
         JmpSrc src = enabled ? masm.call() : masm.cmp_eax();
-        addPendingJump(src, target->raw(), Relocation::IONCODE);
-        JS_ASSERT(size() - offset.offset() == ToggledCallSize());
+        addPendingJump(src, ImmPtr(target->raw()), Relocation::JITCODE);
+        MOZ_ASSERT(size() - offset.offset() == ToggledCallSize(nullptr));
         return offset;
     }
 
-    static size_t ToggledCallSize() {
+    static size_t ToggledCallSize(uint8_t* code) {
         // Size of a call instruction.
         return 5;
     }
 
     // Re-routes pending jumps to an external target, flushing the label in the
     // process.
-    void retarget(Label *label, void *target, Relocation::Kind reloc) {
-        JSC::MacroAssembler::Label jsclabel;
+    void retarget(Label* label, ImmPtr target, Relocation::Kind reloc) {
         if (label->used()) {
             bool more;
-            JSC::X86Assembler::JmpSrc jmp(label->offset());
+            X86Encoding::JmpSrc jmp(label->offset());
             do {
-                JSC::X86Assembler::JmpSrc next;
+                X86Encoding::JmpSrc next;
                 more = masm.nextJump(jmp, &next);
                 addPendingJump(jmp, target, reloc);
                 jmp = next;
@@ -429,100 +434,243 @@ class Assembler : public AssemblerX86Shared
         label->reset();
     }
 
-    void movsd(const double *dp, const FloatRegister &dest) {
-        JS_ASSERT(HasSSE2());
-        masm.movsd_mr((const void *)dp, dest.code());
-    }
-
     // Move a 32-bit immediate into a register where the immediate can be
     // patched.
     CodeOffsetLabel movlWithPatch(Imm32 imm, Register dest) {
         masm.movl_i32r(imm.value, dest.code());
-        return masm.currentOffset();
-    }
-
-    // Load from *addr where addr can be patched.
-    CodeOffsetLabel movlWithPatch(void *addr, Register dest) {
-        masm.movl_mr(addr, dest.code());
-        return masm.currentOffset();
-    }
-    CodeOffsetLabel movsdWithPatch(void *addr, FloatRegister dest) {
-        JS_ASSERT(HasSSE2());
-        masm.movsd_mr(addr, dest.code());
-        return masm.currentOffset();
-    }
-
-    // Store to *addr where addr can be patched
-    CodeOffsetLabel movlWithPatch(Register src, void *addr) {
-        masm.movl_rm(src.code(), addr);
-        return masm.currentOffset();
-    }
-    CodeOffsetLabel movsdWithPatch(FloatRegister dest, void *addr) {
-        JS_ASSERT(HasSSE2());
-        masm.movsd_rm(dest.code(), addr);
-        return masm.currentOffset();
+        return CodeOffsetLabel(masm.currentOffset());
     }
 
     // Load from *(base + disp32) where disp32 can be patched.
-    CodeOffsetLabel movxblWithPatch(Address src, Register dest) {
-        masm.movxbl_mr_disp32(src.offset, src.base.code(), dest.code());
-        return masm.currentOffset();
+    CodeOffsetLabel movsblWithPatch(Address src, Register dest) {
+        masm.movsbl_mr_disp32(src.offset, src.base.code(), dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
     }
     CodeOffsetLabel movzblWithPatch(Address src, Register dest) {
         masm.movzbl_mr_disp32(src.offset, src.base.code(), dest.code());
-        return masm.currentOffset();
+        return CodeOffsetLabel(masm.currentOffset());
     }
-    CodeOffsetLabel movxwlWithPatch(Address src, Register dest) {
-        masm.movxwl_mr_disp32(src.offset, src.base.code(), dest.code());
-        return masm.currentOffset();
+    CodeOffsetLabel movswlWithPatch(Address src, Register dest) {
+        masm.movswl_mr_disp32(src.offset, src.base.code(), dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
     }
     CodeOffsetLabel movzwlWithPatch(Address src, Register dest) {
         masm.movzwl_mr_disp32(src.offset, src.base.code(), dest.code());
-        return masm.currentOffset();
+        return CodeOffsetLabel(masm.currentOffset());
     }
     CodeOffsetLabel movlWithPatch(Address src, Register dest) {
         masm.movl_mr_disp32(src.offset, src.base.code(), dest.code());
-        return masm.currentOffset();
+        return CodeOffsetLabel(masm.currentOffset());
     }
-    CodeOffsetLabel movssWithPatch(Address src, FloatRegister dest) {
-        JS_ASSERT(HasSSE2());
-        masm.movss_mr_disp32(src.offset, src.base.code(), dest.code());
-        return masm.currentOffset();
+    CodeOffsetLabel vmovssWithPatch(Address src, FloatRegister dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovss_mr_disp32(src.offset, src.base.code(), dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
     }
-    CodeOffsetLabel movsdWithPatch(Address src, FloatRegister dest) {
-        JS_ASSERT(HasSSE2());
-        masm.movsd_mr_disp32(src.offset, src.base.code(), dest.code());
-        return masm.currentOffset();
+    CodeOffsetLabel vmovdWithPatch(Address src, FloatRegister dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovd_mr_disp32(src.offset, src.base.code(), dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovqWithPatch(Address src, FloatRegister dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovq_mr_disp32(src.offset, src.base.code(), dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovsdWithPatch(Address src, FloatRegister dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovsd_mr_disp32(src.offset, src.base.code(), dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovupsWithPatch(Address src, FloatRegister dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovups_mr_disp32(src.offset, src.base.code(), dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovdquWithPatch(Address src, FloatRegister dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovdqu_mr_disp32(src.offset, src.base.code(), dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
     }
 
     // Store to *(base + disp32) where disp32 can be patched.
     CodeOffsetLabel movbWithPatch(Register src, Address dest) {
         masm.movb_rm_disp32(src.code(), dest.offset, dest.base.code());
-        return masm.currentOffset();
+        return CodeOffsetLabel(masm.currentOffset());
     }
     CodeOffsetLabel movwWithPatch(Register src, Address dest) {
         masm.movw_rm_disp32(src.code(), dest.offset, dest.base.code());
-        return masm.currentOffset();
+        return CodeOffsetLabel(masm.currentOffset());
     }
     CodeOffsetLabel movlWithPatch(Register src, Address dest) {
         masm.movl_rm_disp32(src.code(), dest.offset, dest.base.code());
-        return masm.currentOffset();
+        return CodeOffsetLabel(masm.currentOffset());
     }
-    CodeOffsetLabel movssWithPatch(FloatRegister src, Address dest) {
-        JS_ASSERT(HasSSE2());
-        masm.movss_rm_disp32(src.code(), dest.offset, dest.base.code());
-        return masm.currentOffset();
+    CodeOffsetLabel vmovdWithPatch(FloatRegister src, Address dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovd_rm_disp32(src.code(), dest.offset, dest.base.code());
+        return CodeOffsetLabel(masm.currentOffset());
     }
-    CodeOffsetLabel movsdWithPatch(FloatRegister src, Address dest) {
-        JS_ASSERT(HasSSE2());
-        masm.movsd_rm_disp32(src.code(), dest.offset, dest.base.code());
-        return masm.currentOffset();
+    CodeOffsetLabel vmovqWithPatch(FloatRegister src, Address dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovq_rm_disp32(src.code(), dest.offset, dest.base.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovssWithPatch(FloatRegister src, Address dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovss_rm_disp32(src.code(), dest.offset, dest.base.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovsdWithPatch(FloatRegister src, Address dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovsd_rm_disp32(src.code(), dest.offset, dest.base.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovupsWithPatch(FloatRegister src, Address dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovups_rm_disp32(src.code(), dest.offset, dest.base.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovdquWithPatch(FloatRegister src, Address dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovdqu_rm_disp32(src.code(), dest.offset, dest.base.code());
+        return CodeOffsetLabel(masm.currentOffset());
     }
 
     // Load from *(addr + index*scale) where addr can be patched.
-    CodeOffsetLabel movlWithPatch(void *addr, Register index, Scale scale, Register dest) {
-        masm.movl_mr(addr, index.code(), scale, dest.code());
-        return masm.currentOffset();
+    CodeOffsetLabel movlWithPatch(PatchedAbsoluteAddress addr, Register index, Scale scale,
+                                  Register dest)
+    {
+        masm.movl_mr(addr.addr, index.code(), scale, dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+
+    // Load from *src where src can be patched.
+    CodeOffsetLabel movsblWithPatch(PatchedAbsoluteAddress src, Register dest) {
+        masm.movsbl_mr(src.addr, dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel movzblWithPatch(PatchedAbsoluteAddress src, Register dest) {
+        masm.movzbl_mr(src.addr, dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel movswlWithPatch(PatchedAbsoluteAddress src, Register dest) {
+        masm.movswl_mr(src.addr, dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel movzwlWithPatch(PatchedAbsoluteAddress src, Register dest) {
+        masm.movzwl_mr(src.addr, dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel movlWithPatch(PatchedAbsoluteAddress src, Register dest) {
+        masm.movl_mr(src.addr, dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovssWithPatch(PatchedAbsoluteAddress src, FloatRegister dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovss_mr(src.addr, dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovdWithPatch(PatchedAbsoluteAddress src, FloatRegister dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovd_mr(src.addr, dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovqWithPatch(PatchedAbsoluteAddress src, FloatRegister dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovq_mr(src.addr, dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovsdWithPatch(PatchedAbsoluteAddress src, FloatRegister dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovsd_mr(src.addr, dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovdqaWithPatch(PatchedAbsoluteAddress src, FloatRegister dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovdqa_mr(src.addr, dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovdquWithPatch(PatchedAbsoluteAddress src, FloatRegister dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovdqu_mr(src.addr, dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovapsWithPatch(PatchedAbsoluteAddress src, FloatRegister dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovaps_mr(src.addr, dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovupsWithPatch(PatchedAbsoluteAddress src, FloatRegister dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovups_mr(src.addr, dest.code());
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+
+    // Store to *dest where dest can be patched.
+    CodeOffsetLabel movbWithPatch(Register src, PatchedAbsoluteAddress dest) {
+        masm.movb_rm(src.code(), dest.addr);
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel movwWithPatch(Register src, PatchedAbsoluteAddress dest) {
+        masm.movw_rm(src.code(), dest.addr);
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel movlWithPatch(Register src, PatchedAbsoluteAddress dest) {
+        masm.movl_rm(src.code(), dest.addr);
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovssWithPatch(FloatRegister src, PatchedAbsoluteAddress dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovss_rm(src.code(), dest.addr);
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovdWithPatch(FloatRegister src, PatchedAbsoluteAddress dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovd_rm(src.code(), dest.addr);
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovqWithPatch(FloatRegister src, PatchedAbsoluteAddress dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovq_rm(src.code(), dest.addr);
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovsdWithPatch(FloatRegister src, PatchedAbsoluteAddress dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovsd_rm(src.code(), dest.addr);
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovdqaWithPatch(FloatRegister src, PatchedAbsoluteAddress dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovdqa_rm(src.code(), dest.addr);
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovapsWithPatch(FloatRegister src, PatchedAbsoluteAddress dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovaps_rm(src.code(), dest.addr);
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovdquWithPatch(FloatRegister src, PatchedAbsoluteAddress dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovdqu_rm(src.code(), dest.addr);
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+    CodeOffsetLabel vmovupsWithPatch(FloatRegister src, PatchedAbsoluteAddress dest) {
+        MOZ_ASSERT(HasSSE2());
+        masm.vmovups_rm(src.code(), dest.addr);
+        return CodeOffsetLabel(masm.currentOffset());
+    }
+
+    void loadAsmJSActivation(Register dest) {
+        CodeOffsetLabel label = movlWithPatch(PatchedAbsoluteAddress(), dest);
+        append(AsmJSGlobalAccess(label, AsmJSActivationGlobalDataOffset));
+    }
+    void loadAsmJSHeapRegisterFromGlobalData() {
+        // x86 doesn't have a pinned heap register.
+    }
+
+    static bool canUseInSingleByteInstruction(Register reg) {
+        return X86Encoding::HasSubregL(reg.code());
     }
 };
 
@@ -532,7 +680,7 @@ class Assembler : public AssemblerX86Shared
 // CallTempReg* don't overlap the argument registers, and only fail once those
 // run out too.
 static inline bool
-GetTempRegForIntArg(uint32_t usedIntArgs, uint32_t usedFloatArgs, Register *out)
+GetTempRegForIntArg(uint32_t usedIntArgs, uint32_t usedFloatArgs, Register* out)
 {
     if (usedIntArgs >= NumCallTempNonArgRegs)
         return false;

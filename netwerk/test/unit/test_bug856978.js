@@ -9,11 +9,8 @@
 // authorization header got added at all and if so it gets removed. This test
 // passes iff both succeeds.
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cr = Components.results;
-
 Components.utils.import("resource://testing-common/httpd.js");
+Components.utils.import("resource://gre/modules/Services.jsm");
 
 var notification = "http-on-modify-request";
 
@@ -101,7 +98,14 @@ var listener = {
 
 function makeChan(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-  var chan = ios.newChannel(url, null, null).QueryInterface(Ci.nsIHttpChannel);
+  var chan = ios.newChannel2(url,
+                             null,
+                             null,
+                             null,      // aLoadingNode
+                             Services.scriptSecurityManager.getSystemPrincipal(),
+                             null,      // aTriggeringPrincipal
+                             Ci.nsILoadInfo.SEC_NORMAL,
+                             Ci.nsIContentPolicy.TYPE_OTHER).QueryInterface(Ci.nsIHttpChannel);
   return chan;
 }
 

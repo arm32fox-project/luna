@@ -5,6 +5,8 @@
 
 package org.mozilla.goanna.gfx;
 
+import org.mozilla.goanna.mozglue.RobocopTarget;
+
 import android.os.SystemClock;
 import android.util.Log;
 
@@ -19,11 +21,11 @@ public class PanningPerfAPI {
     // to measure.
     private static final int EXPECTED_FRAME_COUNT = 2048;
 
-    private static boolean mRecordingFrames = false;
+    private static boolean mRecordingFrames;
     private static List<Long> mFrameTimes;
     private static long mFrameStartTime;
 
-    private static boolean mRecordingCheckerboard = false;
+    private static boolean mRecordingCheckerboard;
     private static List<Float> mCheckerboardAmounts;
     private static long mCheckerboardStartTime;
 
@@ -40,6 +42,7 @@ public class PanningPerfAPI {
         }
     }
 
+    @RobocopTarget
     public static void startFrameTimeRecording() {
         if (mRecordingFrames || mRecordingCheckerboard) {
             Log.e(LOGTAG, "Error: startFrameTimeRecording() called while already recording!");
@@ -50,6 +53,7 @@ public class PanningPerfAPI {
         mFrameStartTime = SystemClock.uptimeMillis();
     }
 
+    @RobocopTarget
     public static List<Long> stopFrameTimeRecording() {
         if (!mRecordingFrames) {
             Log.e(LOGTAG, "Error: stopFrameTimeRecording() called when not recording!");
@@ -70,6 +74,7 @@ public class PanningPerfAPI {
         return mRecordingCheckerboard;
     }
 
+    @RobocopTarget
     public static void startCheckerboardRecording() {
         if (mRecordingCheckerboard || mRecordingFrames) {
             Log.e(LOGTAG, "Error: startCheckerboardRecording() called while already recording!");
@@ -80,6 +85,7 @@ public class PanningPerfAPI {
         mCheckerboardStartTime = SystemClock.uptimeMillis();
     }
 
+    @RobocopTarget
     public static List<Float> stopCheckerboardRecording() {
         if (!mRecordingCheckerboard) {
             Log.e(LOGTAG, "Error: stopCheckerboardRecording() called when not recording!");

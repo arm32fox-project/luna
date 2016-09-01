@@ -17,9 +17,9 @@
 #include "nsObjCExceptions.h"
 #include "mozilla/Attributes.h"
 
-class nsOSXSystemProxySettings MOZ_FINAL : public nsISystemProxySettings {
+class nsOSXSystemProxySettings final : public nsISystemProxySettings {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSISYSTEMPROXYSETTINGS
 
   nsOSXSystemProxySettings();
@@ -58,7 +58,7 @@ private:
   static const SchemeMapping gSchemeMappingList[];
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsOSXSystemProxySettings, nsISystemProxySettings)
+NS_IMPL_ISUPPORTS(nsOSXSystemProxySettings, nsISystemProxySettings)
 
 NS_IMETHODIMP
 nsOSXSystemProxySettings::GetMainThreadOnly(bool *aMainThreadOnly)

@@ -168,8 +168,10 @@ function expandPermissions(aPerms) {
   var perms = [];
   aPerms.forEach(function(el) {
     var access = permTable[el].access ? "readwrite" : null;
-    var expanded = SpecialPowers.unwrap(expand(el, access));
-    perms = perms.concat(expanded.slice(0));
+    var expanded = expand(el, access);
+    for (let i = 0; i < expanded.length; i++) {
+      perms.push(SpecialPowers.unwrap(expanded[i]));
+    }
   });
 
   return perms;
@@ -212,7 +214,7 @@ function runTest() {
   for (var test in gData) {
     var test = new PermTest(gData[test]);
     test.start();
-    yield;
+    yield undefined;
   }
 }
 

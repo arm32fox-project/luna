@@ -8,15 +8,14 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "voe_hardware_impl.h"
+#include "webrtc/voice_engine/voe_hardware_impl.h"
 
-#include <cassert>
+#include <assert.h>
 
-#include "cpu_wrapper.h"
-#include "critical_section_wrapper.h"
-#include "trace.h"
-#include "voe_errors.h"
-#include "voice_engine_impl.h"
+#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
+#include "webrtc/system_wrappers/interface/trace.h"
+#include "webrtc/voice_engine/include/voe_errors.h"
+#include "webrtc/voice_engine/voice_engine_impl.h"
 
 namespace webrtc
 {
@@ -30,7 +29,7 @@ VoEHardware* VoEHardware::GetInterface(VoiceEngine* voiceEngine)
     {
         return NULL;
     }
-    VoiceEngineImpl* s = reinterpret_cast<VoiceEngineImpl*>(voiceEngine);
+    VoiceEngineImpl* s = static_cast<VoiceEngineImpl*>(voiceEngine);
     s->AddRef();
     return s;
 #endif
@@ -38,29 +37,16 @@ VoEHardware* VoEHardware::GetInterface(VoiceEngine* voiceEngine)
 
 #ifdef WEBRTC_VOICE_ENGINE_HARDWARE_API
 
-VoEHardwareImpl::VoEHardwareImpl(voe::SharedData* shared) :
-    _cpu(NULL), _shared(shared)
+VoEHardwareImpl::VoEHardwareImpl(voe::SharedData* shared) : _shared(shared)
 {
     WEBRTC_TRACE(kTraceMemory, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "VoEHardwareImpl() - ctor");
-
-    _cpu = CpuWrapper::CreateCpu();
-    if (_cpu)
-    {
-        _cpu->CpuUsage(); // init cpu usage
-    }
 }
 
 VoEHardwareImpl::~VoEHardwareImpl()
 {
     WEBRTC_TRACE(kTraceMemory, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "~VoEHardwareImpl() - dtor");
-
-    if (_cpu)
-    {
-        delete _cpu;
-        _cpu = NULL;
-    }
 }
 
 int VoEHardwareImpl::SetAudioDeviceLayer(AudioLayers audioLayer)
@@ -162,8 +148,6 @@ int VoEHardwareImpl::GetNumOfRecordingDevices(int& devices)
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "GetNumOfRecordingDevices(devices=?)");
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
 
     if (!_shared->statistics().Initialized())
     {
@@ -183,8 +167,6 @@ int VoEHardwareImpl::GetNumOfPlayoutDevices(int& devices)
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "GetNumOfPlayoutDevices(devices=?)");
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
 
     if (!_shared->statistics().Initialized())
     {
@@ -207,8 +189,6 @@ int VoEHardwareImpl::GetRecordingDeviceName(int index,
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "GetRecordingDeviceName(index=%d)", index);
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
 
     if (!_shared->statistics().Initialized())
     {
@@ -225,7 +205,7 @@ int VoEHardwareImpl::GetRecordingDeviceName(int index,
     // Note that strGuidUTF8 is allowed to be NULL
 
     // Init len variable to length of supplied vectors
-    const WebRtc_UWord16 strLen = 128;
+    const uint16_t strLen = 128;
 
     // Check if length has been changed in module
     assert(strLen == kAdmMaxDeviceNameSize);
@@ -265,8 +245,6 @@ int VoEHardwareImpl::GetPlayoutDeviceName(int index,
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "GetPlayoutDeviceName(index=%d)", index);
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
 
     if (!_shared->statistics().Initialized())
     {
@@ -283,7 +261,7 @@ int VoEHardwareImpl::GetPlayoutDeviceName(int index,
     // Note that strGuidUTF8 is allowed to be NULL
 
     // Init len variable to length of supplied vectors
-    const WebRtc_UWord16 strLen = 128;
+    const uint16_t strLen = 128;
 
     // Check if length has been changed in module
     assert(strLen == kAdmMaxDeviceNameSize);
@@ -324,8 +302,6 @@ int VoEHardwareImpl::SetRecordingDevice(int index,
                  "SetRecordingDevice(index=%d, recordingChannel=%d)",
                  index, (int) recordingChannel);
     CriticalSectionScoped cs(_shared->crit_sec());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
-    // TODO(leozwang): Add this api to Android OpenSL ES implementation.
 
     if (!_shared->statistics().Initialized())
     {
@@ -375,9 +351,9 @@ int VoEHardwareImpl::SetRecordingDevice(int index,
     }
 
     // Map indices to unsigned since underlying functions need that
-    WebRtc_UWord16 indexU = static_cast<WebRtc_UWord16> (index);
+    uint16_t indexU = static_cast<uint16_t> (index);
 
-    WebRtc_Word32 res(0);
+    int32_t res(0);
 
     if (index == -1)
     {
@@ -454,8 +430,6 @@ int VoEHardwareImpl::SetPlayoutDevice(int index)
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "SetPlayoutDevice(index=%d)", index);
     CriticalSectionScoped cs(_shared->crit_sec());
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
 
     if (!_shared->statistics().Initialized())
     {
@@ -484,9 +458,9 @@ int VoEHardwareImpl::SetPlayoutDevice(int index)
     // We let the module do the index sanity
 
     // Map indices to unsigned since underlying functions need that
-    WebRtc_UWord16 indexU = static_cast<WebRtc_UWord16> (index);
+    uint16_t indexU = static_cast<uint16_t> (index);
 
-    WebRtc_Word32 res(0);
+    int32_t res(0);
 
     if (index == -1)
     {
@@ -558,8 +532,6 @@ int VoEHardwareImpl::GetRecordingDeviceStatus(bool& isAvailable)
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "GetRecordingDeviceStatus()");
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
 
     if (!_shared->statistics().Initialized())
     {
@@ -592,8 +564,6 @@ int VoEHardwareImpl::GetPlayoutDeviceStatus(bool& isAvailable)
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "GetPlayoutDeviceStatus()");
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
 
     if (!_shared->statistics().Initialized())
     {
@@ -626,7 +596,6 @@ int VoEHardwareImpl::ResetAudioDevice()
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "ResetAudioDevice()");
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
 
     if (!_shared->statistics().Initialized())
     {
@@ -641,13 +610,12 @@ int VoEHardwareImpl::ResetAudioDevice()
             "  Failed to reset sound device");
         return -1;
     }
+    return 0;
 #else
     _shared->SetLastError(VE_FUNC_NOT_SUPPORTED, kTraceError,
         "  no support for resetting sound device");
     return -1;
 #endif
-
-    return 0;
 }
 
 int VoEHardwareImpl::AudioDeviceControl(unsigned int par1, unsigned int par2,
@@ -655,8 +623,6 @@ int VoEHardwareImpl::AudioDeviceControl(unsigned int par1, unsigned int par2,
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "AudioDeviceControl(%i, %i, %i)", par1, par2, par3);
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
     if (!_shared->statistics().Initialized())
     {
         _shared->SetLastError(VE_NOT_INITED, kTraceError);
@@ -671,7 +637,6 @@ int VoEHardwareImpl::SetLoudspeakerStatus(bool enable)
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "SetLoudspeakerStatus(enable=%i)", (int) enable);
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
 
     if (!_shared->statistics().Initialized())
     {
@@ -698,7 +663,6 @@ int VoEHardwareImpl::GetLoudspeakerStatus(bool& enabled)
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "GetLoudspeakerStatus()");
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
 
 #if defined(WEBRTC_ANDROID)
     if (!_shared->statistics().Initialized())
@@ -726,8 +690,6 @@ int VoEHardwareImpl::GetCPULoad(int& loadPercent)
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "GetCPULoad()");
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
 
     if (!_shared->statistics().Initialized())
     {
@@ -736,47 +698,8 @@ int VoEHardwareImpl::GetCPULoad(int& loadPercent)
     }
 
     // Get CPU load from ADM
-    WebRtc_UWord16 load(0);
+    uint16_t load(0);
     if (_shared->audio_device()->CPULoad(&load) != 0)
-    {
-        _shared->SetLastError(VE_CPU_INFO_ERROR, kTraceError,
-            "  error getting system CPU load");
-        return -1;
-    }
-
-    loadPercent = static_cast<int> (load);
-
-    WEBRTC_TRACE(kTraceStateInfo, kTraceVoice,
-        VoEId(_shared->instance_id(), -1),
-        "  Output: loadPercent = %d", loadPercent);
-
-    return 0;
-}
-
-int VoEHardwareImpl::GetSystemCPULoad(int& loadPercent)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "GetSystemCPULoad(loadPercent=?)");
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
-
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-
-    // Check if implemented for this platform
-    if (!_cpu)
-    {
-        _shared->SetLastError(VE_FUNC_NOT_SUPPORTED, kTraceError,
-            "  no support for getting system CPU load");
-        return -1;
-    }
-
-    // Get CPU load
-    WebRtc_Word32 load = _cpu->CpuUsage();
-    if (load < 0)
     {
         _shared->SetLastError(VE_CPU_INFO_ERROR, kTraceError,
             "  error getting system CPU load");
@@ -860,4 +783,4 @@ int VoEHardwareImpl::PlayoutSampleRate(unsigned int* samples_per_sec) const {
 
 #endif  // WEBRTC_VOICE_ENGINE_HARDWARE_API
 
-} // namespace webrtc
+}  // namespace webrtc

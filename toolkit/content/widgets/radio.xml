@@ -9,12 +9,13 @@
    xmlns:xul="http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul"
    xmlns:xbl="http://www.mozilla.org/xbl">
 
-  <binding id="radiogroup" extends="chrome://global/content/bindings/general.xml#basecontrol">
+  <binding id="radiogroup" role="xul:radiogroup"
+           extends="chrome://global/content/bindings/general.xml#basecontrol">
     <resources>
       <stylesheet src="chrome://global/skin/radio.css"/>
     </resources>
 
-    <implementation implements="nsIDOMXULSelectControlElement, nsIAccessibleProvider">
+    <implementation implements="nsIDOMXULSelectControlElement">
       <constructor>
         <![CDATA[
           if (this.getAttribute("disabled") == "true")
@@ -36,14 +37,6 @@
             this.selectedIndex = 0;
         ]]>
       </constructor>
-
-      <property name="accessibleType" readonly="true">
-        <getter>
-          <![CDATA[
-            return Components.interfaces.nsIAccessibleProvider.XULRadioGroup;
-          ]]>
-        </getter>
-      </property>
 
       <property name="value" onget="return this.getAttribute('value');">
         <setter>
@@ -383,22 +376,26 @@
       <handler event="keypress" keycode="VK_UP" phase="target">
         this.checkAdjacentElement(false);
         event.stopPropagation();
+        event.preventDefault();
       </handler>
       <handler event="keypress" keycode="VK_LEFT" phase="target">
         // left arrow goes back when we are ltr, forward when we are rtl
         this.checkAdjacentElement(document.defaultView.getComputedStyle(
                                     this, "").direction == "rtl");
         event.stopPropagation();
+        event.preventDefault();
       </handler>
       <handler event="keypress" keycode="VK_DOWN" phase="target">
         this.checkAdjacentElement(true);
         event.stopPropagation();
+        event.preventDefault();
       </handler>
       <handler event="keypress" keycode="VK_RIGHT" phase="target">
         // right arrow goes forward when we are ltr, back when we are rtl
         this.checkAdjacentElement(document.defaultView.getComputedStyle(
                                     this, "").direction == "ltr");
         event.stopPropagation();
+        event.preventDefault();
       </handler>
 
       <!-- set a focused attribute on the selected item when the group
@@ -431,7 +428,8 @@
     </handlers>
   </binding>
 
-  <binding id="radio" extends="chrome://global/content/bindings/general.xml#control-item">
+  <binding id="radio" role="xul:radiobutton"
+    extends="chrome://global/content/bindings/general.xml#control-item">
     <resources>
       <stylesheet src="chrome://global/skin/radio.css"/>
     </resources>
@@ -444,7 +442,7 @@
       </xul:hbox>
     </content>
 
-    <implementation implements="nsIDOMXULSelectControlItemElement, nsIAccessibleProvider">
+    <implementation implements="nsIDOMXULSelectControlItemElement">
       <constructor>
         <![CDATA[
           // Just clear out the parent's cached list of radio children
@@ -455,10 +453,10 @@
       </constructor>
       <destructor>
         <![CDATA[
-          if (!this.radioGroup)
+          if (!this.control)
             return;
 
-          var radioList = this.radioGroup.mRadioChildren;
+          var radioList = this.control._radioChildren;
           if (!radioList)
             return;
           for (var i = 0; i < radioList.length; ++i) {
@@ -469,13 +467,6 @@
           }
         ]]>
       </destructor>
-      <property name="accessibleType" readonly="true">
-        <getter>
-          <![CDATA[
-            return Components.interfaces.nsIAccessibleProvider.XULRadioButton;
-          ]]>
-        </getter>
-      </property>
       <property name="selected" readonly="true">
         <getter>
           <![CDATA[

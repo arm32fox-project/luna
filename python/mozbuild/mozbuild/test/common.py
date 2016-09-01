@@ -4,9 +4,11 @@
 
 from __future__ import unicode_literals
 
-import os
-
 from mach.logging import LoggingManager
+
+from mozbuild.util import ReadOnlyDict
+
+import mozpack.path as mozpath
 
 
 # By including this module, tests get structured logging.
@@ -16,16 +18,22 @@ log_manager.add_terminal_logging()
 # mozconfig is not a reusable type (it's actually a module) so, we
 # have to mock it.
 class MockConfig(object):
-    def __init__(self, topsrcdir='/path/to/topsrcdir'):
-        self.topsrcdir = topsrcdir
-        self.topobjdir = '/path/to/topobjdir'
+    def __init__(self, topsrcdir='/path/to/topsrcdir', extra_substs={}):
+        self.topsrcdir = mozpath.abspath(topsrcdir)
+        self.topobjdir = mozpath.abspath('/path/to/topobjdir')
 
-        self.substs = {
+        self.substs = ReadOnlyDict({
             'MOZ_FOO': 'foo',
             'MOZ_BAR': 'bar',
             'MOZ_TRUE': '1',
             'MOZ_FALSE': '',
-        }
+        }, **extra_substs)
 
-    def child_path(self, p):
-        return os.path.join(self.topsrcdir, p)
+        self.substs_unicode = ReadOnlyDict({k.decode('utf-8'): v.decode('utf-8',
+            'replace') for k, v in self.substs.items()})
+
+        self.defines = self.substs
+
+        self.external_source_dir = None
+        self.lib_prefix = 'lib'
+        self.lib_suffix = '.so'

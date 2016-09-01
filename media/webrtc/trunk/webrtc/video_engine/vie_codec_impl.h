@@ -11,10 +11,10 @@
 #ifndef WEBRTC_VIDEO_ENGINE_VIE_CODEC_IMPL_H_
 #define WEBRTC_VIDEO_ENGINE_VIE_CODEC_IMPL_H_
 
-#include "typedefs.h"  // NOLINT
-#include "video_engine/include/vie_codec.h"
-#include "video_engine/vie_defines.h"
-#include "video_engine/vie_ref_count.h"
+#include "webrtc/typedefs.h"
+#include "webrtc/video_engine/include/vie_codec.h"
+#include "webrtc/video_engine/vie_defines.h"
+#include "webrtc/video_engine/vie_ref_count.h"
 
 namespace webrtc {
 
@@ -43,17 +43,17 @@ class ViECodecImpl
     unsigned char config_parameters[kConfigParameterSize],
     unsigned char& config_parameters_size) const;
   virtual int SetImageScaleStatus(const int video_channel, const bool enable);
-  virtual int GetSendCodecStastistics(const int video_channel,
-                                      unsigned int& key_frames,
-                                      unsigned int& delta_frames) const;
-  virtual int GetReceiveCodecStastistics(const int video_channel,
-                                         unsigned int& key_frames,
-                                         unsigned int& delta_frames) const;
+  virtual int GetSendCodecStatistics(const int video_channel,
+                                     unsigned int& key_frames,
+                                     unsigned int& delta_frames) const;
+  virtual int GetReceiveCodecStatistics(const int video_channel,
+                                        unsigned int& key_frames,
+                                        unsigned int& delta_frames) const;
   virtual int GetReceiveSideDelay(const int video_channel,
                                   int* delay_ms) const;
   virtual int GetCodecTargetBitrate(const int video_channel,
                                     unsigned int* bitrate) const;
-  virtual unsigned int GetDiscardedPackets(const int video_channel) const;
+  virtual int GetNumDiscardedPackets(int video_channel) const;
   virtual int SetKeyFrameRequestCallbackStatus(const int video_channel,
                                                const bool enable);
   virtual int SetSignalKeyPacketLossStatus(const int video_channel,
@@ -67,6 +67,12 @@ class ViECodecImpl
   virtual int DeregisterDecoderObserver(const int video_channel);
   virtual int SendKeyFrame(const int video_channel);
   virtual int WaitForFirstKeyFrame(const int video_channel, const bool wait);
+  virtual int StartDebugRecording(int video_channel,
+                                  const char* file_name_utf8);
+  virtual int StopDebugRecording(int video_channel);
+  virtual void SuspendBelowMinBitrate(int video_channel);
+  virtual bool GetSendSideDelay(int video_channel, int* avg_delay_ms,
+                                int* max_delay_ms) const;
 
  protected:
   explicit ViECodecImpl(ViESharedData* shared_data);

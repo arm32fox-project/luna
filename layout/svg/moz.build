@@ -4,23 +4,19 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MODULE = 'layout'
-
 EXPORTS += [
-    'SVGImageContext.h',
+    'nsFilterInstance.h',
     'nsSVGEffects.h',
     'nsSVGFilterInstance.h',
     'nsSVGForeignObjectFrame.h',
     'nsSVGIntegrationUtils.h',
     'nsSVGUtils.h',
+    'SVGImageContext.h',
 ]
 
-CPP_SOURCES += [
-    'SVGFEContainerFrame.cpp',
-    'SVGFEImageFrame.cpp',
-    'SVGFELeafFrame.cpp',
-    'SVGFEUnstyledLeafFrame.cpp',
-    'SVGViewFrame.cpp',
+UNIFIED_SOURCES += [
+    'nsCSSFilterInstance.cpp',
+    'nsFilterInstance.cpp',
     'nsSVGAFrame.cpp',
     'nsSVGClipPathFrame.cpp',
     'nsSVGContainerFrame.cpp',
@@ -28,10 +24,8 @@ CPP_SOURCES += [
     'nsSVGFilterFrame.cpp',
     'nsSVGFilterInstance.cpp',
     'nsSVGForeignObjectFrame.cpp',
-    'nsSVGGFrame.cpp',
     'nsSVGGenericContainerFrame.cpp',
-    'nsSVGGeometryFrame.cpp',
-    'nsSVGGlyphFrame.cpp',
+    'nsSVGGFrame.cpp',
     'nsSVGGradientFrame.cpp',
     'nsSVGImageFrame.cpp',
     'nsSVGInnerSVGFrame.cpp',
@@ -44,12 +38,34 @@ CPP_SOURCES += [
     'nsSVGPatternFrame.cpp',
     'nsSVGStopFrame.cpp',
     'nsSVGSwitchFrame.cpp',
-    'nsSVGTSpanFrame.cpp',
-    'nsSVGTextContainerFrame.cpp',
-    'nsSVGTextFrame.cpp',
-    'nsSVGTextFrame2.cpp',
-    'nsSVGTextPathFrame.cpp',
     'nsSVGUseFrame.cpp',
     'nsSVGUtils.cpp',
+    'SVGFEContainerFrame.cpp',
+    'SVGFEImageFrame.cpp',
+    'SVGFELeafFrame.cpp',
+    'SVGFEUnstyledLeafFrame.cpp',
+    'SVGTextFrame.cpp',
+    'SVGViewFrame.cpp',
+]
+
+if CONFIG['CPU_ARCH'] == 'arm' and CONFIG['BUILD_ARM_NEON']:
+    SOURCES += ['nsSVGMaskFrameNEON.cpp']
+    SOURCES['nsSVGMaskFrameNEON.cpp'].flags += ['-mfpu=neon']
+
+FAIL_ON_WARNINGS = True
+
+FINAL_LIBRARY = 'xul'
+LOCAL_INCLUDES += [
+    '../../widget',
+    '../base',
+    '../generic',
+    '../style',
+    '../xul',
+    '/dom/base',
+    '/dom/svg',
+]
+
+RESOURCE_FILES += [
+    'svg.css',
 ]
 

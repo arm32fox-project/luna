@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Keep in (case-insensitive) order:
+#include "nsContainerFrame.h"
 #include "nsFrame.h"
 #include "nsGkAtoms.h"
 #include "nsSVGEffects.h"
@@ -16,26 +17,26 @@ class SVGFEUnstyledLeafFrame : public SVGFEUnstyledLeafFrameBase
   friend nsIFrame*
   NS_NewSVGFEUnstyledLeafFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  SVGFEUnstyledLeafFrame(nsStyleContext* aContext)
+  explicit SVGFEUnstyledLeafFrame(nsStyleContext* aContext)
     : SVGFEUnstyledLeafFrameBase(aContext)
   {
-    AddStateBits(NS_FRAME_SVG_LAYOUT | NS_STATE_SVG_NONDISPLAY_CHILD);
+    AddStateBits(NS_FRAME_SVG_LAYOUT | NS_FRAME_IS_NONDISPLAY);
   }
 
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
   virtual void BuildDisplayList(nsDisplayListBuilder* aBuilder,
-                              const nsRect&           aDirtyRect,
-                              const nsDisplayListSet& aLists) MOZ_OVERRIDE {}
+                                const nsRect&           aDirtyRect,
+                                const nsDisplayListSet& aLists) override {}
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(uint32_t aFlags) const override
   {
     return SVGFEUnstyledLeafFrameBase::IsFrameOfType(aFlags & ~(nsIFrame::eSVG));
   }
 
-#ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const
+#ifdef DEBUG_FRAME_DUMP
+  virtual nsresult GetFrameName(nsAString& aResult) const override
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGFEUnstyledLeaf"), aResult);
   }
@@ -46,13 +47,13 @@ public:
    *
    * @see nsGkAtoms::svgFEUnstyledLeafFrame
    */
-  virtual nsIAtom* GetType() const;
+  virtual nsIAtom* GetType() const override;
 
-  NS_IMETHOD AttributeChanged(int32_t  aNameSpaceID,
-                              nsIAtom* aAttribute,
-                              int32_t  aModType);
+  virtual nsresult AttributeChanged(int32_t  aNameSpaceID,
+                                    nsIAtom* aAttribute,
+                                    int32_t  aModType) override;
 
-  virtual bool UpdateOverflow() {
+  virtual bool UpdateOverflow() override {
     // We don't maintain a visual overflow rect
     return false;
   }
@@ -72,14 +73,16 @@ SVGFEUnstyledLeafFrame::GetType() const
   return nsGkAtoms::svgFEUnstyledLeafFrame;
 }
 
-NS_IMETHODIMP
+nsresult
 SVGFEUnstyledLeafFrame::AttributeChanged(int32_t  aNameSpaceID,
                                          nsIAtom* aAttribute,
                                          int32_t  aModType)
 {
   SVGFEUnstyledElement *element = static_cast<SVGFEUnstyledElement*>(mContent);
   if (element->AttributeAffectsRendering(aNameSpaceID, aAttribute)) {
-    nsSVGEffects::InvalidateRenderingObservers(this);
+    MOZ_ASSERT(GetParent()->GetParent()->GetType() == nsGkAtoms::svgFilterFrame,
+               "Observers observe the filter, so that's what we must invalidate");
+    nsSVGEffects::InvalidateDirectRenderingObservers(GetParent()->GetParent());
   }
 
   return SVGFEUnstyledLeafFrameBase::AttributeChanged(aNameSpaceID,

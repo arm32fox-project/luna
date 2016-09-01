@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -7,37 +8,34 @@
 #define nsCycleCollector_h__
 
 class nsICycleCollectorListener;
+class nsICycleCollectorLogSink;
 class nsISupports;
-class nsScriptObjectTracer;
+template<class T> struct already_AddRefed;
+
+#include "nsError.h"
+#include "nsID.h"
+
+#include "js/SliceBudget.h"
 
 namespace mozilla {
-class CycleCollectedJSRuntime;
-}
 
-// Contains various stats about the cycle collection.
-class nsCycleCollectorResults
-{
-public:
-    nsCycleCollectorResults() :
-        mForcedGC(false), mMergedZones(false),
-        mVisitedRefCounted(0), mVisitedGCed(0),
-        mFreedRefCounted(0), mFreedGCed(0) {}
-    bool mForcedGC;
-    bool mMergedZones;
-    uint32_t mVisitedRefCounted;
-    uint32_t mVisitedGCed;
-    uint32_t mFreedRefCounted;
-    uint32_t mFreedGCed;
-};
+class CycleCollectedJSRuntime;
+
+// Called back from DeferredFinalize.  Should add 'thing' to the array of smart
+// pointers in 'pointers', creating the array if 'pointers' is null, and return
+// the array.
+typedef void* (*DeferredFinalizeAppendFunction)(void* aPointers, void* aThing);
+
+// Called to finalize a number of objects. Slice is the number of objects
+// to finalize, or if it's UINT32_MAX, all objects should be finalized.
+// Return value indicates whether it finalized all objects in the buffer.
+typedef bool (*DeferredFinalizeFunction)(uint32_t aSlice, void* aData);
+
+}
 
 bool nsCycleCollector_init();
 
-enum CCThreadingModel {
-    CCSingleThread,
-    CCWithTraverseThread
-};
-
-nsresult nsCycleCollector_startup(CCThreadingModel aThreadingModel);
+void nsCycleCollector_startup();
 
 typedef void (*CC_BeforeUnlinkCallback)(void);
 void nsCycleCollector_setBeforeUnlinkCallback(CC_BeforeUnlinkCallback aCB);
@@ -45,17 +43,29 @@ void nsCycleCollector_setBeforeUnlinkCallback(CC_BeforeUnlinkCallback aCB);
 typedef void (*CC_ForgetSkippableCallback)(void);
 void nsCycleCollector_setForgetSkippableCallback(CC_ForgetSkippableCallback aCB);
 
-void nsCycleCollector_forgetSkippable(bool aRemoveChildlessNodes = false);
+void nsCycleCollector_forgetSkippable(bool aRemoveChildlessNodes = false,
+                                      bool aAsyncSnowWhiteFreeing = false);
 
-void nsCycleCollector_collect(bool aManuallyTriggered,
-                              nsCycleCollectorResults *aResults,
-                              nsICycleCollectorListener *aListener);
+void nsCycleCollector_prepareForGarbageCollection();
+
+// If an incremental cycle collection is in progress, finish it.
+void nsCycleCollector_finishAnyCurrentCollection();
+
+void nsCycleCollector_dispatchDeferredDeletion(bool aContinuation = false);
+bool nsCycleCollector_doDeferredDeletion();
+
+already_AddRefed<nsICycleCollectorLogSink> nsCycleCollector_createLogSink();
+
+void nsCycleCollector_collect(nsICycleCollectorListener* aManualListener);
+
+void nsCycleCollector_collectSlice(js::SliceBudget& budget,
+                                   bool aPreferShorterSlices = false);
+
 uint32_t nsCycleCollector_suspectedCount();
-void nsCycleCollector_shutdownThreads();
 void nsCycleCollector_shutdown();
 
 // Helpers for interacting with JS
-void nsCycleCollector_registerJSRuntime(mozilla::CycleCollectedJSRuntime *aRt);
+void nsCycleCollector_registerJSRuntime(mozilla::CycleCollectedJSRuntime* aRt);
 void nsCycleCollector_forgetJSRuntime();
 
 #define NS_CYCLE_COLLECTOR_LOGGER_CID \
@@ -63,18 +73,22 @@ void nsCycleCollector_forgetJSRuntime();
 { 0x94, 0xea, 0xae, 0xde, 0x2c, 0x62, 0x08, 0xd3 } }
 
 extern nsresult
-nsCycleCollectorLoggerConstructor(nsISupports* outer,
+nsCycleCollectorLoggerConstructor(nsISupports* aOuter,
                                   const nsIID& aIID,
-                                  void* *aInstancePtr);
+                                  void** aInstancePtr);
 
 namespace mozilla {
 namespace cyclecollector {
 
-void AddJSHolder(void* aHolder, nsScriptObjectTracer* aTracer);
-void RemoveJSHolder(void* aHolder);
 #ifdef DEBUG
-bool TestJSHolder(void* aHolder);
+bool IsJSHolder(void* aHolder);
 #endif
+
+void DeferredFinalize(DeferredFinalizeAppendFunction aAppendFunc,
+                      DeferredFinalizeFunction aFunc,
+                      void* aThing);
+void DeferredFinalize(nsISupports* aSupports);
+
 
 } // namespace cyclecollector
 } // namespace mozilla

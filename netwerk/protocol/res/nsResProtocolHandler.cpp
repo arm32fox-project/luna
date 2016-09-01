@@ -4,21 +4,20 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/chrome/RegistryMessageUtils.h"
+#include "mozilla/dom/ContentParent.h"
+#include "mozilla/unused.h"
 
 #include "nsResProtocolHandler.h"
-#include "nsIURL.h"
 #include "nsIIOService.h"
-#include "nsIServiceManager.h"
-#include "prenv.h"
-#include "prprf.h"
-#include "nsXPIDLString.h"
 #include "nsIFile.h"
-#include "nsDirectoryServiceDefs.h"
 #include "nsNetUtil.h"
 #include "nsURLHelper.h"
 #include "nsEscape.h"
 
 #include "mozilla/Omnijar.h"
+
+using mozilla::dom::ContentParent;
+using mozilla::unused;
 
 static NS_DEFINE_CID(kResURLCID, NS_RESURL_CID);
 
@@ -67,7 +66,7 @@ nsResURL::EnsureFile()
     // In most cases, the scheme is jar if it's not file.
     // Regardless, net_GetFileFromURLSpec should be avoided
     // when the scheme isn't file.
-    if (!scheme.Equals(NS_LITERAL_CSTRING("file")))
+    if (!scheme.EqualsLiteral("file"))
         return NS_ERROR_NO_INTERFACE;
 
     rv = net_GetFileFromURLSpec(spec, getter_AddRefs(mFile));
@@ -103,6 +102,7 @@ nsResURL::GetClassIDNoAlloc(nsCID *aClassIDNoAlloc)
 //----------------------------------------------------------------------------
 
 nsResProtocolHandler::nsResProtocolHandler()
+    : mSubstitutions(16)
 {
 #if defined(PR_LOGGING)
     gResLog = PR_NewLogModule("nsResProtocol");
@@ -120,8 +120,6 @@ nsResProtocolHandler::~nsResProtocolHandler()
 nsresult
 nsResProtocolHandler::Init()
 {
-    mSubstitutions.Init(32);
-
     nsresult rv;
 
     mIOService = do_GetIOService(&rv);
@@ -199,10 +197,10 @@ nsResProtocolHandler::CollectSubstitutions(InfallibleTArray<ResourceMapping>& aR
 // nsResProtocolHandler::nsISupports
 //----------------------------------------------------------------------------
 
-NS_IMPL_THREADSAFE_ISUPPORTS3(nsResProtocolHandler,
-                              nsIResProtocolHandler,
-                              nsIProtocolHandler,
-                              nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(nsResProtocolHandler,
+                  nsIResProtocolHandler,
+                  nsIProtocolHandler,
+                  nsISupportsWeakReference)
 
 //----------------------------------------------------------------------------
 // nsResProtocolHandler::nsIProtocolHandler
@@ -281,22 +279,34 @@ nsResProtocolHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsResProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
+nsResProtocolHandler::NewChannel2(nsIURI* uri,
+                                  nsILoadInfo* aLoadInfo,
+                                  nsIChannel** result)
 {
     NS_ENSURE_ARG_POINTER(uri);
-    nsresult rv;
     nsAutoCString spec;
+    nsresult rv = ResolveURI(uri, spec);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = ResolveURI(uri, spec);
-    if (NS_FAILED(rv)) return rv;
+    nsCOMPtr<nsIURI> newURI;
+    rv = NS_NewURI(getter_AddRefs(newURI), spec);
+    NS_ENSURE_SUCCESS(rv, rv);
 
-    rv = mIOService->NewChannel(spec, nullptr, nullptr, result);
-    if (NS_FAILED(rv)) return rv;
+    rv = NS_NewChannelInternal(result,
+                               newURI,
+                               aLoadInfo);
+    NS_ENSURE_SUCCESS(rv, rv);
 
     nsLoadFlags loadFlags = 0;
     (*result)->GetLoadFlags(&loadFlags);
     (*result)->SetLoadFlags(loadFlags & ~nsIChannel::LOAD_REPLACE);
     return (*result)->SetOriginalURI(uri);
+}
+
+NS_IMETHODIMP
+nsResProtocolHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
+{
+    return NewChannel2(uri, nullptr, result);
 }
 
 NS_IMETHODIMP 
@@ -311,11 +321,37 @@ nsResProtocolHandler::AllowPort(int32_t port, const char *scheme, bool *_retval)
 // nsResProtocolHandler::nsIResProtocolHandler
 //----------------------------------------------------------------------------
 
+static void
+SendResourceSubstitution(const nsACString& root, nsIURI* baseURI)
+{
+    if (GoannaProcessType_Content == XRE_GetProcessType()) {
+        return;
+    }
+
+    ResourceMapping resourceMapping;
+    resourceMapping.resource = root;
+    if (baseURI) {
+        baseURI->GetSpec(resourceMapping.resolvedURI.spec);
+        baseURI->GetOriginCharset(resourceMapping.resolvedURI.charset);
+    }
+
+    nsTArray<ContentParent*> parents;
+    ContentParent::GetAll(parents);
+    if (!parents.Length()) {
+        return;
+    }
+
+    for (uint32_t i = 0; i < parents.Length(); i++) {
+        unused << parents[i]->SendRegisterChromeItem(resourceMapping);
+    }
+}
+
 NS_IMETHODIMP
 nsResProtocolHandler::SetSubstitution(const nsACString& root, nsIURI *baseURI)
 {
     if (!baseURI) {
         mSubstitutions.Remove(root);
+        SendResourceSubstitution(root, baseURI);
         return NS_OK;
     }
 
@@ -323,8 +359,9 @@ nsResProtocolHandler::SetSubstitution(const nsACString& root, nsIURI *baseURI)
     nsAutoCString scheme;
     nsresult rv = baseURI->GetScheme(scheme);
     NS_ENSURE_SUCCESS(rv, rv);
-    if (!scheme.Equals(NS_LITERAL_CSTRING("resource"))) {
+    if (!scheme.EqualsLiteral("resource")) {
         mSubstitutions.Put(root, baseURI);
+        SendResourceSubstitution(root, baseURI);
         return NS_OK;
     }
 
@@ -339,6 +376,7 @@ nsResProtocolHandler::SetSubstitution(const nsACString& root, nsIURI *baseURI)
     NS_ENSURE_SUCCESS(rv, rv);
 
     mSubstitutions.Put(root, newBaseURI);
+    SendResourceSubstitution(root, newBaseURI);
     return NS_OK;
 }
 

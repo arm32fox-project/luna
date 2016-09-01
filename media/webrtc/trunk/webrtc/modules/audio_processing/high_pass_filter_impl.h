@@ -11,37 +11,39 @@
 #ifndef WEBRTC_MODULES_AUDIO_PROCESSING_HIGH_PASS_FILTER_IMPL_H_
 #define WEBRTC_MODULES_AUDIO_PROCESSING_HIGH_PASS_FILTER_IMPL_H_
 
-#include "audio_processing.h"
-#include "processing_component.h"
+#include "webrtc/modules/audio_processing/include/audio_processing.h"
+#include "webrtc/modules/audio_processing/processing_component.h"
 
 namespace webrtc {
-class AudioProcessingImpl;
+
 class AudioBuffer;
+class CriticalSectionWrapper;
 
 class HighPassFilterImpl : public HighPassFilter,
                            public ProcessingComponent {
  public:
-  explicit HighPassFilterImpl(const AudioProcessingImpl* apm);
+  HighPassFilterImpl(const AudioProcessing* apm, CriticalSectionWrapper* crit);
   virtual ~HighPassFilterImpl();
 
   int ProcessCaptureAudio(AudioBuffer* audio);
 
   // HighPassFilter implementation.
-  virtual bool is_enabled() const;
+  virtual bool is_enabled() const OVERRIDE;
 
  private:
   // HighPassFilter implementation.
-  virtual int Enable(bool enable);
+  virtual int Enable(bool enable) OVERRIDE;
 
   // ProcessingComponent implementation.
-  virtual void* CreateHandle() const;
-  virtual int InitializeHandle(void* handle) const;
-  virtual int ConfigureHandle(void* handle) const;
-  virtual int DestroyHandle(void* handle) const;
-  virtual int num_handles_required() const;
-  virtual int GetHandleError(void* handle) const;
+  virtual void* CreateHandle() const OVERRIDE;
+  virtual int InitializeHandle(void* handle) const OVERRIDE;
+  virtual int ConfigureHandle(void* handle) const OVERRIDE;
+  virtual void DestroyHandle(void* handle) const OVERRIDE;
+  virtual int num_handles_required() const OVERRIDE;
+  virtual int GetHandleError(void* handle) const OVERRIDE;
 
-  const AudioProcessingImpl* apm_;
+  const AudioProcessing* apm_;
+  CriticalSectionWrapper* crit_;
 };
 }  // namespace webrtc
 

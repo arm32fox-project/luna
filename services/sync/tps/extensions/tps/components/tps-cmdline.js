@@ -22,8 +22,8 @@ const nsIWindowWatcher               = Components.interfaces.nsIWindowWatcher;
 Components.utils.import("resource://gre/modules/XPCOMUtils.jsm");
 
 function TPSCmdLineHandler() {}
-TPSCmdLineHandler.prototype =
-{
+
+TPSCmdLineHandler.prototype = {
   classDescription: "TPSCmdLineHandler",
   classID         : TPS_CMDLINE_CLSID,
   contractID      : TPS_CMDLINE_CONTRACTID,
@@ -49,7 +49,7 @@ TPSCmdLineHandler.prototype =
         return;
     let phase = cmdLine.handleFlagWithParam("tpsphase", false);
     if (phase == null)
-        throw("must specify --tpsphase with --tps");
+        throw Error("must specify --tpsphase with --tps");
     let logfile = cmdLine.handleFlagWithParam("tpslogfile", false);
     if (logfile == null)
         logfile = "";
@@ -72,19 +72,17 @@ TPSCmdLineHandler.prototype =
     //cmdLine.preventDefault = true;
   },
 
-  helpInfo : "  -tps <file>               Run TPS tests with the given test file.\n" +
-             "  -tpsphase <phase>         Run the specified phase in the TPS test.\n" +
-             "  -tpslogfile <file>        Logfile for TPS output.\n" +
+  helpInfo : "  --tps <file>              Run TPS tests with the given test file.\n" +
+             "  --tpsphase <phase>        Run the specified phase in the TPS test.\n" +
+             "  --tpslogfile <file>       Logfile for TPS output.\n" +
              "  --ignore-unused-engines   Don't load engines not used in tests.\n",
 };
 
 
-var TPSCmdLineFactory =
-{
-  createInstance : function(outer, iid)
-  {
+var TPSCmdLineFactory = {
+  createInstance : function(outer, iid) {
     if (outer != null) {
-      throw Components.results.NS_ERROR_NO_AGGREGATION;
+      throw new Error(Components.results.NS_ERROR_NO_AGGREGATION);
     }
 
     return new TPSCmdLineHandler().QueryInterface(iid);
@@ -92,10 +90,8 @@ var TPSCmdLineFactory =
 };
 
 
-var TPSCmdLineModule =
-{
-  registerSelf : function(compMgr, fileSpec, location, type)
-  {
+var TPSCmdLineModule = {
+  registerSelf : function(compMgr, fileSpec, location, type) {
     compMgr = compMgr.QueryInterface(nsIComponentRegistrar);
 
     compMgr.registerFactoryLocation(TPS_CMDLINE_CLSID,
@@ -114,8 +110,7 @@ var TPSCmdLineModule =
                             TPS_CMDLINE_CONTRACTID, true, true);
   },
 
-  unregisterSelf : function(compMgr, fileSpec, location)
-  {
+  unregisterSelf : function(compMgr, fileSpec, location) {
     compMgr = compMgr.QueryInterface(nsIComponentRegistrar);
 
     compMgr.unregisterFactoryLocation(TPS_CMDLINE_CLSID, fileSpec);
@@ -126,21 +121,19 @@ var TPSCmdLineModule =
                                "m-tps", true);
   },
 
-  getClassObject : function(compMgr, cid, iid)
-  {
+  getClassObject : function(compMgr, cid, iid) {
     if (cid.equals(TPS_CMDLINE_CLSID)) {
       return TPSCmdLineFactory;
     }
 
     if (!iid.equals(Components.interfaces.nsIFactory)) {
-      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+      throw new Error(Components.results.NS_ERROR_NOT_IMPLEMENTED);
     }
 
-    throw Components.results.NS_ERROR_NO_INTERFACE;
+    throw new Error(Components.results.NS_ERROR_NO_INTERFACE);
   },
 
-  canUnload : function(compMgr)
-  {
+  canUnload : function(compMgr) {
     return true;
   }
 };

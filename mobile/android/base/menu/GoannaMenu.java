@@ -4,13 +4,18 @@
 
 package org.mozilla.goanna.menu;
 
+import org.mozilla.goanna.AppConstants;
 import org.mozilla.goanna.R;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.ThreadUtils.AssertBehavior;
+import org.mozilla.goanna.widget.GoannaActionProvider;
 
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.util.AttributeSet;
-import android.view.ActionProvider;
+import android.util.Log;
+import android.util.SparseArray;
 import android.view.KeyEvent;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -34,12 +39,21 @@ public class GoannaMenu extends ListView
                                   GoannaMenuItem.OnShowAsActionChangedListener {
     private static final String LOGTAG = "GoannaMenu";
 
+    /**
+     * Controls whether off-UI-thread method calls in this class cause an
+     * exception or just logging.
+     */
+    private static final AssertBehavior THREAD_ASSERT_BEHAVIOR = AppConstants.RELEASE_BUILD ? AssertBehavior.NONE : AssertBehavior.THROW;
+
     /*
-     * A callback for a menu item selected event.
+     * A callback for a menu item click/long click event.
      */
     public static interface Callback {
-        // Called when a menu item is selected, with the actual menu item as the argument.
-        public boolean onMenuItemSelected(MenuItem item);
+        // Called when a menu item is clicked, with the actual menu item as the argument.
+        public boolean onMenuItemClick(MenuItem item);
+
+        // Called when a menu item is long-clicked, with the actual menu item as the argument.
+        public boolean onMenuItemLongClick(MenuItem item);
     }
 
     /*
@@ -51,7 +65,7 @@ public class GoannaMenu extends ListView
         // Open the menu.
         public void openMenu();
 
-        // Show the actual view contaning the menu items. This can either be a parent or sub-menu.
+        // Show the actual view containing the menu items. This can either be a parent or sub-menu.
         public void showMenu(View menu);
 
         // Close the menu.
@@ -66,7 +80,7 @@ public class GoannaMenu extends ListView
      */
     public static interface ActionItemBarPresenter {
         // Add an action-item.
-        public void addActionItem(View actionItem);
+        public boolean addActionItem(View actionItem);
 
         // Remove an action-item.
         public void removeActionItem(View actionItem);
@@ -75,10 +89,19 @@ public class GoannaMenu extends ListView
     protected static final int NO_ID = 0;
 
     // List of all menu items.
-    private List<GoannaMenuItem> mItems;
+    private final List<GoannaMenuItem> mItems;
 
-    // Map of items in action-bar and their views.
-    private Map<GoannaMenuItem, View> mActionItems;
+    // Quick lookup array used to make a fast path in findItem.
+    private final SparseArray<MenuItem> mItemsById;
+
+    // Map of "always" action-items in action-bar and their views.
+    private final Map<GoannaMenuItem, View> mPrimaryActionItems;
+
+    // Map of "ifRoom" action-items in action-bar and their views.
+    private final Map<GoannaMenuItem, View> mSecondaryActionItems;
+
+    // Map of "collapseActionView" action-items in action-bar and their views.
+    private final Map<GoannaMenuItem, View> mQuickShareActionItems;
 
     // Reference to a callback for menu events.
     private Callback mCallback;
@@ -86,25 +109,34 @@ public class GoannaMenu extends ListView
     // Reference to menu presenter.
     private MenuPresenter mMenuPresenter;
 
-    // Reference to action-items bar in action-bar.
-    private ActionItemBarPresenter mActionItemBarPresenter;
+    // Reference to "always" action-items bar in action-bar.
+    private ActionItemBarPresenter mPrimaryActionItemBar;
+
+    // Reference to "ifRoom" action-items bar in action-bar.
+    private final ActionItemBarPresenter mSecondaryActionItemBar;
+
+    // Reference to "collapseActionView" action-items bar in action-bar.
+    private final ActionItemBarPresenter mQuickShareActionItemBar;
 
     // Adapter to hold the list of menu items.
-    private MenuItemsAdapter mAdapter;
+    private final MenuItemsAdapter mAdapter;
+
+    // Show/hide icons in the list.
+    boolean mShowIcons;
 
     public GoannaMenu(Context context) {
         this(context, null);
     }
 
     public GoannaMenu(Context context, AttributeSet attrs) {
-        this(context, attrs, android.R.attr.listViewStyle);
+        this(context, attrs, R.attr.goannaMenuListViewStyle);
     }
 
     public GoannaMenu(Context context, AttributeSet attrs, int defStyle) {
         super(context, attrs, defStyle);
 
-        setLayoutParams(new LayoutParams(LayoutParams.FILL_PARENT,
-                                         LayoutParams.FILL_PARENT));
+        setLayoutParams(new LayoutParams(LayoutParams.MATCH_PARENT,
+                                         LayoutParams.MATCH_PARENT));
 
         // Attach an adapter.
         mAdapter = new MenuItemsAdapter();
@@ -112,9 +144,18 @@ public class GoannaMenu extends ListView
         setOnItemClickListener(this);
 
         mItems = new ArrayList<GoannaMenuItem>();
-        mActionItems = new HashMap<GoannaMenuItem, View>();
+        mItemsById = new SparseArray<MenuItem>();
+        mPrimaryActionItems = new HashMap<GoannaMenuItem, View>();
+        mSecondaryActionItems = new HashMap<GoannaMenuItem, View>();
+        mQuickShareActionItems = new HashMap<GoannaMenuItem, View>();
 
-        mActionItemBarPresenter =  (DefaultActionItemBar) LayoutInflater.from(context).inflate(R.layout.menu_action_bar, null);
+        mPrimaryActionItemBar = (DefaultActionItemBar) LayoutInflater.from(context).inflate(R.layout.menu_action_bar, null);
+        mSecondaryActionItemBar = (DefaultActionItemBar) LayoutInflater.from(context).inflate(R.layout.menu_secondary_action_bar, null);
+        mQuickShareActionItemBar = (DefaultActionItemBar) LayoutInflater.from(context).inflate(R.layout.menu_secondary_action_bar, null);
+    }
+
+    private static void assertOnUiThread() {
+        ThreadUtils.assertOnUiThread(THREAD_ASSERT_BEHAVIOR);
     }
 
     @Override
@@ -146,33 +187,97 @@ public class GoannaMenu extends ListView
     }
 
     private void addItem(GoannaMenuItem menuItem) {
+        assertOnUiThread();
         menuItem.setOnShowAsActionChangedListener(this);
         mAdapter.addMenuItem(menuItem);
         mItems.add(menuItem);
     }
 
-    private void addActionItem(final GoannaMenuItem menuItem) {
+    private boolean addActionItem(final GoannaMenuItem menuItem) {
+        assertOnUiThread();
         menuItem.setOnShowAsActionChangedListener(this);
 
-        if (mActionItems.size() == 0 && 
-            mActionItemBarPresenter instanceof DefaultActionItemBar) {
-            // Reset the adapter before adding the header view to a list.
-            setAdapter(null);
-            addHeaderView((DefaultActionItemBar) mActionItemBarPresenter);
-            setAdapter(mAdapter);
+        final View actionView = menuItem.getActionView();
+        final int actionEnum = menuItem.getActionEnum();
+        boolean added = false;
+
+        if (actionEnum == GoannaMenuItem.SHOW_AS_ACTION_ALWAYS) {
+            if (mPrimaryActionItems.size() == 0 &&
+                mPrimaryActionItemBar instanceof DefaultActionItemBar) {
+                // Reset the adapter before adding the header view to a list.
+                setAdapter(null);
+                addHeaderView((DefaultActionItemBar) mPrimaryActionItemBar);
+                setAdapter(mAdapter);
+            }
+
+            if (added = mPrimaryActionItemBar.addActionItem(actionView)) {
+                mPrimaryActionItems.put(menuItem, actionView);
+                mItems.add(menuItem);
+            }
+        } else if (actionEnum == GoannaMenuItem.SHOW_AS_ACTION_IF_ROOM) {
+            if (mSecondaryActionItems.size() == 0) {
+                // Reset the adapter before adding the header view to a list.
+                setAdapter(null);
+                addHeaderView((DefaultActionItemBar) mSecondaryActionItemBar);
+                setAdapter(mAdapter);
+            }
+
+            if (added = mSecondaryActionItemBar.addActionItem(actionView)) {
+                mSecondaryActionItems.put(menuItem, actionView);
+                mItems.add(menuItem);
+            }
+        } else if (actionEnum == GoannaMenuItem.SHOW_AS_ACTION_COLLAPSE_ACTION_VIEW) {
+            if (actionView instanceof MenuItemActionView) {
+                final MenuItemActionView quickShareView = (MenuItemActionView) actionView;
+
+                // We don't want to add the quick share bar if we don't have any quick share items.
+                if (quickShareView.getActionButtonCount() > 0 &&
+                        (added = mQuickShareActionItemBar.addActionItem(quickShareView))) {
+                    if (mQuickShareActionItems.size() == 0) {
+                        // Reset the adapter before adding the header view to a list.
+                        setAdapter(null);
+                        addHeaderView((DefaultActionItemBar) mQuickShareActionItemBar);
+                        setAdapter(mAdapter);
+                    }
+
+                    mQuickShareActionItems.put(menuItem, quickShareView);
+                    mItems.add(menuItem);
+                }
+            }
         }
 
-        View actionView = menuItem.getActionView();
-        actionView.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View view) {
-                handleMenuItemClick(menuItem);
-            }
-        });
+        // Set the listeners.
+        if (actionView instanceof MenuItemActionBar) {
+            ((MenuItemActionBar) actionView).setOnClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    handleMenuItemClick(menuItem);
+                }
+            });
+            ((MenuItemActionBar) actionView).setOnLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View v) {
+                    handleMenuItemLongClick(menuItem);
+                    return true;
+                }
+            });
+        } else if (actionView instanceof MenuItemActionView) {
+            ((MenuItemActionView) actionView).setMenuItemClickListener(new View.OnClickListener() {
+                @Override
+                public void onClick(View view) {
+                    handleMenuItemClick(menuItem);
+                }
+            });
+            ((MenuItemActionView) actionView).setMenuItemLongClickListener(new View.OnLongClickListener() {
+                @Override
+                public boolean onLongClick(View view) {
+                    handleMenuItemLongClick(menuItem);
+                    return true;
+                }
+            });
+        }
 
-        mActionItems.put(menuItem, actionView);
-        mActionItemBarPresenter.addActionItem(actionView);
-        mItems.add(menuItem);
+        return added;
     }
 
     @Override
@@ -213,18 +318,81 @@ public class GoannaMenu extends ListView
         return subMenu;
     }
 
+    private void removePrimaryActionBarView() {
+        // Reset the adapter before removing the header view from a list.
+        setAdapter(null);
+        removeHeaderView((DefaultActionItemBar) mPrimaryActionItemBar);
+        setAdapter(mAdapter);
+    }
+
+    private void removeSecondaryActionBarView() {
+        // Reset the adapter before removing the header view from a list.
+        setAdapter(null);
+        removeHeaderView((DefaultActionItemBar) mSecondaryActionItemBar);
+        setAdapter(mAdapter);
+    }
+
+    private void removeQuickShareActionBarView() {
+        // Reset the adapter before removing the header view from a list.
+        setAdapter(null);
+        removeHeaderView((DefaultActionItemBar) mQuickShareActionItemBar);
+        setAdapter(mAdapter);
+    }
+
     @Override
     public void clear() {
+        assertOnUiThread();
         for (GoannaMenuItem menuItem : mItems) {
             if (menuItem.hasSubMenu()) {
-                menuItem.getSubMenu().clear();
+                SubMenu sub = menuItem.getSubMenu();
+                if (sub == null) {
+                    continue;
+                }
+                try {
+                    sub.clear();
+                } catch (Exception ex) {
+                    Log.e(LOGTAG, "Couldn't clear submenu.", ex);
+                }
             }
         }
 
         mAdapter.clear();
-
         mItems.clear();
-        mActionItems.clear();
+
+        /*
+         * Reinflating the menu will re-add any action items to the toolbar, so
+         * remove the old ones. This also ensures that any text associated with
+         * these is switched to the correct locale.
+         */
+        if (mPrimaryActionItemBar != null) {
+            for (View item : mPrimaryActionItems.values()) {
+                mPrimaryActionItemBar.removeActionItem(item);
+            }
+        }
+        mPrimaryActionItems.clear();
+
+        if (mSecondaryActionItemBar != null) {
+            for (View item : mSecondaryActionItems.values()) {
+                mSecondaryActionItemBar.removeActionItem(item);
+            }
+        }
+        mSecondaryActionItems.clear();
+
+        if (mQuickShareActionItemBar != null) {
+            for (View item : mQuickShareActionItems.values()) {
+                mQuickShareActionItemBar.removeActionItem(item);
+            }
+        }
+        mQuickShareActionItems.clear();
+
+        // Remove the view, too -- the first addActionItem will re-add it,
+        // and this is simpler than changing that logic.
+        if (mPrimaryActionItemBar instanceof DefaultActionItemBar) {
+            removePrimaryActionBarView();
+        }
+
+        removeSecondaryActionBarView();
+        removeQuickShareActionBarView();
     }
 
     @Override
@@ -240,15 +408,24 @@ public class GoannaMenu extends ListView
 
     @Override
     public MenuItem findItem(int id) {
+        assertOnUiThread();
+        MenuItem quickItem = mItemsById.get(id);
+        if (quickItem != null) {
+            return quickItem;
+        }
+
         for (GoannaMenuItem menuItem : mItems) {
             if (menuItem.getItemId() == id) {
+                mItemsById.put(id, menuItem);
                 return menuItem;
             } else if (menuItem.hasSubMenu()) {
                 if (!menuItem.hasActionProvider()) {
                     SubMenu subMenu = menuItem.getSubMenu();
                     MenuItem item = subMenu.findItem(id);
-                    if (item != null)
+                    if (item != null) {
+                        mItemsById.put(id, item);
                         return item;
+                    }
                 }
             }
         }
@@ -265,8 +442,12 @@ public class GoannaMenu extends ListView
 
     @Override
     public boolean hasVisibleItems() {
+        assertOnUiThread();
         for (GoannaMenuItem menuItem : mItems) {
-            if (menuItem.isVisible())
+            if (menuItem.isVisible() &&
+                !mPrimaryActionItems.containsKey(menuItem) &&
+                !mSecondaryActionItems.containsKey(menuItem) &&
+                !mQuickShareActionItems.containsKey(menuItem))
                 return true;
         }
 
@@ -294,23 +475,64 @@ public class GoannaMenu extends ListView
 
     @Override
     public void removeItem(int id) {
+        assertOnUiThread();
         GoannaMenuItem item = (GoannaMenuItem) findItem(id);
         if (item == null)
             return;
 
-        if (mActionItems.containsKey(item)) {
-            if (mActionItemBarPresenter != null)
-                mActionItemBarPresenter.removeActionItem(mActionItems.get(item));
+        // Remove it from the cache.
+        mItemsById.remove(id);
 
-            mActionItems.remove(item);
+        // Remove it from any sub-menu.
+        for (GoannaMenuItem menuItem : mItems) {
+            if (menuItem.hasSubMenu()) {
+                SubMenu subMenu = menuItem.getSubMenu();
+                if (subMenu != null && subMenu.findItem(id) != null) {
+                    subMenu.removeItem(id);
+                    return;
+                }
+            }
+        }
+
+        // Remove it from own menu.
+        if (mPrimaryActionItems.containsKey(item)) {
+            if (mPrimaryActionItemBar != null)
+                mPrimaryActionItemBar.removeActionItem(mPrimaryActionItems.get(item));
+
+            mPrimaryActionItems.remove(item);
             mItems.remove(item);
 
-            if (mActionItems.size() == 0 && 
-                mActionItemBarPresenter instanceof DefaultActionItemBar) {
-                // Reset the adapter before removing the header view from a list.
-                setAdapter(null);
-                removeHeaderView((DefaultActionItemBar) mActionItemBarPresenter);
-                setAdapter(mAdapter);
+            if (mPrimaryActionItems.size() == 0 && 
+                mPrimaryActionItemBar instanceof DefaultActionItemBar) {
+                removePrimaryActionBarView();
+            }
+
+            return;
+        }
+
+        if (mSecondaryActionItems.containsKey(item)) {
+            if (mSecondaryActionItemBar != null)
+                mSecondaryActionItemBar.removeActionItem(mSecondaryActionItems.get(item));
+
+            mSecondaryActionItems.remove(item);
+            mItems.remove(item);
+
+            if (mSecondaryActionItems.size() == 0) {
+                removeSecondaryActionBarView();
+            }
+
+            return;
+        }
+
+        if (mQuickShareActionItems.containsKey(item)) {
+            if (mQuickShareActionItemBar != null)
+                mQuickShareActionItemBar.removeActionItem(mQuickShareActionItems.get(item));
+
+            mQuickShareActionItems.remove(item);
+            mItems.remove(item);
+
+            if (mQuickShareActionItems.size() == 0) {
+                removeQuickShareActionBarView();
             }
 
             return;
@@ -343,38 +565,47 @@ public class GoannaMenu extends ListView
 
     @Override
     public boolean hasActionItemBar() {
-         return (mActionItemBarPresenter != null);
+         return (mPrimaryActionItemBar != null) &&
+                 (mSecondaryActionItemBar != null) &&
+                 (mQuickShareActionItemBar != null);
     }
 
     @Override
-    public void onShowAsActionChanged(GoannaMenuItem item, boolean isActionItem) {
+    public void onShowAsActionChanged(GoannaMenuItem item) {
         removeItem(item.getItemId());
 
-        if (isActionItem)
-            addActionItem(item);
-        else
-            addItem(item);
+        if (item.isActionItem() && addActionItem(item)) {
+            return;
+        }
+
+        addItem(item);
     }
 
     public void onItemChanged(GoannaMenuItem item) {
+        assertOnUiThread();
         if (item.isActionItem()) {
-           final MenuItemActionBar actionView = (MenuItemActionBar) mActionItems.get(item);
-           if (actionView != null) {
-               // The update could be coming from the background thread.
-               // Post a runnable on the UI thread of the view for it to update.
-               final GoannaMenuItem menuItem = item;
-               actionView.post(new Runnable() {
-                   @Override
-                   public void run() {
-                       if (menuItem.isVisible()) {
-                           actionView.setVisibility(View.VISIBLE);
-                           actionView.initialize(menuItem);
-                       } else {
-                           actionView.setVisibility(View.GONE);
-                       }
-                   }
-               });
-           } 
+            final View actionView;
+            final int actionEnum = item.getActionEnum();
+            if (actionEnum == GoannaMenuItem.SHOW_AS_ACTION_ALWAYS) {
+                actionView = mPrimaryActionItems.get(item);
+            } else if (actionEnum == GoannaMenuItem.SHOW_AS_ACTION_IF_ROOM) {
+                actionView = mSecondaryActionItems.get(item);
+            } else {
+                actionView = mQuickShareActionItems.get(item);
+            }
+
+            if (actionView != null) {
+                if (item.isVisible()) {
+                    actionView.setVisibility(View.VISIBLE);
+                    if (actionView instanceof MenuItemActionBar) {
+                        ((MenuItemActionBar) actionView).initialize(item);
+                    } else {
+                        ((MenuItemActionView) actionView).initialize(item);
+                    }
+                } else {
+                    actionView.setVisibility(View.GONE);
+                }
+            }
         } else {
             mAdapter.notifyDataSetChanged();
         }
@@ -389,7 +620,7 @@ public class GoannaMenu extends ListView
         handleMenuItemClick(item);
     }
 
-    private void handleMenuItemClick(GoannaMenuItem item) {
+    void handleMenuItemClick(GoannaMenuItem item) {
         if (!item.isEnabled())
             return;
 
@@ -397,9 +628,10 @@ public class GoannaMenu extends ListView
             close();
         } else if (item.hasSubMenu()) {
             // Refresh the submenu for the provider.
-            ActionProvider provider = item.getActionProvider();
+            GoannaActionProvider provider = item.getGoannaActionProvider();
             if (provider != null) {
                 GoannaSubMenu subMenu = new GoannaSubMenu(getContext());
+                subMenu.setShowIcons(true);
                 provider.onPrepareSubMenu(subMenu);
                 item.setSubMenu(subMenu);
             }
@@ -409,7 +641,17 @@ public class GoannaMenu extends ListView
             showMenu(subMenu);
         } else {
             close();
-            mCallback.onMenuItemSelected(item);
+            mCallback.onMenuItemClick(item);
+        }
+    }
+
+    void handleMenuItemLongClick(GoannaMenuItem item) {
+        if(!item.isEnabled()) {
+            return;
+        }
+
+        if(mCallback != null) {
+            mCallback.onMenuItemLongClick(item);
         }
     }
 
@@ -446,32 +688,66 @@ public class GoannaMenu extends ListView
     }
 
     public void setActionItemBarPresenter(ActionItemBarPresenter presenter) {
-        mActionItemBarPresenter = presenter;
+        mPrimaryActionItemBar = presenter;
+    }
+
+    public void setShowIcons(boolean show) {
+        if (mShowIcons != show) {
+            mShowIcons = show;
+            mAdapter.notifyDataSetChanged();
+        }
     }
 
     // Action Items are added to the header view by default.
     // URL bar can register itself as a presenter, in case it has a different place to show them.
     public static class DefaultActionItemBar extends LinearLayout
                                              implements ActionItemBarPresenter {
+        private final int mRowHeight;
+        private float mWeightSum;
+
         public DefaultActionItemBar(Context context) {
-            super(context);
+            this(context, null);
         }
 
         public DefaultActionItemBar(Context context, AttributeSet attrs) {
             super(context, attrs);
+
+            mRowHeight = getResources().getDimensionPixelSize(R.dimen.menu_item_row_height);
         }
 
         @Override
-        public void addActionItem(View actionItem) {
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(actionItem.getLayoutParams());
-            params.weight = 1.0f;
+        public boolean addActionItem(View actionItem) {
+            ViewGroup.LayoutParams actualParams = actionItem.getLayoutParams();
+            LinearLayout.LayoutParams params;
+
+            if (actualParams != null) {
+                params = new LinearLayout.LayoutParams(actionItem.getLayoutParams());
+                params.width = 0;
+            } else {
+                params = new LinearLayout.LayoutParams(0, mRowHeight);
+            }
+
+            if (actionItem instanceof MenuItemActionView) {
+                params.weight = ((MenuItemActionView) actionItem).getChildCount();
+            } else {
+                params.weight = 1.0f;
+            }
+
+            mWeightSum += params.weight;
+
             actionItem.setLayoutParams(params);
             addView(actionItem);
+            setWeightSum(mWeightSum);
+            return true;
         }
 
         @Override
         public void removeActionItem(View actionItem) {
-            removeView(actionItem);
+            if (indexOfChild(actionItem) != -1) {
+                LinearLayout.LayoutParams params = (LinearLayout.LayoutParams) actionItem.getLayoutParams();
+                mWeightSum -= params.weight;
+                removeView(actionItem);
+            }
         }
     }
 
@@ -480,7 +756,7 @@ public class GoannaMenu extends ListView
         private static final int VIEW_TYPE_DEFAULT = 0;
         private static final int VIEW_TYPE_ACTION_MODE = 1;
 
-        private List<GoannaMenuItem> mItems;
+        private final List<GoannaMenuItem> mItems;
 
         public MenuItemsAdapter() {
             mItems = new ArrayList<GoannaMenuItem>();
@@ -551,13 +827,14 @@ public class GoannaMenu extends ListView
             }
 
             // Initialize the view.
+            view.setShowIcon(mShowIcons);
             view.initialize(item);
             return (View) view; 
         }
 
         @Override
         public int getItemViewType(int position) {
-            return getItem(position).getActionProvider() == null ? VIEW_TYPE_DEFAULT : VIEW_TYPE_ACTION_MODE;
+            return getItem(position).getGoannaActionProvider() == null ? VIEW_TYPE_DEFAULT : VIEW_TYPE_ACTION_MODE;
         }
 
         @Override
@@ -572,17 +849,16 @@ public class GoannaMenu extends ListView
 
         @Override
         public boolean areAllItemsEnabled() {
-            for (GoannaMenuItem item : mItems) {
-                 if (!item.isEnabled())
-                     return false;
-            }
-
+            // Setting this to true is a workaround to fix disappearing
+            // dividers in the menu (bug 963249).
             return true;
         }
 
         @Override
         public boolean isEnabled(int position) {
-            return getItem(position).isEnabled();
+            // Setting this to true is a workaround to fix disappearing
+            // dividers in the menu in L (bug 1050780).
+            return true;
         }
 
         public void addMenuItem(GoannaMenuItem menuItem) {
@@ -613,6 +889,7 @@ public class GoannaMenu extends ListView
         }
 
         public void clear() {
+            mItemsById.clear();
             mItems.clear();
             notifyDataSetChanged();
         }

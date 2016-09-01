@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:set ts=2 sw=2 sts=2 et cindent: */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -15,19 +15,23 @@
 #include "nsString.h"
 #include "nsTObserverArray.h"
 #include "mozilla/Attributes.h"
+#include "nsAutoPtr.h"
+#include "mozilla/ReentrantMonitor.h"
 
 // A native thread
-class nsThread MOZ_FINAL : public nsIThreadInternal,
-                           public nsISupportsPriority
+class nsThread
+  : public nsIThreadInternal
+  , public nsISupportsPriority
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIEVENTTARGET
   NS_DECL_NSITHREAD
   NS_DECL_NSITHREADINTERNAL
   NS_DECL_NSISUPPORTSPRIORITY
 
-  enum MainThreadFlag {
+  enum MainThreadFlag
+  {
     MAIN_THREAD,
     NOT_MAIN_THREAD
   };
@@ -41,41 +45,125 @@ public:
   nsresult InitCurrentThread();
 
   // The PRThread corresponding to this thread.
-  PRThread *GetPRThread() { return mThread; }
+  PRThread* GetPRThread()
+  {
+    return mThread;
+  }
 
   // If this flag is true, then the nsThread was created using
   // nsIThreadManager::NewThread.
-  bool ShutdownRequired() { return mShutdownRequired; }
+  bool ShutdownRequired()
+  {
+    return mShutdownRequired;
+  }
 
   // Clear the observer list.
-  void ClearObservers() { mEventObservers.Clear(); }
+  void ClearObservers()
+  {
+    mEventObservers.Clear();
+  }
 
   static nsresult
   SetMainThreadObserver(nsIThreadObserver* aObserver);
 
-private:
+#ifdef MOZ_NUWA_PROCESS
+  void SetWorking();
+  void SetIdle();
+  mozilla::ReentrantMonitor& ThreadStatusMonitor() {
+    return mThreadStatusMonitor;
+  }
+#endif
+
+protected:
   static nsIThreadObserver* sMainThreadObserver;
+
+  class nsChainedEventQueue;
+
+  class nsNestedEventTarget;
+  friend class nsNestedEventTarget;
 
   friend class nsThreadShutdownEvent;
 
-  ~nsThread();
+  virtual ~nsThread();
 
-  bool ShuttingDown() { return mShutdownContext != nullptr; }
+  bool ShuttingDown()
+  {
+    return mShutdownContext != nullptr;
+  }
 
-  static void ThreadFunc(void *arg);
+  static void ThreadFunc(void* aArg);
 
   // Helper
-  already_AddRefed<nsIThreadObserver> GetObserver() {
-    nsIThreadObserver *obs;
+  already_AddRefed<nsIThreadObserver> GetObserver()
+  {
+    nsIThreadObserver* obs;
     nsThread::GetObserver(&obs);
     return already_AddRefed<nsIThreadObserver>(obs);
   }
 
   // Wrappers for event queue methods:
-  bool GetEvent(bool mayWait, nsIRunnable **event) {
-    return mEvents.GetEvent(mayWait, event);
+  bool GetEvent(bool aMayWait, nsIRunnable** aEvent)
+  {
+    return mEvents->GetEvent(aMayWait, aEvent);
   }
-  nsresult PutEvent(nsIRunnable *event);
+  nsresult PutEvent(nsIRunnable* aEvent, nsNestedEventTarget* aTarget);
+
+  nsresult DispatchInternal(nsIRunnable* aEvent, uint32_t aFlags,
+                            nsNestedEventTarget* aTarget);
+
+  // Wrapper for nsEventQueue that supports chaining.
+  class nsChainedEventQueue
+  {
+  public:
+    nsChainedEventQueue()
+      : mNext(nullptr)
+    {
+    }
+
+    bool GetEvent(bool aMayWait, nsIRunnable** aEvent)
+    {
+      return mQueue.GetEvent(aMayWait, aEvent);
+    }
+
+    void PutEvent(nsIRunnable* aEvent)
+    {
+      mQueue.PutEvent(aEvent);
+    }
+
+    bool HasPendingEvent()
+    {
+      return mQueue.HasPendingEvent();
+    }
+
+    nsChainedEventQueue* mNext;
+    nsRefPtr<nsNestedEventTarget> mEventTarget;
+
+  private:
+    nsEventQueue mQueue;
+  };
+
+  class nsNestedEventTarget final : public nsIEventTarget
+  {
+  public:
+    NS_DECL_THREADSAFE_ISUPPORTS
+    NS_DECL_NSIEVENTTARGET
+
+    nsNestedEventTarget(nsThread* aThread, nsChainedEventQueue* aQueue)
+      : mThread(aThread)
+      , mQueue(aQueue)
+    {
+    }
+
+    nsRefPtr<nsThread> mThread;
+
+    // This is protected by mThread->mLock.
+    nsChainedEventQueue* mQueue;
+
+  private:
+    ~nsNestedEventTarget()
+    {
+    }
+  };
 
   // This lock protects access to mObserver, mEvents and mEventsAreDoomed.
   // All of those fields are only modified on the thread itself (never from
@@ -89,34 +177,47 @@ private:
   // Only accessed on the target thread.
   nsAutoTObserverArray<nsCOMPtr<nsIThreadObserver>, 2> mEventObservers;
 
-  nsEventQueue  mEvents;
+  nsChainedEventQueue* mEvents;  // never null
+  nsChainedEventQueue  mEventsRoot;
 
   int32_t   mPriority;
-  PRThread *mThread;
+  PRThread* mThread;
   uint32_t  mRunningEvent;  // counter
   uint32_t  mStackSize;
 
-  struct nsThreadShutdownContext *mShutdownContext;
+  struct nsThreadShutdownContext* mShutdownContext;
 
   bool mShutdownRequired;
   // Set to true when events posted to this thread will never run.
   bool mEventsAreDoomed;
   MainThreadFlag mIsMainThread;
+#ifdef MOZ_NUWA_PROCESS
+  mozilla::ReentrantMonitor mThreadStatusMonitor;
+  // The actual type is defined in nsThreadManager.h which is not exposed to
+  // file out of thread module.
+  void* mThreadStatusInfo;
+#endif
 };
 
 //-----------------------------------------------------------------------------
 
-class nsThreadSyncDispatch : public nsRunnable {
+class nsThreadSyncDispatch : public nsRunnable
+{
 public:
-  nsThreadSyncDispatch(nsIThread *origin, nsIRunnable *task)
-    : mOrigin(origin), mSyncTask(task), mResult(NS_ERROR_NOT_INITIALIZED) {
+  nsThreadSyncDispatch(nsIThread* aOrigin, nsIRunnable* aTask)
+    : mOrigin(aOrigin)
+    , mSyncTask(aTask)
+    , mResult(NS_ERROR_NOT_INITIALIZED)
+  {
   }
 
-  bool IsPending() {
+  bool IsPending()
+  {
     return mSyncTask != nullptr;
   }
 
-  nsresult Result() {
+  nsresult Result()
+  {
     return mResult;
   }
 
@@ -128,16 +229,11 @@ private:
   nsresult mResult;
 };
 
-namespace mozilla {
+#if defined(XP_UNIX) && !defined(ANDROID) && !defined(DEBUG) && HAVE_UALARM \
+  && defined(_GNU_SOURCE)
+# define MOZ_CANARY
 
-/**
- * This function causes the main thread to fire a memory pressure event at its
- * next available opportunity.
- *
- * You may call this function from any thread.
- */
-void ScheduleMemoryPressureEvent();
-
-} // namespace mozilla
+extern int sCanaryOutputFD;
+#endif
 
 #endif  // nsThread_h__

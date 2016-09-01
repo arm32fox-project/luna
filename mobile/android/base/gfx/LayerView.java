@@ -5,23 +5,32 @@
 
 package org.mozilla.goanna.gfx;
 
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
+import java.util.ArrayList;
+
+import org.mozilla.goanna.AndroidGamepadManager;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.EventDispatcher;
 import org.mozilla.goanna.GoannaAccessibility;
 import org.mozilla.goanna.GoannaAppShell;
 import org.mozilla.goanna.GoannaEvent;
-import org.mozilla.goanna.R;
-import org.mozilla.goanna.TouchEventInterceptor;
+import org.mozilla.goanna.PrefsHelper;
+import org.mozilla.goanna.Tab;
+import org.mozilla.goanna.Tabs;
 import org.mozilla.goanna.ZoomConstraints;
-import org.mozilla.goanna.util.EventDispatcher;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.mozglue.generatorannotations.WrapElementForJNI;
 
 import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
 import android.graphics.Color;
-import android.graphics.PixelFormat;
+import android.graphics.Point;
 import android.graphics.PointF;
 import android.graphics.Rect;
 import android.graphics.SurfaceTexture;
-import android.os.Build;
 import android.os.Handler;
 import android.util.AttributeSet;
 import android.util.Log;
@@ -36,35 +45,33 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputConnection;
 import android.widget.FrameLayout;
 
-import java.nio.IntBuffer;
-import java.util.ArrayList;
-
 /**
  * A view rendered by the layer compositor.
- *
- * Note that LayerView is accessed by Robocop via reflection.
  */
-public class LayerView extends FrameLayout {
-    private static String LOGTAG = "GoannaLayerView";
+public class LayerView extends FrameLayout implements Tabs.OnTabsChangedListener {
+    private static final String LOGTAG = "GoannaLayerView";
 
     private GoannaLayerClient mLayerClient;
     private PanZoomController mPanZoomController;
     private LayerMarginsAnimator mMarginsAnimator;
-    private GLController mGLController;
+    private final GLController mGLController;
     private InputConnectionHandler mInputConnectionHandler;
     private LayerRenderer mRenderer;
     /* Must be a PAINT_xxx constant */
     private int mPaintState;
     private int mBackgroundColor;
-    private boolean mFullScreen;
+    private FullScreenState mFullScreenState;
 
     private SurfaceView mSurfaceView;
     private TextureView mTextureView;
 
     private Listener mListener;
 
+    private PointF mInitialTouchPoint;
+    private boolean mGoannaIsReady;
+
     /* This should only be modified on the Java UI thread. */
-    private final ArrayList<TouchEventInterceptor> mTouchInterceptors;
+    private final Overscroll mOverscroll;
 
     /* Flags used to determine when to show the painted surface. */
     public static final int PAINT_START = 0;
@@ -100,12 +107,26 @@ public class LayerView extends FrameLayout {
         mGLController = GLController.getInstance(this);
         mPaintState = PAINT_START;
         mBackgroundColor = Color.WHITE;
+        mFullScreenState = FullScreenState.NONE;
 
-        mTouchInterceptors = new ArrayList<TouchEventInterceptor>();
+        if (Versions.feature14Plus) {
+            mOverscroll = new OverscrollEdgeEffect(this);
+        } else {
+            mOverscroll = null;
+        }
+        Tabs.registerOnTabsChangedListener(this);
+    }
+
+    public LayerView(Context context) {
+        this(context, null);
     }
 
     public void initializeView(EventDispatcher eventDispatcher) {
         mLayerClient = new GoannaLayerClient(getContext(), this, eventDispatcher);
+        if (mOverscroll != null) {
+            mLayerClient.setOverscrollHandler(mOverscroll);
+        }
+
         mPanZoomController = mLayerClient.getPanZoomController();
         mMarginsAnimator = mLayerClient.getLayerMarginsAnimator();
 
@@ -116,53 +137,71 @@ public class LayerView extends FrameLayout {
         setFocusableInTouchMode(true);
 
         GoannaAccessibility.setDelegate(this);
+        GoannaAccessibility.setAccessibilityStateChangeListener(getContext());
+    }
+
+    /**
+     * MotionEventHelper dragAsync() robocop tests can instruct
+     * PanZoomController not to generate longpress events.
+     */
+    public void setIsLongpressEnabled(boolean isLongpressEnabled) {
+        ((JavaPanZoomController) mPanZoomController).setIsLongpressEnabled(isLongpressEnabled);
+    }
+
+    private static Point getEventRadius(MotionEvent event) {
+        return new Point((int)event.getToolMajor() / 2,
+                         (int)event.getToolMinor() / 2);
     }
 
     public void goannaConnected() {
-        mLayerClient.notifyGoannaReady();
-        addTouchInterceptor(new TouchEventInterceptor() {
-            private PointF mInitialTouchPoint = null;
-
-            @Override
-            public boolean onInterceptTouchEvent(View view, MotionEvent event) {
-                return false;
-            }
-
-            @Override
-            public boolean onTouch(View view, MotionEvent event) {
-                if (event == null) {
-                    return true;
+        // See if we want to force 16-bit colour before doing anything
+        PrefsHelper.getPref("gfx.android.rgb16.force", new PrefsHelper.PrefHandlerBase() {
+            @Override public void prefValue(String pref, boolean force16bit) {
+                if (force16bit) {
+                    GoannaAppShell.setScreenDepthOverride(16);
                 }
-
-                int action = event.getActionMasked();
-                PointF point = new PointF(event.getX(), event.getY());
-                if (action == MotionEvent.ACTION_DOWN) {
-                    mInitialTouchPoint = point;
-                }
-
-                if (mInitialTouchPoint != null && action == MotionEvent.ACTION_MOVE) {
-                    if (PointUtils.subtract(point, mInitialTouchPoint).length() <
-                        PanZoomController.PAN_THRESHOLD) {
-                        // Don't send the touchmove event if if the users finger hasn't moved far.
-                        // Necessary for Google Maps to work correctly. See bug 771099.
-                        return true;
-                    } else {
-                        mInitialTouchPoint = null;
-                    }
-                }
-
-                GoannaAppShell.sendEventToGoanna(GoannaEvent.createMotionEvent(event, false));
-                return true;
             }
         });
+
+        mLayerClient.notifyGoannaReady();
+        mInitialTouchPoint = null;
+        mGoannaIsReady = true;
     }
 
-    public void show() {
+    private boolean sendEventToGoanna(MotionEvent event) {
+        if (!mGoannaIsReady) {
+            return false;
+        }
+
+        int action = event.getActionMasked();
+        PointF point = new PointF(event.getX(), event.getY());
+        if (action == MotionEvent.ACTION_DOWN) {
+            mInitialTouchPoint = point;
+        }
+
+        if (mInitialTouchPoint != null && action == MotionEvent.ACTION_MOVE) {
+            Point p = getEventRadius(event);
+
+            if (PointUtils.subtract(point, mInitialTouchPoint).length() <
+                Math.max(PanZoomController.CLICK_THRESHOLD, Math.min(Math.min(p.x, p.y), PanZoomController.PAN_THRESHOLD))) {
+                // Don't send the touchmove event if if the users finger hasn't moved far.
+                // Necessary for Google Maps to work correctly. See bug 771099.
+                return true;
+            } else {
+                mInitialTouchPoint = null;
+            }
+        }
+
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createMotionEvent(event, false));
+        return true;
+    }
+
+    public void showSurface() {
         // Fix this if TextureView support is turned back on above
         mSurfaceView.setVisibility(View.VISIBLE);
     }
 
-    public void hide() {
+    public void hideSurface() {
         // Fix this if TextureView support is turned back on above
         mSurfaceView.setVisibility(View.INVISIBLE);
     }
@@ -174,37 +213,17 @@ public class LayerView extends FrameLayout {
         if (mRenderer != null) {
             mRenderer.destroy();
         }
+        Tabs.unregisterOnTabsChangedListener(this);
     }
 
-    public void addTouchInterceptor(final TouchEventInterceptor aTouchInterceptor) {
-        post(new Runnable() {
-            @Override
-            public void run() {
-                mTouchInterceptors.add(aTouchInterceptor);
-            }
-        });
-    }
+    @Override
+    public void dispatchDraw(final Canvas canvas) {
+        super.dispatchDraw(canvas);
 
-    public void removeTouchInterceptor(final TouchEventInterceptor aTouchInterceptor) {
-        post(new Runnable() {
-            @Override
-            public void run() {
-                mTouchInterceptors.remove(aTouchInterceptor);
-            }
-        });
-    }
-
-    private boolean runTouchInterceptors(MotionEvent event, boolean aOnTouch) {
-        boolean result = false;
-        for (TouchEventInterceptor i : mTouchInterceptors) {
-            if (aOnTouch) {
-                result |= i.onTouch(this, event);
-            } else {
-                result |= i.onInterceptTouchEvent(this, event);
-            }
+        // We must have a layer client to get valid viewport metrics
+        if (mLayerClient != null && mOverscroll != null) {
+            mOverscroll.draw(canvas, getViewportMetrics());
         }
-
-        return result;
     }
 
     @Override
@@ -213,28 +232,25 @@ public class LayerView extends FrameLayout {
             requestFocus();
         }
 
-        if (runTouchInterceptors(event, false)) {
+        if (mMarginsAnimator != null && mMarginsAnimator.onInterceptTouchEvent(event)) {
             return true;
         }
         if (mPanZoomController != null && mPanZoomController.onTouchEvent(event)) {
             return true;
         }
-        if (runTouchInterceptors(event, true)) {
-            return true;
-        }
-        return false;
+        return sendEventToGoanna(event);
     }
 
     @Override
     public boolean onHoverEvent(MotionEvent event) {
-        if (runTouchInterceptors(event, true)) {
-            return true;
-        }
-        return false;
+        return sendEventToGoanna(event);
     }
 
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
+        if (AndroidGamepadManager.handleMotionEvent(event)) {
+            return true;
+        }
         if (mPanZoomController != null && mPanZoomController.onMotionEvent(event)) {
             return true;
         }
@@ -255,7 +271,7 @@ public class LayerView extends FrameLayout {
             // created, and it will be shown immediately at startup. Shortly
             // after, the tab's background color will be used before any content
             // is shown.
-            mTextureView.setBackgroundResource(R.color.background_normal);
+            mTextureView.setBackgroundColor(Color.WHITE);
             addView(mTextureView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
         } else {
             // This will stop PropertyAnimator from creating a drawing cache (i.e. a bitmap)
@@ -263,16 +279,18 @@ public class LayerView extends FrameLayout {
             setWillNotCacheDrawing(false);
 
             mSurfaceView = new LayerSurfaceView(getContext(), this);
-            mSurfaceView.setBackgroundResource(R.color.background_normal);
+            mSurfaceView.setBackgroundColor(Color.WHITE);
             addView(mSurfaceView, ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
 
             SurfaceHolder holder = mSurfaceView.getHolder();
             holder.addCallback(new SurfaceListener());
-            holder.setFormat(PixelFormat.RGB_565);
         }
     }
 
-    public GoannaLayerClient getLayerClient() { return mLayerClient; }
+    // Don't expose GoannaLayerClient to things outside this package; only expose it as an Object
+    GoannaLayerClient getLayerClient() { return mLayerClient; }
+    public Object getLayerClientObject() { return mLayerClient; }
+
     public PanZoomController getPanZoomController() { return mPanZoomController; }
     public LayerMarginsAnimator getLayerMarginsAnimator() { return mMarginsAnimator; }
 
@@ -310,7 +328,6 @@ public class LayerView extends FrameLayout {
 
     public void setInputConnectionHandler(InputConnectionHandler inputConnectionHandler) {
         mInputConnectionHandler = inputConnectionHandler;
-        mLayerClient.forceRedraw(null);
     }
 
     @Override
@@ -391,11 +408,20 @@ public class LayerView extends FrameLayout {
         mRenderer.removeLayer(layer);
     }
 
+    public void postRenderTask(RenderTask task) {
+        mRenderer.postRenderTask(task);
+    }
+
+    public void removeRenderTask(RenderTask task) {
+        mRenderer.removeRenderTask(task);
+    }
+
     public int getMaxTextureSize() {
         return mRenderer.getMaxTextureSize();
     }
 
     /** Used by robocop for testing purposes. Not for production use! */
+    @RobocopTarget
     public IntBuffer getPixels() {
         return mRenderer.getPixels();
     }
@@ -425,18 +451,16 @@ public class LayerView extends FrameLayout {
         return mGLController;
     }
 
-    private Bitmap getDrawable(int resId) {
+    private Bitmap getDrawable(String name) {
         BitmapFactory.Options options = new BitmapFactory.Options();
         options.inScaled = false;
-        return BitmapUtils.decodeResource(getContext(), resId, options);
-    }
-
-    Bitmap getShadowPattern() {
-        return getDrawable(R.drawable.shadow);
+        Context context = getContext();
+        int resId = context.getResources().getIdentifier(name, "drawable", context.getPackageName());
+        return BitmapUtils.decodeResource(context, resId, options);
     }
 
     Bitmap getScrollbarImage() {
-        return getDrawable(R.drawable.scrollbar);
+        return getDrawable("scrollbar");
     }
 
     /* When using a SurfaceView (mSurfaceView != null), resizing happens in two
@@ -458,7 +482,7 @@ public class LayerView extends FrameLayout {
      * TextureView instead of a SurfaceView, the first phase is skipped.
      */
     private void onSizeChanged(int width, int height) {
-        if (!mGLController.hasValidSurface() || mSurfaceView == null) {
+        if (!mGLController.isServerSurfaceValid() || mSurfaceView == null) {
             surfaceChanged(width, height);
             return;
         }
@@ -466,18 +490,26 @@ public class LayerView extends FrameLayout {
         if (mListener != null) {
             mListener.sizeChanged(width, height);
         }
+
+        if (mOverscroll != null) {
+            mOverscroll.setSize(width, height);
+        }
     }
 
     private void surfaceChanged(int width, int height) {
-        mGLController.surfaceChanged(width, height);
+        mGLController.serverSurfaceChanged(width, height);
 
         if (mListener != null) {
             mListener.surfaceChanged(width, height);
         }
+
+        if (mOverscroll != null) {
+            mOverscroll.setSize(width, height);
+        }
     }
 
     private void onDestroyed() {
-        mGLController.surfaceDestroyed();
+        mGLController.serverSurfaceDestroyed();
     }
 
     public Object getNativeWindow() {
@@ -487,7 +519,7 @@ public class LayerView extends FrameLayout {
         return mTextureView.getSurfaceTexture();
     }
 
-    /** This function is invoked by Goanna (compositor thread) via JNI; be careful when modifying signature. */
+    @WrapElementForJNI(allowMultithread = true, stubName = "RegisterCompositorWrapper")
     public static GLController registerCxxCompositor() {
         try {
             LayerView layerView = GoannaAppShell.getLayerView();
@@ -497,6 +529,18 @@ public class LayerView extends FrameLayout {
         } catch (Exception e) {
             Log.e(LOGTAG, "Error registering compositor!", e);
             return null;
+        }
+    }
+
+    //This method is called on the Goanna main thread.
+    @WrapElementForJNI(allowMultithread = true, stubName = "updateZoomedView")
+    public static void updateZoomedView(ByteBuffer data) {
+        LayerView layerView = GoannaAppShell.getLayerView();
+        if (layerView != null) {
+            LayerRenderer layerRenderer = layerView.getRenderer();
+            if (layerRenderer != null) {
+                layerRenderer.updateZoomedView(data);
+            }
         }
     }
 
@@ -567,11 +611,24 @@ public class LayerView extends FrameLayout {
         }
     }
 
+    @RobocopTarget
+    public void addDrawListener(DrawListener listener) {
+        mLayerClient.addDrawListener(listener);
+    }
+
+    @RobocopTarget
+    public void removeDrawListener(DrawListener listener) {
+        mLayerClient.removeDrawListener(listener);
+    }
+
+    @RobocopTarget
+    public static interface DrawListener {
+        public void drawFinished();
+    }
+
     @Override
     public void setOverScrollMode(int overscrollMode) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
-            super.setOverScrollMode(overscrollMode);
-        }
+        super.setOverScrollMode(overscrollMode);
         if (mPanZoomController != null) {
             mPanZoomController.setOverScrollMode(overscrollMode);
         }
@@ -583,10 +640,7 @@ public class LayerView extends FrameLayout {
             return mPanZoomController.getOverScrollMode();
         }
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.GINGERBREAD) {
-            return super.getOverScrollMode();
-        }
-        return View.OVER_SCROLL_ALWAYS;
+        return super.getOverScrollMode();
     }
 
     @Override
@@ -595,11 +649,54 @@ public class LayerView extends FrameLayout {
         GoannaAccessibility.onLayerViewFocusChanged(this, gainFocus);
     }
 
-    public void setFullScreen(boolean fullScreen) {
-        mFullScreen = fullScreen;
+    public void setFullScreenState(FullScreenState state) {
+        mFullScreenState = state;
     }
 
     public boolean isFullScreen() {
-        return mFullScreen;
+        return mFullScreenState != FullScreenState.NONE;
     }
+
+    public FullScreenState getFullScreenState() {
+        return mFullScreenState;
+    }
+
+    @Override
+    public void onTabChanged(Tab tab, Tabs.TabEvents msg, Object data) {
+        if (msg == Tabs.TabEvents.VIEWPORT_CHANGE && Tabs.getInstance().isSelectedTab(tab) && mLayerClient != null) {
+            setZoomConstraints(tab.getZoomConstraints());
+            setIsRTL(tab.getIsRTL());
+        }
+    }
+
+    // Public hooks for listening to metrics changing
+
+    public interface OnMetricsChangedListener {
+        public void onMetricsChanged(ImmutableViewportMetrics viewport);
+        public void onPanZoomStopped();
+    }
+
+    public void setOnMetricsChangedDynamicToolbarViewportListener(OnMetricsChangedListener listener) {
+        mLayerClient.setOnMetricsChangedDynamicToolbarViewportListener(listener);
+    }
+
+    public void setOnMetricsChangedZoomedViewportListener(OnMetricsChangedListener listener) {
+        mLayerClient.setOnMetricsChangedZoomedViewportListener(listener);
+    }
+
+    // Public hooks for zoomed view
+
+    public interface ZoomedViewListener {
+        public void requestZoomedViewRender();
+        public void updateView(ByteBuffer data);
+    }
+
+    public void addZoomedViewListener(ZoomedViewListener listener) {
+        mRenderer.addZoomedViewListener(listener);
+    }
+
+    public void removeZoomedViewListener(ZoomedViewListener listener) {
+        mRenderer.removeZoomedViewListener(listener);
+    }
+
 }

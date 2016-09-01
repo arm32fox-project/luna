@@ -45,8 +45,8 @@ public:
   NS_DECL_CHANGEOBSERVER
 
   // nsMenuObjectX
-  void*             NativeData()     {return (void*)mNativeMenuItem;}
-  nsMenuObjectTypeX MenuObjectType() {return eMenuItemObjectType;}
+  void*             NativeData() override {return (void*)mNativeMenuItem;}
+  nsMenuObjectTypeX MenuObjectType() override {return eMenuItemObjectType;}
 
   // nsMenuItemX
   nsresult      Create(nsMenuX* aParent, const nsString& aLabel, EMenuItemType aItemType,
@@ -56,8 +56,6 @@ public:
   void          DoCommand();
   nsresult      DispatchDOMEvent(const nsString &eventName, bool* preventDefaultCalled);
   void          SetupIcon();
-
-  static uint32_t   ConvertGoannaToMacKeyCode(nsAString& aKeyCodeName);
 
 protected:
   void UncheckRadioSiblings(nsIContent* inCheckedElement);

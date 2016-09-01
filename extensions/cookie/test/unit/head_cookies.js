@@ -21,10 +21,6 @@ XPCOMUtils.defineLazyServiceGetter(Services, "etld",
                                    "@mozilla.org/network/effective-tld-service;1",
                                    "nsIEffectiveTLDService");
 
-XPCOMUtils.defineLazyServiceGetter(Services, "permissions",
-                                   "@mozilla.org/permissionmanager;1",
-                                   "nsIPermissionManager");
-
 function do_check_throws(f, result, stack)
 {
   if (!stack)
@@ -84,13 +80,13 @@ _observer.prototype = {
 
 // Close the cookie database. If a generator is supplied, it will be invoked
 // once the close is complete.
-function do_close_profile(generator, cleanse) {
+function do_close_profile(generator) {
   // Register an observer for db close.
   let obs = new _observer(generator, "cookie-db-closed");
 
   // Close the db.
   let service = Services.cookies.QueryInterface(Ci.nsIObserver);
-  service.observe(null, "profile-before-change", cleanse ? cleanse : "");
+  service.observe(null, "profile-before-change", "shutdown-persist");
 }
 
 // Load the cookie database. If a generator is supplied, it will be invoked

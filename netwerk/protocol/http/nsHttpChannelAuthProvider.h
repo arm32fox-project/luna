@@ -7,18 +7,21 @@
 #ifndef nsHttpChannelAuthProvider_h__
 #define nsHttpChannelAuthProvider_h__
 
-#include "nsHttp.h"
 #include "nsIHttpChannelAuthProvider.h"
 #include "nsIAuthPromptCallback.h"
 #include "nsString.h"
 #include "nsCOMPtr.h"
-#include "nsIHttpAuthenticableChannel.h"
-#include "nsIURI.h"
 #include "nsHttpAuthCache.h"
 #include "nsProxyInfo.h"
-#include "mozilla/Attributes.h"
+#include "nsCRT.h"
 
+class nsIHttpAuthenticableChannel;
 class nsIHttpAuthenticator;
+class nsIURI;
+
+namespace mozilla { namespace net {
+
+class nsHttpHandler;
 
 class nsHttpChannelAuthProvider : public nsIHttpChannelAuthProvider
                                 , public nsIAuthPromptCallback
@@ -30,9 +33,10 @@ public:
     NS_DECL_NSIAUTHPROMPTCALLBACK
 
     nsHttpChannelAuthProvider();
-    virtual ~nsHttpChannelAuthProvider();
 
 private:
+    virtual ~nsHttpChannelAuthProvider();
+
     const char *ProxyHost() const
     { return mProxyInfo ? mProxyInfo->Host().get() : nullptr; }
 
@@ -44,7 +48,7 @@ private:
     bool        UsingSSL() const  { return mUsingSSL; }
 
     bool        UsingHttpProxy() const
-    { return !!(mProxyInfo && !nsCRT::strcmp(mProxyInfo->Type(), "http")); }
+    { return mProxyInfo && (mProxyInfo->IsHTTP() || mProxyInfo->IsHTTPS()); }
 
     nsresult PrepareForAuthentication(bool proxyAuth);
     nsresult GenCredsAndSetEntry(nsIHttpAuthenticator *, bool proxyAuth,
@@ -143,6 +147,10 @@ private:
     uint32_t                          mTriedProxyAuth           : 1;
     uint32_t                          mTriedHostAuth            : 1;
     uint32_t                          mSuppressDefensiveAuth    : 1;
+
+    nsRefPtr<nsHttpHandler>           mHttpHandler;  // keep gHttpHandler alive
 };
+
+}} // namespace mozilla::net
 
 #endif // nsHttpChannelAuthProvider_h__

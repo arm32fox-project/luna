@@ -10,14 +10,14 @@ using namespace mozilla;
 
 nsCertVerificationThread *nsCertVerificationThread::verification_thread_singleton;
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(nsCertVerificationResult, nsICertVerificationResult)
+NS_IMPL_ISUPPORTS(nsCertVerificationResult, nsICertVerificationResult)
 
 namespace {
 class DispatchCertVerificationResult : public nsRunnable
 {
 public:
   DispatchCertVerificationResult(const nsMainThreadPtrHandle<nsICertVerificationListener>& aListener,
-                                 nsIX509Cert3* aCert,
+                                 nsIX509Cert* aCert,
                                  nsICertVerificationResult* aResult)
     : mListener(aListener)
     , mCert(aCert)
@@ -31,7 +31,7 @@ public:
 
 private:
   nsMainThreadPtrHandle<nsICertVerificationListener> mListener;
-  nsCOMPtr<nsIX509Cert3> mCert;
+  nsCOMPtr<nsIX509Cert> mCert;
   nsCOMPtr<nsICertVerificationResult> mResult;
 };
 } // anonymous namespace
@@ -43,7 +43,7 @@ void nsCertVerificationJob::Run()
 
   uint32_t verified;
   uint32_t count;
-  PRUnichar **usages;
+  char16_t **usages;
 
   nsCOMPtr<nsICertVerificationResult> ires;
   RefPtr<nsCertVerificationResult> vres(new nsCertVerificationResult);
@@ -63,26 +63,9 @@ void nsCertVerificationJob::Run()
 
     ires = vres;
   }
-  
-  nsCOMPtr<nsIX509Cert3> c3 = do_QueryInterface(mCert);
-  nsCOMPtr<nsIRunnable> r = new DispatchCertVerificationResult(mListener, c3, ires);
-  NS_DispatchToMainThread(r);
-}
 
-void nsSMimeVerificationJob::Run()
-{
-  if (!mMessage || !mListener)
-    return;
-  
-  nsresult rv;
-  
-  if (digest_data)
-    rv = mMessage->VerifyDetachedSignature(digest_data, digest_len);
-  else
-    rv = mMessage->VerifySignature();
-  
-  nsCOMPtr<nsICMSMessage2> m2 = do_QueryInterface(mMessage);
-  mListener->Notify(m2, rv);
+  nsCOMPtr<nsIRunnable> r = new DispatchCertVerificationResult(mListener, mCert, ires);
+  NS_DispatchToMainThread(r);
 }
 
 nsCertVerificationThread::nsCertVerificationThread()
@@ -176,7 +159,7 @@ nsCertVerificationResult::~nsCertVerificationResult()
 NS_IMETHODIMP
 nsCertVerificationResult::GetUsagesArrayResult(uint32_t *aVerified,
                                                uint32_t *aCount,
-                                               PRUnichar ***aUsages)
+                                               char16_t ***aUsages)
 {
   if (NS_FAILED(mRV))
     return mRV;

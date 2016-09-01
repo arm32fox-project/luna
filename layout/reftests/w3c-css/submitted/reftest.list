@@ -26,13 +26,16 @@ include flexbox/reftest.list
 # include fonts3/reftest.list
 
 # Image Values and Replaced Content Level 3
-# include images3/reftest.list
+include images3/reftest.list
 
 # Media Queries Level 3
 # include mediaqueries3/reftest.list
 
 # Multi-column Layout 3
 include multicol3/reftest.list
+
+# Ruby Layout Module
+include ruby/reftest.list
 
 # Selectors Level 3
 # include selectors3/reftest.list
@@ -43,6 +46,9 @@ include multicol3/reftest.list
 # Text Level 3
 # include text3/reftest.list
 
+# Text Decoration Level 3
+include text-decor-3/reftest.list
+
 # Transforms
 # include transforms/reftest.list
 
@@ -50,7 +56,10 @@ include multicol3/reftest.list
 # include transitions/reftest.list
 
 # User Interface Level 3
-# include ui3/reftest.list
+include ui3/reftest.list
 
 # Values and Units Level 3
 include values3/reftest.list
+
+# Variables Level 1
+include variables/reftest.list

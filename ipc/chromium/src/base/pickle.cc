@@ -4,19 +4,22 @@
 
 #include "base/pickle.h"
 
+#include "mozilla/Alignment.h"
 #include "mozilla/Endian.h"
 #include "mozilla/TypeTraits.h"
-#include "mozilla/Util.h"
 
 #include <stdlib.h>
 
 #include <limits>
 #include <string>
+#include <algorithm>
+
+#include "nsDebug.h"
 
 //------------------------------------------------------------------------------
 
-MOZ_STATIC_ASSERT(MOZ_ALIGNOF(Pickle::memberAlignmentType) >= MOZ_ALIGNOF(uint32_t),
-		  "Insufficient alignment");
+static_assert(MOZ_ALIGNOF(Pickle::memberAlignmentType) >= MOZ_ALIGNOF(uint32_t),
+              "Insufficient alignment");
 
 // static
 const int Pickle::kPayloadUnit = 64;
@@ -50,7 +53,7 @@ struct Copier
 // worthwhile on 32-bit platforms, so handle it specially.  Only do it
 // if 64-bit types aren't sufficiently aligned; the alignment
 // requirements for them vary between 32-bit platforms.
-#ifndef HAVE_64BIT_OS
+#ifndef HAVE_64BIT_BUILD
 template<typename T>
 struct Copier<T, sizeof(uint64_t), false>
 {
@@ -60,8 +63,8 @@ struct Copier<T, sizeof(uint64_t), false>
 #else
     static const int loIndex = 1, hiIndex = 0;
 #endif
-    MOZ_STATIC_ASSERT(MOZ_ALIGNOF(uint32_t*) == MOZ_ALIGNOF(void*),
-		      "Pointers have different alignments");
+    static_assert(MOZ_ALIGNOF(uint32_t*) == MOZ_ALIGNOF(void*),
+                  "Pointers have different alignments");
     uint32_t* src = *reinterpret_cast<uint32_t**>(iter);
     uint32_t* uint32dest = reinterpret_cast<uint32_t*>(dest);
     uint32dest[loIndex] = src[loIndex];
@@ -80,15 +83,15 @@ struct Copier<T, size, true>
     //     big as MOZ_ALIGNOF(T).
     // Check the first condition, as the second condition is already
     // known to be true, or we wouldn't be here.
-    MOZ_STATIC_ASSERT(MOZ_ALIGNOF(T*) == MOZ_ALIGNOF(void*),
-		      "Pointers have different alignments");
+    static_assert(MOZ_ALIGNOF(T*) == MOZ_ALIGNOF(void*),
+                  "Pointers have different alignments");
     *dest = *(*reinterpret_cast<T**>(iter));
   }
 };
 
 template<typename T>
 void CopyFromIter(T* dest, void** iter) {
-  MOZ_STATIC_ASSERT(mozilla::IsPod<T>::value, "Copied type must be a POD type");
+  static_assert(mozilla::IsPod<T>::value, "Copied type must be a POD type");
   Copier<T, sizeof(T), (MOZ_ALIGNOF(T) <= sizeof(Pickle::memberAlignmentType))>::Copy(dest, iter);
 }
 
@@ -113,16 +116,29 @@ Pickle::Pickle(int header_size)
   DCHECK(static_cast<memberAlignmentType>(header_size) >= sizeof(Header));
   DCHECK(header_size <= kPayloadUnit);
   Resize(kPayloadUnit);
+  if (!header_) {
+    NS_ABORT_OOM(kPayloadUnit);
+  }
   header_->payload_size = 0;
 }
 
 Pickle::Pickle(const char* data, int data_len)
     : header_(reinterpret_cast<Header*>(const_cast<char*>(data))),
-      header_size_(data_len - header_->payload_size),
+      header_size_(0),
       capacity_(kCapacityReadOnly),
       variable_buffer_offset_(0) {
-  DCHECK(header_size_ >= sizeof(Header));
-  DCHECK(header_size_ == AlignInt(header_size_));
+  if (data_len >= static_cast<int>(sizeof(Header)))
+    header_size_ = data_len - header_->payload_size;
+
+  if (header_size_ > static_cast<unsigned int>(data_len))
+    header_size_ = 0;
+
+  if (header_size_ != AlignInt(header_size_))
+    header_size_ = 0;
+
+  // If there is anything wrong with the data, we're not going to use it.
+  if (!header_size_)
+    header_ = nullptr;
 }
 
 Pickle::Pickle(const Pickle& other)
@@ -132,8 +148,20 @@ Pickle::Pickle(const Pickle& other)
       variable_buffer_offset_(other.variable_buffer_offset_) {
   uint32_t payload_size = header_size_ + other.header_->payload_size;
   bool resized = Resize(payload_size);
-  CHECK(resized);  // Realloc failed.
+  if (!resized) {
+    NS_ABORT_OOM(payload_size);
+  }
   memcpy(header_, other.header_, payload_size);
+}
+
+Pickle::Pickle(Pickle&& other)
+  : header_(other.header_),
+    header_size_(other.header_size_),
+    capacity_(other.capacity_),
+    variable_buffer_offset_(other.variable_buffer_offset_) {
+  other.header_ = NULL;
+  other.capacity_ = 0;
+  other.variable_buffer_offset_ = 0;
 }
 
 Pickle::~Pickle() {
@@ -148,9 +176,19 @@ Pickle& Pickle::operator=(const Pickle& other) {
     header_size_ = other.header_size_;
   }
   bool resized = Resize(other.header_size_ + other.header_->payload_size);
-  CHECK(resized);  // Realloc failed.
+  if (!resized) {
+    NS_ABORT_OOM(other.header_size_ + other.header_->payload_size);
+  }
   memcpy(header_, other.header_, header_size_ + other.header_->payload_size);
   variable_buffer_offset_ = other.variable_buffer_offset_;
+  return *this;
+}
+
+Pickle& Pickle::operator=(Pickle&& other) {
+  std::swap(header_, other.header_);
+  std::swap(header_size_, other.header_size_);
+  std::swap(capacity_, other.capacity_);
+  std::swap(variable_buffer_offset_, other.variable_buffer_offset_);
   return *this;
 }
 
@@ -501,6 +539,16 @@ char* Pickle::BeginWrite(uint32_t length, uint32_t alignment) {
   DCHECK(intptr_t(buffer) % alignment == 0);
 
   header_->payload_size = new_size;
+
+#ifdef MOZ_VALGRIND
+  // pad the trailing end as well, so that valgrind
+  // doesn't complain when we write the buffer
+  padding = AlignInt(length) - length;
+  if (padding) {
+    memset(buffer + length, kBytePaddingMarker, padding);
+  }
+#endif
+
   return buffer;
 }
 
@@ -610,11 +658,15 @@ const char* Pickle::FindNext(uint32_t header_size,
   DCHECK(header_size == AlignInt(header_size));
   DCHECK(header_size <= static_cast<memberAlignmentType>(kPayloadUnit));
 
-  const Header* hdr = reinterpret_cast<const Header*>(start);
-  const char* payload_base = start + header_size;
-  const char* payload_end = payload_base + hdr->payload_size;
-  if (payload_end < payload_base)
-    return NULL;
+  if (end < start)
+    return nullptr;
+  size_t length = static_cast<size_t>(end - start);
+  if (length < sizeof(Header))
+    return nullptr;
 
-  return (payload_end > end) ? NULL : payload_end;
+  const Header* hdr = reinterpret_cast<const Header*>(start);
+  if (length < header_size || length - header_size < hdr->payload_size)
+    return nullptr;
+
+  return start + header_size + hdr->payload_size;
 }

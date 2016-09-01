@@ -4,11 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include <QIcon>
-#include <QStyle>
-#include <QApplication>
 
 #include <stdlib.h>
 #include <unistd.h>
+
+#include "mozilla/Endian.h"
 
 #include "nsMimeTypes.h"
 #include "nsIMIMEService.h"
@@ -16,19 +16,19 @@
 #include "nsIStringBundle.h"
 
 #include "nsNetUtil.h"
+#include "nsNullPrincipal.h"
 #include "nsIURL.h"
-#include "prlink.h"
 
 #include "nsIconChannel.h"
 #include "nsGtkQtIconsConverter.h"
 
-NS_IMPL_ISUPPORTS2(nsIconChannel,
-                   nsIRequest,
-                   nsIChannel)
+NS_IMPL_ISUPPORTS(nsIconChannel,
+                  nsIRequest,
+                  nsIChannel)
 
 static nsresult
-moz_qicon_to_channel(QImage *image, nsIURI *aURI,
-                     nsIChannel **aChannel)
+moz_qicon_to_channel(QImage* image, nsIURI* aURI,
+                     nsIChannel** aChannel)
 {
   NS_ENSURE_ARG_POINTER(image);
 
@@ -40,18 +40,18 @@ moz_qicon_to_channel(QImage *image, nsIURI *aURI,
 
   const int n_channels = 4;
   long int buf_size = 2 + n_channels * height * width;
-  uint8_t * const buf = (uint8_t*)NS_Alloc(buf_size);
+  uint8_t* const buf = (uint8_t*)NS_Alloc(buf_size);
   NS_ENSURE_TRUE(buf, NS_ERROR_OUT_OF_MEMORY);
-  uint8_t *out = buf;
+  uint8_t* out = buf;
 
   *(out++) = width;
   *(out++) = height;
 
-  const uchar * const pixels = image->bits();
+  const uchar* const pixels = image->bits();
   int rowextra = image->bytesPerLine() - width * n_channels;
 
   // encode the RGB data and the A data
-  const uchar * in = pixels;
+  const uchar* in = pixels;
   for (int y = 0; y < height; ++y, in += rowextra) {
     for (int x = 0; x < width; ++x) {
       uint8_t r = *(in++);
@@ -59,7 +59,7 @@ moz_qicon_to_channel(QImage *image, nsIURI *aURI,
       uint8_t b = *(in++);
       uint8_t a = *(in++);
 #define DO_PREMULTIPLY(c_) uint8_t(uint16_t(c_) * uint16_t(a) / uint16_t(255))
-#ifdef IS_LITTLE_ENDIAN
+#if MOZ_LITTLE_ENDIAN
       *(out++) = DO_PREMULTIPLY(b);
       *(out++) = DO_PREMULTIPLY(g);
       *(out++) = DO_PREMULTIPLY(r);
@@ -84,7 +84,16 @@ moz_qicon_to_channel(QImage *image, nsIURI *aURI,
   rv = stream->AdoptData((char*)buf, buf_size);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  return NS_NewInputStreamChannel(aChannel, aURI, stream,
+  nsCOMPtr<nsIPrincipal> nullPrincipal =
+    do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_NewInputStreamChannel(aChannel,
+                                  aURI,
+                                  stream,
+                                  nullPrincipal,
+                                  nsILoadInfo::SEC_NORMAL,
+                                  nsIContentPolicy::TYPE_OTHER,
                                   NS_LITERAL_CSTRING(IMAGE_ICON_MS));
 }
 
@@ -108,21 +117,15 @@ nsIconChannel::Init(nsIURI* aURI)
   iconURI->GetIconState(iconStateString);
   bool disabled = iconStateString.EqualsLiteral("disabled");
 
-  QStyle::StandardPixmap sp_icon = (QStyle::StandardPixmap)0;
-  nsCOMPtr <nsIGtkQtIconsConverter> converter = do_GetService("@mozilla.org/gtkqticonsconverter;1");
-  if (converter) {
-    int32_t res = 0;
-    stockIcon.Cut(0,4);
-    converter->Convert(stockIcon.get(), &res);
-    sp_icon = (QStyle::StandardPixmap)res;
-    // printf("ConvertIcon: icon:'%s' -> res:%i\n", stockIcon.get(), res);
-  }
-  if (!sp_icon)
-    return NS_ERROR_FAILURE;
+  // This is a workaround for
+  // https://bugzilla.mozilla.org/show_bug.cgi?id=662299
+  // Try to find corresponding freedesktop icon and fallback to empty QIcon
+  // if failed.
+  QIcon icon = QIcon::fromTheme(QString(stockIcon.get()).replace("gtk-",
+                                                                 "edit-"));
+  QPixmap pixmap = icon.pixmap(desiredImageSize, desiredImageSize,
+                               disabled ? QIcon::Disabled : QIcon::Normal);
 
-  QStyle *style = qApp->style();
-  NS_ENSURE_TRUE(style, NS_ERROR_NULL_POINTER);
-  QPixmap pixmap = style->standardIcon(sp_icon).pixmap(desiredImageSize, desiredImageSize, disabled?QIcon::Disabled:QIcon::Normal);
   QImage image = pixmap.toImage();
 
   return moz_qicon_to_channel(&image, iconURI,

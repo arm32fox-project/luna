@@ -2294,7 +2294,6 @@ pixman_fill8 (uint32_t *bits,
 
     while (height--)
     {
-#pragma loop(hint_parallel(0))
 	for (i = 0; i < width; ++i)
 	    dst[i] = v;
 
@@ -2321,7 +2320,6 @@ pixman_fill16 (uint32_t *bits,
 
     while (height--)
     {
-#pragma loop(hint_parallel(0))
 	for (i = 0; i < width; ++i)
 	    dst[i] = v;
 
@@ -2344,7 +2342,6 @@ pixman_fill32 (uint32_t *bits,
 
     while (height--)
     {
-#pragma loop(hint_parallel(0))
 	for (i = 0; i < width; ++i)
 	    bits[i] = filler;
 

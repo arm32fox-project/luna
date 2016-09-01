@@ -12,7 +12,6 @@
     <style name="GoannaBase" parent="@android:style/Theme.Light">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowContentOverlay">@null</item>
-        <item name="arrowPopupWidth">fill_parent</item>
     </style>
 
     <style name="GoannaDialogBase" parent="@android:style/Theme.Dialog">
@@ -20,11 +19,7 @@
         <item name="android:windowContentOverlay">@null</item>
     </style>
 
-    <style name="GoannaAwesomeBarBase" parent="GoannaBase">
-        <item name="android:windowNoTitle">true</item>
-        <item name="android:windowContentOverlay">@null</item>
-        <item name="android:windowBackground">@null</item>
-    </style>
+    <style name="GoannaTitleDialogBase" parent="@android:style/Theme.Dialog" />
 
     <style name="GoannaPreferencesBase" parent="GoannaBase">
         <item name="android:windowNoTitle">false</item>
@@ -72,23 +67,43 @@
 
     <style name="Goanna.Dialog" parent="GoannaDialogBase"/>
 
+    <style name="Goanna.TitleDialog" parent="GoannaTitleDialogBase"/>
+
     <!--
-        Activity based themes.
+        Activity based themes, dependent on API level. This theme is replaced
+        by GoannaAppBase from res/values-vXX/themes.xml on newer devices.
     -->
-    <style name="Goanna.App">
-        <item name="android:windowBackground">@color/background_normal</item>
+    <style name="GoannaAppBase" parent="Goanna">
         <item name="android:buttonStyle">@style/Widget.Button</item>
         <item name="android:dropDownItemStyle">@style/Widget.DropDownItem</item>
         <item name="android:editTextStyle">@style/Widget.EditText</item>
         <item name="android:textViewStyle">@style/Widget.TextView</item>
+        <item name="menuItemDefaultStyle">@style/Widget.MenuItemDefault</item>
+    </style>
+
+    <!-- All customizations that are NOT specific to a particular API-level can go here. -->
+    <style name="Goanna.App" parent="GoannaAppBase">
+        <item name="android:gridViewStyle">@style/Widget.GridView</item>
         <item name="android:spinnerStyle">@style/Widget.Spinner</item>
+        <item name="android:windowBackground">@android:color/white</item>
+        <item name="bookmarksListViewStyle">@style/Widget.BookmarksListView</item>
+        <item name="floatingHintEditTextStyle">@style/FloatingHintEditText</item>
+        <item name="tabGridLayoutViewStyle">@style/Widget.TabsGridLayout</item>
+        <item name="goannaMenuListViewStyle">@style/Widget.GoannaMenuListView</item>
+        <item name="homeListViewStyle">@style/Widget.HomeListView</item>
+        <item name="menuItemActionBarStyle">@style/Widget.MenuItemActionBar</item>
+        <item name="menuItemActionModeStyle">@style/GoannaActionBar.Button</item>
+        <item name="menuItemShareActionButtonStyle">@style/Widget.MenuItemSecondaryActionBar</item>
+        <item name="panelGridViewStyle">@style/Widget.PanelGridView</item>
+        <item name="topSitesGridItemViewStyle">@style/Widget.TopSitesGridItemView</item>
+        <item name="topSitesGridViewStyle">@style/Widget.TopSitesGridView</item>
+        <item name="topSitesThumbnailViewStyle">@style/Widget.TopSitesThumbnailView</item>
     </style>
 
-    <style name="Goanna.AwesomeBar" parent="GoannaAwesomeBarBase">
-        <item name="android:listViewStyle">@style/Widget.ListView.AwesomeBar</item>
-        <item name="android:expandableListViewStyle">@style/Widget.ExpandableListView.AwesomeBar</item>
+    <style name="Goanna.Preferences" parent="GoannaPreferencesBase">
+        <item name="floatingHintEditTextStyle">@style/FloatingHintEditText</item>
     </style>
 
-    <style name="Goanna.Preferences" parent="GoannaPreferencesBase"/>
+    <style name="GoannaStartPane" parent="GoannaBase"/>
 
 </resources>

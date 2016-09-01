@@ -5,11 +5,24 @@
 
 #include "domstubs.idl"
 interface nsIContentFrameMessageManager;
+interface nsIWebBrowserChrome3;
 
-// Sole purpose is to be able to identify the concrete class nsTabChild
-[uuid(bf1eddf9-731b-4a4b-bd65-9a712a892832)]
+native CommandsArray(nsTArray<nsCString>);
+[ref] native CommandsArrayRef(nsTArray<nsCString>);
+
+[scriptable, uuid(1fb79c27-e760-4088-b19c-1ce3673ec24e)]
 interface nsITabChild : nsISupports
 {
   readonly attribute nsIContentFrameMessageManager messageManager;
+
+  attribute nsIWebBrowserChrome3 webBrowserChrome;
+
+  [notxpcom] void sendRequestFocus(in boolean canFocus);
+
+  [noscript, notxpcom] void enableDisableCommands(in AString action,
+                                                  in CommandsArrayRef enabledCommands,
+                                                  in CommandsArrayRef disabledCommands);
+
+  readonly attribute uint64_t tabId;
 };
 

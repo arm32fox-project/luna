@@ -5,6 +5,9 @@
 
 package org.mozilla.goanna.sqlite;
 
+import org.mozilla.goanna.mozglue.generatorannotations.WrapEntireClassForJNI;
+
+@WrapEntireClassForJNI
 public class SQLiteBridgeException extends RuntimeException {
     static final long serialVersionUID = 1L;
 

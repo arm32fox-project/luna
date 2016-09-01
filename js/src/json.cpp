@@ -7,69 +7,64 @@
 #include "json.h"
 
 #include "mozilla/FloatingPoint.h"
+#include "mozilla/Range.h"
 
-#include <string.h>
-#include "jsapi.h"
 #include "jsarray.h"
 #include "jsatom.h"
 #include "jscntxt.h"
 #include "jsnum.h"
 #include "jsobj.h"
-#include "jsonparser.h"
 #include "jsstr.h"
 #include "jstypes.h"
 #include "jsutil.h"
 
 #include "vm/Interpreter.h"
+#include "vm/JSONParser.h"
 #include "vm/StringBuffer.h"
 
 #include "jsatominlines.h"
 #include "jsboolinlines.h"
 
+#include "vm/NativeObject-inl.h"
+
 using namespace js;
 using namespace js::gc;
-using namespace js::types;
 
 using mozilla::IsFinite;
 using mozilla::Maybe;
+using mozilla::RangedPtr;
 
-Class js::JSONClass = {
+const Class js::JSONClass = {
     js_JSON_str,
-    JSCLASS_HAS_CACHED_PROTO(JSProto_JSON),
-    JS_PropertyStub,        /* addProperty */
-    JS_DeletePropertyStub,  /* delProperty */
-    JS_PropertyStub,        /* getProperty */
-    JS_StrictPropertyStub,  /* setProperty */
-    JS_EnumerateStub,
-    JS_ResolveStub,
-    JS_ConvertStub
+    JSCLASS_HAS_CACHED_PROTO(JSProto_JSON)
 };
 
-static inline bool IsQuoteSpecialCharacter(jschar c)
+static inline bool
+IsQuoteSpecialCharacter(char16_t c)
 {
-    JS_STATIC_ASSERT('\b' < ' ');
-    JS_STATIC_ASSERT('\f' < ' ');
-    JS_STATIC_ASSERT('\n' < ' ');
-    JS_STATIC_ASSERT('\r' < ' ');
-    JS_STATIC_ASSERT('\t' < ' ');
+    static_assert('\b' < ' ', "'\\b' must be treated as special below");
+    static_assert('\f' < ' ', "'\\f' must be treated as special below");
+    static_assert('\n' < ' ', "'\\n' must be treated as special below");
+    static_assert('\r' < ' ', "'\\r' must be treated as special below");
+    static_assert('\t' < ' ', "'\\t' must be treated as special below");
+
     return c == '"' || c == '\\' || c < ' ';
 }
 
 /* ES5 15.12.3 Quote. */
+template <typename CharT>
 static bool
-Quote(JSContext *cx, StringBuffer &sb, JSString *str)
+Quote(StringBuffer& sb, JSLinearString* str)
 {
-    JS::Anchor<JSString *> anchor(str);
     size_t len = str->length();
-    const jschar *buf = str->getChars(cx);
-    if (!buf)
-        return false;
 
     /* Step 1. */
     if (!sb.append('"'))
         return false;
 
     /* Step 2. */
+    JS::AutoCheckCannotGC nogc;
+    const RangedPtr<const CharT> buf(str->chars<CharT>(nogc), len);
     for (size_t i = 0; i < len; ++i) {
         /* Batch-append maximal character sequences containing no escapes. */
         size_t mark = i;
@@ -78,18 +73,18 @@ Quote(JSContext *cx, StringBuffer &sb, JSString *str)
                 break;
         } while (++i < len);
         if (i > mark) {
-            if (!sb.append(&buf[mark], i - mark))
+            if (!sb.appendSubstring(str, mark, i - mark))
                 return false;
             if (i == len)
                 break;
         }
 
-        jschar c = buf[i];
+        char16_t c = buf[i];
         if (c == '"' || c == '\\') {
             if (!sb.append('\\') || !sb.append(c))
                 return false;
         } else if (c == '\b' || c == '\f' || c == '\n' || c == '\r' || c == '\t') {
-           jschar abbrev = (c == '\b')
+           char16_t abbrev = (c == '\b')
                          ? 'b'
                          : (c == '\f')
                          ? 'f'
@@ -101,13 +96,16 @@ Quote(JSContext *cx, StringBuffer &sb, JSString *str)
            if (!sb.append('\\') || !sb.append(abbrev))
                return false;
         } else {
-            JS_ASSERT(c < ' ');
+            MOZ_ASSERT(c < ' ');
             if (!sb.append("\\u00"))
                 return false;
-            JS_ASSERT((c >> 4) < 10);
+            MOZ_ASSERT((c >> 4) < 10);
             uint8_t x = c >> 4, y = c % 16;
-            if (!sb.append('0' + x) || !sb.append(y < 10 ? '0' + y : 'a' + (y - 10)))
+            if (!sb.append(Latin1Char('0' + x)) ||
+                !sb.append(Latin1Char(y < 10 ? '0' + y : 'a' + (y - 10))))
+            {
                 return false;
+            }
         }
     }
 
@@ -115,76 +113,67 @@ Quote(JSContext *cx, StringBuffer &sb, JSString *str)
     return sb.append('"');
 }
 
+static bool
+Quote(JSContext* cx, StringBuffer& sb, JSString* str)
+{
+    JSLinearString* linear = str->ensureLinear(cx);
+    if (!linear)
+        return false;
+
+    return linear->hasLatin1Chars()
+           ? Quote<Latin1Char>(sb, linear)
+           : Quote<char16_t>(sb, linear);
+}
+
+namespace {
+
 class StringifyContext
 {
   public:
-    StringifyContext(JSContext *cx, StringBuffer &sb, const StringBuffer &gap,
-                     HandleObject replacer, const AutoIdVector &propertyList)
+    StringifyContext(JSContext* cx, StringBuffer& sb, const StringBuffer& gap,
+                     HandleObject replacer, const AutoIdVector& propertyList)
       : sb(sb),
         gap(gap),
         replacer(cx, replacer),
         propertyList(propertyList),
-        depth(0),
-        objectStack(cx)
+        depth(0)
     {}
 
-    bool init() {
-        return objectStack.init(16);
-    }
-
-#ifdef DEBUG
-    ~StringifyContext() { JS_ASSERT(objectStack.empty()); }
-#endif
-
-    StringBuffer &sb;
-    const StringBuffer &gap;
+    StringBuffer& sb;
+    const StringBuffer& gap;
     RootedObject replacer;
-    const AutoIdVector &propertyList;
+    const AutoIdVector& propertyList;
     uint32_t depth;
-    HashSet<JSObject *> objectStack;
 };
 
-static JSBool Str(JSContext *cx, const Value &v, StringifyContext *scx);
+} /* anonymous namespace */
 
-static JSBool
-WriteIndent(JSContext *cx, StringifyContext *scx, uint32_t limit)
+static bool Str(JSContext* cx, const Value& v, StringifyContext* scx);
+
+static bool
+WriteIndent(JSContext* cx, StringifyContext* scx, uint32_t limit)
 {
     if (!scx->gap.empty()) {
         if (!scx->sb.append('\n'))
-            return JS_FALSE;
-        for (uint32_t i = 0; i < limit; i++) {
-            if (!scx->sb.append(scx->gap.begin(), scx->gap.end()))
-                return JS_FALSE;
+            return false;
+
+        if (scx->gap.isUnderlyingBufferLatin1()) {
+            for (uint32_t i = 0; i < limit; i++) {
+                if (!scx->sb.append(scx->gap.rawLatin1Begin(), scx->gap.rawLatin1End()))
+                    return false;
+            }
+        } else {
+            for (uint32_t i = 0; i < limit; i++) {
+                if (!scx->sb.append(scx->gap.rawTwoByteBegin(), scx->gap.rawTwoByteEnd()))
+                    return false;
+            }
         }
     }
 
-    return JS_TRUE;
+    return true;
 }
 
-class CycleDetector
-{
-  public:
-    CycleDetector(JSContext *cx, StringifyContext *scx, JSObject *obj)
-      : objectStack(scx->objectStack), obj(cx, obj) {
-    }
-
-    bool init(JSContext *cx) {
-        HashSet<JSObject *>::AddPtr ptr = objectStack.lookupForAdd(obj);
-        if (ptr) {
-            JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CYCLIC_VALUE, js_object_str);
-            return false;
-        }
-        return objectStack.add(ptr, obj);
-    }
-
-    ~CycleDetector() {
-        objectStack.remove(obj);
-    }
-
-  private:
-    HashSet<JSObject *> &objectStack;
-    RootedObject obj;
-};
+namespace {
 
 template<typename KeyType>
 class KeyStringifier {
@@ -193,7 +182,7 @@ class KeyStringifier {
 template<>
 class KeyStringifier<uint32_t> {
   public:
-    static JSString *toString(JSContext *cx, uint32_t index) {
+    static JSString* toString(JSContext* cx, uint32_t index) {
         return IndexToString(cx, index);
     }
 };
@@ -201,10 +190,12 @@ class KeyStringifier<uint32_t> {
 template<>
 class KeyStringifier<HandleId> {
   public:
-    static JSString *toString(JSContext *cx, HandleId id) {
+    static JSString* toString(JSContext* cx, HandleId id) {
         return IdToString(cx, id);
     }
 };
+
+} /* anonymous namespace */
 
 /*
  * ES5 15.12.3 Str, steps 2-4, extracted to enable preprocessing of property
@@ -212,7 +203,7 @@ class KeyStringifier<HandleId> {
  */
 template<typename KeyType>
 static bool
-PreprocessValue(JSContext *cx, HandleObject holder, KeyType key, MutableHandleValue vp, StringifyContext *scx)
+PreprocessValue(JSContext* cx, HandleObject holder, KeyType key, MutableHandleValue vp, StringifyContext* scx)
 {
     RootedString keyStr(cx);
 
@@ -220,10 +211,10 @@ PreprocessValue(JSContext *cx, HandleObject holder, KeyType key, MutableHandleVa
     if (vp.isObject()) {
         RootedValue toJSON(cx);
         RootedObject obj(cx, &vp.toObject());
-        if (!JSObject::getProperty(cx, obj, obj, cx->names().toJSON, &toJSON))
+        if (!GetProperty(cx, obj, obj, cx->names().toJSON, &toJSON))
             return false;
 
-        if (js_IsCallable(toJSON)) {
+        if (IsCallable(toJSON)) {
             keyStr = KeyStringifier<KeyType>::toString(cx, key);
             if (!keyStr)
                 return false;
@@ -234,7 +225,7 @@ PreprocessValue(JSContext *cx, HandleObject holder, KeyType key, MutableHandleVa
 
             args.setCallee(toJSON);
             args.setThis(vp);
-            args[0] = StringValue(keyStr);
+            args[0].setString(keyStr);
 
             if (!Invoke(cx, args))
                 return false;
@@ -256,8 +247,8 @@ PreprocessValue(JSContext *cx, HandleObject holder, KeyType key, MutableHandleVa
 
         args.setCallee(ObjectValue(*scx->replacer));
         args.setThis(ObjectValue(*holder));
-        args[0] = StringValue(keyStr);
-        args[1] = vp;
+        args[0].setString(keyStr);
+        args[1].set(vp);
 
         if (!Invoke(cx, args))
             return false;
@@ -271,14 +262,15 @@ PreprocessValue(JSContext *cx, HandleObject holder, KeyType key, MutableHandleVa
             double d;
             if (!ToNumber(cx, vp, &d))
                 return false;
-            vp.set(NumberValue(d));
+            vp.setNumber(d);
         } else if (ObjectClassIs(obj, ESClass_String, cx)) {
-            JSString *str = ToStringSlow<CanGC>(cx, vp);
+            JSString* str = ToStringSlow<CanGC>(cx, vp);
             if (!str)
                 return false;
-            vp.set(StringValue(str));
+            vp.setString(str);
         } else if (ObjectClassIs(obj, ESClass_Boolean, cx)) {
-            vp.setBoolean(BooleanGetPrimitiveValue(obj, cx));
+            if (!Unbox(cx, obj, vp))
+                return false;
         }
     }
 
@@ -293,14 +285,14 @@ PreprocessValue(JSContext *cx, HandleObject holder, KeyType key, MutableHandleVa
  * in arrays.
  */
 static inline bool
-IsFilteredValue(const Value &v)
+IsFilteredValue(const Value& v)
 {
-    return v.isUndefined() || js_IsCallable(v);
+    return v.isUndefined() || v.isSymbol() || IsCallable(v);
 }
 
 /* ES5 15.12.3 JO. */
-static JSBool
-JO(JSContext *cx, HandleObject obj, StringifyContext *scx)
+static bool
+JO(JSContext* cx, HandleObject obj, StringifyContext* scx)
 {
     /*
      * This method implements the JO algorithm in ES5 15.12.3, but:
@@ -313,29 +305,34 @@ JO(JSContext *cx, HandleObject obj, StringifyContext *scx)
      */
 
     /* Steps 1-2, 11. */
-    CycleDetector detect(cx, scx, obj);
-    if (!detect.init(cx))
-        return JS_FALSE;
+    AutoCycleDetector detect(cx, obj);
+    if (!detect.init())
+        return false;
+    if (detect.foundCycle()) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_JSON_CYCLIC_VALUE,
+                             js_object_str);
+        return false;
+    }
 
     if (!scx->sb.append('{'))
-        return JS_FALSE;
+        return false;
 
     /* Steps 5-7. */
     Maybe<AutoIdVector> ids;
-    const AutoIdVector *props;
+    const AutoIdVector* props;
     if (scx->replacer && !scx->replacer->isCallable()) {
-        JS_ASSERT(JS_IsArrayObject(cx, scx->replacer));
+        MOZ_ASSERT(IsArray(scx->replacer, cx));
         props = &scx->propertyList;
     } else {
-        JS_ASSERT_IF(scx->replacer, scx->propertyList.length() == 0);
-        ids.construct(cx);
-        if (!GetPropertyNames(cx, obj, JSITER_OWNONLY, ids.addr()))
+        MOZ_ASSERT_IF(scx->replacer, scx->propertyList.length() == 0);
+        ids.emplace(cx);
+        if (!GetPropertyKeys(cx, obj, JSITER_OWNONLY, ids.ptr()))
             return false;
-        props = ids.addr();
+        props = ids.ptr();
     }
 
     /* My kingdom for not-quite-initialized-from-the-start references. */
-    const AutoIdVector &propertyList = *props;
+    const AutoIdVector& propertyList = *props;
 
     /* Steps 8-10, 13. */
     bool wroteMember = false;
@@ -350,7 +347,7 @@ JO(JSContext *cx, HandleObject obj, StringifyContext *scx)
          */
         id = propertyList[i];
         RootedValue outputValue(cx);
-        if (!JSObject::getGeneric(cx, obj, obj, id, &outputValue))
+        if (!GetProperty(cx, obj, obj, id, &outputValue))
             return false;
         if (!PreprocessValue(cx, obj, HandleId(id), &outputValue, scx))
             return false;
@@ -365,7 +362,7 @@ JO(JSContext *cx, HandleObject obj, StringifyContext *scx)
         if (!WriteIndent(cx, scx, scx->depth))
             return false;
 
-        JSString *s = IdToString(cx, id);
+        JSString* s = IdToString(cx, id);
         if (!s)
             return false;
 
@@ -385,8 +382,8 @@ JO(JSContext *cx, HandleObject obj, StringifyContext *scx)
 }
 
 /* ES5 15.12.3 JA. */
-static JSBool
-JA(JSContext *cx, HandleObject obj, StringifyContext *scx)
+static bool
+JA(JSContext* cx, HandleObject obj, StringifyContext* scx)
 {
     /*
      * This method implements the JA algorithm in ES5 15.12.3, but:
@@ -399,23 +396,28 @@ JA(JSContext *cx, HandleObject obj, StringifyContext *scx)
      */
 
     /* Steps 1-2, 11. */
-    CycleDetector detect(cx, scx, obj);
-    if (!detect.init(cx))
-        return JS_FALSE;
+    AutoCycleDetector detect(cx, obj);
+    if (!detect.init())
+        return false;
+    if (detect.foundCycle()) {
+        JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_JSON_CYCLIC_VALUE,
+                             js_object_str);
+        return false;
+    }
 
     if (!scx->sb.append('['))
-        return JS_FALSE;
+        return false;
 
     /* Step 6. */
     uint32_t length;
     if (!GetLengthProperty(cx, obj, &length))
-        return JS_FALSE;
+        return false;
 
     /* Steps 7-10. */
     if (length != 0) {
         /* Steps 4, 10b(i). */
         if (!WriteIndent(cx, scx, scx->depth))
-            return JS_FALSE;
+            return false;
 
         /* Steps 7-10. */
         RootedValue outputValue(cx);
@@ -426,40 +428,40 @@ JA(JSContext *cx, HandleObject obj, StringifyContext *scx)
              * and the replacer and maybe unboxing, and interpreting some
              * values as |null| in separate steps.
              */
-            if (!JSObject::getElement(cx, obj, obj, i, &outputValue))
-                return JS_FALSE;
+            if (!GetElement(cx, obj, obj, i, &outputValue))
+                return false;
             if (!PreprocessValue(cx, obj, i, &outputValue, scx))
-                return JS_FALSE;
+                return false;
             if (IsFilteredValue(outputValue)) {
                 if (!scx->sb.append("null"))
-                    return JS_FALSE;
+                    return false;
             } else {
                 if (!Str(cx, outputValue, scx))
-                    return JS_FALSE;
+                    return false;
             }
 
             /* Steps 3, 4, 10b(i). */
             if (i < length - 1) {
                 if (!scx->sb.append(','))
-                    return JS_FALSE;
+                    return false;
                 if (!WriteIndent(cx, scx, scx->depth))
-                    return JS_FALSE;
+                    return false;
             }
         }
 
         /* Step 10(b)(iii). */
         if (!WriteIndent(cx, scx, scx->depth - 1))
-            return JS_FALSE;
+            return false;
     }
 
     return scx->sb.append(']');
 }
 
-static JSBool
-Str(JSContext *cx, const Value &v, StringifyContext *scx)
+static bool
+Str(JSContext* cx, const Value& v, StringifyContext* scx)
 {
     /* Step 11 must be handled by the caller. */
-    JS_ASSERT(!IsFilteredValue(v));
+    MOZ_ASSERT(!IsFilteredValue(v));
 
     JS_CHECK_RECURSION(cx, return false);
 
@@ -495,20 +497,16 @@ Str(JSContext *cx, const Value &v, StringifyContext *scx)
                 return scx->sb.append("null");
         }
 
-        StringBuffer sb(cx);
-        if (!NumberValueToStringBuffer(cx, v, sb))
-            return false;
-
-        return scx->sb.append(sb.begin(), sb.length());
+        return NumberValueToStringBuffer(cx, v, scx->sb);
     }
 
     /* Step 10. */
-    JS_ASSERT(v.isObject());
+    MOZ_ASSERT(v.isObject());
     RootedObject obj(cx, &v.toObject());
 
     scx->depth++;
-    JSBool ok;
-    if (ObjectClassIs(obj, ESClass_Array, cx))
+    bool ok;
+    if (IsArray(obj, cx))
         ok = JA(cx, obj, scx);
     else
         ok = JO(cx, obj, scx);
@@ -518,20 +516,19 @@ Str(JSContext *cx, const Value &v, StringifyContext *scx)
 }
 
 /* ES5 15.12.3. */
-JSBool
-js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value space_,
-             StringBuffer &sb)
+bool
+js_Stringify(JSContext* cx, MutableHandleValue vp, JSObject* replacer_, Value space_,
+             StringBuffer& sb)
 {
     RootedObject replacer(cx, replacer_);
-    RootedValue spaceRoot(cx, space_);
-    Value &space = spaceRoot.get();
+    RootedValue space(cx, space_);
 
     /* Step 4. */
     AutoIdVector propertyList(cx);
     if (replacer) {
         if (replacer->isCallable()) {
             /* Step 4a(i): use replacer to transform values.  */
-        } else if (ObjectClassIs(replacer, ESClass_Array, cx)) {
+        } else if (IsArray(replacer, cx)) {
             /*
              * Step 4b: The spec algorithm is unhelpfully vague about the exact
              * steps taken when the replacer is an array, regarding the exact
@@ -562,9 +559,10 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
 
             /* Step 4b(ii). */
             uint32_t len;
-            JS_ALWAYS_TRUE(GetLengthProperty(cx, replacer, &len));
-            if (replacer->isArray() && !replacer->isIndexed())
-                len = Min(len, replacer->getDenseInitializedLength());
+            if (!GetLengthProperty(cx, replacer, &len))
+                return false;
+            if (replacer->is<ArrayObject>() && !replacer->isIndexed())
+                len = Min(len, replacer->as<ArrayObject>().getDenseInitializedLength());
 
             // Cap the initial size to a moderately small value.  This avoids
             // ridiculous over-allocation if an array with bogusly-huge length
@@ -581,11 +579,11 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
             /* Step 4b(iv). */
             RootedValue v(cx);
             for (; i < len; i++) {
-                if (!JS_CHECK_OPERATION_LIMIT(cx))
+                if (!CheckForInterrupt(cx))
                     return false;
 
                 /* Step 4b(iv)(2). */
-                if (!JSObject::getElement(cx, replacer, replacer, i, &v))
+                if (!GetElement(cx, replacer, replacer, i, &v))
                     return false;
 
                 RootedId id(cx);
@@ -618,7 +616,7 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
                 }
             }
         } else {
-            replacer = NULL;
+            replacer = nullptr;
         }
     }
 
@@ -631,7 +629,7 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
                 return false;
             space = NumberValue(d);
         } else if (ObjectClassIs(spaceObj, ESClass_String, cx)) {
-            JSString *str = ToStringSlow<CanGC>(cx, spaceRoot);
+            JSString* str = ToStringSlow<CanGC>(cx, space);
             if (!str)
                 return false;
             space = StringValue(str);
@@ -649,36 +647,29 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
             return false;
     } else if (space.isString()) {
         /* Step 7. */
-        JSLinearString *str = space.toString()->ensureLinear(cx);
+        JSLinearString* str = space.toString()->ensureLinear(cx);
         if (!str)
             return false;
-        JS::Anchor<JSString *> anchor(str);
-        size_t len = Min(size_t(10), space.toString()->length());
-        if (!gap.append(str->chars(), len))
+        size_t len = Min(size_t(10), str->length());
+        if (!gap.appendSubstring(str, 0, len))
             return false;
     } else {
         /* Step 8. */
-        JS_ASSERT(gap.empty());
+        MOZ_ASSERT(gap.empty());
     }
 
     /* Step 9. */
-    RootedObject wrapper(cx, NewBuiltinClassInstance(cx, &ObjectClass));
+    RootedPlainObject wrapper(cx, NewBuiltinClassInstance<PlainObject>(cx));
     if (!wrapper)
         return false;
 
     /* Step 10. */
     RootedId emptyId(cx, NameToId(cx->names().empty));
-    if (!DefineNativeProperty(cx, wrapper, emptyId, vp, JS_PropertyStub, JS_StrictPropertyStub,
-                              JSPROP_ENUMERATE, 0, 0))
-    {
+    if (!NativeDefineProperty(cx, wrapper, emptyId, vp, nullptr, nullptr, JSPROP_ENUMERATE))
         return false;
-    }
 
     /* Step 11. */
     StringifyContext scx(cx, sb, gap, replacer, propertyList);
-    if (!scx.init())
-        return false;
-
     if (!PreprocessValue(cx, wrapper, HandleId(emptyId), vp, &scx))
         return false;
     if (IsFilteredValue(vp))
@@ -689,20 +680,20 @@ js_Stringify(JSContext *cx, MutableHandleValue vp, JSObject *replacer_, Value sp
 
 /* ES5 15.12.2 Walk. */
 static bool
-Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, MutableHandleValue vp)
+Walk(JSContext* cx, HandleObject holder, HandleId name, HandleValue reviver, MutableHandleValue vp)
 {
     JS_CHECK_RECURSION(cx, return false);
 
     /* Step 1. */
     RootedValue val(cx);
-    if (!JSObject::getGeneric(cx, holder, holder, name, &val))
+    if (!GetProperty(cx, holder, holder, name, &val))
         return false;
 
     /* Step 2. */
     if (val.isObject()) {
         RootedObject obj(cx, &val.toObject());
 
-        if (ObjectClassIs(obj, ESClass_Array, cx)) {
+        if (IsArray(obj, cx)) {
             /* Step 2a(ii). */
             uint32_t length;
             if (!GetLengthProperty(cx, obj, &length))
@@ -721,21 +712,21 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
 
                 if (newElement.isUndefined()) {
                     /* Step 2a(iii)(2). */
-                    JSBool succeeded;
-                    if (!JSObject::deleteByValue(cx, obj, IdToValue(id), &succeeded))
+                    bool succeeded;
+                    if (!DeleteProperty(cx, obj, id, &succeeded))
                         return false;
                 } else {
                     /* Step 2a(iii)(3). */
                     // XXX This definition should ignore success/failure, when
                     //     our property-definition APIs indicate that.
-                    if (!JSObject::defineGeneric(cx, obj, id, newElement))
+                    if (!DefineProperty(cx, obj, id, newElement))
                         return false;
                 }
             }
         } else {
             /* Step 2b(i). */
             AutoIdVector keys(cx);
-            if (!GetPropertyNames(cx, obj, JSITER_OWNONLY, &keys))
+            if (!GetPropertyKeys(cx, obj, JSITER_OWNONLY, &keys))
                 return false;
 
             /* Step 2b(ii). */
@@ -749,14 +740,14 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
 
                 if (newElement.isUndefined()) {
                     /* Step 2b(ii)(2). */
-                    JSBool succeeded;
-                    if (!JSObject::deleteByValue(cx, obj, IdToValue(id), &succeeded))
+                    bool succeeded;
+                    if (!DeleteProperty(cx, obj, id, &succeeded))
                         return false;
                 } else {
                     /* Step 2b(ii)(3). */
                     // XXX This definition should ignore success/failure, when
                     //     our property-definition APIs indicate that.
-                    if (!JSObject::defineGeneric(cx, obj, id, newElement))
+                    if (!DefineProperty(cx, obj, id, newElement))
                         return false;
                 }
             }
@@ -774,8 +765,8 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
 
     args.setCallee(reviver);
     args.setThis(ObjectValue(*holder));
-    args[0] = StringValue(key);
-    args[1] = val;
+    args[0].setString(key);
+    args[1].set(val);
 
     if (!Invoke(cx, args))
         return false;
@@ -784,77 +775,90 @@ Walk(JSContext *cx, HandleObject holder, HandleId name, HandleValue reviver, Mut
 }
 
 static bool
-Revive(JSContext *cx, HandleValue reviver, MutableHandleValue vp)
+Revive(JSContext* cx, HandleValue reviver, MutableHandleValue vp)
 {
-    RootedObject obj(cx, NewBuiltinClassInstance(cx, &ObjectClass));
+    RootedPlainObject obj(cx, NewBuiltinClassInstance<PlainObject>(cx));
     if (!obj)
         return false;
 
-    if (!JSObject::defineProperty(cx, obj, cx->names().empty, vp))
+    if (!DefineProperty(cx, obj, cx->names().empty, vp))
         return false;
 
     Rooted<jsid> id(cx, NameToId(cx->names().empty));
     return Walk(cx, obj, id, reviver, vp);
 }
 
+template <typename CharT>
 bool
-js::ParseJSONWithReviver(JSContext *cx, StableCharPtr chars, size_t length, HandleValue reviver,
+js::ParseJSONWithReviver(JSContext* cx, const mozilla::Range<const CharT> chars, HandleValue reviver,
                          MutableHandleValue vp)
 {
     /* 15.12.2 steps 2-3. */
-    JSONParser parser(cx, chars, length);
+    JSONParser<CharT> parser(cx, chars);
     if (!parser.parse(vp))
         return false;
 
     /* 15.12.2 steps 4-5. */
-    if (js_IsCallable(reviver))
+    if (IsCallable(reviver))
         return Revive(cx, reviver, vp);
     return true;
 }
 
+template bool
+js::ParseJSONWithReviver(JSContext* cx, const mozilla::Range<const Latin1Char> chars,
+                         HandleValue reviver, MutableHandleValue vp);
+
+template bool
+js::ParseJSONWithReviver(JSContext* cx, const mozilla::Range<const char16_t> chars, HandleValue reviver,
+                         MutableHandleValue vp);
+
 #if JS_HAS_TOSOURCE
-static JSBool
-json_toSource(JSContext *cx, unsigned argc, Value *vp)
+static bool
+json_toSource(JSContext* cx, unsigned argc, Value* vp)
 {
-    vp->setString(cx->names().JSON);
-    return JS_TRUE;
+    CallArgs args = CallArgsFromVp(argc, vp);
+    args.rval().setString(cx->names().JSON);
+    return true;
 }
 #endif
 
 /* ES5 15.12.2. */
-JSBool
-js_json_parse(JSContext *cx, unsigned argc, Value *vp)
+static bool
+json_parse(JSContext* cx, unsigned argc, Value* vp)
 {
     CallArgs args = CallArgsFromVp(argc, vp);
 
     /* Step 1. */
-    JSString *str = (args.length() >= 1)
-                    ? ToString<CanGC>(cx, args.handleAt(0))
+    JSString* str = (args.length() >= 1)
+                    ? ToString<CanGC>(cx, args[0])
                     : cx->names().undefined;
     if (!str)
         return false;
 
-    JSStableString *stable = str->ensureStable(cx);
-    if (!stable)
+    JSLinearString* linear = str->ensureLinear(cx);
+    if (!linear)
         return false;
 
-    JS::Anchor<JSString *> anchor(stable);
+    AutoStableStringChars linearChars(cx);
+    if (!linearChars.init(cx, linear))
+        return false;
 
-    RootedValue reviver(cx, (argc >= 2) ? args[1] : UndefinedValue());
+    HandleValue reviver = args.get(1);
 
     /* Steps 2-5. */
-    return ParseJSONWithReviver(cx, stable->chars(), stable->length(), reviver, args.rval());
+    return linearChars.isLatin1()
+           ? ParseJSONWithReviver(cx, linearChars.latin1Range(), reviver, args.rval())
+           : ParseJSONWithReviver(cx, linearChars.twoByteRange(), reviver, args.rval());
 }
 
 /* ES5 15.12.3. */
-JSBool
-js_json_stringify(JSContext *cx, unsigned argc, Value *vp)
+bool
+json_stringify(JSContext* cx, unsigned argc, Value* vp)
 {
-    RootedObject replacer(cx, (argc >= 2 && vp[3].isObject())
-                              ? &vp[3].toObject()
-                              : NULL);
-    RootedValue value(cx, (argc >= 1) ? vp[2] : UndefinedValue());
-    RootedValue space(cx, (argc >= 3) ? vp[4] : UndefinedValue());
+    CallArgs args = CallArgsFromVp(argc, vp);
+    RootedObject replacer(cx, args.get(1).isObject() ? &args[1].toObject() : nullptr);
+    RootedValue value(cx, args.get(0));
+    RootedValue space(cx, args.get(2));
 
     StringBuffer sb(cx);
     if (!js_Stringify(cx, &value, replacer, space, sb))
@@ -864,12 +868,12 @@ js_json_stringify(JSContext *cx, unsigned argc, Value *vp)
     // needs to support returning undefined. So this is a little awkward
     // for the API, because we want to support streaming writers.
     if (!sb.empty()) {
-        JSString *str = sb.finishString();
+        JSString* str = sb.finishString();
         if (!str)
             return false;
-        vp->setString(str);
+        args.rval().setString(str);
     } else {
-        vp->setUndefined();
+        args.rval().setUndefined();
     }
 
     return true;
@@ -879,36 +883,31 @@ static const JSFunctionSpec json_static_methods[] = {
 #if JS_HAS_TOSOURCE
     JS_FN(js_toSource_str,  json_toSource,      0, 0),
 #endif
-    JS_FN("parse",          js_json_parse,      2, 0),
-    JS_FN("stringify",      js_json_stringify,  3, 0),
+    JS_FN("parse",          json_parse,         2, 0),
+    JS_FN("stringify",      json_stringify,     3, 0),
     JS_FS_END
 };
 
-JSObject *
-js_InitJSONClass(JSContext *cx, HandleObject obj)
+JSObject*
+js_InitJSONClass(JSContext* cx, HandleObject obj)
 {
     Rooted<GlobalObject*> global(cx, &obj->as<GlobalObject>());
 
-    /*
-     * JSON requires that Boolean.prototype.valueOf be created and stashed in a
-     * reserved slot on the global object; see js::BooleanGetPrimitiveValueSlow
-     * called from PreprocessValue above.
-     */
-    if (!global->getOrCreateBooleanPrototype(cx))
-        return NULL;
-
-    RootedObject JSON(cx, NewObjectWithClassProto(cx, &JSONClass, NULL, global, SingletonObject));
+    RootedObject proto(cx, global->getOrCreateObjectPrototype(cx));
+    if (!proto)
+        return nullptr;
+    RootedObject JSON(cx, NewObjectWithGivenProto(cx, &JSONClass, proto, global, SingletonObject));
     if (!JSON)
-        return NULL;
+        return nullptr;
 
-    if (!JS_DefineProperty(cx, global, js_JSON_str, OBJECT_TO_JSVAL(JSON),
-                           JS_PropertyStub, JS_StrictPropertyStub, 0))
-        return NULL;
+    if (!JS_DefineProperty(cx, global, js_JSON_str, JSON, 0,
+                           JS_STUBGETTER, JS_STUBSETTER))
+        return nullptr;
 
     if (!JS_DefineFunctions(cx, JSON, json_static_methods))
-        return NULL;
+        return nullptr;
 
-    MarkStandardClassInitializedNoProto(global, &JSONClass);
+    global->setConstructor(JSProto_JSON, ObjectValue(*JSON));
 
     return JSON;
 }

@@ -21,8 +21,6 @@
 #include <sys/stat.h>
 #include <vector>
 #include "mozilla/FileUtils.h"
-#include "mozilla/NullPtr.h"
-#include "mozilla/Util.h"
 #include "png.h"
 
 #include "android/log.h"
@@ -225,11 +223,13 @@ public:
 
 struct AnimationFrame {
     char path[256];
+    png_color_16 bgcolor;
     char *buf;
     const local_file_header *file;
     uint32_t width;
     uint32_t height;
     uint16_t bytepp;
+    bool has_bgcolor;
 
     AnimationFrame() : buf(nullptr) {}
     AnimationFrame(const AnimationFrame &frame) : buf(nullptr) {
@@ -253,20 +253,9 @@ struct AnimationFrame {
 struct AnimationPart {
     int32_t count;
     int32_t pause;
-    // If you alter the size of the path, change ReadFromString() below as well.
     char path[256];
     vector<AnimationFrame> frames;
-    
-    bool
-    ReadFromString(const char* aLine)
-    {
-        MOZ_ASSERT(aLine);
-        // this 255 value must be in sync with AnimationPart::path.
-        return sscanf(aLine, "p %d %d %255s", &count, &pause, path) == 3;
-    }
 };
-
-
 
 struct RawReadState {
     const char *start;
@@ -279,7 +268,7 @@ RawReader(png_structp png_ptr, png_bytep data, png_size_t length)
 {
     RawReadState *state = (RawReadState *)png_get_io_ptr(png_ptr);
     if (length > (state->length - state->offset))
-        png_err(png_ptr);
+        png_error(png_ptr, "PNG read overrun");
 
     memcpy(data, state->start + state->offset, length);
     state->offset += length;
@@ -302,8 +291,7 @@ AnimationFrame::ReadPngFrame(int outputFormat)
 {
 #ifdef PNG_HANDLE_AS_UNKNOWN_SUPPORTED
     static const png_byte unused_chunks[] =
-        { 98,  75,  71,  68, '\0',   /* bKGD */
-          99,  72,  82,  77, '\0',   /* cHRM */
+        { 99,  72,  82,  77, '\0',   /* cHRM */
          104,  73,  83,  84, '\0',   /* hIST */
          105,  67,  67,  80, '\0',   /* iCCP */
          105,  84,  88, 116, '\0',   /* iTXt */
@@ -360,8 +348,15 @@ AnimationFrame::ReadPngFrame(int outputFormat)
 
     png_read_info(pngread, pnginfo);
 
+    png_color_16p colorp;
+    has_bgcolor = (PNG_INFO_bKGD == png_get_bKGD(pngread, pnginfo, &colorp));
+    bgcolor = has_bgcolor ? *colorp : png_color_16();
     width = png_get_image_width(pngread, pnginfo);
     height = png_get_image_height(pngread, pnginfo);
+
+    LOG("Decoded %s: %d x %d frame with bgcolor? %s (%#x, %#x, %#x; gray:%#x)",
+        path, width, height, has_bgcolor ? "yes" : "no",
+        bgcolor.red, bgcolor.green, bgcolor.blue, bgcolor.gray);
 
     switch (outputFormat) {
     case HAL_PIXEL_FORMAT_BGRA_8888:
@@ -401,6 +396,54 @@ AnimationFrame::ReadPngFrame(int outputFormat)
     png_set_gray_to_rgb(pngread);
     png_read_image(pngread, (png_bytepp)&rows.front());
     png_destroy_read_struct(&pngread, &pnginfo, nullptr);
+}
+
+/**
+ * Return a wchar_t that when used to |wmemset()| an image buffer will
+ * fill it with the color defined by |color16|.  The packed wchar_t
+ * may comprise one or two pixels depending on |outputFormat|.
+ */
+static wchar_t
+AsBackgroundFill(const png_color_16& color16, int outputFormat)
+{
+    static_assert(sizeof(wchar_t) == sizeof(uint32_t),
+                  "TODO: support 2-byte wchar_t");
+    union {
+        uint32_t r8g8b8;
+        struct {
+            uint8_t b8;
+            uint8_t g8;
+            uint8_t r8;
+            uint8_t x8;
+        };
+    } color;
+    color.b8 = color16.blue;
+    color.g8 = color16.green;
+    color.r8 = color16.red;
+    color.x8 = 0xFF;
+
+    switch (outputFormat) {
+    case HAL_PIXEL_FORMAT_RGBA_8888:
+    case HAL_PIXEL_FORMAT_RGBX_8888:
+        return color.r8g8b8;
+
+    case HAL_PIXEL_FORMAT_BGRA_8888:
+        swap(color.r8, color.b8);
+        return color.r8g8b8;
+
+    case HAL_PIXEL_FORMAT_RGB_565: {
+        // NB: we could do a higher-quality downsample here, but we
+        // want the results to be a pixel-perfect match with the fast
+        // downsample in TransformTo565().
+        uint16_t color565 = ((color.r8 & 0xF8) << 8) |
+                            ((color.g8 & 0xFC) << 3) |
+                            ((color.b8       ) >> 3);
+        return (color565 << 16) | color565;
+    }
+    default:
+        LOGW("Unhandled pixel format %d; falling back on black", outputFormat);
+        return 0;
+    }
 }
 
 static void *
@@ -477,7 +520,8 @@ AnimationThread(void *)
         if (headerRead &&
             sscanf(line, "%d %d %d", &width, &height, &fps) == 3) {
             headerRead = false;
-        } else if (part.ReadFromString(line)) {
+        } else if (sscanf(line, "p %d %d %s",
+                          &part.count, &part.pause, part.path)) {
             parts.push_back(part);
         }
     } while (end && *(line = end + 1));
@@ -534,8 +578,33 @@ AnimationThread(void *)
                     display->QueueBuffer(buf);
                     break;
                 }
-                memcpy(vaddr, frame.buf,
-                       frame.width * frame.height * frame.bytepp);
+
+                if (frame.has_bgcolor) {
+                    wchar_t bgfill = AsBackgroundFill(frame.bgcolor, format);
+                    wmemset((wchar_t*)vaddr, bgfill,
+                            (buf->height * buf->stride * frame.bytepp) / sizeof(wchar_t));
+                }
+
+                if (buf->height == frame.height && buf->stride == frame.width) {
+                    memcpy(vaddr, frame.buf,
+                           frame.width * frame.height * frame.bytepp);
+                } else if (buf->height >= frame.height &&
+                           buf->width >= frame.width) {
+                    int startx = (buf->width - frame.width) / 2;
+                    int starty = (buf->height - frame.height) / 2;
+
+                    int src_stride = frame.width * frame.bytepp;
+                    int dst_stride = buf->stride * frame.bytepp;
+
+                    char *src = frame.buf;
+                    char *dst = (char *) vaddr + starty * dst_stride + startx * frame.bytepp;
+
+                    for (int i = 0; i < frame.height; i++) {
+                        memcpy(dst, src, src_stride);
+                        src += src_stride;
+                        dst += dst_stride;
+                    }
+                }
                 grmodule->unlock(grmodule, buf->handle);
 
                 gettimeofday(&tv2, nullptr);

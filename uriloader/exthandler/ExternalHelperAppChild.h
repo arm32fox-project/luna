@@ -4,9 +4,14 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifndef mozilla_dom_ExternalHelperAppChild_h
+#define mozilla_dom_ExternalHelperAppChild_h
 
 #include "mozilla/dom/PExternalHelperAppChild.h"
+#include "nsExternalHelperAppService.h"
 #include "nsIStreamListener.h"
+
+class nsIDivertableChannel;
 
 namespace mozilla {
 namespace dom {
@@ -20,17 +25,21 @@ public:
     NS_DECL_NSIREQUESTOBSERVER
 
     ExternalHelperAppChild();
-    virtual ~ExternalHelperAppChild();
 
     // Give the listener a real nsExternalAppHandler to complete processing on
     // the child.
-    void SetHandler(nsIStreamListener *handler) { mHandler = handler; }
+    void SetHandler(nsExternalAppHandler *handler) { mHandler = handler; }
 
-    virtual bool RecvCancel(const nsresult& aStatus);
+    virtual bool RecvCancel(const nsresult& aStatus) override;
 private:
-    nsCOMPtr<nsIStreamListener> mHandler;
+    virtual ~ExternalHelperAppChild();
+    nsresult DivertToParent(nsIDivertableChannel *divertable, nsIRequest *request);
+
+    nsRefPtr<nsExternalAppHandler> mHandler;
     nsresult mStatus;
 };
 
 } // namespace dom
 } // namespace mozilla
+
+#endif // mozilla_dom_ExternalHelperAppChild_h

@@ -6,6 +6,7 @@
 #include "nsCookie.h"
 #include "nsUTF8ConverterService.h"
 #include <stdlib.h>
+#include "nsAutoPtr.h"
 
 /******************************************************************************
  * nsCookie:
@@ -80,9 +81,9 @@ nsCookie::Create(const nsACString &aName,
 {
   // Ensure mValue contains a valid UTF-8 sequence. Otherwise XPConnect will
   // truncate the string after the first invalid octet.
-  nsUTF8ConverterService converter;
+  nsRefPtr<nsUTF8ConverterService> converter = new nsUTF8ConverterService();
   nsAutoCString aUTF8Value;
-  converter.ConvertStringToUTF8(aValue, "UTF-8", false, true, 1, aUTF8Value);
+  converter->ConvertStringToUTF8(aValue, "UTF-8", false, true, 1, aUTF8Value);
 
   // find the required string buffer size, adding 4 for the terminating nulls
   const uint32_t stringLength = aName.Length() + aUTF8Value.Length() +
@@ -109,6 +110,14 @@ nsCookie::Create(const nsACString &aName,
   return new (place) nsCookie(name, value, host, path, end,
                               aExpiry, aLastAccessed, aCreationTime,
                               aIsSession, aIsSecure, aIsHttpOnly);
+}
+
+size_t
+nsCookie::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+{
+    // There is no need to measure the sizes of the individual string
+    // members, since the strings are stored in-line with the nsCookie.
+    return aMallocSizeOf(this);
 }
 
 /******************************************************************************
@@ -145,4 +154,4 @@ nsCookie::GetExpires(uint64_t *aExpires)
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS2(nsCookie, nsICookie2, nsICookie)
+NS_IMPL_ISUPPORTS(nsCookie, nsICookie2, nsICookie)

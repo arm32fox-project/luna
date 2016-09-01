@@ -23,9 +23,15 @@ interface CSSStyleDeclaration {
   CSSValue? getPropertyCSSValue(DOMString property);
   DOMString getPropertyPriority(DOMString property);
   [Throws]
-  void setProperty(DOMString property, DOMString value, [TreatNullAs=EmptyString] optional DOMString priority = "");
+  void setProperty(DOMString property, [TreatNullAs=EmptyString] DOMString value, [TreatNullAs=EmptyString] optional DOMString priority = "");
   [Throws]
   DOMString removeProperty(DOMString property);
 
   readonly attribute CSSRule? parentRule;
+};
+
+// Mozilla extensions
+partial interface CSSStyleDeclaration {
+  [ChromeOnly,Throws]
+  DOMString getAuthoredPropertyValue(DOMString property);
 };

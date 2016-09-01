@@ -22,9 +22,6 @@
 	      'src/stats',
 	      'src/util',
 	      'src/util/libekr',
-
-	      # Mozilla, hopefully towards the end
-             '$(DEPTH)/dist/include',
           ],
 
           'sources' : [
@@ -45,8 +42,6 @@
               './src/util/libekr/r_assoc.c',
               './src/util/libekr/r_assoc.h',
 #              './src/util/libekr/r_assoc_test.c',
-              './src/util/libekr/r_bitfield.c',
-              './src/util/libekr/r_bitfield.h',
               './src/util/libekr/r_common.h',
               './src/util/libekr/r_crc32.c',
               './src/util/libekr/r_crc32.h',
@@ -137,7 +132,7 @@
           
           'defines' : [
               'SANITY_CHECKS',
-	      'R_PLATFORM_INT_TYPES=\'"mozilla/StandardInteger.h"\'',
+	      'R_PLATFORM_INT_TYPES=<stdint.h>',
 	      'R_DEFINED_INT2=int16_t',
 	      'R_DEFINED_UINT2=uint16_t',
 	      'R_DEFINED_INT4=int32_t',
@@ -147,8 +142,18 @@
           ],
           
           'conditions' : [
-              ## Mac
+              ## Mac and BSDs
               [ 'OS == "mac"', {
+                'defines' : [
+                    'DARWIN',
+                ],
+              }],
+              [ 'os_bsd == 1', {
+                'defines' : [
+                    'BSD',
+                ],
+              }],
+              [ 'OS == "mac" or os_bsd == 1', {
                 'cflags_mozilla': [
                     '-Wall',
                     '-Wno-parentheses',
@@ -156,7 +161,6 @@
                     '-Wmissing-prototypes',
                  ],
                  'defines' : [
-                     'DARWIN',
                      'HAVE_LIBM=1',
                      'HAVE_STRDUP=1',
                      'HAVE_STRLCPY=1',
@@ -165,7 +169,7 @@
                      'NEW_STDIO'
                      'RETSIGTYPE=void',
                      'TIME_WITH_SYS_TIME_H=1',
-                     '__UNUSED__="__attribute__((unused))"',
+                     '__UNUSED__=__attribute__((unused))',
                  ],
 
 		 'include_dirs': [
@@ -181,7 +185,7 @@
               [ 'OS == "win"', {
                  'defines' : [
                      'WIN',
-                     '__UNUSED__=""',
+                     '__UNUSED__=',
                      'HAVE_STRDUP=1',
                      'NO_REG_RPC'
                  ],
@@ -213,7 +217,7 @@
                      'RETSIGTYPE=void',
                      'TIME_WITH_SYS_TIME_H=1',
                      'NO_REG_RPC=1',
-                     '__UNUSED__="__attribute__((unused))"',
+                     '__UNUSED__=__attribute__((unused))',
                  ],
 
 		 'include_dirs': [

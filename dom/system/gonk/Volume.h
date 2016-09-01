@@ -9,7 +9,7 @@
 #include "nsIVolume.h"
 #include "nsString.h"
 #include "mozilla/Observer.h"
-#include "mozilla/RefPtr.h"
+#include "nsISupportsImpl.h"
 #include "nsWhitespaceTokenizer.h"
 
 namespace mozilla {
@@ -24,9 +24,25 @@ namespace system {
 *
 ***************************************************************************/
 
-class Volume : public RefCounted<Volume>
+class Volume;
+
+#define DEBUG_VOLUME_OBSERVER 0
+
+#if DEBUG_VOLUME_OBSERVER
+class VolumeObserverList : public mozilla::ObserverList<Volume*>
 {
 public:
+  void Broadcast(Volume* const& aVolume);
+};
+#else
+typedef mozilla::ObserverList<Volume*> VolumeObserverList;
+#endif
+
+class Volume final
+{
+public:
+  NS_INLINE_DECL_REFCOUNTING(Volume)
+
   Volume(const nsCSubstring& aVolumeName);
 
   typedef long STATE; // States are now defined in nsIVolume.idl
@@ -38,24 +54,42 @@ public:
   const nsCString& Name() const { return mName; }
   const char* NameStr() const   { return mName.get(); }
 
+  void Dump(const char* aLabel) const;
+
   // The mount point is the name of the directory where the volume is mounted.
   // (i.e. path that leads to the files stored on the volume).
   const nsCString& MountPoint() const { return mMountPoint; }
+
+  uint32_t Id() const                 { return mId; }
 
   int32_t MountGeneration() const     { return mMountGeneration; }
   bool IsMountLocked() const          { return mMountLocked; }
   bool MediaPresent() const           { return mMediaPresent; }
   bool CanBeShared() const            { return mCanBeShared; }
+  bool CanBeFormatted() const         { return CanBeShared(); }
+  bool CanBeMounted() const           { return CanBeShared(); }
   bool IsSharingEnabled() const       { return mCanBeShared && mSharingEnabled; }
+  bool IsFormatRequested() const      { return CanBeFormatted() && mFormatRequested; }
+  bool IsMountRequested() const       { return CanBeMounted() && mMountRequested; }
+  bool IsUnmountRequested() const     { return CanBeMounted() && mUnmountRequested; }
+  bool IsSharing() const              { return mIsSharing; }
+  bool IsFormatting() const           { return mIsFormatting; }
+  bool IsUnmounting() const           { return mIsUnmounting; }
+  bool IsRemovable() const            { return mIsRemovable; }
+  bool IsHotSwappable() const         { return mIsHotSwappable; }
+
+  void SetFakeVolume(const nsACString& aMountPoint);
 
   void SetSharingEnabled(bool aSharingEnabled);
+  void SetFormatRequested(bool aFormatRequested);
+  void SetMountRequested(bool aMountRequested);
+  void SetUnmountRequested(bool aUnmountRequested);
 
   typedef mozilla::Observer<Volume *>     EventObserver;
-  typedef mozilla::ObserverList<Volume *> EventObserverList;
 
   // NOTE: that observers must live in the IOThread.
-  static void RegisterObserver(EventObserver* aObserver);
-  static void UnregisterObserver(EventObserver* aObserver);
+  static void RegisterVolumeObserver(EventObserver* aObserver, const char* aName);
+  static void UnregisterVolumeObserver(EventObserver* aObserver, const char* aName);
 
 private:
   friend class AutoMounter;         // Calls StartXxx
@@ -68,13 +102,22 @@ private:
   // be called as each one completes.
   void StartMount(VolumeResponseCallback* aCallback);
   void StartUnmount(VolumeResponseCallback* aCallback);
+  void StartFormat(VolumeResponseCallback* aCallback);
   void StartShare(VolumeResponseCallback* aCallback);
   void StartUnshare(VolumeResponseCallback* aCallback);
 
+  void SetIsSharing(bool aIsSharing);
+  void SetIsFormatting(bool aIsFormatting);
+  void SetIsUnmounting(bool aIsUnmounting);
+  void SetIsRemovable(bool aIsRemovable);
+  void SetIsHotSwappable(bool aIsHotSwappable);
   void SetState(STATE aNewState);
   void SetMediaPresent(bool aMediaPresent);
   void SetMountPoint(const nsCSubstring& aMountPoint);
   void StartCommand(VolumeCommand* aCommand);
+
+  bool BoolConfigValue(const nsCString& aConfigValue, bool& aBoolValue);
+  void SetConfig(const nsCString& aConfigName, const nsCString& aConfigValue);
 
   void HandleVoldResponse(int aResponseCode, nsCWhitespaceTokenizer& aTokenizer);
 
@@ -89,9 +132,18 @@ private:
   int32_t           mMountGeneration;
   bool              mMountLocked;
   bool              mSharingEnabled;
+  bool              mFormatRequested;
+  bool              mMountRequested;
+  bool              mUnmountRequested;
   bool              mCanBeShared;
+  bool              mIsSharing;
+  bool              mIsFormatting;
+  bool              mIsUnmounting;
+  bool              mIsRemovable;
+  bool              mIsHotSwappable;
+  uint32_t          mId;                // Unique ID (used by MTP)
 
-  static EventObserverList mEventObserverList;
+  static VolumeObserverList sEventObserverList;
 };
 
 } // system

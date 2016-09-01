@@ -6,7 +6,6 @@
 #include "GTestRunner.h"
 #include "gtest/gtest.h"
 #include "mozilla/Attributes.h"
-#include "mozilla/NullPtr.h"
 #include "testing/TestHarness.h"
 #include "prenv.h"
 
@@ -25,31 +24,32 @@ namespace mozilla {
 class MozillaPrinter : public EmptyTestEventListener
 {
 public:
-  virtual void OnTestProgramStart(const UnitTest& /* aUnitTest */) MOZ_OVERRIDE {
+  virtual void OnTestProgramStart(const UnitTest& /* aUnitTest */) override {
     printf("TEST-INFO | GTest unit test starting\n");
   }
-  virtual void OnTestProgramEnd(const UnitTest& aUnitTest) MOZ_OVERRIDE {
+  virtual void OnTestProgramEnd(const UnitTest& aUnitTest) override {
     printf("TEST-%s | GTest unit test: %s\n",
            aUnitTest.Passed() ? "PASS" : "UNEXPECTED-FAIL",
            aUnitTest.Passed() ? "passed" : "failed");
   }
-  virtual void OnTestStart(const TestInfo& aTestInfo) MOZ_OVERRIDE {
+  virtual void OnTestStart(const TestInfo& aTestInfo) override {
     mTestInfo = &aTestInfo;
     printf("TEST-START | %s.%s\n",
         mTestInfo->test_case_name(), mTestInfo->name());
   }
-  virtual void OnTestPartResult(const TestPartResult& aTestPartResult) MOZ_OVERRIDE {
+  virtual void OnTestPartResult(const TestPartResult& aTestPartResult) override {
     printf("TEST-%s | %s.%s | %s @ %s:%i\n",
-           aTestPartResult.failed() ? "PASS" : "UNEXPECTED-FAIL",
-           mTestInfo->test_case_name(), mTestInfo->name(),
+           !aTestPartResult.failed() ? "PASS" : "UNEXPECTED-FAIL",
+           mTestInfo ? mTestInfo->test_case_name() : "?", mTestInfo ? mTestInfo->name() : "?",
            aTestPartResult.summary(),
            aTestPartResult.file_name(), aTestPartResult.line_number());
   }
-  virtual void OnTestEnd(const TestInfo& aTestInfo) MOZ_OVERRIDE {
+  virtual void OnTestEnd(const TestInfo& aTestInfo) override {
     printf("TEST-%s | %s.%s | test completed (time: %llims)\n",
-           mTestInfo->result()->Passed() ? "PASS": "UNEXPECTED-FAIL",
-           mTestInfo->test_case_name(), mTestInfo->name(),
-           mTestInfo->result()->elapsed_time());
+           aTestInfo.result()->Passed() ? "PASS": "UNEXPECTED-FAIL",
+           aTestInfo.test_case_name(), aTestInfo.name(),
+           aTestInfo.result()->elapsed_time());
+    MOZ_ASSERT(&aTestInfo == mTestInfo);
     mTestInfo = nullptr;
   }
 
@@ -79,13 +79,13 @@ int RunGTestFunc()
 
   PR_SetEnv("XPCOM_DEBUG_BREAK=stack-and-abort");
 
-  ScopedXPCOM xpcom("AsyncPanZoomController");
+  ScopedXPCOM xpcom("GTest");
 
   return RUN_ALL_TESTS();
 }
 
 // We use a static var 'RunGTest' defined in nsAppRunner.cpp.
-// RunGTest is initialized to NULL but if GTest (this file)
+// RunGTest is initialized to nullptr but if GTest (this file)
 // is linked in then RunGTest will be set here indicating
 // GTest is supported.
 class _InitRunGTest {

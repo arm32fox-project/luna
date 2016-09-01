@@ -11,9 +11,9 @@
 #ifndef WEBRTC_VOICE_ENGINE_VOE_VOLUME_CONTROL_IMPL_H
 #define WEBRTC_VOICE_ENGINE_VOE_VOLUME_CONTROL_IMPL_H
 
-#include "voe_volume_control.h"
+#include "webrtc/voice_engine/include/voe_volume_control.h"
 
-#include "shared_data.h"
+#include "webrtc/voice_engine/shared_data.h"
 
 namespace webrtc {
 
@@ -24,10 +24,6 @@ public:
 
     virtual int GetSpeakerVolume(unsigned int& volume);
 
-    virtual int SetSystemOutputMute(bool enable);
-
-    virtual int GetSystemOutputMute(bool& enabled);
-
     virtual int SetMicVolume(unsigned int volume);
 
     virtual int GetMicVolume(unsigned int& volume);
@@ -35,10 +31,6 @@ public:
     virtual int SetInputMute(int channel, bool enable);
 
     virtual int GetInputMute(int channel, bool& enabled);
-
-    virtual int SetSystemInputMute(bool enable);
-
-    virtual int GetSystemInputMute(bool& enabled);
 
     virtual int GetSpeechInputLevel(unsigned int& level);
 
@@ -66,7 +58,6 @@ private:
     voe::SharedData* _shared;
 };
 
-}   // namespace webrtc
+}  // namespace webrtc
 
 #endif    // WEBRTC_VOICE_ENGINE_VOE_VOLUME_CONTROL_IMPL_H
-

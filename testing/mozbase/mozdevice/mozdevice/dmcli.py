@@ -18,7 +18,9 @@ import argparse
 class DMCli(object):
 
     def __init__(self):
-        self.commands = { 'install': { 'function': self.install,
+        self.commands = { 'deviceroot': { 'function': self.deviceroot,
+                                          'help': 'get device root directory for storing temporary files' },
+                          'install': { 'function': self.install,
                                        'args': [ { 'name': 'file' } ],
                                        'help': 'push this package file to the device and install it' },
                           'uninstall': { 'function': self.uninstall,
@@ -40,6 +42,8 @@ class DMCli(object):
                                                      'help': 'Don\'t fail if application is already running' }
                                                 ],
                                       'help': 'launches application on device' },
+                          'listapps': { 'function': self.listapps,
+                                        'help': 'list applications on device' },
                           'push': { 'function': self.push,
                                     'args': [ { 'name': 'local_file' },
                                               { 'name': 'remote_file' }
@@ -97,7 +101,11 @@ class DMCli(object):
                                            'help': 'clear the logcat'
                                          },
                           'reboot': { 'function': self.reboot,
-                                      'help': 'reboot the device'
+                                      'help': 'reboot the device',
+                                      'args': [ { 'name': '--wait',
+                                                  'action': 'store_true',
+                                                  'help': 'Wait for device to come back up before exiting' } ]
+
                                    },
                           'isfile': { 'function': self.isfile,
                                       'args': [ { 'name': 'remote_file' } ],
@@ -126,9 +134,13 @@ class DMCli(object):
         self.parser = argparse.ArgumentParser()
         self.add_options(self.parser)
         self.add_commands(self.parser)
+        mozlog.structured.commandline.add_logging_group(self.parser)
 
     def run(self, args=sys.argv[1:]):
         args = self.parser.parse_args()
+
+        mozlog.structured.commandline.setup_logging(
+            'mozdevice', args, {'mach': sys.stdout})
 
         if args.dmtype == "sut" and not args.host and not args.hwid:
             self.parser.error("Must specify device ip in TEST_DEVICE or "
@@ -147,9 +159,11 @@ class DMCli(object):
     def add_options(self, parser):
         parser.add_argument("-v", "--verbose", action="store_true",
                             help="Verbose output from DeviceManager",
-                            default=False)
+                            default=bool(os.environ.get('VERBOSE')))
         parser.add_argument("--host", action="store",
-                            help="Device hostname (only if using TCP/IP)",
+                            help="Device hostname (only if using TCP/IP, " \
+                                "defaults to TEST_DEVICE environment " \
+                                "variable if present)",
                             default=os.environ.get('TEST_DEVICE'))
         parser.add_argument("-p", "--port", action="store",
                             type=int,
@@ -157,8 +171,9 @@ class DMCli(object):
                             "adb-over-tcp)", default=None)
         parser.add_argument("-m", "--dmtype", action="store",
                             help="DeviceManager type (adb or sut, defaults " \
-                                "to adb)", default=os.environ.get('DM_TRANS',
-                                                                  'adb'))
+                                "to DM_TRANS environment variable, if " \
+                                "present, or adb)",
+                            default=os.environ.get('DM_TRANS', 'adb'))
         parser.add_argument("-d", "--hwid", action="store",
                             help="HWID", default=None)
         parser.add_argument("--package-name", action="store",
@@ -210,6 +225,9 @@ class DMCli(object):
         else:
             self.parser.error("Unknown device manager type: %s" % type)
 
+    def deviceroot(self, args):
+        print self.dm.deviceRoot
+
     def push(self, args):
         (src, dest) = (args.local_file, args.remote_file)
         if os.path.isdir(src):
@@ -235,7 +253,7 @@ class DMCli(object):
 
     def install(self, args):
         basename = os.path.basename(args.file)
-        app_path_on_device = posixpath.join(self.dm.getDeviceRoot(),
+        app_path_on_device = posixpath.join(self.dm.deviceRoot,
                                             basename)
         self.dm.pushFile(args.file, app_path_on_device)
         self.dm.installApp(app_path_on_device)
@@ -247,6 +265,13 @@ class DMCli(object):
         self.dm.launchApplication(args.appname, args.activity_name,
                                   args.intent, url=args.url,
                                   failIfRunning=(not args.no_fail_if_running))
+
+    def listapps(self, args):
+        for app in self.dm.getInstalledApps():
+            print app
+
+    def stopapp(self, args):
+        self.dm.stopApplication(args.appname)
 
     def kill(self, args):
         for name in args.process_name:
@@ -261,14 +286,11 @@ class DMCli(object):
         info = self.dm.getInfo(directive=args.directive)
         for (infokey, infoitem) in sorted(info.iteritems()):
             if infokey == "process":
-                pass # skip process list: get that through ps
-            elif not args.directive and not infoitem:
-                print "%s:" % infokey.upper()
-            elif not args.directive:
-                for line in infoitem:
-                    print "%s: %s" % (infokey.upper(), line)
+                pass  # skip process list: get that through ps
+            elif args.directive is None:
+                print "%s: %s" % (infokey.upper(), infoitem)
             else:
-                print "%s" % "\n".join(infoitem)
+                print infoitem
 
     def logcat(self, args):
         print ''.join(self.dm.getLogcat())
@@ -277,7 +299,7 @@ class DMCli(object):
         self.dm.recordLogcat()
 
     def reboot(self, args):
-        self.dm.reboot()
+        self.dm.reboot(wait=args.wait)
 
     def processlist(self, args):
         pslist = self.dm.getProcessList()

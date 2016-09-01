@@ -6,11 +6,9 @@
 #define __nsftpdirlistingdconv__h__
 
 #include "nsIStreamConverter.h"
-#include "nsIChannel.h"
-#include "nsIURI.h"
 #include "nsString.h"
 
-#include "nsIFactory.h"
+class nsIURI;
 
 #define NS_FTPDIRLISTINGCONVERTER_CID                         \
 { /* 14C0E880-623E-11d3-A178-0050041CAF44 */         \
@@ -36,10 +34,11 @@ public:
 
     // nsFTPDirListingConv methods
     nsFTPDirListingConv();
-    virtual ~nsFTPDirListingConv();
     nsresult Init();
 
 private:
+    virtual ~nsFTPDirListingConv();
+
     // Get the application/http-index-format headers
     nsresult GetHeaders(nsACString& str, nsIURI* uri);
     char*    DigestBufferLines(char *aBuffer, nsCString &aString);

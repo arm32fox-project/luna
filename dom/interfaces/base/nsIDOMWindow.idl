@@ -9,9 +9,7 @@ interface nsIFrameRequestCallback;
 interface nsIControllers;
 interface nsIDOMBlob;
 interface nsIDOMLocation;
-interface nsIDOMMediaQueryList;
 interface nsIDOMOfflineResourceList;
-interface nsIDOMStorage;
 interface nsIPrompt;
 interface nsISelection;
 interface nsIVariant;
@@ -25,7 +23,7 @@ interface nsIVariant;
  * @see <http://www.whatwg.org/html/#window>
  */
 
-[scriptable, uuid(be62660a-e3f6-409c-a4a9-378364a9526f)]
+[scriptable, uuid(8146f3fc-9fc1-47c5-85ef-95d686e4ca6d)]
 interface nsIDOMWindow : nsISupports
 {
   // the current browsing context
@@ -49,7 +47,7 @@ interface nsIDOMWindow : nsISupports
   /* The setter that takes a string argument needs to be special cased! */
   readonly attribute nsIDOMLocation                     location;
 
-  readonly attribute nsIDOMHistory                      history;
+  readonly attribute nsISupports                        history;
 
 
   /* [replaceable] locationbar */
@@ -152,7 +150,11 @@ interface nsIDOMWindow : nsISupports
   }
   %}
 
-           attribute nsIDOMWindow                       opener;
+  [implicit_jscontext, binaryname(ScriptableOpener)]
+           attribute jsval                              opener;
+
+  [noscript, binaryname(Opener)]
+           attribute nsIDOMWindow                       openerWindow;
 
   /**
    * |frameElement| gets this window's <iframe> or <frame> element, if it has
@@ -238,15 +240,23 @@ interface nsIDOMWindow : nsISupports
   // WindowSessionStorage
   /**
    * Session storage for the current browsing context.
+   * This attribute is a DOMStorage
    */
-  readonly attribute nsIDOMStorage sessionStorage;
+  readonly attribute nsISupports sessionStorage;
 
 
   // WindowLocalStorage
   /**
    * Local storage for the current browsing context.
+   * This attribute is a DOMStorage
    */
-  readonly attribute nsIDOMStorage localStorage;
+  readonly attribute nsISupports localStorage;
+
+
+  // IndexedDB
+  // https://dvcs.w3.org/hg/IndexedDB/raw-file/tip/Overview.html#requests
+  // IDBEnvironment
+  readonly attribute nsISupports indexedDB;
 
 
   // DOM Range
@@ -258,7 +268,7 @@ interface nsIDOMWindow : nsISupports
 
   // CSSOM-View
   // http://dev.w3.org/csswg/cssom-view/#extensions-to-the-window-interface
-  nsIDOMMediaQueryList      matchMedia(in DOMString media_query_list);
+  nsISupports      matchMedia(in DOMString media_query_list);
 
   readonly attribute nsIDOMScreen                       screen;
 
@@ -360,7 +370,7 @@ interface nsIDOMWindow : nsISupports
   void                      sizeToContent();
 
   /* [replaceable] content */
-  readonly attribute nsIDOMWindow                       content;
+  [noscript] readonly attribute nsIDOMWindow            content;
 
   /* [replaceable] prompter */
   [noscript] readonly attribute nsIPrompt               prompter;
@@ -368,11 +378,9 @@ interface nsIDOMWindow : nsISupports
   readonly attribute boolean                            closed;
 
   readonly attribute nsIDOMCrypto                       crypto;
-  readonly attribute nsIDOMPkcs11                       pkcs11;
 
-  // XXX Shouldn't this be in nsIDOMChromeWindow?
-  /* [replaceable] controllers */
-  readonly attribute nsIControllers                     controllers;
+  // Note: this is [ChromeOnly] scriptable via WebIDL.
+  [noscript] readonly attribute nsIControllers          controllers;
 
   readonly attribute float                              mozInnerScreenX;
   readonly attribute float                              mozInnerScreenY;
@@ -417,7 +425,9 @@ interface nsIDOMWindow : nsISupports
                                        in nsISupports aExtraArgument);
 
   // XXX Should this be in nsIDOMChromeWindow?
-  void                      updateCommands(in DOMString action);
+  void                      updateCommands(in DOMString action,
+                                           [optional] in nsISelection sel,
+                                           [optional] in short reason);
 
   /* Find in page.
    * @param str: the search pattern
@@ -468,52 +478,14 @@ interface nsIDOMWindow : nsISupports
   readonly attribute long long mozAnimationStartTime;
 
   /**
-   * HTML5 event attributes that only apply to windows and <body>/<frameset>
+   * Console API
    */
-  [implicit_jscontext] attribute jsval onafterprint;
-  [implicit_jscontext] attribute jsval onbeforeprint;
-  [implicit_jscontext] attribute jsval onbeforeunload;
-  [implicit_jscontext] attribute jsval onhashchange;
-  [implicit_jscontext] attribute jsval onmessage;
-  [implicit_jscontext] attribute jsval onoffline;
-  [implicit_jscontext] attribute jsval ononline;
-  [implicit_jscontext] attribute jsval onpopstate;
-  [implicit_jscontext] attribute jsval onpagehide;
-  [implicit_jscontext] attribute jsval onpageshow;
-  // Not supported yet
-  // [implicit_jscontext] attribute jsval onredo;
-  [implicit_jscontext] attribute jsval onresize;
-  // Not supported yet
-  // [implicit_jscontext] attribute jsval onstorage;
-  // Not supported yet
-  // [implicit_jscontext] attribute jsval onundo;
-  [implicit_jscontext] attribute jsval onunload;
-
-  /**
-   * Non-HTML5 window-specific event attributes
-   */
-  [implicit_jscontext] attribute jsval ondevicemotion;
-  [implicit_jscontext] attribute jsval ondeviceorientation;
-  [implicit_jscontext] attribute jsval ondeviceproximity;
-  [implicit_jscontext] attribute jsval onuserproximity;
-  [implicit_jscontext] attribute jsval ondevicelight;
-
-  [implicit_jscontext] attribute jsval onmouseenter;
-  [implicit_jscontext] attribute jsval onmouseleave;
-};
-
-[scriptable, uuid(2146c906-57f7-486c-a1b4-8cdb57ef577f)]
-interface nsIDOMWindowPerformance : nsISupports
-{
-  /**
-   * A namespace to hold performance related data and statistics.
-   */
-  readonly attribute nsISupports performance;
+  [implicit_jscontext] attribute jsval console;
 };
 
 /**
  * Empty interface for compatibility with older versions.
  * @deprecated Use nsIDOMWindow instead
  */
-[scriptable, uuid(ad5768c7-8668-4cd4-bcac-3d0a400d50be)]
+[scriptable, uuid(2ec49e81-b2ba-4633-991a-f48f1e1d8800)]
 interface nsIDOMWindowInternal : nsIDOMWindow {};

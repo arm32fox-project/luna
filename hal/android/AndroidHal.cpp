@@ -10,6 +10,7 @@
 #include "mozilla/dom/network/Constants.h"
 #include "mozilla/dom/ScreenOrientation.h"
 #include "nsIScreenManager.h"
+#include "nsServiceManagerUtils.h"
 
 using namespace mozilla::dom;
 using namespace mozilla::hal;
@@ -53,97 +54,55 @@ CancelVibrate(const WindowIdentifier &)
 {
   // Ignore WindowIdentifier parameter.
 
-  AndroidBridge* b = AndroidBridge::Bridge();
-  if (b)
-    b->CancelVibrate();
+  mozilla::widget::GoannaAppShell::CancelVibrate();
 }
 
 void
 EnableBatteryNotifications()
 {
-  AndroidBridge* bridge = AndroidBridge::Bridge();
-  if (!bridge) {
-    return;
-  }
-
-  bridge->EnableBatteryNotifications();
+  mozilla::widget::GoannaAppShell::EnableBatteryNotifications();
 }
 
 void
 DisableBatteryNotifications()
 {
-  AndroidBridge* bridge = AndroidBridge::Bridge();
-  if (!bridge) {
-    return;
-  }
-
-  bridge->DisableBatteryNotifications();
+  mozilla::widget::GoannaAppShell::DisableBatteryNotifications();
 }
 
 void
 GetCurrentBatteryInformation(hal::BatteryInformation* aBatteryInfo)
 {
-  AndroidBridge* bridge = AndroidBridge::Bridge();
-  if (!bridge) {
-    return;
-  }
-
-  bridge->GetCurrentBatteryInformation(aBatteryInfo);
+  AndroidBridge::Bridge()->GetCurrentBatteryInformation(aBatteryInfo);
 }
 
 void
 EnableNetworkNotifications()
 {
-  AndroidBridge* bridge = AndroidBridge::Bridge();
-  if (!bridge) {
-    return;
-  }
-
-  bridge->EnableNetworkNotifications();
+  mozilla::widget::GoannaAppShell::EnableNetworkNotifications();
 }
 
 void
 DisableNetworkNotifications()
 {
-  AndroidBridge* bridge = AndroidBridge::Bridge();
-  if (!bridge) {
-    return;
-  }
-
-  bridge->DisableNetworkNotifications();
+  mozilla::widget::GoannaAppShell::DisableNetworkNotifications();
 }
 
 void
 GetCurrentNetworkInformation(hal::NetworkInformation* aNetworkInfo)
 {
-  AndroidBridge* bridge = AndroidBridge::Bridge();
-  if (!bridge) {
-    return;
-  }
-
-  bridge->GetCurrentNetworkInformation(aNetworkInfo);
+  AndroidBridge::Bridge()->GetCurrentNetworkInformation(aNetworkInfo);
 }
 
 void
 EnableScreenConfigurationNotifications()
 {
-  AndroidBridge* bridge = AndroidBridge::Bridge();
-  if (!bridge) {
-    return;
-  }
-
-  bridge->EnableScreenOrientationNotifications();
+  mozilla::widget::GoannaAppShell::EnableScreenOrientationNotifications();
 }
 
 void
 DisableScreenConfigurationNotifications()
 {
-  AndroidBridge* bridge = AndroidBridge::Bridge();
-  if (!bridge) {
-    return;
-  }
-
-  bridge->DisableScreenOrientationNotifications();
+  mozilla::widget::GoannaAppShell::DisableScreenOrientationNotifications();
 }
 
 void
@@ -180,11 +139,6 @@ GetCurrentScreenConfiguration(ScreenConfiguration* aScreenConfiguration)
 bool
 LockScreenOrientation(const ScreenOrientation& aOrientation)
 {
-  AndroidBridge* bridge = AndroidBridge::Bridge();
-  if (!bridge) {
-    return false;
-  }
-
   switch (aOrientation) {
     // The Android backend only supports these orientations.
     case eScreenOrientation_PortraitPrimary:
@@ -193,7 +147,8 @@ LockScreenOrientation(const ScreenOrientation& aOrientation)
     case eScreenOrientation_LandscapePrimary:
     case eScreenOrientation_LandscapeSecondary:
     case eScreenOrientation_LandscapePrimary | eScreenOrientation_LandscapeSecondary:
-      bridge->LockScreenOrientation(aOrientation);
+    case eScreenOrientation_Default:
+      mozilla::widget::GoannaAppShell::LockScreenOrientation(aOrientation);
       return true;
     default:
       return false;
@@ -203,12 +158,7 @@ LockScreenOrientation(const ScreenOrientation& aOrientation)
 void
 UnlockScreenOrientation()
 {
-  AndroidBridge* bridge = AndroidBridge::Bridge();
-  if (!bridge) {
-    return;
-  }
-
-  bridge->UnlockScreenOrientation();
+  mozilla::widget::GoannaAppShell::UnlockScreenOrientation();
 }
 
 } // hal_impl

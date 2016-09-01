@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -64,7 +64,7 @@ function DocumentWrite(s)
 }
 
 function print() {
-  var s = '';
+  var s = 'TEST-INFO | ';
   var a;
   for (var i = 0; i < arguments.length; i++)
   {
@@ -108,7 +108,7 @@ function writeFormattedResult( expect, actual, string, passed ) {
   var s = "<tt>"+ string ;
   s += "<b>" ;
   s += ( passed ) ? "<font color=#009900> &nbsp;" + PASSED
-    : "<font color=#aa0000>&nbsp;" +  FAILED + expect + "</tt>";
+    : "<font color=#aa0000>&nbsp;" +  FAILED + expect;
 
   DocumentWrite( s + "</font></b></tt><br>" );
   return passed;
@@ -156,29 +156,11 @@ function gc()
 {
   try
   {
-    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-    Components.utils.forceGC();
+    SpecialPowers.forceGC();
   }
   catch(ex)
   {
     print('gc: ' + ex);
-  }
-}
-
-function jsdgc()
-{
-  try
-  {
-    // Thanks to dveditz
-    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-    var jsdIDebuggerService = Components.interfaces.jsdIDebuggerService;
-    var service = Components.classes['@mozilla.org/js/jsd/debugger-service;1'].
-      getService(jsdIDebuggerService);
-    service.GC();
-  }
-  catch(ex)
-  {
-    print('jsdgc: ' + ex);
   }
 }
 
@@ -202,9 +184,7 @@ function options(aOptionName)
   }
 
   if (aOptionName) {
-    netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-    if (!(aOptionName in Components.utils)) {
-//    if (!(aOptionName in SpecialPowers.wrap(Components).utils)) {
+    if (!(aOptionName in SpecialPowers.Cu)) {
       // This test is trying to flip an unsupported option, so it's
       // likely no longer testing what it was supposed to.  Fail it
       // hard.
@@ -218,8 +198,7 @@ function options(aOptionName)
       // option is not set, toggle it to set
       options.currvalues[aOptionName] = true;
 
-//    SpecialPowers.wrap(Components).utils[aOptionName] = options.currvalues.hasOwnProperty(aOptionName);
-    Components.utils[aOptionName] =
+    SpecialPowers.Cu[aOptionName] =
       options.currvalues.hasOwnProperty(aOptionName);
   }
 
@@ -248,18 +227,15 @@ function optionsInit() {
   // and popping options
   options.stackvalues = [];
 
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
   for (var optionName in options.currvalues)
   {
     var propName = optionName;
 
-//    if (!(propName in SpecialPowers.wrap(Components).utils))
-    if (!(propName in Components.utils))
+    if (!(propName in SpecialPowers.Cu))
     {
       throw "options.currvalues is out of sync with Components.utils";
     }
-//    if (!SpecialPowers.wrap(Components).utils[propName])
-    if (!Components.utils[propName])
+    if (!SpecialPowers.Cu[propName])
     {
       delete options.currvalues[optionName];
     }
@@ -272,8 +248,7 @@ function optionsInit() {
 
 function gczeal(z)
 {
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-  Components.utils.setGCZeal(z);
+  SpecialPowers.setGCZeal(z);
 }
 
 function jit(on)
@@ -336,6 +311,9 @@ function jsTestDriverBrowserInit()
     // Otherwise adjust the version to match the suite version for 1.6,
     // and later due to the use of for-each, let, yield, etc.
     //
+    // The logic to upgrade the JS version in the shell lives in the
+    // corresponding shell.js.
+    //
     // Note that js1_8, js1_8_1, and js1_8_5 are treated identically in
     // the browser.
     if (properties.test.match(/^js1_6/))
@@ -346,7 +324,11 @@ function jsTestDriverBrowserInit()
     {
       properties.version = '1.7';
     }
-    else if (properties.test.match(/^js1_8|^ecma_6/))
+    else if (properties.test.match(/^js1_8/))
+    {
+      properties.version = '1.8';
+    }
+    else if (properties.test.match(/^ecma_6\/LexicalEnvironment/))
     {
       properties.version = '1.8';
     }
@@ -386,31 +368,27 @@ function jsTestDriverBrowserInit()
     // must have at least suitepath/subsuite/testcase.js
     return;
   }
-  var suitepath = testpathparts.slice(0,testpathparts.length-2).join('/');
-  var subsuite = testpathparts[testpathparts.length - 2];
-  var test     = testpathparts[testpathparts.length - 1];
 
-  document.write('<title>' + suitepath + '/' + subsuite + '/' + test + '<\/title>');
+  document.write('<title>' + properties.test + '<\/title>');
 
   // XXX bc - the first document.written script is ignored if the protocol
   // is file:. insert an empty script tag, to work around it.
   document.write('<script></script>');
 
-  // Enable a test suite that has more than two levels of directories to
-  // provide browser.js and shell.js in its base directory.
-  // This assumes that suitepath is a relative path, as is the case in the
-  // try server environment. Absolute paths are not allowed.
-  if (suitepath.indexOf('/') !== -1) {
-    var base = suitepath.slice(0, suitepath.indexOf('/'));
-    outputscripttag(base + '/shell.js', properties);
-    outputscripttag(base + '/browser.js', properties);
+  // Output script tags for shell.js, then browser.js, at each level of the
+  // test path hierarchy.
+  var prepath = "";
+  var i = 0;
+  for (end = testpathparts.length - 1; i < end; i++) {
+    prepath += testpathparts[i] + "/";
+    outputscripttag(prepath + "shell.js", properties);
+    outputscripttag(prepath + "browser.js", properties);
   }
 
-  outputscripttag(suitepath + '/shell.js', properties);
-  outputscripttag(suitepath + '/browser.js', properties);
-  outputscripttag(suitepath + '/' + subsuite + '/shell.js', properties);
-  outputscripttag(suitepath + '/' + subsuite + '/browser.js', properties);
-  outputscripttag(suitepath + '/' + subsuite + '/' + test, properties);
+  // Output the test script itself.
+  outputscripttag(prepath + testpathparts[i], properties);
+
+  // Finally output the driver-end script to advance to the next test.
   outputscripttag('js-test-driver-end.js', properties);
   return;
 }
@@ -517,11 +495,9 @@ var gDialogCloserObserver;
 
 function registerDialogCloser()
 {
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-//  gDialogCloser = SpecialPowers.wrap(Components).
-  gDialogCloser = Components.
-    classes['@mozilla.org/embedcomp/window-watcher;1'].
-    getService(Components.interfaces.nsIWindowWatcher);
+  gDialogCloser = SpecialPowers.
+    Cc['@mozilla.org/embedcomp/window-watcher;1'].
+    getService(SpecialPowers.Ci.nsIWindowWatcher);
 
   gDialogCloserObserver = {observe: dialogCloser_observe};
 
@@ -574,6 +550,16 @@ function closeDialog()
       subject.close();
     }
   }
+}
+
+function newGlobal() {
+  var iframe = document.createElement("iframe");
+  document.documentElement.appendChild(iframe);
+  var win = iframe.contentWindow;
+  iframe.remove();
+  // Shim in "evaluate"
+  win.evaluate = win.eval;
+  return win;
 }
 
 registerDialogCloser();

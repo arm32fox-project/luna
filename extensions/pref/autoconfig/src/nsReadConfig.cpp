@@ -3,10 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifdef MOZ_LOGGING
-// sorry, this has to be before the pre-compiled header
-#define FORCE_PR_LOG /* Allow logging in the release build */
-#endif
 #include "nsReadConfig.h"
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsIAppStartup.h"
@@ -28,6 +24,7 @@
 #include "nsCRT.h"
 #include "nspr.h"
 #include "nsXULAppAPI.h"
+#include "nsContentUtils.h"
 
 extern PRLogModuleInfo *MCD;
 
@@ -59,12 +56,12 @@ static void DisplayError(void)
         return;
 
     nsXPIDLString title;
-    rv = bundle->GetStringFromName(NS_LITERAL_STRING("readConfigTitle").get(), getter_Copies(title));
+    rv = bundle->GetStringFromName(MOZ_UTF16("readConfigTitle"), getter_Copies(title));
     if (NS_FAILED(rv))
         return;
 
     nsXPIDLString err;
-    rv = bundle->GetStringFromName(NS_LITERAL_STRING("readConfigMsg").get(), getter_Copies(err));
+    rv = bundle->GetStringFromName(MOZ_UTF16("readConfigMsg"), getter_Copies(err));
     if (NS_FAILED(rv))
         return;
 
@@ -73,7 +70,7 @@ static void DisplayError(void)
 
 // nsISupports Implementation
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsReadConfig, nsIReadConfig, nsIObserver)
+NS_IMPL_ISUPPORTS(nsReadConfig, nsIReadConfig, nsIObserver)
 
 nsReadConfig::nsReadConfig() :
     mRead(false)
@@ -100,7 +97,7 @@ nsReadConfig::~nsReadConfig()
     CentralizedAdminPrefManagerFinish();
 }
 
-NS_IMETHODIMP nsReadConfig::Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *someData)
+NS_IMETHODIMP nsReadConfig::Observe(nsISupports *aSubject, const char *aTopic, const char16_t *someData)
 {
     nsresult rv = NS_OK;
 
@@ -243,12 +240,12 @@ nsresult nsReadConfig::openAndEvaluateJSFile(const char *aFileName, int32_t obsc
     nsCOMPtr<nsIInputStream> inStr;
     if (isBinDir) {
         nsCOMPtr<nsIFile> jsFile;
-        rv = NS_GetSpecialDirectory(XRE_EXECUTABLE_FILE,
+        rv = NS_GetSpecialDirectory(NS_GRE_DIR,
                                     getter_AddRefs(jsFile));
         if (NS_FAILED(rv)) 
             return rv;
 
-        rv = jsFile->SetNativeLeafName(nsDependentCString(aFileName));
+        rv = jsFile->AppendNative(nsDependentCString(aFileName));
         if (NS_FAILED(rv)) 
             return rv;
 
@@ -257,26 +254,23 @@ nsresult nsReadConfig::openAndEvaluateJSFile(const char *aFileName, int32_t obsc
             return rv;
 
     } else {
-        nsCOMPtr<nsIIOService> ioService = do_GetIOService(&rv);
-        if (NS_FAILED(rv)) 
-            return rv;
-
         nsAutoCString location("resource://gre/defaults/autoconfig/");
         location += aFileName;
 
         nsCOMPtr<nsIURI> uri;
-        rv = ioService->NewURI(location, nullptr, nullptr, getter_AddRefs(uri));
-        if (NS_FAILED(rv))
-            return rv;
+        rv = NS_NewURI(getter_AddRefs(uri), location);
+        NS_ENSURE_SUCCESS(rv, rv);
 
         nsCOMPtr<nsIChannel> channel;
-        rv = ioService->NewChannelFromURI(uri, getter_AddRefs(channel));
-        if (NS_FAILED(rv))
-            return rv;
+        rv = NS_NewChannel(getter_AddRefs(channel),
+                           uri,
+                           nsContentUtils::GetSystemPrincipal(),
+                           nsILoadInfo::SEC_NORMAL,
+                           nsIContentPolicy::TYPE_OTHER);
+        NS_ENSURE_SUCCESS(rv, rv);
 
         rv = channel->Open(getter_AddRefs(inStr));
-        if (NS_FAILED(rv)) 
-            return rv;
+        NS_ENSURE_SUCCESS(rv, rv);
     }
 
     uint64_t fs64;

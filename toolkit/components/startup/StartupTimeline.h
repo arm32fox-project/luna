@@ -6,16 +6,23 @@
 mozilla_StartupTimeline_Event(PROCESS_CREATION, "process")
 mozilla_StartupTimeline_Event(START, "start")
 mozilla_StartupTimeline_Event(MAIN, "main")
+mozilla_StartupTimeline_Event(SELECT_PROFILE, "selectProfile")
+mozilla_StartupTimeline_Event(AFTER_PROFILE_LOCKED, "afterProfileLocked")
 // Record the beginning and end of startup crash detection to compare with crash stats to know whether
 // detection should be improved to start or end sooner.
 mozilla_StartupTimeline_Event(STARTUP_CRASH_DETECTION_BEGIN, "startupCrashDetectionBegin")
 mozilla_StartupTimeline_Event(STARTUP_CRASH_DETECTION_END, "startupCrashDetectionEnd")
 mozilla_StartupTimeline_Event(FIRST_PAINT, "firstPaint")
+mozilla_StartupTimeline_Event(SESSION_RESTORE_INIT, "sessionRestoreInit")
 mozilla_StartupTimeline_Event(SESSION_RESTORED, "sessionRestored")
 mozilla_StartupTimeline_Event(CREATE_TOP_LEVEL_WINDOW, "createTopLevelWindow")
 mozilla_StartupTimeline_Event(LINKER_INITIALIZED, "linkerInitialized")
 mozilla_StartupTimeline_Event(LIBRARIES_LOADED, "librariesLoaded")
 mozilla_StartupTimeline_Event(FIRST_LOAD_URI, "firstLoadURI")
+
+// The following are actually shutdown events, used to monitor the duration of shutdown
+mozilla_StartupTimeline_Event(QUIT_APPLICATION, "quitApplication")
+mozilla_StartupTimeline_Event(PROFILE_BEFORE_CHANGE, "profileBeforeChange")
 #else
 
 #ifndef mozilla_StartupTimeline
@@ -39,6 +46,8 @@ NS_VISIBILITY_DEFAULT __attribute__((weak));
 
 namespace mozilla {
 
+void RecordShutdownEndTimeStamp();
+void RecordShutdownStartTimeStamp();
 void StartupTimelineRecordExternal(int, uint64_t);
 
 class StartupTimeline {

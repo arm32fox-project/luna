@@ -24,7 +24,7 @@ interface nsIFilePickerShownCallback : nsISupports
   void done(in short aResult);
 };
 
-[scriptable, uuid(a6a24df3-d20a-4b6a-96d4-4736b10a51b7)]
+[scriptable, uuid(f93509a0-0434-11e3-8ffd-0800200c9a66)]
 interface nsIFilePicker : nsISupports
 {
   const short modeOpen        = 0;              // Load a file or directory
@@ -145,7 +145,7 @@ interface nsIFilePicker : nsISupports
  /**
   * Get the nsIDOMFile for the file.
   *
-  * @return Returns the file currently selected as DOMFile
+  * @return Returns the file currently selected as File
   */
   readonly attribute nsIDOMFile domfile;
 
@@ -153,7 +153,7 @@ interface nsIFilePicker : nsISupports
   * Get the enumerator for the selected files
   * only works in the modeOpenMultiple mode
   *
-  * @return Returns the files currently selected as DOMFiles
+  * @return Returns the files currently selected as Files
   */
   readonly attribute nsISimpleEnumerator domfiles;
 
@@ -180,4 +180,9 @@ interface nsIFilePicker : nsISupports
   */
   void open(in nsIFilePickerShownCallback aFilePickerShownCallback);
 
+ /**
+  * The picker's mode, as set by the 'mode' argument passed to init()
+  * (one of the modeOpen et. al. constants specified above).
+  */
+  readonly attribute short mode;
 };

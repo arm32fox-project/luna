@@ -4,13 +4,17 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MODULE = 'dbus'
-
-CPP_SOURCES += [
+SOURCES += [
     'nsDBusModule.cpp',
     'nsDBusService.cpp',
     'nsNetworkManagerListener.cpp',
 ]
 
-LIBRARY_NAME = 'dbusservice'
+XPCOMBinaryComponent('dbusservice')
 
+CXXFLAGS += CONFIG['TK_CFLAGS']
+CXXFLAGS += CONFIG['MOZ_DBUS_GLIB_CFLAGS']
+
+OS_LIBS += CONFIG['MOZ_DBUS_GLIB_LIBS']
+
+FAIL_ON_WARNINGS = True

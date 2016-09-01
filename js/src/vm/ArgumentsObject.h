@@ -7,14 +7,18 @@
 #ifndef vm_ArgumentsObject_h
 #define vm_ArgumentsObject_h
 
-#include "jsfun.h"
+#include "mozilla/MemoryReporting.h"
+
+#include "gc/Barrier.h"
+#include "vm/NativeObject.h"
 
 namespace js {
 
 class AbstractFramePtr;
+class ScriptFrameIter;
 
 namespace jit {
-class IonJSFrameLayout;
+class JitFrameLayout;
 }
 
 /*
@@ -38,28 +42,33 @@ struct ArgumentsData
     HeapValue   callee;
 
     /* The script for the function containing this arguments object. */
-    JSScript    *script;
+    JSScript*   script;
 
     /*
      * Pointer to an array of bits indicating, for every argument in 'slots',
      * whether the element has been deleted. See isElementDeleted comment.
      */
-    size_t      *deletedBits;
+    size_t*     deletedBits;
 
     /*
-     * This array holds either the current argument value or the magic value
-     * JS_FORWARD_TO_CALL_OBJECT. The latter means that the function has both a
+     * This array holds either the current argument value or the magic
+     * forwarding value. The latter means that the function has both a
      * CallObject and an ArgumentsObject AND the particular formal variable is
      * aliased by the CallObject. In such cases, the CallObject holds the
-     * canonical value so any element access to the arguments object should
-     * load the value out of the CallObject (which is pointed to by
-     * MAYBE_CALL_SLOT).
+     * canonical value so any element access to the arguments object should load
+     * the value out of the CallObject (which is pointed to by MAYBE_CALL_SLOT).
      */
     HeapValue   args[1];
 
     /* For jit use: */
     static ptrdiff_t offsetOfArgs() { return offsetof(ArgumentsData, args); }
 };
+
+// Maximum supported value of arguments.length. This bounds the maximum
+// number of arguments that can be supplied to Function.prototype.apply.
+// This value also bounds the number of elements parsed in an array
+// initialiser.
+static const unsigned ARGS_LENGTH_MAX = 500 * 1000;
 
 /*
  * ArgumentsObject instances represent |arguments| objects created to store
@@ -98,7 +107,7 @@ struct ArgumentsData
  *   DATA_SLOT
  *     Stores an ArgumentsData*, described above.
  */
-class ArgumentsObject : public JSObject
+class ArgumentsObject : public NativeObject
 {
   protected:
     static const uint32_t INITIAL_LENGTH_SLOT = 0;
@@ -111,17 +120,19 @@ class ArgumentsObject : public JSObject
 
   protected:
     template <typename CopyArgs>
-    static ArgumentsObject *create(JSContext *cx, HandleScript script, HandleFunction callee,
-                                   unsigned numActuals, CopyArgs &copy);
+    static ArgumentsObject* create(JSContext* cx, HandleScript script, HandleFunction callee,
+                                   unsigned numActuals, CopyArgs& copy);
 
-    inline ArgumentsData *data() const;
+    ArgumentsData* data() const {
+        return reinterpret_cast<ArgumentsData*>(getFixedSlot(DATA_SLOT).toPrivate());
+    }
 
   public:
     static const uint32_t RESERVED_SLOTS = 3;
     static const gc::AllocKind FINALIZE_KIND = gc::FINALIZE_OBJECT4_BACKGROUND;
 
     /* Create an arguments object for a frame that is expecting them. */
-    static ArgumentsObject *createExpected(JSContext *cx, AbstractFramePtr frame);
+    static ArgumentsObject* createExpected(JSContext* cx, AbstractFramePtr frame);
 
     /*
      * Purposefully disconnect the returned arguments object from the frame
@@ -129,25 +140,36 @@ class ArgumentsObject : public JSObject
      * This allows function-local analysis to determine that formals are
      * not aliased and generally simplifies arguments objects.
      */
-    static ArgumentsObject *createUnexpected(JSContext *cx, ScriptFrameIter &iter);
-    static ArgumentsObject *createUnexpected(JSContext *cx, AbstractFramePtr frame);
-#if defined(JS_ION)
-    static ArgumentsObject *createForIon(JSContext *cx, jit::IonJSFrameLayout *frame,
+    static ArgumentsObject* createUnexpected(JSContext* cx, ScriptFrameIter& iter);
+    static ArgumentsObject* createUnexpected(JSContext* cx, AbstractFramePtr frame);
+    static ArgumentsObject* createForIon(JSContext* cx, jit::JitFrameLayout* frame,
                                          HandleObject scopeChain);
-#endif
 
     /*
      * Return the initial length of the arguments.  This may differ from the
      * current value of arguments.length!
      */
-    inline uint32_t initialLength() const;
+    uint32_t initialLength() const {
+        uint32_t argc = uint32_t(getFixedSlot(INITIAL_LENGTH_SLOT).toInt32()) >> PACKED_BITS_COUNT;
+        MOZ_ASSERT(argc <= ARGS_LENGTH_MAX);
+        return argc;
+    }
 
     /* The script for the function containing this arguments object. */
-    JSScript *containingScript() const;
+    JSScript* containingScript() const {
+        return data()->script;
+    }
 
     /* True iff arguments.length has been assigned or its attributes changed. */
-    inline bool hasOverriddenLength() const;
-    inline void markLengthOverridden();
+    bool hasOverriddenLength() const {
+        const Value& v = getFixedSlot(INITIAL_LENGTH_SLOT);
+        return v.toInt32() & LENGTH_OVERRIDDEN_BIT;
+    }
+
+    void markLengthOverridden() {
+        uint32_t v = getFixedSlot(INITIAL_LENGTH_SLOT).toInt32() | LENGTH_OVERRIDDEN_BIT;
+        setFixedSlot(INITIAL_LENGTH_SLOT, Int32Value(v));
+    }
 
     /*
      * Because the arguments object is a real object, its elements may be
@@ -163,29 +185,53 @@ class ArgumentsObject : public JSObject
      * it gets regular properties with regular getters/setters that don't alias
      * ArgumentsData::slots.
      */
-    inline bool isElementDeleted(uint32_t i) const;
-    inline bool isAnyElementDeleted() const;
-    inline void markElementDeleted(uint32_t i);
+    bool isElementDeleted(uint32_t i) const {
+        MOZ_ASSERT(i < data()->numArgs);
+        if (i >= initialLength())
+            return false;
+        return IsBitArrayElementSet(data()->deletedBits, initialLength(), i);
+    }
+
+    bool isAnyElementDeleted() const {
+        return IsAnyBitArrayElementSet(data()->deletedBits, initialLength());
+    }
+
+    void markElementDeleted(uint32_t i) {
+        SetBitArrayElement(data()->deletedBits, initialLength(), i);
+    }
 
     /*
      * An ArgumentsObject serves two roles:
      *  - a real object, accessed through regular object operations, e.g..,
-     *    JSObject::getElement corresponding to 'arguments[i]';
+     *    GetElement corresponding to 'arguments[i]';
      *  - a VM-internal data structure, storing the value of arguments (formal
      *    and actual) that are accessed directly by the VM when a reading the
      *    value of a formal parameter.
      * There are two ways to access the ArgumentsData::args corresponding to
      * these two use cases:
      *  - object access should use elements(i) which will take care of
-     *    forwarding when the value is JS_FORWARD_TO_CALL_OBJECT;
+     *    forwarding when the value is the magic forwarding value;
      *  - VM argument access should use arg(i) which will assert that the
-     *    value is not JS_FORWARD_TO_CALL_OBJECT (since, if such forwarding was
-     *    needed, the frontend should have emitted JSOP_GETALIASEDVAR.
+     *    value is not the magic forwarding value (since, if such forwarding was
+     *    needed, the frontend should have emitted JSOP_GETALIASEDVAR).
      */
-    inline const Value &element(uint32_t i) const;
-    inline void setElement(JSContext *cx, uint32_t i, const Value &v);
-    inline const Value &arg(unsigned i) const;
-    inline void setArg(unsigned i, const Value &v);
+    const Value& element(uint32_t i) const;
+
+    inline void setElement(JSContext* cx, uint32_t i, const Value& v);
+
+    const Value& arg(unsigned i) const {
+        MOZ_ASSERT(i < data()->numArgs);
+        const Value& v = data()->args[i];
+        MOZ_ASSERT(!v.isMagic());
+        return v;
+    }
+
+    void setArg(unsigned i, const Value& v) {
+        MOZ_ASSERT(i < data()->numArgs);
+        HeapValue& lhs = data()->args[i];
+        MOZ_ASSERT(!lhs.isMagic());
+        lhs = v;
+    }
 
     /*
      * Attempt to speedily and efficiently access the i-th element of this
@@ -196,17 +242,25 @@ class ArgumentsObject : public JSObject
      *
      * NB: Returning false does not indicate error!
      */
-    inline bool maybeGetElement(uint32_t i, MutableHandleValue vp);
-    inline bool maybeGetElements(uint32_t start, uint32_t count, js::Value *vp);
+    bool maybeGetElement(uint32_t i, MutableHandleValue vp) {
+        if (i >= initialLength() || isElementDeleted(i))
+            return false;
+        vp.set(element(i));
+        return true;
+    }
+
+    inline bool maybeGetElements(uint32_t start, uint32_t count, js::Value* vp);
 
     /*
      * Measures things hanging off this ArgumentsObject that are counted by the
      * |miscSize| argument in JSObject::sizeOfExcludingThis().
      */
-    inline size_t sizeOfMisc(JSMallocSizeOfFun mallocSizeOf) const;
+    size_t sizeOfMisc(mozilla::MallocSizeOf mallocSizeOf) const {
+        return mallocSizeOf(data());
+    }
 
-    static void finalize(FreeOp *fop, JSObject *obj);
-    static void trace(JSTracer *trc, JSObject *obj);
+    static void finalize(FreeOp* fop, JSObject* obj);
+    static void trace(JSTracer* trc, JSObject* obj);
 
     /* For jit use: */
     static size_t getDataSlotOffset() {
@@ -216,32 +270,54 @@ class ArgumentsObject : public JSObject
         return getFixedSlotOffset(INITIAL_LENGTH_SLOT);
     }
 
-    static void MaybeForwardToCallObject(AbstractFramePtr frame, JSObject *obj, ArgumentsData *data);
-#if defined(JS_ION)
-    static void MaybeForwardToCallObject(jit::IonJSFrameLayout *frame, HandleObject callObj,
-                                         JSObject *obj, ArgumentsData *data);
-#endif
+    static Value MagicScopeSlotValue(uint32_t slot) {
+        // When forwarding slots to a backing CallObject, the slot numbers are
+        // stored as uint32 magic values. This raises an ambiguity if we have
+        // also copied JS_OPTIMIZED_OUT magic from a JIT frame or
+        // JS_UNINITIALIZED_LEXICAL magic on the CallObject. To distinguish
+        // normal magic values (those with a JSWhyMagic) and uint32 magic
+        // values, we add the maximum JSWhyMagic value to the slot
+        // number. This is safe as ARGS_LENGTH_MAX is well below UINT32_MAX.
+        JS_STATIC_ASSERT(UINT32_MAX - JS_WHY_MAGIC_COUNT > ARGS_LENGTH_MAX);
+        return JS::MagicValueUint32(slot + JS_WHY_MAGIC_COUNT);
+    }
+    static uint32_t SlotFromMagicScopeSlotValue(const Value& v) {
+        JS_STATIC_ASSERT(UINT32_MAX - JS_WHY_MAGIC_COUNT > ARGS_LENGTH_MAX);
+        return v.magicUint32() - JS_WHY_MAGIC_COUNT;
+    }
+    static bool IsMagicScopeSlotValue(const Value& v) {
+        return v.isMagic() && v.magicUint32() > JS_WHY_MAGIC_COUNT;
+    }
+
+    static void MaybeForwardToCallObject(AbstractFramePtr frame, ArgumentsObject* obj,
+                                         ArgumentsData* data);
+    static void MaybeForwardToCallObject(jit::JitFrameLayout* frame, HandleObject callObj,
+                                         ArgumentsObject* obj, ArgumentsData* data);
 };
 
 class NormalArgumentsObject : public ArgumentsObject
 {
   public:
-    static Class class_;
+    static const Class class_;
 
     /*
      * Stores arguments.callee, or MagicValue(JS_ARGS_HOLE) if the callee has
      * been cleared.
      */
-    inline const js::Value &callee() const;
+    const js::Value& callee() const {
+        return data()->callee;
+    }
 
     /* Clear the location storing arguments.callee's initial value. */
-    inline void clearCallee();
+    void clearCallee() {
+        data()->callee = MagicValue(JS_OVERWRITTEN_CALLEE);
+    }
 };
 
 class StrictArgumentsObject : public ArgumentsObject
 {
   public:
-    static Class class_;
+    static const Class class_;
 };
 
 } // namespace js

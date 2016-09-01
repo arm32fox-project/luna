@@ -216,10 +216,10 @@ for ($j = 1; $j < 4; $j++)
 {
     if (!$mstone[$j]) {
         $mstone[$j] = "0";
-    }
-    else {
+}
+else {
         $mstone[$j] =~s/\D.*$//;
-    }
+}
 }
 
 my @appver = split(/\./,$appversion);
@@ -232,7 +232,6 @@ for ($j = 1; $j < 4; $j++)
         $appver[$j] =~s/\D.*$//;
     }
 }
-
 my $winappversion = "$appver[0],$appver[1],$appver[2],$appver[3]";
 $fileversion = "$appver[0],$appver[1],$appver[2],$daycount"; 
 $mfversion = "$appver[0].$appver[1].$appver[2].$daycount";

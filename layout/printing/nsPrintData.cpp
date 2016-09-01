@@ -14,10 +14,6 @@
 
 //-----------------------------------------------------
 // PR LOGGING
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG /* Allow logging in the release build */
-#endif
-
 #include "prlog.h"
 
 #ifdef PR_LOGGING
@@ -46,7 +42,7 @@ nsPrintData::nsPrintData(ePrintDataType aType) :
   mIsAborted(false), mPreparingForPrint(false), mDocWasToBeDestroyed(false),
   mShrinkToFit(false), mPrintFrameType(nsIPrintSettings::kFramesAsIs), 
   mNumPrintablePages(0), mNumPagesPrinted(0),
-  mShrinkRatio(1.0), mOrigDCScale(1.0), mPPEventListeners(NULL), 
+  mShrinkRatio(1.0), mOrigDCScale(1.0), mPPEventListeners(nullptr), 
   mBrandName(nullptr)
 {
   MOZ_COUNT_CTOR(nsPrintData);
@@ -56,7 +52,7 @@ nsPrintData::nsPrintData(ePrintDataType aType) :
   if (svc) {
     svc->CreateBundle( "chrome://branding/locale/brand.properties", getter_AddRefs( brandBundle ) );
     if (brandBundle) {
-      brandBundle->GetStringFromName(NS_LITERAL_STRING("brandShortName").get(), &mBrandName );
+      brandBundle->GetStringFromName(MOZ_UTF16("brandShortName"), &mBrandName );
     }
   }
 

@@ -47,12 +47,14 @@ new_test_uri()
   return testURI.forget();
 }
 
-class VisitURIObserver MOZ_FINAL : public nsIObserver
+class VisitURIObserver final : public nsIObserver
 {
+  ~VisitURIObserver() {}
+
 public:
   NS_DECL_ISUPPORTS
 
-  VisitURIObserver(int aExpectedVisits = 1) :
+  explicit VisitURIObserver(int aExpectedVisits = 1) :
     mVisits(0),
     mExpectedVisits(aExpectedVisits)
   {
@@ -73,7 +75,7 @@ public:
 
   NS_IMETHOD Observe(nsISupports* aSubject,
                      const char* aTopic,
-                     const PRUnichar* aData)
+                     const char16_t* aData) override
   {
     mVisits++;
 
@@ -89,7 +91,7 @@ private:
   int mVisits;
   int mExpectedVisits;
 };
-NS_IMPL_ISUPPORTS1(
+NS_IMPL_ISUPPORTS(
   VisitURIObserver,
   nsIObserver
 )
@@ -303,8 +305,10 @@ namespace test_observer_topic_dispatched_helpers {
   #define URI_VISITED "visited"
   #define URI_NOT_VISITED "not visited"
   #define URI_VISITED_RESOLUTION_TOPIC "visited-status-resolution"
-  class statusObserver MOZ_FINAL : public nsIObserver
+  class statusObserver final : public nsIObserver
   {
+    ~statusObserver() {}
+
   public:
     NS_DECL_ISUPPORTS
 
@@ -325,7 +329,7 @@ namespace test_observer_topic_dispatched_helpers {
 
     NS_IMETHOD Observe(nsISupports* aSubject,
                        const char* aTopic,
-                       const PRUnichar* aData)
+                       const char16_t* aData) override
     {
       // Make sure we got notified of the right topic.
       do_check_false(strcmp(aTopic, URI_VISITED_RESOLUTION_TOPIC));
@@ -364,7 +368,7 @@ namespace test_observer_topic_dispatched_helpers {
     const bool mExpectVisit;
     bool& mNotified;
   };
-  NS_IMPL_ISUPPORTS1(
+  NS_IMPL_ISUPPORTS(
     statusObserver,
     nsIObserver
   )
@@ -558,7 +562,7 @@ test_new_visit_adds_place_guid()
   // First, add a visit and wait.  This will also add a place.
   nsCOMPtr<nsIURI> visitedURI = new_test_uri();
   nsCOMPtr<IHistory> history = do_get_IHistory();
-  nsresult rv = history->VisitURI(visitedURI, NULL,
+  nsresult rv = history->VisitURI(visitedURI, nullptr,
                                   mozilla::IHistory::TOP_LEVEL);
   do_check_success(rv);
   nsRefPtr<VisitURIObserver> finisher = new VisitURIObserver();
@@ -579,18 +583,18 @@ test_new_visit_adds_place_guid()
 void
 test_two_null_links_same_uri()
 {
-  // Tests that we do not crash when we have had two NULL Links passed to
+  // Tests that we do not crash when we have had two nullptr Links passed to
   // RegisterVisitedCallback and then the visit occurs (bug 607469).  This only
   // happens in IPC builds.
   nsCOMPtr<nsIURI> testURI = new_test_uri();
 
   nsCOMPtr<IHistory> history = do_get_IHistory();
-  nsresult rv = history->RegisterVisitedCallback(testURI, NULL);
+  nsresult rv = history->RegisterVisitedCallback(testURI, nullptr);
   do_check_success(rv);
-  rv = history->RegisterVisitedCallback(testURI, NULL);
+  rv = history->RegisterVisitedCallback(testURI, nullptr);
   do_check_success(rv);
 
-  rv = history->VisitURI(testURI, NULL, mozilla::IHistory::TOP_LEVEL);
+  rv = history->VisitURI(testURI, nullptr, mozilla::IHistory::TOP_LEVEL);
   do_check_success(rv);
 
   nsRefPtr<VisitURIObserver> finisher = new VisitURIObserver();

@@ -13,7 +13,7 @@
 #include "nsTArray.h"
 #include "mozilla/Attributes.h"
 
-class nsAutoCompleteSimpleResult MOZ_FINAL : public nsIAutoCompleteSimpleResult
+class nsAutoCompleteSimpleResult final : public nsIAutoCompleteSimpleResult
 {
 public:
   nsAutoCompleteSimpleResult();
@@ -21,6 +21,7 @@ public:
     NS_ASSERTION(mValues.Length() == mComments.Length(), "Arrays out of sync");
     NS_ASSERTION(mValues.Length() == mImages.Length(),   "Arrays out of sync");
     NS_ASSERTION(mValues.Length() == mStyles.Length(),   "Arrays out of sync");
+    NS_ASSERTION(mValues.Length() == mFinalCompleteValues.Length(), "Arrays out of sync");
   }
 
   NS_DECL_ISUPPORTS
@@ -39,6 +40,7 @@ protected:
   nsTArray<nsString> mComments;
   nsTArray<nsString> mImages;
   nsTArray<nsString> mStyles;
+  nsTArray<nsString> mFinalCompleteValues;
 
   nsString mSearchString;
   nsString mErrorDescription;

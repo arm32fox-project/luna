@@ -12,6 +12,7 @@
 #define mozilla_css_GroupRule_h__
 
 #include "mozilla/Attributes.h"
+#include "mozilla/MemoryReporting.h"
 #include "mozilla/css/Rule.h"
 #include "nsCOMArray.h"
 #include "nsAutoPtr.h"
@@ -21,6 +22,9 @@ class nsPresContext;
 class nsMediaQueryResultCacheKey;
 
 namespace mozilla {
+
+class CSSStyleSheet;
+
 namespace css {
 
 class GroupRuleRuleList;
@@ -30,7 +34,7 @@ class GroupRuleRuleList;
 class GroupRule : public Rule
 {
 protected:
-  GroupRule();
+  GroupRule(uint32_t aLineNumber, uint32_t aColumnNumber);
   GroupRule(const GroupRule& aCopy);
   virtual ~GroupRule();
 public:
@@ -40,11 +44,11 @@ public:
 
   // implement part of nsIStyleRule and Rule
   DECL_STYLE_RULE_INHERIT_NO_DOMRULE
-  virtual void SetStyleSheet(nsCSSStyleSheet* aSheet);
+  virtual void SetStyleSheet(CSSStyleSheet* aSheet) override;
 
   // to help implement nsIStyleRule
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const override;
 #endif
 
 public:
@@ -69,12 +73,20 @@ public:
                                     nsMediaQueryResultCacheKey& aKey) = 0;
 
   // non-virtual -- it is only called by subclasses
-  size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const = 0;
+  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const override = 0;
+
+  static bool
+  CloneRuleInto(Rule* aRule, void* aArray)
+  {
+    nsRefPtr<Rule> clone = aRule->Clone();
+    static_cast<nsCOMArray<Rule>*>(aArray)->AppendObject(clone);
+    return true;
+  }
 
 protected:
   // to help implement nsIDOMCSSRule
-  nsresult AppendRulesToCssText(nsAString& aCssText);
+  void AppendRulesToCssText(nsAString& aCssText);
 
   // to implement common methods on nsIDOMCSSMediaRule and
   // nsIDOMCSSMozDocumentRule

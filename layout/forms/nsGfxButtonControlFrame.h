@@ -7,7 +7,6 @@
 #define nsGfxButtonControlFrame_h___
 
 #include "mozilla/Attributes.h"
-#include "nsFormControlFrame.h"
 #include "nsHTMLButtonControlFrame.h"
 #include "nsCOMPtr.h"
 #include "nsIAnonymousContentCreator.h"
@@ -23,42 +22,42 @@ class nsGfxButtonControlFrame : public nsHTMLButtonControlFrame,
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
-  nsGfxButtonControlFrame(nsStyleContext* aContext);
+  explicit nsGfxButtonControlFrame(nsStyleContext* aContext);
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot) override;
 
-  NS_IMETHOD HandleEvent(nsPresContext* aPresContext, 
-                         nsGUIEvent* aEvent,
-                         nsEventStatus* aEventStatus) MOZ_OVERRIDE;
+  virtual nsresult HandleEvent(nsPresContext* aPresContext, 
+                               mozilla::WidgetGUIEvent* aEvent,
+                               nsEventStatus* aEventStatus) override;
 
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const override;
 
-#ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+#ifdef DEBUG_FRAME_DUMP
+  virtual nsresult GetFrameName(nsAString& aResult) const override;
 #endif
 
   NS_DECL_QUERYFRAME
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements) MOZ_OVERRIDE;
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        uint32_t aFilter) MOZ_OVERRIDE;
-  virtual nsIFrame* CreateFrameFor(nsIContent* aContent) MOZ_OVERRIDE;
+  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements) override;
+  virtual void AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+                                        uint32_t aFilter) override;
+  virtual nsIFrame* CreateFrameFor(nsIContent* aContent) override;
 
-  NS_IMETHOD AttributeChanged(int32_t         aNameSpaceID,
-                              nsIAtom*        aAttribute,
-                              int32_t         aModType) MOZ_OVERRIDE;
+  virtual nsresult AttributeChanged(int32_t         aNameSpaceID,
+                                    nsIAtom*        aAttribute,
+                                    int32_t         aModType) override;
 
-  virtual bool IsLeaf() const MOZ_OVERRIDE;
+  virtual bool IsLeaf() const override;
 
-  virtual nsIFrame* GetContentInsertionFrame() MOZ_OVERRIDE;
+  virtual nsContainerFrame* GetContentInsertionFrame() override;
 
 protected:
   nsresult GetDefaultLabel(nsXPIDLString& aLabel) const;
 
   nsresult GetLabel(nsXPIDLString& aLabel);
 
-  virtual bool IsInput() MOZ_OVERRIDE { return true; }
+  virtual bool IsInput() override { return true; }
 private:
   nsCOMPtr<nsIContent> mTextContent;
 };

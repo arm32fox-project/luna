@@ -28,8 +28,6 @@
 
 #include "hb-private.hh"
 
-#include "hb-version.h"
-
 #include "hb-mutex-private.hh"
 #include "hb-object-private.hh"
 
@@ -57,25 +55,45 @@ _hb_options_init (void)
 
 /* hb_tag_t */
 
+/**
+ * hb_tag_from_string:
+ * @str: (array length=len): 
+ * @len: 
+ *
+ * 
+ *
+ * Return value: 
+ *
+ * Since: 1.0
+ **/
 hb_tag_t
-hb_tag_from_string (const char *s, int len)
+hb_tag_from_string (const char *str, int len)
 {
   char tag[4];
   unsigned int i;
 
-  if (!s || !len || !*s)
+  if (!str || !len || !*str)
     return HB_TAG_NONE;
 
   if (len < 0 || len > 4)
     len = 4;
-  for (i = 0; i < (unsigned) len && s[i]; i++)
-    tag[i] = s[i];
+  for (i = 0; i < (unsigned) len && str[i]; i++)
+    tag[i] = str[i];
   for (; i < 4; i++)
     tag[i] = ' ';
 
   return HB_TAG_CHAR4 (tag);
 }
 
+/**
+ * hb_tag_to_string:
+ * @tag: 
+ * @buf: (array fixed-size=4): 
+ *
+ * 
+ *
+ * Since: 1.0
+ **/
 void
 hb_tag_to_string (hb_tag_t tag, char *buf)
 {
@@ -95,6 +113,17 @@ const char direction_strings[][4] = {
   "btt"
 };
 
+/**
+ * hb_direction_from_string:
+ * @str: (array length=len): 
+ * @len: 
+ *
+ * 
+ *
+ * Return value: 
+ *
+ * Since: 1.0
+ **/
 hb_direction_t
 hb_direction_from_string (const char *str, int len)
 {
@@ -112,6 +141,16 @@ hb_direction_from_string (const char *str, int len)
   return HB_DIRECTION_INVALID;
 }
 
+/**
+ * hb_direction_to_string:
+ * @direction: 
+ *
+ * 
+ *
+ * Return value: (transfer none): 
+ *
+ * Since: 1.0
+ **/
 const char *
 hb_direction_to_string (hb_direction_t direction)
 {
@@ -187,7 +226,7 @@ struct hb_language_item_t {
     return *this;
   }
 
-  void finish (void) { free (lang); }
+  void finish (void) { free ((void *) lang); }
 };
 
 
@@ -195,6 +234,7 @@ struct hb_language_item_t {
 
 static hb_language_item_t *langs;
 
+#ifdef HB_USE_ATEXIT
 static inline
 void free_langs (void)
 {
@@ -205,6 +245,7 @@ void free_langs (void)
     langs = next;
   }
 }
+#endif
 
 static hb_language_item_t *
 lang_find_or_insert (const char *key)
@@ -228,7 +269,7 @@ retry:
     goto retry;
   }
 
-#ifdef HAVE_ATEXIT
+#ifdef HB_USE_ATEXIT
   if (!first_lang)
     atexit (free_langs); /* First person registers atexit() callback. */
 #endif
@@ -237,17 +278,32 @@ retry:
 }
 
 
+/**
+ * hb_language_from_string:
+ * @str: (array length=len): 
+ * @len: 
+ *
+ * 
+ *
+ * Return value: 
+ *
+ * Since: 1.0
+ **/
 hb_language_t
 hb_language_from_string (const char *str, int len)
 {
+  char strbuf[64];
+
   if (!str || !len || !*str)
     return HB_LANGUAGE_INVALID;
 
-  char strbuf[32];
-  if (len >= 0) {
+  if (len >= 0)
+  {
+    /* NUL-terminate it. */
     len = MIN (len, (int) sizeof (strbuf) - 1);
-    str = (char *) memcpy (strbuf, str, len);
+    memcpy (strbuf, str, len);
     strbuf[len] = '\0';
+    str = strbuf;
   }
 
   hb_language_item_t *item = lang_find_or_insert (str);
@@ -255,6 +311,16 @@ hb_language_from_string (const char *str, int len)
   return likely (item) ? item->lang : HB_LANGUAGE_INVALID;
 }
 
+/**
+ * hb_language_to_string:
+ * @language: 
+ *
+ * 
+ *
+ * Return value: (transfer none): 
+ *
+ * Since: 1.0
+ **/
 const char *
 hb_language_to_string (hb_language_t language)
 {
@@ -262,6 +328,15 @@ hb_language_to_string (hb_language_t language)
   return language->s;
 }
 
+/**
+ * hb_language_get_default:
+ *
+ * 
+ *
+ * Return value: 
+ *
+ * Since: 1.0
+ **/
 hb_language_t
 hb_language_get_default (void)
 {
@@ -279,6 +354,16 @@ hb_language_get_default (void)
 
 /* hb_script_t */
 
+/**
+ * hb_script_from_iso15924_tag:
+ * @tag: 
+ *
+ * 
+ *
+ * Return value: 
+ *
+ * Since: 1.0
+ **/
 hb_script_t
 hb_script_from_iso15924_tag (hb_tag_t tag)
 {
@@ -286,7 +371,7 @@ hb_script_from_iso15924_tag (hb_tag_t tag)
     return HB_SCRIPT_INVALID;
 
   /* Be lenient, adjust case (one capital letter followed by three small letters) */
-  tag = (tag & 0xDFDFDFDF) | 0x00202020;
+  tag = (tag & 0xDFDFDFDFu) | 0x00202020u;
 
   switch (tag) {
 
@@ -306,25 +391,56 @@ hb_script_from_iso15924_tag (hb_tag_t tag)
   }
 
   /* If it looks right, just use the tag as a script */
-  if (((uint32_t) tag & 0xE0E0E0E0) == 0x40606060)
+  if (((uint32_t) tag & 0xE0E0E0E0u) == 0x40606060u)
     return (hb_script_t) tag;
 
   /* Otherwise, return unknown */
   return HB_SCRIPT_UNKNOWN;
 }
 
+/**
+ * hb_script_from_string:
+ * @s: (array length=len): 
+ * @len: 
+ *
+ * 
+ *
+ * Return value: 
+ *
+ * Since: 1.0
+ **/
 hb_script_t
 hb_script_from_string (const char *s, int len)
 {
   return hb_script_from_iso15924_tag (hb_tag_from_string (s, len));
 }
 
+/**
+ * hb_script_to_iso15924_tag:
+ * @script: 
+ *
+ * 
+ *
+ * Return value: 
+ *
+ * Since: 1.0
+ **/
 hb_tag_t
 hb_script_to_iso15924_tag (hb_script_t script)
 {
   return (hb_tag_t) script;
 }
 
+/**
+ * hb_script_get_horizontal_direction:
+ * @script: 
+ *
+ * 
+ *
+ * Return value: 
+ *
+ * Since: 1.0
+ **/
 hb_direction_t
 hb_script_get_horizontal_direction (hb_script_t script)
 {
@@ -368,6 +484,14 @@ hb_script_get_horizontal_direction (hb_script_t script)
     case HB_SCRIPT_MEROITIC_CURSIVE:
     case HB_SCRIPT_MEROITIC_HIEROGLYPHS:
 
+    /* Unicode-7.0 additions */
+    case HB_SCRIPT_MANICHAEAN:
+    case HB_SCRIPT_MENDE_KIKAKUI:
+    case HB_SCRIPT_NABATAEAN:
+    case HB_SCRIPT_OLD_NORTH_ARABIAN:
+    case HB_SCRIPT_PALMYRENE:
+    case HB_SCRIPT_PSALTER_PAHLAVI:
+
       return HB_DIRECTION_RTL;
   }
 
@@ -409,6 +533,16 @@ hb_user_data_array_t::get (hb_user_data_key_t *key)
 
 /* hb_version */
 
+/**
+ * hb_version:
+ * @major: (out): Library major version component.
+ * @minor: (out): Library minor version component.
+ * @micro: (out): Library micro version component.
+ *
+ * Returns library version as three integer components.
+ *
+ * Since: 1.0
+ **/
 void
 hb_version (unsigned int *major,
 	    unsigned int *minor,
@@ -419,16 +553,37 @@ hb_version (unsigned int *major,
   *micro = HB_VERSION_MICRO;
 }
 
+/**
+ * hb_version_string:
+ *
+ * Returns library version as a string with three components.
+ *
+ * Return value: library version string.
+ *
+ * Since: 1.0
+ **/
 const char *
 hb_version_string (void)
 {
   return HB_VERSION_STRING;
 }
 
+/**
+ * hb_version_atleast:
+ * @major: 
+ * @minor: 
+ * @micro: 
+ *
+ * 
+ *
+ * Return value: 
+ *
+ * Since: 1.0
+ **/
 hb_bool_t
-hb_version_check (unsigned int major,
-		  unsigned int minor,
-		  unsigned int micro)
+hb_version_atleast (unsigned int major,
+		    unsigned int minor,
+		    unsigned int micro)
 {
-  return HB_VERSION_CHECK (major, minor, micro);
+  return HB_VERSION_ATLEAST (major, minor, micro);
 }

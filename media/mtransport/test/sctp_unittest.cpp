@@ -47,17 +47,18 @@ class SendPeriodic : public nsITimerCallback {
   SendPeriodic(TransportTestPeer *peer, int to_send) :
       peer_(peer),
       to_send_(to_send) {}
-  virtual ~SendPeriodic() {}
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSITIMERCALLBACK
 
  protected:
+  virtual ~SendPeriodic() {}
+
   TransportTestPeer *peer_;
   int to_send_;
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(SendPeriodic, nsITimerCallback)
+NS_IMPL_ISUPPORTS(SendPeriodic, nsITimerCallback)
 
 
 class TransportTestPeer : public sigslot::has_slots<> {

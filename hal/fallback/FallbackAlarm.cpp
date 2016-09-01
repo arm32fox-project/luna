@@ -6,10 +6,10 @@
 
 #include <algorithm>
 
-#include <nsITimer.h>
-
 #include "mozilla/ClearOnShutdown.h"
 #include "mozilla/StaticPtr.h"
+#include "nsComponentManagerUtils.h"
+#include "nsITimer.h"
 #include "nsThreadUtils.h"
 
 namespace mozilla {
@@ -54,8 +54,7 @@ bool
 SetAlarm(int32_t aSeconds, int32_t aNanoseconds)
 {
   if (!sTimer) {
-    HAL_LOG(("We should have enabled the alarm"));
-    MOZ_ASSERT(false);
+    MOZ_ASSERT(false, "We should have enabled the alarm");
     return false;
   }
 

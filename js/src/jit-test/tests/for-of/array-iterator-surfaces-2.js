@@ -1,13 +1,19 @@
 // Superficial tests for iterators created by Array.prototype.iterator
 
-var proto = Object.getPrototypeOf([].iterator());
+load(libdir + "iteration.js");
+
+var proto = Object.getPrototypeOf([][Symbol.iterator]());
+assertEq(Object.getPrototypeOf(proto), Iterator.prototype);
+proto = Object.getPrototypeOf([].keys());
+assertEq(Object.getPrototypeOf(proto), Iterator.prototype);
+proto = Object.getPrototypeOf([].entries());
 assertEq(Object.getPrototypeOf(proto), Iterator.prototype);
 
 function check(it) {
     assertEq(typeof it, 'object');
     assertEq(Object.getPrototypeOf(it), proto);
     assertEq(Object.getOwnPropertyNames(it).length, 0);
-    assertEq(it.iterator(), it);
+    assertEq(it[Symbol.iterator](), it);
 
     // for-in enumerates the iterator's properties.
     it.x = 0;
@@ -17,6 +23,9 @@ function check(it) {
     assertEq(s, 'x.');
 }
 
-check([].iterator());
-check(Array.prototype.iterator.call({}));
-check(Array.prototype.iterator.call(undefined));
+check([][Symbol.iterator]());
+check(Array.prototype[Symbol.iterator].call({}));
+check([].keys());
+check(Array.prototype.keys.call({}));
+check([].entries());
+check(Array.prototype.entries.call({}));

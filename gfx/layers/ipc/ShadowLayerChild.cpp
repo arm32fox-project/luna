@@ -6,8 +6,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ShadowLayerChild.h"
-#include "Layers.h"
-#include "ShadowLayers.h"
+#include "Layers.h"                     // for Layer
+#include "ShadowLayers.h"               // for ShadowableLayer
 
 namespace mozilla {
 namespace layers {
@@ -22,8 +22,8 @@ ShadowLayerChild::~ShadowLayerChild()
 void
 ShadowLayerChild::ActorDestroy(ActorDestroyReason why)
 {
-  NS_ABORT_IF_FALSE(AncestorDeletion != why,
-                    "shadowable layer should have been cleaned up by now");
+  MOZ_ASSERT(AncestorDeletion != why,
+             "shadowable layer should have been cleaned up by now");
 
   if (AbnormalShutdown == why) {
     // This is last-ditch emergency shutdown.  Just have the layer

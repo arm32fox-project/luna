@@ -4,90 +4,27 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/gfx/Blur.h"
+#include "Blur.h"
 
 #include <algorithm>
 #include <math.h>
 #include <string.h>
-#ifdef WIN32
-#include <windows.h>
-#else
-#include "nspr.h"
-#endif
 
 #include "mozilla/CheckedInt.h"
 #include "mozilla/Constants.h"
-#include "mozilla/Util.h"
 
 #include "2D.h"
+#include "DataSurfaceHelpers.h"
 #include "Tools.h"
+
+#ifdef BUILD_ARM_NEON
+#include "mozilla/arm.h"
+#endif
 
 using namespace std;
 
 namespace mozilla {
 namespace gfx {
-
-static uint32_t NumberOfProcessors = 0;
-
-
-#ifdef WIN32
-static void
-GetNumberOfLogicalProcessors(void)
-{
-    SYSTEM_INFO SystemInfo;
-
-    GetSystemInfo(&SystemInfo);
-    NumberOfProcessors = SystemInfo.dwNumberOfProcessors;
-}
-#endif
-
-static void
-GetNumberOfProcessors(void)
-{
-#ifdef WIN32
-    PSYSTEM_LOGICAL_PROCESSOR_INFORMATION SystemLogicalProcessorInformation = NULL;
-    DWORD SizeSystemLogicalProcessorInformation = 0;
-
-    while(!GetLogicalProcessorInformation(SystemLogicalProcessorInformation, &SizeSystemLogicalProcessorInformation)) {
-        if(SystemLogicalProcessorInformation) free(SystemLogicalProcessorInformation);
-
-        if(GetLastError() == ERROR_INSUFFICIENT_BUFFER) {
-            SystemLogicalProcessorInformation =
-                static_cast<PSYSTEM_LOGICAL_PROCESSOR_INFORMATION>(malloc(SizeSystemLogicalProcessorInformation));
-        } else {
-            GetNumberOfLogicalProcessors();
-            return;
-        }
-    }
-
-    DWORD ProcessorCore = 0;
-    PSYSTEM_LOGICAL_PROCESSOR_INFORMATION Ptr = SystemLogicalProcessorInformation;
-
-    for(DWORD Offset = sizeof SYSTEM_LOGICAL_PROCESSOR_INFORMATION;
-        Offset <= SizeSystemLogicalProcessorInformation;
-        Offset += sizeof SYSTEM_LOGICAL_PROCESSOR_INFORMATION) {
-        if(Ptr++->Relationship == RelationProcessorCore) ProcessorCore++;
-    }
-
-    free(SystemLogicalProcessorInformation);
-
-    if(ProcessorCore) {
-        NumberOfProcessors = ProcessorCore;
-    } else {
-        GetNumberOfLogicalProcessors();
-    }
-#else
-    //Use fallback check on non-windows
-    NumberOfProcessors = PR_GetNumberOfProcessors();
-    
-    if (NumberOfProcessors == 0 || !NumberOfProcessors)
-      NumberOfProcessors = 1;
-      
-    if (NumberOfProcessors > 8)
-      NumberOfProcessors = 8;
-    
-#endif  
-}
 
 /**
  * Box blur involves looking at one pixel, and setting its value to the average
@@ -101,7 +38,6 @@ GetNumberOfProcessors(void)
  * @param aSkipRect An area to skip blurring in.
  * XXX shouldn't we pass stride in separately here?
  */
- 
 static void
 BoxBlurHorizontal(unsigned char* aInput,
                   unsigned char* aOutput,
@@ -120,10 +56,6 @@ BoxBlurHorizontal(unsigned char* aInput,
         memcpy(aOutput, aInput, aWidth*aRows);
         return;
     }
-    
-    // Pale Moon: Processor check.
-    if(NumberOfProcessors == 0) GetNumberOfProcessors();
-    
     uint32_t reciprocal = uint32_t((uint64_t(1) << 32) / boxSize);
 
     for (int32_t y = 0; y < aRows; y++) {
@@ -136,9 +68,8 @@ BoxBlurHorizontal(unsigned char* aInput,
             y = aSkipRect.YMost() - 1;
             continue;
         }
-        
+
         uint32_t alphaSum = 0;
-#pragma loop(hint_parallel(0))
         for (int32_t i = 0; i < boxSize; i++) {
             int32_t pos = i - aLeftLobe;
             // See assertion above; if aWidth is zero, then we would have no
@@ -147,7 +78,6 @@ BoxBlurHorizontal(unsigned char* aInput,
             pos = min(pos, aWidth - 1);
             alphaSum += aInput[aWidth * y + pos];
         }
-#pragma loop(hint_parallel(0))
         for (int32_t x = 0; x < aWidth; x++) {
             // Check whether we are within the skip rect. If so, go
             // to the next point outside the skip rect.
@@ -215,7 +145,6 @@ BoxBlurVertical(unsigned char* aInput,
         }
 
         uint32_t alphaSum = 0;
-#pragma loop(hint_parallel(0))
         for (int32_t i = 0; i < boxSize; i++) {
             int32_t pos = i - aTopLobe;
             // See assertion above; if aRows is zero, then we would have no
@@ -224,7 +153,6 @@ BoxBlurVertical(unsigned char* aInput,
             pos = min(pos, aRows - 1);
             alphaSum += aInput[aWidth * pos + x];
         }
-#pragma loop(hint_parallel(0))
         for (int32_t y = 0; y < aRows; y++) {
             if (inSkipRectX && y >= aSkipRect.y &&
                 y < aSkipRect.YMost()) {
@@ -325,8 +253,7 @@ SpreadHorizontal(unsigned char* aInput,
             y = aSkipRect.YMost() - 1;
             continue;
         }
-        
-#pragma loop(hint_parallel(0))
+
         for (int32_t x = 0; x < aWidth; x++) {
             // Check whether we are within the skip rect. If so, go
             // to the next point outside the skip rect.
@@ -372,7 +299,6 @@ SpreadVertical(unsigned char* aInput,
             continue;
         }
 
-#pragma loop(hint_parallel(0))
         for (int32_t y = 0; y < aRows; y++) {
             // Check whether we are within the skip rect. If so, go
             // to the next point outside the skip rect.
@@ -413,7 +339,7 @@ AlphaBoxBlur::AlphaBoxBlur(const Rect& aRect,
                            const Rect* aSkipRect)
  : mSpreadRadius(aSpreadRadius),
    mBlurRadius(aBlurRadius),
-   mSurfaceAllocationSize(-1)
+   mSurfaceAllocationSize(0)
 {
   Rect rect(aRect);
   rect.Inflate(Size(aBlurRadius + aSpreadRadius));
@@ -462,28 +388,29 @@ AlphaBoxBlur::AlphaBoxBlur(const Rect& aRect,
 
     // We need to leave room for an additional 3 bytes for a potential overrun
     // in our blurring code.
-    CheckedInt<int32_t> size = CheckedInt<int32_t>(mStride) * mRect.height + 3;
-    if (size.isValid()) {
-      mSurfaceAllocationSize = size.value();
+    size_t size = BufferSizeFromStrideAndHeight(mStride, mRect.height, 3);
+    if (size != 0) {
+      mSurfaceAllocationSize = size;
     }
   }
 }
 
 AlphaBoxBlur::AlphaBoxBlur(const Rect& aRect,
                            int32_t aStride,
-                           float aSigma)
+                           float aSigmaX,
+                           float aSigmaY)
   : mRect(int32_t(aRect.x), int32_t(aRect.y),
           int32_t(aRect.width), int32_t(aRect.height)),
     mSpreadRadius(),
-    mBlurRadius(CalculateBlurRadius(Point(aSigma, aSigma))),
+    mBlurRadius(CalculateBlurRadius(Point(aSigmaX, aSigmaY))),
     mStride(aStride),
-    mSurfaceAllocationSize(-1)
+    mSurfaceAllocationSize(0)
 {
   IntRect intRect;
   if (aRect.ToIntRect(&intRect)) {
-    CheckedInt<int32_t> minDataSize = CheckedInt<int32_t>(intRect.width)*intRect.height;
-    if (minDataSize.isValid()) {
-      mSurfaceAllocationSize = minDataSize.value();
+    size_t minDataSize = BufferSizeFromStrideAndHeight(intRect.width, intRect.height);
+    if (minDataSize != 0) {
+      mSurfaceAllocationSize = minDataSize;
     }
   }
 }
@@ -522,7 +449,7 @@ AlphaBoxBlur::GetDirtyRect()
   return nullptr;
 }
 
-int32_t
+size_t
 AlphaBoxBlur::GetSurfaceAllocationSize() const
 {
   return mSurfaceAllocationSize;
@@ -575,7 +502,11 @@ AlphaBoxBlur::Blur(uint8_t* aData)
 
       // No need to use CheckedInt here - we have validated it in the constructor.
       size_t szB = stride * size.height;
-      uint8_t* tmpData = new uint8_t[szB];
+      uint8_t* tmpData = new (std::nothrow) uint8_t[szB];
+      if (!tmpData) {
+        return;
+      }
+
       memset(tmpData, 0, szB);
 
       uint8_t* a = aData;
@@ -606,11 +537,18 @@ AlphaBoxBlur::Blur(uint8_t* aData)
 
       // We need to leave room for an additional 12 bytes for a maximum overrun
       // of 3 pixels in the blurring code.
-      AlignedArray<uint32_t> integralImage((integralImageStride / 4) * integralImageSize.height + 12);
+      size_t bufLen = BufferSizeFromStrideAndHeight(integralImageStride, integralImageSize.height, 12);
+      if (bufLen == 0) {
+        return;
+      }
+      // bufLen is a byte count, but here we want a multiple of 32-bit ints, so
+      // we divide by 4.
+      AlignedArray<uint32_t> integralImage((bufLen / 4) + ((bufLen % 4) ? 1 : 0));
 
       if (!integralImage) {
         return;
       }
+
 #ifdef USE_SSE2
       if (Factory::HasSSE2()) {
         BoxBlur_SSE2(aData, horizontalLobes[0][0], horizontalLobes[0][1], verticalLobes[0][0],
@@ -618,6 +556,16 @@ AlphaBoxBlur::Blur(uint8_t* aData)
         BoxBlur_SSE2(aData, horizontalLobes[1][0], horizontalLobes[1][1], verticalLobes[1][0],
                      verticalLobes[1][1], integralImage, integralImageStride);
         BoxBlur_SSE2(aData, horizontalLobes[2][0], horizontalLobes[2][1], verticalLobes[2][0],
+                     verticalLobes[2][1], integralImage, integralImageStride);
+      } else
+#endif
+#ifdef BUILD_ARM_NEON
+      if (mozilla::supports_neon()) {
+        BoxBlur_NEON(aData, horizontalLobes[0][0], horizontalLobes[0][1], verticalLobes[0][0],
+                     verticalLobes[0][1], integralImage, integralImageStride);
+        BoxBlur_NEON(aData, horizontalLobes[1][0], horizontalLobes[1][1], verticalLobes[1][0],
+                     verticalLobes[1][1], integralImage, integralImageStride);
+        BoxBlur_NEON(aData, horizontalLobes[2][0], horizontalLobes[2][1], verticalLobes[2][0],
                      verticalLobes[2][1], integralImage, integralImageStride);
       } else
 #endif
@@ -755,7 +703,6 @@ AlphaBoxBlur::BoxBlur_C(uint8_t* aData,
   IntRect skipRect = mSkipRect;
   uint8_t *data = aData;
   int32_t stride = mStride;
-#pragma loop(hint_parallel(0))
   for (int32_t y = 0; y < size.height; y++) {
     bool inSkipRectY = y > skipRect.y && y < skipRect.YMost();
 
@@ -780,7 +727,7 @@ AlphaBoxBlur::BoxBlur_C(uint8_t* aData,
       uint32_t value = bottomRight - topRight - bottomLeft;
       value += topLeft;
 
-      data[stride * y + x] = (uint64_t(reciprocal) * value) >> 32;
+      data[stride * y + x] = (uint64_t(reciprocal) * value + (uint64_t(1) << 31)) >> 32;
     }
   }
 }
@@ -802,8 +749,8 @@ static const Float GAUSSIAN_SCALE_FACTOR = Float((3 * sqrt(2 * M_PI) / 4) * 1.5)
 IntSize
 AlphaBoxBlur::CalculateBlurRadius(const Point& aStd)
 {
-    IntSize size(static_cast<int32_t>(floor(aStd.x * GAUSSIAN_SCALE_FACTOR + 0.5)),
-                 static_cast<int32_t>(floor(aStd.y * GAUSSIAN_SCALE_FACTOR + 0.5)));
+    IntSize size(static_cast<int32_t>(floor(aStd.x * GAUSSIAN_SCALE_FACTOR + 0.5f)),
+                 static_cast<int32_t>(floor(aStd.y * GAUSSIAN_SCALE_FACTOR + 0.5f)));
 
     return size;
 }

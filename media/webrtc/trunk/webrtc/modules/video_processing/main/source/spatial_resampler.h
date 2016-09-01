@@ -8,62 +8,54 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-/*
- * spatial_resampler.h
- */
+#ifndef WEBRTC_MODULES_VIDEO_PROCESSING_MAIN_SOURCE_SPATIAL_RESAMPLER_H
+#define WEBRTC_MODULES_VIDEO_PROCESSING_MAIN_SOURCE_SPATIAL_RESAMPLER_H
 
-#ifndef VPM_SPATIAL_RESAMPLER_H
-#define VPM_SPATIAL_RESAMPLER_H
+#include "webrtc/typedefs.h"
 
-#include "typedefs.h"
+#include "webrtc/modules/interface/module_common_types.h"
+#include "webrtc/modules/video_processing/main/interface/video_processing_defines.h"
 
-#include "module_common_types.h"
-#include "video_processing_defines.h"
-
-#include "common_video/libyuv/include/webrtc_libyuv.h"
-#include "common_video/libyuv/include/scaler.h"
+#include "webrtc/common_video/libyuv/include/scaler.h"
+#include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
 
 namespace webrtc {
 
-class VPMSpatialResampler
-{
-public:
+class VPMSpatialResampler {
+ public:
   virtual ~VPMSpatialResampler() {};
-  virtual WebRtc_Word32 SetTargetFrameSize(WebRtc_Word32 width,
-                                           WebRtc_Word32 height) = 0;
+  virtual int32_t SetTargetFrameSize(int32_t width, int32_t height) = 0;
   virtual void SetInputFrameResampleMode(VideoFrameResampling
-                                         resamplingMode) = 0;
+                                         resampling_mode) = 0;
   virtual void Reset() = 0;
-  virtual WebRtc_Word32 ResampleFrame(const I420VideoFrame& inFrame,
-                                      I420VideoFrame* outFrame) = 0;
-  virtual WebRtc_Word32 TargetWidth() = 0;
-  virtual WebRtc_Word32 TargetHeight() = 0;
-  virtual bool ApplyResample(WebRtc_Word32 width, WebRtc_Word32 height) = 0;
+  virtual int32_t ResampleFrame(const I420VideoFrame& inFrame,
+                                I420VideoFrame* outFrame) = 0;
+  virtual int32_t TargetWidth() = 0;
+  virtual int32_t TargetHeight() = 0;
+  virtual bool ApplyResample(int32_t width, int32_t height) = 0;
 };
 
-class VPMSimpleSpatialResampler : public VPMSpatialResampler
-{
-public:
+class VPMSimpleSpatialResampler : public VPMSpatialResampler {
+ public:
   VPMSimpleSpatialResampler();
   ~VPMSimpleSpatialResampler();
-  virtual WebRtc_Word32 SetTargetFrameSize(WebRtc_Word32 width,
-                                           WebRtc_Word32 height);
-  virtual void SetInputFrameResampleMode(VideoFrameResampling resamplingMode);
+  virtual int32_t SetTargetFrameSize(int32_t width, int32_t height);
+  virtual void SetInputFrameResampleMode(VideoFrameResampling resampling_mode);
   virtual void Reset();
-  virtual WebRtc_Word32 ResampleFrame(const I420VideoFrame& inFrame,
-                                      I420VideoFrame* outFrame);
-  virtual WebRtc_Word32 TargetWidth();
-  virtual WebRtc_Word32 TargetHeight();
-  virtual bool ApplyResample(WebRtc_Word32 width, WebRtc_Word32 height);
+  virtual int32_t ResampleFrame(const I420VideoFrame& inFrame,
+                                I420VideoFrame* outFrame);
+  virtual int32_t TargetWidth();
+  virtual int32_t TargetHeight();
+  virtual bool ApplyResample(int32_t width, int32_t height);
 
-private:
+ private:
 
-  VideoFrameResampling        _resamplingMode;
-  WebRtc_Word32               _targetWidth;
-  WebRtc_Word32               _targetHeight;
-  Scaler                      _scaler;
+  VideoFrameResampling        resampling_mode_;
+  int32_t                     target_width_;
+  int32_t                     target_height_;
+  Scaler                      scaler_;
 };
 
-} //namespace
+}  // namespace webrtc
 
-#endif
+#endif  // WEBRTC_MODULES_VIDEO_PROCESSING_MAIN_SOURCE_SPATIAL_RESAMPLER_H

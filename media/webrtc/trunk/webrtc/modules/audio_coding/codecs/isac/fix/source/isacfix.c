@@ -15,18 +15,38 @@
  *
  */
 
-#include "modules/audio_coding/codecs/isac/fix/interface/isacfix.h"
+#include "webrtc/modules/audio_coding/codecs/isac/fix/interface/isacfix.h"
 
+#include <assert.h>
 #include <stdlib.h>
 
-#include "modules/audio_coding/codecs/isac/fix/source/bandwidth_estimator.h"
-#include "modules/audio_coding/codecs/isac/fix/source/codec.h"
-#include "modules/audio_coding/codecs/isac/fix/source/entropy_coding.h"
-#include "modules/audio_coding/codecs/isac/fix/source/filterbank_internal.h"
-#include "modules/audio_coding/codecs/isac/fix/source/lpc_masking_model.h"
-#include "modules/audio_coding/codecs/isac/fix/source/structs.h"
-#include "system_wrappers/interface/cpu_features_wrapper.h"
+#include "webrtc/modules/audio_coding/codecs/isac/fix/source/bandwidth_estimator.h"
+#include "webrtc/modules/audio_coding/codecs/isac/fix/source/codec.h"
+#include "webrtc/modules/audio_coding/codecs/isac/fix/source/entropy_coding.h"
+#include "webrtc/modules/audio_coding/codecs/isac/fix/source/filterbank_internal.h"
+#include "webrtc/modules/audio_coding/codecs/isac/fix/source/lpc_masking_model.h"
+#include "webrtc/modules/audio_coding/codecs/isac/fix/source/structs.h"
+#include "webrtc/system_wrappers/interface/cpu_features_wrapper.h"
 
+// Declare function pointers.
+FilterMaLoopFix WebRtcIsacfix_FilterMaLoopFix;
+Spec2Time WebRtcIsacfix_Spec2Time;
+Time2Spec WebRtcIsacfix_Time2Spec;
+MatrixProduct1 WebRtcIsacfix_MatrixProduct1;
+MatrixProduct2 WebRtcIsacfix_MatrixProduct2;
+
+/* This method assumes that |stream_size_bytes| is in valid range,
+ * i.e. >= 0 && <=  STREAM_MAXW16_60MS
+ */
+static void InitializeDecoderBitstream(int stream_size_bytes,
+                                       Bitstr_dec* bitstream) {
+  bitstream->W_upper = 0xFFFFFFFF;
+  bitstream->streamval = 0;
+  bitstream->stream_index = 0;
+  bitstream->full = 1;
+  bitstream->stream_size = (stream_size_bytes + 1) >> 1;
+  memset(bitstream->stream, 0, sizeof(bitstream->stream));
+}
 
 /**************************************************************************
  * WebRtcIsacfix_AssignSize(...)
@@ -36,8 +56,8 @@
  *
  */
 
-WebRtc_Word16 WebRtcIsacfix_AssignSize(int *sizeinbytes) {
-  *sizeinbytes=sizeof(ISACFIX_SubStruct)*2/sizeof(WebRtc_Word16);
+int16_t WebRtcIsacfix_AssignSize(int *sizeinbytes) {
+  *sizeinbytes=sizeof(ISACFIX_SubStruct)*2/sizeof(int16_t);
   return(0);
 }
 
@@ -50,7 +70,7 @@ WebRtc_Word16 WebRtcIsacfix_AssignSize(int *sizeinbytes) {
  * If successful, Return 0, else Return -1
  */
 
-WebRtc_Word16 WebRtcIsacfix_Assign(ISACFIX_MainStruct **inst, void *ISACFIX_inst_Addr) {
+int16_t WebRtcIsacfix_Assign(ISACFIX_MainStruct **inst, void *ISACFIX_inst_Addr) {
   if (ISACFIX_inst_Addr!=NULL) {
     *inst = (ISACFIX_MainStruct*)ISACFIX_inst_Addr;
     (*(ISACFIX_SubStruct**)inst)->errorcode = 0;
@@ -78,7 +98,7 @@ WebRtc_Word16 WebRtcIsacfix_Assign(ISACFIX_MainStruct **inst, void *ISACFIX_inst
  *                            -1 - Error
  */
 
-WebRtc_Word16 WebRtcIsacfix_Create(ISACFIX_MainStruct **ISAC_main_inst)
+int16_t WebRtcIsacfix_Create(ISACFIX_MainStruct **ISAC_main_inst)
 {
   ISACFIX_SubStruct *tempo;
   tempo = malloc(1 * sizeof(ISACFIX_SubStruct));
@@ -107,7 +127,7 @@ WebRtc_Word16 WebRtcIsacfix_Create(ISACFIX_MainStruct **ISAC_main_inst)
  *                            -1 - Error
  */
 
-WebRtc_Word16 WebRtcIsacfix_CreateInternal(ISACFIX_MainStruct *ISAC_main_inst)
+int16_t WebRtcIsacfix_CreateInternal(ISACFIX_MainStruct *ISAC_main_inst)
 {
   ISACFIX_SubStruct *ISAC_inst;
 
@@ -141,7 +161,7 @@ WebRtc_Word16 WebRtcIsacfix_CreateInternal(ISACFIX_MainStruct *ISAC_main_inst)
  *                            -1 - Error
  */
 
-WebRtc_Word16 WebRtcIsacfix_Free(ISACFIX_MainStruct *ISAC_main_inst)
+int16_t WebRtcIsacfix_Free(ISACFIX_MainStruct *ISAC_main_inst)
 {
   free(ISAC_main_inst);
   return(0);
@@ -159,7 +179,7 @@ WebRtc_Word16 WebRtcIsacfix_Free(ISACFIX_MainStruct *ISAC_main_inst)
  *                             -1 - Error
  */
 
-WebRtc_Word16 WebRtcIsacfix_FreeInternal(ISACFIX_MainStruct *ISAC_main_inst)
+int16_t WebRtcIsacfix_FreeInternal(ISACFIX_MainStruct *ISAC_main_inst)
 {
   ISACFIX_SubStruct *ISAC_inst;
 
@@ -173,7 +193,7 @@ WebRtc_Word16 WebRtcIsacfix_FreeInternal(ISACFIX_MainStruct *ISAC_main_inst)
 }
 
 /****************************************************************************
- * WebRtcAecm_InitNeon(...)
+ * WebRtcIsacfix_InitNeon(...)
  *
  * This function initializes function pointers for ARM Neon platform.
  */
@@ -183,10 +203,40 @@ static void WebRtcIsacfix_InitNeon(void) {
   WebRtcIsacfix_AutocorrFix = WebRtcIsacfix_AutocorrNeon;
   WebRtcIsacfix_FilterMaLoopFix = WebRtcIsacfix_FilterMaLoopNeon;
   WebRtcIsacfix_Spec2Time = WebRtcIsacfix_Spec2TimeNeon;
+  WebRtcIsacfix_Time2Spec = WebRtcIsacfix_Time2SpecNeon;
   WebRtcIsacfix_CalculateResidualEnergy =
       WebRtcIsacfix_CalculateResidualEnergyNeon;
   WebRtcIsacfix_AllpassFilter2FixDec16 =
       WebRtcIsacfix_AllpassFilter2FixDec16Neon;
+  WebRtcIsacfix_MatrixProduct1 = WebRtcIsacfix_MatrixProduct1Neon;
+  WebRtcIsacfix_MatrixProduct2 = WebRtcIsacfix_MatrixProduct2Neon;
+}
+#endif
+
+/****************************************************************************
+ * WebRtcIsacfix_InitMIPS(...)
+ *
+ * This function initializes function pointers for MIPS platform.
+ */
+
+#if defined(MIPS32_LE)
+static void WebRtcIsacfix_InitMIPS(void) {
+  WebRtcIsacfix_AutocorrFix = WebRtcIsacfix_AutocorrMIPS;
+  WebRtcIsacfix_FilterMaLoopFix = WebRtcIsacfix_FilterMaLoopMIPS;
+  WebRtcIsacfix_Spec2Time = WebRtcIsacfix_Spec2TimeMIPS;
+  WebRtcIsacfix_Time2Spec = WebRtcIsacfix_Time2SpecMIPS;
+  WebRtcIsacfix_MatrixProduct1 = WebRtcIsacfix_MatrixProduct1MIPS;
+  WebRtcIsacfix_MatrixProduct2 = WebRtcIsacfix_MatrixProduct2MIPS;
+#if defined(MIPS_DSP_R1_LE)
+  WebRtcIsacfix_AllpassFilter2FixDec16 =
+      WebRtcIsacfix_AllpassFilter2FixDec16MIPS;
+  WebRtcIsacfix_HighpassFilterFixDec32 =
+      WebRtcIsacfix_HighpassFilterFixDec32MIPS;
+#endif
+#if defined(MIPS_DSP_R2_LE)
+  WebRtcIsacfix_CalculateResidualEnergy =
+      WebRtcIsacfix_CalculateResidualEnergyMIPS;
+#endif
 }
 #endif
 
@@ -208,11 +258,11 @@ static void WebRtcIsacfix_InitNeon(void) {
  *                            -1 - Error
  */
 
-WebRtc_Word16 WebRtcIsacfix_EncoderInit(ISACFIX_MainStruct *ISAC_main_inst,
-                                        WebRtc_Word16  CodingMode)
+int16_t WebRtcIsacfix_EncoderInit(ISACFIX_MainStruct *ISAC_main_inst,
+                                  int16_t  CodingMode)
 {
   int k;
-  WebRtc_Word16 statusInit;
+  int16_t statusInit;
   ISACFIX_SubStruct *ISAC_inst;
 
   statusInit = 0;
@@ -273,10 +323,12 @@ WebRtc_Word16 WebRtcIsacfix_EncoderInit(ISACFIX_MainStruct *ISAC_main_inst,
   WebRtcIsacfix_FilterMaLoopFix = WebRtcIsacfix_FilterMaLoopC;
   WebRtcIsacfix_CalculateResidualEnergy =
       WebRtcIsacfix_CalculateResidualEnergyC;
-  WebRtcIsacfix_AllpassFilter2FixDec16 =
-      WebRtcIsacfix_AllpassFilter2FixDec16C;
-  WebRtcIsacfix_Spec2Time =
-      WebRtcIsacfix_Spec2TimeC;
+  WebRtcIsacfix_AllpassFilter2FixDec16 = WebRtcIsacfix_AllpassFilter2FixDec16C;
+  WebRtcIsacfix_HighpassFilterFixDec32 = WebRtcIsacfix_HighpassFilterFixDec32C;
+  WebRtcIsacfix_Time2Spec = WebRtcIsacfix_Time2SpecC;
+  WebRtcIsacfix_Spec2Time = WebRtcIsacfix_Spec2TimeC;
+  WebRtcIsacfix_MatrixProduct1 = WebRtcIsacfix_MatrixProduct1C;
+  WebRtcIsacfix_MatrixProduct2 = WebRtcIsacfix_MatrixProduct2C;
 
 #ifdef WEBRTC_DETECT_ARM_NEON
   if ((WebRtc_GetCPUFeaturesARM() & kCPUFeatureNEON) != 0) {
@@ -286,7 +338,40 @@ WebRtc_Word16 WebRtcIsacfix_EncoderInit(ISACFIX_MainStruct *ISAC_main_inst,
   WebRtcIsacfix_InitNeon();
 #endif
 
+#if defined(MIPS32_LE)
+  WebRtcIsacfix_InitMIPS();
+#endif
+
   return statusInit;
+}
+
+/* Read the given number of bytes of big-endian 16-bit integers from |src| and
+   write them to |dest| in host endian. If |nbytes| is odd, the number of
+   output elements is rounded up, and the least significant byte of the last
+   element is set to 0. */
+static void read_be16(const uint8_t* src, size_t nbytes, uint16_t* dest) {
+  size_t i;
+  for (i = 0; i < nbytes / 2; ++i)
+    dest[i] = src[2 * i] << 8 | src[2 * i + 1];
+  if (nbytes % 2 == 1)
+    dest[nbytes / 2] = src[nbytes - 1] << 8;
+}
+
+/* Read the given number of bytes of host-endian 16-bit integers from |src| and
+   write them to |dest| in big endian. If |nbytes| is odd, the number of source
+   elements is rounded up (but only the most significant byte of the last
+   element is used), and the number of output bytes written will be
+   nbytes + 1. */
+static void write_be16(const uint16_t* src, size_t nbytes, uint8_t* dest) {
+  size_t i;
+  for (i = 0; i < nbytes / 2; ++i) {
+    dest[2 * i] = src[i] >> 8;
+    dest[2 * i + 1] = src[i];
+  }
+  if (nbytes % 2 == 1) {
+    dest[nbytes - 1] = src[nbytes / 2] >> 8;
+    dest[nbytes] = 0;
+  }
 }
 
 /****************************************************************************
@@ -311,15 +396,12 @@ WebRtc_Word16 WebRtcIsacfix_EncoderInit(ISACFIX_MainStruct *ISAC_main_inst,
  *                          : -1 - Error
  */
 
-WebRtc_Word16 WebRtcIsacfix_Encode(ISACFIX_MainStruct *ISAC_main_inst,
-                                   const WebRtc_Word16    *speechIn,
-                                   WebRtc_Word16          *encoded)
+int16_t WebRtcIsacfix_Encode(ISACFIX_MainStruct *ISAC_main_inst,
+                             const int16_t    *speechIn,
+                             uint8_t* encoded)
 {
   ISACFIX_SubStruct *ISAC_inst;
-  WebRtc_Word16 stream_len;
-#ifndef WEBRTC_BIG_ENDIAN
-  int k;
-#endif
+  int16_t stream_len;
 
   /* typecast pointer to rela structure */
   ISAC_inst = (ISACFIX_SubStruct *)ISAC_main_inst;
@@ -331,29 +413,16 @@ WebRtc_Word16 WebRtcIsacfix_Encode(ISACFIX_MainStruct *ISAC_main_inst,
     return (-1);
   }
 
-  stream_len = WebRtcIsacfix_EncodeImpl((WebRtc_Word16*)speechIn,
-                                    &ISAC_inst->ISACenc_obj,
-                                    &ISAC_inst->bwestimator_obj,
-                                    ISAC_inst->CodingMode);
+  stream_len = WebRtcIsacfix_EncodeImpl((int16_t*)speechIn,
+                                        &ISAC_inst->ISACenc_obj,
+                                        &ISAC_inst->bwestimator_obj,
+                                        ISAC_inst->CodingMode);
   if (stream_len<0) {
     ISAC_inst->errorcode = - stream_len;
     return -1;
   }
 
-
-  /* convert from bytes to WebRtc_Word16 */
-#ifndef WEBRTC_BIG_ENDIAN
-  for (k=0;k<(stream_len+1)>>1;k++) {
-    encoded[k] = (WebRtc_Word16)( ( (WebRtc_UWord16)(ISAC_inst->ISACenc_obj.bitstr_obj).stream[k] >> 8 )
-                                  | (((ISAC_inst->ISACenc_obj.bitstr_obj).stream[k] & 0x00FF) << 8));
-  }
-
-#else
-  WEBRTC_SPL_MEMCPY_W16(encoded, (ISAC_inst->ISACenc_obj.bitstr_obj).stream, (stream_len + 1)>>1);
-#endif
-
-
-
+  write_be16(ISAC_inst->ISACenc_obj.bitstr_obj.stream, stream_len, encoded);
   return stream_len;
 
 }
@@ -386,15 +455,15 @@ WebRtc_Word16 WebRtcIsacfix_Encode(ISACFIX_MainStruct *ISAC_main_inst,
  *                          : -1 - Error
  */
 #ifdef WEBRTC_ISAC_FIX_NB_CALLS_ENABLED
-WebRtc_Word16 WebRtcIsacfix_EncodeNb(ISACFIX_MainStruct *ISAC_main_inst,
-                                      const WebRtc_Word16    *speechIn,
-                                      WebRtc_Word16          *encoded)
+int16_t WebRtcIsacfix_EncodeNb(ISACFIX_MainStruct *ISAC_main_inst,
+                               const int16_t    *speechIn,
+                               int16_t          *encoded)
 {
   ISACFIX_SubStruct *ISAC_inst;
-  WebRtc_Word16 stream_len;
-  WebRtc_Word16 speechInWB[FRAMESAMPLES_10ms];
-  WebRtc_Word16 Vector_Word16_1[FRAMESAMPLES_10ms/2];
-  WebRtc_Word16 Vector_Word16_2[FRAMESAMPLES_10ms/2];
+  int16_t stream_len;
+  int16_t speechInWB[FRAMESAMPLES_10ms];
+  int16_t Vector_Word16_1[FRAMESAMPLES_10ms/2];
+  int16_t Vector_Word16_2[FRAMESAMPLES_10ms/2];
 
   int k;
 
@@ -421,29 +490,18 @@ WebRtc_Word16 WebRtcIsacfix_EncodeNb(ISACFIX_MainStruct *ISAC_main_inst,
 
 
   /* Encode WB signal */
-  stream_len = WebRtcIsacfix_EncodeImpl((WebRtc_Word16*)speechInWB,
-                                    &ISAC_inst->ISACenc_obj,
-                                    &ISAC_inst->bwestimator_obj,
-                                    ISAC_inst->CodingMode);
+  stream_len = WebRtcIsacfix_EncodeImpl((int16_t*)speechInWB,
+                                        &ISAC_inst->ISACenc_obj,
+                                        &ISAC_inst->bwestimator_obj,
+                                        ISAC_inst->CodingMode);
   if (stream_len<0) {
     ISAC_inst->errorcode = - stream_len;
     return -1;
   }
 
-
-  /* convert from bytes to WebRtc_Word16 */
-#ifndef WEBRTC_BIG_ENDIAN
-  for (k=0;k<(stream_len+1)>>1;k++) {
-    encoded[k] = (WebRtc_Word16)(((WebRtc_UWord16)(ISAC_inst->ISACenc_obj.bitstr_obj).stream[k] >> 8)
-                                 | (((ISAC_inst->ISACenc_obj.bitstr_obj).stream[k] & 0x00FF) << 8));
-  }
-
-#else
-  WEBRTC_SPL_MEMCPY_W16(encoded, (ISAC_inst->ISACenc_obj.bitstr_obj).stream, (stream_len + 1)>>1);
-#endif
-
-
-
+  write_be16(ISAC_inst->ISACenc_obj.bitstr_obj.stream,
+             stream_len,
+             (uint8_t*)encoded);
   return stream_len;
 }
 #endif  /* WEBRTC_ISAC_FIX_NB_CALLS_ENABLED */
@@ -468,16 +526,13 @@ WebRtc_Word16 WebRtcIsacfix_EncodeNb(ISACFIX_MainStruct *ISAC_main_inst,
  *                          : -1 - Error
  */
 
-WebRtc_Word16 WebRtcIsacfix_GetNewBitStream(ISACFIX_MainStruct *ISAC_main_inst,
-                                            WebRtc_Word16      bweIndex,
-                                            float              scale,
-                                            WebRtc_Word16        *encoded)
+int16_t WebRtcIsacfix_GetNewBitStream(ISACFIX_MainStruct *ISAC_main_inst,
+                                      int16_t      bweIndex,
+                                      float              scale,
+                                      uint8_t* encoded)
 {
   ISACFIX_SubStruct *ISAC_inst;
-  WebRtc_Word16 stream_len;
-#ifndef WEBRTC_BIG_ENDIAN
-  int k;
-#endif
+  int16_t stream_len;
 
   /* typecast pointer to rela structure */
   ISAC_inst = (ISACFIX_SubStruct *)ISAC_main_inst;
@@ -497,18 +552,8 @@ WebRtc_Word16 WebRtcIsacfix_GetNewBitStream(ISACFIX_MainStruct *ISAC_main_inst,
     return -1;
   }
 
-#ifndef WEBRTC_BIG_ENDIAN
-  for (k=0;k<(stream_len+1)>>1;k++) {
-    encoded[k] = (WebRtc_Word16)( ( (WebRtc_UWord16)(ISAC_inst->ISACenc_obj.bitstr_obj).stream[k] >> 8 )
-                                  | (((ISAC_inst->ISACenc_obj.bitstr_obj).stream[k] & 0x00FF) << 8));
-  }
-
-#else
-  WEBRTC_SPL_MEMCPY_W16(encoded, (ISAC_inst->ISACenc_obj.bitstr_obj).stream, (stream_len + 1)>>1);
-#endif
-
+  write_be16(ISAC_inst->ISACenc_obj.bitstr_obj.stream, stream_len, encoded);
   return stream_len;
-
 }
 
 
@@ -526,7 +571,7 @@ WebRtc_Word16 WebRtcIsacfix_GetNewBitStream(ISACFIX_MainStruct *ISAC_main_inst,
  *                            -1 - Error
  */
 
-WebRtc_Word16 WebRtcIsacfix_DecoderInit(ISACFIX_MainStruct *ISAC_main_inst)
+int16_t WebRtcIsacfix_DecoderInit(ISACFIX_MainStruct *ISAC_main_inst)
 {
   ISACFIX_SubStruct *ISAC_inst;
 
@@ -569,22 +614,16 @@ WebRtc_Word16 WebRtcIsacfix_DecoderInit(ISACFIX_MainStruct *ISAC_main_inst)
  *                            -1 - Error
  */
 
-WebRtc_Word16 WebRtcIsacfix_UpdateBwEstimate1(ISACFIX_MainStruct *ISAC_main_inst,
-                                     const WebRtc_UWord16   *encoded,
-                                     WebRtc_Word32          packet_size,
-                                     WebRtc_UWord16         rtp_seq_number,
-                                     WebRtc_UWord32         arr_ts)
+int16_t WebRtcIsacfix_UpdateBwEstimate1(ISACFIX_MainStruct *ISAC_main_inst,
+                                        const uint8_t* encoded,
+                                        int32_t          packet_size,
+                                        uint16_t         rtp_seq_number,
+                                        uint32_t         arr_ts)
 {
   ISACFIX_SubStruct *ISAC_inst;
   Bitstr_dec streamdata;
-  WebRtc_UWord16 partOfStream[5];
-#ifndef WEBRTC_BIG_ENDIAN
-  int k;
-#endif
-  WebRtc_Word16 err;
-
-  /* Set stream pointer to point at partOfStream */
-  streamdata.stream = (WebRtc_UWord16 *)partOfStream;
+  int16_t err;
+  const int kRequiredEncodedLenBytes = 10;
 
   /* typecast pointer to real structure */
   ISAC_inst = (ISACFIX_SubStruct *)ISAC_main_inst;
@@ -606,18 +645,9 @@ WebRtc_Word16 WebRtcIsacfix_UpdateBwEstimate1(ISACFIX_MainStruct *ISAC_main_inst
     return (-1);
   }
 
-  streamdata.W_upper = 0xFFFFFFFF;
-  streamdata.streamval = 0;
-  streamdata.stream_index = 0;
-  streamdata.full = 1;
+  InitializeDecoderBitstream(packet_size, &streamdata);
 
-#ifndef WEBRTC_BIG_ENDIAN
-  for (k=0; k<5; k++) {
-    streamdata.stream[k] = (WebRtc_UWord16) (((WebRtc_UWord16)encoded[k] >> 8)|((encoded[k] & 0xFF)<<8));
-  }
-#else
-  memcpy(streamdata.stream, encoded, 5);
-#endif
+  read_be16(encoded, kRequiredEncodedLenBytes, streamdata.stream);
 
   err = WebRtcIsacfix_EstimateBandwidth(&ISAC_inst->bwestimator_obj,
                                         &streamdata,
@@ -656,23 +686,17 @@ WebRtc_Word16 WebRtcIsacfix_UpdateBwEstimate1(ISACFIX_MainStruct *ISAC_main_inst
  *                            -1 - Error
  */
 
-WebRtc_Word16 WebRtcIsacfix_UpdateBwEstimate(ISACFIX_MainStruct *ISAC_main_inst,
-                                       const WebRtc_UWord16   *encoded,
-                                       WebRtc_Word32          packet_size,
-                                       WebRtc_UWord16         rtp_seq_number,
-                                       WebRtc_UWord32         send_ts,
-                                       WebRtc_UWord32         arr_ts)
+int16_t WebRtcIsacfix_UpdateBwEstimate(ISACFIX_MainStruct *ISAC_main_inst,
+                                       const uint8_t* encoded,
+                                       int32_t          packet_size,
+                                       uint16_t         rtp_seq_number,
+                                       uint32_t         send_ts,
+                                       uint32_t         arr_ts)
 {
   ISACFIX_SubStruct *ISAC_inst;
   Bitstr_dec streamdata;
-  WebRtc_UWord16 partOfStream[5];
-#ifndef WEBRTC_BIG_ENDIAN
-  int k;
-#endif
-  WebRtc_Word16 err;
-
-  /* Set stream pointer to point at partOfStream */
-  streamdata.stream = (WebRtc_UWord16 *)partOfStream;
+  int16_t err;
+  const int kRequiredEncodedLenBytes = 10;
 
   /* typecast pointer to real structure */
   ISAC_inst = (ISACFIX_SubStruct *)ISAC_main_inst;
@@ -681,6 +705,9 @@ WebRtc_Word16 WebRtcIsacfix_UpdateBwEstimate(ISACFIX_MainStruct *ISAC_main_inst,
   if (packet_size <= 0) {
     /* return error code if the packet length is null  or less */
     ISAC_inst->errorcode = ISAC_EMPTY_PACKET;
+    return -1;
+  } else if (packet_size < kRequiredEncodedLenBytes) {
+    ISAC_inst->errorcode = ISAC_PACKET_TOO_SHORT;
     return -1;
   } else if (packet_size > (STREAM_MAXW16<<1)) {
     /* return error code if length of stream is too long */
@@ -694,18 +721,9 @@ WebRtc_Word16 WebRtcIsacfix_UpdateBwEstimate(ISACFIX_MainStruct *ISAC_main_inst,
     return (-1);
   }
 
-  streamdata.W_upper = 0xFFFFFFFF;
-  streamdata.streamval = 0;
-  streamdata.stream_index = 0;
-  streamdata.full = 1;
+  InitializeDecoderBitstream(packet_size, &streamdata);
 
-#ifndef WEBRTC_BIG_ENDIAN
-  for (k=0; k<5; k++) {
-    streamdata.stream[k] = (WebRtc_UWord16) ((encoded[k] >> 8)|((encoded[k] & 0xFF)<<8));
-  }
-#else
-  memcpy(streamdata.stream, encoded, 5);
-#endif
+  read_be16(encoded, kRequiredEncodedLenBytes, streamdata.stream);
 
   err = WebRtcIsacfix_EstimateBandwidth(&ISAC_inst->bwestimator_obj,
                                         &streamdata,
@@ -745,20 +763,17 @@ WebRtc_Word16 WebRtcIsacfix_UpdateBwEstimate(ISACFIX_MainStruct *ISAC_main_inst,
  */
 
 
-WebRtc_Word16 WebRtcIsacfix_Decode(ISACFIX_MainStruct *ISAC_main_inst,
-                                     const WebRtc_UWord16   *encoded,
-                                     WebRtc_Word16          len,
-                                     WebRtc_Word16          *decoded,
-                                     WebRtc_Word16     *speechType)
+int16_t WebRtcIsacfix_Decode(ISACFIX_MainStruct *ISAC_main_inst,
+                             const uint8_t* encoded,
+                             int16_t          len,
+                             int16_t          *decoded,
+                             int16_t     *speechType)
 {
   ISACFIX_SubStruct *ISAC_inst;
   /* number of samples (480 or 960), output from decoder */
   /* that were actually used in the encoder/decoder (determined on the fly) */
-  WebRtc_Word16     number_of_samples;
-#ifndef WEBRTC_BIG_ENDIAN
-  int k;
-#endif
-  WebRtc_Word16 declen = 0;
+  int16_t     number_of_samples;
+  int16_t declen = 0;
 
   /* typecast pointer to real structure */
   ISAC_inst = (ISACFIX_SubStruct *)ISAC_main_inst;
@@ -780,16 +795,9 @@ WebRtc_Word16 WebRtcIsacfix_Decode(ISACFIX_MainStruct *ISAC_main_inst,
     return -1;
   }
 
-  (ISAC_inst->ISACdec_obj.bitstr_obj).stream = (WebRtc_UWord16 *)encoded;
+  InitializeDecoderBitstream(len, &ISAC_inst->ISACdec_obj.bitstr_obj);
 
-  /* convert bitstream from WebRtc_Word16 to bytes */
-#ifndef WEBRTC_BIG_ENDIAN
-  for (k=0; k<(len>>1); k++) {
-    (ISAC_inst->ISACdec_obj.bitstr_obj).stream[k] = (WebRtc_UWord16) ((encoded[k] >> 8)|((encoded[k] & 0xFF)<<8));
-  }
-  if (len & 0x0001)
-    (ISAC_inst->ISACdec_obj.bitstr_obj).stream[k] = (WebRtc_UWord16) ((encoded[k] & 0xFF)<<8);
-#endif
+  read_be16(encoded, len, ISAC_inst->ISACdec_obj.bitstr_obj.stream);
 
   /* added for NetEq purposes (VAD/DTX related) */
   *speechType=1;
@@ -799,7 +807,7 @@ WebRtc_Word16 WebRtcIsacfix_Decode(ISACFIX_MainStruct *ISAC_main_inst,
   if (declen < 0) {
     /* Some error inside the decoder */
     ISAC_inst->errorcode = -declen;
-    memset(decoded, 0, sizeof(WebRtc_Word16) * MAX_FRAMESAMPLES);
+    memset(decoded, 0, sizeof(int16_t) * MAX_FRAMESAMPLES);
     return -1;
   }
 
@@ -808,13 +816,13 @@ WebRtc_Word16 WebRtcIsacfix_Decode(ISACFIX_MainStruct *ISAC_main_inst,
   if (declen & 0x0001) {
     if (len != declen && len != declen + (((ISAC_inst->ISACdec_obj.bitstr_obj).stream[declen>>1]) & 0x00FF) ) {
       ISAC_inst->errorcode = ISAC_LENGTH_MISMATCH;
-      memset(decoded, 0, sizeof(WebRtc_Word16) * number_of_samples);
+      memset(decoded, 0, sizeof(int16_t) * number_of_samples);
       return -1;
     }
   } else {
     if (len != declen && len != declen + (((ISAC_inst->ISACdec_obj.bitstr_obj).stream[declen>>1]) >> 8) ) {
       ISAC_inst->errorcode = ISAC_LENGTH_MISMATCH;
-      memset(decoded, 0, sizeof(WebRtc_Word16) * number_of_samples);
+      memset(decoded, 0, sizeof(int16_t) * number_of_samples);
       return -1;
     }
   }
@@ -848,21 +856,18 @@ WebRtc_Word16 WebRtcIsacfix_Decode(ISACFIX_MainStruct *ISAC_main_inst,
  */
 
 #ifdef WEBRTC_ISAC_FIX_NB_CALLS_ENABLED
-WebRtc_Word16 WebRtcIsacfix_DecodeNb(ISACFIX_MainStruct *ISAC_main_inst,
-                                        const WebRtc_UWord16   *encoded,
-                                        WebRtc_Word16          len,
-                                        WebRtc_Word16          *decoded,
-                                        WebRtc_Word16    *speechType)
+int16_t WebRtcIsacfix_DecodeNb(ISACFIX_MainStruct *ISAC_main_inst,
+                               const uint16_t   *encoded,
+                               int16_t          len,
+                               int16_t          *decoded,
+                               int16_t    *speechType)
 {
   ISACFIX_SubStruct *ISAC_inst;
   /* twice the number of samples (480 or 960), output from decoder */
   /* that were actually used in the encoder/decoder (determined on the fly) */
-  WebRtc_Word16     number_of_samples;
-#ifndef WEBRTC_BIG_ENDIAN
-  int k;
-#endif
-  WebRtc_Word16 declen = 0;
-  WebRtc_Word16 dummy[FRAMESAMPLES/2];
+  int16_t     number_of_samples;
+  int16_t declen = 0;
+  int16_t dummy[FRAMESAMPLES/2];
 
 
   /* typecast pointer to real structure */
@@ -874,23 +879,19 @@ WebRtc_Word16 WebRtcIsacfix_DecodeNb(ISACFIX_MainStruct *ISAC_main_inst,
     return (-1);
   }
 
-  if (len == 0)
-  {  /* return error code if the packet length is null */
-
+  if (len <= 0) {
+    /* return error code if the packet length is null  or less */
     ISAC_inst->errorcode = ISAC_EMPTY_PACKET;
+    return -1;
+  } else if (len > (STREAM_MAXW16<<1)) {
+    /* return error code if length of stream is too long */
+    ISAC_inst->errorcode = ISAC_LENGTH_MISMATCH;
     return -1;
   }
 
-  (ISAC_inst->ISACdec_obj.bitstr_obj).stream = (WebRtc_UWord16 *)encoded;
+  InitializeDecoderBitstream(len, &ISAC_inst->ISACdec_obj.bitstr_obj);
 
-  /* convert bitstream from WebRtc_Word16 to bytes */
-#ifndef WEBRTC_BIG_ENDIAN
-  for (k=0; k<(len>>1); k++) {
-    (ISAC_inst->ISACdec_obj.bitstr_obj).stream[k] = (WebRtc_UWord16) ((encoded[k] >> 8)|((encoded[k] & 0xFF)<<8));
-  }
-  if (len & 0x0001)
-    (ISAC_inst->ISACdec_obj.bitstr_obj).stream[k] = (WebRtc_UWord16) ((encoded[k] & 0xFF)<<8);
-#endif
+  read_be16(encoded, len, ISAC_inst->ISACdec_obj.bitstr_obj.stream);
 
   /* added for NetEq purposes (VAD/DTX related) */
   *speechType=1;
@@ -900,7 +901,7 @@ WebRtc_Word16 WebRtcIsacfix_DecodeNb(ISACFIX_MainStruct *ISAC_main_inst,
   if (declen < 0) {
     /* Some error inside the decoder */
     ISAC_inst->errorcode = -declen;
-    memset(decoded, 0, sizeof(WebRtc_Word16) * FRAMESAMPLES);
+    memset(decoded, 0, sizeof(int16_t) * FRAMESAMPLES);
     return -1;
   }
 
@@ -909,13 +910,13 @@ WebRtc_Word16 WebRtcIsacfix_DecodeNb(ISACFIX_MainStruct *ISAC_main_inst,
   if (declen & 0x0001) {
     if (len != declen && len != declen + (((ISAC_inst->ISACdec_obj.bitstr_obj).stream[declen>>1]) & 0x00FF) ) {
       ISAC_inst->errorcode = ISAC_LENGTH_MISMATCH;
-      memset(decoded, 0, sizeof(WebRtc_Word16) * number_of_samples);
+      memset(decoded, 0, sizeof(int16_t) * number_of_samples);
       return -1;
     }
   } else {
     if (len != declen && len != declen + (((ISAC_inst->ISACdec_obj.bitstr_obj).stream[declen>>1]) >> 8) ) {
       ISAC_inst->errorcode = ISAC_LENGTH_MISMATCH;
-      memset(decoded, 0, sizeof(WebRtc_Word16) * number_of_samples);
+      memset(decoded, 0, sizeof(int16_t) * number_of_samples);
       return -1;
     }
   }
@@ -953,14 +954,14 @@ WebRtc_Word16 WebRtcIsacfix_DecodeNb(ISACFIX_MainStruct *ISAC_main_inst,
  */
 
 #ifdef WEBRTC_ISAC_FIX_NB_CALLS_ENABLED
-WebRtc_Word16 WebRtcIsacfix_DecodePlcNb(ISACFIX_MainStruct *ISAC_main_inst,
-                                         WebRtc_Word16          *decoded,
-                                         WebRtc_Word16 noOfLostFrames )
+int16_t WebRtcIsacfix_DecodePlcNb(ISACFIX_MainStruct *ISAC_main_inst,
+                                  int16_t          *decoded,
+                                  int16_t noOfLostFrames )
 {
-  WebRtc_Word16 no_of_samples, declen, k, ok;
-  WebRtc_Word16 outframeNB[FRAMESAMPLES];
-  WebRtc_Word16 outframeWB[FRAMESAMPLES];
-  WebRtc_Word16 dummy[FRAMESAMPLES/2];
+  int16_t no_of_samples, declen, k, ok;
+  int16_t outframeNB[FRAMESAMPLES];
+  int16_t outframeWB[FRAMESAMPLES];
+  int16_t dummy[FRAMESAMPLES/2];
 
 
   ISACFIX_SubStruct *ISAC_inst;
@@ -1019,13 +1020,13 @@ WebRtc_Word16 WebRtcIsacfix_DecodePlcNb(ISACFIX_MainStruct *ISAC_main_inst,
  *                            -1 - Error
  */
 
-WebRtc_Word16 WebRtcIsacfix_DecodePlc(ISACFIX_MainStruct *ISAC_main_inst,
-                                      WebRtc_Word16          *decoded,
-                                      WebRtc_Word16 noOfLostFrames)
+int16_t WebRtcIsacfix_DecodePlc(ISACFIX_MainStruct *ISAC_main_inst,
+                                int16_t          *decoded,
+                                int16_t noOfLostFrames)
 {
 
-  WebRtc_Word16 no_of_samples, declen, k, ok;
-  WebRtc_Word16 outframe16[MAX_FRAMESAMPLES];
+  int16_t no_of_samples, declen, k, ok;
+  int16_t outframe16[MAX_FRAMESAMPLES];
 
   ISACFIX_SubStruct *ISAC_inst;
   /* typecast pointer to real structure */
@@ -1071,9 +1072,9 @@ WebRtc_Word16 WebRtcIsacfix_DecodePlc(ISACFIX_MainStruct *ISAC_main_inst,
  *                            -1 - Error
  */
 
-WebRtc_Word16 WebRtcIsacfix_Control(ISACFIX_MainStruct *ISAC_main_inst,
-                                    WebRtc_Word16          rate,
-                                    WebRtc_Word16          framesize)
+int16_t WebRtcIsacfix_Control(ISACFIX_MainStruct *ISAC_main_inst,
+                              int16_t          rate,
+                              int16_t          framesize)
 {
   ISACFIX_SubStruct *ISAC_inst;
   /* typecast pointer to real structure */
@@ -1130,10 +1131,10 @@ WebRtc_Word16 WebRtcIsacfix_Control(ISACFIX_MainStruct *ISAC_main_inst,
  *         -1 - Error
  */
 
-WebRtc_Word16 WebRtcIsacfix_ControlBwe(ISACFIX_MainStruct *ISAC_main_inst,
-                                        WebRtc_Word16 rateBPS,
-                                        WebRtc_Word16 frameSizeMs,
-                                        WebRtc_Word16 enforceFrameSize)
+int16_t WebRtcIsacfix_ControlBwe(ISACFIX_MainStruct *ISAC_main_inst,
+                                 int16_t rateBPS,
+                                 int16_t frameSizeMs,
+                                 int16_t enforceFrameSize)
 {
   ISACFIX_SubStruct *ISAC_inst;
   /* Typecast pointer to real structure */
@@ -1158,7 +1159,7 @@ WebRtc_Word16 WebRtcIsacfix_ControlBwe(ISACFIX_MainStruct *ISAC_main_inst,
   /* Set initial rate, if value between 10000 and 32000,                */
   /* if rateBPS is 0, keep the default initial bottleneck value (15000) */
   if ((rateBPS >= 10000) && (rateBPS <= 32000)) {
-    ISAC_inst->bwestimator_obj.sendBwAvg = (((WebRtc_UWord32)rateBPS) << 7);
+    ISAC_inst->bwestimator_obj.sendBwAvg = (((uint32_t)rateBPS) << 7);
   } else if (rateBPS != 0) {
     ISAC_inst->errorcode = ISAC_DISALLOWED_BOTTLENECK;
     return -1;
@@ -1193,8 +1194,8 @@ WebRtc_Word16 WebRtcIsacfix_ControlBwe(ISACFIX_MainStruct *ISAC_main_inst,
  *
  */
 
-WebRtc_Word16 WebRtcIsacfix_GetDownLinkBwIndex(ISACFIX_MainStruct* ISAC_main_inst,
-                                       WebRtc_Word16*     rateIndex)
+int16_t WebRtcIsacfix_GetDownLinkBwIndex(ISACFIX_MainStruct* ISAC_main_inst,
+                                         int16_t*     rateIndex)
 {
   ISACFIX_SubStruct *ISAC_inst;
 
@@ -1220,10 +1221,10 @@ WebRtc_Word16 WebRtcIsacfix_GetDownLinkBwIndex(ISACFIX_MainStruct* ISAC_main_ins
  *
  */
 
-WebRtc_Word16 WebRtcIsacfix_UpdateUplinkBw(ISACFIX_MainStruct* ISAC_main_inst,
-                                   WebRtc_Word16     rateIndex)
+int16_t WebRtcIsacfix_UpdateUplinkBw(ISACFIX_MainStruct* ISAC_main_inst,
+                                     int16_t     rateIndex)
 {
-  WebRtc_Word16 err = 0;
+  int16_t err = 0;
   ISACFIX_SubStruct *ISAC_inst;
 
   /* typecast pointer to real structure */
@@ -1252,31 +1253,21 @@ WebRtc_Word16 WebRtcIsacfix_UpdateUplinkBw(ISACFIX_MainStruct* ISAC_main_inst,
  *
  */
 
-WebRtc_Word16 WebRtcIsacfix_ReadFrameLen(const WebRtc_Word16* encoded,
-                                        WebRtc_Word16* frameLength)
+int16_t WebRtcIsacfix_ReadFrameLen(const uint8_t* encoded,
+                                   int encoded_len_bytes,
+                                   int16_t* frameLength)
 {
   Bitstr_dec streamdata;
-  WebRtc_UWord16 partOfStream[5];
-#ifndef WEBRTC_BIG_ENDIAN
-  int k;
-#endif
-  WebRtc_Word16 err;
+  int16_t err;
+  const int kRequiredEncodedLenBytes = 10;
 
-  /* Set stream pointer to point at partOfStream */
-  streamdata.stream = (WebRtc_UWord16 *)partOfStream;
-
-  streamdata.W_upper = 0xFFFFFFFF;
-  streamdata.streamval = 0;
-  streamdata.stream_index = 0;
-  streamdata.full = 1;
-
-#ifndef WEBRTC_BIG_ENDIAN
-  for (k=0; k<5; k++) {
-    streamdata.stream[k] = (WebRtc_UWord16) (((WebRtc_UWord16)encoded[k] >> 8)|((encoded[k] & 0xFF)<<8));
+  if (encoded_len_bytes < kRequiredEncodedLenBytes) {
+    return -1;
   }
-#else
-  memcpy(streamdata.stream, encoded, 5);
-#endif
+
+  InitializeDecoderBitstream(encoded_len_bytes, &streamdata);
+
+  read_be16(encoded, kRequiredEncodedLenBytes, streamdata.stream);
 
   /* decode frame length */
   err = WebRtcIsacfix_DecodeFrameLen(&streamdata, frameLength);
@@ -1301,31 +1292,21 @@ WebRtc_Word16 WebRtcIsacfix_ReadFrameLen(const WebRtc_Word16* encoded,
  *
  */
 
-WebRtc_Word16 WebRtcIsacfix_ReadBwIndex(const WebRtc_Word16* encoded,
-                                   WebRtc_Word16* rateIndex)
+int16_t WebRtcIsacfix_ReadBwIndex(const uint8_t* encoded,
+                                  int encoded_len_bytes,
+                                  int16_t* rateIndex)
 {
   Bitstr_dec streamdata;
-  WebRtc_UWord16 partOfStream[5];
-#ifndef WEBRTC_BIG_ENDIAN
-  int k;
-#endif
-  WebRtc_Word16 err;
+  int16_t err;
+  const int kRequiredEncodedLenBytes = 10;
 
-  /* Set stream pointer to point at partOfStream */
-  streamdata.stream = (WebRtc_UWord16 *)partOfStream;
-
-  streamdata.W_upper = 0xFFFFFFFF;
-  streamdata.streamval = 0;
-  streamdata.stream_index = 0;
-  streamdata.full = 1;
-
-#ifndef WEBRTC_BIG_ENDIAN
-  for (k=0; k<5; k++) {
-    streamdata.stream[k] = (WebRtc_UWord16) (((WebRtc_UWord16)encoded[k] >> 8)|((encoded[k] & 0xFF)<<8));
+  if (encoded_len_bytes < kRequiredEncodedLenBytes) {
+    return -1;
   }
-#else
-  memcpy(streamdata.stream, encoded, 5);
-#endif
+
+  InitializeDecoderBitstream(encoded_len_bytes, &streamdata);
+
+  read_be16(encoded, kRequiredEncodedLenBytes, streamdata.stream);
 
   /* decode frame length, needed to get to the rateIndex in the bitstream */
   err = WebRtcIsacfix_DecodeFrameLen(&streamdata, rateIndex);
@@ -1357,7 +1338,7 @@ WebRtc_Word16 WebRtcIsacfix_ReadBwIndex(const WebRtc_Word16* encoded,
  * Return value             : Error code
  */
 
-WebRtc_Word16 WebRtcIsacfix_GetErrorCode(ISACFIX_MainStruct *ISAC_main_inst)
+int16_t WebRtcIsacfix_GetErrorCode(ISACFIX_MainStruct *ISAC_main_inst)
 {
   ISACFIX_SubStruct *ISAC_inst;
   /* typecast pointer to real structure */
@@ -1379,12 +1360,12 @@ WebRtc_Word16 WebRtcIsacfix_GetErrorCode(ISACFIX_MainStruct *ISAC_main_inst)
  * Return value             : bitrate
  */
 
-WebRtc_Word32 WebRtcIsacfix_GetUplinkBw(ISACFIX_MainStruct *ISAC_main_inst)
+int32_t WebRtcIsacfix_GetUplinkBw(ISACFIX_MainStruct *ISAC_main_inst)
 {
   ISACFIX_SubStruct *ISAC_inst = (ISACFIX_SubStruct *)ISAC_main_inst;
   BwEstimatorstr * bw = (BwEstimatorstr*)&(ISAC_inst->bwestimator_obj);
 
-  return (WebRtc_Word32) WebRtcIsacfix_GetUplinkBandwidth(bw);
+  return (int32_t) WebRtcIsacfix_GetUplinkBandwidth(bw);
 }
 
 /****************************************************************************
@@ -1398,7 +1379,7 @@ WebRtc_Word32 WebRtcIsacfix_GetUplinkBw(ISACFIX_MainStruct *ISAC_main_inst)
  * Return value             :  frame lenght in samples
  */
 
-WebRtc_Word16 WebRtcIsacfix_GetNewFrameLen(ISACFIX_MainStruct *ISAC_main_inst)
+int16_t WebRtcIsacfix_GetNewFrameLen(ISACFIX_MainStruct *ISAC_main_inst)
 {
   ISACFIX_SubStruct *ISAC_inst = (ISACFIX_SubStruct *)ISAC_main_inst;
   return ISAC_inst->ISACenc_obj.new_framelength;
@@ -1423,8 +1404,8 @@ WebRtc_Word16 WebRtcIsacfix_GetNewFrameLen(ISACFIX_MainStruct *ISAC_main_inst)
  *                           -1 if error happens
  */
 
-WebRtc_Word16 WebRtcIsacfix_SetMaxPayloadSize(ISACFIX_MainStruct *ISAC_main_inst,
-                                              WebRtc_Word16 maxPayloadBytes)
+int16_t WebRtcIsacfix_SetMaxPayloadSize(ISACFIX_MainStruct *ISAC_main_inst,
+                                        int16_t maxPayloadBytes)
 {
   ISACFIX_SubStruct *ISAC_inst;
 
@@ -1482,11 +1463,11 @@ WebRtc_Word16 WebRtcIsacfix_SetMaxPayloadSize(ISACFIX_MainStruct *ISAC_main_inst
  *                           -1 if error happens
  */
 
-WebRtc_Word16 WebRtcIsacfix_SetMaxRate(ISACFIX_MainStruct *ISAC_main_inst,
-                                       WebRtc_Word32 maxRate)
+int16_t WebRtcIsacfix_SetMaxRate(ISACFIX_MainStruct *ISAC_main_inst,
+                                 int32_t maxRate)
 {
   ISACFIX_SubStruct *ISAC_inst;
-  WebRtc_Word16 maxRateInBytes;
+  int16_t maxRateInBytes;
 
   /* typecast pointer to real structure */
   ISAC_inst = (ISACFIX_SubStruct *)ISAC_main_inst;
@@ -1502,7 +1483,7 @@ WebRtc_Word16 WebRtcIsacfix_SetMaxRate(ISACFIX_MainStruct *ISAC_main_inst,
        maximum rate. Multiply with 30/1000 to get number of bits per 30 msec,
        divide by 8 to get number of bytes per 30 msec:
        maxRateInBytes = floor((maxRate * 30/1000) / 8); */
-    maxRateInBytes = (WebRtc_Word16)( WebRtcSpl_DivW32W16ResW16(WEBRTC_SPL_MUL(maxRate, 3), 800) );
+    maxRateInBytes = (int16_t)( WebRtcSpl_DivW32W16ResW16(WEBRTC_SPL_MUL(maxRate, 3), 800) );
 
     /* Store the value for usage in the WebRtcIsacfix_SetMaxPayloadSize-function */
     ISAC_inst->ISACenc_obj.maxRateInBytes = maxRateInBytes;

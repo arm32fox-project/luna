@@ -4,7 +4,6 @@
 
 
 #include "nsCookiePromptService.h"
-#include "nsCxPusher.h"
 #include "nsICookie.h"
 #include "nsICookieAcceptDialog.h"
 #include "nsIDOMWindow.h"
@@ -14,12 +13,13 @@
 #include "nsString.h"
 #include "nsIDialogParamBlock.h"
 #include "nsIMutableArray.h"
+#include "mozilla/dom/ScriptSettings.h"
 
 /****************************************************************
  ************************ nsCookiePromptService *****************
  ****************************************************************/
 
-NS_IMPL_ISUPPORTS1(nsCookiePromptService, nsICookiePromptService)
+NS_IMPL_ISUPPORTS(nsCookiePromptService, nsICookiePromptService)
 
 nsCookiePromptService::nsCookiePromptService() {
 }
@@ -72,9 +72,11 @@ nsCookiePromptService::CookieDialog(nsIDOMWindow *aParent,
     parent = do_QueryInterface(privateParent);
   }
 
-  // Construct auto-selected JS context for this so it can actually show
-  mozilla::AutoJSContext cx;
-  
+  // We're opening a chrome window and passing in a nsIDialogParamBlock. Setting
+  // the nsIDialogParamBlock as the .arguments property on the chrome window
+  // requires system principals on the stack, so we use an AutoNoJSAPI for that.
+  mozilla::dom::AutoNoJSAPI nojsapi;
+
   // The cookie dialog will be modal for the root chrome window rather than the
   // tab containing the permission-requesting page.  This removes confusion
   // about which monitor is displaying the dialog (see bug 470356), but also

@@ -10,7 +10,6 @@
  * liability, trademark and document use rules apply.
  */
 
-interface Blob;
 interface InputStream;
 interface MozChannel;
 interface IID;
@@ -54,10 +53,10 @@ dictionary MozXMLHttpRequestParameters
  // things like this:
  //   c = new(window.ActiveXObject || XMLHttpRequest)("Microsoft.XMLHTTP")
  // To handle that, we need a constructor that takes a string.
- Constructor(DOMString ignored)]
+ Constructor(DOMString ignored),
+ Exposed=(Window,Worker)]
 interface XMLHttpRequest : XMLHttpRequestEventTarget {
   // event handler
-  [SetterThrows, GetterThrows=Workers]
   attribute EventHandler onreadystatechange;
 
   // states
@@ -71,7 +70,9 @@ interface XMLHttpRequest : XMLHttpRequestEventTarget {
 
   // request
   [Throws]
-  void open(ByteString method, DOMString url, optional boolean async = true,
+  void open(ByteString method, DOMString url);
+  [Throws]
+  void open(ByteString method, DOMString url, boolean async,
             optional DOMString? user, optional DOMString? password);
   [Throws]
   void setRequestHeader(ByteString header, ByteString value);
@@ -128,20 +129,20 @@ interface XMLHttpRequest : XMLHttpRequestEventTarget {
   [Throws]
   readonly attribute DOMString? responseText;
 
-  [Throws=MainThread]
+  [Throws, Exposed=Window]
   readonly attribute Document? responseXML;
 
   // Mozilla-specific stuff
 
-  [SetterThrows=Workers]
+  [ChromeOnly, SetterThrows=Workers]
   attribute boolean mozBackgroundRequest;
 
-  [ChromeOnly]
+  [ChromeOnly, Exposed=Window]
   readonly attribute MozChannel? channel;
 
   [Throws]
   void sendAsBinary(DOMString body);
-  [Throws, ChromeOnly]
+  [Throws, ChromeOnly, Exposed=Window]
   any getInterface(IID iid);
 
   readonly attribute boolean mozAnon;

@@ -14,7 +14,7 @@ const Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://services-common/async.js");
-Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://services-common/observers.js");
 Cu.import("resource://services-common/utils.js");
 Cu.import("resource://services-sync/constants.js");
@@ -50,9 +50,9 @@ const DEFAULT_LOAD_FLAGS =
  * the status of the HTTP response.
  */
 this.AsyncResource = function AsyncResource(uri) {
-  this._log = Log4Moz.repository.getLogger(this._logName);
+  this._log = Log.repository.getLogger(this._logName);
   this._log.level =
-    Log4Moz.Level[Svc.Prefs.get("log.logger.network.resources")];
+    Log.Level[Svc.Prefs.get("log.logger.network.resources")];
   this.uri = uri;
   this._headers = {};
   this._onComplete = Utils.bind2(this, this._onComplete);
@@ -146,7 +146,14 @@ AsyncResource.prototype = {
   // to obtain a request channel.
   //
   _createRequest: function Res__createRequest(method) {
-    let channel = Services.io.newChannel(this.spec, null, null)
+    let channel = Services.io.newChannel2(this.spec,
+                                          null,
+                                          null,
+                                          null,      // aLoadingNode
+                                          Services.scriptSecurityManager.getSystemPrincipal(),
+                                          null,      // aTriggeringPrincipal
+                                          Ci.nsILoadInfo.SEC_NORMAL,
+                                          Ci.nsIContentPolicy.TYPE_OTHER)
                           .QueryInterface(Ci.nsIRequest)
                           .QueryInterface(Ci.nsIHttpChannel);
 
@@ -265,7 +272,7 @@ AsyncResource.prototype = {
       this._log.debug(mesg);
 
       // Additionally give the full response body when Trace logging.
-      if (this._log.level <= Log4Moz.Level.Trace)
+      if (this._log.level <= Log.Level.Trace)
         this._log.trace(action + " body: " + data);
 
     } catch(ex) {
@@ -301,6 +308,14 @@ AsyncResource.prototype = {
       if (success && headers["x-weave-quota-remaining"]) {
         Observers.notify("weave:service:quota:remaining",
                          parseInt(headers["x-weave-quota-remaining"], 10));
+      }
+
+      let contentLength = headers["content-length"];
+      if (success && contentLength && data &&
+          contentLength != data.length) {
+        this._log.warn("The response body's length of: " + data.length +
+                       " doesn't match the header's content-length of: " +
+                       contentLength + ".");
       }
     } catch (ex) {
       this._log.debug("Caught exception " + CommonUtils.exceptionStr(ex) +
@@ -380,7 +395,8 @@ Resource.prototype = {
     function callback(error, ret) {
       if (error)
         cb.throw(error);
-      cb(ret);
+      else
+        cb(ret);
     }
 
     // The channel listener might get a failure code
@@ -588,8 +604,8 @@ ChannelListener.prototype = {
 function ChannelNotificationListener(headersToCopy) {
   this._headersToCopy = headersToCopy;
 
-  this._log = Log4Moz.repository.getLogger(this._logName);
-  this._log.level = Log4Moz.Level[Svc.Prefs.get("log.logger.network.resources")];
+  this._log = Log.repository.getLogger(this._logName);
+  this._log.level = Log.Level[Svc.Prefs.get("log.logger.network.resources")];
 }
 ChannelNotificationListener.prototype = {
   _logName: "Sync.Resource",
@@ -609,7 +625,7 @@ ChannelNotificationListener.prototype = {
   },
 
   notifyCertProblem: function certProblem(socketInfo, sslStatus, targetHost) {
-    let log = Log4Moz.repository.getLogger("Sync.CertListener");
+    let log = Log.repository.getLogger("Sync.CertListener");
     log.warn("Invalid HTTPS certificate encountered!");
 
     // This suppresses the UI warning only. The request is still cancelled.

@@ -11,7 +11,7 @@
 #ifndef WEBRTC_VOICE_ENGINE_VOE_NETEQ_STATS_H
 #define WEBRTC_VOICE_ENGINE_VOE_NETEQ_STATS_H
 
-#include "common_types.h"
+#include "webrtc/common_types.h"
 
 namespace webrtc {
 
@@ -35,11 +35,15 @@ public:
     // The statistics are reset after the query.
     virtual int GetNetworkStatistics(int channel, NetworkStatistics& stats) = 0;
 
+    // Get statistics of calls to AudioCodingModule::PlayoutData10Ms().
+    virtual int GetDecodingCallStatistics(
+        int channel, AudioDecodingCallStats* stats) const = 0;
+
 protected:
     VoENetEqStats() {}
     virtual ~VoENetEqStats() {}
 };
 
-}   // namespace webrtc
+}  // namespace webrtc
 
 #endif    // #ifndef WEBRTC_VOICE_ENGINE_VOE_NETEQ_STATS_H

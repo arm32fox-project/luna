@@ -24,14 +24,14 @@ from mozpack.copier import (
 )
 from mozpack.errors import errors
 from mozpack.unify import UnifiedBuildFinder
-import mozpack.path
+import mozpack.path as mozpath
 import buildconfig
 from argparse import ArgumentParser
-from createprecomplete import generate_precomplete
 import os
 from StringIO import StringIO
 import subprocess
 import platform
+import mozinfo
 
 # List of libraries to shlibsign.
 SIGN_LIBS = [
@@ -79,6 +79,13 @@ class ToolLauncher(object):
                 env[p] = extra_linker_path
         for e in extra_env:
             env[e] = extra_env[e]
+
+        # For VC12, make sure we can find the right bitness of pgort120.dll
+        if 'VS120COMNTOOLS' in env and not buildconfig.substs['HAVE_64BIT_BUILD']:
+            vc12dir = os.path.abspath(os.path.join(env['VS120COMNTOOLS'],
+                                                   '../../VC/bin'))
+            if os.path.exists(vc12dir):
+                env['PATH'] = vc12dir + ';' + env['PATH']
 
         # Work around a bug in Python 2.7.2 and lower where unicode types in
         # environment variables aren't handled by subprocess.
@@ -137,6 +144,7 @@ def precompile_cache(formatter, source_path, gre_path, app_path):
     fd, cache = mkstemp('.zip')
     os.close(fd)
     os.remove(cache)
+
     try:
         if launcher.launch(['xpcshell', '-g', gre_path, '-a', app_path,
                             '-f', os.path.join(os.path.dirname(__file__),
@@ -206,11 +214,11 @@ class NoPkgFilesRemover(object):
             self._error = errors.warn
             self._msg = 'Skipping %s'
 
-    def add_base(self, base):
-        self._formatter.add_base(base)
+    def add_base(self, base, *args):
+        self._formatter.add_base(base, *args)
 
     def add(self, path, content):
-        if not any(mozpack.path.match(path, spec) for spec in self._files):
+        if not any(mozpath.match(path, spec) for spec in self._files):
             self._formatter.add(path, content)
         else:
             self._error(self._msg % path)
@@ -238,6 +246,12 @@ def main():
                         help='Transform errors into warnings.')
     parser.add_argument('--minify', action='store_true', default=False,
                         help='Make some files more compact while packaging')
+    parser.add_argument('--minify-js', action='store_true',
+                        help='Minify JavaScript files while packaging.')
+    parser.add_argument('--js-binary',
+                        help='Path to js binary. This is used to verify '
+                        'minified JavaScript. If this is not defined, '
+                        'minification verification will not be performed.')
     parser.add_argument('--jarlog', default='', help='File containing jar ' +
                         'access logs')
     parser.add_argument('--optimizejars', action='store_true', default=False,
@@ -280,16 +294,16 @@ def main():
     elif 'MOZ_OMNIJAR' in defines:
         del defines['MOZ_OMNIJAR']
 
-    binpath = ''
-    if 'BINPATH' in defines:
-        binpath = SimpleManifestSink.normalize_path(defines['BINPATH'])
-    while binpath.startswith('/'):
-        binpath = binpath[1:]
+    respath = ''
+    if 'RESPATH' in defines:
+        respath = SimpleManifestSink.normalize_path(defines['RESPATH'])
+    while respath.startswith('/'):
+        respath = respath[1:]
 
     if args.unify:
         def is_native(path):
             path = os.path.abspath(path)
-            return platform.machine() in mozpack.path.split(path)
+            return platform.machine() in mozpath.split(path)
 
         # Invert args.unify and args.source if args.unify points to the
         # native architecture.
@@ -301,12 +315,22 @@ def main():
         launcher.tooldir = buildconfig.substs['LIBXUL_DIST']
 
     with errors.accumulate():
+        finder_args = dict(
+            minify=args.minify,
+            minify_js=args.minify_js,
+        )
+        if args.js_binary:
+            finder_args['minify_js_verify_command'] = [
+                args.js_binary,
+                os.path.join(os.path.abspath(os.path.dirname(__file__)),
+                    'js-compare-ast.js')
+            ]
         if args.unify:
             finder = UnifiedBuildFinder(FileFinder(args.source),
                                         FileFinder(args.unify),
-                                        minify=args.minify)
+                                        **finder_args)
         else:
-            finder = FileFinder(args.source, minify=args.minify)
+            finder = FileFinder(args.source, **finder_args)
         if 'NO_PKG_FILES' in os.environ:
             sinkformatter = NoPkgFilesRemover(formatter,
                                               args.manifest is not None)
@@ -325,18 +349,19 @@ def main():
             removals_in.name = args.removals
             removals = RemovedFiles(copier)
             preprocess(removals_in, removals, defines)
-            copier.add(mozpack.path.join(binpath, 'removed-files'), removals)
+            copier.add(mozpath.join(respath, 'removed-files'), removals)
 
     # shlibsign libraries
     if launcher.can_launch():
-        for lib in SIGN_LIBS:
-            libbase = mozpack.path.join(binpath, '%s%s') \
-                % (buildconfig.substs['DLL_PREFIX'], lib)
-            libname = '%s%s' % (libbase, buildconfig.substs['DLL_SUFFIX'])
-            if copier.contains(libname):
-                copier.add(libbase + '.chk',
-                           LibSignFile(os.path.join(args.destination,
-                                                    libname)))
+        if not mozinfo.isMac:
+            for lib in SIGN_LIBS:
+                libbase = mozpath.join(respath, '%s%s') \
+                    % (buildconfig.substs['DLL_PREFIX'], lib)
+                libname = '%s%s' % (libbase, buildconfig.substs['DLL_SUFFIX'])
+                if copier.contains(libname):
+                    copier.add(libbase + '.chk',
+                               LibSignFile(os.path.join(args.destination,
+                                                        libname)))
 
     # Setup preloading
     if args.jarlog and os.path.exists(args.jarlog):
@@ -351,15 +376,19 @@ def main():
 
     # Fill startup cache
     if isinstance(formatter, OmniJarFormatter) and launcher.can_launch() \
-	  and buildconfig.substs['MOZ_DISABLE_PRECOMPILED_STARTUPCACHE'] != '1':
-        if buildconfig.substs['LIBXUL_SDK']:
-            gre_path = mozpack.path.join(buildconfig.substs['LIBXUL_DIST'],
+      and buildconfig.substs['MOZ_DISABLE_STARTUPCACHE'] != '1':
+        if buildconfig.substs.get('LIBXUL_SDK'):
+            gre_path = mozpath.join(buildconfig.substs['LIBXUL_DIST'],
                                          'bin')
         else:
             gre_path = None
-        for base in sorted([[p for p in [mozpack.path.join('bin', b), b]
-                            if os.path.exists(os.path.join(args.source, p))][0]
-                           for b in sink.packager.get_bases()]):
+        def get_bases():
+            for b in sink.packager.get_bases(addons=False):
+                for p in (mozpath.join('bin', b), b):
+                    if os.path.exists(os.path.join(args.source, p)):
+                        yield p
+                        break
+        for base in sorted(get_bases()):
             if not gre_path:
                 gre_path = base
             base_path = sink.normalize_path(base)
@@ -368,8 +397,6 @@ def main():
                                  args.source, gre_path, base)
 
     copier.copy(args.destination)
-    generate_precomplete(os.path.normpath(os.path.join(args.destination,
-                                                       binpath)))
 
 
 if __name__ == '__main__':

@@ -6,13 +6,15 @@
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/Compiler.h"
 #include "mozilla/HashFunctions.h"
+#include "mozilla/MemoryReporting.h"
+#include "mozilla/DebugOnly.h"
+#include "mozilla/unused.h"
 
 #include "nsAtomTable.h"
 #include "nsStaticAtom.h"
 #include "nsString.h"
-#include "nsReadableUtils.h"
-#include "nsUTF8Utils.h"
 #include "nsCRT.h"
 #include "pldhash.h"
 #include "prenv.h"
@@ -22,10 +24,11 @@
 #include "nsAutoPtr.h"
 #include "nsUnicharUtils.h"
 
-#define PL_ARENA_CONST_ALIGN_MASK 3
-#include "plarena.h"
-
 using namespace mozilla;
+
+#if defined(__clang__) || defined(__GNUC__)
+#  pragma GCC diagnostic ignored "-Wdelete-non-virtual-dtor"
+#endif
 
 /**
  * The shared hash table for atom lookups.
@@ -33,16 +36,44 @@ using namespace mozilla;
  * XXX This should be manipulated in a threadsafe way or we should make
  * sure it's only manipulated from the main thread.  Probably the latter
  * is better, since the former would hurt performance.
- *
- * If |gAtomTable.ops| is 0, then the table is uninitialized.
  */
 static PLDHashTable gAtomTable;
 
+class StaticAtomEntry : public PLDHashEntryHdr
+{
+public:
+  typedef const nsAString& KeyType;
+  typedef const nsAString* KeyTypePointer;
+
+  explicit StaticAtomEntry(KeyTypePointer aKey) {}
+  StaticAtomEntry(const StaticAtomEntry& aOther) : mAtom(aOther.mAtom) {}
+  ~StaticAtomEntry() {}
+
+  bool KeyEquals(KeyTypePointer aKey) const
+  {
+    return mAtom->Equals(*aKey);
+  }
+
+  static KeyTypePointer KeyToPointer(KeyType aKey) { return &aKey; }
+  static PLDHashNumber HashKey(KeyTypePointer aKey)
+  {
+    return HashString(*aKey);
+  }
+
+  enum { ALLOW_MEMMOVE = true };
+
+  // mAtom only points to objects of type PermanentAtomImpl, which are not
+  // really refcounted.  But since these entries live in a global hashtable,
+  // this reference is essentially owning.
+  nsIAtom* MOZ_OWNING_REF mAtom;
+};
+
 /**
- * A hashtable of static atoms that existed at app startup. This hashtable helps 
- * nsHtml5AtomTable.
+ * A hashtable of static atoms that existed at app startup. This hashtable
+ * helps nsHtml5AtomTable.
  */
-static nsDataHashtable<nsStringHashKey, nsIAtom*>* gStaticAtomTable = 0;
+typedef nsTHashtable<StaticAtomEntry> StaticAtomTable;
+static StaticAtomTable* gStaticAtomTable = nullptr;
 
 /**
  * Whether it is still OK to add atoms to gStaticAtomTable.
@@ -56,21 +87,23 @@ static bool gStaticAtomTableSealed = false;
  * objects using placement new and just overwriting the vtable pointer.
  */
 
-class AtomImpl : public nsIAtom {
+class AtomImpl : public nsIAtom
+{
 public:
-  AtomImpl(const nsAString& aString, PLDHashNumber aKeyHash);
+  AtomImpl(const nsAString& aString, uint32_t aHash);
 
   // This is currently only used during startup when creating a permanent atom
   // from NS_RegisterStaticAtoms
-  AtomImpl(nsStringBuffer* aData, uint32_t aLength, PLDHashNumber aKeyHash);
+  AtomImpl(nsStringBuffer* aData, uint32_t aLength, uint32_t aHash);
 
 protected:
   // This is only intended to be used when a normal atom is turned into a
   // permanent one.
-  AtomImpl() {
+  AtomImpl()
+  {
     // We can't really assert that mString is a valid nsStringBuffer string,
     // so do the best we can do and check for some consistencies.
-    NS_ASSERTION((mLength + 1) * sizeof(PRUnichar) <=
+    NS_ASSERTION((mLength + 1) * sizeof(char16_t) <=
                  nsStringBuffer::FromData(mString)->StorageSize() &&
                  mString[mLength] == 0,
                  "Not initialized atom");
@@ -89,101 +122,128 @@ public:
   virtual bool IsPermanent();
 
   // We can't use the virtual function in the base class destructor.
-  bool IsPermanentInDestructor() {
+  bool IsPermanentInDestructor()
+  {
     return mRefCnt == REFCNT_PERMANENT_SENTINEL;
   }
 
   // for |#ifdef NS_BUILD_REFCNT_LOGGING| access to reference count
   nsrefcnt GetRefCount() { return mRefCnt; }
 
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(MallocSizeOf aMallocSizeOf);
 };
 
 /**
  * A non-refcounted implementation of nsIAtom.
  */
 
-class PermanentAtomImpl MOZ_FINAL : public AtomImpl {
+class PermanentAtomImpl final : public AtomImpl
+{
 public:
   PermanentAtomImpl(const nsAString& aString, PLDHashNumber aKeyHash)
     : AtomImpl(aString, aKeyHash)
-  {}
+  {
+  }
   PermanentAtomImpl(nsStringBuffer* aData, uint32_t aLength,
                     PLDHashNumber aKeyHash)
     : AtomImpl(aData, aLength, aKeyHash)
-  {}
-  PermanentAtomImpl()
-  {}
+  {
+  }
+  PermanentAtomImpl() {}
 
   ~PermanentAtomImpl();
-  NS_IMETHOD_(nsrefcnt) AddRef();
-  NS_IMETHOD_(nsrefcnt) Release();
 
   virtual bool IsPermanent();
 
   // SizeOfIncludingThis() isn't needed -- the one inherited from AtomImpl is
   // good enough, because PermanentAtomImpl doesn't add any new data members.
 
-  void* operator new(size_t size, AtomImpl* aAtom) CPP_THROW_NEW;
-  void* operator new(size_t size) CPP_THROW_NEW
+  void* operator new(size_t aSize, AtomImpl* aAtom) CPP_THROW_NEW;
+  void* operator new(size_t aSize) CPP_THROW_NEW
   {
-    return ::operator new(size);
+    return ::operator new(aSize);
   }
+
+private:
+  NS_IMETHOD_(MozExternalRefCountType) AddRef();
+  NS_IMETHOD_(MozExternalRefCountType) Release();
 };
 
 //----------------------------------------------------------------------
 
-struct AtomTableEntry : public PLDHashEntryHdr {
-  AtomImpl* mAtom;
+struct AtomTableEntry : public PLDHashEntryHdr
+{
+  // These references are either to non-permanent atoms, in which case they are
+  // non-owning, or they are to permanent atoms that are not really refcounted.
+  // The exact lifetime rules are documented in AtomTableClearEntry.
+  AtomImpl* MOZ_NON_OWNING_REF mAtom;
 };
 
 struct AtomTableKey
 {
-  AtomTableKey(const PRUnichar* aUTF16String, uint32_t aLength)
-    : mUTF16String(aUTF16String),
-      mUTF8String(nullptr),
-      mLength(aLength)
+  AtomTableKey(const char16_t* aUTF16String, uint32_t aLength, uint32_t aHash)
+    : mUTF16String(aUTF16String)
+    , mUTF8String(nullptr)
+    , mLength(aLength)
+    , mHash(aHash)
   {
+    MOZ_ASSERT(mHash == HashString(mUTF16String, mLength));
   }
 
-  AtomTableKey(const char* aUTF8String, uint32_t aLength)
-    : mUTF16String(nullptr),
-      mUTF8String(aUTF8String),
-      mLength(aLength)
+  AtomTableKey(const char* aUTF8String, uint32_t aLength, uint32_t aHash)
+    : mUTF16String(nullptr)
+    , mUTF8String(aUTF8String)
+    , mLength(aLength)
+    , mHash(aHash)
   {
+    mozilla::DebugOnly<bool> err;
+    MOZ_ASSERT(aHash == HashUTF8AsUTF16(mUTF8String, mLength, &err));
   }
 
-  const PRUnichar* mUTF16String;
+  AtomTableKey(const char16_t* aUTF16String, uint32_t aLength,
+               uint32_t* aHashOut)
+    : mUTF16String(aUTF16String)
+    , mUTF8String(nullptr)
+    , mLength(aLength)
+  {
+    mHash = HashString(mUTF16String, mLength);
+    *aHashOut = mHash;
+  }
+
+  AtomTableKey(const char* aUTF8String, uint32_t aLength, uint32_t* aHashOut)
+    : mUTF16String(nullptr)
+    , mUTF8String(aUTF8String)
+    , mLength(aLength)
+  {
+    bool err;
+    mHash = HashUTF8AsUTF16(mUTF8String, mLength, &err);
+    if (err) {
+      mUTF8String = nullptr;
+      mLength = 0;
+      mHash = 0;
+    }
+    *aHashOut = mHash;
+  }
+
+  const char16_t* mUTF16String;
   const char* mUTF8String;
   uint32_t mLength;
+  uint32_t mHash;
 };
 
 static PLDHashNumber
-AtomTableGetHash(PLDHashTable *table, const void *key)
+AtomTableGetHash(PLDHashTable* aTable, const void* aKey)
 {
-  const AtomTableKey *k = static_cast<const AtomTableKey*>(key);
-
-  if (k->mUTF8String) {
-    bool err;
-    uint32_t hash = HashUTF8AsUTF16(k->mUTF8String, k->mLength, &err);
-    if (err) {
-      AtomTableKey* mutableKey = const_cast<AtomTableKey*>(k);
-      mutableKey->mUTF8String = nullptr;
-      mutableKey->mLength = 0;
-      hash = 0;
-    }
-    return hash;
-  }
-
-  return HashString(k->mUTF16String, k->mLength);
+  const AtomTableKey* k = static_cast<const AtomTableKey*>(aKey);
+  return k->mHash;
 }
 
 static bool
-AtomTableMatchKey(PLDHashTable *table, const PLDHashEntryHdr *entry,
-                  const void *key)
+AtomTableMatchKey(PLDHashTable* aTable, const PLDHashEntryHdr* aEntry,
+                  const void* aKey)
 {
-  const AtomTableEntry *he = static_cast<const AtomTableEntry*>(entry);
-  const AtomTableKey *k = static_cast<const AtomTableKey*>(key);
+  const AtomTableEntry* he = static_cast<const AtomTableEntry*>(aEntry);
+  const AtomTableKey* k = static_cast<const AtomTableKey*>(aKey);
 
   if (k->mUTF8String) {
     return
@@ -198,11 +258,11 @@ AtomTableMatchKey(PLDHashTable *table, const PLDHashEntryHdr *entry,
   }
 
   return memcmp(he->mAtom->GetUTF16String(),
-                k->mUTF16String, length * sizeof(PRUnichar)) == 0;
+                k->mUTF16String, length * sizeof(char16_t)) == 0;
 }
 
 static void
-AtomTableClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
+AtomTableClearEntry(PLDHashTable* aTable, PLDHashEntryHdr* aEntry)
 {
   // Normal |AtomImpl| atoms are deleted when their refcount hits 0, and
   // they then remove themselves from the table.  In other words, they
@@ -211,7 +271,7 @@ AtomTableClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
   // deleted when they are removed from the table at table destruction.
   // In other words, they are owned by the atom table.
 
-  AtomImpl *atom = static_cast<AtomTableEntry*>(entry)->mAtom;
+  AtomImpl* atom = static_cast<AtomTableEntry*>(aEntry)->mAtom;
   if (atom->IsPermanent()) {
     // Note that the cast here is important since AtomImpls doesn't have a
     // virtual dtor.
@@ -219,38 +279,31 @@ AtomTableClearEntry(PLDHashTable *table, PLDHashEntryHdr *entry)
   }
 }
 
-static bool
-AtomTableInitEntry(PLDHashTable *table, PLDHashEntryHdr *entry,
-                   const void *key)
+static void
+AtomTableInitEntry(PLDHashEntryHdr* aEntry, const void* aKey)
 {
-  static_cast<AtomTableEntry*>(entry)->mAtom = nullptr;
-
-  return true;
+  static_cast<AtomTableEntry*>(aEntry)->mAtom = nullptr;
 }
 
 
 static const PLDHashTableOps AtomTableOps = {
-  PL_DHashAllocTable,
-  PL_DHashFreeTable,
   AtomTableGetHash,
   AtomTableMatchKey,
   PL_DHashMoveEntryStub,
   AtomTableClearEntry,
-  PL_DHashFinalizeStub,
   AtomTableInitEntry
 };
 
 
 #ifdef DEBUG
 static PLDHashOperator
-DumpAtomLeaks(PLDHashTable *table, PLDHashEntryHdr *he,
-              uint32_t index, void *arg)
+DumpAtomLeaks(PLDHashTable* aTable, PLDHashEntryHdr* aEntryHdr,
+              uint32_t aIndex, void* aArg)
 {
-  AtomTableEntry *entry = static_cast<AtomTableEntry*>(he);
-  
+  AtomTableEntry* entry = static_cast<AtomTableEntry*>(aEntryHdr);
   AtomImpl* atom = entry->mAtom;
   if (!atom->IsPermanent()) {
-    ++*static_cast<uint32_t*>(arg);
+    ++*static_cast<uint32_t*>(aArg);
     nsAutoCString str;
     atom->ToUTF8String(str);
     fputs(str.get(), stdout);
@@ -261,7 +314,8 @@ DumpAtomLeaks(PLDHashTable *table, PLDHashEntryHdr *he,
 #endif
 
 static inline
-void PromoteToPermanent(AtomImpl* aAtom)
+void
+PromoteToPermanent(AtomImpl* aAtom)
 {
 #ifdef NS_BUILD_REFCNT_LOGGING
   {
@@ -279,80 +333,76 @@ NS_PurgeAtomTable()
 {
   delete gStaticAtomTable;
 
-  if (gAtomTable.ops) {
+  if (gAtomTable.IsInitialized()) {
 #ifdef DEBUG
-    const char *dumpAtomLeaks = PR_GetEnv("MOZ_DUMP_ATOM_LEAKS");
+    const char* dumpAtomLeaks = PR_GetEnv("MOZ_DUMP_ATOM_LEAKS");
     if (dumpAtomLeaks && *dumpAtomLeaks) {
       uint32_t leaked = 0;
       printf("*** %d atoms still exist (including permanent):\n",
-             gAtomTable.entryCount);
+             gAtomTable.EntryCount());
       PL_DHashTableEnumerate(&gAtomTable, DumpAtomLeaks, &leaked);
       printf("*** %u non-permanent atoms leaked\n", leaked);
     }
 #endif
     PL_DHashTableFinish(&gAtomTable);
-    gAtomTable.entryCount = 0;
-    gAtomTable.ops = nullptr;
   }
 }
 
-AtomImpl::AtomImpl(const nsAString& aString, PLDHashNumber aKeyHash)
+AtomImpl::AtomImpl(const nsAString& aString, uint32_t aHash)
 {
   mLength = aString.Length();
   nsRefPtr<nsStringBuffer> buf = nsStringBuffer::FromString(aString);
   if (buf) {
-    mString = static_cast<PRUnichar*>(buf->Data());
+    mString = static_cast<char16_t*>(buf->Data());
   } else {
-    buf = nsStringBuffer::Alloc((mLength + 1) * sizeof(PRUnichar));
-    mString = static_cast<PRUnichar*>(buf->Data());
+    buf = nsStringBuffer::Alloc((mLength + 1) * sizeof(char16_t));
+    mString = static_cast<char16_t*>(buf->Data());
     CopyUnicodeTo(aString, 0, mString, mLength);
-    mString[mLength] = PRUnichar(0);
+    mString[mLength] = char16_t(0);
   }
 
-  // The low bit of aKeyHash is generally useless, so shift it out
-  MOZ_ASSERT(sizeof(mHash) == sizeof(PLDHashNumber));
-  mHash = aKeyHash >> 1;
+  mHash = aHash;
+  MOZ_ASSERT(mHash == HashString(mString, mLength));
 
-  NS_ASSERTION(mString[mLength] == PRUnichar(0), "null terminated");
-  NS_ASSERTION(buf && buf->StorageSize() >= (mLength+1) * sizeof(PRUnichar),
+  NS_ASSERTION(mString[mLength] == char16_t(0), "null terminated");
+  NS_ASSERTION(buf && buf->StorageSize() >= (mLength + 1) * sizeof(char16_t),
                "enough storage");
   NS_ASSERTION(Equals(aString), "correct data");
 
   // Take ownership of buffer
-  buf.forget();
+  mozilla::unused << buf.forget();
 }
 
 AtomImpl::AtomImpl(nsStringBuffer* aStringBuffer, uint32_t aLength,
-                   PLDHashNumber aKeyHash)
+                   uint32_t aHash)
 {
   mLength = aLength;
-  mString = static_cast<PRUnichar*>(aStringBuffer->Data());
+  mString = static_cast<char16_t*>(aStringBuffer->Data());
   // Technically we could currently avoid doing this addref by instead making
   // the static atom buffers have an initial refcount of 2.
   aStringBuffer->AddRef();
 
-  // The low bit of aKeyHash is generally useless, so shift it out
-  MOZ_ASSERT(sizeof(mHash) == sizeof(PLDHashNumber));
-  mHash = aKeyHash >> 1;
+  mHash = aHash;
+  MOZ_ASSERT(mHash == HashString(mString, mLength));
 
-  NS_ASSERTION(mString[mLength] == PRUnichar(0), "null terminated");
+  NS_ASSERTION(mString[mLength] == char16_t(0), "null terminated");
   NS_ASSERTION(aStringBuffer &&
-               aStringBuffer->StorageSize() == (mLength+1) * sizeof(PRUnichar),
+               aStringBuffer->StorageSize() == (mLength + 1) * sizeof(char16_t),
                "correct storage");
 }
 
 AtomImpl::~AtomImpl()
 {
-  NS_PRECONDITION(gAtomTable.ops, "uninitialized atom hashtable");
+  NS_PRECONDITION(gAtomTable.IsInitialized(), "uninitialized atom hashtable");
   // Permanent atoms are removed from the hashtable at shutdown, and we
   // don't want to remove them twice.  See comment above in
   // |AtomTableClearEntry|.
   if (!IsPermanentInDestructor()) {
-    AtomTableKey key(mString, mLength);
-    PL_DHashTableOperate(&gAtomTable, &key, PL_DHASH_REMOVE);
-    if (gAtomTable.entryCount == 0) {
+    AtomTableKey key(mString, mLength, mHash);
+    PL_DHashTableRemove(&gAtomTable, &key);
+    if (gAtomTable.IsInitialized() && gAtomTable.EntryCount() == 0) {
       PL_DHashTableFinish(&gAtomTable);
-      NS_ASSERTION(gAtomTable.entryCount == 0,
+      NS_ASSERTION(gAtomTable.EntryCount() == 0,
                    "PL_DHashTableFinish changed the entry count");
     }
   }
@@ -360,7 +410,7 @@ AtomImpl::~AtomImpl()
   nsStringBuffer::FromData(mString)->Release();
 }
 
-NS_IMPL_ISUPPORTS1(AtomImpl, nsIAtom)
+NS_IMPL_ISUPPORTS(AtomImpl, nsIAtom)
 
 PermanentAtomImpl::~PermanentAtomImpl()
 {
@@ -368,13 +418,15 @@ PermanentAtomImpl::~PermanentAtomImpl()
   mRefCnt = REFCNT_PERMANENT_SENTINEL;
 }
 
-NS_IMETHODIMP_(nsrefcnt) PermanentAtomImpl::AddRef()
+NS_IMETHODIMP_(MozExternalRefCountType)
+PermanentAtomImpl::AddRef()
 {
   MOZ_ASSERT(NS_IsMainThread(), "wrong thread");
   return 2;
 }
 
-NS_IMETHODIMP_(nsrefcnt) PermanentAtomImpl::Release()
+NS_IMETHODIMP_(MozExternalRefCountType)
+PermanentAtomImpl::Release()
 {
   MOZ_ASSERT(NS_IsMainThread(), "wrong thread");
   return 1;
@@ -392,7 +444,9 @@ PermanentAtomImpl::IsPermanent()
   return true;
 }
 
-void* PermanentAtomImpl::operator new ( size_t size, AtomImpl* aAtom ) CPP_THROW_NEW {
+void*
+PermanentAtomImpl::operator new(size_t aSize, AtomImpl* aAtom) CPP_THROW_NEW
+{
   MOZ_ASSERT(!aAtom->IsPermanent(),
              "converting atom that's already permanent");
 
@@ -400,7 +454,7 @@ void* PermanentAtomImpl::operator new ( size_t size, AtomImpl* aAtom ) CPP_THROW
   return aAtom;
 }
 
-NS_IMETHODIMP 
+NS_IMETHODIMP
 AtomImpl::ScriptableToString(nsAString& aBuf)
 {
   nsStringBuffer::FromData(mString)->ToString(mLength, aBuf);
@@ -435,184 +489,135 @@ AtomImpl::IsStaticAtom()
 }
 
 size_t
-AtomImpl::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
+AtomImpl::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
 {
-  return aMallocSizeOf(this) +
-         nsStringBuffer::FromData(mString)->
-           SizeOfIncludingThisIfUnshared(aMallocSizeOf);
+  size_t n = aMallocSizeOf(this);
+
+  // Don't measure static atoms. Nb: here "static" means "permanent", and while
+  // it's not guaranteed that permanent atoms are actually stored in static
+  // data, it is very likely. And we don't want to call |aMallocSizeOf| on
+  // static data, so we err on the side of caution.
+  if (!IsStaticAtom()) {
+    n += nsStringBuffer::FromData(mString)->SizeOfIncludingThisIfUnshared(
+           aMallocSizeOf);
+  }
+  return n;
 }
 
 //----------------------------------------------------------------------
 
 static size_t
-SizeOfAtomTableEntryExcludingThis(PLDHashEntryHdr *aHdr,
-                                  nsMallocSizeOfFun aMallocSizeOf,
-                                  void *aArg)
+SizeOfAtomTableEntryExcludingThis(PLDHashEntryHdr* aHdr,
+                                  MallocSizeOf aMallocSizeOf,
+                                  void* aArg)
 {
   AtomTableEntry* entry = static_cast<AtomTableEntry*>(aHdr);
   return entry->mAtom->SizeOfIncludingThis(aMallocSizeOf);
 }
 
-static size_t
-SizeOfStaticAtomTableEntryExcludingThis(const nsAString& aKey,
-                                        nsIAtom* const& aData,
-                                        nsMallocSizeOfFun aMallocSizeOf,
-                                        void* aArg)
+void
+NS_SizeOfAtomTablesIncludingThis(MallocSizeOf aMallocSizeOf,
+                                 size_t* aMain, size_t* aStatic)
 {
-  return aKey.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
-}
-
-size_t
-NS_SizeOfAtomTablesIncludingThis(nsMallocSizeOfFun aMallocSizeOf) {
-  size_t n = 0;
-  if (gAtomTable.ops) {
-      n += PL_DHashTableSizeOfExcludingThis(&gAtomTable,
+  *aMain = gAtomTable.IsInitialized()
+         ? PL_DHashTableSizeOfExcludingThis(&gAtomTable,
                                             SizeOfAtomTableEntryExcludingThis,
-                                            aMallocSizeOf);
-  }
-  if (gStaticAtomTable) {
-    n += gStaticAtomTable->SizeOfIncludingThis(SizeOfStaticAtomTableEntryExcludingThis,
-                                               aMallocSizeOf);
-  }
-  return n;
+                                            aMallocSizeOf)
+         : 0;
+
+  // The atoms in the this table are almost certainly stored in static data, so
+  // we don't need a SizeOfEntry function.
+  *aStatic = gStaticAtomTable
+           ? gStaticAtomTable->SizeOfIncludingThis(nullptr, aMallocSizeOf)
+           : 0;
 }
 
-#define ATOM_HASHTABLE_INITIAL_SIZE  4096
-
-static void HandleOOM()
-{
-  fputs("Out of memory allocating atom hashtable.\n", stderr);
-  MOZ_CRASH();
-  MOZ_NOT_REACHED("OOM Crash (atom hashtable).");
-}
+#define ATOM_HASHTABLE_INITIAL_LENGTH  2048
 
 static inline void
 EnsureTableExists()
 {
-  if (!gAtomTable.ops &&
-      !PL_DHashTableInit(&gAtomTable, &AtomTableOps, 0,
-                         sizeof(AtomTableEntry), ATOM_HASHTABLE_INITIAL_SIZE)) {
-    // Initialization failed.
-    HandleOOM();
+  if (!gAtomTable.IsInitialized()) {
+    PL_DHashTableInit(&gAtomTable, &AtomTableOps,
+                      sizeof(AtomTableEntry), ATOM_HASHTABLE_INITIAL_LENGTH);
   }
 }
 
 static inline AtomTableEntry*
-GetAtomHashEntry(const char* aString, uint32_t aLength)
+GetAtomHashEntry(const char* aString, uint32_t aLength, uint32_t* aHashOut)
 {
   MOZ_ASSERT(NS_IsMainThread(), "wrong thread");
   EnsureTableExists();
-  AtomTableKey key(aString, aLength);
-  AtomTableEntry* e =
-    static_cast<AtomTableEntry*>
-               (PL_DHashTableOperate(&gAtomTable, &key, PL_DHASH_ADD));
-  if (!e) {
-    HandleOOM();
-  }
-  return e;
+  AtomTableKey key(aString, aLength, aHashOut);
+  // This is an infallible add.
+  return static_cast<AtomTableEntry*>(PL_DHashTableAdd(&gAtomTable, &key));
 }
 
 static inline AtomTableEntry*
-GetAtomHashEntry(const PRUnichar* aString, uint32_t aLength)
+GetAtomHashEntry(const char16_t* aString, uint32_t aLength, uint32_t* aHashOut)
 {
   MOZ_ASSERT(NS_IsMainThread(), "wrong thread");
   EnsureTableExists();
-  AtomTableKey key(aString, aLength);
-  AtomTableEntry* e =
-    static_cast<AtomTableEntry*>
-               (PL_DHashTableOperate(&gAtomTable, &key, PL_DHASH_ADD));
-  if (!e) {
-    HandleOOM();
-  }
-  return e;
+  AtomTableKey key(aString, aLength, aHashOut);
+  // This is an infallible add.
+  return static_cast<AtomTableEntry*>(PL_DHashTableAdd(&gAtomTable, &key));
 }
 
 class CheckStaticAtomSizes
 {
-  CheckStaticAtomSizes() {
-    MOZ_STATIC_ASSERT((sizeof(nsFakeStringBuffer<1>().mRefCnt) ==
-                       sizeof(nsStringBuffer().mRefCount)) &&
-                      (sizeof(nsFakeStringBuffer<1>().mSize) ==
-                       sizeof(nsStringBuffer().mStorageSize)) &&
-                      (offsetof(nsFakeStringBuffer<1>, mRefCnt) ==
-                       offsetof(nsStringBuffer, mRefCount)) &&
-                      (offsetof(nsFakeStringBuffer<1>, mSize) ==
-                       offsetof(nsStringBuffer, mStorageSize)) &&
-                      (offsetof(nsFakeStringBuffer<1>, mStringData) ==
-                       sizeof(nsStringBuffer)),
-                      "mocked-up strings' representations should be compatible");
+  CheckStaticAtomSizes()
+  {
+    static_assert((sizeof(nsFakeStringBuffer<1>().mRefCnt) ==
+                   sizeof(nsStringBuffer().mRefCount)) &&
+                  (sizeof(nsFakeStringBuffer<1>().mSize) ==
+                   sizeof(nsStringBuffer().mStorageSize)) &&
+                  (offsetof(nsFakeStringBuffer<1>, mRefCnt) ==
+                   offsetof(nsStringBuffer, mRefCount)) &&
+                  (offsetof(nsFakeStringBuffer<1>, mSize) ==
+                   offsetof(nsStringBuffer, mStorageSize)) &&
+                  (offsetof(nsFakeStringBuffer<1>, mStringData) ==
+                   sizeof(nsStringBuffer)),
+                  "mocked-up strings' representations should be compatible");
   }
 };
 
 nsresult
 RegisterStaticAtoms(const nsStaticAtom* aAtoms, uint32_t aAtomCount)
 {
-  // this does three things:
-  // 1) wraps each static atom in a wrapper, if necessary
-  // 2) initializes the address pointed to by each mBits slot
-  // 3) puts the atom into the static atom table as well
-  
   if (!gStaticAtomTable && !gStaticAtomTableSealed) {
-    gStaticAtomTable = new nsDataHashtable<nsStringHashKey, nsIAtom*>();
-    if (!gStaticAtomTable) {
-      delete gStaticAtomTable;
-      gStaticAtomTable = nullptr;
-      return NS_ERROR_OUT_OF_MEMORY;
-    }
-    gStaticAtomTable->Init();
+    gStaticAtomTable = new StaticAtomTable();
   }
-  
-  for (uint32_t i=0; i<aAtomCount; i++) {
-#ifdef NS_STATIC_ATOM_USE_WIDE_STRINGS
-    NS_ASSERTION(nsCRT::IsAscii((PRUnichar*)aAtoms[i].mStringBuffer->Data()),
+
+  for (uint32_t i = 0; i < aAtomCount; ++i) {
+    NS_ASSERTION(nsCRT::IsAscii((char16_t*)aAtoms[i].mStringBuffer->Data()),
                  "Static atoms must be ASCII!");
 
     uint32_t stringLen =
-      aAtoms[i].mStringBuffer->StorageSize() / sizeof(PRUnichar) - 1;
+      aAtoms[i].mStringBuffer->StorageSize() / sizeof(char16_t) - 1;
 
-    AtomTableEntry *he =
-      GetAtomHashEntry((PRUnichar*)aAtoms[i].mStringBuffer->Data(),
-                       stringLen);
+    uint32_t hash;
+    AtomTableEntry* he =
+      GetAtomHashEntry((char16_t*)aAtoms[i].mStringBuffer->Data(),
+                       stringLen, &hash);
 
-    if (he->mAtom) {
-      // there already is an atom with this name in the table.. but we
-      // still have to update mBits
-      if (!he->mAtom->IsPermanent()) {
-        // since we wanted to create a static atom but there is
-        // already one there, we convert it to a non-refcounting
-        // permanent atom
-        PromoteToPermanent(he->mAtom);
+    AtomImpl* atom = he->mAtom;
+    if (atom) {
+      if (!atom->IsPermanent()) {
+        // We wanted to create a static atom but there is already a non-static
+        // atom there. So convert it to a non-refcounting permanent atom.
+        PromoteToPermanent(atom);
       }
-      
-      *aAtoms[i].mAtom = he->mAtom;
-    }
-    else {
-      AtomImpl* atom = new PermanentAtomImpl(aAtoms[i].mStringBuffer,
-                                             stringLen,
-                                             he->keyHash);
+    } else {
+      atom = new PermanentAtomImpl(aAtoms[i].mStringBuffer, stringLen, hash);
       he->mAtom = atom;
-      *aAtoms[i].mAtom = atom;
-
-      if (!gStaticAtomTableSealed) {
-        gStaticAtomTable->Put(nsAtomString(atom), atom);
-      }
     }
-#else // NS_STATIC_ATOM_USE_WIDE_STRINGS
-    NS_ASSERTION(nsCRT::IsAscii((char*)aAtoms[i].mStringBuffer->Data()),
-                 "Static atoms must be ASCII!");
-
-    uint32_t stringLen = aAtoms[i].mStringBuffer->StorageSize() - 1;
-
-    NS_ConvertASCIItoUTF16 str((char*)aAtoms[i].mStringBuffer->Data(),
-                               stringLen);
-    nsIAtom* atom = NS_NewPermanentAtom(str);
     *aAtoms[i].mAtom = atom;
 
     if (!gStaticAtomTableSealed) {
-      gStaticAtomTable->Put(str, atom);
+      StaticAtomEntry* entry =
+        gStaticAtomTable->PutEntry(nsDependentAtomString(atom));
+      entry->mAtom = atom;
     }
-#endif
-
   }
   return NS_OK;
 }
@@ -626,8 +631,10 @@ NS_NewAtom(const char* aUTF8String)
 already_AddRefed<nsIAtom>
 NS_NewAtom(const nsACString& aUTF8String)
 {
-  AtomTableEntry *he = GetAtomHashEntry(aUTF8String.Data(),
-                                        aUTF8String.Length());
+  uint32_t hash;
+  AtomTableEntry* he = GetAtomHashEntry(aUTF8String.Data(),
+                                        aUTF8String.Length(),
+                                        &hash);
 
   if (he->mAtom) {
     nsCOMPtr<nsIAtom> atom = he->mAtom;
@@ -640,7 +647,7 @@ NS_NewAtom(const nsACString& aUTF8String)
   // Actually, now there is, sort of: ForgetSharedBuffer.
   nsString str;
   CopyUTF8toUTF16(aUTF8String, str);
-  nsRefPtr<AtomImpl> atom = new AtomImpl(str, he->keyHash);
+  nsRefPtr<AtomImpl> atom = new AtomImpl(str, hash);
 
   he->mAtom = atom;
 
@@ -648,7 +655,7 @@ NS_NewAtom(const nsACString& aUTF8String)
 }
 
 already_AddRefed<nsIAtom>
-NS_NewAtom(const PRUnichar* aUTF16String)
+NS_NewAtom(const char16_t* aUTF16String)
 {
   return NS_NewAtom(nsDependentString(aUTF16String));
 }
@@ -656,8 +663,10 @@ NS_NewAtom(const PRUnichar* aUTF16String)
 already_AddRefed<nsIAtom>
 NS_NewAtom(const nsAString& aUTF16String)
 {
-  AtomTableEntry *he = GetAtomHashEntry(aUTF16String.Data(),
-                                        aUTF16String.Length());
+  uint32_t hash;
+  AtomTableEntry* he = GetAtomHashEntry(aUTF16String.Data(),
+                                        aUTF16String.Length(),
+                                        &hash);
 
   if (he->mAtom) {
     nsCOMPtr<nsIAtom> atom = he->mAtom;
@@ -665,7 +674,7 @@ NS_NewAtom(const nsAString& aUTF16String)
     return atom.forget();
   }
 
-  nsRefPtr<AtomImpl> atom = new AtomImpl(aUTF16String, he->keyHash);
+  nsRefPtr<AtomImpl> atom = new AtomImpl(aUTF16String, hash);
   he->mAtom = atom;
 
   return atom.forget();
@@ -674,17 +683,18 @@ NS_NewAtom(const nsAString& aUTF16String)
 nsIAtom*
 NS_NewPermanentAtom(const nsAString& aUTF16String)
 {
-  AtomTableEntry *he = GetAtomHashEntry(aUTF16String.Data(),
-                                        aUTF16String.Length());
+  uint32_t hash;
+  AtomTableEntry* he = GetAtomHashEntry(aUTF16String.Data(),
+                                        aUTF16String.Length(),
+                                        &hash);
 
   AtomImpl* atom = he->mAtom;
   if (atom) {
     if (!atom->IsPermanent()) {
       PromoteToPermanent(atom);
     }
-  }
-  else {
-    atom = new PermanentAtomImpl(aUTF16String, he->keyHash);
+  } else {
+    atom = new PermanentAtomImpl(aUTF16String, hash);
     he->mAtom = atom;
   }
 
@@ -695,7 +705,7 @@ NS_NewPermanentAtom(const nsAString& aUTF16String)
 nsrefcnt
 NS_GetNumberOfAtoms(void)
 {
-  return gAtomTable.entryCount;
+  return gAtomTable.EntryCount();
 }
 
 nsIAtom*
@@ -703,11 +713,8 @@ NS_GetStaticAtom(const nsAString& aUTF16String)
 {
   NS_PRECONDITION(gStaticAtomTable, "Static atom table not created yet.");
   NS_PRECONDITION(gStaticAtomTableSealed, "Static atom table not sealed yet.");
-  nsIAtom* atom;
-  if (!gStaticAtomTable->Get(aUTF16String, &atom)) {
-    atom = nullptr;
-  }
-  return atom;
+  StaticAtomEntry* entry = gStaticAtomTable->GetEntry(aUTF16String);
+  return entry ? entry->mAtom : nullptr;
 }
 
 void

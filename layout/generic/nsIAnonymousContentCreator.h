@@ -12,11 +12,11 @@
 #define nsIAnonymousContentCreator_h___
 
 #include "nsQueryFrame.h"
-#include "nsIContent.h"
 #include "nsStyleContext.h"
 #include "nsTArrayForwardDeclare.h"
 
 class nsBaseContentList;
+class nsIContent;
 class nsIFrame;
 
 /**
@@ -31,7 +31,7 @@ public:
   NS_DECL_QUERYFRAME_TARGET(nsIAnonymousContentCreator)
 
   struct ContentInfo {
-    ContentInfo(nsIContent* aContent) :
+    explicit ContentInfo(nsIContent* aContent) :
       mContent(aContent)
     {}
 
@@ -41,6 +41,7 @@ public:
 
     nsIContent* mContent;
     nsRefPtr<nsStyleContext> mStyleContext;
+    nsTArray<ContentInfo> mChildren;
   };
 
   /**
@@ -55,6 +56,10 @@ public:
    *       responsible for calling UnbindFromTree on the elements it returned
    *       from CreateAnonymousContent when appropriate (i.e. before releasing
    *       them).
+   *
+   * @note Implementations of this method that add items to mChildren must not
+   *       hook them up to any parent since frame construction takes care of
+   *       that.
    */
   virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements)=0;
 
@@ -64,7 +69,7 @@ public:
    *
    * @see nsIContent::GetChildren for set of values used for filter.
    */
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
+  virtual void AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
                                         uint32_t aFilter) = 0;
 
   /**

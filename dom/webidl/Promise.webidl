@@ -7,30 +7,43 @@
  * http://dom.spec.whatwg.org/#promises
  */
 
-interface PromiseResolver {
-  void resolve(optional any value);
-  void reject(optional any value);
-};
+// TODO We use object instead Function.  There is an open issue on WebIDL to
+// have different types for "platform-provided function" and "user-provided
+// function"; for now, we just use "object".
+callback PromiseInit = void (object resolve, object reject);
 
-callback PromiseInit = void (PromiseResolver resolver);
-callback AnyCallback = any (optional any value);
+[TreatNonCallableAsNull]
+callback AnyCallback = any (any value);
 
-[PrefControlled, Constructor(PromiseInit init)]
-interface Promise {
-  // TODO: update this interface - bug 875289
+// REMOVE THE RELEVANT ENTRY FROM test_interfaces.html WHEN THIS IS IMPLEMENTED IN JS.
+[Constructor(PromiseInit init),
+ Exposed=(Window,Worker,System)]
+// Need to escape "Promise" so it's treated as an identifier.
+interface _Promise {
+  // TODO bug 875289 - static Promise fulfill(any value);
 
-  [Creator, Throws]
-  static Promise resolve(any value); // same as any(value)
-  [Creator, Throws]
-  static Promise reject(any value);
+  // Disable the static methods when the interface object is supposed to be
+  // disabled, just in case some code decides to walk over to .constructor from
+  // the proto of a promise object or someone screws up and manages to create a
+  // Promise object in this scope without having resolved the interface object
+  // first.
+  [NewObject]
+  static Promise<any> resolve(optional any value);
+  [NewObject]
+  static Promise<void> reject(optional any value);
 
-  [Creator]
-  Promise then(optional AnyCallback? resolveCallback = null,
-               optional AnyCallback? rejectCallback = null);
+  // The [TreatNonCallableAsNull] annotation is required since then() should do
+  // nothing instead of throwing errors when non-callable arguments are passed.
+  [NewObject]
+  Promise<any> then([TreatNonCallableAsNull] optional AnyCallback? fulfillCallback = null,
+                    [TreatNonCallableAsNull] optional AnyCallback? rejectCallback = null);
 
-  [Creator]
-  Promise catch(optional AnyCallback? rejectCallback = null);
+  [NewObject]
+  Promise<any> catch([TreatNonCallableAsNull] optional AnyCallback? rejectCallback = null);
 
-  void done(optional AnyCallback? resolveCallback = null,
-            optional AnyCallback? rejectCallback = null);
+  [NewObject]
+  static Promise<any> all(sequence<any> iterable);
+
+  [NewObject]
+  static Promise<any> race(sequence<any> iterable);
 };

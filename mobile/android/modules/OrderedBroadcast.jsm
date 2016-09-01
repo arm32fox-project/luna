@@ -1,4 +1,4 @@
-// -*- Mode: js2; tab-width: 2; indent-tabs-mode: nil; js2-basic-offset: 2; js2-skip-preprocessor-directives: t; -*-
+// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -10,12 +10,7 @@ const { classes: Cc, interfaces: Ci, utils: Cu } = Components;
 
 // For adding observers.
 Cu.import("resource://gre/modules/Services.jsm");
-
-function sendMessageToJava(message) {
-  return Cc["@mozilla.org/android/bridge;1"]
-    .getService(Ci.nsIAndroidBridge)
-    .handleGoannaMessage(JSON.stringify(message));
-}
+Cu.import("resource://gre/modules/Messaging.jsm");
 
 let _callbackId = 1;
 
@@ -34,9 +29,10 @@ let _callbackId = 1;
  * returned from Java as an Object; the specified token; and the
  * specified action.
  *
- * permission {String} should be a string with an Android permission
- * that packages must have to respond to the ordered broadcast, or
- * null to allow all packages to respond.
+ * permission {String} is an optional string with an Android permission
+ * that packages must have to respond to the ordered broadcast. A null
+ * value allows any package to respond. If the parameter is omitted (or
+ * {undefined}), then the intent is restricted to the current package.
  */
 function sendOrderedBroadcast(action, token, callback, permission) {
   let callbackId = _callbackId++;
@@ -74,11 +70,11 @@ function sendOrderedBroadcast(action, token, callback, permission) {
 
   Services.obs.addObserver(observer, responseEvent, false);
 
-  sendMessageToJava({
+  Messaging.sendRequest({
     type: "OrderedBroadcast:Send",
     action: action,
     responseEvent: responseEvent,
     token: { callbackId: callbackId, data: token || null },
-    permission: permission || null,
+    permission: permission,
   });
 };

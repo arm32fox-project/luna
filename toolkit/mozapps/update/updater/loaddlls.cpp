@@ -5,13 +5,6 @@
 
 #include <windows.h>
 
-// Support SDKs that don't have LOAD_LIBRARY_SEARCH_SYSTEM32 or
-// SetDefaultDllDirectories.
-#ifndef NTDDI_WIN8
-#define LOAD_LIBRARY_SEARCH_SYSTEM32 0x00000800
-#endif
-typedef BOOL (WINAPI *SetDefaultDllDirectoriesFunction) (DWORD DirectoryFlags);
-
 // Delayed load libraries are loaded when the first symbol is used.
 // The following ensures that we load the delayed loaded libraries from the
 // system directory.
@@ -28,9 +21,8 @@ struct AutoLoadSystemDependencies
       // SetDefaultDllDirectories is always available on Windows 8 and above. It
       // is also available on Windows Vista, Windows Server 2008, and
       // Windows 7 when MS KB2533623 has been applied.
-      SetDefaultDllDirectoriesFunction setDefaultDllDirectories =
-          reinterpret_cast<SetDefaultDllDirectoriesFunction>(
-              ::GetProcAddress(module, "SetDefaultDllDirectories"));
+      decltype(SetDefaultDllDirectories)* setDefaultDllDirectories =
+        (decltype(SetDefaultDllDirectories)*) GetProcAddress(module, "SetDefaultDllDirectories");
       if (setDefaultDllDirectories) {
         setDefaultDllDirectories(LOAD_LIBRARY_SEARCH_SYSTEM32);
         return;
@@ -41,7 +33,7 @@ struct AutoLoadSystemDependencies
     // dlls. The order that these are loaded does not matter since they are
     // loaded using the LOAD_WITH_ALTERED_SEARCH_PATH flag.
 #ifdef HAVE_64BIT_BUILD
-    // DLLs for Pale Moon x64 on Windows 7 (x64).
+    // DLLs for Firefox x64 on Windows 7 (x64).
     // Note: dwmapi.dll is preloaded since a crash will try to load it from the
     // application's directory.
     static LPCWSTR delayDLLs[] = { L"apphelp.dll",
@@ -56,7 +48,7 @@ struct AutoLoadSystemDependencies
                                    L"wsock32.dll" };
 
 #else
-    // DLLs for Pale Moon x86 on Windows XP through Windows 7 (x86 and x64).
+    // DLLs for Firefox x86 on Windows XP through Windows 7 (x86 and x64).
     // Note: dwmapi.dll is preloaded since a crash will try to load it from the
     // application's directory.
     static LPCWSTR delayDLLs[] = { L"apphelp.dll",
@@ -82,20 +74,20 @@ struct AutoLoadSystemDependencies
     WCHAR systemDirectory[MAX_PATH + 1] = { L'\0' };
     // If GetSystemDirectory fails we accept that we'll load the DLLs from the
     // normal search path.
-    GetSystemDirectory(systemDirectory, MAX_PATH + 1);
+    GetSystemDirectoryW(systemDirectory, MAX_PATH + 1);
     size_t systemDirLen = wcslen(systemDirectory);
 
     // Make the system directory path terminate with a slash
     if (systemDirectory[systemDirLen - 1] != L'\\' && systemDirLen) {
       systemDirectory[systemDirLen] = L'\\';
       ++systemDirLen;
-      // No need to re-NULL terminate
+      // No need to re-null terminate
     }
 
     // For each known DLL ensure it is loaded from the system32 directory
     for (size_t i = 0; i < sizeof(delayDLLs) / sizeof(delayDLLs[0]); ++i) {
       size_t fileLen = wcslen(delayDLLs[i]);
-      wcsncpy(systemDirectory + systemDirLen, delayDLLs[i], 
+      wcsncpy(systemDirectory + systemDirLen, delayDLLs[i],
               MAX_PATH - systemDirLen);
       if (systemDirLen + fileLen <= MAX_PATH) {
         systemDirectory[systemDirLen + fileLen] = L'\0';

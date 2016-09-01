@@ -8,12 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "common_video/libyuv/include/webrtc_libyuv.h"
+#include "webrtc/common_video/libyuv/include/webrtc_libyuv.h"
 
 #include <assert.h>
 #include <string.h>
 
-#include "libyuv.h"
+// NOTE(ajm): Path provided by gyp.
+#include "libyuv.h"  // NOLINT
 
 namespace webrtc {
 
@@ -240,6 +241,28 @@ int ConvertToI420(VideoType src_video_type,
     dst_width = dst_frame->height();
     dst_height =dst_frame->width();
   }
+#ifdef WEBRTC_GONK
+  if (src_video_type == kYV12) {
+    // In gralloc buffer, yv12 color format's cb and cr's strides are aligned
+    // to 16 Bytes boundary. See /system/core/include/system/graphics.h
+    int stride_y = src_width;
+    int stride_uv = (((stride_y + 1) / 2) + 15) & ~0x0F;
+    return libyuv::I420Rotate(src_frame,
+                              stride_y,
+                              src_frame + (stride_y * src_height) + (stride_uv * ((src_height + 1) / 2)),
+                              stride_uv,
+                              src_frame + (stride_y * src_height),
+                              stride_uv,
+                              dst_frame->buffer(kYPlane),
+                              dst_frame->stride(kYPlane),
+                              dst_frame->buffer(kUPlane),
+                              dst_frame->stride(kUPlane),
+                              dst_frame->buffer(kVPlane),
+                              dst_frame->stride(kVPlane),
+                              src_width, src_height,
+                              ConvertRotationMode(rotation));
+  }
+#endif
   return libyuv::ConvertToI420(src_frame, sample_size,
                                dst_frame->buffer(kYPlane),
                                dst_frame->stride(kYPlane),
@@ -382,60 +405,4 @@ double I420SSIM(const I420VideoFrame* ref_frame,
                           test_frame->stride(kVPlane),
                           test_frame->width(), test_frame->height());
 }
-
-// Compute PSNR for an I420 frame (all planes)
-double I420PSNR(const uint8_t* ref_frame,
-                const uint8_t* test_frame,
-                int width, int height) {
-  if (!ref_frame || !test_frame)
-    return -1;
-  else if (height < 0 || width < 0)
-    return -1;
-  int half_width = (width + 1) >> 1;
-  int half_height = (height + 1) >> 1;
-  const uint8_t* src_y_a = ref_frame;
-  const uint8_t* src_u_a = src_y_a + width * height;
-  const uint8_t* src_v_a = src_u_a + half_width * half_height;
-  const uint8_t* src_y_b = test_frame;
-  const uint8_t* src_u_b = src_y_b + width * height;
-  const uint8_t* src_v_b = src_u_b + half_width * half_height;
-  // In the following: stride is determined by width.
-  double psnr = libyuv::I420Psnr(src_y_a, width,
-                                 src_u_a, half_width,
-                                 src_v_a, half_width,
-                                 src_y_b, width,
-                                 src_u_b, half_width,
-                                 src_v_b, half_width,
-                                 width, height);
-  // LibYuv sets the max psnr value to 128, we restrict it here.
-  // In case of 0 mse in one frame, 128 can skew the results significantly.
-  return (psnr > kPerfectPSNR) ? kPerfectPSNR : psnr;
-}
-// Compute SSIM for an I420 frame (all planes)
-double I420SSIM(const uint8_t* ref_frame,
-                const uint8_t* test_frame,
-                int width, int height) {
-  if (!ref_frame || !test_frame)
-     return -1;
-  else if (height < 0 || width < 0)
-     return -1;
-  int half_width = (width + 1) >> 1;
-  int half_height = (height + 1) >> 1;
-  const uint8_t* src_y_a = ref_frame;
-  const uint8_t* src_u_a = src_y_a + width * height;
-  const uint8_t* src_v_a = src_u_a + half_width * half_height;
-  const uint8_t* src_y_b = test_frame;
-  const uint8_t* src_u_b = src_y_b + width * height;
-  const uint8_t* src_v_b = src_u_b + half_width * half_height;
-  int stride_y = width;
-  int stride_uv = half_width;
-  return libyuv::I420Ssim(src_y_a, stride_y,
-                          src_u_a, stride_uv,
-                          src_v_a, stride_uv,
-                          src_y_b, stride_y,
-                          src_u_b, stride_uv,
-                          src_v_b, stride_uv,
-                          width, height);
-}
-
 }  // namespace webrtc

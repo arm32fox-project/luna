@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifndef MERGED_COMPARTMENT
 "use strict";
 
-#ifndef MERGED_COMPARTMENT
 this.EXPORTED_SYMBOLS = ["ProviderManager"];
 
 const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
@@ -14,7 +14,7 @@ Cu.import("resource://gre/modules/services/metrics/dataprovider.jsm");
 
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
-Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://services-common/utils.js");
 
 
@@ -25,7 +25,7 @@ Cu.import("resource://services-common/utils.js");
  * provides APIs for bulk collection of data.
  */
 this.ProviderManager = function (storage) {
-  this._log = Log4Moz.repository.getLogger("Services.Metrics.ProviderManager");
+  this._log = Log.repository.getLogger("Services.Metrics.ProviderManager");
 
   this._providers = new Map();
   this._storage = storage;
@@ -101,14 +101,16 @@ this.ProviderManager.prototype = Object.freeze({
    *
    * @param category
    *        (string) Name of category from which to query and load.
+   * @param providerDiagnostic
+   *        (function) Optional, called with the name of the provider currently being initialized.
    * @return a newly spawned Task.
    */
-  registerProvidersFromCategoryManager: function (category) {
+  registerProvidersFromCategoryManager: function (category, providerDiagnostic) {
     this._log.info("Registering providers from category: " + category);
     let cm = Cc["@mozilla.org/categorymanager;1"]
                .getService(Ci.nsICategoryManager);
 
-    let promises = [];
+    let promiseList = [];
     let enumerator = cm.enumerateCategory(category);
     while (enumerator.hasMoreElements()) {
       let entry = enumerator.getNext()
@@ -125,7 +127,7 @@ this.ProviderManager.prototype = Object.freeze({
 
         let promise = this.registerProviderFromType(ns[entry]);
         if (promise) {
-          promises.push(promise);
+          promiseList.push({name: entry, promise: promise});
         }
       } catch (ex) {
         this._recordProviderError(entry,
@@ -135,9 +137,12 @@ this.ProviderManager.prototype = Object.freeze({
       }
     }
 
-    return Task.spawn(function wait() {
-      for (let promise of promises) {
-        yield promise;
+    return Task.spawn(function* wait() {
+      for (let entry of promiseList) {
+        if (providerDiagnostic) {
+          providerDiagnostic(entry.name);
+        }
+        yield entry.promise;
       }
     });
   },
@@ -160,10 +165,14 @@ this.ProviderManager.prototype = Object.freeze({
    * @return Promise<null>
    */
   registerProvider: function (provider) {
-    if (!(provider instanceof Provider)) {
-      throw new Error("Argument must be a Provider instance.");
+    // We should perform an instanceof check here. However, due to merged
+    // compartments, the Provider type may belong to one of two JSMs
+    // isinstance gets confused depending on which module Provider comes
+    // from. Some code references Provider from dataprovider.jsm; others from
+    // Metrics.jsm.
+    if (!provider.name) {
+      throw new Error("Provider is not valid: does not have a name.");
     }
-
     if (this._providers.has(provider.name)) {
       return CommonUtils.laterTickResolvingPromise();
     }
@@ -427,8 +436,11 @@ this.ProviderManager.prototype = Object.freeze({
    * provided their constant data. A side-effect of this promise fulfillment
    * is that the manager is populated with the obtained collection results.
    * The resolved value to the promise is this `ProviderManager` instance.
+   *
+   * @param providerDiagnostic
+   *        (function) Optional, called with the name of the provider currently being initialized.
    */
-  collectConstantData: function () {
+  collectConstantData: function (providerDiagnostic=null) {
     let entries = [];
 
     for (let [name, entry] of this._providers) {
@@ -446,18 +458,20 @@ this.ProviderManager.prototype = Object.freeze({
     };
 
     return this._callCollectOnProviders(entries, "collectConstantData",
-                                        onCollect);
+                                        onCollect, providerDiagnostic);
   },
 
   /**
    * Calls collectDailyData on all providers.
    */
-  collectDailyData: function () {
+  collectDailyData: function (providerDiagnostic=null) {
     return this._callCollectOnProviders(this._providers.values(),
-                                        "collectDailyData");
+                                        "collectDailyData",
+                                        null,
+                                        providerDiagnostic);
   },
 
-  _callCollectOnProviders: function (entries, fnProperty, onCollect=null) {
+  _callCollectOnProviders: function (entries, fnProperty, onCollect=null, providerDiagnostic=null) {
     let promises = [];
 
     for (let entry of entries) {
@@ -493,7 +507,7 @@ this.ProviderManager.prototype = Object.freeze({
       promises.push([provider.name, promise]);
     }
 
-    return this._handleCollectionPromises(promises);
+    return this._handleCollectionPromises(promises, providerDiagnostic);
   },
 
   /**
@@ -505,9 +519,13 @@ this.ProviderManager.prototype = Object.freeze({
    * The promise is resolved even if one of the underlying collection
    * promises is rejected.
    */
-  _handleCollectionPromises: function (promises) {
+  _handleCollectionPromises: function (promises, providerDiagnostic=null) {
     return Task.spawn(function waitForPromises() {
       for (let [name, promise] of promises) {
+        if (providerDiagnostic) {
+          providerDiagnostic(name);
+        }
+
         try {
           yield promise;
           this._log.debug("Provider collected successfully: " + name);
@@ -524,7 +542,7 @@ this.ProviderManager.prototype = Object.freeze({
    * Record an error that occurred operating on a provider.
    */
   _recordProviderError: function (name, msg, ex) {
-    let msg = "Provider error: " + name + ": " + msg;
+    msg = "Provider error: " + name + ": " + msg;
     if (ex) {
       msg += ": " + CommonUtils.exceptionStr(ex);
     }

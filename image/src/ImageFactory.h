@@ -8,34 +8,41 @@
 #define MOZILLA_IMAGELIB_IMAGEFACTORY_H_
 
 #include "nsCOMPtr.h"
+#include "nsProxyRelease.h"
 
 class nsCString;
 class nsIRequest;
-class nsIURI;
-class imgStatusTracker;
 
 namespace mozilla {
 namespace image {
 
 class Image;
+class ImageURL;
+class ProgressTracker;
 
 class ImageFactory
 {
 public:
   /**
+   * Registers vars with Preferences. Should only be called on the main thread.
+   */
+  static void Initialize();
+
+  /**
    * Creates a new image with the given properties.
+   * Can be called on or off the main thread.
    *
-   * @param aRequest       The associated request.
-   * @param aStatusTracker A status tracker for the image to use.
-   * @param aMimeType      The mimetype of the image.
-   * @param aURI           The URI of the image.
-   * @param aIsMultiPart   Whether the image is part of a multipart request.
-   * @param aInnerWindowId The window this image belongs to.
+   * @param aRequest         The associated request.
+   * @param aProgressTracker A status tracker for the image to use.
+   * @param aMimeType        The mimetype of the image.
+   * @param aURI             The URI of the image.
+   * @param aIsMultiPart     Whether the image is part of a multipart request.
+   * @param aInnerWindowId   The window this image belongs to.
    */
   static already_AddRefed<Image> CreateImage(nsIRequest* aRequest,
-                                             imgStatusTracker* aStatusTracker,
+                                             ProgressTracker* aProgressTracker,
                                              const nsCString& aMimeType,
-                                             nsIURI* aURI,
+                                             ImageURL* aURI,
                                              bool aIsMultiPart,
                                              uint32_t aInnerWindowId);
   /**
@@ -44,23 +51,26 @@ public:
    *
    * @param aMimeType      The mimetype of the image.
    */
-  static already_AddRefed<Image> CreateAnonymousImage(const nsCString& aMimeType);
+  static already_AddRefed<Image>
+  CreateAnonymousImage(const nsCString& aMimeType);
 
 private:
   // Factory functions that create specific types of image containers.
-  static already_AddRefed<Image> CreateRasterImage(nsIRequest* aRequest,
-                                                   imgStatusTracker* aStatusTracker,
-                                                   const nsCString& aMimeType,
-                                                   nsIURI* aURI,
-                                                   uint32_t aImageFlags,
-                                                   uint32_t aInnerWindowId);
+  static already_AddRefed<Image>
+  CreateRasterImage(nsIRequest* aRequest,
+                    ProgressTracker* aProgressTracker,
+                    const nsCString& aMimeType,
+                    ImageURL* aURI,
+                    uint32_t aImageFlags,
+                    uint32_t aInnerWindowId);
 
-  static already_AddRefed<Image> CreateVectorImage(nsIRequest* aRequest,
-                                                   imgStatusTracker* aStatusTracker,
-                                                   const nsCString& aMimeType,
-                                                   nsIURI* aURI,
-                                                   uint32_t aImageFlags,
-                                                   uint32_t aInnerWindowId);
+  static already_AddRefed<Image>
+  CreateVectorImage(nsIRequest* aRequest,
+                    ProgressTracker* aProgressTracker,
+                    const nsCString& aMimeType,
+                    ImageURL* aURI,
+                    uint32_t aImageFlags,
+                    uint32_t aInnerWindowId);
 
   // This is a static factory class, so disallow instantiation.
   virtual ~ImageFactory() = 0;

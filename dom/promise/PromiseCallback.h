@@ -13,20 +13,25 @@
 namespace mozilla {
 namespace dom {
 
-class PromiseResolver;
-
 // This is the base class for any PromiseCallback.
 // It's a logical step in the promise chain of callbacks.
 class PromiseCallback : public nsISupports
 {
+protected:
+  virtual ~PromiseCallback();
+
 public:
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_CLASS(PromiseCallback)
 
   PromiseCallback();
-  virtual ~PromiseCallback();
 
-  virtual void Call(const Optional<JS::Handle<JS::Value> >& aValue) = 0;
+  virtual void Call(JSContext* aCx,
+                    JS::Handle<JS::Value> aValue) = 0;
+
+  // Return the Promise that this callback will end up resolving or
+  // rejecting, if any.
+  virtual Promise* GetDependentPromise() = 0;
 
   enum Task {
     Resolve,
@@ -35,84 +40,115 @@ public:
 
   // This factory returns a PromiseCallback object with refcount of 0.
   static PromiseCallback*
-  Factory(PromiseResolver* aNextResolver, AnyCallback* aCallback,
-          Task aTask);
+  Factory(Promise* aNextPromise, JS::Handle<JSObject*> aObject,
+          AnyCallback* aCallback, Task aTask);
 };
 
 // WrapperPromiseCallback execs a JS Callback with a value, and then the return
-// value is sent to the aNextResolver->resolve() or to aNextResolver->Reject()
-// if the JS Callback throws.
-class WrapperPromiseCallback MOZ_FINAL : public PromiseCallback
+// value is sent to the aNextPromise->ResolveFunction() or to
+// aNextPromise->RejectFunction() if the JS Callback throws.
+class WrapperPromiseCallback final : public PromiseCallback
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(WrapperPromiseCallback,
-                                           PromiseCallback)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(WrapperPromiseCallback,
+                                                         PromiseCallback)
 
-  void Call(const Optional<JS::Handle<JS::Value> >& aValue) MOZ_OVERRIDE;
+  void Call(JSContext* aCx,
+            JS::Handle<JS::Value> aValue) override;
 
-  WrapperPromiseCallback(PromiseResolver* aNextResolver,
+  Promise* GetDependentPromise() override
+  {
+    return mNextPromise;
+  }
+
+  WrapperPromiseCallback(Promise* aNextPromise, JS::Handle<JSObject*> aGlobal,
                          AnyCallback* aCallback);
+
+private:
   ~WrapperPromiseCallback();
 
-private:
-  nsRefPtr<PromiseResolver> mNextResolver;
+  nsRefPtr<Promise> mNextPromise;
+  JS::Heap<JSObject*> mGlobal;
   nsRefPtr<AnyCallback> mCallback;
 };
 
-// SimpleWrapperPromiseCallback execs a JS Callback with a value.
-class SimpleWrapperPromiseCallback MOZ_FINAL : public PromiseCallback
+// ResolvePromiseCallback calls aPromise->ResolveFunction() with the value
+// received by Call().
+class ResolvePromiseCallback final : public PromiseCallback
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(SimpleWrapperPromiseCallback,
-                                           PromiseCallback)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(ResolvePromiseCallback,
+                                                         PromiseCallback)
 
-  void Call(const Optional<JS::Handle<JS::Value> >& aValue) MOZ_OVERRIDE;
+  void Call(JSContext* aCx,
+            JS::Handle<JS::Value> aValue) override;
 
-  SimpleWrapperPromiseCallback(Promise* aPromise,
-                               AnyCallback* aCallback);
-  ~SimpleWrapperPromiseCallback();
+  Promise* GetDependentPromise() override
+  {
+    return mPromise;
+  }
+
+  ResolvePromiseCallback(Promise* aPromise, JS::Handle<JSObject*> aGlobal);
 
 private:
-  nsRefPtr<Promise> mPromise;
-  nsRefPtr<AnyCallback> mCallback;
-};
-
-// ResolvePromiseCallback calls aResolver->Resolve() with the value received by
-// Call().
-class ResolvePromiseCallback MOZ_FINAL : public PromiseCallback
-{
-public:
-  NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(ResolvePromiseCallback,
-                                           PromiseCallback)
-
-  void Call(const Optional<JS::Handle<JS::Value> >& aValue) MOZ_OVERRIDE;
-
-  ResolvePromiseCallback(PromiseResolver* aResolver);
   ~ResolvePromiseCallback();
 
-private:
-  nsRefPtr<PromiseResolver> mResolver;
+  nsRefPtr<Promise> mPromise;
+  JS::Heap<JSObject*> mGlobal;
 };
 
-// RejectPromiseCallback calls aResolver->Reject() with the value received by
-// Call().
-class RejectPromiseCallback MOZ_FINAL : public PromiseCallback
+// RejectPromiseCallback calls aPromise->RejectFunction() with the value
+// received by Call().
+class RejectPromiseCallback final : public PromiseCallback
 {
 public:
   NS_DECL_ISUPPORTS_INHERITED
-  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(RejectPromiseCallback,
-                                           PromiseCallback)
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(RejectPromiseCallback,
+                                                         PromiseCallback)
 
-  void Call(const Optional<JS::Handle<JS::Value> >& aValue) MOZ_OVERRIDE;
+  void Call(JSContext* aCx,
+            JS::Handle<JS::Value> aValue) override;
 
-  RejectPromiseCallback(PromiseResolver* aResolver);
-  ~RejectPromiseCallback();
+  Promise* GetDependentPromise() override
+  {
+    return mPromise;
+  }
+
+  RejectPromiseCallback(Promise* aPromise, JS::Handle<JSObject*> aGlobal);
 
 private:
-  nsRefPtr<PromiseResolver> mResolver;
+  ~RejectPromiseCallback();
+
+  nsRefPtr<Promise> mPromise;
+  JS::Heap<JSObject*> mGlobal;
+};
+
+// NativePromiseCallback wraps a NativePromiseHandler.
+class NativePromiseCallback final : public PromiseCallback
+{
+public:
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(NativePromiseCallback,
+                                           PromiseCallback)
+
+  void Call(JSContext* aCx,
+            JS::Handle<JS::Value> aValue) override;
+
+  Promise* GetDependentPromise() override
+  {
+    return nullptr;
+  }
+
+  NativePromiseCallback(PromiseNativeHandler* aHandler,
+                        Promise::PromiseState aState);
+
+private:
+  ~NativePromiseCallback();
+
+  nsRefPtr<PromiseNativeHandler> mHandler;
+  Promise::PromiseState mState;
 };
 
 } // namespace dom

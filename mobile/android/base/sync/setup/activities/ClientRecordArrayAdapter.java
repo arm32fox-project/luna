@@ -24,7 +24,7 @@ public class ClientRecordArrayAdapter extends ArrayAdapter<ClientRecord> {
   public static final String LOG_TAG = "ClientRecArrayAdapter";
 
   private boolean[] checkedItems;
-  private SendTabActivity sendTabActivity;
+  private final SendTabActivity sendTabActivity;
 
   public ClientRecordArrayAdapter(Context context,
                                   int textViewResourceId) {
@@ -146,9 +146,9 @@ public class ClientRecordArrayAdapter extends ArrayAdapter<ClientRecord> {
 
   private int getImage(ClientRecord record) {
     if ("mobile".equals(record.type)) {
-      return R.drawable.mobile;
+      return R.drawable.sync_mobile;
     }
-    return R.drawable.desktop;
+    return R.drawable.sync_desktop;
   }
 
   private void setSelectable(View view, boolean selectable) {

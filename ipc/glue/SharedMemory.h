@@ -25,18 +25,28 @@ enum Rights {
 }
 
 namespace mozilla {
+
+namespace ipc {
+class SharedMemory;
+}
+
 namespace ipc {
 
 class SharedMemory
 {
+protected:
+  virtual ~SharedMemory()
+  {
+    Unmapped();
+    Destroyed();
+  }
+
 public:
   enum SharedMemoryType {
     TYPE_BASIC,
     TYPE_SYSV,
     TYPE_UNKNOWN
   };
-
-  virtual ~SharedMemory() { Unmapped(); Destroyed(); }
 
   size_t Size() const { return mMappedSize; }
 

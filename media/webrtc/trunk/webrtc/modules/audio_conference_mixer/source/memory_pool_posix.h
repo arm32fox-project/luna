@@ -12,10 +12,10 @@
 #define WEBRTC_MODULES_AUDIO_CONFERENCE_MIXER_SOURCE_MEMORY_POOL_GENERIC_H_
 
 #include <assert.h>
+#include <list>
 
-#include "critical_section_wrapper.h"
-#include "list_wrapper.h"
-#include "typedefs.h"
+#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
+#include "webrtc/typedefs.h"
 
 namespace webrtc {
 template<class MemoryType>
@@ -23,35 +23,34 @@ class MemoryPoolImpl
 {
 public:
     // MemoryPool functions.
-    WebRtc_Word32 PopMemory(MemoryType*&  memory);
-    WebRtc_Word32 PushMemory(MemoryType*& memory);
+    int32_t PopMemory(MemoryType*&  memory);
+    int32_t PushMemory(MemoryType*& memory);
 
-    MemoryPoolImpl(WebRtc_Word32 initialPoolSize);
+    MemoryPoolImpl(int32_t initialPoolSize);
     ~MemoryPoolImpl();
 
     // Atomic functions
-    WebRtc_Word32 Terminate();
+    int32_t Terminate();
     bool Initialize();
 private:
     // Non-atomic function.
-    WebRtc_Word32 CreateMemory(WebRtc_UWord32 amountToCreate);
+    int32_t CreateMemory(uint32_t amountToCreate);
 
     CriticalSectionWrapper* _crit;
 
     bool _terminate;
 
-    ListWrapper _memoryPool;
+    std::list<MemoryType*> _memoryPool;
 
-    WebRtc_UWord32 _initialPoolSize;
-    WebRtc_UWord32 _createdMemory;
-    WebRtc_UWord32 _outstandingMemory;
+    uint32_t _initialPoolSize;
+    uint32_t _createdMemory;
+    uint32_t _outstandingMemory;
 };
 
 template<class MemoryType>
-MemoryPoolImpl<MemoryType>::MemoryPoolImpl(WebRtc_Word32 initialPoolSize)
+MemoryPoolImpl<MemoryType>::MemoryPoolImpl(int32_t initialPoolSize)
     : _crit(CriticalSectionWrapper::CreateCriticalSection()),
       _terminate(false),
-      _memoryPool(),
       _initialPoolSize(initialPoolSize),
       _createdMemory(0),
       _outstandingMemory(0)
@@ -68,7 +67,7 @@ MemoryPoolImpl<MemoryType>::~MemoryPoolImpl()
 }
 
 template<class MemoryType>
-WebRtc_Word32 MemoryPoolImpl<MemoryType>::PopMemory(MemoryType*& memory)
+int32_t MemoryPoolImpl<MemoryType>::PopMemory(MemoryType*& memory)
 {
     CriticalSectionScoped cs(_crit);
     if(_terminate)
@@ -76,26 +75,23 @@ WebRtc_Word32 MemoryPoolImpl<MemoryType>::PopMemory(MemoryType*& memory)
         memory = NULL;
         return -1;
     }
-    ListItem* item = _memoryPool.First();
-    if(item == NULL)
-    {
+    if (_memoryPool.empty()) {
         // _memoryPool empty create new memory.
         CreateMemory(_initialPoolSize);
-        item = _memoryPool.First();
-        if(item == NULL)
+        if(_memoryPool.empty())
         {
             memory = NULL;
             return -1;
         }
     }
-    memory = static_cast<MemoryType*>(item->GetItem());
-    _memoryPool.Erase(item);
+    memory = _memoryPool.front();
+    _memoryPool.pop_front();
     _outstandingMemory++;
     return 0;
 }
 
 template<class MemoryType>
-WebRtc_Word32 MemoryPoolImpl<MemoryType>::PushMemory(MemoryType*& memory)
+int32_t MemoryPoolImpl<MemoryType>::PushMemory(MemoryType*& memory)
 {
     if(memory == NULL)
     {
@@ -103,7 +99,7 @@ WebRtc_Word32 MemoryPoolImpl<MemoryType>::PushMemory(MemoryType*& memory)
     }
     CriticalSectionScoped cs(_crit);
     _outstandingMemory--;
-    if(_memoryPool.GetSize() > (_initialPoolSize << 1))
+    if(_memoryPool.size() > (_initialPoolSize << 1))
     {
         // Reclaim memory if less than half of the pool is unused.
         _createdMemory--;
@@ -111,7 +107,7 @@ WebRtc_Word32 MemoryPoolImpl<MemoryType>::PushMemory(MemoryType*& memory)
         memory = NULL;
         return 0;
     }
-    _memoryPool.PushBack(static_cast<void*>(memory));
+    _memoryPool.push_back(memory);
     memory = NULL;
     return 0;
 }
@@ -124,45 +120,39 @@ bool MemoryPoolImpl<MemoryType>::Initialize()
 }
 
 template<class MemoryType>
-WebRtc_Word32 MemoryPoolImpl<MemoryType>::Terminate()
+int32_t MemoryPoolImpl<MemoryType>::Terminate()
 {
     CriticalSectionScoped cs(_crit);
-    assert(_createdMemory == _outstandingMemory + _memoryPool.GetSize());
+    assert(_createdMemory == _outstandingMemory + _memoryPool.size());
 
     _terminate = true;
     // Reclaim all memory.
     while(_createdMemory > 0)
     {
-        ListItem* item = _memoryPool.First();
-        if(item == NULL)
-        {
-            // There is memory that hasn't been returned yet.
-            return -1;
-        }
-        MemoryType* memory = static_cast<MemoryType*>(item->GetItem());
+        MemoryType* memory = _memoryPool.front();
+        _memoryPool.pop_front();
         delete memory;
-        _memoryPool.Erase(item);
         _createdMemory--;
     }
     return 0;
 }
 
 template<class MemoryType>
-WebRtc_Word32 MemoryPoolImpl<MemoryType>::CreateMemory(
-    WebRtc_UWord32 amountToCreate)
+int32_t MemoryPoolImpl<MemoryType>::CreateMemory(
+    uint32_t amountToCreate)
 {
-    for(WebRtc_UWord32 i = 0; i < amountToCreate; i++)
+    for(uint32_t i = 0; i < amountToCreate; i++)
     {
         MemoryType* memory = new MemoryType();
         if(memory == NULL)
         {
             return -1;
         }
-        _memoryPool.PushBack(static_cast<void*>(memory));
+        _memoryPool.push_back(memory);
         _createdMemory++;
     }
     return 0;
 }
-} // namespace webrtc
+}  // namespace webrtc
 
 #endif // WEBRTC_MODULES_AUDIO_CONFERENCE_MIXER_SOURCE_MEMORY_POOL_GENERIC_H_

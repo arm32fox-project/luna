@@ -18,16 +18,16 @@
 #include "nsToolkit.h"
 #include "nsString.h"
 #include "nsTArray.h"
-#include "nsEvent.h"
+#include "gfxWindowsPlatform.h"
 #include "gfxWindowsSurface.h"
 #include "nsWindowDbg.h"
 #include "cairo.h"
 #include "nsITimer.h"
+#include "nsRegion.h"
+#include "mozilla/EventForwards.h"
+#include "mozilla/MouseEvents.h"
 #include "mozilla/TimeStamp.h"
-
-#ifdef CAIRO_HAS_D2D_SURFACE
-#include "gfxD2DSurface.h"
-#endif
+#include "nsMargin.h"
 
 #include "nsWinGesture.h"
 
@@ -40,9 +40,7 @@
 #endif
 
 #include "nsUXThemeData.h"
-
 #include "nsIDOMMouseEvent.h"
-
 #include "nsIIdleServiceInternal.h"
 
 /**
@@ -52,12 +50,14 @@
 class nsNativeDragTarget;
 class nsIRollupListener;
 class nsIFile;
+class nsIntRegion;
 class imgIContainer;
 
 namespace mozilla {
 namespace widget {
 class NativeKey;
 class ModifierKeyState;
+struct MSGResult;
 } // namespace widget
 } // namespacw mozilla;
 
@@ -72,23 +72,28 @@ class nsWindow : public nsWindowBase
   typedef mozilla::widget::WindowHook WindowHook;
   typedef mozilla::widget::TaskbarWindowPreview TaskbarWindowPreview;
   typedef mozilla::widget::NativeKey NativeKey;
+  typedef mozilla::widget::MSGResult MSGResult;
+
 public:
   nsWindow();
-  virtual ~nsWindow();
 
   NS_DECL_ISUPPORTS_INHERITED
 
   friend class nsWindowGfx;
 
   // nsWindowBase
-  virtual void InitEvent(nsGUIEvent& aEvent, nsIntPoint* aPoint = nullptr) MOZ_OVERRIDE;
-  virtual bool DispatchWindowEvent(nsGUIEvent* aEvent) MOZ_OVERRIDE;
+  virtual void InitEvent(mozilla::WidgetGUIEvent& aEvent,
+                         nsIntPoint* aPoint = nullptr) override;
+  virtual bool DispatchWindowEvent(mozilla::WidgetGUIEvent* aEvent) override;
+  virtual bool DispatchKeyboardEvent(mozilla::WidgetGUIEvent* aEvent) override;
+  virtual bool DispatchScrollEvent(mozilla::WidgetGUIEvent* aEvent) override;
+  virtual nsWindowBase* GetParentWindowBase(bool aIncludeOwner) override;
+  virtual bool IsTopLevelWidget() override { return mIsTopWidgetWindow; }
 
   // nsIWidget interface
   NS_IMETHOD              Create(nsIWidget *aParent,
                                  nsNativeWidget aNativeParent,
                                  const nsIntRect &aRect,
-                                 nsDeviceContext *aContext,
                                  nsWidgetInitData *aInitData = nullptr);
   NS_IMETHOD              Destroy();
   NS_IMETHOD              SetParent(nsIWidget *aNewParent);
@@ -102,7 +107,9 @@ public:
   NS_IMETHOD              Move(double aX, double aY);
   NS_IMETHOD              Resize(double aWidth, double aHeight, bool aRepaint);
   NS_IMETHOD              Resize(double aX, double aY, double aWidth, double aHeight, bool aRepaint);
-  NS_IMETHOD              BeginResizeDrag(nsGUIEvent* aEvent, int32_t aHorizontal, int32_t aVertical);
+  NS_IMETHOD              BeginResizeDrag(mozilla::WidgetGUIEvent* aEvent,
+                                          int32_t aHorizontal,
+                                          int32_t aVertical);
   NS_IMETHOD              PlaceBehind(nsTopLevelWidgetZPlacement aPlacement, nsIWidget *aWidget, bool aActivate);
   NS_IMETHOD              SetSizeMode(int32_t aMode);
   NS_IMETHOD              Enable(bool aState);
@@ -110,14 +117,15 @@ public:
   NS_IMETHOD              SetFocus(bool aRaise);
   NS_IMETHOD              GetBounds(nsIntRect &aRect);
   NS_IMETHOD              GetScreenBounds(nsIntRect &aRect);
+  NS_IMETHOD              GetRestoredBounds(nsIntRect &aRect) override;
   NS_IMETHOD              GetClientBounds(nsIntRect &aRect);
   virtual nsIntPoint      GetClientOffset();
-  NS_IMETHOD              SetBackgroundColor(const nscolor &aColor);
+  void                    SetBackgroundColor(const nscolor &aColor);
   NS_IMETHOD              SetCursor(imgIContainer* aCursor,
                                     uint32_t aHotspotX, uint32_t aHotspotY);
   NS_IMETHOD              SetCursor(nsCursor aCursor);
   virtual nsresult        ConfigureChildren(const nsTArray<Configuration>& aConfigurations);
-  NS_IMETHOD              MakeFullScreen(bool aFullScreen);
+  NS_IMETHOD              MakeFullScreen(bool aFullScreen, nsIScreen* aScreen = nullptr);
   NS_IMETHOD              HideWindowChrome(bool aShouldHide);
   NS_IMETHOD              Invalidate(bool aEraseBackground = false,
                                      bool aUpdateNCArea = false,
@@ -127,9 +135,10 @@ public:
   virtual void            FreeNativeData(void * data, uint32_t aDataType);
   NS_IMETHOD              SetTitle(const nsAString& aTitle);
   NS_IMETHOD              SetIcon(const nsAString& aIconSpec);
-  virtual nsIntPoint      WidgetToScreenOffset();
+  virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset();
   virtual nsIntSize       ClientToWindowSize(const nsIntSize& aClientSize);
-  NS_IMETHOD              DispatchEvent(nsGUIEvent* event, nsEventStatus & aStatus);
+  NS_IMETHOD              DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
+                                        nsEventStatus& aStatus);
   NS_IMETHOD              EnableDragDrop(bool aEnable);
   NS_IMETHOD              CaptureMouse(bool aCapture);
   NS_IMETHOD              CaptureRollupEvents(nsIRollupListener * aListener,
@@ -137,10 +146,9 @@ public:
   NS_IMETHOD              GetAttention(int32_t aCycleCount);
   virtual bool            HasPendingInputEvent();
   virtual LayerManager*   GetLayerManager(PLayerTransactionChild* aShadowManager = nullptr,
-                                          LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
+                                          LayersBackend aBackendHint = mozilla::layers::LayersBackend::LAYERS_NONE,
                                           LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                           bool* aAllowRetaining = nullptr);
-  gfxASurface             *GetThebesSurface();
   NS_IMETHOD              OnDefaultButtonLoaded(const nsIntRect &aButtonRect);
   NS_IMETHOD              OverrideSystemMouseScrollSpeed(double aOriginalDeltaX,
                                                          double aOriginalDeltaY,
@@ -152,21 +160,20 @@ public:
                                                    uint32_t aModifierFlags,
                                                    const nsAString& aCharacters,
                                                    const nsAString& aUnmodifiedCharacters);
-  virtual nsresult        SynthesizeNativeMouseEvent(nsIntPoint aPoint,
+  virtual nsresult        SynthesizeNativeMouseEvent(mozilla::LayoutDeviceIntPoint aPoint,
                                                      uint32_t aNativeMessage,
                                                      uint32_t aModifierFlags);
 
-  virtual nsresult        SynthesizeNativeMouseMove(nsIntPoint aPoint)
+  virtual nsresult        SynthesizeNativeMouseMove(mozilla::LayoutDeviceIntPoint aPoint)
                           { return SynthesizeNativeMouseEvent(aPoint, MOUSEEVENTF_MOVE, 0); }
 
-  virtual nsresult        SynthesizeNativeMouseScrollEvent(nsIntPoint aPoint,
+  virtual nsresult        SynthesizeNativeMouseScrollEvent(mozilla::LayoutDeviceIntPoint aPoint,
                                                            uint32_t aNativeMessage,
                                                            double aDeltaX,
                                                            double aDeltaY,
                                                            double aDeltaZ,
                                                            uint32_t aModifierFlags,
                                                            uint32_t aAdditionalFlags);
-  NS_IMETHOD              NotifyIME(NotificationToIME aNotification) MOZ_OVERRIDE;
   NS_IMETHOD_(void)       SetInputContext(const InputContext& aContext,
                                           const InputContextAction& aAction);
   NS_IMETHOD_(InputContext) GetInputContext();
@@ -178,13 +185,15 @@ public:
   virtual nsTransparencyMode GetTransparencyMode();
   virtual void            UpdateOpaqueRegion(const nsIntRegion& aOpaqueRegion);
 #endif // MOZ_XUL
-  NS_IMETHOD              NotifyIMEOfTextChange(uint32_t aStart,
-                                                uint32_t aOldEnd,
-                                                uint32_t aNewEnd) MOZ_OVERRIDE;
   virtual nsIMEUpdatePreference GetIMEUpdatePreference();
   NS_IMETHOD              GetNonClientMargins(nsIntMargin &margins);
   NS_IMETHOD              SetNonClientMargins(nsIntMargin &margins);
   void                    SetDrawsInTitlebar(bool aState);
+  mozilla::TemporaryRef<mozilla::gfx::DrawTarget> StartRemoteDrawing() override;
+  virtual void            EndRemoteDrawing() override;
+
+  virtual void            UpdateThemeGeometries(const nsTArray<ThemeGeometry>& aThemeGeometries) override;
+  virtual uint32_t        GetMaxTouchPoints() const override;
 
   /**
    * Event helpers
@@ -192,9 +201,10 @@ public:
   virtual bool            DispatchMouseEvent(uint32_t aEventType, WPARAM wParam,
                                              LPARAM lParam,
                                              bool aIsContextMenuKey = false,
-                                             int16_t aButton = nsMouseEvent::eLeftButton,
+                                             int16_t aButton = mozilla::WidgetMouseEvent::eLeftButton,
                                              uint16_t aInputSource = nsIDOMMouseEvent::MOZ_SOURCE_MOUSE);
-  virtual bool            DispatchWindowEvent(nsGUIEvent*event, nsEventStatus &aStatus);
+  virtual bool            DispatchWindowEvent(mozilla::WidgetGUIEvent* aEvent,
+                                              nsEventStatus& aStatus);
   void                    DispatchPendingEvents();
   bool                    DispatchPluginEvent(UINT aMessage,
                                               WPARAM aWParam,
@@ -204,7 +214,10 @@ public:
   void                    SuppressBlurEvents(bool aSuppress); // Called from nsFilePicker
   bool                    BlurEventsSuppressed();
 #ifdef ACCESSIBILITY
-  mozilla::a11y::Accessible* GetRootAccessible();
+  /**
+   * Return an accessible associated with the window.
+   */
+  mozilla::a11y::Accessible* GetAccessible();
 #endif // ACCESSIBILITY
 
   /**
@@ -222,17 +235,6 @@ public:
    * Misc.
    */
   virtual bool            AutoErase(HDC dc);
-  nsIntPoint*             GetLastPoint() { return &mLastPoint; }
-  bool                    IsTopLevelWidget() { return mIsTopWidgetWindow; }
-  /**
-   * Start allowing Direct3D9 to be used by widgets when GetLayerManager is
-   * called.
-   *
-   * @param aReinitialize Call GetLayerManager on widgets to ensure D3D9 is
-   *                      initialized, this is usually called when this function
-   *                      is triggered by timeout and not user/web interaction.
-   */
-  static void             StartAllowingD3D9(bool aReinitialize);
 
   /**
    * AssociateDefaultIMC() associates or disassociates the default IMC for
@@ -269,9 +271,18 @@ public:
 
   bool                    const DestroyCalled() { return mDestroyCalled; }
 
-  virtual mozilla::layers::LayersBackend GetPreferredCompositorBackend() { return mozilla::layers::LAYERS_D3D11; }
+  virtual void GetPreferredCompositorBackends(nsTArray<mozilla::layers::LayersBackend>& aHints);
+
+  bool IsPopup();
+  virtual bool ShouldUseOffMainThreadCompositing();
 
 protected:
+  virtual ~nsWindow();
+
+  virtual void WindowUsesOMTC() override;
+
+  virtual nsresult NotifyIMEInternal(
+                     const IMENotification& aIMENotification) override;
 
   // A magic number to identify the FAKETRACKPOINTSCROLLABLE window created
   // when the trackpoint hack is enabled.
@@ -295,8 +306,6 @@ protected:
   static BOOL    CALLBACK ClearResourcesCallback(HWND aChild, LPARAM aParam);
   static BOOL    CALLBACK EnumAllChildWindProc(HWND aWnd, LPARAM aParam);
   static BOOL    CALLBACK EnumAllThreadWindowProc(HWND aWnd, LPARAM aParam);
-  static void             AllowD3D9Callback(nsWindow *aWindow);
-  static void             AllowD3D9WithReinitializeCallback(nsWindow *aWindow);
 
   /**
    * Window utilities
@@ -315,41 +324,58 @@ protected:
     return mTransparencyMode == eTransparencyGlass ||
            mTransparencyMode == eTransparencyBorderlessGlass;
   }
+  HWND                    GetOwnerWnd() const
+  {
+    return ::GetWindow(mWnd, GW_OWNER);
+  }
+  bool                    IsOwnerForegroundWindow() const
+  {
+    HWND owner = GetOwnerWnd();
+    return owner && owner == ::GetForegroundWindow();
+  }
+  bool                    IsPopup() const
+  {
+    return mWindowType == eWindowType_popup;
+  }
+
 
   /**
    * Event processing helpers
    */
   void                    DispatchFocusToTopLevelWindow(bool aIsActivate);
   bool                    DispatchStandardEvent(uint32_t aMsg);
-  bool                    DispatchCommandEvent(uint32_t aEventCommand);
   void                    RelayMouseEvent(UINT aMsg, WPARAM wParam, LPARAM lParam);
   virtual bool            ProcessMessage(UINT msg, WPARAM &wParam,
                                          LPARAM &lParam, LRESULT *aRetValue);
+  bool                    ExternalHandlerProcessMessage(
+                                         UINT aMessage, WPARAM& aWParam,
+                                         LPARAM& aLParam, MSGResult& aResult);
   bool                    ProcessMessageForPlugin(const MSG &aMsg,
-                                                  LRESULT *aRetValue, bool &aCallDefWndProc);
+                                                  MSGResult& aResult);
   LRESULT                 ProcessCharMessage(const MSG &aMsg,
                                              bool *aEventDispatched);
   LRESULT                 ProcessKeyUpMessage(const MSG &aMsg,
                                               bool *aEventDispatched);
   LRESULT                 ProcessKeyDownMessage(const MSG &aMsg,
                                                 bool *aEventDispatched);
-  static bool             EventIsInsideWindow(UINT Msg, nsWindow* aWindow);
+  static bool             EventIsInsideWindow(nsWindow* aWindow);
   // Convert nsEventStatus value to a windows boolean
   static bool             ConvertStatus(nsEventStatus aStatus);
   static void             PostSleepWakeNotification(const bool aIsSleepMode);
   int32_t                 ClientMarginHitTestPoint(int32_t mx, int32_t my);
+  static TimeStamp        GetMessageTimeStamp(LONG aEventTime);
+  static void             UpdateFirstEventTime(DWORD aEventTime);
 
   /**
    * Event handlers
    */
   virtual void            OnDestroy();
-  virtual bool            OnMove(int32_t aX, int32_t aY);
   virtual bool            OnResize(nsIntRect &aWindowRect);
   bool                    OnGesture(WPARAM wParam, LPARAM lParam);
   bool                    OnTouch(WPARAM wParam, LPARAM lParam);
   bool                    OnHotKey(WPARAM wParam, LPARAM lParam);
   bool                    OnPaint(HDC aDC, uint32_t aNestingLevel);
-  void                    OnWindowPosChanged(WINDOWPOS *wp, bool& aResult);
+  void                    OnWindowPosChanged(WINDOWPOS* wp);
   void                    OnWindowPosChanging(LPWINDOWPOS& info);
   void                    OnSysColorChanged();
 
@@ -381,6 +407,9 @@ protected:
   static void             ScheduleHookTimer(HWND aWnd, UINT aMsgId);
   static void             RegisterSpecialDropdownHooks();
   static void             UnregisterSpecialDropdownHooks();
+  static bool             GetPopupsToRollup(nsIRollupListener* aRollupListener,
+                                            uint32_t* aPopupsToRollup);
+  static bool             NeedsToHandleNCActivateDelayed(HWND aWnd);
   static bool             DealWithPopups(HWND inWnd, UINT inMsg, WPARAM inWParam, LPARAM inLParam, LRESULT* outResult);
 
   /**
@@ -406,13 +435,16 @@ protected:
    */
   void                    StopFlashing();
   static bool             IsTopLevelMouseExit(HWND aWnd);
-  nsresult                SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
-                                              bool aIntersectWithExisting);
+  virtual nsresult        SetWindowClipRegion(const nsTArray<nsIntRect>& aRects,
+                                              bool aIntersectWithExisting) override;
   nsIntRegion             GetRegionToPaint(bool aForceFullRepaint, 
                                            PAINTSTRUCT ps, HDC aDC);
   static void             ActivateOtherWindowHelper(HWND aWnd);
   void                    ClearCachedResources();
   nsIWidgetListener*      GetPaintListener();
+  static bool             IsRenderMode(gfxWindowsPlatform::RenderMode aMode);
+  virtual bool            PreRender(LayerManagerComposite*) override;
+  virtual void            PostRender(LayerManagerComposite*) override;
 
 protected:
   nsCOMPtr<nsIWidget>   mParent;
@@ -441,7 +473,6 @@ protected:
   nsSizeMode            mOldSizeMode;
   nsSizeMode            mLastSizeMode;
   WindowHook            mWindowHook;
-  DWORD                 mAssumeWheelIsZoomUntil;
   uint32_t              mPickerDisplayCount;
   HICON                 mIconSmall;
   HICON                 mIconBig;
@@ -458,19 +489,20 @@ protected:
   static bool           sIsInMouseCapture;
   static int            sTrimOnMinimize;
   static const char*    sDefaultMainWindowClass;
-  static bool           sAllowD3D9;
 
   // Always use the helper method to read this property.  See bug 603793.
   static TriStateBool   sHasBogusPopupsDropShadowOnMultiMonitor;
   static bool           HasBogusPopupsDropShadowOnMultiMonitor();
-
-  static uint32_t       sOOPPPluginFocusEvent;
 
   // Non-client margin settings
   // Pre-calculated outward offset applied to default frames
   nsIntMargin           mNonClientOffset;
   // Margins set by the owner
   nsIntMargin           mNonClientMargins;
+  // Margins we'd like to set once chrome is reshown:
+  nsIntMargin           mFutureMarginsOnceChromeShows;
+  // Indicates we need to apply margins once toggling chrome into showing:
+  bool                  mFutureMarginsToUse;
 
   // Indicates custom frames are enabled
   bool                  mCustomNonClient;
@@ -503,10 +535,9 @@ protected:
 
   // Graphics
   HDC                   mPaintDC; // only set during painting
+  HDC                   mCompositeDC; // only set during StartRemoteDrawing
 
-#ifdef CAIRO_HAS_D2D_SURFACE
-  nsRefPtr<gfxD2DSurface>    mD2DWindowSurface; // Surface for this window.
-#endif
+  nsIntRect             mLastPaintBounds;
 
   // Transparency
 #ifdef MOZ_XUL
@@ -527,12 +558,28 @@ protected:
   // icon has been created on the taskbar.
   bool                  mHasTaskbarIconBeenCreated;
 
+  // Indicates that mouse events should be ignored and pass through to the
+  // window below. This is currently only used for popups.
+  bool                  mMouseTransparent;
+
   // The point in time at which the last paint completed. We use this to avoid
   //  painting too rapidly in response to frequent input events.
   TimeStamp mLastPaintEndTime;
 
+  // Caching for hit test results
+  POINT mCachedHitTestPoint;
+  TimeStamp mCachedHitTestTime;
+  int32_t mCachedHitTestResult;
+
+  // For converting native event times to timestamps we record the time of the
+  // first received event in each time scale.
+  static DWORD     sFirstEventTime;
+  static TimeStamp sFirstEventTimeStamp;
+
   static bool sNeedsToInitMouseWheelSettings;
   static void InitMouseWheelScrollData();
+
+  CRITICAL_SECTION mPresentLock;
 };
 
 /**

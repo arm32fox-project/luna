@@ -4,13 +4,11 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef mozilla_dom_bluetooth_bluetoothutils_h__
-#define mozilla_dom_bluetooth_bluetoothutils_h__
+#ifndef mozilla_dom_bluetooth_bluetoothutils_h
+#define mozilla_dom_bluetooth_bluetoothutils_h
 
 #include "BluetoothCommon.h"
-
-struct JSContext;
-class JSObject;
+#include "js/TypeDecls.h"
 
 BEGIN_BLUETOOTH_NAMESPACE
 
@@ -21,14 +19,11 @@ class BluetoothReplyRunnable;
 bool
 SetJsObject(JSContext* aContext,
             const BluetoothValue& aValue,
-            JSObject* aObj);
+            JS::Handle<JSObject*> aObj);
 
-nsString
-GetObjectPathFromAddress(const nsAString& aAdapterPath,
-                         const nsAString& aDeviceAddress);
-
-nsString
-GetAddressFromObjectPath(const nsAString& aObjectPath);
+bool
+BroadcastSystemMessage(const nsAString& aType,
+                       const BluetoothValue& aData);
 
 bool
 BroadcastSystemMessage(const nsAString& aType,
@@ -40,8 +35,9 @@ DispatchBluetoothReply(BluetoothReplyRunnable* aRunnable,
                        const nsAString& aErrorStr);
 
 void
-ParseAtCommand(const nsACString& aAtCommand, const int aStart,
-               nsTArray<nsCString>& aRetValues);
+DispatchStatusChangedEvent(const nsAString& aType,
+                           const nsAString& aDeviceAddress,
+                           bool aStatus);
 
 END_BLUETOOTH_NAMESPACE
 

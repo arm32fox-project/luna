@@ -4,9 +4,8 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-interface WindowProxy;
-
- interface XULCommandEvent : UIEvent
+[Func="IsChromeOrXBL"]
+interface XULCommandEvent : UIEvent
 {
   readonly attribute boolean ctrlKey;
   readonly attribute boolean shiftKey;
@@ -19,7 +18,7 @@ interface WindowProxy;
   void initCommandEvent(DOMString type,
                         boolean canBubble,
                         boolean cancelable,
-                        WindowProxy? view,
+                        Window? view,
                         long detail,
                         boolean ctrlKey,
                         boolean altKey,

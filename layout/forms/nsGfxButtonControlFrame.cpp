@@ -4,34 +4,25 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsGfxButtonControlFrame.h"
-#include "nsWidgetsCID.h"
-#include "nsFormControlFrame.h"
 #include "nsIFormControl.h"
-#include "nsINameSpaceManager.h"
-#include "nsIServiceManager.h"
-#include "nsIDOMNode.h"
 #include "nsGkAtoms.h"
 #include "nsAutoPtr.h"
 #include "nsStyleSet.h"
 #include "nsContentUtils.h"
 // MouseEvent suppression in PP
-#include "nsGUIEvent.h"
 #include "nsContentList.h"
-#include "nsContentCreatorFunctions.h"
 
-#include "nsNodeInfoManager.h"
 #include "nsIDOMHTMLInputElement.h"
-#include "nsContentList.h"
 #include "nsTextNode.h"
 
-const nscoord kSuggestedNotSet = -1;
+using namespace mozilla;
 
 nsGfxButtonControlFrame::nsGfxButtonControlFrame(nsStyleContext* aContext):
   nsHTMLButtonControlFrame(aContext)
 {
 }
 
-nsIFrame*
+nsContainerFrame*
 NS_NewGfxButtonControlFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 {
   return new (aPresShell) nsGfxButtonControlFrame(aContext);
@@ -51,8 +42,8 @@ nsGfxButtonControlFrame::GetType() const
   return nsGkAtoms::gfxButtonControlFrame;
 }
 
-#ifdef DEBUG
-NS_IMETHODIMP
+#ifdef DEBUG_FRAME_DUMP
+nsresult
 nsGfxButtonControlFrame::GetFrameName(nsAString& aResult) const
 {
   return MakeFrameName(NS_LITERAL_STRING("ButtonControl"), aResult);
@@ -78,10 +69,12 @@ nsGfxButtonControlFrame::CreateAnonymousContent(nsTArray<ContentInfo>& aElements
 }
 
 void
-nsGfxButtonControlFrame::AppendAnonymousContentTo(nsBaseContentList& aElements,
+nsGfxButtonControlFrame::AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
                                                   uint32_t aFilter)
 {
-  aElements.MaybeAppendElement(mTextContent);
+  if (mTextContent) {
+    aElements.AppendElement(mTextContent);
+  }
 }
 
 // Create the text content used as label for the button.
@@ -92,21 +85,17 @@ nsGfxButtonControlFrame::CreateFrameFor(nsIContent*      aContent)
   nsIFrame * newFrame = nullptr;
 
   if (aContent == mTextContent) {
-    nsIFrame * parentFrame = mFrames.FirstChild();
+    nsContainerFrame* parentFrame = do_QueryFrame(mFrames.FirstChild());
 
     nsPresContext* presContext = PresContext();
     nsRefPtr<nsStyleContext> textStyleContext;
     textStyleContext = presContext->StyleSet()->
       ResolveStyleForNonElement(mStyleContext);
 
-    if (textStyleContext) {
-      newFrame = NS_NewTextFrame(presContext->PresShell(), textStyleContext);
-      if (newFrame) {
-        // initialize the text frame
-        newFrame->Init(mTextContent, parentFrame, nullptr);
-        mTextContent->SetPrimaryFrame(newFrame);
-      }
-    }
+    newFrame = NS_NewTextFrame(presContext->PresShell(), textStyleContext);
+    // initialize the text frame
+    newFrame->Init(mTextContent, parentFrame, nullptr);
+    mTextContent->SetPrimaryFrame(newFrame);
   }
 
   return newFrame;
@@ -178,10 +167,10 @@ nsGfxButtonControlFrame::GetLabel(nsXPIDLString& aLabel)
     // fixed width for the button we run into trouble because our focus-rect
     // border/padding and outer border take up 10px of the horizontal button
     // space or so; the result is that the text is misaligned, even with the
-    // recentering we do in nsHTMLButtonFrame::Reflow.  So to solve this, even
-    // if the whitespace is significant, single leading and trailing _spaces_
-    // (and not other whitespace) are removed.  The proper solution, of
-    // course, is to not have the focus rect painting taking up 6px of
+    // recentering we do in nsHTMLButtonControlFrame::Reflow.  So to solve
+    // this, even if the whitespace is significant, single leading and trailing
+    // _spaces_ (and not other whitespace) are removed.  The proper solution,
+    // of course, is to not have the focus rect painting taking up 6px of
     // horizontal space. We should do that instead (via XBL form controls or
     // changing the renderer) and remove this.
     aLabel.Cut(0, 1);
@@ -191,7 +180,7 @@ nsGfxButtonControlFrame::GetLabel(nsXPIDLString& aLabel)
   return NS_OK;
 }
 
-NS_IMETHODIMP
+nsresult
 nsGfxButtonControlFrame::AttributeChanged(int32_t         aNameSpaceID,
                                           nsIAtom*        aAttribute,
                                           int32_t         aModType)
@@ -223,16 +212,16 @@ nsGfxButtonControlFrame::IsLeaf() const
   return true;
 }
 
-nsIFrame*
+nsContainerFrame*
 nsGfxButtonControlFrame::GetContentInsertionFrame()
 {
   return this;
 }
 
-NS_IMETHODIMP
+nsresult
 nsGfxButtonControlFrame::HandleEvent(nsPresContext* aPresContext, 
-                                      nsGUIEvent*     aEvent,
-                                      nsEventStatus*  aEventStatus)
+                                     WidgetGUIEvent* aEvent,
+                                     nsEventStatus* aEventStatus)
 {
   // Override the HandleEvent to prevent the nsFrame::HandleEvent
   // from being called. The nsFrame::HandleEvent causes the button label

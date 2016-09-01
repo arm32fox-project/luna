@@ -4,6 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include <inttypes.h>
 #include <stdlib.h>
 #include "TestCommon.h"
 #include "nsNetUtil.h"
@@ -18,17 +19,18 @@
 
 //-----------------------------------------------------------------------------
 
-class FetchObserver MOZ_FINAL : public nsIRequestObserver
+class FetchObserver final : public nsIRequestObserver
                               , public nsIProgressEventSink
 {
+  ~FetchObserver() {}
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIREQUESTOBSERVER
   NS_DECL_NSIPROGRESSEVENTSINK
 };
 
-NS_IMPL_ISUPPORTS2(FetchObserver, nsIRequestObserver,
-                   nsIProgressEventSink)
+NS_IMPL_ISUPPORTS(FetchObserver, nsIRequestObserver,
+                  nsIProgressEventSink)
 
 NS_IMETHODIMP
 FetchObserver::OnStartRequest(nsIRequest *request, nsISupports *context)
@@ -39,16 +41,16 @@ FetchObserver::OnStartRequest(nsIRequest *request, nsISupports *context)
 
 NS_IMETHODIMP
 FetchObserver::OnProgress(nsIRequest *request, nsISupports *context,
-                          uint64_t progress, uint64_t progressMax)
+                          int64_t progress, int64_t progressMax)
 {
-  printf("FetchObserver::OnProgress [%lu/%lu]\n",
-         (unsigned long)progress, (unsigned long)progressMax);
+  printf("FetchObserver::OnProgress [%" PRId64 "/%" PRId64 "]\n",
+         progress, progressMax);
   return NS_OK;
 }
 
 NS_IMETHODIMP
 FetchObserver::OnStatus(nsIRequest *request, nsISupports *context,
-                        nsresult status, const PRUnichar *statusText)
+                        nsresult status, const char16_t *statusText)
 {
   return NS_OK;
 }

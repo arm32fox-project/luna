@@ -5,41 +5,43 @@
 
 package org.mozilla.goanna.health;
 
-import java.util.ArrayList;
-
-import android.content.Context;
-import android.content.ContentProviderClient;
-import android.content.SharedPreferences;
-import android.util.Log;
-
-import org.mozilla.goanna.AppConstants;
-import org.mozilla.goanna.GoannaApp;
-import org.mozilla.goanna.GoannaAppShell;
-import org.mozilla.goanna.GoannaEvent;
-import org.mozilla.goanna.PrefsHelper;
-import org.mozilla.goanna.PrefsHelper.PrefHandler;
-
-import org.mozilla.goanna.background.healthreport.EnvironmentBuilder;
-import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage;
-import org.mozilla.goanna.background.healthreport.HealthReportStorage.Field;
-import org.mozilla.goanna.background.healthreport.HealthReportStorage.MeasurementFields;
-import org.mozilla.goanna.background.healthreport.HealthReportStorage.MeasurementFields.FieldSpec;
-import org.mozilla.goanna.background.healthreport.ProfileInformationCache;
-
-import org.mozilla.goanna.util.EventDispatcher;
-import org.mozilla.goanna.util.GoannaEventListener;
-import org.mozilla.goanna.util.ThreadUtils;
-
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStreamWriter;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
 import java.util.Scanner;
+import java.util.Set;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.mozilla.goanna.AppConstants;
+import org.mozilla.goanna.EventDispatcher;
+import org.mozilla.goanna.GoannaAppShell;
+import org.mozilla.goanna.GoannaEvent;
+import org.mozilla.goanna.background.healthreport.AndroidConfigurationProvider;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder;
+import org.mozilla.goanna.background.healthreport.EnvironmentBuilder.ConfigurationProvider;
+import org.mozilla.goanna.background.healthreport.HealthReportDatabaseStorage;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.Field;
+import org.mozilla.goanna.background.healthreport.HealthReportStorage.MeasurementFields;
+import org.mozilla.goanna.background.healthreport.ProfileInformationCache;
+import org.mozilla.goanna.distribution.Distribution;
+import org.mozilla.goanna.distribution.Distribution.DistributionDescriptor;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
+
+import android.content.ContentProviderClient;
+import android.content.Context;
+import android.content.SharedPreferences;
+import android.util.Log;
 
 /**
  * BrowserHealthRecorder is the browser's interface to the Firefox Health
@@ -50,24 +52,25 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Keep an instance of this class around.
  *
  * Tell it when an environment attribute has changed: call {@link
- * #onBlocklistPrefChanged(boolean)} or {@link
- * #onTelemetryPrefChanged(boolean)}, followed by {@link
+ * #onAppLocaleChanged(String)} followed by {@link
  * #onEnvironmentChanged()}.
  *
  * Use it to record events: {@link #recordSearch(String, String)}.
  *
  * Shut it down when you're done being a browser: {@link #close()}.
  */
-public class BrowserHealthRecorder implements GoannaEventListener {
+public class BrowserHealthRecorder implements HealthRecorder, GoannaEventListener {
     private static final String LOG_TAG = "GoannaHealthRec";
+    private static final String PREF_ACCEPT_LANG = "intl.accept_languages";
     private static final String PREF_BLOCKLIST_ENABLED = "extensions.blocklist.enabled";
-    private static final String EVENT_ADDONS_ALL = "Addons:All";
+    private static final String EVENT_SNAPSHOT = "HealthReport:Snapshot";
     private static final String EVENT_ADDONS_CHANGE = "Addons:Change";
     private static final String EVENT_ADDONS_UNINSTALLING = "Addons:Uninstalling";
     private static final String EVENT_PREF_CHANGE = "Pref:Change";
- 
-    // This is raised from Goanna. It avoids browser.js having to know about the
-    // location that invoked it (the URL bar).
+
+    // This is raised from Goanna and signifies a search via the URL bar (not a bookmarks keyword
+    // search). Using this event (rather than passing the invocation location as an arg) avoids
+    // browser.js having to know about the invocation location.
     public static final String EVENT_KEYWORD_SEARCH = "Search:Keyword";
 
     // This is raised from Java. We include the location in the message.
@@ -86,163 +89,50 @@ public class BrowserHealthRecorder implements GoannaEventListener {
     private final AtomicBoolean orphanChecked = new AtomicBoolean(false);
     private volatile int env = -1;
 
+    final EventDispatcher dispatcher;
+    final ProfileInformationCache profileCache;
     private ContentProviderClient client;
     private volatile HealthReportDatabaseStorage storage;
-    private final ProfileInformationCache profileCache;
-    private final EventDispatcher dispatcher;
-
-    public static class SessionInformation {
-        private static final String LOG_TAG = "GoannaSessInfo";
-
-        public static final String PREFS_SESSION_START = "sessionStart";
-
-        public final long wallStartTime;    // System wall clock.
-        public final long realStartTime;    // Realtime clock.
-
-        private final boolean wasOOM;
-        private final boolean wasStopped;
-
-        private volatile long timedGoannaStartup = -1;
-        private volatile long timedJavaStartup = -1;
-
-        // Current sessions don't (right now) care about wasOOM/wasStopped.
-        // Eventually we might want to lift that logic out of GoannaApp.
-        public SessionInformation(long wallTime, long realTime) {
-            this(wallTime, realTime, false, false);
-        }
-
-        // Previous sessions do...
-        public SessionInformation(long wallTime, long realTime, boolean wasOOM, boolean wasStopped) {
-            this.wallStartTime = wallTime;
-            this.realStartTime = realTime;
-            this.wasOOM = wasOOM;
-            this.wasStopped = wasStopped;
-        }
-
-        /**
-         * Initialize a new SessionInformation instance from the supplied prefs object.
-         *
-         * This includes retrieving OOM/crash data, as well as timings.
-         *
-         * If no wallStartTime was found, that implies that the previous
-         * session was correctly recorded, and an object with a zero
-         * wallStartTime is returned.
-         */
-        public static SessionInformation fromSharedPrefs(SharedPreferences prefs) {
-            boolean wasOOM = prefs.getBoolean(GoannaApp.PREFS_OOM_EXCEPTION, false);
-            boolean wasStopped = prefs.getBoolean(GoannaApp.PREFS_WAS_STOPPED, true);
-            long wallStartTime = prefs.getLong(PREFS_SESSION_START, 0L);
-            long realStartTime = 0L;
-            Log.d(LOG_TAG, "Building SessionInformation from prefs: " +
-                           wallStartTime + ", " + realStartTime + ", " +
-                           wasStopped + ", " + wasOOM);
-            return new SessionInformation(wallStartTime, realStartTime, wasOOM, wasStopped);
-        }
-
-        /**
-         * Initialize a new SessionInformation instance to 'split' the current
-         * session.
-         */
-        public static SessionInformation forRuntimeTransition() {
-            final boolean wasOOM = false;
-            final boolean wasStopped = true;
-            final long wallStartTime = System.currentTimeMillis();
-            final long realStartTime = android.os.SystemClock.elapsedRealtime();
-            Log.v(LOG_TAG, "Recording runtime session transition: " +
-                           wallStartTime + ", " + realStartTime);
-            return new SessionInformation(wallStartTime, realStartTime, wasOOM, wasStopped);
-        }
-
-        public boolean wasKilled() {
-            return wasOOM || !wasStopped;
-        }
-
-        /**
-         * Record the beginning of this session to SharedPreferences by
-         * recording our start time. If a session was already recorded, it is
-         * overwritten (there can only be one running session at a time). Does
-         * not commit the editor.
-         */
-        public void recordBegin(SharedPreferences.Editor editor) {
-            Log.d(LOG_TAG, "Recording start of session: " + this.wallStartTime);
-            editor.putLong(PREFS_SESSION_START, this.wallStartTime);
-        }
-
-        /**
-         * Record the completion of this session to SharedPreferences by
-         * deleting our start time. Does not commit the editor.
-         */
-        public void recordCompletion(SharedPreferences.Editor editor) {
-            Log.d(LOG_TAG, "Recording session done: " + this.wallStartTime);
-            editor.remove(PREFS_SESSION_START);
-        }
-
-        /**
-         * Return the JSON that we'll put in the DB for this session.
-         */
-        public JSONObject getCompletionJSON(String reason, long realEndTime) throws JSONException {
-            long durationSecs = (realEndTime - this.realStartTime) / 1000;
-            JSONObject out = new JSONObject();
-            out.put("r", reason);
-            out.put("d", durationSecs);
-            if (this.timedGoannaStartup > 0) {
-                out.put("sg", this.timedGoannaStartup);
-            }
-            if (this.timedJavaStartup > 0) {
-                out.put("sj", this.timedJavaStartup);
-            }
-            return out;
-        }
-
-        public JSONObject getCrashedJSON() throws JSONException {
-            JSONObject out = new JSONObject();
-            // We use ints here instead of booleans, because we're packing
-            // stuff into JSON, and saving bytes in the DB is a worthwhile
-            // goal.
-            out.put("oom", this.wasOOM ? 1 : 0);
-            out.put("stopped", this.wasStopped ? 1 : 0);
-            out.put("r", "A");
-            return out;
-        }
-    }
+    private final ConfigurationProvider configProvider;
+    private final SharedPreferences prefs;
 
     // We track previousSession to avoid order-of-initialization confusion. We
     // accept it in the constructor, and process it after init.
     private final SessionInformation previousSession;
-    private volatile SessionInformation session = null;
-    public SessionInformation getCurrentSession() {
-        return this.session;
-    }
+    private volatile SessionInformation session;
 
+    @Override
     public void setCurrentSession(SessionInformation session) {
         this.session = session;
     }
 
+    @Override
     public void recordGoannaStartupTime(long duration) {
         if (this.session == null) {
             return;
         }
-        this.session.timedGoannaStartup = duration;
+        this.session.setTimedGoannaStartup(duration);
     }
+    @Override
     public void recordJavaStartupTime(long duration) {
         if (this.session == null) {
             return;
         }
-        this.session.timedJavaStartup = duration;
-    }
-
-    /**
-     * Persist the opaque identifier for the current Firefox Health Report environment.
-     * This changes in certain circumstances; be sure to use the current value when recording data.
-     */
-    private void setHealthEnvironment(final int env) {
-        this.env = env;
+        this.session.setTimedJavaStartup(duration);
     }
 
     /**
      * This constructor does IO. Run it on a background thread.
+     *
+     * appLocale can be null, which indicates that it will be provided later.
      */
-    public BrowserHealthRecorder(final Context context, final String profilePath, final EventDispatcher dispatcher, SessionInformation previousSession) {
+    public BrowserHealthRecorder(final Context context,
+                                 final SharedPreferences appPrefs,
+                                 final String profilePath,
+                                 final EventDispatcher dispatcher,
+                                 final String osLocale,
+                                 final String appLocale,
+                                 SessionInformation previousSession) {
         Log.d(LOG_TAG, "Initializing. Dispatcher is " + dispatcher);
         this.dispatcher = dispatcher;
         this.previousSession = previousSession;
@@ -262,18 +152,31 @@ public class BrowserHealthRecorder implements GoannaEventListener {
             this.client = null;
         }
 
+        // Note that the PIC is not necessarily fully initialized at this point:
+        // we haven't set the app locale. This must be done before an environment
+        // is recorded.
         this.profileCache = new ProfileInformationCache(profilePath);
         try {
-            this.initialize(context, profilePath);
+            this.initialize(context, profilePath, osLocale, appLocale);
         } catch (Exception e) {
             Log.e(LOG_TAG, "Exception initializing.", e);
         }
+
+        this.configProvider = new AndroidConfigurationProvider(context);
+
+        this.prefs = appPrefs;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        return true;
     }
 
     /**
      * Shut down database connections, unregister event listeners, and perform
      * provider-specific uninitialization.
      */
+    @Override
     public synchronized void close() {
         switch (this.state) {
             case CLOSED:
@@ -298,24 +201,26 @@ public class BrowserHealthRecorder implements GoannaEventListener {
     }
 
     private void unregisterEventListeners() {
-        this.dispatcher.unregisterEventListener(EVENT_ADDONS_ALL, this);
-        this.dispatcher.unregisterEventListener(EVENT_ADDONS_CHANGE, this);
-        this.dispatcher.unregisterEventListener(EVENT_ADDONS_UNINSTALLING, this);
-        this.dispatcher.unregisterEventListener(EVENT_PREF_CHANGE, this);
-        this.dispatcher.unregisterEventListener(EVENT_KEYWORD_SEARCH, this);
-        this.dispatcher.unregisterEventListener(EVENT_SEARCH, this);
+        if (state != State.INITIALIZED) {
+            return;
+        }
+        dispatcher.unregisterGoannaThreadListener(this,
+            EVENT_SNAPSHOT,
+            EVENT_ADDONS_CHANGE,
+            EVENT_ADDONS_UNINSTALLING,
+            EVENT_PREF_CHANGE,
+            EVENT_KEYWORD_SEARCH,
+            EVENT_SEARCH);
     }
 
-    public void onBlocklistPrefChanged(boolean to) {
+    @Override
+    public void onAppLocaleChanged(String to) {
+        Log.d(LOG_TAG, "Setting health recorder app locale to " + to);
         this.profileCache.beginInitialization();
-        this.profileCache.setBlocklistEnabled(to);
+        this.profileCache.setAppLocale(to);
     }
 
-    public void onTelemetryPrefChanged(boolean to) {
-        this.profileCache.beginInitialization();
-        this.profileCache.setTelemetryEnabled(to);
-    }
-
+    @Override
     public void onAddonChanged(String id, JSONObject json) {
         this.profileCache.beginInitialization();
         try {
@@ -325,6 +230,7 @@ public class BrowserHealthRecorder implements GoannaEventListener {
         }
     }
 
+    @Override
     public void onAddonUninstalling(String id) {
         this.profileCache.beginInitialization();
         try {
@@ -339,14 +245,24 @@ public class BrowserHealthRecorder implements GoannaEventListener {
      * environment, such that a new environment should be computed and prepared
      * for use in future events.
      *
-     * Invoke this method after calls that mutate the environment, such as
-     * {@link #onBlocklistPrefChanged(boolean)}.
+     * Invoke this method after calls that mutate the environment.
      *
      * If this change resulted in a transition between two environments, {@link
-     * #onEnvironmentTransition(int, int)} will be invoked on the background
+     * #onEnvironmentTransition(int, int, boolean, String)} will be invoked on the background
      * thread.
      */
+    @Override
     public synchronized void onEnvironmentChanged() {
+        onEnvironmentChanged(true, "E");
+    }
+
+    /**
+     * If `startNewSession` is false, it means no new session should begin
+     * (e.g., because we're about to restart, and we don't want to create
+     * an orphan).
+     */
+    @Override
+    public synchronized void onEnvironmentChanged(final boolean startNewSession, final String sessionEndReason) {
         final int previousEnv = this.env;
         this.env = -1;
         try {
@@ -368,7 +284,7 @@ public class BrowserHealthRecorder implements GoannaEventListener {
             @Override
             public void run() {
                 try {
-                    onEnvironmentTransition(previousEnv, updatedEnv);
+                    onEnvironmentTransition(previousEnv, updatedEnv, startNewSession, sessionEndReason);
                 } catch (Exception e) {
                     Log.w(LOG_TAG, "Could not record environment transition.", e);
                 }
@@ -390,7 +306,8 @@ public class BrowserHealthRecorder implements GoannaEventListener {
             return -1;
         }
         return this.env = EnvironmentBuilder.registerCurrentEnvironment(this.storage,
-                                                                        this.profileCache);
+                                                                        this.profileCache,
+                                                                        this.configProvider);
     }
 
     private static final String getTimesPath(final String profilePath) {
@@ -428,15 +345,9 @@ public class BrowserHealthRecorder implements GoannaEventListener {
     }
 
     /**
-     * Only works on API 9 and up.
-     *
      * @return the package install time, or -1 if an error occurred.
      */
     protected static long getPackageInstallTime(final Context context) {
-        if (android.os.Build.VERSION.SDK_INT < android.os.Build.VERSION_CODES.GINGERBREAD) {
-            return -1;
-        }
-
         try {
             return context.getPackageManager().getPackageInfo(AppConstants.ANDROID_PACKAGE_NAME, 0).firstInstallTime;
         } catch (android.content.pm.PackageManager.NameNotFoundException e) {
@@ -490,10 +401,36 @@ public class BrowserHealthRecorder implements GoannaEventListener {
         return time;
     }
 
-    private void handlePrefValue(final String pref, final boolean value) {
-        Log.d(LOG_TAG, "Incorporating environment: " + pref + " = " + value);
-        if (PREF_BLOCKLIST_ENABLED.equals(pref)) {
-            profileCache.setBlocklistEnabled(value);
+    private void onPrefMessage(final String pref, final JSONObject message) {
+        Log.d(LOG_TAG, "Incorporating environment: " + pref);
+        if (PREF_ACCEPT_LANG.equals(pref)) {
+            // We only record whether this is user-set.
+            try {
+                this.profileCache.beginInitialization();
+                this.profileCache.setAcceptLangUserSet(message.getBoolean("isUserSet"));
+            } catch (JSONException ex) {
+                Log.w(LOG_TAG, "Unexpected JSONException fetching isUserSet for " + pref);
+            }
+            return;
+        }
+
+        // (We only handle boolean prefs right now.)
+        try {
+            boolean value = message.getBoolean("value");
+
+            if (AppConstants.TELEMETRY_PREF_NAME.equals(pref)) {
+                this.profileCache.beginInitialization();
+                this.profileCache.setTelemetryEnabled(value);
+                return;
+            }
+
+            if (PREF_BLOCKLIST_ENABLED.equals(pref)) {
+                this.profileCache.beginInitialization();
+                this.profileCache.setBlocklistEnabled(value);
+                return;
+            }
+        } catch (JSONException ex) {
+            Log.w(LOG_TAG, "Unexpected JSONException fetching boolean value for " + pref);
             return;
         }
         Log.w(LOG_TAG, "Unexpected pref: " + pref);
@@ -534,9 +471,10 @@ public class BrowserHealthRecorder implements GoannaEventListener {
 
                     try {
                         // Listen for add-ons and prefs changes.
-                        dispatcher.registerEventListener(EVENT_ADDONS_UNINSTALLING, self);
-                        dispatcher.registerEventListener(EVENT_ADDONS_CHANGE, self);
-                        dispatcher.registerEventListener(EVENT_PREF_CHANGE, self);
+                        dispatcher.registerGoannaThreadListener(self,
+                            EVENT_ADDONS_UNINSTALLING,
+                            EVENT_ADDONS_CHANGE,
+                            EVENT_PREF_CHANGE);
 
                         // Initialize each provider here.
                         initializeSessionsProvider();
@@ -566,7 +504,9 @@ public class BrowserHealthRecorder implements GoannaEventListener {
      * Add provider-specific initialization in this method.
      */
     private synchronized void initialize(final Context context,
-                                         final String profilePath)
+                                         final String profilePath,
+                                         final String osLocale,
+                                         final String appLocale)
         throws java.io.IOException {
 
         Log.d(LOG_TAG, "Initializing profile cache.");
@@ -574,6 +514,9 @@ public class BrowserHealthRecorder implements GoannaEventListener {
 
         // If we can restore state from last time, great.
         if (this.profileCache.restoreUnlessInitialized()) {
+            this.profileCache.updateLocales(osLocale, appLocale);
+            this.profileCache.completeInitialization();
+
             Log.d(LOG_TAG, "Successfully restored state. Initializing storage.");
             initializeStorage();
             return;
@@ -582,46 +525,78 @@ public class BrowserHealthRecorder implements GoannaEventListener {
         // Otherwise, let's initialize it from scratch.
         this.profileCache.beginInitialization();
         this.profileCache.setProfileCreationTime(getAndPersistProfileInitTime(context, profilePath));
+        this.profileCache.setOSLocale(osLocale);
+        this.profileCache.setAppLocale(appLocale);
 
-        final BrowserHealthRecorder self = this;
-
-        PrefHandler handler = new PrefsHelper.PrefHandlerBase() {
-            @Override
-            public void prefValue(String pref, boolean value) {
-                handlePrefValue(pref, value);
+        // Because the distribution lookup can take some time, do it at the end of
+        // our background startup work, along with the Goanna snapshot fetch.
+        final Distribution distribution = Distribution.getInstance(context);
+        distribution.addOnDistributionReadyCallback(new Distribution.ReadyCallback() {
+            private void requestGoannaFields() {
+                Log.d(LOG_TAG, "Requesting all add-ons and FHR prefs from Goanna.");
+                dispatcher.registerGoannaThreadListener(BrowserHealthRecorder.this, EVENT_SNAPSHOT);
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("HealthReport:RequestSnapshot", null));
             }
 
             @Override
-            public void finish() {
-                Log.d(LOG_TAG, "Requesting all add-ons from Goanna.");
-                dispatcher.registerEventListener(EVENT_ADDONS_ALL, self);
-                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Addons:FetchAll", null));
-                // Wait for the broadcast event which completes our initialization.
+            public void distributionNotFound() {
+                requestGoannaFields();
             }
-        };
 
-        // Oh, singletons.
-        PrefsHelper.getPrefs(new String[] {
-                                 PREF_BLOCKLIST_ENABLED
-                             },
-                             handler);
-        Log.d(LOG_TAG, "Requested prefs.");
+            @Override
+            public void distributionFound(Distribution distribution) {
+                Log.d(LOG_TAG, "Running post-distribution task: health recorder.");
+                final DistributionDescriptor desc = distribution.getDescriptor();
+                if (desc != null && desc.valid) {
+                    profileCache.setDistributionString(desc.id, desc.version);
+                }
+                requestGoannaFields();
+            }
+
+            @Override
+            public void distributionArrivedLate(Distribution distribution) {
+                profileCache.beginInitialization();
+
+                final DistributionDescriptor desc = distribution.getDescriptor();
+                if (desc != null && desc.valid) {
+                    profileCache.setDistributionString(desc.id, desc.version);
+                }
+
+                // Now rebuild.
+                try {
+                    profileCache.completeInitialization();
+
+                    if (state == State.INITIALIZING) {
+                        initializeStorage();
+                    } else {
+                        onEnvironmentChanged();
+                    }
+                } catch (Exception e) {
+                    // Well, we tried.
+                    Log.e(LOG_TAG, "Couldn't complete profile cache init.", e);
+                }
+            }
+        });
     }
 
     /**
      * Invoked in the background whenever the environment transitions between
      * two valid values.
      */
-    protected void onEnvironmentTransition(int prev, int env) {
+    protected void onEnvironmentTransition(int prev, int env, boolean startNewSession, String sessionEndReason) {
         if (this.state != State.INITIALIZED) {
             Log.d(LOG_TAG, "Not initialized: not recording env transition (" + prev + " => " + env + ").");
             return;
         }
 
-        final SharedPreferences prefs = GoannaApp.getAppSharedPreferences();
-        final SharedPreferences.Editor editor = prefs.edit();
+        final SharedPreferences.Editor editor = this.prefs.edit();
 
-        recordSessionEnd("E", editor, prev);
+        recordSessionEnd(sessionEndReason, editor, prev);
+
+        if (!startNewSession) {
+            editor.commit();
+            return;
+        }
 
         final SessionInformation newSession = SessionInformation.forRuntimeTransition();
         setCurrentSession(newSession);
@@ -632,12 +607,22 @@ public class BrowserHealthRecorder implements GoannaEventListener {
     @Override
     public void handleMessage(String event, JSONObject message) {
         try {
-            if (EVENT_ADDONS_ALL.equals(event)) {
-                Log.d(LOG_TAG, "Got all add-ons.");
+            if (EVENT_SNAPSHOT.equals(event)) {
+                Log.d(LOG_TAG, "Got all add-ons and prefs.");
                 try {
-                    JSONObject addons = message.getJSONObject("json");
+                    JSONObject json = message.getJSONObject("json");
+                    JSONObject addons = json.getJSONObject("addons");
                     Log.i(LOG_TAG, "Persisting " + addons.length() + " add-ons.");
                     profileCache.setJSONForAddons(addons);
+
+                    JSONObject prefs = json.getJSONObject("prefs");
+                    Log.i(LOG_TAG, "Persisting prefs.");
+                    Iterator<?> keys = prefs.keys();
+                    while (keys.hasNext()) {
+                        String pref = (String) keys.next();
+                        this.onPrefMessage(pref, prefs.getJSONObject(pref));
+                    }
+
                     profileCache.completeInitialization();
                 } catch (java.io.IOException e) {
                     Log.e(LOG_TAG, "Error completing profile cache initialization.", e);
@@ -669,13 +654,16 @@ public class BrowserHealthRecorder implements GoannaEventListener {
             if (EVENT_PREF_CHANGE.equals(event)) {
                 final String pref = message.getString("pref");
                 Log.d(LOG_TAG, "Pref changed: " + pref);
-                handlePrefValue(pref, message.getBoolean("value"));
+                this.onPrefMessage(pref, message);
                 this.onEnvironmentChanged();
                 return;
             }
 
             // Searches.
             if (EVENT_KEYWORD_SEARCH.equals(event)) {
+                // A search via the URL bar. Since we eliminate all other search possibilities
+                // (e.g. bookmarks keyword, search suggestion) when we initially process the
+                // search URL, this is considered a default search.
                 recordSearch(message.getString("identifier"), "bartext");
                 return;
             }
@@ -684,7 +672,7 @@ public class BrowserHealthRecorder implements GoannaEventListener {
                     Log.d(LOG_TAG, "Ignoring search without location.");
                     return;
                 }
-                recordSearch(message.getString("identifier"), message.getString("location"));
+                recordSearch(message.optString("identifier", null), message.getString("location"));
                 return;
             }
         } catch (Exception e) {
@@ -697,100 +685,23 @@ public class BrowserHealthRecorder implements GoannaEventListener {
      */
 
     public static final String MEASUREMENT_NAME_SEARCH_COUNTS = "org.mozilla.searches.counts";
-    public static final int MEASUREMENT_VERSION_SEARCH_COUNTS = 4;
+    public static final int MEASUREMENT_VERSION_SEARCH_COUNTS = 6;
 
-    public static final String[] SEARCH_LOCATIONS = {
-        "barkeyword",
-        "barsuggest",
-        "bartext",
-    };
+    public static final Set<String> SEARCH_LOCATIONS = Collections.unmodifiableSet(new HashSet<String>(Arrays.asList(new String[] {
+        "barkeyword",    // A search keyword (e.g., "imdb star wars").
+        "barsuggest",    // A suggestion picked after typing in the search bar.
+        "bartext",       // Raw text in the search bar.
+        "activity",      // The search activity.
+    })));
 
-    // See services/healthreport/providers.jsm. Sorry for the duplication.
-    // THIS LIST MUST BE SORTED per java.lang.Comparable<String>.
-    private static final String[] SEARCH_PROVIDERS = {
-        "amazon-co-uk",
-        "amazon-de",
-        "amazon-en-GB",
-        "amazon-france",
-        "amazon-it",
-        "amazon-jp",
-        "amazondotcn",
-        "amazondotcom",
-        "amazondotcom-de",
-
-        "aol-en-GB",
-        "aol-web-search",
-
-        "bing",
-
-        "eBay",
-        "eBay-de",
-        "eBay-en-GB",
-        "eBay-es",
-        "eBay-fi",
-        "eBay-france",
-        "eBay-hu",
-        "eBay-in",
-        "eBay-it",
-
-        "google",
-        "google-jp",
-        "google-ku",
-        "google-maps-zh-TW",
-
-        "mailru",
-
-        "mercadolibre-ar",
-        "mercadolibre-cl",
-        "mercadolibre-mx",
-
-        "seznam-cz",
-
-        "twitter",
-        "twitter-de",
-        "twitter-ja",
-
-        "wikipedia",            // Manually added.
-
-        "yahoo",
-        "yahoo-NO",
-        "yahoo-answer-zh-TW",
-        "yahoo-ar",
-        "yahoo-bid-zh-TW",
-        "yahoo-br",
-        "yahoo-ch",
-        "yahoo-cl",
-        "yahoo-de",
-        "yahoo-en-GB",
-        "yahoo-es",
-        "yahoo-fi",
-        "yahoo-france",
-        "yahoo-fy-NL",
-        "yahoo-id",
-        "yahoo-in",
-        "yahoo-it",
-        "yahoo-jp",
-        "yahoo-jp-auctions",
-        "yahoo-mx",
-        "yahoo-sv-SE",
-        "yahoo-zh-TW",
-
-        "yandex",
-        "yandex-ru",
-        "yandex-slovari",
-        "yandex-tr",
-        "yandex.by",
-        "yandex.ru-be",
-    };
-
-    private void initializeSearchProvider() {
+    void initializeSearchProvider() {
         this.storage.ensureMeasurementInitialized(
             MEASUREMENT_NAME_SEARCH_COUNTS,
             MEASUREMENT_VERSION_SEARCH_COUNTS,
             new MeasurementFields() {
                 @Override
                 public Iterable<FieldSpec> getFields() {
-                    ArrayList<FieldSpec> out = new ArrayList<FieldSpec>(SEARCH_LOCATIONS.length);
+                    ArrayList<FieldSpec> out = new ArrayList<FieldSpec>(SEARCH_LOCATIONS.size());
                     for (String location : SEARCH_LOCATIONS) {
                         // We're not using a counter, because the set of engine
                         // identifiers is potentially unbounded, and thus our
@@ -806,36 +717,28 @@ public class BrowserHealthRecorder implements GoannaEventListener {
         // Do this here, rather than in a centralized registration spot, in
         // case the above throws and we wind up handling events that we can't
         // store.
-        this.dispatcher.registerEventListener(EVENT_KEYWORD_SEARCH, this);
-        this.dispatcher.registerEventListener(EVENT_SEARCH, this);
-    }
-
-    /**
-     * Return the field key for the search provider. This turns null and
-     * non-partner providers into "other".
-     *
-     * @param engine an engine identifier, such as "yandex"
-     * @return the key to use, such as "other" or "yandex".
-     */
-    protected String getEngineKey(final String engine) {
-        if (engine == null) {
-            return "other";
-        }
-
-        // This is inefficient. Optimize if necessary.
-        boolean found = (0 <= java.util.Arrays.binarySearch(SEARCH_PROVIDERS, engine));
-        return found ? engine : "other";
+        this.dispatcher.registerGoannaThreadListener(this,
+            EVENT_KEYWORD_SEARCH,
+            EVENT_SEARCH);
     }
 
     /**
      * Record a search.
      *
-     * @param engine the string identifier for the engine, or null if it's not a partner.
+     * @param engineID the string identifier for the engine. Can be <code>null</code>.
      * @param location one of a fixed set of locations: see {@link #SEARCH_LOCATIONS}.
      */
-    public void recordSearch(final String engine, final String location) {
+    @Override
+    public void recordSearch(final String engineID, final String location) {
         if (this.state != State.INITIALIZED) {
             Log.d(LOG_TAG, "Not initialized: not recording search. (" + this.state + ")");
+            return;
+        }
+
+        final int env = this.env;
+
+        if (env == -1) {
+            Log.d(LOG_TAG, "No environment: not recording search.");
             return;
         }
 
@@ -843,15 +746,20 @@ public class BrowserHealthRecorder implements GoannaEventListener {
             throw new IllegalArgumentException("location must be provided for search.");
         }
 
+        // Ensure that we don't throw when trying to look up the field for an
+        // unknown location. If you add a search location, you must extend the
+        // list of search locations *and update the measurement version*.
+        if (!SEARCH_LOCATIONS.contains(location)) {
+            throw new IllegalArgumentException("Unexpected location: " + location);
+        }
+
         final int day = storage.getDay();
-        final int env = this.env;
-        final String key = getEngineKey(engine);
-        final BrowserHealthRecorder self = this;
+        final String key = (engineID == null) ? "other" : engineID;
 
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
-                final HealthReportDatabaseStorage storage = self.storage;
+                final HealthReportDatabaseStorage storage = BrowserHealthRecorder.this.storage;
                 if (storage == null) {
                     Log.d(LOG_TAG, "No storage: not recording search. Shutting down?");
                     return;
@@ -906,8 +814,12 @@ public class BrowserHealthRecorder implements GoannaEventListener {
      *
      * "r": reason. Values are "P" (activity paused), "A" (abnormal termination)
      * "d": duration. Value in seconds.
-     * "sg": Goanna startup time. Present if this is a clean launch.
-     * "sj": Java startup time. Present if this is a clean launch.
+     * "sg": Goanna startup time. Present if this is a clean launch. This
+     *       corresponds to the telemetry timer FENNEC_STARTUP_TIME_GECKOREADY.
+     * "sj": Java activity init time. Present if this is a clean launch. This
+     *       corresponds to the telemetry timer FENNEC_STARTUP_TIME_JAVAUI,
+     *       and includes initialization tasks beyond initial
+     *       onWindowFocusChanged.
      *
      * Abnormal terminations will be missing a duration and will feature these keys:
      *
@@ -918,16 +830,16 @@ public class BrowserHealthRecorder implements GoannaEventListener {
     public static final String MEASUREMENT_NAME_SESSIONS = "org.mozilla.appSessions";
     public static final int MEASUREMENT_VERSION_SESSIONS = 4;
 
-    private void initializeSessionsProvider() {
+    void initializeSessionsProvider() {
         this.storage.ensureMeasurementInitialized(
             MEASUREMENT_NAME_SESSIONS,
             MEASUREMENT_VERSION_SESSIONS,
             new MeasurementFields() {
                 @Override
                 public Iterable<FieldSpec> getFields() {
-                    ArrayList<FieldSpec> out = new ArrayList<FieldSpec>(2);
-                    out.add(new FieldSpec("normal", Field.TYPE_JSON_DISCRETE));
-                    out.add(new FieldSpec("abnormal", Field.TYPE_JSON_DISCRETE));
+                    List<FieldSpec> out = Arrays.asList(
+                        new FieldSpec("normal", Field.TYPE_JSON_DISCRETE),
+                        new FieldSpec("abnormal", Field.TYPE_JSON_DISCRETE));
                     return out;
                 }
         });
@@ -956,6 +868,7 @@ public class BrowserHealthRecorder implements GoannaEventListener {
         }
     }
 
+    @Override
     public void checkForOrphanSessions() {
         if (!this.orphanChecked.compareAndSet(false, true)) {
             Log.w(LOG_TAG, "Attempting to check for orphan sessions more than once.");
@@ -986,6 +899,7 @@ public class BrowserHealthRecorder implements GoannaEventListener {
         }
     }
 
+    @Override
     public void recordSessionEnd(String reason, SharedPreferences.Editor editor) {
         recordSessionEnd(reason, editor, env);
     }
@@ -996,6 +910,7 @@ public class BrowserHealthRecorder implements GoannaEventListener {
      * @param environment An environment ID. This allows callers to record the
      *                    end of a session due to an observed environment change.
      */
+    @Override
     public void recordSessionEnd(String reason, SharedPreferences.Editor editor, final int environment) {
         Log.d(LOG_TAG, "Recording session end: " + reason);
         if (state != State.INITIALIZED) {
@@ -1032,5 +947,42 @@ public class BrowserHealthRecorder implements GoannaEventListener {
         // double-counted on next run.
         session.recordCompletion(editor);
     }
-}
 
+    private static class Search {
+        public final String location;
+        public final String engineID;
+
+        public Search(final String location, final String engineID) {
+            if (!SEARCH_LOCATIONS.contains(location)) {
+                throw new IllegalArgumentException("Unknown search location: " + location);
+            }
+
+            this.location = location;
+            this.engineID = engineID;
+        }
+    }
+
+    private static final ConcurrentLinkedQueue<Search> delayedSearches = new ConcurrentLinkedQueue<>();
+
+    public static void recordSearchDelayed(String location, String engineID) {
+        final Search search = new Search(location, engineID);
+        delayedSearches.add(search);
+    }
+
+    @Override
+    public void processDelayed() {
+        if (delayedSearches.isEmpty()) {
+            return;
+        }
+
+        if (this.state != State.INITIALIZED) {
+            Log.d(LOG_TAG, "Not initialized: not processing delayed items. (" + this.state + ")");
+            return;
+        }
+
+        Search poll;
+        while ((poll = delayedSearches.poll()) != null) {
+            recordSearch(poll.engineID, poll.location);
+        }
+    }
+}

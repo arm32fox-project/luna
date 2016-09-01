@@ -25,7 +25,7 @@ public:
   void Main();
 
 protected:
-  virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+  virtual void ActorDestroy(ActorDestroyReason why) override
   {
     if (AbnormalShutdown != why)
       fail("unexpected destruction");
@@ -34,10 +34,10 @@ protected:
   }
 
   virtual PTestBadActorSubParent*
-  AllocPTestBadActorSub();
+  AllocPTestBadActorSubParent();
 
   virtual bool
-  DeallocPTestBadActorSub(PTestBadActorSubParent* actor) {
+  DeallocPTestBadActorSubParent(PTestBadActorSubParent* actor) {
     delete actor;
     return true;
   }
@@ -51,6 +51,7 @@ public:
   virtual ~TestBadActorSubParent() { }
 
 protected:
+  virtual void ActorDestroy(ActorDestroyReason why) override {}
   virtual bool RecvPing();
 };
 
@@ -63,10 +64,10 @@ public:
 
 protected:
   virtual PTestBadActorSubChild*
-  AllocPTestBadActorSub();
+  AllocPTestBadActorSubChild();
 
   virtual bool
-  DeallocPTestBadActorSub(PTestBadActorSubChild* actor)
+  DeallocPTestBadActorSubChild(PTestBadActorSubChild* actor)
   {
     delete actor;
     return true;

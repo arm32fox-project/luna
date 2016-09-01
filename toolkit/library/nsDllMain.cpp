@@ -4,9 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
  
 #include <windows.h>
-#include <delayimp.h>
 #include "nsToolkit.h"
 #include "mozilla/Assertions.h"
+#include "mozilla/WindowsVersion.h"
 
 #if defined(__GNUC__)
 // If DllMain gets name mangled, it won't be seen.

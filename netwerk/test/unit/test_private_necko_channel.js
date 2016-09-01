@@ -2,12 +2,8 @@
 // Private channel test
 //
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
 Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
 
 var httpserver = new HttpServer();
 var testpath = "/simple";
@@ -21,7 +17,7 @@ function run_test() {
   evict_cache_entries();
 
   httpserver.registerPathHandler(testpath, serverHandler);
-  httpserver.start(4444);
+  httpserver.start(-1);
 
   var channel = setupChannel(testpath);
   channel.loadGroup = Cc["@mozilla.org/network/load-group;1"].createInstance();
@@ -36,7 +32,15 @@ function run_test() {
 
 function setupChannel(path) {
   var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-  return chan = ios.newChannel("http://localhost:4444" + path, "", null)
+  return chan = ios.newChannel2("http://localhost:" +
+                                httpserver.identity.primaryPort + path,
+                                "",
+                                null,
+                                null,      // aLoadingNode
+                                Services.scriptSecurityManager.getSystemPrincipal(),
+                                null,      // aTriggeringPrincipal
+                                Ci.nsILoadInfo.SEC_NORMAL,
+                                Ci.nsIContentPolicy.TYPE_OTHER)
                    .QueryInterface(Ci.nsIHttpChannel);
 }
 
@@ -46,7 +50,11 @@ function serverHandler(metadata, response) {
 }
 
 function checkRequest(request, data, context) {
-  do_check_eq(get_device_entry_count("disk"), 0);
-  do_check_eq(get_device_entry_count("memory"), 1);
-  httpserver.stop(do_test_finished);
+  get_device_entry_count("disk", null, function(count) {
+    do_check_eq(count, 0)
+    get_device_entry_count("disk", LoadContextInfo.private, function(count) {
+      do_check_eq(count, 1);
+      httpserver.stop(do_test_finished);
+    });
+  });
 }

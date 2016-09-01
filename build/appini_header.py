@@ -13,16 +13,26 @@ def main(file):
     config.read(file)
     flags = set()
     try:
-        if config.getint('XRE', 'EnableExtensionManager') == 1:
-            flags.add('NS_XRE_ENABLE_EXTENSION_MANAGER')
-    except: pass
-    try:
         if config.getint('XRE', 'EnableProfileMigrator') == 1:
             flags.add('NS_XRE_ENABLE_PROFILE_MIGRATOR')
+    except: pass
+    try:
+        if config.getint('Crash Reporter', 'Enabled') == 1:
+            flags.add('NS_XRE_ENABLE_CRASH_REPORTER')
     except: pass
     appdata = dict(("%s:%s" % (s, o), config.get(s, o)) for s in config.sections() for o in config.options(s))
     appdata['flags'] = ' | '.join(flags) if flags else '0'
     appdata['App:profile'] = '"%s"' % appdata['App:profile'] if 'App:profile' in appdata else 'NULL'
+    expected = ('App:vendor', 'App:name', 'App:remotingname', 'App:version', 'App:buildid',
+                'App:id', 'Goanna:minversion', 'Goanna:maxversion')
+    missing = [var for var in expected if var not in appdata]
+    if missing:
+        print >>sys.stderr, \
+            "Missing values in %s: %s" % (file, ', '.join(missing))
+        sys.exit(1)
+
+    if not 'Crash Reporter:serverurl' in appdata:
+        appdata['Crash Reporter:serverurl'] = ''
 
     print '''#include "nsXREAppData.h"
              static const nsXREAppData sAppData = {
@@ -30,6 +40,7 @@ def main(file):
                  NULL, // directory
                  "%(App:vendor)s",
                  "%(App:name)s",
+                 "%(App:remotingname)s",
                  "%(App:version)s",
                  "%(App:buildid)s",
                  "%(App:id)s",
@@ -38,6 +49,7 @@ def main(file):
                  NULL, // xreDirectory
                  "%(Goanna:minversion)s",
                  "%(Goanna:maxversion)s",
+                 "%(Crash Reporter:serverurl)s",
                  %(App:profile)s
              };''' % appdata
 

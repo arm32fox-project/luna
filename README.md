@@ -2,7 +2,7 @@
 
 This is the source code for the Pale Moon web browser, an independent
 browser derived from Firefox/Mozilla community code. The source tree is
-mostly laid out like other Mozilla-based products.
+mostly laid out like Mozilla-based products.
 
 An explanation of the Mozilla Source Code Directory Structure and links to
 project pages with documentation can be found at:

@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.mozilla.goanna.background.common.log.Logger;
 import org.mozilla.goanna.sync.delegates.JSONRecordFetchDelegate;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
 import org.mozilla.goanna.sync.net.SyncStorageRecordRequest;
 import org.mozilla.goanna.sync.net.SyncStorageRequestDelegate;
 import org.mozilla.goanna.sync.net.SyncStorageResponse;
@@ -21,13 +22,16 @@ public class JSONRecordFetcher {
   private static final long DEFAULT_AWAIT_TIMEOUT_MSEC = 2 * 60 * 1000;   // Two minutes.
   private static final String LOG_TAG = "JSONRecordFetcher";
 
-  protected final String credentials;
+  protected final AuthHeaderProvider authHeaderProvider;
   protected final String uri;
   protected JSONRecordFetchDelegate delegate;
 
-  public JSONRecordFetcher(final String uri, final String credentials) {
+  public JSONRecordFetcher(final String uri, final AuthHeaderProvider authHeaderProvider) {
+    if (uri == null) {
+      throw new IllegalArgumentException("uri must not be null");
+    }
     this.uri = uri;
-    this.credentials = credentials;
+    this.authHeaderProvider = authHeaderProvider;
   }
 
   protected String getURI() {
@@ -37,14 +41,17 @@ public class JSONRecordFetcher {
   private class JSONFetchHandler implements SyncStorageRequestDelegate {
 
     // SyncStorageRequestDelegate methods for fetching.
-    public String credentials() {
-      return credentials;
+    @Override
+    public AuthHeaderProvider getAuthHeaderProvider() {
+      return authHeaderProvider;
     }
 
+    @Override
     public String ifUnmodifiedSince() {
       return null;
     }
 
+    @Override
     public void handleRequestSuccess(SyncStorageResponse response) {
       if (response.wasSuccessful()) {
         try {
@@ -82,7 +89,7 @@ public class JSONRecordFetcher {
   private class LatchedJSONRecordFetchDelegate implements JSONRecordFetchDelegate {
     public ExtendedJSONObject body = null;
     public Exception exception = null;
-    private CountDownLatch latch;
+    private final CountDownLatch latch;
 
     public LatchedJSONRecordFetchDelegate(CountDownLatch latch) {
       this.latch = latch;

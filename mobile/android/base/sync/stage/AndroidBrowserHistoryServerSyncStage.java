@@ -6,13 +6,11 @@ package org.mozilla.goanna.sync.stage;
 
 import java.net.URISyntaxException;
 
-import org.mozilla.goanna.background.common.log.Logger;
 import org.mozilla.goanna.sync.MetaGlobalException;
 import org.mozilla.goanna.sync.repositories.ConstrainedServer11Repository;
 import org.mozilla.goanna.sync.repositories.RecordFactory;
 import org.mozilla.goanna.sync.repositories.Repository;
 import org.mozilla.goanna.sync.repositories.android.AndroidBrowserHistoryRepository;
-import org.mozilla.goanna.sync.repositories.android.FennecControlHelper;
 import org.mozilla.goanna.sync.repositories.domain.HistoryRecordFactory;
 import org.mozilla.goanna.sync.repositories.domain.VersionConstants;
 
@@ -46,10 +44,12 @@ public class AndroidBrowserHistoryServerSyncStage extends ServerSyncStage {
 
   @Override
   protected Repository getRemoteRepository() throws URISyntaxException {
-    return new ConstrainedServer11Repository(session.config.getClusterURLString(),
-                                             session.config.username,
-                                             getCollection(),
-                                             session,
+    String collection = getCollection();
+    return new ConstrainedServer11Repository(
+                                             collection,
+                                             session.config.storageURL(),
+                                             session.getAuthHeaderProvider(),
+                                             session.config.infoCollections,
                                              HISTORY_REQUEST_LIMIT,
                                              HISTORY_SORT);
   }
@@ -64,10 +64,6 @@ public class AndroidBrowserHistoryServerSyncStage extends ServerSyncStage {
     if (session == null || session.getContext() == null) {
       return false;
     }
-    boolean migrated = FennecControlHelper.isHistoryMigrated(session.getContext());
-    if (!migrated) {
-      Logger.warn(LOG_TAG, "Not enabling history engine since Fennec history is not migrated.");
-    }
-    return super.isEnabled() && migrated;
+    return super.isEnabled();
   }
 }

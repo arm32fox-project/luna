@@ -9,15 +9,16 @@ const NUM_THREADS = 10;
 SpecialPowers.addPermission("sms", true, document);
 SpecialPowers.setBoolPref("dom.sms.enabled", true);
 
-let sms = window.navigator.mozSms;
-ok(sms instanceof MozSmsManager);
+let manager = window.navigator.mozMobileMessage;
+ok(manager instanceof MozMobileMessageManager,
+   "manager is instance of " + manager.constructor);
 
 let pendingEmulatorCmdCount = 0;
 function sendSmsToEmulator(from, text) {
   ++pendingEmulatorCmdCount;
 
   let cmd = "sms send " + from + " " + text;
-  runEmulatorCmd(cmd, function (result) {
+  runEmulatorCmd(cmd, function(result) {
     --pendingEmulatorCmdCount;
 
     is(result[0], "OK", "Emulator response");
@@ -30,11 +31,11 @@ let tasks = {
   _tasks: [],
   _nextTaskIndex: 0,
 
-  push: function push(func) {
+  push: function(func) {
     this._tasks.push(func);
   },
 
-  next: function next() {
+  next: function() {
     let index = this._nextTaskIndex++;
     let task = this._tasks[index];
     try {
@@ -48,21 +49,18 @@ let tasks = {
     }
   },
 
-  finish: function finish() {
+  finish: function() {
     this._tasks[this._tasks.length - 1]();
   },
 
-  run: function run() {
+  run: function() {
     this.next();
   }
 };
 
 function getAllMessages(callback, filter, reverse) {
-  if (!filter) {
-    filter = new MozSmsFilter;
-  }
   let messages = [];
-  let request = sms.getMessages(filter, reverse || false);
+  let request = manager.getMessages(filter, reverse || false);
   request.onsuccess = function(event) {
     if (request.result) {
       messages.push(request.result);
@@ -83,9 +81,9 @@ function deleteAllMessages(next) {
       return;
     }
 
-    let request = sms.delete(message.id);
+    let request = manager.delete(message.id);
     request.onsuccess = deleteAll.bind(null, messages);
-    request.onerror = function (event) {
+    request.onerror = function(event) {
       ok(false, "failed to delete all messages");
       tasks.finish();
     }
@@ -124,9 +122,9 @@ tasks.push(function populateMessages() {
   let count = 0;
 
   function sendMessage(iter) {
-    let request = sms.send("+1555531555" + iter, "Nice to meet you");
+    let request = manager.send("+1555531555" + iter, "Nice to meet you");
     request.onsuccess = function onRequestSuccess(event) {
-      sms.addEventListener("received", onReceived);
+      manager.addEventListener("received", onReceived);
 
       threadIds.push(request.result.threadId);
 
@@ -138,7 +136,7 @@ tasks.push(function populateMessages() {
   }
 
   function onReceived(event) {
-    sms.removeEventListener("received", onReceived);
+    manager.removeEventListener("received", onReceived);
 
     if (event.message.threadId != threadIds[threadIds.length - 1]) {
       ok(false, "Thread IDs of sent and received message mismatch.");
@@ -148,7 +146,7 @@ tasks.push(function populateMessages() {
 
     ++count;
     if (count % 2) {
-      let request = sms.markMessageRead(event.message.id, true);
+      let request = manager.markMessageRead(event.message.id, true);
       request.onsuccess = function onRequestSuccess(event) {
         if (count < NUM_THREADS) {
           sendMessage(count);
@@ -181,10 +179,11 @@ tasks.push(function assignInvalidThreadID() {
 
 tasks.push(function testDeliveryAndNumber() {
   log("Checking delivery == sent && number == 5555315550");
-  let filter = new MozSmsFilter();
-  filter.delivery = "sent";
-  filter.numbers = ["5555315550"];
-  getAllMessages(function (messages) {
+  let filter = {
+    delivery: "sent",
+    numbers: ["5555315550"],
+  };
+  getAllMessages(function(messages) {
     // Only { delivery: "sent", receiver: "+15555315550", read: true }
     is(messages.length, 1, "message count");
     for (let i = 0; i < messages.length; i++) {
@@ -195,7 +194,7 @@ tasks.push(function testDeliveryAndNumber() {
       }
     }
 
-    getAllMessages(function (messages_r) {
+    getAllMessages(function(messages_r) {
       is(messages.length, messages_r.length, "message count");
       for (let i = 0; i < messages_r.length; i++) {
         is(messages_r[i].id, messages[messages.length - 1 - i].id, "message id");
@@ -208,10 +207,11 @@ tasks.push(function testDeliveryAndNumber() {
 
 tasks.push(function testDeliveryAndNumberNotFound() {
   log("Checking delivery == sent && number == INVALID_NUMBER");
-  let filter = new MozSmsFilter();
-  filter.delivery = "sent";
-  filter.numbers = [INVALID_NUMBER];
-  getAllMessages(function (messages) {
+  let filter = {
+    delivery: "sent",
+    numbers: [INVALID_NUMBER],
+  };
+  getAllMessages(function(messages) {
     is(messages.length, 0, "message count");
 
     tasks.next();
@@ -220,10 +220,11 @@ tasks.push(function testDeliveryAndNumberNotFound() {
 
 tasks.push(function testDeliveryAndRead() {
   log("Checking delivery == received && read == true");
-  let filter = new MozSmsFilter();
-  filter.delivery = "received";
-  filter.read = true;
-  getAllMessages(function (messages) {
+  let filter = {
+    delivery: "received",
+    read: true,
+  }
+  getAllMessages(function(messages) {
     // { delivery: "received", sender: "5555315550", read: true },
     // { delivery: "received", sender: "5555315552", read: true },
     // { delivery: "received", sender: "5555315554", read: true },
@@ -236,7 +237,7 @@ tasks.push(function testDeliveryAndRead() {
       is(message.read, filter.read, "message read");
     }
 
-    getAllMessages(function (messages_r) {
+    getAllMessages(function(messages_r) {
       is(messages.length, messages_r.length, "message count");
       for (let i = 0; i < messages_r.length; i++) {
         is(messages_r[i].id, messages[messages.length - 1 - i].id, "message id");
@@ -249,10 +250,11 @@ tasks.push(function testDeliveryAndRead() {
 
 tasks.push(function testDeliveryAndReadNotFound() {
   log("Checking delivery == sent && read == false");
-  let filter = new MozSmsFilter();
-  filter.delivery = "sent";
-  filter.read = false;
-  getAllMessages(function (messages) {
+  let filter = {
+    delivery: "sent",
+    read: false,
+  };
+  getAllMessages(function(messages) {
     is(messages.length, 0, "message count");
 
     tasks.next();
@@ -261,10 +263,11 @@ tasks.push(function testDeliveryAndReadNotFound() {
 
 tasks.push(function testDeliveryAndThreadId() {
   log("Checking delivery == received && threadId == " + threadIds[0]);
-  let filter = new MozSmsFilter();
-  filter.delivery = "sent";
-  filter.threadId = threadIds[0];
-  getAllMessages(function (messages) {
+  let filter = {
+    delivery: "sent",
+    threadId: threadIds[0],
+  };
+  getAllMessages(function(messages) {
     // { delivery: "sent", receiver: "+15555315550", threadId: threadIds[0]}
     is(messages.length, 1, "message count");
     for (let i = 0; i < messages.length; i++) {
@@ -273,7 +276,7 @@ tasks.push(function testDeliveryAndThreadId() {
       is(message.threadId, filter.threadId, "message threadId");
     }
 
-    getAllMessages(function (messages_r) {
+    getAllMessages(function(messages_r) {
       is(messages.length, messages_r.length, "message count");
       for (let i = 0; i < messages_r.length; i++) {
         is(messages_r[i].id, messages[messages.length - 1 - i].id, "message id");
@@ -286,10 +289,11 @@ tasks.push(function testDeliveryAndThreadId() {
 
 tasks.push(function testDeliveryAndThreadIdNotFound() {
   log("Checking delivery == sent && threadId == INVALID_THREAD_ID");
-  let filter = new MozSmsFilter();
-  filter.delivery = "sent";
-  filter.threadId = INVALID_THREAD_ID;
-  getAllMessages(function (messages) {
+  let filter = {
+    delivery: "sent",
+    threadId: INVALID_THREAD_ID,
+  };
+  getAllMessages(function(messages) {
     is(messages.length, 0, "message count");
 
     tasks.next();
@@ -298,10 +302,11 @@ tasks.push(function testDeliveryAndThreadIdNotFound() {
 
 tasks.push(function testNumberAndRead() {
   log("Checking number == 5555315550 && read == true");
-  let filter = new MozSmsFilter();
-  filter.numbers = ["5555315550"];
-  filter.read = true;
-  getAllMessages(function (messages) {
+  let filter = {
+    numbers: ["5555315550"],
+    read: true,
+  };
+  getAllMessages(function(messages) {
     // { delivery: "sent",     receiver: "+15555315550", read: true }
     // { delivery: "received", sender: "5555315550",     read: true }
     is(messages.length, 2, "message count");
@@ -313,7 +318,7 @@ tasks.push(function testNumberAndRead() {
       is(message.read, filter.read, "message read");
     }
 
-    getAllMessages(function (messages_r) {
+    getAllMessages(function(messages_r) {
       is(messages.length, messages_r.length, "message count");
       for (let i = 0; i < messages_r.length; i++) {
         is(messages_r[i].id, messages[messages.length - 1 - i].id, "message id");
@@ -326,10 +331,11 @@ tasks.push(function testNumberAndRead() {
 
 tasks.push(function testNumberAndReadNotFound() {
   log("Checking number == INVALID_NUMBER && read == true");
-  let filter = new MozSmsFilter();
-  filter.numbers = [INVALID_NUMBER];
-  filter.read = true;
-  getAllMessages(function (messages) {
+  let filter = {
+    numbers: [INVALID_NUMBER],
+    read: true,
+  };
+  getAllMessages(function(messages) {
     is(messages.length, 0, "message count");
 
     tasks.next();
@@ -338,10 +344,11 @@ tasks.push(function testNumberAndReadNotFound() {
 
 tasks.push(function testNumberAndThreadId() {
   log("Checking number == 5555315550 && threadId == " + threadIds[0]);
-  let filter = new MozSmsFilter();
-  filter.numbers = ["5555315550"];
-  filter.threadId = threadIds[0];
-  getAllMessages(function (messages) {
+  let filter = {
+    numbers: ["5555315550"],
+    threadId: threadIds[0],
+  };
+  getAllMessages(function(messages) {
     // { delivery: "sent",     receiver: "+15555315550", read: true }
     // { delivery: "received", sender: "5555315550",     read: true }
     is(messages.length, 2, "message count");
@@ -353,7 +360,7 @@ tasks.push(function testNumberAndThreadId() {
       is(message.threadId, filter.threadId, "message threadId");
     }
 
-    getAllMessages(function (messages_r) {
+    getAllMessages(function(messages_r) {
       is(messages.length, messages_r.length, "message count");
       for (let i = 0; i < messages_r.length; i++) {
         is(messages_r[i].id, messages[messages.length - 1 - i].id, "message id");
@@ -366,10 +373,11 @@ tasks.push(function testNumberAndThreadId() {
 
 tasks.push(function testNumberAndThreadIdNotFound() {
   log("Checking number == INVALID_NUMBER && threadId == INVALID_THREAD_ID");
-  let filter = new MozSmsFilter();
-  filter.numbers = [INVALID_NUMBER];
-  filter.threadId = INVALID_THREAD_ID;
-  getAllMessages(function (messages) {
+  let filter = {
+    numbers: [INVALID_NUMBER],
+    threadId: INVALID_THREAD_ID,
+  };
+  getAllMessages(function(messages) {
     is(messages.length, 0, "message count");
 
     tasks.next();
@@ -378,9 +386,10 @@ tasks.push(function testNumberAndThreadIdNotFound() {
 
 tasks.push(function testMultipleNumbers() {
   log("Checking number == 5555315550 || number == 5555315551");
-  let filter = new MozSmsFilter();
-  filter.numbers = ["5555315550", "5555315551"];
-  getAllMessages(function (messages) {
+  let filter = {
+    numbers: ["5555315550", "5555315551"],
+  };
+  getAllMessages(function(messages) {
     // { delivery: "sent",     receiver: "+15555315550", read: true }
     // { delivery: "received", sender: "5555315550",     read: true }
     // { delivery: "sent",     receiver: "+15555315551", read: true }
@@ -400,9 +409,10 @@ tasks.push(function testMultipleNumbers() {
 
 tasks.push(function testMultipleNumbersNotFound() {
   log("Checking number == INVALID_NUMBER || number == INVALID_NUMBER2");
-  let filter = new MozSmsFilter();
-  filter.numbers = [INVALID_NUMBER, INVALID_NUMBER2];
-  getAllMessages(function (messages) {
+  let filter = {
+    numbers: [INVALID_NUMBER, INVALID_NUMBER2],
+  };
+  getAllMessages(function(messages) {
     is(messages.length, 0, "message count");
 
     tasks.next();
@@ -411,10 +421,11 @@ tasks.push(function testMultipleNumbersNotFound() {
 
 tasks.push(function testDeliveryAndMultipleNumbers() {
   log("Checking delivery == sent && (number == 5555315550 || number == 5555315551)");
-  let filter = new MozSmsFilter();
-  filter.delivery = "sent";
-  filter.numbers = ["5555315550", "5555315551"];
-  getAllMessages(function (messages) {
+  let filter = {
+    delivery: "sent",
+    numbers: ["5555315550", "5555315551"],
+  };
+  getAllMessages(function(messages) {
     // { delivery: "sent", receiver: "+15555315550", read: true }
     // { delivery: "sent", receiver: "+15555315551", read: true }
     is(messages.length, 2, "message count");
@@ -433,10 +444,11 @@ tasks.push(function testDeliveryAndMultipleNumbers() {
 
 tasks.push(function testMultipleNumbersAndRead() {
   log("Checking (number == 5555315550 || number == 5555315551) && read == true");
-  let filter = new MozSmsFilter();
-  filter.numbers = ["5555315550", "5555315551"];
-  filter.read = true;
-  getAllMessages(function (messages) {
+  let filter = {
+    numbers: ["5555315550", "5555315551"],
+    read: true,
+  };
+  getAllMessages(function(messages) {
     // { delivery: "sent",     receiver: "+15555315550", read: true }
     // { delivery: "received", sender: "5555315550",     read: true }
     // { delivery: "sent",     receiver: "+15555315551", read: true }
@@ -456,10 +468,11 @@ tasks.push(function testMultipleNumbersAndRead() {
 
 tasks.push(function testMultipleNumbersAndThreadId() {
   log("Checking (number == 5555315550 || number == 5555315551) && threadId == " + threadIds[0]);
-  let filter = new MozSmsFilter();
-  filter.numbers = ["5555315550", "5555315551"];
-  filter.threadId = threadIds[0];
-  getAllMessages(function (messages) {
+  let filter = {
+    numbers: ["5555315550", "5555315551"],
+    threadId: threadIds[0],
+  };
+  getAllMessages(function(messages) {
     // { delivery: "sent",     receiver: "+15555315550", read: true }
     // { delivery: "received", sender: "5555315550",     read: true }
     is(messages.length, 2, "message count");
@@ -478,9 +491,10 @@ tasks.push(function testMultipleNumbersAndThreadId() {
 
 tasks.push(function testNationalNumber() {
   log("Checking number = 5555315550");
-  let filter = new MozSmsFilter();
-  filter.numbers = ["5555315550"];
-  getAllMessages(function (messages) {
+  let filter = {
+    numbers: ["5555315550"],
+  };
+  getAllMessages(function(messages) {
     // { delivery: "sent",     receiver: "+15555315550", read: true }
     // { delivery: "received", sender: "5555315550",     read: true }
     is(messages.length, 2, "message count");
@@ -497,9 +511,10 @@ tasks.push(function testNationalNumber() {
 
 tasks.push(function testInternationalNumber() {
   log("Checking number = +15555315550");
-  let filter = new MozSmsFilter();
-  filter.numbers = ["+15555315550"];
-  getAllMessages(function (messages) {
+  let filter = {
+    numbers: ["+15555315550"],
+  };
+  getAllMessages(function(messages) {
     // { delivery: "sent",     receiver: "+15555315550", read: true }
     // { delivery: "received", sender: "5555315550",     read: true }
     is(messages.length, 2, "message count");
@@ -516,10 +531,11 @@ tasks.push(function testInternationalNumber() {
 
 tasks.push(function testReadAndThreadId() {
   log("Checking read == true && threadId == " + threadIds[0]);
-  let filter = new MozSmsFilter();
-  filter.read = true;
-  filter.threadId = threadIds[0];
-  getAllMessages(function (messages) {
+  let filter = {
+    read: true,
+    threadId: threadIds[0],
+  };
+  getAllMessages(function(messages) {
     // { delivery: "sent",     receiver: "+15555315550", read: true }
     // { delivery: "received", sender: "5555315550",     read: true }
     is(messages.length, 2, "message count");
@@ -529,7 +545,7 @@ tasks.push(function testReadAndThreadId() {
       is(message.threadId, filter.threadId, "message threadId");
     }
 
-    getAllMessages(function (messages_r) {
+    getAllMessages(function(messages_r) {
       is(messages.length, messages_r.length, "message count");
       for (let i = 0; i < messages_r.length; i++) {
         is(messages_r[i].id, messages[messages.length - 1 - i].id, "message id");
@@ -542,10 +558,11 @@ tasks.push(function testReadAndThreadId() {
 
 tasks.push(function testReadAndThreadIdNotFound() {
   log("Checking read == true && threadId == INVALID_THREAD_ID");
-  let filter = new MozSmsFilter();
-  filter.read = true;
-  filter.threadId = INVALID_THREAD_ID;
-  getAllMessages(function (messages) {
+  let filter = {
+    read: true,
+    threadId: INVALID_THREAD_ID,
+  };
+  getAllMessages(function(messages) {
     is(messages.length, 0, "message count");
 
     tasks.next();

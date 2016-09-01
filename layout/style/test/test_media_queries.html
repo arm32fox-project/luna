@@ -598,11 +598,11 @@ function run() {
   expression_should_be_parseable("-moz-windows-default-theme");
   expression_should_be_parseable("-moz-mac-graphite-theme");
   expression_should_be_parseable("-moz-mac-lion-theme");
+  expression_should_be_parseable("-moz-mac-yosemite-theme");
   expression_should_be_parseable("-moz-windows-compositor");
   expression_should_be_parseable("-moz-windows-classic");
   expression_should_be_parseable("-moz-windows-glass");
   expression_should_be_parseable("-moz-touch-enabled");
-  expression_should_be_parseable("-moz-maemo-classic");
   expression_should_be_parseable("-moz-swipe-animation-enabled");
 
   expression_should_be_parseable("-moz-scrollbar-start-backward: 0");
@@ -616,11 +616,11 @@ function run() {
   expression_should_be_parseable("-moz-windows-default-theme: 0");
   expression_should_be_parseable("-moz-mac-graphite-theme: 0");
   expression_should_be_parseable("-moz-mac-lion-theme: 0");
+  expression_should_be_parseable("-moz-mac-yosemite-theme: 0");
   expression_should_be_parseable("-moz-windows-compositor: 0");
   expression_should_be_parseable("-moz-windows-classic: 0");
   expression_should_be_parseable("-moz-windows-glass: 0");
   expression_should_be_parseable("-moz-touch-enabled: 0");
-  expression_should_be_parseable("-moz-maemo-classic: 0");
   expression_should_be_parseable("-moz-swipe-animation-enabled: 0");
 
   expression_should_be_parseable("-moz-scrollbar-start-backward: 1");
@@ -634,11 +634,11 @@ function run() {
   expression_should_be_parseable("-moz-windows-default-theme: 1");
   expression_should_be_parseable("-moz-mac-graphite-theme: 1");
   expression_should_be_parseable("-moz-mac-lion-theme: 1");
+  expression_should_be_parseable("-moz-mac-yosemite-theme: 1");
   expression_should_be_parseable("-moz-windows-compositor: 1");
   expression_should_be_parseable("-moz-windows-classic: 1");
   expression_should_be_parseable("-moz-windows-glass: 1");
   expression_should_be_parseable("-moz-touch-enabled: 1");
-  expression_should_be_parseable("-moz-maemo-classic: 1");
   expression_should_be_parseable("-moz-swipe-animation-enabled: 1");
 
   expression_should_not_be_parseable("-moz-scrollbar-start-backward: -1");
@@ -652,11 +652,11 @@ function run() {
   expression_should_not_be_parseable("-moz-windows-default-theme: -1");
   expression_should_not_be_parseable("-moz-mac-graphite-theme: -1");
   expression_should_not_be_parseable("-moz-mac-lion-theme: -1");
+  expression_should_not_be_parseable("-moz-mac-yosemite-theme: -1");
   expression_should_not_be_parseable("-moz-windows-compositor: -1");
   expression_should_not_be_parseable("-moz-windows-classic: -1");
   expression_should_not_be_parseable("-moz-windows-glass: -1");
   expression_should_not_be_parseable("-moz-touch-enabled: -1");
-  expression_should_not_be_parseable("-moz-maemo-classic: -1");
   expression_should_not_be_parseable("-moz-swipe-animation-enabled: -1");
 
   expression_should_not_be_parseable("-moz-scrollbar-start-backward: true");
@@ -670,11 +670,11 @@ function run() {
   expression_should_not_be_parseable("-moz-windows-default-theme: true");
   expression_should_not_be_parseable("-moz-mac-graphite-theme: true");
   expression_should_not_be_parseable("-moz-mac-lion-theme: true");
+  expression_should_not_be_parseable("-moz-mac-yosemite-theme: true");
   expression_should_not_be_parseable("-moz-windows-compositor: true");
   expression_should_not_be_parseable("-moz-windows-classic: true");
   expression_should_not_be_parseable("-moz-windows-glass: true");
   expression_should_not_be_parseable("-moz-touch-enabled: true");
-  expression_should_not_be_parseable("-moz-maemo-classic: true");
   expression_should_not_be_parseable("-moz-swipe-animation-enabled: true");
 
   // windows theme media queries
@@ -689,6 +689,13 @@ function run() {
   expression_should_be_parseable("-moz-windows-theme: garbage");
   expression_should_not_be_parseable("-moz-windows-theme: ''");
   expression_should_not_be_parseable("-moz-windows-theme: ");
+
+  // os version media queries (currently windows only)
+  expression_should_be_parseable("-moz-os-version: windows-xp");
+  expression_should_be_parseable("-moz-os-version: windows-vista");
+  expression_should_be_parseable("-moz-os-version: windows-win7");
+  expression_should_be_parseable("-moz-os-version: windows-win8");
+  expression_should_not_be_parseable("-moz-os-version: ");
 
   // OpenType SVG media features
   query_should_be_parseable("(-moz-is-glyph)");

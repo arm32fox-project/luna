@@ -11,8 +11,8 @@
 #ifndef WEBRTC_VOICE_ENGINE_VOE_FILE_IMPL_H
 #define WEBRTC_VOICE_ENGINE_VOE_FILE_IMPL_H
 
-#include "voe_file.h"
-#include "shared_data.h"
+#include "webrtc/voice_engine/include/voe_file.h"
+#include "webrtc/voice_engine/shared_data.h"
 
 namespace webrtc {
 
@@ -41,8 +41,6 @@ public:
 
     virtual int IsPlayingFileLocally(int channel);
 
-    virtual int ScaleLocalFilePlayout(int channel, float scale);
-
     // Use file as microphone input
 
     virtual int StartPlayingFileAsMicrophone(
@@ -63,8 +61,6 @@ public:
     virtual int StopPlayingFileAsMicrophone(int channel);
 
     virtual int IsPlayingFileAsMicrophone(int channel);
-
-    virtual int ScaleFileAsMicrophonePlayout(int channel, float scale);
 
     // Record speaker signal to file
 
@@ -90,43 +86,6 @@ public:
 
     virtual int StopRecordingMicrophone();
 
-    // Conversion between different file formats
-
-    virtual int ConvertPCMToWAV(const char* fileNameInUTF8,
-                                const char* fileNameOutUTF8);
-
-    virtual int ConvertPCMToWAV(InStream* streamIn,
-                                OutStream* streamOut);
-
-    virtual int ConvertWAVToPCM(const char* fileNameInUTF8,
-                                const char* fileNameOutUTF8);
-
-    virtual int ConvertWAVToPCM(InStream* streamIn,
-                                OutStream* streamOut);
-
-    virtual int ConvertPCMToCompressed(const char* fileNameInUTF8,
-                                       const char* fileNameOutUTF8,
-                                       CodecInst* compression);
-
-    virtual int ConvertPCMToCompressed(InStream* streamIn,
-                                       OutStream* streamOut,
-                                       CodecInst* compression);
-
-    virtual int ConvertCompressedToPCM(const char* fileNameInUTF8,
-                                       const char* fileNameOutUTF8);
-
-    virtual int ConvertCompressedToPCM(InStream* streamIn,
-                                       OutStream* streamOut);
-
-    // Misc file functions
-
-    virtual int GetFileDuration(
-        const char* fileNameUTF8,
-        int& durationMs,
-        FileFormats format = kFileFormatPcm16kHzFile);
-
-    virtual int GetPlaybackPosition(int channel, int& positionMs);
-
 protected:
     VoEFileImpl(voe::SharedData* shared);
     virtual ~VoEFileImpl();
@@ -138,4 +97,3 @@ private:
 }  // namespace webrtc
 
 #endif  // WEBRTC_VOICE_ENGINE_VOE_FILE_IMPL_H
-

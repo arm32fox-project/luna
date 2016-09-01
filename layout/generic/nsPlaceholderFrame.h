@@ -42,12 +42,6 @@ nsIFrame* NS_NewPlaceholderFrame(nsIPresShell* aPresShell,
                                  nsStyleContext* aContext,
                                  nsFrameState aTypeBit);
 
-// Frame state bits that are used to keep track of what this is a
-// placeholder for.
-#define PLACEHOLDER_FOR_FLOAT    NS_FRAME_STATE_BIT(20)
-#define PLACEHOLDER_FOR_ABSPOS   NS_FRAME_STATE_BIT(21)
-#define PLACEHOLDER_FOR_FIXEDPOS NS_FRAME_STATE_BIT(22)
-#define PLACEHOLDER_FOR_POPUP    NS_FRAME_STATE_BIT(23)
 #define PLACEHOLDER_TYPE_MASK    (PLACEHOLDER_FOR_FLOAT | \
                                   PLACEHOLDER_FOR_ABSPOS | \
                                   PLACEHOLDER_FOR_FIXEDPOS | \
@@ -57,9 +51,13 @@ nsIFrame* NS_NewPlaceholderFrame(nsIPresShell* aPresShell,
  * Implementation of a frame that's used as a placeholder for a frame that
  * has been moved out of the flow.
  */
-class nsPlaceholderFrame MOZ_FINAL : public nsFrame {
+class nsPlaceholderFrame final : public nsFrame {
 public:
   NS_DECL_FRAMEARENA_HELPERS
+#ifdef DEBUG
+  NS_DECL_QUERYFRAME_TARGET(nsPlaceholderFrame)
+  NS_DECL_QUERYFRAME
+#endif
 
   /**
    * Create a new placeholder frame.  aTypeBit must be one of the
@@ -90,30 +88,30 @@ public:
   // nsIFrame overrides
   // We need to override GetMinSize and GetPrefSize because XUL uses
   // placeholders not within lines.
-  virtual void AddInlineMinWidth(nsRenderingContext* aRenderingContext,
-                                 InlineMinWidthData* aData) MOZ_OVERRIDE;
-  virtual void AddInlinePrefWidth(nsRenderingContext* aRenderingContext,
-                                  InlinePrefWidthData* aData) MOZ_OVERRIDE;
-  virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
-  virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
-  virtual nsSize GetMaxSize(nsBoxLayoutState& aBoxLayoutState) MOZ_OVERRIDE;
+  virtual void AddInlineMinISize(nsRenderingContext* aRenderingContext,
+                                 InlineMinISizeData* aData) override;
+  virtual void AddInlinePrefISize(nsRenderingContext* aRenderingContext,
+                                  InlinePrefISizeData* aData) override;
+  virtual nsSize GetMinSize(nsBoxLayoutState& aBoxLayoutState) override;
+  virtual nsSize GetPrefSize(nsBoxLayoutState& aBoxLayoutState) override;
+  virtual nsSize GetMaxSize(nsBoxLayoutState& aBoxLayoutState) override;
 
-  NS_IMETHOD Reflow(nsPresContext* aPresContext,
-                    nsHTMLReflowMetrics& aDesiredSize,
-                    const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus& aStatus) MOZ_OVERRIDE;
+  virtual void Reflow(nsPresContext* aPresContext,
+                      nsHTMLReflowMetrics& aDesiredSize,
+                      const nsHTMLReflowState& aReflowState,
+                      nsReflowStatus& aStatus) override;
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot) override;
 
-#if defined(DEBUG)
+#if defined(DEBUG) || (defined(MOZ_REFLOW_PERF_DSP) && defined(MOZ_REFLOW_PERF))
   virtual void BuildDisplayList(nsDisplayListBuilder*   aBuilder,
                                 const nsRect&           aDirtyRect,
-                                const nsDisplayListSet& aLists) MOZ_OVERRIDE;
-#endif // DEBUG
+                                const nsDisplayListSet& aLists) override;
+#endif // DEBUG || (MOZ_REFLOW_PERF_DSP && MOZ_REFLOW_PERF)
   
-#ifdef DEBUG
-  void List(FILE* out, int32_t aIndent, uint32_t aFlags = 0) const MOZ_OVERRIDE;
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE;
+#ifdef DEBUG_FRAME_DUMP
+  void List(FILE* out = stderr, const char* aPrefix = "", uint32_t aFlags = 0) const override;
+  virtual nsresult GetFrameName(nsAString& aResult) const override;
 #endif // DEBUG
 
   /**
@@ -121,15 +119,15 @@ public:
    *
    * @see nsGkAtoms::placeholderFrame
    */
-  virtual nsIAtom* GetType() const MOZ_OVERRIDE;
+  virtual nsIAtom* GetType() const override;
 
-  virtual bool IsEmpty() MOZ_OVERRIDE { return true; }
-  virtual bool IsSelfEmpty() MOZ_OVERRIDE { return true; }
+  virtual bool IsEmpty() override { return true; }
+  virtual bool IsSelfEmpty() override { return true; }
 
-  virtual bool CanContinueTextRun() const MOZ_OVERRIDE;
+  virtual bool CanContinueTextRun() const override;
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE
+  virtual mozilla::a11y::AccType AccessibleType() override
   {
     nsIFrame* realFrame = GetRealFrameForPlaceholder(this);
     return realFrame ? realFrame->AccessibleType() :
@@ -137,7 +135,7 @@ public:
   }
 #endif
 
-  virtual nsIFrame* GetParentStyleContextFrame() const MOZ_OVERRIDE;
+  virtual nsStyleContext* GetParentStyleContext(nsIFrame** aProviderFrame) const override;
 
   /**
    * @return the out-of-flow for aFrame if aFrame is a placeholder; otherwise

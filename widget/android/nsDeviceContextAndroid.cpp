@@ -10,7 +10,7 @@
 #include "nsIPrintSettings.h"
 #include "nsDirectoryServiceDefs.h"
 
-NS_IMPL_ISUPPORTS1(nsDeviceContextSpecAndroid, nsIDeviceContextSpec)
+NS_IMPL_ISUPPORTS(nsDeviceContextSpecAndroid, nsIDeviceContextSpec)
 
 NS_IMETHODIMP
 nsDeviceContextSpecAndroid::GetSurfaceForPrinter(gfxASurface** aSurface)
@@ -36,7 +36,7 @@ nsDeviceContextSpecAndroid::GetSurfaceForPrinter(gfxASurface** aSurface)
   surface = new gfxPDFSurface(stream, surfaceSize);
 
 
-  NS_ABORT_IF_FALSE(surface, "valid address expected");
+  MOZ_ASSERT(surface, "valid address expected");
   surface.swap(*aSurface);
   return NS_OK;
 }
@@ -51,10 +51,10 @@ nsDeviceContextSpecAndroid::Init(nsIWidget* aWidget,
 }
 
 NS_IMETHODIMP
-nsDeviceContextSpecAndroid::BeginDocument(PRUnichar* aTitle,
-                                      PRUnichar* aPrintToFileName,
-                                      int32_t aStartPage,
-                                      int32_t aEndPage)
+nsDeviceContextSpecAndroid::BeginDocument(const nsAString& aTitle,
+                                          char16_t* aPrintToFileName,
+                                          int32_t aStartPage,
+                                          int32_t aEndPage)
 {
   return NS_OK;
 }
@@ -82,11 +82,5 @@ nsDeviceContextSpecAndroid::EndDocument()
   NS_ENSURE_SUCCESS(rv, rv);
   
   destFile->SetPermissions(0666);
-  return NS_OK;
-}
-
-NS_IMETHODIMP
-nsDeviceContextSpecAndroid::GetPath (const char** aPath)
-{
   return NS_OK;
 }

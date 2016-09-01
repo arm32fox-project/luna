@@ -6,14 +6,15 @@
 #ifndef gfxMacPlatformFontList_H_
 #define gfxMacPlatformFontList_H_
 
+#include <CoreFoundation/CoreFoundation.h>
+
+#include "mozilla/MemoryReporting.h"
 #include "nsDataHashtable.h"
 #include "nsRefPtrHashtable.h"
 
 #include "gfxPlatformFontList.h"
 #include "gfxPlatform.h"
 #include "gfxPlatformMac.h"
-
-#include <Carbon/Carbon.h>
 
 #include "nsUnicharUtils.h"
 #include "nsTArray.h"
@@ -32,7 +33,7 @@ public:
     // for use with data fonts
     MacOSFontEntry(const nsAString& aPostscriptName, CGFontRef aFontRef,
                    uint16_t aWeight, uint16_t aStretch, uint32_t aItalicStyle,
-                   bool aIsUserFont, bool aIsLocal);
+                   bool aIsDataUserFont, bool aIsLocal);
 
     virtual ~MacOSFontEntry() {
         ::CGFontRelease(mFontRef);
@@ -42,21 +43,21 @@ public:
 
     // override gfxFontEntry table access function to bypass table cache,
     // use CGFontRef API to get direct access to system font data
-    virtual hb_blob_t *GetFontTable(uint32_t aTag) MOZ_OVERRIDE;
+    virtual hb_blob_t *GetFontTable(uint32_t aTag) override;
 
-    virtual void SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf,
-                                     FontListSizes*    aSizes) const;
+    virtual void AddSizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf,
+                                        FontListSizes* aSizes) const override;
 
-    nsresult ReadCMAP();
+    nsresult ReadCMAP(FontInfoData *aFontInfoData = nullptr) override;
 
     bool RequiresAATLayout() const { return mRequiresAAT; }
 
     bool IsCFF();
 
 protected:
-    virtual gfxFont* CreateFontInstance(const gfxFontStyle *aFontStyle, bool aNeedsBold);
+    virtual gfxFont* CreateFontInstance(const gfxFontStyle *aFontStyle, bool aNeedsBold) override;
 
-    virtual bool HasFontTable(uint32_t aTableTag);
+    virtual bool HasFontTable(uint32_t aTableTag) override;
 
     static void DestroyBlobFunc(void* aUserData);
 
@@ -80,13 +81,17 @@ public:
 
     virtual bool GetStandardFamilyName(const nsAString& aFontName, nsAString& aFamilyName);
 
-    virtual gfxFontEntry* LookupLocalFont(const gfxProxyFontEntry *aProxyEntry,
-                                          const nsAString& aFontName);
+    virtual gfxFontEntry* LookupLocalFont(const nsAString& aFontName,
+                                          uint16_t aWeight,
+                                          int16_t aStretch,
+                                          bool aItalic);
     
-    virtual gfxFontEntry* MakePlatformFont(const gfxProxyFontEntry *aProxyEntry,
-                                           const uint8_t *aFontData, uint32_t aLength);
-
-    void ClearPrefFonts() { mPrefFonts.Clear(); }
+    virtual gfxFontEntry* MakePlatformFont(const nsAString& aFontName,
+                                           uint16_t aWeight,
+                                           int16_t aStretch,
+                                           bool aItalic,
+                                           const uint8_t* aFontData,
+                                           uint32_t aLength);
 
 private:
     friend class gfxPlatformMac;
@@ -100,7 +105,11 @@ private:
     // special case font faces treated as font families (set via prefs)
     void InitSingleFaceList();
 
-    static void ATSNotification(ATSFontNotificationInfoRef aInfo, void* aUserArg);
+    static void RegisteredFontsChangedNotificationCallback(CFNotificationCenterRef center,
+                                                           void *observer,
+                                                           CFStringRef name,
+                                                           const void *object,
+                                                           CFDictionaryRef userInfo);
 
     // search fonts system-wide for a given character, null otherwise
     virtual gfxFontEntry* GlobalFontFallback(const uint32_t aCh,
@@ -111,8 +120,11 @@ private:
 
     virtual bool UsesSystemFallback() { return true; }
 
-    // keep track of ATS generation to prevent unneeded updates when loading downloaded fonts
-    uint32_t mATSGeneration;
+    virtual already_AddRefed<FontInfoData> CreateFontInfoData();
+
+#ifdef MOZ_BUNDLED_FONTS
+    void ActivateBundledFonts();
+#endif
 
     enum {
         kATSGenerationInitial = -1

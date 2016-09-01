@@ -12,6 +12,8 @@
 #include "nsError.h"
 #include "nsDisplayList.h"
 #include "FrameLayerBuilder.h"
+#include "nsSVGEffects.h"
+#include "imgIContainer.h"
 
 namespace mozilla {
 namespace css {
@@ -62,7 +64,10 @@ ClearImageHashSet(nsPtrHashKey<ImageLoader::Image>* aKey, void* aClosure)
 void
 ImageLoader::DropDocumentReference()
 {
-  ClearFrames();
+  // It's okay if GetPresContext returns null here (due to the presshell pointer
+  // on the document being null) as that means the presshell has already
+  // been destroyed, and it also calls ClearFrames when it is destroyed.
+  ClearFrames(GetPresContext());
   mImages.EnumerateEntries(&ClearImageHashSet, mDocument);
   mDocument = nullptr;
 }
@@ -71,10 +76,6 @@ void
 ImageLoader::AssociateRequestToFrame(imgIRequest* aRequest,
                                      nsIFrame* aFrame)
 {
-  MOZ_ASSERT(mRequestToFrameMap.IsInitialized() &&
-             mFrameToRequestMap.IsInitialized() &&
-             mImages.IsInitialized());
-
   nsCOMPtr<imgINotificationObserver> observer;
   aRequest->GetNotificationObserver(getter_AddRefs(observer));
   if (!observer) {
@@ -171,10 +172,6 @@ ImageLoader::DisassociateRequestFromFrame(imgIRequest* aRequest,
   FrameSet* frameSet = nullptr;
   RequestSet* requestSet = nullptr;
 
-  MOZ_ASSERT(mRequestToFrameMap.IsInitialized() &&
-             mFrameToRequestMap.IsInitialized() &&
-             mImages.IsInitialized());
-
 #ifdef DEBUG
   {
     nsCOMPtr<imgINotificationObserver> observer;
@@ -238,9 +235,33 @@ ImageLoader::SetAnimationMode(uint16_t aMode)
   mRequestToFrameMap.EnumerateRead(SetAnimationModeEnumerator, &aMode);
 }
 
-void
-ImageLoader::ClearFrames()
+/* static */ PLDHashOperator
+ImageLoader::DeregisterRequestEnumerator(nsISupports* aKey, FrameSet* aValue,
+                                         void* aClosure)
 {
+  imgIRequest* request = static_cast<imgIRequest*>(aKey);
+
+#ifdef DEBUG
+  {
+    nsCOMPtr<imgIRequest> debugRequest = do_QueryInterface(aKey);
+    NS_ASSERTION(debugRequest == request, "This is bad");
+  }
+#endif
+
+  nsPresContext* presContext = static_cast<nsPresContext*>(aClosure);
+  if (presContext) {
+    nsLayoutUtils::DeregisterImageRequest(presContext,
+                                          request,
+                                          nullptr);
+  }
+
+  return PL_DHASH_NEXT;
+}
+
+void
+ImageLoader::ClearFrames(nsPresContext* aPresContext)
+{
+  mRequestToFrameMap.EnumerateRead(DeregisterRequestEnumerator, aPresContext);
   mRequestToFrameMap.Clear();
   mFrameToRequestMap.Clear();
 }
@@ -264,7 +285,9 @@ ImageLoader::LoadImage(nsIURI* aURI, nsIPrincipal* aOriginPrincipal,
 
   nsRefPtr<imgRequestProxy> request;
   nsContentUtils::LoadImage(aURI, mDocument, aOriginPrincipal, aReferrer,
+                            mDocument->GetReferrerPolicy(),
                             nullptr, nsIRequest::LOAD_NORMAL,
+                            NS_LITERAL_STRING("css"),
                             getter_AddRefs(request));
 
   if (!request) {
@@ -329,10 +352,17 @@ void InvalidateImagesCallback(nsIFrame* aFrame,
 
   aItem->Invalidate();
   aFrame->SchedulePaint();
+
+  // Update ancestor rendering observers (-moz-element etc)
+  nsIFrame *f = aFrame;
+  while (f && !f->HasAnyStateBits(NS_FRAME_DESCENDANT_NEEDS_PAINT)) {
+    nsSVGEffects::InvalidateDirectRenderingObservers(f);
+    f = nsLayoutUtils::GetCrossDocParentFrame(f);
+  }
 }
 
 void
-ImageLoader::DoRedraw(FrameSet* aFrameSet)
+ImageLoader::DoRedraw(FrameSet* aFrameSet, bool aForcePaint)
 {
   NS_ASSERTION(aFrameSet, "Must have a frame set");
   NS_ASSERTION(mDocument, "Should have returned earlier!");
@@ -349,6 +379,9 @@ ImageLoader::DoRedraw(FrameSet* aFrameSet)
         frame->InvalidateFrame();
       } else {
         FrameLayerBuilder::IterateRetainedDataFor(frame, InvalidateImagesCallback);
+        if (aForcePaint) {
+          frame->SchedulePaint();
+        }
       }
     }
   }
@@ -363,31 +396,31 @@ NS_INTERFACE_MAP_BEGIN(ImageLoader)
 NS_INTERFACE_MAP_END
 
 NS_IMETHODIMP
-ImageLoader::Notify(imgIRequest *aRequest, int32_t aType, const nsIntRect* aData)
+ImageLoader::Notify(imgIRequest* aRequest, int32_t aType, const nsIntRect* aData)
 {
   if (aType == imgINotificationObserver::SIZE_AVAILABLE) {
     nsCOMPtr<imgIContainer> image;
     aRequest->GetImage(getter_AddRefs(image));
-    return OnStartContainer(aRequest, image);
+    return OnSizeAvailable(aRequest, image);
   }
 
   if (aType == imgINotificationObserver::IS_ANIMATED) {
     return OnImageIsAnimated(aRequest);
   }
 
-  if (aType == imgINotificationObserver::LOAD_COMPLETE) {
-    return OnStopFrame(aRequest);
+  if (aType == imgINotificationObserver::FRAME_COMPLETE) {
+    return OnFrameComplete(aRequest);
   }
 
   if (aType == imgINotificationObserver::FRAME_UPDATE) {
-    return FrameChanged(aRequest);
+    return OnFrameUpdate(aRequest);
   }
 
   return NS_OK;
 }
 
 nsresult
-ImageLoader::OnStartContainer(imgIRequest* aRequest, imgIContainer* aImage)
+ImageLoader::OnSizeAvailable(imgIRequest* aRequest, imgIContainer* aImage)
 { 
   nsPresContext* presContext = GetPresContext();
   if (!presContext) {
@@ -424,7 +457,7 @@ ImageLoader::OnImageIsAnimated(imgIRequest* aRequest)
 }
 
 nsresult
-ImageLoader::OnStopFrame(imgIRequest *aRequest)
+ImageLoader::OnFrameComplete(imgIRequest* aRequest)
 {
   if (!mDocument || mInClone) {
     return NS_OK;
@@ -437,13 +470,16 @@ ImageLoader::OnStopFrame(imgIRequest *aRequest)
 
   NS_ASSERTION(frameSet, "This should never be null!");
 
-  DoRedraw(frameSet);
+  // Since we just finished decoding a frame, we always want to paint, in case
+  // we're now able to paint an image that we couldn't paint before (and hence
+  // that we don't have retained data for).
+  DoRedraw(frameSet, /* aForcePaint = */ true);
 
   return NS_OK;
 }
 
 nsresult
-ImageLoader::FrameChanged(imgIRequest *aRequest)
+ImageLoader::OnFrameUpdate(imgIRequest* aRequest)
 {
   if (!mDocument || mInClone) {
     return NS_OK;
@@ -456,7 +492,7 @@ ImageLoader::FrameChanged(imgIRequest *aRequest)
 
   NS_ASSERTION(frameSet, "This should never be null!");
 
-  DoRedraw(frameSet);
+  DoRedraw(frameSet, /* aForcePaint = */ false);
 
   return NS_OK;
 }

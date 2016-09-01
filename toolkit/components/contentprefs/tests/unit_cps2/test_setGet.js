@@ -170,4 +170,39 @@ let tests = [
 
     yield;
   },
+
+  function get_nameOnly() {
+    yield set("a.com", "foo", 1);
+    yield set("a.com", "bar", 2);
+    yield set("b.com", "foo", 3);
+    yield setGlobal("foo", 4);
+
+    yield getOKEx("getByName", ["foo", undefined], [
+      {"domain": "a.com", "name": "foo", "value": 1},
+      {"domain": "b.com", "name": "foo", "value": 3},
+      {"domain": null, "name": "foo", "value": 4}
+    ]);
+
+    let context = { usePrivateBrowsing: true };
+    yield set("b.com", "foo", 5, context);
+
+    yield getOKEx("getByName", ["foo", context], [
+      {"domain": "a.com", "name": "foo", "value": 1},
+      {"domain": null, "name": "foo", "value": 4},
+      {"domain": "b.com", "name": "foo", "value": 5}
+    ]);
+  },
+
+  function setSetsCurrentDate() {
+    // Because Date.now() is not guaranteed to be monotonically increasing
+    // we just do here rough sanity check with one minute tolerance.
+    const MINUTE = 60 * 1000;
+    let now = Date.now();
+    let start = now - MINUTE;
+    let end = now + MINUTE;
+    yield set("a.com", "foo", 1);
+    let timestamp = yield getDate("a.com", "foo");
+    ok(start <= timestamp, "Timestamp is not too early (" + start + "<=" + timestamp + ").");
+    ok(timestamp <= end, "Timestamp is not too late (" + timestamp + "<=" + end + ").");
+  },
 ];

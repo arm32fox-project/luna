@@ -12,7 +12,7 @@
   <script type="text/javascript;version=1.7">
   function testSteps()
   {
-    const READ_WRITE = IDBTransaction.READ_WRITE;
+    const READ_WRITE = "readwrite";
 
     const databaseInfo = [
       { name: window.location.pathname + "1" },
@@ -24,12 +24,12 @@
     const fileData = { key: 1, file: getRandomFile("random.bin", 100000) };
 
     let databases = [];
-    for each (let info in databaseInfo) {
+    for (let info of databaseInfo) {
       let request = indexedDB.open(info.name, 1);
       request.onerror = errorHandler;
       request.onupgradeneeded = grabEventAndContinueHandler;
       request.onsuccess = grabEventAndContinueHandler;
-      let event = yield;
+      let event = yield undefined;
 
       is(event.type, "upgradeneeded", "Got correct event type");
 
@@ -39,7 +39,7 @@
       let objectStore = db.createObjectStore(objectStoreName, { });
       objectStore.add(fileData.file, fileData.key);
 
-      event = yield;
+      event = yield undefined;
 
       is(event.type, "success", "Got correct event type");
 
@@ -47,23 +47,22 @@
     }
 
     let refResult;
-    for each (let db in databases) {
+    for (let db of databases) {
       let request = db.transaction([objectStoreName])
                       .objectStore(objectStoreName).get(fileData.key);
       request.onsuccess = grabEventAndContinueHandler;
-      event = yield;
+      event = yield undefined;
 
       let result = event.target.result;
       verifyBlob(result, fileData.file, 1);
-      yield;
+      yield undefined;
 
       if (!refResult) {
         refResult = result;
         continue;
       }
 
-      isnot(SpecialPowers.getMozFullPath(result),
-            SpecialPowers.getMozFullPath(refResult), "Different os files");
+      isnot(getFilePath(result), getFilePath(refResult), "Different os files");
     }
 
     for (let i = 1; i < databases.length; i++) {
@@ -74,26 +73,25 @@
 
       request = objectStore.add(refResult, 2);
       request.onsuccess = grabEventAndContinueHandler;
-      event = yield;
+      event = yield undefined;
 
       is(event.target.result, 2, "Got correct key");
 
       request = objectStore.get(2);
       request.onsuccess = grabEventAndContinueHandler;
-      event = yield;
+      event = yield undefined;
 
       let result = event.target.result;
       verifyBlob(result, refResult, 2);
-      yield;
+      yield undefined;
 
-      isnot(SpecialPowers.getMozFullPath(result),
-            SpecialPowers.getMozFullPath(refResult), "Different os files");
+      isnot(getFilePath(result), getFilePath(refResult), "Different os files");
     }
 
     is(bufferCache.length, 2, "Correct length");
 
     finishTest();
-    yield;
+    yield undefined;
   }
   </script>
   <script type="text/javascript;version=1.7" src="file.js"></script>

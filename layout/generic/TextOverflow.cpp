@@ -12,6 +12,7 @@
 #include "nsCaret.h"
 #include "nsContentUtils.h"
 #include "nsCSSAnonBoxes.h"
+#include "nsFontMetrics.h"
 #include "nsGfxScrollFrame.h"
 #include "nsIScrollableFrame.h"
 #include "nsLayoutUtils.h"
@@ -19,24 +20,22 @@
 #include "nsRect.h"
 #include "nsRenderingContext.h"
 #include "nsTextFrame.h"
-#include "nsStyleStructInlines.h"
-#include "mozilla/Util.h"
+#include "nsIFrameInlines.h"
+#include "mozilla/ArrayUtils.h"
 #include "mozilla/Likely.h"
+#include "nsISelection.h"
 
 namespace mozilla {
 namespace css {
 
-class LazyReferenceRenderingContextGetterFromFrame MOZ_FINAL :
+class LazyReferenceRenderingContextGetterFromFrame final :
     public gfxFontGroup::LazyReferenceContextGetter {
 public:
-  LazyReferenceRenderingContextGetterFromFrame(nsIFrame* aFrame)
+  explicit LazyReferenceRenderingContextGetterFromFrame(nsIFrame* aFrame)
     : mFrame(aFrame) {}
-  virtual already_AddRefed<gfxContext> GetRefContext() MOZ_OVERRIDE
+  virtual already_AddRefed<gfxContext> GetRefContext() override
   {
-    nsRefPtr<nsRenderingContext> rc =
-      mFrame->PresContext()->PresShell()->GetReferenceRenderingContext();
-    nsRefPtr<gfxContext> ctx = rc->ThebesContext();
-    return ctx.forget();
+    return mFrame->PresContext()->PresShell()->CreateReferenceRenderingContext();
   }
 private:
   nsIFrame* mFrame;
@@ -167,16 +166,17 @@ public:
     MOZ_COUNT_DTOR(nsDisplayTextOverflowMarker);
   }
 #endif
-  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder, bool* aSnap) {
+  virtual nsRect GetBounds(nsDisplayListBuilder* aBuilder,
+                           bool* aSnap) override {
     *aSnap = false;
     nsRect shadowRect =
       nsLayoutUtils::GetTextShadowRectsUnion(mRect, mFrame);
     return mRect.Union(shadowRect);
   }
   virtual void Paint(nsDisplayListBuilder* aBuilder,
-                     nsRenderingContext* aCtx);
+                     nsRenderingContext* aCtx) override;
 
-  virtual uint32_t GetPerFrameKey() { 
+  virtual uint32_t GetPerFrameKey() override { 
     return (mIndex << nsDisplayItem::TYPE_BITS) | nsDisplayItem::GetPerFrameKey(); 
   }
   void PaintTextToContext(nsRenderingContext* aCtx,
@@ -210,7 +210,7 @@ nsDisplayTextOverflowMarker::Paint(nsDisplayListBuilder* aBuilder,
   nsLayoutUtils::PaintTextShadow(mFrame, aCtx, mRect, mVisibleRect,
                                  foregroundColor, PaintTextShadowCallback,
                                  (void*)this);
-  aCtx->SetColor(foregroundColor);
+  aCtx->ThebesContext()->SetColor(foregroundColor);
   PaintTextToContext(aCtx, nsPoint(0, 0));
 }
 
@@ -229,15 +229,14 @@ nsDisplayTextOverflowMarker::PaintTextToContext(nsRenderingContext* aCtx,
       NS_ASSERTION(!textRun->IsRightToLeft(),
                    "Ellipsis textruns should always be LTR!");
       gfxPoint gfxPt(pt.x, pt.y);
-      textRun->Draw(aCtx->ThebesContext(), gfxPt, gfxFont::GLYPH_FILL,
+      textRun->Draw(aCtx->ThebesContext(), gfxPt, DrawMode::GLYPH_FILL,
                     0, textRun->GetLength(), nullptr, nullptr, nullptr);
     }
   } else {
     nsRefPtr<nsFontMetrics> fm;
     nsLayoutUtils::GetFontMetricsForFrame(mFrame, getter_AddRefs(fm),
       nsLayoutUtils::FontSizeInflationFor(mFrame));
-    aCtx->SetFont(fm);
-    nsLayoutUtils::DrawString(mFrame, aCtx, mStyle->mString.get(),
+    nsLayoutUtils::DrawString(mFrame, *fm, aCtx, mStyle->mString.get(),
                               mStyle->mString.Length(), pt);
   }
 }
@@ -512,7 +511,7 @@ TextOverflow::ExamineLineFrames(nsLineBox*      aLine,
         if (clippedMarkerEdges.mAssignedLeft &&
             clippedMarkerEdges.mLeft - mContentArea.X() > 0) {
           mLeft.mWidth = clippedMarkerEdges.mLeft - mContentArea.X();
-          NS_ASSERTION(mLeft.mWidth < mLeft.mIntrinsicWidth,
+          NS_ASSERTION(mLeft.mWidth < mLeft.mIntrinsicISize,
                        "clipping a marker should make it strictly smaller");
           clippedLeftMarker = true;
         } else {
@@ -524,7 +523,7 @@ TextOverflow::ExamineLineFrames(nsLineBox*      aLine,
         if (clippedMarkerEdges.mAssignedRight &&
             mContentArea.XMost() - clippedMarkerEdges.mRight > 0) {
           mRight.mWidth = mContentArea.XMost() - clippedMarkerEdges.mRight;
-          NS_ASSERTION(mRight.mWidth < mRight.mIntrinsicWidth,
+          NS_ASSERTION(mRight.mWidth < mRight.mIntrinsicISize,
                        "clipping a marker should make it strictly smaller");
           clippedRightMarker = true;
         } else {
@@ -535,9 +534,9 @@ TextOverflow::ExamineLineFrames(nsLineBox*      aLine,
       // The line simply has no visible content even without markers,
       // so examine the line again without suppressing markers.
       retryEmptyLine = false;
-      mLeft.mWidth = mLeft.mIntrinsicWidth;
+      mLeft.mWidth = mLeft.mIntrinsicISize;
       mLeft.mActive = guessLeft = leftOverflow;
-      mRight.mWidth = mRight.mIntrinsicWidth;
+      mRight.mWidth = mRight.mIntrinsicISize;
       mRight.mActive = guessRight = rightOverflow;
       continue;
     }
@@ -572,9 +571,8 @@ TextOverflow::ProcessLine(const nsDisplayListSet& aLists,
   mLeft.mActive = mLeft.mStyle->mType != NS_STYLE_TEXT_OVERFLOW_CLIP;
   mRight.Reset();
   mRight.mActive = mRight.mStyle->mType != NS_STYLE_TEXT_OVERFLOW_CLIP;
-  
-  FrameHashtable framesToHide;
-  framesToHide.Init(100);
+
+  FrameHashtable framesToHide(64);
   AlignmentEdges alignmentEdges;
   ExamineLineFrames(aLine, &framesToHide, &alignmentEdges);
   bool needLeft = mLeft.IsNeeded();
@@ -672,26 +670,25 @@ TextOverflow::CanHaveTextOverflow(nsDisplayListBuilder* aBuilder,
                                   nsIFrame*             aBlockFrame)
 {
   const nsStyleTextReset* style = aBlockFrame->StyleTextReset();
-  // Nothing to do for text-overflow:clip or if 'overflow-x:visible'
-  // or if we're just building items for event processing.
+  // Nothing to do for text-overflow:clip or if 'overflow-x:visible' or if
+  // we're just building items for event processing or image visibility.
   if ((style->mTextOverflow.mLeft.mType == NS_STYLE_TEXT_OVERFLOW_CLIP &&
        style->mTextOverflow.mRight.mType == NS_STYLE_TEXT_OVERFLOW_CLIP) ||
       IsHorizontalOverflowVisible(aBlockFrame) ||
-      aBuilder->IsForEventDelivery()) {
+      aBuilder->IsForEventDelivery() || aBuilder->IsForImageVisibility()) {
     return false;
   }
 
-  // Skip ComboboxControlFrame.
+  // Skip ComboboxControlFrame because it would clip the drop-down arrow.
   // Its anon block inherits 'text-overflow' and does what is expected.
   if (aBlockFrame->GetType() == nsGkAtoms::comboboxControlFrame) {
     return false;
   }
- 
+
   // Inhibit the markers if a descendant content owns the caret.
   nsRefPtr<nsCaret> caret = aBlockFrame->PresContext()->PresShell()->GetCaret();
-  bool visible = false;
-  if (caret && NS_SUCCEEDED(caret->GetCaretVisible(&visible)) && visible) {
-    nsCOMPtr<nsISelection> domSelection = caret->GetCaretDOMSelection();
+  if (caret && caret->IsVisible()) {
+    nsCOMPtr<nsISelection> domSelection = caret->GetSelection();
     if (domSelection) {
       nsCOMPtr<nsIDOMNode> node;
       domSelection->GetFocusNode(getter_AddRefs(node));
@@ -714,15 +711,16 @@ TextOverflow::CreateMarkers(const nsLineBox* aLine,
   if (aCreateLeft) {
     DisplayListClipState::AutoSaveRestore clipState(mBuilder);
 
-    nsRect markerRect = nsRect(aInsideMarkersArea.x - mLeft.mIntrinsicWidth,
-                               aLine->mBounds.y,
-                               mLeft.mIntrinsicWidth, aLine->mBounds.height);
+    //XXX Needs vertical text love
+    nsRect markerRect = nsRect(aInsideMarkersArea.x - mLeft.mIntrinsicISize,
+                               aLine->BStart(),
+                               mLeft.mIntrinsicISize, aLine->BSize());
     markerRect += mBuilder->ToReferenceFrame(mBlock);
     ClipMarker(mContentArea + mBuilder->ToReferenceFrame(mBlock),
                markerRect, clipState);
     nsDisplayItem* marker = new (mBuilder)
       nsDisplayTextOverflowMarker(mBuilder, mBlock, markerRect,
-                                  aLine->GetAscent(), mLeft.mStyle, 0);
+                                  aLine->GetLogicalAscent(), mLeft.mStyle, 0);
     mMarkerList.AppendNewToTop(marker);
   }
 
@@ -730,14 +728,14 @@ TextOverflow::CreateMarkers(const nsLineBox* aLine,
     DisplayListClipState::AutoSaveRestore clipState(mBuilder);
 
     nsRect markerRect = nsRect(aInsideMarkersArea.XMost(),
-                               aLine->mBounds.y,
-                               mRight.mIntrinsicWidth, aLine->mBounds.height);
+                               aLine->BStart(),
+                               mRight.mIntrinsicISize, aLine->BSize());
     markerRect += mBuilder->ToReferenceFrame(mBlock);
     ClipMarker(mContentArea + mBuilder->ToReferenceFrame(mBlock),
                markerRect, clipState);
     nsDisplayItem* marker = new (mBuilder)
       nsDisplayTextOverflowMarker(mBuilder, mBlock, markerRect,
-                                  aLine->GetAscent(), mRight.mStyle, 1);
+                                  aLine->GetLogicalAscent(), mRight.mStyle, 1);
     mMarkerList.AppendNewToTop(marker);
   }
 }
@@ -757,16 +755,15 @@ TextOverflow::Marker::SetupString(nsIFrame* aFrame)
       mWidth = 0;
     }
   } else {
-    nsRefPtr<nsRenderingContext> rc =
-      aFrame->PresContext()->PresShell()->GetReferenceRenderingContext();
+    nsRenderingContext rc(
+      aFrame->PresContext()->PresShell()->CreateReferenceRenderingContext());
     nsRefPtr<nsFontMetrics> fm;
     nsLayoutUtils::GetFontMetricsForFrame(aFrame, getter_AddRefs(fm),
       nsLayoutUtils::FontSizeInflationFor(aFrame));
-    rc->SetFont(fm);
-    mWidth = nsLayoutUtils::GetStringWidth(aFrame, rc, mStyle->mString.get(),
-                                           mStyle->mString.Length());
+    mWidth = nsLayoutUtils::AppUnitWidthOfStringBidi(mStyle->mString, aFrame,
+                                                     *fm, rc);
   }
-  mIntrinsicWidth = mWidth;
+  mIntrinsicISize = mWidth;
   mInitialized = true;
 }
 
