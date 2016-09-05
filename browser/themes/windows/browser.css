@@ -1514,30 +1514,24 @@ html|*.urlbar-input:-moz-lwtheme::-moz-placeholder,
 
 #urlbar[https_color="all"][security_level="broken"],
 #urlbar[https_color="all"][security_level="low"] {
-  box-shadow: inset 0 0 4px rgb(168,0,0);
+  box-shadow: inset 0 0 2px rgb(168,0,0);
 }
 
 #urlbar[https_color="all"][security_level="mixed"],
 #urlbar[https_color="secure-mixed"][security_level="mixed"] {
-  box-shadow: inset 0 0 4px rgb(168,79,0);
+  box-shadow: inset 0 0 2px rgb(168,79,0);
 }
 
 #urlbar[https_color="all"][security_level="high"],
 #urlbar[https_color="secure-mixed"][security_level="high"],
 #urlbar[https_color="secure-only"][security_level="high"] {
-  box-shadow: inset 0 0 4px rgb(0,79,168);
+  box-shadow: inset 0 0 2px rgb(0,79,168);
 }
 
 #urlbar[https_color="all"][security_level="ev"],
 #urlbar[https_color="secure-mixed"][security_level="ev"],
 #urlbar[https_color="secure-only"][security_level="ev"] {
-  box-shadow: inset 0 0 4px rgb(0,168,0);
-}
-
-#urlbar[https_color="all"]:-moz-lwtheme-darktext,
-#urlbar[https_color="secure-mixed"]:-moz-lwtheme-darktext,
-#urlbar[https_color="secure-only"]:-moz-lwtheme-darktext {
-  box-shadow: inset 0 0 2px;
+  box-shadow: inset 0 0 2px rgb(0,168,0);
 }
 
 /* Location bar dropmarker */
