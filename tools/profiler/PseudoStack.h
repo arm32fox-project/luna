@@ -6,10 +6,12 @@
 #ifndef PROFILER_PSEUDO_STACK_H_
 #define PROFILER_PSEUDO_STACK_H_
 
-#include "mozilla/NullPtr.h"
-#include "mozilla/StandardInteger.h"
-#include "jsfriendapi.h"
+#include "mozilla/ArrayUtils.h"
+#include <stdint.h>
+#include "js/ProfilingStack.h"
 #include <stdlib.h>
+#include "mozilla/Atomics.h"
+#include "nsISupportsImpl.h"
 
 /* we duplicate this code here to avoid header dependencies
  * which make it more difficult to include in other places */
@@ -38,23 +40,7 @@ LinuxKernelMemoryBarrierFunc pLinuxKernelMemoryBarrier __attribute__((weak)) =
 # define STORE_SEQUENCER() pLinuxKernelMemoryBarrier()
 #elif defined(V8_HOST_ARCH_IA32) || defined(V8_HOST_ARCH_X64)
 # if defined(_MSC_VER)
-#if _MSC_VER > 1400
 #  include <intrin.h>
-#else // _MSC_VER > 1400
-    // MSVC2005 has a name collision bug caused when both <intrin.h> and <winnt.h> are included together.
-#ifdef _WINNT_
-#  define _interlockedbittestandreset _interlockedbittestandreset_NAME_CHANGED_TO_AVOID_MSVS2005_ERROR
-#  define _interlockedbittestandset _interlockedbittestandset_NAME_CHANGED_TO_AVOID_MSVS2005_ERROR
-#  include <intrin.h>
-#else
-#  include <intrin.h>
-#  define _interlockedbittestandreset _interlockedbittestandreset_NAME_CHANGED_TO_AVOID_MSVS2005_ERROR
-#  define _interlockedbittestandset _interlockedbittestandset_NAME_CHANGED_TO_AVOID_MSVS2005_ERROR
-#endif
-   // Even though MSVC2005 has the intrinsic _ReadWriteBarrier, it fails to link to it when it's
-   // not explicitly declared.
-#  pragma intrinsic(_ReadWriteBarrier)
-#endif // _MSC_VER > 1400
 #  define STORE_SEQUENCER() _ReadWriteBarrier();
 # elif defined(__INTEL_COMPILER)
 #  define STORE_SEQUENCER() __memory_barrier();
@@ -67,6 +53,12 @@ LinuxKernelMemoryBarrierFunc pLinuxKernelMemoryBarrier __attribute__((weak)) =
 # error "Memory clobber not supported for your platform."
 #endif
 
+// We can't include <algorithm> because it causes issues on OS X, so we use
+// our own min function.
+static inline uint32_t sMin(uint32_t l, uint32_t r) {
+  return l < r ? l : r;
+}
+
 // A stack entry exists to allow the JS engine to inform SPS of the current
 // backtrace, but also to instrument particular points in C++ in case stack
 // walking is not available on the platform we are running on.
@@ -77,117 +69,276 @@ LinuxKernelMemoryBarrierFunc pLinuxKernelMemoryBarrier __attribute__((weak)) =
 // of the two representations are consistent.
 class StackEntry : public js::ProfileEntry
 {
-public:
+};
 
-  bool isCopyLabel() volatile {
-    return !((uintptr_t)stackAddress() & 0x1);
+class ProfilerMarkerPayload;
+template<typename T>
+class ProfilerLinkedList;
+class JSStreamWriter;
+class JSCustomArray;
+class ThreadProfile;
+class ProfilerMarker {
+  friend class ProfilerLinkedList<ProfilerMarker>;
+public:
+  explicit ProfilerMarker(const char* aMarkerName,
+         ProfilerMarkerPayload* aPayload = nullptr,
+         float aTime = 0);
+
+  ~ProfilerMarker();
+
+  const char* GetMarkerName() const {
+    return mMarkerName;
   }
 
-  void setStackAddressCopy(void *sparg, bool copy) volatile {
-    // Tagged pointer. Less significant bit used to track if mLabel needs a
-    // copy. Note that we don't need the last bit of the stack address for
-    // proper ordering. This is optimized for encoding within the JS engine's
-    // instrumentation, so we do the extra work here of encoding a bit.
-    // Last bit 1 = Don't copy, Last bit 0 = Copy.
-    if (copy) {
-      setStackAddress(reinterpret_cast<void*>(
-                        reinterpret_cast<uintptr_t>(sparg) & ~0x1));
+  void
+  StreamJSObject(JSStreamWriter& b) const;
+
+  void SetGeneration(int aGenID);
+
+  bool HasExpired(int aGenID) const {
+    return mGenID + 2 <= aGenID;
+  }
+
+  float GetTime();
+
+private:
+  char* mMarkerName;
+  ProfilerMarkerPayload* mPayload;
+  ProfilerMarker* mNext;
+  float mTime;
+  int mGenID;
+};
+
+// Foward declaration
+typedef struct _UnwinderThreadBuffer UnwinderThreadBuffer;
+
+/**
+ * This struct is used to add a mNext field to UnwinderThreadBuffer objects for
+ * use with ProfilerLinkedList. It is done this way so that UnwinderThreadBuffer
+ * may continue to be opaque.
+ */
+struct LinkedUWTBuffer
+{
+  LinkedUWTBuffer()
+    :mNext(nullptr)
+  {}
+  virtual ~LinkedUWTBuffer() {}
+  virtual UnwinderThreadBuffer* GetBuffer() = 0;
+  LinkedUWTBuffer*  mNext;
+};
+
+template<typename T>
+class ProfilerLinkedList {
+public:
+  ProfilerLinkedList()
+    : mHead(nullptr)
+    , mTail(nullptr)
+  {}
+
+  void insert(T* elem)
+  {
+    if (!mTail) {
+      mHead = elem;
+      mTail = elem;
     } else {
-      setStackAddress(reinterpret_cast<void*>(
-                        reinterpret_cast<uintptr_t>(sparg) | 0x1));
+      mTail->mNext = elem;
+      mTail = elem;
+    }
+    elem->mNext = nullptr;
+  }
+
+  T* popHead()
+  {
+    if (!mHead) {
+      MOZ_ASSERT(false);
+      return nullptr;
+    }
+
+    T* head = mHead;
+
+    mHead = head->mNext;
+    if (!mHead) {
+      mTail = nullptr;
+    }
+
+    return head;
+  }
+
+  const T* peek() {
+    return mHead;
+  }
+
+private:
+  T* mHead;
+  T* mTail;
+};
+
+typedef ProfilerLinkedList<ProfilerMarker> ProfilerMarkerLinkedList;
+typedef ProfilerLinkedList<LinkedUWTBuffer> UWTBufferLinkedList;
+
+template<typename T>
+class ProfilerSignalSafeLinkedList {
+public:
+  ProfilerSignalSafeLinkedList()
+    : mSignalLock(false)
+  {}
+
+  ~ProfilerSignalSafeLinkedList()
+  {
+    if (mSignalLock) {
+      // Some thread is modifying the list. We should only be released on that
+      // thread.
+      abort();
+    }
+
+    while (mList.peek()) {
+      delete mList.popHead();
     }
   }
+
+  // Insert an item into the list.
+  // Must only be called from the owning thread.
+  // Must not be called while the list from accessList() is being accessed.
+  // In the profiler, we ensure that by interrupting the profiled thread
+  // (which is the one that owns this list and calls insert() on it) until
+  // we're done reading the list from the signal handler.
+  void insert(T* aElement) {
+    MOZ_ASSERT(aElement);
+
+    mSignalLock = true;
+    STORE_SEQUENCER();
+
+    mList.insert(aElement);
+
+    STORE_SEQUENCER();
+    mSignalLock = false;
+  }
+
+  // Called within signal, from any thread, possibly while insert() is in the
+  // middle of modifying the list (on the owning thread). Will return null if
+  // that is the case.
+  // Function must be reentrant.
+  ProfilerLinkedList<T>* accessList()
+  {
+    if (mSignalLock) {
+      return nullptr;
+    }
+    return &mList;
+  }
+
+private:
+  ProfilerLinkedList<T> mList;
+
+  // If this is set, then it's not safe to read the list because its contents
+  // are being changed.
+  volatile bool mSignalLock;
 };
+
+// Stub eventMarker function for js-engine event generation.
+void ProfilerJSEventMarker(const char *event);
 
 // the PseudoStack members are read by signal
 // handlers, so the mutation of them needs to be signal-safe.
 struct PseudoStack
 {
 public:
-  PseudoStack()
-    : mStackPointer(0)
-    , mSignalLock(false)
-    , mMarkerPointer(0)
-    , mQueueClearMarker(false)
-    , mRuntime(nullptr)
-    , mStartJSSampling(false)
-    , mPrivacyMode(false)
-  { }
-
-  void addMarker(const char *aMarker)
+  // Create a new PseudoStack and acquire a reference to it.
+  static PseudoStack *create()
   {
-    char* markerCopy = strdup(aMarker);
-    mSignalLock = true;
-    STORE_SEQUENCER();
+    return new PseudoStack();
+  }
 
-    if (mQueueClearMarker) {
-      clearMarkers();
-    }
-    if (!aMarker) {
-      return; //discard
-    }
-    if (size_t(mMarkerPointer) == mozilla::ArrayLength(mMarkers)) {
-      return; //array full, silently drop
-    }
-    mMarkers[mMarkerPointer] = markerCopy;
-    mMarkerPointer++;
+  // This is called on every profiler restart. Put things that should happen at that time here.
+  void reinitializeOnResume() {
+    // This is needed to cause an initial sample to be taken from sleeping threads. Otherwise sleeping
+    // threads would not have any samples to copy forward while sleeping.
+    mSleepId++;
+  }
 
-    mSignalLock = false;
-    STORE_SEQUENCER();
+  void addLinkedUWTBuffer(LinkedUWTBuffer* aBuff)
+  {
+    mPendingUWTBuffers.insert(aBuff);
+  }
+
+  UWTBufferLinkedList* getLinkedUWTBuffers()
+  {
+    return mPendingUWTBuffers.accessList();
+  }
+
+  void addMarker(const char *aMarkerStr, ProfilerMarkerPayload *aPayload, float aTime)
+  {
+    ProfilerMarker* marker = new ProfilerMarker(aMarkerStr, aPayload, aTime);
+    mPendingMarkers.insert(marker);
   }
 
   // called within signal. Function must be reentrant
-  const char* getMarker(int aMarkerId)
+  ProfilerMarkerLinkedList* getPendingMarkers()
   {
-    // if mSignalLock then the stack is inconsistent because it's being
-    // modified by the profiled thread. Post pone these markers
-    // for the next sample. The odds of a livelock are nearly impossible
-    // and would show up in a profile as many sample in 'addMarker' thus
-    // we ignore this scenario.
-    // if mQueueClearMarker then we've the sampler thread has already
-    // thread the markers then they are pending deletion.
-    if (mSignalLock || mQueueClearMarker || aMarkerId < 0 ||
-      static_cast<mozilla::sig_safe_t>(aMarkerId) >= mMarkerPointer) {
-      return nullptr;
-    }
-    return mMarkers[aMarkerId];
+    // The profiled thread is interrupted, so we can access the list safely.
+    // Unless the profiled thread was in the middle of changing the list when
+    // we interrupted it - in that case, accessList() will return null.
+    return mPendingMarkers.accessList();
   }
 
-  // called within signal. Function must be reentrant
-  void clearMarkers()
+  void push(const char *aName, js::ProfileEntry::Category aCategory, uint32_t line)
   {
-    for (mozilla::sig_safe_t i = 0; i < mMarkerPointer; i++) {
-      free(mMarkers[i]);
-    }
-    mMarkerPointer = 0;
-    mQueueClearMarker = false;
+    push(aName, aCategory, nullptr, false, line);
   }
 
-  void push(const char *aName, uint32_t line)
-  {
-    push(aName, nullptr, false, line);
-  }
-
-  void push(const char *aName, void *aStackAddress, bool aCopy, uint32_t line)
+  void push(const char *aName, js::ProfileEntry::Category aCategory,
+    void *aStackAddress, bool aCopy, uint32_t line)
   {
     if (size_t(mStackPointer) >= mozilla::ArrayLength(mStack)) {
       mStackPointer++;
       return;
     }
 
+    // In order to ensure this object is kept alive while it is
+    // active, we acquire a reference at the outermost push.  This is
+    // released by the corresponding pop.
+    if (mStackPointer == 0) {
+      ref();
+    }
+
+    volatile StackEntry &entry = mStack[mStackPointer];
+
     // Make sure we increment the pointer after the name has
     // been written such that mStack is always consistent.
-    mStack[mStackPointer].setLabel(aName);
-    mStack[mStackPointer].setStackAddressCopy(aStackAddress, aCopy);
-    mStack[mStackPointer].setLine(line);
+    entry.setLabel(aName);
+    entry.setCppFrame(aStackAddress, line);
+    MOZ_ASSERT(entry.flags() == js::ProfileEntry::IS_CPP_ENTRY);
+
+    uint32_t uint_category = static_cast<uint32_t>(aCategory);
+    MOZ_ASSERT(
+      uint_category >= static_cast<uint32_t>(js::ProfileEntry::Category::FIRST) &&
+      uint_category <= static_cast<uint32_t>(js::ProfileEntry::Category::LAST));
+
+    entry.setFlag(uint_category);
+
+    // Track if mLabel needs a copy.
+    if (aCopy)
+      entry.setFlag(js::ProfileEntry::FRAME_LABEL_COPY);
+    else
+      entry.unsetFlag(js::ProfileEntry::FRAME_LABEL_COPY);
 
     // Prevent the optimizer from re-ordering these instructions
     STORE_SEQUENCER();
     mStackPointer++;
   }
-  void pop()
+
+  // Pop the stack.  If the stack is empty and all other references to
+  // this PseudoStack have been dropped, then the PseudoStack is
+  // deleted and "false" is returned.  Otherwise "true" is returned.
+  bool popAndMaybeDelete()
   {
     mStackPointer--;
+    if (mStackPointer == 0) {
+      // Release our self-owned reference count.  See 'push'.
+      deref();
+      return false;
+    } else {
+      return true;
+    }
   }
   bool isEmpty()
   {
@@ -195,7 +346,7 @@ public:
   }
   uint32_t stackSize() const
   {
-    return std::min<uint32_t>(mStackPointer, mozilla::sig_safe_t(mozilla::ArrayLength(mStack)));
+    return sMin(mStackPointer, mozilla::sig_safe_t(mozilla::ArrayLength(mStack)));
   }
 
   void sampleRuntime(JSRuntime *runtime) {
@@ -205,7 +356,8 @@ public:
       return;
     }
 
-    JS_STATIC_ASSERT(sizeof(mStack[0]) == sizeof(js::ProfileEntry));
+    static_assert(sizeof(mStack[0]) == sizeof(js::ProfileEntry),
+                  "mStack must be binary compatible with js::ProfileEntry.");
     js::SetRuntimeProfilingStack(runtime,
                                  (js::ProfileEntry*) mStack,
                                  (uint32_t*) &mStackPointer,
@@ -216,6 +368,7 @@ public:
   void enableJSSampling() {
     if (mRuntime) {
       js::EnableRuntimeProfilingStack(mRuntime, true);
+      js::RegisterRuntimeProfilingEventMarker(mRuntime, &ProfilerJSEventMarker);
       mStartJSSampling = false;
     } else {
       mStartJSSampling = true;
@@ -233,24 +386,97 @@ public:
 
   // Keep a list of active checkpoints
   StackEntry volatile mStack[1024];
-  // Keep a list of active markers to be applied to the next sample taken
-  char* mMarkers[1024];
  private:
+
+  // A PseudoStack can only be created via the "create" method.
+  PseudoStack()
+    : mStackPointer(0)
+    , mSleepId(0)
+    , mSleepIdObserved(0)
+    , mSleeping(false)
+    , mRefCnt(1)
+    , mRuntime(nullptr)
+    , mStartJSSampling(false)
+    , mPrivacyMode(false)
+  { }
+
+  // A PseudoStack can only be deleted via deref.
+  ~PseudoStack() {
+    if (mStackPointer != 0) {
+      // We're releasing the pseudostack while it's still in use.
+      // The label macros keep a non ref counted reference to the
+      // stack to avoid a TLS. If these are not all cleared we will
+      // get a use-after-free so better to crash now.
+      abort();
+    }
+  }
+
+  // No copying.
+  PseudoStack(const PseudoStack&) = delete;
+  void operator=(const PseudoStack&) = delete;
+
+  // Keep a list of pending markers that must be moved
+  // to the circular buffer
+  ProfilerSignalSafeLinkedList<ProfilerMarker> mPendingMarkers;
+  // List of LinkedUWTBuffers that must be processed on the next tick
+  ProfilerSignalSafeLinkedList<LinkedUWTBuffer> mPendingUWTBuffers;
   // This may exceed the length of mStack, so instead use the stackSize() method
   // to determine the number of valid samples in mStack
   mozilla::sig_safe_t mStackPointer;
-  // If this is set then it's not safe to read mStackPointer from the signal handler
-  volatile bool mSignalLock;
+  // Incremented at every sleep/wake up of the thread
+  int mSleepId;
+  // Previous id observed. If this is not the same as mSleepId, this thread is not sleeping in the same place any more
+  mozilla::Atomic<int> mSleepIdObserved;
+  // Keeps tack of whether the thread is sleeping or not (1 when sleeping 0 when awake)
+  mozilla::Atomic<int> mSleeping;
+  // This class is reference counted because it must be kept alive by
+  // the ThreadInfo, by the reference from tlsPseudoStack, and by the
+  // current thread when callbacks are in progress.
+  mozilla::Atomic<int> mRefCnt;
+
  public:
-  volatile mozilla::sig_safe_t mMarkerPointer;
-  // We don't want to modify _markers from within the signal so we allow
-  // it to queue a clear operation.
-  volatile mozilla::sig_safe_t mQueueClearMarker;
   // The runtime which is being sampled
   JSRuntime *mRuntime;
   // Start JS Profiling when possible
   bool mStartJSSampling;
   bool mPrivacyMode;
+
+  enum SleepState {NOT_SLEEPING, SLEEPING_FIRST, SLEEPING_AGAIN};
+
+  // The first time this is called per sleep cycle we return SLEEPING_FIRST
+  // and any other subsequent call within the same sleep cycle we return SLEEPING_AGAIN
+  SleepState observeSleeping() {
+    if (mSleeping != 0) {
+      if (mSleepIdObserved == mSleepId) {
+        return SLEEPING_AGAIN;
+      } else {
+        mSleepIdObserved = mSleepId;
+        return SLEEPING_FIRST;
+      }
+    } else {
+      return NOT_SLEEPING;
+    }
+  }
+
+
+  // Call this whenever the current thread sleeps or wakes up
+  // Calling setSleeping with the same value twice in a row is an error
+  void setSleeping(int sleeping) {
+    MOZ_ASSERT(mSleeping != sleeping);
+    mSleepId++;
+    mSleeping = sleeping;
+  }
+
+  void ref() {
+    ++mRefCnt;
+  }
+
+  void deref() {
+    int newValue = --mRefCnt;
+    if (newValue == 0) {
+      delete this;
+    }
+  }
 };
 
 #endif

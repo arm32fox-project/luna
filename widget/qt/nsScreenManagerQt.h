@@ -17,18 +17,18 @@ class nsScreenManagerQt : public nsIScreenManager
 {
 public:
   nsScreenManagerQt ( );
-  virtual ~nsScreenManagerQt();
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSISCREENMANAGER
 
 private:
-
+  virtual ~nsScreenManagerQt();
   void init ();
 
   nsCOMPtr<nsIScreen> *screens;
   QDesktopWidget *desktop;
   int nScreens;
+  bool mInitialized;
 };
 
 #endif  // nsScreenManagerQt_h___

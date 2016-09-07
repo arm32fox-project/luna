@@ -1,21 +1,27 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
 Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
 
 var httpServer = null;
 // Need to randomize, because apparently no one clears our cache
 var randomPath = "/redirect/" + Math.random();
-var randomURI = "http://localhost:4444" + randomPath;
+
+XPCOMUtils.defineLazyGetter(this, "randomURI", function() {
+  return "http://localhost:" + httpServer.identity.primaryPort + randomPath;
+});
 
 var cacheUpdateObserver = null;
 
 function make_channel(url, callback, ctx) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
             getService(Ci.nsIIOService);
-  return ios.newChannel(url, "", null);
+  return ios.newChannel2(url,
+                         "",
+                         null,
+                         null,      // aLoadingNode
+                         Services.scriptSecurityManager.getSystemPrincipal(),
+                         null,      // aTriggeringPrincipal
+                         Ci.nsILoadInfo.SEC_NORMAL,
+                         Ci.nsIContentPolicy.TYPE_OTHER);
 }
 
 function make_uri(url) {
@@ -69,11 +75,11 @@ function run_test()
   httpServer.registerPathHandler("/masterEntry", masterEntryHandler);
   httpServer.registerPathHandler("/manifest", manifestHandler);
   httpServer.registerPathHandler("/content", contentHandler);
-  httpServer.start(4444);
+  httpServer.start(-1);
 
   var pm = Cc["@mozilla.org/permissionmanager;1"]
     .getService(Ci.nsIPermissionManager);
-  var uri = make_uri("http://localhost:4444");
+  var uri = make_uri("http://localhost:" + httpServer.identity.primaryPort);
   var principal = Cc["@mozilla.org/scriptsecuritymanager;1"]
                     .getService(Ci.nsIScriptSecurityManager)
                     .getNoAppCodebasePrincipal(uri);
@@ -92,6 +98,7 @@ function run_test()
   cacheUpdateObserver = {observe: function() {
     dump("got offline-cache-update-completed\n");
     // offline cache update completed.
+    var _x = randomURI; // doing this so the lazy value gets computed
     httpServer.stop(function() {
       // Now shut the server down to have an error in onstartrequest
       var chan = make_channel(randomURI);
@@ -108,8 +115,10 @@ function run_test()
 
   var us = Cc["@mozilla.org/offlinecacheupdate-service;1"].
            getService(Ci.nsIOfflineCacheUpdateService);
-  us.scheduleUpdate(make_uri("http://localhost:4444/manifest"),
-                    make_uri("http://localhost:4444/masterEntry"),
+  us.scheduleUpdate(make_uri("http://localhost:" +
+                             httpServer.identity.primaryPort + "/manifest"),
+                    make_uri("http://localhost:" +
+                             httpServer.identity.primaryPort + "/masterEntry"),
                     null);
 
   do_test_pending();

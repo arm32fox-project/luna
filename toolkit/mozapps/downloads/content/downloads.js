@@ -1,7 +1,9 @@
-# -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+# -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
+
+"use strict";
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Globals
@@ -18,9 +20,10 @@ var Ci = Components.interfaces;
 let Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/DownloadUtils.jsm");
-Cu.import("resource:///modules/DownloadsCommon.jsm");
-Cu.import("resource://gre/modules/PluralForm.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
+                                  "resource://gre/modules/PluralForm.jsm");
 
 const nsIDM = Ci.nsIDownloadManager;
 
@@ -51,7 +54,7 @@ const gListBuildChunk = 3;
 
 // Array of download richlistitem attributes to check when searching
 const gSearchAttributes = [
-  "displayName",
+  "target",
   "status",
   "dateTime",
 ];
@@ -269,7 +272,7 @@ function openDownload(aDownload)
 
     if (!dontAsk) {
       var strings = document.getElementById("downloadStrings");
-      var name = aDownload.getAttribute("displayName");
+      var name = aDownload.getAttribute("target");
       var message = strings.getFormattedString("fileExecutableSecurityWarning", [name, name]);
 
       let title = gStr.fileExecutableSecurityWarningTitle;
@@ -410,11 +413,10 @@ function Startup()
   gSearchBox = document.getElementById("searchbox");
 
   // convert strings to those in the string bundle
-  let (sb = document.getElementById("downloadStrings")) {
-    let getStr = function(string) sb.getString(string);
-    for (let [name, value] in Iterator(gStr))
-      gStr[name] = typeof value == "string" ? getStr(value) : value.map(getStr);
-  }
+  let sb = document.getElementById("downloadStrings");
+  let getStr = function(string) sb.getString(string);
+  for (let [name, value] in Iterator(gStr))
+    gStr[name] = typeof value == "string" ? getStr(value) : value.map(getStr);
 
   initStatement();
   buildDownloadList(true);
@@ -822,7 +824,7 @@ function performCommand(aCmd, aItem)
       items.unshift(gDownloadsView.selectedItems[i]);
 
     // Do the command for each download item
-    for each (let item in items)
+    for (let item of items)
       performCommand(aCmd, item);
 
     // Call the callback with no arguments and reset because we're done
@@ -867,7 +869,7 @@ function openExternal(aFile)
  *
  * @param aAttrs
  *        An object that must have the following properties: dlid, file,
- *        displayName, uri, state, progress, startTime, endTime, currBytes,
+ *        target, uri, state, progress, startTime, endTime, currBytes,
  *        maxBytes; optional properties: referrer
  * @return An initialized download richlistitem
  */
@@ -880,14 +882,8 @@ function createDownloadItem(aAttrs)
     dl.setAttribute(attr, aAttrs[attr]);
 
   // Initialize other attributes
-  let s = DownloadsCommon.strings;
-  let displayName = aAttrs.displayName;
-  let [displayHost, fullHost] =
-    DownloadUtils.getURIHost(aAttrs.referrer || aAttrs.uri);
   dl.setAttribute("type", "download");
   dl.setAttribute("id", "dl" + aAttrs.dlid);
-  dl.setAttribute("extendedDisplayName", s.statusSeparator(displayName, displayHost));
-  dl.setAttribute("extendedDisplayNameTip", s.statusSeparator(displayName, fullHost));
   dl.setAttribute("image", "moz-icon://" + aAttrs.file + "?size=32");
   dl.setAttribute("lastSeconds", Infinity);
 
@@ -978,30 +974,30 @@ function updateStatus(aItem, aDownload) {
     case nsIDM.DOWNLOAD_BLOCKED_POLICY:
     case nsIDM.DOWNLOAD_DIRTY:
     {
-      let (stateSize = {}) {
-        stateSize[nsIDM.DOWNLOAD_FINISHED] = function() {
-          // Display the file size, but show "Unknown" for negative sizes
-          let fileSize = Number(aItem.getAttribute("maxBytes"));
-          let sizeText = gStr.doneSizeUnknown;
-          if (fileSize >= 0) {
-            let [size, unit] = DownloadUtils.convertByteUnits(fileSize);
-            sizeText = replaceInsert(gStr.doneSize, 1, size);
-            sizeText = replaceInsert(sizeText, 2, unit);
-          }
-          return sizeText;
-        };
-        stateSize[nsIDM.DOWNLOAD_FAILED] = function() gStr.stateFailed;
-        stateSize[nsIDM.DOWNLOAD_CANCELED] = function() gStr.stateCanceled;
-        stateSize[nsIDM.DOWNLOAD_BLOCKED_PARENTAL] = function() gStr.stateBlockedParentalControls;
-        stateSize[nsIDM.DOWNLOAD_BLOCKED_POLICY] = function() gStr.stateBlockedPolicy;
-        stateSize[nsIDM.DOWNLOAD_DIRTY] = function() gStr.stateDirty;
+      let stateSize = {};
+      stateSize[nsIDM.DOWNLOAD_FINISHED] = function() {
+        // Display the file size, but show "Unknown" for negative sizes
+        let fileSize = Number(aItem.getAttribute("maxBytes"));
+        let sizeText = gStr.doneSizeUnknown;
+        if (fileSize >= 0) {
+          let [size, unit] = DownloadUtils.convertByteUnits(fileSize);
+          sizeText = replaceInsert(gStr.doneSize, 1, size);
+          sizeText = replaceInsert(sizeText, 2, unit);
+        }
+        return sizeText;
+      };
+      stateSize[nsIDM.DOWNLOAD_FAILED] = function() gStr.stateFailed;
+      stateSize[nsIDM.DOWNLOAD_CANCELED] = function() gStr.stateCanceled;
+      stateSize[nsIDM.DOWNLOAD_BLOCKED_PARENTAL] = function() gStr.stateBlockedParentalControls;
+      stateSize[nsIDM.DOWNLOAD_BLOCKED_POLICY] = function() gStr.stateBlockedPolicy;
+      stateSize[nsIDM.DOWNLOAD_DIRTY] = function() gStr.stateDirty;
 
-        // Insert 1 is the download size or download state
-        status = replaceInsert(gStr.doneStatus, 1, stateSize[state]());
-      }
+      // Insert 1 is the download size or download state
+      status = replaceInsert(gStr.doneStatus, 1, stateSize[state]());
 
       let [displayHost, fullHost] =
         DownloadUtils.getURIHost(getReferrerOrSource(aItem));
+
       // Insert 2 is the eTLD + 1 or other variations of the host
       status = replaceInsert(status, 2, displayHost);
       // Set the tooltip to be the full host
@@ -1115,10 +1111,9 @@ function buildDownloadList(aForceBuild)
   gStmt.reset();
 
   // Clear the list before adding items by replacing with a shallow copy
-  let (empty = gDownloadsView.cloneNode(false)) {
-    gDownloadsView.parentNode.replaceChild(empty, gDownloadsView);
-    gDownloadsView = empty;
-  }
+  let empty = gDownloadsView.cloneNode(false);
+  gDownloadsView.parentNode.replaceChild(empty, gDownloadsView);
+  gDownloadsView = empty;
 
   try {
     gStmt.bindByIndex(0, nsIDM.DOWNLOAD_NOTSTARTED);
@@ -1167,7 +1162,7 @@ function stepListBuilder(aNumItems) {
     let attrs = {
       dlid: gStmt.getInt64(0),
       file: gStmt.getString(1),
-      displayName: gStmt.getString(2),
+      target: gStmt.getString(2),
       uri: gStmt.getString(3),
       state: gStmt.getInt32(4),
       startTime: Math.round(gStmt.getInt64(5) / 1000),
@@ -1177,10 +1172,9 @@ function stepListBuilder(aNumItems) {
     };
 
     // Only add the referrer if it's not null
-    let (referrer = gStmt.getString(7)) {
-      if (referrer)
-        attrs.referrer = referrer;
-    }
+    let referrer = gStmt.getString(7);
+    if (referrer)
+      attrs.referrer = referrer;
 
     // If the download is active, grab the real progress, otherwise default 100
     let isActive = gStmt.getInt32(10);
@@ -1192,7 +1186,7 @@ function stepListBuilder(aNumItems) {
     if (item && (isActive || downloadMatchesSearch(item))) {
       // Add item to the end
       gDownloadsView.appendChild(item);
-    
+
       // Because of the joys of XBL, we can't update the buttons until the
       // download object is in the document.
       updateButtons(item);
@@ -1229,7 +1223,7 @@ function prependList(aDownload)
   let attrs = {
     dlid: aDownload.id,
     file: aDownload.target.spec,
-    displayName: aDownload.displayName,
+    target: aDownload.displayName,
     uri: aDownload.source.spec,
     state: aDownload.state,
     progress: aDownload.percentComplete,
@@ -1268,11 +1262,11 @@ function downloadMatchesSearch(aItem)
   // Search through the download attributes that are shown to the user and
   // make it into one big string for easy combined searching
   let combinedSearch = "";
-  for each (let attr in gSearchAttributes)
+  for (let attr of gSearchAttributes)
     combinedSearch += aItem.getAttribute(attr).toLowerCase() + " ";
 
   // Make sure each of the terms are found
-  for each (let term in gSearchTerms)
+  for (let term of gSearchTerms)
     if (combinedSearch.indexOf(term) == -1)
       return false;
 

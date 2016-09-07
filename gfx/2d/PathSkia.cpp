@@ -31,7 +31,7 @@ void
 PathBuilderSkia::SetFillRule(FillRule aFillRule)
 {
   mFillRule = aFillRule;
-  if (mFillRule == FILL_WINDING) {
+  if (mFillRule == FillRule::FILL_WINDING) {
     mPath.setFillType(SkPath::kWinding_FillType);
   } else {
     mPath.setFillType(SkPath::kEvenOdd_FillType);
@@ -88,7 +88,7 @@ void
 PathBuilderSkia::Arc(const Point &aOrigin, float aRadius, float aStartAngle,
                      float aEndAngle, bool aAntiClockwise)
 {
-  ArcToBezier(this, aOrigin, aRadius, aStartAngle, aEndAngle, aAntiClockwise);
+  ArcToBezier(this, aOrigin, Size(aRadius, aRadius), aStartAngle, aEndAngle, aAntiClockwise);
 }
 
 Point
@@ -105,8 +105,13 @@ PathBuilderSkia::CurrentPoint() const
 TemporaryRef<Path>
 PathBuilderSkia::Finish()
 {
-  RefPtr<PathSkia> path = new PathSkia(mPath, mFillRule);
-  return path;
+  return new PathSkia(mPath, mFillRule);
+}
+
+void
+PathBuilderSkia::AppendPath(const SkPath &aPath)
+{
+  mPath.addPath(aPath);
 }
 
 TemporaryRef<PathBuilder>
@@ -118,8 +123,7 @@ PathSkia::CopyToBuilder(FillRule aFillRule) const
 TemporaryRef<PathBuilder>
 PathSkia::TransformedCopyToBuilder(const Matrix &aTransform, FillRule aFillRule) const
 {
-  RefPtr<PathBuilderSkia> builder = new PathBuilderSkia(aTransform, mPath, aFillRule);
-  return builder;
+  return new PathBuilderSkia(aTransform, mPath, aFillRule);
 }
 
 bool
@@ -137,22 +141,14 @@ PathSkia::ContainsPoint(const Point &aPoint, const Matrix &aTransform) const
   }
 
   SkRegion pointRect;
-  pointRect.setRect(int32_t(SkFloatToScalar(transformed.x - 1)),
-                    int32_t(SkFloatToScalar(transformed.y - 1)),
-                    int32_t(SkFloatToScalar(transformed.x + 1)),
-                    int32_t(SkFloatToScalar(transformed.y + 1)));
+  pointRect.setRect(int32_t(SkFloatToScalar(transformed.x - 1.f)),
+                    int32_t(SkFloatToScalar(transformed.y - 1.f)),
+                    int32_t(SkFloatToScalar(transformed.x + 1.f)),
+                    int32_t(SkFloatToScalar(transformed.y + 1.f)));
 
   SkRegion pathRegion;
   
   return pathRegion.setPath(mPath, pointRect);
-}
-
-static Rect SkRectToRect(const SkRect& aBounds)
-{
-  return Rect(SkScalarToFloat(aBounds.fLeft),
-              SkScalarToFloat(aBounds.fTop),
-              SkScalarToFloat(aBounds.fRight - aBounds.fLeft),
-              SkScalarToFloat(aBounds.fBottom - aBounds.fTop));
 }
 
 bool
@@ -178,10 +174,10 @@ PathSkia::StrokeContainsPoint(const StrokeOptions &aStrokeOptions,
   }
 
   SkRegion pointRect;
-  pointRect.setRect(int32_t(SkFloatToScalar(transformed.x - 1)),
-                    int32_t(SkFloatToScalar(transformed.y - 1)),
-                    int32_t(SkFloatToScalar(transformed.x + 1)),
-                    int32_t(SkFloatToScalar(transformed.y + 1)));
+  pointRect.setRect(int32_t(SkFloatToScalar(transformed.x - 1.f)),
+                    int32_t(SkFloatToScalar(transformed.y - 1.f)),
+                    int32_t(SkFloatToScalar(transformed.x + 1.f)),
+                    int32_t(SkFloatToScalar(transformed.y + 1.f)));
 
   SkRegion pathRegion;
   
@@ -207,6 +203,40 @@ PathSkia::GetStrokedBounds(const StrokeOptions &aStrokeOptions,
 
   Rect bounds = SkRectToRect(result.getBounds());
   return aTransform.TransformBounds(bounds);
+}
+
+void
+PathSkia::StreamToSink(PathSink *aSink) const
+{
+  SkPath::RawIter iter(mPath);
+
+  SkPoint points[4];
+  SkPath::Verb currentVerb;
+  while ((currentVerb = iter.next(points)) != SkPath::kDone_Verb) {
+    switch (currentVerb) {
+    case SkPath::kMove_Verb:
+      aSink->MoveTo(SkPointToPoint(points[0]));
+      break;
+    case SkPath::kLine_Verb:
+      aSink->LineTo(SkPointToPoint(points[1]));
+      break;
+    case SkPath::kCubic_Verb:
+      aSink->BezierTo(SkPointToPoint(points[1]),
+                      SkPointToPoint(points[2]),
+                      SkPointToPoint(points[3]));
+      break;
+    case SkPath::kQuad_Verb:
+      aSink->QuadraticBezierTo(SkPointToPoint(points[1]),
+                               SkPointToPoint(points[2]));
+      break;
+    case SkPath::kClose_Verb:
+      aSink->Close();
+      break;
+    default:
+      MOZ_ASSERT(false);
+      // Unexpected verb found in path!
+    }
+  }
 }
 
 }

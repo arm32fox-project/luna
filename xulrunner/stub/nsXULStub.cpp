@@ -4,9 +4,7 @@
 
 #include "nsXPCOMGlue.h"
 #include "nsINIParser.h"
-#include "prtypes.h"
 #include "nsXPCOMPrivate.h" // for XP MAXPATHLEN
-#include "nsMemory.h" // for NS_ARRAY_LENGTH
 #include "nsXULAppAPI.h"
 #include "nsIFile.h"
 
@@ -15,8 +13,10 @@
 #ifdef XP_WIN
 #include <windows.h>
 #include <io.h>
+#if defined(_MSC_VER) && _MSC_VER < 1900
 #define snprintf _snprintf
 #define vsnprintf _vsnprintf
+#endif
 #define strcasecmp _stricmp
 #define PATH_SEPARATOR_CHAR '\\'
 #define R_OK 04
@@ -63,7 +63,7 @@ static void Output(bool isError, const char *fmt, ... )
 		      wide_msg,
 		      sizeof(wide_msg) / sizeof(wchar_t));
   
-  MessageBoxW(NULL, wide_msg, L"XULRunner", flags);
+  MessageBoxW(nullptr, wide_msg, L"XULRunner", flags);
 #else
   vfprintf(stderr, fmt, ap);
 #endif
@@ -197,11 +197,11 @@ main(int argc, char **argv)
 
 #ifdef XP_WIN
   wchar_t wide_path[MAX_PATH];
-  if (!::GetModuleFileNameW(NULL, wide_path, MAX_PATH))
+  if (!::GetModuleFileNameW(nullptr, wide_path, MAX_PATH))
     return 1;
 
   WideCharToMultiByte(CP_UTF8, 0, wide_path,-1,
-		      iniPath, MAX_PATH, NULL, NULL);
+		      iniPath, MAX_PATH, nullptr, nullptr);
 
 #else
   // on unix, there is no official way to get the path of the current binary.
@@ -239,7 +239,7 @@ main(int argc, char **argv)
         realpath(tmpPath, iniPath);
         break;
       }
-      token = strtok(NULL, ":");
+      token = strtok(nullptr, ":");
     }
     free (pathdup);
     if (!found)
@@ -335,7 +335,7 @@ main(int argc, char **argv)
 
   if (!greFound) {
 #ifdef XP_MACOSX
-    // Check for <bundle>/Contents/Frameworks/XUL.framework/libxpcom.dylib
+    // Check for <bundle>/Contents/Frameworks/XUL.framework/Versions/Current/libmozglue.dylib
     CFURLRef fwurl = CFBundleCopyPrivateFrameworksURL(appBundle);
     CFURLRef absfwurl = nullptr;
     if (fwurl) {
@@ -345,14 +345,14 @@ main(int argc, char **argv)
 
     if (absfwurl) {
       CFURLRef xulurl =
-        CFURLCreateCopyAppendingPathComponent(NULL, absfwurl,
-                                              CFSTR("XUL.framework"),
+        CFURLCreateCopyAppendingPathComponent(nullptr, absfwurl,
+                                              CFSTR("XUL.framework/Versions/Current"),
                                               true);
 
       if (xulurl) {
         CFURLRef xpcomurl =
-          CFURLCreateCopyAppendingPathComponent(NULL, xulurl,
-                                                CFSTR("libxpcom.dylib"),
+          CFURLCreateCopyAppendingPathComponent(nullptr, xulurl,
+                                                CFSTR("libmozglue.dylib"),
                                                 false);
 
         if (xpcomurl) {

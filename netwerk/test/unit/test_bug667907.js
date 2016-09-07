@@ -1,21 +1,30 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
 Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
 
 var httpserver = null;
 var simplePath = "/simple";
 var normalPath = "/normal";
 var httpbody = "<html></html>";
-var uri1 = "http://localhost:4444" + simplePath;
-var uri2 = "http://localhost:4444" + normalPath;
+
+XPCOMUtils.defineLazyGetter(this, "uri1", function() {
+  return "http://localhost:" + httpserver.identity.primaryPort + simplePath;
+});
+
+XPCOMUtils.defineLazyGetter(this, "uri2", function() {
+  return "http://localhost:" + httpserver.identity.primaryPort + normalPath;
+});
 
 function make_channel(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
             getService(Ci.nsIIOService);
-  return ios.newChannel(url, "", null);
+  return ios.newChannel2(url,
+                         "",
+                         null,
+                         null,      // aLoadingNode
+                         Services.scriptSecurityManager.getSystemPrincipal(),
+                         null,      // aTriggeringPrincipal
+                         Ci.nsILoadInfo.SEC_NORMAL,
+                         Ci.nsIContentPolicy.TYPE_OTHER);
 }
 
 var listener_proto = {
@@ -54,7 +63,7 @@ function run_test()
   httpserver = new HttpServer();
   httpserver.registerPathHandler(simplePath, simpleHandler);
   httpserver.registerPathHandler(normalPath, normalHandler);
-  httpserver.start(4444);
+  httpserver.start(-1);
 
   var channel = make_channel(uri1);
   channel.asyncOpen(new listener("text/plain", function() {

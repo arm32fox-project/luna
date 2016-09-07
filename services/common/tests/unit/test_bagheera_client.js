@@ -5,19 +5,15 @@
 
 Cu.import("resource://services-common/bagheeraclient.js");
 Cu.import("resource://services-common/rest.js");
-Cu.import("resource://testing-common/services-common/bagheeraserver.js");
+Cu.import("resource://testing-common/services/common/bagheeraserver.js");
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
 
-const PORT = 8080;
+function getClientAndServer() {
+  let server = new BagheeraServer();
+  server.start();
 
-function getClientAndServer(port=PORT) {
-  let uri = "http://localhost";
-  let server = new BagheeraServer(uri);
-
-  server.start(port);
-
-  let client = new BagheeraClient(uri + ":" + port);
+  let client = new BagheeraClient(server.serverURI);
 
   return [client, server];
 }
@@ -28,13 +24,13 @@ function run_test() {
 }
 
 add_test(function test_constructor() {
-  let client = new BagheeraClient("http://localhost:8080/");
+  let client = new BagheeraClient("http://localhost:1234/");
 
   run_next_test();
 });
 
 add_test(function test_post_json_transport_failure() {
-  let client = new BagheeraClient("http://localhost:8080/");
+  let client = new BagheeraClient("http://localhost:1234/");
 
   client.uploadJSON("foo", "bar", {}).then(function onResult(result) {
     do_check_false(result.transportSuccess);
@@ -71,6 +67,30 @@ add_test(function test_post_json_bad_data() {
 
     server.stop(run_next_test);
   });
+});
+
+add_task(function* test_unicode_payload() {
+  let [client, server] = getClientAndServer();
+  server.createNamespace("foo");
+
+  const EXPECTED = "πόλλ' οἶδ' ἀλώπηξ, ἀλλ' ἐχῖνος ἓν μέγα";
+
+  let result = yield client.uploadJSON("foo", "bar", {test: EXPECTED});
+  Assert.ok(result.transportSuccess);
+  Assert.ok(result.serverSuccess);
+
+  let p = server.getDocument("foo", "bar");
+  Assert.equal(p.test, EXPECTED);
+
+  result = yield client.uploadJSON("foo", "baz", JSON.stringify({test: EXPECTED}));
+  Assert.ok(result.transportSuccess);
+  Assert.ok(result.serverSuccess);
+  p = server.getDocument("foo", "baz");
+  Assert.equal(p.test, EXPECTED);
+
+  let deferred = Promise.defer();
+  server.stop(() => deferred.resolve());
+  yield deferred.promise;
 });
 
 add_task(function test_post_delete_multiple_obsolete_documents () {

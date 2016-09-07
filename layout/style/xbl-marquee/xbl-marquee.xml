@@ -240,6 +240,13 @@
         <parameter name="aIgnoreNextCall"/>
         <body>
           <![CDATA[
+          // _setEventListener is only used for setting the attribute event
+          // handlers, which we want to ignore if our document is sandboxed
+          // without the allow-scripts keyword.
+          if (document.hasScriptsBlockedBySandbox) {
+            return true;
+          }
+
           if (this._ignoreNextCall)
             return this._ignoreNextCall = false;
 
@@ -259,12 +266,8 @@
             case "string":
               if (!aIgnoreNextCall) {
                 try {
-                  // Work around bug 872772 by wrapping the cross-compartment-
-                  // wrapped function in a function from this scope.
-                  //
-                  // NB: Make sure to wrap the constructor in parentheses to
-                  // deal with the weird precedence of |new| in JS.
-                  this["_on" + aName] = function(e) { window.setTimeout((new (XPCNativeWrapper.unwrap(window).Function)("event", aValue)).bind(this, e), 0); };
+                  // Function Xrays make this simple and safe. \o/
+                  this["_on" + aName] = new window.Function("event", aValue);
                 }
                 catch(e) {
                   return false;

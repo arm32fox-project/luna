@@ -5,13 +5,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+include protocol PHttpChannel;
+include protocol PFTPChannel;
+include protocol PRtspChannel;
 include URIParams;
 include InputStreamParams;
-include "mozilla/net/PHttpChannelParams.h";
+include PBackgroundSharedTypes;
 
-using mozilla::void_t;
-using RequestHeaderTuples;
-using nsHttpAtom;
+using struct mozilla::void_t from "ipc/IPCMessageUtils.h";
+using RequestHeaderTuples from "mozilla/net/PHttpChannelParams.h";
+using struct nsHttpAtom from "nsHttp.h";
 
 namespace mozilla {
 namespace net {
@@ -29,22 +32,32 @@ struct HttpChannelOpenArgs
   OptionalURIParams           original;
   OptionalURIParams           doc;
   OptionalURIParams           referrer;
+  uint32_t                    referrerPolicy;
   OptionalURIParams           apiRedirectTo;
+  OptionalURIParams           topWindowURI;
   uint32_t                    loadFlags;
   RequestHeaderTuples         requestHeaders;
-  nsHttpAtom                  requestMethod;
+  nsCString                   requestMethod;
   OptionalInputStreamParams   uploadStream;
   bool                        uploadStreamHasHeaders;
   uint16_t                    priority;
+  uint32_t                    classOfService;
   uint8_t                     redirectionLimit;
   bool                        allowPipelining;
-  bool                        forceAllowThirdPartyCookie;
+  bool                        allowSTS;
+  uint32_t                    thirdPartyFlags;
   bool                        resumeAt;
   uint64_t                    startPos;
   nsCString                   entityID;
   bool                        chooseApplicationCache;
   nsCString                   appCacheClientID;
   bool                        allowSpdy;
+  OptionalFileDescriptorSet   fds;
+  PrincipalInfo               requestingPrincipalInfo;
+  PrincipalInfo               triggeringPrincipalInfo;
+  uint32_t                    securityFlags;
+  uint32_t                    contentPolicyType;
+  uint32_t                    innerWindowID;
 };
 
 struct HttpChannelConnectArgs
@@ -64,10 +77,15 @@ union HttpChannelCreationArgs
 
 struct FTPChannelOpenArgs
 {
-  URIParams uri;
-  uint64_t startPos;
-  nsCString entityID;
+  URIParams                 uri;
+  uint64_t                  startPos;
+  nsCString                 entityID;
   OptionalInputStreamParams uploadStream;
+  PrincipalInfo             requestingPrincipalInfo;
+  PrincipalInfo             triggeringPrincipalInfo;
+  uint32_t                  securityFlags;
+  uint32_t                  contentPolicyType;
+  uint32_t                  innerWindowID;
 };
 
 struct FTPChannelConnectArgs
@@ -79,6 +97,41 @@ union FTPChannelCreationArgs
 {
   FTPChannelOpenArgs;      // For AsyncOpen: the common case.
   FTPChannelConnectArgs;   // Used for redirected-to channels
+};
+
+struct HttpChannelDiverterArgs
+{
+  PHttpChannel mChannel;
+  bool mApplyConversion;
+};
+
+union ChannelDiverterArgs
+{
+  HttpChannelDiverterArgs;
+  PFTPChannel;
+};
+
+//-----------------------------------------------------------------------------
+// RTSP IPDL structs
+//-----------------------------------------------------------------------------
+
+struct RtspChannelConnectArgs
+{
+  URIParams uri;
+  uint32_t channelId;
+};
+
+//-----------------------------------------------------------------------------
+// WS IPDL structs
+//-----------------------------------------------------------------------------
+
+struct WebSocketLoadInfoArgs
+{
+  PrincipalInfo requestingPrincipalInfo;
+  PrincipalInfo triggeringPrincipalInfo;
+  uint32_t      securityFlags;
+  uint32_t      contentPolicyType;
+  uint32_t      innerWindowID;
 };
 
 } // namespace ipc

@@ -499,7 +499,7 @@ SideMenuGroup.prototype = {
     for (let group of groupsArray) {
       let name = group.getAttribute("name");
       if (name > identifier && // Insertion sort at its best :)
-         !name.contains(identifier)) { // Least significat group should be last.
+         !name.includes(identifier)) { // Least significat group should be last.
         return groupsArray.indexOf(group);
       }
     }

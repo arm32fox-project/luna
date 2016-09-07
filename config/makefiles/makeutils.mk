@@ -107,7 +107,11 @@ endif #}
 ###########################################################################
 ## Common makefile library loader
 ###########################################################################
-topORerr =$(if $(topsrcdir),$(topsrcdir),$(error topsrcdir is not defined))
+ifdef MOZILLA_DIR
+topORerr = $(MOZILLA_DIR)
+else
+topORerr = $(if $(topsrcdir),$(topsrcdir),$(error topsrcdir is not defined))
+endif
 
 ifdef USE_AUTOTARGETS_MK # mkdir_deps
   include $(topORerr)/config/makefiles/autotargets.mk
@@ -118,4 +122,4 @@ ifdef USE_RCS_MK
 endif
 
 ## copy(src, dst): recursive copy
-copy_dir = (cd $(1)/. && $(TAR) $(TAR_CREATE_FLAGS_QUIET) - .) | (cd $(2)/. && tar -xf -)
+copy_dir = (cd $(1)/. && $(TAR) $(TAR_CREATE_FLAGS) - .) | (cd $(2)/. && tar -xf -)

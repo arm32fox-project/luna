@@ -92,7 +92,7 @@
   background-clip: content-box;
 }
 
-.controlBar[audio-only] > .volumeStack {
+.controlBar[fullscreen-unavailable] > .volumeStack {
   /* This value is duplicated in the videocontrols.xml adjustControlSize function. */
   -moz-margin-end: 8px;
 }
@@ -319,6 +319,14 @@ html|table {
   .playButton[paused] {
     background-image: url(chrome://global/skin/media/playButton@2x.png);
     background-size: 28px 28px;
+  }
+  .volumeBackground {
+    background-image: url(chrome://global/skin/media/volume-empty@2x.png);
+    background-size: 32px 16px;
+  }
+  .volumeForeground {
+    background-image: url(chrome://global/skin/media/volume-full@2x.png);
+    background-size: 32px 16px;
   }
   .muteButton {
     background-image: url(chrome://global/skin/media/muteButton@2x.png);

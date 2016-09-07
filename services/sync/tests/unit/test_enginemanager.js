@@ -5,6 +5,23 @@ Cu.import("resource://services-sync/engines.js");
 Cu.import("resource://services-sync/service.js");
 
 function run_test() {
+  run_next_test();
+}
+
+function PetrolEngine() {}
+PetrolEngine.prototype.name = "petrol";
+
+function DieselEngine() {}
+DieselEngine.prototype.name = "diesel";
+
+function DummyEngine() {}
+DummyEngine.prototype.name = "dummy";
+
+function ActualEngine() {}
+ActualEngine.prototype = {__proto__: Engine.prototype,
+                          name: 'actual'};
+
+add_test(function test_basics() {
   _("We start out with a clean slate");
 
   let manager = new EngineManager(Service);
@@ -14,8 +31,6 @@ function run_test() {
   do_check_eq(manager.get('dummy'), undefined);
 
   _("Register an engine");
-  function DummyEngine() {}
-  DummyEngine.prototype.name = "dummy";
   manager.register(DummyEngine);
   let dummy = manager.get('dummy');
   do_check_true(dummy instanceof DummyEngine);
@@ -29,11 +44,6 @@ function run_test() {
   do_check_eq(manager.get('dummy'), dummy);
 
   _("Register multiple engines in one go");
-  function PetrolEngine() {}
-  PetrolEngine.prototype.name = "petrol";
-  function DieselEngine() {}
-  DieselEngine.prototype.name = "diesel";
-
   manager.register([PetrolEngine, DieselEngine]);
   let petrol = manager.get('petrol');
   let diesel = manager.get('diesel');
@@ -65,6 +75,23 @@ function run_test() {
   engines = manager.getEnabled();
   do_check_eq(engines.length, 3);
 
+  _("getEnabled() returns enabled engines in sorted order");
+  petrol.syncPriority = 1;
+  dummy.syncPriority = 2;
+  diesel.syncPriority = 3;
+
+  engines = manager.getEnabled();
+
+  do_check_array_eq(engines, [petrol, dummy, diesel]);
+
+  _("Changing the priorities should change the order in getEnabled()");
+
+  dummy.syncPriority = 4;
+
+  engines = manager.getEnabled();
+
+  do_check_array_eq(engines, [petrol, diesel, dummy]);
+
   _("Unregister an engine by name");
   manager.unregister('dummy');
   do_check_eq(manager.get('dummy'), undefined);
@@ -74,9 +101,6 @@ function run_test() {
 
   _("Unregister an engine by value");
   // manager.unregister() checks for instanceof Engine, so let's make one:
-  function ActualEngine() {}
-  ActualEngine.prototype = {__proto__: Engine.prototype,
-                            name: 'actual'};
   manager.register(ActualEngine);
   let actual = manager.get('actual');
   do_check_true(actual instanceof ActualEngine);
@@ -84,4 +108,7 @@ function run_test() {
 
   manager.unregister(actual);
   do_check_eq(manager.get('actual'), undefined);
-}
+
+  run_next_test();
+});
+

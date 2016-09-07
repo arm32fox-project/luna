@@ -49,7 +49,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nspr.h"
 #include "prnetdb.h"
-#include "mozilla/NullPtr.h"
 
 typedef struct nr_resolver_ nr_resolver;
 typedef struct nr_resolver_vtbl_ nr_resolver_vtbl;
@@ -96,16 +95,19 @@ private:
     PendingResolution(NrIceResolverFake *resolver,
                       const std::string& hostname,
                       uint16_t port,
+                      int transport,
                       int (*cb)(void *cb_arg, nr_transport_addr *addr),
                       void *cb_arg) :
         resolver_(resolver),
         hostname_(hostname),
         port_(port),
+        transport_(transport),
         cb_(cb), cb_arg_(cb_arg) {}
 
     NrIceResolverFake *resolver_;
     std::string hostname_;
     uint16_t port_;
+    int transport_;
     int (*cb_)(void *cb_arg, nr_transport_addr *addr);
     void *cb_arg_;
     void *timer_handle_;

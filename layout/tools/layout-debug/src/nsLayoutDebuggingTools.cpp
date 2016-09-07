@@ -94,7 +94,7 @@ nsLayoutDebuggingTools::~nsLayoutDebuggingTools()
 {
 }
 
-NS_IMPL_ISUPPORTS1(nsLayoutDebuggingTools, nsILayoutDebuggingTools)
+NS_IMPL_ISUPPORTS(nsLayoutDebuggingTools, nsILayoutDebuggingTools)
 
 NS_IMETHODIMP
 nsLayoutDebuggingTools::Init(nsIDOMWindow *aWin)
@@ -291,7 +291,15 @@ nsLayoutDebuggingTools::SetReflowCounts(bool aShow)
     NS_ENSURE_TRUE(mDocShell, NS_ERROR_NOT_INITIALIZED);
     nsCOMPtr<nsIPresShell> shell(pres_shell(mDocShell)); 
     if (shell) {
-        printf("Sorry, reflow performance tracing is not available\n");
+#ifdef MOZ_REFLOW_PERF
+        shell->SetPaintFrameCount(aShow);
+        SetBoolPrefAndRefresh("layout.reflow.showframecounts", aShow);
+        mReflowCounts = aShow;
+#else
+        printf("************************************************\n");
+        printf("Sorry, you have not built with MOZ_REFLOW_PERF=1\n");
+        printf("************************************************\n");
+#endif
     }
     return NS_OK;
 }
@@ -312,11 +320,10 @@ static void DumpAWebShell(nsIDocShellTreeItem* aShellItem, FILE* out, int32_t aI
     fprintf(out, "' parent=%p <\n", static_cast<void*>(parent));
 
     ++aIndent;
-    nsCOMPtr<nsIDocShellTreeNode> shellAsNode(do_QueryInterface(aShellItem));
-    shellAsNode->GetChildCount(&n);
+    aShellItem->GetChildCount(&n);
     for (i = 0; i < n; ++i) {
         nsCOMPtr<nsIDocShellTreeItem> child;
-        shellAsNode->GetChildAt(i, getter_AddRefs(child));
+        aShellItem->GetChildAt(i, getter_AddRefs(child));
         if (child) {
             DumpAWebShell(child, out, aIndent);
         }
@@ -384,7 +391,7 @@ DumpFramesRecur(nsIDocShell* aDocShell, FILE* out)
     if (shell) {
         nsIFrame* root = shell->GetRootFrame();
         if (root) {
-            root->List(out, 0);
+            root->List(out);
         }
     }
     else {
@@ -495,7 +502,13 @@ nsLayoutDebuggingTools::DumpReflowStats()
 #ifdef DEBUG
     nsCOMPtr<nsIPresShell> shell(pres_shell(mDocShell)); 
     if (shell) {
-        printf("Sorry, reflow performance tracing is not available\n");
+#ifdef MOZ_REFLOW_PERF
+        shell->DumpReflows();
+#else
+        printf("************************************************\n");
+        printf("Sorry, you have not built with MOZ_REFLOW_PERF=1\n");
+        printf("************************************************\n");
+#endif
     }
 #endif
     return NS_OK;

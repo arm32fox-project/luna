@@ -1,3 +1,5 @@
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,6 +11,26 @@
 #include "nsAutoRef.h"
 #include "nscore.h"
 
+// ----------------------------------------------------------------------------
+// Critical Section helper class
+// ----------------------------------------------------------------------------
+
+class AutoCriticalSection
+{
+public:
+  AutoCriticalSection(LPCRITICAL_SECTION aSection)
+    : mSection(aSection)
+  {
+    ::EnterCriticalSection(mSection);
+  }
+  ~AutoCriticalSection()
+  {
+    ::LeaveCriticalSection(mSection);
+  }
+private:
+  LPCRITICAL_SECTION mSection;
+};
+
 template<>
 class nsAutoRefTraits<HKEY>
 {
@@ -16,7 +38,7 @@ public:
   typedef HKEY RawRef;
   static HKEY Void()
   {
-    return NULL;
+    return nullptr;
   }
 
   static void Release(RawRef aFD)
@@ -34,7 +56,7 @@ public:
   typedef SC_HANDLE RawRef;
   static SC_HANDLE Void()
   {
-    return NULL;
+    return nullptr;
   }
 
   static void Release(RawRef aFD)
@@ -51,7 +73,7 @@ class nsSimpleRef<HANDLE>
 protected:
   typedef HANDLE RawRef;
 
-  nsSimpleRef() : mRawRef(NULL)
+  nsSimpleRef() : mRawRef(nullptr)
   {
   }
 
@@ -61,7 +83,7 @@ protected:
 
   bool HaveResource() const
   {
-    return mRawRef != NULL && mRawRef != INVALID_HANDLE_VALUE;
+    return mRawRef && mRawRef != INVALID_HANDLE_VALUE;
   }
 
 public:
@@ -72,7 +94,7 @@ public:
 
   static void Release(RawRef aRawRef)
   {
-    if (aRawRef != NULL && aRawRef != INVALID_HANDLE_VALUE) {
+    if (aRawRef && aRawRef != INVALID_HANDLE_VALUE) {
       CloseHandle(aRawRef);
     }
   }
@@ -87,7 +109,7 @@ public:
   typedef HMODULE RawRef;
   static RawRef Void()
   {
-    return NULL;
+    return nullptr;
   }
 
   static void Release(RawRef aFD)
@@ -103,75 +125,66 @@ typedef nsAutoRef<SC_HANDLE> nsAutoServiceHandle;
 typedef nsAutoRef<HANDLE> nsAutoHandle;
 typedef nsAutoRef<HMODULE> nsModuleHandle;
 
-namespace
+namespace {
+
+bool inline
+IsRunningInWindowsMetro()
 {
-  bool
-  IsVistaOrLater()
-  {
-    OSVERSIONINFO info;
-    ZeroMemory(&info, sizeof(OSVERSIONINFO));
-    info.dwOSVersionInfoSize = sizeof(OSVERSIONINFO);
-    GetVersionEx(&info);
-    return info.dwMajorVersion >= 6;
-  }
-
-  bool
-  IsRunningInWindowsMetro()
-  {
-    static bool alreadyChecked = false;
-    static bool isMetro = false;
-    if (alreadyChecked) {
-      return isMetro;
-    }
-
-    HMODULE user32DLL = LoadLibraryW(L"user32.dll");
-    if (!user32DLL) {
-      return false;
-    }
-
-    typedef BOOL (WINAPI* IsImmersiveProcessFunc)(HANDLE process);
-    IsImmersiveProcessFunc IsImmersiveProcessPtr =
-      (IsImmersiveProcessFunc)GetProcAddress(user32DLL,
-                                              "IsImmersiveProcess");
-    FreeLibrary(user32DLL);
-    if (!IsImmersiveProcessPtr) {
-      // isMetro is already set to false.
-      alreadyChecked = true;
-      return false;
-    }
-
-    isMetro = IsImmersiveProcessPtr(GetCurrentProcess());
-    alreadyChecked = true;
+  static bool alreadyChecked = false;
+  static bool isMetro = false;
+  if (alreadyChecked) {
     return isMetro;
   }
 
-  HMODULE
-  LoadLibrarySystem32(LPCWSTR module)
-  {
-    WCHAR systemPath[MAX_PATH + 1] = { L'\0' };
-
-    // If GetSystemPath fails we accept that we'll load the DLLs from the
-    // normal search path.
-    GetSystemDirectoryW(systemPath, MAX_PATH + 1);
-    size_t systemDirLen = wcslen(systemPath);
-
-    // Make the system directory path terminate with a slash
-    if (systemDirLen && systemPath[systemDirLen - 1] != L'\\') {
-      systemPath[systemDirLen] = L'\\';
-      ++systemDirLen;
-      // No need to re-NULL terminate
-    }
-
-    size_t fileLen = wcslen(module);
-    wcsncpy(systemPath + systemDirLen, module,
-            MAX_PATH - systemDirLen);
-    if (systemDirLen + fileLen <= MAX_PATH) {
-      systemPath[systemDirLen + fileLen] = L'\0';
-    } else {
-      systemPath[MAX_PATH] = L'\0';
-    }
-    return LoadLibraryW(systemPath);
+  HMODULE user32DLL = LoadLibraryW(L"user32.dll");
+  if (!user32DLL) {
+    return false;
   }
+
+  typedef BOOL (WINAPI* IsImmersiveProcessFunc)(HANDLE aProcess);
+  IsImmersiveProcessFunc IsImmersiveProcessPtr =
+    (IsImmersiveProcessFunc)GetProcAddress(user32DLL,
+                                           "IsImmersiveProcess");
+  FreeLibrary(user32DLL);
+  if (!IsImmersiveProcessPtr) {
+    // isMetro is already set to false.
+    alreadyChecked = true;
+    return false;
+  }
+
+  isMetro = IsImmersiveProcessPtr(GetCurrentProcess());
+  alreadyChecked = true;
+  return isMetro;
+}
+
+HMODULE inline
+LoadLibrarySystem32(LPCWSTR aModule)
+{
+  WCHAR systemPath[MAX_PATH + 1] = { L'\0' };
+
+  // If GetSystemPath fails we accept that we'll load the DLLs from the
+  // normal search path.
+  GetSystemDirectoryW(systemPath, MAX_PATH + 1);
+  size_t systemDirLen = wcslen(systemPath);
+
+  // Make the system directory path terminate with a slash
+  if (systemDirLen && systemPath[systemDirLen - 1] != L'\\') {
+    systemPath[systemDirLen] = L'\\';
+    ++systemDirLen;
+    // No need to re-nullptr terminate
+  }
+
+  size_t fileLen = wcslen(aModule);
+  wcsncpy(systemPath + systemDirLen, aModule,
+          MAX_PATH - systemDirLen);
+  if (systemDirLen + fileLen <= MAX_PATH) {
+    systemPath[systemDirLen + fileLen] = L'\0';
+  } else {
+    systemPath[MAX_PATH] = L'\0';
+  }
+  return LoadLibraryW(systemPath);
+}
+
 }
 
 #endif

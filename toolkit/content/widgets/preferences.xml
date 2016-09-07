@@ -30,6 +30,25 @@
 
   <binding id="preferences">
     <implementation implements="nsIObserver">
+      <method name="_constructAfterChildren">
+      <body>
+      <![CDATA[
+      // This method will be called after each one of the child
+      // <preference> elements is constructed. Its purpose is to propagate
+      // the values to the associated form elements
+
+      var elements = this.getElementsByTagName("preference");
+      for (let element of elements) {
+        if (!element._constructed) {
+          return;
+        }
+      }
+      for (let element of elements) {
+        element.updateElements();
+      }
+      ]]>
+      </body>
+      </method>
       <method name="observe">
         <parameter name="aSubject"/>
         <parameter name="aTopic"/>
@@ -101,6 +120,8 @@
     <implementation>
       <constructor>
       <![CDATA[
+        this._constructed = true;
+
         // if the element has been inserted without the name attribute set,
         // we have nothing to do here
         if (!this.name)
@@ -111,8 +132,12 @@
         // In non-instant apply mode, we must try and use the last saved state
         // from any previous opens of a child dialog instead of the value from
         // preferences, to pick up any edits a user may have made. 
+
+        var secMan = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
+                    .getService(Components.interfaces.nsIScriptSecurityManager);
         if (this.preferences.type == "child" && 
-            !this.instantApply && window.opener) {
+            !this.instantApply && window.opener &&
+            secMan.isSystemPrincipal(window.opener.document.nodePrincipal)) {
           var pdoc = window.opener.document;
 
           // Try to find a preference element for the same preference.
@@ -126,18 +151,20 @@
                 preference = parentPrefs[l];
             }
           }
-          this._setValue(preference ? preference.value 
-                                    : this.valueFromPreferences, false);
+
+          // Don't use the value setter here, we don't want updateElements to be prematurely fired.
+          this._value = preference ? preference.value : this.valueFromPreferences;
         }
         else
-          this._setValue(this.valueFromPreferences, false);
+          this._value = this.valueFromPreferences;
+        this.preferences._constructAfterChildren();
       ]]>
       </constructor>
       <destructor>
         this.preferences.rootBranchInternal
             .removeObserver(this.name, this.preferences);
       </destructor>
-      
+      <field name="_constructed">false</field>
       <property name="instantApply">
         <getter>
           return this.getAttribute("instantApply") == "true" || this.preferences.instantApply;
@@ -169,24 +196,19 @@
       <field name="_value">null</field>
       <method name="_setValue">
         <parameter name="aValue"/>
-        <parameter name="aUpdate"/>
         <body>
         <![CDATA[
-          if (aUpdate && this.value !== aValue) {
+          if (this.value !== aValue) {
             this._value = aValue;
             if (this.instantApply)
               this.valueFromPreferences = aValue;
             this.preferences.fireChangedEvent(this);
           }
-          else if (!aUpdate) {
-            this._value = aValue;
-            this.updateElements();
-          }
           return aValue;
         ]]>
         </body>
       </method>
-      <property name="value" onget="return this._value" onset="return this._setValue(val, true);"/>
+      <property name="value" onget="return this._value" onset="return this._setValue(val);"/>
       
       <property name="locked">
         <getter>
@@ -572,9 +594,8 @@
           <children includes="prefpane"/>
         </xul:deck>
       </xul:hbox>
-      <xul:hbox anonid="dlg-buttons" class="prefWindow-dlgbuttons"
+      <xul:hbox anonid="dlg-buttons" class="prefWindow-dlgbuttons" pack="end">
 #ifdef XP_UNIX
-                >
         <xul:button dlgtype="disclosure" class="dialog-button" hidden="true"/>
         <xul:button dlgtype="help" class="dialog-button" hidden="true" icon="help"/>
         <xul:button dlgtype="extra2" class="dialog-button" hidden="true"/>
@@ -583,7 +604,6 @@
         <xul:button dlgtype="cancel" class="dialog-button" icon="cancel"/>
         <xul:button dlgtype="accept" class="dialog-button" icon="accept"/>
 #else
-                pack="end">
         <xul:button dlgtype="extra2" class="dialog-button" hidden="true"/>
         <xul:spacer anonid="spacer" flex="1"/>
         <xul:button dlgtype="accept" class="dialog-button" icon="accept"/>
@@ -612,6 +632,8 @@
 #ifdef XP_MACOSX
             // no buttons on Mac except Help
             cancelButton.hidden = true;
+            // Move Help button to the end
+            document.getAnonymousElementByAttribute(this, "anonid", "spacer").hidden = true;         
             // Also, don't fire onDialogAccept on enter
             acceptButton.disabled = true;
 #else
@@ -730,7 +752,7 @@
 
           this._selector.selectedItem = document.getAnonymousElementByAttribute(this, "pane", aPaneElement.id);
           if (!aPaneElement.loaded) {
-            function OverlayLoadObserver(aPane)
+            let OverlayLoadObserver = function(aPane)
             {
               this._pane = aPane;
             }
@@ -1031,14 +1053,18 @@
     <handlers>
       <handler event="dialogaccept">
       <![CDATA[
-        if (!this._fireEvent("beforeaccept", this)) 
-          return;
-        
-        if (this.type == "child" && window.opener) {
+        if (!this._fireEvent("beforeaccept", this)){
+          return false;
+        }
+
+        var secMan = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
+                    .getService(Components.interfaces.nsIScriptSecurityManager);
+        if (this.type == "child" && window.opener &&
+            secMan.isSystemPrincipal(window.opener.document.nodePrincipal)) {
           var psvc = Components.classes["@mozilla.org/preferences-service;1"]
                                .getService(Components.interfaces.nsIPrefBranch);
-          var instantApply = psvc.getBoolPref("browser.preferences.instantApply");
-          if (instantApply) {
+          var pdocEl = window.opener.document.documentElement;
+          if (pdocEl.instantApply) {
             var panes = this.preferencePanes;
             for (var i = 0; i < panes.length; ++i)
               panes[i].writePreferences(true);
@@ -1096,6 +1122,8 @@
                                .getService(Components.interfaces.nsIPrefService);
           psvc.savePrefFile(null);
         }
+
+        return true;
       ]]>
       </handler>
       <handler event="command">
@@ -1292,7 +1320,8 @@
     </handlers>
   </binding>
           
-  <binding id="panebutton" extends="chrome://global/content/bindings/radio.xml#radio">
+  <binding id="panebutton" role="xul:listitem"
+           extends="chrome://global/content/bindings/radio.xml#radio">
     <resources>
       <stylesheet src="chrome://global/skin/preferences.css"/>
     </resources>
@@ -1300,15 +1329,6 @@
       <xul:image class="paneButtonIcon" xbl:inherits="src"/>
       <xul:label class="paneButtonLabel" xbl:inherits="value=label"/>
     </content>
-    <implementation implements="nsIAccessible">
-      <property name="accessibleType" readonly="true">
-        <getter>
-          <![CDATA[
-            return Components.interfaces.nsIAccessibleProvider.XULListitem;
-          ]]>
-        </getter>
-      </property>
-    </implementation>
   </binding>
 
 </bindings>

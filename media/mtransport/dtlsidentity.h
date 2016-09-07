@@ -19,9 +19,10 @@
 namespace mozilla {
 
 class DtlsIdentity {
- public:
+ private:
   ~DtlsIdentity();
 
+ public:
   // Generate an identity with a random name.
   static TemporaryRef<DtlsIdentity> Generate();
 
@@ -42,16 +43,14 @@ class DtlsIdentity {
                                      unsigned char *digest,
                                      std::size_t size,
                                      std::size_t *digest_length);
-
-  static std::string FormatFingerprint(const unsigned char *digest,
-                                       std::size_t size);
-  static nsresult ParseFingerprint(const std::string fp,
-                                   unsigned char *digest,
-                                   size_t size, size_t *length);
+  static const std::string DEFAULT_HASH_ALGORITHM;
+  enum {
+    HASH_ALGORITHM_MAX_LENGTH = 64
+  };
 
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(DtlsIdentity)
 
- private:
+private:
   DtlsIdentity(SECKEYPrivateKey *privkey, CERTCertificate *cert)
       : privkey_(privkey), cert_(cert) {}
   DISALLOW_COPY_ASSIGN(DtlsIdentity);

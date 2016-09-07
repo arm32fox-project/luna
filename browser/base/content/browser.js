@@ -9,9 +9,11 @@ let Cu = Components.utils;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource:///modules/RecentWindow.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "CharsetMenu",
+                                  "resource:///modules/CharsetMenu.jsm");
+
 const nsIWebNavigation = Ci.nsIWebNavigation;
 
-var gCharsetMenu = null;
 var gLastBrowserCharset = null;
 var gPrevCharset = null;
 var gProxyFavIcon = null;
@@ -95,7 +97,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "Weave",
 
 XPCOMUtils.defineLazyGetter(this, "PopupNotifications", function () {
   let tmp = {};
-  Cu.import("resource://gre/modules/PopupNotifications.jsm", tmp);
+  Cu.import("resource:///modules/PopupNotifications.jsm", tmp);
   try {
     return new tmp.PopupNotifications(gBrowser,
                                       document.getElementById("notification-popup"),
@@ -133,6 +135,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "gBrowserNewTabPreloader",
 
 XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
   "resource://gre/modules/PrivateBrowsingUtils.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "FormValidationHandler",
+  "resource:///modules/FormValidationHandler.jsm");
 
 let gInitialPages = [
   "about:blank",
@@ -182,7 +187,7 @@ XPCOMUtils.defineLazyGetter(this, "Win7Features", function () {
 
 XPCOMUtils.defineLazyGetter(this, "PageMenu", function() {
   let tmp = {};
-  Cu.import("resource://gre/modules/PageMenu.jsm", tmp);
+  Cu.import("resource:///modules/PageMenu.jsm", tmp);
   return new tmp.PageMenu();
 });
 
@@ -358,7 +363,7 @@ function findChildShell(aDocument, aDocShell, aSoughtURI) {
       (aSoughtURI && aSoughtURI.spec == aDocShell.currentURI.spec))
     return aDocShell;
 
-  var node = aDocShell.QueryInterface(Components.interfaces.nsIDocShellTreeNode);
+  var node = aDocShell.QueryInterface(Components.interfaces.nsIDocShellTreeItem);
   for (var i = 0; i < node.childCount; ++i) {
     var docShell = node.getChildAt(i);
     docShell = findChildShell(aDocument, docShell, aSoughtURI);
@@ -388,7 +393,7 @@ var gPopupBlockerObserver = {
     if (!this._reportButton && gURLBar)
       this._reportButton = document.getElementById("page-report-button");
 
-    if (!gBrowser.pageReport) {
+    if (!gBrowser.selectedBrowser.blockedPopups) {
       // Hide the icon in the location bar (if the location bar exists)
       if (gURLBar)
         this._reportButton.hidden = true;
@@ -401,11 +406,11 @@ var gPopupBlockerObserver = {
     // Only show the notification again if we've not already shown it. Since
     // notifications are per-browser, we don't need to worry about re-adding
     // it.
-    if (!gBrowser.pageReport.reported) {
+    if (!gBrowser.selectedBrowser.blockedPopups.reported) {
       if (gPrefService.getBoolPref("privacy.popups.showBrowserMessage")) {
         var brandBundle = document.getElementById("bundle_brand");
         var brandShortName = brandBundle.getString("brandShortName");
-        var popupCount = gBrowser.pageReport.length;
+        var popupCount = gBrowser.selectedBrowser.blockedPopups.length;
 #ifdef XP_WIN
         var popupButtonText = gNavigatorBundle.getString("popupWarningButton");
         var popupButtonAccesskey = gNavigatorBundle.getString("popupWarningButton.accesskey");
@@ -440,7 +445,7 @@ var gPopupBlockerObserver = {
 
       // Record the fact that we've reported this blocked popup, so we don't
       // show it again.
-      gBrowser.pageReport.reported = true;
+      gBrowser.selectedBrowser.blockedPopups.reported = true;
     }
   },
 
@@ -457,7 +462,7 @@ var gPopupBlockerObserver = {
   fillPopupList: function (aEvent)
   {
     // XXXben - rather than using |currentURI| here, which breaks down on multi-framed sites
-    //          we should really walk the pageReport and create a list of "allow for <host>"
+    //          we should really walk the blockedPopups and create a list of "allow for <host>"
     //          menuitems for the common subset of hosts present in the report, this will
     //          make us frame-safe.
     //
@@ -465,7 +470,8 @@ var gPopupBlockerObserver = {
     //          also back out the fix for bug 343772 where
     //          nsGlobalWindow::CheckOpenAllow() was changed to also
     //          check if the top window's location is whitelisted.
-    var uri = gBrowser.currentURI;
+    let browser = gBrowser.selectedBrowser;
+    var uri = browser.currentURI;
     var blockedPopupAllowSite = document.getElementById("blockedPopupAllowSite");
     try {
       blockedPopupAllowSite.removeAttribute("hidden");
@@ -495,16 +501,18 @@ var gPopupBlockerObserver = {
       blockedPopupAllowSite.removeAttribute("disabled");
 
     var foundUsablePopupURI = false;
-    var pageReports = gBrowser.pageReport;
-    if (pageReports) {
-      for (let pageReport of pageReports) {
+    var blockedPopups = browser.blockedPopups;
+    if (blockedPopups) {
+      for (let i = 0; i < blockedPopups.length; i++) {
+        let blockedPopup = blockedPopups[i];
+
         // popupWindowURI will be null if the file picker popup is blocked.
         // xxxdz this should make the option say "Show file picker" and do it (Bug 590306)
-        if (!pageReport.popupWindowURI)
+        if (!blockedPopup.popupWindowURI)
           continue;
-        var popupURIspec = pageReport.popupWindowURI.spec;
+        var popupURIspec = blockedPopup.popupWindowURI.spec;
 
-        // Sometimes the popup URI that we get back from the pageReport
+        // Sometimes the popup URI that we get back from the blockedPopup
         // isn't useful (for instance, netscape.com's popup URI ends up
         // being "http://www.netscape.com", which isn't really the URI of
         // the popup they're trying to show).  This isn't going to be
@@ -525,11 +533,11 @@ var gPopupBlockerObserver = {
                                                         [popupURIspec]);
         menuitem.setAttribute("label", label);
         menuitem.setAttribute("popupWindowURI", popupURIspec);
-        menuitem.setAttribute("popupWindowFeatures", pageReport.popupWindowFeatures);
-        menuitem.setAttribute("popupWindowName", pageReport.popupWindowName);
+        menuitem.setAttribute("popupWindowFeatures", blockedPopup.popupWindowFeatures);
+        menuitem.setAttribute("popupWindowName", blockedPopup.popupWindowName);
         menuitem.setAttribute("oncommand", "gPopupBlockerObserver.showBlockedPopup(event);");
-        menuitem.requestingWindow = pageReport.requestingWindow;
-        menuitem.requestingDocument = pageReport.requestingDocument;
+        menuitem.setAttribute("popupReportIndex", i);
+        menuitem.popupReportBrowser = browser;
         aEvent.target.appendChild(menuitem);
       }
     }
@@ -568,17 +576,9 @@ var gPopupBlockerObserver = {
   showBlockedPopup: function (aEvent)
   {
     var target = aEvent.target;
-    var popupWindowURI = target.getAttribute("popupWindowURI");
-    var features = target.getAttribute("popupWindowFeatures");
-    var name = target.getAttribute("popupWindowName");
-
-    var dwi = target.requestingWindow;
-
-    // If we have a requesting window and the requesting document is
-    // still the current document, open the popup.
-    if (dwi && dwi.document == target.requestingDocument) {
-      dwi.open(popupWindowURI, name, features);
-    }
+    var popupReportIndex = target.getAttribute("popupReportIndex");
+    let browser = target.popupReportBrowser;
+    browser.unblockPopup(popupReportIndex);
   },
 
   editPopupSettings: function ()
@@ -674,104 +674,6 @@ const gXSSObserver = {
   }
 };
 
-const gFormSubmitObserver = {
-  QueryInterface : XPCOMUtils.generateQI([Ci.nsIFormSubmitObserver]),
-
-  panel: null,
-
-  init: function()
-  {
-    this.panel = document.getElementById('invalid-form-popup');
-  },
-
-  notifyInvalidSubmit : function (aFormElement, aInvalidElements)
-  {
-    // We are going to handle invalid form submission attempt by focusing the
-    // first invalid element and show the corresponding validation message in a
-    // panel attached to the element.
-    if (!aInvalidElements.length) {
-      return;
-    }
-
-    // Don't show the popup if the current tab doesn't contain the invalid form.
-    if (gBrowser.contentDocument !=
-        aFormElement.ownerDocument.defaultView.top.document) {
-      return;
-    }
-
-    let element = aInvalidElements.queryElementAt(0, Ci.nsISupports);
-
-    if (!(element instanceof HTMLInputElement ||
-          element instanceof HTMLTextAreaElement ||
-          element instanceof HTMLSelectElement ||
-          element instanceof HTMLButtonElement)) {
-      return;
-    }
-
-    this.panel.firstChild.textContent = element.validationMessage;
-
-    element.focus();
-
-    // If the user interacts with the element and makes it valid or leaves it,
-    // we want to remove the popup.
-    // We could check for clicks but a click is already removing the popup.
-    function blurHandler() {
-      gFormSubmitObserver.panel.hidePopup();
-    };
-    function inputHandler(e) {
-      if (e.originalTarget.validity.valid) {
-        gFormSubmitObserver.panel.hidePopup();
-      } else {
-        // If the element is now invalid for a new reason, we should update the
-        // error message.
-        if (gFormSubmitObserver.panel.firstChild.textContent !=
-            e.originalTarget.validationMessage) {
-          gFormSubmitObserver.panel.firstChild.textContent =
-            e.originalTarget.validationMessage;
-        }
-      }
-    };
-    element.addEventListener("input", inputHandler, false);
-    element.addEventListener("blur", blurHandler, false);
-
-    // One event to bring them all and in the darkness bind them.
-    this.panel.addEventListener("popuphiding", function onPopupHiding(aEvent) {
-      aEvent.target.removeEventListener("popuphiding", onPopupHiding, false);
-      element.removeEventListener("input", inputHandler, false);
-      element.removeEventListener("blur", blurHandler, false);
-    }, false);
-
-    this.panel.hidden = false;
-
-    // We want to show the popup at the middle of checkbox and radio buttons
-    // and where the content begin for the other elements.
-    let offset = 0;
-    let position = "";
-
-    if (element.tagName == 'INPUT' &&
-        (element.type == 'radio' || element.type == 'checkbox')) {
-      position = "bottomcenter topleft";
-    } else {
-      let win = element.ownerDocument.defaultView;
-      let style = win.getComputedStyle(element, null);
-      let utils = win.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                     .getInterface(Components.interfaces.nsIDOMWindowUtils);
-
-      if (style.direction == 'rtl') {
-        offset = parseInt(style.paddingRight) + parseInt(style.borderRightWidth);
-      } else {
-        offset = parseInt(style.paddingLeft) + parseInt(style.borderLeftWidth);
-      }
-
-      offset = Math.round(offset * utils.fullZoom);
-
-      position = "after_start";
-    }
-
-    this.panel.openPopup(element, position, offset, 0);
-  }
-};
-
 var gBrowserInit = {
   onLoad: function() {
     gMultiProcessBrowser = gPrefService.getBoolPref("browser.tabs.remote");
@@ -817,7 +719,8 @@ var gBrowserInit = {
         var arrayArgComponents = window.arguments[1].split("=");
         if (arrayArgComponents) {
           //we should "inherit" the charset menu setting in a new window
-          getMarkupDocumentViewer().defaultCharacterSet = arrayArgComponents[1];
+          //TFE FIXME: this is now a wrappednative and can't be set this way.
+          //getMarkupDocumentViewer().defaultCharacterSet = arrayArgComponents[1];
         }
       }
     }
@@ -980,7 +883,7 @@ var gBrowserInit = {
     gPrivateBrowsingUI.init();
     TabsInTitlebar.init();
     retrieveToolbarIconsizesFromTheme();
-	ToolbarIconColor.init();
+    ToolbarIconColor.init();
 
 #ifdef XP_WIN
     if ((window.matchMedia("(-moz-os-version: windows-win8)").matches ||
@@ -1090,15 +993,14 @@ var gBrowserInit = {
     Services.obs.addObserver(gXPInstallObserver, "addon-install-disabled", false);
     Services.obs.addObserver(gXPInstallObserver, "addon-install-started", false);
     Services.obs.addObserver(gXPInstallObserver, "addon-install-blocked", false);
+    Services.obs.addObserver(gXPInstallObserver, "addon-install-origin-blocked", false);
     Services.obs.addObserver(gXPInstallObserver, "addon-install-failed", false);
     Services.obs.addObserver(gXPInstallObserver, "addon-install-complete", false);
     Services.obs.addObserver(gXSSObserver, "xss-on-violate-policy", false);
-    Services.obs.addObserver(gFormSubmitObserver, "invalidformsubmit", false);
 
     BrowserOffline.init();
     OfflineApps.init();
     IndexedDBPromptHelper.init();
-    gFormSubmitObserver.init();
     AddonManager.addAddonListener(AddonsMgrListener);
     WebrtcIndicator.init();
 
@@ -1178,12 +1080,31 @@ var gBrowserInit = {
     // If the user manually opens the download manager before the timeout, the
     // downloads will start right away, and getting the service again won't hurt.
     setTimeout(function() {
-      Services.downloads;
-      let DownloadTaskbarProgress =
-        Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm", {}).DownloadTaskbarProgress;
-      DownloadTaskbarProgress.onBrowserWindowLoad(window);
+      try {
+        let DownloadsCommon =
+          Cu.import("resource:///modules/DownloadsCommon.jsm", {}).DownloadsCommon;
+        DownloadsCommon.initializeAllDataLinks();
+        // TODO: fix taskbar-based download progress
+        //let DownloadTaskbarProgress =
+        //  Cu.import("resource://gre/modules/DownloadTaskbarProgress.jsm", {}).DownloadTaskbarProgress;
+        //DownloadTaskbarProgress.onBrowserWindowLoad(window);
+      } catch(ex) {
+        Cu.reportError(ex);
+      }
     }, 10000);
 
+    // Load the Login Manager data from disk off the main thread, some time
+    // after startup.  If the data is required before the timeout, for example
+    // because a restored page contains a password field, it will be loaded on
+    // the main thread, and this initialization request will be ignored.
+    setTimeout(function() {
+      try {
+        Services.logins;
+      } catch (ex) {
+        Cu.reportError(ex);
+      }
+    }, 3000);
+    
     // The object handling the downloads indicator is also initialized here in the
     // delayed startup function, but the actual indicator element is not loaded
     // unless there are downloads to be displayed.
@@ -1405,8 +1326,8 @@ var gBrowserInit = {
     TabsOnTop.uninit();
 
     TabsInTitlebar.uninit();
-	
-	ToolbarIconColor.uninit();
+    
+    ToolbarIconColor.uninit();
 
     var enumerator = Services.wm.getEnumerator(null);
     enumerator.getNext();
@@ -1435,9 +1356,9 @@ var gBrowserInit = {
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-disabled");
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-started");
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-blocked");
+      Services.obs.removeObserver(gXPInstallObserver, "addon-install-origin-blocked");
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-failed");
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-complete");
-      Services.obs.removeObserver(gFormSubmitObserver, "invalidformsubmit");
       Services.obs.removeObserver(gXSSObserver, "xss-on-violate-policy");
 
       try {
@@ -2682,7 +2603,7 @@ function getMeOutOfHere() {
     url = prefs.getComplexValue("browser.startup.homepage",
                                 Ci.nsIPrefLocalizedString).data;
     // If url is a pipe-delimited set of pages, just take the first one.
-    if (url.contains("|"))
+    if (url.includes("|"))
       url = url.split("|")[0];
   } catch(e) {
     Components.utils.reportError("Couldn't get homepage pref: " + e);
@@ -3320,7 +3241,7 @@ function FillHistoryMenu(aParent) {
 function addToUrlbarHistory(aUrlToAdd) {
   if (!PrivateBrowsingUtils.isWindowPrivate(window) &&
       aUrlToAdd &&
-      !aUrlToAdd.contains(" ") &&
+      !aUrlToAdd.includes(" ") &&
       !/[\x00-\x1F]/.test(aUrlToAdd))
     PlacesUIUtils.markPageAsTyped(aUrlToAdd);
 }
@@ -3919,10 +3840,8 @@ var XULBrowserWindow = {
     var location = aLocationURI ? aLocationURI.spec : "";
     this._hostChanged = true;
 
-    // Hide the form invalid popup.
-    if (gFormSubmitObserver.panel) {
-      gFormSubmitObserver.panel.hidePopup();
-    }
+    // If displayed, hide the form validation popup.
+    FormValidationHandler.hidePopup();
 
     let pageTooltip = document.getElementById("aHTMLTooltip");
     let tooltipNode = pageTooltip.triggerNode;
@@ -4591,7 +4510,7 @@ function setToolbarVisibility(toolbar, isVisible) {
 #endif
 
   if (isVisible)
-	ToolbarIconColor.inferFromText();
+    ToolbarIconColor.inferFromText();
 }
 
 var TabsOnTop = {
@@ -4742,7 +4661,7 @@ var TabsInTitlebar = {
 
       titlebar.style.marginBottom = "";
     }
-	
+    
     ToolbarIconColor.inferFromText();
   },
 
@@ -5272,7 +5191,7 @@ function MultiplexHandler(event)
         SelectDetector(event, false);
     } else if (name == 'charsetGroup') {
         var charset = node.getAttribute('id');
-        charset = charset.substring('charset.'.length, charset.length)
+        charset = charset.substring(charset.indexOf('charset.') + 'charset.'.length);
         BrowserSetForcedCharacterSet(charset);
     } else if (name == 'charsetCustomize') {
         //do nothing - please remove this else statement, once the charset prefs moves to the pref window
@@ -5285,7 +5204,7 @@ function MultiplexHandler(event)
 function SelectDetector(event, doReload)
 {
     var uri =  event.target.getAttribute("id");
-    var prefvalue = uri.substring('chardet.'.length, uri.length);
+    var prefvalue = uri.substring(uri.indexOf('chardet.') + 'chardet.'.length);
     if ("off" == prefvalue) { // "off" is special value to turn off the detectors
         prefvalue = "";
     }
@@ -5361,17 +5280,10 @@ function UpdateMenus(event) {
   UpdateCharsetDetector(event.target);
 }
 
-function CreateMenu(node) {
-  Services.obs.notifyObservers(null, "charsetmenu-selected", node);
-}
-
 function charsetLoadListener() {
   var charset = window.content.document.characterSet;
 
   if (charset.length > 0 && (charset != gLastBrowserCharset)) {
-    if (!gCharsetMenu)
-      gCharsetMenu = Cc['@mozilla.org/rdf/datasource;1?name=charset-menu'].getService(Ci.nsICurrentCharsetListener);
-    gCharsetMenu.SetCurrentCharset(charset);
     gPrevCharset = gLastBrowserCharset;
     gLastBrowserCharset = charset;
   }
@@ -7010,8 +6922,13 @@ XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
 XPCOMUtils.defineLazyModuleGetter(this, "gDevToolsBrowser",
                                   "resource:///modules/devtools/gDevTools.jsm");
 
-XPCOMUtils.defineLazyGetter(this, "HUDConsoleUI", function () {
-  return Cu.import("resource:///modules/HUDService.jsm", {}).HUDService.consoleUI;
+Object.defineProperty(this, "HUDService", {
+  get: function HUDService_getter() {
+    let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
+    return devtools.require("devtools/webconsole/hudservice");
+  },
+  configurable: true,
+  enumerable: true
 });
 #endif
 

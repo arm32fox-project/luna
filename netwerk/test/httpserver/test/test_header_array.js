@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -6,15 +6,15 @@
 
 // test that special headers are sent as an array of headers with the same name
 
-const PORT = 4444;
+var srv;
 
 function run_test()
 {
-  var srv;
+  srv;
 
   srv = createServer();
   srv.registerPathHandler("/path-handler", pathHandler);
-  srv.start(PORT);
+  srv.start(-1);
 
   runHttpTests(tests, testComplete(srv));
 }
@@ -47,9 +47,12 @@ function pathHandler(request, response)
  * BEGIN TESTS *
  ***************/
 
-var tests = [
-  new Test("http://localhost:4444/path-handler",
-           null, check)];
+XPCOMUtils.defineLazyGetter(this, "tests", function() {
+  return [
+    new Test("http://localhost:" + srv.identity.primaryPort + "/path-handler",
+             null, check)
+  ];
+});
 
 function check(ch, cx)
 {

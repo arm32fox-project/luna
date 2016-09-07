@@ -5,31 +5,33 @@
 
 package org.mozilla.goanna;
 
-import org.mozilla.goanna.db.BrowserDB;
-import org.mozilla.goanna.sync.setup.SyncAccounts;
-import org.mozilla.goanna.util.GoannaEventListener;
-import org.mozilla.goanna.util.ThreadUtils;
-
-import org.json.JSONObject;
-
-import android.accounts.Account;
-import android.accounts.AccountManager;
-import android.accounts.OnAccountsUpdateListener;
-import android.app.Activity;
-import android.content.ContentResolver;
-import android.database.ContentObserver;
-import android.graphics.Color;
-import android.net.Uri;
-import android.os.Handler;
-import android.util.Log;
-
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
+
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.favicons.Favicons;
+import org.mozilla.goanna.fxa.FirefoxAccounts;
+import org.mozilla.goanna.mozglue.JNITarget;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.sync.setup.SyncAccounts;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
+
+import android.accounts.Account;
+import android.accounts.AccountManager;
+import android.accounts.OnAccountsUpdateListener;
+import android.content.ContentResolver;
+import android.content.Context;
+import android.database.ContentObserver;
+import android.graphics.Color;
+import android.net.Uri;
+import android.os.Handler;
+import android.util.Log;
 
 public class Tabs implements GoannaEventListener {
     private static final String LOGTAG = "GoannaTabs";
@@ -44,11 +46,8 @@ public class Tabs implements GoannaEventListener {
     // All accesses to mTabs must be synchronized on the Tabs instance.
     private final HashMap<Integer, Tab> mTabs = new HashMap<Integer, Tab>();
 
-    // Keeps track of how much has happened since we last updated our persistent tab store.
-    private volatile int mScore = 0;
-
     private AccountManager mAccountManager;
-    private OnAccountsUpdateListener mAccountListener = null;
+    private OnAccountsUpdateListener mAccountListener;
 
     public static final int LOADURL_NONE         = 0;
     public static final int LOADURL_NEW_TAB      = 1 << 0;
@@ -62,56 +61,75 @@ public class Tabs implements GoannaEventListener {
 
     private static final long PERSIST_TABS_AFTER_MILLISECONDS = 1000 * 5;
 
-    private static AtomicInteger sTabId = new AtomicInteger(0);
+    public static final int INVALID_TAB_ID = -1;
+
+    private static final AtomicInteger sTabId = new AtomicInteger(0);
     private volatile boolean mInitialTabsAdded;
 
-    private Activity mActivity;
-    private ContentObserver mContentObserver;
+    private Context mAppContext;
+    private ContentObserver mBookmarksContentObserver;
+    private ContentObserver mReadingListContentObserver;
+    private PersistTabsRunnable mPersistTabsRunnable;
 
-    private final Runnable mPersistTabsRunnable = new Runnable() {
+    private static class PersistTabsRunnable implements Runnable {
+        private final BrowserDB db;
+        private final Context context;
+        private final Iterable<Tab> tabs;
+
+        public PersistTabsRunnable(final Context context, Iterable<Tab> tabsInOrder) {
+            this.context = context;
+            this.db = GoannaProfile.get(context).getDB();
+            this.tabs = tabsInOrder;
+        }
+
         @Override
         public void run() {
-            boolean syncIsSetup = SyncAccounts.syncAccountsExist(getActivity());
-            if (syncIsSetup) {
-                TabsAccessor.persistLocalTabs(getContentResolver(), getTabsInOrder());
-            }
+            try {
+                boolean syncIsSetup = SyncAccounts.syncAccountsExist(context) ||
+                                      FirefoxAccounts.firefoxAccountsExist(context);
+                if (syncIsSetup) {
+                    db.getTabsAccessor().persistLocalTabs(context.getContentResolver(), tabs);
+                }
+            } catch (SecurityException se) {} // will fail without android.permission.GET_ACCOUNTS
         }
     };
 
     private Tabs() {
-        registerEventListener("Session:RestoreEnd");
-        registerEventListener("SessionHistory:New");
-        registerEventListener("SessionHistory:Back");
-        registerEventListener("SessionHistory:Forward");
-        registerEventListener("SessionHistory:Goto");
-        registerEventListener("SessionHistory:Purge");
-        registerEventListener("Tab:Added");
-        registerEventListener("Tab:Close");
-        registerEventListener("Tab:Select");
-        registerEventListener("Content:LocationChange");
-        registerEventListener("Content:SecurityChange");
-        registerEventListener("Content:ReaderEnabled");
-        registerEventListener("Content:StateChange");
-        registerEventListener("Content:LoadError");
-        registerEventListener("Content:PageShow");
-        registerEventListener("DOMContentLoaded");
-        registerEventListener("DOMTitleChanged");
-        registerEventListener("Link:Favicon");
-        registerEventListener("Link:Feed");
-        registerEventListener("DesktopMode:Changed");
+        EventDispatcher.getInstance().registerGoannaThreadListener(this,
+            "Tab:Added",
+            "Tab:Close",
+            "Tab:Select",
+            "Content:LocationChange",
+            "Content:SecurityChange",
+            "Content:StateChange",
+            "Content:LoadError",
+            "Content:PageShow",
+            "DOMContentLoaded",
+            "DOMTitleChanged",
+            "Link:Favicon",
+            "Link:Feed",
+            "Link:OpenSearch",
+            "DesktopMode:Changed",
+            "Tab:ViewportMetadata",
+            "Tab:StreamStart",
+            "Tab:StreamStop",
+            "Reader:Toggle");
+
     }
 
-    public synchronized void attachToActivity(Activity activity) {
-        if (mActivity == activity) {
+    public synchronized void attachToContext(Context context) {
+        final Context appContext = context.getApplicationContext();
+        if (mAppContext == appContext) {
             return;
         }
 
-        if (mActivity != null) {
-            detachFromActivity(mActivity);
+        if (mAppContext != null) {
+            // This should never happen.
+            Log.w(LOGTAG, "The application context has changed!");
         }
 
-        mActivity = activity;
-        mAccountManager = AccountManager.get(mActivity);
+        mAppContext = appContext;
+        mAccountManager = AccountManager.get(appContext);
 
         mAccountListener = new OnAccountsUpdateListener() {
             @Override
@@ -123,26 +141,19 @@ public class Tabs implements GoannaEventListener {
         // The listener will run on the background thread (see 2nd argument).
         mAccountManager.addOnAccountsUpdatedListener(mAccountListener, ThreadUtils.getBackgroundHandler(), false);
 
-        if (mContentObserver != null) {
-            BrowserDB.registerBookmarkObserver(getContentResolver(), mContentObserver);
-        }
-    }
-
-    // Ideally, this would remove the reference to the activity once it's
-    // detached; however, we have lifecycle issues with GoannaApp and Tabs that
-    // requires us to keep it around (see
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=844407).
-    public synchronized void detachFromActivity(Activity activity) {
-        ThreadUtils.getBackgroundHandler().removeCallbacks(mPersistTabsRunnable);
-
-        if (mContentObserver != null) {
-            BrowserDB.unregisterContentObserver(getContentResolver(), mContentObserver);
+        if (mBookmarksContentObserver != null) {
+            // It's safe to use the db here since we aren't doing any I/O.
+            final GoannaProfile profile = GoannaProfile.get(context);
+            profile.getDB().registerBookmarkObserver(getContentResolver(), mBookmarksContentObserver);
         }
 
-        if (mAccountListener != null) {
-            mAccountManager.removeOnAccountsUpdatedListener(mAccountListener);
-            mAccountListener = null;
+        if (mReadingListContentObserver != null) {
+            // It's safe to use the db here since we aren't doing any I/O.
+            final GoannaProfile profile = GoannaProfile.get(context);
+            profile.getDB().getReadingListAccessor().registerContentObserver(
+                    mAppContext, mReadingListContentObserver);
         }
+
     }
 
     /**
@@ -168,7 +179,7 @@ public class Tabs implements GoannaEventListener {
         return count;
     }
 
-    public synchronized int isOpen(String url) {
+    public int isOpen(String url) {
         for (Tab tab : mOrder) {
             if (tab.getURL().equals(url)) {
                 return tab.getId();
@@ -177,10 +188,10 @@ public class Tabs implements GoannaEventListener {
         return -1;
     }
 
-    // Must be synchronized to avoid racing on mContentObserver.
+    // Must be synchronized to avoid racing on mBookmarksContentObserver.
     private void lazyRegisterBookmarkObserver() {
-        if (mContentObserver == null) {
-            mContentObserver = new ContentObserver(null) {
+        if (mBookmarksContentObserver == null) {
+            mBookmarksContentObserver = new ContentObserver(null) {
                 @Override
                 public void onChange(boolean selfChange) {
                     for (Tab tab : mOrder) {
@@ -188,17 +199,45 @@ public class Tabs implements GoannaEventListener {
                     }
                 }
             };
-            BrowserDB.registerBookmarkObserver(getContentResolver(), mContentObserver);
+
+            // It's safe to use the db here since we aren't doing any I/O.
+            final GoannaProfile profile = GoannaProfile.get(mAppContext);
+            profile.getDB().registerBookmarkObserver(getContentResolver(), mBookmarksContentObserver);
         }
     }
 
-    private Tab addTab(int id, String url, boolean external, int parentId, String title, boolean isPrivate) {
-        final Tab tab = isPrivate ? new PrivateTab(mActivity, id, url, external, parentId, title) :
-                                    new Tab(mActivity, id, url, external, parentId, title);
+    // Must be synchronized to avoid racing on mReadingListContentObserver.
+    private void lazyRegisterReadingListObserver() {
+        if (mReadingListContentObserver == null) {
+            mReadingListContentObserver = new ContentObserver(null) {
+                @Override
+                public void onChange(final boolean selfChange) {
+                    for (final Tab tab : mOrder) {
+                        tab.updateReadingList();
+                    }
+                }
+            };
+
+            // It's safe to use the db here since we aren't doing any I/O.
+            final GoannaProfile profile = GoannaProfile.get(mAppContext);
+            profile.getDB().getReadingListAccessor().registerContentObserver(
+                    mAppContext, mReadingListContentObserver);
+        }
+    }
+
+    private Tab addTab(int id, String url, boolean external, int parentId, String title, boolean isPrivate, int tabIndex) {
+        final Tab tab = isPrivate ? new PrivateTab(mAppContext, id, url, external, parentId, title) :
+                                    new Tab(mAppContext, id, url, external, parentId, title);
         synchronized (this) {
             lazyRegisterBookmarkObserver();
+            lazyRegisterReadingListObserver();
             mTabs.put(id, tab);
-            mOrder.add(tab);
+
+            if (tabIndex > -1) {
+                mOrder.add(tabIndex, tab);
+            } else {
+                mOrder.add(tab);
+            }
         }
 
         // Suppress the ADDED event to prevent animation of tabs created via session restore.
@@ -259,7 +298,6 @@ public class Tabs implements GoannaEventListener {
     }
 
     private Tab getPreviousTabFrom(Tab tab, boolean getPrivate) {
-        int numTabs = mOrder.size();
         int index = getIndexOf(tab);
         for (int i = index - 1; i >= 0; i--) {
             Tab prev = mOrder.get(i);
@@ -286,7 +324,16 @@ public class Tabs implements GoannaEventListener {
         return tab != null && tab == mSelectedTab;
     }
 
+    public boolean isSelectedTabId(int tabId) {
+        final Tab selected = mSelectedTab;
+        return selected != null && selected.getId() == tabId;
+    }
+
+    @RobocopTarget
     public synchronized Tab getTab(int id) {
+        if (id == -1)
+            return null;
+
         if (mTabs.size() == 0)
             return null;
 
@@ -297,27 +344,45 @@ public class Tabs implements GoannaEventListener {
     }
 
     /** Close tab and then select the default next tab */
+    @RobocopTarget
     public synchronized void closeTab(Tab tab) {
         closeTab(tab, getNextTab(tab));
     }
 
+    public synchronized void closeTab(Tab tab, Tab nextTab) {
+        closeTab(tab, nextTab, false);
+    }
+
+    public synchronized void closeTab(Tab tab, boolean showUndoToast) {
+        closeTab(tab, getNextTab(tab), showUndoToast);
+    }
+
     /** Close tab and then select nextTab */
-    public synchronized void closeTab(final Tab tab, Tab nextTab) {
+    public synchronized void closeTab(final Tab tab, Tab nextTab, boolean showUndoToast) {
         if (tab == null)
             return;
 
         int tabId = tab.getId();
         removeTab(tabId);
 
-        if (nextTab == null)
-            nextTab = loadUrl("about:home", LOADURL_NEW_TAB);
+        if (nextTab == null) {
+            nextTab = loadUrl(AboutPages.HOME, LOADURL_NEW_TAB);
+        }
 
         selectTab(nextTab.getId());
 
         tab.onDestroy();
 
+        final JSONObject args = new JSONObject();
+        try {
+            args.put("tabId", String.valueOf(tabId));
+            args.put("showUndoToast", showUndoToast);
+        } catch (JSONException e) {
+            Log.e(LOGTAG, "Error building Tab:Closed arguments: " + e);
+        }
+
         // Pass a message to Goanna to update tab state in BrowserApp
-        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Tab:Closed", String.valueOf(tabId)));
+        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Tab:Closed", args.toString()));
     }
 
     /** Return the tab that will be selected by default after this one is closed */
@@ -359,15 +424,15 @@ public class Tabs implements GoannaEventListener {
      * @return the current GoannaApp instance, or throws if
      *         we aren't correctly initialized.
      */
-    private synchronized android.app.Activity getActivity() {
-        if (mActivity == null) {
+    private synchronized Context getAppContext() {
+        if (mAppContext == null) {
             throw new IllegalStateException("Tabs not initialized with a GoannaApp instance.");
         }
-        return mActivity;
+        return mAppContext;
     }
 
     public ContentResolver getContentResolver() {
-        return getActivity().getContentResolver();
+        return getAppContext().getContentResolver();
     }
 
     // Make Tabs a singleton class.
@@ -375,20 +440,16 @@ public class Tabs implements GoannaEventListener {
         private static final Tabs INSTANCE = new Tabs();
     }
 
+    @RobocopTarget
     public static Tabs getInstance() {
        return Tabs.TabsInstanceHolder.INSTANCE;
     }
 
     // GoannaEventListener implementation
-
     @Override
     public void handleMessage(String event, JSONObject message) {
+        Log.d(LOGTAG, "handleMessage: " + event);
         try {
-            if (event.equals("Session:RestoreEnd")) {
-                notifyListeners(null, TabEvents.RESTORED);
-                return;
-            }
-
             // All other events handled below should contain a tabID property
             int id = message.getInt("tabID");
             Tab tab = getTab(id);
@@ -402,16 +463,19 @@ public class Tabs implements GoannaEventListener {
                         // Tab was already closed; abort
                         return;
                     }
-                    tab.updateURL(url);
                 } else {
                     tab = addTab(id, url, message.getBoolean("external"),
                                           message.getInt("parentId"),
                                           message.getString("title"),
-                                          message.getBoolean("isPrivate"));
+                                          message.getBoolean("isPrivate"),
+                                          message.getInt("tabIndex"));
+
+                    // If we added the tab as a stub, we should have already
+                    // selected it, so ignore this flag for stubbed tabs.
+                    if (message.getBoolean("selected"))
+                        selectTab(id);
                 }
 
-                if (message.getBoolean("selected"))
-                    selectTab(id);
                 if (message.getBoolean("delayLoad"))
                     tab.setState(Tab.STATE_DELAYED);
                 if (message.getBoolean("desktopMode"))
@@ -423,10 +487,7 @@ public class Tabs implements GoannaEventListener {
             if (tab == null)
                 return;
 
-            if (event.startsWith("SessionHistory:")) {
-                event = event.substring("SessionHistory:".length());
-                tab.handleSessionHistoryMessage(event, message);
-            } else if (event.equals("Tab:Close")) {
+            if (event.equals("Tab:Close")) {
                 closeTab(tab);
             } else if (event.equals("Tab:Select")) {
                 selectTab(tab.getId());
@@ -435,26 +496,26 @@ public class Tabs implements GoannaEventListener {
             } else if (event.equals("Content:SecurityChange")) {
                 tab.updateIdentityData(message.getJSONObject("identity"));
                 notifyListeners(tab, TabEvents.SECURITY_CHANGE);
-            } else if (event.equals("Content:ReaderEnabled")) {
-                tab.setReaderEnabled(true);
-                notifyListeners(tab, TabEvents.READER_ENABLED);
             } else if (event.equals("Content:StateChange")) {
                 int state = message.getInt("state");
                 if ((state & GoannaAppShell.WPL_STATE_IS_NETWORK) != 0) {
                     if ((state & GoannaAppShell.WPL_STATE_START) != 0) {
-                        boolean showProgress = message.getBoolean("showProgress");
-                        tab.handleDocumentStart(showProgress, message.getString("uri"));
-                        notifyListeners(tab, Tabs.TabEvents.START, showProgress);
+                        boolean restoring = message.getBoolean("restoring");
+                        tab.handleDocumentStart(restoring, message.getString("uri"));
+                        notifyListeners(tab, Tabs.TabEvents.START);
                     } else if ((state & GoannaAppShell.WPL_STATE_STOP) != 0) {
                         tab.handleDocumentStop(message.getBoolean("success"));
                         notifyListeners(tab, Tabs.TabEvents.STOP);
                     }
                 }
             } else if (event.equals("Content:LoadError")) {
+                tab.handleContentLoaded();
                 notifyListeners(tab, Tabs.TabEvents.LOAD_ERROR);
             } else if (event.equals("Content:PageShow")) {
                 notifyListeners(tab, TabEvents.PAGE_SHOW);
+                tab.updateUserRequested(message.getString("userRequested"));
             } else if (event.equals("DOMContentLoaded")) {
+                tab.handleContentLoaded();
                 String backgroundColor = message.getString("bgColor");
                 if (backgroundColor != null) {
                     tab.setBackgroundColor(backgroundColor);
@@ -462,31 +523,63 @@ public class Tabs implements GoannaEventListener {
                     // Default to white if no color is given
                     tab.setBackgroundColor(Color.WHITE);
                 }
+                tab.setErrorType(message.optString("errorType"));
+                tab.setMetadata(message.optJSONObject("metadata"));
                 notifyListeners(tab, Tabs.TabEvents.LOADED);
             } else if (event.equals("DOMTitleChanged")) {
                 tab.updateTitle(message.getString("title"));
             } else if (event.equals("Link:Favicon")) {
-                tab.updateFaviconURL(message.getString("href"), message.getInt("size"));
-                notifyListeners(tab, TabEvents.LINK_FAVICON);
+                // Don't bother if the type isn't one we can decode.
+                if (!Favicons.canDecodeType(message.getString("mime"))) {
+                    return;
+                }
+
+                // Add the favicon to the set of available icons for this tab.
+                tab.addFavicon(message.getString("href"), message.getInt("size"), message.getString("mime"));
+
+                // Load the favicon. If the tab is still loading, we actually do the load once the
+                // page has loaded, in an attempt to prevent the favicon load from having a
+                // detrimental effect on page load time.
+                if (tab.getState() != Tab.STATE_LOADING) {
+                    tab.loadFavicon();
+                }
             } else if (event.equals("Link:Feed")) {
-                tab.setFeedsEnabled(true);
+                tab.setHasFeeds(true);
                 notifyListeners(tab, TabEvents.LINK_FEED);
+            } else if (event.equals("Link:OpenSearch")) {
+                boolean visible = message.getBoolean("visible");
+                tab.setHasOpenSearch(visible);
             } else if (event.equals("DesktopMode:Changed")) {
                 tab.setDesktopMode(message.getBoolean("desktopMode"));
                 notifyListeners(tab, TabEvents.DESKTOP_MODE_CHANGE);
+            } else if (event.equals("Tab:ViewportMetadata")) {
+                tab.setZoomConstraints(new ZoomConstraints(message));
+                tab.setIsRTL(message.getBoolean("isRTL"));
+                notifyListeners(tab, TabEvents.VIEWPORT_CHANGE);
+            } else if (event.equals("Tab:StreamStart")) {
+                tab.setRecording(true);
+                notifyListeners(tab, TabEvents.RECORDING_CHANGE);
+            } else if (event.equals("Tab:StreamStop")) {
+                tab.setRecording(false);
+                notifyListeners(tab, TabEvents.RECORDING_CHANGE);
+            } else if (event.equals("Reader:Toggle")) {
+                tab.toggleReaderMode();
             }
+
         } catch (Exception e) {
             Log.w(LOGTAG, "handleMessage threw for " + event, e);
         }
     }
 
     public void refreshThumbnails() {
-        final ThumbnailHelper helper = ThumbnailHelper.getInstance();
+        final BrowserDB db = GoannaProfile.get(mAppContext).getDB();
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
                 for (final Tab tab : mOrder) {
-                    helper.getAndProcessThumbnailFor(tab);
+                    if (tab.getThumbnail() == null) {
+                        tab.loadThumbnailFromDB(db);
+                    }
                 }
             }
         });
@@ -496,15 +589,14 @@ public class Tabs implements GoannaEventListener {
         public void onTabChanged(Tab tab, TabEvents msg, Object data);
     }
 
-    private static List<OnTabsChangedListener> mTabsChangedListeners =
-        Collections.synchronizedList(new ArrayList<OnTabsChangedListener>());
+    private static final List<OnTabsChangedListener> TABS_CHANGED_LISTENERS = new CopyOnWriteArrayList<OnTabsChangedListener>();
 
     public static void registerOnTabsChangedListener(OnTabsChangedListener listener) {
-        mTabsChangedListeners.add(listener);
+        TABS_CHANGED_LISTENERS.add(listener);
     }
 
     public static void unregisterOnTabsChangedListener(OnTabsChangedListener listener) {
-        mTabsChangedListeners.remove(listener);
+        TABS_CHANGED_LISTENERS.remove(listener);
     }
 
     public enum TabEvents {
@@ -523,33 +615,37 @@ public class Tabs implements GoannaEventListener {
         LOCATION_CHANGE,
         MENU_UPDATED,
         PAGE_SHOW,
-        LINK_FAVICON,
         LINK_FEED,
         SECURITY_CHANGE,
-        READER_ENABLED,
-        DESKTOP_MODE_CHANGE
+        DESKTOP_MODE_CHANGE,
+        VIEWPORT_CHANGE,
+        RECORDING_CHANGE,
+        BOOKMARK_ADDED,
+        BOOKMARK_REMOVED
     }
 
     public void notifyListeners(Tab tab, TabEvents msg) {
         notifyListeners(tab, msg, "");
     }
 
-    // Throws if not initialized.
     public void notifyListeners(final Tab tab, final TabEvents msg, final Object data) {
-        getActivity().runOnUiThread(new Runnable() {
+        if (tab == null &&
+            msg != TabEvents.RESTORED) {
+            throw new IllegalArgumentException("onTabChanged:" + msg + " must specify a tab.");
+        }
+
+        ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
                 onTabChanged(tab, msg, data);
 
-                synchronized (mTabsChangedListeners) {
-                    if (mTabsChangedListeners.isEmpty()) {
-                        return;
-                    }
+                if (TABS_CHANGED_LISTENERS.isEmpty()) {
+                    return;
+                }
 
-                    Iterator<OnTabsChangedListener> items = mTabsChangedListeners.iterator();
-                    while (items.hasNext()) {
-                        items.next().onTabChanged(tab, msg, data);
-                    }
+                Iterator<OnTabsChangedListener> items = TABS_CHANGED_LISTENERS.iterator();
+                while (items.hasNext()) {
+                    items.next().onTabChanged(tab, msg, data);
                 }
             }
         });
@@ -580,6 +676,9 @@ public class Tabs implements GoannaEventListener {
 
     // This method persists the current ordered list of tabs in our tabs content provider.
     public void persistAllTabs() {
+        // If there is already a mPersistTabsRunnable in progress, the backgroundThread will hold onto
+        // it and ensure these still happen in the correct order.
+        mPersistTabsRunnable = new PersistTabsRunnable(mAppContext, getTabsInOrder());
         ThreadUtils.postToBackgroundThread(mPersistTabsRunnable);
     }
 
@@ -589,13 +688,93 @@ public class Tabs implements GoannaEventListener {
      * those requests are removed.
      */
     private void queuePersistAllTabs() {
-        Handler backgroundHandler = ThreadUtils.getBackgroundHandler();
-        backgroundHandler.removeCallbacks(mPersistTabsRunnable);
+        final Handler backgroundHandler = ThreadUtils.getBackgroundHandler();
+
+        // Note: Its safe to modify the runnable here because all of the callers are on the same thread.
+        if (mPersistTabsRunnable != null) {
+            backgroundHandler.removeCallbacks(mPersistTabsRunnable);
+            mPersistTabsRunnable = null;
+        }
+
+        mPersistTabsRunnable = new PersistTabsRunnable(mAppContext, getTabsInOrder());
         backgroundHandler.postDelayed(mPersistTabsRunnable, PERSIST_TABS_AFTER_MILLISECONDS);
     }
 
-    private void registerEventListener(String event) {
-        GoannaAppShell.getEventDispatcher().registerEventListener(event, this);
+    /**
+     * Looks for an open tab with the given URL.
+     * @param url       the URL of the tab we're looking for
+     *
+     * @return first Tab with the given URL, or null if there is no such tab.
+     */
+    public Tab getFirstTabForUrl(String url) {
+        return getFirstTabForUrlHelper(url, null);
+    }
+
+    /**
+     * Looks for an open tab with the given URL and private state.
+     * @param url       the URL of the tab we're looking for
+     * @param isPrivate if true, only look for tabs that are private. if false,
+     *                  only look for tabs that are non-private.
+     *
+     * @return first Tab with the given URL, or null if there is no such tab.
+     */
+    public Tab getFirstTabForUrl(String url, boolean isPrivate) {
+        return getFirstTabForUrlHelper(url, isPrivate);
+    }
+
+    private Tab getFirstTabForUrlHelper(String url, Boolean isPrivate) {
+        if (url == null) {
+            return null;
+        }
+
+        for (Tab tab : mOrder) {
+            if (isPrivate != null && isPrivate != tab.isPrivate()) {
+                continue;
+            }
+            if (url.equals(tab.getURL())) {
+                return tab;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Looks for a reader mode enabled open tab with the given URL and private
+     * state.
+     *
+     * @param url
+     *            The URL of the tab we're looking for. The url parameter can be
+     *            the actual article URL or the reader mode article URL.
+     * @param isPrivate
+     *            If true, only look for tabs that are private. If false, only
+     *            look for tabs that are not private.
+     *
+     * @return The first Tab with the given URL, or null if there is no such
+     *         tab.
+     */
+    public Tab getFirstReaderTabForUrl(String url, boolean isPrivate) {
+        if (url == null) {
+            return null;
+        }
+
+        if (AboutPages.isAboutReader(url)) {
+            url = ReaderModeUtils.getUrlFromAboutReader(url);
+        }
+        for (Tab tab : mOrder) {
+            if (isPrivate != tab.isPrivate()) {
+                continue;
+            }
+            String tabUrl = tab.getURL();
+            if (AboutPages.isAboutReader(tabUrl)) {
+                tabUrl = ReaderModeUtils.getUrlFromAboutReader(tabUrl);
+                if (url.equals(tabUrl)) {
+                    return tab;
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -603,8 +782,9 @@ public class Tabs implements GoannaEventListener {
      *
      * @param url URL of page to load, or search term used if searchEngine is given
      */
-    public void loadUrl(String url) {
-        loadUrl(url, LOADURL_NONE);
+    @RobocopTarget
+    public Tab loadUrl(String url) {
+        return loadUrl(url, LOADURL_NONE);
     }
 
     /**
@@ -664,7 +844,10 @@ public class Tabs implements GoannaEventListener {
                 // long as it's a valid URI.
                 String tabUrl = (url != null && Uri.parse(url).getScheme() != null) ? url : null;
 
-                added = addTab(tabId, tabUrl, external, parentId, url, isPrivate);
+                // Add the new tab to the end of the tab order.
+                final int tabIndex = -1;
+
+                added = addTab(tabId, tabUrl, external, parentId, url, isPrivate, tabIndex);
                 added.setDesktopMode(desktopMode);
             }
         } catch (Exception e) {
@@ -673,11 +856,30 @@ public class Tabs implements GoannaEventListener {
 
         GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Tab:Load", args.toString()));
 
-        if ((added != null) && !delayLoad && !background) {
+        if (added == null) {
+            return null;
+        }
+
+        if (!delayLoad && !background) {
             selectTab(added.getId());
         }
 
+        // TODO: surely we could just fetch *any* cached icon?
+        if (AboutPages.isBuiltinIconPage(url)) {
+            Log.d(LOGTAG, "Setting about: tab favicon inline.");
+            added.addFavicon(url, Favicons.browserToolbarFaviconSize, "");
+            added.loadFavicon();
+        }
+
         return added;
+    }
+
+    public Tab addTab() {
+        return loadUrl(AboutPages.HOME, Tabs.LOADURL_NEW_TAB);
+    }
+
+    public Tab addPrivateTab() {
+        return loadUrl(AboutPages.PRIVATEBROWSING, Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_PRIVATE);
     }
 
     /**
@@ -712,9 +914,8 @@ public class Tabs implements GoannaEventListener {
 
     /**
      * Gets the next tab ID.
-     *
-     * This method is invoked via JNI.
      */
+    @JNITarget
     public static int getNextTabId() {
         return sTabId.getAndIncrement();
     }

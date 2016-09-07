@@ -6,7 +6,6 @@
  * result for various combinations of .setPrivate() and nsILoadContexts
  */
 
-const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 
@@ -26,7 +25,14 @@ LoadContext.prototype = {
 
 function getChannels() {
   for (let u of URIs) {
-    yield Services.io.newChannel(u, null, null);
+    yield Services.io.newChannel2(u,
+                                  null,
+                                  null,
+                                  null,      // aLoadingNode
+                                  Services.scriptSecurityManager.getSystemPrincipal(),
+                                  null,      // aTriggeringPrincipal
+                                  Ci.nsILoadInfo.SEC_NORMAL,
+                                  Ci.nsIContentPolicy.TYPE_OTHER);
   }
 }
 

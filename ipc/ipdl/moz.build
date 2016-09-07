@@ -7,12 +7,12 @@
 if CONFIG['MOZ_IPDL_TESTS']:
     DIRS += ['test']
 
-MODULE = 'ipdlgen'
+FAIL_ON_WARNINGS = True
 
-CPP_SOURCES += [
-    '$(PROTOCOLS:%.ipdl=%.cpp)',
-    '$(PROTOCOLS:%.ipdl=%Child.cpp)',
-    '$(PROTOCOLS:%.ipdl=%Parent.cpp)',
-    '$(PROTOCOLS:%.ipdlh=%.cpp)',
-]
+include('/ipc/chromium/chromium-config.mozbuild')
 
+FINAL_LIBRARY = 'xul'
+
+# We #include some things in the dom/plugins/ directory that rely on
+# toolkit libraries.
+CXXFLAGS += CONFIG['TK_CFLAGS']

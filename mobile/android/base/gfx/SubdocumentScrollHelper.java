@@ -7,7 +7,7 @@ package org.mozilla.goanna.gfx;
 
 import org.mozilla.goanna.GoannaAppShell;
 import org.mozilla.goanna.GoannaEvent;
-import org.mozilla.goanna.util.EventDispatcher;
+import org.mozilla.goanna.EventDispatcher;
 import org.mozilla.goanna.util.GoannaEventListener;
 
 import org.json.JSONException;
@@ -20,10 +20,10 @@ import android.util.Log;
 class SubdocumentScrollHelper implements GoannaEventListener {
     private static final String LOGTAG = "GoannaSubdocScroll";
 
-    private static String MESSAGE_PANNING_OVERRIDE = "Panning:Override";
-    private static String MESSAGE_CANCEL_OVERRIDE = "Panning:CancelOverride";
-    private static String MESSAGE_SCROLL = "Gesture:Scroll";
-    private static String MESSAGE_SCROLL_ACK = "Gesture:ScrollAck";
+    private static final String MESSAGE_PANNING_OVERRIDE = "Panning:Override";
+    private static final String MESSAGE_CANCEL_OVERRIDE = "Panning:CancelOverride";
+    private static final String MESSAGE_SCROLL = "Gesture:Scroll";
+    private static final String MESSAGE_SCROLL_ACK = "Gesture:ScrollAck";
 
     private final Handler mUiHandler;
     private final EventDispatcher mEventDispatcher;
@@ -54,23 +54,17 @@ class SubdocumentScrollHelper implements GoannaEventListener {
         mPendingDisplacement = new PointF();
 
         mEventDispatcher = eventDispatcher;
-        registerEventListener(MESSAGE_PANNING_OVERRIDE);
-        registerEventListener(MESSAGE_CANCEL_OVERRIDE);
-        registerEventListener(MESSAGE_SCROLL_ACK);
+        mEventDispatcher.registerGoannaThreadListener(this,
+            MESSAGE_PANNING_OVERRIDE,
+            MESSAGE_CANCEL_OVERRIDE,
+            MESSAGE_SCROLL_ACK);
     }
 
     void destroy() {
-        unregisterEventListener(MESSAGE_PANNING_OVERRIDE);
-        unregisterEventListener(MESSAGE_CANCEL_OVERRIDE);
-        unregisterEventListener(MESSAGE_SCROLL_ACK);
-    }
-
-    private void registerEventListener(String event) {
-        mEventDispatcher.registerEventListener(event, this);
-    }
-
-    private void unregisterEventListener(String event) {
-        mEventDispatcher.unregisterEventListener(event, this);
+        mEventDispatcher.unregisterGoannaThreadListener(this,
+            MESSAGE_PANNING_OVERRIDE,
+            MESSAGE_CANCEL_OVERRIDE,
+            MESSAGE_SCROLL_ACK);
     }
 
     boolean scrollBy(PointF displacement) {

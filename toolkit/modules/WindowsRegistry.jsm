@@ -47,4 +47,4 @@ const WindowsRegistry = {
     }
     return undefined;
   },
-}
+};

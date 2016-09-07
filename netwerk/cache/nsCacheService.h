@@ -13,6 +13,7 @@
 #include "nsCacheEntry.h"
 #include "nsThreadUtils.h"
 #include "nsICacheListener.h"
+#include "nsIMemoryReporter.h"
 
 #include "prthread.h"
 #include "nsIObserver.h"
@@ -21,7 +22,7 @@
 #include "nsRefPtrHashtable.h"
 #include "mozilla/CondVar.h"
 #include "mozilla/Mutex.h"
-#include "mozilla/TimeStamp.h"
+#include "mozilla/Telemetry.h"
 
 class nsCacheRequest;
 class nsCacheProfilePrefObserver;
@@ -61,15 +62,18 @@ private:
  *  nsCacheService
  ******************************************************************************/
 
-class nsCacheService : public nsICacheServiceInternal
+class nsCacheService final : public nsICacheServiceInternal,
+                                 public nsIMemoryReporter
 {
+    virtual ~nsCacheService();
+
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSICACHESERVICE
     NS_DECL_NSICACHESERVICEINTERNAL
+    NS_DECL_NSIMEMORYREPORTER
 
     nsCacheService();
-    virtual ~nsCacheService();
 
     // Define a Create method to be used with a factory:
     static nsresult
@@ -124,6 +128,10 @@ public:
 
     static bool      GetClearingEntries();
 
+    static void      GetCacheBaseDirectoty(nsIFile ** result);
+    static void      GetDiskCacheDirectory(nsIFile ** result);
+    static void      GetAppCacheDirectory(nsIFile ** result);
+
     /**
      * Methods called by any cache classes
      */
@@ -134,6 +142,11 @@ public:
     static nsresult  DoomEntry(nsCacheEntry * entry);
 
     static bool      IsStorageEnabledForPolicy_Locked(nsCacheStoragePolicy policy);
+
+    /**
+     * Called by disk cache to notify us to use the new max smart size
+     */
+    static void      MarkStartingFresh();
 
     /**
      * Methods called by nsApplicationCacheService
@@ -169,7 +182,7 @@ public:
     /**
      * Methods called by nsCacheProfilePrefObserver
      */
-    static void      OnProfileShutdown(bool cleanse);
+    static void      OnProfileShutdown();
     static void      OnProfileChanged();
 
     static void      SetDiskCacheEnabled(bool    enabled);
@@ -216,6 +229,14 @@ public:
 
     typedef bool (*DoomCheckFn)(nsCacheEntry* entry);
 
+    // Accessors to the disabled functionality
+    nsresult CreateSessionInternal(const char *          clientID,
+                                   nsCacheStoragePolicy  storagePolicy,
+                                   bool                  streamBased,
+                                   nsICacheSession     **result);
+    nsresult VisitEntriesInternal(nsICacheVisitor *visitor);
+    nsresult EvictEntriesInternal(nsCacheStoragePolicy storagePolicy);
+
 private:
     friend class nsCacheServiceAutoLock;
     friend class nsOfflineCacheDevice;
@@ -224,6 +245,7 @@ private:
     friend class nsBlockOnCacheThreadEvent;
     friend class nsSetDiskSmartSizeCallback;
     friend class nsDoomEvent;
+    friend class nsDisableOldMaxSmartSizePrefEvent;
     friend class nsDiskCacheMap;
     friend class nsAsyncDoomEvent;
     friend class nsCacheEntryDescriptor;
@@ -232,7 +254,7 @@ private:
      * Internal Methods
      */
 
-    static void      Lock();
+    static void      Lock(::mozilla::Telemetry::ID mainThreadLockerID);
     static void      Unlock();
     void             LockAcquired();
     void             LockReleased();
@@ -286,6 +308,7 @@ private:
     void             ClearDoomList(void);
     void             DoomActiveEntries(DoomCheckFn check);
     void             CloseAllStreams();
+    void             FireClearNetworkCacheStoredAnywhereNotification();
 
     static
     PLDHashOperator  GetActiveEntries(PLDHashTable *    table,
@@ -363,12 +386,15 @@ private:
  *  nsCacheServiceAutoLock
  ******************************************************************************/
 
+#define LOCK_TELEM(x) \
+  (::mozilla::Telemetry::CACHE_SERVICE_LOCK_WAIT_MAINTHREAD_##x)
+
 // Instantiate this class to acquire the cache service lock for a particular
 // execution scope.
 class nsCacheServiceAutoLock {
 public:
-    nsCacheServiceAutoLock() {
-        nsCacheService::Lock();
+    explicit nsCacheServiceAutoLock(mozilla::Telemetry::ID mainThreadLockerID) {
+        nsCacheService::Lock(mainThreadLockerID);
     }
     ~nsCacheServiceAutoLock() {
         nsCacheService::Unlock();

@@ -3,16 +3,11 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 /**
- * This test executes nsIOfflineCacheUpdateService.scheduleCustomProfileUpdate API
+ * This test executes nsIOfflineCacheUpdateService.scheduleAppUpdate API
  * 1. preloads an app with a manifest to a custom sudir in the profile (for simplicity)
  * 2. observes progress and completion of the update
  * 3. checks presence of index.sql and files in the expected location
  */
-
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
 
 Cu.import("resource://testing-common/httpd.js");
 
@@ -22,7 +17,14 @@ var cacheUpdateObserver = null;
 function make_channel(url, callback, ctx) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
             getService(Ci.nsIIOService);
-  return ios.newChannel(url, "", null);
+  return ios.newChannel2(url,
+                         "",
+                         null,
+                         null,      // aLoadingNode
+                         Services.scriptSecurityManager.getSystemPrincipal(),
+                         null,      // aTriggeringPrincipal
+                         Ci.nsILoadInfo.SEC_NORMAL,
+                         Ci.nsIContentPolicy.TYPE_OTHER);
 }
 
 function make_uri(url) {
@@ -119,9 +121,10 @@ function run_test()
 
   var us = Cc["@mozilla.org/offlinecacheupdate-service;1"].
            getService(Ci.nsIOfflineCacheUpdateService);
-  var update = us.scheduleCustomProfileUpdate(
+  var update = us.scheduleAppUpdate(
       make_uri("http://localhost:4444/manifest"),
       make_uri("http://localhost:4444/masterEntry"),
+      0 /* no AppID */, false /* not in browser*/,
       customDir);
 
   var expectedStates = [

@@ -24,6 +24,7 @@
 #include "mozStoragePrivateHelpers.h"
 #include "mozStorageStatementRow.h"
 #include "mozStorageStatement.h"
+#include "nsDOMClassInfo.h"
 
 #include "prlog.h"
 
@@ -37,27 +38,27 @@ namespace storage {
 ////////////////////////////////////////////////////////////////////////////////
 //// nsIClassInfo
 
-NS_IMPL_CI_INTERFACE_GETTER4(
-  AsyncStatement
-, mozIStorageAsyncStatement
-, mozIStorageBaseStatement
-, mozIStorageBindingParams
-, mozilla::storage::StorageBaseStatementInternal
-)
+NS_IMPL_CI_INTERFACE_GETTER(AsyncStatement,
+                            mozIStorageAsyncStatement,
+                            mozIStorageBaseStatement,
+                            mozIStorageBindingParams,
+                            mozilla::storage::StorageBaseStatementInternal)
 
 class AsyncStatementClassInfo : public nsIClassInfo
 {
 public:
-  NS_DECL_ISUPPORTS
+  MOZ_CONSTEXPR AsyncStatementClassInfo() {}
+
+  NS_DECL_ISUPPORTS_INHERITED
 
   NS_IMETHODIMP
-  GetInterfaces(uint32_t *_count, nsIID ***_array)
+  GetInterfaces(uint32_t *_count, nsIID ***_array) override
   {
     return NS_CI_INTERFACE_GETTER_NAME(AsyncStatement)(_count, _array);
   }
 
   NS_IMETHODIMP
-  GetHelperForLanguage(uint32_t aLanguage, nsISupports **_helper)
+  GetHelperForLanguage(uint32_t aLanguage, nsISupports **_helper) override
   {
     if (aLanguage == nsIProgrammingLanguage::JAVASCRIPT) {
       static AsyncStatementJSHelper sJSHelper;
@@ -70,50 +71,50 @@ public:
   }
 
   NS_IMETHODIMP
-  GetContractID(char **_contractID)
+  GetContractID(char **_contractID) override
   {
     *_contractID = nullptr;
     return NS_OK;
   }
 
   NS_IMETHODIMP
-  GetClassDescription(char **_desc)
+  GetClassDescription(char **_desc) override
   {
     *_desc = nullptr;
     return NS_OK;
   }
 
   NS_IMETHODIMP
-  GetClassID(nsCID **_id)
+  GetClassID(nsCID **_id) override
   {
     *_id = nullptr;
     return NS_OK;
   }
 
   NS_IMETHODIMP
-  GetImplementationLanguage(uint32_t *_language)
+  GetImplementationLanguage(uint32_t *_language) override
   {
     *_language = nsIProgrammingLanguage::CPLUSPLUS;
     return NS_OK;
   }
 
   NS_IMETHODIMP
-  GetFlags(uint32_t *_flags)
+  GetFlags(uint32_t *_flags) override
   {
     *_flags = 0;
     return NS_OK;
   }
 
   NS_IMETHODIMP
-  GetClassIDNoAlloc(nsCID *_cid)
+  GetClassIDNoAlloc(nsCID *_cid) override
   {
     return NS_ERROR_NOT_AVAILABLE;
   }
 };
 
-NS_IMETHODIMP_(nsrefcnt) AsyncStatementClassInfo::AddRef() { return 2; }
-NS_IMETHODIMP_(nsrefcnt) AsyncStatementClassInfo::Release() { return 1; }
-NS_IMPL_QUERY_INTERFACE1(AsyncStatementClassInfo, nsIClassInfo)
+NS_IMETHODIMP_(MozExternalRefCountType) AsyncStatementClassInfo::AddRef() { return 2; }
+NS_IMETHODIMP_(MozExternalRefCountType) AsyncStatementClassInfo::Release() { return 1; }
+NS_IMPL_QUERY_INTERFACE(AsyncStatementClassInfo, nsIClassInfo)
 
 static AsyncStatementClassInfo sAsyncStatementClassInfo;
 
@@ -128,19 +129,19 @@ AsyncStatement::AsyncStatement()
 
 nsresult
 AsyncStatement::initialize(Connection *aDBConnection,
+                           sqlite3 *aNativeConnection,
                            const nsACString &aSQLStatement)
 {
-  NS_ASSERTION(aDBConnection, "No database connection given!");
-  NS_ASSERTION(aDBConnection->GetNativeConnection(),
-               "We should never be called with a null sqlite3 database!");
+  MOZ_ASSERT(aDBConnection, "No database connection given!");
+  MOZ_ASSERT(!aDBConnection->isClosed(), "Database connection should be valid");
+  MOZ_ASSERT(aNativeConnection, "No native connection given!");
 
   mDBConnection = aDBConnection;
+  mNativeConnection = aNativeConnection;
   mSQLString = aSQLStatement;
 
-#ifdef PR_LOGGING
   PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Inited async statement '%s' (0x%p)",
                                       mSQLString.get()));
-#endif
 
 #ifdef DEBUG
   // We want to try and test for LIKE and that consumers are using
@@ -226,7 +227,6 @@ AsyncStatement::getParams()
 AsyncStatement::~AsyncStatement()
 {
   destructorAsyncFinalize();
-  cleanupJSHelpers();
 
   // If we are getting destroyed on the wrong thread, proxy the connection
   // release to the right thread.  I'm not sure why we do this.
@@ -242,28 +242,11 @@ AsyncStatement::~AsyncStatement()
   }
 }
 
-void
-AsyncStatement::cleanupJSHelpers()
-{
-  // We are considered dead at this point, so any wrappers for row or params
-  // need to lose their reference to us.
-  if (mStatementParamsHolder) {
-    nsCOMPtr<nsIXPConnectWrappedNative> wrapper =
-      do_QueryInterface(mStatementParamsHolder);
-    nsCOMPtr<mozIStorageStatementParams> iParams =
-      do_QueryWrappedNative(wrapper);
-    AsyncStatementParams *params =
-      static_cast<AsyncStatementParams *>(iParams.get());
-    params->mStatement = nullptr;
-    mStatementParamsHolder = nullptr;
-  }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 //// nsISupports
 
-NS_IMPL_THREADSAFE_ADDREF(AsyncStatement)
-NS_IMPL_THREADSAFE_RELEASE(AsyncStatement)
+NS_IMPL_ADDREF(AsyncStatement)
+NS_IMPL_RELEASE(AsyncStatement)
 
 NS_INTERFACE_MAP_BEGIN(AsyncStatement)
   NS_INTERFACE_MAP_ENTRY(mozIStorageAsyncStatement)
@@ -299,24 +282,20 @@ AsyncStatement::getAsyncStatement(sqlite3_stmt **_stmt)
 #endif
 
   if (!mAsyncStatement) {
-    int rc = mDBConnection->prepareStatement(mSQLString, &mAsyncStatement);
+    int rc = mDBConnection->prepareStatement(mNativeConnection, mSQLString,
+                                             &mAsyncStatement);
     if (rc != SQLITE_OK) {
-#ifdef PR_LOGGING
       PR_LOG(gStorageLog, PR_LOG_ERROR,
              ("Sqlite statement prepare error: %d '%s'", rc,
-              ::sqlite3_errmsg(mDBConnection->GetNativeConnection())));
+              ::sqlite3_errmsg(mNativeConnection)));
       PR_LOG(gStorageLog, PR_LOG_ERROR,
              ("Statement was: '%s'", mSQLString.get()));
-#endif
       *_stmt = nullptr;
       return rc;
     }
-
-#ifdef PR_LOGGING
     PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Initialized statement '%s' (0x%p)",
                                         mSQLString.get(),
                                         mAsyncStatement));
-#endif
   }
 
   *_stmt = mAsyncStatement;
@@ -368,13 +347,13 @@ AsyncStatement::Finalize()
 
   mFinalized = true;
 
-#ifdef PR_LOGGING
   PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Finalizing statement '%s'",
                                       mSQLString.get()));
-#endif
 
   asyncFinalize();
-  cleanupJSHelpers();
+
+  // Release the params holder, so it can release the reference to us.
+  mStatementParamsHolder = nullptr;
 
   return NS_OK;
 }

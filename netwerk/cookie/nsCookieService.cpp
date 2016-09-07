@@ -8,11 +8,6 @@
 #include "mozilla/DebugOnly.h"
 #include "mozilla/Likely.h"
 
-#ifdef MOZ_LOGGING
-// this next define has to appear before the include of prlog.h
-#define FORCE_PR_LOG // Allow logging in the release build
-#endif
-
 #include "mozilla/net/CookieServiceChild.h"
 #include "mozilla/net/NeckoCommon.h"
 
@@ -49,8 +44,10 @@
 #include "mozilla/storage.h"
 #include "mozilla/AutoRestore.h"
 #include "mozilla/FileUtils.h"
+#include "mozilla/Telemetry.h"
 #include "nsIAppsService.h"
 #include "mozIApplication.h"
+#include "nsIConsoleService.h"
 
 using namespace mozilla;
 using namespace mozilla::net;
@@ -355,12 +352,12 @@ LogSuccess(bool aSetCookie, nsIURI *aHostURI, const nsAFlatCString &aCookieStrin
 class DBListenerErrorHandler : public mozIStorageStatementCallback
 {
 protected:
-  DBListenerErrorHandler(DBState* dbState) : mDBState(dbState) { }
+  explicit DBListenerErrorHandler(DBState* dbState) : mDBState(dbState) { }
   nsRefPtr<DBState> mDBState;
   virtual const char *GetOpType() = 0;
 
 public:
-  NS_IMETHOD HandleError(mozIStorageError* aError)
+  NS_IMETHOD HandleError(mozIStorageError* aError) override
   {
     int32_t result = -1;
     aError->GetResult(&result);
@@ -385,21 +382,23 @@ public:
  * InsertCookieDBListener impl:
  * mozIStorageStatementCallback used to track asynchronous insertion operations.
  ******************************************************************************/
-class InsertCookieDBListener MOZ_FINAL : public DBListenerErrorHandler
+class InsertCookieDBListener final : public DBListenerErrorHandler
 {
-protected:
-  virtual const char *GetOpType() { return "INSERT"; }
+private:
+  virtual const char *GetOpType() override { return "INSERT"; }
+
+  ~InsertCookieDBListener() {}
 
 public:
   NS_DECL_ISUPPORTS
 
-  InsertCookieDBListener(DBState* dbState) : DBListenerErrorHandler(dbState) { }
-  NS_IMETHOD HandleResult(mozIStorageResultSet*)
+  explicit InsertCookieDBListener(DBState* dbState) : DBListenerErrorHandler(dbState) { }
+  NS_IMETHOD HandleResult(mozIStorageResultSet*) override
   {
     NS_NOTREACHED("Unexpected call to InsertCookieDBListener::HandleResult");
     return NS_OK;
   }
-  NS_IMETHOD HandleCompletion(uint16_t aReason)
+  NS_IMETHOD HandleCompletion(uint16_t aReason) override
   {
     // If we were rebuilding the db and we succeeded, make our corruptFlag say
     // so.
@@ -413,74 +412,80 @@ public:
   }
 };
 
-NS_IMPL_ISUPPORTS1(InsertCookieDBListener, mozIStorageStatementCallback)
+NS_IMPL_ISUPPORTS(InsertCookieDBListener, mozIStorageStatementCallback)
 
 /******************************************************************************
  * UpdateCookieDBListener impl:
  * mozIStorageStatementCallback used to track asynchronous update operations.
  ******************************************************************************/
-class UpdateCookieDBListener MOZ_FINAL : public DBListenerErrorHandler
+class UpdateCookieDBListener final : public DBListenerErrorHandler
 {
-protected:
-  virtual const char *GetOpType() { return "UPDATE"; }
+private:
+  virtual const char *GetOpType() override { return "UPDATE"; }
+
+  ~UpdateCookieDBListener() {}
 
 public:
   NS_DECL_ISUPPORTS
 
-  UpdateCookieDBListener(DBState* dbState) : DBListenerErrorHandler(dbState) { }
-  NS_IMETHOD HandleResult(mozIStorageResultSet*)
+  explicit UpdateCookieDBListener(DBState* dbState) : DBListenerErrorHandler(dbState) { }
+  NS_IMETHOD HandleResult(mozIStorageResultSet*) override
   {
     NS_NOTREACHED("Unexpected call to UpdateCookieDBListener::HandleResult");
     return NS_OK;
   }
-  NS_IMETHOD HandleCompletion(uint16_t aReason)
+  NS_IMETHOD HandleCompletion(uint16_t aReason) override
   {
     return NS_OK;
   }
 };
 
-NS_IMPL_ISUPPORTS1(UpdateCookieDBListener, mozIStorageStatementCallback)
+NS_IMPL_ISUPPORTS(UpdateCookieDBListener, mozIStorageStatementCallback)
 
 /******************************************************************************
  * RemoveCookieDBListener impl:
  * mozIStorageStatementCallback used to track asynchronous removal operations.
  ******************************************************************************/
-class RemoveCookieDBListener MOZ_FINAL : public DBListenerErrorHandler
+class RemoveCookieDBListener final : public DBListenerErrorHandler
 {
-protected:
-  virtual const char *GetOpType() { return "REMOVE"; }
+private:
+  virtual const char *GetOpType() override { return "REMOVE"; }
+
+  ~RemoveCookieDBListener() {}
 
 public:
   NS_DECL_ISUPPORTS
 
-  RemoveCookieDBListener(DBState* dbState) : DBListenerErrorHandler(dbState) { }
-  NS_IMETHOD HandleResult(mozIStorageResultSet*)
+  explicit RemoveCookieDBListener(DBState* dbState) : DBListenerErrorHandler(dbState) { }
+  NS_IMETHOD HandleResult(mozIStorageResultSet*) override
   {
     NS_NOTREACHED("Unexpected call to RemoveCookieDBListener::HandleResult");
     return NS_OK;
   }
-  NS_IMETHOD HandleCompletion(uint16_t aReason)
+  NS_IMETHOD HandleCompletion(uint16_t aReason) override
   {
     return NS_OK;
   }
 };
 
-NS_IMPL_ISUPPORTS1(RemoveCookieDBListener, mozIStorageStatementCallback)
+NS_IMPL_ISUPPORTS(RemoveCookieDBListener, mozIStorageStatementCallback)
 
 /******************************************************************************
  * ReadCookieDBListener impl:
  * mozIStorageStatementCallback used to track asynchronous removal operations.
  ******************************************************************************/
-class ReadCookieDBListener MOZ_FINAL : public DBListenerErrorHandler
+class ReadCookieDBListener final : public DBListenerErrorHandler
 {
-protected:
-  virtual const char *GetOpType() { return "READ"; }
+private:
+  virtual const char *GetOpType() override { return "READ"; }
   bool mCanceled;
+
+  ~ReadCookieDBListener() {}
 
 public:
   NS_DECL_ISUPPORTS
 
-  ReadCookieDBListener(DBState* dbState)
+  explicit ReadCookieDBListener(DBState* dbState)
     : DBListenerErrorHandler(dbState)
     , mCanceled(false)
   {
@@ -488,7 +493,7 @@ public:
 
   void Cancel() { mCanceled = true; }
 
-  NS_IMETHOD HandleResult(mozIStorageResultSet *aResult)
+  NS_IMETHOD HandleResult(mozIStorageResultSet *aResult) override
   {
     nsCOMPtr<mozIStorageRow> row;
 
@@ -508,7 +513,7 @@ public:
 
     return NS_OK;
   }
-  NS_IMETHOD HandleCompletion(uint16_t aReason)
+  NS_IMETHOD HandleCompletion(uint16_t aReason) override
   {
     // Process the completion of the read operation. If we have been canceled,
     // we cannot assume that the cookieservice still has an open connection
@@ -544,38 +549,43 @@ public:
   }
 };
 
-NS_IMPL_ISUPPORTS1(ReadCookieDBListener, mozIStorageStatementCallback)
+NS_IMPL_ISUPPORTS(ReadCookieDBListener, mozIStorageStatementCallback)
 
 /******************************************************************************
  * CloseCookieDBListener imp:
  * Static mozIStorageCompletionCallback used to notify when the database is
  * successfully closed.
  ******************************************************************************/
-class CloseCookieDBListener MOZ_FINAL :  public mozIStorageCompletionCallback
+class CloseCookieDBListener final :  public mozIStorageCompletionCallback
 {
+  ~CloseCookieDBListener() {}
+
 public:
-  CloseCookieDBListener(DBState* dbState) : mDBState(dbState) { }
+  explicit CloseCookieDBListener(DBState* dbState) : mDBState(dbState) { }
   nsRefPtr<DBState> mDBState;
   NS_DECL_ISUPPORTS
 
-  NS_IMETHOD Complete()
+  NS_IMETHOD Complete(nsresult, nsISupports*) override
   {
     gCookieService->HandleDBClosed(mDBState);
     return NS_OK;
   }
 };
 
-NS_IMPL_ISUPPORTS1(CloseCookieDBListener, mozIStorageCompletionCallback)
+NS_IMPL_ISUPPORTS(CloseCookieDBListener, mozIStorageCompletionCallback)
 
 namespace {
 
-class AppClearDataObserver MOZ_FINAL : public nsIObserver {
+class AppClearDataObserver final : public nsIObserver {
+
+  ~AppClearDataObserver() {}
+
 public:
   NS_DECL_ISUPPORTS
 
   // nsIObserver implementation.
   NS_IMETHODIMP
-  Observe(nsISupports *aSubject, const char *aTopic, const PRUnichar *data)
+  Observe(nsISupports *aSubject, const char *aTopic, const char16_t *data) override
   {
     MOZ_ASSERT(!nsCRT::strcmp(aTopic, TOPIC_WEB_APP_CLEAR_DATA));
 
@@ -592,9 +602,55 @@ public:
   }
 };
 
-NS_IMPL_ISUPPORTS1(AppClearDataObserver, nsIObserver)
+NS_IMPL_ISUPPORTS(AppClearDataObserver, nsIObserver)
 
 } // anonymous namespace
+
+size_t
+nsCookieKey::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+{
+  return mBaseDomain.SizeOfExcludingThisIfUnshared(aMallocSizeOf);
+}
+
+size_t
+nsCookieEntry::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+{
+  size_t amount = nsCookieKey::SizeOfExcludingThis(aMallocSizeOf);
+
+  amount += mCookies.SizeOfExcludingThis(aMallocSizeOf);
+  for (uint32_t i = 0; i < mCookies.Length(); ++i) {
+    amount += mCookies[i]->SizeOfIncludingThis(aMallocSizeOf);
+  }
+
+  return amount;
+}
+
+size_t
+CookieDomainTuple::SizeOfExcludingThis(MallocSizeOf aMallocSizeOf) const
+{
+  size_t amount = 0;
+
+  amount += key.SizeOfExcludingThis(aMallocSizeOf);
+  amount += cookie->SizeOfIncludingThis(aMallocSizeOf);
+
+  return amount;
+}
+
+size_t
+DBState::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
+{
+  size_t amount = 0;
+
+  amount += aMallocSizeOf(this);
+  amount += hostTable.SizeOfExcludingThis(aMallocSizeOf);
+  amount += hostArray.SizeOfExcludingThis(aMallocSizeOf);
+  for (uint32_t i = 0; i < hostArray.Length(); ++i) {
+    amount += hostArray[i].SizeOfExcludingThis(aMallocSizeOf);
+  }
+  amount += readSet.SizeOfExcludingThis(aMallocSizeOf);
+
+  return amount;
+}
 
 /******************************************************************************
  * nsCookieService impl:
@@ -641,7 +697,7 @@ nsCookieService::GetSingleton()
 nsCookieService::AppClearDataObserverInit()
 {
   nsCOMPtr<nsIObserverService> observerService = do_GetService("@mozilla.org/observer-service;1");
-  nsCOMPtr<AppClearDataObserver> obs = new AppClearDataObserver();
+  nsCOMPtr<nsIObserver> obs = new AppClearDataObserver();
   observerService->AddObserver(obs, TOPIC_WEB_APP_CLEAR_DATA,
                                /* holdsWeak= */ false);
 }
@@ -651,15 +707,16 @@ nsCookieService::AppClearDataObserverInit()
  * public methods
  ******************************************************************************/
 
-NS_IMPL_ISUPPORTS5(nsCookieService,
-                   nsICookieService,
-                   nsICookieManager,
-                   nsICookieManager2,
-                   nsIObserver,
-                   nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(nsCookieService,
+                  nsICookieService,
+                  nsICookieManager,
+                  nsICookieManager2,
+                  nsIObserver,
+                  nsISupportsWeakReference,
+                  nsIMemoryReporter)
 
 nsCookieService::nsCookieService()
- : mDBState(NULL)
+ : mDBState(nullptr)
  , mCookieBehavior(BEHAVIOR_ACCEPT)
  , mThirdPartySession(false)
  , mMaxNumberOfCookies(kMaxNumberOfCookies)
@@ -697,6 +754,8 @@ nsCookieService::Init()
 
   // Init our default, and possibly private DBStates.
   InitDBStates();
+
+  RegisterWeakMemoryReporter(this);
 
   mObserverService = mozilla::services::GetObserverService();
   NS_ENSURE_STATE(mObserverService);
@@ -744,8 +803,8 @@ nsCookieService::InitDBStates()
     // Database may be corrupt. Synchronously close the connection, clean up the
     // default DBState, and try again.
     COOKIE_LOGSTRING(PR_LOG_WARNING, ("InitDBStates(): retrying TryInitDB()"));
-
-    CloseDefaultDBConnection();
+    CleanupCachedStatements();
+    CleanupDefaultDBConnection();
     result = TryInitDB(true);
     if (result == RESULT_RETRY) {
       // We're done. Change the code to failure so we clean up below.
@@ -759,7 +818,8 @@ nsCookieService::InitDBStates()
 
     // Connection failure is unrecoverable. Clean up our connection. We can run
     // fine without persistent storage -- e.g. if there's no profile.
-    CloseDefaultDBConnection();
+    CleanupCachedStatements();
+    CleanupDefaultDBConnection();
   }
 }
 
@@ -790,13 +850,15 @@ nsCookieService::TryInitDB(bool aRecreateDB)
   if (aRecreateDB) {
     nsCOMPtr<nsIFile> backupFile;
     mDefaultDBState->cookieFile->Clone(getter_AddRefs(backupFile));
-    rv = backupFile->MoveToNative(NULL,
+    rv = backupFile->MoveToNative(nullptr,
       NS_LITERAL_CSTRING(COOKIES_FILE ".bak"));
     NS_ENSURE_SUCCESS(rv, RESULT_FAILURE);
   }
 
   // This block provides scope for the Telemetry AutoTimer
   {
+    Telemetry::AutoTimer<Telemetry::MOZ_SQLITE_COOKIES_OPEN_READAHEAD_MS>
+      telemetry;
     ReadAheadFile(mDefaultDBState->cookieFile);
 
     // open a connection to the cookie database, and only cache our connection
@@ -1233,12 +1295,15 @@ void
 nsCookieService::CloseDBStates()
 {
   // Null out our private and pointer DBStates regardless.
-  mPrivateDBState = NULL;
-  mDBState = NULL;
+  mPrivateDBState = nullptr;
+  mDBState = nullptr;
 
   // If we don't have a default DBState, we're done.
   if (!mDefaultDBState)
     return;
+
+  // Cleanup cached statements before we can close anything.
+  CleanupCachedStatements();
 
   if (mDefaultDBState->dbConn) {
     // Cancel any pending read. No further results will be received by our
@@ -1251,36 +1316,46 @@ nsCookieService::CloseDBStates()
     mDefaultDBState->dbConn->AsyncClose(mDefaultDBState->closeListener);
   }
 
-  CloseDefaultDBConnection();
+  CleanupDefaultDBConnection();
 
-  mDefaultDBState = NULL;
+  mDefaultDBState = nullptr;
 }
 
-// Close the default connection by nulling out statements, listeners, and the
-// connection itself. This will not cancel a pending read or asynchronously
-// close the connection -- these must be done beforehand if necessary.
+// Null out the statements.
+// This must be done before closing the connection.
 void
-nsCookieService::CloseDefaultDBConnection()
+nsCookieService::CleanupCachedStatements()
 {
-  // Destroy our statements before we close the db.
-  mDefaultDBState->stmtInsert = NULL;
-  mDefaultDBState->stmtDelete = NULL;
-  mDefaultDBState->stmtUpdate = NULL;
+  mDefaultDBState->stmtInsert = nullptr;
+  mDefaultDBState->stmtDelete = nullptr;
+  mDefaultDBState->stmtUpdate = nullptr;
+}
+
+// Null out the listeners, and the database connection itself. This
+// will not null out the statements, cancel a pending read or
+// asynchronously close the connection -- these must be done
+// beforehand if necessary.
+void
+nsCookieService::CleanupDefaultDBConnection()
+{
+  MOZ_ASSERT(!mDefaultDBState->stmtInsert, "stmtInsert has been cleaned up");
+  MOZ_ASSERT(!mDefaultDBState->stmtDelete, "stmtDelete has been cleaned up");
+  MOZ_ASSERT(!mDefaultDBState->stmtUpdate, "stmtUpdate has been cleaned up");
 
   // Null out the database connections. If 'dbConn' has not been used for any
   // asynchronous operations yet, this will synchronously close it; otherwise,
   // it's expected that the caller has performed an AsyncClose prior.
-  mDefaultDBState->dbConn = NULL;
-  mDefaultDBState->syncConn = NULL;
+  mDefaultDBState->dbConn = nullptr;
+  mDefaultDBState->syncConn = nullptr;
 
   // Manually null out our listeners. This is necessary because they hold a
   // strong ref to the DBState itself. They'll stay alive until whatever
   // statements are still executing complete.
-  mDefaultDBState->readListener = NULL;
-  mDefaultDBState->insertListener = NULL;
-  mDefaultDBState->updateListener = NULL;
-  mDefaultDBState->removeListener = NULL;
-  mDefaultDBState->closeListener = NULL;
+  mDefaultDBState->readListener = nullptr;
+  mDefaultDBState->insertListener = nullptr;
+  mDefaultDBState->updateListener = nullptr;
+  mDefaultDBState->removeListener = nullptr;
+  mDefaultDBState->closeListener = nullptr;
 }
 
 void
@@ -1307,7 +1382,7 @@ nsCookieService::HandleDBClosed(DBState* aDBState)
     // 'cookies.sqlite.bak-rebuild'.
     nsCOMPtr<nsIFile> backupFile;
     aDBState->cookieFile->Clone(getter_AddRefs(backupFile));
-    nsresult rv = backupFile->MoveToNative(NULL,
+    nsresult rv = backupFile->MoveToNative(nullptr,
       NS_LITERAL_CSTRING(COOKIES_FILE ".bak-rebuild"));
 
     COOKIE_LOGSTRING(PR_LOG_WARNING,
@@ -1351,8 +1426,9 @@ nsCookieService::HandleCorruptDB(DBState* aDBState)
       mDefaultDBState->syncConn = nullptr;
     }
 
+    CleanupCachedStatements();
     mDefaultDBState->dbConn->AsyncClose(mDefaultDBState->closeListener);
-    CloseDefaultDBConnection();
+    CleanupDefaultDBConnection();
     break;
   }
   case DBState::CLOSING_FOR_REBUILD: {
@@ -1363,10 +1439,11 @@ nsCookieService::HandleCorruptDB(DBState* aDBState)
   case DBState::REBUILDING: {
     // We had an error while rebuilding the DB. Game over. Close the database
     // and let the close handler do nothing; then we'll move it out of the way.
+    CleanupCachedStatements();
     if (mDefaultDBState->dbConn) {
       mDefaultDBState->dbConn->AsyncClose(mDefaultDBState->closeListener);
     }
-    CloseDefaultDBConnection();
+    CleanupDefaultDBConnection();
     break;
   }
   }
@@ -1384,7 +1461,7 @@ RebuildDBCallback(nsCookieEntry *aEntry,
     nsCookie* cookie = cookies[i];
 
     if (!cookie->IsSession()) {
-      bindCookieParameters(paramsArray, aEntry, cookie);
+      bindCookieParameters(paramsArray, nsCookieKey(aEntry), cookie);
     }
   }
 
@@ -1422,7 +1499,8 @@ nsCookieService::RebuildCorruptDB(DBState* aDBState)
     // closure.
     COOKIE_LOGSTRING(PR_LOG_WARNING,
       ("RebuildCorruptDB(): TryInitDB() failed with result %u", result));
-    CloseDefaultDBConnection();
+    CleanupCachedStatements();
+    CleanupDefaultDBConnection();
     mDefaultDBState->corruptFlag = DBState::OK;
     mObserverService->NotifyObservers(nullptr, "cookie-db-closed", nullptr);
     return;
@@ -1452,12 +1530,14 @@ nsCookieService::RebuildCorruptDB(DBState* aDBState)
   NS_ASSERT_SUCCESS(rv);
   nsCOMPtr<mozIStoragePendingStatement> handle;
   rv = stmt->ExecuteAsync(aDBState->insertListener, getter_AddRefs(handle));
-  NS_ASSERT_SUCCESS(rv);    
+  NS_ASSERT_SUCCESS(rv);
 }
 
 nsCookieService::~nsCookieService()
 {
   CloseDBStates();
+
+  UnregisterWeakMemoryReporter(this);
 
   gCookieService = nullptr;
 }
@@ -1465,17 +1545,12 @@ nsCookieService::~nsCookieService()
 NS_IMETHODIMP
 nsCookieService::Observe(nsISupports     *aSubject,
                          const char      *aTopic,
-                         const PRUnichar *aData)
+                         const char16_t *aData)
 {
   // check the topic
   if (!strcmp(aTopic, "profile-before-change")) {
     // The profile is about to change,
     // or is going away because the application is shutting down.
-    if (mDBState && mDBState->dbConn &&
-        !nsCRT::strcmp(aData, NS_LITERAL_STRING("shutdown-cleanse").get())) {
-      // Clear the cookie db if we're in the default DBState.
-      RemoveAll();
-    }
 
     // Close the default DB connection and null out our DBStates before
     // changing.
@@ -1557,7 +1632,19 @@ nsCookieService::SetCookieString(nsIURI     *aHostURI,
                                  const char *aCookieHeader,
                                  nsIChannel *aChannel)
 {
-  return SetCookieStringCommon(aHostURI, aCookieHeader, NULL, aChannel, false);
+  // The aPrompt argument is deprecated and unused.  Avoid introducing new
+  // code that uses this argument by warning if the value is non-null.
+  MOZ_ASSERT(!aPrompt);
+  if (aPrompt) {
+    nsCOMPtr<nsIConsoleService> aConsoleService =
+        do_GetService("@mozilla.org/consoleservice;1");
+    if (aConsoleService) {
+      aConsoleService->LogStringMessage(
+        MOZ_UTF16("Non-null prompt ignored by nsCookieService."));
+    }
+  }
+  return SetCookieStringCommon(aHostURI, aCookieHeader, nullptr, aChannel,
+                               false);
 }
 
 NS_IMETHODIMP
@@ -1568,6 +1655,17 @@ nsCookieService::SetCookieStringFromHttp(nsIURI     *aHostURI,
                                          const char *aServerTime,
                                          nsIChannel *aChannel) 
 {
+  // The aPrompt argument is deprecated and unused.  Avoid introducing new
+  // code that uses this argument by warning if the value is non-null.
+  MOZ_ASSERT(!aPrompt);
+  if (aPrompt) {
+    nsCOMPtr<nsIConsoleService> aConsoleService =
+        do_GetService("@mozilla.org/consoleservice;1");
+    if (aConsoleService) {
+      aConsoleService->LogStringMessage(
+        MOZ_UTF16("Non-null prompt ignored by nsCookieService."));
+    }
+  }
   return SetCookieStringCommon(aHostURI, aCookieHeader, aServerTime, aChannel,
                                true);
 }
@@ -1705,8 +1803,24 @@ nsCookieService::NotifyThirdParty(nsIURI *aHostURI, bool aIsAccepted, nsIChannel
   if (!mObserverService) {
     return;
   }
-  const char* topic = aIsAccepted ? "third-party-cookie-accepted"
-    : "third-party-cookie-rejected";
+
+  const char* topic;
+
+  if (mDBState != mPrivateDBState) {
+    // Regular (non-private) browsing
+    if (aIsAccepted) {
+      topic = "third-party-cookie-accepted";
+    } else {
+      topic = "third-party-cookie-rejected";
+    }
+  } else {
+    // Private browsing
+    if (aIsAccepted) {
+      topic = "private-third-party-cookie-accepted";
+    } else {
+      topic = "private-third-party-cookie-rejected";
+    }
+  }
 
   do {
     // Attempt to find the host of aChannel.
@@ -1735,7 +1849,7 @@ nsCookieService::NotifyThirdParty(nsIURI *aHostURI, bool aIsAccepted, nsIChannel
   // This can fail for a number of reasons, in which kind we fallback to "?"
   mObserverService->NotifyObservers(aHostURI,
                                     topic,
-                                    NS_LITERAL_STRING("?").get());
+                                    MOZ_UTF16("?"));
 }
 
 // notify observers that the cookie list changed. there are five possible
@@ -1748,7 +1862,7 @@ nsCookieService::NotifyThirdParty(nsIURI *aHostURI, bool aIsAccepted, nsIChannel
 // cookies.
 void
 nsCookieService::NotifyChanged(nsISupports     *aSubject,
-                               const PRUnichar *aData)
+                               const char16_t *aData)
 {
   const char* topic = mDBState == mPrivateDBState ?
       "private-cookie-changed" : "cookie-changed";
@@ -1834,7 +1948,7 @@ nsCookieService::RemoveAll()
     }
   }
 
-  NotifyChanged(nullptr, NS_LITERAL_STRING("cleared").get());
+  NotifyChanged(nullptr, MOZ_UTF16("cleared"));
   return NS_OK;
 }
 
@@ -1960,7 +2074,7 @@ nsCookieService::Remove(const nsACString& aHost, uint32_t aAppId,
 
   if (cookie) {
     // Everything's done. Notify observers.
-    NotifyChanged(cookie, NS_LITERAL_STRING("deleted").get());
+    NotifyChanged(cookie, MOZ_UTF16("deleted"));
   }
 
   return NS_OK;
@@ -1985,7 +2099,7 @@ OpenDBResult
 nsCookieService::Read()
 {
   // Set up a statement for the read. Note that our query specifies that
-  // 'baseDomain' not be NULL -- see below for why.
+  // 'baseDomain' not be nullptr -- see below for why.
   nsCOMPtr<mozIStorageAsyncStatement> stmtRead;
   nsresult rv = mDefaultDBState->dbConn->CreateAsyncStatement(NS_LITERAL_CSTRING(
     "SELECT "
@@ -2005,7 +2119,7 @@ nsCookieService::Read()
     "WHERE baseDomain NOTNULL"), getter_AddRefs(stmtRead));
   NS_ENSURE_SUCCESS(rv, RESULT_RETRY);
 
-  // Set up a statement to delete any rows with a NULL 'baseDomain'
+  // Set up a statement to delete any rows with a nullptr 'baseDomain'
   // column. This takes care of any cookies set by browsers that don't
   // understand the 'baseDomain' column, where the database schema version
   // is from one that does. (This would occur when downgrading.)
@@ -2025,7 +2139,6 @@ nsCookieService::Read()
   // Init our readSet hash and execute the statements. Note that, after this
   // point, we cannot fail without altering the cleanup code in InitDBStates()
   // to handle closing of the now-asynchronous connection.
-  mDefaultDBState->readSet.Init();
   mDefaultDBState->hostArray.SetCapacity(kMaxNumberOfCookies);
 
   mDefaultDBState->readListener = new ReadCookieDBListener(mDefaultDBState);
@@ -2095,7 +2208,7 @@ nsCookieService::AsyncReadComplete()
     if (mDefaultDBState->readSet.GetEntry(tuple.key))
       continue;
 
-    AddCookieToList(tuple.key, tuple.cookie, mDefaultDBState, NULL, false);
+    AddCookieToList(tuple.key, tuple.cookie, mDefaultDBState, nullptr, false);
   }
 
   mDefaultDBState->stmtReadDomain = nullptr;
@@ -2222,7 +2335,7 @@ nsCookieService::EnsureReadDomain(const nsCookieKey &aKey)
   // Add the cookies to the table in a single operation. This makes sure that
   // either all the cookies get added, or in the case of corruption, none.
   for (uint32_t i = 0; i < array.Length(); ++i) {
-    AddCookieToList(aKey, array[i], mDefaultDBState, NULL, false);
+    AddCookieToList(aKey, array[i], mDefaultDBState, nullptr, false);
   }
 
   // Add it to the hashset of read entries, so we don't read it again.
@@ -2311,7 +2424,7 @@ nsCookieService::EnsureReadComplete()
   // either all the cookies get added, or in the case of corruption, none.
   for (uint32_t i = 0; i < array.Length(); ++i) {
     CookieDomainTuple& tuple = array[i];
-    AddCookieToList(tuple.key, tuple.cookie, mDefaultDBState, NULL,
+    AddCookieToList(tuple.key, tuple.cookie, mDefaultDBState, nullptr,
       false);
   }
 
@@ -2471,7 +2584,7 @@ nsCookieService::ImportCookies(nsIFile *aCookieFile)
     }
     else {
       AddInternal(key, newCookie, currentTimeInUsec,
-                  NULL, NULL, true);
+                  nullptr, nullptr, true);
     }
   }
 
@@ -2766,7 +2879,7 @@ nsCookieService::SetCookieInternal(nsIURI                        *aHostURI,
     return newCookie;
   }
 
-  // XXX: For now we allow 0x20 (Space) in cookie names.
+  // Note: For now we allow 0x20 (Space) in cookie names.
   // Some websites apparently use cookie names with spaces in them, and the RFC
   // doesn't exactly specify what to do in that case, so it's better to keep
   // wider compatibility.
@@ -2813,7 +2926,7 @@ nsCookieService::SetCookieInternal(nsIURI                        *aHostURI,
     COOKIE_LOGFAILURE(SET_COOKIE, aHostURI, savedCookieHeader, "illegal character in cookie");
     return newCookie;
   }
-  
+
   // create a new nsCookie and copy attributes
   nsRefPtr<nsCookie> cookie =
     nsCookie::Create(cookieAttributes.name,
@@ -2928,7 +3041,7 @@ nsCookieService::AddInternal(const nsCookieKey             &aKey,
       if (aCookie->Expiry() <= currentTime) {
         COOKIE_LOGFAILURE(SET_COOKIE, aHostURI, aCookieHeader,
           "previously stored cookie was deleted");
-        NotifyChanged(oldCookie, NS_LITERAL_STRING("deleted").get());
+        NotifyChanged(oldCookie, MOZ_UTF16("deleted"));
         return;
       }
 
@@ -2973,17 +3086,17 @@ nsCookieService::AddInternal(const nsCookieKey             &aKey,
 
   // Add the cookie to the db. We do not supply a params array for batching
   // because this might result in removals and additions being out of order.
-  AddCookieToList(aKey, aCookie, mDBState, NULL);
+  AddCookieToList(aKey, aCookie, mDBState, nullptr);
   COOKIE_LOGSUCCESS(SET_COOKIE, aHostURI, aCookieHeader, aCookie, foundCookie);
 
   // Now that list mutations are complete, notify observers. We do it here
   // because observers may themselves attempt to mutate the list.
   if (purgedList) {
-    NotifyChanged(purgedList, NS_LITERAL_STRING("batch-deleted").get());
+    NotifyChanged(purgedList, MOZ_UTF16("batch-deleted"));
   }
 
-  NotifyChanged(aCookie, foundCookie ? NS_LITERAL_STRING("changed").get()
-                                     : NS_LITERAL_STRING("added").get());
+  NotifyChanged(aCookie, foundCookie ? MOZ_UTF16("changed")
+                                     : MOZ_UTF16("added"));
 }
 
 /******************************************************************************
@@ -3814,7 +3927,7 @@ nsCookieService::FindStaleCookie(nsCookieEntry *aEntry,
                                  int64_t aCurrentTime,
                                  nsListIter &aIter)
 {
-  aIter.entry = NULL;
+  aIter.entry = nullptr;
 
   int64_t oldestTime = 0;
   const nsCookieEntry::ArrayType &cookies = aEntry->GetCookies();
@@ -3915,7 +4028,7 @@ struct GetCookiesForAppStruct {
   bool                  onlyBrowserElement;
   nsCOMArray<nsICookie> cookies;
 
-  GetCookiesForAppStruct() MOZ_DELETE;
+  GetCookiesForAppStruct() = delete;
   GetCookiesForAppStruct(uint32_t aAppId, bool aOnlyBrowserElement)
     : appId(aAppId)
     , onlyBrowserElement(aOnlyBrowserElement)
@@ -3971,9 +4084,12 @@ nsCookieService::RemoveCookiesForApp(uint32_t aAppId, bool aOnlyBrowserElement)
 
   bool hasMore;
   while (NS_SUCCEEDED(enumerator->HasMoreElements(&hasMore)) && hasMore) {
+    nsCOMPtr<nsISupports> supports;
     nsCOMPtr<nsICookie> cookie;
-    rv = enumerator->GetNext(getter_AddRefs(cookie));
+    rv = enumerator->GetNext(getter_AddRefs(supports));
     NS_ENSURE_SUCCESS(rv, rv);
+
+    cookie = do_QueryInterface(supports);
 
     nsAutoCString host;
     cookie->GetHost(host);
@@ -4243,3 +4359,29 @@ nsCookieService::UpdateCookieInList(nsCookie                      *aCookie,
   }
 }
 
+size_t
+nsCookieService::SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+{
+  size_t n = aMallocSizeOf(this);
+
+  if (mDefaultDBState) {
+    n += mDefaultDBState->SizeOfIncludingThis(aMallocSizeOf);
+  }
+  if (mPrivateDBState) {
+    n += mPrivateDBState->SizeOfIncludingThis(aMallocSizeOf);
+  }
+
+  return n;
+}
+
+MOZ_DEFINE_MALLOC_SIZE_OF(CookieServiceMallocSizeOf)
+
+NS_IMETHODIMP
+nsCookieService::CollectReports(nsIHandleReportCallback* aHandleReport,
+                                nsISupports* aData, bool aAnonymize)
+{
+  return MOZ_COLLECT_REPORT(
+    "explicit/cookie-service", KIND_HEAP, UNITS_BYTES,
+    SizeOfIncludingThis(CookieServiceMallocSizeOf),
+    "Memory used by the cookie service.");
+}

@@ -44,21 +44,21 @@ function runTest() {
 
   var test = tests.pop();
 
-  new Promise(function(resolver) {
-    resolver.resolve(test);
+  new Promise(function(resolve, reject) {
+    resolve(test);
   }).then(function(what) {
     ok(test === what, "What is: " + what);
-  }, cbError).done(function() {
-    new Promise(function(resolver) {
-      resolver.reject(test)
+  }, cbError).then(function() {
+    new Promise(function(resolve, reject) {
+      reject(test)
     }).then(cbError, function(what) {
       ok(test === what, "What is: " + what);
-    }).done(runTest, cbError);
+    }).then(runTest, cbError);
   });
 }
 
 SimpleTest.waitForExplicitFinish();
-SpecialPowers.pushPrefEnv({"set": [["dom.promise.enabled", true]]}, runTest);
+runTest();
 // -->
 </script>
 </pre>

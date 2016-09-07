@@ -7,7 +7,6 @@
 #define nsDeviceProtocolHandler_h_
 
 #include "nsIProtocolHandler.h"
-#include "nsString.h"
 #include "mozilla/Attributes.h"
 
 // {6b0ffe9e-d114-486b-aeb7-da62e7273ed5}
@@ -15,13 +14,14 @@
 { 0x60ffe9e, 0xd114, 0x486b,                              \
     {0xae, 0xb7, 0xda, 0x62, 0xe7, 0x27, 0x3e, 0xd5} }
 
-class nsDeviceProtocolHandler MOZ_FINAL : public nsIProtocolHandler {
+class nsDeviceProtocolHandler final : public nsIProtocolHandler {
+  ~nsDeviceProtocolHandler() {}
+
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIPROTOCOLHANDLER
 
   nsDeviceProtocolHandler() {}
-  ~nsDeviceProtocolHandler() {}
 
   nsresult Init();
 };

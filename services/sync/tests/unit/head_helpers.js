@@ -2,6 +2,8 @@
    http://creativecommons.org/publicdomain/zero/1.0/ */
 
 Cu.import("resource://services-common/async.js");
+Cu.import("resource://testing-common/services/common/utils.js");
+Cu.import("resource://testing-common/PlacesTestUtils.jsm");
 
 let provider = {
   getFile: function(prop, persistent) {
@@ -124,3 +126,83 @@ function generateNewKeys(collectionKeys, collections=null) {
   collectionKeys.setContents(wbo.cleartext, modified);
 }
 
+// Helpers for testing open tabs.
+// These reflect part of the internal structure of TabEngine,
+// and stub part of Service.wm.
+
+function mockShouldSkipWindow (win) {
+  return win.closed ||
+         win.mockIsPrivate;
+}
+
+function mockGetTabState (tab) {
+  return tab;
+}
+
+function mockGetWindowEnumerator(url, numWindows, numTabs, indexes, moreURLs) {
+  let elements = [];
+
+  function url2entry(url) {
+    return {
+      url: ((typeof url == "function") ? url() : url),
+      title: "title"
+    };
+  }
+
+  for (let w = 0; w < numWindows; ++w) {
+    let tabs = [];
+    let win = {
+      closed: false,
+      mockIsPrivate: false,
+      gBrowser: {
+        tabs: tabs,
+      },
+    };
+    elements.push(win);
+
+    for (let t = 0; t < numTabs; ++t) {
+      tabs.push(TestingUtils.deepCopy({
+        index: indexes ? indexes() : 1,
+        entries: (moreURLs ? [url].concat(moreURLs()) : [url]).map(url2entry),
+        attributes: {
+          image: "image"
+        },
+        lastAccessed: 1499
+      }));
+    }
+  }
+
+  // Always include a closed window and a private window.
+  elements.push({
+    closed: true,
+    mockIsPrivate: false,
+    gBrowser: {
+      tabs: [],
+    },
+  });
+ 
+  elements.push({
+    closed: false,
+    mockIsPrivate: true,
+    gBrowser: {
+      tabs: [],
+    },
+  });
+
+  return {
+    hasMoreElements: function () {
+      return elements.length;
+    },
+    getNext: function () {
+      return elements.shift();
+    },
+  };
+}
+
+// Helper that allows checking array equality.
+function do_check_array_eq(a1, a2) {
+  do_check_eq(a1.length, a2.length);
+  for (let i = 0; i < a1.length; ++i) {
+    do_check_eq(a1[i], a2[i]);
+  }
+}

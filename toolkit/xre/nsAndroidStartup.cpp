@@ -30,10 +30,10 @@
 
 struct AutoAttachJavaThread {
     AutoAttachJavaThread() {
-        attached = mozilla_AndroidBridge_SetMainThread((void*)pthread_self());
+        attached = mozilla_AndroidBridge_SetMainThread(pthread_self());
     }
     ~AutoAttachJavaThread() {
-        mozilla_AndroidBridge_SetMainThread(nullptr);
+        mozilla_AndroidBridge_SetMainThread(-1);
         attached = false;
     }
 
@@ -56,7 +56,7 @@ GoannaStart(void *data, const nsXREAppData *appData)
     char *arg = strtok(static_cast<char *>(data), " ");
     while (arg) {
         targs.AppendElement(arg);
-        arg = strtok(NULL, " ");
+        arg = strtok(nullptr, " ");
     }
     targs.AppendElement(static_cast<char *>(nullptr));
 
@@ -65,7 +65,7 @@ GoannaStart(void *data, const nsXREAppData *appData)
     if (result)
         LOG("XRE_main returned %d", result);
 
-    mozilla::AndroidBridge::Bridge()->NotifyXreExit();
+    mozilla::widget::GoannaAppShell::NotifyXreExit();
 
     free(targs[0]);
     nsMemory::Free(data);

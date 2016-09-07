@@ -8,23 +8,23 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "video_engine/vie_render_impl.h"
+#include "webrtc/video_engine/vie_render_impl.h"
 
-#include "engine_configurations.h"  // NOLINT
+#include "webrtc/engine_configurations.h"
 #include "webrtc/modules/video_render/include/video_render.h"
 #include "webrtc/modules/video_render/include/video_render_defines.h"
-#include "system_wrappers/interface/trace.h"
-#include "video_engine/include/vie_errors.h"
-#include "video_engine/vie_capturer.h"
-#include "video_engine/vie_channel.h"
-#include "video_engine/vie_channel_manager.h"
-#include "video_engine/vie_defines.h"
-#include "video_engine/vie_frame_provider_base.h"
-#include "video_engine/vie_impl.h"
-#include "video_engine/vie_input_manager.h"
-#include "video_engine/vie_render_manager.h"
-#include "video_engine/vie_renderer.h"
-#include "video_engine/vie_shared_data.h"
+#include "webrtc/system_wrappers/interface/logging.h"
+#include "webrtc/video_engine/include/vie_errors.h"
+#include "webrtc/video_engine/vie_capturer.h"
+#include "webrtc/video_engine/vie_channel.h"
+#include "webrtc/video_engine/vie_channel_manager.h"
+#include "webrtc/video_engine/vie_defines.h"
+#include "webrtc/video_engine/vie_frame_provider_base.h"
+#include "webrtc/video_engine/vie_impl.h"
+#include "webrtc/video_engine/vie_input_manager.h"
+#include "webrtc/video_engine/vie_render_manager.h"
+#include "webrtc/video_engine/vie_renderer.h"
+#include "webrtc/video_engine/vie_shared_data.h"
 
 namespace webrtc {
 
@@ -33,7 +33,7 @@ ViERender* ViERender::GetInterface(VideoEngine* video_engine) {
   if (!video_engine) {
     return NULL;
   }
-  VideoEngineImpl* vie_impl = reinterpret_cast<VideoEngineImpl*>(video_engine);
+  VideoEngineImpl* vie_impl = static_cast<VideoEngineImpl*>(video_engine);
   ViERenderImpl* vie_render_impl = vie_impl;
   // Increase ref count.
   (*vie_render_impl)++;
@@ -44,36 +44,24 @@ ViERender* ViERender::GetInterface(VideoEngine* video_engine) {
 }
 
 int ViERenderImpl::Release() {
-  WEBRTC_TRACE(kTraceApiCall, kTraceVideo, shared_data_->instance_id(),
-               "ViERender::Release()");
   // Decrease ref count
   (*this)--;
-  WebRtc_Word32 ref_count = GetCount();
+  int32_t ref_count = GetCount();
   if (ref_count < 0) {
-    WEBRTC_TRACE(kTraceWarning, kTraceVideo, shared_data_->instance_id(),
-                 "ViERender release too many times");
+    LOG(LS_ERROR) << "ViERender release too many times";
     return -1;
   }
-  WEBRTC_TRACE(kTraceInfo, kTraceVideo, shared_data_->instance_id(),
-               "ViERender reference count: %d", ref_count);
   return ref_count;
 }
 
 ViERenderImpl::ViERenderImpl(ViESharedData* shared_data)
-    : shared_data_(shared_data) {
-  WEBRTC_TRACE(kTraceMemory, kTraceVideo, shared_data_->instance_id(),
-               "ViERenderImpl::ViERenderImpl() Ctor");
-}
+    : shared_data_(shared_data) {}
 
-ViERenderImpl::~ViERenderImpl() {
-  WEBRTC_TRACE(kTraceMemory, kTraceVideo, shared_data_->instance_id(),
-               "ViERenderImpl::~ViERenderImpl() Dtor");
-}
+ViERenderImpl::~ViERenderImpl() {}
 
 int ViERenderImpl::RegisterVideoRenderModule(
   VideoRender& render_module) {
-  WEBRTC_TRACE(kTraceApiCall, kTraceVideo, ViEId(shared_data_->instance_id()),
-               "%s (&render_module: %p)", __FUNCTION__, &render_module);
+  LOG_F(LS_INFO);
   if (shared_data_->render_manager()->RegisterVideoRenderModule(
       &render_module) != 0) {
     shared_data_->SetLastError(kViERenderUnknownError);
@@ -84,8 +72,7 @@ int ViERenderImpl::RegisterVideoRenderModule(
 
 int ViERenderImpl::DeRegisterVideoRenderModule(
   VideoRender& render_module) {
-  WEBRTC_TRACE(kTraceApiCall, kTraceVideo, ViEId(shared_data_->instance_id()),
-               "%s (&render_module: %p)", __FUNCTION__, &render_module);
+  LOG_F(LS_INFO);
   if (shared_data_->render_manager()->DeRegisterVideoRenderModule(
       &render_module) != 0) {
     // Error logging is done in ViERenderManager::DeRegisterVideoRenderModule.
@@ -99,24 +86,14 @@ int ViERenderImpl::AddRenderer(const int render_id, void* window,
                                const unsigned int z_order, const float left,
                                const float top, const float right,
                                const float bottom) {
-  WEBRTC_TRACE(kTraceApiCall, kTraceVideo, ViEId(shared_data_->instance_id()),
-               "%s (render_id: %d,  window: 0x%p, z_order: %u, left: %f, "
-               "top: %f, right: %f, bottom: %f)",
-               __FUNCTION__, render_id, window, z_order, left, top, right,
-               bottom);
-  if (!shared_data_->Initialized()) {
-    shared_data_->SetLastError(kViENotInitialized);
-    WEBRTC_TRACE(kTraceError, kTraceVideo, ViEId(shared_data_->instance_id()),
-                 "%s - ViE instance %d not initialized", __FUNCTION__,
-                 shared_data_->instance_id());
-    return -1;
-  }
+  LOG_F(LS_INFO) << "render_id: " << render_id << " z_order: " << z_order
+                 << " left: " << left << " top: " << top << " right: " << right
+                 << " bottom: " << bottom;
   {
     ViERenderManagerScoped rs(*(shared_data_->render_manager()));
     if (rs.Renderer(render_id)) {
-      WEBRTC_TRACE(kTraceError, kTraceVideo, ViEId(shared_data_->instance_id()),
-                   "%s - Renderer already exist %d.", __FUNCTION__,
-                   render_id);
+      LOG(LS_ERROR) << "Renderer for render_id: " << render_id
+                    << " already exists.";
       shared_data_->SetLastError(kViERenderAlreadyExists);
       return -1;
     }
@@ -126,9 +103,6 @@ int ViERenderImpl::AddRenderer(const int render_id, void* window,
     ViEChannelManagerScoped cm(*(shared_data_->channel_manager()));
     ViEFrameProviderBase* frame_provider = cm.Channel(render_id);
     if (!frame_provider) {
-      WEBRTC_TRACE(kTraceError, kTraceVideo, ViEId(shared_data_->instance_id()),
-                   "%s: FrameProvider id %d doesn't exist", __FUNCTION__,
-                   render_id);
       shared_data_->SetLastError(kViERenderInvalidRenderId);
       return -1;
     }
@@ -144,9 +118,6 @@ int ViERenderImpl::AddRenderer(const int render_id, void* window,
     ViEInputManagerScoped is(*(shared_data_->input_manager()));
     ViEFrameProviderBase* frame_provider = is.FrameProvider(render_id);
     if (!frame_provider) {
-      WEBRTC_TRACE(kTraceError, kTraceVideo, ViEId(shared_data_->instance_id()),
-                   "%s: FrameProvider id %d doesn't exist", __FUNCTION__,
-                   render_id);
       shared_data_->SetLastError(kViERenderInvalidRenderId);
       return -1;
     }
@@ -161,25 +132,12 @@ int ViERenderImpl::AddRenderer(const int render_id, void* window,
 }
 
 int ViERenderImpl::RemoveRenderer(const int render_id) {
-  WEBRTC_TRACE(kTraceApiCall, kTraceVideo, ViEId(shared_data_->instance_id()),
-               "%s(render_id: %d)", __FUNCTION__, render_id);
-  if (!shared_data_->Initialized()) {
-    shared_data_->SetLastError(kViENotInitialized);
-    WEBRTC_TRACE(kTraceError, kTraceVideo, ViEId(shared_data_->instance_id()),
-                 "%s - ViE instance %d not initialized", __FUNCTION__,
-                 shared_data_->instance_id());
-    return -1;
-  }
-
+  LOG_F(LS_INFO) << "render_id: " << render_id;
   ViERenderer* renderer = NULL;
   {
     ViERenderManagerScoped rs(*(shared_data_->render_manager()));
     renderer = rs.Renderer(render_id);
     if (!renderer) {
-      WEBRTC_TRACE(kTraceWarning, kTraceVideo,
-                   ViEId(shared_data_->instance_id()),
-                   "%s No render exist with render_id: %d", __FUNCTION__,
-                   render_id);
       shared_data_->SetLastError(kViERenderInvalidRenderId);
       return -1;
     }
@@ -191,10 +149,6 @@ int ViERenderImpl::RemoveRenderer(const int render_id) {
     ViEChannelManagerScoped cm(*(shared_data_->channel_manager()));
     ViEChannel* channel = cm.Channel(render_id);
     if (!channel) {
-      WEBRTC_TRACE(kTraceWarning, kTraceVideo,
-                   ViEId(shared_data_->instance_id()),
-                   "%s: no channel with id %d exists ", __FUNCTION__,
-                   render_id);
       shared_data_->SetLastError(kViERenderInvalidRenderId);
       return -1;
     }
@@ -204,10 +158,6 @@ int ViERenderImpl::RemoveRenderer(const int render_id) {
     ViEInputManagerScoped is(*(shared_data_->input_manager()));
     ViEFrameProviderBase* provider = is.FrameProvider(render_id);
     if (!provider) {
-      WEBRTC_TRACE(kTraceWarning, kTraceVideo,
-                   ViEId(shared_data_->instance_id()),
-                   "%s: no provider with id %d exists ", __FUNCTION__,
-                   render_id);
       shared_data_->SetLastError(kViERenderInvalidRenderId);
       return -1;
     }
@@ -221,16 +171,10 @@ int ViERenderImpl::RemoveRenderer(const int render_id) {
 }
 
 int ViERenderImpl::StartRender(const int render_id) {
-  WEBRTC_TRACE(kTraceApiCall, kTraceVideo,
-               ViEId(shared_data_->instance_id(), render_id),
-               "%s(channel: %d)", __FUNCTION__, render_id);
+  LOG_F(LS_INFO) << "render_id: " << render_id;
   ViERenderManagerScoped rs(*(shared_data_->render_manager()));
   ViERenderer* renderer = rs.Renderer(render_id);
   if (!renderer) {
-    WEBRTC_TRACE(kTraceError, kTraceVideo,
-                 ViEId(shared_data_->instance_id(), render_id),
-                 "%s: No renderer with render Id %d exist.", __FUNCTION__,
-                 render_id);
     shared_data_->SetLastError(kViERenderInvalidRenderId);
     return -1;
   }
@@ -242,16 +186,10 @@ int ViERenderImpl::StartRender(const int render_id) {
 }
 
 int ViERenderImpl::StopRender(const int render_id) {
-  WEBRTC_TRACE(kTraceApiCall, kTraceVideo,
-               ViEId(shared_data_->instance_id(), render_id),
-               "%s(channel: %d)", __FUNCTION__, render_id);
+  LOG_F(LS_INFO) << "render_id: " << render_id;
   ViERenderManagerScoped rs(*(shared_data_->render_manager()));
   ViERenderer* renderer = rs.Renderer(render_id);
   if (!renderer) {
-    WEBRTC_TRACE(kTraceError, kTraceVideo,
-                 ViEId(shared_data_->instance_id(), render_id),
-                 "%s: No renderer with render_id %d exist.", __FUNCTION__,
-                 render_id);
     shared_data_->SetLastError(kViERenderInvalidRenderId);
     return -1;
   }
@@ -263,16 +201,11 @@ int ViERenderImpl::StopRender(const int render_id) {
 }
 
 int ViERenderImpl::SetExpectedRenderDelay(int render_id, int render_delay) {
-  WEBRTC_TRACE(kTraceApiCall, kTraceVideo,
-               ViEId(shared_data_->instance_id(), render_id),
-               "%s(channel: %d)", __FUNCTION__, render_id);
+  LOG_F(LS_INFO) << "render_id: " << render_id
+                 << " render_delay: " << render_delay;
   ViERenderManagerScoped rs(*(shared_data_->render_manager()));
   ViERenderer* renderer = rs.Renderer(render_id);
   if (!renderer) {
-    WEBRTC_TRACE(kTraceError, kTraceVideo,
-                 ViEId(shared_data_->instance_id(), render_id),
-                 "%s: No renderer with render_id %d exist.", __FUNCTION__,
-                 render_id);
     shared_data_->SetLastError(kViERenderInvalidRenderId);
     return -1;
   }
@@ -286,16 +219,12 @@ int ViERenderImpl::SetExpectedRenderDelay(int render_id, int render_delay) {
 int ViERenderImpl::ConfigureRender(int render_id, const unsigned int z_order,
                                    const float left, const float top,
                                    const float right, const float bottom) {
-  WEBRTC_TRACE(kTraceApiCall, kTraceVideo,
-               ViEId(shared_data_->instance_id(), render_id),
-               "%s(channel: %d)", __FUNCTION__, render_id);
+  LOG_F(LS_INFO) << "render_id: " << render_id << " z_order: " << z_order
+                 << " left: " << left << " top: " << top << " right: " << right
+                 << " bottom: " << bottom;
   ViERenderManagerScoped rs(*(shared_data_->render_manager()));
   ViERenderer* renderer = rs.Renderer(render_id);
   if (!renderer) {
-    WEBRTC_TRACE(kTraceError, kTraceVideo,
-                 ViEId(shared_data_->instance_id(), render_id),
-                 "%s: No renderer with render_id %d exist.", __FUNCTION__,
-                 render_id);
     shared_data_->SetLastError(kViERenderInvalidRenderId);
     return -1;
   }
@@ -313,10 +242,6 @@ int ViERenderImpl::MirrorRenderStream(const int render_id, const bool enable,
   ViERenderManagerScoped rs(*(shared_data_->render_manager()));
   ViERenderer* renderer = rs.Renderer(render_id);
   if (!renderer) {
-    WEBRTC_TRACE(kTraceError, kTraceVideo,
-                 ViEId(shared_data_->instance_id(), render_id),
-                 "%s: No renderer with render_id %d exist.", __FUNCTION__,
-                 render_id);
     shared_data_->SetLastError(kViERenderInvalidRenderId);
     return -1;
   }
@@ -341,27 +266,15 @@ int ViERenderImpl::AddRenderer(const int render_id,
       video_input_format != kVideoRGB565 &&
       video_input_format != kVideoARGB4444 &&
       video_input_format != kVideoARGB1555) {
-    WEBRTC_TRACE(kTraceError, kTraceVideo,
-                 ViEId(shared_data_->instance_id(), render_id),
-                 "%s: Unsupported video frame format requested",
-                 __FUNCTION__, render_id);
+    LOG(LS_ERROR) << "Unsupported video frame format requested.";
     shared_data_->SetLastError(kViERenderInvalidFrameFormat);
-    return -1;
-  }
-  if (!shared_data_->Initialized()) {
-    shared_data_->SetLastError(kViENotInitialized);
-    WEBRTC_TRACE(kTraceError, kTraceVideo, ViEId(shared_data_->instance_id()),
-                 "%s - ViE instance %d not initialized", __FUNCTION__,
-                 shared_data_->instance_id());
     return -1;
   }
   {
     // Verify the renderer doesn't exist.
     ViERenderManagerScoped rs(*(shared_data_->render_manager()));
     if (rs.Renderer(render_id)) {
-      WEBRTC_TRACE(kTraceError, kTraceVideo, ViEId(shared_data_->instance_id()),
-                   "%s - Renderer already exist %d.", __FUNCTION__,
-                   render_id);
+      LOG_F(LS_ERROR) << "Renderer already exists for render_id: " << render_id;
       shared_data_->SetLastError(kViERenderAlreadyExists);
       return -1;
     }
@@ -371,9 +284,6 @@ int ViERenderImpl::AddRenderer(const int render_id,
     ViEChannelManagerScoped cm(*(shared_data_->channel_manager()));
     ViEFrameProviderBase* frame_provider = cm.Channel(render_id);
     if (!frame_provider) {
-      WEBRTC_TRACE(kTraceError, kTraceVideo, ViEId(shared_data_->instance_id()),
-                   "%s: FrameProvider id %d doesn't exist", __FUNCTION__,
-                   render_id);
       shared_data_->SetLastError(kViERenderInvalidRenderId);
       return -1;
     }
@@ -395,9 +305,6 @@ int ViERenderImpl::AddRenderer(const int render_id,
     ViEInputManagerScoped is(*(shared_data_->input_manager()));
     ViEFrameProviderBase* frame_provider = is.FrameProvider(render_id);
     if (!frame_provider) {
-      WEBRTC_TRACE(kTraceError, kTraceVideo, ViEId(shared_data_->instance_id()),
-                   "%s: FrameProvider id %d doesn't exist", __FUNCTION__,
-                   render_id);
       shared_data_->SetLastError(kViERenderInvalidRenderId);
       return -1;
     }
@@ -414,6 +321,31 @@ int ViERenderImpl::AddRenderer(const int render_id,
     }
     return frame_provider->RegisterFrameCallback(render_id, renderer);
   }
+}
+
+int ViERenderImpl::AddRenderCallback(int render_id,
+                                     VideoRenderCallback* callback) {
+  if (render_id < kViEChannelIdBase || render_id > kViEChannelIdMax)
+    return -1;
+  // This is a channel.
+  ViEChannelManagerScoped cm(*(shared_data_->channel_manager()));
+  ViEFrameProviderBase* frame_provider = cm.Channel(render_id);
+  if (!frame_provider) {
+    shared_data_->SetLastError(kViERenderInvalidRenderId);
+    return -1;
+  }
+  ViERenderer* renderer = shared_data_->render_manager()->AddRenderStream(
+      render_id, NULL, 0, 0.0f, 0.0f, 1.0f, 1.0f);
+  if (!renderer) {
+    shared_data_->SetLastError(kViERenderUnknownError);
+    return -1;
+  }
+  if (renderer->SetVideoRenderCallback(render_id, callback) != 0) {
+    shared_data_->SetLastError(kViERenderUnknownError);
+    return -1;
+  }
+
+  return frame_provider->RegisterFrameCallback(render_id, renderer);
 }
 
 }  // namespace webrtc

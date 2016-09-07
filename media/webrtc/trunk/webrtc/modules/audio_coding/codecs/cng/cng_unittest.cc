@@ -9,8 +9,8 @@
  */
 #include <string>
 
-#include "gtest/gtest.h"
-#include "testsupport/fileutils.h"
+#include "testing/gtest/include/gtest/gtest.h"
+#include "webrtc/test/testsupport/fileutils.h"
 #include "webrtc_cng.h"
 
 namespace webrtc {

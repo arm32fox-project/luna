@@ -5,6 +5,9 @@
 
 package org.mozilla.goanna.gfx;
 
+import org.mozilla.goanna.mozglue.generatorannotations.WrapEntireClassForJNI;
+
+@WrapEntireClassForJNI
 public class ViewTransform {
     public float x;
     public float y;
@@ -20,12 +23,6 @@ public class ViewTransform {
         x = inX;
         y = inY;
         scale = inScale;
-        fixedLayerMarginLeft = 0;
-        fixedLayerMarginTop = 0;
-        fixedLayerMarginRight = 0;
-        fixedLayerMarginBottom = 0;
-        offsetX = 0;
-        offsetY = 0;
     }
 }
 

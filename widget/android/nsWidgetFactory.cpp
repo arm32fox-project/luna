@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/ModuleUtils.h"
+#include "mozilla/WidgetUtils.h"
 
 #include "nsCOMPtr.h"
 #include "nsWidgetsCID.h"
@@ -25,6 +26,7 @@
 #include "nsHTMLFormatConverter.h"
 #include "nsIMEPicker.h"
 #include "nsXULAppAPI.h"
+#include "nsAndroidProtocolHandler.h"
 
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsWindow)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsScreenManagerAndroid)
@@ -38,6 +40,7 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(nsDeviceContextSpecAndroid)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsHTMLFormatConverter)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsIMEPicker)
 NS_GENERIC_FACTORY_CONSTRUCTOR(nsAndroidBridge)
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsAndroidProtocolHandler)
 
 #include "GfxInfo.h"
 namespace mozilla {
@@ -62,24 +65,26 @@ NS_DEFINE_NAMED_CID(NS_HTMLFORMATCONVERTER_CID);
 NS_DEFINE_NAMED_CID(NS_IMEPICKER_CID);
 NS_DEFINE_NAMED_CID(NS_GFXINFO_CID);
 NS_DEFINE_NAMED_CID(NS_ANDROIDBRIDGE_CID);
+NS_DEFINE_NAMED_CID(NS_ANDROIDPROTOCOLHANDLER_CID);
 
 static const mozilla::Module::CIDEntry kWidgetCIDs[] = {
-  { &kNS_WINDOW_CID, false, NULL, nsWindowConstructor },
-  { &kNS_CHILD_CID, false, NULL, nsWindowConstructor },
-  { &kNS_APPSHELL_CID, false, NULL, nsAppShellConstructor },
-  { &kNS_SCREENMANAGER_CID, false, NULL, nsScreenManagerAndroidConstructor },
-  { &kNS_IDLE_SERVICE_CID, false, NULL, nsIdleServiceAndroidConstructor },
-  { &kNS_TRANSFERABLE_CID, false, NULL, nsTransferableConstructor },
-  { &kNS_CLIPBOARD_CID, false, NULL, nsClipboardConstructor },
-  { &kNS_CLIPBOARDHELPER_CID, false, NULL, nsClipboardHelperConstructor },
-  { &kNS_PRINTSETTINGSSERVICE_CID, false, NULL, nsPrintOptionsAndroidConstructor },
-  { &kNS_PRINTSESSION_CID, false, NULL, nsPrintSessionConstructor },
-  { &kNS_DEVICE_CONTEXT_SPEC_CID, false, NULL, nsDeviceContextSpecAndroidConstructor },
-  { &kNS_HTMLFORMATCONVERTER_CID, false, NULL, nsHTMLFormatConverterConstructor },
-  { &kNS_IMEPICKER_CID, false, NULL, nsIMEPickerConstructor },
-  { &kNS_GFXINFO_CID, false, NULL, mozilla::widget::GfxInfoConstructor },
-  { &kNS_ANDROIDBRIDGE_CID, false, NULL, nsAndroidBridgeConstructor },
-  { NULL }
+  { &kNS_WINDOW_CID, false, nullptr, nsWindowConstructor },
+  { &kNS_CHILD_CID, false, nullptr, nsWindowConstructor },
+  { &kNS_APPSHELL_CID, false, nullptr, nsAppShellConstructor },
+  { &kNS_SCREENMANAGER_CID, false, nullptr, nsScreenManagerAndroidConstructor },
+  { &kNS_IDLE_SERVICE_CID, false, nullptr, nsIdleServiceAndroidConstructor },
+  { &kNS_TRANSFERABLE_CID, false, nullptr, nsTransferableConstructor },
+  { &kNS_CLIPBOARD_CID, false, nullptr, nsClipboardConstructor },
+  { &kNS_CLIPBOARDHELPER_CID, false, nullptr, nsClipboardHelperConstructor },
+  { &kNS_PRINTSETTINGSSERVICE_CID, false, nullptr, nsPrintOptionsAndroidConstructor },
+  { &kNS_PRINTSESSION_CID, false, nullptr, nsPrintSessionConstructor },
+  { &kNS_DEVICE_CONTEXT_SPEC_CID, false, nullptr, nsDeviceContextSpecAndroidConstructor },
+  { &kNS_HTMLFORMATCONVERTER_CID, false, nullptr, nsHTMLFormatConverterConstructor },
+  { &kNS_IMEPICKER_CID, false, nullptr, nsIMEPickerConstructor },
+  { &kNS_GFXINFO_CID, false, nullptr, mozilla::widget::GfxInfoConstructor },
+  { &kNS_ANDROIDBRIDGE_CID, false, nullptr, nsAndroidBridgeConstructor },
+  { &kNS_ANDROIDPROTOCOLHANDLER_CID, false, nullptr, nsAndroidProtocolHandlerConstructor },
+  { nullptr }
 };
 
 static const mozilla::Module::ContractIDEntry kWidgetContracts[] = {
@@ -98,12 +103,16 @@ static const mozilla::Module::ContractIDEntry kWidgetContracts[] = {
   { "@mozilla.org/imepicker;1", &kNS_IMEPICKER_CID },
   { "@mozilla.org/gfx/info;1", &kNS_GFXINFO_CID },
   { "@mozilla.org/android/bridge;1", &kNS_ANDROIDBRIDGE_CID },
-  { NULL }
+  { NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "android", &kNS_ANDROIDPROTOCOLHANDLER_CID },
+  { nullptr }
 };
 
 static void
 nsWidgetAndroidModuleDtor()
 {
+    // Shutdown all XP level widget classes.
+    mozilla::widget::WidgetUtils::Shutdown();
+
     nsLookAndFeel::Shutdown();
     nsAppShellShutdown();
 }
@@ -112,8 +121,8 @@ static const mozilla::Module kWidgetModule = {
     mozilla::Module::kVersion,
     kWidgetCIDs,
     kWidgetContracts,
-    NULL,
-    NULL,
+    nullptr,
+    nullptr,
     nsAppShellInit,
     nsWidgetAndroidModuleDtor
 };

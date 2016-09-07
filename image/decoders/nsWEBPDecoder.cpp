@@ -25,7 +25,7 @@ static PRLogModuleInfo *gWEBPDecoderAccountingLog =
 #define gWEBPDecoderAccountingLog
 #endif
 
-nsWEBPDecoder::nsWEBPDecoder(RasterImage &aImage)
+nsWEBPDecoder::nsWEBPDecoder(RasterImage* aImage)
  : Decoder(aImage)
 {
   PR_LOG(gWEBPDecoderAccountingLog, PR_LOG_DEBUG,
@@ -64,7 +64,7 @@ nsWEBPDecoder::FinishInternal()
   WebPFreeDecBuffer(&mDecBuf);
 
   // We should never make multiple frames
-  NS_ABORT_IF_FALSE(GetFrameCount() <= 1, "Multiple WebP frames?");
+  MOZ_ASSERT(GetFrameCount() <= 1, "Multiple WebP frames?");
 
   // Send notifications if appropriate
   if (!IsSizeDecode() && (GetFrameCount() == 1)) {
@@ -74,9 +74,9 @@ nsWEBPDecoder::FinishInternal()
 }
 
 void
-nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount, DecodeStrategy)
+nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
 {
-  NS_ABORT_IF_FALSE(!HasError(), "Shouldn't call WriteInternal after error!");
+  MOZ_ASSERT(!HasError(), "Shouldn't call WriteInternal after error!");
 
   const uint8_t* buf = (const uint8_t*)aBuffer;
   VP8StatusCode rv = WebPIAppend(mDecoder, buf, aCount);
@@ -120,17 +120,11 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount, DecodeStrateg
   if (IsSizeDecode())
     return;
 
-  uint32_t imagelength;
   // First incremental Image data chunk. Special handling required.
   if (mLastLine == 0 && lastLineRead > 0) {
-    imgFrame* aFrame;
-    nsresult res = mImage.EnsureFrame(0, 0, 0, width, height,
-                                       gfxASurface::ImageFormatARGB32,
-                                       (uint8_t**)&mImageData, &imagelength, &aFrame);
-    if (NS_FAILED(res) || !mImageData) {
-      PostDecoderError(NS_ERROR_FAILURE);
-      return;
-    }
+    Decoder::NeedNewFrame(0, 0, 0, width, height,
+                          gfx::SurfaceFormat::B8G8R8A8);
+    Decoder::AllocateFrame();
   }
 
   if (!mImageData) {
@@ -138,15 +132,18 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount, DecodeStrateg
     return;
   }
 
+  // Transfer from mData to mImageData
   if (lastLineRead > mLastLine) {
     for (int line = mLastLine; line < lastLineRead; line++) {
-      uint32_t *cptr32 = (uint32_t*)(mImageData + (line * width));
-      uint8_t *cptr8 = mData + (line * stride);
-      for (int pix = 0; pix < width; pix++, cptr8 += 4) {
-	// if((cptr8[3] != 0) && (cptr8[0] != 0) && (cptr8[1] != 0) && (cptr8[2] != 0))
-	   *cptr32++ = gfxPackedPixel(cptr8[3], cptr8[0], cptr8[1], cptr8[2]);
+      for (int pix = 0; pix < width; pix++) {
+        // RGBA -> BGRA
+        uint32_t DataOffset = 4 * (line * width + pix);
+        mImageData[DataOffset+0] = mData[DataOffset+2];
+        mImageData[DataOffset+1] = mData[DataOffset+1];
+        mImageData[DataOffset+2] = mData[DataOffset+0];
+        mImageData[DataOffset+3] = mData[DataOffset+3];
       }
-    }
+    } 
 
     // Invalidate
     nsIntRect r(0, mLastLine, width, lastLineRead);

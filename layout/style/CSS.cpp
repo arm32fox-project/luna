@@ -12,6 +12,8 @@
 #include "nsGlobalWindow.h"
 #include "nsIDocument.h"
 #include "nsIURI.h"
+#include "nsStyleUtil.h"
+#include "xpcpublic.h"
 
 namespace mozilla {
 namespace dom {
@@ -24,14 +26,14 @@ struct SupportsParsingInfo
 };
 
 static nsresult
-GetParsingInfo(nsISupports* aGlobal,
+GetParsingInfo(const GlobalObject& aGlobal,
                SupportsParsingInfo& aInfo)
 {
-  if (!aGlobal) {
+  nsGlobalWindow* win = xpc::WindowOrNull(aGlobal.Get());
+  if (!win) {
     return NS_ERROR_FAILURE;
   }
 
-  nsGlobalWindow* win = nsGlobalWindow::FromSupports(aGlobal);
   nsCOMPtr<nsIDocument> doc = win->GetDoc();
   if (!doc) {
     return NS_ERROR_FAILURE;
@@ -52,7 +54,7 @@ CSS::Supports(const GlobalObject& aGlobal,
   nsCSSParser parser;
   SupportsParsingInfo info;
 
-  nsresult rv = GetParsingInfo(aGlobal.Get(), info);
+  nsresult rv = GetParsingInfo(aGlobal, info);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return false;
@@ -70,7 +72,7 @@ CSS::Supports(const GlobalObject& aGlobal,
   nsCSSParser parser;
   SupportsParsingInfo info;
 
-  nsresult rv = GetParsingInfo(aGlobal.Get(), info);
+  nsresult rv = GetParsingInfo(aGlobal, info);
   if (NS_FAILED(rv)) {
     aRv.Throw(rv);
     return false;
@@ -78,6 +80,19 @@ CSS::Supports(const GlobalObject& aGlobal,
 
   return parser.EvaluateSupportsCondition(aCondition, info.mDocURI,
                                           info.mBaseURI, info.mPrincipal);
+}
+
+/* static */ void
+CSS::Escape(const GlobalObject& aGlobal,
+            const nsAString& aIdent,
+            nsAString& aReturn,
+            ErrorResult& aRv)
+{
+  bool success = nsStyleUtil::AppendEscapedCSSIdent(aIdent, aReturn);
+
+  if (!success) {
+    aRv.Throw(NS_ERROR_DOM_INVALID_CHARACTER_ERR);
+  }
 }
 
 } // dom

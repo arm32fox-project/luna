@@ -30,6 +30,9 @@
 #define NS_FONT_STRETCH_EXTRA_EXPANDED  3
 #define NS_FONT_STRETCH_ULTRA_EXPANDED  4
 
+#define NS_FONT_SMOOTHING_AUTO          0
+#define NS_FONT_SMOOTHING_GRAYSCALE     1
+
 #define NS_FONT_KERNING_AUTO                        0
 #define NS_FONT_KERNING_NONE                        1
 #define NS_FONT_KERNING_NORMAL                      2
@@ -116,6 +119,7 @@ enum {
     NS_FONT_VARIANT_EAST_ASIAN_PROP_WIDTH )
 
 enum {
+    eFeatureLigatures_none,
     eFeatureLigatures_common,
     eFeatureLigatures_no_common,
     eFeatureLigatures_discretionary,
@@ -128,6 +132,7 @@ enum {
     eFeatureLigatures_numFeatures
 };
 
+#define NS_FONT_VARIANT_LIGATURES_NONE              (1 << eFeatureLigatures_none)
 #define NS_FONT_VARIANT_LIGATURES_COMMON            (1 << eFeatureLigatures_common)
 #define NS_FONT_VARIANT_LIGATURES_NO_COMMON         (1 << eFeatureLigatures_no_common)
 #define NS_FONT_VARIANT_LIGATURES_DISCRETIONARY     (1 << eFeatureLigatures_discretionary)
@@ -190,5 +195,18 @@ enum {
 #define NS_FONT_VARIANT_POSITION_NORMAL             0
 #define NS_FONT_VARIANT_POSITION_SUPER              1
 #define NS_FONT_VARIANT_POSITION_SUB                2
+
+// based on fixed offset values used within WebKit
+#define NS_FONT_SUBSCRIPT_OFFSET_RATIO     (0.20)
+#define NS_FONT_SUPERSCRIPT_OFFSET_RATIO   (0.34)
+
+// this roughly corresponds to font-size: smaller behavior
+// at smaller sizes <20px the ratio is closer to 0.8 while at
+// larger sizes >45px the ratio is closer to 0.667 and in between
+// a blend of values is used
+#define NS_FONT_SUB_SUPER_SIZE_RATIO_SMALL       (0.82)
+#define NS_FONT_SUB_SUPER_SIZE_RATIO_LARGE       (0.667)
+#define NS_FONT_SUB_SUPER_SMALL_SIZE             (20.0)
+#define NS_FONT_SUB_SUPER_LARGE_SIZE             (45.0)
 
 #endif

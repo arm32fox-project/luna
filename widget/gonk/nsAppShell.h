@@ -20,7 +20,6 @@
 
 #include "mozilla/Mutex.h"
 #include "nsBaseAppShell.h"
-#include "nsRect.h"
 #include "nsTArray.h"
 
 #include "utils/RefBase.h"
@@ -69,7 +68,7 @@ public:
 
     nsresult Init();
 
-    NS_IMETHOD Exit() MOZ_OVERRIDE;
+    NS_IMETHOD Exit() override;
 
     virtual bool ProcessNextNativeEvent(bool maywait);
 

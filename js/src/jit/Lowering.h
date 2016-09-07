@@ -10,18 +10,19 @@
 // This file declares the structures that are used for attaching LIR to a
 // MIRGraph.
 
-#include "IonAllocPolicy.h"
-#include "LIR.h"
-#include "MOpcodes.h"
-
-#if defined(JS_CPU_X86)
-# include "x86/Lowering-x86.h"
-#elif defined(JS_CPU_X64)
-# include "x64/Lowering-x64.h"
-#elif defined(JS_CPU_ARM)
-# include "arm/Lowering-arm.h"
+#include "jit/LIR.h"
+#if defined(JS_CODEGEN_X86)
+# include "jit/x86/Lowering-x86.h"
+#elif defined(JS_CODEGEN_X64)
+# include "jit/x64/Lowering-x64.h"
+#elif defined(JS_CODEGEN_ARM)
+# include "jit/arm/Lowering-arm.h"
+#elif defined(JS_CODEGEN_MIPS)
+# include "jit/mips/Lowering-mips.h"
+#elif defined(JS_CODEGEN_NONE)
+# include "jit/none/Lowering-none.h"
 #else
-# error "CPU!"
+# error "Unknown architecture!"
 #endif
 
 namespace js {
@@ -29,221 +30,265 @@ namespace jit {
 
 class LIRGenerator : public LIRGeneratorSpecific
 {
-    void updateResumeState(MInstruction *ins);
-    void updateResumeState(MBasicBlock *block);
+    void updateResumeState(MInstruction* ins);
+    void updateResumeState(MBasicBlock* block);
 
-    // The active depth of the (perhaps nested) call argument vectors.
-    uint32_t argslots_;
     // The maximum depth, for framesizeclass determination.
     uint32_t maxargslots_;
 
-#ifdef DEBUG
-    // In debug builds, check MPrepareCall and MCall are properly
-    // nested. The argslots_ mechanism relies on this.
-    Vector<MPrepareCall *, 4, SystemAllocPolicy> prepareCallStack_;
-#endif
-
   public:
-    LIRGenerator(MIRGenerator *gen, MIRGraph &graph, LIRGraph &lirGraph)
+    LIRGenerator(MIRGenerator* gen, MIRGraph& graph, LIRGraph& lirGraph)
       : LIRGeneratorSpecific(gen, graph, lirGraph),
-        argslots_(0), maxargslots_(0)
+        maxargslots_(0)
     { }
 
     bool generate();
 
   private:
 
-    bool useBoxAtStart(LInstruction *lir, size_t n, MDefinition *mir,
+    void useBoxAtStart(LInstruction* lir, size_t n, MDefinition* mir,
                        LUse::Policy policy = LUse::REGISTER) {
         return useBox(lir, n, mir, policy, true);
     }
 
-    bool lowerBitOp(JSOp op, MInstruction *ins);
-    bool lowerShiftOp(JSOp op, MShiftInstruction *ins);
-    bool lowerBinaryV(JSOp op, MBinaryInstruction *ins);
-    bool precreatePhi(LBlock *block, MPhi *phi);
-    bool definePhis();
+    void lowerBitOp(JSOp op, MInstruction* ins);
+    void lowerShiftOp(JSOp op, MShiftInstruction* ins);
+    void lowerBinaryV(JSOp op, MBinaryInstruction* ins);
+    void definePhis();
 
-    // Allocate argument slots for a future function call.
-    void allocateArguments(uint32_t argc);
-    // Map an MPassArg's argument number to a slot in the frame arg vector.
-    // Slots are indexed from 1. argnum is indexed from 0.
-    uint32_t getArgumentSlot(uint32_t argnum);
-    uint32_t getArgumentSlotForCall() { return argslots_; }
-    // Free argument slots following a function call.
-    void freeArguments(uint32_t argc);
+    void lowerCallArguments(MCall* call);
 
   public:
-    bool visitInstruction(MInstruction *ins);
-    bool visitBlock(MBasicBlock *block);
+    bool visitInstruction(MInstruction* ins);
+    bool visitBlock(MBasicBlock* block);
 
     // Visitor hooks are explicit, to give CPU-specific versions a chance to
     // intercept without a bunch of explicit gunk in the .cpp.
-    bool visitParameter(MParameter *param);
-    bool visitCallee(MCallee *callee);
-    bool visitGoto(MGoto *ins);
-    bool visitTableSwitch(MTableSwitch *tableswitch);
-    bool visitNewSlots(MNewSlots *ins);
-    bool visitNewParallelArray(MNewParallelArray *ins);
-    bool visitNewArray(MNewArray *ins);
-    bool visitNewObject(MNewObject *ins);
-    bool visitNewDeclEnvObject(MNewDeclEnvObject *ins);
-    bool visitNewCallObject(MNewCallObject *ins);
-    bool visitNewStringObject(MNewStringObject *ins);
-    bool visitParNew(MParNew *ins);
-    bool visitParNewCallObject(MParNewCallObject *ins);
-    bool visitParNewDenseArray(MParNewDenseArray *ins);
-    bool visitParBailout(MParBailout *ins);
-    bool visitInitElem(MInitElem *ins);
-    bool visitInitProp(MInitProp *ins);
-    bool visitCheckOverRecursed(MCheckOverRecursed *ins);
-    bool visitParCheckOverRecursed(MParCheckOverRecursed *ins);
-    bool visitDefVar(MDefVar *ins);
-    bool visitDefFun(MDefFun *ins);
-    bool visitPrepareCall(MPrepareCall *ins);
-    bool visitPassArg(MPassArg *arg);
-    bool visitCreateThisWithTemplate(MCreateThisWithTemplate *ins);
-    bool visitCreateThisWithProto(MCreateThisWithProto *ins);
-    bool visitCreateThis(MCreateThis *ins);
-    bool visitCreateArgumentsObject(MCreateArgumentsObject *ins);
-    bool visitGetArgumentsObjectArg(MGetArgumentsObjectArg *ins);
-    bool visitSetArgumentsObjectArg(MSetArgumentsObjectArg *ins);
-    bool visitReturnFromCtor(MReturnFromCtor *ins);
-    bool visitCall(MCall *call);
-    bool visitApplyArgs(MApplyArgs *apply);
-    bool visitGetDynamicName(MGetDynamicName *ins);
-    bool visitFilterArguments(MFilterArguments *ins);
-    bool visitCallDirectEval(MCallDirectEval *ins);
-    bool visitTest(MTest *test);
-    bool visitFunctionDispatch(MFunctionDispatch *ins);
-    bool visitTypeObjectDispatch(MTypeObjectDispatch *ins);
-    bool visitPolyInlineDispatch(MPolyInlineDispatch *ins);
-    bool visitCompare(MCompare *comp);
-    bool visitTypeOf(MTypeOf *ins);
-    bool visitToId(MToId *ins);
-    bool visitBitNot(MBitNot *ins);
-    bool visitBitAnd(MBitAnd *ins);
-    bool visitBitOr(MBitOr *ins);
-    bool visitBitXor(MBitXor *ins);
-    bool visitLsh(MLsh *ins);
-    bool visitRsh(MRsh *ins);
-    bool visitUrsh(MUrsh *ins);
-    bool visitFloor(MFloor *ins);
-    bool visitRound(MRound *ins);
-    bool visitMinMax(MMinMax *ins);
-    bool visitAbs(MAbs *ins);
-    bool visitSqrt(MSqrt *ins);
-    bool visitAtan2(MAtan2 *ins);
-    bool visitPow(MPow *ins);
-    bool visitRandom(MRandom *ins);
-    bool visitMathFunction(MMathFunction *ins);
-    bool visitAdd(MAdd *ins);
-    bool visitSub(MSub *ins);
-    bool visitMul(MMul *ins);
-    bool visitDiv(MDiv *ins);
-    bool visitMod(MMod *ins);
-    bool visitConcat(MConcat *ins);
-    bool visitCharCodeAt(MCharCodeAt *ins);
-    bool visitFromCharCode(MFromCharCode *ins);
-    bool visitStart(MStart *start);
-    bool visitOsrEntry(MOsrEntry *entry);
-    bool visitNop(MNop *nop);
-    bool visitOsrValue(MOsrValue *value);
-    bool visitOsrScopeChain(MOsrScopeChain *object);
-    bool visitToDouble(MToDouble *convert);
-    bool visitToInt32(MToInt32 *convert);
-    bool visitTruncateToInt32(MTruncateToInt32 *truncate);
-    bool visitToString(MToString *convert);
-    bool visitRegExp(MRegExp *ins);
-    bool visitRegExpTest(MRegExpTest *ins);
-    bool visitLambda(MLambda *ins);
-    bool visitParLambda(MParLambda *ins);
-    bool visitImplicitThis(MImplicitThis *ins);
-    bool visitSlots(MSlots *ins);
-    bool visitElements(MElements *ins);
-    bool visitConstantElements(MConstantElements *ins);
-    bool visitConvertElementsToDoubles(MConvertElementsToDoubles *ins);
-    bool visitLoadSlot(MLoadSlot *ins);
-    bool visitFunctionEnvironment(MFunctionEnvironment *ins);
-    bool visitParSlice(MParSlice *ins);
-    bool visitParWriteGuard(MParWriteGuard *ins);
-    bool visitParCheckInterrupt(MParCheckInterrupt *ins);
-    bool visitParDump(MParDump *ins);
-    bool visitStoreSlot(MStoreSlot *ins);
-    bool visitTypeBarrier(MTypeBarrier *ins);
-    bool visitMonitorTypes(MMonitorTypes *ins);
-    bool visitPostWriteBarrier(MPostWriteBarrier *ins);
-    bool visitArrayLength(MArrayLength *ins);
-    bool visitTypedArrayLength(MTypedArrayLength *ins);
-    bool visitTypedArrayElements(MTypedArrayElements *ins);
-    bool visitInitializedLength(MInitializedLength *ins);
-    bool visitSetInitializedLength(MSetInitializedLength *ins);
-    bool visitNot(MNot *ins);
-    bool visitBoundsCheck(MBoundsCheck *ins);
-    bool visitBoundsCheckLower(MBoundsCheckLower *ins);
-    bool visitLoadElement(MLoadElement *ins);
-    bool visitLoadElementHole(MLoadElementHole *ins);
-    bool visitStoreElement(MStoreElement *ins);
-    bool visitStoreElementHole(MStoreElementHole *ins);
-    bool visitEffectiveAddress(MEffectiveAddress *ins);
-    bool visitArrayPopShift(MArrayPopShift *ins);
-    bool visitArrayPush(MArrayPush *ins);
-    bool visitArrayConcat(MArrayConcat *ins);
-    bool visitLoadTypedArrayElement(MLoadTypedArrayElement *ins);
-    bool visitLoadTypedArrayElementHole(MLoadTypedArrayElementHole *ins);
-    bool visitLoadTypedArrayElementStatic(MLoadTypedArrayElementStatic *ins);
-    bool visitClampToUint8(MClampToUint8 *ins);
-    bool visitLoadFixedSlot(MLoadFixedSlot *ins);
-    bool visitStoreFixedSlot(MStoreFixedSlot *ins);
-    bool visitGetPropertyCache(MGetPropertyCache *ins);
-    bool visitGetPropertyPolymorphic(MGetPropertyPolymorphic *ins);
-    bool visitSetPropertyPolymorphic(MSetPropertyPolymorphic *ins);
-    bool visitGetElementCache(MGetElementCache *ins);
-    bool visitBindNameCache(MBindNameCache *ins);
-    bool visitGuardClass(MGuardClass *ins);
-    bool visitGuardObject(MGuardObject *ins);
-    bool visitGuardString(MGuardString *ins);
-    bool visitCallGetProperty(MCallGetProperty *ins);
-    bool visitDeleteProperty(MDeleteProperty *ins);
-    bool visitGetNameCache(MGetNameCache *ins);
-    bool visitCallGetIntrinsicValue(MCallGetIntrinsicValue *ins);
-    bool visitCallsiteCloneCache(MCallsiteCloneCache *ins);
-    bool visitCallGetElement(MCallGetElement *ins);
-    bool visitCallSetElement(MCallSetElement *ins);
-    bool visitCallInitElementArray(MCallInitElementArray *ins);
-    bool visitSetPropertyCache(MSetPropertyCache *ins);
-    bool visitSetElementCache(MSetElementCache *ins);
-    bool visitCallSetProperty(MCallSetProperty *ins);
-    bool visitIteratorStart(MIteratorStart *ins);
-    bool visitIteratorNext(MIteratorNext *ins);
-    bool visitIteratorMore(MIteratorMore *ins);
-    bool visitIteratorEnd(MIteratorEnd *ins);
-    bool visitStringLength(MStringLength *ins);
-    bool visitArgumentsLength(MArgumentsLength *ins);
-    bool visitGetArgument(MGetArgument *ins);
-    bool visitRunOncePrologue(MRunOncePrologue *ins);
-    bool visitRest(MRest *ins);
-    bool visitParRest(MParRest *ins);
-    bool visitThrow(MThrow *ins);
-    bool visitIn(MIn *ins);
-    bool visitInArray(MInArray *ins);
-    bool visitInstanceOf(MInstanceOf *ins);
-    bool visitCallInstanceOf(MCallInstanceOf *ins);
-    bool visitFunctionBoundary(MFunctionBoundary *ins);
-    bool visitIsCallable(MIsCallable *ins);
-    bool visitHaveSameClass(MHaveSameClass *ins);
-    bool visitAsmJSLoadHeap(MAsmJSLoadHeap *ins);
-    bool visitAsmJSLoadGlobalVar(MAsmJSLoadGlobalVar *ins);
-    bool visitAsmJSStoreGlobalVar(MAsmJSStoreGlobalVar *ins);
-    bool visitAsmJSLoadFFIFunc(MAsmJSLoadFFIFunc *ins);
-    bool visitAsmJSParameter(MAsmJSParameter *ins);
-    bool visitAsmJSReturn(MAsmJSReturn *ins);
-    bool visitAsmJSVoidReturn(MAsmJSVoidReturn *ins);
-    bool visitAsmJSPassStackArg(MAsmJSPassStackArg *ins);
-    bool visitAsmJSCall(MAsmJSCall *ins);
-    bool visitAsmJSCheckOverRecursed(MAsmJSCheckOverRecursed *ins);
-    bool visitSetDOMProperty(MSetDOMProperty *ins);
-    bool visitGetDOMProperty(MGetDOMProperty *ins);
+    void visitCloneLiteral(MCloneLiteral* ins);
+    void visitParameter(MParameter* param);
+    void visitCallee(MCallee* callee);
+    void visitIsConstructing(MIsConstructing* ins);
+    void visitGoto(MGoto* ins);
+    void visitTableSwitch(MTableSwitch* tableswitch);
+    void visitNewArray(MNewArray* ins);
+    void visitNewArrayCopyOnWrite(MNewArrayCopyOnWrite* ins);
+    void visitNewArrayDynamicLength(MNewArrayDynamicLength* ins);
+    void visitNewObject(MNewObject* ins);
+    void visitNewTypedObject(MNewTypedObject* ins);
+    void visitNewDeclEnvObject(MNewDeclEnvObject* ins);
+    void visitNewCallObject(MNewCallObject* ins);
+    void visitNewRunOnceCallObject(MNewRunOnceCallObject* ins);
+    void visitNewStringObject(MNewStringObject* ins);
+    void visitNewDerivedTypedObject(MNewDerivedTypedObject* ins);
+    void visitInitElem(MInitElem* ins);
+    void visitInitElemGetterSetter(MInitElemGetterSetter* ins);
+    void visitMutateProto(MMutateProto* ins);
+    void visitInitProp(MInitProp* ins);
+    void visitInitPropGetterSetter(MInitPropGetterSetter* ins);
+    void visitCheckOverRecursed(MCheckOverRecursed* ins);
+    void visitDefVar(MDefVar* ins);
+    void visitDefFun(MDefFun* ins);
+    void visitCreateThisWithTemplate(MCreateThisWithTemplate* ins);
+    void visitCreateThisWithProto(MCreateThisWithProto* ins);
+    void visitCreateThis(MCreateThis* ins);
+    void visitCreateArgumentsObject(MCreateArgumentsObject* ins);
+    void visitGetArgumentsObjectArg(MGetArgumentsObjectArg* ins);
+    void visitSetArgumentsObjectArg(MSetArgumentsObjectArg* ins);
+    void visitReturnFromCtor(MReturnFromCtor* ins);
+    void visitComputeThis(MComputeThis* ins);
+    void visitLoadArrowThis(MLoadArrowThis* ins);
+    void visitCall(MCall* call);
+    void visitApplyArgs(MApplyArgs* apply);
+    void visitArraySplice(MArraySplice* splice);
+    void visitBail(MBail* bail);
+    void visitUnreachable(MUnreachable* unreachable);
+    void visitAssertFloat32(MAssertFloat32* ins);
+    void visitGetDynamicName(MGetDynamicName* ins);
+    void visitFilterArgumentsOrEval(MFilterArgumentsOrEval* ins);
+    void visitCallDirectEval(MCallDirectEval* ins);
+    void visitTest(MTest* test);
+    void visitGotoWithFake(MGotoWithFake* ins);
+    void visitFunctionDispatch(MFunctionDispatch* ins);
+    void visitObjectGroupDispatch(MObjectGroupDispatch* ins);
+    void visitCompare(MCompare* comp);
+    void visitTypeOf(MTypeOf* ins);
+    void visitToId(MToId* ins);
+    void visitBitNot(MBitNot* ins);
+    void visitBitAnd(MBitAnd* ins);
+    void visitBitOr(MBitOr* ins);
+    void visitBitXor(MBitXor* ins);
+    void visitLsh(MLsh* ins);
+    void visitRsh(MRsh* ins);
+    void visitUrsh(MUrsh* ins);
+    void visitFloor(MFloor* ins);
+    void visitCeil(MCeil* ins);
+    void visitRound(MRound* ins);
+    void visitMinMax(MMinMax* ins);
+    void visitAbs(MAbs* ins);
+    void visitClz(MClz* ins);
+    void visitSqrt(MSqrt* ins);
+    void visitAtan2(MAtan2* ins);
+    void visitHypot(MHypot* ins);
+    void visitPow(MPow* ins);
+    void visitRandom(MRandom* ins);
+    void visitMathFunction(MMathFunction* ins);
+    void visitAdd(MAdd* ins);
+    void visitSub(MSub* ins);
+    void visitMul(MMul* ins);
+    void visitDiv(MDiv* ins);
+    void visitMod(MMod* ins);
+    void visitConcat(MConcat* ins);
+    void visitCharCodeAt(MCharCodeAt* ins);
+    void visitFromCharCode(MFromCharCode* ins);
+    void visitStringSplit(MStringSplit* ins);
+    void visitStart(MStart* start);
+    void visitOsrEntry(MOsrEntry* entry);
+    void visitNop(MNop* nop);
+    void visitLimitedTruncate(MLimitedTruncate* nop);
+    void visitOsrValue(MOsrValue* value);
+    void visitOsrScopeChain(MOsrScopeChain* object);
+    void visitOsrReturnValue(MOsrReturnValue* value);
+    void visitOsrArgumentsObject(MOsrArgumentsObject* object);
+    void visitToDouble(MToDouble* convert);
+    void visitToFloat32(MToFloat32* convert);
+    void visitToInt32(MToInt32* convert);
+    void visitTruncateToInt32(MTruncateToInt32* truncate);
+    void visitToString(MToString* convert);
+    void visitToObjectOrNull(MToObjectOrNull* convert);
+    void visitRegExp(MRegExp* ins);
+    void visitRegExpExec(MRegExpExec* ins);
+    void visitRegExpTest(MRegExpTest* ins);
+    void visitRegExpReplace(MRegExpReplace* ins);
+    void visitStringReplace(MStringReplace* ins);
+    void visitLambda(MLambda* ins);
+    void visitLambdaArrow(MLambdaArrow* ins);
+    void visitKeepAliveObject(MKeepAliveObject* ins);
+    void visitSlots(MSlots* ins);
+    void visitElements(MElements* ins);
+    void visitConstantElements(MConstantElements* ins);
+    void visitConvertElementsToDoubles(MConvertElementsToDoubles* ins);
+    void visitMaybeToDoubleElement(MMaybeToDoubleElement* ins);
+    void visitMaybeCopyElementsForWrite(MMaybeCopyElementsForWrite* ins);
+    void visitLoadSlot(MLoadSlot* ins);
+    void visitFunctionEnvironment(MFunctionEnvironment* ins);
+    void visitInterruptCheck(MInterruptCheck* ins);
+    void visitAsmJSInterruptCheck(MAsmJSInterruptCheck* ins);
+    void visitStoreSlot(MStoreSlot* ins);
+    void visitFilterTypeSet(MFilterTypeSet* ins);
+    void visitTypeBarrier(MTypeBarrier* ins);
+    void visitMonitorTypes(MMonitorTypes* ins);
+    void visitPostWriteBarrier(MPostWriteBarrier* ins);
+    void visitArrayLength(MArrayLength* ins);
+    void visitSetArrayLength(MSetArrayLength* ins);
+    void visitTypedArrayLength(MTypedArrayLength* ins);
+    void visitTypedArrayElements(MTypedArrayElements* ins);
+    void visitTypedObjectElements(MTypedObjectElements* ins);
+    void visitSetTypedObjectOffset(MSetTypedObjectOffset* ins);
+    void visitTypedObjectDescr(MTypedObjectDescr* ins);
+    void visitInitializedLength(MInitializedLength* ins);
+    void visitSetInitializedLength(MSetInitializedLength* ins);
+    void visitNot(MNot* ins);
+    void visitBoundsCheck(MBoundsCheck* ins);
+    void visitBoundsCheckLower(MBoundsCheckLower* ins);
+    void visitLoadElement(MLoadElement* ins);
+    void visitLoadElementHole(MLoadElementHole* ins);
+    void visitLoadUnboxedObjectOrNull(MLoadUnboxedObjectOrNull* ins);
+    void visitLoadUnboxedString(MLoadUnboxedString* ins);
+    void visitStoreElement(MStoreElement* ins);
+    void visitStoreElementHole(MStoreElementHole* ins);
+    void visitStoreUnboxedObjectOrNull(MStoreUnboxedObjectOrNull* ins);
+    void visitStoreUnboxedString(MStoreUnboxedString* ins);
+    void visitConvertUnboxedObjectToNative(MConvertUnboxedObjectToNative* ins);
+    void visitEffectiveAddress(MEffectiveAddress* ins);
+    void visitArrayPopShift(MArrayPopShift* ins);
+    void visitArrayPush(MArrayPush* ins);
+    void visitArrayConcat(MArrayConcat* ins);
+    void visitArrayJoin(MArrayJoin* ins);
+    void visitLoadTypedArrayElement(MLoadTypedArrayElement* ins);
+    void visitLoadTypedArrayElementHole(MLoadTypedArrayElementHole* ins);
+    void visitLoadTypedArrayElementStatic(MLoadTypedArrayElementStatic* ins);
+    void visitStoreTypedArrayElement(MStoreTypedArrayElement* ins);
+    void visitStoreTypedArrayElementHole(MStoreTypedArrayElementHole* ins);
+    void visitClampToUint8(MClampToUint8* ins);
+    void visitLoadFixedSlot(MLoadFixedSlot* ins);
+    void visitStoreFixedSlot(MStoreFixedSlot* ins);
+    void visitGetPropertyCache(MGetPropertyCache* ins);
+    void visitGetPropertyPolymorphic(MGetPropertyPolymorphic* ins);
+    void visitSetPropertyPolymorphic(MSetPropertyPolymorphic* ins);
+    void visitGetElementCache(MGetElementCache* ins);
+    void visitBindNameCache(MBindNameCache* ins);
+    void visitGuardObjectIdentity(MGuardObjectIdentity* ins);
+    void visitGuardClass(MGuardClass* ins);
+    void visitGuardObject(MGuardObject* ins);
+    void visitGuardString(MGuardString* ins);
+    void visitGuardShapePolymorphic(MGuardShapePolymorphic* ins);
+    void visitPolyInlineGuard(MPolyInlineGuard* ins);
+    void visitAssertRange(MAssertRange* ins);
+    void visitCallGetProperty(MCallGetProperty* ins);
+    void visitDeleteProperty(MDeleteProperty* ins);
+    void visitDeleteElement(MDeleteElement* ins);
+    void visitGetNameCache(MGetNameCache* ins);
+    void visitCallGetIntrinsicValue(MCallGetIntrinsicValue* ins);
+    void visitCallGetElement(MCallGetElement* ins);
+    void visitCallSetElement(MCallSetElement* ins);
+    void visitCallInitElementArray(MCallInitElementArray* ins);
+    void visitSetPropertyCache(MSetPropertyCache* ins);
+    void visitSetElementCache(MSetElementCache* ins);
+    void visitCallSetProperty(MCallSetProperty* ins);
+    void visitIteratorStart(MIteratorStart* ins);
+    void visitIteratorMore(MIteratorMore* ins);
+    void visitIsNoIter(MIsNoIter* ins);
+    void visitIteratorEnd(MIteratorEnd* ins);
+    void visitStringLength(MStringLength* ins);
+    void visitArgumentsLength(MArgumentsLength* ins);
+    void visitGetFrameArgument(MGetFrameArgument* ins);
+    void visitSetFrameArgument(MSetFrameArgument* ins);
+    void visitRunOncePrologue(MRunOncePrologue* ins);
+    void visitRest(MRest* ins);
+    void visitThrow(MThrow* ins);
+    void visitIn(MIn* ins);
+    void visitInArray(MInArray* ins);
+    void visitInstanceOf(MInstanceOf* ins);
+    void visitCallInstanceOf(MCallInstanceOf* ins);
+    void visitIsCallable(MIsCallable* ins);
+    void visitIsObject(MIsObject* ins);
+    void visitHasClass(MHasClass* ins);
+    void visitAsmJSLoadGlobalVar(MAsmJSLoadGlobalVar* ins);
+    void visitAsmJSStoreGlobalVar(MAsmJSStoreGlobalVar* ins);
+    void visitAsmJSLoadFFIFunc(MAsmJSLoadFFIFunc* ins);
+    void visitAsmJSParameter(MAsmJSParameter* ins);
+    void visitAsmJSReturn(MAsmJSReturn* ins);
+    void visitAsmJSVoidReturn(MAsmJSVoidReturn* ins);
+    void visitAsmJSPassStackArg(MAsmJSPassStackArg* ins);
+    void visitAsmJSCall(MAsmJSCall* ins);
+    void visitSetDOMProperty(MSetDOMProperty* ins);
+    void visitGetDOMProperty(MGetDOMProperty* ins);
+    void visitGetDOMMember(MGetDOMMember* ins);
+    void visitRecompileCheck(MRecompileCheck* ins);
+    void visitMemoryBarrier(MMemoryBarrier* ins);
+    void visitSimdBox(MSimdBox* ins);
+    void visitSimdUnbox(MSimdUnbox* ins);
+    void visitSimdExtractElement(MSimdExtractElement* ins);
+    void visitSimdInsertElement(MSimdInsertElement* ins);
+    void visitSimdSignMask(MSimdSignMask* ins);
+    void visitSimdSwizzle(MSimdSwizzle* ins);
+    void visitSimdShuffle(MSimdShuffle* ins);
+    void visitSimdUnaryArith(MSimdUnaryArith* ins);
+    void visitSimdBinaryComp(MSimdBinaryComp* ins);
+    void visitSimdBinaryBitwise(MSimdBinaryBitwise* ins);
+    void visitSimdShift(MSimdShift* ins);
+    void visitSimdConstant(MSimdConstant* ins);
+    void visitSimdConvert(MSimdConvert* ins);
+    void visitSimdReinterpretCast(MSimdReinterpretCast* ins);
+    void visitPhi(MPhi* ins);
+    void visitBeta(MBeta* ins);
+    void visitObjectState(MObjectState* ins);
+    void visitArrayState(MArrayState* ins);
+    void visitUnknownValue(MUnknownValue* ins);
+    void visitLexicalCheck(MLexicalCheck* ins);
+    void visitThrowUninitializedLexical(MThrowUninitializedLexical* ins);
+    void visitDebugger(MDebugger* ins);
+    void visitNurseryObject(MNurseryObject* ins);
 };
 
 } // namespace jit

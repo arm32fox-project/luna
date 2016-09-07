@@ -84,8 +84,8 @@ static inline void atomic_init() {} /* empty when we are not using atomic_mtx */
 #endif
 
 #else
-/* Using gcc built-in functions for atomic memory operations
-   compile with -march=i486
+/* To use gcc built-in functions for atomic memory operations compile with -march=i486
+   Reference: http://gcc.gnu.org/onlinedocs/gcc-4.1.0/gcc/Atomic-Builtins.html
  */
 
 /*Atomically add V to *P.*/

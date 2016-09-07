@@ -9,6 +9,7 @@
 #include "nsGlobalWindow.h"
 #include "nsIDocShell.h"
 #include "nsIScrollable.h"
+#include "nsIWebBrowserChrome.h"
 
 namespace mozilla {
 namespace dom {
@@ -16,10 +17,10 @@ namespace dom {
 //
 //  Basic (virtual) BarProp class implementation
 //
-BarProp::BarProp(nsGlobalWindow *aWindow)
+BarProp::BarProp(nsGlobalWindow* aWindow)
   : mDOMWindow(aWindow)
 {
-  SetIsDOMBinding();
+  MOZ_ASSERT(aWindow->IsInnerWindow());
 }
 
 BarProp::~BarProp()
@@ -33,12 +34,12 @@ BarProp::GetParentObject() const
 }
 
 JSObject*
-BarProp::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope)
+BarProp::WrapObject(JSContext* aCx)
 {
-  return BarPropBinding::Wrap(aCx, aScope, this);
+  return BarPropBinding::Wrap(aCx, this);
 }
 
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(BarProp, mDOMWindow)
+NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE(BarProp, mDOMWindow)
 NS_IMPL_CYCLE_COLLECTING_ADDREF(BarProp)
 NS_IMPL_CYCLE_COLLECTING_RELEASE(BarProp)
 NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION(BarProp)

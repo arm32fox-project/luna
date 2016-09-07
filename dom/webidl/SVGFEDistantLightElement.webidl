@@ -10,9 +10,9 @@
  * liability, trademark and document use rules apply.
  */
 
-interface SVGAnimatedNumber;
-
 interface SVGFEDistantLightElement : SVGElement {
+  [Constant]
   readonly attribute SVGAnimatedNumber azimuth;
+  [Constant]
   readonly attribute SVGAnimatedNumber elevation;
 };

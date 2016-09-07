@@ -13,17 +13,18 @@
 #define mozilla_dom_BarProps_h
 
 #include "mozilla/Attributes.h"
-#include "mozilla/ErrorResult.h"
 #include "nsCycleCollectionParticipant.h"
-#include "nsIWeakReference.h"
 #include "nsWrapperCache.h"
 #include "nsAutoPtr.h"
+#include "nsPIDOMWindow.h"
 
 class nsGlobalWindow;
 class nsIWebBrowserChrome;
-class nsPIDOMWindow;
 
 namespace mozilla {
+
+class ErrorResult;
+
 namespace dom {
 
 // Script "BarProp" object
@@ -32,7 +33,6 @@ class BarProp : public nsISupports,
 {
 public:
   explicit BarProp(nsGlobalWindow *aWindow);
-  virtual ~BarProp();
 
   NS_DECL_CYCLE_COLLECTING_ISUPPORTS
   NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS(BarProp)
@@ -40,12 +40,14 @@ public:
   nsPIDOMWindow* GetParentObject() const;
 
   virtual JSObject*
-  WrapObject(JSContext* aCx, JS::Handle<JSObject*> aScope) MOZ_OVERRIDE;
+  WrapObject(JSContext* aCx) override;
 
   virtual bool GetVisible(ErrorResult& aRv) = 0;
   virtual void SetVisible(bool aVisible, ErrorResult& aRv) = 0;
 
 protected:
+  virtual ~BarProp();
+
   bool GetVisibleByFlag(uint32_t aChromeFlag, ErrorResult& aRv);
   void SetVisibleByFlag(bool aVisible, uint32_t aChromeFlag, ErrorResult &aRv);
 
@@ -55,69 +57,69 @@ protected:
 };
 
 // Script "menubar" object
-class MenubarProp MOZ_FINAL : public BarProp
+class MenubarProp final : public BarProp
 {
 public:
   explicit MenubarProp(nsGlobalWindow *aWindow);
   virtual ~MenubarProp();
 
-  virtual bool GetVisible(ErrorResult& aRv) MOZ_OVERRIDE;
-  virtual void SetVisible(bool aVisible, ErrorResult& aRv) MOZ_OVERRIDE;
+  virtual bool GetVisible(ErrorResult& aRv) override;
+  virtual void SetVisible(bool aVisible, ErrorResult& aRv) override;
 };
 
 // Script "toolbar" object
-class ToolbarProp MOZ_FINAL : public BarProp
+class ToolbarProp final : public BarProp
 {
 public:
   explicit ToolbarProp(nsGlobalWindow *aWindow);
   virtual ~ToolbarProp();
 
-  virtual bool GetVisible(ErrorResult& aRv) MOZ_OVERRIDE;
-  virtual void SetVisible(bool aVisible, ErrorResult& aRv) MOZ_OVERRIDE;
+  virtual bool GetVisible(ErrorResult& aRv) override;
+  virtual void SetVisible(bool aVisible, ErrorResult& aRv) override;
 };
 
 // Script "locationbar" object
-class LocationbarProp MOZ_FINAL : public BarProp
+class LocationbarProp final : public BarProp
 {
 public:
   explicit LocationbarProp(nsGlobalWindow *aWindow);
   virtual ~LocationbarProp();
 
-  virtual bool GetVisible(ErrorResult& aRv) MOZ_OVERRIDE;
-  virtual void SetVisible(bool aVisible, ErrorResult& aRv) MOZ_OVERRIDE;
+  virtual bool GetVisible(ErrorResult& aRv) override;
+  virtual void SetVisible(bool aVisible, ErrorResult& aRv) override;
 };
 
 // Script "personalbar" object
-class PersonalbarProp MOZ_FINAL : public BarProp
+class PersonalbarProp final : public BarProp
 {
 public:
   explicit PersonalbarProp(nsGlobalWindow *aWindow);
   virtual ~PersonalbarProp();
 
-  virtual bool GetVisible(ErrorResult& aRv) MOZ_OVERRIDE;
-  virtual void SetVisible(bool aVisible, ErrorResult& aRv) MOZ_OVERRIDE;
+  virtual bool GetVisible(ErrorResult& aRv) override;
+  virtual void SetVisible(bool aVisible, ErrorResult& aRv) override;
 };
 
 // Script "statusbar" object
-class StatusbarProp MOZ_FINAL : public BarProp
+class StatusbarProp final : public BarProp
 {
 public:
   explicit StatusbarProp(nsGlobalWindow *aWindow);
   virtual ~StatusbarProp();
 
-  virtual bool GetVisible(ErrorResult& aRv) MOZ_OVERRIDE;
-  virtual void SetVisible(bool aVisible, ErrorResult& aRv) MOZ_OVERRIDE;
+  virtual bool GetVisible(ErrorResult& aRv) override;
+  virtual void SetVisible(bool aVisible, ErrorResult& aRv) override;
 };
 
 // Script "scrollbars" object
-class ScrollbarsProp MOZ_FINAL : public BarProp
+class ScrollbarsProp final : public BarProp
 {
 public:
   explicit ScrollbarsProp(nsGlobalWindow *aWindow);
   virtual ~ScrollbarsProp();
 
-  virtual bool GetVisible(ErrorResult& aRv) MOZ_OVERRIDE;
-  virtual void SetVisible(bool aVisible, ErrorResult& aRv) MOZ_OVERRIDE;
+  virtual bool GetVisible(ErrorResult& aRv) override;
+  virtual void SetVisible(bool aVisible, ErrorResult& aRv) override;
 };
 
 } // namespace dom

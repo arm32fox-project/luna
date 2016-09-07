@@ -44,7 +44,7 @@ public:
 
 
 // hash entry class
-class nsClientAuthRememberEntry MOZ_FINAL : public PLDHashEntryHdr
+class nsClientAuthRememberEntry final : public PLDHashEntryHdr
 {
   public:
     // Hash methods
@@ -52,7 +52,7 @@ class nsClientAuthRememberEntry MOZ_FINAL : public PLDHashEntryHdr
     typedef const char* KeyTypePointer;
 
     // do nothing with aHost - we require mHead to be set before we're live!
-    nsClientAuthRememberEntry(KeyTypePointer aHostWithCertUTF8)
+    explicit nsClientAuthRememberEntry(KeyTypePointer aHostWithCertUTF8)
     {
     }
 
@@ -106,15 +106,14 @@ class nsClientAuthRememberEntry MOZ_FINAL : public PLDHashEntryHdr
     nsCString mHostWithCert;
 };
 
-class nsClientAuthRememberService MOZ_FINAL : public nsIObserver,
+class nsClientAuthRememberService final : public nsIObserver,
                                               public nsSupportsWeakReference
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIOBSERVER
 
   nsClientAuthRememberService();
-  ~nsClientAuthRememberService();
 
   nsresult Init();
 
@@ -131,6 +130,8 @@ public:
   static void ClearAllRememberedDecisions();
 
 protected:
+    ~nsClientAuthRememberService();
+
     mozilla::ReentrantMonitor monitor;
     nsTHashtable<nsClientAuthRememberEntry> mSettingsTable;
 

@@ -11,18 +11,25 @@
 #include "mozilla/TypeTraits.h"
 
 #include "ds/InlineMap.h"
-#include "js/HashTable.h"
+#include "gc/Barrier.h"
 #include "js/Vector.h"
 
+class JSAtom;
+
+typedef uintptr_t jsatomid;
+
 namespace js {
+
+class LifoAlloc;
+
 namespace frontend {
 
 class DefinitionSingle;
 class DefinitionList;
 
-typedef InlineMap<JSAtom *, jsatomid, 24> AtomIndexMap;
-typedef InlineMap<JSAtom *, DefinitionSingle, 24> AtomDefnMap;
-typedef InlineMap<JSAtom *, DefinitionList, 24> AtomDefnListMap;
+typedef InlineMap<JSAtom*, jsatomid, 24> AtomIndexMap;
+typedef InlineMap<JSAtom*, DefinitionSingle, 24> AtomDefnMap;
+typedef InlineMap<JSAtom*, DefinitionList, 24> AtomDefnListMap;
 
 /*
  * For all unmapped atoms recorded in al, add a mapping from the atom's index
@@ -30,7 +37,7 @@ typedef InlineMap<JSAtom *, DefinitionList, 24> AtomDefnListMap;
  * the list and map->vector must point to pre-allocated memory.
  */
 void
-InitAtomMap(JSContext *cx, AtomIndexMap *indices, HeapPtr<JSAtom> *atoms);
+InitAtomMap(AtomIndexMap* indices, HeapPtrAtom* atoms);
 
 /*
  * A pool that permits the reuse of the backing storage for the defn, index, or
@@ -41,40 +48,47 @@ InitAtomMap(JSContext *cx, AtomIndexMap *indices, HeapPtr<JSAtom> *atoms);
  */
 class ParseMapPool
 {
-    typedef Vector<void *, 32, SystemAllocPolicy> RecyclableMaps;
+    typedef Vector<void*, 32, SystemAllocPolicy> RecyclableMaps;
 
     RecyclableMaps      all;
     RecyclableMaps      recyclable;
 
     void checkInvariants();
 
-    void recycle(void *map) {
-        JS_ASSERT(map);
+    void recycle(void* map) {
+        MOZ_ASSERT(map);
 #ifdef DEBUG
         bool ok = false;
         /* Make sure the map is in |all| but not already in |recyclable|. */
-        for (void **it = all.begin(), **end = all.end(); it != end; ++it) {
+        for (void** it = all.begin(), **end = all.end(); it != end; ++it) {
             if (*it == map) {
                 ok = true;
                 break;
             }
         }
-        JS_ASSERT(ok);
-        for (void **it = recyclable.begin(), **end = recyclable.end(); it != end; ++it)
-            JS_ASSERT(*it != map);
+        MOZ_ASSERT(ok);
+        for (void** it = recyclable.begin(), **end = recyclable.end(); it != end; ++it)
+            MOZ_ASSERT(*it != map);
 #endif
-        JS_ASSERT(recyclable.length() < all.length());
+        MOZ_ASSERT(recyclable.length() < all.length());
         recyclable.infallibleAppend(map); /* Reserved in allocateFresh. */
     }
 
-    void *allocateFresh();
-    void *allocate();
+    void* allocateFresh();
+    void* allocate() {
+        if (recyclable.empty())
+            return allocateFresh();
+
+        void* map = recyclable.popCopy();
+        asAtomMap(map)->clear();
+        return map;
+    }
 
     /* Arbitrary atom map type, that has keys and values of the same kind. */
     typedef AtomIndexMap AtomMapT;
 
-    static AtomMapT *asAtomMap(void *ptr) {
-        return reinterpret_cast<AtomMapT *>(ptr);
+    static AtomMapT* asAtomMap(void* ptr) {
+        return reinterpret_cast<AtomMapT*>(ptr);
     }
 
   public:
@@ -90,20 +104,22 @@ class ParseMapPool
 
     /* Fallibly aquire one of the supported map types from the pool. */
     template <typename T>
-    T *acquire();
+    T* acquire() {
+        return reinterpret_cast<T*>(allocate());
+    }
 
     /* Release one of the supported map types back to the pool. */
 
-    void release(AtomIndexMap *map) {
-        recycle((void *) map);
+    void release(AtomIndexMap* map) {
+        recycle((void*) map);
     }
 
-    void release(AtomDefnMap *map) {
-        recycle((void *) map);
+    void release(AtomDefnMap* map) {
+        recycle((void*) map);
     }
 
-    void release(AtomDefnListMap *map) {
-        recycle((void *) map);
+    void release(AtomDefnListMap* map) {
+        recycle((void*) map);
     }
 }; /* ParseMapPool */
 
@@ -114,21 +130,21 @@ class ParseMapPool
 template <class Map>
 struct AtomThingMapPtr
 {
-    Map *map_;
+    Map* map_;
 
     void init() { clearMap(); }
 
-    bool ensureMap(JSContext *cx);
-    void releaseMap(JSContext *cx);
+    bool ensureMap(ExclusiveContext* cx);
+    void releaseMap(ExclusiveContext* cx);
 
     bool hasMap() const { return map_; }
-    Map *getMap() { return map_; }
-    void setMap(Map *newMap) { JS_ASSERT(!map_); map_ = newMap; }
-    void clearMap() { map_ = NULL; }
+    Map* getMap() { return map_; }
+    void setMap(Map* newMap) { MOZ_ASSERT(!map_); map_ = newMap; }
+    void clearMap() { map_ = nullptr; }
 
-    Map *operator->() { return map_; }
-    const Map *operator->() const { return map_; }
-    Map &operator*() const { return *map_; }
+    Map* operator->() { return map_; }
+    const Map* operator->() const { return map_; }
+    Map& operator*() const { return *map_; }
 };
 
 typedef AtomThingMapPtr<AtomIndexMap> AtomIndexMapPtr;
@@ -140,10 +156,10 @@ typedef AtomThingMapPtr<AtomIndexMap> AtomIndexMapPtr;
 template <typename AtomThingMapPtrT>
 class OwnedAtomThingMapPtr : public AtomThingMapPtrT
 {
-    JSContext *cx;
+    ExclusiveContext* cx;
 
   public:
-    explicit OwnedAtomThingMapPtr(JSContext *cx) : cx(cx) {
+    explicit OwnedAtomThingMapPtr(ExclusiveContext* cx) : cx(cx) {
         AtomThingMapPtrT::init();
     }
 
@@ -186,8 +202,8 @@ class DefinitionSingle
 struct AtomDefnMapPtr : public AtomThingMapPtr<AtomDefnMap>
 {
     template <typename ParseHandler>
-    JS_ALWAYS_INLINE
-    typename ParseHandler::DefinitionNode lookupDefn(JSAtom *atom) {
+    MOZ_ALWAYS_INLINE
+    typename ParseHandler::DefinitionNode lookupDefn(JSAtom* atom) {
         AtomDefnMap::Ptr p = map_->lookup(atom);
         return p ? p.value().get<ParseHandler>() : ParseHandler::nullDefinition();
     }
@@ -219,48 +235,48 @@ class DefinitionList
     struct Node
     {
         uintptr_t bits;
-        Node *next;
+        Node* next;
 
-        Node(uintptr_t bits, Node *next) : bits(bits), next(next) {}
+        Node(uintptr_t bits, Node* next) : bits(bits), next(next) {}
     };
 
     union {
         uintptr_t bits;
-        Node *head;
+        Node* head;
     } u;
 
-    Node *firstNode() const {
-        JS_ASSERT(isMultiple());
-        return (Node *) (u.bits & ~0x1);
+    Node* firstNode() const {
+        MOZ_ASSERT(isMultiple());
+        return (Node*) (u.bits & ~0x1);
     }
 
-    static Node *
-    allocNode(JSContext *cx, uintptr_t bits, Node *tail);
-            
+    static Node*
+    allocNode(ExclusiveContext* cx, LifoAlloc& alloc, uintptr_t bits, Node* tail);
+
   public:
     class Range
     {
         friend class DefinitionList;
 
-        Node *node;
+        Node* node;
         uintptr_t bits;
 
-        explicit Range(const DefinitionList &list) {
+        explicit Range(const DefinitionList& list) {
             if (list.isMultiple()) {
                 node = list.firstNode();
                 bits = node->bits;
             } else {
-                node = NULL;
+                node = nullptr;
                 bits = list.u.bits;
             }
         }
 
       public:
         /* An empty Range. */
-        Range() : node(NULL), bits(0) {}
+        Range() : node(nullptr), bits(0) {}
 
         void popFront() {
-            JS_ASSERT(!empty());
+            MOZ_ASSERT(!empty());
             if (!node) {
                 bits = 0;
                 return;
@@ -271,12 +287,12 @@ class DefinitionList
 
         template <typename ParseHandler>
         typename ParseHandler::DefinitionNode front() {
-            JS_ASSERT(!empty());
+            MOZ_ASSERT(!empty());
             return ParseHandler::definitionFromBits(bits);
         }
 
         bool empty() const {
-            JS_ASSERT_IF(!bits, !node);
+            MOZ_ASSERT_IF(!bits, !node);
             return !bits;
         }
     };
@@ -287,13 +303,13 @@ class DefinitionList
 
     explicit DefinitionList(uintptr_t bits) {
         u.bits = bits;
-        JS_ASSERT(!isMultiple());
+        MOZ_ASSERT(!isMultiple());
     }
 
-    explicit DefinitionList(Node *node) {
+    explicit DefinitionList(Node* node) {
         u.head = node;
         u.bits |= 0x1;
-        JS_ASSERT(isMultiple());
+        MOZ_ASSERT(isMultiple());
     }
 
     bool isMultiple() const { return (u.bits & 0x1) != 0; }
@@ -312,8 +328,8 @@ class DefinitionList
         if (!isMultiple())
             return false;
 
-        Node *node = firstNode();
-        Node *next = node->next;
+        Node* node = firstNode();
+        Node* next = node->next;
         if (next->next)
             *this = DefinitionList(next);
         else
@@ -327,17 +343,18 @@ class DefinitionList
      * Return true on success. On OOM, report on cx and return false.
      */
     template <typename ParseHandler>
-    bool pushFront(JSContext *cx, typename ParseHandler::DefinitionNode defn) {
-        Node *tail;
+    bool pushFront(ExclusiveContext* cx, LifoAlloc& alloc,
+                   typename ParseHandler::DefinitionNode defn) {
+        Node* tail;
         if (isMultiple()) {
             tail = firstNode();
         } else {
-            tail = allocNode(cx, u.bits, NULL);
+            tail = allocNode(cx, alloc, u.bits, nullptr);
             if (!tail)
                 return false;
         }
 
-        Node *node = allocNode(cx, ParseHandler::definitionToBits(defn), tail);
+        Node* node = allocNode(cx, alloc, ParseHandler::definitionToBits(defn), tail);
         if (!node)
             return false;
         *this = DefinitionList(node);
@@ -360,11 +377,20 @@ class DefinitionList
 #endif
 };
 
+typedef AtomDefnMap::Range      AtomDefnRange;
+typedef AtomDefnMap::AddPtr     AtomDefnAddPtr;
+typedef AtomDefnMap::Ptr        AtomDefnPtr;
+typedef AtomIndexMap::AddPtr    AtomIndexAddPtr;
+typedef AtomIndexMap::Ptr       AtomIndexPtr;
+typedef AtomDefnListMap::Ptr    AtomDefnListPtr;
+typedef AtomDefnListMap::AddPtr AtomDefnListAddPtr;
+typedef AtomDefnListMap::Range  AtomDefnListRange;
+
 /*
  * AtomDecls is a map of atoms to (sequences of) Definitions. It is used by
  * ParseContext to store declarations. A declaration associates a name with a
  * Definition.
- * 
+ *
  * Declarations with function scope (such as const, var, and function) are
  * unique in the sense that they override any previous declarations with the
  * same name. For such declarations, we only need to store a single Definition,
@@ -386,14 +412,17 @@ class AtomDecls
     /* AtomDeclsIter needs to get at the DefnListMap directly. */
     friend class AtomDeclsIter;
 
-    JSContext   *cx;
-    AtomDefnListMap  *map;
+    ExclusiveContext* cx;
+    LifoAlloc& alloc;
+    AtomDefnListMap* map;
 
-    AtomDecls(const AtomDecls &other) MOZ_DELETE;
-    void operator=(const AtomDecls &other) MOZ_DELETE;
+    AtomDecls(const AtomDecls& other) = delete;
+    void operator=(const AtomDecls& other) = delete;
 
   public:
-    explicit AtomDecls(JSContext *cx) : cx(cx), map(NULL) {}
+    explicit AtomDecls(ExclusiveContext* cx, LifoAlloc& alloc) : cx(cx),
+                                                                 alloc(alloc),
+                                                                 map(nullptr) {}
 
     ~AtomDecls();
 
@@ -404,31 +433,51 @@ class AtomDecls
     }
 
     /* Return the definition at the head of the chain for |atom|. */
-    inline DefinitionNode lookupFirst(JSAtom *atom) const;
+    DefinitionNode lookupFirst(JSAtom* atom) const {
+        MOZ_ASSERT(map);
+        AtomDefnListPtr p = map->lookup(atom);
+        if (!p)
+            return ParseHandler::nullDefinition();
+        return p.value().front<ParseHandler>();
+    }
 
     /* Perform a lookup that can iterate over the definitions associated with |atom|. */
-    inline DefinitionList::Range lookupMulti(JSAtom *atom) const;
+    DefinitionList::Range lookupMulti(JSAtom* atom) const {
+        MOZ_ASSERT(map);
+        if (AtomDefnListPtr p = map->lookup(atom))
+            return p.value().all();
+        return DefinitionList::Range();
+    }
 
     /* Add-or-update a known-unique definition for |atom|. */
-    inline bool addUnique(JSAtom *atom, DefinitionNode defn);
-    bool addShadow(JSAtom *atom, DefinitionNode defn);
+    bool addUnique(JSAtom* atom, DefinitionNode defn) {
+        MOZ_ASSERT(map);
+        AtomDefnListAddPtr p = map->lookupForAdd(atom);
+        if (!p)
+            return map->add(p, atom, DefinitionList(ParseHandler::definitionToBits(defn)));
+        MOZ_ASSERT(!p.value().isMultiple());
+        p.value() = DefinitionList(ParseHandler::definitionToBits(defn));
+        return true;
+    }
+
+    bool addShadow(JSAtom* atom, DefinitionNode defn);
 
     /* Updating the definition for an entry that is known to exist is infallible. */
-    void updateFirst(JSAtom *atom, DefinitionNode defn) {
-        JS_ASSERT(map);
+    void updateFirst(JSAtom* atom, DefinitionNode defn) {
+        MOZ_ASSERT(map);
         AtomDefnListMap::Ptr p = map->lookup(atom);
-        JS_ASSERT(p);
+        MOZ_ASSERT(p);
         p.value().setFront<ParseHandler>(defn);
     }
 
     /* Remove the node at the head of the chain for |atom|. */
-    void remove(JSAtom *atom) {
-        JS_ASSERT(map);
+    void remove(JSAtom* atom) {
+        MOZ_ASSERT(map);
         AtomDefnListMap::Ptr p = map->lookup(atom);
         if (!p)
             return;
 
-        DefinitionList &list = p.value();
+        DefinitionList& list = p.value();
         if (!list.popFront()) {
             map->remove(p);
             return;
@@ -436,7 +485,7 @@ class AtomDecls
     }
 
     AtomDefnListMap::Range all() const {
-        JS_ASSERT(map);
+        MOZ_ASSERT(map);
         return map->all();
     }
 
@@ -444,15 +493,6 @@ class AtomDecls
     void dump();
 #endif
 };
-
-typedef AtomDefnMap::Range      AtomDefnRange;
-typedef AtomDefnMap::AddPtr     AtomDefnAddPtr;
-typedef AtomDefnMap::Ptr        AtomDefnPtr;
-typedef AtomIndexMap::AddPtr    AtomIndexAddPtr;
-typedef AtomIndexMap::Ptr       AtomIndexPtr;
-typedef AtomDefnListMap::Ptr    AtomDefnListPtr;
-typedef AtomDefnListMap::AddPtr AtomDefnListAddPtr;
-typedef AtomDefnListMap::Range  AtomDefnListRange;
 
 } /* namespace frontend */
 

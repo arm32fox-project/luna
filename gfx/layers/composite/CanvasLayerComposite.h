@@ -6,16 +6,20 @@
 #ifndef GFX_CanvasLayerComposite_H
 #define GFX_CanvasLayerComposite_H
 
-
-#include "mozilla/layers/LayerManagerComposite.h"
-#include "gfxASurface.h"
-#if defined(MOZ_WIDGET_GTK2) && !defined(MOZ_PLATFORM_MAEMO)
-#include "mozilla/X11Util.h"
-#endif
+#include "Layers.h"                     // for CanvasLayer, etc
+#include "mozilla/Attributes.h"         // for override
+#include "mozilla/RefPtr.h"             // for RefPtr
+#include "mozilla/layers/LayerManagerComposite.h"  // for LayerComposite, etc
+#include "mozilla/layers/LayersTypes.h"  // for LayerRenderState, etc
+#include "nsDebug.h"                    // for NS_RUNTIMEABORT
+#include "nsRect.h"                     // for nsIntRect
+#include "nscore.h"                     // for nsACString
+struct nsIntPoint;
 
 namespace mozilla {
 namespace layers {
 
+class CompositableHost;
 // Canvas layers use ImageHosts (but CanvasClients) because compositing a
 // canvas is identical to compositing an image.
 class ImageHost;
@@ -24,46 +28,52 @@ class CanvasLayerComposite : public CanvasLayer,
                              public LayerComposite
 {
 public:
-  CanvasLayerComposite(LayerManagerComposite* aManager);
+  explicit CanvasLayerComposite(LayerManagerComposite* aManager);
 
+protected:
   virtual ~CanvasLayerComposite();
 
+public:
   // CanvasLayer impl
-  virtual void Initialize(const Data& aData) MOZ_OVERRIDE
+  virtual void Initialize(const Data& aData) override
   {
     NS_RUNTIMEABORT("Incompatibe surface type");
   }
 
-  virtual LayerRenderState GetRenderState() MOZ_OVERRIDE;
+  virtual LayerRenderState GetRenderState() override;
 
-  virtual void SetCompositableHost(CompositableHost* aHost) MOZ_OVERRIDE;
+  virtual bool SetCompositableHost(CompositableHost* aHost) override;
 
-  virtual void Disconnect() MOZ_OVERRIDE
+  virtual void Disconnect() override
   {
     Destroy();
   }
 
-  virtual Layer* GetLayer() MOZ_OVERRIDE;
-  virtual void RenderLayer(const nsIntPoint& aOffset,
-                           const nsIntRect& aClipRect) MOZ_OVERRIDE;
+  virtual void SetLayerManager(LayerManagerComposite* aManager) override;
 
-  virtual void CleanupResources() MOZ_OVERRIDE;
+  virtual Layer* GetLayer() override;
+  virtual void RenderLayer(const nsIntRect& aClipRect) override;
 
-  CompositableHost* GetCompositableHost() MOZ_OVERRIDE;
+  virtual void CleanupResources() override;
 
-  virtual LayerComposite* AsLayerComposite() MOZ_OVERRIDE { return this; }
+  virtual void GenEffectChain(EffectChain& aEffect) override;
+
+  CompositableHost* GetCompositableHost() override;
+
+  virtual LayerComposite* AsLayerComposite() override { return this; }
 
   void SetBounds(nsIntRect aBounds) { mBounds = aBounds; }
 
-#ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char* Name() const MOZ_OVERRIDE { return "CanvasLayerComposite"; }
+  virtual const char* Name() const override { return "CanvasLayerComposite"; }
 
 protected:
-  virtual nsACString& PrintInfo(nsACString& aTo, const char* aPrefix) MOZ_OVERRIDE;
-#endif
+  virtual void PrintInfo(std::stringstream& aStream, const char* aPrefix) override;
 
 private:
-  RefPtr<ImageHost> mImageHost;
+  gfx::Filter GetEffectFilter();
+
+private:
+  RefPtr<CompositableHost> mImageHost;
 };
 
 } /* layers */

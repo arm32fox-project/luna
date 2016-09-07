@@ -4,1026 +4,1682 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/basictypes.h"
-
 #include "IDBDatabase.h"
 
-#include "DictionaryHelpers.h"
-#include "mozilla/Mutex.h"
-#include "mozilla/storage.h"
-#include "mozilla/dom/ContentParent.h"
-#include "mozilla/dom/quota/Client.h"
-#include "mozilla/dom/quota/QuotaManager.h"
-#include "nsContentUtils.h"
-#include "nsDOMClassInfo.h"
-#include "nsDOMLists.h"
-#include "nsJSUtils.h"
-#include "nsProxyRelease.h"
-#include "nsThreadUtils.h"
-
-#include "AsyncConnectionHelper.h"
-#include "DatabaseInfo.h"
+#include "FileInfo.h"
+#include "FileManager.h"
 #include "IDBEvents.h"
 #include "IDBFactory.h"
-#include "IDBFileHandle.h"
 #include "IDBIndex.h"
+#include "IDBMutableFile.h"
 #include "IDBObjectStore.h"
+#include "IDBRequest.h"
 #include "IDBTransaction.h"
 #include "IDBFactory.h"
-#include "ProfilerHelpers.h"
-#include "TransactionThreadPool.h"
-
-#include "ipc/IndexedDBChild.h"
-#include "ipc/IndexedDBParent.h"
-
+#include "IndexedDatabaseManager.h"
+#include "mozilla/ErrorResult.h"
+#include "mozilla/EventDispatcher.h"
+#include "MainThreadUtils.h"
+#include "mozilla/Services.h"
+#include "mozilla/storage.h"
+#include "mozilla/dom/BindingDeclarations.h"
+#include "mozilla/dom/DOMStringList.h"
+#include "mozilla/dom/DOMStringListBinding.h"
+#include "mozilla/dom/File.h"
 #include "mozilla/dom/IDBDatabaseBinding.h"
+#include "mozilla/dom/IDBObjectStoreBinding.h"
+#include "mozilla/dom/indexedDB/PBackgroundIDBDatabaseFileChild.h"
+#include "mozilla/dom/indexedDB/PBackgroundIDBSharedTypes.h"
+#include "mozilla/ipc/BackgroundChild.h"
+#include "mozilla/ipc/BackgroundUtils.h"
+#include "mozilla/dom/ipc/BlobChild.h"
+#include "mozilla/dom/ipc/nsIRemoteBlob.h"
+#include "mozilla/dom/quota/QuotaManager.h"
+#include "mozilla/ipc/FileDescriptor.h"
+#include "mozilla/ipc/InputStreamParams.h"
+#include "mozilla/ipc/InputStreamUtils.h"
+#include "nsCOMPtr.h"
+#include "nsContentUtils.h"
+#include "nsIConsoleService.h"
+#include "nsIDocument.h"
+#include "nsIObserver.h"
+#include "nsIObserverService.h"
+#include "nsIScriptError.h"
+#include "nsISupportsPrimitives.h"
+#include "nsThreadUtils.h"
+#include "ProfilerHelpers.h"
+#include "ReportInternalError.h"
 
-USING_INDEXEDDB_NAMESPACE
-using mozilla::dom::ContentParent;
-using mozilla::dom::quota::AssertIsOnIOThread;
-using mozilla::dom::quota::Client;
-using mozilla::dom::quota::QuotaManager;
-using namespace mozilla::dom;
+// Include this last to avoid path problems on Windows.
+#include "ActorsChild.h"
+
+namespace mozilla {
+namespace dom {
+namespace indexedDB {
+
+using namespace mozilla::dom::quota;
+using namespace mozilla::ipc;
+using namespace mozilla::services;
 
 namespace {
 
-class NoRequestDatabaseHelper : public AsyncConnectionHelper
+const char kCycleCollectionObserverTopic[] = "cycle-collector-end";
+const char kMemoryPressureObserverTopic[] = "memory-pressure";
+const char kWindowObserverTopic[] = "inner-window-destroyed";
+
+class CancelableRunnableWrapper final
+  : public nsICancelableRunnable
 {
+  nsCOMPtr<nsIRunnable> mRunnable;
+
 public:
-  NoRequestDatabaseHelper(IDBTransaction* aTransaction)
-  : AsyncConnectionHelper(aTransaction, nullptr)
+  explicit
+  CancelableRunnableWrapper(nsIRunnable* aRunnable)
+    : mRunnable(aRunnable)
   {
-    NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-    NS_ASSERTION(aTransaction, "Null transaction!");
+    MOZ_ASSERT(aRunnable);
   }
 
-  virtual ChildProcessSendResult
-  SendResponseToChildProcess(nsresult aResultCode) MOZ_OVERRIDE;
-
-  virtual nsresult
-  UnpackResponseFromParentProcess(const ResponseValue& aResponseValue)
-                                  MOZ_OVERRIDE;
-
-  virtual nsresult OnSuccess() MOZ_OVERRIDE;
-
-  virtual void OnError() MOZ_OVERRIDE;
-};
-
-class CreateObjectStoreHelper : public NoRequestDatabaseHelper
-{
-public:
-  CreateObjectStoreHelper(IDBTransaction* aTransaction,
-                          IDBObjectStore* aObjectStore)
-  : NoRequestDatabaseHelper(aTransaction), mObjectStore(aObjectStore)
-  { }
-
-  virtual nsresult DoDatabaseWork(mozIStorageConnection* aConnection)
-                                  MOZ_OVERRIDE;
-
-  virtual void ReleaseMainThreadObjects() MOZ_OVERRIDE;
+  NS_DECL_ISUPPORTS
 
 private:
-  nsRefPtr<IDBObjectStore> mObjectStore;
-};
-
-class DeleteObjectStoreHelper : public NoRequestDatabaseHelper
-{
-public:
-  DeleteObjectStoreHelper(IDBTransaction* aTransaction,
-                          int64_t aObjectStoreId)
-  : NoRequestDatabaseHelper(aTransaction), mObjectStoreId(aObjectStoreId)
+  ~CancelableRunnableWrapper()
   { }
 
-  virtual nsresult DoDatabaseWork(mozIStorageConnection* aConnection)
-                                  MOZ_OVERRIDE;
-
-private:
-  // In-params.
-  int64_t mObjectStoreId;
+  NS_DECL_NSIRUNNABLE
+  NS_DECL_NSICANCELABLERUNNABLE
 };
 
-class CreateFileHelper : public AsyncConnectionHelper
+// XXX This should either be ported to PBackground or removed someday.
+class CreateFileHelper final
+  : public nsRunnable
 {
+  nsRefPtr<IDBDatabase> mDatabase;
+  nsRefPtr<IDBRequest> mRequest;
+  nsRefPtr<FileInfo> mFileInfo;
+
+  const nsString mName;
+  const nsString mType;
+  const nsString mDatabaseName;
+  const nsCString mOrigin;
+
+  const PersistenceType mPersistenceType;
+
+  nsresult mResultCode;
+
 public:
+  static nsresult
+  CreateAndDispatch(IDBDatabase* aDatabase,
+                    IDBRequest* aRequest,
+                    const nsAString& aName,
+                    const nsAString& aType);
+
+  NS_DECL_ISUPPORTS_INHERITED
+
+private:
   CreateFileHelper(IDBDatabase* aDatabase,
                    IDBRequest* aRequest,
                    const nsAString& aName,
-                   const nsAString& aType)
-  : AsyncConnectionHelper(aDatabase, aRequest),
-    mName(aName), mType(aType)
-  { }
+                   const nsAString& aType,
+                   const nsACString& aOrigin);
 
   ~CreateFileHelper()
-  { }
-
-  nsresult DoDatabaseWork(mozIStorageConnection* aConnection);
-  nsresult GetSuccessResult(JSContext* aCx,
-                            JS::MutableHandle<JS::Value> aVal);
-  void ReleaseMainThreadObjects()
   {
-    mFileInfo = nullptr;
-    AsyncConnectionHelper::ReleaseMainThreadObjects();
+    MOZ_ASSERT(IndexedDatabaseManager::IsMainProcess());
   }
 
-  virtual ChildProcessSendResult SendResponseToChildProcess(
-                                                           nsresult aResultCode)
-                                                           MOZ_OVERRIDE
-  {
-    return Success_NotSent;
-  }
+  nsresult
+  DoDatabaseWork();
 
-  virtual nsresult UnpackResponseFromParentProcess(
-                                            const ResponseValue& aResponseValue)
-                                            MOZ_OVERRIDE
-  {
-    MOZ_NOT_REACHED("Should never get here!");
-    return NS_ERROR_UNEXPECTED;
-  }
+  void
+  DoMainThreadWork(nsresult aResultCode);
 
-private:
-  // In-params.
-  nsString mName;
-  nsString mType;
-
-  // Out-params.
-  nsRefPtr<FileInfo> mFileInfo;
+  NS_DECL_NSIRUNNABLE
 };
 
-class MOZ_STACK_CLASS AutoRemoveObjectStore
+class DatabaseFile final
+  : public PBackgroundIDBDatabaseFileChild
 {
+  IDBDatabase* mDatabase;
+
 public:
-  AutoRemoveObjectStore(DatabaseInfo* aInfo, const nsAString& aName)
-  : mInfo(aInfo), mName(aName)
-  { }
-
-  ~AutoRemoveObjectStore()
+  explicit DatabaseFile(IDBDatabase* aDatabase)
+    : mDatabase(aDatabase)
   {
-    if (mInfo) {
-      mInfo->RemoveObjectStore(mName);
-    }
-  }
+    MOZ_ASSERT(aDatabase);
+    aDatabase->AssertIsOnOwningThread();
 
-  void forget()
-  {
-    mInfo = nullptr;
+    MOZ_COUNT_CTOR(DatabaseFile);
   }
 
 private:
-  DatabaseInfo* mInfo;
-  nsString mName;
+  ~DatabaseFile()
+  {
+    MOZ_ASSERT(!mDatabase);
+
+    MOZ_COUNT_DTOR(DatabaseFile);
+  }
+
+  virtual void
+  ActorDestroy(ActorDestroyReason aWhy) override
+  {
+    MOZ_ASSERT(mDatabase);
+    mDatabase->AssertIsOnOwningThread();
+
+    if (aWhy != Deletion) {
+      nsRefPtr<IDBDatabase> database = mDatabase;
+      database->NoteFinishedFileActor(this);
+    }
+
+#ifdef DEBUG
+    mDatabase = nullptr;
+#endif
+  }
 };
 
 } // anonymous namespace
+
+class IDBDatabase::LogWarningRunnable final
+  : public nsRunnable
+{
+  nsCString mMessageName;
+  nsString mFilename;
+  uint32_t mLineNumber;
+  uint64_t mInnerWindowID;
+  bool mIsChrome;
+
+public:
+  LogWarningRunnable(const char* aMessageName,
+                     const nsAString& aFilename,
+                     uint32_t aLineNumber,
+                     bool aIsChrome,
+                     uint64_t aInnerWindowID)
+    : mMessageName(aMessageName)
+    , mFilename(aFilename)
+    , mLineNumber(aLineNumber)
+    , mInnerWindowID(aInnerWindowID)
+    , mIsChrome(aIsChrome)
+  {
+    MOZ_ASSERT(!NS_IsMainThread());
+  }
+
+  static void
+  LogWarning(const char* aMessageName,
+             const nsAString& aFilename,
+             uint32_t aLineNumber,
+             bool aIsChrome,
+             uint64_t aInnerWindowID);
+
+  NS_DECL_ISUPPORTS_INHERITED
+
+private:
+  ~LogWarningRunnable()
+  { }
+
+  NS_DECL_NSIRUNNABLE
+};
+
+class IDBDatabase::Observer final
+  : public nsIObserver
+{
+  IDBDatabase* mWeakDatabase;
+  const uint64_t mWindowId;
+
+public:
+  Observer(IDBDatabase* aDatabase, uint64_t aWindowId)
+    : mWeakDatabase(aDatabase)
+    , mWindowId(aWindowId)
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_ASSERT(aDatabase);
+  }
+
+  void
+  Revoke()
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+
+    mWeakDatabase = nullptr;
+  }
+
+  NS_DECL_ISUPPORTS
+
+private:
+  ~Observer()
+  {
+    MOZ_ASSERT(NS_IsMainThread());
+    MOZ_ASSERT(!mWeakDatabase);
+  }
+
+  NS_DECL_NSIOBSERVER
+};
+
+IDBDatabase::IDBDatabase(IDBWrapperCache* aOwnerCache,
+                         IDBFactory* aFactory,
+                         BackgroundDatabaseChild* aActor,
+                         DatabaseSpec* aSpec)
+  : IDBWrapperCache(aOwnerCache)
+  , mFactory(aFactory)
+  , mSpec(aSpec)
+  , mBackgroundActor(aActor)
+  , mClosed(false)
+  , mInvalidated(false)
+{
+  MOZ_ASSERT(aOwnerCache);
+  MOZ_ASSERT(aFactory);
+  aFactory->AssertIsOnOwningThread();
+  MOZ_ASSERT(aActor);
+  MOZ_ASSERT(aSpec);
+}
+
+IDBDatabase::~IDBDatabase()
+{
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(!mBackgroundActor);
+}
 
 // static
 already_AddRefed<IDBDatabase>
 IDBDatabase::Create(IDBWrapperCache* aOwnerCache,
                     IDBFactory* aFactory,
-                    already_AddRefed<DatabaseInfo> aDatabaseInfo,
-                    const nsACString& aASCIIOrigin,
-                    FileManager* aFileManager,
-                    mozilla::dom::ContentParent* aContentParent)
+                    BackgroundDatabaseChild* aActor,
+                    DatabaseSpec* aSpec)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(aFactory, "Null pointer!");
-  NS_ASSERTION(!aASCIIOrigin.IsEmpty(), "Empty origin!");
+  MOZ_ASSERT(aOwnerCache);
+  MOZ_ASSERT(aFactory);
+  aFactory->AssertIsOnOwningThread();
+  MOZ_ASSERT(aActor);
+  MOZ_ASSERT(aSpec);
 
-  nsRefPtr<DatabaseInfo> databaseInfo(aDatabaseInfo);
-  NS_ASSERTION(databaseInfo, "Null pointer!");
+  nsRefPtr<IDBDatabase> db =
+    new IDBDatabase(aOwnerCache, aFactory, aActor, aSpec);
 
-  nsRefPtr<IDBDatabase> db(new IDBDatabase());
-
-  db->BindToOwner(aOwnerCache);
   db->SetScriptOwner(aOwnerCache->GetScriptOwner());
-  db->mFactory = aFactory;
-  db->mDatabaseId = databaseInfo->id;
-  db->mName = databaseInfo->name;
-  db->mFilePath = databaseInfo->filePath;
-  databaseInfo.swap(db->mDatabaseInfo);
-  db->mASCIIOrigin = aASCIIOrigin;
-  db->mFileManager = aFileManager;
-  db->mContentParent = aContentParent;
 
-  QuotaManager* quotaManager = QuotaManager::Get();
-  NS_ASSERTION(quotaManager, "This should never be null!");
+  if (NS_IsMainThread()) {
+    if (nsPIDOMWindow* window = aFactory->GetParentObject()) {
+      MOZ_ASSERT(window->IsInnerWindow());
 
-  db->mQuotaClient = quotaManager->GetClient(Client::IDB);
-  NS_ASSERTION(db->mQuotaClient, "This shouldn't fail!");
+      uint64_t windowId = window->WindowID();
 
-  if (!quotaManager->RegisterStorage(db)) {
-    // Either out of memory or shutting down.
-    return nullptr;
+      nsRefPtr<Observer> observer = new Observer(db, windowId);
+
+      nsCOMPtr<nsIObserverService> obsSvc = GetObserverService();
+      MOZ_ASSERT(obsSvc);
+
+      // This topic must be successfully registered.
+      if (NS_WARN_IF(NS_FAILED(
+            obsSvc->AddObserver(observer, kWindowObserverTopic, false)))) {
+        observer->Revoke();
+        return nullptr;
+      }
+
+      // These topics are not crucial.
+      if (NS_FAILED(obsSvc->AddObserver(observer,
+                                        kCycleCollectionObserverTopic,
+                                        false)) ||
+          NS_FAILED(obsSvc->AddObserver(observer,
+                                        kMemoryPressureObserverTopic,
+                                        false))) {
+        NS_WARNING("Failed to add additional memory observers!");
+      }
+
+      db->mObserver.swap(observer);
+    }
   }
-
-  db->mRegistered = true;
 
   return db.forget();
 }
 
-// static
-IDBDatabase*
-IDBDatabase::FromStorage(nsIOfflineStorage* aStorage)
-{
-  return aStorage->GetClient()->GetType() == Client::IDB ?
-         static_cast<IDBDatabase*>(aStorage) : nullptr;
-}
-
-IDBDatabase::IDBDatabase()
-: mDatabaseId(0),
-  mActorChild(nullptr),
-  mActorParent(nullptr),
-  mContentParent(nullptr),
-  mInvalidated(false),
-  mRegistered(false),
-  mClosed(false),
-  mRunningVersionChange(false)
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-}
-
-IDBDatabase::~IDBDatabase()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  NS_ASSERTION(!mActorParent, "Actor parent owns us, how can we be dying?!");
-  if (mActorChild) {
-    NS_ASSERTION(!IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-    mActorChild->Send__delete__(mActorChild);
-    NS_ASSERTION(!mActorChild, "Should have cleared in Send__delete__!");
-  }
-
-  if (mRegistered) {
-    CloseInternal(true);
-
-    QuotaManager* quotaManager = QuotaManager::Get();
-    if (quotaManager) {
-      quotaManager->UnregisterStorage(this);
-    }
-  }
-}
-
-NS_IMETHODIMP_(void)
-IDBDatabase::Invalidate()
-{
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  if (IsInvalidated()) {
-    return;
-  }
-
-  mInvalidated = true;
-
-  // Make sure we're closed too.
-  Close();
-
-  // When the IndexedDatabaseManager needs to invalidate databases, all it has
-  // is an origin, so we call into the quota manager here to cancel any prompts
-  // for our owner.
-  nsPIDOMWindow* owner = GetOwner();
-  if (owner) {
-    QuotaManager::CancelPromptsForWindow(owner);
-  }
-
-  DatabaseInfo::Remove(mDatabaseId);
-
-  // And let the child process know as well.
-  if (mActorParent) {
-    NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-    mActorParent->Invalidate();
-  }
-}
+#ifdef DEBUG
 
 void
-IDBDatabase::DisconnectFromActorParent()
+IDBDatabase::AssertIsOnOwningThread() const
 {
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-
-  // Make sure we're closed too.
-  Close();
-
-  // Kill any outstanding prompts.
-  nsPIDOMWindow* owner = GetOwner();
-  if (owner) {
-    QuotaManager::CancelPromptsForWindow(owner);
-  }
+  MOZ_ASSERT(mFactory);
+  mFactory->AssertIsOnOwningThread();
 }
 
+#endif // DEBUG
+
 void
-IDBDatabase::CloseInternal(bool aIsDead)
+IDBDatabase::CloseInternal()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  AssertIsOnOwningThread();
 
   if (!mClosed) {
     mClosed = true;
 
-    // If we're getting called from Unlink, avoid cloning the DatabaseInfo.
-    {
-      nsRefPtr<DatabaseInfo> previousInfo;
-      mDatabaseInfo.swap(previousInfo);
+    ExpireFileActors(/* aExpireAll */ true);
 
-      if (!aIsDead) {
-        nsRefPtr<DatabaseInfo> clonedInfo = previousInfo->Clone();
+    if (mObserver) {
+      mObserver->Revoke();
 
-        clonedInfo.swap(mDatabaseInfo);
+      nsCOMPtr<nsIObserverService> obsSvc = GetObserverService();
+      if (obsSvc) {
+        // These might not have been registered.
+        obsSvc->RemoveObserver(mObserver, kCycleCollectionObserverTopic);
+        obsSvc->RemoveObserver(mObserver, kMemoryPressureObserverTopic);
+
+        MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
+          obsSvc->RemoveObserver(mObserver, kWindowObserverTopic)));
       }
+
+      mObserver = nullptr;
     }
 
-    QuotaManager* quotaManager = QuotaManager::Get();
-    if (quotaManager) {
-      quotaManager->OnStorageClosed(this);
-    }
-
-    // And let the parent process know as well.
-    if (mActorChild && !IsInvalidated()) {
-      NS_ASSERTION(!IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-      mActorChild->SendClose(aIsDead);
+    if (mBackgroundActor && !mInvalidated) {
+      mBackgroundActor->SendClose();
     }
   }
 }
 
-NS_IMETHODIMP_(bool)
-IDBDatabase::IsClosed()
+void
+IDBDatabase::InvalidateInternal()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  return mClosed;
+  AssertIsOnOwningThread();
+
+  InvalidateMutableFiles();
+  AbortTransactions(/* aShouldWarn */ true);
+
+  CloseInternal();
 }
 
 void
-IDBDatabase::EnterSetVersionTransaction()
+IDBDatabase::EnterSetVersionTransaction(uint64_t aNewVersion)
 {
-  NS_ASSERTION(!mRunningVersionChange, "How did that happen?");
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(aNewVersion);
+  MOZ_ASSERT(!RunningVersionChangeTransaction());
+  MOZ_ASSERT(mSpec);
+  MOZ_ASSERT(!mPreviousSpec);
 
-  mPreviousDatabaseInfo = mDatabaseInfo->Clone();
+  mPreviousSpec = new DatabaseSpec(*mSpec);
 
-  mRunningVersionChange = true;
+  mSpec->metadata().version() = aNewVersion;
 }
 
 void
 IDBDatabase::ExitSetVersionTransaction()
 {
-  NS_ASSERTION(mRunningVersionChange, "How did that happen?");
+  AssertIsOnOwningThread();
 
-  mPreviousDatabaseInfo = nullptr;
-
-  mRunningVersionChange = false;
+  if (mPreviousSpec) {
+    mPreviousSpec = nullptr;
+  }
 }
 
 void
 IDBDatabase::RevertToPreviousState()
 {
-  mDatabaseInfo = mPreviousDatabaseInfo;
-  mPreviousDatabaseInfo = nullptr;
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(RunningVersionChangeTransaction());
+  MOZ_ASSERT(mPreviousSpec);
+
+  // Hold the current spec alive until RefreshTransactionsSpecEnumerator has
+  // finished!
+  nsAutoPtr<DatabaseSpec> currentSpec(mSpec.forget());
+
+  mSpec = mPreviousSpec.forget();
+
+  RefreshSpec(/* aMayDelete */ true);
 }
 
 void
-IDBDatabase::OnUnlink()
+IDBDatabase::RefreshSpec(bool aMayDelete)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  AssertIsOnOwningThread();
 
-  // We've been unlinked, at the very least we should be able to prevent further
-  // transactions from starting and unblock any other SetVersion callers.
-  CloseInternal(true);
+  class MOZ_STACK_CLASS Helper final
+  {
+  public:
+    static PLDHashOperator
+    RefreshTransactionsSpec(nsPtrHashKey<IDBTransaction>* aTransaction,
+                            void* aClosure)
+    {
+      MOZ_ASSERT(aTransaction);
+      aTransaction->GetKey()->AssertIsOnOwningThread();
+      MOZ_ASSERT(aClosure);
 
-  // No reason for the QuotaManager to track us any longer.
-  QuotaManager* quotaManager = QuotaManager::Get();
-  if (quotaManager) {
-    quotaManager->UnregisterStorage(this);
+      bool mayDelete = *static_cast<bool*>(aClosure);
 
-    // Don't try to unregister again in the destructor.
-    mRegistered = false;
-  }
+      nsRefPtr<IDBTransaction> transaction = aTransaction->GetKey();
+      transaction->RefreshSpec(mayDelete);
+
+      return PL_DHASH_NEXT;
+    }
+  };
+
+  mTransactions.EnumerateEntries(Helper::RefreshTransactionsSpec, &aMayDelete);
 }
 
-nsresult
-IDBDatabase::CreateObjectStoreInternal(IDBTransaction* aTransaction,
-                                       const ObjectStoreInfoGuts& aInfo,
-                                       IDBObjectStore** _retval)
+nsPIDOMWindow*
+IDBDatabase::GetParentObject() const
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(aTransaction, "Null transaction!");
-
-  DatabaseInfo* databaseInfo = aTransaction->DBInfo();
-
-  nsRefPtr<ObjectStoreInfo> newInfo = new ObjectStoreInfo();
-  *static_cast<ObjectStoreInfoGuts*>(newInfo.get()) = aInfo;
-
-  newInfo->nextAutoIncrementId = aInfo.autoIncrement ? 1 : 0;
-  newInfo->comittedAutoIncrementId = newInfo->nextAutoIncrementId;
-
-  if (!databaseInfo->PutObjectStore(newInfo)) {
-    NS_WARNING("Put failed!");
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
-
-  // Don't leave this in the hash if we fail below!
-  AutoRemoveObjectStore autoRemove(databaseInfo, newInfo->name);
-
-  nsRefPtr<IDBObjectStore> objectStore =
-    aTransaction->GetOrCreateObjectStore(newInfo->name, newInfo, true);
-  NS_ENSURE_TRUE(objectStore, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  if (IndexedDatabaseManager::IsMainProcess()) {
-    nsRefPtr<CreateObjectStoreHelper> helper =
-      new CreateObjectStoreHelper(aTransaction, objectStore);
-
-    nsresult rv = helper->DispatchToTransactionPool();
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-  }
-
-  autoRemove.forget();
-
-  IDB_PROFILER_MARK("IndexedDB Pseudo-request: "
-                    "database(%s).transaction(%s).createObjectStore(%s)",
-                    "MT IDBDatabase.createObjectStore()",
-                    IDB_PROFILER_STRING(this),
-                    IDB_PROFILER_STRING(aTransaction),
-                    IDB_PROFILER_STRING(objectStore));
-
-  objectStore.forget(_retval);
-
-  return NS_OK;
+  return mFactory->GetParentObject();
 }
 
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBDatabase, IDBWrapperCache)
-  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFactory)
-NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
-
-NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBDatabase, IDBWrapperCache)
-  // Don't unlink mFactory!
-
-  // Do some cleanup.
-  tmp->OnUnlink();
-NS_IMPL_CYCLE_COLLECTION_UNLINK_END
-
-NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBDatabase)
-  NS_INTERFACE_MAP_ENTRY(nsIIDBDatabase)
-  NS_INTERFACE_MAP_ENTRY(nsIFileStorage)
-  NS_INTERFACE_MAP_ENTRY(nsIOfflineStorage)
-  NS_DOM_INTERFACE_MAP_ENTRY_CLASSINFO(IDBDatabase)
-NS_INTERFACE_MAP_END_INHERITING(IDBWrapperCache)
-
-NS_IMPL_ADDREF_INHERITED(IDBDatabase, IDBWrapperCache)
-NS_IMPL_RELEASE_INHERITED(IDBDatabase, IDBWrapperCache)
-
-DOMCI_DATA(IDBDatabase, IDBDatabase)
-
-NS_IMPL_EVENT_HANDLER(IDBDatabase, abort)
-NS_IMPL_EVENT_HANDLER(IDBDatabase, error)
-NS_IMPL_EVENT_HANDLER(IDBDatabase, versionchange)
-
-NS_IMETHODIMP
-IDBDatabase::GetName(nsAString& aName)
+const nsString&
+IDBDatabase::Name() const
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-  aName.Assign(mName);
-  return NS_OK;
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(mSpec);
+
+  return mSpec->metadata().name();
 }
 
-NS_IMETHODIMP
-IDBDatabase::GetVersion(uint64_t* aVersion)
+uint64_t
+IDBDatabase::Version() const
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(mSpec);
 
-  DatabaseInfo* info = Info();
-  *aVersion = info->version;
-
-  return NS_OK;
+  return mSpec->metadata().version();
 }
 
-NS_IMETHODIMP
-IDBDatabase::GetObjectStoreNames(nsIDOMDOMStringList** aObjectStores)
+already_AddRefed<DOMStringList>
+IDBDatabase::ObjectStoreNames() const
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(mSpec);
 
-  DatabaseInfo* info = Info();
+  const nsTArray<ObjectStoreSpec>& objectStores = mSpec->objectStores();
 
-  nsAutoTArray<nsString, 10> objectStoreNames;
-  if (!info->GetObjectStoreNames(objectStoreNames)) {
-    NS_WARNING("Couldn't get names!");
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  nsRefPtr<DOMStringList> list = new DOMStringList();
+
+  if (!objectStores.IsEmpty()) {
+    nsTArray<nsString>& listNames = list->StringArray();
+    listNames.SetCapacity(objectStores.Length());
+
+    for (uint32_t index = 0; index < objectStores.Length(); index++) {
+      listNames.InsertElementSorted(objectStores[index].metadata().name());
+    }
   }
 
-  nsRefPtr<nsDOMStringList> list(new nsDOMStringList());
-  uint32_t count = objectStoreNames.Length();
-  for (uint32_t index = 0; index < count; index++) {
-    NS_ENSURE_TRUE(list->Add(objectStoreNames[index]),
-                   NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-  }
-
-  list.forget(aObjectStores);
-  return NS_OK;
+  return list.forget();
 }
 
-NS_IMETHODIMP
-IDBDatabase::CreateObjectStore(const nsAString& aName,
-                               const jsval& aOptions,
-                               JSContext* aCx,
-                               nsIIDBObjectStore** _retval)
+already_AddRefed<nsIDocument>
+IDBDatabase::GetOwnerDocument() const
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  if (nsPIDOMWindow* window = GetOwner()) {
+    nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
+    return doc.forget();
+  }
+  return nullptr;
+}
 
-  IDBTransaction* transaction = AsyncConnectionHelper::GetCurrentTransaction();
+already_AddRefed<IDBObjectStore>
+IDBDatabase::CreateObjectStore(
+                            const nsAString& aName,
+                            const IDBObjectStoreParameters& aOptionalParameters,
+                            ErrorResult& aRv)
+{
+  AssertIsOnOwningThread();
+
+  IDBTransaction* transaction = IDBTransaction::GetCurrent();
 
   if (!transaction ||
       transaction->Database() != this ||
       transaction->GetMode() != IDBTransaction::VERSION_CHANGE) {
-    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
+    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
+    return nullptr;
   }
 
-  DatabaseInfo* databaseInfo = transaction->DBInfo();
-
-  RootedDictionary<IDBObjectStoreParameters> params(aCx);
-  JS::Rooted<JS::Value> options(aCx, aOptions);
-  if (!params.Init(aCx, options)) {
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-  }
+  MOZ_ASSERT(transaction->IsOpen());
 
   KeyPath keyPath(0);
-  if (NS_FAILED(KeyPath::Parse(aCx, params.mKeyPath, &keyPath))) {
-    return NS_ERROR_DOM_SYNTAX_ERR;
+  if (NS_FAILED(KeyPath::Parse(aOptionalParameters.mKeyPath, &keyPath))) {
+    aRv.Throw(NS_ERROR_DOM_SYNTAX_ERR);
+    return nullptr;
   }
 
-  if (databaseInfo->ContainsStoreName(aName)) {
-    return NS_ERROR_DOM_INDEXEDDB_CONSTRAINT_ERR;
+  nsTArray<ObjectStoreSpec>& objectStores = mSpec->objectStores();
+  for (uint32_t count = objectStores.Length(), index = 0;
+       index < count;
+       index++) {
+    if (aName == objectStores[index].metadata().name()) {
+      aRv.Throw(NS_ERROR_DOM_INDEXEDDB_CONSTRAINT_ERR);
+      return nullptr;
+    }
   }
 
-  if (!keyPath.IsAllowedForObjectStore(params.mAutoIncrement)) {
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+  if (!keyPath.IsAllowedForObjectStore(aOptionalParameters.mAutoIncrement)) {
+    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
+    return nullptr;
   }
 
-  ObjectStoreInfoGuts guts;
+  const ObjectStoreSpec* oldSpecElements =
+    objectStores.IsEmpty() ? nullptr : objectStores.Elements();
 
-  guts.name = aName;
-  guts.id = databaseInfo->nextObjectStoreId++;
-  guts.keyPath = keyPath;
-  guts.autoIncrement = params.mAutoIncrement;
+  ObjectStoreSpec* newSpec = objectStores.AppendElement();
+  newSpec->metadata() =
+    ObjectStoreMetadata(transaction->NextObjectStoreId(), nsString(aName),
+                        keyPath, aOptionalParameters.mAutoIncrement);
 
-  nsRefPtr<IDBObjectStore> objectStore;
-  nsresult rv = CreateObjectStoreInternal(transaction, guts,
-                                          getter_AddRefs(objectStore));
-  NS_ENSURE_SUCCESS(rv, rv);
+  if (oldSpecElements &&
+      oldSpecElements != objectStores.Elements()) {
+    MOZ_ASSERT(objectStores.Length() > 1);
 
-  objectStore.forget(_retval);
-  return NS_OK;
+    // Array got moved, update the spec pointers for all live objectStores and
+    // indexes.
+    RefreshSpec(/* aMayDelete */ false);
+  }
+
+  nsRefPtr<IDBObjectStore> objectStore =
+    transaction->CreateObjectStore(*newSpec);
+  MOZ_ASSERT(objectStore);
+
+  // Don't do this in the macro because we always need to increment the serial
+  // number to keep in sync with the parent.
+  const uint64_t requestSerialNumber = IDBRequest::NextSerialNumber();
+
+  IDB_LOG_MARK("IndexedDB %s: Child  Transaction[%lld] Request[%llu]: "
+                 "database(%s).transaction(%s).createObjectStore(%s)",
+               "IndexedDB %s: C T[%lld] R[%llu]: "
+                 "IDBDatabase.createObjectStore()",
+               IDB_LOG_ID_STRING(),
+               transaction->LoggingSerialNumber(),
+               requestSerialNumber,
+               IDB_LOG_STRINGIFY(this),
+               IDB_LOG_STRINGIFY(transaction),
+               IDB_LOG_STRINGIFY(objectStore));
+
+  return objectStore.forget();
 }
 
-NS_IMETHODIMP
-IDBDatabase::DeleteObjectStore(const nsAString& aName)
+void
+IDBDatabase::DeleteObjectStore(const nsAString& aName, ErrorResult& aRv)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  AssertIsOnOwningThread();
 
-  IDBTransaction* transaction = AsyncConnectionHelper::GetCurrentTransaction();
+  IDBTransaction* transaction = IDBTransaction::GetCurrent();
 
   if (!transaction ||
       transaction->Database() != this ||
       transaction->GetMode() != IDBTransaction::VERSION_CHANGE) {
-    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
+    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
+    return;
   }
 
-  DatabaseInfo* info = transaction->DBInfo();
-  ObjectStoreInfo* objectStoreInfo = info->GetObjectStore(aName);
-  if (!objectStoreInfo) {
-    return NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR;
+  MOZ_ASSERT(transaction->IsOpen());
+
+  nsTArray<ObjectStoreSpec>& specArray = mSpec->objectStores();
+
+  int64_t objectStoreId = 0;
+
+  for (uint32_t specCount = specArray.Length(), specIndex = 0;
+       specIndex < specCount;
+       specIndex++) {
+    const ObjectStoreMetadata& metadata = specArray[specIndex].metadata();
+    MOZ_ASSERT(metadata.id());
+
+    if (aName == metadata.name()) {
+      objectStoreId = metadata.id();
+
+      // Must do this before altering the metadata array!
+      transaction->DeleteObjectStore(objectStoreId);
+
+      specArray.RemoveElementAt(specIndex);
+
+      RefreshSpec(/* aMayDelete */ false);
+      break;
+    }
   }
 
-  nsresult rv;
-
-  if (IndexedDatabaseManager::IsMainProcess()) {
-    nsRefPtr<DeleteObjectStoreHelper> helper =
-      new DeleteObjectStoreHelper(transaction, objectStoreInfo->id);
-
-    rv = helper->DispatchToTransactionPool();
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-  }
-  else {
-    IndexedDBTransactionChild* actor = transaction->GetActorChild();
-    NS_ASSERTION(actor, "Must have an actor here!");
-
-    actor->SendDeleteObjectStore(nsString(aName));
+  if (!objectStoreId) {
+    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR);
+    return;
   }
 
-  transaction->RemoveObjectStore(aName);
+  // Don't do this in the macro because we always need to increment the serial
+  // number to keep in sync with the parent.
+  const uint64_t requestSerialNumber = IDBRequest::NextSerialNumber();
 
-  IDB_PROFILER_MARK("IndexedDB Pseudo-request: "
-                    "database(%s).transaction(%s).deleteObjectStore(\"%s\")",
-                    "MT IDBDatabase.deleteObjectStore()",
-                    IDB_PROFILER_STRING(this),
-                    IDB_PROFILER_STRING(transaction),
-                    NS_ConvertUTF16toUTF8(aName).get());
-
-  return NS_OK;
+  IDB_LOG_MARK("IndexedDB %s: Child  Transaction[%lld] Request[%llu]: "
+                 "database(%s).transaction(%s).deleteObjectStore(\"%s\")",
+               "IndexedDB %s: C T[%lld] R[%llu]: "
+                 "IDBDatabase.deleteObjectStore()",
+               IDB_LOG_ID_STRING(),
+               transaction->LoggingSerialNumber(),
+               requestSerialNumber,
+               IDB_LOG_STRINGIFY(this),
+               IDB_LOG_STRINGIFY(transaction),
+               NS_ConvertUTF16toUTF8(aName).get());
 }
 
-NS_IMETHODIMP
-IDBDatabase::Transaction(const jsval& aStoreNames,
-                         const nsAString& aMode,
-                         JSContext* aCx,
-                         uint8_t aOptionalArgCount,
-                         nsIIDBTransaction** _retval)
+already_AddRefed<IDBTransaction>
+IDBDatabase::Transaction(const nsAString& aStoreName,
+                         IDBTransactionMode aMode,
+                         ErrorResult& aRv)
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  AssertIsOnOwningThread();
+
+  Sequence<nsString> storeNames;
+  if (!storeNames.AppendElement(aStoreName)) {
+    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+    return nullptr;
+  }
+
+  return Transaction(storeNames, aMode, aRv);
+}
+
+already_AddRefed<IDBTransaction>
+IDBDatabase::Transaction(const Sequence<nsString>& aStoreNames,
+                         IDBTransactionMode aMode,
+                         ErrorResult& aRv)
+{
+  AssertIsOnOwningThread();
 
   if (QuotaManager::IsShuttingDown()) {
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    IDB_REPORT_INTERNAL_ERR();
+    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    return nullptr;
   }
 
   if (mClosed) {
-    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
+    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
+    return nullptr;
   }
 
-  if (mRunningVersionChange) {
-    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
+  if (RunningVersionChangeTransaction()) {
+    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
+    return nullptr;
   }
 
-  IDBTransaction::Mode transactionMode = IDBTransaction::READ_ONLY;
-  if (aOptionalArgCount) {
-    if (aMode.EqualsLiteral("readwrite")) {
-      transactionMode = IDBTransaction::READ_WRITE;
-    }
-    else if (!aMode.EqualsLiteral("readonly")) {
-      return NS_ERROR_TYPE_ERR;
-    }
+  if (aStoreNames.IsEmpty()) {
+    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
+    return nullptr;
   }
 
-  nsresult rv;
-  nsTArray<nsString> storesToOpen;
+  IDBTransaction::Mode mode;
+  switch (aMode) {
+    case IDBTransactionMode::Readonly:
+      mode = IDBTransaction::READ_ONLY;
+      break;
+    case IDBTransactionMode::Readwrite:
+      mode = IDBTransaction::READ_WRITE;
+      break;
+    case IDBTransactionMode::Versionchange:
+      aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
+      return nullptr;
+    default:
+      MOZ_CRASH("Unknown mode!");
+  }
 
-  if (!JSVAL_IS_PRIMITIVE(aStoreNames)) {
-    JS::Rooted<JSObject*> obj(aCx, JSVAL_TO_OBJECT(aStoreNames));
+  const nsTArray<ObjectStoreSpec>& objectStores = mSpec->objectStores();
+  const uint32_t nameCount = aStoreNames.Length();
 
-    // See if this is a JS array.
-    if (JS_IsArrayObject(aCx, obj)) {
-      uint32_t length;
-      if (!JS_GetArrayLength(aCx, obj, &length)) {
-        return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-      }
+  nsTArray<nsString> sortedStoreNames;
+  sortedStoreNames.SetCapacity(nameCount);
 
-      if (!length) {
-        return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-      }
+  // Check to make sure the object store names we collected actually exist.
+  for (uint32_t nameIndex = 0; nameIndex < nameCount; nameIndex++) {
+    const nsString& name = aStoreNames[nameIndex];
 
-      storesToOpen.SetCapacity(length);
+    bool found = false;
 
-      for (uint32_t index = 0; index < length; index++) {
-        JS::Rooted<JS::Value> val(aCx);
-        JSString* jsstr;
-        nsDependentJSString str;
-        if (!JS_GetElement(aCx, obj, index, val.address()) ||
-            !(jsstr = JS_ValueToString(aCx, val)) ||
-            !str.init(aCx, jsstr)) {
-          return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
-        }
-
-        storesToOpen.AppendElement(str);
-      }
-
-      NS_ASSERTION(!storesToOpen.IsEmpty(),
-                   "Must have something here or else code below will "
-                   "misbehave!");
-    }
-    else {
-      // Perhaps some kind of wrapped object?
-      nsIXPConnect* xpc = nsContentUtils::XPConnect();
-      NS_ASSERTION(xpc, "This should never be null!");
-
-      nsCOMPtr<nsIXPConnectWrappedNative> wrapper;
-      rv = xpc->GetWrappedNativeOfJSObject(aCx, obj, getter_AddRefs(wrapper));
-      NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-      if (wrapper) {
-        nsISupports* wrappedObject = wrapper->Native();
-        NS_ENSURE_TRUE(wrappedObject, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-        // We only accept DOMStringList.
-        nsCOMPtr<nsIDOMDOMStringList> list = do_QueryInterface(wrappedObject);
-        if (list) {
-          uint32_t length;
-          rv = list->GetLength(&length);
-          NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-          if (!length) {
-            return NS_ERROR_DOM_INVALID_ACCESS_ERR;
-          }
-
-          storesToOpen.SetCapacity(length);
-
-          for (uint32_t index = 0; index < length; index++) {
-            nsString* item = storesToOpen.AppendElement();
-            NS_ASSERTION(item, "This should never fail!");
-
-            rv = list->Item(index, *item);
-            NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-          }
-
-          NS_ASSERTION(!storesToOpen.IsEmpty(),
-                       "Must have something here or else code below will "
-                       "misbehave!");
-        }
+    for (uint32_t objCount = objectStores.Length(), objIndex = 0;
+         objIndex < objCount;
+         objIndex++) {
+      if (objectStores[objIndex].metadata().name() == name) {
+        found = true;
+        break;
       }
     }
-  }
 
-  // If our list is empty here then the argument must have been an object that
-  // we don't support or a primitive. Either way we convert to a string.
-  if (storesToOpen.IsEmpty()) {
-    JSString* jsstr;
-    nsDependentJSString str;
-    if (!(jsstr = JS_ValueToString(aCx, aStoreNames)) ||
-        !str.init(aCx, jsstr)) {
-      return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    if (!found) {
+      aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR);
+      return nullptr;
     }
 
-    storesToOpen.AppendElement(str);
+    sortedStoreNames.InsertElementSorted(name);
   }
 
-  // Now check to make sure the object store names we collected actually exist.
-  DatabaseInfo* info = Info();
-  for (uint32_t index = 0; index < storesToOpen.Length(); index++) {
-    if (!info->ContainsStoreName(storesToOpen[index])) {
-      return NS_ERROR_DOM_INDEXEDDB_NOT_FOUND_ERR;
+  // Remove any duplicates.
+  for (uint32_t nameIndex = nameCount - 1; nameIndex > 0; nameIndex--) {
+    if (sortedStoreNames[nameIndex] == sortedStoreNames[nameIndex - 1]) {
+      sortedStoreNames.RemoveElementAt(nameIndex);
     }
   }
 
   nsRefPtr<IDBTransaction> transaction =
-    IDBTransaction::Create(this, storesToOpen, transactionMode, false);
-  NS_ENSURE_TRUE(transaction, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    IDBTransaction::Create(this, sortedStoreNames, mode);
+  if (NS_WARN_IF(!transaction)) {
+    IDB_REPORT_INTERNAL_ERR();
+    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    return nullptr;
+  }
 
-  IDB_PROFILER_MARK("IndexedDB Transaction %llu: database(%s).transaction(%s)",
-                    "IDBTransaction[%llu] MT Started",
-                    transaction->GetSerialNumber(), IDB_PROFILER_STRING(this),
-                    IDB_PROFILER_STRING(transaction));
+  BackgroundTransactionChild* actor =
+    new BackgroundTransactionChild(transaction);
 
-  transaction.forget(_retval);
-  return NS_OK;
+  IDB_LOG_MARK("IndexedDB %s: Child  Transaction[%lld]: "
+                 "database(%s).transaction(%s)",
+               "IndexedDB %s: C T[%lld]: IDBDatabase.transaction()",
+               IDB_LOG_ID_STRING(),
+               transaction->LoggingSerialNumber(),
+               IDB_LOG_STRINGIFY(this),
+               IDB_LOG_STRINGIFY(transaction));
+
+  MOZ_ALWAYS_TRUE(
+    mBackgroundActor->SendPBackgroundIDBTransactionConstructor(actor,
+                                                               sortedStoreNames,
+                                                               mode));
+
+  transaction->SetBackgroundActor(actor);
+
+  return transaction.forget();
 }
 
-NS_IMETHODIMP
-IDBDatabase::MozCreateFileHandle(const nsAString& aName,
-                                 const nsAString& aType,
-                                 JSContext* aCx,
-                                 nsIIDBRequest** _retval)
+StorageType
+IDBDatabase::Storage() const
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(mSpec);
 
-  if (!IndexedDatabaseManager::IsMainProcess()) {
-    NS_WARNING("Not supported yet!");
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  return PersistenceTypeToStorage(mSpec->metadata().persistenceType());
+}
+
+already_AddRefed<IDBRequest>
+IDBDatabase::CreateMutableFile(const nsAString& aName,
+                               const Optional<nsAString>& aType,
+                               ErrorResult& aRv)
+{
+  if (!IndexedDatabaseManager::IsMainProcess() || !NS_IsMainThread()) {
+    IDB_WARNING("Not supported!");
+    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    return nullptr;
   }
 
   if (QuotaManager::IsShuttingDown()) {
-    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+    IDB_REPORT_INTERNAL_ERR();
+    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+    return nullptr;
   }
 
   if (mClosed) {
-    return NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR;
+    aRv.Throw(NS_ERROR_DOM_INDEXEDDB_NOT_ALLOWED_ERR);
+    return nullptr;
   }
 
-  nsRefPtr<IDBRequest> request = IDBRequest::Create(nullptr, this, nullptr);
+  nsRefPtr<IDBRequest> request = IDBRequest::Create(this, nullptr);
 
-  nsRefPtr<CreateFileHelper> helper =
-    new CreateFileHelper(this, request, aName, aType);
+  nsString type;
+  if (aType.WasPassed()) {
+    type = aType.Value();
+  }
 
-  QuotaManager* quotaManager = QuotaManager::Get();
-  NS_ASSERTION(quotaManager, "We should definitely have a manager here");
+  mFactory->IncrementParentLoggingRequestSerialNumber();
 
-  nsresult rv = helper->Dispatch(quotaManager->IOThread());
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  aRv = CreateFileHelper::CreateAndDispatch(this, request, aName, type);
+  if (NS_WARN_IF(aRv.Failed())) {
+    return nullptr;
+  }
 
-  request.forget(_retval);
+  return request.forget();
+}
+
+void
+IDBDatabase::RegisterTransaction(IDBTransaction* aTransaction)
+{
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(aTransaction);
+  aTransaction->AssertIsOnOwningThread();
+  MOZ_ASSERT(!mTransactions.Contains(aTransaction));
+
+  mTransactions.PutEntry(aTransaction);
+}
+
+void
+IDBDatabase::UnregisterTransaction(IDBTransaction* aTransaction)
+{
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(aTransaction);
+  aTransaction->AssertIsOnOwningThread();
+  MOZ_ASSERT(mTransactions.Contains(aTransaction));
+
+  mTransactions.RemoveEntry(aTransaction);
+}
+
+void
+IDBDatabase::AbortTransactions(bool aShouldWarn)
+{
+  AssertIsOnOwningThread();
+
+  class MOZ_STACK_CLASS Helper final
+  {
+  public:
+    static void
+    AbortTransactions(nsTHashtable<nsPtrHashKey<IDBTransaction>>& aTable,
+                      nsTArray<nsRefPtr<IDBTransaction>>& aAbortedTransactions)
+    {
+      const uint32_t count = aTable.Count();
+      if (!count) {
+        return;
+      }
+
+      nsAutoTArray<nsRefPtr<IDBTransaction>, 20> transactions;
+      transactions.SetCapacity(count);
+
+      aTable.EnumerateEntries(Collect, &transactions);
+
+      MOZ_ASSERT(transactions.Length() == count);
+
+      for (uint32_t index = 0; index < count; index++) {
+        nsRefPtr<IDBTransaction> transaction = Move(transactions[index]);
+        MOZ_ASSERT(transaction);
+
+        transaction->Abort(NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+
+        // We only care about warning for write transactions.
+        if (transaction->GetMode() != IDBTransaction::READ_ONLY) {
+          aAbortedTransactions.AppendElement(Move(transaction));
+        }
+      }
+    }
+
+  private:
+    static PLDHashOperator
+    Collect(nsPtrHashKey<IDBTransaction>* aTransaction, void* aClosure)
+    {
+      MOZ_ASSERT(aTransaction);
+      aTransaction->GetKey()->AssertIsOnOwningThread();
+      MOZ_ASSERT(aClosure);
+
+      auto* array = static_cast<nsTArray<nsRefPtr<IDBTransaction>>*>(aClosure);
+      array->AppendElement(aTransaction->GetKey());
+
+      return PL_DHASH_NEXT;
+    }
+  };
+
+  nsAutoTArray<nsRefPtr<IDBTransaction>, 5> abortedTransactions;
+  Helper::AbortTransactions(mTransactions, abortedTransactions);
+
+  if (aShouldWarn && !abortedTransactions.IsEmpty()) {
+    static const char kWarningMessage[] = "IndexedDBTransactionAbortNavigation";
+
+    for (uint32_t count = abortedTransactions.Length(), index = 0;
+         index < count;
+         index++) {
+      nsRefPtr<IDBTransaction>& transaction = abortedTransactions[index];
+      MOZ_ASSERT(transaction);
+
+      nsString filename;
+      uint32_t lineNo;
+      transaction->GetCallerLocation(filename, &lineNo);
+
+      LogWarning(kWarningMessage, filename, lineNo);
+    }
+  }
+}
+
+PBackgroundIDBDatabaseFileChild*
+IDBDatabase::GetOrCreateFileActorForBlob(File* aBlob)
+{
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(aBlob);
+  MOZ_ASSERT(mBackgroundActor);
+
+  // We use the File's nsIWeakReference as the key to the table because
+  // a) it is unique per blob, b) it is reference-counted so that we can
+  // guarantee that it stays alive, and c) it doesn't hold the actual File
+  // alive.
+  nsCOMPtr<nsIDOMBlob> blob = aBlob;
+  nsCOMPtr<nsIWeakReference> weakRef = do_GetWeakReference(blob);
+  MOZ_ASSERT(weakRef);
+
+  PBackgroundIDBDatabaseFileChild* actor = nullptr;
+
+  if (!mFileActors.Get(weakRef, &actor)) {
+    FileImpl* blobImpl = aBlob->Impl();
+    MOZ_ASSERT(blobImpl);
+
+    if (mReceivedBlobs.GetEntry(weakRef)) {
+      // This blob was previously retrieved from the database.
+      nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryObject(blobImpl);
+      MOZ_ASSERT(remoteBlob);
+
+      BlobChild* blobChild = remoteBlob->GetBlobChild();
+      MOZ_ASSERT(blobChild);
+
+#ifdef DEBUG
+      {
+        PBackgroundChild* backgroundManager = blobChild->GetBackgroundManager();
+        MOZ_ASSERT(backgroundManager);
+
+        PBackgroundChild* thisManager = mBackgroundActor->Manager()->Manager();
+        MOZ_ASSERT(thisManager);
+
+        MOZ_ASSERT(thisManager == backgroundManager);
+      }
+#endif
+      auto* dbFile = new DatabaseFile(this);
+
+      actor =
+        mBackgroundActor->SendPBackgroundIDBDatabaseFileConstructor(dbFile,
+                                                                    blobChild);
+      if (NS_WARN_IF(!actor)) {
+        return nullptr;
+      }
+    } else {
+      // Make sure that the input stream we get here is one that can actually be
+      // serialized to PBackground.
+      PBackgroundChild* backgroundManager =
+        mBackgroundActor->Manager()->Manager();
+      MOZ_ASSERT(backgroundManager);
+
+      auto* blobChild =
+        static_cast<BlobChild*>(
+          BackgroundChild::GetOrCreateActorForBlob(backgroundManager, aBlob));
+      MOZ_ASSERT(blobChild);
+
+      auto* dbFile = new DatabaseFile(this);
+
+      actor =
+        mBackgroundActor->SendPBackgroundIDBDatabaseFileConstructor(dbFile,
+                                                                    blobChild);
+      if (NS_WARN_IF(!actor)) {
+        return nullptr;
+      }
+    }
+
+    MOZ_ASSERT(actor);
+
+    mFileActors.Put(weakRef, actor);
+  }
+
+  MOZ_ASSERT(actor);
+
+  return actor;
+}
+
+void
+IDBDatabase::NoteFinishedFileActor(PBackgroundIDBDatabaseFileChild* aFileActor)
+{
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(aFileActor);
+
+  class MOZ_STACK_CLASS Helper final
+  {
+  public:
+    static PLDHashOperator
+    Remove(nsISupports* aKey,
+           PBackgroundIDBDatabaseFileChild*& aValue,
+           void* aClosure)
+    {
+      MOZ_ASSERT(aKey);
+      MOZ_ASSERT(aValue);
+      MOZ_ASSERT(aClosure);
+
+      if (aValue == static_cast<PBackgroundIDBDatabaseFileChild*>(aClosure)) {
+        return PL_DHASH_REMOVE;
+      }
+
+      return PL_DHASH_NEXT;
+    }
+  };
+
+  mFileActors.Enumerate(&Helper::Remove, aFileActor);
+}
+
+void
+IDBDatabase::NoteReceivedBlob(File* aBlob)
+{
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(aBlob);
+  MOZ_ASSERT(mBackgroundActor);
+
+#ifdef DEBUG
+  {
+    nsRefPtr<FileImpl> blobImpl = aBlob->Impl();
+    MOZ_ASSERT(blobImpl);
+
+    nsCOMPtr<nsIRemoteBlob> remoteBlob = do_QueryObject(blobImpl);
+    MOZ_ASSERT(remoteBlob);
+
+    BlobChild* blobChild = remoteBlob->GetBlobChild();
+    MOZ_ASSERT(blobChild);
+
+    PBackgroundChild* backgroundManager = blobChild->GetBackgroundManager();
+    MOZ_ASSERT(backgroundManager);
+
+    PBackgroundChild* thisManager = mBackgroundActor->Manager()->Manager();
+    MOZ_ASSERT(thisManager);
+
+    MOZ_ASSERT(thisManager == backgroundManager);
+  }
+#endif
+
+  nsCOMPtr<nsIDOMBlob> blob = aBlob;
+  nsCOMPtr<nsIWeakReference> weakRef = do_GetWeakReference(blob);
+  MOZ_ASSERT(weakRef);
+
+  // It's ok if this entry already exists in the table.
+  mReceivedBlobs.PutEntry(weakRef);
+}
+
+void
+IDBDatabase::DelayedMaybeExpireFileActors()
+{
+  AssertIsOnOwningThread();
+
+  if (!mBackgroundActor || !mFileActors.Count()) {
+    return;
+  }
+
+  nsCOMPtr<nsIRunnable> runnable =
+    NS_NewRunnableMethodWithArg<bool>(this,
+                                      &IDBDatabase::ExpireFileActors,
+                                      /* aExpireAll */ false);
+  MOZ_ASSERT(runnable);
+
+  if (!NS_IsMainThread()) {
+    // Wrap as a nsICancelableRunnable to make workers happy.
+    nsCOMPtr<nsIRunnable> cancelable = new CancelableRunnableWrapper(runnable);
+    cancelable.swap(runnable);
+  }
+
+  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToCurrentThread(runnable)));
+}
+
+nsresult
+IDBDatabase::GetQuotaInfo(nsACString& aOrigin,
+                          PersistenceType* aPersistenceType)
+{
+  using mozilla::dom::quota::QuotaManager;
+
+  MOZ_ASSERT(IndexedDatabaseManager::IsMainProcess());
+  MOZ_ASSERT(NS_IsMainThread());
+
+  if (aPersistenceType) {
+    *aPersistenceType = mSpec->metadata().persistenceType();
+    MOZ_ASSERT(*aPersistenceType != PERSISTENCE_TYPE_INVALID);
+  }
+
+  PrincipalInfo* principalInfo = mFactory->GetPrincipalInfo();
+  MOZ_ASSERT(principalInfo);
+
+  switch (principalInfo->type()) {
+    case PrincipalInfo::TNullPrincipalInfo:
+      MOZ_CRASH("Is this needed?!");
+
+    case PrincipalInfo::TSystemPrincipalInfo:
+      QuotaManager::GetInfoForChrome(nullptr, &aOrigin, nullptr);
+      return NS_OK;
+
+    case PrincipalInfo::TContentPrincipalInfo: {
+      nsresult rv;
+      nsCOMPtr<nsIPrincipal> principal =
+        PrincipalInfoToPrincipal(*principalInfo, &rv);
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return rv;
+      }
+
+      rv = QuotaManager::GetInfoFromPrincipal(principal,
+                                              nullptr,
+                                              &aOrigin,
+                                              nullptr);
+      if (NS_WARN_IF(NS_FAILED(rv))) {
+        return rv;
+      }
+
+      return NS_OK;
+    }
+
+    default:
+      MOZ_CRASH("Unknown PrincipalInfo type!");
+  }
+
+  MOZ_CRASH("Should never get here!");
+}
+
+void
+IDBDatabase::ExpireFileActors(bool aExpireAll)
+{
+  AssertIsOnOwningThread();
+
+  class MOZ_STACK_CLASS Helper final
+  {
+  public:
+    static PLDHashOperator
+    MaybeExpireFileActors(nsISupports* aKey,
+                          PBackgroundIDBDatabaseFileChild*& aValue,
+                          void* aClosure)
+    {
+      MOZ_ASSERT(aKey);
+      MOZ_ASSERT(aValue);
+      MOZ_ASSERT(aClosure);
+
+      const bool expiringAll = *static_cast<bool*>(aClosure);
+
+      bool shouldExpire = expiringAll;
+      if (!shouldExpire) {
+        nsCOMPtr<nsIWeakReference> weakRef = do_QueryInterface(aKey);
+        MOZ_ASSERT(weakRef);
+
+        nsCOMPtr<nsISupports> referent = do_QueryReferent(weakRef);
+        shouldExpire = !referent;
+      }
+
+      if (shouldExpire) {
+        PBackgroundIDBDatabaseFileChild::Send__delete__(aValue);
+
+        if (!expiringAll) {
+          return PL_DHASH_REMOVE;
+        }
+      }
+
+      return PL_DHASH_NEXT;
+    }
+
+    static PLDHashOperator
+    MaybeExpireReceivedBlobs(nsISupportsHashKey* aKey,
+                             void* aClosure)
+    {
+      MOZ_ASSERT(aKey);
+      MOZ_ASSERT(!aClosure);
+
+      nsISupports* key = aKey->GetKey();
+      MOZ_ASSERT(key);
+
+      nsCOMPtr<nsIWeakReference> weakRef = do_QueryInterface(key);
+      MOZ_ASSERT(weakRef);
+
+      nsCOMPtr<nsISupports> referent = do_QueryReferent(weakRef);
+      if (!referent) {
+        return PL_DHASH_REMOVE;
+      }
+
+      return PL_DHASH_NEXT;
+    }
+  };
+
+  if (mBackgroundActor && mFileActors.Count()) {
+    mFileActors.Enumerate(&Helper::MaybeExpireFileActors, &aExpireAll);
+    if (aExpireAll) {
+      mFileActors.Clear();
+    }
+  } else {
+    MOZ_ASSERT(!mFileActors.Count());
+  }
+
+  if (mReceivedBlobs.Count()) {
+    if (aExpireAll) {
+      mReceivedBlobs.Clear();
+    } else {
+      mReceivedBlobs.EnumerateEntries(&Helper::MaybeExpireReceivedBlobs,
+                                      nullptr);
+    }
+  }
+}
+
+void
+IDBDatabase::NoteLiveMutableFile(IDBMutableFile* aMutableFile)
+{
+  MOZ_ASSERT(IndexedDatabaseManager::IsMainProcess());
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(aMutableFile);
+  MOZ_ASSERT(!mLiveMutableFiles.Contains(aMutableFile));
+
+  mLiveMutableFiles.AppendElement(aMutableFile);
+}
+
+void
+IDBDatabase::NoteFinishedMutableFile(IDBMutableFile* aMutableFile)
+{
+  // This should always happen in the main process but occasionally it is called
+  // after the IndexedDatabaseManager has already shut down.
+  //   MOZ_ASSERT(IndexedDatabaseManager::IsMainProcess());
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(aMutableFile);
+
+  // It's ok if this is called more than once, so don't assert that aMutableFile
+  // is in the list already.
+
+  mLiveMutableFiles.RemoveElement(aMutableFile);
+}
+
+void
+IDBDatabase::InvalidateMutableFiles()
+{
+  if (!mLiveMutableFiles.IsEmpty()) {
+    MOZ_ASSERT(IndexedDatabaseManager::IsMainProcess());
+    MOZ_ASSERT(NS_IsMainThread());
+
+    for (uint32_t count = mLiveMutableFiles.Length(), index = 0;
+         index < count;
+         index++) {
+      mLiveMutableFiles[index]->Invalidate();
+    }
+
+    mLiveMutableFiles.Clear();
+  }
+}
+
+void
+IDBDatabase::Invalidate()
+{
+  AssertIsOnOwningThread();
+
+  if (!mInvalidated) {
+    mInvalidated = true;
+
+    InvalidateInternal();
+  }
+}
+
+void
+IDBDatabase::LogWarning(const char* aMessageName,
+                        const nsAString& aFilename,
+                        uint32_t aLineNumber)
+{
+  AssertIsOnOwningThread();
+  MOZ_ASSERT(aMessageName);
+
+  if (NS_IsMainThread()) {
+    LogWarningRunnable::LogWarning(aMessageName,
+                                   aFilename,
+                                   aLineNumber,
+                                   mFactory->IsChrome(),
+                                   mFactory->InnerWindowID());
+  } else {
+    nsRefPtr<LogWarningRunnable> runnable =
+      new LogWarningRunnable(aMessageName,
+                             aFilename,
+                             aLineNumber,
+                             mFactory->IsChrome(),
+                             mFactory->InnerWindowID());
+    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToMainThread(runnable)));
+  }
+}
+
+NS_IMPL_ADDREF_INHERITED(IDBDatabase, IDBWrapperCache)
+NS_IMPL_RELEASE_INHERITED(IDBDatabase, IDBWrapperCache)
+
+NS_INTERFACE_MAP_BEGIN_CYCLE_COLLECTION_INHERITED(IDBDatabase)
+NS_INTERFACE_MAP_END_INHERITING(IDBWrapperCache)
+
+NS_IMPL_CYCLE_COLLECTION_CLASS(IDBDatabase)
+
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INHERITED(IDBDatabase, IDBWrapperCache)
+  tmp->AssertIsOnOwningThread();
+  NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mFactory)
+NS_IMPL_CYCLE_COLLECTION_TRAVERSE_END
+
+NS_IMPL_CYCLE_COLLECTION_UNLINK_BEGIN_INHERITED(IDBDatabase, IDBWrapperCache)
+  tmp->AssertIsOnOwningThread();
+
+  // Don't unlink mFactory!
+
+  // We've been unlinked, at the very least we should be able to prevent further
+  // transactions from starting and unblock any other SetVersion callers.
+  tmp->CloseInternal();
+NS_IMPL_CYCLE_COLLECTION_UNLINK_END
+
+void
+IDBDatabase::LastRelease()
+{
+  AssertIsOnOwningThread();
+
+  CloseInternal();
+
+  if (mBackgroundActor) {
+    mBackgroundActor->SendDeleteMeInternal();
+    MOZ_ASSERT(!mBackgroundActor, "SendDeleteMeInternal should have cleared!");
+  }
+}
+
+nsresult
+IDBDatabase::PostHandleEvent(EventChainPostVisitor& aVisitor)
+{
+  nsresult rv =
+    IndexedDatabaseManager::CommonPostHandleEvent(aVisitor, mFactory);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  return NS_OK;
+}
+
+JSObject*
+IDBDatabase::WrapObject(JSContext* aCx)
+{
+  return IDBDatabaseBinding::Wrap(aCx, this);
+}
+
+NS_IMPL_ISUPPORTS(CancelableRunnableWrapper, nsIRunnable, nsICancelableRunnable)
+
+NS_IMETHODIMP
+CancelableRunnableWrapper::Run()
+{
+  nsCOMPtr<nsIRunnable> runnable;
+  mRunnable.swap(runnable);
+
+  if (runnable) {
+    return runnable->Run();
+  }
+
   return NS_OK;
 }
 
 NS_IMETHODIMP
-IDBDatabase::Close()
+CancelableRunnableWrapper::Cancel()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
+  if (mRunnable) {
+    mRunnable = nullptr;
+    return NS_OK;
+  }
 
-  CloseInternal(false);
-
-  NS_ASSERTION(mClosed, "Should have set the closed flag!");
-  return NS_OK;
-}
-
-NS_IMETHODIMP_(nsIAtom*)
-IDBDatabase::Id()
-{
-  return mDatabaseId;
-}
-
-NS_IMETHODIMP_(bool)
-IDBDatabase::IsInvalidated()
-{
-  return mInvalidated;
-}
-
-NS_IMETHODIMP_(bool)
-IDBDatabase::IsShuttingDown()
-{
-  return QuotaManager::IsShuttingDown();
-}
-
-NS_IMETHODIMP_(void)
-IDBDatabase::SetThreadLocals()
-{
-  NS_ASSERTION(GetOwner(), "Should have owner!");
-  QuotaManager::SetCurrentWindow(GetOwner());
-}
-
-NS_IMETHODIMP_(void)
-IDBDatabase::UnsetThreadLocals()
-{
-  QuotaManager::SetCurrentWindow(nullptr);
-}
-
-NS_IMETHODIMP_(mozilla::dom::quota::Client*)
-IDBDatabase::GetClient()
-{
-  return mQuotaClient;
-}
-
-NS_IMETHODIMP_(bool)
-IDBDatabase::IsOwned(nsPIDOMWindow* aOwner)
-{
-  return GetOwner() == aOwner;
-}
-
-NS_IMETHODIMP_(const nsACString&)
-IDBDatabase::Origin()
-{
-  return mASCIIOrigin;
-}
-
-nsresult
-IDBDatabase::PostHandleEvent(nsEventChainPostVisitor& aVisitor)
-{
-  return IndexedDatabaseManager::FireWindowOnError(GetOwner(), aVisitor);
-}
-
-AsyncConnectionHelper::ChildProcessSendResult
-NoRequestDatabaseHelper::SendResponseToChildProcess(nsresult aResultCode)
-{
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  return Success_NotSent;
-}
-
-nsresult
-NoRequestDatabaseHelper::UnpackResponseFromParentProcess(
-                                            const ResponseValue& aResponseValue)
-{
-  MOZ_NOT_REACHED("Should never get here!");
   return NS_ERROR_UNEXPECTED;
 }
 
-nsresult
-NoRequestDatabaseHelper::OnSuccess()
+CreateFileHelper::CreateFileHelper(IDBDatabase* aDatabase,
+                                   IDBRequest* aRequest,
+                                   const nsAString& aName,
+                                   const nsAString& aType,
+                                   const nsACString& aOrigin)
+  : mDatabase(aDatabase)
+  , mRequest(aRequest)
+  , mName(aName)
+  , mType(aType)
+  , mDatabaseName(aDatabase->Name())
+  , mOrigin(aOrigin)
+  , mPersistenceType(aDatabase->Spec()->metadata().persistenceType())
+  , mResultCode(NS_OK)
 {
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  return NS_OK;
+  MOZ_ASSERT(IndexedDatabaseManager::IsMainProcess());
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(aDatabase);
+  MOZ_ASSERT(aRequest);
+  MOZ_ASSERT(mPersistenceType != PERSISTENCE_TYPE_INVALID);
 }
 
-void
-NoRequestDatabaseHelper::OnError()
-{
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-  mTransaction->Abort(GetResultCode());
-}
-
+// static
 nsresult
-CreateObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
+CreateFileHelper::CreateAndDispatch(IDBDatabase* aDatabase,
+                                    IDBRequest* aRequest,
+                                    const nsAString& aName,
+                                    const nsAString& aType)
 {
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
+  MOZ_ASSERT(IndexedDatabaseManager::IsMainProcess());
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(aDatabase);
+  aDatabase->AssertIsOnOwningThread();
+  MOZ_ASSERT(aDatabase->Factory());
+  MOZ_ASSERT(aRequest);
+  MOZ_ASSERT(!QuotaManager::IsShuttingDown());
 
-  PROFILER_LABEL("IndexedDB", "CreateObjectStoreHelper::DoDatabaseWork");
-
-  if (IndexedDatabaseManager::InLowDiskSpaceMode()) {
-    NS_WARNING("Refusing to create additional objectStore because disk space "
-               "is low!");
-    return NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
+  nsCString origin;
+  nsresult rv = aDatabase->GetQuotaInfo(origin, nullptr);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
   }
 
-  nsCOMPtr<mozIStorageStatement> stmt =
-    mTransaction->GetCachedStatement(NS_LITERAL_CSTRING(
-    "INSERT INTO object_store (id, auto_increment, name, key_path) "
-    "VALUES (:id, :auto_increment, :name, :key_path)"
-  ));
-  NS_ENSURE_TRUE(stmt, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  MOZ_ASSERT(!origin.IsEmpty());
 
-  mozStorageStatementScoper scoper(stmt);
+  nsRefPtr<CreateFileHelper> helper =
+    new CreateFileHelper(aDatabase, aRequest, aName, aType, origin);
 
-  nsresult rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("id"),
-                                       mObjectStore->Id());
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  QuotaManager* quotaManager = QuotaManager::Get();
+  MOZ_ASSERT(quotaManager);
 
-  rv = stmt->BindInt32ByName(NS_LITERAL_CSTRING("auto_increment"),
-                             mObjectStore->IsAutoIncrement() ? 1 : 0);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  nsCOMPtr<nsIEventTarget> ioThread = quotaManager->IOThread();
+  MOZ_ASSERT(ioThread);
 
-  rv = stmt->BindStringByName(NS_LITERAL_CSTRING("name"), mObjectStore->Name());
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  const KeyPath& keyPath = mObjectStore->GetKeyPath();
-  if (keyPath.IsValid()) {
-    nsAutoString keyPathSerialization;
-    keyPath.SerializeToString(keyPathSerialization);
-    rv = stmt->BindStringByName(NS_LITERAL_CSTRING("key_path"),
-                                keyPathSerialization);
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  if (NS_WARN_IF(NS_FAILED(ioThread->Dispatch(helper, NS_DISPATCH_NORMAL)))) {
+    IDB_REPORT_INTERNAL_ERR();
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
   }
-  else {
-    rv = stmt->BindNullByName(NS_LITERAL_CSTRING("key_path"));
-    NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-  }
-
-  rv = stmt->Execute();
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  return NS_OK;
-}
-
-void
-CreateObjectStoreHelper::ReleaseMainThreadObjects()
-{
-  mObjectStore = nullptr;
-  NoRequestDatabaseHelper::ReleaseMainThreadObjects();
-}
-
-nsresult
-DeleteObjectStoreHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
-{
-  NS_ASSERTION(!NS_IsMainThread(), "Wrong thread!");
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
-
-  PROFILER_LABEL("IndexedDB", "DeleteObjectStoreHelper::DoDatabaseWork");
-
-  nsCOMPtr<mozIStorageStatement> stmt =
-    mTransaction->GetCachedStatement(NS_LITERAL_CSTRING(
-    "DELETE FROM object_store "
-    "WHERE id = :id "
-  ));
-  NS_ENSURE_TRUE(stmt, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  mozStorageStatementScoper scoper(stmt);
-
-  nsresult rv = stmt->BindInt64ByName(NS_LITERAL_CSTRING("id"), mObjectStoreId);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
-
-  rv = stmt->Execute();
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
   return NS_OK;
 }
 
 nsresult
-CreateFileHelper::DoDatabaseWork(mozIStorageConnection* aConnection)
+CreateFileHelper::DoDatabaseWork()
 {
   AssertIsOnIOThread();
-  NS_ASSERTION(IndexedDatabaseManager::IsMainProcess(), "Wrong process!");
+  MOZ_ASSERT(IndexedDatabaseManager::IsMainProcess());
+  MOZ_ASSERT(!mFileInfo);
 
-  PROFILER_LABEL("IndexedDB", "CreateFileHelper::DoDatabaseWork");
+  PROFILER_LABEL("IndexedDB",
+                 "CreateFileHelper::DoDatabaseWork",
+                 js::ProfileEntry::Category::STORAGE);
 
   if (IndexedDatabaseManager::InLowDiskSpaceMode()) {
     NS_WARNING("Refusing to create file because disk space is low!");
     return NS_ERROR_DOM_INDEXEDDB_QUOTA_ERR;
   }
 
-  FileManager* fileManager = mDatabase->Manager();
+  IndexedDatabaseManager* idbManager = IndexedDatabaseManager::Get();
+  MOZ_ASSERT(idbManager);
 
-  mFileInfo = fileManager->GetNewFileInfo();
-  NS_ENSURE_TRUE(mFileInfo, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  nsRefPtr<FileManager> fileManager =
+    idbManager->GetFileManager(mPersistenceType, mOrigin, mDatabaseName);
+  MOZ_ASSERT(fileManager);
 
-  const int64_t& fileId = mFileInfo->Id();
+  nsRefPtr<FileInfo> fileInfo = fileManager->GetNewFileInfo();
+  if (NS_WARN_IF(!fileInfo)) {
+    IDB_REPORT_INTERNAL_ERR();
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  }
 
-  nsCOMPtr<nsIFile> directory = fileManager->EnsureJournalDirectory();
-  NS_ENSURE_TRUE(directory, NS_ERROR_FAILURE);
+  const int64_t fileId = fileInfo->Id();
 
-  nsCOMPtr<nsIFile> file = fileManager->GetFileForId(directory, fileId);
-  NS_ENSURE_TRUE(file, NS_ERROR_FAILURE);
+  nsCOMPtr<nsIFile> journalDirectory = fileManager->EnsureJournalDirectory();
+  if (NS_WARN_IF(!journalDirectory)) {
+    IDB_REPORT_INTERNAL_ERR();
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  }
 
-  nsresult rv = file->Create(nsIFile::NORMAL_FILE_TYPE, 0644);
-  NS_ENSURE_SUCCESS(rv, rv);
+  nsCOMPtr<nsIFile> journalFile =
+    fileManager->GetFileForId(journalDirectory, fileId);
+  if (NS_WARN_IF(!journalFile)) {
+    IDB_REPORT_INTERNAL_ERR();
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  }
 
-  directory = fileManager->GetDirectory();
-  NS_ENSURE_TRUE(directory, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  nsresult rv = journalFile->Create(nsIFile::NORMAL_FILE_TYPE, 0644);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
 
-  file = fileManager->GetFileForId(directory, fileId);
-  NS_ENSURE_TRUE(file, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  nsCOMPtr<nsIFile> fileDirectory = fileManager->GetDirectory();
+  if (NS_WARN_IF(!fileDirectory)) {
+    IDB_REPORT_INTERNAL_ERR();
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  }
+
+  nsCOMPtr<nsIFile> file = fileManager->GetFileForId(fileDirectory, fileId);
+  if (NS_WARN_IF(!file)) {
+    IDB_REPORT_INTERNAL_ERR();
+    return NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  }
 
   rv = file->Create(nsIFile::NORMAL_FILE_TYPE, 0644);
-  NS_ENSURE_SUCCESS(rv, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    return rv;
+  }
+
+  mFileInfo.swap(fileInfo);
+  return NS_OK;
+}
+
+void
+CreateFileHelper::DoMainThreadWork(nsresult aResultCode)
+{
+  MOZ_ASSERT(IndexedDatabaseManager::IsMainProcess());
+  MOZ_ASSERT(NS_IsMainThread());
+
+  if (mDatabase->IsInvalidated()) {
+    IDB_REPORT_INTERNAL_ERR();
+    aResultCode = NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR;
+  }
+
+  nsRefPtr<IDBMutableFile> mutableFile;
+  if (NS_SUCCEEDED(aResultCode)) {
+    mutableFile =
+      IDBMutableFile::Create(mDatabase, mName, mType, mFileInfo.forget());
+    MOZ_ASSERT(mutableFile);
+  }
+
+  DispatchMutableFileResult(mRequest, aResultCode, mutableFile);
+}
+
+NS_IMPL_ISUPPORTS_INHERITED0(CreateFileHelper, nsRunnable)
+
+NS_IMETHODIMP
+CreateFileHelper::Run()
+{
+  MOZ_ASSERT(IndexedDatabaseManager::IsMainProcess());
+
+  if (NS_IsMainThread()) {
+    DoMainThreadWork(mResultCode);
+
+    mDatabase = nullptr;
+    mRequest = nullptr;
+    mFileInfo = nullptr;
+
+    return NS_OK;
+  }
+
+  AssertIsOnIOThread();
+  MOZ_ASSERT(NS_SUCCEEDED(mResultCode));
+
+  nsresult rv = DoDatabaseWork();
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    mResultCode = rv;
+  }
+
+  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToMainThread(this)));
 
   return NS_OK;
 }
 
-nsresult
-CreateFileHelper::GetSuccessResult(JSContext* aCx,
-                                   JS::MutableHandle<JS::Value> aVal)
-{
-  nsRefPtr<IDBFileHandle> fileHandle =
-    IDBFileHandle::Create(mDatabase, mName, mType, mFileInfo.forget());
-  NS_ENSURE_TRUE(fileHandle, NS_ERROR_DOM_INDEXEDDB_UNKNOWN_ERR);
 
-  return WrapNative(aCx, NS_ISUPPORTS_CAST(nsIDOMFileHandle*, fileHandle),
-                    aVal);
+// static
+void
+IDBDatabase::
+LogWarningRunnable::LogWarning(const char* aMessageName,
+                               const nsAString& aFilename,
+                               uint32_t aLineNumber,
+                               bool aIsChrome,
+                               uint64_t aInnerWindowID)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(aMessageName);
+
+  nsXPIDLString localizedMessage;
+  if (NS_WARN_IF(NS_FAILED(
+    nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
+                                       aMessageName,
+                                       localizedMessage)))) {
+    return;
+  }
+
+  nsAutoCString category;
+  if (aIsChrome) {
+    category.AssignLiteral("chrome ");
+  } else {
+    category.AssignLiteral("content ");
+  }
+  category.AppendLiteral("javascript");
+
+  nsCOMPtr<nsIConsoleService> consoleService =
+    do_GetService(NS_CONSOLESERVICE_CONTRACTID);
+  MOZ_ASSERT(consoleService);
+
+  nsCOMPtr<nsIScriptError> scriptError =
+    do_CreateInstance(NS_SCRIPTERROR_CONTRACTID);
+  MOZ_ASSERT(consoleService);
+
+  if (aInnerWindowID) {
+    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
+      scriptError->InitWithWindowID(localizedMessage,
+                                    aFilename,
+                                    /* aSourceLine */ EmptyString(),
+                                    aLineNumber,
+                                    /* aColumnNumber */ 0,
+                                    nsIScriptError::warningFlag,
+                                    category,
+                                    aInnerWindowID)));
+  } else {
+    MOZ_ALWAYS_TRUE(NS_SUCCEEDED(
+      scriptError->Init(localizedMessage,
+                        aFilename,
+                        /* aSourceLine */ EmptyString(),
+                        aLineNumber,
+                        /* aColumnNumber */ 0,
+                        nsIScriptError::warningFlag,
+                        category.get())));
+  }
+
+  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(consoleService->LogMessage(scriptError)));
 }
+
+NS_IMPL_ISUPPORTS_INHERITED0(IDBDatabase::LogWarningRunnable, nsRunnable)
+
+NS_IMETHODIMP
+IDBDatabase::
+LogWarningRunnable::Run()
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  LogWarning(mMessageName.get(),
+             mFilename,
+             mLineNumber,
+             mIsChrome,
+             mInnerWindowID);
+
+  return NS_OK;
+}
+
+NS_IMPL_ISUPPORTS(IDBDatabase::Observer, nsIObserver)
+
+NS_IMETHODIMP
+IDBDatabase::
+Observer::Observe(nsISupports* aSubject,
+                  const char* aTopic,
+                  const char16_t* aData)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+  MOZ_ASSERT(aTopic);
+
+  if (!strcmp(aTopic, kWindowObserverTopic)) {
+    if (mWeakDatabase) {
+      nsCOMPtr<nsISupportsPRUint64> supportsInt = do_QueryInterface(aSubject);
+      MOZ_ASSERT(supportsInt);
+
+      uint64_t windowId;
+      MOZ_ALWAYS_TRUE(NS_SUCCEEDED(supportsInt->GetData(&windowId)));
+
+      if (windowId == mWindowId) {
+        nsRefPtr<IDBDatabase> database = mWeakDatabase;
+        mWeakDatabase = nullptr;
+
+        database->InvalidateInternal();
+      }
+    }
+
+    return NS_OK;
+  }
+
+  if (!strcmp(aTopic, kCycleCollectionObserverTopic) ||
+      !strcmp(aTopic, kMemoryPressureObserverTopic)) {
+    if (mWeakDatabase) {
+      nsRefPtr<IDBDatabase> database = mWeakDatabase;
+
+      database->ExpireFileActors(/* aExpireAll */ false);
+    }
+
+    return NS_OK;
+  }
+
+  NS_WARNING("Unknown observer topic!");
+  return NS_OK;
+}
+
+} // namespace indexedDB
+} // namespace dom
+} // namespace mozilla

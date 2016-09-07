@@ -7,7 +7,6 @@
 
 let protocol = devtools.require("devtools/server/protocol");
 let {method, Arg, Option, RetVal} = protocol;
-let {defer, resolve} = devtools.require("sdk/core/promise");
 let events = devtools.require("sdk/event/core");
 
 function simpleHello() {
@@ -36,7 +35,7 @@ let RootActor = protocol.ActorClass({
   }),
 
   promiseReturn: method(function() {
-    return resolve(1);
+    return promise.resolve(1);
   }, {
     response: { value: RetVal("number") },
   }),
@@ -81,7 +80,7 @@ let RootActor = protocol.ActorClass({
   }, {
     request: {
       a: Arg(0),
-      b: Arg(1, "number", { optional: true })
+      b: Arg(1, "nullable:number")
     },
     response: {
       value: RetVal("number")
@@ -133,8 +132,18 @@ let RootActor = protocol.ActorClass({
     oneway: true
   }),
 
+  emitFalsyOptions: method(function() {
+    events.emit(this, "falsyOptions", { zero: 0, farce: false });
+  }, {
+    oneway: true
+  }),
+
   events: {
-    "oneway": { a: Arg(0) }
+    "oneway": { a: Arg(0) },
+    "falsyOptions": {
+      zero: Option(0),
+      farce: Option(0)
+    }
   }
 });
 
@@ -152,7 +161,7 @@ function run_test()
   DebuggerServer.createRootActor = (conn => {
     return RootActor(conn);
   });
-  DebuggerServer.init(() => true);
+  DebuggerServer.init();
 
   check_except(() => {
     let badActor = ActorClass({
@@ -188,6 +197,11 @@ function run_test()
       trace.expectReceive({"value":1,"from":"<actorid>"});
       do_check_eq(ret, 1);
     }).then(() => {
+      // Missing argument should throw an exception
+      check_except(() => {
+        rootClient.simpleArgs(5);
+      });
+
       return rootClient.simpleArgs(5, 10)
     }).then(ret => {
       trace.expectSend({"type":"simpleArgs","firstArg":5,"secondArg":10,"to":"<actorid>"});
@@ -219,7 +233,7 @@ function run_test()
       trace.expectReceive({"from":"<actorid>"});
       do_check_true(typeof(ret.option1) === "undefined");
       do_check_true(typeof(ret.option2) === "undefined");
-    }).then(ret => {
+    }).then(() => {
       // Explicitly call an optional argument...
       return rootClient.optionalArgs(5, 10);
     }).then(ret => {
@@ -254,7 +268,7 @@ function run_test()
 
       do_check_eq(str, "hello");
 
-      let deferred = defer();
+      let deferred = promise.defer();
       rootClient.on("oneway", (response) => {
         trace.expectSend({"type":"testOneWay","a":"hello","to":"<actorid>"});
         trace.expectReceive({"type":"oneway","a":"hello","from":"<actorid>"});
@@ -263,6 +277,18 @@ function run_test()
         deferred.resolve();
       });
       do_check_true(typeof(rootClient.testOneWay("hello")) === "undefined");
+      return deferred.promise;
+    }).then(() => {
+      let deferred = promise.defer();
+      rootClient.on("falsyOptions", res => {
+        trace.expectSend({"type":"emitFalsyOptions", "to":"<actorid>"});
+        trace.expectReceive({"type":"falsyOptions", "farce":false, "zero": 0, "from":"<actorid>"});
+
+        do_check_true(res.zero === 0);
+        do_check_true(res.farce === false);
+        deferred.resolve();
+      });
+      rootClient.emitFalsyOptions();
       return deferred.promise;
     }).then(() => {
       client.close(() => {

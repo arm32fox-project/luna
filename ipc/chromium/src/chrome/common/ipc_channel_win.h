@@ -11,6 +11,7 @@
 #include <string>
 
 #include "base/message_loop.h"
+#include "mozilla/UniquePtr.h"
 
 class NonThreadSafe;
 
@@ -36,9 +37,20 @@ class Channel::ChannelImpl : public MessageLoopForIO::IOHandler {
     return old;
   }
   bool Send(Message* message);
+
+  // See the comment in ipc_channel.h for info on Unsound_IsClosed() and
+  // Unsound_NumQueuedMessages().
+  bool Unsound_IsClosed() const;
+  uint32_t Unsound_NumQueuedMessages() const;
+
  private:
   void Init(Mode mode, Listener* listener);
-  const std::wstring PipeName(const std::wstring& channel_id) const;
+
+  void OutputQueuePush(Message* msg);
+  void OutputQueuePop();
+
+  const std::wstring PipeName(const std::wstring& channel_id,
+                              int32_t* secret) const;
   bool CreatePipe(const std::wstring& channel_id, Mode mode);
   bool EnqueueHelloMessage();
 
@@ -89,9 +101,25 @@ class Channel::ChannelImpl : public MessageLoopForIO::IOHandler {
   // This flag is set after Close() is run on the channel.
   bool closed_;
 
+  // This variable is updated so it matches output_queue_.size(), except we can
+  // read output_queue_length_ from any thread (if we're OK getting an
+  // occasional out-of-date or bogus value).  We use output_queue_length_ to
+  // implement Unsound_NumQueuedMessages.
+  size_t output_queue_length_;
+
   ScopedRunnableMethodFactory<ChannelImpl> factory_;
 
-  scoped_ptr<NonThreadSafe> thread_check_;
+  // This is a unique per-channel value used to authenticate the client end of
+  // a connection. If the value is non-zero, the client passes it in the hello
+  // and the host validates. (We don't send the zero value to preserve IPC
+  // compatibility with existing clients that don't validate the channel.)
+  int32_t shared_secret_;
+
+  // In server-mode, we wait for the channel at the other side of the pipe to
+  // send us back our shared secret, if we are using one.
+  bool waiting_for_shared_secret_;
+
+  mozilla::UniquePtr<NonThreadSafe> thread_check_;
 
   DISALLOW_COPY_AND_ASSIGN(ChannelImpl);
 };

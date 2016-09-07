@@ -8,17 +8,17 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "voe_file_impl.h"
+#include "webrtc/voice_engine/voe_file_impl.h"
 
-#include "channel.h"
-#include "critical_section_wrapper.h"
-#include "file_wrapper.h"
-#include "media_file.h"
-#include "output_mixer.h"
-#include "trace.h"
-#include "transmit_mixer.h"
-#include "voe_errors.h"
-#include "voice_engine_impl.h"
+#include "webrtc/modules/media_file/interface/media_file.h"
+#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
+#include "webrtc/system_wrappers/interface/file_wrapper.h"
+#include "webrtc/system_wrappers/interface/trace.h"
+#include "webrtc/voice_engine/channel.h"
+#include "webrtc/voice_engine/include/voe_errors.h"
+#include "webrtc/voice_engine/output_mixer.h"
+#include "webrtc/voice_engine/transmit_mixer.h"
+#include "webrtc/voice_engine/voice_engine_impl.h"
 
 namespace webrtc {
 
@@ -31,7 +31,7 @@ VoEFile* VoEFile::GetInterface(VoiceEngine* voiceEngine)
     {
         return NULL;
     }
-    VoiceEngineImpl* s = reinterpret_cast<VoiceEngineImpl*>(voiceEngine);
+    VoiceEngineImpl* s = static_cast<VoiceEngineImpl*>(voiceEngine);
     s->AddRef();
     return s;
 #endif
@@ -71,8 +71,8 @@ int VoEFileImpl::StartPlayingFileLocally(
         _shared->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -107,8 +107,8 @@ int VoEFileImpl::StartPlayingFileLocally(int channel,
         return -1;
     }
 
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -133,8 +133,8 @@ int VoEFileImpl::StopPlayingFileLocally(int channel)
         _shared->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -153,8 +153,8 @@ int VoEFileImpl::IsPlayingFileLocally(int channel)
         _shared->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -162,27 +162,6 @@ int VoEFileImpl::IsPlayingFileLocally(int channel)
         return -1;
     }
     return channelPtr->IsPlayingFileLocally();
-}
-
-int VoEFileImpl::ScaleLocalFilePlayout(int channel, float scale)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "ScaleLocalFilePlayout(channel=%d, scale=%5.3f)",
-                 channel, scale);
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
-    if (channelPtr == NULL)
-    {
-        _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-            "StopPlayingFileLocally() failed to locate channel");
-        return -1;
-    }
-    return channelPtr->ScaleLocalFilePlayout(scale);
 }
 
 int VoEFileImpl::StartPlayingFileAsMicrophone(int channel,
@@ -205,8 +184,8 @@ int VoEFileImpl::StartPlayingFileAsMicrophone(int channel,
         return -1;
     }
 
-    const WebRtc_UWord32 startPointMs(0);
-    const WebRtc_UWord32 stopPointMs(0);
+    const uint32_t startPointMs(0);
+    const uint32_t stopPointMs(0);
 
     if (channel == -1)
     {
@@ -234,8 +213,8 @@ int VoEFileImpl::StartPlayingFileAsMicrophone(int channel,
     else
     {
         // Add file after demultiplexing <=> affects one channel only
-        voe::ScopedChannel sc(_shared->channel_manager(), channel);
-        voe::Channel* channelPtr = sc.ChannelPtr();
+        voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+        voe::Channel* channelPtr = ch.channel();
         if (channelPtr == NULL)
         {
             _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -282,8 +261,8 @@ int VoEFileImpl::StartPlayingFileAsMicrophone(int channel,
         return -1;
     }
 
-    const WebRtc_UWord32 startPointMs(0);
-    const WebRtc_UWord32 stopPointMs(0);
+    const uint32_t startPointMs(0);
+    const uint32_t stopPointMs(0);
 
     if (channel == -1)
     {
@@ -311,8 +290,8 @@ int VoEFileImpl::StartPlayingFileAsMicrophone(int channel,
     else
     {
         // Add file after demultiplexing <=> affects one channel only
-        voe::ScopedChannel sc(_shared->channel_manager(), channel);
-        voe::Channel* channelPtr = sc.ChannelPtr();
+        voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+        voe::Channel* channelPtr = ch.channel();
         if (channelPtr == NULL)
         {
             _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -355,8 +334,8 @@ int VoEFileImpl::StopPlayingFileAsMicrophone(int channel)
     else
     {
         // Stop adding file after demultiplexing <=> affects one channel only
-        voe::ScopedChannel sc(_shared->channel_manager(), channel);
-        voe::Channel* channelPtr = sc.ChannelPtr();
+        voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+        voe::Channel* channelPtr = ch.channel();
         if (channelPtr == NULL)
         {
             _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -383,8 +362,8 @@ int VoEFileImpl::IsPlayingFileAsMicrophone(int channel)
     else
     {
         // Stop adding file after demultiplexing <=> affects one channel only
-        voe::ScopedChannel sc(_shared->channel_manager(), channel);
-        voe::Channel* channelPtr = sc.ChannelPtr();
+        voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+        voe::Channel* channelPtr = ch.channel();
         if (channelPtr == NULL)
         {
             _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -392,36 +371,6 @@ int VoEFileImpl::IsPlayingFileAsMicrophone(int channel)
             return -1;
         }
         return channelPtr->IsPlayingFileAsMicrophone();
-    }
-}
-
-int VoEFileImpl::ScaleFileAsMicrophonePlayout(int channel, float scale)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "ScaleFileAsMicrophonePlayout(channel=%d, scale=%5.3f)",
-                 channel, scale);
-
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    if (channel == -1)
-    {
-        return _shared->transmit_mixer()->ScaleFileAsMicrophonePlayout(scale);
-    }
-    else
-    {
-        // Stop adding file after demultiplexing <=> affects one channel only
-        voe::ScopedChannel sc(_shared->channel_manager(), channel);
-        voe::Channel* channelPtr = sc.ChannelPtr();
-        if (channelPtr == NULL)
-        {
-            _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-                "IsPlayingFileAsMicrophone() failed to locate channel");
-            return -1;
-        }
-        return channelPtr->ScaleFileAsMicrophonePlayout(scale);
     }
 }
 
@@ -448,8 +397,8 @@ int VoEFileImpl::StartRecordingPlayout(
     else
     {
         // Add file after demultiplexing <=> affects one channel only
-        voe::ScopedChannel sc(_shared->channel_manager(), channel);
-        voe::Channel* channelPtr = sc.ChannelPtr();
+        voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+        voe::Channel* channelPtr = ch.channel();
         if (channelPtr == NULL)
         {
             _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -478,8 +427,8 @@ int VoEFileImpl::StartRecordingPlayout(
     }
     else
     {
-        voe::ScopedChannel sc(_shared->channel_manager(), channel);
-        voe::Channel* channelPtr = sc.ChannelPtr();
+        voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+        voe::Channel* channelPtr = ch.channel();
         if (channelPtr == NULL)
         {
             _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -505,8 +454,8 @@ int VoEFileImpl::StopRecordingPlayout(int channel)
     }
     else
     {
-        voe::ScopedChannel sc(_shared->channel_manager(), channel);
-        voe::Channel* channelPtr = sc.ChannelPtr();
+        voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+        voe::Channel* channelPtr = ch.channel();
         if (channelPtr == NULL)
         {
             _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -640,778 +589,6 @@ int VoEFileImpl::StopRecordingMicrophone()
     }
 
     return err;
-}
-
-// TODO(andrew): a cursory inspection suggests there's a large amount of
-// overlap in these convert functions which could be refactored to a helper.
-int VoEFileImpl::ConvertPCMToWAV(const char* fileNameInUTF8,
-                                 const char* fileNameOutUTF8)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "ConvertPCMToWAV(fileNameInUTF8=%s, fileNameOutUTF8=%s)",
-                 fileNameInUTF8, fileNameOutUTF8);
-
-    // Create file player object
-    FilePlayer& playerObj(*FilePlayer::CreateFilePlayer(
-        -1,
-        kFileFormatPcm16kHzFile));
-
-    int res=playerObj.StartPlayingFile(fileNameInUTF8,false,0,1.0,0,0, NULL);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertPCMToWAV failed to create player object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        return -1;
-    }
-
-    // Create file recorder object
-    FileRecorder& recObj(*FileRecorder::CreateFileRecorder(
-        -1, kFileFormatWavFile));
-
-    CodecInst codecInst;
-    strncpy(codecInst.plname,"L16",32);
-            codecInst.channels = 1;
-            codecInst.rate     = 256000;
-            codecInst.plfreq   = 16000;
-            codecInst.pltype   = 94;
-            codecInst.pacsize  = 160;
-
-    res = recObj.StartRecordingAudioFile(fileNameOutUTF8,codecInst,0);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertPCMToWAV failed to create recorder object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        recObj.StopRecording();
-        FileRecorder::DestroyFileRecorder(&recObj);
-        return -1;
-    }
-
-    // Run throught the file
-    AudioFrame audioFrame;
-    WebRtc_Word16 decodedData[160];
-    int decLength=0;
-    const WebRtc_UWord32 frequency = 16000;
-
-    while(!playerObj.Get10msAudioFromFile(decodedData,decLength,frequency))
-    {
-        if(decLength!=frequency/100)
-        {
-            // This is an OK way to end
-            break;
-        }
-
-        res=audioFrame.UpdateFrame(-1, 0, decodedData,
-                                  (WebRtc_UWord16)decLength,
-                                   frequency, AudioFrame::kNormalSpeech,
-                                   AudioFrame::kVadActive);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertPCMToWAV failed during conversion (audio frame)");
-            break;
-        }
-
-        res=recObj.RecordAudioToFile(audioFrame);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertPCMToWAV failed during conversion (write frame)");
-        }
-    }
-
-    playerObj.StopPlayingFile();
-    recObj.StopRecording();
-    FilePlayer::DestroyFilePlayer(&playerObj);
-    FileRecorder::DestroyFileRecorder(&recObj);
-
-    return res;
-}
-
-int VoEFileImpl::ConvertPCMToWAV(InStream* streamIn, OutStream* streamOut)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "ConvertPCMToWAV(streamIn, streamOut)");
-
-    if ((streamIn == NULL) || (streamOut == NULL))
-    {
-        WEBRTC_TRACE(kTraceError, kTraceVoice,
-            VoEId(_shared->instance_id(), -1), "invalid stream handles");
-        return (-1);
-    }
-
-    // Create file player object
-    FilePlayer& playerObj(*FilePlayer::CreateFilePlayer(-1,
-        kFileFormatPcm16kHzFile));
-    int res = playerObj.StartPlayingFile(*streamIn,0,1.0,0,0,NULL);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertPCMToWAV failed to create player object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        return -1;
-    }
-
-    // Create file recorder object
-    FileRecorder& recObj(*FileRecorder::CreateFileRecorder(-1,
-        kFileFormatWavFile));
-    CodecInst codecInst;
-    strncpy(codecInst.plname, "L16", 32);
-            codecInst.channels = 1;
-            codecInst.rate     = 256000;
-            codecInst.plfreq   = 16000;
-            codecInst.pltype   = 94;
-            codecInst.pacsize  = 160;
-    res = recObj.StartRecordingAudioFile(*streamOut,codecInst,0);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertPCMToWAV failed to create recorder object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        recObj.StopRecording();
-        FileRecorder::DestroyFileRecorder(&recObj);
-        return -1;
-    }
-
-    // Run throught the file
-    AudioFrame audioFrame;
-    WebRtc_Word16 decodedData[160];
-    int decLength=0;
-    const WebRtc_UWord32 frequency = 16000;
-
-    while(!playerObj.Get10msAudioFromFile(decodedData,decLength,frequency))
-    {
-        if(decLength!=frequency/100)
-        {
-            // This is an OK way to end
-            break;
-        }
-
-        res=audioFrame.UpdateFrame(-1, 0, decodedData,
-                                  (WebRtc_UWord16)decLength, frequency,
-                                   AudioFrame::kNormalSpeech,
-                                   AudioFrame::kVadActive);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertPCMToWAV failed during conversion "
-                "(create audio frame)");
-            break;
-        }
-
-        res=recObj.RecordAudioToFile(audioFrame);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertPCMToWAV failed during conversion (write frame)");
-        }
-    }
-
-    playerObj.StopPlayingFile();
-    recObj.StopRecording();
-    FilePlayer::DestroyFilePlayer(&playerObj);
-    FileRecorder::DestroyFileRecorder(&recObj);
-
-    return res;
-}
-
-int VoEFileImpl::ConvertWAVToPCM(const char* fileNameInUTF8,
-                                 const char* fileNameOutUTF8)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "ConvertWAVToPCM(fileNameInUTF8=%s, fileNameOutUTF8=%s)",
-                 fileNameInUTF8, fileNameOutUTF8);
-
-    // Create file player object
-    FilePlayer& playerObj(*FilePlayer::CreateFilePlayer(-1,
-                                                        kFileFormatWavFile));
-    int res = playerObj.StartPlayingFile(fileNameInUTF8,false,0,1.0,0,0,NULL);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertWAVToPCM failed to create player object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        return -1;
-    }
-
-    // Create file recorder object
-    FileRecorder& recObj(*FileRecorder::CreateFileRecorder(
-        -1, kFileFormatPcm16kHzFile));
-
-    CodecInst codecInst;
-    strncpy(codecInst.plname,"L16",32);
-            codecInst.channels = 1;
-            codecInst.rate     = 256000;
-            codecInst.plfreq   = 16000;
-            codecInst.pltype   = 94;
-            codecInst.pacsize  = 160;
-
-    res = recObj.StartRecordingAudioFile(fileNameOutUTF8,codecInst,0);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertWAVToPCM failed to create recorder object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        recObj.StopRecording();
-        FileRecorder::DestroyFileRecorder(&recObj);
-        return -1;
-    }
-
-    // Run throught the file
-    AudioFrame audioFrame;
-    WebRtc_Word16 decodedData[160];
-    int decLength=0;
-    const WebRtc_UWord32 frequency = 16000;
-
-    while(!playerObj.Get10msAudioFromFile(decodedData,decLength,frequency))
-    {
-        if(decLength!=frequency/100)
-        {
-            // This is an OK way to end
-            break;
-        }
-
-        res=audioFrame.UpdateFrame(-1, 0, decodedData,
-                                   (WebRtc_UWord16)decLength,
-                                   frequency, AudioFrame::kNormalSpeech,
-                                   AudioFrame::kVadActive);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertWAVToPCM failed during conversion (audio frame)");
-            break;
-        }
-
-        res=recObj.RecordAudioToFile(audioFrame);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertWAVToPCM failed during conversion (write frame)");
-        }
-    }
-
-    playerObj.StopPlayingFile();
-    recObj.StopRecording();
-    FilePlayer::DestroyFilePlayer(&playerObj);
-    FileRecorder::DestroyFileRecorder(&recObj);
-
-    return res;
-}
-
-int VoEFileImpl::ConvertWAVToPCM(InStream* streamIn, OutStream* streamOut)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "ConvertWAVToPCM(streamIn, streamOut)");
-
-    if ((streamIn == NULL) || (streamOut == NULL))
-    {
-        WEBRTC_TRACE(kTraceError, kTraceVoice,
-          VoEId(_shared->instance_id(), -1), "invalid stream handles");
-        return (-1);
-    }
-
-    // Create file player object
-    FilePlayer& playerObj(*FilePlayer::CreateFilePlayer(-1,
-                                                        kFileFormatWavFile));
-    int res = playerObj.StartPlayingFile(*streamIn,0,1.0,0,0,NULL);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertWAVToPCM failed to create player object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        return -1;
-    }
-
-    // Create file recorder object
-    FileRecorder& recObj(*FileRecorder::CreateFileRecorder(
-        -1, kFileFormatPcm16kHzFile));
-
-    CodecInst codecInst;
-    strncpy(codecInst.plname,"L16",32);
-            codecInst.channels = 1;
-            codecInst.rate     = 256000;
-            codecInst.plfreq   = 16000;
-            codecInst.pltype   = 94;
-            codecInst.pacsize  = 160;
-
-    res = recObj.StartRecordingAudioFile(*streamOut,codecInst,0);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertWAVToPCM failed to create recorder object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        recObj.StopRecording();
-        FileRecorder::DestroyFileRecorder(&recObj);
-        return -1;
-    }
-
-    // Run throught the file
-    AudioFrame audioFrame;
-    WebRtc_Word16 decodedData[160];
-    int decLength=0;
-    const WebRtc_UWord32 frequency = 16000;
-
-    while(!playerObj.Get10msAudioFromFile(decodedData,decLength,frequency))
-    {
-        if(decLength!=frequency/100)
-        {
-            // This is an OK way to end
-            break;
-        }
-
-        res=audioFrame.UpdateFrame(-1, 0, decodedData,
-                                  (WebRtc_UWord16)decLength, frequency,
-                                   AudioFrame::kNormalSpeech,
-                                   AudioFrame::kVadActive);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertWAVToPCM failed during conversion (audio frame)");
-            break;
-        }
-
-        res=recObj.RecordAudioToFile(audioFrame);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertWAVToPCM failed during conversion (write frame)");
-        }
-    }
-
-    playerObj.StopPlayingFile();
-    recObj.StopRecording();
-    FilePlayer::DestroyFilePlayer(&playerObj);
-    FileRecorder::DestroyFileRecorder(&recObj);
-
-    return res;
-}
-
-int VoEFileImpl::ConvertPCMToCompressed(const char* fileNameInUTF8,
-                                        const char* fileNameOutUTF8,
-                                        CodecInst* compression)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "ConvertPCMToCompressed(fileNameInUTF8=%s, fileNameOutUTF8=%s"
-                 ",  compression)", fileNameInUTF8, fileNameOutUTF8);
-    WEBRTC_TRACE(kTraceInfo, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "  compression: plname=%s, plfreq=%d, pacsize=%d",
-                 compression->plname, compression->plfreq,
-                 compression->pacsize);
-
-    // Create file player object
-    FilePlayer& playerObj(*FilePlayer::CreateFilePlayer(
-        -1,
-        kFileFormatPcm16kHzFile));
-    int res = playerObj.StartPlayingFile(fileNameInUTF8,false,0,1.0,0,0, NULL);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertPCMToCompressed failed to create player object");
-        // Clean up and shutdown the file player
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        return -1;
-    }
-
-    // Create file recorder object
-    FileRecorder& recObj(*FileRecorder::CreateFileRecorder(
-        -1,
-        kFileFormatCompressedFile));
-    res = recObj.StartRecordingAudioFile(fileNameOutUTF8, *compression,0);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertPCMToCompressed failed to create recorder object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        recObj.StopRecording();
-        FileRecorder::DestroyFileRecorder(&recObj);
-        return -1;
-    }
-
-    // Run throught the file
-    AudioFrame audioFrame;
-    WebRtc_Word16 decodedData[160];
-    int decLength=0;
-    const WebRtc_UWord32 frequency = 16000;
-
-    while(!playerObj.Get10msAudioFromFile(decodedData,decLength,frequency))
-    {
-        if(decLength!=frequency/100)
-        {
-            // This is an OK way to end
-            break;
-        }
-        res=audioFrame.UpdateFrame(-1, 0, decodedData,
-                                  (WebRtc_UWord16)decLength,
-                                  frequency, AudioFrame::kNormalSpeech,
-                                  AudioFrame::kVadActive);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertPCMToCompressed failed during conversion "
-                "(audio frame)");
-            break;
-        }
-
-        res=recObj.RecordAudioToFile(audioFrame);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertPCMToCompressed failed during conversion "
-                "(write frame)");
-        }
-    }
-
-    playerObj.StopPlayingFile();
-    recObj.StopRecording();
-    FilePlayer::DestroyFilePlayer(&playerObj);
-    FileRecorder::DestroyFileRecorder(&recObj);
-
-    return res;
-}
-
-int VoEFileImpl::ConvertPCMToCompressed(InStream* streamIn,
-                                        OutStream* streamOut,
-                                        CodecInst* compression)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "ConvertPCMToCompressed(streamIn, streamOut, compression)");
-
-    if ((streamIn == NULL) || (streamOut == NULL))
-    {
-        WEBRTC_TRACE(kTraceError, kTraceVoice,
-            VoEId(_shared->instance_id(), -1), "invalid stream handles");
-        return (-1);
-    }
-
-    WEBRTC_TRACE(kTraceInfo, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "  compression: plname=%s, plfreq=%d, pacsize=%d",
-                 compression->plname, compression->plfreq,
-                 compression->pacsize);
-
-    // Create file player object
-    FilePlayer& playerObj(*FilePlayer::CreateFilePlayer(
-        -1, kFileFormatPcm16kHzFile));
-
-    int res = playerObj.StartPlayingFile(*streamIn,0,1.0,0,0,NULL);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertPCMToCompressed failed to create player object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        return -1;
-    }
-
-    // Create file recorder object
-    FileRecorder& recObj(*FileRecorder::CreateFileRecorder(
-        -1, kFileFormatCompressedFile));
-    res = recObj.StartRecordingAudioFile(*streamOut,*compression,0);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertPCMToCompressed failed to create recorder object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        recObj.StopRecording();
-        FileRecorder::DestroyFileRecorder(&recObj);
-        return -1;
-    }
-
-    // Run throught the file
-    AudioFrame audioFrame;
-    WebRtc_Word16 decodedData[160];
-    int decLength=0;
-    const WebRtc_UWord32 frequency = 16000;
-
-    while(!playerObj.Get10msAudioFromFile(decodedData,decLength,frequency))
-    {
-        if(decLength!=frequency/100)
-        {
-            // This is an OK way to end
-            break;
-        }
-        res=audioFrame.UpdateFrame(-1, 0, decodedData,
-                                  (WebRtc_UWord16)decLength,
-                                   frequency, AudioFrame::kNormalSpeech,
-                                   AudioFrame::kVadActive);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertPCMToCompressed failed during conversion "
-                "(audio frame)");
-            break;
-        }
-
-        res=recObj.RecordAudioToFile(audioFrame);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertPCMToCompressed failed during conversion "
-                "(write frame)");
-        }
-    }
-
-    playerObj.StopPlayingFile();
-    recObj.StopRecording();
-    FilePlayer::DestroyFilePlayer(&playerObj);
-    FileRecorder::DestroyFileRecorder(&recObj);
-
-    return res;
-}
-
-int VoEFileImpl::ConvertCompressedToPCM(const char* fileNameInUTF8,
-                                        const char* fileNameOutUTF8)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "ConvertCompressedToPCM(fileNameInUTF8=%s,"
-                 " fileNameOutUTF8=%s)",
-                 fileNameInUTF8, fileNameOutUTF8);
-
-    // Create file player object
-    FilePlayer& playerObj(*FilePlayer::CreateFilePlayer(
-        -1, kFileFormatCompressedFile));
-
-    int res = playerObj.StartPlayingFile(fileNameInUTF8,false,0,1.0,0,0,NULL);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertCompressedToPCM failed to create player object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        return -1;
-    }
-
-    // Create file recorder object
-    FileRecorder& recObj(*FileRecorder::CreateFileRecorder(
-        -1, kFileFormatPcm16kHzFile));
-
-    CodecInst codecInst;
-    strncpy(codecInst.plname,"L16",32);
-            codecInst.channels = 1;
-            codecInst.rate     = 256000;
-            codecInst.plfreq   = 16000;
-            codecInst.pltype   = 94;
-            codecInst.pacsize  = 160;
-
-    res = recObj.StartRecordingAudioFile(fileNameOutUTF8,codecInst,0);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertCompressedToPCM failed to create recorder object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        recObj.StopRecording();
-        FileRecorder::DestroyFileRecorder(&recObj);
-        return -1;
-    }
-
-    // Run throught the file
-    AudioFrame audioFrame;
-    WebRtc_Word16 decodedData[160];
-    int decLength=0;
-    const WebRtc_UWord32 frequency = 16000;
-
-    while(!playerObj.Get10msAudioFromFile(decodedData,decLength,frequency))
-    {
-        if(decLength!=frequency/100)
-        {
-            // This is an OK way to end
-            break;
-        }
-        res=audioFrame.UpdateFrame(-1, 0, decodedData,
-                                  (WebRtc_UWord16)decLength,
-                                   frequency,
-                                   AudioFrame::kNormalSpeech,
-                                   AudioFrame::kVadActive);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertCompressedToPCM failed during conversion "
-                "(create audio frame)");
-            break;
-        }
-
-        res=recObj.RecordAudioToFile(audioFrame);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertCompressedToPCM failed during conversion "
-                "(write frame)");
-        }
-    }
-
-    playerObj.StopPlayingFile();
-    recObj.StopRecording();
-    FilePlayer::DestroyFilePlayer(&playerObj);
-    FileRecorder::DestroyFileRecorder(&recObj);
-
-    return res;
-}
-
-int VoEFileImpl::ConvertCompressedToPCM(InStream* streamIn,
-                                        OutStream* streamOut)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "ConvertCompressedToPCM(file, file);");
-
-    if ((streamIn == NULL) || (streamOut == NULL))
-    {
-        WEBRTC_TRACE(kTraceError, kTraceVoice,
-            VoEId(_shared->instance_id(), -1), "invalid stream handles");
-        return (-1);
-    }
-
-    // Create file player object
-    FilePlayer& playerObj(*FilePlayer::CreateFilePlayer(
-        -1, kFileFormatCompressedFile));
-    int res;
-
-    res = playerObj.StartPlayingFile(*streamIn,0,1.0,0,0,NULL);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertCompressedToPCM failed to create player object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        return -1;
-    }
-
-    // Create file recorder object
-    FileRecorder& recObj(*FileRecorder::CreateFileRecorder(
-        -1, kFileFormatPcm16kHzFile));
-
-    CodecInst codecInst;
-    strncpy(codecInst.plname,"L16",32);
-            codecInst.channels = 1;
-            codecInst.rate     = 256000;
-            codecInst.plfreq   = 16000;
-            codecInst.pltype   = 94;
-            codecInst.pacsize  = 160;
-
-    res = recObj.StartRecordingAudioFile(*streamOut,codecInst,0);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "ConvertCompressedToPCM failed to create recorder object");
-        playerObj.StopPlayingFile();
-        FilePlayer::DestroyFilePlayer(&playerObj);
-        recObj.StopRecording();
-        FileRecorder::DestroyFileRecorder(&recObj);
-        return -1;
-    }
-
-    // Run throught the file
-    AudioFrame audioFrame;
-    WebRtc_Word16 decodedData[160];
-    int decLength=0;
-    const WebRtc_UWord32 frequency = 16000;
-
-    while(!playerObj.Get10msAudioFromFile(decodedData,decLength,frequency))
-    {
-        if(decLength!=frequency/100)
-        {
-            // This is an OK way to end
-            break;
-        }
-        res=audioFrame.UpdateFrame(-1, 0, decodedData,
-                                  (WebRtc_UWord16)decLength,
-                                   frequency,
-                                   AudioFrame::kNormalSpeech,
-                                   AudioFrame::kVadActive);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertCompressedToPCM failed during conversion "
-                "(audio frame)");
-            break;
-        }
-
-        res=recObj.RecordAudioToFile(audioFrame);
-        if(res)
-        {
-            WEBRTC_TRACE(kTraceError, kTraceVoice,
-                VoEId(_shared->instance_id(), -1),
-                "ConvertCompressedToPCM failed during conversion "
-                "(write frame)");
-        }
-    }
-
-    playerObj.StopPlayingFile();
-    recObj.StopRecording();
-    FilePlayer::DestroyFilePlayer(&playerObj);
-    FileRecorder::DestroyFileRecorder(&recObj);
-
-    return res;
-}
-
-
-int VoEFileImpl::GetFileDuration(const char* fileNameUTF8,
-                                 int& durationMs,
-                                 FileFormats format)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "GetFileDuration(fileNameUTF8=%s, format=%d)",
-                 fileNameUTF8, format);
-
-    // Create a dummy file module for this
-    MediaFile * fileModule=MediaFile::CreateMediaFile(-1);
-
-    // Temp container of the right format
-    WebRtc_UWord32 duration;
-    int res=fileModule->FileDurationMs(fileNameUTF8,duration,format);
-    if (res)
-    {
-        _shared->SetLastError(VE_BAD_FILE, kTraceError,
-            "GetFileDuration() failed measure file duration");
-        return -1;
-    }
-    durationMs = duration;
-    MediaFile::DestroyMediaFile(fileModule);
-    fileModule = NULL;
-
-    return(res);
-}
-
-int VoEFileImpl::GetPlaybackPosition(int channel, int& positionMs)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "GetPlaybackPosition(channel=%d)", channel);
-
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
-    if (channelPtr == NULL)
-    {
-        _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-            "GetPlaybackPosition() failed to locate channel");
-        return -1;
-    }
-    return channelPtr->GetLocalPlayoutPosition(positionMs);
 }
 
 #endif  // #ifdef WEBRTC_VOICE_ENGINE_FILE_API

@@ -26,7 +26,7 @@ namespace storage {
  *         The Service that owns the nsICollation used by our collations.
  * @return the SQLite status code indicating success or failure.
  */
-NS_HIDDEN_(int) registerCollations(sqlite3 *aDB, Service *aService);
+int registerCollations(sqlite3 *aDB, Service *aService);
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Predefined Functions
@@ -51,7 +51,7 @@ NS_HIDDEN_(int) registerCollations(sqlite3 *aDB, Service *aService);
  *         If aStr1 > aStr2, returns a positive number.  If aStr1 == aStr2,
  *         returns 0.
  */
-NS_HIDDEN_(int) localeCollation8(void *aService,
+int localeCollation8(void *aService,
                                  int aLen1,
                                  const void *aStr1,
                                  int aLen2,
@@ -78,7 +78,7 @@ NS_HIDDEN_(int) localeCollation8(void *aService,
  *         If aStr1 > aStr2, returns a positive number.  If aStr1 == aStr2,
  *         returns 0.
  */
-NS_HIDDEN_(int) localeCollationCaseSensitive8(void *aService,
+int localeCollationCaseSensitive8(void *aService,
                                               int aLen1,
                                               const void *aStr1,
                                               int aLen2,
@@ -105,7 +105,7 @@ NS_HIDDEN_(int) localeCollationCaseSensitive8(void *aService,
  *         If aStr1 > aStr2, returns a positive number.  If aStr1 == aStr2,
  *         returns 0.
  */
-NS_HIDDEN_(int) localeCollationAccentSensitive8(void *aService,
+int localeCollationAccentSensitive8(void *aService,
                                                 int aLen1,
                                                 const void *aStr1,
                                                 int aLen2,
@@ -131,7 +131,7 @@ NS_HIDDEN_(int) localeCollationAccentSensitive8(void *aService,
  *         If aStr1 > aStr2, returns a positive number.  If aStr1 == aStr2,
  *         returns 0.
  */
-NS_HIDDEN_(int) localeCollationCaseAccentSensitive8(void *aService,
+int localeCollationCaseAccentSensitive8(void *aService,
                                                     int aLen1,
                                                     const void *aStr1,
                                                     int aLen2,
@@ -147,17 +147,17 @@ NS_HIDDEN_(int) localeCollationCaseAccentSensitive8(void *aService,
  *         The number of bytes (not characters) in aStr1.
  * @param  aStr1
  *         The string to be compared against aStr2.  It will be passed in by
- *         SQLite as a non-null-terminated PRUnichar* buffer.
+ *         SQLite as a non-null-terminated char16_t* buffer.
  * @param  aLen2
  *         The number of bytes (not characters) in aStr2.
  * @param  aStr2
  *         The string to be compared against aStr1.  It will be passed in by
- *         SQLite as a non-null-terminated PRUnichar* buffer.
+ *         SQLite as a non-null-terminated char16_t* buffer.
  * @return aStr1 - aStr2.  That is, if aStr1 < aStr2, returns a negative number.
  *         If aStr1 > aStr2, returns a positive number.  If aStr1 == aStr2,
  *         returns 0.
  */
-NS_HIDDEN_(int) localeCollation16(void *aService,
+int localeCollation16(void *aService,
                                   int aLen1,
                                   const void *aStr1,
                                   int aLen2,
@@ -174,17 +174,17 @@ NS_HIDDEN_(int) localeCollation16(void *aService,
  *         The number of bytes (not characters) in aStr1.
  * @param  aStr1
  *         The string to be compared against aStr2.  It will be passed in by
- *         SQLite as a non-null-terminated PRUnichar* buffer.
+ *         SQLite as a non-null-terminated char16_t* buffer.
  * @param  aLen2
  *         The number of bytes (not characters) in aStr2.
  * @param  aStr2
  *         The string to be compared against aStr1.  It will be passed in by
- *         SQLite as a non-null-terminated PRUnichar* buffer.
+ *         SQLite as a non-null-terminated char16_t* buffer.
  * @return aStr1 - aStr2.  That is, if aStr1 < aStr2, returns a negative number.
  *         If aStr1 > aStr2, returns a positive number.  If aStr1 == aStr2,
  *         returns 0.
  */
-NS_HIDDEN_(int) localeCollationCaseSensitive16(void *aService,
+int localeCollationCaseSensitive16(void *aService,
                                                int aLen1,
                                                const void *aStr1,
                                                int aLen2,
@@ -201,17 +201,17 @@ NS_HIDDEN_(int) localeCollationCaseSensitive16(void *aService,
  *         The number of bytes (not characters) in aStr1.
  * @param  aStr1
  *         The string to be compared against aStr2.  It will be passed in by
- *         SQLite as a non-null-terminated PRUnichar* buffer.
+ *         SQLite as a non-null-terminated char16_t* buffer.
  * @param  aLen2
  *         The number of bytes (not characters) in aStr2.
  * @param  aStr2
  *         The string to be compared against aStr1.  It will be passed in by
- *         SQLite as a non-null-terminated PRUnichar* buffer.
+ *         SQLite as a non-null-terminated char16_t* buffer.
  * @return aStr1 - aStr2.  That is, if aStr1 < aStr2, returns a negative number.
  *         If aStr1 > aStr2, returns a positive number.  If aStr1 == aStr2,
  *         returns 0.
  */
-NS_HIDDEN_(int) localeCollationAccentSensitive16(void *aService,
+int localeCollationAccentSensitive16(void *aService,
                                                  int aLen1,
                                                  const void *aStr1,
                                                  int aLen2,
@@ -227,17 +227,17 @@ NS_HIDDEN_(int) localeCollationAccentSensitive16(void *aService,
  *         The number of bytes (not characters) in aStr1.
  * @param  aStr1
  *         The string to be compared against aStr2.  It will be passed in by
- *         SQLite as a non-null-terminated PRUnichar* buffer.
+ *         SQLite as a non-null-terminated char16_t* buffer.
  * @param  aLen2
  *         The number of bytes (not characters) in aStr2.
  * @param  aStr2
  *         The string to be compared against aStr1.  It will be passed in by
- *         SQLite as a non-null-terminated PRUnichar* buffer.
+ *         SQLite as a non-null-terminated char16_t* buffer.
  * @return aStr1 - aStr2.  That is, if aStr1 < aStr2, returns a negative number.
  *         If aStr1 > aStr2, returns a positive number.  If aStr1 == aStr2,
  *         returns 0.
  */
-NS_HIDDEN_(int) localeCollationCaseAccentSensitive16(void *aService,
+int localeCollationCaseAccentSensitive16(void *aService,
                                                      int aLen1,
                                                      const void *aStr1,
                                                      int aLen2,

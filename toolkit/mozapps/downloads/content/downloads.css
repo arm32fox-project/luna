@@ -47,3 +47,4 @@ richlistitem[type="download"][state="9"] {
 richlistitem[type="download"]:not([selected="true"]) button {
   -moz-user-focus: none;
 }
+

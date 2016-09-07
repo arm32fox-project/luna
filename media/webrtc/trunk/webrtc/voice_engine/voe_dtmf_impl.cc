@@ -8,15 +8,15 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "voe_dtmf_impl.h"
+#include "webrtc/voice_engine/voe_dtmf_impl.h"
 
-#include "channel.h"
-#include "critical_section_wrapper.h"
-#include "output_mixer.h"
-#include "trace.h"
-#include "transmit_mixer.h"
-#include "voe_errors.h"
-#include "voice_engine_impl.h"
+#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
+#include "webrtc/system_wrappers/interface/trace.h"
+#include "webrtc/voice_engine/channel.h"
+#include "webrtc/voice_engine/include/voe_errors.h"
+#include "webrtc/voice_engine/output_mixer.h"
+#include "webrtc/voice_engine/transmit_mixer.h"
+#include "webrtc/voice_engine/voice_engine_impl.h"
 
 namespace webrtc {
 
@@ -29,7 +29,7 @@ VoEDtmf* VoEDtmf::GetInterface(VoiceEngine* voiceEngine)
     {
         return NULL;
     }
-    VoiceEngineImpl* s = reinterpret_cast<VoiceEngineImpl*>(voiceEngine);
+    VoiceEngineImpl* s = static_cast<VoiceEngineImpl*>(voiceEngine);
     s->AddRef();
     return s;
 #endif
@@ -67,8 +67,8 @@ int VoEDtmfImpl::SendTelephoneEvent(int channel,
         _shared->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -161,8 +161,8 @@ int VoEDtmfImpl::SetSendTelephoneEventPayloadType(int channel,
         _shared->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -182,8 +182,8 @@ int VoEDtmfImpl::GetSendTelephoneEventPayloadType(int channel,
         _shared->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -227,138 +227,6 @@ int VoEDtmfImpl::PlayDtmfTone(int eventCode,
                                                attenuationDb);
 }
 
-int VoEDtmfImpl::StartPlayingDtmfTone(int eventCode,
-                                      int attenuationDb)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "StartPlayingDtmfTone(eventCode=%d, attenuationDb=%d)",
-                 eventCode, attenuationDb);
-
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    if (!_shared->audio_device()->Playing())
-    {
-        _shared->SetLastError(VE_NOT_PLAYING, kTraceError,
-            "StartPlayingDtmfTone() no channel is playing out");
-        return -1;
-    }
-    if ((eventCode < kMinDtmfEventCode) ||
-        (eventCode > kMaxDtmfEventCode) ||
-        (attenuationDb < kMinTelephoneEventAttenuation) ||
-        (attenuationDb > kMaxTelephoneEventAttenuation))
-    {
-        _shared->SetLastError(VE_INVALID_ARGUMENT, kTraceError,
-            "StartPlayingDtmfTone() invalid tone parameter(s)");
-        return -1;
-    }
-    return _shared->output_mixer()->StartPlayingDtmfTone(eventCode,
-                                                       attenuationDb);
-}
-
-int VoEDtmfImpl::StopPlayingDtmfTone()
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "StopPlayingDtmfTone()");
-
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    return _shared->output_mixer()->StopPlayingDtmfTone();
-}
-
-int VoEDtmfImpl::RegisterTelephoneEventDetection(
-    int channel,
-    TelephoneEventDetectionMethods detectionMethod,
-    VoETelephoneEventObserver& observer)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-      "RegisterTelephoneEventDetection(channel=%d, detectionMethod=%d,"
-      "observer=0x%x)", channel, detectionMethod, &observer);
-#ifdef WEBRTC_DTMF_DETECTION
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
-    if (channelPtr == NULL)
-    {
-        _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-            "RegisterTelephoneEventDetection() failed to locate channel");
-        return -1;
-    }
-    return channelPtr->RegisterTelephoneEventDetection(detectionMethod,
-                                                       observer);
-#else
-    _shared->SetLastError(VE_FUNC_NOT_SUPPORTED, kTraceError,
-        "SetTelephoneEventDetectionStatus() Dtmf detection is not supported");
-    return -1;
-#endif
-}
-
-int VoEDtmfImpl::DeRegisterTelephoneEventDetection(int channel)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-            "DeRegisterTelephoneEventDetection(channel=%d)", channel);
-#ifdef WEBRTC_DTMF_DETECTION
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
-    if (channelPtr == NULL)
-    {
-        _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-            "DeRegisterTelephoneEventDe tection() failed to locate channel");
-            return -1;
-    }
-    return channelPtr->DeRegisterTelephoneEventDetection();
-#else
-    _shared->SetLastError(VE_FUNC_NOT_SUPPORTED, kTraceError,
-        "DeRegisterTelephoneEventDetection() Dtmf detection is not supported");
-    return -1;
-#endif
-}
-
-
-int VoEDtmfImpl::GetTelephoneEventDetectionStatus(
-    int channel,
-    bool& enabled,
-    TelephoneEventDetectionMethods& detectionMethod)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-               "GetTelephoneEventDetectionStatus(channel=%d)", channel);
-#ifdef WEBRTC_DTMF_DETECTION
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
-    if (channelPtr == NULL)
-    {
-        _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-            "GetTelephoneEventDetectionStatus() failed to locate channel");
-        return -1;
-    }
-    return channelPtr->GetTelephoneEventDetectionStatus(enabled,
-                                                        detectionMethod);
-#else
-    _shared->SetLastError(VE_FUNC_NOT_SUPPORTED, kTraceError,
-        "GetTelephoneEventDetectionStatus() Dtmf detection is not supported");
-    return -1;
-#endif
-}
-
 int VoEDtmfImpl::SetDtmfFeedbackStatus(bool enable, bool directFeedback)
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
@@ -389,55 +257,6 @@ int VoEDtmfImpl::GetDtmfFeedbackStatus(bool& enabled, bool& directFeedback)
         enabled, directFeedback);
     return 0;
 }
-
-int VoEDtmfImpl::SetDtmfPlayoutStatus(int channel, bool enable)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "SetDtmfPlayoutStatus(channel=%d, enable=%d)",
-                 channel, enable);
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
-
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
-    if (channelPtr == NULL)
-    {
-        _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-            "SetDtmfPlayoutStatus() failed to locate channel");
-        return -1;
-    }
-    return channelPtr->SetDtmfPlayoutStatus(enable);
-}
-
-int VoEDtmfImpl::GetDtmfPlayoutStatus(int channel, bool& enabled)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "GetDtmfPlayoutStatus(channel=%d, enabled=?)", channel);
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
-    if (channelPtr == NULL)
-    {
-        _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-            "GetDtmfPlayoutStatus() failed to locate channel");
-        return -1;
-    }
-    enabled = channelPtr->DtmfPlayoutStatus();
-    WEBRTC_TRACE(kTraceStateInfo, kTraceVoice,
-        VoEId(_shared->instance_id(), -1),
-        "GetDtmfPlayoutStatus() => enabled=%d", enabled);
-    return 0;
-}
-
 #endif  // #ifdef WEBRTC_VOICE_ENGINE_DTMF_API
 
 }  // namespace webrtc

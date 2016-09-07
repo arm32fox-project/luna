@@ -15,25 +15,24 @@
 #include "nsCOMPtr.h"
 #include "nsClassHashtable.h"
 #include "nsHashKeys.h"
+#include "nsTArrayForwardDeclare.h"
 
 class nsIHashable;
 class nsIRemoteOpenFileListener;
-template<class E, uint32_t N> class nsAutoTArray;
 
-class nsJARProtocolHandler : public nsIJARProtocolHandler
-                           , public nsSupportsWeakReference
+class nsJARProtocolHandler final : public nsIJARProtocolHandler
+                                     , public nsSupportsWeakReference
 {
     typedef nsAutoTArray<nsCOMPtr<nsIRemoteOpenFileListener>, 5>
             RemoteFileListenerArray;
 
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSIPROTOCOLHANDLER
     NS_DECL_NSIJARPROTOCOLHANDLER
 
     // nsJARProtocolHandler methods:
     nsJARProtocolHandler();
-    virtual ~nsJARProtocolHandler();
 
     static nsJARProtocolHandler *GetSingleton();
 
@@ -50,6 +49,8 @@ public:
     void RemoteOpenFileComplete(nsIHashable *aRemoteFile, nsresult aStatus);
 
 protected:
+    virtual ~nsJARProtocolHandler();
+
     nsCOMPtr<nsIZipReaderCache> mJARCache;
     nsCOMPtr<nsIMIMEService> mMimeService;
 

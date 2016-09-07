@@ -8,7 +8,7 @@
 
 #include "mozilla/Attributes.h"
 
-#include "common_types.h"
+#include "webrtc/common_types.h"
 
 namespace mozilla {
 
@@ -35,8 +35,8 @@ public:
   virtual ~NullTransport() {}
 
 private:
-  NullTransport(const NullTransport& other) MOZ_DELETE;
-  void operator=(const NullTransport& other) MOZ_DELETE;
+  NullTransport(const NullTransport& other) = delete;
+  void operator=(const NullTransport& other) = delete;
 };
 
 } // end namespace

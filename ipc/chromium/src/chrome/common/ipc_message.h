@@ -10,12 +10,12 @@
 #include "base/basictypes.h"
 #include "base/pickle.h"
 
-#ifndef NDEBUG
-#define IPC_MESSAGE_LOG_ENABLED
+#ifdef MOZ_TASK_TRACER
+#include "GoannaTaskTracer.h"
 #endif
 
 #if defined(OS_POSIX)
-#include "base/ref_counted.h"
+#include "nsAutoPtr.h"
 #endif
 
 namespace base {
@@ -49,9 +49,9 @@ class Message : public Pickle {
   };
 
   enum PriorityValue {
-    PRIORITY_LOW = 1,
-    PRIORITY_NORMAL,
-    PRIORITY_HIGH
+    PRIORITY_NORMAL = 1,
+    PRIORITY_HIGH = 2,
+    PRIORITY_URGENT = 3
   };
 
   enum MessageCompression {
@@ -75,10 +75,17 @@ class Message : public Pickle {
   Message(const char* data, int data_len);
 
   Message(const Message& other);
+  Message(Message&& other);
   Message& operator=(const Message& other);
+  Message& operator=(Message&& other);
 
   PriorityValue priority() const {
     return static_cast<PriorityValue>(header()->flags & PRIORITY_MASK);
+  }
+
+  void set_priority(int prio) {
+    DCHECK((prio & ~PRIORITY_MASK) == 0);
+    header()->flags = (header()->flags & ~PRIORITY_MASK) | prio;
   }
 
   // True if this is a synchronous message.
@@ -87,8 +94,8 @@ class Message : public Pickle {
   }
 
   // True if this is a synchronous message.
-  bool is_rpc() const {
-    return (header()->flags & RPC_BIT) != 0;
+  bool is_interrupt() const {
+    return (header()->flags & INTERRUPT_BIT) != 0;
   }
 
   // True if compression is enabled for this message.
@@ -148,22 +155,30 @@ class Message : public Pickle {
     header()->routing = new_id;
   }
 
-  uint32_t rpc_remote_stack_depth_guess() const {
-    return header()->rpc_remote_stack_depth_guess;
+  int32_t transaction_id() const {
+    return header()->txid;
   }
 
-  void set_rpc_remote_stack_depth_guess(uint32_t depth) {
-    DCHECK(is_rpc());
-    header()->rpc_remote_stack_depth_guess = depth;
+  void set_transaction_id(int32_t txid) {
+    header()->txid = txid;
   }
 
-  uint32_t rpc_local_stack_depth() const {
-    return header()->rpc_local_stack_depth;
+  uint32_t interrupt_remote_stack_depth_guess() const {
+    return header()->interrupt_remote_stack_depth_guess;
   }
 
-  void set_rpc_local_stack_depth(uint32_t depth) {
-    DCHECK(is_rpc());
-    header()->rpc_local_stack_depth = depth;
+  void set_interrupt_remote_stack_depth_guess(uint32_t depth) {
+    DCHECK(is_interrupt());
+    header()->interrupt_remote_stack_depth_guess = depth;
+  }
+
+  uint32_t interrupt_local_stack_depth() const {
+    return header()->interrupt_local_stack_depth;
+  }
+
+  void set_interrupt_local_stack_depth(uint32_t depth) {
+    DCHECK(is_interrupt());
+    header()->interrupt_local_stack_depth = depth;
   }
 
   int32_t seqno() const {
@@ -181,6 +196,10 @@ class Message : public Pickle {
   void set_name(const char* const name) {
     name_ = name;
   }
+
+#if defined(OS_POSIX)
+  uint32_t num_fds() const;
+#endif
 
   template<class T>
   static bool Dispatch(const Message* msg, T* obj, void (T::*func)()) {
@@ -238,25 +257,6 @@ class Message : public Pickle {
 #endif
 #endif
 
-#ifdef IPC_MESSAGE_LOG_ENABLED
-  // Adds the outgoing time from Time::Now() at the end of the message and sets
-  // a bit to indicate that it's been added.
-  void set_sent_time(int64_t time);
-  int64_t sent_time() const;
-
-  void set_received_time(int64_t time) const;
-  int64_t received_time() const { return received_time_; }
-  void set_output_params(const std::wstring& op) const { output_params_ = op; }
-  const std::wstring& output_params() const { return output_params_; }
-  // The following four functions are needed so we can log sync messages with
-  // delayed replies.  We stick the log data from the sent message into the
-  // reply message, so that when it's sent and we have the output parameters
-  // we can log it.  As such, we set a flag on the sent message to not log it.
-  void set_sync_log_data(LogData* data) const { log_data_ = data; }
-  LogData* sync_log_data() const { return log_data_; }
-  void set_dont_log() const { dont_log_ = true; }
-  bool dont_log() const { return dont_log_; }
-#endif
 
   friend class Channel;
   friend class MessageReplyDeserializer;
@@ -266,8 +266,8 @@ class Message : public Pickle {
     header()->flags |= SYNC_BIT;
   }
 
-  void set_rpc() {
-    header()->flags |= RPC_BIT;
+  void set_interrupt() {
+    header()->flags |= INTERRUPT_BIT;
   }
 
 #if !defined(OS_MACOSX)
@@ -283,11 +283,10 @@ class Message : public Pickle {
     UNBLOCK_BIT     = 0x0020,
     PUMPING_MSGS_BIT= 0x0040,
     HAS_SENT_TIME_BIT = 0x0080,
-    RPC_BIT         = 0x0100,
-    COMPRESS_BIT    = 0x0200
+    INTERRUPT_BIT   = 0x0100,
+    COMPRESS_BIT    = 0x0200,
   };
 
-#pragma pack(push, 2)
   struct Header : Pickle::Header {
     int32_t routing;  // ID of the view that this message is destined for
     msgid_t type;   // specifies the user-defined message type
@@ -298,14 +297,23 @@ class Message : public Pickle {
     uint32_t cookie;  // cookie to ACK that the descriptors have been read.
 # endif
 #endif
-    // For RPC messages, a guess at what the *other* side's stack depth is.
-    uint32_t rpc_remote_stack_depth_guess;
+    union {
+      // For Interrupt messages, a guess at what the *other* side's stack depth is.
+      uint32_t interrupt_remote_stack_depth_guess;
+
+      // For RPC and Urgent messages, a transaction ID for message ordering.
+      int32_t txid;
+    };
     // The actual local stack depth.
-    uint32_t rpc_local_stack_depth;
+    uint32_t interrupt_local_stack_depth;
     // Sequence number
     int32_t seqno;
+#ifdef MOZ_TASK_TRACER
+    uint64_t source_event_id;
+    uint64_t parent_task_id;
+    mozilla::tasktracer::SourceEventType source_event_type;
+#endif
   };
-#pragma pack(pop)
 
   Header* header() {
     return headerT<Header>();
@@ -318,7 +326,7 @@ class Message : public Pickle {
 
 #if defined(OS_POSIX)
   // The set of file descriptors associated with this message.
-  scoped_refptr<FileDescriptorSet> file_descriptor_set_;
+  nsRefPtr<FileDescriptorSet> file_descriptor_set_;
 
   // Ensure that a FileDescriptorSet is allocated
   void EnsureFileDescriptorSet();
@@ -334,13 +342,6 @@ class Message : public Pickle {
 
   const char* name_;
 
-#ifdef IPC_MESSAGE_LOG_ENABLED
-  // Used for logging.
-  mutable int64_t received_time_;
-  mutable std::wstring output_params_;
-  mutable LogData* log_data_;
-  mutable bool dont_log_;
-#endif
 };
 
 //------------------------------------------------------------------------------

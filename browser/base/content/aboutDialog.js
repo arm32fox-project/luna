@@ -39,10 +39,9 @@ function init(aEvent)
     // Pref is unset
   }
 
-  // Include the build ID if this is an "a#", "b#" or "pre" build
+  // Include the build ID if this is an "a#" or "b#" build
   let version = Services.appinfo.version;
-  if (/[ab]\d+$/.test(version) ||
-      /pre+$/.test(version)) {
+  if (/[ab]\d+$/.test(version)) {
     let buildID = Services.appinfo.appBuildID;
     let buildDate = buildID.slice(0,4) + "-" + buildID.slice(4,6) + "-" + buildID.slice(6,8);
     document.getElementById("PMversion").textContent += " (" + buildDate + ")";

@@ -7,9 +7,9 @@ HTTP(..) == download-2.html download-2-ref.html
 HTTP(..) != download-2.html about:blank
 random-if(winWidget) HTTP(..) == download-2-big.html download-2-big-otf.html # bug 470713
 HTTP(..) != download-2-big-otf.html about:blank
-HTTP(..) != download-3-notref.html download-3.html
-HTTP(..) == download-3-ref.html download-3.html
-HTTP(..) == fallback-to-system-1.html fallback-to-system-1-ref.html
+asserts-if(Android,4-8) skip-if(Android&&AndroidVersion==17) HTTP(..) != download-3-notref.html download-3.html # bug 1019192, bug 936226
+asserts-if(Android,0-8) HTTP(..) == download-3-ref.html download-3.html # same bugs as above
+asserts-if(Android,0-8) HTTP(..) == fallback-to-system-1.html fallback-to-system-1-ref.html # just delayed assertions from above tests
 HTTP(..) == name-override-simple-1.html name-override-simple-1-ref.html
 HTTP(..) != name-override-simple-1.html download-1-notref.html
 fails HTTP(..) == name-override-1.html name-override-1-ref.html
@@ -48,11 +48,9 @@ skip-if(B2G) fails-if(Android) random-if(gtk2Widget) == src-list-local-ps.html s
 # Mac-specific test of 100 weight faces
 random-if(!cocoaWidget) == helveticaneue-ultra.html helveticaneue-ultra-ref.html
 
-# FIXME: The behavior here is neither mandated nor specified by the spec, but
-# it really ought to be.
 HTTP(..) == order-1.html order-1-ref.html
-fails HTTP(..) == order-2.html order-2-ref.html # bug 465414
-fails HTTP(..) == order-3.html order-3-ref.html # bug 465414
+pref(layout.css.unicode-range.enabled,true) random-if(gtk2Widget) HTTP(..) == order-2.html order-2-ref.html # bug 1056479
+pref(layout.css.unicode-range.enabled,true) random-if(gtk2Widget) HTTP(..) == order-3.html order-3-ref.html # bug 1056479
 HTTP(..) == multiple-in-family-1.html multiple-in-family-1-ref.html
 HTTP(..) == multiple-in-family-1b.html multiple-in-family-1-ref.html
 HTTP(..) != multiple-in-family-1.html multiple-in-family-1-notref.html
@@ -61,9 +59,15 @@ HTTP(..) == prop-order-over-rule-order-1b.html prop-order-over-rule-order-2b.htm
 HTTP(..) != prop-order-over-rule-order-1a.html prop-order-over-rule-order-1b.html
 skip-if(B2G) HTTP(..) == cross-iframe-1.html cross-iframe-1-ref.html # bug 773482
 
+# unicode-range (Linux implementation - bug 1056479)
+pref(layout.css.unicode-range.enabled,true) random-if(gtk2Widget) HTTP(..) == unicoderange-1.html unicoderange-1-ref.html
+pref(layout.css.unicode-range.enabled,true) random-if(gtk2Widget) HTTP(..) == unicoderange-2.html unicoderange-2-ref.html
+pref(layout.css.unicode-range.enabled,true) random-if(gtk2Widget) HTTP(..) == unicoderange-3.html unicoderange-3-ref.html
+pref(layout.css.unicode-range.enabled,true) random-if(gtk2Widget) HTTP(..) == unicoderange-4.html unicoderange-4-ref.html
+
 # Dynamic changes
-HTTP(..) == enable-sheet-1.html enable-sheet-1-ref.html
 # we need to skip these because of the bug that's causing order-2.html to fail
+HTTP(..) == enable-sheet-1.html enable-sheet-1-ref.html
 skip HTTP(..) == enable-sheet-2.html multiple-in-family-1-ref.html
 skip HTTP(..) == enable-sheet-3.html multiple-in-family-1-ref.html
 HTTP(..) == enable-sheet-4.html enable-sheet-4-ref.html
@@ -90,13 +94,10 @@ HTTP(..) == ex-unit-1.html ex-unit-1-ref.html
 HTTP(..) == ex-unit-1-dynamic.html ex-unit-1-ref.html
 
 # bug 493976 - for some reason the Arabic tests below cause Tinderbox timeouts
-# Arabic support requires AAT fonts under Mac OS, OpenType otherwise
-# random-if(!cocoaWidget) HTTP(..) == src-format-arabic.html src-format-arabic-aat-ref.html
-# random-if(cocoaWidget) HTTP(..) == src-format-arabic.html src-format-arabic-ot-ref.html
+# HTTP(..) == src-format-arabic.html src-format-arabic-ot-ref.html
 
-# bug 769194 - src:local() completely broken on android
-skip-if(B2G) fails-if(Android) == local-1.html local-1-ref.html # bug 773482
-skip-if(B2G) fails-if(Android) == local-styled-1.html local-styled-1-ref.html # bug 773482
+== local-1.html local-1-ref.html
+== local-styled-1.html local-styled-1-ref.html
 
 skip-if(B2G) HTTP(..) == synthetic-weight-style.html synthetic-weight-style-ref.html # bug 773482
 skip-if(B2G) HTTP(..) == synthetic-variations.html synthetic-variations-ref.html
@@ -112,8 +113,6 @@ skip-if(B2G) HTTP(..) == name-collision.html name-collision-ref.html # bug 77348
 skip-if(B2G) HTTP(..) == name-collision-bad-url.html name-collision-bad-url-ref.html # bug 773482
 
 HTTP(..) == name-collision-with-prefs-font.html name-collision-with-prefs-font-ref.html # bug 668758
-
-# t2embed lib on windows is picky about fullname
 HTTP(..) == load-badfullname.html load-badfullname-ref.html
 
 # 507960-1-* : a collection of tests using DeLarge from openfontlibrary.org
@@ -145,7 +144,8 @@ HTTP(..) == bug533251.html bug533251-ref.html
 HTTP(..) == font-familiy-whitespace-1.html font-familiy-whitespace-1-ref.html
 HTTP(..) != font-familiy-whitespace-1.html font-familiy-whitespace-1-notref.html
 
-skip-if(B2G) fails-if(Android) HTTP(..) == ivs-1.html ivs-1-ref.html # bug 773482
+skip-if(B2G) HTTP(..) == ivs-1.html ivs-1-ref.html # bug 773482
+skip-if(B2G) HTTP(..) == cjkcisvs-1.html cjkcisvs-1-ref.html
 
 skip-if(B2G) HTTP(..) == missing-names.html missing-names-ref.html # bug 773482
 
@@ -157,3 +157,15 @@ HTTP(..) != font-error-404-1.html font-error-404-2.html # sanity-check that the 
 
 # Font load redirection
 HTTP(..) == font-redirect.html order-1-ref.html
+
+# Tests for potential regressions from bug 879963
+== dynamic-duplicate-rule-1a.html dynamic-duplicate-rule-1-ref.html
+== dynamic-duplicate-rule-1b.html dynamic-duplicate-rule-1-ref.html
+== dynamic-duplicate-rule-1c.html dynamic-duplicate-rule-1-ref.html
+
+# Test for COLR and CPAL support
+HTTP(..) == color-1a.html color-1-ref.html
+HTTP(..) != color-1a.html color-1-notref.html
+HTTP(..) == color-1b.html color-1-ref.html
+
+pref(gfx.downloadable_fonts.woff2.enabled,true) HTTP(..) == woff2-1.html woff2-1-ref.html

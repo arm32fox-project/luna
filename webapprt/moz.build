@@ -8,8 +8,53 @@ if CONFIG['OS_ARCH'] == 'WINNT':
     DIRS += ['win']
 elif CONFIG['OS_ARCH'] == 'Darwin':
     DIRS += ['mac']
-elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gtk2':
-    DIRS += ['gtk2']
+elif CONFIG['MOZ_ENABLE_GTK']:
+    DIRS += ['gtk']
 
-DIRS += ['locales']
-TEST_DIRS += ['test']
+DIRS += [
+    'locales',
+    'themes',
+]
+
+EXTRA_COMPONENTS += [
+    'CommandLineHandler.js',
+    'components.manifest',
+    'ContentPermission.js',
+    'DirectoryProvider.js',
+    'PaymentUIGlue.js',
+]
+
+EXTRA_JS_MODULES += [
+    'DownloadView.jsm',
+    'RemoteDebugger.jsm',
+    'Startup.jsm',
+    'WebappManager.jsm',
+    'WebappRT.jsm',
+    'WebRTCHandler.jsm',
+]
+
+MOCHITEST_WEBAPPRT_CHROME_MANIFESTS += [
+    'test/chrome/downloads/webapprt.ini',
+    'test/chrome/webapprt.ini',
+]
+MOCHITEST_WEBAPPRT_CONTENT_MANIFESTS += ['test/content/webapprt.ini']
+
+# Place webapprt resources in a separate app dir
+DIST_SUBDIR = 'webapprt'
+export('DIST_SUBDIR')
+
+if CONFIG['MOZ_DEBUG']:
+    DEFINES['MOZ_DEBUG'] = 1
+
+if CONFIG['MOZILLA_OFFICIAL']:
+    DEFINES['MOZILLA_OFFICIAL'] = True
+
+DEFINES['GRE_MILESTONE'] = CONFIG['GRE_MILESTONE']
+DEFINES['MOZ_APP_BASENAME'] = CONFIG['MOZ_APP_BASENAME']
+
+JAR_MANIFESTS += ['jar.mn']
+
+JS_PREFERENCE_FILES += [
+    'prefs.js',
+]
+

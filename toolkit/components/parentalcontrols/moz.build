@@ -8,11 +8,26 @@ XPIDL_SOURCES += [
     'nsIParentalControlsService.idl',
 ]
 
-MODULE = 'parentalcontrols'
+XPIDL_MODULE = 'parentalcontrols'
 
 if not CONFIG['MOZ_DISABLE_PARENTAL_CONTROLS']:
-    if CONFIG['OS_ARCH'] == 'WINNT':
-        LIBRARY_NAME = 'parentalcontrols_s'
-        CPP_SOURCES += [
+    if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
+        SOURCES += [
             'nsParentalControlsServiceWin.cpp',
         ]
+    elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
+        UNIFIED_SOURCES += [
+            'nsParentalControlsServiceCocoa.mm',
+        ]
+    elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'android':
+        UNIFIED_SOURCES += [
+            'nsParentalControlsServiceAndroid.cpp',
+        ]
+    else:
+        SOURCES += [
+            'nsParentalControlsServiceDefault.cpp',
+        ]
+
+FINAL_LIBRARY = 'xul'
+
+FAIL_ON_WARNINGS = True

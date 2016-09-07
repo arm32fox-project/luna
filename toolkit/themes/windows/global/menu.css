@@ -140,6 +140,17 @@ menubar > menu:-moz-lwtheme[_moz-menuactive="true"]:not([disabled="true"]) {
   text-shadow: none;
 }
 
+@media (-moz-windows-default-theme) {
+  menubar > menu:-moz-lwtheme {
+    -moz-appearance: menuitem;
+  }
+
+  menubar > menu:-moz-lwtheme[_moz-menuactive="true"]:not([disabled="true"]) {
+    color: inherit !important;
+    text-shadow: inherit;
+  }
+}
+
 %ifdef XP_WIN
 menubar > menu:-moz-window-inactive {
   color: ThreeDShadow;
@@ -177,7 +188,7 @@ menuitem[_moz-menuactive="true"],
 menulist > menupopup > menuitem,
 .menulist-menupopup > menu,
 menulist > menupopup > menu {
-  -moz-appearance: none;
+  -moz-appearance: none !important;
   border: 1px solid transparent;
   -moz-padding-start: 5px;
   -moz-padding-end: 5px;

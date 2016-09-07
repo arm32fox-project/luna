@@ -14,7 +14,8 @@
 #include "nsIURI.h"
 #include "nsThreadUtils.h"
 #include "nsProxyRelease.h"
-#include "jsapi.h"
+#include "prtime.h"
+#include "mozilla/Telemetry.h"
 
 namespace mozilla {
 namespace places {
@@ -38,8 +39,8 @@ protected:
  * methods this class assumes silent or notreached.
  */
 #define NS_DECL_ASYNCSTATEMENTCALLBACK \
-  NS_IMETHOD HandleResult(mozIStorageResultSet *); \
-  NS_IMETHOD HandleCompletion(uint16_t);
+  NS_IMETHOD HandleResult(mozIStorageResultSet *) override; \
+  NS_IMETHOD HandleCompletion(uint16_t) override;
 
 /**
  * Utils to bind a specified URI (or URL) to a statement or binding params, at
@@ -149,6 +150,22 @@ bool IsValidGUID(const nsACString& aGUID);
 void TruncateTitle(const nsACString& aTitle, nsACString& aTrimmed);
 
 /**
+ * Round down a PRTime value to milliseconds precision (...000).
+ *
+ * @param aTime
+ *        a PRTime value.
+ * @return aTime rounded down to milliseconds precision.
+ */
+PRTime RoundToMilliseconds(PRTime aTime);
+
+/**
+ * Round down PR_Now() to milliseconds precision.
+ *
+ * @return @see PR_Now, RoundToMilliseconds.
+ */
+PRTime RoundedPRNow();
+
+/**
  * Used to finalize a statementCache on a specified thread.
  */
 template<typename StatementType>
@@ -216,11 +233,12 @@ bool GetHiddenState(bool aIsRedirect,
 class PlacesEvent : public nsRunnable
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIRUNNABLE
 
-  PlacesEvent(const char* aTopic);
+  explicit PlacesEvent(const char* aTopic);
 protected:
+  ~PlacesEvent() {}
   void Notify();
 
   const char* const mTopic;
@@ -232,7 +250,7 @@ protected:
 class AsyncStatementCallbackNotifier : public AsyncStatementCallback
 {
 public:
-  AsyncStatementCallbackNotifier(const char* aTopic)
+  explicit AsyncStatementCallbackNotifier(const char* aTopic)
     : mTopic(aTopic)
   {
   }
@@ -241,6 +259,26 @@ public:
 
 private:
   const char* mTopic;
+};
+
+/**
+ * Used to notify a topic to system observers on async execute completion.
+ */
+class AsyncStatementTelemetryTimer : public AsyncStatementCallback
+{
+public:
+  explicit AsyncStatementTelemetryTimer(Telemetry::ID aHistogramId,
+                                        TimeStamp aStart = TimeStamp::Now())
+    : mHistogramId(aHistogramId)
+    , mStart(aStart)
+  {
+  }
+
+  NS_IMETHOD HandleCompletion(uint16_t aReason);
+
+private:
+  const Telemetry::ID mHistogramId;
+  const TimeStamp mStart;
 };
 
 } // namespace places

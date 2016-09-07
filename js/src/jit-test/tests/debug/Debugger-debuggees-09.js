@@ -1,4 +1,3 @@
-// |jit-test| debug
 // If hasDebuggee(x) is false, removeDebuggee(x) does nothing.
 
 var dbg = new Debugger;
@@ -16,7 +15,7 @@ var g1 = newGlobal('same-compartment');
 check(g1);
 
 // objects in a compartment that is already debugging us
-var g2 = newGlobal('new-compartment');
+var g2 = newGlobal();
 g2.parent = this;
 g2.eval("var dbg = new Debugger(parent);");
 check(g2);

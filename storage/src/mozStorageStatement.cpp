@@ -24,6 +24,7 @@
 #include "mozStorageStatementRow.h"
 #include "mozStorageStatement.h"
 #include "GoannaProfiler.h"
+#include "nsDOMClassInfo.h"
 
 #include "prlog.h"
 
@@ -38,28 +39,28 @@ namespace storage {
 ////////////////////////////////////////////////////////////////////////////////
 //// nsIClassInfo
 
-NS_IMPL_CI_INTERFACE_GETTER5(
-  Statement,
-  mozIStorageStatement,
-  mozIStorageBaseStatement,
-  mozIStorageBindingParams,
-  mozIStorageValueArray,
-  mozilla::storage::StorageBaseStatementInternal
-)
+NS_IMPL_CI_INTERFACE_GETTER(Statement,
+                            mozIStorageStatement,
+                            mozIStorageBaseStatement,
+                            mozIStorageBindingParams,
+                            mozIStorageValueArray,
+                            mozilla::storage::StorageBaseStatementInternal)
 
 class StatementClassInfo : public nsIClassInfo
 {
 public:
-  NS_DECL_ISUPPORTS
+  MOZ_CONSTEXPR StatementClassInfo() {}
+
+  NS_DECL_ISUPPORTS_INHERITED
 
   NS_IMETHODIMP
-  GetInterfaces(uint32_t *_count, nsIID ***_array)
+  GetInterfaces(uint32_t *_count, nsIID ***_array) override
   {
     return NS_CI_INTERFACE_GETTER_NAME(Statement)(_count, _array);
   }
 
   NS_IMETHODIMP
-  GetHelperForLanguage(uint32_t aLanguage, nsISupports **_helper)
+  GetHelperForLanguage(uint32_t aLanguage, nsISupports **_helper) override
   {
     if (aLanguage == nsIProgrammingLanguage::JAVASCRIPT) {
       static StatementJSHelper sJSHelper;
@@ -72,50 +73,50 @@ public:
   }
 
   NS_IMETHODIMP
-  GetContractID(char **_contractID)
+  GetContractID(char **_contractID) override
   {
     *_contractID = nullptr;
     return NS_OK;
   }
 
   NS_IMETHODIMP
-  GetClassDescription(char **_desc)
+  GetClassDescription(char **_desc) override
   {
     *_desc = nullptr;
     return NS_OK;
   }
 
   NS_IMETHODIMP
-  GetClassID(nsCID **_id)
+  GetClassID(nsCID **_id) override
   {
     *_id = nullptr;
     return NS_OK;
   }
 
   NS_IMETHODIMP
-  GetImplementationLanguage(uint32_t *_language)
+  GetImplementationLanguage(uint32_t *_language) override
   {
     *_language = nsIProgrammingLanguage::CPLUSPLUS;
     return NS_OK;
   }
 
   NS_IMETHODIMP
-  GetFlags(uint32_t *_flags)
+  GetFlags(uint32_t *_flags) override
   {
     *_flags = 0;
     return NS_OK;
   }
 
   NS_IMETHODIMP
-  GetClassIDNoAlloc(nsCID *_cid)
+  GetClassIDNoAlloc(nsCID *_cid) override
   {
     return NS_ERROR_NOT_AVAILABLE;
   }
 };
 
-NS_IMETHODIMP_(nsrefcnt) StatementClassInfo::AddRef() { return 2; }
-NS_IMETHODIMP_(nsrefcnt) StatementClassInfo::Release() { return 1; }
-NS_IMPL_QUERY_INTERFACE1(StatementClassInfo, nsIClassInfo)
+NS_IMETHODIMP_(MozExternalRefCountType) StatementClassInfo::AddRef() { return 2; }
+NS_IMETHODIMP_(MozExternalRefCountType) StatementClassInfo::Release() { return 1; }
+NS_IMPL_QUERY_INTERFACE(StatementClassInfo, nsIClassInfo)
 
 static StatementClassInfo sStatementClassInfo;
 
@@ -124,7 +125,7 @@ static StatementClassInfo sStatementClassInfo;
 
 Statement::Statement()
 : StorageBaseStatementInternal()
-, mDBStatement(NULL)
+, mDBStatement(nullptr)
 , mColumnNames()
 , mExecuting(false)
 {
@@ -132,34 +133,32 @@ Statement::Statement()
 
 nsresult
 Statement::initialize(Connection *aDBConnection,
+                      sqlite3 *aNativeConnection,
                       const nsACString &aSQLStatement)
 {
-  NS_ASSERTION(aDBConnection, "No database connection given!");
-  NS_ASSERTION(!mDBStatement, "Statement already initialized!");
+  MOZ_ASSERT(aDBConnection, "No database connection given!");
+  MOZ_ASSERT(!aDBConnection->isClosed(), "Database connection should be valid");
+  MOZ_ASSERT(!mDBStatement, "Statement already initialized!");
+  MOZ_ASSERT(aNativeConnection, "No native connection given!");
 
-  sqlite3 *db = aDBConnection->GetNativeConnection();
-  NS_ASSERTION(db, "We should never be called with a null sqlite3 database!");
-
-  int srv = aDBConnection->prepareStatement(PromiseFlatCString(aSQLStatement),
+  int srv = aDBConnection->prepareStatement(aNativeConnection,
+                                            PromiseFlatCString(aSQLStatement),
                                             &mDBStatement);
   if (srv != SQLITE_OK) {
-#ifdef PR_LOGGING
       PR_LOG(gStorageLog, PR_LOG_ERROR,
              ("Sqlite statement prepare error: %d '%s'", srv,
-              ::sqlite3_errmsg(db)));
+              ::sqlite3_errmsg(aNativeConnection)));
       PR_LOG(gStorageLog, PR_LOG_ERROR,
              ("Statement was: '%s'", PromiseFlatCString(aSQLStatement).get()));
-#endif
       return NS_ERROR_FAILURE;
     }
 
-#ifdef PR_LOGGING
   PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Initialized statement '%s' (0x%p)",
                                       PromiseFlatCString(aSQLStatement).get(),
                                       mDBStatement));
-#endif
 
   mDBConnection = aDBConnection;
+  mNativeConnection = aNativeConnection;
   mParamCount = ::sqlite3_bind_parameter_count(mDBStatement);
   mResultColumnCount = ::sqlite3_column_count(mDBStatement);
   mColumnNames.Clear();
@@ -250,8 +249,8 @@ Statement::~Statement()
 ////////////////////////////////////////////////////////////////////////////////
 //// nsISupports
 
-NS_IMPL_THREADSAFE_ADDREF(Statement)
-NS_IMPL_THREADSAFE_RELEASE(Statement)
+NS_IMPL_ADDREF(Statement)
+NS_IMPL_RELEASE(Statement)
 
 NS_INTERFACE_MAP_BEGIN(Statement)
   NS_INTERFACE_MAP_ENTRY(mozIStorageStatement)
@@ -280,21 +279,20 @@ int
 Statement::getAsyncStatement(sqlite3_stmt **_stmt)
 {
   // If we have no statement, we shouldn't be calling this method!
-  NS_ASSERTION(mDBStatement != NULL, "We have no statement to clone!");
+  NS_ASSERTION(mDBStatement != nullptr, "We have no statement to clone!");
 
   // If we do not yet have a cached async statement, clone our statement now.
   if (!mAsyncStatement) {
     nsDependentCString sql(::sqlite3_sql(mDBStatement));
-    int rc = mDBConnection->prepareStatement(sql, &mAsyncStatement);
+    int rc = mDBConnection->prepareStatement(mNativeConnection, sql,
+                                             &mAsyncStatement);
     if (rc != SQLITE_OK) {
       *_stmt = nullptr;
       return rc;
     }
 
-#ifdef PR_LOGGING
     PR_LOG(gStorageLog, PR_LOG_NOTICE,
            ("Cloned statement 0x%p to 0x%p", mDBStatement, mAsyncStatement));
-#endif
   }
 
   *_stmt = mAsyncStatement;
@@ -338,7 +336,7 @@ Statement::Clone(mozIStorageStatement **_statement)
   NS_ENSURE_TRUE(statement, NS_ERROR_OUT_OF_MEMORY);
 
   nsAutoCString sql(::sqlite3_sql(mDBStatement));
-  nsresult rv = statement->initialize(mDBConnection, sql);
+  nsresult rv = statement->initialize(mDBConnection, mNativeConnection, sql);
   NS_ENSURE_SUCCESS(rv, rv);
 
   statement.forget(_statement);
@@ -359,7 +357,7 @@ Statement::internalFinalize(bool aDestructing)
 
   int srv = SQLITE_OK;
 
-  if (!mDBConnection->isClosing(true)) {
+  if (!mDBConnection->isClosed()) {
     //
     // The connection is still open. While statement finalization and
     // closing may, in some cases, take place in two distinct threads,
@@ -383,10 +381,8 @@ Statement::internalFinalize(bool aDestructing)
     // In either case, the connection is still valid, hence closing
     // here is safe.
     //
-#ifdef PR_LOGGING
     PR_LOG(gStorageLog, PR_LOG_NOTICE, ("Finalizing statement '%s' during garbage-collection",
                                         ::sqlite3_sql(mDBStatement)));
-#endif
     srv = ::sqlite3_finalize(mDBStatement);
   }
 #ifdef DEBUG
@@ -403,26 +399,28 @@ Statement::internalFinalize(bool aDestructing)
       " before garbage-collection. For more details on this statement, set"
       " NSPR_LOG_MESSAGES=mozStorage:5 .",
       mDBStatement);
+
     //
     // Note that we can't display the statement itself, as the data structure
     // is not valid anymore. However, the address shown here should help
     // developers correlate with the more complete debug message triggered
     // by AsyncClose().
     //
-    
+
 #if 0
-    // Deactivate this warning until we have fixed the exising culprit
+    // Deactivate the warning until we have fixed the exising culprit
     // (see bug 914070).
     NS_WARNING(msg);
 #endif // 0
-    
+
     PR_LOG(gStorageLog, PR_LOG_WARNING, (msg));
-    
+
     ::PR_smprintf_free(msg);
   }
-#endif // DEBUG
 
-  mDBStatement = NULL;
+#endif
+
+  mDBStatement = nullptr;
 
   if (mAsyncStatement) {
     // If the destructor called us, there are no pending async statements (they
@@ -433,27 +431,9 @@ Statement::internalFinalize(bool aDestructing)
       asyncFinalize();
   }
 
-  // We are considered dead at this point, so any wrappers for row or params
-  // need to lose their reference to us.
-  if (mStatementParamsHolder) {
-    nsCOMPtr<nsIXPConnectWrappedNative> wrapper =
-        do_QueryInterface(mStatementParamsHolder);
-    nsCOMPtr<mozIStorageStatementParams> iParams =
-        do_QueryWrappedNative(wrapper);
-    StatementParams *params = static_cast<StatementParams *>(iParams.get());
-    params->mStatement = nullptr;
-    mStatementParamsHolder = nullptr;
-  }
-
-  if (mStatementRowHolder) {
-    nsCOMPtr<nsIXPConnectWrappedNative> wrapper =
-        do_QueryInterface(mStatementRowHolder);
-    nsCOMPtr<mozIStorageStatementRow> iRow =
-        do_QueryWrappedNative(wrapper);
-    StatementRow *row = static_cast<StatementRow *>(iRow.get());
-    row->mStatement = nullptr;
-    mStatementRowHolder = nullptr;
-  }
+  // Release the holders, so they can release the reference to us.
+  mStatementParamsHolder = nullptr;
+  mStatementRowHolder = nullptr;
 
   return convertResultCode(srv);
 }
@@ -478,7 +458,7 @@ Statement::GetParameterName(uint32_t aParamIndex,
 
   const char *name = ::sqlite3_bind_parameter_name(mDBStatement,
                                                    aParamIndex + 1);
-  if (name == NULL) {
+  if (name == nullptr) {
     // this thing had no name, so fake one
     nsAutoCString name(":");
     name.AppendInt(aParamIndex);
@@ -611,7 +591,9 @@ Statement::Execute()
 NS_IMETHODIMP
 Statement::ExecuteStep(bool *_moreResults)
 {
-  PROFILER_LABEL("storage", "Statement::ExecuteStep");
+  PROFILER_LABEL("Statement", "ExecuteStep",
+    js::ProfileEntry::Category::STORAGE);
+
   if (!mDBStatement)
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -635,7 +617,7 @@ Statement::ExecuteStep(bool *_moreResults)
     // We have bound, so now we can clear our array.
     mParamsArray = nullptr;
   }
-  int srv = mDBConnection->stepStatement(mDBStatement);
+  int srv = mDBConnection->stepStatement(mNativeConnection, mDBStatement);
 
 #ifdef PR_LOGGING
   if (srv != SQLITE_ROW && srv != SQLITE_DONE) {
@@ -663,10 +645,8 @@ Statement::ExecuteStep(bool *_moreResults)
     mExecuting = false;
   }
   else if (mExecuting) {
-#ifdef PR_LOGGING
     PR_LOG(gStorageLog, PR_LOG_ERROR,
            ("SQLite error after mExecuting was true!"));
-#endif
     mExecuting = false;
   }
 
@@ -832,8 +812,8 @@ Statement::GetString(uint32_t aIndex,
     _value.Truncate(0);
     _value.SetIsVoid(true);
   } else {
-    const PRUnichar *value =
-      static_cast<const PRUnichar *>(::sqlite3_column_text16(mDBStatement,
+    const char16_t *value =
+      static_cast<const char16_t *>(::sqlite3_column_text16(mDBStatement,
                                                              aIndex));
     _value.Assign(value, ::sqlite3_column_bytes16(mDBStatement, aIndex) / 2);
   }
@@ -881,12 +861,12 @@ Statement::GetSharedUTF8String(uint32_t aIndex,
 NS_IMETHODIMP
 Statement::GetSharedString(uint32_t aIndex,
                            uint32_t *_length,
-                           const PRUnichar **_value)
+                           const char16_t **_value)
 {
   if (_length)
     *_length = ::sqlite3_column_bytes16(mDBStatement, aIndex);
 
-  *_value = static_cast<const PRUnichar *>(::sqlite3_column_text16(mDBStatement,
+  *_value = static_cast<const char16_t *>(::sqlite3_column_text16(mDBStatement,
                                                                    aIndex));
   return NS_OK;
 }

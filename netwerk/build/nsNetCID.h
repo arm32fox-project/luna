@@ -335,10 +335,21 @@
     {0xab, 0x1d, 0x5e, 0x68, 0xa9, 0xf4, 0x5f, 0x08} \
 }
 
-// component implementing nsIUDPServerSocket
-#define NS_UDPSERVERSOCKET_CONTRACTID \
-    "@mozilla.org/network/server-socket-udp;1"
-#define NS_UDPSERVERSOCKET_CID                       \
+// component implementing nsITLSServerSocket
+#define NS_TLSSERVERSOCKET_CONTRACTID \
+    "@mozilla.org/network/tls-server-socket;1"
+#define NS_TLSSERVERSOCKET_CID                       \
+{ /* 1813cbb4-c98e-4622-8c7d-839167f3f272 */         \
+    0x1813cbb4,                                      \
+    0xc98e,                                          \
+    0x4622,                                          \
+    {0x8c, 0x7d, 0x83, 0x91, 0x67, 0xf3, 0xf2, 0x72} \
+}
+
+// component implementing nsIUDPSocket
+#define NS_UDPSOCKET_CONTRACTID \
+    "@mozilla.org/network/udp-socket;1"
+#define NS_UDPSOCKET_CID                             \
 { /* c9f74572-7b8e-4fec-bb4a-03c0d3021bd6 */         \
     0xc9f74572,                                      \
     0x7b8e,                                          \
@@ -396,7 +407,17 @@
     {0x8c, 0xda, 0x00, 0x60, 0xb0, 0xfc, 0x14, 0xa3} \
 }
 
-// component implementing nsISafeOutputStream
+// components implementing nsISafeOutputStream
+#define NS_ATOMICLOCALFILEOUTPUTSTREAM_CONTRACTID \
+    "@mozilla.org/network/atomic-file-output-stream;1"
+#define NS_ATOMICLOCALFILEOUTPUTSTREAM_CID           \
+{ /* 6EAE857E-4BA9-11E3-9B39-B4036188709B */         \
+    0x6EAE857E,                                      \
+    0x4BA9,                                          \
+    0x11E3,                                          \
+    {0x9b, 0x39, 0xb4, 0x03, 0x61, 0x88, 0x70, 0x9b} \
+}
+
 #define NS_SAFELOCALFILEOUTPUTSTREAM_CONTRACTID \
     "@mozilla.org/network/safe-file-output-stream;1"
 #define NS_SAFELOCALFILEOUTPUTSTREAM_CID             \
@@ -434,6 +455,17 @@
     0x8929, \
     0x4d60, \
     { 0x8d, 0x17, 0xa2, 0x7e, 0x44, 0xa8, 0x39, 0x3e } \
+}
+
+// service implementing nsINetworkPredictor
+#define NS_NETWORKPREDICTOR_CONTRACTID \
+    "@mozilla.org/network/predictor;1"
+#define NS_NETWORKPREDICTOR_CID \
+{ /* {969adfdf-7221-4419-aecf-05f8faf00c9b} */ \
+    0x969adfdf, \
+    0x7221, \
+    0x4419, \
+    { 0xae, 0xcf, 0x05, 0xf8, 0xfa, 0xf0, 0x0c, 0x9b } \
 }
 
 /******************************************************************************
@@ -547,6 +579,18 @@
     {0xb5, 0x27, 0x8a, 0x64, 0x30, 0x56, 0xab, 0xbd} \
 }
 
+// component implementing nsIHttpPushListener.
+#define NS_HTTPPUSHLISTENER_CONTRACTID \
+    "@mozilla.org/network/push-listener;1"
+#define NS_HTTPPUSHLISTENER_CID                      \
+{                                                    \
+    0x73cf4430,                                      \
+    0x5877,                                          \
+    0x4c6b,                                          \
+    {0xb8, 0x78, 0x3e, 0xde, 0x5b, 0xc8, 0xef, 0xf1} \
+}
+
+
 #define NS_HTTPACTIVITYDISTRIBUTOR_CONTRACTID \
     "@mozilla.org/network/http-activity-distributor;1"
 #define NS_HTTPACTIVITYDISTRIBUTOR_CID \
@@ -600,6 +644,18 @@
     0x1f69,                                          \
     0x11d3,                                          \
     {0x93, 0x44, 0x00, 0x10, 0x4b, 0xa0, 0xfd, 0x40} \
+}
+
+/******************************************************************************
+ * netwerk/protocol/app/ classes
+ */
+
+#define NS_APPPROTOCOLHANDLER_CID                    \
+{ /* {B6ED3030-9999-11d3-A178-0050041CAF44} */       \
+    0xb6ed3030,                                      \
+    0x9999,                                          \
+    0x11d3,                                          \
+    {0xa1, 0x78, 0x00, 0x50, 0x04, 0x1c, 0xaf, 0x44} \
 }
 
 /******************************************************************************
@@ -668,6 +724,18 @@
   0xa5bb,                                            \
   0x4cbb,                                            \
   {0x82, 0xbb, 0x08, 0x5c, 0xce, 0x06, 0xc0, 0xbb}   \
+}
+
+/******************************************************************************
+ * netwerk/protocol/rtsp / classes
+ */
+
+#define NS_RTSPPROTOCOLHANDLER_CID                   \
+{ /* {5bb4b980-7b10-11e2-b92a-0800200c9a66} */       \
+  0x5bb4b980,                                        \
+  0x7b10,                                            \
+  0x11e2,                                            \
+  {0xb9, 0x2a, 0x08, 0x00, 0x20, 0x0c, 0x9a, 0x66}   \
 }
 
 /******************************************************************************
@@ -882,7 +950,7 @@
     0x40f7,                                            \
     { 0x86, 0xf8, 0x63, 0xf2, 0x25, 0xb9, 0x40, 0xae } \
   }
-  
+
 /******************************************************************************
  * Contracts that can be implemented by necko users.
  */

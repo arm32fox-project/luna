@@ -35,19 +35,19 @@ interface Screen : EventTarget {
    */
   readonly attribute DOMString mozOrientation;
 
-  [SetterThrows]
   attribute EventHandler onmozorientationchange;
 
   /**
    * Lock screen orientation to the specified type.
    */
-  [Throws]
+  [Throws, UnsafeInPrerendering]
   boolean mozLockOrientation(DOMString orientation);
-  [Throws]
+  [Throws, UnsafeInPrerendering]
   boolean mozLockOrientation(sequence<DOMString> orientation);
 
   /**
    * Unlock the screen orientation.
    */
+  [UnsafeInPrerendering]
   void mozUnlockOrientation();
 };

@@ -8,12 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/video_coding/main/source/content_metrics_processing.h"
+#include "webrtc/modules/video_coding/main/source/content_metrics_processing.h"
 
 #include <math.h>
 
-#include "modules/interface/module_common_types.h"
-#include "modules/video_coding/main/interface/video_coding_defines.h"
+#include "webrtc/modules/interface/module_common_types.h"
+#include "webrtc/modules/video_coding/main/interface/video_coding_defines.h"
 
 namespace webrtc {
 //////////////////////////////////
@@ -21,7 +21,7 @@ namespace webrtc {
 //////////////////////////////////
 
 VCMContentMetricsProcessing::VCMContentMetricsProcessing()
-    : recursive_avg_factor_(1 / 150.0f),  // matched to  30fps.
+    : recursive_avg_factor_(1 / 150.0f),  // matched to  15fps.
       frame_cnt_uniform_avg_(0),
       avg_motion_level_(0.0f),
       avg_spatial_level_(0.0f) {
@@ -43,7 +43,7 @@ int VCMContentMetricsProcessing::Reset() {
   return VCM_OK;
 }
 
-void VCMContentMetricsProcessing::UpdateFrameRate(uint32_t frameRate) {
+void VCMContentMetricsProcessing::UpdateFrameRate(float frameRate) {
   // Update factor for recursive averaging.
   recursive_avg_factor_ = static_cast<float> (1000.0f) /
       static_cast<float>(frameRate *  kQmMinIntervalMs);
@@ -122,4 +122,4 @@ void VCMContentMetricsProcessing::UpdateRecursiveAvg(
       recursive_avg_->motion_magnitude +
       recursive_avg_factor_ * contentMetrics->motion_magnitude;
 }
-}  // end of namespace
+}  // namespace

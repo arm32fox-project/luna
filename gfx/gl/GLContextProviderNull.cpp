@@ -15,26 +15,23 @@ GLContextProviderNull::CreateForWindow(nsIWidget*)
 }
 
 already_AddRefed<GLContext>
-GLContextProviderNull::CreateOffscreen(const gfxIntSize&,
-                                       const SurfaceCaps&,
-                                       ContextFlags)
+GLContextProviderNull::CreateWrappingExisting(void*, void*)
 {
     return nullptr;
 }
 
-SharedTextureHandle
-GLContextProviderNull::CreateSharedHandle(GLContext::SharedTextureShareType shareType,
-                                          void* buffer,
-                                          GLContext::SharedTextureBufferType bufferType)
+already_AddRefed<GLContext>
+GLContextProviderNull::CreateOffscreen(const gfxIntSize&,
+                                       const SurfaceCaps&,
+                                       bool)
 {
-  return 0;
+    return nullptr;
 }
 
-already_AddRefed<gfxASurface>
-GLContextProviderNull::GetSharedHandleAsSurface(GLContext::SharedTextureShareType shareType,
-                                               SharedTextureHandle sharedHandle)
+already_AddRefed<GLContext>
+GLContextProviderNull::CreateHeadless(bool)
 {
-  return nullptr;
+    return nullptr;
 }
 
 GLContext*

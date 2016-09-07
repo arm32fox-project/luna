@@ -18,7 +18,8 @@ https://bugzilla.mozilla.org/show_bug.cgi?id=581072
 <script type="application/javascript">
 
 SimpleTest.waitForExplicitFinish();
-  
+SimpleTest.requestFlakyTimeout("untriaged");
+
 /** Test for Bug 581072 **/
 var longTimerFired = 0;
 
@@ -27,9 +28,7 @@ setTimeout(function() { longTimerFired = true; }, 3600000);
 
 // Trigger suspend and resume timeouts
 (function() {
-  netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-  var utils = window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
-                    .getInterface(Components.interfaces.nsIDOMWindowUtils);
+  var utils = SpecialPowers.getDOMWindowUtils(window);
   utils.suspendTimeouts();  
   utils.resumeTimeouts();  
 })()

@@ -9,6 +9,8 @@ import java.util.ArrayList;
 import org.mozilla.goanna.background.common.log.Logger;
 import org.mozilla.goanna.background.db.Tab;
 import org.mozilla.goanna.db.BrowserContract;
+import org.mozilla.goanna.db.BrowserContract.Clients;
+import org.mozilla.goanna.sync.delegates.ClientsDataDelegate;
 import org.mozilla.goanna.sync.repositories.InactiveSessionException;
 import org.mozilla.goanna.sync.repositories.NoContentProviderException;
 import org.mozilla.goanna.sync.repositories.NoStoreDelegateException;
@@ -19,6 +21,7 @@ import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionFetchReco
 import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionFinishDelegate;
 import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionGuidsSinceDelegate;
 import org.mozilla.goanna.sync.repositories.delegates.RepositorySessionWipeDelegate;
+import org.mozilla.goanna.sync.repositories.domain.ClientRecord;
 import org.mozilla.goanna.sync.repositories.domain.Record;
 import org.mozilla.goanna.sync.repositories.domain.TabsRecord;
 
@@ -30,16 +33,16 @@ import android.net.Uri;
 import android.os.RemoteException;
 
 public class FennecTabsRepository extends Repository {
-  protected final String localClientName;
-  protected final String localClientGuid;
+  private static final String LOG_TAG = "FennecTabsRepository";
 
-  public FennecTabsRepository(final String localClientName, final String localClientGuid) {
-    this.localClientName = localClientName;
-    this.localClientGuid = localClientGuid;
+  protected final ClientsDataDelegate clientsDataDelegate;
+
+  public FennecTabsRepository(ClientsDataDelegate clientsDataDelegate) {
+    this.clientsDataDelegate = clientsDataDelegate;
   }
 
   /**
-   * Note that — unlike most repositories — this will only fetch Fennec's tabs,
+   * Note that -- unlike most repositories -- this will only fetch Fennec's tabs,
    * and only store tabs from other clients.
    *
    * It will never retrieve tabs from other clients, or store tabs for Fennec,
@@ -53,6 +56,8 @@ public class FennecTabsRepository extends Repository {
     private final ContentProviderClient clientsProvider;
 
     protected final RepoUtils.QueryHelper tabsHelper;
+
+    protected final ClientsDatabaseAccessor clientsDatabase;
 
     protected ContentProviderClient getContentProvider(final Context context, final Uri uri) throws NoContentProviderException {
       ContentProviderClient client = context.getContentResolver().acquireContentProviderClient(uri);
@@ -69,13 +74,14 @@ public class FennecTabsRepository extends Repository {
       try {
         tabsProvider.release();
       } catch (Exception e) {}
+      clientsDatabase.close();
     }
 
     public FennecTabsRepositorySession(Repository repository, Context context) throws NoContentProviderException {
       super(repository);
-      clientsProvider = getContentProvider(context, BrowserContract.Clients.CONTENT_URI);
+      clientsProvider = getContentProvider(context, BrowserContractHelpers.CLIENTS_CONTENT_URI);
       try {
-        tabsProvider = getContentProvider(context, BrowserContract.Tabs.CONTENT_URI);
+        tabsProvider = getContentProvider(context, BrowserContractHelpers.TABS_CONTENT_URI);
       } catch (NoContentProviderException e) {
         clientsProvider.release();
         throw e;
@@ -85,7 +91,8 @@ public class FennecTabsRepository extends Repository {
         throw new RuntimeException(e);
       }
 
-      tabsHelper = new RepoUtils.QueryHelper(context, BrowserContract.Tabs.CONTENT_URI, LOG_TAG);
+      tabsHelper = new RepoUtils.QueryHelper(context, BrowserContractHelpers.TABS_CONTENT_URI, LOG_TAG);
+      clientsDatabase = new ClientsDatabaseAccessor(context);
     }
 
     @Override
@@ -144,14 +151,17 @@ public class FennecTabsRepository extends Repository {
         public void run() {
           // We fetch all local tabs (since the record must contain them all)
           // but only process the record if the timestamp is sufficiently
-          // recent.
+          // recent, or if the client data has been modified.
           try {
             final Cursor cursor = tabsHelper.safeQuery(tabsProvider, ".fetchSince()", null,
                 localClientSelection, localClientSelectionArgs, positionAscending);
             try {
+              final String localClientGuid = clientsDataDelegate.getAccountGUID();
+              final String localClientName = clientsDataDelegate.getClientName();
               final TabsRecord tabsRecord = FennecTabsRepository.tabsRecordFromCursor(cursor, localClientGuid, localClientName);
 
-              if (tabsRecord.lastModified >= timestamp) {
+              if (tabsRecord.lastModified >= timestamp ||
+                  clientsDataDelegate.getLastModifiedTimestamp() >= timestamp) {
                 delegate.onFetchedRecord(tabsRecord);
               }
             } finally {
@@ -225,7 +235,7 @@ public class FennecTabsRepository extends Repository {
             if (tabsRecord.deleted) {
               try {
                 Logger.debug(LOG_TAG, "Clearing entry for client " + tabsRecord.guid);
-                clientsProvider.delete(BrowserContract.Clients.CONTENT_URI,
+                clientsProvider.delete(BrowserContractHelpers.CLIENTS_CONTENT_URI,
                                        CLIENT_GUID_IS,
                                        selectionArgs);
                 delegate.onRecordStoreSucceeded(record.guid);
@@ -238,21 +248,27 @@ public class FennecTabsRepository extends Repository {
             // If it exists, update the client record; otherwise insert.
             final ContentValues clientsCV = tabsRecord.getClientsContentValues();
 
+            final ClientRecord clientRecord = clientsDatabase.fetchClient(tabsRecord.guid);
+            if (null != clientRecord) {
+                // Null is an acceptable device type.
+                clientsCV.put(Clients.DEVICE_TYPE, clientRecord.type);
+            }
+
             Logger.debug(LOG_TAG, "Updating clients provider.");
-            final int updated = clientsProvider.update(BrowserContract.Clients.CONTENT_URI,
+            final int updated = clientsProvider.update(BrowserContractHelpers.CLIENTS_CONTENT_URI,
                 clientsCV,
                 CLIENT_GUID_IS,
                 selectionArgs);
             if (0 == updated) {
-              clientsProvider.insert(BrowserContract.Clients.CONTENT_URI, clientsCV);
+              clientsProvider.insert(BrowserContractHelpers.CLIENTS_CONTENT_URI, clientsCV);
             }
 
             // Now insert tabs.
             final ContentValues[] tabsArray = tabsRecord.getTabsContentValues();
             Logger.debug(LOG_TAG, "Inserting " + tabsArray.length + " tabs for client " + tabsRecord.guid);
 
-            tabsProvider.delete(BrowserContract.Tabs.CONTENT_URI, TABS_CLIENT_GUID_IS, selectionArgs);
-            final int inserted = tabsProvider.bulkInsert(BrowserContract.Tabs.CONTENT_URI, tabsArray);
+            tabsProvider.delete(BrowserContractHelpers.TABS_CONTENT_URI, TABS_CLIENT_GUID_IS, selectionArgs);
+            final int inserted = tabsProvider.bulkInsert(BrowserContractHelpers.TABS_CONTENT_URI, tabsArray);
             Logger.trace(LOG_TAG, "Inserted: " + inserted);
 
             delegate.onRecordStoreSucceeded(record.guid);
@@ -269,8 +285,8 @@ public class FennecTabsRepository extends Repository {
     @Override
     public void wipe(RepositorySessionWipeDelegate delegate) {
       try {
-        tabsProvider.delete(BrowserContract.Tabs.CONTENT_URI, null, null);
-        clientsProvider.delete(BrowserContract.Clients.CONTENT_URI, null, null);
+        tabsProvider.delete(BrowserContractHelpers.TABS_CONTENT_URI, null, null);
+        clientsProvider.delete(BrowserContractHelpers.CLIENTS_CONTENT_URI, null, null);
       } catch (RemoteException e) {
         Logger.warn(LOG_TAG, "Got RemoteException in wipe.", e);
         delegate.onWipeFailed(e);
@@ -336,5 +352,36 @@ public class FennecTabsRepository extends Repository {
     }
 
     return record;
+  }
+
+  /**
+   * Deletes all non-local clients and remote tabs.
+   *
+   * This function doesn't delete non-local clients due to bug in TabsProvider. Refer Bug 1025128.
+   *
+   * Upon remote tabs deletion, the clients without tabs are not shown in UI.
+   */
+  public static void deleteNonLocalClientsAndTabs(Context context) {
+    final String nonLocalTabsSelection = BrowserContract.Tabs.CLIENT_GUID + " IS NOT NULL";
+
+    ContentProviderClient tabsProvider = context.getContentResolver()
+            .acquireContentProviderClient(BrowserContractHelpers.TABS_CONTENT_URI);
+    if (tabsProvider == null) {
+        Logger.warn(LOG_TAG, "Unable to create tabsProvider!");
+        return;
+    }
+
+    try {
+      Logger.info(LOG_TAG, "Clearing all non-local tabs for default profile.");
+      tabsProvider.delete(BrowserContractHelpers.TABS_CONTENT_URI, nonLocalTabsSelection, null);
+    } catch (RemoteException e) {
+      Logger.warn(LOG_TAG, "Error while deleting", e);
+    } finally {
+      try {
+        tabsProvider.release();
+      } catch (Exception e) {
+        Logger.warn(LOG_TAG, "Got exception releasing tabsProvider!", e);
+      }
+    }
   }
 }

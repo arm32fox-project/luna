@@ -53,7 +53,7 @@ static HWND hwndForDOMWindow( nsISupports * );
 
 static
 nsresult
-GetMostRecentWindow(const PRUnichar* aType, nsIDOMWindow** aWindow) {
+GetMostRecentWindow(const char16_t* aType, nsIDOMWindow** aWindow) {
     nsresult rv;
     nsCOMPtr<nsIWindowMediator> med( do_GetService( NS_WINDOWMEDIATOR_CONTRACTID, &rv ) );
     if ( NS_FAILED( rv ) )
@@ -91,7 +91,7 @@ activateWindow( nsIDOMWindow *win ) {
 
 // Simple Win32 mutex wrapper.
 struct Mutex {
-    Mutex( const PRUnichar *name )
+    Mutex( const char16_t *name )
         : mName( name ),
           mHandle( 0 ),
           mState( -1 ) {
@@ -251,12 +251,12 @@ private:
  *    WWW_OpenURL topic and the params as specified in the default value of the
  *    ddeexec registry key (e.g. "%1",,0,0,,,, where '%1' is the url to open)
  *    for the verb (e.g. open).
- * 2. If the application is not running it is launched with the -requestPending
- *    and the -url argument.
- * 2.1  If the application does not need to restart and the -requestPending
+ * 2. If the application is not running it is launched with the --requestPending
+ *    and the --url argument.
+ * 2.1  If the application does not need to restart and the --requestPending
  *      argument is present the accompanying url will not be used. Instead the
  *      application will wait for the DDE message to open the url.
- * 2.2  If the application needs to restart the -requestPending argument is
+ * 2.2  If the application needs to restart the --requestPending argument is
  *      removed from the arguments used to restart the application and the url
  *      will be handled normally.
  *
@@ -278,11 +278,12 @@ public:
     // The "old" Start method (renamed).
     NS_IMETHOD StartDDE();
     // Utility function to handle a Win32-specific command line
-    // option: "-console", which dynamically creates a Windows
+    // option: "--console", which dynamically creates a Windows
     // console.
     void CheckConsole();
 
 private:
+    ~nsNativeAppSupportWin() {}
     static void HandleCommandLine(const char* aCmdLineString, nsIFile* aWorkingDir, uint32_t aState);
     static HDDEDATA CALLBACK HandleDDENotification( UINT     uType,
                                                     UINT     uFmt,
@@ -319,7 +320,7 @@ private:
     static HSZ   mApplication, mTopics[ topicCount ];
     static DWORD mInstance;
     static bool mCanHandleRequests;
-    static PRUnichar mMutexName[];
+    static char16_t mMutexName[];
     friend struct MessageWindow;
 }; // nsNativeAppSupportWin
 
@@ -331,10 +332,45 @@ NS_IMPL_ADDREF_INHERITED(nsNativeAppSupportWin, nsNativeAppSupportBase)
 NS_IMPL_RELEASE_INHERITED(nsNativeAppSupportWin, nsNativeAppSupportBase)
 
 void
+UseParentConsole()
+{
+    // Try to attach console to the parent process.
+    // It will succeed when the parent process is a command line,
+    // so that stdio will be displayed in it.
+    if (AttachConsole(ATTACH_PARENT_PROCESS)) {
+        // Change std handles to refer to new console handles.
+        // Before doing so, ensure that stdout/stderr haven't been
+        // redirected to a valid file.
+        // The return value for _fileno(<a std handle>) for GUI apps was changed over.
+        // Until VC7, it was -1. Starting from VC8, it was changed to -2.
+        // http://msdn.microsoft.com/en-us/library/zs6wbdhx%28v=vs.80%29.aspx
+        // Starting from VC11, the return value was cahnged to 0 for stdin,
+        // 1 for stdout, 2 for stdout. Accroding to Microsoft, this is a bug
+        // which will be fixed in VC14.
+        // https://connect.microsoft.com/VisualStudio/feedback/details/785119/
+        // Although the document does not make it explicit, it looks like
+        // the return value from _get_osfhandle(_fileno(<a std handle>)) also
+        // changed to -2 and VC11 and 12 do not have a bug about _get_osfhandle().
+        // We support VC10 or later, so it's sufficient to compare the return
+        // value with -2.
+        if (_fileno(stdout) == -2 ||
+            _get_osfhandle(fileno(stdout)) == -2)
+            freopen("CONOUT$", "w", stdout);
+        // Merge stderr into CONOUT$ since there isn't any `CONERR$`.
+        // http://msdn.microsoft.com/en-us/library/windows/desktop/ms683231%28v=vs.85%29.aspx
+        if (_fileno(stderr) == -2 ||
+            _get_osfhandle(fileno(stderr)) == -2)
+            freopen("CONOUT$", "w", stderr);
+        if (_fileno(stdin) == -2 || _get_osfhandle(fileno(stdin)) == -2)
+            freopen("CONIN$", "r", stdin);
+    }
+}
+
+void
 nsNativeAppSupportWin::CheckConsole() {
     for ( int i = 1; i < gArgc; i++ ) {
-        if ( strcmp( "-console", gArgv[i] ) == 0
-             ||
+        if ( strcmp( "-console", gArgv[i] ) == 0 ||
+             strcmp( "--console", gArgv[i] ) == 0 ||
              strcmp( "/console", gArgv[i] ) == 0 ) {
             // Users wants to make sure we have a console.
             // Try to allocate one.
@@ -395,24 +431,7 @@ nsNativeAppSupportWin::CheckConsole() {
         } else if ( strcmp( "-attach-console", gArgv[i] ) == 0
                     ||
                     strcmp( "/attach-console", gArgv[i] ) == 0 ) {
-            // Try to attach console to the parent process.
-            // It will succeed when the parent process is a command line,
-            // so that stdio will be displayed in it.
-            if (AttachConsole(ATTACH_PARENT_PROCESS)) {
-                // Change std handles to refer to new console handles.
-                // Before doing so, ensure that stdout/stderr haven't been
-                // redirected to a valid file
-                if (_fileno(stdout) == -1 ||
-                    _get_osfhandle(fileno(stdout)) == -1)
-                    freopen("CONOUT$", "w", stdout);
-                // Merge stderr into CONOUT$ since there isn't any `CONERR$`.
-                // http://msdn.microsoft.com/en-us/library/windows/desktop/ms683231%28v=vs.85%29.aspx
-                if (_fileno(stderr) == -1 ||
-                    _get_osfhandle(fileno(stderr)) == -1)
-                    freopen("CONOUT$", "w", stderr);
-                if (_fileno(stdin) == -1 || _get_osfhandle(fileno(stdin)) == -1)
-                    freopen("CONIN$", "r", stdin);
-            }
+            UseParentConsole();
         }
     }
 
@@ -459,7 +478,7 @@ HSZ   nsNativeAppSupportWin::mTopics[nsNativeAppSupportWin::topicCount] = { 0 };
 DWORD nsNativeAppSupportWin::mInstance      = 0;
 bool nsNativeAppSupportWin::mCanHandleRequests   = false;
 
-PRUnichar nsNativeAppSupportWin::mMutexName[ 128 ] = { 0 };
+char16_t nsNativeAppSupportWin::mMutexName[ 128 ] = { 0 };
 
 
 // Message window encapsulation.
@@ -476,14 +495,14 @@ struct MessageWindow {
     }
 
     // Class name: appName + "MessageWindow"
-    static const PRUnichar *className() {
-        static PRUnichar classNameBuffer[128];
-        static PRUnichar *mClassName = 0;
+    static const wchar_t *className() {
+        static wchar_t classNameBuffer[128];
+        static wchar_t *mClassName = 0;
         if ( !mClassName ) {
             ::_snwprintf(classNameBuffer,
                          128,   // size of classNameBuffer in PRUnichars
                          L"%s%s",
-                         NS_ConvertUTF8toUTF16(gAppData->name).get(),
+                         NS_ConvertUTF8toUTF16(gAppData->remotingName).get(),
                          L"MessageWindow" );
             mClassName = classNameBuffer;
         }
@@ -533,7 +552,7 @@ struct MessageWindow {
             //  the same thread.
             BOOL desRes = DestroyWindow( mHandle );
             if ( FALSE != desRes ) {
-                mHandle = NULL;
+                mHandle = nullptr;
             }
             else {
                 retval = NS_ERROR_FAILURE;
@@ -643,7 +662,8 @@ nsNativeAppSupportWin::Start( bool *aResult ) {
     // Grab mutex first.
 
     // Build mutex name from app name.
-    ::_snwprintf(mMutexName, sizeof mMutexName / sizeof(PRUnichar), L"%s%s%s", 
+    ::_snwprintf(reinterpret_cast<wchar_t*>(mMutexName),
+                 sizeof mMutexName / sizeof(char16_t), L"%s%s%s",
                  MOZ_MUTEX_NAMESPACE,
                  NS_ConvertUTF8toUTF16(gAppData->name).get(),
                  MOZ_STARTUP_MUTEX_NAME );
@@ -759,7 +779,7 @@ nsNativeAppSupportWin::Stop( bool *aResult ) {
 
 NS_IMETHODIMP
 nsNativeAppSupportWin::Observe(nsISupports* aSubject, const char* aTopic,
-                               const PRUnichar* aData)
+                               const char16_t* aData)
 {
     if (strcmp(aTopic, "quit-application") == 0) {
         Quit();
@@ -858,7 +878,7 @@ static nsCString uTypeDesc( UINT uType ) {
 static nsCString hszValue( DWORD instance, HSZ hsz ) {
     // Extract string from HSZ.
     nsCString result("[");
-    DWORD len = DdeQueryString( instance, hsz, NULL, NULL, CP_WINANSI );
+    DWORD len = DdeQueryString( instance, hsz, nullptr, nullptr, CP_WINANSI );
     if ( len ) {
         char buffer[ 256 ];
         DdeQueryString( instance, hsz, buffer, sizeof buffer, CP_WINANSI );
@@ -890,7 +910,7 @@ static void escapeQuotes( nsAString &aString ) {
            break;
        } else {
            // Insert back-slash ahead of the '"'.
-           aString.Insert( PRUnichar('\\'), offset );
+           aString.Insert( char16_t('\\'), offset );
            // Increment offset because we just inserted a slash
            offset++;
        }
@@ -1211,14 +1231,14 @@ void nsNativeAppSupportWin::ParseDDEArg( const WCHAR* args, int index, nsString&
 
 // Utility to parse out argument from a DDE item string.
 void nsNativeAppSupportWin::ParseDDEArg( HSZ args, int index, nsString& aString) {
-    DWORD argLen = DdeQueryStringW( mInstance, args, NULL, 0, CP_WINUNICODE );
+    DWORD argLen = DdeQueryStringW( mInstance, args, nullptr, 0, CP_WINUNICODE );
     // there wasn't any string, so return empty string
     if ( !argLen ) return;
     nsAutoString temp;
     // Ensure result's buffer is sufficiently big.
     temp.SetLength( argLen );
     // Now get the string contents.
-    DdeQueryString( mInstance, args, temp.BeginWriting(), temp.Length(), CP_WINUNICODE );
+    DdeQueryString( mInstance, args, reinterpret_cast<wchar_t*>(temp.BeginWriting()), temp.Length(), CP_WINUNICODE );
     // Parse out the given arg.
     ParseDDEArg(temp.get(), index, aString);
     return;
@@ -1241,7 +1261,7 @@ HDDEDATA nsNativeAppSupportWin::CreateDDEData( LPBYTE value, DWORD len ) {
 
 void nsNativeAppSupportWin::ActivateLastWindow() {
     nsCOMPtr<nsIDOMWindow> navWin;
-    GetMostRecentWindow( NS_LITERAL_STRING("navigator:browser").get(), getter_AddRefs( navWin ) );
+    GetMostRecentWindow( MOZ_UTF16("navigator:browser"), getter_AddRefs( navWin ) );
     if ( navWin ) {
         // Activate that window.
         activateWindow( navWin );
@@ -1483,7 +1503,8 @@ nsNativeAppSupportWin::OpenBrowserWindow()
           if ( navItem ) {
             nsCOMPtr<nsIDocShellTreeItem> rootItem;
             navItem->GetRootTreeItem( getter_AddRefs( rootItem ) );
-            nsCOMPtr<nsIDOMWindow> rootWin( do_GetInterface( rootItem ) );
+            nsCOMPtr<nsIDOMWindow> rootWin =
+              rootItem ? rootItem->GetWindow() : nullptr;
             nsCOMPtr<nsIDOMChromeWindow> chromeWin(do_QueryInterface(rootWin));
             if ( chromeWin )
               chromeWin->GetBrowserDOMWindow( getter_AddRefs ( bwin ) );

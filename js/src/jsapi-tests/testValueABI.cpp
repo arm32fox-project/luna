@@ -2,7 +2,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "tests.h"
+#include "jsapi-tests/tests.h"
 
 /*
  * Bug 689101 - jsval is technically a non-POD type because it has a private
@@ -16,11 +16,11 @@
 
 extern "C" {
 
-extern JSBool
-C_ValueToObject(JSContext *cx, jsval v, JSObject **obj);
+extern bool
+C_ValueToObject(JSContext* cx, jsval v, JSObject** obj);
 
 extern jsval
-C_GetEmptyStringValue(JSContext *cx);
+C_GetEmptyStringValue(JSContext* cx);
 
 extern size_t
 C_jsvalAlignmentTest();
@@ -29,16 +29,17 @@ C_jsvalAlignmentTest();
 
 BEGIN_TEST(testValueABI_retparam)
 {
-    JS::RootedObject obj(cx, JS_GetGlobalForScopeChain(cx));
-    jsval v = OBJECT_TO_JSVAL(obj);
-    obj = NULL;
+    JS::RootedObject obj(cx, JS::CurrentGlobalOrNull(cx));
+    RootedValue v(cx, ObjectValue(*obj));
+    obj = nullptr;
     CHECK(C_ValueToObject(cx, v, obj.address()));
-    JSBool equal;
-    CHECK(JS_StrictlyEqual(cx, v, OBJECT_TO_JSVAL(obj), &equal));
+    bool equal;
+    RootedValue v2(cx, ObjectValue(*obj));
+    CHECK(JS_StrictlyEqual(cx, v, v2, &equal));
     CHECK(equal);
 
     v = C_GetEmptyStringValue(cx);
-    CHECK(JSVAL_IS_STRING(v));
+    CHECK(v.isString());
 
     return true;
 }

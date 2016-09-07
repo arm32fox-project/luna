@@ -10,11 +10,14 @@
  * You are granted a license to use, reproduce and create derivative works of this document.
  */
 
+[Constructor(unsigned long sw, unsigned long sh),
+ Constructor(Uint8ClampedArray data, unsigned long sw, optional unsigned long sh),
+ Exposed=(Window,Worker)]
 interface ImageData {
  [Constant]
  readonly attribute unsigned long width;
  [Constant]
  readonly attribute unsigned long height;
- [Constant]
+ [Constant, StoreInSlot]
  readonly attribute Uint8ClampedArray data;
 };

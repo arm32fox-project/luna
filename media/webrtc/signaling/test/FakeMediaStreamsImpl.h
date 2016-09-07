@@ -10,10 +10,25 @@
 #include "nspr.h"
 #include "nsError.h"
 
+void LogTime(AsyncLatencyLogger::LatencyLogIndex index, uint64_t b, int64_t c) {}
+void LogLatency(AsyncLatencyLogger::LatencyLogIndex index, uint64_t b, int64_t c) {}
+
 static const int AUDIO_BUFFER_SIZE = 1600;
 static const int NUM_CHANNELS      = 2;
+static const int GRAPH_RATE        = 16000;
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(Fake_DOMMediaStream, nsIDOMMediaStream)
+NS_IMPL_ISUPPORTS0(Fake_DOMMediaStream)
+
+// Fake_MediaStream
+double Fake_MediaStream::StreamTimeToSeconds(mozilla::StreamTime aTime) {
+  return static_cast<double>(aTime)/GRAPH_RATE;
+}
+
+mozilla::StreamTime
+Fake_MediaStream::TicksToTimeRoundDown(mozilla::TrackRate aRate,
+                                       mozilla::TrackTicks aTicks) {
+  return aTicks * GRAPH_RATE / aRate;
+}
 
 // Fake_SourceMediaStream
 nsresult Fake_SourceMediaStream::Start() {
@@ -41,10 +56,12 @@ void Fake_SourceMediaStream::Periodic() {
   // and we are not asked by the signaling agent to stop
   //pulling data.
   if (mPullEnabled && !mStop) {
+    // 100 ms matches timer interval and AUDIO_BUFFER_SIZE @ 16000 Hz
+    mDesiredTime += 100;
     for (std::set<Fake_MediaStreamListener *>::iterator it =
              mListeners.begin(); it != mListeners.end(); ++it) {
-      mDesiredTime += 10;
-      (*it)->NotifyPull(NULL, mozilla::MillisecondsToMediaTime(mDesiredTime));
+      (*it)->NotifyPull(nullptr, TicksToTimeRoundDown(1000 /* ms per s */,
+                                                      mDesiredTime));
     }
   }
 }
@@ -95,9 +112,8 @@ void Fake_AudioStreamSource::Periodic() {
 
   for(std::set<Fake_MediaStreamListener *>::iterator it = mListeners.begin();
        it != mListeners.end(); ++it) {
-    (*it)->NotifyQueuedTrackChanges(NULL, // Graph
+    (*it)->NotifyQueuedTrackChanges(nullptr, // Graph
                                     0, // TrackID
-                                    16000, // Rate (hz)
                                     0, // Offset TODO(ekr@rtfm.com) fix
                                     0, // ???
                                     segment);
@@ -106,7 +122,7 @@ void Fake_AudioStreamSource::Periodic() {
 
 
 // Fake_MediaPeriodic
-NS_IMPL_THREADSAFE_ISUPPORTS1(Fake_MediaPeriodic, nsITimerCallback)
+NS_IMPL_ISUPPORTS(Fake_MediaPeriodic, nsITimerCallback)
 
 NS_IMETHODIMP
 Fake_MediaPeriodic::Notify(nsITimer *timer) {
@@ -140,7 +156,7 @@ Fake_VideoStreamSource::Notify(nsITimer* aTimer)
   uint8_t* frame = (uint8_t*) PR_Malloc(len);
   memset(frame, 0x80, len); // Gray
 
-  mozilla::layers::PlanarYCbCrImage::Data data;
+  mozilla::layers::PlanarYCbCrData data;
   data.mYChannel = frame;
   data.mYSize = gfxIntSize(WIDTH, HEIGHT);
   data.mYStride = WIDTH * lumaBpp / 8.0;
@@ -151,7 +167,7 @@ Fake_VideoStreamSource::Notify(nsITimer* aTimer)
   data.mPicX = 0;
   data.mPicY = 0;
   data.mPicSize = gfxIntSize(WIDTH, HEIGHT);
-  data.mStereoMode = mozilla::layers::STEREO_MODE_MONO;
+  data.mStereoMode = mozilla::layers::StereoMode::MONO;
 
   mozilla::VideoSegment segment;
   segment.AppendFrame(image.forget(), USECS_PER_S / FPS, gfxIntSize(WIDTH, HEIGHT));
@@ -179,7 +195,7 @@ uint8_t *mozilla::layers::BufferRecycleBin::GetBuffer(uint32_t size) {
 
 // YCbCrImage constructor (from ImageLayers.cpp)
 mozilla::layers::PlanarYCbCrImage::PlanarYCbCrImage(BufferRecycleBin *aRecycleBin)
-  : Image(nsnull, PLANAR_YCBCR)
+  : Image(nsnull, ImageFormat::PLANAR_YCBCR)
   , mBufferSize(0)
   , mRecycleBin(aRecycleBin)
 {

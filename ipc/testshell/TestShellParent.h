@@ -11,12 +11,9 @@
 #include "mozilla/ipc/PTestShellParent.h"
 #include "mozilla/ipc/PTestShellCommandParent.h"
 
-#include "jsapi.h"
-#include "nsAutoJSValHolder.h"
-#include "nsStringGlue.h"
-
-struct JSContext;
-class JSObject;
+#include "js/TypeDecls.h"
+#include "js/RootingAPI.h"
+#include "nsString.h"
 
 namespace mozilla {
 
@@ -27,11 +24,13 @@ class TestShellCommandParent;
 class TestShellParent : public PTestShellParent
 {
 public:
+  virtual void ActorDestroy(ActorDestroyReason aWhy) override;
+
   PTestShellCommandParent*
-  AllocPTestShellCommand(const nsString& aCommand);
+  AllocPTestShellCommandParent(const nsString& aCommand) override;
 
   bool
-  DeallocPTestShellCommand(PTestShellCommandParent* aActor);
+  DeallocPTestShellCommandParent(PTestShellCommandParent* aActor) override;
 
   bool
   CommandDone(TestShellCommandParent* aActor, const nsString& aResponse);
@@ -41,12 +40,11 @@ public:
 class TestShellCommandParent : public PTestShellCommandParent
 {
 public:
-  TestShellCommandParent() : mCx(NULL) { }
+  TestShellCommandParent() {}
 
-  JSBool SetCallback(JSContext* aCx,
-                     JS::Value aCallback);
+  bool SetCallback(JSContext* aCx, JS::Value aCallback);
 
-  JSBool RunCallback(const nsString& aResponse);
+  bool RunCallback(const nsString& aResponse);
 
   void ReleaseCallback();
 
@@ -54,14 +52,13 @@ protected:
   bool ExecuteCallback(const nsString& aResponse);
 
   void ActorDestroy(ActorDestroyReason why);
-  
+
   bool Recv__delete__(const nsString& aResponse) {
     return ExecuteCallback(aResponse);
   }
 
 private:
-  JSContext* mCx;
-  nsAutoJSValHolder mCallback;
+  JS::PersistentRooted<JS::Value> mCallback;
 };
 
 

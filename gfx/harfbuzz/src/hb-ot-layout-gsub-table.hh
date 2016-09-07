@@ -1,6 +1,6 @@
 /*
  * Copyright © 2007,2008,2009,2010  Red Hat, Inc.
- * Copyright © 2010,2012  Google, Inc.
+ * Copyright © 2010,2012,2013  Google, Inc.
  *
  *  This is part of HarfBuzz, a text shaping library.
  *
@@ -44,7 +44,7 @@ struct SingleSubstFormat1
     for (iter.init (this+coverage); iter.more (); iter.next ()) {
       hb_codepoint_t glyph_id = iter.get_glyph ();
       if (c->glyphs->has (glyph_id))
-	c->glyphs->add ((glyph_id + deltaGlyphID) & 0xFFFF);
+	c->glyphs->add ((glyph_id + deltaGlyphID) & 0xFFFFu);
     }
   }
 
@@ -55,7 +55,7 @@ struct SingleSubstFormat1
     for (iter.init (this+coverage); iter.more (); iter.next ()) {
       hb_codepoint_t glyph_id = iter.get_glyph ();
       c->input->add (glyph_id);
-      c->output->add ((glyph_id + deltaGlyphID) & 0xFFFF);
+      c->output->add ((glyph_id + deltaGlyphID) & 0xFFFFu);
     }
   }
 
@@ -79,7 +79,7 @@ struct SingleSubstFormat1
 
     /* According to the Adobe Annotated OpenType Suite, result is always
      * limited to 16bit. */
-    glyph_id = (glyph_id + deltaGlyphID) & 0xFFFF;
+    glyph_id = (glyph_id + deltaGlyphID) & 0xFFFFu;
     c->replace_glyph (glyph_id);
 
     return TRACE_RETURN (true);
@@ -200,7 +200,7 @@ struct SingleSubst
     TRACE_SERIALIZE (this);
     if (unlikely (!c->extend_min (u.format))) return TRACE_RETURN (false);
     unsigned int format = 2;
-    int delta;
+    int delta = 0;
     if (num_glyphs) {
       format = 1;
       /* TODO(serialize) check for wrap-around */
@@ -222,7 +222,7 @@ struct SingleSubst
   template <typename context_t>
   inline typename context_t::return_t dispatch (context_t *c) const
   {
-    TRACE_DISPATCH (this);
+    TRACE_DISPATCH (this, u.format);
     switch (u.format) {
     case 1: return TRACE_RETURN (c->dispatch (u.format1));
     case 2: return TRACE_RETURN (c->dispatch (u.format2));
@@ -270,14 +270,32 @@ struct Sequence
   inline bool apply (hb_apply_context_t *c) const
   {
     TRACE_APPLY (this);
-    if (unlikely (!substitute.len)) return TRACE_RETURN (false);
-
-    unsigned int klass = c->buffer->cur().glyph_props() &
-			 HB_OT_LAYOUT_GLYPH_PROPS_LIGATURE ? HB_OT_LAYOUT_GLYPH_PROPS_BASE_GLYPH : 0;
     unsigned int count = substitute.len;
+
+    /* TODO:
+     * Testing shows that Uniscribe actually allows zero-len susbstitute,
+     * which essentially deletes a glyph.  We don't allow for now.  It
+     * can be confusing to the client since the cluster from the deleted
+     * glyph won't be merged with any output cluster...  Also, currently
+     * buffer->move_to() makes assumptions about this too.  Perhaps fix
+     * in the future after figuring out what to do with the clusters.
+     */
+    if (unlikely (!count)) return TRACE_RETURN (false);
+
+    /* Special-case to make it in-place and not consider this
+     * as a "multiplied" substitution. */
+    if (unlikely (count == 1))
+    {
+      c->replace_glyph (substitute.array[0]);
+      return TRACE_RETURN (true);
+    }
+
+    unsigned int klass = _hb_glyph_info_is_ligature (&c->buffer->cur()) ?
+			 HB_OT_LAYOUT_GLYPH_PROPS_BASE_GLYPH : 0;
+
     for (unsigned int i = 0; i < count; i++) {
-      set_lig_props_for_component (c->buffer->cur(), i);
-      c->output_glyph (substitute.array[i], klass);
+      _hb_glyph_info_set_lig_props_for_component (&c->buffer->cur(), i);
+      c->output_glyph_for_component (substitute.array[i], klass);
     }
     c->buffer->skip_glyph ();
 
@@ -404,7 +422,7 @@ struct MultipleSubst
   template <typename context_t>
   inline typename context_t::return_t dispatch (context_t *c) const
   {
-    TRACE_DISPATCH (this);
+    TRACE_DISPATCH (this, u.format);
     switch (u.format) {
     case 1: return TRACE_RETURN (c->dispatch (u.format1));
     default:return TRACE_RETURN (c->default_return_value ());
@@ -555,7 +573,7 @@ struct AlternateSubst
   template <typename context_t>
   inline typename context_t::return_t dispatch (context_t *c) const
   {
-    TRACE_DISPATCH (this);
+    TRACE_DISPATCH (this, u.format);
     switch (u.format) {
     case 1: return TRACE_RETURN (c->dispatch (u.format1));
     default:return TRACE_RETURN (c->default_return_value ());
@@ -617,29 +635,37 @@ struct Ligature
   {
     TRACE_APPLY (this);
     unsigned int count = component.len;
-    if (unlikely (count < 1)) return TRACE_RETURN (false);
 
-    unsigned int end_offset = 0;
+    if (unlikely (!count)) return TRACE_RETURN (false);
+
+    /* Special-case to make it in-place and not consider this
+     * as a "ligated" substitution. */
+    if (unlikely (count == 1))
+    {
+      c->replace_glyph (ligGlyph);
+      return TRACE_RETURN (true);
+    }
+
     bool is_mark_ligature = false;
     unsigned int total_component_count = 0;
+
+    unsigned int match_length = 0;
+    unsigned int match_positions[MAX_CONTEXT_LENGTH];
 
     if (likely (!match_input (c, count,
 			      &component[1],
 			      match_glyph,
 			      NULL,
-			      &end_offset,
+			      &match_length,
+			      match_positions,
 			      &is_mark_ligature,
 			      &total_component_count)))
       return TRACE_RETURN (false);
 
-    /* Deal, we are forming the ligature. */
-    c->buffer->merge_clusters (c->buffer->idx, c->buffer->idx + end_offset);
-
     ligate_input (c,
 		  count,
-		  &component[1],
-		  match_glyph,
-		  NULL,
+		  match_positions,
+		  match_length,
 		  ligGlyph,
 		  is_mark_ligature,
 		  total_component_count);
@@ -863,7 +889,7 @@ struct LigatureSubst
   template <typename context_t>
   inline typename context_t::return_t dispatch (context_t *c) const
   {
-    TRACE_DISPATCH (this);
+    TRACE_DISPATCH (this, u.format);
     switch (u.format) {
     case 1: return TRACE_RETURN (c->dispatch (u.format1));
     default:return TRACE_RETURN (c->default_return_value ());
@@ -982,7 +1008,9 @@ struct ReverseChainSingleSubstFormat1
 			 1))
     {
       c->replace_glyph_inplace (substitute[index]);
-      c->buffer->idx--; /* Reverse! */
+      /* Note: We DON'T decrease buffer->idx.  The main loop does it
+       * for us.  This is useful for preventing surprises if someone
+       * calls us through a Context lookup. */
       return TRACE_RETURN (true);
     }
 
@@ -1025,7 +1053,7 @@ struct ReverseChainSingleSubst
   template <typename context_t>
   inline typename context_t::return_t dispatch (context_t *c) const
   {
-    TRACE_DISPATCH (this);
+    TRACE_DISPATCH (this, u.format);
     switch (u.format) {
     case 1: return TRACE_RETURN (c->dispatch (u.format1));
     default:return TRACE_RETURN (c->default_return_value ());
@@ -1072,7 +1100,7 @@ struct SubstLookupSubTable
   template <typename context_t>
   inline typename context_t::return_t dispatch (context_t *c, unsigned int lookup_type) const
   {
-    TRACE_DISPATCH (this);
+    TRACE_DISPATCH (this, lookup_type);
     switch (lookup_type) {
     case Single:		return TRACE_RETURN (u.single.dispatch (c));
     case Multiple:		return TRACE_RETURN (u.multiple.dispatch (c));
@@ -1145,7 +1173,7 @@ struct SubstLookup : Lookup
     return TRACE_RETURN (dispatch (c));
   }
 
-  inline hb_collect_glyphs_context_t::return_t collect_glyphs_lookup (hb_collect_glyphs_context_t *c) const
+  inline hb_collect_glyphs_context_t::return_t collect_glyphs (hb_collect_glyphs_context_t *c) const
   {
     TRACE_COLLECT_GLYPHS (this);
     c->set_recurse_func (dispatch_recurse_func<hb_collect_glyphs_context_t>);
@@ -1184,54 +1212,6 @@ struct SubstLookup : Lookup
   }
 
   static bool apply_recurse_func (hb_apply_context_t *c, unsigned int lookup_index);
-  inline bool apply_string (hb_apply_context_t *c, const hb_set_digest_t *digest) const
-  {
-    bool ret = false;
-
-    if (unlikely (!c->buffer->len || !c->lookup_mask))
-      return false;
-
-    c->set_recurse_func (apply_recurse_func);
-    c->set_lookup (*this);
-
-    if (likely (!is_reverse ()))
-    {
-	/* in/out forward substitution */
-	c->buffer->clear_output ();
-	c->buffer->idx = 0;
-
-	while (c->buffer->idx < c->buffer->len)
-	{
-	  if (digest->may_have (c->buffer->cur().codepoint) &&
-	      (c->buffer->cur().mask & c->lookup_mask) &&
-	      apply_once (c))
-	    ret = true;
-	  else
-	    c->buffer->next_glyph ();
-	}
-	if (ret)
-	  c->buffer->swap_buffers ();
-    }
-    else
-    {
-	/* in-place backward substitution */
-	c->buffer->remove_output ();
-	c->buffer->idx = c->buffer->len - 1;
-	do
-	{
-	  if (digest->may_have (c->buffer->cur().codepoint) &&
-	      (c->buffer->cur().mask & c->lookup_mask) &&
-	      apply_once (c))
-	    ret = true;
-	  else
-	    c->buffer->idx--;
-
-	}
-	while ((int) c->buffer->idx >= 0);
-    }
-
-    return ret;
-  }
 
   inline SubstLookupSubTable& serialize_subtable (hb_serialize_context_t *c,
 						  unsigned int i)
@@ -1295,8 +1275,8 @@ struct SubstLookup : Lookup
   template <typename context_t>
   inline typename context_t::return_t dispatch (context_t *c) const
   {
-    TRACE_DISPATCH (this);
     unsigned int lookup_type = get_type ();
+    TRACE_DISPATCH (this, lookup_type);
     unsigned int count = get_subtable_count ();
     for (unsigned int i = 0; i < count; i++) {
       typename context_t::return_t r = get_subtable (i).dispatch (c, lookup_type);
@@ -1336,7 +1316,7 @@ typedef OffsetListOf<SubstLookup> SubstLookupList;
 
 struct GSUB : GSUBGPOS
 {
-  static const hb_tag_t Tag	= HB_OT_TAG_GSUB;
+  static const hb_tag_t tableTag	= HB_OT_TAG_GSUB;
 
   inline const SubstLookup& get_lookup (unsigned int i) const
   { return CastR<SubstLookup> (GSUBGPOS::get_lookup (i)); }
@@ -1358,15 +1338,15 @@ struct GSUB : GSUBGPOS
 void
 GSUB::substitute_start (hb_font_t *font, hb_buffer_t *buffer)
 {
-  HB_BUFFER_ALLOCATE_VAR (buffer, glyph_props);
-  HB_BUFFER_ALLOCATE_VAR (buffer, lig_props);
-  HB_BUFFER_ALLOCATE_VAR (buffer, syllable);
+  _hb_buffer_assert_gsubgpos_vars (buffer);
 
   const GDEF &gdef = *hb_ot_layout_from_face (font->face)->gdef;
   unsigned int count = buffer->len;
-  for (unsigned int i = 0; i < count; i++) {
-    buffer->info[i].lig_props() = buffer->info[i].syllable() = 0;
-    buffer->info[i].glyph_props() = gdef.get_glyph_props (buffer->info[i].codepoint);
+  for (unsigned int i = 0; i < count; i++)
+  {
+    _hb_glyph_info_set_glyph_props (&buffer->info[i], gdef.get_glyph_props (buffer->info[i].codepoint));
+    _hb_glyph_info_clear_lig_props (&buffer->info[i]);
+    buffer->info[i].syllable() = 0;
   }
 }
 
@@ -1378,7 +1358,7 @@ GSUB::substitute_finish (hb_font_t *font HB_UNUSED, hb_buffer_t *buffer HB_UNUSE
 
 /* Out-of-class implementation for methods recursing */
 
-inline bool ExtensionSubst::is_reverse (void) const
+/*static*/ inline bool ExtensionSubst::is_reverse (void) const
 {
   unsigned int type = get_type ();
   if (unlikely (type == SubstLookupSubTable::Extension))
@@ -1387,14 +1367,14 @@ inline bool ExtensionSubst::is_reverse (void) const
 }
 
 template <typename context_t>
-inline typename context_t::return_t SubstLookup::dispatch_recurse_func (context_t *c, unsigned int lookup_index)
+/*static*/ inline typename context_t::return_t SubstLookup::dispatch_recurse_func (context_t *c, unsigned int lookup_index)
 {
   const GSUB &gsub = *(hb_ot_layout_from_face (c->face)->gsub);
   const SubstLookup &l = gsub.get_lookup (lookup_index);
   return l.dispatch (c);
 }
 
-inline bool SubstLookup::apply_recurse_func (hb_apply_context_t *c, unsigned int lookup_index)
+/*static*/ inline bool SubstLookup::apply_recurse_func (hb_apply_context_t *c, unsigned int lookup_index)
 {
   const GSUB &gsub = *(hb_ot_layout_from_face (c->face)->gsub);
   const SubstLookup &l = gsub.get_lookup (lookup_index);

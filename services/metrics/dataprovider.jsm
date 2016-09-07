@@ -2,9 +2,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-"use strict";
-
 #ifndef MERGED_COMPARTMENT
+
+"use strict";
 
 this.EXPORTED_SYMBOLS = [
   "Measurement",
@@ -20,7 +20,7 @@ const MILLISECONDS_PER_DAY = 24 * 60 * 60 * 1000;
 Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/Preferences.jsm");
 Cu.import("resource://gre/modules/Task.jsm");
-Cu.import("resource://services-common/log4moz.js");
+Cu.import("resource://gre/modules/Log.jsm");
 Cu.import("resource://services-common/utils.js");
 
 
@@ -86,7 +86,7 @@ this.Measurement = function () {
     }
   }
 
-  this._log = Log4Moz.repository.getLogger("Services.Metrics.Measurement." + this.name);
+  this._log = Log.repository.getLogger("Services.Metrics.Measurement." + this.name);
 
   this.id = null;
   this.storage = null;
@@ -502,7 +502,7 @@ this.Provider = function () {
     throw new Error("Provider must define measurement types.");
   }
 
-  this._log = Log4Moz.repository.getLogger("Services.Metrics.Provider." + this.name);
+  this._log = Log.repository.getLogger("Services.Metrics.Provider." + this.name);
 
   this.measurements = null;
   this.storage = null;

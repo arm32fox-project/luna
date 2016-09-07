@@ -8,6 +8,9 @@
 #include "nsDataHashtable.h"
 #include "nsString.h"
 
+class nsIUnicodeDecoder;
+class nsIUnicodeEncoder;
+
 namespace mozilla {
 namespace dom {
 
@@ -24,7 +27,7 @@ public:
    * our internal implementations.
    *
    * @param      aLabel, incoming label describing charset to be decoded.
-   * @param      aRetEncoding, returning corresponding encoding for label.
+   * @param      aOutEncoding, returning corresponding encoding for label.
    * @return     false if no encoding was found for label.
    *             true if valid encoding found.
    */
@@ -35,6 +38,25 @@ public:
                                    nsACString& aOutEncoding)
   {
     return FindEncodingForLabel(NS_ConvertUTF16toUTF8(aLabel), aOutEncoding);
+  }
+
+  /**
+   * Like FindEncodingForLabel() except labels that map to "replacement"
+   * are treated as unknown.
+   *
+   * @param      aLabel, incoming label describing charset to be decoded.
+   * @param      aOutEncoding, returning corresponding encoding for label.
+   * @return     false if no encoding was found for label.
+   *             true if valid encoding found.
+   */
+  static bool FindEncodingForLabelNoReplacement(const nsACString& aLabel,
+                                                nsACString& aOutEncoding);
+
+  static bool FindEncodingForLabelNoReplacement(const nsAString& aLabel,
+                                                nsACString& aOutEncoding)
+  {
+    return FindEncodingForLabelNoReplacement(NS_ConvertUTF16toUTF8(aLabel),
+                                             aOutEncoding);
   }
 
   /**
@@ -62,8 +84,62 @@ public:
    */
   static bool IsAsciiCompatible(const nsACString& aPreferredName);
 
+  /**
+   * Instantiates a decoder for an encoding. The input must be a
+   * Goanna-canonical encoding name.
+   * @param aEncoding a Goanna-canonical encoding name
+   * @return a decoder
+   */
+  static already_AddRefed<nsIUnicodeDecoder>
+  DecoderForEncoding(const char* aEncoding)
+  {
+    nsDependentCString encoding(aEncoding);
+    return DecoderForEncoding(encoding);
+  }
+
+  /**
+   * Instantiates a decoder for an encoding. The input must be a
+   * Goanna-canonical encoding name
+   * @param aEncoding a Goanna-canonical encoding name
+   * @return a decoder
+   */
+  static already_AddRefed<nsIUnicodeDecoder>
+  DecoderForEncoding(const nsACString& aEncoding);
+
+  /**
+   * Instantiates an encoder for an encoding. The input must be a
+   * Goanna-canonical encoding name.
+   * @param aEncoding a Goanna-canonical encoding name
+   * @return an encoder
+   */
+  static already_AddRefed<nsIUnicodeEncoder>
+  EncoderForEncoding(const char* aEncoding)
+  {
+    nsDependentCString encoding(aEncoding);
+    return EncoderForEncoding(encoding);
+  }
+
+  /**
+   * Instantiates an encoder for an encoding. The input must be a
+   * Goanna-canonical encoding name.
+   * @param aEncoding a Goanna-canonical encoding name
+   * @return an encoder
+   */
+  static already_AddRefed<nsIUnicodeEncoder>
+  EncoderForEncoding(const nsACString& aEncoding);
+
+  /**
+   * Finds a Goanna language group string (e.g. x-western) for a Goanna-canonical
+   * encoding name.
+   *
+   * @param      aEncoding, incoming label describing charset to be decoded.
+   * @param      aOutGroup, returning corresponding language group.
+   */
+  static void LangGroupForEncoding(const nsACString& aEncoding,
+                                   nsACString& aOutGroup);
+
 private:
-  EncodingUtils() MOZ_DELETE;
+  EncodingUtils() = delete;
 };
 
 } // dom

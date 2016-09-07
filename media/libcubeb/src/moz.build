@@ -4,66 +4,76 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MODULE = 'cubeb'
+Library('cubeb')
 
-CSRCS += [
+SOURCES += [
     'cubeb.c',
+    'cubeb_panner.cpp'
 ]
-
-CPP_SOURCES += [
-    'cubeb_panner.cpp',
-]
-
 
 if CONFIG['MOZ_ALSA']:
-    CSRCS += [
+    SOURCES += [
         'cubeb_alsa.c',
     ]
-
-if CONFIG['MOZ_OSS']:
-    CSRCS += [
-        'cubeb_oss.c',
-    ]
+    DEFINES['USE_ALSA'] = True
 
 if CONFIG['MOZ_PULSEAUDIO']:
-    CSRCS += [
+    SOURCES += [
         'cubeb_pulse.c',
     ]
+    DEFINES['USE_PULSE'] = True
+    if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
+        DEFINES['DISABLE_LIBPULSE_DLOPEN'] = True
 
 if CONFIG['OS_ARCH'] == 'OpenBSD':
-    CSRCS += [
+    SOURCES += [
         'cubeb_sndio.c',
     ]
+    DEFINES['USE_SNDIO'] = True
 
 if CONFIG['OS_TARGET'] == 'Darwin':
-    CSRCS += [
+    SOURCES += [
         'cubeb_audiounit.c',
-        'cubeb_osx_run_loop.c',
+        'cubeb_osx_run_loop.c'
     ]
-    CPP_SOURCES += [
-        'OSXRunLoopSingleton.cpp',
-    ]
+    DEFINES['USE_AUDIOUNIT'] = True
 
 if CONFIG['OS_TARGET'] == 'WINNT':
-    CSRCS += [
-        'cubeb_winmm.c',
-    ]
-    CPP_SOURCES += [
+    SOURCES += [
         'cubeb_resampler.cpp',
         'cubeb_wasapi.cpp',
+        'cubeb_winmm.c',
     ]
+    DEFINES['USE_WINMM'] = True
+    DEFINES['USE_WASAPI'] = True
 
 if CONFIG['OS_TARGET'] == 'Android':
-    CSRCS += [
-        'cubeb_opensl.c',
-    ]
-    CPP_SOURCES += [
-        'cubeb_resampler.cpp',
-    ]
+    SOURCES += ['cubeb_opensl.c']
+    SOURCES += ['cubeb_resampler.cpp']
+    SOURCES['cubeb_opensl.c'].flags += ['-Wno-declaration-after-statement']
+    DEFINES['USE_OPENSL'] = True
     if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'gonk':
-        CSRCS += [
+        SOURCES += [
             'cubeb_audiotrack.c',
         ]
+        DEFINES['USE_AUDIOTRACK'] = True
 
-LIBRARY_NAME = 'cubeb'
+MSVC_ENABLE_PGO = True
 
+if CONFIG['GKMEDIAS_SHARED_LIBRARY']:
+    NO_VISIBILITY_FLAGS = True
+
+FINAL_LIBRARY = 'gkmedias'
+
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk':
+    CFLAGS += [
+        '-I%s/%s' % (CONFIG['ANDROID_SOURCE'], d) for d in [
+            'frameworks/wilhelm/include',
+            'system/media/wilhelm/include',
+        ]
+    ]
+
+FAIL_ON_WARNINGS = True
+
+CFLAGS += CONFIG['MOZ_ALSA_CFLAGS']
+CFLAGS += CONFIG['MOZ_PULSEAUDIO_CFLAGS']

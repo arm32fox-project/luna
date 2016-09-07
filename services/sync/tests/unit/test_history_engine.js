@@ -12,15 +12,16 @@ Cu.import("resource://testing-common/services/sync/utils.js");
 
 Service.engineManager.clear();
 
+add_test(function test_setup() {
+  PlacesTestUtils.clearHistory().then(run_next_test);
+});
+
 add_test(function test_processIncoming_mobile_history_batched() {
   _("SyncEngine._processIncoming works on history engine.");
 
   let FAKE_DOWNLOAD_LIMIT = 100;
 
-  new SyncTestingInfrastructure();
-
   Svc.Prefs.set("client.type", "mobile");
-  PlacesUtils.history.removeAllPages();
   Service.engineManager.register(HistoryEngine);
 
   // A collection that logs each GET
@@ -31,6 +32,12 @@ add_test(function test_processIncoming_mobile_history_batched() {
     this.get_log.push(options);
     return this._get(options);
   };
+
+  let server = sync_httpd_setup({
+    "/1.1/foo/storage/history": collection.handler()
+  });
+
+  new SyncTestingInfrastructure(server);
 
   // Let's create some 234 server side history records. They're all at least
   // 10 minutes old.
@@ -50,10 +57,6 @@ add_test(function test_processIncoming_mobile_history_batched() {
     wbo.modified = modified;
     collection.insertWBO(wbo);
   }
-
-  let server = sync_httpd_setup({
-      "/1.1/foo/storage/history": collection.handler()
-  });
 
   let engine = Service.engineManager.get("history");
   let meta_global = Service.recordManager.set(engine.metaURL,
@@ -129,10 +132,11 @@ add_test(function test_processIncoming_mobile_history_batched() {
     }
 
   } finally {
-    PlacesUtils.history.removeAllPages();
-    server.stop(do_test_finished);
-    Svc.Prefs.resetBranch("");
-    Service.recordManager.clearCache();
+    PlacesTestUtils.clearHistory().then(() => {
+      server.stop(do_test_finished);
+      Svc.Prefs.resetBranch("");
+      Service.recordManager.clearCache();
+    });
   }
 });
 

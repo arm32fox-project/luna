@@ -4,10 +4,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifdef MOZ_LOGGING
-#define FORCE_PR_LOG 1
-#endif
-
 #include <algorithm>
 
 #include "nsCryptoHash.h"
@@ -36,35 +32,36 @@ nsCryptoHash::nsCryptoHash()
 nsCryptoHash::~nsCryptoHash()
 {
   nsNSSShutDownPreventionLock locker;
-
-  if (isAlreadyShutDown())
+  if (isAlreadyShutDown()) {
     return;
-
+  }
   destructorSafeDestroyNSSReference();
   shutdown(calledFromObject);
 }
 
-void nsCryptoHash::virtualDestroyNSSReference()
+void
+nsCryptoHash::virtualDestroyNSSReference()
 {
   destructorSafeDestroyNSSReference();
 }
 
-void nsCryptoHash::destructorSafeDestroyNSSReference()
+void
+nsCryptoHash::destructorSafeDestroyNSSReference()
 {
-  if (isAlreadyShutDown())
-    return;
-
   if (mHashContext)
     HASH_Destroy(mHashContext);
   mHashContext = nullptr;
 }
 
-NS_IMPL_ISUPPORTS1(nsCryptoHash, nsICryptoHash)
+NS_IMPL_ISUPPORTS(nsCryptoHash, nsICryptoHash)
 
 NS_IMETHODIMP 
 nsCryptoHash::Init(uint32_t algorithm)
 {
   nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
   HASH_HashType hashType = (HASH_HashType)algorithm;
   if (mHashContext)
@@ -94,6 +91,11 @@ nsCryptoHash::Init(uint32_t algorithm)
 NS_IMETHODIMP
 nsCryptoHash::InitWithString(const nsACString & aAlgorithm)
 {
+  nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
   if (aAlgorithm.LowerCaseEqualsLiteral("md2"))
     return Init(nsICryptoHash::MD2);
 
@@ -119,6 +121,9 @@ NS_IMETHODIMP
 nsCryptoHash::Update(const uint8_t *data, uint32_t len)
 {
   nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
   
   if (!mInitialized)
     return NS_ERROR_NOT_INITIALIZED;
@@ -130,6 +135,11 @@ nsCryptoHash::Update(const uint8_t *data, uint32_t len)
 NS_IMETHODIMP
 nsCryptoHash::UpdateFromStream(nsIInputStream *data, uint32_t aLen)
 {
+  nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
   if (!mInitialized)
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -180,6 +190,9 @@ NS_IMETHODIMP
 nsCryptoHash::Finish(bool ascii, nsACString & _retval)
 {
   nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
   
   if (!mInitialized)
     return NS_ERROR_NOT_INITIALIZED;
@@ -212,7 +225,7 @@ nsCryptoHash::Finish(bool ascii, nsACString & _retval)
 // Implementing nsICryptoHMAC
 //---------------------------------------------
 
-NS_IMPL_ISUPPORTS1(nsCryptoHMAC, nsICryptoHMAC)
+NS_IMPL_ISUPPORTS(nsCryptoHMAC, nsICryptoHMAC)
 
 nsCryptoHMAC::nsCryptoHMAC()
 {
@@ -222,33 +235,35 @@ nsCryptoHMAC::nsCryptoHMAC()
 nsCryptoHMAC::~nsCryptoHMAC()
 {
   nsNSSShutDownPreventionLock locker;
-
-  if (isAlreadyShutDown())
+  if (isAlreadyShutDown()) {
     return;
-
+  }
   destructorSafeDestroyNSSReference();
   shutdown(calledFromObject);
 }
 
-void nsCryptoHMAC::virtualDestroyNSSReference()
+void
+nsCryptoHMAC::virtualDestroyNSSReference()
 {
   destructorSafeDestroyNSSReference();
 }
 
-void nsCryptoHMAC::destructorSafeDestroyNSSReference()
+void
+nsCryptoHMAC::destructorSafeDestroyNSSReference()
 {
-  if (isAlreadyShutDown())
-    return;
-
   if (mHMACContext)
     PK11_DestroyContext(mHMACContext, true);
   mHMACContext = nullptr;
 }
 
 /* void init (in unsigned long aAlgorithm, in nsIKeyObject aKeyObject); */
-NS_IMETHODIMP nsCryptoHMAC::Init(uint32_t aAlgorithm, nsIKeyObject *aKeyObject)
+NS_IMETHODIMP
+nsCryptoHMAC::Init(uint32_t aAlgorithm, nsIKeyObject *aKeyObject)
 {
   nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
   if (mHMACContext)
   {
@@ -304,9 +319,13 @@ NS_IMETHODIMP nsCryptoHMAC::Init(uint32_t aAlgorithm, nsIKeyObject *aKeyObject)
 }
 
 /* void update ([array, size_is (aLen), const] in octet aData, in unsigned long aLen); */
-NS_IMETHODIMP nsCryptoHMAC::Update(const uint8_t *aData, uint32_t aLen)
+NS_IMETHODIMP
+nsCryptoHMAC::Update(const uint8_t *aData, uint32_t aLen)
 {
   nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
   if (!mHMACContext)
     return NS_ERROR_NOT_INITIALIZED;
@@ -321,8 +340,14 @@ NS_IMETHODIMP nsCryptoHMAC::Update(const uint8_t *aData, uint32_t aLen)
 }
 
 /* void updateFromStream (in nsIInputStream aStream, in unsigned long aLen); */
-NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, uint32_t aLen)
+NS_IMETHODIMP
+nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, uint32_t aLen)
 {
+  nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
   if (!mHMACContext)
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -372,9 +397,13 @@ NS_IMETHODIMP nsCryptoHMAC::UpdateFromStream(nsIInputStream *aStream, uint32_t a
 }
 
 /* ACString finish (in bool aASCII); */
-NS_IMETHODIMP nsCryptoHMAC::Finish(bool aASCII, nsACString & _retval)
+NS_IMETHODIMP
+nsCryptoHMAC::Finish(bool aASCII, nsACString & _retval)
 {
   nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
   if (!mHMACContext)
     return NS_ERROR_NOT_INITIALIZED;
@@ -401,9 +430,13 @@ NS_IMETHODIMP nsCryptoHMAC::Finish(bool aASCII, nsACString & _retval)
 }
 
 /* void reset (); */
-NS_IMETHODIMP nsCryptoHMAC::Reset()
+NS_IMETHODIMP
+nsCryptoHMAC::Reset()
 {
   nsNSSShutDownPreventionLock locker;
+  if (isAlreadyShutDown()) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
 
   SECStatus ss = PK11_DigestBegin(mHMACContext);
   NS_ENSURE_TRUE(ss == SECSuccess, NS_ERROR_FAILURE);

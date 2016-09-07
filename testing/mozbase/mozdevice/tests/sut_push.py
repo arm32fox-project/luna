@@ -16,7 +16,7 @@ class PushTest(unittest.TestCase):
 
         # (good response, no exception), (bad response, exception)
         for response in [ (expectedResponse, False), ("BADHASH", True) ]:
-            cmd = "push /mnt/sdcard/foobar %s" % len(pushfile)
+            cmd = "push /mnt/sdcard/foobar %s\r\n%s" % (len(pushfile), pushfile)
             a = MockAgent(self, commands = [("isdir /mnt/sdcard", "TRUE"),
                                             (cmd, response[0])])
             exceptionThrown = False
@@ -26,7 +26,7 @@ class PushTest(unittest.TestCase):
                     f.flush()
                     d = mozdevice.DroidSUT("127.0.0.1", port=a.port)
                     d.pushFile(f.name, '/mnt/sdcard/foobar')
-                except mozdevice.DMError, e:
+                except mozdevice.DMError:
                     exceptionThrown = True
                 self.assertEqual(exceptionThrown, response[1])
             a.wait()
@@ -44,19 +44,20 @@ class PushTest(unittest.TestCase):
         f.write(pushfile)
         f.flush()
 
-        subTests = [ { 'cmds': [ ("isdir /mnt/sdcard//baz", "TRUE"),
-                                 ("isdir /mnt/sdcard//baz", "TRUE"),
-                                 ("push /mnt/sdcard//baz/%s %s" %
-                                  (os.path.basename(f.name), len(pushfile)),
+        subTests = [ { 'cmds': [ ("isdir /mnt/sdcard/baz", "TRUE"),
+                                 ("push /mnt/sdcard/baz/%s %s\r\n%s" %
+                                  (os.path.basename(f.name), len(pushfile),
+                                   pushfile),
                                   expectedFileResponse) ],
                        'expectException': False },
-                     { 'cmds': [ ("isdir /mnt/sdcard//baz", "TRUE"),
-                                 ("isdir /mnt/sdcard//baz", "TRUE"),
-                                 ("push /mnt/sdcard//baz/%s %s" %
-                                  (os.path.basename(f.name), len(pushfile)),
+                     { 'cmds': [ ("isdir /mnt/sdcard/baz", "TRUE"),
+                                 ("push /mnt/sdcard/baz/%s %s\r\n%s" %
+                                  (os.path.basename(f.name), len(pushfile),
+                                   pushfile),
                                   "BADHASH") ],
                        'expectException': True },
-                     { 'cmds': [ ("isdir /mnt/sdcard//baz", "FALSE"),
+                     { 'cmds': [ ("isdir /mnt/sdcard/baz", "FALSE"),
+                                 ('info os', 'android'),
                                  ("isdir /mnt", "FALSE"),
                                  ("mkdr /mnt",
                                   "##AGENT-WARNING## Could not create the directory /mnt") ],
@@ -72,7 +73,7 @@ class PushTest(unittest.TestCase):
                 d = mozdevice.DroidSUT("127.0.0.1", port=a.port,
                                        logLevel=mozlog.DEBUG)
                 d.pushDir(tempdir, "/mnt/sdcard")
-            except mozdevice.DMError, e:
+            except mozdevice.DMError:
                 exceptionThrown = True
             self.assertEqual(exceptionThrown, subTest['expectException'])
 

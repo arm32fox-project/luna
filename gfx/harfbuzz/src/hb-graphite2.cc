@@ -30,12 +30,9 @@
 #define hb_graphite2_shaper_font_data_t gr_font
 #include "hb-shaper-impl-private.hh"
 
-#include <graphite2/Font.h>
-#include <graphite2/Segment.h>
-
 #include "hb-graphite2.h"
 
-#include "hb-ot-tag.h"
+#include <graphite2/Segment.h>
 
 
 HB_SHAPER_DATA_ENSURE_DECLARE(graphite2, face)
@@ -110,7 +107,7 @@ _hb_graphite2_shaper_face_data_create (hb_face_t *face)
 
   hb_graphite2_shaper_face_data_t *data = (hb_graphite2_shaper_face_data_t *) calloc (1, sizeof (hb_graphite2_shaper_face_data_t));
   if (unlikely (!data))
-    hb_blob_destroy (silf_blob);
+    return NULL;
 
   data->face = face;
   data->grface = gr_make_face (data, &hb_graphite2_get_table, gr_face_preloadAll);
@@ -212,6 +209,7 @@ struct hb_graphite2_cluster_t {
   unsigned int num_chars;
   unsigned int base_glyph;
   unsigned int num_glyphs;
+  unsigned int cluster;
 };
 
 hb_bool_t
@@ -244,14 +242,9 @@ _hb_graphite2_shape (hb_shape_plan_t    *shape_plan,
   float curradvx = 0., curradvy = 0.;
 
   unsigned int scratch_size;
-  char *scratch = (char *) buffer->get_scratch_buffer (&scratch_size);
+  hb_buffer_t::scratch_buffer_t *scratch = buffer->get_scratch_buffer (&scratch_size);
 
-#define ALLOCATE_ARRAY(Type, name, len) \
-  Type *name = (Type *) scratch; \
-  scratch += (len) * sizeof ((name)[0]); \
-  scratch_size -= (len) * sizeof ((name)[0]);
-
-  ALLOCATE_ARRAY (uint32_t, chars, buffer->len);
+  uint32_t *chars = (uint32_t *) scratch;
 
   for (unsigned int i = 0; i < buffer->len; ++i)
     chars[i] = buffer->info[i].codepoint;
@@ -277,25 +270,37 @@ _hb_graphite2_shape (hb_shape_plan_t    *shape_plan,
     return false;
   }
 
-  scratch = (char *) buffer->get_scratch_buffer (&scratch_size);
-  while ((sizeof (hb_graphite2_cluster_t) * buffer->len +
-	  sizeof (hb_codepoint_t) * glyph_count) > scratch_size)
+  scratch = buffer->get_scratch_buffer (&scratch_size);
+  while ((DIV_CEIL (sizeof (hb_graphite2_cluster_t) * buffer->len, sizeof (*scratch)) +
+	  DIV_CEIL (sizeof (hb_codepoint_t) * glyph_count, sizeof (*scratch))) > scratch_size)
   {
-    buffer->ensure (buffer->allocated * 2);
-    if (unlikely (buffer->in_error)) {
+    if (unlikely (!buffer->ensure (buffer->allocated * 2)))
+    {
       if (feats) gr_featureval_destroy (feats);
       gr_seg_destroy (seg);
       return false;
     }
-    scratch = (char *) buffer->get_scratch_buffer (&scratch_size);
+    scratch = buffer->get_scratch_buffer (&scratch_size);
+  }
+
+#define ALLOCATE_ARRAY(Type, name, len) \
+  Type *name = (Type *) scratch; \
+  { \
+    unsigned int _consumed = DIV_CEIL ((len) * sizeof (Type), sizeof (*scratch)); \
+    assert (_consumed <= scratch_size); \
+    scratch += _consumed; \
+    scratch_size -= _consumed; \
   }
 
   ALLOCATE_ARRAY (hb_graphite2_cluster_t, clusters, buffer->len);
   ALLOCATE_ARRAY (hb_codepoint_t, gids, glyph_count);
 
+#undef ALLOCATE_ARRAY
+
   memset (clusters, 0, sizeof (clusters[0]) * buffer->len);
 
   hb_codepoint_t *pg = gids;
+  clusters[0].cluster = buffer->info[0].cluster;
   for (is = gr_seg_first_slot (seg), ic = 0; is; is = gr_slot_next_in_segment (is), ic++)
   {
     unsigned int before = gr_slot_before (is);
@@ -313,6 +318,7 @@ _hb_graphite2_shape (hb_shape_plan_t    *shape_plan,
     {
       hb_graphite2_cluster_t *c = clusters + ci + 1;
       c->base_char = clusters[ci].base_char + clusters[ci].num_chars;
+      c->cluster = buffer->info[c->base_char].cluster;
       c->num_chars = before - c->base_char;
       c->base_glyph = ic;
       c->num_glyphs = 0;
@@ -332,7 +338,7 @@ _hb_graphite2_shape (hb_shape_plan_t    *shape_plan,
     {
       hb_glyph_info_t *info = &buffer->info[clusters[i].base_glyph + j];
       info->codepoint = gids[clusters[i].base_glyph + j];
-      info->cluster = gr_cinfo_base(gr_seg_cinfo(seg, clusters[i].base_char));
+      info->cluster = clusters[i].cluster;
     }
   }
   buffer->len = glyph_count;

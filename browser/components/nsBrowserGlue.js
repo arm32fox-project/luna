@@ -34,8 +34,10 @@ XPCOMUtils.defineLazyModuleGetter(this, "BookmarkHTMLUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "BookmarkJSONUtils",
                                   "resource://gre/modules/BookmarkJSONUtils.jsm");
 
-XPCOMUtils.defineLazyModuleGetter(this, "webappsUI",
-                                  "resource:///modules/webappsUI.jsm");
+//XPCOMUtils.defineLazyModuleGetter(this, "webappsUI",
+//                                  "resource:///modules/webappsUI.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "WebappManager",
+                                  "resource:///modules/WebappManager.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
                                   "resource://gre/modules/PageThumbs.jsm");
@@ -64,6 +66,11 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesBackups",
                                   "resource://gre/modules/PlacesBackups.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "LoginManagerParent",
+                                  "resource://gre/modules/LoginManagerParent.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "FormValidationHandler",
+                                  "resource:///modules/FormValidationHandler.jsm");
 
 const PREF_PLUGINS_NOTIFYUSER = "plugins.update.notifyUser";
 const PREF_PLUGINS_UPDATEURL  = "plugins.update.url";
@@ -422,13 +429,16 @@ BrowserGlue.prototype = {
 
     this._syncSearchEngines();
 
-    webappsUI.init();
+    WebappManager.init();
     PageThumbs.init();
     NewTabUtils.init();
     BrowserNewTabPreloader.init();
     PdfJs.init();
     webrtcUI.init();
-
+    FormValidationHandler.init();
+    
+    LoginManagerParent.init();
+    
     Services.obs.notifyObservers(null, "browser-ui-startup-complete", "");
   },
 
@@ -531,8 +541,9 @@ BrowserGlue.prototype = {
   _onProfileShutdown: function BG__onProfileShutdown() {
     BrowserNewTabPreloader.uninit();
     UserAgentOverrides.uninit();
-    webappsUI.uninit();
+    WebappManager.uninit();
     webrtcUI.uninit();
+    FormValidationHandler.uninit();
     this._dispose();
   },
 

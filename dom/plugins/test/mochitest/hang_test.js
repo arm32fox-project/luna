@@ -92,19 +92,19 @@ function onPluginCrashed(aEvent) {
   var pluginElement = document.getElementById("plugin1");
   is (pluginElement, aEvent.target, "Plugin crashed event target is plugin element");
 
-  ok(aEvent instanceof Ci.nsIDOMDataContainerEvent,
+  ok(aEvent instanceof PluginCrashedEvent,
      "plugin crashed event has the right interface");
 
-  var minidumpID = aEvent.getData("minidumpID");
-  isnot(minidumpID, "", "got a non-empty dump ID");
-  var pluginName = aEvent.getData("pluginName");
-  is(pluginName, "Test Plug-in", "got correct plugin name");
-  var pluginFilename = aEvent.getData("pluginFilename");
-  isnot(pluginFilename, "", "got a non-empty filename");
-  var didReport = aEvent.getData("submittedCrashReport");
+  is(typeof aEvent.pluginDumpID, "string", "pluginDumpID is correct type");
+  isnot(aEvent.pluginDumpID, "", "got a non-empty dump ID");
+  is(typeof aEvent.pluginName, "string", "pluginName is correct type");
+  is(aEvent.pluginName, "Test Plug-in", "got correct plugin name");
+  is(typeof aEvent.pluginFilename, "string", "pluginFilename is correct type");
+  isnot(aEvent.pluginFilename, "", "got a non-empty filename");
   // The app itself may or may not have decided to submit the report, so
   // allow either true or false here.
-  ok((didReport == true || didReport == false), "event said crash report was submitted");
+  ok("submittedCrashReport" in aEvent, "submittedCrashReport is a property of event");
+  is(typeof aEvent.submittedCrashReport, "boolean", "submittedCrashReport is correct type");
 
   var os = Cc["@mozilla.org/observer-service;1"].
            getService(Ci.nsIObserverService);

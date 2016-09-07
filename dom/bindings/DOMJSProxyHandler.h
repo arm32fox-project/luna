@@ -10,82 +10,152 @@
 #include "mozilla/Likely.h"
 
 #include "jsapi.h"
-#include "jsfriendapi.h"
-#include "jsproxy.h"
-#include "xpcpublic.h"
-#include "nsStringGlue.h"
+#include "js/Proxy.h"
+#include "nsString.h"
 
-#define DOM_PROXY_OBJECT_SLOT js::JSSLOT_PROXY_PRIVATE
+#define DOM_PROXY_OBJECT_SLOT js::PROXY_PRIVATE_SLOT
 
 namespace mozilla {
 namespace dom {
 
 enum {
-  JSPROXYSLOT_EXPANDO = 0,
-  JSPROXYSLOT_XRAY_EXPANDO
+  /**
+   * DOM proxies have an extra slot for the expando object at index
+   * JSPROXYSLOT_EXPANDO.
+   *
+   * The expando object is a plain JSObject whose properties correspond to
+   * "expandos" (custom properties set by the script author).
+   *
+   * The exact value stored in the JSPROXYSLOT_EXPANDO slot depends on whether
+   * the interface is annotated with the [OverrideBuiltins] extended attribute.
+   *
+   * If it is, the proxy is initialized with a PrivateValue, which contains a
+   * pointer to a js::ExpandoAndGeneration object; this contains a pointer to
+   * the actual expando object as well as the "generation" of the object.
+   *
+   * If it is not, the proxy is initialized with an UndefinedValue. In
+   * EnsureExpandoObject, it is set to an ObjectValue that points to the
+   * expando object directly. (It is set back to an UndefinedValue only when
+   * the object is about to die.)
+   */
+  JSPROXYSLOT_EXPANDO = 0
 };
 
 template<typename T> struct Prefable;
 
-class DOMProxyHandler : public js::BaseProxyHandler
+class BaseDOMProxyHandler : public js::BaseProxyHandler
 {
 public:
-  DOMProxyHandler(const DOMClass& aClass)
-    : js::BaseProxyHandler(ProxyFamily()),
-      mClass(aClass)
-  {
-  }
+  explicit MOZ_CONSTEXPR BaseDOMProxyHandler(const void* aProxyFamily, bool aHasPrototype = false)
+    : js::BaseProxyHandler(aProxyFamily, aHasPrototype)
+  {}
 
-  bool preventExtensions(JSContext *cx, JS::Handle<JSObject*> proxy) MOZ_OVERRIDE;
-  bool getPropertyDescriptor(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
-                            JSPropertyDescriptor* desc, unsigned flags) MOZ_OVERRIDE;
+  // Implementations of methods that can be implemented in terms of
+  // other lower-level methods.
+  bool getOwnPropertyDescriptor(JSContext* cx, JS::Handle<JSObject*> proxy,
+                                JS::Handle<jsid> id,
+                                JS::MutableHandle<JSPropertyDescriptor> desc) const override;
+  virtual bool ownPropertyKeys(JSContext* cx, JS::Handle<JSObject*> proxy,
+                               JS::AutoIdVector &props) const override;
+
+  bool getPropertyDescriptor(JSContext* cx, JS::Handle<JSObject*> proxy,
+                             JS::Handle<jsid> id,
+                             JS::MutableHandle<JSPropertyDescriptor> desc) const override;
+
+  virtual bool enumerate(JSContext *cx, JS::Handle<JSObject*> proxy,
+                         JS::MutableHandle<JSObject*> objp) const override;
+
+  // We override getOwnEnumerablePropertyKeys() and implement it directly
+  // instead of using the default implementation, which would call
+  // ownPropertyKeys and then filter out the non-enumerable ones. This avoids
+  // unnecessary work during enumeration.
+  virtual bool getOwnEnumerablePropertyKeys(JSContext* cx, JS::Handle<JSObject*> proxy,
+                                            JS::AutoIdVector &props) const override;
+
+  bool watch(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
+             JS::Handle<JSObject*> callable) const override;
+  bool unwatch(JSContext* cx, JS::Handle<JSObject*> proxy,
+               JS::Handle<jsid> id) const override;
+
+protected:
+  // Hook for subclasses to implement shared ownPropertyKeys()/keys()
+  // functionality.  The "flags" argument is either JSITER_OWNONLY (for keys())
+  // or JSITER_OWNONLY | JSITER_HIDDEN | JSITER_SYMBOLS (for
+  // ownPropertyKeys()).
+  virtual bool ownPropNames(JSContext* cx, JS::Handle<JSObject*> proxy,
+                            unsigned flags,
+                            JS::AutoIdVector& props) const = 0;
+
+  // Hook for subclasses to allow set() to ignore named props while other things
+  // that look at property descriptors see them.  This is intentionally not
+  // named getOwnPropertyDescriptor to avoid subclasses that override it hiding
+  // our public getOwnPropertyDescriptor.
+  virtual bool getOwnPropDescriptor(JSContext* cx,
+                                    JS::Handle<JSObject*> proxy,
+                                    JS::Handle<jsid> id,
+                                    bool ignoreNamedProps,
+                                    JS::MutableHandle<JSPropertyDescriptor> desc) const = 0;
+};
+
+class DOMProxyHandler : public BaseDOMProxyHandler
+{
+public:
+  MOZ_CONSTEXPR DOMProxyHandler()
+    : BaseDOMProxyHandler(&family)
+  {}
+
   bool defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
-                      JSPropertyDescriptor* desc) MOZ_OVERRIDE
+                      JS::MutableHandle<JSPropertyDescriptor> desc) const override
   {
     bool unused;
     return defineProperty(cx, proxy, id, desc, &unused);
   }
   virtual bool defineProperty(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
-                              JSPropertyDescriptor* desc, bool* defined);
+                              JS::MutableHandle<JSPropertyDescriptor> desc, bool* defined)
+                              const;
   bool delete_(JSContext* cx, JS::Handle<JSObject*> proxy,
-               JS::Handle<jsid> id, bool* bp) MOZ_OVERRIDE;
-  bool enumerate(JSContext* cx, JS::Handle<JSObject*> proxy, JS::AutoIdVector& props) MOZ_OVERRIDE;
-  bool has(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id, bool* bp) MOZ_OVERRIDE;
-  bool isExtensible(JSObject *proxy) MOZ_OVERRIDE;
+               JS::Handle<jsid> id, bool* bp) const override;
+  bool preventExtensions(JSContext *cx, JS::Handle<JSObject*> proxy,
+                         bool *succeeded) const override;
+  bool isExtensible(JSContext *cx, JS::Handle<JSObject*> proxy, bool *extensible)
+                    const override;
+  bool has(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
+           bool* bp) const override;
+  bool set(JSContext *cx, JS::Handle<JSObject*> proxy, JS::Handle<JSObject*> receiver,
+           JS::Handle<jsid> id, bool strict, JS::MutableHandle<JS::Value> vp)
+           const override;
 
-  static JSObject* GetExpandoObject(JSObject* obj)
-  {
-    MOZ_ASSERT(IsDOMProxy(obj), "expected a DOM proxy object");
-    JS::Value v = js::GetProxyExtra(obj, JSPROXYSLOT_EXPANDO);
-    if (v.isObject()) {
-      return &v.toObject();
-    }
+  /*
+   * If assigning to proxy[id] hits a named setter with OverrideBuiltins or
+   * an indexed setter, call it and set *done to true on success. Otherwise, set
+   * *done to false.
+   */
+  virtual bool setCustom(JSContext* cx, JS::Handle<JSObject*> proxy, JS::Handle<jsid> id,
+                         JS::MutableHandle<JS::Value> vp, bool *done) const;
 
-    if (v.isUndefined()) {
-      return nullptr;
-    }
+  static JSObject* GetExpandoObject(JSObject* obj);
 
-    js::ExpandoAndGeneration* expandoAndGeneration =
-      static_cast<js::ExpandoAndGeneration*>(v.toPrivate());
-    v = expandoAndGeneration->expando;
-    return v.isUndefined() ? nullptr : &v.toObject();
-  }
   /* GetAndClearExpandoObject does not DROP or clear the preserving wrapper flag. */
   static JSObject* GetAndClearExpandoObject(JSObject* obj);
   static JSObject* EnsureExpandoObject(JSContext* cx,
                                        JS::Handle<JSObject*> obj);
 
-  const DOMClass& mClass;
-
-protected:
-  // Append the property names in "names" to "props". If
-  // shadowPrototypeProperties is false then skip properties that are also
-  // present on our proto chain.
-  bool AppendNamedPropertyIds(JSContext* cx, JS::Handle<JSObject*> proxy,
-                              nsTArray<nsString>& names,
-                              bool shadowPrototypeProperties,
-                              JS::AutoIdVector& props);
+  static const char family;
 };
+
+inline bool IsDOMProxy(JSObject *obj)
+{
+    const js::Class* clasp = js::GetObjectClass(obj);
+    return clasp->isProxy() &&
+           js::GetProxyHandler(obj)->family() == &DOMProxyHandler::family;
+}
+
+inline const DOMProxyHandler*
+GetDOMProxyHandler(JSObject* obj)
+{
+  MOZ_ASSERT(IsDOMProxy(obj));
+  return static_cast<const DOMProxyHandler*>(js::GetProxyHandler(obj));
+}
 
 extern jsid s_length_id;
 
@@ -104,7 +174,15 @@ GetArrayIndexFromId(JSContext* cx, JS::Handle<jsid> id)
   }
   if (MOZ_LIKELY(JSID_IS_ATOM(id))) {
     JSAtom* atom = JSID_TO_ATOM(id);
-    jschar s = *js::GetAtomChars(atom);
+    char16_t s;
+    {
+      JS::AutoCheckCannotGC nogc;
+      if (js::AtomHasLatin1Chars(atom)) {
+        s = *js::GetLatin1AtomChars(nogc, atom);
+      } else {
+        s = *js::GetTwoByteAtomChars(nogc, atom);
+      }
+    }
     if (MOZ_LIKELY((unsigned)s >= 'a' && (unsigned)s <= 'z'))
       return -1;
 
@@ -122,20 +200,34 @@ IsArrayIndex(int32_t index)
 }
 
 inline void
-FillPropertyDescriptor(JSPropertyDescriptor* desc, JSObject* obj, bool readonly)
+FillPropertyDescriptor(JS::MutableHandle<JSPropertyDescriptor> desc,
+                       JSObject* obj, bool readonly, bool enumerable = true)
 {
-  desc->obj = obj;
-  desc->attrs = (readonly ? JSPROP_READONLY : 0) | JSPROP_ENUMERATE;
-  desc->getter = NULL;
-  desc->setter = NULL;
-  desc->shortid = 0;
+  desc.object().set(obj);
+  desc.setAttributes((readonly ? JSPROP_READONLY : 0) |
+                     (enumerable ? JSPROP_ENUMERATE : 0));
+  desc.setGetter(nullptr);
+  desc.setSetter(nullptr);
 }
 
 inline void
-FillPropertyDescriptor(JSPropertyDescriptor* desc, JSObject* obj, JS::Value v, bool readonly)
+FillPropertyDescriptor(JS::MutableHandle<JSPropertyDescriptor> desc,
+                       JSObject* obj, JS::Value v,
+                       bool readonly, bool enumerable = true)
 {
-  desc->value = v;
-  FillPropertyDescriptor(desc, obj, readonly);
+  desc.value().set(v);
+  FillPropertyDescriptor(desc, obj, readonly, enumerable);
+}
+
+inline void
+FillPropertyDescriptor(JS::MutableHandle<JSPropertyDescriptor> desc,
+                       JSObject* obj, unsigned attributes, JS::Value v)
+{
+  desc.object().set(obj);
+  desc.value().set(v);
+  desc.setAttributes(attributes);
+  desc.setGetter(nullptr);
+  desc.setSetter(nullptr);
 }
 
 } // namespace dom

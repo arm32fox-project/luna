@@ -2,6 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+const Cu = Components.utils;
+Cu.import("resource://gre/modules/LoadContextInfo.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
+
 //******** define a js object to implement nsITreeView
 function pageInfoTreeView(treeid, copycol)
 {
@@ -183,7 +187,7 @@ gImageView.onPageMediaSort = function(columnname) {
   var treecol = tree.columns.getNamedColumn(columnname);
 
   var comparator;
-  if (treecol.index == COL_IMAGE_SIZE) {
+  if (treecol.index == COL_IMAGE_SIZE || treecol.index == COL_IMAGE_COUNT) {
     comparator = function numComparator(a, b) { return a - b; };
   } else {
     comparator = function textComparator(a, b) { return a.toLowerCase().localeCompare(b.toLowerCase()); };
@@ -216,13 +220,15 @@ const ATOM_CONTRACTID           = "@mozilla.org/atom-service;1";
 
 // a number of services I'll need later
 // the cache services
-const nsICacheService = Components.interfaces.nsICacheService;
-const ACCESS_READ     = Components.interfaces.nsICache.ACCESS_READ;
-const cacheService = Components.classes["@mozilla.org/network/cache-service;1"].getService(nsICacheService);
-var httpCacheSession = cacheService.createSession("HTTP", 0, true);
-httpCacheSession.doomEntriesIfExpired = false;
-var ftpCacheSession = cacheService.createSession("FTP", 0, true);
-ftpCacheSession.doomEntriesIfExpired = false;
+const nsICacheStorageService = Components.interfaces.nsICacheStorageService;
+const nsICacheStorage = Components.interfaces.nsICacheStorage;
+const cacheService = Components.classes["@mozilla.org/netwerk/cache-storage-service;1"].getService(nsICacheStorageService);
+
+var loadContextInfo = LoadContextInfo.fromLoadContext(
+  window.QueryInterface(Components.interfaces.nsIInterfaceRequestor)
+        .getInterface(Components.interfaces.nsIWebNavigation)
+        .QueryInterface(Components.interfaces.nsILoadContext), false);
+var diskStorage = cacheService.diskCacheStorage(loadContextInfo, false);
 
 const nsICookiePermission  = Components.interfaces.nsICookiePermission;
 const nsIPermissionManager = Components.interfaces.nsIPermissionManager;
@@ -231,12 +237,14 @@ const nsICertificateDialogs = Components.interfaces.nsICertificateDialogs;
 const CERTIFICATEDIALOGS_CONTRACTID = "@mozilla.org/nsCertificateDialogs;1"
 
 // clipboard helper
-try {
-  const gClipboardHelper = Components.classes["@mozilla.org/widget/clipboardhelper;1"].getService(Components.interfaces.nsIClipboardHelper);
+function getClipboardHelper() {
+    try {
+        return Components.classes["@mozilla.org/widget/clipboardhelper;1"].getService(Components.interfaces.nsIClipboardHelper);
+    } catch(e) {
+        // do nothing, later code will handle the error
+    }
 }
-catch(e) {
-  // do nothing, later code will handle the error
-}
+const gClipboardHelper = getClipboardHelper();
 
 // Interface for image loading content
 const nsIImageLoadingContent = Components.interfaces.nsIImageLoadingContent;
@@ -330,6 +338,10 @@ function onLoadPageInfo()
   Components.classes["@mozilla.org/observer-service;1"]
             .getService(Components.interfaces.nsIObserverService)
             .notifyObservers(window, "page-info-dialog-loaded", null);
+  
+  // Make sure the page info window gets focus even if a doorhanger might
+  // otherwise (async) steal it.
+  window.focus();
 }
 
 function loadPageInfo()
@@ -463,19 +475,16 @@ function toggleGroupbox(id)
 
 function openCacheEntry(key, cb)
 {
-  var tries = 0;
   var checkCacheListener = {
-    onCacheEntryAvailable: function(entry, access, status) {
-      if (entry || tries == 1) {
-        cb(entry);
-      }
-      else {
-        tries++;
-        ftpCacheSession.asyncOpenCacheEntry(key, ACCESS_READ, this, true);
-      }
-    }
+    onCacheEntryCheck: function(entry, appCache) {
+      return Components.interfaces.nsICacheEntryOpenCallback.ENTRY_WANTED;
+    },
+    onCacheEntryAvailable: function(entry, isNew, appCache, status) {
+      cb(entry);
+    },
+    get mainThreadOnly() { return true; }
   };
-  httpCacheSession.asyncOpenCacheEntry(key, ACCESS_READ, checkCacheListener, true);
+  diskStorage.asyncOpenURI(Services.io.newURI(key, null, null), "", nsICacheStorage.OPEN_READONLY, checkCacheListener);
 }
 
 function makeGeneralTab()
@@ -514,7 +523,7 @@ function makeGeneralTab()
     else
       metaTagsCaption.label = gBundle.getFormattedString("generalMetaTags", [length]);
     var metaTree = document.getElementById("metatree");
-    metaTree.treeBoxObject.view = gMetaView;
+    metaTree.view = gMetaView;
 
     for (var i = 0; i < length; i++)
       gMetaView.addRow([metaNodes[i].name || metaNodes[i].httpEquiv, metaNodes[i].content]);

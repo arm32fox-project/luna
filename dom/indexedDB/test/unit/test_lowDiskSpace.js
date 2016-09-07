@@ -4,6 +4,8 @@
  */
 "use strict";
 
+let disableWorkerTest = "This test uses SpecialPowers";
+
 var self = this;
 
 var testGenerator = testSteps();
@@ -55,7 +57,7 @@ function testSteps()
     let request = indexedDB.open(dbName, dbVersion);
     request.onerror = errorHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    let event = yield;
+    let event = yield undefined;
 
     is(event.type, "success", "Opened database without setting low disk mode");
 
@@ -71,7 +73,7 @@ function testSteps()
     let request = indexedDB.deleteDatabase(dbName);
     request.onerror = errorHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    let event = yield;
+    let event = yield undefined;
 
     is(event.type, "success", "Deleted database after setting low disk mode");
   }
@@ -85,7 +87,7 @@ function testSteps()
     request.onerror = expectedErrorHandler("QuotaExceededError");
     request.onupgradeneeded = unexpectedSuccessHandler;
     request.onsuccess = unexpectedSuccessHandler;
-    let event = yield;
+    let event = yield undefined;
 
     is(event.type, "error", "Didn't create new database in low disk mode");
   }
@@ -99,7 +101,7 @@ function testSteps()
     request.onerror = errorHandler;
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = unexpectedSuccessHandler;
-    let event = yield;
+    let event = yield undefined;
 
     is(event.type, "upgradeneeded", "Upgrading database");
 
@@ -108,7 +110,7 @@ function testSteps()
 
     request.onupgradeneeded = unexpectedSuccessHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "success", "Created database");
     ok(event.target.result === db, "Got the same database");
@@ -121,7 +123,7 @@ function testSteps()
     request.onerror = errorHandler;
     request.onupgradeneeded = unexpectedSuccessHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "success", "Opened existing database in low disk mode");
 
@@ -139,7 +141,7 @@ function testSteps()
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = unexpectedSuccessHandler;
 
-    let event = yield;
+    let event = yield undefined;
 
     is(event.type, "upgradeneeded", "Upgrading database");
 
@@ -148,7 +150,7 @@ function testSteps()
 
     request.onupgradeneeded = unexpectedSuccessHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "success", "Created database");
     ok(event.target.result === db, "Got the same database");
@@ -166,7 +168,7 @@ function testSteps()
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = unexpectedSuccessHandler;
 
-    let event = yield;
+    let event = yield undefined;
 
     is(event.type, "upgradeneeded", "Upgrading database");
 
@@ -176,7 +178,7 @@ function testSteps()
     let objectStore = db.createObjectStore(objectStoreName, objectStoreOptions);
 
     request.onupgradeneeded = unexpectedSuccessHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "error", "Failed database upgrade");
   }
@@ -191,7 +193,7 @@ function testSteps()
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = unexpectedSuccessHandler;
 
-    let event = yield;
+    let event = yield undefined;
 
     is(event.type, "upgradeneeded", "Upgrading database");
 
@@ -202,7 +204,7 @@ function testSteps()
 
     request.onupgradeneeded = unexpectedSuccessHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "success", "Upgraded database");
     ok(event.target.result === db, "Got the same database");
@@ -215,7 +217,7 @@ function testSteps()
     request.onerror = expectedErrorHandler("QuotaExceededError");
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = unexpectedSuccessHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "upgradeneeded", "Upgrading database");
 
@@ -226,7 +228,7 @@ function testSteps()
     let index = objectStore.createIndex(indexName, indexName, indexOptions);
 
     request.onupgradeneeded = unexpectedSuccessHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "error", "Failed database upgrade");
   }
@@ -241,7 +243,7 @@ function testSteps()
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = unexpectedSuccessHandler;
 
-    let event = yield;
+    let event = yield undefined;
 
     is(event.type, "upgradeneeded", "Upgrading database");
 
@@ -253,7 +255,7 @@ function testSteps()
 
     request.onupgradeneeded = unexpectedSuccessHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "success", "Upgraded database");
     ok(event.target.result === db, "Got the same database");
@@ -266,7 +268,7 @@ function testSteps()
     request.onerror = errorHandler;
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = unexpectedSuccessHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "upgradeneeded", "Upgrading database");
 
@@ -278,7 +280,7 @@ function testSteps()
 
     request.onupgradeneeded = unexpectedSuccessHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "success", "Upgraded database");
     ok(event.target.result === db, "Got the same database");
@@ -296,7 +298,7 @@ function testSteps()
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = unexpectedSuccessHandler;
 
-    let event = yield;
+    let event = yield undefined;
 
     is(event.type, "upgradeneeded", "Upgrading database");
 
@@ -307,7 +309,7 @@ function testSteps()
 
     request.onupgradeneeded = unexpectedSuccessHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "success", "Upgraded database");
     ok(event.target.result === db, "Got the same database");
@@ -328,7 +330,7 @@ function testSteps()
     request.onerror = errorHandler;
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = unexpectedSuccessHandler;
-    let event = yield;
+    let event = yield undefined;
 
     is(event.type, "upgradeneeded", "Upgrading database");
 
@@ -338,13 +340,13 @@ function testSteps()
     let objectStore = db.createObjectStore(objectStoreName, objectStoreOptions);
     let index = objectStore.createIndex(indexName, indexName, indexOptions);
 
-    for each (let data in dbData) {
+    for (let data of dbData) {
       objectStore.add(data);
     }
 
     request.onupgradeneeded = unexpectedSuccessHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "success", "Upgraded database");
     ok(event.target.result === db, "Got the same database");
@@ -362,7 +364,7 @@ function testSteps()
     request.onerror = errorHandler;
     request.onupgradeneeded = unexpectedSuccessHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    let event = yield;
+    let event = yield undefined;
 
     let db = event.target.result;
     db.onerror = errorHandler;
@@ -433,10 +435,10 @@ function testSteps()
     requestCounter.incr();
 
     // Wait for all requests.
-    yield;
+    yield undefined;
 
     transaction.oncomplete = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "complete", "Transaction succeeded");
 
@@ -453,7 +455,7 @@ function testSteps()
     request.onerror = errorHandler;
     request.onupgradeneeded = unexpectedSuccessHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    let event = yield;
+    let event = yield undefined;
 
     let db = event.target.result;
     db.onerror = errorHandler;
@@ -524,10 +526,10 @@ function testSteps()
     requestCounter.incr();
 
     // Wait for all requests.
-    yield;
+    yield undefined;
 
     transaction.oncomplete = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "complete", "Transaction succeeded");
 
@@ -544,7 +546,7 @@ function testSteps()
     request.onerror = errorHandler;
     request.onupgradeneeded = unexpectedSuccessHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    let event = yield;
+    let event = yield undefined;
 
     let db = event.target.result;
     db.onerror = errorHandler;
@@ -622,10 +624,10 @@ function testSteps()
     requestCounter.incr();
 
     // Wait for all requests.
-    yield;
+    yield undefined;
 
     transaction.oncomplete = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "complete", "Transaction succeeded");
 
@@ -642,7 +644,7 @@ function testSteps()
     request.onerror = errorHandler;
     request.onupgradeneeded = unexpectedSuccessHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    let event = yield;
+    let event = yield undefined;
 
     let db = event.target.result;
     db.onerror = errorHandler;
@@ -676,21 +678,21 @@ function testSteps()
     };
     requestCounter.incr();
 
-    yield;
+    yield undefined;
 
     objectStore.count().onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.target.result, dbData.length - 3, "Actually deleted something");
 
     objectStore.clear();
     objectStore.count().onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.target.result, 0, "Actually cleared");
 
     transaction.oncomplete = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "complete", "Transaction succeeded");
 
@@ -698,7 +700,7 @@ function testSteps()
   }
 
   finishTest();
-  yield;
+  yield undefined;
 }
 
 function RequestCounter(expectedType) {

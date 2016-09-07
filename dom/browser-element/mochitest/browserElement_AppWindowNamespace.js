@@ -13,7 +13,7 @@ SpecialPowers.addPermission("embed-apps", true, document);
 function runTest() {
 
   var iframe1 = document.createElement('iframe');
-  SpecialPowers.wrap(iframe1).mozbrowser = true;
+  iframe1.setAttribute('mozbrowser', 'true');
   iframe1.setAttribute('mozapp', 'http://example.org/manifest.webapp');
 
   // Two mozapp frames for different apps with the same code both do the same
@@ -26,12 +26,15 @@ function runTest() {
 
     SimpleTest.executeSoon(function() {
       var iframe2 = document.createElement('iframe');
-      SpecialPowers.wrap(iframe2).mozbrowser = true;
+      iframe2.setAttribute('mozbrowser', 'true');
       iframe2.setAttribute('mozapp', 'http://example.com/manifest.webapp');
 
       iframe2.addEventListener('mozbrowseropenwindow', function(e) {
         ok(true, "Got second mozbrowseropenwindow event.");
         SpecialPowers.removePermission("embed-apps", document);
+
+        // We're not going to open this, but we don't want the platform to either
+        e.preventDefault();
         SimpleTest.finish();
       });
 

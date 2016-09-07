@@ -5,36 +5,65 @@
 
 package org.mozilla.goanna;
 
-import org.mozilla.goanna.DataReportingNotification;
-import org.mozilla.goanna.db.BrowserDB;
-import org.mozilla.goanna.gfx.BitmapUtils;
-import org.mozilla.goanna.gfx.Layer;
-import org.mozilla.goanna.gfx.LayerView;
-import org.mozilla.goanna.gfx.PluginLayer;
-import org.mozilla.goanna.menu.GoannaMenu;
-import org.mozilla.goanna.menu.GoannaMenuInflater;
-import org.mozilla.goanna.menu.MenuPanel;
-// import org.mozilla.goanna.health.BrowserHealthRecorder;
-// import org.mozilla.goanna.health.BrowserHealthRecorder.SessionInformation;
-import org.mozilla.goanna.updater.UpdateService;
-import org.mozilla.goanna.updater.UpdateServiceHelper;
-import org.mozilla.goanna.util.EventDispatcher;
-import org.mozilla.goanna.util.GoannaEventListener;
-import org.mozilla.goanna.util.GoannaEventResponder;
-import org.mozilla.goanna.util.HardwareUtils;
-import org.mozilla.goanna.util.ThreadUtils;
-import org.mozilla.goanna.util.UiAsyncTask;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URL;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.GoannaProfileDirectories.NoMozillaDirectoryException;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.favicons.Favicons;
+import org.mozilla.goanna.gfx.BitmapUtils;
+import org.mozilla.goanna.gfx.FullScreenState;
+import org.mozilla.goanna.gfx.Layer;
+import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.gfx.PluginLayer;
+import org.mozilla.goanna.health.HealthRecorder;
+import org.mozilla.goanna.health.SessionInformation;
+import org.mozilla.goanna.health.StubbedHealthRecorder;
+import org.mozilla.goanna.menu.GoannaMenu;
+import org.mozilla.goanna.menu.GoannaMenuInflater;
+import org.mozilla.goanna.menu.MenuPanel;
+import org.mozilla.goanna.mozglue.ContextUtils;
+import org.mozilla.goanna.mozglue.ContextUtils.SafeIntent;
+import org.mozilla.goanna.mozglue.GoannaLoader;
+import org.mozilla.goanna.preferences.ClearOnShutdownPref;
+import org.mozilla.goanna.preferences.GoannaPreferences;
+import org.mozilla.goanna.prompts.PromptService;
+import org.mozilla.goanna.updater.UpdateServiceHelper;
+import org.mozilla.goanna.util.ActivityResultHandler;
+import org.mozilla.goanna.util.ActivityUtils;
+import org.mozilla.goanna.util.EventCallback;
+import org.mozilla.goanna.util.FileUtils;
+import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.util.NativeEventListener;
+import org.mozilla.goanna.util.NativeJSObject;
+import org.mozilla.goanna.util.PrefUtils;
+import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.webapp.EventListener;
+import org.mozilla.goanna.webapp.UninstallListener;
+import org.mozilla.goanna.widget.ButtonToast;
 
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.Dialog;
-import android.app.Notification;
-import android.app.PendingIntent;
-import android.app.WallpaperManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
@@ -43,44 +72,39 @@ import android.content.pm.PackageManager.NameNotFoundException;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
-import android.graphics.Point;
-import android.graphics.Rect;
+import android.graphics.RectF;
+import android.graphics.drawable.Drawable;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
 import android.location.Location;
 import android.location.LocationListener;
 import android.net.Uri;
-import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.PowerManager;
 import android.os.StrictMode;
-import android.preference.PreferenceManager;
 import android.provider.ContactsContract;
-
+import android.provider.MediaStore.Images.Media;
 import android.text.TextUtils;
 import android.util.AttributeSet;
 import android.util.Base64;
 import android.util.Log;
 import android.util.SparseBooleanArray;
-import android.view.Display;
 import android.view.Gravity;
 import android.view.KeyEvent;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
 import android.view.MotionEvent;
 import android.view.OrientationEventListener;
-import android.view.Surface;
 import android.view.SurfaceHolder;
 import android.view.SurfaceView;
-import android.view.TextureView;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.ViewStub;
 import android.view.Window;
-import android.view.WindowManager;
 import android.widget.AbsoluteLayout;
 import android.widget.FrameLayout;
 import android.widget.ListView;
@@ -89,32 +113,21 @@ import android.widget.SimpleAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import java.io.BufferedReader;
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+public abstract class GoannaApp
+    extends GoannaActivity
+    implements
+    ContextGetter,
+    GoannaAppShell.GoannaInterface,
+    GoannaEventListener,
+    GoannaMenu.Callback,
+    GoannaMenu.MenuPresenter,
+    LocationListener,
+    NativeEventListener,
+    SensorEventListener,
+    Tabs.OnTabsChangedListener {
 
-abstract public class GoannaApp
-                extends GoannaActivity 
-    implements GoannaEventListener, SensorEventListener, LocationListener,
-                           Tabs.OnTabsChangedListener, GoannaEventResponder,
-                           GoannaMenu.Callback, GoannaMenu.MenuPresenter,
-                           ContextGetter, GoannaAppShell.GoannaInterface
-{
     private static final String LOGTAG = "GoannaApp";
+    private static final int ONE_DAY_MS = 1000*60*60*24;
 
     private static enum StartupAction {
         NORMAL,     /* normal application start */
@@ -122,53 +135,48 @@ abstract public class GoannaApp
         PREFETCH    /* launched with a passed URL that we prefetch */
     }
 
-    public static final String ACTION_ALERT_CALLBACK = "org.mozilla.goanna.ACTION_ALERT_CALLBACK";
-    public static final String ACTION_WEBAPP_PREFIX = "org.mozilla.goanna.WEBAPP";
-    public static final String ACTION_DEBUG         = "org.mozilla.goanna.DEBUG";
-    public static final String ACTION_BOOKMARK      = "org.mozilla.goanna.BOOKMARK";
-    public static final String ACTION_LOAD          = "org.mozilla.goanna.LOAD";
-    public static final String ACTION_LAUNCH_SETTINGS = "org.mozilla.goanna.SETTINGS";
-    public static final String ACTION_INIT_PW       = "org.mozilla.goanna.INIT_PW";
-    public static final String SAVED_STATE_INTENT_HANDLED = "intentHandled";
-    public static final String SAVED_STATE_IN_BACKGROUND = "inBackground";
+    public static final String ACTION_ALERT_CALLBACK       = "org.mozilla.goanna.ACTION_ALERT_CALLBACK";
+    public static final String ACTION_HOMESCREEN_SHORTCUT  = "org.mozilla.goanna.BOOKMARK";
+    public static final String ACTION_DEBUG                = "org.mozilla.goanna.DEBUG";
+    public static final String ACTION_LAUNCH_SETTINGS      = "org.mozilla.goanna.SETTINGS";
+    public static final String ACTION_LOAD                 = "org.mozilla.goanna.LOAD";
+    public static final String ACTION_INIT_PW              = "org.mozilla.goanna.INIT_PW";
+
+    public static final String EXTRA_STATE_BUNDLE          = "stateBundle";
+
+    public static final String PREFS_ALLOW_STATE_BUNDLE    = "allowStateBundle";
+    public static final String PREFS_OOM_EXCEPTION         = "OOMException";
+    public static final String PREFS_VERSION_CODE          = "versionCode";
+    public static final String PREFS_WAS_STOPPED           = "wasStopped";
+    public static final String PREFS_CRASHED               = "crashed";
+    public static final String PREFS_CLEANUP_TEMP_FILES    = "cleanupTempFiles";
+
+    public static final String SAVED_STATE_IN_BACKGROUND   = "inBackground";
     public static final String SAVED_STATE_PRIVATE_SESSION = "privateSession";
 
-    public static final String PREFS_NAME          = "GoannaApp";
-    public static final String PREFS_OOM_EXCEPTION = "OOMException";
-    public static final String PREFS_WAS_STOPPED   = "wasStopped";
-    public static final String PREFS_CRASHED       = "crashed";
-    public static final String PREFS_VERSION_CODE  = "versionCode";
+    // Delay before running one-time "cleanup" tasks that may be needed
+    // after a version upgrade.
+    private static final int CLEANUP_DEFERRAL_SECONDS = 15;
 
-    static public final int RESTORE_NONE = 0;
-    static public final int RESTORE_NORMAL = 1;
-    static public final int RESTORE_CRASH = 2;
-
+    protected OuterLayout mRootLayout;
     protected RelativeLayout mMainLayout;
+
     protected RelativeLayout mGoannaLayout;
-    public View getView() { return mGoannaLayout; }
     private View mCameraView;
     private OrientationEventListener mCameraOrientationEventListener;
-    public List<GoannaAppShell.AppStateListener> mAppStateListeners;
-    private static GoannaApp sAppContext;
+    public List<GoannaAppShell.AppStateListener> mAppStateListeners = new LinkedList<GoannaAppShell.AppStateListener>();
     protected MenuPanel mMenuPanel;
     protected Menu mMenu;
-    private static GoannaThread sGoannaThread;
-    private GoannaProfile mProfile;
-    public static int mOrientation;
+    protected GoannaProfile mProfile;
     protected boolean mIsRestoringActivity;
-    private boolean mIntentHandled;
-    private String mCurrentResponse = "";
-    public static boolean sIsUsingCustomProfile = false;
 
+    private ContactService mContactService;
     private PromptService mPromptService;
     private TextSelection mTextSelection;
 
     protected DoorHangerPopup mDoorHangerPopup;
     protected FormAssistPopup mFormAssistPopup;
-    protected TabsPanel mTabsPanel;
-
-    // Handles notification messages from javascript
-    protected NotificationHelper mNotificationHelper;
+    protected ButtonToast mToast;
 
     protected LayerView mLayerView;
     private AbsoluteLayout mPluginContainer;
@@ -176,18 +184,23 @@ abstract public class GoannaApp
     private FullScreenHolder mFullScreenPluginContainer;
     private View mFullScreenPluginView;
 
-    private HashMap<String, PowerManager.WakeLock> mWakeLocks = new HashMap<String, PowerManager.WakeLock>();
+    private final HashMap<String, PowerManager.WakeLock> mWakeLocks = new HashMap<String, PowerManager.WakeLock>();
 
-    protected int mRestoreMode = RESTORE_NONE;
-    protected boolean mInitialized = false;
+    protected boolean mShouldRestore;
+    protected boolean mInitialized;
+    private Telemetry.Timer mJavaUiStartupTimer;
+    private Telemetry.Timer mGoannaReadyStartupTimer;
 
     private String mPrivateBrowsingSession;
 
-//    private volatile BrowserHealthRecorder mHealthRecorder = null;
+    private volatile HealthRecorder mHealthRecorder;
+    private volatile Locale mLastLocale;
+
+    private EventListener mWebappEventListener;
 
     abstract public int getLayout();
-    abstract public boolean hasTabsSideBar();
-    abstract protected String getDefaultProfileName();
+
+    abstract protected String getDefaultProfileName() throws NoMozillaDirectoryException;
 
     private static final String RESTARTER_ACTION = "org.mozilla.goanna.restart";
     private static final String RESTARTER_CLASS = "org.mozilla.goanna.Restarter";
@@ -207,38 +220,47 @@ abstract public class GoannaApp
 
     void focusChrome() { }
 
+    @Override
     public Context getContext() {
-        return sAppContext;
+        return this;
     }
 
+    @Override
+    public SharedPreferences getSharedPreferences() {
+        return GoannaSharedPrefs.forApp(this);
+    }
+
+    @Override
     public Activity getActivity() {
         return this;
     }
 
+    @Override
     public LocationListener getLocationListener() {
         return this;
     }
 
+    @Override
     public SensorEventListener getSensorEventListener() {
         return this;
     }
 
-    public static SharedPreferences getAppSharedPreferences() {
-        return GoannaApp.sAppContext.getSharedPreferences(PREFS_NAME, 0);
-    }
-
+    @Override
     public View getCameraView() {
         return mCameraView;
     }
 
+    @Override
     public void addAppStateListener(GoannaAppShell.AppStateListener listener) {
         mAppStateListeners.add(listener);
     }
 
+    @Override
     public void removeAppStateListener(GoannaAppShell.AppStateListener listener) {
         mAppStateListeners.remove(listener);
     }
 
+    @Override
     public FormAssistPopup getFormAssistPopup() {
         return mFormAssistPopup;
     }
@@ -282,13 +304,15 @@ abstract public class GoannaApp
 
     @Override
     public void invalidateOptionsMenu() {
-        if (mMenu == null)
+        if (mMenu == null) {
             return;
+        }
 
         onPrepareOptionsMenu(mMenu);
 
-        if (Build.VERSION.SDK_INT >= 11)
+        if (Versions.feature11Plus) {
             super.invalidateOptionsMenu();
+        }
     }
 
     @Override
@@ -302,19 +326,29 @@ abstract public class GoannaApp
 
     @Override
     public MenuInflater getMenuInflater() {
-        if (Build.VERSION.SDK_INT >= 11)
+        if (Versions.feature11Plus) {
             return new GoannaMenuInflater(this);
-        else
+        } else {
             return super.getMenuInflater();
+        }
     }
 
     public MenuPanel getMenuPanel() {
+        if (mMenuPanel == null) {
+            onCreatePanelMenu(Window.FEATURE_OPTIONS_PANEL, null);
+            invalidateOptionsMenu();
+        }
         return mMenuPanel;
     }
 
     @Override
-    public boolean onMenuItemSelected(MenuItem item) {
+    public boolean onMenuItemClick(MenuItem item) {
         return onOptionsItemSelected(item);
+    }
+
+    @Override
+    public boolean onMenuItemLongClick(MenuItem item) {
+        return false;
     }
 
     @Override
@@ -323,15 +357,21 @@ abstract public class GoannaApp
     }
 
     @Override
-    public void showMenu(View menu) {
-        // Hide the menu only if we are showing the MenuPopup.
-        if (!HardwareUtils.hasMenuButton())
-            closeMenu();
+    public void showMenu(final View menu) {
+        // On devices using the custom menu, focus is cleared from the menu when its tapped.
+        // Close and then reshow it to avoid these issues. See bug 794581 and bug 968182.
+        closeMenu();
 
-        mMenuPanel.removeAllViews();
-        mMenuPanel.addView(menu);
-
-        openOptionsMenu();
+        // Post the reshow code back to the UI thread to avoid some optimizations Android
+        // has put in place for menus that hide/show themselves quickly. See bug 985400.
+        ThreadUtils.postToUiThread(new Runnable() {
+            @Override
+            public void run() {
+                mMenuPanel.removeAllViews();
+                mMenuPanel.addView(menu);
+                openOptionsMenu();
+            }
+        });
     }
 
     @Override
@@ -341,23 +381,23 @@ abstract public class GoannaApp
 
     @Override
     public View onCreatePanelView(int featureId) {
-        if (Build.VERSION.SDK_INT >= 11 && featureId == Window.FEATURE_OPTIONS_PANEL) {
+        if (Versions.feature11Plus && featureId == Window.FEATURE_OPTIONS_PANEL) {
             if (mMenuPanel == null) {
                 mMenuPanel = new MenuPanel(this, null);
             } else {
-                // Prepare the panel everytime before showing the menu.
+                // Prepare the panel every time before showing the menu.
                 onPreparePanel(featureId, mMenuPanel, mMenu);
             }
 
-            return mMenuPanel; 
+            return mMenuPanel;
         }
-  
+
         return super.onCreatePanelView(featureId);
     }
 
     @Override
     public boolean onCreatePanelMenu(int featureId, Menu menu) {
-        if (Build.VERSION.SDK_INT >= 11 && featureId == Window.FEATURE_OPTIONS_PANEL) {
+        if (Versions.feature11Plus && featureId == Window.FEATURE_OPTIONS_PANEL) {
             if (mMenuPanel == null) {
                 mMenuPanel = (MenuPanel) onCreatePanelView(featureId);
             }
@@ -376,8 +416,9 @@ abstract public class GoannaApp
 
     @Override
     public boolean onPreparePanel(int featureId, View view, Menu menu) {
-        if (Build.VERSION.SDK_INT >= 11 && featureId == Window.FEATURE_OPTIONS_PANEL)
+        if (Versions.feature11Plus && featureId == Window.FEATURE_OPTIONS_PANEL) {
             return onPrepareOptionsMenu(menu);
+        }
 
         return super.onPreparePanel(featureId, view, menu);
     }
@@ -389,10 +430,11 @@ abstract public class GoannaApp
             GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("FullScreen:Exit", null));
         }
 
-        if (Build.VERSION.SDK_INT >= 11 && featureId == Window.FEATURE_OPTIONS_PANEL) {
+        if (Versions.feature11Plus && featureId == Window.FEATURE_OPTIONS_PANEL) {
             if (mMenu == null) {
-                onCreatePanelMenu(featureId, menu);
-                onPreparePanel(featureId, mMenuPanel, mMenu);
+                // getMenuPanel() will force the creation of the menu as well
+                MenuPanel panel = getMenuPanel();
+                onPreparePanel(featureId, panel, mMenu);
             }
 
             // Scroll custom menu to the top
@@ -407,27 +449,60 @@ abstract public class GoannaApp
 
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
-        switch (item.getItemId()) {
-            case R.id.quit:
-                if (GoannaThread.checkAndSetLaunchState(GoannaThread.LaunchState.GoannaRunning, GoannaThread.LaunchState.GoannaExiting)) {
-                    GoannaAppShell.notifyGoannaOfEvent(GoannaEvent.createBroadcastEvent("Browser:Quit", null));
-                } else {
-                    System.exit(0);
+        if (item.getItemId() == R.id.quit) {
+            // Make sure the Guest Browsing notification goes away when we quit.
+            GuestSession.hideNotification(this);
+
+            if (GoannaThread.checkAndSetLaunchState(GoannaThread.LaunchState.GoannaRunning, GoannaThread.LaunchState.GoannaExiting)) {
+                final SharedPreferences prefs = GoannaSharedPrefs.forProfile(this);
+                final Set<String> clearSet = PrefUtils.getStringSet(prefs, ClearOnShutdownPref.PREF, new HashSet<String>());
+
+                final JSONObject clearObj = new JSONObject();
+                for (String clear : clearSet) {
+                    try {
+                        clearObj.put(clear, true);
+                    } catch(JSONException ex) {
+                        Log.e(LOGTAG, "Error adding clear object " + clear, ex);
+                    }
                 }
-                return true;
-            default:
-                return super.onOptionsItemSelected(item);
+
+                final JSONObject res = new JSONObject();
+                try {
+                    res.put("sanitize", clearObj);
+                } catch(JSONException ex) {
+                    Log.e(LOGTAG, "Error adding sanitize object", ex);
+                }
+
+                // If the user has opted out of session restore, and does want to clear history
+                // we also want to prevent the current session info from being saved.
+                if (clearObj.has("private.data.history")) {
+                    final String sessionRestore = getSessionRestorePreference();
+                    try {
+                        res.put("dontSaveSession", "quit".equals(sessionRestore));
+                    } catch(JSONException ex) {
+                        Log.e(LOGTAG, "Error adding session restore data", ex);
+                    }
+                }
+
+                GoannaAppShell.notifyGoannaOfEvent(GoannaEvent.createBroadcastEvent("Browser:Quit", res.toString()));
+            } else {
+                GoannaAppShell.systemExit();
+            }
+
+            return true;
         }
+
+        return super.onOptionsItemSelected(item);
     }
 
     @Override
     public void onOptionsMenuClosed(Menu menu) {
-        if (Build.VERSION.SDK_INT >= 11) {
+        if (Versions.feature11Plus) {
             mMenuPanel.removeAllViews();
             mMenuPanel.addView((GoannaMenu) mMenu);
         }
     }
- 
+
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
         // Handle hardware menu key presses separately so that we can show a custom menu in some cases.
@@ -443,45 +518,18 @@ abstract public class GoannaApp
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
 
-        if (outState == null)
-            outState = new Bundle();
-
         outState.putBoolean(SAVED_STATE_IN_BACKGROUND, isApplicationInBackground());
         outState.putString(SAVED_STATE_PRIVATE_SESSION, mPrivateBrowsingSession);
-
-        // Bug 896992 - Replace intent action with ACTION_MAIN on restart.
-        if (mIntentHandled) {
-            outState.putBoolean(SAVED_STATE_INTENT_HANDLED, true);
-        }
-    }
-
-    void handleFaviconRequest(final String url) {
-        (new UiAsyncTask<Void, Void, String>(ThreadUtils.getBackgroundHandler()) {
-            @Override
-            public String doInBackground(Void... params) {
-                return Favicons.getInstance().getFaviconUrlForPageUrl(url);
-            }
-
-            @Override
-            public void onPostExecute(String faviconUrl) {
-                JSONObject args = new JSONObject();
-
-                if (faviconUrl != null) {
-                    try {
-                        args.put("url", url);
-                        args.put("faviconUrl", faviconUrl);
-                    } catch (JSONException e) {
-                        Log.w(LOGTAG, "Error building JSON favicon arguments.", e);
-                    }
-                }
-
-                GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Reader:FaviconReturn", args.toString()));
-            }
-        }).execute();
     }
 
     void handleClearHistory() {
-        BrowserDB.clearHistory(getContentResolver());
+        final BrowserDB db = getProfile().getDB();
+        ThreadUtils.postToBackgroundThread(new Runnable() {
+            @Override
+            public void run() {
+                db.clearHistory(getContentResolver());
+            }
+        });
     }
 
     public void addTab() { }
@@ -491,10 +539,6 @@ abstract public class GoannaApp
     public void showNormalTabs() { }
 
     public void showPrivateTabs() { }
-
-    public void showRemoteTabs() { }
-
-    private void showTabs(TabsPanel.Panel panel) { }
 
     public void hideTabs() { }
 
@@ -507,201 +551,184 @@ abstract public class GoannaApp
      */
     public boolean autoHideTabs() { return false; }
 
+    @Override
     public boolean areTabsShown() { return false; }
+
+    @Override
+    public void handleMessage(final String event, final NativeJSObject message,
+                              final EventCallback callback) {
+        if ("Accessibility:Ready".equals(event)) {
+            GoannaAccessibility.updateAccessibilitySettings(this);
+
+        } else if ("Bookmark:Insert".equals(event)) {
+            final String url = message.getString("url");
+            final String title = message.getString("title");
+            final Context context = this;
+            final BrowserDB db = getProfile().getDB();
+            ThreadUtils.postToBackgroundThread(new Runnable() {
+                @Override
+                public void run() {
+                    db.addBookmark(getContentResolver(), title, url);
+                    ThreadUtils.postToUiThread(new Runnable() {
+                        @Override
+                        public void run() {
+                            Toast.makeText(context, R.string.bookmark_added, Toast.LENGTH_SHORT).show();
+                        }
+                    });
+                }
+            });
+
+        } else if ("Contact:Add".equals(event)) {
+            final String email = message.optString("email", null);
+            final String phone = message.optString("phone", null);
+            if (email != null) {
+                Uri contactUri = Uri.parse(email);
+                Intent i = new Intent(ContactsContract.Intents.SHOW_OR_CREATE_CONTACT, contactUri);
+                startActivity(i);
+            } else if (phone != null) {
+                Uri contactUri = Uri.parse(phone);
+                Intent i = new Intent(ContactsContract.Intents.SHOW_OR_CREATE_CONTACT, contactUri);
+                startActivity(i);
+            } else {
+                // something went wrong.
+                Log.e(LOGTAG, "Received Contact:Add message with no email nor phone number");
+            }
+
+        } else if ("DOMFullScreen:Start".equals(event)) {
+            // Local ref to layerView for thread safety
+            LayerView layerView = mLayerView;
+            if (layerView != null) {
+                layerView.setFullScreenState(message.getBoolean("rootElement")
+                        ? FullScreenState.ROOT_ELEMENT : FullScreenState.NON_ROOT_ELEMENT);
+            }
+
+        } else if ("DOMFullScreen:Stop".equals(event)) {
+            // Local ref to layerView for thread safety
+            LayerView layerView = mLayerView;
+            if (layerView != null) {
+                layerView.setFullScreenState(FullScreenState.NONE);
+            }
+
+        } else if ("Image:SetAs".equals(event)) {
+            String src = message.getString("url");
+            setImageAs(src);
+
+        } else if ("Locale:Set".equals(event)) {
+            setLocale(message.getString("locale"));
+
+        } else if ("Permissions:Data".equals(event)) {
+            String host = message.getString("host");
+            final NativeJSObject[] permissions = message.getObjectArray("permissions");
+            showSiteSettingsDialog(host, permissions);
+
+        } else if ("PrivateBrowsing:Data".equals(event)) {
+            mPrivateBrowsingSession = message.optString("session", null);
+
+        } else if ("Sanitize:ClearHistory".equals(event)) {
+            handleClearHistory();
+            callback.sendSuccess(true);
+
+        } else if ("Session:StatePurged".equals(event)) {
+            onStatePurged();
+
+        } else if ("Share:Text".equals(event)) {
+            String text = message.getString("text");
+            GoannaAppShell.openUriExternal(text, "text/plain", "", "", Intent.ACTION_SEND, "");
+
+            // Context: Sharing via chrome list (no explicit session is active)
+            Telemetry.sendUIEvent(TelemetryContract.Event.SHARE, TelemetryContract.Method.LIST);
+
+        } else if ("SystemUI:Visibility".equals(event)) {
+            setSystemUiVisible(message.getBoolean("visible"));
+
+        } else if ("Toast:Show".equals(event)) {
+            final String msg = message.getString("message");
+            final String duration = message.getString("duration");
+            final NativeJSObject button = message.optObject("button", null);
+            if (button != null) {
+                final String label = button.optString("label", "");
+                final String icon = button.optString("icon", "");
+                final String id = button.optString("id", "");
+                showButtonToast(msg, duration, label, icon, id);
+            } else {
+                showNormalToast(msg, duration);
+            }
+
+        } else if ("ToggleChrome:Focus".equals(event)) {
+            focusChrome();
+
+        } else if ("ToggleChrome:Hide".equals(event)) {
+            toggleChrome(false);
+
+        } else if ("ToggleChrome:Show".equals(event)) {
+            toggleChrome(true);
+
+        } else if ("Update:Check".equals(event)) {
+            UpdateServiceHelper.checkForUpdate(this);
+        } else if ("Update:Download".equals(event)) {
+            UpdateServiceHelper.downloadUpdate(this);
+        } else if ("Update:Install".equals(event)) {
+            UpdateServiceHelper.applyUpdate(this);
+        }
+    }
 
     @Override
     public void handleMessage(String event, JSONObject message) {
         try {
-            if (event.equals("Toast:Show")) {
-                final String msg = message.getString("message");
-                final String duration = message.getString("duration");
-                handleShowToast(msg, duration);
-            } else if (event.equals("log")) {
-                // generic log listener
-                final String msg = message.getString("msg");
-                Log.d(LOGTAG, "Log: " + msg);
-            } else if (event.equals("Reader:FaviconRequest")) {
-                final String url = message.getString("url");
-                handleFaviconRequest(url);
-            } else if (event.equals("Reader:GoToReadingList")) {
-                showReadingList();
+            if (event.equals("Goanna:DelayedStartup")) {
+                ThreadUtils.postToBackgroundThread(new UninstallListener.DelayedStartupTask(this));
             } else if (event.equals("Goanna:Ready")) {
+                mGoannaReadyStartupTimer.stop();
                 goannaConnected();
-            } else if (event.equals("ToggleChrome:Hide")) {
-                toggleChrome(false);
-            } else if (event.equals("ToggleChrome:Show")) {
-                toggleChrome(true);
-            } else if (event.equals("ToggleChrome:Focus")) {
-                focusChrome();
-            } else if (event.equals("DOMFullScreen:Start")) {
-                // Local ref to layerView for thread safety
-                LayerView layerView = mLayerView;
-                if (layerView != null) {
-                    layerView.setFullScreen(true);
+
+                // This method is already running on the background thread, so we
+                // know that mHealthRecorder will exist. That doesn't stop us being
+                // paranoid.
+                // This method is cheap, so don't spawn a new runnable.
+                final HealthRecorder rec = mHealthRecorder;
+                if (rec != null) {
+                  rec.recordGoannaStartupTime(mGoannaReadyStartupTimer.getElapsed());
                 }
-            } else if (event.equals("DOMFullScreen:Stop")) {
-                // Local ref to layerView for thread safety
-                LayerView layerView = mLayerView;
-                if (layerView != null) {
-                    layerView.setFullScreen(false);
-                }
-            } else if (event.equals("Permissions:Data")) {
-                String host = message.getString("host");
-                JSONArray permissions = message.getJSONArray("permissions");
-                showSiteSettingsDialog(host, permissions);
-            } else if (event.equals("Tab:ViewportMetadata")) {
-                int tabId = message.getInt("tabID");
-                Tab tab = Tabs.getInstance().getTab(tabId);
-                if (tab == null)
-                    return;
-                tab.setZoomConstraints(new ZoomConstraints(message));
-                tab.setIsRTL(message.getBoolean("isRTL"));
-                // Sync up the layer view and the tab if the tab is currently displayed.
-                LayerView layerView = mLayerView;
-                if (layerView != null && Tabs.getInstance().isSelectedTab(tab)) {
-                    layerView.setZoomConstraints(tab.getZoomConstraints());
-                    layerView.setIsRTL(tab.getIsRTL());
-                }
-            } else if (event.equals("Session:StatePurged")) {
-                onStatePurged();
-            } else if (event.equals("Bookmark:Insert")) {
-                final String url = message.getString("url");
-                final String title = message.getString("title");
-                final Context context = this;
-                ThreadUtils.postToUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        Toast.makeText(context, R.string.bookmark_added, Toast.LENGTH_SHORT).show();
-                        ThreadUtils.postToBackgroundThread(new Runnable() {
-                            @Override
-                            public void run() {
-                                BrowserDB.addBookmark(getContentResolver(), title, url);
-                            }
-                        });
-                    }
-                });
+            } else if ("NativeApp:IsDebuggable".equals(event)) {
+                JSONObject ret = new JSONObject();
+                ret.put("isDebuggable", getIsDebuggable());
+                EventDispatcher.sendResponse(message, ret);
             } else if (event.equals("Accessibility:Event")) {
                 GoannaAccessibility.sendAccessibilityEvent(message);
-            } else if (event.equals("Accessibility:Ready")) {
-                GoannaAccessibility.updateAccessibilitySettings(this);
-            } else if (event.equals("Shortcut:Remove")) {
-                final String url = message.getString("url");
-                final String origin = message.getString("origin");
-                final String title = message.getString("title");
-                final String type = message.getString("shortcutType");
-                GoannaAppShell.removeShortcut(title, url, origin, type);
-            } else if (event.equals("WebApps:Open")) {
-                String manifestURL = message.getString("manifestURL");
-                String origin = message.getString("origin");
-                Intent intent = GoannaAppShell.getWebAppIntent(manifestURL, origin, "", null);
-                if (intent == null)
-                    return;
-                startActivity(intent);
-            } else if (event.equals("WebApps:Install")) {
-                String name = message.getString("name");
-                String manifestURL = message.getString("manifestURL");
-                String iconURL = message.getString("iconURL");
-                String origin = message.getString("origin");
-                // preInstallWebapp will return a File object pointing to the profile directory of the webapp
-                mCurrentResponse = GoannaAppShell.preInstallWebApp(name, manifestURL, origin).toString();
-                GoannaAppShell.postInstallWebApp(name, manifestURL, origin, iconURL);
-            } else if (event.equals("WebApps:PreInstall")) {
-                String name = message.getString("name");
-                String manifestURL = message.getString("manifestURL");
-                String origin = message.getString("origin");
-                // preInstallWebapp will return a File object pointing to the profile directory of the webapp
-                mCurrentResponse = GoannaAppShell.preInstallWebApp(name, manifestURL, origin).toString();
-            } else if (event.equals("WebApps:PostInstall")) {
-                String name = message.getString("name");
-                String manifestURL = message.getString("manifestURL");
-                String iconURL = message.getString("iconURL");
-                String origin = message.getString("origin");
-                GoannaAppShell.postInstallWebApp(name, manifestURL, origin, iconURL);
-            } else if (event.equals("WebApps:Uninstall")) {
-                String origin = message.getString("origin");
-                GoannaAppShell.uninstallWebApp(origin);
-            } else if (event.equals("Share:Text")) {
-                String text = message.getString("text");
-                GoannaAppShell.openUriExternal(text, "text/plain", "", "", Intent.ACTION_SEND, "");
-            } else if (event.equals("Share:Image")) {
-                String src = message.getString("url");
-                String type = message.getString("mime");
-                GoannaAppShell.shareImage(src, type);
-            } else if (event.equals("Wallpaper:Set")) {
-                String src = message.getString("url");
-                setImageAsWallpaper(src);
-            } else if (event.equals("Sanitize:ClearHistory")) {
-                handleClearHistory();
-            } else if (event.equals("Update:Check")) {
-                startService(new Intent(UpdateServiceHelper.ACTION_CHECK_FOR_UPDATE, null, this, UpdateService.class));
-            } else if (event.equals("Update:Download")) {
-                startService(new Intent(UpdateServiceHelper.ACTION_DOWNLOAD_UPDATE, null, this, UpdateService.class));
-            } else if (event.equals("Update:Install")) {
-                startService(new Intent(UpdateServiceHelper.ACTION_APPLY_UPDATE, null, this, UpdateService.class));
-            } else if (event.equals("PrivateBrowsing:Data")) {
-                // null strings return "null" (http://code.google.com/p/android/issues/detail?id=13830)
-                if (message.isNull("session")) {
-                    mPrivateBrowsingSession = null;
-                } else {
-                    mPrivateBrowsingSession = message.getString("session");
-                }
-            } else if (event.equals("Contact:Add")) {                
-                if (!message.isNull("email")) {
-                    Uri contactUri = Uri.parse(message.getString("email"));       
-                    Intent i = new Intent(ContactsContract.Intents.SHOW_OR_CREATE_CONTACT, contactUri);
-                    startActivity(i);
-                } else if (!message.isNull("phone")) {
-                    Uri contactUri = Uri.parse(message.getString("phone"));       
-                    Intent i = new Intent(ContactsContract.Intents.SHOW_OR_CREATE_CONTACT, contactUri);
-                    startActivity(i);
-                } else {
-                    // something went wrong.
-                    Log.e(LOGTAG, "Received Contact:Add message with no email nor phone number");
-                }                
             }
         } catch (Exception e) {
             Log.e(LOGTAG, "Exception handling message \"" + event + "\":", e);
         }
     }
 
-    public String getResponse(JSONObject origMessage) {
-        String res = mCurrentResponse;
-        mCurrentResponse = "";
-        return res;
-    }
-
     void onStatePurged() { }
 
     /**
-     * @param aPermissions
+     * @param permissions
      *        Array of JSON objects to represent site permissions.
      *        Example: { type: "offline-app", setting: "Store Offline Data", value: "Allow" }
      */
-    private void showSiteSettingsDialog(String aHost, JSONArray aPermissions) {
+    private void showSiteSettingsDialog(final String host, final NativeJSObject[] permissions) {
         final AlertDialog.Builder builder = new AlertDialog.Builder(this);
 
         View customTitleView = getLayoutInflater().inflate(R.layout.site_setting_title, null);
         ((TextView) customTitleView.findViewById(R.id.title)).setText(R.string.site_settings_title);
-        ((TextView) customTitleView.findViewById(R.id.host)).setText(aHost);
+        ((TextView) customTitleView.findViewById(R.id.host)).setText(host);
         builder.setCustomTitle(customTitleView);
 
         // If there are no permissions to clear, show the user a message about that.
         // In the future, we want to disable the menu item if there are no permissions to clear.
-        if (aPermissions.length() == 0) {
+        if (permissions.length == 0) {
             builder.setMessage(R.string.site_settings_no_settings);
         } else {
 
-            ArrayList <HashMap<String, String>> itemList = new ArrayList <HashMap<String, String>>();
-            for (int i = 0; i < aPermissions.length(); i++) {
-                try {
-                    JSONObject permObj = aPermissions.getJSONObject(i);
-                    HashMap<String, String> map = new HashMap<String, String>();
-                    map.put("setting", permObj.getString("setting"));
-                    map.put("value", permObj.getString("value"));
-                    itemList.add(map);
-                } catch (JSONException e) {
-                    Log.w(LOGTAG, "Exception populating settings items.", e);
-                }
+            final ArrayList<HashMap<String, String>> itemList =
+                    new ArrayList<HashMap<String, String>>();
+            for (final NativeJSObject permObj : permissions) {
+                final HashMap<String, String> map = new HashMap<String, String>();
+                map.put("setting", permObj.getString("setting"));
+                map.put("value", permObj.getString("value"));
+                itemList.add(map);
             }
 
             // setMultiChoiceItems doesn't support using an adapter, so we're creating a hack with
@@ -768,16 +795,54 @@ abstract public class GoannaApp
         });
     }
 
-    void handleShowToast(final String message, final String duration) {
+    public void showNormalToast(final String message, final String duration) {
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
                 Toast toast;
-                if (duration.equals("long"))
+                if (duration.equals("long")) {
                     toast = Toast.makeText(GoannaApp.this, message, Toast.LENGTH_LONG);
-                else
+                } else {
                     toast = Toast.makeText(GoannaApp.this, message, Toast.LENGTH_SHORT);
+                }
                 toast.show();
+            }
+        });
+    }
+
+    public ButtonToast getButtonToast() {
+        if (mToast != null) {
+            return mToast;
+        }
+
+        ViewStub toastStub = (ViewStub) findViewById(R.id.toast_stub);
+        mToast = new ButtonToast(toastStub.inflate());
+
+        return mToast;
+    }
+
+    void showButtonToast(final String message, final String duration,
+                         final String buttonText, final String buttonIcon,
+                         final String buttonId) {
+        BitmapUtils.getDrawable(GoannaApp.this, buttonIcon, new BitmapUtils.BitmapLoader() {
+            @Override
+            public void onBitmapFound(final Drawable d) {
+                final int toastDuration = duration.equals("long") ? ButtonToast.LENGTH_LONG : ButtonToast.LENGTH_SHORT;
+                getButtonToast().show(false, message, toastDuration ,buttonText, d, new ButtonToast.ToastListener() {
+                    @Override
+                    public void onButtonClicked() {
+                        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Toast:Click", buttonId));
+                    }
+
+                    @Override
+                    public void onToastHidden(ButtonToast.ReasonHidden reason) {
+                        if (reason == ButtonToast.ReasonHidden.TIMEOUT ||
+                            reason == ButtonToast.ReasonHidden.TOUCH_OUTSIDE ||
+                            reason == ButtonToast.ReasonHidden.REPLACED) {
+                            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Toast:Hidden", buttonId));
+                        }
+                    }
+                });
             }
         });
     }
@@ -798,8 +863,8 @@ abstract public class GoannaApp
         mFullScreenPluginContainer = new FullScreenHolder(this);
 
         FrameLayout.LayoutParams layoutParams = new FrameLayout.LayoutParams(
-                            ViewGroup.LayoutParams.FILL_PARENT,
-                            ViewGroup.LayoutParams.FILL_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
+                            ViewGroup.LayoutParams.MATCH_PARENT,
                             Gravity.CENTER);
         mFullScreenPluginContainer.addView(view, layoutParams);
 
@@ -810,7 +875,8 @@ abstract public class GoannaApp
         mFullScreenPluginView = view;
     }
 
-    public void addPluginView(final View view, final Rect rect, final boolean isFullScreen) {
+    @Override
+    public void addPluginView(final View view, final RectF rect, final boolean isFullScreen) {
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
@@ -854,7 +920,7 @@ abstract public class GoannaApp
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
-                mLayerView.show();
+                mLayerView.showSurface();
             }
         });
 
@@ -863,10 +929,11 @@ abstract public class GoannaApp
 
         mFullScreenPluginView = null;
 
-        GoannaScreenOrientationListener.getInstance().unlockScreenOrientation();
+        GoannaScreenOrientation.getInstance().unlock();
         setFullScreen(false);
     }
 
+    @Override
     public void removePluginView(final View view, final boolean isFullScreen) {
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
@@ -887,147 +954,81 @@ abstract public class GoannaApp
         });
     }
 
-    private void setImageAsWallpaper(final String aSrc) {
-        final String progText = getString(R.string.wallpaper_progress);
-        final String successText = getString(R.string.wallpaper_success);
-        final String failureText = getString(R.string.wallpaper_fail);
-        final String fileName = aSrc.substring(aSrc.lastIndexOf("/") + 1);
-        final PendingIntent emptyIntent = PendingIntent.getActivity(this, 0, new Intent(), 0);
-        final AlertNotification notification = new AlertNotification(this, fileName.hashCode(),
-                                R.drawable.alert_download, fileName, progText, System.currentTimeMillis(), null);
-        notification.setLatestEventInfo(this, fileName, progText, emptyIntent );
-        notification.flags |= Notification.FLAG_ONGOING_EVENT;
-        notification.show();
-        new UiAsyncTask<Void, Void, Boolean>(ThreadUtils.getBackgroundHandler()) {
+    // This method starts downloading an image synchronously and displays the Chooser activity to set the image as wallpaper.
+    private void setImageAs(final String aSrc) {
+        boolean isDataURI = aSrc.startsWith("data:");
+        Bitmap image = null;
+        InputStream is = null;
+        ByteArrayOutputStream os = null;
+        try {
+            if (isDataURI) {
+                int dataStart = aSrc.indexOf(",");
+                byte[] buf = Base64.decode(aSrc.substring(dataStart+1), Base64.DEFAULT);
+                image = BitmapUtils.decodeByteArray(buf);
+            } else {
+                int byteRead;
+                byte[] buf = new byte[4192];
+                os = new ByteArrayOutputStream();
+                URL url = new URL(aSrc);
+                is = url.openStream();
 
-            @Override
-            protected Boolean doInBackground(Void... params) {
-                WallpaperManager mgr = WallpaperManager.getInstance(GoannaApp.this);
-                if (mgr == null) {
-                    return false;
+                // Cannot read from same stream twice. Also, InputStream from
+                // URL does not support reset. So converting to byte array.
+
+                while((byteRead = is.read(buf)) != -1) {
+                    os.write(buf, 0, byteRead);
                 }
-
-                // Determine the ideal width and height of the wallpaper
-                // for the device
-
-                int idealWidth = mgr.getDesiredMinimumWidth();
-                int idealHeight = mgr.getDesiredMinimumHeight();
-
-                // Sometimes WallpaperManager's getDesiredMinimum*() methods
-                // can return 0 if a Remote Exception occurs when calling the
-                // Wallpaper Service. So if that fails, we are calculating
-                // the ideal width and height from the device's display 
-                // resolution (excluding the decorated area)
-
-                if (idealWidth <= 0 || idealHeight <= 0) {
-                    int orientation;
-                    Display defaultDisplay = getWindowManager().getDefaultDisplay();
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.FROYO) {
-                        orientation = defaultDisplay.getRotation();
-                    } else {
-                        orientation = defaultDisplay.getOrientation();
-                    }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
-                        Point size = new Point();
-                        defaultDisplay.getSize(size);
-                        // The ideal wallpaper width is always twice the size of
-                        // display width
-                        if (orientation == Surface.ROTATION_0 || orientation == Surface.ROTATION_270) {
-                            idealWidth = size.x * 2;
-                            idealHeight = size.y;
-                        } else {
-                            idealWidth = size.y;
-                            idealHeight = size.x * 2;
-                        }
-                    } else {
-                        if (orientation == Surface.ROTATION_0 || orientation == Surface.ROTATION_270) {
-                            idealWidth = defaultDisplay.getWidth() * 2;
-                            idealHeight = defaultDisplay.getHeight();
-                        } else {
-                            idealWidth = defaultDisplay.getHeight();
-                            idealHeight = defaultDisplay.getWidth() * 2;
-                        }
-                    }
+                byte[] imgBuffer = os.toByteArray();
+                image = BitmapUtils.decodeByteArray(imgBuffer);
+            }
+            if (image != null) {
+                // Some devices don't have a DCIM folder and the Media.insertImage call will fail.
+                File dcimDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES);
+                if (!dcimDir.mkdirs() && !dcimDir.isDirectory()) {
+                    Toast.makeText((Context) this, R.string.set_image_path_fail, Toast.LENGTH_SHORT).show();
+                    return;
                 }
+                String path = Media.insertImage(getContentResolver(),image, null, null);
+                if (path == null) {
+                    Toast.makeText((Context) this, R.string.set_image_path_fail, Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                final Intent intent = new Intent(Intent.ACTION_ATTACH_DATA);
+                intent.addCategory(Intent.CATEGORY_DEFAULT);
+                intent.setData(Uri.parse(path));
 
-                boolean isDataURI = aSrc.startsWith("data:");
-                BitmapFactory.Options options = new BitmapFactory.Options();
-                options.inJustDecodeBounds = true;
-                Bitmap image = null;
-                InputStream is = null;
-                ByteArrayOutputStream os = null;
-                try{
-                    if (isDataURI) {
-                        int dataStart = aSrc.indexOf(',');
-                        byte[] buf = Base64.decode(aSrc.substring(dataStart+1), Base64.DEFAULT);
-                        BitmapUtils.decodeByteArray(buf, options);
-                        options.inSampleSize = getBitmapSampleSize(options, idealWidth, idealHeight);
-                        options.inJustDecodeBounds = false;
-                        image = BitmapUtils.decodeByteArray(buf, options);
-                    } else {
-                        int byteRead;
-                        byte[] buf = new byte[4192];
-                        os = new ByteArrayOutputStream();
-                        URL url = new URL(aSrc);
-                        is = url.openStream();
-
-                        // Cannot read from same stream twice. Also, InputStream from
-                        // URL does not support reset. So converting to byte array
-
-                        while((byteRead = is.read(buf)) != -1) {
-                            os.write(buf, 0, byteRead);
-                        }
-                        byte[] imgBuffer = os.toByteArray();
-                        BitmapUtils.decodeByteArray(imgBuffer, options);
-                        options.inSampleSize = getBitmapSampleSize(options, idealWidth, idealHeight);
-                        options.inJustDecodeBounds = false;
-                        image = BitmapUtils.decodeByteArray(imgBuffer, options);
+                // Removes the image from storage once the chooser activity ends.
+                Intent chooser = Intent.createChooser(intent, getString(R.string.set_image_chooser_title));
+                ActivityResultHandler handler = new ActivityResultHandler() {
+                    @Override
+                    public void onActivityResult (int resultCode, Intent data) {
+                        getContentResolver().delete(intent.getData(), null, null);
                     }
-                    if(image != null) {
-                        mgr.setBitmap(image);
-                        return true;
-                    } else {
-                        return false;
-                    }
-                } catch(OutOfMemoryError ome) {
-                    Log.e(LOGTAG, "Out of Memory when converting to byte array", ome);
-                    return false;
+                };
+                ActivityHandlerHelper.startIntentForActivity(this, chooser, handler);
+            } else {
+                Toast.makeText((Context) this, R.string.set_image_fail, Toast.LENGTH_SHORT).show();
+            }
+        } catch(OutOfMemoryError ome) {
+            Log.e(LOGTAG, "Out of Memory when converting to byte array", ome);
+        } catch(IOException ioe) {
+            Log.e(LOGTAG, "I/O Exception while setting wallpaper", ioe);
+        } finally {
+            if (is != null) {
+                try {
+                    is.close();
                 } catch(IOException ioe) {
-                    Log.e(LOGTAG, "I/O Exception while setting wallpaper", ioe);
-                    return false;
-                } finally {
-                    if(is != null) {
-                        try {
-                            is.close();
-                        } catch(IOException ioe) {
-                            Log.w(LOGTAG, "I/O Exception while closing stream", ioe);
-                        }
-                    }
-                    if(os != null) {
-                        try {
-                            os.close();
-                        } catch(IOException ioe) {
-                            Log.w(LOGTAG, "I/O Exception while closing stream", ioe);
-                        }
-                    }
+                    Log.w(LOGTAG, "I/O Exception while closing stream", ioe);
                 }
             }
-
-            @Override
-            protected void onPostExecute(Boolean success) {
-                notification.cancel();
-                notification.flags = 0;
-                notification.flags |= Notification.FLAG_AUTO_CANCEL;
-                if(!success) {
-                    notification.tickerText = failureText;
-                    notification.setLatestEventInfo(GoannaApp.this, fileName, failureText, emptyIntent);
-                } else {
-                    notification.tickerText = successText;
-                    notification.setLatestEventInfo(GoannaApp.this, fileName, successText, emptyIntent);
+            if (os != null) {
+                try {
+                    os.close();
+                } catch(IOException ioe) {
+                    Log.w(LOGTAG, "I/O Exception while closing stream", ioe);
                 }
-                notification.show();
             }
-        }.execute();
+        }
     }
 
     private int getBitmapSampleSize(BitmapFactory.Options options, int idealWidth, int idealHeight) {
@@ -1036,9 +1037,9 @@ abstract public class GoannaApp
         int inSampleSize = 1;
         if (height > idealHeight || width > idealWidth) {
             if (width > height) {
-                inSampleSize = Math.round((float)height / (float)idealHeight);
+                inSampleSize = Math.round((float)height / idealHeight);
             } else {
-                inSampleSize = Math.round((float)width / (float)idealWidth);
+                inSampleSize = Math.round((float)width / idealWidth);
             }
         }
         return inSampleSize;
@@ -1059,7 +1060,7 @@ abstract public class GoannaApp
     public void requestRender() {
         mLayerView.requestRender();
     }
-    
+
     public void hidePlugins(Tab tab) {
         for (Layer layer : tab.getPluginLayers()) {
             if (layer instanceof PluginLayer) {
@@ -1091,20 +1092,31 @@ abstract public class GoannaApp
         requestRender();
     }
 
+    @Override
     public void setFullScreen(final boolean fullscreen) {
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
             public void run() {
-                // Hide/show the system notification bar
-                Window window = getWindow();
-                window.setFlags(fullscreen ?
-                                WindowManager.LayoutParams.FLAG_FULLSCREEN : 0,
-                                WindowManager.LayoutParams.FLAG_FULLSCREEN);
-
-                if (Build.VERSION.SDK_INT >= 11)
-                    window.getDecorView().setSystemUiVisibility(fullscreen ? 1 : 0);
+                ActivityUtils.setFullScreen(GoannaApp.this, fullscreen);
             }
         });
+    }
+
+    /**
+     * Check and start the Java profiler if MOZ_PROFILER_STARTUP env var is specified.
+     **/
+    protected static void earlyStartJavaSampler(SafeIntent intent) {
+        String env = intent.getStringExtra("env0");
+        for (int i = 1; env != null; i++) {
+            if (env.startsWith("MOZ_PROFILER_STARTUP=")) {
+                if (!env.endsWith("=")) {
+                    GoannaJavaSampler.start(10, 1000);
+                    Log.d(LOGTAG, "Profiling Java on startup");
+                }
+                break;
+            }
+            env = intent.getStringExtra("env" + i);
+        }
     }
 
     /**
@@ -1114,122 +1126,155 @@ abstract public class GoannaApp
      * and other one-shot constructions.
      **/
     @Override
-    public void onCreate(Bundle savedInstanceState)
-    {
-        GoannaAppShell.registerGlobalExceptionHandler();
+    public void onCreate(Bundle savedInstanceState) {
+        GoannaAppShell.ensureCrashHandling();
 
         // Enable Android Strict Mode for developers' local builds (the "default" channel).
         if ("default".equals(AppConstants.MOZ_UPDATE_CHANNEL)) {
             enableStrictMode();
         }
 
-        String args = getIntent().getStringExtra("args");
+        // The clock starts...now. Better hurry!
+        mJavaUiStartupTimer = new Telemetry.UptimeTimer("FENNEC_STARTUP_TIME_JAVAUI");
+        mGoannaReadyStartupTimer = new Telemetry.UptimeTimer("FENNEC_STARTUP_TIME_GECKOREADY");
 
-        String profileName = null;
-        String profilePath = null;
-        if (args != null) {
-            if (args.contains("-P")) {
-                Pattern p = Pattern.compile("(?:-P\\s*)(\\w*)(\\s*)");
-                Matcher m = p.matcher(args);
-                if (m.find()) {
-                    profileName = m.group(1);
-                }
-            }
+        final SafeIntent intent = new SafeIntent(getIntent());
+        final String action = intent.getAction();
+        final String args = intent.getStringExtra("args");
 
-            if (args.contains("-profile")) {
-                Pattern p = Pattern.compile("(?:-profile\\s*)(\\S*)(\\s*)");
-                Matcher m = p.matcher(args);
-                if (m.find()) {
-                    profilePath =  m.group(1);
-                }
-                if (profileName == null) {
-                    profileName = getDefaultProfileName();
-                    if (profileName == null)
-                        profileName = "default";
-                }
-                GoannaApp.sIsUsingCustomProfile = true;
-            }
+        earlyStartJavaSampler(intent);
 
-            if (profileName != null || profilePath != null) {
-                mProfile = GoannaProfile.get(this, profileName, profilePath);
+        // GoannaLoader wants to dig some environment variables out of the
+        // incoming intent, so pass it in here. GoannaLoader will do its
+        // business later and dispose of the reference.
+        GoannaLoader.setLastIntent(intent);
+
+        // If we don't already have a profile, but we do have arguments,
+        // let's see if they're enough to find one.
+        // Note that subclasses must ensure that if they try to access
+        // the profile prior to this code being run, then they do something
+        // similar.
+        if (mProfile == null && args != null) {
+            final GoannaProfile p = GoannaProfile.getFromArgs(this, args);
+            if (p != null) {
+                mProfile = p;
             }
         }
 
-        BrowserDB.initialize(getProfile().getName());
-        ((GoannaApplication)getApplication()).initialize();
+        // Speculatively pre-fetch the profile in the background.
+        ThreadUtils.postToBackgroundThread(new Runnable() {
+            @Override
+            public void run() {
+                getProfile();
+            }
+        });
 
-        sAppContext = this;
+        // Workaround for <http://code.google.com/p/android/issues/detail?id=20915>.
+        try {
+            Class.forName("android.os.AsyncTask");
+        } catch (ClassNotFoundException e) {}
+
+        MemoryMonitor.getInstance().init(getApplicationContext());
+
+        // GoannaAppShell is tightly coupled to us, rather than
+        // the app context, because various parts of Fennec (e.g.,
+        // GoannaScreenOrientation) use GAS to access the Activity in
+        // the guise of fetching a Context.
+        // When that's fixed, `this` can change to
+        // `(GoannaApplication) getApplication()` here.
         GoannaAppShell.setContextGetter(this);
         GoannaAppShell.setGoannaInterface(this);
-        ThreadUtils.setUiThread(Thread.currentThread(), new Handler());
 
-        Tabs.getInstance().attachToActivity(this);
-        Favicons.getInstance().attachToContext(this);
+        Tabs.getInstance().attachToContext(this);
+        try {
+            Favicons.initializeWithContext(this);
+        } catch (Exception e) {
+            Log.e(LOGTAG, "Exception starting favicon cache. Corrupt resources?", e);
+        }
 
-        // When we detect a locale change, we need to restart Goanna, which
-        // actually means restarting the entire application. This logic should
-        // actually be handled elsewhere since GoannaApp may not be alive to
-        // handle this event if "Don't keep activities" is enabled (filed as
-        // bug 889082).
-        if (((GoannaApplication)getApplication()).needsRestart()) {
+        // Did the OS locale change while we were backgrounded? If so,
+        // we need to die so that Goanna will re-init add-ons that touch
+        // the UI.
+        // This is using a sledgehammer to crack a nut, but it'll do for
+        // now.
+        // Our OS locale pref will be detected as invalid after the
+        // restart, and will be propagated to Goanna accordingly, so there's
+        // no need to touch that here.
+        if (BrowserLocaleManager.getInstance().systemLocaleDidChange()) {
+            Log.i(LOGTAG, "System locale changed. Restarting.");
             doRestart();
-            System.exit(0);
+            GoannaAppShell.gracefulExit();
             return;
         }
 
-        if (sGoannaThread != null) {
+        if (GoannaThread.isCreated()) {
             // This happens when the GoannaApp activity is destroyed by Android
             // without killing the entire application (see Bug 769269).
             mIsRestoringActivity = true;
+            Telemetry.addToHistogram("FENNEC_RESTORING_ACTIVITY", 1);
+
+        } else {
+            final String uri = getURIFromIntent(intent);
+
+            GoannaThread.setArgs(args);
+            GoannaThread.setAction(action);
+            GoannaThread.setUri(TextUtils.isEmpty(uri) ? null : uri);
         }
 
-        // Fix for Bug 830557 on Tegra boards running Froyo.
-        // This fix must be done before doing layout.
-        // Assume the bug is fixed in Gingerbread and up.
-        if (Build.VERSION.SDK_INT < 9) {
-            try {
-                Class<?> inputBindResultClass =
-                    Class.forName("com.android.internal.view.InputBindResult");
-                java.lang.reflect.Field creatorField =
-                    inputBindResultClass.getField("CREATOR");
-                Log.i(LOGTAG, "froyo startup fix: " + String.valueOf(creatorField.get(null)));
-            } catch (Exception e) {
-                Log.w(LOGTAG, "froyo startup fix failed", e);
+        if (!ACTION_DEBUG.equals(action) &&
+                GoannaThread.checkAndSetLaunchState(GoannaThread.LaunchState.Launching,
+                                                   GoannaThread.LaunchState.Launched)) {
+            GoannaThread.createAndStart();
+
+        } else if (ACTION_DEBUG.equals(action) &&
+                GoannaThread.checkAndSetLaunchState(GoannaThread.LaunchState.Launching,
+                                                   GoannaThread.LaunchState.WaitForDebugger)) {
+            ThreadUtils.getUiHandler().postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    GoannaThread.setLaunchState(GoannaThread.LaunchState.Launched);
+                    GoannaThread.createAndStart();
+                }
+            }, 1000 * 5 /* 5 seconds */);
+        }
+
+        Bundle stateBundle = ContextUtils.getBundleExtra(getIntent(), EXTRA_STATE_BUNDLE);
+        if (stateBundle != null) {
+            // Use the state bundle if it was given as an intent extra. This is
+            // only intended to be used internally via Robocop, so a boolean
+            // is read from a private shared pref to prevent other apps from
+            // injecting states.
+            final SharedPreferences prefs = getSharedPreferences();
+            if (prefs.getBoolean(PREFS_ALLOW_STATE_BUNDLE, false)) {
+                prefs.edit().remove(PREFS_ALLOW_STATE_BUNDLE).apply();
+                savedInstanceState = stateBundle;
             }
+        } else if (savedInstanceState != null) {
+            // Bug 896992 - This intent has already been handled; reset the intent.
+            setIntent(new Intent(Intent.ACTION_MAIN));
         }
-
-        LayoutInflater.from(this).setFactory(this);
 
         super.onCreate(savedInstanceState);
 
-        mOrientation = getResources().getConfiguration().orientation;
+        GoannaScreenOrientation.getInstance().update(getResources().getConfiguration().orientation);
 
         setContentView(getLayout());
 
         // Set up Goanna layout.
+        mRootLayout = (OuterLayout) findViewById(R.id.root_layout);
         mGoannaLayout = (RelativeLayout) findViewById(R.id.goanna_layout);
         mMainLayout = (RelativeLayout) findViewById(R.id.main_layout);
 
-        // Set up tabs panel.
-        mTabsPanel = (TabsPanel) findViewById(R.id.tabs_panel);
-        mNotificationHelper = new NotificationHelper(this);
-
-        // Check if the last run was exited due to a normal kill while
-        // we were in the background, or a more harsh kill while we were
-        // active.
-        mRestoreMode = getSessionRestoreState(savedInstanceState);
-        if (mRestoreMode == RESTORE_NORMAL && savedInstanceState != null) {
+        // Determine whether we should restore tabs.
+        mShouldRestore = getSessionRestoreState(savedInstanceState);
+        if (mShouldRestore && savedInstanceState != null) {
             boolean wasInBackground =
                 savedInstanceState.getBoolean(SAVED_STATE_IN_BACKGROUND, false);
 
-            if (savedInstanceState.getBoolean(SAVED_STATE_INTENT_HANDLED, false)) {
-                Intent thisIntent = getIntent();
-                // Bug 896992 - This intent has already been handled, clear the intent action.
-                thisIntent.setAction(Intent.ACTION_MAIN);
-                setIntent(thisIntent);
-
-                // Persist this flag for reincarnations of this Activity Intent.
-                mIntentHandled = true;
+            // Don't log OOM-kills if only one activity was destroyed. (For example
+            // from "Don't keep activities" on ICS)
+            if (!wasInBackground && !mIsRestoringActivity) {
+                Telemetry.addToHistogram("FENNEC_WAS_KILLED", 1);
             }
 
             mPrivateBrowsingSession = savedInstanceState.getString(SAVED_STATE_PRIVATE_SESSION);
@@ -1239,9 +1284,17 @@ abstract public class GoannaApp
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
-                final SharedPreferences prefs = GoannaApp.getAppSharedPreferences();
+                final SharedPreferences prefs = GoannaApp.this.getSharedPreferences();
 
-//                SessionInformation previousSession = SessionInformation.fromSharedPrefs(prefs);
+                // Wait until now to set this, because we'd rather throw an exception than
+                // have a caller of BrowserLocaleManager regress startup.
+                final LocaleManager localeManager = BrowserLocaleManager.getInstance();
+                localeManager.initialize(getApplicationContext());
+
+                SessionInformation previousSession = SessionInformation.fromSharedPrefs(prefs);
+                if (previousSession.wasKilled()) {
+                    Telemetry.addToHistogram("FENNEC_WAS_KILLED", 1);
+                }
 
                 SharedPreferences.Editor editor = prefs.edit();
                 editor.putBoolean(GoannaApp.PREFS_OOM_EXCEPTION, false);
@@ -1250,43 +1303,112 @@ abstract public class GoannaApp
                 // on exit, or if we were suddenly killed (crash or native OOM).
                 editor.putBoolean(GoannaApp.PREFS_WAS_STOPPED, false);
 
-                editor.commit();
+                editor.apply();
 
                 // The lifecycle of mHealthRecorder is "shortly after onCreate"
                 // through "onDestroy" -- essentially the same as the lifecycle
                 // of the activity itself.
                 final String profilePath = getProfile().getDir().getAbsolutePath();
-                final EventDispatcher dispatcher = GoannaAppShell.getEventDispatcher();
-//                Log.i(LOGTAG, "Creating BrowserHealthRecorder.");
-//                mHealthRecorder = new BrowserHealthRecorder(GoannaApp.this, profilePath, dispatcher,
-//                                                            previousSession);
+                final EventDispatcher dispatcher = EventDispatcher.getInstance();
+
+                // This is the locale prior to fixing it up.
+                final Locale osLocale = Locale.getDefault();
+
+                // Both of these are Java-format locale strings: "en_US", not "en-US".
+                final String osLocaleString = osLocale.toString();
+                String appLocaleString = localeManager.getAndApplyPersistedLocale(GoannaApp.this);
+                Log.d(LOGTAG, "OS locale is " + osLocaleString + ", app locale is " + appLocaleString);
+
+                if (appLocaleString == null) {
+                    appLocaleString = osLocaleString;
+                }
+
+                mHealthRecorder = GoannaApp.this.createHealthRecorder(GoannaApp.this,
+                                                                     profilePath,
+                                                                     dispatcher,
+                                                                     osLocaleString,
+                                                                     appLocaleString,
+                                                                     previousSession);
+
+                final String uiLocale = appLocaleString;
+                ThreadUtils.postToUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        GoannaApp.this.onLocaleReady(uiLocale);
+                    }
+                });
+
+                // We use per-profile prefs here, because we're tracking against
+                // a Goanna pref. The same applies to the locale switcher!
+                BrowserLocaleManager.storeAndNotifyOSLocale(GoannaSharedPrefs.forProfile(GoannaApp.this), osLocale);
             }
         });
 
         GoannaAppShell.setNotificationClient(makeNotificationClient());
+        IntentHelper.init(this);
+    }
+
+    /**
+     * At this point, the resource system and the rest of the browser are
+     * aware of the locale.
+     *
+     * Now we can display strings!
+     *
+     * You can think of this as being something like a second phase of onCreate,
+     * where you can do string-related operations. Use this in place of embedding
+     * strings in view XML.
+     *
+     * By contrast, onConfigurationChanged does some locale operations, but is in
+     * response to device changes.
+     */
+    @Override
+    public void onLocaleReady(final String locale) {
+        if (!ThreadUtils.isOnUiThread()) {
+            throw new RuntimeException("onLocaleReady must always be called from the UI thread.");
+        }
+
+        final Locale loc = Locales.parseLocaleCode(locale);
+        if (loc.equals(mLastLocale)) {
+            Log.d(LOGTAG, "New locale same as old; onLocaleReady has nothing to do.");
+        }
+
+        // The URL bar hint needs to be populated.
+        TextView urlBar = (TextView) findViewById(R.id.url_bar_title);
+        if (urlBar != null) {
+            final String hint = getResources().getString(R.string.url_bar_default_text);
+            urlBar.setHint(hint);
+        } else {
+            Log.d(LOGTAG, "No URL bar in GoannaApp. Not loading localized hint string.");
+        }
+
+        mLastLocale = loc;
+
+        // Allow onConfigurationChanged to take care of the rest.
+        // We don't call this.onConfigurationChanged, because (a) that does
+        // work that's unnecessary after this locale action, and (b) it can
+        // cause a loop! See Bug 1011008, Comment 12.
+        super.onConfigurationChanged(getResources().getConfiguration());
     }
 
     protected void initializeChrome() {
-        mDoorHangerPopup = new DoorHangerPopup(this, null);
+        mDoorHangerPopup = new DoorHangerPopup(this);
         mPluginContainer = (AbsoluteLayout) findViewById(R.id.plugin_container);
         mFormAssistPopup = (FormAssistPopup) findViewById(R.id.form_assist_popup);
 
         if (mCameraView == null) {
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.ICE_CREAM_SANDWICH) {
+            // Pre-ICS devices need the camera surface in a visible layout.
+            if (Versions.preICS) {
                 mCameraView = new SurfaceView(this);
                 ((SurfaceView)mCameraView).getHolder().setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
-            } else {
-                mCameraView = new TextureView(this);
             }
         }
 
         if (mLayerView == null) {
             LayerView layerView = (LayerView) findViewById(R.id.layer_view);
-            layerView.initializeView(GoannaAppShell.getEventDispatcher());
+            layerView.initializeView(EventDispatcher.getInstance());
             mLayerView = layerView;
-            GoannaAppShell.setLayerView(layerView);
-            // bind the GoannaEditable instance to the new LayerView
-            GoannaAppShell.notifyIMEContext(GoannaEditableListener.IME_STATE_DISABLED, "", "", "");
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createObjectEvent(
+                GoannaEvent.ACTION_OBJECT_LAYER_CLIENT, layerView.getLayerClientObject()));
         }
     }
 
@@ -1299,16 +1421,15 @@ abstract public class GoannaApp
      *
      * @param url External URL to load, or null to load the default URL
      */
-    protected void loadStartupTab(String url) {
+    protected void loadStartupTab(String url, int flags) {
         if (url == null) {
-            if (mRestoreMode == RESTORE_NONE) {
+            if (!mShouldRestore) {
                 // Show about:home if we aren't restoring previous session and
-                // there's no external URL
-                Tab tab = Tabs.getInstance().loadUrl("about:home", Tabs.LOADURL_NEW_TAB);
+                // there's no external URL.
+                Tabs.getInstance().loadUrl(AboutPages.HOME, flags);
             }
         } else {
             // If given an external URL, load it
-            int flags = Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_USER_ENTERED | Tabs.LOADURL_EXTERNAL;
             Tabs.getInstance().loadUrl(url, flags);
         }
     }
@@ -1316,19 +1437,21 @@ abstract public class GoannaApp
     private void initialize() {
         mInitialized = true;
 
-        invalidateOptionsMenu();
+        final SafeIntent intent = new SafeIntent(getIntent());
+        final String action = intent.getAction();
 
-        Intent intent = getIntent();
-        String action = intent.getAction();
+        final String uri = getURIFromIntent(intent);
 
-        String passedUri = null;
-        String uri = getURIFromIntent(intent);
-        if (uri != null && uri.length() > 0) {
+        final String passedUri;
+        if (!TextUtils.isEmpty(uri)) {
             passedUri = uri;
+        } else {
+            passedUri = null;
         }
 
-        final boolean isExternalURL = passedUri != null && !passedUri.equals("about:home");
-        StartupAction startupAction;
+        final boolean isExternalURL = passedUri != null &&
+                                      !AboutPages.isAboutHome(passedUri);
+        final StartupAction startupAction;
         if (isExternalURL) {
             startupAction = StartupAction.URL;
         } else {
@@ -1339,77 +1462,64 @@ abstract public class GoannaApp
         // parallel with Goanna load.
         checkMigrateProfile();
 
-        Uri data = intent.getData();
-        if (data != null && "http".equals(data.getScheme())) {
-            startupAction = StartupAction.PREFETCH;
-            ThreadUtils.postToBackgroundThread(new PrefetchRunnable(data.toString()));
-        }
-
         Tabs.registerOnTabsChangedListener(this);
 
         initializeChrome();
 
         // If we are doing a restore, read the session data and send it to Goanna
-        String restoreMessage = null;
-        if (mRestoreMode != RESTORE_NONE && !mIsRestoringActivity) {
-            try {
-                // restoreSessionTabs() will create simple tab stubs with the
-                // URL and title for each page, but we also need to restore
-                // session history. restoreSessionTabs() will inject the IDs
-                // of the tab stubs into the JSON data (which holds the session
-                // history). This JSON data is then sent to Goanna so session
-                // history can be restored for each tab.
-                restoreMessage = restoreSessionTabs(isExternalURL);
-            } catch (SessionRestoreException e) {
-                // If restore failed, do a normal startup
-                Log.e(LOGTAG, "An error occurred during restore", e);
-                mRestoreMode = RESTORE_NONE;
-            }
-        }
-
-        GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Session:Restore", restoreMessage));
-
         if (!mIsRestoringActivity) {
-            loadStartupTab(isExternalURL ? passedUri : null);
+            String restoreMessage = null;
+            if (mShouldRestore) {
+                try {
+                    // restoreSessionTabs() will create simple tab stubs with the
+                    // URL and title for each page, but we also need to restore
+                    // session history. restoreSessionTabs() will inject the IDs
+                    // of the tab stubs into the JSON data (which holds the session
+                    // history). This JSON data is then sent to Goanna so session
+                    // history can be restored for each tab.
+                    restoreMessage = restoreSessionTabs(isExternalURL);
+                } catch (SessionRestoreException e) {
+                    // If restore failed, do a normal startup
+                    Log.e(LOGTAG, "An error occurred during restore", e);
+                    mShouldRestore = false;
+                }
+            }
+
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Session:Restore", restoreMessage));
         }
 
-        if (mRestoreMode == RESTORE_NORMAL) {
-            // If we successfully did an OOM restore, we now have tab stubs
-            // from the last session. Any future tabs should be animated.
+        // External URLs should always be loaded regardless of whether Goanna is
+        // already running.
+        if (isExternalURL) {
+            // Restore tabs before opening an external URL so that the new tab
+            // is animated properly.
             Tabs.getInstance().notifyListeners(null, Tabs.TabEvents.RESTORED);
+            int flags = Tabs.LOADURL_NEW_TAB | Tabs.LOADURL_USER_ENTERED | Tabs.LOADURL_EXTERNAL;
+            if (ACTION_HOMESCREEN_SHORTCUT.equals(action)) {
+                flags |= Tabs.LOADURL_PINNED;
+            }
+            loadStartupTab(passedUri, flags);
         } else {
-            // Move the session file if it exists
+            if (!mIsRestoringActivity) {
+                loadStartupTab(null, Tabs.LOADURL_NEW_TAB);
+            }
+
+            Tabs.getInstance().notifyListeners(null, Tabs.TabEvents.RESTORED);
+        }
+
+        // If we're not restoring, move the session file so it can be read for
+        // the last tabs section.
+        if (!mShouldRestore) {
             getProfile().moveSessionFile();
         }
 
-        if (mRestoreMode == RESTORE_NONE) {
-            Tabs.getInstance().notifyListeners(null, Tabs.TabEvents.RESTORED);
-        }
-
-        if (!mIsRestoringActivity) {
-            sGoannaThread = new GoannaThread(intent, passedUri);
-            ThreadUtils.setGoannaThread(sGoannaThread);
-        }
-        if (!ACTION_DEBUG.equals(action) &&
-            GoannaThread.checkAndSetLaunchState(GoannaThread.LaunchState.Launching, GoannaThread.LaunchState.Launched)) {
-            sGoannaThread.start();
-        } else if (ACTION_DEBUG.equals(action) &&
-            GoannaThread.checkAndSetLaunchState(GoannaThread.LaunchState.Launching, GoannaThread.LaunchState.WaitForDebugger)) {
-            ThreadUtils.getUiHandler().postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    GoannaThread.setLaunchState(GoannaThread.LaunchState.Launching);
-                    sGoannaThread.start();
-                }
-            }, 1000 * 5 /* 5 seconds */);
-        }
+        Telemetry.addToHistogram("FENNEC_STARTUP_GECKOAPP_ACTION", startupAction.ordinal());
 
         // Check if launched from data reporting notification.
         if (ACTION_LAUNCH_SETTINGS.equals(action)) {
-            mIntentHandled = true;
             Intent settingsIntent = new Intent(GoannaApp.this, GoannaPreferences.class);
             // Copy extras.
-            settingsIntent.putExtras(intent);
+            settingsIntent.putExtras(intent.getUnsafe());
             startActivity(settingsIntent);
         }
 
@@ -1417,85 +1527,70 @@ abstract public class GoannaApp
         mAppStateListeners = new LinkedList<GoannaAppShell.AppStateListener>();
 
         //register for events
-        registerEventListener("log");
-        registerEventListener("Reader:ListCountRequest");
-        registerEventListener("Reader:Added");
-        registerEventListener("Reader:Removed");
-        registerEventListener("Reader:Share");
-        registerEventListener("Reader:FaviconRequest");
-        registerEventListener("Reader:GoToReadingList");
-        registerEventListener("onCameraCapture");
-        registerEventListener("Menu:Add");
-        registerEventListener("Menu:Remove");
-        registerEventListener("Menu:Update");
-        registerEventListener("Goanna:Ready");
-        registerEventListener("Toast:Show");
-        registerEventListener("DOMFullScreen:Start");
-        registerEventListener("DOMFullScreen:Stop");
-        registerEventListener("ToggleChrome:Hide");
-        registerEventListener("ToggleChrome:Show");
-        registerEventListener("ToggleChrome:Focus");
-        registerEventListener("Permissions:Data");
-        registerEventListener("Tab:ViewportMetadata");
-        registerEventListener("Session:StatePurged");
-        registerEventListener("Bookmark:Insert");
-        registerEventListener("Accessibility:Event");
-        registerEventListener("Accessibility:Ready");
-        registerEventListener("Shortcut:Remove");
-        registerEventListener("WebApps:Open");
-        registerEventListener("WebApps:PreInstall");
-        registerEventListener("WebApps:PostInstall");
-        registerEventListener("WebApps:Install");
-        registerEventListener("WebApps:Uninstall");
-        registerEventListener("Share:Text");
-        registerEventListener("Share:Image");
-        registerEventListener("Wallpaper:Set");
-        registerEventListener("Sanitize:ClearHistory");
-        registerEventListener("Update:Check");
-        registerEventListener("Update:Download");
-        registerEventListener("Update:Install");
-        registerEventListener("PrivateBrowsing:Data");
-        registerEventListener("Contact:Add");
+        EventDispatcher.getInstance().registerGoannaThreadListener((GoannaEventListener)this,
+            "Goanna:Ready",
+            "Goanna:DelayedStartup",
+            "Accessibility:Event",
+            "NativeApp:IsDebuggable");
 
-        if (SmsManager.getInstance() != null) {
-          SmsManager.getInstance().start();
+        EventDispatcher.getInstance().registerGoannaThreadListener((NativeEventListener)this,
+            "Accessibility:Ready",
+            "Bookmark:Insert",
+            "Contact:Add",
+            "DOMFullScreen:Start",
+            "DOMFullScreen:Stop",
+            "Image:SetAs",
+            "Locale:Set",
+            "Permissions:Data",
+            "PrivateBrowsing:Data",
+            "Sanitize:ClearHistory",
+            "Session:StatePurged",
+            "Share:Text",
+            "SystemUI:Visibility",
+            "Toast:Show",
+            "ToggleChrome:Focus",
+            "ToggleChrome:Hide",
+            "ToggleChrome:Show",
+            "Update:Check",
+            "Update:Download",
+            "Update:Install");
+
+        if (mWebappEventListener == null) {
+            mWebappEventListener = new EventListener();
+            mWebappEventListener.registerEvents();
         }
+
+        if (SmsManager.isEnabled()) {
+            SmsManager.getInstance().start();
+        }
+
+        mContactService = new ContactService(EventDispatcher.getInstance(), this);
 
         mPromptService = new PromptService(this);
 
-        mTextSelection = new TextSelection((TextSelectionHandle) findViewById(R.id.start_handle),
-                                           (TextSelectionHandle) findViewById(R.id.middle_handle),
-                                           (TextSelectionHandle) findViewById(R.id.end_handle),
-                                           GoannaAppShell.getEventDispatcher(),
-                                           this);
+        mTextSelection = new TextSelection((TextSelectionHandle) findViewById(R.id.anchor_handle),
+                                           (TextSelectionHandle) findViewById(R.id.caret_handle),
+                                           (TextSelectionHandle) findViewById(R.id.focus_handle));
 
-        PrefsHelper.getPref("app.update.autodownload", new PrefsHelper.PrefHandlerBase() {
-            @Override public void prefValue(String pref, String value) {
-                UpdateServiceHelper.registerForUpdates(GoannaApp.this, value);
-            }
-        });
+        // Trigger the completion of the telemetry timer that wraps activity startup,
+        // then grab the duration to give to FHR.
+        mJavaUiStartupTimer.stop();
+        final long javaDuration = mJavaUiStartupTimer.getElapsed();
 
         ThreadUtils.getBackgroundHandler().postDelayed(new Runnable() {
             @Override
             public void run() {
-                // Sync settings need Goanna to be loaded, so
-                // no hurry in starting this.
-                checkMigrateSync();
+                final HealthRecorder rec = mHealthRecorder;
+                if (rec != null) {
+                    rec.recordJavaStartupTime(javaDuration);
+                }
 
-                // Kick off our background services that upload health reports.
-                // We do this by invoking the broadcast receiver, which uses the
-                // system alarm infrastructure to perform tasks at intervals.
+                UpdateServiceHelper.registerForUpdates(GoannaApp.this);
+
+                // Kick off our background services. We do this by invoking the broadcast
+                // receiver, which uses the system alarm infrastructure to perform tasks at
+                // intervals.
                 GoannaPreferences.broadcastHealthReportUploadPref(GoannaApp.this);
-
-                /*
-                  XXXX see bug 635342
-                   We want to disable this code if possible.  It is about 145ms in runtime
-                SharedPreferences settings = getPreferences(Activity.MODE_PRIVATE);
-                String localeCode = settings.getString(getPackageName() + ".locale", "");
-                if (localeCode != null && localeCode.length() > 0)
-                    GoannaAppShell.setSelectedLocale(localeCode);
-                */
-
                 if (!GoannaThread.checkLaunchState(GoannaThread.LaunchState.Launched)) {
                     return;
                 }
@@ -1508,12 +1603,13 @@ abstract public class GoannaApp
             if (selectedTab != null)
                 Tabs.getInstance().notifyListeners(selectedTab, Tabs.TabEvents.SELECTED);
             goannaConnected();
-            GoannaAppShell.setLayerClient(mLayerView.getLayerClient());
             GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Viewport:Flush", null));
         }
 
         if (ACTION_ALERT_CALLBACK.equals(action)) {
             processAlertCallback(intent);
+        } else if (NotificationHelper.HELPER_BROADCAST_ACTION.equals(action)) {
+            NotificationHelper.getInstance(getApplicationContext()).handleNotificationIntent(intent);
         }
     }
 
@@ -1527,8 +1623,9 @@ abstract public class GoannaApp
             // If we are doing an OOM restore, parse the session data and
             // stub the restored tabs immediately. This allows the UI to be
             // updated before Goanna has restored.
-            if (mRestoreMode == RESTORE_NORMAL) {
+            if (mShouldRestore) {
                 final JSONArray tabs = new JSONArray();
+                final JSONObject windowObject = new JSONObject();
                 SessionParser parser = new SessionParser() {
                     @Override
                     public void onTabRead(SessionTab sessionTab) {
@@ -1549,6 +1646,11 @@ abstract public class GoannaApp
                         }
                         tabs.put(tabObject);
                     }
+
+                    @Override
+                    public void onClosedTabsRead(final JSONArray closedTabData) throws JSONException {
+                        windowObject.put("closedTabs", closedTabData);
+                    }
                 };
 
                 if (mPrivateBrowsingSession == null) {
@@ -1558,23 +1660,23 @@ abstract public class GoannaApp
                 }
 
                 if (tabs.length() > 0) {
-                    sessionString = new JSONObject().put("windows", new JSONArray().put(new JSONObject().put("tabs", tabs))).toString();
+                    windowObject.put("tabs", tabs);
+                    sessionString = new JSONObject().put("windows", new JSONArray().put(windowObject)).toString();
                 } else {
                     throw new SessionRestoreException("No tabs could be read from session file");
                 }
             }
 
             JSONObject restoreData = new JSONObject();
-            restoreData.put("normalRestore", mRestoreMode == RESTORE_NORMAL);
             restoreData.put("sessionString", sessionString);
             return restoreData.toString();
-
         } catch (JSONException e) {
             throw new SessionRestoreException(e);
         }
     }
 
-    public GoannaProfile getProfile() {
+    @Override
+    public synchronized GoannaProfile getProfile() {
         // fall back to default profile if we didn't load a specific one
         if (mProfile == null) {
             mProfile = GoannaProfile.get(this);
@@ -1582,50 +1684,42 @@ abstract public class GoannaApp
         return mProfile;
     }
 
-    protected int getSessionRestoreState(Bundle savedInstanceState) {
-        final SharedPreferences prefs = GoannaApp.getAppSharedPreferences();
-        int restoreMode = RESTORE_NONE;
+    /**
+     * Determine whether the session should be restored.
+     *
+     * @param savedInstanceState Saved instance state given to the activity
+     * @return                   Whether to restore
+     */
+    protected boolean getSessionRestoreState(Bundle savedInstanceState) {
+        final SharedPreferences prefs = getSharedPreferences();
+        boolean shouldRestore = false;
 
-        // If the version has changed, the user has done an upgrade, so restore
-        // previous tabs.
         final int versionCode = getVersionCode();
         if (prefs.getInt(PREFS_VERSION_CODE, 0) != versionCode) {
-            ThreadUtils.postToBackgroundThread(new Runnable() {
-                @Override
-                public void run() {
-                    prefs.edit()
-                         .putInt(PREFS_VERSION_CODE, versionCode)
-                         .commit();
-                }
-            });
-
-            restoreMode = RESTORE_NORMAL;
+            // If the version has changed, the user has done an upgrade, so restore
+            // previous tabs.
+            prefs.edit().putInt(PREFS_VERSION_CODE, versionCode).apply();
+            shouldRestore = true;
+        } else if (savedInstanceState != null ||
+                   getSessionRestorePreference().equals("always") ||
+                   getRestartFromIntent()) {
+            // We're coming back from a background kill by the OS, the user
+            // has chosen to always restore, or we restarted.
+            shouldRestore = true;
+        } else if (prefs.getBoolean(GoannaApp.PREFS_CRASHED, false)) {
+            prefs.edit().putBoolean(PREFS_CRASHED, false).apply();
+            shouldRestore = true;
         }
 
-        // We record crashes in the crash reporter. If sessionstore.js
-        // exists, but we didn't flag a crash in the crash reporter, we
-        // were probably just force killed by the user, so we shouldn't do
-        // a restore...
-        if (prefs.getBoolean(PREFS_CRASHED, false)) {
-            ThreadUtils.postToBackgroundThread(new Runnable() {
-                @Override
-                public void run() {
-                    prefs.edit()
-                         .putBoolean(PREFS_CRASHED, false)
-                         .commit();
-                }
-            });
+        return shouldRestore;
+    }
 
-            restoreMode = RESTORE_CRASH;
-        }
-        
-        // ...except for when the user chooses to.
-        if (savedInstanceState != null ||
-                PreferenceManager.getDefaultSharedPreferences(this).getBoolean(GoannaPreferences.PREFS_RESTORE_SESSION, false)) {
-            restoreMode = RESTORE_NORMAL;
-        }
+    private String getSessionRestorePreference() {
+        return getSharedPreferences().getString(GoannaPreferences.PREFS_RESTORE_SESSION, "quit");
+    }
 
-        return restoreMode;
+    private boolean getRestartFromIntent() {
+        return ContextUtils.getBooleanExtra(getIntent(), "didRestart", false);
     }
 
     /**
@@ -1633,10 +1727,6 @@ abstract public class GoannaApp
      * http://developer.android.com/reference/android/os/StrictMode.html
      */
     private void enableStrictMode() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.GINGERBREAD) {
-            return;
-        }
-
         Log.d(LOGTAG, "Enabling Android StrictMode");
 
         StrictMode.setThreadPolicy(new StrictMode.ThreadPolicy.Builder()
@@ -1650,6 +1740,7 @@ abstract public class GoannaApp
                                .build());
     }
 
+    @Override
     public void enableCameraView() {
         // Start listening for orientation events
         mCameraOrientationEventListener = new OrientationEventListener(this) {
@@ -1666,70 +1757,35 @@ abstract public class GoannaApp
 
         // Try to make it fully transparent.
         if (mCameraView instanceof SurfaceView) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.HONEYCOMB) {
+            if (Versions.feature11Plus) {
                 mCameraView.setAlpha(0.0f);
             }
-        } else if (mCameraView instanceof TextureView) {
-            mCameraView.setAlpha(0.0f);
+            ViewGroup mCameraLayout = (ViewGroup) findViewById(R.id.camera_layout);
+            // Some phones (eg. nexus S) need at least a 8x16 preview size
+            mCameraLayout.addView(mCameraView,
+                                  new AbsoluteLayout.LayoutParams(8, 16, 0, 0));
         }
-        RelativeLayout mCameraLayout = (RelativeLayout) findViewById(R.id.camera_layout);
-        // Some phones (eg. nexus S) need at least a 8x16 preview size
-        mCameraLayout.addView(mCameraView,
-                              new AbsoluteLayout.LayoutParams(8, 16, 0, 0));
     }
 
+    @Override
     public void disableCameraView() {
         if (mCameraOrientationEventListener != null) {
             mCameraOrientationEventListener.disable();
             mCameraOrientationEventListener = null;
         }
-        RelativeLayout mCameraLayout = (RelativeLayout) findViewById(R.id.camera_layout);
-        mCameraLayout.removeView(mCameraView);
+        if (mCameraView != null) {
+          ViewGroup mCameraLayout = (ViewGroup) findViewById(R.id.camera_layout);
+          mCameraLayout.removeView(mCameraView);
+        }
     }
 
+    @Override
     public String getDefaultUAString() {
         return HardwareUtils.isTablet() ? AppConstants.USER_AGENT_FENNEC_TABLET :
                                           AppConstants.USER_AGENT_FENNEC_MOBILE;
     }
 
-    public String getUAStringForHost(String host) {
-        // With our standard UA String, we get a 200 response code and
-        // client-side redirect from t.co. This bot-like UA gives us a
-        // 301 response code
-        if ("t.co".equals(host)) {
-            return AppConstants.USER_AGENT_BOT_LIKE;
-        }
-        return getDefaultUAString();
-    }
-
-    class PrefetchRunnable implements Runnable {
-        private String mPrefetchUrl;
-
-        PrefetchRunnable(String prefetchUrl) {
-            mPrefetchUrl = prefetchUrl;
-        }
-
-        @Override
-        public void run() {
-            HttpURLConnection connection = null;
-            try {
-                URL url = new URL(mPrefetchUrl);
-                // data url should have an http scheme
-                connection = (HttpURLConnection) url.openConnection();
-                connection.setRequestProperty("User-Agent", getUAStringForHost(url.getHost()));
-                connection.setInstanceFollowRedirects(false);
-                connection.setRequestMethod("GET");
-                connection.connect();
-            } catch (Exception e) {
-                Log.e(LOGTAG, "Exception prefetching URL", e);
-            } finally {
-                if (connection != null)
-                    connection.disconnect();
-            }
-        }
-    }
-
-    private void processAlertCallback(Intent intent) {
+    private void processAlertCallback(SafeIntent intent) {
         String alertName = "";
         String alertCookie = "";
         Uri data = intent.getData();
@@ -1742,47 +1798,37 @@ abstract public class GoannaApp
                 alertCookie = "";
         }
         handleNotification(ACTION_ALERT_CALLBACK, alertName, alertCookie);
-
-        if (intent.hasExtra(NotificationHelper.NOTIFICATION_ID)) {
-            String id = intent.getStringExtra(NotificationHelper.NOTIFICATION_ID);
-            mNotificationHelper.hideNotification(id);
-        }
     }
 
     @Override
-    protected void onNewIntent(Intent intent) {
+    protected void onNewIntent(Intent externalIntent) {
+        final SafeIntent intent = new SafeIntent(externalIntent);
+
         if (GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaExiting)) {
-            // We're exiting and shouldn't try to do anything else just incase
-            // we're hung for some reason we'll force the process to exit
-            System.exit(0);
+            // We're exiting and shouldn't try to do anything else. In the case
+            // where we are hung while exiting, we should force the process to exit.
+            GoannaAppShell.systemExit();
             return;
         }
 
         // if we were previously OOM killed, we can end up here when launching
         // from external shortcuts, so set this as the intent for initialization
         if (!mInitialized) {
-            setIntent(intent);
+            setIntent(externalIntent);
             return;
         }
 
-        // don't perform any actions if launching from recent apps
-        if ((intent.getFlags() & Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY) != 0)
-            return;
-
         final String action = intent.getAction();
 
-        if (Intent.ACTION_MAIN.equals(action)) {
-            GoannaAppShell.sendEventToGoanna(GoannaEvent.createURILoadEvent(""));
-        } else if (ACTION_LOAD.equals(action)) {
+        if (ACTION_LOAD.equals(action)) {
             String uri = intent.getDataString();
             Tabs.getInstance().loadUrl(uri);
         } else if (Intent.ACTION_VIEW.equals(action)) {
             String uri = intent.getDataString();
-            GoannaAppShell.sendEventToGoanna(GoannaEvent.createURILoadEvent(uri));
-        } else if (action != null && action.startsWith(ACTION_WEBAPP_PREFIX)) {
-            String uri = getURIFromIntent(intent);
-            GoannaAppShell.sendEventToGoanna(GoannaEvent.createWebappLoadEvent(uri));
-        } else if (ACTION_BOOKMARK.equals(action)) {
+            Tabs.getInstance().loadUrl(uri, Tabs.LOADURL_NEW_TAB |
+                                            Tabs.LOADURL_USER_ENTERED |
+                                            Tabs.LOADURL_EXTERNAL);
+        } else if (ACTION_HOMESCREEN_SHORTCUT.equals(action)) {
             String uri = getURIFromIntent(intent);
             GoannaAppShell.sendEventToGoanna(GoannaEvent.createBookmarkLoadEvent(uri));
         } else if (Intent.ACTION_SEARCH.equals(action)) {
@@ -1790,36 +1836,32 @@ abstract public class GoannaApp
             GoannaAppShell.sendEventToGoanna(GoannaEvent.createURILoadEvent(uri));
         } else if (ACTION_ALERT_CALLBACK.equals(action)) {
             processAlertCallback(intent);
+        } else if (NotificationHelper.HELPER_BROADCAST_ACTION.equals(action)) {
+            NotificationHelper.getInstance(getApplicationContext()).handleNotificationIntent(intent);
         } else if (ACTION_LAUNCH_SETTINGS.equals(action)) {
-            mIntentHandled = true;
             // Check if launched from data reporting notification.
             Intent settingsIntent = new Intent(GoannaApp.this, GoannaPreferences.class);
             // Copy extras.
-            settingsIntent.putExtras(intent);
+            settingsIntent.putExtras(intent.getUnsafe());
             startActivity(settingsIntent);
         }
     }
 
-    /*
-     * Handles getting a uri from and intent in a way that is backwards
-     * compatable with our previous implementations
+    /**
+     * Handles getting a URI from an intent in a way that is backwards-
+     * compatible with our previous implementations.
      */
-    protected String getURIFromIntent(Intent intent) {
+    protected String getURIFromIntent(SafeIntent intent) {
         final String action = intent.getAction();
-        if (ACTION_ALERT_CALLBACK.equals(action))
+        if (ACTION_ALERT_CALLBACK.equals(action) || NotificationHelper.HELPER_BROADCAST_ACTION.equals(action)) {
             return null;
-
-        String uri = intent.getDataString();
-        if (uri != null)
-            return uri;
-
-        if ((action != null && action.startsWith(ACTION_WEBAPP_PREFIX)) || ACTION_BOOKMARK.equals(action)) {
-            uri = intent.getStringExtra("args");
-            if (uri != null && uri.startsWith("--url=")) {
-                uri.replace("--url=", "");
-            }
         }
-        return uri;
+
+        return intent.getDataString();
+    }
+
+    protected int getOrientation() {
+        return GoannaScreenOrientation.getInstance().getAndroidOrientation();
     }
 
     @Override
@@ -1830,19 +1872,19 @@ abstract public class GoannaApp
         super.onResume();
 
         int newOrientation = getResources().getConfiguration().orientation;
-
-        if (mOrientation != newOrientation) {
-            mOrientation = newOrientation;
+        if (GoannaScreenOrientation.getInstance().update(newOrientation)) {
             refreshChrome();
         }
 
-        GoannaScreenOrientationListener.getInstance().start();
-
-        // User may have enabled/disabled accessibility.
-        GoannaAccessibility.updateAccessibilitySettings(this);
+        if (!Versions.feature14Plus) {
+            // Update accessibility settings in case it has been changed by the
+            // user. On API14+, this is handled in LayerView by registering an
+            // accessibility state change listener.
+            GoannaAccessibility.updateAccessibilitySettings(this);
+        }
 
         if (mAppStateListeners != null) {
-            for (GoannaAppShell.AppStateListener listener: mAppStateListeners) {
+            for (GoannaAppShell.AppStateListener listener : mAppStateListeners) {
                 listener.onResume();
             }
         }
@@ -1853,27 +1895,28 @@ abstract public class GoannaApp
         final long now = System.currentTimeMillis();
         final long realTime = android.os.SystemClock.elapsedRealtime();
 
-/*        ThreadUtils.postToBackgroundThread(new Runnable() {
+        ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
-                // Now construct the new session on BrowserHealthRecorder's behalf. We do this here
+                // Now construct the new session on HealthRecorder's behalf. We do this here
                 // so it can benefit from a single near-startup prefs commit.
                 SessionInformation currentSession = new SessionInformation(now, realTime);
 
-                SharedPreferences prefs = GoannaApp.getAppSharedPreferences();
+                SharedPreferences prefs = GoannaApp.this.getSharedPreferences();
                 SharedPreferences.Editor editor = prefs.edit();
                 editor.putBoolean(GoannaApp.PREFS_WAS_STOPPED, false);
                 currentSession.recordBegin(editor);
-                editor.commit();
+                editor.apply();
 
-                final BrowserHealthRecorder rec = mHealthRecorder;
+                final HealthRecorder rec = mHealthRecorder;
                 if (rec != null) {
                     rec.setCurrentSession(currentSession);
+                    rec.processDelayed();
                 } else {
                     Log.w(LOGTAG, "Can't record session: rec is null.");
                 }
             }
-         }); */
+        });
     }
 
     @Override
@@ -1889,28 +1932,41 @@ abstract public class GoannaApp
     @Override
     public void onPause()
     {
-        // final BrowserHealthRecorder rec = mHealthRecorder;
+        final HealthRecorder rec = mHealthRecorder;
+        final Context context = this;
 
         // In some way it's sad that Android will trigger StrictMode warnings
         // here as the whole point is to save to disk while the activity is not
         // interacting with the user.
-        /* ThreadUtils.postToBackgroundThread(new Runnable() {
+        ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
-                SharedPreferences prefs = GoannaApp.getAppSharedPreferences();
+                SharedPreferences prefs = GoannaApp.this.getSharedPreferences();
                 SharedPreferences.Editor editor = prefs.edit();
                 editor.putBoolean(GoannaApp.PREFS_WAS_STOPPED, true);
                 if (rec != null) {
                     rec.recordSessionEnd("P", editor);
                 }
-                editor.commit();
-            }
-        }); */
 
-        GoannaScreenOrientationListener.getInstance().stop();
+                // If we haven't done it before, cleanup any old files in our old temp dir
+                if (prefs.getBoolean(GoannaApp.PREFS_CLEANUP_TEMP_FILES, true)) {
+                    File tempDir = GoannaLoader.getGREDir(GoannaApp.this);
+                    FileUtils.delTree(tempDir, new FileUtils.NameAndAgeFilter(null, ONE_DAY_MS), false);
+
+                    editor.putBoolean(GoannaApp.PREFS_CLEANUP_TEMP_FILES, false);
+                }
+
+                editor.apply();
+
+                // In theory, the first browser session will not run long enough that we need to
+                // prune during it and we'd rather run it when the browser is inactive so we wait
+                // until here to register the prune service.
+                GoannaPreferences.broadcastHealthReportPrune(context);
+            }
+        });
 
         if (mAppStateListeners != null) {
-            for(GoannaAppShell.AppStateListener listener: mAppStateListeners) {
+            for (GoannaAppShell.AppStateListener listener : mAppStateListeners) {
                 listener.onPause();
             }
         }
@@ -1919,63 +1975,54 @@ abstract public class GoannaApp
     }
 
     @Override
-    public void onRestart()
-    {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
-            @Override
-            public void run() {
-                SharedPreferences prefs = GoannaApp.getAppSharedPreferences();
-                SharedPreferences.Editor editor = prefs.edit();
-                editor.putBoolean(GoannaApp.PREFS_WAS_STOPPED, false);
-                editor.commit();
-            }
-        });
+    public void onRestart() {
+        // Faster on main thread with an async apply().
+        final StrictMode.ThreadPolicy savedPolicy = StrictMode.allowThreadDiskReads();
+        try {
+            SharedPreferences.Editor editor = GoannaApp.this.getSharedPreferences().edit();
+            editor.putBoolean(GoannaApp.PREFS_WAS_STOPPED, false);
+            editor.apply();
+        } finally {
+            StrictMode.setThreadPolicy(savedPolicy);
+        }
 
         super.onRestart();
     }
 
     @Override
-    public void onDestroy()
-    {
-        unregisterEventListener("log");
-        unregisterEventListener("Reader:ListCountRequest");
-        unregisterEventListener("Reader:Added");
-        unregisterEventListener("Reader:Removed");
-        unregisterEventListener("Reader:Share");
-        unregisterEventListener("Reader:FaviconRequest");
-        unregisterEventListener("Reader:GoToReadingList");
-        unregisterEventListener("onCameraCapture");
-        unregisterEventListener("Menu:Add");
-        unregisterEventListener("Menu:Remove");
-        unregisterEventListener("Menu:Update");
-        unregisterEventListener("Goanna:Ready");
-        unregisterEventListener("Toast:Show");
-        unregisterEventListener("DOMFullScreen:Start");
-        unregisterEventListener("DOMFullScreen:Stop");
-        unregisterEventListener("ToggleChrome:Hide");
-        unregisterEventListener("ToggleChrome:Show");
-        unregisterEventListener("ToggleChrome:Focus");
-        unregisterEventListener("Permissions:Data");
-        unregisterEventListener("Tab:ViewportMetadata");
-        unregisterEventListener("Session:StatePurged");
-        unregisterEventListener("Bookmark:Insert");
-        unregisterEventListener("Accessibility:Event");
-        unregisterEventListener("Accessibility:Ready");
-        unregisterEventListener("Shortcut:Remove");
-        unregisterEventListener("WebApps:Open");
-        unregisterEventListener("WebApps:PreInstall");
-        unregisterEventListener("WebApps:PostInstall");
-        unregisterEventListener("WebApps:Install");
-        unregisterEventListener("WebApps:Uninstall");
-        unregisterEventListener("Share:Text");
-        unregisterEventListener("Share:Image");
-        unregisterEventListener("Wallpaper:Set");
-        unregisterEventListener("Sanitize:ClearHistory");
-        unregisterEventListener("Update:Check");
-        unregisterEventListener("Update:Download");
-        unregisterEventListener("Update:Install");
-        unregisterEventListener("PrivateBrowsing:Data");
-        unregisterEventListener("Contact:Add");
+    public void onDestroy() {
+        EventDispatcher.getInstance().unregisterGoannaThreadListener((GoannaEventListener)this,
+            "Goanna:Ready",
+            "Goanna:DelayedStartup",
+            "Accessibility:Event",
+            "NativeApp:IsDebuggable");
+
+        EventDispatcher.getInstance().unregisterGoannaThreadListener((NativeEventListener)this,
+            "Accessibility:Ready",
+            "Bookmark:Insert",
+            "Contact:Add",
+            "DOMFullScreen:Start",
+            "DOMFullScreen:Stop",
+            "Image:SetAs",
+            "Locale:Set",
+            "Permissions:Data",
+            "PrivateBrowsing:Data",
+            "Sanitize:ClearHistory",
+            "Session:StatePurged",
+            "Share:Text",
+            "SystemUI:Visibility",
+            "Toast:Show",
+            "ToggleChrome:Focus",
+            "ToggleChrome:Hide",
+            "ToggleChrome:Show",
+            "Update:Check",
+            "Update:Download",
+            "Update:Install");
+
+        if (mWebappEventListener != null) {
+            mWebappEventListener.unregisterEvents();
+            mWebappEventListener = null;
+        }
 
         deleteTempFiles();
 
@@ -1985,24 +2032,26 @@ abstract public class GoannaApp
             mDoorHangerPopup.destroy();
         if (mFormAssistPopup != null)
             mFormAssistPopup.destroy();
+        if (mContactService != null)
+            mContactService.destroy();
         if (mPromptService != null)
             mPromptService.destroy();
         if (mTextSelection != null)
             mTextSelection.destroy();
-        if (mNotificationHelper != null)
-            mNotificationHelper.destroy();
+        NotificationHelper.destroy();
+        IntentHelper.destroy();
+        GoannaNetworkManager.destroy();
 
-        Tabs.getInstance().detachFromActivity(this);
-
-        if (SmsManager.getInstance() != null) {
+        if (SmsManager.isEnabled()) {
             SmsManager.getInstance().stop();
-            if (isFinishing())
+            if (isFinishing()) {
                 SmsManager.getInstance().shutdown();
+            }
         }
 
-/*        final BrowserHealthRecorder rec = mHealthRecorder;
+        final HealthRecorder rec = mHealthRecorder;
         mHealthRecorder = null;
-        if (rec != null) {
+        if (rec != null && rec.isEnabled()) {
             // Closing a BrowserHealthRecorder could incur a write.
             ThreadUtils.postToBackgroundThread(new Runnable() {
                 @Override
@@ -2010,24 +2059,18 @@ abstract public class GoannaApp
                     rec.close();
                 }
             });
-        } */
+        }
+
+        Favicons.close();
 
         super.onDestroy();
 
         Tabs.unregisterOnTabsChangedListener(this);
     }
 
-    protected void registerEventListener(String event) {
-        GoannaAppShell.getEventDispatcher().registerEventListener(event, this);
-    }
-
-    protected void unregisterEventListener(String event) {
-        GoannaAppShell.getEventDispatcher().unregisterEventListener(event, this);
-    }
-
     // Get a temporary directory, may return null
     public static File getTempDirectory() {
-        File dir = sAppContext.getExternalFilesDir("temp");
+        File dir = GoannaApplication.get().getExternalFilesDir("temp");
         return dir;
     }
 
@@ -2046,33 +2089,27 @@ abstract public class GoannaApp
 
     @Override
     public void onConfigurationChanged(Configuration newConfig) {
-        super.onConfigurationChanged(newConfig);
+        Log.d(LOGTAG, "onConfigurationChanged: " + newConfig.locale);
 
-        if (mOrientation != newConfig.orientation) {
-            mOrientation = newConfig.orientation;
+        final LocaleManager localeManager = BrowserLocaleManager.getInstance();
+        final Locale changed = localeManager.onSystemConfigurationChanged(this, getResources(), newConfig, mLastLocale);
+        if (changed != null) {
+            onLocaleChanged(Locales.getLanguageTag(changed));
+        }
+
+        // onConfigurationChanged is not called for 180 degree orientation changes,
+        // we will miss such rotations and the screen orientation will not be
+        // updated.
+        if (GoannaScreenOrientation.getInstance().update(newConfig.orientation)) {
             if (mFormAssistPopup != null)
                 mFormAssistPopup.hide();
             refreshChrome();
         }
+        super.onConfigurationChanged(newConfig);
     }
 
     public String getContentProcessName() {
         return AppConstants.MOZ_CHILD_PROCESS_NAME;
-    }
-
-    /*
-     * Only one factory can be set on the inflater; however, we want to use two
-     * factories (GoannaViewsFactory and the FragmentActivity factory).
-     * Overriding onCreateView() here allows us to dispatch view creation to
-     * both factories.
-     */
-    @Override
-    public View onCreateView(String name, Context context, AttributeSet attrs) {
-        View view = GoannaViewsFactory.getInstance().onCreateView(name, context, attrs);
-        if (view == null) {
-            view = super.onCreateView(name, context, attrs);
-        }
-        return view;
     }
 
     public void addEnvToIntent(Intent intent) {
@@ -2088,24 +2125,42 @@ abstract public class GoannaApp
         }
     }
 
+    @Override
     public void doRestart() {
-        doRestart(RESTARTER_ACTION);
+        doRestart(RESTARTER_ACTION, null, null);
     }
 
-    public void doRestart(String action) {
+    public void doRestart(String args) {
+        doRestart(RESTARTER_ACTION, args, null);
+    }
+
+    public void doRestart(Intent intent) {
+        doRestart(RESTARTER_ACTION, null, intent);
+    }
+
+    public void doRestart(String action, String args, Intent restartIntent) {
         Log.d(LOGTAG, "doRestart(\"" + action + "\")");
         try {
             Intent intent = new Intent(action);
             intent.setClassName(AppConstants.ANDROID_PACKAGE_NAME, RESTARTER_CLASS);
+
             /* TODO: addEnvToIntent(intent); */
-            intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK |
-                            Intent.FLAG_ACTIVITY_MULTIPLE_TASK);
+            if (args != null) {
+                intent.putExtra("args", args);
+            }
+
+            if (restartIntent != null) {
+                intent.putExtra(Intent.EXTRA_INTENT, restartIntent);
+            }
+
+            intent.putExtra("didRestart", true);
             Log.d(LOGTAG, "Restart intent: " + intent.toString());
             GoannaAppShell.killAnyZombies();
             startActivity(intent);
         } catch (Exception e) {
             Log.e(LOGTAG, "Error effecting restart.", e);
         }
+
         finish();
         // Give the restart process time to start before we die
         GoannaAppShell.waitForAnotherGoannaProc();
@@ -2124,96 +2179,68 @@ abstract public class GoannaApp
         final File profileDir = getProfile().getDir();
 
         if (profileDir != null) {
-            final GoannaApp app = GoannaApp.sAppContext;
-
             ThreadUtils.postToBackgroundThread(new Runnable() {
                 @Override
                 public void run() {
-                    ProfileMigrator profileMigrator = new ProfileMigrator(app);
-
-                    // Do a migration run on the first start after an upgrade.
-                    if (!GoannaApp.sIsUsingCustomProfile &&
-                        !profileMigrator.hasMigrationRun()) {
-                        // Show the "Setting up Fennec" screen if this takes
-                        // a while.
-
-                        // Create a "final" holder for the setup screen so that we can
-                        // create it in startCallback and still find a reference to it
-                        // in stopCallback. (We must create it on the UI thread to fix
-                        // bug 788216). Note that synchronization is not a problem here
-                        // since it is only ever touched on the UI thread.
-                        final SetupScreen[] setupScreenHolder = new SetupScreen[1];
-
-                        final Runnable startCallback = new Runnable() {
-                            @Override
-                            public void run() {
-                                ThreadUtils.postToUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        setupScreenHolder[0] = new SetupScreen(app);
-                                        setupScreenHolder[0].show();
-                                    }
-                                });
-                            }
-                        };
-
-                        final Runnable stopCallback = new Runnable() {
-                            @Override
-                            public void run() {
-                                ThreadUtils.postToUiThread(new Runnable() {
-                                    @Override
-                                    public void run() {
-                                        SetupScreen screen = setupScreenHolder[0];
-                                        // screen will never be null if this code runs, but
-                                        // stranger things have happened...
-                                        if (screen != null) {
-                                            screen.dismiss();
-                                        }
-                                    }
-                                });
-                            }
-                        };
-
-                        profileMigrator.setLongOperationCallbacks(startCallback,
-                                                                  stopCallback);
-                        profileMigrator.launchPlaces(profileDir);
-                        finishProfileMigration();
-                    }
-                }}
-            );
+                    Handler handler = new Handler();
+                    handler.postDelayed(new DeferredCleanupTask(), CLEANUP_DEFERRAL_SECONDS * 1000);
+                }
+            });
         }
     }
 
-    protected void finishProfileMigration() {
-    }
+    private class DeferredCleanupTask implements Runnable {
+        // The cleanup-version setting is recorded to avoid repeating the same
+        // tasks on subsequent startups; CURRENT_CLEANUP_VERSION may be updated
+        // if we need to do additional cleanup for future Goanna versions.
 
-    private void checkMigrateSync() {
-        final File profileDir = getProfile().getDir();
-        if (!GoannaApp.sIsUsingCustomProfile && profileDir != null) {
-            final GoannaApp app = GoannaApp.sAppContext;
-            ProfileMigrator profileMigrator = new ProfileMigrator(app);
-            if (!profileMigrator.hasSyncMigrated()) {
-                profileMigrator.launchSyncPrefs();
+        private static final String CLEANUP_VERSION = "cleanup-version";
+        private static final int CURRENT_CLEANUP_VERSION = 1;
+
+        @Override
+        public void run() {
+            long cleanupVersion = getSharedPreferences().getInt(CLEANUP_VERSION, 0);
+
+            if (cleanupVersion < 1) {
+                // Reduce device storage footprint by removing .ttf files from
+                // the res/fonts directory: we no longer need to copy our
+                // bundled fonts out of the APK in order to use them.
+                // See https://bugzilla.mozilla.org/show_bug.cgi?id=878674.
+                File dir = new File("res/fonts");
+                if (dir.exists() && dir.isDirectory()) {
+                    for (File file : dir.listFiles()) {
+                        if (file.isFile() && file.getName().endsWith(".ttf")) {
+                            file.delete();
+                        }
+                    }
+                    if (!dir.delete()) {
+                        Log.w(LOGTAG, "unable to delete res/fonts directory (not empty?)");
+                    }
+                }
+            }
+
+            // Additional cleanup needed for future versions would go here
+
+            if (cleanupVersion != CURRENT_CLEANUP_VERSION) {
+                SharedPreferences.Editor editor = GoannaApp.this.getSharedPreferences().edit();
+                editor.putInt(CLEANUP_VERSION, CURRENT_CLEANUP_VERSION);
+                editor.apply();
             }
         }
     }
 
+    @Override
     public PromptService getPromptService() {
         return mPromptService;
     }
 
-    public void showReadingList() {
-        Intent intent = new Intent(getBaseContext(), AwesomeBar.class);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION | Intent.FLAG_ACTIVITY_NO_HISTORY);
-        intent.putExtra(AwesomeBar.TARGET_KEY, AwesomeBar.Target.CURRENT_TAB.toString());
-        intent.putExtra(AwesomeBar.READING_LIST_KEY, true);
-
-        int requestCode = GoannaAppShell.sActivityHelper.makeRequestCodeForAwesomebar();
-        startActivityForResult(intent, requestCode);
-    }
-
     @Override
     public void onBackPressed() {
+        if (getSupportFragmentManager().getBackStackEntryCount() > 0) {
+            super.onBackPressed();
+            return;
+        }
+
         if (autoHideTabs()) {
             return;
         }
@@ -2263,11 +2290,12 @@ abstract public class GoannaApp
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        if (!GoannaAppShell.sActivityHelper.handleActivityResult(requestCode, resultCode, data)) {
+        if (!ActivityHandlerHelper.handleActivityResult(requestCode, resultCode, data)) {
             super.onActivityResult(requestCode, resultCode, data);
         }
     }
 
+    @Override
     public AbsoluteLayout getPluginContainer() { return mPluginContainer; }
 
     // Accelerometer.
@@ -2304,27 +2332,38 @@ abstract public class GoannaApp
 
     private static final String CPU = "cpu";
     private static final String SCREEN = "screen";
-    
+
     // Called when a Goanna Hal WakeLock is changed
+    @Override
     public void notifyWakeLockChanged(String topic, String state) {
         PowerManager.WakeLock wl = mWakeLocks.get(topic);
         if (state.equals("locked-foreground") && wl == null) {
             PowerManager pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
-            wl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK, topic);
-            wl.acquire();
-            mWakeLocks.put(topic, wl);
+
+            if (CPU.equals(topic)) {
+              wl = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, topic);
+            } else if (SCREEN.equals(topic)) {
+              wl = pm.newWakeLock(PowerManager.SCREEN_BRIGHT_WAKE_LOCK, topic);
+            }
+
+            if (wl != null) {
+              wl.acquire();
+              mWakeLocks.put(topic, wl);
+            }
         } else if (!state.equals("locked-foreground") && wl != null) {
             wl.release();
             mWakeLocks.remove(topic);
         }
     }
 
+    @Override
     public void notifyCheckUpdateResult(String result) {
         GoannaAppShell.sendEventToGoanna(GoannaEvent.createBroadcastEvent("Update:CheckResult", result));
     }
 
     protected void goannaConnected() {
         mLayerView.goannaConnected();
+        mLayerView.setOverScrollMode(View.OVER_SCROLL_NEVER);
     }
 
     public void setAccessibilityEnabled(boolean enabled) {
@@ -2333,9 +2372,22 @@ abstract public class GoannaApp
     public static class MainLayout extends RelativeLayout {
         private TouchEventInterceptor mTouchEventInterceptor;
         private MotionEventInterceptor mMotionEventInterceptor;
+        private LayoutInterceptor mLayoutInterceptor;
 
         public MainLayout(Context context, AttributeSet attrs) {
             super(context, attrs);
+        }
+
+        @Override
+        protected void onLayout(boolean changed, int left, int top, int right, int bottom) {
+            super.onLayout(changed, left, top, right, bottom);
+            if (mLayoutInterceptor != null) {
+                mLayoutInterceptor.onLayout();
+            }
+        }
+
+        public void setLayoutInterceptor(LayoutInterceptor interceptor) {
+            mLayoutInterceptor = interceptor;
         }
 
         public void setTouchEventInterceptor(TouchEventInterceptor interceptor) {
@@ -2401,7 +2453,7 @@ abstract public class GoannaApp
             ThreadUtils.postToUiThread(new Runnable() {
                 @Override
                 public void run() {
-                    mLayerView.hide();
+                    mLayerView.hideSurface();
                 }
             });
         }
@@ -2457,5 +2509,110 @@ abstract public class GoannaApp
             Log.wtf(LOGTAG, getPackageName() + " not found", e);
         }
         return versionCode;
+    }
+
+    protected boolean getIsDebuggable() {
+        // Return false so Fennec doesn't appear to be debuggable.  WebappImpl
+        // then overrides this and returns the value of android:debuggable for
+        // the webapp APK, so webapps get the behavior supported by this method
+        // (i.e. automatic configuration and enabling of the remote debugger).
+        return false;
+
+        // If we ever want to expose this for Fennec, here's how we would do it:
+        // int flags = 0;
+        // try {
+        //     flags = getPackageManager().getPackageInfo(getPackageName(), 0).applicationInfo.flags;
+        // } catch (NameNotFoundException e) {
+        //     Log.wtf(LOGTAG, getPackageName() + " not found", e);
+        // }
+        // return (flags & android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0;
+    }
+
+    // FHR reason code for a session end prior to a restart for a
+    // locale change.
+    private static final String SESSION_END_LOCALE_CHANGED = "L";
+
+    /**
+     * This exists so that a locale can be applied in two places: when saved
+     * in a nested activity, and then again when we get back up to GoannaApp.
+     *
+     * GoannaApp needs to do a bunch more stuff than, say, GoannaPreferences.
+     */
+    protected void onLocaleChanged(final String locale) {
+        final boolean startNewSession = true;
+        final boolean shouldRestart = false;
+
+        // If the HealthRecorder is not yet initialized (unlikely), the locale change won't
+        // trigger a session transition and subsequent events will be recorded in an environment
+        // with the wrong locale.
+        final HealthRecorder rec = mHealthRecorder;
+        if (rec != null) {
+            rec.onAppLocaleChanged(locale);
+            rec.onEnvironmentChanged(startNewSession, SESSION_END_LOCALE_CHANGED);
+        }
+
+        if (!shouldRestart) {
+            ThreadUtils.postToUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    GoannaApp.this.onLocaleReady(locale);
+                }
+            });
+            return;
+        }
+
+        // Do this in the background so that the health recorder has its
+        // time to finish.
+        ThreadUtils.postToBackgroundThread(new Runnable() {
+            @Override
+            public void run() {
+                GoannaApp.this.doRestart();
+                GoannaApp.this.finish();
+            }
+        });
+    }
+
+    /**
+     * Use BrowserLocaleManager to change our persisted and current locales,
+     * and poke HealthRecorder to tell it of our changed state.
+     */
+    protected void setLocale(final String locale) {
+        if (locale == null) {
+            return;
+        }
+
+        final String resultant = BrowserLocaleManager.getInstance().setSelectedLocale(this, locale);
+        if (resultant == null) {
+            return;
+        }
+
+        onLocaleChanged(resultant);
+    }
+
+    private void setSystemUiVisible(final boolean visible) {
+        if (Versions.preICS) {
+            return;
+        }
+
+        ThreadUtils.postToUiThread(new Runnable() {
+            @Override
+            public void run() {
+                if (visible) {
+                    mMainLayout.setSystemUiVisibility(View.SYSTEM_UI_FLAG_VISIBLE);
+                } else {
+                    mMainLayout.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LOW_PROFILE);
+                }
+            }
+        });
+    }
+
+    protected HealthRecorder createHealthRecorder(final Context context,
+                                                  final String profilePath,
+                                                  final EventDispatcher dispatcher,
+                                                  final String osLocale,
+                                                  final String appLocale,
+                                                  final SessionInformation previousSession) {
+        // GoannaApp does not need to record any health information - return a stub.
+        return new StubbedHealthRecorder();
     }
 }

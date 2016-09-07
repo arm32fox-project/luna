@@ -1,5 +1,5 @@
 /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set sw=2 ts=8 et ft=cpp : */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,7 +9,7 @@
 
 #include "mozilla/LinkedList.h"
 #include "mozilla/StaticPtr.h"
-#include "nsThreadUtils.h"
+#include "MainThreadUtils.h"
 
 /*
  * This header exports one public method in the mozilla namespace:
@@ -42,35 +42,39 @@ class ShutdownObserver : public LinkedListElement<ShutdownObserver>
 {
 public:
   virtual void Shutdown() = 0;
-  virtual ~ShutdownObserver() {}
+  virtual ~ShutdownObserver()
+  {
+  }
 };
 
 template<class SmartPtr>
 class PointerClearer : public ShutdownObserver
 {
 public:
-  PointerClearer(SmartPtr *aPtr)
+  explicit PointerClearer(SmartPtr* aPtr)
     : mPtr(aPtr)
-  {}
+  {
+  }
 
-  virtual void Shutdown()
+  virtual void Shutdown() override
   {
     if (mPtr) {
-      *mPtr = NULL;
+      *mPtr = nullptr;
     }
   }
 
 private:
-  SmartPtr *mPtr;
+  SmartPtr* mPtr;
 };
 
 extern bool sHasShutDown;
-extern StaticAutoPtr<LinkedList<ShutdownObserver> > sShutdownObservers;
+extern StaticAutoPtr<LinkedList<ShutdownObserver>> sShutdownObservers;
 
 } // namespace ClearOnShutdown_Internal
 
 template<class SmartPtr>
-inline void ClearOnShutdown(SmartPtr *aPtr)
+inline void
+ClearOnShutdown(SmartPtr* aPtr)
 {
   using namespace ClearOnShutdown_Internal;
 
@@ -85,15 +89,15 @@ inline void ClearOnShutdown(SmartPtr *aPtr)
 
 // Called when XPCOM is shutting down, after all shutdown notifications have
 // been sent and after all threads' event loops have been purged.
-inline void KillClearOnShutdown()
+inline void
+KillClearOnShutdown()
 {
   using namespace ClearOnShutdown_Internal;
 
   MOZ_ASSERT(NS_IsMainThread());
 
   if (sShutdownObservers) {
-    ShutdownObserver *observer;
-    while ((observer = sShutdownObservers->popFirst())) {
+    while (ShutdownObserver* observer = sShutdownObservers->popFirst()) {
       observer->Shutdown();
       delete observer;
     }

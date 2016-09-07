@@ -4,9 +4,11 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsISupports.idl"
- 
-[scriptable, uuid(a0a3bc68-eab3-4e66-b5cb-b1d86765119c)]
+
+interface nsIGlobalObject;
+
+[uuid(48d7f7fd-bb85-4c04-9b8b-5cd9131acdef)]
 interface nsIDOMCrypto : nsISupports
 {
-  [implicit_jscontext] jsval getRandomValues(in jsval aData);
+  [notxpcom] void init(in nsIGlobalObject parent);
 };

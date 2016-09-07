@@ -1,18 +1,24 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
 Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
 
 var httpServer = null;
 var path = "/bug699001";
-var URI = "http://localhost:4444" + path;
+
+XPCOMUtils.defineLazyGetter(this, "URI", function() {
+  return "http://localhost:" + httpServer.identity.primaryPort + path;
+});
 
 function make_channel(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
             getService(Ci.nsIIOService);
-  return ios.newChannel(url, "", null);
+  return ios.newChannel2(url,
+                         "",
+                         null,
+                         null,      // aLoadingNode
+                         Services.scriptSecurityManager.getSystemPrincipal(),
+                         null,      // aTriggeringPrincipal
+                         Ci.nsILoadInfo.SEC_NORMAL,
+                         Ci.nsIContentPolicy.TYPE_OTHER);
 }
 
 var fetched;
@@ -93,7 +99,7 @@ function run_test()
 {
   httpServer = new HttpServer();
   httpServer.registerPathHandler(path, handler);
-  httpServer.start(4444);
+  httpServer.start(-1);
 
   do_test_pending();
 

@@ -6,17 +6,28 @@
 #ifndef MOZILLA_GFX_IMAGECLIENT_H
 #define MOZILLA_GFX_IMAGECLIENT_H
 
-#include "mozilla/layers/LayersSurfaces.h"
-#include "mozilla/layers/CompositableClient.h"
-#include "mozilla/layers/TextureClient.h"
-#include "gfxPattern.h"
+#include <stdint.h>                     // for uint32_t, uint64_t
+#include <sys/types.h>                  // for int32_t
+#include "mozilla/Attributes.h"         // for override
+#include "mozilla/RefPtr.h"             // for RefPtr, TemporaryRef
+#include "mozilla/gfx/Types.h"          // for SurfaceFormat
+#include "mozilla/layers/AsyncTransactionTracker.h" // for AsyncTransactionTracker
+#include "mozilla/layers/CompositableClient.h"  // for CompositableClient
+#include "mozilla/layers/CompositorTypes.h"  // for CompositableType, etc
+#include "mozilla/layers/LayersSurfaces.h"  // for SurfaceDescriptor
+#include "mozilla/layers/TextureClient.h"  // for TextureClient, etc
+#include "mozilla/mozalloc.h"           // for operator delete
+#include "nsCOMPtr.h"                   // for already_AddRefed
+#include "nsRect.h"                     // for nsIntRect
 
 namespace mozilla {
 namespace layers {
 
+class CompositableForwarder;
+class AsyncTransactionTracker;
+class Image;
 class ImageContainer;
-class ImageLayer;
-class PlanarYCbCrImage;
+class ShadowableLayer;
 
 /**
  * Image clients are used by basic image layers on the content thread, they
@@ -45,66 +56,66 @@ public:
   virtual bool UpdateImage(ImageContainer* aContainer, uint32_t aContentFlags) = 0;
 
   /**
-   * Notify the compositor that this image client has been updated
-   */
-  virtual void Updated() = 0;
-
-  /**
    * The picture rect is the area of the texture which makes up the image. That
    * is, the area that should be composited. In texture space.
    */
   virtual void UpdatePictureRect(nsIntRect aPictureRect);
 
-  virtual already_AddRefed<Image> CreateImage(const uint32_t *aFormats,
-                                              uint32_t aNumFormats);
+  virtual already_AddRefed<Image> CreateImage(ImageFormat aFormat) = 0;
+
+  /**
+   * Create AsyncTransactionTracker that is used for FlushAllImagesAsync().
+   */
+  virtual TemporaryRef<AsyncTransactionTracker> PrepareFlushAllImages() { return nullptr; }
+
+  /**
+   * asynchronously remove all the textures used by the image client.
+   *
+   */
+  virtual void FlushAllImages(bool aExceptFront,
+                              AsyncTransactionTracker* aAsyncTransactionTracker) {}
+
+  virtual void RemoveTexture(TextureClient* aTexture) override;
+
+  void RemoveTextureWithTracker(TextureClient* aTexture,
+                                AsyncTransactionTracker* aAsyncTransactionTracker = nullptr);
 
 protected:
-  ImageClient(CompositableForwarder* aFwd, CompositableType aType);
+  ImageClient(CompositableForwarder* aFwd, TextureFlags aFlags,
+              CompositableType aType);
 
-  gfxPattern::GraphicsFilter mFilter;
   CompositableType mType;
   int32_t mLastPaintedImageSerial;
   nsIntRect mPictureRect;
 };
 
 /**
- * An image client which uses a single texture client, may be single or double
- * buffered. (As opposed to using two texture clients for buffering, as in
- * ContentClientDoubleBuffered, or using multiple clients for YCbCr or tiled
- * images).
+ * An image client which uses a single texture client.
  */
 class ImageClientSingle : public ImageClient
 {
 public:
   ImageClientSingle(CompositableForwarder* aFwd,
-                     TextureFlags aFlags,
-                     CompositableType aType);
+                    TextureFlags aFlags,
+                    CompositableType aType);
 
-  virtual bool UpdateImage(ImageContainer* aContainer, uint32_t aContentFlags);
+  virtual bool UpdateImage(ImageContainer* aContainer, uint32_t aContentFlags) override;
 
-  /**
-   * Creates a texture client of the requested type.
-   * Returns true if the texture client was created succesfully,
-   * false otherwise.
-   */
-  bool EnsureTextureClient(TextureClientType aType);
+  virtual void OnDetach() override;
 
-  virtual void Updated();
+  virtual bool AddTextureClient(TextureClient* aTexture) override;
 
-  virtual void SetDescriptorFromReply(TextureIdentifier aTextureId,
-                                      const SurfaceDescriptor& aDescriptor) MOZ_OVERRIDE
-  {
-    mTextureClient->SetDescriptorFromReply(aDescriptor);
-  }
+  virtual TextureInfo GetTextureInfo() const override;
 
-  virtual TextureInfo GetTextureInfo() const MOZ_OVERRIDE
-  {
-    return mTextureInfo;
-  }
+  virtual already_AddRefed<Image> CreateImage(ImageFormat aFormat) override;
 
-private:
-  RefPtr<TextureClient> mTextureClient;
-  TextureInfo mTextureInfo;
+  virtual TemporaryRef<AsyncTransactionTracker> PrepareFlushAllImages() override;
+
+  virtual void FlushAllImages(bool aExceptFront,
+                              AsyncTransactionTracker* aAsyncTransactionTracker) override;
+
+protected:
+  RefPtr<TextureClient> mFrontBuffer;
 };
 
 /**
@@ -118,23 +129,57 @@ public:
   ImageClientBridge(CompositableForwarder* aFwd,
                     TextureFlags aFlags);
 
-  virtual bool UpdateImage(ImageContainer* aContainer, uint32_t aContentFlags);
-  virtual bool Connect() { return false; }
+  virtual bool UpdateImage(ImageContainer* aContainer, uint32_t aContentFlags) override;
+  virtual bool Connect() override { return false; }
   virtual void Updated() {}
   void SetLayer(ShadowableLayer* aLayer)
   {
     mLayer = aLayer;
   }
 
-  virtual TextureInfo GetTextureInfo() const MOZ_OVERRIDE
+  virtual TextureInfo GetTextureInfo() const override
   {
     return TextureInfo(mType);
+  }
+
+  virtual void SetIPDLActor(CompositableChild* aChild) override
+  {
+    MOZ_ASSERT(!aChild, "ImageClientBridge should not have IPDL actor");
+  }
+
+  virtual already_AddRefed<Image> CreateImage(ImageFormat aFormat) override
+  {
+    NS_WARNING("Should not create an image through an ImageClientBridge");
+    return nullptr;
   }
 
 protected:
   uint64_t mAsyncContainerID;
   ShadowableLayer* mLayer;
 };
+
+#ifdef MOZ_WIDGET_GONK
+/**
+ * And ImageClient to handle opaque video stream.
+ * Such video stream does not upload new Image for each frame.
+ * Goanna have no way to get the buffer content from the Image, since the Image
+ * does not contain the real buffer.
+ * It need special hardware to display the Image
+ */
+class ImageClientOverlay : public ImageClient
+{
+public:
+  ImageClientOverlay(CompositableForwarder* aFwd,
+                     TextureFlags aFlags);
+
+  virtual bool UpdateImage(ImageContainer* aContainer, uint32_t aContentFlags);
+  virtual already_AddRefed<Image> CreateImage(ImageFormat aFormat);
+  TextureInfo GetTextureInfo() const override
+  {
+    return TextureInfo(CompositableType::IMAGE_OVERLAY);
+  }
+};
+#endif
 
 }
 }

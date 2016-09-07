@@ -8,7 +8,6 @@
 
 #include "nsINavHistoryService.h"
 #include "nsPIPlacesDatabase.h"
-#include "nsPIPlacesHistoryListenersNotifier.h"
 #include "nsIBrowserHistory.h"
 #include "nsINavBookmarksService.h"
 #include "nsIFaviconService.h"
@@ -21,7 +20,6 @@
 #include "nsCategoryCache.h"
 #include "nsNetCID.h"
 #include "nsToolkitCompsCID.h"
-#include "nsThreadUtils.h"
 #include "nsURIHashKey.h"
 #include "nsTHashtable.h"
 
@@ -63,12 +61,11 @@ class nsIAutoCompleteController;
 
 // nsNavHistory
 
-class nsNavHistory MOZ_FINAL : public nsSupportsWeakReference
+class nsNavHistory final : public nsSupportsWeakReference
                              , public nsINavHistoryService
                              , public nsIObserver
                              , public nsIBrowserHistory
                              , public nsPIPlacesDatabase
-                             , public nsPIPlacesHistoryListenersNotifier
                              , public mozIStorageVacuumParticipant
 {
   friend class PlacesSQLQueryBuilder;
@@ -76,12 +73,11 @@ class nsNavHistory MOZ_FINAL : public nsSupportsWeakReference
 public:
   nsNavHistory();
 
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSINAVHISTORYSERVICE
   NS_DECL_NSIBROWSERHISTORY
   NS_DECL_NSIOBSERVER
   NS_DECL_NSPIPLACESDATABASE
-  NS_DECL_NSPIPLACESHISTORYLISTENERSNOTIFIER
   NS_DECL_MOZISTORAGEVACUUMPARTICIPANT
 
   /**
@@ -97,7 +93,7 @@ public:
   /**
    * Used by other components in the places directory such as the annotation
    * service to get a reference to this history object. Returns a pointer to
-   * the service if it exists. Otherwise creates one. Returns NULL on error.
+   * the service if it exists. Otherwise creates one. Returns nullptr on error.
    */
   static nsNavHistory* GetHistoryService()
   {
@@ -115,7 +111,7 @@ public:
    * const version of this history object.
    *
    * @return A pointer to a const version of the service if it exists,
-   *         NULL otherwise.
+   *         nullptr otherwise.
    */
   static const nsNavHistory* GetConstHistoryService()
   {
@@ -185,14 +181,37 @@ public:
   nsresult invalidateFrecencies(const nsCString& aPlaceIdsQueryString);
 
   /**
+   * Calls onDeleteVisits and onDeleteURI notifications on registered listeners
+   * with the history service.
+   *
+   * @param aURI
+   *        The nsIURI object representing the URI of the page being expired.
+   * @param aVisitTime
+   *        The time, in microseconds, that the page being expired was visited.
+   * @param aWholeEntry
+   *        Indicates if this is the last visit for this URI.
+   * @param aGUID
+   *        The unique ID associated with the page.
+   * @param aReason
+   *        Indicates the reason for the removal.
+   *        See nsINavHistoryObserver::REASON_* constants.
+   * @param aTransitionType
+   *        If it's a valid TRANSITION_* value, all visits of the specified type
+   *        have been removed.
+   */
+  nsresult NotifyOnPageExpired(nsIURI *aURI, PRTime aVisitTime,
+                               bool aWholeEntry, const nsACString& aGUID,
+                               uint16_t aReason, uint32_t aTransitionType);
+
+  /**
    * These functions return non-owning references to the locale-specific
    * objects for places components.
    */
   nsIStringBundle* GetBundle();
   nsIStringBundle* GetDateFormatBundle();
   nsICollation* GetCollation();
-  void GetStringFromName(const PRUnichar* aName, nsACString& aResult);
-  void GetAgeInDaysString(int32_t aInt, const PRUnichar *aName,
+  void GetStringFromName(const char16_t* aName, nsACString& aResult);
+  void GetAgeInDaysString(int32_t aInt, const char16_t *aName,
                           nsACString& aResult);
   void GetMonthName(int32_t aIndex, nsACString& aResult);
   void GetMonthYear(int32_t aMonth, int32_t aYear, nsACString& aResult);
@@ -217,6 +236,7 @@ public:
   static const int32_t kGetInfoIndex_ItemTags;
   static const int32_t kGetInfoIndex_Frecency;
   static const int32_t kGetInfoIndex_Hidden;
+  static const int32_t kGetInfoIndex_Guid;
 
   int64_t GetTagsFolder();
 
@@ -232,7 +252,9 @@ public:
   nsresult RowToResult(mozIStorageValueArray* aRow,
                        nsNavHistoryQueryOptions* aOptions,
                        nsNavHistoryResultNode** aResult);
-  nsresult QueryRowToResult(int64_t aItemId, const nsACString& aURI,
+  nsresult QueryRowToResult(int64_t aItemId,
+                            const nsACString& aBookmarkGuid,
+                            const nsACString& aURI,
                             const nsACString& aTitle,
                             uint32_t aAccessCount, PRTime aTime,
                             const nsACString& aFavicon,
@@ -418,6 +440,29 @@ public:
                          const nsString& title,
                          const nsACString& aGUID);
 
+  /**
+   * Fires onFrecencyChanged event to nsINavHistoryService observers
+   */
+  void NotifyFrecencyChanged(nsIURI* aURI,
+                             int32_t aNewFrecency,
+                             const nsACString& aGUID,
+                             bool aHidden,
+                             PRTime aLastVisitDate);
+
+  /**
+   * Fires onManyFrecenciesChanged event to nsINavHistoryService observers
+   */
+  void NotifyManyFrecenciesChanged();
+
+  /**
+   * Posts a runnable to the main thread that calls NotifyFrecencyChanged.
+   */
+  void DispatchFrecencyChangedNotification(const nsACString& aSpec,
+                                           int32_t aNewFrecency,
+                                           const nsACString& aGUID,
+                                           bool aHidden,
+                                           PRTime aLastVisitDate) const;
+
   bool isBatching() {
     return mBatchLevel > 0;
   }
@@ -447,7 +492,7 @@ protected:
   /**
    * Loads all of the preferences that we use into member variables.
    *
-   * @note If mPrefBranch is NULL, this does nothing.
+   * @note If mPrefBranch is nullptr, this does nothing.
    */
   void LoadPrefs();
 
@@ -514,7 +559,7 @@ protected:
   class VisitHashKey : public nsURIHashKey
   {
   public:
-    VisitHashKey(const nsIURI* aURI)
+    explicit VisitHashKey(const nsIURI* aURI)
     : nsURIHashKey(aURI)
     {
     }

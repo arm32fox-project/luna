@@ -2,10 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "tests.h"
 #include "jsatom.h"
 
 #include "gc/Marking.h"
+#include "jsapi-tests/tests.h"
 #include "vm/String.h"
 
 using mozilla::ArrayLength;
@@ -24,25 +24,25 @@ END_TEST(testAtomizedIsNotInterned)
 
 struct StringWrapperStruct
 {
-    JSString *str;
+    JSString* str;
     bool     strOk;
 } sw;
-
-void
-FinalizeCallback(JSFreeOp *fop, JSFinalizeStatus status, JSBool isCompartmentGC)
-{
-    if (status == JSFINALIZE_GROUP_START)
-        sw.strOk = js::gc::IsStringMarked(&sw.str);
-}
 
 BEGIN_TEST(testInternAcrossGC)
 {
     sw.str = JS_InternString(cx, "wrapped chars that another test shouldn't be using");
     sw.strOk = false;
     CHECK(sw.str);
-    JS_SetFinalizeCallback(rt, FinalizeCallback);
+    JS_AddFinalizeCallback(rt, FinalizeCallback, nullptr);
     JS_GC(rt);
     CHECK(sw.strOk);
     return true;
+}
+
+static void
+FinalizeCallback(JSFreeOp* fop, JSFinalizeStatus status, bool isCompartmentGC, void* data)
+{
+    if (status == JSFINALIZE_GROUP_START)
+        sw.strOk = js::gc::IsStringMarked(&sw.str);
 }
 END_TEST(testInternAcrossGC)

@@ -6,7 +6,12 @@
 #ifndef MOZILLA_GFX_BASICCOMPOSITOR_H
 #define MOZILLA_GFX_BASICCOMPOSITOR_H
 
-#include "Compositor.h"
+#include "mozilla/layers/Compositor.h"
+#include "mozilla/layers/TextureHost.h"
+#include "mozilla/gfx/2D.h"
+#include "nsAutoPtr.h"
+
+class gfxContext;
 
 namespace mozilla {
 namespace layers {
@@ -14,12 +19,21 @@ namespace layers {
 class BasicCompositingRenderTarget : public CompositingRenderTarget
 {
 public:
-  BasicCompositingRenderTarget(gfx::DrawTarget* aDrawTarget, const gfx::IntSize& aSize)
-    : mDrawTarget(aDrawTarget)
-    , mSize(aSize)
+  BasicCompositingRenderTarget(gfx::DrawTarget* aDrawTarget, const gfx::IntRect& aRect)
+    : CompositingRenderTarget(aRect.TopLeft())
+    , mDrawTarget(aDrawTarget)
+    , mSize(aRect.Size())
   { }
 
-  virtual gfx::IntSize GetSize() const MOZ_OVERRIDE { return mSize; }
+  virtual gfx::IntSize GetSize() const override { return mSize; }
+
+  void BindRenderTarget();
+
+  virtual gfx::SurfaceFormat GetFormat() const override
+  {
+    return mDrawTarget ? mDrawTarget->GetFormat()
+                       : gfx::SurfaceFormat(gfx::SurfaceFormat::UNKNOWN);
+  }
 
   RefPtr<gfx::DrawTarget> mDrawTarget;
   gfx::IntSize mSize;
@@ -28,93 +42,106 @@ public:
 class BasicCompositor : public Compositor
 {
 public:
-  BasicCompositor(nsIWidget *aWidget);
+  explicit BasicCompositor(nsIWidget *aWidget);
 
+protected:
   virtual ~BasicCompositor();
 
-  virtual bool Initialize() MOZ_OVERRIDE { return true; };
+public:
+  virtual bool Initialize() override { return true; };
 
-  virtual void Destroy() MOZ_OVERRIDE { };
+  virtual void Destroy() override;
 
-  virtual TextureFactoryIdentifier GetTextureFactoryIdentifier() MOZ_OVERRIDE
+  virtual TextureFactoryIdentifier GetTextureFactoryIdentifier() override
   {
-    return TextureFactoryIdentifier(LAYERS_BASIC, GetMaxTextureSize());
+    return TextureFactoryIdentifier(LayersBackend::LAYERS_BASIC,
+                                    XRE_GetProcessType(),
+                                    GetMaxTextureSize());
   }
 
   virtual TemporaryRef<CompositingRenderTarget>
-  CreateRenderTarget(const gfx::IntRect &aRect, SurfaceInitMode aInit) MOZ_OVERRIDE;
+  CreateRenderTarget(const gfx::IntRect &aRect, SurfaceInitMode aInit) override;
 
   virtual TemporaryRef<CompositingRenderTarget>
   CreateRenderTargetFromSource(const gfx::IntRect &aRect,
-                               const CompositingRenderTarget *aSource) MOZ_OVERRIDE;
+                               const CompositingRenderTarget *aSource,
+                               const gfx::IntPoint &aSourcePoint) override;
 
-  virtual void SetRenderTarget(CompositingRenderTarget *aSource) MOZ_OVERRIDE
+  virtual TemporaryRef<DataTextureSource>
+  CreateDataTextureSource(TextureFlags aFlags = TextureFlags::NO_FLAGS) override;
+
+  virtual bool SupportsEffect(EffectTypes aEffect) override;
+
+  virtual void SetRenderTarget(CompositingRenderTarget *aSource) override
   {
     mRenderTarget = static_cast<BasicCompositingRenderTarget*>(aSource);
+    mRenderTarget->BindRenderTarget();
   }
-  virtual CompositingRenderTarget* GetCurrentRenderTarget() MOZ_OVERRIDE
+  virtual CompositingRenderTarget* GetCurrentRenderTarget() const override
   {
     return mRenderTarget;
   }
 
-  virtual void DrawQuad(const gfx::Rect& aRect, const gfx::Rect& aClipRect,
+  virtual void DrawQuad(const gfx::Rect& aRect,
+                        const gfx::Rect& aClipRect,
                         const EffectChain &aEffectChain,
-                        gfx::Float aOpacity, const gfx::Matrix4x4 &aTransform,
-                        const gfx::Point& aOffset) MOZ_OVERRIDE;
+                        gfx::Float aOpacity,
+                        const gfx::Matrix4x4 &aTransform) override;
 
-  virtual void BeginFrame(const gfx::Rect *aClipRectIn,
-                          const gfxMatrix& aTransform,
+  virtual void ClearRect(const gfx::Rect& aRect) override;
+
+  virtual void BeginFrame(const nsIntRegion& aInvalidRegion,
+                          const gfx::Rect *aClipRectIn,
                           const gfx::Rect& aRenderBounds,
                           gfx::Rect *aClipRectOut = nullptr,
-                          gfx::Rect *aRenderBoundsOut = nullptr) MOZ_OVERRIDE;
-  virtual void EndFrame() MOZ_OVERRIDE;
-  virtual void EndFrameForExternalComposition(const gfxMatrix& aTransform) MOZ_OVERRIDE
+                          gfx::Rect *aRenderBoundsOut = nullptr) override;
+  virtual void EndFrame() override;
+  virtual void EndFrameForExternalComposition(const gfx::Matrix& aTransform) override
   {
     NS_RUNTIMEABORT("We shouldn't ever hit this");
   }
-  virtual void AbortFrame() MOZ_OVERRIDE;
 
-  virtual bool SupportsPartialTextureUpdate() { return true; }
-  virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize) MOZ_OVERRIDE { return true; }
-  virtual int32_t GetMaxTextureSize() const MOZ_OVERRIDE { return INT32_MAX; }
-  virtual void SetDestinationSurfaceSize(const gfx::IntSize& aSize) MOZ_OVERRIDE { }
-  virtual void SetTargetContext(gfxContext* aTarget) MOZ_OVERRIDE
-  {
-    mCopyTarget = aTarget;
-  }
+  virtual bool SupportsPartialTextureUpdate() override { return true; }
+  virtual bool CanUseCanvasLayerForSize(const gfx::IntSize &aSize) override { return true; }
+  virtual int32_t GetMaxTextureSize() const override;
+  virtual void SetDestinationSurfaceSize(const gfx::IntSize& aSize) override { }
   
-  virtual void SetScreenRenderOffset(const ScreenPoint& aOffset) MOZ_OVERRIDE {
+  virtual void SetScreenRenderOffset(const ScreenPoint& aOffset) override {
   }
 
-  virtual void MakeCurrent(MakeCurrentFlags aFlags = 0) { }
+  virtual void MakeCurrent(MakeCurrentFlags aFlags = 0) override { }
 
-  virtual void PrepareViewport(const gfx::IntSize& aSize,
-                               const gfxMatrix& aWorldTransform) MOZ_OVERRIDE { }
+  virtual void PrepareViewport(const gfx::IntSize& aSize) override { }
 
-  virtual void NotifyLayersTransaction() MOZ_OVERRIDE { }
+#ifdef MOZ_DUMP_PAINTING
+  virtual const char* Name() const override { return "Basic"; }
+#endif // MOZ_DUMP_PAINTING
 
-  virtual const char* Name() const { return "Basic"; }
-
-  virtual nsIWidget* GetWidget() const MOZ_OVERRIDE { return mWidget; }
-  virtual const nsIntSize& GetWidgetSize() MOZ_OVERRIDE
-  {
-    return mWidgetSize;
+  virtual LayersBackend GetBackendType() const override {
+    return LayersBackend::LAYERS_BASIC;
   }
+
+  virtual nsIWidget* GetWidget() const override { return mWidget; }
 
   gfx::DrawTarget *GetDrawTarget() { return mDrawTarget; }
 
 private:
+
+  virtual gfx::IntSize GetWidgetSize() const override { return mWidgetSize; }
+
   // Widget associated with this compositor
   nsIWidget *mWidget;
-  nsIntSize mWidgetSize;
+  gfx::IntSize mWidgetSize;
 
   // The final destination surface
   RefPtr<gfx::DrawTarget> mDrawTarget;
   // The current render target for drawing
   RefPtr<BasicCompositingRenderTarget> mRenderTarget;
-  // An optional destination target to copy the results
-  // to after drawing is completed.
-  nsRefPtr<gfxContext> mCopyTarget;
+
+  gfx::IntRect mInvalidRect;
+  nsIntRegion mInvalidRegion;
+
+  uint32_t mMaxTextureSize;
 };
 
 } // namespace layers

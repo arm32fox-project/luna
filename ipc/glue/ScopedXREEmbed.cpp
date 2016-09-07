@@ -11,7 +11,7 @@
 
 #include "nsCOMPtr.h"
 #include "nsServiceManagerUtils.h"
-#include "nsStringGlue.h"
+#include "nsString.h"
 #include "nsXULAppAPI.h"
 
 using mozilla::ipc::ScopedXREEmbed;
@@ -90,6 +90,11 @@ ScopedXREEmbed::Start()
 
     localFile = do_QueryInterface(parent);
     NS_ENSURE_TRUE_VOID(localFile);
+
+    rv = localFile->SetNativeLeafName(NS_LITERAL_CSTRING("Resources"));
+    if (NS_FAILED(rv)) {
+      return;
+    }
   }
 #endif
 

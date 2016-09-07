@@ -25,29 +25,6 @@ const uint64_t CONTENT_PROCESS_ID_MAIN = 0;
  * in the gonk subsystem.
  * If these change and are exposed to JS, make sure nsIHal.idl is updated as well.
  */
-enum LightType {
-  eHalLightID_Backlight     = 0,
-  eHalLightID_Keyboard      = 1,
-  eHalLightID_Buttons       = 2,
-  eHalLightID_Battery       = 3,
-  eHalLightID_Notifications = 4,
-  eHalLightID_Attention     = 5,
-  eHalLightID_Bluetooth     = 6,
-  eHalLightID_Wifi          = 7,
-  eHalLightID_Count         = 8  // This should stay at the end
-};
-enum LightMode {
-  eHalLightMode_User   = 0,  // brightness is managed by user setting
-  eHalLightMode_Sensor = 1,  // brightness is managed by a light sensor
-  eHalLightMode_Count
-};
-enum FlashMode {
-  eHalLightFlash_None     = 0,
-  eHalLightFlash_Timed    = 1,  // timed flashing.  Use flashOnMS and flashOffMS for timing
-  eHalLightFlash_Hardware = 2,  // hardware assisted flashing
-  eHalLightFlash_Count
-};
-
 enum ShutdownMode {
   eHalShutdownMode_Unknown  = -1,
   eHalShutdownMode_PowerOff = 0,
@@ -83,6 +60,10 @@ enum ProcessPriority {
   PROCESS_PRIORITY_BACKGROUND,
   PROCESS_PRIORITY_BACKGROUND_HOMESCREEN,
   PROCESS_PRIORITY_BACKGROUND_PERCEIVABLE,
+  PROCESS_PRIORITY_FOREGROUND_KEYBOARD,
+  // The special class for the preallocated process, high memory priority but
+  // low CPU priority.
+  PROCESS_PRIORITY_PREALLOC,
   // Any priority greater than or equal to FOREGROUND is considered
   // "foreground" for the purposes of priority testing, for example
   // CurrentProcessIsForeground().
@@ -98,18 +79,42 @@ enum ProcessCPUPriority {
   NUM_PROCESS_CPU_PRIORITY
 };
 
-// Convert a ProcessPriority enum value (with an optional ProcessCPUPriority)
-// to a string.  The strings returned by this function are statically
-// allocated; do not attempt to free one!
-//
-// If you pass an unknown process priority (or NUM_PROCESS_PRIORITY), we
-// fatally assert in debug builds and otherwise return "???".
+/**
+ * Values that can be passed to hal::SetCurrentThreadPriority().  These should be
+ * functional in nature, such as COMPOSITOR, instead of levels, like LOW/HIGH.
+ * This allows us to tune our priority scheme for the system in one place such
+ * that it makes sense holistically for the overall operating system.  On gonk
+ * or android we may want different priority schemes than on windows, etc.
+ */
+enum ThreadPriority {
+  THREAD_PRIORITY_COMPOSITOR,
+  NUM_THREAD_PRIORITY
+};
+
+/**
+ * Convert a ProcessPriority enum value (with an optional ProcessCPUPriority)
+ * to a string.  The strings returned by this function are statically
+ * allocated; do not attempt to free one!
+ *
+ * If you pass an unknown process priority, we fatally assert in debug
+ * builds and otherwise return "???".
+ */
 const char*
 ProcessPriorityToString(ProcessPriority aPriority);
 
 const char*
 ProcessPriorityToString(ProcessPriority aPriority,
                         ProcessCPUPriority aCPUPriority);
+
+/**
+ * Convert a ThreadPriority enum value to a string.  The strings returned by
+ * this function are statically allocated; do not attempt to free one!
+ *
+ * If you pass an unknown process priority, we assert in debug builds
+ * and otherwise return "???".
+ */
+const char *
+ThreadPriorityToString(ThreadPriority aPriority);
 
 /**
  * Used by ModifyWakeLock
@@ -128,6 +133,7 @@ enum FMRadioOperation {
   FM_RADIO_OPERATION_ENABLE,
   FM_RADIO_OPERATION_DISABLE,
   FM_RADIO_OPERATION_SEEK,
+  FM_RADIO_OPERATION_TUNE,
   NUM_FM_RADIO_OPERATION
 };
 
@@ -196,50 +202,23 @@ enum FMRadioCountry {
   NUM_FM_RADIO_COUNTRY
 };
 
+class FMRadioRDSGroup;
 typedef Observer<FMRadioOperationInformation> FMRadioObserver;
+typedef Observer<FMRadioRDSGroup> FMRadioRDSObserver;
 } // namespace hal
 } // namespace mozilla
 
 namespace IPC {
 
 /**
- * Light type serializer.
- */
-template <>
-struct ParamTraits<mozilla::hal::LightType>
-  : public EnumSerializer<mozilla::hal::LightType,
-                          mozilla::hal::eHalLightID_Backlight,
-                          mozilla::hal::eHalLightID_Count>
-{};
-
-/**
- * Light mode serializer.
- */
-template <>
-struct ParamTraits<mozilla::hal::LightMode>
-  : public EnumSerializer<mozilla::hal::LightMode,
-                          mozilla::hal::eHalLightMode_User,
-                          mozilla::hal::eHalLightMode_Count>
-{};
-
-/**
- * Flash mode serializer.
- */
-template <>
-struct ParamTraits<mozilla::hal::FlashMode>
-  : public EnumSerializer<mozilla::hal::FlashMode,
-                          mozilla::hal::eHalLightFlash_None,
-                          mozilla::hal::eHalLightFlash_Count>
-{};
-
-/**
  * Serializer for ShutdownMode.
  */
 template <>
 struct ParamTraits<mozilla::hal::ShutdownMode>
-  : public EnumSerializer<mozilla::hal::ShutdownMode,
-                          mozilla::hal::eHalShutdownMode_Unknown,
-                          mozilla::hal::eHalShutdownMode_Count>
+  : public ContiguousEnumSerializer<
+             mozilla::hal::ShutdownMode,
+             mozilla::hal::eHalShutdownMode_Unknown,
+             mozilla::hal::eHalShutdownMode_Count>
 {};
 
 /**
@@ -247,9 +226,10 @@ struct ParamTraits<mozilla::hal::ShutdownMode>
  */
 template <>
 struct ParamTraits<mozilla::hal::WakeLockControl>
-  : public EnumSerializer<mozilla::hal::WakeLockControl,
-                          mozilla::hal::WAKE_LOCK_REMOVE_ONE,
-                          mozilla::hal::NUM_WAKE_LOCK>
+  : public ContiguousEnumSerializer<
+             mozilla::hal::WakeLockControl,
+             mozilla::hal::WAKE_LOCK_REMOVE_ONE,
+             mozilla::hal::NUM_WAKE_LOCK>
 {};
 
 /**
@@ -257,9 +237,10 @@ struct ParamTraits<mozilla::hal::WakeLockControl>
  */
 template <>
 struct ParamTraits<mozilla::hal::SwitchState>:
-  public EnumSerializer<mozilla::hal::SwitchState,
-                        mozilla::hal::SWITCH_STATE_UNKNOWN,
-                        mozilla::hal::NUM_SWITCH_STATE> {
+  public ContiguousEnumSerializer<
+           mozilla::hal::SwitchState,
+           mozilla::hal::SWITCH_STATE_UNKNOWN,
+           mozilla::hal::NUM_SWITCH_STATE> {
 };
 
 /**
@@ -267,16 +248,18 @@ struct ParamTraits<mozilla::hal::SwitchState>:
  */
 template <>
 struct ParamTraits<mozilla::hal::SwitchDevice>:
-  public EnumSerializer<mozilla::hal::SwitchDevice,
-                        mozilla::hal::SWITCH_DEVICE_UNKNOWN,
-                        mozilla::hal::NUM_SWITCH_DEVICE> {
+  public ContiguousEnumSerializer<
+           mozilla::hal::SwitchDevice,
+           mozilla::hal::SWITCH_DEVICE_UNKNOWN,
+           mozilla::hal::NUM_SWITCH_DEVICE> {
 };
 
 template <>
 struct ParamTraits<mozilla::hal::ProcessPriority>:
-  public EnumSerializer<mozilla::hal::ProcessPriority,
-                        mozilla::hal::PROCESS_PRIORITY_UNKNOWN,
-                        mozilla::hal::NUM_PROCESS_PRIORITY> {
+  public ContiguousEnumSerializer<
+           mozilla::hal::ProcessPriority,
+           mozilla::hal::PROCESS_PRIORITY_UNKNOWN,
+           mozilla::hal::NUM_PROCESS_PRIORITY> {
 };
 
 /**
@@ -284,9 +267,10 @@ struct ParamTraits<mozilla::hal::ProcessPriority>:
  */
 template <>
 struct ParamTraits<mozilla::hal::FMRadioOperation>:
-  public EnumSerializer<mozilla::hal::FMRadioOperation,
-                        mozilla::hal::FM_RADIO_OPERATION_UNKNOWN,
-                        mozilla::hal::NUM_FM_RADIO_OPERATION>
+  public ContiguousEnumSerializer<
+           mozilla::hal::FMRadioOperation,
+           mozilla::hal::FM_RADIO_OPERATION_UNKNOWN,
+           mozilla::hal::NUM_FM_RADIO_OPERATION>
 {};
 
 /**
@@ -294,9 +278,10 @@ struct ParamTraits<mozilla::hal::FMRadioOperation>:
  */
 template <>
 struct ParamTraits<mozilla::hal::FMRadioOperationStatus>:
-  public EnumSerializer<mozilla::hal::FMRadioOperationStatus,
-                        mozilla::hal::FM_RADIO_OPERATION_STATUS_UNKNOWN,
-                        mozilla::hal::NUM_FM_RADIO_OPERATION_STATUS>
+  public ContiguousEnumSerializer<
+           mozilla::hal::FMRadioOperationStatus,
+           mozilla::hal::FM_RADIO_OPERATION_STATUS_UNKNOWN,
+           mozilla::hal::NUM_FM_RADIO_OPERATION_STATUS>
 {};
 
 /**
@@ -304,9 +289,10 @@ struct ParamTraits<mozilla::hal::FMRadioOperationStatus>:
  */
 template <>
 struct ParamTraits<mozilla::hal::FMRadioSeekDirection>:
-  public EnumSerializer<mozilla::hal::FMRadioSeekDirection,
-                        mozilla::hal::FM_RADIO_SEEK_DIRECTION_UNKNOWN,
-                        mozilla::hal::NUM_FM_RADIO_SEEK_DIRECTION>
+  public ContiguousEnumSerializer<
+           mozilla::hal::FMRadioSeekDirection,
+           mozilla::hal::FM_RADIO_SEEK_DIRECTION_UNKNOWN,
+           mozilla::hal::NUM_FM_RADIO_SEEK_DIRECTION>
 {};
 
 /**
@@ -314,10 +300,12 @@ struct ParamTraits<mozilla::hal::FMRadioSeekDirection>:
  **/
 template <>
 struct ParamTraits<mozilla::hal::FMRadioCountry>:
-  public EnumSerializer<mozilla::hal::FMRadioCountry,
-                        mozilla::hal::FM_RADIO_COUNTRY_UNKNOWN,
-                        mozilla::hal::NUM_FM_RADIO_COUNTRY>
+  public ContiguousEnumSerializer<
+           mozilla::hal::FMRadioCountry,
+           mozilla::hal::FM_RADIO_COUNTRY_UNKNOWN,
+           mozilla::hal::NUM_FM_RADIO_COUNTRY>
 {};
+
 } // namespace IPC
 
 #endif // mozilla_hal_Types_h

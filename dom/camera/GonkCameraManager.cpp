@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2012 Mozilla Foundation
+ * Copyright (C) 2012-2014 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,73 +14,77 @@
  * limitations under the License.
  */
 
+#include "ICameraControl.h"
+
 #include <camera/Camera.h>
 
-#include "jsapi.h"
-#include "GonkCameraControl.h"
-#include "DOMCameraManager.h"
 #include "CameraCommon.h"
-#include "mozilla/ErrorResult.h"
+#include "GonkCameraControl.h"
+#include "CameraPreferences.h"
+#include "TestGonkCameraControl.h"
 
 using namespace mozilla;
 
-// From nsDOMCameraManager, but gonk-specific!
+// From ICameraControl, gonk-specific management functions
 nsresult
-nsDOMCameraManager::GetNumberOfCameras(int32_t& aDeviceCount)
+ICameraControl::GetNumberOfCameras(int32_t& aDeviceCount)
 {
   aDeviceCount = android::Camera::getNumberOfCameras();
   return NS_OK;
 }
 
 nsresult
-nsDOMCameraManager::GetCameraName(uint32_t aDeviceNum, nsCString& aDeviceName)
+ICameraControl::GetCameraName(uint32_t aDeviceNum, nsCString& aDeviceName)
 {
   int32_t count = android::Camera::getNumberOfCameras();
+  int32_t deviceNum = static_cast<int32_t>(aDeviceNum);
+
   DOM_CAMERA_LOGI("GetCameraName : getNumberOfCameras() returned %d\n", count);
-  if (aDeviceNum > count) {
-    DOM_CAMERA_LOGE("GetCameraName : invalid device number");
-    return NS_ERROR_NOT_AVAILABLE;
+  if (deviceNum < 0 || deviceNum > count) {
+    DOM_CAMERA_LOGE("GetCameraName : invalid device number (%u)\n", aDeviceNum);
+    return NS_ERROR_INVALID_ARG;
   }
 
   android::CameraInfo info;
-  int rv = android::Camera::getCameraInfo(aDeviceNum, &info);
+  int rv = android::Camera::getCameraInfo(deviceNum, &info);
   if (rv != 0) {
-    DOM_CAMERA_LOGE("GetCameraName : get_camera_info(%d) failed: %d\n", aDeviceNum, rv);
+    DOM_CAMERA_LOGE("GetCameraName : get_camera_info(%d) failed: %d\n", deviceNum, rv);
     return NS_ERROR_NOT_AVAILABLE;
   }
 
   switch (info.facing) {
     case CAMERA_FACING_BACK:
-      aDeviceName.Assign("back");
+      aDeviceName.AssignLiteral("back");
       break;
 
     case CAMERA_FACING_FRONT:
-      aDeviceName.Assign("front");
+      aDeviceName.AssignLiteral("front");
       break;
 
     default:
-      aDeviceName.Assign("extra-camera-");
-      aDeviceName.AppendInt(aDeviceNum);
+      aDeviceName.AssignLiteral("extra-camera-");
+      aDeviceName.AppendInt(deviceNum);
       break;
   }
   return NS_OK;
 }
 
-void
-nsDOMCameraManager::GetListOfCameras(nsTArray<nsString>& aList, ErrorResult& aRv)
+nsresult
+ICameraControl::GetListOfCameras(nsTArray<nsString>& aList)
 {
   int32_t count = android::Camera::getNumberOfCameras();
-  if (count <= 0) {
-    return;
-  }
-
   DOM_CAMERA_LOGI("getListOfCameras : getNumberOfCameras() returned %d\n", count);
+  if (count <= 0) {
+    aList.Clear();
+    return NS_OK;
+  }
 
   // Allocate 2 extra slots to reserve space for 'front' and 'back' cameras
   // at the front of the array--we will collapse any empty slots below.
   aList.SetLength(2);
   uint32_t extraIdx = 2;
-  bool gotFront = false, gotBack = false;
+  bool gotFront = false;
+  bool gotBack = false;
   while (count--) {
     nsCString cameraName;
     nsresult result = GetCameraName(count, cameraName);
@@ -105,8 +109,26 @@ nsDOMCameraManager::GetListOfCameras(nsTArray<nsString>& aList, ErrorResult& aRv
   if (!gotFront) {
     aList.RemoveElementAt(1);
   }
-  
+
   if (!gotBack) {
     aList.RemoveElementAt(0);
   }
+
+  return NS_OK;
+}
+
+// implementation-specific camera factory
+already_AddRefed<ICameraControl>
+ICameraControl::Create(uint32_t aCameraId)
+{
+  nsCString test;
+  CameraPreferences::GetPref("camera.control.test.enabled", test);
+  nsRefPtr<nsGonkCameraControl> control;
+  if (test.EqualsASCII("control")) {
+    NS_WARNING("Using test CameraControl layer");
+    control = new TestGonkCameraControl(aCameraId);
+  } else {
+    control = new nsGonkCameraControl(aCameraId);
+  }
+  return control.forget();
 }

@@ -10,14 +10,21 @@
  * liability, trademark and document use rules apply.
  */
 
+dictionary SVGBoundingBoxOptions {
+  boolean fill = true;
+  boolean stroke = false;
+  boolean markers = false;
+  boolean clipped = false;
+};
+
 interface SVGGraphicsElement : SVGElement {
   readonly attribute SVGAnimatedTransformList transform;
 
   readonly attribute SVGElement? nearestViewportElement;
   readonly attribute SVGElement? farthestViewportElement;
 
-  [Creator, Throws]
-  SVGRect getBBox();
+  [NewObject, Throws]
+  SVGRect getBBox(optional SVGBoundingBoxOptions aOptions);
   // Not implemented
   // SVGRect getStrokeBBox();
   SVGMatrix? getCTM();

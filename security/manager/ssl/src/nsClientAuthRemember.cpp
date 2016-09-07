@@ -27,9 +27,9 @@
 using namespace mozilla;
 using namespace mozilla::psm;
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsClientAuthRememberService, 
-                              nsIObserver,
-                              nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(nsClientAuthRememberService,
+                  nsIObserver,
+                  nsISupportsWeakReference)
 
 nsClientAuthRememberService::nsClientAuthRememberService()
   : monitor("nsClientAuthRememberService.monitor")
@@ -49,8 +49,6 @@ nsClientAuthRememberService::Init()
     return NS_ERROR_NOT_SAME_THREAD;
   }
 
-  mSettingsTable.Init();
-
   nsCOMPtr<nsIObserverService> observerService =
       mozilla::services::GetObserverService();
   if (observerService) {
@@ -63,7 +61,7 @@ nsClientAuthRememberService::Init()
 NS_IMETHODIMP
 nsClientAuthRememberService::Observe(nsISupports     *aSubject,
                                const char      *aTopic,
-                               const PRUnichar *aData)
+                               const char16_t *aData)
 {
   // check the topic
   if (!nsCRT::strcmp(aTopic, "profile-before-change")) {
@@ -116,9 +114,9 @@ nsClientAuthRememberService::RememberDecision(const nsACString & aHostName,
   {
     ReentrantMonitorAutoEnter lock(monitor);
     if (aClientCert) {
-      nsNSSCertificate pipCert(aClientCert);
+      RefPtr<nsNSSCertificate> pipCert(new nsNSSCertificate(aClientCert));
       char *dbkey = nullptr;
-      rv = pipCert.GetDbKey(&dbkey);
+      rv = pipCert->GetDbKey(&dbkey);
       if (NS_SUCCEEDED(rv) && dbkey) {
         AddEntryToList(aHostName, fpStr, 
                        nsDependentCString(dbkey));
@@ -207,7 +205,7 @@ nsClientAuthRememberService::GetHostWithCert(const nsACString & aHostName,
                                              nsACString& _retval)
 {
   nsAutoCString hostCert(aHostName);
-  hostCert.AppendLiteral(":");
+  hostCert.Append(':');
   hostCert.Append(fingerprint);
   
   _retval.Assign(hostCert);

@@ -8,16 +8,22 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include <climits>
-#include <cstdarg>
-#include <cstdio>
+#include <limits.h>
+#include <stdarg.h>
+#include <stdio.h>
 
 #include <algorithm>
 
-#include "video_engine/test/auto_test/interface/vie_autotest.h"
-#include "video_engine/test/auto_test/interface/vie_autotest_defines.h"
-#include "video_engine/test/auto_test/primitives/choice_helpers.h"
-#include "video_engine/test/auto_test/primitives/input_helpers.h"
+#include "gflags/gflags.h"
+#include "webrtc/system_wrappers/interface/scoped_ptr.h"
+#include "webrtc/test/channel_transport/include/channel_transport.h"
+#include "webrtc/video_engine/test/auto_test/interface/vie_autotest.h"
+#include "webrtc/video_engine/test/auto_test/interface/vie_autotest_defines.h"
+#include "webrtc/video_engine/test/auto_test/primitives/choice_helpers.h"
+#include "webrtc/video_engine/test/auto_test/primitives/general_primitives.h"
+#include "webrtc/video_engine/test/auto_test/primitives/input_helpers.h"
+#include "webrtc/video_engine/test/libvietest/include/vie_to_file_renderer.h"
+#include "webrtc/voice_engine/include/voe_network.h"
 
 #define VCM_RED_PAYLOAD_TYPE                            96
 #define VCM_ULPFEC_PAYLOAD_TYPE                         97
@@ -31,11 +37,14 @@
 #define DEFAULT_VIDEO_CODEC_MAX_BITRATE                 "1000"
 #define DEFAULT_AUDIO_PORT                              "11113"
 #define DEFAULT_AUDIO_CODEC                             "ISAC"
-#define DEFAULT_INCOMING_FILE_NAME                      "IncomingFile.avi"
-#define DEFAULT_OUTGOING_FILE_NAME                      "OutgoingFile.avi"
 #define DEFAULT_VIDEO_CODEC_MAX_FRAMERATE               "30"
 #define DEFAULT_VIDEO_PROTECTION_METHOD                 "None"
 #define DEFAULT_TEMPORAL_LAYER                          "0"
+#define DEFAULT_BUFFERING_DELAY_MS                      "0"
+
+DEFINE_string(render_custom_call_remote_to, "", "Specify to render the remote "
+    "stream of a custom call to the provided filename instead of showing it in "
+    "window 2. The file will end up in the default output directory (out/).");
 
 enum StatisticsType {
   kSendStatistic,
@@ -52,16 +61,6 @@ enum VideoProtectionMethod {
 using webrtc::FromChoices;
 using webrtc::TypedInput;
 
-class ViEAutotestFileObserver : public webrtc::ViEFileObserver {
- public:
-  ViEAutotestFileObserver() {}
-  ~ViEAutotestFileObserver() {}
-
-  void PlayFileEnded(const WebRtc_Word32 file_id) {
-    ViETest::Log("PlayFile ended");
-  }
-};
-
 class ViEAutotestEncoderObserver : public webrtc::ViEEncoderObserver {
  public:
   ViEAutotestEncoderObserver() {}
@@ -72,6 +71,10 @@ class ViEAutotestEncoderObserver : public webrtc::ViEEncoderObserver {
                     const unsigned int bitrate) {
     std::cout << "Send FR: " << framerate
               << " BR: " << bitrate << std::endl;
+  }
+
+  virtual void SuspendChange(int video_channel, bool is_suspended) OVERRIDE {
+    std::cout << "SuspendChange: " << is_suspended << std::endl;
   }
 };
 
@@ -86,6 +89,23 @@ class ViEAutotestDecoderObserver : public webrtc::ViEDecoderObserver {
     std::cout << "Received FR: " << framerate
               << " BR: " << bitrate << std::endl;
   }
+
+  virtual void DecoderTiming(int decode_ms,
+                             int max_decode_ms,
+                             int current_delay_ms,
+                             int target_delay_ms,
+                             int jitter_buffer_ms,
+                             int min_playout_delay_ms,
+                             int render_delay_ms) {
+    std::cout << "Decoder timing: DecodeMS: " << decode_ms
+              << ", MaxDecodeMS: " << max_decode_ms
+              << ", CurrentDelayMS: " << current_delay_ms
+              << ", TargetDelayMS: " << target_delay_ms
+              << ", JitterBufferMS: " << jitter_buffer_ms
+              << ", MinPlayoutDelayMS: " << min_playout_delay_ms
+              << ", RenderDelayMS: " << render_delay_ms;
+  }
+
   void IncomingCodecChanged(const int video_channel,
                             const webrtc::VideoCodec& codec) {}
   void RequestNewKeyFrame(const int video_channel) {
@@ -146,6 +166,7 @@ bool SetVideoProtection(webrtc::ViECodec* vie_codec,
                         int video_channel,
                         VideoProtectionMethod protection_method);
 bool GetBitrateSignaling();
+int GetBufferingDelay();
 
 // The following are audio helper functions.
 bool GetAudioDevices(webrtc::VoEBase* voe_base,
@@ -193,6 +214,12 @@ int ViEAutoTest::ViECustomCall() {
                                          "ERROR: %s at line %d", __FUNCTION__,
                                          __LINE__);
 
+  webrtc::VoENetwork* voe_network=
+      webrtc::VoENetwork::GetInterface(voe);
+  number_of_errors += ViETest::TestError(voe_network != NULL,
+                                         "ERROR: %s at line %d", __FUNCTION__,
+                                         __LINE__);
+
   webrtc::VoEAudioProcessing* voe_apm =
       webrtc::VoEAudioProcessing::GetInterface(voe);
   number_of_errors += ViETest::TestError(voe_apm != NULL,
@@ -235,11 +262,6 @@ int ViEAutoTest::ViECustomCall() {
                                          "ERROR: %s at line %d", __FUNCTION__,
                                          __LINE__);
 
-  webrtc::ViEFile* vie_file = webrtc::ViEFile::GetInterface(vie);
-  number_of_errors += ViETest::TestError(vie_file != NULL,
-                                         "ERROR: %s at line %d", __FUNCTION__,
-                                         __LINE__);
-
   bool start_call = false;
   std::string ip_address;
   const unsigned int KMaxUniqueIdLength = 256;
@@ -258,8 +280,13 @@ int ViEAutoTest::ViECustomCall() {
   webrtc::CodecInst audio_codec;
   int audio_channel = -1;
   VideoProtectionMethod protection_method = kProtectionMethodNone;
+  int buffer_delay_ms = 0;
   bool is_image_scale_enabled = false;
   bool remb = true;
+  webrtc::scoped_ptr<webrtc::test::VideoChannelTransport>
+      video_channel_transport;
+  webrtc::scoped_ptr<webrtc::test::VoiceChannelTransport>
+      voice_channel_transport;
 
   while (!start_call) {
     // Get the IP address to use from call.
@@ -289,6 +316,9 @@ int ViEAutoTest::ViECustomCall() {
 
     // Get the video protection method for the call.
     protection_method = GetVideoProtection();
+
+    // Get the call mode (Real-Time/Buffered).
+    buffer_delay_ms = GetBufferingDelay();
 
     // Get the audio device for the call.
     memset(audio_capture_device_name, 0, KMaxUniqueIdLength);
@@ -327,13 +357,17 @@ int ViEAutoTest::ViECustomCall() {
   if (start_call == true) {
     // Configure audio channel first.
     audio_channel = voe_base->CreateChannel();
-    error = voe_base->SetSendDestination(audio_channel, audio_tx_port,
-                                         ip_address.c_str());
+
+    voice_channel_transport.reset(
+        new webrtc::test::VoiceChannelTransport(voe_network, audio_channel));
+
+    error = voice_channel_transport->SetSendDestination(ip_address.c_str(),
+                                                        audio_tx_port);
     number_of_errors += ViETest::TestError(error == 0,
                                            "ERROR: %s at line %d",
                                            __FUNCTION__, __LINE__);
 
-    error = voe_base->SetLocalReceiver(audio_channel, audio_rx_port);
+    error = voice_channel_transport->SetLocalReceiver(audio_rx_port);
     number_of_errors += ViETest::TestError(error == 0,
                                            "ERROR: %s at line %d",
                                            __FUNCTION__, __LINE__);
@@ -442,18 +476,34 @@ int ViEAutoTest::ViECustomCall() {
                                            "ERROR: %s at line %d",
                                            __FUNCTION__, __LINE__);
 
-    error = vie_renderer->AddRenderer(video_channel, _window2, 1, 0.0, 0.0, 1.0,
-                                      1.0);
-    number_of_errors += ViETest::TestError(error == 0,
-                                           "ERROR: %s at line %d",
-                                           __FUNCTION__, __LINE__);
-    error = vie_network->SetSendDestination(video_channel, ip_address.c_str(),
-                                                video_tx_port);
+
+    ViEToFileRenderer file_renderer;
+    if (FLAGS_render_custom_call_remote_to == "") {
+      error = vie_renderer->AddRenderer(video_channel, _window2, 1, 0.0, 0.0,
+                                        1.0, 1.0);
+      number_of_errors += ViETest::TestError(error == 0,
+                                             "ERROR: %s at line %d",
+                                             __FUNCTION__, __LINE__);
+    } else {
+      std::string output_path = ViETest::GetResultOutputPath();
+      std::string filename = FLAGS_render_custom_call_remote_to;
+      ViETest::Log("Rendering remote stream to %s: you will not see any output "
+          "in the second window.", (output_path + filename).c_str());
+
+      file_renderer.PrepareForRendering(output_path, filename);
+      RenderToFile(vie_renderer, video_channel, &file_renderer);
+    }
+
+    video_channel_transport.reset(
+        new webrtc::test::VideoChannelTransport(vie_network, video_channel));
+
+    error = video_channel_transport->SetSendDestination(ip_address.c_str(),
+                                                        video_tx_port);
     number_of_errors += ViETest::TestError(error == 0,
                                            "ERROR: %s at line %d",
                                            __FUNCTION__, __LINE__);
 
-    error = vie_network->SetLocalReceiver(video_channel, video_rx_port);
+    error = video_channel_transport->SetLocalReceiver(video_rx_port);
     number_of_errors += ViETest::TestError(error == 0,
                                            "ERROR: %s at line %d",
                                            __FUNCTION__, __LINE__);
@@ -466,6 +516,16 @@ int ViEAutoTest::ViECustomCall() {
     error = vie_codec->SetReceiveCodec(video_channel, video_send_codec);
     number_of_errors += ViETest::TestError(error == 0,
                                            "ERROR: %s at line %d",
+                                           __FUNCTION__, __LINE__);
+
+    // Set the call mode (conferencing/buffering)
+    error = vie_rtp_rtcp->SetSenderBufferingMode(video_channel,
+                                                    buffer_delay_ms);
+    number_of_errors += ViETest::TestError(error == 0, "ERROR: %s at line %d",
+                                           __FUNCTION__, __LINE__);
+    error = vie_rtp_rtcp->SetReceiverBufferingMode(video_channel,
+                                                      buffer_delay_ms);
+    number_of_errors += ViETest::TestError(error == 0, "ERROR: %s at line %d",
                                            __FUNCTION__, __LINE__);
     // Set the Video Protection before start send and receive.
     SetVideoProtection(vie_codec, vie_rtp_rtcp,
@@ -507,8 +567,6 @@ int ViEAutoTest::ViECustomCall() {
     number_of_errors += ViETest::TestError(error == 0,
                                            "ERROR: %s at line %d",
                                            __FUNCTION__, __LINE__);
-    ViEAutotestFileObserver file_observer;
-    int file_id;
 
     ViEAutotestEncoderObserver* codec_encoder_observer = NULL;
     ViEAutotestDecoderObserver* codec_decoder_observer = NULL;
@@ -524,9 +582,12 @@ int ViEAutoTest::ViECustomCall() {
     int selection = FromChoices(
         "And now?",
         "Stop the call\n"
-        "Modify the call\n").Choose();
-
-    int file_selection = 0;
+        "Modify the call\n"
+        "Keep the call running indefinitely\n")
+            .WithDefault("Keep the call running indefinitely").Choose();
+    if (selection == 3) {
+        AutoTestSleep(std::numeric_limits<int>::max());
+    }
 
     while (selection == 2) {
       // Keep on modifying the call until user stops the call.
@@ -537,10 +598,6 @@ int ViEAutoTest::ViECustomCall() {
           "Change Video Send Size by Common Resolutions\n"
           "Change Video Send Size by Width & Height\n"
           "Change Video Capture Device\n"
-          "Record Incoming Call\n"
-          "Record Outgoing Call\n"
-          "Play File on Video Channel "
-          "(Assumes you recorded incoming & outgoing call)\n"
           "Change Video Protection Method\n"
           "Toggle Encoder Observer\n"
           "Toggle Decoder Observer\n"
@@ -651,6 +708,11 @@ int ViEAutoTest::ViECustomCall() {
           number_of_errors += ViETest::TestError(error == 0,
                                                  "ERROR: %s at line %d",
                                                  __FUNCTION__, __LINE__);
+
+          assert(FLAGS_render_custom_call_remote_to == "" &&
+                 "Not implemented to change video capture device when "
+                 "rendering to file!");
+
           error = vie_capture->StartCapture(capture_id);
           number_of_errors += ViETest::TestError(error == 0,
                                                  "ERROR: %s at line %d",
@@ -666,106 +728,12 @@ int ViEAutoTest::ViECustomCall() {
                                                  __FUNCTION__, __LINE__);
           break;
         case 6:
-          // Record the incoming call.
-          std::cout << "Start Recording Incoming Video "
-                    << DEFAULT_INCOMING_FILE_NAME <<  std::endl;
-          error = vie_file->StartRecordIncomingVideo(
-                    video_channel, DEFAULT_INCOMING_FILE_NAME,
-                    webrtc::NO_AUDIO, audio_codec, video_send_codec);
-          std::cout << "Press enter to stop...";
-          std::getline(std::cin, str);
-          error = vie_file->StopRecordIncomingVideo(video_channel);
-          number_of_errors += ViETest::TestError(error == 0,
-                                                 "ERROR:%d %s at line %d",
-                                                 vie_base->LastError(),
-                                                 __FUNCTION__, __LINE__);
-          break;
-        case 7:
-          // Record the outgoing call.
-          std::cout << "Start Recording Outgoing Video "
-                    << DEFAULT_OUTGOING_FILE_NAME <<  std::endl;
-          error = vie_file->StartRecordOutgoingVideo(
-                    video_channel, DEFAULT_OUTGOING_FILE_NAME,
-                    webrtc::NO_AUDIO, audio_codec, video_send_codec);
-          std::cout << "Press enter to stop...";
-          std::getline(std::cin, str);
-          error = vie_file->StopRecordOutgoingVideo(video_channel);
-          number_of_errors += ViETest::TestError(error == 0,
-                                                 "ERROR:%d %s at line %d",
-                                                 vie_base->LastError(),
-                                                 __FUNCTION__, __LINE__);
-          break;
-        case 8:
-          // Send the file on the video_channel.
-          file_selection = FromChoices(
-              "Choose a file name:",
-              DEFAULT_INCOMING_FILE_NAME "\n"
-              DEFAULT_OUTGOING_FILE_NAME "\n")
-                  .WithDefault(DEFAULT_INCOMING_FILE_NAME).Choose();
-
-          // Disconnect the camera first.
-          error = vie_capture->DisconnectCaptureDevice(video_channel);
-          number_of_errors += ViETest::TestError(error == 0,
-                                                 "ERROR:%d %s at line %d",
-                                                 vie_base->LastError(),
-                                                 __FUNCTION__, __LINE__);
-          if (file_selection == 2)
-            error = vie_file->StartPlayFile(DEFAULT_OUTGOING_FILE_NAME,
-                                            file_id, true);
-          else
-            error = vie_file->StartPlayFile(DEFAULT_INCOMING_FILE_NAME,
-                                            file_id, true);
-          number_of_errors += ViETest::TestError(error == 0,
-                                                 "ERROR:%d %s at line %d",
-                                                 vie_base->LastError(),
-                                                 __FUNCTION__, __LINE__);
-          ViETest::Log("Registering file observer");
-          error = vie_file->RegisterObserver(file_id, file_observer);
-          number_of_errors += ViETest::TestError(error == 0,
-                                                 "ERROR:%d %s at line %d",
-                                                 vie_base->LastError(),
-                                                 __FUNCTION__, __LINE__);
-          std::cout << std::endl;
-          std::cout << "Start sending the file that is played in a loop "
-                    << std::endl;
-          error = vie_file->SendFileOnChannel(file_id, video_channel);
-          number_of_errors += ViETest::TestError(error == 0,
-                                                 "ERROR:%d %s at line %d",
-                                                 vie_base->LastError(),
-                                                 __FUNCTION__, __LINE__);
-          std::cout << "Press enter to stop...";
-          std::getline(std::cin, str);
-          ViETest::Log("Stopped sending video on channel");
-          error = vie_file->StopSendFileOnChannel(video_channel);
-          number_of_errors += ViETest::TestError(error == 0,
-                                                 "ERROR:%d %s at line %d",
-                                                 vie_base->LastError(),
-                                                 __FUNCTION__, __LINE__);
-          ViETest::Log("Stop playing the file.");
-          error = vie_file->StopPlayFile(file_id);
-          number_of_errors += ViETest::TestError(error == 0,
-                                                 "ERROR:%d %s at line %d",
-                                                 vie_base->LastError(),
-                                                 __FUNCTION__, __LINE__);
-          error = vie_capture->ConnectCaptureDevice(capture_id,
-                                                        video_channel);
-          number_of_errors += ViETest::TestError(error == 0,
-                                                 "ERROR:%d %s at line %d",
-                                                 vie_base->LastError(),
-                                                 __FUNCTION__, __LINE__);
-          error = vie_file->DeregisterObserver(file_id, file_observer);
-          number_of_errors += ViETest::TestError(error == -1,
-                                                 "ERROR:%d %s at line %d",
-                                                 vie_base->LastError(),
-                                                 __FUNCTION__, __LINE__);
-          break;
-        case 9:
           // Change the Video Protection.
           protection_method = GetVideoProtection();
           SetVideoProtection(vie_codec, vie_rtp_rtcp,
                              video_channel, protection_method);
           break;
-        case 10:
+        case 7:
           // Toggle Encoder Observer.
           if (!codec_encoder_observer) {
             std::cout << "Registering Encoder Observer" << std::endl;
@@ -785,7 +753,7 @@ int ViEAutoTest::ViECustomCall() {
                                                    __FUNCTION__, __LINE__);
           }
           break;
-        case 11:
+        case 8:
           // Toggle Decoder Observer.
           if (!codec_decoder_observer) {
             std::cout << "Registering Decoder Observer" << std::endl;
@@ -805,7 +773,7 @@ int ViEAutoTest::ViECustomCall() {
                                                    __FUNCTION__, __LINE__);
           }
           break;
-        case 12:
+        case 9:
           // Print Call information..
           PrintCallInformation(ip_address.c_str(), device_name,
                                unique_id, video_send_codec,
@@ -817,7 +785,7 @@ int ViEAutoTest::ViECustomCall() {
           PrintVideoStreamInformation(vie_codec,
                                       video_channel);
           break;
-        case 13:
+        case 10:
           // Print Call statistics.
           PrintRTCCPStatistics(vie_rtp_rtcp, video_channel,
                                kSendStatistic);
@@ -831,7 +799,7 @@ int ViEAutoTest::ViECustomCall() {
                                kReceivedStatistic);
           PrintGetDiscardedPackets(vie_codec, video_channel);
           break;
-        case 14:
+        case 11:
           is_image_scale_enabled = !is_image_scale_enabled;
           vie_codec->SetImageScaleStatus(video_channel, is_image_scale_enabled);
           if (is_image_scale_enabled) {
@@ -845,6 +813,9 @@ int ViEAutoTest::ViECustomCall() {
           break;
       }
     }
+
+    if (FLAGS_render_custom_call_remote_to != "")
+      file_renderer.StopRendering();
 
     // Testing finished. Tear down Voice and Video Engine.
     // Tear down the VoE first.
@@ -864,6 +835,8 @@ int ViEAutoTest::ViECustomCall() {
                                            __FUNCTION__, __LINE__);
     // Now tear down the ViE engine.
     error = vie_base->DisconnectAudioChannel(video_channel);
+
+    voice_channel_transport.reset(NULL);
 
     // If Encoder/Decoder Observer is running, delete them.
     if (codec_encoder_observer) {
@@ -926,16 +899,14 @@ int ViEAutoTest::ViECustomCall() {
                                            "ERROR: %s at line %d",
                                            __FUNCTION__, __LINE__);
 
+    video_channel_transport.reset(NULL);
+
     error = vie_base->DeleteChannel(video_channel);
     number_of_errors += ViETest::TestError(error == 0,
                                            "ERROR: %s at line %d",
                                            __FUNCTION__, __LINE__);
 
     int remaining_interfaces = 0;
-    remaining_interfaces = vie_file->Release();
-    number_of_errors += ViETest::TestError(remaining_interfaces == 0,
-                                           "ERROR: %s at line %d",
-                                           __FUNCTION__, __LINE__);
     remaining_interfaces = vie_codec->Release();
     number_of_errors += ViETest::TestError(remaining_interfaces == 0,
                                            "ERROR: %s at line %d",
@@ -1524,15 +1495,21 @@ bool GetBitrateSignaling() {
   return choice == 1;
 }
 
+int GetBufferingDelay() {
+  std::string input = TypedInput("Choose buffering delay (mS).")
+      .WithDefault(DEFAULT_BUFFERING_DELAY_MS)
+      .WithInputValidator(new webrtc::IntegerWithinRangeValidator(0, 10000))
+      .AskForInput();
+  std::string delay_ms = input;
+  return atoi(delay_ms.c_str());
+}
+
 void PrintRTCCPStatistics(webrtc::ViERTP_RTCP* vie_rtp_rtcp,
                           int video_channel,
                           StatisticsType stat_type) {
   int error = 0;
   int number_of_errors = 0;
-  uint16_t fraction_lost = 0;
-  unsigned int cumulative_lost = 0;
-  unsigned int extended_max = 0;
-  unsigned int jitter = 0;
+  webrtc::RtcpStatistics rtcp_stats;
   int rtt_ms = 0;
 
   switch (stat_type) {
@@ -1540,11 +1517,9 @@ void PrintRTCCPStatistics(webrtc::ViERTP_RTCP* vie_rtp_rtcp,
       std::cout << "RTCP Received statistics"
                 << std::endl;
       // Get and print the Received RTCP Statistics
-      error = vie_rtp_rtcp->GetReceivedRTCPStatistics(video_channel,
-                                                      fraction_lost,
-                                                      cumulative_lost,
-                                                      extended_max,
-                                                      jitter, rtt_ms);
+      error = vie_rtp_rtcp->GetReceiveChannelRtcpStatistics(video_channel,
+                                                      rtcp_stats,
+                                                      rtt_ms);
       number_of_errors += ViETest::TestError(error == 0,
                                              "ERROR: %s at line %d",
                                              __FUNCTION__, __LINE__);
@@ -1553,22 +1528,22 @@ void PrintRTCCPStatistics(webrtc::ViERTP_RTCP* vie_rtp_rtcp,
       std::cout << "RTCP Sent statistics"
                 << std::endl;
       // Get and print the Sent RTCP Statistics
-      error = vie_rtp_rtcp->GetSentRTCPStatistics(video_channel, fraction_lost,
-                                                  cumulative_lost, extended_max,
-                                                  jitter, rtt_ms);
+      error = vie_rtp_rtcp->GetSendChannelRtcpStatistics(video_channel,
+                                                  rtcp_stats,
+                                                  rtt_ms);
       number_of_errors += ViETest::TestError(error == 0,
                                              "ERROR: %s at line %d",
                                              __FUNCTION__, __LINE__);
       break;
   }
   std::cout << "\tRTCP fraction of lost packets: "
-            << fraction_lost << std::endl;
+            << rtcp_stats.fraction_lost << std::endl;
   std::cout << "\tRTCP cumulative number of lost packets: "
-            << cumulative_lost << std::endl;
+            << rtcp_stats.cumulative_lost << std::endl;
   std::cout << "\tRTCP max received sequence number "
-            << extended_max << std::endl;
+            << rtcp_stats.extended_max_sequence_number << std::endl;
   std::cout << "\tRTCP jitter: "
-            << jitter << std::endl;
+            << rtcp_stats.jitter << std::endl;
   std::cout << "\tRTCP round trip (ms): "
             << rtt_ms << std::endl;
 }
@@ -1577,29 +1552,25 @@ void PrintRTPStatistics(webrtc::ViERTP_RTCP* vie_rtp_rtcp,
                         int video_channel) {
   int error = 0;
   int number_of_errors = 0;
-  unsigned int bytes_sent = 0;
-  unsigned int packets_sent = 0;
-  unsigned int bytes_received = 0;
-  unsigned int packets_received = 0;
+  webrtc::StreamDataCounters sent;
+  webrtc::StreamDataCounters received;
 
   std::cout << "RTP statistics"
             << std::endl;
 
   // Get and print the RTP Statistics
-  error = vie_rtp_rtcp->GetRTPStatistics(video_channel, bytes_sent,
-                                         packets_sent, bytes_received,
-                                         packets_received);
+  error = vie_rtp_rtcp->GetRtpStatistics(video_channel, sent, received);
   number_of_errors += ViETest::TestError(error == 0,
                                          "ERROR: %s at line %d",
                                          __FUNCTION__, __LINE__);
   std::cout << "\tRTP bytes sent: "
-            << bytes_sent << std::endl;
+            << sent.bytes << std::endl;
   std::cout << "\tRTP packets sent: "
-            << packets_sent << std::endl;
+            << sent.packets << std::endl;
   std::cout << "\tRTP bytes received: "
-            << bytes_received << std::endl;
+            << received.bytes << std::endl;
   std::cout << "\tRTP packets received: "
-            << packets_received << std::endl;
+            << received.packets << std::endl;
 }
 
 void PrintBandwidthUsage(webrtc::ViERTP_RTCP* vie_rtp_rtcp,
@@ -1654,8 +1625,8 @@ void PrintCodecStatistics(webrtc::ViECodec* vie_codec,
       std::cout << "Codec Receive statistics"
                 << std::endl;
       // Get and print the Receive Codec Statistics
-      error = vie_codec->GetReceiveCodecStastistics(video_channel, key_frames,
-                                                    delta_frames);
+      error = vie_codec->GetReceiveCodecStatistics(video_channel, key_frames,
+                                                   delta_frames);
       number_of_errors += ViETest::TestError(error == 0,
                                              "ERROR: %s at line %d",
                                              __FUNCTION__, __LINE__);
@@ -1664,8 +1635,8 @@ void PrintCodecStatistics(webrtc::ViECodec* vie_codec,
       std::cout << "Codec Send statistics"
                 << std::endl;
       // Get and print the Send Codec Statistics
-      error = vie_codec->GetSendCodecStastistics(video_channel, key_frames,
-                                                 delta_frames);
+      error = vie_codec->GetSendCodecStatistics(video_channel, key_frames,
+                                                delta_frames);
       number_of_errors += ViETest::TestError(error == 0,
                                              "ERROR: %s at line %d",
                                              __FUNCTION__, __LINE__);
@@ -1680,7 +1651,7 @@ void PrintCodecStatistics(webrtc::ViECodec* vie_codec,
 void PrintGetDiscardedPackets(webrtc::ViECodec* vie_codec, int video_channel) {
   std::cout << "Discarded Packets" << std::endl;
   int discarded_packets = 0;
-  discarded_packets = vie_codec->GetDiscardedPackets(video_channel);
+  discarded_packets = vie_codec->GetNumDiscardedPackets(video_channel);
   std::cout << "\tNumber of discarded packets: "
             << discarded_packets << std::endl;
 }

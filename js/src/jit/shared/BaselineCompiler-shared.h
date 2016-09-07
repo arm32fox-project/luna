@@ -7,12 +7,10 @@
 #ifndef jit_shared_BaselineCompiler_shared_h
 #define jit_shared_BaselineCompiler_shared_h
 
-#include "jscntxt.h"
 #include "jit/BaselineFrameInfo.h"
-#include "jit/IonSpewer.h"
 #include "jit/BaselineIC.h"
-#include "jit/IonInstrumentation.h"
-#include "jit/IonMacroAssembler.h"
+#include "jit/BytecodeAnalysis.h"
+#include "jit/MacroAssembler.h"
 
 namespace js {
 namespace jit {
@@ -20,14 +18,15 @@ namespace jit {
 class BaselineCompilerShared
 {
   protected:
-    JSContext *cx;
-    RootedScript script;
-    jsbytecode *pc;
+    JSContext* cx;
+    JSScript* script;
+    jsbytecode* pc;
     MacroAssembler masm;
     bool ionCompileable_;
     bool ionOSRCompileable_;
-    bool debugMode_;
+    bool compileDebugInstrumentation_;
 
+    TempAllocator& alloc_;
     BytecodeAnalysis analysis_;
     FrameInfo frame;
 
@@ -45,10 +44,10 @@ class BaselineCompilerShared
         // current entry.
         bool addIndexEntry;
 
-        void fixupNativeOffset(MacroAssembler &masm) {
+        void fixupNativeOffset(MacroAssembler& masm) {
             CodeOffsetLabel offset(nativeOffset);
             offset.fixup(&masm);
-            JS_ASSERT(offset.offset() <= UINT32_MAX);
+            MOZ_ASSERT(offset.offset() <= UINT32_MAX);
             nativeOffset = (uint32_t) offset.offset();
         }
     };
@@ -69,17 +68,22 @@ class BaselineCompilerShared
     mozilla::DebugOnly<bool> inCall_;
 
     CodeOffsetLabel spsPushToggleOffset_;
+    CodeOffsetLabel profilerEnterFrameToggleOffset_;
+    CodeOffsetLabel profilerExitFrameToggleOffset_;
+    CodeOffsetLabel traceLoggerEnterToggleOffset_;
+    CodeOffsetLabel traceLoggerExitToggleOffset_;
+    CodeOffsetLabel traceLoggerScriptTextIdOffset_;
 
-    BaselineCompilerShared(JSContext *cx, HandleScript script);
+    BaselineCompilerShared(JSContext* cx, TempAllocator& alloc, JSScript* script);
 
-    ICEntry *allocateICEntry(ICStub *stub, bool isForOp) {
+    ICEntry* allocateICEntry(ICStub* stub, ICEntry::Kind kind) {
         if (!stub)
-            return NULL;
+            return nullptr;
 
         // Create the entry and add it to the vector.
-        if (!icEntries_.append(ICEntry((uint32_t) (pc - script->code), isForOp)))
-            return NULL;
-        ICEntry &vecEntry = icEntries_[icEntries_.length() - 1];
+        if (!icEntries_.append(ICEntry(script->pcToOffset(pc), kind)))
+            return nullptr;
+        ICEntry& vecEntry = icEntries_.back();
 
         // Set the first stub for the IC entry to the fallback stub
         vecEntry.setFirstStub(stub);
@@ -88,20 +92,29 @@ class BaselineCompilerShared
         return &vecEntry;
     }
 
+    // Append an ICEntry without a stub.
+    bool appendICEntry(ICEntry::Kind kind, uint32_t returnOffset) {
+        ICEntry entry(script->pcToOffset(pc), kind);
+        entry.setReturnOffset(CodeOffsetLabel(returnOffset));
+        return icEntries_.append(entry);
+    }
+
     bool addICLoadLabel(CodeOffsetLabel label) {
-        JS_ASSERT(!icEntries_.empty());
+        MOZ_ASSERT(!icEntries_.empty());
         ICLoadLabel loadLabel;
         loadLabel.label = label;
         loadLabel.icEntry = icEntries_.length() - 1;
         return icLoadLabels_.append(loadLabel);
     }
 
-    JSFunction *function() const {
-        return script->function();
+    JSFunction* function() const {
+        // Not delazifying here is ok as the function is guaranteed to have
+        // been delazified before compilation started.
+        return script->functionNonDelazifying();
     }
 
     PCMappingSlotInfo getStackTopSlotInfo() {
-        JS_ASSERT(frame.numUnsyncedSlots() <= 2);
+        MOZ_ASSERT(frame.numUnsyncedSlots() <= 2);
         switch (frame.numUnsyncedSlots()) {
           case 0:
             return PCMappingSlotInfo::MakeSlotInfo();
@@ -129,11 +142,27 @@ class BaselineCompilerShared
         masm.Push(BaselineFrameReg);
     }
 
-    bool callVM(const VMFunction &fun);
+    enum CallVMPhase {
+        POST_INITIALIZE,
+        PRE_INITIALIZE,
+        CHECK_OVER_RECURSED
+    };
+    bool callVM(const VMFunction& fun, CallVMPhase phase=POST_INITIALIZE);
+
+    bool callVMNonOp(const VMFunction& fun, CallVMPhase phase=POST_INITIALIZE) {
+        if (!callVM(fun, phase))
+            return false;
+        icEntries_.back().setFakeKind(ICEntry::Kind_NonOpCallVM);
+        return true;
+    }
 
   public:
-    BytecodeAnalysis &analysis() {
+    BytecodeAnalysis& analysis() {
         return analysis_;
+    }
+
+    void setCompileDebugInstrumentation() {
+        compileDebugInstrumentation_ = true;
     }
 };
 

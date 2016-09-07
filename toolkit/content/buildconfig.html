@@ -3,13 +3,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 #
-# IMPORTANT: Do not modify this file without checking the results of 
-# build/macosx/universal/fix-buildconfig in a Mac Universal binary.
-#
 #filter substitution
 <html>
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width; user-scalable=false;">
   <title>about:buildconfig</title>
   <link rel="stylesheet" href="chrome://global/skin/about.css" type="text/css">
   <style type="text/css">
@@ -26,9 +24,12 @@
 #endif
 #ifdef SOURCE_REPO
 #ifdef SOURCE_CHANGESET
-# <h2>Source</h2>
-# <p>Built from <a href="@SOURCE_REPO@/rev/@SOURCE_CHANGESET@">@SOURCE_REPO@/rev/@SOURCE_CHANGESET@</a></p>
+<h2>Source</h2>
+<p>Built from <a href="@SOURCE_REPO@/rev/@SOURCE_CHANGESET@">@SOURCE_REPO@/rev/@SOURCE_CHANGESET@</a></p>
 #endif
+#elifdef SOURCE_GIT_COMMIT
+<h2>Source</h2>
+<p>Built from git commit <a href="#">@SOURCE_GIT_COMMIT@</a></p>
 #endif
 <h2>Build platform</h2>
 <table>

@@ -11,7 +11,9 @@
  * related or neighboring rights to this work.
  */
 
-[PrefControlled, Constructor(DOMString title, optional NotificationOptions options)]
+[Pref="dom.webnotifications.enabled",
+ Constructor(DOMString title, optional NotificationOptions options),
+ UnsafeInPrerendering]
 interface Notification : EventTarget {
   [GetterThrows]
   static readonly attribute NotificationPermission permission;
@@ -19,17 +21,37 @@ interface Notification : EventTarget {
   [Throws]
   static void requestPermission(optional NotificationPermissionCallback permissionCallback);
 
-  [SetterThrows]
+  [Throws]
+  static Promise<sequence<Notification>> get(optional GetNotificationOptions filter);
+
   attribute EventHandler onclick;
 
-  [SetterThrows]
   attribute EventHandler onshow;
 
-  [SetterThrows]
   attribute EventHandler onerror;
 
-  [SetterThrows]
   attribute EventHandler onclose;
+
+  [Pure]
+  readonly attribute DOMString title;
+
+  [Pure]
+  readonly attribute NotificationDirection dir;
+
+  [Pure]
+  readonly attribute DOMString? lang;
+
+  [Pure]
+  readonly attribute DOMString? body;
+
+  [Constant]
+  readonly attribute DOMString? tag;
+
+  [Pure]
+  readonly attribute DOMString? icon;
+
+  [Constant]
+  readonly attribute any data;
 
   void close();
 };
@@ -38,8 +60,22 @@ dictionary NotificationOptions {
   NotificationDirection dir = "auto";
   DOMString lang = "";
   DOMString body = "";
-  DOMString tag;
+  DOMString tag = "";
   DOMString icon = "";
+  any data = null;
+  NotificationBehavior mozbehavior = null;
+};
+
+dictionary GetNotificationOptions {
+  DOMString tag;
+};
+
+dictionary NotificationBehavior {
+  boolean noscreen = false;
+  boolean noclear = false;
+  boolean showOnlyOnce = false;
+  DOMString soundFile = "";
+  sequence<unsigned long> vibrationPattern;
 };
 
 enum NotificationPermission {

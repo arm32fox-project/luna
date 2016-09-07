@@ -9,7 +9,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "PlacesUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
                                   "resource://gre/modules/FormHistory.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
-                                  "resource://gre/modules/commonjs/sdk/core/promise.js");
+                                  "resource:///modules/promise.js");
 
 function Sanitizer() {}
 Sanitizer.prototype = {
@@ -106,12 +106,12 @@ Sanitizer.prototype = {
     cache: {
       clear: function ()
       {
-        var cacheService = Cc["@mozilla.org/network/cache-service;1"].
-                          getService(Ci.nsICacheService);
+        var cache = Cc["@mozilla.org/netwerk/cache-storage-service;1"].
+                    getService(Ci.nsICacheStorageService);
         try {
           // Cache doesn't consult timespan, nor does it have the
           // facility for timespan-based eviction.  Wipe it.
-          cacheService.evictEntries(Ci.nsICache.STORE_ANYWHERE);
+          cache.clear();
         } catch(er) {}
 
         var imageCache = Cc["@mozilla.org/image/tools;1"].
@@ -331,9 +331,8 @@ Sanitizer.prototype = {
 
       get canClear()
       {
-        var dlMgr = Components.classes["@mozilla.org/download-manager;1"]
-                              .getService(Components.interfaces.nsIDownloadManager);
-        return dlMgr.canCleanUp || dlMgr.canCleanUpPrivate;
+        //Clearing is always possible with JSTransfers
+        return true;
       }
     },
     

@@ -12,22 +12,27 @@
 
 #include <gio/gio.h>
 #include <gtk/gtk.h>
+#ifdef MOZ_ENABLE_DBUS
+#include <dbus/dbus-glib.h>
+#include <dbus/dbus-glib-lowlevel.h>
+#endif
 
 
-class nsGIOMimeApp MOZ_FINAL : public nsIGIOMimeApp
+class nsGIOMimeApp final : public nsIGIOMimeApp
 {
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIGIOMIMEAPP
 
-  nsGIOMimeApp(GAppInfo* aApp) : mApp(aApp) {}
-  ~nsGIOMimeApp() { g_object_unref(mApp); }
+  explicit nsGIOMimeApp(GAppInfo* aApp) : mApp(aApp) {}
 
 private:
+  ~nsGIOMimeApp() { g_object_unref(mApp); }
+
   GAppInfo *mApp;
 };
 
-NS_IMPL_ISUPPORTS1(nsGIOMimeApp, nsIGIOMimeApp)
+NS_IMPL_ISUPPORTS(nsGIOMimeApp, nsIGIOMimeApp)
 
 NS_IMETHODIMP
 nsGIOMimeApp::GetId(nsACString& aId)
@@ -67,8 +72,8 @@ nsGIOMimeApp::Launch(const nsACString& aUri)
   PromiseFlatCString flatUri(aUri);
   uris.data = const_cast<char*>(flatUri.get());
 
-  GError *error = NULL;
-  gboolean result = g_app_info_launch_uris(mApp, &uris, NULL, &error);
+  GError *error = nullptr;
+  gboolean result = g_app_info_launch_uris(mApp, &uris, nullptr, &error);
 
   if (!result) {
     g_warning("Cannot launch application: %s", error->message);
@@ -79,11 +84,12 @@ nsGIOMimeApp::Launch(const nsACString& aUri)
   return NS_OK;
 }
 
-class GIOUTF8StringEnumerator MOZ_FINAL : public nsIUTF8StringEnumerator
+class GIOUTF8StringEnumerator final : public nsIUTF8StringEnumerator
 {
+  ~GIOUTF8StringEnumerator() { }
+
 public:
   GIOUTF8StringEnumerator() : mIndex(0) { }
-  ~GIOUTF8StringEnumerator() { }
 
   NS_DECL_ISUPPORTS
   NS_DECL_NSIUTF8STRINGENUMERATOR
@@ -92,7 +98,7 @@ public:
   uint32_t            mIndex;
 };
 
-NS_IMPL_ISUPPORTS1(GIOUTF8StringEnumerator, nsIUTF8StringEnumerator)
+NS_IMPL_ISUPPORTS(GIOUTF8StringEnumerator, nsIUTF8StringEnumerator)
 
 NS_IMETHODIMP
 GIOUTF8StringEnumerator::HasMore(bool* aResult)
@@ -129,7 +135,7 @@ nsGIOMimeApp::GetSupportedURISchemes(nsIUTF8StringEnumerator** aSchemes)
 
   const gchar* const * uri_schemes = g_vfs_get_supported_uri_schemes(gvfs);
 
-  while (*uri_schemes != NULL) {
+  while (*uri_schemes != nullptr) {
     if (!array->mStrings.AppendElement(*uri_schemes)) {
       return NS_ERROR_OUT_OF_MEMORY;
     }
@@ -147,7 +153,7 @@ nsGIOMimeApp::SetAsDefaultForMimeType(nsACString const& aMimeType)
     g_content_type_from_mime_type(PromiseFlatCString(aMimeType).get());
   if (!content_type)
     return NS_ERROR_FAILURE;
-  GError *error = NULL;
+  GError *error = nullptr;
   g_app_info_set_as_default_for_type(mApp,
                                      content_type,
                                      &error);
@@ -172,7 +178,7 @@ nsGIOMimeApp::SetAsDefaultForMimeType(nsACString const& aMimeType)
 NS_IMETHODIMP
 nsGIOMimeApp::SetAsDefaultForFileExtensions(nsACString const& fileExts)
 {
-  GError *error = NULL;
+  GError *error = nullptr;
   char *extensions = g_strdup(PromiseFlatCString(fileExts).get());
   char *ext_pos = extensions;
   char *space_pos;
@@ -209,7 +215,7 @@ nsGIOMimeApp::SetAsDefaultForFileExtensions(nsACString const& fileExts)
 NS_IMETHODIMP
 nsGIOMimeApp::SetAsDefaultForURIScheme(nsACString const& aURIScheme)
 {
-  GError *error = NULL;
+  GError *error = nullptr;
   nsAutoCString contentType("x-scheme-handler/");
   contentType.Append(aURIScheme);
 
@@ -227,7 +233,7 @@ nsGIOMimeApp::SetAsDefaultForURIScheme(nsACString const& aURIScheme)
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS1(nsGIOService, nsIGIOService)
+NS_IMPL_ISUPPORTS(nsGIOService, nsIGIOService)
 
 NS_IMETHODIMP
 nsGIOService::GetMimeTypeFromExtension(const nsACString& aExtension,
@@ -238,7 +244,7 @@ nsGIOService::GetMimeTypeFromExtension(const nsACString& aExtension,
 
   gboolean result_uncertain;
   char *content_type = g_content_type_guess(fileExtToUse.get(),
-                                            NULL,
+                                            nullptr,
                                             0,
                                             &result_uncertain);
   if (!content_type)
@@ -325,9 +331,9 @@ nsGIOService::ShowURI(nsIURI* aURI)
 {
   nsAutoCString spec;
   aURI->GetSpec(spec);
-  GError *error = NULL;
-  if (!g_app_info_launch_default_for_uri(spec.get(), NULL, &error)) {
-    g_warning("Could not launch default application for URI: %s" ,error->message);
+  GError *error = nullptr;
+  if (!g_app_info_launch_default_for_uri(spec.get(), nullptr, &error)) {
+    g_warning("Could not launch default application for URI: %s", error->message);
     g_error_free(error);
     return NS_ERROR_FAILURE;
   }
@@ -340,9 +346,9 @@ nsGIOService::ShowURIForInput(const nsACString& aUri)
   GFile *file = g_file_new_for_commandline_arg(PromiseFlatCString(aUri).get());
   char* spec = g_file_get_uri(file);
   nsresult rv = NS_ERROR_FAILURE;
-  GError *error = NULL;
+  GError *error = nullptr;
 
-  g_app_info_launch_default_for_uri(spec, NULL, &error);
+  g_app_info_launch_default_for_uri(spec, nullptr, &error);
   if (error) {
     g_warning("Cannot launch default application: %s", error->message);
     g_error_free(error);
@@ -353,6 +359,60 @@ nsGIOService::ShowURIForInput(const nsACString& aUri)
   g_free(spec);
 
   return rv;
+}
+
+NS_IMETHODIMP
+nsGIOService::OrgFreedesktopFileManager1ShowItems(const nsACString& aPath)
+{
+#ifndef MOZ_ENABLE_DBUS
+  return NS_ERROR_FAILURE;
+#else
+  GError* error = nullptr;
+  static bool org_freedesktop_FileManager1_exists = true;
+
+  if (!org_freedesktop_FileManager1_exists) {
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  DBusGConnection* dbusGConnection = dbus_g_bus_get(DBUS_BUS_SESSION, &error);
+
+  if (!dbusGConnection) {
+    if (error) {
+      g_printerr("Failed to open connection to session bus: %s\n", error->message);
+      g_error_free(error);
+    }
+    return NS_ERROR_FAILURE;
+  }
+
+  char *uri = g_filename_to_uri(PromiseFlatCString(aPath).get(), nullptr, nullptr);
+  if (uri == nullptr) {
+    return NS_ERROR_FAILURE;
+  }
+
+  DBusConnection* dbusConnection = dbus_g_connection_get_connection(dbusGConnection);
+  // Make sure we do not exit the entire program if DBus connection get lost.
+  dbus_connection_set_exit_on_disconnect(dbusConnection, false);
+
+  DBusGProxy* dbusGProxy = dbus_g_proxy_new_for_name(dbusGConnection,
+                                                     "org.freedesktop.FileManager1",
+                                                     "/org/freedesktop/FileManager1",
+                                                     "org.freedesktop.FileManager1");
+
+  const char *uris[2] = { uri, nullptr };
+  gboolean rv_dbus_call = dbus_g_proxy_call (dbusGProxy, "ShowItems", nullptr, G_TYPE_STRV, uris,
+                                             G_TYPE_STRING, "", G_TYPE_INVALID, G_TYPE_INVALID);
+
+  g_object_unref(dbusGProxy);
+  dbus_g_connection_unref(dbusGConnection);
+  g_free(uri);
+
+  if (!rv_dbus_call) {
+    org_freedesktop_FileManager1_exists = false;
+    return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  return NS_OK;
+#endif
 }
 
 /**
@@ -368,10 +428,10 @@ nsGIOService::CreateAppFromCommand(nsACString const& cmd,
                                    nsACString const& appName,
                                    nsIGIOMimeApp**   appInfo)
 {
-  GError *error = NULL;
+  GError *error = nullptr;
   *appInfo = nullptr;
 
-  GAppInfo *app_info = NULL, *app_info_from_list = NULL;
+  GAppInfo *app_info = nullptr, *app_info_from_list = nullptr;
   GList *apps = g_app_info_get_all();
   GList *apps_p = apps;
 

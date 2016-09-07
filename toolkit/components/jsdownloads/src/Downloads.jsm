@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim: set ts=2 et sw=2 tw=80 filetype=javascript: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -25,22 +25,18 @@ const Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/DownloadCore.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadCombinedList",
+                                  "resource://gre/modules/DownloadList.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadIntegration",
                                   "resource://gre/modules/DownloadIntegration.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadList",
                                   "resource://gre/modules/DownloadList.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "DownloadStore",
-                                  "resource://gre/modules/DownloadStore.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "DownloadSummary",
+                                  "resource://gre/modules/DownloadList.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "DownloadUIHelper",
                                   "resource://gre/modules/DownloadUIHelper.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "FileUtils",
-                                  "resource://gre/modules/FileUtils.jsm");
-XPCOMUtils.defineLazyModuleGetter(this, "NetUtil",
-                                  "resource://gre/modules/NetUtil.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Promise",
-                                  "resource://gre/modules/commonjs/sdk/core/promise.js");
-XPCOMUtils.defineLazyModuleGetter(this, "Services",
-                                  "resource://gre/modules/Services.jsm");
+                                  "resource://gre/modules/Promise.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
 
@@ -53,123 +49,46 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
  */
 this.Downloads = {
   /**
-   * Identifier indicating the public download list.
+   * Work on downloads that were not started from a private browsing window.
    */
-  get PUBLIC() {
-    return "{Downloads.PUBLIC}";
-  },
-
+  get PUBLIC() "{Downloads.PUBLIC}",
   /**
-   * Identifier indicating the private download list.
+   * Work on downloads that were started from a private browsing window.
    */
-  get PRIVATE() {
-    return "{Downloads.PRIVATE}";
-  },
-
+  get PRIVATE() "{Downloads.PRIVATE}",
   /**
-   * Identifier which is supposed to indicate all downloads.
-   * This will act identically to Downloads.PUBLIC.
+   * Work on both Downloads.PRIVATE and Downloads.PUBLIC downloads.
    */
-  get ALL() {
-    return "{Downloads.ALL}";
-  },
-
-  /**
-   * Performs the decoding functionality for createDownload and
-   * simpleDownload.
-   *
-   * Semantics are loosened because of how newer Firefox
-   * decodes the objects involved. Source can be a string, for
-   * example, not a URI object.
-   *
-   * This means some inputs here are accepted which
-   * wouldn't have before with FF 25-style API, but it still
-   * works as before with the usual old-style input.
-   */
-  _backendDownload: function (aSource, aTarget, aSaver, aProperties)
-  {
-    return Task.spawn(function task_D_createDownload() {
-      let download = new Download();
-
-      // Initialize the DownloadSource properties.
-      download.source = new DownloadSource();
-
-      if (aSource instanceof Ci.nsIURI) {
-        // The source is an nsIURI, directly assign it (FF 26+)
-        download.source.uri = aSource;
-      } else if (typeof aSource == "string" ||
-                 (typeof aSource == "object" && "charAt" in aSource)) {
-        // The above check is an implementation of isString which isn't
-        // supported by PM. It should be replaced if ever supported.
-
-        // The source is a string, convert it to a URI
-        download.source.uri = NetUtil.newURI(aSource);
-      } else if ("uri" in aSource && aSource.uri instanceof Ci.nsIURI) { // FF 25 behavior
-        download.source.uri = aSource.uri;
-
-        if (aProperties && "isPrivate" in aProperties) {
-          download.source.isPrivate = aProperties.isPrivate;
-        }
-        else if ("isPrivate" in aSource) {
-          download.source.isPrivate = aSource.isPrivate;
-        }
-
-        if (aProperties && "referrer" in aProperties) {
-          download.source.referrer = aProperties.referrer;
-        }
-        else if ("referrer" in aSource) {
-          download.source.referrer = aSource.referrer;
-        }
-      }
-      // TODO - We should handle errors if we didn't get a valid source.
-
-      // And the DownloadTarget.
-      download.target = new DownloadTarget();
-
-      if ((typeof aTarget == "object" && "charAt" in aTarget) ||
-          typeof aTarget == "string") {
-        download.target.file = new FileUtils.File(aTarget); // Create file from string
-      } else if ("file" in aTarget && aTarget.file instanceof Ci.nsIFile) { // Current FF 25-based behavior
-        download.target.file = aTarget.file;
-      } else {
-        download.target.file = aTarget; // TODO - Make sure this is actually a correct argument.
-      }
-
-      // Support for different aProperties.saver values isn't implemented yet.
-      if (aSaver && "type" in aSaver) {
-        download.saver = aSaver.type == "legacy"
-                  ? new DownloadLegacySaver()
-                  : new DownloadCopySaver();
-      } else {
-        download.saver = new DownloadCopySaver(); // Default is copy saver.
-      }
-      download.saver.download = download;
-
-      // This explicitly makes this function a generator for Task.jsm, so that
-      // exceptions in the above calls can be reported asynchronously.
-      yield;
-      throw new Task.Result(download);
-    });
-  },
+  get ALL() "{Downloads.ALL}",
 
   /**
    * Creates a new Download object.
    *
    * @param aProperties
    *        Provides the initial properties for the newly created download.
+   *        This matches the serializable representation of a Download object.
+   *        Some of the most common properties in this object include:
    *        {
-   *          source: {
-   *            uri: The nsIURI for the download source, or a string indicating the URI.
+   *          source: String containing the URI for the download source.
+   *                  Alternatively, may be an nsIURI, a DownloadSource object,
+   *                  or an object with the following properties:
+   *          {
+   *            url: String containing the URI for the download source.
    *            isPrivate: Indicates whether the download originated from a
-   *                       private window.
+   *                       private window.  If omitted, the download is public.
+   *            referrer: String containing the referrer URI of the download
+   *                      source.  Can be omitted or null if no referrer should
+   *                      be sent or the download source is not HTTP.
    *          },
-   *          target: {
-   *            file: The nsIFile for the download target, or a string of the path.
+   *          target: String containing the path of the target file.
+   *                  Alternatively, may be an nsIFile, a DownloadTarget object,
+   *                  or an object with the following properties:
+   *          {
+   *            path: String containing the path of the target file.
    *          },
-   *          saver: {
-   *            type: String representing the class of download operation
-   *                  handled by this saver object, for example "copy".
-   *          },
+   *          saver: String representing the class of the download operation.
+   *                 If omitted, defaults to "copy".  Alternatively, may be the
+   *                 serializable representation of a DownloadSaver object.
    *        }
    *
    * @return {Promise}
@@ -178,140 +97,154 @@ this.Downloads = {
    */
   createDownload: function D_createDownload(aProperties)
   {
-    if (aProperties && "source" in aProperties && "target" in aProperties) {
-      if ("saver" in aProperties) {
-        return this._backendDownload(aProperties.source, aProperties.target, 
-                                     aProperties.saver, null);
-      } else {
-        return this._backendDownload(aProperties.source, aProperties.target, 
-                                     null, null);
-      }
-    } else {
-      return Promise.reject(); // Invalid arguments.
+    try {
+      return Promise.resolve(Download.fromSerializable(aProperties));
+    } catch (ex) {
+      return Promise.reject(ex);
     }
   },
 
   /**
    * Downloads data from a remote network location to a local file.
    *
-   * This download method does not provide user interface or the ability to
-   * cancel the download programmatically.  For that, you should obtain a
-   * reference to a Download object using the createDownload function.
+   * This download method does not provide user interface, or the ability to
+   * cancel or restart the download programmatically.  For that, you should
+   * obtain a reference to a Download object using the createDownload function.
+   *
+   * Since the download cannot be restarted, any partially downloaded data will
+   * not be kept in case the download fails.
    *
    * @param aSource
-   *        The nsIURI or string containing the URI spec for the download
-   *        source, or alternative DownloadSource.
+   *        String containing the URI for the download source.  Alternatively,
+   *        may be an nsIURI or a DownloadSource object.
    * @param aTarget
-   *        The nsIFile or string containing the file path, or alternative
-   *        DownloadTarget.
+   *        String containing the path of the target file.  Alternatively, may
+   *        be an nsIFile or a DownloadTarget object.
    * @param aOptions
-   *        The object contains different additional options or null.
-   *        {  isPrivate: Indicates whether the download originated from a
-   *                      private window.
+   *        An optional object used to control the behavior of this function.
+   *        You may pass an object with a subset of the following fields:
+   *        {
+   *          isPrivate: Indicates whether the download originated from a
+   *                     private window.
    *        }
    *
    * @return {Promise}
    * @resolves When the download has finished successfully.
    * @rejects JavaScript exception if the download failed.
    */
-  simpleDownload: function D_simpleDownload(aSource, aTarget, aOptions) {
-    return this._backendDownload(aSource, aTarget, null, aOptions).
-      then(function D_SD_onSuccess(aDownload) {
-        return aDownload.start();
-      });
+  fetch: function (aSource, aTarget, aOptions) {
+    return this.createDownload({
+      source: aSource,
+      target: aTarget,
+    }).then(function D_SD_onSuccess(aDownload) {
+      if (aOptions && ("isPrivate" in aOptions)) {
+        aDownload.source.isPrivate = aOptions.isPrivate;
+      }
+      return aDownload.start();
+    });
   },
 
   /**
-   * Wrapper function that is otherwise identical to simpleDownload.
-   * Mozilla has since renamed simpleDownload to fetch. This is for
-   * API compatibility.
+   * Retrieves the specified type of DownloadList object.  There is one download
+   * list for each type, and this method always retrieves a reference to the
+   * same download list when called with the same argument.
    *
-   * See simpleDownload for more information on usage.
-   *
-   * @param aSource
-   * @param aTarget
-   * @param aOptions
-   *
-   * @return {Promise}
-   * @resolves When the download has finished successfully.
-   * @rejects JavaScript exception if the download failed.
-   */
-  fetch: function(aSource, aTarget, aOptions) {
-    return this.simpleDownload(aSource, aTarget, aOptions);
-  },
-
-  /**
-   * Retrieves the DownloadList object for downloads that were not started from
-   * a private browsing window.
-   *
-   * Calling this function may cause the download list to be reloaded from the
-   * previous session, if it wasn't loaded already.
-   *
-   * This method always retrieves a reference to the same download list.
-   *
-   * @return {Promise}
-   * @resolves The DownloadList object for public downloads.
-   * @rejects JavaScript exception.
-   */
-  getPublicDownloadList: function D_getPublicDownloadList()
-  {
-    if (!this._publicDownloadList) {
-      this._publicDownloadList = new DownloadList(true);
-    }
-    return Promise.resolve(this._publicDownloadList);
-  },
-  _publicDownloadList: null,
-
-  /**
-   * Retrieves the DownloadList object for downloads that were started from
-   * a private browsing window.
-   *
-   * This method always retrieves a reference to the same download list.
-   *
-   * @return {Promise}
-   * @resolves The DownloadList object for private downloads.
-   * @rejects JavaScript exception.
-   */
-  getPrivateDownloadList: function D_getPrivateDownloadList()
-  {
-    if (!this._privateDownloadList) {
-      this._privateDownloadList = new DownloadList(false);
-    }
-    return Promise.resolve(this._privateDownloadList);
-  },
-  _privateDownloadList: null,
-
-  /**
-   * Retrieves the proper DownloadList passed in. Compatibility shim.
+   * Calling this function may cause the list of public downloads to be reloaded
+   * from the previous session, if it wasn't loaded already.
    *
    * @param aType
-   *        The type of list requested. One of Downloads.PUBLIC,
-   *        Downloads.PRIVATE or Downloads.ALL, though Downloads.ALL
-   *        will be resolved the same as Downloads.PUBLIC.
+   *        This can be Downloads.PUBLIC, Downloads.PRIVATE, or Downloads.ALL.
+   *        Downloads added to the Downloads.PUBLIC and Downloads.PRIVATE lists
+   *        are reflected in the Downloads.ALL list, and downloads added to the
+   *        Downloads.ALL list are also added to either the Downloads.PUBLIC or
+   *        the Downloads.PRIVATE list based on their properties.
    *
    * @return {Promise}
-   * @resolves The DownloadList specified by aType.
+   * @resolves The requested DownloadList or DownloadCombinedList object.
    * @rejects JavaScript exception.
    */
-  getList: function D_getList(aType)
+  getList: function (aType)
   {
-    switch(aType) {
-      case Downloads.PUBLIC:
-      case Downloads.ALL:
-        // I'm aware this isn't technically correct behavior.
-        // The reasoning behind it - once we drag in DownloadCombinedList
-        // the porting complexity goes through the roof and we would
-        // require newer mozilla core jsm. Which isn't happening.
-        // Not to mention, I'm not entirely sure mixing public and private mode is
-        // even a good idea.
-        return this.getPublicDownloadList();
-        break;
-      case Downloads.PRIVATE:
-        return this.getPrivateDownloadList();
-        break;
+    if (!this._promiseListsInitialized) {
+      this._promiseListsInitialized = Task.spawn(function () {
+        let publicList = new DownloadList();
+        let privateList = new DownloadList();
+        let combinedList = new DownloadCombinedList(publicList, privateList);
+
+        try {
+          yield DownloadIntegration.addListObservers(publicList, false);
+          yield DownloadIntegration.addListObservers(privateList, true);
+          yield DownloadIntegration.initializePublicDownloadList(publicList);
+        } catch (ex) {
+          Cu.reportError(ex);
+        }
+
+        let publicSummary = yield this.getSummary(Downloads.PUBLIC);
+        let privateSummary = yield this.getSummary(Downloads.PRIVATE);
+        let combinedSummary = yield this.getSummary(Downloads.ALL);
+
+        yield publicSummary.bindToList(publicList);
+        yield privateSummary.bindToList(privateList);
+        yield combinedSummary.bindToList(combinedList);
+
+        this._lists[Downloads.PUBLIC] = publicList;
+        this._lists[Downloads.PRIVATE] = privateList;
+        this._lists[Downloads.ALL] = combinedList;
+      }.bind(this));
     }
-    return Promise.reject();
+
+    return this._promiseListsInitialized.then(() => this._lists[aType]);
   },
+
+  /**
+   * Promise resolved when the initialization of the download lists has
+   * completed, or null if initialization has never been requested.
+   */
+  _promiseListsInitialized: null,
+
+  /**
+   * After initialization, this object is populated with one key for each type
+   * of download list that can be returned (Downloads.PUBLIC, Downloads.PRIVATE,
+   * or Downloads.ALL).  The values are the DownloadList objects.
+   */
+  _lists: {},
+
+  /**
+   * Retrieves the specified type of DownloadSummary object.  There is one
+   * download summary for each type, and this method always retrieves a
+   * reference to the same download summary when called with the same argument.
+   *
+   * Calling this function does not cause the list of public downloads to be
+   * reloaded from the previous session.  The summary will behave as if no
+   * downloads are present until the getList method is called.
+   *
+   * @param aType
+   *        This can be Downloads.PUBLIC, Downloads.PRIVATE, or Downloads.ALL.
+   *
+   * @return {Promise}
+   * @resolves The requested DownloadList or DownloadCombinedList object.
+   * @rejects JavaScript exception.
+   */
+  getSummary: function (aType)
+  {
+    if (aType != Downloads.PUBLIC && aType != Downloads.PRIVATE &&
+        aType != Downloads.ALL) {
+      throw new Error("Invalid aType argument.");
+    }
+
+    if (!(aType in this._summaries)) {
+      this._summaries[aType] = new DownloadSummary();
+    }
+
+    return Promise.resolve(this._summaries[aType]);
+  },
+
+  /**
+   * This object is populated by the getSummary method with one key for each
+   * type of object that can be returned (Downloads.PUBLIC, Downloads.PRIVATE,
+   * or Downloads.ALL).  The values are the DownloadSummary objects.
+   */
+  _summaries: {},
 
   /**
    * Returns the system downloads directory asynchronously.
@@ -327,7 +260,7 @@ this.Downloads = {
    *     standard downloads directory i.e. /sdcard
    *
    * @return {Promise}
-   * @resolves The nsIFile of downloads directory.
+   * @resolves The downloads directory string path.
    */
   getSystemDownloadsDirectory: function D_getSystemDownloadsDirectory() {
     return DownloadIntegration.getSystemDownloadsDirectory();
@@ -338,10 +271,10 @@ this.Downloads = {
    * in the current profile asynchronously.
    *
    * @return {Promise}
-   * @resolves The nsIFile of downloads directory.
+   * @resolves The downloads directory string path.
    */
-  getUserDownloadsDirectory: function D_getUserDownloadsDirectory() {
-    return DownloadIntegration.getUserDownloadsDirectory();
+  getPreferredDownloadsDirectory: function D_getPreferredDownloadsDirectory() {
+    return DownloadIntegration.getPreferredDownloadsDirectory();
   },
 
   /**
@@ -351,7 +284,7 @@ this.Downloads = {
    * directory, based on the platform asynchronously.
    *
    * @return {Promise}
-   * @resolves The nsIFile of downloads directory.
+   * @resolves The downloads directory string path.
    */
   getTemporaryDownloadsDirectory: function D_getTemporaryDownloadsDirectory() {
     return DownloadIntegration.getTemporaryDownloadsDirectory();

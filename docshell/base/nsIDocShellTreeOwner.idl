@@ -12,7 +12,7 @@
 
 interface nsIDocShellTreeItem;
 
-[scriptable, uuid(932f9f93-8e21-4728-a527-cafc64b4d831)]
+[scriptable, uuid(05b5b240-1f61-11e4-8c21-0800200c9a66)]
 interface nsIDocShellTreeOwner : nsISupports
 {
 	/*

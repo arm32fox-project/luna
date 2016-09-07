@@ -4,7 +4,6 @@
 
     COMPONENT(CATEGORYMANAGER, nsCategoryManager::Create)
 
-    COMPONENT(BYTEBUFFER, ByteBufferImpl::Create)
     COMPONENT(SCRIPTABLEINPUTSTREAM, nsScriptableInputStream::Create)
     COMPONENT(BINARYINPUTSTREAM, nsBinaryInputStreamConstructor)
     COMPONENT(BINARYOUTPUTSTREAM, nsBinaryOutputStreamConstructor)
@@ -18,11 +17,13 @@
     COMPONENT(PERSISTENTPROPERTIES, nsPersistentProperties::Create)
 
     COMPONENT(SUPPORTSARRAY, nsSupportsArray::Create)
-    COMPONENT(ARRAY, nsArray::XPCOMConstructor)
+    COMPONENT(ARRAY, nsArrayBase::XPCOMConstructor)
     COMPONENT(CONSOLESERVICE, nsConsoleServiceConstructor)
-    COMPONENT(EXCEPTIONSERVICE, nsExceptionServiceConstructor)
     COMPONENT(ATOMSERVICE, nsAtomServiceConstructor)
     COMPONENT(OBSERVERSERVICE, nsObserverService::Create)
+#ifdef MOZ_VISUAL_EVENT_TRACER
+    COMPONENT(VISUALEVENTTRACER, VisualEventTracerConstructor)
+#endif
 
     COMPONENT(TIMER, nsTimerImplConstructor)
 
@@ -62,7 +63,7 @@
     COMPONENT(VARIANT, nsVariantConstructor)
     COMPONENT(INTERFACEINFOMANAGER_SERVICE, nsXPTIInterfaceInfoManagerGetSingleton)
 
-    COMPONENT(HASH_PROPERTY_BAG, nsHashPropertyBagConstructor)
+    COMPONENT(HASH_PROPERTY_BAG, nsHashPropertyBagCCConstructor)
 
     COMPONENT(UUID_GENERATOR, nsUUIDGeneratorConstructor)
 
@@ -80,3 +81,5 @@
     COMPONENT(IOUTIL, nsIOUtilConstructor)
     COMPONENT(CYCLE_COLLECTOR_LOGGER, nsCycleCollectorLoggerConstructor)
     COMPONENT(MESSAGE_LOOP, nsMessageLoopConstructor)
+    COMPONENT(STATUS_REPORTER_MANAGER, nsStatusReporterManagerConstructor)
+    COMPONENT(COMPARTMENT_INFO, nsCompartmentInfoConstructor)

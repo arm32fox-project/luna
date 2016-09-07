@@ -3,8 +3,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/layers/PLayerTransactionParent.h"
-#include "BasicLayersImpl.h"
+#include "BasicLayersImpl.h"            // for FillRectWithMask, etc
+#include "Layers.h"                     // for ColorLayer, etc
+#include "BasicImplData.h"              // for BasicImplData
+#include "BasicLayers.h"                // for BasicLayerManager
+#include "gfxContext.h"                 // for gfxContext, etc
+#include "gfxRect.h"                    // for gfxRect
+#include "gfx2DGlue.h"
+#include "mozilla/mozalloc.h"           // for operator new
+#include "nsAutoPtr.h"                  // for nsRefPtr
+#include "nsCOMPtr.h"                   // for already_AddRefed
+#include "nsDebug.h"                    // for NS_ASSERTION
+#include "nsISupportsImpl.h"            // for Layer::AddRef, etc
+#include "nsRect.h"                     // for nsIntRect
+#include "nsRegion.h"                   // for nsIntRegion
+#include "mozilla/gfx/PathHelpers.h"
 
 using namespace mozilla::gfx;
 
@@ -13,34 +26,44 @@ namespace layers {
 
 class BasicColorLayer : public ColorLayer, public BasicImplData {
 public:
-  BasicColorLayer(BasicLayerManager* aLayerManager) :
+  explicit BasicColorLayer(BasicLayerManager* aLayerManager) :
     ColorLayer(aLayerManager, static_cast<BasicImplData*>(this))
   {
     MOZ_COUNT_CTOR(BasicColorLayer);
   }
+
+protected:
   virtual ~BasicColorLayer()
   {
     MOZ_COUNT_DTOR(BasicColorLayer);
   }
 
-  virtual void SetVisibleRegion(const nsIntRegion& aRegion)
+public:
+  virtual void SetVisibleRegion(const nsIntRegion& aRegion) override
   {
     NS_ASSERTION(BasicManager()->InConstruction(),
                  "Can only set properties in construction phase");
     ColorLayer::SetVisibleRegion(aRegion);
   }
 
-  virtual void Paint(gfxContext* aContext, Layer* aMaskLayer)
+  virtual void Paint(DrawTarget* aDT,
+                     const gfx::Point& aDeviceOffset,
+                     Layer* aMaskLayer) override
   {
-    if (IsHidden())
+    if (IsHidden()) {
       return;
-    AutoSetOperator setOperator(aContext, GetOperator());
-    PaintColorTo(mColor, GetEffectiveOpacity(), aContext, aMaskLayer);
-  }
+    }
 
-  static void PaintColorTo(gfxRGBA aColor, float aOpacity,
-                           gfxContext* aContext,
-                           Layer* aMaskLayer);
+    Rect snapped(mBounds.x, mBounds.y, mBounds.width, mBounds.height);
+    MaybeSnapToDevicePixels(snapped, *aDT, true);
+
+    // Clip drawing in case we're using (unbounded) operator source.
+    aDT->PushClipRect(snapped);
+    FillRectWithMask(aDT, aDeviceOffset, snapped, ToColor(mColor),
+                     DrawOptions(GetEffectiveOpacity(), GetEffectiveOperator(this)),
+                     aMaskLayer);
+    aDT->PopClip();
+  }
 
 protected:
   BasicLayerManager* BasicManager()
@@ -48,15 +71,6 @@ protected:
     return static_cast<BasicLayerManager*>(mManager);
   }
 };
-
-/*static*/ void
-BasicColorLayer::PaintColorTo(gfxRGBA aColor, float aOpacity,
-                              gfxContext* aContext,
-                              Layer* aMaskLayer)
-{
-  aContext->SetColor(aColor);
-  PaintWithMask(aContext, aOpacity, aMaskLayer);
-}
 
 already_AddRefed<ColorLayer>
 BasicLayerManager::CreateColorLayer()

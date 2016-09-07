@@ -6,60 +6,13 @@
 
 #include "jscntxt.h"
 #include "jscompartment.h"
+
+#include "jit/arm/Assembler-arm.h"
 #include "jit/Bailouts.h"
-#include "jit/IonCompartment.h"
-#include "jit/IonFrames-inl.h"
+#include "jit/JitCompartment.h"
 
 using namespace js;
 using namespace js::jit;
-
-#if 0
-// no clue what these asserts should be.
-JS_STATIC_ASSERT(sizeof(BailoutStack) ==
-                 sizeof(uintptr_t) +
-                 sizeof(double) * 8 +
-                 sizeof(uintptr_t) * 8 +
-                 sizeof(uintptr_t));
-
-JS_STATIC_ASSERT(sizeof(ExtendedBailoutStack) ==
-                 sizeof(BailoutStack) +
-                 sizeof(uintptr_t));
-
-#endif
-#if 0
-BailoutEnvironment::BailoutEnvironment(IonCompartment *ion, void **sp)
-  : sp_(sp)
-{
-    bailout_ = reinterpret_cast<ExtendedBailoutStack *>(sp);
-
-    if (bailout_->frameClass() != FrameSizeClass::None()) {
-        frameSize_ = bailout_->frameSize();
-        frame_ = &sp_[sizeof(BailoutStack) / STACK_SLOT_SIZE];
-
-        // Compute the bailout ID.
-        IonCode *code = ion->getBailoutTable(bailout_->frameClass());
-        uintptr_t tableOffset = bailout_->tableOffset();
-        uintptr_t tableStart = reinterpret_cast<uintptr_t>(code->raw());
-
-        JS_ASSERT(tableOffset >= tableStart &&
-                  tableOffset < tableStart + code->instructionsSize());
-        JS_ASSERT((tableOffset - tableStart) % BAILOUT_TABLE_ENTRY_SIZE == 0);
-
-        bailoutId_ = ((tableOffset - tableStart) / BAILOUT_TABLE_ENTRY_SIZE) - 1;
-        JS_ASSERT(bailoutId_ < BAILOUT_TABLE_SIZE);
-    } else {
-        frameSize_ = bailout_->frameSize();
-        frame_ = &sp_[sizeof(ExtendedBailoutStack) / STACK_SLOT_SIZE];
-    }
-}
-
-IonFramePrefix *
-BailoutEnvironment::top() const
-{
-    return (IonFramePrefix *)&frame_[frameSize_ / STACK_SLOT_SIZE];
-}
-
-#endif
 
 namespace js {
 namespace jit {
@@ -67,27 +20,28 @@ namespace jit {
 class BailoutStack
 {
     uintptr_t frameClassId_;
-    // This is pushed in the bailout handler.  Both entry points into the handler
+    // This is pushed in the bailout handler. Both entry points into the handler
     // inserts their own value int lr, which is then placed onto the stack along
-    // with frameClassId_ above.  This should be migrated to ip.
+    // with frameClassId_ above. This should be migrated to ip.
   public:
     union {
         uintptr_t frameSize_;
         uintptr_t tableOffset_;
     };
 
-  private:
-    double    fpregs_[FloatRegisters::Total];
-    uintptr_t regs_[Registers::Total];
+  protected: // Silence Clang warning about unused private fields.
+    mozilla::Array<double, FloatRegisters::TotalPhys> fpregs_;
+    mozilla::Array<uintptr_t, Registers::Total> regs_;
 
     uintptr_t snapshotOffset_;
+    uintptr_t padding_;
 
   public:
     FrameSizeClass frameClass() const {
         return FrameSizeClass::FromClass(frameClassId_);
     }
     uintptr_t tableOffset() const {
-        JS_ASSERT(frameClass() != FrameSizeClass::None());
+        MOZ_ASSERT(frameClass() != FrameSizeClass::None());
         return tableOffset_;
     }
     uint32_t frameSize() const {
@@ -99,31 +53,35 @@ class BailoutStack
         return MachineState::FromBailout(regs_, fpregs_);
     }
     SnapshotOffset snapshotOffset() const {
-        JS_ASSERT(frameClass() == FrameSizeClass::None());
+        MOZ_ASSERT(frameClass() == FrameSizeClass::None());
         return snapshotOffset_;
     }
-    uint8_t *parentStackPointer() const {
+    uint8_t* parentStackPointer() const {
         if (frameClass() == FrameSizeClass::None())
-            return (uint8_t *)this + sizeof(BailoutStack);
-        return (uint8_t *)this + offsetof(BailoutStack, snapshotOffset_);
+            return (uint8_t*)this + sizeof(BailoutStack);
+        return (uint8_t*)this + offsetof(BailoutStack, snapshotOffset_);
     }
 };
+
+// Make sure the compiler doesn't add extra padding.
+static_assert((sizeof(BailoutStack) % 8) == 0, "BailoutStack should be 8-byte aligned.");
 
 } // namespace jit
 } // namespace js
 
-IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
-                                       BailoutStack *bailout)
-  : IonFrameIterator(activations),
-    machine_(bailout->machine())
+BailoutFrameInfo::BailoutFrameInfo(const JitActivationIterator& activations,
+                                   BailoutStack* bailout)
+  : machine_(bailout->machine())
 {
-    uint8_t *sp = bailout->parentStackPointer();
-    uint8_t *fp = sp + bailout->frameSize();
+    uint8_t* sp = bailout->parentStackPointer();
+    framePointer_ = sp + bailout->frameSize();
+    topFrameSize_ = framePointer_ - sp;
 
-    current_ = fp;
-    type_ = IonFrame_OptimizedJS;
-    topFrameSize_ = current_ - sp;
-    topIonScript_ = script()->ionScript();
+    JSScript* script = ScriptFromCalleeToken(((JitFrameLayout*) framePointer_)->calleeToken());
+    JitActivation* activation = activations.activation()->asJit();
+    topIonScript_ = script->ionScript();
+
+    attachOnJitActivation(activations);
 
     if (bailout->frameClass() == FrameSizeClass::None()) {
         snapshotOffset_ = bailout->snapshotOffset();
@@ -131,34 +89,31 @@ IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
     }
 
     // Compute the snapshot offset from the bailout ID.
-    JitActivation *activation = activations.activation()->asJit();
-    JSCompartment *jsCompartment = activation->compartment();
-    IonCompartment *ionCompartment = jsCompartment->ionCompartment();
-    IonCode *code = ionCompartment->getBailoutTable(bailout->frameClass());
+    JSRuntime* rt = activation->compartment()->runtimeFromMainThread();
+    JitCode* code = rt->jitRuntime()->getBailoutTable(bailout->frameClass());
     uintptr_t tableOffset = bailout->tableOffset();
-    uintptr_t tableStart = reinterpret_cast<uintptr_t>(code->raw());
+    uintptr_t tableStart = reinterpret_cast<uintptr_t>(Assembler::BailoutTableStart(code->raw()));
 
-    JS_ASSERT(tableOffset >= tableStart &&
-              tableOffset < tableStart + code->instructionsSize());
-    JS_ASSERT((tableOffset - tableStart) % BAILOUT_TABLE_ENTRY_SIZE == 0);
+    MOZ_ASSERT(tableOffset >= tableStart &&
+               tableOffset < tableStart + code->instructionsSize());
+    MOZ_ASSERT((tableOffset - tableStart) % BAILOUT_TABLE_ENTRY_SIZE == 0);
 
     uint32_t bailoutId = ((tableOffset - tableStart) / BAILOUT_TABLE_ENTRY_SIZE) - 1;
-    JS_ASSERT(bailoutId < BAILOUT_TABLE_SIZE);
+    MOZ_ASSERT(bailoutId < BAILOUT_TABLE_SIZE);
 
     snapshotOffset_ = topIonScript_->bailoutToSnapshot(bailoutId);
 }
 
-IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
-                                       InvalidationBailoutStack *bailout)
-  : IonFrameIterator(activations),
-    machine_(bailout->machine())
+BailoutFrameInfo::BailoutFrameInfo(const JitActivationIterator& activations,
+                                   InvalidationBailoutStack* bailout)
+  : machine_(bailout->machine())
 {
-    returnAddressToFp_ = bailout->osiPointReturnAddress();
+    framePointer_ = (uint8_t*) bailout->fp();
+    topFrameSize_ = framePointer_ - bailout->sp();
     topIonScript_ = bailout->ionScript();
-    const OsiIndex *osiIndex = topIonScript_->getOsiIndex(returnAddressToFp_);
+    attachOnJitActivation(activations);
 
-    current_ = (uint8_t*) bailout->fp();
-    type_ = IonFrame_OptimizedJS;
-    topFrameSize_ = current_ - bailout->sp();
+    uint8_t* returnAddressToFp_ = bailout->osiPointReturnAddress();
+    const OsiIndex* osiIndex = topIonScript_->getOsiIndex(returnAddressToFp_);
     snapshotOffset_ = osiIndex->snapshotOffset();
 }

@@ -11,27 +11,25 @@
 #ifndef TIMED_TRACE_H
 #define TIMED_TRACE_H
 
-#include "typedefs.h"
+#include "webrtc/typedefs.h"
 
-#include <cstdio>
-#include <cstdlib>
+#include <stdio.h>
+#include <stdlib.h>
 
+class TimedTrace {
+ public:
+  TimedTrace();
+  ~TimedTrace();
 
-class TimedTrace
-{
-public:
-    TimedTrace();
-    ~TimedTrace();
+  void SetTimeEllapsed(double myTime);
+  double TimeEllapsed();
+  void Tick10Msec();
+  int16_t SetUp(char* fileName);
+  void TimedLogg(char* message);
 
-    void SetTimeEllapsed(double myTime);
-    double TimeEllapsed();
-    void Tick10Msec();
-    WebRtc_Word16 SetUp(char* fileName);
-    void TimedLogg(char* message);
-
-private:
-    static double _timeEllapsedSec;
-    static FILE*  _timedTraceFile;
+ private:
+  static double _timeEllapsedSec;
+  static FILE* _timedTraceFile;
 
 };
 

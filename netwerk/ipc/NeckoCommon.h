@@ -17,7 +17,7 @@ namespace mozilla { namespace dom {
 class TabChild;
 }}
 
-#if defined(DEBUG) || defined(ENABLE_TESTS)
+#if defined(DEBUG)
 # define NECKO_ERRORS_ARE_FATAL_DEFAULT true
 #else
 # define NECKO_ERRORS_ARE_FATAL_DEFAULT false
@@ -123,12 +123,6 @@ MissingRequiredTabChild(mozilla::dom::TabChild* tabChild,
                         const char* context)
 {
   if (UsingNeckoIPCSecurity()) {
-    // Bug 833935: during navigation away from page some loads may lack
-    // TabParent: we don't want to kill browser for that.  Doesn't happen in
-    // test harness, so fail in debug mode so we can catch new code that fails
-    // to pass security info.
-    MOZ_ASSERT(tabChild);
-
     if (!tabChild) {
       printf_stderr("WARNING: child tried to open %s IPDL channel w/o "
                     "security info\n", context);

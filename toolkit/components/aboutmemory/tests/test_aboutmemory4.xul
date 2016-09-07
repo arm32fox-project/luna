@@ -54,7 +54,7 @@
       let actual = SpecialPowers.getClipboardData("text/unicode");
       actual = actual.replace(/\(pid \d+\)/, "(pid NNN)");
 
-      if (actual === aExpected) {
+      if (actual.trim() === aExpected.trim()) {
         SimpleTest.ok(true, "Clipboard has the expected contents");
         aNext();
       } else {
@@ -99,6 +99,19 @@ Explicit Allocations\n\
 \n\
 Other Measurements\n\
 \n\
+End of Explicit-only process\n\
+Heap-unclassified process\n\
+Explicit Allocations\n\
+\n\
+250.00 MB (100.0%) -- explicit\n\
+├──200.00 MB (80.00%) ── heap-unclassified\n\
+└───50.00 MB (20.00%) ── a/b\n\
+\n\
+Other Measurements\n\
+\n\
+250.00 MB ── heap-allocated\n\
+\n\
+End of Heap-unclassified process\n\
 Main Process (pid NNN)\n\
 Explicit Allocations\n\
 \n\
@@ -108,17 +121,32 @@ Explicit Allocations\n\
 \n\
 Other Measurements\n\
 \n\
+0.00 MB (100.0%) -- compartments\n\
+└──0.00 MB (100.0%) ── system/a\n\
+\n\
+0.00 MB (100.0%) -- ghost-windows\n\
+└──0.00 MB (100.0%) ── a\n\
+\n\
 0.30 MB (100.0%) -- other\n\
 ├──0.20 MB (66.67%) ── a\n\
 └──0.10 MB (33.33%) ── b\n\
 \n\
+0.00 MB (100.0%) -- pss\n\
+└──0.00 MB (100.0%) ── a\n\
+\n\
+0.00 MB (100.0%) -- rss\n\
+└──0.00 MB (100.0%) ── a\n\
+\n\
+0.00 MB (100.0%) -- size\n\
+└──0.00 MB (100.0%) ── a\n\
+\n\
+0.00 MB (100.0%) -- swap\n\
+└──0.00 MB (100.0%) ── a\n\
+\n\
 250.00 MB ── heap-allocated\n\
 \n\
+End of Main Process (pid NNN)\n\
 Other-only process\n\
-\n\
-WARNING: the 'heap-allocated' memory reporter does not work for this platform and/or configuration. This means that 'heap-unclassified' is not shown and the 'explicit' tree shows less memory than it should.\n\
-Explicit Allocations\n\
-\n\
 Other Measurements\n\
 \n\
 0.19 MB (100.0%) -- a\n\
@@ -127,6 +155,7 @@ Other Measurements\n\
 \n\
 0.48 MB ── heap-allocated\n\
 \n\
+End of Other-only process\n\
 ";
 
   // This is the output for a malformed data file.

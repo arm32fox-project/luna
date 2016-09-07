@@ -135,6 +135,22 @@
         ]]></getter>
       </property>
 
+      <property name="formValidationAnchor" readonly="true">
+        <getter><![CDATA[
+        if (this.mCurrentTab._formValidationAnchor) {
+          return this.mCurrentTab._formValidationAnchor;
+        }
+        let stack = this.mCurrentBrowser.parentNode;
+        // Create an anchor for the form validation popup
+        const NS_XUL = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+        let formValidationAnchor = document.createElementNS(NS_XUL, "hbox");
+        formValidationAnchor.className = "form-validation-anchor";
+        formValidationAnchor.hidden = true;
+        stack.appendChild(formValidationAnchor);
+        return this.mCurrentTab._formValidationAnchor = formValidationAnchor;
+        ]]></getter>
+      </property>
+
       <method name="updateWindowResizers">
         <body><![CDATA[
           if (!window.gShowPageResizers)
@@ -296,15 +312,31 @@
         </body>
       </method>
 
+      <!-- Binding from browser to tab -->
+      <field name="_tabForBrowser" readonly="true">
+      <![CDATA[
+        new WeakMap();
+      ]]>
+      </field>
+
       <method name="_getTabForBrowser">
+        <parameter name="aBrowser" />
+        <body>
+        <![CDATA[
+          let Deprecated = Components.utils.import("resource://gre/modules/Deprecated.jsm", {}).Deprecated;
+          let text = "_getTabForBrowser` is now deprecated, please use `getTabForBrowser";
+          let url = "https://developer.mozilla.org/docs/Mozilla/Tech/XUL/Method/getTabForBrowser";
+          Deprecated.warning(text, url);
+          return this.getTabForBrowser(aBrowser);
+        ]]>
+        </body>
+      </method>
+
+      <method name="getTabForBrowser">
         <parameter name="aBrowser"/>
         <body>
         <![CDATA[
-          for (let i = 0; i < this.tabs.length; i++) {
-            if (this.tabs[i].linkedBrowser == aBrowser)
-              return this.tabs[i];
-          }
-          return null;
+          return this._tabForBrowser.get(aBrowser);
         ]]>
         </body>
       </method>
@@ -740,7 +772,7 @@
             let sizedIconUrl = browser.mIconURL || "";
             if (sizedIconUrl) {
               let size = Math.round(16 * window.devicePixelRatio);
-              sizedIconUrl += (sizedIconUrl.contains("#") ? "&" : "#") +
+              sizedIconUrl += (sizedIconUrl.includes("#") ? "&" : "#") +
                               "-moz-resolution=" + size + "," + size;
             }
             if (sizedIconUrl != aTab.getAttribute("image")) {
@@ -878,7 +910,7 @@
             // add the scheme and host to the title to prevent spoofing.
             // XXX https://bugzilla.mozilla.org/show_bug.cgi?id=22183#c239
             try {
-              if (docElement.getAttribute("chromehidden").contains("location")) {
+              if (docElement.getAttribute("chromehidden").includes("location")) {
                 var uri = this.mURIFixup.createExposableURI(
                             aBrowser.currentURI);
                 if (uri.scheme == "about")
@@ -950,19 +982,21 @@
             if (oldBrowser) {
               oldBrowser.setAttribute("type", "content-targetable");
               oldBrowser.docShellIsActive = false;
+              this.finder.mListeners.forEach(l => oldBrowser.finder.removeResultListener(l));
             }
 
-            var updatePageReport = false;
+            var updateBlockedPopups = false;
             if (!oldBrowser ||
-                (oldBrowser.pageReport && !newBrowser.pageReport) ||
-                (!oldBrowser.pageReport && newBrowser.pageReport))
-              updatePageReport = true;
+                (oldBrowser.blockedPopups && !newBrowser.blockedPopups) ||
+                (!oldBrowser.blockedPopups && newBrowser.blockedPopups))
+              updateBlockedPopups = true;
 
             newBrowser.setAttribute("type", "content-primary");
             newBrowser.docShellIsActive =
               (window.windowState != window.STATE_MINIMIZED);
             this.mCurrentBrowser = newBrowser;
             this.mCurrentTab = this.tabContainer.selectedItem;
+            this.finder.mListeners.forEach(l => this.mCurrentBrowser.finder.addResultListener(l));
             this.showTab(this.mCurrentTab);
 
             var backForwardContainer = document.getElementById("unified-back-forward-button");
@@ -974,8 +1008,8 @@
               });
             }
 
-            if (updatePageReport)
-              this.mCurrentBrowser.updatePageReport();
+            if (updateBlockedPopups)
+              this.mCurrentBrowser.updateBlockedPopups();
 
             // Update the URL bar.
             var loc = this.mCurrentBrowser.currentURI;
@@ -1414,6 +1448,7 @@
             notificationbox.id = uniqueId;
             t.linkedPanel = uniqueId;
             t.linkedBrowser = b;
+            this._tabForBrowser.set(b, t);
             t._tPos = position;
             this.tabContainer._setPositionalAttributes();
 
@@ -1791,7 +1826,7 @@
               // Prevent this tab from showing further dialogs, since we're closing it
               var windowUtils = browser.contentWindow.QueryInterface(Ci.nsIInterfaceRequestor).
                                 getInterface(Ci.nsIDOMWindowUtils);
-              windowUtils.preventFurtherDialogs();
+              windowUtils.disableDialogs();
             }
 
             // Remove the tab's filter and progress listener.
@@ -1938,6 +1973,7 @@
 
             // Release the browser in case something is erroneously holding a
             // reference to the tab after its removal.
+            this._tabForBrowser.delete(aTab.linkedBrowser);
             aTab.linkedBrowser = null;
 
             // As the browser is removed, the removal of a dependent document can
@@ -2609,10 +2645,6 @@
         ]]></body>
       </method>
 
-      <property name="pageReport"
-                onget="return this.mCurrentBrowser.pageReport;"
-                readonly="true"/>
-
       <property name="currentURI"
                 onget="return this.mCurrentBrowser.currentURI;"
                 readonly="true"/>
@@ -2631,6 +2663,69 @@
         ]]>
         </getter>
       </property>
+
+      <field name="_lastSearchString">null</field>
+      <field name="_lastSearchHighlight">false</field>
+
+      <field name="finder"><![CDATA[
+        ({
+          mTabBrowser: this,
+          mListeners: new Set(),
+          get finder() {
+            return this.mTabBrowser.mCurrentBrowser.finder;
+          },
+          addResultListener: function(aListener) {
+            this.mListeners.add(aListener);
+            this.finder.addResultListener(aListener);
+          },
+          removeResultListener: function(aListener) {
+            this.mListeners.delete(aListener);
+            this.finder.removeResultListener(aListener);
+          },
+          get searchString() {
+            return this.finder.searchString;
+          },
+          get clipboardSearchString() {
+            return this.finder.clipboardSearchString;
+          },
+          set clipboardSearchString(val) {
+            return this.finder.clipboardSearchString = val;
+          },
+          set caseSensitive(val) {
+            return this.finder.caseSensitive = val;
+          },
+          fastFind: function(aSearchString, aLinksOnly, aDrawOutline) {
+            this.finder.fastFind(aSearchString, aLinksOnly, aDrawOutline);
+          },
+          findAgain: function(aFindBackwards, aLinksOnly, aDrawOutline) {
+            this.finder.findAgain(aFindBackwards, aLinksOnly, aDrawOutline);
+          },
+          setSearchStringToSelection: function() {
+            return this.finder.setSearchStringToSelection();
+          },
+          highlight: function(aHighlight, aWord) {
+            this.finder.highlight(aHighlight, aWord);
+          },
+          getInitialSelection: function() {
+            this.finder.getInitialSelection();
+          },
+          enableSelection: function() {
+            this.finder.enableSelection();
+          },
+          removeSelection: function() {
+            this.finder.removeSelection();
+          },
+          focusContent: function() {
+            this.finder.focusContent();
+          },
+          keyPress: function(aEvent) {
+            this.finder.keyPress(aEvent);
+          },
+          requestMatchesCount: function(aWord, aMatchLimit, aLinksOnly) {
+            this.finder.requestMatchesCount(aWord, aMatchLimit, aLinksOnly);
+          }
+        })
+      ]]></field>
 
       <property name="docShell"
                 onget="return this.mCurrentBrowser.docShell"
@@ -2682,6 +2777,18 @@
 
       <property name="securityUI"
                 onget="return this.mCurrentBrowser.securityUI;"
+                readonly="true"/>
+
+      <property name="fullZoom"
+                onget="return this.mCurrentBrowser.fullZoom;"
+                onset="this.mCurrentBrowser.fullZoom = val;"/>
+
+      <property name="textZoom"
+                onget="return this.mCurrentBrowser.textZoom;"
+                onset="this.mCurrentBrowser.textZoom = val;"/>
+
+      <property name="isSyntheticDocument"
+                onget="return this.mCurrentBrowser.isSyntheticDocument;"
                 readonly="true"/>
 
       <method name="_handleKeyEvent">
@@ -2802,7 +2909,7 @@
 
           switch (aMessage.name) {
             case "DOMTitleChanged":
-              let tab = this._getTabForBrowser(browser);
+              let tab = this.getTabForBrowser(browser);
               if (!tab)
                 return;
               let titleChanged = this.setTabTitle(tab);
@@ -2832,6 +2939,7 @@
           this.mCurrentTab._tPos = 0;
           this.mCurrentTab._fullyOpen = true;
           this.mCurrentTab.linkedBrowser = this.mCurrentBrowser;
+          this._tabForBrowser.set(this.mCurrentBrowser, this.mCurrentTab);
 
           // set up the shared autoscroll popup
           this._autoScrollPopup = this.mCurrentBrowser._createAutoScrollPopup();
@@ -4030,7 +4138,7 @@
         canvas.mozOpaque = true;
         canvas.width = 160 * scale;
         canvas.height = 90 * scale;
-        PageThumbs.captureToCanvas(browser.contentWindow, canvas);
+        PageThumbs.captureToCanvas(browser, canvas);
         dt.setDragImage(canvas, -16 * scale, -16 * scale);
 
         // _dragData.offsetX/Y give the coordinates that the mouse should be
@@ -4210,7 +4318,7 @@
           } catch (ex) {}
 
 //          // valid urls don't contain spaces ' '; if we have a space it isn't a valid url.
-//          if (!url || url.contains(" ")) //PMed
+//          if (!url || url.includes(" ")) //PMed
           if (!url) //FF
             return;
 

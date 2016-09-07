@@ -20,12 +20,13 @@ var lastTest = 4;    // set to test of interest when debugging
 ////////////////////////////////////////////////////////////////////////////////
 
 // Note: sets Cc and Ci variables
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
 
 Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
+
+XPCOMUtils.defineLazyGetter(this, "URL", function() {
+  return "http://localhost:" + httpserver.identity.primaryPort;
+});
 
 var httpserver = new HttpServer();
 var index = 0;
@@ -35,7 +36,7 @@ var testPathBase = "/test_headers";
 
 function run_test()
 {
-  httpserver.start(4444);
+  httpserver.start(-1);
 
   do_test_pending();
   run_test_number(nextTest);
@@ -72,7 +73,14 @@ function setupChannel(url)
 {
   var ios = Components.classes["@mozilla.org/network/io-service;1"].
                        getService(Ci.nsIIOService);
-  var chan = ios.newChannel("http://localhost:4444" + url, "", null);
+  var chan = ios.newChannel2(URL + url,
+                             "",
+                             null,
+                             null,      // aLoadingNode
+                             Services.scriptSecurityManager.getSystemPrincipal(),
+                             null,      // aTriggeringPrincipal
+                             Ci.nsILoadInfo.SEC_NORMAL,
+                             Ci.nsIContentPolicy.TYPE_OTHER);
   var httpChan = chan.QueryInterface(Components.interfaces.nsIHttpChannel);
   return httpChan;
 }

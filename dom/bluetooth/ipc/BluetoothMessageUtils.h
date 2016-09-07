@@ -14,11 +14,12 @@ namespace IPC {
 
 template <>
 struct ParamTraits<mozilla::dom::bluetooth::BluetoothObjectType>
-  : public EnumSerializer<mozilla::dom::bluetooth::BluetoothObjectType,
-                          mozilla::dom::bluetooth::TYPE_MANAGER,
-                          mozilla::dom::bluetooth::TYPE_INVALID>
+  : public ContiguousEnumSerializer<
+             mozilla::dom::bluetooth::BluetoothObjectType,
+             mozilla::dom::bluetooth::TYPE_MANAGER,
+             mozilla::dom::bluetooth::TYPE_INVALID>
 { };
 
 } // namespace IPC
 
-#endif // mozilla_dom_bluetooth_ipc_bluetoothchild_h__
+#endif // mozilla_dom_bluetooth_ipc_bluetoothmessageutils_h__

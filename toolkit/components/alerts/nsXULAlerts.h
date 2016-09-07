@@ -12,14 +12,11 @@
 #include "nsIDOMWindow.h"
 #include "nsIObserver.h"
 
-using namespace mozilla;
-
 class nsXULAlerts {
   friend class nsXULAlertObserver;
 public:
   nsXULAlerts()
   {
-    mNamedWindows.Init();
   }
 
   virtual ~nsXULAlerts() {}
@@ -28,7 +25,7 @@ public:
                                  const nsAString& aAlertText, bool aAlertTextClickable,
                                  const nsAString& aAlertCookie, nsIObserver* aAlertListener,
                                  const nsAString& aAlertName, const nsAString& aBidi,
-                                 const nsAString& aLang);
+                                 const nsAString& aLang, bool aInPrivateBrowsing);
 
   nsresult CloseAlert(const nsAString& aAlertName);
 protected:
@@ -52,8 +49,9 @@ public:
 
   void SetAlertWindow(nsIDOMWindow* aWindow) { mAlertWindow = aWindow; }
 
-  virtual ~nsXULAlertObserver() {}
 protected:
+  virtual ~nsXULAlertObserver() {}
+
   nsXULAlerts* mXULAlerts;
   nsString mAlertName;
   nsCOMPtr<nsIDOMWindow> mAlertWindow;

@@ -11,12 +11,10 @@
 #ifndef WEBRTC_MODULES_RTP_RTCP_SOURCE_SSRC_DATABASE_H_
 #define WEBRTC_MODULES_RTP_RTCP_SOURCE_SSRC_DATABASE_H_
 
-#ifndef WEBRTC_NO_STL
-    #include <map>
-#endif
+#include <map>
 
-#include "system_wrappers/interface/static_instance.h"
-#include "typedefs.h"
+#include "webrtc/system_wrappers/interface/static_instance.h"
+#include "webrtc/typedefs.h"
 
 namespace webrtc {
 class CriticalSectionWrapper;
@@ -27,9 +25,9 @@ public:
     static SSRCDatabase* GetSSRCDatabase();
     static void ReturnSSRCDatabase();
 
-    WebRtc_UWord32 CreateSSRC();
-    WebRtc_Word32 RegisterSSRC(const WebRtc_UWord32 ssrc);
-    WebRtc_Word32 ReturnSSRC(const WebRtc_UWord32 ssrc);
+    uint32_t CreateSSRC();
+    int32_t RegisterSSRC(const uint32_t ssrc);
+    int32_t ReturnSSRC(const uint32_t ssrc);
 
 protected:
     SSRCDatabase();
@@ -44,19 +42,12 @@ private:
         CountOperation count_operation);
     static SSRCDatabase* StaticInstance(CountOperation count_operation);
 
-    WebRtc_UWord32 GenerateRandom();
+    uint32_t GenerateRandom();
 
-#ifdef WEBRTC_NO_STL
-    int _numberOfSSRC;
-    int _sizeOfSSRC;
-
-    WebRtc_UWord32* _ssrcVector;
-#else
-    std::map<WebRtc_UWord32, WebRtc_UWord32>    _ssrcMap;
-#endif
+    std::map<uint32_t, uint32_t>    _ssrcMap;
 
     CriticalSectionWrapper* _critSect;
 };
-} // namespace webrtc
+}  // namespace webrtc
 
 #endif // WEBRTC_MODULES_RTP_RTCP_SOURCE_SSRC_DATABASE_H_

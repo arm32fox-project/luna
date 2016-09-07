@@ -6,10 +6,12 @@ const BOUNDARY_WORD_START = nsIAccessibleText.BOUNDARY_WORD_START;
 const BOUNDARY_WORD_END = nsIAccessibleText.BOUNDARY_WORD_END;
 const BOUNDARY_LINE_START = nsIAccessibleText.BOUNDARY_LINE_START;
 const BOUNDARY_LINE_END = nsIAccessibleText.BOUNDARY_LINE_END;
-const BOUNDARY_ATTRIBUTE_RANGE = nsIAccessibleText.BOUNDARY_ATTRIBUTE_RANGE;
 
 const kTextEndOffset = nsIAccessibleText.TEXT_OFFSET_END_OF_TEXT;
 const kCaretOffset = nsIAccessibleText.TEXT_OFFSET_CARET;
+
+const EndPoint_Start = nsIAccessibleTextRange.EndPoint_Start;
+const EndPoint_End = nsIAccessibleTextRange.EndPoint_End;
 
 const kTodo = 1; // a test is expected to fail
 const kOk = 2; // a test doesn't fail
@@ -394,8 +396,8 @@ function testTextRemoveSelection(aID, aSelectionIndex, aSelectionsCount)
 
   acc.removeSelection(aSelectionIndex);
 
-  ok(acc.selectionCount, aSelectionsCount, 
-     text + ": failed to remove selection at index '" + 
+  ok(acc.selectionCount, aSelectionsCount,
+     text + ": failed to remove selection at index '" +
      aSelectionIndex + "': selectionCount after");
 }
 
@@ -416,9 +418,9 @@ function testTextSetSelection(aID, aStartOffset, aEndOffset,
   var text = acc.getText(0, -1);
 
   acc.setSelectionBounds(aSelectionIndex, aStartOffset, aEndOffset);
- 
-  is(acc.selectionCount, aSelectionsCount, 
-     text + ": failed to set selection at index '" + 
+
+  is(acc.selectionCount, aSelectionsCount,
+     text + ": failed to set selection at index '" +
      aSelectionIndex + "': selectionCount after");
 }
 
@@ -456,6 +458,38 @@ function testTextGetSelection(aID, aStartOffset, aEndOffset, aSelectionIndex)
      aSelectionIndex + "'");
   is(endObj.value, aEndOffset, text + ": wrong end offset for index '" +
      aSelectionIndex + "'");
+}
+
+function testTextRange(aRange, aRangeDescr, aStartContainer, aStartOffset,
+                       aEndContainer, aEndOffset, aText,
+                       aCommonContainer, aChildren)
+{
+  isObject(aRange.startContainer, getAccessible(aStartContainer),
+           "Wrong start container of " + aRangeDescr);
+  is(aRange.startOffset, aStartOffset,
+     "Wrong start offset of " + aRangeDescr);
+  isObject(aRange.endContainer, getAccessible(aEndContainer),
+           "Wrong end container of " + aRangeDescr);
+  is(aRange.endOffset, aEndOffset,
+     "Wrong end offset of " + aRangeDescr);
+
+  is(aRange.text, aText, "Wrong text of " + aRangeDescr);
+
+  var children = aRange.embeddedChildren;
+  is(children ? children.length : 0, aChildren ? aChildren.length : 0,
+     "Wrong embedded children count of " + aRangeDescr);
+
+  isObject(aRange.container, getAccessible(aCommonContainer),
+           "Wrong container of " + aRangeDescr);
+
+  if (aChildren) {
+    for (var i = 0; i < aChildren.length; i++) {
+      var expectedChild = getAccessible(aChildren[i]);
+      var actualChild = children.queryElementAt(i, nsIAccessible);
+      isObject(actualChild, expectedChild,
+               "Wrong child at index '" + i + "' of " + aRangeDescr);
+    }
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -555,20 +589,27 @@ function testTextHelper(aID, aOffset, aBoundaryType,
       return;
     }
 
-    var isFunc1 = (aToDoFlag1 == kTodo) ? todo_is : is;
-    var isFunc2 = (aToDoFlag2 == kTodo) ? todo_is : is;
-    var isFunc3 = (aToDoFlag3 == kTodo) ? todo_is : is;
+    var isFunc1 = (aToDoFlag1 == kTodo) ? todo : ok;
+    var isFunc2 = (aToDoFlag2 == kTodo) ? todo : ok;
+    var isFunc3 = (aToDoFlag3 == kTodo) ? todo : ok;
 
-    isFunc1(text, aText,
-            startMsg + "wrong text, offset: " + aOffset + endMsg);
-    isFunc2(startOffsetObj.value, aStartOffset,
-            startMsg + "wrong start offset, offset: " + aOffset + endMsg);
-    isFunc3(endOffsetObj.value, aEndOffset,
-            startMsg + "wrong end offset, offset: " + aOffset + endMsg);
+    isFunc1(text == aText,
+            startMsg + "wrong text " +
+            "(got '" + text + "', expected: '" + aText + "')" +
+            ", offset: " + aOffset + endMsg);
+    isFunc2(startOffsetObj.value == aStartOffset,
+            startMsg + "wrong start offset" +
+            "(got '" + startOffsetObj.value + "', expected: '" + aStartOffset + "')" +
+            ", offset: " + aOffset + endMsg);
+    isFunc3(endOffsetObj.value == aEndOffset,
+            startMsg + "wrong end offset" +
+            "(got '" + endOffsetObj.value + "', expected: '" + aEndOffset + "')" +
+            ", offset: " + aOffset + endMsg);
 
   } catch (e) {
     var okFunc = exceptionFlag ? todo : ok;
-    okFunc(false, startMsg + "failed at offset " + aOffset + endMsg);
+    okFunc(false, startMsg + "failed at offset " + aOffset + endMsg +
+           ", exception: " + e);
   }
 }
 
@@ -585,7 +626,5 @@ function boundaryToString(aBoundaryType)
       return "line start";
     case BOUNDARY_LINE_END:
       return "line end";
-    case BOUNDARY_ATTRIBUTE_RANGE:
-      return "attr range";
   }
 }

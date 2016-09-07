@@ -9,9 +9,11 @@
 
 #include "jsbool.h"
 
+#include "vm/NativeObject.h"
+
 namespace js {
 
-class BooleanObject : public JSObject
+class BooleanObject : public NativeObject
 {
     /* Stores this Boolean object's [[PrimitiveValue]]. */
     static const unsigned PRIMITIVE_VALUE_SLOT = 0;
@@ -19,13 +21,13 @@ class BooleanObject : public JSObject
   public:
     static const unsigned RESERVED_SLOTS = 1;
 
-    static Class class_;
+    static const Class class_;
 
     /*
      * Creates a new Boolean object boxing the given primitive bool.  The
      * object's [[Prototype]] is determined from context.
      */
-    static inline BooleanObject *create(JSContext *cx, bool b);
+    static inline BooleanObject* create(JSContext* cx, bool b);
 
     bool unbox() const {
         return getFixedSlot(PRIMITIVE_VALUE_SLOT).toBoolean();
@@ -37,8 +39,8 @@ class BooleanObject : public JSObject
     }
 
     /* For access to init, as Boolean.prototype is special. */
-    friend JSObject *
-    ::js_InitBooleanClass(JSContext *cx, js::HandleObject global);
+    friend JSObject*
+    ::js_InitBooleanClass(JSContext* cx, js::HandleObject global);
 };
 
 } // namespace js

@@ -1671,7 +1671,7 @@ GlobalSearchView.prototype = Heritage.extend(WidgetMethods, {
 
     for (let [location, contents] of aSources) {
       // Verify that the search token is found anywhere in the source.
-      if (!contents.toLowerCase().contains(lowerCaseToken)) {
+      if (!contents.toLowerCase().includes(lowerCaseToken)) {
         continue;
       }
       let lines = contents.split("\n");
@@ -1682,7 +1682,7 @@ GlobalSearchView.prototype = Heritage.extend(WidgetMethods, {
         let lowerCaseLine = line.toLowerCase();
 
         // Search is not case sensitive, and is tied to each line in the source.
-        if (!lowerCaseLine.contains(lowerCaseToken)) {
+        if (!lowerCaseLine.includes(lowerCaseToken)) {
           continue;
         }
 

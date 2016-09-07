@@ -8,14 +8,14 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "voe_codec_impl.h"
+#include "webrtc/voice_engine/voe_codec_impl.h"
 
-#include "audio_coding_module.h"
-#include "channel.h"
-#include "critical_section_wrapper.h"
-#include "trace.h"
-#include "voe_errors.h"
-#include "voice_engine_impl.h"
+#include "webrtc/modules/audio_coding/main/interface/audio_coding_module.h"
+#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
+#include "webrtc/system_wrappers/interface/trace.h"
+#include "webrtc/voice_engine/channel.h"
+#include "webrtc/voice_engine/include/voe_errors.h"
+#include "webrtc/voice_engine/voice_engine_impl.h"
 
 namespace webrtc
 {
@@ -29,7 +29,7 @@ VoECodec* VoECodec::GetInterface(VoiceEngine* voiceEngine)
     {
         return NULL;
     }
-    VoiceEngineImpl* s = reinterpret_cast<VoiceEngineImpl*>(voiceEngine);
+    VoiceEngineImpl* s = static_cast<VoiceEngineImpl*>(voiceEngine);
     s->AddRef();
     return s;
 #endif
@@ -55,7 +55,7 @@ int VoECodecImpl::NumOfCodecs()
                  "NumOfCodecs()");
 
     // Number of supported codecs in the ACM
-    WebRtc_UWord8 nSupportedCodecs = AudioCodingModule::NumberOfCodecs();
+    uint8_t nSupportedCodecs = AudioCodingModule::NumberOfCodecs();
 
     WEBRTC_TRACE(kTraceStateInfo, kTraceVoice,
         VoEId(_shared->instance_id(), -1),
@@ -68,7 +68,7 @@ int VoECodecImpl::GetCodec(int index, CodecInst& codec)
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                  "GetCodec(index=%d, codec=?)", index);
     CodecInst acmCodec;
-    if (AudioCodingModule::Codec(index, (CodecInst&) acmCodec)
+    if (AudioCodingModule::Codec(index, &acmCodec)
             == -1)
     {
         _shared->SetLastError(VE_INVALID_LISTNR, kTraceError,
@@ -122,8 +122,8 @@ int VoECodecImpl::SetSendCodec(int channel, const CodecInst& codec)
             "SetSendCodec() invalid number of channels");
         return -1;
     }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -156,8 +156,8 @@ int VoECodecImpl::GetSendCodec(int channel, CodecInst& codec)
         _shared->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -189,8 +189,8 @@ int VoECodecImpl::GetRecCodec(int channel, CodecInst& codec)
         _shared->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -213,114 +213,6 @@ int VoECodecImpl::GetRecCodec(int channel, CodecInst& codec)
     return 0;
 }
 
-int VoECodecImpl::SetAMREncFormat(int channel, AmrMode mode)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "SetAMREncFormat(channel=%d, mode=%d)", channel, mode);
-#ifdef WEBRTC_CODEC_AMR
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
-    if (channelPtr == NULL)
-    {
-        _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-            "SetAMREncFormat() failed to locate channel");
-        return -1;
-    }
-    return channelPtr->SetAMREncFormat(mode);
-#else
-    _shared->SetLastError(VE_FUNC_NOT_SUPPORTED, kTraceError,
-        "SetAMREncFormat() AMR codec is not supported");
-    return -1;
-#endif
-}
-
-int VoECodecImpl::SetAMRDecFormat(int channel, AmrMode mode)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "SetAMRDecFormat(channel=%i, mode=%i)", channel, mode);
-#ifdef WEBRTC_CODEC_AMR
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
-    if (channelPtr == NULL)
-    {
-        _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-            "SetAMRDecFormat() failed to locate channel");
-        return -1;
-    }
-    return channelPtr->SetAMRDecFormat(mode);
-#else
-    _shared->SetLastError(VE_FUNC_NOT_SUPPORTED, kTraceError,
-        "SetAMRDecFormat() AMR codec is not supported");
-    return -1;
-#endif
-}
-
-int VoECodecImpl::SetAMRWbEncFormat(int channel, AmrMode mode)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "SetAMRWbEncFormat(channel=%d, mode=%d)", channel, mode);
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
-#ifdef WEBRTC_CODEC_AMRWB
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
-    if (channelPtr == NULL)
-    {
-        _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-            "SetAMRWbEncFormat() failed to locate channel");
-        return -1;
-    }
-    return channelPtr->SetAMRWbEncFormat(mode);
-#else
-    _shared->SetLastError(VE_FUNC_NOT_SUPPORTED, kTraceError,
-        "SetAMRWbEncFormat() AMR-wb codec is not supported");
-    return -1;
-#endif
-}
-
-int VoECodecImpl::SetAMRWbDecFormat(int channel, AmrMode mode)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "SetAMRWbDecFormat(channel=%i, mode=%i)", channel, mode);
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
-#ifdef WEBRTC_CODEC_AMRWB
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
-    if (channelPtr == NULL)
-    {
-        _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-            "SetAMRWbDecFormat() failed to locate channel");
-        return -1;
-    }
-    return channelPtr->SetAMRWbDecFormat(mode);
-#else
-    _shared->SetLastError(VE_FUNC_NOT_SUPPORTED, kTraceError,
-        "SetAMRWbDecFormat() AMR-wb codec is not supported");
-    return -1;
-#endif
-}
-
 int VoECodecImpl::SetRecPayloadType(int channel, const CodecInst& codec)
 {
     WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
@@ -334,8 +226,8 @@ int VoECodecImpl::SetRecPayloadType(int channel, const CodecInst& codec)
         _shared->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -354,8 +246,8 @@ int VoECodecImpl::GetRecPayloadType(int channel, CodecInst& codec)
         _shared->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -392,8 +284,8 @@ int VoECodecImpl::SetSendCNPayloadType(int channel, int type,
             "SetSendCNPayloadType() invalid payload frequency");
         return -1;
     }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -403,92 +295,39 @@ int VoECodecImpl::SetSendCNPayloadType(int channel, int type,
     return channelPtr->SetSendCNPayloadType(type, frequency);
 }
 
-int VoECodecImpl::SetISACInitTargetRate(int channel, int rateBps,
-                                        bool useFixedFrameSize)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "SetISACInitTargetRate(channel=%d, rateBps=%d, "
-                 "useFixedFrameSize=%d)", channel, rateBps, useFixedFrameSize);
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
-#ifdef WEBRTC_CODEC_ISAC
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
-    if (channelPtr == NULL)
-    {
-        _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-            "SetISACInitTargetRate() failed to locate channel");
-        return -1;
-    }
-    return channelPtr->SetISACInitTargetRate(rateBps, useFixedFrameSize);
-#else
-    _shared->SetLastError(VE_FUNC_NOT_SUPPORTED, kTraceError,
-        "SetISACInitTargetRate() iSAC codec is not supported");
+int VoECodecImpl::SetFECStatus(int channel, bool enable) {
+  WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
+               "SetCodecFECStatus(channel=%d, enable=%d)", channel, enable);
+  if (!_shared->statistics().Initialized()) {
+    _shared->SetLastError(VE_NOT_INITED, kTraceError);
     return -1;
-#endif
+  }
+  voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+  voe::Channel* channelPtr = ch.channel();
+  if (channelPtr == NULL) {
+    _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
+                          "SetCodecFECStatus() failed to locate channel");
+    return -1;
+  }
+  return channelPtr->SetCodecFECStatus(enable);
 }
 
-int VoECodecImpl::SetISACMaxRate(int channel, int rateBps)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "SetISACMaxRate(channel=%d, rateBps=%d)", channel, rateBps);
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
-#ifdef WEBRTC_CODEC_ISAC
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
-    if (channelPtr == NULL)
-    {
-        _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-            "SetISACMaxRate() failed to locate channel");
-        return -1;
-    }
-    return channelPtr->SetISACMaxRate(rateBps);
-#else
-    _shared->SetLastError(VE_FUNC_NOT_SUPPORTED, kTraceError,
-        "SetISACMaxRate() iSAC codec is not supported");
+int VoECodecImpl::GetFECStatus(int channel, bool& enabled) {
+  WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
+               "GetCodecFECStatus(channel=%d)", channel);
+  if (!_shared->statistics().Initialized()) {
+    _shared->SetLastError(VE_NOT_INITED, kTraceError);
     return -1;
-#endif
-}
-
-int VoECodecImpl::SetISACMaxPayloadSize(int channel, int sizeBytes)
-{
-    WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
-                 "SetISACMaxPayloadSize(channel=%d, sizeBytes=%d)", channel,
-                 sizeBytes);
-    ANDROID_NOT_SUPPORTED(_shared->statistics());
-    IPHONE_NOT_SUPPORTED(_shared->statistics());
-#ifdef WEBRTC_CODEC_ISAC
-    if (!_shared->statistics().Initialized())
-    {
-        _shared->SetLastError(VE_NOT_INITED, kTraceError);
-        return -1;
-    }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
-    if (channelPtr == NULL)
-    {
-        _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
-            "SetISACMaxPayloadSize() failed to locate channel");
-        return -1;
-    }
-    return channelPtr->SetISACMaxPayloadSize(sizeBytes);
-#else
-    _shared->SetLastError(VE_FUNC_NOT_SUPPORTED, kTraceError,
-        "SetISACMaxPayloadSize() iSAC codec is not supported");
+  }
+  voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+  voe::Channel* channelPtr = ch.channel();
+  if (channelPtr == NULL) {
+    _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
+                          "GetFECStatus() failed to locate channel");
     return -1;
-#endif
-    return 0;
+  }
+  enabled = channelPtr->GetCodecFECStatus();
+  return 0;
 }
 
 int VoECodecImpl::SetVADStatus(int channel, bool enable, VadModes mode,
@@ -503,8 +342,8 @@ int VoECodecImpl::SetVADStatus(int channel, bool enable, VadModes mode,
         _shared->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -542,8 +381,8 @@ int VoECodecImpl::GetVADStatus(int channel, bool& enabled, VadModes& mode,
         _shared->SetLastError(VE_NOT_INITED, kTraceError);
         return -1;
     }
-    voe::ScopedChannel sc(_shared->channel_manager(), channel);
-    voe::Channel* channelPtr = sc.ChannelPtr();
+    voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+    voe::Channel* channelPtr = ch.channel();
     if (channelPtr == NULL)
     {
         _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
@@ -577,6 +416,24 @@ int VoECodecImpl::GetVADStatus(int channel, bool& enabled, VadModes& mode,
     }
 
     return 0;
+}
+
+int VoECodecImpl::SetOpusMaxPlaybackRate(int channel, int frequency_hz) {
+  WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
+               "SetOpusMaxPlaybackRate(channel=%d, frequency_hz=%d)", channel,
+               frequency_hz);
+  if (!_shared->statistics().Initialized()) {
+    _shared->SetLastError(VE_NOT_INITED, kTraceError);
+    return -1;
+  }
+  voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+  voe::Channel* channelPtr = ch.channel();
+  if (channelPtr == NULL) {
+    _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
+                          "SetOpusMaxPlaybackRate failed to locate channel");
+    return -1;
+  }
+  return channelPtr->SetOpusMaxPlaybackRate(frequency_hz);
 }
 
 void VoECodecImpl::ACMToExternalCodecRepresentation(CodecInst& toInst,
@@ -696,8 +553,8 @@ int VoECodecImpl::SetSecondarySendCodec(int channel, const CodecInst& codec,
                           "SetSecondarySendCodec() invalid number of channels");
     return -1;
   }
-  voe::ScopedChannel sc(_shared->channel_manager(), channel);
-  voe::Channel* channelPtr = sc.ChannelPtr();
+  voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+  voe::Channel* channelPtr = ch.channel();
   if (channelPtr == NULL) {
     _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
                           "SetSecondarySendCodec() failed to locate channel");
@@ -724,8 +581,8 @@ int VoECodecImpl::GetSecondarySendCodec(int channel, CodecInst& codec) {
     _shared->SetLastError(VE_NOT_INITED, kTraceError);
     return -1;
   }
-  voe::ScopedChannel sc(_shared->channel_manager(), channel);
-  voe::Channel* channelPtr = sc.ChannelPtr();
+  voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+  voe::Channel* channelPtr = ch.channel();
   if (channelPtr == NULL) {
     _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
                           "GetSecondarySendCodec() failed to locate channel");
@@ -750,8 +607,8 @@ int VoECodecImpl::GetSecondarySendCodec(int channel, CodecInst& codec) {
 int VoECodecImpl::RemoveSecondarySendCodec(int channel) {
   WEBRTC_TRACE(kTraceApiCall, kTraceVoice, VoEId(_shared->instance_id(), -1),
                "RemoveSecondarySendCodec(channel=%d)", channel);
-  voe::ScopedChannel sc(_shared->channel_manager(), channel);
-  voe::Channel* channelPtr = sc.ChannelPtr();
+  voe::ChannelOwner ch = _shared->channel_manager().GetChannel(channel);
+  voe::Channel* channelPtr = ch.channel();
   if (channelPtr == NULL) {
     _shared->SetLastError(VE_CHANNEL_NOT_VALID, kTraceError,
                           "RemoveSecondarySendCodec() failed to locate "
@@ -764,4 +621,4 @@ int VoECodecImpl::RemoveSecondarySendCodec(int channel) {
 
 #endif  // WEBRTC_VOICE_ENGINE_CODEC_API
 
-} // namespace webrtc
+}  // namespace webrtc

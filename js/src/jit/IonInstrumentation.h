@@ -4,8 +4,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef jit_IonInstrumentation_h
-#define jit_IonInstrumentation_h
+#ifndef jit_IonInstrumentatjit_h
+#define jit_IonInstrumentatjit_h
 
 namespace js {
 
@@ -19,22 +19,15 @@ typedef SPSInstrumentation<MacroAssembler, Register> BaseInstrumentation;
 
 class IonInstrumentation : public BaseInstrumentation
 {
-    jsbytecode **trackedPc_;
-
   public:
-    IonInstrumentation(SPSProfiler *profiler, jsbytecode **pc)
-      : BaseInstrumentation(profiler),
-        trackedPc_(pc)
+    IonInstrumentation(SPSProfiler* profiler, jsbytecode** pc)
+      : BaseInstrumentation(profiler)
     {
-        JS_ASSERT(pc != NULL);
-    }
-
-    void leave(MacroAssembler &masm, Register reg) {
-        BaseInstrumentation::leave(*trackedPc_, masm, reg);
+        MOZ_ASSERT(pc != nullptr);
     }
 };
 
 } // namespace jit
 } // namespace js
 
-#endif /* jit_IonInstrumentation_h */
+#endif /* jit_IonInstrumentatjit_h */

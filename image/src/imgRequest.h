@@ -9,45 +9,56 @@
 
 #include "nsIChannelEventSink.h"
 #include "nsIInterfaceRequestor.h"
-#include "nsIRequest.h"
-#include "nsIProperties.h"
 #include "nsIStreamListener.h"
-#include "nsIURI.h"
+#include "nsIThreadRetargetableStreamListener.h"
 #include "nsIPrincipal.h"
-#include "nsITimedChannel.h"
-#include "nsIApplicationCache.h"
 
 #include "nsAutoPtr.h"
 #include "nsCOMPtr.h"
+#include "nsProxyRelease.h"
 #include "nsStringGlue.h"
 #include "nsError.h"
-#include "imgIRequest.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
+#include "mozilla/Mutex.h"
+#include "mozilla/net/ReferrerPolicy.h"
 
 class imgCacheValidator;
-class imgStatusTracker;
 class imgLoader;
 class imgRequestProxy;
 class imgCacheEntry;
 class imgMemoryReporter;
 class imgRequestNotifyRunnable;
+class nsIApplicationCache;
+class nsIProperties;
+class nsIRequest;
+class nsITimedChannel;
+class nsIURI;
 
 namespace mozilla {
 namespace image {
 class Image;
+class ImageURL;
+class ProgressTracker;
 } // namespace image
 } // namespace mozilla
 
-class imgRequest : public nsIStreamListener,
-                   public nsIChannelEventSink,
-                   public nsIInterfaceRequestor,
-                   public nsIAsyncVerifyRedirectCallback
+class imgRequest final : public nsIStreamListener,
+                             public nsIThreadRetargetableStreamListener,
+                             public nsIChannelEventSink,
+                             public nsIInterfaceRequestor,
+                             public nsIAsyncVerifyRedirectCallback
 {
-public:
-  imgRequest(imgLoader* aLoader);
   virtual ~imgRequest();
 
-  NS_DECL_ISUPPORTS
+public:
+  typedef mozilla::image::Image Image;
+  typedef mozilla::image::ImageURL ImageURL;
+  typedef mozilla::image::ProgressTracker ProgressTracker;
+  typedef mozilla::net::ReferrerPolicy ReferrerPolicy;
+
+  explicit imgRequest(imgLoader* aLoader);
+
+  NS_DECL_THREADSAFE_ISUPPORTS
 
   nsresult Init(nsIURI *aURI,
                 nsIURI *aCurrentURI,
@@ -56,7 +67,10 @@ public:
                 imgCacheEntry *aCacheEntry,
                 void *aLoadId,
                 nsIPrincipal* aLoadingPrincipal,
-                int32_t aCORSMode);
+                int32_t aCORSMode,
+                ReferrerPolicy aReferrerPolicy);
+
+  void ClearLoader();
 
   // Callers must call imgRequestProxy::Notify later.
   void AddProxy(imgRequestProxy *proxy);
@@ -67,6 +81,12 @@ public:
   // only when the channel has failed to open, and so calling Cancel() on it
   // won't be sufficient.
   void CancelAndAbort(nsresult aStatus);
+
+  // Called or dispatched by cancel for main thread only execution.
+  void ContinueCancel(nsresult aStatus);
+
+  // Called or dispatched by EvictFromCache for main thread only execution.
+  void ContinueEvict();
 
   // Methods that get forwarded to the Image, or deferred until it's
   // instantiated.
@@ -100,6 +120,9 @@ public:
   // The CORS mode for which we loaded this image.
   int32_t GetCORSMode() const { return mCORSMode; }
 
+  // The Referrer Policy in effect when loading this image.
+  ReferrerPolicy GetReferrerPolicy() const { return mReferrerPolicy; }
+
   // The principal for the document that loaded this image. Used when trying to
   // validate a CORS image load.
   already_AddRefed<nsIPrincipal> GetLoadingPrincipal() const
@@ -108,10 +131,12 @@ public:
     return principal.forget();
   }
 
-  // Return the imgStatusTracker associated with this imgRequest. It may live
-  // in |mStatusTracker| or in |mImage.mStatusTracker|, depending on whether
+  already_AddRefed<Image> GetImage();
+
+  // Return the ProgressTracker associated with this imgRequest. It may live
+  // in |mProgressTracker| or in |mImage.mProgressTracker|, depending on whether
   // mImage has been instantiated yet.
-  imgStatusTracker& GetStatusTracker();
+  already_AddRefed<ProgressTracker> GetProgressTracker();
 
   // Get the current principal of the image. No AddRefing.
   inline nsIPrincipal* GetPrincipal() const { return mPrincipal.get(); }
@@ -119,25 +144,29 @@ public:
   // Resize the cache entry to 0 if it exists
   void ResetCacheEntry();
 
-  // Update the cache entry size based on the image container
-  void UpdateCacheEntrySize();
-
-  nsresult GetURI(nsIURI **aURI);
+  // OK to use on any thread.
+  nsresult GetURI(ImageURL **aURI);
   nsresult GetCurrentURI(nsIURI **aURI);
+
+  nsresult GetImageErrorCode(void);
 
 private:
   friend class imgCacheEntry;
   friend class imgRequestProxy;
   friend class imgLoader;
   friend class imgCacheValidator;
-  friend class imgStatusTracker;
   friend class imgCacheExpirationTracker;
   friend class imgRequestNotifyRunnable;
+  friend class mozilla::image::ProgressTracker;
+
+  void SetImage(Image* aImage);
+  void SetProgressTracker(ProgressTracker* aProgressTracker);
 
   inline void SetLoadId(void *aLoadId) {
     mLoadId = aLoadId;
   }
   void Cancel(nsresult aStatus);
+  void EvictFromCache();
   void RemoveFromCache();
 
   nsresult GetSecurityInfo(nsISupports **aSecurityInfo);
@@ -156,6 +185,9 @@ private:
 
   // Returns whether we've got a reference to the cache entry.
   bool HasCacheEntry() const;
+
+  // Update the cache entry size based on the image container.
+  void UpdateCacheEntrySize();
 
   // Return the priority of the underlying network request, or return
   // PRIORITY_NORMAL if it doesn't support nsISupportsPriority.
@@ -176,12 +208,18 @@ private:
   bool IsBlockingOnload() const;
   void SetBlockingOnload(bool block) const;
 
+  bool HasConsumers();
+
 public:
   NS_DECL_NSISTREAMLISTENER
+  NS_DECL_NSITHREADRETARGETABLESTREAMLISTENER
   NS_DECL_NSIREQUESTOBSERVER
   NS_DECL_NSICHANNELEVENTSINK
   NS_DECL_NSIINTERFACEREQUESTOR
   NS_DECL_NSIASYNCVERIFYREDIRECTCALLBACK
+
+  // Sets properties for this image; will dispatch to main thread if needed.
+  void SetProperties(nsIChannel* aChan);
 
 private:
   friend class imgMemoryReporter;
@@ -190,17 +228,18 @@ private:
   imgLoader* mLoader;
   nsCOMPtr<nsIRequest> mRequest;
   // The original URI we were loaded with. This is the same as the URI we are
-  // keyed on in the cache.
-  nsCOMPtr<nsIURI> mURI;
+  // keyed on in the cache. We store a string here to avoid off main thread
+  // refcounting issues with nsStandardURL.
+  nsRefPtr<ImageURL> mURI;
   // The URI of the resource we ended up loading after all redirects, etc.
   nsCOMPtr<nsIURI> mCurrentURI;
   // The principal of the document which loaded this image. Used when validating for CORS.
   nsCOMPtr<nsIPrincipal> mLoadingPrincipal;
   // The principal of this image.
   nsCOMPtr<nsIPrincipal> mPrincipal;
-  // Status-tracker -- transferred to mImage, when it gets instantiated
-  nsRefPtr<imgStatusTracker> mStatusTracker;
-  nsRefPtr<mozilla::image::Image> mImage;
+  // Progress tracker -- transferred to mImage, when it gets instantiated.
+  nsRefPtr<ProgressTracker> mProgressTracker;
+  nsRefPtr<Image> mImage;
   nsCOMPtr<nsIProperties> mProperties;
   nsCOMPtr<nsISupports> mSecurityInfo;
   nsCOMPtr<nsIChannel> mChannel;
@@ -219,12 +258,19 @@ private:
   nsCOMPtr<nsIAsyncVerifyRedirectCallback> mRedirectCallback;
   nsCOMPtr<nsIChannel> mNewRedirectChannel;
 
+  mozilla::Mutex mMutex;
+
   // The ID of the inner window origin, used for error reporting.
   uint64_t mInnerWindowId;
 
   // The CORS mode (defined in imgIRequest) this image was loaded with. By
   // default, imgIRequest::CORS_NONE.
   int32_t mCORSMode;
+
+  // The Referrer Policy (defined in ReferrerPolicy.h) used for this image.
+  ReferrerPolicy mReferrerPolicy;
+
+  nsresult mImageErrorCode;
 
   // Sometimes consumers want to do things before the image is ready. Let them,
   // and apply the action when the image becomes available.
@@ -234,7 +280,7 @@ private:
   bool mGotData : 1;
   bool mIsInCache : 1;
   bool mBlockingOnload : 1;
-  bool mResniffMimeType : 1;
+  bool mNewPartPending : 1;
 };
 
 #endif

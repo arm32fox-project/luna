@@ -12,17 +12,15 @@
 
 #include <list>
 
-#include "modules/interface/module_common_types.h"
-#include "modules/remote_bitrate_estimator/include/bwe_defines.h"
-#include "typedefs.h"  // NOLINT(build/include)
-
-#ifdef WEBRTC_BWE_MATLAB
-#include "../test/BWEStandAlone/MatlabPlot.h"
-#endif
+#include "webrtc/modules/interface/module_common_types.h"
+#include "webrtc/modules/remote_bitrate_estimator/include/bwe_defines.h"
+#include "webrtc/typedefs.h"
 
 namespace webrtc {
 enum RateControlRegion;
 
+// This class is assumed to be protected by the owner if used by multiple
+// threads.
 class OveruseDetector {
  public:
   explicit OveruseDetector(const OverUseDetectorOptions& options);
@@ -30,7 +28,7 @@ class OveruseDetector {
   void Update(uint16_t packet_size,
               int64_t timestamp_ms,
               uint32_t rtp_timestamp,
-              int64_t now_ms);
+              int64_t arrival_time_ms);
   BandwidthUsage State() const;
   double NoiseVar() const;
   void SetRateControlRegion(RateControlRegion region);
@@ -47,16 +45,6 @@ class OveruseDetector {
     int64_t complete_time_ms;
     int64_t timestamp;
     int64_t timestamp_ms;
-  };
-
-  struct DebugPlots {
-#ifdef WEBRTC_BWE_MATLAB
-    DebugPlots() : plot1(NULL), plot2(NULL), plot3(NULL), plot4(NULL) {}
-    MatlabPlot* plot1;
-    MatlabPlot* plot2;
-    MatlabPlot* plot3;
-    MatlabPlot* plot4;
-#endif
   };
 
   // Returns true if |timestamp| represent a time which is later than
@@ -100,9 +88,6 @@ class OveruseDetector {
   double time_over_using_;
   uint16_t over_use_counter_;
   BandwidthUsage hypothesis_;
-#ifdef WEBRTC_BWE_MATLAB
-  DebugPlots plots_;
-#endif
 };
 }  // namespace webrtc
 

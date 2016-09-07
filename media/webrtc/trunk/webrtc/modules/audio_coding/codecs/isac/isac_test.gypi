@@ -19,6 +19,7 @@
         './main/test',
         './main/interface',
         './main/util',
+        '<(webrtc_root)',
       ],
       'sources': [
         './main/test/simpleKenny.c',
@@ -36,6 +37,7 @@
         './main/test',
         './main/interface',
         './main/util',
+        '<(webrtc_root)',
       ],
       'sources': [
         './main/test/ReleaseTest-API/ReleaseTest-API.cc',
@@ -54,6 +56,7 @@
         './main/interface',
         '../../../../common_audio/signal_processing/include',
         './main/util',
+        '<(webrtc_root)',
       ],
       'sources': [
         './main/test/SwitchingSampRate/SwitchingSampRate.cc',
@@ -63,9 +66,3 @@
 
   ],
 }
-
-# Local Variables:
-# tab-width:2
-# indent-tabs-mode:nil
-# End:
-# vim: set expandtab tabstop=2 shiftwidth=2:

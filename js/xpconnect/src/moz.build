@@ -4,23 +4,20 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MODULE = 'xpconnect'
-
 EXPORTS += [
     'BackstagePass.h',
-    'GeneratedEvents.h',
-    'XPCJSMemoryReporter.h',
-    'nsCxPusher.h',
     'qsObjectHelper.h',
+    'XPCJSMemoryReporter.h',
     'xpcObjectHelper.h',
     'xpcpublic.h',
 ]
 
-CPP_SOURCES += [
-    'DictionaryHelpers.cpp',
-    'GeneratedEvents.cpp',
+UNIFIED_SOURCES += [
+    'ExportHelpers.cpp',
+    'nsScriptError.cpp',
+    'nsXPConnect.cpp',
+    'Sandbox.cpp',
     'XPCCallContext.cpp',
-    'XPCComponents.cpp',
     'XPCContext.cpp',
     'XPCConvert.cpp',
     'XPCDebug.cpp',
@@ -33,9 +30,8 @@ CPP_SOURCES += [
     'XPCLog.cpp',
     'XPCMaps.cpp',
     'XPCModule.cpp',
-    'XPCQuickStubs.cpp',
     'XPCRuntimeService.cpp',
-    'XPCStack.cpp',
+    'XPCShellImpl.cpp',
     'XPCString.cpp',
     'XPCThrower.cpp',
     'XPCVariant.cpp',
@@ -47,9 +43,35 @@ CPP_SOURCES += [
     'XPCWrappedNativeProto.cpp',
     'XPCWrappedNativeScope.cpp',
     'XPCWrapper.cpp',
-    'dom_quickstubs.cpp',
-    'nsCxPusher.cpp',
-    'nsScriptError.cpp',
-    'nsXPConnect.cpp',
 ]
 
+# XPCComponents.cpp cannot be built in unified mode because it uses plarena.h.
+SOURCES += [
+    'XPCComponents.cpp',
+]
+
+FAIL_ON_WARNINGS = True
+
+MSVC_ENABLE_PGO = True
+
+include('/ipc/chromium/chromium-config.mozbuild')
+
+FINAL_LIBRARY = 'xul'
+
+LOCAL_INCLUDES += [
+    '../loader',
+    '../wrappers',
+    '/caps',
+    '/dom/base',
+    '/dom/html',
+    '/dom/svg',
+    '/dom/workers',
+    '/layout/base',
+    '/layout/style',
+    '/xpcom/reflect/xptinfo',
+]
+
+if CONFIG['MOZ_B2G_BT']:
+    LOCAL_INCLUDES += [
+        '/dom/bluetooth',
+    ]

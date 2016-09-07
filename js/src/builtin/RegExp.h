@@ -7,13 +7,13 @@
 #ifndef builtin_RegExp_h
 #define builtin_RegExp_h
 
-#include "jsprvtd.h"
-
-#include "vm/MatchPairs.h"
 #include "vm/RegExpObject.h"
 
-JSObject *
-js_InitRegExpClass(JSContext *cx, js::HandleObject obj);
+JSObject*
+js_InitRegExpClass(JSContext* cx, js::HandleObject obj);
+
+bool
+regexp_flags(JSContext* cx, unsigned argc, JS::Value* vp);
 
 /*
  * The following builtin natives are extern'd for pointer comparison in
@@ -22,39 +22,76 @@ js_InitRegExpClass(JSContext *cx, js::HandleObject obj);
 
 namespace js {
 
+// Whether RegExp statics should be updated with the input and results of a
+// regular expression execution.
+enum RegExpStaticsUpdate { UpdateRegExpStatics, DontUpdateRegExpStatics };
+
+// Whether RegExp statics should be used to create a RegExp instance.
+enum RegExpStaticsUse { UseRegExpStatics, DontUseRegExpStatics };
+
 RegExpRunStatus
-ExecuteRegExp(JSContext *cx, HandleObject regexp, HandleString string,
-              MatchConduit &matches);
+ExecuteRegExp(JSContext* cx, HandleObject regexp, HandleString string,
+              MatchPairs* matches, RegExpStaticsUpdate staticsUpdate);
 
 /*
  * Legacy behavior of ExecuteRegExp(), which is baked into the JSAPI.
  *
- * |res| may be NULL if the RegExpStatics are not to be updated.
- * |input| may be NULL if there is no JSString corresponding to
+ * |res| may be nullptr if the RegExpStatics are not to be updated.
+ * |input| may be nullptr if there is no JSString corresponding to
  * |chars| and |length|.
  */
 bool
-ExecuteRegExpLegacy(JSContext *cx, RegExpStatics *res, RegExpObject &reobj,
-                    Handle<JSLinearString*> input, const jschar *chars, size_t length,
-                    size_t *lastIndex, bool test, MutableHandleValue rval);
+ExecuteRegExpLegacy(JSContext* cx, RegExpStatics* res, RegExpObject& reobj,
+                    HandleLinearString input, size_t* lastIndex, bool test,
+                    MutableHandleValue rval);
 
 /* Translation from MatchPairs to a JS array in regexp_exec()'s output format. */
 bool
-CreateRegExpMatchResult(JSContext *cx, HandleString string, MatchPairs &matches,
+CreateRegExpMatchResult(JSContext* cx, HandleString input, const MatchPairs& matches,
                         MutableHandleValue rval);
 
+extern bool
+regexp_exec_raw(JSContext* cx, HandleObject regexp, HandleString input, MatchPairs* maybeMatches,
+                MutableHandleValue output);
+
+extern bool
+regexp_exec(JSContext* cx, unsigned argc, Value* vp);
+
 bool
-CreateRegExpMatchResult(JSContext *cx, HandleString input, const jschar *chars, size_t length,
-                        MatchPairs &matches, MutableHandleValue rval);
+regexp_test_raw(JSContext* cx, HandleObject regexp, HandleString input, bool* result);
 
-extern JSBool
-regexp_exec(JSContext *cx, unsigned argc, Value *vp);
+extern bool
+regexp_test(JSContext* cx, unsigned argc, Value* vp);
 
-bool
-regexp_test_raw(JSContext *cx, HandleObject regexp, HandleString input, JSBool *result);
+/*
+ * The following functions are for use by self-hosted code.
+ */
 
-extern JSBool
-regexp_test(JSContext *cx, unsigned argc, Value *vp);
+/*
+ * Behaves like regexp.exec(string), but doesn't set RegExp statics.
+ *
+ * Usage: match = regexp_exec_no_statics(regexp, string)
+ */
+extern bool
+regexp_exec_no_statics(JSContext* cx, unsigned argc, Value* vp);
+
+/*
+ * Behaves like regexp.test(string), but doesn't set RegExp statics.
+ *
+ * Usage: does_match = regexp_test_no_statics(regexp, string)
+ */
+extern bool
+regexp_test_no_statics(JSContext* cx, unsigned argc, Value* vp);
+
+/*
+ * Behaves like RegExp(string) or RegExp(string, string), but doesn't use
+ * RegExp statics.
+ *
+ * Usage: re = regexp_construct(pattern)
+ *        re = regexp_construct(pattern, flags)
+ */
+extern bool
+regexp_construct_no_statics(JSContext* cx, unsigned argc, Value* vp);
 
 } /* namespace js */
 

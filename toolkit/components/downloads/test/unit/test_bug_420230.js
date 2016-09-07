@@ -10,6 +10,10 @@ const dm = Cc["@mozilla.org/download-manager;1"].getService(nsIDownloadManager);
 
 function run_test()
 {
+  if (oldDownloadManagerDisabled()) {
+    return;
+  }
+
   // Don't finish until the download is finished
   do_test_pending();
 
@@ -36,7 +40,7 @@ function run_test()
                             Math.round(Date.now() * 1000), null, persist, false);
 
     persist.progressListener = dl.QueryInterface(Ci.nsIWebProgressListener);
-    persist.saveURI(dl.source, null, null, null, null, dl.targetFile, null);
+    persist.saveURI(dl.source, null, null, 0, null, null, dl.targetFile, null);
 
     return dl;
   }

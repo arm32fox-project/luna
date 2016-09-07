@@ -8,6 +8,15 @@ XPIDL_SOURCES += [
     'nsIHttpServer.idl',
 ]
 
-MODULE = 'test_necko'
+XPIDL_MODULE = 'test_necko'
 
 XPCSHELL_TESTS_MANIFESTS += ['test/xpcshell.ini']
+
+EXTRA_COMPONENTS += [
+    'httpd.js',
+    'httpd.manifest',
+]
+
+TESTING_JS_MODULES += [
+    'httpd.js',
+]

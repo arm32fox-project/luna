@@ -30,8 +30,6 @@ var cases = [
     // bindings in functions
     "function f() { var x = VAL; @@ } f();",
     "function f() { let x = VAL; @@ } f();",
-    "function f([x]) { let x = VAL; @@ } f(['fail']);",
-    "function f(x) { { let x = VAL; @@ } } f('fail');",
     "function f() { function x() {} x = VAL; @@ } f();",
 
     // dynamic bindings
@@ -49,7 +47,7 @@ function test(code, debugStmts, followupStmts) {
     var val = nextval++;
     var hits = 0;
 
-    var g = newGlobal('new-compartment');
+    var g = newGlobal();
     g.eval("function debugMe() { var x = 'wrong-x'; debugger; }");
     g.capture = null;
 

@@ -12,7 +12,7 @@ using namespace mozilla;
 
 extern nsIGeolocationUpdate *gLocationCallback;
 
-NS_IMPL_ISUPPORTS1(AndroidLocationProvider, nsIGeolocationProvider)
+NS_IMPL_ISUPPORTS(AndroidLocationProvider, nsIGeolocationProvider)
 
 AndroidLocationProvider::AndroidLocationProvider()
 {
@@ -26,9 +26,7 @@ AndroidLocationProvider::~AndroidLocationProvider()
 NS_IMETHODIMP
 AndroidLocationProvider::Startup()
 {
-    if (!AndroidBridge::Bridge())
-        return NS_ERROR_NOT_IMPLEMENTED;
-    AndroidBridge::Bridge()->EnableLocation(true);
+    widget::GoannaAppShell::EnableLocation(true);
     return NS_OK;
 }
 
@@ -44,17 +42,13 @@ AndroidLocationProvider::Watch(nsIGeolocationUpdate* aCallback)
 NS_IMETHODIMP
 AndroidLocationProvider::Shutdown()
 {
-    if (!AndroidBridge::Bridge())
-        return NS_ERROR_NOT_IMPLEMENTED;
-    AndroidBridge::Bridge()->EnableLocation(false);
+    widget::GoannaAppShell::EnableLocation(false);
     return NS_OK;
 }
 
 NS_IMETHODIMP
 AndroidLocationProvider::SetHighAccuracy(bool enable)
 {
-    if (!AndroidBridge::Bridge())
-        return NS_ERROR_NOT_IMPLEMENTED;
-    AndroidBridge::Bridge()->EnableLocationHighAccuracy(enable);
+    widget::GoannaAppShell::EnableLocationHighAccuracy(enable);
     return NS_OK;
 }

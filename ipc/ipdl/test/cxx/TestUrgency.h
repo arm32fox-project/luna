@@ -18,21 +18,27 @@ public:
     virtual ~TestUrgencyParent();
 
     static bool RunTestInProcesses() { return true; }
-    static bool RunTestInThreads() { return true; }
+    static bool RunTestInThreads() { return false; }
 
     void Main();
 
     bool RecvTest1(uint32_t *value);
     bool RecvTest2();
     bool RecvTest3(uint32_t *value);
+    bool RecvTest4_Begin();
+    bool RecvTest4_NestedSync();
+    bool RecvFinalTest_Begin();
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    bool ShouldContinueFromReplyTimeout() override
     {
-        if (NormalShutdown != why)
-            fail("unexpected destruction!");  
+      return false;
+    }
+    virtual void ActorDestroy(ActorDestroyReason why) override
+    {
         passed("ok");
         QuitParent();
     }
+
 private:
     bool inreply_;
 };
@@ -46,13 +52,11 @@ public:
     virtual ~TestUrgencyChild();
 
     bool RecvStart();
-    bool AnswerReply1(uint32_t *reply);
-    bool AnswerReply2(uint32_t *reply);
+    bool RecvReply1(uint32_t *reply);
+    bool RecvReply2(uint32_t *reply);
 
-    virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE
+    virtual void ActorDestroy(ActorDestroyReason why) override
     {
-        if (NormalShutdown != why)
-            fail("unexpected destruction!");
         QuitChild();
     }
 

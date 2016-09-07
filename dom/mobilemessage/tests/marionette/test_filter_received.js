@@ -6,22 +6,22 @@ MARIONETTE_TIMEOUT = 60000;
 SpecialPowers.addPermission("sms", true, document);
 SpecialPowers.setBoolPref("dom.sms.enabled", true);
 
-let sms = window.navigator.mozSms;
+let manager = window.navigator.mozMobileMessage;
 let numberMsgs = 10;
 let smsList = new Array();
 
 function verifyInitialState() {
   log("Verifying initial state.");
-  ok(sms, "mozSms");
+  ok(manager instanceof MozMobileMessageManager,
+     "manager is instance of " + manager.constructor);
   // Ensure test is starting clean with no existing sms messages
   deleteAllMsgs(simulateIncomingSms);
 }
 
 function deleteAllMsgs(nextFunction) {
   let msgList = new Array();
-  let filter = new MozSmsFilter;
 
-  let cursor = sms.getMessages(filter, false);
+  let cursor = manager.getMessages();
   ok(cursor instanceof DOMCursor,
       "cursor is instanceof " + cursor.constructor);
 
@@ -46,7 +46,7 @@ function deleteAllMsgs(nextFunction) {
   cursor.onerror = function(event) {
     log("Received 'onerror' event.");
     ok(event.target.error, "domerror obj");
-    log("sms.getMessages error: " + event.target.error.name);
+    log("manager.getMessages error: " + event.target.error.name);
     ok(false,"Could not get SMS messages");
     cleanUp();
   };
@@ -56,7 +56,7 @@ function deleteMsgs(msgList, nextFunction) {
   let smsId = msgList.shift();
 
   log("Deleting SMS (id: " + smsId + ").");
-  let request = sms.delete(smsId);
+  let request = manager.delete(smsId);
   ok(request instanceof DOMRequest,
       "request is instanceof " + request.constructor);
 
@@ -72,7 +72,7 @@ function deleteMsgs(msgList, nextFunction) {
       }
     } else {
       log("SMS delete failed.");
-      ok(false,"sms.delete request returned false");
+      ok(false,"manager.delete request returned false");
       cleanUp();
     }
   };
@@ -80,7 +80,7 @@ function deleteMsgs(msgList, nextFunction) {
   request.onerror = function(event) {
     log("Received 'onerror' smsrequest event.");
     ok(event.target.error, "domerror obj");
-    ok(false, "sms.delete request returned unexpected error: "
+    ok(false, "manager.delete request returned unexpected error: "
         + event.target.error.name );
     cleanUp();
   };
@@ -102,7 +102,7 @@ function simulateIncomingSms() {
 }
 
 // Callback for incoming sms
-sms.onreceived = function onreceived(event) {
+manager.onreceived = function onreceived(event) {
   log("Received 'onreceived' sms event.");
   let incomingSms = event.message;
   log("Received SMS (id: " + incomingSms.id + ").");
@@ -132,8 +132,8 @@ function sendSms() {
 
   log("Sending an SMS.");
 
-  sms.onsent = function(event) {
-    log("Received 'onsent' smsmanager event.");
+  manager.onsent = function(event) {
+    log("Received 'onsent' event.");
     gotSmsSent = true;
     let sentSms = event.message;
     log("Sent SMS (id: " + sentSms.id + ").");
@@ -144,7 +144,7 @@ function sendSms() {
     }
   };
 
-  let request = sms.send(remoteNumber, text);
+  let request = manager.send(remoteNumber, text);
   ok(request instanceof DOMRequest,
       "request is instanceof " + request.constructor);
 
@@ -157,7 +157,7 @@ function sendSms() {
         getMsgs(); 
       }
     } else {
-      log("smsrequest returned false for sms.send");
+      log("smsrequest returned false for manager.send");
       ok(false,"SMS send failed");
       cleanUp();
     }
@@ -166,21 +166,20 @@ function sendSms() {
   request.onerror = function(event) {
     log("Received 'onerror' smsrequest event.");
     ok(event.target.error, "domerror obj");
-    ok(false, "sms.send request returned unexpected error: "
+    ok(false, "manager.send request returned unexpected error: "
         + event.target.error.name );
     cleanUp();
   };
 }
 
 function getMsgs() {
-  var filter = new MozSmsFilter();
   let foundSmsList = new Array();
 
   // Set filter for received messages
-  filter.delivery = "received";
+  let filter = { delivery: "received" };
 
   log("Getting the received SMS messages.");
-  let cursor = sms.getMessages(filter, false);
+  let cursor = manager.getMessages(filter, false);
   ok(cursor instanceof DOMCursor,
       "cursor is instanceof " + cursor.constructor);
 
@@ -203,7 +202,7 @@ function getMsgs() {
       } else {
         log("SMS getMessages returned " + foundSmsList.length +
             " messages, but expected " + smsList.length + ".");
-        ok(false, "Incorrect number of messages returned by sms.getMessages");
+        ok(false, "Incorrect number of messages returned by manager.getMessages");
         deleteAllMsgs(cleanUp);
       }
     }
@@ -212,7 +211,7 @@ function getMsgs() {
   cursor.onerror = function(event) {
     log("Received 'onerror' event.");
     ok(event.target.error, "domerror obj");
-    log("sms.getMessages error: " + event.target.error.name);
+    log("manager.getMessages error: " + event.target.error.name);
     ok(false,"Could not get SMS messages");
     cleanUp();
   };
@@ -227,7 +226,7 @@ function verifyFoundMsgs(foundSmsList) {
 }
 
 function cleanUp() {
-  sms.onreceived = null;
+  manager.onreceived = null;
   SpecialPowers.removePermission("sms", document);
   SpecialPowers.clearUserPref("dom.sms.enabled");
   finish();

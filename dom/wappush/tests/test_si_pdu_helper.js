@@ -55,7 +55,7 @@ add_test(function test_si_parse_wbxml_empty() {
                 ]);
   data.offset = 0;
   let result = "<si/>";
-  let msg = SI.PduHelper.parse(data, contentType);
+  msg = SI.PduHelper.parse(data, contentType);
   do_check_eq(msg.content, result);
 
   run_next_test();
@@ -79,7 +79,7 @@ add_test(function test_si_parse_wbxml_empty_public_id_string_table() {
                 ]);
   data.offset = 0;
   let result = "<si/>";
-  let msg = SI.PduHelper.parse(data, contentType);
+  msg = SI.PduHelper.parse(data, contentType);
   do_check_eq(msg.content, result);
 
   run_next_test();
@@ -104,7 +104,34 @@ add_test(function test_si_parse_wbxml_with_href() {
   data.offset = 0;
   let result = "<si><indication href=\"http://www.oreilly.com/\">" +
                "Check this website</indication></si>";
-  let msg = SI.PduHelper.parse(data, contentType);
+  msg = SI.PduHelper.parse(data, contentType);
+  do_check_eq(msg.content, result);
+
+  run_next_test();
+});
+
+/**
+ * SI compressed by WBXML with href attribute containing reserved XML character
+ */
+add_test(function test_si_parse_wbxml_with_href_reserved_char() {
+  let msg = {};
+  let contentType = "";
+  let data = {};
+
+  contentType = "application/vnd.wap.sic";
+  data.array = new Uint8Array([
+                  0x02, 0x05, 0x6A, 0x00, 0x45, 0xC6, 0x0D, 0x03,
+                  0x6F, 0x72, 0x65, 0x69, 0x6C, 0x6C, 0x79, 0x00,
+                  0x85, 0x03, 0x66, 0x6F, 0x6F, 0x26, 0x62, 0x61,
+                  0x72, 0x00, 0x01, 0x03, 0x43, 0x68, 0x65, 0x63,
+                  0x6B, 0x20, 0x74, 0x68, 0x69, 0x73, 0x20, 0x77,
+                  0x65, 0x62, 0x73, 0x69, 0x74, 0x65, 0x00, 0x01,
+                  0x01
+                ]);
+  data.offset = 0;
+  let result = "<si><indication href=\"http://www.oreilly.com/foo&amp;bar\">" +
+               "Check this website</indication></si>";
+  msg = SI.PduHelper.parse(data, contentType);
   do_check_eq(msg.content, result);
 
   run_next_test();
@@ -135,7 +162,7 @@ add_test(function test_si_parse_wbxml_with_href_date() {
   let result = "<si><indication href=\"http://www.xyz.com/email/123/abc.wml\"" +
                " created=\"1999-06-25T15:23:15Z\" si-expires=\"1999-06-30T00:00:00Z\">" +
                "You have 4 new emails</indication></si>";
-  let msg = SI.PduHelper.parse(data, contentType);
+  msg = SI.PduHelper.parse(data, contentType);
   do_check_eq(msg.content, result);
 
   run_next_test();
@@ -166,7 +193,7 @@ add_test(function test_si_parse_wbxml_with_attr_string_table() {
   let result = "<si><indication href=\"http://www.xyz.com/email/123/abc.wml\"" +
                " created=\"1999-06-25T15:23:15Z\" si-expires=\"1999-06-30T00:00:00Z\">" +
                "You have 4 new emails</indication></si>";
-  let msg = SI.PduHelper.parse(data, contentType);
+  msg = SI.PduHelper.parse(data, contentType);
   do_check_eq(msg.content, result);
 
   run_next_test();

@@ -1,4 +1,4 @@
-//* -*- Mode: Javascript; tab-width: 8; indent-tabs-mode: nil; js-indent-level: 2 -*- *
+//* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- *
 function dumpn(s) {
   dump(s + "\n");
 }
@@ -31,6 +31,12 @@ prefBranch.setIntPref("urlclassifier.gethashnoise", 0);
 prefBranch.setBoolPref("browser.safebrowsing.malware.enabled", true);
 prefBranch.setBoolPref("browser.safebrowsing.enabled", true);
 
+// Enable all completions for tests
+prefBranch.setCharPref("urlclassifier.disallow_completions", "");
+
+// Hash completion timeout
+prefBranch.setIntPref("urlclassifier.gethash.timeout_ms", 5000);
+
 function delFile(name) {
   try {
     // Delete a previously created sqlite file
@@ -51,7 +57,11 @@ function cleanUp() {
   delFile("safebrowsing/test-malware-simple.cache");
   delFile("safebrowsing/test-phish-simple.pset");
   delFile("safebrowsing/test-malware-simple.pset");
+  delFile("testLarge.pset");
+  delFile("testNoDelta.pset");
 }
+
+var allTables = "test-phish-simple,test-malware-simple";
 
 var dbservice = Cc["@mozilla.org/url-classifier/dbservice;1"].getService(Ci.nsIUrlClassifierDBService);
 var streamUpdater = Cc["@mozilla.org/url-classifier/streamupdater;1"]
@@ -111,7 +121,7 @@ function buildBareUpdate(chunks, hashSize) {
 /**
  * Performs an update of the dbservice manually, bypassing the stream updater
  */
-function doSimpleUpdate(updateText, success, failure, clientKey) {
+function doSimpleUpdate(updateText, success, failure) {
   var listener = {
     QueryInterface: function(iid)
     {
@@ -128,8 +138,7 @@ function doSimpleUpdate(updateText, success, failure, clientKey) {
   };
 
   dbservice.beginUpdate(listener,
-                        "test-phish-simple,test-malware-simple",
-                        clientKey);
+                        "test-phish-simple,test-malware-simple");
   dbservice.beginStream("", "");
   dbservice.updateStream(updateText);
   dbservice.finishStream();
@@ -164,15 +173,15 @@ function doErrorUpdate(tables, success, failure) {
  * Performs an update of the dbservice using the stream updater and a
  * data: uri
  */
-function doStreamUpdate(updateText, success, failure, downloadFailure, clientKey) {
+function doStreamUpdate(updateText, success, failure, downloadFailure) {
   var dataUpdate = "data:," + encodeURIComponent(updateText);
 
-  if (!downloadFailure)
+  if (!downloadFailure) {
     downloadFailure = failure;
+  }
 
-  streamUpdater.updateUrl = dataUpdate;
   streamUpdater.downloadUpdates("test-phish-simple,test-malware-simple", "",
-                                clientKey, success, failure, downloadFailure);
+                                dataUpdate, success, failure, downloadFailure);
 }
 
 var gAssertions = {
@@ -201,11 +210,11 @@ checkUrls: function(urls, expected, cb)
     if (urls.length > 0) {
       var fragment = urls.shift();
       var principal = secMan.getNoAppCodebasePrincipal(iosvc.newURI("http://" + fragment, null, null));
-      dbservice.lookup(principal,
-                       function(arg) {
-                         do_check_eq(expected, arg);
-                         doLookup();
-                       }, true);
+      dbservice.lookup(principal, allTables,
+                                function(arg) {
+                                  do_check_eq(expected, arg);
+                                  doLookup();
+                                }, true);
     } else {
       cb();
     }
@@ -267,7 +276,7 @@ function updateError(arg)
 }
 
 // Runs a set of updates, and then checks a set of assertions.
-function doUpdateTest(updates, assertions, successCallback, errorCallback, clientKey) {
+function doUpdateTest(updates, assertions, successCallback, errorCallback) {
   var errorUpdate = function() {
     checkAssertions(assertions, errorCallback);
   }
@@ -275,7 +284,7 @@ function doUpdateTest(updates, assertions, successCallback, errorCallback, clien
   var runUpdate = function() {
     if (updates.length > 0) {
       var update = updates.shift();
-      doStreamUpdate(update, runUpdate, errorUpdate, null, clientKey);
+      doStreamUpdate(update, runUpdate, errorUpdate, null);
     } else {
       checkAssertions(assertions, successCallback);
     }

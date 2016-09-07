@@ -16,6 +16,7 @@
 #include "mozilla/Observer.h"
 #include "nsAutoPtr.h"
 #include "nsTArray.h"
+#include "nsThreadUtils.h"
 
 template <class T>
 class nsRevocableEventPtr;
@@ -67,29 +68,29 @@ protected:
   InitWithService(BluetoothService* aService);
 
   virtual void
-  ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
+  ActorDestroy(ActorDestroyReason aWhy) override;
 
   virtual bool
-  RecvRegisterSignalHandler(const nsString& aNode) MOZ_OVERRIDE;
+  RecvRegisterSignalHandler(const nsString& aNode) override;
 
   virtual bool
-  RecvUnregisterSignalHandler(const nsString& aNode) MOZ_OVERRIDE;
+  RecvUnregisterSignalHandler(const nsString& aNode) override;
 
   virtual bool
-  RecvStopNotifying() MOZ_OVERRIDE;
+  RecvStopNotifying() override;
 
   virtual bool
   RecvPBluetoothRequestConstructor(PBluetoothRequestParent* aActor,
-                                   const Request& aRequest) MOZ_OVERRIDE;
+                                   const Request& aRequest) override;
 
   virtual PBluetoothRequestParent*
-  AllocPBluetoothRequest(const Request& aRequest) MOZ_OVERRIDE;
+  AllocPBluetoothRequestParent(const Request& aRequest) override;
 
   virtual bool
-  DeallocPBluetoothRequest(PBluetoothRequestParent* aActor) MOZ_OVERRIDE;
+  DeallocPBluetoothRequestParent(PBluetoothRequestParent* aActor) override;
 
   virtual void
-  Notify(const BluetoothSignal& aSignal) MOZ_OVERRIDE;
+  Notify(const BluetoothSignal& aSignal) override;
 
 private:
   void
@@ -119,7 +120,7 @@ protected:
   virtual ~BluetoothRequestParent();
 
   virtual void
-  ActorDestroy(ActorDestroyReason aWhy) MOZ_OVERRIDE;
+  ActorDestroy(ActorDestroyReason aWhy) override;
 
   void
   RequestComplete();
@@ -163,16 +164,13 @@ protected:
   DoRequest(const DenyPairingConfirmationRequest& aRequest);
 
   bool
-  DoRequest(const ConfirmAuthorizationRequest& aRequest);
-
-  bool
-  DoRequest(const DenyAuthorizationRequest& aRequest);
-
-  bool
   DoRequest(const ConnectRequest& aRequest);
 
   bool
   DoRequest(const DisconnectRequest& aRequest);
+
+  bool
+  DoRequest(const IsConnectedRequest& aRequest);
 
   bool
   DoRequest(const SendFileRequest& aRequest);
@@ -194,6 +192,23 @@ protected:
 
   bool
   DoRequest(const IsScoConnectedRequest& aRequest);
+
+#ifdef MOZ_B2G_RIL
+  bool
+  DoRequest(const AnswerWaitingCallRequest& aRequest);
+
+  bool
+  DoRequest(const IgnoreWaitingCallRequest& aRequest);
+
+  bool
+  DoRequest(const ToggleCallsRequest& aRequest);
+#endif
+
+  bool
+  DoRequest(const SendMetaDataRequest& aRequest);
+
+  bool
+  DoRequest(const SendPlayStatusRequest& aRequest);
 };
 
 END_BLUETOOTH_NAMESPACE

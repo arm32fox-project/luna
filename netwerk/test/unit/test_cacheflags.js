@@ -1,18 +1,16 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
 Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
 
-var httpserver = null;
+var httpserver = new HttpServer();
+httpserver.start(-1);
 
 // Need to randomize, because apparently no one clears our cache
 var suffix = Math.random();
-var httpBase = "http://localhost:4444";
+var httpBase = "http://localhost:" + httpserver.identity.primaryPort;
 var httpsBase = "http://localhost:4445";
 var shortexpPath = "/shortexp" + suffix;
-var longexpPath = "/longexp" + suffix;
+var longexpPath = "/longexp/" + suffix;
+var longexp2Path = "/longexp/2/" + suffix;
 var nocachePath = "/nocache" + suffix;
 var nostorePath = "/nostore" + suffix;
 
@@ -43,7 +41,14 @@ PrivateBrowsingLoadContext = new LoadContext(true);
 function make_channel(url, flags, usePrivateBrowsing) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
     getService(Ci.nsIIOService);
-  var req = ios.newChannel(url, null, null);
+  var req = ios.newChannel2(url,
+                            null,
+                            null,
+                            null,      // aLoadingNode
+                            Services.scriptSecurityManager.getSystemPrincipal(),
+                            null,      // aTriggeringPrincipal
+                            Ci.nsILoadInfo.SEC_NORMAL,
+                            Ci.nsIContentPolicy.TYPE_OTHER);
   req.loadFlags = flags;
   if (usePrivateBrowsing) {
     req.notificationCallbacks = PrivateBrowsingLoadContext;    
@@ -182,6 +187,15 @@ var gTests = [
            true,   // read from cache
            false), // hit server
 
+  new Test(httpBase + longexp2Path, 0,
+           true,   // expect success
+           false,  // read from cache
+           true),  // hit server
+  new Test(httpBase + longexp2Path, 0,
+           true,   // expect success
+           true,   // read from cache
+           false), // hit server
+
   new Test(httpBase + nocachePath, 0,
            true,   // expect success
            false,  // read from cache
@@ -194,10 +208,16 @@ var gTests = [
            false,  // expect success
            false,  // read from cache
            false), // hit server
+
+  // CACHE2: mayhemer - entry is doomed... I think the logic is wrong, we should not doom them
+  // as they are not valid, but take them as they need to reval
+  /*
   new Test(httpBase + nocachePath, Ci.nsIRequest.LOAD_FROM_CACHE,
            true,   // expect success
            true,   // read from cache
            false), // hit server
+  */
+
   // LOAD_ONLY_FROM_CACHE would normally fail (because no-cache forces
   // a validation), but VALIDATE_NEVER should override that.
   new Test(httpBase + nocachePath,
@@ -219,6 +239,7 @@ var gTests = [
            false,  // read from cache
            false)  // hit server
   */
+
   new Test(httpBase + nostorePath, 0,
            true,   // expect success
            false,  // read from cache
@@ -295,13 +316,18 @@ function longexp_handler(metadata, response) {
   handler(metadata, response);
 }
 
+// test spaces around max-age value token
+function longexp2_handler(metadata, response) {
+  response.setHeader("Cache-Control", "max-age = 10000", false);
+  handler(metadata, response);
+}
+
 function run_test() {
-  httpserver = new HttpServer();
   httpserver.registerPathHandler(shortexpPath, shortexp_handler);
   httpserver.registerPathHandler(longexpPath, longexp_handler);
+  httpserver.registerPathHandler(longexp2Path, longexp2_handler);
   httpserver.registerPathHandler(nocachePath, nocache_handler);
   httpserver.registerPathHandler(nostorePath, nostore_handler);
-  httpserver.start(4444);
 
   run_next_test();
   do_test_pending();

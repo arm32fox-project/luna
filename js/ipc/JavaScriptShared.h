@@ -8,110 +8,219 @@
 #ifndef mozilla_jsipc_JavaScriptShared_h__
 #define mozilla_jsipc_JavaScriptShared_h__
 
-#include "jsapi.h"
-#include "jspubtd.h"
-#include "js/HashTable.h"
 #include "mozilla/dom/DOMTypes.h"
+#include "mozilla/jsipc/CrossProcessObjectWrappers.h"
 #include "mozilla/jsipc/PJavaScript.h"
 #include "nsJSUtils.h"
-#include "nsFrameMessageManager.h"
 
 namespace mozilla {
+
+namespace dom {
+class CPOWManagerGetter;
+}
+
 namespace jsipc {
 
-typedef uint64_t ObjectId;
-
-// Map ids -> JSObjects
-class ObjectStore
-{
-    typedef js::DefaultHasher<ObjectId> TableKeyHasher;
-
-    typedef js::HashMap<ObjectId, JSObject *, TableKeyHasher, js::SystemAllocPolicy> ObjectTable;
-
+class ObjectId {
   public:
-    ObjectStore();
+    // Use 47 bits at most, to be safe, since jsval privates are encoded as
+    // doubles. See bug 1065811 comment 12 for an explanation.
+    static const size_t SERIAL_NUMBER_BITS = 47;
+    static const size_t FLAG_BITS = 1;
+    static const uint64_t SERIAL_NUMBER_MAX = (uint64_t(1) << SERIAL_NUMBER_BITS) - 1;
 
-    bool init();
-    void trace(JSTracer *trc);
+    explicit ObjectId(uint64_t serialNumber, bool hasXrayWaiver)
+      : serialNumber_(serialNumber), hasXrayWaiver_(hasXrayWaiver)
+    {
+        if (MOZ_UNLIKELY(serialNumber == 0 || serialNumber > SERIAL_NUMBER_MAX))
+            MOZ_CRASH("Bad CPOW Id");
+    }
 
-    bool add(ObjectId id, JSObject *obj);
-    JSObject *find(ObjectId id);
-    void remove(ObjectId id);
+    bool operator==(const ObjectId& other) const {
+        bool equal = serialNumber() == other.serialNumber();
+        MOZ_ASSERT_IF(equal, hasXrayWaiver() == other.hasXrayWaiver());
+        return equal;
+    }
+
+    bool isNull() { return !serialNumber_; }
+
+    uint64_t serialNumber() const { return serialNumber_; }
+    bool hasXrayWaiver() const { return hasXrayWaiver_; }
+    uint64_t serialize() const {
+        MOZ_ASSERT(serialNumber(), "Don't send a null ObjectId over IPC");
+        return uint64_t((serialNumber() << FLAG_BITS) | ((hasXrayWaiver() ? 1 : 0) << 0));
+    }
+
+    static ObjectId nullId() { return ObjectId(); }
+    static ObjectId deserialize(uint64_t data) {
+        return ObjectId(data >> FLAG_BITS, data & 1);
+    }
 
   private:
-    ObjectTable table_;
+    ObjectId() : serialNumber_(0), hasXrayWaiver_(false) {}
+
+    uint64_t serialNumber_ : SERIAL_NUMBER_BITS;
+    bool hasXrayWaiver_ : 1;
+};
+
+class JavaScriptShared;
+
+// DefaultHasher<T> requires that T coerce to an integral type. We could make
+// ObjectId do that, but doing so would weaken our type invariants, so we just
+// reimplement it manually.
+struct ObjectIdHasher
+{
+    typedef ObjectId Lookup;
+    static js::HashNumber hash(const Lookup& l) {
+        return l.serialize();
+    }
+    static bool match(const ObjectId& k, const ObjectId& l) {
+        return k == l;
+    }
+    static void rekey(ObjectId& k, const ObjectId& newKey) {
+        k = newKey;
+    }
+};
+
+// Map ids -> JSObjects
+class IdToObjectMap
+{
+    typedef js::HashMap<ObjectId, JS::Heap<JSObject*>, ObjectIdHasher, js::SystemAllocPolicy> Table;
+
+  public:
+    IdToObjectMap();
+
+    bool init();
+    void trace(JSTracer* trc);
+    void sweep();
+
+    bool add(ObjectId id, JSObject* obj);
+    JSObject* find(ObjectId id);
+    void remove(ObjectId id);
+
+    void clear();
+    bool empty() const;
+
+  private:
+    Table table_;
 };
 
 // Map JSObjects -> ids
-class ObjectIdCache
+class ObjectToIdMap
 {
-    typedef js::PointerHasher<JSObject *, 3> Hasher;
-    typedef js::HashMap<JSObject *, ObjectId, Hasher, js::SystemAllocPolicy> ObjectIdTable;
+    typedef js::PointerHasher<JSObject*, 3> Hasher;
+    typedef js::HashMap<JSObject*, ObjectId, Hasher, js::SystemAllocPolicy> Table;
 
   public:
-    ObjectIdCache();
+    ObjectToIdMap();
+    ~ObjectToIdMap();
 
     bool init();
-    void trace(JSTracer *trc);
+    void trace(JSTracer* trc);
+    void sweep();
 
-    bool add(JSObject *, ObjectId id);
-    ObjectId find(JSObject *obj);
-    void remove(JSObject *obj);
+    bool add(JSContext* cx, JSObject* obj, ObjectId id);
+    ObjectId find(JSObject* obj);
+    void remove(JSObject* obj);
+    void clear();
 
   private:
-    ObjectIdTable table_;
+    static void keyMarkCallback(JSTracer* trc, JSObject* key, void* data);
+
+    Table* table_;
 };
 
-class JavaScriptShared
+class Logging;
+
+class JavaScriptShared : public CPOWManager
 {
   public:
+    explicit JavaScriptShared(JSRuntime* rt);
+    virtual ~JavaScriptShared();
+
     bool init();
 
-    static const uint32_t OBJECT_EXTRA_BITS  = 1;
-    static const uint32_t OBJECT_IS_CALLABLE = (1 << 0);
+    void decref();
+    void incref();
+
+    bool Unwrap(JSContext* cx, const InfallibleTArray<CpowEntry>& aCpows, JS::MutableHandleObject objp);
+    bool Wrap(JSContext* cx, JS::HandleObject aObj, InfallibleTArray<CpowEntry>* outCpows);
 
   protected:
-    bool toVariant(JSContext *cx, jsval from, JSVariant *to);
-    bool toValue(JSContext *cx, const JSVariant &from, JS::MutableHandleValue to);
-    bool fromDescriptor(JSContext *cx, const JSPropertyDescriptor &desc, PPropertyDescriptor *out);
-    bool toDescriptor(JSContext *cx, const PPropertyDescriptor &in, JSPropertyDescriptor *out);
-    bool convertIdToGoannaString(JSContext *cx, JS::HandleId id, nsString *to);
-    bool convertGoannaStringToId(JSContext *cx, const nsString &from, JS::MutableHandleId id);
+    bool toVariant(JSContext* cx, JS::HandleValue from, JSVariant* to);
+    bool fromVariant(JSContext* cx, const JSVariant& from, JS::MutableHandleValue to);
 
-    bool toValue(JSContext *cx, const JSVariant &from, jsval *to) {
-        JS::RootedValue v(cx);
-        if (!toValue(cx, from, &v))
-            return false;
-        *to = v;
-        return true;
+    bool toJSIDVariant(JSContext* cx, JS::HandleId from, JSIDVariant* to);
+    bool fromJSIDVariant(JSContext* cx, const JSIDVariant& from, JS::MutableHandleId to);
+
+    bool toSymbolVariant(JSContext* cx, JS::Symbol* sym, SymbolVariant* symVarp);
+    JS::Symbol* fromSymbolVariant(JSContext* cx, SymbolVariant symVar);
+
+    bool fromDescriptor(JSContext* cx, JS::Handle<JSPropertyDescriptor> desc,
+                        PPropertyDescriptor* out);
+    bool toDescriptor(JSContext* cx, const PPropertyDescriptor& in,
+                      JS::MutableHandle<JSPropertyDescriptor> out);
+
+    bool toObjectOrNullVariant(JSContext* cx, JSObject* obj, ObjectOrNullVariant* objVarp);
+    JSObject* fromObjectOrNullVariant(JSContext* cx, ObjectOrNullVariant objVar);
+
+    bool convertIdToGoannaString(JSContext* cx, JS::HandleId id, nsString* to);
+    bool convertGoannaStringToId(JSContext* cx, const nsString& from, JS::MutableHandleId id);
+
+    virtual bool toObjectVariant(JSContext* cx, JSObject* obj, ObjectVariant* objVarp) = 0;
+    virtual JSObject* fromObjectVariant(JSContext* cx, ObjectVariant objVar) = 0;
+
+    static void ConvertID(const nsID& from, JSIID* to);
+    static void ConvertID(const JSIID& from, nsID* to);
+
+    JSObject* findCPOWById(const ObjectId& objId) {
+        return cpows_.find(objId);
     }
+    JSObject* findObjectById(JSContext* cx, const ObjectId& objId);
 
-    virtual bool makeId(JSContext *cx, JSObject *obj, ObjectId *idp) = 0;
-    virtual JSObject *unwrap(JSContext *cx, ObjectId id) = 0;
+    static bool LoggingEnabled() { return sLoggingEnabled; }
+    static bool StackLoggingEnabled() { return sStackLoggingEnabled; }
 
-    bool unwrap(JSContext *cx, ObjectId id, JSObject **objp) {
-        if (!id) {
-            *objp = NULL;
-            return true;
-        }
+    friend class Logging;
 
-        *objp = unwrap(cx, id);
-        return !!*objp;
-    }
+    virtual bool isParent() = 0;
 
-    static void ConvertID(const nsID &from, JSIID *to);
-    static void ConvertID(const JSIID &from, nsID *to);
-
-    JSObject *findObject(uint32_t objId) {
-        return objects_.find(objId);
-    }
+    virtual JSObject* scopeForTargetObjects() = 0;
 
   protected:
-    ObjectStore objects_;
+    JSRuntime* rt_;
+    uintptr_t refcount_;
+
+    IdToObjectMap objects_;
+    IdToObjectMap cpows_;
+
+    uint64_t nextSerialNumber_;
+
+    // CPOW references can be weak, and any object we store in a map may be
+    // GCed (at which point the CPOW will report itself "dead" to the owner).
+    // This means that we don't want to store any js::Wrappers in the CPOW map,
+    // because CPOW will die if the wrapper is GCed, even if the underlying
+    // object is still alive.
+    //
+    // This presents a tricky situation for Xray waivers, since they're normally
+    // represented as a special same-compartment wrapper. We have to strip them
+    // off before putting them in the id-to-object and object-to-id maps, so we
+    // need a way of distinguishing them at lookup-time.
+    //
+    // For the id-to-object map, we encode waiver-or-not information into the id
+    // itself, which lets us do the right thing when accessing the object.
+    //
+    // For the object-to-id map, we just keep two maps, one for each type.
+    ObjectToIdMap unwaivedObjectIds_;
+    ObjectToIdMap waivedObjectIds_;
+    ObjectToIdMap& objectIdMap(bool waiver) {
+        return waiver ? waivedObjectIds_ : unwaivedObjectIds_;
+    }
+
+    static bool sLoggingInitialized;
+    static bool sLoggingEnabled;
+    static bool sStackLoggingEnabled;
 };
-
-// Use 47 at most, to be safe, since jsval privates are encoded as doubles.
-static const uint64_t MAX_CPOW_IDS = (uint64_t(1) << 47) - 1;
 
 } // namespace jsipc
 } // namespace mozilla

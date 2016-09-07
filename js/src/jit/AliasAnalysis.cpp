@@ -4,17 +4,57 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#include "jit/AliasAnalysis.h"
+
 #include <stdio.h>
 
-#include "MIR.h"
-#include "AliasAnalysis.h"
-#include "MIRGraph.h"
-#include "Ion.h"
-#include "IonBuilder.h"
-#include "IonSpewer.h"
+#include "jit/Ion.h"
+#include "jit/IonBuilder.h"
+#include "jit/JitSpewer.h"
+#include "jit/MIR.h"
+#include "jit/MIRGraph.h"
 
 using namespace js;
 using namespace js::jit;
+
+using mozilla::Array;
+
+namespace js {
+namespace jit {
+
+class LoopAliasInfo : public TempObject
+{
+  private:
+    LoopAliasInfo* outer_;
+    MBasicBlock* loopHeader_;
+    MInstructionVector invariantLoads_;
+
+  public:
+    LoopAliasInfo(TempAllocator& alloc, LoopAliasInfo* outer, MBasicBlock* loopHeader)
+      : outer_(outer), loopHeader_(loopHeader), invariantLoads_(alloc)
+    { }
+
+    MBasicBlock* loopHeader() const {
+        return loopHeader_;
+    }
+    LoopAliasInfo* outer() const {
+        return outer_;
+    }
+    bool addInvariantLoad(MInstruction* ins) {
+        return invariantLoads_.append(ins);
+    }
+    const MInstructionVector& invariantLoads() const {
+        return invariantLoads_;
+    }
+    MInstruction* firstInstruction() const {
+        return *loopHeader_->begin();
+    }
+};
+
+} // namespace jit
+} // namespace js
+
+namespace {
 
 // Iterates over the flags in an AliasSet.
 class AliasSetIterator
@@ -24,7 +64,7 @@ class AliasSetIterator
     unsigned pos;
 
   public:
-    AliasSetIterator(AliasSet set)
+    explicit AliasSetIterator(AliasSet set)
       : flags(set.flags()), pos(0)
     {
         while (flags && (flags & 1) == 0) {
@@ -42,23 +82,25 @@ class AliasSetIterator
     operator bool() const {
         return !!flags;
     }
-    unsigned operator *() const {
-        JS_ASSERT(pos < AliasSet::NumCategories);
+    unsigned operator*() const {
+        MOZ_ASSERT(pos < AliasSet::NumCategories);
         return pos;
     }
 };
 
-AliasAnalysis::AliasAnalysis(MIRGenerator *mir, MIRGraph &graph)
+} /* anonymous namespace */
+
+AliasAnalysis::AliasAnalysis(MIRGenerator* mir, MIRGraph& graph)
   : mir(mir),
     graph_(graph),
-    loop_(NULL)
+    loop_(nullptr)
 {
 }
 
 // Whether there might be a path from src to dest, excluding loop backedges. This is
 // approximate and really ought to depend on precomputed reachability information.
 static inline bool
-BlockMightReach(MBasicBlock *src, MBasicBlock *dest)
+BlockMightReach(MBasicBlock* src, MBasicBlock* dest)
 {
     while (src->id() <= dest->id()) {
         if (src == dest)
@@ -66,9 +108,13 @@ BlockMightReach(MBasicBlock *src, MBasicBlock *dest)
         switch (src->numSuccessors()) {
           case 0:
             return false;
-          case 1:
-            src = src->getSuccessor(0);
+          case 1: {
+            MBasicBlock* successor = src->getSuccessor(0);
+            if (successor->id() <= src->id())
+                return true; // Don't iloop.
+            src = successor;
             break;
+          }
           default:
             return true;
         }
@@ -77,27 +123,27 @@ BlockMightReach(MBasicBlock *src, MBasicBlock *dest)
 }
 
 static void
-IonSpewDependency(MDefinition *load, MDefinition *store, const char *verb, const char *reason)
+IonSpewDependency(MInstruction* load, MInstruction* store, const char* verb, const char* reason)
 {
-    if (!IonSpewEnabled(IonSpew_Alias))
+    if (!JitSpewEnabled(JitSpew_Alias))
         return;
 
-    fprintf(IonSpewFile, "Load ");
-    load->printName(IonSpewFile);
-    fprintf(IonSpewFile, " %s on store ", verb);
-    store->printName(IonSpewFile);
-    fprintf(IonSpewFile, " (%s)\n", reason);
+    fprintf(JitSpewFile, "Load ");
+    load->printName(JitSpewFile);
+    fprintf(JitSpewFile, " %s on store ", verb);
+    store->printName(JitSpewFile);
+    fprintf(JitSpewFile, " (%s)\n", reason);
 }
 
 static void
-IonSpewAliasInfo(const char *pre, MDefinition *ins, const char *post)
+IonSpewAliasInfo(const char* pre, MInstruction* ins, const char* post)
 {
-    if (!IonSpewEnabled(IonSpew_Alias))
+    if (!JitSpewEnabled(JitSpew_Alias))
         return;
 
-    fprintf(IonSpewFile, "%s ", pre);
-    ins->printName(IonSpewFile);
-    fprintf(IonSpewFile, " %s\n", post);
+    fprintf(JitSpewFile, "%s ", pre);
+    ins->printName(JitSpewFile);
+    fprintf(JitSpewFile, " %s\n", post);
 }
 
 // This pass annotates every load instruction with the last store instruction
@@ -117,30 +163,38 @@ IonSpewAliasInfo(const char *pre, MDefinition *ins, const char *post)
 bool
 AliasAnalysis::analyze()
 {
-    FixedArityList<MDefinitionVector, AliasSet::NumCategories> stores;
+    Vector<MInstructionVector, AliasSet::NumCategories, JitAllocPolicy> stores(alloc());
 
     // Initialize to the first instruction.
-    MDefinition *firstIns = *graph_.begin()->begin();
-    for (unsigned i=0; i < AliasSet::NumCategories; i++) {
-        if (!stores[i].append(firstIns))
+    MInstruction* firstIns = *graph_.entryBlock()->begin();
+    for (unsigned i = 0; i < AliasSet::NumCategories; i++) {
+        MInstructionVector defs(alloc());
+        if (!defs.append(firstIns))
+            return false;
+        if (!stores.append(Move(defs)))
             return false;
     }
 
     // Type analysis may have inserted new instructions. Since this pass depends
     // on the instruction number ordering, all instructions are renumbered.
-    // We start with 1 because some passes use 0 to denote failure.
-    uint32_t newId = 1;
+    uint32_t newId = 0;
 
     for (ReversePostorderIterator block(graph_.rpoBegin()); block != graph_.rpoEnd(); block++) {
         if (mir->shouldCancel("Alias Analysis (main loop)"))
             return false;
 
         if (block->isLoopHeader()) {
-            IonSpew(IonSpew_Alias, "Processing loop header %d", block->id());
-            loop_ = new LoopAliasInfo(loop_, *block);
+            JitSpew(JitSpew_Alias, "Processing loop header %d", block->id());
+            loop_ = new(alloc()) LoopAliasInfo(alloc(), loop_, *block);
         }
 
-        for (MDefinitionIterator def(*block); def; def++) {
+        for (MPhiIterator def(block->phisBegin()), end(block->phisEnd()); def != end; ++def)
+            def->setId(newId++);
+
+        for (MInstructionIterator def(block->begin()), end(block->begin(block->lastIns()));
+             def != end;
+             ++def)
+        {
             def->setId(newId++);
 
             AliasSet set = def->getAliasSet();
@@ -153,19 +207,19 @@ AliasAnalysis::analyze()
                         return false;
                 }
 
-                if (IonSpewEnabled(IonSpew_Alias)) {
-                    fprintf(IonSpewFile, "Processing store ");
-                    def->printName(IonSpewFile);
-                    fprintf(IonSpewFile, " (flags %x)\n", set.flags());
+                if (JitSpewEnabled(JitSpew_Alias)) {
+                    fprintf(JitSpewFile, "Processing store ");
+                    def->printName(JitSpewFile);
+                    fprintf(JitSpewFile, " (flags %x)\n", set.flags());
                 }
             } else {
                 // Find the most recent store on which this instruction depends.
-                MDefinition *lastStore = firstIns;
+                MInstruction* lastStore = firstIns;
 
                 for (AliasSetIterator iter(set); iter; iter++) {
-                    MDefinitionVector &aliasedStores = stores[*iter];
+                    MInstructionVector& aliasedStores = stores[*iter];
                     for (int i = aliasedStores.length() - 1; i >= 0; i--) {
-                        MDefinition *store = aliasedStores[i];
+                        MInstruction* store = aliasedStores[i];
                         if (def->mightAlias(store) && BlockMightReach(store->block(), *block)) {
                             if (lastStore->id() < store->id())
                                 lastStore = store;
@@ -187,25 +241,28 @@ AliasAnalysis::analyze()
             }
         }
 
-        if (block->isLoopBackedge()) {
-            JS_ASSERT(loop_->loopHeader() == block->loopHeaderOfBackedge());
-            IonSpew(IonSpew_Alias, "Processing loop backedge %d (header %d)", block->id(),
-                    loop_->loopHeader()->id());
-            LoopAliasInfo *outerLoop = loop_->outer();
-            MInstruction *firstLoopIns = *loop_->loopHeader()->begin();
+        // Renumber the last instruction, as the analysis depends on this and the order.
+        block->lastIns()->setId(newId++);
 
-            const InstructionVector &invariant = loop_->invariantLoads();
+        if (block->isLoopBackedge()) {
+            MOZ_ASSERT(loop_->loopHeader() == block->loopHeaderOfBackedge());
+            JitSpew(JitSpew_Alias, "Processing loop backedge %d (header %d)", block->id(),
+                    loop_->loopHeader()->id());
+            LoopAliasInfo* outerLoop = loop_->outer();
+            MInstruction* firstLoopIns = *loop_->loopHeader()->begin();
+
+            const MInstructionVector& invariant = loop_->invariantLoads();
 
             for (unsigned i = 0; i < invariant.length(); i++) {
-                MDefinition *ins = invariant[i];
+                MInstruction* ins = invariant[i];
                 AliasSet set = ins->getAliasSet();
-                JS_ASSERT(set.isLoad());
+                MOZ_ASSERT(set.isLoad());
 
                 bool hasAlias = false;
                 for (AliasSetIterator iter(set); iter; iter++) {
-                    MDefinitionVector &aliasedStores = stores[*iter];
+                    MInstructionVector& aliasedStores = stores[*iter];
                     for (int i = aliasedStores.length() - 1;; i--) {
-                        MDefinition *store = aliasedStores[i];
+                        MInstruction* store = aliasedStores[i];
                         if (store->id() < firstLoopIns->id())
                             break;
                         if (ins->mightAlias(store)) {
@@ -222,7 +279,7 @@ AliasAnalysis::analyze()
                     // This instruction depends on stores inside the loop body. Mark it as having a
                     // dependency on the last instruction of the loop header. The last instruction is a
                     // control instruction and these are never hoisted.
-                    MControlInstruction *controlIns = loop_->loopHeader()->lastIns();
+                    MControlInstruction* controlIns = loop_->loopHeader()->lastIns();
                     IonSpewDependency(ins, controlIns, "depends", "due to stores in loop body");
                     ins->setDependency(controlIns);
                 } else {
@@ -239,6 +296,6 @@ AliasAnalysis::analyze()
         }
     }
 
-    JS_ASSERT(loop_ == NULL);
+    MOZ_ASSERT(loop_ == nullptr);
     return true;
 }

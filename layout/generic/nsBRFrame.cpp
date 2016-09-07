@@ -6,8 +6,8 @@
 /* rendering object for HTML <br> elements */
 
 #include "nsCOMPtr.h"
+#include "nsFontMetrics.h"
 #include "nsFrame.h"
-#include "nsHTMLParts.h"
 #include "nsPresContext.h"
 #include "nsLineLayout.h"
 #include "nsStyleConsts.h"
@@ -17,7 +17,6 @@
 
 //FOR SELECTION
 #include "nsIContent.h"
-#include "nsFrameSelection.h"
 //END INCLUDES FOR SELECTION
 
 using namespace mozilla;
@@ -28,39 +27,40 @@ public:
 
   friend nsIFrame* NS_NewBRFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
-  virtual ContentOffsets CalcContentOffsetsFromFramePoint(nsPoint aPoint);
+  virtual ContentOffsets CalcContentOffsetsFromFramePoint(nsPoint aPoint) override;
 
-  virtual bool PeekOffsetNoAmount(bool aForward, int32_t* aOffset);
-  virtual bool PeekOffsetCharacter(bool aForward, int32_t* aOffset,
-                                     bool aRespectClusters = true);
-  virtual bool PeekOffsetWord(bool aForward, bool aWordSelectEatSpace, bool aIsKeyboardSelect,
-                                int32_t* aOffset, PeekWordState* aState);
+  virtual FrameSearchResult PeekOffsetNoAmount(bool aForward, int32_t* aOffset) override;
+  virtual FrameSearchResult PeekOffsetCharacter(bool aForward, int32_t* aOffset,
+                                     bool aRespectClusters = true) override;
+  virtual FrameSearchResult PeekOffsetWord(bool aForward, bool aWordSelectEatSpace,
+                              bool aIsKeyboardSelect, int32_t* aOffset,
+                              PeekWordState* aState) override;
 
-  NS_IMETHOD Reflow(nsPresContext* aPresContext,
-                    nsHTMLReflowMetrics& aDesiredSize,
-                    const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus& aStatus);
-  virtual void AddInlineMinWidth(nsRenderingContext *aRenderingContext,
-                                 InlineMinWidthData *aData);
-  virtual void AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
-                                  InlinePrefWidthData *aData);
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext);
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext);
-  virtual nsIAtom* GetType() const;
-  virtual nscoord GetBaseline() const;
+  virtual void Reflow(nsPresContext* aPresContext,
+                          nsHTMLReflowMetrics& aDesiredSize,
+                          const nsHTMLReflowState& aReflowState,
+                          nsReflowStatus& aStatus) override;
+  virtual void AddInlineMinISize(nsRenderingContext *aRenderingContext,
+                                 InlineMinISizeData *aData) override;
+  virtual void AddInlinePrefISize(nsRenderingContext *aRenderingContext,
+                                  InlinePrefISizeData *aData) override;
+  virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) override;
+  virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) override;
+  virtual nsIAtom* GetType() const override;
+  virtual nscoord GetLogicalBaseline(mozilla::WritingMode aWritingMode) const override;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(uint32_t aFlags) const override
   {
     return nsFrame::IsFrameOfType(aFlags & ~(nsIFrame::eReplaced |
                                              nsIFrame::eLineParticipant));
   }
 
 #ifdef ACCESSIBILITY
-  virtual mozilla::a11y::AccType AccessibleType() MOZ_OVERRIDE;
+  virtual mozilla::a11y::AccType AccessibleType() override;
 #endif
 
 protected:
-  BRFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
+  explicit BRFrame(nsStyleContext* aContext) : nsFrame(aContext) {}
   virtual ~BRFrame();
 
   nscoord mAscent;
@@ -78,23 +78,26 @@ BRFrame::~BRFrame()
 {
 }
 
-NS_IMETHODIMP
+void
 BRFrame::Reflow(nsPresContext* aPresContext,
                 nsHTMLReflowMetrics& aMetrics,
                 const nsHTMLReflowState& aReflowState,
                 nsReflowStatus& aStatus)
 {
+  DO_GLOBAL_REFLOW_COUNT("BRFrame");
   DISPLAY_REFLOW(aPresContext, this, aReflowState, aMetrics, aStatus);
-  aMetrics.height = 0; // BR frames with height 0 are ignored in quirks
-                       // mode by nsLineLayout::VerticalAlignFrames .
-                       // However, it's not always 0.  See below.
-  aMetrics.width = 0;
-  aMetrics.ascent = 0;
+  WritingMode wm = aReflowState.GetWritingMode();
+  LogicalSize finalSize(wm);
+  finalSize.BSize(wm) = 0; // BR frames with block size 0 are ignored in quirks
+                           // mode by nsLineLayout::VerticalAlignFrames .
+                           // However, it's not always 0.  See below.
+  finalSize.ISize(wm) = 0;
+  aMetrics.SetBlockStartAscent(0);
 
   // Only when the BR is operating in a line-layout situation will it
-  // behave like a BR.
+  // behave like a BR. BR is suppressed when it is inside ruby frames.
   nsLineLayout* ll = aReflowState.mLineLayout;
-  if (ll) {
+  if (ll && !StyleContext()->IsInlineDescendantOfRuby()) {
     // Note that the compatibility mode check excludes AlmostStandards
     // mode, since this is the inline box model.  See bug 161691.
     if ( ll->LineIsEmpty() ||
@@ -116,15 +119,14 @@ BRFrame::Reflow(nsPresContext* aPresContext,
       nsRefPtr<nsFontMetrics> fm;
       nsLayoutUtils::GetFontMetricsForFrame(this, getter_AddRefs(fm),
         nsLayoutUtils::FontSizeInflationFor(this));
-      aReflowState.rendContext->SetFont(fm); // FIXME: maybe not needed?
       if (fm) {
         nscoord logicalHeight = aReflowState.CalcLineHeight();
-        aMetrics.height = logicalHeight;
-        aMetrics.ascent =
-          nsLayoutUtils::GetCenteredFontBaseline(fm, logicalHeight);
+        finalSize.BSize(wm) = logicalHeight;
+        aMetrics.SetBlockStartAscent(nsLayoutUtils::GetCenteredFontBaseline(
+                                       fm, logicalHeight, wm.IsLineInverted()));
       }
       else {
-        aMetrics.ascent = aMetrics.height = 0;
+        aMetrics.SetBlockStartAscent(aMetrics.BSize(wm) = 0);
       }
 
       // XXX temporary until I figure out a better solution; see the
@@ -133,7 +135,7 @@ BRFrame::Reflow(nsPresContext* aPresContext,
       // XXX This also fixes bug 10036!
       // Warning: nsTextControlFrame::CalculateSizeStandard depends on
       // the following line, see bug 228752.
-      aMetrics.width = 1;
+      finalSize.ISize(wm) = 1;
     }
 
     // Return our reflow status
@@ -150,30 +152,34 @@ BRFrame::Reflow(nsPresContext* aPresContext,
     aStatus = NS_FRAME_COMPLETE;
   }
 
+  aMetrics.SetSize(wm, finalSize);
   aMetrics.SetOverflowAreasToDesiredBounds();
 
-  mAscent = aMetrics.ascent;
+  mAscent = aMetrics.BlockStartAscent();
 
   NS_FRAME_SET_TRUNCATION(aStatus, aReflowState, aMetrics);
-  return NS_OK;
 }
 
 /* virtual */ void
-BRFrame::AddInlineMinWidth(nsRenderingContext *aRenderingContext,
-                           nsIFrame::InlineMinWidthData *aData)
+BRFrame::AddInlineMinISize(nsRenderingContext *aRenderingContext,
+                           nsIFrame::InlineMinISizeData *aData)
 {
-  aData->ForceBreak(aRenderingContext);
+  if (!StyleContext()->IsInlineDescendantOfRuby()) {
+    aData->ForceBreak(aRenderingContext);
+  }
 }
 
 /* virtual */ void
-BRFrame::AddInlinePrefWidth(nsRenderingContext *aRenderingContext,
-                            nsIFrame::InlinePrefWidthData *aData)
+BRFrame::AddInlinePrefISize(nsRenderingContext *aRenderingContext,
+                            nsIFrame::InlinePrefISizeData *aData)
 {
-  aData->ForceBreak(aRenderingContext);
+  if (!StyleContext()->IsInlineDescendantOfRuby()) {
+    aData->ForceBreak(aRenderingContext);
+  }
 }
 
 /* virtual */ nscoord
-BRFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
+BRFrame::GetMinISize(nsRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_MIN_WIDTH(this, result);
@@ -181,7 +187,7 @@ BRFrame::GetMinWidth(nsRenderingContext *aRenderingContext)
 }
 
 /* virtual */ nscoord
-BRFrame::GetPrefWidth(nsRenderingContext *aRenderingContext)
+BRFrame::GetPrefISize(nsRenderingContext *aRenderingContext)
 {
   nscoord result = 0;
   DISPLAY_PREF_WIDTH(this, result);
@@ -195,7 +201,7 @@ BRFrame::GetType() const
 }
 
 nscoord
-BRFrame::GetBaseline() const
+BRFrame::GetLogicalBaseline(mozilla::WritingMode aWritingMode) const
 {
   return mAscent;
 }
@@ -207,12 +213,12 @@ nsIFrame::ContentOffsets BRFrame::CalcContentOffsetsFromFramePoint(nsPoint aPoin
   if (offsets.content) {
     offsets.offset = offsets.content->IndexOf(mContent);
     offsets.secondaryOffset = offsets.offset;
-    offsets.associateWithNext = true;
+    offsets.associate = CARET_ASSOCIATE_AFTER;
   }
   return offsets;
 }
 
-bool
+nsIFrame::FrameSearchResult
 BRFrame::PeekOffsetNoAmount(bool aForward, int32_t* aOffset)
 {
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
@@ -220,28 +226,28 @@ BRFrame::PeekOffsetNoAmount(bool aForward, int32_t* aOffset)
   // If we hit the end of a BR going backwards, go to its beginning and stay there.
   if (!aForward && startOffset != 0) {
     *aOffset = 0;
-    return true;
+    return FOUND;
   }
   // Otherwise, stop if we hit the beginning, continue (forward) if we hit the end.
-  return (startOffset == 0);
+  return (startOffset == 0) ? FOUND : CONTINUE;
 }
 
-bool
+nsIFrame::FrameSearchResult
 BRFrame::PeekOffsetCharacter(bool aForward, int32_t* aOffset,
                              bool aRespectClusters)
 {
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
   // Keep going. The actual line jumping will stop us.
-  return false;
+  return CONTINUE;
 }
 
-bool
+nsIFrame::FrameSearchResult
 BRFrame::PeekOffsetWord(bool aForward, bool aWordSelectEatSpace, bool aIsKeyboardSelect,
                         int32_t* aOffset, PeekWordState* aState)
 {
   NS_ASSERTION (aOffset && *aOffset <= 1, "aOffset out of range");
   // Keep going. The actual line jumping will stop us.
-  return false;
+  return CONTINUE;
 }
 
 #ifdef ACCESSIBILITY

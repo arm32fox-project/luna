@@ -10,9 +10,6 @@
  * liability, trademark and document use rules apply.
  */
 
-interface SVGAnimatedEnumeration;
-interface SVGAnimatedNumber;
-
 interface SVGFEDisplacementMapElement : SVGElement {
 
   // Channel Selectors
@@ -22,10 +19,15 @@ interface SVGFEDisplacementMapElement : SVGElement {
   const unsigned short SVG_CHANNEL_B = 3;
   const unsigned short SVG_CHANNEL_A = 4;
 
+  [Constant]
   readonly attribute SVGAnimatedString in1;
+  [Constant]
   readonly attribute SVGAnimatedString in2;
+  [Constant]
   readonly attribute SVGAnimatedNumber scale;
+  [Constant]
   readonly attribute SVGAnimatedEnumeration xChannelSelector;
+  [Constant]
   readonly attribute SVGAnimatedEnumeration yChannelSelector;
 };
 

@@ -1,9 +1,5 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
 Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
 
 const VALUE_HDR_NAME = "X-HTTP-VALUE-HEADER";
 const VARY_HDR_NAME = "X-HTTP-VARY-HEADER";
@@ -14,7 +10,17 @@ var httpserver = null;
 function make_channel(flags, vary, value) {
   var ios = Cc["@mozilla.org/network/io-service;1"].
     getService(Ci.nsIIOService);
-  var chan = ios.newChannel("http://localhost:4444/bug633743", null, null);
+  var chan = ios.newChannel2("http://localhost:" +
+                             httpserver.identity.primaryPort +
+                             "/bug633743",
+                             null,
+                             null,
+                             null,      // aLoadingNode
+                             Services.scriptSecurityManager.getSystemPrincipal(),
+                             null,      // aTriggeringPrincipal
+                             Ci.nsILoadInfo.SEC_NORMAL,
+                             Ci.nsIContentPolicy.TYPE_OTHER)
+                .QueryInterface(Components.interfaces.nsIHttpChannel);
   return chan.QueryInterface(Ci.nsIHttpChannel);
 }
 
@@ -182,7 +188,7 @@ function run_test() {
 
   httpserver = new HttpServer();
   httpserver.registerPathHandler("/bug633743", handler);
-  httpserver.start(4444);
+  httpserver.start(-1);
 
   run_next_test();
   do_test_pending();

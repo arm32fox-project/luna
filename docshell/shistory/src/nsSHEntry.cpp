@@ -5,18 +5,17 @@
 
 // Local Includes
 #include "nsSHEntry.h"
-#include "nsXPIDLString.h"
-#include "nsReadableUtils.h"
 #include "nsIDocShellLoadInfo.h"
 #include "nsIDocShellTreeItem.h"
-#include "nsISHistory.h"
-#include "nsISHistoryInternal.h"
 #include "nsDocShellEditorData.h"
 #include "nsSHEntryShared.h"
 #include "nsILayoutHistoryState.h"
 #include "nsIContentViewer.h"
 #include "nsISupportsArray.h"
 #include "nsIStructuredCloneContainer.h"
+#include "nsIInputStream.h"
+#include "nsIURI.h"
+#include "mozilla/net/ReferrerPolicy.h"
 #include <algorithm>
 
 namespace dom = mozilla::dom;
@@ -29,7 +28,9 @@ static uint32_t gEntryID = 0;
 
 
 nsSHEntry::nsSHEntry()
-  : mLoadType(0)
+  : mLoadReplace(false)
+  , mReferrerPolicy(mozilla::net::RP_Default)
+  , mLoadType(0)
   , mID(gEntryID++)
   , mScrollPositionX(0)
   , mScrollPositionY(0)
@@ -43,7 +44,10 @@ nsSHEntry::nsSHEntry()
 nsSHEntry::nsSHEntry(const nsSHEntry &other)
   : mShared(other.mShared)
   , mURI(other.mURI)
+  , mOriginalURI(other.mOriginalURI)
+  , mLoadReplace(other.mLoadReplace)
   , mReferrerURI(other.mReferrerURI)
+  , mReferrerPolicy(other.mReferrerPolicy)
   , mTitle(other.mTitle)
   , mPostData(other.mPostData)
   , mLoadType(0)         // XXX why not copy?
@@ -55,6 +59,7 @@ nsSHEntry::nsSHEntry(const nsSHEntry &other)
   , mStateData(other.mStateData)
   , mIsSrcdocEntry(other.mIsSrcdocEntry)
   , mSrcdocData(other.mSrcdocData)
+  , mBaseURI(other.mBaseURI)
 {
 }
 
@@ -77,8 +82,7 @@ nsSHEntry::~nsSHEntry()
 //    nsSHEntry: nsISupports
 //*****************************************************************************
 
-NS_IMPL_ISUPPORTS4(nsSHEntry, nsISHContainer, nsISHEntry, nsIHistoryEntry,
-                   nsISHEntryInternal)
+NS_IMPL_ISUPPORTS(nsSHEntry, nsISHContainer, nsISHEntry_ESR38, nsISHEntry, nsISHEntryInternal)
 
 //*****************************************************************************
 //    nsSHEntry: nsISHEntry
@@ -123,6 +127,31 @@ NS_IMETHODIMP nsSHEntry::SetURI(nsIURI* aURI)
   return NS_OK;
 }
 
+NS_IMETHODIMP nsSHEntry::GetOriginalURI(nsIURI** aOriginalURI)
+{
+  *aOriginalURI = mOriginalURI;
+  NS_IF_ADDREF(*aOriginalURI);
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsSHEntry::SetOriginalURI(nsIURI* aOriginalURI)
+{
+  mOriginalURI = aOriginalURI;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsSHEntry::GetLoadReplace(bool* aLoadReplace)
+{
+  *aLoadReplace = mLoadReplace;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsSHEntry::SetLoadReplace(bool aLoadReplace)
+{
+  mLoadReplace = aLoadReplace;
+  return NS_OK;
+}
+
 NS_IMETHODIMP nsSHEntry::GetReferrerURI(nsIURI **aReferrerURI)
 {
   *aReferrerURI = mReferrerURI;
@@ -133,6 +162,18 @@ NS_IMETHODIMP nsSHEntry::GetReferrerURI(nsIURI **aReferrerURI)
 NS_IMETHODIMP nsSHEntry::SetReferrerURI(nsIURI *aReferrerURI)
 {
   mReferrerURI = aReferrerURI;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsSHEntry::GetReferrerPolicy(uint32_t *aReferrerPolicy)
+{
+  *aReferrerPolicy = mReferrerPolicy;
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsSHEntry::SetReferrerPolicy(uint32_t aReferrerPolicy)
+{
+  mReferrerPolicy = aReferrerPolicy;
   return NS_OK;
 }
 
@@ -196,7 +237,7 @@ nsSHEntry::GetSticky(bool *aSticky)
   return NS_OK;
 }
 
-NS_IMETHODIMP nsSHEntry::GetTitle(PRUnichar** aTitle)
+NS_IMETHODIMP nsSHEntry::GetTitle(char16_t** aTitle)
 {
   // Check for empty title...
   if (mTitle.IsEmpty() && mURI) {
@@ -519,7 +560,20 @@ nsSHEntry::SetSrcdocData(const nsAString &aSrcdocData)
   return NS_OK;
 }
 
+NS_IMETHODIMP
+nsSHEntry::GetBaseURI(nsIURI **aBaseURI)
+{
+  *aBaseURI = mBaseURI;
+  NS_IF_ADDREF(*aBaseURI);
+  return NS_OK;
+}
 
+NS_IMETHODIMP
+nsSHEntry::SetBaseURI(nsIURI *aBaseURI)
+{
+  mBaseURI = aBaseURI;
+  return NS_OK;
+}
 
 //*****************************************************************************
 //    nsSHEntry: nsISHContainer
@@ -677,6 +731,27 @@ nsSHEntry::GetChildAt(int32_t aIndex, nsISHEntry ** aResult)
     *aResult = nullptr;
   }
   return NS_OK;
+}
+
+NS_IMETHODIMP
+nsSHEntry::ReplaceChild(nsISHEntry* aNewEntry)
+{
+  NS_ENSURE_STATE(aNewEntry);
+
+  uint64_t docshellID;
+  aNewEntry->GetDocshellID(&docshellID);
+
+  uint64_t otherID;
+  for (int32_t i = 0; i < mChildren.Count(); ++i) {
+    if (mChildren[i] && NS_SUCCEEDED(mChildren[i]->GetDocshellID(&otherID)) &&
+        docshellID == otherID) {
+      mChildren[i]->SetParent(nullptr);
+      if (mChildren.ReplaceObjectAt(aNewEntry, i)) {
+        return aNewEntry->SetParent(this);
+      }
+    }
+  }
+  return NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP

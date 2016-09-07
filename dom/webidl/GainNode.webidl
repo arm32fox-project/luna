@@ -10,10 +10,12 @@
  * liability, trademark and document use rules apply.
  */
 
-[PrefControlled]
 interface GainNode : AudioNode {
 
     readonly attribute AudioParam gain;
 
 };
+
+// Mozilla extension
+GainNode implements AudioNodePassThrough;
 

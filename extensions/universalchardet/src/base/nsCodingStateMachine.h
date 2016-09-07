@@ -5,8 +5,9 @@
 #ifndef nsCodingStateMachine_h__
 #define nsCodingStateMachine_h__
 
+#include "mozilla/ArrayUtils.h"
+ 
 #include "nsPkgInt.h"
-#include "mozilla/Util.h"
 
 typedef enum {
    eStart = 0,
@@ -31,7 +32,7 @@ typedef struct
 
 class nsCodingStateMachine {
 public:
-  nsCodingStateMachine(const SMModel* sm) : mModel(sm) { mCurrentState = eStart; }
+  explicit nsCodingStateMachine(const SMModel* sm) : mModel(sm) { mCurrentState = eStart; }
   nsSMState NextState(char c){
     //for each byte we get its class , if it is first byte, we also get byte length
     uint32_t byteCls = GETCLASS(c);

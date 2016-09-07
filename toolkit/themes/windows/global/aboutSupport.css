@@ -78,7 +78,7 @@ td {
   overflow: hidden;
 }
 
-#reset-box {
+#action-box {
   background-color: -moz-Dialog;
   border: 1px solid ThreeDShadow;
   color: -moz-DialogText;
@@ -91,7 +91,13 @@ td {
   width: 30%;
 }
 
-#reset-box:-moz-dir(rtl) {
+#action-box,
+#reset-box,
+#safe-mode-box {
+  display: none;
+}
+
+#action-box:-moz-dir(rtl) {
   float: left;
 }
 
@@ -99,7 +105,14 @@ td {
   margin-top: 0;
 }
 
-#reset-box > button {
+#action-box button {
   display: block;
-  margin: auto;
+}
+
+.block {
+  display: block;
+}
+
+.hidden {
+  display: none;
 }

@@ -12,9 +12,9 @@ import org.json.JSONException;
 import org.json.JSONObject;
 
 import android.util.Log;
+import android.util.SparseArray;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.ArrayList;
 
 /**
  * Helper class to get/set goanna prefs.
@@ -22,25 +22,23 @@ import java.util.Map;
 public final class PrefsHelper {
     private static final String LOGTAG = "GoannaPrefsHelper";
 
-    private static boolean sRegistered = false;
-    private static final Map<Integer, PrefHandler> sCallbacks = new HashMap<Integer, PrefHandler>();
+    private static boolean sRegistered;
     private static int sUniqueRequestId = 1;
+    static final SparseArray<PrefHandler> sCallbacks = new SparseArray<PrefHandler>();
 
     public static int getPref(String prefName, PrefHandler callback) {
-        JSONArray prefs = new JSONArray();
-        prefs.put(prefName);
-        return getPrefs(prefs, callback);
+        return getPrefsInternal(new String[] { prefName }, callback);
     }
 
     public static int getPrefs(String[] prefNames, PrefHandler callback) {
-        JSONArray prefs = new JSONArray();
-        for (String p : prefNames) {
-            prefs.put(p);
-        }
-        return getPrefs(prefs, callback);
+        return getPrefsInternal(prefNames, callback);
     }
 
-    public static int getPrefs(JSONArray prefNames, PrefHandler callback) {
+    public static int getPrefs(ArrayList<String> prefNames, PrefHandler callback) {
+        return getPrefsInternal(prefNames.toArray(new String[prefNames.size()]), callback);
+    }
+
+    private static int getPrefsInternal(String[] prefNames, PrefHandler callback) {
         int requestId;
         synchronized (PrefsHelper.class) {
             ensureRegistered();
@@ -50,25 +48,12 @@ public final class PrefsHelper {
         }
 
         GoannaEvent event;
-        try {
-            JSONObject message = new JSONObject();
-            message.put("requestId", Integer.toString(requestId));
-            message.put("preferences", prefNames);
-            event = GoannaEvent.createBroadcastEvent(callback.isObserver() ?
-                "Preferences:Observe" : "Preferences:Get", message.toString());
-            GoannaAppShell.sendEventToGoanna(event);
-        } catch (Exception e) {
-            Log.e(LOGTAG, "Error while composing Preferences:" +
-                  (callback.isObserver() ? "Observe" : "Get") + " message", e);
-
-            // if we failed to send the message, drop our reference to the callback because
-            // otherwise it will leak since we will never get the response
-            synchronized (PrefsHelper.class) {
-                sCallbacks.remove(requestId);
-            }
-
-            return -1;
+        if (callback.isObserver()) {
+            event = GoannaEvent.createPreferencesObserveEvent(requestId, prefNames);
+        } else {
+            event = GoannaEvent.createPreferencesGetEvent(requestId, prefNames);
         }
+        GoannaAppShell.sendEventToGoanna(event);
 
         return requestId;
     }
@@ -78,8 +63,9 @@ public final class PrefsHelper {
             return;
         }
 
-        GoannaAppShell.getEventDispatcher().registerEventListener("Preferences:Data", new GoannaEventListener() {
-            @Override public void handleMessage(String event, JSONObject message) {
+        GoannaEventListener listener = new GoannaEventListener() {
+            @Override
+            public void handleMessage(String event, JSONObject message) {
                 try {
                     PrefHandler callback;
                     synchronized (PrefsHelper.class) {
@@ -87,12 +73,13 @@ public final class PrefsHelper {
                             int requestId = message.getInt("requestId");
                             callback = sCallbacks.get(requestId);
                             if (callback != null && !callback.isObserver()) {
-                                sCallbacks.remove(requestId);
+                                sCallbacks.delete(requestId);
                             }
                         } catch (Exception e) {
                             callback = null;
                         }
                     }
+
                     if (callback == null) {
                         Log.d(LOGTAG, "Preferences:Data message had an unknown requestId; ignoring");
                         return;
@@ -122,7 +109,8 @@ public final class PrefsHelper {
                     Log.e(LOGTAG, "Error handling Preferences:Data message", e);
                 }
             }
-        });
+        };
+        EventDispatcher.getInstance().registerGoannaThreadListener(listener, "Preferences:Data");
         sRegistered = true;
     }
 
@@ -158,7 +146,9 @@ public final class PrefsHelper {
         }
 
         synchronized (PrefsHelper.class) {
-            PrefHandler callback = sCallbacks.remove(requestId);
+            PrefHandler callback = sCallbacks.get(requestId);
+            sCallbacks.delete(requestId);
+
             if (callback == null) {
                 Log.e(LOGTAG, "Unknown request ID " + requestId);
                 return;

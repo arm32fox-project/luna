@@ -4,13 +4,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifndef nsScriptableRegion_h
+#define nsScriptableRegion_h
+
 #include "nsIScriptableRegion.h"
 #include "gfxCore.h"
 #include "nsISupports.h"
 #include "nsRegion.h"
 #include "mozilla/Attributes.h"
 
-class NS_GFX nsScriptableRegion MOZ_FINAL : public nsIScriptableRegion {
+class NS_GFX nsScriptableRegion final : public nsIScriptableRegion {
 public:
 	nsScriptableRegion();
 
@@ -19,5 +22,8 @@ public:
 	NS_DECL_NSISCRIPTABLEREGION
 
 private:
+        ~nsScriptableRegion() {}
 	nsIntRegion mRegion;
 };
+
+#endif

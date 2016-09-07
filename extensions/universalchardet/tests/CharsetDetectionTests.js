@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 4 -*- */
 /* vim: set ts=8 et sw=4 tw=80: */
 var gExpectedCharset;
 var gOldPref;
@@ -45,17 +45,9 @@ function InitDetectorTests()
     $("testframe").onload = DoDetectionTest;
 
     if (gExpectedCharset == "default") {
-        try {
-            gExpectedCharset = prefService
-                .getComplexValue("intl.charset.default",
-                                 Ci.nsIPrefLocalizedString)
-                .data;
-            if (gExpectedCharset == "ISO-8859-1") {
-                gExpectedCharset = "windows-1252";
-            }
-        } catch (e) {
-            gExpectedCharset = "windows-1252";
-        }
+        // No point trying to be generic here, because we have plenty of other
+        // unit tests that fail if run using a non-windows-1252 locale.
+        gExpectedCharset = "windows-1252";
     }
 
     // Get the local directory. This needs to be a file: URI because chrome:

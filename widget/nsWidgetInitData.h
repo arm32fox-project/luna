@@ -13,15 +13,17 @@
  * these.
  */
 enum nsWindowType {
-  eWindowType_toplevel,  // default top level window
-  eWindowType_dialog,    // top level window but usually handled differently
-                         // by the OS
-  eWindowType_popup,     // used for combo boxes, etc
-  eWindowType_child,     // child windows (contained inside a window on the
-                         // desktop (has no border))
-  eWindowType_invisible, // windows that are invisible or offscreen
-  eWindowType_plugin,    // plugin window
-  eWindowType_sheet      // MacOSX sheet (special dialog class)
+  eWindowType_toplevel,           // default top level window
+  eWindowType_dialog,             // top level window but usually handled differently
+                                  // by the OS
+  eWindowType_popup,              // used for combo boxes, etc
+  eWindowType_child,              // child windows (contained inside a window on the
+                                  // desktop (has no border))
+  eWindowType_invisible,          // windows that are invisible or offscreen
+  eWindowType_plugin,             // plugin window
+  eWindowType_plugin_ipc_chrome,  // chrome side native widget for plugins (e10s)
+  eWindowType_plugin_ipc_content, // content side puppet widget for plugins (e10s)
+  eWindowType_sheet,              // MacOSX sheet (special dialog class)
 };
 
 /**
@@ -101,7 +103,9 @@ struct nsWidgetInitData {
       mNoAutoHide(false),
       mIsDragPopup(false),
       mIsAnimationSuppressed(false),
-      mSupportTranslucency(false)
+      mSupportTranslucency(false),
+      mMouseTransparent(false),
+      mRequireOffMainThreadCompositing(false)
   {
   }
 
@@ -120,6 +124,12 @@ struct nsWidgetInitData {
   bool          mIsAnimationSuppressed;
   // true if the window should support an alpha channel, if available.
   bool          mSupportTranslucency;
+  // true if the window should be transparent to mouse events. Currently this is
+  // only valid for eWindowType_popup widgets
+  bool          mMouseTransparent;
+  // Windows with out-of-process tabs always require OMTC. This flag designates
+  // such windows.
+  bool          mRequireOffMainThreadCompositing;
 };
 
 #endif // nsWidgetInitData_h__

@@ -4,12 +4,10 @@
 
 package org.mozilla.goanna.sync.stage;
 
-import org.mozilla.goanna.sync.CryptoRecord;
 import org.mozilla.goanna.sync.repositories.RecordFactory;
 import org.mozilla.goanna.sync.repositories.Repository;
 import org.mozilla.goanna.sync.repositories.android.PasswordsRepositorySession;
-import org.mozilla.goanna.sync.repositories.domain.PasswordRecord;
-import org.mozilla.goanna.sync.repositories.domain.Record;
+import org.mozilla.goanna.sync.repositories.domain.PasswordRecordFactory;
 import org.mozilla.goanna.sync.repositories.domain.VersionConstants;
 
 public class PasswordsServerSyncStage extends ServerSyncStage {
@@ -36,15 +34,5 @@ public class PasswordsServerSyncStage extends ServerSyncStage {
   @Override
   protected RecordFactory getRecordFactory() {
     return new PasswordRecordFactory();
-  }
-
-  public class PasswordRecordFactory extends RecordFactory {
-
-    @Override
-    public Record createRecord(Record record) {
-      PasswordRecord r = new PasswordRecord();
-      r.initFromEnvelope((CryptoRecord) record);
-      return r;
-    }
   }
 }

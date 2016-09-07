@@ -8,202 +8,182 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef WEBRTC_MODULES_VIDEO_CODING_MEDIA_OPTIMIZATION_H_
-#define WEBRTC_MODULES_VIDEO_CODING_MEDIA_OPTIMIZATION_H_
+#ifndef WEBRTC_MODULES_VIDEO_CODING_MAIN_SOURCE_MEDIA_OPTIMIZATION_H_
+#define WEBRTC_MODULES_VIDEO_CODING_MAIN_SOURCE_MEDIA_OPTIMIZATION_H_
 
-#include "module_common_types.h"
-#include "video_coding.h"
-#include "trace.h"
-#include "media_opt_util.h"
-#include "qm_select.h"
+#include <list>
 
-namespace webrtc
-{
+#include "webrtc/modules/interface/module_common_types.h"
+#include "webrtc/modules/video_coding/main/interface/video_coding.h"
+#include "webrtc/modules/video_coding/main/source/media_opt_util.h"
+#include "webrtc/modules/video_coding/main/source/qm_select.h"
+#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
+#include "webrtc/system_wrappers/interface/scoped_ptr.h"
 
-enum { kBitrateMaxFrameSamples = 60 };
-enum { kBitrateAverageWinMs    = 1000 };
+namespace webrtc {
 
-class TickTimeBase;
+// Forward declarations.
+class Clock;
+class FrameDropper;
 class VCMContentMetricsProcessing;
-class VCMFrameDropper;
 
-struct VCMEncodedFrameSample
-{
-    VCMEncodedFrameSample() : _sizeBytes(-1), _timeCompleteMs(-1) {}
+namespace media_optimization {
 
-    WebRtc_Word64     _sizeBytes;
-    WebRtc_Word64     _timeCompleteMs;
+class MediaOptimization {
+ public:
+  explicit MediaOptimization(Clock* clock);
+  ~MediaOptimization();
+
+  // TODO(andresp): Can Reset and SetEncodingData be done at construction time
+  // only?
+  void Reset();
+
+  // Informs media optimization of initial encoding state.
+  void SetEncodingData(VideoCodecType send_codec_type,
+                       int32_t max_bit_rate,
+                       uint32_t frame_rate,
+                       uint32_t bit_rate,
+                       uint16_t width,
+                       uint16_t height,
+                       uint8_t divisor,
+                       int num_temporal_layers,
+                       int32_t mtu);
+
+  // Sets target rates for the encoder given the channel parameters.
+  // Inputs:  target bitrate - the encoder target bitrate in bits/s.
+  //          fraction_lost - packet loss rate in % in the network.
+  //          round_trip_time_ms - round trip time in milliseconds.
+  //          min_bit_rate - the bit rate of the end-point with lowest rate.
+  //          max_bit_rate - the bit rate of the end-point with highest rate.
+  // TODO(andresp): Find if the callbacks can be triggered only after releasing
+  // an internal critical section.
+  uint32_t SetTargetRates(uint32_t target_bitrate,
+                          uint8_t fraction_lost,
+                          uint32_t round_trip_time_ms,
+                          VCMProtectionCallback* protection_callback,
+                          VCMQMSettingsCallback* qmsettings_callback);
+
+  void EnableProtectionMethod(bool enable, VCMProtectionMethodEnum method);
+  void EnableQM(bool enable);
+  void EnableFrameDropper(bool enable);
+
+  // Lets the sender suspend video when the rate drops below
+  // |threshold_bps|, and turns back on when the rate goes back up above
+  // |threshold_bps| + |window_bps|.
+  void SuspendBelowMinBitrate(int threshold_bps, int window_bps);
+  bool IsVideoSuspended() const;
+
+  bool DropFrame();
+
+  void UpdateContentData(const VideoContentMetrics* content_metrics);
+
+  // Informs Media Optimization of encoding output: Length and frame type.
+  int32_t UpdateWithEncodedData(int encoded_length,
+                                uint32_t timestamp,
+                                FrameType encoded_frame_type);
+
+  // Informs Media Optimization of CPU Load state
+  void SetCPULoadState(CPULoadState state);
+
+  uint32_t InputFrameRate();
+  uint32_t SentFrameRate();
+  uint32_t SentBitRate();
+  VCMFrameCount SentFrameCount();
+
+ private:
+  enum {
+    kFrameCountHistorySize = 90
+  };
+  enum {
+    kFrameHistoryWinMs = 2000
+  };
+  enum {
+    kBitrateAverageWinMs = 1000
+  };
+
+  struct EncodedFrameSample;
+  typedef std::list<EncodedFrameSample> FrameSampleList;
+
+  void UpdateIncomingFrameRate() EXCLUSIVE_LOCKS_REQUIRED(crit_sect_);
+  void PurgeOldFrameSamples(int64_t now_ms)
+      EXCLUSIVE_LOCKS_REQUIRED(crit_sect_);
+  void UpdateSentBitrate(int64_t now_ms) EXCLUSIVE_LOCKS_REQUIRED(crit_sect_);
+  void UpdateSentFramerate() EXCLUSIVE_LOCKS_REQUIRED(crit_sect_);
+
+  // Computes new Quality Mode.
+  int32_t SelectQuality(VCMQMSettingsCallback* qmsettings_callback)
+      EXCLUSIVE_LOCKS_REQUIRED(crit_sect_);
+
+  // Verifies if QM settings differ from default, i.e. if an update is required.
+  // Computes actual values, as will be sent to the encoder.
+  bool QMUpdate(VCMResolutionScale* qm,
+                VCMQMSettingsCallback* qmsettings_callback)
+      EXCLUSIVE_LOCKS_REQUIRED(crit_sect_);
+
+  // Checks if we should make a QM change. Return true if yes, false otherwise.
+  bool CheckStatusForQMchange() EXCLUSIVE_LOCKS_REQUIRED(crit_sect_);
+
+  void ProcessIncomingFrameRate(int64_t now)
+      EXCLUSIVE_LOCKS_REQUIRED(crit_sect_);
+
+  // Checks conditions for suspending the video. The method compares
+  // |target_bit_rate_| with the threshold values for suspension, and changes
+  // the state of |video_suspended_| accordingly.
+  void CheckSuspendConditions() EXCLUSIVE_LOCKS_REQUIRED(crit_sect_);
+
+  void SetEncodingDataInternal(VideoCodecType send_codec_type,
+                               int32_t max_bit_rate,
+                               uint32_t frame_rate,
+                               uint32_t bit_rate,
+                               uint16_t width,
+                               uint16_t height,
+                               uint8_t  divisor,
+                               int num_temporal_layers,
+                               int32_t mtu)
+      EXCLUSIVE_LOCKS_REQUIRED(crit_sect_);
+
+  uint32_t InputFrameRateInternal() EXCLUSIVE_LOCKS_REQUIRED(crit_sect_);
+
+  uint32_t SentFrameRateInternal() EXCLUSIVE_LOCKS_REQUIRED(crit_sect_);
+
+  // Protect all members.
+  scoped_ptr<CriticalSectionWrapper> crit_sect_;
+
+  Clock* clock_ GUARDED_BY(crit_sect_);
+  int32_t max_bit_rate_ GUARDED_BY(crit_sect_);
+  VideoCodecType send_codec_type_ GUARDED_BY(crit_sect_);
+  uint16_t codec_width_ GUARDED_BY(crit_sect_);
+  uint16_t codec_height_ GUARDED_BY(crit_sect_);
+  uint16_t min_width_ GUARDED_BY(crit_sect_);
+  uint16_t min_height_  GUARDED_BY(crit_sect_);
+  float user_frame_rate_ GUARDED_BY(crit_sect_);
+  scoped_ptr<FrameDropper> frame_dropper_ GUARDED_BY(crit_sect_);
+  scoped_ptr<VCMLossProtectionLogic> loss_prot_logic_ GUARDED_BY(crit_sect_);
+  uint8_t fraction_lost_ GUARDED_BY(crit_sect_);
+  uint32_t send_statistics_[4] GUARDED_BY(crit_sect_);
+  uint32_t send_statistics_zero_encode_ GUARDED_BY(crit_sect_);
+  int32_t max_payload_size_ GUARDED_BY(crit_sect_);
+  int target_bit_rate_ GUARDED_BY(crit_sect_);
+  float incoming_frame_rate_ GUARDED_BY(crit_sect_);
+  int64_t incoming_frame_times_[kFrameCountHistorySize] GUARDED_BY(crit_sect_);
+  bool enable_qm_ GUARDED_BY(crit_sect_);
+  std::list<EncodedFrameSample> encoded_frame_samples_ GUARDED_BY(crit_sect_);
+  uint32_t avg_sent_bit_rate_bps_ GUARDED_BY(crit_sect_);
+  uint32_t avg_sent_framerate_ GUARDED_BY(crit_sect_);
+  uint32_t key_frame_cnt_ GUARDED_BY(crit_sect_);
+  uint32_t delta_frame_cnt_ GUARDED_BY(crit_sect_);
+  scoped_ptr<VCMContentMetricsProcessing> content_ GUARDED_BY(crit_sect_);
+  scoped_ptr<VCMQmResolution> qm_resolution_ GUARDED_BY(crit_sect_);
+  int64_t last_qm_update_time_ GUARDED_BY(crit_sect_);
+  int64_t last_change_time_ GUARDED_BY(crit_sect_);  // Content/user triggered.
+  int num_layers_ GUARDED_BY(crit_sect_);
+  bool suspension_enabled_ GUARDED_BY(crit_sect_);
+  bool video_suspended_ GUARDED_BY(crit_sect_);
+  int suspension_threshold_bps_ GUARDED_BY(crit_sect_);
+  int suspension_window_bps_ GUARDED_BY(crit_sect_);
+  CPULoadState loadstate_ GUARDED_BY(crit_sect_);
 };
+}  // namespace media_optimization
+}  // namespace webrtc
 
-class VCMMediaOptimization
-{
-public:
-    VCMMediaOptimization(WebRtc_Word32 id, TickTimeBase* clock);
-    ~VCMMediaOptimization(void);
-    /*
-    * Reset the Media Optimization module
-    */
-    WebRtc_Word32 Reset();
-    /**
-    * Set target Rates for the encoder given the channel parameters
-    * Inputs:       bitRate - target bitRate, in the conference case this is the rate
-    *                         between the sending client and the server
-    *               fractionLost - packet loss in % in the network
-    *               roundTripTimeMs - round trip time in miliseconds
-    *               minBitRate - the bit rate of the end-point with lowest rate
-    *               maxBitRate - the bit rate of the end-point with highest rate
-    */
-    WebRtc_UWord32 SetTargetRates(WebRtc_UWord32 bitRate,
-                                  WebRtc_UWord8 &fractionLost,
-                                  WebRtc_UWord32 roundTripTimeMs);
-
-    /**
-    * Inform media optimization of initial encoding state
-    */
-    WebRtc_Word32 SetEncodingData(VideoCodecType sendCodecType,
-                                  WebRtc_Word32 maxBitRate,
-                                  WebRtc_UWord32 frameRate,
-                                  WebRtc_UWord32 bitRate,
-                                  WebRtc_UWord16 width,
-                                  WebRtc_UWord16 height,
-                                  int numTemporalLayers);
-    /**
-    * Enable protection method
-    */
-    void EnableProtectionMethod(bool enable, VCMProtectionMethodEnum method);
-    /**
-    * Returns weather or not protection method is enabled
-    */
-    bool IsProtectionMethodEnabled(VCMProtectionMethodEnum method);
-    /**
-    * Updates the max pay load size
-    */
-    void SetMtu(WebRtc_Word32 mtu);
-    /*
-    * Get actual input frame rate
-    */
-    WebRtc_UWord32 InputFrameRate();
-
-    /*
-    * Get actual sent frame rate
-    */
-    float SentFrameRate();
-    /*
-    * Get actual sent bit rate
-    */
-    float SentBitRate();
-    /*
-    * Get maximum allowed bit rate
-    */
-    WebRtc_Word32 MaxBitRate();
-    /*
-    * Inform Media Optimization of encoding output: Length and frame type
-    */
-    WebRtc_Word32 UpdateWithEncodedData(WebRtc_Word32 encodedLength,
-                                        FrameType encodedFrameType);
-    /*
-    * Register a protection callback to be used to inform the user about the
-    * protection methods used
-    */
-    WebRtc_Word32 RegisterProtectionCallback(VCMProtectionCallback*
-                                             protectionCallback);
-    /*
-    * Register a quality settings callback to be used to inform VPM/user about
-    */
-    WebRtc_Word32 RegisterVideoQMCallback(VCMQMSettingsCallback* videoQMSettings);
-    void EnableFrameDropper(bool enable);
-
-    bool DropFrame();
-
-      /*
-    * Get number of key/delta frames encoded
-    */
-    WebRtc_Word32 SentFrameCount(VCMFrameCount &frameCount) const;
-
-    /*
-    *  update incoming frame rate value
-    */
-    void UpdateIncomingFrameRate();
-
-    /**
-    * Update content metric Data
-    */
-    void updateContentData(const VideoContentMetrics* contentMetrics);
-
-    /**
-    * Compute new Quality Mode
-    */
-    WebRtc_Word32 SelectQuality();
-
-private:
-
-    /*
-     *  Update protection callback with protection settings
-     */
-    int UpdateProtectionCallback(VCMProtectionMethod *selected_method,
-                                 uint32_t* total_video_rate_bps,
-                                 uint32_t* nack_overhead_rate_bps,
-                                 uint32_t* fec_overhead_rate_bps);
-
-    void UpdateBitRateEstimate(WebRtc_Word64 encodedLength, WebRtc_Word64 nowMs);
-    /*
-    * verify if QM settings differ from default, i.e. if an update is required
-    * Compute actual values, as will be sent to the encoder
-    */
-    bool QMUpdate(VCMResolutionScale* qm);
-    /**
-    * check if we should make a QM change
-    * will return 1 if yes, 0 otherwise
-    */
-    bool checkStatusForQMchange();
-
-    void ProcessIncomingFrameRate(WebRtc_Word64 now);
-
-    enum { kFrameCountHistorySize = 90};
-    enum { kFrameHistoryWinMs = 2000};
-
-    WebRtc_Word32                     _id;
-    TickTimeBase*                     _clock;
-    WebRtc_Word32                     _maxBitRate;
-    VideoCodecType                    _sendCodecType;
-    WebRtc_UWord16                    _codecWidth;
-    WebRtc_UWord16                    _codecHeight;
-    float                             _userFrameRate;
-
-    VCMFrameDropper*                  _frameDropper;
-    VCMLossProtectionLogic*           _lossProtLogic;
-    WebRtc_UWord8                     _fractionLost;
-
-
-    WebRtc_UWord32                    _sendStatistics[4];
-    WebRtc_UWord32                    _sendStatisticsZeroEncode;
-    WebRtc_Word32                     _maxPayloadSize;
-    WebRtc_UWord32                    _targetBitRate;
-
-    float                             _incomingFrameRate;
-    WebRtc_Word64                     _incomingFrameTimes[kFrameCountHistorySize];
-
-    bool                              _enableQm;
-
-    VCMProtectionCallback*            _videoProtectionCallback;
-    VCMQMSettingsCallback*            _videoQMSettingsCallback;
-
-    VCMEncodedFrameSample             _encodedFrameSamples[kBitrateMaxFrameSamples];
-    float                             _avgSentBitRateBps;
-
-    WebRtc_UWord32                    _keyFrameCnt;
-    WebRtc_UWord32                    _deltaFrameCnt;
-
-    VCMContentMetricsProcessing*      _content;
-    VCMQmResolution*                  _qmResolution;
-
-    WebRtc_Word64                     _lastQMUpdateTime;
-    WebRtc_Word64                     _lastChangeTime; // content/user triggered
-    int                               _numLayers;
-
-
-}; // end of VCMMediaOptimization class definition
-
-} // namespace webrtc
-
-#endif // WEBRTC_MODULES_VIDEO_CODING_MEDIA_OPTIMIZATION_H_
+#endif  // WEBRTC_MODULES_VIDEO_CODING_MAIN_SOURCE_MEDIA_OPTIMIZATION_H_

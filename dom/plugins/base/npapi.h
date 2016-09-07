@@ -59,7 +59,7 @@
 /*----------------------------------------------------------------------*/
 
 #define NP_VERSION_MAJOR 0
-#define NP_VERSION_MINOR 27
+#define NP_VERSION_MINOR 28
 
 
 /* The OS/2 version of Netscape uses RC_DATA to define the
@@ -144,7 +144,7 @@ typedef struct _NPStream
   void*    notifyData;
   const    char* headers; /* Response headers from host.
                            * Exists only for >= NPVERS_HAS_RESPONSE_HEADERS.
-                           * Used for HTTP only; NULL for non-HTTP.
+                           * Used for HTTP only; nullptr for non-HTTP.
                            * Available from NPP_NewStream onwards.
                            * Plugin should copy this data before storing it.
                            * Includes HTTP status line and all headers,
@@ -185,33 +185,6 @@ typedef enum {
   NPFocusNext = 0,
   NPFocusPrevious = 1
 } NPFocusDirection;
-
-/* These formats describe the format in the memory byte-order. This means if
- * a 32-bit value of a pixel is viewed on a little-endian system the layout will
- * be 0xAARRGGBB. The Alpha channel will be stored in the most significant
- * bits. */
-typedef enum {
-  /* 32-bit per pixel 8-bit per channel - premultiplied alpha */
-  NPImageFormatBGRA32     = 0x1,
-  /* 32-bit per pixel 8-bit per channel - 1 unused channel */
-  NPImageFormatBGRX32     = 0x2 
-} NPImageFormat;
-
-typedef struct _NPAsyncSurface
-{
-  uint32_t version;
-  NPSize size;
-  NPImageFormat format;
-  union {
-    struct {
-      uint32_t stride;
-      void *data;
-    } bitmap;
-#if defined(XP_WIN)
-    HANDLE sharedHandle;
-#endif
-  };
-} NPAsyncSurface;
 
 /* Return values for NPP_HandleEvent */
 #define kNPEventNotHandled 0
@@ -259,24 +232,27 @@ typedef struct
 #endif /* XP_UNIX */
 
 typedef enum {
+  NPDrawingModelDUMMY
 #if defined(XP_MACOSX)
 #ifndef NP_NO_QUICKDRAW
-  NPDrawingModelQuickDraw = 0,
+  , NPDrawingModelQuickDraw = 0
 #endif
-  NPDrawingModelCoreGraphics = 1,
-  NPDrawingModelOpenGL = 2,
-  NPDrawingModelCoreAnimation = 3,
-  NPDrawingModelInvalidatingCoreAnimation = 4,
+  , NPDrawingModelCoreGraphics = 1
+  , NPDrawingModelOpenGL = 2
+  , NPDrawingModelCoreAnimation = 3
+  , NPDrawingModelInvalidatingCoreAnimation = 4
 #endif
 #if defined(XP_WIN)
-  NPDrawingModelSyncWin = 5,
+  , NPDrawingModelSyncWin = 5
 #endif
 #if defined(MOZ_X11)
-  NPDrawingModelSyncX = 6,
+  , NPDrawingModelSyncX = 6
 #endif
-  NPDrawingModelAsyncBitmapSurface = 7
+#if 0 /* OBSOLETE */
+  , NPDrawingModelAsyncBitmapSurfaceOBSOLETE = 7
 #if defined(XP_WIN)
-  , NPDrawingModelAsyncWindowsDXGISurface = 8
+  , NPDrawingModelAsyncWindowsDXGISurfaceOBSOLETE = 8
+#endif
 #endif
 } NPDrawingModel;
 
@@ -304,10 +280,10 @@ typedef enum {
 
 #define NP_ABI_GCC3_MASK  0x10000000
 /*
- *   gcc 3.x and higher generated vtables on UNIX and OSX are
- *   incompatible with previous compilers.
+ *   gcc 3.x generated vtables on UNIX and OSX are incompatible with
+ *   previous compilers.
  */
-#if (defined(XP_UNIX) && defined(__GNUC__))
+#if (defined(XP_UNIX) && defined(__GNUC__) && (__GNUC__ >= 3))
 #define _NP_ABI_MIXIN_FOR_GCC3 NP_ABI_GCC3_MASK
 #else
 #define _NP_ABI_MIXIN_FOR_GCC3 0
@@ -376,9 +352,6 @@ typedef enum {
   , NPPVpluginCoreAnimationLayer = 1003
 #endif
 
-#if defined(MOZ_PLATFORM_MAEMO) && ((MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6))
-  , NPPVpluginWindowlessLocalBool = 2002
-#endif
 } NPPVariable;
 
 /*
@@ -423,9 +396,11 @@ typedef enum {
   , NPNVsupportsCoreAnimationBool = 2003
   , NPNVsupportsInvalidatingCoreAnimationBool = 2004
 #endif
-  , NPNVsupportsAsyncBitmapSurfaceBool = 2007
+#if 0 /* OBSOLETE */
+  , NPNVsupportsAsyncBitmapSurfaceBoolOBSOLETE = 2007
 #if defined(XP_WIN)
-  , NPNVsupportsAsyncWindowsDXGISurfaceBool = 2008
+  , NPNVsupportsAsyncWindowsDXGISurfaceBoolOBSOLETE = 2008
+#endif
 #endif
 #if defined(XP_MACOSX)
 #ifndef NP_NO_CARBON
@@ -436,9 +411,6 @@ typedef enum {
                                                     Cocoa text input specification. */
   , NPNVsupportsCompositingCoreAnimationPluginsBool = 74656 /* TRUE if the browser supports
                                                                CA model compositing */
-#endif
-#if defined(MOZ_PLATFORM_MAEMO) && ((MOZ_PLATFORM_MAEMO == 5) || (MOZ_PLATFORM_MAEMO == 6))
-  , NPNVSupportsWindowlessLocal = 2002
 #endif
 } NPNVariable;
 
@@ -785,24 +757,24 @@ const char* NPP_GetMIMEDescription(void);
 #endif
 
 NPError NPP_New(NPMIMEType pluginType, NPP instance,
-                          uint16_t mode, int16_t argc, char* argn[],
-                          char* argv[], NPSavedData* saved);
+                uint16_t mode, int16_t argc, char* argn[],
+                char* argv[], NPSavedData* saved);
 NPError NPP_Destroy(NPP instance, NPSavedData** save);
 NPError NPP_SetWindow(NPP instance, NPWindow* window);
 NPError NPP_NewStream(NPP instance, NPMIMEType type,
-                                NPStream* stream, NPBool seekable,
-                                uint16_t* stype);
+                      NPStream* stream, NPBool seekable,
+                      uint16_t* stype);
 NPError NPP_DestroyStream(NPP instance, NPStream* stream,
-                                    NPReason reason);
+                          NPReason reason);
 int32_t NPP_WriteReady(NPP instance, NPStream* stream);
 int32_t NPP_Write(NPP instance, NPStream* stream, int32_t offset,
-                            int32_t len, void* buffer);
+                  int32_t len, void* buffer);
 void    NPP_StreamAsFile(NPP instance, NPStream* stream,
-                                   const char* fname);
+                         const char* fname);
 void    NPP_Print(NPP instance, NPPrint* platformPrint);
 int16_t NPP_HandleEvent(NPP instance, void* event);
 void    NPP_URLNotify(NPP instance, const char* url,
-                                NPReason reason, void* notifyData);
+                      NPReason reason, void* notifyData);
 NPError NPP_GetValue(NPP instance, NPPVariable variable, void *value);
 NPError NPP_SetValue(NPP instance, NPNVariable variable, void *value);
 NPBool  NPP_GotFocus(NPP instance, NPFocusDirection direction);
@@ -814,25 +786,25 @@ void    NPP_DidComposite(NPP instance);
 
 /* NPN_* functions are provided by the navigator and called by the plugin. */
 void        NPN_Version(int* plugin_major, int* plugin_minor,
-                                  int* netscape_major, int* netscape_minor);
+                        int* netscape_major, int* netscape_minor);
 NPError     NPN_GetURLNotify(NPP instance, const char* url,
-                                       const char* target, void* notifyData);
+                             const char* target, void* notifyData);
 NPError     NPN_GetURL(NPP instance, const char* url,
-                                 const char* target);
+                       const char* target);
 NPError     NPN_PostURLNotify(NPP instance, const char* url,
-                                        const char* target, uint32_t len,
-                                        const char* buf, NPBool file,
-                                        void* notifyData);
+                              const char* target, uint32_t len,
+                              const char* buf, NPBool file,
+                              void* notifyData);
 NPError     NPN_PostURL(NPP instance, const char* url,
-                                  const char* target, uint32_t len,
-                                  const char* buf, NPBool file);
+                        const char* target, uint32_t len,
+                        const char* buf, NPBool file);
 NPError     NPN_RequestRead(NPStream* stream, NPByteRange* rangeList);
 NPError     NPN_NewStream(NPP instance, NPMIMEType type,
-                                    const char* target, NPStream** stream);
+                          const char* target, NPStream** stream);
 int32_t     NPN_Write(NPP instance, NPStream* stream, int32_t len,
-                                void* buffer);
+                      void* buffer);
 NPError     NPN_DestroyStream(NPP instance, NPStream* stream,
-                                        NPReason reason);
+                              NPReason reason);
 void        NPN_Status(NPP instance, const char* message);
 const char* NPN_UserAgent(NPP instance);
 void*       NPN_MemAlloc(uint32_t size);
@@ -840,32 +812,32 @@ void        NPN_MemFree(void* ptr);
 uint32_t    NPN_MemFlush(uint32_t size);
 void        NPN_ReloadPlugins(NPBool reloadPages);
 NPError     NPN_GetValue(NPP instance, NPNVariable variable,
-                                   void *value);
+                         void *value);
 NPError     NPN_SetValue(NPP instance, NPPVariable variable,
-                                   void *value);
+                         void *value);
 void        NPN_InvalidateRect(NPP instance, NPRect *invalidRect);
 void        NPN_InvalidateRegion(NPP instance,
-                                           NPRegion invalidRegion);
+                                 NPRegion invalidRegion);
 void        NPN_ForceRedraw(NPP instance);
 void        NPN_PushPopupsEnabledState(NPP instance, NPBool enabled);
 void        NPN_PopPopupsEnabledState(NPP instance);
 void        NPN_PluginThreadAsyncCall(NPP instance,
-                                                void (*func) (void *),
-                                                void *userData);
+                                      void (*func) (void *),
+                                      void *userData);
 NPError     NPN_GetValueForURL(NPP instance, NPNURLVariable variable,
-                                         const char *url, char **value,
-                                         uint32_t *len);
+                               const char *url, char **value,
+                               uint32_t *len);
 NPError     NPN_SetValueForURL(NPP instance, NPNURLVariable variable,
-                                         const char *url, const char *value,
-                                         uint32_t len);
+                               const char *url, const char *value,
+                               uint32_t len);
 NPError     NPN_GetAuthenticationInfo(NPP instance,
-                                                const char *protocol,
-                                                const char *host, int32_t port,
-                                                const char *scheme,
-                                                const char *realm,
-                                                char **username, uint32_t *ulen,
-                                                char **password,
-                                                uint32_t *plen);
+                                      const char *protocol,
+                                      const char *host, int32_t port,
+                                      const char *scheme,
+                                      const char *realm,
+                                      char **username, uint32_t *ulen,
+                                      char **password,
+                                      uint32_t *plen);
 uint32_t    NPN_ScheduleTimer(NPP instance, uint32_t interval, NPBool repeat, void (*timerFunc)(NPP npp, uint32_t timerID));
 void        NPN_UnscheduleTimer(NPP instance, uint32_t timerID);
 NPError     NPN_PopUpContextMenu(NPP instance, NPMenu* menu);
@@ -873,11 +845,6 @@ NPBool      NPN_ConvertPoint(NPP instance, double sourceX, double sourceY, NPCoo
 NPBool      NPN_HandleEvent(NPP instance, void *event, NPBool handled);
 NPBool      NPN_UnfocusInstance(NPP instance, NPFocusDirection direction);
 void        NPN_URLRedirectResponse(NPP instance, void* notifyData, NPBool allow);
-NPError     NPN_InitAsyncSurface(NPP instance, NPSize *size,
-                                           NPImageFormat format, void *initData,
-                                           NPAsyncSurface *surface);
-NPError     NPN_FinalizeAsyncSurface(NPP instance, NPAsyncSurface *surface);
-void        NPN_SetCurrentAsyncSurface(NPP instance, NPAsyncSurface *surface, NPRect *changed);
 
 #ifdef __cplusplus
 }  /* end extern "C" */

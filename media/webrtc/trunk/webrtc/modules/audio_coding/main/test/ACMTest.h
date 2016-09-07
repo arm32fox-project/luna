@@ -8,14 +8,14 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#ifndef ACMTEST_H
-#define ACMTEST_H
+#ifndef WEBRTC_MODULES_AUDIO_CODING_MAIN_TEST_ACMTEST_H_
+#define WEBRTC_MODULES_AUDIO_CODING_MAIN_TEST_ACMTEST_H_
 
-class ACMTest
-{
-public:
-    virtual ~ACMTest() =0;
-    virtual void Perform() =0;
+class ACMTest {
+ public:
+  ACMTest() {}
+  virtual ~ACMTest() {}
+  virtual void Perform() = 0;
 };
 
-#endif
+#endif  // WEBRTC_MODULES_AUDIO_CODING_MAIN_TEST_ACMTEST_H_

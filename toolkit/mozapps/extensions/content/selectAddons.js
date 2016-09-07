@@ -1,4 +1,4 @@
-// -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+// -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
 
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -7,7 +7,7 @@
 "use strict";
 
 Components.utils.import("resource://gre/modules/AddonManager.jsm");
-Components.utils.import("resource://gre/modules/AddonRepository.jsm");
+Components.utils.import("resource://gre/modules/addons/AddonRepository.jsm");
 Components.utils.import("resource://gre/modules/Services.jsm");
 
 const Cc = Components.classes;
@@ -66,14 +66,16 @@ var gChecking = {
     showButtons(true, false, false, false);
     this._progress = document.getElementById("checking-progress");
 
-    let self = this;
-    AddonManager.getAllAddons(function gChecking_getAllAddons(aAddons) {
+    AddonManager.getAllAddons(aAddons => {
       if (aAddons.length == 0) {
         window.close();
         return;
       }
 
       aAddons = aAddons.filter(function gChecking_filterAddons(aAddon) {
+        if (aAddon.id == AddonManager.hotfixID) {
+          return false;
+        }
         if (aAddon.type == "plugin" || aAddon.type == "service")
           return false;
 
@@ -89,30 +91,24 @@ var gChecking = {
         return true;
       });
 
-      self._addonCount = aAddons.length;
-      self._progress.value = 0;
-      self._progress.max = aAddons.length;
-      self._progress.mode = "determined";
+      this._addonCount = aAddons.length;
+      this._progress.value = 0;
+      this._progress.max = aAddons.length;
+      this._progress.mode = "determined";
 
-      // Ensure compatibility overrides are up to date before checking for
-      // individual addon updates.
-      let ids = [addon.id for each (addon in aAddons)];
-      AddonRepository.repopulateCache(ids, function gChecking_repopulateCache() {
-        AddonManagerPrivate.updateAddonRepositoryData(function gChecking_updateAddonRepositoryData() {
-
-          for (let addonItem of aAddons) {
-            // Ignore disabled themes
-            if (addonItem.type != "theme" || !addonItem.userDisabled) {
-              gAddons[addonItem.id] = {
-                addon: addonItem,
-                install: null,
-                wasActive: addonItem.isActive
-              }
+      AddonRepository.repopulateCache().then(() => {
+        for (let addonItem of aAddons) {
+          // Ignore disabled themes
+          if (addonItem.type != "theme" || !addonItem.userDisabled) {
+            gAddons[addonItem.id] = {
+              addon: addonItem,
+              install: null,
+              wasActive: addonItem.isActive
             }
-
-            addonItem.findUpdates(self, AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
           }
-        });
+
+          addonItem.findUpdates(this, AddonManager.UPDATE_WHEN_NEW_APP_INSTALLED);
+        }
       });
     });
   },

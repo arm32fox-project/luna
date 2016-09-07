@@ -6,132 +6,197 @@
 package org.mozilla.goanna;
 
 import org.mozilla.goanna.mozglue.GoannaLoader;
+import org.mozilla.goanna.mozglue.RobocopTarget;
 import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.util.ThreadUtils;
 
 import org.json.JSONObject;
 
-import android.content.Intent;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
+import android.os.Handler;
+import android.os.Looper;
 import android.os.SystemClock;
 import android.util.Log;
-import android.app.Activity;
 
-
+import java.io.IOException;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class GoannaThread extends Thread implements GoannaEventListener {
     private static final String LOGTAG = "GoannaThread";
 
+    @RobocopTarget
     public enum LaunchState {
         Launching,
         WaitForDebugger,
         Launched,
         GoannaRunning,
-        GoannaExiting
-    };
+        GoannaExiting,
+        GoannaExited
+    }
 
-    private static LaunchState sLaunchState = LaunchState.Launching;
+    private static final AtomicReference<LaunchState> sLaunchState =
+                                            new AtomicReference<LaunchState>(LaunchState.Launching);
 
-    private Intent mIntent;
+    private static GoannaThread sGoannaThread;
+
+    private final String mArgs;
+    private final String mAction;
     private final String mUri;
 
-    GoannaThread(Intent intent, String uri) {
-        mIntent = intent;
+    public static boolean ensureInit() {
+        ThreadUtils.assertOnUiThread();
+        if (isCreated())
+            return false;
+        sGoannaThread = new GoannaThread(sArgs, sAction, sUri);
+        return true;
+    }
+
+    public static String sArgs;
+    public static String sAction;
+    public static String sUri;
+
+    public static void setArgs(String args) {
+        sArgs = args;
+    }
+
+    public static void setAction(String action) {
+        sAction = action;
+    }
+
+    public static void setUri(String uri) {
+        sUri = uri;
+    }
+
+    GoannaThread(String args, String action, String uri) {
+        mArgs = args;
+        mAction = action;
         mUri = uri;
         setName("Goanna");
-        GoannaAppShell.getEventDispatcher().registerEventListener("Goanna:Ready", this);
+        EventDispatcher.getInstance().registerGoannaThreadListener(this, "Goanna:Ready");
+    }
+
+    public static boolean isCreated() {
+        return sGoannaThread != null;
+    }
+
+    public static void createAndStart() {
+        if (ensureInit())
+            sGoannaThread.start();
     }
 
     private String initGoannaEnvironment() {
-        // At some point while loading the goanna libs our default locale gets set
-        // so just save it to locale here and reset it as default after the join
-        Locale locale = Locale.getDefault();
+        final Locale locale = Locale.getDefault();
 
+        final Context context = GoannaAppShell.getContext();
+        final Resources res = context.getResources();
         if (locale.toString().equalsIgnoreCase("zh_hk")) {
-            locale = Locale.TRADITIONAL_CHINESE;
-            Locale.setDefault(locale);
+            final Locale mappedLocale = Locale.TRADITIONAL_CHINESE;
+            Locale.setDefault(mappedLocale);
+            Configuration config = res.getConfiguration();
+            config.locale = mappedLocale;
+            res.updateConfiguration(config, null);
         }
 
-        Context app = GoannaAppShell.getContext();
         String resourcePath = "";
-        Resources res  = null;
         String[] pluginDirs = null;
         try {
             pluginDirs = GoannaAppShell.getPluginDirectories();
         } catch (Exception e) {
             Log.w(LOGTAG, "Caught exception getting plugin dirs.", e);
         }
-        
-        if (app instanceof Activity) {
-            Activity activity = (Activity)app;
-            resourcePath = activity.getApplication().getPackageResourcePath();
-            res = activity.getBaseContext().getResources();
-            GoannaLoader.setupGoannaEnvironment(activity, pluginDirs, GoannaProfile.get(app).getFilesDir().getPath());
-        }
-        GoannaLoader.loadSQLiteLibs(app, resourcePath);
-        GoannaLoader.loadNSSLibs(app, resourcePath);
-        GoannaLoader.loadGoannaLibs(app, resourcePath);
 
-        Locale.setDefault(locale);
+        resourcePath = context.getPackageResourcePath();
+        GoannaLoader.setupGoannaEnvironment(context, pluginDirs, context.getFilesDir().getPath());
 
-        Configuration config = res.getConfiguration();
-        config.locale = locale;
-        res.updateConfiguration(config, res.getDisplayMetrics());
+        GoannaLoader.loadSQLiteLibs(context, resourcePath);
+        GoannaLoader.loadNSSLibs(context, resourcePath);
+        GoannaLoader.loadGoannaLibs(context, resourcePath);
+        GoannaJavaSampler.setLibsLoaded();
 
         return resourcePath;
     }
 
     private String getTypeFromAction(String action) {
-        if (action != null && action.startsWith(GoannaApp.ACTION_WEBAPP_PREFIX)) {
-            return "-webapp";
-        }
-        if (GoannaApp.ACTION_BOOKMARK.equals(action)) {
+        if (GoannaApp.ACTION_HOMESCREEN_SHORTCUT.equals(action)) {
             return "-bookmark";
         }
         return null;
     }
 
     private String addCustomProfileArg(String args) {
-        String profile = GoannaAppShell.getGoannaInterface() == null || GoannaApp.sIsUsingCustomProfile ? "" : (" -P " + GoannaAppShell.getGoannaInterface().getProfile().getName());
-        return (args != null ? args : "") + profile;
+        String profileArg = "";
+        String guestArg = "";
+        if (GoannaAppShell.getGoannaInterface() != null) {
+            final GoannaProfile profile = GoannaAppShell.getGoannaInterface().getProfile();
+
+            if (profile.inGuestMode()) {
+                try {
+                    profileArg = " -profile " + profile.getDir().getCanonicalPath();
+                } catch (final IOException ioe) {
+                    Log.e(LOGTAG, "error getting guest profile path", ioe);
+                }
+
+                if (args == null || !args.contains(BrowserApp.GUEST_BROWSING_ARG)) {
+                    guestArg = " " + BrowserApp.GUEST_BROWSING_ARG;
+                }
+            } else if (!GoannaProfile.sIsUsingCustomProfile) {
+                // If nothing was passed in the intent, make sure the default profile exists and
+                // force Goanna to use the default profile for this activity
+                profileArg = " -P " + profile.forceCreate().getName();
+            }
+        }
+
+        return (args != null ? args : "") + profileArg + guestArg;
     }
 
     @Override
     public void run() {
+        Looper.prepare();
+        ThreadUtils.sGoannaThread = this;
+        ThreadUtils.sGoannaHandler = new Handler();
+        ThreadUtils.sGoannaQueue = Looper.myQueue();
+
         String path = initGoannaEnvironment();
+
+        // This can only happen after the call to initGoannaEnvironment
+        // above, because otherwise the JNI code hasn't been loaded yet.
+        ThreadUtils.postToUiThread(new Runnable() {
+            @Override public void run() {
+                GoannaAppShell.registerJavaUiThread();
+            }
+        });
 
         Log.w(LOGTAG, "zerdatime " + SystemClock.uptimeMillis() + " - runGoanna");
 
-        String args = addCustomProfileArg(mIntent.getStringExtra("args"));
-        String type = getTypeFromAction(mIntent.getAction());
-        mIntent = null;
+        String args = addCustomProfileArg(mArgs);
+        String type = getTypeFromAction(mAction);
 
+        if (!AppConstants.MOZILLA_OFFICIAL) {
+            Log.i(LOGTAG, "RunGoanna - args = " + args);
+        }
         // and then fire us up
-        Log.i(LOGTAG, "RunGoanna - args = " + args);
         GoannaAppShell.runGoanna(path, args, mUri, type);
     }
 
     @Override
     public void handleMessage(String event, JSONObject message) {
         if ("Goanna:Ready".equals(event)) {
-            GoannaAppShell.getEventDispatcher().unregisterEventListener(event, this);
+            EventDispatcher.getInstance().unregisterGoannaThreadListener(this, event);
             setLaunchState(LaunchState.GoannaRunning);
             GoannaAppShell.sendPendingEventsToGoanna();
         }
     }
 
+    @RobocopTarget
     public static boolean checkLaunchState(LaunchState checkState) {
-        synchronized (sLaunchState) {
-            return sLaunchState == checkState;
-        }
+        return sLaunchState.get() == checkState;
     }
 
     static void setLaunchState(LaunchState setState) {
-        synchronized (sLaunchState) {
-            sLaunchState = setState;
-        }
+        sLaunchState.set(setState);
     }
 
     /**
@@ -139,11 +204,6 @@ public class GoannaThread extends Thread implements GoannaEventListener {
      * state is <code>checkState</code>; otherwise do nothing and return false.
      */
     static boolean checkAndSetLaunchState(LaunchState checkState, LaunchState setState) {
-        synchronized (sLaunchState) {
-            if (sLaunchState != checkState)
-                return false;
-            sLaunchState = setState;
-            return true;
-        }
+        return sLaunchState.compareAndSet(checkState, setState);
     }
 }

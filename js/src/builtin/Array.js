@@ -35,9 +35,16 @@ function ArrayIndexOf(searchElement/*, fromIndex*/) {
     }
 
     /* Step 9. */
-    for (; k < len; k++) {
-        if (k in O && O[k] === searchElement)
-            return k;
+    if (IsPackedArray(O)) {
+        for (; k < len; k++) {
+            if (O[k] === searchElement)
+                return k;
+        }
+    } else {
+        for (; k < len; k++) {
+            if (k in O && O[k] === searchElement)
+                return k;
+        }
     }
 
     /* Step 10. */
@@ -76,9 +83,16 @@ function ArrayLastIndexOf(searchElement/*, fromIndex*/) {
         k = n;
 
     /* Step 8. */
-    for (; k >= 0; k--) {
-        if (k in O && O[k] === searchElement)
-            return k;
+    if (IsPackedArray(O)) {
+        for (; k >= 0; k--) {
+            if (O[k] === searchElement)
+                return k;
+        }
+    } else {
+        for (; k >= 0; k--) {
+            if (k in O && O[k] === searchElement)
+                return k;
+        }
     }
 
     /* Step 9. */
@@ -239,8 +253,8 @@ function ArrayMap(callbackfn/*, thisArg*/) {
         if (k in O) {
             /* Step c.i-iii. */
             var mappedValue = callFunction(callbackfn, T, O[k], k, O);
-            // UnsafeSetElement doesn't invoke setters, so we can use it here.
-            UnsafeSetElement(A, k, mappedValue);
+            // UnsafePutElements doesn't invoke setters, so we can use it here.
+            UnsafePutElements(A, k, mappedValue);
         }
     }
 
@@ -291,17 +305,21 @@ function ArrayReduce(callbackfn/*, initialValue*/) {
         /* Step 5. */
         if (len === 0)
             ThrowError(JSMSG_EMPTY_ARRAY_REDUCE);
-        var kPresent = false;
-        for (; k < len; k++) {
-            if (k in O) {
-                accumulator = O[k];
-                kPresent = true;
-                k++;
-                break;
+        if (IsPackedArray(O)) {
+            accumulator = O[k++];
+        } else {
+            var kPresent = false;
+            for (; k < len; k++) {
+                if (k in O) {
+                    accumulator = O[k];
+                    kPresent = true;
+                    k++;
+                    break;
+                }
             }
+            if (!kPresent)
+              ThrowError(JSMSG_EMPTY_ARRAY_REDUCE);
         }
-        if (!kPresent)
-            ThrowError(JSMSG_EMPTY_ARRAY_REDUCE);
     }
 
     /* Step 9. */
@@ -354,17 +372,21 @@ function ArrayReduceRight(callbackfn/*, initialValue*/) {
         /* Step 5. */
         if (len === 0)
             ThrowError(JSMSG_EMPTY_ARRAY_REDUCE);
-        var kPresent = false;
-        for (; k >= 0; k--) {
-            if (k in O) {
-                accumulator = O[k];
-                kPresent = true;
-                k--;
-                break;
+        if (IsPackedArray(O)) {
+            accumulator = O[k--];
+        } else {
+            var kPresent = false;
+            for (; k >= 0; k--) {
+                if (k in O) {
+                    accumulator = O[k];
+                    kPresent = true;
+                    k--;
+                    break;
+                }
             }
+            if (!kPresent)
+                ThrowError(JSMSG_EMPTY_ARRAY_REDUCE);
         }
-        if (!kPresent)
-            ThrowError(JSMSG_EMPTY_ARRAY_REDUCE);
     }
 
     /* Step 9. */
@@ -392,7 +414,7 @@ function ArrayStaticReduceRight(list, callbackfn) {
         return callFunction(ArrayReduceRight, list, callbackfn);
 }
 
-/* ES6 draft 2014-10-14 22.1.3.8. */
+/* ES6 draft 2013-05-14 15.4.3.23. */
 function ArrayFind(predicate/*, thisArg*/) {
     /* Steps 1-2. */
     var O = ToObject(this);
@@ -410,27 +432,25 @@ function ArrayFind(predicate/*, thisArg*/) {
     var T = arguments.length > 1 ? arguments[1] : undefined;
 
     /* Steps 8-9. */
-    /* Steps a (implicit), and e. */
-    /* Note: this will hang in some corner-case situations, because of IEEE-754 numbers' 
+    /* Steps a (implicit), and g. */
+    /* Note: this will hang in some corner-case situations, because of IEEE-754 numbers'
      * imprecision for large values. Example:
      * var obj = { 18014398509481984: true, length: 18014398509481988 };
      * Array.prototype.find.call(obj, () => true);
      */
     for (var k = 0; k < len; k++) {
-        /* Steps b and c (implicit) */
-        if (k in O) {
-            /* Step d. */
-            var kValue = O[k];
-            if (callFunction(predicate, T, kValue, k, O))
-                return kValue;
-        }
+        /* Steps a-c. */
+        var kValue = O[k];
+        /* Steps d-f. */
+        if (callFunction(predicate, T, kValue, k, O))
+            return kValue;
     }
 
     /* Step 10. */
     return undefined;
 }
 
-/* ES6 draft 2014-10-14 22.1.3.9. */
+/* ES6 draft 2013-05-14 15.4.3.23. */
 function ArrayFindIndex(predicate/*, thisArg*/) {
     /* Steps 1-2. */
     var O = ToObject(this);
@@ -448,21 +468,326 @@ function ArrayFindIndex(predicate/*, thisArg*/) {
     var T = arguments.length > 1 ? arguments[1] : undefined;
 
     /* Steps 8-9. */
-    /* Steps a (implicit), and e. */
-    /* Note: this will hang in some corner-case situations, because of IEEE-754 numbers' 
+    /* Steps a (implicit), and g. */
+    /* Note: this will hang in some corner-case situations, because of IEEE-754 numbers'
      * imprecision for large values. Example:
      * var obj = { 18014398509481984: true, length: 18014398509481988 };
      * Array.prototype.find.call(obj, () => true);
      */
     for (var k = 0; k < len; k++) {
-        /* Steps b and c (implicit) */
-        if (k in O) {
-            /* Step d. */
-            if (callFunction(predicate, T, O[k], k, O))
-                return k;
-        }
+        /* Steps a-f. */
+        if (callFunction(predicate, T, O[k], k, O))
+            return k;
     }
 
     /* Step 10. */
     return -1;
+}
+
+/* ES6 draft 2013-09-27 22.1.3.3. */
+function ArrayCopyWithin(target, start, end = undefined) {
+    /* Steps 1-2. */
+    var O = ToObject(this);
+
+    /* Steps 3-5. */
+    var len = ToInteger(O.length);
+
+    /* Steps 6-8. */
+    var relativeTarget = ToInteger(target);
+
+    var to = relativeTarget < 0 ? std_Math_max(len + relativeTarget, 0)
+                                : std_Math_min(relativeTarget, len);
+
+    /* Steps 9-11. */
+    var relativeStart = ToInteger(start);
+
+    var from = relativeStart < 0 ? std_Math_max(len + relativeStart, 0)
+                                 : std_Math_min(relativeStart, len);
+
+    /* Steps 12-14. */
+    var relativeEnd = end === undefined ? len
+                                        : ToInteger(end);
+
+    var final = relativeEnd < 0 ? std_Math_max(len + relativeEnd, 0)
+                                : std_Math_min(relativeEnd, len);
+
+    /* Step 15. */
+    var count = std_Math_min(final - from, len - to);
+
+    /* Steps 16-17. */
+    if (from < to && to < (from + count)) {
+        from = from + count - 1;
+        to = to + count - 1;
+        /* Step 18. */
+        while (count > 0) {
+            if (from in O)
+                O[to] = O[from];
+            else
+                delete O[to];
+
+            from--;
+            to--;
+            count--;
+        }
+    } else {
+        /* Step 18. */
+        while (count > 0) {
+            if (from in O)
+                O[to] = O[from];
+            else
+                delete O[to];
+
+            from++;
+            to++;
+            count--;
+        }
+    }
+
+    /* Step 19. */
+    return O;
+}
+
+// ES6 draft 2014-04-05 22.1.3.6
+function ArrayFill(value, start = 0, end = undefined) {
+    // Steps 1-2.
+    var O = ToObject(this);
+
+    // Steps 3-5.
+    // FIXME: Array operations should use ToLength (bug 924058).
+    var len = ToInteger(O.length);
+
+    // Steps 6-7.
+    var relativeStart = ToInteger(start);
+
+    // Step 8.
+    var k = relativeStart < 0
+            ? std_Math_max(len + relativeStart, 0)
+            : std_Math_min(relativeStart, len);
+
+    // Steps 9-10.
+    var relativeEnd = end === undefined ? len : ToInteger(end);
+
+    // Step 11.
+    var final = relativeEnd < 0
+                ? std_Math_max(len + relativeEnd, 0)
+                : std_Math_min(relativeEnd, len);
+
+    // Step 12.
+    for (; k < final; k++) {
+        O[k] = value;
+    }
+
+    // Step 13.
+    return O;
+}
+
+// Proposed for ES7:
+// https://github.com/tc39/Array.prototype.includes/blob/7c023c19a0/spec.md
+function ArrayIncludes(searchElement, fromIndex = 0) {
+    // Steps 1-2.
+    var O = ToObject(this);
+
+    // Steps 3-4.
+    var len = ToLength(O.length);
+
+    // Step 5.
+    if (len === 0)
+        return false;
+
+    // Steps 6-7.
+    var n = ToInteger(fromIndex);
+
+    // Step 8.
+    var k;
+    if (n >= 0) {
+        k = n;
+    }
+    // Step 9.
+    else {
+        // Step a.
+        k = len + n;
+        // Step b.
+        if (k < 0)
+            k = 0;
+    }
+
+    // Step 10.
+    while (k < len) {
+        // Steps a-c.
+        if (SameValueZero(searchElement, O[k]))
+            return true;
+
+        // Step d.
+        k++;
+    }
+
+    // Step 11.
+    return false;
+}
+
+#define ARRAY_ITERATOR_SLOT_ITERATED_OBJECT 0
+#define ARRAY_ITERATOR_SLOT_NEXT_INDEX 1
+#define ARRAY_ITERATOR_SLOT_ITEM_KIND 2
+
+#define ITEM_KIND_VALUE 0
+#define ITEM_KIND_KEY_AND_VALUE 1
+#define ITEM_KIND_KEY 2
+
+// ES6 draft specification, section 22.1.5.1, version 2013-09-05.
+function CreateArrayIteratorAt(obj, kind, n) {
+    var iteratedObject = ToObject(obj);
+    var iterator = NewArrayIterator();
+    UnsafeSetReservedSlot(iterator, ARRAY_ITERATOR_SLOT_ITERATED_OBJECT, iteratedObject);
+    UnsafeSetReservedSlot(iterator, ARRAY_ITERATOR_SLOT_NEXT_INDEX, n);
+    UnsafeSetReservedSlot(iterator, ARRAY_ITERATOR_SLOT_ITEM_KIND, kind);
+    return iterator;
+}
+function CreateArrayIterator(obj, kind) {
+    return CreateArrayIteratorAt(obj, kind, 0);
+}
+
+function ArrayIteratorIdentity() {
+    return this;
+}
+
+function ArrayIteratorNext() {
+    if (!IsObject(this) || !IsArrayIterator(this)) {
+        return callFunction(CallArrayIteratorMethodIfWrapped, this,
+                            "ArrayIteratorNext");
+    }
+
+    var a = UnsafeGetObjectFromReservedSlot(this, ARRAY_ITERATOR_SLOT_ITERATED_OBJECT);
+    // The index might not be an integer, so we have to do a generic get here.
+    var index = UnsafeGetReservedSlot(this, ARRAY_ITERATOR_SLOT_NEXT_INDEX);
+    var itemKind = UnsafeGetInt32FromReservedSlot(this, ARRAY_ITERATOR_SLOT_ITEM_KIND);
+    var result = { value: undefined, done: false };
+
+    // FIXME: This should be ToLength, which clamps at 2**53.  Bug 924058.
+    if (index >= TO_UINT32(a.length)) {
+        // When the above is changed to ToLength, use +1/0 here instead
+        // of MAX_UINT32.
+        UnsafeSetReservedSlot(this, ARRAY_ITERATOR_SLOT_NEXT_INDEX, 0xffffffff);
+        result.done = true;
+        return result;
+    }
+
+    UnsafeSetReservedSlot(this, ARRAY_ITERATOR_SLOT_NEXT_INDEX, index + 1);
+
+    if (itemKind === ITEM_KIND_VALUE) {
+        result.value = a[index];
+        return result;
+    }
+
+    if (itemKind === ITEM_KIND_KEY_AND_VALUE) {
+        var pair = NewDenseArray(2);
+        pair[0] = index;
+        pair[1] = a[index];
+        result.value = pair;
+        return result;
+    }
+
+    assert(itemKind === ITEM_KIND_KEY, itemKind);
+    result.value = index;
+    return result;
+}
+
+function ArrayValuesAt(n) {
+    return CreateArrayIteratorAt(this, ITEM_KIND_VALUE, n);
+}
+
+function ArrayValues() {
+    return CreateArrayIterator(this, ITEM_KIND_VALUE);
+}
+
+function ArrayEntries() {
+    return CreateArrayIterator(this, ITEM_KIND_KEY_AND_VALUE);
+}
+
+function ArrayKeys() {
+    return CreateArrayIterator(this, ITEM_KIND_KEY);
+}
+
+// ES6 draft rev31 (2015/01/15) 22.1.2.1 Array.from(source[, mapfn[, thisArg]]).
+function ArrayFrom(items, mapfn=undefined, thisArg=undefined) {
+    // Step 1.
+    var C = this;
+
+    // Steps 2-3.
+    var mapping = mapfn !== undefined;
+    if (mapping && !IsCallable(mapfn))
+        ThrowError(JSMSG_NOT_FUNCTION, DecompileArg(1, mapfn));
+    var T = thisArg;
+
+    // All elements defined by this algorithm have the same attrs:
+    var attrs = ATTR_CONFIGURABLE | ATTR_ENUMERABLE | ATTR_WRITABLE;
+
+    // Steps 4-5.
+    var usingIterator = GetMethod(items, std_iterator);
+
+    // Step 6.
+    if (usingIterator !== undefined) {
+        // Steps 6.a-c.
+        var A = IsConstructor(C) ? new C() : [];
+
+        // Steps 6.d-e.
+        var iterator = GetIterator(items, usingIterator);
+
+        // Step 6.f.
+        var k = 0;
+
+        // Step 6.g.
+        // These steps cannot be implemented using a for-of loop.
+        // See <https://bugs.ecmascript.org/show_bug.cgi?id=2883>.
+        while (true) {
+            // Steps 6.g.i-iii.
+            var next = iterator.next();
+            if (!IsObject(next))
+                ThrowError(JSMSG_NEXT_RETURNED_PRIMITIVE);
+
+            // Step 6.g.iv.
+            if (next.done) {
+                A.length = k;
+                return A;
+            }
+
+            // Steps 6.g.v-vi.
+            var nextValue = next.value;
+
+            // Steps 6.g.vii-viii.
+            var mappedValue = mapping ? callFunction(mapfn, thisArg, nextValue, k) : nextValue;
+
+            // Steps 6.g.ix-xi.
+            _DefineDataProperty(A, k++, mappedValue, attrs);
+        }
+    }
+
+    // Step 7.
+    assert(usingIterator === undefined, "`items` can't be an Iterable after step 6.g.iv");
+
+    // Steps 8-9.
+    var arrayLike = ToObject(items);
+
+    // Steps 10-11.
+    var len = ToLength(arrayLike.length);
+
+    // Steps 12-14.
+    var A = IsConstructor(C) ? new C(len) : NewDenseArray(len);
+
+    // Steps 15-16.
+    for (var k = 0; k < len; k++) {
+        // Steps 16.a-c.
+        var kValue = items[k];
+
+        // Steps 16.d-e.
+        var mappedValue = mapping ? callFunction(mapfn, thisArg, kValue, k) : kValue;
+
+        // Steps 16.f-g.
+        _DefineDataProperty(A, k, mappedValue, attrs);
+    }
+
+    // Steps 17-18.
+    A.length = len;
+
+    // Step 19.
+    return A;
 }

@@ -16,6 +16,7 @@
 struct nsRect;
 struct nsIntRect;
 struct nsIntSize;
+class nsIntRegion;
 struct nsFont;
 struct nsIntMargin;
 class nsPresContext;
@@ -27,19 +28,14 @@ class nsIAtom;
 class nsIWidget;
 
 // IID for the nsITheme interface
-// {b0f3efe9-0bd4-4f6b-8daa-0ec7f6006822}
+// {a21dd936-5960-46da-a724-7c114e421b41}
  #define NS_ITHEME_IID     \
-{ 0xb0f3efe9, 0x0bd4, 0x4f6b, { 0x8d, 0xaa, 0x0e, 0xc7, 0xf6, 0x00, 0x68, 0x22 } }
-// {D930E29B-6909-44e5-AB4B-AF10D6923705}
+{ 0xa21dd936, 0x5960, 0x46da, \
+  { 0xa7, 0x24, 0x7c, 0x11, 0x4e, 0x42, 0x1b, 0x41 } }
+// {0ae05515-cf7a-45a8-9e02-6556de7685b1}
 #define NS_THEMERENDERER_CID \
-{ 0xd930e29b, 0x6909, 0x44e5, { 0xab, 0x4b, 0xaf, 0x10, 0xd6, 0x92, 0x37, 0x5 } }
-
-enum nsTransparencyMode {
-  eTransparencyOpaque = 0,  // Fully opaque
-  eTransparencyTransparent, // Parts of the window may be transparent
-  eTransparencyGlass,       // Transparent parts of the window have Vista AeroGlass effect applied
-  eTransparencyBorderlessGlass // As above, but without a border around the opaque areas when there would otherwise be one with eTransparencyGlass
-};
+{ 0x0ae05515, 0xcf7a, 0x45a8, \
+  { 0x9e, 0x02, 0x65, 0x56, 0xde, 0x76, 0x85, 0xb1 } }
 
 /**
  * nsITheme is a service that provides platform-specific native
@@ -117,7 +113,7 @@ public:
    * minimum size; if false, this size is the only valid size for the
    * widget.
    */
-  NS_IMETHOD GetMinimumWidgetSize(nsRenderingContext* aContext,
+  NS_IMETHOD GetMinimumWidgetSize(nsPresContext* aPresContext,
                                   nsIFrame* aFrame,
                                   uint8_t aWidgetType,
                                   nsIntSize* aResult,
@@ -141,6 +137,43 @@ public:
 
   NS_IMETHOD ThemeChanged()=0;
 
+  virtual bool WidgetAppearanceDependsOnWindowFocus(uint8_t aWidgetType)
+  { return false; }
+
+  virtual bool NeedToClearBackgroundBehindWidget(uint8_t aWidgetType)
+  { return false; }
+
+  virtual bool WidgetProvidesFontSmoothingBackgroundColor(nsIFrame* aFrame,
+                                      uint8_t aWidgetType, nscolor* aColor)
+  { return false; }
+
+  /**
+   * ThemeGeometryType values are used for describing themed nsIFrames in
+   * calls to nsIWidget::UpdateThemeGeometries. We don't simply pass the
+   * -moz-appearance value ("widget type") of the frame because the widget may
+   * want to treat different frames with the same -moz-appearance differently
+   * based on other properties of the frame. So we give the theme a first look
+   * at the frame in nsITheme::ThemeGeometryTypeForWidget and pass the
+   * returned ThemeGeometryType along to the widget.
+   * Each theme backend defines the ThemeGeometryType values it needs in its
+   * own nsITheme subclass. eThemeGeometryTypeUnknown is the only value that's
+   * shared between backends.
+   */
+  typedef uint8_t ThemeGeometryType;
+  enum {
+    eThemeGeometryTypeUnknown = 0
+  };
+
+  /**
+   * Returns the theme geometry type that should be used in the ThemeGeometry
+   * array that's passed to the widget using nsIWidget::UpdateThemeGeometries.
+   * A return value of eThemeGeometryTypeUnknown means that this frame will
+   * not be included in the ThemeGeometry array.
+   */
+  virtual ThemeGeometryType ThemeGeometryTypeForWidget(nsIFrame* aFrame,
+                                                       uint8_t aWidgetType)
+  { return eThemeGeometryTypeUnknown; }
+
   /**
    * Can the nsITheme implementation handle this widget?
    */
@@ -159,6 +192,12 @@ public:
     * Should we insert a dropmarker inside of combobox button?
    */
   virtual bool ThemeNeedsComboboxDropmarker()=0;
+
+  /**
+   * Should we hide scrollbars?
+   */
+  virtual bool ShouldHideScrollbars()
+  { return false; }
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsITheme, NS_ITHEME_IID)

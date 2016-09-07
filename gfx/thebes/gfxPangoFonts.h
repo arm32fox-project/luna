@@ -8,7 +8,7 @@
 
 #include "cairo.h"
 #include "gfxTypes.h"
-#include "gfxFont.h"
+#include "gfxTextRun.h"
 
 #include "nsAutoRef.h"
 #include "nsTArray.h"
@@ -17,44 +17,52 @@
 
 class gfxFcFontSet;
 class gfxFcFont;
-class gfxProxyFontEntry;
 typedef struct _FcPattern FcPattern;
 typedef struct FT_FaceRec_* FT_Face;
 typedef struct FT_LibraryRec_  *FT_Library;
 
 class gfxPangoFontGroup : public gfxFontGroup {
 public:
-    gfxPangoFontGroup (const nsAString& families,
-                       const gfxFontStyle *aStyle,
-                       gfxUserFontSet *aUserFontSet);
-    virtual ~gfxPangoFontGroup ();
+    gfxPangoFontGroup(const mozilla::FontFamilyList& aFontFamilyList,
+                      const gfxFontStyle *aStyle,
+                      gfxUserFontSet *aUserFontSet);
+    virtual ~gfxPangoFontGroup();
 
     virtual gfxFontGroup *Copy(const gfxFontStyle *aStyle);
 
-    virtual gfxFont *GetFontAt(int32_t i);
+    virtual gfxFont* GetFirstValidFont(uint32_t aCh = 0x20);
 
-    virtual void UpdateFontList();
+    virtual void UpdateUserFonts();
 
     virtual already_AddRefed<gfxFont>
-        FindFontForChar(uint32_t aCh, uint32_t aPrevCh, int32_t aRunScript,
-                        gfxFont *aPrevMatchedFont,
+        FindFontForChar(uint32_t aCh, uint32_t aPrevCh, uint32_t aNextCh,
+                        int32_t aRunScript, gfxFont *aPrevMatchedFont,
                         uint8_t *aMatchType);
 
     static void Shutdown();
 
     // Used for @font-face { src: local(); }
-    static gfxFontEntry *NewFontEntry(const gfxProxyFontEntry &aProxyEntry,
-                                      const nsAString &aFullname);
+    static gfxFontEntry *NewFontEntry(const nsAString& aFontName,
+                                      uint16_t aWeight,
+                                      int16_t aStretch,
+                                      bool aItalic);
     // Used for @font-face { src: url(); }
-    static gfxFontEntry *NewFontEntry(const gfxProxyFontEntry &aProxyEntry,
-                                      const uint8_t *aFontData,
+    static gfxFontEntry *NewFontEntry(const nsAString& aFontName,
+                                      uint16_t aWeight,
+                                      int16_t aStretch,
+                                      bool aItalic,
+                                      const uint8_t* aFontData,
                                       uint32_t aLength);
 
 private:
+
+    virtual gfxFont *GetFontAt(int32_t i, uint32_t aCh = 0x20);
+
     // @param aLang [in] language to use for pref fonts and system default font
-    //        selection, or NULL for the language guessed from the gfxFontStyle.
+    //        selection, or nullptr for the language guessed from the
+    //        gfxFontStyle.
     // The FontGroup holds a reference to this set.
-    gfxFcFontSet *GetFontSet(PangoLanguage *aLang = NULL);
+    gfxFcFontSet *GetFontSet(PangoLanguage *aLang = nullptr);
 
     class FontSetByLangEntry {
     public:
@@ -69,15 +77,12 @@ private:
     gfxFloat mSizeAdjustFactor;
     PangoLanguage *mPangoLanguage;
 
-    void GetFcFamilies(nsTArray<nsString> *aFcFamilyList,
-                       nsIAtom *aLanguage);
-
     // @param aLang [in] language to use for pref fonts and system font
-    //        resolution, or NULL to guess a language from the gfxFontStyle.
-    // @param aMatchPattern [out] if non-NULL, will return the pattern used.
+    //        resolution, or nullptr to guess a language from the gfxFontStyle.
+    // @param aMatchPattern [out] if non-nullptr, will return the pattern used.
     already_AddRefed<gfxFcFontSet>
     MakeFontSet(PangoLanguage *aLang, gfxFloat aSizeAdjustFactor,
-                nsAutoRef<FcPattern> *aMatchPattern = NULL);
+                nsAutoRef<FcPattern> *aMatchPattern = nullptr);
 
     gfxFcFontSet *GetBaseFontSet();
     gfxFcFont *GetBaseFont();
@@ -88,6 +93,10 @@ private:
             GetBaseFontSet();
         return mSizeAdjustFactor;
     }
+
+    virtual void FindPlatformFont(const nsAString& aName,
+                                  bool aUseFontSet,
+                                  void *aClosure);
 
     friend class gfxSystemFcFontEntry;
     static FT_Library GetFTLibrary();

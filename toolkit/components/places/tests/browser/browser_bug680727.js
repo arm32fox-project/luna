@@ -24,9 +24,9 @@ function test() {
   Services.prefs.setIntPref("network.proxy.type", 0);
 
   // Clear network cache.
-  Components.classes["@mozilla.org/network/cache-service;1"]
-            .getService(Components.interfaces.nsICacheService)
-            .evictEntries(Components.interfaces.nsICache.STORE_ANYWHERE);
+  Components.classes["@mozilla.org/netwerk/cache-storage-service;1"]
+            .getService(Components.interfaces.nsICacheStorageService)
+            .clear();
 
   // Go offline, expecting the error page.
   Services.io.offline = true;
@@ -55,7 +55,7 @@ function errorListener() {
      "Docshell URI is the original URI.");
 
   // Global history does not record URI of a failed request.
-  promiseAsyncUpdates().then(function() {
+  PlacesTestUtils.promiseAsyncUpdates().then(() => {
     gAsyncHistory.isURIVisited(kUniqueURI, errorAsyncListener);
   });
 }
@@ -91,14 +91,14 @@ function reloadListener() {
      "Document URI is not the offline-error page, but the original URI.");
 
   // Check if global history remembers the successfully-requested URI.
-  promiseAsyncUpdates().then(function() {
+  PlacesTestUtils.promiseAsyncUpdates().then(() => {
     gAsyncHistory.isURIVisited(kUniqueURI, reloadAsyncListener);
   });
 }
 
 function reloadAsyncListener(aURI, aIsVisited) {
   ok(kUniqueURI.equals(aURI) && aIsVisited, "We have visited the URI.");
-  promiseClearHistory().then(finish);
+  PlacesTestUtils.clearHistory().then(finish);
 }
 
 registerCleanupFunction(function() {

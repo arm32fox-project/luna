@@ -1,12 +1,12 @@
 // This file ensures that suspending a channel directly after opening it
 // suspends future notifications correctly.
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
 Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
+
+XPCOMUtils.defineLazyGetter(this, "URL", function() {
+  return "http://localhost:" + httpserv.identity.primaryPort;
+});
 
 const MIN_TIME_DIFFERENCE = 3000;
 const RESUME_DELAY = 5000;
@@ -31,8 +31,8 @@ var listener = {
     // works correctly
     request.suspend();
     request.suspend();
-    do_timeout(RESUME_DELAY, function() request.resume());
-    do_timeout(RESUME_DELAY + 1000, function() request.resume());
+    do_timeout(RESUME_DELAY, function() { request.resume(); });
+    do_timeout(RESUME_DELAY + 1000, function() { request.resume(); });
   },
 
   onDataAvailable: function(request, context, stream, offset, count) {
@@ -56,7 +56,14 @@ var listener = {
 
 function makeChan(url) {
   var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-  var chan = ios.newChannel(url, null, null).QueryInterface(Ci.nsIHttpChannel);
+  var chan = ios.newChannel2(url,
+                             null,
+                             null,
+                             null,      // aLoadingNode
+                             Services.scriptSecurityManager.getSystemPrincipal(),
+                             null,      // aTriggeringPrincipal
+                             Ci.nsILoadInfo.SEC_NORMAL,
+                             Ci.nsIContentPolicy.TYPE_OTHER).QueryInterface(Ci.nsIHttpChannel);
   return chan;
 }
 
@@ -65,9 +72,9 @@ var httpserv = null;
 function run_test() {
   httpserv = new HttpServer();
   httpserv.registerPathHandler("/woo", data);
-  httpserv.start(4444);
+  httpserv.start(-1);
 
-  var chan = makeChan("http://localhost:4444/woo");
+  var chan = makeChan(URL + "/woo");
   chan.QueryInterface(Ci.nsIRequest);
   chan.asyncOpen(listener, null);
 

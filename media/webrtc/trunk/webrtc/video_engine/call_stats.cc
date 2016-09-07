@@ -10,12 +10,11 @@
 
 #include "webrtc/video_engine/call_stats.h"
 
-#include <cassert>
+#include <assert.h>
 
 #include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp_defines.h"
 #include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
 #include "webrtc/system_wrappers/interface/tick_util.h"
-#include "webrtc/system_wrappers/interface/trace.h"
 
 namespace webrtc {
 
@@ -24,13 +23,17 @@ const int kRttTimeoutMs = 1500;
 // Time interval for updating the observers.
 const int kUpdateIntervalMs = 1000;
 
-class RtcpObserver : public RtcpRttObserver {
+class RtcpObserver : public RtcpRttStats {
  public:
   explicit RtcpObserver(CallStats* owner) : owner_(owner) {}
   virtual ~RtcpObserver() {}
 
   virtual void OnRttUpdate(uint32_t rtt) {
     owner_->OnRttUpdate(rtt);
+  }
+
+  virtual uint32_t LastProcessedRtt() const {
+    return owner_->last_processed_rtt_ms();
   }
 
  private:
@@ -41,8 +44,9 @@ class RtcpObserver : public RtcpRttObserver {
 
 CallStats::CallStats()
     : crit_(CriticalSectionWrapper::CreateCriticalSection()),
-      rtcp_rtt_observer_(new RtcpObserver(this)),
-      last_process_time_(TickTime::MillisecondTimestamp()) {
+      rtcp_rtt_stats_(new RtcpObserver(this)),
+      last_process_time_(TickTime::MillisecondTimestamp()),
+      last_processed_rtt_ms_(0) {
 }
 
 CallStats::~CallStats() {
@@ -76,22 +80,28 @@ int32_t CallStats::Process() {
 
   // If there is a valid rtt, update all observers.
   if (max_rtt > 0) {
-    for (std::list<StatsObserver*>::iterator it = observers_.begin();
+    for (std::list<CallStatsObserver*>::iterator it = observers_.begin();
          it != observers_.end(); ++it) {
       (*it)->OnRttUpdate(max_rtt);
     }
   }
+  last_processed_rtt_ms_ = max_rtt;
   last_process_time_ = time_now;
   return 0;
 }
 
-RtcpRttObserver* CallStats::rtcp_rtt_observer() const {
-  return rtcp_rtt_observer_.get();
+uint32_t CallStats::last_processed_rtt_ms() const {
+  CriticalSectionScoped cs(crit_.get());
+  return last_processed_rtt_ms_;
 }
 
-void CallStats::RegisterStatsObserver(StatsObserver* observer) {
+RtcpRttStats* CallStats::rtcp_rtt_stats() const {
+  return rtcp_rtt_stats_.get();
+}
+
+void CallStats::RegisterStatsObserver(CallStatsObserver* observer) {
   CriticalSectionScoped cs(crit_.get());
-  for (std::list<StatsObserver*>::iterator it = observers_.begin();
+  for (std::list<CallStatsObserver*>::iterator it = observers_.begin();
        it != observers_.end(); ++it) {
     if (*it == observer)
       return;
@@ -99,9 +109,9 @@ void CallStats::RegisterStatsObserver(StatsObserver* observer) {
   observers_.push_back(observer);
 }
 
-void CallStats::DeregisterStatsObserver(StatsObserver* observer) {
+void CallStats::DeregisterStatsObserver(CallStatsObserver* observer) {
   CriticalSectionScoped cs(crit_.get());
-  for (std::list<StatsObserver*>::iterator it = observers_.begin();
+  for (std::list<CallStatsObserver*>::iterator it = observers_.begin();
        it != observers_.end(); ++it) {
     if (*it == observer) {
       observers_.erase(it);

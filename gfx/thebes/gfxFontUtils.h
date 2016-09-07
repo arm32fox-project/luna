@@ -6,23 +6,13 @@
 #ifndef GFX_FONT_UTILS_H
 #define GFX_FONT_UTILS_H
 
-#include "gfxTypes.h"
 #include "gfxPlatform.h"
-
-#include "nsAlgorithm.h"
-#include "prcpucfg.h"
-
-#include "nsDataHashtable.h"
-
-#include "nsITimer.h"
-#include "nsCOMPtr.h"
-#include "nsIRunnable.h"
-#include "nsThreadUtils.h"
 #include "nsComponentManagerUtils.h"
 #include "nsTArray.h"
 #include "nsAutoPtr.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Endian.h"
+#include "mozilla/MemoryReporting.h"
 
 #include "zlib.h"
 #include <algorithm>
@@ -43,7 +33,7 @@ private:
 
     struct Block {
         Block(const Block& aBlock) { memcpy(mBits, aBlock.mBits, sizeof(mBits)); }
-        Block(unsigned char memsetValue = 0) { memset(mBits, memsetValue, BLOCK_SIZE); }
+        explicit Block(unsigned char memsetValue = 0) { memset(mBits, memsetValue, BLOCK_SIZE); }
         uint8_t mBits[BLOCK_SIZE];
     };
 
@@ -257,7 +247,7 @@ public:
         }
     }
 
-    size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
+    size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
         size_t total = mBlocks.SizeOfExcludingThis(aMallocSizeOf);
         for (uint32_t i = 0; i < mBlocks.Length(); i++) {
             if (mBlocks[i]) {
@@ -267,7 +257,7 @@ public:
         return total;
     }
 
-    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const {
+    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const {
         return aMallocSizeOf(this) + SizeOfExcludingThis(aMallocSizeOf);
     }
 
@@ -346,7 +336,7 @@ struct AutoSwap_PRUint16 {
         return *this;
     }
 #else
-    AutoSwap_PRUint16(uint16_t aValue)
+    MOZ_IMPLICIT AutoSwap_PRUint16(uint16_t aValue)
     {
         value = mozilla::NativeEndian::swapToBigEndian(aValue);
     }
@@ -378,7 +368,7 @@ struct AutoSwap_PRInt16 {
         return *this;
     }
 #else
-    AutoSwap_PRInt16(int16_t aValue)
+    MOZ_IMPLICIT AutoSwap_PRInt16(int16_t aValue)
     {
         value = mozilla::NativeEndian::swapToBigEndian(aValue);
     }
@@ -405,7 +395,7 @@ struct AutoSwap_PRUint32 {
         return *this;
     }
 #else
-    AutoSwap_PRUint32(uint32_t aValue)
+    MOZ_IMPLICIT AutoSwap_PRUint32(uint32_t aValue)
     {
         value = mozilla::NativeEndian::swapToBigEndian(aValue);
     }
@@ -427,7 +417,7 @@ struct AutoSwap_PRInt32 {
         return *this;
     }
 #else
-    AutoSwap_PRInt32(int32_t aValue)
+    MOZ_IMPLICIT AutoSwap_PRInt32(int32_t aValue)
     {
         value = mozilla::NativeEndian::swapToBigEndian(aValue);
     }
@@ -449,7 +439,7 @@ struct AutoSwap_PRUint64 {
         return *this;
     }
 #else
-    AutoSwap_PRUint64(uint64_t aValue)
+    MOZ_IMPLICIT AutoSwap_PRUint64(uint64_t aValue)
     {
         value = mozilla::NativeEndian::swapToBigEndian(aValue);
     }
@@ -563,7 +553,10 @@ struct PostTable {
     AutoSwap_PRUint32    maxMemType1;
 };
 
-struct HheaTable {
+// This structure is used for both 'hhea' and 'vhea' tables.
+// The field names here are those of the horizontal version; the
+// vertical table just exchanges vertical and horizontal coordinates.
+struct MetricsHeader {
     AutoSwap_PRUint32    version;
     AutoSwap_PRInt16     ascender;
     AutoSwap_PRInt16     descender;
@@ -580,7 +573,7 @@ struct HheaTable {
     AutoSwap_PRInt16     reserved3;
     AutoSwap_PRInt16     reserved4;
     AutoSwap_PRInt16     metricDataFormat;
-    AutoSwap_PRUint16    numOfLongHorMetrics;
+    AutoSwap_PRUint16    numOfLongMetrics;
 };
 
 struct MaxpTableHeader {
@@ -615,6 +608,22 @@ struct KernTableSubtableHeaderVersion1 {
     AutoSwap_PRUint16    tupleIndex;
 };
 
+struct COLRHeader {
+    AutoSwap_PRUint16    version;
+    AutoSwap_PRUint16    numBaseGlyphRecord;
+    AutoSwap_PRUint32    offsetBaseGlyphRecord;
+    AutoSwap_PRUint32    offsetLayerRecord;
+    AutoSwap_PRUint16    numLayerRecords;
+};
+
+struct CPALHeaderVersion0 {
+    AutoSwap_PRUint16    version;
+    AutoSwap_PRUint16    numPaletteEntries;
+    AutoSwap_PRUint16    numPalettes;
+    AutoSwap_PRUint16    numColorRecords;
+    AutoSwap_PRUint32    offsetFirstColorRecord;
+};
+
 #pragma pack()
 
 // Return just the highest bit of the given value, i.e., the highest
@@ -646,8 +655,12 @@ enum gfxUserFontType {
     GFX_USERFONT_UNKNOWN = 0,
     GFX_USERFONT_OPENTYPE = 1,
     GFX_USERFONT_SVG = 2,
-    GFX_USERFONT_WOFF = 3
+    GFX_USERFONT_WOFF = 3,
+    GFX_USERFONT_WOFF2 = 4
 };
+#define GFX_PREF_WOFF2_ENABLED "gfx.downloadable_fonts.woff2.enabled"
+
+extern const uint8_t sCJKCompatSVSTable[];
 
 class gfxFontUtils {
 
@@ -763,6 +776,10 @@ public:
     }
 
     static nsresult
+    ReadCMAPTableFormat10(const uint8_t *aBuf, uint32_t aLength,
+                          gfxSparseBitSet& aCharacterMap);
+
+    static nsresult
     ReadCMAPTableFormat12(const uint8_t *aBuf, uint32_t aLength, 
                           gfxSparseBitSet& aCharacterMap);
 
@@ -786,7 +803,10 @@ public:
              bool& aUnicodeFont, bool& aSymbolFont);
 
     static uint32_t
-    MapCharToGlyphFormat4(const uint8_t *aBuf, PRUnichar aCh);
+    MapCharToGlyphFormat4(const uint8_t *aBuf, char16_t aCh);
+
+    static uint32_t
+    MapCharToGlyphFormat10(const uint8_t *aBuf, uint32_t aCh);
 
     static uint32_t
     MapCharToGlyphFormat12(const uint8_t *aBuf, uint32_t aCh);
@@ -794,26 +814,24 @@ public:
     static uint16_t
     MapUVSToGlyphFormat14(const uint8_t *aBuf, uint32_t aCh, uint32_t aVS);
 
+    // sCJKCompatSVSTable is a 'cmap' format 14 subtable that maps
+    // <char + var-selector> pairs to the corresponding Unicode
+    // compatibility ideograph codepoints.
+    static MOZ_ALWAYS_INLINE uint32_t
+    GetUVSFallback(uint32_t aCh, uint32_t aVS) {
+        aCh = MapUVSToGlyphFormat14(sCJKCompatSVSTable, aCh, aVS);
+        return aCh >= 0xFB00 ? aCh + (0x2F800 - 0xFB00) : aCh;
+    }
+
     static uint32_t
     MapCharToGlyph(const uint8_t *aCmapBuf, uint32_t aBufLength,
                    uint32_t aUnicode, uint32_t aVarSelector = 0);
 
 #ifdef XP_WIN
-
-    // given a TrueType/OpenType data file, produce a EOT-format header
-    // for use with Windows T2Embed API AddFontResource type API's
-    // effectively hide existing fonts with matching names aHeaderLen is
-    // the size of the header buffer on input, the actual size of the
-    // EOT header on output
-    static nsresult
-    MakeEOTHeader(const uint8_t *aFontData, uint32_t aFontDataLength,
-                  FallibleTArray<uint8_t> *aHeader, FontDataOverlay *aOverlay);
-
     // determine whether a font (which has already been sanitized, so is known
     // to be a valid sfnt) is CFF format rather than TrueType
     static bool
-    IsCffFont(const uint8_t* aFontData, bool& hasVertical);
-
+    IsCffFont(const uint8_t* aFontData);
 #endif
 
     // determine the format of font data
@@ -847,15 +865,19 @@ public:
     
     // read all names matching aNameID, returning in aNames array
     static nsresult
-    ReadNames(hb_blob_t *aNameTable, uint32_t aNameID, 
+    ReadNames(const char *aNameData, uint32_t aDataLen, uint32_t aNameID,
               int32_t aPlatformID, nsTArray<nsString>& aNames);
-      
+
     // reads English or first name matching aNameID, returning in aName
     // platform based on OS
     static nsresult
-    ReadCanonicalName(hb_blob_t *aNameTable, uint32_t aNameID, 
+    ReadCanonicalName(hb_blob_t *aNameTable, uint32_t aNameID,
                       nsString& aName);
-      
+
+    static nsresult
+    ReadCanonicalName(const char *aNameData, uint32_t aDataLen,
+                      uint32_t aNameID, nsString& aName);
+
     // convert a name from the raw name table data into an nsString,
     // provided we know how; return true if successful, or false
     // if we can't handle the encoding
@@ -902,7 +924,7 @@ public:
         kUnicodeRLO = 0x202E
     };
 
-    static inline bool PotentialRTLChar(PRUnichar aCh) {
+    static inline bool PotentialRTLChar(char16_t aCh) {
         if (aCh >= kUnicodeBidiScriptsStart && aCh <= kUnicodeBidiScriptsEnd)
             // bidi scripts Hebrew, Arabic, Syriac, Thaana, N'Ko are all encoded together
             return true;
@@ -924,17 +946,36 @@ public:
         // otherwise we know this char cannot trigger bidi reordering
         return false;
     }
-    
-    // for a given font list pref name, set up a list of font names
+
+    // parse a simple list of font family names into
+    // an array of strings
+    static void ParseFontList(const nsAString& aFamilyList,
+                              nsTArray<nsString>& aFontList);
+
+    // for a given font list pref name, append list of font names
+    static void AppendPrefsFontList(const char *aPrefName,
+                                    nsTArray<nsString>& aFontList);
+
+    // for a given font list pref name, initialize a list of font names
     static void GetPrefsFontList(const char *aPrefName, 
                                  nsTArray<nsString>& aFontList);
 
     // generate a unique font name
     static nsresult MakeUniqueUserFontName(nsAString& aName);
 
+    // for color layer from glyph using COLR and CPAL tables
+    static bool ValidateColorGlyphs(hb_blob_t* aCOLR, hb_blob_t* aCPAL);
+    static bool GetColorGlyphLayers(hb_blob_t* aCOLR,
+                                    hb_blob_t* aCPAL,
+                                    uint32_t aGlyphId,
+                                    nsTArray<uint16_t> &aGlyphs,
+                                    nsTArray<mozilla::gfx::Color> &aColors);
+
 protected:
+    friend struct MacCharsetMappingComparator;
+
     static nsresult
-    ReadNames(hb_blob_t *aNameTable, uint32_t aNameID, 
+    ReadNames(const char *aNameData, uint32_t aDataLen, uint32_t aNameID,
               int32_t aLangID, int32_t aPlatformID, nsTArray<nsString>& aNames);
 
     // convert opentype name-table platform/encoding/language values to a charset name
@@ -957,111 +998,5 @@ protected:
     static const char* gMSFontNameCharsets[];
 };
 
-// helper class for loading in font info spaced out at regular intervals
-
-class gfxFontInfoLoader {
-public:
-
-    // state transitions:
-    //   initial ---StartLoader with delay---> timer on delay
-    //   initial ---StartLoader without delay---> timer on interval
-    //   timer on delay ---LoaderTimerFire---> timer on interval
-    //   timer on delay ---CancelLoader---> timer off
-    //   timer on interval ---CancelLoader---> timer off
-    //   timer off ---StartLoader with delay---> timer on delay
-    //   timer off ---StartLoader without delay---> timer on interval
-    typedef enum {
-        stateInitial,
-        stateTimerOnDelay,
-        stateTimerOnInterval,
-        stateTimerOff
-    } TimerState;
-
-    gfxFontInfoLoader() :
-        mInterval(0), mState(stateInitial)
-    {
-    }
-
-    virtual ~gfxFontInfoLoader() {}
-
-    // start timer with an initial delay, then call Run method at regular intervals
-    void StartLoader(uint32_t aDelay, uint32_t aInterval) {
-        mInterval = aInterval;
-
-        // sanity check
-        if (mState != stateInitial && mState != stateTimerOff)
-            CancelLoader();
-
-        // set up timer
-        if (!mTimer) {
-            mTimer = do_CreateInstance("@mozilla.org/timer;1");
-            if (!mTimer) {
-                NS_WARNING("Failure to create font info loader timer");
-                return;
-            }
-        }
-
-        // need an initial delay?
-        uint32_t timerInterval;
-
-        if (aDelay) {
-            mState = stateTimerOnDelay;
-            timerInterval = aDelay;
-        } else {
-            mState = stateTimerOnInterval;
-            timerInterval = mInterval;
-        }
-
-        InitLoader();
-
-        // start timer
-        mTimer->InitWithFuncCallback(LoaderTimerCallback, this, timerInterval,
-                                     nsITimer::TYPE_REPEATING_SLACK);
-    }
-
-    // cancel the timer and cleanup
-    void CancelLoader() {
-        if (mState == stateInitial)
-            return;
-        mState = stateTimerOff;
-        if (mTimer) {
-            mTimer->Cancel();
-        }
-        FinishLoader();
-    }
-
-protected:
-
-    // Init - initialization at start time after initial delay
-    virtual void InitLoader() = 0;
-
-    // Run - called at intervals, return true to indicate done
-    virtual bool RunLoader() = 0;
-
-    // Finish - cleanup after done
-    virtual void FinishLoader() = 0;
-
-    static void LoaderTimerCallback(nsITimer *aTimer, void *aThis) {
-        gfxFontInfoLoader *loader = static_cast<gfxFontInfoLoader*>(aThis);
-        loader->LoaderTimerFire();
-    }
-
-    // start the timer, interval callbacks
-    void LoaderTimerFire() {
-        if (mState == stateTimerOnDelay) {
-            mState = stateTimerOnInterval;
-            mTimer->SetDelay(mInterval);
-        }
-
-        bool done = RunLoader();
-        if (done) {
-            CancelLoader();
-        }
-    }
-
-    nsCOMPtr<nsITimer> mTimer;
-    uint32_t mInterval;
-    TimerState mState;
-};
 
 #endif /* GFX_FONT_UTILS_H */

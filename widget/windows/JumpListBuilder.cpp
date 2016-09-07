@@ -41,7 +41,7 @@ extern const wchar_t *gMozillaJumpListIDGeneric;
 bool JumpListBuilder::sBuildingList = false;
 const char kPrefTaskbarEnabled[] = "browser.taskbar.lists.enabled";
 
-NS_IMPL_ISUPPORTS2(JumpListBuilder, nsIJumpListBuilder, nsIObserver)
+NS_IMPL_ISUPPORTS(JumpListBuilder, nsIJumpListBuilder, nsIObserver)
 #define TOPIC_PROFILE_BEFORE_CHANGE "profile-before-change"
 #define TOPIC_CLEAR_PRIVATE_DATA "clear-private-data"
 
@@ -49,9 +49,9 @@ JumpListBuilder::JumpListBuilder() :
   mMaxItems(0),
   mHasCommit(false)
 {
-  ::CoInitialize(NULL);
+  ::CoInitialize(nullptr);
   
-  CoCreateInstance(CLSID_DestinationList, NULL, CLSCTX_INPROC_SERVER,
+  CoCreateInstance(CLSID_DestinationList, nullptr, CLSCTX_INPROC_SERVER,
                    IID_ICustomDestinationList, getter_AddRefs(mJumpListMgr));
 
   // Make a lazy thread for any IO
@@ -70,12 +70,6 @@ JumpListBuilder::JumpListBuilder() :
 
 JumpListBuilder::~JumpListBuilder()
 {
-  nsCOMPtr<nsIObserverService> observerService =
-    do_GetService("@mozilla.org/observer-service;1");
-  if (observerService) {
-    observerService->RemoveObserver(this, TOPIC_PROFILE_BEFORE_CHANGE);
-  }
-
   Preferences::RemoveObserver(this, kPrefTaskbarEnabled);
   mJumpListMgr = nullptr;
   ::CoUninitialize();
@@ -275,8 +269,9 @@ NS_IMETHODIMP JumpListBuilder::AddListToBuild(int16_t aCatType, nsIArray *items,
 
       HRESULT hr;
       nsRefPtr<IObjectCollection> collection;
-      hr = CoCreateInstance(CLSID_EnumerableObjectCollection, NULL, CLSCTX_INPROC_SERVER,
-                            IID_IObjectCollection, getter_AddRefs(collection));
+      hr = CoCreateInstance(CLSID_EnumerableObjectCollection, nullptr,
+                            CLSCTX_INPROC_SERVER, IID_IObjectCollection,
+                            getter_AddRefs(collection));
       if (FAILED(hr))
         return NS_ERROR_UNEXPECTED;
 
@@ -340,8 +335,9 @@ NS_IMETHODIMP JumpListBuilder::AddListToBuild(int16_t aCatType, nsIArray *items,
 
       HRESULT hr;
       nsRefPtr<IObjectCollection> collection;
-      hr = CoCreateInstance(CLSID_EnumerableObjectCollection, NULL, CLSCTX_INPROC_SERVER,
-                            IID_IObjectCollection, getter_AddRefs(collection));
+      hr = CoCreateInstance(CLSID_EnumerableObjectCollection, nullptr,
+                            CLSCTX_INPROC_SERVER, IID_IObjectCollection,
+                            getter_AddRefs(collection));
       if (FAILED(hr))
         return NS_ERROR_UNEXPECTED;
 
@@ -392,7 +388,7 @@ NS_IMETHODIMP JumpListBuilder::AddListToBuild(int16_t aCatType, nsIArray *items,
         return NS_ERROR_UNEXPECTED;
 
       // Add the tasks
-      hr = mJumpListMgr->AppendCategory(catName.BeginReading(), pArray);
+      hr = mJumpListMgr->AppendCategory(reinterpret_cast<const wchar_t*>(catName.BeginReading()), pArray);
       if (SUCCEEDED(hr))
         *_retval = true;
 
@@ -400,7 +396,7 @@ NS_IMETHODIMP JumpListBuilder::AddListToBuild(int16_t aCatType, nsIArray *items,
       nsCOMPtr<nsIRunnable> event =
         new mozilla::widget::AsyncDeleteAllFaviconsFromDisk(true);
       mIOThread->Dispatch(event, NS_DISPATCH_NORMAL);
- 
+
       return NS_OK;
     }
     break;
@@ -524,10 +520,15 @@ nsresult JumpListBuilder::TransferIObjectArrayToIMutableArray(IObjectArray *objA
 
 NS_IMETHODIMP JumpListBuilder::Observe(nsISupports* aSubject,
                                        const char* aTopic,
-                                       const PRUnichar* aData)
+                                       const char16_t* aData)
 {
   NS_ENSURE_ARG_POINTER(aTopic);
   if (strcmp(aTopic, TOPIC_PROFILE_BEFORE_CHANGE) == 0) {
+    nsCOMPtr<nsIObserverService> observerService =
+      do_GetService("@mozilla.org/observer-service;1");
+    if (observerService) {
+      observerService->RemoveObserver(this, TOPIC_PROFILE_BEFORE_CHANGE);
+    }
     mIOThread->Shutdown();
   } else if (strcmp(aTopic, "nsPref:changed") == 0 &&
              nsDependentString(aData).EqualsASCII(kPrefTaskbarEnabled)) {

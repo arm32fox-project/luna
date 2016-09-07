@@ -4,10 +4,80 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "D3D9SurfaceImage.h"
-#include "gfxImageSurface.h"
+#include "gfx2DGlue.h"
+#include "mozilla/layers/TextureD3D9.h"
+#include "mozilla/layers/CompositableClient.h"
+#include "mozilla/layers/CompositableForwarder.h"
+#include "mozilla/gfx/Types.h"
 
 namespace mozilla {
 namespace layers {
+
+
+D3D9SurfaceImage::D3D9SurfaceImage()
+  : Image(nullptr, ImageFormat::D3D9_RGB32_TEXTURE)
+  , mSize(0, 0)
+  , mValid(false)
+{}
+
+D3D9SurfaceImage::~D3D9SurfaceImage()
+{
+  if (mTexture) {
+    gfxWindowsPlatform::sD3D9SurfaceImageUsed -= mSize.width * mSize.height * 4;
+  }
+}
+
+static const GUID sD3D9TextureUsage =
+{ 0x631e1338, 0xdc22, 0x497f, { 0xa1, 0xa8, 0xb4, 0xfe, 0x3a, 0xf4, 0x13, 0x4d } };
+
+/* This class get's it's lifetime tied to a D3D texture
+ * and increments memory usage on construction and decrements
+ * on destruction */
+class TextureMemoryMeasurer9 : public IUnknown
+{
+public:
+  TextureMemoryMeasurer9(size_t aMemoryUsed)
+  {
+    mMemoryUsed = aMemoryUsed;
+    gfxWindowsPlatform::sD3D9MemoryUsed += mMemoryUsed;
+    mRefCnt = 0;
+  }
+  ~TextureMemoryMeasurer9()
+  {
+    gfxWindowsPlatform::sD3D9MemoryUsed -= mMemoryUsed;
+  }
+  STDMETHODIMP_(ULONG) AddRef() {
+    mRefCnt++;
+    return mRefCnt;
+  }
+  STDMETHODIMP QueryInterface(REFIID riid,
+                              void **ppvObject)
+  {
+    IUnknown *punk = nullptr;
+    if (riid == IID_IUnknown) {
+      punk = this;
+    }
+    *ppvObject = punk;
+    if (punk) {
+      punk->AddRef();
+      return S_OK;
+    } else {
+      return E_NOINTERFACE;
+    }
+  }
+
+  STDMETHODIMP_(ULONG) Release() {
+    int refCnt = --mRefCnt;
+    if (refCnt == 0) {
+      delete this;
+    }
+    return refCnt;
+  }
+private:
+  int mRefCnt;
+  int mMemoryUsed;
+};
+
 
 HRESULT
 D3D9SurfaceImage::SetData(const Data& aData)
@@ -39,7 +109,7 @@ D3D9SurfaceImage::SetData(const Data& aData)
   // device.
   const nsIntRect& region = aData.mRegion;
   RefPtr<IDirect3DTexture9> texture;
-  HANDLE shareHandle = NULL;
+  HANDLE shareHandle = nullptr;
   hr = device->CreateTexture(region.width,
                              region.height,
                              1,
@@ -50,6 +120,11 @@ D3D9SurfaceImage::SetData(const Data& aData)
                              &shareHandle);
   NS_ENSURE_TRUE(SUCCEEDED(hr) && shareHandle, hr);
 
+  // Track the lifetime of this memory
+  texture->SetPrivateData(sD3D9TextureUsage, new TextureMemoryMeasurer9(region.width * region.height * 4), sizeof(IUnknown *), D3DSPD_IUNKNOWN);
+
+  gfxWindowsPlatform::sD3D9SurfaceImageUsed += region.width * region.height * 4;
+
   // Copy the image onto the texture, preforming YUV -> RGB conversion if necessary.
   RefPtr<IDirect3DSurface9> textureSurface;
   hr = texture->GetSurfaceLevel(0, byRef(textureSurface));
@@ -59,7 +134,7 @@ D3D9SurfaceImage::SetData(const Data& aData)
   textureSurface->GetDesc(&mDesc);
 
   RECT src = { region.x, region.y, region.x+region.width, region.y+region.height };
-  hr = device->StretchRect(surface, &src, textureSurface, NULL, D3DTEXF_NONE);
+  hr = device->StretchRect(surface, &src, textureSurface, nullptr, D3DTEXF_NONE);
   NS_ENSURE_TRUE(SUCCEEDED(hr), hr);
 
   // Flush the draw command now, so that by the time we come to draw this
@@ -73,34 +148,41 @@ D3D9SurfaceImage::SetData(const Data& aData)
 
   mTexture = texture;
   mShareHandle = shareHandle;
-  mSize = gfxIntSize(region.width, region.height);
+  mSize = gfx::IntSize(region.width, region.height);
   mQuery = query;
 
   return S_OK;
 }
 
+bool
+D3D9SurfaceImage::IsValid()
+{
+  EnsureSynchronized();
+  return mValid;
+}
+
 void
 D3D9SurfaceImage::EnsureSynchronized()
 {
-  if (!mQuery) {
+  RefPtr<IDirect3DQuery9> query = mQuery;
+  if (!query) {
     // Not setup, or already synchronized.
     return;
   }
   int iterations = 0;
-  while (iterations < 10 && S_FALSE == mQuery->GetData(NULL, 0, D3DGETDATA_FLUSH)) {
-    Sleep(1);
-    iterations++;
+  while (iterations < 10) {
+    HRESULT hr = query->GetData(nullptr, 0, D3DGETDATA_FLUSH);
+    if (hr == S_FALSE) {
+      Sleep(1);
+      iterations++;
+      continue;
+    }
+    if (hr == S_OK) {
+      mValid = true;
+    }
+    break;
   }
   mQuery = nullptr;
-}
-
-HANDLE
-D3D9SurfaceImage::GetShareHandle()
-{
-  // Ensure the image has completed its synchronization,
-  // and safe to used by the caller on another device.
-  EnsureSynchronized();
-  return mShareHandle;
 }
 
 const D3DSURFACE_DESC&
@@ -109,23 +191,35 @@ D3D9SurfaceImage::GetDesc() const
   return mDesc;
 }
 
-gfxIntSize
+gfx::IntSize
 D3D9SurfaceImage::GetSize()
 {
   return mSize;
 }
 
-already_AddRefed<gfxASurface>
-D3D9SurfaceImage::GetAsSurface()
+TextureClient*
+D3D9SurfaceImage::GetTextureClient(CompositableClient* aClient)
+{
+  EnsureSynchronized();
+  if (!mTextureClient) {
+    RefPtr<SharedTextureClientD3D9> textureClient =
+      new SharedTextureClientD3D9(aClient->GetForwarder(),
+                                  gfx::SurfaceFormat::B8G8R8X8,
+                                  TextureFlags::DEFAULT);
+    textureClient->InitWith(mTexture, mShareHandle, mDesc);
+    mTextureClient = textureClient;
+  }
+  return mTextureClient;
+}
+
+TemporaryRef<gfx::SourceSurface>
+D3D9SurfaceImage::GetAsSourceSurface()
 {
   NS_ENSURE_TRUE(mTexture, nullptr);
 
   HRESULT hr;
-  nsRefPtr<gfxImageSurface> surface =
-    new gfxImageSurface(mSize, gfxASurface::ImageFormatRGB24);
-
-  if (!surface->CairoSurface() || surface->CairoStatus()) {
-    NS_WARNING("Failed to created Cairo image surface for D3D9SurfaceImage.");
+  RefPtr<gfx::DataSourceSurface> surface = gfx::Factory::CreateDataSourceSurface(mSize, gfx::SurfaceFormat::B8G8R8X8);
+  if (NS_WARN_IF(!surface)) {
     return nullptr;
   }
 
@@ -155,20 +249,27 @@ D3D9SurfaceImage::GetAsSurface()
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
 
   D3DLOCKED_RECT rect;
-  hr = systemMemorySurface->LockRect(&rect, NULL, 0);
+  hr = systemMemorySurface->LockRect(&rect, nullptr, 0);
   NS_ENSURE_TRUE(SUCCEEDED(hr), nullptr);
+
+  gfx::DataSourceSurface::MappedSurface mappedSurface;
+  if (!surface->Map(gfx::DataSourceSurface::WRITE, &mappedSurface)) {
+    systemMemorySurface->UnlockRect();
+    return nullptr;
+  }
 
   const unsigned char* src = (const unsigned char*)(rect.pBits);
   const unsigned srcPitch = rect.Pitch;
   for (int y = 0; y < mSize.height; y++) {
-    memcpy(surface->Data() + surface->Stride() * y,
+    memcpy(mappedSurface.mData + mappedSurface.mStride * y,
            (unsigned char*)(src) + srcPitch * y,
            mSize.width * 4);
   }
 
   systemMemorySurface->UnlockRect();
+  surface->Unmap();
 
-  return surface.forget();
+  return surface;
 }
 
 } /* layers */

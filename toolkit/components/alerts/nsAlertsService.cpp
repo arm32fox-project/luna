@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/ContentChild.h"
+#include "mozilla/dom/PermissionMessageUtils.h"
 #include "nsXULAppAPI.h"
 
 #include "nsAlertsService.h"
@@ -24,7 +25,7 @@ using namespace mozilla;
 
 using mozilla::dom::ContentChild;
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsAlertsService, nsIAlertsService, nsIAlertsProgressListener)
+NS_IMPL_ISUPPORTS(nsAlertsService, nsIAlertsService, nsIAlertsProgressListener)
 
 nsAlertsService::nsAlertsService()
 {
@@ -66,7 +67,10 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
                                                      nsIObserver * aAlertListener,
                                                      const nsAString & aAlertName,
                                                      const nsAString & aBidi,
-                                                     const nsAString & aLang)
+                                                     const nsAString & aLang,
+                                                     const nsAString & aData,
+                                                     nsIPrincipal * aPrincipal,
+                                                     bool aInPrivateBrowsing)
 {
   if (XRE_GetProcessType() == GoannaProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
@@ -81,7 +85,10 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
                                    PromiseFlatString(aAlertCookie),
                                    PromiseFlatString(aAlertName),
                                    PromiseFlatString(aBidi),
-                                   PromiseFlatString(aLang));
+                                   PromiseFlatString(aLang),
+                                   PromiseFlatString(aData),
+                                   IPC::Principal(aPrincipal),
+                                   aInPrivateBrowsing);
     return NS_OK;
   }
 
@@ -94,43 +101,48 @@ NS_IMETHODIMP nsAlertsService::ShowAlertNotification(const nsAString & aImageUrl
   nsCOMPtr<nsIAlertsService> sysAlerts(do_GetService(NS_SYSTEMALERTSERVICE_CONTRACTID));
   nsresult rv;
   if (sysAlerts) {
-    return sysAlerts->ShowAlertNotification(aImageUrl, aAlertTitle, aAlertText, aAlertTextClickable,
-                                            aAlertCookie, aAlertListener, aAlertName,
-                                            aBidi, aLang);
+    rv = sysAlerts->ShowAlertNotification(aImageUrl, aAlertTitle, aAlertText, aAlertTextClickable,
+                                          aAlertCookie, aAlertListener, aAlertName,
+                                          aBidi, aLang, aData,
+                                          IPC::Principal(aPrincipal),
+                                          aInPrivateBrowsing);
+    if (NS_SUCCEEDED(rv))
+      return NS_OK;
   }
 
   if (!ShouldShowAlert()) {
     // Do not display the alert. Instead call alertfinished and get out.
     if (aAlertListener)
-      aAlertListener->Observe(NULL, "alertfinished", PromiseFlatString(aAlertCookie).get());
+      aAlertListener->Observe(nullptr, "alertfinished", PromiseFlatString(aAlertCookie).get());
     return NS_OK;
   }
 
   // Use XUL notifications as a fallback if above methods have failed.
   rv = mXULAlerts.ShowAlertNotification(aImageUrl, aAlertTitle, aAlertText, aAlertTextClickable,
                                         aAlertCookie, aAlertListener, aAlertName,
-                                        aBidi, aLang);
+                                        aBidi, aLang, aInPrivateBrowsing);
   return rv;
 #endif // !MOZ_WIDGET_ANDROID
 }
 
-NS_IMETHODIMP nsAlertsService::CloseAlert(const nsAString& aAlertName)
+NS_IMETHODIMP nsAlertsService::CloseAlert(const nsAString& aAlertName,
+                                          nsIPrincipal* aPrincipal)
 {
   if (XRE_GetProcessType() == GoannaProcessType_Content) {
     ContentChild* cpc = ContentChild::GetSingleton();
-    cpc->SendCloseAlert(nsAutoString(aAlertName));
+    cpc->SendCloseAlert(nsAutoString(aAlertName), IPC::Principal(aPrincipal));
     return NS_OK;
   }
 
 #ifdef MOZ_WIDGET_ANDROID
-  mozilla::AndroidBridge::Bridge()->CloseNotification(aAlertName);
+  widget::GoannaAppShell::CloseNotification(aAlertName);
   return NS_OK;
 #else
 
   // Try the system notification service.
   nsCOMPtr<nsIAlertsService> sysAlerts(do_GetService(NS_SYSTEMALERTSERVICE_CONTRACTID));
   if (sysAlerts) {
-    return sysAlerts->CloseAlert(aAlertName);
+    return sysAlerts->CloseAlert(aAlertName, nullptr);
   }
 
   return mXULAlerts.CloseAlert(aAlertName);
@@ -144,7 +156,9 @@ NS_IMETHODIMP nsAlertsService::OnProgress(const nsAString & aAlertName,
                                           const nsAString & aAlertText)
 {
 #ifdef MOZ_WIDGET_ANDROID
-  mozilla::AndroidBridge::Bridge()->AlertsProgressListener_OnProgress(aAlertName, aProgress, aProgressMax, aAlertText);
+  widget::GoannaAppShell::AlertsProgressListener_OnProgress(aAlertName,
+                                                           aProgress, aProgressMax,
+                                                           aAlertText);
   return NS_OK;
 #else
   return NS_ERROR_NOT_IMPLEMENTED;
@@ -154,7 +168,7 @@ NS_IMETHODIMP nsAlertsService::OnProgress(const nsAString & aAlertName,
 NS_IMETHODIMP nsAlertsService::OnCancel(const nsAString & aAlertName)
 {
 #ifdef MOZ_WIDGET_ANDROID
-  mozilla::AndroidBridge::Bridge()->CloseNotification(aAlertName);
+  widget::GoannaAppShell::CloseNotification(aAlertName);
   return NS_OK;
 #else
   return NS_ERROR_NOT_IMPLEMENTED;

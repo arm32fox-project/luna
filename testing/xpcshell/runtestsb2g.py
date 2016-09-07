@@ -9,15 +9,38 @@ import os
 sys.path.insert(0, os.path.abspath(os.path.realpath(os.path.dirname(sys.argv[0]))))
 
 import traceback
-from remotexpcshelltests import XPCShellRemote, RemoteXPCShellOptions
+from remotexpcshelltests import RemoteXPCShellTestThread, XPCShellRemote, RemoteXPCShellOptions
 from mozdevice import devicemanagerADB, DMError
+from mozlog import structured
+from mozlog.structured import commandline
 
 DEVICE_TEST_ROOT = '/data/local/tests'
 
 
 from marionette import Marionette
 
+class B2GXPCShellTestThread(RemoteXPCShellTestThread):
+    # Overridden
+    def launchProcess(self, cmd, stdout, stderr, env, cwd, timeout=None):
+        try:
+            # This returns 1 even when tests pass - hardcode returncode to 0 (bug 773703)
+            outputFile = RemoteXPCShellTestThread.launchProcess(self, cmd, stdout, stderr, env, cwd, timeout=timeout)
+            self.shellReturnCode = 0
+        except DMError:
+            self.shellReturnCode = -1
+            outputFile = "xpcshelloutput"
+            f = open(outputFile, "a")
+            f.write("\n%s" % traceback.format_exc())
+            f.close()
+        return outputFile
+
 class B2GXPCShellRemote(XPCShellRemote):
+    # Overridden
+    def setLD_LIBRARY_PATH(self):
+        self.env['LD_LIBRARY_PATH'] = '/system/b2g'
+        if not self.options.use_device_libs:
+            # overwrite /system/b2g if necessary
+            XPCShellRemote.setLD_LIBRARY_PATH(self)
 
     # Overridden
     def setupUtilities(self):
@@ -47,29 +70,11 @@ class B2GXPCShellRemote(XPCShellRemote):
     # Overridden
     def pushLibs(self):
         if not self.options.use_device_libs:
-            XPCShellRemote.pushLibs(self)
-
-    # Overridden
-    def setLD_LIBRARY_PATH(self, env):
-        if self.options.use_device_libs:
-            env['LD_LIBRARY_PATH'] = '/system/b2g'
-            env['LD_PRELOAD'] = '/system/b2g/libmozglue.so'
-        else:
-            XPCShellRemote.setLD_LIBRARY_PATH(self, env)
-
-    # Overridden
-    def launchProcess(self, cmd, stdout, stderr, env, cwd):
-        try:
-            # This returns 1 even when tests pass - hardcode returncode to 0 (bug 773703)
-            outputFile = XPCShellRemote.launchProcess(self, cmd, stdout, stderr, env, cwd)
-            self.shellReturnCode = 0
-        except DMError:
-            self.shellReturnCode = -1
-            outputFile = "xpcshelloutput"
-            f = open(outputFile, "a")
-            f.write("\n%s" % traceback.format_exc())
-            f.close()
-        return outputFile
+            count = XPCShellRemote.pushLibs(self)
+            if not count:
+                # couldn't find any libs, fallback to device libs
+                self.env['LD_LIBRARY_PATH'] = '/system/b2g'
+                self.options.use_device_libs = True
 
 class B2GOptions(RemoteXPCShellOptions):
 
@@ -123,10 +128,10 @@ class B2GOptions(RemoteXPCShellOptions):
                         help="the path to a goanna distribution that should "
                         "be installed on the emulator prior to test")
         defaults["goannaPath"] = None
-        self.add_option("--logcat-dir", action="store",
-                        type="string", dest="logcat_dir",
-                        help="directory to store logcat dump files")
-        defaults["logcat_dir"] = None
+        self.add_option("--logdir", action="store",
+                        type="string", dest="logdir",
+                        help="directory to store log files")
+        defaults["logdir"] = None
         self.add_option('--busybox', action='store',
                         type='string', dest='busybox',
                         help="Path to busybox binary to install on device")
@@ -146,13 +151,11 @@ class B2GOptions(RemoteXPCShellOptions):
         if options.goannaPath and not options.emulator:
             self.error("You must specify --emulator if you specify --goanna-path")
 
-        if options.logcat_dir and not options.emulator:
-            self.error("You must specify --emulator if you specify --logcat-dir")
+        if options.logdir and not options.emulator:
+            self.error("You must specify --emulator if you specify --logdir")
         return RemoteXPCShellOptions.verifyRemoteOptions(self, options)
 
-def main():
-    parser = B2GOptions()
-    options, args = parser.parse_args()
+def run_remote_xpcshell(parser, options, args, log):
     options = parser.verifyRemoteOptions(options)
 
     # Create the Marionette instance
@@ -163,8 +166,8 @@ def main():
             kwargs['noWindow'] = True
         if options.goannaPath:
             kwargs['goanna_path'] = options.goannaPath
-        if options.logcat_dir:
-            kwargs['logcat_dir'] = options.logcat_dir
+        if options.logdir:
+            kwargs['logdir'] = options.logdir
         if options.busybox:
             kwargs['busybox'] = options.busybox
         if options.symbolsPath:
@@ -180,35 +183,47 @@ def main():
             kwargs['connectToRunningEmulator'] = True
     marionette = Marionette(**kwargs)
 
-    # Create the DeviceManager instance
-    kwargs = {'adbPath': options.adb_path}
-    if options.deviceIP:
-        kwargs['host'] = options.deviceIP
-        kwargs['port'] = options.devicePort
-    kwargs['deviceRoot'] = options.remoteTestRoot
-    dm = devicemanagerADB.DeviceManagerADB(**kwargs)
+    if options.emulator:
+        dm = marionette.emulator.dm
+    else:
+        # Create the DeviceManager instance
+        kwargs = {'adbPath': options.adb_path}
+        if options.deviceIP:
+            kwargs['host'] = options.deviceIP
+            kwargs['port'] = options.devicePort
+        kwargs['deviceRoot'] = options.remoteTestRoot
+        dm = devicemanagerADB.DeviceManagerADB(**kwargs)
 
     if not options.remoteTestRoot:
-        options.remoteTestRoot = dm.getDeviceRoot()
-    xpcsh = B2GXPCShellRemote(dm, options, args)
+        options.remoteTestRoot = dm.deviceRoot
+    xpcsh = B2GXPCShellRemote(dm, options, args, log)
+
+    # we don't run concurrent tests on mobile
+    options.sequential = True
 
     try:
-        success = xpcsh.runTests(xpcshell='xpcshell', testdirs=args[0:], **options.__dict__)
+        if not xpcsh.runTests(xpcshell='xpcshell', testdirs=args[0:],
+                                 testClass=B2GXPCShellTestThread,
+                                 mobileArgs=xpcsh.mobileArgs,
+                                 **options.__dict__):
+            sys.exit(1)
     except:
         print "Automation Error: Exception caught while running tests"
         traceback.print_exc()
         sys.exit(1)
 
-    sys.exit(int(success))
-
+def main():
+    parser = B2GOptions()
+    structured.commandline.add_logging_group(parser)
+    options, args = parser.parse_args()
+    log = commandline.setup_logging("Remote XPCShell",
+                                    options,
+                                    {"tbpl": sys.stdout})
+    run_remote_xpcshell(parser, options, args, log)
 
 # You usually run this like :
 # python runtestsb2g.py --emulator arm --b2gpath $B2GPATH --manifest $MANIFEST [--xre-path $MOZ_HOST_BIN
 #                                                                               --adbpath $ADB_PATH
 #                                                                               ...]
-#
-# For xUnit output you should also pass in --tests-root-dir ..objdir-goanna/_tests
-#                                          --xunit-file ..objdir_goanna/_tests/results.xml
-#                                          --xunit-suite-name xpcshell-tests
 if __name__ == '__main__':
     main()

@@ -9,39 +9,42 @@
 
 #include "AndroidBridge.h"
 #include "AndroidGraphicBuffer.h"
+#include "APZCCallbackHandler.h"
 
 #include <jni.h>
 #include <pthread.h>
 #include <dlfcn.h>
 #include <stdio.h>
 #include <unistd.h>
-#include <sched.h>
 
 #include "nsAppShell.h"
 #include "nsWindow.h"
 #include <android/log.h>
 #include "nsIObserverService.h"
 #include "mozilla/Services.h"
+#include "nsThreadUtils.h"
 
 #include "mozilla/unused.h"
+#include "mozilla/UniquePtr.h"
 
 #include "mozilla/dom/SmsMessage.h"
 #include "mozilla/dom/mobilemessage/Constants.h"
 #include "mozilla/dom/mobilemessage/Types.h"
 #include "mozilla/dom/mobilemessage/PSms.h"
 #include "mozilla/dom/mobilemessage/SmsParent.h"
-#include "mozilla/layers/AsyncPanZoomController.h"
+#include "mozilla/layers/APZCTreeManager.h"
 #include "nsIMobileMessageDatabaseService.h"
 #include "nsPluginInstanceOwner.h"
-#include "nsSurfaceTexture.h"
+#include "AndroidSurfaceTexture.h"
 #include "GoannaProfiler.h"
-
-#include "GoannaProfiler.h"
+#include "nsMemoryPressure.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::dom::mobilemessage;
 using namespace mozilla::layers;
+using namespace mozilla::widget;
+using namespace mozilla::widget::android;
 
 /* Forward declare all the JNI methods as extern "C" */
 
@@ -51,9 +54,15 @@ extern "C" {
  */
 
 NS_EXPORT void JNICALL
-Java_org_mozilla_goanna_GoannaAppShell_nativeInit(JNIEnv *jenv, jclass jc)
+Java_org_mozilla_goanna_GoannaAppShell_registerJavaUiThread(JNIEnv *jenv, jclass jc)
 {
-    AndroidBridge::ConstructBridge(jenv, jc);
+    AndroidBridge::RegisterJavaUiThread();
+}
+
+NS_EXPORT void JNICALL
+Java_org_mozilla_goanna_GoannaAppShell_nativeInit(JNIEnv *jenv, jclass, jobject clsLoader)
+{
+    AndroidBridge::ConstructBridge(jenv, jni::Object::Ref::From(clsLoader));
 }
 
 NS_EXPORT void JNICALL
@@ -65,6 +74,29 @@ Java_org_mozilla_goanna_GoannaAppShell_notifyGoannaOfEvent(JNIEnv *jenv, jclass 
 }
 
 NS_EXPORT void JNICALL
+Java_org_mozilla_goanna_GoannaAppShell_notifyGoannaObservers(JNIEnv *aEnv, jclass,
+                                                         jstring aTopic, jstring aData)
+{
+    if (!NS_IsMainThread()) {
+        AndroidBridge::ThrowException(aEnv,
+            "java/lang/IllegalThreadStateException", "Not on Goanna main thread");
+        return;
+    }
+
+    nsCOMPtr<nsIObserverService> obsServ =
+        mozilla::services::GetObserverService();
+    if (!obsServ) {
+        AndroidBridge::ThrowException(aEnv,
+            "java/lang/IllegalStateException", "No observer service");
+        return;
+    }
+
+    const nsJNICString topic(aTopic, aEnv);
+    const nsJNIString data(aData, aEnv);
+    obsServ->NotifyObservers(nullptr, topic.get(), data.get());
+}
+
+NS_EXPORT void JNICALL
 Java_org_mozilla_goanna_GoannaAppShell_processNextNativeEvent(JNIEnv *jenv, jclass, jboolean mayWait)
 {
     // poke the appshell
@@ -72,10 +104,14 @@ Java_org_mozilla_goanna_GoannaAppShell_processNextNativeEvent(JNIEnv *jenv, jcla
         nsAppShell::gAppShell->ProcessNextNativeEvent(mayWait != JNI_FALSE);
 }
 
-NS_EXPORT void JNICALL
-Java_org_mozilla_goanna_GoannaAppShell_setLayerClient(JNIEnv *jenv, jclass, jobject obj)
+NS_EXPORT jlong JNICALL
+Java_org_mozilla_goanna_GoannaAppShell_runUiThreadCallback(JNIEnv* env, jclass)
 {
-    AndroidBridge::Bridge()->SetLayerClient(jenv, obj);
+    if (!AndroidBridge::Bridge()) {
+        return -1;
+    }
+
+    return AndroidBridge::Bridge()->RunDelayedUiThreadTasks();
 }
 
 NS_EXPORT void JNICALL
@@ -88,7 +124,7 @@ Java_org_mozilla_goanna_GoannaAppShell_onResume(JNIEnv *jenv, jclass jc)
 NS_EXPORT void JNICALL
 Java_org_mozilla_goanna_GoannaAppShell_reportJavaCrash(JNIEnv *jenv, jclass, jstring jStackTrace)
 {
-    abort();
+    MOZ_CRASH("Uncaught Java exception");
 }
 
 NS_EXPORT void JNICALL
@@ -770,11 +806,6 @@ Java_org_mozilla_goanna_GoannaAppShell_onFullScreenPluginHidden(JNIEnv* jenv, jc
 
       NS_IMETHODIMP Run() {
         JNIEnv* env = AndroidBridge::GetJNIEnv();
-        if (!env) {
-          NS_WARNING("Failed to acquire JNI env, can't exit plugin fullscreen mode");
-          return NS_OK;
-        }
-
         nsPluginInstanceOwner::ExitFullScreen(mView);
         env->DeleteGlobalRef(mView);
         return NS_OK;
@@ -796,29 +827,41 @@ Java_org_mozilla_goanna_GoannaAppShell_getNextMessageFromQueue(JNIEnv* jenv, jcl
     static jmethodID jNextMethod;
     if (!jMessageQueueCls) {
         jMessageQueueCls = (jclass) jenv->NewGlobalRef(jenv->FindClass("android/os/MessageQueue"));
-        jMessagesField = jenv->GetFieldID(jMessageQueueCls, "mMessages", "Landroid/os/Message;");
         jNextMethod = jenv->GetMethodID(jMessageQueueCls, "next", "()Landroid/os/Message;");
+        jMessagesField = jenv->GetFieldID(jMessageQueueCls, "mMessages", "Landroid/os/Message;");
     }
-    if (!jMessageQueueCls || !jMessagesField || !jNextMethod)
-        return NULL;
-    jobject msg = jenv->GetObjectField(queue, jMessagesField);
-    // if queue.mMessages is null, queue.next() will block, which we don't want
-    if (!msg)
-        return msg;
-    msg = jenv->CallObjectMethod(queue, jNextMethod);
-    return msg;
+
+    if (!jMessageQueueCls || !jNextMethod)
+        return nullptr;
+
+    if (jMessagesField) {
+        jobject msg = jenv->GetObjectField(queue, jMessagesField);
+        // if queue.mMessages is null, queue.next() will block, which we don't want
+        // It turns out to be an order of magnitude more performant to do this extra check here and
+        // block less vs. one fewer checks here and more blocking.
+        if (!msg) {
+            return nullptr;
+        }
+    }
+    return jenv->CallObjectMethod(queue, jNextMethod);
 }
 
 NS_EXPORT void JNICALL
 Java_org_mozilla_goanna_GoannaAppShell_onSurfaceTextureFrameAvailable(JNIEnv* jenv, jclass, jobject surfaceTexture, jint id)
 {
-  nsSurfaceTexture* st = nsSurfaceTexture::Find(id);
+  mozilla::gl::AndroidSurfaceTexture* st = mozilla::gl::AndroidSurfaceTexture::Find(id);
   if (!st) {
-    __android_log_print(ANDROID_LOG_ERROR, "GoannaJNI", "Failed to find nsSurfaceTexture with id %d", id);
+    __android_log_print(ANDROID_LOG_ERROR, "GoannaJNI", "Failed to find AndroidSurfaceTexture with id %d", id);
     return;
   }
 
   st->NotifyFrameAvailable();
+}
+
+NS_EXPORT void JNICALL
+Java_org_mozilla_goanna_GoannaAppShell_dispatchMemoryPressure(JNIEnv* jenv, jclass)
+{
+    NS_DispatchMemoryPressure(MemPressure_New);
 }
 
 NS_EXPORT jdouble JNICALL
@@ -828,48 +871,58 @@ Java_org_mozilla_goanna_GoannaJavaSampler_getProfilerTime(JNIEnv *jenv, jclass j
 }
 
 NS_EXPORT void JNICALL
+Java_org_mozilla_goanna_gfx_NativePanZoomController_abortAnimation(JNIEnv* env, jobject instance)
+{
+    APZCTreeManager *controller = nsWindow::GetAPZCTreeManager();
+    if (controller) {
+        // TODO: Pass in correct values for presShellId and viewId.
+        controller->CancelAnimation(ScrollableLayerGuid(nsWindow::RootLayerTreeId(), 0, 0));
+    }
+}
+
+NS_EXPORT void JNICALL
 Java_org_mozilla_goanna_gfx_NativePanZoomController_init(JNIEnv* env, jobject instance)
 {
     if (!AndroidBridge::Bridge()) {
         return;
     }
 
-    jobject oldRef = AndroidBridge::Bridge()->SetNativePanZoomController(env->NewGlobalRef(instance));
-    if (oldRef) {
-        MOZ_ASSERT(false, "Registering a new NPZC when we already have one");
-        env->DeleteGlobalRef(oldRef);
-    }
-    nsWindow::SetPanZoomController(new AsyncPanZoomController(AndroidBridge::Bridge(), AsyncPanZoomController::USE_GESTURE_DETECTOR));
+    const auto& newRef = NativePanZoomController::Ref::From(instance);
+    NativePanZoomController::LocalRef oldRef =
+            APZCCallbackHandler::GetInstance()->SetNativePanZoomController(newRef);
+
+    MOZ_ASSERT(!oldRef, "Registering a new NPZC when we already have one");
 }
 
-NS_EXPORT void JNICALL
+NS_EXPORT jboolean JNICALL
 Java_org_mozilla_goanna_gfx_NativePanZoomController_handleTouchEvent(JNIEnv* env, jobject instance, jobject event)
 {
-    AsyncPanZoomController *controller = nsWindow::GetPanZoomController();
-    if (controller) {
-        AndroidGoannaEvent* wrapper = AndroidGoannaEvent::MakeFromJavaObject(env, event);
-        const MultiTouchInput& input = wrapper->MakeMultiTouchInput(nsWindow::TopWindow());
-        delete wrapper;
-        if (input.mType >= 0) {
-            controller->ReceiveInputEvent(input);
-        }
+    APZCTreeManager *controller = nsWindow::GetAPZCTreeManager();
+    if (!controller) {
+        return false;
     }
+
+    AndroidGoannaEvent* wrapper = AndroidGoannaEvent::MakeFromJavaObject(env, event);
+    MultiTouchInput input = wrapper->MakeMultiTouchInput(nsWindow::TopWindow());
+    delete wrapper;
+
+    if (input.mType < 0 || !nsAppShell::gAppShell) {
+        return false;
+    }
+
+    ScrollableLayerGuid guid;
+    uint64_t blockId;
+    nsEventStatus status = controller->ReceiveInputEvent(input, &guid, &blockId);
+    if (status != nsEventStatus_eConsumeNoDefault) {
+        nsAppShell::gAppShell->PostEvent(AndroidGoannaEvent::MakeApzInputEvent(input, guid, blockId));
+    }
+    return true;
 }
 
 NS_EXPORT void JNICALL
 Java_org_mozilla_goanna_gfx_NativePanZoomController_handleMotionEvent(JNIEnv* env, jobject instance, jobject event)
 {
     // FIXME implement this
-}
-
-NS_EXPORT jlong JNICALL
-Java_org_mozilla_goanna_gfx_NativePanZoomController_runDelayedCallback(JNIEnv* env, jobject instance)
-{
-    if (!AndroidBridge::Bridge()) {
-        return -1;
-    }
-
-    return AndroidBridge::Bridge()->RunDelayedTasks();
 }
 
 NS_EXPORT void JNICALL
@@ -879,22 +932,10 @@ Java_org_mozilla_goanna_gfx_NativePanZoomController_destroy(JNIEnv* env, jobject
         return;
     }
 
-    nsWindow::SetPanZoomController(nullptr);
-    jobject oldRef = AndroidBridge::Bridge()->SetNativePanZoomController(NULL);
-    if (!oldRef) {
-        MOZ_ASSERT(false, "Clearing a non-existent NPZC");
-    } else {
-        env->DeleteGlobalRef(oldRef);
-    }
-}
+    NativePanZoomController::LocalRef oldRef =
+            APZCCallbackHandler::GetInstance()->SetNativePanZoomController(nullptr);
 
-NS_EXPORT void JNICALL
-Java_org_mozilla_goanna_gfx_NativePanZoomController_notifyDefaultActionPrevented(JNIEnv* env, jobject instance, jboolean prevented)
-{
-    AsyncPanZoomController *controller = nsWindow::GetPanZoomController();
-    if (controller) {
-        controller->ContentReceivedTouch(prevented);
-    }
+    MOZ_ASSERT(oldRef, "Clearing a non-existent NPZC");
 }
 
 NS_EXPORT jboolean JNICALL
@@ -918,7 +959,7 @@ Java_org_mozilla_goanna_gfx_NativePanZoomController_getOverScrollMode(JNIEnv* en
 }
 
 NS_EXPORT jboolean JNICALL
-Java_org_mozilla_goanna_ANRReporter_requestNativeStack(JNIEnv*, jclass)
+Java_org_mozilla_goanna_ANRReporter_requestNativeStack(JNIEnv*, jclass, jboolean aUnwind)
 {
     if (profiler_is_active()) {
         // Don't proceed if profiler is already running
@@ -928,11 +969,25 @@ Java_org_mozilla_goanna_ANRReporter_requestNativeStack(JNIEnv*, jclass)
     // generally unsafe to use the profiler from off the main thread. However,
     // the risk here is limited because for most users, the profiler is not run
     // elsewhere. See the discussion in Bug 863777, comment 13
-    const char *NATIVE_STACK_FEATURES[] = {"leaf", "threads", "privacy"};
+    const char *NATIVE_STACK_FEATURES[] =
+        {"leaf", "threads", "privacy"};
+    const char *NATIVE_STACK_UNWIND_FEATURES[] =
+        {"leaf", "threads", "privacy", "stackwalk"};
+
+    const char **features = NATIVE_STACK_FEATURES;
+    size_t features_size = sizeof(NATIVE_STACK_FEATURES);
+    if (aUnwind) {
+        features = NATIVE_STACK_UNWIND_FEATURES;
+        features_size = sizeof(NATIVE_STACK_UNWIND_FEATURES);
+        // We want the new unwinder if the unwind mode has not been set yet
+        putenv("MOZ_PROFILER_NEW=1");
+    }
+
+    const char *NATIVE_STACK_THREADS[] =
+        {"GoannaMain", "Compositor"};
     // Buffer one sample and let the profiler wait a long time
-    profiler_start(100, 10000, NATIVE_STACK_FEATURES,
-        sizeof(NATIVE_STACK_FEATURES) / sizeof(char*),
-        NULL, 0);
+    profiler_start(100, 10000, features, features_size / sizeof(char*),
+        NATIVE_STACK_THREADS, sizeof(NATIVE_STACK_THREADS) / sizeof(char*));
     return JNI_TRUE;
 }
 
@@ -941,36 +996,42 @@ Java_org_mozilla_goanna_ANRReporter_getNativeStack(JNIEnv* jenv, jclass)
 {
     if (!profiler_is_active()) {
         // Maybe profiler support is disabled?
-        return NULL;
+        return nullptr;
     }
-    char *profile = profiler_get_profile();
-    while (profile && !strlen(profile)) {
+
+    // Timeout if we don't get a profiler sample after 5 seconds.
+    const PRIntervalTime timeout = PR_SecondsToInterval(5);
+    const PRIntervalTime startTime = PR_IntervalNow();
+
+    typedef struct { void operator()(void* p) { free(p); } } ProfilePtrPolicy;
+    // Pointer to a profile JSON string
+    typedef mozilla::UniquePtr<char, ProfilePtrPolicy> ProfilePtr;
+
+    ProfilePtr profile(profiler_get_profile());
+
+    while (profile && !strstr(profile.get(), "\"samples\":[{")) {
         // no sample yet?
-        sched_yield();
-        profile = profiler_get_profile();
+        if (PR_IntervalNow() - startTime >= timeout) {
+            return nullptr;
+        }
+        usleep(100000ul); // Sleep for 100ms
+        profile = ProfilePtr(profiler_get_profile());
     }
-    jstring result = NULL;
+
     if (profile) {
-        result = jenv->NewStringUTF(profile);
-        free(profile);
+        return jenv->NewStringUTF(profile.get());
     }
-    return result;
+    return nullptr;
 }
 
 NS_EXPORT void JNICALL
 Java_org_mozilla_goanna_ANRReporter_releaseNativeStack(JNIEnv* jenv, jclass)
 {
-/* --- STUB --- */
-/* With the profiler removed, this is now a stub. Does something actually
-   have to be done to release the stack in case of an ANR except gather
-   data?...
-   
     if (!profiler_is_active()) {
         // Maybe profiler support is disabled?
         return;
     }
     mozilla_sampler_stop();
-*/
 }
 
 }

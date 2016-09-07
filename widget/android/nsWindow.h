@@ -11,8 +11,10 @@
 #include "nsIIdleServiceInternal.h"
 #include "nsTArray.h"
 #include "AndroidJavaWrappers.h"
-
-class gfxASurface;
+#include "GeneratedJNIWrappers.h"
+#include "mozilla/EventForwards.h"
+#include "mozilla/StaticPtr.h"
+#include "mozilla/TextRange.h"
 
 struct ANPEvent;
 
@@ -23,18 +25,20 @@ namespace mozilla {
         class CompositorParent;
         class CompositorChild;
         class LayerManager;
-        class AsyncPanZoomController;
+        class APZCTreeManager;
     }
 }
 
 class nsWindow :
     public nsBaseWidget
 {
+private:
+    virtual ~nsWindow();
+
 public:
     using nsBaseWidget::GetLayerManager;
 
     nsWindow();
-    virtual ~nsWindow();
 
     NS_DECL_ISUPPORTS_INHERITED
 
@@ -44,8 +48,7 @@ public:
 
     nsWindow* FindWindowForPoint(const nsIntPoint& pt);
 
-    void OnAndroidEvent(mozilla::AndroidGoannaEvent *ae);
-    void OnDraw(mozilla::AndroidGoannaEvent *ae);
+    void OnContextmenuEvent(mozilla::AndroidGoannaEvent *ae);
     bool OnMultitouchEvent(mozilla::AndroidGoannaEvent *ae);
     void OnNativeGestureEvent(mozilla::AndroidGoannaEvent *ae);
     void OnMouseEvent(mozilla::AndroidGoannaEvent *ae);
@@ -54,7 +57,7 @@ public:
 
     void OnSizeChanged(const gfxIntSize& aSize);
 
-    void InitEvent(nsGUIEvent& event, nsIntPoint* aPoint = 0);
+    void InitEvent(mozilla::WidgetGUIEvent& event, nsIntPoint* aPoint = 0);
 
     //
     // nsIWidget
@@ -63,13 +66,13 @@ public:
     NS_IMETHOD Create(nsIWidget *aParent,
                       nsNativeWidget aNativeParent,
                       const nsIntRect &aRect,
-                      nsDeviceContext *aContext,
                       nsWidgetInitData *aInitData);
     NS_IMETHOD Destroy(void);
     NS_IMETHOD ConfigureChildren(const nsTArray<nsIWidget::Configuration>&);
     NS_IMETHOD SetParent(nsIWidget* aNewParent);
     virtual nsIWidget *GetParent(void);
     virtual float GetDPI();
+    virtual double GetDefaultScaleInternal();
     NS_IMETHOD Show(bool aState);
     NS_IMETHOD SetModal(bool aModal);
     virtual bool IsVisible() const;
@@ -86,7 +89,7 @@ public:
                       double aWidth,
                       double aHeight,
                       bool aRepaint);
-    NS_IMETHOD SetZIndex(int32_t aZIndex);
+    void SetZIndex(int32_t aZIndex);
     NS_IMETHOD PlaceBehind(nsTopLevelWidgetZPlacement aPlacement,
                            nsIWidget *aWidget,
                            bool aActivate);
@@ -96,16 +99,15 @@ public:
     NS_IMETHOD Invalidate(const nsIntRect &aRect);
     NS_IMETHOD SetFocus(bool aRaise = false);
     NS_IMETHOD GetScreenBounds(nsIntRect &aRect);
-    virtual nsIntPoint WidgetToScreenOffset();
-    NS_IMETHOD DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus);
-    nsEventStatus DispatchEvent(nsGUIEvent *aEvent);
-    NS_IMETHOD MakeFullScreen(bool aFullScreen);
+    virtual mozilla::LayoutDeviceIntPoint WidgetToScreenOffset();
+    NS_IMETHOD DispatchEvent(mozilla::WidgetGUIEvent* aEvent,
+                             nsEventStatus& aStatus);
+    nsEventStatus DispatchEvent(mozilla::WidgetGUIEvent* aEvent);
+    NS_IMETHOD MakeFullScreen(bool aFullScreen, nsIScreen* aTargetScreen = nullptr);
     NS_IMETHOD SetWindowClass(const nsAString& xulWinType);
 
 
 
-    NS_IMETHOD SetForegroundColor(const nscolor &aColor) { return NS_ERROR_NOT_IMPLEMENTED; }
-    NS_IMETHOD SetBackgroundColor(const nscolor &aColor) { return NS_ERROR_NOT_IMPLEMENTED; }
     NS_IMETHOD SetCursor(nsCursor aCursor) { return NS_ERROR_NOT_IMPLEMENTED; }
     NS_IMETHOD SetCursor(imgIContainer* aCursor,
                          uint32_t aHotspotX,
@@ -122,30 +124,32 @@ public:
                                    bool aDoCapture) { return NS_ERROR_NOT_IMPLEMENTED; }
 
     NS_IMETHOD GetAttention(int32_t aCycleCount) { return NS_ERROR_NOT_IMPLEMENTED; }
-    NS_IMETHOD BeginResizeDrag(nsGUIEvent* aEvent, int32_t aHorizontal, int32_t aVertical) { return NS_ERROR_NOT_IMPLEMENTED; }
+    NS_IMETHOD BeginResizeDrag(mozilla::WidgetGUIEvent* aEvent,
+                               int32_t aHorizontal,
+                               int32_t aVertical)
+    {
+        return NS_ERROR_NOT_IMPLEMENTED;
+    }
 
-    NS_IMETHOD NotifyIME(NotificationToIME aNotification) MOZ_OVERRIDE;
     NS_IMETHOD_(void) SetInputContext(const InputContext& aContext,
                                       const InputContextAction& aAction);
     NS_IMETHOD_(InputContext) GetInputContext();
 
-    NS_IMETHOD NotifyIMEOfTextChange(uint32_t aStart,
-                                     uint32_t aOldEnd,
-                                     uint32_t aNewEnd) MOZ_OVERRIDE;
+    nsresult NotifyIMEOfTextChange(const IMENotification& aIMENotification);
     virtual nsIMEUpdatePreference GetIMEUpdatePreference();
 
     LayerManager* GetLayerManager (PLayerTransactionChild* aShadowManager = nullptr,
-                                   LayersBackend aBackendHint = mozilla::layers::LAYERS_NONE,
+                                   LayersBackend aBackendHint = mozilla::layers::LayersBackend::LAYERS_NONE,
                                    LayerManagerPersistence aPersistence = LAYER_MANAGER_CURRENT,
                                    bool* aAllowRetaining = nullptr);
 
     NS_IMETHOD ReparentNativeWidget(nsIWidget* aNewParent);
 
     virtual bool NeedsPaint();
-    virtual void DrawWindowUnderlay(LayerManager* aManager, nsIntRect aRect);
-    virtual void DrawWindowOverlay(LayerManager* aManager, nsIntRect aRect);
+    virtual void DrawWindowUnderlay(LayerManagerComposite* aManager, nsIntRect aRect);
+    virtual void DrawWindowOverlay(LayerManagerComposite* aManager, nsIntRect aRect);
 
-    virtual mozilla::layers::CompositorParent* NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight) MOZ_OVERRIDE;
+    virtual mozilla::layers::CompositorParent* NewCompositorParent(int aSurfaceWidth, int aSurfaceHeight) override;
 
     static void SetCompositor(mozilla::layers::LayerManager* aLayerManager,
                               mozilla::layers::CompositorParent* aCompositorParent,
@@ -154,20 +158,22 @@ public:
     static void ScheduleResumeComposition(int width, int height);
     static void ForceIsFirstPaint();
     static float ComputeRenderIntegrity();
-    static void SetPanZoomController(mozilla::layers::AsyncPanZoomController* apzc);
-    static mozilla::layers::AsyncPanZoomController* GetPanZoomController();
+    static mozilla::layers::APZCTreeManager* GetAPZCTreeManager();
+    /* RootLayerTreeId() can only be called when GetAPZCTreeManager() returns non-null */
+    static uint64_t RootLayerTreeId();
 
     virtual bool WidgetPaintsBackground();
 
 protected:
     void BringToFront();
     nsWindow *FindTopLevel();
-    bool DrawTo(gfxASurface *targetSurface);
-    bool DrawTo(gfxASurface *targetSurface, const nsIntRect &aRect);
     bool IsTopLevel();
     void RemoveIMEComposition();
     void PostFlushIMEChanges();
     void FlushIMEChanges();
+
+    void ConfigureAPZCTreeManager() override;
+    already_AddRefed<GoannaContentController> CreateRootContentController() override;
 
     // Call this function when the users activity is the direct cause of an
     // event (like a keypress or mouse click).
@@ -184,10 +190,11 @@ protected:
     nsCOMPtr<nsIIdleServiceInternal> mIdleService;
 
     bool mIMEComposing;
+    int32_t mIMEComposingStart;
+    nsString mIMEComposingText;
     bool mIMEMaskSelectionUpdate, mIMEMaskTextUpdate;
     int32_t mIMEMaskEventsCount; // Mask events when > 0
-    nsString mIMEComposingText;
-    nsAutoTArray<nsTextRange, 4> mIMERanges;
+    nsRefPtr<mozilla::TextRangeArray> mIMERanges;
     bool mIMEUpdatingContext;
     nsAutoTArray<mozilla::AndroidGoannaEvent, 8> mIMEKeyEvents;
 
@@ -198,9 +205,16 @@ protected:
             mStart(-1), mOldEnd(-1), mNewEnd(-1)
         {
         }
-        IMEChange(int32_t start, int32_t oldEnd, int32_t newEnd) :
-            mStart(start), mOldEnd(oldEnd), mNewEnd(newEnd)
+        IMEChange(const IMENotification& aIMENotification)
+            : mStart(aIMENotification.mTextChangeData.mStartOffset)
+            , mOldEnd(aIMENotification.mTextChangeData.mOldEndOffset)
+            , mNewEnd(aIMENotification.mTextChangeData.mNewEndOffset)
         {
+            MOZ_ASSERT(aIMENotification.mMessage ==
+                           mozilla::widget::NOTIFY_IME_OF_TEXT_CHANGE,
+                       "IMEChange initialized with wrong notification");
+            MOZ_ASSERT(aIMENotification.mTextChangeData.IsInInt32Range(),
+                       "The text change notification is out of range");
         }
         bool IsEmpty()
         {
@@ -212,29 +226,30 @@ protected:
 
     InputContext mInputContext;
 
+    virtual nsresult NotifyIMEInternal(
+                         const IMENotification& aIMENotification) override;
+
     static void DumpWindows();
     static void DumpWindows(const nsTArray<nsWindow*>& wins, int indent = 0);
     static void LogWindow(nsWindow *win, int index, int indent);
 
 private:
-    void InitKeyEvent(nsKeyEvent& event, mozilla::AndroidGoannaEvent& key,
+    void InitKeyEvent(mozilla::WidgetKeyboardEvent& event,
+                      mozilla::AndroidGoannaEvent& key,
                       ANPEvent* pluginEvent);
-    void DispatchMotionEvent(nsInputEvent &event,
-                             mozilla::AndroidGoannaEvent *ae,
-                             const nsIntPoint &refPoint);
     void DispatchGestureEvent(uint32_t msg, uint32_t direction, double delta,
-                              const nsIntPoint &refPoint, uint64_t time);
+                              const mozilla::LayoutDeviceIntPoint &refPoint, uint64_t time);
     void HandleSpecialKey(mozilla::AndroidGoannaEvent *ae);
     void CreateLayerManager(int aCompositorWidth, int aCompositorHeight);
     void RedrawAll();
 
     mozilla::AndroidLayerRendererFrame mLayerRendererFrame;
 
-    static nsRefPtr<mozilla::layers::LayerManager> sLayerManager;
-    static nsRefPtr<mozilla::layers::CompositorParent> sCompositorParent;
-    static nsRefPtr<mozilla::layers::CompositorChild> sCompositorChild;
+    static mozilla::StaticRefPtr<mozilla::layers::APZCTreeManager> sApzcTreeManager;
+    static mozilla::StaticRefPtr<mozilla::layers::LayerManager> sLayerManager;
+    static mozilla::StaticRefPtr<mozilla::layers::CompositorParent> sCompositorParent;
+    static mozilla::StaticRefPtr<mozilla::layers::CompositorChild> sCompositorChild;
     static bool sCompositorPaused;
-    static nsRefPtr<mozilla::layers::AsyncPanZoomController> sApzc;
 };
 
 #endif /* NSWINDOW_H_ */

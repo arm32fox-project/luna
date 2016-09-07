@@ -8,19 +8,31 @@
 #ifndef MOZILLA_LAYERS_LAYERTRANSACTIONCHILD_H
 #define MOZILLA_LAYERS_LAYERTRANSACTIONCHILD_H
 
+#include <stdint.h>                     // for uint32_t
+#include "mozilla/Attributes.h"         // for override
+#include "mozilla/ipc/ProtocolUtils.h"
+#include "mozilla/layers/AsyncTransactionTracker.h" // for AsyncTransactionTracker
 #include "mozilla/layers/PLayerTransactionChild.h"
+#include "mozilla/RefPtr.h"
 
 namespace mozilla {
+
+namespace layout {
+class RenderFrameChild;
+class ShadowLayerForwarder;
+}
+
 namespace layers {
 
 class LayerTransactionChild : public PLayerTransactionChild
+                            , public AsyncTransactionTrackersHolder
 {
+  typedef InfallibleTArray<AsyncParentMessageData> AsyncParentMessageArray;
 public:
-  LayerTransactionChild() { }
-  ~LayerTransactionChild() { }
-
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(LayerTransactionChild)
   /**
-   * Clean this up, finishing with Send__delete__().
+   * Clean this up, finishing with SendShutDown() which will cause __delete__
+   * to be sent from the parent side.
    *
    * It is expected (checked with an assert) that all shadow layers
    * created by this have already been destroyed and
@@ -28,20 +40,56 @@ public:
    */
   void Destroy();
 
+  bool IPCOpen() const { return mIPCOpen && !mDestroyed; }
+
+  void SetForwarder(ShadowLayerForwarder* aForwarder)
+  {
+    mForwarder = aForwarder;
+  }
+
+  virtual void SendFenceHandle(AsyncTransactionTracker* aTracker,
+                               PTextureChild* aTexture,
+                               const FenceHandle& aFence);
+
 protected:
-  virtual PGrallocBufferChild*
-  AllocPGrallocBuffer(const gfxIntSize&,
-                      const uint32_t&, const uint32_t&,
-                      MaybeMagicGrallocBufferHandle*) MOZ_OVERRIDE;
+  LayerTransactionChild()
+    : mForwarder(nullptr)
+    , mIPCOpen(false)
+    , mDestroyed(false)
+  {}
+  ~LayerTransactionChild() { }
+
+  virtual PLayerChild* AllocPLayerChild() override;
+  virtual bool DeallocPLayerChild(PLayerChild* actor) override;
+
+  virtual PCompositableChild* AllocPCompositableChild(const TextureInfo& aInfo) override;
+  virtual bool DeallocPCompositableChild(PCompositableChild* actor) override;
+
+  virtual PTextureChild* AllocPTextureChild(const SurfaceDescriptor& aSharedData,
+                                            const TextureFlags& aFlags) override;
+  virtual bool DeallocPTextureChild(PTextureChild* actor) override;
+
   virtual bool
-  DeallocPGrallocBuffer(PGrallocBufferChild* actor) MOZ_OVERRIDE;
+  RecvParentAsyncMessages(InfallibleTArray<AsyncParentMessageData>&& aMessages) override;
 
-  virtual PLayerChild* AllocPLayer() MOZ_OVERRIDE;
-  virtual bool DeallocPLayer(PLayerChild* actor) MOZ_OVERRIDE;
+  virtual void ActorDestroy(ActorDestroyReason why) override;
 
-  virtual PCompositableChild* AllocPCompositable(const TextureInfo& aInfo) MOZ_OVERRIDE;
-  virtual bool DeallocPCompositable(PCompositableChild* actor) MOZ_OVERRIDE;
-  virtual void ActorDestroy(ActorDestroyReason why) MOZ_OVERRIDE;
+  void AddIPDLReference() {
+    MOZ_ASSERT(mIPCOpen == false);
+    mIPCOpen = true;
+    AddRef();
+  }
+  void ReleaseIPDLReference() {
+    MOZ_ASSERT(mIPCOpen == true);
+    mIPCOpen = false;
+    Release();
+  }
+  friend class CompositorChild;
+  friend class layout::RenderFrameChild;
+
+  ShadowLayerForwarder* mForwarder;
+  bool mIPCOpen;
+  bool mDestroyed;
 };
 
 } // namespace layers

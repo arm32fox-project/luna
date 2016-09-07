@@ -4,101 +4,148 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "ContainerLayerComposite.h"
-#include "gfxUtils.h"
-#include "mozilla/layers/Compositor.h"
-#include "mozilla/layers/LayersTypes.h"
-#include "gfx2DGlue.h"
+#include <algorithm>                    // for min
+#include "apz/src/AsyncPanZoomController.h"  // for AsyncPanZoomController
+#include "FrameMetrics.h"               // for FrameMetrics
+#include "Units.h"                      // for LayerRect, LayerPixel, etc
+#include "gfx2DGlue.h"                  // for ToMatrix4x4
+#include "gfxPrefs.h"                   // for gfxPrefs
+#include "gfxUtils.h"                   // for gfxUtils, etc
+#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
+#include "mozilla/RefPtr.h"             // for RefPtr
+#include "mozilla/UniquePtr.h"          // for UniquePtr
+#include "mozilla/gfx/BaseRect.h"       // for BaseRect
+#include "mozilla/gfx/Matrix.h"         // for Matrix4x4
+#include "mozilla/gfx/Point.h"          // for Point, IntPoint
+#include "mozilla/gfx/Rect.h"           // for IntRect, Rect
+#include "mozilla/layers/Compositor.h"  // for Compositor, etc
+#include "mozilla/layers/CompositorTypes.h"  // for DiagnosticFlags::CONTAINER
+#include "mozilla/layers/Effects.h"     // for Effect, EffectChain, etc
+#include "mozilla/layers/TextureHost.h"  // for CompositingRenderTarget
+#include "mozilla/layers/AsyncCompositionManager.h" // for ViewTransform
+#include "mozilla/layers/LayerMetricsWrapper.h" // for LayerMetricsWrapper
+#include "mozilla/mozalloc.h"           // for operator delete, etc
+#include "nsAutoPtr.h"                  // for nsRefPtr
+#include "nsDebug.h"                    // for NS_ASSERTION
+#include "nsISupportsImpl.h"            // for MOZ_COUNT_CTOR, etc
+#include "nsISupportsUtils.h"           // for NS_ADDREF, NS_RELEASE
+#include "nsPoint.h"                    // for nsIntPoint
+#include "nsRect.h"                     // for nsIntRect
+#include "nsRegion.h"                   // for nsIntRegion
+#include "nsTArray.h"                   // for nsAutoTArray
+#include "TextRenderer.h"               // for TextRenderer
+#include <vector>
+#include "GoannaProfiler.h"              // for GoannaProfiler
+
+#define CULLING_LOG(...)
+// #define CULLING_LOG(...) printf_stderr("CULLING: " __VA_ARGS__)
 
 namespace mozilla {
 namespace layers {
 
-// HasOpaqueAncestorLayer and ContainerRender are shared between RefLayer and ContainerLayer
+using namespace gfx;
+
 static bool
-HasOpaqueAncestorLayer(Layer* aLayer)
+LayerHasCheckerboardingAPZC(Layer* aLayer, gfxRGBA* aOutColor)
 {
-  for (Layer* l = aLayer->GetParent(); l; l = l->GetParent()) {
-    if (l->GetContentFlags() & Layer::CONTENT_OPAQUE)
+  for (LayerMetricsWrapper i(aLayer, LayerMetricsWrapper::StartAt::BOTTOM); i; i = i.GetParent()) {
+    if (!i.Metrics().IsScrollable()) {
+      continue;
+    }
+    if (i.GetApzc() && i.GetApzc()->IsCurrentlyCheckerboarding()) {
+      if (aOutColor) {
+        *aOutColor = i.Metrics().GetBackgroundColor();
+      }
       return true;
+    }
+    break;
   }
   return false;
 }
 
-template<class ContainerT> void
-ContainerRender(ContainerT* aContainer,
-                const nsIntPoint& aOffset,
-                LayerManagerComposite* aManager,
-                const nsIntRect& aClipRect)
+static void DrawLayerInfo(const RenderTargetIntRect& aClipRect,
+                          LayerManagerComposite* aManager,
+                          Layer* aLayer)
 {
-  /**
-   * Setup our temporary surface for rendering the contents of this container.
-   */
+
+  if (aLayer->GetType() == Layer::LayerType::TYPE_CONTAINER) {
+    // XXX - should figure out a way to render this, but for now this
+    // is hard to do, since it will often get superimposed over the first
+    // child of the layer, which is bad.
+    return;
+  }
+
+  std::stringstream ss;
+  aLayer->PrintInfo(ss, "");
+
+  nsIntRegion visibleRegion = aLayer->GetVisibleRegion();
+
+  uint32_t maxWidth = std::min<uint32_t>(visibleRegion.GetBounds().width, 500);
+
+  nsIntPoint topLeft = visibleRegion.GetBounds().TopLeft();
+  aManager->GetTextRenderer()->RenderText(ss.str().c_str(), gfx::IntPoint(topLeft.x, topLeft.y),
+                                          aLayer->GetEffectiveTransform(), 16,
+                                          maxWidth);
+}
+
+template<class ContainerT>
+static gfx::IntRect ContainerVisibleRect(ContainerT* aContainer)
+{
+  nsIntRect visibleRect = aContainer->GetEffectiveVisibleRegion().GetBounds();
+  gfx::IntRect surfaceRect = gfx::IntRect(visibleRect.x, visibleRect.y,
+                                          visibleRect.width, visibleRect.height);
+  return surfaceRect;
+}
+
+static void PrintUniformityInfo(Layer* aLayer)
+{
+}
+
+/* all of the per-layer prepared data we need to maintain */
+struct PreparedLayer
+{
+  PreparedLayer(LayerComposite *aLayer, RenderTargetIntRect aClipRect) :
+    mLayer(aLayer), mClipRect(aClipRect) {}
+  LayerComposite* mLayer;
+  RenderTargetIntRect mClipRect;
+};
+
+
+template<class ContainerT> void
+ContainerRenderVR(ContainerT* aContainer,
+                  LayerManagerComposite* aManager,
+                  const nsIntRect& aClipRect,
+                  gfx::VRHMDInfo* aHMD)
+{
   RefPtr<CompositingRenderTarget> surface;
 
   Compositor* compositor = aManager->GetCompositor();
 
   RefPtr<CompositingRenderTarget> previousTarget = compositor->GetCurrentRenderTarget();
 
-  nsIntPoint childOffset(aOffset);
   nsIntRect visibleRect = aContainer->GetEffectiveVisibleRegion().GetBounds();
-
-  aContainer->mSupportsComponentAlphaChildren = false;
 
   float opacity = aContainer->GetEffectiveOpacity();
 
-  bool needsSurface = aContainer->UseIntermediateSurface();
-  if (needsSurface) {
-    SurfaceInitMode mode = INIT_MODE_CLEAR;
-    bool surfaceCopyNeeded = false;
-    gfx::IntRect surfaceRect = gfx::IntRect(visibleRect.x, visibleRect.y,
-                                            visibleRect.width, visibleRect.height);
-    // we're about to create a framebuffer backed by textures to use as an intermediate
-    // surface. What to do if its size (as given by framebufferRect) would exceed the
-    // maximum texture size supported by the GL? The present code chooses the compromise
-    // of just clamping the framebuffer's size to the max supported size.
-    // This gives us a lower resolution rendering of the intermediate surface (children layers).
-    // See bug 827170 for a discussion.
-    int32_t maxTextureSize = compositor->GetMaxTextureSize();
-    surfaceRect.width = std::min(maxTextureSize, surfaceRect.width);
-    surfaceRect.height = std::min(maxTextureSize, surfaceRect.height);
-    if (aContainer->GetEffectiveVisibleRegion().GetNumRects() == 1 &&
-        (aContainer->GetContentFlags() & Layer::CONTENT_OPAQUE))
-    {
-      // don't need a background, we're going to paint all opaque stuff
-      aContainer->mSupportsComponentAlphaChildren = true;
-      mode = INIT_MODE_NONE;
-    } else {
-      const gfx3DMatrix& transform3D = aContainer->GetEffectiveTransform();
-      gfxMatrix transform;
-      // If we have an opaque ancestor layer, then we can be sure that
-      // all the pixels we draw into are either opaque already or will be
-      // covered by something opaque. Otherwise copying up the background is
-      // not safe.
-      if (HasOpaqueAncestorLayer(aContainer) &&
-          transform3D.Is2D(&transform) && !transform.HasNonIntegerTranslation()) {
-        mode = gfxPlatform::GetPlatform()->UsesSubpixelAATextRendering() ?
-                                            INIT_MODE_COPY : INIT_MODE_CLEAR;
-        surfaceCopyNeeded = (mode == INIT_MODE_COPY);
-        surfaceRect.x += transform.x0;
-        surfaceRect.y += transform.y0;
-        aContainer->mSupportsComponentAlphaChildren
-          = gfxPlatform::GetPlatform()->UsesSubpixelAATextRendering();
-      }
-    }
+  gfx::IntRect surfaceRect = gfx::IntRect(visibleRect.x, visibleRect.y,
+                                          visibleRect.width, visibleRect.height);
+  // we're about to create a framebuffer backed by textures to use as an intermediate
+  // surface. What to do if its size (as given by framebufferRect) would exceed the
+  // maximum texture size supported by the GL? The present code chooses the compromise
+  // of just clamping the framebuffer's size to the max supported size.
+  // This gives us a lower resolution rendering of the intermediate surface (children layers).
+  // See bug 827170 for a discussion.
+  int32_t maxTextureSize = compositor->GetMaxTextureSize();
+  surfaceRect.width = std::min(maxTextureSize, surfaceRect.width);
+  surfaceRect.height = std::min(maxTextureSize, surfaceRect.height);
 
-    surfaceRect -= gfx::IntPoint(aOffset.x, aOffset.y);
-    if (surfaceCopyNeeded) {
-      surface = compositor->CreateRenderTargetFromSource(surfaceRect, previousTarget);
-    } else {
-      surface = compositor->CreateRenderTarget(surfaceRect, mode);
-    }
-    compositor->SetRenderTarget(surface);
-    childOffset.x = visibleRect.x;
-    childOffset.y = visibleRect.y;
-  } else {
-    surface = previousTarget;
-    aContainer->mSupportsComponentAlphaChildren = (aContainer->GetContentFlags() & Layer::CONTENT_OPAQUE) ||
-      (aContainer->GetParent() && aContainer->GetParent()->SupportsComponentAlphaChildren());
+  // use NONE here, because we draw black to clear below
+  surface = compositor->CreateRenderTarget(surfaceRect, INIT_MODE_NONE);
+  if (!surface) {
+    return;
   }
+
+  compositor->SetRenderTarget(surface);
 
   nsAutoTArray<Layer*, 12> children;
   aContainer->SortChildrenBy3DZOrder(children);
@@ -106,59 +153,383 @@ ContainerRender(ContainerT* aContainer,
   /**
    * Render this container's contents.
    */
+  nsIntRect surfaceClipRect(0, 0, surfaceRect.width, surfaceRect.height);
+  RenderTargetIntRect rtClipRect(0, 0, surfaceRect.width, surfaceRect.height);
   for (uint32_t i = 0; i < children.Length(); i++) {
     LayerComposite* layerToRender = static_cast<LayerComposite*>(children.ElementAt(i)->ImplData());
+    Layer* layer = layerToRender->GetLayer();
 
-    if (layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty()) {
+    if (layer->GetEffectiveVisibleRegion().IsEmpty() &&
+        !layer->AsContainerLayer()) {
       continue;
     }
 
-    nsIntRect clipRect = layerToRender->GetLayer()->
-        CalculateScissorRect(aClipRect, &aManager->GetWorldTransform());
+    RenderTargetIntRect clipRect = layer->CalculateScissorRect(rtClipRect);
     if (clipRect.IsEmpty()) {
       continue;
     }
 
-    layerToRender->RenderLayer(childOffset, clipRect);
+    layerToRender->Prepare(rtClipRect);
+    layerToRender->RenderLayer(surfaceClipRect);
+  }
+
+  // Unbind the current surface and rebind the previous one.
+#ifdef MOZ_DUMP_PAINTING
+  if (gfxUtils::sDumpPainting) {
+    RefPtr<gfx::DataSourceSurface> surf = surface->Dump(aManager->GetCompositor());
+    if (surf) {
+      WriteSnapshotToDumpFile(aContainer, surf);
+    }
+  }
+#endif
+
+  compositor->SetRenderTarget(previousTarget);
+
+  gfx::Rect rect(visibleRect.x, visibleRect.y, visibleRect.width, visibleRect.height);
+  gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
+
+  // The VR geometry may not cover the entire area; we need to fill with a solid color
+  // first.
+  // XXX should DrawQuad handle this on its own?  Is there a time where we wouldn't want
+  // to do this? (e.g. something like Cardboard would not require distortion so will fill
+  // the entire rect)
+  EffectChain solidEffect(aContainer);
+  solidEffect.mPrimaryEffect = new EffectSolidColor(Color(0.0, 0.0, 0.0, 1.0));
+  aManager->GetCompositor()->DrawQuad(rect, clipRect, solidEffect, opacity,
+                                      aContainer->GetEffectiveTransform());
+
+  // draw the temporary surface with VR distortion to the original destination
+  EffectChain vrEffect(aContainer);
+  vrEffect.mPrimaryEffect = new EffectVRDistortion(aHMD, surface);
+
+  // XXX we shouldn't use visibleRect here -- the VR distortion needs to know the
+  // full rect, not just the visible one.  Luckily, right now, VR distortion is only
+  // rendered when the element is fullscreen, so the visibleRect will be right anyway.
+  aManager->GetCompositor()->DrawQuad(rect, clipRect, vrEffect, opacity,
+                                      aContainer->GetEffectiveTransform());
+}
+
+/* all of the prepared data that we need in RenderLayer() */
+struct PreparedData
+{
+  RefPtr<CompositingRenderTarget> mTmpTarget;
+  nsAutoTArray<PreparedLayer, 12> mLayers;
+  bool mNeedsSurfaceCopy;
+};
+
+// ContainerPrepare is shared between RefLayer and ContainerLayer
+template<class ContainerT> void
+ContainerPrepare(ContainerT* aContainer,
+                 LayerManagerComposite* aManager,
+                 const RenderTargetIntRect& aClipRect)
+{
+  aContainer->mPrepared = MakeUnique<PreparedData>();
+  aContainer->mPrepared->mNeedsSurfaceCopy = false;
+
+  gfx::VRHMDInfo *hmdInfo = aContainer->GetVRHMDInfo();
+  if (hmdInfo && hmdInfo->GetConfiguration().IsValid()) {
+    // we're not going to do anything here; instead, we'll do it all in ContainerRender.
+    // XXX fix this; we can win with the same optimizations.  Specifically, we
+    // want to render thebes layers only once and then composite the intermeidate surfaces
+    // with different transforms twice.
+    return;
+  }
+
+  /**
+   * Determine which layers to draw.
+   */
+  nsAutoTArray<Layer*, 12> children;
+  aContainer->SortChildrenBy3DZOrder(children);
+
+  for (uint32_t i = 0; i < children.Length(); i++) {
+    LayerComposite* layerToRender = static_cast<LayerComposite*>(children.ElementAt(i)->ImplData());
+
+    if (layerToRender->GetLayer()->GetEffectiveVisibleRegion().IsEmpty() &&
+        !layerToRender->GetLayer()->AsContainerLayer()) {
+      CULLING_LOG("Sublayer %p has no effective visible region\n", layerToRender->GetLayer());
+      continue;
+    }
+
+    RenderTargetIntRect clipRect = layerToRender->GetLayer()->
+        CalculateScissorRect(aClipRect);
+    if (clipRect.IsEmpty()) {
+      CULLING_LOG("Sublayer %p has an empty world clip rect\n", layerToRender->GetLayer());
+      continue;
+    }
+
+    CULLING_LOG("Preparing sublayer %p\n", layerToRender->GetLayer());
+
+    layerToRender->Prepare(clipRect);
+    aContainer->mPrepared->mLayers.AppendElement(PreparedLayer(layerToRender, clipRect));
+  }
+
+  CULLING_LOG("Preparing container layer %p\n", aContainer->GetLayer());
+
+  /**
+   * Setup our temporary surface for rendering the contents of this container.
+   */
+
+  gfx::IntRect surfaceRect = ContainerVisibleRect(aContainer);
+  if (surfaceRect.IsEmpty()) {
+    return;
+  }
+
+  bool surfaceCopyNeeded;
+  // DefaultComputeSupportsComponentAlphaChildren can mutate aContainer so call it unconditionally
+  aContainer->DefaultComputeSupportsComponentAlphaChildren(&surfaceCopyNeeded);
+  if (aContainer->UseIntermediateSurface()) {
+    if (!surfaceCopyNeeded) {
+      RefPtr<CompositingRenderTarget> surface = nullptr;
+
+      RefPtr<CompositingRenderTarget>& lastSurf = aContainer->mLastIntermediateSurface;
+      if (lastSurf && !aContainer->mChildrenChanged && lastSurf->GetRect().IsEqualEdges(surfaceRect)) {
+        surface = lastSurf;
+      }
+
+      if (!surface) {
+        // If we don't need a copy we can render to the intermediate now to avoid
+        // unecessary render target switching. This brings a big perf boost on mobile gpus.
+        surface = CreateOrRecycleTarget(aContainer, aManager);
+
+        MOZ_PERFORMANCE_WARNING("gfx", "[%p] Container layer requires intermediate surface rendering\n", aContainer);
+        RenderIntermediate(aContainer, aManager, RenderTargetPixel::ToUntyped(aClipRect), surface);
+        aContainer->SetChildrenChanged(false);
+      }
+
+      aContainer->mPrepared->mTmpTarget = surface;
+    } else {
+      MOZ_PERFORMANCE_WARNING("gfx", "[%p] Container layer requires intermediate surface copy\n", aContainer);
+      aContainer->mPrepared->mNeedsSurfaceCopy = true;
+      aContainer->mLastIntermediateSurface = nullptr;
+    }
+  } else {
+    aContainer->mLastIntermediateSurface = nullptr;
+  }
+}
+
+template<class ContainerT> void
+RenderLayers(ContainerT* aContainer,
+	     LayerManagerComposite* aManager,
+	     const RenderTargetIntRect& aClipRect)
+{
+  Compositor* compositor = aManager->GetCompositor();
+
+  for (size_t i = 0u; i < aContainer->mPrepared->mLayers.Length(); i++) {
+    PreparedLayer& preparedData = aContainer->mPrepared->mLayers[i];
+    LayerComposite* layerToRender = preparedData.mLayer;
+    const RenderTargetIntRect& clipRect = preparedData.mClipRect;
+    Layer* layer = layerToRender->GetLayer();
+
+    gfxRGBA color;
+    if (LayerHasCheckerboardingAPZC(layer, &color)) {
+      // Ideally we would want to intersect the checkerboard region from the APZ with the layer bounds
+      // and only fill in that area. However the layer bounds takes into account the base translation
+      // for the painted layer whereas the checkerboard region does not. One does not simply
+      // intersect areas in different coordinate spaces. So we do this a little more permissively
+      // and only fill in the background when we know there is checkerboard, which in theory
+      // should only occur transiently.
+      nsIntRect layerBounds = layer->GetLayerBounds();
+      EffectChain effectChain(layer);
+      effectChain.mPrimaryEffect = new EffectSolidColor(ToColor(color));
+      aManager->GetCompositor()->DrawQuad(gfx::Rect(layerBounds.x, layerBounds.y, layerBounds.width, layerBounds.height),
+                                          gfx::Rect(clipRect.ToUnknownRect()),
+                                          effectChain, layer->GetEffectiveOpacity(),
+                                          layer->GetEffectiveTransform());
+    }
+
+    if (layerToRender->HasLayerBeenComposited()) {
+      // Composer2D will compose this layer so skip GPU composition
+      // this time & reset composition flag for next composition phase
+      layerToRender->SetLayerComposited(false);
+      nsIntRect clearRect = layerToRender->GetClearRect();
+      if (!clearRect.IsEmpty()) {
+        // Clear layer's visible rect on FrameBuffer with transparent pixels
+        gfx::Rect fbRect(clearRect.x, clearRect.y, clearRect.width, clearRect.height);
+        compositor->ClearRect(fbRect);
+        layerToRender->SetClearRect(nsIntRect(0, 0, 0, 0));
+      }
+    } else {
+      layerToRender->RenderLayer(RenderTargetPixel::ToUntyped(clipRect));
+    }
+
+    if (gfxPrefs::UniformityInfo()) {
+      PrintUniformityInfo(layer);
+    }
+
+    if (gfxPrefs::DrawLayerInfo()) {
+      DrawLayerInfo(clipRect, aManager, layer);
+    }
+
+    // Draw a border around scrollable layers.
+    for (uint32_t i = 0; i < layer->GetFrameMetricsCount(); i++) {
+      // A layer can be scrolled by multiple scroll frames. Draw a border
+      // for each.
+      if (layer->GetFrameMetrics(i).IsScrollable()) {
+        // Since the composition bounds are in the parent layer's coordinates,
+        // use the parent's effective transform rather than the layer's own.
+        ParentLayerRect compositionBounds = layer->GetFrameMetrics(i).mCompositionBounds;
+        aManager->GetCompositor()->DrawDiagnostics(DiagnosticFlags::CONTAINER,
+                                                   compositionBounds.ToUnknownRect(),
+                                                   gfx::Rect(aClipRect.ToUnknownRect()),
+                                                   aContainer->GetEffectiveTransform());
+      }
+    }
+
     // invariant: our GL context should be current here, I don't think we can
     // assert it though
   }
+}
 
-  if (needsSurface) {
-    // Unbind the current surface and rebind the previous one.
+template<class ContainerT> RefPtr<CompositingRenderTarget>
+CreateOrRecycleTarget(ContainerT* aContainer,
+                      LayerManagerComposite* aManager)
+{
+  Compositor* compositor = aManager->GetCompositor();
+  SurfaceInitMode mode = INIT_MODE_CLEAR;
+  gfx::IntRect surfaceRect = ContainerVisibleRect(aContainer);
+  if (aContainer->GetEffectiveVisibleRegion().GetNumRects() == 1 &&
+      (aContainer->GetContentFlags() & Layer::CONTENT_OPAQUE))
+  {
+    mode = INIT_MODE_NONE;
+  }
+
+  RefPtr<CompositingRenderTarget>& lastSurf = aContainer->mLastIntermediateSurface;
+  if (lastSurf && lastSurf->GetRect().IsEqualEdges(surfaceRect)) {
+    if (mode == INIT_MODE_CLEAR) {
+      lastSurf->ClearOnBind();
+    }
+
+    return lastSurf;
+  } else {
+    lastSurf = compositor->CreateRenderTarget(surfaceRect, mode);
+
+    return lastSurf;
+  }
+}
+
+template<class ContainerT> RefPtr<CompositingRenderTarget>
+CreateTemporaryTargetAndCopyFromBackground(ContainerT* aContainer,
+                                           LayerManagerComposite* aManager)
+{
+  Compositor* compositor = aManager->GetCompositor();
+  nsIntRect visibleRect = aContainer->GetEffectiveVisibleRegion().GetBounds();
+  RefPtr<CompositingRenderTarget> previousTarget = compositor->GetCurrentRenderTarget();
+  gfx::IntRect surfaceRect = gfx::IntRect(visibleRect.x, visibleRect.y,
+                                          visibleRect.width, visibleRect.height);
+
+  gfx::IntPoint sourcePoint = gfx::IntPoint(visibleRect.x, visibleRect.y);
+
+  gfx::Matrix4x4 transform = aContainer->GetEffectiveTransform();
+  DebugOnly<gfx::Matrix> transform2d;
+  MOZ_ASSERT(transform.Is2D(&transform2d) && !gfx::ThebesMatrix(transform2d).HasNonIntegerTranslation());
+  sourcePoint += gfx::IntPoint(transform._41, transform._42);
+
+  sourcePoint -= compositor->GetCurrentRenderTarget()->GetOrigin();
+
+  return compositor->CreateRenderTargetFromSource(surfaceRect, previousTarget, sourcePoint);
+}
+
+template<class ContainerT> void
+RenderIntermediate(ContainerT* aContainer,
+                   LayerManagerComposite* aManager,
+                   const nsIntRect& aClipRect,
+                   RefPtr<CompositingRenderTarget> surface)
+{
+  Compositor* compositor = aManager->GetCompositor();
+  RefPtr<CompositingRenderTarget> previousTarget = compositor->GetCurrentRenderTarget();
+
+  if (!surface) {
+    return;
+  }
+
+  compositor->SetRenderTarget(surface);
+  // pre-render all of the layers into our temporary
+  RenderLayers(aContainer, aManager, RenderTargetPixel::FromUntyped(aClipRect));
+  // Unbind the current surface and rebind the previous one.
+  compositor->SetRenderTarget(previousTarget);
+}
+
+template<class ContainerT> void
+ContainerRender(ContainerT* aContainer,
+                 LayerManagerComposite* aManager,
+                 const nsIntRect& aClipRect)
+{
+  MOZ_ASSERT(aContainer->mPrepared);
+
+  gfx::VRHMDInfo *hmdInfo = aContainer->GetVRHMDInfo();
+  if (hmdInfo && hmdInfo->GetConfiguration().IsValid()) {
+    ContainerRenderVR(aContainer, aManager, aClipRect, hmdInfo);
+    aContainer->mPrepared = nullptr;
+    return;
+  }
+
+  if (aContainer->UseIntermediateSurface()) {
+    RefPtr<CompositingRenderTarget> surface;
+
+    if (aContainer->mPrepared->mNeedsSurfaceCopy) {
+      // we needed to copy the background so we waited until now to render the intermediate
+      surface = CreateTemporaryTargetAndCopyFromBackground(aContainer, aManager);
+      RenderIntermediate(aContainer, aManager,
+                         aClipRect, surface);
+    } else {
+      surface = aContainer->mPrepared->mTmpTarget;
+    }
+
+    if (!surface) {
+      aContainer->mPrepared = nullptr;
+      return;
+    }
+
+    float opacity = aContainer->GetEffectiveOpacity();
+
+    nsIntRect visibleRect = aContainer->GetEffectiveVisibleRegion().GetBounds();
 #ifdef MOZ_DUMP_PAINTING
     if (gfxUtils::sDumpPainting) {
-      nsRefPtr<gfxImageSurface> surf = surface->Dump(aManager->GetCompositor());
-      WriteSnapshotToDumpFile(aContainer, surf);
+      RefPtr<gfx::DataSourceSurface> surf = surface->Dump(aManager->GetCompositor());
+      if (surf) {
+        WriteSnapshotToDumpFile(aContainer, surf);
+      }
     }
 #endif
 
-    compositor->SetRenderTarget(previousTarget);
-    EffectChain effectChain;
-    LayerManagerComposite::AddMaskEffect(aContainer->GetMaskLayer(),
-                                         effectChain,
-                                         !aContainer->GetTransform().CanDraw2D());
+    EffectChain effectChain(aContainer);
+    LayerManagerComposite::AutoAddMaskEffect autoMaskEffect(aContainer->GetMaskLayer(),
+                                                            effectChain,
+                                                            !aContainer->GetTransform().CanDraw2D());
+    if (autoMaskEffect.Failed()) {
+      NS_WARNING("Failed to apply a mask effect.");
+      return;
+    }
 
+    aContainer->AddBlendModeEffect(effectChain);
     effectChain.mPrimaryEffect = new EffectRenderTarget(surface);
-
-    gfx::Matrix4x4 transform;
-    ToMatrix4x4(aContainer->GetEffectiveTransform(), transform);
 
     gfx::Rect rect(visibleRect.x, visibleRect.y, visibleRect.width, visibleRect.height);
     gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
     aManager->GetCompositor()->DrawQuad(rect, clipRect, effectChain, opacity,
-                                        transform, gfx::Point(aOffset.x, aOffset.y));
+                                        aContainer->GetEffectiveTransform());
+  } else {
+    RenderLayers(aContainer, aManager, RenderTargetPixel::FromUntyped(aClipRect));
   }
+  aContainer->mPrepared = nullptr;
 
-  if (aContainer->GetFrameMetrics().IsScrollable()) {
-    gfx::Matrix4x4 transform;
-    ToMatrix4x4(aContainer->GetEffectiveTransform(), transform);
-
-    gfx::Rect rect(visibleRect.x, visibleRect.y, visibleRect.width, visibleRect.height);
-    gfx::Rect clipRect(aClipRect.x, aClipRect.y, aClipRect.width, aClipRect.height);
-    aManager->GetCompositor()->DrawDiagnostics(gfx::Color(1.0, 0.0, 0.0, 1.0),
-                                               rect, clipRect,
-                                               transform, gfx::Point(aOffset.x, aOffset.y));
+  // If it is a scrollable container layer with no child layers, and one of the APZCs
+  // attached to it has a nonempty async transform, then that transform is not applied
+  // to any visible content. Display a warning box (conditioned on the FPS display being
+  // enabled).
+  if (gfxPrefs::LayersDrawFPS() && aContainer->IsScrollInfoLayer()) {
+    // Since aContainer doesn't have any children we can just iterate from the top metrics
+    // on it down to the bottom using GetFirstChild and not worry about walking onto another
+    // underlying layer.
+    for (LayerMetricsWrapper i(aContainer); i; i = i.GetFirstChild()) {
+      if (AsyncPanZoomController* apzc = i.GetApzc()) {
+        if (!apzc->GetAsyncTransformAppliedToContent()
+            && !Matrix4x4(apzc->GetCurrentAsyncTransform()).IsIdentity()) {
+          aManager->UnusedApzTransformWarning();
+          break;
+        }
+      }
+    }
   }
 }
 
@@ -189,75 +560,6 @@ ContainerLayerComposite::~ContainerLayerComposite()
 }
 
 void
-ContainerLayerComposite::InsertAfter(Layer* aChild, Layer* aAfter)
-{
-  NS_ASSERTION(aChild->Manager() == Manager(),
-               "Child has wrong manager");
-  NS_ASSERTION(!aChild->GetParent(),
-               "aChild already in the tree");
-  NS_ASSERTION(!aChild->GetNextSibling() && !aChild->GetPrevSibling(),
-               "aChild already has siblings?");
-  NS_ASSERTION(!aAfter ||
-               (aAfter->Manager() == Manager() &&
-                aAfter->GetParent() == this),
-               "aAfter is not our child");
-
-  aChild->SetParent(this);
-  if (aAfter == mLastChild) {
-    mLastChild = aChild;
-  }
-  if (!aAfter) {
-    aChild->SetNextSibling(mFirstChild);
-    if (mFirstChild) {
-      mFirstChild->SetPrevSibling(aChild);
-    }
-    mFirstChild = aChild;
-    NS_ADDREF(aChild);
-    DidInsertChild(aChild);
-    return;
-  }
-
-  Layer* next = aAfter->GetNextSibling();
-  aChild->SetNextSibling(next);
-  aChild->SetPrevSibling(aAfter);
-  if (next) {
-    next->SetPrevSibling(aChild);
-  }
-  aAfter->SetNextSibling(aChild);
-  NS_ADDREF(aChild);
-  DidInsertChild(aChild);
-}
-
-void
-ContainerLayerComposite::RemoveChild(Layer *aChild)
-{
-  NS_ASSERTION(aChild->Manager() == Manager(),
-               "Child has wrong manager");
-  NS_ASSERTION(aChild->GetParent() == this,
-               "aChild not our child");
-
-  Layer* prev = aChild->GetPrevSibling();
-  Layer* next = aChild->GetNextSibling();
-  if (prev) {
-    prev->SetNextSibling(next);
-  } else {
-    this->mFirstChild = next;
-  }
-  if (next) {
-    next->SetPrevSibling(prev);
-  } else {
-    this->mLastChild = prev;
-  }
-
-  aChild->SetNextSibling(nullptr);
-  aChild->SetPrevSibling(nullptr);
-  aChild->SetParent(nullptr);
-
-  this->DidRemoveChild(aChild);
-  NS_RELEASE(aChild);
-}
-
-void
 ContainerLayerComposite::Destroy()
 {
   if (!mDestroyed) {
@@ -279,60 +581,22 @@ ContainerLayerComposite::GetFirstChildComposite()
 }
 
 void
-ContainerLayerComposite::RepositionChild(Layer* aChild, Layer* aAfter)
+ContainerLayerComposite::RenderLayer(const nsIntRect& aClipRect)
 {
-  NS_ASSERTION(aChild->Manager() == Manager(),
-               "Child has wrong manager");
-  NS_ASSERTION(aChild->GetParent() == this,
-               "aChild not our child");
-  NS_ASSERTION(!aAfter ||
-               (aAfter->Manager() == Manager() &&
-                aAfter->GetParent() == this),
-               "aAfter is not our child");
-
-  Layer* prev = aChild->GetPrevSibling();
-  Layer* next = aChild->GetNextSibling();
-  if (prev == aAfter) {
-    // aChild is already in the correct position, nothing to do.
-    return;
-  }
-  if (prev) {
-    prev->SetNextSibling(next);
-  }
-  if (next) {
-    next->SetPrevSibling(prev);
-  }
-  if (!aAfter) {
-    aChild->SetPrevSibling(nullptr);
-    aChild->SetNextSibling(mFirstChild);
-    if (mFirstChild) {
-      mFirstChild->SetPrevSibling(aChild);
-    }
-    mFirstChild = aChild;
-    return;
-  }
-
-  Layer* afterNext = aAfter->GetNextSibling();
-  if (afterNext) {
-    afterNext->SetPrevSibling(aChild);
-  } else {
-    mLastChild = aChild;
-  }
-  aAfter->SetNextSibling(aChild);
-  aChild->SetPrevSibling(aAfter);
-  aChild->SetNextSibling(afterNext);
+  ContainerRender(this, mCompositeManager, aClipRect);
 }
 
 void
-ContainerLayerComposite::RenderLayer(const nsIntPoint& aOffset,
-                                     const nsIntRect& aClipRect)
+ContainerLayerComposite::Prepare(const RenderTargetIntRect& aClipRect)
 {
-  ContainerRender(this, aOffset, mCompositeManager, aClipRect);
+  ContainerPrepare(this, mCompositeManager, aClipRect);
 }
 
 void
 ContainerLayerComposite::CleanupResources()
 {
+  mLastIntermediateSurface = nullptr;
+
   for (Layer* l = GetFirstChild(); l; l = l->GetNextSibling()) {
     LayerComposite* layerToCleanup = static_cast<LayerComposite*>(l->ImplData());
     layerToCleanup->CleanupResources();
@@ -368,16 +632,24 @@ RefLayerComposite::GetFirstChildComposite()
 }
 
 void
-RefLayerComposite::RenderLayer(const nsIntPoint& aOffset,
-                               const nsIntRect& aClipRect)
+RefLayerComposite::RenderLayer(const nsIntRect& aClipRect)
 {
-  ContainerRender(this, aOffset, mCompositeManager, aClipRect);
+  ContainerRender(this, mCompositeManager, aClipRect);
 }
+
+void
+RefLayerComposite::Prepare(const RenderTargetIntRect& aClipRect)
+{
+  ContainerPrepare(this, mCompositeManager, aClipRect);
+}
+
 
 void
 RefLayerComposite::CleanupResources()
 {
+  mLastIntermediateSurface = nullptr;
 }
 
 } /* layers */
 } /* mozilla */
+

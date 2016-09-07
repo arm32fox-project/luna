@@ -23,17 +23,16 @@ class RasterImage;
 class nsWEBPDecoder : public Decoder
 {
 public:
-  nsWEBPDecoder(RasterImage &aImage);
+  nsWEBPDecoder(RasterImage* aImage);
   virtual ~nsWEBPDecoder();
 
   virtual void InitInternal();
-  virtual void WriteInternal(const char* aBuffer, uint32_t aCount, DecodeStrategy aStrategy);
+  virtual void WriteInternal(const char* aBuffer, uint32_t aCount);
   virtual void FinishInternal();
 public:
   WebPDecBuffer mDecBuf;   
   WebPIDecoder *mDecoder;  
   uint8_t *mData;          // Pointer to WebP-decoded data.
-  uint32_t *mImageData;     // Pointer to RGBA image buffer (allocated by Image Frame).
   int mLastLine;           // Last image scan-line read so far.
 
 };

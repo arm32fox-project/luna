@@ -16,6 +16,7 @@
 #include "nsString.h"
 
 class nsMenuX;
+class nsMenuBarX;
 class nsMenuItemX;
 class nsIWidget;
 class nsIContent;
@@ -27,16 +28,33 @@ public:
   NS_DECL_ISUPPORTS
 
   nsNativeMenuServiceX() {}
-  virtual ~nsNativeMenuServiceX() {}
 
-  NS_IMETHOD CreateNativeMenuBar(nsIWidget* aParent, nsIContent* aMenuBarNode);
+  NS_IMETHOD CreateNativeMenuBar(nsIWidget* aParent, nsIContent* aMenuBarNode) override;
+
+protected:
+  virtual ~nsNativeMenuServiceX() {}
 };
+
+@interface NSMenu (Undocumented)
+// Undocumented method, present unchanged since OS X 10.6, used to temporarily
+// highlight a top-level menu item when an appropriate Cmd+key combination is
+// pressed.
+- (void)_performActionWithHighlightingForItemAtIndex:(NSInteger)index;
+@end
 
 // Objective-C class used to allow us to intervene with keyboard event handling.
 // We allow mouse actions to work normally.
 @interface GoannaNSMenu : NSMenu
 {
+@private
+  nsMenuBarX *mMenuBarOwner; // Weak -- if non-null it owns us
+  bool mDelayResignMainMenu;
 }
+- (id)initWithTitle:(NSString *)aTitle andMenuBarOwner:(nsMenuBarX *)aMenuBarOwner;
+- (void)resetMenuBarOwner;
+- (bool)delayResignMainMenu;
+- (void)setDelayResignMainMenu:(bool)aShouldDelay;
+- (void)delayedPaintMenuBar:(id)unused;
 @end
 
 // Objective-C class used as action target for menu items
@@ -80,11 +98,11 @@ public:
 
   static NativeMenuItemTarget* sNativeEventTarget;
   static nsMenuBarX*           sLastGoannaMenuBarPainted;
+  static nsMenuBarX*           sCurrentPaintDelayedMenuBar;
 
   // The following content nodes have been removed from the menu system.
   // We save them here for use in command handling.
   nsCOMPtr<nsIContent> mAboutItemContent;
-  nsCOMPtr<nsIContent> mUpdateItemContent;
   nsCOMPtr<nsIContent> mPrefItemContent;
   nsCOMPtr<nsIContent> mQuitItemContent;
 
@@ -92,8 +110,8 @@ public:
   NS_DECL_CHANGEOBSERVER
 
   // nsMenuObjectX
-  void*             NativeData()     {return (void*)mNativeMenu;}
-  nsMenuObjectTypeX MenuObjectType() {return eMenuBarObjectType;}
+  void*             NativeData() override {return (void*)mNativeMenu;}
+  nsMenuObjectTypeX MenuObjectType() override {return eMenuBarObjectType;}
 
   // nsMenuBarX
   nsresult          Create(nsIWidget* aParent, nsIContent* aContent);
@@ -103,13 +121,16 @@ public:
   nsMenuX*          GetMenuAt(uint32_t aIndex);
   nsMenuX*          GetXULHelpMenu();
   void              SetSystemHelpMenu();
-  nsresult          Paint();
+  nsresult          Paint(bool aDelayed = false);
+  void              PaintMenuBarAfterDelay();
+  void              ResetAwaitingDelayedPaint() { mAwaitingDelayedPaint = false; }
   void              ForceUpdateNativeMenuAt(const nsAString& indexString);
   void              ForceNativeMenuReload(); // used for testing
   static char       GetLocalizedAccelKey(const char *shortcutID);
 
 protected:
   void              ConstructNativeMenus();
+  void              ConstructFallbackNativeMenus();
   nsresult          InsertMenuAtIndex(nsMenuX* aMenu, uint32_t aIndex);
   void              RemoveMenuAtIndex(uint32_t aIndex);
   void              HideItem(nsIDOMDocument* inDoc, const nsAString & inID, nsIContent** outHiddenNode);
@@ -121,6 +142,8 @@ protected:
   nsTArray< nsAutoPtr<nsMenuX> > mMenuArray;
   nsIWidget*         mParentWindow;        // [weak]
   GoannaNSMenu*       mNativeMenu;            // root menu, representing entire menu bar
+
+  bool               mAwaitingDelayedPaint;
 };
 
 #endif // nsMenuBarX_h_

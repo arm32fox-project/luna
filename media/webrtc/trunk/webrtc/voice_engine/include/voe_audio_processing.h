@@ -35,7 +35,9 @@
 #ifndef WEBRTC_VOICE_ENGINE_VOE_AUDIO_PROCESSING_H
 #define WEBRTC_VOICE_ENGINE_VOE_AUDIO_PROCESSING_H
 
-#include "common_types.h"
+#include <stdio.h>
+
+#include "webrtc/common_types.h"
 
 namespace webrtc {
 
@@ -83,7 +85,7 @@ public:
     // Sets the AGC configuration.
     // Should only be used in situations where the working environment
     // is well known.
-    virtual int SetAgcConfig(const AgcConfig config) = 0;
+    virtual int SetAgcConfig(AgcConfig config) = 0;
 
     // Gets the AGC configuration.
     virtual int GetAgcConfig(AgcConfig& config) = 0;
@@ -152,7 +154,7 @@ public:
 
     // Modifies the AGC configuration on the receiving side for the
     // specified |channel|.
-    virtual int SetRxAgcConfig(int channel, const AgcConfig config) = 0;
+    virtual int SetRxAgcConfig(int channel, AgcConfig config) = 0;
 
     // Gets the AGC configuration on the receiving side.
     virtual int GetRxAgcConfig(int channel, AgcConfig& config) = 0;
@@ -190,6 +192,10 @@ public:
     // Enables recording of Audio Processing (AP) debugging information.
     // The file can later be used for off-line analysis of the AP performance.
     virtual int StartDebugRecording(const char* fileNameUTF8) = 0;
+
+    // Same as above but sets and uses an existing file handle. Takes ownership
+    // of |file_handle| and passes it on to the audio processing module.
+    virtual int StartDebugRecording(FILE* file_handle) = 0;
 
     // Disables recording of AP debugging information.
     virtual int StopDebugRecording() = 0;
@@ -232,6 +238,6 @@ protected:
     virtual ~VoEAudioProcessing() {}
 };
 
-}  //  namespace webrtc
+}  // namespace webrtc
 
 #endif  // WEBRTC_VOICE_ENGINE_VOE_AUDIO_PROCESSING_H

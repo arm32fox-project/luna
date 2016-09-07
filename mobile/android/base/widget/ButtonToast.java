@@ -16,71 +16,111 @@
 
 package org.mozilla.goanna.widget;
 
-import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
-import android.os.Bundle;
+import org.mozilla.goanna.R;
+import org.mozilla.goanna.animation.PropertyAnimator;
+
+import android.graphics.drawable.Drawable;
 import android.os.Handler;
-import android.os.Parcelable;
-import android.text.TextUtils;
-import android.view.animation.Animation;
-import android.view.animation.AlphaAnimation;
 import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 
-import org.mozilla.goanna.animation.PropertyAnimator;
-import org.mozilla.goanna.R;
-
 public class ButtonToast {
-    private final static int TOAST_DURATION = 5000;
+    @SuppressWarnings("unused")
+    private final static String LOGTAG = "GoannaButtonToast";
 
-    private View mView;
-    private TextView mMessageView;
-    private Button mButton;
-    private Handler mHideHandler = new Handler();
+    public static int LENGTH_SHORT = 3000;
+    public static int LENGTH_LONG = 5000;
 
-    private ToastListener mListener;
+    private final TextView mMessageView;
+    private final Button mButton;
+    private final Handler mHideHandler = new Handler();
+    final View mView;
+    Toast mCurrentToast;
 
-    // State objects
-    private CharSequence mToken;
-    private CharSequence mButtonMessage;
-    private int mButtonIcon;
-    private CharSequence mMessage;
-
-    public interface ToastListener {
-        void onButtonClicked(CharSequence token);
+    public enum ReasonHidden {
+        CLICKED,
+        TOUCH_OUTSIDE,
+        TIMEOUT,
+        REPLACED,
+        STARTUP
     }
 
-    public ButtonToast(View view, ToastListener listener) {
-        mView = view;
-        mListener = listener;
+    // State objects
+    private static class Toast {
+        public final CharSequence buttonMessage;
+        public Drawable buttonDrawable;
+        public final CharSequence message;
+        public final int duration;
+        public ToastListener listener;
 
+        public Toast(CharSequence aMessage, int aDuration,
+                CharSequence aButtonMessage, Drawable aDrawable,
+                ToastListener aListener) {
+            message = aMessage;
+            duration = aDuration;
+            buttonMessage = aButtonMessage;
+            buttonDrawable = aDrawable;
+            listener = aListener;
+        }
+    }
+
+    public interface ToastListener {
+        void onButtonClicked();
+        void onToastHidden(ReasonHidden reason);
+    }
+
+    public ButtonToast(View view) {
+        mView = view;
         mMessageView = (TextView) mView.findViewById(R.id.toast_message);
         mButton = (Button) mView.findViewById(R.id.toast_button);
         mButton.setOnClickListener(new View.OnClickListener() {
                     @Override
                     public void onClick(View view) {
-                        hide(false);
-                        mListener.onButtonClicked(mToken);
+                        Toast t = mCurrentToast;
+                        if (t == null)
+                            return;
+
+                        hide(false, ReasonHidden.CLICKED);
+                        if (t.listener != null) {
+                            t.listener.onButtonClicked();
+                        }
                     }
                 });
 
-        hide(true);
+        hide(true, ReasonHidden.STARTUP);
     }
 
     public void show(boolean immediate, CharSequence message,
-                     CharSequence buttonMessage, int buttonIcon,
-                     CharSequence token) {
-        mToken = token;
-        mMessage = message;
-        mButtonMessage = buttonMessage;
-        mMessageView.setText(mMessage);
+                     int duration, CharSequence buttonMessage,
+                     int buttonDrawableId, ToastListener listener) {
+        final Drawable d = mView.getContext().getResources().getDrawable(buttonDrawableId);
+        show(false, message, duration, buttonMessage, d, listener);
+    }
 
-        mButton.setText(buttonMessage);
-        mButton.setCompoundDrawablesWithIntrinsicBounds(0, 0, buttonIcon, 0);
+    public void show(boolean immediate, CharSequence message,
+                     int duration, CharSequence buttonMessage,
+                     Drawable buttonDrawable, ToastListener listener) {
+        show(new Toast(message, duration, buttonMessage, buttonDrawable, listener), immediate);
+    }
+
+    private void show(Toast t, boolean immediate) {
+        // If we're already showing a toast, replace it with the new one by hiding the old one and quickly showing the new one.
+        if (mCurrentToast != null) {
+            hide(true, ReasonHidden.REPLACED);
+            immediate = true;
+        }
+
+        mCurrentToast = t;
+        mButton.setEnabled(true);
+
+        // Our toast is re-used, so we update all fields to clear any old values.
+        mMessageView.setText(null != t.message ? t.message : "");
+        mButton.setText(null != t.buttonMessage ? t.buttonMessage : "");
+        mButton.setCompoundDrawablesWithIntrinsicBounds(t.buttonDrawable, null, null, null);
 
         mHideHandler.removeCallbacks(mHideRunnable);
-        mHideHandler.postDelayed(mHideRunnable, TOAST_DURATION);
+        mHideHandler.postDelayed(mHideRunnable, t.duration);
 
         mView.setVisibility(View.VISIBLE);
         int duration = immediate ? 0 : mView.getResources().getInteger(android.R.integer.config_longAnimTime);
@@ -90,56 +130,51 @@ public class ButtonToast {
         animator.start();
     }
 
-    public void hide(boolean immediate) {
+    public void hide(boolean immediate, ReasonHidden reason) {
+        // There's nothing to do if the view is already hidden.
+        if (mView.getVisibility() == View.GONE) {
+            return;
+        }
+
+        if (mCurrentToast != null && mCurrentToast.listener != null) {
+            mCurrentToast.listener.onToastHidden(reason);
+        }
+        mCurrentToast = null;
+        mButton.setEnabled(false);
         mHideHandler.removeCallbacks(mHideRunnable);
         int duration = immediate ? 0 : mView.getResources().getInteger(android.R.integer.config_longAnimTime);
 
         mView.clearAnimation();
         if (immediate) {
             mView.setVisibility(View.GONE);
-            mMessage = null;
-            mToken = null;
         } else {
             // Using Android's animation frameworks will not correctly turn off clicking.
             // See bug 885717.
             PropertyAnimator animator = new PropertyAnimator(duration);
             animator.attach(mView, PropertyAnimator.Property.ALPHA, 0.0f);
-            animator.setPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener () {
+            animator.addPropertyAnimationListener(new PropertyAnimator.PropertyAnimationListener () {
+                // If we are showing a toast and go in the background
+                // onAnimationEnd will be called when the app is restored
+                @Override
                 public void onPropertyAnimationEnd() {
+                    mView.clearAnimation();
                     mView.setVisibility(View.GONE);
-                    mMessage = null;
-                    mToken = null;
                 }
+                @Override
                 public void onPropertyAnimationStart() { }
             });
             animator.start();
         }
     }
 
-    public void onSaveInstanceState(Bundle outState) {
-        outState.putCharSequence("toast_message", mMessage);
-        outState.putCharSequence("toast_button_message", mButtonMessage);
-        outState.putInt("toast_button_drawable", mButtonIcon);
-        outState.putCharSequence("toast_token", mToken);
-    }
-
-    public void onRestoreInstanceState(Bundle savedInstanceState) {
-        if (savedInstanceState != null) {
-            mMessage = savedInstanceState.getCharSequence("toast_message");
-            mButtonMessage = savedInstanceState.getCharSequence("toast_buttonmessage");
-            mButtonIcon = savedInstanceState.getInt("toast_button_drawable");
-            mToken = savedInstanceState.getCharSequence("toast_token");
-
-            if (mToken != null || !TextUtils.isEmpty(mMessage)) {
-                show(true, mMessage, mButtonMessage, mButtonIcon, mToken);
-            }
-        }
-    }
-
-    private Runnable mHideRunnable = new Runnable() {
+    private final Runnable mHideRunnable = new Runnable() {
         @Override
         public void run() {
-            hide(false);
+            hide(false, ReasonHidden.TIMEOUT);
         }
     };
+
+    public boolean isVisible() {
+        return (mView.getVisibility() == View.VISIBLE);
+    }
 }

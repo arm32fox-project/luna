@@ -5,7 +5,6 @@
 
 #include "base/basictypes.h"
 
-#include "jsapi.h"
 #include "jsfriendapi.h"
 #include "jswrapper.h"
 
@@ -13,11 +12,11 @@
 #include "nsJSNPRuntime.h"
 #include "nsNPAPIPlugin.h"
 #include "nsNPAPIPluginInstance.h"
+#include "nsIGlobalObject.h"
 #include "nsIScriptGlobalObject.h"
 #include "nsIScriptContext.h"
 #include "nsDOMJSUtils.h"
-#include "nsContentUtils.h"
-#include "nsCxPusher.h"
+#include "nsJSUtils.h"
 #include "nsIDocument.h"
 #include "nsIJSRuntimeService.h"
 #include "nsIXPConnect.h"
@@ -25,8 +24,14 @@
 #include "prmem.h"
 #include "nsIContent.h"
 #include "nsPluginInstanceOwner.h"
-#include "mozilla/HashFunctions.h"
 #include "nsWrapperCacheInlines.h"
+#include "js/HashTable.h"
+#include "mozilla/HashFunctions.h"
+#include "mozilla/dom/ScriptSettings.h"
+#include "mozilla/plugins/PluginAsyncSurrogate.h"
+
+using mozilla::plugins::AsyncNPObject;
+using mozilla::plugins::PluginAsyncSurrogate;
 
 #define NPRUNTIME_JSCLASS_NAME "NPObject JS wrapper class"
 
@@ -37,6 +42,29 @@ using namespace mozilla;
 using mozilla::plugins::PluginScriptableObjectParent;
 using mozilla::plugins::ParentNPObject;
 
+struct JSObjWrapperHasher : public js::DefaultHasher<nsJSObjWrapperKey>
+{
+  typedef nsJSObjWrapperKey Key;
+  typedef Key Lookup;
+
+  static uint32_t hash(const Lookup &l) {
+    return HashGeneric(l.mJSObj, l.mNpp);
+  }
+
+  static void rekey(Key &k, const Key& newKey) {
+    MOZ_ASSERT(k.mNpp == newKey.mNpp);
+    k.mJSObj = newKey.mJSObj;
+  }
+};
+
+class NPObjWrapperHashEntry : public PLDHashEntryHdr
+{
+public:
+  NPObject *mNPObj; // Must be the first member for the PLDHash stubs to work
+  JS::TenuredHeap<JSObject*> mJSObj;
+  NPP mNpp;
+};
+
 // Hash of JSObject wrappers that wraps JSObjects as NPObjects. There
 // will be one wrapper per JSObject per plugin instance, i.e. if two
 // plugins access the JSObject x, two wrappers for x will be
@@ -44,7 +72,15 @@ using mozilla::plugins::ParentNPObject;
 // when a plugin is torn down in case there's a leak in the plugin (we
 // don't want to leak the world just because a plugin leaks an
 // NPObject).
-static PLDHashTable sJSObjWrappers;
+typedef js::HashMap<nsJSObjWrapperKey,
+                    nsJSObjWrapper*,
+                    JSObjWrapperHasher,
+                    js::SystemAllocPolicy> JSObjWrapperTable;
+static JSObjWrapperTable sJSObjWrappers;
+
+// Whether it's safe to iterate sJSObjWrappers.  Set to true when sJSObjWrappers
+// has been initialized and is not currently being enumerated.
+static bool sJSObjWrappersAccessible = false;
 
 // Hash of NPObject wrappers that wrap NPObjects as JSObjects.
 static PLDHashTable sNPObjWrappers;
@@ -54,18 +90,31 @@ static PLDHashTable sNPObjWrappers;
 // wrappers and we can kill off hash tables etc.
 static int32_t sWrapperCount;
 
-// The JSRuntime. Used to unroot JSObjects when no JSContext is
-// reachable.
-static JSRuntime *sJSRuntime;
+// The runtime service used to register/unregister GC callbacks.
+nsCOMPtr<nsIJSRuntimeService> sCallbackRuntime;
 
 static nsTArray<NPObject*>* sDelayedReleases;
 
 namespace {
 
+inline void
+CastNPObject(NPObject *aObj, PluginScriptableObjectParent*& aActor,
+             PluginAsyncSurrogate*& aSurrogate)
+{
+  aActor = nullptr;
+  aSurrogate = nullptr;
+  if (aObj->_class == PluginScriptableObjectParent::GetClass()) {
+    aActor = static_cast<ParentNPObject*>(aObj)->parent;
+  } else if (aObj->_class == PluginAsyncSurrogate::GetClass()) {
+    aSurrogate = static_cast<AsyncNPObject*>(aObj)->mSurrogate;
+  }
+}
+
 inline bool
 NPObjectIsOutOfProcessProxy(NPObject *obj)
 {
-  return obj->_class == PluginScriptableObjectParent::GetClass();
+  return obj->_class == PluginScriptableObjectParent::GetClass() ||
+         obj->_class == PluginAsyncSurrogate::GetClass();
 }
 
 } // anonymous namespace
@@ -73,21 +122,26 @@ NPObjectIsOutOfProcessProxy(NPObject *obj)
 // Helper class that reports any JS exceptions that were thrown while
 // the plugin executed JS.
 
-class AutoJSExceptionReporter
+class MOZ_STACK_CLASS AutoJSExceptionReporter
 {
 public:
-  AutoJSExceptionReporter(JSContext *cx)
-    : mCx(cx)
+  AutoJSExceptionReporter(dom::AutoJSAPI& jsapi, nsJSObjWrapper* aWrapper)
+    : mJsapi(jsapi)
+    , mIsDestroyPending(aWrapper->mDestroyPending)
   {
+    jsapi.TakeOwnershipOfErrorReporting();
   }
 
   ~AutoJSExceptionReporter()
   {
-    JS_ReportPendingException(mCx);
+    if (mIsDestroyPending) {
+      mJsapi.ClearException();
+    }
   }
 
 protected:
-  JSContext *mCx;
+  dom::AutoJSAPI& mJsapi;
+  bool mIsDestroyPending;
 };
 
 
@@ -108,87 +162,110 @@ NPClass nsJSObjWrapper::sJSObjWrapperNPClass =
     nsJSObjWrapper::NP_Construct
   };
 
-static JSBool
+static bool
 NPObjWrapper_AddProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp);
 
-static JSBool
-NPObjWrapper_DelProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JSBool *succeeded);
+static bool
+NPObjWrapper_DelProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, bool *succeeded);
 
-static JSBool
-NPObjWrapper_SetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JSBool strict,
+static bool
+NPObjWrapper_SetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, bool strict,
                          JS::MutableHandle<JS::Value> vp);
 
-static JSBool
+static bool
 NPObjWrapper_GetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp);
 
-static JSBool
-NPObjWrapper_newEnumerate(JSContext *cx, JS::Handle<JSObject*> obj, JSIterateOp enum_op,
-                          JS::Value *statep, jsid *idp);
+static bool
+NPObjWrapper_Enumerate(JSContext *cx, JS::Handle<JSObject*> obj, JS::AutoIdVector &properties);
 
-static JSBool
-NPObjWrapper_NewResolve(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, unsigned flags,
-                        JS::MutableHandle<JSObject*> objp);
+static bool
+NPObjWrapper_Resolve(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
+                     bool *resolvedp);
 
-static JSBool
+static bool
 NPObjWrapper_Convert(JSContext *cx, JS::Handle<JSObject*> obj, JSType type, JS::MutableHandle<JS::Value> vp);
 
 static void
-NPObjWrapper_Finalize(JSFreeOp *fop, JSObject *obj);
+NPObjWrapper_Finalize(js::FreeOp *fop, JSObject *obj);
 
-static JSBool
+static void
+NPObjWrapper_ObjectMoved(JSObject *obj, const JSObject *old);
+
+static bool
 NPObjWrapper_Call(JSContext *cx, unsigned argc, JS::Value *vp);
 
-static JSBool
+static bool
 NPObjWrapper_Construct(JSContext *cx, unsigned argc, JS::Value *vp);
 
-static JSBool
-CreateNPObjectMember(NPP npp, JSContext *cx, JSObject *obj, NPObject *npobj,
-                     JS::Handle<jsid> id, NPVariant* getPropertyResult, JS::Value *vp);
+static bool
+CreateNPObjectMember(NPP npp, JSContext *cx, JSObject *obj, NPObject* npobj,
+                     JS::Handle<jsid> id,  NPVariant* getPropertyResult,
+                     JS::MutableHandle<JS::Value> vp);
 
-JSClass sNPObjectJSWrapperClass =
+const static js::Class sNPObjectJSWrapperClass =
   {
     NPRUNTIME_JSCLASS_NAME,
-    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS | JSCLASS_NEW_RESOLVE | JSCLASS_NEW_ENUMERATE,
+    JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS,
     NPObjWrapper_AddProperty,
     NPObjWrapper_DelProperty,
     NPObjWrapper_GetProperty,
     NPObjWrapper_SetProperty,
-    (JSEnumerateOp)NPObjWrapper_newEnumerate,
-    (JSResolveOp)NPObjWrapper_NewResolve,
+    nullptr,
+    NPObjWrapper_Resolve,
     NPObjWrapper_Convert,
     NPObjWrapper_Finalize,
-    nullptr,                                                /* checkAccess */
     NPObjWrapper_Call,
     nullptr,                                                /* hasInstance */
-    NPObjWrapper_Construct
+    NPObjWrapper_Construct,
+    nullptr,                                                /* trace */
+    JS_NULL_CLASS_SPEC,
+    {
+      nullptr,                                              /* outerObject */
+      nullptr,                                              /* innerObject */
+      false,                                                /* isWrappedNative */
+      nullptr,                                              /* weakmapKeyDelegateOp */
+      NPObjWrapper_ObjectMoved
+    },
+    {
+        nullptr, // lookupProperty
+        nullptr, // defineProperty
+        nullptr, // hasProperty
+        nullptr, // getProperty
+        nullptr, // setProperty
+        nullptr, // getOwnPropertyDescriptor
+        nullptr, // deleteProperty
+        nullptr, nullptr, // watch/unwatch
+        nullptr, // getElements
+        NPObjWrapper_Enumerate,
+        nullptr,
+    }
   };
 
 typedef struct NPObjectMemberPrivate {
-    JSObject *npobjWrapper;
-    JS::Value fieldValue;
-    NPIdentifier methodName;
+    JS::Heap<JSObject *> npobjWrapper;
+    JS::Heap<JS::Value> fieldValue;
+    JS::Heap<jsid> methodName;
     NPP   npp;
 } NPObjectMemberPrivate;
 
-static JSBool
+static bool
 NPObjectMember_Convert(JSContext *cx, JS::Handle<JSObject*> obj, JSType type, JS::MutableHandle<JS::Value> vp);
 
 static void
 NPObjectMember_Finalize(JSFreeOp *fop, JSObject *obj);
 
-static JSBool
+static bool
 NPObjectMember_Call(JSContext *cx, unsigned argc, JS::Value *vp);
 
 static void
 NPObjectMember_Trace(JSTracer *trc, JSObject *obj);
 
-static JSClass sNPObjectMemberClass =
+static const JSClass sNPObjectMemberClass =
   {
     "NPObject Ambiguous Member class", JSCLASS_HAS_PRIVATE | JSCLASS_IMPLEMENTS_BARRIERS,
-    JS_PropertyStub, JS_DeletePropertyStub,
-    JS_PropertyStub, JS_StrictPropertyStub, JS_EnumerateStub,
-    JS_ResolveStub, NPObjectMember_Convert,
-    NPObjectMember_Finalize, nullptr, NPObjectMember_Call,
+    nullptr, nullptr, nullptr, nullptr,
+    nullptr, nullptr, NPObjectMember_Convert,
+    NPObjectMember_Finalize, NPObjectMember_Call,
     nullptr, nullptr, NPObjectMember_Trace
   };
 
@@ -196,7 +273,29 @@ static void
 OnWrapperDestroyed();
 
 static void
-DelayedReleaseGCCallback(JSRuntime* rt, JSGCStatus status)
+TraceJSObjWrappers(JSTracer *trc, void *data)
+{
+  if (!sJSObjWrappers.initialized()) {
+    return;
+  }
+
+  // Trace all JSObjects in the sJSObjWrappers table and rekey the entries if
+  // any of them moved.
+  for (JSObjWrapperTable::Enum e(sJSObjWrappers); !e.empty(); e.popFront()) {
+    nsJSObjWrapperKey key = e.front().key();
+    JS_CallUnbarrieredObjectTracer(trc, &key.mJSObj, "sJSObjWrappers key object");
+    nsJSObjWrapper *wrapper = e.front().value();
+    if (wrapper->mJSObj) {
+      JS_CallObjectTracer(trc, &wrapper->mJSObj, "sJSObjWrappers wrapper object");
+    }
+    if (key != e.front().key()) {
+      e.rekeyFront(key);
+    }
+  }
+}
+
+static void
+DelayedReleaseGCCallback(JSGCStatus status)
 {
   if (JSGC_END == status) {
     // Take ownership of sDelayedReleases and null it out now. The
@@ -215,22 +314,114 @@ DelayedReleaseGCCallback(JSRuntime* rt, JSGCStatus status)
   }
 }
 
+static bool
+RegisterGCCallbacks()
+{
+  if (sCallbackRuntime) {
+    return true;
+  }
+
+  static const char rtsvc_id[] = "@mozilla.org/js/xpc/RuntimeService;1";
+  nsCOMPtr<nsIJSRuntimeService> rtsvc(do_GetService(rtsvc_id));
+  if (!rtsvc) {
+    return false;
+  }
+
+  JSRuntime *jsRuntime = nullptr;
+  rtsvc->GetRuntime(&jsRuntime);
+  MOZ_ASSERT(jsRuntime != nullptr);
+
+  // Register a callback to trace wrapped JSObjects.
+  if (!JS_AddExtraGCRootsTracer(jsRuntime, TraceJSObjWrappers, nullptr)) {
+    return false;
+  }
+
+  // Register our GC callback to perform delayed destruction of finalized
+  // NPObjects.
+  rtsvc->RegisterGCCallback(DelayedReleaseGCCallback);
+
+  // Set runtime pointer to indicate that callbacks have been registered.
+  sCallbackRuntime = rtsvc;
+  return true;
+}
+
+static void
+UnregisterGCCallbacks()
+{
+  MOZ_ASSERT(sCallbackRuntime);
+
+  JSRuntime *jsRuntime = nullptr;
+  sCallbackRuntime->GetRuntime(&jsRuntime);
+  MOZ_ASSERT(jsRuntime != nullptr);
+
+  // Remove tracing callback.
+  JS_RemoveExtraGCRootsTracer(jsRuntime, TraceJSObjWrappers, nullptr);
+
+  // Remove delayed destruction callback.
+  sCallbackRuntime->UnregisterGCCallback(DelayedReleaseGCCallback);
+
+  // Unset runtime pointer to indicate callbacks are no longer registered.
+  sCallbackRuntime = nullptr;
+}
+
+static bool
+CreateJSObjWrapperTable()
+{
+  MOZ_ASSERT(!sJSObjWrappersAccessible);
+  MOZ_ASSERT(!sJSObjWrappers.initialized());
+
+  if (!RegisterGCCallbacks()) {
+    return false;
+  }
+
+  if (!sJSObjWrappers.init(16)) {
+    NS_ERROR("Error initializing PLDHashTable sJSObjWrappers!");
+    return false;
+  }
+
+  sJSObjWrappersAccessible = true;
+  return true;
+}
+
+static void
+DestroyJSObjWrapperTable()
+{
+  MOZ_ASSERT(sJSObjWrappersAccessible);
+  MOZ_ASSERT(sJSObjWrappers.initialized());
+  MOZ_ASSERT(sJSObjWrappers.count() == 0);
+
+  // No more wrappers, and our hash was initialized. Finish the
+  // hash to prevent leaking it.
+  sJSObjWrappers.finish();
+  sJSObjWrappersAccessible = false;
+}
+
+static bool
+CreateNPObjWrapperTable()
+{
+  MOZ_ASSERT(!sNPObjWrappers.IsInitialized());
+
+  if (!RegisterGCCallbacks()) {
+    return false;
+  }
+
+  PL_DHashTableInit(&sNPObjWrappers, PL_DHashGetStubOps(),
+                    sizeof(NPObjWrapperHashEntry));
+  return true;
+}
+
+static void
+DestroyNPObjWrapperTable()
+{
+  MOZ_ASSERT(sNPObjWrappers.EntryCount() == 0);
+
+  PL_DHashTableFinish(&sNPObjWrappers);
+}
+
 static void
 OnWrapperCreated()
 {
-  if (sWrapperCount++ == 0) {
-    static const char rtsvc_id[] = "@mozilla.org/js/xpc/RuntimeService;1";
-    nsCOMPtr<nsIJSRuntimeService> rtsvc(do_GetService(rtsvc_id));
-    if (!rtsvc)
-      return;
-
-    rtsvc->GetRuntime(&sJSRuntime);
-    NS_ASSERTION(sJSRuntime != nullptr, "no JSRuntime?!");
-
-    // Register our GC callback to perform delayed destruction of finalized
-    // NPObjects. Leave this callback around and don't ever unregister it.
-    rtsvc->RegisterGCCallback(DelayedReleaseGCCallback);
-  }
+  ++sWrapperCount;
 }
 
 static void
@@ -239,28 +430,17 @@ OnWrapperDestroyed()
   NS_ASSERTION(sWrapperCount, "Whaaa, unbalanced created/destroyed calls!");
 
   if (--sWrapperCount == 0) {
-    if (sJSObjWrappers.ops) {
-      NS_ASSERTION(sJSObjWrappers.entryCount == 0, "Uh, hash not empty?");
-
-      // No more wrappers, and our hash was initialized. Finish the
-      // hash to prevent leaking it.
-      PL_DHashTableFinish(&sJSObjWrappers);
-
-      sJSObjWrappers.ops = nullptr;
+    if (sJSObjWrappersAccessible) {
+      DestroyJSObjWrapperTable();
     }
 
-    if (sNPObjWrappers.ops) {
-      NS_ASSERTION(sNPObjWrappers.entryCount == 0, "Uh, hash not empty?");
-
+    if (sNPObjWrappers.IsInitialized()) {
       // No more wrappers, and our hash was initialized. Finish the
       // hash to prevent leaking it.
-      PL_DHashTableFinish(&sNPObjWrappers);
-
-      sNPObjWrappers.ops = nullptr;
+      DestroyNPObjWrapperTable();
     }
 
-    // No more need for this.
-    sJSRuntime = nullptr;
+    UnregisterGCCallbacks();
   }
 }
 
@@ -268,8 +448,8 @@ namespace mozilla {
 namespace plugins {
 namespace parent {
 
-JSContext *
-GetJSContext(NPP npp)
+static nsIGlobalObject*
+GetGlobalObject(NPP npp)
 {
   NS_ENSURE_TRUE(npp, nullptr);
 
@@ -283,8 +463,13 @@ GetJSContext(NPP npp)
   owner->GetDocument(getter_AddRefs(doc));
   NS_ENSURE_TRUE(doc, nullptr);
 
-  nsCOMPtr<nsISupports> documentContainer = doc->GetContainer();
-  nsCOMPtr<nsIScriptGlobalObject> sgo(do_GetInterface(documentContainer));
+  return doc->GetScopeObject();
+}
+
+JSContext *
+GetJSContext(NPP npp)
+{
+  nsCOMPtr<nsIScriptGlobalObject> sgo = do_QueryInterface(GetGlobalObject(npp));
   NS_ENSURE_TRUE(sgo, nullptr);
 
   nsIScriptContext *scx = sgo->GetContext();
@@ -306,7 +491,7 @@ NPVariantToJSVal(NPP npp, JSContext *cx, const NPVariant *variant)
 {
   switch (variant->type) {
   case NPVariantType_Void :
-    return JSVAL_VOID;
+    return JS::UndefinedValue();
   case NPVariantType_Null :
     return JSVAL_NULL;
   case NPVariantType_Bool :
@@ -327,9 +512,7 @@ NPVariantToJSVal(NPP npp, JSContext *cx, const NPVariant *variant)
       NS_ConvertUTF8toUTF16 utf16String(s->UTF8Characters, s->UTF8Length);
 
       JSString *str =
-        ::JS_NewUCStringCopyN(cx, reinterpret_cast<const jschar*>
-                                                  (utf16String.get()),
-                              utf16String.Length());
+        ::JS_NewUCStringCopyN(cx, utf16String.get(), utf16String.Length());
 
       if (str) {
         return STRING_TO_JSVAL(str);
@@ -358,7 +541,7 @@ NPVariantToJSVal(NPP npp, JSContext *cx, const NPVariant *variant)
 
   NS_ERROR("Unable to convert NPVariant to jsval!");
 
-  return JSVAL_VOID;
+  return JS::UndefinedValue();
 }
 
 bool
@@ -366,32 +549,30 @@ JSValToNPVariant(NPP npp, JSContext *cx, JS::Value val, NPVariant *variant)
 {
   NS_ASSERTION(npp, "Must have an NPP to wrap a jsval!");
 
-  if (JSVAL_IS_PRIMITIVE(val)) {
-    if (val == JSVAL_VOID) {
+  if (val.isPrimitive()) {
+    if (val.isUndefined()) {
       VOID_TO_NPVARIANT(*variant);
-    } else if (JSVAL_IS_NULL(val)) {
+    } else if (val.isNull()) {
       NULL_TO_NPVARIANT(*variant);
-    } else if (JSVAL_IS_BOOLEAN(val)) {
-      BOOLEAN_TO_NPVARIANT(JSVAL_TO_BOOLEAN(val), *variant);
-    } else if (JSVAL_IS_INT(val)) {
-      INT32_TO_NPVARIANT(JSVAL_TO_INT(val), *variant);
-    } else if (JSVAL_IS_DOUBLE(val)) {
-      double d = JSVAL_TO_DOUBLE(val);
+    } else if (val.isBoolean()) {
+      BOOLEAN_TO_NPVARIANT(val.toBoolean(), *variant);
+    } else if (val.isInt32()) {
+      INT32_TO_NPVARIANT(val.toInt32(), *variant);
+    } else if (val.isDouble()) {
+      double d = val.toDouble();
       int i;
       if (JS_DoubleIsInt32(d, &i)) {
         INT32_TO_NPVARIANT(i, *variant);
       } else {
         DOUBLE_TO_NPVARIANT(d, *variant);
       }
-    } else if (JSVAL_IS_STRING(val)) {
-      JSString *jsstr = JSVAL_TO_STRING(val);
-      size_t length;
-      const jschar *chars = ::JS_GetStringCharsZAndLength(cx, jsstr, &length);
-      if (!chars) {
-          return false;
-      }
+    } else if (val.isString()) {
+      JSString *jsstr = val.toString();
 
-      nsDependentString str(chars, length);
+      nsAutoJSString str;
+      if (!str.init(cx, jsstr)) {
+        return false;
+      }
 
       uint32_t len;
       char *p = ToNewUTF8String(str, &len);
@@ -420,7 +601,7 @@ JSValToNPVariant(NPP npp, JSContext *cx, JS::Value val, NPVariant *variant)
   JS::Rooted<JSObject*> obj(cx, val.toObjectOrNull());
   obj = js::CheckedUnwrap(obj);
   if (!obj) {
-    obj = JSVAL_TO_OBJECT(val);
+    obj = val.toObjectOrNull();
   }
 
   NPObject *npobj = nsJSObjWrapper::GetNewOrUsed(npp, cx, obj);
@@ -454,11 +635,11 @@ ThrowJSException(JSContext *cx, const char *message)
       AppendASCIItoUTF16("].", ucex);
     }
 
-    JSString *str = ::JS_NewUCStringCopyN(cx, (jschar *)ucex.get(),
-                                          ucex.Length());
+    JSString *str = ::JS_NewUCStringCopyN(cx, ucex.get(), ucex.Length());
 
     if (str) {
-      ::JS_SetPendingException(cx, STRING_TO_JSVAL(str));
+      JS::Rooted<JS::Value> exn(cx, JS::StringValue(str));
+      ::JS_SetPendingException(cx, exn);
     }
 
     PopException();
@@ -467,23 +648,22 @@ ThrowJSException(JSContext *cx, const char *message)
   }
 }
 
-static JSBool
+static bool
 ReportExceptionIfPending(JSContext *cx)
 {
   const char *ex = PeekException();
 
   if (!ex) {
-    return JS_TRUE;
+    return true;
   }
 
   ThrowJSException(cx, nullptr);
 
-  return JS_FALSE;
+  return false;
 }
 
-
 nsJSObjWrapper::nsJSObjWrapper(NPP npp)
-  : nsJSObjWrapperKey(nullptr, npp)
+  : mJSObj(nullptr), mNpp(npp), mDestroyPending(false)
 {
   MOZ_COUNT_CTOR(nsJSObjWrapper);
   OnWrapperCreated();
@@ -493,7 +673,7 @@ nsJSObjWrapper::~nsJSObjWrapper()
 {
   MOZ_COUNT_DTOR(nsJSObjWrapper);
 
-  // Invalidate first, since it relies on sJSRuntime and sJSObjWrappers.
+  // Invalidate first, since it relies on sJSObjWrappers.
   NP_Invalidate(this);
 
   OnWrapperDestroyed();
@@ -524,14 +704,13 @@ nsJSObjWrapper::NP_Invalidate(NPObject *npobj)
   nsJSObjWrapper *jsnpobj = (nsJSObjWrapper *)npobj;
 
   if (jsnpobj && jsnpobj->mJSObj) {
-    // Unroot the object's JSObject
-    js_RemoveRoot(sJSRuntime, &jsnpobj->mJSObj);
 
-    if (sJSObjWrappers.ops) {
+    if (sJSObjWrappersAccessible) {
       // Remove the wrapper from the hash
-
       nsJSObjWrapperKey key(jsnpobj->mJSObj, jsnpobj->mNpp);
-      PL_DHashTableOperate(&sJSObjWrappers, &key, PL_DHASH_REMOVE);
+      JSObjWrapperTable::Ptr ptr = sJSObjWrappers.lookup(key);
+      MOZ_ASSERT(ptr.found());
+      sJSObjWrappers.remove(ptr);
     }
 
     // Forget our reference to the JSObject.
@@ -539,12 +718,14 @@ nsJSObjWrapper::NP_Invalidate(NPObject *npobj)
   }
 }
 
-static JSBool
-GetProperty(JSContext *cx, JSObject *obj, NPIdentifier id, JS::Value *rval)
+static bool
+GetProperty(JSContext *cx, JSObject *objArg, NPIdentifier npid, JS::MutableHandle<JS::Value> rval)
 {
-  NS_ASSERTION(NPIdentifierIsInt(id) || NPIdentifierIsString(id),
+  NS_ASSERTION(NPIdentifierIsInt(npid) || NPIdentifierIsString(npid),
                "id must be either string or int!\n");
-  return ::JS_GetPropertyById(cx, obj, NPIdentifierToJSId(id), rval);
+  JS::Rooted<JSObject *> obj(cx, objArg);
+  JS::Rooted<jsid> id(cx, NPIdentifierToJSId(npid));
+  return ::JS_GetPropertyById(cx, obj, id, rval);
 }
 
 // static
@@ -552,11 +733,11 @@ bool
 nsJSObjWrapper::NP_HasMethod(NPObject *npobj, NPIdentifier id)
 {
   NPP npp = NPPStack::Peek();
-  JSContext *cx = GetJSContext(npp);
-
-  if (!cx) {
+  dom::AutoJSAPI jsapi;
+  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(GetGlobalObject(npp)))) {
     return false;
   }
+  JSContext *cx = jsapi.cx();
 
   if (!npobj) {
     ThrowJSException(cx,
@@ -567,17 +748,15 @@ nsJSObjWrapper::NP_HasMethod(NPObject *npobj, NPIdentifier id)
 
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
 
-  nsCxPusher pusher;
-  pusher.Push(cx);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
 
-  AutoJSExceptionReporter reporter(cx);
+  AutoJSExceptionReporter reporter(jsapi, npjsobj);
 
   JS::Rooted<JS::Value> v(cx);
-  JSBool ok = GetProperty(cx, npjsobj->mJSObj, id, v.address());
+  bool ok = GetProperty(cx, npjsobj->mJSObj, id, &v);
 
-  return ok && !JSVAL_IS_PRIMITIVE(v) &&
-    ::JS_ObjectIsFunction(cx, JSVAL_TO_OBJECT(v));
+  return ok && !v.isPrimitive() &&
+    ::JS_ObjectIsFunction(cx, v.toObjectOrNull());
 }
 
 static bool
@@ -585,11 +764,16 @@ doInvoke(NPObject *npobj, NPIdentifier method, const NPVariant *args,
          uint32_t argCount, bool ctorCall, NPVariant *result)
 {
   NPP npp = NPPStack::Peek();
-  JSContext *cx = GetJSContext(npp);
 
-  if (!cx) {
+  nsCOMPtr<nsIGlobalObject> globalObject = GetGlobalObject(npp);
+  if (NS_WARN_IF(!globalObject)) {
     return false;
   }
+
+  // We're about to run script via JS_CallFunctionValue, so we need an
+  // AutoEntryScript. NPAPI plugins are Goanna-specific and not in any spec.
+  dom::AutoEntryScript aes(globalObject);
+  JSContext *cx = aes.cx();
 
   if (!npobj || !result) {
     ThrowJSException(cx, "Null npobj, or result in doInvoke!");
@@ -602,73 +786,50 @@ doInvoke(NPObject *npobj, NPIdentifier method, const NPVariant *args,
 
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
 
-  nsCxPusher pusher;
-  pusher.Push(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  JS::Rooted<JSObject*> jsobj(cx, npjsobj->mJSObj);
+  JSAutoCompartment ac(cx, jsobj);
   JS::Rooted<JS::Value> fv(cx);
 
-  AutoJSExceptionReporter reporter(cx);
+  AutoJSExceptionReporter reporter(aes, npjsobj);
 
   if (method != NPIdentifier_VOID) {
-    if (!GetProperty(cx, npjsobj->mJSObj, method, fv.address()) ||
+    if (!GetProperty(cx, jsobj, method, &fv) ||
         ::JS_TypeOfValue(cx, fv) != JSTYPE_FUNCTION) {
       return false;
     }
   } else {
-    fv = OBJECT_TO_JSVAL(npjsobj->mJSObj);
+    fv.setObject(*jsobj);
   }
 
-  JS::Value jsargs_buf[8];
-  JS::Value *jsargs = jsargs_buf;
-
-  if (argCount > (sizeof(jsargs_buf) / sizeof(JS::Value))) {
-    // Our stack buffer isn't large enough to hold all arguments,
-    // malloc a buffer.
-    jsargs = (JS::Value *)PR_Malloc(argCount * sizeof(JS::Value));
-    if (!jsargs) {
+  // Convert args
+  JS::AutoValueVector jsargs(cx);
+  if (!jsargs.reserve(argCount)) {
       ::JS_ReportOutOfMemory(cx);
-
       return false;
-    }
+  }
+  for (uint32_t i = 0; i < argCount; ++i) {
+    jsargs.infallibleAppend(NPVariantToJSVal(npp, cx, args + i));
   }
 
   JS::Rooted<JS::Value> v(cx);
-  JSBool ok;
+  bool ok = false;
 
-  {
-    JS::AutoArrayRooter tvr(cx, 0, jsargs);
+  if (ctorCall) {
+    JSObject *newObj =
+      ::JS_New(cx, jsobj, jsargs);
 
-    // Convert args
-    for (uint32_t i = 0; i < argCount; ++i) {
-      jsargs[i] = NPVariantToJSVal(npp, cx, args + i);
-      tvr.changeLength(i + 1);
+    if (newObj) {
+      v.setObject(*newObj);
+      ok = true;
     }
-
-    if (ctorCall) {
-      JSObject *newObj =
-        ::JS_New(cx, npjsobj->mJSObj, argCount, jsargs);
-
-      if (newObj) {
-        v = OBJECT_TO_JSVAL(newObj);
-        ok = JS_TRUE;
-      } else {
-        ok = JS_FALSE;
-      }
-    } else {
-      ok = ::JS_CallFunctionValue(cx, npjsobj->mJSObj, fv, argCount, jsargs, v.address());
-    }
-
+  } else {
+    ok = ::JS_CallFunctionValue(cx, jsobj, fv, jsargs, &v);
   }
-
-  if (jsargs != jsargs_buf)
-    PR_Free(jsargs);
 
   if (ok)
     ok = JSValToNPVariant(npp, cx, v, result);
 
-  // return ok == JS_TRUE to quiet down compiler warning, even if
-  // return ok is what we really want.
-  return ok == JS_TRUE;
+  return ok;
 }
 
 // static
@@ -695,14 +856,14 @@ nsJSObjWrapper::NP_InvokeDefault(NPObject *npobj, const NPVariant *args,
 
 // static
 bool
-nsJSObjWrapper::NP_HasProperty(NPObject *npobj, NPIdentifier id)
+nsJSObjWrapper::NP_HasProperty(NPObject *npobj, NPIdentifier npid)
 {
   NPP npp = NPPStack::Peek();
-  JSContext *cx = GetJSContext(npp);
-
-  if (!cx) {
+  dom::AutoJSAPI jsapi;
+  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(GetGlobalObject(npp)))) {
     return false;
   }
+  JSContext *cx = jsapi.cx();
 
   if (!npobj) {
     ThrowJSException(cx,
@@ -712,16 +873,16 @@ nsJSObjWrapper::NP_HasProperty(NPObject *npobj, NPIdentifier id)
   }
 
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
-  JSBool found, ok = JS_FALSE;
+  bool found, ok = false;
 
-  nsCxPusher pusher;
-  pusher.Push(cx);
-  AutoJSExceptionReporter reporter(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  AutoJSExceptionReporter reporter(jsapi, npjsobj);
+  JS::Rooted<JSObject*> jsobj(cx, npjsobj->mJSObj);
+  JSAutoCompartment ac(cx, jsobj);
 
-  NS_ASSERTION(NPIdentifierIsInt(id) || NPIdentifierIsString(id),
+  NS_ASSERTION(NPIdentifierIsInt(npid) || NPIdentifierIsString(npid),
                "id must be either string or int!\n");
-  ok = ::JS_HasPropertyById(cx, npjsobj->mJSObj, NPIdentifierToJSId(id), &found);
+  JS::Rooted<jsid> id(cx, NPIdentifierToJSId(npid));
+  ok = ::JS_HasPropertyById(cx, jsobj, id, &found);
   return ok && found;
 }
 
@@ -731,11 +892,16 @@ nsJSObjWrapper::NP_GetProperty(NPObject *npobj, NPIdentifier id,
                                NPVariant *result)
 {
   NPP npp = NPPStack::Peek();
-  JSContext *cx = GetJSContext(npp);
 
-  if (!cx) {
+  nsCOMPtr<nsIGlobalObject> globalObject = GetGlobalObject(npp);
+  if (NS_WARN_IF(!globalObject)) {
     return false;
   }
+
+  // We're about to run script via JS_CallFunctionValue, so we need an
+  // AutoEntryScript. NPAPI plugins are Goanna-specific and not in any spec.
+  dom::AutoEntryScript aes(globalObject);
+  JSContext *cx = aes.cx();
 
   if (!npobj) {
     ThrowJSException(cx,
@@ -746,27 +912,30 @@ nsJSObjWrapper::NP_GetProperty(NPObject *npobj, NPIdentifier id,
 
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
 
-  nsCxPusher pusher;
-  pusher.Push(cx);
-  AutoJSExceptionReporter reporter(cx);
+  AutoJSExceptionReporter reporter(aes, npjsobj);
   JSAutoCompartment ac(cx, npjsobj->mJSObj);
 
   JS::Rooted<JS::Value> v(cx);
-  return (GetProperty(cx, npjsobj->mJSObj, id, v.address()) &&
+  return (GetProperty(cx, npjsobj->mJSObj, id, &v) &&
           JSValToNPVariant(npp, cx, v, result));
 }
 
 // static
 bool
-nsJSObjWrapper::NP_SetProperty(NPObject *npobj, NPIdentifier id,
+nsJSObjWrapper::NP_SetProperty(NPObject *npobj, NPIdentifier npid,
                                const NPVariant *value)
 {
   NPP npp = NPPStack::Peek();
-  JSContext *cx = GetJSContext(npp);
 
-  if (!cx) {
+  nsCOMPtr<nsIGlobalObject> globalObject = GetGlobalObject(npp);
+  if (NS_WARN_IF(!globalObject)) {
     return false;
   }
+
+  // We're about to run script via JS_CallFunctionValue, so we need an
+  // AutoEntryScript. NPAPI plugins are Goanna-specific and not in any spec.
+  dom::AutoEntryScript aes(globalObject);
+  JSContext *cx = aes.cx();
 
   if (!npobj) {
     ThrowJSException(cx,
@@ -776,35 +945,32 @@ nsJSObjWrapper::NP_SetProperty(NPObject *npobj, NPIdentifier id,
   }
 
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
-  JSBool ok = JS_FALSE;
+  bool ok = false;
 
-  nsCxPusher pusher;
-  pusher.Push(cx);
-  AutoJSExceptionReporter reporter(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  AutoJSExceptionReporter reporter(aes, npjsobj);
+  JS::Rooted<JSObject*> jsObj(cx, npjsobj->mJSObj);
+  JSAutoCompartment ac(cx, jsObj);
 
   JS::Rooted<JS::Value> v(cx, NPVariantToJSVal(npp, cx, value));
 
-  NS_ASSERTION(NPIdentifierIsInt(id) || NPIdentifierIsString(id),
+  NS_ASSERTION(NPIdentifierIsInt(npid) || NPIdentifierIsString(npid),
                "id must be either string or int!\n");
-  ok = ::JS_SetPropertyById(cx, npjsobj->mJSObj, NPIdentifierToJSId(id),
-                            v.address());
+  JS::Rooted<jsid> id(cx, NPIdentifierToJSId(npid));
+  ok = ::JS_SetPropertyById(cx, jsObj, id, v);
 
-  // return ok == JS_TRUE to quiet down compiler warning, even if
-  // return ok is what we really want.
-  return ok == JS_TRUE;
+  return ok;
 }
 
 // static
 bool
-nsJSObjWrapper::NP_RemoveProperty(NPObject *npobj, NPIdentifier id)
+nsJSObjWrapper::NP_RemoveProperty(NPObject *npobj, NPIdentifier npid)
 {
   NPP npp = NPPStack::Peek();
-  JSContext *cx = GetJSContext(npp);
-
-  if (!cx) {
+  dom::AutoJSAPI jsapi;
+  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(GetGlobalObject(npp)))) {
     return false;
   }
+  JSContext *cx = jsapi.cx();
 
   if (!npobj) {
     ThrowJSException(cx,
@@ -814,35 +980,33 @@ nsJSObjWrapper::NP_RemoveProperty(NPObject *npobj, NPIdentifier id)
   }
 
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
-  JSBool ok = JS_FALSE;
+  bool ok = false;
 
-  nsCxPusher pusher;
-  pusher.Push(cx);
-  AutoJSExceptionReporter reporter(cx);
-  JS::Rooted<JS::Value> deleted(cx, JSVAL_FALSE);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  AutoJSExceptionReporter reporter(jsapi, npjsobj);
+  bool deleted = false;
+  JS::Rooted<JSObject*> obj(cx, npjsobj->mJSObj);
+  JSAutoCompartment ac(cx, obj);
 
-  NS_ASSERTION(NPIdentifierIsInt(id) || NPIdentifierIsString(id),
+  NS_ASSERTION(NPIdentifierIsInt(npid) || NPIdentifierIsString(npid),
                "id must be either string or int!\n");
-  ok = ::JS_DeletePropertyById2(cx, npjsobj->mJSObj, NPIdentifierToJSId(id), deleted.address());
-  if (ok && deleted == JSVAL_TRUE) {
+  JS::Rooted<jsid> id(cx, NPIdentifierToJSId(npid));
+  ok = ::JS_DeletePropertyById2(cx, obj, id, &deleted);
+  if (ok && deleted) {
     // FIXME: See bug 425823, we shouldn't need to do this, and once
     // that bug is fixed we can remove this code.
 
-    JSBool hasProp;
-    ok = ::JS_HasPropertyById(cx, npjsobj->mJSObj, NPIdentifierToJSId(id), &hasProp);
+    bool hasProp;
+    ok = ::JS_HasPropertyById(cx, obj, id, &hasProp);
 
     if (ok && hasProp) {
       // The property might have been deleted, but it got
       // re-resolved, so no, it's not really deleted.
 
-      deleted = JSVAL_FALSE;
+      deleted = false;
     }
   }
 
-  // return ok == JS_TRUE to quiet down compiler warning, even if
-  // return ok is what we really want.
-  return ok == JS_TRUE && deleted == JSVAL_TRUE;
+  return ok && deleted;
 }
 
 //static
@@ -851,14 +1015,14 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
                              uint32_t *count)
 {
   NPP npp = NPPStack::Peek();
-  JSContext *cx = GetJSContext(npp);
+  dom::AutoJSAPI jsapi;
+  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(GetGlobalObject(npp)))) {
+    return false;
+  }
+  JSContext *cx = jsapi.cx();
 
   *idarray = 0;
   *count = 0;
-
-  if (!cx) {
-    return false;
-  }
 
   if (!npobj) {
     ThrowJSException(cx,
@@ -869,12 +1033,11 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
 
   nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
 
-  nsCxPusher pusher;
-  pusher.Push(cx);
-  AutoJSExceptionReporter reporter(cx);
-  JSAutoCompartment ac(cx, npjsobj->mJSObj);
+  AutoJSExceptionReporter reporter(jsapi, npjsobj);
+  JS::Rooted<JSObject*> jsobj(cx, npjsobj->mJSObj);
+  JSAutoCompartment ac(cx, jsobj);
 
-  JS::AutoIdArray ida(cx, JS_Enumerate(cx, npjsobj->mJSObj));
+  JS::AutoIdArray ida(cx, JS_Enumerate(cx, jsobj));
   if (!ida) {
     return false;
   }
@@ -888,23 +1051,24 @@ nsJSObjWrapper::NP_Enumerate(NPObject *npobj, NPIdentifier **idarray,
 
   for (uint32_t i = 0; i < *count; i++) {
     JS::Rooted<JS::Value> v(cx);
-    if (!JS_IdToValue(cx, ida[i], v.address())) {
+    if (!JS_IdToValue(cx, ida[i], &v)) {
       PR_Free(*idarray);
       return false;
     }
 
     NPIdentifier id;
-    if (JSVAL_IS_STRING(v)) {
-      JSString *str = JS_InternJSString(cx, JSVAL_TO_STRING(v));
+    if (v.isString()) {
+      JS::Rooted<JSString*> str(cx, v.toString());
+      str = JS_InternJSString(cx, str);
       if (!str) {
         PR_Free(*idarray);
         return false;
       }
       id = StringToNPIdentifier(cx, str);
     } else {
-      NS_ASSERTION(JSVAL_IS_INT(v),
+      NS_ASSERTION(v.isInt32(),
                    "The element in ida must be either string or int!\n");
-      id = IntToNPIdentifier(JSVAL_TO_INT(v));
+      id = IntToNPIdentifier(v.toInt32());
     }
 
     (*idarray)[i] = id;
@@ -922,33 +1086,31 @@ nsJSObjWrapper::NP_Construct(NPObject *npobj, const NPVariant *args,
 }
 
 
-class JSObjWrapperHashEntry : public PLDHashEntryHdr
-{
-public:
-  nsJSObjWrapper *mJSObjWrapper;
-};
 
+/*
+ * This function is called during minor GCs for each key in the sJSObjWrappers
+ * table that has been moved.
+ *
+ * Note that the wrapper may be dead at this point, and even the table may have
+ * been finalized if all wrappers have died.
+ */
+static void
+JSObjWrapperKeyMarkCallback(JSTracer *trc, JSObject *obj, void *data) {
+  NPP npp = static_cast<NPP>(data);
+  MOZ_ASSERT(sJSObjWrappersAccessible);
+  if (!sJSObjWrappers.initialized())
+    return;
 
-static PLDHashNumber
-JSObjWrapperHash(PLDHashTable *table, const void *key)
-{
-  const nsJSObjWrapperKey *e = static_cast<const nsJSObjWrapperKey *>(key);
-  return HashGeneric(e->mJSObj, e->mNpp);
+  JSObject *prior = obj;
+  nsJSObjWrapperKey oldKey(prior, npp);
+  JSObjWrapperTable::Ptr p = sJSObjWrappers.lookup(oldKey);
+  if (!p)
+    return;
+
+  JS_CallUnbarrieredObjectTracer(trc, &obj, "sJSObjWrappers key object");
+  nsJSObjWrapperKey newKey(obj, npp);
+  sJSObjWrappers.rekeyIfMoved(oldKey, newKey);
 }
-
-static bool
-JSObjWrapperHashMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *entry,
-                           const void *key)
-{
-  const nsJSObjWrapperKey *objWrapperKey =
-    static_cast<const nsJSObjWrapperKey *>(key);
-  const JSObjWrapperHashEntry *e =
-    static_cast<const JSObjWrapperHashEntry *>(entry);
-
-  return (e->mJSObjWrapper->mJSObj == objWrapperKey->mJSObj &&
-          e->mJSObjWrapper->mNpp == objWrapperKey->mNpp);
-}
-
 
 // Look up or create an NPObject that wraps the JSObject obj.
 
@@ -960,6 +1122,17 @@ nsJSObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, JS::Handle<JSObject*> obj)
     NS_ERROR("Null NPP passed to nsJSObjWrapper::GetNewOrUsed()!");
 
     return nullptr;
+  }
+
+  // If we're running out-of-process and initializing asynchronously, and if
+  // the plugin has been asked to destroy itself during initialization,
+  // don't return any new NPObjects.
+  nsNPAPIPluginInstance* inst = static_cast<nsNPAPIPluginInstance*>(npp->ndata);
+  if (inst->GetPlugin()->GetLibrary()->IsOOP()) {
+    PluginAsyncSurrogate* surrogate = PluginAsyncSurrogate::Cast(npp);
+    if (surrogate && surrogate->IsDestroyPending()) {
+      return nullptr;
+    }
   }
 
   if (!cx) {
@@ -976,9 +1149,7 @@ nsJSObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, JS::Handle<JSObject*> obj)
   // class and private from the JSObject, neither of which cares about
   // compartments.
 
-  JSClass *clazz = JS_GetClass(obj);
-
-  if (clazz == &sNPObjectJSWrapperClass) {
+  if (nsNPObjWrapper::IsWrapper(obj)) {
     // obj is one of our own, its private data is the NPObject we're
     // looking for.
 
@@ -997,42 +1168,19 @@ nsJSObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, JS::Handle<JSObject*> obj)
       return _retainobject(npobj);
   }
 
-  if (!sJSObjWrappers.ops) {
+  if (!sJSObjWrappers.initialized()) {
     // No hash yet (or any more), initialize it.
-
-    static PLDHashTableOps ops =
-      {
-        PL_DHashAllocTable,
-        PL_DHashFreeTable,
-        JSObjWrapperHash,
-        JSObjWrapperHashMatchEntry,
-        PL_DHashMoveEntryStub,
-        PL_DHashClearEntryStub,
-        PL_DHashFinalizeStub
-      };
-
-    if (!PL_DHashTableInit(&sJSObjWrappers, &ops, nullptr,
-                           sizeof(JSObjWrapperHashEntry), 16)) {
-      NS_ERROR("Error initializing PLDHashTable!");
-
+    if (!CreateJSObjWrapperTable())
       return nullptr;
-    }
   }
+  MOZ_ASSERT(sJSObjWrappersAccessible);
 
-  nsJSObjWrapperKey key(obj, npp);
-
-  JSObjWrapperHashEntry *entry = static_cast<JSObjWrapperHashEntry *>
-    (PL_DHashTableOperate(&sJSObjWrappers, &key, PL_DHASH_ADD));
-
-  if (!entry) {
-    // Out of memory.
-    return nullptr;
-  }
-
-  if (PL_DHASH_ENTRY_IS_BUSY(entry) && entry->mJSObjWrapper) {
+  JSObjWrapperTable::Ptr p = sJSObjWrappers.lookupForAdd(nsJSObjWrapperKey(obj, npp));
+  if (p) {
+    MOZ_ASSERT(p->value());
     // Found a live nsJSObjWrapper, return it.
 
-    return _retainobject(entry->mJSObjWrapper);
+    return _retainobject(p->value());
   }
 
   // No existing nsJSObjWrapper, create one.
@@ -1041,30 +1189,23 @@ nsJSObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, JS::Handle<JSObject*> obj)
     (nsJSObjWrapper *)_createobject(npp, &sJSObjWrapperNPClass);
 
   if (!wrapper) {
-    // OOM? Remove the stale entry from the hash.
-
-    PL_DHashTableRawRemove(&sJSObjWrappers, entry);
-
+    // Out of memory, entry not yet added to table.
     return nullptr;
   }
 
   wrapper->mJSObj = obj;
 
-  entry->mJSObjWrapper = wrapper;
-
-  NS_ASSERTION(wrapper->mNpp == npp, "nsJSObjWrapper::mNpp not initialized!");
-
-  // Root the JSObject, its lifetime is now tied to that of the
-  // NPObject.
-  if (!::JS_AddNamedObjectRoot(cx, &wrapper->mJSObj, "nsJSObjWrapper::mJSObject")) {
-    NS_ERROR("Failed to root JSObject!");
-
+  // Insert the new wrapper into the hashtable, rooting the JSObject. Its
+  // lifetime is now tied to that of the NPObject.
+  nsJSObjWrapperKey key(obj, npp);
+  if (!sJSObjWrappers.putNew(key, wrapper)) {
+    // Out of memory, free the wrapper we created.
     _releaseobject(wrapper);
-
-    PL_DHashTableRawRemove(&sJSObjWrappers, entry);
-
     return nullptr;
   }
+
+  // Add postbarrier for the hashtable key
+  JS_StoreObjectPostBarrierCallback(cx, JSObjWrapperKeyMarkCallback, obj, wrapper->mNpp);
 
   return wrapper;
 }
@@ -1080,17 +1221,17 @@ GetNPObjectWrapper(JSContext *cx, JSObject *aObj, bool wrapResult = true)
 {
   JS::Rooted<JSObject*> obj(cx, aObj);
   while (obj && (obj = js::CheckedUnwrap(obj))) {
-    if (JS_GetClass(obj) == &sNPObjectJSWrapperClass) {
-      if (wrapResult && !JS_WrapObject(cx, obj.address())) {
-        return NULL;
+    if (nsNPObjWrapper::IsWrapper(obj)) {
+      if (wrapResult && !JS_WrapObject(cx, &obj)) {
+        return nullptr;
       }
       return obj;
     }
-    if (!::JS_GetPrototype(cx, obj, obj.address())) {
-      return NULL;
+    if (!::JS_GetPrototype(cx, obj, &obj)) {
+      return nullptr;
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 static NPObject *
@@ -1107,7 +1248,7 @@ GetNPObject(JSContext *cx, JSObject *obj)
 
 // Does not actually add a property because this is always followed by a
 // SetProperty call.
-static JSBool
+static bool
 NPObjWrapper_AddProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp)
 {
   NPObject *npobj = GetNPObject(cx, obj);
@@ -1116,40 +1257,40 @@ NPObjWrapper_AddProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
       !npobj->_class->hasMethod) {
     ThrowJSException(cx, "Bad NPObject as private data!");
 
-    return JS_FALSE;
+    return false;
   }
 
   if (NPObjectIsOutOfProcessProxy(npobj)) {
-    return JS_TRUE;
+    return true;
   }
 
   PluginDestructionGuard pdg(LookupNPP(npobj));
 
   NPIdentifier identifier = JSIdToNPIdentifier(id);
-  JSBool hasProperty = npobj->_class->hasProperty(npobj, identifier);
+  bool hasProperty = npobj->_class->hasProperty(npobj, identifier);
   if (!ReportExceptionIfPending(cx))
-    return JS_FALSE;
+    return false;
 
   if (hasProperty)
-    return JS_TRUE;
+    return true;
 
   // We must permit methods here since JS_DefineUCFunction() will add
   // the function as a property
-  JSBool hasMethod = npobj->_class->hasMethod(npobj, identifier);
+  bool hasMethod = npobj->_class->hasMethod(npobj, identifier);
   if (!ReportExceptionIfPending(cx))
-    return JS_FALSE;
+    return false;
 
   if (!hasMethod) {
     ThrowJSException(cx, "Trying to add unsupported property on NPObject!");
 
-    return JS_FALSE;
+    return false;
   }
 
-  return JS_TRUE;
+  return true;
 }
 
-static JSBool
-NPObjWrapper_DelProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JSBool *succeeded)
+static bool
+NPObjWrapper_DelProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, bool *succeeded)
 {
   NPObject *npobj = GetNPObject(cx, obj);
 
@@ -1157,7 +1298,7 @@ NPObjWrapper_DelProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
       !npobj->_class->removeProperty) {
     ThrowJSException(cx, "Bad NPObject as private data!");
 
-    return JS_FALSE;
+    return false;
   }
 
   PluginDestructionGuard pdg(LookupNPP(npobj));
@@ -1165,24 +1306,23 @@ NPObjWrapper_DelProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
   NPIdentifier identifier = JSIdToNPIdentifier(id);
 
   if (!NPObjectIsOutOfProcessProxy(npobj)) {
-    JSBool hasProperty = npobj->_class->hasProperty(npobj, identifier);
+    bool hasProperty = npobj->_class->hasProperty(npobj, identifier);
     if (!ReportExceptionIfPending(cx))
-      return JS_FALSE;
+      return false;
 
     if (!hasProperty) {
       *succeeded = true;
-      return JS_TRUE;
+      return true;
     }
   }
 
-  if (!npobj->_class->removeProperty(npobj, identifier))
-    *succeeded = false;
+  *succeeded = npobj->_class->removeProperty(npobj, identifier);
 
   return ReportExceptionIfPending(cx);
 }
 
-static JSBool
-NPObjWrapper_SetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JSBool strict,
+static bool
+NPObjWrapper_SetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, bool strict,
                          JS::MutableHandle<JS::Value> vp)
 {
   NPObject *npobj = GetNPObject(cx, obj);
@@ -1191,7 +1331,7 @@ NPObjWrapper_SetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
       !npobj->_class->setProperty) {
     ThrowJSException(cx, "Bad NPObject as private data!");
 
-    return JS_FALSE;
+    return false;
   }
 
   // Find out what plugin (NPP) is the owner of the object we're
@@ -1201,7 +1341,7 @@ NPObjWrapper_SetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
   if (!npp) {
     ThrowJSException(cx, "No NPP found for NPObject!");
 
-    return JS_FALSE;
+    return false;
   }
 
   PluginDestructionGuard pdg(npp);
@@ -1209,14 +1349,14 @@ NPObjWrapper_SetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
   NPIdentifier identifier = JSIdToNPIdentifier(id);
 
   if (!NPObjectIsOutOfProcessProxy(npobj)) {
-    JSBool hasProperty = npobj->_class->hasProperty(npobj, identifier);
+    bool hasProperty = npobj->_class->hasProperty(npobj, identifier);
     if (!ReportExceptionIfPending(cx))
-      return JS_FALSE;
+      return false;
 
     if (!hasProperty) {
       ThrowJSException(cx, "Trying to set unsupported property on NPObject!");
 
-      return JS_FALSE;
+      return false;
     }
   }
 
@@ -1224,24 +1364,24 @@ NPObjWrapper_SetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
   if (!JSValToNPVariant(npp, cx, vp, &npv)) {
     ThrowJSException(cx, "Error converting jsval to NPVariant!");
 
-    return JS_FALSE;
+    return false;
   }
 
-  JSBool ok = npobj->_class->setProperty(npobj, identifier, &npv);
+  bool ok = npobj->_class->setProperty(npobj, identifier, &npv);
   _releasevariantvalue(&npv); // Release the variant
   if (!ReportExceptionIfPending(cx))
-    return JS_FALSE;
+    return false;
 
   if (!ok) {
     ThrowJSException(cx, "Error setting property on NPObject!");
 
-    return JS_FALSE;
+    return false;
   }
 
-  return JS_TRUE;
+  return true;
 }
 
-static JSBool
+static bool
 NPObjWrapper_GetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, JS::MutableHandle<JS::Value> vp)
 {
   NPObject *npobj = GetNPObject(cx, obj);
@@ -1250,7 +1390,7 @@ NPObjWrapper_GetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
       !npobj->_class->hasMethod || !npobj->_class->getProperty) {
     ThrowJSException(cx, "Bad NPObject as private data!");
 
-    return JS_FALSE;
+    return false;
   }
 
   // Find out what plugin (NPP) is the owner of the object we're
@@ -1259,7 +1399,7 @@ NPObjWrapper_GetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
   if (!npp) {
     ThrowJSException(cx, "No NPP found for NPObject!");
 
-    return JS_FALSE;
+    return false;
   }
 
   PluginDestructionGuard pdg(npp);
@@ -1272,48 +1412,56 @@ NPObjWrapper_GetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
   NPIdentifier identifier = JSIdToNPIdentifier(id);
 
   if (NPObjectIsOutOfProcessProxy(npobj)) {
-    PluginScriptableObjectParent* actor =
-      static_cast<ParentNPObject*>(npobj)->parent;
+    PluginScriptableObjectParent* actor = nullptr;
+    PluginAsyncSurrogate* surrogate = nullptr;
+    CastNPObject(npobj, actor, surrogate);
 
-    // actor may be null if the plugin crashed.
-    if (!actor)
-      return JS_FALSE;
+    // actor and surrogate may be null if the plugin crashed.
+    if (!actor && !surrogate)
+      return false;
 
-    JSBool success = actor->GetPropertyHelper(identifier, &hasProperty,
-                                              &hasMethod, &npv);
+    bool success = false;
+    if (surrogate) {
+      success = surrogate->GetPropertyHelper(npobj, identifier, &hasProperty,
+                                             &hasMethod, &npv);
+    } else if (actor) {
+      success = actor->GetPropertyHelper(identifier, &hasProperty, &hasMethod,
+                                         &npv);
+    }
+
     if (!ReportExceptionIfPending(cx)) {
       if (success)
         _releasevariantvalue(&npv);
-      return JS_FALSE;
+      return false;
     }
 
     if (success) {
       // We return NPObject Member class here to support ambiguous members.
       if (hasProperty && hasMethod)
-        return CreateNPObjectMember(npp, cx, obj, npobj, id, &npv, vp.address());
+        return CreateNPObjectMember(npp, cx, obj, npobj, id, &npv, vp);
 
       if (hasProperty) {
         vp.set(NPVariantToJSVal(npp, cx, &npv));
         _releasevariantvalue(&npv);
 
         if (!ReportExceptionIfPending(cx))
-          return JS_FALSE;
+          return false;
       }
     }
-    return JS_TRUE;
+    return true;
   }
 
   hasProperty = npobj->_class->hasProperty(npobj, identifier);
   if (!ReportExceptionIfPending(cx))
-    return JS_FALSE;
+    return false;
 
   hasMethod = npobj->_class->hasMethod(npobj, identifier);
   if (!ReportExceptionIfPending(cx))
-    return JS_FALSE;
+    return false;
 
   // We return NPObject Member class here to support ambiguous members.
   if (hasProperty && hasMethod)
-    return CreateNPObjectMember(npp, cx, obj, npobj, id, nullptr, vp.address());
+    return CreateNPObjectMember(npp, cx, obj, npobj, id, nullptr, vp);
 
   if (hasProperty) {
     if (npobj->_class->getProperty(npobj, identifier, &npv))
@@ -1322,13 +1470,13 @@ NPObjWrapper_GetProperty(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<js
     _releasevariantvalue(&npv);
 
     if (!ReportExceptionIfPending(cx))
-      return JS_FALSE;
+      return false;
   }
 
-  return JS_TRUE;
+  return true;
 }
 
-static JSBool
+static bool
 CallNPMethodInternal(JSContext *cx, JS::Handle<JSObject*> obj, unsigned argc,
                      JS::Value *argv, JS::Value *rval, bool ctorCall)
 {
@@ -1337,7 +1485,7 @@ CallNPMethodInternal(JSContext *cx, JS::Handle<JSObject*> obj, unsigned argc,
   if (!npobj || !npobj->_class) {
     ThrowJSException(cx, "Bad NPObject as private data!");
 
-    return JS_FALSE;
+    return false;
   }
 
   // Find out what plugin (NPP) is the owner of the object we're
@@ -1347,7 +1495,7 @@ CallNPMethodInternal(JSContext *cx, JS::Handle<JSObject*> obj, unsigned argc,
   if (!npp) {
     ThrowJSException(cx, "Error finding NPP for NPObject!");
 
-    return JS_FALSE;
+    return false;
   }
 
   PluginDestructionGuard pdg(npp);
@@ -1363,7 +1511,7 @@ CallNPMethodInternal(JSContext *cx, JS::Handle<JSObject*> obj, unsigned argc,
     if (!npargs) {
       ThrowJSException(cx, "Out of memory!");
 
-      return JS_FALSE;
+      return false;
     }
   }
 
@@ -1377,15 +1525,15 @@ CallNPMethodInternal(JSContext *cx, JS::Handle<JSObject*> obj, unsigned argc,
         PR_Free(npargs);
       }
 
-      return JS_FALSE;
+      return false;
     }
   }
 
   NPVariant v;
   VOID_TO_NPVARIANT(v);
 
-  JSObject *funobj = JSVAL_TO_OBJECT(argv[-2]);
-  JSBool ok;
+  JSObject *funobj = argv[-2].toObjectOrNull();
+  bool ok;
   const char *msg = "Error calling method on NPObject!";
 
   if (ctorCall) {
@@ -1396,7 +1544,7 @@ CallNPMethodInternal(JSContext *cx, JS::Handle<JSObject*> obj, unsigned argc,
         npobj->_class->construct) {
       ok = npobj->_class->construct(npobj, npargs, argc, &v);
     } else {
-      ok = JS_FALSE;
+      ok = false;
 
       msg = "Attempt to construct object from class with no constructor.";
     }
@@ -1406,12 +1554,13 @@ CallNPMethodInternal(JSContext *cx, JS::Handle<JSObject*> obj, unsigned argc,
 
     if (npobj->_class->invoke) {
       JSFunction *fun = ::JS_GetObjectFunction(funobj);
-      JSString *name = ::JS_InternJSString(cx, ::JS_GetFunctionId(fun));
+      JS::Rooted<JSString*> funId(cx, ::JS_GetFunctionId(fun));
+      JSString *name = ::JS_InternJSString(cx, funId);
       NPIdentifier id = StringToNPIdentifier(cx, name);
 
       ok = npobj->_class->invoke(npobj, id, npargs, argc, &v);
     } else {
-      ok = JS_FALSE;
+      ok = false;
 
       msg = "Attempt to call a method on object with no invoke method.";
     }
@@ -1422,7 +1571,7 @@ CallNPMethodInternal(JSContext *cx, JS::Handle<JSObject*> obj, unsigned argc,
 
       ok = npobj->_class->invokeDefault(npobj, npargs, argc, &v);
     } else {
-      ok = JS_FALSE;
+      ok = false;
 
       msg = "Attempt to call a default method on object with no "
         "invokeDefault method.";
@@ -1439,12 +1588,12 @@ CallNPMethodInternal(JSContext *cx, JS::Handle<JSObject*> obj, unsigned argc,
   }
 
   if (!ok) {
-    // ReportExceptionIfPending returns a return value, which is JS_TRUE
+    // ReportExceptionIfPending returns a return value, which is true
     // if no exception was thrown. In that case, throw our own.
     if (ReportExceptionIfPending(cx))
       ThrowJSException(cx, msg);
 
-    return JS_FALSE;
+    return false;
   }
 
   *rval = NPVariantToJSVal(npp, cx, &v);
@@ -1455,113 +1604,73 @@ CallNPMethodInternal(JSContext *cx, JS::Handle<JSObject*> obj, unsigned argc,
   return ReportExceptionIfPending(cx);
 }
 
-static JSBool
+static bool
 CallNPMethod(JSContext *cx, unsigned argc, JS::Value *vp)
 {
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
   JS::Rooted<JSObject*> obj(cx, JS_THIS_OBJECT(cx, vp));
   if (!obj)
-      return JS_FALSE;
+      return false;
 
-  return CallNPMethodInternal(cx, obj, argc, JS_ARGV(cx, vp), vp, false);
+  return CallNPMethodInternal(cx, obj, args.length(), args.array(), vp, false);
 }
 
-struct NPObjectEnumerateState {
-  uint32_t     index;
-  uint32_t     length;
-  NPIdentifier *value;
-};
-
-static JSBool
-NPObjWrapper_newEnumerate(JSContext *cx, JS::Handle<JSObject*> obj, JSIterateOp enum_op,
-                          JS::Value *statep, jsid *idp)
+static bool
+NPObjWrapper_Enumerate(JSContext *cx, JS::Handle<JSObject*> obj,
+                       JS::AutoIdVector &properties)
 {
   NPObject *npobj = GetNPObject(cx, obj);
-  NPIdentifier *enum_value;
-  uint32_t length;
-  NPObjectEnumerateState *state;
-
   if (!npobj || !npobj->_class) {
     ThrowJSException(cx, "Bad NPObject as private data!");
-    return JS_FALSE;
+    return false;
   }
 
   PluginDestructionGuard pdg(LookupNPP(npobj));
 
-  NS_ASSERTION(statep, "Must have a statep to enumerate!");
-
-  switch(enum_op) {
-  case JSENUMERATE_INIT:
-  case JSENUMERATE_INIT_ALL:
-    state = new NPObjectEnumerateState();
-    if (!state) {
-      ThrowJSException(cx, "Memory allocation failed for "
-                       "NPObjectEnumerateState!");
-
-      return JS_FALSE;
-    }
-
-    if (!NP_CLASS_STRUCT_VERSION_HAS_ENUM(npobj->_class) ||
-        !npobj->_class->enumerate) {
-      enum_value = 0;
-      length = 0;
-    } else if (!npobj->_class->enumerate(npobj, &enum_value, &length)) {
-      delete state;
-
-      if (ReportExceptionIfPending(cx)) {
-        // ReportExceptionIfPending returns a return value, which is JS_TRUE
-        // if no exception was thrown. In that case, throw our own.
-        ThrowJSException(cx, "Error enumerating properties on scriptable "
-                             "plugin object");
-      }
-
-      return JS_FALSE;
-    }
-
-    state->value = enum_value;
-    state->length = length;
-    state->index = 0;
-    *statep = PRIVATE_TO_JSVAL(state);
-    if (idp) {
-      *idp = INT_TO_JSID(length);
-    }
-
-    break;
-
-  case JSENUMERATE_NEXT:
-    state = (NPObjectEnumerateState *)JSVAL_TO_PRIVATE(*statep);
-    enum_value = state->value;
-    length = state->length;
-    if (state->index != length) {
-      *idp = NPIdentifierToJSId(enum_value[state->index++]);
-      return JS_TRUE;
-    }
-
-    // FALL THROUGH
-
-  case JSENUMERATE_DESTROY:
-    state = (NPObjectEnumerateState *)JSVAL_TO_PRIVATE(*statep);
-    if (state->value)
-      PR_Free(state->value);
-    delete state;
-    *statep = JSVAL_NULL;
-
-    break;
+  if (!NP_CLASS_STRUCT_VERSION_HAS_ENUM(npobj->_class) ||
+      !npobj->_class->enumerate) {
+    return true;
   }
 
-  return JS_TRUE;
+  NPIdentifier *identifiers;
+  uint32_t length;
+  if (!npobj->_class->enumerate(npobj, &identifiers, &length)) {
+    if (ReportExceptionIfPending(cx)) {
+      // ReportExceptionIfPending returns a return value, which is true
+      // if no exception was thrown. In that case, throw our own.
+      ThrowJSException(cx, "Error enumerating properties on scriptable "
+                           "plugin object");
+    }
+    return false;
+  }
+
+  if (!properties.reserve(length))
+    return false;
+
+  JS::Rooted<jsid> id(cx);
+  for (uint32_t i = 0; i < length; i++) {
+    id = NPIdentifierToJSId(identifiers[i]);
+    properties.infallibleAppend(id);
+  }
+
+  PR_Free(identifiers);
+  return true;
 }
 
-static JSBool
-NPObjWrapper_NewResolve(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id, unsigned flags,
-                        JS::MutableHandle<JSObject*> objp)
+static bool
+NPObjWrapper_Resolve(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsid> id,
+                     bool *resolvedp)
 {
+  if (JSID_IS_SYMBOL(id))
+    return true;
+
   NPObject *npobj = GetNPObject(cx, obj);
 
   if (!npobj || !npobj->_class || !npobj->_class->hasProperty ||
       !npobj->_class->hasMethod) {
     ThrowJSException(cx, "Bad NPObject as private data!");
 
-    return JS_FALSE;
+    return false;
   }
 
   PluginDestructionGuard pdg(LookupNPP(npobj));
@@ -1570,24 +1679,24 @@ NPObjWrapper_NewResolve(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsi
 
   bool hasProperty = npobj->_class->hasProperty(npobj, identifier);
   if (!ReportExceptionIfPending(cx))
-    return JS_FALSE;
+    return false;
 
   if (hasProperty) {
     NS_ASSERTION(JSID_IS_STRING(id) || JSID_IS_INT(id),
                  "id must be either string or int!\n");
-    if (!::JS_DefinePropertyById(cx, obj, id, JSVAL_VOID, nullptr,
-                                 nullptr, JSPROP_ENUMERATE | JSPROP_SHARED)) {
-        return JS_FALSE;
+    if (!::JS_DefinePropertyById(cx, obj, id, JS::UndefinedHandleValue,
+                                 JSPROP_ENUMERATE | JSPROP_SHARED)) {
+        return false;
     }
 
-    objp.set(obj);
+    *resolvedp = true;
 
-    return JS_TRUE;
+    return true;
   }
 
   bool hasMethod = npobj->_class->hasMethod(npobj, identifier);
   if (!ReportExceptionIfPending(cx))
-    return JS_FALSE;
+    return false;
 
   if (hasMethod) {
     NS_ASSERTION(JSID_IS_STRING(id) || JSID_IS_INT(id),
@@ -1596,42 +1705,42 @@ NPObjWrapper_NewResolve(JSContext *cx, JS::Handle<JSObject*> obj, JS::Handle<jsi
     JSFunction *fnc = ::JS_DefineFunctionById(cx, obj, id, CallNPMethod, 0,
                                               JSPROP_ENUMERATE);
 
-    objp.set(obj);
+    *resolvedp = true;
 
     return fnc != nullptr;
   }
 
   // no property or method
-  return JS_TRUE;
+  return true;
 }
 
-static JSBool
+static bool
 NPObjWrapper_Convert(JSContext *cx, JS::Handle<JSObject*> obj, JSType hint, JS::MutableHandle<JS::Value> vp)
 {
-  JS_ASSERT(hint == JSTYPE_NUMBER || hint == JSTYPE_STRING || hint == JSTYPE_VOID);
+  MOZ_ASSERT(hint == JSTYPE_NUMBER || hint == JSTYPE_STRING || hint == JSTYPE_VOID);
 
-  // Plugins do not simply use JS_ConvertStub, and the default [[DefaultValue]]
-  // behavior, because that behavior involves calling toString or valueOf on
-  // objects which weren't designed to accommodate this.  Usually this wouldn't
-  // be a problem, because the absence of either property, or the presence of
-  // either property with a value that isn't callable, will cause that property
-  // to simply be ignored.  But there is a problem in one specific case: Java,
-  // specifically java.lang.Integer.  The Integer class has static valueOf
-  // methods, none of which are nullary, so the JS-reflected method will behave
-  // poorly when called with no arguments.  We work around this problem by
-  // giving plugins a [[DefaultValue]] which uses only toString and not valueOf.
+  // Plugins do not simply use the default [[DefaultValue]] behavior, because
+  // that behavior involves calling toString or valueOf on objects which
+  // weren't designed to accommodate this.  Usually this wouldn't be a problem,
+  // because the absence of either property, or the presence of either property
+  // with a value that isn't callable, will cause that property to simply be
+  // ignored.  But there is a problem in one specific case: Java, specifically
+  // java.lang.Integer.  The Integer class has static valueOf methods, none of
+  // which are nullary, so the JS-reflected method will behave poorly when
+  // called with no arguments.  We work around this problem by giving plugins a
+  // [[DefaultValue]] which uses only toString and not valueOf.
 
-  JS::Rooted<JS::Value> v(cx, JSVAL_VOID);
-  if (!JS_GetProperty(cx, obj, "toString", v.address()))
+  JS::Rooted<JS::Value> v(cx, JS::UndefinedValue());
+  if (!JS_GetProperty(cx, obj, "toString", &v))
     return false;
-  if (!JSVAL_IS_PRIMITIVE(v) && JS_ObjectIsCallable(cx, JSVAL_TO_OBJECT(v))) {
-    if (!JS_CallFunctionValue(cx, obj, v, 0, NULL, vp.address()))
+  if (!v.isPrimitive() && JS::IsCallable(v.toObjectOrNull())) {
+    if (!JS_CallFunctionValue(cx, obj, v, JS::HandleValueArray::empty(), vp))
       return false;
-    if (JSVAL_IS_PRIMITIVE(vp))
+    if (vp.isPrimitive())
       return true;
   }
 
-  JS_ReportErrorNumber(cx, js_GetErrorMessage, NULL, JSMSG_CANT_CONVERT_TO,
+  JS_ReportErrorNumber(cx, js_GetErrorMessage, nullptr, JSMSG_CANT_CONVERT_TO,
                        JS_GetClass(obj)->name,
                        hint == JSTYPE_VOID
                        ? "primitive type"
@@ -1642,12 +1751,12 @@ NPObjWrapper_Convert(JSContext *cx, JS::Handle<JSObject*> obj, JSType hint, JS::
 }
 
 static void
-NPObjWrapper_Finalize(JSFreeOp *fop, JSObject *obj)
+NPObjWrapper_Finalize(js::FreeOp *fop, JSObject *obj)
 {
   NPObject *npobj = (NPObject *)::JS_GetPrivate(obj);
   if (npobj) {
-    if (sNPObjWrappers.ops) {
-      PL_DHashTableOperate(&sNPObjWrappers, npobj, PL_DHASH_REMOVE);
+    if (sNPObjWrappers.IsInitialized()) {
+      PL_DHashTableRemove(&sNPObjWrappers, npobj);
     }
   }
 
@@ -1656,30 +1765,52 @@ NPObjWrapper_Finalize(JSFreeOp *fop, JSObject *obj)
   sDelayedReleases->AppendElement(npobj);
 }
 
-static JSBool
+static void
+NPObjWrapper_ObjectMoved(JSObject *obj, const JSObject *old)
+{
+  // The wrapper JSObject has been moved, so we need to update the entry in the
+  // sNPObjWrappers hash table, if present.
+
+  if (!sNPObjWrappers.IsInitialized()) {
+    return;
+  }
+
+  NPObject *npobj = (NPObject *)::JS_GetPrivate(obj);
+  if (!npobj) {
+    return;
+  }
+
+  // Calling PL_DHashTableSearch() will not result in GC.
+  JS::AutoSuppressGCAnalysis nogc;
+
+  NPObjWrapperHashEntry *entry = static_cast<NPObjWrapperHashEntry *>
+    (PL_DHashTableSearch(&sNPObjWrappers, npobj));
+  MOZ_ASSERT(entry && entry->mJSObj);
+  MOZ_ASSERT(entry->mJSObj == old);
+  entry->mJSObj = obj;
+}
+
+static bool
 NPObjWrapper_Call(JSContext *cx, unsigned argc, JS::Value *vp)
 {
-  JS::Rooted<JSObject*> obj(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
-  return CallNPMethodInternal(cx, obj, argc,
-                              JS_ARGV(cx, vp), vp, false);
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JS::Rooted<JSObject*> obj(cx, &args.callee());
+  return CallNPMethodInternal(cx, obj, args.length(), args.array(), vp, false);
 }
 
-static JSBool
+static bool
 NPObjWrapper_Construct(JSContext *cx, unsigned argc, JS::Value *vp)
 {
-  JS::Rooted<JSObject*> obj(cx, JSVAL_TO_OBJECT(JS_CALLEE(cx, vp)));
-  return CallNPMethodInternal(cx, obj, argc,
-                              JS_ARGV(cx, vp), vp, true);
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JS::Rooted<JSObject*> obj(cx, &args.callee());
+  return CallNPMethodInternal(cx, obj, args.length(), args.array(), vp, true);
 }
 
-class NPObjWrapperHashEntry : public PLDHashEntryHdr
+bool
+nsNPObjWrapper::IsWrapper(JSObject *obj)
 {
-public:
-  NPObject *mNPObj; // Must be the first member for the PLDHash stubs to work
-  JSObject *mJSObj;
-  NPP mNpp;
-};
-
+  return js::GetObjectClass(obj) == &sNPObjectJSWrapperClass;
+}
 
 // An NPObject is going away, make sure we null out the JS object's
 // private data in case this is an NPObject that came from a plugin
@@ -1699,16 +1830,16 @@ nsNPObjWrapper::OnDestroy(NPObject *npobj)
     return;
   }
 
-  if (!sNPObjWrappers.ops) {
+  if (!sNPObjWrappers.IsInitialized()) {
     // No hash yet (or any more), no used wrappers available.
 
     return;
   }
 
   NPObjWrapperHashEntry *entry = static_cast<NPObjWrapperHashEntry *>
-    (PL_DHashTableOperate(&sNPObjWrappers, npobj, PL_DHASH_LOOKUP));
+    (PL_DHashTableSearch(&sNPObjWrappers, npobj));
 
-  if (PL_DHASH_ENTRY_IS_BUSY(entry) && entry->mJSObj) {
+  if (entry && entry->mJSObj) {
     // Found a live NPObject wrapper, null out its JSObjects' private
     // data.
 
@@ -1737,8 +1868,8 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
     // npobj is one of our own, return its existing JSObject.
 
     JS::Rooted<JSObject*> obj(cx, ((nsJSObjWrapper *)npobj)->mJSObj);
-    if (!JS_WrapObject(cx, obj.address())) {
-      return NULL;
+    if (!JS_WrapObject(cx, &obj)) {
+      return nullptr;
     }
     return obj;
   }
@@ -1749,19 +1880,15 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
     return nullptr;
   }
 
-  if (!sNPObjWrappers.ops) {
+  if (!sNPObjWrappers.IsInitialized()) {
     // No hash yet (or any more), initialize it.
-
-    if (!PL_DHashTableInit(&sNPObjWrappers, PL_DHashGetStubOps(), nullptr,
-                           sizeof(NPObjWrapperHashEntry), 16)) {
-      NS_ERROR("Error initializing PLDHashTable!");
-
+    if (!CreateNPObjWrapperTable()) {
       return nullptr;
     }
   }
 
   NPObjWrapperHashEntry *entry = static_cast<NPObjWrapperHashEntry *>
-    (PL_DHashTableOperate(&sNPObjWrappers, npobj, PL_DHASH_ADD));
+    (PL_DHashTableAdd(&sNPObjWrappers, npobj, fallible));
 
   if (!entry) {
     // Out of memory
@@ -1770,12 +1897,12 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
     return nullptr;
   }
 
-  if (PL_DHASH_ENTRY_IS_BUSY(entry) && entry->mJSObj) {
+  if (entry->mJSObj) {
     // Found a live NPObject wrapper. It may not be in the same compartment
     // as cx, so we need to wrap it before returning it.
     JS::Rooted<JSObject*> obj(cx, entry->mJSObj);
-    if (!JS_WrapObject(cx, obj.address())) {
-      return NULL;
+    if (!JS_WrapObject(cx, &obj)) {
+      return nullptr;
     }
     return obj;
   }
@@ -1783,20 +1910,19 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
   entry->mNPObj = npobj;
   entry->mNpp = npp;
 
-  uint32_t generation = sNPObjWrappers.generation;
+  uint32_t generation = sNPObjWrappers.Generation();
 
   // No existing JSObject, create one.
 
-  JS::Rooted<JSObject*> obj(cx, ::JS_NewObject(cx, &sNPObjectJSWrapperClass, nullptr, nullptr));
+  JS::Rooted<JSObject*> obj(cx, ::JS_NewObject(cx, js::Jsvalify(&sNPObjectJSWrapperClass)));
 
-  if (generation != sNPObjWrappers.generation) {
+  if (generation != sNPObjWrappers.Generation()) {
       // Reload entry if the JS_NewObject call caused a GC and reallocated
       // the table (see bug 445229). This is guaranteed to succeed.
 
-      entry = static_cast<NPObjWrapperHashEntry *>
-        (PL_DHashTableOperate(&sNPObjWrappers, npobj, PL_DHASH_LOOKUP));
-      NS_ASSERTION(entry && PL_DHASH_ENTRY_IS_BUSY(entry),
-                   "Hashtable didn't find what we just added?");
+      entry = static_cast<NPObjWrapperHashEntry*>
+        (PL_DHashTableSearch(&sNPObjWrappers, npobj));
+      NS_ASSERTION(entry, "Hashtable didn't find what we just added?");
   }
 
   if (!obj) {
@@ -1820,35 +1946,6 @@ nsNPObjWrapper::GetNewOrUsed(NPP npp, JSContext *cx, NPObject *npobj)
 }
 
 
-// PLDHashTable enumeration callbacks for destruction code.
-static PLDHashOperator
-JSObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                                    uint32_t number, void *arg)
-{
-  JSObjWrapperHashEntry *entry = (JSObjWrapperHashEntry *)hdr;
-
-  nsJSObjWrapper *npobj = entry->mJSObjWrapper;
-
-  if (npobj->mNpp == arg) {
-    // Prevent invalidate() and _releaseobject() from touching the hash
-    // we're enumerating.
-    const PLDHashTableOps *ops = table->ops;
-    table->ops = nullptr;
-
-    if (npobj->_class && npobj->_class->invalidate) {
-      npobj->_class->invalidate(npobj);
-    }
-
-    _releaseobject(npobj);
-
-    table->ops = ops;
-
-    return PL_DHASH_REMOVE;
-  }
-
-  return PL_DHASH_NEXT;
-}
-
 // Struct for passing an NPP and a JSContext to
 // NPObjWrapperPluginDestroyedCallback
 struct NppAndCx
@@ -1867,8 +1964,8 @@ NPObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
   if (entry->mNpp == nppcx->npp) {
     // Prevent invalidate() and deallocate() from touching the hash
     // we're enumerating.
-    const PLDHashTableOps *ops = table->ops;
-    table->ops = nullptr;
+    const PLDHashTableOps *ops = table->Ops();
+    table->SetOps(nullptr);
 
     NPObject *npobj = entry->mNPObj;
 
@@ -1896,7 +1993,7 @@ NPObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
 
     ::JS_SetPrivate(entry->mJSObj, nullptr);
 
-    table->ops = ops;    
+    table->SetOps(ops);
 
     if (sDelayedReleases && sDelayedReleases->RemoveElement(npobj)) {
       OnWrapperDestroyed();
@@ -1912,21 +2009,55 @@ NPObjWrapperPluginDestroyedCallback(PLDHashTable *table, PLDHashEntryHdr *hdr,
 void
 nsJSNPRuntime::OnPluginDestroy(NPP npp)
 {
-  if (sJSObjWrappers.ops) {
-    PL_DHashTableEnumerate(&sJSObjWrappers,
-                           JSObjWrapperPluginDestroyedCallback, npp);
+  if (sJSObjWrappersAccessible) {
+
+    // Prevent modification of sJSObjWrappers table if we go reentrant.
+    sJSObjWrappersAccessible = false;
+
+    for (JSObjWrapperTable::Enum e(sJSObjWrappers); !e.empty(); e.popFront()) {
+      nsJSObjWrapper *npobj = e.front().value();
+      MOZ_ASSERT(npobj->_class == &nsJSObjWrapper::sJSObjWrapperNPClass);
+      if (npobj->mNpp == npp) {
+        if (npobj->_class && npobj->_class->invalidate) {
+          npobj->_class->invalidate(npobj);
+        }
+
+        _releaseobject(npobj);
+
+        e.removeFront();
+      }
+    }
+
+    sJSObjWrappersAccessible = true;
   }
 
   // Use the safe JSContext here as we're not always able to find the
   // JSContext associated with the NPP any more.
   AutoSafeJSContext cx;
-  if (sNPObjWrappers.ops) {
+  if (sNPObjWrappers.IsInitialized()) {
     NppAndCx nppcx = { npp, cx };
     PL_DHashTableEnumerate(&sNPObjWrappers,
                            NPObjWrapperPluginDestroyedCallback, &nppcx);
   }
 }
 
+// static
+void
+nsJSNPRuntime::OnPluginDestroyPending(NPP npp)
+{
+  if (sJSObjWrappersAccessible) {
+    // Prevent modification of sJSObjWrappers table if we go reentrant.
+    sJSObjWrappersAccessible = false;
+    for (JSObjWrapperTable::Enum e(sJSObjWrappers); !e.empty(); e.popFront()) {
+      nsJSObjWrapper *npobj = e.front().value();
+      MOZ_ASSERT(npobj->_class == &nsJSObjWrapper::sJSObjWrapperNPClass);
+      if (npobj->mNpp == npp) {
+        npobj->mDestroyPending = true;
+      }
+    }
+    sJSObjWrappersAccessible = true;
+  }
+}
 
 // Find the NPP for a NPObject.
 static NPP
@@ -1938,9 +2069,9 @@ LookupNPP(NPObject *npobj)
   }
 
   NPObjWrapperHashEntry *entry = static_cast<NPObjWrapperHashEntry *>
-    (PL_DHashTableOperate(&sNPObjWrappers, npobj, PL_DHASH_ADD));
+    (PL_DHashTableAdd(&sNPObjWrappers, npobj, fallible));
 
-  if (PL_DHASH_ENTRY_IS_FREE(entry)) {
+  if (!entry) {
     return nullptr;
   }
 
@@ -1949,36 +2080,34 @@ LookupNPP(NPObject *npobj)
   return entry->mNpp;
 }
 
-JSBool
+static bool
 CreateNPObjectMember(NPP npp, JSContext *cx, JSObject *obj, NPObject* npobj,
-                     JS::Handle<jsid> id,  NPVariant* getPropertyResult, JS::Value *vp)
+                     JS::Handle<jsid> id,  NPVariant* getPropertyResult,
+                     JS::MutableHandle<JS::Value> vp)
 {
-  NS_ENSURE_TRUE(vp, JS_FALSE);
-
   if (!npobj || !npobj->_class || !npobj->_class->getProperty ||
       !npobj->_class->invoke) {
     ThrowJSException(cx, "Bad NPObject");
 
-    return JS_FALSE;
+    return false;
   }
 
   NPObjectMemberPrivate *memberPrivate =
     (NPObjectMemberPrivate *)PR_Malloc(sizeof(NPObjectMemberPrivate));
   if (!memberPrivate)
-    return JS_FALSE;
+    return false;
 
   // Make sure to clear all members in case something fails here
   // during initialization.
   memset(memberPrivate, 0, sizeof(NPObjectMemberPrivate));
 
-  JSObject *memobj = ::JS_NewObject(cx, &sNPObjectMemberClass, nullptr, nullptr);
+  JSObject *memobj = ::JS_NewObject(cx, &sNPObjectMemberClass);
   if (!memobj) {
     PR_Free(memberPrivate);
-    return JS_FALSE;
+    return false;
   }
 
-  *vp = OBJECT_TO_JSVAL(memobj);
-  ::JS_AddValueRoot(cx, vp);
+  vp.setObject(*memobj);
 
   ::JS_SetPrivate(memobj, (void *)memberPrivate);
 
@@ -1996,14 +2125,8 @@ CreateNPObjectMember(NPP npp, JSContext *cx, JSObject *obj, NPObject* npobj,
 
     NPBool hasProperty = npobj->_class->getProperty(npobj, identifier,
                                                     &npv);
-    if (!ReportExceptionIfPending(cx)) {
-      ::JS_RemoveValueRoot(cx, vp);
-      return JS_FALSE;
-    }
-
-    if (!hasProperty) {
-      ::JS_RemoveValueRoot(cx, vp);
-      return JS_FALSE;
+    if (!ReportExceptionIfPending(cx) || !hasProperty) {
+      return false;
     }
   }
 
@@ -2017,15 +2140,13 @@ CreateNPObjectMember(NPP npp, JSContext *cx, JSObject *obj, NPObject* npobj,
   memberPrivate->npobjWrapper = obj;
 
   memberPrivate->fieldValue = fieldValue;
-  memberPrivate->methodName = identifier;
+  memberPrivate->methodName = id;
   memberPrivate->npp = npp;
 
-  ::JS_RemoveValueRoot(cx, vp);
-
-  return JS_TRUE;
+  return true;
 }
 
-static JSBool
+static bool
 NPObjectMember_Convert(JSContext *cx, JS::Handle<JSObject*> obj, JSType type, JS::MutableHandle<JS::Value> vp)
 {
   NPObjectMemberPrivate *memberPrivate =
@@ -2034,7 +2155,7 @@ NPObjectMember_Convert(JSContext *cx, JS::Handle<JSObject*> obj, JSType type, JS
                                                      nullptr);
   if (!memberPrivate) {
     NS_ERROR("no Ambiguous Member Private data!");
-    return JS_FALSE;
+    return false;
   }
 
   switch (type) {
@@ -2042,20 +2163,21 @@ NPObjectMember_Convert(JSContext *cx, JS::Handle<JSObject*> obj, JSType type, JS
   case JSTYPE_STRING:
   case JSTYPE_NUMBER:
     vp.set(memberPrivate->fieldValue);
-    if (!JSVAL_IS_PRIMITIVE(vp)) {
-      return JS_DefaultValue(cx, JSVAL_TO_OBJECT(vp), type, vp.address());
+    if (vp.isObject()) {
+      JS::Rooted<JSObject*> objVal(cx, &vp.toObject());
+      return JS_DefaultValue(cx, objVal, type, vp);
     }
-    return JS_TRUE;
+    return true;
   case JSTYPE_BOOLEAN:
   case JSTYPE_OBJECT:
     vp.set(memberPrivate->fieldValue);
-    return JS_TRUE;
+    return true;
   case JSTYPE_FUNCTION:
     // Leave this to NPObjectMember_Call.
-    return JS_TRUE;
+    return true;
   default:
     NS_ERROR("illegal operation on JSObject prototype object");
-    return JS_FALSE;
+    return false;
   }
 }
 
@@ -2071,64 +2193,63 @@ NPObjectMember_Finalize(JSFreeOp *fop, JSObject *obj)
   PR_Free(memberPrivate);
 }
 
-static JSBool
+static bool
 NPObjectMember_Call(JSContext *cx, unsigned argc, JS::Value *vp)
 {
-  JSObject *memobj = JSVAL_TO_OBJECT(JS_CALLEE(cx, vp));
-  NS_ENSURE_TRUE(memobj, JS_FALSE);
+  JS::CallArgs args = JS::CallArgsFromVp(argc, vp);
+  JS::Rooted<JSObject*> memobj(cx, &args.callee());
+  NS_ENSURE_TRUE(memobj, false);
 
   NPObjectMemberPrivate *memberPrivate =
     (NPObjectMemberPrivate *)::JS_GetInstancePrivate(cx, memobj,
                                                      &sNPObjectMemberClass,
-                                                     JS_ARGV(cx, vp));
+                                                     &args);
   if (!memberPrivate || !memberPrivate->npobjWrapper)
-    return JS_FALSE;
+    return false;
 
   NPObject *npobj = GetNPObject(cx, memberPrivate->npobjWrapper);
   if (!npobj) {
     ThrowJSException(cx, "Call on invalid member object");
 
-    return JS_FALSE;
+    return false;
   }
 
   NPVariant npargs_buf[8];
   NPVariant *npargs = npargs_buf;
 
-  if (argc > (sizeof(npargs_buf) / sizeof(NPVariant))) {
+  if (args.length() > (sizeof(npargs_buf) / sizeof(NPVariant))) {
     // Our stack buffer isn't large enough to hold all arguments,
     // malloc a buffer.
-    npargs = (NPVariant *)PR_Malloc(argc * sizeof(NPVariant));
+    npargs = (NPVariant *)PR_Malloc(args.length() * sizeof(NPVariant));
 
     if (!npargs) {
       ThrowJSException(cx, "Out of memory!");
 
-      return JS_FALSE;
+      return false;
     }
   }
 
   // Convert arguments
-  uint32_t i;
-  JS::Value *argv = JS_ARGV(cx, vp);
-  for (i = 0; i < argc; ++i) {
-    if (!JSValToNPVariant(memberPrivate->npp, cx, argv[i], npargs + i)) {
+  for (uint32_t i = 0; i < args.length(); ++i) {
+    if (!JSValToNPVariant(memberPrivate->npp, cx, args[i], npargs + i)) {
       ThrowJSException(cx, "Error converting jsvals to NPVariants!");
 
       if (npargs != npargs_buf) {
         PR_Free(npargs);
       }
 
-      return JS_FALSE;
+      return false;
     }
   }
 
 
   NPVariant npv;
-  JSBool ok;
-  ok = npobj->_class->invoke(npobj, memberPrivate->methodName,
-                             npargs, argc, &npv);
+  bool ok = npobj->_class->invoke(npobj,
+                                  JSIdToNPIdentifier(memberPrivate->methodName),
+                                  npargs, args.length(), &npv);
 
   // Release arguments.
-  for (i = 0; i < argc; ++i) {
+  for (uint32_t i = 0; i < args.length(); ++i) {
     _releasevariantvalue(npargs + i);
   }
 
@@ -2137,15 +2258,15 @@ NPObjectMember_Call(JSContext *cx, unsigned argc, JS::Value *vp)
   }
 
   if (!ok) {
-    // ReportExceptionIfPending returns a return value, which is JS_TRUE
+    // ReportExceptionIfPending returns a return value, which is true
     // if no exception was thrown. In that case, throw our own.
     if (ReportExceptionIfPending(cx))
       ThrowJSException(cx, "Error calling method on NPObject!");
 
-    return JS_FALSE;
+    return false;
   }
 
-  JS_SET_RVAL(cx, vp, NPVariantToJSVal(memberPrivate->npp, cx, &npv));
+  args.rval().set(NPVariantToJSVal(memberPrivate->npp, cx, &npv));
 
   // *vp now owns the value, release our reference.
   _releasevariantvalue(&npv);
@@ -2162,11 +2283,9 @@ NPObjectMember_Trace(JSTracer *trc, JSObject *obj)
     return;
 
   // Our NPIdentifier is not always interned, so we must root it explicitly.
-  jsid id = NPIdentifierToJSId(memberPrivate->methodName);
-  JS_CallIdTracer(trc, &id, "NPObjectMemberPrivate.methodName");
-  memberPrivate->methodName = JSIdToNPIdentifier(id);
+  JS_CallIdTracer(trc, &memberPrivate->methodName, "NPObjectMemberPrivate.methodName");
 
-  if (!JSVAL_IS_PRIMITIVE(memberPrivate->fieldValue)) {
+  if (!memberPrivate->fieldValue.isPrimitive()) {
     JS_CallValueTracer(trc, &memberPrivate->fieldValue,
                        "NPObject Member => fieldValue");
   }
@@ -2178,4 +2297,36 @@ NPObjectMember_Trace(JSTracer *trc, JSObject *obj)
     JS_CallObjectTracer(trc, &memberPrivate->npobjWrapper,
                         "NPObject Member => npobjWrapper");
   }
+}
+
+// static
+bool
+nsJSObjWrapper::HasOwnProperty(NPObject *npobj, NPIdentifier npid)
+{
+  NPP npp = NPPStack::Peek();
+  dom::AutoJSAPI jsapi;
+  if (NS_WARN_IF(!jsapi.InitWithLegacyErrorReporting(GetGlobalObject(npp)))) {
+    return false;
+  }
+  JSContext *cx = jsapi.cx();
+
+  if (!npobj) {
+    ThrowJSException(cx,
+                     "Null npobj in nsJSObjWrapper::NP_HasOwnProperty!");
+
+    return false;
+  }
+
+  nsJSObjWrapper *npjsobj = (nsJSObjWrapper *)npobj;
+  bool found, ok = false;
+
+  AutoJSExceptionReporter reporter(jsapi, npjsobj);
+  JS::Rooted<JSObject*> jsobj(cx, npjsobj->mJSObj);
+  JSAutoCompartment ac(cx, jsobj);
+
+  NS_ASSERTION(NPIdentifierIsInt(npid) || NPIdentifierIsString(npid),
+               "id must be either string or int!\n");
+  JS::Rooted<jsid> id(cx, NPIdentifierToJSId(npid));
+  ok = ::JS_AlreadyHasOwnPropertyById(cx, jsobj, id, &found);
+  return ok && found;
 }

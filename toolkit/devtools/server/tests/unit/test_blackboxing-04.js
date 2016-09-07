@@ -28,14 +28,23 @@ const SOURCE_URL = "http://example.com/source.js";
 
 function test_black_box()
 {
-  gClient.addOneTimeListener("paused", function () {
-    gThreadClient.setBreakpoint({
-      url: BLACK_BOXED_URL,
-      line: 2
-    }, function (aResponse) {
-      do_check_true(!aResponse.error, "Should be able to set breakpoint.");
-      test_black_box_paused();
+  gClient.addOneTimeListener("paused", function  (aEvent, aPacket) {
+    gThreadClient.eval(aPacket.frame.actor, "doStuff", function(aResponse) {
+      gThreadClient.addOneTimeListener("paused", function(aEvent, aPacket) {
+        let obj = gThreadClient.pauseGrip(aPacket.why.frameFinished.return);
+        obj.getDefinitionSite(runWithSource);
+      });
     });
+
+    function runWithSource(aPacket) {
+      let source = gThreadClient.source(aPacket.source);
+      source.setBreakpoint({
+        line: 2
+      }, function (aResponse) {
+        do_check_true(!aResponse.error, "Should be able to set breakpoint.");
+        test_black_box_paused();
+      });
+    }
   });
 
   Components.utils.evalInSandbox(
@@ -53,7 +62,7 @@ function test_black_box()
     "" + function runTest() { // line 1
       doStuff(                // line 2
         function (n) {        // line 3
-          n;                  // line 4
+          return n;           // line 4
         }                     // line 5
       );                      // line 6
     }                         // line 7

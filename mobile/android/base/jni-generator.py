@@ -67,8 +67,8 @@ class Generator:
                 paramNames = ['arg%d' % i for i in range(0, len(paramTypes))]
                 if returnType == 'void':
                     returnValue = ''
-                elif returnType in ('jobject', 'jstring'):
-                    returnValue = 'NULL'
+                elif returnType in ('jobject', 'jstring') or returnType.endswith('Array'):
+                    returnValue = 'nullptr'
                 elif returnType in ('jint', 'jfloat', 'jdouble', 'jlong'):
                     returnValue = '0'
                 elif returnType == 'jboolean':

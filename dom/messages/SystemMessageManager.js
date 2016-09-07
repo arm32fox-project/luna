@@ -12,7 +12,6 @@ const Cr = Components.results;
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/DOMRequestHelper.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/ObjectWrapper.jsm");
 
 const kSystemMessageInternalReady = "system-message-internal-ready";
 
@@ -40,8 +39,12 @@ function SystemMessageManager() {
   // Pending messages for this page, keyed by message type.
   this._pendings = {};
 
-  // Flag to specify if this process has already registered manifest.
-  this._registerManifestReady = false;
+  // Flag to specify if this process has already registered the manifest URL.
+  this._registerManifestURLReady = false;
+
+  // Used to know if the promise has to be accepted or not.
+  this._isHandling = false;
+  this._promise = null;
 
   // Flag to determine this process is a parent or child process.
   let appInfo = Cc["@mozilla.org/xre/app-info;1"];
@@ -58,7 +61,7 @@ function SystemMessageManager() {
 SystemMessageManager.prototype = {
   __proto__: DOMRequestIpcHelper.prototype,
 
-  _dispatchMessage: function sysMessMgr_dispatchMessage(aType, aDispatcher, aMessage) {
+  _dispatchMessage: function(aType, aDispatcher, aMessage, aMessageID) {
     if (aDispatcher.isHandling) {
       // Queue up the incomming message if we're currently dispatching a
       // message; we'll send the message once we finish with the current one.
@@ -67,15 +70,15 @@ SystemMessageManager.prototype = {
       // event loop from within a system message handler (e.g. via alert()),
       // and we can then try to send the page another message while it's
       // inside this nested event loop.
-      aDispatcher.messages.push(aMessage);
+      aDispatcher.messages.push({ message: aMessage, messageID: aMessageID });
       return;
     }
 
     aDispatcher.isHandling = true;
+    this._isHandling = true;
 
     // We get a json blob, but in some cases we want another kind of object
-    // to be dispatched.
-    // To do so, we check if we have a with a contract ID of
+    // to be dispatched. To do so, we check if we have a valid contract ID of
     // "@mozilla.org/dom/system-messages/wrapper/TYPE;1" component implementing
     // nsISystemMessageWrapper.
     debug("Dispatching " + JSON.stringify(aMessage) + "\n");
@@ -92,25 +95,59 @@ SystemMessageManager.prototype = {
       }
     }
 
-    aDispatcher.handler
-      .handleMessage(wrapped ? aMessage
-                             : ObjectWrapper.wrap(aMessage, this._window));
+    let message = wrapped ? aMessage : Cu.cloneInto(aMessage, this._window);
 
-    // We need to notify the parent one of the system messages has been handled,
-    // so the parent can release the CPU wake lock it took on our behalf.
-    cpmm.sendAsyncMessage("SystemMessageManager:HandleMessagesDone",
-                          { type: aType,
-                            manifest: this._manifest,
-                            uri: this._uri,
-                            handledCount: 1 });
+    let rejectPromise = false;
+    try {
+      aDispatcher.handler.handleMessage(message);
+    } catch(e) {
+      rejectPromise = true;
+    }
 
+    this._isHandling = false;
     aDispatcher.isHandling = false;
+
+    let self = this;
+    function sendResponse() {
+      // We need to notify the parent one of the system messages has been
+      // handled, so the parent can release the CPU wake lock it took on our
+      // behalf.
+      cpmm.sendAsyncMessage("SystemMessageManager:HandleMessageDone",
+                            { type: aType,
+                              manifestURL: self._manifestURL,
+                              pageURL: self._pageURL,
+                              msgID: aMessageID,
+                              rejected: rejectPromise });
+    }
+
+    if (!this._promise) {
+      debug("No promise set, sending the response immediately.");
+      sendResponse();
+    } else {
+      debug("Using the promise to postpone the response.");
+      this._promise.then(sendResponse, function() {
+        rejectPromise = true;
+        sendResponse();
+      });
+      this._promise = null;
+    }
+
     if (aDispatcher.messages.length > 0) {
-      this._dispatchMessage(aType, aDispatcher, aDispatcher.messages.shift());
+      let msg = aDispatcher.messages.shift();
+      this._dispatchMessage(aType, aDispatcher, msg.message, msg.messageID);
+    } else {
+      // No more messages that need to be handled, we can notify the
+      // ContentChild to release the CPU wake lock grabbed by the ContentParent
+      // (i.e. NewWakeLockOnBehalfOfProcess()) and reset the process's priority.
+      //
+      // TODO: Bug 874353 - Remove SystemMessageHandledListener in ContentParent
+      Services.obs.notifyObservers(/* aSubject */ null,
+                                   "handle-system-messages-done",
+                                   /* aData */ null);
     }
   },
 
-  mozSetMessageHandler: function sysMessMgr_setMessageHandler(aType, aHandler) {
+  mozSetMessageHandler: function(aType, aHandler) {
     debug("set message handler for [" + aType + "] " + aHandler);
 
     if (this._isInBrowserElement) {
@@ -138,11 +175,11 @@ SystemMessageManager.prototype = {
     // Ask for the list of currently pending messages.
     cpmm.sendAsyncMessage("SystemMessageManager:GetPendingMessages",
                           { type: aType,
-                            uri: this._uri,
-                            manifest: this._manifest });
+                            pageURL: this._pageURL,
+                            manifestURL: this._manifestURL });
   },
 
-  mozHasPendingMessage: function sysMessMgr_hasPendingMessage(aType) {
+  mozHasPendingMessage: function(aType) {
     debug("asking pending message for [" + aType + "]");
 
     if (this._isInBrowserElement) {
@@ -156,15 +193,41 @@ SystemMessageManager.prototype = {
       return false;
     }
 
-    return cpmm.sendSyncMessage("SystemMessageManager:HasPendingMessages",
-                                { type: aType,
-                                  uri: this._uri,
-                                  manifest: this._manifest })[0];
+
+    /*
+     * NB: If the system message is fired after we received the cache
+     *     and before we registered the pageURL we will get false
+     *     negative however this is unlikely and will do no harm.
+     */
+    let cache = Cc["@mozilla.org/system-message-cache;1"]
+                  .getService(Ci.nsISystemMessageCache);
+
+    return cache.hasPendingMessage(aType, this._pageURL, this._manifestURL);
   },
 
-  uninit: function sysMessMgr_uninit()  {
+  mozIsHandlingMessage: function() {
+    debug("is handling message: " + this._isHandling);
+    return this._isHandling;
+  },
+
+  mozSetMessageHandlerPromise: function(aPromise) {
+    debug("setting a promise");
+
+    if (!this._isHandling) {
+      throw "Not in a handleMessage method";
+    }
+
+    if (this._promise) {
+      throw "Promise already set";
+    }
+
+    this._promise = aPromise;
+  },
+
+  uninit: function()  {
     this._dispatchers = null;
     this._pendings = null;
+    this._promise = null;
 
     if (this._isParentProcess) {
       Services.obs.removeObserver(this, kSystemMessageInternalReady);
@@ -172,13 +235,13 @@ SystemMessageManager.prototype = {
 
     if (this._isInBrowserElement) {
       debug("the app loaded in the browser doesn't need to unregister " +
-            "the manifest for listening to the system messages");
+            "the manifest URL for listening to the system messages");
       return;
     }
 
     cpmm.sendAsyncMessage("SystemMessageManager:Unregister",
-                          { manifest: this._manifest,
-                            uri: this._uri,
+                          { manifestURL: this._manifestURL,
+                            pageURL: this._pageURL,
                             innerWindowID: this.innerWindowID });
   },
 
@@ -192,52 +255,60 @@ SystemMessageManager.prototype = {
   //     This one will be received when the starting child process wants to
   //     retrieve the pending system messages from the parent (i.e. after
   //     sending SystemMessageManager:GetPendingMessages).
-  receiveMessage: function sysMessMgr_receiveMessage(aMessage) {
+  receiveMessage: function(aMessage) {
     let msg = aMessage.data;
     debug("receiveMessage " + aMessage.name + " for [" + msg.type + "] " +
-          "with manifest = " + msg.manifest + " and uri = " + msg.uri);
+          "with manifest URL = " + msg.manifestURL +
+          " and page URL = " + msg.pageURL);
 
     // Multiple windows can share the same target (process), the content
     // window needs to check if the manifest/page URL is matched. Only
     // *one* window should handle the system message.
-    if (msg.manifest !== this._manifest || msg.uri !== this._uri) {
+    if (msg.manifestURL !== this._manifestURL ||
+        msg.pageURL !== this._pageURL) {
       debug("This page shouldn't handle the messages because its " +
-            "manifest = " + this._manifest + " and uri = " + this._uri);
+            "manifest URL = " + this._manifestURL +
+            " and page URL = " + this._pageURL);
       return;
     }
 
-    if (aMessage.name == "SystemMessageManager:Message") {
-      // Send an acknowledgement to parent to clean up the pending message,
-      // so a re-launched app won't handle it again, which is redundant.
-      cpmm.sendAsyncMessage("SystemMessageManager:Message:Return:OK",
-                            { type: msg.type,
-                              manifest: this._manifest,
-                              uri: this._uri,
-                              msgID: msg.msgID });
-    }
-
     let messages = (aMessage.name == "SystemMessageManager:Message")
-                   ? [msg.msg]
+                   ? [{ msg: msg.msg, msgID: msg.msgID }]
                    : msg.msgQueue;
 
     // We only dispatch messages when a handler is registered.
     let dispatcher = this._dispatchers[msg.type];
     if (dispatcher) {
+      if (aMessage.name == "SystemMessageManager:Message") {
+        // Send an acknowledgement to parent to clean up the pending message
+        // before we dispatch the message to apps, so a re-launched app won't
+        // handle it again, which is redundant.
+        cpmm.sendAsyncMessage("SystemMessageManager:Message:Return:OK",
+                              { type: msg.type,
+                                manifestURL: this._manifestURL,
+                                pageURL: this._pageURL,
+                                msgID: msg.msgID });
+      }
+
       messages.forEach(function(aMsg) {
-        this._dispatchMessage(msg.type, dispatcher, aMsg);
+        this._dispatchMessage(msg.type, dispatcher, aMsg.msg, aMsg.msgID);
       }, this);
+
     } else {
-      // We need to notify the parent that all the queued system messages have
-      // been handled (notice |handledCount: messages.length|), so the parent
-      // can release the CPU wake lock it took on our behalf.
+      // Since no handlers are registered, we need to notify the parent as if
+      // all the queued system messages have been handled (notice |handledCount:
+      // messages.length|), so the parent can release the CPU wake lock it took
+      // on our behalf.
       cpmm.sendAsyncMessage("SystemMessageManager:HandleMessagesDone",
                             { type: msg.type,
-                              manifest: this._manifest,
-                              uri: this._uri,
+                              manifestURL: this._manifestURL,
+                              pageURL: this._pageURL,
                               handledCount: messages.length });
-    }
 
-    if (!dispatcher || !dispatcher.isHandling) {
+      // We also need to notify the ContentChild to release the CPU wake lock
+      // grabbed by the ContentParent (i.e. NewWakeLockOnBehalfOfProcess()) and
+      // reset the process's priority.
+      //
       // TODO: Bug 874353 - Remove SystemMessageHandledListener in ContentParent
       Services.obs.notifyObservers(/* aSubject */ null,
                                    "handle-system-messages-done",
@@ -246,20 +317,21 @@ SystemMessageManager.prototype = {
   },
 
   // nsIDOMGlobalPropertyInitializer implementation.
-  init: function sysMessMgr_init(aWindow) {
+  init: function(aWindow) {
     debug("init");
-    this.initHelper(aWindow, ["SystemMessageManager:Message",
-                              "SystemMessageManager:GetPendingMessages:Return"]);
+    this.initDOMRequestHelper(aWindow,
+                              ["SystemMessageManager:Message",
+                               "SystemMessageManager:GetPendingMessages:Return"]);
 
     let principal = aWindow.document.nodePrincipal;
     this._isInBrowserElement = principal.isInBrowserElement;
-    this._uri = principal.URI.spec;
+    this._pageURL = principal.URI.spec;
 
     let appsService = Cc["@mozilla.org/AppsService;1"]
                         .getService(Ci.nsIAppsService);
-    this._manifest = appsService.getManifestURLByLocalId(principal.appId);
+    this._manifestURL = appsService.getManifestURLByLocalId(principal.appId);
 
-    // Two cases are valid to register the manifest for the current process:
+    // Two cases are valid to register the manifest URL for the current process:
     // 1. This is asked by a child process (parent process must be ready).
     // 2. Parent process has already constructed the |SystemMessageInternal|.
     // Otherwise, delay to do it when the |SystemMessageInternal| is ready.
@@ -272,34 +344,35 @@ SystemMessageManager.prototype = {
       }
     }
     if (readyToRegister) {
-      this._registerManifest();
+      this._registerManifestURL();
     }
 
     debug("done");
   },
 
-  observe: function sysMessMgr_observe(aSubject, aTopic, aData) {
+  observe: function(aSubject, aTopic, aData) {
     if (aTopic === kSystemMessageInternalReady) {
-      this._registerManifest();
+      this._registerManifestURL();
     }
+
     // Call the DOMRequestIpcHelper.observe method.
     this.__proto__.__proto__.observe.call(this, aSubject, aTopic, aData);
   },
 
-  _registerManifest: function sysMessMgr_registerManifest() {
+  _registerManifestURL: function() {
     if (this._isInBrowserElement) {
       debug("the app loaded in the browser doesn't need to register " +
-            "the manifest for listening to the system messages");
+            "the manifest URL for listening to the system messages");
       return;
     }
 
-    if (!this._registerManifestReady) {
+    if (!this._registerManifestURLReady) {
       cpmm.sendAsyncMessage("SystemMessageManager:Register",
-                            { manifest: this._manifest,
-                              uri: this._uri,
+                            { manifestURL: this._manifestURL,
+                              pageURL: this._pageURL,
                               innerWindowID: this.innerWindowID });
 
-      this._registerManifestReady = true;
+      this._registerManifestURLReady = true;
     }
   },
 
@@ -307,14 +380,8 @@ SystemMessageManager.prototype = {
 
   QueryInterface: XPCOMUtils.generateQI([Ci.nsIDOMNavigatorSystemMessages,
                                          Ci.nsIDOMGlobalPropertyInitializer,
-                                         Ci.nsIObserver]),
-
-  classInfo: XPCOMUtils.generateCI({
-    classID: Components.ID("{bc076ea0-609b-4d8f-83d7-5af7cbdc3bb2}"),
-    contractID: "@mozilla.org/system-message-manager;1",
-    interfaces: [Ci.nsIDOMNavigatorSystemMessages],
-    flags: Ci.nsIClassInfo.DOM_OBJECT,
-    classDescription: "System Messages"})
+                                         Ci.nsIObserver,
+                                         Ci.nsISupportsWeakReference])
 }
 
 this.NSGetFactory = XPCOMUtils.generateNSGetFactory([SystemMessageManager]);

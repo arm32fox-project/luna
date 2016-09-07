@@ -20,7 +20,6 @@ class SharedSSLState {
 public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(SharedSSLState)
   SharedSSLState();
-  ~SharedSSLState();
 
   static void GlobalInit();
   static void GlobalCleanup();
@@ -36,16 +35,20 @@ public:
   // Main-thread only
   void ResetStoredData();
   void NotePrivateBrowsingStatus();
-  void SetOCSPStaplingEnabled(bool enabled) { mOCSPStaplingEnabled = enabled; }
+  void SetOCSPStaplingEnabled(bool staplingEnabled)
+  {
+    mOCSPStaplingEnabled = staplingEnabled;
+  }
 
   // The following methods may be called from any thread
   bool SocketCreated();
   void NoteSocketCreated();
   static void NoteCertOverrideServiceInstantiated();
-  static void NoteCertDBServiceInstantiated();
   bool IsOCSPStaplingEnabled() const { return mOCSPStaplingEnabled; }
 
 private:
+  ~SharedSSLState();
+
   void Cleanup();
 
   nsCOMPtr<nsIObserver> mObserver;

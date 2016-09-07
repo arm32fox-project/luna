@@ -4,7 +4,10 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "WinIMEHandler.h"
+
+#include "mozilla/Preferences.h"
 #include "nsIMM32Handler.h"
+#include "nsWindowDefs.h"
 
 #ifdef NS_ENABLE_TSF
 #include "nsTextStore.h"
@@ -22,8 +25,9 @@ namespace widget {
 
 #ifdef NS_ENABLE_TSF
 bool IMEHandler::sIsInTSFMode = false;
+bool IMEHandler::sIsIMMEnabled = true;
 bool IMEHandler::sPluginHasFocus = false;
-IMEHandler::SetInputScopesFunc IMEHandler::sSetInputScopes = nullptr;
+decltype(SetInputScopes)* IMEHandler::sSetInputScopes = nullptr;
 #endif // #ifdef NS_ENABLE_TSF
 
 // static
@@ -33,6 +37,8 @@ IMEHandler::Initialize()
 #ifdef NS_ENABLE_TSF
   nsTextStore::Initialize();
   sIsInTSFMode = nsTextStore::IsInTSFMode();
+  sIsIMMEnabled =
+    !sIsInTSFMode || Preferences::GetBool("intl.tsf.support_imm", true);
   if (!sIsInTSFMode) {
     // When full nsTextStore is not available, try to use SetInputScopes API
     // to enable at least InputScope. Use GET_MODULE_HANDLE_EX_FLAG_PIN to
@@ -40,7 +46,7 @@ IMEHandler::Initialize()
     HMODULE module = nullptr;
     if (GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_PIN, L"msctf.dll",
                            &module)) {
-      sSetInputScopes = reinterpret_cast<SetInputScopesFunc>(
+      sSetInputScopes = reinterpret_cast<decltype(SetInputScopes)*>(
         GetProcAddress(module, "SetInputScopes"));
     }
   }
@@ -99,22 +105,38 @@ IMEHandler::ProcessRawKeyMessage(const MSG& aMsg)
 bool
 IMEHandler::ProcessMessage(nsWindow* aWindow, UINT aMessage,
                            WPARAM& aWParam, LPARAM& aLParam,
-                           LRESULT* aRetValue, bool& aEatMessage)
+                           MSGResult& aResult)
 {
 #ifdef NS_ENABLE_TSF
   if (IsTSFAvailable()) {
-    if (aMessage == WM_USER_TSF_TEXTCHANGE) {
-      nsTextStore::OnTextChangeMsg();
-      aEatMessage = true;
+    nsTextStore::ProcessMessage(aWindow, aMessage, aWParam, aLParam, aResult);
+    if (aResult.mConsumed) {
       return true;
     }
-    return false;
+    // If we don't support IMM in TSF mode, we don't use nsIMM32Handler.
+    if (!sIsIMMEnabled) {
+      return false;
+    }
+    // IME isn't implemented with IMM, nsIMM32Handler shouldn't handle any
+    // messages.
+    if (!nsTextStore::IsIMM_IME()) {
+      return false;
+    }
   }
 #endif // #ifdef NS_ENABLE_TSF
 
   return nsIMM32Handler::ProcessMessage(aWindow, aMessage, aWParam, aLParam,
-                                        aRetValue, aEatMessage);
+                                        aResult);
 }
+
+#ifdef NS_ENABLE_TSF
+// static
+bool
+IMEHandler::IsIMMActive()
+{
+  return nsTextStore::IsIMM_IME();
+}
+#endif // #ifdef NS_ENABLE_TSF
 
 // static
 bool
@@ -122,7 +144,7 @@ IMEHandler::IsComposing()
 {
 #ifdef NS_ENABLE_TSF
   if (IsTSFAvailable()) {
-    return nsTextStore::IsComposing();
+    return nsTextStore::IsComposing() || nsIMM32Handler::IsComposing();
   }
 #endif // #ifdef NS_ENABLE_TSF
 
@@ -135,7 +157,8 @@ IMEHandler::IsComposingOn(nsWindow* aWindow)
 {
 #ifdef NS_ENABLE_TSF
   if (IsTSFAvailable()) {
-    return nsTextStore::IsComposingOn(aWindow);
+    return nsTextStore::IsComposingOn(aWindow) ||
+           nsIMM32Handler::IsComposingOn(aWindow);
   }
 #endif // #ifdef NS_ENABLE_TSF
 
@@ -145,70 +168,91 @@ IMEHandler::IsComposingOn(nsWindow* aWindow)
 // static
 nsresult
 IMEHandler::NotifyIME(nsWindow* aWindow,
-                      NotificationToIME aNotification)
+                      const IMENotification& aIMENotification)
 {
 #ifdef NS_ENABLE_TSF
   if (IsTSFAvailable()) {
-    switch (aNotification) {
-      case NOTIFY_IME_OF_SELECTION_CHANGE:
-        return nsTextStore::OnSelectionChange();
+    switch (aIMENotification.mMessage) {
+      case NOTIFY_IME_OF_SELECTION_CHANGE: {
+        nsresult rv = nsTextStore::OnSelectionChange();
+        // If IMM IME is active, we need to notify nsIMM32Handler of updating
+        // composition change.  It will adjust candidate window position or
+        // composition window position.
+        if (IsIMMActive()) {
+          nsIMM32Handler::OnUpdateComposition(aWindow);
+        }
+        return rv;
+      }
+      case NOTIFY_IME_OF_COMPOSITION_UPDATE:
+        // If IMM IME is active, we need to notify nsIMM32Handler of updating
+        // composition change.  It will adjust candidate window position or
+        // composition window position.
+        if (IsIMMActive()) {
+          nsIMM32Handler::OnUpdateComposition(aWindow);
+        }
+        return NS_OK;
+      case NOTIFY_IME_OF_TEXT_CHANGE:
+        return nsTextStore::OnTextChange(aIMENotification);
       case NOTIFY_IME_OF_FOCUS:
         return nsTextStore::OnFocusChange(true, aWindow,
-                 aWindow->GetInputContext().mIMEState.mEnabled);
+                                          aWindow->GetInputContext());
       case NOTIFY_IME_OF_BLUR:
         return nsTextStore::OnFocusChange(false, aWindow,
-                 aWindow->GetInputContext().mIMEState.mEnabled);
+                                          aWindow->GetInputContext());
+      case NOTIFY_IME_OF_MOUSE_BUTTON_EVENT:
+        // If IMM IME is active, we should send a mouse button event via IMM.
+        if (IsIMMActive()) {
+          return nsIMM32Handler::OnMouseButtonEvent(aWindow, aIMENotification);
+        }
+        return nsTextStore::OnMouseButtonEvent(aIMENotification);
       case REQUEST_TO_COMMIT_COMPOSITION:
         if (nsTextStore::IsComposingOn(aWindow)) {
           nsTextStore::CommitComposition(false);
+        } else if (IsIMMActive()) {
+          nsIMM32Handler::CommitComposition(aWindow);
         }
         return NS_OK;
       case REQUEST_TO_CANCEL_COMPOSITION:
         if (nsTextStore::IsComposingOn(aWindow)) {
           nsTextStore::CommitComposition(true);
+        } else if (IsIMMActive()) {
+          nsIMM32Handler::CancelComposition(aWindow);
         }
         return NS_OK;
+      case NOTIFY_IME_OF_POSITION_CHANGE:
+        return nsTextStore::OnLayoutChange();
       default:
         return NS_ERROR_NOT_IMPLEMENTED;
     }
   }
 #endif //NS_ENABLE_TSF
 
-  switch (aNotification) {
+  switch (aIMENotification.mMessage) {
     case REQUEST_TO_COMMIT_COMPOSITION:
       nsIMM32Handler::CommitComposition(aWindow);
       return NS_OK;
     case REQUEST_TO_CANCEL_COMPOSITION:
       nsIMM32Handler::CancelComposition(aWindow);
       return NS_OK;
+    case NOTIFY_IME_OF_POSITION_CHANGE:
+    case NOTIFY_IME_OF_COMPOSITION_UPDATE:
+      nsIMM32Handler::OnUpdateComposition(aWindow);
+      return NS_OK;
+    case NOTIFY_IME_OF_MOUSE_BUTTON_EVENT:
+      return nsIMM32Handler::OnMouseButtonEvent(aWindow, aIMENotification);
 #ifdef NS_ENABLE_TSF
     case NOTIFY_IME_OF_BLUR:
       // If a plugin gets focus while TSF has focus, we need to notify TSF of
       // the blur.
       if (nsTextStore::ThinksHavingFocus()) {
         return nsTextStore::OnFocusChange(false, aWindow,
-                 aWindow->GetInputContext().mIMEState.mEnabled);
+                                          aWindow->GetInputContext());
       }
       return NS_ERROR_NOT_IMPLEMENTED;
 #endif //NS_ENABLE_TSF
     default:
       return NS_ERROR_NOT_IMPLEMENTED;
   }
-}
-
-// static
-nsresult
-IMEHandler::NotifyIMEOfTextChange(uint32_t aStart,
-                                  uint32_t aOldEnd,
-                                  uint32_t aNewEnd)
-{
-#ifdef NS_ENABLE_TSF
-  if (IsTSFAvailable()) {
-    return nsTextStore::OnTextChange(aStart, aOldEnd, aNewEnd);
-  }
-#endif //NS_ENABLE_TSF
-
-  return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 // static
@@ -221,7 +265,7 @@ IMEHandler::GetUpdatePreference()
   }
 #endif //NS_ENABLE_TSF
 
-  return nsIMEUpdatePreference(false, false);
+  return nsIMM32Handler::GetIMEUpdatePreference();
 }
 
 // static
@@ -229,7 +273,7 @@ bool
 IMEHandler::GetOpenState(nsWindow* aWindow)
 {
 #ifdef NS_ENABLE_TSF
-  if (IsTSFAvailable()) {
+  if (IsTSFAvailable() && !IsIMMActive()) {
     return nsTextStore::GetIMEOpenState();
   }
 #endif //NS_ENABLE_TSF
@@ -251,8 +295,7 @@ IMEHandler::OnDestroyWindow(nsWindow* aWindow)
     SetInputScopeForIMM32(aWindow, EmptyString());
   }
 #endif // #ifdef NS_ENABLE_TSF
-  nsIMEContext IMEContext(aWindow->GetWindowHandle());
-  IMEContext.AssociateDefaultContext();
+  AssociateIMEContext(aWindow, true);
 }
 
 // static
@@ -262,7 +305,9 @@ IMEHandler::SetInputContext(nsWindow* aWindow,
                             const InputContextAction& aAction)
 {
   // FYI: If there is no composition, this call will do nothing.
-  NotifyIME(aWindow, REQUEST_TO_COMMIT_COMPOSITION);
+  NotifyIME(aWindow, IMENotification(REQUEST_TO_COMMIT_COMPOSITION));
+
+  const InputContext& oldInputContext = aWindow->GetInputContext();
 
   // Assume that SetInputContext() is called only when aWindow has focus.
   sPluginHasFocus = (aInputContext.mIMEState.mEnabled == IMEState::PLUGIN);
@@ -280,7 +325,15 @@ IMEHandler::SetInputContext(nsWindow* aWindow,
   if (sIsInTSFMode) {
     nsTextStore::SetInputContext(aWindow, aInputContext, aAction);
     if (IsTSFAvailable()) {
-      aInputContext.mNativeIMEContext = nsTextStore::GetTextStore();
+      aInputContext.mNativeIMEContext = nsTextStore::GetThreadManager();
+      if (sIsIMMEnabled) {
+        // Associate IME context for IMM-IMEs.
+        AssociateIMEContext(aWindow, enable);
+      } else if (oldInputContext.mIMEState.mEnabled == IMEState::PLUGIN) {
+        // Disassociate the IME context from the window when plugin loses focus
+        // in pure TSF mode.
+        AssociateIMEContext(aWindow, false);
+      }
       if (adjustOpenState) {
         nsTextStore::SetIMEOpenState(open);
       }
@@ -292,25 +345,37 @@ IMEHandler::SetInputContext(nsWindow* aWindow,
   }
 #endif // #ifdef NS_ENABLE_TSF
 
-  nsIMEContext IMEContext(aWindow->GetWindowHandle());
-  if (enable) {
-    IMEContext.AssociateDefaultContext();
-    if (!aInputContext.mNativeIMEContext) {
-      aInputContext.mNativeIMEContext = static_cast<void*>(IMEContext.get());
-    }
-  } else if (!aWindow->Destroyed()) {
-    // Don't disassociate the context after the window is destroyed.
-    IMEContext.Disassociate();
-    if (!aInputContext.mNativeIMEContext) {
-      // The old InputContext must store the default IMC.
-      aInputContext.mNativeIMEContext =
-        aWindow->GetInputContext().mNativeIMEContext;
-    }
-  }
+  AssociateIMEContext(aWindow, enable);
 
+  nsIMEContext IMEContext(aWindow->GetWindowHandle());
   if (adjustOpenState) {
     IMEContext.SetOpenState(open);
   }
+
+  if (aInputContext.mNativeIMEContext) {
+    return;
+  }
+
+  // The old InputContext must store the default IMC or old TextStore.
+  // When IME context is disassociated from the window, use it.
+  aInputContext.mNativeIMEContext = enable ?
+    static_cast<void*>(IMEContext.get()) : oldInputContext.mNativeIMEContext;
+}
+
+// static
+void
+IMEHandler::AssociateIMEContext(nsWindow* aWindow, bool aEnable)
+{
+  nsIMEContext IMEContext(aWindow->GetWindowHandle());
+  if (aEnable) {
+    IMEContext.AssociateDefaultContext();
+    return;
+  }
+  // Don't disassociate the context after the window is destroyed.
+  if (aWindow->Destroyed()) {
+    return;
+  }
+  IMEContext.Disassociate();
 }
 
 // static
@@ -325,8 +390,12 @@ IMEHandler::InitInputContext(nsWindow* aWindow, InputContext& aInputContext)
     nsTextStore::SetInputContext(aWindow, aInputContext,
       InputContextAction(InputContextAction::CAUSE_UNKNOWN,
                          InputContextAction::GOT_FOCUS));
-    aInputContext.mNativeIMEContext = nsTextStore::GetTextStore();
+    aInputContext.mNativeIMEContext = nsTextStore::GetThreadManager();
     MOZ_ASSERT(aInputContext.mNativeIMEContext);
+    // IME context isn't necessary in pure TSF mode.
+    if (!sIsIMMEnabled) {
+      AssociateIMEContext(aWindow, false);
+    }
     return;
   }
 #endif // #ifdef NS_ENABLE_TSF

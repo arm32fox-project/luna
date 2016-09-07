@@ -1,9 +1,8 @@
-// |jit-test| debug
 // Check that {throw:} resumption kills the current stack frame.
 
 load(libdir + "asserts.js");
 
-var g = newGlobal('new-compartment');
+var g = newGlobal();
 g.debuggeeGlobal = this;
 g.eval("(" + function () {
         var dbg = new Debugger(debuggeeGlobal);

@@ -6,7 +6,7 @@ from __future__ import print_function, unicode_literals
 
 import json
 import logging
-import mozpack.path
+import mozpack.path as mozpath
 import multiprocessing
 import os
 import subprocess
@@ -19,12 +19,14 @@ from mach.mixin.process import ProcessExecutionMixin
 from mozfile.mozfile import rmtree
 
 from .backend.configenvironment import ConfigEnvironment
-from .config import BuildConfig
+from .controller.clobber import Clobberer
 from .mozconfig import (
     MozconfigFindException,
     MozconfigLoadException,
     MozconfigLoader,
 )
+from .virtualenv import VirtualenvManager
+
 
 def ancestors(path):
     """Emit the parent directories of a path."""
@@ -36,9 +38,10 @@ def ancestors(path):
         path = newpath
 
 def samepath(path1, path2):
-    if hasattr(os.path, "samepath"):
-        return os.path.samepath(path1, path2)
-    return os.path.normpath(path1) == os.path.normpath(path2)
+    if hasattr(os.path, 'samefile'):
+        return os.path.samefile(path1, path2)
+    return os.path.normpath(os.path.realpath(path1)) == \
+        os.path.normpath(os.path.realpath(path2))
 
 class BadEnvironmentException(Exception):
     """Base class for errors raised when the build environment is not sane."""
@@ -57,6 +60,7 @@ class ObjdirMismatchException(BadEnvironmentException):
     def __str__(self):
         return "Objdir mismatch: %s != %s" % (self.objdir1, self.objdir2)
 
+
 class MozbuildObject(ProcessExecutionMixin):
     """Base class providing basic functionality useful to many modules.
 
@@ -74,7 +78,6 @@ class MozbuildObject(ProcessExecutionMixin):
         """
         self.topsrcdir = topsrcdir
         self.settings = settings
-        self.config = BuildConfig(settings)
 
         self.populate_logger()
         self.log_manager = log_manager
@@ -84,9 +87,10 @@ class MozbuildObject(ProcessExecutionMixin):
         self._mozconfig = None
         self._config_guess_output = None
         self._config_environment = None
+        self._virtualenv_manager = None
 
     @classmethod
-    def from_environment(cls):
+    def from_environment(cls, cwd=None, detect_virtualenv_mozinfo=True):
         """Create a MozbuildObject by detecting the proper one from the env.
 
         This examines environment state like the current working directory and
@@ -108,8 +112,14 @@ class MozbuildObject(ProcessExecutionMixin):
         an objdir, we use that as our objdir.
 
         If we're not inside a srcdir or objdir, an exception is raised.
+
+        detect_virtualenv_mozinfo determines whether we should look for a
+        mozinfo.json file relative to the virtualenv directory. This was
+        added to facilitate testing. Callers likely shouldn't change the
+        default.
         """
 
+        cwd = cwd or os.getcwd()
         topsrcdir = None
         topobjdir = None
         mozconfig = None
@@ -121,7 +131,7 @@ class MozbuildObject(ProcessExecutionMixin):
             mozconfig = info.get('mozconfig')
             return topsrcdir, topobjdir, mozconfig
 
-        for dir_path in ancestors(os.getcwd()):
+        for dir_path in ancestors(cwd):
             # If we find a mozinfo.json, we are in the objdir.
             mozinfo_path = os.path.join(dir_path, 'mozinfo.json')
             if os.path.isfile(mozinfo_path):
@@ -135,11 +145,10 @@ class MozbuildObject(ProcessExecutionMixin):
                 topsrcdir = dir_path
                 break
 
-        if not topsrcdir:
-            # See if we're running from a Python virtualenv that's inside an objdir.
-            mozinfo_path = os.path.join(os.path.dirname(sys.prefix), "mozinfo.json")
-            if os.path.isfile(mozinfo_path):
-                topsrcdir, topobjdir, mozconfig = load_mozinfo(mozinfo_path)
+        # See if we're running from a Python virtualenv that's inside an objdir.
+        mozinfo_path = os.path.join(os.path.dirname(sys.prefix), "mozinfo.json")
+        if detect_virtualenv_mozinfo and os.path.isfile(mozinfo_path):
+            topsrcdir, topobjdir, mozconfig = load_mozinfo(mozinfo_path)
 
         # If we were successful, we're only guaranteed to find a topsrcdir. If
         # we couldn't find that, there's nothing we can do.
@@ -152,32 +161,70 @@ class MozbuildObject(ProcessExecutionMixin):
         # environment. If no mozconfig is present, the config will not have
         # much defined.
         loader = MozconfigLoader(topsrcdir)
-        config = loader.read_mozconfig(mozconfig)
+        current_project = os.environ.get('MOZ_CURRENT_PROJECT')
+        config = loader.read_mozconfig(mozconfig, moz_build_app=current_project)
+
+        config_topobjdir = MozbuildObject.resolve_mozconfig_topobjdir(
+            topsrcdir, config)
 
         # If we're inside a objdir and the found mozconfig resolves to
         # another objdir, we abort. The reasoning here is that if you are
         # inside an objdir you probably want to perform actions on that objdir,
-        # not another one.
-        if topobjdir and config['topobjdir'] \
-            and not samepath(topobjdir, config['topobjdir']):
+        # not another one. This prevents accidental usage of the wrong objdir
+        # when the current objdir is ambiguous.
+        if topobjdir and config_topobjdir:
+            if current_project:
+                config_topobjdir = os.path.join(config_topobjdir, current_project)
 
-            raise ObjdirMismatchException(topobjdir, config['topobjdir'])
+            _config_topobjdir = config_topobjdir
+            if not samepath(topobjdir, _config_topobjdir):
+                raise ObjdirMismatchException(topobjdir, _config_topobjdir)
 
-        topobjdir = os.path.normpath(config['topobjdir'] or topobjdir)
+        topobjdir = topobjdir or config_topobjdir
+        if topobjdir:
+            topobjdir = os.path.normpath(topobjdir)
+
+            if topsrcdir == topobjdir:
+                raise BadEnvironmentException('The object directory appears '
+                    'to be the same as your source directory (%s). This build '
+                    'configuration is not supported.' % topsrcdir)
 
         # If we can't resolve topobjdir, oh well. The constructor will figure
         # it out via config.guess.
         return cls(topsrcdir, None, None, topobjdir=topobjdir)
 
+    @staticmethod
+    def resolve_mozconfig_topobjdir(topsrcdir, mozconfig, default=None):
+        topobjdir = mozconfig['topobjdir'] or default
+        if not topobjdir:
+            return None
+
+        if '@CONFIG_GUESS@' in topobjdir:
+            topobjdir = topobjdir.replace('@CONFIG_GUESS@',
+                MozbuildObject.resolve_config_guess(mozconfig, topsrcdir))
+
+        if not os.path.isabs(topobjdir):
+            topobjdir = os.path.abspath(os.path.join(topsrcdir, topobjdir))
+
+        return os.path.normpath(topobjdir)
+
     @property
     def topobjdir(self):
         if self._topobjdir is None:
-            topobj = self.mozconfig['topobjdir'] or 'obj-@CONFIG_GUESS@'
-            if not os.path.isabs(topobj):
-                topobj = os.path.abspath(os.path.join(self.topsrcdir, topobj))
-            self._topobjdir = topobj.replace("@CONFIG_GUESS@",
-                                             self._config_guess)
+            self._topobjdir = MozbuildObject.resolve_mozconfig_topobjdir(
+                self.topsrcdir, self.mozconfig, default='obj-@CONFIG_GUESS@')
+
         return self._topobjdir
+
+    @property
+    def virtualenv_manager(self):
+        if self._virtualenv_manager is None:
+            self._virtualenv_manager = VirtualenvManager(self.topsrcdir,
+                self.topobjdir, os.path.join(self.topobjdir, '_virtualenv'),
+                sys.stdout, os.path.join(self.topsrcdir, 'build',
+                'virtualenv_packages.txt'))
+
+        return self._virtualenv_manager
 
     @property
     def mozconfig(self):
@@ -187,7 +234,8 @@ class MozbuildObject(ProcessExecutionMixin):
         """
         if self._mozconfig is None:
             loader = MozconfigLoader(self.topsrcdir)
-            self._mozconfig = loader.read_mozconfig()
+            self._mozconfig = loader.read_mozconfig(
+                moz_build_app=os.environ.get('MOZ_CURRENT_PROJECT'))
 
         return self._mozconfig
 
@@ -226,11 +274,23 @@ class MozbuildObject(ProcessExecutionMixin):
 
     @property
     def bindir(self):
+        import mozinfo
+        if mozinfo.os == "mac":
+            return os.path.join(self.topobjdir, 'dist', self.substs['MOZ_MACBUNDLE_NAME'], 'Contents', 'Resources')
         return os.path.join(self.topobjdir, 'dist', 'bin')
+
+    @property
+    def includedir(self):
+        return os.path.join(self.topobjdir, 'dist', 'include')
 
     @property
     def statedir(self):
         return os.path.join(self.topobjdir, '.mozbuild')
+
+    def is_clobber_needed(self):
+        if not os.path.exists(self.topobjdir):
+            return False
+        return Clobberer(self.topsrcdir, self.topobjdir).clobber_needed()
 
     def remove_objdir(self):
         """Remove the entire object directory."""
@@ -265,8 +325,11 @@ class MozbuildObject(ProcessExecutionMixin):
             stem = os.path.join(stem, substs['MOZ_APP_NAME'])
 
         if substs['OS_ARCH'] == 'Darwin':
-            stem = os.path.join(stem, substs['MOZ_MACBUNDLE_NAME'], 'Contents',
-                'MacOS')
+            if substs['MOZ_BUILD_APP'] == 'xulrunner':
+                stem = os.path.join(stem, 'XUL.framework');
+            else:
+                stem = os.path.join(stem, substs['MOZ_MACBUNDLE_NAME'], 'Contents',
+                    'MacOS')
         elif where == 'default':
             stem = os.path.join(stem, 'bin')
 
@@ -280,14 +343,32 @@ class MozbuildObject(ProcessExecutionMixin):
 
         return path
 
+    @staticmethod
+    def resolve_config_guess(mozconfig, topsrcdir):
+        make_extra = mozconfig['make_extra'] or []
+        make_extra = dict(m.split('=', 1) for m in make_extra)
+
+        config_guess = make_extra.get('CONFIG_GUESS', None)
+
+        if config_guess:
+            return config_guess
+
+        p = os.path.join(topsrcdir, 'build', 'autoconf', 'config.guess')
+
+        # This is a little kludgy. We need access to the normalize_command
+        # function. However, that's a method of a mach mixin, so we need a
+        # class instance. Ideally the function should be accessible as a
+        # standalone function.
+        o = MozbuildObject(topsrcdir, None, None, None)
+        args = o._normalize_command([p], True)
+
+        return subprocess.check_output(args, cwd=topsrcdir).strip()
+
     @property
     def _config_guess(self):
         if self._config_guess_output is None:
-            p = os.path.join(self.topsrcdir, 'build', 'autoconf',
-                'config.guess')
-            args = self._normalize_command([p], True)
-            self._config_guess_output = subprocess.check_output(args,
-                cwd=self.topsrcdir).strip()
+            self._config_guess_output = MozbuildObject.resolve_config_guess(
+                self.mozconfig, self.topsrcdir)
 
         return self._config_guess_output
 
@@ -335,20 +416,41 @@ class MozbuildObject(ProcessExecutionMixin):
         """
         self._ensure_objdir_exists()
 
-        # Need to copy list since we modify it.
-        args = list(self._make_path)
+        args = self._make_path()
 
         if directory:
-            args.extend(['-C', directory])
+            args.extend(['-C', directory.replace(os.sep, '/')])
 
         if filename:
             args.extend(['-f', filename])
+
+        if num_jobs == 0 and self.mozconfig['make_flags']:
+            flags = iter(self.mozconfig['make_flags'])
+            for flag in flags:
+                if flag == '-j':
+                    try:
+                        flag = flags.next()
+                    except StopIteration:
+                        break
+                    try:
+                        num_jobs = int(flag)
+                    except ValueError:
+                        args.append(flag)
+                elif flag.startswith('-j'):
+                    try:
+                        num_jobs = int(flag[2:])
+                    except (ValueError, IndexError):
+                        break
+                else:
+                    args.append(flag)
 
         if allow_parallel:
             if num_jobs > 0:
                 args.append('-j%d' % num_jobs)
             else:
                 args.append('-j%d' % multiprocessing.cpu_count())
+        elif num_jobs > 0:
+            args.append('MOZ_PARALLEL_BUILD=%d' % num_jobs)
 
         if ignore_errors:
             args.append('-k')
@@ -357,9 +459,7 @@ class MozbuildObject(ProcessExecutionMixin):
             args.append('-s')
 
         # Print entering/leaving directory messages. Some consumers look at
-        # these to measure progress. Ideally, we'd do everything with pymake
-        # and use hooks in its API. Unfortunately, it doesn't provide that
-        # feature... yet.
+        # these to measure progress.
         if print_directory:
             args.append('-w')
 
@@ -373,13 +473,16 @@ class MozbuildObject(ProcessExecutionMixin):
         if srcdir:
             fn = self._run_command_in_srcdir
 
+        append_env = dict(append_env or ())
+        append_env[b'MACH'] = '1'
+
         params = {
             'args': args,
             'line_handler': line_handler,
             'append_env': append_env,
             'explicit_env': explicit_env,
             'log_level': logging.INFO,
-            'require_unix_environment': True,
+            'require_unix_environment': False,
             'ensure_exit_code': ensure_exit_code,
             'pass_thru': pass_thru,
 
@@ -394,26 +497,45 @@ class MozbuildObject(ProcessExecutionMixin):
 
         return fn(**params)
 
-    @property
     def _make_path(self):
-        if self._make is None:
-            if self._is_windows():
-                make_py = os.path.join(self.topsrcdir, 'build', 'pymake',
-                    'make.py').replace(os.sep, '/')
-                self._make = [sys.executable, make_py]
+        baseconfig = os.path.join(self.topsrcdir, 'config', 'baseconfig.mk')
 
+        def validate_make(make):
+            if os.path.exists(baseconfig) and os.path.exists(make):
+                cmd = [make, '-f', baseconfig]
+                if self._is_windows():
+                    cmd.append('HOST_OS_ARCH=WINNT')
+                try:
+                    subprocess.check_call(cmd, stdout=open(os.devnull, 'wb'),
+                        stderr=subprocess.STDOUT)
+                except subprocess.CalledProcessError:
+                    return False
+                return True
+            return False
+
+        possible_makes = ['gmake', 'make', 'mozmake', 'gnumake']
+
+        if 'MAKE' in os.environ:
+            make = os.environ['MAKE']
+            if os.path.isabs(make):
+                if validate_make(make):
+                    return [make]
             else:
-                for test in ['gmake', 'make']:
-                    try:
-                        self._make = [which.which(test)]
-                        break
-                    except which.WhichError:
-                        continue
+                possible_makes.insert(0, make)
 
-        if self._make is None:
-            raise Exception('Could not find suitable make binary!')
+        for test in possible_makes:
+            try:
+                make = which.which(test)
+            except which.WhichError:
+                continue
+            if validate_make(make):
+                return [make]
 
-        return self._make
+        if self._is_windows():
+            raise Exception('Could not find a suitable make implementation.\n'
+                'Please use MozillaBuild 1.9 or newer')
+        else:
+            raise Exception('Could not find a suitable make implementation.')
 
     def _run_command_in_srcdir(self, **args):
         return self.run_process(cwd=self.topsrcdir, **args)
@@ -435,6 +557,10 @@ class MozbuildObject(ProcessExecutionMixin):
         return cls(self.topsrcdir, self.settings, self.log_manager,
             topobjdir=self.topobjdir)
 
+    def _activate_virtualenv(self):
+        self.virtualenv_manager.ensure()
+        self.virtualenv_manager.activate()
+
 
 class MachCommandBase(MozbuildObject):
     """Base class for mach command providers that wish to be MozbuildObjects.
@@ -444,8 +570,48 @@ class MachCommandBase(MozbuildObject):
     """
 
     def __init__(self, context):
-        MozbuildObject.__init__(self, context.topdir, context.settings,
-            context.log_manager)
+        # Attempt to discover topobjdir through environment detection, as it is
+        # more reliable than mozconfig when cwd is inside an objdir.
+        topsrcdir = context.topdir
+        topobjdir = None
+        detect_virtualenv_mozinfo = True
+        if hasattr(context, 'detect_virtualenv_mozinfo'):
+            detect_virtualenv_mozinfo = getattr(context,
+                'detect_virtualenv_mozinfo')
+        try:
+            dummy = MozbuildObject.from_environment(cwd=context.cwd,
+                detect_virtualenv_mozinfo=detect_virtualenv_mozinfo)
+            topsrcdir = dummy.topsrcdir
+            topobjdir = dummy._topobjdir
+        except BuildEnvironmentNotFoundException:
+            pass
+        except ObjdirMismatchException as e:
+            print('Ambiguous object directory detected. We detected that '
+                'both %s and %s could be object directories. This is '
+                'typically caused by having a mozconfig pointing to a '
+                'different object directory from the current working '
+                'directory. To solve this problem, ensure you do not have a '
+                'default mozconfig in searched paths.' % (e.objdir1,
+                    e.objdir2))
+            sys.exit(1)
+
+        except MozconfigLoadException as e:
+            print('Error loading mozconfig: ' + e.path)
+            print('')
+            print(e.message)
+            if e.output:
+                print('')
+                print('mozconfig output:')
+                print('')
+                for line in e.output:
+                    print(line)
+
+            sys.exit(1)
+
+        MozbuildObject.__init__(self, topsrcdir, context.settings,
+            context.log_manager, topobjdir=topobjdir)
+
+        self._mach_context = context
 
         # Incur mozconfig processing so we have unified error handling for
         # errors. Otherwise, the exceptions could bubble back to mach's error
@@ -471,6 +637,53 @@ class MachCommandBase(MozbuildObject):
             sys.exit(1)
 
 
+class MachCommandConditions(object):
+    """A series of commonly used condition functions which can be applied to
+    mach commands with providers deriving from MachCommandBase.
+    """
+    @staticmethod
+    def is_firefox(cls):
+        """Must have a Firefox build."""
+        if hasattr(cls, 'substs'):
+            return cls.substs.get('MOZ_BUILD_APP') == 'browser'
+        return False
+
+    @staticmethod
+    def is_mulet(cls):
+        """Must have a Mulet build."""
+        if hasattr(cls, 'substs'):
+            return cls.substs.get('MOZ_BUILD_APP') == 'b2g/dev'
+        return False
+
+    @staticmethod
+    def is_firefox_or_mulet(cls):
+        """Must have a Firefox or Mulet build."""
+        return (MachCommandConditions.is_firefox(cls) or
+                MachCommandConditions.is_mulet(cls))
+
+    @staticmethod
+    def is_b2g(cls):
+        """Must have a Boot to Goanna build."""
+        if hasattr(cls, 'substs'):
+            return cls.substs.get('MOZ_WIDGET_TOOLKIT') == 'gonk'
+        return False
+
+    @staticmethod
+    def is_b2g_desktop(cls):
+        """Must have a Boot to Goanna desktop build."""
+        if hasattr(cls, 'substs'):
+            return cls.substs.get('MOZ_BUILD_APP') == 'b2g' and \
+                   cls.substs.get('MOZ_WIDGET_TOOLKIT') != 'gonk'
+        return False
+
+    @staticmethod
+    def is_android(cls):
+        """Must have an Android build."""
+        if hasattr(cls, 'substs'):
+            return cls.substs.get('MOZ_WIDGET_TOOLKIT') == 'android'
+        return False
+
+
 class PathArgument(object):
     """Parse a filesystem path argument and transform it in various ways."""
 
@@ -493,12 +706,12 @@ class PathArgument(object):
         # path relative to that base directory.
         for base_dir in [self.topobjdir, self.topsrcdir]:
             if abspath.startswith(os.path.abspath(base_dir)):
-                return mozpack.path.relpath(abspath, base_dir)
+                return mozpath.relpath(abspath, base_dir)
 
-        return mozpack.path.normsep(self.arg)
+        return mozpath.normsep(self.arg)
 
     def srcdir_path(self):
-        return mozpack.path.join(self.topsrcdir, self.relpath())
+        return mozpath.join(self.topsrcdir, self.relpath())
 
     def objdir_path(self):
-        return mozpack.path.join(self.topobjdir, self.relpath())
+        return mozpath.join(self.topobjdir, self.relpath())

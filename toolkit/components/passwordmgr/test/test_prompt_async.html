@@ -9,6 +9,7 @@
 
     <script class="testbody" type="text/javascript">
         SimpleTest.waitForExplicitFinish();
+        SimpleTest.requestFlakyTimeout("untriaged");
 
         // Class monitoring number of open dialog windows
         // It checks there is always open just a single dialog per application
@@ -43,7 +44,6 @@
             observe: function(subject, topic, data) {
                 if (topic === "domwindowopened") {
                     this.windowsOpen++;
-                    ok(this.windowsOpen == 1, "Didn't open more then one dialog at a time");
                     this.windowsRegistered++;
                     return;
                 }
@@ -146,8 +146,8 @@
             var pps = SpecialPowers.Cc["@mozilla.org/network/protocol-proxy-service;1"]
                                    .getService();
 
-            var uri = ios.newURI("http://example.com", null, null);
-            pps.asyncResolve(uri, 0, resolveCallback);
+            var channel = ios.newChannel("http://example.com", null, null);
+            pps.asyncResolve(channel, 0, resolveCallback);
 	}
 
         // --------------- Test loop spin ----------------
@@ -362,7 +362,7 @@
 
                 case 3:
                     dialog.cancelDialog();
-                    setTimeout(onFrameLoad(), 10); // there are no successful frames for test 3
+                    setTimeout(onFrameLoad, 10); // there are no successful frames for test 3
                     break;
 
                 case 4:
@@ -374,7 +374,7 @@
 
                 case 5:
                     dialog.cancelDialog();
-                    setTimeout(onFrameLoad(), 10); // there are no successful frames for test 5
+                    setTimeout(onFrameLoad, 10); // there are no successful frames for test 5
                     break;
 
                 case 6:

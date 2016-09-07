@@ -40,22 +40,7 @@
 
 #include <d3d10_1.h>
 
-typedef HRESULT (WINAPI*D3D10CreateDevice1Func)(
-  IDXGIAdapter *pAdapter,
-  D3D10_DRIVER_TYPE DriverType,
-  HMODULE Software,
-  UINT Flags,
-  D3D10_FEATURE_LEVEL1 HardwareLevel,
-  UINT SDKVersion,
-  ID3D10Device1 **ppDevice
-);
-
-typedef HRESULT(WINAPI*CreateDXGIFactory1Func)(
-  REFIID riid,
-  void **ppFactory
-);
-
- using namespace std;
+using namespace std;
 
 void SetSubclass(HWND hWnd, InstanceData* instanceData);
 void ClearSubclass(HWND hWnd);
@@ -80,12 +65,6 @@ pluginSupportsWindowlessMode()
   return true;
 }
 
-bool
-pluginSupportsAsyncBitmapDrawing()
-{
-  return true;
-}
-
 NPError
 pluginInstanceInit(InstanceData* instanceData)
 {
@@ -96,10 +75,10 @@ pluginInstanceInit(InstanceData* instanceData)
   if (!instanceData->platformData)
     return NPERR_OUT_OF_MEMORY_ERROR;
   
-  instanceData->platformData->childWindow = NULL;
-  instanceData->platformData->device = NULL;
-  instanceData->platformData->frontBuffer = NULL;
-  instanceData->platformData->backBuffer = NULL;
+  instanceData->platformData->childWindow = nullptr;
+  instanceData->platformData->device = nullptr;
+  instanceData->platformData->frontBuffer = nullptr;
+  instanceData->platformData->backBuffer = nullptr;
   return NPERR_NO_ERROR;
 }
 
@@ -120,116 +99,10 @@ pluginInstanceShutdown(InstanceData* instanceData)
   instanceData->platformData = 0;
 }
 
-static ID3D10Device1*
-getD3D10Device()
-{
-  ID3D10Device1 *device;
-    
-  HMODULE d3d10module = LoadLibraryA("d3d10_1.dll");
-  D3D10CreateDevice1Func createD3DDevice = (D3D10CreateDevice1Func)
-      GetProcAddress(d3d10module, "D3D10CreateDevice1");
-
-  if (createD3DDevice) {
-    HMODULE dxgiModule = LoadLibraryA("dxgi.dll");
-    CreateDXGIFactory1Func createDXGIFactory1 = (CreateDXGIFactory1Func)
-        GetProcAddress(dxgiModule, "CreateDXGIFactory1");
-
-    HRESULT hr;
-
-    // Try to use a DXGI 1.1 adapter in order to share resources
-    // across processes.
-    IDXGIAdapter1 *adapter1;
-    if (createDXGIFactory1) {
-      IDXGIFactory1 *factory1;
-      hr = createDXGIFactory1(__uuidof(IDXGIFactory1),
-                              (void**)&factory1);
-
-      if (FAILED(hr) || !factory1) {
-        // Uh-oh
-        return NULL;
-      }
-
-      hr = factory1->EnumAdapters1(0, &adapter1);
-
-      if (SUCCEEDED(hr) && adapter1) {
-        hr = adapter1->CheckInterfaceSupport(__uuidof(ID3D10Device),
-                                             NULL);
-        if (FAILED(hr)) {
-            adapter1 = NULL;
-        }
-      }
-      factory1->Release();
-    }
-
-    hr = createD3DDevice(
-          adapter1, 
-          D3D10_DRIVER_TYPE_HARDWARE,
-          NULL,
-          D3D10_CREATE_DEVICE_BGRA_SUPPORT |
-          D3D10_CREATE_DEVICE_PREVENT_INTERNAL_THREADING_OPTIMIZATIONS,
-          D3D10_FEATURE_LEVEL_10_0,
-          D3D10_1_SDK_VERSION,
-          &device);
-
-    adapter1->Release();
-  }
-
-  return device;
-}
-
 void
 pluginDoSetWindow(InstanceData* instanceData, NPWindow* newWindow)
 {
   instanceData->window = *newWindow;
-  NPP npp = instanceData->npp;
-
-  if (instanceData->asyncDrawing == AD_DXGI) {
-    if (instanceData->frontBuffer &&
-        instanceData->frontBuffer->size.width == newWindow->width &&
-        instanceData->frontBuffer->size.height == newWindow->height) {
-          return;
-    }
-    if (instanceData->frontBuffer) {
-      instanceData->platformData->frontBuffer->Release();
-      instanceData->platformData->frontBuffer = NULL;
-      NPN_FinalizeAsyncSurface(npp, instanceData->frontBuffer);
-      NPN_MemFree(instanceData->frontBuffer);
-    }
-    if (instanceData->backBuffer) {
-      instanceData->platformData->backBuffer->Release();
-      instanceData->platformData->backBuffer = NULL;
-      NPN_FinalizeAsyncSurface(npp, instanceData->backBuffer);
-      NPN_MemFree(instanceData->backBuffer);
-    }
-
-    if (!instanceData->platformData->device) {
-      instanceData->platformData->device = getD3D10Device();
-    }
-
-    ID3D10Device1 *dev = instanceData->platformData->device;
-
-    if (!dev) {
-      return;
-    }
-
-    instanceData->frontBuffer = (NPAsyncSurface*)NPN_MemAlloc(sizeof(NPAsyncSurface));
-    instanceData->backBuffer = (NPAsyncSurface*)NPN_MemAlloc(sizeof(NPAsyncSurface));
-
-    NPSize size;
-    size.width = newWindow->width;
-    size.height = newWindow->height;
-
-    memset(instanceData->frontBuffer, 0, sizeof(NPAsyncSurface));
-    memset(instanceData->backBuffer, 0, sizeof(NPAsyncSurface));
-
-    NPN_InitAsyncSurface(npp, &size, NPImageFormatBGRA32, NULL, instanceData->frontBuffer);
-    NPN_InitAsyncSurface(npp, &size, NPImageFormatBGRA32, NULL, instanceData->backBuffer);
-
-    dev->OpenSharedResource(instanceData->frontBuffer->sharedHandle, __uuidof(ID3D10Texture2D), (void**)&instanceData->platformData->frontBuffer);
-    dev->OpenSharedResource(instanceData->backBuffer->sharedHandle, __uuidof(ID3D10Texture2D), (void**)&instanceData->platformData->backBuffer);
-
-    pluginDrawAsyncDxgiColor(instanceData);
-  }
 }
 
 #define CHILD_WIDGET_SIZE 10
@@ -251,8 +124,8 @@ pluginWidgetInit(InstanceData* instanceData, void* oldWindow)
 
   instanceData->platformData->childWindow =
     ::CreateWindowW(L"SCROLLBAR", L"Dummy child window", 
-                    WS_CHILD, 0, 0, CHILD_WIDGET_SIZE, CHILD_WIDGET_SIZE, hWnd, NULL,
-                    NULL, NULL);
+                    WS_CHILD, 0, 0, CHILD_WIDGET_SIZE, CHILD_WIDGET_SIZE, hWnd, nullptr,
+                    nullptr, nullptr);
 }
 
 static void
@@ -365,7 +238,7 @@ pluginDraw(InstanceData* instanceData)
   if (!npp)
     return;
 
-  HDC hdc = NULL;
+  HDC hdc = nullptr;
   PAINTSTRUCT ps;
 
   notifyDidPaint(instanceData);
@@ -375,7 +248,7 @@ pluginDraw(InstanceData* instanceData)
   else
     hdc = (HDC)instanceData->window.window;
 
-  if (hdc == NULL)
+  if (hdc == nullptr)
     return;
 
   // Push the browser's hdc on the resource stack. If this test plugin is windowless,
@@ -409,7 +282,8 @@ pluginGetEdge(InstanceData* instanceData, RectEdge edge)
   RECT rect = {0};
   if (!::GetClientRect((HWND)instanceData->window.window, &rect))
     return NPTEST_INT32_ERROR;
-  ::MapWindowPoints((HWND)instanceData->window.window, NULL, (LPPOINT)&rect, 2);
+  ::MapWindowPoints((HWND)instanceData->window.window, nullptr,
+                    (LPPOINT)&rect, 2);
 
   // Get the toplevel window frame rect in screen coordinates
   HWND rootWnd = ::GetAncestor((HWND)instanceData->window.window, GA_ROOT);
@@ -451,16 +325,16 @@ computeClipRegion(InstanceData* instanceData)
   HWND wnd = (HWND)instanceData->window.window;
   HRGN rgn = ::CreateRectRgn(0, 0, 0, 0);
   if (!rgn)
-    return NULL;
+    return nullptr;
   HRGN ancestorRgn = ::CreateRectRgn(0, 0, 0, 0);
   if (!ancestorRgn) {
     ::DeleteObject(rgn);
-    return NULL;
+    return nullptr;
   }
   if (!getWindowRegion(wnd, rgn)) {
     ::DeleteObject(ancestorRgn);
     ::DeleteObject(rgn);
-    return NULL;
+    return nullptr;
   }
 
   HWND ancestor = wnd;
@@ -469,23 +343,23 @@ computeClipRegion(InstanceData* instanceData)
     if (!ancestor || ancestor == ::GetDesktopWindow()) {
       ::DeleteObject(ancestorRgn);
 
-      DWORD size = ::GetRegionData(rgn, 0, NULL);
+      DWORD size = ::GetRegionData(rgn, 0, nullptr);
       if (!size) {
         ::DeleteObject(rgn);
-        return NULL;
+        return nullptr;
       }
 
       HANDLE heap = ::GetProcessHeap();
       RGNDATA* data = static_cast<RGNDATA*>(::HeapAlloc(heap, 0, size));
       if (!data) {
         ::DeleteObject(rgn);
-        return NULL;
+        return nullptr;
       }
       DWORD result = ::GetRegionData(rgn, size, data);
       ::DeleteObject(rgn);
       if (!result) {
         ::HeapFree(heap, 0, data);
-        return NULL;
+        return nullptr;
       }
 
       return data;
@@ -621,7 +495,8 @@ handleEventInternal(InstanceData* instanceData, NPEvent* pe, LRESULT* result)
       }
       char utf8Char[6];
       int len =
-        ::WideCharToMultiByte(CP_UTF8, 0, &uniChar, 1, utf8Char, 6, NULL, NULL);
+        ::WideCharToMultiByte(CP_UTF8, 0, &uniChar, 1, utf8Char, 6,
+                              nullptr, nullptr);
       if (len == 0 || len > 6) {
         return true;
       }
@@ -639,7 +514,7 @@ pluginHandleEvent(InstanceData* instanceData, void* event)
 {
   NPEvent* pe = (NPEvent*)event;
 
-  if (pe == NULL || instanceData == NULL ||
+  if (pe == nullptr || instanceData == nullptr ||
       instanceData->window.type != NPWindowTypeDrawable)
     return 0;   
 
@@ -715,46 +590,4 @@ void pluginDoInternalConsistencyCheck(InstanceData* instanceData, string& error)
     checkEquals(childRect.right, childRect.left + CHILD_WIDGET_SIZE, "Child widget width", error);
     checkEquals(childRect.bottom, childRect.top + CHILD_WIDGET_SIZE, "Child widget height", error);
   }
-}
-
-void
-pluginDrawAsyncDxgiColor(InstanceData* id)
-{
-  PlatformData *pd = id->platformData;
-
-  ID3D10Device1 *dev = pd->device;
-
-  IDXGIKeyedMutex *mutex;
-  pd->backBuffer->QueryInterface(&mutex);
-
-  mutex->AcquireSync(0, INFINITE);
-  ID3D10RenderTargetView *rtView;
-  dev->CreateRenderTargetView(pd->backBuffer, NULL, &rtView);
-
-  uint32_t rgba = id->scriptableObject->drawColor;
-
-  unsigned char subpixels[4];
-  subpixels[0] = rgba & 0xFF;
-  subpixels[1] = (rgba & 0xFF00) >> 8;
-  subpixels[2] = (rgba & 0xFF0000) >> 16;
-  subpixels[3] = (rgba & 0xFF000000) >> 24;
-
-  float color[4];
-  color[2] = float(subpixels[3] * subpixels[0]) / 0xFE01;
-  color[1] = float(subpixels[3] * subpixels[1]) / 0xFE01;
-  color[0] = float(subpixels[3] * subpixels[2]) / 0xFE01;
-  color[3] = float(subpixels[3]) / 0xFF;
-  dev->ClearRenderTargetView(rtView, color);
-  rtView->Release();
-
-  mutex->ReleaseSync(0);
-  mutex->Release();
-
-  NPN_SetCurrentAsyncSurface(id->npp, id->backBuffer, NULL);
-  NPAsyncSurface *oldFront = id->frontBuffer;
-  id->frontBuffer = id->backBuffer;
-  id->backBuffer = oldFront;
-  ID3D10Texture2D *oldFrontT = pd->frontBuffer;
-  pd->frontBuffer = pd->backBuffer;
-  pd->backBuffer = oldFrontT;
 }

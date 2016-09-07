@@ -10,12 +10,15 @@
  * liability, trademark and document use rules apply.
  */
 
-interface SVGAnimatedNumber;
-
 interface SVGFEGaussianBlurElement : SVGElement {
+  [Constant]
   readonly attribute SVGAnimatedString in1;
+  [Constant]
   readonly attribute SVGAnimatedNumber stdDeviationX;
+  [Constant]
   readonly attribute SVGAnimatedNumber stdDeviationY;
 
   void setStdDeviation(float stdDeviationX, float stdDeviationY);
 };
+
+SVGFEGaussianBlurElement implements SVGFilterPrimitiveStandardAttributes;

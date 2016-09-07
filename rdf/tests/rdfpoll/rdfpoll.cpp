@@ -37,6 +37,7 @@
 #include "plstr.h"
 #include "nsEmbedString.h"
 #include "nsNetCID.h"
+#include "prtime.h"
 
 ////////////////////////////////////////////////////////////////////////
 // CIDs
@@ -54,9 +55,11 @@ static NS_DEFINE_CID(kRDFXMLDataSourceCID,  NS_RDFXMLDATASOURCE_CID);
 
 class Observer : public nsIRDFObserver
 {
+protected:
+    virtual ~Observer() {}
+
 public:
     Observer();
-    virtual ~Observer() {}
 
     // nsISupports interface
     NS_DECL_ISUPPORTS
@@ -69,7 +72,7 @@ Observer::Observer()
 {
 }
 
-NS_IMPL_ISUPPORTS1(Observer, nsIRDFObserver)
+NS_IMPL_ISUPPORTS(Observer, nsIRDFObserver)
 
 static nsresult
 rdf_WriteOp(const char* aOp,

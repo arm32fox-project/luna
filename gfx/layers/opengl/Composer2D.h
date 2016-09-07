@@ -26,34 +26,33 @@
  * layer manager fall back on full GPU composition.
  */
 
-class gfxMatrix;
-
 namespace mozilla {
+
+namespace gfx {
+class Matrix;
+}
+
 namespace layers {
 
 class Layer;
 
 class Composer2D {
-  NS_INLINE_DECL_REFCOUNTING(Composer2D)
+  NS_INLINE_DECL_THREADSAFE_REFCOUNTING(Composer2D)
 
-public:
+protected:
+  // Protected destructor, to discourage deletion outside of Release():
   virtual ~Composer2D() {}
 
+public:
   /**
    * Return true if |aRoot| met the implementation's criteria for fast
    * composition and the render was successful.  Return false to fall
    * back on the GPU.
    *
-   * |aWorldTransform| must be applied to |aRoot|'s subtree when
-   * rendering to the framebuffer.  This is a global transform on the
-   * entire scene, defined in GL space.  If the Composer2D
-   * implementation is unable to honor the transform, it should return
-   * false.
-   *
    * Currently, when TryRender() returns true, the entire framebuffer
    * must have been rendered.
    */
-  virtual bool TryRender(Layer* aRoot, const gfxMatrix& aWorldTransform) = 0;
+  virtual bool TryRender(Layer* aRoot, bool aGeometryChanged) = 0;
 };
 
 } // namespace layers

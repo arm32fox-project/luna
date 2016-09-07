@@ -22,16 +22,18 @@
 #include "mozilla/dom/TabParent.h"
 #include "mozilla/Hal.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/Services.h"
 #include "mozilla/FileUtils.h"
-#include "Framebuffer.h"
+#include "mozilla/ClearOnShutdown.h"
 #include "gfxContext.h"
 #include "gfxPlatform.h"
 #include "gfxUtils.h"
 #include "GLContextProvider.h"
-#include "LayerManagerOGL.h"
+#include "GLContext.h"
 #include "nsAutoPtr.h"
 #include "nsAppShell.h"
 #include "nsIdleService.h"
+#include "nsIObserverService.h"
 #include "nsScreenManagerGonk.h"
 #include "nsTArray.h"
 #include "nsWindow.h"
@@ -41,10 +43,16 @@
 #include "BasicLayers.h"
 #include "libdisplay/GonkDisplay.h"
 #include "pixelflinger/format.h"
-
-#if ANDROID_VERSION == 15
+#include "mozilla/BasicEvents.h"
+#include "mozilla/gfx/2D.h"
+#include "mozilla/layers/APZCTreeManager.h"
+#include "mozilla/layers/APZThreadUtils.h"
+#include "mozilla/layers/CompositorParent.h"
+#include "mozilla/layers/InputAPZContext.h"
+#include "mozilla/MouseEvents.h"
+#include "mozilla/TouchEvents.h"
+#include "nsThreadUtils.h"
 #include "HwcComposer2D.h"
-#endif
 
 #define LOG(args...)  __android_log_print(ANDROID_LOG_INFO, "Gonk" , ## args)
 #define LOGW(args...) __android_log_print(ANDROID_LOG_WARN, "Gonk", ## args)
@@ -55,6 +63,7 @@
 using namespace mozilla;
 using namespace mozilla::dom;
 using namespace mozilla::hal;
+using namespace mozilla::gfx;
 using namespace mozilla::gl;
 using namespace mozilla::layers;
 using namespace mozilla::widget;
@@ -63,18 +72,11 @@ nsIntRect gScreenBounds;
 static uint32_t sScreenRotation;
 static uint32_t sPhysicalScreenRotation;
 static nsIntRect sVirtualBounds;
-static gfxMatrix sRotationMatrix;
 
-static nsRefPtr<GLContext> sGLContext;
 static nsTArray<nsWindow *> sTopWindows;
-static nsWindow *gWindowToRedraw = nullptr;
 static nsWindow *gFocusedWindow = nullptr;
-static bool sFramebufferOpen;
-static bool sUsingOMTC;
 static bool sUsingHwc;
 static bool sScreenInitialized;
-static nsRefPtr<gfxASurface> sOMTCSurface;
-static pthread_t sFramebufferWatchThread;
 
 namespace {
 
@@ -104,7 +106,7 @@ public:
         if (observerService) {
           observerService->NotifyObservers(
             nullptr, "screen-state-changed",
-            mIsOn ? NS_LITERAL_STRING("on").get() : NS_LITERAL_STRING("off").get()
+            mIsOn ? MOZ_UTF16("on") : MOZ_UTF16("off")
           );
         }
 
@@ -115,96 +117,70 @@ private:
     bool mIsOn;
 };
 
-static const char* kSleepFile = "/sys/power/wait_for_fb_sleep";
-static const char* kWakeFile = "/sys/power/wait_for_fb_wake";
+static StaticRefPtr<ScreenOnOffEvent> sScreenOnEvent;
+static StaticRefPtr<ScreenOnOffEvent> sScreenOffEvent;
 
-static void *frameBufferWatcher(void *) {
-
-    char buf;
-    bool ret;
-
-    nsRefPtr<ScreenOnOffEvent> mScreenOnEvent = new ScreenOnOffEvent(true);
-    nsRefPtr<ScreenOnOffEvent> mScreenOffEvent = new ScreenOnOffEvent(false);
-
-    while (true) {
-        // Cannot use epoll here because kSleepFile and kWakeFile are
-        // always ready to read and blocking.
-        ret = ReadSysFile(kSleepFile, &buf, sizeof(buf));
-        NS_WARN_IF_FALSE(ret, "WAIT_FOR_FB_SLEEP failed");
-        NS_DispatchToMainThread(mScreenOffEvent);
-
-        ret = ReadSysFile(kWakeFile, &buf, sizeof(buf));
-        NS_WARN_IF_FALSE(ret, "WAIT_FOR_FB_WAKE failed");
-        NS_DispatchToMainThread(mScreenOnEvent);
-    }
-
-    return NULL;
+static void
+displayEnabledCallback(bool enabled)
+{
+    HwcComposer2D::GetInstance()->EnableVsync(enabled);
+    NS_DispatchToMainThread(enabled ? sScreenOnEvent : sScreenOffEvent);
 }
 
 } // anonymous namespace
 
+NS_IMPL_ISUPPORTS_INHERITED0(nsWindow, nsBaseWidget)
+
 nsWindow::nsWindow()
 {
-    if (!sScreenInitialized) {
-        // Watching screen on/off state by using a pthread
-        // which implicitly calls exit() when the main thread ends
-        if (pthread_create(&sFramebufferWatchThread, NULL, frameBufferWatcher, NULL)) {
-            NS_RUNTIMEABORT("Failed to create framebufferWatcherThread, aborting...");
-        }
+    mFramebuffer = nullptr;
 
-        nsIntSize screenSize;
-        bool gotFB = Framebuffer::GetSize(&screenSize);
-        if (!gotFB) {
-            NS_RUNTIMEABORT("Failed to get size from framebuffer, aborting...");
-        }
-        gScreenBounds = nsIntRect(nsIntPoint(0, 0), screenSize);
+    if (sScreenInitialized)
+        return;
 
-        char propValue[PROPERTY_VALUE_MAX];
-        property_get("ro.sf.hwrotation", propValue, "0");
-        sPhysicalScreenRotation = atoi(propValue) / 90;
+    sScreenOnEvent = new ScreenOnOffEvent(true);
+    ClearOnShutdown(&sScreenOnEvent);
+    sScreenOffEvent = new ScreenOnOffEvent(false);
+    ClearOnShutdown(&sScreenOffEvent);
+    GetGonkDisplay()->OnEnabled(displayEnabledCallback);
 
-        // Unlike nsScreenGonk::SetRotation(), only support 0 and 180 as there
-        // are no known screens that are mounted at 90 or 270 at the moment.
-        switch (sPhysicalScreenRotation) {
-        case nsIScreen::ROTATION_0_DEG:
-            break;
-        case nsIScreen::ROTATION_180_DEG:
-            sRotationMatrix.Translate(gfxPoint(gScreenBounds.width,
-                                               gScreenBounds.height));
-            sRotationMatrix.Rotate(M_PI);
-            break;
-        default:
-            MOZ_NOT_REACHED("Unknown rotation");
-            break;
-        }
-        sVirtualBounds = gScreenBounds;
+    nsIntSize screenSize;
 
-        sScreenInitialized = true;
+    ANativeWindow *win = GetGonkDisplay()->GetNativeWindow();
 
-        nsAppShell::NotifyScreenInitialized();
-
-        // This is a hack to force initialization of the compositor
-        // resources, if we're going to use omtc.
-        //
-        // NB: GetPlatform() will create the gfxPlatform, which wants
-        // to know the color depth, which asks our native window.
-        // This has to happen after other init has finished.
-        gfxPlatform::GetPlatform();
-        sUsingOMTC = ShouldUseOffMainThreadCompositing();
-
-        property_get("ro.display.colorfill", propValue, "0");
-        sUsingHwc = Preferences::GetBool("layers.composer2d.enabled",
-                                         atoi(propValue) == 1);
-
-        if (sUsingOMTC) {
-          sOMTCSurface = new gfxImageSurface(gfxIntSize(1, 1),
-                                             gfxASurface::ImageFormatRGB24);
-        }
+    if (win->query(win, NATIVE_WINDOW_WIDTH, &screenSize.width) ||
+        win->query(win, NATIVE_WINDOW_HEIGHT, &screenSize.height)) {
+        NS_RUNTIMEABORT("Failed to get native window size, aborting...");
     }
+    gScreenBounds = nsIntRect(nsIntPoint(0, 0), screenSize);
+
+    char propValue[PROPERTY_VALUE_MAX];
+    property_get("ro.sf.hwrotation", propValue, "0");
+    sPhysicalScreenRotation = atoi(propValue) / 90;
+
+    sVirtualBounds = gScreenBounds;
+
+    sScreenInitialized = true;
+
+    nsAppShell::NotifyScreenInitialized();
+
+    // This is a hack to force initialization of the compositor
+    // resources, if we're going to use omtc.
+    //
+    // NB: GetPlatform() will create the gfxPlatform, which wants
+    // to know the color depth, which asks our native window.
+    // This has to happen after other init has finished.
+    gfxPlatform::GetPlatform();
+    if (!ShouldUseOffMainThreadCompositing()) {
+        MOZ_CRASH("How can we render apps, then?");
+    }
+    // Update sUsingHwc whenever layers.composer2d.enabled changes
+    Preferences::AddBoolVarCache(&sUsingHwc, "layers.composer2d.enabled");
 }
 
 nsWindow::~nsWindow()
 {
+    HwcComposer2D::GetInstance()->SetCompositorParent(nullptr);
 }
 
 void
@@ -215,116 +191,248 @@ nsWindow::DoDraw(void)
         return;
     }
 
-    if (!gWindowToRedraw) {
+    if (sTopWindows.IsEmpty()) {
         LOG("  no window to draw, bailing");
         return;
     }
 
-    nsIntRegion region = gWindowToRedraw->mDirtyRegion;
-    gWindowToRedraw->mDirtyRegion.SetEmpty();
+    nsWindow *targetWindow = (nsWindow *)sTopWindows[0];
+    while (targetWindow->GetLastChild())
+        targetWindow = (nsWindow *)targetWindow->GetLastChild();
 
-    nsIWidgetListener* listener = gWindowToRedraw->GetWidgetListener();
+    nsIWidgetListener* listener = targetWindow->GetWidgetListener();
     if (listener) {
-        listener->WillPaintWindow(gWindowToRedraw);
+        listener->WillPaintWindow(targetWindow);
     }
 
-    LayerManager* lm = gWindowToRedraw->GetLayerManager();
-    if (mozilla::layers::LAYERS_OPENGL == lm->GetBackendType()) {
-        LayerManagerOGL* oglm = static_cast<LayerManagerOGL*>(lm);
-        oglm->SetClippingRegion(region);
-        oglm->SetWorldTransform(sRotationMatrix);
-
-        listener = gWindowToRedraw->GetWidgetListener();
-        if (listener) {
-            listener->PaintWindow(gWindowToRedraw, region);
-        }
-    } else if (mozilla::layers::LAYERS_CLIENT == lm->GetBackendType()) {
+    LayerManager* lm = targetWindow->GetLayerManager();
+    if (mozilla::layers::LayersBackend::LAYERS_CLIENT == lm->GetBackendType()) {
       // No need to do anything, the compositor will handle drawing
-    } else if (mozilla::layers::LAYERS_BASIC == lm->GetBackendType()) {
-        MOZ_ASSERT(sFramebufferOpen || sUsingOMTC);
-        nsRefPtr<gfxASurface> targetSurface;
-
-        if(sUsingOMTC)
-            targetSurface = sOMTCSurface;
-        else
-            targetSurface = Framebuffer::BackBuffer();
-
-        {
-            nsRefPtr<gfxContext> ctx = new gfxContext(targetSurface);
-            gfxUtils::PathFromRegion(ctx, region);
-            ctx->Clip();
-
-            // No double-buffering needed.
-            AutoLayerManagerSetup setupLayerManager(
-                gWindowToRedraw, ctx, mozilla::layers::BUFFER_NONE,
-                ScreenRotation(EffectiveScreenRotation()));
-
-            listener = gWindowToRedraw->GetWidgetListener();
-            if (listener) {
-                listener->PaintWindow(gWindowToRedraw, region);
-            }
-        }
-
-        if (!sUsingOMTC) {
-            targetSurface->Flush();
-            Framebuffer::Present(region);
-        }
     } else {
         NS_RUNTIMEABORT("Unexpected layer manager type");
     }
 
-    listener = gWindowToRedraw->GetWidgetListener();
+    listener = targetWindow->GetWidgetListener();
     if (listener) {
         listener->DidPaintWindow();
     }
 }
 
-nsEventStatus
-nsWindow::DispatchInputEvent(nsGUIEvent &aEvent, bool* aWasCaptured)
+/*static*/ nsEventStatus
+nsWindow::DispatchInputEvent(WidgetGUIEvent& aEvent)
 {
-    if (aWasCaptured) {
-        *aWasCaptured = false;
-    }
     if (!gFocusedWindow) {
         return nsEventStatus_eIgnore;
     }
 
     gFocusedWindow->UserActivity();
 
+    nsEventStatus status;
     aEvent.widget = gFocusedWindow;
+    gFocusedWindow->DispatchEvent(&aEvent, status);
+    return status;
+}
 
-    if (TabParent* capturer = TabParent::GetEventCapturer()) {
-        bool captured = capturer->TryCapture(aEvent);
-        if (aWasCaptured) {
-            *aWasCaptured = captured;
+/*static*/ void
+nsWindow::DispatchTouchInput(MultiTouchInput& aInput)
+{
+    APZThreadUtils::AssertOnControllerThread();
+
+    if (!gFocusedWindow) {
+        return;
+    }
+
+    gFocusedWindow->DispatchTouchInputViaAPZ(aInput);
+}
+
+class DispatchTouchInputOnMainThread : public nsRunnable
+{
+public:
+    DispatchTouchInputOnMainThread(const MultiTouchInput& aInput,
+                                   const ScrollableLayerGuid& aGuid,
+                                   const uint64_t& aInputBlockId)
+      : mInput(aInput)
+      , mGuid(aGuid)
+      , mInputBlockId(aInputBlockId)
+    {}
+
+    NS_IMETHOD Run() {
+        if (gFocusedWindow) {
+            gFocusedWindow->DispatchTouchEventForAPZ(mInput, mGuid, mInputBlockId);
         }
-        if (captured) {
-            return nsEventStatus_eConsumeNoDefault;
+        return NS_OK;
+    }
+
+private:
+    MultiTouchInput mInput;
+    ScrollableLayerGuid mGuid;
+    uint64_t mInputBlockId;
+};
+
+void
+nsWindow::DispatchTouchInputViaAPZ(MultiTouchInput& aInput)
+{
+    APZThreadUtils::AssertOnControllerThread();
+
+    if (!mAPZC) {
+        // In general mAPZC should not be null, but during initial setup
+        // it might be, so we handle that case by ignoring touch input there.
+        return;
+    }
+
+    // First send it through the APZ code
+    mozilla::layers::ScrollableLayerGuid guid;
+    uint64_t inputBlockId;
+    nsEventStatus rv = mAPZC->ReceiveInputEvent(aInput, &guid, &inputBlockId);
+    // If the APZ says to drop it, then we drop it
+    if (rv == nsEventStatus_eConsumeNoDefault) {
+        return;
+    }
+
+    // Can't use NS_NewRunnableMethod because it only takes up to one arg and
+    // we need more. Also we can't pass in |this| to the task because nsWindow
+    // refcounting is not threadsafe. Instead we just use the gFocusedWindow
+    // static ptr inside the task.
+    NS_DispatchToMainThread(new DispatchTouchInputOnMainThread(
+        aInput, guid, inputBlockId));
+}
+
+void
+nsWindow::DispatchTouchEventForAPZ(const MultiTouchInput& aInput,
+                                   const ScrollableLayerGuid& aGuid,
+                                   const uint64_t aInputBlockId)
+{
+    MOZ_ASSERT(NS_IsMainThread());
+    UserActivity();
+
+    // Convert it to an event we can send to Goanna
+    WidgetTouchEvent event = aInput.ToWidgetTouchEvent(this);
+
+    // If there is an event capturing child process, send it directly there.
+    // This happens if we already sent a touchstart event through the root
+    // process hit test and it ended up going to a child process. The event
+    // capturing process should get all subsequent touch events in the same
+    // event block. In this case the TryCapture call below will return true,
+    // and the child process will take care of responding to the event as needed
+    // so we don't need to do anything else here.
+    if (TabParent* capturer = TabParent::GetEventCapturer()) {
+        InputAPZContext context(aGuid, aInputBlockId);
+        if (capturer->TryCapture(event)) {
+            return;
         }
     }
 
-    nsEventStatus status;
-    gFocusedWindow->DispatchEvent(&aEvent, status);
-    return status;
+    // If it didn't get captured, dispatch the event into the goanna root process
+    // for "normal" flow. The event might get sent to the child process still,
+    // but if it doesn't we need to notify the APZ of various things. All of
+    // that happens in DispatchEventForAPZ
+    DispatchEventForAPZ(&event, aGuid, aInputBlockId);
+}
+
+class DispatchTouchInputOnControllerThread : public Task
+{
+public:
+    DispatchTouchInputOnControllerThread(const MultiTouchInput& aInput)
+      : Task()
+      , mInput(aInput)
+    {}
+
+    virtual void Run() override {
+        if (gFocusedWindow) {
+            gFocusedWindow->DispatchTouchInputViaAPZ(mInput);
+        }
+    }
+
+private:
+    MultiTouchInput mInput;
+};
+
+nsresult
+nsWindow::SynthesizeNativeTouchPoint(uint32_t aPointerId,
+                                     TouchPointerState aPointerState,
+                                     nsIntPoint aPointerScreenPoint,
+                                     double aPointerPressure,
+                                     uint32_t aPointerOrientation)
+{
+    if (aPointerState == TOUCH_HOVER) {
+        return NS_ERROR_UNEXPECTED;
+    }
+
+    if (!mSynthesizedTouchInput) {
+        mSynthesizedTouchInput = new MultiTouchInput();
+    }
+
+    // We can't dispatch mSynthesizedTouchInput directly because (a) dispatching
+    // it might inadvertently modify it and (b) in the case of touchend or
+    // touchcancel events mSynthesizedTouchInput will hold the touches that are
+    // still down whereas the input dispatched needs to hold the removed
+    // touch(es). We use |inputToDispatch| for this purpose.
+    MultiTouchInput inputToDispatch;
+    inputToDispatch.mInputType = MULTITOUCH_INPUT;
+
+    int32_t index = mSynthesizedTouchInput->IndexOfTouch((int32_t)aPointerId);
+    if (aPointerState == TOUCH_CONTACT) {
+        if (index >= 0) {
+            // found an existing touch point, update it
+            SingleTouchData& point = mSynthesizedTouchInput->mTouches[index];
+            point.mScreenPoint = ScreenIntPoint::FromUntyped(aPointerScreenPoint);
+            point.mRotationAngle = (float)aPointerOrientation;
+            point.mForce = (float)aPointerPressure;
+            inputToDispatch.mType = MultiTouchInput::MULTITOUCH_MOVE;
+        } else {
+            // new touch point, add it
+            mSynthesizedTouchInput->mTouches.AppendElement(SingleTouchData(
+                (int32_t)aPointerId,
+                ScreenIntPoint::FromUntyped(aPointerScreenPoint),
+                ScreenSize(0, 0),
+                (float)aPointerOrientation,
+                (float)aPointerPressure));
+            inputToDispatch.mType = MultiTouchInput::MULTITOUCH_START;
+        }
+        inputToDispatch.mTouches = mSynthesizedTouchInput->mTouches;
+    } else {
+        MOZ_ASSERT(aPointerState == TOUCH_REMOVE || aPointerState == TOUCH_CANCEL);
+        // a touch point is being lifted, so remove it from the stored list
+        if (index >= 0) {
+            mSynthesizedTouchInput->mTouches.RemoveElementAt(index);
+        }
+        inputToDispatch.mType = (aPointerState == TOUCH_REMOVE
+            ? MultiTouchInput::MULTITOUCH_END
+            : MultiTouchInput::MULTITOUCH_CANCEL);
+        inputToDispatch.mTouches.AppendElement(SingleTouchData(
+            (int32_t)aPointerId,
+            ScreenIntPoint::FromUntyped(aPointerScreenPoint),
+            ScreenSize(0, 0),
+            (float)aPointerOrientation,
+            (float)aPointerPressure));
+    }
+
+    // Can't use NewRunnableMethod here because that will pass a const-ref
+    // argument to DispatchTouchInputViaAPZ whereas that function takes a
+    // non-const ref. At this callsite we don't care about the mutations that
+    // the function performs so this is fine. Also we can't pass |this| to the
+    // task because nsWindow refcounting is not threadsafe. Instead we just use
+    // the gFocusedWindow static ptr instead the task.
+    APZThreadUtils::RunOnControllerThread(new DispatchTouchInputOnControllerThread(inputToDispatch));
+
+    return NS_OK;
 }
 
 NS_IMETHODIMP
 nsWindow::Create(nsIWidget *aParent,
                  void *aNativeParent,
                  const nsIntRect &aRect,
-                 nsDeviceContext *aContext,
                  nsWidgetInitData *aInitData)
 {
     BaseCreate(aParent, IS_TOPLEVEL() ? sVirtualBounds : aRect,
-               aContext, aInitData);
+               aInitData);
 
     mBounds = aRect;
 
-    nsWindow *parent = (nsWindow *)aNativeParent;
-    mParent = parent;
+    mParent = (nsWindow *)aParent;
     mVisible = false;
 
-    if (!aNativeParent) {
+    if (!aParent) {
         mBounds = sVirtualBounds;
     }
 
@@ -340,11 +448,11 @@ nsWindow::Create(nsIWidget *aParent,
 NS_IMETHODIMP
 nsWindow::Destroy(void)
 {
+    mOnDestroyCalled = true;
     sTopWindows.RemoveElement(this);
-    if (this == gWindowToRedraw)
-        gWindowToRedraw = nullptr;
     if (this == gFocusedWindow)
         gFocusedWindow = nullptr;
+    nsBaseWidget::OnDestroy();
     return NS_OK;
 }
 
@@ -418,8 +526,8 @@ nsWindow::Resize(double aX,
     if (mWidgetListener)
         mWidgetListener->WindowResized(this, mBounds.width, mBounds.height);
 
-    if (aRepaint && gWindowToRedraw)
-        gWindowToRedraw->Invalidate(sVirtualBounds);
+    if (aRepaint)
+        Invalidate(sVirtualBounds);
 
     return NS_OK;
 }
@@ -455,23 +563,21 @@ nsWindow::ConfigureChildren(const nsTArray<nsIWidget::Configuration>&)
 NS_IMETHODIMP
 nsWindow::Invalidate(const nsIntRect &aRect)
 {
-    nsWindow *parent = mParent;
-    while (parent && parent != sTopWindows[0])
-        parent = parent->mParent;
-    if (parent != sTopWindows[0])
+    nsWindow *top = mParent;
+    while (top && top->mParent)
+        top = top->mParent;
+    if (top != sTopWindows[0] && this != sTopWindows[0])
         return NS_OK;
 
-    mDirtyRegion.Or(mDirtyRegion, aRect);
-    gWindowToRedraw = this;
     gDrawRequest = true;
     mozilla::NotifyEvent();
     return NS_OK;
 }
 
-nsIntPoint
+LayoutDeviceIntPoint
 nsWindow::WidgetToScreenOffset()
 {
-    nsIntPoint p(0, 0);
+    LayoutDeviceIntPoint p(0, 0);
     nsWindow *w = this;
 
     while (w && w->mParent) {
@@ -490,14 +596,12 @@ nsWindow::GetNativeData(uint32_t aDataType)
     switch (aDataType) {
     case NS_NATIVE_WINDOW:
         return GetGonkDisplay()->GetNativeWindow();
-    case NS_NATIVE_WIDGET:
-        return this;
     }
     return nullptr;
 }
 
 NS_IMETHODIMP
-nsWindow::DispatchEvent(nsGUIEvent *aEvent, nsEventStatus &aStatus)
+nsWindow::DispatchEvent(WidgetGUIEvent* aEvent, nsEventStatus& aStatus)
 {
     if (mWidgetListener)
       aStatus = mWidgetListener->HandleEvent(aEvent, mUseAttachedEvents);
@@ -526,7 +630,7 @@ nsWindow::ReparentNativeWidget(nsIWidget* aNewParent)
 }
 
 NS_IMETHODIMP
-nsWindow::MakeFullScreen(bool aFullScreen)
+nsWindow::MakeFullScreen(bool aFullScreen, nsIScreen*)
 {
     if (mWindowType != eWindowType_toplevel) {
         // Ignore fullscreen request for non-toplevel windows.
@@ -547,6 +651,85 @@ nsWindow::MakeFullScreen(bool aFullScreen)
     return NS_OK;
 }
 
+static gralloc_module_t const*
+gralloc_module()
+{
+    hw_module_t const *module;
+    if (hw_get_module(GRALLOC_HARDWARE_MODULE_ID, &module)) {
+        return nullptr;
+    }
+    return reinterpret_cast<gralloc_module_t const*>(module);
+}
+
+static SurfaceFormat
+HalFormatToSurfaceFormat(int aHalFormat, int* bytepp)
+{
+    switch (aHalFormat) {
+    case HAL_PIXEL_FORMAT_RGBA_8888:
+        *bytepp = 4;
+        return SurfaceFormat::R8G8B8A8;
+    case HAL_PIXEL_FORMAT_RGBX_8888:
+        *bytepp = 4;
+        return SurfaceFormat::R8G8B8X8;
+    case HAL_PIXEL_FORMAT_BGRA_8888:
+        *bytepp = 4;
+        return SurfaceFormat::B8G8R8A8;
+    case HAL_PIXEL_FORMAT_RGB_565:
+        *bytepp = 2;
+        return SurfaceFormat::R5G6B5;
+    default:
+        MOZ_CRASH("Unhandled HAL pixel format");
+        return SurfaceFormat::UNKNOWN; // not reached
+    }
+}
+
+TemporaryRef<DrawTarget>
+nsWindow::StartRemoteDrawing()
+{
+    GonkDisplay* display = GetGonkDisplay();
+    mFramebuffer = display->DequeueBuffer();
+    int width = mFramebuffer->width, height = mFramebuffer->height;
+    void *vaddr;
+    if (gralloc_module()->lock(gralloc_module(), mFramebuffer->handle,
+                               GRALLOC_USAGE_SW_READ_NEVER |
+                               GRALLOC_USAGE_SW_WRITE_OFTEN |
+                               GRALLOC_USAGE_HW_FB,
+                               0, 0, width, height, &vaddr)) {
+        EndRemoteDrawing();
+        return nullptr;
+    }
+    int bytepp;
+    SurfaceFormat format = HalFormatToSurfaceFormat(display->surfaceformat,
+                                                    &bytepp);
+    mFramebufferTarget = Factory::CreateDrawTargetForData(
+         BackendType::CAIRO, (uint8_t*)vaddr,
+         IntSize(width, height), mFramebuffer->stride * bytepp, format);
+    if (!mBackBuffer ||
+        mBackBuffer->GetSize() != mFramebufferTarget->GetSize() ||
+        mBackBuffer->GetFormat() != mFramebufferTarget->GetFormat()) {
+        mBackBuffer = mFramebufferTarget->CreateSimilarDrawTarget(
+            mFramebufferTarget->GetSize(), mFramebufferTarget->GetFormat());
+    }
+    return mBackBuffer;
+}
+
+void
+nsWindow::EndRemoteDrawing()
+{
+    if (mFramebufferTarget) {
+        IntSize size = mFramebufferTarget->GetSize();
+        Rect rect(0, 0, size.width, size.height);
+        RefPtr<SourceSurface> source = mBackBuffer->Snapshot();
+        mFramebufferTarget->DrawSurface(source, rect, rect);
+        gralloc_module()->unlock(gralloc_module(), mFramebuffer->handle);
+    }
+    if (mFramebuffer) {
+        GetGonkDisplay()->QueueBuffer(mFramebuffer);
+    }
+    mFramebuffer = nullptr;
+    mFramebufferTarget = nullptr;
+}
+
 float
 nsWindow::GetDPI()
 {
@@ -563,10 +746,11 @@ nsWindow::GetDefaultScaleInternal()
     if (dpi < 200.0) {
         return 1.0; // mdpi devices.
     }
-    if (dpi < 280.0) {
+    if (dpi < 300.0) {
         return 1.5; // hdpi devices.
     }
-    return 2.0; // xhdpi devices.
+    // xhdpi devices and beyond.
+    return floor(dpi / 150.0 + 0.5);
 }
 
 LayerManager *
@@ -580,15 +764,10 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
     if (mLayerManager) {
         // This layer manager might be used for painting outside of DoDraw(), so we need
         // to set the correct rotation on it.
-        if (mLayerManager->GetBackendType() == LAYERS_BASIC) {
-            BasicLayerManager* manager =
-                static_cast<BasicLayerManager*>(mLayerManager.get());
-            manager->SetDefaultTargetConfiguration(mozilla::layers::BUFFER_NONE,
-                                                   ScreenRotation(EffectiveScreenRotation()));
-        } else if (mLayerManager->GetBackendType() == LAYERS_CLIENT) {
+        if (mLayerManager->GetBackendType() == LayersBackend::LAYERS_CLIENT) {
             ClientLayerManager* manager =
                 static_cast<ClientLayerManager*>(mLayerManager.get());
-            manager->SetDefaultTargetConfiguration(mozilla::layers::BUFFER_NONE,
+            manager->SetDefaultTargetConfiguration(mozilla::layers::BufferMode::BUFFER_NONE,
                                                    ScreenRotation(EffectiveScreenRotation()));
         }
         return mLayerManager;
@@ -604,58 +783,12 @@ nsWindow::GetLayerManager(PLayerTransactionChild* aShadowManager,
         return nullptr;
     }
 
-    if (sUsingOMTC) {
-        CreateCompositor();
-        if (mLayerManager)
-            return mLayerManager;
+    CreateCompositor();
+    if (mCompositorParent) {
+        HwcComposer2D::GetInstance()->SetCompositorParent(mCompositorParent);
     }
-
-    if (mUseLayersAcceleration) {
-        DebugOnly<nsIntRect> fbBounds = gScreenBounds;
-        if (!sGLContext) {
-            sGLContext = GLContextProvider::CreateForWindow(this);
-        }
-
-        MOZ_ASSERT(fbBounds.value == gScreenBounds);
-        if (sGLContext) {
-            nsRefPtr<LayerManagerOGL> layerManager = new LayerManagerOGL(this);
-
-            if (layerManager->Initialize(sGLContext)) {
-                mLayerManager = layerManager;
-                return mLayerManager;
-            } else {
-                LOGW("Could not create OGL LayerManager");
-            }
-        } else {
-            LOGW("GL context was not created");
-        }
-    }
-
-    // Fall back to software rendering.
-    sFramebufferOpen = Framebuffer::Open();
-    if (sFramebufferOpen) {
-        LOG("Falling back to framebuffer software rendering");
-    } else {
-        LOGE("Failed to mmap fb(?!?), aborting ...");
-        NS_RUNTIMEABORT("Can't open GL context and can't fall back on /dev/graphics/fb0 ...");
-    }
-
-    mLayerManager = new ClientLayerManager(this);
-    mUseLayersAcceleration = false;
-
+    MOZ_ASSERT(mLayerManager);
     return mLayerManager;
-}
-
-gfxASurface *
-nsWindow::GetThebesSurface()
-{
-    /* This is really a dummy surface; this is only used when doing reflow, because
-     * we need a RenderingContext to measure text against.
-     */
-
-    // XXX this really wants to return already_AddRefed, but this only really gets used
-    // on direct assignment to a gfxASurface
-    return new gfxImageSurface(gfxIntSize(5,5), gfxImageSurface::ImageFormatRGB24);
 }
 
 void
@@ -690,7 +823,7 @@ uint32_t
 nsWindow::GetGLFrameBufferFormat()
 {
     if (mLayerManager &&
-        mLayerManager->GetBackendType() == mozilla::layers::LAYERS_OPENGL) {
+        mLayerManager->GetBackendType() == mozilla::layers::LayersBackend::LAYERS_OPENGL) {
         // We directly map the hardware fb on Gonk.  The hardware fb
         // has RGB format.
         return LOCAL_GL_RGB;
@@ -720,11 +853,9 @@ nsWindow::GetComposer2D()
         return nullptr;
     }
 
-#if ANDROID_VERSION == 15
     if (HwcComposer2D* hwc = HwcComposer2D::GetInstance()) {
         return hwc->Initialized() ? hwc : nullptr;
     }
-#endif
 
     return nullptr;
 }
@@ -737,6 +868,13 @@ nsScreenGonk::nsScreenGonk(void *nativeScreen)
 
 nsScreenGonk::~nsScreenGonk()
 {
+}
+
+NS_IMETHODIMP
+nsScreenGonk::GetId(uint32_t *outId)
+{
+    *outId = 1;
+    return NS_OK;
 }
 
 NS_IMETHODIMP
@@ -803,9 +941,6 @@ nsScreenGonk::SetRotation(uint32_t aRotation)
         return NS_OK;
 
     sScreenRotation = aRotation;
-    sRotationMatrix =
-        ComputeTransformForRotation(gScreenBounds,
-                                    ScreenRotation(EffectiveScreenRotation()));
     uint32_t rotation = EffectiveScreenRotation();
     if (rotation == nsIScreen::ROTATION_90_DEG ||
         rotation == nsIScreen::ROTATION_270_DEG) {
@@ -815,12 +950,12 @@ nsScreenGonk::SetRotation(uint32_t aRotation)
         sVirtualBounds = gScreenBounds;
     }
 
+    nsAppShell::NotifyScreenRotation();
+
     for (unsigned int i = 0; i < sTopWindows.Length(); i++)
         sTopWindows[i]->Resize(sVirtualBounds.width,
                                sVirtualBounds.height,
-                               !i);
-
-    nsAppShell::NotifyScreenRotation();
+                               true);
 
     return NS_OK;
 }
@@ -847,8 +982,7 @@ ComputeOrientation(uint32_t aRotation, const nsIntSize& aScreenSize)
         return (naturallyPortrait ? eScreenOrientation_LandscapeSecondary : 
                 eScreenOrientation_PortraitSecondary);
     default:
-        MOZ_NOT_REACHED("Gonk screen must always have a known rotation");
-        return eScreenOrientation_None;
+        MOZ_CRASH("Gonk screen must always have a known rotation");
     }
 }
 
@@ -870,7 +1004,7 @@ nsScreenGonk::GetConfiguration()
                                colorDepth, colorDepth);
 }
 
-NS_IMPL_ISUPPORTS1(nsScreenManagerGonk, nsIScreenManager)
+NS_IMPL_ISUPPORTS(nsScreenManagerGonk, nsIScreenManager)
 
 nsScreenManagerGonk::nsScreenManagerGonk()
 {
@@ -886,6 +1020,13 @@ nsScreenManagerGonk::GetPrimaryScreen(nsIScreen **outScreen)
 {
     NS_IF_ADDREF(*outScreen = mOneScreen.get());
     return NS_OK;
+}
+
+NS_IMETHODIMP
+nsScreenManagerGonk::ScreenForId(uint32_t aId,
+                                 nsIScreen **outScreen)
+{
+    return GetPrimaryScreen(outScreen);
 }
 
 NS_IMETHODIMP

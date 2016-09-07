@@ -2,13 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsHtml5TreeOpExecutor_h__
-#define nsHtml5TreeOpExecutor_h__
+#ifndef nsHtml5TreeOpExecutor_h
+#define nsHtml5TreeOpExecutor_h
 
 #include "nsIAtom.h"
-#include "nsINameSpaceManager.h"
-#include "nsIContent.h"
-#include "nsIDocument.h"
 #include "nsTraceRefcnt.h"
 #include "nsHtml5TreeOperation.h"
 #include "nsHtml5SpeculativeLoad.h"
@@ -24,32 +21,27 @@
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
 #include "mozilla/LinkedList.h"
+#include "nsHtml5DocumentBuilder.h"
+#include "mozilla/net/ReferrerPolicy.h"
 
 class nsHtml5Parser;
 class nsHtml5TreeBuilder;
 class nsHtml5Tokenizer;
 class nsHtml5StreamParser;
+class nsIContent;
+class nsIDocument;
 
-typedef nsIContent* nsIContentPtr;
-
-enum eHtml5FlushState {
-  eNotFlushing = 0,  // not flushing
-  eInFlush = 1,      // the Flush() method is on the call stack
-  eInDocUpdate = 2,  // inside an update batch on the document
-  eNotifying = 3     // flushing pending append notifications
-};
-
-class nsHtml5TreeOpExecutor : public nsContentSink,
-                              public nsIContentSink,
-                              public nsAHtml5TreeOpSink,
-                              public mozilla::LinkedListElement<nsHtml5TreeOpExecutor>
+class nsHtml5TreeOpExecutor final : public nsHtml5DocumentBuilder,
+                                        public nsIContentSink,
+                                        public nsAHtml5TreeOpSink,
+                                        public mozilla::LinkedListElement<nsHtml5TreeOpExecutor>
 {
   friend class nsHtml5FlushLoopGuard;
+  typedef mozilla::net::ReferrerPolicy ReferrerPolicy;
 
   public:
     NS_DECL_AND_IMPL_ZEROING_OPERATOR_NEW
     NS_DECL_ISUPPORTS_INHERITED
-    NS_DECL_CYCLE_COLLECTION_CLASS_INHERITED(nsHtml5TreeOpExecutor, nsContentSink)
 
   private:
     static bool        sExternalViewSource;
@@ -69,7 +61,6 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     bool                                 mReadingFromStage;
     nsTArray<nsHtml5TreeOperation>       mOpQueue;
     nsHtml5StreamParser*                 mStreamParser;
-    nsTArray<nsCOMPtr<nsIContent> >      mOwnedElements;
     
     /**
      * URLs already preloaded/preloading.
@@ -77,6 +68,12 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     nsTHashtable<nsCStringHashKey> mPreloadedURLs;
 
     nsCOMPtr<nsIURI> mSpeculationBaseURI;
+
+    /**
+     * Need to keep track of whether the referrer policy was already set.
+     */
+    bool             mSpeculationReferrerPolicyWasSet;
+    ReferrerPolicy   mSpeculationReferrerPolicy;
 
     nsCOMPtr<nsIURI> mViewSourceBaseURI;
 
@@ -87,24 +84,9 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
     nsHtml5TreeOpStage            mStage;
 
-    eHtml5FlushState              mFlushState;
-
     bool                          mRunFlushLoopOnStack;
 
     bool                          mCallContinueInterruptedParsingIfEnabled;
-
-    /**
-     * Non-NS_OK if this parser should refuse to process any more input.
-     * For example, the parser needs to be marked as broken if it drops some
-     * input due to a memory allocation failure. In such a case, the whole
-     * parser needs to be marked as broken, because some input has been lost
-     * and parsing more input could lead to a DOM where pieces of HTML source
-     * that weren't supposed to become scripts become scripts.
-     *
-     * Since NS_OK is actually 0, zeroing operator new takes care of
-     * initializing this.
-     */
-    nsresult                      mBroken;
 
     /**
      * Whether this executor has already complained about matters related
@@ -113,51 +95,56 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     bool                          mAlreadyComplainedAboutCharset;
 
   public:
-  
-    nsHtml5TreeOpExecutor(bool aRunsToCompletion = false);
+
+    nsHtml5TreeOpExecutor();
+
+  protected:
+
     virtual ~nsHtml5TreeOpExecutor();
-  
+
+  public:
+
     // nsIContentSink
 
     /**
      * Unimplemented. For interface compat only.
      */
-    NS_IMETHOD WillParse();
+    NS_IMETHOD WillParse() override;
 
     /**
      * 
      */
-    NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode);
+    NS_IMETHOD WillBuildModel(nsDTDMode aDTDMode) override;
 
     /**
      * Emits EOF.
      */
-    NS_IMETHOD DidBuildModel(bool aTerminated);
+    NS_IMETHOD DidBuildModel(bool aTerminated) override;
 
     /**
      * Forwards to nsContentSink
      */
-    NS_IMETHOD WillInterrupt();
+    NS_IMETHOD WillInterrupt() override;
 
     /**
      * Unimplemented. For interface compat only.
      */
-    NS_IMETHOD WillResume();
+    NS_IMETHOD WillResume() override;
 
     /**
      * Sets the parser.
      */
-    NS_IMETHOD SetParser(nsParserBase* aParser);
+    NS_IMETHOD SetParser(nsParserBase* aParser) override;
 
     /**
      * No-op for backwards compat.
      */
-    virtual void FlushPendingNotifications(mozFlushType aType);
+    virtual void FlushPendingNotifications(mozFlushType aType) override;
 
     /**
      * Don't call. For interface compat only.
      */
-    NS_IMETHOD SetDocumentCharset(nsACString& aCharset) {
+    NS_IMETHOD SetDocumentCharset(nsACString& aCharset) override {
     	NS_NOTREACHED("No one should call this.");
     	return NS_ERROR_NOT_IMPLEMENTED;
     }
@@ -165,42 +152,19 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
     /**
      * Returns the document.
      */
-    virtual nsISupports *GetTarget();
+    virtual nsISupports *GetTarget() override;
   
-    // nsContentSink methods
-    virtual void UpdateChildCounts();
-    virtual nsresult FlushTags();
-    virtual void ContinueInterruptedParsingAsync();
- 
-    /**
-     * Sets up style sheet load / parse
-     */
-    void UpdateStyleSheet(nsIContent* aElement);
+    virtual void ContinueInterruptedParsingAsync() override;
 
-    // Getters and setters for fields from nsContentSink
-    nsIDocument* GetDocument() {
-      return mDocument;
-    }
-    nsNodeInfoManager* GetNodeInfoManager() {
-      return mNodeInfoManager;
-    }
-    nsIDocShell* GetDocShell() {
-      return mDocShell;
-    }
-
-    bool IsScriptExecuting() {
+    bool IsScriptExecuting() override
+    {
       return IsScriptExecutingImpl();
     }
-    
-    void SetNodeInfoManager(nsNodeInfoManager* aManager) {
-      mNodeInfoManager = aManager;
-    }
-    
+
     // Not from interface
 
-    void SetDocumentCharsetAndSource(nsACString& aCharset, int32_t aCharsetSource);
-
-    void SetStreamParser(nsHtml5StreamParser* aStreamParser) {
+    void SetStreamParser(nsHtml5StreamParser* aStreamParser)
+    {
       mStreamParser = aStreamParser;
     }
     
@@ -208,49 +172,10 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
     bool IsScriptEnabled();
 
-    bool BelongsToStringParser() {
-      return mRunsToCompletion;
-    }
-
-    /**
-     * Marks this parser as broken and tells the stream parser (if any) to
-     * terminate.
-     *
-     * @return aReason for convenience
-     */
-    nsresult MarkAsBroken(nsresult aReason);
-
-    /**
-     * Checks if this parser is broken. Returns a non-NS_OK (i.e. non-0)
-     * value if broken.
-     */
-    inline nsresult IsBroken() {
-      NS_ASSERTION(NS_IsMainThread(), "Wrong thread!");
-      return mBroken;
-    }
-
-    inline void BeginDocUpdate() {
-      NS_PRECONDITION(mFlushState == eInFlush, "Tried to double-open update.");
-      NS_PRECONDITION(mParser, "Started update without parser.");
-      mFlushState = eInDocUpdate;
-      mDocument->BeginUpdate(UPDATE_CONTENT_MODEL);
-    }
-
-    inline void EndDocUpdate() {
-      NS_PRECONDITION(mFlushState != eNotifying, "mFlushState out of sync");
-      if (mFlushState == eInDocUpdate) {
-        mFlushState = eInFlush;
-        mDocument->EndUpdate(UPDATE_CONTENT_MODEL);
-      }
-    }
+    virtual nsresult MarkAsBroken(nsresult aReason) override;
 
     void StartLayout();
     
-    void SetDocumentMode(nsHtml5DocumentMode m);
-
-    nsresult Init(nsIDocument* aDoc, nsIURI* aURI,
-                  nsISupports* aContainer, nsIChannel* aChannel);
-
     void FlushSpeculativeLoads();
                   
     void RunFlushLoop();
@@ -271,52 +196,51 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
 
     void ComplainAboutBogusProtocolCharset(nsIDocument* aDoc);
 
-    bool IsComplete() {
+    bool IsComplete()
+    {
       return !mParser;
     }
     
-    bool HasStarted() {
+    bool HasStarted()
+    {
       return mStarted;
     }
     
-    bool IsFlushing() {
+    bool IsFlushing()
+    {
       return mFlushState >= eInFlush;
     }
 
 #ifdef DEBUG
-    bool IsInFlushLoop() {
+    bool IsInFlushLoop()
+    {
       return mRunFlushLoopOnStack;
     }
 #endif
     
     void RunScript(nsIContent* aScriptElement);
     
-    void Reset();
-    
-    inline void HoldElement(nsIContent* aContent) {
-      mOwnedElements.AppendElement(aContent);
-    }
-
-    void DropHeldElements();
-
     /**
      * Flush the operations from the tree operations from the argument
      * queue unconditionally. (This is for the main thread case.)
      */
-    virtual void MoveOpsFrom(nsTArray<nsHtml5TreeOperation>& aOpQueue);
+    virtual void MoveOpsFrom(nsTArray<nsHtml5TreeOperation>& aOpQueue) override;
     
-    nsHtml5TreeOpStage* GetStage() {
+    nsHtml5TreeOpStage* GetStage()
+    {
       return &mStage;
     }
     
-    void StartReadingFromStage() {
+    void StartReadingFromStage()
+    {
       mReadingFromStage = true;
     }
 
     void StreamEnded();
     
 #ifdef DEBUG
-    void AssertStageEmpty() {
+    void AssertStageEmpty()
+    {
       mStage.AssertEmpty();
     }
 #endif
@@ -330,11 +254,26 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
                        bool aScriptFromHead);
 
     void PreloadStyle(const nsAString& aURL, const nsAString& aCharset,
-		      const nsAString& aCrossOrigin);
+                      const nsAString& aCrossOrigin);
 
-    void PreloadImage(const nsAString& aURL, const nsAString& aCrossOrigin);
+    void PreloadImage(const nsAString& aURL,
+                      const nsAString& aCrossOrigin,
+                      const nsAString& aSrcset,
+                      const nsAString& aSizes);
+
+    void PreloadOpenPicture();
+
+    void PreloadEndPicture();
+
+    void PreloadPictureSource(const nsAString& aSrcset,
+                              const nsAString& aSizes,
+                              const nsAString& aType,
+                              const nsAString& aMedia);
 
     void SetSpeculationBase(const nsAString& aURL);
+
+    void SetSpeculationReferrerPolicy(ReferrerPolicy aReferrerPolicy);
+    void SetSpeculationReferrerPolicy(const nsAString& aReferrerPolicy);
 
     void AddBase(const nsAString& aURL);
 
@@ -350,6 +289,16 @@ class nsHtml5TreeOpExecutor : public nsContentSink,
      */
     already_AddRefed<nsIURI> ConvertIfNotPreloadedYet(const nsAString& aURL);
 
+    /**
+     * The base URI we would use for current preload operations
+     */
+    nsIURI* BaseURIForPreload();
+
+    /**
+     * Returns true if we haven't preloaded this URI yet, and adds it to the
+     * list of preloaded URIs
+     */
+    bool ShouldPreloadURI(nsIURI *aURI);
 };
 
-#endif // nsHtml5TreeOpExecutor_h__
+#endif // nsHtml5TreeOpExecutor_h

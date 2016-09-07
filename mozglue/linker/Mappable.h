@@ -10,25 +10,23 @@
 #include "Zip.h"
 #include "SeekableZStream.h"
 #include "mozilla/RefPtr.h"
-#include "mozilla/Scoped.h"
+#include "mozilla/UniquePtr.h"
 #include "zlib.h"
 
 /**
  * Abstract class to handle mmap()ing from various kind of entities, such as
  * plain files or Zip entries. The virtual members are meant to act as the
- * equivalent system functions, with a few differences:
- * - mapped memory is always MAP_PRIVATE, even though a given implementation
- *   may use something different internally.
- * - memory after length and up to the end of the corresponding page is nulled
- *   out.
+ * equivalent system functions, except mapped memory is always MAP_PRIVATE,
+ * even though a given implementation may use something different internally.
  */
-class Mappable
+class Mappable: public mozilla::RefCounted<Mappable>
 {
 public:
+  MOZ_DECLARE_REFCOUNTED_TYPENAME(Mappable)
   virtual ~Mappable() { }
 
-  virtual void *mmap(const void *addr, size_t length, int prot, int flags,
-                     off_t offset) = 0;
+  virtual MemoryRange mmap(const void *addr, size_t length, int prot, int flags,
+                           off_t offset) = 0;
 
   enum Kind {
     MAPPABLE_FILE,
@@ -92,7 +90,7 @@ public:
   static Mappable *Create(const char *path);
 
   /* Inherited from Mappable */
-  virtual void *mmap(const void *addr, size_t length, int prot, int flags, off_t offset);
+  virtual MemoryRange mmap(const void *addr, size_t length, int prot, int flags, off_t offset);
   virtual void finalize();
   virtual size_t GetLength() const;
 
@@ -120,26 +118,26 @@ public:
    */
   static Mappable *Create(const char *name, Zip *zip, Zip::Stream *stream);
 
+  /* Override finalize from MappableFile */
+  virtual void finalize() {}
+
   virtual Kind GetKind() const { return MAPPABLE_EXTRACT_FILE; };
 private:
-  MappableExtractFile(int fd, char *path)
-  : MappableFile(fd), path(path), pid(getpid()) { }
-
   /**
-   * AutoUnlinkFile keeps track or a file name and removes (unlinks) the file
+   * AutoUnlinkFile keeps track of a file name and removes (unlinks) the file
    * when the instance is destroyed.
    */
-  struct AutoUnlinkFileTraits: public mozilla::ScopedDeleteArrayTraits<char>
+  struct UnlinkFile
   {
-    static void release(char *value)
-    {
-      if (!value)
-        return;
+    void operator()(char *value) {
       unlink(value);
-      mozilla::ScopedDeleteArrayTraits<char>::release(value);
+      delete [] value;
     }
   };
-  typedef mozilla::Scoped<AutoUnlinkFileTraits> AutoUnlinkFile;
+  typedef mozilla::UniquePtr<char[], UnlinkFile> AutoUnlinkFile;
+
+  MappableExtractFile(int fd, AutoUnlinkFile path)
+  : MappableFile(fd), path(Move(path)), pid(getpid()) { }
 
   /* Extracted file */
   AutoUnlinkFile path;
@@ -167,7 +165,7 @@ public:
   static Mappable *Create(const char *name, Zip *zip, Zip::Stream *stream);
 
   /* Inherited from Mappable */
-  virtual void *mmap(const void *addr, size_t length, int prot, int flags, off_t offset);
+  virtual MemoryRange mmap(const void *addr, size_t length, int prot, int flags, off_t offset);
   virtual void finalize();
   virtual size_t GetLength() const;
 
@@ -179,10 +177,10 @@ private:
   mozilla::RefPtr<Zip> zip;
 
   /* Decompression buffer */
-  mozilla::ScopedDeletePtr<_MappableBuffer> buffer;
+  mozilla::UniquePtr<_MappableBuffer> buffer;
 
   /* Zlib data */
-  z_stream zStream;
+  zxx_stream zStream;
 };
 
 /**
@@ -204,7 +202,7 @@ public:
                                          Zip::Stream *stream);
 
   /* Inherited from Mappable */
-  virtual void *mmap(const void *addr, size_t length, int prot, int flags, off_t offset);
+  virtual MemoryRange mmap(const void *addr, size_t length, int prot, int flags, off_t offset);
   virtual void munmap(void *addr, size_t length);
   virtual void finalize();
   virtual bool ensure(const void *addr);
@@ -219,7 +217,7 @@ private:
   mozilla::RefPtr<Zip> zip;
 
   /* Decompression buffer */
-  mozilla::ScopedDeletePtr<_MappableBuffer> buffer;
+  mozilla::UniquePtr<_MappableBuffer> buffer;
 
   /* Seekable ZStream */
   SeekableZStream zStream;
@@ -262,7 +260,7 @@ private:
 
   /* Array keeping track of which chunks have already been decompressed.
    * Each value is the number of pages decompressed for the given chunk. */
-  mozilla::ScopedDeleteArray<unsigned char> chunkAvail;
+  mozilla::UniquePtr<unsigned char[]> chunkAvail;
 
   /* Number of chunks that have already been decompressed. */
   mozilla::Atomic<size_t> chunkAvailNum;

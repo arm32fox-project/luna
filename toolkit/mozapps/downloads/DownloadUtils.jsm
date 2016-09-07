@@ -3,6 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+"use strict";
+
 this.EXPORTED_SYMBOLS = [ "DownloadUtils" ];
 
 /**
@@ -39,11 +41,10 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cu = Components.utils;
 
-this.__defineGetter__("PluralForm", function() {
-  delete this.PluralForm;
-  Cu.import("resource://gre/modules/PluralForm.jsm");
-  return PluralForm;
-});
+Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
+XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
+                                  "resource://gre/modules/PluralForm.jsm");
 
 this.__defineGetter__("gDecimalSymbol", function() {
   delete this.gDecimalSymbol;
@@ -77,7 +78,7 @@ let gStr = {
 
 // This lazily initializes the string bundle upon first use.
 this.__defineGetter__("gBundle", function() {
-  delete gBundle;
+  delete this.gBundle;
   return this.gBundle = Cc["@mozilla.org/intl/stringbundle;1"].
                         getService(Ci.nsIStringBundleService).
                         createBundle(kDownloadProperties);
@@ -271,13 +272,11 @@ this.DownloadUtils = {
     if (aSeconds > aLastSec / 2) {
       // Apply hysteresis to favor downward over upward swings
       // 30% of down and 10% of up (exponential smoothing)
-      let (diff = aSeconds - aLastSec) {
-        aSeconds = aLastSec + (diff < 0 ? .3 : .1) * diff;
-      }
+      let diff = aSeconds - aLastSec;
+      aSeconds = aLastSec + (diff < 0 ? .3 : .1) * diff;
 
       // If the new time is similar, reuse something close to the last seconds,
       // but subtract a little to provide forward progress
-      let diff = aSeconds - aLastSec;
       let diffPct = diff / aLastSec * 100;
       if (Math.abs(diff) < 5 || Math.abs(diffPct) < 5)
         aSeconds = aLastSec - (diff < 0 ? .4 : .2);

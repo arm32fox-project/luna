@@ -6,13 +6,11 @@
 #include "SVGDocumentWrapper.h"
 
 #include "mozilla/dom/Element.h"
-#include "nsIAtom.h"
 #include "nsICategoryManager.h"
 #include "nsIChannel.h"
 #include "nsIContentViewer.h"
 #include "nsIDocument.h"
 #include "nsIDocumentLoaderFactory.h"
-#include "nsIDOMSVGAnimatedLength.h"
 #include "nsIDOMSVGLength.h"
 #include "nsIHttpChannel.h"
 #include "nsIObserverService.h"
@@ -25,23 +23,25 @@
 #include "nsComponentManagerUtils.h"
 #include "nsSMILAnimationController.h"
 #include "nsServiceManagerUtils.h"
-#include "nsSize.h"
-#include "gfxRect.h"
 #include "mozilla/dom/SVGSVGElement.h"
-#include "nsSVGLength2.h"
 #include "nsSVGEffects.h"
 #include "mozilla/dom/SVGAnimatedLength.h"
+#include "nsMimeTypes.h"
+#include "DOMSVGLength.h"
+
+// undef the GetCurrentTime macro defined in WinBase.h from the MS Platform SDK
+#undef GetCurrentTime
 
 using namespace mozilla::dom;
 
 namespace mozilla {
 namespace image {
 
-NS_IMPL_ISUPPORTS4(SVGDocumentWrapper,
-                   nsIStreamListener,
-                   nsIRequestObserver,
-                   nsIObserver,
-                   nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(SVGDocumentWrapper,
+                  nsIStreamListener,
+                  nsIRequestObserver,
+                  nsIObserver,
+                  nsISupportsWeakReference)
 
 SVGDocumentWrapper::SVGDocumentWrapper()
   : mIgnoreInvalidation(false),
@@ -68,47 +68,6 @@ SVGDocumentWrapper::DestroyViewer()
   }
 }
 
-bool
-SVGDocumentWrapper::GetWidthOrHeight(Dimension aDimension,
-                                     int32_t& aResult)
-{
-  SVGSVGElement* rootElem = GetRootSVGElem();
-  NS_ABORT_IF_FALSE(rootElem, "root elem missing or of wrong type");
-
-  // Get the width or height SVG object
-  nsRefPtr<SVGAnimatedLength> domAnimLength;
-  if (aDimension == eWidth) {
-    domAnimLength = rootElem->Width();
-  } else {
-    NS_ABORT_IF_FALSE(aDimension == eHeight, "invalid dimension");
-    domAnimLength = rootElem->Height();
-  }
-  NS_ENSURE_TRUE(domAnimLength, false);
-
-  // Get the animated value from the object
-  nsRefPtr<nsIDOMSVGLength> domLength;
-  nsresult rv = domAnimLength->GetAnimVal(getter_AddRefs(domLength));
-  NS_ENSURE_SUCCESS(rv, false);
-  NS_ENSURE_TRUE(domLength, false);
-
-  // Check if it's a percent value (and fail if so)
-  uint16_t unitType;
-  rv = domLength->GetUnitType(&unitType);
-  NS_ENSURE_SUCCESS(rv, false);
-  if (unitType == nsIDOMSVGLength::SVG_LENGTHTYPE_PERCENTAGE) {
-    return false;
-  }
-
-  // Non-percent value - woot! Grab it & return it.
-  float floatLength;
-  rv = domLength->GetValue(&floatLength);
-  NS_ENSURE_SUCCESS(rv, false);
-
-  aResult = nsSVGUtils::ClampToInt(floatLength);
-
-  return true;
-}
-
 nsIFrame*
 SVGDocumentWrapper::GetRootLayoutFrame()
 {
@@ -119,7 +78,7 @@ SVGDocumentWrapper::GetRootLayoutFrame()
 void
 SVGDocumentWrapper::UpdateViewportBounds(const nsIntSize& aViewportSize)
 {
-  NS_ABORT_IF_FALSE(!mIgnoreInvalidation, "shouldn't be reentrant");
+  MOZ_ASSERT(!mIgnoreInvalidation, "shouldn't be reentrant");
   mIgnoreInvalidation = true;
 
   nsIntRect currentBounds;
@@ -137,7 +96,7 @@ SVGDocumentWrapper::UpdateViewportBounds(const nsIntSize& aViewportSize)
 void
 SVGDocumentWrapper::FlushImageTransformInvalidation()
 {
-  NS_ABORT_IF_FALSE(!mIgnoreInvalidation, "shouldn't be reentrant");
+  MOZ_ASSERT(!mIgnoreInvalidation, "shouldn't be reentrant");
 
   SVGSVGElement* svgElem = GetRootSVGElem();
   if (!svgElem)
@@ -220,6 +179,19 @@ SVGDocumentWrapper::SetCurrentTime(float aTime)
   }
 }
 
+void
+SVGDocumentWrapper::TickRefreshDriver()
+{
+  nsCOMPtr<nsIPresShell> presShell;
+  mViewer->GetPresShell(getter_AddRefs(presShell));
+  if (presShell) {
+    nsPresContext* presContext = presShell->GetPresContext();
+    if (presContext) {
+      presContext->RefreshDriver()->DoTick();
+    }
+  }
+}
+
 /** nsIStreamListener methods **/
 
 /* void onDataAvailable (in nsIRequest request, in nsISupports ctxt,
@@ -277,7 +249,7 @@ SVGDocumentWrapper::OnStopRequest(nsIRequest* aRequest, nsISupports* ctxt,
 NS_IMETHODIMP
 SVGDocumentWrapper::Observe(nsISupports* aSubject,
                             const char* aTopic,
-                            const PRUnichar *aData)
+                            const char16_t *aData)
 {
   if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {
     // Sever ties from rendering observers to helper-doc's root SVG node
@@ -374,8 +346,8 @@ SVGDocumentWrapper::SetupViewer(nsIRequest* aRequest,
 void
 SVGDocumentWrapper::RegisterForXPCOMShutdown()
 {
-  NS_ABORT_IF_FALSE(!mRegisteredForXPCOMShutdown,
-                    "re-registering for XPCOM shutdown");
+  MOZ_ASSERT(!mRegisteredForXPCOMShutdown,
+             "re-registering for XPCOM shutdown");
   // Listen for xpcom-shutdown so that we can drop references to our
   // helper-document at that point. (Otherwise, we won't get cleaned up
   // until imgLoader::Shutdown, which can happen after the JAR service
@@ -394,8 +366,8 @@ SVGDocumentWrapper::RegisterForXPCOMShutdown()
 void
 SVGDocumentWrapper::UnregisterForXPCOMShutdown()
 {
-  NS_ABORT_IF_FALSE(mRegisteredForXPCOMShutdown,
-                    "unregistering for XPCOM shutdown w/out being registered");
+  MOZ_ASSERT(mRegisteredForXPCOMShutdown,
+             "unregistering for XPCOM shutdown w/out being registered");
 
   nsresult rv;
   nsCOMPtr<nsIObserverService> obsSvc = do_GetService(OBSERVER_SVC_CID, &rv);

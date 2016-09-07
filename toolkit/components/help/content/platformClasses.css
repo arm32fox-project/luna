@@ -8,7 +8,6 @@
 %ifdef XP_MACOSX
 .noMac, .win, .unix { display: none; }
 %else
-%else
 .noUnix, .win, .mac { display: none; }
 %endif
 %endif

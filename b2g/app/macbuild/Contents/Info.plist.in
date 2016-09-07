@@ -28,5 +28,9 @@
 	<true/>
 	<key>CGDisableCoalescedUpdates</key>
 	<true/>
+	<key>NSHighResolutionCapable</key>
+	<true/>
+	<key>NSPrincipalClass</key>
+	<string>GoannaNSApplication</string>
 </dict>
 </plist>

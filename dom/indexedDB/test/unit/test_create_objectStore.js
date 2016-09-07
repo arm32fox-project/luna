@@ -29,7 +29,7 @@ function testSteps()
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = unexpectedSuccessHandler;
-  let event = yield;
+  let event = yield undefined;
 
   let db = event.target.result;
 
@@ -113,7 +113,6 @@ function testSteps()
   is(ex.code, DOMException.INVALID_ACCESS_ERR, "should throw right exception");
 
   // Can't handle autoincrement and array keypath
-  let ex;
   try {
     db.createObjectStore("storefail", { keyPath: ["a"], autoIncrement: true });
   }
@@ -128,8 +127,8 @@ function testSteps()
   request.onsuccess = grabEventAndContinueHandler;
   request.onupgradeneeded = unexpectedSuccessHandler;
 
-  event = yield;
+  event = yield undefined;
 
   finishTest();
-  yield;
+  yield undefined;
 }

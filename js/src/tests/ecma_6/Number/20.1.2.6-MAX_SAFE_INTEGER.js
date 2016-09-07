@@ -4,7 +4,7 @@
 //-----------------------------------------------------------------------------
 
 var BUGNUMBER = 885798;
-var summary = "ES6 draft 2014-10-14 20.1.2.6 Number.MAX_SAFE_INTEGER";
+var summary = "ES6 (draft April 2014) 20.1.2.6 Number.MAX_SAFE_INTEGER";
 
 print(BUGNUMBER + ": " + summary);
 

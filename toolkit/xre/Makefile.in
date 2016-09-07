@@ -5,148 +5,42 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-DEPTH     = @DEPTH@
-topsrcdir = @top_srcdir@
-srcdir    = @srcdir@
-VPATH     = @srcdir@
-
-include $(DEPTH)/config/autoconf.mk
-
 USE_RCS_MK=1
 include $(topsrcdir)/config/makefiles/makeutils.mk
 
 milestone_txt = $(topsrcdir)/config/milestone.txt
 
-LIBRARY_NAME = xulapp_s
-MSVC_ENABLE_PGO := 1
-LIBXUL_LIBRARY = 1
-
-FORCE_STATIC_LIB = 1
-
-ifeq ($(MOZ_GL_DEFAULT_PROVIDER),GLX)
-DEFINES += -DUSE_GLX_TEST
-endif
-
-DEFINES += -DIMPL_XREAPI \
-  -DMOZ_APP_NAME='"$(MOZ_APP_NAME)"' \
-  -DMOZ_APP_VERSION='"$(MOZ_APP_VERSION)"'
-
-ifdef MOZ_UPDATER
-ifneq (android,$(MOZ_WIDGET_TOOLKIT))
-DEFINES += -DMOZ_UPDATER
-endif
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
-DEFINES += -DWIN32_LEAN_AND_MEAN -DUNICODE -D_UNICODE
-else
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-CMMSRCS = nsNativeAppSupportCocoa.mm
-endif
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),cocoa)
-CMMSRCS += MacLaunchHelper.mm
-CMMSRCS += MacApplicationDelegate.mm
-CMMSRCS += MacAutoreleasePool.mm
-ENABLE_CXX_EXCEPTIONS = 1
-endif
-
-ifeq ($(MOZ_WIDGET_TOOLKIT),android)
-DEFINES += -DANDROID_PACKAGE_NAME='"$(ANDROID_PACKAGE_NAME)"'
-endif
-
-SHARED_LIBRARY_LIBS += \
-  ../profile/$(LIB_PREFIX)profile_s.$(LIB_SUFFIX) \
-  $(NULL)
-
-ifdef MOZ_UPDATER
-ifneq (android,$(MOZ_WIDGET_TOOLKIT))
-SHARED_LIBRARY_LIBS += \
-  ../mozapps/update/common/$(LIB_PREFIX)updatecommon.$(LIB_SUFFIX) \
-  $(NULL)
-endif
-endif
-
-ifdef MOZ_ENABLE_XREMOTE
-SHARED_LIBRARY_LIBS += $(DEPTH)/widget/xremoteclient/$(LIB_PREFIX)xremote_client_s.$(LIB_SUFFIX)
-LOCAL_INCLUDES += -I$(topsrcdir)/widget/xremoteclient
-endif
-
-include $(topsrcdir)/config/config.mk
-include $(topsrcdir)/ipc/chromium/chromium-config.mk
 include $(topsrcdir)/config/rules.mk
 
-LOCAL_INCLUDES += \
-  -I$(topsrcdir)/testing/gtest/mozilla \
-  -I$(srcdir)/../profile \
-  -I$(topsrcdir)/dom/ipc \
-  -I$(topsrcdir)/dom/base \
-  -I$(topsrcdir)/xpcom/build \
-  -I$(topsrcdir)/config \
-  $(NULL)
-
-CXXFLAGS += $(TK_CFLAGS) $(MOZ_DBUS_CFLAGS) $(MOZ_DBUS_GLIB_CFLAGS)
-
-ifdef MOZ_WIDGET_GTK
-CXXFLAGS += $(MOZ_PANGO_CFLAGS)
-endif
-
-DEFINES += \
-  -DOS_TARGET=\"$(OS_TARGET)\" \
-  -DMOZ_WIDGET_TOOLKIT=\"$(MOZ_WIDGET_TOOLKIT)\"
-
-ifdef TARGET_XPCOM_ABI
-DEFINES += \
-  -DTARGET_XPCOM_ABI=\"$(TARGET_XPCOM_ABI)\" \
-  -DTARGET_OS_ABI=\"$(OS_TARGET)_$(TARGET_XPCOM_ABI)\" \
-  $(NULL)
-endif
-
 # Should version be optional or required ?
-TOOLKIT_EM_VERSION=$(shell $(PERL) $(topsrcdir)/config/milestone.pl --topsrcdir=$(topsrcdir))
+TOOLKIT_EM_VERSION=$(shell $(PYTHON) $(topsrcdir)/python/mozbuild/mozbuild/milestone.py --topsrcdir=$(topsrcdir))
 $(call warnIfEmpty,TOOLKIT_EM_VERSION)
 
 # Valid if null: {warn,error}IfEmpty
-DEFINES += -DTOOLKIT_EM_VERSION=\"$(TOOLKIT_EM_VERSION)\"
+DEFINES += -DTOOLKIT_EM_VERSION='"$(TOOLKIT_EM_VERSION)"'
 
-ifdef WRAP_SYSTEM_INCLUDES
-DEFINES += -DWRAP_SYSTEM_INCLUDES
-endif
-
-ifeq ($(OS_ARCH),Linux)
-ifneq (,$(findstring lib64,$(libdir)))
-DEFINES += -DHAVE_USR_LIB64_DIR
-endif
-endif
-
-MOZ_SOURCE_STAMP ?= $(firstword $(shell hg -R $(topsrcdir) parent --template="{node|short}\n" 2>/dev/null))
+MOZ_SOURCE_STAMP ?= $(firstword $(shell hg -R $(topsrcdir) parent --template='{node|short}\n' 2>/dev/null))
 ifdef MOZ_SOURCE_STAMP
 
   INIARGS = --sourcestamp=$(MOZ_SOURCE_STAMP)
 
-  source_repo := $(call getSourceRepo)
+  ifdef MOZ_INCLUDE_SOURCE_INFO
+    source_repo := $(call getSourceRepo)
 
-  # extra sanity check for old versions of hg, no showconfig support
-  ifneq (,$(filter http%,$(source_repo)))
-    INIARGS += --sourcerepo=$(source_repo)
+    # extra sanity check for old versions of hg, no showconfig support
+    ifneq (,$(filter http%,$(source_repo)))
+      INIARGS += --sourcerepo=$(source_repo)
+    endif
   endif
 
 endif # MOZ_SOURCE_STAMP
 
-GRE_MILESTONE := $(strip $(lastword $(shell cat $(milestone_txt) 2>/dev/null)))
 GRE_BUILDID   := $(strip $(firstword $(shell cat $(DEPTH)/config/buildid 2>/dev/null)))
 $(call errorIfEmpty,GRE_MILESTONE GRE_BUILDID)
 
-DEFINES += -DGRE_MILESTONE=$(GRE_MILESTONE) -DGRE_BUILDID=$(GRE_BUILDID)
+DEFINES += -DGRE_BUILDID=$(GRE_BUILDID)
 
-ifdef MOZILLA_OFFICIAL
-DEFINES += -DMOZILLA_OFFICIAL
-endif
-
-DEFINES += -DAPP_VERSION=$(MOZ_APP_VERSION)
-
-DEFINES += -DAPP_ID="$(MOZ_APP_ID)"
+.PHONY: nsAppRunner.$(OBJ_SUFFIX)
 
 $(srcdir)/nsAppRunner.cpp: $(DEPTH)/config/buildid $(milestone_txt)
 
@@ -155,8 +49,6 @@ platform.ini: FORCE
 
 GARBAGE += platform.ini
 
+# Moving this out of libs breaks packaging.
 libs:: platform.ini
 	$(INSTALL) $^ $(DIST)/bin
-
-install::
-	$(INSTALL) $(IFLAGS1) $^ $(DESTDIR)$(mozappdir)

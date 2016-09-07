@@ -43,10 +43,12 @@ function test()
     {
       for (var i in f());
     }
-    catch (e) { }
+    catch (e)
+    {
+      gc();
+    }
   }
   foopy();
-  gc();
 }
 test();
 

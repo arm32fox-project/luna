@@ -6,5 +6,10 @@
 
 TEST_DIRS += ['example']
 
-MODULE = 'testing_xpcshell'
+PYTHON_UNIT_TESTS += [
+    'selftest.py',
+]
 
+TESTING_JS_MODULES += [
+    'dbg-actors.js',
+]

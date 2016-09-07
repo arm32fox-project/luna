@@ -7,8 +7,6 @@
 
 #include "nsFontInflationData.h"
 #include "FramePropertyTable.h"
-#include "nsTextFragment.h"
-#include "nsIFormControlFrame.h"
 #include "nsTextControlFrame.h"
 #include "nsListControlFrame.h"
 #include "nsComboboxControlFrame.h"
@@ -18,13 +16,8 @@
 using namespace mozilla;
 using namespace mozilla::layout;
 
-static void
-DestroyFontInflationData(void *aPropertyValue)
-{
-  delete static_cast<nsFontInflationData*>(aPropertyValue);
-}
-
-NS_DECLARE_FRAME_PROPERTY(FontInflationDataProperty, DestroyFontInflationData)
+NS_DECLARE_FRAME_PROPERTY(FontInflationDataProperty,
+                          DeleteValue<nsFontInflationData>)
 
 /* static */ nsFontInflationData*
 nsFontInflationData::FindFontInflationDataFor(const nsIFrame *aFrame)
@@ -84,6 +77,7 @@ nsFontInflationData::MarkFontInflationDataTextDirty(nsIFrame *aBFCFrame)
 
 nsFontInflationData::nsFontInflationData(nsIFrame *aBFCFrame)
   : mBFCFrame(aBFCFrame)
+  , mNCAWidth(0)
   , mTextAmount(0)
   , mTextThreshold(0)
   , mInflationEnabled(false)
@@ -102,17 +96,17 @@ static nsIFrame*
 NearestCommonAncestorFirstInFlow(nsIFrame *aFrame1, nsIFrame *aFrame2,
                                  nsIFrame *aKnownCommonAncestor)
 {
-  aFrame1 = aFrame1->GetFirstInFlow();
-  aFrame2 = aFrame2->GetFirstInFlow();
-  aKnownCommonAncestor = aKnownCommonAncestor->GetFirstInFlow();
+  aFrame1 = aFrame1->FirstInFlow();
+  aFrame2 = aFrame2->FirstInFlow();
+  aKnownCommonAncestor = aKnownCommonAncestor->FirstInFlow();
 
   nsAutoTArray<nsIFrame*, 32> ancestors1, ancestors2;
   for (nsIFrame *f = aFrame1; f != aKnownCommonAncestor;
-       (f = f->GetParent()) && (f = f->GetFirstInFlow())) {
+       (f = f->GetParent()) && (f = f->FirstInFlow())) {
     ancestors1.AppendElement(f);
   }
   for (nsIFrame *f = aFrame2; f != aKnownCommonAncestor;
-       (f = f->GetParent()) && (f = f->GetFirstInFlow())) {
+       (f = f->GetParent()) && (f = f->FirstInFlow())) {
     ancestors2.AppendElement(f);
   }
 
@@ -133,14 +127,14 @@ static nscoord
 ComputeDescendantWidth(const nsHTMLReflowState& aAncestorReflowState,
                        nsIFrame *aDescendantFrame)
 {
-  nsIFrame *ancestorFrame = aAncestorReflowState.frame->GetFirstInFlow();
+  nsIFrame *ancestorFrame = aAncestorReflowState.frame->FirstInFlow();
   if (aDescendantFrame == ancestorFrame) {
     return aAncestorReflowState.ComputedWidth();
   }
 
   AutoInfallibleTArray<nsIFrame*, 16> frames;
   for (nsIFrame *f = aDescendantFrame; f != ancestorFrame;
-       f = f->GetParent()->GetFirstInFlow()) {
+       f = f->GetParent()->FirstInFlow()) {
     frames.AppendElement(f);
   }
 
@@ -156,17 +150,19 @@ ComputeDescendantWidth(const nsHTMLReflowState& aAncestorReflowState,
   for (uint32_t i = 0; i < len; ++i) {
     const nsHTMLReflowState &parentReflowState =
       (i == 0) ? aAncestorReflowState : reflowStates[i - 1];
-    nsSize availSize(parentReflowState.ComputedWidth(), NS_UNCONSTRAINEDSIZE);
     nsIFrame *frame = frames[len - i - 1];
-    NS_ABORT_IF_FALSE(frame->GetParent()->GetFirstInFlow() ==
-                        parentReflowState.frame->GetFirstInFlow(),
-                      "bad logic in this function");
+    WritingMode wm = frame->GetWritingMode();
+    LogicalSize availSize = parentReflowState.ComputedSize(wm);
+    availSize.BSize(wm) = NS_UNCONSTRAINEDSIZE;
+    MOZ_ASSERT(frame->GetParent()->FirstInFlow() ==
+                 parentReflowState.frame->FirstInFlow(),
+               "bad logic in this function");
     new (reflowStates + i) nsHTMLReflowState(presContext, parentReflowState,
                                              frame, availSize);
   }
 
-  NS_ABORT_IF_FALSE(reflowStates[len - 1].frame == aDescendantFrame,
-                    "bad logic in this function");
+  MOZ_ASSERT(reflowStates[len - 1].frame == aDescendantFrame,
+             "bad logic in this function");
   nscoord result = reflowStates[len - 1].ComputedWidth();
 
   for (uint32_t i = len; i-- != 0; ) {
@@ -195,17 +191,17 @@ nsFontInflationData::UpdateWidth(const nsHTMLReflowState &aReflowState)
   }
   nsIFrame *lastInflatableDescendant =
              FindEdgeInflatableFrameIn(bfc, eFromEnd);
-  NS_ABORT_IF_FALSE(!firstInflatableDescendant == !lastInflatableDescendant,
-                    "null-ness should match; NearestCommonAncestorFirstInFlow"
-                    " will crash when passed null");
+  MOZ_ASSERT(!firstInflatableDescendant == !lastInflatableDescendant,
+             "null-ness should match; NearestCommonAncestorFirstInFlow"
+             " will crash when passed null");
 
   // Particularly when we're computing for the root BFC, the width of
   // nca might differ significantly for the width of bfc.
   nsIFrame *nca = NearestCommonAncestorFirstInFlow(firstInflatableDescendant,
                                                    lastInflatableDescendant,
                                                    bfc);
-  while (!nsLayoutUtils::IsContainerForFontSizeInflation(nca)) {
-    nca = nca->GetParent()->GetFirstInFlow();
+  while (!nca->IsContainerForFontSizeInflation()) {
+    nca = nca->GetParent()->FirstInFlow();
   }
 
   nscoord newNCAWidth = ComputeDescendantWidth(aReflowState, nca);

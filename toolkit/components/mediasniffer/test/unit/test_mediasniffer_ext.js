@@ -12,6 +12,7 @@ var BinaryOutputStream = CC("@mozilla.org/binaryoutputstream;1",
                             "setOutputStream");
 
 Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
 
 var httpserver = new HttpServer();
 
@@ -27,6 +28,8 @@ const tests = [
   // 1445 bytes to detect with our method.
   { path: "data/id3tags.mp3", expected: "audio/mpeg" },
   { path: "data/notags.mp3", expected: "audio/mpeg" },
+  // MPEG-2 mp3 files.
+  { path: "data/detodos.mp3", expected: "audio/mpeg" },
   // Padding bit flipped in the first header: sniffing should fail.
   { path: "data/notags-bad.mp3", expected: "application/octet-stream" },
   // Garbage before header: sniffing should fail.
@@ -37,6 +40,8 @@ const tests = [
   { path: "data/fl10.mp2", expected: "application/octet-stream" },
   // Truncated ff installer regression test for bug 875769.
   { path: "data/ff-inst.exe", expected: "application/octet-stream" },
+  // MP4 with invalid box size (0) for "ftyp".
+  { path: "data/bug1079747.mp4", expected: "application/octet-stream" },
 ];
 
 // A basic listener that reads checks the if we sniffed properly.
@@ -66,7 +71,15 @@ var listener = {
 function setupChannel(url) {
   var ios = Components.classes["@mozilla.org/network/io-service;1"].
                        getService(Ci.nsIIOService);
-  var chan = ios.newChannel("http://localhost:4444" + url, "", null);
+  var chan = ios.newChannel2("http://localhost:" +
+                             httpserver.identity.primaryPort + url,
+                             "",
+                             null,
+                             null,      // aLoadingNode
+                             Services.scriptSecurityManager.getSystemPrincipal(),
+                             null,      // aTriggeringPrincipal
+                             Ci.nsILoadInfo.SEC_NORMAL,
+                             Ci.nsIContentPolicy.TYPE_MEDIA);
   var httpChan = chan.QueryInterface(Components.interfaces.nsIHttpChannel);
   return httpChan;
 }
@@ -106,7 +119,7 @@ function handler(metadata, response) {
 function run_test() {
   // We use a custom handler so we can change the header to force sniffing.
   httpserver.registerPathHandler("/", handler);
-  httpserver.start(4444);
+  httpserver.start(-1);
   do_test_pending();
   try {
     runNext();

@@ -15,15 +15,12 @@ ifeq ($(MOZ_WIDGET_TOOLKIT),windows)
 ifndef RESFILE
 RCFILE=./module.rc
 RESFILE=./module.res
-_RC_STRING = -QUIET 1 -DEPTH $(DEPTH) -TOPSRCDIR $(topsrcdir) -OBJDIR . -SRCDIR $(srcdir) -DISPNAME $(MOZ_APP_DISPLAYNAME) -APPVERSION $(MOZ_APP_VERSION)
+_RC_STRING = -QUIET 1 -DEPTH $(DEPTH) -TOPSRCDIR $(MOZILLA_DIR) -OBJDIR . -SRCDIR $(srcdir) -DISPNAME $(MOZ_APP_DISPLAYNAME) -APPVERSION $(MOZ_APP_VERSION)
 ifdef MOZILLA_OFFICIAL
 _RC_STRING += -OFFICIAL 1
 endif
 ifdef MOZ_DEBUG
 _RC_STRING += -DEBUG 1
-endif
-ifdef MODULE
-_RC_STRING += -MODNAME $(MODULE)
 endif
 ifdef PROGRAM
 _RC_STRING += -BINARY $(PROGRAM)
@@ -45,8 +42,8 @@ GARBAGE += $(RESFILE) $(RCFILE)
 #dummy target so $(RCFILE) doesn't become the default =P
 all::
 
-$(RCFILE): $(RCINCLUDE) $(topsrcdir)/config/version_win.pl
-	$(PERL) $(topsrcdir)/config/version_win.pl $(_RC_STRING)
+$(RCFILE): $(RCINCLUDE) $(MOZILLA_DIR)/config/version_win.pl
+	$(PERL) $(MOZILLA_DIR)/config/version_win.pl $(_RC_STRING)
 
 endif  # RESFILE
 endif  # Windows

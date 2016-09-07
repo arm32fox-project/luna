@@ -7,17 +7,17 @@
 #include "nsSVGInnerSVGFrame.h"
 
 // Keep others in (case-insensitive) order:
+#include "gfx2DGlue.h"
 #include "gfxContext.h"
 #include "nsIFrame.h"
 #include "nsISVGChildFrame.h"
-#include "nsRenderingContext.h"
 #include "nsSVGContainerFrame.h"
-#include "nsSVGEffects.h"
 #include "nsSVGIntegrationUtils.h"
 #include "mozilla/dom/SVGSVGElement.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
+using namespace mozilla::gfx;
 
 nsIFrame*
 NS_NewSVGInnerSVGFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
@@ -37,9 +37,9 @@ NS_QUERYFRAME_TAIL_INHERITING(nsSVGInnerSVGFrameBase)
 
 #ifdef DEBUG
 void
-nsSVGInnerSVGFrame::Init(nsIContent* aContent,
-                         nsIFrame* aParent,
-                         nsIFrame* aPrevInFlow)
+nsSVGInnerSVGFrame::Init(nsIContent*       aContent,
+                         nsContainerFrame* aParent,
+                         nsIFrame*         aPrevInFlow)
 {
   NS_ASSERTION(aContent->IsSVG(nsGkAtoms::svg),
                "Content is not an SVG 'svg' element!");
@@ -57,13 +57,13 @@ nsSVGInnerSVGFrame::GetType() const
 //----------------------------------------------------------------------
 // nsISVGChildFrame methods
 
-NS_IMETHODIMP
-nsSVGInnerSVGFrame::PaintSVG(nsRenderingContext *aContext,
-                             const nsIntRect *aDirtyRect,
-                             nsIFrame* aTransformRoot)
+nsresult
+nsSVGInnerSVGFrame::PaintSVG(gfxContext& aContext,
+                             const gfxMatrix& aTransform,
+                             const nsIntRect *aDirtyRect)
 {
   NS_ASSERTION(!NS_SVGDisplayListPaintingEnabled() ||
-               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
+               (mState & NS_FRAME_IS_NONDISPLAY),
                "If display lists are enabled, only painting of non-display "
                "SVG should take this code path");
 
@@ -78,17 +78,32 @@ nsSVGInnerSVGFrame::PaintSVG(nsRenderingContext *aContext,
       return NS_OK;
     }
 
-    nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
-    gfxMatrix clipTransform = parent->GetCanvasTM(FOR_PAINTING, aTransformRoot);
-
-    gfxContext *gfx = aContext->ThebesContext();
-    autoSR.SetContext(gfx);
+    autoSR.SetContext(&aContext);
     gfxRect clipRect =
       nsSVGUtils::GetClipRectForFrame(this, x, y, width, height);
-    nsSVGUtils::SetClipRect(gfx, clipTransform, clipRect);
+    nsSVGUtils::SetClipRect(&aContext, aTransform, clipRect);
   }
 
-  return nsSVGInnerSVGFrameBase::PaintSVG(aContext, aDirtyRect);
+  return nsSVGInnerSVGFrameBase::PaintSVG(aContext, aTransform, aDirtyRect);
+}
+
+nsRect
+nsSVGInnerSVGFrame::GetCoveredRegion()
+{
+  float x, y, w, h;
+  static_cast<SVGSVGElement*>(mContent)->
+    GetAnimatedLengthValues(&x, &y, &w, &h, nullptr);
+  if (w < 0.0f) w = 0.0f;
+  if (h < 0.0f) h = 0.0f;
+  // GetCanvasTM includes the x,y translation
+  nsRect bounds = nsSVGUtils::ToCanvasBounds(gfxRect(0.0, 0.0, w, h),
+                                             GetCanvasTM(),
+                                             PresContext());
+
+  if (!StyleDisplay()->IsScrollableOverflow()) {
+    bounds.UnionRect(bounds, nsSVGUtils::GetCoveredRegion(mFrames));
+  }
+  return bounds;
 }
 
 void
@@ -102,14 +117,21 @@ nsSVGInnerSVGFrame::ReflowSVG()
   mRect = nsLayoutUtils::RoundGfxRectToAppRect(
                            gfxRect(x, y, width, height),
                            PresContext()->AppUnitsPerCSSPixel());
+
+  // If we have a filter, we need to invalidate ourselves because filter
+  // output can change even if none of our descendants need repainting.
+  if (StyleSVGReset()->HasFilters()) {
+    InvalidateFrame();
+  }
+
   nsSVGInnerSVGFrameBase::ReflowSVG();
 }
 
 void
 nsSVGInnerSVGFrame::NotifySVGChanged(uint32_t aFlags)
 {
-  NS_ABORT_IF_FALSE(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
-                    "Invalidation logic may need adjusting");
+  MOZ_ASSERT(aFlags & (TRANSFORM_CHANGED | COORD_CONTEXT_CHANGED),
+             "Invalidation logic may need adjusting");
 
   if (aFlags & COORD_CONTEXT_CHANGED) {
 
@@ -162,19 +184,21 @@ nsSVGInnerSVGFrame::NotifySVGChanged(uint32_t aFlags)
   nsSVGInnerSVGFrameBase::NotifySVGChanged(aFlags);
 }
 
-NS_IMETHODIMP
+nsresult
 nsSVGInnerSVGFrame::AttributeChanged(int32_t  aNameSpaceID,
                                      nsIAtom* aAttribute,
                                      int32_t  aModType)
 {
   if (aNameSpaceID == kNameSpaceID_None &&
-      !(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD)) {
+      !(GetStateBits() & NS_FRAME_IS_NONDISPLAY)) {
 
     SVGSVGElement* content = static_cast<SVGSVGElement*>(mContent);
 
     if (aAttribute == nsGkAtoms::width ||
         aAttribute == nsGkAtoms::height) {
-      nsSVGEffects::InvalidateRenderingObservers(this);
+      nsLayoutUtils::PostRestyleEvent(
+        mContent->AsElement(), nsRestyleHint(0),
+        nsChangeHint_InvalidateRenderingObservers);
       nsSVGUtils::ScheduleReflowSVG(this);
 
       if (content->HasViewBoxOrSyntheticViewBox()) {
@@ -209,7 +233,9 @@ nsSVGInnerSVGFrame::AttributeChanged(int32_t  aNameSpaceID,
       // and cause DoApplyRenderingChangeToTree to make the SchedulePaint call.
 
       if (aAttribute == nsGkAtoms::x || aAttribute == nsGkAtoms::y) {
-        nsSVGEffects::InvalidateRenderingObservers(this);
+        nsLayoutUtils::PostRestyleEvent(
+          mContent->AsElement(), nsRestyleHint(0),
+          nsChangeHint_InvalidateRenderingObservers);
         nsSVGUtils::ScheduleReflowSVG(this);
       } else if (aAttribute == nsGkAtoms::viewBox ||
                  (aAttribute == nsGkAtoms::preserveAspectRatio &&
@@ -225,25 +251,20 @@ nsSVGInnerSVGFrame::AttributeChanged(int32_t  aNameSpaceID,
   return NS_OK;
 }
 
-NS_IMETHODIMP_(nsIFrame*)
-nsSVGInnerSVGFrame::GetFrameForPoint(const nsPoint &aPoint)
+nsIFrame*
+nsSVGInnerSVGFrame::GetFrameForPoint(const gfxPoint& aPoint)
 {
   NS_ASSERTION(!NS_SVGDisplayListHitTestingEnabled() ||
-               (mState & NS_STATE_SVG_NONDISPLAY_CHILD),
+               (mState & NS_FRAME_IS_NONDISPLAY),
                "If display lists are enabled, only hit-testing of non-display "
                "SVG should take this code path");
 
   if (StyleDisplay()->IsScrollableOverflow()) {
-    nsSVGElement *content = static_cast<nsSVGElement*>(mContent);
-    nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
-
-    float clipX, clipY, clipWidth, clipHeight;
-    content->GetAnimatedLengthValues(&clipX, &clipY, &clipWidth, &clipHeight, nullptr);
-
-    if (!nsSVGUtils::HitTestRect(parent->GetCanvasTM(FOR_HIT_TESTING),
-                                 clipX, clipY, clipWidth, clipHeight,
-                                 PresContext()->AppUnitsToDevPixels(aPoint.x),
-                                 PresContext()->AppUnitsToDevPixels(aPoint.y))) {
+    Rect clip;
+    static_cast<nsSVGElement*>(mContent)->
+      GetAnimatedLengthValues(&clip.x, &clip.y,
+                              &clip.width, &clip.height, nullptr);
+    if (!clip.Contains(ToPoint(aPoint))) {
       return nullptr;
     }
   }
@@ -269,23 +290,15 @@ nsSVGInnerSVGFrame::NotifyViewportOrTransformChanged(uint32_t aFlags)
 // nsSVGContainerFrame methods:
 
 gfxMatrix
-nsSVGInnerSVGFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
+nsSVGInnerSVGFrame::GetCanvasTM()
 {
-  if (!(GetStateBits() & NS_STATE_SVG_NONDISPLAY_CHILD) && !aTransformRoot) {
-    if ((aFor == FOR_PAINTING && NS_SVGDisplayListPaintingEnabled()) ||
-        (aFor == FOR_HIT_TESTING && NS_SVGDisplayListHitTestingEnabled())) {
-      return nsSVGIntegrationUtils::GetCSSPxToDevPxMatrix(this);
-    }
-  }
   if (!mCanvasTM) {
-    NS_ASSERTION(mParent, "null parent");
+    NS_ASSERTION(GetParent(), "null parent");
 
-    nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(mParent);
+    nsSVGContainerFrame *parent = static_cast<nsSVGContainerFrame*>(GetParent());
     SVGSVGElement *content = static_cast<SVGSVGElement*>(mContent);
 
-    gfxMatrix tm = content->PrependLocalTransformsTo(
-        this == aTransformRoot ? gfxMatrix() :
-                                 parent->GetCanvasTM(aFor, aTransformRoot));
+    gfxMatrix tm = content->PrependLocalTransformsTo(parent->GetCanvasTM());
 
     mCanvasTM = new gfxMatrix(tm);
   }
@@ -293,7 +306,7 @@ nsSVGInnerSVGFrame::GetCanvasTM(uint32_t aFor, nsIFrame* aTransformRoot)
 }
 
 bool
-nsSVGInnerSVGFrame::HasChildrenOnlyTransform(gfxMatrix *aTransform) const
+nsSVGInnerSVGFrame::HasChildrenOnlyTransform(gfx::Matrix *aTransform) const
 {
   SVGSVGElement *content = static_cast<SVGSVGElement*>(mContent);
 

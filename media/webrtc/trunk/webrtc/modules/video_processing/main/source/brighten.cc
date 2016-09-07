@@ -8,42 +8,35 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/video_processing/main/source/brighten.h"
+#include "webrtc/modules/video_processing/main/source/brighten.h"
 
-#include <cstdlib>
-
-#include "system_wrappers/interface/trace.h"
+#include <stdlib.h>
 
 namespace webrtc {
 namespace VideoProcessing {
 
-WebRtc_Word32 Brighten(I420VideoFrame* frame, int delta) {
+int32_t Brighten(I420VideoFrame* frame, int delta) {
   assert(frame);
   if (frame->IsZeroSize()) {
-    WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideoPreocessing, -1,
-                 "zero size frame");
     return VPM_PARAMETER_ERROR;
   }
-
   if (frame->width() <= 0 || frame->height() <= 0) {
-    WEBRTC_TRACE(webrtc::kTraceError, webrtc::kTraceVideoPreocessing, -1,
-                 "Invalid frame size");
     return VPM_PARAMETER_ERROR;
   }
 
-  int numPixels = frame->width() * frame->height();
+  int num_pixels = frame->width() * frame->height();
 
-  int lookUp[256];
+  int look_up[256];
   for (int i = 0; i < 256; i++) {
     int val = i + delta;
-    lookUp[i] = ((((val < 0) ? 0 : val) > 255) ? 255 : val);
+    look_up[i] = ((((val < 0) ? 0 : val) > 255) ? 255 : val);
   }
 
-  WebRtc_UWord8* tempPtr = frame->buffer(kYPlane);
+  uint8_t* temp_ptr = frame->buffer(kYPlane);
 
-  for (int i = 0; i < numPixels; i++) {
-    *tempPtr = static_cast<WebRtc_UWord8>(lookUp[*tempPtr]);
-    tempPtr++;
+  for (int i = 0; i < num_pixels; i++) {
+    *temp_ptr = static_cast<uint8_t>(look_up[*temp_ptr]);
+    temp_ptr++;
   }
   return VPM_OK;
 }

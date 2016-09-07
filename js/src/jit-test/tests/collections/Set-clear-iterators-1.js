@@ -1,20 +1,20 @@
 // A Set iterator does not visit entries removed by clear().
 
-load(libdir + "asserts.js");
+load(libdir + "iteration.js");
 
-var s = Set();
-var it = s.iterator();
+var s = new Set();
+var it = s[Symbol.iterator]();
 s.clear();
-assertThrowsValue(it.next.bind(it), StopIteration);
+assertIteratorDone(it, undefined);
 
-s = Set(["a", "b", "c", "d"]);
-it = s.iterator();
-assertEq(it.next()[0], "a");
+s = new Set(["a", "b", "c", "d"]);
+it = s[Symbol.iterator]();
+assertIteratorNext(it, "a");
 s.clear();
-assertThrowsValue(it.next.bind(it), StopIteration);
+assertIteratorDone(it, undefined);
 
 var log = "";
-s = Set(["a", "b", "c", "d"]);
+s = new Set(["a", "b", "c", "d"]);
 for (var v of s) {
     log += v;
     if (v == "b")

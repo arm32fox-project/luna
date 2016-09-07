@@ -32,20 +32,19 @@ public:
   friend nsIFrame* NS_NewGridRowLeafFrame(nsIPresShell* aPresShell,
                                           nsStyleContext* aContext);
 
-#ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE
+#ifdef DEBUG_FRAME_DUMP
+  virtual nsresult GetFrameName(nsAString& aResult) const override
   {
       return MakeFrameName(NS_LITERAL_STRING("nsGridRowLeaf"), aResult);
   }
 #endif
 
-  nsGridRowLeafFrame(nsIPresShell* aPresShell,
-                     nsStyleContext* aContext,
+  nsGridRowLeafFrame(nsStyleContext* aContext,
                      bool aIsRoot,
                      nsBoxLayout* aLayoutManager):
-    nsBoxFrame(aPresShell, aContext, aIsRoot, aLayoutManager) {}
+    nsBoxFrame(aContext, aIsRoot, aLayoutManager) {}
 
-  NS_IMETHOD GetBorderAndPadding(nsMargin& aBorderAndPadding) MOZ_OVERRIDE;
+  virtual nsresult GetBorderAndPadding(nsMargin& aBorderAndPadding) override;
 
 }; // class nsGridRowLeafFrame
 

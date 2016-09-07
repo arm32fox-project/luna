@@ -6,7 +6,12 @@
 #ifndef GFX_TYPES_H
 #define GFX_TYPES_H
 
-#include "nsAtomicRefcnt.h"
+#include <stdint.h>
+
+typedef struct _cairo_surface cairo_surface_t;
+typedef struct _cairo_user_data_key cairo_user_data_key_t;
+
+typedef void (*thebes_destroy_func_t) (void *data);
 
 /**
  * Currently needs to be 'double' for Cairo compatibility. Could
@@ -33,10 +38,70 @@ typedef double gfxFloat;
  * @see gfxTextRun::BreakAndMeasureText
  * @see nsLineLayout::NotifyOptionalBreakPosition
  */
-enum gfxBreakPriority {
-    eNoBreak       = 0,
-    eWordWrapBreak,
-    eNormalBreak
+enum class gfxBreakPriority {
+  eNoBreak       = 0,
+  eWordWrapBreak,
+  eNormalBreak
+};
+
+/**
+  * The format for an image surface. For all formats with alpha data, 0
+  * means transparent, 1 or 255 means fully opaque.
+  */
+enum class gfxImageFormat {
+  ARGB32, ///< ARGB data in native endianness, using premultiplied alpha
+  RGB24,  ///< xRGB data in native endianness
+  A8,     ///< Only an alpha channel
+  A1,     ///< Packed transparency information (one byte refers to 8 pixels)
+  RGB16_565,  ///< RGB_565 data in native endianness
+  Unknown
+};
+
+enum class gfxSurfaceType {
+  Image,
+  PDF,
+  PS,
+  Xlib,
+  Xcb,
+  Glitz,           // unused, but needed for cairo parity
+  Quartz,
+  Win32,
+  BeOS,
+  DirectFB,        // unused, but needed for cairo parity
+  SVG,
+  OS2,
+  Win32Printing,
+  QuartzImage,
+  Script,
+  QPainter,
+  Recording,
+  VG,
+  GL,
+  DRM,
+  Tee,
+  XML,
+  Skia,
+  Subsurface,
+  D2D,
+  Max
+};
+
+enum class gfxContentType {
+  COLOR       = 0x1000,
+  ALPHA       = 0x2000,
+  COLOR_ALPHA = 0x3000,
+  SENTINEL    = 0xffff
+};
+
+/**
+  * The memory used by a gfxASurface (as reported by KnownMemoryUsed()) can
+  * either live in this process's heap, in this process but outside the
+  * heap, or in another process altogether.
+  */
+enum class gfxMemoryLocation {
+  IN_PROCESS_HEAP,
+  IN_PROCESS_NONHEAP,
+  OUT_OF_PROCESS
 };
 
 #endif /* GFX_TYPES_H */

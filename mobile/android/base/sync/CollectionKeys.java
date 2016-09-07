@@ -109,6 +109,9 @@ public class CollectionKeys {
    */
   public void setKeyPairsFromWBO(CryptoRecord keys, KeyBundle syncKeyBundle)
       throws CryptoException, IOException, ParseException, NonObjectJSONException {
+    if (keys == null) {
+      throw new IllegalArgumentException("cannot set key pairs from null record");
+    }
     if (syncKeyBundle != null) {
       keys.keyBundle = syncKeyBundle;
       keys.decrypt();
@@ -188,5 +191,10 @@ public class CollectionKeys {
       // If either default key bundle is not set, we'll say the bundles are not equal.
       return false;
     }
+  }
+
+  @Override
+  public int hashCode() {
+    return super.hashCode();
   }
 }

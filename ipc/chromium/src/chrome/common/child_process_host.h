@@ -10,10 +10,16 @@
 #include <list>
 
 #include "base/basictypes.h"
-#include "base/scoped_ptr.h"
 #include "base/waitable_event_watcher.h"
 #include "chrome/common/child_process_info.h"
 #include "chrome/common/ipc_channel.h"
+#include "mozilla/UniquePtr.h"
+
+namespace mozilla {
+namespace ipc {
+class FileDescriptor;
+}
+}
 
 class NotificationType;
 
@@ -38,7 +44,7 @@ class ChildProcessHost :
   class Iterator {
    public:
     Iterator();
-    Iterator(ProcessType type);
+    explicit Iterator(ProcessType type);
     ChildProcessHost* operator->() { return *iterator_; }
     ChildProcessHost* operator*() { return *iterator_; }
     ChildProcessHost* operator++();
@@ -58,6 +64,8 @@ class ChildProcessHost :
 
   // Creates the IPC channel.  Returns true iff it succeeded.
   bool CreateChannel();
+
+  bool CreateChannel(mozilla::ipc::FileDescriptor& aFileDescriptor);
 
   // Once the subclass gets a handle to the process, it needs to tell
   // ChildProcessHost using this function.
@@ -93,7 +101,7 @@ class ChildProcessHost :
   // calling the subclass' implementation.
   class ListenerHook : public IPC::Channel::Listener {
    public:
-    ListenerHook(ChildProcessHost* host);
+    explicit ListenerHook(ChildProcessHost* host);
     virtual void OnMessageReceived(const IPC::Message& msg);
     virtual void OnChannelConnected(int32_t peer_pid);
     virtual void OnChannelError();
@@ -108,7 +116,7 @@ class ChildProcessHost :
   bool opening_channel_;
 
   // The IPC::Channel.
-  scoped_ptr<IPC::Channel> channel_;
+  mozilla::UniquePtr<IPC::Channel> channel_;
 
   // IPC Channel's id.
   std::wstring channel_id_;
@@ -116,7 +124,7 @@ class ChildProcessHost :
   // Used to watch the child process handle.
   base::WaitableEventWatcher watcher_;
 
-  scoped_ptr<base::WaitableEvent> process_event_;
+  mozilla::UniquePtr<base::WaitableEvent> process_event_;
 };
 
 #endif  // CHROME_COMMON_CHILD_PROCESS_HOST_H_

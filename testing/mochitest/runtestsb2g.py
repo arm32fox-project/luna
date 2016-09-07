@@ -2,115 +2,86 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this file,
 # You can obtain one at http://mozilla.org/MPL/2.0/.
 
-import ConfigParser
+import json
 import os
+import posixpath
 import shutil
 import sys
 import tempfile
 import threading
 import traceback
 
-try:
-    import json
-except ImportError:
-    import simplejson as json
-
-here = os.path.abspath(os.path.dirname(sys.argv[0]))
+here = os.path.abspath(os.path.dirname(__file__))
 sys.path.insert(0, here)
 
-from automation import Automation
-from b2gautomation import B2GRemoteAutomation, B2GDesktopAutomation
+from automationutils import processLeakLog
 from runtests import Mochitest
-from runtests import MochitestOptions
-from runtests import MochitestServer
-
+from runtests import MochitestUtilsMixin
+from mochitest_options import B2GOptions, MochitestOptions
 from marionette import Marionette
-
-from mozdevice import DeviceManagerADB, DMError
 from mozprofile import Profile, Preferences
+from mozlog import structured
+import mozinfo
 
-class B2GMochitest(Mochitest):
-    def __init__(self, automation, OOP=True, profile_data_dir=None,
-                    locations=os.path.join(here, 'server-locations.txt')):
-        Mochitest.__init__(self, automation)
-        self.OOP = OOP
-        self.locations = locations
+
+class B2GMochitest(MochitestUtilsMixin):
+    marionette = None
+
+    def __init__(self, marionette_args,
+                 logger_options,
+                 out_of_process=True,
+                 profile_data_dir=None,
+                 locations=os.path.join(here, 'server-locations.txt')):
+        super(B2GMochitest, self).__init__(logger_options)
+        self.marionette_args = marionette_args
+        self.out_of_process = out_of_process
+        self.locations_file = locations
         self.preferences = []
         self.webapps = None
+        self.test_script = os.path.join(here, 'b2g_start_script.js')
+        self.test_script_args = [self.out_of_process]
+        self.product = 'b2g'
+        self.remote_chrome_test_dir = None
 
         if profile_data_dir:
-            self.preferences = [os.path.join(profile_data_dir, f)
-                                 for f in os.listdir(profile_data_dir) if f.startswith('pref')]
-            self.webapps = [os.path.join(profile_data_dir, f)
-                             for f in os.listdir(profile_data_dir) if f.startswith('webapp')]
+            self.preferences = [
+                os.path.join(
+                    profile_data_dir,
+                    f) for f in os.listdir(profile_data_dir) if f.startswith('pref')]
+            self.webapps = [
+                os.path.join(
+                    profile_data_dir,
+                    f) for f in os.listdir(profile_data_dir) if f.startswith('webapp')]
 
-    def setupCommonOptions(self, options):
-        # set the testURL
-        testURL = self.buildTestPath(options)
-        if len(self.urlOpts) > 0:
-            testURL += "?" + "&".join(self.urlOpts)
-        self.automation.testURL = testURL
-
-        if self.OOP:
-            OOP_script = """
-let specialpowers = {};
-let loader = Cc["@mozilla.org/moz/jssubscript-loader;1"].getService(Ci.mozIJSSubScriptLoader);
-loader.loadSubScript("chrome://specialpowers/content/SpecialPowersObserver.js", specialpowers);
-let specialPowersObserver = new specialpowers.SpecialPowersObserver();
-specialPowersObserver.init();
-
-let mm = container.QueryInterface(Ci.nsIFrameLoaderOwner).frameLoader.messageManager;
-mm.addMessageListener("SPPrefService", specialPowersObserver);
-mm.addMessageListener("SPProcessCrashService", specialPowersObserver);
-mm.addMessageListener("SPPingService", specialPowersObserver);
-mm.addMessageListener("SpecialPowers.Quit", specialPowersObserver);
-mm.addMessageListener("SpecialPowers.Focus", specialPowersObserver);
-mm.addMessageListener("SPPermissionManager", specialPowersObserver);
-
-mm.loadFrameScript(CHILD_LOGGER_SCRIPT, true);
-mm.loadFrameScript(CHILD_SCRIPT_API, true);
-mm.loadFrameScript(CHILD_SCRIPT, true);
-specialPowersObserver._isFrameScriptLoaded = true;
-"""
+        # mozinfo is populated by the parent class
+        if mozinfo.info['debug']:
+            self.SERVER_STARTUP_TIMEOUT = 180
         else:
-            OOP_script = ""
+            self.SERVER_STARTUP_TIMEOUT = 90
 
-        # Execute this script on start up: loads special powers and sets
-        # the test-container apps's iframe to the mochitest URL.
-        self.automation.test_script = """
-const CHILD_SCRIPT = "chrome://specialpowers/content/specialpowers.js";
-const CHILD_SCRIPT_API = "chrome://specialpowers/content/specialpowersAPI.js";
-const CHILD_LOGGER_SCRIPT = "chrome://specialpowers/content/MozillaLogger.js";
+    def setup_common_options(self, options):
+        test_url = self.buildTestPath(options)
+        # For B2G emulators buildURLOptions has been called
+        # without calling buildTestPath first and that
+        # causes manifestFile not to be set
+        if not "manifestFile=tests.json" in self.urlOpts:
+            self.urlOpts.append("manifestFile=%s" % options.manifestFile)
 
-let homescreen = document.getElementById('homescreen');
-let container = homescreen.contentWindow.document.getElementById('test-container');
+        if len(self.urlOpts) > 0:
+            test_url += "?" + "&".join(self.urlOpts)
+        self.test_script_args.append(test_url)
 
-function openWindow(aEvent) {
-  var popupIframe = aEvent.detail.frameElement;
-  popupIframe.setAttribute('style', 'position: absolute; left: 0; top: 300px; background: white; ');
+    def buildTestPath(self, options, testsToFilter=None):
+        if options.manifestFile != 'tests.json':
+            super(
+                B2GMochitest,
+                self).buildTestPath(
+                options,
+                testsToFilter,
+                disabled=False)
+        return self.buildTestURL(options)
 
-  popupIframe.addEventListener('mozbrowserclose', function(e) {
-    container.parentNode.removeChild(popupIframe);
-    container.focus();
-  });
-
-  // yes, the popup can call window.open too!
-  popupIframe.addEventListener('mozbrowseropenwindow', openWindow);
-
-  popupIframe.addEventListener('mozbrowserloadstart', function(e) {
-    popupIframe.focus();
-  });
-
-  container.parentNode.appendChild(popupIframe);
-}
-
-container.addEventListener('mozbrowseropenwindow', openWindow);
-%s
-
-container.src = '%s';
-""" % (OOP_script, testURL)
-
-    def buildProfile(self, options):
+    def build_profile(self, options):
         # preferences
         prefs = {}
         for path in self.preferences:
@@ -124,8 +95,11 @@ container.src = '%s';
             prefs[thispref[0]] = thispref[1]
 
         # interpolate the preferences
-        interpolation = { "server": "%s:%s" % (options.webServer, options.httpPort),
-                          "OOP": "true" if self.OOP else "false" }
+        interpolation = {
+            "server": "%s:%s" %
+            (options.webServer,
+             options.httpPort),
+            "OOP": "true" if self.out_of_process else "false"}
         prefs = json.loads(json.dumps(prefs) % interpolation)
         for pref in prefs:
             prefs[pref] = Preferences.cast(prefs[pref])
@@ -133,7 +107,7 @@ container.src = '%s';
         kwargs = {
             'addons': self.getExtensionsToInstall(options),
             'apps': self.webapps,
-            'locations': self.locations,
+            'locations': self.locations_file,
             'preferences': prefs,
             'proxy': {"remote": options.webServer}
         }
@@ -149,274 +123,190 @@ container.src = '%s';
         self.copyExtraFilesToProfile(options)
         return manifest
 
+    def run_tests(self, options):
+        """ Prepare, configure, run tests and cleanup """
 
-class B2GOptions(MochitestOptions):
+        manifest = self.build_profile(options)
+        self.logPreamble(self.getActiveTests(options))
 
-    def __init__(self, automation, scriptdir, **kwargs):
-        defaults = {}
-        MochitestOptions.__init__(self, automation, scriptdir)
+        # configuring the message logger's buffering
+        self.message_logger.buffering = options.quiet
 
-        self.add_option("--b2gpath", action="store",
-                        type="string", dest="b2gPath",
-                        help="path to B2G repo or qemu dir")
-        defaults["b2gPath"] = None
+        if options.debugger or not options.autorun:
+            timeout = None
+        else:
+            if not options.timeout:
+                if mozinfo.info['debug']:
+                    options.timeout = 420
+                else:
+                    options.timeout = 300
+            timeout = options.timeout + 30.0
 
-        self.add_option("--desktop", action="store_true",
-                        dest="desktop",
-                        help="Run the tests on a B2G desktop build")
-        defaults["desktop"] = False
+        self.log.info("runtestsb2g.py | Running tests: start.")
+        status = 0
+        try:
+            def on_output(line):
+                messages = self.message_logger.write(line)
+                for message in messages:
+                    if message['action'] == 'test_start':
+                        self.runner.last_test = message['test']
 
-        self.add_option("--marionette", action="store",
-                        type="string", dest="marionette",
-                        help="host:port to use when connecting to Marionette")
-        defaults["marionette"] = None
+            # The logging will be handled by on_output, so we set the stream to
+            # None
+            process_args = {'processOutputLine': on_output,
+                            'stream': None}
+            self.marionette_args['process_args'] = process_args
+            self.marionette_args['profile'] = self.profile
 
-        self.add_option("--emulator", action="store",
-                        type="string", dest="emulator",
-                        help="Architecture of emulator to use: x86 or arm")
-        defaults["emulator"] = None
+            self.marionette = Marionette(**self.marionette_args)
+            self.runner = self.marionette.runner
+            self.app_ctx = self.runner.app_ctx
 
-        self.add_option("--sdcard", action="store",
-                        type="string", dest="sdcard",
-                        help="Define size of sdcard: 1MB, 50MB...etc")
-        defaults["sdcard"] = "10MB"
+            self.remote_log = posixpath.join(self.app_ctx.remote_test_root,
+                                             'log', 'mochitest.log')
+            if not self.app_ctx.dm.dirExists(
+                posixpath.dirname(
+                    self.remote_log)):
+                self.app_ctx.dm.mkDirs(self.remote_log)
 
-        self.add_option("--no-window", action="store_true",
-                        dest="noWindow",
-                        help="Pass --no-window to the emulator")
-        defaults["noWindow"] = False
+            if options.chrome:
+                # Update chrome manifest file in profile with correct path.
+                self.writeChromeManifest(options)
 
-        self.add_option("--adbpath", action="store",
-                        type="string", dest="adbPath",
-                        help="path to adb")
-        defaults["adbPath"] = "adb"
+            self.leak_report_file = posixpath.join(
+                self.app_ctx.remote_test_root,
+                'log',
+                'runtests_leaks.log')
 
-        self.add_option("--deviceIP", action="store",
-                        type="string", dest="deviceIP",
-                        help="ip address of remote device to test")
-        defaults["deviceIP"] = None
+            # We don't want to copy the host env onto the device, so pass in an
+            # empty env.
+            self.browserEnv = self.buildBrowserEnv(options, env={})
 
-        self.add_option("--devicePort", action="store",
-                        type="string", dest="devicePort",
-                        help="port of remote device to test")
-        defaults["devicePort"] = 20701
+            # B2G emulator debug tests still make external connections, so don't
+            # pass MOZ_DISABLE_NONLOCAL_CONNECTIONS to them for now (bug
+            # 1039019).
+            if mozinfo.info[
+                    'debug'] and 'MOZ_DISABLE_NONLOCAL_CONNECTIONS' in self.browserEnv:
+                del self.browserEnv['MOZ_DISABLE_NONLOCAL_CONNECTIONS']
+            self.runner.env.update(self.browserEnv)
 
-        self.add_option("--remote-logfile", action="store",
-                        type="string", dest="remoteLogFile",
-                        help="Name of log file on the device relative to the device root.  PLEASE ONLY USE A FILENAME.")
-        defaults["remoteLogFile"] = None
+            self.startServers(options, None)
+            self.buildURLOptions(options, {'MOZ_HIDE_RESULTS_TABLE': '1'})
+            self.test_script_args.append(not options.emulator)
+            self.test_script_args.append(options.wifi)
+            self.test_script_args.append(options.chrome)
 
-        self.add_option("--remote-webserver", action="store",
-                        type="string", dest="remoteWebServer",
-                        help="ip address where the remote web server is hosted at")
-        defaults["remoteWebServer"] = None
+            self.runner.start(outputTimeout=timeout)
 
-        self.add_option("--http-port", action="store",
-                        type="string", dest="httpPort",
-                        help="ip address where the remote web server is hosted at")
-        defaults["httpPort"] = automation.DEFAULT_HTTP_PORT
+            self.marionette.wait_for_port()
+            self.marionette.start_session()
+            self.marionette.set_context(self.marionette.CONTEXT_CHROME)
 
-        self.add_option("--ssl-port", action="store",
-                        type="string", dest="sslPort",
-                        help="ip address where the remote web server is hosted at")
-        defaults["sslPort"] = automation.DEFAULT_SSL_PORT
+            # Disable offline status management (bug 777145), otherwise the network
+            # will be 'offline' when the mochitests start.  Presumably, the network
+            # won't be offline on a real device, so we only do this for
+            # emulators.
+            self.marionette.execute_script("""
+                Components.utils.import("resource://gre/modules/Services.jsm");
+                Services.io.manageOfflineStatus = false;
+                Services.io.offline = false;
+                """)
 
-        self.add_option("--pidfile", action="store",
-                        type="string", dest="pidFile",
-                        help="name of the pidfile to generate")
-        defaults["pidFile"] = ""
+            if options.chrome:
+                self.app_ctx.dm.removeDir(self.remote_chrome_test_dir)
+                self.app_ctx.dm.mkDir(self.remote_chrome_test_dir)
+                local = super(B2GMochitest, self).getChromeTestDir(options)
+                local = os.path.join(local, "chrome")
+                remote = self.remote_chrome_test_dir
+                self.log.info(
+                    "pushing %s to %s on device..." %
+                    (local, remote))
+                self.app_ctx.dm.pushDir(local, remote)
 
-        self.add_option("--goanna-path", action="store",
-                        type="string", dest="goannaPath",
-                        help="the path to a goanna distribution that should "
-                        "be installed on the emulator prior to test")
-        defaults["goannaPath"] = None
-
-        self.add_option("--profile", action="store",
-                        type="string", dest="profile",
-                        help="for desktop testing, the path to the "
-                        "gaia profile to use")
-        defaults["profile"] = None
-
-        self.add_option("--logcat-dir", action="store",
-                        type="string", dest="logcat_dir",
-                        help="directory to store logcat dump files")
-        defaults["logcat_dir"] = None
-
-        self.add_option('--busybox', action='store',
-                        type='string', dest='busybox',
-                        help="Path to busybox binary to install on device")
-        defaults['busybox'] = None
-        self.add_option('--profile-data-dir', action='store',
-                        type='string', dest='profile_data_dir',
-                        help="Path to a directory containing preference and other "
-                        "data to be installed into the profile")
-        defaults['profile_data_dir'] = os.path.join(here, 'profile_data')
-
-        defaults["remoteTestRoot"] = "/data/local/tests"
-        defaults["logFile"] = "mochitest.log"
-        defaults["autorun"] = True
-        defaults["closeWhenDone"] = True
-        defaults["testPath"] = ""
-        defaults["extensionsToExclude"] = ["specialpowers"]
-
-        self.set_defaults(**defaults)
-
-    def verifyRemoteOptions(self, options, automation):
-        if not options.remoteTestRoot:
-            options.remoteTestRoot = automation._devicemanager.getDeviceRoot()
-        productRoot = options.remoteTestRoot + "/" + automation._product
-
-        if options.utilityPath == self._automation.DIST_BIN:
-            options.utilityPath = productRoot + "/bin"
-
-        if options.remoteWebServer == None:
-            if os.name != "nt":
-                options.remoteWebServer = automation.getLanIp()
+            if os.path.isfile(self.test_script):
+                with open(self.test_script, 'r') as script:
+                    self.marionette.execute_script(
+                        script.read(),
+                        script_args=self.test_script_args)
             else:
-                self.error("You must specify a --remote-webserver=<ip address>")
-        options.webServer = options.remoteWebServer
+                self.marionette.execute_script(
+                    self.test_script,
+                    script_args=self.test_script_args)
+            status = self.runner.wait()
 
-        if options.goannaPath and not options.emulator:
-            self.error("You must specify --emulator if you specify --goanna-path")
+            if status is None:
+                # the runner has timed out
+                status = 124
 
-        if options.logcat_dir and not options.emulator:
-            self.error("You must specify --emulator if you specify --logcat-dir")
+            local_leak_file = tempfile.NamedTemporaryFile()
+            self.app_ctx.dm.getFile(
+                self.leak_report_file,
+                local_leak_file.name)
+            self.app_ctx.dm.removeFile(self.leak_report_file)
 
-        #if not options.emulator and not options.deviceIP:
-        #    print "ERROR: you must provide a device IP"
-        #    return None
+            processLeakLog(local_leak_file.name, options)
+        except KeyboardInterrupt:
+            self.log.info("runtests.py | Received keyboard interrupt.\n")
+            status = -1
+        except:
+            traceback.print_exc()
+            self.log.error(
+                "Automation Error: Received unexpected exception while running application\n")
+            if hasattr(self, 'runner'):
+                self.runner.check_for_crashes()
+            status = 1
 
-        if options.remoteLogFile == None:
-            options.remoteLogFile = options.remoteTestRoot + '/logs/mochitest.log'
+        self.stopServers()
 
-        if options.remoteLogFile.count('/') < 1:
-            options.remoteLogFile = options.remoteTestRoot + '/' + options.remoteLogFile
+        self.log.info("runtestsb2g.py | Running tests: end.")
 
-        # Only reset the xrePath if it wasn't provided
-        if options.xrePath == None:
-            options.xrePath = options.utilityPath
+        if manifest is not None:
+            self.cleanup(manifest, options)
+        return status
 
-        if not os.path.isdir(options.xrePath):
-            self.error("--xre-path '%s' is not a directory" % options.xrePath)
-        xpcshell = os.path.join(options.xrePath, 'xpcshell')
-        if not os.access(xpcshell, os.F_OK):
-            self.error('xpcshell not found at %s' % xpcshell)
-        if automation.elf_arm(xpcshell):
-            self.error('--xre-path points to an ARM version of xpcshell; it '
-                       'should instead point to a version that can run on '
-                       'your desktop')
+    def getGMPPluginPath(self, options):
+        # TODO: bug 1043403
+        return None
 
-        if options.pidFile != "":
-            f = open(options.pidFile, 'w')
-            f.write("%s" % os.getpid())
-            f.close()
-
-        return options
-
-    def verifyOptions(self, options, mochitest):
-        # since we are reusing verifyOptions, it will exit if App is not found
-        temp = options.app
-        options.app = sys.argv[0]
-        tempPort = options.httpPort
-        tempSSL = options.sslPort
-        tempIP = options.webServer
-        options = MochitestOptions.verifyOptions(self, options, mochitest)
-        options.webServer = tempIP
-        options.app = temp
-        options.sslPort = tempSSL
-        options.httpPort = tempPort
-
-        return options
+    def getChromeTestDir(self, options):
+        # The chrome test directory returned here is the remote location
+        # of chrome test files. A reference to this directory is requested
+        # when building the profile locally, before self.app_ctx is defined.
+        # To get around this, return a dummy directory until self.app_ctx
+        # is defined; the correct directory will be returned later, over-
+        # writing the dummy.
+        if hasattr(self, 'app_ctx'):
+            self.remote_chrome_test_dir = posixpath.join(
+                self.app_ctx.remote_test_root,
+                'chrome')
+            return self.remote_chrome_test_dir
+        return 'dummy-chrome-test-dir'
 
 
-class ProfileConfigParser(ConfigParser.RawConfigParser):
-    """Subclass of RawConfigParser that outputs .ini files in the exact
-       format expected for profiles.ini, which is slightly different
-       than the default format.
-    """
+class B2GDeviceMochitest(B2GMochitest, Mochitest):
+    remote_log = None
 
-    def optionxform(self, optionstr):
-        return optionstr
-
-    def write(self, fp):
-        if self._defaults:
-            fp.write("[%s]\n" % ConfigParser.DEFAULTSECT)
-            for (key, value) in self._defaults.items():
-                fp.write("%s=%s\n" % (key, str(value).replace('\n', '\n\t')))
-            fp.write("\n")
-        for section in self._sections:
-            fp.write("[%s]\n" % section)
-            for (key, value) in self._sections[section].items():
-                if key == "__name__":
-                    continue
-                if (value is not None) or (self._optcre == self.OPTCRE):
-                    key = "=".join((key, str(value).replace('\n', '\n\t')))
-                fp.write("%s\n" % (key))
-            fp.write("\n")
-
-
-class B2GDeviceMochitest(B2GMochitest):
-
-    _automation = None
-    _dm = None
-
-    def __init__(self, automation, devmgr, options):
-        self._automation = automation
-        B2GMochitest.__init__(self, automation, OOP=True, profile_data_dir=options.profile_data_dir)
-        self._dm = devmgr
-        self.runSSLTunnel = False
-        self.remoteProfile = options.remoteTestRoot + '/profile'
-        self._automation.setRemoteProfile(self.remoteProfile)
-        self.remoteLog = options.remoteLogFile
-        self.localLog = None
-        self.userJS = '/data/local/user.js'
-        self.remoteMozillaPath = '/data/b2g/mozilla'
-        self.bundlesDir = '/system/b2g/distribution/bundles'
-        self.remoteProfilesIniPath = os.path.join(self.remoteMozillaPath, 'profiles.ini')
-        self.originalProfilesIni = None
-
-    def copyRemoteFile(self, src, dest):
-        self._dm._checkCmdAs(['shell', 'dd', 'if=%s' % src, 'of=%s' % dest])
-
-    def origUserJSExists(self):
-        return self._dm.fileExists('/data/local/user.js.orig')
+    def __init__(
+            self,
+            marionette_args,
+            logger_options,
+            profile_data_dir,
+            local_binary_dir,
+            remote_test_root=None,
+            remote_log_file=None):
+        B2GMochitest.__init__(
+            self,
+            marionette_args,
+            logger_options,
+            out_of_process=True,
+            profile_data_dir=profile_data_dir)
+        self.local_log = None
+        self.local_binary_dir = local_binary_dir
 
     def cleanup(self, manifest, options):
-        if self.localLog:
-            self._dm.getFile(self.remoteLog, self.localLog)
-            self._dm.removeFile(self.remoteLog)
-
-        # Delete any bundled extensions
-        extensionDir = os.path.join(options.profilePath, 'extensions', 'staged')
-        if os.access(extensionDir, os.F_OK):
-            for filename in os.listdir(extensionDir):
-                try:
-                    self._dm._checkCmdAs(['shell', 'rm', '-rf',
-                                          os.path.join(self.bundlesDir, filename)])
-                except DMError:
-                    pass
-
-        if not options.emulator:
-            # Remove the test profile
-            self._dm._checkCmdAs(['shell', 'rm', '-r', self.remoteProfile])
-
-            if self.origUserJSExists():
-                # Restore the original user.js
-                self._dm.removeFile(self.userJS)
-                self.copyRemoteFile('%s.orig' % self.userJS, self.userJS)
-                self._dm.removeFile("%s.orig" % self.userJS)
-
-            if self._dm.fileExists('%s.orig' % self.remoteProfilesIniPath):
-                # Restore the original profiles.ini
-                self._dm.removeFile(self.remoteProfilesIniPath)
-                self.copyRemoteFile('%s.orig' % self.remoteProfilesIniPath,
-                                    self.remoteProfilesIniPath)
-                self._dm.removeFile("%s.orig" % self.remoteProfilesIniPath)
-
-            # We've restored the original profile, so reboot the device so that
-            # it gets picked up.
-            self._automation.rebootDevice()
+        if self.local_log:
+            self.app_ctx.dm.getFile(self.remote_log, self.local_log)
+            self.app_ctx.dm.removeFile(self.remote_log)
 
         if options.pidFile != "":
             try:
@@ -425,172 +315,87 @@ class B2GDeviceMochitest(B2GMochitest):
             except:
                 print "Warning: cleaning up pidfile '%s' was unsuccessful from the test harness" % options.pidFile
 
-    def findPath(self, paths, filename=None):
-        for path in paths:
-            p = path
-            if filename:
-                p = os.path.join(p, filename)
-            if os.path.exists(self.getFullPath(p)):
-                return path
-        return None
+        # stop and clean up the runner
+        if getattr(self, 'runner', False):
+            if self.local_log:
+                self.app_ctx.dm.getFile(self.remote_log, self.local_log)
+                self.app_ctx.dm.removeFile(self.remote_log)
 
-    def startWebServer(self, options):
-        """ Create the webserver on the host and start it up """
-        remoteXrePath = options.xrePath
-        remoteProfilePath = options.profilePath
-        remoteUtilityPath = options.utilityPath
-        localAutomation = Automation()
-        localAutomation.IS_WIN32 = False
-        localAutomation.IS_LINUX = False
-        localAutomation.IS_MAC = False
-        localAutomation.UNIXISH = False
-        hostos = sys.platform
-        if hostos in ['mac', 'darwin']:
-            localAutomation.IS_MAC = True
-        elif hostos in ['linux', 'linux2']:
-            localAutomation.IS_LINUX = True
-            localAutomation.UNIXISH = True
-        elif hostos in ['win32', 'win64']:
-            localAutomation.BIN_SUFFIX = ".exe"
-            localAutomation.IS_WIN32 = True
+            self.runner.cleanup()
+            self.runner = None
 
-        paths = [options.xrePath,
-                 localAutomation.DIST_BIN,
-                 self._automation._product,
-                 os.path.join('..', self._automation._product)]
-        options.xrePath = self.findPath(paths)
-        if options.xrePath == None:
-            print "ERROR: unable to find xulrunner path for %s, please specify with --xre-path" % (os.name)
-            sys.exit(1)
-        paths.append("bin")
-        paths.append(os.path.join("..", "bin"))
-
-        xpcshell = "xpcshell"
-        if (os.name == "nt"):
-            xpcshell += ".exe"
-
-        if (options.utilityPath):
-            paths.insert(0, options.utilityPath)
-        options.utilityPath = self.findPath(paths, xpcshell)
-        if options.utilityPath == None:
-            print "ERROR: unable to find utility path for %s, please specify with --utility-path" % (os.name)
-            sys.exit(1)
-        # httpd-path is specified by standard makefile targets and may be specified
-        # on the command line to select a particular version of httpd.js. If not
-        # specified, try to select the one from xre.zip, as required in bug 882932.
-        if not options.httpdPath:
-            options.httpdPath = os.path.join(options.utilityPath, "components")
-
+    def startServers(self, options, debuggerInfo):
+        """ Create the servers on the host and start them up """
+        savedXre = options.xrePath
+        savedUtility = options.utilityPath
+        savedProfie = options.profilePath
+        options.xrePath = self.local_binary_dir
+        options.utilityPath = self.local_binary_dir
         options.profilePath = tempfile.mkdtemp()
-        self.server = MochitestServer(localAutomation, options)
-        self.server.start()
 
-        if (options.pidFile != ""):
-            f = open(options.pidFile + ".xpcshell.pid", 'w')
-            f.write("%s" % self.server._process.pid)
-            f.close()
-        self.server.ensureReady(self.SERVER_STARTUP_TIMEOUT)
+        MochitestUtilsMixin.startServers(self, options, debuggerInfo)
 
-        options.xrePath = remoteXrePath
-        options.utilityPath = remoteUtilityPath
-        options.profilePath = remoteProfilePath
-
-    def stopWebServer(self, options):
-        if hasattr(self, 'server'):
-            self.server.stop()
-
-    def updateProfilesIni(self, profilePath):
-        # update profiles.ini on the device to point to the test profile
-        self.originalProfilesIni = tempfile.mktemp()
-        self._dm.getFile(self.remoteProfilesIniPath, self.originalProfilesIni)
-
-        config = ProfileConfigParser()
-        config.read(self.originalProfilesIni)
-        for section in config.sections():
-            if 'Profile' in section:
-                config.set(section, 'IsRelative', 0)
-                config.set(section, 'Path', profilePath)
-
-        newProfilesIni = tempfile.mktemp()
-        with open(newProfilesIni, 'wb') as configfile:
-            config.write(configfile)
-
-        self._dm.pushFile(newProfilesIni, self.remoteProfilesIniPath)
-        self._dm.pushFile(self.originalProfilesIni, '%s.orig' % self.remoteProfilesIniPath)
-
-        try:
-            os.remove(newProfilesIni)
-            os.remove(self.originalProfilesIni)
-        except:
-            pass
+        options.xrePath = savedXre
+        options.utilityPath = savedUtility
+        options.profilePath = savedProfie
 
     def buildURLOptions(self, options, env):
-        self.localLog = options.logFile
-        options.logFile = self.remoteLog
+        self.local_log = options.logFile
+        options.logFile = self.remote_log
         options.profilePath = self.profile.profile
-        retVal = Mochitest.buildURLOptions(self, options, env)
+        super(B2GDeviceMochitest, self).buildURLOptions(options, env)
 
-        self.setupCommonOptions(options)
+        self.setup_common_options(options)
 
-        # Copy the profile to the device.
-        self._dm._checkCmdAs(['shell', 'rm', '-r', self.remoteProfile])
-        try:
-            self._dm.pushDir(options.profilePath, self.remoteProfile)
-        except DMError:
-            print "Automation Error: Unable to copy profile to device."
-            raise
-
-        # Copy the extensions to the B2G bundles dir.
-        extensionDir = os.path.join(options.profilePath, 'extensions', 'staged')
-        # need to write to read-only dir
-        self._dm._checkCmdAs(['remount'])
-        for filename in os.listdir(extensionDir):
-            self._dm._checkCmdAs(['shell', 'rm', '-rf',
-                                  os.path.join(self.bundlesDir, filename)])
-        try:
-            self._dm.pushDir(extensionDir, self.bundlesDir)
-        except DMError:
-            print "Automation Error: Unable to copy extensions to device."
-            raise
-
-        # In B2G, user.js is always read from /data/local, not the profile
-        # directory.  Backup the original user.js first so we can restore it.
-        if not self._dm.fileExists('%s.orig' % self.userJS):
-            self.copyRemoteFile(self.userJS, '%s.orig' % self.userJS)
-        self._dm.pushFile(os.path.join(options.profilePath, "user.js"), self.userJS)
-        self.updateProfilesIni(self.remoteProfile)
-        options.profilePath = self.remoteProfile
-        options.logFile = self.localLog
-        return retVal
+        options.profilePath = self.app_ctx.remote_profile
+        options.logFile = self.local_log
 
 
-class B2GDesktopMochitest(B2GMochitest):
+class B2GDesktopMochitest(B2GMochitest, Mochitest):
 
-    def __init__(self, automation, options):
-        B2GMochitest.__init__(self, automation, OOP=False, profile_data_dir=options.profile_data_dir)
+    def __init__(self, marionette_args, logger_options, profile_data_dir):
+        B2GMochitest.__init__(
+            self,
+            marionette_args,
+            logger_options,
+            out_of_process=False,
+            profile_data_dir=profile_data_dir)
+        Mochitest.__init__(self, logger_options)
+        self.certdbNew = True
 
-    def runMarionetteScript(self, marionette, test_script):
+    def runMarionetteScript(self, marionette, test_script, test_script_args):
         assert(marionette.wait_for_port())
         marionette.start_session()
         marionette.set_context(marionette.CONTEXT_CHROME)
-        marionette.execute_script(test_script)
+
+        if os.path.isfile(test_script):
+            f = open(test_script, 'r')
+            test_script = f.read()
+            f.close()
+        self.marionette.execute_script(test_script,
+                                       script_args=test_script_args)
 
     def startTests(self):
         # This is run in a separate thread because otherwise, the app's
         # stdout buffer gets filled (which gets drained only after this
         # function returns, by waitForFinish), which causes the app to hang.
+        self.marionette = Marionette(**self.marionette_args)
         thread = threading.Thread(target=self.runMarionetteScript,
-                                  args=(self.automation.marionette,
-                                        self.automation.test_script))
+                                  args=(self.marionette,
+                                        self.test_script,
+                                        self.test_script_args))
         thread.start()
 
     def buildURLOptions(self, options, env):
-        retVal = Mochitest.buildURLOptions(self, options, env)
+        super(B2GDesktopMochitest, self).buildURLOptions(options, env)
 
-        self.setupCommonOptions(options)
+        self.setup_common_options(options)
 
         # Copy the extensions to the B2G bundles dir.
-        extensionDir = os.path.join(options.profilePath, 'extensions', 'staged')
+        extensionDir = os.path.join(
+            options.profilePath,
+            'extensions',
+            'staged')
         bundlesDir = os.path.join(os.path.dirname(options.app),
                                   'distribution', 'bundles')
 
@@ -599,125 +404,103 @@ class B2GDesktopMochitest(B2GMochitest):
             shutil.copytree(os.path.join(extensionDir, filename),
                             os.path.join(bundlesDir, filename))
 
-        return retVal
+    def buildProfile(self, options):
+        return self.build_profile(options)
 
 
-def run_remote_mochitests(automation, parser, options):
+def run_remote_mochitests(parser, options):
     # create our Marionette instance
-    kwargs = {}
-    if options.emulator:
-        kwargs['emulator'] = options.emulator
-        automation.setEmulator(True)
-        if options.noWindow:
-            kwargs['noWindow'] = True
-        if options.goannaPath:
-            kwargs['goanna_path'] = options.goannaPath
-        if options.logcat_dir:
-            kwargs['logcat_dir'] = options.logcat_dir
-        if options.busybox:
-            kwargs['busybox'] = options.busybox
-        if options.symbolsPath:
-            kwargs['symbols_path'] = options.symbolsPath
-    # needless to say sdcard is only valid if using an emulator
-    if options.sdcard:
-        kwargs['sdcard'] = options.sdcard
-    if options.b2gPath:
-        kwargs['homedir'] = options.b2gPath
+    marionette_args = {
+        'adb_path': options.adbPath,
+        'emulator': options.emulator,
+        'no_window': options.noWindow,
+        'logdir': options.logdir,
+        'busybox': options.busybox,
+        'symbols_path': options.symbolsPath,
+        'sdcard': options.sdcard,
+        'homedir': options.b2gPath,
+    }
     if options.marionette:
         host, port = options.marionette.split(':')
-        kwargs['host'] = host
-        kwargs['port'] = int(port)
+        marionette_args['host'] = host
+        marionette_args['port'] = int(port)
 
-    marionette = Marionette.getMarionetteOrExit(**kwargs)
-
-    automation.marionette = marionette
-
-    # create the DeviceManager
-    kwargs = {'adbPath': options.adbPath,
-              'deviceRoot': options.remoteTestRoot}
-    if options.deviceIP:
-        kwargs.update({'host': options.deviceIP,
-                       'port': options.devicePort})
-    dm = DeviceManagerADB(**kwargs)
-    automation.setDeviceManager(dm)
-    options = parser.verifyRemoteOptions(options, automation)
-    if (options == None):
+    options = parser.verifyRemoteOptions(options)
+    if (options is None):
         print "ERROR: Invalid options specified, use --help for a list of valid options"
         sys.exit(1)
 
-    automation.setProduct("b2g")
-
-    mochitest = B2GDeviceMochitest(automation, dm, options)
+    mochitest = B2GDeviceMochitest(
+        marionette_args,
+        options,
+        options.profile_data_dir,
+        options.xrePath,
+        remote_log_file=options.remoteLogFile)
 
     options = parser.verifyOptions(options, mochitest)
-    if (options == None):
+    if (options is None):
         sys.exit(1)
 
-    logParent = os.path.dirname(options.remoteLogFile)
-    dm.mkDir(logParent)
-    automation.setRemoteLog(options.remoteLogFile)
-    automation.setServerInfo(options.webServer, options.httpPort, options.sslPort)
     retVal = 1
     try:
         mochitest.cleanup(None, options)
-        retVal = mochitest.runTests(options)
+        retVal = mochitest.run_tests(options)
     except:
         print "Automation Error: Exception caught while running tests"
         traceback.print_exc()
-        mochitest.stopWebServer(options)
-        mochitest.stopWebSocketServer(options)
+        mochitest.stopServers()
         try:
             mochitest.cleanup(None, options)
         except:
             pass
         retVal = 1
 
+    mochitest.message_logger.finish()
+
     sys.exit(retVal)
 
 
 def run_desktop_mochitests(parser, options):
-    automation = B2GDesktopAutomation()
-
     # create our Marionette instance
-    kwargs = {}
+    marionette_args = {}
     if options.marionette:
         host, port = options.marionette.split(':')
-        kwargs['host'] = host
-        kwargs['port'] = int(port)
-    marionette = Marionette.getMarionetteOrExit(**kwargs)
-    automation.marionette = marionette
+        marionette_args['host'] = host
+        marionette_args['port'] = int(port)
 
-    mochitest = B2GDesktopMochitest(automation, options)
+    # add a -bin suffix if b2g-bin exists, but just b2g was specified
+    if options.app[-4:] != '-bin':
+        if os.path.isfile("%s-bin" % options.app):
+            options.app = "%s-bin" % options.app
 
-    # b2g desktop builds don't always have a b2g-bin file
-    if options.app[-4:] == '-bin':
-        options.app = options.app[:-4]
-
+    mochitest = B2GDesktopMochitest(
+        marionette_args,
+        options,
+        options.profile_data_dir)
     options = MochitestOptions.verifyOptions(parser, options, mochitest)
-    if options == None:
+    if options is None:
         sys.exit(1)
 
     if options.desktop and not options.profile:
         raise Exception("must specify --profile when specifying --desktop")
 
-    automation.setServerInfo(options.webServer,
-                             options.httpPort,
-                             options.sslPort,
-                             options.webSocketPort)
-    sys.exit(mochitest.runTests(options,
-                                onLaunch=mochitest.startTests))
+    options.browserArgs += ['-marionette']
+
+    retVal = mochitest.runTests(options, onLaunch=mochitest.startTests)
+    mochitest.message_logger.finish()
+
+    sys.exit(retVal)
 
 
 def main():
-    scriptdir = os.path.abspath(os.path.realpath(os.path.dirname(__file__)))
-    automation = B2GRemoteAutomation(None, "fennec")
-    parser = B2GOptions(automation, scriptdir)
+    parser = B2GOptions()
+    structured.commandline.add_logging_group(parser)
     options, args = parser.parse_args()
 
     if options.desktop:
         run_desktop_mochitests(parser, options)
     else:
-        run_remote_mochitests(automation, parser, options)
+        run_remote_mochitests(parser, options)
 
 if __name__ == "__main__":
     main()

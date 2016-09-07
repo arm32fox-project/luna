@@ -26,7 +26,7 @@ const Windows8WindowFrameColor = {
     
     let windowFrameColor = WindowsRegistry.readRegKey(HKCU, dwmKey,
                                                       "ColorizationColor");
-    if (typeof windowFrameColor === "undefined") {
+    if (windowFrameColor == undefined) {
       // Return the default color if unset or colorization not used
       return this._windowFrameColor = [frameBaseColor, frameBaseColor, frameBaseColor];
     }
@@ -39,7 +39,7 @@ const Windows8WindowFrameColor = {
     let windowFrameColorBalance = WindowsRegistry.readRegKey(HKCU, dwmKey,
                                                              "ColorizationColorBalance");
     // Default to balance=78 if reg key isn't defined
-    if (typeof windowFrameColorBalance === "undefined") {
+    if (windowFrameColorBalance == undefined) {
       windowFrameColorBalance = 78;
     }
     let alpha = windowFrameColorBalance / 100;
@@ -65,7 +65,7 @@ const Windows8WindowFrameColor = {
                                                       "ColorizationColor");
     let win10ColorPrevalence = WindowsRegistry.readRegKey(HKCU, dwmKey,
                                                           "ColorPrevalence");
-    if (typeof windowFrameColor === "undefined" || !win10ColorPrevalence) {
+    if (windowFrameColor == undefined || !win10ColorPrevalence) {
       // Return the default color if unset or colorization not used
       return this._windowFrameColor = [frameBaseColor, frameBaseColor, frameBaseColor];
     }
@@ -78,7 +78,7 @@ const Windows8WindowFrameColor = {
     let windowFrameColorBalance = WindowsRegistry.readRegKey(HKCU, dwmKey,
                                                              "ColorizationColorBalance");
     // Default to balance=78 if reg key isn't defined
-    if (typeof windowFrameColorBalance === "undefined") {
+    if (windowFrameColorBalance == undefined) {
       windowFrameColorBalance = 78;
     }
     let alpha = windowFrameColorBalance / 100;

@@ -19,7 +19,7 @@ function testSteps()
   request.onerror = errorHandler;
   request.onupgradeneeded = grabEventAndContinueHandler;
   request.onsuccess = grabEventAndContinueHandler;
-  let event = yield; // upgradeneeded
+  let event = yield undefined; // upgradeneeded
 
   let db = event.target.result;
 
@@ -37,47 +37,47 @@ function testSteps()
       }
     }
   }
-  event = yield; // testGenerator.send
+  event = yield undefined; // testGenerator.send
 
   // Now create the index.
   objectStore.createIndex("set", "", { unique: true });
-  yield; // success
+  yield undefined; // success
 
   let trans = db.transaction("data", "readwrite");
   objectStore = trans.objectStore("data");
   index = objectStore.index("set");
 
-  let request = index.get("bar");
+  request = index.get("bar");
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   
-  let event = yield;
+  event = yield undefined;
 
   is(event.target.result, "bar", "Got correct result");
 
-  let request = objectStore.add("foopy", 4);
+  request = objectStore.add("foopy", 4);
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
 
-  yield;
+  yield undefined;
 
-  let request = index.get("foopy");
+  request = index.get("foopy");
   request.onerror = errorHandler;
   request.onsuccess = grabEventAndContinueHandler;
   
-  let event = yield;
+  event = yield undefined;
 
   is(event.target.result, "foopy", "Got correct result");
 
-  let request = objectStore.add("foopy", 5);
+  request = objectStore.add("foopy", 5);
   request.addEventListener("error", new ExpectError("ConstraintError", true));
   request.onsuccess = unexpectedSuccessHandler;
 
   trans.oncomplete = grabEventAndContinueHandler;
 
-  yield;
-  yield;
+  yield undefined;
+  yield undefined;
 
   finishTest();
-  yield;
+  yield undefined;
 }

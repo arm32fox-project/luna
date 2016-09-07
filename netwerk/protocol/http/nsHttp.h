@@ -7,21 +7,48 @@
 #ifndef nsHttp_h__
 #define nsHttp_h__
 
-#include "plstr.h"
+#include <stdint.h>
 #include "prtime.h"
-#include "nsISupportsUtils.h"
-#include "nsPromiseFlatString.h"
-#include "nsURLHelper.h"
-#include "netCore.h"
-#include "mozilla/Mutex.h"
+#include "nsAutoPtr.h"
+#include "nsString.h"
+#include "nsError.h"
+#include "nsTArray.h"
 
 // http version codes
 #define NS_HTTP_VERSION_UNKNOWN  0
 #define NS_HTTP_VERSION_0_9      9
 #define NS_HTTP_VERSION_1_0     10
 #define NS_HTTP_VERSION_1_1     11
+#define NS_HTTP_VERSION_2_0     20
+
+namespace mozilla {
+
+class Mutex;
+
+namespace net {
+    enum {
+        // SPDY_VERSION_2 = 2, REMOVED
+        // SPDY_VERSION_3 = 3, REMOVED
+        SPDY_VERSION_31 = 4,
+        HTTP_VERSION_2 = 5,
+
+        // leave room for official versions. telem goes to 48
+        // 24 was a internal spdy/3.1
+        // 25 was spdy/4a2
+        // 26 was http/2-draft08 and http/2-draft07 (they were the same)
+        // 27 was http/2-draft09, h2-10, and h2-11
+        // 28 was http/2-draft12
+        // 29 was http/2-draft13
+        // 30 was also h2-14. They're effectively the same, -15 added an
+        // error code. So, we advertise all, but our "default position" is -16.
+        HTTP_VERSION_2_DRAFT_15 = 30,
+        HTTP_VERSION_2_DRAFT_16 = 31
+    };
 
 typedef uint8_t nsHttpVersion;
+
+#define HTTP_VERSION_2_DRAFT_LATEST HTTP_VERSION_2_DRAFT_16
+#define HTTP2_DRAFT_LATEST_TOKEN "h2-16"
 
 //-----------------------------------------------------------------------------
 // http connection capabilities
@@ -58,6 +85,9 @@ typedef uint8_t nsHttpVersion;
 // group is currently blocking on some resources
 #define NS_HTTP_LOAD_UNBLOCKED       (1<<8)
 
+// This flag indicates the transaction should accept associated pushes
+#define NS_HTTP_ONPUSH_LISTENER      (1<<9)
+
 //-----------------------------------------------------------------------------
 // some default values
 //-----------------------------------------------------------------------------
@@ -91,7 +121,7 @@ struct nsHttp
     // The mutex is valid any time the Atom Table is valid
     // This mutex is used in the unusual case that the network thread and
     // main thread might access the same data
-    static mozilla::Mutex *GetLock();
+    static Mutex *GetLock();
 
     // will dynamically add atoms to the table if they don't already exist
     static nsHttpAtom ResolveAtom(const char *);
@@ -104,10 +134,14 @@ struct nsHttp
     // section 2.2
     static bool IsValidToken(const char *start, const char *end);
 
-    static inline bool IsValidToken(const nsCString &s) {
-        const char *start = s.get();
-        return IsValidToken(start, start + s.Length());
+    static inline bool IsValidToken(const nsACString &s) {
+        return IsValidToken(s.BeginReading(), s.EndReading());
     }
+
+    // Returns true if the specified value is reasonable given the defintion
+    // in RFC 2616 section 4.2.  Full strict validation is not performed
+    // currently as it would require full parsing of the value.
+    static bool IsReasonableHeaderValue(const nsACString &s);
 
     // find the first instance (case-insensitive comparison) of the given
     // |token| in the |input| string.  the |token| is bounded by elements of
@@ -138,14 +172,6 @@ struct nsHttp
     // Return whether the HTTP status code represents a permanent redirect
     static bool IsPermanentRedirect(uint32_t httpStatus);
 
-    // Return whether upon a redirect code of httpStatus for method, the
-    // request method should be rewritten to GET.
-    static bool ShouldRewriteRedirectToGET(uint32_t httpStatus, nsHttpAtom method);
-
-    // Return whether the specified method is safe as per RFC 2616,
-    // Section 9.1.1.
-    static bool IsSafeMethod(nsHttpAtom method);
-
     // Declare all atoms
     //
     // The atom names and values are stored in nsHttpAtomList.h and are brought
@@ -174,5 +200,63 @@ PRTimeToSeconds(PRTime t_usec)
 
 #define HTTP_LWS " \t"
 #define HTTP_HEADER_VALUE_SEPS HTTP_LWS ","
+
+void EnsureBuffer(nsAutoArrayPtr<char> &buf, uint32_t newSize,
+                  uint32_t preserve, uint32_t &objSize);
+void EnsureBuffer(nsAutoArrayPtr<uint8_t> &buf, uint32_t newSize,
+                  uint32_t preserve, uint32_t &objSize);
+
+// h2=":443"; ma=60; single
+// results in 3 mValues = {{h2, :443}, {ma, 60}, {single}}
+
+class ParsedHeaderPair
+{
+public:
+    ParsedHeaderPair(const char *name, int32_t nameLen,
+                     const char *val, int32_t valLen)
+    {
+        if (nameLen > 0) {
+            mName.Rebind(name, name + nameLen);
+        }
+        if (valLen > 0) {
+            mValue.Rebind(val, val + valLen);
+        }
+    }
+
+    ParsedHeaderPair(ParsedHeaderPair const &copy)
+        : mName(copy.mName)
+        , mValue(copy.mValue)
+    {
+    }
+
+    nsDependentCSubstring mName;
+    nsDependentCSubstring mValue;
+};
+
+class ParsedHeaderValueList
+{
+public:
+    ParsedHeaderValueList(char *t, uint32_t len);
+    nsTArray<ParsedHeaderPair> mValues;
+
+private:
+    void ParsePair(char *t, uint32_t len);
+    void Tokenize(char *input, uint32_t inputLen, char **token,
+                  uint32_t *tokenLen, bool *foundEquals, char **next);
+};
+
+class ParsedHeaderValueListList
+{
+public:
+    explicit ParsedHeaderValueListList(const nsCString &txt);
+    nsTArray<ParsedHeaderValueList> mValues;
+
+private:
+    nsCString mFull;
+};
+
+
+} // namespace mozilla::net
+} // namespace mozilla
 
 #endif // nsHttp_h__

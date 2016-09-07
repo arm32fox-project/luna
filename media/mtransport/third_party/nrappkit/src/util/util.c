@@ -45,6 +45,7 @@ static char *RCSSTRING __UNUSED__ ="$Id: util.c,v 1.5 2007/11/21 00:09:13 adamca
 #include <dirent.h>
 #endif
 #include <string.h>
+#include <errno.h>
 #include <ctype.h>
 #include <sys/stat.h>
 #ifdef OPENSSL
@@ -749,6 +750,7 @@ int gettimeofday(struct timeval *tv, void *tz)
     return 0;
   }
 
+#if _MSC_VER < 1900
 int snprintf(char *buffer, size_t n, const char *format, ...)
 {
   va_list argp;
@@ -759,6 +761,7 @@ int snprintf(char *buffer, size_t n, const char *format, ...)
   va_end(argp);
   return ret;
 }
+#endif
 
 #endif
 

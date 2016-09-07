@@ -71,6 +71,7 @@ extern "C" {
 #include "nr_crypto.h"
 #include "nr_socket.h"
 #include "nr_socket_local.h"
+#include "nr_socket_buffered_stun.h"
 #include "stun_client_ctx.h"
 #include "turn_client_ctx.h"
 }
@@ -93,28 +94,45 @@ class TurnClient : public ::testing::Test {
  public:
   TurnClient()
       : turn_server_(g_turn_server),
+        real_socket_(nullptr),
         net_socket_(nullptr),
+        buffered_socket_(nullptr),
+        net_fd_(nullptr),
         turn_ctx_(nullptr),
         allocated_(false),
-        received_(0) {}
+        received_(0),
+        protocol_(IPPROTO_UDP) {
+  }
 
   ~TurnClient() {
   }
 
+  void SetTcp() {
+    protocol_ = IPPROTO_TCP;
+  }
+
   void Init_s() {
     int r;
-
     nr_transport_addr addr;
-    r = nr_ip4_port_to_transport_addr(0, 0, IPPROTO_UDP, &addr);
+    r = nr_ip4_port_to_transport_addr(0, 0, protocol_, &addr);
     ASSERT_EQ(0, r);
 
-    r = nr_socket_local_create(&addr, &net_socket_);
+    r = nr_socket_local_create(&addr, &real_socket_);
     ASSERT_EQ(0, r);
+
+    if (protocol_ == IPPROTO_TCP) {
+      int r =
+          nr_socket_buffered_stun_create(real_socket_, 100000,
+                                         &buffered_socket_);
+      ASSERT_EQ(0, r);
+      net_socket_ = buffered_socket_;
+    } else {
+      net_socket_ = real_socket_;
+    }
 
     r = nr_ip4_str_port_to_transport_addr(turn_server_.c_str(), 3478,
-      IPPROTO_UDP, &addr);
+      protocol_, &addr);
     ASSERT_EQ(0, r);
-
 
     std::vector<unsigned char> password_vec(
         g_turn_password.begin(), g_turn_password.end());
@@ -130,15 +148,16 @@ class TurnClient : public ::testing::Test {
     ASSERT_EQ(0, r);
 
     NR_ASYNC_WAIT(net_fd_, NR_ASYNC_WAIT_READ, socket_readable_cb,
-                  (void *)this);
+        (void *)this);
   }
 
   void TearDown_s() {
     nr_turn_client_ctx_destroy(&turn_ctx_);
-    if (net_socket_) {
+    if (net_fd_) {
       NR_ASYNC_CANCEL(net_fd_, NR_ASYNC_WAIT_READ);
     }
-    nr_socket_destroy(&net_socket_);
+
+    nr_socket_destroy(&buffered_socket_);
   }
 
   void TearDown() {
@@ -149,6 +168,7 @@ class TurnClient : public ::testing::Test {
 
   void Allocate_s() {
     Init_s();
+    ASSERT_TRUE(turn_ctx_);
 
     int r = nr_turn_client_allocate(turn_ctx_,
                                     allocate_success_cb,
@@ -186,6 +206,19 @@ class TurnClient : public ::testing::Test {
     relay_addr_ = addr.as_string;
 
     std::cerr << "Allocation succeeded with addr=" << relay_addr_ << std::endl;
+  }
+
+  void Deallocate_s() {
+    ASSERT_TRUE(turn_ctx_);
+
+    int r = nr_turn_client_deallocate(turn_ctx_);
+    ASSERT_EQ(0, r);
+  }
+
+  void Deallocate() {
+    RUN_ON_THREAD(test_utils->sts_target(),
+                  WrapRunnable(this, &TurnClient::Deallocate_s),
+                  NS_DISPATCH_SYNC);
   }
 
   void Readable(NR_SOCKET s, int how, void *arg) {
@@ -245,7 +278,7 @@ class TurnClient : public ::testing::Test {
     }
   }
 
-  void SendTo_s(const std::string& target) {
+  void SendTo_s(const std::string& target, bool expect_success) {
     nr_transport_addr addr;
     int r;
 
@@ -272,12 +305,15 @@ class TurnClient : public ::testing::Test {
     r = nr_turn_client_send_indication(turn_ctx_,
                                             test, sizeof(test), 0,
                                             &addr);
-    ASSERT_EQ(0, r);
+    if (expect_success) {
+      ASSERT_EQ(0, r);
+    }
   }
 
-  void SendTo(const std::string& target) {
+  void SendTo(const std::string& target, bool expect_success=true) {
     RUN_ON_THREAD(test_utils->sts_target(),
-                  WrapRunnable(this, &TurnClient::SendTo_s, target),
+                  WrapRunnable(this, &TurnClient::SendTo_s, target,
+                               expect_success),
                   NS_DISPATCH_SYNC);
   }
 
@@ -293,28 +329,75 @@ class TurnClient : public ::testing::Test {
 
  protected:
   std::string turn_server_;
+  nr_socket *real_socket_;
   nr_socket *net_socket_;
+  nr_socket *buffered_socket_;
   NR_SOCKET net_fd_;
   nr_turn_client_ctx *turn_ctx_;
   std::string relay_addr_;
   bool allocated_;
   int received_;
+  int protocol_;
 };
 
-
 TEST_F(TurnClient, Allocate) {
+  Allocate();
+}
+
+TEST_F(TurnClient, AllocateTcp) {
+  SetTcp();
   Allocate();
 }
 
 TEST_F(TurnClient, AllocateAndHold) {
   Allocate();
   PR_Sleep(20000);
+  ASSERT_TRUE(turn_ctx_->state == NR_TURN_CLIENT_STATE_ALLOCATED);
 }
 
 TEST_F(TurnClient, SendToSelf) {
   Allocate();
   SendTo(relay_addr_);
-  ASSERT_TRUE_WAIT(received() == 100, 1000);
+  ASSERT_TRUE_WAIT(received() == 100, 5000);
+  SendTo(relay_addr_);
+  ASSERT_TRUE_WAIT(received() == 200, 1000);
+}
+
+
+TEST_F(TurnClient, SendToSelfTcp) {
+  SetTcp();
+  Allocate();
+  SendTo(relay_addr_);
+  ASSERT_TRUE_WAIT(received() == 100, 5000);
+  SendTo(relay_addr_);
+  ASSERT_TRUE_WAIT(received() == 200, 1000);
+}
+
+TEST_F(TurnClient, DeallocateReceiveFailure) {
+  Allocate();
+  SendTo(relay_addr_);
+  ASSERT_TRUE_WAIT(received() == 100, 5000);
+  Deallocate();
+  turn_ctx_->state = NR_TURN_CLIENT_STATE_ALLOCATED;
+  SendTo(relay_addr_, true);
+  PR_Sleep(1000);
+  ASSERT_TRUE(received() == 100);
+}
+
+TEST_F(TurnClient, DeallocateReceiveFailureTcp) {
+  SetTcp();
+  Allocate();
+  SendTo(relay_addr_);
+  ASSERT_TRUE_WAIT(received() == 100, 5000);
+  Deallocate();
+  turn_ctx_->state = NR_TURN_CLIENT_STATE_ALLOCATED;
+  /* Either the connection got closed by the TURN server already, then the send
+   * is going to fail, which we simply ignore. Or the connection is still alive
+   * and we cand send the data, but it should not get forwarded to us. In either
+   * case we should not receive more data. */
+  SendTo(relay_addr_, false);
+  PR_Sleep(1000);
+  ASSERT_TRUE(received() == 100);
 }
 
 TEST_F(TurnClient, AllocateDummyServer) {
@@ -363,7 +446,7 @@ int main(int argc, char **argv)
   std::string dummy("dummy");
   RUN_ON_THREAD(test_utils->sts_target(),
                 WrapRunnableNM(&NrIceCtx::Create,
-                               dummy, false, false),
+                               dummy, false, false, false),
                 NS_DISPATCH_SYNC);
 
   // Start the tests

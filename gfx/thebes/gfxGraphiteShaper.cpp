@@ -3,26 +3,16 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsString.h"
-#include "nsBidiUtils.h"
-#include "nsMathUtils.h"
-
-#include "gfxTypes.h"
-
-#include "gfxContext.h"
-#include "gfxPlatform.h"
 #include "gfxGraphiteShaper.h"
-#include "gfxFontUtils.h"
+#include "nsString.h"
+#include "gfxContext.h"
+#include "gfxFontConstants.h"
+#include "gfxTextRun.h"
 
 #include "graphite2/Font.h"
 #include "graphite2/Segment.h"
 
 #include "harfbuzz/hb.h"
-
-#include "cairo.h"
-
-#include "nsUnicodeRange.h"
-#include "nsCRT.h"
 
 #define FloatToFixed(f) (65536 * (f))
 #define FixedToFloat(f) ((f) * (1.0 / 65536.0))
@@ -41,7 +31,7 @@ using namespace mozilla; // for AutoSwap_* types
 gfxGraphiteShaper::gfxGraphiteShaper(gfxFont *aFont)
     : gfxFontShaper(aFont),
       mGrFace(mFont->GetFontEntry()->GetGrFace()),
-      mGrFont(nullptr)
+      mGrFont(nullptr), mFallbackToSmallCaps(false)
 {
     mCallbackData.mFont = aFont;
     mCallbackData.mShaper = this;
@@ -60,7 +50,8 @@ gfxGraphiteShaper::GrGetAdvance(const void* appFontHandle, uint16_t glyphid)
 {
     const CallbackData *cb =
         static_cast<const CallbackData*>(appFontHandle);
-    return FixedToFloat(cb->mFont->GetGlyphWidth(cb->mContext, glyphid));
+    return FixedToFloat(cb->mFont->GetGlyphWidth(*cb->mContext->GetDrawTarget(),
+                                                 glyphid));
 }
 
 static inline uint32_t
@@ -95,10 +86,11 @@ AddFeature(const uint32_t& aTag, uint32_t& aValue, void *aUserArg)
 
 bool
 gfxGraphiteShaper::ShapeText(gfxContext      *aContext,
-                             const PRUnichar *aText,
+                             const char16_t *aText,
                              uint32_t         aOffset,
                              uint32_t         aLength,
                              int32_t          aScript,
+                             bool             aVertical,
                              gfxShapedText   *aShapedText)
 {
     // some font back-ends require this in order to get proper hinted metrics
@@ -107,6 +99,8 @@ gfxGraphiteShaper::ShapeText(gfxContext      *aContext,
     }
 
     mCallbackData.mContext = aContext;
+
+    const gfxFontStyle *style = mFont->GetStyle();
 
     if (!mGrFont) {
         if (!mGrFace) {
@@ -128,38 +122,52 @@ gfxGraphiteShaper::ShapeText(gfxContext      *aContext,
         if (!mGrFont) {
             return false;
         }
+
+        // determine whether petite-caps falls back to small-caps
+        if (style->variantCaps != NS_FONT_VARIANT_CAPS_NORMAL) {
+            switch (style->variantCaps) {
+                case NS_FONT_VARIANT_CAPS_ALLPETITE:
+                case NS_FONT_VARIANT_CAPS_PETITECAPS:
+                    bool synLower, synUpper;
+                    mFont->SupportsVariantCaps(aScript, style->variantCaps,
+                                               mFallbackToSmallCaps, synLower,
+                                               synUpper);
+                    break;
+                default:
+                    break;
+            }
+        }
     }
 
     gfxFontEntry *entry = mFont->GetFontEntry();
-    const gfxFontStyle *style = mFont->GetStyle();
     uint32_t grLang = 0;
     if (style->languageOverride) {
         grLang = MakeGraphiteLangTag(style->languageOverride);
     } else if (entry->mLanguageOverride) {
         grLang = MakeGraphiteLangTag(entry->mLanguageOverride);
-    } else {
+    } else if (style->explicitLanguage) {
         nsAutoCString langString;
         style->language->ToUTF8String(langString);
         grLang = GetGraphiteTagForLang(langString);
     }
     gr_feature_val *grFeatures = gr_face_featureval_for_lang(mGrFace, grLang);
-    
-    // Insert any merged features into Graphite feature list.
+
+    // insert any merged features into Graphite feature list
     GrFontFeatures f = {mGrFace, grFeatures};
     MergeFontFeatures(style,
                       mFont->GetFontEntry()->mFeatureSettings,
                       aShapedText->DisableLigatures(),
                       mFont->GetFontEntry()->FamilyName(),
+                      mFallbackToSmallCaps,
                       AddFeature,
-                      &f); 
+                      &f);
 
     size_t numChars = gr_count_unicode_characters(gr_utf16,
                                                   aText, aText + aLength,
                                                   nullptr);
-    gr_bidirtl grBidi = gr_bidirtl(aShapedText->IsRightToLeft()
-                                   ? (gr_rtl | gr_nobidi) : gr_nobidi);
     gr_segment *seg = gr_make_seg(mGrFont, mGrFace, 0, grFeatures,
-                                  gr_utf16, aText, numChars, grBidi);
+                                  gr_utf16, aText, numChars,
+                                  aShapedText->IsRightToLeft());
 
     gr_featureval_destroy(grFeatures);
 
@@ -191,7 +199,7 @@ gfxGraphiteShaper::SetGlyphsFromSegment(gfxContext      *aContext,
                                         gfxShapedText   *aShapedText,
                                         uint32_t         aOffset,
                                         uint32_t         aLength,
-                                        const PRUnichar *aText,
+                                        const char16_t *aText,
                                         gr_segment      *aSegment)
 {
     int32_t dev2appUnits = aShapedText->GetAppUnitsPerDevUnit();
@@ -200,10 +208,10 @@ gfxGraphiteShaper::SetGlyphsFromSegment(gfxContext      *aContext,
     uint32_t glyphCount = gr_seg_n_slots(aSegment);
 
     // identify clusters; graphite may have reordered/expanded/ligated glyphs.
-    nsAutoTArray<Cluster,SMALL_GLYPH_RUN> clusters;
-    nsAutoTArray<uint16_t,SMALL_GLYPH_RUN> gids;
-    nsAutoTArray<float,SMALL_GLYPH_RUN> xLocs;
-    nsAutoTArray<float,SMALL_GLYPH_RUN> yLocs;
+    AutoFallibleTArray<Cluster,SMALL_GLYPH_RUN> clusters;
+    AutoFallibleTArray<uint16_t,SMALL_GLYPH_RUN> gids;
+    AutoFallibleTArray<float,SMALL_GLYPH_RUN> xLocs;
+    AutoFallibleTArray<float,SMALL_GLYPH_RUN> yLocs;
 
     if (!clusters.SetLength(aLength) ||
         !gids.SetLength(glyphCount) ||
@@ -344,10 +352,12 @@ gfxGraphiteShaper::SetGlyphsFromSegment(gfxContext      *aContext,
     return NS_OK;
 }
 
+#undef SMALL_GLYPH_RUN
+
 // for language tag validation - include list of tags from the IANA registry
 #include "gfxLanguageTagList.cpp"
 
-nsTHashtable<nsUint32HashKey> gfxGraphiteShaper::sLanguageTags;
+nsTHashtable<nsUint32HashKey> *gfxGraphiteShaper::sLanguageTags;
 
 /*static*/ uint32_t
 gfxGraphiteShaper::GetGraphiteTagForLang(const nsCString& aLang)
@@ -382,16 +392,16 @@ gfxGraphiteShaper::GetGraphiteTagForLang(const nsCString& aLang)
         return 0;
     }
 
-    if (!sLanguageTags.IsInitialized()) {
+    if (!sLanguageTags) {
         // store the registered IANA tags in a hash for convenient validation
-        sLanguageTags.Init(ArrayLength(sLanguageTagList));
+        sLanguageTags = new nsTHashtable<nsUint32HashKey>(ArrayLength(sLanguageTagList));
         for (const uint32_t *tag = sLanguageTagList; *tag != 0; ++tag) {
-            sLanguageTags.PutEntry(*tag);
+            sLanguageTags->PutEntry(*tag);
         }
     }
 
     // only accept tags known in the IANA registry
-    if (sLanguageTags.GetEntry(grLang)) {
+    if (sLanguageTags->GetEntry(grLang)) {
         return grLang;
     }
 
@@ -402,8 +412,10 @@ gfxGraphiteShaper::GetGraphiteTagForLang(const nsCString& aLang)
 gfxGraphiteShaper::Shutdown()
 {
 #ifdef NS_FREE_PERMANENT_DATA
-    if (sLanguageTags.IsInitialized()) {
-        sLanguageTags.Clear();
+    if (sLanguageTags) {
+        sLanguageTags->Clear();
+        delete sLanguageTags;
+        sLanguageTags = nullptr;
     }
 #endif
 }

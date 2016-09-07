@@ -10,20 +10,24 @@
   'targets': [
     {
       'target_name': 'G711',
-      'type': '<(library)',
+      'type': 'static_library',
       'include_dirs': [
         'include',
+        '<(webrtc_root)',
       ],
       'direct_dependent_settings': {
         'include_dirs': [
           'include',
+          '<(webrtc_root)',
         ],
       },
       'sources': [
         'include/g711_interface.h',
+        'include/audio_encoder_pcm.h',
         'g711_interface.c',
         'g711.c',
         'g711.h',
+        'audio_encoder_pcm.cc',
       ],
     },
   ], # targets
@@ -44,9 +48,3 @@
     }], # include_tests
   ], # conditions
 }
-
-# Local Variables:
-# tab-width:2
-# indent-tabs-mode:nil
-# End:
-# vim: set expandtab tabstop=2 shiftwidth=2:

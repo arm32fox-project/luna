@@ -4,8 +4,6 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MODULE = 'libupdatecommon'
-
 EXPORTS += [
     'readstrings.h',
     'updatedefines.h',
@@ -14,21 +12,18 @@ EXPORTS += [
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
     EXPORTS += [
+        'certificatecheck.h',
         'pathhash.h',
+        'registrycertificates.h',
         'uachelper.h',
         'updatehelper.cpp',
         'updatehelper.h',
     ]
-    CPP_SOURCES += [
-        'updatehelper.cpp',
-        'uachelper.cpp',
-        'pathhash.cpp',
-    ]
 
-CPP_SOURCES += [
-    'readstrings.cpp',
-    'updatelogging.cpp',
-]
+Library('updatecommon')
 
-LIBRARY_NAME = 'updatecommon'
+DEFINES['NS_NO_XPCOM'] = True
 
+srcdir = '.'
+
+include('sources.mozbuild')

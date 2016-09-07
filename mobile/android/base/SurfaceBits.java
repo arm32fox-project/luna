@@ -4,8 +4,11 @@
 
 package org.mozilla.goanna;
 
+import org.mozilla.goanna.mozglue.generatorannotations.WrapEntireClassForJNI;
+
 import java.nio.ByteBuffer;
 
+@WrapEntireClassForJNI
 public class SurfaceBits {
     public int width;
     public int height;

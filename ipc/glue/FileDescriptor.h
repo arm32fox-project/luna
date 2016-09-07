@@ -52,13 +52,15 @@ public:
   FileDescriptor();
 
   FileDescriptor(const FileDescriptor& aOther)
+    : mHandleCreatedByOtherProcess(false),
+      mHandleCreatedByOtherProcessWasUsed(false)
   {
     // Don't use operator= here because that will call
     // CloseCurrentProcessHandle() on this (uninitialized) object.
     Assign(aOther);
   }
 
-  FileDescriptor(PlatformHandleType aHandle);
+  explicit FileDescriptor(PlatformHandleType aHandle);
 
   FileDescriptor(const IPDLPrivate&, const PickleType& aPickle)
 #ifdef XP_WIN

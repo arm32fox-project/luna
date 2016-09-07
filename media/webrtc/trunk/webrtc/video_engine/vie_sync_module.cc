@@ -8,49 +8,46 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "video_engine/vie_sync_module.h"
+#include "webrtc/video_engine/vie_sync_module.h"
 
-#include "modules/rtp_rtcp/interface/rtp_rtcp.h"
-#include "modules/video_coding/main/interface/video_coding.h"
-#include "system_wrappers/interface/critical_section_wrapper.h"
-#include "system_wrappers/interface/trace.h"
-#include "video_engine/stream_synchronization.h"
-#include "video_engine/vie_channel.h"
-#include "voice_engine/include/voe_video_sync.h"
+#include "webrtc/modules/rtp_rtcp/interface/rtp_receiver.h"
+#include "webrtc/modules/rtp_rtcp/interface/rtp_rtcp.h"
+#include "webrtc/modules/video_coding/main/interface/video_coding.h"
+#include "webrtc/system_wrappers/interface/critical_section_wrapper.h"
+#include "webrtc/system_wrappers/interface/logging.h"
+#include "webrtc/system_wrappers/interface/trace_event.h"
+#include "webrtc/video_engine/stream_synchronization.h"
+#include "webrtc/video_engine/vie_channel.h"
+#include "webrtc/voice_engine/include/voe_video_sync.h"
 
 namespace webrtc {
 
 enum { kSyncInterval = 1000};
 
 int UpdateMeasurements(StreamSynchronization::Measurements* stream,
-                       const RtpRtcp* rtp_rtcp) {
-  stream->latest_timestamp = rtp_rtcp->RemoteTimestamp();
-  stream->latest_receive_time_ms = rtp_rtcp->LocalTimeOfRemoteTimeStamp();
-  synchronization::RtcpMeasurement measurement;
-  if (0 != rtp_rtcp->RemoteNTP(&measurement.ntp_secs,
-                               &measurement.ntp_frac,
-                               NULL,
-                               NULL,
-                               &measurement.rtp_timestamp)) {
+                       const RtpRtcp& rtp_rtcp, const RtpReceiver& receiver) {
+  if (!receiver.Timestamp(&stream->latest_timestamp))
+    return -1;
+  if (!receiver.LastReceivedTimeMs(&stream->latest_receive_time_ms))
+    return -1;
+
+  uint32_t ntp_secs = 0;
+  uint32_t ntp_frac = 0;
+  uint32_t rtp_timestamp = 0;
+  if (0 != rtp_rtcp.RemoteNTP(&ntp_secs,
+                              &ntp_frac,
+                              NULL,
+                              NULL,
+                              &rtp_timestamp)) {
     return -1;
   }
-  if (measurement.ntp_secs == 0 && measurement.ntp_frac == 0) {
+
+  bool new_rtcp_sr = false;
+  if (!UpdateRtcpList(
+      ntp_secs, ntp_frac, rtp_timestamp, &stream->rtcp, &new_rtcp_sr)) {
     return -1;
   }
-  for (synchronization::RtcpList::iterator it = stream->rtcp.begin();
-       it != stream->rtcp.end(); ++it) {
-    if (measurement.ntp_secs == (*it).ntp_secs &&
-        measurement.ntp_frac == (*it).ntp_frac) {
-      // This RTCP has already been added to the list.
-      return 0;
-    }
-  }
-  // We need two RTCP SR reports to map between RTP and NTP. More than two will
-  // not improve the mapping.
-  if (stream->rtcp.size() == 2) {
-    stream->rtcp.pop_back();
-  }
-  stream->rtcp.push_front(measurement);
+
   return 0;
 }
 
@@ -59,6 +56,7 @@ ViESyncModule::ViESyncModule(VideoCodingModule* vcm,
     : data_cs_(CriticalSectionWrapper::CreateCriticalSection()),
       vcm_(vcm),
       vie_channel_(vie_channel),
+      video_receiver_(NULL),
       video_rtp_rtcp_(NULL),
       voe_channel_id_(-1),
       voe_sync_interface_(NULL),
@@ -71,10 +69,12 @@ ViESyncModule::~ViESyncModule() {
 
 int ViESyncModule::ConfigureSync(int voe_channel_id,
                                  VoEVideoSync* voe_sync_interface,
-                                 RtpRtcp* video_rtcp_module) {
+                                 RtpRtcp* video_rtcp_module,
+                                 RtpReceiver* video_receiver) {
   CriticalSectionScoped cs(data_cs_.get());
   voe_channel_id_ = voe_channel_id;
   voe_sync_interface_ = voe_sync_interface;
+  video_receiver_ = video_receiver;
   video_rtp_rtcp_ = video_rtcp_module;
   sync_.reset(new StreamSynchronization(voe_channel_id, vie_channel_->Id()));
 
@@ -93,19 +93,16 @@ int ViESyncModule::VoiceChannel() {
   return voe_channel_id_;
 }
 
-WebRtc_Word32 ViESyncModule::TimeUntilNextProcess() {
-  return static_cast<WebRtc_Word32>(kSyncInterval -
-                         (TickTime::Now() - last_sync_time_).Milliseconds());
+int32_t ViESyncModule::TimeUntilNextProcess() {
+  return static_cast<int32_t>(kSyncInterval -
+      (TickTime::Now() - last_sync_time_).Milliseconds());
 }
 
-WebRtc_Word32 ViESyncModule::Process() {
+int32_t ViESyncModule::Process() {
   CriticalSectionScoped cs(data_cs_.get());
   last_sync_time_ = TickTime::Now();
 
-  int total_video_delay_target_ms = vcm_->Delay();
-  WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo, vie_channel_->Id(),
-               "Video delay (JB + decoder) is %d ms",
-               total_video_delay_target_ms);
+  const int current_video_delay_ms = vcm_->Delay();
 
   if (voe_channel_id_ == -1) {
     return 0;
@@ -113,62 +110,81 @@ WebRtc_Word32 ViESyncModule::Process() {
   assert(video_rtp_rtcp_ && voe_sync_interface_);
   assert(sync_.get());
 
-  int current_audio_delay_ms = 0;
+  int audio_jitter_buffer_delay_ms = 0;
+  int playout_buffer_delay_ms = 0;
+  int avsync_offset_ms = 0;
   if (voe_sync_interface_->GetDelayEstimate(voe_channel_id_,
-                                            current_audio_delay_ms) != 0) {
-    // Could not get VoE delay value, probably not a valid channel Id.
-    WEBRTC_TRACE(webrtc::kTraceStream, webrtc::kTraceVideo, vie_channel_->Id(),
-                 "%s: VE_GetDelayEstimate error for voice_channel %d",
-                 __FUNCTION__, voe_channel_id_);
+                                            &audio_jitter_buffer_delay_ms,
+                                            &playout_buffer_delay_ms,
+                                            &avsync_offset_ms) != 0) {
     return 0;
   }
-
-  // VoiceEngine report delay estimates even when not started, ignore if the
-  // reported value is lower than 40 ms.
-  if (current_audio_delay_ms < 40) {
-    WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo, vie_channel_->Id(),
-                 "A/V Sync: Audio delay < 40, skipping.");
-    return 0;
-  }
+  const int current_audio_delay_ms = audio_jitter_buffer_delay_ms +
+      playout_buffer_delay_ms;
 
   RtpRtcp* voice_rtp_rtcp = NULL;
-  if (0 != voe_sync_interface_->GetRtpRtcp(voe_channel_id_, voice_rtp_rtcp)) {
+  RtpReceiver* voice_receiver = NULL;
+  if (0 != voe_sync_interface_->GetRtpRtcp(voe_channel_id_, &voice_rtp_rtcp,
+                                           &voice_receiver)) {
     return 0;
   }
   assert(voice_rtp_rtcp);
+  assert(voice_receiver);
 
-  if (UpdateMeasurements(&video_measurement_, video_rtp_rtcp_) != 0) {
+  if (UpdateMeasurements(&video_measurement_, *video_rtp_rtcp_,
+                         *video_receiver_) != 0) {
     return 0;
   }
 
-  if (UpdateMeasurements(&audio_measurement_, voice_rtp_rtcp) != 0) {
+  if (UpdateMeasurements(&audio_measurement_, *voice_rtp_rtcp,
+                         *voice_receiver) != 0) {
     return 0;
   }
 
   int relative_delay_ms;
+  int result;
   // Calculate how much later or earlier the audio stream is compared to video.
-  if (!sync_->ComputeRelativeDelay(audio_measurement_, video_measurement_,
-                                   &relative_delay_ms)) {
+
+  result = sync_->ComputeRelativeDelay(audio_measurement_, video_measurement_,
+                                       &relative_delay_ms);
+  if (!result) {
     return 0;
   }
+  voe_sync_interface_->SetCurrentSyncOffset(voe_channel_id_, relative_delay_ms);
 
-  int extra_audio_delay_ms = 0;
+  TRACE_COUNTER1("webrtc", "SyncCurrentVideoDelay", current_video_delay_ms);
+  TRACE_COUNTER1("webrtc", "SyncCurrentAudioDelay", current_audio_delay_ms);
+  TRACE_COUNTER1("webrtc", "SyncRelativeDelay", relative_delay_ms);
+  int target_audio_delay_ms = 0;
+  int target_video_delay_ms = current_video_delay_ms;
   // Calculate the necessary extra audio delay and desired total video
   // delay to get the streams in sync.
   if (!sync_->ComputeDelays(relative_delay_ms,
                             current_audio_delay_ms,
-                            &extra_audio_delay_ms,
-                            &total_video_delay_target_ms)) {
+                            &target_audio_delay_ms,
+                            &target_video_delay_ms)) {
     return 0;
   }
+
   if (voe_sync_interface_->SetMinimumPlayoutDelay(
-      voe_channel_id_, extra_audio_delay_ms) == -1) {
-    WEBRTC_TRACE(webrtc::kTraceDebug, webrtc::kTraceVideo, vie_channel_->Id(),
-                 "Error setting voice delay");
+      voe_channel_id_, target_audio_delay_ms) == -1) {
+    LOG(LS_ERROR) << "Error setting voice delay.";
   }
-  vcm_->SetMinimumPlayoutDelay(total_video_delay_target_ms);
-  WEBRTC_TRACE(webrtc::kTraceInfo, webrtc::kTraceVideo, vie_channel_->Id(),
-               "New Video delay target is: %d", total_video_delay_target_ms);
+  vcm_->SetMinimumPlayoutDelay(target_video_delay_ms);
+  return 0;
+}
+
+int ViESyncModule::SetTargetBufferingDelay(int target_delay_ms) {
+  CriticalSectionScoped cs(data_cs_.get());
+  if (!voe_sync_interface_) {
+    LOG(LS_ERROR) << "voe_sync_interface_ NULL, can't set playout delay.";
+    return -1;
+  }
+  sync_->SetTargetBufferingDelay(target_delay_ms);
+  // Setting initial playout delay to voice engine (video engine is updated via
+  // the VCM interface).
+  voe_sync_interface_->SetInitialPlayoutDelay(voe_channel_id_,
+                                              target_delay_ms);
   return 0;
 }
 

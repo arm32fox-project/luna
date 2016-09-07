@@ -5,9 +5,7 @@
 
 package org.mozilla.goanna;
 
-import org.mozilla.goanna.util.EventDispatcher;
 import org.mozilla.goanna.util.GoannaEventListener;
-import org.mozilla.goanna.util.GoannaEventResponder;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -41,7 +39,7 @@ import java.util.Map;
  * addon code can be compiled against the android.jar provided in the Android
  * SDK, rather than having to be compiled against Fennec source code.
  *
- * The Handler.Callback instances provided (as described above) are inovked with
+ * The Handler.Callback instances provided (as described above) are invoked with
  * Message objects when the corresponding events are dispatched. The Bundle
  * object attached to the Message will contain the "primitive" values from the
  * JSON of the event. ("primitive" includes bool/int/long/double/String). If
@@ -67,7 +65,7 @@ class JavaAddonManager implements GoannaEventListener {
     }
 
     private JavaAddonManager() {
-        mDispatcher = GoannaAppShell.getEventDispatcher();
+        mDispatcher = EventDispatcher.getInstance();
         mAddonCallbacks = new HashMap<String, Map<String, GoannaEventListener>>();
     }
 
@@ -77,8 +75,9 @@ class JavaAddonManager implements GoannaEventListener {
             return;
         }
         mApplicationContext = applicationContext;
-        mDispatcher.registerEventListener("Dex:Load", this);
-        mDispatcher.registerEventListener("Dex:Unload", this);
+        mDispatcher.registerGoannaThreadListener(this,
+            "Dex:Load",
+            "Dex:Unload");
     }
 
     @Override
@@ -90,7 +89,7 @@ class JavaAddonManager implements GoannaEventListener {
                 Log.d(LOGTAG, "Attempting to load classes.dex file from " + zipFile + " and instantiate " + implClass);
                 try {
                     File tmpDir = mApplicationContext.getDir("dex", 0);
-                    DexClassLoader loader = new DexClassLoader(zipFile, tmpDir.getAbsolutePath(), null, ClassLoader.getSystemClassLoader());
+                    DexClassLoader loader = new DexClassLoader(zipFile, tmpDir.getAbsolutePath(), null, mApplicationContext.getClassLoader());
                     Class<?> c = loader.loadClass(implClass);
                     try {
                         Constructor<?> constructor = c.getDeclaredConstructor(Map.class);
@@ -123,7 +122,7 @@ class JavaAddonManager implements GoannaEventListener {
         addonCallbacks = new HashMap<String, GoannaEventListener>();
         for (String event : callbacks.keySet()) {
             CallbackWrapper wrapper = new CallbackWrapper(callbacks.get(event));
-            mDispatcher.registerEventListener(event, wrapper);
+            mDispatcher.registerGoannaThreadListener(wrapper, event);
             addonCallbacks.put(event, wrapper);
         }
         mAddonCallbacks.put(zipFile, addonCallbacks);
@@ -136,11 +135,11 @@ class JavaAddonManager implements GoannaEventListener {
             return;
         }
         for (String event : callbacks.keySet()) {
-            mDispatcher.unregisterEventListener(event, callbacks.get(event));
+            mDispatcher.unregisterGoannaThreadListener(callbacks.get(event), event);
         }
     }
 
-    private static class CallbackWrapper implements GoannaEventResponder {
+    private static class CallbackWrapper implements GoannaEventListener {
         private final Handler.Callback mDelegate;
         private Bundle mBundle;
 
@@ -184,16 +183,14 @@ class JavaAddonManager implements GoannaEventListener {
                 Message msg = new Message();
                 msg.setData(mBundle);
                 mDelegate.handleMessage(msg);
+
+                JSONObject obj = new JSONObject();
+                obj.put("response", mBundle.getString("response"));
+                EventDispatcher.sendResponse(json, obj);
+                mBundle = null;
             } catch (Exception e) {
                 Log.e(LOGTAG, "Caught exception thrown from wrapped addon message handler", e);
             }
-        }
-
-        @Override
-        public String getResponse(JSONObject origMessage) {
-            String response = mBundle.getString("response");
-            mBundle = null;
-            return response;
         }
     }
 }

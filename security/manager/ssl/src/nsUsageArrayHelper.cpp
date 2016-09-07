@@ -6,14 +6,14 @@
 
 #include "mozilla/Assertions.h"
 #include "nsCOMPtr.h"
-#include "nsIDateTimeFormat.h"
-#include "nsDateTimeFormatCID.h"
 #include "nsComponentManagerUtils.h"
-#include "nsReadableUtils.h"
+#include "nsDateTimeFormatCID.h"
+#include "nsIDateTimeFormat.h"
 #include "nsNSSCertificate.h"
+#include "nsReadableUtils.h"
 #include "nsServiceManagerUtils.h"
-
 #include "nspr.h"
+#include "pkix/pkixnss.h"
 #include "secerr.h"
 
 using namespace mozilla;
@@ -62,14 +62,13 @@ nsUsageArrayHelper::check(uint32_t previousCheckResult,
                           const char *suffix,
                           CertVerifier * certVerifier,
                           SECCertificateUsage aCertUsage,
-                          PRTime time,
+                          mozilla::pkix::Time time,
                           CertVerifier::Flags flags,
                           uint32_t &aCounter,
-                          PRUnichar **outUsages)
+                          char16_t **outUsages)
 {
   if (!aCertUsage) {
-    MOZ_NOT_REACHED("caller should have supplied non-zero aCertUsage");
-    return nsIX509Cert::NOT_VERIFIED_UNKNOWN;
+    MOZ_CRASH("caller should have supplied non-zero aCertUsage");
   }
 
   if (isFatalError(previousCheckResult)) {
@@ -84,9 +83,6 @@ nsUsageArrayHelper::check(uint32_t previousCheckResult,
   case certificateUsageSSLServer:
     typestr = "VerifySSLServer";
     break;
-  case certificateUsageSSLServerWithStepUp:
-    typestr = "VerifySSLStepUp";
-    break;
   case certificateUsageEmailSigner:
     typestr = "VerifyEmailSigner";
     break;
@@ -95,12 +91,6 @@ nsUsageArrayHelper::check(uint32_t previousCheckResult,
     break;
   case certificateUsageObjectSigner:
     typestr = "VerifyObjSign";
-    break;
-  case certificateUsageProtectedObjectSigner:
-    typestr = "VerifyProtectObjSign";
-    break;
-  case certificateUsageUserCertImport:
-    typestr = "VerifyUserImport";
     break;
   case certificateUsageSSLCA:
     typestr = "VerifySSLCA";
@@ -111,16 +101,13 @@ nsUsageArrayHelper::check(uint32_t previousCheckResult,
   case certificateUsageStatusResponder:
     typestr = "VerifyStatusResponder";
     break;
-  case certificateUsageAnyCA:
-    typestr = "VerifyAnyCA";
-    break;
   default:
-    MOZ_NOT_REACHED("unknown cert usage passed to check()");
-    return nsIX509Cert::NOT_VERIFIED_UNKNOWN;
+    MOZ_CRASH("unknown cert usage passed to check()");
   }
 
-  SECStatus rv = certVerifier->VerifyCert(mCert, aCertUsage,
-                         time, nullptr /*XXX:wincx*/, flags);
+  SECStatus rv = certVerifier->VerifyCert(mCert, aCertUsage, time,
+                                          nullptr /*XXX:wincx*/,
+                                          nullptr /*hostname*/, flags);
 
   if (rv == SECSuccess) {
     typestr.Append(suffix);
@@ -134,7 +121,6 @@ nsUsageArrayHelper::check(uint32_t previousCheckResult,
 
   PRErrorCode error = PR_GetError();
 
-  const char * errorString = PR_ErrorToName(error);
   uint32_t result = nsIX509Cert::NOT_VERIFIED_UNKNOWN;
   verifyFailed(&result, error);
 
@@ -147,7 +133,7 @@ nsUsageArrayHelper::check(uint32_t previousCheckResult,
 
   PR_LOG(gPIPNSSLog, PR_LOG_DEBUG,
           ("error validating certificate for usage %s: %s (%d) -> %ud \n",
-          typestr.get(), errorString, (int) error, (int) result));
+          typestr.get(), PR_ErrorToName(error), (int) error, (int) result));
 
   return result;
 }
@@ -162,6 +148,10 @@ nsUsageArrayHelper::verifyFailed(uint32_t *_verified, int err)
   /* For these cases, verify only failed for the particular usage */
   case SEC_ERROR_INADEQUATE_KEY_USAGE:
   case SEC_ERROR_INADEQUATE_CERT_TYPE:
+  case SEC_ERROR_CA_CERT_INVALID:
+  case mozilla::pkix::MOZILLA_PKIX_ERROR_CA_CERT_USED_AS_END_ENTITY:
+  case mozilla::pkix::MOZILLA_PKIX_ERROR_INADEQUATE_KEY_SIZE:
+  case mozilla::pkix::MOZILLA_PKIX_ERROR_V1_CERT_USED_AS_CA:
     *_verified = nsNSSCertificate::USAGE_NOT_ALLOWED; break;
   /* These are the cases that have individual error messages */
   case SEC_ERROR_REVOKED_CERTIFICATE:
@@ -190,7 +180,7 @@ nsUsageArrayHelper::GetUsagesArray(const char *suffix,
                       uint32_t outArraySize,
                       uint32_t *_verified,
                       uint32_t *_count,
-                      PRUnichar **outUsages)
+                      char16_t **outUsages)
 {
   nsNSSShutDownPreventionLock locker;
   if (NS_FAILED(m_rv))
@@ -201,30 +191,14 @@ nsUsageArrayHelper::GetUsagesArray(const char *suffix,
   if (outArraySize < max_returned_out_array_size)
     return NS_ERROR_FAILURE;
 
-  // Bug 860076, this disabling ocsp for all NSS is incorrect.
-#ifndef NSS_NO_LIBPKIX
-  const bool localOSCPDisable = !nsNSSComponent::globalConstFlagUsePKIXVerification && localOnly;
-#else
-  const bool localOSCPDisable = localOnly;
-#endif 
-  if (localOSCPDisable) {
-    nsresult rv;
-    nssComponent = do_GetService(kNSSComponentCID, &rv);
-    if (NS_FAILED(rv))
-      return rv;
-    
-    if (nssComponent) {
-      nssComponent->SkipOcsp();
-    }
-  }
+  RefPtr<SharedCertVerifier> certVerifier(GetDefaultCertVerifier());
+  NS_ENSURE_TRUE(certVerifier, NS_ERROR_UNEXPECTED);
 
   uint32_t &count = *_count;
   count = 0;
 
-  RefPtr<CertVerifier> certVerifier(GetDefaultCertVerifier());
-  NS_ENSURE_TRUE(certVerifier, NS_ERROR_UNEXPECTED);
+  mozilla::pkix::Time now(mozilla::pkix::Now());
 
-  PRTime now = PR_Now();
   CertVerifier::Flags flags = localOnly ? CertVerifier::FLAG_LOCAL_ONLY : 0;
 
   // The following list of checks must be < max_returned_out_array_size
@@ -240,30 +214,10 @@ nsUsageArrayHelper::GetUsagesArray(const char *suffix,
                  certificateUsageEmailRecipient, now, flags, count, outUsages);
   result = check(result, suffix, certVerifier,
                  certificateUsageObjectSigner, now, flags, count, outUsages);
-#if 0
-  result = check(result, suffix, certVerifier,
-                 certificateUsageProtectedObjectSigner, now, flags, count,
-                 outUsages);
-  result = check(result, suffix, certVerifier,
-                 certificateUsageUserCertImport, now, flags, count, outUsages);
-#endif
   result = check(result, suffix, certVerifier,
                  certificateUsageSSLCA, now, flags, count, outUsages);
-#if 0
-  result = check(result, suffix, certVerifier,
-                 certificateUsageVerifyCA, now, flags, count, outUsages);
-#endif
   result = check(result, suffix, certVerifier,
                  certificateUsageStatusResponder, now, flags, count, outUsages);
-#if 0
-  result = check(result, suffix, certVerifier,
-                 certificateUsageAnyCA, now, flags, count, outUsages);
-#endif
-
-  // Bug 860076, this disabling ocsp for all NSS is incorrect
-  if (localOSCPDisable) {
-     nssComponent->SkipOcspOff();
-  }
 
   if (isFatalError(result) || count == 0) {
     MOZ_ASSERT(result != nsIX509Cert::VERIFIED_OK);

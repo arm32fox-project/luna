@@ -10,13 +10,14 @@
  * liability, trademark and document use rules apply.
  */
 
-[PrefControlled]
 interface ScriptProcessorNode : AudioNode {
 
-    [SetterThrows]
     attribute EventHandler onaudioprocess;
 
     readonly attribute long bufferSize;
 
 };
+
+// Mozilla extension
+ScriptProcessorNode implements AudioNodePassThrough;
 

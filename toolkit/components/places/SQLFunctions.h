@@ -56,10 +56,10 @@ namespace places {
  * @param aSearchBehavior
  *        A bitfield dictating the search behavior.
  */
-class MatchAutoCompleteFunction MOZ_FINAL : public mozIStorageFunction
+class MatchAutoCompleteFunction final : public mozIStorageFunction
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEFUNCTION
 
   /**
@@ -71,6 +71,8 @@ public:
   static nsresult create(mozIStorageConnection *aDBConn);
 
 private:
+  ~MatchAutoCompleteFunction();
+
   /**
    * Argument Indexes
    */
@@ -193,10 +195,11 @@ private:
  * @param [optional] isBookmarked
  *        Whether the page is bookmarked. Default is false.
  */
-class CalculateFrecencyFunction MOZ_FINAL : public mozIStorageFunction
+class CalculateFrecencyFunction final : public mozIStorageFunction
 {
+  ~CalculateFrecencyFunction();
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEFUNCTION
 
   /**
@@ -214,10 +217,11 @@ public:
  *
  * @return a guid for the item.
  */
-class GenerateGUIDFunction MOZ_FINAL : public mozIStorageFunction
+class GenerateGUIDFunction final : public mozIStorageFunction
 {
+  ~GenerateGUIDFunction();
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEFUNCTION
 
   /**
@@ -237,10 +241,11 @@ public:
  *
  * @return the unreversed host of the page.
  */
-class GetUnreversedHostFunction MOZ_FINAL : public mozIStorageFunction
+class GetUnreversedHostFunction final : public mozIStorageFunction
 {
+  ~GetUnreversedHostFunction();
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEFUNCTION
 
   /**
@@ -265,10 +270,11 @@ public:
  * @return
  *        The same URL, with redundant parts removed.
  */
-class FixupURLFunction MOZ_FINAL : public mozIStorageFunction
+class FixupURLFunction final : public mozIStorageFunction
 {
+  ~FixupURLFunction();
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEFUNCTION
 
   /**
@@ -279,6 +285,44 @@ public:
    */
   static nsresult create(mozIStorageConnection *aDBConn);
 };
+
+
+////////////////////////////////////////////////////////////////////////////////
+//// Frecency Changed Notification Function
+
+/**
+ * For a given place, posts a runnable to the main thread that calls
+ * onFrecencyChanged on nsNavHistory's nsINavHistoryObservers.  The passed-in
+ * newFrecency value is returned unchanged.
+ *
+ * @param newFrecency
+ *        The place's new frecency.
+ * @param url
+ *        The place's URL.
+ * @param guid
+ *        The place's GUID.
+ * @param hidden
+ *        The place's hidden boolean.
+ * @param lastVisitDate
+ *        The place's last visit date.
+ * @return newFrecency
+ */
+class FrecencyNotificationFunction final : public mozIStorageFunction
+{
+  ~FrecencyNotificationFunction();
+public:
+  NS_DECL_THREADSAFE_ISUPPORTS
+  NS_DECL_MOZISTORAGEFUNCTION
+
+  /**
+   * Registers the function with the specified database connection.
+   *
+   * @param aDBConn
+   *        The database connection to register with.
+   */
+  static nsresult create(mozIStorageConnection *aDBConn);
+};
+
 
 } // namespace places
 } // namespace storage

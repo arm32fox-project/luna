@@ -6,9 +6,7 @@
 // HttpLog.h should generally be included first
 #include "HttpLog.h"
 
-#include "nsHttp.h"
 #include "nsHttpNTLMAuth.h"
-#include "nsIComponentManager.h"
 #include "nsIAuthModule.h"
 #include "nsCOMPtr.h"
 #include "plbase64.h"
@@ -18,13 +16,17 @@
 
 #include "nsIPrefBranch.h"
 #include "nsIPrefService.h"
-#include "nsIServiceManager.h"
 #include "nsIHttpAuthenticableChannel.h"
 #include "nsIURI.h"
+#ifdef XP_WIN
 #include "nsIX509Cert.h"
 #include "nsISSLStatus.h"
 #include "nsISSLStatusProvider.h"
+#endif
 #include "mozilla/Attributes.h"
+
+namespace mozilla {
+namespace net {
 
 static const char kAllowProxies[] = "network.automatic-ntlm-auth.allow-proxies";
 static const char kAllowNonFqdn[] = "network.automatic-ntlm-auth.allow-non-fqdn";
@@ -210,8 +212,9 @@ CanUseDefaultCredentials(nsIHttpAuthenticableChannel *channel,
 
 // Dummy class for session state object.  This class doesn't hold any data.
 // Instead we use its existence as a flag.  See ChallengeReceived.
-class nsNTLMSessionState MOZ_FINAL : public nsISupports
+class nsNTLMSessionState final : public nsISupports
 {
+    ~nsNTLMSessionState() {}
 public:
     NS_DECL_ISUPPORTS
 };
@@ -219,7 +222,7 @@ NS_IMPL_ISUPPORTS0(nsNTLMSessionState)
 
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS1(nsHttpNTLMAuth, nsIHttpAuthenticator)
+NS_IMPL_ISUPPORTS(nsHttpNTLMAuth, nsIHttpAuthenticator)
 
 NS_IMETHODIMP
 nsHttpNTLMAuth::ChallengeReceived(nsIHttpAuthenticableChannel *channel,
@@ -322,9 +325,9 @@ NS_IMETHODIMP
 nsHttpNTLMAuth::GenerateCredentials(nsIHttpAuthenticableChannel *authChannel,
                                     const char      *challenge,
                                     bool             isProxyAuth,
-                                    const PRUnichar *domain,
-                                    const PRUnichar *user,
-                                    const PRUnichar *pass,
+                                    const char16_t *domain,
+                                    const char16_t *user,
+                                    const char16_t *pass,
                                     nsISupports    **sessionState,
                                     nsISupports    **continuationState,
                                     uint32_t       *aFlags,
@@ -481,3 +484,6 @@ nsHttpNTLMAuth::GetAuthFlags(uint32_t *flags)
     *flags = CONNECTION_BASED | IDENTITY_INCLUDES_DOMAIN | IDENTITY_ENCRYPTED;
     return NS_OK;
 }
+
+} // namespace mozilla::net
+} // namespace mozilla

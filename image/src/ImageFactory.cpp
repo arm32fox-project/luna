@@ -6,103 +6,118 @@
 
 #include <algorithm>
 
-#include "mozilla/Preferences.h"
 #include "mozilla/Likely.h"
 
 #include "nsIHttpChannel.h"
 #include "nsIFileChannel.h"
 #include "nsIFile.h"
-#include "nsSimpleURI.h"
 #include "nsMimeTypes.h"
-#include "nsIURI.h"
 #include "nsIRequest.h"
 
-#include "imgIContainer.h"
-#include "imgStatusTracker.h"
 #include "RasterImage.h"
 #include "VectorImage.h"
 #include "Image.h"
 #include "nsMediaFragmentURIParser.h"
+#include "nsContentUtils.h"
+#include "nsIScriptSecurityManager.h"
 
 #include "ImageFactory.h"
+#include "gfxPrefs.h"
 
 namespace mozilla {
 namespace image {
 
-// Global preferences related to image containers.
-static bool gInitializedPrefCaches = false;
-static bool gDecodeOnDraw = false;
-static bool gDiscardable = false;
+/*static*/ void
+ImageFactory::Initialize()
+{ }
 
-static void
-InitPrefCaches()
+static bool
+ShouldDownscaleDuringDecode(const nsCString& aMimeType)
 {
-  Preferences::AddBoolVarCache(&gDiscardable, "image.mem.discardable");
-  Preferences::AddBoolVarCache(&gDecodeOnDraw, "image.mem.decodeondraw");
-  gInitializedPrefCaches = true;
+  return aMimeType.EqualsLiteral(IMAGE_JPEG) ||
+         aMimeType.EqualsLiteral(IMAGE_JPG) ||
+         aMimeType.EqualsLiteral(IMAGE_PJPEG);
 }
 
 static uint32_t
-ComputeImageFlags(nsIURI* uri, bool isMultiPart)
+ComputeImageFlags(ImageURL* uri, const nsCString& aMimeType, bool isMultiPart)
 {
   nsresult rv;
 
   // We default to the static globals.
-  bool isDiscardable = gDiscardable;
-  bool doDecodeOnDraw = gDecodeOnDraw;
+  bool isDiscardable = gfxPrefs::ImageMemDiscardable();
+  bool doDecodeOnDraw = gfxPrefs::ImageMemDecodeOnDraw() &&
+                        gfxPrefs::AsyncPanZoomEnabled();
+  bool doDownscaleDuringDecode = gfxPrefs::ImageDownscaleDuringDecodeEnabled();
 
-  // We want UI to be as snappy as possible and not to flicker. Disable discarding
-  // and decode-on-draw for chrome URLS.
+  // We want UI to be as snappy as possible and not to flicker. Disable
+  // discarding and decode-on-draw for chrome URLS.
   bool isChrome = false;
   rv = uri->SchemeIs("chrome", &isChrome);
-  if (NS_SUCCEEDED(rv) && isChrome)
+  if (NS_SUCCEEDED(rv) && isChrome) {
     isDiscardable = doDecodeOnDraw = false;
+  }
 
   // We don't want resources like the "loading" icon to be discardable or
   // decode-on-draw either.
   bool isResource = false;
   rv = uri->SchemeIs("resource", &isResource);
-  if (NS_SUCCEEDED(rv) && isResource)
+  if (NS_SUCCEEDED(rv) && isResource) {
     isDiscardable = doDecodeOnDraw = false;
+  }
+
+  // Downscale-during-decode and decode-on-draw are only enabled for certain
+  // content types.
+  if ((doDownscaleDuringDecode || doDecodeOnDraw) &&
+      !ShouldDownscaleDuringDecode(aMimeType)) {
+    doDownscaleDuringDecode = false;
+    doDecodeOnDraw = false;
+  }
 
   // For multipart/x-mixed-replace, we basically want a direct channel to the
-  // decoder. Disable both for this case as well.
-  if (isMultiPart)
-    isDiscardable = doDecodeOnDraw = false;
+  // decoder. Disable everything for this case.
+  if (isMultiPart) {
+    isDiscardable = doDecodeOnDraw = doDownscaleDuringDecode = false;
+  }
 
   // We have all the information we need.
   uint32_t imageFlags = Image::INIT_FLAG_NONE;
-  if (isDiscardable)
+  if (isDiscardable) {
     imageFlags |= Image::INIT_FLAG_DISCARDABLE;
-  if (doDecodeOnDraw)
+  }
+  if (doDecodeOnDraw) {
     imageFlags |= Image::INIT_FLAG_DECODE_ON_DRAW;
-  if (isMultiPart)
-    imageFlags |= Image::INIT_FLAG_MULTIPART;
+  }
+  if (isMultiPart) {
+    imageFlags |= Image::INIT_FLAG_TRANSIENT;
+  }
+  if (doDownscaleDuringDecode) {
+    imageFlags |= Image::INIT_FLAG_DOWNSCALE_DURING_DECODE;
+  }
 
   return imageFlags;
 }
 
 /* static */ already_AddRefed<Image>
 ImageFactory::CreateImage(nsIRequest* aRequest,
-                          imgStatusTracker* aStatusTracker,
+                          ProgressTracker* aProgressTracker,
                           const nsCString& aMimeType,
-                          nsIURI* aURI,
+                          ImageURL* aURI,
                           bool aIsMultiPart,
                           uint32_t aInnerWindowId)
 {
-  // Register our pref observers if we haven't yet.
-  if (MOZ_UNLIKELY(!gInitializedPrefCaches))
-    InitPrefCaches();
+  MOZ_ASSERT(gfxPrefs::SingletonExists(),
+             "Pref observers should have been initialized already");
 
   // Compute the image's initialization flags.
-  uint32_t imageFlags = ComputeImageFlags(aURI, aIsMultiPart);
+  uint32_t imageFlags = ComputeImageFlags(aURI, aMimeType, aIsMultiPart);
 
   // Select the type of image to create based on MIME type.
   if (aMimeType.EqualsLiteral(IMAGE_SVG_XML)) {
-    return CreateVectorImage(aRequest, aStatusTracker, aMimeType,
+    return CreateVectorImage(aRequest, aProgressTracker, aMimeType,
                              aURI, imageFlags, aInnerWindowId);
   } else {
-    return CreateRasterImage(aRequest, aStatusTracker, aMimeType,
+    return CreateRasterImage(aRequest, aProgressTracker, aMimeType,
                              aURI, imageFlags, aInnerWindowId);
   }
 }
@@ -134,10 +149,12 @@ ImageFactory::CreateAnonymousImage(const nsCString& aMimeType)
 int32_t
 SaturateToInt32(int64_t val)
 {
-  if (val > INT_MAX)
+  if (val > INT_MAX) {
     return INT_MAX;
-  if (val < INT_MIN)
+  }
+  if (val < INT_MIN) {
     return INT_MIN;
+  }
 
   return static_cast<int32_t>(val);
 }
@@ -145,14 +162,12 @@ SaturateToInt32(int64_t val)
 uint32_t
 GetContentSize(nsIRequest* aRequest)
 {
-  // Use content-length as a size hint for http channels.
-  nsCOMPtr<nsIHttpChannel> httpChannel(do_QueryInterface(aRequest));
-  if (httpChannel) {
-    nsAutoCString contentLength;
-    nsresult rv = httpChannel->GetResponseHeader(NS_LITERAL_CSTRING("content-length"),
-                                                 contentLength);
+  nsCOMPtr<nsIChannel> channel(do_QueryInterface(aRequest));
+  if (channel) {
+    int64_t size;
+    nsresult rv = channel->GetContentLength(&size);
     if (NS_SUCCEEDED(rv)) {
-      return std::max(contentLength.ToInteger(&rv), 0);
+      return std::max(SaturateToInt32(size), 0);
     }
   }
 
@@ -176,15 +191,15 @@ GetContentSize(nsIRequest* aRequest)
 
 /* static */ already_AddRefed<Image>
 ImageFactory::CreateRasterImage(nsIRequest* aRequest,
-                                imgStatusTracker* aStatusTracker,
+                                ProgressTracker* aProgressTracker,
                                 const nsCString& aMimeType,
-                                nsIURI* aURI,
+                                ImageURL* aURI,
                                 uint32_t aImageFlags,
                                 uint32_t aInnerWindowId)
 {
   nsresult rv;
 
-  nsRefPtr<RasterImage> newImage = new RasterImage(aStatusTracker, aURI);
+  nsRefPtr<RasterImage> newImage = new RasterImage(aProgressTracker, aURI);
 
   rv = newImage->Init(aMimeType.get(), aImageFlags);
   NS_ENSURE_SUCCESS(rv, BadImage(newImage));
@@ -196,7 +211,8 @@ ImageFactory::CreateRasterImage(nsIRequest* aRequest,
   // Pass anything usable on so that the RasterImage can preallocate
   // its source buffer.
   if (len > 0) {
-    uint32_t sizeHint = std::min<uint32_t>(len, 20000000); // Bound by something reasonable
+    // Bound by something reasonable
+    uint32_t sizeHint = std::min<uint32_t>(len, 20000000);
     rv = newImage->SetSourceSizeHint(sizeHint);
     if (NS_FAILED(rv)) {
       // Flush memory, try to get some back, and try again.
@@ -209,9 +225,27 @@ ImageFactory::CreateRasterImage(nsIRequest* aRequest,
     }
   }
 
-  mozilla::net::nsMediaFragmentURIParser parser(aURI);
+  nsAutoCString ref;
+  aURI->GetRef(ref);
+  net::nsMediaFragmentURIParser parser(ref);
   if (parser.HasResolution()) {
     newImage->SetRequestedResolution(parser.GetResolution());
+  }
+
+  if (parser.HasSampleSize()) {
+      /* Get our principal */
+      nsCOMPtr<nsIChannel> chan(do_QueryInterface(aRequest));
+      nsCOMPtr<nsIPrincipal> principal;
+      if (chan) {
+        nsContentUtils::GetSecurityManager()
+          ->GetChannelResultPrincipal(chan, getter_AddRefs(principal));
+      }
+
+      if ((principal &&
+           principal->GetAppStatus() == nsIPrincipal::APP_STATUS_CERTIFIED) ||
+          gfxPrefs::ImageMozSampleSizeEnabled()) {
+        newImage->SetRequestedSampleSize(parser.GetSampleSize());
+      }
   }
 
   return newImage.forget();
@@ -219,15 +253,15 @@ ImageFactory::CreateRasterImage(nsIRequest* aRequest,
 
 /* static */ already_AddRefed<Image>
 ImageFactory::CreateVectorImage(nsIRequest* aRequest,
-                                imgStatusTracker* aStatusTracker,
+                                ProgressTracker* aProgressTracker,
                                 const nsCString& aMimeType,
-                                nsIURI* aURI,
+                                ImageURL* aURI,
                                 uint32_t aImageFlags,
                                 uint32_t aInnerWindowId)
 {
   nsresult rv;
 
-  nsRefPtr<VectorImage> newImage = new VectorImage(aStatusTracker, aURI);
+  nsRefPtr<VectorImage> newImage = new VectorImage(aProgressTracker, aURI);
 
   rv = newImage->Init(aMimeType.get(), aImageFlags);
   NS_ENSURE_SUCCESS(rv, BadImage(newImage));

@@ -2,13 +2,13 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsHtml5StringParser_h_
-#define nsHtml5StringParser_h_
+#ifndef nsHtml5StringParser_h
+#define nsHtml5StringParser_h
 
 #include "nsHtml5AtomTable.h"
 #include "nsParserBase.h"
 
-class nsHtml5TreeOpExecutor;
+class nsHtml5OplessBuilder;
 class nsHtml5TreeBuilder;
 class nsHtml5Tokenizer;
 class nsIContent;
@@ -25,7 +25,6 @@ class nsHtml5StringParser : public nsParserBase
      * nsContentUtils statics that wrap this.
      */
     nsHtml5StringParser();
-    virtual ~nsHtml5StringParser();
 
     /**
      * Invoke the fragment parsing algorithm (innerHTML).
@@ -58,14 +57,16 @@ class nsHtml5StringParser : public nsParserBase
 
   private:
 
-    void Tokenize(const nsAString& aSourceBuffer,
-                  nsIDocument* aDocument,
-                  bool aScriptingEnabledForNoscriptParsing);
+    virtual ~nsHtml5StringParser();
+
+    nsresult Tokenize(const nsAString& aSourceBuffer,
+                      nsIDocument* aDocument,
+                      bool aScriptingEnabledForNoscriptParsing);
 
     /**
      * The tree operation executor
      */
-    nsRefPtr<nsHtml5TreeOpExecutor>     mExecutor;
+    nsRefPtr<nsHtml5OplessBuilder>      mBuilder;
 
     /**
      * The HTML5 tree builder
@@ -84,4 +85,4 @@ class nsHtml5StringParser : public nsParserBase
 
 };
 
-#endif // nsHtml5StringParser_h_
+#endif // nsHtml5StringParser_h

@@ -1,4 +1,10 @@
 #!/bin/sh
+
+# Find out ASAP if some command breaks here, because we're copying a lot of
+# files we don't actually maintain ourselves, and requirements could easily be
+# broken.
+set -e
+
 # need these environment vars:
 echo "Environment:"
 echo "    MAKE = $MAKE"
@@ -23,6 +29,12 @@ case $cmd in
 	rm -rf ${pkg} ${tgtpath}
 	;;
 "build")
+        # Ensure that the configure script is newer than the configure.in script.
+        if [ ${SRCDIR}/configure.in -nt ${SRCDIR}/configure ]; then
+            echo "error: js/src/configure is out of date. Please regenerate before packaging." >&2
+            exit 1
+        fi
+
 	echo "Packaging source tarball ${pkg}..."
 	if [ -d ${tgtpath} ]; then
 		echo "WARNING - dist tree ${tgtpath} already exists!"
@@ -33,9 +45,20 @@ case $cmd in
 	${MKDIR} -p ${tgtpath}/intl
 	cp -t ${tgtpath}/intl -dRp ${SRCDIR}/../../intl/icu
 
+	# copy main moz.build and Makefile.in
+	cp -t ${tgtpath} -dRp ${SRCDIR}/../../Makefile.in ${SRCDIR}/../../moz.build
+
+	# copy a nspr file used by the build system
+	${MKDIR} -p ${tgtpath}/nsprpub/config
+	cp -t ${tgtpath}/nsprpub/config -dRp \
+		${SRCDIR}/../../nsprpub/config/make-system-wrappers.pl
+
+	# copy build and config directory.
+	cp -t ${tgtpath} -dRp ${SRCDIR}/../../build ${SRCDIR}/../../config
+
 	# put in js itself
 	cp -t ${tgtpath} -dRp ${SRCDIR}/../../mfbt
-	cp -t ${tgtpath}/js -dRp ${SRCDIR}/../jsd ${SRCDIR}/../public
+	cp -t ${tgtpath}/js -dRp ${SRCDIR}/../public
 	find ${SRCDIR} -mindepth 1 -maxdepth 1 -not -path ${DIST} -a -not -name ${pkg} \
 		-exec cp -t ${tgtpath}/js/src -dRp {} +
 
@@ -44,22 +67,27 @@ case $cmd in
 		${MAKE} -C ${tgtpath}/js/src distclean
 	fi
 
-	# put in the virtualenv and supporting files if it doesnt already exist
-	if [ ! -e ${SRCDIR}/build/virtualenv ]; then
-		cp -t ${tgtpath}/js/src/build -dRp \
-			${SRCDIR}/../../build/virtualenv \
-			${SRCDIR}/../../build/buildconfig.py
-	fi
-	if [ ! -e ${SRCDIR}/python ]; then
-		cp -t ${tgtpath}/js/src -dRp \
-			${SRCDIR}/../../python
-	fi
-	if [ ! -e ${SRCDIR}/testing ]; then
-		${MKDIR} -p ${tgtpath}/js/src/testing
-		cp -t ${tgtpath}/js/src/testing -dRp \
-			${SRCDIR}/../../testing/mozbase
-	fi
-	# end of virtualenv injection
+	cp -t ${tgtpath} -dRp \
+		${SRCDIR}/../../python
+	${MKDIR} -p ${tgtpath}/dom/bindings
+	cp -t ${tgtpath}/dom/bindings -dRp \
+		${SRCDIR}/../../dom/bindings/mozwebidlcodegen
+	${MKDIR} -p ${tgtpath}/media/webrtc/trunk/tools
+	cp -t ${tgtpath}/media/webrtc/trunk/tools -dRp \
+		${SRCDIR}/../../media/webrtc/trunk/tools/gyp
+	${MKDIR} -p ${tgtpath}/testing
+	cp -t ${tgtpath}/testing -dRp \
+		${SRCDIR}/../../testing/mozbase
+	${MKDIR} -p ${tgtpath}/modules/zlib
+	cp -t ${tgtpath}/modules/zlib -dRp \
+		${SRCDIR}/../../modules/zlib/src
+	${MKDIR} -p ${tgtpath}/layout/tools/reftest
+	cp -t ${tgtpath}/layout/tools/reftest -dRp \
+	        ${SRCDIR}/../../layout/tools/reftest/reftest
+	${MKDIR} -p ${tgtpath}/toolkit/mozapps/installer
+	cp -t ${tgtpath}/toolkit/mozapps/installer -dRp \
+	        ${SRCDIR}/../../toolkit/mozapps/installer/package-name.mk \
+	        ${SRCDIR}/../../toolkit/mozapps/installer/upload-files.mk \
 
 	# remove *.pyc and *.pyo files if any
 	find ${tgtpath} -type f -name "*.pyc" -o -name "*.pyo" |xargs rm -f

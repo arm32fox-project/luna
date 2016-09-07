@@ -6,13 +6,8 @@
 
 #include "nsFileProtocolHandler.h"
 #include "nsFileChannel.h"
-#include "nsInputStreamChannel.h"
 #include "nsStandardURL.h"
 #include "nsURLHelper.h"
-#include "nsNetCID.h"
-
-#include "nsIServiceManager.h"
-#include "nsIURL.h"
 
 #include "nsNetUtil.h"
 
@@ -44,10 +39,10 @@ nsFileProtocolHandler::Init()
     return NS_OK;
 }
 
-NS_IMPL_THREADSAFE_ISUPPORTS3(nsFileProtocolHandler,
-                              nsIFileProtocolHandler,
-                              nsIProtocolHandler,
-                              nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(nsFileProtocolHandler,
+                  nsIFileProtocolHandler,
+                  nsIProtocolHandler,
+                  nsISupportsWeakReference)
 
 //-----------------------------------------------------------------------------
 // nsIProtocolHandler methods:
@@ -71,7 +66,7 @@ nsFileProtocolHandler::ReadURLFile(nsIFile* aFile, nsIURI** aURI)
     rv = NS_ERROR_NOT_AVAILABLE;
 
     IUniformResourceLocatorW* urlLink = nullptr;
-    result = ::CoCreateInstance(CLSID_InternetShortcut, NULL, CLSCTX_INPROC_SERVER,
+    result = ::CoCreateInstance(CLSID_InternetShortcut, nullptr, CLSCTX_INPROC_SERVER,
                                 IID_IUniformResourceLocatorW, (void**)&urlLink);
     if (SUCCEEDED(result) && urlLink) {
         IPersistFile* urlFile = nullptr;
@@ -182,7 +177,9 @@ nsFileProtocolHandler::NewURI(const nsACString &spec,
 }
 
 NS_IMETHODIMP
-nsFileProtocolHandler::NewChannel(nsIURI *uri, nsIChannel **result)
+nsFileProtocolHandler::NewChannel2(nsIURI* uri,
+                                   nsILoadInfo* aLoadInfo,
+                                   nsIChannel** result)
 {
     nsFileChannel *chan = new nsFileChannel(uri);
     if (!chan)
@@ -195,8 +192,21 @@ nsFileProtocolHandler::NewChannel(nsIURI *uri, nsIChannel **result)
         return rv;
     }
 
+    // set the loadInfo on the new channel
+    rv = chan->SetLoadInfo(aLoadInfo);
+    if (NS_FAILED(rv)) {
+        NS_RELEASE(chan);
+        return rv;
+    }
+
     *result = chan;
     return NS_OK;
+}
+
+NS_IMETHODIMP
+nsFileProtocolHandler::NewChannel(nsIURI *uri, nsIChannel **result)
+{
+    return NewChannel2(uri, nullptr, result);
 }
 
 NS_IMETHODIMP 

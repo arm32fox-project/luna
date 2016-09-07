@@ -79,8 +79,11 @@ static int mar_concat_file(FILE *fp, const char *path) {
   int rv = 0;
 
   in = fopen(path, "rb");
-  if (!in)
+  if (!in) {
+    fprintf(stderr, "ERROR: could not open file in mar_concat_file()\n");
+    perror(path);
     return -1;
+  }
 
   while ((len = fread(buf, 1, BLOCKSIZE, in)) > 0) {
     if (fwrite(buf, len, 1, fp) != 1) {
@@ -233,6 +236,7 @@ refresh_product_info_block(const char *path,
     if (fread(&additionalBlockSize, 
               sizeof(additionalBlockSize), 
               1, fp) != 1) {
+      fclose(fp);
       return -1;
     }
     additionalBlockSize = ntohl(additionalBlockSize);
@@ -241,6 +245,7 @@ refresh_product_info_block(const char *path,
     if (fread(&additionalBlockID, 
               sizeof(additionalBlockID), 
               1, fp) != 1) {
+      fclose(fp);
       return -1;
     }
     additionalBlockID = ntohl(additionalBlockID);

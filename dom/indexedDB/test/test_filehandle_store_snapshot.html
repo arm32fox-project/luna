@@ -12,7 +12,7 @@
   <script type="text/javascript;version=1.7">
   function testSteps()
   {
-    const READ_WRITE = IDBTransaction.READ_WRITE;
+    const READ_WRITE = "readwrite";
 
     const name = window.location.pathname;
 
@@ -24,7 +24,7 @@
     request.onerror = errorHandler;
     request.onupgradeneeded = grabEventAndContinueHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    let event = yield;
+    let event = yield undefined;
 
     is(event.type, "upgradeneeded", "Got correct event type");
 
@@ -33,37 +33,37 @@
 
     let objectStore = db.createObjectStore(objectStoreName, { });
 
-    event = yield;
+    event = yield undefined;
 
     is(event.type, "success", "Got correct event type");
 
-    request = db.mozCreateFileHandle("random.bin", "binary/random");
+    request = db.createMutableFile("random.bin", "binary/random");
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
-    let fileHandle = event.target.result;
-    fileHandle.onerror = errorHandler;
+    let mutableFile = event.target.result;
+    mutableFile.onerror = errorHandler;
 
-    let lockedFile = fileHandle.open("readwrite");
+    let fileHandle = mutableFile.open("readwrite");
 
-    is(getFileId(fileHandle), 1, "Correct file id");
+    is(getFileId(mutableFile), 1, "Correct file id");
 
-    request = lockedFile.write(testFile);
+    request = fileHandle.write(testFile);
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
-    request = fileHandle.getFile();
+    request = mutableFile.getFile();
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     let file = event.target.result;
 
     let trans = db.transaction([objectStoreName], READ_WRITE);
-    let objectStore = trans.objectStore(objectStoreName);
+    objectStore = trans.objectStore(objectStoreName);
 
     request = objectStore.add(file, 42);
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     // At this moment, the file should not be readable anymore.
     let reader = new FileReader();
@@ -73,19 +73,19 @@
     }
     catch (e) {
       ok(e instanceof DOMException, "Got exception.");
-      is(e.name, "LockedFileInactiveError", "Good error.");
+      is(e.name, "FileHandleInactiveError", "Good error.");
       is(e.code, 0, "Good error code.");
     }
 
     request = objectStore.get(42);
     request.onsuccess = grabEventAndContinueHandler;
-    event = yield;
+    event = yield undefined;
 
     verifyBlob(event.target.result, testFile, 2);
-    yield;
+    yield undefined;
 
     finishTest();
-    yield;
+    yield undefined;
   }
   </script>
   <script type="text/javascript;version=1.7" src="file.js"></script>

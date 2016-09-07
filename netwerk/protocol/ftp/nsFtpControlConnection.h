@@ -9,16 +9,13 @@
 
 #include "nsCOMPtr.h"
 
-#include "nsIURI.h"
-#include "nsIStreamListener.h"
-#include "nsIRequest.h"
 #include "nsISocketTransport.h"
-#include "nsIOutputStream.h"
 #include "nsIAsyncInputStream.h"
 #include "nsAutoPtr.h"
 #include "nsString.h"
 #include "mozilla/Attributes.h"
 
+class nsIOutputStream;
 class nsIProxyInfo;
 class nsITransportEventSink;
 
@@ -41,14 +38,15 @@ public:
     virtual void OnControlError(nsresult status) = 0;
 };
 
-class nsFtpControlConnection MOZ_FINAL : public nsIInputStreamCallback
+class nsFtpControlConnection final : public nsIInputStreamCallback
 {
+    ~nsFtpControlConnection();
+
 public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIINPUTSTREAMCALLBACK
 
     nsFtpControlConnection(const nsCSubstring& host, uint32_t port);
-    ~nsFtpControlConnection();
 
     nsresult Connect(nsIProxyInfo* proxyInfo, nsITransportEventSink* eventSink);
     nsresult Disconnect(nsresult status);
@@ -71,6 +69,7 @@ public:
     int32_t          mSuspendedWrite;
     nsCString        mPwd;
     uint32_t         mSessionId;
+    bool             mUseUTF8;
 
 private:
     nsCString mHost;

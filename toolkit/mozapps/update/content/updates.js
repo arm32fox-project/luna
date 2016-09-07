@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -143,6 +143,41 @@ var gUpdates = {
   _runUnload: true,
 
   /**
+   * Submit the last page code when the wizard exited. The pageid is used to map
+   * to an integer instead of using the pageindex since pages can be added and
+   * removed which would change the page's pageindex.
+   * @param   pageID
+   */
+  _sendLastPageCodePing: function(pageID) {
+    var pageMap = { invalid: 0,
+                    dummy: 1,
+                    checking: 2,
+                    pluginupdatesfound: 3,
+                    noupdatesfound: 4,
+                    manualUpdate: 5,
+                    unsupported: 6,
+                    incompatibleCheck: 7,
+                    updatesfoundbasic: 8,
+                    updatesfoundbillboard: 9,
+                    license: 10,
+                    incompatibleList: 11,
+                    downloading: 12,
+                    errors: 13,
+                    errorextra: 14,
+                    errorpatching: 15,
+                    finished: 16,
+                    finishedBackground: 17,
+                    installed: 18 };
+    try {
+      Services.telemetry.getHistogramById("UPDATER_WIZ_LAST_PAGE_CODE").
+        add(pageMap[pageID] || pageMap.invalid);
+    }
+    catch (e) {
+      Components.utils.reportError(e);
+    }
+  },
+
+  /**
    * Helper function for setButtons
    * Resets button to original label & accesskey if string is null.
    */
@@ -251,6 +286,7 @@ var gUpdates = {
     var pageid = document.documentElement.currentPage.pageid;
     if ("onWizardFinish" in this._pages[pageid])
       this._pages[pageid].onWizardFinish();
+    this._sendLastPageCodePing(pageid);
   },
 
   /**
@@ -262,6 +298,7 @@ var gUpdates = {
     var pageid = document.documentElement.currentPage.pageid;
     if ("onWizardCancel" in this._pages[pageid])
       this._pages[pageid].onWizardCancel();
+    this._sendLastPageCodePing(pageid);
   },
 
   /**
@@ -436,8 +473,17 @@ var gUpdates = {
             return;
           }
         }
-        if (this.update.licenseURL)
+
+        let aus = CoC["@mozilla.org/updates/update-service;1"].
+                  getService(CoI.nsIApplicationUpdateService);
+        if (!aus.canApplyUpdates) {
+          aCallback("manualUpdate");
+          return;
+        }
+
+        if (this.update.licenseURL) {
           this.wiz.getPageById(this.updatesFoundPageId).setAttribute("next", "license");
+        }
 
         var self = this;
         this.getShouldCheckAddonCompatibility(function(shouldCheck) {
@@ -445,8 +491,7 @@ var gUpdates = {
             var incompatCheckPage = document.getElementById("incompatibleCheck");
             incompatCheckPage.setAttribute("next", self.updatesFoundPageId);
             aCallback(incompatCheckPage.id);
-          }
-          else {
+          } else {
             aCallback(self.updatesFoundPageId);
           }
         });
@@ -832,7 +877,7 @@ var gIncompatibleCheckPage = {
     // the add-on will become incompatible.
     let bs = CoC["@mozilla.org/extensions/blocklist;1"].
              getService(CoI.nsIBlocklistService);
-    if (bs.isAddonBlocklisted(addon.id, install.version,
+    if (bs.isAddonBlocklisted(addon,
                               gUpdates.update.appVersion,
                               gUpdates.update.platformVersion))
       return;
@@ -1695,6 +1740,9 @@ var gErrorExtraPage = {
   onPageShow: function() {
     gUpdates.setButtons(null, null, "okButton", true);
     gUpdates.wiz.getButton("finish").focus();
+    let secHistogram = CoC["@mozilla.org/base/telemetry;1"].
+                                  getService(CoI.nsITelemetry).
+                                  getHistogramById("SECURITY_UI");
 
     if (Services.prefs.prefHasUserValue(PREF_APP_UPDATE_CERT_ERRORS))
       Services.prefs.clearUserPref(PREF_APP_UPDATE_CERT_ERRORS);
@@ -1704,10 +1752,12 @@ var gErrorExtraPage = {
 
     if (gUpdates.update.errorCode == CERT_ATTR_CHECK_FAILED_HAS_UPDATE) {
       document.getElementById("errorCertAttrHasUpdateLabel").hidden = false;
+      secHistogram.add(CoI.nsISecurityUITelemetry.WARNING_INSECURE_UPDATE);
     }
     else {
       if (gUpdates.update.errorCode == CERT_ATTR_CHECK_FAILED_NO_UPDATE){
         document.getElementById("errorCertCheckNoUpdateLabel").hidden = false;
+        secHistogram.add(CoI.nsISecurityUITelemetry.WARNING_NO_SECURE_UPDATE);
       }
       else
         document.getElementById("genericBackgroundErrorLabel").hidden = false;
@@ -1833,7 +1883,6 @@ var gFinishedPage = {
    * in the wizard after an update has been downloaded.
    */
   onExtra1: function() {
-    // XXXrstrong - reminding the user to restart is broken (see bug 464835)
     gUpdates.wiz.cancel();
   }
 };

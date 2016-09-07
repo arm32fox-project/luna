@@ -2,8 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#ifndef nsHtml5Atom_h_
-#define nsHtml5Atom_h_
+#ifndef nsHtml5Atom_h
+#define nsHtml5Atom_h
 
 #include "nsIAtom.h"
 #include "mozilla/Attributes.h"
@@ -15,14 +15,14 @@
  *
  * Usage is documented in nsHtml5AtomTable and nsIAtom.
  */
-class nsHtml5Atom MOZ_FINAL : public nsIAtom
+class nsHtml5Atom final : public nsIAtom
 {
   public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSIATOM
 
-    nsHtml5Atom(const nsAString& aString);
+    explicit nsHtml5Atom(const nsAString& aString);
     ~nsHtml5Atom();
 };
 
-#endif // nsHtml5Atom_h_
+#endif // nsHtml5Atom_h

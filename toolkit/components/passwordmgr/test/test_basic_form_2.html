@@ -8,6 +8,14 @@
 </head>
 <body>
 Login Manager test: simple form fill with autofillForms disabled
+<script>
+commonInit();
+SimpleTest.waitForExplicitFinish();
+
+var pwmgr = SpecialPowers.Cc["@mozilla.org/login-manager;1"]
+                         .getService(SpecialPowers.Ci.nsILoginManager);
+</script>
+
 <p id="display"></p>
 
 <div id="content" style="display: block">
@@ -28,41 +36,28 @@ Login Manager test: simple form fill with autofillForms disabled
 
 /** Test for Login Manager: simple form fill with autofillForms disabled **/
 
-commonInit();
-
-netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
-
-var pwmgr = Components.classes["@mozilla.org/login-manager;1"].
-            getService(Components.interfaces.nsILoginManager);
-var prefs = Components.classes["@mozilla.org/preferences-service;1"].
-            getService(Components.interfaces.nsIPrefService);
-prefs = prefs.getBranch("signon.");
-// Assume that the pref starts out true, so set to false
-prefs.setBoolPref("autofillForms", false);
-
 function startTest(){
-  netscape.security.PrivilegeManager.enablePrivilege('UniversalXPConnect');
   // Ensure the form is empty at start
   is($_(1, "uname").value, "", "Checking for blank username");
   is($_(1, "pword").value, "", "Checking for blank password");
 
   // Call the public method, check return value
-  is(pwmgr.fillForm(document.getElementById("form1")), true,
-     "Checking return value of fillForm");
+  pwmgr.fillForm(document.getElementById("form1"))
+       .then(function(result) {
+         is(result, true, "Checking return value of fillForm");
 
-  // Check that the form was filled
-  is($_(1, "uname").value, "testuser", "Checking for filled username");
-  is($_(1, "pword").value, "testpass", "Checking for filled password");
+         // Check that the form was filled
+         is($_(1, "uname").value, "testuser", "Checking for filled username");
+         is($_(1, "pword").value, "testpass", "Checking for filled password");
 
-  // Reset pref (since we assumed it was true to start)
-  prefs.setBoolPref("autofillForms", true);
-
-  SimpleTest.finish();
+         SimpleTest.finish();
+       });
 }
-
-window.onload = startTest;
-
-SimpleTest.waitForExplicitFinish();
+// Assume that the pref starts out true, so set to false
+SpecialPowers.pushPrefEnv({"set":[["signon.autofillForms", false]]}, setup);
+function setup() {
+ window.addEventListener("runTests", startTest);
+}
 </script>
 </pre>
 </body>

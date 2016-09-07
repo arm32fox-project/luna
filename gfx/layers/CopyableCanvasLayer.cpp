@@ -3,210 +3,194 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/layers/PLayerTransactionParent.h"
+#include "BasicLayersImpl.h"            // for FillWithMask, etc
 #include "CopyableCanvasLayer.h"
-#include "BasicLayersImpl.h"
-#include "gfxImageSurface.h"
-#include "GLContext.h"
+#include "GLContext.h"                  // for GLContext
+#include "GLScreenBuffer.h"             // for GLScreenBuffer
+#include "SharedSurface.h"              // for SharedSurface
+#include "SharedSurfaceGL.h"              // for SharedSurface
+#include "gfxPattern.h"                 // for gfxPattern, etc
+#include "gfxPlatform.h"                // for gfxPlatform, gfxImageFormat
+#include "gfxRect.h"                    // for gfxRect
+#include "gfxUtils.h"                   // for gfxUtils
+#include "gfx2DGlue.h"                  // for thebes --> moz2d transition
+#include "mozilla/gfx/BaseSize.h"       // for BaseSize
+#include "mozilla/gfx/Tools.h"
+#include "nsDebug.h"                    // for NS_ASSERTION, NS_WARNING, etc
+#include "nsISupportsImpl.h"            // for gfxContext::AddRef, etc
+#include "nsRect.h"                     // for nsIntRect
+#include "nsSize.h"                     // for nsIntSize
 #include "gfxUtils.h"
-#include "gfxPlatform.h"
-#include "mozilla/Preferences.h"
-#include "SurfaceStream.h"
-#include "SharedSurfaceGL.h"
-#include "SharedSurfaceEGL.h"
-#include "GoannaProfiler.h"
 
-#include "nsXULAppAPI.h"
+namespace mozilla {
+namespace layers {
 
 using namespace mozilla::gfx;
 using namespace mozilla::gl;
 
-namespace mozilla {
-namespace layers {
+CopyableCanvasLayer::CopyableCanvasLayer(LayerManager* aLayerManager, void *aImplData) :
+  CanvasLayer(aLayerManager, aImplData)
+  , mGLFrontbuffer(nullptr)
+  , mIsAlphaPremultiplied(true)
+  , mOriginPos(gl::OriginPos::TopLeft)
+{
+  MOZ_COUNT_CTOR(CopyableCanvasLayer);
+}
+
+CopyableCanvasLayer::~CopyableCanvasLayer()
+{
+  MOZ_COUNT_DTOR(CopyableCanvasLayer);
+}
 
 void
 CopyableCanvasLayer::Initialize(const Data& aData)
 {
   NS_ASSERTION(mSurface == nullptr, "BasicCanvasLayer::Initialize called twice!");
 
-  if (aData.mSurface) {
-    mSurface = aData.mSurface;
-    NS_ASSERTION(!aData.mGLContext, "CanvasLayer can't have both surface and GLContext");
-    mNeedsYFlip = false;
-  } else if (aData.mGLContext) {
+  if (aData.mGLContext) {
     mGLContext = aData.mGLContext;
-    mIsGLAlphaPremult = aData.mIsGLAlphaPremult;
-    mNeedsYFlip = true;
+    mIsAlphaPremultiplied = aData.mIsGLAlphaPremult;
+    mOriginPos = gl::OriginPos::BottomLeft;
+
     MOZ_ASSERT(mGLContext->IsOffscreen(), "canvas gl context isn't offscreen");
 
-    // [Basic Layers, non-OMTC] WebGL layer init.
-    // `GLScreenBuffer::Morph`ing is only needed in BasicShadowableCanvasLayer.
+    if (aData.mFrontbufferGLTex) {
+      gfx::IntSize size(aData.mSize.width, aData.mSize.height);
+      mGLFrontbuffer = SharedSurface_GLTexture::Create(aData.mGLContext,
+                                                       nullptr,
+                                                       aData.mGLContext->GetGLFormats(),
+                                                       size, aData.mHasAlpha,
+                                                       aData.mFrontbufferGLTex);
+    }
   } else if (aData.mDrawTarget) {
     mDrawTarget = aData.mDrawTarget;
-    mSurface = gfxPlatform::GetPlatform()->CreateThebesSurfaceAliasForDrawTarget_hack(mDrawTarget);
-    mNeedsYFlip = false;
+    mSurface = mDrawTarget->Snapshot();
   } else {
-    NS_ERROR("CanvasLayer created without mSurface, mDrawTarget or mGLContext?");
+    MOZ_CRASH("CanvasLayer created without mSurface, mDrawTarget or mGLContext?");
   }
 
   mBounds.SetRect(0, 0, aData.mSize.width, aData.mSize.height);
 }
 
-void
-CopyableCanvasLayer::UpdateSurface(gfxASurface* aDestSurface, Layer* aMaskLayer)
+bool
+CopyableCanvasLayer::IsDataValid(const Data& aData)
 {
-  if (!IsDirty())
-    return;
-  Painted();
-
-  if (mDrawTarget) {
-    mDrawTarget->Flush();
-    mSurface = gfxPlatform::GetPlatform()->GetThebesSurfaceForDrawTarget(mDrawTarget);
-  }
-
-  if (!mGLContext && aDestSurface) {
-    nsRefPtr<gfxContext> tmpCtx = new gfxContext(aDestSurface);
-    tmpCtx->SetOperator(gfxContext::OPERATOR_SOURCE);
-    CopyableCanvasLayer::PaintWithOpacity(tmpCtx, 1.0f, aMaskLayer);
-    return;
-  }
-
-  if (mGLContext) {
-    if (aDestSurface && aDestSurface->GetType() != gfxASurface::SurfaceTypeImage) {
-      MOZ_ASSERT(false, "Destination surface must be ImageSurface type.");
-      return;
-    }
-
-    nsRefPtr<gfxImageSurface> readSurf;
-    nsRefPtr<gfxImageSurface> resultSurf;
-
-    SharedSurface* sharedSurf = mGLContext->RequestFrame();
-    if (!sharedSurf) {
-      NS_WARNING("Null frame received.");
-      return;
-    }
-
-    gfxIntSize readSize(sharedSurf->Size());
-    gfxImageFormat format = (GetContentFlags() & CONTENT_OPAQUE)
-                            ? gfxASurface::ImageFormatRGB24
-                            : gfxASurface::ImageFormatARGB32;
-
-    if (aDestSurface) {
-      resultSurf = static_cast<gfxImageSurface*>(aDestSurface);
-    } else {
-      resultSurf = GetTempSurface(readSize, format);
-    }
-    MOZ_ASSERT(resultSurf);
-    if (resultSurf->CairoStatus() != 0) {
-      MOZ_ASSERT(false, "Bad resultSurf->CairoStatus().");
-      return;
-    }
-
-    MOZ_ASSERT(sharedSurf->APIType() == APITypeT::OpenGL);
-    SharedSurface_GL* surfGL = SharedSurface_GL::Cast(sharedSurf);
-
-    if (surfGL->Type() == SharedSurfaceType::Basic) {
-      SharedSurface_Basic* sharedSurf_Basic = SharedSurface_Basic::Cast(surfGL);
-      readSurf = sharedSurf_Basic->GetData();
-    } else {
-      if (resultSurf->Format() == format &&
-          resultSurf->GetSize() == readSize)
-      {
-        readSurf = resultSurf;
-      } else {
-        readSurf = GetTempSurface(readSize, format);
-      }
-
-      // Readback handles Flush/MarkDirty.
-      mGLContext->Screen()->Readback(surfGL, readSurf);
-    }
-    MOZ_ASSERT(readSurf);
-
-    bool needsPremult = surfGL->HasAlpha() && !mIsGLAlphaPremult;
-    if (needsPremult) {
-      gfxImageSurface* sizedReadSurf = nullptr;
-      if (readSurf->Format()  == resultSurf->Format() &&
-          readSurf->GetSize() == resultSurf->GetSize())
-      {
-        sizedReadSurf = readSurf;
-      } else {
-        readSurf->Flush();
-        nsRefPtr<gfxContext> ctx = new gfxContext(resultSurf);
-        ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-        ctx->SetSource(readSurf);
-        ctx->Paint();
-
-        sizedReadSurf = resultSurf;
-      }
-      MOZ_ASSERT(sizedReadSurf);
-
-      readSurf->Flush();
-      resultSurf->Flush();
-      gfxUtils::PremultiplyImageSurface(readSurf, resultSurf);
-      resultSurf->MarkDirty();
-    } else if (resultSurf != readSurf) {
-      // Didn't need premult, but we do need to blit to resultSurf
-      readSurf->Flush();
-      nsRefPtr<gfxContext> ctx = new gfxContext(resultSurf);
-      ctx->SetOperator(gfxContext::OPERATOR_SOURCE);
-      ctx->SetSource(readSurf);
-      ctx->Paint();
-    }
-
-    // stick our surface into mSurface, so that the Paint() path is the same
-    if (!aDestSurface) {
-      mSurface = resultSurf;
-    }
-  }
+  return mGLContext == aData.mGLContext;
 }
 
 void
-CopyableCanvasLayer::PaintWithOpacity(gfxContext* aContext,
-                                      float aOpacity,
-                                      Layer* aMaskLayer,
-                                      gfxContext::GraphicsOperator aOperator)
+CopyableCanvasLayer::UpdateTarget(DrawTarget* aDestTarget)
 {
-  if (!mSurface) {
-    NS_WARNING("No valid surface to draw!");
+  if (mDrawTarget) {
+    mDrawTarget->Flush();
+    mSurface = mDrawTarget->Snapshot();
+  }
+
+  if (!mGLContext && aDestTarget) {
+    NS_ASSERTION(mSurface, "Must have surface to draw!");
+    if (mSurface) {
+      aDestTarget->CopySurface(mSurface,
+                               IntRect(0, 0, mBounds.width, mBounds.height),
+                               IntPoint(0, 0));
+      mSurface = nullptr;
+    }
     return;
   }
 
-  nsRefPtr<gfxPattern> pat = new gfxPattern(mSurface);
-
-  pat->SetFilter(mFilter);
-  pat->SetExtend(gfxPattern::EXTEND_PAD);
-
-  gfxMatrix m;
-  if (mNeedsYFlip) {
-    m = aContext->CurrentMatrix();
-    aContext->Translate(gfxPoint(0.0, mBounds.height));
-    aContext->Scale(1.0, -1.0);
+  if (mDrawTarget) {
+    return;
   }
 
-  // If content opaque, then save off current operator and set to source.
-  // This ensures that alpha is not applied even if the source surface
-  // has an alpha channel
-  gfxContext::GraphicsOperator savedOp;
-  if (GetContentFlags() & CONTENT_OPAQUE) {
-    savedOp = aContext->CurrentOperator();
-    aContext->SetOperator(gfxContext::OPERATOR_SOURCE);
+  MOZ_ASSERT(mGLContext);
+
+  SharedSurface* frontbuffer = nullptr;
+  if (mGLFrontbuffer) {
+    frontbuffer = mGLFrontbuffer.get();
+  } else {
+    GLScreenBuffer* screen = mGLContext->Screen();
+    ShSurfHandle* front = screen->Front();
+    if (front) {
+      frontbuffer = front->Surf();
+    }
   }
 
-  AutoSetOperator setOperator(aContext, aOperator);
-  aContext->NewPath();
-  // No need to snap here; our transform is already set up to snap our rect
-  aContext->Rectangle(gfxRect(0, 0, mBounds.width, mBounds.height));
-  aContext->SetPattern(pat);
-
-  FillWithMask(aContext, aOpacity, aMaskLayer);
-  // Restore surface operator
-  if (GetContentFlags() & CONTENT_OPAQUE) {
-    aContext->SetOperator(savedOp);
-  }  
-
-  if (mNeedsYFlip) {
-    aContext->SetMatrix(m);
+  if (!frontbuffer) {
+    NS_WARNING("Null frame received.");
+    return;
   }
+
+  IntSize readSize(frontbuffer->mSize);
+  SurfaceFormat format = (GetContentFlags() & CONTENT_OPAQUE)
+                          ? SurfaceFormat::B8G8R8X8
+                          : SurfaceFormat::B8G8R8A8;
+  bool needsPremult = frontbuffer->mHasAlpha && !mIsAlphaPremultiplied;
+
+  // Try to read back directly into aDestTarget's output buffer
+  if (aDestTarget) {
+    uint8_t* destData;
+    IntSize destSize;
+    int32_t destStride;
+    SurfaceFormat destFormat;
+    if (aDestTarget->LockBits(&destData, &destSize, &destStride, &destFormat)) {
+      if (destSize == readSize && destFormat == format) {
+        RefPtr<DataSourceSurface> data =
+          Factory::CreateWrappingDataSourceSurface(destData, destStride, destSize, destFormat);
+        mGLContext->Readback(frontbuffer, data);
+        if (needsPremult) {
+            gfxUtils::PremultiplyDataSurface(data, data);
+        }
+        aDestTarget->ReleaseBits(destData);
+        return;
+      }
+      aDestTarget->ReleaseBits(destData);
+    }
+  }
+
+  RefPtr<DataSourceSurface> resultSurf = GetTempSurface(readSize, format);
+  // There will already be a warning from inside of GetTempSurface, but
+  // it doesn't hurt to complain:
+  if (NS_WARN_IF(!resultSurf)) {
+    return;
+  }
+
+  // Readback handles Flush/MarkDirty.
+  mGLContext->Readback(frontbuffer, resultSurf);
+  if (needsPremult) {
+    gfxUtils::PremultiplyDataSurface(resultSurf, resultSurf);
+  }
+  MOZ_ASSERT(resultSurf);
+
+  if (aDestTarget) {
+    aDestTarget->CopySurface(resultSurf,
+                             IntRect(0, 0, readSize.width, readSize.height),
+                             IntPoint(0, 0));
+  } else {
+    // If !aDestSurface then we will end up painting using mSurface, so
+    // stick our surface into mSurface, so that the Paint() path is the same.
+    mSurface = resultSurf;
+  }
+}
+
+DataSourceSurface*
+CopyableCanvasLayer::GetTempSurface(const IntSize& aSize,
+                                    const SurfaceFormat aFormat)
+{
+  if (!mCachedTempSurface ||
+      aSize != mCachedTempSurface->GetSize() ||
+      aFormat != mCachedTempSurface->GetFormat())
+  {
+    // Create a surface aligned to 8 bytes since that's the highest alignment WebGL can handle.
+    uint32_t stride = GetAlignedStride<8>(aSize.width * BytesPerPixel(aFormat));
+    mCachedTempSurface = Factory::CreateDataSourceSurfaceWithStride(aSize, aFormat, stride);
+  }
+
+  return mCachedTempSurface;
+}
+
+void
+CopyableCanvasLayer::DiscardTempSurface()
+{
+  mCachedTempSurface = nullptr;
 }
 
 }

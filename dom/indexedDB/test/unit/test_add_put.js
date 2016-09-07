@@ -12,15 +12,15 @@ function testSteps()
   openRequest.onerror = errorHandler;
   openRequest.onupgradeneeded = grabEventAndContinueHandler;
   openRequest.onsuccess = unexpectedSuccessHandler;
-  let event = yield;
+  let event = yield undefined;
   let db = event.target.result;
   let trans = event.target.transaction;
 
-  for each (let autoincrement in [true, false]) {
-    for each (let keypath in [false, true, "missing", "invalid"]) {
-      for each (let method in ["put", "add"]) {
-        for each (let explicit in [true, false, undefined, "invalid"]) {
-          for each (let existing in [true, false]) {
+  for (let autoincrement of [true, false]) {
+    for (let keypath of [false, true, "missing", "invalid"]) {
+      for (let method of ["put", "add"]) {
+        for (let explicit of [true, false, undefined, "invalid"]) {
+          for (let existing of [true, false]) {
             let speccedNoKey = (keypath == false || keypath == "missing") &&
                                !explicit;
 
@@ -49,7 +49,7 @@ function testSteps()
               else
                 store.add({ existing: "data" }, 5).onsuccess = grabEventAndContinueHandler;
 
-              let e = yield;
+              let e = yield undefined;
               is(e.type, "success", "success inserting existing" + test);
               is(e.target.result, 5, "inserted correct key" + test);
             }
@@ -102,7 +102,7 @@ function testSteps()
             is(JSON.stringify(value), valueJSON, "call didn't modify value" + test);
 
             req.onsuccess = req.onerror = grabEventAndContinueHandler;
-            let e = yield;
+            let e = yield undefined;
 
             // Figure out what key we used
             let key = 5;
@@ -127,7 +127,7 @@ function testSteps()
             is(e.target.result, key, "write should return correct key" + test);
 
             store.get(key).onsuccess = grabEventAndContinueHandler;
-            e = yield;
+            e = yield undefined;
             is(e.type, "success", "read back should succeed" + test);
             is(JSON.stringify(e.target.result),
                JSON.stringify(value),
@@ -158,8 +158,8 @@ function testSteps()
   }
 
   openRequest.onsuccess = grabEventAndContinueHandler;
-  yield;
+  yield undefined;
 
   finishTest();
-  yield;
+  yield undefined;
 }

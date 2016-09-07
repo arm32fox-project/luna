@@ -5,11 +5,9 @@
 package org.mozilla.goanna.sync.setup.activities;
 
 import org.mozilla.goanna.R;
-import org.mozilla.goanna.background.common.GlobalConstants;
 import org.mozilla.goanna.sync.setup.Constants;
 import org.mozilla.goanna.sync.setup.SyncAccounts;
 
-import android.content.Intent;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.TextView;
@@ -42,8 +40,6 @@ public class SetupSuccessActivity extends SyncActivity {
   }
 
   public void launchBrowser(View target) {
-    Intent intent = new Intent(Intent.ACTION_MAIN);
-    intent.setClassName(GlobalConstants.BROWSER_INTENT_PACKAGE, GlobalConstants.BROWSER_INTENT_CLASS);
-    startActivity(intent);
+    ActivityUtils.openURLInFennec(this, null);
   }
 }

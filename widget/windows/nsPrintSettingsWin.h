@@ -18,13 +18,14 @@
 class nsPrintSettingsWin : public nsPrintSettings,
                            public nsIPrintSettingsWin
 {
+  virtual ~nsPrintSettingsWin();
+
 public:
   NS_DECL_ISUPPORTS_INHERITED
   NS_DECL_NSIPRINTSETTINGSWIN
 
   nsPrintSettingsWin();
   nsPrintSettingsWin(const nsPrintSettingsWin& aPS);
-  virtual ~nsPrintSettingsWin();
 
   /**
    * Makes a new copy
@@ -44,8 +45,8 @@ public:
 protected:
   void CopyDevMode(DEVMODEW* aInDevMode, DEVMODEW *& aOutDevMode);
 
-  PRUnichar*      mDeviceName;
-  PRUnichar*      mDriverName;
+  wchar_t*      mDeviceName;
+  wchar_t*      mDriverName;
   LPDEVMODEW mDevMode;
 };
 

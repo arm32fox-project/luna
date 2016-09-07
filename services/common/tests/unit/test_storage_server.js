@@ -4,18 +4,19 @@
 Cu.import("resource://services-common/async.js");
 Cu.import("resource://services-common/rest.js");
 Cu.import("resource://services-common/utils.js");
-Cu.import("resource://testing-common/services-common/storageserver.js");
+Cu.import("resource://testing-common/services/common/storageserver.js");
 
-const PORT = 8080;
 const DEFAULT_USER = "123";
 const DEFAULT_PASSWORD = "password";
 
 /**
  * Helper function to prepare a RESTRequest against the server.
  */
-function localRequest(path, user=DEFAULT_USER, password=DEFAULT_PASSWORD) {
+function localRequest(server, path, user=DEFAULT_USER, password=DEFAULT_PASSWORD) {
   _("localRequest: " + path);
-  let url = "http://127.0.0.1:" + PORT + path;
+  let identity = server.server.identity;
+  let url = identity.primaryScheme + "://" + identity.primaryHost + ":" +
+            identity.primaryPort + path;
   _("url: " + url);
   let req = new RESTRequest(url);
 
@@ -104,8 +105,8 @@ function doDeleteRequest(request) {
 }
 
 function run_test() {
-  Log4Moz.repository.getLogger("Services.Common.Test.StorageServer").level =
-    Log4Moz.Level.Trace;
+  Log.repository.getLogger("Services.Common.Test.StorageServer").level =
+    Log.Level.Trace;
   initTestLogging();
 
   run_next_test();
@@ -120,9 +121,8 @@ add_test(function test_creation() {
   });
   do_check_true(!!server);
 
-  server.start(PORT, function () {
+  server.start(-1, function () {
     _("Started on " + server.port);
-    do_check_eq(server.port, PORT);
     server.stop(run_next_test);
   });
 });
@@ -131,7 +131,7 @@ add_test(function test_synchronous_start() {
   _("Ensure starting using startSynchronous works.");
 
   let server = new StorageServer();
-  server.startSynchronous(PORT);
+  server.startSynchronous();
   server.stop(run_next_test);
 });
 
@@ -152,7 +152,7 @@ add_test(function test_url_parsing() {
 
   // Check that we can parse a collection URI.
   parts = server.pathRE.exec("/2.0/123/storage/crypto");
-  let [all, version, user, first, rest] = parts;
+  [all, version, user, first, rest] = parts;
   do_check_eq(all, "/2.0/123/storage/crypto");
   do_check_eq(version, "2.0");
   do_check_eq(user, "123");
@@ -165,7 +165,7 @@ add_test(function test_url_parsing() {
 
   // storage alone is a valid request.
   parts = server.pathRE.exec("/2.0/123456/storage");
-  let [all, version, user, first, rest] = parts;
+  [all, version, user, first, rest] = parts;
   do_check_eq(all, "/2.0/123456/storage");
   do_check_eq(version, "2.0");
   do_check_eq(user, "123456");
@@ -173,7 +173,8 @@ add_test(function test_url_parsing() {
   do_check_eq(rest, undefined);
 
   parts = server.storageRE.exec("storage");
-  let [all, storage, collection, id] = parts;
+  let storage, collection, id;
+  [all, storage, collection, id] = parts;
   do_check_eq(all, "storage");
   do_check_eq(collection, undefined);
 
@@ -184,11 +185,11 @@ add_test(function test_basic_http() {
   let server = new StorageServer();
   server.registerUser("345", "password");
   do_check_true(server.userExists("345"));
-  server.startSynchronous(PORT);
+  server.startSynchronous();
 
   _("Started on " + server.port);
   do_check_eq(server.requestCount, 0);
-  let req = localRequest("/2.0/storage/crypto/keys");
+  let req = localRequest(server, "/2.0/storage/crypto/keys");
   _("req is " + req);
   req.get(function (err) {
     do_check_eq(null, err);
@@ -200,12 +201,12 @@ add_test(function test_basic_http() {
 add_test(function test_info_collections() {
   let server = new StorageServer();
   server.registerUser("123", "password");
-  server.startSynchronous(PORT);
+  server.startSynchronous();
 
   let path = "/2.0/123/info/collections";
 
   _("info/collections on empty server should be empty object.");
-  let request = localRequest(path, "123", "password");
+  let request = localRequest(server, path, "123", "password");
   let error = doGetRequest(request);
   do_check_eq(error, null);
   do_check_eq(request.response.status, 200);
@@ -213,8 +214,8 @@ add_test(function test_info_collections() {
 
   _("Creating an empty collection should result in collection appearing.");
   let coll = server.createCollection("123", "col1");
-  let request = localRequest(path, "123", "password");
-  let error = doGetRequest(request);
+  request = localRequest(server, path, "123", "password");
+  error = doGetRequest(request);
   do_check_eq(error, null);
   do_check_eq(request.response.status, 200);
   let info = JSON.parse(request.response.body);
@@ -233,11 +234,12 @@ add_test(function test_bso_get_existing() {
   server.createContents("123", {
     test: {"bso": {"foo": "bar"}}
   });
-  server.startSynchronous(PORT);
+  server.startSynchronous();
 
   let coll = server.user("123").collection("test");
 
-  let request = localRequest("/2.0/123/storage/test/bso", "123", "password");
+  let request = localRequest(server, "/2.0/123/storage/test/bso", "123",
+                             "password");
   let error = doGetRequest(request);
   do_check_eq(error, null);
   do_check_eq(request.response.status, 200);
@@ -258,14 +260,14 @@ add_test(function test_percent_decoding() {
 
   let server = new StorageServer();
   server.registerUser("123", "password");
-  server.startSynchronous(PORT);
+  server.startSynchronous();
 
   let coll = server.user("123").createCollection("test");
   coll.insert("001", {foo: "bar"});
   coll.insert("002", {bar: "foo"});
 
-  let request = localRequest("/2.0/123/storage/test?ids=001%2C002", "123",
-                             "password");
+  let request = localRequest(server, "/2.0/123/storage/test?ids=001%2C002",
+                             "123", "password");
   let error = doGetRequest(request);
   do_check_null(error);
   do_check_eq(request.response.status, 200);
@@ -283,9 +285,9 @@ add_test(function test_bso_404() {
   server.createContents("123", {
     test: {}
   });
-  server.startSynchronous(PORT);
+  server.startSynchronous();
 
-  let request = localRequest("/2.0/123/storage/test/foo");
+  let request = localRequest(server, "/2.0/123/storage/test/foo");
   let error = doGetRequest(request);
   do_check_eq(error, null);
 
@@ -303,7 +305,7 @@ add_test(function test_bso_if_modified_since_304() {
   server.createContents("123", {
     test: {bso: {foo: "bar"}}
   });
-  server.startSynchronous(PORT);
+  server.startSynchronous();
 
   let coll = server.user("123").collection("test");
   do_check_neq(coll, null);
@@ -312,7 +314,8 @@ add_test(function test_bso_if_modified_since_304() {
   coll.timestamp -= 10000;
   coll.bso("bso").modified -= 10000;
 
-  let request = localRequest("/2.0/123/storage/test/bso", "123", "password");
+  let request = localRequest(server, "/2.0/123/storage/test/bso",
+                             "123", "password");
   request.setHeader("X-If-Modified-Since", "" + server.serverTime());
   let error = doGetRequest(request);
   do_check_eq(null, error);
@@ -320,9 +323,10 @@ add_test(function test_bso_if_modified_since_304() {
   do_check_eq(request.response.status, 304);
   do_check_false("content-type" in request.response.headers);
 
-  let request = localRequest("/2.0/123/storage/test/bso", "123", "password");
+  request = localRequest(server, "/2.0/123/storage/test/bso",
+                             "123", "password");
   request.setHeader("X-If-Modified-Since", "" + (server.serverTime() - 20000));
-  let error = doGetRequest(request);
+  error = doGetRequest(request);
   do_check_eq(null, error);
   do_check_eq(request.response.status, 200);
   do_check_eq(request.response.headers["content-type"], "application/json");
@@ -338,7 +342,7 @@ add_test(function test_bso_if_unmodified_since() {
   server.createContents("123", {
     test: {bso: {foo: "bar"}}
   });
-  server.startSynchronous(PORT);
+  server.startSynchronous();
 
   let coll = server.user("123").collection("test");
   do_check_neq(coll, null);
@@ -346,7 +350,8 @@ add_test(function test_bso_if_unmodified_since() {
   let time = coll.bso("bso").modified;
 
   _("Ensure we get a 412 for specified times older than server time.");
-  let request = localRequest("/2.0/123/storage/test/bso", "123", "password");
+  let request = localRequest(server, "/2.0/123/storage/test/bso",
+                             "123", "password");
   request.setHeader("X-If-Unmodified-Since", time - 5000);
   request.setHeader("Content-Type", "application/json");
   let payload = JSON.stringify({"payload": "foobar"});
@@ -355,10 +360,11 @@ add_test(function test_bso_if_unmodified_since() {
   do_check_eq(request.response.status, 412);
 
   _("Ensure we get a 204 if update goes through.");
-  let request = localRequest("/2.0/123/storage/test/bso", "123", "password");
+  request = localRequest(server, "/2.0/123/storage/test/bso",
+                         "123", "password");
   request.setHeader("Content-Type", "application/json");
   request.setHeader("X-If-Unmodified-Since", time + 1);
-  let error = doPutRequest(request, payload);
+  error = doPutRequest(request, payload);
   do_check_eq(null, error);
   do_check_eq(request.response.status, 204);
   do_check_true(coll.timestamp > time);
@@ -366,10 +372,11 @@ add_test(function test_bso_if_unmodified_since() {
   // Not sure why a client would send X-If-Unmodified-Since if a BSO doesn't
   // exist. But, why not test it?
   _("Ensure we get a 201 if creation goes through.");
-  let request = localRequest("/2.0/123/storage/test/none", "123", "password");
+  request = localRequest(server, "/2.0/123/storage/test/none",
+                         "123", "password");
   request.setHeader("Content-Type", "application/json");
   request.setHeader("X-If-Unmodified-Since", time);
-  let error = doPutRequest(request, payload);
+  error = doPutRequest(request, payload);
   do_check_eq(null, error);
   do_check_eq(request.response.status, 201);
 
@@ -382,14 +389,15 @@ add_test(function test_bso_delete_not_exist() {
   let server = new StorageServer();
   server.registerUser("123", "password");
   server.user("123").createCollection("empty");
-  server.startSynchronous(PORT);
+  server.startSynchronous();
 
   server.callback.onItemDeleted = function onItemDeleted(username, collection,
                                                          id) {
     do_throw("onItemDeleted should not have been called.");
   };
 
-  let request = localRequest("/2.0/123/storage/empty/nada", "123", "password");
+  let request = localRequest(server, "/2.0/123/storage/empty/nada",
+                             "123", "password");
   let error = doDeleteRequest(request);
   do_check_eq(error, null);
   do_check_eq(request.response.status, 404);
@@ -403,7 +411,7 @@ add_test(function test_bso_delete_exists() {
 
   let server = new StorageServer();
   server.registerUser("123", "password");
-  server.startSynchronous(PORT);
+  server.startSynchronous();
 
   let coll = server.user("123").createCollection("test");
   let bso = coll.insert("myid", {foo: "bar"});
@@ -416,7 +424,8 @@ add_test(function test_bso_delete_exists() {
     do_check_eq(id, "myid");
   };
 
-  let request = localRequest("/2.0/123/storage/test/myid", "123", "password");
+  let request = localRequest(server, "/2.0/123/storage/test/myid",
+                             "123", "password");
   let error = doDeleteRequest(request);
   do_check_eq(error, null);
   do_check_eq(request.response.status, 204);
@@ -424,8 +433,9 @@ add_test(function test_bso_delete_exists() {
   do_check_true(coll.timestamp > timestamp);
 
   _("On next request the BSO should not exist.");
-  let request = localRequest("/2.0/123/storage/test/myid", "123", "password");
-  let error = doGetRequest(request);
+  request = localRequest(server, "/2.0/123/storage/test/myid",
+                         "123", "password");
+  error = doGetRequest(request);
   do_check_eq(error, null);
   do_check_eq(request.response.status, 404);
 
@@ -436,7 +446,7 @@ add_test(function test_bso_delete_unmodified() {
   _("Ensure X-If-Unmodified-Since works when deleting BSOs.");
 
   let server = new StorageServer();
-  server.startSynchronous(PORT);
+  server.startSynchronous();
   server.registerUser("123", "password");
   let coll = server.user("123").createCollection("test");
   let bso = coll.insert("myid", {foo: "bar"});
@@ -445,7 +455,7 @@ add_test(function test_bso_delete_unmodified() {
 
   _("Issuing a DELETE with an older time should fail.");
   let path = "/2.0/123/storage/test/myid";
-  let request = localRequest(path, "123", "password");
+  let request = localRequest(server, path, "123", "password");
   request.setHeader("X-If-Unmodified-Since", modified - 1000);
   let error = doDeleteRequest(request);
   do_check_eq(error, null);
@@ -454,9 +464,9 @@ add_test(function test_bso_delete_unmodified() {
   do_check_neq(coll.bso("myid"), null);
 
   _("Issuing a DELETE with a newer time should work.");
-  let request = localRequest(path, "123", "password");
+  request = localRequest(server, path, "123", "password");
   request.setHeader("X-If-Unmodified-Since", modified + 1000);
-  let error = doDeleteRequest(request);
+  error = doDeleteRequest(request);
   do_check_eq(error, null);
   do_check_eq(request.response.status, 204);
   do_check_true(coll.bso("myid").deleted);
@@ -469,21 +479,23 @@ add_test(function test_collection_get_unmodified_since() {
 
   let server = new StorageServer();
   server.registerUser("123", "password");
-  server.startSynchronous(PORT);
+  server.startSynchronous();
   let collection = server.user("123").createCollection("testcoll");
   collection.insert("bso0", {foo: "bar"});
 
   let serverModified = collection.timestamp;
 
-  let request1 = localRequest("/2.0/123/storage/testcoll", "123", "password");
+  let request1 = localRequest(server, "/2.0/123/storage/testcoll",
+                              "123", "password");
   request1.setHeader("X-If-Unmodified-Since", serverModified);
   let error = doGetRequest(request1);
   do_check_null(error);
   do_check_eq(request1.response.status, 200);
 
-  let request2 = localRequest("/2.0/123/storage/testcoll", "123", "password");
+  let request2 = localRequest(server, "/2.0/123/storage/testcoll",
+                              "123", "password");
   request2.setHeader("X-If-Unmodified-Since", serverModified - 1);
-  let error = doGetRequest(request2);
+  error = doGetRequest(request2);
   do_check_null(error);
   do_check_eq(request2.response.status, 412);
 
@@ -495,23 +507,23 @@ add_test(function test_bso_get_unmodified_since() {
 
   let server = new StorageServer();
   server.registerUser("123", "password");
-  server.startSynchronous(PORT);
+  server.startSynchronous();
   let collection = server.user("123").createCollection("testcoll");
   let bso = collection.insert("bso0", {foo: "bar"});
 
   let serverModified = bso.modified;
 
-  let request1 = localRequest("/2.0/123/storage/testcoll/bso0", "123",
-                              "password");
+  let request1 = localRequest(server, "/2.0/123/storage/testcoll/bso0",
+                              "123", "password");
   request1.setHeader("X-If-Unmodified-Since", serverModified);
   let error = doGetRequest(request1);
   do_check_null(error);
   do_check_eq(request1.response.status, 200);
 
-  let request2 = localRequest("/2.0/123/storage/testcoll/bso0", "123",
-                              "password");
+  let request2 = localRequest(server, "/2.0/123/storage/testcoll/bso0",
+                              "123", "password");
   request2.setHeader("X-If-Unmodified-Since", serverModified - 1);
-  let error = doGetRequest(request2);
+  error = doGetRequest(request2);
   do_check_null(error);
   do_check_eq(request2.response.status, 412);
 
@@ -523,9 +535,9 @@ add_test(function test_missing_collection_404() {
 
   let server = new StorageServer();
   server.registerUser("123", "password");
-  server.startSynchronous(PORT);
+  server.startSynchronous();
 
-  let request = localRequest("/2.0/123/storage/none", "123", "password");
+  let request = localRequest(server, "/2.0/123/storage/none", "123", "password");
   let error = doGetRequest(request);
   do_check_eq(error, null);
   do_check_eq(request.response.status, 404);
@@ -539,9 +551,9 @@ add_test(function test_get_storage_405() {
 
   let server = new StorageServer();
   server.registerUser("123", "password");
-  server.startSynchronous(PORT);
+  server.startSynchronous();
 
-  let request = localRequest("/2.0/123/storage", "123", "password");
+  let request = localRequest(server, "/2.0/123/storage", "123", "password");
   let error = doGetRequest(request);
   do_check_eq(error, null);
   do_check_eq(request.response.status, 405);
@@ -560,9 +572,9 @@ add_test(function test_delete_storage() {
     baz: {c: {bob: "law"}, blah: {law: "blog"}}
   });
 
-  server.startSynchronous(PORT);
+  server.startSynchronous();
 
-  let request = localRequest("/2.0/123/storage", "123", "password");
+  let request = localRequest(server, "/2.0/123/storage", "123", "password");
   let error = doDeleteRequest(request);
   do_check_eq(error, null);
   do_check_eq(request.response.status, 204);
@@ -579,12 +591,12 @@ add_test(function test_x_num_records() {
     crypto: {foos: {foo: "bar"},
              bars: {foo: "baz"}}
   });
-  server.startSynchronous(PORT);
-  let bso = localRequest("/2.0/123/storage/crypto/foos");
+  server.startSynchronous();
+  let bso = localRequest(server, "/2.0/123/storage/crypto/foos");
   bso.get(function (err) {
     // BSO fetches don't have one.
     do_check_false("x-num-records" in this.response.headers);
-    let col = localRequest("/2.0/123/storage/crypto");
+    let col = localRequest(server, "/2.0/123/storage/crypto");
     col.get(function (err) {
       // Collection fetches do.
       do_check_eq(this.response.headers["x-num-records"], "2");
@@ -601,10 +613,10 @@ add_test(function test_put_delete_put() {
   server.createContents("123", {
     test: {bso: {foo: "bar"}}
   });
-  server.startSynchronous(PORT);
+  server.startSynchronous();
 
   _("Ensure we can PUT an existing record.");
-  let request1 = localRequest("/2.0/123/storage/test/bso", "123", "password");
+  let request1 = localRequest(server, "/2.0/123/storage/test/bso", "123", "password");
   request1.setHeader("Content-Type", "application/json");
   let payload1 = JSON.stringify({"payload": "foobar"});
   let error1 = doPutRequest(request1, payload1);
@@ -612,14 +624,14 @@ add_test(function test_put_delete_put() {
   do_check_eq(request1.response.status, 204);
 
   _("Ensure we can DELETE it.");
-  let request2 = localRequest("/2.0/123/storage/test/bso", "123", "password");
+  let request2 = localRequest(server, "/2.0/123/storage/test/bso", "123", "password");
   let error2 = doDeleteRequest(request2);
   do_check_eq(error2, null);
   do_check_eq(request2.response.status, 204);
   do_check_false("content-type" in request2.response.headers);
 
   _("Ensure we can PUT a previously deleted record.");
-  let request3 = localRequest("/2.0/123/storage/test/bso", "123", "password");
+  let request3 = localRequest(server, "/2.0/123/storage/test/bso", "123", "password");
   request3.setHeader("Content-Type", "application/json");
   let payload3 = JSON.stringify({"payload": "foobar"});
   let error3 = doPutRequest(request3, payload3);
@@ -627,7 +639,7 @@ add_test(function test_put_delete_put() {
   do_check_eq(request3.response.status, 201);
 
   _("Ensure we can GET the re-uploaded record.");
-  let request4 = localRequest("/2.0/123/storage/test/bso", "123", "password");
+  let request4 = localRequest(server, "/2.0/123/storage/test/bso", "123", "password");
   let error4 = doGetRequest(request4);
   do_check_eq(error4, null);
   do_check_eq(request4.response.status, 200);
@@ -641,7 +653,7 @@ add_test(function test_collection_get_newer() {
 
   let server = new StorageServer();
   server.registerUser("123", "password");
-  server.startSynchronous(PORT);
+  server.startSynchronous();
 
   let coll = server.user("123").createCollection("test");
   let bso1 = coll.insert("001", {foo: "bar"});
@@ -651,7 +663,7 @@ add_test(function test_collection_get_newer() {
   bso2.modified = bso1.modified + 1000;
 
   function newerRequest(newer) {
-    return localRequest("/2.0/123/storage/test?newer=" + newer,
+    return localRequest(server, "/2.0/123/storage/test?newer=" + newer,
                         "123", "password");
   }
 

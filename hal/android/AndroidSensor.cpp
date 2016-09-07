@@ -13,12 +13,12 @@ namespace hal_impl {
 
 void
 EnableSensorNotifications(SensorType aSensor) {
-  AndroidBridge::Bridge()->EnableSensor(aSensor);
+  widget::GoannaAppShell::EnableSensor(aSensor);
 }
 
 void
 DisableSensorNotifications(SensorType aSensor) {
-  AndroidBridge::Bridge()->DisableSensor(aSensor);
+  widget::GoannaAppShell::DisableSensor(aSensor);
 }
 
 } // hal_impl

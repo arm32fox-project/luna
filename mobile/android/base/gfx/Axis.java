@@ -5,17 +5,16 @@
 
 package org.mozilla.goanna.gfx;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import org.mozilla.goanna.GoannaAppShell;
 import org.mozilla.goanna.PrefsHelper;
 import org.mozilla.goanna.util.FloatUtils;
 
-import org.json.JSONArray;
-
+import android.os.SystemClock;
 import android.util.Log;
 import android.view.View;
-
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * This class represents the physics for one axis of movement (i.e. either
@@ -32,6 +31,16 @@ abstract class Axis {
     private static final String PREF_SCROLLING_OVERSCROLL_DECEL_RATE = "ui.scrolling.overscroll_decel_rate";
     private static final String PREF_SCROLLING_OVERSCROLL_SNAP_LIMIT = "ui.scrolling.overscroll_snap_limit";
     private static final String PREF_SCROLLING_MIN_SCROLLABLE_DISTANCE = "ui.scrolling.min_scrollable_distance";
+    private static final String PREF_FLING_ACCEL_INTERVAL = "ui.scrolling.fling_accel_interval";
+    private static final String PREF_FLING_ACCEL_BASE_MULTIPLIER = "ui.scrolling.fling_accel_base_multiplier";
+    private static final String PREF_FLING_ACCEL_SUPPLEMENTAL_MULTIPLIER = "ui.scrolling.fling_accel_supplemental_multiplier";
+    private static final String PREF_FLING_CURVE_FUNCTION_X1 = "ui.scrolling.fling_curve_function_x1";
+    private static final String PREF_FLING_CURVE_FUNCTION_Y1 = "ui.scrolling.fling_curve_function_y1";
+    private static final String PREF_FLING_CURVE_FUNCTION_X2 = "ui.scrolling.fling_curve_function_x2";
+    private static final String PREF_FLING_CURVE_FUNCTION_Y2 = "ui.scrolling.fling_curve_function_y2";
+    private static final String PREF_FLING_CURVE_THRESHOLD_VELOCITY = "ui.scrolling.fling_curve_threshold_velocity";
+    private static final String PREF_FLING_CURVE_MAXIMUM_VELOCITY = "ui.scrolling.fling_curve_max_velocity";
+    private static final String PREF_FLING_CURVE_NEWTON_ITERATIONS = "ui.scrolling.fling_curve_newton_iterations";
 
     // This fraction of velocity remains after every animation frame when the velocity is low.
     private static float FRICTION_SLOW;
@@ -53,9 +62,39 @@ abstract class Axis {
     // in pixels.
     private static float MIN_SCROLLABLE_DISTANCE;
 
+    // The interval within which if two flings are done then scrolling effect is accelerated.
+    private static long FLING_ACCEL_INTERVAL;
+
+    // The multiplication constant of the base velocity in case of accelerated scrolling.
+    private static float FLING_ACCEL_BASE_MULTIPLIER;
+
+    // The multiplication constant of the supplemental velocity in case of accelerated scrolling.
+    private static float FLING_ACCEL_SUPPLEMENTAL_MULTIPLIER;
+
+    // x co-ordinate of the second bezier control point
+    private static float FLING_CURVE_FUNCTION_X1;
+
+    // y co-ordinate of the second bezier control point
+    private static float FLING_CURVE_FUNCTION_Y1;
+
+    // x co-ordinate of the third bezier control point
+    private static float FLING_CURVE_FUNCTION_X2;
+
+    // y co-ordinate of the third bezier control point
+    private static float FLING_CURVE_FUNCTION_Y2;
+
+    // Minimum velocity for curve to be implemented i.e fling curving
+    private static float FLING_CURVE_THRESHOLD_VELOCITY;
+
+    // Maximum permitted velocity
+    private static float FLING_CURVE_MAXIMUM_VELOCITY;
+
+    // Number of iterations in the Newton-Raphson method
+    private static int FLING_CURVE_NEWTON_ITERATIONS;
+
     private static float getFloatPref(Map<String, Integer> prefs, String prefName, int defaultValue) {
         Integer value = (prefs == null ? null : prefs.get(prefName));
-        return (float)(value == null || value < 0 ? defaultValue : value) / 1000f;
+        return (value == null || value < 0 ? defaultValue : value) / 1000f;
     }
 
     private static int getIntPref(Map<String, Integer> prefs, String prefName, int defaultValue) {
@@ -64,13 +103,22 @@ abstract class Axis {
     }
 
     static void initPrefs() {
-        JSONArray prefs = new JSONArray();
-        prefs.put(PREF_SCROLLING_FRICTION_FAST);
-        prefs.put(PREF_SCROLLING_FRICTION_SLOW);
-        prefs.put(PREF_SCROLLING_MAX_EVENT_ACCELERATION);
-        prefs.put(PREF_SCROLLING_OVERSCROLL_DECEL_RATE);
-        prefs.put(PREF_SCROLLING_OVERSCROLL_SNAP_LIMIT);
-        prefs.put(PREF_SCROLLING_MIN_SCROLLABLE_DISTANCE);
+        final String[] prefs = { PREF_SCROLLING_FRICTION_FAST,
+                                 PREF_SCROLLING_FRICTION_SLOW,
+                                 PREF_SCROLLING_MAX_EVENT_ACCELERATION,
+                                 PREF_SCROLLING_OVERSCROLL_DECEL_RATE,
+                                 PREF_SCROLLING_OVERSCROLL_SNAP_LIMIT,
+                                 PREF_SCROLLING_MIN_SCROLLABLE_DISTANCE,
+                                 PREF_FLING_ACCEL_INTERVAL,
+                                 PREF_FLING_ACCEL_BASE_MULTIPLIER,
+                                 PREF_FLING_ACCEL_SUPPLEMENTAL_MULTIPLIER,
+                                 PREF_FLING_CURVE_FUNCTION_X1,
+                                 PREF_FLING_CURVE_FUNCTION_Y1,
+                                 PREF_FLING_CURVE_FUNCTION_X2,
+                                 PREF_FLING_CURVE_FUNCTION_Y2,
+                                 PREF_FLING_CURVE_THRESHOLD_VELOCITY,
+                                 PREF_FLING_CURVE_MAXIMUM_VELOCITY,
+                                 PREF_FLING_CURVE_NEWTON_ITERATIONS };
 
         PrefsHelper.getPrefs(prefs, new PrefsHelper.PrefHandlerBase() {
             Map<String, Integer> mPrefs = new HashMap<String, Integer>();
@@ -86,24 +134,35 @@ abstract class Axis {
     }
 
     static final float MS_PER_FRAME = 1000.0f / 60.0f;
+    static final long NS_PER_FRAME = Math.round(1000000000f / 60f);
     private static final float FRAMERATE_MULTIPLIER = (1000f/60f) / MS_PER_FRAME;
     private static final int FLING_VELOCITY_POINTS = 8;
 
-    //  The values we use for friction are based on a 16.6ms frame, adjust them to MS_PER_FRAME:
-    //  FRICTION^1 = FRICTION_ADJUSTED^(16/MS_PER_FRAME)
-    //  FRICTION_ADJUSTED = e ^ ((ln(FRICTION))/FRAMERATE_MULTIPLIER)
-    static float getFrameAdjustedFriction(float baseFriction) {
-        return (float)Math.pow(Math.E, (Math.log(baseFriction) / FRAMERATE_MULTIPLIER));
+    //  The values we use for friction are based on a 16.6ms frame, adjust them to currentNsPerFrame:
+    static float getFrameAdjustedFriction(float baseFriction, long currentNsPerFrame) {
+        float framerateMultiplier = (float)currentNsPerFrame / NS_PER_FRAME;
+        return (float)Math.pow(Math.E, (Math.log(baseFriction) / framerateMultiplier));
     }
 
     static void setPrefs(Map<String, Integer> prefs) {
-        FRICTION_SLOW = getFrameAdjustedFriction(getFloatPref(prefs, PREF_SCROLLING_FRICTION_SLOW, 850));
-        FRICTION_FAST = getFrameAdjustedFriction(getFloatPref(prefs, PREF_SCROLLING_FRICTION_FAST, 970));
+        FRICTION_SLOW = getFloatPref(prefs, PREF_SCROLLING_FRICTION_SLOW, 850);
+        FRICTION_FAST = getFloatPref(prefs, PREF_SCROLLING_FRICTION_FAST, 970);
         VELOCITY_THRESHOLD = 10 / FRAMERATE_MULTIPLIER;
         MAX_EVENT_ACCELERATION = getFloatPref(prefs, PREF_SCROLLING_MAX_EVENT_ACCELERATION, GoannaAppShell.getDpi() > 300 ? 100 : 40);
-        OVERSCROLL_DECEL_RATE = getFrameAdjustedFriction(getFloatPref(prefs, PREF_SCROLLING_OVERSCROLL_DECEL_RATE, 40));
+        OVERSCROLL_DECEL_RATE = getFloatPref(prefs, PREF_SCROLLING_OVERSCROLL_DECEL_RATE, 40);
         SNAP_LIMIT = getFloatPref(prefs, PREF_SCROLLING_OVERSCROLL_SNAP_LIMIT, 300);
         MIN_SCROLLABLE_DISTANCE = getFloatPref(prefs, PREF_SCROLLING_MIN_SCROLLABLE_DISTANCE, 500);
+        FLING_ACCEL_INTERVAL = getIntPref(prefs, PREF_FLING_ACCEL_INTERVAL, 500);
+        FLING_ACCEL_BASE_MULTIPLIER = getFloatPref(prefs, PREF_FLING_ACCEL_BASE_MULTIPLIER, 1000);
+        FLING_ACCEL_SUPPLEMENTAL_MULTIPLIER = getFloatPref(prefs, PREF_FLING_ACCEL_SUPPLEMENTAL_MULTIPLIER, 1000);
+        FLING_CURVE_FUNCTION_X1 = getFloatPref(prefs, PREF_FLING_CURVE_FUNCTION_X1, 410);
+        FLING_CURVE_FUNCTION_Y1 = getFloatPref(prefs, PREF_FLING_CURVE_FUNCTION_Y1, 0);
+        FLING_CURVE_FUNCTION_X2 = getFloatPref(prefs, PREF_FLING_CURVE_FUNCTION_X2, 800);
+        FLING_CURVE_FUNCTION_Y2 = getFloatPref(prefs, PREF_FLING_CURVE_FUNCTION_Y2, 1000);
+        FLING_CURVE_THRESHOLD_VELOCITY = getFloatPref(prefs, PREF_FLING_CURVE_THRESHOLD_VELOCITY, 30);
+        FLING_CURVE_MAXIMUM_VELOCITY = getFloatPref(prefs, PREF_FLING_CURVE_MAXIMUM_VELOCITY, 70);
+        FLING_CURVE_NEWTON_ITERATIONS = getIntPref(prefs, PREF_FLING_CURVE_NEWTON_ITERATIONS, 5);
+
         Log.i(LOGTAG, "Prefs: " + FRICTION_SLOW + "," + FRICTION_FAST + "," + VELOCITY_THRESHOLD + ","
                 + MAX_EVENT_ACCELERATION + "," + OVERSCROLL_DECEL_RATE + "," + SNAP_LIMIT + "," + MIN_SCROLLABLE_DISTANCE);
     }
@@ -133,11 +192,13 @@ abstract class Axis {
     private float mTouchPos;                /* Position of the most recent touch event on the current drag. */
     private float mLastTouchPos;            /* Position of the touch event before touchPos. */
     private float mVelocity;                /* Velocity in this direction; pixels per animation frame. */
-    private float[] mRecentVelocities;      /* Circular buffer of recent velocities since last touch start. */
+    private final float[] mRecentVelocities;/* Circular buffer of recent velocities since last touch start. */
     private int mRecentVelocityCount;       /* Number of values put into mRecentVelocities (unbounded). */
     private boolean mScrollingDisabled;     /* Whether movement on this axis is locked. */
     private boolean mDisableSnap;           /* Whether overscroll snapping is disabled. */
     private float mDisplacement;
+    private long mLastFlingTime;
+    private float mLastFlingVelocity;
 
     private FlingStates mFlingState = FlingStates.STOPPED; /* The fling state we're in on this axis. */
 
@@ -145,6 +206,8 @@ abstract class Axis {
     protected abstract float getViewportLength();
     protected abstract float getPageStart();
     protected abstract float getPageLength();
+    protected abstract float getMarginStart();
+    protected abstract float getMarginEnd();
     protected abstract boolean marginsHidden();
 
     Axis(SubdocumentScrollHelper subscroller) {
@@ -152,6 +215,10 @@ abstract class Axis {
         mOverscrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS;
         mRecentVelocities = new float[FLING_VELOCITY_POINTS];
     }
+
+    // Implementors can override these to show effects when the axis overscrolls
+    protected void overscrollFling(float velocity) { }
+    protected void overscrollPan(float displacement) { }
 
     public void setOverScrollMode(int overscrollMode) {
         mOverscrollMode = overscrollMode;
@@ -188,8 +255,57 @@ abstract class Axis {
         mLastTouchPos = mTouchPos;
     }
 
+    // Calculates and return the slope of the curve at given parameter t
+    float getSlope(float t) {
+        float y1 = FLING_CURVE_FUNCTION_Y1;
+        float y2 = FLING_CURVE_FUNCTION_Y2;
+
+        return (3 * y1)
+             + t * (6 * y2 - 12 * y1)
+             + t * t * (9 * y1 - 9 * y2 + 3);
+    }
+
+    // Calculates and returns the value of the bezier curve with the given parameter t and control points p1 and p2
+    float cubicBezier(float p1, float p2, float t) {
+        return (3 * t * (1-t) * (1-t) * p1)
+             + (3 * t * t * (1-t) * p2)
+             + (t * t * t);
+    }
+
+    // Responsible for mapping the physical velocity to a the velocity obtained after applying bezier curve (with control points (X1,Y1) and (X2,Y2))
+    float flingCurve(float By) {
+        int ni = FLING_CURVE_NEWTON_ITERATIONS;
+        float[] guess = new float[ni];
+        float y1 = FLING_CURVE_FUNCTION_Y1;
+        float y2 = FLING_CURVE_FUNCTION_Y2;
+        guess[0] = By;
+
+        for (int i = 1; i < ni; i++) {
+            guess[i] = guess[i-1] - (cubicBezier(y1, y2, guess[i-1]) - By) / getSlope(guess[i-1]);
+        }
+        // guess[4] is the final approximate root the cubic equation.
+        float t = guess[4];
+
+        float x1 = FLING_CURVE_FUNCTION_X1;
+        float x2 = FLING_CURVE_FUNCTION_X2;
+        return cubicBezier(x1, x2, t);
+    }
+
     void updateWithTouchAt(float pos, float timeDelta) {
+        float curveVelocityThreshold = FLING_CURVE_THRESHOLD_VELOCITY * GoannaAppShell.getDpi() * MS_PER_FRAME;
+        float maxVelocity = FLING_CURVE_MAXIMUM_VELOCITY * GoannaAppShell.getDpi() * MS_PER_FRAME;
+
         float newVelocity = (mTouchPos - pos) / timeDelta * MS_PER_FRAME;
+
+        if (Math.abs(newVelocity) > curveVelocityThreshold && Math.abs(newVelocity) < maxVelocity) {
+            float sign = Math.signum(newVelocity);
+            newVelocity = newVelocity * sign;
+            float scale = maxVelocity - curveVelocityThreshold;
+            float functInp = (newVelocity - curveVelocityThreshold) / scale;
+            float functOut = flingCurve(functInp);
+            newVelocity = functOut * scale + curveVelocityThreshold;
+            newVelocity = newVelocity * sign;
+        }
 
         mRecentVelocities[mRecentVelocityCount % FLING_VELOCITY_POINTS] = newVelocity;
         mRecentVelocityCount++;
@@ -302,19 +418,30 @@ abstract class Axis {
         return average / usablePoints;
     }
 
+    float accelerate(float velocity, float lastFlingVelocity){
+        return (FLING_ACCEL_BASE_MULTIPLIER * velocity + FLING_ACCEL_SUPPLEMENTAL_MULTIPLIER * lastFlingVelocity);
+    }
+
     void startFling(boolean stopped) {
         mDisableSnap = mSubscroller.scrolling();
 
         if (stopped) {
             mFlingState = FlingStates.STOPPED;
         } else {
+            long now = SystemClock.uptimeMillis();
             mVelocity = calculateFlingVelocity();
+
+            if ((now - mLastFlingTime < FLING_ACCEL_INTERVAL) && Math.signum(mVelocity) == Math.signum(mLastFlingVelocity)) {
+                mVelocity = accelerate(mVelocity, mLastFlingVelocity);
+            }
             mFlingState = FlingStates.FLINGING;
+            mLastFlingVelocity = mVelocity;
+            mLastFlingTime = now;
         }
     }
 
     /* Advances a fling animation by one step. */
-    boolean advanceFling() {
+    boolean advanceFling(long realNsPerFrame) {
         if (mFlingState != FlingStates.FLINGING) {
             return false;
         }
@@ -337,18 +464,20 @@ abstract class Axis {
         if (mDisableSnap || FloatUtils.fuzzyEquals(excess, 0.0f) || decreasingOverscroll) {
             // If we aren't overscrolled, just apply friction.
             if (Math.abs(mVelocity) >= VELOCITY_THRESHOLD) {
-                mVelocity *= FRICTION_FAST;
+                mVelocity *= getFrameAdjustedFriction(FRICTION_FAST, realNsPerFrame);
             } else {
                 float t = mVelocity / VELOCITY_THRESHOLD;
-                mVelocity *= FloatUtils.interpolate(FRICTION_SLOW, FRICTION_FAST, t);
+                mVelocity *= FloatUtils.interpolate(getFrameAdjustedFriction(FRICTION_SLOW, realNsPerFrame),
+                                                    getFrameAdjustedFriction(FRICTION_FAST, realNsPerFrame), t);
             }
         } else {
             // Otherwise, decrease the velocity linearly.
             float elasticity = 1.0f - excess / (getViewportLength() * SNAP_LIMIT);
+            float overscrollDecelRate = getFrameAdjustedFriction(OVERSCROLL_DECEL_RATE, realNsPerFrame);
             if (overscroll == Overscroll.MINUS) {
-                mVelocity = Math.min((mVelocity + OVERSCROLL_DECEL_RATE) * elasticity, 0.0f);
+                mVelocity = Math.min((mVelocity + overscrollDecelRate) * elasticity, 0.0f);
             } else { // must be Overscroll.PLUS
-                mVelocity = Math.max((mVelocity - OVERSCROLL_DECEL_RATE) * elasticity, 0.0f);
+                mVelocity = Math.max((mVelocity - overscrollDecelRate) * elasticity, 0.0f);
             }
         }
 
@@ -376,12 +505,22 @@ abstract class Axis {
         // getOverscroll which doesn't take into account any new displacment being applied.
         // If we using a subscroller, we don't want to alter the scrolling being done
         if (getOverScrollMode() == View.OVER_SCROLL_NEVER && !mSubscroller.scrolling()) {
-            if (mDisplacement + getOrigin() < getPageStart()) {
-                mDisplacement = getPageStart() - getOrigin();
-                stopFling();
-            } else if (mDisplacement + getViewportEnd() > getPageEnd()) {
-                mDisplacement = getPageEnd() - getViewportEnd();
-                stopFling();
+            float originalDisplacement = mDisplacement;
+
+            if (mDisplacement + getOrigin() < getPageStart() - getMarginStart()) {
+                mDisplacement = getPageStart() - getMarginStart() - getOrigin();
+            } else if (mDisplacement + getViewportEnd() > getPageEnd() + getMarginEnd()) {
+                mDisplacement = getPageEnd() - getMarginEnd() - getViewportEnd();
+            }
+
+            // Return the amount of overscroll so that the overscroll controller can draw it for us
+            if (originalDisplacement != mDisplacement) {
+                if (mFlingState == FlingStates.FLINGING) {
+                    overscrollFling(mVelocity / MS_PER_FRAME * 1000);
+                    stopFling();
+                } else if (mFlingState == FlingStates.PANNING) {
+                    overscrollPan(originalDisplacement - mDisplacement);
+                }
             }
         }
     }

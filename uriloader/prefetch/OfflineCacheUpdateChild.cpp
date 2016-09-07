@@ -34,6 +34,7 @@
 using namespace mozilla::ipc;
 using namespace mozilla::net;
 using mozilla::dom::TabChild;
+using mozilla::dom::ContentChild;
 
 #if defined(PR_LOGGING)
 //
@@ -47,8 +48,11 @@ using mozilla::dom::TabChild;
 //
 extern PRLogModuleInfo *gOfflineCacheUpdateLog;
 #endif
+
 #undef LOG
 #define LOG(args) PR_LOG(gOfflineCacheUpdateLog, 4, args)
+
+#undef LOG_ENABLED
 #define LOG_ENABLED() PR_LOG_TEST(gOfflineCacheUpdateLog, 4)
 
 namespace mozilla {
@@ -64,18 +68,7 @@ NS_INTERFACE_MAP_BEGIN(OfflineCacheUpdateChild)
 NS_INTERFACE_MAP_END
 
 NS_IMPL_ADDREF(OfflineCacheUpdateChild)
-NS_IMPL_RELEASE_WITH_DESTROY(OfflineCacheUpdateChild, RefcountHitZero())
-
-void
-OfflineCacheUpdateChild::RefcountHitZero()
-{
-    if (mIPCActivated) {
-        // ContentChild::DeallocPOfflineCacheUpdate will delete this
-        OfflineCacheUpdateChild::Send__delete__(this);
-    } else {
-        delete this;    // we never opened IPDL channel
-    }
-}
+NS_IMPL_RELEASE(OfflineCacheUpdateChild)
 
 //-----------------------------------------------------------------------------
 // OfflineCacheUpdateChild <public>
@@ -84,7 +77,6 @@ OfflineCacheUpdateChild::RefcountHitZero()
 OfflineCacheUpdateChild::OfflineCacheUpdateChild(nsIDOMWindow* aWindow)
     : mState(STATE_UNINITIALIZED)
     , mIsUpgrade(false)
-    , mIPCActivated(false)
     , mAppID(NECKO_NO_APP_ID)
     , mInBrowser(false)
     , mWindow(aWindow)
@@ -442,11 +434,12 @@ OfflineCacheUpdateChild::Schedule()
     // Need to addref ourself here, because the IPC stack doesn't hold
     // a reference to us. Will be released in RecvFinish() that identifies 
     // the work has been done.
-    child->SendPOfflineCacheUpdateConstructor(this, manifestURI, documentURI,
-                                              stickDocument);
+    ContentChild::GetSingleton()->SendPOfflineCacheUpdateConstructor(
+        this, manifestURI, documentURI,
+        stickDocument, child->GetTabId());
 
-    mIPCActivated = true;
-    this->AddRef();
+    // ContentChild::DeallocPOfflineCacheUpdate will release this.
+    NS_ADDREF_THIS();
 
     return NS_OK;
 }
@@ -534,7 +527,8 @@ OfflineCacheUpdateChild::RecvFinish(const bool &succeeded,
 
     // This is by contract the last notification from the parent, release
     // us now. This is corresponding to AddRef in Schedule().
-    this->Release();
+    // TabChild::DeallocPOfflineCacheUpdate will call Release.
+    OfflineCacheUpdateChild::Send__delete__(this);
 
     return true;
 }

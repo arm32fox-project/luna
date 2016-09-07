@@ -16,12 +16,13 @@
  * http://www.whatwg.org/specs/web-apps/current-work/
  */
 
-[scriptable, uuid(98c38ca0-5e3a-4c71-90a4-69d12a3c8d16)]
-interface nsIDOMHTMLImageElement : nsIDOMHTMLElement
+[uuid(ec18e71c-4f5c-4cc3-aa36-5273168644dc)]
+interface nsIDOMHTMLImageElement : nsISupports
 {
            attribute DOMString        alt;
            attribute DOMString        src;
-           attribute DOMString        crossOrigin;
+           attribute DOMString        srcset;
+           attribute DOMString        sizes;
            attribute DOMString        useMap;
            attribute boolean          isMap;
            attribute unsigned long    width;
@@ -34,10 +35,12 @@ interface nsIDOMHTMLImageElement : nsIDOMHTMLElement
            attribute DOMString        name;
            attribute DOMString        align;
            attribute DOMString        border;
-           attribute long             hspace;       
+           attribute long             hspace;
            attribute DOMString        longDesc;
            attribute long             vspace;
            attribute DOMString        lowsrc;
+
+  readonly attribute DOMString        currentSrc;
 
   // These attributes are offsets from the closest view (to mimic
   // NS4's "offset-from-layer" behavior).

@@ -5,13 +5,13 @@
 
 package org.mozilla.goanna;
 
-import org.mozilla.goanna.db.BrowserDB;
 import org.mozilla.goanna.gfx.BitmapUtils;
-import org.mozilla.goanna.gfx.IntSize;
 import org.mozilla.goanna.mozglue.DirectBufferAllocator;
+import org.mozilla.goanna.mozglue.generatorannotations.WrapElementForJNI;
 
 import android.graphics.Bitmap;
 import android.util.Log;
+import android.content.res.Resources;
 
 import java.nio.ByteBuffer;
 import java.util.LinkedList;
@@ -29,7 +29,15 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class ThumbnailHelper {
     private static final String LOGTAG = "GoannaThumbnailHelper";
 
-    public static final float THUMBNAIL_ASPECT_RATIO = 0.714f;  // this is a 5:7 ratio (as per UX decision)
+    public static final float THUMBNAIL_ASPECT_RATIO = 0.571f;  // this is a 4:7 ratio (as per UX decision)
+
+    // Should actually be more like 0.83 (140/168) but various roundings mean that 0.9 works better
+    public static final float NEW_TABLET_THUMBNAIL_ASPECT_RATIO = 0.9f;
+
+    public static enum CachePolicy {
+        STORE,
+        NO_STORE
+    }
 
     // static singleton stuff
 
@@ -52,25 +60,16 @@ public final class ThumbnailHelper {
 
     private ThumbnailHelper() {
         mPendingThumbnails = new LinkedList<Tab>();
-        mPendingWidth = new AtomicInteger((int)GoannaAppShell.getContext().getResources().getDimension(R.dimen.tab_thumbnail_width));
+        try {
+            mPendingWidth = new AtomicInteger((int)GoannaAppShell.getContext().getResources().getDimension(R.dimen.tab_thumbnail_width));
+        } catch (Resources.NotFoundException nfe) { mPendingWidth = new AtomicInteger(0); }
         mWidth = -1;
         mHeight = -1;
     }
 
     public void getAndProcessThumbnailFor(Tab tab) {
-        if ("about:home".equals(tab.getURL())) {
-            tab.updateThumbnail(null);
-            return;
-        }
-
-        if (tab.getState() == Tab.STATE_DELAYED) {
-            String url = tab.getURL();
-            if (url != null) {
-                byte[] thumbnail = BrowserDB.getThumbnailForUrl(GoannaAppShell.getContext().getContentResolver(), url);
-                if (thumbnail != null) {
-                    setTabThumbnail(tab, null, thumbnail);
-                }
-            }
+        if (AboutPages.isAboutHome(tab.getURL())) {
+            tab.updateThumbnail(null, CachePolicy.NO_STORE);
             return;
         }
 
@@ -95,17 +94,28 @@ public final class ThumbnailHelper {
     }
 
     public void setThumbnailWidth(int width) {
-        mPendingWidth.set(IntSize.nextPowerOfTwo(width));
+        // Check inverted for safety: Bug 803299 Comment 34.
+        if (GoannaAppShell.getScreenDepth() == 24) {
+            mPendingWidth.set(width);
+        } else {
+            // Bug 776906: on 16-bit screens we need to ensure an even width.
+            mPendingWidth.set((width & 1) == 0 ? width : width + 1);
+        }
     }
 
     private void updateThumbnailSize() {
-        // Apply any pending width updates
+        // Apply any pending width updates.
         mWidth = mPendingWidth.get();
 
-        mWidth &= ~0x1; // Ensure the width is always an even number (bug 776906)
-        mHeight = Math.round(mWidth * THUMBNAIL_ASPECT_RATIO);
+        if(NewTabletUI.isEnabled(GoannaAppShell.getContext())) {
+            mHeight = Math.round(mWidth * NEW_TABLET_THUMBNAIL_ASPECT_RATIO);
+        } else {
+            mHeight = Math.round(mWidth * THUMBNAIL_ASPECT_RATIO);
+        }
 
-        int capacity = mWidth * mHeight * 2; // Multiply by 2 for 16bpp
+        int pixelSize = (GoannaAppShell.getScreenDepth() == 24) ? 4 : 2;
+        int capacity = mWidth * mHeight * pixelSize;
+        Log.d(LOGTAG, "Using new thumbnail size: " + capacity + " (width " + mWidth + " - height " + mHeight + ")");
         if (mBuffer == null || mBuffer.capacity() != capacity) {
             if (mBuffer != null) {
                 mBuffer = DirectBufferAllocator.free(mBuffer);
@@ -137,16 +147,18 @@ public final class ThumbnailHelper {
             return;
         }
 
+        Log.d(LOGTAG, "Sending thumbnail event: " + mWidth + ", " + mHeight);
         GoannaEvent e = GoannaEvent.createThumbnailEvent(tab.getId(), mWidth, mHeight, mBuffer);
         GoannaAppShell.sendEventToGoanna(e);
     }
 
     /* This method is invoked by JNI once the thumbnail data is ready. */
-    public static void notifyThumbnail(ByteBuffer data, int tabId, boolean success) {
+    @WrapElementForJNI(stubName = "SendThumbnail")
+    public static void notifyThumbnail(ByteBuffer data, int tabId, boolean success, boolean shouldStore) {
         Tab tab = Tabs.getInstance().getTab(tabId);
         ThumbnailHelper helper = ThumbnailHelper.getInstance();
         if (success && tab != null) {
-            helper.handleThumbnailData(tab, data);
+            helper.handleThumbnailData(tab, data, shouldStore ? CachePolicy.STORE : CachePolicy.NO_STORE);
         }
         helper.processNextThumbnail(tab);
     }
@@ -168,25 +180,26 @@ public final class ThumbnailHelper {
         }
     }
 
-    private void handleThumbnailData(Tab tab, ByteBuffer data) {
+    private void handleThumbnailData(Tab tab, ByteBuffer data, CachePolicy cachePolicy) {
+        Log.d(LOGTAG, "handleThumbnailData: " + data.capacity());
         if (data != mBuffer) {
             // This should never happen, but log it and recover gracefully
             Log.e(LOGTAG, "handleThumbnailData called with an unexpected ByteBuffer!");
         }
 
         if (shouldUpdateThumbnail(tab)) {
-            processThumbnailData(tab, data);
+            processThumbnailData(tab, data, cachePolicy);
         }
     }
 
-    private void processThumbnailData(Tab tab, ByteBuffer data) {
+    private void processThumbnailData(Tab tab, ByteBuffer data, CachePolicy cachePolicy) {
         Bitmap b = tab.getThumbnailBitmap(mWidth, mHeight);
         data.position(0);
         b.copyPixelsFromBuffer(data);
-        setTabThumbnail(tab, b, null);
+        setTabThumbnail(tab, b, null, cachePolicy);
     }
 
-    private void setTabThumbnail(Tab tab, Bitmap bitmap, byte[] compressed) {
+    private void setTabThumbnail(Tab tab, Bitmap bitmap, byte[] compressed, CachePolicy cachePolicy) {
         if (bitmap == null) {
             if (compressed == null) {
                 Log.w(LOGTAG, "setTabThumbnail: one of bitmap or compressed must be non-null!");
@@ -194,7 +207,7 @@ public final class ThumbnailHelper {
             }
             bitmap = BitmapUtils.decodeByteArray(compressed);
         }
-        tab.updateThumbnail(bitmap);
+        tab.updateThumbnail(bitmap, cachePolicy);
     }
 
     private boolean shouldUpdateThumbnail(Tab tab) {

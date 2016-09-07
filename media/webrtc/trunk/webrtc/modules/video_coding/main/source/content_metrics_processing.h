@@ -11,7 +11,7 @@
 #ifndef WEBRTC_MODULES_VIDEO_CODING_CONTENT_METRICS_PROCESSING_H_
 #define WEBRTC_MODULES_VIDEO_CODING_CONTENT_METRICS_PROCESSING_H_
 
-#include "typedefs.h"
+#include "webrtc/typedefs.h"
 
 namespace webrtc {
 
@@ -45,7 +45,7 @@ class VCMContentMetricsProcessing {
   int Reset();
 
   // Inform class of current frame rate.
-  void UpdateFrameRate(uint32_t frameRate);
+  void UpdateFrameRate(float frameRate);
 
   // Returns the long-term averaged content data: recursive average over longer
   // time scale.

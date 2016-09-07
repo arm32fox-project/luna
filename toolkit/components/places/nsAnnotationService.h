@@ -20,7 +20,7 @@
 namespace mozilla {
 namespace places {
 
-class AnnotatedResult MOZ_FINAL : public mozIAnnotatedResult
+class AnnotatedResult final : public mozIAnnotatedResult
 {
 public:
   NS_DECL_ISUPPORTS
@@ -31,6 +31,8 @@ public:
                   nsIVariant* aAnnotationValue);
 
 private:
+  ~AnnotatedResult();
+
   const nsCString mGUID;
   nsCOMPtr<nsIURI> mURI;
   const int64_t mItemId;
@@ -41,7 +43,7 @@ private:
 } // namespace places
 } // namespace mozilla
 
-class nsAnnotationService MOZ_FINAL : public nsIAnnotationService
+class nsAnnotationService final : public nsIAnnotationService
                                     , public nsIObserver
                                     , public nsSupportsWeakReference
 {
@@ -92,7 +94,6 @@ protected:
   static const int kAnnoIndex_ID;
   static const int kAnnoIndex_PageOrItem;
   static const int kAnnoIndex_NameID;
-  static const int kAnnoIndex_MimeType;
   static const int kAnnoIndex_Content;
   static const int kAnnoIndex_Flags;
   static const int kAnnoIndex_Expiration;
@@ -140,14 +141,6 @@ protected:
                                        int64_t aItemId,
                                        const nsACString& aName,
                                        double aValue,
-                                       int32_t aFlags,
-                                       uint16_t aExpiration);
-  nsresult SetAnnotationBinaryInternal(nsIURI* aURI,
-                                       int64_t aItemId,
-                                       const nsACString& aName,
-                                       const uint8_t* aData,
-                                       uint32_t aDataLen,
-                                       const nsACString& aMimeType,
                                        int32_t aFlags,
                                        uint16_t aExpiration);
 

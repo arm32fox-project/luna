@@ -18,7 +18,10 @@ XPCOMUtils.defineLazyGetter(this, "Sanitizer", function () {
  * be removed when the user sanitizes their history.
  */
 function runTests() {
+  dontExpireThumbnailURLs([URL, URL_COPY]);
+
   yield clearHistory();
+  yield addVisitsAndRepopulateNewTabLinks(URL, next);
   yield createThumbnail();
 
   // Make sure Storage.copy() updates an existing file.
@@ -39,6 +42,7 @@ function runTests() {
     yield clearHistory();
   }
 
+  yield addVisitsAndRepopulateNewTabLinks(URL, next);
   yield createThumbnail();
 
   // Clear the last 10 minutes of browsing history.
@@ -49,17 +53,17 @@ function runTests() {
 }
 
 function clearFile(aFile, aURL) {
-  if (aFile.exists())
+  if (aFile.exists()) {
     // Re-add our URL to the history so that history observer's onDeleteURI()
     // is called again.
-    addVisits(makeURI(aURL), function() {
+    PlacesTestUtils.addVisits(makeURI(aURL)).then(() => {
       // Try again...
-      yield clearHistory(true);
-      clearFile(aFile, aURL);
+      clearHistory(true, () => clearFile(aFile, aURL));
     });
+  }
 }
 
-function clearHistory(aUseRange) {
+function clearHistory(aUseRange, aCallback = next) {
   let s = new Sanitizer();
   s.prefDomain = "privacy.cpd.";
 
@@ -84,7 +88,7 @@ function clearHistory(aUseRange) {
   s.range = null;
   s.ignoreTimespan = true;
 
-  executeSoon(next);
+  executeSoon(aCallback);
 }
 
 function createThumbnail() {

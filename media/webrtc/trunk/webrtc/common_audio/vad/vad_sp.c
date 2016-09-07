@@ -8,13 +8,13 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "common_audio/vad/vad_sp.h"
+#include "webrtc/common_audio/vad/vad_sp.h"
 
 #include <assert.h>
 
-#include "common_audio/signal_processing/include/signal_processing_library.h"
-#include "common_audio/vad/vad_core.h"
-#include "typedefs.h"
+#include "webrtc/common_audio/signal_processing/include/signal_processing_library.h"
+#include "webrtc/common_audio/vad/vad_core.h"
+#include "webrtc/typedefs.h"
 
 // Allpass filter coefficients, upper and lower, in Q13.
 // Upper: 0.64, Lower: 0.17.
@@ -24,7 +24,7 @@ static const int16_t kSmoothingUp = 32439;  // 0.99 in Q15.
 
 // TODO(bjornv): Move this function to vad_filterbank.c.
 // Downsampling filter based on splitting filter and allpass functions.
-void WebRtcVad_Downsampling(int16_t* signal_in,
+void WebRtcVad_Downsampling(const int16_t* signal_in,
                             int16_t* signal_out,
                             int32_t* filter_state,
                             int in_length) {

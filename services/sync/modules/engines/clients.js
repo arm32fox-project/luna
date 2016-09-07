@@ -18,6 +18,8 @@ Cu.import("resource://services-sync/util.js");
 const CLIENTS_TTL = 1814400; // 21 days
 const CLIENTS_TTL_REFRESH = 604800; // 7 days
 
+const SUPPORTED_PROTOCOL_VERSIONS = ["1.1", "1.5"];
+
 this.ClientsRec = function ClientsRec(collection, id) {
   CryptoWrapper.call(this, collection, id);
 }
@@ -27,7 +29,11 @@ ClientsRec.prototype = {
   ttl: CLIENTS_TTL
 };
 
-Utils.deferGetSet(ClientsRec, "cleartext", ["name", "type", "commands"]);
+Utils.deferGetSet(ClientsRec,
+                  "cleartext",
+                  ["name", "type", "commands",
+                   "version", "protocols",
+                   "formfactor", "os", "appPackage", "application", "device"]);
 
 
 this.ClientEngine = function ClientEngine(service) {
@@ -69,6 +75,28 @@ ClientEngine.prototype = {
     return stats;
   },
 
+  /**
+   * Obtain information about device types.
+   *
+   * Returns a Map of device types to integer counts.
+   */
+  get deviceTypes() {
+    let counts = new Map();
+
+    counts.set(this.localType, 1);
+
+    for each (let record in this._store._remoteClients) {
+      let type = record.type;
+      if (!counts.has(type)) {
+        counts.set(type, 0);
+      }
+
+      counts.set(type, counts.get(type) + 1);
+    }
+
+    return counts;
+  },
+
   get localID() {
     // Generate a random GUID id we don't have one
     let localID = Svc.Prefs.get("client.GUID", "");
@@ -76,35 +104,17 @@ ClientEngine.prototype = {
   },
   set localID(value) Svc.Prefs.set("client.GUID", value),
 
+  get brandName() {
+    let brand = new StringBundle("chrome://branding/locale/brand.properties");
+    return brand.get("brandShortName");
+  },
+
   get localName() {
     let localName = Svc.Prefs.get("client.name", "");
     if (localName != "")
       return localName;
 
-    // Generate a client name if we don't have a useful one yet
-    let env = Cc["@mozilla.org/process/environment;1"]
-                .getService(Ci.nsIEnvironment);
-    let user = env.get("USER") || env.get("USERNAME") ||
-               Svc.Prefs.get("account") || Svc.Prefs.get("username");
-
-    let appName;
-    let brand = new StringBundle("chrome://branding/locale/brand.properties");
-    let brandName = brand.get("brandShortName");
-    try {
-      let syncStrings = new StringBundle("chrome://browser/locale/sync.properties");
-      appName = syncStrings.getFormattedString("sync.defaultAccountApplication", [brandName]);
-    } catch (ex) {}
-    appName = appName || brandName;
-
-    let system =
-      // 'device' is defined on unix systems
-      Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2).get("device") ||
-      // hostname of the system, usually assigned by the user or admin
-      Cc["@mozilla.org/system-info;1"].getService(Ci.nsIPropertyBag2).get("host") ||
-      // fall back on ua info string
-      Cc["@mozilla.org/network/protocol;1?name=http"].getService(Ci.nsIHttpProtocolHandler).oscpu;
-
-    return this.localName = Str.sync.get("client.name2", [user, appName, system]);
+    return this.localName = Utils.getDefaultDeviceName();
   },
   set localName(value) Svc.Prefs.set("client.name", value),
 
@@ -132,7 +142,9 @@ ClientEngine.prototype = {
   },
 
   // Treat reset the same as wiping for locally cached clients
-  _resetClient: function _resetClient() this._wipeClient(),
+  _resetClient() {
+    this._wipeClient();
+  },
 
   _wipeClient: function _wipeClient() {
     SyncEngine.prototype._resetClient.call(this);
@@ -236,7 +248,7 @@ ClientEngine.prototype = {
       this.clearCommands();
 
       // Process each command in order.
-      for each ({command: command, args: args} in commands) {
+      for each (let {command, args} in commands) {
         this._log.debug("Processing command: " + command + "(" + args + ")");
 
         let engines = [args[0]];
@@ -368,7 +380,9 @@ function ClientStore(name, engine) {
 ClientStore.prototype = {
   __proto__: Store.prototype,
 
-  create: function create(record) this.update(record),
+  create(record) {
+    this.update(record)
+  },
 
   update: function update(record) {
     // Only grab commands from the server; local name/type always wins
@@ -386,14 +400,27 @@ ClientStore.prototype = {
       record.name = this.engine.localName;
       record.type = this.engine.localType;
       record.commands = this.engine.localCommands;
-    }
-    else
+      record.version = Services.appinfo.version;
+      record.protocols = SUPPORTED_PROTOCOL_VERSIONS;
+
+      // Optional fields.
+      record.os = Services.appinfo.OS;             // "Darwin"
+      record.appPackage = Services.appinfo.ID;
+      record.application = this.engine.brandName   // "Nightly"
+
+      // We can't compute these yet.
+      // record.device = "";            // Bug 1100723
+      // record.formfactor = "";        // Bug 1100722
+    } else {
       record.cleartext = this._remoteClients[id];
+    }
 
     return record;
   },
 
-  itemExists: function itemExists(id) id in this.getAllIDs(),
+  itemExists(id) {
+    return id in this.getAllIDs();
+  },
 
   getAllIDs: function getAllIDs() {
     let ids = {};

@@ -7,81 +7,84 @@
 #ifndef jit_CompileInfo_inl_h
 #define jit_CompileInfo_inl_h
 
-#include "CompileInfo.h"
-#include "jsgcinlines.h"
+#include "jit/CompileInfo.h"
+#include "jit/JitAllocPolicy.h"
+
 #include "jsscriptinlines.h"
 
-using namespace js;
-using namespace jit;
+namespace js {
+namespace jit {
 
-CompileInfo::CompileInfo(JSScript *script, JSFunction *fun, jsbytecode *osrPc, bool constructing,
-                         ExecutionMode executionMode)
-  : script_(script), fun_(fun), osrPc_(osrPc), constructing_(constructing),
-    executionMode_(executionMode)
+inline RegExpObject*
+CompileInfo::getRegExp(jsbytecode* pc) const
 {
-    JS_ASSERT_IF(osrPc, JSOp(*osrPc) == JSOP_LOOPENTRY);
-
-    // The function here can flow in from anywhere so look up the canonical function to ensure that
-    // we do not try to embed a nursery pointer in jit-code.
-    if (fun_) {
-        fun_ = fun_->nonLazyScript()->function();
-        JS_ASSERT(fun_->isTenured());
-    }
-
-    nimplicit_ = StartArgSlot(script, fun)              /* scope chain and argument obj */
-               + (fun ? 1 : 0);                         /* this */
-    nargs_ = fun ? fun->nargs : 0;
-    nlocals_ = script->nfixed;
-    nstack_ = script->nslots - script->nfixed;
-    nslots_ = nimplicit_ + nargs_ + nlocals_ + nstack_;
+    return script_->getRegExp(pc);
 }
 
-const char *
-CompileInfo::filename() const
-{
-    return script_->filename();
-}
-
-JSAtom *
-CompileInfo::getAtom(jsbytecode *pc) const
-{
-    return script_->getAtom(GET_UINT32_INDEX(pc));
-}
-
-PropertyName *
-CompileInfo::getName(jsbytecode *pc) const
-{
-    return script_->getName(GET_UINT32_INDEX(pc));
-}
-
-RegExpObject *
-CompileInfo::getRegExp(jsbytecode *pc) const
-{
-    return script_->getRegExp(GET_UINT32_INDEX(pc));
-}
-
-JSFunction *
-CompileInfo::getFunction(jsbytecode *pc) const
+inline JSFunction*
+CompileInfo::getFunction(jsbytecode* pc) const
 {
     return script_->getFunction(GET_UINT32_INDEX(pc));
 }
 
-JSObject *
-CompileInfo::getObject(jsbytecode *pc) const
+InlineScriptTree*
+InlineScriptTree::New(TempAllocator* allocator, InlineScriptTree* callerTree,
+                      jsbytecode* callerPc, JSScript* script)
 {
-    return script_->getObject(GET_UINT32_INDEX(pc));
+    MOZ_ASSERT_IF(!callerTree, !callerPc);
+    MOZ_ASSERT_IF(callerTree, callerTree->script()->containsPC(callerPc));
+
+    // Allocate a new InlineScriptTree
+    void* treeMem = allocator->allocate(sizeof(InlineScriptTree));
+    if (!treeMem)
+        return nullptr;
+
+    // Initialize it.
+    return new (treeMem) InlineScriptTree(callerTree, callerPc, script);
 }
 
-const Value &
-CompileInfo::getConst(jsbytecode *pc) const
+InlineScriptTree*
+InlineScriptTree::addCallee(TempAllocator* allocator, jsbytecode* callerPc,
+                            JSScript* calleeScript)
 {
-    return script_->getConst(GET_UINT32_INDEX(pc));
+    MOZ_ASSERT(script_ && script_->containsPC(callerPc));
+    InlineScriptTree* calleeTree = New(allocator, this, callerPc, calleeScript);
+    if (!calleeTree)
+        return nullptr;
+
+    calleeTree->nextCallee_ = children_;
+    children_ = calleeTree;
+    return calleeTree;
 }
 
-jssrcnote *
-CompileInfo::getNote(JSContext *cx, jsbytecode *pc) const
+static inline const char*
+AnalysisModeString(AnalysisMode mode)
 {
-    return js_GetSrcNote(cx, script(), pc);
+    switch (mode) {
+      case Analysis_None:
+        return "Analysis_None";
+      case Analysis_DefiniteProperties:
+        return "Analysis_DefiniteProperties";
+      case Analysis_ArgumentsUsage:
+        return "Analysis_ArgumentsUsage";
+      default:
+        MOZ_CRASH("Invalid AnalysisMode");
+    }
 }
+
+static inline bool
+CanIonCompile(JSScript* script, AnalysisMode mode)
+{
+    switch (mode) {
+      case Analysis_None: return script->canIonCompile();
+      case Analysis_DefiniteProperties: return true;
+      case Analysis_ArgumentsUsage: return true;
+      default:;
+    }
+    MOZ_CRASH("Invalid AnalysisMode");
+}
+
+} // namespace jit
+} // namespace js
 
 #endif /* jit_CompileInfo_inl_h */

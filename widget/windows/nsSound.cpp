@@ -16,6 +16,7 @@
 #include "nsSound.h"
 #include "nsIURL.h"
 #include "nsNetUtil.h"
+#include "nsContentUtils.h"
 #include "nsCRT.h"
 
 #include "prlog.h"
@@ -24,6 +25,7 @@
 #include "prmem.h"
 
 #include "nsNativeCharsetUtils.h"
+#include "nsThreadUtils.h"
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* gWin32SoundLog = nullptr;
@@ -77,7 +79,8 @@ nsSoundPlayer::Run()
   PR_SetCurrentThreadName("Play Sound");
 
   NS_PRECONDITION(!mSoundName.IsEmpty(), "Sound name should not be empty");
-  ::PlaySoundW(mSoundName.get(), NULL, SND_NODEFAULT | SND_ALIAS | SND_ASYNC);
+  ::PlaySoundW(mSoundName.get(), nullptr,
+               SND_NODEFAULT | SND_ALIAS | SND_ASYNC);
   nsCOMPtr<nsIRunnable> releaser = new SoundReleaser(mSound);
   // Don't release nsSound from here, because here is not an owning thread of
   // the nsSound. nsSound must be released in its owning thread.
@@ -100,7 +103,7 @@ nsSoundPlayer::SoundReleaser::Run()
 #define SND_PURGE 0
 #endif
 
-NS_IMPL_ISUPPORTS2(nsSound, nsISound, nsIStreamLoaderObserver)
+NS_IMPL_ISUPPORTS(nsSound, nsISound, nsIStreamLoaderObserver)
 
 
 nsSound::nsSound()
@@ -207,8 +210,12 @@ NS_IMETHODIMP nsSound::Play(nsIURL *aURL)
 #endif
 
   nsCOMPtr<nsIStreamLoader> loader;
-  rv = NS_NewStreamLoader(getter_AddRefs(loader), aURL, this);
-
+  rv = NS_NewStreamLoader(getter_AddRefs(loader),
+                          aURL,
+                          this, // aObserver
+                          nsContentUtils::GetSystemPrincipal(),
+                          nsILoadInfo::SEC_NORMAL,
+                          nsIContentPolicy::TYPE_OTHER);
   return rv;
 }
 

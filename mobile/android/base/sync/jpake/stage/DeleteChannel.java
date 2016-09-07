@@ -9,6 +9,7 @@ import java.net.URISyntaxException;
 import java.security.GeneralSecurityException;
 
 import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.SyncConstants;
 import org.mozilla.goanna.sync.jpake.JPakeClient;
 import org.mozilla.goanna.sync.net.BaseResource;
 import org.mozilla.goanna.sync.net.BaseResourceDelegate;
@@ -36,6 +37,10 @@ public class DeleteChannel {
       return;
     }
     httpResource.delegate = new BaseResourceDelegate(httpResource) {
+      @Override
+      public String getUserAgent() {
+        return SyncConstants.USER_AGENT;
+      }
 
       @Override
       public void addHeaders(HttpRequestBase request, DefaultHttpClient client) {

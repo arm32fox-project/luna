@@ -89,17 +89,17 @@ const mozilla::EmptyLog& operator <<(const mozilla::EmptyLog& log, const T&)
 }
 
 #ifdef NO_CHROMIUM_LOGGING
-#define LOG(info) std::stringstream()
+#define CHROMIUM_LOG(info) std::stringstream()
 #define LOG_IF(info, condition) if (!(condition)) std::stringstream()
 #else
-#define LOG(info) mozilla::LogWrapper(mozilla::LOG_ ## info, __FILE__, __LINE__)
+#define CHROMIUM_LOG(info) mozilla::LogWrapper(mozilla::LOG_ ## info, __FILE__, __LINE__)
 #define LOG_IF(info, condition) \
   if (!(condition)) mozilla::LogWrapper(mozilla::LOG_ ## info, __FILE__, __LINE__)
 #endif
 
 
 #ifdef DEBUG
-#define DLOG(info) LOG(info)
+#define DLOG(info) CHROMIUM_LOG(info)
 #define DLOG_IF(info) LOG_IF(info)
 #define DCHECK(condition) CHECK(condition)
 #else
@@ -108,12 +108,14 @@ const mozilla::EmptyLog& operator <<(const mozilla::EmptyLog& log, const T&)
 #define DCHECK(condition) while (false && (condition)) mozilla::EmptyLog()
 #endif
 
+#undef LOG_ASSERT
 #define LOG_ASSERT(cond) CHECK(0)
 #define DLOG_ASSERT(cond) DCHECK(0)
 
-#define NOTREACHED() LOG(ERROR)
-#define NOTIMPLEMENTED() LOG(ERROR)
+#define NOTREACHED() CHROMIUM_LOG(ERROR)
+#define NOTIMPLEMENTED() CHROMIUM_LOG(ERROR)
 
+#undef CHECK
 #define CHECK(condition) LOG_IF(FATAL, condition)
 
 #define DCHECK_EQ(v1, v2) DCHECK((v1) == (v2))

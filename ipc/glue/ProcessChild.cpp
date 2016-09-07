@@ -20,14 +20,14 @@ ProcessChild::ProcessChild(ProcessHandle parentHandle)
   , mUILoop(MessageLoop::current())
   , mParentHandle(parentHandle)
 {
-  NS_ABORT_IF_FALSE(mUILoop, "UILoop should be created by now");
-  NS_ABORT_IF_FALSE(!gProcessChild, "should only be one ProcessChild");
+  MOZ_ASSERT(mUILoop, "UILoop should be created by now");
+  MOZ_ASSERT(!gProcessChild, "should only be one ProcessChild");
   gProcessChild = this;
 }
 
 ProcessChild::~ProcessChild()
 {
-  gProcessChild = NULL;
+  gProcessChild = nullptr;
 }
 
 } // namespace ipc

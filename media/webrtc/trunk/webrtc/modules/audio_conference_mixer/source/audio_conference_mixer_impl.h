@@ -11,18 +11,23 @@
 #ifndef WEBRTC_MODULES_AUDIO_CONFERENCE_MIXER_SOURCE_AUDIO_CONFERENCE_MIXER_IMPL_H_
 #define WEBRTC_MODULES_AUDIO_CONFERENCE_MIXER_SOURCE_AUDIO_CONFERENCE_MIXER_IMPL_H_
 
-#include "audio_conference_mixer.h"
-#include "engine_configurations.h"
-#include "level_indicator.h"
-#include "list_wrapper.h"
-#include "memory_pool.h"
-#include "module_common_types.h"
-#include "scoped_ptr.h"
-#include "time_scheduler.h"
+#include <list>
+#include <map>
+
+#include "webrtc/engine_configurations.h"
+#include "webrtc/modules/audio_conference_mixer/interface/audio_conference_mixer.h"
+#include "webrtc/modules/audio_conference_mixer/source/level_indicator.h"
+#include "webrtc/modules/audio_conference_mixer/source/memory_pool.h"
+#include "webrtc/modules/audio_conference_mixer/source/time_scheduler.h"
+#include "webrtc/modules/interface/module_common_types.h"
+#include "webrtc/system_wrappers/interface/scoped_ptr.h"
 
 namespace webrtc {
 class AudioProcessing;
 class CriticalSectionWrapper;
+
+typedef std::list<AudioFrame*> AudioFrameList;
+typedef std::list<MixerParticipant*> MixerParticipantList;
 
 // Cheshire cat implementation of MixerParticipant's non virtual functions.
 class MixHistory
@@ -32,14 +37,14 @@ public:
     ~MixHistory();
 
     // MixerParticipant function
-    WebRtc_Word32 IsMixed(bool& mixed) const;
+    int32_t IsMixed(bool& mixed) const;
 
     // Sets wasMixed to true if the participant was mixed previous mix
     // iteration.
-    WebRtc_Word32 WasMixed(bool& wasMixed) const;
+    int32_t WasMixed(bool& wasMixed) const;
 
     // Updates the mixed status.
-    WebRtc_Word32 SetIsMixed(const bool mixed);
+    int32_t SetIsMixed(const bool mixed);
 
     void ResetMixedStatus();
 private:
@@ -59,37 +64,33 @@ public:
     bool Init();
 
     // Module functions
-    virtual WebRtc_Word32 ChangeUniqueId(const WebRtc_Word32 id);
-    virtual WebRtc_Word32 TimeUntilNextProcess();
-    virtual WebRtc_Word32 Process();
+    virtual int32_t ChangeUniqueId(const int32_t id) OVERRIDE;
+    virtual int32_t TimeUntilNextProcess() OVERRIDE;
+    virtual int32_t Process() OVERRIDE;
 
     // AudioConferenceMixer functions
-    virtual WebRtc_Word32 RegisterMixedStreamCallback(
-        AudioMixerOutputReceiver& mixReceiver);
-    virtual WebRtc_Word32 UnRegisterMixedStreamCallback();
-    virtual WebRtc_Word32 RegisterMixerStatusCallback(
+    virtual int32_t RegisterMixedStreamCallback(
+        AudioMixerOutputReceiver& mixReceiver) OVERRIDE;
+    virtual int32_t UnRegisterMixedStreamCallback() OVERRIDE;
+    virtual int32_t RegisterMixerStatusCallback(
         AudioMixerStatusReceiver& mixerStatusCallback,
-        const WebRtc_UWord32 amountOf10MsBetweenCallbacks);
-    virtual WebRtc_Word32 UnRegisterMixerStatusCallback();
-    virtual WebRtc_Word32 SetMixabilityStatus(MixerParticipant& participant,
-                                              const bool mixable);
-    virtual WebRtc_Word32 MixabilityStatus(MixerParticipant& participant,
-                                           bool& mixable);
-    virtual WebRtc_Word32 SetMinimumMixingFrequency(Frequency freq);
-    virtual WebRtc_Word32 SetAnonymousMixabilityStatus(
-        MixerParticipant& participant, const bool mixable);
-    virtual WebRtc_Word32 AnonymousMixabilityStatus(
-        MixerParticipant& participant, bool& mixable);
+        const uint32_t amountOf10MsBetweenCallbacks) OVERRIDE;
+    virtual int32_t UnRegisterMixerStatusCallback() OVERRIDE;
+    virtual int32_t SetMixabilityStatus(MixerParticipant& participant,
+                                        bool mixable) OVERRIDE;
+    virtual int32_t MixabilityStatus(MixerParticipant& participant,
+                                     bool& mixable) OVERRIDE;
+    virtual int32_t SetMinimumMixingFrequency(Frequency freq) OVERRIDE;
+    virtual int32_t SetAnonymousMixabilityStatus(
+        MixerParticipant& participant, const bool mixable) OVERRIDE;
+    virtual int32_t AnonymousMixabilityStatus(
+        MixerParticipant& participant, bool& mixable) OVERRIDE;
 private:
     enum{DEFAULT_AUDIO_FRAME_POOLSIZE = 50};
 
     // Set/get mix frequency
-    WebRtc_Word32 SetOutputFrequency(const Frequency frequency);
+    int32_t SetOutputFrequency(const Frequency frequency);
     Frequency OutputFrequency() const;
-
-    // Must be called whenever an audio frame indicates the number of channels
-    // has changed.
-    bool SetNumLimiterChannels(int numChannels);
 
     // Fills mixList with the AudioFrames pointers that should be used when
     // mixing. Fills mixParticipantList with ParticipantStatistics for the
@@ -99,71 +100,74 @@ private:
     // rampOutList contain AudioFrames corresponding to an audio stream that
     // used to be mixed but shouldn't be mixed any longer. These AudioFrames
     // should be ramped out over this AudioFrame to avoid audio discontinuities.
-    void UpdateToMix(ListWrapper& mixList, ListWrapper& rampOutList,
-                     MapWrapper& mixParticipantList,
-                     WebRtc_UWord32& maxAudioFrameCounter);
+    void UpdateToMix(
+        AudioFrameList* mixList,
+        AudioFrameList* rampOutList,
+        std::map<int, MixerParticipant*>* mixParticipantList,
+        size_t& maxAudioFrameCounter);
 
     // Return the lowest mixing frequency that can be used without having to
     // downsample any audio.
-    WebRtc_Word32 GetLowestMixingFrequency();
-    WebRtc_Word32 GetLowestMixingFrequencyFromList(ListWrapper& mixList);
+    int32_t GetLowestMixingFrequency();
+    int32_t GetLowestMixingFrequencyFromList(MixerParticipantList* mixList);
 
     // Return the AudioFrames that should be mixed anonymously.
-    void GetAdditionalAudio(ListWrapper& additionalFramesList);
+    void GetAdditionalAudio(AudioFrameList* additionalFramesList);
 
     // Update the MixHistory of all MixerParticipants. mixedParticipantsList
     // should contain a map of MixerParticipants that have been mixed.
-    void UpdateMixedStatus(MapWrapper& mixedParticipantsList);
+    void UpdateMixedStatus(
+        std::map<int, MixerParticipant*>& mixedParticipantsList);
 
     // Clears audioFrameList and reclaims all memory associated with it.
-    void ClearAudioFrameList(ListWrapper& audioFrameList);
+    void ClearAudioFrameList(AudioFrameList* audioFrameList);
 
     // Update the list of MixerParticipants who have a positive VAD. mixList
     // should be a list of AudioFrames
     void UpdateVADPositiveParticipants(
-        ListWrapper& mixList);
+        AudioFrameList* mixList);
 
     // This function returns true if it finds the MixerParticipant in the
     // specified list of MixerParticipants.
     bool IsParticipantInList(
         MixerParticipant& participant,
-        ListWrapper& participantList);
+        MixerParticipantList* participantList) const;
 
     // Add/remove the MixerParticipant to the specified
     // MixerParticipant list.
     bool AddParticipantToList(
         MixerParticipant& participant,
-        ListWrapper& participantList);
+        MixerParticipantList* participantList);
     bool RemoveParticipantFromList(
         MixerParticipant& removeParticipant,
-        ListWrapper& participantList);
+        MixerParticipantList* participantList);
 
     // Mix the AudioFrames stored in audioFrameList into mixedAudio.
-    WebRtc_Word32 MixFromList(
+    int32_t MixFromList(
         AudioFrame& mixedAudio,
-        const ListWrapper& audioFrameList);
+        const AudioFrameList* audioFrameList);
     // Mix the AudioFrames stored in audioFrameList into mixedAudio. No
     // record will be kept of this mix (e.g. the corresponding MixerParticipants
     // will not be marked as IsMixed()
-    WebRtc_Word32 MixAnonomouslyFromList(AudioFrame& mixedAudio,
-                                         const ListWrapper& audioFrameList);
+    int32_t MixAnonomouslyFromList(AudioFrame& mixedAudio,
+                                   const AudioFrameList* audioFrameList);
 
     bool LimitMixedAudio(AudioFrame& mixedAudio);
 
     // Scratch memory
     // Note that the scratch memory may only be touched in the scope of
     // Process().
-    WebRtc_UWord32         _scratchParticipantsToMixAmount;
+    size_t         _scratchParticipantsToMixAmount;
     ParticipantStatistics  _scratchMixedParticipants[
         kMaximumAmountOfMixedParticipants];
-    WebRtc_UWord32         _scratchVadPositiveParticipantsAmount;
+    uint32_t         _scratchVadPositiveParticipantsAmount;
     ParticipantStatistics  _scratchVadPositiveParticipants[
         kMaximumAmountOfMixedParticipants];
 
     scoped_ptr<CriticalSectionWrapper> _crit;
     scoped_ptr<CriticalSectionWrapper> _cbCrit;
 
-    WebRtc_Word32 _id;
+    int32_t _id;
 
     Frequency _minimumMixingFreq;
 
@@ -171,24 +175,28 @@ private:
     AudioMixerOutputReceiver* _mixReceiver;
 
     AudioMixerStatusReceiver* _mixerStatusCallback;
-    WebRtc_UWord32            _amountOf10MsBetweenCallbacks;
-    WebRtc_UWord32            _amountOf10MsUntilNextCallback;
-    bool                      _mixerStatusCb;
+    uint32_t _amountOf10MsBetweenCallbacks;
+    uint32_t _amountOf10MsUntilNextCallback;
+    bool _mixerStatusCb;
 
     // The current sample frequency and sample size when mixing.
     Frequency _outputFrequency;
-    WebRtc_UWord16 _sampleSize;
+    uint16_t _sampleSize;
 
     // Memory pool to avoid allocating/deallocating AudioFrames
     MemoryPool<AudioFrame>* _audioFramePool;
 
     // List of all participants. Note all lists are disjunct
-    ListWrapper _participantList;              // May be mixed.
-    ListWrapper _additionalParticipantList;    // Always mixed, anonomously.
+    MixerParticipantList _participantList;              // May be mixed.
+    // Always mixed, anonomously.
+    MixerParticipantList _additionalParticipantList;
 
-    WebRtc_UWord32 _numMixedParticipants;
+    size_t _numMixedParticipants;
+    // Determines if we will use a limiter for clipping protection during
+    // mixing.
+    bool use_limiter_;
 
-    WebRtc_UWord32 _timeStamp;
+    uint32_t _timeStamp;
 
     // Metronome class.
     TimeScheduler _timeScheduler;
@@ -198,11 +206,11 @@ private:
 
     // Counter keeping track of concurrent calls to process.
     // Note: should never be higher than 1 or lower than 0.
-    WebRtc_Word16 _processCalls;
+    int16_t _processCalls;
 
     // Used for inhibiting saturation in mixing.
     scoped_ptr<AudioProcessing> _limiter;
 };
-} // namespace webrtc
+}  // namespace webrtc
 
 #endif // WEBRTC_MODULES_AUDIO_CONFERENCE_MIXER_SOURCE_AUDIO_CONFERENCE_MIXER_IMPL_H_

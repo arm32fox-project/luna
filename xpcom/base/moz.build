@@ -13,7 +13,6 @@ XPIDL_SOURCES += [
     'nsIDebug2.idl',
     'nsIErrorService.idl',
     'nsIException.idl',
-    'nsIExceptionService.idl',
     'nsIGZFileWriter.idl',
     'nsIInterfaceRequestor.idl',
     'nsIMemory.idl',
@@ -22,10 +21,12 @@ XPIDL_SOURCES += [
     'nsIMessageLoop.idl',
     'nsIMutable.idl',
     'nsIProgrammingLanguage.idl',
+    'nsISecurityConsoleMessage.idl',
+    'nsIStatusReporter.idl',
     'nsISupports.idl',
-    'nsITraceRefcnt.idl',
     'nsIUUIDGenerator.idl',
     'nsIVersionComparator.idl',
+    'nsIVisualEventTracer.idl',
     'nsIWeakReference.idl',
     'nsrootidl.idl',
 ]
@@ -37,72 +38,123 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
 
 XPIDL_MODULE = 'xpcom_base'
 
-MODULE = 'xpcom'
-
 EXPORTS += [
+    'CodeAddressService.h',
+    'ErrorList.h',
     'nsAgg.h',
+    'nsAutoPtr.h',
     'nsAutoRef.h',
     'nsCom.h',
+    'nscore.h',
+    'nsCycleCollector.h',
     'nsDebugImpl.h',
+    'nsError.h',
     'nsGZFileWriter.h',
-    'nsIAllocator.h',
     'nsIID.h',
-    'nsISizeOf.h',
-    'nsISupportsObsolete.h',
     'nsInterfaceRequestorAgg.h',
+    'nsISizeOf.h',
+    'nsISupportsBase.h',
+    'nsObjCExceptions.h',
+    'nsRefPtr.h',
     'nsStackWalk.h',
-    'nsTraceRefcntImpl.h',
+    'nsTraceRefcnt.h',
     'nsWeakPtr.h',
 ]
 
-if CONFIG['MOZ_DEBUG']:
-    EXPORTS += ['pure.h']
+if CONFIG['OS_ARCH'] == 'WINNT':
+    EXPORTS += [
+        'nsWindowsHelpers.h',
+    ]
+    if CONFIG['MOZ_DEBUG']:
+        EXPORTS += ['pure.h']
+        SOURCES += ['pure_api.c']
 
 EXPORTS.mozilla += [
     'AvailableMemoryTracker.h',
     'ClearOnShutdown.h',
+    'CountingAllocatorBase.h',
     'CycleCollectedJSRuntime.h',
-    'MapsMemoryReporter.h',
+    'Debug.h',
+    'ErrorNames.h',
+    'LinuxUtils.h',
+    'nsMemoryInfoDumper.h',
     'StackWalk.h',
     'StaticMutex.h',
     'StaticPtr.h',
-    'nsMemoryInfoDumper.h',
+    'SystemMemoryReporter.h',
+    'VisualEventTracer.h',
 ]
 
-CPP_SOURCES += [
+# nsDebugImpl isn't unified because we disable PGO so that NS_ABORT_OOM isn't
+# optimized away oddly.
+SOURCES += [
+    'nsDebugImpl.cpp',
+]
+SOURCES['nsDebugImpl.cpp'].no_pgo = True
+
+UNIFIED_SOURCES += [
     'AvailableMemoryTracker.cpp',
     'ClearOnShutdown.cpp',
     'CycleCollectedJSRuntime.cpp',
+    'Debug.cpp',
+    'ErrorNames.cpp',
     'nsConsoleMessage.cpp',
     'nsConsoleService.cpp',
     'nsCycleCollector.cpp',
-    'nsDebugImpl.cpp',
-    'nsErrorAsserts.cpp',
+    'nsDumpUtils.cpp',
     'nsErrorService.cpp',
-    'nsExceptionService.cpp',
     'nsGZFileWriter.cpp',
     'nsInterfaceRequestorAgg.cpp',
     'nsMemoryImpl.cpp',
     'nsMemoryInfoDumper.cpp',
     'nsMemoryReporterManager.cpp',
     'nsMessageLoop.cpp',
-    'nsStackWalk.cpp',
+    'nsSecurityConsoleMessage.cpp',
+    'nsStatusReporterManager.cpp',
     'nsSystemInfo.cpp',
-    'nsTraceRefcntImpl.cpp',
+    'nsTraceRefcnt.cpp',
     'nsUUIDGenerator.cpp',
     'nsVersionComparatorImpl.cpp',
+    'VisualEventTracer.cpp',
 ]
 
+# MOZ_STACKWALKING is defined in configure.in when the build configuration meets
+# the conditions for NS_StackWalk to work correctly.
+# We exclude this file from other build configurations so that if somebody adds a
+# new usage of NS_StackWalk it will cause a link error, which is better than having
+# NS_StackWalk silently return garbage at runtime.
+if CONFIG['MOZ_STACKWALKING']:
+    SOURCES += [
+        'nsStackWalk.cpp',
+    ]
+
 if CONFIG['OS_ARCH'] == 'Linux':
-    CPP_SOURCES += [
-        'MapsMemoryReporter.cpp',
+    SOURCES += [
+        'LinuxUtils.cpp',
+        'SystemMemoryReporter.cpp',
     ]
 
 if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'cocoa':
-    CPP_SOURCES += [
+    SOURCES += [
         'nsMacUtilsImpl.cpp',
     ]
 elif CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
-    CPP_SOURCES += [
+    SOURCES += [
         'nsCrashOnException.cpp',
     ]
+
+MSVC_ENABLE_PGO = True
+
+include('/ipc/chromium/chromium-config.mozbuild')
+
+FINAL_LIBRARY = 'xul'
+
+LOCAL_INCLUDES += [
+    '../build',
+    '/xpcom/ds',
+]
+
+if CONFIG['MOZ_WIDGET_GTK']:
+    CXXFLAGS += CONFIG['TK_CFLAGS']
+
+FAIL_ON_WARNINGS = True

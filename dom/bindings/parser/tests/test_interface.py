@@ -201,8 +201,8 @@ def WebIDLTest(parser, harness):
         };
     """);
     results = parser.finish();
-    harness.check(len(results), 1,
-                  "Should have one result with partial interface")
+    harness.check(len(results), 2,
+                  "Should have two results with partial interface")
     iface = results[0]
     harness.check(len(iface.members), 3,
                   "Should have three members with partial interface")
@@ -231,9 +231,9 @@ def WebIDLTest(parser, harness):
         };
     """);
     results = parser.finish();
-    harness.check(len(results), 1,
-                  "Should have one result with reversed partial interface")
-    iface = results[0]
+    harness.check(len(results), 2,
+                  "Should have two results with reversed partial interface")
+    iface = results[1]
     harness.check(len(iface.members), 3,
                   "Should have three members with reversed partial interface")
     harness.check(iface.members[0].identifier.name, "x",
@@ -374,3 +374,32 @@ def WebIDLTest(parser, harness):
         threw = True
     harness.ok(threw,
                "Should not allow unknown extended attributes on interfaces")
+
+    parser = parser.reset()
+    threw = False
+    try:
+        parser.parse("""
+            interface B {};
+            [ArrayClass]
+            interface A : B {
+            };
+        """)
+        results = parser.finish()
+    except:
+        threw = True
+    harness.ok(threw,
+               "Should not allow [ArrayClass] on interfaces with parents")
+
+    parser = parser.reset()
+    threw = False
+    try:
+        parser.parse("""
+            [ArrayClass]
+            interface A {
+            };
+        """)
+        results = parser.finish()
+    except:
+        threw = True
+    harness.ok(not threw,
+               "Should allow [ArrayClass] on interfaces without parents")

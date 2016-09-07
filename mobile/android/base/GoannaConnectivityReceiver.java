@@ -16,17 +16,18 @@ import android.util.Log;
 public class GoannaConnectivityReceiver extends BroadcastReceiver {
     /*
      * Keep the below constants in sync with
-     * http://mxr.mozilla.org/mozilla-central/source/netwerk/base/public/nsINetworkLinkService.idl
+     * http://mxr.mozilla.org/mozilla-central/source/netwerk/base/nsINetworkLinkService.idl
      */
     private static final String LINK_DATA_UP = "up";
     private static final String LINK_DATA_DOWN = "down";
+    private static final String LINK_DATA_CHANGED = "changed";
     private static final String LINK_DATA_UNKNOWN = "unknown";
 
     private static final String LOGTAG = "GoannaConnectivityReceiver";
 
-    private static GoannaConnectivityReceiver sInstance = new GoannaConnectivityReceiver();
+    private static final GoannaConnectivityReceiver sInstance = new GoannaConnectivityReceiver();
 
-    private IntentFilter mFilter;
+    private final IntentFilter mFilter;
     private Context mApplicationContext;
     private boolean mIsEnabled;
 
@@ -39,26 +40,31 @@ public class GoannaConnectivityReceiver extends BroadcastReceiver {
         mFilter.addAction(ConnectivityManager.CONNECTIVITY_ACTION);
     }
 
-    public void init(Context context) {
-        mApplicationContext = context.getApplicationContext();
-    }
+    public synchronized void start(Context context) {
+        if (mIsEnabled) {
+            Log.w(LOGTAG, "Already started!");
+            return;
+        }
 
-    public synchronized void start() {
-        if (!mIsEnabled) {
-            // registerReceiver will return null if registering fails
-            if (mApplicationContext.registerReceiver(this, mFilter) == null) {
-                Log.e(LOGTAG, "Registering receiver failed");
-            } else {
-                mIsEnabled = true;
-            }
+        mApplicationContext = context.getApplicationContext();
+
+        // registerReceiver will return null if registering fails.
+        if (mApplicationContext.registerReceiver(this, mFilter) == null) {
+            Log.e(LOGTAG, "Registering receiver failed");
+        } else {
+            mIsEnabled = true;
         }
     }
 
     public synchronized void stop() {
-        if (mIsEnabled) {
-            mApplicationContext.unregisterReceiver(this);
-            mIsEnabled = false;
+        if (!mIsEnabled) {
+            Log.w(LOGTAG, "Already stopped!");
+            return;
         }
+
+        mApplicationContext.unregisterReceiver(this);
+        mApplicationContext = null;
+        mIsEnabled = false;
     }
 
     @Override
@@ -66,7 +72,7 @@ public class GoannaConnectivityReceiver extends BroadcastReceiver {
         ConnectivityManager cm = (ConnectivityManager)context.getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo info = cm.getActiveNetworkInfo();
 
-        String status;
+        final String status;
         if (info == null) {
             status = LINK_DATA_UNKNOWN;
         } else if (!info.isConnected()) {
@@ -77,6 +83,7 @@ public class GoannaConnectivityReceiver extends BroadcastReceiver {
 
         if (GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
             GoannaAppShell.sendEventToGoanna(GoannaEvent.createNetworkLinkChangeEvent(status));
+            GoannaAppShell.sendEventToGoanna(GoannaEvent.createNetworkLinkChangeEvent(LINK_DATA_CHANGED));
         }
     }
 }

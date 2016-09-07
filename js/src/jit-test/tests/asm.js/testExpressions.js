@@ -1,3 +1,4 @@
+// |jit-test| test-also-noasmjs
 load(libdir + "asm.js");
 
 assertAsmTypeFail(USE_ASM + "function f() { var i=0,j=0.0; return (i+j)|0 } return f");
@@ -120,6 +121,12 @@ assertEq(asmLink(asmCompile(USE_ASM + "function f(i,j) { i=i|0;j=j|0; var k=0; k
 assertEq(asmLink(asmCompile(USE_ASM + "function f(i,j) { i=i|0;j=j|0; var k=0; k=(i|0)>(j|0); return k|0 } return f"))(1,2), 0);
 assertEq(asmLink(asmCompile(USE_ASM + "function f(i,j) { i=i|0;j=j|0; var k=0; k=(i|0)<=(j|0); return k|0 } return f"))(1,2), 1);
 assertEq(asmLink(asmCompile(USE_ASM + "function f(i,j) { i=i|0;j=j|0; var k=0; k=(i|0)>=(j|0); return k|0 } return f"))(1,2), 0);
+
+assertEq(asmLink(asmCompile(USE_ASM + "const I=2; function f(i) { i=i|0; var k=0; k=(i|0)<I; return k|0 } return f"))(1), 1);
+assertEq(asmLink(asmCompile(USE_ASM + "const I=2; function f(i) { i=i|0; var k=0; k=(i>>>0)<I; return k|0 } return f"))(1), 1);
+assertEq(asmLink(asmCompile(USE_ASM + "const I=-2; function f(i) { i=i|0; var k=0; k=(i|0)<I; return k|0 } return f"))(-1), 0);
+assertAsmTypeFail(USE_ASM + "const I=-2; function f(i) { i=i|0; var k=0; k=(i>>>0)<I; return k|0 } return f");
+assertAsmTypeFail(USE_ASM + "const I=0x80000000; function f(i) { i=i|0; var k=0; k=(i|0)<I; return k|0 } return f");
 
 var f = asmLink(asmCompile(USE_ASM + "function f(i,j) { i=i|0;j=j|0; return ((i|0)/(j|0))|0 } return f"));
 assertEq(f(4,2), 2);
@@ -253,9 +260,9 @@ assertEq(f(-1,false), 0);
 assertEq(f(-5,false), 1);
 
 assertAsmTypeFail('glob','imp','b', USE_ASM + HEAP_IMPORTS + "function f() { return (i32[0]+1)|0 } return f");
-assertAsmTypeFail('glob','imp','b', USE_ASM + HEAP_IMPORTS + "function f() { return +(f64[0] + 1.0); } return f");
-assertAsmTypeFail('glob','imp','b', USE_ASM + HEAP_IMPORTS + "function f() { return +(f64[0] - 1.0); } return f");
 new Float64Array(BUF_64KB)[0] = 2.3;
+assertEq(asmLink(asmCompile('glob','imp','b', USE_ASM + HEAP_IMPORTS + "function f() { return +(f64[0] + 2.0) } return f"), this, null, BUF_64KB)(), 2.3+2);
+assertEq(asmLink(asmCompile('glob','imp','b', USE_ASM + HEAP_IMPORTS + "function f() { return +(f64[0] - 2.0) } return f"), this, null, BUF_64KB)(), 2.3-2);
 assertEq(asmLink(asmCompile('glob','imp','b', USE_ASM + HEAP_IMPORTS + "function f() { return +(f64[0] * 2.0) } return f"), this, null, BUF_64KB)(), 2.3*2);
 assertEq(asmLink(asmCompile('glob','imp','b', USE_ASM + HEAP_IMPORTS + "function f() { return +(f64[0] / 2.0) } return f"), this, null, BUF_64KB)(), 2.3/2);
 assertEq(asmLink(asmCompile('glob','imp','b', USE_ASM + HEAP_IMPORTS + "function f() { return +(f64[0] % 2.0) } return f"), this, null, BUF_64KB)(), 2.3%2);
@@ -279,7 +286,7 @@ assertEq(asmLink(asmCompile(USE_ASM + "function f() { return (4 | (2 == 2))|0 } 
 assertEq(asmLink(asmCompile(USE_ASM + "function f() { return (4 | (!2))|0 } return f"))(), 4);
 
 // get that order-of-operations right!
-var buf = new ArrayBuffer(4096);
+var buf = new ArrayBuffer(BUF_MIN);
 asmLink(asmCompile('glob','imp','buf', USE_ASM + "var i32=new glob.Int32Array(buf); var x=0; function a() { return x|0 } function b() { x=42; return 0 } function f() { i32[((b()|0) & 0x3) >> 2] = a()|0 } return f"), this, null, buf)();
 assertEq(new Int32Array(buf)[0], 42);
 
@@ -331,3 +338,30 @@ for (let i = 0; i < 31; i++) {
 }
 assertEq(f(INT32_MIN), (INT32_MIN * 2)|0);
 assertEq(f(INT32_MAX), (INT32_MAX * 2)|0);
+
+// Signed integer division by a power of two - with a non-negative numerator!
+var f = asmLink(asmCompile(USE_ASM + "function f(i) { i=i|0; i=(i&2147483647)|0; return ((i|0)/1)|0; } return f;"));
+for (let i = 0; i < 31; i++) {
+    assertEq(f(Math.pow(2,i)), Math.pow(2,i));
+    assertEq(f(Math.pow(2,i+1)-1), Math.pow(2,i+1)-1);
+}
+var f = asmLink(asmCompile(USE_ASM + "function f(i) { i=i|0; i=(i&2147483647)|0; return ((i|0)/2)|0; } return f;"));
+for (let i = 0; i < 31; i++) {
+    assertEq(f(Math.pow(2,i)), (Math.pow(2,i)/2)|0);
+    assertEq(f(Math.pow(2,i+1)-1), ((Math.pow(2,i+1)-1)/2)|0);
+}
+var f = asmLink(asmCompile(USE_ASM + "function f(i) { i=i|0; i=(i&2147483647)|0; return ((i|0)/4)|0; } return f;"));
+for (let i = 0; i < 31; i++) {
+    assertEq(f(Math.pow(2,i)), (Math.pow(2,i)/4)|0);
+    assertEq(f(Math.pow(2,i+1)-1), ((Math.pow(2,i+1)-1)/4)|0);
+}
+var f = asmLink(asmCompile(USE_ASM + "function f(i) { i=i|0; i=(i&2147483647)|0; return ((i|0)/1073741824)|0; } return f;"));
+for (let i = 0; i < 31; i++) {
+    assertEq(f(Math.pow(2,i)), (Math.pow(2,i)/Math.pow(2,30))|0);
+    assertEq(f(Math.pow(2,i+1)-1), ((Math.pow(2,i+1)-1)/Math.pow(2,30))|0);
+}
+var f = asmLink(asmCompile(USE_ASM + "function f(i) { i=i|0; i=(i&2147483647)|0; return ((((i|0)/1)|0)+i)|0; } return f;"));
+for (let i = 0; i < 31; i++) {
+    assertEq(f(Math.pow(2,i)), (Math.pow(2,i) * 2)|0);
+    assertEq(f(Math.pow(2,i+1) - 1), ((Math.pow(2,i+1) - 1) * 2)|0);
+}

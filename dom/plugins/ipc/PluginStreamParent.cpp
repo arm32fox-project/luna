@@ -23,7 +23,13 @@ PluginStreamParent::PluginStreamParent(PluginInstanceParent* npp,
   if (*result == NPERR_NO_ERROR)
     mStream->pdata = static_cast<AStream*>(this);
   else
-    mStream = NULL;
+    mStream = nullptr;
+}
+
+void
+PluginStreamParent::ActorDestroy(ActorDestroyReason aWhy)
+{
+  // Implement me! Bug 1005166
 }
 
 bool

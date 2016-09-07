@@ -10,7 +10,6 @@
  * liability, trademark and document use rules apply.
  */
 
-[PrefControlled]
 interface DynamicsCompressorNode : AudioNode {
 
     readonly attribute AudioParam threshold; // in Decibels
@@ -21,4 +20,7 @@ interface DynamicsCompressorNode : AudioNode {
     readonly attribute AudioParam release; // in Seconds
 
 };
+
+// Mozilla extension
+DynamicsCompressorNode implements AudioNodePassThrough;
 

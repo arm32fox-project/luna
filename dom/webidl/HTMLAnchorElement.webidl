@@ -21,8 +21,7 @@ interface HTMLAnchorElement : HTMLElement {
            attribute DOMString ping;
            [SetterThrows]
            attribute DOMString rel;
-  // relList not supported yet
-  //readonly attribute DOMTokenList relList;
+  readonly attribute DOMTokenList relList;
            [SetterThrows]
            attribute DOMString hreflang;
            [SetterThrows]
@@ -32,6 +31,7 @@ interface HTMLAnchorElement : HTMLElement {
            attribute DOMString text;
 };
 HTMLAnchorElement implements URLUtils;
+HTMLAnchorElement implements URLUtilsSearchParams;
 
 // http://www.whatwg.org/specs/web-apps/current-work/#other-elements,-attributes-and-apis
 partial interface HTMLAnchorElement {

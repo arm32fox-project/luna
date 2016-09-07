@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*-
  * This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -40,9 +40,9 @@ function writeErrorSummary(input, expected, got, isTodo) {
   $("display").appendChild(createEl('span', null, "Matched: "));
   $("display").appendChild(document.createTextNode("" + (expected == got)));
   var pre = createEl('pre');
-  pre.appendChild(createTextNode("Input: \n" + input, "\n-\n"));
-  pre.appendChild(createTextNode("Expected:\n" + expected, "\n-\n"));
-  pre.appendChild(createTextNode("Output:\n" + got + "\n-\n"));
+  pre.appendChild(document.createTextNode("Input: \n" + input, "\n-\n"));
+  pre.appendChild(document.createTextNode("Expected:\n" + expected, "\n-\n"));
+  pre.appendChild(document.createTextNode("Output:\n" + got + "\n-\n"));
   $("display").appendChild(pre);
   $("display").appendChild(createEl('hr'));
 }
@@ -76,8 +76,17 @@ function makeFragmentTestChecker(input,
                                  fragment, 
                                  testframe) {
   return function () {
-    var context = document.createElementNS("http://www.w3.org/1999/xhtml",
-                                           fragment);
+    var context;
+    if (fragment.startsWith("svg ")) {
+      context = document.createElementNS("http://www.w3.org/2000/svg",
+                                         fragment.substring(4));
+    } else if (fragment.startsWith("math ")) {
+      context = document.createElementNS("http://www.w3.org/1998/Math/MathML",
+                                         fragment.substring(5));
+    } else {
+      context = document.createElementNS("http://www.w3.org/1999/xhtml",
+                                         fragment);
+    }
     context.innerHTML = input;
     var domAsString = fragmentToTestOutput(context);
     is(domAsString, expected, "HTML5 expected success. " + new Date());

@@ -11,10 +11,11 @@
       {
         const name = window.location.pathname;
 
-        let request = indexedDB.open(name, 1);
+        let request = indexedDB.open(name, { version: 1,
+                                             storage: "persistent" });
         request.onerror = grabEventAndContinueHandler;
         request.onsuccess = grabEventAndContinueHandler;
-        let event = yield;
+        let event = yield undefined;
 
         if (event.type == "success") {
           testResult = event.target.result;
@@ -26,7 +27,7 @@
         event.preventDefault();
 
         finishTest()
-        yield;
+        yield undefined;
       }
     </script>
 

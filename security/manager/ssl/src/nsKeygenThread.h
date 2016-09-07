@@ -40,13 +40,15 @@ private:
   void *wincx;
 
   PRThread *threadHandle;
-  
+
+protected:
+  virtual ~nsKeygenThread();
+
 public:
   nsKeygenThread();
-  virtual ~nsKeygenThread();
   
   NS_DECL_NSIKEYGENTHREAD
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
 
   void SetParams(
     PK11SlotInfo *a_slot,

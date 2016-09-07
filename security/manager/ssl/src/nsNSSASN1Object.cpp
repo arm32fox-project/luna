@@ -9,10 +9,8 @@
 #include "nsArrayUtils.h"
 #include "nsXPCOMCID.h"
 
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsNSSASN1Sequence, nsIASN1Sequence, 
-                                                 nsIASN1Object)
-NS_IMPL_THREADSAFE_ISUPPORTS2(nsNSSASN1PrintableItem, nsIASN1PrintableItem,
-                                                      nsIASN1Object)
+NS_IMPL_ISUPPORTS(nsNSSASN1Sequence, nsIASN1Sequence, nsIASN1Object)
+NS_IMPL_ISUPPORTS(nsNSSASN1PrintableItem, nsIASN1PrintableItem, nsIASN1Object)
 
 // This function is used to interpret an integer that
 // was encoded in a DER buffer. This function is used
@@ -128,11 +126,17 @@ buildASN1ObjectFromDER(unsigned char *data,
     if (tagnum == SEC_ASN1_HIGH_TAG_NUMBER) {
       return NS_ERROR_FAILURE;
     }
+
     data++;
     len = getDERItemLength(data, end, &bytesUsed, &indefinite);
-    data += bytesUsed;
-    if ((len < 0) || ((data+len) > end))
+    if (len < 0) {
       return NS_ERROR_FAILURE;
+    }
+
+    data += bytesUsed;
+    if (data + len > end) {
+      return NS_ERROR_FAILURE;
+    }
 
     if (code & SEC_ASN1_CONSTRUCTED) {
       if (len > 0 || indefinite) {
@@ -320,7 +324,6 @@ nsNSSASN1Sequence::SetIsExpanded(bool aIsExpanded)
   return NS_OK;
 }
 
-
 nsNSSASN1PrintableItem::nsNSSASN1PrintableItem() : mType(0),
                                                    mTag(0),
                                                    mData(nullptr),
@@ -427,4 +430,3 @@ nsNSSASN1PrintableItem::SetDisplayName(const nsAString &aDisplayName)
   mDisplayName = aDisplayName;
   return NS_OK;
 }
-

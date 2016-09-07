@@ -27,12 +27,12 @@ namespace storage {
 class StatementJSHelper;
 class Connection;
 
-class Statement MOZ_FINAL : public mozIStorageStatement
+class Statement final : public mozIStorageStatement
                           , public mozIStorageValueArray
                           , public StorageBaseStatementInternal
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGESTATEMENT
   NS_DECL_MOZISTORAGEBASESTATEMENT
   NS_DECL_MOZISTORAGEBINDINGPARAMS
@@ -47,10 +47,13 @@ public:
    *
    * @param aDBConnection
    *        The Connection object this statement is associated with.
+   * @param aNativeConnection
+   *        The native Sqlite connection this statement is associated with.
    * @param aSQLStatement
    *        The SQL statement to prepare that this object will represent.
    */
   nsresult initialize(Connection *aDBConnection,
+                      sqlite3* aNativeConnection,
                       const nsACString &aSQLStatement);
 
 
@@ -93,8 +96,8 @@ private:
      * The following two members are only used with the JS helper.  They cache
      * the row and params objects.
      */
-    nsCOMPtr<nsIXPConnectJSObjectHolder> mStatementParamsHolder;
-    nsCOMPtr<nsIXPConnectJSObjectHolder> mStatementRowHolder;
+    nsMainThreadPtrHandle<nsIXPConnectJSObjectHolder> mStatementParamsHolder;
+    nsMainThreadPtrHandle<nsIXPConnectJSObjectHolder> mStatementRowHolder;
 
   /**
    * Internal version of finalize that allows us to tell it if it is being
@@ -106,7 +109,7 @@ private:
    */
   nsresult internalFinalize(bool aDestructing);
 
-    friend class StatementJSHelper;
+  friend class StatementJSHelper;
 };
 
 } // storage

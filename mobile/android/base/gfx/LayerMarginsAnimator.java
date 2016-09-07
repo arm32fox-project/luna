@@ -8,7 +8,6 @@ package org.mozilla.goanna.gfx;
 import org.mozilla.goanna.GoannaAppShell;
 import org.mozilla.goanna.GoannaEvent;
 import org.mozilla.goanna.PrefsHelper;
-import org.mozilla.goanna.TouchEventInterceptor;
 import org.mozilla.goanna.util.FloatUtils;
 import org.mozilla.goanna.util.ThreadUtils;
 
@@ -20,13 +19,10 @@ import android.view.animation.DecelerateInterpolator;
 import android.view.MotionEvent;
 import android.view.View;
 
-import java.util.Timer;
-import java.util.TimerTask;
-
-public class LayerMarginsAnimator implements TouchEventInterceptor {
+public class LayerMarginsAnimator {
     private static final String LOGTAG = "GoannaLayerMarginsAnimator";
-    private static final float MS_PER_FRAME = 1000.0f / 60.0f;
-    private static final long MARGIN_ANIMATION_DURATION = 250;
+    // The duration of the animation in ns
+    private static final long MARGIN_ANIMATION_DURATION = 250000000;
     private static final String PREF_SHOW_MARGINS_THRESHOLD = "browser.ui.show-margins-threshold";
 
     /* This is the proportion of the viewport rect, minus maximum margins,
@@ -40,8 +36,8 @@ public class LayerMarginsAnimator implements TouchEventInterceptor {
     private final RectF mMaxMargins;
     /* If this boolean is true, scroll changes will not affect margins */
     private boolean mMarginsPinned;
-    /* The timer that handles showing/hiding margins */
-    private Timer mAnimationTimer;
+    /* The task that handles showing/hiding margins */
+    private LayerMarginsAnimationTask mAnimationTask;
     /* This interpolator is used for the above mentioned animation */
     private final DecelerateInterpolator mInterpolator;
     /* The GoannaLayerClient whose margins will be animated */
@@ -49,7 +45,7 @@ public class LayerMarginsAnimator implements TouchEventInterceptor {
     /* The distance that has been scrolled since either the first touch event,
      * or since the margins were last fully hidden */
     private final PointF mTouchTravelDistance;
-    /* The ID of the prefs listener for the show-marginss threshold */
+    /* The ID of the prefs listener for the show-margins threshold */
     private Integer mPrefObserverId;
 
     public LayerMarginsAnimator(GoannaLayerClient aTarget, LayerView aView) {
@@ -65,7 +61,7 @@ public class LayerMarginsAnimator implements TouchEventInterceptor {
         mPrefObserverId = PrefsHelper.getPref(PREF_SHOW_MARGINS_THRESHOLD, new PrefsHelper.PrefHandlerBase() {
             @Override
             public void prefValue(String pref, int value) {
-                SHOW_MARGINS_THRESHOLD = (float)value / 100.0f;
+                SHOW_MARGINS_THRESHOLD = value / 100.0f;
             }
 
             @Override
@@ -73,9 +69,6 @@ public class LayerMarginsAnimator implements TouchEventInterceptor {
                 return true;
             }
         });
-
-        // Listen to touch events, for auto-pinning
-        aView.addTouchInterceptor(this);
     }
 
     public void destroy() {
@@ -100,14 +93,14 @@ public class LayerMarginsAnimator implements TouchEventInterceptor {
                 + ", \"bottom\" : " + bottom + ", \"left\" : " + left + " }"));
     }
 
-    RectF getMaxMargins() {
+    synchronized RectF getMaxMargins() {
         return mMaxMargins;
     }
 
     private void animateMargins(final float left, final float top, final float right, final float bottom, boolean immediately) {
-        if (mAnimationTimer != null) {
-            mAnimationTimer.cancel();
-            mAnimationTimer = null;
+        if (mAnimationTask != null) {
+            mTarget.getView().removeRenderTask(mAnimationTask);
+            mAnimationTask = null;
         }
 
         if (immediately) {
@@ -118,47 +111,8 @@ public class LayerMarginsAnimator implements TouchEventInterceptor {
 
         ImmutableViewportMetrics metrics = mTarget.getViewportMetrics();
 
-        final long startTime = SystemClock.uptimeMillis();
-        final float startLeft = metrics.marginLeft;
-        final float startTop = metrics.marginTop;
-        final float startRight = metrics.marginRight;
-        final float startBottom = metrics.marginBottom;
-
-        mAnimationTimer = new Timer("Margin Animation Timer");
-        mAnimationTimer.scheduleAtFixedRate(new TimerTask() {
-            @Override
-            public void run() {
-                float progress = mInterpolator.getInterpolation(
-                    Math.min(1.0f, (SystemClock.uptimeMillis() - startTime)
-                                     / (float)MARGIN_ANIMATION_DURATION));
-
-                synchronized(mTarget.getLock()) {
-                    ImmutableViewportMetrics oldMetrics = mTarget.getViewportMetrics();
-                    ImmutableViewportMetrics newMetrics = oldMetrics.setMargins(
-                        FloatUtils.interpolate(startLeft, left, progress),
-                        FloatUtils.interpolate(startTop, top, progress),
-                        FloatUtils.interpolate(startRight, right, progress),
-                        FloatUtils.interpolate(startBottom, bottom, progress));
-                    PointF oldOffset = oldMetrics.getMarginOffset();
-                    PointF newOffset = newMetrics.getMarginOffset();
-                    newMetrics =
-                        newMetrics.offsetViewportByAndClamp(newOffset.x - oldOffset.x,
-                                                            newOffset.y - oldOffset.y);
-
-                    if (progress >= 1.0f) {
-                        if (mAnimationTimer != null) {
-                            mAnimationTimer.cancel();
-                            mAnimationTimer = null;
-                        }
-
-                        // Force a redraw and update Goanna
-                        mTarget.forceViewportMetrics(newMetrics, true, true);
-                    } else {
-                        mTarget.forceViewportMetrics(newMetrics, false, false);
-                    }
-                }
-            }
-        }, 0, (int)MS_PER_FRAME);
+        mAnimationTask = new LayerMarginsAnimationTask(false, metrics, left, top, right, bottom);
+        mTarget.getView().postRenderTask(mAnimationTask);
     }
 
     /**
@@ -179,6 +133,14 @@ public class LayerMarginsAnimator implements TouchEventInterceptor {
         }
 
         mMarginsPinned = pin;
+    }
+
+    public boolean areMarginsShown() {
+        final ImmutableViewportMetrics metrics = mTarget.getViewportMetrics();
+        return metrics.marginLeft != 0  ||
+               metrics.marginRight != 0 ||
+               metrics.marginTop != 0   ||
+               metrics.marginBottom != 0;
     }
 
     /**
@@ -241,9 +203,9 @@ public class LayerMarginsAnimator implements TouchEventInterceptor {
         // Only alter margins if the toolbar isn't pinned
         if (!mMarginsPinned) {
             // Make sure to cancel any margin animations when margin-scrolling begins
-            if (mAnimationTimer != null) {
-                mAnimationTimer.cancel();
-                mAnimationTimer = null;
+            if (mAnimationTask != null) {
+                mTarget.getView().removeRenderTask(mAnimationTask);
+                mAnimationTask = null;
             }
 
             // Reset the touch travel when changing direction
@@ -281,15 +243,7 @@ public class LayerMarginsAnimator implements TouchEventInterceptor {
         return aMetrics.setMargins(newMarginsX[0], newMarginsY[0], newMarginsX[1], newMarginsY[1]).offsetViewportBy(aDx, aDy);
     }
 
-    /** Implementation of TouchEventInterceptor */
-    @Override
-    public boolean onTouch(View view, MotionEvent event) {
-        return false;
-    }
-
-    /** Implementation of TouchEventInterceptor */
-    @Override
-    public boolean onInterceptTouchEvent(View view, MotionEvent event) {
+    boolean onInterceptTouchEvent(MotionEvent event) {
         int action = event.getActionMasked();
         if (action == MotionEvent.ACTION_DOWN && event.getPointerCount() == 1) {
             mTouchTravelDistance.set(0.0f, 0.0f);
@@ -297,4 +251,62 @@ public class LayerMarginsAnimator implements TouchEventInterceptor {
 
         return false;
     }
+
+    class LayerMarginsAnimationTask extends RenderTask {
+        private final float mStartLeft, mStartTop, mStartRight, mStartBottom;
+        private final float mTop, mBottom, mLeft, mRight;
+        private boolean mContinueAnimation;
+
+        public LayerMarginsAnimationTask(boolean runAfter, ImmutableViewportMetrics metrics,
+                float left, float top, float right, float bottom) {
+            super(runAfter);
+            mContinueAnimation = true;
+            this.mStartLeft = metrics.marginLeft;
+            this.mStartTop = metrics.marginTop;
+            this.mStartRight = metrics.marginRight;
+            this.mStartBottom = metrics.marginBottom;
+            this.mLeft = left;
+            this.mRight = right;
+            this.mTop = top;
+            this.mBottom = bottom;
+        }
+
+        @Override
+        public boolean internalRun(long timeDelta, long currentFrameStartTime) {
+            if (!mContinueAnimation) {
+                return false;
+            }
+
+            // Calculate the progress (between 0 and 1)
+            float progress = mInterpolator.getInterpolation(
+                    Math.min(1.0f, (System.nanoTime() - getStartTime())
+                                    / (float)MARGIN_ANIMATION_DURATION));
+
+            // Calculate the new metrics accordingly
+            synchronized (mTarget.getLock()) {
+                ImmutableViewportMetrics oldMetrics = mTarget.getViewportMetrics();
+                ImmutableViewportMetrics newMetrics = oldMetrics.setMargins(
+                        FloatUtils.interpolate(mStartLeft, mLeft, progress),
+                        FloatUtils.interpolate(mStartTop, mTop, progress),
+                        FloatUtils.interpolate(mStartRight, mRight, progress),
+                        FloatUtils.interpolate(mStartBottom, mBottom, progress));
+                PointF oldOffset = oldMetrics.getMarginOffset();
+                PointF newOffset = newMetrics.getMarginOffset();
+                newMetrics =
+                        newMetrics.offsetViewportByAndClamp(newOffset.x - oldOffset.x,
+                                                            newOffset.y - oldOffset.y);
+
+                if (progress >= 1.0f) {
+                    mContinueAnimation = false;
+
+                    // Force a redraw and update Goanna
+                    mTarget.forceViewportMetrics(newMetrics, true, true);
+                } else {
+                    mTarget.forceViewportMetrics(newMetrics, false, false);
+                }
+            }
+            return mContinueAnimation;
+        }
+    }
+
 }

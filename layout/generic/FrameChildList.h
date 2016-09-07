@@ -17,7 +17,7 @@ namespace layout {
 
 // enum FrameChildListID lives in nsFrameList.h to solve circular dependencies.
 
-#ifdef DEBUG
+#ifdef DEBUG_FRAME_DUMP
 extern const char* ChildListName(FrameChildListID aListID);
 #endif
 
@@ -26,7 +26,7 @@ friend class FrameChildListIterator;
  public:
   FrameChildListIDs() : mIDs(0) {}
   FrameChildListIDs(const FrameChildListIDs& aOther) : mIDs(aOther.mIDs) {}
-  FrameChildListIDs(FrameChildListID aListID) : mIDs(aListID) {}
+  MOZ_IMPLICIT FrameChildListIDs(FrameChildListID aListID) : mIDs(aListID) {}
 
   FrameChildListIDs operator|(FrameChildListIDs aOther) const {
     return FrameChildListIDs(mIDs | aOther.mIDs);
@@ -46,7 +46,7 @@ friend class FrameChildListIterator;
   }
 
  protected:
-  FrameChildListIDs(uint32_t aIDs) : mIDs(aIDs) {}
+  explicit FrameChildListIDs(uint32_t aIDs) : mIDs(aIDs) {}
   uint32_t mIDs;
 };
 
@@ -63,7 +63,7 @@ class FrameChildList {
  */
 class MOZ_STACK_CLASS FrameChildListArrayIterator {
  public:
-  FrameChildListArrayIterator(const nsTArray<FrameChildList>& aLists)
+  explicit FrameChildListArrayIterator(const nsTArray<FrameChildList>& aLists)
     : mLists(aLists), mCurrentIndex(0) {}
   bool IsDone() const { return mCurrentIndex >= mLists.Length(); }
   FrameChildListID CurrentID() const {
@@ -90,14 +90,11 @@ protected:
 class MOZ_STACK_CLASS FrameChildListIterator
   : public FrameChildListArrayIterator {
  public:
-  FrameChildListIterator(const nsIFrame* aFrame);
+  explicit FrameChildListIterator(const nsIFrame* aFrame);
 
 protected:
   nsAutoTArray<FrameChildList,4> mLists;
 };
-
-} // namespace layout
-} // namespace mozilla
 
 inline mozilla::layout::FrameChildListIDs
 operator|(mozilla::layout::FrameChildListID aLeftOp,
@@ -113,6 +110,9 @@ operator|(mozilla::layout::FrameChildListID aLeftOp,
 {
   return mozilla::layout::FrameChildListIDs(aLeftOp) | aRightOp;
 }
+
+} // namespace layout
+} // namespace mozilla
 
 inline void nsFrameList::AppendIfNonempty(
          nsTArray<mozilla::layout::FrameChildList>* aLists,

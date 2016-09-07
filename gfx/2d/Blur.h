@@ -66,7 +66,8 @@ public:
 
   AlphaBoxBlur(const Rect& aRect,
                int32_t aStride,
-               float aSigma);
+               float aSigmaX,
+               float aSigmaY);
 
   ~AlphaBoxBlur();
 
@@ -93,12 +94,12 @@ public:
 
   /**
    * Return the minimum buffer size that should be given to Blur() method.  If
-   * negative, the class is not properly setup for blurring.  Note that this
+   * zero, the class is not properly setup for blurring.  Note that this
    * includes the extra three bytes on top of the stride*width, where something
    * like gfxImageSurface::GetDataSize() would report without it, even if it 
    * happens to have the extra bytes.
    */
-  int32_t GetSurfaceAllocationSize() const;
+  size_t GetSurfaceAllocationSize() const;
 
   /**
    * Perform the blur in-place on the surface backed by specified 8-bit
@@ -123,6 +124,11 @@ private:
   void BoxBlur_SSE2(uint8_t* aData,
                     int32_t aLeftLobe, int32_t aRightLobe, int32_t aTopLobe,
                     int32_t aBottomLobe, uint32_t *aIntegralImage, size_t aIntegralImageStride);
+#ifdef BUILD_ARM_NEON
+  void BoxBlur_NEON(uint8_t* aData,
+                    int32_t aLeftLobe, int32_t aRightLobe, int32_t aTopLobe,
+                    int32_t aBottomLobe, uint32_t *aIntegralImage, size_t aIntegralImageStride);
+#endif
 
   static CheckedInt<int32_t> RoundUpToMultipleOf4(int32_t aVal);
 
@@ -161,7 +167,7 @@ private:
   /**
    * The minimum size of the buffer needed for the Blur() operation.
    */
-  int32_t mSurfaceAllocationSize;
+  size_t mSurfaceAllocationSize;
 
   /**
    * Whether mDirtyRect contains valid data.

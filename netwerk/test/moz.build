@@ -4,36 +4,56 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-TEST_DIRS += ['httpserver', 'browser']
+TEST_DIRS += ['httpserver']
 
-MODULE = 'test_necko'
+FAIL_ON_WARNINGS = True
 
-XPCSHELL_TESTS_MANIFESTS += ['unit/xpcshell.ini']
+BROWSER_CHROME_MANIFESTS += ['browser/browser.ini']
+MOCHITEST_MANIFESTS += ['mochitests/mochitest.ini']
 
-# FIXME/bug 575918: out-of-process xpcshell is broken on OS X
-if CONFIG['OS_ARCH'] != 'Darwin':
-    XPCSHELL_TESTS_MANIFESTS += ['unit_ipc/xpcshell.ini']
-
-CPP_SOURCES += [
-    'PropertiesTest.cpp',
-    'ReadNTLM.cpp',
-    'TestBlockingSocket.cpp',
-    'TestCallbacks.cpp',
-    'TestCookie.cpp',
-    'TestDNS.cpp',
-    'TestIncrementalDownload.cpp',
-    'TestOpen.cpp',
-    'TestPageLoad.cpp',
-    'TestProtocols.cpp',
-    'TestServ.cpp',
-    'TestStandardURL.cpp',
-    'TestStreamLoader.cpp',
-    'TestURLParser.cpp',
-    'TestUpload.cpp',
-    'urltest.cpp',
+XPCSHELL_TESTS_MANIFESTS += [
+    'unit/xpcshell.ini',
+    'unit_ipc/xpcshell.ini',
 ]
 
-bin_suffix = CONFIG['BIN_SUFFIX']
-SIMPLE_PROGRAMS += [
-    "%s%s" % (x[0:-4], bin_suffix) for x in CPP_SOURCES
+GoannaSimplePrograms([
+    'PropertiesTest',
+    'ReadNTLM',
+    'TestBlockingSocket',
+    'TestCallbacks',
+    'TestDNS',
+    'TestIncrementalDownload',
+    'TestOpen',
+    'TestProtocols',
+    'TestServ',
+    'TestStandardURL',
+    'TestStreamLoader',
+    'TestUpload',
+    'TestURLParser',
+    'urltest',
+])
+
+# XXX Make this work in libxul builds.
+#SIMPLE_PROGRAMS += [
+#    TestIDN',
+#    TestIOThreads',
+#    TestSocketTransport',
+#    TestStreamChannel',
+#    TestStreamPump',
+#    TestStreamTransport',
+#    TestUDPSocketProvider',
+#]
+
+CppUnitTests([
+    'TestBind',
+    'TestCookie',
+    'TestSTSParser',
+    'TestUDPSocket',
+])
+
+RESOURCE_FILES += [
+    'urlparse.dat',
+    'urlparse_unx.dat',
 ]
+
+CXXFLAGS += CONFIG['TK_CFLAGS']

@@ -1,7 +1,9 @@
+// |jit-test| error: fit
+
 // Throwing an exception from an onPop handler when yielding terminates the debuggee
 // but does not close the generator-iterator.
 
-var g = newGlobal('new-compartment');
+var g = newGlobal();
 var dbg = new Debugger;
 var gw = dbg.addDebuggee(g);
 dbg.onDebuggerStatement = function handleDebugger(frame) {

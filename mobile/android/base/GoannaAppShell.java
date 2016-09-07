@@ -5,15 +5,53 @@
 
 package org.mozilla.goanna;
 
+import java.io.BufferedReader;
+import java.io.Closeable;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStream;
+import java.net.Proxy;
+import java.net.URL;
+import java.net.URLConnection;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Queue;
+import java.util.StringTokenizer;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+
+import org.mozilla.goanna.AppConstants.Versions;
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.favicons.Favicons;
+import org.mozilla.goanna.favicons.OnFaviconLoadedListener;
 import org.mozilla.goanna.gfx.BitmapUtils;
-import org.mozilla.goanna.gfx.GoannaLayerClient;
-import org.mozilla.goanna.gfx.GfxInfoThread;
 import org.mozilla.goanna.gfx.LayerView;
 import org.mozilla.goanna.gfx.PanZoomController;
+import org.mozilla.goanna.mozglue.ContextUtils;
 import org.mozilla.goanna.mozglue.GoannaLoader;
-import org.mozilla.goanna.util.EventDispatcher;
-import org.mozilla.goanna.util.GoannaEventListener;
+import org.mozilla.goanna.mozglue.JNITarget;
+import org.mozilla.goanna.mozglue.RobocopTarget;
+import org.mozilla.goanna.mozglue.generatorannotations.OptionalGeneratedParameter;
+import org.mozilla.goanna.mozglue.generatorannotations.WrapElementForJNI;
+import org.mozilla.goanna.overlays.ui.ShareDialog;
+import org.mozilla.goanna.prompts.PromptService;
+import org.mozilla.goanna.util.EventCallback;
+import org.mozilla.goanna.util.GoannaRequest;
 import org.mozilla.goanna.util.HardwareUtils;
+import org.mozilla.goanna.util.NativeEventListener;
+import org.mozilla.goanna.util.NativeJSContainer;
+import org.mozilla.goanna.util.NativeJSObject;
+import org.mozilla.goanna.util.ProxySelector;
 import org.mozilla.goanna.util.ThreadUtils;
 
 import android.app.Activity;
@@ -37,30 +75,32 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.ImageFormat;
 import android.graphics.Paint;
+import android.graphics.PixelFormat;
 import android.graphics.Rect;
 import android.graphics.RectF;
 import android.graphics.SurfaceTexture;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
 import android.hardware.Sensor;
-import android.hardware.SensorManager;
 import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
-import android.media.MediaScannerConnection;
-import android.media.MediaScannerConnection.MediaScannerConnectionClient;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.Uri;
-import android.os.Build;
+import android.os.Bundle;
+import android.os.Environment;
+import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
 import android.os.MessageQueue;
 import android.os.SystemClock;
 import android.os.Vibrator;
 import android.provider.Settings;
+import android.telephony.TelephonyManager;
 import android.text.TextUtils;
 import android.util.Base64;
 import android.util.DisplayMetrics;
@@ -73,104 +113,152 @@ import android.view.TextureView;
 import android.view.View;
 import android.view.inputmethod.InputMethodManager;
 import android.webkit.MimeTypeMap;
+import android.webkit.URLUtil;
 import android.widget.AbsoluteLayout;
 import android.widget.Toast;
-
-import java.io.BufferedReader;
-import java.io.Closeable;
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.net.Proxy;
-import java.net.ProxySelector;
-import java.net.URI;
-import java.net.URL;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.NoSuchElementException;
-import java.util.StringTokenizer;
-import java.util.TreeMap;
 
 public class GoannaAppShell
 {
     private static final String LOGTAG = "GoannaAppShell";
+    private static final boolean LOGGING = false;
 
-    // static members only
+    // We have static members only.
     private GoannaAppShell() { }
 
-    static private LinkedList<GoannaEvent> gPendingEvents =
-        new LinkedList<GoannaEvent>();
+    private static boolean restartScheduled;
+    private static GoannaEditableListener editableListener;
 
-    static private boolean gRestartScheduled = false;
+    private static final CrashHandler CRASH_HANDLER = new CrashHandler() {
+        @Override
+        protected String getAppPackageName() {
+            return AppConstants.ANDROID_PACKAGE_NAME;
+        }
 
-    static private GoannaEditableListener mEditableListener = null;
+        @Override
+        protected Context getAppContext() {
+            return sContextGetter != null ? getContext() : null;
+        }
 
-    static private final HashMap<String, String>
-        mAlertCookies = new HashMap<String, String>();
+        @Override
+        protected Bundle getCrashExtras(final Thread thread, final Throwable exc) {
+            final Bundle extras = super.getCrashExtras(thread, exc);
 
-    /* Keep in sync with constants found here:
-      http://mxr.mozilla.org/mozilla-central/source/uriloader/base/nsIWebProgressListener.idl
+            extras.putString("ProductName", AppConstants.MOZ_APP_BASENAME);
+            extras.putString("ProductID", AppConstants.MOZ_APP_ID);
+            extras.putString("Version", AppConstants.MOZ_APP_VERSION);
+            extras.putString("BuildID", AppConstants.MOZ_APP_BUILDID);
+            extras.putString("Vendor", AppConstants.MOZ_APP_VENDOR);
+            extras.putString("ReleaseChannel", AppConstants.MOZ_UPDATE_CHANNEL);
+            return extras;
+        }
+
+        @Override
+        public void uncaughtException(final Thread thread, final Throwable exc) {
+            if (GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaExited)) {
+                // We've called System.exit. All exceptions after this point are Android
+                // berating us for being nasty to it.
+                return;
+            }
+
+            super.uncaughtException(thread, exc);
+        }
+
+        @Override
+        public boolean reportException(final Thread thread, final Throwable exc) {
+            try {
+                if (exc instanceof OutOfMemoryError) {
+                    SharedPreferences prefs = getSharedPreferences();
+                    SharedPreferences.Editor editor = prefs.edit();
+                    editor.putBoolean(GoannaApp.PREFS_OOM_EXCEPTION, true);
+
+                    // Synchronously write to disk so we know it's done before we
+                    // shutdown
+                    editor.commit();
+                }
+
+                reportJavaCrash(getExceptionStackTrace(exc));
+
+            } catch (final Throwable e) {
+            }
+
+            // reportJavaCrash should have caused us to hard crash. If we're still here,
+            // it probably means Goanna is not loaded, and we should do something else.
+            if (AppConstants.MOZ_CRASHREPORTER && AppConstants.MOZILLA_OFFICIAL) {
+                // Only use Java crash reporter if enabled on official build.
+                return super.reportException(thread, exc);
+            }
+            return false;
+        }
+    };
+
+    public static CrashHandler ensureCrashHandling() {
+        // Crash handling is automatically enabled when GoannaAppShell is loaded.
+        return CRASH_HANDLER;
+    }
+
+    private static final Queue<GoannaEvent> PENDING_EVENTS = new ConcurrentLinkedQueue<GoannaEvent>();
+    private static final Map<String, String> ALERT_COOKIES = new ConcurrentHashMap<String, String>();
+
+    private static volatile boolean locationHighAccuracyEnabled;
+
+    // Accessed by NotificationHelper. This should be encapsulated.
+    /* package */ static NotificationClient notificationClient;
+
+    // See also HardwareUtils.LOW_MEMORY_THRESHOLD_MB.
+    private static final int HIGH_MEMORY_DEVICE_THRESHOLD_MB = 768;
+
+    static private int sDensityDpi;
+    static private int sScreenDepth;
+
+    /* Default colors. */
+    private static final float[] DEFAULT_LAUNCHER_ICON_HSV = { 32.0f, 1.0f, 1.0f };
+
+    /* Is the value in sVibrationEndTime valid? */
+    private static boolean sVibrationMaybePlaying;
+
+    /* Time (in System.nanoTime() units) when the currently-playing vibration
+     * is scheduled to end.  This value is valid only when
+     * sVibrationMaybePlaying is true. */
+    private static long sVibrationEndTime;
+
+    private static Sensor gAccelerometerSensor;
+    private static Sensor gLinearAccelerometerSensor;
+    private static Sensor gGyroscopeSensor;
+    private static Sensor gOrientationSensor;
+    private static Sensor gProximitySensor;
+    private static Sensor gLightSensor;
+
+    private static final String GECKOREQUEST_RESPONSE_KEY = "response";
+    private static final String GECKOREQUEST_ERROR_KEY = "error";
+
+    /*
+     * Keep in sync with constants found here:
+     * http://mxr.mozilla.org/mozilla-central/source/uriloader/base/nsIWebProgressListener.idl
     */
     static public final int WPL_STATE_START = 0x00000001;
     static public final int WPL_STATE_STOP = 0x00000010;
     static public final int WPL_STATE_IS_DOCUMENT = 0x00020000;
     static public final int WPL_STATE_IS_NETWORK = 0x00040000;
 
-    public static final String SHORTCUT_TYPE_WEBAPP = "webapp";
-    public static final String SHORTCUT_TYPE_BOOKMARK = "bookmark";
-
-    static private final boolean LOGGING = false;
-
-    static private int sDensityDpi = 0;
-
-    private static final EventDispatcher sEventDispatcher = new EventDispatcher();
-
-    /* Default colors. */
-    private static final float[] DEFAULT_LAUNCHER_ICON_HSV = { 32.0f, 1.0f, 1.0f };
-
-    /* Is the value in sVibrationEndTime valid? */
-    private static boolean sVibrationMaybePlaying = false;
-
-    /* Time (in System.nanoTime() units) when the currently-playing vibration
-     * is scheduled to end.  This value is valid only when
-     * sVibrationMaybePlaying is true. */
-    private static long sVibrationEndTime = 0;
-
-    /* Default value of how fast we should hint the Android sensors. */
-    private static int sDefaultSensorHint = 100;
-
-    private static Sensor gAccelerometerSensor = null;
-    private static Sensor gLinearAccelerometerSensor = null;
-    private static Sensor gGyroscopeSensor = null;
-    private static Sensor gOrientationSensor = null;
-    private static Sensor gProximitySensor = null;
-    private static Sensor gLightSensor = null;
-
-    private static volatile boolean mLocationHighAccuracy;
-
-    public static ActivityHandlerHelper sActivityHelper = new ActivityHandlerHelper();
-    static NotificationClient sNotificationClient;
+    /* Keep in sync with constants found here:
+      http://mxr.mozilla.org/mozilla-central/source/netwerk/base/nsINetworkLinkService.idl
+    */
+    static public final int LINK_TYPE_UNKNOWN = 0;
+    static public final int LINK_TYPE_ETHERNET = 1;
+    static public final int LINK_TYPE_USB = 2;
+    static public final int LINK_TYPE_WIFI = 3;
+    static public final int LINK_TYPE_WIMAX = 4;
+    static public final int LINK_TYPE_2G = 5;
+    static public final int LINK_TYPE_3G = 6;
+    static public final int LINK_TYPE_4G = 7;
 
     /* The Android-side API: API methods that Android calls */
 
     // Initialization methods
-    public static native void nativeInit();
+    public static native void registerJavaUiThread();
+    public static native void nativeInit(ClassLoader clsLoader);
 
     // helper methods
-    //    public static native void setSurfaceView(GoannaSurfaceView sv);
-    public static native void setLayerClient(GoannaLayerClient client);
     public static native void onResume();
     public static void callObserver(String observerKey, String topic, String data) {
         sendEventToGoanna(GoannaEvent.createCallObserverEvent(observerKey, topic, data));
@@ -180,43 +268,7 @@ public class GoannaAppShell
     }
     public static native Message getNextMessageFromQueue(MessageQueue queue);
     public static native void onSurfaceTextureFrameAvailable(Object surfaceTexture, int id);
-
-    public static void registerGlobalExceptionHandler() {
-        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-            @Override
-            public void uncaughtException(Thread thread, Throwable e) {
-                // If the uncaught exception was rethrown, walk the exception `cause` chain to find
-                // the original exception so Socorro can correctly collate related crash reports.
-                Throwable cause;
-                while ((cause = e.getCause()) != null) {
-                    e = cause;
-                }
-
-                try {
-                    Log.e(LOGTAG, ">>> REPORTING UNCAUGHT EXCEPTION FROM THREAD "
-                                  + thread.getId() + " (\"" + thread.getName() + "\")", e);
-
-                    if (e instanceof OutOfMemoryError) {
-                        SharedPreferences prefs =
-                            getContext().getSharedPreferences(GoannaApp.PREFS_NAME, 0);
-                        SharedPreferences.Editor editor = prefs.edit();
-                        editor.putBoolean(GoannaApp.PREFS_OOM_EXCEPTION, true);
-                        editor.commit();
-                    }
-                } finally {
-                    reportJavaCrash(getStackTraceString(e));
-                }
-            }
-        });
-    }
-
-    private static String getStackTraceString(Throwable e) {
-        StringWriter sw = new StringWriter();
-        PrintWriter pw = new PrintWriter(sw);
-        e.printStackTrace(pw);
-        pw.flush();
-        return sw.toString();
-    }
+    public static native void dispatchMemoryPressure();
 
     private static native void reportJavaCrash(String stackTrace);
 
@@ -242,54 +294,63 @@ public class GoannaAppShell
 
     public static native void onFullScreenPluginHidden(View view);
 
-    private static final class GoannaMediaScannerClient implements MediaScannerConnectionClient {
-        private final String mFile;
-        private final String mMimeType;
-        private MediaScannerConnection mScanner;
+    public static class CreateShortcutFaviconLoadedListener implements OnFaviconLoadedListener {
+        private final String title;
+        private final String url;
 
-        public static void startScan(Context context, String file, String mimeType) {
-            new GoannaMediaScannerClient(context, file, mimeType);
-        }
-
-        private GoannaMediaScannerClient(Context context, String file, String mimeType) {
-            mFile = file;
-            mMimeType = mimeType;
-            mScanner = new MediaScannerConnection(context, this);
-            mScanner.connect();
+        public CreateShortcutFaviconLoadedListener(final String url, final String title) {
+            this.url = url;
+            this.title = title;
         }
 
         @Override
-        public void onMediaScannerConnected() {
-            mScanner.scanFile(mFile, mMimeType);
-        }
-
-        @Override
-        public void onScanCompleted(String path, Uri uri) {
-            if(path.equals(mFile)) {
-                mScanner.disconnect();
-                mScanner = null;
-            }
+        public void onFaviconLoaded(String pageUrl, String faviconURL, Bitmap favicon) {
+            GoannaAppShell.createShortcut(title, url, favicon);
         }
     }
 
     private static LayerView sLayerView;
 
     public static void setLayerView(LayerView lv) {
+        if (sLayerView == lv) {
+            return;
+        }
         sLayerView = lv;
+
+        // We should have a unique GoannaEditable instance per nsWindow instance,
+        // so even though we have a new view here, the underlying nsWindow is the same,
+        // and we don't create a new GoannaEditable.
+        if (editableListener == null) {
+            // Starting up; istall new Goanna-to-Java editable listener.
+            editableListener = new GoannaEditable();
+        } else {
+            // Bind the existing GoannaEditable instance to the new LayerView
+            GoannaAppShell.notifyIMEContext(GoannaEditableListener.IME_STATE_DISABLED, "", "", "");
+        }
     }
 
+    @RobocopTarget
     public static LayerView getLayerView() {
         return sLayerView;
     }
 
     public static void runGoanna(String apkPath, String args, String url, String type) {
-        Looper.prepare();
+        // Preparation for pumpMessageLoop()
+        MessageQueue.IdleHandler idleHandler = new MessageQueue.IdleHandler() {
+            @Override public boolean queueIdle() {
+                final Handler goannaHandler = ThreadUtils.sGoannaHandler;
+                Message idleMsg = Message.obtain(goannaHandler);
+                // Use |Message.obj == GoannaHandler| to identify our "queue is empty" message
+                idleMsg.obj = goannaHandler;
+                goannaHandler.sendMessageAtFrontOfQueue(idleMsg);
+                // Keep this IdleHandler
+                return true;
+            }
+        };
+        Looper.myQueue().addIdleHandler(idleHandler);
 
-        // run goanna -- it will spawn its own thread
-        GoannaAppShell.nativeInit();
-
-        if (sLayerView != null)
-            GoannaAppShell.setLayerClient(sLayerView.getLayerClient());
+        // Initialize AndroidBridge.
+        nativeInit(GoannaAppShell.class.getClassLoader());
 
         // First argument is the .apk path
         String combinedArgs = apkPath + " -greomni " + apkPath;
@@ -300,70 +361,137 @@ public class GoannaAppShell
         if (type != null)
             combinedArgs += " " + type;
 
+        // In un-official builds, we want to load Javascript resources fresh
+        // with each build.  In official builds, the startup cache is purged by
+        // the buildid mechanism, but most un-official builds don't bump the
+        // buildid, so we purge here instead.
+        if (!AppConstants.MOZILLA_OFFICIAL) {
+            Log.w(LOGTAG, "STARTUP PERFORMANCE WARNING: un-official build: purging the " +
+                          "startup (JavaScript) caches.");
+            combinedArgs += " -purgecaches";
+        }
+
         DisplayMetrics metrics = getContext().getResources().getDisplayMetrics();
         combinedArgs += " -width " + metrics.widthPixels + " -height " + metrics.heightPixels;
 
-        ThreadUtils.postToUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    goannaLoaded();
-                }
-            });
-
+        if (!AppConstants.MOZILLA_OFFICIAL) {
+            Log.d(LOGTAG, "GoannaLoader.nativeRun " + combinedArgs);
+        }
         // and go
         GoannaLoader.nativeRun(combinedArgs);
-    }
 
-    // Called on the UI thread after Goanna loads.
-    private static void goannaLoaded() {
-        GoannaEditable editable = new GoannaEditable();
-        // install the goanna => editable listener
-        mEditableListener = editable;
+        // Remove pumpMessageLoop() idle handler
+        Looper.myQueue().removeIdleHandler(idleHandler);
     }
 
     static void sendPendingEventsToGoanna() {
         try {
-            while (!gPendingEvents.isEmpty()) {
-                GoannaEvent e = gPendingEvents.removeFirst();
+            while (!PENDING_EVENTS.isEmpty()) {
+                final GoannaEvent e = PENDING_EVENTS.poll();
                 notifyGoannaOfEvent(e);
             }
         } catch (NoSuchElementException e) {}
     }
 
-    /* This method is referenced by Robocop via reflection. */
+    /**
+     * If the Goanna thread is running, immediately dispatches the event to
+     * Goanna.
+     *
+     * If the Goanna thread is not running, queues the event. If the queue is
+     * full, throws {@link IllegalStateException}.
+     *
+     * Queued events will be dispatched in order of arrival when the Goanna
+     * thread becomes live.
+     *
+     * This method can be called from any thread.
+     *
+     * @param e
+     *            the event to dispatch. Cannot be null.
+     */
+    @RobocopTarget
     public static void sendEventToGoanna(GoannaEvent e) {
+        if (e == null) {
+            throw new IllegalArgumentException("e cannot be null.");
+        }
+
         if (GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
             notifyGoannaOfEvent(e);
-        } else {
-            gPendingEvents.addLast(e);
+            // Goanna will copy the event data into a normal C++ object. We can recycle the event now.
+            e.recycle();
+            return;
         }
+
+        // Throws if unable to add the event due to capacity restrictions.
+        PENDING_EVENTS.add(e);
+    }
+
+    /**
+     * Sends an asynchronous request to Goanna.
+     *
+     * The response data will be passed to {@link GoannaRequest#onResponse(NativeJSObject)} if the
+     * request succeeds; otherwise, {@link GoannaRequest#onError()} will fire.
+     *
+     * This method follows the same queuing conditions as {@link #sendEventToGoanna(GoannaEvent)}.
+     * It can be called from any thread. The GoannaRequest callbacks will be executed on the Goanna thread.
+     *
+     * @param request The request to dispatch. Cannot be null.
+     */
+    @RobocopTarget
+    public static void sendRequestToGoanna(final GoannaRequest request) {
+        final String responseMessage = "Goanna:Request" + request.getId();
+
+        EventDispatcher.getInstance().registerGoannaThreadListener(new NativeEventListener() {
+            @Override
+            public void handleMessage(String event, NativeJSObject message, EventCallback callback) {
+                EventDispatcher.getInstance().unregisterGoannaThreadListener(this, event);
+                if (!message.has(GECKOREQUEST_RESPONSE_KEY)) {
+                    request.onError(message.getObject(GECKOREQUEST_ERROR_KEY));
+                    return;
+                }
+                request.onResponse(message.getObject(GECKOREQUEST_RESPONSE_KEY));
+            }
+        }, responseMessage);
+
+        sendEventToGoanna(GoannaEvent.createBroadcastEvent(request.getName(), request.getData()));
     }
 
     // Tell the Goanna event loop that an event is available.
     public static native void notifyGoannaOfEvent(GoannaEvent event);
 
+    // Synchronously notify a Goanna observer; must be called from Goanna thread.
+    public static native void notifyGoannaObservers(String subject, String data);
+
     /*
      *  The Goanna-side API: API methods that Goanna calls
      */
+
+    @WrapElementForJNI(allowMultithread = true, noThrow = true)
+    public static void handleUncaughtException(Thread thread, Throwable e) {
+        CRASH_HANDLER.uncaughtException(thread, e);
+    }
+
+    @WrapElementForJNI
     public static void notifyIME(int type) {
-        if (mEditableListener != null) {
-            mEditableListener.notifyIME(type);
+        if (editableListener != null) {
+            editableListener.notifyIME(type);
         }
     }
 
+    @WrapElementForJNI
     public static void notifyIMEContext(int state, String typeHint,
                                         String modeHint, String actionHint) {
-        if (mEditableListener != null) {
-            mEditableListener.notifyIMEContext(state, typeHint,
+        if (editableListener != null) {
+            editableListener.notifyIMEContext(state, typeHint,
                                                modeHint, actionHint);
         }
     }
 
+    @WrapElementForJNI
     public static void notifyIMEChange(String text, int start, int end, int newEnd) {
         if (newEnd < 0) { // Selection change
-            mEditableListener.onSelectionChange(start, end);
+            editableListener.onSelectionChange(start, end);
         } else { // Text change
-            mEditableListener.onTextChange(text, start, end, newEnd);
+            editableListener.onTextChange(text, start, end, newEnd);
         }
     }
 
@@ -402,11 +530,30 @@ public class GoannaAppShell
     }
 
     // Signal the Java thread that it's time to wake up
+    @WrapElementForJNI
     public static void acknowledgeEvent() {
         synchronized (sEventAckLock) {
             sWaitingForEventAck = false;
             sEventAckLock.notifyAll();
         }
+    }
+
+    private static final Runnable sCallbackRunnable = new Runnable() {
+        @Override
+        public void run() {
+            ThreadUtils.assertOnUiThread();
+            long nextDelay = runUiThreadCallback();
+            if (nextDelay >= 0) {
+                ThreadUtils.getUiHandler().postDelayed(this, nextDelay);
+            }
+        }
+    };
+
+    private static native long runUiThreadCallback();
+
+    @WrapElementForJNI(allowMultithread = true)
+    private static void requestUiThreadCallback(long delay) {
+        ThreadUtils.getUiHandler().postDelayed(sCallbackRunnable, delay);
     }
 
     private static float getLocationAccuracy(Location location) {
@@ -440,6 +587,7 @@ public class GoannaAppShell
         return lastKnownLocation;
     }
 
+    @WrapElementForJNI
     public static void enableLocation(final boolean enable) {
         ThreadUtils.postToUiThread(new Runnable() {
                 @Override
@@ -459,7 +607,7 @@ public class GoannaAppShell
                         criteria.setSpeedRequired(false);
                         criteria.setBearingRequired(false);
                         criteria.setAltitudeRequired(false);
-                        if (mLocationHighAccuracy) {
+                        if (locationHighAccuracyEnabled) {
                             criteria.setAccuracy(Criteria.ACCURACY_FINE);
                             criteria.setCostAllowed(true);
                             criteria.setPowerRequirement(Criteria.POWER_HIGH);
@@ -495,10 +643,12 @@ public class GoannaAppShell
         }
     }
 
+    @WrapElementForJNI
     public static void enableLocationHighAccuracy(final boolean enable) {
-        mLocationHighAccuracy = enable;
+        locationHighAccuracyEnabled = enable;
     }
 
+    @WrapElementForJNI
     public static void enableSensor(int aSensortype) {
         GoannaInterface gi = getGoannaInterface();
         if (gi == null)
@@ -511,14 +661,14 @@ public class GoannaAppShell
             if(gOrientationSensor == null)
                 gOrientationSensor = sm.getDefaultSensor(Sensor.TYPE_ORIENTATION);
             if (gOrientationSensor != null) 
-                sm.registerListener(gi.getSensorEventListener(), gOrientationSensor, sDefaultSensorHint);
+                sm.registerListener(gi.getSensorEventListener(), gOrientationSensor, SensorManager.SENSOR_DELAY_GAME);
             break;
 
         case GoannaHalDefines.SENSOR_ACCELERATION:
             if(gAccelerometerSensor == null)
                 gAccelerometerSensor = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
             if (gAccelerometerSensor != null)
-                sm.registerListener(gi.getSensorEventListener(), gAccelerometerSensor, sDefaultSensorHint);
+                sm.registerListener(gi.getSensorEventListener(), gAccelerometerSensor, SensorManager.SENSOR_DELAY_GAME);
             break;
 
         case GoannaHalDefines.SENSOR_PROXIMITY:
@@ -539,20 +689,21 @@ public class GoannaAppShell
             if(gLinearAccelerometerSensor == null)
                 gLinearAccelerometerSensor = sm.getDefaultSensor(10 /* API Level 9 - TYPE_LINEAR_ACCELERATION */);
             if (gLinearAccelerometerSensor != null)
-                sm.registerListener(gi.getSensorEventListener(), gLinearAccelerometerSensor, sDefaultSensorHint);
+                sm.registerListener(gi.getSensorEventListener(), gLinearAccelerometerSensor, SensorManager.SENSOR_DELAY_GAME);
             break;
 
         case GoannaHalDefines.SENSOR_GYROSCOPE:
             if(gGyroscopeSensor == null)
                 gGyroscopeSensor = sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE);
             if (gGyroscopeSensor != null)
-                sm.registerListener(gi.getSensorEventListener(), gGyroscopeSensor, sDefaultSensorHint);
+                sm.registerListener(gi.getSensorEventListener(), gGyroscopeSensor, SensorManager.SENSOR_DELAY_GAME);
             break;
         default:
             Log.w(LOGTAG, "Error! Can't enable unknown SENSOR type " + aSensortype);
         }
     }
 
+    @WrapElementForJNI
     public static void disableSensor(int aSensortype) {
         GoannaInterface gi = getGoannaInterface();
         if (gi == null)
@@ -596,6 +747,37 @@ public class GoannaAppShell
         }
     }
 
+    @WrapElementForJNI
+    public static void startMonitoringGamepad() {
+        ThreadUtils.postToUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    AndroidGamepadManager.startup();
+                }
+            });
+    }
+
+    @WrapElementForJNI
+    public static void stopMonitoringGamepad() {
+        ThreadUtils.postToUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    AndroidGamepadManager.shutdown();
+                }
+            });
+    }
+
+    @WrapElementForJNI
+    public static void gamepadAdded(final int device_id, final int service_id) {
+        ThreadUtils.postToUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    AndroidGamepadManager.gamepadAdded(device_id, service_id);
+                }
+            });
+    }
+
+    @WrapElementForJNI
     public static void moveTaskToBack() {
         if (getGoannaInterface() != null)
             getGoannaInterface().getActivity().moveTaskToBack(true);
@@ -606,188 +788,96 @@ public class GoannaAppShell
         // Native Fennec doesn't care because the Java code already knows the selection indexes.
     }
 
+    @WrapElementForJNI(stubName = "NotifyXreExit")
     static void onXreExit() {
         // The launch state can only be Launched or GoannaRunning at this point
         GoannaThread.setLaunchState(GoannaThread.LaunchState.GoannaExiting);
         if (getGoannaInterface() != null) {
-            if (gRestartScheduled) {
+            if (restartScheduled) {
                 getGoannaInterface().doRestart();
             } else {
                 getGoannaInterface().getActivity().finish();
             }
         }
 
-        Log.d(LOGTAG, "Killing via System.exit()");
+        systemExit();
+    }
+
+    static void gracefulExit() {
+        Log.d(LOGTAG, "Initiating graceful exit...");
+        sendEventToGoannaSync(GoannaEvent.createBroadcastEvent("Browser:Quit", ""));
+        GoannaThread.setLaunchState(GoannaThread.LaunchState.GoannaExited);
         System.exit(0);
     }
 
+    static void systemExit() {
+        Log.d(LOGTAG, "Killing via System.exit()");
+        GoannaThread.setLaunchState(GoannaThread.LaunchState.GoannaExited);
+        System.exit(0);
+    }
+
+    @WrapElementForJNI
     static void scheduleRestart() {
-        gRestartScheduled = true;
+        restartScheduled = true;
     }
 
-    public static File preInstallWebApp(String aTitle, String aURI, String aUniqueURI) {
-        int index = WebAppAllocator.getInstance(getContext()).findAndAllocateIndex(aUniqueURI, aTitle, (String) null);
-        GoannaProfile profile = GoannaProfile.get(getContext(), "webapp" + index);
-        return profile.getDir();
+    // Creates a homescreen shortcut for a web page.
+    // This is the entry point from nsIShellService.
+    @WrapElementForJNI
+    static void createShortcut(final String aTitle, final String aURI, final String aIconData) {
+        // We have the favicon data (base64) decoded on the background thread, callback here, then
+        // call the other createShortcut method with the decoded favicon.
+        // This is slightly contrived, but makes the images available to the favicon cache.
+        Favicons.getSizedFavicon(getContext(), aURI, aIconData, Integer.MAX_VALUE, 0,
+            new OnFaviconLoadedListener() {
+                @Override
+                public void onFaviconLoaded(String url, String faviconURL, Bitmap favicon) {
+                    createShortcut(aTitle, url, favicon);
+                }
+            }
+        );
     }
 
-    public static void postInstallWebApp(String aTitle, String aURI, String aUniqueURI, String aIconURL) {
-    	WebAppAllocator allocator = WebAppAllocator.getInstance(getContext());
-		int index = allocator.getIndexForApp(aUniqueURI);
-    	assert index != -1 && aIconURL != null;
-    	allocator.updateAppAllocation(aUniqueURI, index, BitmapUtils.getBitmapFromDataURI(aIconURL));
-    	createShortcut(aTitle, aURI, aUniqueURI, aIconURL, "webapp");
+    public static void createShortcut(final String aTitle, final String aURI, final Bitmap aBitmap) {
+        ThreadUtils.postToBackgroundThread(new Runnable() {
+            @Override
+            public void run() {
+                doCreateShortcut(aTitle, aURI, aBitmap);
+            }
+        });
     }
 
-    public static Intent getWebAppIntent(String aURI, String aUniqueURI, String aTitle, Bitmap aIcon) {
-        int index;
-        if (aIcon != null && !TextUtils.isEmpty(aTitle))
-            index = WebAppAllocator.getInstance(getContext()).findAndAllocateIndex(aUniqueURI, aTitle, aIcon);
-        else
-            index = WebAppAllocator.getInstance(getContext()).getIndexForApp(aUniqueURI);
+    /**
+     * Call this method only on the background thread.
+     */
+    private static void doCreateShortcut(final String aTitle, final String aURI, final Bitmap aIcon) {
+        // The intent to be launched by the shortcut.
+        Intent shortcutIntent = new Intent();
+        shortcutIntent.setAction(GoannaApp.ACTION_HOMESCREEN_SHORTCUT);
+        shortcutIntent.setData(Uri.parse(aURI));
+        shortcutIntent.setClassName(AppConstants.ANDROID_PACKAGE_NAME,
+                                    AppConstants.BROWSER_INTENT_CLASS_NAME);
 
-        if (index == -1)
-            return null;
-
-        return getWebAppIntent(index, aURI);
-    }
-
-    public static Intent getWebAppIntent(int aIndex, String aURI) {
         Intent intent = new Intent();
-        intent.setAction(GoannaApp.ACTION_WEBAPP_PREFIX + aIndex);
-        intent.setData(Uri.parse(aURI));
-        intent.setClassName(AppConstants.ANDROID_PACKAGE_NAME,
-                            AppConstants.ANDROID_PACKAGE_NAME + ".WebApps$WebApp" + aIndex);
-        return intent;
-    }
+        intent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
+        intent.putExtra(Intent.EXTRA_SHORTCUT_ICON, getLauncherIcon(aIcon));
 
-    // "Installs" an application by creating a shortcut
-    // This is the entry point from AndroidBridge.h
-    static void createShortcut(String aTitle, String aURI, String aIconData, String aType) {
-        if ("webapp".equals(aType)) {
-            Log.w(LOGTAG, "createShortcut with no unique URI should not be used for aType = webapp!");
+        if (aTitle != null) {
+            intent.putExtra(Intent.EXTRA_SHORTCUT_NAME, aTitle);
+        } else {
+            intent.putExtra(Intent.EXTRA_SHORTCUT_NAME, aURI);
         }
 
-        createShortcut(aTitle, aURI, aURI, aIconData, aType);
+        // Do not allow duplicate items.
+        intent.putExtra("duplicate", false);
+
+        intent.setAction("com.android.launcher.action.INSTALL_SHORTCUT");
+        getContext().sendBroadcast(intent);
     }
 
-    // internal, for non-webapps
-    static void createShortcut(String aTitle, String aURI, Bitmap aBitmap, String aType) {
-        createShortcut(aTitle, aURI, aURI, aBitmap, aType);
-    }
-
-    // internal, for webapps
-    static void createShortcut(String aTitle, String aURI, String aUniqueURI, String aIconData, String aType) {
-        createShortcut(aTitle, aURI, aUniqueURI, BitmapUtils.getBitmapFromDataURI(aIconData), aType);
-    }
-
-    public static void createShortcut(final String aTitle, final String aURI, final String aUniqueURI,
-                                      final Bitmap aIcon, final String aType)
-    {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
-            @Override
-            public void run() {
-                // the intent to be launched by the shortcut
-                Intent shortcutIntent;
-                if (aType.equalsIgnoreCase(SHORTCUT_TYPE_WEBAPP)) {
-                    shortcutIntent = getWebAppIntent(aURI, aUniqueURI, aTitle, aIcon);
-                } else {
-                    shortcutIntent = new Intent();
-                    shortcutIntent.setAction(GoannaApp.ACTION_BOOKMARK);
-                    shortcutIntent.setData(Uri.parse(aURI));
-                    shortcutIntent.setClassName(AppConstants.ANDROID_PACKAGE_NAME,
-                                                AppConstants.BROWSER_INTENT_CLASS);
-                }
-        
-                Intent intent = new Intent();
-                intent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
-                if (aTitle != null)
-                    intent.putExtra(Intent.EXTRA_SHORTCUT_NAME, aTitle);
-                else
-                    intent.putExtra(Intent.EXTRA_SHORTCUT_NAME, aURI);
-                intent.putExtra(Intent.EXTRA_SHORTCUT_ICON, getLauncherIcon(aIcon, aType));
-
-                // Do not allow duplicate items
-                intent.putExtra("duplicate", false);
-
-                intent.setAction("com.android.launcher.action.INSTALL_SHORTCUT");
-                getContext().sendBroadcast(intent);
-            }
-        });
-    }
-
-    public static void removeShortcut(final String aTitle, final String aURI, final String aType) {
-        removeShortcut(aTitle, aURI, null, aType);
-    }
-
-    public static void removeShortcut(final String aTitle, final String aURI, final String aUniqueURI, final String aType) {
-        ThreadUtils.postToBackgroundThread(new Runnable() {
-            @Override
-            public void run() {
-                // the intent to be launched by the shortcut
-                Intent shortcutIntent;
-                if (aType.equalsIgnoreCase(SHORTCUT_TYPE_WEBAPP)) {
-                    int index = WebAppAllocator.getInstance(getContext()).getIndexForApp(aUniqueURI);
-                    shortcutIntent = getWebAppIntent(aURI, aUniqueURI, "", null);
-                    if (shortcutIntent == null)
-                        return;
-                } else {
-                    shortcutIntent = new Intent();
-                    shortcutIntent.setAction(GoannaApp.ACTION_BOOKMARK);
-                    shortcutIntent.setClassName(AppConstants.ANDROID_PACKAGE_NAME,
-                                                AppConstants.BROWSER_INTENT_CLASS);
-                    shortcutIntent.setData(Uri.parse(aURI));
-                }
-        
-                Intent intent = new Intent();
-                intent.putExtra(Intent.EXTRA_SHORTCUT_INTENT, shortcutIntent);
-                if (aTitle != null)
-                    intent.putExtra(Intent.EXTRA_SHORTCUT_NAME, aTitle);
-                else
-                    intent.putExtra(Intent.EXTRA_SHORTCUT_NAME, aURI);
-
-                intent.setAction("com.android.launcher.action.UNINSTALL_SHORTCUT");
-                getContext().sendBroadcast(intent);
-            }
-        });
-    }
-
-    public static void uninstallWebApp(final String uniqueURI) {
-        // On uninstall, we need to do a couple of things:
-        //   1. nuke the running app process.
-        //   2. nuke the profile that was assigned to that webapp
-        ThreadUtils.postToBackgroundThread(new Runnable() {
-            @Override
-            public void run() {
-                int index = WebAppAllocator.getInstance(getContext()).releaseIndexForApp(uniqueURI);
-
-                // if -1, nothing to do; we didn't think it was installed anyway
-                if (index == -1)
-                    return;
-
-                // kill the app if it's running
-                String targetProcessName = getContext().getPackageName();
-                targetProcessName = targetProcessName + ":" + targetProcessName + ".WebApp" + index;
-
-                ActivityManager am = (ActivityManager) getContext().getSystemService(Context.ACTIVITY_SERVICE);
-                List<ActivityManager.RunningAppProcessInfo> procs = am.getRunningAppProcesses();
-                if (procs != null) {
-                    for (ActivityManager.RunningAppProcessInfo proc : procs) {
-                        if (proc.processName.equals(targetProcessName)) {
-                            android.os.Process.killProcess(proc.pid);
-                            break;
-                        }
-                    }
-                }
-
-                // then nuke the profile
-                GoannaProfile.removeProfile(getContext(), "webapp" + index);
-            }
-        });
-    }
-
+    @JNITarget
     static public int getPreferredIconSize() {
-        if (android.os.Build.VERSION.SDK_INT >= 11) {
+        if (Versions.feature11Plus) {
             ActivityManager am = (ActivityManager)getContext().getSystemService(Context.ACTIVITY_SERVICE);
             return am.getLauncherLargeIconSize();
         } else {
@@ -803,7 +893,7 @@ public class GoannaAppShell
         }
     }
 
-    static private Bitmap getLauncherIcon(Bitmap aSource, String aType) {
+    static private Bitmap getLauncherIcon(Bitmap aSource) {
         final int kOffset = 6;
         final int kRadius = 5;
         int size = getPreferredIconSize();
@@ -812,11 +902,6 @@ public class GoannaAppShell
         Bitmap bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
 
-        if (aType.equalsIgnoreCase(SHORTCUT_TYPE_WEBAPP)) {
-            Rect iconBounds = new Rect(0, 0, size, size);
-            canvas.drawBitmap(aSource, null, iconBounds, null);
-            return bitmap;
-        }
 
         // draw a base color
         Paint paint = new Paint();
@@ -824,6 +909,11 @@ public class GoannaAppShell
             // If we aren't drawing a favicon, just use an orange color.
             paint.setColor(Color.HSVToColor(DEFAULT_LAUNCHER_ICON_HSV));
             canvas.drawRoundRect(new RectF(kOffset, kOffset, size - kOffset, size - kOffset), kRadius, kRadius, paint);
+        } else if (aSource.getWidth() >= insetSize || aSource.getHeight() >= insetSize) {
+            // Otherwise, if the icon is large enough, just draw it.
+            Rect iconBounds = new Rect(0, 0, size, size);
+            canvas.drawBitmap(aSource, null, iconBounds, null);
+            return bitmap;
         } else {
             // otherwise use the dominant color from the icon + a layer of transparent white to lighten it somewhat
             int color = BitmapUtils.getDominantColor(aSource);
@@ -845,13 +935,6 @@ public class GoannaAppShell
         int sWidth = insetSize / 2;
         int sHeight = sWidth;
 
-        if (aSource.getWidth() > insetSize || aSource.getHeight() > insetSize) {
-            // however, if the icon is larger than our minimum, we allow it to be drawn slightly larger
-            // (but not necessarily at its full resolution)
-            sWidth = Math.min(size / 3, aSource.getWidth() / 2);
-            sHeight = Math.min(size / 3, aSource.getHeight() / 2);
-        }
-
         int halfSize = size / 2;
         canvas.drawBitmap(aSource,
                           null,
@@ -864,6 +947,7 @@ public class GoannaAppShell
         return bitmap;
     }
 
+    @WrapElementForJNI(stubName = "GetHandlersForMimeTypeWrapper")
     static String[] getHandlersForMimeType(String aMimeType, String aAction) {
         Intent intent = getIntentForActionString(aAction);
         if (aMimeType != null && aMimeType.length() > 0)
@@ -871,6 +955,7 @@ public class GoannaAppShell
         return getHandlersForIntent(intent);
     }
 
+    @WrapElementForJNI(stubName = "GetHandlersForURLWrapper")
     static String[] getHandlersForURL(String aURL, String aAction) {
         // aURL may contain the whole URL or just the protocol
         Uri uri = aURL.indexOf(':') >= 0 ? Uri.parse(aURL) : new Uri.Builder().scheme(aURL).build();
@@ -882,27 +967,37 @@ public class GoannaAppShell
     }
 
     static boolean hasHandlersForIntent(Intent intent) {
-        PackageManager pm = getContext().getPackageManager();
-        List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
-        return !list.isEmpty();
+        try {
+            PackageManager pm = getContext().getPackageManager();
+            List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
+            return !list.isEmpty();
+        } catch (Exception ex) {
+            Log.e(LOGTAG, "Exception in GoannaAppShell.hasHandlersForIntent");
+            return false;
+        }
     }
 
     static String[] getHandlersForIntent(Intent intent) {
-        PackageManager pm = getContext().getPackageManager();
-        List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
-        int numAttr = 4;
-        String[] ret = new String[list.size() * numAttr];
-        for (int i = 0; i < list.size(); i++) {
-            ResolveInfo resolveInfo = list.get(i);
-            ret[i * numAttr] = resolveInfo.loadLabel(pm).toString();
-            if (resolveInfo.isDefault)
-                ret[i * numAttr + 1] = "default";
-            else
-                ret[i * numAttr + 1] = "";
-            ret[i * numAttr + 2] = resolveInfo.activityInfo.applicationInfo.packageName;
-            ret[i * numAttr + 3] = resolveInfo.activityInfo.name;
+        try {
+            PackageManager pm = getContext().getPackageManager();
+            List<ResolveInfo> list = pm.queryIntentActivities(intent, 0);
+            int numAttr = 4;
+            String[] ret = new String[list.size() * numAttr];
+            for (int i = 0; i < list.size(); i++) {
+                ResolveInfo resolveInfo = list.get(i);
+                ret[i * numAttr] = resolveInfo.loadLabel(pm).toString();
+                if (resolveInfo.isDefault)
+                    ret[i * numAttr + 1] = "default";
+                else
+                    ret[i * numAttr + 1] = "";
+                ret[i * numAttr + 2] = resolveInfo.activityInfo.applicationInfo.packageName;
+                ret[i * numAttr + 3] = resolveInfo.activityInfo.name;
+            }
+            return ret;
+        } catch (Exception ex) {
+            Log.e(LOGTAG, "Exception in GoannaAppShell.getHandlersForIntent");
+            return new String[0];
         }
-        return ret;
     }
 
     static Intent getIntentForActionString(String aAction) {
@@ -913,18 +1008,19 @@ public class GoannaAppShell
         return new Intent(aAction);
     }
 
+    @WrapElementForJNI(stubName = "GetExtensionFromMimeTypeWrapper")
     static String getExtensionFromMimeType(String aMimeType) {
         return MimeTypeMap.getSingleton().getExtensionFromMimeType(aMimeType);
     }
 
+    @WrapElementForJNI(stubName = "GetMimeTypeFromExtensionsWrapper")
     static String getMimeTypeFromExtensions(String aFileExt) {
-        MimeTypeMap mtm = MimeTypeMap.getSingleton();
         StringTokenizer st = new StringTokenizer(aFileExt, ".,; ");
         String type = null;
         String subType = null;
         while (st.hasMoreElements()) {
             String ext = st.nextToken();
-            String mt = mtm.getMimeTypeFromExtension(ext);
+            String mt = getMimeTypeFromExtension(ext);
             if (mt == null)
                 continue;
             int slash = mt.indexOf('/');
@@ -949,81 +1045,6 @@ public class GoannaAppShell
         } catch (IOException e) {}
     }
 
-    static void shareImage(String aSrc, String aType) {
-
-        Intent intent = new Intent(Intent.ACTION_SEND);
-        boolean isDataURI = aSrc.startsWith("data:");
-        OutputStream os = null;
-        File dir = GoannaApp.getTempDirectory();
-
-        if (dir == null) {
-            showImageShareFailureToast();
-            return;
-        }
-
-        GoannaApp.deleteTempFiles();
-
-        try {
-            // Create a temporary file for the image
-            File imageFile = File.createTempFile("image",
-                                                 "." + aType.replace("image/",""),
-                                                 dir);
-            os = new FileOutputStream(imageFile);
-
-            if (isDataURI) {
-                // We are dealing with a Data URI
-                int dataStart = aSrc.indexOf(',');
-                byte[] buf = Base64.decode(aSrc.substring(dataStart+1), Base64.DEFAULT);
-                os.write(buf);
-            } else {
-                // We are dealing with a URL
-                InputStream is = null;
-                try {
-                    URL url = new URL(aSrc);
-                    is = url.openStream();
-                    byte[] buf = new byte[2048];
-                    int length;
-
-                    while ((length = is.read(buf)) != -1) {
-                        os.write(buf, 0, length);
-                    }
-                } finally {
-                    safeStreamClose(is);
-                }
-            }
-            intent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(imageFile));
-
-            // If we were able to determine the image type, send that in the intent. Otherwise,
-            // use a generic type.
-            if (aType.startsWith("image/")) {
-                intent.setType(aType);
-            } else {
-                intent.setType("image/*");
-            }
-        } catch (IOException e) {
-            if (!isDataURI) {
-               // If we failed, at least send through the URL link
-               intent.putExtra(Intent.EXTRA_TEXT, aSrc);
-               intent.setType("text/plain");
-            } else {
-               showImageShareFailureToast();
-               return;
-            }
-        } finally {
-            safeStreamClose(os);
-        }
-        getContext().startActivity(Intent.createChooser(intent,
-                getContext().getResources().getString(R.string.share_title)));
-    }
-
-    // Don't fail silently, tell the user that we weren't able to share the image
-    private static final void showImageShareFailureToast() {
-        Toast toast = Toast.makeText(getContext(),
-                                     getContext().getResources().getString(R.string.share_image_failed),
-                                     Toast.LENGTH_SHORT);
-        toast.show();
-    }
-
     static boolean isUriSafeForScheme(Uri aUri) {
         // Bug 794034 - We don't want to pass MWI or USSD codes to the
         // dialer, and ensure the Uri class doesn't parse a URI
@@ -1041,21 +1062,25 @@ public class GoannaAppShell
     /**
      * Given the inputs to <code>getOpenURIIntent</code>, plus an optional
      * package name and class name, create and fire an intent to open the
-     * provided URI.
+     * provided URI. If a class name is specified but a package name is not,
+     * we will default to using the current fennec package.
      *
      * @param targetURI the string spec of the URI to open.
      * @param mimeType an optional MIME type string.
+     * @param packageName an optional app package name.
+     * @param className an optional intent class name.
      * @param action an Android action specifier, such as
      *               <code>Intent.ACTION_SEND</code>.
      * @param title the title to use in <code>ACTION_SEND</code> intents.
      * @return true if the activity started successfully; false otherwise.
      */
-    static boolean openUriExternal(String targetURI,
-                                   String mimeType,
-                                   String packageName,
-                                   String className,
-                                   String action,
-                                   String title) {
+    @WrapElementForJNI
+    public static boolean openUriExternal(String targetURI,
+                                          String mimeType,
+              @OptionalGeneratedParameter String packageName,
+              @OptionalGeneratedParameter String className,
+              @OptionalGeneratedParameter String action,
+              @OptionalGeneratedParameter String title) {
         final Context context = getContext();
         final Intent intent = getOpenURIIntent(context, targetURI,
                                                mimeType, action, title);
@@ -1064,8 +1089,13 @@ public class GoannaAppShell
             return false;
         }
 
-        if (packageName.length() > 0 && className.length() > 0) {
-            intent.setClassName(packageName, className);
+        if (!TextUtils.isEmpty(className)) {
+            if (!TextUtils.isEmpty(packageName)) {
+                intent.setClassName(packageName, className);
+            } else {
+                // Default to using the fennec app context.
+                intent.setClassName(context, className);
+            }
         }
 
         intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
@@ -1108,13 +1138,14 @@ public class GoannaAppShell
      * @return an <code>Intent</code>, or <code>null</code> if none could be
      *         produced.
      */
-    static Intent getShareIntent(final Context context,
-                                 final String targetURI,
-                                 final String mimeType,
-                                 final String title) {
+    public static Intent getShareIntent(final Context context,
+                                        final String targetURI,
+                                        final String mimeType,
+                                        final String title) {
         Intent shareIntent = getIntentForActionString(Intent.ACTION_SEND);
         shareIntent.putExtra(Intent.EXTRA_TEXT, targetURI);
         shareIntent.putExtra(Intent.EXTRA_SUBJECT, title);
+        shareIntent.putExtra(ShareDialog.INTENT_EXTRA_DEVICES_ONLY, true);
 
         // Note that EXTRA_TITLE is intended to be used for share dialog
         // titles. Common usage (e.g., Pocket) suggests that it's sometimes
@@ -1154,8 +1185,8 @@ public class GoannaAppShell
                                         context.getResources().getString(R.string.share_title)); 
         }
 
-        final Uri uri = normalizeUriScheme(Uri.parse(targetURI));
-        if (mimeType.length() > 0) {
+        final Uri uri = normalizeUriScheme(targetURI.indexOf(':') >= 0 ? Uri.parse(targetURI) : new Uri.Builder().scheme(targetURI).build());
+        if (!TextUtils.isEmpty(mimeType)) {
             Intent intent = getIntentForActionString(action);
             intent.setDataAndType(uri, mimeType);
             return intent;
@@ -1167,24 +1198,38 @@ public class GoannaAppShell
 
         final String scheme = uri.getScheme();
 
-        final Intent intent;
-
         // Compute our most likely intent, then check to see if there are any
         // custom handlers that would apply.
         // Start with the original URI. If we end up modifying it, we'll
         // overwrite it.
-        final Intent likelyIntent = getIntentForActionString(action);
-        likelyIntent.setData(uri);
+        final String extension = MimeTypeMap.getFileExtensionFromUrl(targetURI);
+        final String mimeType2 = getMimeTypeFromExtension(extension);
+        final Intent intent = getIntentForActionString(action);
+        intent.setDataAndType(uri, mimeType2);
 
-        if ("vnd.youtube".equals(scheme) && !hasHandlersForIntent(likelyIntent)) {
-            // Special-case YouTube to use our own player if no system handler
-            // exists.
-            intent = new Intent(VideoPlayer.VIDEO_ACTION);
-            intent.setClassName(AppConstants.ANDROID_PACKAGE_NAME,
-                                "org.mozilla.goanna.VideoPlayer");
-            intent.setData(uri);
-        } else {
-            intent = likelyIntent;
+        if ("vnd.youtube".equals(scheme) &&
+            !hasHandlersForIntent(intent) &&
+            !TextUtils.isEmpty(uri.getSchemeSpecificPart())) {
+
+            // Return an intent with a URI that will open the YouTube page in the
+            // current Fennec instance.
+            final Class<?> c;
+            final String browserClassName = AppConstants.BROWSER_INTENT_CLASS_NAME;
+            try {
+                c = Class.forName(browserClassName);
+            } catch (ClassNotFoundException e) {
+                // This should never occur.
+                Log.wtf(LOGTAG, "Class " + browserClassName + " not found!");
+                return null;
+            }
+
+            final Uri youtubeURI = getYouTubeHTML5URI(uri);
+            if (youtubeURI != null) {
+                // Load it as a new URL in the current tab. Hitting 'back' will return
+                // the user to the YouTube overview page.
+                final Intent view = new Intent(GoannaApp.ACTION_LOAD, youtubeURI, context, c);
+                return view;
+            }
         }
 
         // Have a special handling for SMS, as the message body
@@ -1227,14 +1272,42 @@ public class GoannaAppShell
         return intent;
     }
 
+    /**
+     * Input: vnd:youtube:3MWr19Dp2OU?foo=bar
+     * Output: https://www.youtube.com/embed/3MWr19Dp2OU?foo=bar
+     *
+     * Ideally this should include ?html5=1. However, YouTube seems to do a
+     * fine job of taking care of this on its own, and the Kindle Fire ships
+     * Flash, so...
+     *
+     * @param uri a vnd:youtube URI.
+     * @return an HTTPS URI for web player.
+     */
+    private static Uri getYouTubeHTML5URI(final Uri uri) {
+        if (uri == null) {
+            return null;
+        }
+
+        final String ssp = uri.getSchemeSpecificPart();
+        if (TextUtils.isEmpty(ssp)) {
+            return null;
+        }
+
+        return Uri.parse("https://www.youtube.com/embed/" + ssp);
+    }
+
+    /**
+     * Only called from GoannaApp.
+     */
     public static void setNotificationClient(NotificationClient client) {
-        if (sNotificationClient == null) {
-            sNotificationClient = client;
+        if (notificationClient == null) {
+            notificationClient = client;
         } else {
             Log.d(LOGTAG, "Notification client already set");
         }
     }
 
+    @WrapElementForJNI(stubName = "ShowAlertNotificationWrapper")
     public static void showAlertNotification(String aImageUrl, String aAlertTitle, String aAlertText,
                                              String aAlertCookie, String aAlertName) {
         // The intent to launch when the user clicks the expanded notification
@@ -1255,28 +1328,30 @@ public class GoannaAppShell
         PendingIntent contentIntent = PendingIntent.getActivity(
                 getContext(), 0, notificationIntent, PendingIntent.FLAG_UPDATE_CURRENT);
 
-        mAlertCookies.put(aAlertName, aAlertCookie);
+        ALERT_COOKIES.put(aAlertName, aAlertCookie);
         callObserver(aAlertName, "alertshow", aAlertCookie);
 
-        sNotificationClient.add(notificationID, aImageUrl, aAlertTitle, aAlertText, contentIntent);
+        notificationClient.add(notificationID, aImageUrl, aAlertTitle, aAlertText, contentIntent);
     }
 
+    @WrapElementForJNI
     public static void alertsProgressListener_OnProgress(String aAlertName, long aProgress, long aProgressMax, String aAlertText) {
         int notificationID = aAlertName.hashCode();
-        sNotificationClient.update(notificationID, aProgress, aProgressMax, aAlertText);
+        notificationClient.update(notificationID, aProgress, aProgressMax, aAlertText);
     }
 
+    @WrapElementForJNI
     public static void closeNotification(String aAlertName) {
-        String alertCookie = mAlertCookies.get(aAlertName);
+        String alertCookie = ALERT_COOKIES.get(aAlertName);
         if (alertCookie != null) {
             callObserver(aAlertName, "alertfinished", alertCookie);
-            mAlertCookies.remove(aAlertName);
+            ALERT_COOKIES.remove(aAlertName);
         }
 
         removeObserver(aAlertName);
 
         int notificationID = aAlertName.hashCode();
-        sNotificationClient.remove(notificationID);
+        notificationClient.remove(notificationID);
     }
 
     public static void handleNotification(String aAction, String aAlertName, String aAlertCookie) {
@@ -1285,20 +1360,15 @@ public class GoannaAppShell
         if (GoannaApp.ACTION_ALERT_CALLBACK.equals(aAction)) {
             callObserver(aAlertName, "alertclickcallback", aAlertCookie);
 
-            if (sNotificationClient.isOngoing(notificationID)) {
+            if (notificationClient.isOngoing(notificationID)) {
                 // When clicked, keep the notification if it displays progress
                 return;
             }
         }
-
-        // Also send a notification to the observer service
-        // New listeners should register for these notifications since they will be called even if
-        // Goanna has been killed and restared between when your notification was shown and when the
-        // user clicked on it.
-        sendEventToGoanna(GoannaEvent.createBroadcastEvent("Notification:Clicked", aAlertCookie));
         closeNotification(aAlertName);
     }
 
+    @WrapElementForJNI(stubName = "GetDpiWrapper")
     public static int getDpi() {
         if (sDensityDpi == 0) {
             sDensityDpi = getContext().getResources().getDisplayMetrics().densityDpi;
@@ -1307,23 +1377,49 @@ public class GoannaAppShell
         return sDensityDpi;
     }
 
+    @WrapElementForJNI
+    public static float getDensity() {
+        return getContext().getResources().getDisplayMetrics().density;
+    }
+
+    private static boolean isHighMemoryDevice() {
+        return HardwareUtils.getMemSize() > HIGH_MEMORY_DEVICE_THRESHOLD_MB;
+    }
+
+    /**
+     * Returns the colour depth of the default screen. This will either be
+     * 24 or 16.
+     */
+    @WrapElementForJNI(stubName = "GetScreenDepthWrapper")
+    public static synchronized int getScreenDepth() {
+        if (sScreenDepth == 0) {
+            sScreenDepth = 16;
+            PixelFormat info = new PixelFormat();
+            PixelFormat.getPixelFormatInfo(getGoannaInterface().getActivity().getWindowManager().getDefaultDisplay().getPixelFormat(), info);
+            if (info.bitsPerPixel >= 24 && isHighMemoryDevice()) {
+                sScreenDepth = 24;
+            }
+        }
+
+        return sScreenDepth;
+    }
+
+    public static synchronized void setScreenDepthOverride(int aScreenDepth) {
+        if (sScreenDepth != 0) {
+            Log.e(LOGTAG, "Tried to override screen depth after it's already been set");
+            return;
+        }
+
+        sScreenDepth = aScreenDepth;
+    }
+
+    @WrapElementForJNI
     public static void setFullScreen(boolean fullscreen) {
         if (getGoannaInterface() != null)
             getGoannaInterface().setFullScreen(fullscreen);
     }
 
-    public static String showFilePickerForExtensions(String aExtensions) {
-        if (getGoannaInterface() != null)
-            return sActivityHelper.showFilePicker(getGoannaInterface().getActivity(), getMimeTypeFromExtensions(aExtensions));
-        return "";
-    }
-
-    public static String showFilePickerForMimeType(String aMimeType) {
-        if (getGoannaInterface() != null)
-            return sActivityHelper.showFilePicker(getGoannaInterface().getActivity(), aMimeType);
-        return "";
-    }
-
+    @WrapElementForJNI
     public static void performHapticFeedback(boolean aIsLongPress) {
         // Don't perform haptic feedback if a vibration is currently playing,
         // because the haptic feedback will nuke the vibration.
@@ -1340,12 +1436,30 @@ public class GoannaAppShell
         return (Vibrator) layerView.getContext().getSystemService(Context.VIBRATOR_SERVICE);
     }
 
+    // Helper method to convert integer array to long array.
+    private static long[] convertIntToLongArray(int[] input) {
+        long[] output = new long[input.length];
+        for (int i = 0; i < input.length; i++) {
+            output[i] = input[i];
+        }
+        return output;
+    }
+
+    // Vibrate only if haptic feedback is enabled.
+    public static void vibrateOnHapticFeedbackEnabled(int[] milliseconds) {
+        if (Settings.System.getInt(getContext().getContentResolver(), Settings.System.HAPTIC_FEEDBACK_ENABLED, 0) > 0) {
+            vibrate(convertIntToLongArray(milliseconds), -1);
+        }
+    }
+
+    @WrapElementForJNI(stubName = "Vibrate1")
     public static void vibrate(long milliseconds) {
         sVibrationEndTime = System.nanoTime() + milliseconds * 1000000;
         sVibrationMaybePlaying = true;
         vibrator().vibrate(milliseconds);
     }
 
+    @WrapElementForJNI(stubName = "VibrateA")
     public static void vibrate(long[] pattern, int repeat) {
         // If pattern.length is even, the last element in the pattern is a
         // meaningless delay, so don't include it in vibrationDuration.
@@ -1360,18 +1474,21 @@ public class GoannaAppShell
         vibrator().vibrate(pattern, repeat);
     }
 
+    @WrapElementForJNI
     public static void cancelVibrate() {
         sVibrationMaybePlaying = false;
         sVibrationEndTime = 0;
         vibrator().cancel();
     }
 
+    @WrapElementForJNI
     public static void showInputMethodPicker() {
         InputMethodManager imm = (InputMethodManager)
             getContext().getSystemService(Context.INPUT_METHOD_SERVICE);
         imm.showInputMethodPicker();
     }
 
+    @WrapElementForJNI
     public static void setKeepScreenOn(final boolean on) {
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
@@ -1381,6 +1498,7 @@ public class GoannaAppShell
         });
     }
 
+    @WrapElementForJNI
     public static void notifyDefaultPrevented(final boolean defaultPrevented) {
         ThreadUtils.postToUiThread(new Runnable() {
             @Override
@@ -1394,54 +1512,93 @@ public class GoannaAppShell
         });
     }
 
+    @WrapElementForJNI
     public static boolean isNetworkLinkUp() {
         ConnectivityManager cm = (ConnectivityManager)
            getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
-        NetworkInfo info = cm.getActiveNetworkInfo();
-        if (info == null || !info.isConnected())
+        try {
+            NetworkInfo info = cm.getActiveNetworkInfo();
+            if (info == null || !info.isConnected())
+                return false;
+        } catch (SecurityException se) {
             return false;
+        }
         return true;
     }
 
+    @WrapElementForJNI
     public static boolean isNetworkLinkKnown() {
         ConnectivityManager cm = (ConnectivityManager)
             getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
-        if (cm.getActiveNetworkInfo() == null)
+        try {
+            if (cm.getActiveNetworkInfo() == null)
+                return false;
+        } catch (SecurityException se) {
             return false;
+        }
         return true;
     }
 
-    public static void setSelectedLocale(String localeCode) {
-        /* Bug 713464: This method is still called from Goanna side.
-           Earlier we had an option to run Firefox in a language other than system's language.
-           However, this is not supported as of now.
-           Goanna resets the locale to en-US by calling this function with an empty string.
-           This affects GoannaPreferences activity in multi-locale builds.
-
-        //We're not using this, not need to save it (see bug 635342)
-        SharedPreferences settings =
-            getContext().getPreferences(Activity.MODE_PRIVATE);
-        settings.edit().putString(getContext().getPackageName() + ".locale",
-                                  localeCode).commit();
-        Locale locale;
-        int index;
-        if ((index = localeCode.indexOf('-')) != -1 ||
-            (index = localeCode.indexOf('_')) != -1) {
-            String langCode = localeCode.substring(0, index);
-            String countryCode = localeCode.substring(index + 1);
-            locale = new Locale(langCode, countryCode);
-        } else {
-            locale = new Locale(localeCode);
+    @WrapElementForJNI
+    public static int networkLinkType() {
+        ConnectivityManager cm = (ConnectivityManager)
+            getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+        NetworkInfo info = cm.getActiveNetworkInfo();
+        if (info == null) {
+            return LINK_TYPE_UNKNOWN;
         }
-        Locale.setDefault(locale);
 
-        Resources res = getContext().getBaseContext().getResources();
-        Configuration config = res.getConfiguration();
-        config.locale = locale;
-        res.updateConfiguration(config, res.getDisplayMetrics());
-        */
+        switch (info.getType()) {
+            case ConnectivityManager.TYPE_ETHERNET:
+                return LINK_TYPE_ETHERNET;
+            case ConnectivityManager.TYPE_WIFI:
+                return LINK_TYPE_WIFI;
+            case ConnectivityManager.TYPE_WIMAX:
+                return LINK_TYPE_WIMAX;
+            case ConnectivityManager.TYPE_MOBILE:
+                break; // We will handle sub-types after the switch.
+            default:
+                Log.w(LOGTAG, "Ignoring the current network type.");
+                return LINK_TYPE_UNKNOWN;
+        }
+
+        TelephonyManager tm = (TelephonyManager)
+            getContext().getSystemService(Context.TELEPHONY_SERVICE);
+        if (tm == null) {
+            Log.e(LOGTAG, "Telephony service does not exist");
+            return LINK_TYPE_UNKNOWN;
+        }
+
+        switch (tm.getNetworkType()) {
+            case TelephonyManager.NETWORK_TYPE_IDEN:
+            case TelephonyManager.NETWORK_TYPE_CDMA:
+            case TelephonyManager.NETWORK_TYPE_GPRS:
+                return LINK_TYPE_2G;
+            case TelephonyManager.NETWORK_TYPE_1xRTT:
+            case TelephonyManager.NETWORK_TYPE_EDGE:
+                return LINK_TYPE_2G; // 2.5G
+            case TelephonyManager.NETWORK_TYPE_UMTS:
+            case TelephonyManager.NETWORK_TYPE_EVDO_0:
+                return LINK_TYPE_3G;
+            case TelephonyManager.NETWORK_TYPE_HSPA:
+            case TelephonyManager.NETWORK_TYPE_HSDPA:
+            case TelephonyManager.NETWORK_TYPE_HSUPA:
+            case TelephonyManager.NETWORK_TYPE_EVDO_A:
+            case TelephonyManager.NETWORK_TYPE_EVDO_B:
+            case TelephonyManager.NETWORK_TYPE_EHRPD:
+                return LINK_TYPE_3G; // 3.5G
+            case TelephonyManager.NETWORK_TYPE_HSPAP:
+                return LINK_TYPE_3G; // 3.75G
+            case TelephonyManager.NETWORK_TYPE_LTE:
+                return LINK_TYPE_4G; // 3.9G
+            case TelephonyManager.NETWORK_TYPE_UNKNOWN:
+            default:
+                Log.w(LOGTAG, "Connected to an unknown mobile network!");
+                return LINK_TYPE_UNKNOWN;
+        }
     }
 
+    @WrapElementForJNI(stubName = "GetSystemColoursWrapper")
     public static int[] getSystemColors() {
         // attrsAppearance[] must correspond to AndroidSystemColors structure in android/AndroidBridge.h
         final int[] attrsAppearance = {
@@ -1478,6 +1635,7 @@ public class GoannaAppShell
         return result;
     }
 
+    @WrapElementForJNI
     public static void killAnyZombies() {
         GoannaProcessesVisitor visitor = new GoannaProcessesVisitor() {
             @Override
@@ -1494,7 +1652,7 @@ public class GoannaAppShell
     public static boolean checkForGoannaProcs() {
 
         class GoannaPidCallback implements GoannaProcessesVisitor {
-            public boolean otherPidExist = false;
+            public boolean otherPidExist;
             @Override
             public boolean callback(int pid) {
                 if (pid != android.os.Process.myPid()) {
@@ -1594,7 +1752,7 @@ public class GoannaAppShell
 
         try {
             String filter = GoannaProfile.get(getContext()).getDir().toString();
-            Log.i(LOGTAG, "[OPENFILE] Filter: " + filter);
+            Log.d(LOGTAG, "[OPENFILE] Filter: " + filter);
 
             // run lsof and parse its output
             java.lang.Process lsof = Runtime.getRuntime().exec("lsof");
@@ -1627,17 +1785,13 @@ public class GoannaAppShell
                 }
                 String file = split[nameColumn];
                 if (!TextUtils.isEmpty(name) && !TextUtils.isEmpty(file) && file.startsWith(filter))
-                    Log.i(LOGTAG, "[OPENFILE] " + name + "(" + split[pidColumn] + ") : " + file);
+                    Log.d(LOGTAG, "[OPENFILE] " + name + "(" + split[pidColumn] + ") : " + file);
             }
             in.close();
         } catch (Exception e) { }
     }
 
-    public static void scanMedia(String aFile, String aMimeType) {
-        Context context = getContext();
-        GoannaMediaScannerClient.startScan(context, aFile, aMimeType);
-    }
-
+    @WrapElementForJNI(stubName = "GetIconForExtensionWrapper")
     public static byte[] getIconForExtension(String aExt, int iconSize) {
         try {
             if (iconSize <= 0)
@@ -1668,10 +1822,14 @@ public class GoannaAppShell
         }
     }
 
+    public static String getMimeTypeFromExtension(String ext) {
+        final MimeTypeMap mtm = MimeTypeMap.getSingleton();
+        return mtm.getMimeTypeFromExtension(ext);
+    }
+    
     private static Drawable getDrawableForExtension(PackageManager pm, String aExt) {
         Intent intent = new Intent(Intent.ACTION_VIEW);
-        MimeTypeMap mtm = MimeTypeMap.getSingleton();
-        String mimeType = mtm.getMimeTypeFromExtension(aExt);
+        final String mimeType = getMimeTypeFromExtension(aExt);
         if (mimeType != null && mimeType.length() > 0)
             intent.setType(mimeType);
         else
@@ -1691,6 +1849,7 @@ public class GoannaAppShell
         return activityInfo.loadIcon(pm);
     }
 
+    @WrapElementForJNI
     public static boolean getShowPasswordSetting() {
         try {
             int showPassword =
@@ -1703,14 +1862,16 @@ public class GoannaAppShell
         }
     }
 
+    @WrapElementForJNI(stubName = "AddPluginViewWrapper")
     public static void addPluginView(View view,
-                                     int x, int y,
-                                     int w, int h,
+                                     float x, float y,
+                                     float w, float h,
                                      boolean isFullScreen) {
         if (getGoannaInterface() != null)
-             getGoannaInterface().addPluginView(view, new Rect(x, y, x + w, y + h), isFullScreen);
+             getGoannaInterface().addPluginView(view, new RectF(x, y, x + w, y + h), isFullScreen);
     }
 
+    @WrapElementForJNI
     public static void removePluginView(View view, boolean isFullScreen) {
         if (getGoannaInterface() != null)
             getGoannaInterface().removePluginView(view, isFullScreen);
@@ -1727,7 +1888,7 @@ public class GoannaAppShell
 
     private static final String PLUGIN_TYPE = "type";
     private static final String TYPE_NATIVE = "native";
-    static public ArrayList<PackageInfo> mPackageInfoCache = new ArrayList<PackageInfo>();
+    public static final ArrayList<PackageInfo> mPackageInfoCache = new ArrayList<>();
 
     // Returns null if plugins are blocked on the device.
     static String[] getPluginDirectories() {
@@ -1736,37 +1897,31 @@ public class GoannaAppShell
         boolean isTegra = (new File("/system/lib/hw/gralloc.tegra.so")).exists() ||
                           (new File("/system/lib/hw/gralloc.tegra3.so")).exists();
         if (isTegra) {
+            // disable on KitKat (bug 957694)
+            if (Versions.feature19Plus) {
+                Log.w(LOGTAG, "Blocking plugins because of Tegra (bug 957694)");
+                return null;
+            }
+
             // disable Flash on Tegra ICS with CM9 and other custom firmware (bug 736421)
-            File vfile = new File("/proc/version");
-            FileReader vreader = null;
+            final File vfile = new File("/proc/version");
             try {
                 if (vfile.canRead()) {
-                    vreader = new FileReader(vfile);
-                    String version = new BufferedReader(vreader).readLine();
-                    if (version.indexOf("CM9") != -1 ||
-                        version.indexOf("cyanogen") != -1 ||
-                        version.indexOf("Nova") != -1)
-                    {
-                        Log.w(LOGTAG, "Blocking plugins because of Tegra 2 + unofficial ICS bug (bug 736421)");
-                        return null;
+                    final BufferedReader reader = new BufferedReader(new FileReader(vfile));
+                    try {
+                        final String version = reader.readLine();
+                        if (version.indexOf("CM9") != -1 ||
+                            version.indexOf("cyanogen") != -1 ||
+                            version.indexOf("Nova") != -1) {
+                            Log.w(LOGTAG, "Blocking plugins because of Tegra 2 + unofficial ICS bug (bug 736421)");
+                            return null;
+                        }
+                    } finally {
+                      reader.close();
                     }
                 }
             } catch (IOException ex) {
-                // nothing
-            } finally {
-                try {
-                    if (vreader != null) {
-                        vreader.close();
-                    }
-                } catch (IOException ex) {
-                    // nothing
-                }
-            }
-
-            // disable on KitKat
-            if (Build.VERSION.SDK_INT >= 19) {
-                Log.w(LOGTAG, "Blocking plugins because of Tegra OpenGL deadlocks");
-                return null;
+                // Do nothing.
             }
         }
 
@@ -1922,6 +2077,7 @@ public class GoannaAppShell
         return pluginCL.loadClass(className);
     }
 
+    @WrapElementForJNI(allowMultithread = true)
     public static Class<?> loadPluginClass(String className, String libName) {
         if (getGoannaInterface() == null)
             return null;
@@ -1941,12 +2097,20 @@ public class GoannaAppShell
 
     private static ContextGetter sContextGetter;
 
+    @WrapElementForJNI(allowMultithread = true)
     public static Context getContext() {
         return sContextGetter.getContext();
     }
 
     public static void setContextGetter(ContextGetter cg) {
         sContextGetter = cg;
+    }
+
+    public static SharedPreferences getSharedPreferences() {
+        if (sContextGetter == null) {
+            throw new IllegalStateException("No ContextGetter; cannot fetch prefs.");
+        }
+        return sContextGetter.getSharedPreferences();
     }
 
     public interface AppStateListener {
@@ -1964,7 +2128,7 @@ public class GoannaAppShell
         public SensorEventListener getSensorEventListener();
         public void doRestart();
         public void setFullScreen(boolean fullscreen);
-        public void addPluginView(View view, final Rect rect, final boolean isFullScreen);
+        public void addPluginView(View view, final RectF rect, final boolean isFullScreen);
         public void removePluginView(final View view, final boolean isFullScreen);
         public void enableCameraView();
         public void disableCameraView();
@@ -1990,13 +2154,15 @@ public class GoannaAppShell
         sGoannaInterface = aGoannaInterface;
     }
 
-    public static android.hardware.Camera sCamera = null;
+    public static android.hardware.Camera sCamera;
 
     static native void cameraCallbackBridge(byte[] data);
 
-    static int kPreferedFps = 25;
-    static byte[] sCameraBuffer = null;
+    static final int kPreferredFPS = 25;
+    static byte[] sCameraBuffer;
 
+
+    @WrapElementForJNI(stubName = "InitCameraWrapper")
     static int[] initCamera(String aContentType, int aCamera, int aWidth, int aHeight) {
         ThreadUtils.postToUiThread(new Runnable() {
                 @Override
@@ -2015,17 +2181,12 @@ public class GoannaAppShell
         int[] result = new int[4];
         result[0] = 0;
 
-        if (Build.VERSION.SDK_INT >= 9) {
-            if (android.hardware.Camera.getNumberOfCameras() == 0)
-                return result;
+        if (android.hardware.Camera.getNumberOfCameras() == 0) {
+            return result;
         }
 
         try {
-            // no front/back camera before API level 9
-            if (Build.VERSION.SDK_INT >= 9)
-                sCamera = android.hardware.Camera.open(aCamera);
-            else
-                sCamera = android.hardware.Camera.open();
+            sCamera = android.hardware.Camera.open(aCamera);
 
             android.hardware.Camera.Parameters params = sCamera.getParameters();
             params.setPreviewFormat(ImageFormat.NV21);
@@ -2036,13 +2197,13 @@ public class GoannaAppShell
                 Iterator<Integer> it = params.getSupportedPreviewFrameRates().iterator();
                 while (it.hasNext()) {
                     int nFps = it.next();
-                    if (Math.abs(nFps - kPreferedFps) < fpsDelta) {
-                        fpsDelta = Math.abs(nFps - kPreferedFps);
+                    if (Math.abs(nFps - kPreferredFPS) < fpsDelta) {
+                        fpsDelta = Math.abs(nFps - kPreferredFPS);
                         params.setPreviewFrameRate(nFps);
                     }
                 }
             } catch(Exception e) {
-                params.setPreviewFrameRate(kPreferedFps);
+                params.setPreviewFrameRate(kPreferredFPS);
             }
 
             // set up the closest preview size available
@@ -2067,9 +2228,7 @@ public class GoannaAppShell
                         sCamera.setPreviewTexture(((TextureView)cameraView).getSurfaceTexture());
                     }
                 }
-            } catch(IOException e) {
-                Log.w(LOGTAG, "Error setPreviewXXX:", e);
-            } catch(RuntimeException e) {
+            } catch (IOException | RuntimeException e) {
                 Log.w(LOGTAG, "Error setPreviewXXX:", e);
             }
 
@@ -2097,6 +2256,7 @@ public class GoannaAppShell
         return result;
     }
 
+    @WrapElementForJNI
     static synchronized void closeCamera() {
         ThreadUtils.postToUiThread(new Runnable() {
                 @Override
@@ -2115,77 +2275,60 @@ public class GoannaAppShell
         }
     }
 
-    /**
-     * Adds a listener for a goanna event.
-     * This method is thread-safe and may be called at any time. In particular, calling it
-     * with an event that is currently being processed has the properly-defined behaviour that
-     * any added listeners will not be invoked on the event currently being processed, but
-     * will be invoked on future events of that type.
-     *
-     * This method is referenced by Robocop via reflection.
-     */
-    public static void registerEventListener(String event, GoannaEventListener listener) {
-        sEventDispatcher.registerEventListener(event, listener);
-    }
-
-    static EventDispatcher getEventDispatcher() {
-        return sEventDispatcher;
-    }
-
-    /**
-     * Remove a previously-registered listener for a goanna event.
-     * This method is thread-safe and may be called at any time. In particular, calling it
-     * with an event that is currently being processed has the properly-defined behaviour that
-     * any removed listeners will still be invoked on the event currently being processed, but
-     * will not be invoked on future events of that type.
-     *
-     * This method is referenced by Robocop via reflection.
-     */
-    public static void unregisterEventListener(String event, GoannaEventListener listener) {
-        sEventDispatcher.unregisterEventListener(event, listener);
-    }
-
     /*
      * Battery API related methods.
      */
+    @WrapElementForJNI
     public static void enableBatteryNotifications() {
         GoannaBatteryManager.enableNotifications();
     }
 
-    public static String handleGoannaMessage(String message) {
-        return sEventDispatcher.dispatchEvent(message);
+    @WrapElementForJNI(stubName = "HandleGoannaMessageWrapper")
+    public static void handleGoannaMessage(final NativeJSContainer message) {
+        EventDispatcher.getInstance().dispatchEvent(message);
+        message.dispose();
     }
 
+    @WrapElementForJNI
     public static void disableBatteryNotifications() {
         GoannaBatteryManager.disableNotifications();
     }
 
+    @WrapElementForJNI(stubName = "GetCurrentBatteryInformationWrapper")
     public static double[] getCurrentBatteryInformation() {
         return GoannaBatteryManager.getCurrentInformation();
     }
 
-    static void checkUriVisited(String uri) {   // invoked from native JNI code
+    @WrapElementForJNI(stubName = "CheckURIVisited")
+    static void checkUriVisited(String uri) {
         GlobalHistory.getInstance().checkUriVisited(uri);
     }
 
-    static void markUriVisited(final String uri) {    // invoked from native JNI code
+    @WrapElementForJNI(stubName = "MarkURIVisited")
+    static void markUriVisited(final String uri) {
+        final Context context = getContext();
+        final BrowserDB db = GoannaProfile.get(context).getDB();
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
-                GlobalHistory.getInstance().add(uri);
+                GlobalHistory.getInstance().add(context, db, uri);
             }
         });
     }
 
-    static void setUriTitle(final String uri, final String title) {    // invoked from native JNI code
+    @WrapElementForJNI(stubName = "SetURITitle")
+    static void setUriTitle(final String uri, final String title) {
+        final Context context = getContext();
+        final BrowserDB db = GoannaProfile.get(context).getDB();
         ThreadUtils.postToBackgroundThread(new Runnable() {
             @Override
             public void run() {
-                GlobalHistory.getInstance().update(uri, title);
+                GlobalHistory.getInstance().update(context.getContentResolver(), db, uri, title);
             }
         });
     }
 
+    @WrapElementForJNI
     static void hideProgressDialog() {
         // unused stub
     }
@@ -2193,48 +2336,54 @@ public class GoannaAppShell
     /*
      * WebSMS related methods.
      */
+    @WrapElementForJNI(stubName = "SendMessageWrapper")
     public static void sendMessage(String aNumber, String aMessage, int aRequestId) {
-        if (SmsManager.getInstance() == null) {
+        if (!SmsManager.isEnabled()) {
             return;
         }
 
         SmsManager.getInstance().send(aNumber, aMessage, aRequestId);
     }
 
+    @WrapElementForJNI(stubName = "GetMessageWrapper")
     public static void getMessage(int aMessageId, int aRequestId) {
-        if (SmsManager.getInstance() == null) {
+        if (!SmsManager.isEnabled()) {
             return;
         }
 
         SmsManager.getInstance().getMessage(aMessageId, aRequestId);
     }
 
+    @WrapElementForJNI(stubName = "DeleteMessageWrapper")
     public static void deleteMessage(int aMessageId, int aRequestId) {
-        if (SmsManager.getInstance() == null) {
+        if (!SmsManager.isEnabled()) {
             return;
         }
 
         SmsManager.getInstance().deleteMessage(aMessageId, aRequestId);
     }
 
-    public static void createMessageList(long aStartDate, long aEndDate, String[] aNumbers, int aNumbersCount, int aDeliveryState, boolean aReverse, int aRequestId) {
-        if (SmsManager.getInstance() == null) {
+    @WrapElementForJNI(stubName = "CreateMessageListWrapper")
+    public static void createMessageList(long aStartDate, long aEndDate, String[] aNumbers, int aNumbersCount, String aDelivery, boolean aHasRead, boolean aRead, long aThreadId, boolean aReverse, int aRequestId) {
+        if (!SmsManager.isEnabled()) {
             return;
         }
 
-        SmsManager.getInstance().createMessageList(aStartDate, aEndDate, aNumbers, aNumbersCount, aDeliveryState, aReverse, aRequestId);
+        SmsManager.getInstance().createMessageList(aStartDate, aEndDate, aNumbers, aNumbersCount, aDelivery, aHasRead, aRead, aThreadId, aReverse, aRequestId);
     }
 
+    @WrapElementForJNI(stubName = "GetNextMessageInListWrapper")
     public static void getNextMessageInList(int aListId, int aRequestId) {
-        if (SmsManager.getInstance() == null) {
+        if (!SmsManager.isEnabled()) {
             return;
         }
 
         SmsManager.getInstance().getNextMessageInList(aListId, aRequestId);
     }
 
+    @WrapElementForJNI
     public static void clearMessageList(int aListId) {
-        if (SmsManager.getInstance() == null) {
+        if (!SmsManager.isEnabled()) {
             return;
         }
 
@@ -2242,6 +2391,8 @@ public class GoannaAppShell
     }
 
     /* Called by JNI from AndroidBridge, and by reflection from tests/BaseTest.java.in */
+    @WrapElementForJNI
+    @RobocopTarget
     public static boolean isTablet() {
         return HardwareUtils.isTablet();
     }
@@ -2254,184 +2405,97 @@ public class GoannaAppShell
         }
     }
 
+    @WrapElementForJNI(stubName = "GetCurrentNetworkInformationWrapper")
     public static double[] getCurrentNetworkInformation() {
         return GoannaNetworkManager.getInstance().getCurrentInformation();
     }
 
+    @WrapElementForJNI
     public static void enableNetworkNotifications() {
-        GoannaNetworkManager.getInstance().enableNotifications();
+        ThreadUtils.postToUiThread(new Runnable() {
+            @Override
+            public void run() {
+                GoannaNetworkManager.getInstance().enableNotifications();
+            }
+        });
     }
 
+    @WrapElementForJNI
     public static void disableNetworkNotifications() {
-        GoannaNetworkManager.getInstance().disableNotifications();
-    }
-
-    // values taken from android's Base64
-    public static final int BASE64_DEFAULT = 0;
-    public static final int BASE64_URL_SAFE = 8;
-
-    /**
-     * taken from http://www.source-code.biz/base64coder/java/Base64Coder.java.txt and modified (MIT License)
-     */
-    // Mapping table from 6-bit nibbles to Base64 characters.
-    private static final byte[] map1 = new byte[64];
-    private static final byte[] map1_urlsafe;
-    static {
-      int i=0;
-      for (byte c='A'; c<='Z'; c++) map1[i++] = c;
-      for (byte c='a'; c<='z'; c++) map1[i++] = c;
-      for (byte c='0'; c<='9'; c++) map1[i++] = c;
-      map1[i++] = '+'; map1[i++] = '/';
-      map1_urlsafe = map1.clone();
-      map1_urlsafe[62] = '-'; map1_urlsafe[63] = '_'; 
-    }
-
-    // Mapping table from Base64 characters to 6-bit nibbles.
-    private static final byte[] map2 = new byte[128];
-    static {
-        for (int i=0; i<map2.length; i++) map2[i] = -1;
-        for (int i=0; i<64; i++) map2[map1[i]] = (byte)i;
-        map2['-'] = (byte)62; map2['_'] = (byte)63;
-    }
-
-    final static byte EQUALS_ASCII = (byte) '=';
-
-    /**
-     * Encodes a byte array into Base64 format.
-     * No blanks or line breaks are inserted in the output.
-     * @param in    An array containing the data bytes to be encoded.
-     * @return      A character array containing the Base64 encoded data.
-     */
-    public static byte[] encodeBase64(byte[] in, int flags) {
-        if (Build.VERSION.SDK_INT >=Build.VERSION_CODES.FROYO)
-            return Base64.encode(in, flags | Base64.NO_WRAP);
-        int oDataLen = (in.length*4+2)/3;       // output length without padding
-        int oLen = ((in.length+2)/3)*4;         // output length including padding
-        byte[] out = new byte[oLen];
-        int ip = 0;
-        int iEnd = in.length;
-        int op = 0;
-        byte[] toMap = ((flags & BASE64_URL_SAFE) == 0 ? map1 : map1_urlsafe);
-        while (ip < iEnd) {
-            int i0 = in[ip++] & 0xff;
-            int i1 = ip < iEnd ? in[ip++] & 0xff : 0;
-            int i2 = ip < iEnd ? in[ip++] & 0xff : 0;
-            int o0 = i0 >>> 2;
-            int o1 = ((i0 &   3) << 4) | (i1 >>> 4);
-            int o2 = ((i1 & 0xf) << 2) | (i2 >>> 6);
-            int o3 = i2 & 0x3F;
-            out[op++] = toMap[o0];
-            out[op++] = toMap[o1];
-            out[op] = op < oDataLen ? toMap[o2] : EQUALS_ASCII; op++;
-            out[op] = op < oDataLen ? toMap[o3] : EQUALS_ASCII; op++;
-        }
-        return out; 
+        ThreadUtils.postToUiThread(new Runnable() {
+            @Override
+            public void run() {
+                GoannaNetworkManager.getInstance().disableNotifications();
+            }
+        });
     }
 
     /**
      * Decodes a byte array from Base64 format.
      * No blanks or line breaks are allowed within the Base64 encoded input data.
-     * @param in    A character array containing the Base64 encoded data.
-     * @param iOff  Offset of the first character in <code>in</code> to be processed.
-     * @param iLen  Number of characters to process in <code>in</code>, starting at <code>iOff</code>.
+     * @param s     A string containing the Base64 encoded data.
      * @return      An array containing the decoded data bytes.
      * @throws      IllegalArgumentException If the input is not valid Base64 encoded data.
      */
-    public static byte[] decodeBase64(byte[] in, int flags) {
-        if (Build.VERSION.SDK_INT >=Build.VERSION_CODES.FROYO)
-            return Base64.decode(in, flags);
-        int iOff = 0;
-        int iLen = in.length;
-        if (iLen%4 != 0) throw new IllegalArgumentException ("Length of Base64 encoded input string is not a multiple of 4.");
-        while (iLen > 0 && in[iOff+iLen-1] == '=') iLen--;
-        int oLen = (iLen*3) / 4;
-        byte[] out = new byte[oLen];
-        int ip = iOff;
-        int iEnd = iOff + iLen;
-        int op = 0;
-        while (ip < iEnd) {
-            int i0 = in[ip++];
-            int i1 = in[ip++];
-            int i2 = ip < iEnd ? in[ip++] : 'A';
-            int i3 = ip < iEnd ? in[ip++] : 'A';
-            if (i0 > 127 || i1 > 127 || i2 > 127 || i3 > 127)
-                throw new IllegalArgumentException ("Illegal character in Base64 encoded data.");
-            int b0 = map2[i0];
-            int b1 = map2[i1];
-            int b2 = map2[i2];
-            int b3 = map2[i3];
-            if (b0 < 0 || b1 < 0 || b2 < 0 || b3 < 0)
-                throw new IllegalArgumentException ("Illegal character in Base64 encoded data.");
-            int o0 = ( b0       <<2) | (b1>>>4);
-            int o1 = ((b1 & 0xf)<<4) | (b2>>>2);
-            int o2 = ((b2 &   3)<<6) |  b3;
-            out[op++] = (byte)o0;
-            if (op<oLen) out[op++] = (byte)o1;
-            if (op<oLen) out[op++] = (byte)o2; }
-        return out; 
-    }
-
     public static byte[] decodeBase64(String s, int flags) {
-        return decodeBase64(s.getBytes(), flags);
+        return Base64.decode(s.getBytes(), flags);
     }
 
+    @WrapElementForJNI(stubName = "GetScreenOrientationWrapper")
     public static short getScreenOrientation() {
-        return GoannaScreenOrientationListener.getInstance().getScreenOrientation();
+        return GoannaScreenOrientation.getInstance().getScreenOrientation().value;
     }
 
+    @WrapElementForJNI
     public static void enableScreenOrientationNotifications() {
-        GoannaScreenOrientationListener.getInstance().enableNotifications();
+        GoannaScreenOrientation.getInstance().enableNotifications();
     }
 
+    @WrapElementForJNI
     public static void disableScreenOrientationNotifications() {
-        GoannaScreenOrientationListener.getInstance().disableNotifications();
+        GoannaScreenOrientation.getInstance().disableNotifications();
     }
 
+    @WrapElementForJNI
     public static void lockScreenOrientation(int aOrientation) {
-        GoannaScreenOrientationListener.getInstance().lockScreenOrientation(aOrientation);
+        GoannaScreenOrientation.getInstance().lock(aOrientation);
     }
 
+    @WrapElementForJNI
     public static void unlockScreenOrientation() {
-        GoannaScreenOrientationListener.getInstance().unlockScreenOrientation();
+        GoannaScreenOrientation.getInstance().unlock();
     }
 
+    @WrapElementForJNI
     public static boolean pumpMessageLoop() {
-        MessageQueue mq = Looper.myQueue();
-        Message msg = getNextMessageFromQueue(mq); 
-        if (msg == null)
-            return false;
-        if (msg.getTarget() == null) 
-            Looper.myLooper().quit();
-        else
-            msg.getTarget().dispatchMessage(msg);
+        Handler goannaHandler = ThreadUtils.sGoannaHandler;
+        Message msg = getNextMessageFromQueue(ThreadUtils.sGoannaQueue);
 
-        try {
-            msg.recycle();
-        } catch (IllegalStateException e) {
-            // There is nothing we can do here so just eat it
+        if (msg == null) {
+            return false;
         }
+
+        if (msg.obj == goannaHandler && msg.getTarget() == goannaHandler) {
+            // Our "queue is empty" message; see runGoanna()
+            return false;
+        }
+
+        if (msg.getTarget() == null) {
+            Looper.myLooper().quit();
+        } else {
+            msg.getTarget().dispatchMessage(msg);
+        }
+
         return true;
     }
 
-    static native void notifyFilePickerResult(String filePath, long id);
-
-    public static void showFilePickerAsync(String aMimeType, final long id) {
-        sActivityHelper.showFilePickerAsync(getGoannaInterface().getActivity(), aMimeType, new ActivityHandlerHelper.FileResultHandler() {
-            public void gotFile(String filename) {
-                GoannaAppShell.notifyFilePickerResult(filename, id);
-            }
-        });
-    }
-
+    @WrapElementForJNI
     public static void notifyWakeLockChanged(String topic, String state) {
         if (getGoannaInterface() != null)
             getGoannaInterface().notifyWakeLockChanged(topic, state);
     }
 
-    public static String getGfxInfoData() {
-        return GfxInfoThread.getData();
-    }
-
+    @WrapElementForJNI(allowMultithread = true)
     public static void registerSurfaceTextureFrameListener(Object surfaceTexture, final int id) {
         ((SurfaceTexture)surfaceTexture).setOnFrameAvailableListener(new SurfaceTexture.OnFrameAvailableListener() {
             @Override
@@ -2441,10 +2505,12 @@ public class GoannaAppShell
         });
     }
 
+    @WrapElementForJNI(allowMultithread = true)
     public static void unregisterSurfaceTextureFrameListener(Object surfaceTexture) {
         ((SurfaceTexture)surfaceTexture).setOnFrameAvailableListener(null);
     }
 
+    @WrapElementForJNI
     public static boolean unlockProfile() {
         // Try to kill any zombie Fennec's that might be running
         GoannaAppShell.killAnyZombies();
@@ -2458,43 +2524,166 @@ public class GoannaAppShell
         return false;
     }
 
+    @WrapElementForJNI(stubName = "GetProxyForURIWrapper")
     public static String getProxyForURI(String spec, String scheme, String host, int port) {
-        URI uri = null;
-        try {
-            uri = new URI(spec);
-        } catch(java.net.URISyntaxException uriEx) {
-            try {
-                uri = new URI(scheme, null, host, port, null, null, null);
-            } catch(java.net.URISyntaxException uriEx2) {
-                Log.d("GoannaProxy", "Failed to create uri from spec", uriEx);
-                Log.d("GoannaProxy", "Failed to create uri from parts", uriEx2);
-            }
+        final ProxySelector ps = new ProxySelector();
+
+        Proxy proxy = ps.select(scheme, host);
+        if (Proxy.NO_PROXY.equals(proxy)) {
+            return "DIRECT";
         }
-        if (uri != null) {
-            ProxySelector ps = ProxySelector.getDefault();
-            if (ps != null) {
-                List<Proxy> proxies = ps.select(uri);
-                if (proxies != null && !proxies.isEmpty()) {
-                    Proxy proxy = proxies.get(0);
-                    if (!Proxy.NO_PROXY.equals(proxy)) {
-                        final String proxyStr;
-                        switch (proxy.type()) {
-                        case HTTP:
-                            proxyStr = "PROXY " + proxy.address().toString();
-                            break;
-                        case SOCKS:
-                            proxyStr = "SOCKS " + proxy.address().toString();
-                            break;
-                        case DIRECT:
-                        default:
-                            proxyStr = "DIRECT";
-                            break;
-                        }
-                        return proxyStr;
+        
+        switch (proxy.type()) {
+            case HTTP:
+                return "PROXY " + proxy.address().toString();
+            case SOCKS:
+                return "SOCKS " + proxy.address().toString();
+        }
+
+        return "DIRECT";
+    }
+
+    /* Downloads the URI pointed to by a share intent, and alters the intent to point to the locally stored file.
+     */
+    public static void downloadImageForIntent(final Intent intent) {
+        final String src = ContextUtils.getStringExtra(intent, Intent.EXTRA_TEXT);
+        if (src == null) {
+            showImageShareFailureToast();
+            return;
+        }
+
+        final File dir = GoannaApp.getTempDirectory();
+
+        if (dir == null) {
+            showImageShareFailureToast();
+            return;
+        }
+
+        GoannaApp.deleteTempFiles();
+
+        String type = intent.getType();
+        OutputStream os = null;
+        try {
+            // Create a temporary file for the image
+            if (src.startsWith("data:")) {
+                final int dataStart = src.indexOf(",");
+
+                String extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(type);
+
+                // If we weren't given an explicit mimetype, try to dig one out of the data uri.
+                if (TextUtils.isEmpty(extension) && dataStart > 5) {
+                    type = src.substring(5, dataStart).replace(";base64", "");
+                    extension = MimeTypeMap.getSingleton().getExtensionFromMimeType(type);
+                }
+
+                final File imageFile = File.createTempFile("image", "." + extension, dir);
+                os = new FileOutputStream(imageFile);
+
+                byte[] buf = Base64.decode(src.substring(dataStart + 1), Base64.DEFAULT);
+                os.write(buf);
+
+                // Only alter the intent when we're sure everything has worked
+                intent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(imageFile));
+            } else {
+                InputStream is = null;
+                try {
+                    final byte[] buf = new byte[2048];
+                    final URL url = new URL(src);
+                    final String filename = URLUtil.guessFileName(src, null, type);
+                    is = url.openStream();
+
+                    final File imageFile = new File(dir, filename);
+                    os = new FileOutputStream(imageFile);
+
+                    int length;
+                    while ((length = is.read(buf)) != -1) {
+                        os.write(buf, 0, length);
                     }
+
+                    // Only alter the intent when we're sure everything has worked
+                    intent.putExtra(Intent.EXTRA_STREAM, Uri.fromFile(imageFile));
+                } finally {
+                    safeStreamClose(is);
                 }
             }
+        } catch(IOException ex) {
+            // If something went wrong, we'll just leave the intent un-changed
+        } finally {
+            safeStreamClose(os);
         }
-        return "DIRECT";
+    }
+
+    // Don't fail silently, tell the user that we weren't able to share the image
+    private static final void showImageShareFailureToast() {
+        Toast toast = Toast.makeText(getContext(),
+                                     getContext().getResources().getString(R.string.share_image_failed),
+                                     Toast.LENGTH_SHORT);
+        toast.show();
+    }
+
+    @WrapElementForJNI(allowMultithread = true)
+    static InputStream createInputStream(URLConnection connection) throws IOException {
+        return connection.getInputStream();
+    }
+
+    @WrapElementForJNI(allowMultithread = true, narrowChars = true)
+    static URLConnection getConnection(String url) {
+        try {
+            String spec;
+            if (url.startsWith("android://")) {
+                spec = url.substring(10);
+            } else {
+                spec = url.substring(8);
+            }
+
+            // if the colon got stripped, put it back
+            int colon = spec.indexOf(':');
+            if (colon == -1 || colon > spec.indexOf('/')) {
+                spec = spec.replaceFirst("/", ":/");
+            }
+        } catch(Exception ex) {
+            return null;
+        }
+        return null;
+    }
+
+    @WrapElementForJNI(allowMultithread = true, narrowChars = true)
+    static String connectionGetMimeType(URLConnection connection) {
+        return connection.getContentType();
+    }
+
+    /**
+     * Retrieve the absolute path of an external storage directory.
+     *
+     * @param type The type of directory to return
+     * @return Absolute path of the specified directory or null on failure
+     */
+    @WrapElementForJNI
+    static String getExternalPublicDirectory(final String type) {
+        final String state = Environment.getExternalStorageState();
+        if (!Environment.MEDIA_MOUNTED.equals(state) &&
+            !Environment.MEDIA_MOUNTED_READ_ONLY.equals(state)) {
+            // External storage is not available.
+            return null;
+        }
+
+        if ("sdcard".equals(type)) {
+            // SD card has a separate path.
+            return Environment.getExternalStorageDirectory().getAbsolutePath();
+        }
+
+        final String systemType;
+        if ("downloads".equals(type)) {
+            systemType = Environment.DIRECTORY_DOWNLOADS;
+        } else if ("pictures".equals(type)) {
+            systemType = Environment.DIRECTORY_PICTURES;
+        } else if ("videos".equals(type)) {
+            systemType = Environment.DIRECTORY_MOVIES;
+        } else if ("music".equals(type)) {
+            systemType = Environment.DIRECTORY_MUSIC;
+        } else {
+            return null;
+        }
+        return Environment.getExternalStoragePublicDirectory(systemType).getAbsolutePath();
     }
 }

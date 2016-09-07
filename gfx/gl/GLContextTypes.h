@@ -6,30 +6,24 @@
 #ifndef GLCONTEXT_TYPES_H_
 #define GLCONTEXT_TYPES_H_
 
-typedef unsigned int GLenum;
-typedef unsigned int GLbitfield;
-typedef unsigned int GLuint;
-typedef int GLint;
-typedef int GLsizei;
+#include "GLTypes.h"
 
 namespace mozilla {
 namespace gl {
 
-enum ShaderProgramType {
-    RGBALayerProgramType,
-    RGBALayerExternalProgramType,
-    BGRALayerProgramType,
-    RGBXLayerProgramType,
-    BGRXLayerProgramType,
-    RGBARectLayerProgramType,
-    RGBAExternalLayerProgramType,
-    ColorLayerProgramType,
-    YCbCrLayerProgramType,
-    ComponentAlphaPass1ProgramType,
-    ComponentAlphaPass2ProgramType,
-    Copy2DProgramType,
-    Copy2DRectProgramType,
-    NumProgramTypes
+class GLContext;
+
+enum class GLContextType {
+    Unknown,
+    WGL,
+    CGL,
+    GLX,
+    EGL
+};
+
+enum class OriginPos : uint8_t {
+  TopLeft,
+  BottomLeft
 };
 
 struct GLFormats
@@ -48,21 +42,6 @@ struct GLFormats
 
     GLsizei samples;
 };
-
-
-struct PixelBufferFormat
-{
-    // Constructs a zeroed object:
-    PixelBufferFormat();
-
-    int red, green, blue;
-    int alpha;
-    int depth, stencil;
-    int samples;
-
-    int ColorBits() const { return red + green + blue; }
-};
-
 
 } /* namespace gl */
 } /* namespace mozilla */

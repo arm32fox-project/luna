@@ -4,5 +4,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MODULE = 'xpcom'
+GoannaCppUnitTests([
+    'TestCOM',
+    'TestNtPathToDosPath',
+])
 
+OS_LIBS += [
+    'rpcrt4',
+    'uuid',
+    'mpr',
+]

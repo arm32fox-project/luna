@@ -7,8 +7,9 @@
 #include "nsITreeBoxObject.h"
 #include "imgIRequest.h"
 #include "imgIContainer.h"
+#include "nsIContent.h"
 
-NS_IMPL_ISUPPORTS1(nsTreeImageListener, imgINotificationObserver)
+NS_IMPL_ISUPPORTS(nsTreeImageListener, imgINotificationObserver)
 
 nsTreeImageListener::nsTreeImageListener(nsTreeBodyFrame* aTreeFrame)
   : mTreeFrame(aTreeFrame),

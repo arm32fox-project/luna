@@ -83,7 +83,6 @@ je_(nallocx)(size_t size, int flags);
 MOZ_MEMORY_API size_t
 malloc_good_size_impl(size_t size)
 {
-  size_t ret;
   /* je_nallocx crashes when given a size of 0. As
    * malloc_usable_size(malloc(0)) and malloc_usable_size(malloc(1))
    * return the same value, use a size of 1. */
@@ -156,7 +155,7 @@ jemalloc_stats_impl(jemalloc_stats_t *stats)
   /* get the summation for all arenas, i == narenas */
   CTL_I_GET("stats.arenas.0.pdirty", pdirty, narenas);
 
-  stats->chunksize = (size_t) 1 << lg_chunk;
+  stats->chunksize = 1 << lg_chunk;
   stats->mapped = mapped;
   stats->allocated = allocated;
   stats->waste = active - allocated;

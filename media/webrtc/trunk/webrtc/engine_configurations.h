@@ -11,41 +11,39 @@
 #ifndef WEBRTC_ENGINE_CONFIGURATIONS_H_
 #define WEBRTC_ENGINE_CONFIGURATIONS_H_
 
+#include "webrtc/typedefs.h"
+
 // ============================================================================
 //                              Voice and Video
 // ============================================================================
-
-// Don't link in socket support in Chrome
-#ifdef WEBRTC_CHROMIUM_BUILD
-#define WEBRTC_EXTERNAL_TRANSPORT
-#endif
-
-// Optional to enable stand-alone
-// #define WEBRTC_EXTERNAL_TRANSPORT
 
 // ----------------------------------------------------------------------------
 //  [Voice] Codec settings
 // ----------------------------------------------------------------------------
 
-// iSAC is not included in the Mozilla build, but in all other builds.
+// iSAC and G722 are not included in the Mozilla build, but in all other builds.
 #ifndef WEBRTC_MOZILLA_BUILD
 #ifdef WEBRTC_ARCH_ARM
 #define WEBRTC_CODEC_ISACFX  // Fix-point iSAC implementation.
 #else
 #define WEBRTC_CODEC_ISAC  // Floating-point iSAC implementation (default).
 #endif  // WEBRTC_ARCH_ARM
+#define WEBRTC_CODEC_G722
 #endif  // !WEBRTC_MOZILLA_BUILD
 
 // AVT is included in all builds, along with G.711, NetEQ and CNG
 // (which are mandatory and don't have any defines).
 #define WEBRTC_CODEC_AVT
 
-// iLBC, G.722, PCM16B and Redundancy coding are excluded from Chromium and
-// Mozilla builds.
+// PCM16 is useful for testing and incurs only a small binary size cost.
+#ifndef WEBRTC_CODEC_PCM16
+#define WEBRTC_CODEC_PCM16
+#endif
+
+// iLBC and Redundancy coding are excluded from Chromium and Mozilla
+// builds to reduce binary size.
 #if !defined(WEBRTC_CHROMIUM_BUILD) && !defined(WEBRTC_MOZILLA_BUILD)
 #define WEBRTC_CODEC_ILBC
-#define WEBRTC_CODEC_G722
-#define WEBRTC_CODEC_PCM16
 #define WEBRTC_CODEC_RED
 #endif  // !WEBRTC_CHROMIUM_BUILD && !WEBRTC_MOZILLA_BUILD
 
@@ -55,6 +53,8 @@
 
 #define VIDEOCODEC_I420
 #define VIDEOCODEC_VP8
+#define VIDEOCODEC_VP9
+#define VIDEOCODEC_H264
 
 // ============================================================================
 //                                 VoiceEngine
@@ -69,7 +69,7 @@
 #define WEBRTC_VOICE_ENGINE_NR                  // Near-end NS
 #define WEBRTC_VOE_EXTERNAL_REC_AND_PLAYOUT
 
-#ifndef WEBRTC_CHROMIUM_BUILD
+#if !defined(WEBRTC_ANDROID) && !defined(WEBRTC_IOS)
 #define WEBRTC_VOICE_ENGINE_TYPING_DETECTION    // Typing detection
 #endif
 
@@ -84,15 +84,9 @@
 #define WEBRTC_VOICE_ENGINE_FILE_API
 #define WEBRTC_VOICE_ENGINE_HARDWARE_API
 #define WEBRTC_VOICE_ENGINE_NETEQ_STATS_API
-#define WEBRTC_VOICE_ENGINE_NETWORK_API
 #define WEBRTC_VOICE_ENGINE_RTP_RTCP_API
 #define WEBRTC_VOICE_ENGINE_VIDEO_SYNC_API
 #define WEBRTC_VOICE_ENGINE_VOLUME_CONTROL_API
-
-#ifndef WEBRTC_CHROMIUM_BUILD
-#define WEBRTC_VOICE_ENGINE_CALL_REPORT_API
-#define WEBRTC_VOICE_ENGINE_ENCRYPTION_API
-#endif
 
 // ============================================================================
 //                                 VideoEngine
@@ -107,9 +101,7 @@
 
 #define WEBRTC_VIDEO_ENGINE_CAPTURE_API
 #define WEBRTC_VIDEO_ENGINE_CODEC_API
-#define WEBRTC_VIDEO_ENGINE_ENCRYPTION_API
 #define WEBRTC_VIDEO_ENGINE_IMAGE_PROCESS_API
-#define WEBRTC_VIDEO_ENGINE_NETWORK_API
 #define WEBRTC_VIDEO_ENGINE_RENDER_API
 #define WEBRTC_VIDEO_ENGINE_RTP_RTCP_API
 #define WEBRTC_VIDEO_ENGINE_EXTERNAL_CODEC_API
@@ -152,7 +144,5 @@
 
 // #define WEBRTC_CODEC_G729
 // #define WEBRTC_DTMF_DETECTION
-// #define WEBRTC_SRTP
-// #define WEBRTC_SRTP_ALLOW_ROC_ITERATION
 
 #endif  // WEBRTC_ENGINE_CONFIGURATIONS_H_

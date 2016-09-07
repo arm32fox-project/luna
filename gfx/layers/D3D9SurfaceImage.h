@@ -28,8 +28,8 @@ public:
     nsIntRect mRegion;
   };
 
-  D3D9SurfaceImage() : Image(NULL, D3D9_RGB32_TEXTURE), mSize(0, 0) {}
-  virtual ~D3D9SurfaceImage() {}
+  D3D9SurfaceImage();
+  virtual ~D3D9SurfaceImage();
 
   // Copies the surface into a sharable texture's surface, and initializes
   // the image.
@@ -38,15 +38,13 @@ public:
   // Returns the description of the shared surface.
   const D3DSURFACE_DESC& GetDesc() const;
 
-  // Returns the HANDLE that can be used to open the image as a shared resource.
-  // If the operation to copy the original resource to the shared resource
-  // hasn't finished yet, this function blocks until the synchronization is
-  // complete.
-  HANDLE GetShareHandle();
+  gfx::IntSize GetSize() override;
 
-  gfxIntSize GetSize() MOZ_OVERRIDE;
+  virtual TemporaryRef<gfx::SourceSurface> GetAsSourceSurface() override;
 
-  already_AddRefed<gfxASurface> GetAsSurface() MOZ_OVERRIDE;
+  virtual TextureClient* GetTextureClient(CompositableClient* aClient) override;
+
+  virtual bool IsValid() override;
 
 private:
 
@@ -54,11 +52,13 @@ private:
   // is complete, whereupon the texture is safe to use.
   void EnsureSynchronized();
 
-  gfxIntSize mSize;
+  gfx::IntSize mSize;
   RefPtr<IDirect3DTexture9> mTexture;
   RefPtr<IDirect3DQuery9> mQuery;
+  RefPtr<TextureClient> mTextureClient;
   HANDLE mShareHandle;
   D3DSURFACE_DESC mDesc;
+  bool mValid;
 };
 
 } // namepace layers

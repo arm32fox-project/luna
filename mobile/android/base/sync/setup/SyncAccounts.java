@@ -8,13 +8,13 @@ import java.io.File;
 import java.io.UnsupportedEncodingException;
 import java.security.NoSuchAlgorithmException;
 
+import org.mozilla.goanna.background.common.GlobalConstants;
+import org.mozilla.goanna.background.common.log.Logger;
 import org.mozilla.goanna.db.BrowserContract;
 import org.mozilla.goanna.sync.CredentialException;
 import org.mozilla.goanna.sync.ExtendedJSONObject;
-import org.mozilla.goanna.background.common.GlobalConstants;
-import org.mozilla.goanna.background.common.log.Logger;
-import org.mozilla.goanna.sync.SyncConstants;
 import org.mozilla.goanna.sync.SyncConfiguration;
+import org.mozilla.goanna.sync.SyncConstants;
 import org.mozilla.goanna.sync.ThreadPool;
 import org.mozilla.goanna.sync.Utils;
 import org.mozilla.goanna.sync.config.AccountPickler;
@@ -28,7 +28,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager.NameNotFoundException;
-import android.os.AsyncTask;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.util.Log;
@@ -44,8 +43,6 @@ public class SyncAccounts {
 
   private static final String MOTO_BLUR_SETTINGS_ACTIVITY = "com.motorola.blur.settings.AccountsAndServicesPreferenceActivity";
   private static final String MOTO_BLUR_PACKAGE           = "com.motorola.blur.setup";
-
-  public final static String DEFAULT_SERVER = "https://auth.services.mozilla.com/";
 
   /**
    * Return Sync accounts.
@@ -81,20 +78,6 @@ public class SyncAccounts {
     // exist.
     final Account account = AccountPickler.unpickle(c, Constants.ACCOUNT_PICKLE_FILENAME);
     return (account != null);
-  }
-
-  /**
-   * This class provides background-thread abstracted access to whether a
-   * Firefox Sync account has been set up on this device.
-   * <p>
-   * Subclass this task and override `onPostExecute` to act on the result.
-   */
-  public static class AccountsExistTask extends AsyncTask<Context, Void, Boolean> {
-    @Override
-    protected Boolean doInBackground(Context... params) {
-      Context c = params[0];
-      return syncAccountsExist(c);
-    }
   }
 
   /**
@@ -197,37 +180,6 @@ public class SyncAccounts {
   }
 
   /**
-   * This class provides background-thread abstracted access to creating a
-   * Firefox Sync account.
-   * <p>
-   * Subclass this task and override `onPostExecute` to act on the result. The
-   * <code>Result</code> (of type <code>Account</code>) is null if an error
-   * occurred and the account could not be added.
-   */
-  public static class CreateSyncAccountTask extends AsyncTask<SyncAccountParameters, Void, Account> {
-    protected final boolean syncAutomatically;
-
-    public CreateSyncAccountTask() {
-      this(true);
-    }
-
-    public CreateSyncAccountTask(final boolean syncAutomically) {
-      this.syncAutomatically = syncAutomically;
-    }
-
-    @Override
-    protected Account doInBackground(SyncAccountParameters... params) {
-      SyncAccountParameters syncAccount = params[0];
-      try {
-        return createSyncAccount(syncAccount, syncAutomatically);
-      } catch (Exception e) {
-        Log.e(SyncConstants.GLOBAL_LOG_TAG, "Unable to create account.", e);
-        return null;
-      }
-    }
-  }
-
-  /**
    * Create a sync account, clearing any existing preferences, and set it to
    * sync automatically.
    * <p>
@@ -295,10 +247,10 @@ public class SyncAccounts {
     final String syncKey   = syncAccount.syncKey;
     final String password  = syncAccount.password;
     final String serverURL = (syncAccount.serverURL == null) ?
-        DEFAULT_SERVER : syncAccount.serverURL;
+        SyncConstants.DEFAULT_AUTH_SERVER : syncAccount.serverURL;
 
     Logger.debug(LOG_TAG, "Using account manager " + accountManager);
-    if (!RepoUtils.stringsEqual(syncAccount.serverURL, DEFAULT_SERVER)) {
+    if (!RepoUtils.stringsEqual(syncAccount.serverURL, SyncConstants.DEFAULT_AUTH_SERVER)) {
       Logger.info(LOG_TAG, "Setting explicit server URL: " + serverURL);
     }
 
@@ -333,7 +285,7 @@ public class SyncAccounts {
     Logger.debug(LOG_TAG, "Account " + account + " added successfully.");
 
     setSyncAutomatically(account, syncAutomatically);
-    setIsSyncable(account, syncAutomatically);
+    setIsSyncable(account, true);
     Logger.debug(LOG_TAG, "Set account to sync automatically? " + syncAutomatically + ".");
 
     try {
@@ -440,7 +392,7 @@ public class SyncAccounts {
    *
    * @param context
    *          current Android context.
-   * @return the <code>Intent</code> started.
+   * @return the <code>Intent</code> started, or null if we couldn't start settings.
    */
   public static Intent openSyncSettings(Context context) {
     // Bug 721760 - opening Sync settings takes user to Battery & Data Manager
@@ -454,7 +406,14 @@ public class SyncAccounts {
     // Open default Sync settings activity.
     intent = new Intent(Settings.ACTION_SYNC_SETTINGS);
     // Bug 774233: do not start activity as a new task (second run fails on some HTC devices).
-    context.startActivity(intent); // We should always find this Activity.
+    try {
+      context.startActivity(intent); // We should always find this Activity.
+    } catch (ActivityNotFoundException ex) {
+      // We're probably on a Kindle, and the user hasn't installed the Android
+      // settings app. See Bug 945341.
+      // We simply mute the error.
+      return null;
+    }
     return intent;
   }
 
@@ -478,9 +437,7 @@ public class SyncAccounts {
     String username;
     try {
       username = Utils.usernameFromAccount(account.name);
-    } catch (NoSuchAlgorithmException e) {
-      throw new CredentialException.MissingCredentialException("username");
-    } catch (UnsupportedEncodingException e) {
+    } catch (NoSuchAlgorithmException | UnsupportedEncodingException e) {
       throw new CredentialException.MissingCredentialException("username");
     }
 

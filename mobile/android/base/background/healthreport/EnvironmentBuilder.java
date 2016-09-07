@@ -9,7 +9,9 @@ import java.util.Iterator;
 import org.json.JSONObject;
 import org.mozilla.goanna.AppConstants;
 import org.mozilla.goanna.SysInfo;
+import org.mozilla.goanna.background.common.GlobalConstants;
 import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.background.healthreport.Environment.UIType;
 
 import android.content.ContentProvider;
 import android.content.ContentProviderClient;
@@ -31,8 +33,11 @@ public class EnvironmentBuilder {
    * Fetch the storage object associated with the provided
    * {@link ContentProviderClient}. If no storage instance can be found --
    * perhaps because the {@link ContentProvider} is running in a different
-   * process -- returns <code>null</code>.
-   * 
+   * process -- returns <code>null</code>. On success, the returned
+   * {@link HealthReportDatabaseStorage} instance is owned by the underlying
+   * {@link HealthReportProvider} and thus does not need to be closed by the
+   * caller.
+   *
    * If the provider is not a {@link HealthReportProvider}, throws a
    * {@link ClassCastException}, because that would be disastrous.
    */
@@ -54,12 +59,30 @@ public class EnvironmentBuilder {
   public static interface ProfileInformationProvider {
     public boolean isBlocklistEnabled();
     public boolean isTelemetryEnabled();
+    public boolean isAcceptLangUserSet();
     public long getProfileCreationTime();
+
+    public String getDistributionString();
+    public String getOSLocale();
+    public String getAppLocale();
+
     public JSONObject getAddonsJSON();
   }
 
+  public static interface ConfigurationProvider {
+    public boolean hasHardwareKeyboard();
+
+    public UIType getUIType();
+    public int getUIModeType();
+
+    public int getScreenLayoutSize();
+    public int getScreenXInMM();
+    public int getScreenYInMM();
+  }
+
   protected static void populateEnvironment(Environment e,
-                                            ProfileInformationProvider info) {
+                                            ProfileInformationProvider info,
+                                            ConfigurationProvider config) {
     e.cpuCount = SysInfo.getCPUCount();
     e.memoryMB = SysInfo.getMemSize();
 
@@ -77,13 +100,12 @@ public class EnvironmentBuilder {
     e.sysName = SysInfo.getName();
     e.sysVersion = SysInfo.getReleaseVersion();
 
-    e.profileCreation = (int) (info.getProfileCreationTime() / HealthReportConstants.MILLISECONDS_PER_DAY);
+    e.profileCreation = (int) (info.getProfileCreationTime() / GlobalConstants.MILLISECONDS_PER_DAY);
 
     // Corresponds to Goanna pref "extensions.blocklist.enabled".
     e.isBlocklistEnabled = (info.isBlocklistEnabled() ? 1 : 0);
 
-    // Corresponds to one of two Goanna telemetry prefs. We reflect these into
-    // GoannaPreferences as "datareporting.telemetry.enabled".
+    // Corresponds to Goanna pref "toolkit.telemetry.enabled".
     e.isTelemetryEnabled = (info.isTelemetryEnabled() ? 1 : 0);
 
     e.extensionCount = 0;
@@ -91,35 +113,47 @@ public class EnvironmentBuilder {
     e.themeCount = 0;
 
     JSONObject addons = info.getAddonsJSON();
-    if (addons == null) {
-      return;
-    }
-
-    @SuppressWarnings("unchecked")
-    Iterator<String> it = addons.keys();
-    while (it.hasNext()) {
-      String key = it.next();
-      try {
-        JSONObject addon = addons.getJSONObject(key);
-        String type = addon.optString("type");
-        Logger.pii(LOG_TAG, "Add-on " + key + " is a " + type);
-        if ("extension".equals(type)) {
-          ++e.extensionCount;
-        } else if ("plugin".equals(type)) {
-          ++e.pluginCount;
-        } else if ("theme".equals(type)) {
-          ++e.themeCount;
-        } else if ("service".equals(type)) {
-          // Later.
-        } else {
-          Logger.debug(LOG_TAG, "Unknown add-on type: " + type);
+    if (addons != null) {
+      @SuppressWarnings("unchecked")
+      Iterator<String> it = addons.keys();
+      while (it.hasNext()) {
+        String key = it.next();
+        try {
+          JSONObject addon = addons.getJSONObject(key);
+          String type = addon.optString("type");
+          Logger.pii(LOG_TAG, "Add-on " + key + " is a " + type);
+          if ("extension".equals(type)) {
+            ++e.extensionCount;
+          } else if ("plugin".equals(type)) {
+            ++e.pluginCount;
+          } else if ("theme".equals(type)) {
+            ++e.themeCount;
+          } else if ("service".equals(type)) {
+            // Later.
+          } else {
+            Logger.debug(LOG_TAG, "Unknown add-on type: " + type);
+          }
+        } catch (Exception ex) {
+          Logger.warn(LOG_TAG, "Failed to process add-on " + key, ex);
         }
-      } catch (Exception ex) {
-        Logger.warn(LOG_TAG, "Failed to process add-on " + key, ex);
       }
     }
 
     e.addons = addons;
+
+    // v2 environment fields.
+    e.distribution = info.getDistributionString();
+    e.osLocale = info.getOSLocale();
+    e.appLocale = info.getAppLocale();
+    e.acceptLangSet = info.isAcceptLangUserSet() ? 1 : 0;
+
+    // v3 environment fields.
+    e.hasHardwareKeyboard = config.hasHardwareKeyboard();
+    e.uiType = config.getUIType();
+    e.uiMode = config.getUIModeType();
+    e.screenLayout = config.getScreenLayoutSize();
+    e.screenXInMM = config.getScreenXInMM();
+    e.screenYInMM = config.getScreenYInMM();
   }
 
   /**
@@ -129,24 +163,25 @@ public class EnvironmentBuilder {
    * @param info a source of profile data
    * @return the new {@link Environment}
    */
-  public static Environment getCurrentEnvironment(ProfileInformationProvider info) {
+  public static Environment getCurrentEnvironment(ProfileInformationProvider info, ConfigurationProvider config) {
     Environment e = new Environment() {
       @Override
       public int register() {
         return 0;
       }
     };
-    populateEnvironment(e, info);
+    populateEnvironment(e, info, config);
     return e;
   }
 
   /**
    * @return the current environment's ID in the provided storage layer
    */
-  public static int registerCurrentEnvironment(HealthReportDatabaseStorage storage,
-                                               ProfileInformationProvider info) {
+  public static int registerCurrentEnvironment(final HealthReportStorage storage,
+                                               final ProfileInformationProvider info,
+                                               final ConfigurationProvider config) {
     Environment e = storage.getEnvironment();
-    populateEnvironment(e, info);
+    populateEnvironment(e, info, config);
     e.register();
     Logger.debug(LOG_TAG, "Registering current environment: " + e.getHash() + " = " + e.id);
     return e.id;

@@ -13,8 +13,8 @@
 
 #include <map>
 #include <stdio.h>
-#include "typedefs.h"
-#include "webrtc_neteq_internal.h"
+#include "webrtc/typedefs.h"
+#include "webrtc/modules/interface/module_common_types.h"
 
 enum stereoModes {
     stereoModeMono,
@@ -35,69 +35,66 @@ public:
     virtual int readFromFile(FILE *fp);
     int readFixedFromFile(FILE *fp, size_t len);
     virtual int writeToFile(FILE *fp);
-    void blockPT(WebRtc_UWord8 pt);
-    void selectSSRC(uint32_t ssrc);
-    //WebRtc_Word16 payloadType();
-    void parseHeader();
-    void parseHeader(WebRtcNetEQ_RTPInfo & rtpInfo);
-    WebRtcNetEQ_RTPInfo const * RTPinfo() const;
-    WebRtc_UWord8 * datagram() const;
-    WebRtc_UWord8 * payload() const;
-    WebRtc_Word16 payloadLen();
-    WebRtc_Word16 dataLen() const;
+    void blockPT(uint8_t pt);
+    //int16_t payloadType();
+    virtual void parseHeader();
+    void parseHeader(webrtc::WebRtcRTPHeader* rtp_header);
+    const webrtc::WebRtcRTPHeader* RTPinfo() const;
+    uint8_t * datagram() const;
+    uint8_t * payload() const;
+    int16_t payloadLen();
+    int16_t dataLen() const;
     bool isParsed() const;
     bool isLost() const;
-    WebRtc_UWord32 time() const { return _receiveTime; };
+    uint32_t time() const { return _receiveTime; };
 
-    WebRtc_UWord8  payloadType() const;
-    WebRtc_UWord16 sequenceNumber() const;
-    WebRtc_UWord32 timeStamp() const;
-    WebRtc_UWord32 SSRC() const;
-    WebRtc_UWord8  markerBit() const;
+    uint8_t  payloadType() const;
+    uint16_t sequenceNumber() const;
+    uint32_t timeStamp() const;
+    uint32_t SSRC() const;
+    uint8_t  markerBit() const;
 
-    int setPayloadType(WebRtc_UWord8 pt);
-    int setSequenceNumber(WebRtc_UWord16 sn);
-    int setTimeStamp(WebRtc_UWord32 ts);
-    int setSSRC(WebRtc_UWord32 ssrc);
-    int setMarkerBit(WebRtc_UWord8 mb);
-    void setTime(WebRtc_UWord32 receiveTime) { _receiveTime = receiveTime; };
+    int setPayloadType(uint8_t pt);
+    int setSequenceNumber(uint16_t sn);
+    int setTimeStamp(uint32_t ts);
+    int setSSRC(uint32_t ssrc);
+    int setMarkerBit(uint8_t mb);
+    void setTime(uint32_t receiveTime) { _receiveTime = receiveTime; };
 
-    int setRTPheader(const WebRtcNetEQ_RTPInfo *RTPinfo);
+    int setRTPheader(const webrtc::WebRtcRTPHeader* RTPinfo);
 
     int splitStereo(NETEQTEST_RTPpacket* slaveRtp, enum stereoModes mode);
 
-    int extractRED(int index, WebRtcNetEQ_RTPInfo& red);
+    int extractRED(int index, webrtc::WebRtcRTPHeader& red);
 
     void scramblePayload(void);
 
-    WebRtc_UWord8 *       _datagram;
-    WebRtc_UWord8 *       _payloadPtr;
+    uint8_t *       _datagram;
+    uint8_t *       _payloadPtr;
     int                 _memSize;
-    WebRtc_Word16         _datagramLen;
-    WebRtc_Word16         _payloadLen;
-    WebRtcNetEQ_RTPInfo  _rtpInfo;
+    int16_t         _datagramLen;
+    int16_t         _payloadLen;
+    webrtc::WebRtcRTPHeader _rtpInfo;
     bool                _rtpParsed;
-    WebRtc_UWord32        _receiveTime;
+    uint32_t        _receiveTime;
     bool                _lost;
-    std::map<WebRtc_UWord8, bool> _blockList;
-    uint32_t            _selectSSRC;
-    bool                _filterSSRC;
+    std::map<uint8_t, bool> _blockList;
 
 protected:
     static const int _kRDHeaderLen;
     static const int _kBasicHeaderLen;
 
-    void parseBasicHeader(WebRtcNetEQ_RTPInfo *RTPinfo, int *i_P, int *i_X,
+    void parseBasicHeader(webrtc::WebRtcRTPHeader* RTPinfo, int *i_P, int *i_X,
                           int *i_CC) const;
     int calcHeaderLength(int i_X, int i_CC) const;
 
 private:
-    void makeRTPheader(unsigned char* rtp_data, WebRtc_UWord8 payloadType,
-                       WebRtc_UWord16 seqNo, WebRtc_UWord32 timestamp,
-                       WebRtc_UWord32 ssrc, WebRtc_UWord8 markerBit) const;
-    WebRtc_UWord16 parseRTPheader(WebRtcNetEQ_RTPInfo *RTPinfo,
-                                  WebRtc_UWord8 **payloadPtr = NULL) const;
-    WebRtc_UWord16 parseRTPheader(WebRtc_UWord8 **payloadPtr = NULL)
+    void makeRTPheader(unsigned char* rtp_data, uint8_t payloadType,
+                       uint16_t seqNo, uint32_t timestamp,
+                       uint32_t ssrc, uint8_t markerBit) const;
+    uint16_t parseRTPheader(webrtc::WebRtcRTPHeader* RTPinfo,
+                            uint8_t **payloadPtr = NULL) const;
+    uint16_t parseRTPheader(uint8_t **payloadPtr = NULL)
         { return parseRTPheader(&_rtpInfo, payloadPtr);};
     int calcPadLength(int i_P) const;
     void splitStereoSample(NETEQTEST_RTPpacket* slaveRtp, int stride);

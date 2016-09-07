@@ -3,6 +3,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
+#ifndef nsReadConfig_h
+#define nsReadConfig_h
+
 #include "nsCOMPtr.h"
 #include "nsIReadConfig.h"
 #include "nsIAutoConfig.h"
@@ -15,17 +18,18 @@ class nsReadConfig : public nsIReadConfig,
 
     public:
 
-        NS_DECL_ISUPPORTS
+        NS_DECL_THREADSAFE_ISUPPORTS
         NS_DECL_NSIREADCONFIG
         NS_DECL_NSIOBSERVER
 
         nsReadConfig();
-        virtual ~nsReadConfig();
 
         nsresult Init();
 
     protected:
-  
+
+        virtual ~nsReadConfig();
+
         nsresult readConfigFile();
         nsresult openAndEvaluateJSFile(const char *aFileName, int32_t obscureValue, 
                                         bool isEncoded, bool isBinDir);
@@ -33,3 +37,5 @@ class nsReadConfig : public nsIReadConfig,
 private:
         nsCOMPtr<nsIAutoConfig> mAutoConfig;
 };
+
+#endif

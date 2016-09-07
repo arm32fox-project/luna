@@ -31,3 +31,4 @@ var same_scope = (scope1.test_obj.i == scope2.test_obj.i);
 var testScope = {};
 XPCOMUtils.importRelative(this, "import_sub_module.jsm", testScope);
 var SUBMODULE_IMPORTED_TO_SCOPE = testScope.SUBMODULE_IMPORTED;
+

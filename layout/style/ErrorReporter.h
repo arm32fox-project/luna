@@ -14,11 +14,12 @@
 #include "nsString.h"
 
 struct nsCSSToken;
-class nsCSSStyleSheet;
 class nsCSSScanner;
 class nsIURI;
 
 namespace mozilla {
+class CSSStyleSheet;
+
 namespace css {
 
 class Loader;
@@ -28,7 +29,7 @@ class Loader;
 class MOZ_STACK_CLASS ErrorReporter {
 public:
   ErrorReporter(const nsCSSScanner &aScanner,
-                const nsCSSStyleSheet *aSheet,
+                const CSSStyleSheet *aSheet,
                 const Loader *aLoader,
                 nsIURI *aURI);
   ~ErrorReporter();
@@ -36,6 +37,7 @@ public:
   static void ReleaseGlobals();
 
   void OutputError();
+  void OutputError(uint32_t aLineNumber, uint32_t aLineOffset);
   void ClearError();
 
   // In all overloads of ReportUnexpected, aMessage is a stringbundle
@@ -50,13 +52,13 @@ public:
   void ReportUnexpected(const char *aMessage, const nsCSSToken& aToken);
   // two parameters, a token and a character, in that order
   void ReportUnexpected(const char *aMessage, const nsCSSToken& aToken,
-                        PRUnichar aChar);
+                        char16_t aChar);
 
   // for ReportUnexpectedEOF, aExpected can be either a stringbundle
   // name or a single character.  In the former case there may not be
   // any format parameters.
   void ReportUnexpectedEOF(const char *aExpected);
-  void ReportUnexpectedEOF(PRUnichar aExpected);
+  void ReportUnexpectedEOF(char16_t aExpected);
 
 private:
   void AddToError(const nsString &aErrorText);
@@ -66,7 +68,7 @@ private:
   nsString mErrorLine;
   nsString mFileName;
   const nsCSSScanner *mScanner;
-  const nsCSSStyleSheet *mSheet;
+  const CSSStyleSheet *mSheet;
   const Loader *mLoader;
   nsIURI *mURI;
   uint64_t mInnerWindowID;
@@ -78,7 +80,7 @@ private:
 
 #ifndef CSS_REPORT_PARSE_ERRORS
 inline ErrorReporter::ErrorReporter(const nsCSSScanner&,
-                                    const nsCSSStyleSheet*,
+                                    const CSSStyleSheet*,
                                     const Loader*,
                                     nsIURI*) {}
 inline ErrorReporter::~ErrorReporter() {}
@@ -92,10 +94,10 @@ inline void ErrorReporter::ReportUnexpected(const char *) {}
 inline void ErrorReporter::ReportUnexpected(const char *, const nsString &) {}
 inline void ErrorReporter::ReportUnexpected(const char *, const nsCSSToken &) {}
 inline void ErrorReporter::ReportUnexpected(const char *, const nsCSSToken &,
-                                            PRUnichar) {}
+                                            char16_t) {}
 
 inline void ErrorReporter::ReportUnexpectedEOF(const char *) {}
-inline void ErrorReporter::ReportUnexpectedEOF(PRUnichar) {}
+inline void ErrorReporter::ReportUnexpectedEOF(char16_t) {}
 
 inline void ErrorReporter::AddToError(const nsString &) {}
 #endif

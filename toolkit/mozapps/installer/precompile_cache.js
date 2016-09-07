@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -65,7 +65,7 @@ function get_modules_under(uri) {
 }
 
 function load_modules_under(spec, uri) {
-  var entries = get_modules_under(uri);
+  var entries = get_modules_under(uri).sort();
   // The precompilation of JS here sometimes reports errors, which we don't
   // really care about. But if the errors are ever reported to xpcshell's
   // error reporter, it will cause it to return an error code, which will break

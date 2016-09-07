@@ -5,27 +5,20 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-
-#include "tests.h"
-
 #include "jscntxt.h"
 #include "jscompartment.h"
 #include "jsnum.h"
 #include "jsstr.h"
 
+#include "jsapi-tests/tests.h"
+
 #include "vm/String-inl.h"
 
 using mozilla::ArrayLength;
 
-template<size_t N> JSFlatString *
-NewString(JSContext *cx, const jschar (&chars)[N])
-{
-    return js_NewStringCopyN<js::CanGC>(cx, chars, N);
-}
-
 static const struct TestPair {
     uint32_t num;
-    const char *expected;
+    const char* expected;
 } tests[] = {
     { 0, "0" },
     { 1, "1" },
@@ -59,13 +52,13 @@ BEGIN_TEST(testIndexToString)
 {
     for (size_t i = 0, sz = ArrayLength(tests); i < sz; i++) {
         uint32_t u = tests[i].num;
-        JSString *str = js::IndexToString(cx, u);
+        JSString* str = js::IndexToString(cx, u);
         CHECK(str);
 
         if (!js::StaticStrings::hasUint(u))
             CHECK(cx->compartment()->dtoaCache.lookup(10, u) == str);
 
-        JSBool match = JS_FALSE;
+        bool match = false;
         CHECK(JS_StringEqualsAscii(cx, str, tests[i].expected, &match));
         CHECK(match);
     }
@@ -78,7 +71,7 @@ BEGIN_TEST(testStringIsIndex)
 {
     for (size_t i = 0, sz = ArrayLength(tests); i < sz; i++) {
         uint32_t u = tests[i].num;
-        JSFlatString *str = js::IndexToString(cx, u);
+        JSFlatString* str = js::IndexToString(cx, u);
         CHECK(str);
 
         uint32_t n;
@@ -94,24 +87,31 @@ BEGIN_TEST(testStringToPropertyName)
 {
     uint32_t index;
 
-    static const jschar hiChars[] = { 'h', 'i' };
-    JSFlatString *hiStr = NewString(cx, hiChars);
+    static const char16_t hiChars[] = { 'h', 'i' };
+    JSFlatString* hiStr = NewString(cx, hiChars);
     CHECK(hiStr);
     CHECK(!hiStr->isIndex(&index));
-    CHECK(hiStr->toPropertyName(cx) != NULL);
+    CHECK(hiStr->toPropertyName(cx) != nullptr);
 
-    static const jschar maxChars[] = { '4', '2', '9', '4', '9', '6', '7', '2', '9', '5' };
-    JSFlatString *maxStr = NewString(cx, maxChars);
+    static const char16_t maxChars[] = { '4', '2', '9', '4', '9', '6', '7', '2', '9', '5' };
+    JSFlatString* maxStr = NewString(cx, maxChars);
     CHECK(maxStr);
     CHECK(maxStr->isIndex(&index));
     CHECK(index == UINT32_MAX);
 
-    static const jschar maxPlusOneChars[] = { '4', '2', '9', '4', '9', '6', '7', '2', '9', '6' };
-    JSFlatString *maxPlusOneStr = NewString(cx, maxPlusOneChars);
+    static const char16_t maxPlusOneChars[] = { '4', '2', '9', '4', '9', '6', '7', '2', '9', '6' };
+    JSFlatString* maxPlusOneStr = NewString(cx, maxPlusOneChars);
     CHECK(maxPlusOneStr);
     CHECK(!maxPlusOneStr->isIndex(&index));
-    CHECK(maxPlusOneStr->toPropertyName(cx) != NULL);
+    CHECK(maxPlusOneStr->toPropertyName(cx) != nullptr);
 
     return true;
 }
+
+template<size_t N> static JSFlatString*
+NewString(JSContext* cx, const char16_t (&chars)[N])
+{
+    return js::NewStringCopyN<js::CanGC>(cx, chars, N);
+}
+
 END_TEST(testStringToPropertyName)

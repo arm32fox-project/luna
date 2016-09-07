@@ -4,15 +4,20 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-[Constructor(DOMString type, optional USSDReceivedEventInit eventInitDict), HeaderFile="GeneratedEventClasses.h"]
+[Pref="dom.telephony.enabled",
+ CheckPermissions="telephony",
+ AvailableIn="CertifiedApps",
+ Constructor(DOMString type, optional USSDReceivedEventInit eventInitDict)]
 interface USSDReceivedEvent : Event
 {
+  readonly attribute unsigned long serviceId;
   readonly attribute DOMString? message;
-  readonly attribute boolean sessionEnded;
+  readonly attribute USSDSession? session;  // null if session is ended.
 };
 
 dictionary USSDReceivedEventInit : EventInit
 {
+  unsigned long serviceId = 0;
   DOMString? message = null;
-  boolean sessionEnded = false;
+  USSDSession? session = null;
 };

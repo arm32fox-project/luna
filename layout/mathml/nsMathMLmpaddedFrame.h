@@ -7,7 +7,6 @@
 #define nsMathMLmpaddedFrame_h___
 
 #include "mozilla/Attributes.h"
-#include "nsCOMPtr.h"
 #include "nsMathMLContainerFrame.h"
 
 //
@@ -21,31 +20,37 @@ public:
   friend nsIFrame* NS_NewMathMLmpaddedFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 
   NS_IMETHOD
-  InheritAutomaticData(nsIFrame* aParent) MOZ_OVERRIDE;
+  InheritAutomaticData(nsIFrame* aParent) override;
 
   NS_IMETHOD
-  TransmitAutomaticData() MOZ_OVERRIDE {
+  TransmitAutomaticData() override {
     return TransmitAutomaticDataForMrowLikeElement();
   }
 
-  NS_IMETHOD
+  virtual void
   Reflow(nsPresContext*          aPresContext,
          nsHTMLReflowMetrics&     aDesiredSize,
          const nsHTMLReflowState& aReflowState,
-         nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+         nsReflowStatus&          aStatus) override;
   
   virtual nsresult
   Place(nsRenderingContext& aRenderingContext,
         bool                 aPlaceOrigin,
-        nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+        nsHTMLReflowMetrics& aDesiredSize) override;
+
+  bool
+  IsMrowLike() override {
+    return mFrames.FirstChild() != mFrames.LastChild() ||
+           !mFrames.FirstChild();
+  }
 
 protected:
-  nsMathMLmpaddedFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
+  explicit nsMathMLmpaddedFrame(nsStyleContext* aContext) : nsMathMLContainerFrame(aContext) {}
   virtual ~nsMathMLmpaddedFrame();
   
   virtual nsresult
   MeasureForWidth(nsRenderingContext& aRenderingContext,
-                  nsHTMLReflowMetrics& aDesiredSize) MOZ_OVERRIDE;
+                  nsHTMLReflowMetrics& aDesiredSize) override;
 
 private:
   nsCSSValue mWidth;
@@ -80,8 +85,9 @@ private:
   UpdateValue(int32_t                  aSign,
               int32_t                  aPseudoUnit,
               const nsCSSValue&        aCSSValue,
-              const nsBoundingMetrics& aBoundingMetrics,
-              nscoord&                 aValueToUpdate) const;
+              const nsHTMLReflowMetrics& aDesiredSize,
+              nscoord&                 aValueToUpdate,
+              float                    aFontSizeInflation) const;
 };
 
 #endif /* nsMathMLmpaddedFrame_h___ */

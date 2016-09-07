@@ -158,7 +158,7 @@
 .addon:not([active]) .addon-icon,
 #disable-list .addon-icon,
 #incompatible-list .addon-icon {
-  filter: url("chrome://mozapps/skin/extensions/extensions.svg#greyscale");
+  filter: grayscale(1);
 }
 
 #footer {
@@ -167,13 +167,15 @@
 
 .progress-label,
 #footer-label {
-%ifdef WINDOWS_AERO
-  font-style: italic;
-%endif
   color: GrayText;
 }
 
-%ifdef WINDOWS_AERO
+%ifdef XP_WIN
+.progress-label,
+#footer-label {
+  font-style: italic;
+}
+
 @media (-moz-windows-default-theme) {
   #footer {
     background-color: #f1f5fb;

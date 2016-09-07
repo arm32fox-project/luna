@@ -15,6 +15,7 @@
 #include "nsILoadContext.h"
 #include "nsCOMPtr.h"
 #include "nsString.h"
+#include "OfflineObserver.h"
 
 class nsIAuthPromptProvider;
 
@@ -23,10 +24,12 @@ namespace net {
 
 class WebSocketChannelParent : public PWebSocketParent,
                                public nsIWebSocketListener,
+                               public DisconnectableParent,
                                public nsIInterfaceRequestor
 {
+  ~WebSocketChannelParent();
  public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIWEBSOCKETLISTENER
   NS_DECL_NSIINTERFACEREQUESTOR
 
@@ -42,15 +45,20 @@ class WebSocketChannelParent : public PWebSocketParent,
                      const uint32_t& aPingInterval,
                      const bool& aClientSetPingInterval,
                      const uint32_t& aPingTimeout,
-                     const bool& aClientSetPingTimeout);
-  bool RecvClose(const uint16_t & code, const nsCString & reason);
-  bool RecvSendMsg(const nsCString& aMsg);
-  bool RecvSendBinaryMsg(const nsCString& aMsg);
+                     const bool& aClientSetPingTimeout,
+                     const WebSocketLoadInfoArgs& aLoadInfoArgs) override;
+  bool RecvClose(const uint16_t & code, const nsCString & reason) override;
+  bool RecvSendMsg(const nsCString& aMsg) override;
+  bool RecvSendBinaryMsg(const nsCString& aMsg) override;
   bool RecvSendBinaryStream(const InputStreamParams& aStream,
-                            const uint32_t& aLength);
-  bool RecvDeleteSelf();
+                            const uint32_t& aLength) override;
+  bool RecvDeleteSelf() override;
 
-  void ActorDestroy(ActorDestroyReason why);
+  void ActorDestroy(ActorDestroyReason why) override;
+
+  void OfflineDisconnect() override;
+  uint32_t GetAppId() override;
+  nsRefPtr<OfflineObserver> mObserver;
 
   nsCOMPtr<nsIAuthPromptProvider> mAuthProvider;
   nsCOMPtr<nsIWebSocketChannel> mChannel;

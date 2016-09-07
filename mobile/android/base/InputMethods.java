@@ -5,16 +5,16 @@
 
 package org.mozilla.goanna;
 
+import java.util.Collection;
+
+import org.mozilla.goanna.AppConstants.Versions;
+
 import android.content.Context;
-import android.os.Build;
 import android.provider.Settings.Secure;
 import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
 
-import java.util.Collection;
-import java.util.Locale;
-
-final class InputMethods {
+final public class InputMethods {
     public static final String METHOD_ANDROID_LATINIME = "com.android.inputmethod.latin/.LatinIME";
     public static final String METHOD_ATOK = "com.justsystems.atokmobile.service/.AtokInputMethodService";
     public static final String METHOD_GOOGLE_JAPANESE_INPUT = "com.google.android.inputmethod.japanese/.MozcService";
@@ -53,26 +53,22 @@ final class InputMethods {
 
     public static boolean needsSoftResetWorkaround(String inputMethod) {
         // Stock latin IME on Android 4.2 and above
-        return Build.VERSION.SDK_INT >= 17 && (METHOD_ANDROID_LATINIME.equals(inputMethod) ||
-                                               METHOD_GOOGLE_LATINIME.equals(inputMethod));
+        return Versions.feature17Plus &&
+               (METHOD_ANDROID_LATINIME.equals(inputMethod) ||
+                METHOD_GOOGLE_LATINIME.equals(inputMethod));
     }
 
     public static boolean shouldCommitCharAsKey(String inputMethod) {
         return METHOD_HTC_TOUCH_INPUT.equals(inputMethod);
     }
 
-    public static boolean shouldDelayAwesomebarUpdate(Context context) {
-        String inputMethod = getCurrentInputMethod(context);
-        return METHOD_SAMSUNG.equals(inputMethod) ||
-               METHOD_SWIFTKEY.equals(inputMethod);
-    }
-
     public static boolean isGestureKeyboard(Context context) {
         // SwiftKey is a gesture keyboard, but it doesn't seem to need any special-casing
         // to do AwesomeBar auto-spacing.
         String inputMethod = getCurrentInputMethod(context);
-        return (Build.VERSION.SDK_INT >= 17 && (METHOD_ANDROID_LATINIME.equals(inputMethod) ||
-                                                METHOD_GOOGLE_LATINIME.equals(inputMethod))) ||
+        return (Versions.feature17Plus &&
+                (METHOD_ANDROID_LATINIME.equals(inputMethod) ||
+                 METHOD_GOOGLE_LATINIME.equals(inputMethod))) ||
                METHOD_SWYPE.equals(inputMethod) ||
                METHOD_SWYPE_BETA.equals(inputMethod) ||
                METHOD_TOUCHPAL_KEYBOARD.equals(inputMethod);

@@ -7,10 +7,6 @@
 
 "use strict";
 
-const Ci = Components.interfaces;
-
-Components.utils.import("resource://testing-common/httpd.js");
-
 // Override the prompt service and nsIPrompt, since the search service currently
 // prompts in response to certain installation failures we test here
 // XXX this should disappear once bug 863474 is fixed
@@ -67,7 +63,7 @@ add_test(function simple_callback_test() {
       do_throw("search callback returned error: " + errorCode);
     }
   }
-  Services.search.addEngine("http://localhost:4444/data/engine.xml",
+  Services.search.addEngine(gDataUrl + "engine.xml",
                             Ci.nsISearchEngine.DATA_XML,
                             null, false, searchCallback);
 });
@@ -85,7 +81,7 @@ add_test(function duplicate_failure_test() {
     }
   }
   // Re-add the same engine added in the previous test
-  Services.search.addEngine("http://localhost:4444/data/engine.xml",
+  Services.search.addEngine(gDataUrl + "engine.xml",
                             Ci.nsISearchEngine.DATA_XML,
                             null, false, searchCallback);
 });
@@ -110,14 +106,7 @@ add_test(function load_failure_test() {
 
 function run_test() {
   updateAppInfo();
-
-  let httpServer = new HttpServer();
-  httpServer.start(4444);
-  httpServer.registerDirectory("/", do_get_cwd());
-
-  do_register_cleanup(function cleanup() {
-    httpServer.stop(function() {});
-  });
+  useHttpServer();
 
   run_next_test();
 }

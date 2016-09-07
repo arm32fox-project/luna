@@ -1,4 +1,4 @@
-// -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*-
+// -*- indent-tabs-mode: nil; js-indent-level: 4 -*-
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,46 +9,18 @@ let Cu = Components.utils;
 
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "FormHistory",
-                                  "resource://gre/modules/FormHistory.jsm");
+Cu.import("resource://gre/modules/LoadContextInfo.jsm");
+Cu.import("resource://gre/modules/FormHistory.jsm");
+Cu.import("resource://gre/modules/Messaging.jsm");
+Cu.import("resource://gre/modules/Task.jsm");
+Cu.import("resource://gre/modules/Downloads.jsm");
+Cu.import("resource://gre/modules/osfile.jsm");
 
 function dump(a) {
-  Cc["@mozilla.org/consoleservice;1"].getService(Ci.nsIConsoleService).logStringMessage(a);
-}
-
-function sendMessageToJava(aMessage) {
-  return Cc["@mozilla.org/android/bridge;1"]
-           .getService(Ci.nsIAndroidBridge)
-           .handleGoannaMessage(JSON.stringify(aMessage));
+  Services.console.logStringMessage(a);
 }
 
 this.EXPORTED_SYMBOLS = ["Sanitizer"];
-
-let downloads = {
-  dlmgr: Cc["@mozilla.org/download-manager;1"].getService(Ci.nsIDownloadManager),
-
-  iterate: function (aCallback) {
-    let dlmgr = downloads.dlmgr;
-    let dbConn = dlmgr.DBConnection;
-    let stmt = dbConn.createStatement("SELECT id FROM moz_downloads WHERE " +
-        "state = ? OR state = ? OR state = ? OR state = ? OR state = ? OR state = ?");
-    stmt.bindInt32Parameter(0, Ci.nsIDownloadManager.DOWNLOAD_FINISHED);
-    stmt.bindInt32Parameter(1, Ci.nsIDownloadManager.DOWNLOAD_FAILED);
-    stmt.bindInt32Parameter(2, Ci.nsIDownloadManager.DOWNLOAD_CANCELED);
-    stmt.bindInt32Parameter(3, Ci.nsIDownloadManager.DOWNLOAD_BLOCKED_PARENTAL);
-    stmt.bindInt32Parameter(4, Ci.nsIDownloadManager.DOWNLOAD_BLOCKED_POLICY);
-    stmt.bindInt32Parameter(5, Ci.nsIDownloadManager.DOWNLOAD_DIRTY);
-    while (stmt.executeStep()) {
-      aCallback(dlmgr.getDownload(stmt.row.id));
-    }
-    stmt.finalize();
-  },
-
-  get canClear() {
-    return this.dlmgr.canCleanUp;
-  }
-};
 
 function Sanitizer() {}
 Sanitizer.prototype = {
@@ -70,16 +42,20 @@ Sanitizer.prototype = {
     cache: {
       clear: function ()
       {
-        var cacheService = Cc["@mozilla.org/network/cache-service;1"].getService(Ci.nsICacheService);
-        try {
-          cacheService.evictEntries(Ci.nsICache.STORE_ANYWHERE);
-        } catch(er) {}
+        return new Promise(function(resolve, reject) {
+          var cache = Cc["@mozilla.org/netwerk/cache-storage-service;1"].getService(Ci.nsICacheStorageService);
+          try {
+            cache.clear();
+          } catch(er) {}
 
-        let imageCache = Cc["@mozilla.org/image/tools;1"].getService(Ci.imgITools)
-                                                         .getImgCacheForDocument(null);
-        try {
-          imageCache.clearCache(false); // true=chrome, false=content
-        } catch(er) {}
+          let imageCache = Cc["@mozilla.org/image/tools;1"].getService(Ci.imgITools)
+                                                           .getImgCacheForDocument(null);
+          try {
+            imageCache.clearCache(false); // true=chrome, false=content
+          } catch(er) {}
+
+          resolve();
+        });
       },
 
       get canClear()
@@ -91,7 +67,10 @@ Sanitizer.prototype = {
     cookies: {
       clear: function ()
       {
-        Services.cookies.removeAll();
+        return new Promise(function(resolve, reject) {
+          Services.cookies.removeAll();
+          resolve();
+        });
       },
 
       get canClear()
@@ -103,20 +82,29 @@ Sanitizer.prototype = {
     siteSettings: {
       clear: function ()
       {
-        // Clear site-specific permissions like "Allow this site to open popups"
-        Services.perms.removeAll();
+        return new Promise(function(resolve, reject) {
+          // Clear site-specific permissions like "Allow this site to open popups"
+          Services.perms.removeAll();
 
-        // Clear site-specific settings like page-zoom level
-        Cc["@mozilla.org/content-pref/service;1"]
-          .getService(Ci.nsIContentPrefService2)
-          .removeAllDomains(null);
+          // Clear site-specific settings like page-zoom level
+          Cc["@mozilla.org/content-pref/service;1"]
+            .getService(Ci.nsIContentPrefService2)
+            .removeAllDomains(null);
 
-        // Clear "Never remember passwords for this site", which is not handled by
-        // the permission manager
-        var hosts = Services.logins.getAllDisabledHosts({})
-        for each (var host in hosts) {
-          Services.logins.setLoginSavingEnabled(host, true);
-        }
+          // Clear "Never remember passwords for this site", which is not handled by
+          // the permission manager
+          var hosts = Services.logins.getAllDisabledHosts({})
+          for (var host of hosts) {
+            Services.logins.setLoginSavingEnabled(host, true);
+          }
+
+          // Clear site security settings
+          var sss = Cc["@mozilla.org/ssservice;1"]
+                      .getService(Ci.nsISiteSecurityService);
+          sss.clearAll();
+
+          resolve();
+        });
       },
 
       get canClear()
@@ -128,10 +116,15 @@ Sanitizer.prototype = {
     offlineApps: {
       clear: function ()
       {
-        var cacheService = Cc["@mozilla.org/network/cache-service;1"].getService(Ci.nsICacheService);
-        try {
-          cacheService.evictEntries(Ci.nsICache.STORE_OFFLINE);
-        } catch(er) {}
+        return new Promise(function(resolve, reject) {
+          var cacheService = Cc["@mozilla.org/netwerk/cache-storage-service;1"].getService(Ci.nsICacheStorageService);
+          var appCacheStorage = cacheService.appCacheStorage(LoadContextInfo.default, null);
+          try {
+            appCacheStorage.asyncEvictStorage(null);
+          } catch(er) {}
+
+          resolve();
+        });
       },
 
       get canClear()
@@ -143,18 +136,19 @@ Sanitizer.prototype = {
     history: {
       clear: function ()
       {
-        sendMessageToJava({ type: "Sanitize:ClearHistory" });
+        return Messaging.sendRequestForResult({ type: "Sanitize:ClearHistory" })
+          .catch(e => Cu.reportError("Java-side history clearing failed: " + e))
+          .then(function() {
+            try {
+              Services.obs.notifyObservers(null, "browser:purge-session-history", "");
+            }
+            catch (e) { }
 
-        try {
-          Services.obs.notifyObservers(null, "browser:purge-session-history", "");
-        }
-        catch (e) { }
-
-        // Clear last URL of the Open Web Location dialog
-        try {
-          Services.prefs.clearUserPref("general.open_location.last_url");
-        }
-        catch (e) { }
+            try {
+              var predictor = Cc["@mozilla.org/network/predictor;1"].getService(Ci.nsINetworkPredictor);
+              predictor.reset();
+            } catch (e) { }
+          });
       },
 
       get canClear()
@@ -168,17 +162,10 @@ Sanitizer.prototype = {
     formdata: {
       clear: function ()
       {
-        //Clear undo history of all searchBars
-        var windows = Services.wm.getEnumerator("navigator:browser");
-        while (windows.hasMoreElements()) {
-          var searchBar = windows.getNext().document.getElementById("searchbar");
-          if (searchBar) {
-            searchBar.value = "";
-            searchBar.textbox.editor.transactionManager.clear();
-          }
-        }
-
-        FormHistory.update({ op: "remove" });
+        return new Promise(function(resolve, reject) {
+          FormHistory.update({ op: "remove" });
+          resolve();
+        });
       },
 
       canClear: function (aCallback)
@@ -193,45 +180,51 @@ Sanitizer.prototype = {
       }
     },
 
-    downloads: {
-      clear: function ()
-      {
-        downloads.iterate(function (dl) {
-          dl.remove();
-        });
-      },
-
-      get canClear()
-      {
-        return downloads.canClear;
-      }
-    },
-
     downloadFiles: {
-      clear: function ()
-      {
-        downloads.iterate(function (dl) {
-          // Delete the downloaded files themselves
-          let f = dl.targetFile;
-          if (f.exists()) {
-            f.remove(false);
-          }
+      clear: Task.async(function* () {
+        let list = yield Downloads.getList(Downloads.ALL);
+        let downloads = yield list.getAll();
 
-          // Also delete downloads from history
-          dl.remove();
-        });
-      },
+        // Logic copied from DownloadList.removeFinished. Ideally, we would
+        // just use that method directly, but we want to be able to remove the
+        // downloaded files as well.
+        for (let download of downloads) {
+          // Remove downloads that have been canceled, even if the cancellation
+          // operation hasn't completed yet so we don't check "stopped" here.
+          // Failed downloads with partial data are also removed.
+          if (download.stopped && (!download.hasPartialData || download.error)) {
+            // Remove the download first, so that the views don't get the change
+            // notifications that may occur during finalization.
+            yield list.remove(download);
+            // Ensure that the download is stopped and no partial data is kept.
+            // This works even if the download state has changed meanwhile.  We
+            // don't need to wait for the procedure to be complete before
+            // processing the other downloads in the list.
+            download.finalize(true).then(null, Cu.reportError);
+
+            // Delete the downloaded files themselves.
+            OS.File.remove(download.target.path).then(null, ex => {
+              if (!(ex instanceof OS.File.Error && ex.becauseNoSuchFile)) {
+                Cu.reportError(ex);
+              }
+            });
+          }
+        }
+      }),
 
       get canClear()
       {
-        return downloads.canClear;
+        return true;
       }
     },
 
     passwords: {
       clear: function ()
       {
-        Services.logins.removeAllLogins();
+        return new Promise(function(resolve, reject) {
+          Services.logins.removeAllLogins();
+          resolve();
+        });
       },
 
       get canClear()
@@ -244,12 +237,16 @@ Sanitizer.prototype = {
     sessions: {
       clear: function ()
       {
-        // clear all auth tokens
-        var sdr = Cc["@mozilla.org/security/sdr;1"].getService(Ci.nsISecretDecoderRing);
-        sdr.logoutAndTeardown();
+        return new Promise(function(resolve, reject) {
+          // clear all auth tokens
+          var sdr = Cc["@mozilla.org/security/sdr;1"].getService(Ci.nsISecretDecoderRing);
+          sdr.logoutAndTeardown();
 
-        // clear FTP and plain HTTP auth sessions
-        Services.obs.notifyObservers(null, "net:clear-active-logins", null);
+          // clear FTP and plain HTTP auth sessions
+          Services.obs.notifyObservers(null, "net:clear-active-logins", null);
+
+          resolve();
+        });
       },
 
       get canClear()

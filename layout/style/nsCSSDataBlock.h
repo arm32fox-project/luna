@@ -11,8 +11,11 @@
 #ifndef nsCSSDataBlock_h__
 #define nsCSSDataBlock_h__
 
+#include "mozilla/MemoryReporting.h"
 #include "nsCSSProps.h"
 #include "nsCSSPropertySet.h"
+#include "nsCSSValue.h"
+#include "imgRequestProxy.h"
 
 struct nsRuleData;
 class nsCSSExpandedDataBlock;
@@ -35,7 +38,7 @@ private:
 
     // Only this class (via |CreateEmptyBlock|) or nsCSSExpandedDataBlock
     // (in |Compress|) can create compressed data blocks.
-    nsCSSCompressedDataBlock(uint32_t aNumProps)
+    explicit nsCSSCompressedDataBlock(uint32_t aNumProps)
       : mStyleBits(0), mNumProps(aNumProps)
     {}
 
@@ -81,7 +84,7 @@ public:
      */
     static nsCSSCompressedDataBlock* CreateEmptyBlock();
 
-    size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+    size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
     bool HasDefaultBorderImageSlice() const;
     bool HasDefaultBorderImageWidth() const;
@@ -90,8 +93,8 @@ public:
 
 private:
     void* operator new(size_t aBaseSize, uint32_t aNumProps) {
-        NS_ABORT_IF_FALSE(aBaseSize == sizeof(nsCSSCompressedDataBlock),
-                          "unexpected size for nsCSSCompressedDataBlock");
+        MOZ_ASSERT(aBaseSize == sizeof(nsCSSCompressedDataBlock),
+                   "unexpected size for nsCSSCompressedDataBlock");
         return ::operator new(aBaseSize + DataSize(aNumProps));
     }
 
@@ -128,14 +131,14 @@ private:
     }
 
     nsCSSValue* ValueAtIndex(uint32_t i) const {
-        NS_ABORT_IF_FALSE(i < mNumProps, "value index out of range");
+        MOZ_ASSERT(i < mNumProps, "value index out of range");
         return Values() + i;
     }
 
     nsCSSProperty PropertyAtIndex(uint32_t i) const {
-        NS_ABORT_IF_FALSE(i < mNumProps, "property index out of range");
+        MOZ_ASSERT(i < mNumProps, "property index out of range");
         nsCSSProperty prop = (nsCSSProperty)CompressedProperties()[i];
-        NS_ABORT_IF_FALSE(!nsCSSProps::IsShorthand(prop), "out of range");
+        MOZ_ASSERT(!nsCSSProps::IsShorthand(prop), "out of range");
         return prop;
     }
 
@@ -148,7 +151,7 @@ private:
     }
 
     void SetPropertyAtIndex(uint32_t i, nsCSSProperty aProperty) {
-        NS_ABORT_IF_FALSE(i < mNumProps, "set property index out of range");
+        MOZ_ASSERT(i < mNumProps, "set property index out of range");
         CompressedProperties()[i] = (CompressedCSSProperty)aProperty;
     }
 
@@ -159,17 +162,17 @@ private:
 
 // Make sure the values and properties are aligned appropriately.  (These
 // assertions are stronger than necessary to keep them simple.)
-MOZ_STATIC_ASSERT(sizeof(nsCSSCompressedDataBlock) == 8,
-                  "nsCSSCompressedDataBlock's size has changed");
-MOZ_STATIC_ASSERT(NS_ALIGNMENT_OF(nsCSSValue) == 4 || NS_ALIGNMENT_OF(nsCSSValue) == 8,
-                  "nsCSSValue doesn't align with nsCSSCompressedDataBlock"); 
-MOZ_STATIC_ASSERT(NS_ALIGNMENT_OF(nsCSSCompressedDataBlock::CompressedCSSProperty) == 2,
-                  "CompressedCSSProperty doesn't align with nsCSSValue"); 
+static_assert(sizeof(nsCSSCompressedDataBlock) == 8,
+              "nsCSSCompressedDataBlock's size has changed");
+static_assert(NS_ALIGNMENT_OF(nsCSSValue) == 4 || NS_ALIGNMENT_OF(nsCSSValue) == 8,
+              "nsCSSValue doesn't align with nsCSSCompressedDataBlock"); 
+static_assert(NS_ALIGNMENT_OF(nsCSSCompressedDataBlock::CompressedCSSProperty) == 2,
+              "CompressedCSSProperty doesn't align with nsCSSValue"); 
 
 // Make sure that sizeof(CompressedCSSProperty) is big enough.
-MOZ_STATIC_ASSERT(eCSSProperty_COUNT_no_shorthands <=
-                  nsCSSCompressedDataBlock::MaxCompressedCSSProperty,
-                  "nsCSSProperty doesn't fit in StoredSizeOfCSSProperty");
+static_assert(eCSSProperty_COUNT_no_shorthands <=
+              nsCSSCompressedDataBlock::MaxCompressedCSSProperty,
+              "nsCSSProperty doesn't fit in StoredSizeOfCSSProperty");
 
 class nsCSSExpandedDataBlock {
     friend class nsCSSCompressedDataBlock;
@@ -204,9 +207,13 @@ public:
      * an important block will only be allocated if there are
      * !important properties in the expanded block; otherwise
      * |*aImportantBlock| will be set to null.
+     *
+     * aOrder is an array of nsCSSProperty values specifying the order
+     * to store values in the two data blocks.
      */
     void Compress(nsCSSCompressedDataBlock **aNormalBlock,
-                  nsCSSCompressedDataBlock **aImportantBlock);
+                  nsCSSCompressedDataBlock **aImportantBlock,
+                  const nsTArray<uint32_t>& aOrder);
 
     /**
      * Copy a value into this expanded block.  This does NOT destroy
@@ -235,18 +242,29 @@ public:
      * from |aFromBlock| to this block.  The property being transferred
      * is !important if |aIsImportant| is true, and should replace an
      * existing !important property regardless of its own importance
-     * if |aOverrideImportant| is true.
+     * if |aOverrideImportant| is true.  |aEnabledState| is used to
+     * determine which longhand components of |aPropID| (if it is a
+     * shorthand) to transfer.
      *
      * Returns true if something changed, false otherwise.  Calls
      * |ValueAppended| on |aDeclaration| if the property was not
      * previously set, or in any case if |aMustCallValueAppended| is true.
      */
     bool TransferFromBlock(nsCSSExpandedDataBlock& aFromBlock,
-                             nsCSSProperty aPropID,
-                             bool aIsImportant,
-                             bool aOverrideImportant,
-                             bool aMustCallValueAppended,
-                             mozilla::css::Declaration* aDeclaration);
+                           nsCSSProperty aPropID,
+                           nsCSSProps::EnabledState aEnabledState,
+                           bool aIsImportant,
+                           bool aOverrideImportant,
+                           bool aMustCallValueAppended,
+                           mozilla::css::Declaration* aDeclaration);
+
+    /**
+     * Copies the values for aPropID into the specified aRuleData object.
+     *
+     * This is used for copying parsed-at-computed-value-time properties
+     * that had variable references.  aPropID must be a longhand property.
+     */
+    void MapRuleInfoInto(nsCSSProperty aPropID, nsRuleData* aRuleData) const;
 
     void AssertInitialState() {
 #ifdef DEBUG
@@ -295,9 +313,15 @@ private:
      * property |aProperty|.
      */
     nsCSSValue* PropertyAt(nsCSSProperty aProperty) {
-        NS_ABORT_IF_FALSE(0 <= aProperty &&
-                          aProperty < eCSSProperty_COUNT_no_shorthands,
-                          "property out of range");
+        MOZ_ASSERT(0 <= aProperty &&
+                   aProperty < eCSSProperty_COUNT_no_shorthands,
+                   "property out of range");
+        return &mValues[aProperty];
+    }
+    const nsCSSValue* PropertyAt(nsCSSProperty aProperty) const {
+        MOZ_ASSERT(0 <= aProperty &&
+                   aProperty < eCSSProperty_COUNT_no_shorthands,
+                   "property out of range");
         return &mValues[aProperty];
     }
 

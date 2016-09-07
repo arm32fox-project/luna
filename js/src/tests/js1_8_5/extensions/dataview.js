@@ -1558,13 +1558,28 @@ function test() {
     assertEq(view.getUint8(0), 1);
 
     // Test WebIDL-specific class and prototype class names
-    assertEq(Object.prototype.toString.apply(Uint8Array(0)), "[object Uint8Array]");
-    assertEq(Object.prototype.toString.apply(Float32Array(0)), "[object Float32Array]");
+    assertEq(Object.prototype.toString.apply(new Uint8Array(0)), "[object Uint8Array]");
+    assertEq(Object.prototype.toString.apply(new Float32Array(0)), "[object Float32Array]");
+    assertEq(Object.prototype.toString.apply(new ArrayBuffer()), "[object ArrayBuffer]");
+    assertEq(Object.prototype.toString.apply(new DataView(view.buffer)), "[object DataView]");
+    assertEq(Object.prototype.toString.apply(DataView.prototype), "[object DataViewPrototype]");
+
+    // Technically the spec requires these throw a TypeError -- right now.  It's
+    // not clear this is desirable.  Once we implement @@toStringTag we can see
+    // whether ES6's desired semantics will work.
     assertEq(Object.prototype.toString.apply(Uint8Array.prototype), "[object Uint8ArrayPrototype]");
     assertEq(Object.prototype.toString.apply(Float32Array.prototype), "[object Float32ArrayPrototype]");
-    assertEq(Object.prototype.toString.apply(ArrayBuffer()), "[object ArrayBuffer]");
-    assertEq(Object.prototype.toString.apply(DataView(view.buffer)), "[object DataView]");
-    assertEq(Object.prototype.toString.apply(DataView.prototype), "[object DataViewPrototype]");
+
+    // Same applies for %TypedArray%.prototype, except because of its newness we
+    // give it the thoroughly-inscrutable "???" as its class name so (hopefully)
+    // people won't rely on it.  ("???" is the class exposed by
+    // ({ [@@toStringTag]: nonUndefinedNonStringValue }).toString(), so
+    // it has slight precedent even if it's not-to-spec.)
+    checkThrowTODO(() => {
+      var typedArrayPrototype = Object.getPrototypeOf(Float32Array.prototype);
+      assertEq(Object.prototype.toString.apply(typedArrayPrototype),
+               "[object ???]");
+    }, TypeError);
 
     // Accessing DataView fields on DataView.prototype should crash
     checkThrow(function () DataView.prototype.byteLength, TypeError);
@@ -1572,7 +1587,7 @@ function test() {
     checkThrow(function () DataView.prototype.buffer, TypeError);
 
     // Protos and proxies, oh my!
-    var alien = newGlobal('new-compartment');
+    var alien = newGlobal();
     var alien_data = alien.eval('data = ' + data1.toSource());
     var alien_buffer = alien.eval('buffer = new Uint8Array(data).buffer');
     var alien_view = alien.eval('view = new DataView(buffer, 0, 16)');

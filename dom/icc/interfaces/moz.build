@@ -5,17 +5,13 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 XPIDL_SOURCES += [
-    'SimToolKit.idl',
-    'nsIDOMIccCardLockErrorEvent.idl',
-    'nsIDOMIccManager.idl',
+    'nsIIccInfo.idl',
     'nsIIccProvider.idl',
-    'nsINavigatorIccManager.idl',
 ]
+
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'gonk' and CONFIG['MOZ_B2G_RIL']:
+    XPIDL_SOURCES += [
+        'nsIIccMessenger.idl',
+    ]
 
 XPIDL_MODULE = 'dom_icc'
-
-XPIDL_FLAGS += [
-    '-I$(topsrcdir)/dom/interfaces/base',
-    '-I$(topsrcdir)/dom/interfaces/events',
-]
-

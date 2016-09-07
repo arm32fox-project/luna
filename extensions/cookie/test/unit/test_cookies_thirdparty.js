@@ -12,8 +12,22 @@ function run_test() {
   var spec2 = "http://bar.com/bar.html";
   var uri1 = NetUtil.newURI(spec1);
   var uri2 = NetUtil.newURI(spec2);
-  var channel1 = NetUtil.newChannel(uri1);
-  var channel2 = NetUtil.newChannel(uri2);
+  var channel1 = NetUtil.newChannel2(uri1,
+                                     null,
+                                     null,
+                                     null,      // aLoadingNode
+                                     Services.scriptSecurityManager.getSystemPrincipal(),
+                                     null,      // aTriggeringPrincipal
+                                     Ci.nsILoadInfo.SEC_NORMAL,
+                                     Ci.nsIContentPolicy.TYPE_OTHER);
+  var channel2 = NetUtil.newChannel2(uri2,
+                                     null,
+                                     null,
+                                     null,      // aLoadingNode
+                                     Services.scriptSecurityManager.getSystemPrincipal(),
+                                     null,      // aTriggeringPrincipal
+                                     Ci.nsILoadInfo.SEC_NORMAL,
+                                     Ci.nsIContentPolicy.TYPE_OTHER);
 
   // test with cookies enabled
   Services.prefs.setIntPref("network.cookie.cookieBehavior", 0);
@@ -65,7 +79,7 @@ function run_test() {
   var kPermissionType = "cookie";
   var ALLOW_FIRST_PARTY_ONLY = 9;
   // ALLOW_FIRST_PARTY_ONLY overrides
-  Services.permissions.add(uri1, kPermissionType, ALLOW_FIRST_PARTY_ONLY);
+  Services.perms.add(uri1, kPermissionType, ALLOW_FIRST_PARTY_ONLY);
   do_set_cookies(uri1, channel1, true, [0, 1, 1, 2]);
   Services.cookies.removeAll();
   do_set_cookies(uri1, channel2, true, [0, 0, 0, 0]);
@@ -104,7 +118,7 @@ function run_test() {
   var kPermissionType = "cookie";
   var LIMIT_THIRD_PARTY = 10;
   // LIMIT_THIRD_PARTY overrides
-  Services.permissions.add(uri1, kPermissionType, LIMIT_THIRD_PARTY);
+  Services.perms.add(uri1, kPermissionType, LIMIT_THIRD_PARTY);
   do_set_cookies(uri1, channel1, true, [0, 1, 2, 3]);
   Services.cookies.removeAll();
   do_set_cookies(uri1, channel2, true, [0, 0, 0, 0]);

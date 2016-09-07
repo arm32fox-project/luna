@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-#ifndef _UI_KEYCODE_LABELS_H
-#define _UI_KEYCODE_LABELS_H
+#ifndef _ANDROIDFW_KEYCODE_LABELS_H
+#define _ANDROIDFW_KEYCODE_LABELS_H
 
 #include "android_keycodes.h"
 
@@ -235,6 +235,55 @@ static const KeycodeLabel KEYCODES[] = {
     { "CALENDAR", 208 },
     { "MUSIC", 209 },
     { "CALCULATOR", 210 },
+    { "ZENKAKU_HANKAKU", 211 },
+    { "EISU", 212 },
+    { "MUHENKAN", 213 },
+    { "HENKAN", 214 },
+    { "KATAKANA_HIRAGANA", 215 },
+    { "YEN", 216 },
+    { "RO", 217 },
+    { "KANA", 218 },
+    { "ASSIST", 219 },
+    { "BRIGHTNESS_DOWN", 220 },
+    { "BRIGHTNESS_UP", 221 },
+    { "MEDIA_AUDIO_TRACK", 222 },
+    { "SLEEP", 223 },
+    { "WAKEUP", 224 },
+    { "PAIRING", 225 },
+    { "MEDIA_TOP_MENU", 226 },
+    { "11", 227 },
+    { "12", 228 },
+    { "LAST_CHANNEL", 229 },
+    { "TV_DATA_SERVICE", 230 },
+    { "VOICE_ASSIST", 231 },
+    { "TV_RADIO_SERVICE", 232 },
+    { "TV_TELETEXT", 233 },
+    { "TV_NUMBER_ENTRY", 234 },
+    { "TV_TERRESTRIAL_ANALOG", 235 },
+    { "TV_TERRESTRIAL_DIGITAL", 236 },
+    { "TV_SATELLITE", 237 },
+    { "TV_SATELLITE_BS", 238 },
+    { "TV_SATELLITE_CS", 239 },
+    { "TV_SATELLITE_SERVICE", 240 },
+    { "TV_NETWORK", 241 },
+    { "TV_ANTENNA_CABLE", 242 },
+    { "TV_INPUT_HDMI_1", 243 },
+    { "TV_INPUT_HDMI_2", 244 },
+    { "TV_INPUT_HDMI_3", 245 },
+    { "TV_INPUT_HDMI_4", 246 },
+    { "TV_INPUT_COMPOSITE_1", 247 },
+    { "TV_INPUT_COMPOSITE_2", 248 },
+    { "TV_INPUT_COMPONENT_1", 249 },
+    { "TV_INPUT_COMPONENT_2", 250 },
+    { "TV_INPUT_VGA_1", 251 },
+    { "TV_AUDIO_DESCRIPTION", 252 },
+    { "TV_AUDIO_DESCRIPTION_MIX_UP", 253 },
+    { "TV_AUDIO_DESCRIPTION_MIX_DOWN", 254 },
+    { "TV_ZOOM_MODE", 255 },
+    { "TV_CONTENTS_MENU", 256 },
+    { "TV_MEDIA_CONTEXT_MENU", 257 },
+    { "TV_TIMER_PROGRAMMING", 258 },
+    { "HELP", 259 },
 
     // NOTE: If you add a new keycode here you must also add it to several other files.
     //       Refer to frameworks/base/core/java/android/view/KeyEvent.java for the full list.
@@ -307,4 +356,4 @@ static const KeycodeLabel AXES[] = {
     { NULL, -1 }
 };
 
-#endif // _UI_KEYCODE_LABELS_H
+#endif // _ANDROIDFW_KEYCODE_LABELS_H

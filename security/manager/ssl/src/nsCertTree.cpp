@@ -2,8 +2,10 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nsNSSComponent.h" // for PIPNSS string bundle calls.
 #include "nsCertTree.h"
+
+#include "pkix/pkixtypes.h"
+#include "nsNSSComponent.h" // for PIPNSS string bundle calls.
 #include "nsITreeColumns.h"
 #include "nsIX509Cert.h"
 #include "nsIX509CertValidity.h"
@@ -20,7 +22,6 @@
 #include "nsXPCOMCID.h"
 #include "nsTHashtable.h"
 #include "nsHashKeys.h"
-#include "ScopedNSSTypes.h"
  
 #include "prlog.h"
 
@@ -30,7 +31,6 @@ using namespace mozilla;
 extern PRLogModuleInfo* gPIPNSSLog;
 #endif
 
-static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
 static NS_DEFINE_CID(kCertOverrideCID, NS_CERTOVERRIDE_CID);
 
 // treeArrayElStr
@@ -71,17 +71,12 @@ CompareCacheMatchEntry(PLDHashTable *table, const PLDHashEntryHdr *hdr,
   return entryPtr->entry->key == key;
 }
 
-static bool
-CompareCacheInitEntry(PLDHashTable *table, PLDHashEntryHdr *hdr,
-                     const void *key)
+static void
+CompareCacheInitEntry(PLDHashEntryHdr *hdr, const void *key)
 {
   new (hdr) CompareCacheHashEntryPtr();
   CompareCacheHashEntryPtr *entryPtr = static_cast<CompareCacheHashEntryPtr*>(hdr);
-  if (!entryPtr->entry) {
-    return false;
-  }
   entryPtr->entry->key = (void*)key;
-  return true;
 }
 
 static void
@@ -91,19 +86,16 @@ CompareCacheClearEntry(PLDHashTable *table, PLDHashEntryHdr *hdr)
   entryPtr->~CompareCacheHashEntryPtr();
 }
 
-static PLDHashTableOps gMapOps = {
-  PL_DHashAllocTable,
-  PL_DHashFreeTable,
+static const PLDHashTableOps gMapOps = {
   PL_DHashVoidPtrKeyStub,
   CompareCacheMatchEntry,
   PL_DHashMoveEntryStub,
   CompareCacheClearEntry,
-  PL_DHashFinalizeStub,
   CompareCacheInitEntry
 };
 
 NS_IMPL_ISUPPORTS0(nsCertAddonInfo)
-NS_IMPL_ISUPPORTS1(nsCertTreeDispInfo, nsICertTreeItem)
+NS_IMPL_ISUPPORTS(nsCertTreeDispInfo, nsICertTreeItem)
 
 nsCertTreeDispInfo::nsCertTreeDispInfo()
 :mAddonInfo(nullptr)
@@ -158,11 +150,12 @@ nsCertTreeDispInfo::GetHostPort(nsAString &aHostPort)
   return NS_OK;
 }
 
-NS_IMPL_ISUPPORTS2(nsCertTree, nsICertTree, nsITreeView)
+NS_IMPL_ISUPPORTS(nsCertTree, nsICertTree, nsITreeView)
 
 nsCertTree::nsCertTree() : mTreeArray(nullptr)
 {
-  mCompareCache.ops = nullptr;
+  static NS_DEFINE_CID(kNSSComponentCID, NS_NSSCOMPONENT_CID);
+
   mNSSComponent = do_GetService(kNSSComponentCID);
   mOverrideService = do_GetService("@mozilla.org/security/certoverride;1");
   // Might be a different service if someone is overriding the contract
@@ -175,18 +168,16 @@ nsCertTree::nsCertTree() : mTreeArray(nullptr)
 
 void nsCertTree::ClearCompareHash()
 {
-  if (mCompareCache.ops) {
+  if (mCompareCache.IsInitialized()) {
     PL_DHashTableFinish(&mCompareCache);
-    mCompareCache.ops = nullptr;
   }
 }
 
 nsresult nsCertTree::InitCompareHash()
 {
   ClearCompareHash();
-  if (!PL_DHashTableInit(&mCompareCache, &gMapOps, nullptr,
-                         sizeof(CompareCacheHashEntryPtr), 128)) {
-    mCompareCache.ops = nullptr;
+  if (!PL_DHashTableInit(&mCompareCache, &gMapOps,
+                         sizeof(CompareCacheHashEntryPtr), fallible, 64)) {
     return NS_ERROR_OUT_OF_MEMORY;
   }
   return NS_OK;
@@ -208,15 +199,14 @@ CompareCacheHashEntry *
 nsCertTree::getCacheEntry(void *cache, void *aCert)
 {
   PLDHashTable &aCompareCache = *reinterpret_cast<PLDHashTable*>(cache);
-  CompareCacheHashEntryPtr *entryPtr = 
-    static_cast<CompareCacheHashEntryPtr*>
-               (PL_DHashTableOperate(&aCompareCache, aCert, PL_DHASH_ADD));
+  CompareCacheHashEntryPtr *entryPtr = static_cast<CompareCacheHashEntryPtr*>
+    (PL_DHashTableAdd(&aCompareCache, aCert, fallible));
   return entryPtr ? entryPtr->entry : nullptr;
 }
 
 void nsCertTree::RemoveCacheEntry(void *key)
 {
-  PL_DHashTableOperate(&mCompareCache, key, PL_DHASH_REMOVE);
+  PL_DHashTableRemove(&mCompareCache, key);
 }
 
 // CountOrganizations
@@ -328,7 +318,7 @@ nsCertTree::nsCertCompareFunc
 nsCertTree::GetCompareFuncFromCertType(uint32_t aType)
 {
   switch (aType) {
-    case nsIX509Cert2::ANY_CERT:
+    case nsIX509Cert::ANY_CERT:
     case nsIX509Cert::USER_CERT:
       return CmpUserCert;
     case nsIX509Cert::CA_CERT:
@@ -461,7 +451,6 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
     return NS_ERROR_FAILURE;
 
   nsTHashtable<nsCStringHashKey> allHostPortOverrideKeys;
-  allHostPortOverrideKeys.Init();
 
   if (aWantedType == nsIX509Cert::SERVER_CERT) {
     mOriginalOverrideService->
@@ -476,7 +465,7 @@ nsCertTree::GetCertsByTypeFromCertList(CERTCertList *aCertList,
        !CERT_LIST_END(node, aCertList);
        node = CERT_LIST_NEXT(node)) {
 
-    bool wantThisCert = (aWantedType == nsIX509Cert2::ANY_CERT);
+    bool wantThisCert = (aWantedType == nsIX509Cert::ANY_CERT);
     bool wantThisCertIfNoOverrides = false;
     bool wantThisCertIfHaveOverrides = false;
     bool addOverrides = false;
@@ -638,8 +627,8 @@ nsCertTree::GetCertsByType(uint32_t           aType,
   nsNSSShutDownPreventionLock locker;
   nsCOMPtr<nsIInterfaceRequestor> cxt = new PipUIContext();
   ScopedCERTCertList certList(PK11_ListCerts(PK11CertListUnique, cxt));
-  nsresult rv = GetCertsByTypeFromCertList(certList, aType, aCertCmpFn, aCertCmpFnArg);
-  return rv;
+  return GetCertsByTypeFromCertList(certList.get(), aType, aCertCmpFn,
+                                    aCertCmpFnArg);
 }
 
 nsresult 
@@ -807,12 +796,7 @@ nsCertTree::DeleteEntryObject(uint32_t index)
             // although there are still overrides stored,
             // so, we keep the cert, but remove the trust
 
-            ScopedCERTCertificate nsscert;
-
-            nsCOMPtr<nsIX509Cert2> cert2 = do_QueryInterface(cert);
-            if (cert2) {
-              nsscert = cert2->GetCert();
-            }
+            ScopedCERTCertificate nsscert(cert->GetCert());
 
             if (nsscert) {
               CERTCertTrust trust;
@@ -820,7 +804,8 @@ nsCertTree::DeleteEntryObject(uint32_t index)
             
               SECStatus srv = CERT_DecodeTrustString(&trust, ""); // no override 
               if (srv == SECSuccess) {
-                CERT_ChangeCertTrust(CERT_GetDefaultCertDB(), nsscert, &trust);
+                CERT_ChangeCertTrust(CERT_GetDefaultCertDB(), nsscert.get(),
+                                     &trust);
               }
             }
           }
@@ -861,7 +846,7 @@ NS_IMETHODIMP
 nsCertTree::GetCert(uint32_t aIndex, nsIX509Cert **_cert)
 {
   NS_ENSURE_ARG(_cert);
-  *_cert = GetCertAtIndex(aIndex).get();
+  *_cert = GetCertAtIndex(aIndex).take();
   return NS_OK;
 }
 
@@ -1082,7 +1067,7 @@ nsCertTree::GetCellText(int32_t row, nsITreeColumn* col,
   nsresult rv;
   _retval.Truncate();
 
-  const PRUnichar* colID;
+  const char16_t* colID;
   col->GetIdConst(&colID);
 
   treeArrayEl *el = GetThreadDescAtIndex(row);
@@ -1232,12 +1217,8 @@ nsCertTree::GetCellText(int32_t row, nsITreeColumn* col,
       (certdi->mIsTemporary) ? "CertExceptionTemporary" : "CertExceptionPermanent";
     rv = mNSSComponent->GetPIPNSSBundleString(stringID, _retval);
   } else if (NS_LITERAL_STRING("typecol").Equals(colID) && cert) {
-    nsCOMPtr<nsIX509Cert2> pipCert = do_QueryInterface(cert);
     uint32_t type = nsIX509Cert::UNKNOWN_CERT;
-
-    if (pipCert) {
-	rv = pipCert->GetCertType(&type);
-    }
+    rv = cert->GetCertType(&type);
 
     switch (type) {
     case nsIX509Cert::USER_CERT:
@@ -1347,14 +1328,14 @@ nsCertTree::SetCellText(int32_t row, nsITreeColumn* col,
 
 /* void performAction (in wstring action); */
 NS_IMETHODIMP 
-nsCertTree::PerformAction(const PRUnichar *action)
+nsCertTree::PerformAction(const char16_t *action)
 {
   return NS_OK;
 }
 
 /* void performActionOnRow (in wstring action, in long row); */
 NS_IMETHODIMP 
-nsCertTree::PerformActionOnRow(const PRUnichar *action, int32_t row)
+nsCertTree::PerformActionOnRow(const char16_t *action, int32_t row)
 {
   return NS_OK;
 }
@@ -1363,7 +1344,7 @@ nsCertTree::PerformActionOnRow(const PRUnichar *action, int32_t row)
  *                           in wstring colID); 
  */
 NS_IMETHODIMP 
-nsCertTree::PerformActionOnCell(const PRUnichar *action, int32_t row, 
+nsCertTree::PerformActionOnCell(const char16_t *action, int32_t row, 
                                 nsITreeColumn* col)
 {
   return NS_OK;
@@ -1388,7 +1369,7 @@ nsCertTree::dumpMap()
     }
     nsCOMPtr<nsIX509Cert> ct = GetCertAtIndex(i);
     if (ct) {
-      PRUnichar *goo;
+      char16_t *goo;
       ct->GetCommonName(&goo);
       nsAutoString doo(goo);
       PR_LOG(gPIPNSSLog, PR_LOG_DEBUG, ("cert [%d]: %s", i, NS_LossyConvertUTF16toASCII(doo).get()));

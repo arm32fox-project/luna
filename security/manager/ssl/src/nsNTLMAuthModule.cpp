@@ -12,6 +12,7 @@
 #include "mozilla/Endian.h"
 #include "mozilla/Likely.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/Telemetry.h"
 #include "nsCOMPtr.h"
 #include "nsComponentManagerUtils.h"
 #include "nsICryptoHash.h"
@@ -103,7 +104,9 @@ static const char NTLM_TYPE3_MARKER[] = { 0x03, 0x00, 0x00, 0x00 };
 #define NTLM_TYPE2_HEADER_LEN 48
 #define NTLM_TYPE3_HEADER_LEN 64
 
-/** We don't actually send a LM response, but we still have to send something in this spot */
+/**
+ * We don't actually send a LM response, but we still have to send something in this spot
+ */
 #define LM_RESP_LEN 24
 
 #define NTLM_CHAL_LEN 8
@@ -111,7 +114,6 @@ static const char NTLM_TYPE3_MARKER[] = { 0x03, 0x00, 0x00, 0x00 };
 #define NTLM_HASH_LEN 16
 #define NTLMv2_HASH_LEN 16
 #define NTLM_RESP_LEN 24
-
 #define NTLMv2_RESP_LEN 16
 #define NTLMv2_BLOB1_LEN 28
 
@@ -261,7 +263,7 @@ WriteBytes(void *buf, const void *data, uint32_t dataLen)
 static void *
 WriteDWORD(void *buf, uint32_t dword)
 {
-#ifdef IS_BIG_ENDIAN
+#ifdef IS_BIG_ENDIAN 
   // NTLM uses little endian on the wire
   dword = SWAP32(dword);
 #endif
@@ -290,7 +292,7 @@ WriteSecBuf(void *buf, uint16_t length, uint32_t offset)
  * convert the unicode buffer to little-endian on big-endian platforms.
  */
 static void *
-WriteUnicodeLE(void *buf, const PRUnichar *str, uint32_t strLen)
+WriteUnicodeLE(void *buf, const char16_t *str, uint32_t strLen)
 {
   // convert input string from BE to LE
   uint8_t *cursor = (uint8_t *) buf,
@@ -509,7 +511,6 @@ ParseType2Msg(const void *inBuf, uint32_t inLen, Type2Msg *msg)
   memcpy(msg->challenge, cursor, sizeof(msg->challenge));
   cursor += sizeof(msg->challenge);
 
-
   LOG(("NTLM type 2 message:\n"));
   LogBuf("target", reinterpret_cast<const uint8_t*> (msg->target), msg->targetLen);
   LogBuf("flags", reinterpret_cast<const uint8_t*> (&msg->flags), 4);
@@ -569,7 +570,6 @@ GenerateType3Msg(const nsString &domain,
 #ifdef IS_BIG_ENDIAN
   nsAutoString ucsDomainBuf, ucsUserBuf;
 #endif
-  nsAutoCString hostBuf;
   nsAutoString ucsHostBuf; 
   // temporary buffers for oem strings
   nsAutoCString oemDomainBuf, oemUserBuf, oemHostBuf;
@@ -590,7 +590,7 @@ GenerateType3Msg(const nsString &domain,
     ucsDomainBuf = domain;
     domainPtr = ucsDomainBuf.get();
     domainLen = ucsDomainBuf.Length() * 2;
-    WriteUnicodeLE((void *) domainPtr, reinterpret_cast<const uint16_t*> domainPtr,
+    WriteUnicodeLE((void *) domainPtr, reinterpret_cast<const char16_t*> (domainPtr),
                    ucsDomainBuf.Length());
 #else
     domainPtr = domain.get();
@@ -613,7 +613,7 @@ GenerateType3Msg(const nsString &domain,
     ucsUserBuf = username;
     userPtr = ucsUserBuf.get();
     userLen = ucsUserBuf.Length() * 2;
-    WriteUnicodeLE((void *) userPtr, reinterpret_cast<const uint16_t*> userPtr,
+    WriteUnicodeLE((void *) userPtr, reinterpret_cast<const char16_t*> (userPtr),
                    ucsUserBuf.Length());
 #else
     userPtr = username.get();
@@ -628,32 +628,29 @@ GenerateType3Msg(const nsString &domain,
   }
 
   //
-  // Get workstation name. Previously this was the local machine name but
-  // we now get this from a fixed pref to avoid information disclosure.
-  // See also: CVE-2015-4515
+  // get workstation name (use local machine's hostname)
   //
-  rv = mozilla::Preferences::GetCString("network.generic-ntlm-auth.workstation",
-                                        &hostBuf);
-  if (NS_FAILED(rv)) {
-    return rv;
-  }
-  
+  char hostBuf[SYS_INFO_BUFFER_LENGTH];
+  if (PR_GetSystemInfo(PR_SI_HOSTNAME, hostBuf, sizeof(hostBuf)) == PR_FAILURE)
+    return NS_ERROR_UNEXPECTED;
+  hostLen = strlen(hostBuf);
   if (unicode)
   {
-    ucsHostBuf = NS_ConvertUTF8toUTF16(hostBuf);
+    // hostname is ASCII, so we can do a simple zero-pad expansion:
+    CopyASCIItoUTF16(nsDependentCString(hostBuf, hostLen), ucsHostBuf);
     hostPtr = ucsHostBuf.get();
     hostLen = ucsHostBuf.Length() * 2;
 #ifdef IS_BIG_ENDIAN
-    WriteUnicodeLE((void *) hostPtr, reinterpret_cast<const uint16_t*> hostPtr,
+    WriteUnicodeLE((void *) hostPtr, reinterpret_cast<const char16_t*> (hostPtr),
                    ucsHostBuf.Length());
 #endif
-  } else {
-    hostPtr = hostBuf.get();
-    hostLen = hostBuf.Length();
   }
-  
+  else
+    hostPtr = hostBuf;
+
   //
   // now that we have generated all of the strings, we can allocate outBuf.
+  //
   //
   // next, we compute the NTLM or NTLM2 responses.
   //
@@ -670,7 +667,7 @@ GenerateType3Msg(const nsString &domain,
     nsAutoCString lmv2ResponseStr;
     nsAutoCString ntlmv2ResponseStr;
 
-  // temporary buffers for unicode strings
+    // temporary buffers for unicode strings
     nsAutoString ucsDomainUpperBuf;
     nsAutoString ucsUserUpperBuf;
     const void *domainUpperPtr;
@@ -687,14 +684,14 @@ GenerateType3Msg(const nsString &domain,
     userUpperPtr = ucsUserUpperBuf.get();
     userUpperLen = ucsUserUpperBuf.Length() * 2;
 #ifdef IS_BIG_ENDIAN
-    WriteUnicodeLE((void *) userUpperPtr, reinterpret_cast<const uint16_t*> (userUpperPtr),
+    WriteUnicodeLE((void *) userUpperPtr, reinterpret_cast<const char16_t*> (userUpperPtr),
                    ucsUserUpperBuf.Length());
 #endif
     ToUpperCase(domain, ucsDomainUpperBuf);
     domainUpperPtr = ucsDomainUpperBuf.get();
     domainUpperLen = ucsDomainUpperBuf.Length() * 2;
 #ifdef IS_BIG_ENDIAN
-    WriteUnicodeLE((void *) domainUpperPtr, reinterpret_cast<const uint16_t*> (domainUpperPtr),
+    WriteUnicodeLE((void *) domainUpperPtr, reinterpret_cast<const char16_t*> (domainUpperPtr),
                    ucsDomainUpperBuf.Length());
 #endif
 
@@ -934,7 +931,6 @@ GenerateType3Msg(const nsString &domain,
   } else {
     memcpy(reinterpret_cast<uint8_t*> (*outBuf) + offset.value(), ntlmResp, NTLM_RESP_LEN);
   }
-
   // 28 : domain name sec buf
   offset = NTLM_TYPE3_HEADER_LEN;
   cursor = WriteSecBuf(cursor, domainLen, offset.value());
@@ -969,7 +965,7 @@ GenerateType3Msg(const nsString &domain,
 
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS1(nsNTLMAuthModule, nsIAuthModule)
+NS_IMPL_ISUPPORTS(nsNTLMAuthModule, nsIAuthModule)
 
 nsNTLMAuthModule::~nsNTLMAuthModule()
 {
@@ -996,9 +992,9 @@ nsNTLMAuthModule::InitTest()
 NS_IMETHODIMP
 nsNTLMAuthModule::Init(const char      *serviceName,
                        uint32_t         serviceFlags,
-                       const PRUnichar *domain,
-                       const PRUnichar *username,
-                       const PRUnichar *password)
+                       const char16_t *domain,
+                       const char16_t *username,
+                       const char16_t *password)
 {
   NS_ASSERTION((serviceFlags & ~nsIAuthModule::REQ_PROXY_AUTH) == nsIAuthModule::REQ_DEFAULT,
       "unexpected service flags");
@@ -1006,6 +1002,16 @@ nsNTLMAuthModule::Init(const char      *serviceName,
   mDomain = domain;
   mUsername = username;
   mPassword = password;
+
+  static bool sTelemetrySent = false;
+  if (!sTelemetrySent) {
+      mozilla::Telemetry::Accumulate(
+          mozilla::Telemetry::NTLM_MODULE_USED_2,
+          serviceFlags & nsIAuthModule::REQ_PROXY_AUTH
+              ? NTLM_MODULE_GENERIC_PROXY
+              : NTLM_MODULE_GENERIC_DIRECT);
+      sTelemetrySent = true;
+  }
 
   return NS_OK;
 }

@@ -8,10 +8,10 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "modules/rtp_rtcp/source/producer_fec.h"
+#include "webrtc/modules/rtp_rtcp/source/producer_fec.h"
 
-#include "modules/rtp_rtcp/source/forward_error_correction.h"
-#include "modules/rtp_rtcp/source/rtp_utility.h"
+#include "webrtc/modules/rtp_rtcp/source/forward_error_correction.h"
+#include "webrtc/modules/rtp_rtcp/source/rtp_utility.h"
 
 namespace webrtc {
 
@@ -32,7 +32,7 @@ enum { kHighProtectionThreshold = 80 };  // Corresponds to ~30 overhead, range
 // media packets).
 
 struct RtpPacket {
-  WebRtc_UWord16 rtpHeaderLength;
+  uint16_t rtpHeaderLength;
   ForwardErrorCorrection::Packet* pkt;
 };
 
@@ -61,7 +61,7 @@ void RedPacket::CreateHeader(const uint8_t* rtp_header, int header_length,
 
 void RedPacket::SetSeqNum(int seq_num) {
   assert(seq_num >= 0 && seq_num < (1<<16));
-  ModuleRTPUtility::AssignUWord16ToBuffer(&data_[2], seq_num);
+  RtpUtility::AssignUWord16ToBuffer(&data_[2], seq_num);
 }
 
 void RedPacket::AssignPayload(const uint8_t* payload, int length) {

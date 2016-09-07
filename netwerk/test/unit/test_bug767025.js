@@ -1,9 +1,4 @@
-/* -*- Mode: Javasript; indent-tab-mode: nil; js-indent-level: 2 -*- */
-
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 
 Cu.import("resource://testing-common/httpd.js");
 
@@ -27,8 +22,8 @@ Cu.import("resource://gre/modules/Services.jsm");
 
 const kNS_OFFLINECACHEUPDATESERVICE_CONTRACTID =
   "@mozilla.org/offlinecacheupdate-service;1";
-const kNS_CACHESERVICE_CONTRACTID =
-  "@mozilla.org/network/cache-service;1";
+const kNS_CACHESTORAGESERVICE_CONTRACTID =
+  "@mozilla.org/netwerk/cache-storage-service;1";
 const kNS_APPLICATIONCACHESERVICE_CONTRACTID =
   "@mozilla.org/network/application-cache-service;1";
 
@@ -90,9 +85,10 @@ function init_http_server() {
 }
 
 function clean_app_cache() {
-  let cache_service = Cc[kNS_CACHESERVICE_CONTRACTID].
-    getService(Ci.nsICacheService);
-  cache_service.evictEntries(Ci.nsICache.STORE_OFFLINE);
+  let cache_service = Cc[kNS_CACHESTORAGESERVICE_CONTRACTID].
+    getService(Ci.nsICacheStorageService);
+  let storage = cache_service.appCacheStorage(LoadContextInfo.default, null);
+  storage.asyncEvictStorage(null);
 }
 
 function do_app_cache(manifestURL, pageURL) {
@@ -159,7 +155,7 @@ function start_cache_nonpinned_app() {
                               break;
                             }
                           },
-                          function (appcahe) {
+                          function (appcache) {
                             do_print("app avail " + appcache + "\n");
                           });
 }
@@ -167,45 +163,25 @@ function start_cache_nonpinned_app() {
 var hold_entry_foo1 = null;
 
 function check_bug() {
-  let appcache_service = Cc[kNS_APPLICATIONCACHESERVICE_CONTRACTID].
-    getService(Ci.nsIApplicationCacheService);
-  let appcache =
-    appcache_service.chooseApplicationCache(kHttpLocation + "pages/foo1");
-  let clientID = appcache.clientID;
   // activate foo1
   asyncOpenCacheEntry(
     kHttpLocation + "pages/foo1",
-    clientID,
-    Ci.nsICache.STORE_OFFLINE,
-    Ci.nsICache.ACCESS_READ,
-    function(status, entry) {
-      var count = 0;
-
-      let listener = {
-        onCacheEntryDoomed: function (status) {
-          do_print("doomed " + count);
-          do_check_eq(status, 0);
-          count = count + 1;
-          do_check_true(count <= 2, "too much callbacks");
-          if (count == 2) {
-            do_timeout(100, function () { check_evict_cache(clientID); });
-          }
-        },
-      };
-
-      let session = get_cache_service().createSession(clientID,
-                                                      Ci.nsICache.STORE_OFFLINE,
-                                                      Ci.nsICache.STREAM_BASED);
+    "appcache", Ci.nsICacheStorage.OPEN_READONLY, null,
+    function(status, entry, appcache) {
+      let storage = get_cache_service().appCacheStorage(LoadContextInfo.default, appcache);
 
       // Doom foo1 & foo2
-      session.doomEntry(kHttpLocation + "pages/foo1", listener);
-      session.doomEntry(kHttpLocation + "pages/foo2", listener);
+      storage.asyncDoomURI(createURI(kHttpLocation + "pages/foo1"), "", { onCacheEntryDoomed: function() {
+        storage.asyncDoomURI(createURI(kHttpLocation + "pages/foo2"), "", { onCacheEntryDoomed: function() {
+          check_evict_cache(appcache);
+        }});
+      }});
 
       hold_entry_foo1 = entry;
     });
 }
 
-function check_evict_cache(clientID) {
+function check_evict_cache(appcache) {
   // Only foo2 should be removed.
   let file = do_get_profile().clone();
   file.append("OfflineCache");
@@ -224,66 +200,65 @@ function check_evict_cache(clientID) {
   // activate foo3
   asyncOpenCacheEntry(
     kHttpLocation + "pages/foo3",
-    clientID,
-    Ci.nsICache.STORE_OFFLINE,
-    Ci.nsICache.ACCESS_READ,
-    function(status, entry) {
-      hold_entry_foo3 = entry;
+    "appcache", Ci.nsICacheStorage.OPEN_READONLY, null,
+    function(status, entry, appcache) {
+      var hold_entry_foo3 = entry;
 
       // evict all documents.
-      get_cache_service().createSession(clientID,
-                                        Ci.nsICache.STORE_OFFLINE,
-                                        Ci.nsICache.STREAM_BASED).
-                          evictEntries();
+      let storage = get_cache_service().appCacheStorage(LoadContextInfo.default, appcache);
+      storage.asyncEvictStorage(null);
 
       // All documents are removed except foo1 & foo3.
+      syncWithCacheIOThread(function () {
+        // foo1
+        let file = do_get_profile().clone();
+        file.append("OfflineCache");
+        file.append("5");
+        file.append("9");
+        file.append("8379C6596B8CA4-0");
+        do_check_eq(file.exists(), true);
 
-      // foo1
-      let file = do_get_profile().clone();
-      file.append("OfflineCache");
-      file.append("5");
-      file.append("9");
-      file.append("8379C6596B8CA4-0");
-      do_check_eq(file.exists(), true);
+        file = do_get_profile().clone();
+        file.append("OfflineCache");
+        file.append("0");
+        file.append("0");
+        file.append("61FEE819921D39-0");
+        do_check_eq(file.exists(), false);
 
-      file = do_get_profile().clone();
-      file.append("OfflineCache");
-      file.append("0");
-      file.append("0");
-      file.append("61FEE819921D39-0");
-      do_check_eq(file.exists(), false);
+        file = do_get_profile().clone();
+        file.append("OfflineCache");
+        file.append("3");
+        file.append("9");
+        file.append("0D8759F1DE5452-0");
+        do_check_eq(file.exists(), false);
 
-      file = do_get_profile().clone();
-      file.append("OfflineCache");
-      file.append("3");
-      file.append("9");
-      file.append("0D8759F1DE5452-0");
-      do_check_eq(file.exists(), false);
+        file = do_get_profile().clone();
+        file.append("OfflineCache");
+        file.append("C");
+        file.append("2");
+        file.append("5F356A168B5E3B-0");
+        do_check_eq(file.exists(), false);
 
-      file = do_get_profile().clone();
-      file.append("OfflineCache");
-      file.append("C");
-      file.append("2");
-      file.append("5F356A168B5E3B-0");
-      do_check_eq(file.exists(), false);
+        // foo3
+        file = do_get_profile().clone();
+        file.append("OfflineCache");
+        file.append("D");
+        file.append("C");
+        file.append("1ADCCC843B5C00-0");
+        do_check_eq(file.exists(), true);
 
-      // foo3
-      file = do_get_profile().clone();
-      file.append("OfflineCache");
-      file.append("D");
-      file.append("C");
-      file.append("1ADCCC843B5C00-0");
-      do_check_eq(file.exists(), true);
+        file = do_get_profile().clone();
+        file.append("OfflineCache");
+        file.append("F");
+        file.append("0");
+        file.append("FC3E6D6C1164E9-0");
+        do_check_eq(file.exists(), false);
 
-      file = do_get_profile().clone();
-      file.append("OfflineCache");
-      file.append("F");
-      file.append("0");
-      file.append("FC3E6D6C1164E9-0");
-      do_check_eq(file.exists(), false);
-
-      httpServer.stop(do_test_finished);
-    });
+        httpServer.stop(do_test_finished);
+      }, true /* force even with the new cache back end */);
+    },
+    appcache
+  );
 }
 
 function run_test() {

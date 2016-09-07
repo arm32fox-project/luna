@@ -238,16 +238,17 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSICACHEENTRYINFO
 
-    nsCacheEntryInfo(nsCacheEntry* entry)
+    explicit nsCacheEntryInfo(nsCacheEntry* entry)
         :   mCacheEntry(entry)
     {
     }
 
-    virtual ~nsCacheEntryInfo() {}
     void    DetachEntry() { mCacheEntry = nullptr; }
-    
+
 private:
     nsCacheEntry * mCacheEntry;
+
+    virtual ~nsCacheEntryInfo() {}
 };
 
 
@@ -303,9 +304,9 @@ private:
                                      void *                 arg);
                                      
     // member variables
-    static PLDHashTableOps ops;
-    PLDHashTable           table;
-    bool                   initialized;
+    static const PLDHashTableOps ops;
+    PLDHashTable                 table;
+    bool                         initialized;
 };
 
 #endif // _nsCacheEntry_h_

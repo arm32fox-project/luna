@@ -2,9 +2,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "tests.h"
-
 #include "js/HashTable.h"
+#include "jsapi-tests/tests.h"
 
 //#define FUZZ
 
@@ -54,7 +53,7 @@ struct LowToHighWithRemoval
 };
 
 static bool
-MapsAreEqual(IntMap &am, IntMap &bm)
+MapsAreEqual(IntMap& am, IntMap& bm)
 {
     bool equal = true;
     if (am.count() != bm.count()) {
@@ -62,22 +61,22 @@ MapsAreEqual(IntMap &am, IntMap &bm)
         fprintf(stderr, "A.count() == %u and B.count() == %u\n", am.count(), bm.count());
     }
     for (IntMap::Range r = am.all(); !r.empty(); r.popFront()) {
-        if (!bm.has(r.front().key)) {
+        if (!bm.has(r.front().key())) {
             equal = false;
-            fprintf(stderr, "B does not have %x which is in A\n", r.front().key);
+            fprintf(stderr, "B does not have %x which is in A\n", r.front().key());
         }
     }
     for (IntMap::Range r = bm.all(); !r.empty(); r.popFront()) {
-        if (!am.has(r.front().key)) {
+        if (!am.has(r.front().key())) {
             equal = false;
-            fprintf(stderr, "A does not have %x which is in B\n", r.front().key);
+            fprintf(stderr, "A does not have %x which is in B\n", r.front().key());
         }
     }
     return equal;
 }
 
 static bool
-SetsAreEqual(IntSet &am, IntSet &bm)
+SetsAreEqual(IntSet& am, IntSet& bm)
 {
     bool equal = true;
     if (am.count() != bm.count()) {
@@ -100,7 +99,7 @@ SetsAreEqual(IntSet &am, IntSet &bm)
 }
 
 static bool
-AddLowKeys(IntMap *am, IntMap *bm, int seed)
+AddLowKeys(IntMap* am, IntMap* bm, int seed)
 {
     size_t i = 0;
     srand(seed);
@@ -118,7 +117,7 @@ AddLowKeys(IntMap *am, IntMap *bm, int seed)
 }
 
 static bool
-AddLowKeys(IntSet *as, IntSet *bs, int seed)
+AddLowKeys(IntSet* as, IntSet* bs, int seed)
 {
     size_t i = 0;
     srand(seed);
@@ -137,22 +136,22 @@ AddLowKeys(IntSet *as, IntSet *bs, int seed)
 
 template <class NewKeyFunction>
 static bool
-SlowRekey(IntMap *m) {
+SlowRekey(IntMap* m) {
     IntMap tmp;
     tmp.init();
 
     for (IntMap::Range r = m->all(); !r.empty(); r.popFront()) {
-        if (NewKeyFunction::shouldBeRemoved(r.front().key))
+        if (NewKeyFunction::shouldBeRemoved(r.front().key()))
             continue;
-        uint32_t hi = NewKeyFunction::rekey(r.front().key);
+        uint32_t hi = NewKeyFunction::rekey(r.front().key());
         if (tmp.has(hi))
             return false;
-        tmp.putNew(hi, r.front().value);
+        tmp.putNew(hi, r.front().value());
     }
 
     m->clear();
     for (IntMap::Range r = tmp.all(); !r.empty(); r.popFront()) {
-        m->putNew(r.front().key, r.front().value);
+        m->putNew(r.front().key(), r.front().value());
     }
 
     return true;
@@ -160,7 +159,7 @@ SlowRekey(IntMap *m) {
 
 template <class NewKeyFunction>
 static bool
-SlowRekey(IntSet *s) {
+SlowRekey(IntSet* s) {
     IntSet tmp;
     tmp.init();
 
@@ -194,8 +193,8 @@ BEGIN_TEST(testHashRekeyManual)
         CHECK(MapsAreEqual(am, bm));
 
         for (IntMap::Enum e(am); !e.empty(); e.popFront()) {
-            uint32_t tmp = LowToHigh::rekey(e.front().key);
-            if (tmp != e.front().key)
+            uint32_t tmp = LowToHigh::rekey(e.front().key());
+            if (tmp != e.front().key())
                 e.rekeyFront(tmp);
         }
         CHECK(SlowRekey<LowToHigh>(&bm));
@@ -244,11 +243,11 @@ BEGIN_TEST(testHashRekeyManualRemoval)
         CHECK(MapsAreEqual(am, bm));
 
         for (IntMap::Enum e(am); !e.empty(); e.popFront()) {
-            if (LowToHighWithRemoval::shouldBeRemoved(e.front().key)) {
+            if (LowToHighWithRemoval::shouldBeRemoved(e.front().key())) {
                 e.removeFront();
             } else {
-                uint32_t tmp = LowToHighWithRemoval::rekey(e.front().key);
-                if (tmp != e.front().key)
+                uint32_t tmp = LowToHighWithRemoval::rekey(e.front().key());
+                if (tmp != e.front().key())
                     e.rekeyFront(tmp);
             }
         }

@@ -7,14 +7,12 @@
 #ifndef jit_BytecodeAnalysis_h
 #define jit_BytecodeAnalysis_h
 
-#include "jscntxt.h"
-
-#include "IonAllocPolicy.h"
+#include "jsscript.h"
+#include "jit/JitAllocPolicy.h"
 #include "js/Vector.h"
 
 namespace js {
 namespace jit {
-
 
 // Basic information about bytecodes in the script.  Used to help baseline compilation.
 struct BytecodeInfo
@@ -23,12 +21,13 @@ struct BytecodeInfo
     uint16_t stackDepth;
     bool initialized : 1;
     bool jumpTarget : 1;
-    bool jumpFallthrough : 1;
-    bool fallthrough : 1;
+
+    // If true, this is a JSOP_LOOPENTRY op inside a catch or finally block.
+    bool loopEntryInCatchOrFinally : 1;
 
     void init(unsigned depth) {
-        JS_ASSERT(depth <= MAX_STACK_DEPTH);
-        JS_ASSERT_IF(initialized, stackDepth == depth);
+        MOZ_ASSERT(depth <= MAX_STACK_DEPTH);
+        MOZ_ASSERT_IF(initialized, stackDepth == depth);
         initialized = true;
         stackDepth = depth;
     }
@@ -36,23 +35,39 @@ struct BytecodeInfo
 
 class BytecodeAnalysis
 {
-    JSScript *script_;
-    Vector<BytecodeInfo, 0, IonAllocPolicy> infos_;
+    JSScript* script_;
+    Vector<BytecodeInfo, 0, JitAllocPolicy> infos_;
+
+    bool usesScopeChain_;
+    bool hasTryFinally_;
+    bool hasSetArg_;
 
   public:
-    explicit BytecodeAnalysis(JSScript *script);
+    explicit BytecodeAnalysis(TempAllocator& alloc, JSScript* script);
 
-    bool init();
+    bool init(TempAllocator& alloc, GSNCache& gsn);
 
-    BytecodeInfo &info(jsbytecode *pc) {
-        JS_ASSERT(infos_[pc - script_->code].initialized);
-        return infos_[pc - script_->code];
+    BytecodeInfo& info(jsbytecode* pc) {
+        MOZ_ASSERT(infos_[script_->pcToOffset(pc)].initialized);
+        return infos_[script_->pcToOffset(pc)];
     }
 
-    BytecodeInfo *maybeInfo(jsbytecode *pc) {
-        if (infos_[pc - script_->code].initialized)
-            return &infos_[pc - script_->code];
-        return NULL;
+    BytecodeInfo* maybeInfo(jsbytecode* pc) {
+        if (infos_[script_->pcToOffset(pc)].initialized)
+            return &infos_[script_->pcToOffset(pc)];
+        return nullptr;
+    }
+
+    bool usesScopeChain() const {
+        return usesScopeChain_;
+    }
+
+    bool hasTryFinally() const {
+        return hasTryFinally_;
+    }
+
+    bool hasSetArg() const {
+        return hasSetArg_;
     }
 };
 

@@ -10,7 +10,7 @@ interface nsIFile;
 interface nsIToolkitProfile;
 interface nsIProfileLock;
 
-[scriptable, uuid(b619f83d-8317-473c-b342-67905993fdc7)]
+[scriptable, uuid(b81c33a6-1ce8-4695-856b-02b7f15cc114)]
 interface nsIToolkitProfileService : nsISupports
 {
     attribute boolean startWithLastProfile;
@@ -18,7 +18,25 @@ interface nsIToolkitProfileService : nsISupports
 
     readonly attribute nsISimpleEnumerator /*nsIToolkitProfile*/ profiles;
 
+    /**
+     * The currently selected profile (the one used or about to be used by the
+     * browser).
+     */
     attribute nsIToolkitProfile selectedProfile;
+
+    /**
+     * The default profile (the one used or about to be used by the
+     * browser if no other profile is specified at runtime). This is the profile
+     * marked with Default=1 in profiles.ini and is usually the same as
+     * selectedProfile, except on Developer Edition.
+     *
+     * Developer Edition uses a profile named "dev-edition-default" as the
+     * default profile (which it creates if it doesn't exist), unless a special
+     * empty file named "ignore-dev-edition-profile" is present next to
+     * profiles.ini. In that case Developer Edition behaves the same as any
+     * other build of Firefox.
+     */
+    attribute nsIToolkitProfile defaultProfile;
 
     /**
      * Get a profile by name. This is mainly for use by the -P
@@ -37,19 +55,17 @@ interface nsIToolkitProfileService : nsISupports
 
     /**
      * Create a new profile.
+     *
+     * The profile temporary directory will be chosen based on where the
+     * profile directory is located.
      * 
      * @param aRootDir
      *        The profile directory. May be null, in which case a suitable
      *        default will be chosen based on the profile name.
-     * @param aTempDir
-     *        The profile temporary directory. May be null, in which case a
-     *        suitable default will be chosen based either on the profile name
-     *        if aRootDir is null or aRootDir itself.
      * @param aName
      *        The profile name.
      */
     nsIToolkitProfile createProfile(in nsIFile aRootDir,
-                                    in nsIFile aTempDir,
                                     in AUTF8String aName);
 
     /**

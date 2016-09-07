@@ -10,11 +10,7 @@
 #include "nsHttp.h"
 #include "nsProxyInfo.h"
 #include "nsCOMPtr.h"
-#include "nsDependentString.h"
-#include "nsString.h"
-#include "plstr.h"
-#include "nsCRT.h"
-#include "nsIProtocolProxyService.h"
+#include "nsStringFwd.h"
 
 extern PRLogModuleInfo *gHttpLog;
 
@@ -22,45 +18,53 @@ extern PRLogModuleInfo *gHttpLog;
 // nsHttpConnectionInfo - holds the properties of a connection
 //-----------------------------------------------------------------------------
 
+// http:// uris through a proxy will all share the same CI, because they can
+// all use the same connection. (modulo pb and anonymous flags). They just use
+// the proxy as the origin host name.
+// however, https:// uris tunnel through the proxy so they will have different
+// CIs - the CI reflects both the proxy and the origin.
+// however, proxy conenctions made with http/2 (or spdy) can tunnel to the origin
+// and multiplex non tunneled transactions at the same time, so they have a
+// special wildcard CI that accepts all origins through that proxy.
+
+namespace mozilla { namespace net {
+
 class nsHttpConnectionInfo
 {
 public:
-    nsHttpConnectionInfo(const nsACString &host, int32_t port,
-                         nsProxyInfo* proxyInfo,
-                         bool usingSSL=false);
+    nsHttpConnectionInfo(const nsACString &physicalHost,
+                         int32_t physicalPort,
+                         const nsACString &npnToken,
+                         const nsACString &username,
+                         nsProxyInfo *proxyInfo,
+                         bool endToEndSSL = false);
 
-   ~nsHttpConnectionInfo()
+    // this version must use TLS and you may supply the domain
+    // information to be validated
+    nsHttpConnectionInfo(const nsACString &physicalHost,
+                         int32_t physicalPort,
+                         const nsACString &npnToken,
+                         const nsACString &username,
+                         nsProxyInfo *proxyInfo,
+                         const nsACString &logicalHost,
+                         int32_t logicalPort);
+
+private:
+    virtual ~nsHttpConnectionInfo()
     {
         PR_LOG(gHttpLog, 4, ("Destroying nsHttpConnectionInfo @%x\n", this));
     }
 
-    nsrefcnt AddRef()
-    {
-        nsrefcnt n = NS_AtomicIncrementRefcnt(mRef);
-        NS_LOG_ADDREF(this, n, "nsHttpConnectionInfo", sizeof(*this));
-        return n;
-    }
-
-    nsrefcnt Release()
-    {
-        nsrefcnt n = NS_AtomicDecrementRefcnt(mRef);
-        NS_LOG_RELEASE(this, n, "nsHttpConnectionInfo");
-        if (n == 0)
-            delete this;
-        return n;
-    }
-
+public:
     const nsAFlatCString &HashKey() const { return mHashKey; }
 
-    void SetOriginServer(const nsACString &host, int32_t port);
+    const nsCString &GetAuthenticationHost() const { return mAuthenticationHost; }
+    int32_t GetAuthenticationPort() const { return mAuthenticationPort; }
 
-    void SetOriginServer(const char *host, int32_t port)
-    {
-        SetOriginServer(nsDependentCString(host), port);
-    }
-
-    // OK to treat this as an infalible allocation
+    // OK to treat these as an infalible allocation
     nsHttpConnectionInfo* Clone() const;
+    void CloneAsDirectRoute(nsHttpConnectionInfo **outParam);
+    nsresult CreateWildCard(nsHttpConnectionInfo **outParam);
 
     const char *ProxyHost() const { return mProxyInfo ? mProxyInfo->Host().get() : nullptr; }
     int32_t     ProxyPort() const { return mProxyInfo ? mProxyInfo->Port() : -1; }
@@ -80,31 +84,73 @@ public:
 
     const char   *Host() const           { return mHost.get(); }
     int32_t       Port() const           { return mPort; }
+    const char   *Username() const       { return mUsername.get(); }
     nsProxyInfo  *ProxyInfo()            { return mProxyInfo; }
-    bool          UsingHttpProxy() const { return mUsingHttpProxy; }
-    bool          UsingSSL() const       { return mUsingSSL; }
-    bool          UsingConnect() const   { return mUsingConnect; }
-    int32_t       DefaultPort() const    { return mUsingSSL ? NS_HTTPS_DEFAULT_PORT : NS_HTTP_DEFAULT_PORT; }
+    int32_t       DefaultPort() const    { return mEndToEndSSL ? NS_HTTPS_DEFAULT_PORT : NS_HTTP_DEFAULT_PORT; }
     void          SetAnonymous(bool anon)
                                          { mHashKey.SetCharAt(anon ? 'A' : '.', 2); }
     bool          GetAnonymous() const   { return mHashKey.CharAt(2) == 'A'; }
     void          SetPrivate(bool priv)  { mHashKey.SetCharAt(priv ? 'P' : '.', 3); }
     bool          GetPrivate() const     { return mHashKey.CharAt(3) == 'P'; }
+    void          SetRelaxed(bool relaxed)
+                                       { mHashKey.SetCharAt(relaxed ? 'R' : '.', 4); }
+    bool          GetRelaxed() const   { return mHashKey.CharAt(4) == 'R'; }
+
+    void          SetNoSpdy(bool aNoSpdy)
+                                       { mHashKey.SetCharAt(aNoSpdy ? 'X' : '.', 5); }
+    bool          GetNoSpdy() const    { return mHashKey.CharAt(5) == 'X'; }
 
     const nsCString &GetHost() { return mHost; }
+    const nsCString &GetNPNToken() { return mNPNToken; }
+    const nsCString &GetUsername() { return mUsername; }
 
-    // Returns true for any kind of proxy (http, socks, etc..)
+    // Returns true for any kind of proxy (http, socks, https, etc..)
     bool UsingProxy();
 
+    // Returns true when proxying over HTTP or HTTPS
+    bool UsingHttpProxy() const { return mUsingHttpProxy || mUsingHttpsProxy; }
+
+    // Returns true when proxying over HTTPS
+    bool UsingHttpsProxy() const { return mUsingHttpsProxy; }
+
+    // Returns true when a resource is in SSL end to end (e.g. https:// uri)
+    bool EndToEndSSL() const { return mEndToEndSSL; }
+
+    // Returns true when at least first hop is SSL (e.g. proxy over https or https uri)
+    bool FirstHopSSL() const { return mEndToEndSSL || mUsingHttpsProxy; }
+
+    // Returns true when CONNECT is used to tunnel through the proxy (e.g. https:// or ws://)
+    bool UsingConnect() const { return mUsingConnect; }
+
+    // Returns true when mHost is an RFC1918 literal.
+    bool HostIsLocalIPLiteral() const;
+
 private:
-    nsrefcnt               mRef;
+    void Init(const nsACString &host,
+              int32_t port,
+              const nsACString &npnToken,
+              const nsACString &username,
+              nsProxyInfo* proxyInfo,
+              bool EndToEndSSL);
+    void SetOriginServer(const nsACString &host, int32_t port);
+
     nsCString              mHashKey;
     nsCString              mHost;
     int32_t                mPort;
+    nsCString              mUsername;
+    nsCString              mAuthenticationHost;
+    int32_t                mAuthenticationPort;
     nsCOMPtr<nsProxyInfo>  mProxyInfo;
     bool                   mUsingHttpProxy;
-    bool                   mUsingSSL;
+    bool                   mUsingHttpsProxy;
+    bool                   mEndToEndSSL;
     bool                   mUsingConnect;  // if will use CONNECT with http proxy
+    nsCString              mNPNToken;
+
+// for nsRefPtr
+    NS_INLINE_DECL_THREADSAFE_REFCOUNTING(nsHttpConnectionInfo)
 };
+
+}} // namespace mozilla::net
 
 #endif // nsHttpConnectionInfo_h__

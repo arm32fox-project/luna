@@ -589,7 +589,7 @@ var FullScreen = {
       navbar.appendChild(fullscreenctls);
     }
     fullscreenctls.hidden = aShow;
-	
+    
     ToolbarIconColor.inferFromText();
   }
 };

@@ -14,7 +14,6 @@
 #include "nsITokenDialogs.h"
 #include "nsIDOMCryptoDialogs.h"
 #include "nsIGenKeypairInfoDlg.h"
-#include "nsISSLCertErrorDialog.h"
 
 #include "nsCOMPtr.h"
 #include "nsIStringBundle.h"
@@ -30,11 +29,10 @@ class nsNSSDialogs
   public nsICertPickDialogs,
   public nsITokenDialogs,
   public nsIDOMCryptoDialogs,
-  public nsIGeneratingKeypairInfoDialogs,
-  public nsISSLCertErrorDialog
+  public nsIGeneratingKeypairInfoDialogs
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSITOKENPASSWORDDIALOGS
   NS_DECL_NSICERTIFICATEDIALOGS
   NS_DECL_NSICLIENTAUTHDIALOGS
@@ -42,13 +40,12 @@ public:
   NS_DECL_NSITOKENDIALOGS
   NS_DECL_NSIDOMCRYPTODIALOGS
   NS_DECL_NSIGENERATINGKEYPAIRINFODIALOGS
-  NS_DECL_NSISSLCERTERRORDIALOG
   nsNSSDialogs();
-  virtual ~nsNSSDialogs();
 
   nsresult Init();
 
 protected:
+  virtual ~nsNSSDialogs();
   nsCOMPtr<nsIStringBundle> mPIPStringBundle;
 };
 

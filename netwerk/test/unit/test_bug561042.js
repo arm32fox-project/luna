@@ -1,9 +1,5 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
 Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
 
 const SERVER_PORT = 8080;
 const baseURL = "http://localhost:" + SERVER_PORT + "/";
@@ -38,7 +34,14 @@ function run_test() {
 
     var ios = Components.classes["@mozilla.org/network/io-service;1"]
                          .getService(Components.interfaces.nsIIOService);
-    var chan = ios.newChannel(baseURL, null, null)
+    var chan = ios.newChannel2(baseURL,
+                               null,
+                               null,
+                               null,      // aLoadingNode
+                               Services.scriptSecurityManager.getSystemPrincipal(),
+                               null,      // aTriggeringPrincipal
+                               Ci.nsILoadInfo.SEC_NORMAL,
+                               Ci.nsIContentPolicy.TYPE_OTHER)
                   .QueryInterface(Components.interfaces.nsIHttpChannel);
     chan.asyncOpen(listener, null);
     do_test_pending();

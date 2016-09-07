@@ -7,12 +7,14 @@
 #include "nsDeleteDir.h"
 #include "nsIFile.h"
 #include "nsString.h"
+#include "mozilla/Telemetry.h"
 #include "nsITimer.h"
 #include "nsISimpleEnumerator.h"
 #include "nsAutoPtr.h"
 #include "nsThreadUtils.h"
 #include "nsISupportsPriority.h"
 #include "nsCacheUtils.h"
+#include "prtime.h"
 #include <time.h>
 
 using namespace mozilla;
@@ -100,7 +102,7 @@ nsDeleteDir::Shutdown(bool finishDeleting)
       }
 
       rv = gInstance->mCondVar.Wait();
-      thread->Shutdown();
+      nsShutdownThread::BlockingShutdown(thread);
     }
   }
 
@@ -148,6 +150,7 @@ nsDeleteDir::DestroyThread()
 void
 nsDeleteDir::TimerCallback(nsITimer *aTimer, void *arg)
 {
+  Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_DELETEDIR> timer;
   {
     MutexAutoLock lock(gInstance->mLock);
 
@@ -185,6 +188,8 @@ nsDeleteDir::TimerCallback(nsITimer *aTimer, void *arg)
 nsresult
 nsDeleteDir::DeleteDir(nsIFile *dirIn, bool moveToTrash, uint32_t delay)
 {
+  Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_TRASHRENAME> timer;
+
   if (!gInstance)
     return NS_ERROR_NOT_INITIALIZED;
 
@@ -299,13 +304,6 @@ nsDeleteDir::RemoveOldTrashes(nsIFile *cacheDir)
     return NS_ERROR_NOT_INITIALIZED;
 
   nsresult rv;
-
-  static bool firstRun = true;
-
-  if (!firstRun)
-    return NS_OK;
-
-  firstRun = false;
 
   nsCOMPtr<nsIFile> trash;
   rv = GetTrashDir(cacheDir, &trash);

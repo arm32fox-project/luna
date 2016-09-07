@@ -10,7 +10,6 @@
  * liability, trademark and document use rules apply.
  */
 
-[PrefControlled]
 interface ConvolverNode : AudioNode {
 
       [SetterThrows]
@@ -18,4 +17,7 @@ interface ConvolverNode : AudioNode {
       attribute boolean normalize;
 
 };
+
+// Mozilla extension
+ConvolverNode implements AudioNodePassThrough;
 

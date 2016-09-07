@@ -8,13 +8,13 @@
 #ifndef nsHTMLReflowMetrics_h___
 #define nsHTMLReflowMetrics_h___
 
-#include <stdio.h>
-#include "nsISupports.h"
-#include "nsMargin.h"
 #include "nsRect.h"
 #include "nsBoundingMetrics.h"
+#include "WritingModes.h"
 
 //----------------------------------------------------------------------
+
+struct nsHTMLReflowState;
 
 // Option flags
 #define NS_REFLOW_CALC_BOUNDING_METRICS  0x0001
@@ -23,8 +23,9 @@
  * When we store overflow areas as an array of scrollable and visual
  * overflow, we use these indices.
  *
- * eOverflowType_LENGTH is needed to ensure that 2 is a valid value
- * of nsOverflowType for use in NS_FOR_FRAME_OVERFLOW_TYPES.
+ * eOverflowType_LENGTH is needed (for gcc 4.5.*, at least) to ensure
+ * that 2 is a valid value of nsOverflowType for use in
+ * NS_FOR_FRAME_OVERFLOW_TYPES.
  */
 enum nsOverflowType { eVisualOverflow, eScrollableOverflow,
                       eOverflowType_LENGTH };
@@ -195,11 +196,86 @@ struct nsCollapsingMargin {
  *
  * @see #Reflow()
  */
-struct nsHTMLReflowMetrics {
-  nscoord width, height;    // [OUT] desired width and height (border-box)
-  nscoord ascent;           // [OUT] baseline (from top), or ASK_FOR_BASELINE
+class nsHTMLReflowMetrics {
+public:
+  // XXXldb Should |aFlags| generally be passed from parent to child?
+  // Some places do it, and some don't.  |aFlags| should perhaps go away
+  // entirely.
+  // XXX width/height/ascent are OUT parameters and so they shouldn't
+  // have to be initialized, but there are some bad frame classes that
+  // aren't properly setting them when returning from Reflow()...
+  explicit nsHTMLReflowMetrics(mozilla::WritingMode aWritingMode, uint32_t aFlags = 0)
+    : mISize(0)
+    , mBSize(0)
+    , mBlockStartAscent(ASK_FOR_BASELINE)
+    , mFlags(aFlags)
+    , mWritingMode(aWritingMode)
+  {}
 
-  uint32_t mFlags;
+  explicit nsHTMLReflowMetrics(const nsHTMLReflowState& aState, uint32_t aFlags = 0);
+
+  // ISize and BSize are logical-coordinate dimensions:
+  // ISize is the size in the writing mode's inline direction (which equates to
+  // width in horizontal writing modes, height in vertical ones), and BSize is
+  // the size in the block-progression direction.
+  nscoord ISize(mozilla::WritingMode aWritingMode) const {
+    CHECK_WRITING_MODE(aWritingMode);
+    return mISize;
+  }
+  nscoord BSize(mozilla::WritingMode aWritingMode) const {
+    CHECK_WRITING_MODE(aWritingMode);
+    return mBSize;
+  }
+  mozilla::LogicalSize Size(mozilla::WritingMode aWritingMode) const {
+    CHECK_WRITING_MODE(aWritingMode);
+    return mozilla::LogicalSize(aWritingMode, mISize, mBSize);
+  }
+
+  nscoord& ISize(mozilla::WritingMode aWritingMode) {
+    CHECK_WRITING_MODE(aWritingMode);
+    return mISize;
+  }
+  nscoord& BSize(mozilla::WritingMode aWritingMode) {
+    CHECK_WRITING_MODE(aWritingMode);
+    return mBSize;
+  }
+
+  // Set inline and block size from a LogicalSize, converting to our
+  // writing mode as necessary.
+  void SetSize(mozilla::WritingMode aWM, mozilla::LogicalSize aSize)
+  {
+    mozilla::LogicalSize convertedSize = aSize.ConvertTo(mWritingMode, aWM);
+    mBSize = convertedSize.BSize(mWritingMode);
+    mISize = convertedSize.ISize(mWritingMode);
+  }
+
+  // Set both inline and block size to zero -- no need for a writing mode!
+  void ClearSize()
+  {
+    mISize = mBSize = 0;
+  }
+
+  // Width and Height are physical dimensions, independent of writing mode.
+  // Accessing these is slightly more expensive than accessing the logical
+  // dimensions (once vertical writing mode support is enabled); as far as
+  // possible, client code should work purely with logical dimensions.
+  nscoord Width() const { return mWritingMode.IsVertical() ? mBSize : mISize; }
+  nscoord Height() const { return mWritingMode.IsVertical() ? mISize : mBSize; }
+
+  // It's only meaningful to consider "ascent" on the block-start side of the
+  // frame, so no need to pass a writing mode argument
+  nscoord BlockStartAscent() const
+  {
+    return mBlockStartAscent;
+  }
+
+  nscoord& Width() { return mWritingMode.IsVertical() ? mBSize : mISize; }
+  nscoord& Height() { return mWritingMode.IsVertical() ? mISize : mBSize; }
+
+  void SetBlockStartAscent(nscoord aAscent)
+  {
+    mBlockStartAscent = aAscent;
+  }
 
   enum { ASK_FOR_BASELINE = nscoord_MAX };
 
@@ -211,9 +287,9 @@ struct nsHTMLReflowMetrics {
   // of the base and the text of the superscript.
   nsBoundingMetrics mBoundingMetrics;  // [OUT]
 
-  // Carried out bottom margin values. This is the collapsed
-  // (generational) bottom margin value.
-  nsCollapsingMargin mCarriedOutBottomMargin;
+  // Carried out block-end margin values. This is the collapsed
+  // (generational) block-end margin value.
+  nsCollapsingMargin mCarriedOutBEndMargin;
 
   // For frames that have content that overflow their content area
   // (HasOverflowAreas() is true) these rectangles represent the total
@@ -240,15 +316,17 @@ struct nsHTMLReflowMetrics {
   // Union all of mOverflowAreas with (0, 0, width, height).
   void UnionOverflowAreasWithDesiredBounds();
 
-  // XXXldb Should |aFlags| generally be passed from parent to child?
-  // Some places do it, and some don't.  |aFlags| should perhaps go away
-  // entirely.
-  // XXX width/height/ascent are OUT parameters and so they shouldn't
-  // have to be initialized, but there are some bad frame classes that
-  // aren't properly setting them when returning from Reflow()...
-  nsHTMLReflowMetrics(uint32_t aFlags = 0)
-    : width(0), height(0), ascent(ASK_FOR_BASELINE), mFlags(aFlags)
-  {}
+  mozilla::WritingMode GetWritingMode() const { return mWritingMode; }
+
+private:
+  nscoord mISize, mBSize; // [OUT] desired width and height (border-box)
+  nscoord mBlockStartAscent; // [OUT] baseline (in Block direction), or ASK_FOR_BASELINE
+
+public:
+  uint32_t mFlags;
+
+private:
+  mozilla::WritingMode mWritingMode;
 };
 
 #endif /* nsHTMLReflowMetrics_h___ */

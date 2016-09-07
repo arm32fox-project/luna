@@ -7,7 +7,8 @@ package org.mozilla.goanna.gfx;
 
 import org.mozilla.goanna.GoannaEvent;
 import org.mozilla.goanna.GoannaThread;
-import org.mozilla.goanna.util.EventDispatcher;
+import org.mozilla.goanna.mozglue.generatorannotations.WrapElementForJNI;
+import org.mozilla.goanna.EventDispatcher;
 import org.mozilla.goanna.util.GoannaEventListener;
 
 import org.json.JSONObject;
@@ -20,87 +21,88 @@ import android.view.View;
 class NativePanZoomController implements PanZoomController, GoannaEventListener {
     private final PanZoomTarget mTarget;
     private final EventDispatcher mDispatcher;
-    private final CallbackRunnable mCallbackRunnable;
 
     NativePanZoomController(PanZoomTarget target, View view, EventDispatcher dispatcher) {
         mTarget = target;
         mDispatcher = dispatcher;
-        mCallbackRunnable = new CallbackRunnable();
         if (GoannaThread.checkLaunchState(GoannaThread.LaunchState.GoannaRunning)) {
             init();
         } else {
-            mDispatcher.registerEventListener("Goanna:Ready", this);
+            mDispatcher.registerGoannaThreadListener(this, "Goanna:Ready");
         }
     }
 
+    @Override
     public void handleMessage(String event, JSONObject message) {
         if ("Goanna:Ready".equals(event)) {
-            mDispatcher.unregisterEventListener("Goanna:Ready", this);
+            mDispatcher.unregisterGoannaThreadListener(this, "Goanna:Ready");
             init();
         }
     }
 
+    @Override
     public boolean onTouchEvent(MotionEvent event) {
         GoannaEvent wrapped = GoannaEvent.createMotionEvent(event, true);
-        handleTouchEvent(wrapped);
-        return false;
+        return handleTouchEvent(wrapped);
     }
 
+    @Override
     public boolean onMotionEvent(MotionEvent event) {
         // FIXME implement this
         return false;
     }
 
+    @Override
     public boolean onKeyEvent(KeyEvent event) {
         // FIXME implement this
         return false;
     }
 
+    @Override
     public PointF getVelocityVector() {
         // FIXME implement this
         return new PointF(0, 0);
     }
 
+    @Override
     public void pageRectUpdated() {
         // no-op in APZC, I think
     }
 
+    @Override
     public void abortPanning() {
         // no-op in APZC, I think
     }
 
-    public void abortAnimation() {
-        // no-op in APZC, I think
+    @Override
+    public void notifyDefaultActionPrevented(boolean prevented) {
+        // This should never get called; there is a different
+        // codepath that notifies the APZ code of this.
+        throw new IllegalStateException("APZCCallbackHandler::NotifyDefaultPrevented should be getting called, not this!");
     }
 
-    private native void init();
-    private native void handleTouchEvent(GoannaEvent event);
-    private native void handleMotionEvent(GoannaEvent event);
-    private native long runDelayedCallback();
+    @Override
+    public native void abortAnimation();
 
+    private native void init();
+    private native boolean handleTouchEvent(GoannaEvent event);
+    private native void handleMotionEvent(GoannaEvent event);
+
+    @Override
     public native void destroy();
-    public native void notifyDefaultActionPrevented(boolean prevented);
+    @Override
     public native boolean getRedrawHint();
+    @Override
     public native void setOverScrollMode(int overscrollMode);
+    @Override
     public native int getOverScrollMode();
 
-    /* Invoked from JNI */
+    @WrapElementForJNI(allowMultithread = true, stubName = "RequestContentRepaintWrapper")
     private void requestContentRepaint(float x, float y, float width, float height, float resolution) {
         mTarget.forceRedraw(new DisplayPortMetrics(x, y, x + width, y + height, resolution));
     }
 
-    /* Invoked from JNI */
-    private void postDelayedCallback(long delay) {
-        mTarget.postDelayed(mCallbackRunnable, delay);
-    }
-
-    class CallbackRunnable implements Runnable {
-        @Override
-        public void run() {
-            long nextDelay = runDelayedCallback();
-            if (nextDelay >= 0) {
-                mTarget.postDelayed(this, nextDelay);
-            }
-        }
+    @Override
+    public void setOverscrollHandler(final Overscroll listener) {
     }
 }

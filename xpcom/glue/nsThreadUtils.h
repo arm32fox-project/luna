@@ -1,5 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim:set ts=2 sw=2 sts=2 et cindent: */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -9,6 +9,7 @@
 
 #include "prthread.h"
 #include "prinrval.h"
+#include "MainThreadUtils.h"
 #include "nsIThreadManager.h"
 #include "nsIThread.h"
 #include "nsIRunnable.h"
@@ -16,7 +17,6 @@
 #include "nsStringGlue.h"
 #include "nsCOMPtr.h"
 #include "nsAutoPtr.h"
-#include "mozilla/threads/nsThreadIDs.h"
 #include "mozilla/Likely.h"
 
 //-----------------------------------------------------------------------------
@@ -26,119 +26,99 @@
 /**
  * Set name of the target thread.  This operation is asynchronous.
  */
-extern NS_COM_GLUE void
-NS_SetThreadName(nsIThread *thread, const nsACString &name);
+extern void NS_SetThreadName(nsIThread* aThread, const nsACString& aName);
 
 /**
  * Static length version of the above function checking length of the
  * name at compile time.
  */
-template <size_t LEN>
-inline NS_COM_GLUE void
-NS_SetThreadName(nsIThread *thread, const char (&name)[LEN])
+template<size_t LEN>
+inline void
+NS_SetThreadName(nsIThread* aThread, const char (&aName)[LEN])
 {
-  MOZ_STATIC_ASSERT(LEN <= 16,
-                    "Thread name must be no more than 16 characters");
-  NS_SetThreadName(thread, nsDependentCString(name));
+  static_assert(LEN <= 16,
+                "Thread name must be no more than 16 characters");
+  NS_SetThreadName(aThread, nsDependentCString(aName));
 }
 
 /**
  * Create a new thread, and optionally provide an initial event for the thread.
  *
- * @param result
+ * @param aResult
  *   The resulting nsIThread object.
- * @param initialEvent
+ * @param aInitialEvent
  *   The initial event to run on this thread.  This parameter may be null.
- * @param stackSize
+ * @param aStackSize
  *   The size in bytes to reserve for the thread's stack.
  *
  * @returns NS_ERROR_INVALID_ARG
  *   Indicates that the given name is not unique.
  */
-extern NS_COM_GLUE NS_METHOD
-NS_NewThread(nsIThread **result,
-             nsIRunnable *initialEvent = nullptr,
-             uint32_t stackSize = nsIThreadManager::DEFAULT_STACK_SIZE);
+extern NS_METHOD
+NS_NewThread(nsIThread** aResult,
+             nsIRunnable* aInitialEvent = nullptr,
+             uint32_t aStackSize = nsIThreadManager::DEFAULT_STACK_SIZE);
 
 /**
  * Creates a named thread, otherwise the same as NS_NewThread
  */
-template <size_t LEN>
+template<size_t LEN>
 inline NS_METHOD
-NS_NewNamedThread(const char (&name)[LEN],
-                  nsIThread **result,
-                  nsIRunnable *initialEvent = nullptr,
-                  uint32_t stackSize = nsIThreadManager::DEFAULT_STACK_SIZE)
+NS_NewNamedThread(const char (&aName)[LEN],
+                  nsIThread** aResult,
+                  nsIRunnable* aInitialEvent = nullptr,
+                  uint32_t aStackSize = nsIThreadManager::DEFAULT_STACK_SIZE)
 {
-    nsresult rv = NS_NewThread(result, initialEvent, stackSize);
-    NS_SetThreadName<LEN>(*result, name);
+  // Hold a ref while dispatching the initial event to match NS_NewThread()
+  nsCOMPtr<nsIThread> thread;
+  nsresult rv = NS_NewThread(getter_AddRefs(thread), nullptr, aStackSize);
+  if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
+  }
+  NS_SetThreadName<LEN>(thread, aName);
+  if (aInitialEvent) {
+    rv = thread->Dispatch(aInitialEvent, NS_DISPATCH_NORMAL);
+    NS_WARN_IF_FALSE(NS_SUCCEEDED(rv), "Initial event dispatch failed");
+  }
+
+  *aResult = nullptr;
+  thread.swap(*aResult);
+  return rv;
 }
 
 /**
  * Get a reference to the current thread.
  *
- * @param result
+ * @param aResult
  *   The resulting nsIThread object.
  */
-extern NS_COM_GLUE NS_METHOD
-NS_GetCurrentThread(nsIThread **result);
-
-/**
- * Get a reference to the main thread.
- *
- * @param result
- *   The resulting nsIThread object.
- */
-extern NS_COM_GLUE NS_METHOD
-NS_GetMainThread(nsIThread **result);
-
-#if defined(MOZILLA_INTERNAL_API) && defined(XP_WIN)
-bool NS_IsMainThread();
-#elif defined(MOZILLA_INTERNAL_API) && defined(NS_TLS)
-// This is defined in nsThreadManager.cpp and initialized to `Main` for the
-// main thread by nsThreadManager::Init.
-extern NS_TLS mozilla::threads::ID gTLSThreadID;
-inline bool NS_IsMainThread()
-{
-  return gTLSThreadID == mozilla::threads::Main;
-}
-#else
-/**
- * Test to see if the current thread is the main thread.
- *
- * @returns true if the current thread is the main thread, and false
- * otherwise.
- */
-extern NS_COM_GLUE bool NS_IsMainThread();
-#endif
+extern NS_METHOD NS_GetCurrentThread(nsIThread** aResult);
 
 /**
  * Dispatch the given event to the current thread.
  *
- * @param event
+ * @param aEvent
  *   The event to dispatch.
  *
  * @returns NS_ERROR_INVALID_ARG
  *   If event is null.
  */
-extern NS_COM_GLUE NS_METHOD
-NS_DispatchToCurrentThread(nsIRunnable *event);
+extern NS_METHOD NS_DispatchToCurrentThread(nsIRunnable* aEvent);
 
 /**
  * Dispatch the given event to the main thread.
  *
- * @param event
+ * @param aEvent
  *   The event to dispatch.
- * @param dispatchFlags
+ * @param aDispatchFlags
  *   The flags to pass to the main thread's dispatch method.
  *
  * @returns NS_ERROR_INVALID_ARG
  *   If event is null.
  */
-extern NS_COM_GLUE NS_METHOD
-NS_DispatchToMainThread(nsIRunnable *event,
-                        uint32_t dispatchFlags = NS_DISPATCH_NORMAL);
+extern NS_METHOD
+NS_DispatchToMainThread(nsIRunnable* aEvent,
+                        uint32_t aDispatchFlags = NS_DISPATCH_NORMAL);
 
 #ifndef XPCOM_GLUE_AVOID_NSPR
 /**
@@ -147,18 +127,18 @@ NS_DispatchToMainThread(nsIRunnable *event,
  * continues to return true and the time spent in NS_ProcessPendingEvents
  * does not exceed the given timeout value.
  *
- * @param thread
+ * @param aThread
  *   The thread object for which to process pending events.  If null, then
  *   events will be processed for the current thread.
- * @param timeout
+ * @param aTimeout
  *   The maximum number of milliseconds to spend processing pending events.
  *   Events are not pre-empted to honor this timeout.  Rather, the timeout
  *   value is simply used to determine whether or not to process another event.
  *   Pass PR_INTERVAL_NO_TIMEOUT to specify no timeout.
  */
-extern NS_COM_GLUE NS_METHOD
-NS_ProcessPendingEvents(nsIThread *thread,
-                        PRIntervalTime timeout = PR_INTERVAL_NO_TIMEOUT);
+extern NS_METHOD
+NS_ProcessPendingEvents(nsIThread* aThread,
+                        PRIntervalTime aTimeout = PR_INTERVAL_NO_TIMEOUT);
 #endif
 
 /**
@@ -168,26 +148,25 @@ NS_ProcessPendingEvents(nsIThread *thread,
  * current thread.  This function will return false if called from some
  * other thread.
  *
- * @param thread
+ * @param aThread
  *   The current thread or null.
  *
  * @returns
  *   A boolean value that if "true" indicates that there are pending events
  *   in the current thread's event queue.
  */
-extern NS_COM_GLUE bool
-NS_HasPendingEvents(nsIThread *thread = nullptr);
+extern bool NS_HasPendingEvents(nsIThread* aThread = nullptr);
 
 /**
  * Shortcut for nsIThread::ProcessNextEvent.
- *   
+ *
  * It is an error to call this function when the given thread is not the
  * current thread.  This function will simply return false if called
  * from some other thread.
  *
- * @param thread
+ * @param aThread
  *   The current thread or null.
- * @param mayWait
+ * @param aMayWait
  *   A boolean parameter that if "true" indicates that the method may block
  *   the calling thread to wait for a pending event.
  *
@@ -195,22 +174,24 @@ NS_HasPendingEvents(nsIThread *thread = nullptr);
  *   A boolean value that if "true" indicates that an event from the current
  *   thread's event queue was processed.
  */
-extern NS_COM_GLUE bool
-NS_ProcessNextEvent(nsIThread *thread = nullptr, bool mayWait = true);
+extern bool NS_ProcessNextEvent(nsIThread* aThread = nullptr,
+                                bool aMayWait = true);
 
 //-----------------------------------------------------------------------------
 // Helpers that work with nsCOMPtr:
 
 inline already_AddRefed<nsIThread>
-do_GetCurrentThread() {
-  nsIThread *thread = nullptr;
+do_GetCurrentThread()
+{
+  nsIThread* thread = nullptr;
   NS_GetCurrentThread(&thread);
   return already_AddRefed<nsIThread>(thread);
 }
 
 inline already_AddRefed<nsIThread>
-do_GetMainThread() {
-  nsIThread *thread = nullptr;
+do_GetMainThread()
+{
+  nsIThread* thread = nullptr;
   NS_GetMainThread(&thread);
   return already_AddRefed<nsIThread>(thread);
 }
@@ -222,56 +203,46 @@ do_GetMainThread() {
 // you want to use this pointer from some other thread, then you will need to
 // AddRef it.  Otherwise, you should only consider this pointer valid from code
 // running on the current thread.
-extern NS_COM_GLUE nsIThread *NS_GetCurrentThread();
+extern nsIThread* NS_GetCurrentThread();
 #endif
 
 //-----------------------------------------------------------------------------
 
 #ifndef XPCOM_GLUE_AVOID_NSPR
 
-#undef  IMETHOD_VISIBILITY
-#define IMETHOD_VISIBILITY NS_COM_GLUE
-
 // This class is designed to be subclassed.
-class NS_COM_GLUE nsRunnable : public nsIRunnable
+class nsRunnable : public nsIRunnable
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
-  nsRunnable() {
-  }
+  nsRunnable() {}
 
 protected:
-  virtual ~nsRunnable() {
-  }
+  virtual ~nsRunnable() {}
 };
 
 // This class is designed to be subclassed.
-class NS_COM_GLUE nsCancelableRunnable : public nsICancelableRunnable
+class nsCancelableRunnable : public nsICancelableRunnable
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIRUNNABLE
   NS_DECL_NSICANCELABLERUNNABLE
 
-  nsCancelableRunnable() {
-  }
+  nsCancelableRunnable() {}
 
 protected:
-  virtual ~nsCancelableRunnable() {
-  }
+  virtual ~nsCancelableRunnable() {}
 };
-
-#undef  IMETHOD_VISIBILITY
-#define IMETHOD_VISIBILITY NS_VISIBILITY_HIDDEN
 
 // An event that can be used to call a method on a class.  The class type must
 // support reference counting. This event supports Revoke for use
 // with nsRevocableEventPtr.
-template <class ClassType,
-          typename ReturnType = void,
-          bool Owning = true>
+template<class ClassType,
+         typename ReturnType = void,
+         bool Owning = true>
 class nsRunnableMethod : public nsRunnable
 {
 public:
@@ -280,15 +251,15 @@ public:
   // These ReturnTypeEnforcer classes set up a blacklist for return types that
   // we know are not safe. The default ReturnTypeEnforcer compiles just fine but
   // already_AddRefed will not.
-  template <typename OtherReturnType>
+  template<typename OtherReturnType>
   class ReturnTypeEnforcer
   {
   public:
     typedef int ReturnTypeIsSafe;
   };
 
-  template <class T>
-  class ReturnTypeEnforcer<already_AddRefed<T> >
+  template<class T>
+  class ReturnTypeEnforcer<already_AddRefed<T>>
   {
     // No ReturnTypeIsSafe makes this illegal!
   };
@@ -297,63 +268,127 @@ public:
   typedef typename ReturnTypeEnforcer<ReturnType>::ReturnTypeIsSafe check;
 };
 
-template <class ClassType, bool Owning>
-struct nsRunnableMethodReceiver {
-  ClassType *mObj;
-  nsRunnableMethodReceiver(ClassType *obj) : mObj(obj) { NS_IF_ADDREF(mObj); }
- ~nsRunnableMethodReceiver() { Revoke(); }
-  void Revoke() { NS_IF_RELEASE(mObj); }
-};
-
-template <class ClassType>
-struct nsRunnableMethodReceiver<ClassType, false> {
-  ClassType *mObj;
-  nsRunnableMethodReceiver(ClassType *obj) : mObj(obj) {}
+template<class ClassType, typename Arg, bool Owning>
+struct nsRunnableMethodReceiver
+{
+  nsRefPtr<ClassType> mObj;
+  Arg mArg;
+  nsRunnableMethodReceiver(ClassType* aObj, Arg aArg)
+    : mObj(aObj)
+    , mArg(aArg)
+  {
+  }
+  ~nsRunnableMethodReceiver() { Revoke(); }
   void Revoke() { mObj = nullptr; }
 };
 
-template <typename Method, bool Owning> struct nsRunnableMethodTraits;
+template<class ClassType, bool Owning>
+struct nsRunnableMethodReceiver<ClassType, void, Owning>
+{
+  nsRefPtr<ClassType> mObj;
+  explicit nsRunnableMethodReceiver(ClassType* aObj)
+    : mObj(aObj)
+  {
+  }
+  ~nsRunnableMethodReceiver() { Revoke(); }
+  void Revoke() { mObj = nullptr; }
+};
 
-template <class C, typename R, bool Owning>
-struct nsRunnableMethodTraits<R (C::*)(), Owning> {
+template<class ClassType>
+struct nsRunnableMethodReceiver<ClassType, void, false>
+{
+  ClassType* MOZ_NON_OWNING_REF mObj;
+  explicit nsRunnableMethodReceiver(ClassType* aObj) : mObj(aObj) {}
+  void Revoke() { mObj = nullptr; }
+};
+
+template<typename Method, bool Owning> struct nsRunnableMethodTraits;
+
+template<class C, typename R, typename A, bool Owning>
+struct nsRunnableMethodTraits<R(C::*)(A), Owning>
+{
   typedef C class_type;
   typedef R return_type;
+  typedef A arg_type;
   typedef nsRunnableMethod<C, R, Owning> base_type;
 };
 
-#ifdef HAVE_STDCALL
-template <class C, typename R, bool Owning>
-struct nsRunnableMethodTraits<R (__stdcall C::*)(), Owning> {
+template<class C, typename R, bool Owning>
+struct nsRunnableMethodTraits<R(C::*)(), Owning>
+{
   typedef C class_type;
   typedef R return_type;
+  typedef void arg_type;
+  typedef nsRunnableMethod<C, R, Owning> base_type;
+};
+
+#ifdef NS_HAVE_STDCALL
+template<class C, typename R, typename A, bool Owning>
+struct nsRunnableMethodTraits<R(__stdcall C::*)(A), Owning>
+{
+  typedef C class_type;
+  typedef R return_type;
+  typedef A arg_type;
+  typedef nsRunnableMethod<C, R, Owning> base_type;
+};
+
+template<class C, typename R, bool Owning>
+struct nsRunnableMethodTraits<R(NS_STDCALL C::*)(), Owning>
+{
+  typedef C class_type;
+  typedef R return_type;
+  typedef void arg_type;
   typedef nsRunnableMethod<C, R, Owning> base_type;
 };
 #endif
 
-template <typename Method, bool Owning>
+template<typename Method, typename Arg, bool Owning>
 class nsRunnableMethodImpl
   : public nsRunnableMethodTraits<Method, Owning>::base_type
 {
   typedef typename nsRunnableMethodTraits<Method, Owning>::class_type ClassType;
-  nsRunnableMethodReceiver<ClassType, Owning> mReceiver;
+  nsRunnableMethodReceiver<ClassType, Arg, Owning> mReceiver;
+  Method mMethod;
+public:
+  nsRunnableMethodImpl(ClassType* aObj, Method aMethod, Arg aArg)
+    : mReceiver(aObj, aArg)
+    , mMethod(aMethod)
+  {
+  }
+  NS_IMETHOD Run()
+  {
+    if (MOZ_LIKELY(mReceiver.mObj)) {
+      ((*mReceiver.mObj).*mMethod)(mReceiver.mArg);
+    }
+    return NS_OK;
+  }
+  void Revoke() { mReceiver.Revoke(); }
+};
+
+template<typename Method, bool Owning>
+class nsRunnableMethodImpl<Method, void, Owning>
+  : public nsRunnableMethodTraits<Method, Owning>::base_type
+{
+  typedef typename nsRunnableMethodTraits<Method, Owning>::class_type ClassType;
+  nsRunnableMethodReceiver<ClassType, void, Owning> mReceiver;
   Method mMethod;
 
 public:
-  nsRunnableMethodImpl(ClassType *obj,
-                       Method method)
-    : mReceiver(obj)
-    , mMethod(method)
-  {}
+  nsRunnableMethodImpl(ClassType* aObj, Method aMethod)
+    : mReceiver(aObj)
+    , mMethod(aMethod)
+  {
+  }
 
-  NS_IMETHOD Run() {
-    if (MOZ_LIKELY(mReceiver.mObj))
+  NS_IMETHOD Run()
+  {
+    if (MOZ_LIKELY(mReceiver.mObj)) {
       ((*mReceiver.mObj).*mMethod)();
+    }
     return NS_OK;
   }
 
-  void Revoke() {
-    mReceiver.Revoke();
-  }
+  void Revoke() { mReceiver.Revoke(); }
 };
 
 // Use this template function like so:
@@ -368,16 +403,35 @@ public:
 //
 template<typename PtrType, typename Method>
 typename nsRunnableMethodTraits<Method, true>::base_type*
-NS_NewRunnableMethod(PtrType ptr, Method method)
+NS_NewRunnableMethod(PtrType aPtr, Method aMethod)
 {
-  return new nsRunnableMethodImpl<Method, true>(ptr, method);
+  return new nsRunnableMethodImpl<Method, void, true>(aPtr, aMethod);
+}
+
+template<typename T>
+struct dependent_type
+{
+  typedef T type;
+};
+
+
+// Similar to NS_NewRunnableMethod. Call like so:
+// Type myArg;
+// nsCOMPtr<nsIRunnable> event =
+//   NS_NewRunnableMethodWithArg<Type>(myObject, &MyClass::HandleEvent, myArg);
+template<typename Arg, typename Method, typename PtrType>
+typename nsRunnableMethodTraits<Method, true>::base_type*
+NS_NewRunnableMethodWithArg(PtrType&& aPtr, Method aMethod,
+                            typename dependent_type<Arg>::type aArg)
+{
+  return new nsRunnableMethodImpl<Method, Arg, true>(aPtr, aMethod, aArg);
 }
 
 template<typename PtrType, typename Method>
 typename nsRunnableMethodTraits<Method, false>::base_type*
-NS_NewNonOwningRunnableMethod(PtrType ptr, Method method)
+NS_NewNonOwningRunnableMethod(PtrType&& aPtr, Method aMethod)
 {
-  return new nsRunnableMethodImpl<Method, false>(ptr, method);
+  return new nsRunnableMethodImpl<Method, void, false>(aPtr, aMethod);
 }
 
 #endif  // XPCOM_GLUE_AVOID_NSPR
@@ -427,41 +481,33 @@ NS_NewNonOwningRunnableMethod(PtrType ptr, Method method)
 //     return NS_OK;
 //   }
 //
-template <class T>
-class nsRevocableEventPtr {
+template<class T>
+class nsRevocableEventPtr
+{
 public:
-  nsRevocableEventPtr()
-    : mEvent(nullptr) {
-  }
+  nsRevocableEventPtr() : mEvent(nullptr) {}
+  ~nsRevocableEventPtr() { Revoke(); }
 
-  ~nsRevocableEventPtr() {
-    Revoke();
-  }
-
-  const nsRevocableEventPtr& operator=(T *event) {
-    if (mEvent != event) {
+  const nsRevocableEventPtr& operator=(T* aEvent)
+  {
+    if (mEvent != aEvent) {
       Revoke();
-      mEvent = event;
+      mEvent = aEvent;
     }
     return *this;
   }
 
-  void Revoke() {
+  void Revoke()
+  {
     if (mEvent) {
       mEvent->Revoke();
       mEvent = nullptr;
     }
   }
 
-  void Forget() {
-    mEvent = nullptr;
-  }
-
-  bool IsPending() {
-    return mEvent != nullptr;
-  }
-  
-  T *get() { return mEvent; }
+  void Forget() { mEvent = nullptr; }
+  bool IsPending() { return mEvent != nullptr; }
+  T* get() { return mEvent; }
 
 private:
   // Not implemented
@@ -485,14 +531,14 @@ public:
    * on the specified thread.  If no thread is specified (aThread
    * is null) then the name is synchronously set on the current thread.
    */
-  void SetThreadPoolName(const nsACString & aPoolName,
-                         nsIThread * aThread = nullptr);
+  void SetThreadPoolName(const nsACString& aPoolName,
+                         nsIThread* aThread = nullptr);
 
 private:
   volatile uint32_t mCounter;
 
-  nsThreadPoolNaming(const nsThreadPoolNaming &) MOZ_DELETE;
-  void operator=(const nsThreadPoolNaming &) MOZ_DELETE;
+  nsThreadPoolNaming(const nsThreadPoolNaming&) = delete;
+  void operator=(const nsThreadPoolNaming&) = delete;
 };
 
 /**
@@ -514,6 +560,22 @@ private:
 #endif
 };
 
+void
+NS_SetMainThread();
 
+/**
+ * Helpers for thread to report their status when compiled with Nuwa.
+ */
+#ifdef MOZILLA_INTERNAL_API
+#ifdef MOZ_NUWA_PROCESS
+extern void
+NS_SetIgnoreStatusOfCurrentThread();
+#else // MOZ_NUWA_PROCESS
+inline void
+NS_SetIgnoreStatusOfCurrentThread()
+{
+}
+#endif // MOZ_NUWA_PROCESS
+#endif // MOZILLA_INTERNAL_API
 
 #endif  // nsThreadUtils_h__

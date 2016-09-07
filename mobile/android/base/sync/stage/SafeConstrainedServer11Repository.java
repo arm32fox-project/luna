@@ -7,9 +7,10 @@ package org.mozilla.goanna.sync.stage;
 import java.net.URISyntaxException;
 
 import org.mozilla.goanna.background.common.log.Logger;
-import org.mozilla.goanna.sync.CredentialsSource;
+import org.mozilla.goanna.sync.InfoCollections;
 import org.mozilla.goanna.sync.InfoCounts;
 import org.mozilla.goanna.sync.JSONRecordFetcher;
+import org.mozilla.goanna.sync.net.AuthHeaderProvider;
 import org.mozilla.goanna.sync.repositories.ConstrainedServer11Repository;
 import org.mozilla.goanna.sync.repositories.Repository;
 import org.mozilla.goanna.sync.repositories.Server11RepositorySession;
@@ -30,17 +31,20 @@ import android.content.Context;
 public class SafeConstrainedServer11Repository extends ConstrainedServer11Repository {
 
   // This can be lazily evaluated if we need it.
-  private JSONRecordFetcher countFetcher;
+  private final JSONRecordFetcher countFetcher;
 
-  public SafeConstrainedServer11Repository(String serverURI,
-                                           String username,
-                                           String collection,
-                                           CredentialsSource credentialsSource,
+  public SafeConstrainedServer11Repository(String collection,
+                                           String storageURL,
+                                           AuthHeaderProvider authHeaderProvider,
+                                           InfoCollections infoCollections,
                                            long limit,
                                            String sort,
                                            JSONRecordFetcher countFetcher)
     throws URISyntaxException {
-    super(serverURI, username, collection, credentialsSource, limit, sort);
+    super(collection, storageURL, authHeaderProvider, infoCollections, limit, sort);
+    if (countFetcher == null) {
+      throw new IllegalArgumentException("countFetcher must not be null");
+    }
     this.countFetcher = countFetcher;
   }
 
@@ -51,11 +55,13 @@ public class SafeConstrainedServer11Repository extends ConstrainedServer11Reposi
   }
 
   public class CountCheckingServer11RepositorySession extends Server11RepositorySession {
+    private static final String LOG_TAG = "CountCheckingServer11RepositorySession";
+
     /**
      * The session will report no data available if this is a first sync
      * and the server has more data available than this limit.
      */
-    private long fetchLimit;
+    private final long fetchLimit;
 
     public CountCheckingServer11RepositorySession(Repository repository, long fetchLimit) {
       super(repository);
@@ -65,7 +71,13 @@ public class SafeConstrainedServer11Repository extends ConstrainedServer11Reposi
     @Override
     public boolean shouldSkip() {
       // If this is a first sync, verify that we aren't going to blow through our limit.
-      if (this.lastSyncTimestamp <= 0) {
+      final long lastSyncTimestamp = getLastSyncTimestamp();
+      if (lastSyncTimestamp > 0) {
+        Logger.info(LOG_TAG, "Collection " + collection + " has already had a first sync: " +
+            "timestamp is " + lastSyncTimestamp  + "; " +
+            "ignoring any updated counts and syncing as usual.");
+      } else {
+        Logger.info(LOG_TAG, "Collection " + collection + " is starting a first sync; checking counts.");
 
         final InfoCounts counts;
         try {
@@ -78,11 +90,12 @@ public class SafeConstrainedServer11Repository extends ConstrainedServer11Reposi
 
         Integer c = counts.getCount(collection);
         if (c == null) {
+          Logger.info(LOG_TAG, "Fetched counts does not include collection " + collection + "; syncing as usual.");
           return false;
         }
 
-        Logger.info(LOG_TAG, "First sync for " + collection + ": " + c.intValue() + " items.");
-        if (c.intValue() > fetchLimit) {
+        Logger.info(LOG_TAG, "First sync for " + collection + ": " + c + " items.");
+        if (c > fetchLimit) {
           Logger.warn(LOG_TAG, "Too many items to sync safely. Skipping.");
           return true;
         }

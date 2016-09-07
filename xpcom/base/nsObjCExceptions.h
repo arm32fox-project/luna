@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -34,7 +35,8 @@
 // This file can only be included in an Objective-C context.
 
 __attribute__((unused))
-static void nsObjCExceptionLog(NSException* aException)
+static void
+nsObjCExceptionLog(NSException* aException)
 {
   NSLog(@"Mozilla has caught an Obj-C exception [%@: %@]",
         [aException name], [aException reason]);
@@ -43,23 +45,25 @@ static void nsObjCExceptionLog(NSException* aException)
   @try {
     // Try to get stack information out of the exception. 10.5 returns the stack
     // info with the callStackReturnAddresses selector.
-    NSArray *stackTrace = nil;
+    NSArray* stackTrace = nil;
     if ([aException respondsToSelector:@selector(callStackReturnAddresses)]) {
       NSArray* addresses = (NSArray*)
         [aException performSelector:@selector(callStackReturnAddresses)];
-      if ([addresses count])
+      if ([addresses count]) {
         stackTrace = addresses;
+      }
     }
 
     // 10.4 doesn't respond to callStackReturnAddresses so we'll try to pull the
     // stack info out of the userInfo. It might not be there, sadly :(
-    if (!stackTrace)
+    if (!stackTrace) {
       stackTrace = [[aException userInfo] objectForKey:NSStackTraceKey];
+    }
 
     if (stackTrace) {
       // The command line should look like this:
       //   /usr/bin/atos -p <pid> -printHeader <stack frame addresses>
-      NSMutableArray *args =
+      NSMutableArray* args =
         [NSMutableArray arrayWithCapacity:[stackTrace count] + 3];
 
       [args addObject:@"-p"];
@@ -70,12 +74,15 @@ static void nsObjCExceptionLog(NSException* aException)
 
       unsigned int stackCount = [stackTrace count];
       unsigned int stackIndex = 0;
-      for (; stackIndex < stackCount; stackIndex++)
-        [args addObject:[[stackTrace objectAtIndex:stackIndex] stringValue]];
+      for (; stackIndex < stackCount; stackIndex++) {
+        unsigned long address =
+          [[stackTrace objectAtIndex:stackIndex] unsignedLongValue];
+        [args addObject:[NSString stringWithFormat:@"0x%lx", address]];
+      }
 
-      NSPipe *outPipe = [NSPipe pipe];
+      NSPipe* outPipe = [NSPipe pipe];
 
-      NSTask *task = [[NSTask alloc] init];
+      NSTask* task = [[NSTask alloc] init];
       [task setLaunchPath:@"/usr/bin/atos"];
       [task setArguments:args];
       [task setStandardOutput:outPipe];
@@ -90,20 +97,19 @@ static void nsObjCExceptionLog(NSException* aException)
       [task waitUntilExit];
       [task release];
 
-      NSData *outData =
+      NSData* outData =
         [[outPipe fileHandleForReading] readDataToEndOfFile];
-      NSString *outString =
+      NSString* outString =
         [[NSString alloc] initWithData:outData encoding:NSUTF8StringEncoding];
 
       NSLog(@"Stack trace:\n%@", outString);
 
       [outString release];
-    }
-    else {
+    } else {
       NSLog(@"<No stack information available for Obj-C exception>");
     }
   }
-  @catch (NSException *exn) {
+  @catch (NSException* exn) {
     NSLog(@"Failed to generate stack trace for Obj-C exception [%@: %@]",
           [exn name], [exn reason]);
   }
@@ -111,19 +117,21 @@ static void nsObjCExceptionLog(NSException* aException)
 }
 
 __attribute__((unused))
-static void nsObjCExceptionAbort()
+static void
+nsObjCExceptionAbort()
 {
   // We need to raise a mach-o signal here, the Mozilla crash reporter on
   // Mac OS X does not respond to POSIX signals. Raising mach-o signals directly
   // is tricky so we do it by just derefing a null pointer.
-  int* foo = NULL;
+  int* foo = nullptr;
   *foo = 1;
 }
 
 __attribute__((unused))
-static void nsObjCExceptionLogAbort(NSException *e)
+static void
+nsObjCExceptionLogAbort(NSException* aException)
 {
-  nsObjCExceptionLog(e);
+  nsObjCExceptionLog(aException);
   nsObjCExceptionAbort();
 }
 

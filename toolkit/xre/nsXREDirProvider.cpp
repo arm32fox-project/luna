@@ -8,8 +8,10 @@
 #include "nsXREDirProvider.h"
 
 #include "jsapi.h"
+#include "xpcpublic.h"
 
 #include "nsIJSRuntimeService.h"
+#include "nsIAddonInterposition.h"
 #include "nsIAppStartup.h"
 #include "nsIDirectoryEnumerator.h"
 #include "nsIFile.h"
@@ -17,6 +19,7 @@
 #include "nsIObserverService.h"
 #include "nsISimpleEnumerator.h"
 #include "nsIToolkitChromeRegistry.h"
+#include "nsIXULRuntime.h"
 
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsDirectoryServiceDefs.h"
@@ -33,6 +36,7 @@
 #include "mozilla/Services.h"
 #include "mozilla/Omnijar.h"
 #include "mozilla/Preferences.h"
+#include "mozilla/Telemetry.h"
 
 #include <stdlib.h>
 
@@ -99,6 +103,10 @@ nsXREDirProvider::Initialize(nsIFile *aXULAppDir,
   mAppProvider = aAppProvider;
   mXULAppDir = aXULAppDir;
   mGREDir = aGREDir;
+  mGREDir->Clone(getter_AddRefs(mGREBinDir));
+#ifdef XP_MACOSX
+  mGREBinDir->SetNativeLeafName(NS_LITERAL_CSTRING("MacOS"));
+#endif
 
   if (!mProfileDir) {
     nsCOMPtr<nsIDirectoryServiceProvider> app(do_QueryInterface(mAppProvider));
@@ -158,18 +166,18 @@ nsXREDirProvider::SetProfile(nsIFile* aDir, nsIFile* aLocalDir)
   return NS_OK;
 }
 
-NS_IMPL_QUERY_INTERFACE3(nsXREDirProvider,
-                         nsIDirectoryServiceProvider,
-                         nsIDirectoryServiceProvider2,
-                         nsIProfileStartup)
+NS_IMPL_QUERY_INTERFACE(nsXREDirProvider,
+                        nsIDirectoryServiceProvider,
+                        nsIDirectoryServiceProvider2,
+                        nsIProfileStartup)
 
-NS_IMETHODIMP_(nsrefcnt)
+NS_IMETHODIMP_(MozExternalRefCountType)
 nsXREDirProvider::AddRef()
 {
   return 1;
 }
 
-NS_IMETHODIMP_(nsrefcnt)
+NS_IMETHODIMP_(MozExternalRefCountType)
 nsXREDirProvider::Release()
 {
   return 0;
@@ -227,7 +235,7 @@ nsXREDirProvider::GetUserProfilesLocalDir(nsIFile** aResult,
 
 NS_IMETHODIMP
 nsXREDirProvider::GetFile(const char* aProperty, bool* aPersistent,
-			  nsIFile** aFile)
+                          nsIFile** aFile)
 {
   nsresult rv;
 
@@ -274,8 +282,11 @@ nsXREDirProvider::GetFile(const char* aProperty, bool* aPersistent,
   if (!strcmp(aProperty, NS_GRE_DIR)) {
     return mGREDir->Clone(aFile);
   }
+  else if (!strcmp(aProperty, NS_GRE_BIN_DIR)) {
+    return mGREBinDir->Clone(aFile);
+  }
   else if (!strcmp(aProperty, NS_OS_CURRENT_PROCESS_DIR) ||
-      !strcmp(aProperty, NS_APP_INSTALL_CLEANUP_DIR)) {
+           !strcmp(aProperty, NS_APP_INSTALL_CLEANUP_DIR)) {
     return GetAppDir()->Clone(aFile);
   }
 
@@ -369,9 +380,9 @@ nsXREDirProvider::GetFile(const char* aProperty, bool* aPersistent,
   }
   else if (!strcmp(aProperty, XRE_APP_DISTRIBUTION_DIR)) {
     bool persistent = false;
-    rv = GetFile(XRE_EXECUTABLE_FILE, &persistent, getter_AddRefs(file));
+    rv = GetFile(NS_GRE_DIR, &persistent, getter_AddRefs(file));
     if (NS_SUCCEEDED(rv))
-      rv = file->SetNativeLeafName(NS_LITERAL_CSTRING("distribution"));
+      rv = file->AppendNative(NS_LITERAL_CSTRING("distribution"));
   }
   else if (NS_SUCCEEDED(GetProfileStartupDir(getter_AddRefs(file)))) {
     // We need to allow component, xpt, and chrome registration to
@@ -395,6 +406,9 @@ nsXREDirProvider::GetFile(const char* aProperty, bool* aPersistent,
     else if (!strcmp(aProperty, NS_APP_PREFS_50_FILE)) {
       rv = file->AppendNative(NS_LITERAL_CSTRING("prefs.js"));
     }
+    else if (!strcmp(aProperty, NS_METRO_APP_PREFS_50_FILE)) {
+      rv = file->AppendNative(NS_LITERAL_CSTRING("metro-prefs.js"));
+    }
     else if (!strcmp(aProperty, NS_LOCALSTORE_UNSAFE_FILE)) {
       rv = file->AppendNative(NS_LITERAL_CSTRING("localstore.rdf"));
     }
@@ -413,9 +427,6 @@ nsXREDirProvider::GetFile(const char* aProperty, bool* aPersistent,
       rv = file->AppendNative(NS_LITERAL_CSTRING("mimeTypes.rdf"));
       EnsureProfileFileExists(file);
       ensureFilePermissions = true;
-    }
-    else if (!strcmp(aProperty, NS_APP_STORAGE_50_FILE)) {
-      rv = file->AppendNative(NS_LITERAL_CSTRING("storage.sdb"));
     }
     else if (!strcmp(aProperty, NS_APP_DOWNLOADS_50_FILE)) {
       rv = file->AppendNative(NS_LITERAL_CSTRING("downloads.rdf"));
@@ -490,7 +501,7 @@ LoadDirsIntoArray(nsCOMArray<nsIFile>& aSourceDirs,
 
     nsAutoCString leaf;
     appended->GetNativeLeafName(leaf);
-    if (!Substring(leaf, leaf.Length() - 4).Equals(NS_LITERAL_CSTRING(".xpi"))) {
+    if (!Substring(leaf, leaf.Length() - 4).EqualsLiteral(".xpi")) {
       LoadDirIntoArray(appended,
                        aAppendList,
                        aDirectories);
@@ -538,6 +549,32 @@ nsXREDirProvider::GetFiles(const char* aProperty, nsISimpleEnumerator** aResult)
 }
 
 static void
+RegisterExtensionInterpositions(nsINIParser &parser)
+{
+  if (!mozilla::Preferences::GetBool("extensions.interposition.enabled", false))
+    return;
+
+  nsCOMPtr<nsIAddonInterposition> interposition =
+    do_GetService("@mozilla.org/addons/multiprocess-shims;1");
+
+  nsresult rv;
+  int32_t i = 0;
+  do {
+    nsAutoCString buf("Extension");
+    buf.AppendInt(i++);
+
+    nsAutoCString addonId;
+    rv = parser.GetString("MultiprocessIncompatibleExtensions", buf.get(), addonId);
+    if (NS_FAILED(rv))
+      return;
+
+    if (!xpc::SetAddonInterposition(addonId, interposition))
+      continue;
+  }
+  while (true);
+}
+
+static void
 LoadExtensionDirectories(nsINIParser &parser,
                          const char *aSection,
                          nsCOMArray<nsIFile> &aDirectories,
@@ -563,7 +600,7 @@ LoadExtensionDirectories(nsINIParser &parser,
       continue;
 
     aDirectories.AppendObject(dir);
-    if (Substring(path, path.Length() - 4).Equals(NS_LITERAL_CSTRING(".xpi"))) {
+    if (Substring(path, path.Length() - 4).EqualsLiteral(".xpi")) {
       XRE_AddJarManifestLocation(aType, dir);
     }
     else {
@@ -578,6 +615,9 @@ LoadExtensionDirectories(nsINIParser &parser,
 void
 nsXREDirProvider::LoadExtensionBundleDirectories()
 {
+  if (!mozilla::Preferences::GetBool("extensions.defaultProviders.enabled", true))
+    return;
+
   if (mProfileDir && !gSafeMode) {
     nsCOMPtr<nsIFile> extensionsINI;
     mProfileDir->Clone(getter_AddRefs(extensionsINI));
@@ -596,6 +636,7 @@ nsXREDirProvider::LoadExtensionBundleDirectories()
     if (NS_FAILED(rv))
       return;
 
+    RegisterExtensionInterpositions(parser);
     LoadExtensionDirectories(parser, "ExtensionDirs", mExtensionDirectories,
                              NS_COMPONENT_LOCATION);
     LoadExtensionDirectories(parser, "ThemeDirs", mThemeDirectories,
@@ -608,11 +649,10 @@ nsXREDirProvider::LoadAppBundleDirs()
 {
   nsCOMPtr<nsIFile> dir;
   bool persistent = false;
-  nsresult rv = GetFile(XRE_EXECUTABLE_FILE, &persistent, getter_AddRefs(dir));
+  nsresult rv = GetFile(XRE_APP_DISTRIBUTION_DIR, &persistent, getter_AddRefs(dir));
   if (NS_FAILED(rv))
     return;
 
-  dir->SetNativeLeafName(NS_LITERAL_CSTRING("distribution"));
   dir->AppendNative(NS_LITERAL_CSTRING("bundles"));
 
   nsCOMPtr<nsISimpleEnumerator> e;
@@ -796,7 +836,7 @@ nsXREDirProvider::DoStartup()
       }
     }
 
-    static const PRUnichar kStartup[] = {'s','t','a','r','t','u','p','\0'};
+    static const char16_t kStartup[] = {'s','t','a','r','t','u','p','\0'};
     obsSvc->NotifyObservers(nullptr, "profile-do-change", kStartup);
     // Init the Extension Manager
     nsCOMPtr<nsIObserver> em = do_GetService("@mozilla.org/addons/integration;1");
@@ -817,7 +857,7 @@ nsXREDirProvider::DoStartup()
                                         "profile-after-change");
 
     if (gSafeMode && safeModeNecessary) {
-      static const PRUnichar kCrashed[] = {'c','r','a','s','h','e','d','\0'};
+      static const char16_t kCrashed[] = {'c','r','a','s','h','e','d','\0'};
       obsSvc->NotifyObservers(nullptr, "safemode-forced", kCrashed);
     }
 
@@ -829,6 +869,8 @@ nsXREDirProvider::DoStartup()
       else
         mode = 2;
     }
+    mozilla::Telemetry::Accumulate(mozilla::Telemetry::SAFE_MODE_USAGE, mode);
+
     obsSvc->NotifyObservers(nullptr, "profile-initial-state", nullptr);
   }
   return NS_OK;
@@ -842,8 +884,7 @@ nsXREDirProvider::DoShutdown()
       mozilla::services::GetObserverService();
     NS_ASSERTION(obsSvc, "No observer service?");
     if (obsSvc) {
-      static const PRUnichar kShutdownPersist[] =
-        {'s','h','u','t','d','o','w','n','-','p','e','r','s','i','s','t','\0'};
+      static const char16_t kShutdownPersist[] = MOZ_UTF16("shutdown-persist");
       obsSvc->NotifyObservers(nullptr, "profile-change-net-teardown", kShutdownPersist);
       obsSvc->NotifyObservers(nullptr, "profile-change-teardown", kShutdownPersist);
 
@@ -872,15 +913,15 @@ nsXREDirProvider::DoShutdown()
 static nsresult
 GetShellFolderPath(int folder, nsAString& _retval)
 {
-  PRUnichar* buf;
+  wchar_t* buf;
   uint32_t bufLength = _retval.GetMutableData(&buf, MAXPATHLEN + 3);
   NS_ENSURE_TRUE(bufLength >= (MAXPATHLEN + 3), NS_ERROR_OUT_OF_MEMORY);
 
   nsresult rv = NS_OK;
 
-  LPITEMIDLIST pItemIDList = NULL;
+  LPITEMIDLIST pItemIDList = nullptr;
 
-  if (SUCCEEDED(SHGetSpecialFolderLocation(NULL, folder, &pItemIDList)) &&
+  if (SUCCEEDED(SHGetSpecialFolderLocation(nullptr, folder, &pItemIDList)) &&
       SHGetPathFromIDListW(pItemIDList, buf)) {
     // We're going to use wcslen (wcsnlen not available in msvc7.1) so make
     // sure to null terminate.
@@ -915,8 +956,8 @@ GetRegWindowsAppDataFolder(bool aLocal, nsAString& _retval)
   }
 
   DWORD type, size;
-  res = RegQueryValueExW(key, (aLocal ? L"Local AppData" : L"AppData"), NULL,
-                         &type, NULL, &size);
+  res = RegQueryValueExW(key, (aLocal ? L"Local AppData" : L"AppData"),
+                         nullptr, &type, nullptr, &size);
   // The call to RegQueryValueExW must succeed, the type must be REG_SZ, the
   // buffer size must not equal 0, and the buffer size be a multiple of 2.
   if (res != ERROR_SUCCESS || type != REG_SZ || size == 0 || size % 2 != 0) {
@@ -925,8 +966,8 @@ GetRegWindowsAppDataFolder(bool aLocal, nsAString& _retval)
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  // |size| includes room for the terminating null character
-  DWORD resultLen = size / 2 - 1;
+  // |size| may or may not include room for the terminating null character
+  DWORD resultLen = size / 2;
 
   _retval.SetLength(resultLen);
   nsAString::iterator begin;
@@ -937,12 +978,17 @@ GetRegWindowsAppDataFolder(bool aLocal, nsAString& _retval)
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  res = RegQueryValueExW(key, (aLocal ? L"Local AppData" : L"AppData"), NULL,
-                         NULL, (LPBYTE) begin.get(), &size);
+  res = RegQueryValueExW(key, (aLocal ? L"Local AppData" : L"AppData"),
+                         nullptr, nullptr, (LPBYTE) begin.get(), &size);
   ::RegCloseKey(key);
   if (res != ERROR_SUCCESS) {
     _retval.SetLength(0);
     return NS_ERROR_NOT_AVAILABLE;
+  }
+
+  if (!_retval.CharAt(resultLen - 1)) {
+    // It was already null terminated.
+    _retval.Truncate(resultLen - 1);
   }
 
   return NS_OK;
@@ -953,14 +999,14 @@ GetCachedHash(HKEY rootKey, const nsAString &regPath, const nsAString &path,
               nsAString &cachedHash)
 {
   HKEY baseKey;
-  if (RegOpenKeyExW(rootKey, regPath.BeginReading(), 0, KEY_READ, &baseKey) !=
+  if (RegOpenKeyExW(rootKey, reinterpret_cast<const wchar_t*>(regPath.BeginReading()), 0, KEY_READ, &baseKey) !=
       ERROR_SUCCESS) {
     return false;
   }
 
   wchar_t cachedHashRaw[512];
   DWORD bufferSize = sizeof(cachedHashRaw);
-  LONG result = RegQueryValueExW(baseKey, path.BeginReading(), 0, NULL,
+  LONG result = RegQueryValueExW(baseKey, reinterpret_cast<const wchar_t*>(path.BeginReading()), 0, nullptr,
                                  (LPBYTE)cachedHashRaw, &bufferSize);
   RegCloseKey(baseKey);
   if (result == ERROR_SUCCESS) {
@@ -990,19 +1036,55 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
   rv = appFile->GetParent(getter_AddRefs(updRoot));
   NS_ENSURE_SUCCESS(rv, rv);
 
-#ifdef XP_WIN
+#ifdef XP_MACOSX
+  nsCOMPtr<nsIFile> appRootDirFile;
+  nsCOMPtr<nsIFile> localDir;
+  nsAutoString appDirPath;
+  if (NS_FAILED(appFile->GetParent(getter_AddRefs(appRootDirFile))) ||
+      NS_FAILED(appRootDirFile->GetPath(appDirPath)) ||
+      NS_FAILED(GetUserDataDirectoryHome(getter_AddRefs(localDir), true))) {
+    return NS_ERROR_FAILURE;
+  }
 
+  int32_t dotIndex = appDirPath.RFind(".app");
+  if (dotIndex == kNotFound) {
+    dotIndex = appDirPath.Length();
+  }
+  appDirPath = Substring(appDirPath, 1, dotIndex - 1);
+
+  bool hasVendor = gAppData->vendor && strlen(gAppData->vendor) != 0;
+  if (hasVendor || gAppData->name) {
+    if (NS_FAILED(localDir->AppendNative(nsDependentCString(hasVendor ?
+                                           gAppData->vendor :
+                                           gAppData->name)))) {
+      return NS_ERROR_FAILURE;
+    }
+  } else if (NS_FAILED(localDir->AppendNative(NS_LITERAL_CSTRING("Mozilla")))) {
+    return NS_ERROR_FAILURE;
+  }
+
+  if (NS_FAILED(localDir->Append(NS_LITERAL_STRING("updates"))) ||
+      NS_FAILED(localDir->AppendRelativePath(appDirPath))) {
+    return NS_ERROR_FAILURE;
+  }
+
+  NS_ADDREF(*aResult = localDir);
+  return NS_OK;
+
+#elif XP_WIN
   nsAutoString pathHash;
   bool pathHashResult = false;
+  bool hasVendor = gAppData->vendor && strlen(gAppData->vendor) != 0;
 
   nsAutoString appDirPath;
-  if (gAppData->vendor && !getenv("MOZ_UPDATE_NO_HASH_DIR") &&
-      SUCCEEDED(updRoot->GetPath(appDirPath))) {
+  if (SUCCEEDED(updRoot->GetPath(appDirPath))) {
 
-    // Figure out where we should check for a cached hash value
+    // Figure out where we should check for a cached hash value. If the
+    // application doesn't have the nsXREAppData vendor value defined check
+    // under SOFTWARE\Mozilla.
     wchar_t regPath[1024] = { L'\0' };
     swprintf_s(regPath, mozilla::ArrayLength(regPath), L"SOFTWARE\\%S\\%S\\TaskBarIDs",
-               gAppData->vendor, MOZ_APP_NAME);
+               (hasVendor ? gAppData->vendor : "Mozilla"), MOZ_APP_BASENAME);
 
     // If we pre-computed the hash, grab it from the registry.
     pathHashResult = GetCachedHash(HKEY_LOCAL_MACHINE,
@@ -1021,9 +1103,9 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
   // shared update directory for different apps run from the same path (like
   // Metro & Desktop).
   nsCOMPtr<nsIFile> localDir;
-  if (pathHashResult && (gAppData->vendor || gAppData->name) &&
+  if (pathHashResult && (hasVendor || gAppData->name) &&
       NS_SUCCEEDED(GetUserDataDirectoryHome(getter_AddRefs(localDir), true)) &&
-      NS_SUCCEEDED(localDir->AppendNative(nsDependentCString(gAppData->vendor ?
+      NS_SUCCEEDED(localDir->AppendNative(nsDependentCString(hasVendor ?
                                           gAppData->vendor : gAppData->name))) &&
       NS_SUCCEEDED(localDir->Append(NS_LITERAL_STRING("updates"))) &&
       NS_SUCCEEDED(localDir->Append(pathHash))) {
@@ -1038,7 +1120,7 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
   // AppDir may be a short path. Convert to long path to make sure
   // the consistency of the update folder location
   nsString longPath;
-  PRUnichar* buf;
+  wchar_t* buf;
 
   uint32_t bufLength = longPath.GetMutableData(&buf, MAXPATHLEN);
   NS_ENSURE_TRUE(bufLength >= MAXPATHLEN, NS_ERROR_OUT_OF_MEMORY);
@@ -1058,7 +1140,7 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
   rv = GetShellFolderPath(CSIDL_PROGRAM_FILES, programFiles);
   NS_ENSURE_SUCCESS(rv, rv);
 
-  programFiles.AppendLiteral("\\");
+  programFiles.Append('\\');
   uint32_t programFilesLen = programFiles.Length();
 
   nsAutoString programName;
@@ -1078,7 +1160,7 @@ nsXREDirProvider::GetUpdateRootDir(nsIFile* *aResult)
   rv = updRoot->AppendRelativePath(programName);
   NS_ENSURE_SUCCESS(rv, rv);
 
-#endif
+#endif // XP_WIN
 #endif
   NS_ADDREF(*aResult = updRoot);
   return NS_OK;

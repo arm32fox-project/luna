@@ -3,16 +3,8 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "nspr.h"
 #include "nsDataChannel.h"
 #include "nsDataHandler.h"
-#include "nsIURL.h"
-#include "nsCRT.h"
-#include "nsIComponentManager.h"
-#include "nsIServiceManager.h"
-#include "nsIInterfaceRequestor.h"
-#include "nsIInterfaceRequestorUtils.h"
-#include "nsIProgressEventSink.h"
 #include "nsNetCID.h"
 #include "nsError.h"
 
@@ -26,7 +18,7 @@ nsDataHandler::nsDataHandler() {
 nsDataHandler::~nsDataHandler() {
 }
 
-NS_IMPL_ISUPPORTS1(nsDataHandler, nsIProtocolHandler)
+NS_IMPL_ISUPPORTS(nsDataHandler, nsIProtocolHandler)
 
 nsresult
 nsDataHandler::Create(nsISupports* aOuter, const nsIID& aIID, void* *aResult) {
@@ -111,7 +103,10 @@ nsDataHandler::NewURI(const nsACString &aSpec,
 }
 
 NS_IMETHODIMP
-nsDataHandler::NewChannel(nsIURI* uri, nsIChannel* *result) {
+nsDataHandler::NewChannel2(nsIURI* uri,
+                           nsILoadInfo* aLoadInfo,
+                           nsIChannel** result)
+{
     NS_ENSURE_ARG_POINTER(uri);
     nsDataChannel* channel = new nsDataChannel(uri);
     if (!channel)
@@ -124,8 +119,21 @@ nsDataHandler::NewChannel(nsIURI* uri, nsIChannel* *result) {
         return rv;
     }
 
+    // set the loadInfo on the new channel
+    rv = channel->SetLoadInfo(aLoadInfo);
+    if (NS_FAILED(rv)) {
+        NS_RELEASE(channel);
+        return rv;
+    }
+
     *result = channel;
     return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDataHandler::NewChannel(nsIURI* uri, nsIChannel* *result)
+{
+    return NewChannel2(uri, nullptr, result);
 }
 
 NS_IMETHODIMP 
@@ -156,8 +164,7 @@ nsDataHandler::ParseURI(nsCString& spec,
 
     // First, find the start of the data
     char *comma = strchr(buffer, ',');
-    char *hash = strchr(buffer, '#');
-    if (!comma || (hash && hash < comma))
+    if (!comma)
         return NS_ERROR_MALFORMED_URI;
 
     *comma = '\0';
@@ -212,6 +219,7 @@ nsDataHandler::ParseURI(nsCString& spec,
 
     // Split encoded data from terminal "#ref" (if present)
     char *data = comma + 1;
+    char *hash = strchr(data, '#');
     if (!hash) {
         dataBuffer.Assign(data);
         hashRef.Truncate();

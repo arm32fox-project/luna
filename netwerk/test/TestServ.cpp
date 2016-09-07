@@ -23,15 +23,17 @@ static PRLogModuleInfo *gTestLog = nullptr;
 
 class MySocketListener : public nsIServerSocketListener
 {
+protected:
+    virtual ~MySocketListener() {}
+
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSISERVERSOCKETLISTENER
 
     MySocketListener() {}
-    virtual ~MySocketListener() {}
 };
 
-NS_IMPL_THREADSAFE_ISUPPORTS1(MySocketListener, nsIServerSocketListener)
+NS_IMPL_ISUPPORTS(MySocketListener, nsIServerSocketListener)
 
 NS_IMETHODIMP
 MySocketListener::OnSocketAccepted(nsIServerSocket *serv,

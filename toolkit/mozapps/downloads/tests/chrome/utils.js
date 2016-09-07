@@ -10,6 +10,8 @@ const Cc = Components.classes;
 const Ci = Components.interfaces;
 const Cr = Components.results;
 
+Components.utils.import("resource://gre/modules/Services.jsm");
+
 /**
  * Returns the toolkit implementation of the download manager UI service.
  * If the toolkit implementation of the service can't be found (e.g. because
@@ -20,6 +22,12 @@ const Cr = Components.results;
  */
 function getDMUI()
 {
+  try {
+    // This method throws an exception if the old Download Manager is disabled.
+    Services.downloads.activeDownloadCount;
+  } catch (ex) {
+    return false;
+  }
   if (Components.classesByID["{7dfdf0d1-aff6-4a34-bad1-d0fe74601642}"])
     return Components.classesByID["{7dfdf0d1-aff6-4a34-bad1-d0fe74601642}"].
            getService(Ci.nsIDownloadManagerUI);
@@ -77,7 +85,7 @@ function addDownload(aName) {
                                .QueryInterface(Ci.nsILoadContext);
 
     persist.progressListener = dl.QueryInterface(Ci.nsIWebProgressListener);
-    persist.saveURI(dl.source, null, null, null, null, dl.targetFile, privacyContext);
+    persist.saveURI(dl.source, null, null, 0, null, null, dl.targetFile, privacyContext);
 
     return dl;
   }
@@ -137,17 +145,4 @@ function setCleanState()
 
   let win = getDMWindow();
   if (win) win.close();
-}
-
-/**
- * Clears history invoking callback when done.
- */
-function waitForClearHistory(aCallback) {
-  Components.utils.import("resource://gre/modules/PlacesUtils.jsm");
-  Components.utils.import("resource://gre/modules/Services.jsm");
-  Services.obs.addObserver(function observeClearHistory(aSubject, aTopic) {
-    Services.obs.removeObserver(observeClearHistory, aTopic);
-    aCallback();
-  }, PlacesUtils.TOPIC_EXPIRATION_FINISHED, false);
-  PlacesUtils.bhistory.removeAllPages();
 }

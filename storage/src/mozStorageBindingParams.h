@@ -14,6 +14,7 @@
 #include "mozStorageBindingParamsArray.h"
 #include "mozStorageStatement.h"
 #include "mozStorageAsyncStatement.h"
+#include "Variant.h"
 
 #include "mozIStorageBindingParams.h"
 #include "IStorageBindingParamsInternal.h"
@@ -25,7 +26,7 @@ class BindingParams : public mozIStorageBindingParams
                     , public IStorageBindingParamsInternal
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_MOZISTORAGEBINDINGPARAMS
   NS_DECL_ISTORAGEBINDINGPARAMSINTERNAL
 
@@ -53,11 +54,13 @@ public:
 
   BindingParams(mozIStorageBindingParamsArray *aOwningArray,
                 Statement *aOwningStatement);
+protected:
   virtual ~BindingParams() {}
 
-protected:
-  BindingParams(mozIStorageBindingParamsArray *aOwningArray);
-  nsCOMArray<nsIVariant> mParameters;
+  explicit BindingParams(mozIStorageBindingParamsArray *aOwningArray);
+  // Note that this is managed as a sparse array, so particular caution should
+  // be used for out-of-bounds usage.
+  nsTArray<nsRefPtr<Variant_base> > mParameters;
   bool mLocked;
 
 private:
@@ -97,7 +100,7 @@ public:
 
   virtual already_AddRefed<mozIStorageError> bind(sqlite3_stmt * aStatement);
 
-  AsyncBindingParams(mozIStorageBindingParamsArray *aOwningArray);
+  explicit AsyncBindingParams(mozIStorageBindingParamsArray *aOwningArray);
   virtual ~AsyncBindingParams() {}
 
 private:

@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* vim:set ts=2 sw=2 sts=2 et: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -112,12 +112,13 @@ add_task(function test() {
   checkOrder(id1, id3, id2);
 
   // Add a visit, then check frecency ordering.
-  yield promiseAddVisits({ uri: uri2,
-                           transition: TRANSITION_TYPED});
+
   // When the bookmarks service gets onVisit, it asynchronously fetches all
   // items for that visit, and then notifies onItemVisited.  Thus we must
   // explicitly wait for that.
-  yield promiseOnItemVisited();
+  let waitForVisited = promiseOnItemVisited();
+  yield PlacesTestUtils.addVisits({ uri: uri2, transition: TRANSITION_TYPED });
+  yield waitForVisited;
 
   do_print("Sort by frecency desc");
   result.sortingMode = NHQO.SORT_BY_FRECENCY_DESCENDING;

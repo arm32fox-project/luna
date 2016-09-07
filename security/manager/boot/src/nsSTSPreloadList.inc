@@ -4,10 +4,10 @@
 
 /*****************************************************************************/
 /* This is an automatically generated file. If you're not                    */
-/* nsStrictTransportSecurityService.cpp, you shouldn't be #including it.     */
+/* nsSiteSecurityService.cpp, you shouldn't be #including it.     */
 /*****************************************************************************/
 
-#include "mozilla/StandardInteger.h"
+#include <stdint.h>
 const PRTime gPreloadListExpirationTime = INT64_C(1483468859604000);
 
 class nsSTSPreload

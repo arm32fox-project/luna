@@ -33,13 +33,21 @@
 #define MOZ_WM_HSCROLL                    (WM_APP+0x0313)
 #define MOZ_WM_MOUSEWHEEL_FIRST           MOZ_WM_MOUSEVWHEEL
 #define MOZ_WM_MOUSEWHEEL_LAST            MOZ_WM_HSCROLL
+// If a popup window is being activated, we try to reactivate the previous
+// window with this message.
+#define MOZ_WM_REACTIVATE                 (WM_APP+0x0314)
 
 // Internal message for ensuring the file picker is visible on multi monitor
 // systems, and when the screen resolution changes.
-#define MOZ_WM_ENSUREVISIBLE              (WM_APP + 14159)
+#define MOZ_WM_ENSUREVISIBLE              (WM_APP+0x374F)
 
 #ifndef SM_CXPADDEDBORDER
 #define SM_CXPADDEDBORDER                 92
+#endif
+
+// require WINVER >= 0x601
+#ifndef SM_MAXIMUMTOUCHES
+#define SM_MAXIMUMTOUCHES                 95
 #endif
 
 #ifndef WM_THEMECHANGED
@@ -82,6 +90,19 @@
 #define MAPVK_VK_TO_VSC_EX                4
 #endif
 
+#ifndef WM_DWMCOMPOSITIONCHANGED
+#define WM_DWMCOMPOSITIONCHANGED          0x031E
+#endif
+#ifndef WM_DWMNCRENDERINGCHANGED
+#define WM_DWMNCRENDERINGCHANGED          0x031F
+#endif
+#ifndef WM_DWMCOLORIZATIONCOLORCHANGED
+#define WM_DWMCOLORIZATIONCOLORCHANGED    0x0320
+#endif
+#ifndef WM_DWMWINDOWMAXIMIZEDCHANGE
+#define WM_DWMWINDOWMAXIMIZEDCHANGE       0x0321
+#endif
+
 // ConstrainPosition window positioning slop value
 #define kWindowPositionSlop               20
 
@@ -121,16 +142,17 @@
   #define APPCOMMAND_BROWSER_FAVORITES      6
   #define APPCOMMAND_BROWSER_HOME           7
 
+  #define APPCOMMAND_MEDIA_NEXTTRACK        11
+  #define APPCOMMAND_MEDIA_PREVIOUSTRACK    12
+  #define APPCOMMAND_MEDIA_STOP             13
+  #define APPCOMMAND_MEDIA_PLAY_PAUSE       14
+
   /* 
    * Additional commands currently not in use.
    *
    *#define APPCOMMAND_VOLUME_MUTE            8
    *#define APPCOMMAND_VOLUME_DOWN            9
    *#define APPCOMMAND_VOLUME_UP              10
-   *#define APPCOMMAND_MEDIA_NEXTTRACK        11
-   *#define APPCOMMAND_MEDIA_PREVIOUSTRACK    12
-   *#define APPCOMMAND_MEDIA_STOP             13
-   *#define APPCOMMAND_MEDIA_PLAY_PAUSE       14
    *#define APPCOMMAND_LAUNCH_MAIL            15
    *#define APPCOMMAND_LAUNCH_MEDIA_SELECT    16
    *#define APPCOMMAND_LAUNCH_APP1            17
@@ -220,6 +242,28 @@ struct TITLEBARINFOEX
     RECT rgrect[CCHILDREN_TITLEBAR + 1];
 };
 #endif
+
+namespace mozilla {
+namespace widget {
+
+struct MSGResult
+{
+  // Result for the message.
+  LRESULT& mResult;
+  // If mConsumed is true, the caller shouldn't call next wndproc.
+  bool mConsumed;
+
+  MSGResult(LRESULT* aResult = nullptr) :
+    mResult(aResult ? *aResult : mDefaultResult), mConsumed(false)
+  {
+  }
+
+private:
+  LRESULT mDefaultResult;
+};
+
+} // namespace widget
+} // namespace mozilla
 
 /**************************************************************
  *

@@ -8,13 +8,14 @@ endif
 
 include $(MOZILLA_DIR)/toolkit/mozapps/installer/signing.mk
 
-ABS_CONFIG_DIR := $(shell pwd)/$(CONFIG_DIR)
+ABS_CONFIG_DIR := $(abspath $(CONFIG_DIR))
 
 SFX_MODULE ?= $(error SFX_MODULE is not defined)
 
 TOOLKIT_NSIS_FILES = \
 	common.nsh \
 	locale.nlf \
+	locale-fonts.nsh \
 	locale-rtl.nlf \
 	locales.nsi \
 	overrides.nsh \
@@ -29,6 +30,7 @@ CUSTOM_NSIS_PLUGINS = \
 	CityHash.dll \
 	InetBgDL.dll \
 	InvokeShellVerb.dll \
+	liteFirewallW.dll \
 	ServicesHelper.dll \
 	ShellLink.dll \
 	UAC.dll \
@@ -68,11 +70,7 @@ $(CONFIG_DIR)/7zSD.sfx:
 
 installer::
 	$(INSTALL) $(CONFIG_DIR)/setup.exe $(DEPTH)/installer-stage
-ifdef MOZ_PHOENIX
-	cd $(DEPTH)/installer-stage && mkdir -p core/distribution/bundles/ && cp -r $(topsrcdir)/integration/* core/distribution/bundles/ && $(CYGWIN_WRAPPER) 7z a -r -t7z $(ABS_CONFIG_DIR)/app.7z -mx -m0=BCJ2 -m1=LZMA:d25 -m2=LZMA:d19 -m3=LZMA:d19 -mb0:1 -mb0s1:2 -mb0s2:3
-else
 	cd $(DEPTH)/installer-stage && $(CYGWIN_WRAPPER) 7z a -r -t7z $(ABS_CONFIG_DIR)/app.7z -mx -m0=BCJ2 -m1=LZMA:d25 -m2=LZMA:d19 -m3=LZMA:d19 -mb0:1 -mb0s1:2 -mb0s2:3
-endif
 	$(MAKE) $(CONFIG_DIR)/7zSD.sfx
 	$(NSINSTALL) -D $(DIST)/$(PKG_INST_PATH)
 	cat $(CONFIG_DIR)/7zSD.sfx $(CONFIG_DIR)/app.tag $(CONFIG_DIR)/app.7z > "$(DIST)/$(PKG_INST_PATH)$(PKG_INST_BASENAME).exe"
@@ -93,6 +91,13 @@ uninstaller::
 	cd $(CONFIG_DIR) && $(MAKENSISU) uninstaller.nsi
 	$(NSINSTALL) -D $(DIST)/bin/uninstall
 	cp $(CONFIG_DIR)/helper.exe $(DIST)/bin/uninstall
+
+ifdef MOZ_MAINTENANCE_SERVICE
+maintenanceservice_installer::
+	cd $(CONFIG_DIR) && $(MAKENSISU) maintenanceservice_installer.nsi
+	$(NSINSTALL) -D $(DIST)/bin/
+	cp $(CONFIG_DIR)/maintenanceservice_installer.exe $(DIST)/bin
+endif
 
 ifdef MOZ_WEBAPP_RUNTIME
 webapp_uninstaller::

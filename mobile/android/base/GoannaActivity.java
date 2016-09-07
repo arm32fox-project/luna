@@ -8,14 +8,18 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.support.v4.app.FragmentActivity;
 
-interface GoannaActivityStatus {
-    public boolean isGoannaActivityOpened();
-    public boolean isFinishing();  // typically from android.app.Activity
-};
-
 public class GoannaActivity extends FragmentActivity implements GoannaActivityStatus {
     // has this activity recently started another Goanna activity?
-    private boolean mGoannaActivityOpened = false;
+    private boolean mGoannaActivityOpened;
+
+    /**
+     * Display any resources that show strings or encompass locale-specific
+     * representations.
+     *
+     * onLocaleReady must always be called on the UI thread.
+     */
+    public void onLocaleReady(final String locale) {
+    }
 
     @Override
     public void onPause() {
@@ -92,9 +96,5 @@ public class GoannaActivity extends FragmentActivity implements GoannaActivitySt
     public void onTrimMemory(int level) {
         MemoryMonitor.getInstance().onTrimMemory(level);
         super.onTrimMemory(level);
-    }
-
-    public LightweightTheme getLightweightTheme() {
-        return ((GoannaApplication) getApplication()).getLightweightTheme();
     }
 }

@@ -11,68 +11,46 @@
  * JS public API typedefs.
  */
 
+#include "mozilla/Assertions.h"
+#include "mozilla/LinkedList.h"
+#include "mozilla/PodOperations.h"
+
 #include "jsprototypes.h"
 #include "jstypes.h"
 
+#include "js/TypeDecls.h"
+
+#if (defined(JS_GC_ZEAL)) || defined(DEBUG)
+# define JSGC_HASH_TABLE_CHECKS
+#endif
+
 namespace JS {
 
-/*
- * Allow headers to reference JS::Value without #including the whole jsapi.h.
- * Unfortunately, typedefs (hence jsval) cannot be declared.
- */
-class Value;
+class AutoIdVector;
+class CallArgs;
 
 template <typename T>
 class Rooted;
+
+class JS_FRIEND_API(CompileOptions);
+class JS_FRIEND_API(ReadOnlyCompileOptions);
+class JS_FRIEND_API(OwningCompileOptions);
+class JS_PUBLIC_API(CompartmentOptions);
 
 struct Zone;
 
 } /* namespace JS */
 
-/*
- * In release builds, jsid is defined to be an integral type. This
- * prevents many bugs from being caught at compile time. E.g.:
- *
- *  jsid id = ...
- *  if (id == JS_TRUE)  // error
- *    ...
- *
- *  size_t n = id;      // error
- *
- * To catch more errors, jsid is given a struct type in C++ debug builds.
- * Struct assignment and (in C++) operator== allow correct code to be mostly
- * oblivious to the change. This feature can be explicitly disabled in debug
- * builds by defining JS_NO_JSVAL_JSID_STRUCT_TYPES.
- */
-# if defined(DEBUG) && !defined(JS_NO_JSVAL_JSID_STRUCT_TYPES)
-#  define JS_USE_JSID_STRUCT_TYPES
-# endif
-
-# ifdef JS_USE_JSID_STRUCT_TYPES
-struct jsid
-{
-    size_t asBits;
-    bool operator==(jsid rhs) const { return asBits == rhs.asBits; }
-    bool operator!=(jsid rhs) const { return asBits != rhs.asBits; }
-};
-#  define JSID_BITS(id) (id.asBits)
-# else  /* defined(JS_USE_JSID_STRUCT_TYPES) */
-typedef ptrdiff_t jsid;
-#  define JSID_BITS(id) (id)
-# endif  /* defined(JS_USE_JSID_STRUCT_TYPES) */
-
-#ifdef WIN32
-typedef wchar_t   jschar;
-#else
-typedef uint16_t  jschar;
-#endif
+namespace js {
+struct ContextFriendFields;
+} // namespace js
 
 /*
  * Run-time version enumeration.  For compile-time version checking, please use
  * the JS_HAS_* macros in jsversion.h, or use MOZJS_MAJOR_VERSION,
  * MOZJS_MINOR_VERSION, MOZJS_PATCH_VERSION, and MOZJS_ALPHA definitions.
  */
-typedef enum JSVersion {
+enum JSVersion {
     JSVERSION_ECMA_3  = 148,
     JSVERSION_1_6     = 160,
     JSVERSION_1_7     = 170,
@@ -81,10 +59,10 @@ typedef enum JSVersion {
     JSVERSION_DEFAULT = 0,
     JSVERSION_UNKNOWN = -1,
     JSVERSION_LATEST  = JSVERSION_ECMA_5
-} JSVersion;
+};
 
 /* Result of typeof operator enumeration. */
-typedef enum JSType {
+enum JSType {
     JSTYPE_VOID,                /* undefined */
     JSTYPE_OBJECT,              /* object */
     JSTYPE_FUNCTION,            /* function */
@@ -92,162 +70,248 @@ typedef enum JSType {
     JSTYPE_NUMBER,              /* number */
     JSTYPE_BOOLEAN,             /* boolean */
     JSTYPE_NULL,                /* null */
+    JSTYPE_SYMBOL,              /* symbol */
     JSTYPE_LIMIT
-} JSType;
+};
 
 /* Dense index into cached prototypes and class atoms for standard objects. */
-typedef enum JSProtoKey {
-#define PROTOKEY_AND_INITIALIZER(name,code,init) JSProto_##name = code,
+enum JSProtoKey {
+#define PROTOKEY_AND_INITIALIZER(name,code,init,clasp) JSProto_##name = code,
     JS_FOR_EACH_PROTOTYPE(PROTOKEY_AND_INITIALIZER)
-#undef JS_PROTO
+#undef PROTOKEY_AND_INITIALIZER
     JSProto_LIMIT
-} JSProtoKey;
+};
 
-/* js_CheckAccess mode enumeration. */
-typedef enum JSAccessMode {
-    JSACC_PROTO  = 0,           /* XXXbe redundant w.r.t. id */
+/* Struct forward declarations. */
+struct JSClass;
+struct JSCompartment;
+struct JSCrossCompartmentCall;
+class JSErrorReport;
+struct JSExceptionState;
+struct JSFunctionSpec;
+struct JSIdArray;
+struct JSLocaleCallbacks;
+struct JSObjectMap;
+struct JSPrincipals;
+struct JSPropertyDescriptor;
+struct JSPropertyName;
+struct JSPropertySpec;
+struct JSRuntime;
+struct JSSecurityCallbacks;
+struct JSStructuredCloneCallbacks;
+struct JSStructuredCloneReader;
+struct JSStructuredCloneWriter;
+class JS_PUBLIC_API(JSTracer);
 
-                                /*
-                                 * enum value #1 formerly called JSACC_PARENT,
-                                 * gap preserved for ABI compatibility.
-                                 */
+class JSFlatString;
 
-                                /*
-                                 * enum value #2 formerly called JSACC_IMPORT,
-                                 * gap preserved for ABI compatibility.
-                                 */
+typedef struct PRCallOnceType   JSCallOnceType;
+typedef bool                    (*JSInitCallback)(void);
 
-    JSACC_WATCH  = 3,           /* a watchpoint on object foo for id 'bar' */
-    JSACC_READ   = 4,           /* a "get" of foo.bar */
-    JSACC_WRITE  = 8,           /* a "set" of foo.bar = baz */
-    JSACC_LIMIT
-} JSAccessMode;
-
-#define JSACC_TYPEMASK          (JSACC_WRITE - 1)
+template<typename T> struct JSConstScalarSpec;
+typedef JSConstScalarSpec<double> JSConstDoubleSpec;
+typedef JSConstScalarSpec<int32_t> JSConstIntegerSpec;
 
 /*
- * This enum type is used to control the behavior of a JSObject property
- * iterator function that has type JSNewEnumerate.
+ * Generic trace operation that calls JS_CallTracer on each traceable thing
+ * stored in data.
  */
-typedef enum JSIterateOp {
-    /* Create new iterator state over enumerable properties. */
-    JSENUMERATE_INIT,
+typedef void
+(* JSTraceDataOp)(JSTracer* trc, void* data);
 
-    /* Create new iterator state over all properties. */
-    JSENUMERATE_INIT_ALL,
+void js_FinishGC(JSRuntime* rt);
 
-    /* Iterate once. */
-    JSENUMERATE_NEXT,
-
-    /* Destroy iterator state. */
-    JSENUMERATE_DESTROY
-} JSIterateOp;
-
-/* See JSVAL_TRACE_KIND and JSTraceCallback in jsapi.h. */
-typedef enum {
-    JSTRACE_OBJECT,
-    JSTRACE_STRING,
-    JSTRACE_SCRIPT,
-
-    /*
-     * Trace kinds internal to the engine. The embedding can only see them if
-     * it implements JSTraceCallback.
-     */
-    JSTRACE_LAZY_SCRIPT,
-    JSTRACE_IONCODE,
-    JSTRACE_SHAPE,
-    JSTRACE_BASE_SHAPE,
-    JSTRACE_TYPE_OBJECT,
-    JSTRACE_LAST = JSTRACE_TYPE_OBJECT
-} JSGCTraceKind;
-
-/* Struct typedefs and class forward declarations. */
-typedef struct JSClass                      JSClass;
-typedef struct JSCompartment                JSCompartment;
-typedef struct JSConstDoubleSpec            JSConstDoubleSpec;
-typedef struct JSContext                    JSContext;
-typedef struct JSCrossCompartmentCall       JSCrossCompartmentCall;
-typedef struct JSErrorReport                JSErrorReport;
-typedef struct JSExceptionState             JSExceptionState;
-typedef struct JSFunctionSpec               JSFunctionSpec;
-typedef struct JSIdArray                    JSIdArray;
-typedef struct JSLocaleCallbacks            JSLocaleCallbacks;
-typedef struct JSObjectMap                  JSObjectMap;
-typedef struct JSPrincipals                 JSPrincipals;
-typedef struct JSPropertyDescriptor         JSPropertyDescriptor;
-typedef struct JSPropertyName               JSPropertyName;
-typedef struct JSPropertySpec               JSPropertySpec;
-typedef struct JSRuntime                    JSRuntime;
-typedef struct JSSecurityCallbacks          JSSecurityCallbacks;
-typedef struct JSStructuredCloneCallbacks   JSStructuredCloneCallbacks;
-typedef struct JSStructuredCloneReader      JSStructuredCloneReader;
-typedef struct JSStructuredCloneWriter      JSStructuredCloneWriter;
-typedef struct JSTracer                     JSTracer;
-
-class                                       JSFlatString;
-class                                       JSFunction;
-class                                       JSObject;
-class                                       JSScript;
-class                                       JSStableString;  // long story
-class                                       JSString;
-
-#ifdef JS_THREADSAFE
-typedef struct PRCallOnceType    JSCallOnceType;
-#else
-typedef JSBool                   JSCallOnceType;
-#endif
-typedef JSBool                 (*JSInitCallback)(void);
+namespace js {
+namespace gc {
+class StoreBuffer;
+void MarkPersistentRootedChains(JSTracer*);
+void FinishPersistentRootedChains(JSRuntime*);
+}
+}
 
 namespace JS {
+
+typedef void (*OffThreadCompileCallback)(void* token, void* callbackData);
+
 namespace shadow {
 
 struct Runtime
 {
     /* Restrict zone access during Minor GC. */
-    bool needsBarrier_;
+    bool needsIncrementalBarrier_;
 
-#ifdef JSGC_GENERATIONAL
-    /* Allow inlining of Nursery::isInside. */
-    uintptr_t gcNurseryStart_;
-    uintptr_t gcNurseryEnd_;
-#endif
+  private:
+    js::gc::StoreBuffer* gcStoreBufferPtr_;
 
+  public:
     Runtime()
-      : needsBarrier_(false)
-#ifdef JSGC_GENERATIONAL
-      , gcNurseryStart_(0)
-      , gcNurseryEnd_(0)
-#endif
+      : needsIncrementalBarrier_(false)
+      , gcStoreBufferPtr_(nullptr)
     {}
+
+    bool needsIncrementalBarrier() const {
+        return needsIncrementalBarrier_;
+    }
+
+    js::gc::StoreBuffer* gcStoreBufferPtr() { return gcStoreBufferPtr_; }
+
+    static JS::shadow::Runtime* asShadowRuntime(JSRuntime* rt) {
+        return reinterpret_cast<JS::shadow::Runtime*>(rt);
+    }
+
+  protected:
+    void setGCStoreBufferPtr(js::gc::StoreBuffer* storeBuffer) {
+        gcStoreBufferPtr_ = storeBuffer;
+    }
+
+    /* Allow inlining of PersistentRooted constructors and destructors. */
+  private:
+    template <typename Referent> friend class JS::PersistentRooted;
+    friend void js::gc::MarkPersistentRootedChains(JSTracer*);
+    friend void js::gc::FinishPersistentRootedChains(JSRuntime* rt);
+
+    mozilla::LinkedList<PersistentRootedFunction> functionPersistentRooteds;
+    mozilla::LinkedList<PersistentRootedId>       idPersistentRooteds;
+    mozilla::LinkedList<PersistentRootedObject>   objectPersistentRooteds;
+    mozilla::LinkedList<PersistentRootedScript>   scriptPersistentRooteds;
+    mozilla::LinkedList<PersistentRootedString>   stringPersistentRooteds;
+    mozilla::LinkedList<PersistentRootedValue>    valuePersistentRooteds;
+
+    /* Specializations of this return references to the appropriate list. */
+    template<typename Referent>
+    inline mozilla::LinkedList<PersistentRooted<Referent> >& getPersistentRootedList();
 };
 
+template<>
+inline mozilla::LinkedList<PersistentRootedFunction>
+&Runtime::getPersistentRootedList<JSFunction*>() { return functionPersistentRooteds; }
+
+template<>
+inline mozilla::LinkedList<PersistentRootedId>
+&Runtime::getPersistentRootedList<jsid>() { return idPersistentRooteds; }
+
+template<>
+inline mozilla::LinkedList<PersistentRootedObject>
+&Runtime::getPersistentRootedList<JSObject*>() { return objectPersistentRooteds; }
+
+template<>
+inline mozilla::LinkedList<PersistentRootedScript>
+&Runtime::getPersistentRootedList<JSScript*>() { return scriptPersistentRooteds; }
+
+template<>
+inline mozilla::LinkedList<PersistentRootedString>
+&Runtime::getPersistentRootedList<JSString*>() { return stringPersistentRooteds; }
+
+template<>
+inline mozilla::LinkedList<PersistentRootedValue>
+&Runtime::getPersistentRootedList<Value>() { return valuePersistentRooteds; }
+
 } /* namespace shadow */
+
+class JS_PUBLIC_API(AutoGCRooter)
+{
+  public:
+    AutoGCRooter(JSContext* cx, ptrdiff_t tag);
+    AutoGCRooter(js::ContextFriendFields* cx, ptrdiff_t tag);
+
+    ~AutoGCRooter() {
+        MOZ_ASSERT(this == *stackTop);
+        *stackTop = down;
+    }
+
+    /* Implemented in gc/RootMarking.cpp. */
+    inline void trace(JSTracer* trc);
+    static void traceAll(JSTracer* trc);
+    static void traceAllWrappers(JSTracer* trc);
+
+    /* T must be a context type */
+    template<typename T>
+    static void traceAllInContext(T* cx, JSTracer* trc) {
+        for (AutoGCRooter* gcr = cx->autoGCRooters; gcr; gcr = gcr->down)
+            gcr->trace(trc);
+    }
+
+  protected:
+    AutoGCRooter * const down;
+
+    /*
+     * Discriminates actual subclass of this being used.  If non-negative, the
+     * subclass roots an array of values of the length stored in this field.
+     * If negative, meaning is indicated by the corresponding value in the enum
+     * below.  Any other negative value indicates some deeper problem such as
+     * memory corruption.
+     */
+    ptrdiff_t tag_;
+
+    enum {
+        VALARRAY =     -2, /* js::AutoValueArray */
+        PARSER =       -3, /* js::frontend::Parser */
+        SHAPEVECTOR =  -4, /* js::AutoShapeVector */
+        IDARRAY =      -6, /* js::AutoIdArray */
+        DESCVECTOR =   -7, /* js::AutoPropDescVector */
+        VALVECTOR =   -10, /* js::AutoValueVector */
+        IDVECTOR =    -13, /* js::AutoIdVector */
+        OBJVECTOR =   -14, /* js::AutoObjectVector */
+        STRINGVECTOR =-15, /* js::AutoStringVector */
+        SCRIPTVECTOR =-16, /* js::AutoScriptVector */
+        NAMEVECTOR =  -17, /* js::AutoNameVector */
+        HASHABLEVALUE=-18, /* js::HashableValue */
+        IONMASM =     -19, /* js::jit::MacroAssembler */
+        WRAPVECTOR =  -20, /* js::AutoWrapperVector */
+        WRAPPER =     -21, /* js::AutoWrapperRooter */
+        OBJOBJHASHMAP=-22, /* js::AutoObjectObjectHashMap */
+        OBJU32HASHMAP=-23, /* js::AutoObjectUnsigned32HashMap */
+        OBJHASHSET =  -24, /* js::AutoObjectHashSet */
+        JSONPARSER =  -25, /* js::JSONParser */
+        CUSTOM =      -26, /* js::CustomAutoRooter */
+        FUNVECTOR =   -27  /* js::AutoFunctionVector */
+    };
+
+  private:
+    AutoGCRooter ** const stackTop;
+
+    /* No copy or assignment semantics. */
+    AutoGCRooter(AutoGCRooter& ida) = delete;
+    void operator=(AutoGCRooter& ida) = delete;
+};
+
 } /* namespace JS */
 
 namespace js {
 
-struct ThreadSafeContext;
-
-class Allocator;
-
-class SkipRoot;
+class ExclusiveContext;
 
 enum ThingRootKind
 {
     THING_ROOT_OBJECT,
     THING_ROOT_SHAPE,
     THING_ROOT_BASE_SHAPE,
-    THING_ROOT_TYPE_OBJECT,
+    THING_ROOT_OBJECT_GROUP,
     THING_ROOT_STRING,
-    THING_ROOT_ION_CODE,
+    THING_ROOT_SYMBOL,
+    THING_ROOT_JIT_CODE,
     THING_ROOT_SCRIPT,
+    THING_ROOT_LAZY_SCRIPT,
     THING_ROOT_ID,
-    THING_ROOT_PROPERTY_ID,
     THING_ROOT_VALUE,
     THING_ROOT_TYPE,
     THING_ROOT_BINDINGS,
     THING_ROOT_PROPERTY_DESCRIPTOR,
+    THING_ROOT_PROP_DESC,
     THING_ROOT_LIMIT
+};
+
+/*
+ * This list enumerates the different types of conceptual stacks we have in
+ * SpiderMonkey. In reality, they all share the C stack, but we allow different
+ * stack limits depending on the type of code running.
+ */
+enum StackKind
+{
+    StackForSystemCode,      // C++, such as the GC, running on behalf of the VM.
+    StackForTrustedScript,   // Script running with trusted principals.
+    StackForUntrustedScript, // Script running with untrusted principals.
+    StackKindCount
 };
 
 template <typename T>
@@ -264,62 +328,93 @@ struct SpecificRootKind
     static ThingRootKind rootKind() { return Kind; }
 };
 
-template <> struct RootKind<JSObject *> : SpecificRootKind<JSObject *, THING_ROOT_OBJECT> {};
-template <> struct RootKind<JSFlatString *> : SpecificRootKind<JSFlatString *, THING_ROOT_STRING> {};
-template <> struct RootKind<JSFunction *> : SpecificRootKind<JSFunction *, THING_ROOT_OBJECT> {};
-template <> struct RootKind<JSString *> : SpecificRootKind<JSString *, THING_ROOT_STRING> {};
-template <> struct RootKind<JSScript *> : SpecificRootKind<JSScript *, THING_ROOT_SCRIPT> {};
+template <> struct RootKind<JSObject*> : SpecificRootKind<JSObject*, THING_ROOT_OBJECT> {};
+template <> struct RootKind<JSFlatString*> : SpecificRootKind<JSFlatString*, THING_ROOT_STRING> {};
+template <> struct RootKind<JSFunction*> : SpecificRootKind<JSFunction*, THING_ROOT_OBJECT> {};
+template <> struct RootKind<JSString*> : SpecificRootKind<JSString*, THING_ROOT_STRING> {};
+template <> struct RootKind<JS::Symbol*> : SpecificRootKind<JS::Symbol*, THING_ROOT_SYMBOL> {};
+template <> struct RootKind<JSScript*> : SpecificRootKind<JSScript*, THING_ROOT_SCRIPT> {};
 template <> struct RootKind<jsid> : SpecificRootKind<jsid, THING_ROOT_ID> {};
 template <> struct RootKind<JS::Value> : SpecificRootKind<JS::Value, THING_ROOT_VALUE> {};
 
 struct ContextFriendFields
 {
   protected:
-    JSRuntime *const     runtime_;
+    JSRuntime* const     runtime_;
 
     /* The current compartment. */
-    JSCompartment       *compartment_;
+    JSCompartment*      compartment_;
 
     /* The current zone. */
-    JS::Zone            *zone_;
+    JS::Zone*           zone_;
 
   public:
-    explicit ContextFriendFields(JSRuntime *rt)
-      : runtime_(rt), compartment_(NULL), zone_(NULL)
-    { }
-
-    static const ContextFriendFields *get(const JSContext *cx) {
-        return reinterpret_cast<const ContextFriendFields *>(cx);
+    explicit ContextFriendFields(JSRuntime* rt)
+      : runtime_(rt), compartment_(nullptr), zone_(nullptr), autoGCRooters(nullptr)
+    {
+        mozilla::PodArrayZero(thingGCRooters);
     }
 
-    static ContextFriendFields *get(JSContext *cx) {
-        return reinterpret_cast<ContextFriendFields *>(cx);
+    static const ContextFriendFields* get(const JSContext* cx) {
+        return reinterpret_cast<const ContextFriendFields*>(cx);
     }
 
-#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
+    static ContextFriendFields* get(JSContext* cx) {
+        return reinterpret_cast<ContextFriendFields*>(cx);
+    }
+
+  private:
     /*
      * Stack allocated GC roots for stack GC heap pointers, which may be
      * overwritten if moved during a GC.
      */
-    JS::Rooted<void*> *thingGCRooters[THING_ROOT_LIMIT];
-#endif
+    JS::Rooted<void*>* thingGCRooters[THING_ROOT_LIMIT];
 
-#if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
-    /*
-     * Stack allocated list of stack locations which hold non-relocatable
-     * GC heap pointers (where the target is rooted somewhere else) or integer
-     * values which may be confused for GC heap pointers. These are used to
-     * suppress false positives which occur when a rooting analysis treats the
-     * location as holding a relocatable pointer, but have no other effect on
-     * GC behavior.
-     */
-    SkipRoot *skipGCRooters;
-#endif
+  public:
+    template <class T>
+    inline JS::Rooted<T>* gcRooters() {
+        js::ThingRootKind kind = RootKind<T>::rootKind();
+        return reinterpret_cast<JS::Rooted<T>*>(thingGCRooters[kind]);
+    }
 
-    friend JSRuntime *GetRuntime(const JSContext *cx);
-    friend JSCompartment *GetContextCompartment(const JSContext *cx);
-    friend JS::Zone *GetContextZone(const JSContext *cx);
+    void checkNoGCRooters();
+
+    /* Stack of thread-stack-allocated GC roots. */
+    JS::AutoGCRooter*  autoGCRooters;
+
+    friend JSRuntime* GetRuntime(const JSContext* cx);
+    friend JSCompartment* GetContextCompartment(const JSContext* cx);
+    friend JS::Zone* GetContextZone(const JSContext* cx);
+    template <typename T> friend class JS::Rooted;
 };
+
+/*
+ * Inlinable accessors for JSContext.
+ *
+ * - These must not be available on the more restricted superclasses of
+ *   JSContext, so we can't simply define them on ContextFriendFields.
+ *
+ * - They're perfectly ordinary JSContext functionality, so ought to be
+ *   usable without resorting to jsfriendapi.h, and when JSContext is an
+ *   incomplete type.
+ */
+inline JSRuntime*
+GetRuntime(const JSContext* cx)
+{
+    return ContextFriendFields::get(cx)->runtime_;
+}
+
+inline JSCompartment*
+GetContextCompartment(const JSContext* cx)
+{
+    return ContextFriendFields::get(cx)->compartment_;
+}
+
+inline JS::Zone*
+GetContextZone(const JSContext* cx)
+{
+    return ContextFriendFields::get(cx)->zone_;
+}
 
 class PerThreadData;
 
@@ -332,9 +427,9 @@ struct PerThreadDataFriendFields
     struct RuntimeDummy : JS::shadow::Runtime
     {
         struct PerThreadDummy {
-            void *field1;
+            void* field1;
             uintptr_t field2;
-#ifdef DEBUG
+#ifdef JS_DEBUG
             uint64_t field3;
 #endif
         } mainThread;
@@ -344,48 +439,44 @@ struct PerThreadDataFriendFields
 
     PerThreadDataFriendFields();
 
-#if defined(JSGC_ROOT_ANALYSIS) || defined(JSGC_USE_EXACT_ROOTING)
+  private:
     /*
      * Stack allocated GC roots for stack GC heap pointers, which may be
      * overwritten if moved during a GC.
      */
-    JS::Rooted<void*> *thingGCRooters[THING_ROOT_LIMIT];
-#endif
+    JS::Rooted<void*>* thingGCRooters[THING_ROOT_LIMIT];
 
-#if defined(DEBUG) && defined(JS_GC_ZEAL) && defined(JSGC_ROOT_ANALYSIS) && !defined(JS_THREADSAFE)
-    /*
-     * Stack allocated list of stack locations which hold non-relocatable
-     * GC heap pointers (where the target is rooted somewhere else) or integer
-     * values which may be confused for GC heap pointers. These are used to
-     * suppress false positives which occur when a rooting analysis treats the
-     * location as holding a relocatable pointer, but have no other effect on
-     * GC behavior.
-     */
-    SkipRoot *skipGCRooters;
-#endif
+  public:
+    template <class T>
+    inline JS::Rooted<T>* gcRooters() {
+        js::ThingRootKind kind = RootKind<T>::rootKind();
+        return reinterpret_cast<JS::Rooted<T>*>(thingGCRooters[kind]);
+    }
 
     /* Limit pointer for checking native stack consumption. */
-    uintptr_t nativeStackLimit;
+    uintptr_t nativeStackLimit[js::StackKindCount];
 
     static const size_t RuntimeMainThreadOffset = offsetof(RuntimeDummy, mainThread);
 
-    static inline PerThreadDataFriendFields *get(js::PerThreadData *pt) {
-        return reinterpret_cast<PerThreadDataFriendFields *>(pt);
+    static inline PerThreadDataFriendFields* get(js::PerThreadData* pt) {
+        return reinterpret_cast<PerThreadDataFriendFields*>(pt);
     }
 
-    static inline PerThreadDataFriendFields *getMainThread(JSRuntime *rt) {
+    static inline PerThreadDataFriendFields* getMainThread(JSRuntime* rt) {
         // mainThread must always appear directly after |JS::shadow::Runtime|.
         // Tested by a JS_STATIC_ASSERT in |jsfriendapi.cpp|
-        return reinterpret_cast<PerThreadDataFriendFields *>(
+        return reinterpret_cast<PerThreadDataFriendFields*>(
             reinterpret_cast<char*>(rt) + RuntimeMainThreadOffset);
     }
 
-    static inline const PerThreadDataFriendFields *getMainThread(const JSRuntime *rt) {
+    static inline const PerThreadDataFriendFields* getMainThread(const JSRuntime* rt) {
         // mainThread must always appear directly after |JS::shadow::Runtime|.
         // Tested by a JS_STATIC_ASSERT in |jsfriendapi.cpp|
-        return reinterpret_cast<const PerThreadDataFriendFields *>(
+        return reinterpret_cast<const PerThreadDataFriendFields*>(
             reinterpret_cast<const char*>(rt) + RuntimeMainThreadOffset);
     }
+
+    template <typename T> friend class JS::Rooted;
 };
 
 } /* namespace js */

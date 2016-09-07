@@ -6,8 +6,11 @@
 #ifndef GFX_IMAGESURFACE_H
 #define GFX_IMAGESURFACE_H
 
+#include "mozilla/MemoryReporting.h"
+#include "mozilla/RefPtr.h"
 #include "gfxASurface.h"
-#include "gfxPoint.h"
+#include "nsAutoPtr.h"
+#include "nsSize.h"
 
 // ARGB -- raw buffer.. wont be changed.. good for storing data.
 
@@ -15,6 +18,7 @@ class gfxSubimageSurface;
 
 namespace mozilla {
 namespace gfx {
+class DataSourceSurface;
 class SourceSurface;
 }
 }
@@ -65,14 +69,14 @@ public:
     gfxImageSurface(const gfxIntSize& aSize, gfxImageFormat aFormat,
                     long aStride, int32_t aMinimalAllocation, bool aClear);
 
-    gfxImageSurface(cairo_surface_t *csurf);
+    explicit gfxImageSurface(cairo_surface_t *csurf);
 
     virtual ~gfxImageSurface();
 
     // ImageSurface methods
     gfxImageFormat Format() const { return mFormat; }
 
-    virtual const gfxIntSize GetSize() const { return mSize; }
+    virtual const gfxIntSize GetSize() const override { return mSize; }
     int32_t Width() const { return mSize.width; }
     int32_t Height() const { return mSize.height; }
 
@@ -100,24 +104,33 @@ public:
      */
     bool CopyFrom (mozilla::gfx::SourceSurface *aSurface);
 
+    /**
+     * Fast copy to a source surface; returns TRUE if successful, FALSE otherwise
+     * Assumes that the format of this surface is compatible with aSurface
+     */
+    bool CopyTo (mozilla::gfx::SourceSurface *aSurface);
+
+    /**
+     * Copy to a Moz2D DataSourceSurface.
+     * Marked as virtual so that browsercomps can access this method.
+     */
+    virtual mozilla::TemporaryRef<mozilla::gfx::DataSourceSurface> CopyToB8G8R8A8DataSourceSurface();
+
     /* return new Subimage with pointing to original image starting from aRect.pos
      * and size of aRect.size. New subimage keeping current image reference
      */
     already_AddRefed<gfxSubimageSurface> GetSubimage(const gfxRect& aRect);
 
-    virtual already_AddRefed<gfxImageSurface> GetAsImageSurface();
+    virtual already_AddRefed<gfxImageSurface> GetAsImageSurface() override;
 
     /** See gfxASurface.h. */
-    virtual void MovePixels(const nsIntRect& aSourceRect,
-                            const nsIntPoint& aDestTopLeft) MOZ_OVERRIDE;
-
     static long ComputeStride(const gfxIntSize&, gfxImageFormat);
 
-    virtual size_t SizeOfExcludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-        MOZ_OVERRIDE;
-    virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const
-        MOZ_OVERRIDE;
-    virtual bool SizeOfIsMeasured() const MOZ_OVERRIDE;
+    virtual size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+        override;
+    virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const
+        override;
+    virtual bool SizeOfIsMeasured() const override;
 
 protected:
     gfxImageSurface();
@@ -148,7 +161,8 @@ protected:
     friend class gfxImageSurface;
     gfxSubimageSurface(gfxImageSurface* aParent,
                        unsigned char* aData,
-                       const gfxIntSize& aSize);
+                       const gfxIntSize& aSize,
+                       gfxImageFormat aFormat);
 private:
     nsRefPtr<gfxImageSurface> mParent;
 };

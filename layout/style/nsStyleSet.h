@@ -13,9 +13,10 @@
 #define nsStyleSet_h_
 
 #include "mozilla/Attributes.h"
+#include "mozilla/CSSStyleSheet.h"
+#include "mozilla/MemoryReporting.h"
 
 #include "nsIStyleRuleProcessor.h"
-#include "nsCSSStyleSheet.h"
 #include "nsBindingManager.h"
 #include "nsRuleNode.h"
 #include "nsTArray.h"
@@ -23,32 +24,57 @@
 #include "nsAutoPtr.h"
 #include "nsIStyleRule.h"
 #include "nsCSSPseudoElements.h"
-#include "gfxFontFeatures.h"
 
-class nsIURI;
+class gfxFontFeatureValueSet;
 class nsCSSFontFaceRule;
 class nsCSSKeyframesRule;
 class nsCSSFontFeatureValuesRule;
 class nsCSSPageRule;
+class nsCSSCounterStyleRule;
 class nsRuleWalker;
 struct ElementDependentRuleProcessorData;
 struct TreeMatchContext;
 
-class nsEmptyStyleRule MOZ_FINAL : public nsIStyleRule
+namespace mozilla {
+class EventStates;
+} // namespace mozilla
+
+class nsEmptyStyleRule final : public nsIStyleRule
 {
+private:
+  ~nsEmptyStyleRule() {}
+
+public:
   NS_DECL_ISUPPORTS
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE;
+  virtual void MapRuleInfoInto(nsRuleData* aRuleData) override;
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const override;
 #endif
 };
 
-class nsInitialStyleRule MOZ_FINAL : public nsIStyleRule
+class nsInitialStyleRule final : public nsIStyleRule
 {
+private:
+  ~nsInitialStyleRule() {}
+
+public:
   NS_DECL_ISUPPORTS
-  virtual void MapRuleInfoInto(nsRuleData* aRuleData) MOZ_OVERRIDE;
+  virtual void MapRuleInfoInto(nsRuleData* aRuleData) override;
 #ifdef DEBUG
-  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const MOZ_OVERRIDE;
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const override;
+#endif
+};
+
+class nsDisableTextZoomStyleRule final : public nsIStyleRule
+{
+private:
+  ~nsDisableTextZoomStyleRule() {}
+
+public:
+  NS_DECL_ISUPPORTS
+  virtual void MapRuleInfoInto(nsRuleData* aRuleData) override;
+#ifdef DEBUG
+  virtual void List(FILE* out = stdout, int32_t aIndent = 0) const override;
 #endif
 };
 
@@ -61,7 +87,7 @@ class nsStyleSet
  public:
   nsStyleSet();
 
-  size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
   void Init(nsPresContext *aPresContext);
 
@@ -86,27 +112,49 @@ class nsStyleSet
   ResolveStyleForRules(nsStyleContext* aParentContext,
                        const nsTArray< nsCOMPtr<nsIStyleRule> > &aRules);
 
-  // used in ResolveStyleForRules below
-  struct RuleAndLevel
-  {
-    nsIStyleRule* mRule;
-    uint8_t mLevel;
-  };
-
-  // Get a new style context for aElement for the rules in aRules
-  // aRules is an array of rules and their levels in reverse order,
-  // that is from the leaf-most to the root-most rule in the rule tree.
-  already_AddRefed<nsStyleContext>
-  ResolveStyleForRules(nsStyleContext* aParentContext,
-                       nsStyleContext* aOldStyle,
-                       const nsTArray<RuleAndLevel>& aRules);
-
   // Get a style context that represents aBaseContext, but as though
   // it additionally matched the rules in the aRules array (in that
   // order, as more specific than any other rules).
+  //
+  // One of the following must hold:
+  // 1. The resulting style context must be used only on a temporary
+  //    basis, and it must never be put into the style context tree
+  //    (and, in particular, we must never call
+  //    ResolveStyleWithReplacement with it as the old context, which
+  //    might happen if it is put in the style context tree), or
+  // 2. The additional rules must be appropriate for the transitions
+  //    level of the cascade, which is the highest level of the cascade.
+  //    (This is the case for one current caller, the cover rule used
+  //    for CSS transitions.)
   already_AddRefed<nsStyleContext>
   ResolveStyleByAddingRules(nsStyleContext* aBaseContext,
                             const nsCOMArray<nsIStyleRule> &aRules);
+
+  // Resolve style by making replacements in the list of style rules as
+  // described by aReplacements, but otherwise maintaining the status
+  // quo.
+  // aPseudoElement must follow the same rules as for
+  // ResolvePseudoElementStyle, and be null for non-pseudo-element cases
+  enum { // flags for aFlags
+    // Skip starting CSS animations that result from the style.
+    eSkipStartingAnimations = (1<<0),
+  };
+  already_AddRefed<nsStyleContext>
+  ResolveStyleWithReplacement(mozilla::dom::Element* aElement,
+                              mozilla::dom::Element* aPseudoElement,
+                              nsStyleContext* aNewParentContext,
+                              nsStyleContext* aOldStyleContext,
+                              nsRestyleHint aReplacements,
+                              uint32_t aFlags = 0);
+
+  // Resolve style by returning a style context with the specified
+  // animation data removed.  It is allowable to remove all animation
+  // data with eRestyle_AllHintsWithAnimations, or by using any other
+  // hints that are allowed by ResolveStyleWithReplacement.
+  already_AddRefed<nsStyleContext>
+    ResolveStyleWithoutAnimation(mozilla::dom::Element* aElement,
+                                 nsStyleContext* aStyleContext,
+                                 nsRestyleHint aWhichToRemove);
 
   // Get a style context for a non-element (which no rules will match),
   // such as text nodes, placeholder frames, and the nsFirstLetterFrame
@@ -120,11 +168,14 @@ class nsStyleSet
 
   // Get a style context for a pseudo-element.  aParentElement must be
   // non-null.  aPseudoID is the nsCSSPseudoElements::Type for the
-  // pseudo-element.
+  // pseudo-element.  aPseudoElement must be non-null if the pseudo-element
+  // type is one that allows user action pseudo-classes after it or allows
+  // style attributes; otherwise, it is ignored.
   already_AddRefed<nsStyleContext>
   ResolvePseudoElementStyle(mozilla::dom::Element* aParentElement,
                             nsCSSPseudoElements::Type aType,
-                            nsStyleContext* aParentContext);
+                            nsStyleContext* aParentContext,
+                            mozilla::dom::Element* aPseudoElement);
 
   // This functions just like ResolvePseudoElementStyle except that it will
   // return nullptr if there are no explicit style rules for that
@@ -137,31 +188,13 @@ class nsStyleSet
   ProbePseudoElementStyle(mozilla::dom::Element* aParentElement,
                           nsCSSPseudoElements::Type aType,
                           nsStyleContext* aParentContext,
-                          TreeMatchContext& aTreeMatchContext);
-
-  /**
-   * Bit-flags that can be passed to ResolveAnonymousBoxStyle and GetContext
-   * in their parameter 'aFlags'.
-   */
-  enum {
-    eNoFlags =          0,
-    eIsLink =           1 << 0,
-    eIsVisitedLink =    1 << 1,
-    eDoAnimation =      1 << 2,
-
-    // Indicates that we should skip the flex-item-specific chunk of
-    // ApplyStyleFixups().  This is useful if our parent has "display: flex"
-    // but we can tell it's not going to actually be a flex container (e.g. if
-    // it's the outer frame of a button widget, and we're the inline frame for
-    // the button's label).
-    eSkipFlexItemStyleFixup = 1 << 3
-  };
+                          TreeMatchContext& aTreeMatchContext,
+                          mozilla::dom::Element* aPseudoElement = nullptr);
 
   // Get a style context for an anonymous box.  aPseudoTag is the
   // pseudo-tag to use and must be non-null.
   already_AddRefed<nsStyleContext>
-  ResolveAnonymousBoxStyle(nsIAtom* aPseudoTag, nsStyleContext* aParentContext,
-                           uint32_t aFlags = eNoFlags);
+  ResolveAnonymousBoxStyle(nsIAtom* aPseudoTag, nsStyleContext* aParentContext);
 
 #ifdef MOZ_XUL
   // Get a style context for a XUL tree pseudo.  aPseudoTag is the
@@ -182,6 +215,10 @@ class nsStyleSet
   // Return the winning (in the cascade) @keyframes rule for the given name.
   nsCSSKeyframesRule* KeyframesRuleForName(nsPresContext* aPresContext,
                                            const nsString& aName);
+
+  // Return the winning (in the cascade) @counter-style rule for the given name.
+  nsCSSCounterStyleRule* CounterStyleRuleForName(nsPresContext* aPresContext,
+                                                 const nsAString& aName);
 
   // Fetch object for looking up font feature values
   already_AddRefed<gfxFontFeatureValueSet> GetFontFeatureValuesLookup();
@@ -220,13 +257,18 @@ class nsStyleSet
 
   // Test if style is dependent on a document state.
   bool HasDocumentStateDependentStyle(nsPresContext* aPresContext,
-                                        nsIContent*    aContent,
-                                        nsEventStates  aStateMask);
+                                      nsIContent*    aContent,
+                                      mozilla::EventStates aStateMask);
 
   // Test if style is dependent on content state
   nsRestyleHint HasStateDependentStyle(nsPresContext* aPresContext,
                                        mozilla::dom::Element* aElement,
-                                       nsEventStates aStateMask);
+                                       mozilla::EventStates aStateMask);
+  nsRestyleHint HasStateDependentStyle(nsPresContext* aPresContext,
+                                       mozilla::dom::Element* aElement,
+                                       nsCSSPseudoElements::Type aPseudoType,
+                                       mozilla::dom::Element* aPseudoElement,
+                                       mozilla::EventStates aStateMask);
 
   // Test if style is dependent on the presence of an attribute.
   nsRestyleHint HasAttributeDependentStyle(nsPresContext* aPresContext,
@@ -255,6 +297,7 @@ class nsStyleSet
     eAgentSheet, // CSS
     eUserSheet, // CSS
     ePresHintSheet,
+    eSVGAttrAnimationSheet,
     eDocSheet, // CSS
     eScopedDocSheet,
     eStyleAttrSheet,
@@ -304,6 +347,10 @@ class nsStyleSet
   // Note: EndReconstruct should not be called if BeginReconstruct fails
   void EndReconstruct();
 
+  bool IsInRuleTreeReconstruct() const {
+    return mInReconstruct;
+  }
+
   // Let the style set know that a particular sheet is the quirks sheet.  This
   // sheet must already have been added to the UA sheets.  The pointer must not
   // be null.  This should only be called once for a given style set.
@@ -330,13 +377,13 @@ class nsStyleSet
     --mUnusedRuleNodeCount;
   }
 
-  nsCSSStyleSheet::EnsureUniqueInnerResult EnsureUniqueInnerOnCSSSheets();
+  mozilla::CSSStyleSheet::EnsureUniqueInnerResult EnsureUniqueInnerOnCSSSheets();
 
   nsIStyleRule* InitialStyleRule();
 
  private:
-  nsStyleSet(const nsStyleSet& aCopy) MOZ_DELETE;
-  nsStyleSet& operator=(const nsStyleSet& aCopy) MOZ_DELETE;
+  nsStyleSet(const nsStyleSet& aCopy) = delete;
+  nsStyleSet& operator=(const nsStyleSet& aCopy) = delete;
 
   // Run mark-and-sweep GC on mRuleTree and mOldRuleTrees, based on mRoots.
   void GCRuleTrees();
@@ -352,6 +399,9 @@ class nsStyleSet
   // a rule due to property restrictions on pseudo-elements.
   void WalkRestrictionRule(nsCSSPseudoElements::Type aPseudoType,
                            nsRuleWalker* aRuleWalker);
+
+  void WalkDisableTextZoomRule(mozilla::dom::Element* aElement,
+                               nsRuleWalker* aRuleWalker);
 
 #ifdef DEBUG
   // Just like AddImportantRules except it doesn't actually add anything; it
@@ -381,6 +431,32 @@ class nsStyleSet
   void WalkRuleProcessors(nsIStyleRuleProcessor::EnumFunc aFunc,
                           ElementDependentRuleProcessorData* aData,
                           bool aWalkAllXBLStylesheets);
+
+  // Helper for ResolveStyleWithReplacement
+  // aPseudoElement must follow the same rules as for
+  // ResolvePseudoElementStyle, and be null for non-pseudo-element cases
+  nsRuleNode* RuleNodeWithReplacement(mozilla::dom::Element* aElement,
+                                      mozilla::dom::Element* aPseudoElement,
+                                      nsRuleNode* aOldRuleNode,
+                                      nsCSSPseudoElements::Type aPseudoType,
+                                      nsRestyleHint aReplacements);
+
+  /**
+   * Bit-flags that can be passed to GetContext() in its parameter 'aFlags'.
+   */
+  enum {
+    eNoFlags =          0,
+    eIsLink =           1 << 0,
+    eIsVisitedLink =    1 << 1,
+    eDoAnimation =      1 << 2,
+
+    // Indicates that we should skip the flex/grid item specific chunk of
+    // ApplyStyleFixups().  This is useful if our parent has "display: flex"
+    // or "display: grid" but we can tell we're not going to honor that (e.g. if
+    // it's the outer frame of a button widget, and we're the inline frame for
+    // the button's label).
+    eSkipParentDisplayBasedStyleFixup = 1 << 3
+  };
 
   already_AddRefed<nsStyleContext>
   GetContext(nsStyleContext* aParentContext,
@@ -422,7 +498,7 @@ class nsStyleSet
   unsigned mAuthorStyleDisabled: 1;
   unsigned mInReconstruct : 1;
   unsigned mInitFontFeatureValuesLookup : 1;
-  unsigned mDirty : 9;  // one dirty bit is used per sheet type
+  unsigned mDirty : 10;  // one dirty bit is used per sheet type
 
   uint32_t mUnusedRuleNodeCount; // used to batch rule node GC
   nsTArray<nsStyleContext*> mRoots; // style contexts with no parent
@@ -435,6 +511,10 @@ class nsStyleSet
   // determining when context-sensitive values are in use.
   nsRefPtr<nsInitialStyleRule> mInitialStyleRule;
 
+  // Style rule that sets the internal -x-text-zoom property on
+  // <svg:text> elements to disable the effect of text zooming.
+  nsRefPtr<nsDisableTextZoomStyleRule> mDisableTextZoomStyleRule;
+
   // Old rule trees, which should only be non-empty between
   // BeginReconstruct and EndReconstruct, but in case of bugs that cause
   // style contexts to exist too long, may last longer.
@@ -444,7 +524,7 @@ class nsStyleSet
   nsRefPtr<gfxFontFeatureValueSet> mFontFeatureValuesLookup;
 };
 
-#ifdef _IMPL_NS_LAYOUT
+#ifdef MOZILLA_INTERNAL_API
 inline
 void nsRuleNode::AddRef()
 {

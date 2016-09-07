@@ -13,7 +13,8 @@
 #include "nsIHttpHeaderVisitor.h"
 #include "nsWeakReference.h"
 #include "nsNPAPIPluginStreamListener.h"
-#include "nsHashtable.h"
+#include "nsDataHashtable.h"
+#include "nsHashKeys.h"
 #include "nsNPAPIPluginInstance.h"
 #include "nsIInterfaceRequestor.h"
 #include "nsIChannelEventSink.h"
@@ -29,14 +30,14 @@ class nsIChannel;
 class CachedFileHolder
 {
 public:
-  CachedFileHolder(nsIFile* cacheFile);
+  explicit CachedFileHolder(nsIFile* cacheFile);
   ~CachedFileHolder();
-  
+
   void AddRef();
   void Release();
-  
+
   nsIFile* file() const { return mFile; }
-  
+
 private:
   nsAutoRefCnt mRefCnt;
   nsCOMPtr<nsIFile> mFile;
@@ -49,10 +50,11 @@ public nsSupportsWeakReference,
 public nsIInterfaceRequestor,
 public nsIChannelEventSink
 {
+  virtual ~nsPluginStreamListenerPeer();
+
 public:
   nsPluginStreamListenerPeer();
-  virtual ~nsPluginStreamListenerPeer();
-  
+
   NS_DECL_ISUPPORTS
   NS_DECL_NSIPROGRESSEVENTSINK
   NS_DECL_NSIREQUESTOBSERVER
@@ -105,7 +107,7 @@ public:
       mRequests.ReplaceObjectAt(newRequest, i);
     }
   }
-  
+
   void CancelRequests(nsresult status)
   {
     // Copy the array to avoid modification during the loop.
@@ -126,6 +128,11 @@ public:
       requestsCopy[i]->Resume();
   }
 
+  // Called by nsNPAPIPluginStreamListener
+  void OnStreamTypeSet(const int32_t aStreamType);
+
+  static const int32_t STREAM_TYPE_UNKNOWN;
+
 private:
   nsresult SetUpStreamListener(nsIRequest* request, nsIURI* aURL);
   nsresult SetupPluginCacheFile(nsIChannel* channel);
@@ -137,7 +144,7 @@ private:
 
   // Set to true if we request failed (like with a HTTP response of 404)
   bool                    mRequestFailed;
-  
+
   /*
    * Set to true after nsNPAPIPluginStreamListener::OnStartBinding() has
    * been called.  Checked in ::OnStopRequest so we can call the
@@ -149,20 +156,22 @@ private:
   // these get passed to the plugin stream listener
   uint32_t                mLength;
   int32_t                 mStreamType;
-  
+
   // local cached file, we save the content into local cache if browser cache is not available,
   // or plugin asks stream as file and it expects file extension until bug 90558 got fixed
   nsRefPtr<CachedFileHolder> mLocalCachedFileHolder;
   nsCOMPtr<nsIOutputStream> mFileCacheOutputStream;
-  nsHashtable             *mDataForwardToRequest;
-  
+  nsDataHashtable<nsUint32HashKey, uint32_t>* mDataForwardToRequest;
+
   nsCString mContentType;
+  bool mUseLocalCache;
+  nsCOMPtr<nsIRequest> mRequest;
   bool mSeekable;
   uint32_t mModified;
   nsRefPtr<nsNPAPIPluginInstance> mPluginInstance;
   int32_t mStreamOffset;
   bool mStreamComplete;
-  
+
 public:
   bool                    mAbort;
   int32_t                 mPendingRequests;

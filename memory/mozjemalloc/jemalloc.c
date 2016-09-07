@@ -2,8 +2,6 @@
 /* vim:set softtabstop=8 shiftwidth=8 noet: */
 /*-
  * Copyright (C) 2006-2008 Jason Evans <jasone@FreeBSD.org>.
- * Portions Copyright (C) Mozilla contributors.
- * Portions Copyright (C) 2015-2016 M.C. Straver BASc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -437,9 +435,7 @@ static const bool isthreaded = true;
 #define JEMALLOC_USES_MAP_ALIGN	 /* Required on Solaris 10. Might improve performance elsewhere. */
 #endif
 
-#ifndef __DECONST
 #define __DECONST(type, var) ((type)(uintptr_t)(const void *)(var))
-#endif
 
 #ifdef MOZ_MEMORY_WINDOWS
    /* MSVC++ does not support C99 variable-length arrays. */
@@ -1601,7 +1597,6 @@ void	(*_malloc_message)(const char *p1, const char *p2, const char *p3,
 
 #include "mozilla/Assertions.h"
 #include "mozilla/Attributes.h"
-
 #include "mozilla/TaggedAnonymousMemory.h"
 // Note: MozTaggedAnonymousMmap() could call an LD_PRELOADed mmap
 // instead of the one defined here; use only MozTagAnonymousMemory().
@@ -4971,7 +4966,7 @@ arena_new(arena_t *arena)
 		bin->runcur = NULL;
 		arena_run_tree_new(&bin->runs);
 
-		bin->reg_size = (1ULL << (TINY_MIN_2POW + i));
+		bin->reg_size = (1U << (TINY_MIN_2POW + i));
 
 		prev_run_size = arena_bin_run_size_calc(bin, prev_run_size);
 
@@ -6792,7 +6787,7 @@ _recalloc(void *ptr, size_t count, size_t size)
 	 * trailing bytes.
 	 */
 
-	ptr = realloc_impl(ptr, newsize);
+	ptr = realloc(ptr, newsize);
 	if (ptr != NULL && oldsize < newsize) {
 		memset((void *)((uintptr_t)ptr + oldsize), 0, newsize -
 		    oldsize);

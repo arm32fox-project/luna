@@ -31,7 +31,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 
-
 static char *RCSSTRING __UNUSED__="$Id: stun_client_ctx.c,v 1.2 2008/04/28 18:21:30 ekr Exp $";
 
 #include <assert.h>
@@ -49,9 +48,13 @@ static int nr_stun_client_send_request(nr_stun_client_ctx *ctx);
 static void nr_stun_client_timer_expired_cb(NR_SOCKET s, int b, void *cb_arg);
 static int nr_stun_client_get_password(void *arg, nr_stun_message *msg, Data **password);
 
+#define NR_STUN_TRANSPORT_ADDR_CHECK_WILDCARD 1
+#define NR_STUN_TRANSPORT_ADDR_CHECK_LOOPBACK 2
+
 int nr_stun_client_ctx_create(char *label, nr_socket *sock, nr_transport_addr *peer, UINT4 RTO, nr_stun_client_ctx **ctxp)
   {
     nr_stun_client_ctx *ctx=0;
+    char allow_loopback;
     int r,_status;
 
     if ((r=nr_stun_startup()))
@@ -85,6 +88,20 @@ int nr_stun_client_ctx_create(char *label, nr_socket *sock, nr_transport_addr *p
 
     if (NR_reg_get_uint4(NR_STUN_REG_PREF_CLNT_FINAL_RETRANSMIT_BACKOFF, &ctx->final_retransmit_backoff_ms))
         ctx->final_retransmit_backoff_ms = 16 * ctx->rto_ms;
+
+     ctx->mapped_addr_check_mask = NR_STUN_TRANSPORT_ADDR_CHECK_WILDCARD;
+     if (NR_reg_get_char(NR_STUN_REG_PREF_ALLOW_LOOPBACK_ADDRS, &allow_loopback) ||
+         !allow_loopback) {
+       ctx->mapped_addr_check_mask |= NR_STUN_TRANSPORT_ADDR_CHECK_LOOPBACK;
+     }
+
+    /* If we are doing TCP, compute the maximum timeout as if
+       we retransmitted and then set the maximum number of
+       transmits to 1 and the timeout to maximum timeout*/
+    if (ctx->my_addr.protocol == IPPROTO_TCP) {
+      ctx->timeout_ms = ctx->final_retransmit_backoff_ms;
+      ctx->maximum_transmits = 1;
+    }
 
     *ctxp=ctx;
 
@@ -217,7 +234,7 @@ static void nr_stun_client_timer_expired_cb(NR_SOCKET s, int b, void *cb_arg)
     }
 
     if (ctx->request_ct >= ctx->maximum_transmits) {
-        r_log(NR_LOG_STUN,LOG_DEBUG,"STUN-CLIENT(%s): Timed out",ctx->label);
+        r_log(NR_LOG_STUN,LOG_INFO,"STUN-CLIENT(%s): Timed out",ctx->label);
         ctx->state=NR_STUN_CLIENT_STATE_TIMED_OUT;
         ABORT(R_FAILED);
     }
@@ -257,7 +274,7 @@ int nr_stun_client_force_retransmit(nr_stun_client_ctx *ctx)
         ABORT(R_NOT_PERMITTED);
 
     if (ctx->request_ct > ctx->maximum_transmits) {
-        r_log(NR_LOG_STUN,LOG_DEBUG,"STUN-CLIENT(%s): Too many retransmit attempts",ctx->label);
+        r_log(NR_LOG_STUN,LOG_INFO,"STUN-CLIENT(%s): Too many retransmit attempts",ctx->label);
         ABORT(R_FAILED);
     }
 
@@ -285,7 +302,7 @@ static int nr_stun_client_send_request(nr_stun_client_ctx *ctx)
     if (ctx->state != NR_STUN_CLIENT_STATE_RUNNING)
         ABORT(R_NOT_PERMITTED);
 
-    r_log(NR_LOG_STUN,LOG_DEBUG,"STUN-CLIENT(%s): Sending(my_addr=%s,peer_addr=%s)",ctx->label,ctx->my_addr.as_string,ctx->peer_addr.as_string);
+    r_log(NR_LOG_STUN,LOG_DEBUG,"STUN-CLIENT(%s): Sending check request (my_addr=%s,peer_addr=%s)",ctx->label,ctx->my_addr.as_string,ctx->peer_addr.as_string);
 
     if (ctx->request == 0) {
         switch (ctx->mode) {
@@ -404,11 +421,22 @@ static int nr_stun_client_get_password(void *arg, nr_stun_message *msg, Data **p
     return(0);
 }
 
+int nr_stun_transport_addr_check(nr_transport_addr* addr, UINT4 check)
+  {
+    if((check & NR_STUN_TRANSPORT_ADDR_CHECK_WILDCARD) && nr_transport_addr_is_wildcard(addr))
+      return(R_BAD_DATA);
+
+    if ((check & NR_STUN_TRANSPORT_ADDR_CHECK_LOOPBACK) && nr_transport_addr_is_loopback(addr))
+      return(R_BAD_DATA);
+
+    return(0);
+  }
+
 int nr_stun_client_process_response(nr_stun_client_ctx *ctx, UCHAR *msg, int len, nr_transport_addr *peer_addr)
   {
     int r,_status;
     char string[256];
-    char *username;
+    char *username = 0;
     Data *password = 0;
     nr_stun_message_attribute *attr;
     nr_transport_addr *mapped_addr = 0;
@@ -424,7 +452,7 @@ int nr_stun_client_process_response(nr_stun_client_ctx *ctx, UCHAR *msg, int len
     if (ctx->state != NR_STUN_CLIENT_STATE_RUNNING)
       ABORT(R_REJECTED);
 
-    r_log(NR_LOG_STUN,LOG_DEBUG,"STUN-CLIENT(%s): Received(my_addr=%s,peer_addr=%s)",ctx->label,ctx->my_addr.as_string,peer_addr->as_string);
+    r_log(NR_LOG_STUN,LOG_DEBUG,"STUN-CLIENT(%s): Received check response (my_addr=%s,peer_addr=%s)",ctx->label,ctx->my_addr.as_string,peer_addr->as_string);
 
     snprintf(string, sizeof(string)-1, "STUN-CLIENT(%s): Received ", ctx->label);
     r_dump(NR_LOG_STUN, LOG_DEBUG, string, (char*)msg, len);
@@ -503,23 +531,27 @@ int nr_stun_client_process_response(nr_stun_client_ctx *ctx, UCHAR *msg, int len
       password = &hmac_key;
     }
 
+    if (ctx->response) {
+      nr_stun_message_destroy(&ctx->response);
+    }
+
     if ((r=nr_stun_message_create2(&ctx->response, msg, len)))
         ABORT(r);
 
     if ((r=nr_stun_decode_message(ctx->response, nr_stun_client_get_password, password))) {
-        r_log(NR_LOG_STUN,LOG_DEBUG,"STUN-CLIENT(%s): error decoding message",ctx->label);
+        r_log(NR_LOG_STUN,LOG_WARNING,"STUN-CLIENT(%s): error decoding response",ctx->label);
         ABORT(r);
     }
 
     /* This will return an error if request and response don't match,
        which is how we reject responses that match other contexts. */
     if ((r=nr_stun_receive_message(ctx->request, ctx->response))) {
-        r_log(NR_LOG_STUN,LOG_DEBUG,"STUN-CLIENT(%s): error receiving message",ctx->label);
+        r_log(NR_LOG_STUN,LOG_DEBUG,"STUN-CLIENT(%s): error receiving response",ctx->label);
         ABORT(r);
     }
 
     r_log(NR_LOG_STUN,LOG_DEBUG,
-          "STUN-CLIENT(%s): successfully received message; processing",ctx->label);
+          "STUN-CLIENT(%s): successfully received response; processing",ctx->label);
 
 /* TODO: !nn! currently using password!=0 to mean that auth is required,
  * TODO: !nn! but we should probably pass that in explicitly via the
@@ -576,7 +608,7 @@ int nr_stun_client_process_response(nr_stun_client_ctx *ctx, UCHAR *msg, int len
         if (! nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_XOR_MAPPED_ADDRESS, 0)) {
             if (nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_MAPPED_ADDRESS, 0)) {
               /* Compensate for a bug in Google's STUN servers where they always respond with MAPPED-ADDRESS */
-              r_log(NR_LOG_STUN,LOG_DEBUG,"STUN-CLIENT(%s): No XOR-MAPPED-ADDRESS but MAPPED-ADDRESS. Falling back (though server is wrong).", ctx->label);
+              r_log(NR_LOG_STUN,LOG_INFO,"STUN-CLIENT(%s): No XOR-MAPPED-ADDRESS but MAPPED-ADDRESS. Falling back (though server is wrong).", ctx->label);
             }
             else {
               ABORT(R_BAD_DATA);
@@ -622,6 +654,10 @@ int nr_stun_client_process_response(nr_stun_client_ctx *ctx, UCHAR *msg, int len
         if (!nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_XOR_RELAY_ADDRESS, &attr))
           ABORT(R_BAD_DATA);
 
+        if ((r=nr_stun_transport_addr_check(&attr->u.relay_address.unmasked,
+                                            ctx->mapped_addr_check_mask)))
+          ABORT(r);
+
         if ((r=nr_transport_addr_copy(
                 &ctx->results.allocate_response.relay_addr,
                 &attr->u.relay_address.unmasked)))
@@ -663,10 +699,18 @@ int nr_stun_client_process_response(nr_stun_client_ctx *ctx, UCHAR *msg, int len
 
     if (mapped_addr) {
         if (nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_XOR_MAPPED_ADDRESS, &attr)) {
+            if ((r=nr_stun_transport_addr_check(&attr->u.xor_mapped_address.unmasked,
+                                                ctx->mapped_addr_check_mask)))
+                ABORT(r);
+
             if ((r=nr_transport_addr_copy(mapped_addr, &attr->u.xor_mapped_address.unmasked)))
                 ABORT(r);
         }
         else if (nr_stun_message_has_attribute(ctx->response, NR_STUN_ATTR_MAPPED_ADDRESS, &attr)) {
+            if ((r=nr_stun_transport_addr_check(&attr->u.mapped_address,
+                                                ctx->mapped_addr_check_mask)))
+                ABORT(r);
+
             if ((r=nr_transport_addr_copy(mapped_addr, &attr->u.mapped_address)))
                 ABORT(r);
         }

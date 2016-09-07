@@ -74,7 +74,7 @@ const substitutions = [
   { t: "\\37 ",  i: "\\37 ",  s: "7"  },
   { t: "\\38 ",  i: "\\38 ",  s: "8"  },
   { t: "\\39 ",  i: "\\39 ",  s: "9"  },
-  { t: "-\\-",   i: "-\\-",   s: "--" },
+  { t: "-\\-",   i: "--",     s: "--" },
   { t: "-\\30 ", i: "-\\30 ", s: "-0" },
   { t: "-\\31 ", i: "-\\31 ", s: "-1" },
   { t: "-\\32 ", i: "-\\32 ", s: "-2" },
@@ -100,8 +100,9 @@ const substitutions = [
   // U+000A LINE FEED, U+000C FORM FEED, and U+000D CARRIAGE RETURN
   // cannot be put into a CSS token as escaped literal characters, so
   // we do them with hex escapes instead.
-  { t: "\\\x00\\\x01\\\x02\\\x03",       i: "\\0 \\1 \\2 \\3 ",
-                                         s: "\\0 \\1 \\2 \\3 " },
+  // The parser replaces U+0000 with U+FFFD.
+  { t: "\\\x00\\\x01\\\x02\\\x03",       i: "�\\1 \\2 \\3 ",
+                                         s: "�\\1 \\2 \\3 " },
   { t: "\\\x04\\\x05\\\x06\\\x07",       i: "\\4 \\5 \\6 \\7 ",
                                          s: "\\4 \\5 \\6 \\7 " },
   { t: "\\\x08\\\x09\\000A\\\x0B",       i: "\\8 \\9 \\A \\B ",

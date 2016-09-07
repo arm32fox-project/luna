@@ -17,9 +17,11 @@
 #include "nsLookAndFeel.h"
 #include "nsStyleConsts.h"
 #include "gfxFont.h"
+#include "gfxFontConstants.h"
+#include "mozilla/gfx/2D.h"
 #include "cutils/properties.h"
 
-static const PRUnichar UNICODE_BULLET = 0x2022;
+static const char16_t UNICODE_BULLET = 0x2022;
 
 nsLookAndFeel::nsLookAndFeel()
     : nsXPLookAndFeel()
@@ -85,17 +87,24 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
         // not used?
         aColor = BASE_NORMAL_COLOR;
         break;
-    case eColorID_TextForeground: 
+    case eColorID_TextForeground:
         // not used?
         aColor = TEXT_NORMAL_COLOR;
         break;
     case eColorID_TextSelectBackground:
+        aColor = NS_RGBA(0x33,0xb5,0xe5,0x66);
+        break;
     case eColorID_IMESelectedRawTextBackground:
     case eColorID_IMESelectedConvertedTextBackground:
         // still used
         aColor = BASE_SELECTED_COLOR;
         break;
+    case eColorID_TextSelectForegroundCustom:
+        aColor = NS_RGB(0x4d,0x4d,0x4d);
+        break;
     case eColorID_TextSelectForeground:
+        aColor = NS_CHANGE_COLOR_IF_SAME_AS_BG;
+        break;
     case eColorID_IMESelectedRawTextForeground:
     case eColorID_IMESelectedConvertedTextForeground:
         // still used
@@ -246,7 +255,7 @@ nsLookAndFeel::NativeGetColor(ColorID aID, nscolor &aColor)
         break;
     case eColorID__moz_dragtargetzone:
         aColor = BG_SELECTED_COLOR;
-        break; 
+        break;
     case eColorID__moz_buttondefault:
         // default button border color
         aColor = NS_RGB(0,0,0);
@@ -323,7 +332,7 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
 
         case eIntID_SelectTextfieldsOnKeyFocus:
             // Select textfield content when focused by kbd
-            // used by nsEventStateManager::sTextfieldSelectModel
+            // used by EventStateManager::sTextfieldSelectModel
             aResult = 1;
             break;
 
@@ -353,12 +362,20 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
             break;
 
         case eIntID_WindowsDefaultTheme:
-        case eIntID_MaemoClassic:
         case eIntID_WindowsThemeIdentifier:
-        case eIntID_UnixThemeIdentifier:
-		case eIntID_OperatingSystemVersionIdentifier:
+        case eIntID_OperatingSystemVersionIdentifier:
             aResult = 0;
             rv = NS_ERROR_NOT_IMPLEMENTED;
+            break;
+
+        case eIntID_IMERawInputUnderlineStyle:
+        case eIntID_IMEConvertedTextUnderlineStyle:
+            aResult = NS_STYLE_TEXT_DECORATION_STYLE_SOLID;
+            break;
+
+        case eIntID_IMESelectedRawTextUnderlineStyle:
+        case eIntID_IMESelectedConvertedTextUnderline:
+            aResult = NS_STYLE_TEXT_DECORATION_STYLE_NONE;
             break;
 
         case eIntID_SpellCheckerUnderlineStyle:
@@ -384,13 +401,35 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
     return rv;
 }
 
+nsresult
+nsLookAndFeel::GetFloatImpl(FloatID aID, float &aResult)
+{
+  nsresult res = nsXPLookAndFeel::GetFloatImpl(aID, aResult);
+  if (NS_SUCCEEDED(res))
+    return res;
+  res = NS_OK;
+
+  switch (aID) {
+    case eFloatID_IMEUnderlineRelativeSize:
+        aResult = 1.0f;
+        break;
+    case eFloatID_SpellCheckerUnderlineRelativeSize:
+        aResult = 1.0f;
+        break;
+    default:
+        aResult = -1.0;
+        res = NS_ERROR_FAILURE;
+    }
+  return res;
+}
+
 /*virtual*/
 bool
 nsLookAndFeel::GetFontImpl(FontID aID, nsString& aFontName,
                            gfxFontStyle& aFontStyle,
                            float aDevPixPerCSSPixel)
 {
-    aFontName.AssignLiteral("\"Droid Sans\"");
+    aFontName.AssignLiteral("\"Fira Sans\"");
     aFontStyle.style = NS_FONT_STYLE_NORMAL;
     aFontStyle.weight = NS_FONT_WEIGHT_NORMAL;
     aFontStyle.stretch = NS_FONT_STRETCH_NORMAL;
@@ -414,7 +453,7 @@ nsLookAndFeel::GetPasswordMaskDelayImpl()
 }
 
 /* virtual */
-PRUnichar
+char16_t
 nsLookAndFeel::GetPasswordCharacterImpl()
 {
     return UNICODE_BULLET;

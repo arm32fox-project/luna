@@ -4,11 +4,12 @@
 
 package org.mozilla.goanna.sync.receivers;
 
-import org.mozilla.goanna.sync.CredentialException;
 import org.mozilla.goanna.background.common.GlobalConstants;
 import org.mozilla.goanna.background.common.log.Logger;
+import org.mozilla.goanna.sync.CredentialException;
 import org.mozilla.goanna.sync.SyncConfiguration;
 import org.mozilla.goanna.sync.ThreadPool;
+import org.mozilla.goanna.sync.Utils;
 import org.mozilla.goanna.sync.config.ConfigurationMigrator;
 import org.mozilla.goanna.sync.setup.Constants;
 import org.mozilla.goanna.sync.setup.SyncAccounts;
@@ -26,6 +27,13 @@ public class UpgradeReceiver extends BroadcastReceiver {
   @Override
   public void onReceive(final Context context, Intent intent) {
     Logger.debug(LOG_TAG, "Broadcast received.");
+
+    // This unpickles any pickled accounts.
+    if (!SyncAccounts.syncAccountsExist(context)) {
+      Logger.info(LOG_TAG, "No Sync Accounts found; not upgrading anything.");
+      return;
+    }
+
     // Should filter for specific MY_PACKAGE_REPLACED intent, but Android does
     // not expose it.
     ThreadPool.run(new Runnable() {
@@ -38,6 +46,14 @@ public class UpgradeReceiver extends BroadcastReceiver {
           if ("1".equals(accountManager.getUserData(a, Constants.DATA_ENABLE_ON_UPGRADE))) {
             SyncAccounts.setSyncAutomatically(a, true);
             accountManager.setUserData(a, Constants.DATA_ENABLE_ON_UPGRADE, "0");
+          }
+
+          // If we are both set to enable after upgrade, and to be removed: we
+          // enable after upgrade first and then we try to remove. If removal
+          // fails, since we enabled sync, we'll try again the next time we
+          // sync, until we (eventually) remove the account.
+          if ("1".equals(accountManager.getUserData(a, Constants.DATA_SHOULD_BE_REMOVED))) {
+            accountManager.removeAccount(a, null, null);
           }
         }
       }
@@ -53,7 +69,7 @@ public class UpgradeReceiver extends BroadcastReceiver {
         final Account[] accounts = SyncAccounts.syncAccounts(context);
 
         for (Account account : accounts) {
-          Logger.info(LOG_TAG, "Migrating preferences on upgrade for Android account named " + account.name + ".");
+          Logger.info(LOG_TAG, "Migrating preferences on upgrade for Android account named " + Utils.obfuscateEmail(account.name) + ".");
 
           SyncAccountParameters params;
           try {

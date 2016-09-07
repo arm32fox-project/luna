@@ -8,58 +8,51 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-/*
- * video_decimator.h
- */
-#ifndef VPM_VIDEO_DECIMATOR_H
-#define VPM_VIDEO_DECIMATOR_H
+#ifndef WEBRTC_MODULES_VIDEO_PROCESSING_MAIN_SOURCE_VIDEO_DECIMATOR_H
+#define WEBRTC_MODULES_VIDEO_PROCESSING_MAIN_SOURCE_VIDEO_DECIMATOR_H
 
-#include "typedefs.h"
-#include "module_common_types.h"
+#include "webrtc/modules/interface/module_common_types.h"
+#include "webrtc/typedefs.h"
 
 namespace webrtc {
 
-class VPMVideoDecimator
-{
-public:
-    VPMVideoDecimator();
-    ~VPMVideoDecimator();
-    
-    void Reset();
-    
-    void EnableTemporalDecimation(bool enable);
-    
-    WebRtc_Word32 SetMaxFrameRate(WebRtc_UWord32 maxFrameRate);
-    WebRtc_Word32 SetTargetFrameRate(WebRtc_UWord32 frameRate);
+class VPMVideoDecimator {
+ public:
+  VPMVideoDecimator();
+  ~VPMVideoDecimator();
 
-    bool DropFrame();
-    
-    void UpdateIncomingFrameRate();
+  void Reset();
 
-    // Get Decimated Frame Rate/Dimensions
-    WebRtc_UWord32 DecimatedFrameRate();
+  void EnableTemporalDecimation(bool enable);
 
-    //Get input frame rate
-    WebRtc_UWord32 InputFrameRate();
+  int32_t SetTargetFramerate(uint32_t frame_rate);
 
-private:
-    void ProcessIncomingFrameRate(WebRtc_Word64 now);
+  bool DropFrame();
 
-    enum { kFrameCountHistorySize = 90};
-    enum { kFrameHistoryWindowMs = 2000};
+  void UpdateIncomingframe_rate();
 
-    // Temporal decimation
-    WebRtc_Word32         _overShootModifier;
-    WebRtc_UWord32        _dropCount;
-    WebRtc_UWord32        _keepCount;
-    WebRtc_UWord32        _targetFrameRate;
-    float               _incomingFrameRate;
-    WebRtc_UWord32        _maxFrameRate;
-    WebRtc_Word64         _incomingFrameTimes[kFrameCountHistorySize];
-    bool                _enableTemporalDecimation;
+  // Get Decimated Frame Rate/Dimensions.
+  uint32_t Decimatedframe_rate();
 
+  // Get input frame rate.
+  uint32_t Inputframe_rate();
+
+ private:
+  void ProcessIncomingframe_rate(int64_t now);
+
+  enum { kFrameCountHistory_size = 90};
+  enum { kFrameHistoryWindowMs = 2000};
+
+  // Temporal decimation.
+  int32_t overshoot_modifier_;
+  uint32_t drop_count_;
+  uint32_t keep_count_;
+  uint32_t target_frame_rate_;
+  float incoming_frame_rate_;
+  int64_t incoming_frame_times_[kFrameCountHistory_size];
+  bool enable_temporal_decimation_;
 };
 
-} //namespace
+}  // namespace webrtc
 
-#endif
+#endif  // WEBRTC_MODULES_VIDEO_PROCESSING_MAIN_SOURCE_VIDEO_DECIMATOR_H

@@ -16,9 +16,7 @@
   background-repeat: repeat;
   color: -moz-dialogText;
   background-color: -moz-dialog;
-  background-image: /* Fade-out texture at the top, and blend with browser tab */
-                    linear-gradient(rgba(255,255,255,0.5), rgba(255,255,255,0) 30%),
-                    /* Texture */
+  background-image: /* Texture */
                     url("chrome://global/skin/inContentUI/background-texture.png");
 }
 
@@ -26,47 +24,46 @@ html|html {
   font: message-box;
 }
 
-%ifdef WINDOWS_AERO
-@media (-moz-windows-default-theme) {
+@media (-moz-windows-default-theme) and (-moz-os-version: windows-vista),
+       (-moz-windows-default-theme) and (-moz-os-version: windows-win7) {
   *|*:root {
     color: #000;
     background-color: #CCD9EA;
-    background-image: /* Fade-out texture at the top */
-                      linear-gradient(rgb(237,245,252), rgba(237,245,252,0) 156px),
+  }
+}
+
+@media (-moz-windows-glass) {
+  *|*:root {
+    /* Blame shorlander for this monstrosity. */
+    background-image: /* Side gradients */
+                      linear-gradient(to right,
+                                      rgba(255,255,255,0.2), transparent 40%,
+                                      transparent 60%, rgba(255,255,255,0.2)),
+                      /* Aero-style light beams */
+                      -moz-linear-gradient(left 32deg,
+                                           /* First light beam */
+                                           transparent 19.5%, rgba(255,255,255,0.1) 20%,
+                                           rgba(255,255,255,0.1) 21.5%, rgba(255,255,255,0.2) 22%,
+                                           rgba(255,255,255,0.2) 25.5%, rgba(255,255,255,0.1) 26%,
+                                           rgba(255,255,255,0.1) 27.5%, transparent 28%,
+                                           /* Second light beam */
+                                           transparent 49.5%, rgba(255,255,255,0.1) 50%,
+                                           rgba(255,255,255,0.1) 52.5%, rgba(255,255,255,0.2) 53%,
+                                           rgba(255,255,255,0.2) 54.5%, rgba(255,255,255,0.1) 55%,
+                                           rgba(255,255,255,0.1) 57.5%, transparent 58%,
+                                           /* Third light beam */
+                                           transparent 87%, rgba(255,255,255,0.2) 90%),
                       /* Texture */
                       url("chrome://global/skin/inContentUI/background-texture.png");
   }
 }
 
-@media (-moz-windows-compositor) {
-  *|*:root {
-    color: #000;
-    /* Blame shorlander for this monstrosity. */
-    background-image: /* Fade-out texture and light beams at the top */
-                      linear-gradient(rgb(237,245,252) 3px, rgba(237,245,252,0) 156px),
-                      /* Side gradients */
-                      linear-gradient(to right,
-                                      rgba(255,255,255,0.2), rgba(255,255,255,0) 40%,
-                                      rgba(255,255,255,0) 60%, rgba(255,255,255,0.2)),
-                      /* Aero-style light beams */
-                      -moz-linear-gradient(left 32deg,
-                                           /* First light beam */
-                                           rgba(255,255,255,0) 19.5%, rgba(255,255,255,0.1) 20%,
-                                           rgba(255,255,255,0.1) 21.5%, rgba(255,255,255,0.2) 22%,
-                                           rgba(255,255,255,0.2) 25.5%, rgba(255,255,255,0.1) 26%,
-                                           rgba(255,255,255,0.1) 27.5%, rgba(255,255,255,0) 28%,
-                                           /* Second light beam */
-                                           rgba(255,255,255,0) 49.5%, rgba(255,255,255,0.1) 50%,
-                                           rgba(255,255,255,0.1) 52.5%, rgba(255,255,255,0.2) 53%,
-                                           rgba(255,255,255,0.2) 54.5%, rgba(255,255,255,0.1) 55%,
-                                           rgba(255,255,255,0.1) 57.5%, rgba(255,255,255,0) 58%,
-                                           /* Third light beam */
-                                           rgba(255,255,255,0) 87%, rgba(255,255,255,0.2) 90%),
-                      /* Texture */
-                      url("chrome://global/skin/inContentUI/background-texture.png");
-  }
+/* Use the new in-content colors for #contentAreaDownloadsView. After landing
+   of bug 989469 the colors can be moved to *|*:root */
+*|*#contentAreaDownloadsView {
+  background: #f1f1f1;
+  color: #424e5a;
 }
-%endif
 
 /* Content */
 *|*.main-content {
@@ -76,11 +73,20 @@ html|html {
   background-image: linear-gradient(rgba(255, 255, 255, 0),
                                     rgba(255, 255, 255, 0.75));
   border: 1px solid #C3CEDF;
-  border-radius: 5px;
 }
 
-%ifdef WINDOWS_AERO
-@media (-moz-windows-compositor) {
+%ifdef XP_WIN
+@media (-moz-os-version: windows-vista),
+       (-moz-os-version: windows-win7) {
+%endif
+  *|*.main-content {
+    border-radius: 5px;
+  }
+%ifdef XP_WIN
+}
+%endif
+
+@media (-moz-windows-glass) {
   /* Buttons */
   *|button,
   menulist,
@@ -88,7 +94,7 @@ html|html {
     -moz-appearance: none;
     color: black;
     padding: 0 5px;
-    background: linear-gradient(rgba(251, 252, 253, 0.95), rgba(246, 247, 248, 0) 49%, 
+    background: linear-gradient(rgba(251, 252, 253, 0.95), transparent 49%, 
                                 rgba(211, 212, 213, 0.45) 51%, rgba(225, 226, 229, 0.3));
     background-clip: padding-box;
     border-radius: 3px;
@@ -145,7 +151,6 @@ html|html {
     list-style-image: url("chrome://global/skin/arrow/arrow-dn.gif");
   }
 }
-%endif
 
 colorpicker[type="button"] {
   margin: 1px 5px 2px 5px;

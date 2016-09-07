@@ -9,8 +9,10 @@
 #include <dlfcn.h>
 #include <signal.h>
 #include "mozilla/RefPtr.h"
+#include "mozilla/UniquePtr.h"
 #include "Zip.h"
 #include "Elfxx.h"
+#include "Mappable.h"
 
 /**
  * dlfcn.h replacement functions
@@ -41,6 +43,10 @@ extern "C" {
   typedef int (*dl_phdr_cb)(struct dl_phdr_info *, size_t, void *);
   int __wrap_dl_iterate_phdr(dl_phdr_cb callback, void *data);
 
+#ifdef __ARM_EABI__
+  const void *__wrap___gnu_Unwind_Find_exidx(void *pc, int *pcount);
+#endif
+
 /**
  * faulty.lib public API
  */
@@ -53,7 +59,15 @@ __dl_mmap(void *handle, void *addr, size_t length, off_t offset);
 MFBT_API void
 __dl_munmap(void *handle, void *addr, size_t length);
 
+MFBT_API bool
+IsSignalHandlingBroken();
+
 }
+
+/* Forward declarations for use in LibHandle */
+class BaseElf;
+class CustomElf;
+class SystemElf;
 
 /**
  * Specialize RefCounted template for LibHandle. We may get references to
@@ -66,32 +80,30 @@ class LibHandle;
 namespace mozilla {
 namespace detail {
 
-template <> inline void RefCounted<LibHandle, AtomicRefCount>::Release();
+template <> inline void RefCounted<LibHandle, AtomicRefCount>::Release() const;
 
 template <> inline RefCounted<LibHandle, AtomicRefCount>::~RefCounted()
 {
-  MOZ_ASSERT(refCnt == 0x7fffdead);
+  MOZ_ASSERT(mRefCnt == 0x7fffdead);
 }
 
 } /* namespace detail */
 } /* namespace mozilla */
 
-/* Forward declaration */
-class Mappable;
-
 /**
  * Abstract class for loaded libraries. Libraries may be loaded through the
  * system linker or this linker, both cases will be derived from this class.
  */
-class LibHandle: public mozilla::AtomicRefCounted<LibHandle>
+class LibHandle: public mozilla::external::AtomicRefCounted<LibHandle>
 {
 public:
+  MOZ_DECLARE_REFCOUNTED_TYPENAME(LibHandle)
   /**
    * Constructor. Takes the path of the loaded library and will store a copy
    * of the leaf name.
    */
   LibHandle(const char *path)
-  : directRefCnt(0), path(path ? strdup(path) : NULL), mappable(NULL) { }
+  : directRefCnt(0), path(path ? strdup(path) : nullptr), mappable(nullptr) { }
 
   /**
    * Destructor.
@@ -110,6 +122,11 @@ public:
    * covered by the loaded library.
    */
   virtual bool Contains(void *addr) const = 0;
+
+  /**
+   * Returns the base address of the loaded library.
+   */
+  virtual void *GetBase() const = 0;
 
   /**
    * Returns the file name of the library without the containing directory.
@@ -134,7 +151,7 @@ public:
   void AddDirectRef()
   {
     ++directRefCnt;
-    mozilla::AtomicRefCounted<LibHandle>::AddRef();
+    mozilla::external::AtomicRefCounted<LibHandle>::AddRef();
   }
 
   /**
@@ -146,10 +163,10 @@ public:
     bool ret = false;
     if (directRefCnt) {
       MOZ_ASSERT(directRefCnt <=
-                 mozilla::AtomicRefCounted<LibHandle>::refCount());
+                 mozilla::external::AtomicRefCounted<LibHandle>::refCount());
       if (--directRefCnt)
         ret = true;
-      mozilla::AtomicRefCounted<LibHandle>::Release();
+      mozilla::external::AtomicRefCounted<LibHandle>::Release();
     }
     return ret;
   }
@@ -157,7 +174,7 @@ public:
   /**
    * Returns the number of direct references
    */
-  int DirectRefCount()
+  MozRefCountType DirectRefCount()
   {
     return directRefCnt;
   }
@@ -180,6 +197,21 @@ public:
    */
   void MappableMUnmap(void *addr, size_t length) const;
 
+#ifdef __ARM_EABI__
+  /**
+   * Find the address and entry count of the ARM.exidx section
+   * associated with the library
+   */
+  virtual const void *FindExidx(int *pcount) const = 0;
+#endif
+
+  /**
+   * Shows some stats about the Mappable instance. The when argument is to be
+   * used by the caller to give an identifier of the when the stats call is
+   * made.
+   */
+  virtual void stats(const char *when) const { };
+
 protected:
   /**
    * Returns a mappable object for use by MappableMMap and related functions.
@@ -187,47 +219,49 @@ protected:
   virtual Mappable *GetMappable() const = 0;
 
   /**
-   * Returns whether the handle is a SystemElf or not. (short of a better way
-   * to do this without RTTI)
+   * Returns the instance, casted as the wanted type. Returns nullptr if
+   * that's not the actual type. (short of a better way to do this without
+   * RTTI)
    */
   friend class ElfLoader;
   friend class CustomElf;
   friend class SEGVHandler;
-  virtual bool IsSystemElf() const { return false; }
+  virtual BaseElf *AsBaseElf() { return nullptr; }
+  virtual SystemElf *AsSystemElf() { return nullptr; }
 
 private:
-  int directRefCnt;
+  MozRefCountType directRefCnt;
   char *path;
 
   /* Mappable object keeping the result of GetMappable() */
-  mutable Mappable *mappable;
+  mutable mozilla::RefPtr<Mappable> mappable;
 };
 
 /**
  * Specialized RefCounted<LibHandle>::Release. Under normal operation, when
- * refCnt reaches 0, the LibHandle is deleted. Its refCnt is however increased
- * to 1 on normal builds, and 0x7fffdead on debug builds so that the LibHandle
- * can still be referenced while the destructor is executing. The refCnt is
- * allowed to grow > 0x7fffdead, but not to decrease under that value, which
- * would mean too many Releases from within the destructor.
+ * mRefCnt reaches 0, the LibHandle is deleted. Its mRefCnt is however
+ * increased to 1 on normal builds, and 0x7fffdead on debug builds so that the
+ * LibHandle can still be referenced while the destructor is executing. The
+ * mRefCnt is allowed to grow > 0x7fffdead, but not to decrease under that
+ * value, which would mean too many Releases from within the destructor.
  */
 namespace mozilla {
 namespace detail {
 
-template <> inline void RefCounted<LibHandle, AtomicRefCount>::Release() {
+template <> inline void RefCounted<LibHandle, AtomicRefCount>::Release() const {
 #ifdef DEBUG
-  if (refCnt > 0x7fff0000)
-    MOZ_ASSERT(refCnt > 0x7fffdead);
+  if (mRefCnt > 0x7fff0000)
+    MOZ_ASSERT(mRefCnt > 0x7fffdead);
 #endif
-  MOZ_ASSERT(refCnt > 0);
-  if (refCnt > 0) {
-    if (0 == --refCnt) {
+  MOZ_ASSERT(mRefCnt > 0);
+  if (mRefCnt > 0) {
+    if (0 == --mRefCnt) {
 #ifdef DEBUG
-      refCnt = 0x7fffdead;
+      mRefCnt = 0x7fffdead;
 #else
-      refCnt = 1;
+      mRefCnt = 1;
 #endif
-      delete static_cast<LibHandle*>(this);
+      delete static_cast<const LibHandle*>(this);
     }
   }
 }
@@ -253,16 +287,21 @@ public:
   virtual ~SystemElf();
   virtual void *GetSymbolPtr(const char *symbol) const;
   virtual bool Contains(void *addr) const { return false; /* UNIMPLEMENTED */ }
+  virtual void *GetBase() const { return nullptr; /* UNIMPLEMENTED */ }
+
+#ifdef __ARM_EABI__
+  virtual const void *FindExidx(int *pcount) const;
+#endif
 
 protected:
   virtual Mappable *GetMappable() const;
 
   /**
-   * Returns whether the handle is a SystemElf or not. (short of a better way
-   * to do this without RTTI)
+   * Returns the instance, casted as SystemElf. (short of a better way to do
+   * this without RTTI)
    */
   friend class ElfLoader;
-  virtual bool IsSystemElf() const { return true; }
+  virtual SystemElf *AsSystemElf() { return this; }
 
   /**
    * Remove the reference to the system linker handle. This avoids dlclose()
@@ -270,7 +309,7 @@ protected:
    */
   void Forget()
   {
-    dlhandle = NULL;
+    dlhandle = nullptr;
   }
 
 private:
@@ -294,20 +333,30 @@ class SEGVHandler
 {
 public:
   bool hasRegisteredHandler() {
+    if (! initialized)
+      FinishInitialization();
     return registeredHandler;
+  }
+
+  bool isSignalHandlingBroken() {
+    return signalHandlingBroken;
   }
 
   static int __wrap_sigaction(int signum, const struct sigaction *act,
                               struct sigaction *oldact);
-
-  static sighandler_t __wrap_signal(int signum, sighandler_t handler);
-
 
 protected:
   SEGVHandler();
   ~SEGVHandler();
 
 private:
+
+  /**
+   * The constructor doesn't do all initialization, and the tail is done
+   * at a later time.
+   */
+  void FinishInitialization();
+
   /**
    * SIGSEGV handler registered with __wrap_signal or __wrap_sigaction.
    */
@@ -317,6 +366,11 @@ private:
    * ElfLoader SIGSEGV handler.
    */
   static void handler(int signum, siginfo_t *info, void *context);
+
+  /**
+   * Temporary test handler.
+   */
+  static void test_handler(int signum, siginfo_t *info, void *context);
 
   /**
    * Size of the alternative stack. The printf family requires more than 8KB
@@ -335,7 +389,10 @@ private:
    */
   MappedPtr stackPtr;
 
+  bool initialized;
   bool registeredHandler;
+  bool signalHandlingBroken;
+  bool signalHandlingSlow;
 };
 
 /**
@@ -356,7 +413,7 @@ public:
    * directory containing that parent library for the library to load.
    */
   mozilla::TemporaryRef<LibHandle> Load(const char *path, int flags,
-                                        LibHandle *parent = NULL);
+                                        LibHandle *parent = nullptr);
 
   /**
    * Returns the handle of the library containing the given address in
@@ -380,12 +437,14 @@ protected:
    * LibHandle subclass creators.
    */
   void Register(LibHandle *handle);
+  void Register(CustomElf *handle);
 
   /**
    * Forget about the given handle. This method is meant to be called by
    * LibHandle subclass destructors.
    */
   void Forget(LibHandle *handle);
+  void Forget(CustomElf *handle);
 
   /* Last error. Used for dlerror() */
   friend class SystemElf;
@@ -397,12 +456,28 @@ protected:
 private:
   ~ElfLoader();
 
+  /* Initialization code that can't run during static initialization. */
+  void Init();
+
+  /* System loader handle for the library/program containing our code. This
+   * is used to resolve wrapped functions. */
+  mozilla::RefPtr<LibHandle> self_elf;
+
+#if defined(ANDROID)
+  /* System loader handle for the libc. This is used to resolve weak symbols
+   * that some libcs contain that the Android linker won't dlsym(). Normally,
+   * we wouldn't treat non-Android differently, but glibc uses versioned
+   * symbols which this linker doesn't support. */
+  mozilla::RefPtr<LibHandle> libc;
+#endif
+
   /* Bookkeeping */
   typedef std::vector<LibHandle *> LibHandleList;
   LibHandleList handles;
 
 protected:
   friend class CustomElf;
+  friend class LoadedElf;
   /**
    * Show some stats about Mappables in CustomElfs. The when argument is to
    * be used by the caller to give an identifier of the when the stats call
@@ -515,12 +590,20 @@ private:
     } r_state;
   };
 
+  /* Memory representation of ELF Auxiliary Vectors */
+  struct AuxVector {
+    Elf::Addr type;
+    Elf::Addr value;
+  };
+
   /* Helper class used to integrate libraries loaded by this linker in
    * r_debug */
   class DebuggerHelper
   {
   public:
     DebuggerHelper();
+
+    void Init(AuxVector *auvx);
 
     operator bool()
     {
@@ -550,9 +633,9 @@ private:
 
       bool operator<(const iterator &other) const
       {
-        if (other.item == NULL)
+        if (other.item == nullptr)
           return item ? true : false;
-        MOZ_NOT_REACHED("DebuggerHelper::iterator::operator< called with something else than DebuggerHelper::end()");
+        MOZ_CRASH("DebuggerHelper::iterator::operator< called with something else than DebuggerHelper::end()");
       }
     protected:
       friend class DebuggerHelper;
@@ -564,12 +647,12 @@ private:
 
     iterator begin() const
     {
-      return iterator(dbg ? dbg->r_map : NULL);
+      return iterator(dbg ? dbg->r_map : nullptr);
     }
 
     iterator end() const
     {
-      return iterator(NULL);
+      return iterator(nullptr);
     }
 
   private:

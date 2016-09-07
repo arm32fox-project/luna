@@ -37,24 +37,22 @@ diff --git a/gfx/ots/include/opentype-sanitiser.h b/gfx/ots/include/opentype-san
  typedef unsigned short uint16_t;
  typedef int int32_t;
  typedef unsigned int uint32_t;
-@@ -178,18 +198,18 @@ class OTSStream {
- // Process a given OpenType file and write out a sanitised version
- //   output: a pointer to an object implementing the OTSStream interface. The
- //     sanitisied output will be written to this. In the even of a failure,
- //     partial output may have been written.
- //   input: the OpenType file
- //   length: the size, in bytes, of |input|
- //   preserve_graphite_tables: whether to preserve Graphite Layout tables
- // -----------------------------------------------------------------------------
--bool Process(OTSStream *output, const uint8_t *input, size_t length,
--             bool preserve_graphite_tables = false);
-+bool OTS_API Process(OTSStream *output, const uint8_t *input, size_t length,
-+                     bool preserve_graphite_tables = false);
+@@ -187,17 +207,17 @@ class OTSStream {
  
- // Force to disable debug output even when the library is compiled with
- // -DOTS_DEBUG.
- void DisableDebugOutput();
+ enum TableAction {
+   TABLE_ACTION_DEFAULT,  // Use OTS's default action for that table
+   TABLE_ACTION_SANITIZE, // Sanitize the table, potentially droping it
+   TABLE_ACTION_PASSTHRU, // Serialize the table unchanged
+   TABLE_ACTION_DROP      // Drop the table
+ };
  
- }  // namespace ots
+-class OTSContext {
++class OTS_API OTSContext {
+   public:
+     OTSContext() {}
+     virtual ~OTSContext() {}
  
- #endif  // OPENTYPE_SANITISER_H_
+     // Process a given OpenType file and write out a sanitised version
+     //   output: a pointer to an object implementing the OTSStream interface. The
+     //     sanitisied output will be written to this. In the even of a failure,
+     //     partial output may have been written.

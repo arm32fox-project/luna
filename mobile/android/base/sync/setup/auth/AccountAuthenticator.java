@@ -15,7 +15,7 @@ import org.mozilla.goanna.sync.setup.activities.AccountActivity;
 public class AccountAuthenticator {
   private final String LOG_TAG = "AccountAuthenticator";
 
-  private AccountActivity activityCallback;
+  private final AccountActivity activityCallback;
   private Queue<AuthenticatorStage> stages;
 
   // Values for authentication.

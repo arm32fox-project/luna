@@ -28,7 +28,7 @@ function runTest() {
   var remote = !browserElementTestHelpers.getOOPByDefaultPref();
 
   var iframe = document.createElement('iframe');
-  SpecialPowers.wrap(iframe).mozbrowser = true;
+  iframe.setAttribute('mozbrowser', 'true');
   iframe.setAttribute('remote', remote);
 
   // The page we load does window.open, then checks some things and reports
@@ -55,7 +55,7 @@ function runTest() {
       // We assume here that iframe is completely blank, and spin until popup's
       // screenshot is not the same as iframe.
       iframe.getScreenshot(1000, 1000).onsuccess = function(e) {
-        var fr = FileReader();
+        var fr = new FileReader();
         fr.onloadend = function() { test2(popup, fr.result); };
         fr.readAsArrayBuffer(e.target.result);
       };

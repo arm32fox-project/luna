@@ -90,31 +90,44 @@ function testEncodeUTF16ToUTF16()
 
 function testConstructorEncodingOption(aData, aExpectedString)
 {
+  function errorMessage(encoding) {
+    return `The given encoding '${String(encoding).trim()}' is not supported.`;
+  }
+
   // valid encoding passed
-  testSingleString({encoding: "UTF-8", input: aData, expected: aExpectedString,
+  var encoding = "UTF-8";
+  testSingleString({encoding: encoding, input: aData, expected: aExpectedString,
     msg: "testing encoding with valid utf-8 encoding."});
 
   // passing spaces for encoding
-  testSingleString({encoding: "   ", input: aData, error: "TypeError",
+  encoding = "   ";
+  testSingleString({encoding: encoding, input: aData, error: "RangeError",
+    errorMessage: errorMessage(encoding),
     msg: "constructor encoding, spaces encoding test."});
 
   // invalid encoding passed
-  testSingleString({encoding: "asdfasdf", input: aData, error: "TypeError",
+  encoding = "asdfasdf";
+  testSingleString({encoding: encoding, input: aData, error: "RangeError",
+    errorMessage: errorMessage(encoding),
     msg: "constructor encoding, invalid encoding test."});
 
   // null encoding passed
-  testSingleString({encoding: null, input: aData, error: "TypeError",
+  encoding = null;
+  testSingleString({encoding: encoding, input: aData, error: "RangeError",
+    errorMessage: errorMessage(encoding),
     msg: "constructor encoding, \"null\" encoding test."});
 
-  // null encoding passed
-  testSingleString({encoding: "", input: aData, error: "TypeError",
+  // empty encoding passed
+  encoding = "";
+  testSingleString({encoding: encoding, input: aData, error: "RangeError",
+    errorMessage: errorMessage(encoding),
     msg: "constructor encoding, empty encoding test."});
 }
 
 function testEncodingValues(aData, aExpectedString)
 {
   var encoding = "ISO-8859-11";
-  testSingleString({encoding: aData, input: encoding, error: "TypeError",
+  testSingleString({encoding: aData, input: encoding, error: "RangeError",
     msg: "encoder encoding values test."});
 }
 
@@ -134,9 +147,12 @@ function testSingleString(test)
   var outText;
   try {
     var stream = test.stream ? {stream: true} : null;
-    outText = TextEncoder(test.encoding).encode(test.input, stream);
+    outText = (new TextEncoder(test.encoding)).encode(test.input, stream);
   } catch (e) {
-    assert_equals(e.name, test.error, test.msg);
+    assert_equals(e.name, test.error, test.msg + " error thrown from the constructor.");
+    if (test.errorMessage) {
+      assert_equals(e.message, test.errorMessage, test.msg + " error thrown from the constructor.");
+    }
     return;
   }
   assert_true(!test.error, test.msg);
@@ -237,7 +253,7 @@ function testArrayOfStrings(test)
 {
   var encoder;
   try {
-    encoder = TextEncoder(test.encoding);
+    encoder = new TextEncoder(test.encoding);
   } catch (e) {
     assert_equals(e.name, test.error, test.msg);
     return;
@@ -270,7 +286,7 @@ function testEncoderGetEncoding()
 
   for (var le of labelEncodings) {
     for (var label of le.labels) {
-      var encoder = TextEncoder(label);
+      var encoder = new TextEncoder(label);
       assert_equals(encoder.encoding, le.encoding, label + " label encoding test.");
     }
   }

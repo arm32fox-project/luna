@@ -31,8 +31,8 @@ The easiest and fastest way to clobber is to run:
 
  $ mach clobber
 
-If you know this clobber doesn't apply to you or you're feeling lucky \
-- well do ya? - you can ignore this clobber requirement by running:
+If you know this clobber doesn't apply to you or you're feeling lucky -- \
+Well, are ya? -- you can ignore this clobber requirement by running:
 
  $ touch {clobber_file}
 '''.splitlines()])
@@ -51,6 +51,10 @@ class Clobberer(object):
         self.topobjdir = os.path.normpath(topobjdir)
         self.src_clobber = os.path.join(topsrcdir, 'CLOBBER')
         self.obj_clobber = os.path.join(topobjdir, 'CLOBBER')
+
+        # Try looking for mozilla/CLOBBER, for comm-central
+        if not os.path.isfile(self.src_clobber):
+            self.src_clobber = os.path.join(topsrcdir, 'mozilla', 'CLOBBER')
 
         assert os.path.isfile(self.src_clobber)
 
@@ -180,6 +184,8 @@ def main(args, env, cwd, fh=sys.stderr):
     required, performed, message = clobber.maybe_do_clobber(cwd, auto, fh)
 
     if not required or performed:
+        if performed and env.get('TINDERBOX_OUTPUT'):
+            print('TinderboxPrint: auto clobber', file=fh)
         return 0
 
     print(message, file=fh)

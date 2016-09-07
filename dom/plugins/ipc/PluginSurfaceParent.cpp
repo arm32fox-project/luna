@@ -20,5 +20,15 @@ PluginSurfaceParent::PluginSurfaceParent(const WindowsSharedMemoryHandle& handle
     mSurface = dibsurf;
 }
 
+PluginSurfaceParent::~PluginSurfaceParent()
+{
+}
+
+void
+PluginSurfaceParent::ActorDestroy(ActorDestroyReason aWhy)
+{
+  // Implement me! Bug 1005167
+}
+
 }
 }

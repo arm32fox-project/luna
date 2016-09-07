@@ -7,7 +7,7 @@
 /**
  * This interface is implemented by nsIUrlClassifierHashCompleter clients.
  */
-[scriptable, uuid(bbd6c954-7cb4-4447-bc55-8cefd1ceed89)]
+[scriptable, uuid(da16de40-df26-414d-bde7-c4faf4504868)]
 interface nsIUrlClassifierHashCompleterCallback : nsISupports
 {
   /**
@@ -21,13 +21,10 @@ interface nsIUrlClassifierHashCompleterCallback : nsISupports
    *        The name of the table that this hash belongs to.
    * @param chunkId
    *        The database chunk that this hash belongs to.
-   * @param trusted
-   *        The completion was verified with a MAC and can be cached.
    */
   void completion(in ACString hash,
                   in ACString table,
-                  in uint32_t chunkId,
-                  in boolean trusted);
+                  in uint32_t chunkId);
 
   /**
    * The completion is complete.  This method is called once per
@@ -43,31 +40,26 @@ interface nsIUrlClassifierHashCompleterCallback : nsISupports
 /**
  * Clients updating the url-classifier database have the option of sending
  * partial (32-bit) hashes of URL fragments to be blacklisted.  If the
- * url-classifier encounters one of these truncated hashes, it will ask
- * an nsIUrlClassifierCompleter instance to asynchronously provide the
- * complete hash, along with some associated metadata.
+ * url-classifier encounters one of these truncated hashes, it will ask an
+ * nsIUrlClassifierCompleter instance to asynchronously provide the complete
+ * hash, along with some associated metadata.
+ * This is only ever used for testing and should absolutely be deleted (I
+ * think).
  */
-[scriptable, uuid(ade9b72b-3562-44f5-aba6-e63246be53ae)]
+[scriptable, uuid(231fb2ad-ea8a-4e63-a331-eafc3b434811)]
 interface nsIUrlClassifierHashCompleter : nsISupports
 {
   /**
-   * Request a completed hash.
+   * Request a completed hash from the given gethash url.
    *
    * @param partialHash
    *        The 32-bit hash encountered by the url-classifier.
+   * @param gethashUrl
+   *        The gethash url to use.
    * @param callback
    *        An nsIUrlClassifierCompleterCallback instance.
    */
   void complete(in ACString partialHash,
+                in ACString gethashUrl,
                 in nsIUrlClassifierHashCompleterCallback callback);
-
-  /**
-   * Set the client and wrapped key for verified updates.
-   */
-  void setKeys(in ACString clientKey, in ACString wrappedKey);
-
-  /**
-   * The URL for the gethash request
-   */
-  attribute ACString gethashUrl;
 };

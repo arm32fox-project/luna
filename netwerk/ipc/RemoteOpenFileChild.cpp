@@ -4,8 +4,9 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/net/RemoteOpenFileChild.h"
+#include "RemoteOpenFileChild.h"
 
+#include "mozilla/unused.h"
 #include "mozilla/ipc/FileDescriptor.h"
 #include "mozilla/ipc/FileDescriptorUtils.h"
 #include "mozilla/ipc/URIUtils.h"
@@ -13,9 +14,15 @@
 #include "nsThreadUtils.h"
 #include "nsJARProtocolHandler.h"
 #include "nsIRemoteOpenFileListener.h"
+#include "nsProxyRelease.h"
+#include "SerializedLoadContext.h"
 
 // needed to alloc/free NSPR file descriptors
 #include "private/pprio.h"
+
+#if !defined(XP_WIN) && !defined(MOZ_WIDGET_COCOA)
+#include <unistd.h>
+#endif
 
 using namespace mozilla::ipc;
 
@@ -62,41 +69,88 @@ private:
 // RemoteOpenFileChild
 //-----------------------------------------------------------------------------
 
-NS_IMPL_THREADSAFE_ISUPPORTS3(RemoteOpenFileChild,
-                              nsIFile,
-                              nsIHashable,
-                              nsICachedFileDescriptorListener)
+NS_IMPL_ISUPPORTS(RemoteOpenFileChild,
+                  nsIFile,
+                  nsIHashable,
+                  nsICachedFileDescriptorListener)
 
 RemoteOpenFileChild::RemoteOpenFileChild(const RemoteOpenFileChild& other)
   : mTabChild(other.mTabChild)
-  , mNSPRFileDesc(other.mNSPRFileDesc)
+  , mNSPRFileDesc(nullptr)
   , mAsyncOpenCalled(other.mAsyncOpenCalled)
-  , mNSPROpenCalled(other.mNSPROpenCalled)
 {
+#if defined(XP_WIN) || defined(MOZ_WIDGET_COCOA)
+  // Windows/OSX desktop builds skip remoting, so the file descriptor should
+  // be nullptr here.
+  MOZ_ASSERT(!other.mNSPRFileDesc);
+#else
+  if (other.mNSPRFileDesc) {
+    PROsfd osfd = dup(PR_FileDesc2NativeHandle(other.mNSPRFileDesc));
+    mNSPRFileDesc = PR_ImportFile(osfd);
+  }
+#endif
+
   // Note: don't clone mListener or we'll have a refcount leak.
   other.mURI->Clone(getter_AddRefs(mURI));
+  if (other.mAppURI) {
+    other.mAppURI->Clone(getter_AddRefs(mAppURI));
+  }
   other.mFile->Clone(getter_AddRefs(mFile));
 }
 
 RemoteOpenFileChild::~RemoteOpenFileChild()
 {
-  if (mListener) {
-    NotifyListener(NS_ERROR_UNEXPECTED);
+  if (NS_IsMainThread()) {
+    if (mListener) {
+      NotifyListener(NS_ERROR_UNEXPECTED);
+    }
+  } else {
+    nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
+    if (mainThread) {
+      MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_ProxyRelease(mainThread, mURI, true)));
+      MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_ProxyRelease(mainThread, mAppURI, true)));
+      MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_ProxyRelease(mainThread, mListener,
+                                                   true)));
+
+      TabChild* tabChild;
+      mTabChild.forget(&tabChild);
+
+      if (tabChild) {
+        nsCOMPtr<nsIRunnable> runnable =
+          NS_NewNonOwningRunnableMethod(tabChild, &TabChild::Release);
+        MOZ_ASSERT(runnable);
+
+        MOZ_ALWAYS_TRUE(NS_SUCCEEDED(mainThread->Dispatch(runnable,
+                                                          NS_DISPATCH_NORMAL)));
+      }
+    } else {
+      using mozilla::unused;
+
+      NS_WARNING("RemoteOpenFileChild released after thread shutdown, leaking "
+                 "its members!");
+
+      unused << mURI.forget();
+      unused << mAppURI.forget();
+      unused << mListener.forget();
+      unused << mTabChild.forget();
+    }
   }
 
   if (mNSPRFileDesc) {
-    // If we handed out fd we shouldn't have pointer to it any more.
-    MOZ_ASSERT(!mNSPROpenCalled);
     // PR_Close both closes the file and deallocates the PRFileDesc
     PR_Close(mNSPRFileDesc);
   }
 }
 
 nsresult
-RemoteOpenFileChild::Init(nsIURI* aRemoteOpenUri)
+RemoteOpenFileChild::Init(nsIURI* aRemoteOpenUri, nsIURI* aAppUri)
 {
   if (!aRemoteOpenUri) {
     return NS_ERROR_INVALID_ARG;
+  }
+
+  if (aAppUri) {
+    aAppUri->Clone(getter_AddRefs(mAppURI));
   }
 
   nsAutoCString scheme;
@@ -134,7 +188,8 @@ RemoteOpenFileChild::Init(nsIURI* aRemoteOpenUri)
 nsresult
 RemoteOpenFileChild::AsyncRemoteFileOpen(int32_t aFlags,
                                          nsIRemoteOpenFileListener* aListener,
-                                         nsITabChild* aTabChild)
+                                         nsITabChild* aTabChild,
+                                         nsILoadContext *aLoadContext)
 {
   if (!mFile) {
     return NS_ERROR_NOT_INITIALIZED;
@@ -170,7 +225,7 @@ RemoteOpenFileChild::AsyncRemoteFileOpen(int32_t aFlags,
 #else
   nsString path;
   if (NS_FAILED(mFile->GetPath(path))) {
-    MOZ_NOT_REACHED("Couldn't get path from file!");
+    MOZ_CRASH("Couldn't get path from file!");
   }
 
   if (mTabChild) {
@@ -183,8 +238,11 @@ RemoteOpenFileChild::AsyncRemoteFileOpen(int32_t aFlags,
 
   URIParams uri;
   SerializeURI(mURI, uri);
+  OptionalURIParams appUri;
+  SerializeURI(mAppURI, appUri);
 
-  gNeckoChild->SendPRemoteOpenFileConstructor(this, uri, mTabChild);
+  IPC::SerializedLoadContext loadContext(aLoadContext);
+  gNeckoChild->SendPRemoteOpenFileConstructor(this, loadContext, uri, appUri);
 
   // The chrome process now has a logical ref to us until it calls Send__delete.
   AddIPDLReference();
@@ -193,6 +251,18 @@ RemoteOpenFileChild::AsyncRemoteFileOpen(int32_t aFlags,
   mAsyncOpenCalled = true;
   return NS_OK;
 #endif
+}
+
+nsresult
+RemoteOpenFileChild::SetNSPRFileDesc(PRFileDesc* aNSPRFileDesc)
+{
+  MOZ_ASSERT(!mNSPRFileDesc);
+  if (mNSPRFileDesc) {
+    return NS_ERROR_ALREADY_OPENED;
+  }
+
+  mNSPRFileDesc = aNSPRFileDesc;
+  return NS_OK;
 }
 
 void
@@ -204,10 +274,7 @@ RemoteOpenFileChild::OnCachedFileDescriptor(const nsAString& aPath,
     MOZ_ASSERT(mFile);
 
     nsString path;
-    if (NS_FAILED(mFile->GetPath(path))) {
-      MOZ_NOT_REACHED("Couldn't get path from file!");
-    }
-
+    MOZ_ASSERT(NS_SUCCEEDED(mFile->GetPath(path)));
     MOZ_ASSERT(path == aPath, "Paths don't match!");
   }
 #endif
@@ -221,7 +288,7 @@ RemoteOpenFileChild::HandleFileDescriptorAndNotifyListener(
                                                       bool aFromRecvDelete)
 {
 #if defined(XP_WIN) || defined(MOZ_WIDGET_COCOA)
-  MOZ_NOT_REACHED("OS X and Windows shouldn't be doing IPDL here");
+  MOZ_CRASH("OS X and Windows shouldn't be doing IPDL here");
 #else
   if (!mListener) {
     // We already notified our listener (either in response to a cached file
@@ -246,7 +313,7 @@ RemoteOpenFileChild::HandleFileDescriptorAndNotifyListener(
   if (tabChild && aFromRecvDelete) {
     nsString path;
     if (NS_FAILED(mFile->GetPath(path))) {
-      MOZ_NOT_REACHED("Couldn't get path from file!");
+      MOZ_CRASH("Couldn't get path from file!");
     }
 
     tabChild->CancelCachedFileDescriptorCallback(path, this);
@@ -304,11 +371,6 @@ RemoteOpenFileChild::Clone(nsIFile **file)
   *file = new RemoteOpenFileChild(*this);
   NS_ADDREF(*file);
 
-  // if we transferred ownership of file to clone, forget our pointer.
-  if (mNSPRFileDesc) {
-    mNSPRFileDesc = nullptr;
-  }
-
   return NS_OK;
 }
 
@@ -327,21 +389,13 @@ RemoteOpenFileChild::OpenNSPRFileDesc(int32_t aFlags, int32_t aMode,
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  // Unlike regular nsIFile we can't (easily) support multiple open()s.
-  if (mNSPROpenCalled) {
-    return NS_ERROR_ALREADY_OPENED;
-  }
-
   if (!mNSPRFileDesc) {
-    // client skipped AsyncRemoteFileOpen() or didn't wait for result, or this
-    // object has been cloned
+    // Client skipped AsyncRemoteFileOpen() or didn't wait for result.
     return NS_ERROR_NOT_AVAILABLE;
   }
 
-  // hand off ownership (i.e responsibility to PR_Close() file handle) to caller
-  *aRetval = mNSPRFileDesc;
-  mNSPRFileDesc = nullptr;
-  mNSPROpenCalled = true;
+  PROsfd osfd = dup(PR_FileDesc2NativeHandle(mNSPRFileDesc));
+  *aRetval = PR_ImportFile(osfd);
 
   return NS_OK;
 #endif
@@ -395,9 +449,9 @@ RemoteOpenFileChild::Equals(nsIFile *inFile, bool *_retval)
 }
 
 NS_IMETHODIMP
-RemoteOpenFileChild::Contains(nsIFile *inFile, bool recur, bool *_retval)
+RemoteOpenFileChild::Contains(nsIFile *inFile, bool *_retval)
 {
-  return mFile->Contains(inFile, recur, _retval);
+  return mFile->Contains(inFile, _retval);
 }
 
 NS_IMETHODIMP
@@ -547,6 +601,12 @@ RemoteOpenFileChild::MoveTo(nsIFile *newParentDir, const nsAString &newName)
 
 NS_IMETHODIMP
 RemoteOpenFileChild::MoveToNative(nsIFile *newParent, const nsACString &newName)
+{
+  return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP
+RemoteOpenFileChild::RenameTo(nsIFile *newParentDir, const nsAString &newName)
 {
   return NS_ERROR_NOT_IMPLEMENTED;
 }

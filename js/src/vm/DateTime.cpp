@@ -4,7 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "DateTime.h"
+#include "vm/DateTime.h"
 
 #include <time.h>
 
@@ -13,12 +13,14 @@
 using mozilla::UnspecifiedNaN;
 
 static bool
-ComputeLocalTime(time_t local, struct tm *ptm)
+ComputeLocalTime(time_t local, struct tm* ptm)
 {
-#ifdef HAVE_LOCALTIME_R
+#if defined(_WIN32)
+    return localtime_s(ptm, &local) == 0;
+#elif defined(HAVE_LOCALTIME_R)
     return localtime_r(&local, ptm);
 #else
-    struct tm *otm = localtime(&local);
+    struct tm* otm = localtime(&local);
     if (!otm)
         return false;
     *ptm = *otm;
@@ -27,12 +29,14 @@ ComputeLocalTime(time_t local, struct tm *ptm)
 }
 
 static bool
-ComputeUTCTime(time_t t, struct tm *ptm)
+ComputeUTCTime(time_t t, struct tm* ptm)
 {
-#ifdef HAVE_GMTIME_R
+#if defined(_WIN32)
+    return gmtime_s(ptm, &t) == 0;
+#elif defined(HAVE_GMTIME_R)
     return gmtime_r(&t, ptm);
 #else
-    struct tm *otm = gmtime(&t);
+    struct tm* otm = gmtime(&t);
     if (!otm)
         return false;
     *ptm = *otm;
@@ -69,7 +73,7 @@ UTCToLocalStandardOffsetSeconds()
 #endif
 
     // Get the current time.
-    time_t currentMaybeWithDST = time(NULL);
+    time_t currentMaybeWithDST = time(nullptr);
     if (currentMaybeWithDST == time_t(-1))
         return 0;
 
@@ -164,7 +168,7 @@ js::DateTimeInfo::DateTimeInfo()
 {
     // Set to a totally impossible TZA so that the comparison above will fail
     // and all fields will be properly initialized.
-    localTZA_ = UnspecifiedNaN();
+    localTZA_ = UnspecifiedNaN<double>();
     updateTimeZoneAdjustment();
 }
 

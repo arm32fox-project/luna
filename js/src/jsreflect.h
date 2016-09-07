@@ -10,9 +10,6 @@
 #ifndef jsreflect_h
 #define jsreflect_h
 
-#include <stdlib.h>
-#include "jspubtd.h"
-
 namespace js {
 
 enum ASTType {
@@ -76,7 +73,6 @@ enum VarDeclKind {
     VARDECL_VAR = 0,
     VARDECL_CONST,
     VARDECL_LET,
-    VARDECL_LET_HEAD,
     VARDECL_LIMIT
 };
 
@@ -85,6 +81,7 @@ enum PropKind {
     PROP_INIT = 0,
     PROP_GETTER,
     PROP_SETTER,
+    PROP_MUTATEPROTO,
     PROP_LIMIT
 };
 

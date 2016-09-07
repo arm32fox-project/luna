@@ -10,13 +10,15 @@
   'targets': [
     {
       'target_name': 'PCM16B',
-      'type': '<(library)',
+      'type': 'static_library',
       'include_dirs': [
         'include',
+        '<(webrtc_root)',
       ],
       'direct_dependent_settings': {
         'include_dirs': [
           'include',
+          '<(webrtc_root)',
         ],
       },
       'sources': [
@@ -26,9 +28,3 @@
     },
   ], # targets
 }
-
-# Local Variables:
-# tab-width:2
-# indent-tabs-mode:nil
-# End:
-# vim: set expandtab tabstop=2 shiftwidth=2:

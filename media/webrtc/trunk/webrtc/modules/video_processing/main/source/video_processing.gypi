@@ -10,21 +10,13 @@
   'targets': [
     {
       'target_name': 'video_processing',
-      'type': '<(library)',
+      'type': 'static_library',
       'dependencies': [
         'webrtc_utility',
-        '<(webrtc_root)/common_audio/common_audio.gyp:signal_processing',
+        '<(webrtc_root)/common_audio/common_audio.gyp:common_audio',
         '<(webrtc_root)/common_video/common_video.gyp:common_video',
         '<(webrtc_root)/system_wrappers/source/system_wrappers.gyp:system_wrappers',
       ],
-      'include_dirs': [
-        '../interface',
-      ],
-      'direct_dependent_settings': {
-        'include_dirs': [
-          '../interface',
-        ],
-      },
       'sources': [
         '../interface/video_processing.h',
         '../interface/video_processing_defines.h',
@@ -39,8 +31,6 @@
         'content_analysis.h',
         'deflickering.cc',
         'deflickering.h',
-        'denoising.cc',
-        'denoising.h',
         'frame_preprocessor.cc',
         'frame_preprocessor.h',
         'spatial_resampler.cc',
@@ -62,13 +52,9 @@
       'targets': [
         {
           'target_name': 'video_processing_sse2',
-          'type': '<(library)',
+          'type': 'static_library',
           'sources': [
             'content_analysis_sse2.cc',
-          ],
-          'include_dirs': [
-            '../interface',
-            '../../../interface',
           ],
           'conditions': [
             ['os_posix==1 and OS!="mac"', {

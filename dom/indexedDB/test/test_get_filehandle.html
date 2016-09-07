@@ -17,31 +17,31 @@
     let request = indexedDB.open(name, 1);
     request.onerror = errorHandler;
     request.onsuccess = grabEventAndContinueHandler;
-    let event = yield;
+    let event = yield undefined;
 
     let db = event.target.result;
     db.onerror = errorHandler;
 
     if (SpecialPowers.isMainProcess()) {
-      request = db.mozCreateFileHandle("random.bin", "binary/random");
+      request = db.createMutableFile("random.bin", "binary/random");
       request.onsuccess = grabEventAndContinueHandler;
-      event = yield;
+      event = yield undefined;
 
-      let fileHandle = event.target.result;
-      ok(fileHandle, "Got filehandle");
+      let mutableFile = event.target.result;
+      ok(mutableFile, "Got mutablefile");
     }
     else {
       try {
-        db.mozCreateFileHandle("random.bin", "binary/random");
+        db.createMutableFile("random.bin", "binary/random");
         ok(false, "Should have thrown!");
       }
       catch (ex) {
-        ok(true, "MozCreateFileHandle threw");
+        ok(true, "CreateMutableFile threw");
       }
     }
 
     finishTest();
-    yield;
+    yield undefined;
   }
   </script>
   <script type="text/javascript;version=1.7" src="helpers.js"></script>

@@ -7,20 +7,17 @@
 #ifndef jit_BaselineFrameInfo_h
 #define jit_BaselineFrameInfo_h
 
-#ifdef JS_ION
+#include "mozilla/Alignment.h"
 
-#include "jscntxt.h"
-#include "jscompartment.h"
-
-#include "BaselineJIT.h"
-#include "BaselineFrame.h"
-#include "BaselineRegisters.h"
-#include "BytecodeAnalysis.h"
-#include "IonMacroAssembler.h"
-#include "FixedList.h"
+#include "jit/BaselineFrame.h"
+#include "jit/BaselineRegisters.h"
+#include "jit/FixedList.h"
+#include "jit/MacroAssembler.h"
 
 namespace js {
 namespace jit {
+
+struct BytecodeInfo;
 
 // FrameInfo overview.
 //
@@ -96,14 +93,14 @@ class StackValue
         return knownType_ != JSVAL_TYPE_UNKNOWN;
     }
     bool hasKnownType(JSValueType type) const {
-        JS_ASSERT(type != JSVAL_TYPE_UNKNOWN);
+        MOZ_ASSERT(type != JSVAL_TYPE_UNKNOWN);
         return knownType_ == type;
     }
     bool isKnownBoolean() const {
         return hasKnownType(JSVAL_TYPE_BOOLEAN);
     }
     JSValueType knownType() const {
-        JS_ASSERT(hasKnownType());
+        MOZ_ASSERT(hasKnownType());
         return knownType_;
     }
     void reset() {
@@ -113,28 +110,28 @@ class StackValue
 #endif
     }
     Value constant() const {
-        JS_ASSERT(kind_ == Constant);
+        MOZ_ASSERT(kind_ == Constant);
         return data.constant.v;
     }
     ValueOperand reg() const {
-        JS_ASSERT(kind_ == Register);
+        MOZ_ASSERT(kind_ == Register);
         return *data.reg.reg.addr();
     }
     uint32_t localSlot() const {
-        JS_ASSERT(kind_ == LocalSlot);
+        MOZ_ASSERT(kind_ == LocalSlot);
         return data.local.slot;
     }
     uint32_t argSlot() const {
-        JS_ASSERT(kind_ == ArgSlot);
+        MOZ_ASSERT(kind_ == ArgSlot);
         return data.arg.slot;
     }
 
-    void setConstant(const Value &v) {
+    void setConstant(const Value& v) {
         kind_ = Constant;
         data.constant.v = v;
         knownType_ = v.isDouble() ? JSVAL_TYPE_DOUBLE : v.extractNonDoubleType();
     }
-    void setRegister(const ValueOperand &val, JSValueType knownType = JSVAL_TYPE_UNKNOWN) {
+    void setRegister(const ValueOperand& val, JSValueType knownType = JSVAL_TYPE_UNKNOWN) {
         kind_ = Register;
         *data.reg.reg.addr() = val;
         knownType_ = knownType;
@@ -161,36 +158,40 @@ class StackValue
 
 enum StackAdjustment { AdjustStack, DontAdjustStack };
 
-class BaselineCompilerShared;
-
 class FrameInfo
 {
-    RootedScript script;
-    MacroAssembler &masm;
+    JSScript* script;
+    MacroAssembler& masm;
 
     FixedList<StackValue> stack;
     size_t spIndex;
 
   public:
-    FrameInfo(JSContext *cx, HandleScript script, MacroAssembler &masm)
-      : script(cx, script),
+    FrameInfo(JSScript* script, MacroAssembler& masm)
+      : script(script),
         masm(masm),
         stack(),
         spIndex(0)
     { }
 
-    bool init();
+    bool init(TempAllocator& alloc);
 
-    uint32_t nlocals() const {
-        return script->nfixed;
+    size_t nlocals() const {
+        return script->nfixed();
     }
-    uint32_t nargs() const {
-        return script->function()->nargs;
+    size_t nargs() const {
+        return script->functionNonDelazifying()->nargs();
+    }
+    size_t nvars() const {
+        return script->nfixedvars();
+    }
+    size_t nlexicals() const {
+        return script->fixedLexicalEnd() - script->fixedLexicalBegin();
     }
 
   private:
-    inline StackValue *rawPush() {
-        StackValue *val = &stack[spIndex++];
+    inline StackValue* rawPush() {
+        StackValue* val = &stack[spIndex++];
         val->reset();
         return val;
     }
@@ -205,21 +206,21 @@ class FrameInfo
         } else {
             uint32_t diff = newDepth - stackDepth();
             for (uint32_t i = 0; i < diff; i++) {
-                StackValue *val = rawPush();
+                StackValue* val = rawPush();
                 val->setStack();
             }
 
-            JS_ASSERT(spIndex == newDepth);
+            MOZ_ASSERT(spIndex == newDepth);
         }
     }
-    inline StackValue *peek(int32_t index) const {
-        JS_ASSERT(index < 0);
-        return const_cast<StackValue *>(&stack[spIndex + index]);
+    inline StackValue* peek(int32_t index) const {
+        MOZ_ASSERT(index < 0);
+        return const_cast<StackValue*>(&stack[spIndex + index]);
     }
 
     inline void pop(StackAdjustment adjust = AdjustStack) {
         spIndex--;
-        StackValue *popped = &stack[spIndex];
+        StackValue* popped = &stack[spIndex];
 
         if (adjust == AdjustStack && popped->kind() == StackValue::Stack)
             masm.addPtr(Imm32(sizeof(Value)), BaselineStackReg);
@@ -237,58 +238,48 @@ class FrameInfo
         if (adjust == AdjustStack && poppedStack > 0)
             masm.addPtr(Imm32(sizeof(Value) * poppedStack), BaselineStackReg);
     }
-    inline void push(const Value &val) {
-        StackValue *sv = rawPush();
+    inline void push(const Value& val) {
+        StackValue* sv = rawPush();
         sv->setConstant(val);
     }
-    inline void push(const ValueOperand &val, JSValueType knownType=JSVAL_TYPE_UNKNOWN) {
-        StackValue *sv = rawPush();
+    inline void push(const ValueOperand& val, JSValueType knownType=JSVAL_TYPE_UNKNOWN) {
+        StackValue* sv = rawPush();
         sv->setRegister(val, knownType);
     }
     inline void pushLocal(uint32_t local) {
-        StackValue *sv = rawPush();
+        MOZ_ASSERT(local < nlocals());
+        StackValue* sv = rawPush();
         sv->setLocalSlot(local);
     }
     inline void pushArg(uint32_t arg) {
-        StackValue *sv = rawPush();
+        StackValue* sv = rawPush();
         sv->setArgSlot(arg);
     }
     inline void pushThis() {
-        StackValue *sv = rawPush();
+        StackValue* sv = rawPush();
         sv->setThis();
     }
     inline void pushScratchValue() {
         masm.pushValue(addressOfScratchValue());
-        StackValue *sv = rawPush();
+        StackValue* sv = rawPush();
         sv->setStack();
     }
     inline Address addressOfLocal(size_t local) const {
-#ifdef DEBUG
-        if (local >= nlocals()) {
-            // GETLOCAL and SETLOCAL can be used to access stack values. This is
-            // fine, as long as they are synced.
-            size_t slot = local - nlocals();
-            JS_ASSERT(slot < stackDepth());
-            JS_ASSERT(stack[slot].kind() == StackValue::Stack);
-        }
-#endif
+        MOZ_ASSERT(local < nlocals());
         return Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfLocal(local));
     }
     Address addressOfArg(size_t arg) const {
-        JS_ASSERT(arg < nargs());
+        MOZ_ASSERT(arg < nargs());
         return Address(BaselineFrameReg, BaselineFrame::offsetOfArg(arg));
     }
     Address addressOfThis() const {
         return Address(BaselineFrameReg, BaselineFrame::offsetOfThis());
     }
-    Address addressOfCallee() const {
+    Address addressOfCalleeToken() const {
         return Address(BaselineFrameReg, BaselineFrame::offsetOfCalleeToken());
     }
     Address addressOfScopeChain() const {
         return Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfScopeChain());
-    }
-    Address addressOfBlockChain() const {
-        return Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfBlockChain());
     }
     Address addressOfFlags() const {
         return Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfFlags());
@@ -299,10 +290,13 @@ class FrameInfo
     Address addressOfReturnValue() const {
         return Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfReturnValue());
     }
-    Address addressOfStackValue(const StackValue *value) const {
-        JS_ASSERT(value->kind() == StackValue::Stack);
+    Address addressOfArgsObj() const {
+        return Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfArgsObj());
+    }
+    Address addressOfStackValue(const StackValue* value) const {
+        MOZ_ASSERT(value->kind() == StackValue::Stack);
         size_t slot = value - &stack[0];
-        JS_ASSERT(slot < stackDepth());
+        MOZ_ASSERT(slot < stackDepth());
         return Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfLocal(nlocals() + slot));
     }
     Address addressOfScratchValue() const {
@@ -311,26 +305,24 @@ class FrameInfo
 
     void popValue(ValueOperand dest);
 
-    void sync(StackValue *val);
+    void sync(StackValue* val);
     void syncStack(uint32_t uses);
     uint32_t numUnsyncedSlots();
     void popRegsAndSync(uint32_t uses);
 
     inline void assertSyncedStack() const {
-        JS_ASSERT_IF(stackDepth() > 0, peek(-1)->kind() == StackValue::Stack);
+        MOZ_ASSERT_IF(stackDepth() > 0, peek(-1)->kind() == StackValue::Stack);
     }
 
 #ifdef DEBUG
     // Assert the state is valid before excuting "pc".
-    void assertValidState(const BytecodeInfo &info);
+    void assertValidState(const BytecodeInfo& info);
 #else
-    inline void assertValidState(const BytecodeInfo &info) {}
+    inline void assertValidState(const BytecodeInfo& info) {}
 #endif
 };
 
 } // namespace jit
 } // namespace js
-
-#endif // JS_ION
 
 #endif /* jit_BaselineFrameInfo_h */

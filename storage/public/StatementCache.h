@@ -35,10 +35,9 @@ public:
    *        used for.  This nsCOMPtr must at least live as long as this class,
    *        otherwise crashes will happen.
    */
-  StatementCache(nsCOMPtr<mozIStorageConnection>& aConnection)
+  explicit StatementCache(nsCOMPtr<mozIStorageConnection>& aConnection)
   : mConnection(aConnection)
   {
-    mCachedStatements.Init();
   }
 
   /**
@@ -80,7 +79,7 @@ public:
   void
   FinalizeStatements()
   {
-    (void)mCachedStatements.Enumerate(FinalizeCachedStatements, NULL);
+    (void)mCachedStatements.Enumerate(FinalizeCachedStatements, nullptr);
 
     // Clear the cache at this time too!
     (void)mCachedStatements.Clear();

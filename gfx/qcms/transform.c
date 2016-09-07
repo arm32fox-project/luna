@@ -306,6 +306,14 @@ qcms_bool set_rgb_colorants(qcms_profile *profile, qcms_CIE_xyY white_point, qcm
 	return true;
 }
 
+qcms_bool get_rgb_colorants(struct matrix *colorants, qcms_CIE_xyY white_point, qcms_CIE_xyYTRIPLE primaries)
+{
+	*colorants = build_RGB_to_XYZ_transfer_matrix(white_point, primaries);
+	*colorants = adapt_matrix_to_D50(*colorants, white_point);
+
+	return (colorants->invalid ? true : false);
+}
+
 #if 0
 static void qcms_transform_data_rgb_out_pow(qcms_transform *transform, unsigned char *src, unsigned char *dest, size_t length)
 {
@@ -915,11 +923,16 @@ void precache_release(struct precache_output *p)
 	}
 }
 
-#ifdef HAS_POSIX_MEMALIGN
+#ifdef HAVE_POSIX_MEMALIGN
 static qcms_transform *transform_alloc(void)
 {
 	qcms_transform *t;
-	if (!posix_memalign(&t, 16, sizeof(*t))) {
+
+	void *allocated_memory;
+	if (!posix_memalign(&allocated_memory, 16, sizeof(qcms_transform))) {
+		/* Doing a memset to initialise all bits to 'zero'*/
+		memset(allocated_memory, 0, sizeof(qcms_transform));
+		t = allocated_memory;
 		return t;
 	} else {
 		return NULL;
@@ -1031,7 +1044,7 @@ static void cpuid(uint32_t fxn, uint32_t *a, uint32_t *b, uint32_t *c, uint32_t 
 // -------------------------Runtime SSEx Detection-----------------------------
 
 /* MMX is always supported per
- *  Gecko v1.9.1 minimum CPU requirements */
+ *  Goanna v1.9.1 minimum CPU requirements */
 #define SSE1_EDX_MASK (1UL << 25)
 #define SSE2_EDX_MASK (1UL << 26)
 #define SSE3_ECX_MASK (1UL <<  0)

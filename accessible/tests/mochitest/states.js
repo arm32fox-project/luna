@@ -42,6 +42,7 @@ const EXT_STATE_EDITABLE = nsIAccessibleStates.EXT_STATE_EDITABLE;
 const EXT_STATE_ENABLED = nsIAccessibleStates.EXT_STATE_ENABLED;
 const EXT_STATE_EXPANDABLE = nsIAccessibleStates.EXT_STATE_EXPANDABLE;
 const EXT_STATE_HORIZONTAL = nsIAccessibleStates.EXT_STATE_HORIZONTAL;
+const EXT_STATE_MODAL = nsIAccessibleStates.EXT_STATE_MODAL;
 const EXT_STATE_MULTI_LINE = nsIAccessibleStates.EXT_STATE_MULTI_LINE;
 const EXT_STATE_PINNED = nsIAccessibleStates.EXT_STATE_PINNED;
 const EXT_STATE_SENSITIVE = nsIAccessibleStates.EXT_STATE_SENSITIVE;
@@ -78,8 +79,10 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
   var id = prettyName(aAccOrElmOrID) + (aTestName ? " [" + aTestName + "]": "");
 
   // Primary test.
-  isState(state & aState, aState, false,
-          "wrong state bits for " + id + "!");
+  if (aState) {
+    isState(state & aState, aState, false,
+            "wrong state bits for " + id + "!");
+  }
 
   if (aExtraState)
     isState(extraState & aExtraState, aExtraState, true,
@@ -138,7 +141,8 @@ function testStates(aAccOrElmOrID, aState, aExtraState, aAbsentState,
   }
 
   // checked/mixed/checkable
-  if (state & STATE_CHECKED || state & STATE_MIXED && role != ROLE_PROGRESSBAR)
+  if (state & STATE_CHECKED || state & STATE_MIXED &&
+      role != ROLE_TOGGLE_BUTTON && role != ROLE_PROGRESSBAR)
     isState(state & STATE_CHECKABLE, STATE_CHECKABLE, false,
             "Checked or mixed element must be checkable!");
 
@@ -194,6 +198,17 @@ function testStatesInSubtree(aAccOrElmOrID, aState, aExtraState, aAbsentState)
   }
 }
 
+/**
+ * Fails if no defunct state on the accessible.
+ */
+function testIsDefunct(aAccessible, aTestName)
+{
+  var id = prettyName(aAccessible) + (aTestName ? " [" + aTestName + "]" : "");
+  var [state, extraState] = getStates(aAccessible);
+  isState(extraState & EXT_STATE_DEFUNCT, EXT_STATE_DEFUNCT, true,
+          "no defuct state for " + id + "!");
+}
+
 function getStringStates(aAccOrElmOrID)
 {
   var [state, extraState] = getStates(aAccOrElmOrID);
@@ -205,7 +220,7 @@ function getStates(aAccOrElmOrID)
   var acc = getAccessible(aAccOrElmOrID);
   if (!acc)
     return [0, 0];
-  
+
   var state = {}, extraState = {};
   acc.getState(state, extraState);
 

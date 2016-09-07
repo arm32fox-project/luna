@@ -4,28 +4,32 @@
   <title>Test removing an instance's DOM node</title>
   <script type="text/javascript" src="/MochiKit/packed.js"></script>
   <script type="text/javascript" src="/tests/SimpleTest/SimpleTest.js"></script>
+  <script type="text/javascript" src="utils.js"></script>
   <link rel="stylesheet" type="text/css" href="/tests/SimpleTest/test.css" />
 </head>
 <body onload="startTest()">
-  <p id="display"></p>
-
-  <div id="div1">
-    <div id="div2">
-      <embed id="plugin1" type="application/x-test" width="200" height="200"></embed>
-    </div<
-  </div>
-
   <script type="application/javascript;version=1.8">
   SimpleTest.waitForExplicitFinish();
+  setTestPluginEnabledState(SpecialPowers.Ci.nsIPluginTag.STATE_ENABLED);
 
+  const MAX_ATTEMPTS = 5;
+  var attempts = 0;
   var destroyed = false;
   function onDestroy() {
     destroyed = true;
   }
 
   function checkPluginAlreadyDestroyed() {
-    is(destroyed, true, "Plugin instance should have been destroyed.");
-    SimpleTest.finish();
+    // We may need to retry a few times until the plugin stop event makes
+    // its way through the event queue.
+    if (attempts < MAX_ATTEMPTS && !destroyed) {
+      ++attempts;
+      SimpleTest.executeSoon(checkPluginAlreadyDestroyed);
+    } else {
+      info("Number of retry attempts: " + attempts);
+      is(destroyed, true, "Plugin instance should have been destroyed.");
+      SimpleTest.finish();
+    }
   }
 
   function startTest() {
@@ -34,11 +38,17 @@
     var d2 = document.getElementById('div2');
 
     p1.callOnDestroy(onDestroy);
-
-    setTimeout(checkPluginAlreadyDestroyed, 0);
-
     d1.removeChild(d2);
+    SimpleTest.executeSoon(checkPluginAlreadyDestroyed);
   }
   </script>
+
+  <p id="display"></p>
+
+  <div id="div1">
+    <div id="div2">
+      <embed id="plugin1" type="application/x-test" width="200" height="200"></embed>
+    </div<
+  </div>
 </body>
 </html>

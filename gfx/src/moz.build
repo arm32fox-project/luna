@@ -9,9 +9,10 @@ XPIDL_SOURCES += [
     'nsIScriptableRegion.idl',
 ]
 
-MODULE = 'gfx'
+XPIDL_MODULE = 'gfx'
 
 EXPORTS += [
+    'FilterSupport.h',
     'gfxCore.h',
     'nsBoundingMetrics.h',
     'nsColor.h',
@@ -33,15 +34,19 @@ EXPORTS += [
     'nsTransform2D.h',
 ]
 
+EXPORTS.mozilla += [
+    'AppUnits.h',
+]
+
 if CONFIG['MOZ_X11']:
     EXPORTS.mozilla += ['X11Util.h']
-    CPP_SOURCES += [
+    SOURCES += [
         'X11Util.cpp',
     ]
 
-CPP_SOURCES += [
+UNIFIED_SOURCES += [
+    'FilterSupport.cpp',
     'nsColor.cpp',
-    'nsDeviceContext.cpp',
     'nsFont.cpp',
     'nsFontMetrics.cpp',
     'nsRect.cpp',
@@ -53,5 +58,22 @@ CPP_SOURCES += [
     'nsTransform2D.cpp',
 ]
 
-LIBRARY_NAME = 'gkgfx'
+# nsDeviceContext.cpp cannot be built in unified mode because it pulls in OS X system headers.
+SOURCES += [
+    'nsDeviceContext.cpp',
+]
 
+FAIL_ON_WARNINGS = True
+
+MSVC_ENABLE_PGO = True
+
+FINAL_LIBRARY = 'xul'
+
+CXXFLAGS += CONFIG['MOZ_CAIRO_CFLAGS']
+CXXFLAGS += CONFIG['TK_CFLAGS']
+
+if CONFIG['MOZ_WIDGET_GTK']:
+    CXXFLAGS += CONFIG['MOZ_PANGO_CFLAGS']
+
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'qt':
+    CXXFLAGS += CONFIG['MOZ_QT_CFLAGS']

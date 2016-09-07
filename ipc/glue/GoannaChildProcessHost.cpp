@@ -7,7 +7,6 @@
 #include "GoannaChildProcessHost.h"
 
 #include "base/command_line.h"
-#include "base/path_service.h"
 #include "base/string_util.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/process_watcher.h"
@@ -17,16 +16,15 @@
 #include "nsILocalFileMac.h"
 #endif
 
+#include "MainThreadUtils.h"
 #include "prprf.h"
 #include "prenv.h"
-
-#if defined(OS_LINUX)
-#  define XP_LINUX 1
-#endif
+#include "nsXPCOMPrivate.h"
 
 #include "nsDirectoryServiceDefs.h"
 #include "nsIFile.h"
 
+#include "mozilla/ClearOnShutdown.h"
 #include "mozilla/ipc/BrowserProcessSubThread.h"
 #include "mozilla/Omnijar.h"
 #include <sys/stat.h>
@@ -34,15 +32,24 @@
 #ifdef XP_WIN
 #include "nsIWinTaskbar.h"
 #define NS_TASKBAR_CONTRACTID "@mozilla.org/windows-taskbar;1"
+
+#if defined(MOZ_SANDBOX)
+#include "mozilla/Preferences.h"
+#include "mozilla/sandboxing/sandboxLogging.h"
 #endif
+#endif
+
+#include "nsTArray.h"
+#include "nsClassHashtable.h"
+#include "nsHashKeys.h"
+#include "nsNativeCharsetUtils.h"
 
 using mozilla::MonitorAutoLock;
 using mozilla::ipc::GoannaChildProcessHost;
 
 #ifdef ANDROID
-// Like its predecessor in nsExceptionHandler.cpp, this is
-// the magic number of a file descriptor remapping we must
-// preserve for the child process.
+// This is the magic number of a file descriptor
+// remapping we must preserve for the child process.
 static const int kMagicAndroidSystemPropFd = 5;
 #endif
 
@@ -85,17 +92,17 @@ GoannaChildProcessHost::GoannaChildProcessHost(GoannaProcessType aProcessType,
     mMonitor("mozilla.ipc.GeckChildProcessHost.mMonitor"),
     mProcessState(CREATING_CHANNEL),
     mDelegate(nullptr),
+#if defined(MOZ_SANDBOX) && defined(XP_WIN)
+    mEnableSandboxLogging(false),
+    mSandboxLevel(0),
+    mMoreStrictSandbox(false),
+#endif
     mChildProcessHandle(0)
 #if defined(MOZ_WIDGET_COCOA)
   , mChildTask(MACH_PORT_NULL)
 #endif
 {
     MOZ_COUNT_CTOR(GoannaChildProcessHost);
-    
-    MessageLoop* ioLoop = XRE_GetIOMessageLoop();
-    ioLoop->PostTask(FROM_HERE,
-                     NewRunnableMethod(this,
-                                       &GoannaChildProcessHost::InitializeChannel));
 }
 
 GoannaChildProcessHost::~GoannaChildProcessHost()
@@ -118,30 +125,31 @@ GoannaChildProcessHost::~GoannaChildProcessHost()
 #endif
 }
 
-void GetPathToBinary(FilePath& exePath)
+//static
+void
+GoannaChildProcessHost::GetPathToBinary(FilePath& exePath)
 {
   if (ShouldHaveDirectoryService()) {
-    nsCOMPtr<nsIProperties> directoryService(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID));
-    NS_ASSERTION(directoryService, "Expected XPCOM to be available");
-    if (directoryService) {
-      nsCOMPtr<nsIFile> greDir;
-      nsresult rv = directoryService->Get(NS_GRE_DIR, NS_GET_IID(nsIFile), getter_AddRefs(greDir));
-      if (NS_SUCCEEDED(rv)) {
+    MOZ_ASSERT(gGREBinPath);
 #ifdef OS_WIN
-        nsString path;
-        greDir->GetPath(path);
+    exePath = FilePath(char16ptr_t(gGREBinPath));
+#elif MOZ_WIDGET_COCOA
+    nsCOMPtr<nsIFile> childProcPath;
+    NS_NewLocalFile(nsDependentString(gGREBinPath), false,
+                    getter_AddRefs(childProcPath));
+    // We need to use an App Bundle on OS X so that we can hide
+    // the dock icon. See Bug 557225.
+    childProcPath->AppendNative(NS_LITERAL_CSTRING("plugin-container.app"));
+    childProcPath->AppendNative(NS_LITERAL_CSTRING("Contents"));
+    childProcPath->AppendNative(NS_LITERAL_CSTRING("MacOS"));
+    nsCString tempCPath;
+    childProcPath->GetNativePath(tempCPath);
+    exePath = FilePath(tempCPath.get());
 #else
-        nsCString path;
-        greDir->GetNativePath(path);
+    nsCString path;
+    NS_CopyUnicodeToNative(nsDependentString(gGREBinPath), path);
+    exePath = FilePath(path.get());
 #endif
-        exePath = FilePath(path.get());
-#ifdef MOZ_WIDGET_COCOA
-        // We need to use an App Bundle on OS X so that we can hide
-        // the dock icon. See Bug 557225.
-        exePath = exePath.AppendASCII(MOZ_CHILD_PROCESS_BUNDLE);
-#endif
-      }
-    }
   }
 
   if (exePath.empty()) {
@@ -159,7 +167,7 @@ void GetPathToBinary(FilePath& exePath)
 #ifdef MOZ_WIDGET_COCOA
 class AutoCFTypeObject {
 public:
-  AutoCFTypeObject(CFTypeRef object)
+  explicit AutoCFTypeObject(CFTypeRef object)
   {
     mObject = object;
   }
@@ -224,6 +232,7 @@ uint32_t GoannaChildProcessHost::GetSupportedArchitecturesForProcessType(GoannaP
 {
 #ifdef MOZ_WIDGET_COCOA
   if (type == GoannaProcessType_Plugin) {
+
     // Cache this, it shouldn't ever change.
     static uint32_t pluginContainerArchs = 0;
     if (pluginContainerArchs == 0) {
@@ -245,8 +254,29 @@ uint32_t GoannaChildProcessHost::GetSupportedArchitecturesForProcessType(GoannaP
 void
 GoannaChildProcessHost::PrepareLaunch()
 {
+
 #ifdef XP_WIN
-  InitWindowsGroupID();
+  if (mProcessType == GoannaProcessType_Plugin) {
+    InitWindowsGroupID();
+  }
+
+#if defined(MOZ_CONTENT_SANDBOX)
+  // We need to get the pref here as the process is launched off main thread.
+  if (mProcessType == GoannaProcessType_Content) {
+    mMoreStrictSandbox =
+      Preferences::GetBool("security.sandbox.windows.content.moreStrict");
+    mEnableSandboxLogging =
+      Preferences::GetBool("security.sandbox.windows.log");
+  }
+#endif
+
+#if defined(MOZ_SANDBOX)
+  // For other process types we can't rely on them being launched on main
+  // thread and they may not have access to prefs in the child process, so allow
+  // them to turn on logging via an environment variable.
+  mEnableSandboxLogging = mEnableSandboxLogging
+                          || !!PR_GetEnv("MOZ_WIN_SANDBOX_LOGGING");
+#endif
 #endif
 }
 
@@ -265,7 +295,7 @@ void GoannaChildProcessHost::InitWindowsGroupID()
     if (isSupported && NS_SUCCEEDED(taskbarInfo->GetDefaultGroupId(appId))) {
       mGroupId.Append(appId);
     } else {
-      mGroupId.AssignLiteral("-");
+      mGroupId.Assign('-');
     }
   }
 }
@@ -276,24 +306,59 @@ GoannaChildProcessHost::SyncLaunch(std::vector<std::string> aExtraOpts, int aTim
 {
   PrepareLaunch();
 
-  PRIntervalTime timeoutTicks = (aTimeoutMs > 0) ? 
-    PR_MillisecondsToInterval(aTimeoutMs) : PR_INTERVAL_NO_TIMEOUT;
   MessageLoop* ioLoop = XRE_GetIOMessageLoop();
   NS_ASSERTION(MessageLoop::current() != ioLoop, "sync launch from the IO thread NYI");
 
   ioLoop->PostTask(FROM_HERE,
                    NewRunnableMethod(this,
-                                     &GoannaChildProcessHost::PerformAsyncLaunch,
+                                     &GoannaChildProcessHost::RunPerformAsyncLaunch,
                                      aExtraOpts, arch));
+
+  return WaitUntilConnected(aTimeoutMs);
+}
+
+bool
+GoannaChildProcessHost::AsyncLaunch(std::vector<std::string> aExtraOpts,
+                                   base::ProcessArchitecture arch)
+{
+  PrepareLaunch();
+
+  MessageLoop* ioLoop = XRE_GetIOMessageLoop();
+  ioLoop->PostTask(FROM_HERE,
+                   NewRunnableMethod(this,
+                                     &GoannaChildProcessHost::RunPerformAsyncLaunch,
+                                     aExtraOpts, arch));
+
+  // This may look like the sync launch wait, but we only delay as
+  // long as it takes to create the channel.
+  MonitorAutoLock lock(mMonitor);
+  while (mProcessState < CHANNEL_INITIALIZED) {
+    lock.Wait();
+  }
+
+  return true;
+}
+
+bool
+GoannaChildProcessHost::WaitUntilConnected(int32_t aTimeoutMs)
+{
   // NB: this uses a different mechanism than the chromium parent
   // class.
+  PRIntervalTime timeoutTicks = (aTimeoutMs > 0) ? 
+    PR_MillisecondsToInterval(aTimeoutMs) : PR_INTERVAL_NO_TIMEOUT;
+
   MonitorAutoLock lock(mMonitor);
   PRIntervalTime waitStart = PR_IntervalNow();
   PRIntervalTime current;
 
   // We'll receive several notifications, we need to exit when we
   // have either successfully launched or have timed out.
-  while (mProcessState < PROCESS_CONNECTED) {
+  while (mProcessState != PROCESS_CONNECTED) {
+    // If there was an error then return it, don't wait out the timeout.
+    if (mProcessState == PROCESS_ERROR) {
+      break;
+    }
+
     lock.Wait(timeoutTicks);
 
     if (timeoutTicks != PR_INTERVAL_NO_TIMEOUT) {
@@ -311,27 +376,6 @@ GoannaChildProcessHost::SyncLaunch(std::vector<std::string> aExtraOpts, int aTim
 }
 
 bool
-GoannaChildProcessHost::AsyncLaunch(std::vector<std::string> aExtraOpts)
-{
-  PrepareLaunch();
-
-  MessageLoop* ioLoop = XRE_GetIOMessageLoop();
-  ioLoop->PostTask(FROM_HERE,
-                   NewRunnableMethod(this,
-                                     &GoannaChildProcessHost::PerformAsyncLaunch,
-                                     aExtraOpts, base::GetCurrentProcessArchitecture()));
-
-  // This may look like the sync launch wait, but we only delay as
-  // long as it takes to create the channel.
-  MonitorAutoLock lock(mMonitor);
-  while (mProcessState < CHANNEL_INITIALIZED) {
-    lock.Wait();
-  }
-
-  return true;
-}
-
-bool
 GoannaChildProcessHost::LaunchAndWaitForProcessHandle(StringVector aExtraOpts)
 {
   PrepareLaunch();
@@ -339,7 +383,7 @@ GoannaChildProcessHost::LaunchAndWaitForProcessHandle(StringVector aExtraOpts)
   MessageLoop* ioLoop = XRE_GetIOMessageLoop();
   ioLoop->PostTask(FROM_HERE,
                    NewRunnableMethod(this,
-                                     &GoannaChildProcessHost::PerformAsyncLaunch,
+                                     &GoannaChildProcessHost::RunPerformAsyncLaunch,
                                      aExtraOpts, base::GetCurrentProcessArchitecture()));
 
   MonitorAutoLock lock(mMonitor);
@@ -372,22 +416,26 @@ GoannaChildProcessHost::Join()
 
   // If this fails, there's nothing we can do.
   base::KillProcess(mChildProcessHandle, 0, /*wait*/true);
+  SetAlreadyDead();
+}
+
+void
+GoannaChildProcessHost::SetAlreadyDead()
+{
   mChildProcessHandle = 0;
 }
 
 int32_t GoannaChildProcessHost::mChildCounter = 0;
 
 //
-// Wrapper function for handling GOANNA_SEPARATE_NSPR_LOGS
+// Wrapper function for handling GECKO_SEPARATE_NSPR_LOGS
 //
 bool
 GoannaChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts, base::ProcessArchitecture arch)
 {
-  // If separate NSPR log files are not requested, we're done.
+  // If NSPR log files are not requested, we're done.
   const char* origLogName = PR_GetEnv("NSPR_LOG_FILE");
-  const char* separateLogs = PR_GetEnv("GOANNA_SEPARATE_NSPR_LOGS");
-  if (!origLogName || !separateLogs || !*separateLogs ||
-      *separateLogs == '0' || *separateLogs == 'N' || *separateLogs == 'n') {
+  if (!origLogName) {
     return PerformAsyncLaunchInternal(aExtraOpts, arch);
   }
 
@@ -421,6 +469,14 @@ GoannaChildProcessHost::PerformAsyncLaunch(std::vector<std::string> aExtraOpts, 
   return retval;
 }
 
+bool
+GoannaChildProcessHost::RunPerformAsyncLaunch(std::vector<std::string> aExtraOpts,
+                                             base::ProcessArchitecture aArch)
+{
+  InitializeChannel();
+  return PerformAsyncLaunch(aExtraOpts, aArch);
+}
+
 void
 #if defined(XP_WIN)
 AddAppDirToCommandLine(CommandLine& aCmdLine)
@@ -442,7 +498,7 @@ AddAppDirToCommandLine(std::vector<std::string>& aCmdLine)
                                           getter_AddRefs(appDir));
       if (NS_SUCCEEDED(rv)) {
         nsAutoCString path;
-        appDir->GetNativePath(path);
+        MOZ_ALWAYS_TRUE(NS_SUCCEEDED(appDir->GetNativePath(path)));
 #if defined(XP_WIN)
         aCmdLine.AppendLooseValue(UTF8ToWide("-appdir"));
         aCmdLine.AppendLooseValue(UTF8ToWide(path.get()));
@@ -464,7 +520,7 @@ GoannaChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aEx
     return false;
   }
 
-  base::ProcessHandle process;
+  base::ProcessHandle process = 0;
 
   // send the child the PID so that it can open a ProcessHandle back to us.
   // probably don't want to do this in the long run
@@ -494,52 +550,63 @@ GoannaChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aEx
   // since LD_LIBRARY_PATH is already set correctly in subprocesses
   // (meaning that we don't need to set that up in the environment).
   if (ShouldHaveDirectoryService()) {
-    nsCOMPtr<nsIProperties> directoryService(do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID));
-    NS_ASSERTION(directoryService, "Expected XPCOM to be available");
-    if (directoryService) {
-      nsCOMPtr<nsIFile> greDir;
-      nsresult rv = directoryService->Get(NS_GRE_DIR, NS_GET_IID(nsIFile), getter_AddRefs(greDir));
-      if (NS_SUCCEEDED(rv)) {
-        nsCString path;
-        greDir->GetNativePath(path);
+    MOZ_ASSERT(gGREBinPath);
+    nsCString path;
+    NS_CopyUnicodeToNative(nsDependentString(gGREBinPath), path);
 # if defined(OS_LINUX) || defined(OS_BSD)
 #  if defined(MOZ_WIDGET_ANDROID)
-        path += "/lib";
+    path += "/lib";
 #  endif  // MOZ_WIDGET_ANDROID
-        const char *ld_library_path = PR_GetEnv("LD_LIBRARY_PATH");
-        nsCString new_ld_lib_path;
-        if (ld_library_path && *ld_library_path) {
-            new_ld_lib_path.Assign(path.get());
-            new_ld_lib_path.AppendLiteral(":");
-            new_ld_lib_path.Append(ld_library_path);
-            newEnvVars["LD_LIBRARY_PATH"] = new_ld_lib_path.get();
-        } else {
-            newEnvVars["LD_LIBRARY_PATH"] = path.get();
-        }
-# elif OS_MACOSX
-        newEnvVars["DYLD_LIBRARY_PATH"] = path.get();
-        // XXX DYLD_INSERT_LIBRARIES should only be set when launching a plugin
-        //     process, and has no effect on other subprocesses (the hooks in
-        //     libplugin_child_interpose.dylib become noops).  But currently it
-        //     gets set when launching any kind of subprocess.
-        //
-        // Trigger "dyld interposing" for the dylib that contains
-        // plugin_child_interpose.mm.  This allows us to hook OS calls in the
-        // plugin process (ones that don't work correctly in a background
-        // process).  Don't break any other "dyld interposing" that has already
-        // been set up by whatever may have launched the browser.
-        const char* prevInterpose = PR_GetEnv("DYLD_INSERT_LIBRARIES");
-        nsCString interpose;
-        if (prevInterpose) {
-          interpose.Assign(prevInterpose);
-          interpose.AppendLiteral(":");
-        }
-        interpose.Append(path.get());
-        interpose.AppendLiteral("/libplugin_child_interpose.dylib");
-        newEnvVars["DYLD_INSERT_LIBRARIES"] = interpose.get();
-# endif  // OS_LINUX
-      }
+    const char *ld_library_path = PR_GetEnv("LD_LIBRARY_PATH");
+    nsCString new_ld_lib_path;
+    if (ld_library_path && *ld_library_path) {
+      new_ld_lib_path.Assign(path.get());
+      new_ld_lib_path.Append(':');
+      new_ld_lib_path.Append(ld_library_path);
+      newEnvVars["LD_LIBRARY_PATH"] = new_ld_lib_path.get();
+    } else {
+      newEnvVars["LD_LIBRARY_PATH"] = path.get();
     }
+
+#  if (MOZ_WIDGET_GTK == 3)
+    if (mProcessType == GoannaProcessType_Plugin) {
+      const char *ld_preload = PR_GetEnv("LD_PRELOAD");
+      nsCString new_ld_preload;
+
+      new_ld_preload.Assign(path.get());
+      new_ld_preload.AppendLiteral("/" DLL_PREFIX "mozgtk2" DLL_SUFFIX);
+
+      if (ld_preload && *ld_preload) {
+        new_ld_preload.AppendLiteral(":");
+        new_ld_preload.Append(ld_preload);
+      }
+      newEnvVars["LD_PRELOAD"] = new_ld_preload.get();
+    }
+#  endif // MOZ_WIDGET_GTK
+
+
+# elif OS_MACOSX
+    newEnvVars["DYLD_LIBRARY_PATH"] = path.get();
+    // XXX DYLD_INSERT_LIBRARIES should only be set when launching a plugin
+    //     process, and has no effect on other subprocesses (the hooks in
+    //     libplugin_child_interpose.dylib become noops).  But currently it
+    //     gets set when launching any kind of subprocess.
+    //
+    // Trigger "dyld interposing" for the dylib that contains
+    // plugin_child_interpose.mm.  This allows us to hook OS calls in the
+    // plugin process (ones that don't work correctly in a background
+    // process).  Don't break any other "dyld interposing" that has already
+    // been set up by whatever may have launched the browser.
+    const char* prevInterpose = PR_GetEnv("DYLD_INSERT_LIBRARIES");
+    nsCString interpose;
+    if (prevInterpose) {
+      interpose.Assign(prevInterpose);
+      interpose.Append(':');
+    }
+    interpose.Append(path.get());
+    interpose.AppendLiteral("/libplugin_child_interpose.dylib");
+    newEnvVars["DYLD_INSERT_LIBRARIES"] = interpose.get();
+# endif  // OS_LINUX
   }
 #endif  // OS_LINUX || OS_MACOSX
 
@@ -629,6 +696,11 @@ GoannaChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aEx
 #endif
                   false, &process, arch);
 
+  // We're in the parent and the child was launched. Close the child FD in the
+  // parent as soon as possible, which will allow the parent to detect when the
+  // child closes its FD (either due to normal exit or due to crash).
+  GetChannel()->CloseClientFileDescriptor();
+
 #ifdef MOZ_WIDGET_COCOA
   // Wait for the child process to send us its 'task_t' data.
   const int kTimeoutMs = 10000;
@@ -638,32 +710,32 @@ GoannaChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aEx
   kern_return_t err = parent_recv_port.WaitForMessage(&child_message, kTimeoutMs);
   if (err != KERN_SUCCESS) {
     std::string errString = StringPrintf("0x%x %s", err, mach_error_string(err));
-    LOG(ERROR) << "parent WaitForMessage() failed: " << errString;
+    CHROMIUM_LOG(ERROR) << "parent WaitForMessage() failed: " << errString;
     return false;
   }
 
   task_t child_task = child_message.GetTranslatedPort(0);
   if (child_task == MACH_PORT_NULL) {
-    LOG(ERROR) << "parent GetTranslatedPort(0) failed.";
+    CHROMIUM_LOG(ERROR) << "parent GetTranslatedPort(0) failed.";
     return false;
   }
 
   if (child_message.GetTranslatedPort(1) == MACH_PORT_NULL) {
-    LOG(ERROR) << "parent GetTranslatedPort(1) failed.";
+    CHROMIUM_LOG(ERROR) << "parent GetTranslatedPort(1) failed.";
     return false;
   }
   MachPortSender parent_sender(child_message.GetTranslatedPort(1));
 
   MachSendMessage parent_message(/* id= */0);
-  if (!parent_message.AddDescriptor(bootstrap_port)) {
-    LOG(ERROR) << "parent AddDescriptor(" << bootstrap_port << ") failed.";
+  if (!parent_message.AddDescriptor(MachMsgPortDescriptor(bootstrap_port))) {
+    CHROMIUM_LOG(ERROR) << "parent AddDescriptor(" << bootstrap_port << ") failed.";
     return false;
   }
 
   err = parent_sender.SendMessage(parent_message, kTimeoutMs);
   if (err != KERN_SUCCESS) {
     std::string errString = StringPrintf("0x%x %s", err, mach_error_string(err));
-    LOG(ERROR) << "parent SendMessage() failed: " << errString;
+    CHROMIUM_LOG(ERROR) << "parent SendMessage() failed: " << errString;
     return false;
   }
 #endif
@@ -699,6 +771,64 @@ GoannaChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aEx
     }
   }
 
+#if defined(XP_WIN) && defined(MOZ_SANDBOX)
+  bool shouldSandboxCurrentProcess = false;
+
+  // XXX: Bug 1124167: We should get rid of the process specific logic for
+  // sandboxing in this class at some point. Unfortunately it will take a bit
+  // of reorganizing so I don't think this patch is the right time.
+  switch (mProcessType) {
+    case GoannaProcessType_Content:
+#if defined(MOZ_CONTENT_SANDBOX)
+      if (!PR_GetEnv("MOZ_DISABLE_CONTENT_SANDBOX")) {
+        mSandboxBroker.SetSecurityLevelForContentProcess(mMoreStrictSandbox);
+        cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
+        shouldSandboxCurrentProcess = true;
+      }
+#endif // MOZ_CONTENT_SANDBOX
+      break;
+    case GoannaProcessType_Plugin:
+      if (mSandboxLevel > 0 &&
+          !PR_GetEnv("MOZ_DISABLE_NPAPI_SANDBOX")) {
+        mSandboxBroker.SetSecurityLevelForPluginProcess(mSandboxLevel);
+        cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
+        shouldSandboxCurrentProcess = true;
+      }
+      break;
+    case GoannaProcessType_IPDLUnitTest:
+      // XXX: We don't sandbox this process type yet
+      // mSandboxBroker.SetSecurityLevelForIPDLUnitTestProcess();
+      // cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
+      // shouldSandboxCurrentProcess = true;
+      break;
+    case GoannaProcessType_GMPlugin:
+      if (!PR_GetEnv("MOZ_DISABLE_GMP_SANDBOX")) {
+        mSandboxBroker.SetSecurityLevelForGMPlugin();
+        cmdLine.AppendLooseValue(UTF8ToWide("-sandbox"));
+        shouldSandboxCurrentProcess = true;
+      }
+      break;
+    case GoannaProcessType_Default:
+    default:
+      MOZ_CRASH("Bad process type in GoannaChildProcessHost");
+      break;
+  };
+
+  if (shouldSandboxCurrentProcess) {
+    for (auto it = mAllowedFilesRead.begin();
+         it != mAllowedFilesRead.end();
+         ++it) {
+      mSandboxBroker.AllowReadFile(it->c_str());
+    }
+
+    for (auto it = mAllowedFilesReadWrite.begin();
+         it != mAllowedFilesReadWrite.end();
+         ++it) {
+      mSandboxBroker.AllowReadWriteFile(it->c_str());
+    }
+  }
+#endif // XP_WIN && MOZ_SANDBOX
+
   // Add the application directory path (-appdir path)
   AddAppDirToCommandLine(cmdLine);
 
@@ -707,7 +837,7 @@ GoannaChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aEx
   // See XRE_InitChildProcess in nsEmbedFunction.
 
   // Win app model id
-  cmdLine.AppendLooseValue(std::wstring(mGroupId.get()));
+  cmdLine.AppendLooseValue(mGroupId.get());
 
   // Process id
   cmdLine.AppendLooseValue(UTF8ToWide(pidstring));
@@ -715,7 +845,17 @@ GoannaChildProcessHost::PerformAsyncLaunchInternal(std::vector<std::string>& aEx
   // Process type
   cmdLine.AppendLooseValue(UTF8ToWide(childProcessType));
 
-  base::LaunchApp(cmdLine, false, false, &process);
+#if defined(XP_WIN) && defined(MOZ_SANDBOX)
+  if (shouldSandboxCurrentProcess) {
+    mSandboxBroker.LaunchApp(cmdLine.program().c_str(),
+                             cmdLine.command_line_string().c_str(),
+                             mEnableSandboxLogging,
+                             &process);
+  } else
+#endif
+  {
+    base::LaunchApp(cmdLine, false, false, &process);
+  }
 
 #else
 #  error Sorry
@@ -779,6 +919,15 @@ GoannaChildProcessHost::OnMessageReceived(const IPC::Message& aMsg)
 void
 GoannaChildProcessHost::OnChannelError()
 {
+  // Update the process state to an error state if we have a channel
+  // error before we're connected. This fixes certain failures,
+  // but does not address the full range of possible issues described
+  // in the FIXME comment below.
+  MonitorAutoLock lock(mMonitor);
+  if (mProcessState < PROCESS_CONNECTED) {
+    mProcessState = PROCESS_ERROR;
+    lock.Notify();
+  }
   // FIXME/bug 773925: save up this error for the next listener.
 }
 
@@ -799,3 +948,56 @@ GoannaChildProcessHost::OnWaitableEventSignaled(base::WaitableEvent *event)
   }
   ChildProcessHost::OnWaitableEventSignaled(event);
 }
+
+#ifdef MOZ_NUWA_PROCESS
+
+using mozilla::ipc::GoannaExistingProcessHost;
+using mozilla::ipc::FileDescriptor;
+
+GoannaExistingProcessHost::
+GoannaExistingProcessHost(GoannaProcessType aProcessType,
+                         base::ProcessHandle aProcess,
+                         const FileDescriptor& aFileDescriptor,
+                         ChildPrivileges aPrivileges)
+  : GoannaChildProcessHost(aProcessType, aPrivileges)
+  , mExistingProcessHandle(aProcess)
+  , mExistingFileDescriptor(aFileDescriptor)
+{
+  NS_ASSERTION(aFileDescriptor.IsValid(),
+               "Expected file descriptor to be valid");
+}
+
+GoannaExistingProcessHost::~GoannaExistingProcessHost()
+{
+  // Bug 943174: If we don't do this, ~GoannaChildProcessHost will try
+  // to wait on a process that isn't a direct child, and bad things
+  // will happen.
+  SetAlreadyDead();
+}
+
+bool
+GoannaExistingProcessHost::PerformAsyncLaunch(StringVector aExtraOpts,
+                                             base::ProcessArchitecture aArch)
+{
+  SetHandle(mExistingProcessHandle);
+
+  OpenPrivilegedHandle(base::GetProcId(mExistingProcessHandle));
+
+  MonitorAutoLock lock(mMonitor);
+  mProcessState = PROCESS_CREATED;
+  lock.Notify();
+
+  return true;
+}
+
+void
+GoannaExistingProcessHost::InitializeChannel()
+{
+  CreateChannel(mExistingFileDescriptor);
+
+  MonitorAutoLock lock(mMonitor);
+  mProcessState = CHANNEL_INITIALIZED;
+  lock.Notify();
+}
+
+#endif /* MOZ_NUWA_PROCESS */

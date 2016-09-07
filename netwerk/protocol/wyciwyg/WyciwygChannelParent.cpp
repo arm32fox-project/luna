@@ -7,12 +7,14 @@
 #include "mozilla/net/WyciwygChannelParent.h"
 #include "nsWyciwygChannel.h"
 #include "nsNetUtil.h"
-#include "nsISupportsPriority.h"
 #include "nsCharsetSource.h"
 #include "nsISerializable.h"
 #include "nsSerializationHelper.h"
 #include "mozilla/ipc/URIUtils.h"
 #include "mozilla/net/NeckoParent.h"
+#include "SerializedLoadContext.h"
+#include "nsIContentPolicy.h"
+#include "mozilla/ipc/BackgroundUtils.h"
 
 using namespace mozilla::ipc;
 
@@ -48,17 +50,21 @@ WyciwygChannelParent::ActorDestroy(ActorDestroyReason why)
 // WyciwygChannelParent::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS3(WyciwygChannelParent,
-                   nsIStreamListener,
-                   nsIInterfaceRequestor,
-                   nsIRequestObserver)
+NS_IMPL_ISUPPORTS(WyciwygChannelParent,
+                  nsIStreamListener,
+                  nsIInterfaceRequestor,
+                  nsIRequestObserver)
 
 //-----------------------------------------------------------------------------
 // WyciwygChannelParent::PWyciwygChannelParent
 //-----------------------------------------------------------------------------
 
 bool
-WyciwygChannelParent::RecvInit(const URIParams& aURI)
+WyciwygChannelParent::RecvInit(const URIParams&          aURI,
+                               const ipc::PrincipalInfo& aRequestingPrincipalInfo,
+                               const ipc::PrincipalInfo& aTriggeringPrincipalInfo,
+                               const uint32_t&           aSecurityFlags,
+                               const uint32_t&           aContentPolicyType)
 {
   nsresult rv;
 
@@ -75,8 +81,30 @@ WyciwygChannelParent::RecvInit(const URIParams& aURI)
   if (NS_FAILED(rv))
     return SendCancelEarly(rv);
 
+  nsCOMPtr<nsIPrincipal> requestingPrincipal =
+    mozilla::ipc::PrincipalInfoToPrincipal(aRequestingPrincipalInfo, &rv);
+  if (NS_FAILED(rv)) {
+    return SendCancelEarly(rv);
+  }
+
+  nsCOMPtr<nsIPrincipal> triggeringPrincipal =
+    mozilla::ipc::PrincipalInfoToPrincipal(aTriggeringPrincipalInfo, &rv);
+  if (NS_FAILED(rv)) {
+    return SendCancelEarly(rv);
+  }
+
   nsCOMPtr<nsIChannel> chan;
-  rv = NS_NewChannel(getter_AddRefs(chan), uri, ios);
+  rv = NS_NewChannelWithTriggeringPrincipal(getter_AddRefs(chan),
+                                           uri,
+                                           requestingPrincipal,
+                                           triggeringPrincipal,
+                                           aSecurityFlags,
+                                           aContentPolicyType,
+                                           nullptr,   // loadGroup
+                                           nullptr,   // aCallbacks
+                                           nsIRequest::LOAD_NORMAL,
+                                           ios);
+
   if (NS_FAILED(rv))
     return SendCancelEarly(rv);
 
@@ -89,7 +117,7 @@ WyciwygChannelParent::RecvInit(const URIParams& aURI)
 
 bool
 WyciwygChannelParent::RecvAppData(const IPC::SerializedLoadContext& loadContext,
-                                  PBrowserParent* parent)
+                                  const PBrowserOrId &parent)
 {
   LOG(("WyciwygChannelParent RecvAppData [this=%p]\n", this));
 
@@ -102,16 +130,18 @@ WyciwygChannelParent::RecvAppData(const IPC::SerializedLoadContext& loadContext,
 
 bool
 WyciwygChannelParent::SetupAppData(const IPC::SerializedLoadContext& loadContext,
-                                   PBrowserParent* aParent)
+                                   const PBrowserOrId &aParent)
 {
   if (!mChannel)
     return true;
 
-  const char* error = NeckoParent::CreateChannelLoadContext(aParent, loadContext,
+  const char* error = NeckoParent::CreateChannelLoadContext(aParent,
+                                                            Manager()->Manager(),
+                                                            loadContext,
                                                             mLoadContext);
   if (error) {
-    printf_stderr(nsPrintfCString("WyciwygChannelParent::SetupAppData: FATAL ERROR: %s\n",
-                                  error).get());
+    printf_stderr("WyciwygChannelParent::SetupAppData: FATAL ERROR: %s\n",
+                  error);
     return false;
   }
 
@@ -129,7 +159,7 @@ bool
 WyciwygChannelParent::RecvAsyncOpen(const URIParams& aOriginal,
                                     const uint32_t& aLoadFlags,
                                     const IPC::SerializedLoadContext& loadContext,
-                                    PBrowserParent* aParent)
+                                    const PBrowserOrId &aParent)
 {
   nsCOMPtr<nsIURI> original = DeserializeURI(aOriginal);
   if (!original)

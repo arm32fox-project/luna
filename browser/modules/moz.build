@@ -5,4 +5,36 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 
+# XXX: Include this until we convert browser/ to use toolkit promises directly
+EXTRA_JS_MODULES += [ 'promise.js' ]
 
+EXTRA_JS_MODULES += [
+    'BrowserNewTabPreloader.jsm',
+    'CharsetMenu.jsm',
+    'FormSubmitObserver.jsm',
+    'FormValidationHandler.jsm',
+    'NetworkPrioritizer.jsm',
+    'offlineAppCache.jsm',
+    'openLocationLastURL.jsm',
+    'PageMenu.jsm',
+    'PopupNotifications.jsm',
+    'SharedFrame.jsm',
+    'WebappManager.jsm',
+    'webappsUI.jsm',
+    'webrtcUI.jsm'
+]
+
+if CONFIG['MOZ_WIDGET_TOOLKIT'] == 'windows':
+    EXTRA_JS_MODULES += [
+        'Windows8WindowFrameColor.jsm',
+        'WindowsJumpLists.jsm',
+        'WindowsPreviewPerTab.jsm',
+    ]
+
+EXTRA_PP_JS_MODULES += [
+    'AboutHomeUtils.jsm',
+    'RecentWindow.jsm',
+]
+
+if CONFIG['MOZILLA_OFFICIAL']:
+    DEFINES['MOZILLA_OFFICIAL'] = 1

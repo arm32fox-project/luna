@@ -5,70 +5,58 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/.
  */
 
-dictionary CameraPictureOptions {
+enum CameraMode { "unspecified", "picture", "video" };
 
-  /* an object with a combination of 'height' and 'width' properties
-     chosen from nsICameraCapabilities.pictureSizes */
-  // XXXbz this should be a CameraSize dictionary, but we don't have that yet.
-  any pictureSize = null;
+/* Used for the dimensions of a captured picture,
+   a preview stream, a video capture stream, etc. */
+dictionary CameraSize
+{
+  unsigned long width = 0;
+  unsigned long height = 0;
+};
 
-  /* one of the file formats chosen from
-     nsICameraCapabilities.fileFormats */
-  DOMString fileFormat = "";
+/* Pre-emptive camera configuration options. If 'mode' is set to "unspecified",
+   the camera will not be configured immediately. If the 'mode' is set to
+   "video" or "picture", then the camera automatically configures itself and
+   will be ready for use upon return.
 
-  /* the rotation of the image in degrees, from 0 to 270 in
-     steps of 90; this doesn't affect the image, only the
-     rotation recorded in the image header.*/
-  long rotation = 0;
+   The remaining parameters are optional and are considered hints by the
+   camera. The application should use the values returned in the
+   GetCameraCallback configuration because while the camera makes a best effort
+   to adhere to the requested values, it may need to change them to ensure
+   optimal behavior.
 
-  /* an object containing any or all of 'latitude', 'longitude',
-     'altitude', and 'timestamp', used to record when and where
-     the image was taken.  e.g.
-     {
-         latitude:  43.647118,
-         longitude: -79.3943,
-         altitude:  500
-         // timestamp not specified, in this case, and
-         // won't be included in the image header
-     }
+   If not specified, 'pictureSize' and 'recorderProfile' default to the best or
+   highest resolutions supported by the camera hardware.
 
-     can be null in the case where position information isn't
-     available/desired.
+   To determine 'previewSize', one should generally provide the size of the
+   element which will contain the preview rather than guess which supported
+   preview size is the best. If not specified, 'previewSize' defaults to the
+   inner window size. */
+dictionary CameraConfiguration
+{
+  CameraMode mode = "picture";
+  CameraSize previewSize = null;
+  CameraSize pictureSize = null;
 
-     'altitude' is in metres; 'timestamp' is UTC, in seconds from
-     January 1, 1970.
+  /* one of the profiles reported by
+     CameraControl.capabilities.recorderProfiles
   */
-  any position = null;
-
-  /* the number of seconds from January 1, 1970 UTC.  This can be
-     different from the positional timestamp (above). */
-  // XXXbz this should really accept a date too, no?
-  long long dateTime = 0;
+  DOMString recorderProfile = "default";
 };
 
-// If we start using CameraPictureOptions here, remove it from DummyBinding.
-
-interface GetCameraCallback;
-interface CameraErrorCallback;
-
-/* Select a camera to use. */
-dictionary CameraSelector {
-    DOMString camera = "back";
-};
-
-interface CameraManager {
-    /* get a camera instance; options will be used to specify which
-       camera to get from the list returned by getListOfCameras(), e.g.:
-        {
-            camera: "front"
-        }
-    */
+[Func="nsDOMCameraManager::HasSupport"]
+interface CameraManager
+{
+  /* get a camera instance; 'camera' is one of the camera
+     identifiers returned by getListOfCameras() below.
+  */
   [Throws]
-  void getCamera(CameraSelector options, GetCameraCallback callback,
-                 optional CameraErrorCallback errorCallback);
+  Promise<CameraGetPromiseData> getCamera(DOMString camera,
+                                          optional CameraConfiguration initialConfiguration);
 
-  /* return an array of camera   identifiers, e.g.
-     [ "front", "back" ]
+  /* return an array of camera identifiers, e.g.
+       [ "front", "back" ]
    */
   [Throws]
   sequence<DOMString> getListOfCameras();

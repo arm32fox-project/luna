@@ -8,11 +8,10 @@
 
 #include "Image.h"
 #include "nsIStreamListener.h"
-#include "nsIRequest.h"
-#include "mozilla/TimeStamp.h"
-#include "mozilla/WeakPtr.h"
+#include "mozilla/MemoryReporting.h"
 
-class imgDecoderObserver;
+class nsIRequest;
+class gfxDrawable;
 
 namespace mozilla {
 namespace layers {
@@ -21,13 +20,14 @@ class ImageContainer;
 }
 namespace image {
 
-class SVGDocumentWrapper;
-class SVGRootRenderingObserver;
-class SVGLoadEventListener;
-class SVGParseCompleteListener;
+struct SVGDrawingParameters;
+class  SVGDocumentWrapper;
+class  SVGRootRenderingObserver;
+class  SVGLoadEventListener;
+class  SVGParseCompleteListener;
 
-class VectorImage : public ImageResource,
-                    public nsIStreamListener
+class VectorImage final : public ImageResource,
+                              public nsIStreamListener
 {
 public:
   NS_DECL_ISUPPORTS
@@ -36,31 +36,34 @@ public:
   NS_DECL_IMGICONTAINER
 
   // (no public constructor - use ImageFactory)
-  virtual ~VectorImage();
 
   // Methods inherited from Image
   nsresult Init(const char* aMimeType,
-                uint32_t aFlags);
-  virtual nsIntRect FrameRect(uint32_t aWhichFrame) MOZ_OVERRIDE;
+                uint32_t aFlags) override;
 
-  virtual size_t HeapSizeOfSourceWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const;
-  virtual size_t HeapSizeOfDecodedWithComputedFallback(nsMallocSizeOfFun aMallocSizeOf) const;
-  virtual size_t NonHeapSizeOfDecoded() const;
-  virtual size_t OutOfProcessSizeOfDecoded() const;
+  virtual size_t SizeOfSourceWithComputedFallback(MallocSizeOf aMallocSizeOf) const override;
+  virtual size_t SizeOfDecoded(gfxMemoryLocation aLocation,
+                               MallocSizeOf aMallocSizeOf) const override;
 
   virtual nsresult OnImageDataAvailable(nsIRequest* aRequest,
                                         nsISupports* aContext,
                                         nsIInputStream* aInStr,
                                         uint64_t aSourceOffset,
-                                        uint32_t aCount) MOZ_OVERRIDE;
+                                        uint32_t aCount) override;
   virtual nsresult OnImageDataComplete(nsIRequest* aRequest,
                                        nsISupports* aContext,
                                        nsresult aResult,
-                                       bool aLastPart) MOZ_OVERRIDE;
-  virtual nsresult OnNewSourceData() MOZ_OVERRIDE;
+                                       bool aLastPart) override;
 
-  // Callback for SVGRootRenderingObserver.
-  void InvalidateObserver();
+  /**
+   * Callback for SVGRootRenderingObserver.
+   *
+   * This just sets a dirty flag that we check in VectorImage::RequestRefresh,
+   * which is called under the ticks of the refresh driver of any observing
+   * documents that we may have. Only then (after all animations in this image
+   * have been updated) do we send out "frame changed" notifications,
+   */
+  void InvalidateObserversOnNextRefreshDriverTick();
 
   // Callback for SVGParseCompleteListener.
   void OnSVGDocumentParsed();
@@ -70,14 +73,27 @@ public:
   void OnSVGDocumentError();
 
 protected:
-  VectorImage(imgStatusTracker* aStatusTracker = nullptr, nsIURI* aURI = nullptr);
+  explicit VectorImage(ProgressTracker* aProgressTracker = nullptr,
+                       ImageURL* aURI = nullptr);
+  virtual ~VectorImage();
 
-  virtual nsresult StartAnimation();
-  virtual nsresult StopAnimation();
-  virtual bool     ShouldAnimate();
+  virtual nsresult StartAnimation() override;
+  virtual nsresult StopAnimation() override;
+  virtual bool     ShouldAnimate() override;
+
+  void CreateSurfaceAndShow(const SVGDrawingParameters& aParams);
+  void Show(gfxDrawable* aDrawable, const SVGDrawingParameters& aParams);
 
 private:
+  /**
+   * In catastrophic circumstances like a GPU driver crash, we may lose our
+   * surfaces even if they're locked. RecoverFromLossOfSurfaces discards all
+   * existing surfaces, allowing us to recover.
+   */
+  void RecoverFromLossOfSurfaces();
+
   void CancelAllListeners();
+  void SendInvalidationNotifications();
 
   nsRefPtr<SVGDocumentWrapper>       mSVGDocumentWrapper;
   nsRefPtr<SVGRootRenderingObserver> mRenderingObserver;
@@ -89,6 +105,11 @@ private:
   bool           mIsDrawing;              // Are we currently drawing?
   bool           mHaveAnimations;         // Is our SVG content SMIL-animated?
                                           // (Only set after mIsFullyLoaded.)
+  bool           mHasPendingInvalidation; // Invalidate observers next refresh
+                                          // driver tick.
+
+  // Initializes ProgressTracker and resets it on RasterImage destruction.
+  nsAutoPtr<ProgressTrackerInit> mProgressTrackerInit;
 
   friend class ImageFactory;
 };

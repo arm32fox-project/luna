@@ -15,12 +15,11 @@
 #include "nsString.h"
 #include "nsCOMPtr.h"
 #include "nsITimer.h"
-#include "npapi.h"
 #include "nsTArray.h"
-#include "nsEvent.h"
+#include "mozilla/EventForwards.h"
+#include "WritingModes.h"
 
 class nsChildView;
-struct nsTextRange;
 
 namespace mozilla {
 namespace widget {
@@ -37,6 +36,8 @@ enum
   kVK_PC_Insert          = kVK_Help,
   kVK_PC_Backspace       = kVK_Delete,
   kVK_PC_Delete          = kVK_ForwardDelete,
+
+  kVK_PC_ContextMenu     = 0x6E,
 
   kVK_Powerbook_KeypadEnter = 0x34  // Enter on Powerbook's keyboard is different
 };
@@ -60,19 +61,19 @@ public:
     Clear();
   }
 
-  TISInputSourceWrapper(const char* aID)
+  explicit TISInputSourceWrapper(const char* aID)
   {
     mInputSourceList = nullptr;
     InitByInputSourceID(aID);
   }
 
-  TISInputSourceWrapper(SInt32 aLayoutID)
+  explicit TISInputSourceWrapper(SInt32 aLayoutID)
   {
     mInputSourceList = nullptr;
     InitByLayoutID(aLayoutID);
   }
 
-  TISInputSourceWrapper(TISInputSourceRef aInputSource)
+  explicit TISInputSourceWrapper(TISInputSourceRef aInputSource)
   {
     mInputSourceList = nullptr;
     InitByTISInputSourceRef(aInputSource);
@@ -93,6 +94,12 @@ public:
    *                                3: Swedish-Pro
    *                                4: Dvorak-Qwerty Cmd
    *                                5: Thai
+   *                                6: Arabic
+   *                                7: French
+   *                                8: Hebrew
+   *                                9: Lithuanian
+   *                               10: Norwegian
+   *                               11: Spanish
    * @param aOverrideKeyboard     When testing set to TRUE, otherwise, set to
    *                              FALSE.  When TRUE, we use an ANSI keyboard
    *                              instead of the actual keyboard.
@@ -215,7 +222,7 @@ public:
    *                              compute the character to be input from
    *                              characters of aNativeKeyEvent.
    */
-  void InitKeyEvent(NSEvent *aNativeKeyEvent, nsKeyEvent& aKeyEvent,
+  void InitKeyEvent(NSEvent *aNativeKeyEvent, WidgetKeyboardEvent& aKeyEvent,
                     const nsAString *aInsertString = nullptr);
 
   /**
@@ -237,6 +244,13 @@ public:
    * @param aNativeKeyCode        A native keycode.
    */
   static KeyNameIndex ComputeGoannaKeyNameIndex(UInt32 aNativeKeyCode);
+
+  /**
+   * ComputeGoannaCodeNameIndex() returns Goanna code name index for the key.
+   *
+   * @param aNativeKeyCode        A native keycode.
+   */
+  static CodeNameIndex ComputeGoannaCodeNameIndex(UInt32 aNativeKeyCode);
 
 protected:
   /**
@@ -285,8 +299,8 @@ protected:
    *                              this is a result of ::LMGetKbdType().
    */
   void InitKeyPressEvent(NSEvent *aNativeKeyEvent,
-                         PRUnichar aInsertChar,
-                         nsKeyEvent& aKeyEvent,
+                         char16_t aInsertChar,
+                         WidgetKeyboardEvent& aKeyEvent,
                          UInt32 aKbType);
 
   bool GetBoolProperty(const CFStringRef aKey);
@@ -303,9 +317,8 @@ protected:
 };
 
 /**
- * TextInputHandlerBase is a base class of PluginTextInputHandler,
- * IMEInputHandler and TextInputHandler.  Utility methods should be implemented
- * this level.
+ * TextInputHandlerBase is a base class of IMEInputHandler and TextInputHandler.
+ * Utility methods should be implemented this level.
  */
 
 class TextInputHandlerBase
@@ -338,7 +351,17 @@ public:
    * @return                      TRUE if the event is consumed by web contents
    *                              or chrome contents.  Otherwise, FALSE.
    */
-  bool DispatchEvent(nsGUIEvent& aEvent);
+  bool DispatchEvent(WidgetGUIEvent& aEvent);
+
+  /**
+   * SetSelection() dispatches NS_SELECTION_SET event for the aRange.
+   *
+   * @param aRange                The range which will be selected.
+   * @return                      TRUE if setting selection is succeeded and
+   *                              the widget hasn't been destroyed.
+   *                              Otherwise, FALSE.
+   */
+  bool SetSelection(NSRange& aRange);
 
   /**
    * InitKeyEvent() initializes aKeyEvent for aNativeKeyEvent.
@@ -354,7 +377,7 @@ public:
    *                              compute the character to be input from
    *                              characters of aNativeKeyEvent.
    */
-  void InitKeyEvent(NSEvent *aNativeKeyEvent, nsKeyEvent& aKeyEvent,
+  void InitKeyEvent(NSEvent *aNativeKeyEvent, WidgetKeyboardEvent& aKeyEvent,
                     const nsAString *aInsertString = nullptr);
 
   /**
@@ -367,6 +390,22 @@ public:
                                     uint32_t aModifierFlags,
                                     const nsAString& aCharacters,
                                     const nsAString& aUnmodifiedCharacters);
+
+  /**
+   * Utility method intended for testing. Attempts to construct a native key
+   * event that would have been generated during an actual key press. This
+   * *does not dispatch* the native event. Instead, it is attached to the
+   * |mNativeKeyEvent| field of the Goanna event that is passed in.
+   * @param aKeyEvent  Goanna key event to attach the native event to
+   */
+  NS_IMETHOD AttachNativeKeyEvent(WidgetKeyboardEvent& aKeyEvent);
+
+  /**
+   * GetWindowLevel() returns the window level of current focused (in Goanna)
+   * window.  E.g., if an <input> element in XUL panel has focus, this returns
+   * the XUL panel's window level.
+   */
+  NSInteger GetWindowLevel();
 
   /**
    * IsSpecialGoannaKey() checks whether aNativeKeyCode is mapped to a special
@@ -456,7 +495,7 @@ protected:
       Clear();
     }    
 
-    KeyEventState(NSEvent* aNativeKeyEvent) : mKeyEvent(nullptr)
+    explicit KeyEventState(NSEvent* aNativeKeyEvent) : mKeyEvent(nullptr)
     {
       Clear();
       Set(aNativeKeyEvent);
@@ -515,7 +554,7 @@ protected:
   class AutoKeyEventStateCleaner
   {
   public:
-    AutoKeyEventStateCleaner(TextInputHandlerBase* aHandler) :
+    explicit AutoKeyEventStateCleaner(TextInputHandlerBase* aHandler) :
       mHandler(aHandler)
     {
     }
@@ -602,7 +641,7 @@ protected:
    *                              if aChar is a non-printable ASCII character,
    *                              FALSE.
    */
-  static bool IsPrintableChar(PRUnichar aChar);
+  static bool IsPrintableChar(char16_t aChar);
 
   /**
    * IsNormalCharInputtingEvent() checks whether aKeyEvent causes text input.
@@ -611,7 +650,7 @@ protected:
    * @return                      TRUE if the key event causes text input.
    *                              Otherwise, FALSE.
    */
-  static bool IsNormalCharInputtingEvent(const nsKeyEvent& aKeyEvent);
+  static bool IsNormalCharInputtingEvent(const WidgetKeyboardEvent& aKeyEvent);
 
   /**
    * IsModifierKey() checks whether the native keyCode is for a modifier key.
@@ -639,151 +678,6 @@ private:
 };
 
 /**
- * PluginTextInputHandler handles text input events for plugins.
- */
-
-class PluginTextInputHandler : public TextInputHandlerBase
-{
-public:
-
-  /**
-   * When starting complex text input for current event on plugin, this is
-   * called.  See also the comment of StartComplexTextInputForCurrentEvent() of
-   * nsIPluginWidget.
-   */
-  nsresult StartComplexTextInputForCurrentEvent()
-  {
-    mPluginComplexTextInputRequested = true;
-    return NS_OK;
-  }
-
-  /**
-   * HandleKeyDownEventForPlugin() handles aNativeKeyEvent.
-   *
-   * @param aNativeKeyEvent       A native NSKeyDown event.
-   */
-  void HandleKeyDownEventForPlugin(NSEvent* aNativeKeyEvent);
-
-  /**
-   * HandleKeyUpEventForPlugin() handles aNativeKeyEvent.
-   *
-   * @param aNativeKeyEvent       A native NSKeyUp event.
-   */
-  void HandleKeyUpEventForPlugin(NSEvent* aNativeKeyEvent);
-
-  /**
-   * ConvertCocoaKeyEventToNPCocoaEvent() converts aCocoaEvent to NPCocoaEvent.
-   *
-   * @param aCocoaEvent           A native key event.
-   * @param aPluginEvent          The result.
-   */
-  static void ConvertCocoaKeyEventToNPCocoaEvent(NSEvent* aCocoaEvent,
-                                                 NPCocoaEvent& aPluginEvent);
-
-#ifndef __LP64__
-
-  /**
-   * InstallPluginKeyEventsHandler() is called when initializing process.
-   * RemovePluginKeyEventsHandler() is called when finalizing process.
-   * These methods initialize/finalize global resource for handling events for
-   * plugins.
-   */
-  static void InstallPluginKeyEventsHandler();
-  static void RemovePluginKeyEventsHandler();
-
-  /**
-   * This must be called before first key/IME event for plugins.
-   * This method initializes IMKInputSession methods swizzling.
-   */
-  static void SwizzleMethods();
-
-  /**
-   * When a composition starts or finishes, this is called.
-   */
-  void SetPluginTSMInComposition(bool aInComposition)
-  {
-    mPluginTSMInComposition = aInComposition;
-  }
-
-#endif // #ifndef __LP64__
-
-protected:
-  bool mIgnoreNextKeyUpEvent;
-
-  PluginTextInputHandler(nsChildView* aWidget, NSView<mozView> *aNativeView);
-  ~PluginTextInputHandler();
-
-private:
-
-#ifndef __LP64__
-  TSMDocumentID mPluginTSMDoc;
-
-  bool mPluginTSMInComposition;
-#endif // #ifndef __LP64__
-
-  bool mPluginComplexTextInputRequested;
-
-  /**
-   * DispatchCocoaNPAPITextEvent() dispatches a text event for Cocoa plugin.
-   *
-   * @param aString               A string inputted by the dispatching event.
-   * @return                      TRUE if the dispatched event was consumed.
-   *                              Otherwise, FALSE.
-   */
-  bool DispatchCocoaNPAPITextEvent(NSString* aString);
-
-  /**
-   * Whether the plugin is in composition or not.
-   * On 32bit build, this returns the state of mPluginTSMInComposition.
-   * On 64bit build, this returns ComplexTextInputPanel's state.
-   *
-   * @return                      TRUE if plugin is in composition.  Otherwise,
-   *                              FALSE.
-   */
-  bool IsInPluginComposition();
-
-#ifndef __LP64__
-
-  /**
-   * Create a TSM document for use with plugins, so that we can support IME in
-   * them.  Once it's created, if need be (re)activate it.  Some plugins (e.g.
-   * the Flash plugin running in Camino) don't create their own TSM document --
-   * without which IME can't work.  Others (e.g. the Flash plugin running in
-   * Firefox) create a TSM document that (somehow) makes the input window behave
-   * badly when it contains more than one kind of input (say Hiragana and
-   * Romaji).  (We can't just use the per-NSView TSM documents that Cocoa
-   * provides (those created and managed by the NSTSMInputContext class) -- for
-   * some reason TSMProcessRawKeyEvent() doesn't work with them.)
-   */
-  void ActivatePluginTSMDocument();
-
-  /**
-   * HandleCarbonPluginKeyEvent() handles the aKeyEvent.  This is called by
-   * PluginKeyEventsHandler().
-   *
-   * @param aKeyEvent             A native Carbon event.
-   */
-  void HandleCarbonPluginKeyEvent(EventRef aKeyEvent);
-
-  /**
-   * Target for text services events sent as the result of calls made to
-   * TSMProcessRawKeyEvent() in HandleKeyDownEventForPlugin() when a plugin has
-   * the focus.  The calls to TSMProcessRawKeyEvent() short-circuit Cocoa-based
-   * IME (which would otherwise interfere with our efforts) and allow Carbon-
-   * based IME to work in plugins (via the NPAPI).  This strategy doesn't cause
-   * trouble for plugins that (like the Java Embedding Plugin) bypass the NPAPI
-   * to get their keyboard events and do their own Cocoa-based IME.
-   */
-  static OSStatus PluginKeyEventsHandler(EventHandlerCallRef aHandlerRef,
-                                         EventRef aEvent,
-                                         void *aUserData);
-
-  static EventHandlerRef sPluginKeyEventsHandler;
-
-#endif // #ifndef __LP64__
-};
-
-/**
  * IMEInputHandler manages:
  *   1. The IME/keyboard layout statement of nsChildView.
  *   2. The IME composition statement of nsChildView.
@@ -796,27 +690,40 @@ private:
  * actual focused view is notified by OnFocusChangeInGoanna.
  */
 
-class IMEInputHandler : public PluginTextInputHandler
+class IMEInputHandler : public TextInputHandlerBase
 {
 public:
   virtual bool OnDestroyWidget(nsChildView* aDestroyingWidget);
 
   virtual void OnFocusChangeInGoanna(bool aFocus);
 
+  void OnSelectionChange()
+  {
+    mSelectedRange.location = NSNotFound;
+    mRangeForWritingMode.location = NSNotFound;
+  }
+
   /**
-   * DispatchTextEvent() dispatches a text event on mWidget.
+   * DispatchCompositionChangeEvent() dispatches a compositionchange event on
+   * mWidget.
    *
    * @param aText                 User text input.
    * @param aAttrString           An NSAttributedString instance which indicates
    *                              current composition string.
    * @param aSelectedRange        Current selected range (or caret position).
-   * @param aDoCommit             TRUE if the composition string should be
-   *                              committed.  Otherwise, FALSE.
    */
-  bool DispatchTextEvent(const nsString& aText,
-                           NSAttributedString* aAttrString,
-                           NSRange& aSelectedRange,
-                           bool aDoCommit);
+  bool DispatchCompositionChangeEvent(const nsString& aText,
+                                      NSAttributedString* aAttrString,
+                                      NSRange& aSelectedRange);
+
+  /**
+   * DispatchCompositionCommitEvent() dispatches a compositioncommit event or
+   * compositioncommitasis event.  If aCommitString is null, dispatches
+   * compositioncommitasis event.  I.e., if aCommitString is null, this
+   * commits the composition with the last data.  Otherwise, commits the
+   * composition with aCommitString value.
+   */
+  bool DispatchCompositionCommitEvent(const nsAString* aCommitString = nullptr);
 
   /**
    * SetMarkedText() is a handler of setMarkedText of NSTextInput.
@@ -828,9 +735,12 @@ public:
    *                              create an NSAttributedString from it and pass
    *                              that instead.
    * @param aSelectedRange        Current selected range (or caret position).
+   * @param aReplacementRange     The range which will be replaced with the
+   *                              aAttrString instead of current marked range.
    */
   void SetMarkedText(NSAttributedString* aAttrString,
-                     NSRange& aSelectedRange);
+                     NSRange& aSelectedRange,
+                     NSRange* aReplacementRange = nullptr);
 
   /**
    * ConversationIdentifier() returns an ID for the current editor.  The ID is
@@ -846,12 +756,15 @@ public:
    * which is allocated as autorelease for aRange.
    *
    * @param aRange                The range of string which you want.
+   * @param aActualRange          The actual range of the result.
    * @return                      The string in aRange.  If the string is empty,
    *                              this returns nil.  If succeeded, this returns
    *                              an instance which is allocated as autorelease.
    *                              If this has some troubles, returns nil.
    */
-  NSAttributedString* GetAttributedSubstringFromRange(NSRange& aRange);
+  NSAttributedString* GetAttributedSubstringFromRange(
+                        NSRange& aRange,
+                        NSRange* aActualRange = nullptr);
 
   /**
    * SelectedRange() returns current selected range.
@@ -863,6 +776,17 @@ public:
   NSRange SelectedRange();
 
   /**
+   * DrawsVerticallyForCharacterAtIndex() returns whether the character at
+   * the given index is being rendered vertically.
+   *
+   * @param aCharIndex            The character offset to query.
+   *
+   * @return                      True if writing-mode is vertical at the given
+   *                              character offset; otherwise false.
+   */
+  bool DrawsVerticallyForCharacterAtIndex(uint32_t aCharIndex);
+
+  /**
    * FirstRectForCharacterRange() returns first *character* rect in the range.
    * Cocoa needs the first line rect in the range, but we cannot compute it
    * on current implementation.
@@ -870,12 +794,15 @@ public:
    * @param aRange                A range of text to examine.  Its position is
    *                              an offset from the beginning of the focused
    *                              editor or document.
+   * @param aActualRange          If this is not null, this returns the actual
+   *                              range used for computing the result.
    * @return                      An NSRect containing the first character in
    *                              aRange, in screen coordinates.
    *                              If the length of aRange is 0, the width will
    *                              be 0.
    */
-  NSRect FirstRectForCharacterRange(NSRange& aRange);
+  NSRect FirstRectForCharacterRange(NSRange& aRange,
+                                    NSRange* aActualRange = nullptr);
 
   /**
    * CharacterIndexForPoint() returns an offset of a character at aPoint.
@@ -919,6 +846,17 @@ public:
   void SetIMEOpenState(bool aOpen);
   void SetASCIICapableOnly(bool aASCIICapableOnly);
 
+  /**
+   * True if OSX believes that our view has keyboard focus.
+   */
+  bool IsFocused();
+
+  /**
+   * True if our view has keyboard focus (and our window is key), or if
+   * it would have keyboard focus if our window were key.
+   */
+  bool IsOrWouldBeFocused();
+
   static CFArrayRef CreateAllIMEModeList();
   static void DebugPrintAllIMEModes();
 
@@ -932,16 +870,15 @@ protected:
   // See the comment in nsCocoaTextInputHandler.mm.
   nsCOMPtr<nsITimer> mTimer;
   enum {
-    kResetIMEWindowLevel     = 1,
-    kDiscardIMEComposition   = 2,
-    kSyncASCIICapableOnly    = 4
+    kNotifyIMEOfFocusChangeInGoanna = 1,
+    kDiscardIMEComposition         = 2,
+    kSyncASCIICapableOnly          = 4
   };
   uint32_t mPendingMethods;
 
   IMEInputHandler(nsChildView* aWidget, NSView<mozView> *aNativeView);
   virtual ~IMEInputHandler();
 
-  bool IsFocused();
   void ResetTimer();
 
   virtual void ExecutePendingMethods();
@@ -951,8 +888,11 @@ protected:
    * is no composition, this starts a composition and commits it immediately.
    *
    * @param aAttrString           A string which is committed.
+   * @param aReplacementRange     The range which will be replaced with the
+   *                              aAttrString instead of current selection.
    */
-  void InsertTextAsCommittingComposition(NSAttributedString* aAttrString);
+  void InsertTextAsCommittingComposition(NSAttributedString* aAttrString,
+                                         NSRange* aReplacementRange);
 
 private:
   // If mIsIMEComposing is true, the composition string is stored here.
@@ -962,6 +902,10 @@ private:
   nsString mLastDispatchedCompositionString;
 
   NSRange mMarkedRange;
+  NSRange mSelectedRange;
+
+  NSRange mRangeForWritingMode; // range within which mWritingMode applies
+  mozilla::WritingMode mWritingMode;
 
   bool mIsIMEComposing;
   bool mIsIMEEnabled;
@@ -970,15 +914,16 @@ private:
   // This flag is enabled by OnFocusChangeInGoanna, and will be cleared by
   // ExecutePendingMethods.  When this is true, IsFocus() returns TRUE.  At
   // that time, the focus processing in Goanna might not be finished yet.  So,
-  // you cannot use nsQueryContentEvent or something.
+  // you cannot use WidgetQueryContentEvent or something.
   bool mIsInFocusProcessing;
+  bool mIMEHasFocus;
 
   void KillIMEComposition();
   void SendCommittedText(NSString *aString);
   void OpenSystemPreferredLanguageIME();
 
   // Pending methods
-  void ResetIMEWindowLevel();
+  void NotifyIMEOfFocusChangeInGoanna();
   void DiscardIMEComposition();
   void SyncASCIICapableOnly();
 
@@ -1017,21 +962,18 @@ private:
   uint32_t GetRangeCount(NSAttributedString *aString);
 
   /**
-   * SetTextRangeList() appends text ranges to aTextRangeList.
+   * CreateTextRangeArray() returns text ranges for clauses and/or caret.
    *
-   * @param aTextRangeList        When SetTextRangeList() returns, this will
-   *                              be set to the NSUnderlineStyleAttributeName
-   *                              ranges in aAttrString.  Note that if you pass
-   *                              in a large enough auto-range instance for most
-   *                              cases (e.g., nsAutoTArray<nsTextRange, 4>),
-   *                              it prevents memory fragmentation.
    * @param aAttrString           An NSAttributedString instance which indicates
    *                              current composition string.
    * @param aSelectedRange        Current selected range (or caret position).
+   * @return                      The result is set to the
+   *                              NSUnderlineStyleAttributeName ranges in
+   *                              aAttrString.
    */
-  void SetTextRangeList(nsTArray<nsTextRange>& aTextRangeList,
-                        NSAttributedString *aAttrString,
-                        NSRange& aSelectedRange);
+  already_AddRefed<mozilla::TextRangeArray>
+    CreateTextRangeArray(NSAttributedString *aAttrString,
+                         NSRange& aSelectedRange);
 
   /**
    * InitCompositionEvent() initializes aCompositionEvent.
@@ -1039,7 +981,7 @@ private:
    * @param aCompositionEvent     A composition event which you want to
    *                              initialize.
    */
-  void InitCompositionEvent(nsCompositionEvent& aCompositionEvent);
+  void InitCompositionEvent(WidgetCompositionEvent& aCompositionEvent);
 
   /**
    * When a composition starts, OnStartIMEComposition() is called.
@@ -1108,8 +1050,11 @@ public:
    * the composition by the aAttrString.
    *
    * @param aAttrString           An inserted string.
+   * @param aReplacementRange     The range which will be replaced with the
+   *                              aAttrString instead of current selection.
    */
-  void InsertText(NSAttributedString *aAttrString);
+  void InsertText(NSAttributedString *aAttrString,
+                  NSRange* aReplacementRange = nullptr);
 
   /**
    * doCommandBySelector event handler.
@@ -1165,14 +1110,14 @@ protected:
    * GetModifierKeyForNativeKeyCode() returns the stored ModifierKey for
    * the key.
    */
-  ModifierKey*
+  const ModifierKey*
     GetModifierKeyForNativeKeyCode(unsigned short aKeyCode) const;
 
   /**
    * GetModifierKeyForDeviceDependentFlags() returns the stored ModifierKey for
    * the device dependent flags.
    */
-  ModifierKey*
+  const ModifierKey*
     GetModifierKeyForDeviceDependentFlags(NSUInteger aFlags) const;
 
   /**

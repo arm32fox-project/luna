@@ -28,7 +28,6 @@
 #include <sys/time.h>
 #include <sys/resource.h>
 #include <sys/prctl.h>
-#include "Zip.h"
 #include "sqlite3.h"
 #include "SQLiteBridge.h"
 #include "NSSBridge.h"
@@ -99,7 +98,7 @@ static uint64_t TimeStamp_Now()
   return baseNs + (uint64_t)ts.tv_nsec;
 }
 
-static struct mapping_info * lib_mapping = NULL;
+static struct mapping_info * lib_mapping = nullptr;
 
 NS_EXPORT const struct mapping_info *
 getLibraryMapping()
@@ -112,7 +111,7 @@ JNI_Throw(JNIEnv* jenv, const char* classname, const char* msg)
 {
     __android_log_print(ANDROID_LOG_ERROR, "GoannaLibLoad", "Throw\n");
     jclass cls = jenv->FindClass(classname);
-    if (cls == NULL) {
+    if (cls == nullptr) {
         __android_log_print(ANDROID_LOG_ERROR, "GoannaLibLoad", "Couldn't find exception class (or exception pending) %s\n", classname);
         exit(FAILURE);
     }
@@ -124,21 +123,65 @@ JNI_Throw(JNIEnv* jenv, const char* classname, const char* msg)
     jenv->DeleteLocalRef(cls);
 }
 
+namespace {
+    JavaVM* sJavaVM;
+}
+
+void
+abortThroughJava(const char* msg)
+{
+    struct sigaction sigact = {};
+    if (SEGVHandler::__wrap_sigaction(SIGSEGV, nullptr, &sigact)) {
+        return; // sigaction call failed.
+    }
+
+    Dl_info info = {};
+    if ((sigact.sa_flags & SA_SIGINFO) &&
+        __wrap_dladdr(reinterpret_cast<void*>(sigact.sa_sigaction), &info) &&
+        info.dli_fname && strstr(info.dli_fname, "libxul.so")) {
+
+        return; // Existing signal handler is in libxul (i.e. we have crash reporter).
+    }
+
+    JNIEnv* env = nullptr;
+    if (!sJavaVM || sJavaVM->AttachCurrentThreadAsDaemon(&env, nullptr) != JNI_OK) {
+        return;
+    }
+
+    if (!env || env->PushLocalFrame(2) != JNI_OK) {
+        return;
+    }
+
+    jclass loader = env->FindClass("org/mozilla/goanna/mozglue/GoannaLoader");
+    if (!loader) {
+        return;
+    }
+
+    jmethodID method = env->GetStaticMethodID(loader, "abort", "(Ljava/lang/String;)V");
+    jstring str = env->NewStringUTF(msg);
+
+    if (method && str) {
+        env->CallStaticVoidMethod(loader, method, str);
+    }
+
+    env->PopLocalFrame(nullptr);
+}
+
 #define JNI_STUBS
 #include "jni-stubs.inc"
 #undef JNI_STUBS
 
-static void * xul_handle = NULL;
+static void * xul_handle = nullptr;
 #ifndef MOZ_FOLD_LIBS
-static void * sqlite_handle = NULL;
-static void * nspr_handle = NULL;
-static void * plc_handle = NULL;
+static void * sqlite_handle = nullptr;
+static void * nspr_handle = nullptr;
+static void * plc_handle = nullptr;
 #else
 #define sqlite_handle nss_handle
 #define nspr_handle nss_handle
 #define plc_handle nss_handle
 #endif
-static void * nss_handle = NULL;
+static void * nss_handle = nullptr;
 
 template <typename T> inline void
 xul_dlsym(const char *symbolName, T *value)
@@ -166,17 +209,13 @@ report_mapping(char *name, void *base, uint32_t len, uint32_t offset)
 static mozglueresult
 loadGoannaLibs(const char *apkName)
 {
-  chdir(getenv("GRE_HOME"));
-
   uint64_t t0 = TimeStamp_Now();
   struct rusage usage1_thread, usage1;
   getrusage(RUSAGE_THREAD, &usage1_thread);
   getrusage(RUSAGE_SELF, &usage1);
   
-  RefPtr<Zip> zip = ZipCollection::GetZip(apkName);
-
-  char *file = new char[strlen(apkName) + sizeof("!/assets/libxul.so")];
-  sprintf(file, "%s!/assets/libxul.so", apkName);
+  char *file = new char[strlen(apkName) + sizeof("!/assets/" ANDROID_CPU_ARCH "/libxul.so")];
+  sprintf(file, "%s!/assets/" ANDROID_CPU_ARCH "/libxul.so", apkName);
   xul_handle = __wrap_dlopen(file, RTLD_GLOBAL | RTLD_LAZY);
   delete[] file;
 
@@ -227,15 +266,12 @@ loadSQLiteLibs(const char *apkName)
   if (loadNSSLibs(apkName) != SUCCESS)
     return FAILURE;
 #else
-  chdir(getenv("GRE_HOME"));
-
-  RefPtr<Zip> zip = ZipCollection::GetZip(apkName);
   if (!lib_mapping) {
     lib_mapping = (struct mapping_info *)calloc(MAX_MAPPING_INFO, sizeof(*lib_mapping));
   }
 
-  char *file = new char[strlen(apkName) + sizeof("!/assets/libmozsqlite3.so")];
-  sprintf(file, "%s!/assets/libmozsqlite3.so", apkName);
+  char *file = new char[strlen(apkName) + sizeof("!/assets/" ANDROID_CPU_ARCH "/libmozsqlite3.so")];
+  sprintf(file, "%s!/assets/" ANDROID_CPU_ARCH "/libmozsqlite3.so", apkName);
   sqlite_handle = __wrap_dlopen(file, RTLD_GLOBAL | RTLD_LAZY);
   delete [] file;
 
@@ -255,26 +291,23 @@ loadNSSLibs(const char *apkName)
   if (nss_handle && nspr_handle && plc_handle)
     return SUCCESS;
 
-  chdir(getenv("GRE_HOME"));
-
-  RefPtr<Zip> zip = ZipCollection::GetZip(apkName);
   if (!lib_mapping) {
     lib_mapping = (struct mapping_info *)calloc(MAX_MAPPING_INFO, sizeof(*lib_mapping));
   }
 
-  char *file = new char[strlen(apkName) + sizeof("!/assets/libnss3.so")];
-  sprintf(file, "%s!/assets/libnss3.so", apkName);
+  char *file = new char[strlen(apkName) + sizeof("!/assets/" ANDROID_CPU_ARCH "/libnss3.so")];
+  sprintf(file, "%s!/assets/" ANDROID_CPU_ARCH "/libnss3.so", apkName);
   nss_handle = __wrap_dlopen(file, RTLD_GLOBAL | RTLD_LAZY);
   delete [] file;
 
 #ifndef MOZ_FOLD_LIBS
-  file = new char[strlen(apkName) + sizeof("!/assets/libnspr4.so")];
-  sprintf(file, "%s!/assets/libnspr4.so", apkName);
+  file = new char[strlen(apkName) + sizeof("!/assets/" ANDROID_CPU_ARCH "/libnspr4.so")];
+  sprintf(file, "%s!/assets/" ANDROID_CPU_ARCH "/libnspr4.so", apkName);
   nspr_handle = __wrap_dlopen(file, RTLD_GLOBAL | RTLD_LAZY);
   delete [] file;
 
-  file = new char[strlen(apkName) + sizeof("!/assets/libplc4.so")];
-  sprintf(file, "%s!/assets/libplc4.so", apkName);
+  file = new char[strlen(apkName) + sizeof("!/assets/" ANDROID_CPU_ARCH "/libplc4.so")];
+  sprintf(file, "%s!/assets/" ANDROID_CPU_ARCH "/libplc4.so", apkName);
   plc_handle = __wrap_dlopen(file, RTLD_GLOBAL | RTLD_LAZY);
   delete [] file;
 #endif
@@ -302,11 +335,13 @@ loadNSSLibs(const char *apkName)
 extern "C" NS_EXPORT void JNICALL
 Java_org_mozilla_goanna_mozglue_GoannaLoader_loadGoannaLibsNative(JNIEnv *jenv, jclass jGoannaAppShellClass, jstring jApkName)
 {
+  jenv->GetJavaVM(&sJavaVM);
+
   const char* str;
   // XXX: java doesn't give us true UTF8, we should figure out something
   // better to do here
-  str = jenv->GetStringUTFChars(jApkName, NULL);
-  if (str == NULL)
+  str = jenv->GetStringUTFChars(jApkName, nullptr);
+  if (str == nullptr)
     return;
 
   int res = loadGoannaLibs(str);
@@ -317,16 +352,12 @@ Java_org_mozilla_goanna_mozglue_GoannaLoader_loadGoannaLibsNative(JNIEnv *jenv, 
 }
 
 extern "C" NS_EXPORT void JNICALL
-Java_org_mozilla_goanna_mozglue_GoannaLoader_loadSQLiteLibsNative(JNIEnv *jenv, jclass jGoannaAppShellClass, jstring jApkName, jboolean jShouldExtract) {
-  if (jShouldExtract) {
-    putenv("MOZ_LINKER_EXTRACT=1");
-  }
-
+Java_org_mozilla_goanna_mozglue_GoannaLoader_loadSQLiteLibsNative(JNIEnv *jenv, jclass jGoannaAppShellClass, jstring jApkName) {
   const char* str;
   // XXX: java doesn't give us true UTF8, we should figure out something
   // better to do here
-  str = jenv->GetStringUTFChars(jApkName, NULL);
-  if (str == NULL)
+  str = jenv->GetStringUTFChars(jApkName, nullptr);
+  if (str == nullptr)
     return;
 
   __android_log_print(ANDROID_LOG_ERROR, "GoannaLibLoad", "Load sqlite start\n");
@@ -339,16 +370,12 @@ Java_org_mozilla_goanna_mozglue_GoannaLoader_loadSQLiteLibsNative(JNIEnv *jenv, 
 }
 
 extern "C" NS_EXPORT void JNICALL
-Java_org_mozilla_goanna_mozglue_GoannaLoader_loadNSSLibsNative(JNIEnv *jenv, jclass jGoannaAppShellClass, jstring jApkName, jboolean jShouldExtract) {
-  if (jShouldExtract) {
-    putenv("MOZ_LINKER_EXTRACT=1");
-  }
-
+Java_org_mozilla_goanna_mozglue_GoannaLoader_loadNSSLibsNative(JNIEnv *jenv, jclass jGoannaAppShellClass, jstring jApkName) {
   const char* str;
   // XXX: java doesn't give us true UTF8, we should figure out something
   // better to do here
-  str = jenv->GetStringUTFChars(jApkName, NULL);
-  if (str == NULL)
+  str = jenv->GetStringUTFChars(jApkName, nullptr);
+  if (str == nullptr)
     return;
 
   __android_log_print(ANDROID_LOG_ERROR, "GoannaLibLoad", "Load nss start\n");
@@ -367,7 +394,7 @@ Java_org_mozilla_goanna_mozglue_GoannaLoader_nativeRun(JNIEnv *jenv, jclass jc, 
 {
   GoannaStart_t GoannaStart;
   xul_dlsym("GoannaStart", &GoannaStart);
-  if (GoannaStart == NULL)
+  if (GoannaStart == nullptr)
     return;
   // XXX: java doesn't give us true UTF8, we should figure out something
   // better to do here
@@ -404,14 +431,14 @@ ChildProcessInit(int argc, char* argv[])
     return FAILURE;
   }
 
-  GoannaProcessType (*fXRE_StringToChildProcessType)(char*);
-  xul_dlsym("XRE_StringToChildProcessType", &fXRE_StringToChildProcessType);
+  void (*fXRE_SetProcessType)(char*);
+  xul_dlsym("XRE_SetProcessType", &fXRE_SetProcessType);
 
-  mozglueresult (*fXRE_InitChildProcess)(int, char**, GoannaProcessType);
+  mozglueresult (*fXRE_InitChildProcess)(int, char**, void*);
   xul_dlsym("XRE_InitChildProcess", &fXRE_InitChildProcess);
 
-  GoannaProcessType proctype = fXRE_StringToChildProcessType(argv[--argc]);
+  fXRE_SetProcessType(argv[--argc]);
 
-  return fXRE_InitChildProcess(argc, argv, proctype);
+  return fXRE_InitChildProcess(argc, argv, nullptr);
 }
 

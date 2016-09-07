@@ -20,9 +20,7 @@
 // XXX add necessary include file for ftruncate (or equivalent)
 #endif
 
-#include "prtypes.h"
 #include "prthread.h"
-#include "prbit.h"
 
 #include "private/pprio.h"
 
@@ -46,6 +44,8 @@
 #include "nsISimpleEnumerator.h"
 
 #include "nsThreadUtils.h"
+#include "mozilla/MemoryReporting.h"
+#include "mozilla/Telemetry.h"
 
 static const char DISK_CACHE_DEVICE_ID[] = { "disk" };
 using namespace mozilla;
@@ -64,7 +64,7 @@ public:
 
     NS_IMETHOD Run()
     {
-        nsCacheServiceAutoLock lock;
+        nsCacheServiceAutoLock lock(LOCK_TELEM(NSDISKCACHEDEVICEDEACTIVATEENTRYEVENT_RUN));
 #ifdef PR_LOGGING
         CACHE_LOG_DEBUG(("nsDiskCacheDeviceDeactivateEntryEvent[%p]\n", this));
 #endif
@@ -84,12 +84,12 @@ private:
 
 class nsEvictDiskCacheEntriesEvent : public nsRunnable {
 public:
-    nsEvictDiskCacheEntriesEvent(nsDiskCacheDevice *device)
+    explicit nsEvictDiskCacheEntriesEvent(nsDiskCacheDevice *device)
         : mDevice(device) {}
 
     NS_IMETHOD Run()
     {
-        nsCacheServiceAutoLock lock;
+        nsCacheServiceAutoLock lock(LOCK_TELEM(NSEVICTDISKCACHEENTRIESEVENT_RUN));
         mDevice->EvictDiskCacheEntries(mDevice->mCacheCapacity);
         return NS_OK;
     }
@@ -182,18 +182,18 @@ public:
     NS_DECL_ISUPPORTS
     NS_DECL_NSICACHEDEVICEINFO
 
-    nsDiskCacheDeviceInfo(nsDiskCacheDevice* device)
+    explicit nsDiskCacheDeviceInfo(nsDiskCacheDevice* device)
         :   mDevice(device)
     {
     }
 
-    virtual ~nsDiskCacheDeviceInfo() {}
-    
 private:
+    virtual ~nsDiskCacheDeviceInfo() {}
+
     nsDiskCacheDevice* mDevice;
 };
 
-NS_IMPL_ISUPPORTS1(nsDiskCacheDeviceInfo, nsICacheDeviceInfo)
+NS_IMPL_ISUPPORTS(nsDiskCacheDeviceInfo, nsICacheDeviceInfo)
 
 /* readonly attribute string description; */
 NS_IMETHODIMP nsDiskCacheDeviceInfo::GetDescription(char ** aDescription)
@@ -360,42 +360,16 @@ nsDiskCache::Truncate(PRFileDesc *  fd, uint32_t  newEOF)
  *  nsDiskCacheDevice
  *****************************************************************************/
 
-class NetworkDiskCacheReporter MOZ_FINAL : public MemoryReporterBase
-{
-public:
-    NetworkDiskCacheReporter(nsDiskCacheDevice* aDevice)
-      : MemoryReporterBase(
-            "explicit/network/disk-cache",
-            KIND_HEAP,
-            UNITS_BYTES,
-            "Memory used by the network disk cache.")
-      , mDevice(aDevice)
-    {}
-
-private:
-    int64_t Amount()
-    {
-        nsCacheServiceAutoLock lock;
-        return mDevice->SizeOfIncludingThis(MallocSizeOf);
-    }
-
-    nsDiskCacheDevice* mDevice;
-};
-
 nsDiskCacheDevice::nsDiskCacheDevice()
     : mCacheCapacity(0)
     , mMaxEntrySize(-1) // -1 means "no limit"
     , mInitialized(false)
     , mClearingDiskCache(false)
-    , mReporter(nullptr)
 {
-    mReporter = new NetworkDiskCacheReporter(this);
-    NS_RegisterMemoryReporter(mReporter);
 }
 
 nsDiskCacheDevice::~nsDiskCacheDevice()
 {
-    NS_UnregisterMemoryReporter(mReporter);
     Shutdown();
 }
 
@@ -419,8 +393,6 @@ nsDiskCacheDevice::Init()
     rv = mBindery.Init();
     if (NS_FAILED(rv))
         return rv;
-
-    nsDeleteDir::RemoveOldTrashes(mCacheDirectory);
 
     // Open Disk Cache
     rv = OpenDiskCache();
@@ -494,6 +466,7 @@ nsDiskCacheDevice::GetDeviceID()
 nsCacheEntry *
 nsDiskCacheDevice::FindEntry(nsCString * key, bool *collision)
 {
+    Telemetry::AutoTimer<Telemetry::CACHE_DISK_SEARCH_2> timer;
     if (!Initialized())  return nullptr;  // NS_ERROR_NOT_INITIALIZED
     if (mClearingDiskCache)  return nullptr;
     nsDiskCacheRecord       record;
@@ -991,6 +964,7 @@ nsDiskCacheDevice::EvictEntries(const char * clientID)
 nsresult
 nsDiskCacheDevice::OpenDiskCache()
 {
+    Telemetry::AutoTimer<Telemetry::NETWORK_DISK_CACHE_OPEN> timer;
     // if we don't have a cache directory, create one and open it
     bool exists;
     nsresult rv = mCacheDirectory->Exists(&exists);
@@ -1003,13 +977,15 @@ nsDiskCacheDevice::OpenDiskCache()
         rv = mCacheMap.Open(mCacheDirectory, &corruptInfo, true);
 
         if (NS_SUCCEEDED(rv)) {
-            // Everything is OK, do nothing!
-            // This previously held telemetry collection
+            Telemetry::Accumulate(Telemetry::DISK_CACHE_CORRUPT_DETAILS,
+                                  corruptInfo);
         } else if (rv == NS_ERROR_ALREADY_INITIALIZED) {
           NS_WARNING("nsDiskCacheDevice::OpenDiskCache: already open!");
         } else {
-            // Consider the cache corrupt: delete it.
-            // Delay delete by 1 minute to avoid I/O thrashing at startup
+            // Consider cache corrupt: delete it
+            Telemetry::Accumulate(Telemetry::DISK_CACHE_CORRUPT_DETAILS,
+                                  corruptInfo);
+            // delay delete by 1 minute to avoid IO thrash at startup
             rv = nsDeleteDir::DeleteDir(mCacheDirectory, true, 60000);
             if (NS_FAILED(rv))
                 return rv;
@@ -1019,6 +995,7 @@ nsDiskCacheDevice::OpenDiskCache()
 
     // if we don't have a cache directory, create one and open it
     if (!exists) {
+        nsCacheService::MarkStartingFresh();
         rv = mCacheDirectory->Create(nsIFile::DIRECTORY_TYPE, 0777);
         CACHE_LOG_PATH(PR_LOG_ALWAYS, "\ncreate cache directory: %s\n", mCacheDirectory);
         CACHE_LOG_ALWAYS(("mCacheDirectory->Create() = %x\n", rv));
@@ -1175,7 +1152,7 @@ nsDiskCacheDevice::SetMaxEntrySize(int32_t maxSizeInKilobytes)
 }
 
 size_t
-nsDiskCacheDevice::SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf)
+nsDiskCacheDevice::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf)
 {
     size_t usage = aMallocSizeOf(this);
 

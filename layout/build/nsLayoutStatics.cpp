@@ -23,13 +23,13 @@
 #include "nsCSSRendering.h"
 #include "mozilla/dom/Attr.h"
 #include "nsDOMClassInfo.h"
-#include "nsEventListenerManager.h"
+#include "nsEditorEventListener.h"
+#include "mozilla/EventListenerManager.h"
 #include "nsFrame.h"
 #include "nsGlobalWindow.h"
 #include "nsGkAtoms.h"
 #include "nsImageFrame.h"
 #include "nsLayoutStylesheetCache.h"
-#include "nsNodeInfo.h"
 #include "nsRange.h"
 #include "nsRegion.h"
 #include "nsRepeatService.h"
@@ -38,18 +38,18 @@
 #include "nsStackLayout.h"
 #include "nsStyleSet.h"
 #include "nsTextControlFrame.h"
-#include "nsXBLWindowKeyHandler.h"
 #include "nsXBLService.h"
 #include "txMozillaXSLTProcessor.h"
 #include "nsTreeSanitizer.h"
 #include "nsCellMap.h"
-#include "nsTextFrameTextRunCache.h"
+#include "nsTextFrame.h"
 #include "nsCCUncollectableMarker.h"
 #include "nsTextFragment.h"
 #include "nsCSSRuleProcessor.h"
-#include "nsCrossSiteListenerProxy.h"
+#include "nsCORSListenerProxy.h"
 #include "nsHTMLDNSPrefetch.h"
 #include "nsHtml5Module.h"
+#include "mozilla/dom/FallbackEncoding.h"
 #include "nsFocusManager.h"
 #include "nsListControlFrame.h"
 #include "mozilla/dom/HTMLInputElement.h"
@@ -59,9 +59,15 @@
 #include "nsMathMLOperators.h"
 #include "Navigator.h"
 #include "DOMStorageObserver.h"
+#include "CacheObserver.h"
 #include "DisplayItemClip.h"
+#include "ActiveLayerTracker.h"
+#include "CounterStyleManager.h"
+#include "FrameLayerBuilder.h"
+#include "mozilla/dom/RequestSyncWifiService.h"
 
 #include "AudioChannelService.h"
+#include "mozilla/dom/DataStoreService.h"
 
 #ifdef MOZ_XUL
 #include "nsXULPopupManager.h"
@@ -70,6 +76,8 @@
 #include "nsXULTooltipListener.h"
 
 #include "inDOMView.h"
+
+#include "nsMenuBarListener.h"
 #endif
 
 #include "nsHTMLEditor.h"
@@ -79,8 +87,8 @@
 #include "nsSynthVoiceRegistry.h"
 #endif
 
-#ifdef MOZ_MEDIA_PLUGINS
-#include "MediaPluginHost.h"
+#ifdef MOZ_ANDROID_OMX
+#include "AndroidMediaPluginHost.h"
 #endif
 
 #ifdef MOZ_WMF
@@ -91,10 +99,17 @@
 #include "GStreamerFormatHelper.h"
 #endif
 
-#include "AudioStream.h"
+#ifdef MOZ_FFMPEG
+#include "FFmpegRuntimeLinker.h"
+#endif
+
+#include "CubebUtils.h"
+#include "Latency.h"
+#include "WebAudioUtils.h"
 
 #ifdef MOZ_WIDGET_GONK
 #include "nsVolumeService.h"
+#include "SpeakerManagerService.h"
 using namespace mozilla::system;
 #endif
 
@@ -114,17 +129,16 @@ using namespace mozilla::system;
 #include "nsCookieService.h"
 #include "nsApplicationCacheService.h"
 #include "mozilla/dom/time/DateCacheCleaner.h"
-#include "nsIMEStateManager.h"
+#include "mozilla/EventDispatcher.h"
+#include "mozilla/IMEStateManager.h"
 #include "nsDocument.h"
-#include "nsXSSFilter.h"
-
-
-extern void NS_ShutdownEventTargetChainItemRecyclePool();
+#include "mozilla/dom/HTMLVideoElement.h"
+#include "CameraPreferences.h"
 
 using namespace mozilla;
+using namespace mozilla::net;
 using namespace mozilla::dom;
 using namespace mozilla::dom::ipc;
-using namespace mozilla::dom::time;
 
 nsrefcnt nsLayoutStatics::sLayoutStaticRefcnt = 0;
 
@@ -151,7 +165,7 @@ nsLayoutStatics::Initialize()
   nsColorNames::AddRefTable();
   nsGkAtoms::AddRefAtoms();
 
-  nsJSRuntime::Startup();
+  StartupJSEnvironment();
   rv = nsRegion::InitStatic();
   if (NS_FAILED(rv)) {
     NS_ERROR("Could not initialize nsRegion");
@@ -203,7 +217,6 @@ nsLayoutStatics::Initialize()
 
   nsMathMLOperators::AddRefTable();
 
-  nsEditProperty::RegisterAtoms();
   nsTextServicesDocument::RegisterAtoms();
 
 #ifdef DEBUG
@@ -229,11 +242,7 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  rv = nsCSSRuleProcessor::Startup();
-  if (NS_FAILED(rv)) {
-    NS_ERROR("Could not initialize nsCSSRuleProcessor");
-    return rv;
-  }
+  nsCSSRuleProcessor::Startup();
 
 #ifdef MOZ_XUL
   rv = nsXULPopupManager::Init();
@@ -249,15 +258,15 @@ nsLayoutStatics::Initialize()
     return rv;
   }
 
-  AudioStream::InitLibrary();
+  AsyncLatencyLogger::InitializeStatics();
+  CubebUtils::InitLibrary();
 
   nsContentSink::InitializeStatics();
   nsHtml5Module::InitializeStatics();
+  mozilla::dom::FallbackEncoding::Initialize();
   nsLayoutUtils::Initialize();
   nsIPresShell::InitializeStatics();
   nsRefreshDriver::InitializeStatics();
-  nsXSSFilter::InitializeStatics();
-
 
   nsCORSListenerProxy::Startup();
 
@@ -274,7 +283,25 @@ nsLayoutStatics::Initialize()
   nsCookieService::AppClearDataObserverInit();
   nsApplicationCacheService::AppClearDataObserverInit();
 
-  InitializeDateCacheCleaner();
+  HTMLVideoElement::Init();
+
+#ifdef MOZ_XUL
+  nsMenuBarListener::InitializeStatics();
+#endif
+
+  CacheObserver::Init();
+
+  CounterStyleManager::InitializeBuiltinCounterStyles();
+
+  CameraPreferences::Initialize();
+
+  IMEStateManager::Init();
+
+  ServiceWorkerRegistrar::Initialize();
+
+#ifdef MOZ_B2G
+  RequestSyncWifiService::Init();
+#endif
 
   return NS_OK;
 }
@@ -285,7 +312,7 @@ nsLayoutStatics::Shutdown()
   // Don't need to shutdown nsWindowMemoryReporter, that will be done by the
   // memory reporter manager.
 
-  nsFrameScriptExecutor::Shutdown();
+  nsMessageManagerScriptExecutor::Shutdown();
   nsFocusManager::Shutdown();
 #ifdef MOZ_XUL
   nsXULPopupManager::Shutdown();
@@ -293,9 +320,8 @@ nsLayoutStatics::Shutdown()
   DOMStorageObserver::Shutdown();
   txMozillaXSLTProcessor::Shutdown();
   Attr::Shutdown();
-  nsEventListenerManager::Shutdown();
-  nsIMEStateManager::Shutdown();
-  nsComputedDOMStyle::Shutdown();
+  EventListenerManager::Shutdown();
+  IMEStateManager::Shutdown();
   nsCSSParser::Shutdown();
   nsCSSRuleProcessor::Shutdown();
   nsTextFrameTextRunCache::Shutdown();
@@ -305,7 +331,7 @@ nsLayoutStatics::Shutdown()
   nsFrame::DisplayReflowShutdown();
 #endif
   nsCellMap::Shutdown();
-  nsFrame::ShutdownLayerActivityTimer();
+  ActiveLayerTracker::Shutdown();
 
   // Release all of our atoms
   nsColorNames::ReleaseTable();
@@ -334,26 +360,30 @@ nsLayoutStatics::Shutdown()
   nsAttrValue::Shutdown();
   nsContentUtils::Shutdown();
   nsLayoutStylesheetCache::Shutdown();
-  NS_NameSpaceManagerShutdown();
 
-  nsJSRuntime::Shutdown();
+  ShutdownJSEnvironment();
   nsGlobalWindow::ShutDown();
   nsDOMClassInfo::ShutDown();
   nsListControlFrame::Shutdown();
-  nsXBLWindowKeyHandler::ShutDown();
   nsXBLService::Shutdown();
   nsAutoCopyListener::Shutdown();
   FrameLayerBuilder::Shutdown();
 
-#ifdef MOZ_MEDIA_PLUGINS
-  MediaPluginHost::Shutdown();
+#ifdef MOZ_ANDROID_OMX
+  AndroidMediaPluginHost::Shutdown();
 #endif
 
 #ifdef MOZ_GSTREAMER
   GStreamerFormatHelper::Shutdown();
 #endif
 
-  AudioStream::ShutdownLibrary();
+#ifdef MOZ_FFMPEG
+  FFmpegRuntimeLinker::Unlink();
+#endif
+
+  CubebUtils::ShutdownLibrary();
+  AsyncLatencyLogger::ShutdownLogger();
+  WebAudioUtils::Shutdown();
 
 #ifdef MOZ_WMF
   WMFDecoder::UnloadDLLs();
@@ -361,6 +391,7 @@ nsLayoutStatics::Shutdown()
 
 #ifdef MOZ_WIDGET_GONK
   nsVolumeService::Shutdown();
+  SpeakerManagerService::Shutdown();
 #endif
 
 #ifdef MOZ_WEBSPEECH
@@ -375,9 +406,11 @@ nsLayoutStatics::Shutdown()
 
   nsHtml5Module::ReleaseStatics();
 
+  mozilla::dom::FallbackEncoding::Shutdown();
+
   nsRegion::ShutdownStatic();
 
-  NS_ShutdownEventTargetChainItemRecyclePool();
+  mozilla::EventDispatcher::Shutdown();
 
   HTMLInputElement::DestroyUploadLastDir();
 
@@ -388,6 +421,8 @@ nsLayoutStatics::Shutdown()
 
   AudioChannelService::Shutdown();
 
+  DataStoreService::Shutdown();
+
   ContentParent::ShutDown();
 
   nsRefreshDriver::Shutdown();
@@ -395,4 +430,8 @@ nsLayoutStatics::Shutdown()
   DisplayItemClip::Shutdown();
 
   nsDocument::XPCOMShutdown();
+
+  CacheObserver::Shutdown();
+
+  CameraPreferences::Shutdown();
 }

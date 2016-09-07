@@ -1,26 +1,16 @@
-import os
 from setuptools import setup, find_packages
 
-version = '0.5.31'
-
-# get documentation from the README
-try:
-    here = os.path.dirname(os.path.abspath(__file__))
-    description = file(os.path.join(here, 'README.md')).read()
-except (OSError, IOError):
-    description = ''
+version = '0.9'
 
 # dependencies
-deps = ['manifestdestiny', 'mozhttpd >= 0.5',
-        'mozprocess >= 0.9', 'mozrunner >= 5.15',
-        'mozdevice >= 0.22', 'moznetwork >= 0.21',
-        'mozcrash >= 0.5', 'mozprofile >= 0.7']
+with open('requirements.txt') as f:
+    deps = f.read().splitlines()
 
 setup(name='marionette_client',
       version=version,
       description="Marionette test automation client",
-      long_description=description,
-      classifiers=[], # Get strings from http://pypi.python.org/pypi?%3Aaction=list_classifiers
+      long_description='See http://marionette-client.readthedocs.org/',
+      classifiers=[],  # Get strings from http://pypi.python.org/pypi?%3Aaction=list_classifiers
       keywords='mozilla',
       author='Jonathan Griffin',
       author_email='jgriffin@mozilla.com',
@@ -37,4 +27,3 @@ setup(name='marionette_client',
       """,
       install_requires=deps,
       )
-

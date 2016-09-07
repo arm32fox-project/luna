@@ -4,6 +4,7 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // Keep in (case-insensitive) order:
+#include "nsContainerFrame.h"
 #include "nsFrame.h"
 #include "nsGkAtoms.h"
 #include "nsSVGEffects.h"
@@ -20,47 +21,45 @@ class SVGFELeafFrame : public SVGFELeafFrameBase
   friend nsIFrame*
   NS_NewSVGFELeafFrame(nsIPresShell* aPresShell, nsStyleContext* aContext);
 protected:
-  SVGFELeafFrame(nsStyleContext* aContext)
+  explicit SVGFELeafFrame(nsStyleContext* aContext)
     : SVGFELeafFrameBase(aContext)
   {
-    AddStateBits(NS_FRAME_SVG_LAYOUT | NS_STATE_SVG_NONDISPLAY_CHILD);
+    AddStateBits(NS_FRAME_SVG_LAYOUT | NS_FRAME_IS_NONDISPLAY);
   }
 
 public:
   NS_DECL_FRAMEARENA_HELPERS
 
 #ifdef DEBUG
-  virtual void Init(nsIContent* aContent,
-                    nsIFrame*   aParent,
-                    nsIFrame*   aPrevInFlow) MOZ_OVERRIDE;
+  virtual void Init(nsIContent*       aContent,
+                    nsContainerFrame* aParent,
+                    nsIFrame*         aPrevInFlow) override;
 #endif
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const
+  virtual bool IsFrameOfType(uint32_t aFlags) const override
   {
     return SVGFELeafFrameBase::IsFrameOfType(aFlags & ~(nsIFrame::eSVG));
   }
 
-#ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const
+#ifdef DEBUG_FRAME_DUMP
+  virtual nsresult GetFrameName(nsAString& aResult) const override
   {
     return MakeFrameName(NS_LITERAL_STRING("SVGFELeaf"), aResult);
   }
 #endif
-
-  virtual void DidSetStyleContext(nsStyleContext* aOldStyleContext);
 
   /**
    * Get the "type" of the frame
    *
    * @see nsGkAtoms::svgFELeafFrame
    */
-  virtual nsIAtom* GetType() const;
+  virtual nsIAtom* GetType() const override;
 
-  NS_IMETHOD AttributeChanged(int32_t  aNameSpaceID,
-                              nsIAtom* aAttribute,
-                              int32_t  aModType);
+  virtual nsresult AttributeChanged(int32_t  aNameSpaceID,
+                                    nsIAtom* aAttribute,
+                                    int32_t  aModType) override;
 
-  virtual bool UpdateOverflow() {
+  virtual bool UpdateOverflow() override {
     // We don't maintain a visual overflow rect
     return false;
   }
@@ -74,18 +73,11 @@ NS_NewSVGFELeafFrame(nsIPresShell* aPresShell, nsStyleContext* aContext)
 
 NS_IMPL_FRAMEARENA_HELPERS(SVGFELeafFrame)
 
-/* virtual */ void
-SVGFELeafFrame::DidSetStyleContext(nsStyleContext* aOldStyleContext)
-{
-  SVGFELeafFrameBase::DidSetStyleContext(aOldStyleContext);
-  nsSVGEffects::InvalidateRenderingObservers(this);
-}
-
 #ifdef DEBUG
 void
-SVGFELeafFrame::Init(nsIContent* aContent,
-                     nsIFrame* aParent,
-                     nsIFrame* aPrevInFlow)
+SVGFELeafFrame::Init(nsIContent*       aContent,
+                     nsContainerFrame* aParent,
+                     nsIFrame*         aPrevInFlow)
 {
   NS_ASSERTION(aContent->IsNodeOfType(nsINode::eFILTER),
                "Trying to construct an SVGFELeafFrame for a "
@@ -101,16 +93,18 @@ SVGFELeafFrame::GetType() const
   return nsGkAtoms::svgFELeafFrame;
 }
 
-NS_IMETHODIMP
+nsresult
 SVGFELeafFrame::AttributeChanged(int32_t  aNameSpaceID,
                                  nsIAtom* aAttribute,
                                  int32_t  aModType)
 {
   nsSVGFE *element = static_cast<nsSVGFE*>(mContent);
   if (element->AttributeAffectsRendering(aNameSpaceID, aAttribute)) {
-    nsSVGEffects::InvalidateRenderingObservers(this);
+    MOZ_ASSERT(GetParent()->GetType() == nsGkAtoms::svgFilterFrame,
+               "Observers observe the filter, so that's what we must invalidate");
+    nsSVGEffects::InvalidateDirectRenderingObservers(GetParent());
   }
 
   return SVGFELeafFrameBase::AttributeChanged(aNameSpaceID,
-                                                aAttribute, aModType);
+                                              aAttribute, aModType);
 }

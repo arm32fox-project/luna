@@ -87,8 +87,6 @@ enum ViEErrors {
   kViENetworkSendCodecNotSet,            // SetSendGQoS- Need to set the send codec first.
   kViENetworkServiceTypeNotSupported,    // SetSendGQoS
   kViENetworkNotSupported,               // SetSendGQoS Not supported on this OS.
-  kViENetworkObserverAlreadyRegistered,  // RegisterObserver
-  kViENetworkObserverNotRegistered,      // SetPeriodicDeadOrAliveStatus - Need to call RegisterObserver first, DeregisterObserver if no observer is registered.
   kViENetworkUnknownError,               // An unknown error has occurred. Check the log file.
 
   // ViERTP_RTCP.
@@ -100,19 +98,13 @@ enum ViEErrors {
   kViERtpRtcpObserverNotRegistered,      // No observer registered.
   kViERtpRtcpUnknownError,               // An unknown error has occurred. Check the log file.
 
-  // ViEEncryption.
-  kViEEncryptionInvalidChannelId = 12700,  // Channel id does not exist.
-  kViEEncryptionInvalidSrtpParameter,      // EnableSRTPSend, EnableSRTPReceive-  Check the SRTP parameters.
-  kViEEncryptionSrtpNotSupported,          // This build does not support SRTP.
-  kViEEncryptionUnknownError,              // An unknown error has occurred. Check the log file.
-
   // ViEImageProcess.
   kViEImageProcessInvalidChannelId  = 12800,  // No Channel exist with the provided channel id.
   kViEImageProcessInvalidCaptureId,          // No capture device exist with the provided capture id.
   kViEImageProcessFilterExists,              // RegisterCaptureEffectFilter,RegisterSendEffectFilter,RegisterRenderEffectFilter - Effect filter already registered.
   kViEImageProcessFilterDoesNotExist,        // DeRegisterCaptureEffectFilter,DeRegisterSendEffectFilter,DeRegisterRenderEffectFilter - Effect filter not registered.
-  kViEImageProcessAlreadyEnabled,            // EnableDeflickering,EnableDenoising,EnableColorEnhancement- Function already enabled.
-  kViEImageProcessAlreadyDisabled,           // EnableDeflickering,EnableDenoising,EnableColorEnhancement- Function already disabled.
+  kViEImageProcessAlreadyEnabled,            // EnableDeflickering,EnableColorEnhancement- Function already enabled.
+  kViEImageProcessAlreadyDisabled,           // EnableDeflickering,EnableColorEnhancement- Function already disabled.
   kViEImageProcessUnknownError               // An unknown error has occurred. Check the log file.
 };
 

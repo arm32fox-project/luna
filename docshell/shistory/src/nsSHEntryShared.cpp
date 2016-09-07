@@ -3,17 +3,21 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsSHEntryShared.h"
+
+#include "nsIDOMDocument.h"
 #include "nsISHistory.h"
 #include "nsISHistoryInternal.h"
 #include "nsIDocument.h"
 #include "nsIWebNavigation.h"
 #include "nsIContentViewer.h"
+#include "nsIDocShell.h"
 #include "nsIDocShellTreeItem.h"
 #include "nsDocShellEditorData.h"
 #include "nsThreadUtils.h"
 #include "nsILayoutHistoryState.h"
-#include "prprf.h"
 #include "mozilla/Attributes.h"
+#include "mozilla/Preferences.h"
+#include "nsISupportsArray.h"
 
 namespace dom = mozilla::dom;
 
@@ -23,19 +27,18 @@ uint64_t gSHEntrySharedID = 0;
 
 } // anonymous namespace
 
-// Hardcode this to time out unused content viewers after 30 minutes
-// XXX jlebar shouldn't this be a pref?
-#define CONTENT_VIEWER_TIMEOUT_SECONDS (30*60)
+#define CONTENT_VIEWER_TIMEOUT_SECONDS "browser.sessionhistory.contentViewerTimeout"
+// Default this to time out unused content viewers after 30 minutes
+#define CONTENT_VIEWER_TIMEOUT_SECONDS_DEFAULT (30*60)
 
 typedef nsExpirationTracker<nsSHEntryShared, 3> HistoryTrackerBase;
-class HistoryTracker MOZ_FINAL : public HistoryTrackerBase {
+class HistoryTracker final : public HistoryTrackerBase {
 public:
-  // Expire cached contentviewers after 20-30 minutes in the cache.
-  HistoryTracker() 
-    : HistoryTrackerBase(1000 * CONTENT_VIEWER_TIMEOUT_SECONDS / 2)
+  explicit HistoryTracker(uint32_t aTimeout)
+    : HistoryTrackerBase(1000 * aTimeout / 2)
   {
   }
-  
+
 protected:
   virtual void NotifyExpired(nsSHEntryShared *aObj) {
     RemoveObject(aObj);
@@ -46,9 +49,15 @@ protected:
 static HistoryTracker *gHistoryTracker = nullptr;
 
 void
-nsSHEntryShared::Startup()
+nsSHEntryShared::EnsureHistoryTracker()
 {
-  gHistoryTracker = new HistoryTracker();
+  if (!gHistoryTracker) {
+    // nsExpirationTracker doesn't allow one to change the timer period,
+    // so just set it once when the history tracker is used for the first time.
+    gHistoryTracker = new HistoryTracker(
+      mozilla::Preferences::GetUint(CONTENT_VIEWER_TIMEOUT_SECONDS,
+                                    CONTENT_VIEWER_TIMEOUT_SECONDS_DEFAULT));
+  }
 }
 
 void
@@ -76,14 +85,16 @@ nsSHEntryShared::~nsSHEntryShared()
   RemoveFromExpirationTracker();
 
 #ifdef DEBUG
-  // Check that we're not still on track to expire.  We shouldn't be, because
-  // we just removed ourselves!
-  nsExpirationTracker<nsSHEntryShared, 3>::Iterator
-    iterator(gHistoryTracker);
+  if (gHistoryTracker) {
+    // Check that we're not still on track to expire.  We shouldn't be, because
+    // we just removed ourselves!
+    nsExpirationTracker<nsSHEntryShared, 3>::Iterator
+      iterator(gHistoryTracker);
 
-  nsSHEntryShared *elem;
-  while ((elem = iterator.Next()) != nullptr) {
-    NS_ASSERTION(elem != this, "Found dead entry still in the tracker!");
+    nsSHEntryShared *elem;
+    while ((elem = iterator.Next()) != nullptr) {
+      NS_ASSERTION(elem != this, "Found dead entry still in the tracker!");
+    }
   }
 #endif
 
@@ -92,7 +103,7 @@ nsSHEntryShared::~nsSHEntryShared()
   }
 }
 
-NS_IMPL_ISUPPORTS2(nsSHEntryShared, nsIBFCacheEntry, nsIMutationObserver)
+NS_IMPL_ISUPPORTS(nsSHEntryShared, nsIBFCacheEntry, nsIMutationObserver)
 
 already_AddRefed<nsSHEntryShared>
 nsSHEntryShared::Duplicate(nsSHEntryShared *aEntry)
@@ -115,7 +126,7 @@ nsSHEntryShared::Duplicate(nsSHEntryShared *aEntry)
 
 void nsSHEntryShared::RemoveFromExpirationTracker()
 {
-  if (GetExpirationState()->IsTracked()) {
+  if (gHistoryTracker && GetExpirationState()->IsTracked()) {
     gHistoryTracker->RemoveObject(this);
   }
 }
@@ -165,7 +176,7 @@ nsSHEntryShared::Expire()
   if (!mContentViewer) {
     return;
   }
-  nsCOMPtr<nsISupports> container;
+  nsCOMPtr<nsIDocShell> container;
   mContentViewer->GetContainer(getter_AddRefs(container));
   nsCOMPtr<nsIDocShellTreeItem> treeItem = do_QueryInterface(container);
   if (!treeItem) {
@@ -198,6 +209,7 @@ nsSHEntryShared::SetContentViewer(nsIContentViewer *aViewer)
   mContentViewer = aViewer;
 
   if (mContentViewer) {
+    EnsureHistoryTracker();
     gHistoryTracker->AddObject(this);
 
     nsCOMPtr<nsIDOMDocument> domDoc;

@@ -1,50 +1,47 @@
+/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "mozilla/dom/TextDecoder.h"
 #include "mozilla/dom/EncodingUtils.h"
+#include "mozilla/dom/UnionTypes.h"
 #include "nsContentUtils.h"
-#include "nsICharsetConverterManager.h"
-#include "nsServiceManagerUtils.h"
+#include <stdint.h>
 
 namespace mozilla {
 namespace dom {
 
-static const PRUnichar kReplacementChar = static_cast<PRUnichar>(0xFFFD);
+static const char16_t kReplacementChar = static_cast<char16_t>(0xFFFD);
 
 void
-TextDecoderBase::Init(const nsAString& aEncoding, const bool aFatal,
-                      ErrorResult& aRv)
+TextDecoder::Init(const nsAString& aLabel, const bool aFatal,
+                  ErrorResult& aRv)
 {
-  nsAutoString label(aEncoding);
-  EncodingUtils::TrimSpaceCharacters(label);
-
+  nsAutoCString encoding;
   // Let encoding be the result of getting an encoding from label.
-  // If encoding is failure, throw a TypeError.
-  if (!EncodingUtils::FindEncodingForLabel(label, mEncoding)) {
-    aRv.ThrowTypeError(MSG_ENCODING_NOT_SUPPORTED, &label);
+  // If encoding is failure or replacement, throw a RangeError
+  // (https://encoding.spec.whatwg.org/#dom-textdecoder).
+  if (!EncodingUtils::FindEncodingForLabelNoReplacement(aLabel, encoding)) {
+    nsAutoString label(aLabel);
+    EncodingUtils::TrimSpaceCharacters(label);
+    aRv.ThrowRangeError(MSG_ENCODING_NOT_SUPPORTED, &label);
     return;
   }
+  InitWithEncoding(encoding, aFatal);
+}
 
+void
+TextDecoder::InitWithEncoding(const nsACString& aEncoding, const bool aFatal)
+{
+  mEncoding = aEncoding;
   // If the constructor is called with an options argument,
   // and the fatal property of the dictionary is set,
   // set the internal fatal flag of the decoder object.
   mFatal = aFatal;
 
   // Create a decoder object for mEncoding.
-  nsCOMPtr<nsICharsetConverterManager> ccm =
-    do_GetService(NS_CHARSETCONVERTERMANAGER_CONTRACTID);
-  if (!ccm) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return;
-  }
-
-  ccm->GetUnicodeDecoderRaw(mEncoding.get(), getter_AddRefs(mDecoder));
-  if (!mDecoder) {
-    aRv.Throw(NS_ERROR_UNEXPECTED);
-    return;
-  }
+  mDecoder = EncodingUtils::DecoderForEncoding(mEncoding);
 
   if (mFatal) {
     mDecoder->SetInputErrorBehavior(nsIUnicodeDecoder::kOnError_Signal);
@@ -52,9 +49,9 @@ TextDecoderBase::Init(const nsAString& aEncoding, const bool aFatal,
 }
 
 void
-TextDecoderBase::Decode(const char* aInput, const int32_t aLength,
-                        const bool aStream, nsAString& aOutDecodedString,
-                        ErrorResult& aRv)
+TextDecoder::Decode(const char* aInput, const int32_t aLength,
+                    const bool aStream, nsAString& aOutDecodedString,
+                    ErrorResult& aRv)
 {
   aOutDecodedString.Truncate();
 
@@ -67,8 +64,7 @@ TextDecoderBase::Decode(const char* aInput, const int32_t aLength,
   }
   // Need a fallible allocator because the caller may be a content
   // and the content can specify the length of the string.
-  static const fallible_t fallible = fallible_t();
-  nsAutoArrayPtr<PRUnichar> buf(new (fallible) PRUnichar[outLen + 1]);
+  nsAutoArrayPtr<char16_t> buf(new (fallible) char16_t[outLen + 1]);
   if (!buf) {
     aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
     return;
@@ -86,7 +82,7 @@ TextDecoderBase::Decode(const char* aInput, const int32_t aLength,
     mDecoder->Reset();
     if (rv == NS_OK_UDEC_MOREINPUT) {
       if (mFatal) {
-        aRv.Throw(NS_ERROR_DOM_ENCODING_DECODE_ERR);
+        aRv.ThrowTypeError(MSG_DOM_DECODING_FAILED);
       } else {
         // Need to emit a decode error manually
         // to simulate the EOF handling of the Encoding spec.
@@ -96,21 +92,50 @@ TextDecoderBase::Decode(const char* aInput, const int32_t aLength,
   }
 
   if (NS_FAILED(rv)) {
-    aRv.Throw(NS_ERROR_DOM_ENCODING_DECODE_ERR);
+    aRv.ThrowTypeError(MSG_DOM_DECODING_FAILED);
   }
 }
 
 void
-TextDecoderBase::GetEncoding(nsAString& aEncoding)
+TextDecoder::Decode(const Optional<ArrayBufferViewOrArrayBuffer>& aBuffer,
+                    const TextDecodeOptions& aOptions,
+                    nsAString& aOutDecodedString,
+                    ErrorResult& aRv)
+{
+  if (!aBuffer.WasPassed()) {
+    Decode(nullptr, 0, aOptions.mStream, aOutDecodedString, aRv);
+    return;
+  }
+  const ArrayBufferViewOrArrayBuffer& buf = aBuffer.Value();
+  uint8_t* data;
+  uint32_t length;
+  if (buf.IsArrayBufferView()) {
+    buf.GetAsArrayBufferView().ComputeLengthAndData();
+    data = buf.GetAsArrayBufferView().Data();
+    length = buf.GetAsArrayBufferView().Length();
+  } else {
+    MOZ_ASSERT(buf.IsArrayBuffer());
+    buf.GetAsArrayBuffer().ComputeLengthAndData();
+    data = buf.GetAsArrayBuffer().Data();
+    length = buf.GetAsArrayBuffer().Length();
+  }
+  // The other Decode signature takes a signed int, because that's
+  // what nsIUnicodeDecoder::Convert takes as the length.  Throw if
+  // our length is too big.
+  if (length > INT32_MAX) {
+    aRv.Throw(NS_ERROR_OUT_OF_MEMORY);
+    return;
+  }
+  Decode(reinterpret_cast<char*>(data), length, aOptions.mStream,
+         aOutDecodedString, aRv);
+}
+
+void
+TextDecoder::GetEncoding(nsAString& aEncoding)
 {
   CopyASCIItoUTF16(mEncoding, aEncoding);
   nsContentUtils::ASCIIToLower(aEncoding);
 }
-
-NS_IMPL_CYCLE_COLLECTION_ROOT_NATIVE(TextDecoder, AddRef)
-NS_IMPL_CYCLE_COLLECTION_UNROOT_NATIVE(TextDecoder, Release)
-
-NS_IMPL_CYCLE_COLLECTION_WRAPPERCACHE_1(TextDecoder, mGlobal)
 
 } // dom
 } // mozilla

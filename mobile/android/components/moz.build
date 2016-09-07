@@ -8,14 +8,41 @@ XPIDL_SOURCES += [
     'SessionStore.idl',
 ]
 
-MODULE = 'MobileComponents'
+XPIDL_MODULE = 'MobileComponents'
 
-EXTRA_PP_COMPONENTS += [
+EXTRA_COMPONENTS += [
     'AboutRedirector.js',
+    'ActivitiesGlue.js',
+    'AddonUpdateService.js',
+    'BlocklistPrompt.js',
     'BrowserCLH.js',
+    'ColorPicker.js',
+    'ContentDispatchChooser.js',
+    'ContentPermissionPrompt.js',
     'DirectoryProvider.js',
+    'FilePicker.js',
     'HelperAppDialog.js',
-    'MobileComponents.manifest',
+    'LoginManagerPrompter.js',
+    'NSSDialogService.js',
+    'PromptService.js',
     'SessionStore.js',
-    'Sidebar.js',
+    'SiteSpecificUserAgent.js',
+    'Snippets.js',
+    'TabSource.js',
+    'WebappsUpdateTimer.js',
+    'XPIDialogService.js',
 ]
+
+if CONFIG['MOZ_PAY']:
+    EXTRA_COMPONENTS += [
+        'PaymentProviderStrategy.js',
+        'PaymentsUI.js'
+    ]
+
+# Keep it this way if at all possible.  If you need preprocessing,
+# consider adding fields to AppConstants.jsm.
+EXTRA_PP_COMPONENTS += [
+    'MobileComponents.manifest',
+]
+
+DIRS += ['build']

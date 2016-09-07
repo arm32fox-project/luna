@@ -41,13 +41,37 @@ patched_rotatePayload(payload p)
 bool TestHook(const char *dll, const char *func)
 {
   void *orig_func;
-  WindowsDllInterceptor TestIntercept;
-  TestIntercept.Init(dll);
-  if (TestIntercept.AddHook(func, 0, &orig_func)) {
+  bool successful = false;
+  {
+    WindowsDllInterceptor TestIntercept;
+    TestIntercept.Init(dll);
+    successful = TestIntercept.AddHook(func, 0, &orig_func);
+  }
+
+  if (successful) {
     printf("TEST-PASS | WindowsDllInterceptor | Could hook %s from %s\n", func, dll);
     return true;
   } else {
     printf("TEST-UNEXPECTED-FAIL | WindowsDllInterceptor | Failed to hook %s from %s\n", func, dll);
+    return false;
+  }
+}
+
+bool TestDetour(const char *dll, const char *func)
+{
+  void *orig_func;
+  bool successful = false;
+  {
+    WindowsDllInterceptor TestIntercept;
+    TestIntercept.Init(dll);
+    successful = TestIntercept.AddDetour(func, 0, &orig_func);
+  }
+
+  if (successful) {
+    printf("TEST-PASS | WindowsDllInterceptor | Could detour %s from %s\n", func, dll);
+    return true;
+  } else {
+    printf("TEST-UNEXPECTED-FAIL | WindowsDllInterceptor | Failed to detour %s from %s\n", func, dll);
     return false;
   }
 }
@@ -120,17 +144,20 @@ int main()
       // We keep this test to hook complex code on x86. (Bug 850957)
       TestHook("ntdll.dll", "NtFlushBuffersFile") &&
 #endif
+      TestHook("ntdll.dll", "NtCreateFile") &&
+      TestHook("ntdll.dll", "NtReadFile") &&
+      TestHook("ntdll.dll", "NtReadFileScatter") &&
       TestHook("ntdll.dll", "NtWriteFile") &&
       TestHook("ntdll.dll", "NtWriteFileGather") &&
-      // Bug 733892: toolkit/crashreporter/nsExceptionHandler.cpp
-      TestHook("kernel32.dll", "SetUnhandledExceptionFilter") &&
+      TestHook("ntdll.dll", "NtQueryFullAttributesFile") &&
 #ifdef _M_IX86
       // Bug 670967: xpcom/base/AvailableMemoryTracker.cpp
       TestHook("kernel32.dll", "VirtualAlloc") &&
       TestHook("kernel32.dll", "MapViewOfFile") &&
       TestHook("gdi32.dll", "CreateDIBSection") &&
+      TestHook("kernel32.dll", "CreateFileW") &&
 #endif
-      TestHook("ntdll.dll", "LdrLoadDll")) {
+      TestDetour("ntdll.dll", "LdrLoadDll")) {
     printf("TEST-PASS | WindowsDllInterceptor | all checks passed\n");
     return 0;
   }

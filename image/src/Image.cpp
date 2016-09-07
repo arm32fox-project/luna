@@ -6,12 +6,14 @@
 #include "nsMimeTypes.h"
 
 #include "Image.h"
+#include "nsRefreshDriver.h"
+#include "mozilla/TimeStamp.h"
 
 namespace mozilla {
 namespace image {
 
 // Constructor
-ImageResource::ImageResource(imgStatusTracker* aStatusTracker, nsIURI* aURI) :
+ImageResource::ImageResource(ImageURL* aURI) :
   mURI(aURI),
   mInnerWindowId(0),
   mAnimationConsumers(0),
@@ -20,27 +22,6 @@ ImageResource::ImageResource(imgStatusTracker* aStatusTracker, nsIURI* aURI) :
   mAnimating(false),
   mError(false)
 {
-  if (aStatusTracker) {
-    mStatusTracker = aStatusTracker;
-    mStatusTracker->SetImage(this);
-  } else {
-    mStatusTracker = new imgStatusTracker(this);
-  }
-}
-
-uint32_t
-ImageResource::SizeOfData()
-{
-  if (mError)
-    return 0;
-
-  // This is not used by memory reporters, but for sizing the cache, which is
-  // why it uses |moz_malloc_size_of| rather than an
-  // |NS_MEMORY_REPORTER_MALLOC_SIZEOF_FUN|.
-  return uint32_t(HeapSizeOfSourceWithComputedFallback(moz_malloc_size_of) +
-                  HeapSizeOfDecodedWithComputedFallback(moz_malloc_size_of) +
-                  NonHeapSizeOfDecoded() +
-                  OutOfProcessSizeOfDecoded());
 }
 
 // Translates a mimetype into a concrete decoder
@@ -90,25 +71,23 @@ Image::GetDecoderType(const char *aMimeType)
   else if (!strcmp(aMimeType, IMAGE_ICON_MS))
     rv = eDecoderType_icon;
 
-#ifdef MOZ_WBMP
-  // WBMP
-  else if (!strcmp(aMimeType, IMAGE_WBMP))
-    rv = eDecoderType_wbmp;
-#endif
-
   return rv;
 }
 
 void
 ImageResource::IncrementAnimationConsumers()
 {
+  MOZ_ASSERT(NS_IsMainThread(), "Main thread only to encourage serialization "
+                                "with DecrementAnimationConsumers");
   mAnimationConsumers++;
 }
 
 void
 ImageResource::DecrementAnimationConsumers()
 {
-  NS_ABORT_IF_FALSE(mAnimationConsumers >= 1, "Invalid no. of animation consumers!");
+  MOZ_ASSERT(NS_IsMainThread(), "Main thread only to encourage serialization "
+                                "with IncrementAnimationConsumers");
+  MOZ_ASSERT(mAnimationConsumers >= 1, "Invalid no. of animation consumers!");
   mAnimationConsumers--;
 }
 
@@ -140,6 +119,26 @@ ImageResource::SetAnimationModeInternal(uint16_t aAnimationMode)
   return NS_OK;
 }
 
+bool
+ImageResource::HadRecentRefresh(const TimeStamp& aTime)
+{
+  // Our threshold for "recent" is 1/2 of the default refresh-driver interval.
+  // This ensures that we allow for frame rates at least as fast as the
+  // refresh driver's default rate.
+  static TimeDuration recentThreshold =
+      TimeDuration::FromMilliseconds(nsRefreshDriver::DefaultInterval() / 2.0);
+
+  if (!mLastRefreshTime.IsNull() &&
+      aTime - mLastRefreshTime < recentThreshold) {
+    return true;
+  }
+
+  // else, we can proceed with a refresh.
+  // But first, update our last refresh time:
+  mLastRefreshTime = aTime;
+  return false;
+}
+
 void
 ImageResource::EvaluateAnimation()
 {
@@ -148,7 +147,6 @@ ImageResource::EvaluateAnimation()
     mAnimating = NS_SUCCEEDED(rv);
   } else if (mAnimating && !ShouldAnimate()) {
     StopAnimation();
-    mAnimating = false;
   }
 }
 

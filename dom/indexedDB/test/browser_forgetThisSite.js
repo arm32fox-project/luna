@@ -20,10 +20,11 @@ const testPageURL4 = "http://" + domains[1] + getPath;
 
 function test()
 {
+  requestLongerTimeout(2);
   waitForExplicitFinish();
   // Avoids the prompt
-  setPermission(testPageURL1, "indexedDB", "unknown");
-  setPermission(testPageURL2, "indexedDB", "unknown");
+  setPermission(testPageURL1, "indexedDB");
+  setPermission(testPageURL2, "indexedDB");
   executeSoon(test1);
 }
 
@@ -67,7 +68,7 @@ function test3()
 {
   // Remove database from domain 2
   ForgetAboutSite.removeDataFromDomain(domains[1]);
-  setPermission(testPageURL4, "indexedDB", "unknown");
+  setPermission(testPageURL4, "indexedDB");
   executeSoon(test4);
 }
 

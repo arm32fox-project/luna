@@ -148,15 +148,6 @@ implements RecordsChannelDelegate,
       return;
     }
 
-    if (!sessionA.dataAvailable() &&
-        !sessionB.dataAvailable()) {
-      Logger.info(LOG_TAG, "Neither session reports data available. Short-circuiting sync.");
-      sessionA.abort();
-      sessionB.abort();
-      this.delegate.onSynchronizeSkipped(this);
-      return;
-    }
-
     final SynchronizerSession session = this;
 
     // TODO: failed record handling.
@@ -167,6 +158,7 @@ implements RecordsChannelDelegate,
 
     // This is the delegate for the *first* flow.
     RecordsChannelDelegate channelAToBDelegate = new RecordsChannelDelegate() {
+      @Override
       public void onFlowCompleted(RecordsChannel recordsChannel, long fetchEnd, long storeEnd) {
         session.onFirstFlowCompleted(recordsChannel, fetchEnd, storeEnd);
       }

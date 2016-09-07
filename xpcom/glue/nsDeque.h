@@ -1,4 +1,5 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* vim: set ts=8 sts=2 et sw=2 tw=80: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -28,6 +29,7 @@
 #include "nsDebug.h"
 #include "mozilla/Attributes.h"
 #include "mozilla/fallible.h"
+#include "mozilla/MemoryReporting.h"
 
 /**
  * The nsDequeFunctor class is used when you want to create
@@ -36,9 +38,10 @@
  *
  */
 
-class nsDequeFunctor{
+class nsDequeFunctor
+{
 public:
-  virtual void* operator()(void* anObject)=0;
+  virtual void* operator()(void* aObject) = 0;
   virtual ~nsDequeFunctor() {}
 };
 
@@ -58,11 +61,12 @@ public:
 
 class nsDequeIterator;
 
-class NS_COM_GLUE nsDeque {
+class nsDeque
+{
   friend class nsDequeIterator;
   typedef mozilla::fallible_t fallible_t;
-  public:
-   nsDeque(nsDequeFunctor* aDeallocator = nullptr);
+public:
+  explicit nsDeque(nsDequeFunctor* aDeallocator = nullptr);
   ~nsDeque();
 
   /**
@@ -71,33 +75,35 @@ class NS_COM_GLUE nsDeque {
    *
    * @return  number of elements currently in the deque
    */
-  inline int32_t GetSize() const {return mSize;}
+  inline int32_t GetSize() const { return mSize; }
 
   /**
    * Appends new member at the end of the deque.
    *
    * @param   item to store in deque
    */
-  void Push(void* aItem) {
-    if (!Push(aItem, fallible_t())) {
-      NS_RUNTIMEABORT("OOM");
+  void Push(void* aItem)
+  {
+    if (!Push(aItem, mozilla::fallible)) {
+      NS_ABORT_OOM(mSize * sizeof(void*));
     }
   }
 
-  bool Push(void* aItem, const fallible_t&) NS_WARN_UNUSED_RESULT;
+  NS_WARN_UNUSED_RESULT bool Push(void* aItem, const fallible_t&);
 
   /**
    * Inserts new member at the front of the deque.
    *
    * @param   item to store in deque
    */
-  void PushFront(void* aItem) {
-    if (!PushFront(aItem, fallible_t())) {
-      NS_RUNTIMEABORT("OOM");
+  void PushFront(void* aItem)
+  {
+    if (!PushFront(aItem, mozilla::fallible)) {
+      NS_ABORT_OOM(mSize * sizeof(void*));
     }
   }
 
-  bool PushFront(void* aItem, const fallible_t&) NS_WARN_UNUSED_RESULT;
+  NS_WARN_UNUSED_RESULT bool PushFront(void* aItem, const fallible_t&);
 
   /**
    * Remove and return the last item in the container.
@@ -128,18 +134,18 @@ class NS_COM_GLUE nsDeque {
   void* PeekFront();
 
   /**
-   * Retrieve the i'th member from the deque without removing it.
+   * Retrieve a member from the deque without removing it.
    *
    * @param   index of desired item
-   * @return  i'th element in list
+   * @return  element in list
    */
   void* ObjectAt(int aIndex) const;
 
   /**
-   * Removes and returns the i'th member from the deque.
+   * Removes and returns the a member from the deque.
    *
    * @param   index of desired item
-   * @return  the element which was removed
+   * @return  element which was removed
    */
   void* RemoveObjectAt(int aIndex);
 
@@ -184,7 +190,7 @@ class NS_COM_GLUE nsDeque {
 
   /**
    * Call this method when you want to iterate all the
-   * members of the container, calling the functor you 
+   * members of the container, calling the functor you
    * passed with each member. This process will interrupt
    * if your function returns non 0 to this method.
    *
@@ -194,6 +200,9 @@ class NS_COM_GLUE nsDeque {
   const void* FirstThat(nsDequeFunctor& aFunctor) const;
 
   void SetDeallocator(nsDequeFunctor* aDeallocator);
+
+  size_t SizeOfExcludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
+  size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const;
 
 protected:
   int32_t         mSize;
@@ -208,17 +217,17 @@ private:
   /**
    * Copy constructor (PRIVATE)
    *
-   * @param another deque
+   * @param aOther another deque
    */
-  nsDeque(const nsDeque& other);
+  nsDeque(const nsDeque& aOther);
 
   /**
    * Deque assignment operator (PRIVATE)
    *
-   * @param   another deque
-   * @return  *this
+   * @param aOther another deque
+   * @return *this
    */
-  nsDeque& operator=(const nsDeque& anOther);
+  nsDeque& operator=(const nsDeque& aOther);
 
   bool GrowCapacity();
 };
@@ -227,7 +236,8 @@ private:
  * Here comes the nsDequeIterator class...
  ******************************************************/
 
-class NS_COM_GLUE nsDequeIterator {
+class nsDequeIterator
+{
 public:
   /**
    * DequeIterator is an object that knows how to iterate
@@ -246,7 +256,7 @@ public:
    * @param   aQueue is the deque object to be iterated
    * @param   aIndex is the starting position for your iteration
    */
-  nsDequeIterator(const nsDeque& aQueue, int aIndex=0);
+  explicit nsDequeIterator(const nsDeque& aQueue, int aIndex = 0);
 
   /**
    * Create a copy of a DequeIterator
@@ -370,7 +380,7 @@ public:
 
   /**
    * Call this method when you want to iterate all the
-   * members of the container, calling the functor you 
+   * members of the container, calling the functor you
    * passed with each member. This process will interrupt
    * if your function returns non 0 to this method.
    *
@@ -379,7 +389,7 @@ public:
    */
   const void* FirstThat(nsDequeFunctor& aFunctor) const;
 
-  protected:
+protected:
 
   int32_t         mIndex;
   const nsDeque&  mDeque;

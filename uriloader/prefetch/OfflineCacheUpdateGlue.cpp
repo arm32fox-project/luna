@@ -26,7 +26,11 @@
 //
 extern PRLogModuleInfo *gOfflineCacheUpdateLog;
 #endif
+
+#undef LOG
 #define LOG(args) PR_LOG(gOfflineCacheUpdateLog, 4, args)
+
+#undef LOG_ENABLED
 #define LOG_ENABLED() PR_LOG_TEST(gOfflineCacheUpdateLog, 4)
 
 namespace mozilla {
@@ -36,16 +40,17 @@ namespace docshell {
 // OfflineCacheUpdateGlue::nsISupports
 //-----------------------------------------------------------------------------
 
-NS_IMPL_ISUPPORTS3(OfflineCacheUpdateGlue,
-                   nsIOfflineCacheUpdate,
-                   nsIOfflineCacheUpdateObserver,
-                   nsISupportsWeakReference)
+NS_IMPL_ISUPPORTS(OfflineCacheUpdateGlue,
+                  nsIOfflineCacheUpdate,
+                  nsIOfflineCacheUpdateObserver,
+                  nsISupportsWeakReference)
 
 //-----------------------------------------------------------------------------
 // OfflineCacheUpdateGlue <public>
 //-----------------------------------------------------------------------------
 
 OfflineCacheUpdateGlue::OfflineCacheUpdateGlue()
+: mCoalesced(false)
 {
     LOG(("OfflineCacheUpdateGlue::OfflineCacheUpdateGlue [%p]", this));
 }
@@ -85,6 +90,9 @@ OfflineCacheUpdateGlue::Schedule()
     // Do not use weak reference, we must survive!
     mUpdate->AddObserver(this, false);
 
+    if (mCoalesced) // already scheduled
+        return NS_OK;
+
     return mUpdate->Schedule();
 }
 
@@ -96,6 +104,14 @@ OfflineCacheUpdateGlue::Init(nsIURI *aManifestURI,
                              uint32_t aAppID,
                              bool aInBrowser)
 {
+    nsOfflineCacheUpdateService* service =
+        nsOfflineCacheUpdateService::EnsureService();
+    if (service) {
+        service->FindUpdate(aManifestURI, aAppID, aInBrowser, aCustomProfileDir,
+                            getter_AddRefs(mUpdate));
+        mCoalesced = !!mUpdate;
+    }
+
     if (!EnsureUpdate())
         return NS_ERROR_NULL_POINTER;
 
@@ -103,6 +119,11 @@ OfflineCacheUpdateGlue::Init(nsIURI *aManifestURI,
 
     if (aDocument)
         SetDocument(aDocument);
+
+    if (mCoalesced) { // already initialized
+        LOG(("OfflineCacheUpdateGlue %p coalesced with update %p", this, mUpdate.get()));
+        return NS_OK;
+    }
 
     return mUpdate->Init(aManifestURI, aDocumentURI, nullptr, aCustomProfileDir, aAppID, aInBrowser);
 }

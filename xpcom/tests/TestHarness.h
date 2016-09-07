@@ -12,15 +12,7 @@
 #ifndef TestHarness_h__
 #define TestHarness_h__
 
-#if defined(_MSC_VER) && defined(MOZ_STATIC_JS)
-/*
- * Including jsdbgapi.h may cause build break with --disable-shared-js
- * This is a workaround for bug 673616.
- */
-#define STATIC_JS_API
-#endif
-
-#include "mozilla/Util.h"
+#include "mozilla/ArrayUtils.h"
 
 #include "prenv.h"
 #include "nsComponentManagerUtils.h"
@@ -36,7 +28,6 @@
 #include "nsIProperties.h"
 #include "nsIObserverService.h"
 #include "nsXULAppAPI.h"
-#include "jsdbgapi.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -101,18 +92,18 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
   public:
     NS_DECL_ISUPPORTS
 
-    ScopedXPCOM(const char* testName,
-                nsIDirectoryServiceProvider *dirSvcProvider = NULL)
+    explicit ScopedXPCOM(const char* testName,
+                         nsIDirectoryServiceProvider *dirSvcProvider = nullptr)
     : mDirSvcProvider(dirSvcProvider)
     {
       mTestName = testName;
       printf("Running %s tests...\n", mTestName);
 
-      nsresult rv = NS_InitXPCOM2(&mServMgr, NULL, this);
+      nsresult rv = NS_InitXPCOM2(&mServMgr, nullptr, this);
       if (NS_FAILED(rv))
       {
         fail("NS_InitXPCOM2 returned failure code 0x%x", rv);
-        mServMgr = NULL;
+        mServMgr = nullptr;
         return;
       }
     }
@@ -141,7 +132,7 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
       if (mServMgr)
       {
         NS_RELEASE(mServMgr);
-        nsresult rv = NS_ShutdownXPCOM(NULL);
+        nsresult rv = NS_ShutdownXPCOM(nullptr);
         if (NS_FAILED(rv))
         {
           fail("XPCOM shutdown failed with code 0x%x", rv);
@@ -154,7 +145,7 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
 
     bool failed()
     {
-      return mServMgr == NULL;
+      return mServMgr == nullptr;
     }
 
     already_AddRefed<nsIFile> GetProfileDirectory()
@@ -200,11 +191,36 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
       return greD.forget();
     }
 
+    already_AddRefed<nsIFile> GetGREBinDirectory()
+    {
+      if (mGREBinD) {
+        nsCOMPtr<nsIFile> copy = mGREBinD;
+        return copy.forget();
+      }
+
+      nsCOMPtr<nsIFile> greD = GetGREDirectory();
+      if (!greD) {
+        return greD.forget();
+      }
+      greD->Clone(getter_AddRefs(mGREBinD));
+
+#ifdef XP_MACOSX
+      nsAutoCString leafName;
+      mGREBinD->GetNativeLeafName(leafName);
+      if (leafName.Equals("Resources")) {
+        mGREBinD->SetNativeLeafName(NS_LITERAL_CSTRING("MacOS"));
+      }
+#endif
+
+      nsCOMPtr<nsIFile> copy = mGREBinD;
+      return copy.forget();
+    }
+
     ////////////////////////////////////////////////////////////////////////////
     //// nsIDirectoryServiceProvider
 
     NS_IMETHODIMP GetFile(const char *aProperty, bool *_persistent,
-                          nsIFile **_result)
+                          nsIFile **_result) override
     {
       // If we were supplied a directory service provider, ask it first.
       if (mDirSvcProvider &&
@@ -227,14 +243,19 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
         *_persistent = true;
         clone.forget(_result);
         return NS_OK;
-      }
-
-      if (0 == strcmp(aProperty, NS_GRE_DIR)) {
+      } else if (0 == strcmp(aProperty, NS_GRE_DIR)) {
         nsCOMPtr<nsIFile> greD = GetGREDirectory();
         NS_ENSURE_TRUE(greD, NS_ERROR_FAILURE);
 
         *_persistent = true;
         greD.forget(_result);
+        return NS_OK;
+      } else if (0 == strcmp(aProperty, NS_GRE_BIN_DIR)) {
+        nsCOMPtr<nsIFile> greBinD = GetGREBinDirectory();
+        NS_ENSURE_TRUE(greBinD, NS_ERROR_FAILURE);
+
+        *_persistent = true;
+        greBinD.forget(_result);
         return NS_OK;
       }
 
@@ -244,7 +265,7 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
     ////////////////////////////////////////////////////////////////////////////
     //// nsIDirectoryServiceProvider2
 
-    NS_IMETHODIMP GetFiles(const char *aProperty, nsISimpleEnumerator **_enum)
+    NS_IMETHODIMP GetFiles(const char *aProperty, nsISimpleEnumerator **_enum) override
     {
       // If we were supplied a directory service provider, ask it first.
       nsCOMPtr<nsIDirectoryServiceProvider2> provider =
@@ -262,21 +283,22 @@ class ScopedXPCOM : public nsIDirectoryServiceProvider2
     nsCOMPtr<nsIDirectoryServiceProvider> mDirSvcProvider;
     nsCOMPtr<nsIFile> mProfD;
     nsCOMPtr<nsIFile> mGRED;
+    nsCOMPtr<nsIFile> mGREBinD;
 };
 
-NS_IMPL_QUERY_INTERFACE2(
+NS_IMPL_QUERY_INTERFACE(
   ScopedXPCOM,
   nsIDirectoryServiceProvider,
   nsIDirectoryServiceProvider2
 )
 
-NS_IMETHODIMP_(nsrefcnt)
+NS_IMETHODIMP_(MozExternalRefCountType)
 ScopedXPCOM::AddRef()
 {
   return 2;
 }
 
-NS_IMETHODIMP_(nsrefcnt)
+NS_IMETHODIMP_(MozExternalRefCountType)
 ScopedXPCOM::Release()
 {
   return 1;

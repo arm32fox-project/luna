@@ -1,6 +1,5 @@
-// |jit-test| debug
 // Ensure the correct frame is passed to exception unwind hooks.
-var g = newGlobal('new-compartment');
+var g = newGlobal();
 g.debuggeeGlobal = this;
 g.eval("(" + function () {
     frames = [];

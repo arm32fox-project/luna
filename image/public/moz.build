@@ -15,9 +15,10 @@ XPIDL_SOURCES += [
     'imgIRequest.idl',
     'imgIScriptedNotificationObserver.idl',
     'imgITools.idl',
+    'nsIIconURI.idl',
 ]
 
-MODULE = 'imglib2'
+XPIDL_MODULE = 'imglib2'
 
 EXPORTS += [
     'ImageLogging.h',

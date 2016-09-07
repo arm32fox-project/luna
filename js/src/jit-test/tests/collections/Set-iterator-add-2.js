@@ -1,10 +1,10 @@
 // A Set iterator does not iterate over new entries added after it throws StopIteration.
 
-load(libdir + "asserts.js");
+load(libdir + "iteration.js");
 
-var set = Set();
-var iter0 = set.iterator(), iter1 = set.iterator();
-assertThrowsValue(function () { iter0.next(); }, StopIteration);  // closes iter0
+var set = new Set();
+var iter0 = set[Symbol.iterator](), iter1 = set[Symbol.iterator]();
+assertIteratorDone(iter0, undefined);  // closes iter0
 set.add("x");
-assertThrowsValue(function () { iter0.next(); }, StopIteration);  // already closed
-assertEq(iter1.next(), "x");  // was not yet closed
+assertIteratorDone(iter0, undefined);  // already closed
+assertIteratorNext(iter1, "x");  // was not yet closed

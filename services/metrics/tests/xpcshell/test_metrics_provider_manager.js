@@ -47,7 +47,7 @@ add_task(function test_register_provider() {
   try {
     manager.registerProvider({});
   } catch (ex) {
-    do_check_true(ex.message.startsWith("Argument must be a Provider"));
+    do_check_true(ex.message.startsWith("Provider is not valid"));
     failed = true;
   } finally {
     do_check_true(failed);
@@ -112,7 +112,7 @@ add_task(function test_collect_constant_throws() {
 
   yield manager.collectConstantData();
   do_check_eq(errors.length, 1);
-  do_check_true(errors[0].contains(provider.throwDuringCollectConstantData));
+  do_check_true(errors[0].includes(provider.throwDuringCollectConstantData));
 
   yield storage.close();
 });
@@ -130,7 +130,7 @@ add_task(function test_collect_constant_populate_throws() {
   yield manager.collectConstantData();
 
   do_check_eq(errors.length, 1);
-  do_check_true(errors[0].contains(provider.throwDuringConstantPopulate));
+  do_check_true(errors[0].includes(provider.throwDuringConstantPopulate));
   do_check_false(manager._providers.get(provider.name).constantsCollected);
 
   yield storage.close();
@@ -296,8 +296,9 @@ add_task(function test_category_manager_registration_error() {
   do_check_eq(errorCount, 1);
 
   let msg = yield deferred.promise;
-  do_check_true(msg.contains("Provider error: DummyThrowOnInitProvider: " +
-                             "Error registering provider from category manager: Dummy Error"));
+  do_check_true(msg.includes("Provider error: DummyThrowOnInitProvider: "
+                             + "Error registering provider from category manager: "
+                             + "Error: Dummy Error"));
 
   yield storage.close();
 });
@@ -321,8 +322,8 @@ add_task(function test_pull_only_registration_error() {
   do_check_eq(errorCount, 1);
 
   let msg = yield deferred.promise;
-  do_check_true(msg.contains("Provider error: DummyPullOnlyThrowsOnInitProvider: " +
-                             "Error registering pull-only provider: Dummy Error"));
+  do_check_true(msg.includes("Provider error: DummyPullOnlyThrowsOnInitProvider: " +
+                             "Error registering pull-only provider: Error: Dummy Error"));
 
   yield storage.close();
 });
@@ -349,8 +350,8 @@ add_task(function test_error_during_shutdown() {
   yield manager.ensurePullOnlyProvidersUnregistered();
   do_check_eq(errorCount, 1);
   let msg = yield deferred.promise;
-  do_check_true(msg.contains("Provider error: DummyThrowOnShutdownProvider: " +
-                             "Error when shutting down provider: Dummy shutdown error"));
+  do_check_true(msg.includes("Provider error: DummyThrowOnShutdownProvider: " +
+                             "Error when shutting down provider: Error: Dummy shutdown error"));
 
   yield storage.close();
 });

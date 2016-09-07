@@ -5,25 +5,24 @@
 
 package org.mozilla.goanna.gfx;
 
+import org.mozilla.goanna.mozglue.generatorannotations.WrapEntireClassForJNI;
+
 /**
  * This is the data structure that's returned by the progressive tile update
  * callback function. It encompasses the current viewport and a boolean value
  * representing whether the front-end is interested in the current progressive
  * update continuing.
  */
+@WrapEntireClassForJNI
 public class ProgressiveUpdateData {
     public float x;
     public float y;
-    public float width;
-    public float height;
     public float scale;
     public boolean abort;
 
     public void setViewport(ImmutableViewportMetrics viewport) {
         this.x = viewport.viewportRectLeft;
         this.y = viewport.viewportRectTop;
-        this.width = viewport.viewportRectRight - this.x;
-        this.height = viewport.viewportRectBottom - this.y;
         this.scale = viewport.zoomFactor;
     }
 }

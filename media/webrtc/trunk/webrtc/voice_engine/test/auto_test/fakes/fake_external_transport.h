@@ -10,7 +10,7 @@
 #ifndef VOICE_ENGINE_MAIN_TEST_AUTO_TEST_FAKES_FAKE_EXTERNAL_TRANSPORT_H_
 #define VOICE_ENGINE_MAIN_TEST_AUTO_TEST_FAKES_FAKE_EXTERNAL_TRANSPORT_H_
 
-#include "common_types.h"
+#include "webrtc/common_types.h"
 
 namespace webrtc {
 class CriticalSectionWrapper;
@@ -23,8 +23,10 @@ class FakeExternalTransport : public webrtc::Transport {
  public:
   explicit FakeExternalTransport(webrtc::VoENetwork* ptr);
   virtual ~FakeExternalTransport();
-  int SendPacket(int channel, const void *data, int len);
-  int SendRTCPPacket(int channel, const void *data, int len);
+
+  virtual int SendPacket(int channel, const void *data, int len) OVERRIDE;
+  virtual int SendRTCPPacket(int channel, const void *data, int len) OVERRIDE;
+
   void SetDelayStatus(bool enabled, unsigned int delayInMs = 100);
 
   webrtc::VoENetwork* my_network_;

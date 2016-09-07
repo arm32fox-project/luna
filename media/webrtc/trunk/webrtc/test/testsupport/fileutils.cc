@@ -8,13 +8,22 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#include "test/testsupport/fileutils.h"
+#include "webrtc/test/testsupport/fileutils.h"
+
+#include <assert.h>
 
 #ifdef WIN32
 #include <direct.h>
+#include <tchar.h>
+#include <windows.h>
+#include <algorithm>
+
+#include "webrtc/system_wrappers/interface/utf_util_win.h"
 #define GET_CURRENT_DIR _getcwd
 #else
 #include <unistd.h>
+
+#include "webrtc/system_wrappers/interface/scoped_ptr.h"
 #define GET_CURRENT_DIR getcwd
 #endif
 
@@ -23,36 +32,39 @@
 #define S_ISDIR(mode) (((mode) & S_IFMT) == S_IFDIR)
 #endif
 
-#include <cstdio>
-#include <cstring>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "typedefs.h"  // For architecture defines
+#include "webrtc/typedefs.h"  // For architecture defines
 
 namespace webrtc {
 namespace test {
 
+namespace {
+
 #ifdef WIN32
-static const char* kPathDelimiter = "\\";
+const char* kPathDelimiter = "\\";
 #else
-static const char* kPathDelimiter = "/";
+const char* kPathDelimiter = "/";
 #endif
 
 #ifdef WEBRTC_ANDROID
-static const char* kRootDirName = "/sdcard/";
-static const char* kResourcesDirName = "resources";
+const char* kRootDirName = "/sdcard/";
 #else
 // The file we're looking for to identify the project root dir.
-static const char* kProjectRootFileName = "DEPS";
-static const char* kOutputDirName = "out";
-static const char* kFallbackPath = "./";
-static const char* kResourcesDirName = "resources";
+const char* kProjectRootFileName = "DEPS";
+const char* kOutputDirName = "out";
+const char* kFallbackPath = "./";
 #endif
-const char* kCannotFindProjectRootDir = "ERROR_CANNOT_FIND_PROJECT_ROOT_DIR";
+const char* kResourcesDirName = "resources";
 
-namespace {
 char relative_dir_path[FILENAME_MAX];
 bool relative_dir_path_set = false;
-}
+
+}  // namespace
+
+const char* kCannotFindProjectRootDir = "ERROR_CANNOT_FIND_PROJECT_ROOT_DIR";
 
 void SetExecutablePath(const std::string& path) {
   std::string working_dir = WorkingDir();
@@ -62,6 +74,13 @@ void SetExecutablePath(const std::string& path) {
   if (path.find(working_dir) != std::string::npos) {
     temp_path = path.substr(working_dir.length() + 1);
   }
+  // On Windows, when tests are run under memory tools like DrMemory and TSan,
+  // slashes occur in the path as directory separators. Make sure we replace
+  // such cases with backslashes in order for the paths to be correct.
+#ifdef WIN32
+  std::replace(temp_path.begin(), temp_path.end(), '/', '\\');
+#endif
+
   // Trim away the executable name; only store the relative dir path.
   temp_path = temp_path.substr(0, temp_path.find_last_of(kPathDelimiter));
   strncpy(relative_dir_path, temp_path.c_str(), FILENAME_MAX);
@@ -119,7 +138,7 @@ std::string OutputPath() {
     return kFallbackPath;
   }
   path += kOutputDirName;
-  if (!CreateDirectory(path)) {
+  if (!CreateDir(path)) {
     return kFallbackPath;
   }
   return path + kPathDelimiter;
@@ -137,7 +156,35 @@ std::string WorkingDir() {
 
 #endif  // !WEBRTC_ANDROID
 
-bool CreateDirectory(std::string directory_name) {
+// Generate a temporary filename in a safe way.
+// Largely copied from talk/base/{unixfilesystem,win32filesystem}.cc.
+std::string TempFilename(const std::string &dir, const std::string &prefix) {
+#ifdef WIN32
+  wchar_t filename[MAX_PATH];
+  if (::GetTempFileName(ToUtf16(dir).c_str(),
+                        ToUtf16(prefix).c_str(), 0, filename) != 0)
+    return ToUtf8(filename);
+  assert(false);
+  return "";
+#else
+  int len = dir.size() + prefix.size() + 2 + 6;
+  scoped_ptr<char[]> tempname(new char[len]);
+
+  snprintf(tempname.get(), len, "%s/%sXXXXXX", dir.c_str(),
+           prefix.c_str());
+  int fd = ::mkstemp(tempname.get());
+  if (fd == -1) {
+    assert(false);
+    return "";
+  } else {
+    ::close(fd);
+  }
+  std::string ret(tempname.get());
+  return ret;
+#endif
+}
+
+bool CreateDir(std::string directory_name) {
   struct stat path_info = {0};
   // Check if the path exists already:
   if (stat(directory_name.c_str(), &path_info) == 0) {

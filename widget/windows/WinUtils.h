@@ -9,12 +9,21 @@
 #include "nscore.h"
 #include <windows.h>
 #include <shobjidl.h>
+#include <uxtheme.h>
+#include <dwmapi.h>
+
+// Undo the windows.h damage
+#undef GetMessage
+#undef CreateEvent
+#undef GetClassName
+#undef GetBinaryType
+#undef RemoveDirectory
+
 #include "nsAutoPtr.h"
 #include "nsString.h"
 #include "nsRegion.h"
-#include "nsRect.h"
 
-#include "nsThreadUtils.h"
+#include "nsIRunnable.h"
 #include "nsICryptoHash.h"
 #ifdef MOZ_PLACES
 #include "nsIFaviconService.h"
@@ -22,38 +31,115 @@
 #include "nsIDownloader.h"
 #include "nsIURI.h"
 #include "nsIWidget.h"
+#include "nsIThread.h"
 
 #include "mozilla/Attributes.h"
 
+/**
+ * NS_INLINE_DECL_IUNKNOWN_REFCOUNTING should be used for defining and
+ * implementing AddRef() and Release() of IUnknown interface.
+ * This depends on xpcom/glue/nsISupportsImpl.h.
+ */
+
+#define NS_INLINE_DECL_IUNKNOWN_REFCOUNTING(_class)                           \
+public:                                                                       \
+  STDMETHODIMP_(ULONG) AddRef()                                               \
+  {                                                                           \
+    MOZ_ASSERT_TYPE_OK_FOR_REFCOUNTING(_class)                                \
+    MOZ_ASSERT(int32_t(mRefCnt) >= 0, "illegal refcnt");                      \
+    NS_ASSERT_OWNINGTHREAD(_class);                                           \
+    ++mRefCnt;                                                                \
+    NS_LOG_ADDREF(this, mRefCnt, #_class, sizeof(*this));                     \
+    return static_cast<ULONG>(mRefCnt.get());                                 \
+  }                                                                           \
+  STDMETHODIMP_(ULONG) Release()                                              \
+  {                                                                           \
+    MOZ_ASSERT(int32_t(mRefCnt) > 0,                                          \
+      "Release called on object that has already been released!");            \
+    NS_ASSERT_OWNINGTHREAD(_class);                                           \
+    --mRefCnt;                                                                \
+    NS_LOG_RELEASE(this, mRefCnt, #_class);                                   \
+    if (mRefCnt == 0) {                                                       \
+      NS_ASSERT_OWNINGTHREAD(_class);                                         \
+      mRefCnt = 1; /* stabilize */                                            \
+      delete this;                                                            \
+      return 0;                                                               \
+    }                                                                         \
+    return static_cast<ULONG>(mRefCnt.get());                                 \
+  }                                                                           \
+protected:                                                                    \
+  nsAutoRefCnt mRefCnt;                                                       \
+  NS_DECL_OWNINGTHREAD                                                        \
+public:
+
 class nsWindow;
+class nsWindowBase;
 struct KeyPair;
+struct nsIntRect;
 
 namespace mozilla {
 namespace widget {
 
-class myDownloadObserver MOZ_FINAL : public nsIDownloadObserver
+// Windows message debugging data
+typedef struct {
+  const char * mStr;
+  UINT         mId;
+} EventMsgInfo;
+extern EventMsgInfo gAllEvents[];
+
+// More complete QS definitions for MsgWaitForMultipleObjects() and
+// GetQueueStatus() that include newer win8 specific defines.
+
+#ifndef QS_RAWINPUT
+#define QS_RAWINPUT 0x0400
+#endif
+
+#ifndef QS_TOUCH
+#define QS_TOUCH    0x0800
+#define QS_POINTER  0x1000
+#endif
+
+#define MOZ_QS_ALLEVENT (QS_KEY | QS_MOUSEMOVE | QS_MOUSEBUTTON | \
+                         QS_POSTMESSAGE | QS_TIMER | QS_PAINT |   \
+                         QS_SENDMESSAGE | QS_HOTKEY |             \
+                         QS_ALLPOSTMESSAGE | QS_RAWINPUT |        \
+                         QS_TOUCH | QS_POINTER)
+
+// Logging macros
+#define LogFunction() mozilla::widget::WinUtils::Log(__FUNCTION__)
+#define LogThread() mozilla::widget::WinUtils::Log("%s: IsMainThread:%d ThreadId:%X", __FUNCTION__, NS_IsMainThread(), GetCurrentThreadId())
+#define LogThis() mozilla::widget::WinUtils::Log("[%X] %s", this, __FUNCTION__)
+#define LogException(e) mozilla::widget::WinUtils::Log("%s Exception:%s", __FUNCTION__, e->ToString()->Data())
+#define LogHRESULT(hr) mozilla::widget::WinUtils::Log("%s hr=%X", __FUNCTION__, hr)
+
+#ifdef MOZ_PLACES
+class myDownloadObserver final : public nsIDownloadObserver
 {
+  ~myDownloadObserver() {}
+
 public:
   NS_DECL_ISUPPORTS
   NS_DECL_NSIDOWNLOADOBSERVER
 };
+#endif
 
 class WinUtils {
 public:
-  enum WinVersion {
-    WINXP_VERSION     = 0x501,
-    WIN2K3_VERSION    = 0x502,
-    VISTA_VERSION     = 0x600,
-    WIN7_VERSION      = 0x601,
-    WIN8_VERSION      = 0x602,
-    WIN8_1_VERSION    = 0x603,
-    WIN10_VERSION     = 0xa00
-  };
-  static WinVersion GetWindowsVersion();
+  /**
+   * Functions to convert between logical pixels as used by most Windows APIs
+   * and physical (device) pixels.
+   */
+  static double LogToPhysFactor();
+  static double PhysToLogFactor();
+  static int32_t LogToPhys(double aValue);
+  static double PhysToLog(int32_t aValue);
 
-  // Retrieves the Service Pack version number.
-  // Returns true on success, false on failure.
-  static bool GetWindowsServicePackVersion(UINT& aOutMajor, UINT& aOutMinor);
+  /**
+   * Logging helpers that dump output to prlog module 'Widget', console, and
+   * OutputDebugString. Note these output in both debug and release builds.
+   */
+  static void Log(const char *fmt, ...);
+  static void LogW(const wchar_t *fmt, ...);
 
   /**
    * PeekMessage() and GetMessage() are wrapper methods for PeekMessageW(),
@@ -65,6 +151,20 @@ public:
                           UINT aLastMessage, UINT aOption);
   static bool GetMessage(LPMSG aMsg, HWND aWnd, UINT aFirstMessage,
                          UINT aLastMessage);
+
+  /**
+   * Wait until a message is ready to be processed.
+   * Prefer using this method to directly calling ::WaitMessage since
+   * ::WaitMessage will wait if there is an unread message in the queue.
+   * That can cause freezes until another message enters the queue if the
+   * message is marked read by a call to PeekMessage which the caller is
+   * not aware of (e.g., from a different thread).
+   * Note that this method may cause sync dispatch of sent (as opposed to
+   * posted) messages.
+   * @param aTimeoutMs Timeout for waiting in ms, defaults to INFINITE
+   */
+  static void WaitForMessage(DWORD aTimeoutMs = INFINITE);
+
   /**
    * Gets the value of a string-typed registry value.
    *
@@ -80,9 +180,9 @@ public:
    * @return Whether the value exists and is a string.
    */
   static bool GetRegistryKey(HKEY aRoot,
-                             const PRUnichar* aKeyName,
-                             const PRUnichar* aValueName,
-                             PRUnichar* aBuffer,
+                             char16ptr_t aKeyName,
+                             char16ptr_t aValueName,
+                             wchar_t* aBuffer,
                              DWORD aBufferLength);
 
   /**
@@ -94,7 +194,7 @@ public:
    * @return TRUE if it exists and is readable.  Otherwise, FALSE.
    */
   static bool HasRegistryKey(HKEY aRoot,
-                             const PRUnichar* aKeyName);
+                             char16ptr_t aKeyName);
 
   /**
    * GetTopLevelHWND() returns a window handle of the top level window which
@@ -122,12 +222,15 @@ public:
                               bool aStopIfNotPopup = true);
 
   /**
-   * SetNSWindowPtr() associates an nsWindow to aWnd.  If aWindow is NULL,
-   * it dissociate any nsWindow pointer from aWnd.
-   * GetNSWindowPtr() returns an nsWindow pointer which was associated by
-   * SetNSWindowPtr().
+   * SetNSWindowBasePtr() associates an nsWindowBase to aWnd.  If aWidget is
+   * nullptr, it dissociate any nsBaseWidget pointer from aWnd.
+   * GetNSWindowBasePtr() returns an nsWindowBase pointer which was associated by
+   * SetNSWindowBasePtr().
+   * GetNSWindowPtr() is a legacy api for win32 nsWindow and should be avoided
+   * outside of nsWindow src.
    */
-  static bool SetNSWindowPtr(HWND aWnd, nsWindow* aWindow);
+  static bool SetNSWindowBasePtr(HWND aWnd, nsWindowBase* aWidget);
+  static nsWindowBase* GetNSWindowBasePtr(HWND aWnd);
   static nsWindow* GetNSWindowPtr(HWND aWnd);
 
   /**
@@ -144,9 +247,9 @@ public:
   /**
    * FindOurProcessWindow() returns the nearest ancestor window which
    * belongs to our process.  If it fails to find our process's window by the
-   * top level window, returns NULL.  And note that this is using ::GetParent()
-   * for climbing the window hierarchy, therefore, it gives up at an owned top
-   * level window except popup window (e.g., dialog).
+   * top level window, returns nullptr.  And note that this is using
+   * ::GetParent() for climbing the window hierarchy, therefore, it gives
+   * up at an owned top level window except popup window (e.g., dialog).
    */
   static HWND FindOurProcessWindow(HWND aWnd);
 
@@ -204,6 +307,8 @@ public:
    */
   static uint16_t GetMouseInputSource();
 
+  static bool GetIsMouseFromTouch(uint32_t aEventType);
+
   /**
    * SHCreateItemFromParsingName() calls native SHCreateItemFromParsingName()
    * API which is available on Vista and up.
@@ -247,6 +352,12 @@ public:
   static nsIntRect ToIntRect(const RECT& aRect);
 
   /**
+   * Helper used in invalidating flash plugin windows owned
+   * by low rights flash containers.
+   */
+  static void InvalidatePluginAsWorkaround(nsIWidget *aWidget, const nsIntRect &aRect);
+
+  /**
    * Returns true if the context or IME state is enabled.  Otherwise, false.
    */
   static bool IsIMEEnabled(const InputContext& aInputContext);
@@ -258,6 +369,33 @@ public:
    */
   static void SetupKeyModifiersSequence(nsTArray<KeyPair>* aArray,
                                         uint32_t aModifiers);
+
+  // dwmapi.dll function typedefs and declarations
+  typedef HRESULT (WINAPI*DwmExtendFrameIntoClientAreaProc)(HWND hWnd, const MARGINS *pMarInset);
+  typedef HRESULT (WINAPI*DwmIsCompositionEnabledProc)(BOOL *pfEnabled);
+  typedef HRESULT (WINAPI*DwmSetIconicThumbnailProc)(HWND hWnd, HBITMAP hBitmap, DWORD dwSITFlags);
+  typedef HRESULT (WINAPI*DwmSetIconicLivePreviewBitmapProc)(HWND hWnd, HBITMAP hBitmap, POINT *pptClient, DWORD dwSITFlags);
+  typedef HRESULT (WINAPI*DwmGetWindowAttributeProc)(HWND hWnd, DWORD dwAttribute, LPCVOID pvAttribute, DWORD cbAttribute);
+  typedef HRESULT (WINAPI*DwmSetWindowAttributeProc)(HWND hWnd, DWORD dwAttribute, LPCVOID pvAttribute, DWORD cbAttribute);
+  typedef HRESULT (WINAPI*DwmInvalidateIconicBitmapsProc)(HWND hWnd);
+  typedef HRESULT (WINAPI*DwmDefWindowProcProc)(HWND hWnd, UINT msg, LPARAM lParam, WPARAM wParam, LRESULT *aRetValue);
+  typedef HRESULT (WINAPI*DwmGetCompositionTimingInfoProc)(HWND hWnd, DWM_TIMING_INFO *info);
+  typedef HRESULT (WINAPI*DwmFlushProc)(void);
+
+  static DwmExtendFrameIntoClientAreaProc dwmExtendFrameIntoClientAreaPtr;
+  static DwmIsCompositionEnabledProc dwmIsCompositionEnabledPtr;
+  static DwmSetIconicThumbnailProc dwmSetIconicThumbnailPtr;
+  static DwmSetIconicLivePreviewBitmapProc dwmSetIconicLivePreviewBitmapPtr;
+  static DwmGetWindowAttributeProc dwmGetWindowAttributePtr;
+  static DwmSetWindowAttributeProc dwmSetWindowAttributePtr;
+  static DwmInvalidateIconicBitmapsProc dwmInvalidateIconicBitmapsPtr;
+  static DwmDefWindowProcProc dwmDwmDefWindowProcPtr;
+  static DwmGetCompositionTimingInfoProc dwmGetCompositionTimingInfoPtr;
+  static DwmFlushProc dwmFlushProcPtr;
+
+  static void Initialize();
+
+  static bool ShouldHideScrollbars();
 
 private:
   typedef HRESULT (WINAPI * SHCreateItemFromParsingNamePtr)(PCWSTR pszPath,
@@ -273,7 +411,7 @@ private:
 };
 
 #ifdef MOZ_PLACES
-class AsyncFaviconDataReady MOZ_FINAL : public nsIFaviconDataCallback
+class AsyncFaviconDataReady final : public nsIFaviconDataCallback
 {
 public:
   NS_DECL_ISUPPORTS
@@ -284,6 +422,8 @@ public:
                         const bool aURLShortcut);
   nsresult OnFaviconDataNotAvailable(void);
 private:
+  ~AsyncFaviconDataReady() {}
+
   nsCOMPtr<nsIURI> mNewURI;
   nsCOMPtr<nsIThread> mIOThread;
   const bool mURLShortcut;
@@ -297,7 +437,7 @@ class AsyncEncodeAndWriteIcon : public nsIRunnable
 {
 public:
   const bool mURLShortcut;
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
   // Warning: AsyncEncodeAndWriteIcon assumes ownership of the aData buffer passed in
@@ -305,12 +445,13 @@ public:
                           uint8_t *aData, uint32_t aDataLen, uint32_t aStride,
                           uint32_t aWidth, uint32_t aHeight,
                           const bool aURLShortcut);
-  virtual ~AsyncEncodeAndWriteIcon();
 
 private:
+  virtual ~AsyncEncodeAndWriteIcon();
+
   nsAutoString mIconPath;
-  nsAutoCString mMimeTypeOfInputData;
   nsAutoArrayPtr<uint8_t> mBuffer;
+  HMODULE sDwmDLL;
   uint32_t mBufferLength;
   uint32_t mStride;
   uint32_t mWidth;
@@ -321,26 +462,30 @@ private:
 class AsyncDeleteIconFromDisk : public nsIRunnable
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
   AsyncDeleteIconFromDisk(const nsAString &aIconPath);
-  virtual ~AsyncDeleteIconFromDisk();
 
 private:
+  virtual ~AsyncDeleteIconFromDisk();
+
   nsAutoString mIconPath;
 };
 
 class AsyncDeleteAllFaviconsFromDisk : public nsIRunnable
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIRUNNABLE
 
   AsyncDeleteAllFaviconsFromDisk(bool aIgnoreRecent = false);
-  virtual ~AsyncDeleteAllFaviconsFromDisk();
+
 private:
-  bool mIgnoreRecent; 
+  virtual ~AsyncDeleteAllFaviconsFromDisk();
+
+  int32_t mIcoNoDeleteSeconds;
+  bool mIgnoreRecent;
 };
 
 class FaviconHelper

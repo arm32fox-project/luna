@@ -5,10 +5,12 @@
 
 #include "AndroidJavaWrappers.h"
 #include "AndroidBridge.h"
-#include "nsIAndroidBridge.h"
+#include "AndroidBridgeUtilities.h"
 #include "nsIDOMKeyEvent.h"
 #include "nsIWidget.h"
-#include "nsGUIEvent.h"
+#include "mozilla/BasicEvents.h"
+#include "mozilla/TimeStamp.h"
+#include "mozilla/TouchEvents.h"
 
 using namespace mozilla;
 using namespace mozilla::dom;
@@ -21,6 +23,7 @@ jfieldID AndroidGoannaEvent::jTimeField = 0;
 jfieldID AndroidGoannaEvent::jPoints = 0;
 jfieldID AndroidGoannaEvent::jPointIndicies = 0;
 jfieldID AndroidGoannaEvent::jPressures = 0;
+jfieldID AndroidGoannaEvent::jToolTypes = 0;
 jfieldID AndroidGoannaEvent::jPointRadii = 0;
 jfieldID AndroidGoannaEvent::jOrientations = 0;
 jfieldID AndroidGoannaEvent::jXField = 0;
@@ -33,9 +36,10 @@ jfieldID AndroidGoannaEvent::jNativeWindowField = 0;
 jfieldID AndroidGoannaEvent::jCharactersField = 0;
 jfieldID AndroidGoannaEvent::jCharactersExtraField = 0;
 jfieldID AndroidGoannaEvent::jDataField = 0;
+jfieldID AndroidGoannaEvent::jDOMPrintableKeyValueField = 0;
 jfieldID AndroidGoannaEvent::jKeyCodeField = 0;
+jfieldID AndroidGoannaEvent::jScanCodeField = 0;
 jfieldID AndroidGoannaEvent::jMetaStateField = 0;
-jfieldID AndroidGoannaEvent::jDomKeyLocationField = 0;
 jfieldID AndroidGoannaEvent::jFlagsField = 0;
 jfieldID AndroidGoannaEvent::jUnicodeCharField = 0;
 jfieldID AndroidGoannaEvent::jBaseUnicodeCharField = 0;
@@ -52,15 +56,20 @@ jfieldID AndroidGoannaEvent::jRangeForeColorField = 0;
 jfieldID AndroidGoannaEvent::jRangeBackColorField = 0;
 jfieldID AndroidGoannaEvent::jRangeLineColorField = 0;
 jfieldID AndroidGoannaEvent::jLocationField = 0;
-jfieldID AndroidGoannaEvent::jBandwidthField = 0;
-jfieldID AndroidGoannaEvent::jCanBeMeteredField = 0;
+jfieldID AndroidGoannaEvent::jConnectionTypeField = 0;
+jfieldID AndroidGoannaEvent::jIsWifiField = 0;
+jfieldID AndroidGoannaEvent::jDHCPGatewayField = 0;
 jfieldID AndroidGoannaEvent::jScreenOrientationField = 0;
 jfieldID AndroidGoannaEvent::jByteBufferField = 0;
 jfieldID AndroidGoannaEvent::jWidthField = 0;
 jfieldID AndroidGoannaEvent::jHeightField = 0;
-
-jclass AndroidGoannaEvent::jDomKeyLocationClass = 0;
-jfieldID AndroidGoannaEvent::jDomKeyLocationValueField = 0;
+jfieldID AndroidGoannaEvent::jIDField = 0;
+jfieldID AndroidGoannaEvent::jGamepadButtonField = 0;
+jfieldID AndroidGoannaEvent::jGamepadButtonPressedField = 0;
+jfieldID AndroidGoannaEvent::jGamepadButtonValueField = 0;
+jfieldID AndroidGoannaEvent::jGamepadValuesField = 0;
+jfieldID AndroidGoannaEvent::jPrefNamesField = 0;
+jfieldID AndroidGoannaEvent::jObjectField = 0;
 
 jclass AndroidPoint::jPointClass = 0;
 jfieldID AndroidPoint::jXField = 0;
@@ -87,116 +96,16 @@ jmethodID AndroidLocation::jGetBearingMethod = 0;
 jmethodID AndroidLocation::jGetSpeedMethod = 0;
 jmethodID AndroidLocation::jGetTimeMethod = 0;
 
-jclass AndroidGoannaLayerClient::jGoannaLayerClientClass = 0;
-jclass AndroidGoannaLayerClient::jViewportClass = 0;
-jclass AndroidGoannaLayerClient::jDisplayportClass = 0;
-jmethodID AndroidGoannaLayerClient::jSetFirstPaintViewport = 0;
-jmethodID AndroidGoannaLayerClient::jSetPageRect = 0;
-jmethodID AndroidGoannaLayerClient::jSyncViewportInfoMethod = 0;
-jmethodID AndroidGoannaLayerClient::jSyncFrameMetricsMethod = 0;
-jmethodID AndroidGoannaLayerClient::jCreateFrameMethod = 0;
-jmethodID AndroidGoannaLayerClient::jActivateProgramMethod = 0;
-jmethodID AndroidGoannaLayerClient::jDeactivateProgramMethod = 0;
-jmethodID AndroidGoannaLayerClient::jGetDisplayPort = 0;
-jmethodID AndroidGoannaLayerClient::jContentDocumentChanged = 0;
-jmethodID AndroidGoannaLayerClient::jIsContentDocumentDisplayed = 0;
-jmethodID AndroidGoannaLayerClient::jViewportCtor = 0;
-jfieldID AndroidGoannaLayerClient::jDisplayportPosition = 0;
-jfieldID AndroidGoannaLayerClient::jDisplayportResolution = 0;
-jmethodID AndroidGoannaLayerClient::jProgressiveUpdateCallbackMethod = 0;
-
 jclass AndroidLayerRendererFrame::jLayerRendererFrameClass = 0;
 jmethodID AndroidLayerRendererFrame::jBeginDrawingMethod = 0;
 jmethodID AndroidLayerRendererFrame::jDrawBackgroundMethod = 0;
 jmethodID AndroidLayerRendererFrame::jDrawForegroundMethod = 0;
 jmethodID AndroidLayerRendererFrame::jEndDrawingMethod = 0;
 
-jclass AndroidViewTransform::jViewTransformClass = 0;
-jfieldID AndroidViewTransform::jXField = 0;
-jfieldID AndroidViewTransform::jYField = 0;
-jfieldID AndroidViewTransform::jScaleField = 0;
-jfieldID AndroidViewTransform::jFixedLayerMarginLeft = 0;
-jfieldID AndroidViewTransform::jFixedLayerMarginTop = 0;
-jfieldID AndroidViewTransform::jFixedLayerMarginRight = 0;
-jfieldID AndroidViewTransform::jFixedLayerMarginBottom = 0;
-jfieldID AndroidViewTransform::jOffsetXField = 0;
-jfieldID AndroidViewTransform::jOffsetYField = 0;
-
-jclass AndroidProgressiveUpdateData::jProgressiveUpdateDataClass = 0;
-jfieldID AndroidProgressiveUpdateData::jXField = 0;
-jfieldID AndroidProgressiveUpdateData::jYField = 0;
-jfieldID AndroidProgressiveUpdateData::jWidthField = 0;
-jfieldID AndroidProgressiveUpdateData::jHeightField = 0;
-jfieldID AndroidProgressiveUpdateData::jScaleField = 0;
-jfieldID AndroidProgressiveUpdateData::jShouldAbortField = 0;
-
-static jclass GetClassGlobalRef(JNIEnv* env, const char* className)
-{
-    jobject classLocalRef = env->FindClass(className);
-    if (!classLocalRef) {
-        ALOG(">>> FATAL JNI ERROR! FindClass(className=\"%s\") failed. Did "
-             "ProGuard optimize away a non-public class?", className);
-        env->ExceptionDescribe();
-        MOZ_CRASH();
-    }
-
-    jobject classGlobalRef = env->NewGlobalRef(classLocalRef);
-    if (!classGlobalRef) {
-        env->ExceptionDescribe();
-        MOZ_CRASH();
-    }
-
-    // Local ref no longer necessary because we have a global ref.
-    env->DeleteLocalRef(classLocalRef);
-    classLocalRef = NULL;
-
-    return static_cast<jclass>(classGlobalRef);
-}
-
-static jfieldID GetFieldID(JNIEnv* env, jclass jClass,
-                           const char* fieldName, const char* fieldType)
-{
-    jfieldID fieldID = env->GetFieldID(jClass, fieldName, fieldType);
-    if (!fieldID) {
-        ALOG(">>> FATAL JNI ERROR! GetFieldID(fieldName=\"%s\", "
-             "fieldType=\"%s\") failed. Did ProGuard optimize away a non-"
-             "public field?", fieldName, fieldType);
-        env->ExceptionDescribe();
-        MOZ_CRASH();
-    }
-    return fieldID;
-}
-
-static jmethodID GetMethodID(JNIEnv* env, jclass jClass,
-                             const char* methodName, const char* methodType)
-{
-    jmethodID methodID = env->GetMethodID(jClass, methodName, methodType);
-    if (!methodID) {
-        ALOG(">>> FATAL JNI ERROR! GetMethodID(methodName=\"%s\", "
-             "methodType=\"%s\") failed. Did ProGuard optimize away a non-"
-             "public method?", methodName, methodType);
-        env->ExceptionDescribe();
-        MOZ_CRASH();
-    }
-    return methodID;
-}
-
-#define initInit() jclass jClass
-
-// note that this also sets jClass
-#define getClassGlobalRef(cname) \
-    (jClass = GetClassGlobalRef(jEnv, cname))
-
-#define getField(fname, ftype) \
-    GetFieldID(jEnv, jClass, fname, ftype)
-
-#define getMethod(fname, ftype) \
-    GetMethodID(jEnv, jClass, fname, ftype)
-
 RefCountedJavaObject::~RefCountedJavaObject() {
     if (mObject)
         GetJNIForThread()->DeleteGlobalRef(mObject);
-    mObject = NULL;
+    mObject = nullptr;
 }
 
 void
@@ -207,80 +116,81 @@ mozilla::InitAndroidJavaWrappers(JNIEnv *jEnv)
     AndroidLocation::InitLocationClass(jEnv);
     AndroidRect::InitRectClass(jEnv);
     AndroidRectF::InitRectFClass(jEnv);
-    AndroidGoannaLayerClient::InitGoannaLayerClientClass(jEnv);
     AndroidLayerRendererFrame::InitLayerRendererFrameClass(jEnv);
-    AndroidViewTransform::InitViewTransformClass(jEnv);
-    AndroidProgressiveUpdateData::InitProgressiveUpdateDataClass(jEnv);
 }
 
 void
 AndroidGoannaEvent::InitGoannaEventClass(JNIEnv *jEnv)
 {
-    initInit();
+    AutoJNIClass goannaEvent(jEnv, "org/mozilla/goanna/GoannaEvent");
+    jGoannaEventClass = goannaEvent.getGlobalRef();
 
-    jGoannaEventClass = getClassGlobalRef("org/mozilla/goanna/GoannaEvent");
+    jActionField = goannaEvent.getField("mAction", "I");
+    jTypeField = goannaEvent.getField("mType", "I");
+    jAckNeededField = goannaEvent.getField("mAckNeeded", "Z");
+    jTimeField = goannaEvent.getField("mTime", "J");
+    jPoints = goannaEvent.getField("mPoints", "[Landroid/graphics/Point;");
+    jPointIndicies = goannaEvent.getField("mPointIndicies", "[I");
+    jOrientations = goannaEvent.getField("mOrientations", "[F");
+    jPressures = goannaEvent.getField("mPressures", "[F");
+    jToolTypes = goannaEvent.getField("mToolTypes", "[I");
+    jPointRadii = goannaEvent.getField("mPointRadii", "[Landroid/graphics/Point;");
+    jXField = goannaEvent.getField("mX", "D");
+    jYField = goannaEvent.getField("mY", "D");
+    jZField = goannaEvent.getField("mZ", "D");
+    jRectField = goannaEvent.getField("mRect", "Landroid/graphics/Rect;");
 
-    jActionField = getField("mAction", "I");
-    jTypeField = getField("mType", "I");
-    jAckNeededField = getField("mAckNeeded", "Z");
-    jTimeField = getField("mTime", "J");
-    jPoints = getField("mPoints", "[Landroid/graphics/Point;");
-    jPointIndicies = getField("mPointIndicies", "[I");
-    jOrientations = getField("mOrientations", "[F");
-    jPressures = getField("mPressures", "[F");
-    jPointRadii = getField("mPointRadii", "[Landroid/graphics/Point;");
-    jXField = getField("mX", "D");
-    jYField = getField("mY", "D");
-    jZField = getField("mZ", "D");
-    jRectField = getField("mRect", "Landroid/graphics/Rect;");
-
-    jCharactersField = getField("mCharacters", "Ljava/lang/String;");
-    jCharactersExtraField = getField("mCharactersExtra", "Ljava/lang/String;");
-    jDataField = getField("mData", "Ljava/lang/String;");
-    jKeyCodeField = getField("mKeyCode", "I");
-    jMetaStateField = getField("mMetaState", "I");
-    jDomKeyLocationField = getField("mDomKeyLocation", "Lorg/mozilla/goanna/GoannaEvent$DomKeyLocation;");
-    jFlagsField = getField("mFlags", "I");
-    jUnicodeCharField = getField("mUnicodeChar", "I");
-    jBaseUnicodeCharField = getField("mBaseUnicodeChar", "I");
-    jRepeatCountField = getField("mRepeatCount", "I");
-    jCountField = getField("mCount", "I");
-    jStartField = getField("mStart", "I");
-    jEndField = getField("mEnd", "I");
-    jPointerIndexField = getField("mPointerIndex", "I");
-    jRangeTypeField = getField("mRangeType", "I");
-    jRangeStylesField = getField("mRangeStyles", "I");
-    jRangeLineStyleField = getField("mRangeLineStyle", "I");
-    jRangeBoldLineField = getField("mRangeBoldLine", "Z");
-    jRangeForeColorField = getField("mRangeForeColor", "I");
-    jRangeBackColorField = getField("mRangeBackColor", "I");
-    jRangeLineColorField = getField("mRangeLineColor", "I");
-    jLocationField = getField("mLocation", "Landroid/location/Location;");
-    jBandwidthField = getField("mBandwidth", "D");
-    jCanBeMeteredField = getField("mCanBeMetered", "Z");
-    jScreenOrientationField = getField("mScreenOrientation", "S");
-    jByteBufferField = getField("mBuffer", "Ljava/nio/ByteBuffer;");
-    jWidthField = getField("mWidth", "I");
-    jHeightField = getField("mHeight", "I");
-
-    // Init GoannaEvent.DomKeyLocation enum
-    jDomKeyLocationClass = getClassGlobalRef("org/mozilla/goanna/GoannaEvent$DomKeyLocation");
-    jDomKeyLocationValueField = getField("value", "I");
+    jCharactersField = goannaEvent.getField("mCharacters", "Ljava/lang/String;");
+    jCharactersExtraField = goannaEvent.getField("mCharactersExtra", "Ljava/lang/String;");
+    jDataField = goannaEvent.getField("mData", "Ljava/lang/String;");
+    jKeyCodeField = goannaEvent.getField("mKeyCode", "I");
+    jScanCodeField = goannaEvent.getField("mScanCode", "I");
+    jMetaStateField = goannaEvent.getField("mMetaState", "I");
+    jFlagsField = goannaEvent.getField("mFlags", "I");
+    jUnicodeCharField = goannaEvent.getField("mUnicodeChar", "I");
+    jBaseUnicodeCharField = goannaEvent.getField("mBaseUnicodeChar", "I");
+    jDOMPrintableKeyValueField = goannaEvent.getField("mDOMPrintableKeyValue", "I");
+    jRepeatCountField = goannaEvent.getField("mRepeatCount", "I");
+    jCountField = goannaEvent.getField("mCount", "I");
+    jStartField = goannaEvent.getField("mStart", "I");
+    jEndField = goannaEvent.getField("mEnd", "I");
+    jPointerIndexField = goannaEvent.getField("mPointerIndex", "I");
+    jRangeTypeField = goannaEvent.getField("mRangeType", "I");
+    jRangeStylesField = goannaEvent.getField("mRangeStyles", "I");
+    jRangeLineStyleField = goannaEvent.getField("mRangeLineStyle", "I");
+    jRangeBoldLineField = goannaEvent.getField("mRangeBoldLine", "Z");
+    jRangeForeColorField = goannaEvent.getField("mRangeForeColor", "I");
+    jRangeBackColorField = goannaEvent.getField("mRangeBackColor", "I");
+    jRangeLineColorField = goannaEvent.getField("mRangeLineColor", "I");
+    jLocationField = goannaEvent.getField("mLocation", "Landroid/location/Location;");
+    jConnectionTypeField = goannaEvent.getField("mConnectionType", "I");
+    jIsWifiField = goannaEvent.getField("mIsWifi", "Z");
+    jDHCPGatewayField = goannaEvent.getField("mDHCPGateway", "I");
+    jScreenOrientationField = goannaEvent.getField("mScreenOrientation", "S");
+    jByteBufferField = goannaEvent.getField("mBuffer", "Ljava/nio/ByteBuffer;");
+    jWidthField = goannaEvent.getField("mWidth", "I");
+    jHeightField = goannaEvent.getField("mHeight", "I");
+    jIDField = goannaEvent.getField("mID", "I");
+    jGamepadButtonField = goannaEvent.getField("mGamepadButton", "I");
+    jGamepadButtonPressedField = goannaEvent.getField("mGamepadButtonPressed", "Z");
+    jGamepadButtonValueField = goannaEvent.getField("mGamepadButtonValue", "F");
+    jGamepadValuesField = goannaEvent.getField("mGamepadValues", "[F");
+    jPrefNamesField = goannaEvent.getField("mPrefNames", "[Ljava/lang/String;");
+    jObjectField = goannaEvent.getField("mObject", "Ljava/lang/Object;");
 }
 
 void
 AndroidLocation::InitLocationClass(JNIEnv *jEnv)
 {
-    initInit();
-
-    jLocationClass = getClassGlobalRef("android/location/Location");
-    jGetLatitudeMethod = getMethod("getLatitude", "()D");
-    jGetLongitudeMethod = getMethod("getLongitude", "()D");
-    jGetAltitudeMethod = getMethod("getAltitude", "()D");
-    jGetAccuracyMethod = getMethod("getAccuracy", "()F");
-    jGetBearingMethod = getMethod("getBearing", "()F");
-    jGetSpeedMethod = getMethod("getSpeed", "()F");
-    jGetTimeMethod = getMethod("getTime", "()J");
+    AutoJNIClass location(jEnv, "android/location/Location");
+    jLocationClass = location.getGlobalRef();
+    jGetLatitudeMethod = location.getMethod("getLatitude", "()D");
+    jGetLongitudeMethod = location.getMethod("getLongitude", "()D");
+    jGetAltitudeMethod = location.getMethod("getAltitude", "()D");
+    jGetAccuracyMethod = location.getMethod("getAccuracy", "()F");
+    jGetBearingMethod = location.getMethod("getBearing", "()F");
+    jGetSpeedMethod = location.getMethod("getSpeed", "()F");
+    jGetTimeMethod = location.getMethod("getTime", "()J");
 }
 
 nsGeoPosition*
@@ -289,19 +199,19 @@ AndroidLocation::CreateGeoPosition(JNIEnv *jenv, jobject jobj)
     AutoLocalJNIFrame jniFrame(jenv);
 
     double latitude  = jenv->CallDoubleMethod(jobj, jGetLatitudeMethod);
-    if (jniFrame.CheckForException()) return NULL;
+    if (jniFrame.CheckForException()) return nullptr;
     double longitude = jenv->CallDoubleMethod(jobj, jGetLongitudeMethod);
-    if (jniFrame.CheckForException()) return NULL;
+    if (jniFrame.CheckForException()) return nullptr;
     double altitude  = jenv->CallDoubleMethod(jobj, jGetAltitudeMethod);
-    if (jniFrame.CheckForException()) return NULL;
+    if (jniFrame.CheckForException()) return nullptr;
     float  accuracy  = jenv->CallFloatMethod (jobj, jGetAccuracyMethod);
-    if (jniFrame.CheckForException()) return NULL;
+    if (jniFrame.CheckForException()) return nullptr;
     float  bearing   = jenv->CallFloatMethod (jobj, jGetBearingMethod);
-    if (jniFrame.CheckForException()) return NULL;
+    if (jniFrame.CheckForException()) return nullptr;
     float  speed     = jenv->CallFloatMethod (jobj, jGetSpeedMethod);
-    if (jniFrame.CheckForException()) return NULL;
+    if (jniFrame.CheckForException()) return nullptr;
     long long time   = jenv->CallLongMethod  (jobj, jGetTimeMethod);
-    if (jniFrame.CheckForException()) return NULL;
+    if (jniFrame.CheckForException()) return nullptr;
 
     return new nsGeoPosition(latitude, longitude,
                              altitude, accuracy,
@@ -312,120 +222,48 @@ AndroidLocation::CreateGeoPosition(JNIEnv *jenv, jobject jobj)
 void
 AndroidPoint::InitPointClass(JNIEnv *jEnv)
 {
-    initInit();
+    AutoJNIClass point(jEnv, "android/graphics/Point");
+    jPointClass = point.getGlobalRef();
 
-    jPointClass = getClassGlobalRef("android/graphics/Point");
-
-    jXField = getField("x", "I");
-    jYField = getField("y", "I");
+    jXField = point.getField("x", "I");
+    jYField = point.getField("y", "I");
 }
 
 void
 AndroidRect::InitRectClass(JNIEnv *jEnv)
 {
-    initInit();
+    AutoJNIClass rect(jEnv, "android/graphics/Rect");
+    jRectClass = rect.getGlobalRef();
 
-    jRectClass = getClassGlobalRef("android/graphics/Rect");
-
-    jBottomField = getField("bottom", "I");
-    jLeftField = getField("left", "I");
-    jTopField = getField("top", "I");
-    jRightField = getField("right", "I");
+    jBottomField = rect.getField("bottom", "I");
+    jLeftField = rect.getField("left", "I");
+    jTopField = rect.getField("top", "I");
+    jRightField = rect.getField("right", "I");
 }
 
 void
 AndroidRectF::InitRectFClass(JNIEnv *jEnv)
 {
-    initInit();
+    AutoJNIClass rect(jEnv, "android/graphics/RectF");
+    jRectClass = rect.getGlobalRef();
 
-    jRectClass = getClassGlobalRef("android/graphics/RectF");
-
-    jBottomField = getField("bottom", "F");
-    jLeftField = getField("left", "F");
-    jTopField = getField("top", "F");
-    jRightField = getField("right", "F");
-}
-
-void
-AndroidGoannaLayerClient::InitGoannaLayerClientClass(JNIEnv *jEnv)
-{
-    initInit();
-
-    jGoannaLayerClientClass = getClassGlobalRef("org/mozilla/goanna/gfx/GoannaLayerClient");
-
-    jSetFirstPaintViewport = getMethod("setFirstPaintViewport", "(FFFFFFF)V");
-    jSetPageRect = getMethod("setPageRect", "(FFFF)V");
-    jSyncViewportInfoMethod = getMethod("syncViewportInfo",
-                                        "(IIIIFZ)Lorg/mozilla/goanna/gfx/ViewTransform;");
-    jSyncFrameMetricsMethod = getMethod("syncFrameMetrics",
-                                        "(FFFFFFFZIIIIFZ)Lorg/mozilla/goanna/gfx/ViewTransform;");
-    jCreateFrameMethod = getMethod("createFrame", "()Lorg/mozilla/goanna/gfx/LayerRenderer$Frame;");
-    jActivateProgramMethod = getMethod("activateProgram", "()V");
-    jDeactivateProgramMethod = getMethod("deactivateProgram", "()V");
-    jGetDisplayPort = getMethod("getDisplayPort", "(ZZILorg/mozilla/goanna/gfx/ImmutableViewportMetrics;)Lorg/mozilla/goanna/gfx/DisplayPortMetrics;");
-    jContentDocumentChanged = getMethod("contentDocumentChanged", "()V");
-    jIsContentDocumentDisplayed = getMethod("isContentDocumentDisplayed", "()Z");
-
-    jViewportClass = GetClassGlobalRef(jEnv, "org/mozilla/goanna/gfx/ImmutableViewportMetrics");
-    jViewportCtor = GetMethodID(jEnv, jViewportClass, "<init>", "(FFFFFFFFFFFFF)V");
-
-    jDisplayportClass = GetClassGlobalRef(jEnv, "org/mozilla/goanna/gfx/DisplayPortMetrics");
-    jDisplayportPosition = GetFieldID(jEnv, jDisplayportClass, "mPosition", "Landroid/graphics/RectF;");
-    jDisplayportResolution = GetFieldID(jEnv, jDisplayportClass, "resolution", "F");
-    jProgressiveUpdateCallbackMethod = getMethod("progressiveUpdateCallback",
-                                                 "(ZFFFFFZ)Lorg/mozilla/goanna/gfx/ProgressiveUpdateData;");
+    jBottomField = rect.getField("bottom", "F");
+    jLeftField = rect.getField("left", "F");
+    jTopField = rect.getField("top", "F");
+    jRightField = rect.getField("right", "F");
 }
 
 void
 AndroidLayerRendererFrame::InitLayerRendererFrameClass(JNIEnv *jEnv)
 {
-    initInit();
+    AutoJNIClass layerRendererFrame(jEnv, "org/mozilla/goanna/gfx/LayerRenderer$Frame");
+    jLayerRendererFrameClass = layerRendererFrame.getGlobalRef();
 
-    jLayerRendererFrameClass = getClassGlobalRef("org/mozilla/goanna/gfx/LayerRenderer$Frame");
-
-    jBeginDrawingMethod = getMethod("beginDrawing", "()V");
-    jDrawBackgroundMethod = getMethod("drawBackground", "()V");
-    jDrawForegroundMethod = getMethod("drawForeground", "()V");
-    jEndDrawingMethod = getMethod("endDrawing", "()V");
+    jBeginDrawingMethod = layerRendererFrame.getMethod("beginDrawing", "()V");
+    jDrawBackgroundMethod = layerRendererFrame.getMethod("drawBackground", "()V");
+    jDrawForegroundMethod = layerRendererFrame.getMethod("drawForeground", "()V");
+    jEndDrawingMethod = layerRendererFrame.getMethod("endDrawing", "()V");
 }
-
-void
-AndroidViewTransform::InitViewTransformClass(JNIEnv *jEnv)
-{
-    initInit();
-
-    jViewTransformClass = getClassGlobalRef("org/mozilla/goanna/gfx/ViewTransform");
-
-    jXField = getField("x", "F");
-    jYField = getField("y", "F");
-    jScaleField = getField("scale", "F");
-    jFixedLayerMarginLeft = getField("fixedLayerMarginLeft", "F");
-    jFixedLayerMarginTop = getField("fixedLayerMarginTop", "F");
-    jFixedLayerMarginRight = getField("fixedLayerMarginRight", "F");
-    jFixedLayerMarginBottom = getField("fixedLayerMarginBottom", "F");
-    jOffsetXField = getField("offsetX", "F");
-    jOffsetYField = getField("offsetY", "F");
-}
-
-void
-AndroidProgressiveUpdateData::InitProgressiveUpdateDataClass(JNIEnv *jEnv)
-{
-    initInit();
-
-    jProgressiveUpdateDataClass = getClassGlobalRef("org/mozilla/goanna/gfx/ProgressiveUpdateData");
-
-    jXField = getField("x", "F");
-    jYField = getField("y", "F");
-    jWidthField = getField("width", "F");
-    jHeightField = getField("height", "F");
-    jScaleField = getField("scale", "F");
-    jShouldAbortField = getField("abort", "Z");
-}
-
-#undef initInit
-#undef initClassGlobalRef
-#undef getField
-#undef getMethod
 
 void
 AndroidGoannaEvent::ReadPointArray(nsTArray<nsIntPoint> &points,
@@ -450,7 +288,7 @@ AndroidGoannaEvent::ReadIntArray(nsTArray<int> &aVals,
                                 int32_t count)
 {
     jintArray jIntArray = (jintArray)jenv->GetObjectField(wrapped_obj, field);
-    jint *vals = jenv->GetIntArrayElements(jIntArray, NULL);
+    jint *vals = jenv->GetIntArrayElements(jIntArray, nullptr);
     for (int32_t i = 0; i < count; i++) {
         aVals.AppendElement(vals[i]);
     }
@@ -464,11 +302,26 @@ AndroidGoannaEvent::ReadFloatArray(nsTArray<float> &aVals,
                                   int32_t count)
 {
     jfloatArray jFloatArray = (jfloatArray)jenv->GetObjectField(wrapped_obj, field);
-    jfloat *vals = jenv->GetFloatArrayElements(jFloatArray, NULL);
+    jfloat *vals = jenv->GetFloatArrayElements(jFloatArray, nullptr);
     for (int32_t i = 0; i < count; i++) {
         aVals.AppendElement(vals[i]);
     }
     jenv->ReleaseFloatArrayElements(jFloatArray, vals, JNI_ABORT);
+}
+
+void
+AndroidGoannaEvent::ReadStringArray(nsTArray<nsString> &array,
+                                   JNIEnv *jenv,
+                                   jfieldID field)
+{
+    jarray jArray = (jarray)jenv->GetObjectField(wrapped_obj, field);
+    jsize length = jenv->GetArrayLength(jArray);
+    jobjectArray jStringArray = (jobjectArray)jArray;
+    nsString *strings = array.AppendElements(length);
+    for (jsize i = 0; i < length; ++i) {
+        jstring javastring = (jstring) jenv->GetObjectArrayElement(jStringArray, i);
+        ReadStringFromJString(strings[i], jenv, javastring);
+    }
 }
 
 void
@@ -486,63 +339,44 @@ AndroidGoannaEvent::ReadRectField(JNIEnv *jenv)
 }
 
 void
-AndroidGoannaEvent::ReadCharactersField(JNIEnv *jenv)
+AndroidGoannaEvent::ReadStringFromJString(nsString &aString, JNIEnv *jenv,
+                                         jstring s)
 {
-    jstring s = (jstring) jenv->GetObjectField(wrapped_obj, jCharactersField);
     if (!s) {
-        mCharacters.SetIsVoid(true);
+        aString.SetIsVoid(true);
         return;
     }
 
     int len = jenv->GetStringLength(s);
-    mCharacters.SetLength(len);
-    jenv->GetStringRegion(s, 0, len, mCharacters.BeginWriting());
+    aString.SetLength(len);
+    jenv->GetStringRegion(s, 0, len, reinterpret_cast<jchar*>(aString.BeginWriting()));
+}
+
+void
+AndroidGoannaEvent::ReadCharactersField(JNIEnv *jenv)
+{
+    jstring s = (jstring) jenv->GetObjectField(wrapped_obj, jCharactersField);
+    ReadStringFromJString(mCharacters, jenv, s);
 }
 
 void
 AndroidGoannaEvent::ReadCharactersExtraField(JNIEnv *jenv)
 {
     jstring s = (jstring) jenv->GetObjectField(wrapped_obj, jCharactersExtraField);
-    if (!s) {
-        mCharactersExtra.SetIsVoid(true);
-        return;
-    }
-
-    int len = jenv->GetStringLength(s);
-    mCharactersExtra.SetLength(len);
-    jenv->GetStringRegion(s, 0, len, mCharactersExtra.BeginWriting());
+    ReadStringFromJString(mCharactersExtra, jenv, s);
 }
 
 void
 AndroidGoannaEvent::ReadDataField(JNIEnv *jenv)
 {
     jstring s = (jstring) jenv->GetObjectField(wrapped_obj, jDataField);
-    if (!s) {
-        mData.SetIsVoid(true);
-        return;
-    }
-
-    int len = jenv->GetStringLength(s);
-    mData.SetLength(len);
-    jenv->GetStringRegion(s, 0, len, mData.BeginWriting());
+    ReadStringFromJString(mData, jenv, s);
 }
 
 void
 AndroidGoannaEvent::UnionRect(nsIntRect const& aRect)
 {
     mRect = aRect.Union(mRect);
-}
-
-uint32_t
-AndroidGoannaEvent::ReadDomKeyLocation(JNIEnv* jenv, jobject jGoannaEventObj)
-{
-    jobject enumObject = jenv->GetObjectField(jGoannaEventObj,
-                                             jDomKeyLocationField);
-    MOZ_ASSERT(enumObject);
-    int enumValue = jenv->GetIntField(enumObject, jDomKeyLocationValueField);
-    MOZ_ASSERT(enumValue >= nsIDOMKeyEvent::DOM_KEY_LOCATION_STANDARD &&
-               enumValue <= nsIDOMKeyEvent::DOM_KEY_LOCATION_JOYSTICK);
-    return static_cast<uint32_t>(enumValue);
 }
 
 void
@@ -568,11 +402,13 @@ AndroidGoannaEvent::Init(JNIEnv *jenv, jobject jobj)
         case IME_KEY_EVENT:
             mTime = jenv->GetLongField(jobj, jTimeField);
             mMetaState = jenv->GetIntField(jobj, jMetaStateField);
-            mDomKeyLocation = ReadDomKeyLocation(jenv, jobj);
             mFlags = jenv->GetIntField(jobj, jFlagsField);
             mKeyCode = jenv->GetIntField(jobj, jKeyCodeField);
+            mScanCode = jenv->GetIntField(jobj, jScanCodeField);
             mUnicodeChar = jenv->GetIntField(jobj, jUnicodeCharField);
             mBaseUnicodeChar = jenv->GetIntField(jobj, jBaseUnicodeCharField);
+            mDOMPrintableKeyValue =
+                jenv->GetIntField(jobj, jDOMPrintableKeyValueField);
             mRepeatCount = jenv->GetIntField(jobj, jRepeatCountField);
             ReadCharactersField(jenv);
             break;
@@ -587,6 +423,7 @@ AndroidGoannaEvent::Init(JNIEnv *jenv, jobject jobj)
             break;
 
         case MOTION_EVENT:
+        case LONG_PRESS:
             mTime = jenv->GetLongField(jobj, jTimeField);
             mMetaState = jenv->GetIntField(jobj, jMetaStateField);
             mCount = jenv->GetIntField(jobj, jCountField);
@@ -595,6 +432,7 @@ AndroidGoannaEvent::Init(JNIEnv *jenv, jobject jobj)
             ReadPointArray(mPointRadii, jenv, jPointRadii, mCount);
             ReadFloatArray(mOrientations, jenv, jOrientations, mCount);
             ReadFloatArray(mPressures, jenv, jPressures, mCount);
+            ReadIntArray(mToolTypes, jenv, jToolTypes, mCount);
             ReadPointArray(mPoints, jenv, jPoints, mCount);
             ReadIntArray(mPointIndicies, jenv, jPointIndicies, mCount);
 
@@ -604,7 +442,8 @@ AndroidGoannaEvent::Init(JNIEnv *jenv, jobject jobj)
             mStart = jenv->GetIntField(jobj, jStartField);
             mEnd = jenv->GetIntField(jobj, jEndField);
 
-            if (mAction == IME_REPLACE_TEXT) {
+            if (mAction == IME_REPLACE_TEXT ||
+                    mAction == IME_COMPOSE_TEXT) {
                 ReadCharactersField(jenv);
             } else if (mAction == IME_UPDATE_COMPOSITION ||
                     mAction == IME_ADD_COMPOSITION_RANGE) {
@@ -623,10 +462,6 @@ AndroidGoannaEvent::Init(JNIEnv *jenv, jobject jobj)
             }
             break;
 
-        case DRAW:
-            ReadRectField(jenv);
-            break;
-
         case SENSOR_EVENT:
              mX = jenv->GetDoubleField(jobj, jXField);
              mY = jenv->GetDoubleField(jobj, jYField);
@@ -634,6 +469,13 @@ AndroidGoannaEvent::Init(JNIEnv *jenv, jobject jobj)
              mFlags = jenv->GetIntField(jobj, jFlagsField);
              mMetaState = jenv->GetIntField(jobj, jMetaStateField);
              break;
+
+        case PROCESS_OBJECT: {
+            const jobject obj = jenv->GetObjectField(jobj, jObjectField);
+            mObject.Init(obj, jenv);
+            jenv->DeleteLocalRef(obj);
+            break;
+        }
 
         case LOCATION_EVENT: {
             jobject location = jenv->GetObjectField(jobj, jLocationField);
@@ -655,8 +497,9 @@ AndroidGoannaEvent::Init(JNIEnv *jenv, jobject jobj)
         }
 
         case NETWORK_CHANGED: {
-            mBandwidth = jenv->GetDoubleField(jobj, jBandwidthField);
-            mCanBeMetered = jenv->GetBooleanField(jobj, jCanBeMeteredField);
+            mConnectionType = jenv->GetIntField(jobj, jConnectionTypeField);
+            mIsWifi = jenv->GetBooleanField(jobj, jIsWifiField);
+            mDHCPGateway = jenv->GetIntField(jobj, jDHCPGatewayField);
             break;
         }
 
@@ -668,6 +511,14 @@ AndroidGoannaEvent::Init(JNIEnv *jenv, jobject jobj)
         case THUMBNAIL: {
             mMetaState = jenv->GetIntField(jobj, jMetaStateField);
             ReadPointArray(mPoints, jenv, jPoints, 1);
+            mByteBuffer = new RefCountedJavaObject(jenv, jenv->GetObjectField(jobj, jByteBufferField));
+            break;
+        }
+
+        case ZOOMEDVIEW: {
+            mX = jenv->GetDoubleField(jobj, jXField);
+            mMetaState = jenv->GetIntField(jobj, jMetaStateField);
+            ReadPointArray(mPoints, jenv, jPoints, 2);
             mByteBuffer = new RefCountedJavaObject(jenv, jenv->GetObjectField(jobj, jByteBufferField));
             break;
         }
@@ -705,6 +556,65 @@ AndroidGoannaEvent::Init(JNIEnv *jenv, jobject jobj)
             break;
         }
 
+        case TELEMETRY_HISTOGRAM_ADD: {
+            ReadCharactersField(jenv);
+            mCount = jenv->GetIntField(jobj, jCountField);
+            break;
+        }
+
+        case TELEMETRY_UI_SESSION_START: {
+            ReadCharactersField(jenv);
+            mTime = jenv->GetLongField(jobj, jTimeField);
+            break;
+        }
+
+        case TELEMETRY_UI_SESSION_STOP: {
+            ReadCharactersField(jenv);
+            ReadCharactersExtraField(jenv);
+            mTime = jenv->GetLongField(jobj, jTimeField);
+            break;
+        }
+
+        case TELEMETRY_UI_EVENT: {
+            ReadCharactersField(jenv);
+            ReadCharactersExtraField(jenv);
+            ReadDataField(jenv);
+            mTime = jenv->GetLongField(jobj, jTimeField);
+            break;
+        }
+
+        case GAMEPAD_ADDREMOVE: {
+            mID = jenv->GetIntField(jobj, jIDField);
+            break;
+        }
+
+        case GAMEPAD_DATA: {
+            mID = jenv->GetIntField(jobj, jIDField);
+            if (mAction == ACTION_GAMEPAD_BUTTON) {
+                mGamepadButton = jenv->GetIntField(jobj, jGamepadButtonField);
+                mGamepadButtonPressed = jenv->GetBooleanField(jobj, jGamepadButtonPressedField);
+                mGamepadButtonValue = jenv->GetFloatField(jobj, jGamepadButtonValueField);
+            } else if (mAction == ACTION_GAMEPAD_AXES) {
+                // Flags is a bitfield of valid entries in gamepadvalues
+                mFlags = jenv->GetIntField(jobj, jFlagsField);
+                mCount = jenv->GetIntField(jobj, jCountField);
+                ReadFloatArray(mGamepadValues, jenv, jGamepadValuesField, mCount);
+            }
+            break;
+        }
+
+        case PREFERENCES_OBSERVE:
+        case PREFERENCES_GET: {
+            ReadStringArray(mPrefNames, jenv, jPrefNamesField);
+            mCount = jenv->GetIntField(jobj, jCountField);
+            break;
+        }
+
+        case PREFERENCES_REMOVE_OBSERVERS: {
+            mCount = jenv->GetIntField(jobj, jCountField);
+            break;
+        }
+
         default:
             break;
     }
@@ -732,22 +642,68 @@ AndroidGoannaEvent::Init(AndroidGoannaEvent *aResizeEvent)
     mPoints = aResizeEvent->mPoints; // x,y coordinates
 }
 
-nsTouchEvent
+bool
+AndroidGoannaEvent::CanCoalesceWith(AndroidGoannaEvent* ae)
+{
+    if (Type() == MOTION_EVENT && ae->Type() == MOTION_EVENT) {
+        return Action() == AndroidMotionEvent::ACTION_MOVE
+            && ae->Action() == AndroidMotionEvent::ACTION_MOVE;
+    } else if (Type() == APZ_INPUT_EVENT && ae->Type() == APZ_INPUT_EVENT) {
+        return mApzInput.mType == MultiTouchInput::MULTITOUCH_MOVE
+            && ae->mApzInput.mType == MultiTouchInput::MULTITOUCH_MOVE;
+    }
+    return false;
+}
+
+mozilla::layers::ScrollableLayerGuid
+AndroidGoannaEvent::ApzGuid()
+{
+    MOZ_ASSERT(Type() == APZ_INPUT_EVENT);
+    return mApzGuid;
+}
+
+uint64_t
+AndroidGoannaEvent::ApzInputBlockId()
+{
+    MOZ_ASSERT(Type() == APZ_INPUT_EVENT);
+    return mApzInputBlockId;
+}
+
+WidgetTouchEvent
 AndroidGoannaEvent::MakeTouchEvent(nsIWidget* widget)
 {
+    if (Type() == APZ_INPUT_EVENT) {
+        return mApzInput.ToWidgetTouchEvent(widget);
+    }
+
     int type = NS_EVENT_NULL;
     int startIndex = 0;
     int endIndex = Count();
 
     switch (Action()) {
+        case AndroidMotionEvent::ACTION_HOVER_ENTER: {
+            if (ToolTypes()[0] == AndroidMotionEvent::TOOL_TYPE_MOUSE) {
+                break;
+            }
+        }
         case AndroidMotionEvent::ACTION_DOWN:
         case AndroidMotionEvent::ACTION_POINTER_DOWN: {
             type = NS_TOUCH_START;
             break;
         }
+        case AndroidMotionEvent::ACTION_HOVER_MOVE: {
+            if (ToolTypes()[0] == AndroidMotionEvent::TOOL_TYPE_MOUSE) {
+                break;
+            }
+        }
         case AndroidMotionEvent::ACTION_MOVE: {
             type = NS_TOUCH_MOVE;
             break;
+        }
+        case AndroidMotionEvent::ACTION_HOVER_EXIT: {
+            if (ToolTypes()[0] == AndroidMotionEvent::TOOL_TYPE_MOUSE) {
+                break;
+            }
         }
         case AndroidMotionEvent::ACTION_UP:
         case AndroidMotionEvent::ACTION_POINTER_UP: {
@@ -765,25 +721,32 @@ AndroidGoannaEvent::MakeTouchEvent(nsIWidget* widget)
         }
     }
 
-    nsTouchEvent event(true, type, widget);
+    WidgetTouchEvent event(true, type, widget);
     if (type == NS_EVENT_NULL) {
         // An event we don't know about
         return event;
     }
 
-    event.modifiers = 0;
+    event.modifiers = DOMModifiers();
     event.time = Time();
-    event.InitBasicModifiers(IsCtrlPressed(),
-                             IsAltPressed(),
-                             IsShiftPressed(),
-                             IsMetaPressed());
 
-    const nsIntPoint& offset = widget->WidgetToScreenOffset();
+    const LayoutDeviceIntPoint& offset = widget->WidgetToScreenOffset();
     event.touches.SetCapacity(endIndex - startIndex);
     for (int i = startIndex; i < endIndex; i++) {
+        // In this code branch, we are dispatching this event directly
+        // into Goanna (as opposed to going through the AsyncPanZoomController),
+        // and the Points() array has points in CSS pixels, which we need
+        // to convert.
+        CSSToLayoutDeviceScale scale = widget->GetDefaultScale();
+        LayoutDeviceIntPoint pt(
+            (Points()[i].x * scale.scale) - offset.x,
+            (Points()[i].y * scale.scale) - offset.y);
+        nsIntPoint radii(
+            PointRadii()[i].x * scale.scale,
+            PointRadii()[i].y * scale.scale);
         nsRefPtr<Touch> t = new Touch(PointIndicies()[i],
-                                      Points()[i] - offset,
-                                      PointRadii()[i],
+                                      pt,
+                                      radii,
                                       Orientations()[i],
                                       Pressures()[i]);
         event.touches.AppendElement(t);
@@ -825,14 +788,15 @@ AndroidGoannaEvent::MakeMultiTouchInput(nsIWidget* widget)
         }
     }
 
-    MultiTouchInput event(type, Time());
+    MultiTouchInput event(type, Time(), TimeStamp(), 0);
+    event.modifiers = DOMModifiers();
 
     if (type < 0) {
         // An event we don't know about
         return event;
     }
 
-    const nsIntPoint& offset = widget->WidgetToScreenOffset();
+    const nsIntPoint& offset = widget->WidgetToScreenOffsetUntyped();
     event.mTouches.SetCapacity(endIndex - startIndex);
     for (int i = startIndex; i < endIndex; i++) {
         nsIntPoint point = Points()[i] - offset;
@@ -850,6 +814,83 @@ AndroidGoannaEvent::MakeMultiTouchInput(nsIWidget* widget)
     return event;
 }
 
+WidgetMouseEvent
+AndroidGoannaEvent::MakeMouseEvent(nsIWidget* widget)
+{
+    uint32_t msg = NS_EVENT_NULL;
+    if (Points().Length() > 0) {
+        switch (Action()) {
+            case AndroidMotionEvent::ACTION_HOVER_MOVE:
+                msg = NS_MOUSE_MOVE;
+                break;
+            case AndroidMotionEvent::ACTION_HOVER_ENTER:
+                msg = NS_MOUSE_ENTER;
+                break;
+            case AndroidMotionEvent::ACTION_HOVER_EXIT:
+                msg = NS_MOUSE_EXIT;
+                break;
+            default:
+                break;
+        }
+    }
+
+    WidgetMouseEvent event(true, msg, widget,
+                           WidgetMouseEvent::eReal, WidgetMouseEvent::eNormal);
+
+    if (msg == NS_EVENT_NULL) {
+        // unknown type, or no point data. abort
+        return event;
+    }
+
+    // XXX can we synthesize different buttons?
+    event.button = WidgetMouseEvent::eLeftButton;
+    if (msg != NS_MOUSE_MOVE) {
+        event.clickCount = 1;
+    }
+    event.modifiers = DOMModifiers();
+    event.time = Time();
+
+    // We are dispatching this event directly into Goanna (as opposed to going
+    // through the AsyncPanZoomController), and the Points() array has points
+    // in CSS pixels, which we need to convert to LayoutDevice pixels.
+    const LayoutDeviceIntPoint& offset = widget->WidgetToScreenOffset();
+    CSSToLayoutDeviceScale scale = widget->GetDefaultScale();
+    event.refPoint = LayoutDeviceIntPoint((Points()[0].x * scale.scale) - offset.x,
+                                          (Points()[0].y * scale.scale) - offset.y);
+    return event;
+}
+
+Modifiers
+AndroidGoannaEvent::DOMModifiers() const
+{
+    Modifiers result = 0;
+    if (mMetaState & AMETA_ALT_MASK) {
+        result |= MODIFIER_ALT;
+    }
+    if (mMetaState & AMETA_SHIFT_MASK) {
+        result |= MODIFIER_SHIFT;
+    }
+    if (mMetaState & AMETA_CTRL_MASK) {
+        result |= MODIFIER_CONTROL;
+    }
+    if (mMetaState & AMETA_META_MASK) {
+        result |= MODIFIER_META;
+    }
+    if (mMetaState & AMETA_FUNCTION_ON) {
+        result |= MODIFIER_FN;
+    }
+    if (mMetaState & AMETA_CAPS_LOCK_ON) {
+        result |= MODIFIER_CAPSLOCK;
+    }
+    if (mMetaState & AMETA_NUM_LOCK_ON) {
+        result |= MODIFIER_NUMLOCK;
+    }
+    if (mMetaState & AMETA_SCROLL_LOCK_ON) {
+        result |= MODIFIER_SCROLLLOCK;
+    }
+    return result;
+}
+
 void
 AndroidPoint::Init(JNIEnv *jenv, jobject jobj)
 {
@@ -860,13 +901,6 @@ AndroidPoint::Init(JNIEnv *jenv, jobject jobj)
         mX = 0;
         mY = 0;
     }
-}
-
-void
-AndroidGoannaLayerClient::Init(jobject jobj)
-{
-    NS_ASSERTION(wrapped_obj == nullptr, "Init called on non-null wrapped_obj!");
-    wrapped_obj = jobj;
 }
 
 void
@@ -890,280 +924,7 @@ AndroidLayerRendererFrame::Dispose(JNIEnv *env)
     wrapped_obj = 0;
 }
 
-void
-AndroidViewTransform::Init(jobject jobj)
-{
-    NS_ABORT_IF_FALSE(wrapped_obj == nullptr, "Init called on non-null wrapped_obj!");
-    wrapped_obj = jobj;
-}
-
-void
-AndroidProgressiveUpdateData::Init(jobject jobj)
-{
-    NS_ABORT_IF_FALSE(wrapped_obj == nullptr, "Init called on non-null wrapped_obj!");
-    wrapped_obj = jobj;
-}
-
-void
-AndroidGoannaLayerClient::SetFirstPaintViewport(const LayerIntPoint& aOffset, const CSSToLayerScale& aZoom, const CSSRect& aCssPageRect)
-{
-    NS_ASSERTION(!isNull(), "SetFirstPaintViewport called on null layer client!");
-    JNIEnv *env = GetJNIForThread();    // this is called on the compositor thread
-    if (!env)
-        return;
-
-    AutoLocalJNIFrame jniFrame(env, 0);
-    return env->CallVoidMethod(wrapped_obj, jSetFirstPaintViewport, (float)aOffset.x, (float)aOffset.y, aZoom.scale,
-                               aCssPageRect.x, aCssPageRect.y, aCssPageRect.XMost(), aCssPageRect.YMost());
-}
-
-void
-AndroidGoannaLayerClient::SetPageRect(const CSSRect& aCssPageRect)
-{
-    NS_ASSERTION(!isNull(), "SetPageRect called on null layer client!");
-    JNIEnv *env = GetJNIForThread();    // this is called on the compositor thread
-    if (!env)
-        return;
-
-    AutoLocalJNIFrame jniFrame(env, 0);
-    return env->CallVoidMethod(wrapped_obj, jSetPageRect,
-                               aCssPageRect.x, aCssPageRect.y, aCssPageRect.XMost(), aCssPageRect.YMost());
-}
-
-void
-AndroidGoannaLayerClient::SyncViewportInfo(const LayerIntRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
-                                          bool aLayersUpdated, ScreenPoint& aScrollOffset, CSSToScreenScale& aScale,
-                                          gfx::Margin& aFixedLayerMargins, ScreenPoint& aOffset)
-{
-    NS_ASSERTION(!isNull(), "SyncViewportInfo called on null layer client!");
-    JNIEnv *env = GetJNIForThread();    // this is called on the compositor thread
-    if (!env)
-        return;
-
-    AutoLocalJNIFrame jniFrame(env);
-
-    jobject viewTransformJObj = env->CallObjectMethod(wrapped_obj, jSyncViewportInfoMethod,
-                                                      aDisplayPort.x, aDisplayPort.y,
-                                                      aDisplayPort.width, aDisplayPort.height,
-                                                      aDisplayResolution.scale, aLayersUpdated);
-    if (jniFrame.CheckForException())
-        return;
-
-    NS_ABORT_IF_FALSE(viewTransformJObj, "No view transform object!");
-
-    AndroidViewTransform viewTransform;
-    viewTransform.Init(viewTransformJObj);
-
-    aScrollOffset = ScreenPoint(viewTransform.GetX(env), viewTransform.GetY(env));
-    aScale.scale = viewTransform.GetScale(env);
-    viewTransform.GetFixedLayerMargins(env, aFixedLayerMargins);
-
-    aOffset.x = viewTransform.GetOffsetX(env);
-    aOffset.y = viewTransform.GetOffsetY(env);
-}
-
-void
-AndroidGoannaLayerClient::SyncFrameMetrics(const ScreenPoint& aScrollOffset, float aZoom, const CSSRect& aCssPageRect,
-                                          bool aLayersUpdated, const CSSRect& aDisplayPort, const CSSToLayerScale& aDisplayResolution,
-                                          bool aIsFirstPaint, gfx::Margin& aFixedLayerMargins, ScreenPoint& aOffset)
-{
-    NS_ASSERTION(!isNull(), "SyncFrameMetrics called on null layer client!");
-    JNIEnv *env = GetJNIForThread();    // this is called on the compositor thread
-    if (!env)
-        return;
-
-    AutoLocalJNIFrame jniFrame(env);
-
-    // convert the displayport rect from scroll-relative CSS pixels to document-relative device pixels
-    LayerRect dpUnrounded = aDisplayPort * aDisplayResolution;
-    dpUnrounded += LayerPoint::FromUnknownPoint(aScrollOffset.ToUnknownPoint());
-    LayerIntRect dp = gfx::RoundedToInt(dpUnrounded);
-
-    jobject viewTransformJObj = env->CallObjectMethod(wrapped_obj, jSyncFrameMetricsMethod,
-            aScrollOffset.x, aScrollOffset.y, aZoom,
-            aCssPageRect.x, aCssPageRect.y, aCssPageRect.XMost(), aCssPageRect.YMost(),
-            aLayersUpdated, dp.x, dp.y, dp.width, dp.height, aDisplayResolution.scale,
-            aIsFirstPaint);
-
-    if (jniFrame.CheckForException())
-        return;
-
-    NS_ABORT_IF_FALSE(viewTransformJObj, "No view transform object!");
-
-    AndroidViewTransform viewTransform;
-    viewTransform.Init(viewTransformJObj);
-    viewTransform.GetFixedLayerMargins(env, aFixedLayerMargins);
-    aOffset.x = viewTransform.GetOffsetX(env);
-    aOffset.y = viewTransform.GetOffsetY(env);
-}
-
-bool
-AndroidGoannaLayerClient::ProgressiveUpdateCallback(bool aHasPendingNewThebesContent,
-                                                   const LayerRect& aDisplayPort,
-                                                   float aDisplayResolution,
-                                                   bool aDrawingCritical,
-                                                   gfx::Rect& aViewport,
-                                                   float& aScaleX,
-                                                   float& aScaleY)
-{
-    JNIEnv *env = AndroidBridge::GetJNIEnv();
-    if (!env)
-        return false;
-
-    AutoJObject progressiveUpdateDataJObj(env, env->CallObjectMethod(wrapped_obj,
-                                                                     jProgressiveUpdateCallbackMethod,
-                                                                     aHasPendingNewThebesContent,
-                                                                     (float)aDisplayPort.x,
-                                                                     (float)aDisplayPort.y,
-                                                                     (float)aDisplayPort.width,
-                                                                     (float)aDisplayPort.height,
-                                                                     aDisplayResolution,
-                                                                     !aDrawingCritical));
-    if (env->ExceptionCheck()) {
-        env->ExceptionDescribe();
-        env->ExceptionClear();
-        return false;
-    }
-
-    NS_ABORT_IF_FALSE(progressiveUpdateDataJObj, "No progressive update data!");
-
-    AndroidProgressiveUpdateData progressiveUpdateData(progressiveUpdateDataJObj);
-
-    aViewport.x = progressiveUpdateData.GetX(env);
-    aViewport.y = progressiveUpdateData.GetY(env);
-    aViewport.width = progressiveUpdateData.GetWidth(env);
-    aViewport.height = progressiveUpdateData.GetHeight(env);
-    aScaleX = aScaleY = progressiveUpdateData.GetScale(env);
-
-    return progressiveUpdateData.GetShouldAbort(env);
-}
-
-jobject ConvertToJavaViewportMetrics(JNIEnv* env, nsIAndroidViewport* metrics) {
-    float x, y, width, height,
-        pageLeft, pageTop, pageRight, pageBottom,
-        cssPageLeft, cssPageTop, cssPageRight, cssPageBottom,
-        zoom;
-    metrics->GetX(&x);
-    metrics->GetY(&y);
-    metrics->GetWidth(&width);
-    metrics->GetHeight(&height);
-    metrics->GetPageLeft(&pageLeft);
-    metrics->GetPageTop(&pageTop);
-    metrics->GetPageRight(&pageRight);
-    metrics->GetPageBottom(&pageBottom);
-    metrics->GetCssPageLeft(&cssPageLeft);
-    metrics->GetCssPageTop(&cssPageTop);
-    metrics->GetCssPageRight(&cssPageRight);
-    metrics->GetCssPageBottom(&cssPageBottom);
-    metrics->GetZoom(&zoom);
-
-    jobject jobj = env->NewObject(AndroidGoannaLayerClient::jViewportClass, AndroidGoannaLayerClient::jViewportCtor,
-                                  pageLeft, pageTop, pageRight, pageBottom,
-                                  cssPageLeft, cssPageTop, cssPageRight, cssPageBottom,
-                                  x, y, x + width, y + height,
-                                  zoom);
-    return jobj;
-}
-
-class nsAndroidDisplayport MOZ_FINAL : public nsIAndroidDisplayport
-{
-public:
-    NS_DECL_ISUPPORTS
-    virtual nsresult GetLeft(float *aLeft) { *aLeft = mLeft; return NS_OK; }
-    virtual nsresult GetTop(float *aTop) { *aTop = mTop; return NS_OK; }
-    virtual nsresult GetRight(float *aRight) { *aRight = mRight; return NS_OK; }
-    virtual nsresult GetBottom(float *aBottom) { *aBottom = mBottom; return NS_OK; }
-    virtual nsresult GetResolution(float *aResolution) { *aResolution = mResolution; return NS_OK; }
-    virtual nsresult SetLeft(float aLeft) { mLeft = aLeft; return NS_OK; }
-    virtual nsresult SetTop(float aTop) { mTop = aTop; return NS_OK; }
-    virtual nsresult SetRight(float aRight) { mRight = aRight; return NS_OK; }
-    virtual nsresult SetBottom(float aBottom) { mBottom = aBottom; return NS_OK; }
-    virtual nsresult SetResolution(float aResolution) { mResolution = aResolution; return NS_OK; }
-
-    nsAndroidDisplayport(AndroidRectF aRect, float aResolution):
-        mLeft(aRect.Left()), mTop(aRect.Top()), mRight(aRect.Right()), mBottom(aRect.Bottom()), mResolution(aResolution) {}
-
-private:
-    ~nsAndroidDisplayport() {}
-    float mLeft, mTop, mRight, mBottom, mResolution;
-};
-
-NS_IMPL_ISUPPORTS1(nsAndroidDisplayport, nsIAndroidDisplayport)
-
-void createDisplayPort(AutoLocalJNIFrame *jniFrame, jobject jobj, nsIAndroidDisplayport** displayPort) {
-    JNIEnv* env = jniFrame->GetEnv();
-    AndroidRectF rect(env, env->GetObjectField(jobj, AndroidGoannaLayerClient::jDisplayportPosition));
-    if (jniFrame->CheckForException()) return;
-    float resolution = env->GetFloatField(jobj, AndroidGoannaLayerClient::jDisplayportResolution);
-    if (jniFrame->CheckForException()) return;
-    *displayPort = new nsAndroidDisplayport(rect, resolution);
-}
-
-void
-AndroidGoannaLayerClient::GetDisplayPort(AutoLocalJNIFrame *jniFrame, bool aPageSizeUpdate, bool aIsBrowserContentDisplayed, int32_t tabId, nsIAndroidViewport* metrics, nsIAndroidDisplayport** displayPort)
-{
-    jobject jmetrics = ConvertToJavaViewportMetrics(jniFrame->GetEnv(), metrics);
-    if (jniFrame->CheckForException()) return;
-    if (!jmetrics)
-        return;
-    jobject jobj = jniFrame->GetEnv()->CallObjectMethod(wrapped_obj, jGetDisplayPort, aPageSizeUpdate, aIsBrowserContentDisplayed, tabId, jmetrics);
-    if (jniFrame->CheckForException()) return;
-    createDisplayPort(jniFrame, jobj, displayPort);
-    (*displayPort)->AddRef();
-}
-
-void
-AndroidGoannaLayerClient::ContentDocumentChanged(AutoLocalJNIFrame *jniFrame)
-{
-    jniFrame->GetEnv()->CallVoidMethod(wrapped_obj, jContentDocumentChanged);
-}
-
-bool
-AndroidGoannaLayerClient::IsContentDocumentDisplayed(AutoLocalJNIFrame *jniFrame)
-{
-    return jniFrame->GetEnv()->CallBooleanMethod(wrapped_obj, jIsContentDocumentDisplayed);
-}
-
-bool
-AndroidGoannaLayerClient::CreateFrame(AutoLocalJNIFrame *jniFrame, AndroidLayerRendererFrame& aFrame)
-{
-    if (!jniFrame || !jniFrame->GetEnv())
-        return false;
-
-    jobject frameJObj = jniFrame->GetEnv()->CallObjectMethod(wrapped_obj, jCreateFrameMethod);
-    if (jniFrame->CheckForException())
-        return false;
-    NS_ABORT_IF_FALSE(frameJObj, "No frame object!");
-
-    aFrame.Init(jniFrame->GetEnv(), frameJObj);
-    return true;
-}
-
-bool
-AndroidGoannaLayerClient::ActivateProgram(AutoLocalJNIFrame *jniFrame)
-{
-    if (!jniFrame || !jniFrame->GetEnv())
-        return false;
-
-    jniFrame->GetEnv()->CallVoidMethod(wrapped_obj, jActivateProgramMethod);
-    if (jniFrame->CheckForException())
-        return false;
-
-    return true;
-}
-
-bool
-AndroidGoannaLayerClient::DeactivateProgram(AutoLocalJNIFrame *jniFrame)
-{
-    if (!jniFrame || !jniFrame->GetEnv())
-        return false;
-
-    jniFrame->GetEnv()->CallVoidMethod(wrapped_obj, jDeactivateProgramMethod);
-    if (jniFrame->CheckForException())
-        return false;
-
-    return true;
-}
+NS_IMPL_ISUPPORTS(nsAndroidDisplayport, nsIAndroidDisplayport)
 
 bool
 AndroidLayerRendererFrame::BeginDrawing(AutoLocalJNIFrame *jniFrame)
@@ -1217,106 +978,6 @@ AndroidLayerRendererFrame::EndDrawing(AutoLocalJNIFrame *jniFrame)
     return true;
 }
 
-float
-AndroidViewTransform::GetX(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jXField);
-}
-
-float
-AndroidViewTransform::GetY(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jYField);
-}
-
-float
-AndroidViewTransform::GetScale(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jScaleField);
-}
-
-void
-AndroidViewTransform::GetFixedLayerMargins(JNIEnv *env, gfx::Margin &aFixedLayerMargins)
-{
-    if (!env)
-        return;
-
-    aFixedLayerMargins.top = env->GetFloatField(wrapped_obj, jFixedLayerMarginTop);
-    aFixedLayerMargins.right = env->GetFloatField(wrapped_obj, jFixedLayerMarginRight);
-    aFixedLayerMargins.bottom = env->GetFloatField(wrapped_obj, jFixedLayerMarginBottom);
-    aFixedLayerMargins.left = env->GetFloatField(wrapped_obj, jFixedLayerMarginLeft);
-}
-
-float
-AndroidViewTransform::GetOffsetX(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jOffsetXField);
-}
-
-float
-AndroidViewTransform::GetOffsetY(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jOffsetYField);
-}
-
-float
-AndroidProgressiveUpdateData::GetX(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jXField);
-}
-
-float
-AndroidProgressiveUpdateData::GetY(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jYField);
-}
-
-float
-AndroidProgressiveUpdateData::GetWidth(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jWidthField);
-}
-
-float
-AndroidProgressiveUpdateData::GetHeight(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jHeightField);
-}
-
-float
-AndroidProgressiveUpdateData::GetScale(JNIEnv *env)
-{
-    if (!env)
-        return 0.0f;
-    return env->GetFloatField(wrapped_obj, jScaleField);
-}
-
-bool
-AndroidProgressiveUpdateData::GetShouldAbort(JNIEnv *env)
-{
-    if (!env)
-        return false;
-    return env->GetBooleanField(wrapped_obj, jShouldAbortField);
-}
-
 void
 AndroidRect::Init(JNIEnv *jenv, jobject jobj)
 {
@@ -1366,12 +1027,8 @@ nsJNIString::nsJNIString(jstring jstr, JNIEnv *jenv)
     JNIEnv *jni = jenv;
     if (!jni) {
         jni = AndroidBridge::GetJNIEnv();
-        if (!jni) {
-            SetIsVoid(true);
-            return;
-        }
     }
-    const jchar* jCharPtr = jni->GetStringChars(jstr, NULL);
+    const jchar* jCharPtr = jni->GetStringChars(jstr, nullptr);
 
     if (!jCharPtr) {
         SetIsVoid(true);
@@ -1383,7 +1040,34 @@ nsJNIString::nsJNIString(jstring jstr, JNIEnv *jenv)
     if (len <= 0) {
         SetIsVoid(true);
     } else {
-        Assign(jCharPtr, len);
+        Assign(reinterpret_cast<const char16_t*>(jCharPtr), len);
     }
     jni->ReleaseStringChars(jstr, jCharPtr);
+}
+
+nsJNICString::nsJNICString(jstring jstr, JNIEnv *jenv)
+{
+    if (!jstr) {
+        SetIsVoid(true);
+        return;
+    }
+    JNIEnv *jni = jenv;
+    if (!jni) {
+        jni = AndroidBridge::GetJNIEnv();
+    }
+    const char* jCharPtr = jni->GetStringUTFChars(jstr, nullptr);
+
+    if (!jCharPtr) {
+        SetIsVoid(true);
+        return;
+    }
+
+    jsize len = jni->GetStringUTFLength(jstr);
+
+    if (len <= 0) {
+        SetIsVoid(true);
+    } else {
+        Assign(jCharPtr, len);
+    }
+    jni->ReleaseStringUTFChars(jstr, jCharPtr);
 }

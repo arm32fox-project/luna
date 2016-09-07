@@ -14,21 +14,21 @@
 #include <list>
 #include <map>
 
-#include "engine_configurations.h"  // NOLINT
-#include "system_wrappers/interface/scoped_ptr.h"
-#include "typedefs.h"  // NOLINT
-#include "video_engine/include/vie_rtp_rtcp.h"
-#include "video_engine/vie_channel_group.h"
-#include "video_engine/vie_defines.h"
-#include "video_engine/vie_manager_base.h"
-#include "video_engine/vie_remb.h"
+#include "webrtc/engine_configurations.h"
+#include "webrtc/system_wrappers/interface/scoped_ptr.h"
+#include "webrtc/typedefs.h"
+#include "webrtc/video_engine/include/vie_rtp_rtcp.h"
+#include "webrtc/video_engine/vie_channel_group.h"
+#include "webrtc/video_engine/vie_defines.h"
+#include "webrtc/video_engine/vie_manager_base.h"
+#include "webrtc/video_engine/vie_remb.h"
 
 namespace webrtc {
 
+class Config;
 class CriticalSectionWrapper;
-class MapWrapper;
 class ProcessThread;
-class RtcpRttObserver;
+class RtcpRttStats;
 class ViEChannel;
 class ViEEncoder;
 class VoEVideoSync;
@@ -44,13 +44,16 @@ class ViEChannelManager: private ViEManagerBase {
  public:
   ViEChannelManager(int engine_id,
                     int number_of_cores,
-                    const OverUseDetectorOptions& options);
+                    const Config& config);
   ~ViEChannelManager();
 
   void SetModuleProcessThread(ProcessThread* module_process_thread);
 
+  void SetLoadManager(CPULoadStateCallbackInvoker* load_manager);
+
   // Creates a new channel. 'channel_id' will be the id of the created channel.
-  int CreateChannel(int* channel_id);
+  int CreateChannel(int* channel_id,
+                    const Config* config);
 
   // Creates a new channel grouped with |original_channel|. The new channel
   // will get its own |ViEEncoder| if |sender| is set to true. It will be a
@@ -74,13 +77,21 @@ class ViEChannelManager: private ViEManagerBase {
   // Adds a channel to include when sending REMB.
   bool SetRembStatus(int channel_id, bool sender, bool receiver);
 
-  // Sets the bandwidth estimation mode. This can only be changed before
-  // adding a channel.
-  bool SetBandwidthEstimationMode(BandwidthEstimationMode mode);
+  bool SetReservedTransmitBitrate(int channel_id,
+                                  uint32_t reserved_transmit_bitrate_bps);
 
   // Updates the SSRCs for a channel. If one of the SSRCs already is registered,
   // it will simply be ignored and no error is returned.
   void UpdateSsrcs(int channel_id, const std::list<unsigned int>& ssrcs);
+
+  // Sets bandwidth estimation related configurations.
+  bool SetBandwidthEstimationConfig(int channel_id,
+                                    const webrtc::Config& config);
+
+  bool GetEstimatedSendBandwidth(int channel_id,
+                                 uint32_t* estimated_bandwidth) const;
+  bool GetEstimatedReceiveBandwidth(int channel_id,
+                                    uint32_t* estimated_bandwidth) const;
 
  private:
   // Creates a channel object connected to |vie_encoder|. Assumed to be called
@@ -89,7 +100,7 @@ class ViEChannelManager: private ViEManagerBase {
                            ViEEncoder* vie_encoder,
                            RtcpBandwidthObserver* bandwidth_observer,
                            RemoteBitrateEstimator* remote_bitrate_estimator,
-                           RtcpRttObserver* rtcp_rtt_observer,
+                           RtcpRttStats* rtcp_rtt_stats,
                            RtcpIntraFrameObserver* intra_frame_observer,
                            bool sender);
 
@@ -108,7 +119,7 @@ class ViEChannelManager: private ViEManagerBase {
   void ReturnChannelId(int channel_id);
 
   // Returns the iterator to the ChannelGroup containing |channel_id|.
-  ChannelGroup* FindGroup(int channel_id);
+  ChannelGroup* FindGroup(int channel_id) const;
 
   // Returns true if at least one other channels uses the same ViEEncoder as
   // channel_id.
@@ -135,8 +146,8 @@ class ViEChannelManager: private ViEManagerBase {
 
   VoiceEngine* voice_engine_;
   ProcessThread* module_process_thread_;
-  const OverUseDetectorOptions& over_use_detector_options_;
-  RemoteBitrateEstimator::EstimationMode bwe_mode_;
+  const Config& engine_config_;
+  CPULoadStateCallbackInvoker* load_manager_;
 };
 
 class ViEChannelManagerScoped: private ViEManagerScopedBase {

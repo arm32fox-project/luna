@@ -6,60 +6,85 @@
 #include "GLScreenBuffer.h"
 
 #include <cstring>
-#include "gfxImageSurface.h"
+#include "CompositorTypes.h"
 #include "GLContext.h"
+#include "GLBlitHelper.h"
+#include "GLReadTexImageHelper.h"
 #include "SharedSurfaceGL.h"
-#include "SurfaceStream.h"
 #ifdef MOZ_WIDGET_GONK
 #include "SharedSurfaceGralloc.h"
 #include "nsXULAppAPI.h"
 #endif
-
-using namespace mozilla::gfx;
+#ifdef XP_MACOSX
+#include "SharedSurfaceIO.h"
+#endif
+#include "ScopedGLHelpers.h"
+#include "gfx2DGlue.h"
+#include "../layers/ipc/ShadowLayers.h"
 
 namespace mozilla {
 namespace gl {
 
-GLScreenBuffer*
+using gfx::SurfaceFormat;
+
+UniquePtr<GLScreenBuffer>
 GLScreenBuffer::Create(GLContext* gl,
-                     const gfxIntSize& size,
-                     const SurfaceCaps& caps)
+                       const gfx::IntSize& size,
+                       const SurfaceCaps& caps)
 {
+    UniquePtr<GLScreenBuffer> ret;
     if (caps.antialias &&
-        !gl->SupportsFramebufferMultisample())
+        !gl->IsSupported(GLFeature::framebuffer_multisample))
     {
-        return nullptr;
+        return Move(ret);
     }
 
-    SurfaceFactory_GL* factory = nullptr;
+    UniquePtr<SurfaceFactory> factory;
 
 #ifdef MOZ_WIDGET_GONK
     /* On B2G, we want a Gralloc factory, and we want one right at the start */
+    layers::ISurfaceAllocator* allocator = caps.surfaceAllocator;
     if (!factory &&
+        allocator &&
         XRE_GetProcessType() != GoannaProcessType_Default)
     {
-        factory = new SurfaceFactory_Gralloc(gl, caps);
+        layers::TextureFlags flags = layers::TextureFlags::DEALLOCATE_CLIENT |
+                                     layers::TextureFlags::ORIGIN_BOTTOM_LEFT;
+        if (!caps.premultAlpha) {
+            flags |= layers::TextureFlags::NON_PREMULTIPLIED;
+        }
+
+        factory = MakeUnique<SurfaceFactory_Gralloc>(gl, caps, flags,
+                                                     allocator);
+    }
+#endif
+#ifdef XP_MACOSX
+    /* On OSX, we want an IOSurface factory, and we want one right at the start */
+    if (!factory) {
+        factory = SurfaceFactory_IOSurface::Create(gl, caps);
     }
 #endif
 
-    if (!factory)
-        factory = new SurfaceFactory_Basic(gl, caps);
+    if (!factory) {
+        factory = MakeUnique<SurfaceFactory_Basic>(gl, caps);
+    }
 
-    SurfaceStream* stream = SurfaceStream::CreateForType(
-        SurfaceStream::ChooseGLStreamType(SurfaceStream::MainThread,
-                                          caps.preserve),
-        gl,
-        nullptr);
-
-    return new GLScreenBuffer(gl, caps, factory, stream);
+    ret.reset( new GLScreenBuffer(gl, caps, Move(factory)) );
+    return Move(ret);
 }
 
 GLScreenBuffer::~GLScreenBuffer()
 {
-    delete mFactory;
-    delete mStream;
-    delete mDraw;
-    delete mRead;
+    mDraw = nullptr;
+    mRead = nullptr;
+
+    // bug 914823: it is crucial to destroy the Factory _after_ we destroy
+    // the SharedSurfaces around here! Reason: the shared surfaces will want
+    // to ask the Allocator (e.g. the ClientLayerManager) to destroy their
+    // buffers, but that Allocator may be kept alive by the Factory,
+    // as it currently the case in SurfaceFactory_Gralloc holding a nsRefPtr
+    // to the Allocator!
+    mFactory = nullptr;
 }
 
 
@@ -69,7 +94,7 @@ GLScreenBuffer::BindAsFramebuffer(GLContext* const gl, GLenum target) const
     GLuint drawFB = DrawFB();
     GLuint readFB = ReadFB();
 
-    if (!gl->HasExt_FramebufferBlit()) {
+    if (!gl->IsSupported(GLFeature::framebuffer_blit)) {
         MOZ_ASSERT(drawFB == readFB);
         gl->raw_fBindFramebuffer(target, readFB);
         return;
@@ -82,24 +107,21 @@ GLScreenBuffer::BindAsFramebuffer(GLContext* const gl, GLenum target) const
         break;
 
     case LOCAL_GL_DRAW_FRAMEBUFFER_EXT:
-        if (!gl->HasExt_FramebufferBlit())
+        if (!gl->IsSupported(GLFeature::framebuffer_blit))
             NS_WARNING("DRAW_FRAMEBUFFER requested but unavailable.");
 
         gl->raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, drawFB);
         break;
 
     case LOCAL_GL_READ_FRAMEBUFFER_EXT:
-        if (!gl->HasExt_FramebufferBlit())
+        if (!gl->IsSupported(GLFeature::framebuffer_blit))
             NS_WARNING("READ_FRAMEBUFFER requested but unavailable.");
 
         gl->raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, readFB);
         break;
 
     default:
-        // In case we got a bad target.
-        MOZ_NOT_REACHED("Bad `target` for BindFramebuffer.");
-        gl->raw_fBindFramebuffer(target, 0);
-        break;
+        MOZ_CRASH("Bad `target` for BindFramebuffer.");
     }
 }
 
@@ -117,7 +139,7 @@ GLScreenBuffer::BindFB(GLuint fb)
     if (mInternalDrawFB == mInternalReadFB) {
         mGL->raw_fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mInternalDrawFB);
     } else {
-        MOZ_ASSERT(mGL->SupportsSplitFramebuffer());
+        MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
         mGL->raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, mInternalDrawFB);
         mGL->raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, mInternalReadFB);
     }
@@ -131,17 +153,13 @@ GLScreenBuffer::BindFB(GLuint fb)
 void
 GLScreenBuffer::BindDrawFB(GLuint fb)
 {
-    if (!mGL->SupportsSplitFramebuffer()) {
-        NS_WARNING("DRAW_FRAMEBUFFER requested, but unsupported.");
+    MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
 
-        mGL->raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, fb);
-    } else {
-        GLuint drawFB = DrawFB();
-        mUserDrawFB = fb;
-        mInternalDrawFB = (fb == 0) ? drawFB : fb;
+    GLuint drawFB = DrawFB();
+    mUserDrawFB = fb;
+    mInternalDrawFB = (fb == 0) ? drawFB : fb;
 
-        mGL->raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, mInternalDrawFB);
-    }
+    mGL->raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, mInternalDrawFB);
 
 #ifdef DEBUG
     mInInternalMode_DrawFB = false;
@@ -151,17 +169,13 @@ GLScreenBuffer::BindDrawFB(GLuint fb)
 void
 GLScreenBuffer::BindReadFB(GLuint fb)
 {
-    if (!mGL->SupportsSplitFramebuffer()) {
-        NS_WARNING("READ_FRAMEBUFFER requested, but unsupported.");
+    MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
 
-        mGL->raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, fb);
-    } else {
-        GLuint readFB = ReadFB();
-        mUserReadFB = fb;
-        mInternalReadFB = (fb == 0) ? readFB : fb;
+    GLuint readFB = ReadFB();
+    mUserReadFB = fb;
+    mInternalReadFB = (fb == 0) ? readFB : fb;
 
-        mGL->raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, mInternalReadFB);
-    }
+    mGL->raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, mInternalReadFB);
 
 #ifdef DEBUG
     mInInternalMode_ReadFB = false;
@@ -169,10 +183,25 @@ GLScreenBuffer::BindReadFB(GLuint fb)
 }
 
 void
+GLScreenBuffer::BindFB_Internal(GLuint fb)
+{
+    mInternalDrawFB = mUserDrawFB = fb;
+    mInternalReadFB = mUserReadFB = fb;
+    mGL->raw_fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, mInternalDrawFB);
+
+#ifdef DEBUG
+    mInInternalMode_DrawFB = true;
+    mInInternalMode_ReadFB = true;
+#endif
+}
+
+void
 GLScreenBuffer::BindDrawFB_Internal(GLuint fb)
 {
-  mInternalDrawFB = mUserDrawFB = fb;
-  mGL->raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, mInternalDrawFB);
+    MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
+
+    mInternalDrawFB = mUserDrawFB = fb;
+    mGL->raw_fBindFramebuffer(LOCAL_GL_DRAW_FRAMEBUFFER_EXT, mInternalDrawFB);
 
 #ifdef DEBUG
     mInInternalMode_DrawFB = true;
@@ -182,8 +211,10 @@ GLScreenBuffer::BindDrawFB_Internal(GLuint fb)
 void
 GLScreenBuffer::BindReadFB_Internal(GLuint fb)
 {
-  mInternalReadFB = mUserReadFB = fb;
-  mGL->raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, mInternalReadFB);
+    MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
+
+    mInternalReadFB = mUserReadFB = fb;
+    mGL->raw_fBindFramebuffer(LOCAL_GL_READ_FRAMEBUFFER_EXT, mInternalReadFB);
 
 #ifdef DEBUG
     mInInternalMode_ReadFB = true;
@@ -226,7 +257,7 @@ GLScreenBuffer::GetReadFB() const
     // We use raw_ here because this is debug code and we need to see what
     // the driver thinks.
     GLuint actual = 0;
-    if (mGL->SupportsSplitFramebuffer())
+    if (mGL->IsSupported(GLFeature::framebuffer_blit))
         mGL->raw_fGetIntegerv(LOCAL_GL_READ_FRAMEBUFFER_BINDING_EXT, (GLint*)&actual);
     else
         mGL->raw_fGetIntegerv(LOCAL_GL_FRAMEBUFFER_BINDING, (GLint*)&actual);
@@ -282,6 +313,30 @@ GLScreenBuffer::BeforeReadCall()
     AssureBlitted();
 }
 
+bool
+GLScreenBuffer::ReadPixels(GLint x, GLint y,
+                           GLsizei width, GLsizei height,
+                           GLenum format, GLenum type,
+                           GLvoid* pixels)
+{
+    // If the currently bound framebuffer is backed by a SharedSurface
+    // then it might want to override how we read pixel data from it.
+    // This is normally only the default framebuffer, but we can also
+    // have SharedSurfaces bound to other framebuffers when doing
+    // readback for BasicLayers.
+    SharedSurface* surf;
+    if (GetReadFB() == 0) {
+        surf = SharedSurf();
+    } else {
+        surf = mGL->mFBOMapping[GetReadFB()];
+    }
+    if (surf) {
+        return surf->ReadPixels(x, y, width, height, format, type, pixels);
+    }
+
+    return false;
+}
+
 void
 GLScreenBuffer::RequireBlit()
 {
@@ -300,9 +355,8 @@ GLScreenBuffer::AssureBlitted()
 
         MOZ_ASSERT(drawFB != 0);
         MOZ_ASSERT(drawFB != readFB);
-        MOZ_ASSERT(mGL->IsExtensionSupported(GLContext::EXT_framebuffer_blit) ||
-                   mGL->IsExtensionSupported(GLContext::ANGLE_framebuffer_blit));
-        MOZ_ASSERT(mDraw->Size() == mRead->Size());
+        MOZ_ASSERT(mGL->IsSupported(GLFeature::framebuffer_blit));
+        MOZ_ASSERT(mDraw->mSize == mRead->Size());
 
         ScopedBindFramebuffer boundFB(mGL);
         ScopedGLState scissor(mGL, LOCAL_GL_SCISSOR_TEST, false);
@@ -310,8 +364,8 @@ GLScreenBuffer::AssureBlitted()
         BindReadFB_Internal(drawFB);
         BindDrawFB_Internal(readFB);
 
-        const gfxIntSize&  srcSize = mDraw->Size();
-        const gfxIntSize& destSize = mRead->Size();
+        const gfx::IntSize&  srcSize = mDraw->mSize;
+        const gfx::IntSize& destSize = mRead->Size();
 
         mGL->raw_fBlitFramebuffer(0, 0,  srcSize.width,  srcSize.height,
                                   0, 0, destSize.width, destSize.height,
@@ -324,84 +378,107 @@ GLScreenBuffer::AssureBlitted()
 }
 
 void
-GLScreenBuffer::Morph(SurfaceFactory_GL* newFactory, SurfaceStreamType streamType)
+GLScreenBuffer::Morph(UniquePtr<SurfaceFactory> newFactory)
 {
-    MOZ_ASSERT(mStream);
-
-    if (newFactory) {
-        delete mFactory;
-        mFactory = newFactory;
-    }
-
-    if (mStream->mType == streamType)
-        return;
-
-    SurfaceStream* newStream = SurfaceStream::CreateForType(streamType, mGL, mStream);
-    MOZ_ASSERT(newStream);
-
-    delete mStream;
-    mStream = newStream;
+    MOZ_ASSERT(newFactory);
+    mFactory = Move(newFactory);
 }
 
-void
-GLScreenBuffer::Attach(SharedSurface* surface, const gfxIntSize& size)
+bool
+GLScreenBuffer::Attach(SharedSurface* surf, const gfx::IntSize& size)
 {
     ScopedBindFramebuffer autoFB(mGL);
 
-    SharedSurface_GL* surf = SharedSurface_GL::Cast(surface);
     if (mRead && SharedSurf())
         SharedSurf()->UnlockProd();
 
     surf->LockProd();
 
     if (mRead &&
-        surf->AttachType() == SharedSurf()->AttachType() &&
+        surf->mAttachType == SharedSurf()->mAttachType &&
         size == Size())
     {
         // Same size, same type, ready for reuse!
         mRead->Attach(surf);
     } else {
         // Else something changed, so resize:
-        DrawBuffer* draw = CreateDraw(size);  // Can be null.
-        ReadBuffer* read = CreateRead(surf);
-        MOZ_ASSERT(read); // Should never fail if SwapProd succeeded.
+        UniquePtr<DrawBuffer> draw;
+        bool drawOk = CreateDraw(size, &draw);  // Can be null.
 
-        delete mDraw;
-        delete mRead;
+        UniquePtr<ReadBuffer> read = CreateRead(surf);
+        bool readOk = !!read;
 
-        mDraw = draw;
-        mRead = read;
+        if (!drawOk || !readOk) {
+            surf->UnlockProd();
+
+            return false;
+        }
+
+        mDraw = Move(draw);
+        mRead = Move(read);
     }
 
     // Check that we're all set up.
     MOZ_ASSERT(SharedSurf() == surf);
 
-    if (!PreserveBuffer()) {
-        // DiscardFramebuffer here could help perf on some mobile platforms.
+    // Update the ReadBuffer mode.
+    if (mGL->IsSupported(gl::GLFeature::read_buffer)) {
+        BindFB(0);
+        mRead->SetReadBuffer(mUserReadBufferMode);
     }
-}
-
-bool
-GLScreenBuffer::Swap(const gfxIntSize& size)
-{
-    SharedSurface* nextSurf = mStream->SwapProducer(mFactory, size);
-    if (!nextSurf) {
-        SurfaceFactory_Basic basicFactory(mGL, mFactory->Caps());
-        nextSurf = mStream->SwapProducer(&basicFactory, size);
-        if (!nextSurf)
-          return false;
-
-        NS_WARNING("SwapProd failed for sophisticated Factory type, fell back to Basic.");
-    }
-    MOZ_ASSERT(nextSurf);
-
-    Attach(nextSurf, size);
 
     return true;
 }
 
 bool
-GLScreenBuffer::PublishFrame(const gfxIntSize& size)
+GLScreenBuffer::Swap(const gfx::IntSize& size)
+{
+    RefPtr<ShSurfHandle> newBack = mFactory->NewShSurfHandle(size);
+    if (!newBack)
+        return false;
+
+    if (!Attach(newBack->Surf(), size))
+        return false;
+    // Attach was successful.
+
+    mFront = mBack;
+    mBack = newBack;
+
+    if (mBack) {
+        mBack->Surf()->ProducerAcquire();
+    }
+
+    if (ShouldPreserveBuffer() &&
+        mFront &&
+        mBack)
+    {
+        auto src  = mFront->Surf();
+        auto dest = mBack->Surf();
+
+        //uint32_t srcPixel = ReadPixel(src);
+        //uint32_t destPixel = ReadPixel(dest);
+        //printf_stderr("Before: src: 0x%08x, dest: 0x%08x\n", srcPixel, destPixel);
+
+        SharedSurface::ProdCopy(src, dest, mFactory.get());
+
+        //srcPixel = ReadPixel(src);
+        //destPixel = ReadPixel(dest);
+        //printf_stderr("After: src: 0x%08x, dest: 0x%08x\n", srcPixel, destPixel);
+    }
+
+    // XXX: We would prefer to fence earlier on platforms that don't need
+    // the full ProducerAcquire/ProducerRelease semantics, so that the fence
+    // doesn't include the copy operation. Unfortunately, the current API
+    // doesn't expose a good way to do that.
+    if (mFront) {
+        mFront->Surf()->ProducerRelease();
+    }
+
+    return true;
+}
+
+bool
+GLScreenBuffer::PublishFrame(const gfx::IntSize& size)
 {
     AssureBlitted();
 
@@ -410,80 +487,95 @@ GLScreenBuffer::PublishFrame(const gfxIntSize& size)
 }
 
 bool
-GLScreenBuffer::Resize(const gfxIntSize& size)
+GLScreenBuffer::Resize(const gfx::IntSize& size)
 {
-    SharedSurface* surface = mStream->Resize(mFactory, size);
-    if (!surface)
+    RefPtr<ShSurfHandle> newBack = mFactory->NewShSurfHandle(size);
+    if (!newBack)
         return false;
 
-    Attach(surface, size);
+    if (!Attach(newBack->Surf(), size))
+        return false;
+
+    if (mBack)
+        mBack->Surf()->ProducerRelease();
+
+    mBack = newBack;
+
+    mBack->Surf()->ProducerAcquire();
+
     return true;
 }
 
-DrawBuffer*
-GLScreenBuffer::CreateDraw(const gfxIntSize& size)
+bool
+GLScreenBuffer::CreateDraw(const gfx::IntSize& size,
+                           UniquePtr<DrawBuffer>* out_buffer)
 {
-    GLContext* gl = mFactory->GL();
-    const GLFormats& formats = mFactory->Formats();
+    GLContext* gl = mFactory->mGL;
+    const GLFormats& formats = mFactory->mFormats;
     const SurfaceCaps& caps = mFactory->DrawCaps();
 
-    return DrawBuffer::Create(gl, caps, formats, size);
+    return DrawBuffer::Create(gl, caps, formats, size, out_buffer);
 }
 
-ReadBuffer*
-GLScreenBuffer::CreateRead(SharedSurface_GL* surf)
+UniquePtr<ReadBuffer>
+GLScreenBuffer::CreateRead(SharedSurface* surf)
 {
-    GLContext* gl = mFactory->GL();
-    const GLFormats& formats = mFactory->Formats();
+    GLContext* gl = mFactory->mGL;
+    const GLFormats& formats = mFactory->mFormats;
     const SurfaceCaps& caps = mFactory->ReadCaps();
 
     return ReadBuffer::Create(gl, caps, formats, surf);
 }
 
-
 void
-GLScreenBuffer::Readback(SharedSurface_GL* src, gfxImageSurface* dest)
+GLScreenBuffer::SetReadBuffer(GLenum mode)
 {
-    MOZ_ASSERT(src && dest);
-    MOZ_ASSERT(dest->GetSize() == src->Size());
-    MOZ_ASSERT(dest->Format() == (src->HasAlpha() ? gfxImageSurface::ImageFormatARGB32
-                                                  : gfxImageSurface::ImageFormatRGB24));
+    MOZ_ASSERT(mGL->IsSupported(gl::GLFeature::read_buffer));
+    MOZ_ASSERT(GetReadFB() == 0);
 
-    mGL->MakeCurrent();
-
-    bool needsSwap = src != SharedSurf();
-    if (needsSwap) {
-        SharedSurf()->UnlockProd();
-        src->LockProd();
-    }
-
-    ReadBuffer* buffer = CreateRead(src);
-    MOZ_ASSERT(buffer);
-
-    ScopedBindFramebuffer autoFB(mGL, buffer->FB());
-    mGL->ReadPixelsIntoImageSurface(dest);
-
-    delete buffer;
-
-    if (needsSwap) {
-        src->UnlockProd();
-        SharedSurf()->LockProd();
-    }
+    mUserReadBufferMode = mode;
+    mRead->SetReadBuffer(mUserReadBufferMode);
 }
 
+bool
+GLScreenBuffer::IsDrawFramebufferDefault() const
+{
+    if (!mDraw)
+        return IsReadFramebufferDefault();
+    return mDraw->mFB == 0;
+}
 
+bool
+GLScreenBuffer::IsReadFramebufferDefault() const
+{
+    return SharedSurf()->mAttachType == AttachmentType::Screen;
+}
 
-DrawBuffer*
+////////////////////////////////////////////////////////////////////////
+// DrawBuffer
+
+bool
 DrawBuffer::Create(GLContext* const gl,
                    const SurfaceCaps& caps,
                    const GLFormats& formats,
-                   const gfxIntSize& size)
+                   const gfx::IntSize& size,
+                   UniquePtr<DrawBuffer>* out_buffer)
 {
+    MOZ_ASSERT(out_buffer);
+    *out_buffer = nullptr;
+
     if (!caps.color) {
         MOZ_ASSERT(!caps.alpha && !caps.depth && !caps.stencil);
 
         // Nothing is needed.
-        return nullptr;
+        return true;
+    }
+
+    if (caps.antialias) {
+        if (formats.samples == 0)
+            return false; // Can't create it.
+
+        MOZ_ASSERT(formats.samples <= gl->MaxSamples());
     }
 
     GLuint colorMSRB = 0;
@@ -511,15 +603,29 @@ DrawBuffer::Create(GLContext* const gl,
             pStencilRB = nullptr;
     }
 
-    gl->CreateRenderbuffersForOffscreen(formats, size, caps.antialias,
-                                        pColorMSRB, pDepthRB, pStencilRB);
+    GLContext::LocalErrorScope localError(*gl);
+
+    CreateRenderbuffersForOffscreen(gl, formats, size, caps.antialias,
+                                    pColorMSRB, pDepthRB, pStencilRB);
 
     GLuint fb = 0;
     gl->fGenFramebuffers(1, &fb);
     gl->AttachBuffersToFB(0, colorMSRB, depthRB, stencilRB, fb);
-    MOZ_ASSERT(gl->IsFramebufferComplete(fb));
 
-    return new DrawBuffer(gl, size, fb, colorMSRB, depthRB, stencilRB);
+    GLsizei samples = formats.samples;
+    if (!samples)
+        samples = 1;
+
+    UniquePtr<DrawBuffer> ret( new DrawBuffer(gl, size, samples, fb, colorMSRB,
+                                              depthRB, stencilRB) );
+
+    GLenum err = localError.GetError();
+    MOZ_ASSERT_IF(err != LOCAL_GL_NO_ERROR, err == LOCAL_GL_OUT_OF_MEMORY);
+    if (err || !gl->IsFramebufferComplete(fb))
+        return false;
+
+    *out_buffer = Move(ret);
+    return true;
 }
 
 DrawBuffer::~DrawBuffer()
@@ -537,25 +643,21 @@ DrawBuffer::~DrawBuffer()
     mGL->fDeleteRenderbuffers(3, rbs);
 }
 
+////////////////////////////////////////////////////////////////////////
+// ReadBuffer
 
-
-
-
-
-ReadBuffer*
+UniquePtr<ReadBuffer>
 ReadBuffer::Create(GLContext* gl,
                    const SurfaceCaps& caps,
                    const GLFormats& formats,
-                   SharedSurface_GL* surf)
+                   SharedSurface* surf)
 {
     MOZ_ASSERT(surf);
 
-    if (surf->AttachType() == AttachmentType::Screen) {
+    if (surf->mAttachType == AttachmentType::Screen) {
         // Don't need anything. Our read buffer will be the 'screen'.
-
-        return new ReadBuffer(gl,
-                              0, 0, 0,
-                              surf);
+        return UniquePtr<ReadBuffer>( new ReadBuffer(gl, 0, 0, 0,
+                                                     surf) );
     }
 
     GLuint depthRB = 0;
@@ -564,34 +666,43 @@ ReadBuffer::Create(GLContext* gl,
     GLuint* pDepthRB   = caps.depth   ? &depthRB   : nullptr;
     GLuint* pStencilRB = caps.stencil ? &stencilRB : nullptr;
 
-    gl->CreateRenderbuffersForOffscreen(formats, surf->Size(), caps.antialias,
-                                        nullptr, pDepthRB, pStencilRB);
+    GLContext::LocalErrorScope localError(*gl);
+
+    CreateRenderbuffersForOffscreen(gl, formats, surf->mSize, caps.antialias,
+                                    nullptr, pDepthRB, pStencilRB);
 
     GLuint colorTex = 0;
     GLuint colorRB = 0;
+    GLenum target = 0;
 
-    switch (surf->AttachType()) {
+    switch (surf->mAttachType) {
     case AttachmentType::GLTexture:
-        colorTex = surf->Texture();
+        colorTex = surf->ProdTexture();
+        target = surf->ProdTextureTarget();
         break;
     case AttachmentType::GLRenderbuffer:
-        colorRB = surf->Renderbuffer();
+        colorRB = surf->ProdRenderbuffer();
         break;
     default:
-        MOZ_NOT_REACHED("Unknown attachment type?");
-        return nullptr;
+        MOZ_CRASH("Unknown attachment type?");
     }
     MOZ_ASSERT(colorTex || colorRB);
 
     GLuint fb = 0;
     gl->fGenFramebuffers(1, &fb);
-    gl->AttachBuffersToFB(colorTex, colorRB, depthRB, stencilRB, fb);
+    gl->AttachBuffersToFB(colorTex, colorRB, depthRB, stencilRB, fb, target);
+    gl->mFBOMapping[fb] = surf;
 
-    MOZ_ASSERT(gl->IsFramebufferComplete(fb));
+    UniquePtr<ReadBuffer> ret( new ReadBuffer(gl, fb, depthRB,
+                                              stencilRB, surf) );
 
-    return new ReadBuffer(gl,
-                          fb, depthRB, stencilRB,
-                          surf);
+    GLenum err = localError.GetError();
+    MOZ_ASSERT_IF(err != LOCAL_GL_NO_ERROR, err == LOCAL_GL_OUT_OF_MEMORY);
+    if (err || !gl->IsFramebufferComplete(fb)) {
+        ret = nullptr;
+    }
+
+    return Move(ret);
 }
 
 ReadBuffer::~ReadBuffer()
@@ -606,43 +717,72 @@ ReadBuffer::~ReadBuffer()
 
     mGL->fDeleteFramebuffers(1, &fb);
     mGL->fDeleteRenderbuffers(2, rbs);
+    mGL->mFBOMapping.erase(mFB);
 }
 
 void
-ReadBuffer::Attach(SharedSurface_GL* surf)
+ReadBuffer::Attach(SharedSurface* surf)
 {
     MOZ_ASSERT(surf && mSurf);
-    MOZ_ASSERT(surf->AttachType() == mSurf->AttachType());
-    MOZ_ASSERT(surf->Size() == mSurf->Size());
+    MOZ_ASSERT(surf->mAttachType == mSurf->mAttachType);
+    MOZ_ASSERT(surf->mSize == mSurf->mSize);
 
     // Nothing else is needed for AttachType Screen.
-    if (surf->AttachType() != AttachmentType::Screen) {
+    if (surf->mAttachType != AttachmentType::Screen) {
         GLuint colorTex = 0;
         GLuint colorRB = 0;
+        GLenum target = 0;
 
-        switch (surf->AttachType()) {
+        switch (surf->mAttachType) {
         case AttachmentType::GLTexture:
-            colorTex = surf->Texture();
+            colorTex = surf->ProdTexture();
+            target = surf->ProdTextureTarget();
             break;
         case AttachmentType::GLRenderbuffer:
-            colorRB = surf->Renderbuffer();
+            colorRB = surf->ProdRenderbuffer();
             break;
         default:
-            MOZ_NOT_REACHED("Unknown attachment type?");
-            return;
+            MOZ_CRASH("Unknown attachment type?");
         }
 
-        mGL->AttachBuffersToFB(colorTex, colorRB, 0, 0, mFB);
+        mGL->AttachBuffersToFB(colorTex, colorRB, 0, 0, mFB, target);
+        mGL->mFBOMapping[mFB] = surf;
         MOZ_ASSERT(mGL->IsFramebufferComplete(mFB));
     }
 
     mSurf = surf;
 }
 
-const gfxIntSize&
+const gfx::IntSize&
 ReadBuffer::Size() const
 {
-    return mSurf->Size();
+    return mSurf->mSize;
+}
+
+void
+ReadBuffer::SetReadBuffer(GLenum userMode) const
+{
+    if (!mGL->IsSupported(GLFeature::read_buffer))
+        return;
+
+    GLenum internalMode;
+
+    switch (userMode) {
+    case LOCAL_GL_BACK:
+        internalMode = (mFB == 0) ? LOCAL_GL_BACK
+                                  : LOCAL_GL_COLOR_ATTACHMENT0;
+        break;
+
+    case LOCAL_GL_NONE:
+        internalMode = LOCAL_GL_NONE;
+        break;
+
+    default:
+        MOZ_CRASH("Bad value.");
+    }
+
+    mGL->MakeCurrent();
+    mGL->fReadBuffer(internalMode);
 }
 
 } /* namespace gl */

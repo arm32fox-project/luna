@@ -18,12 +18,13 @@
 class PipUIContext : public nsIInterfaceRequestor
 {
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSIINTERFACEREQUESTOR
 
   PipUIContext();
-  virtual ~PipUIContext();
 
+protected:
+  virtual ~PipUIContext();
 };
 
 //

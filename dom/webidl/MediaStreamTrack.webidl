@@ -10,6 +10,10 @@
  * liability, trademark and document use rules apply.
  */
 
+dictionary MediaTrackConstraints : MediaTrackConstraintSet {
+    sequence<MediaTrackConstraintSet> advanced;
+};
+
 interface MediaStreamTrack {
     readonly    attribute DOMString             kind;
     readonly    attribute DOMString             id;
@@ -29,5 +33,5 @@ interface MediaStreamTrack {
 //    void                   prependConstraint (DOMString constraintName, any constraintValue);
 //    void                   appendConstraint (DOMString constraintName, any constraintValue);
 //                attribute EventHandler          onoverconstrained;
-//    void                   stop ();
+    void                   stop ();
 };

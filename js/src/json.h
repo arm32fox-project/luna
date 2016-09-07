@@ -7,24 +7,29 @@
 #ifndef json_h
 #define json_h
 
-#include "js/CharacterEncoding.h"
+#include "mozilla/Range.h"
+
+#include "NamespaceImports.h"
+
 #include "js/RootingAPI.h"
-#include "js/Value.h"
-#include "js/Vector.h"
-#include "vm/StringBuffer.h"
 
-extern JSObject *
-js_InitJSONClass(JSContext *cx, js::HandleObject obj);
+namespace js {
+class StringBuffer;
+}
 
-extern JSBool
-js_Stringify(JSContext *cx, js::MutableHandleValue vp, JSObject *replacer,
-             js::Value space, js::StringBuffer &sb);
+extern JSObject*
+js_InitJSONClass(JSContext* cx, js::HandleObject obj);
+
+extern bool
+js_Stringify(JSContext* cx, js::MutableHandleValue vp, JSObject* replacer,
+             js::Value space, js::StringBuffer& sb);
 
 namespace js {
 
+template <typename CharT>
 extern bool
-ParseJSONWithReviver(JSContext *cx, JS::StableCharPtr chars, size_t length, HandleValue reviver,
-                     MutableHandleValue vp);
+ParseJSONWithReviver(JSContext* cx, const mozilla::Range<const CharT> chars,
+                     HandleValue reviver, MutableHandleValue vp);
 
 } // namespace js
 

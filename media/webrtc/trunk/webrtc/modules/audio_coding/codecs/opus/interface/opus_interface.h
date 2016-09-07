@@ -11,7 +11,7 @@
 #ifndef WEBRTC_MODULES_AUDIO_CODING_CODECS_OPUS_INTERFACE_OPUS_INTERFACE_H_
 #define WEBRTC_MODULES_AUDIO_CODING_CODECS_OPUS_INTERFACE_OPUS_INTERFACE_H_
 
-#include "typedefs.h"
+#include "webrtc/typedefs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,7 +33,7 @@ int16_t WebRtcOpus_EncoderFree(OpusEncInst* inst);
  * Input:
  *      - inst                  : Encoder context
  *      - audio_in              : Input speech data buffer
- *      - samples               : Samples in audio_in
+ *      - samples               : Samples per channel in audio_in
  *      - length_encoded_buffer : Output buffer size
  *
  * Output:
@@ -42,8 +42,11 @@ int16_t WebRtcOpus_EncoderFree(OpusEncInst* inst);
  * Return value                 : >0 - Length (in bytes) of coded data
  *                                -1 - Error
  */
-int16_t WebRtcOpus_Encode(OpusEncInst* inst, int16_t* audio_in, int16_t samples,
-                          int16_t length_encoded_buffer, uint8_t* encoded);
+int16_t WebRtcOpus_Encode(OpusEncInst* inst,
+                          const int16_t* audio_in,
+                          int16_t samples,
+                          int16_t length_encoded_buffer,
+                          uint8_t* encoded);
 
 /****************************************************************************
  * WebRtcOpus_SetBitRate(...)
@@ -58,6 +61,89 @@ int16_t WebRtcOpus_Encode(OpusEncInst* inst, int16_t* audio_in, int16_t samples,
  *                             -1 - Error
  */
 int16_t WebRtcOpus_SetBitRate(OpusEncInst* inst, int32_t rate);
+
+/****************************************************************************
+ * WebRtcOpus_SetPacketLossRate(...)
+ *
+ * This function configures the encoder's expected packet loss percentage.
+ *
+ * Input:
+ *      - inst               : Encoder context
+ *      - loss_rate          : loss percentage in the range 0-100, inclusive.
+ * Return value              :  0 - Success
+ *                             -1 - Error
+ */
+int16_t WebRtcOpus_SetPacketLossRate(OpusEncInst* inst, int32_t loss_rate);
+
+/****************************************************************************
+ * WebRtcOpus_SetMaxPlaybackRate(...)
+ *
+ * Configures the maximum playback rate for encoding. Due to hardware
+ * limitations, the receiver may render audio up to a playback rate. Opus
+ * encoder can use this information to optimize for network usage and encoding
+ * complexity. This will affect the audio bandwidth in the coded audio. However,
+ * the input/output sample rate is not affected.
+ *
+ * Input:
+ *      - inst               : Encoder context
+ *      - frequency_hz       : Maximum playback rate in Hz.
+ *                             This parameter can take any value. The relation
+ *                             between the value and the Opus internal mode is
+ *                             as following:
+ *                             frequency_hz <= 8000           narrow band
+ *                             8000 < frequency_hz <= 12000   medium band
+ *                             12000 < frequency_hz <= 16000  wide band
+ *                             16000 < frequency_hz <= 24000  super wide band
+ *                             frequency_hz > 24000           full band
+ * Return value              :  0 - Success
+ *                             -1 - Error
+ */
+int16_t WebRtcOpus_SetMaxPlaybackRate(OpusEncInst* inst, int32_t frequency_hz);
+
+/* TODO(minyue): Check whether an API to check the FEC and the packet loss rate
+ * is needed. It might not be very useful since there are not many use cases and
+ * the caller can always maintain the states. */
+
+/****************************************************************************
+ * WebRtcOpus_EnableFec()
+ *
+ * This function enables FEC for encoding.
+ *
+ * Input:
+ *      - inst               : Encoder context
+ *
+ * Return value              :  0 - Success
+ *                             -1 - Error
+ */
+int16_t WebRtcOpus_EnableFec(OpusEncInst* inst);
+
+/****************************************************************************
+ * WebRtcOpus_DisableFec()
+ *
+ * This function disables FEC for encoding.
+ *
+ * Input:
+ *      - inst               : Encoder context
+ *
+ * Return value              :  0 - Success
+ *                             -1 - Error
+ */
+int16_t WebRtcOpus_DisableFec(OpusEncInst* inst);
+
+/*
+ * WebRtcOpus_SetComplexity(...)
+ *
+ * This function adjusts the computational complexity. The effect is the same as
+ * calling the complexity setting of Opus as an Opus encoder related CTL.
+ *
+ * Input:
+ *      - inst               : Encoder context
+ *      - complexity         : New target complexity (0-10, inclusive)
+ *
+ * Return value              :  0 - Success
+ *                             -1 - Error
+ */
+int16_t WebRtcOpus_SetComplexity(OpusEncInst* inst, int32_t complexity);
 
 int16_t WebRtcOpus_DecoderCreate(OpusDecInst** inst, int channels);
 int16_t WebRtcOpus_DecoderFree(OpusDecInst* inst);
@@ -80,6 +166,7 @@ int WebRtcOpus_DecoderChannels(OpusDecInst* inst);
  * Return value              :  0 - Success
  *                             -1 - Error
  */
+int16_t WebRtcOpus_DecoderInitNew(OpusDecInst* inst);
 int16_t WebRtcOpus_DecoderInit(OpusDecInst* inst);
 int16_t WebRtcOpus_DecoderInitSlave(OpusDecInst* inst);
 
@@ -100,19 +187,26 @@ int16_t WebRtcOpus_DecoderInitSlave(OpusDecInst* inst);
  *                             always return 1 since we're not using Opus's
  *                             built-in DTX/CNG scheme)
  *
- * Return value              : >0 - Samples in decoded vector
+ * Return value              : >0 - Samples per channel in decoded vector
  *                             -1 - Error
  */
-int16_t WebRtcOpus_Decode(OpusDecInst* inst, int16_t* encoded,
+int16_t WebRtcOpus_DecodeNew(OpusDecInst* inst, const uint8_t* encoded,
+                             int16_t encoded_bytes, int16_t* decoded,
+                             int16_t* audio_type);
+int16_t WebRtcOpus_Decode(OpusDecInst* inst, const uint8_t* encoded,
                           int16_t encoded_bytes, int16_t* decoded,
                           int16_t* audio_type);
-int16_t WebRtcOpus_DecodeSlave(OpusDecInst* inst, int16_t* encoded,
+int16_t WebRtcOpus_DecodeSlave(OpusDecInst* inst, const uint8_t* encoded,
                                int16_t encoded_bytes, int16_t* decoded,
                                int16_t* audio_type);
+
 /****************************************************************************
  * WebRtcOpus_DecodePlc(...)
+ * TODO(tlegrand): Remove master and slave functions when NetEq4 is in place.
+ * WebRtcOpus_DecodePlcMaster(...)
+ * WebRtcOpus_DecodePlcSlave(...)
  *
- * This function precesses PLC for opus frame(s).
+ * This function processes PLC for opus frame(s).
  * Input:
  *        - inst                  : Decoder context
  *        - number_of_lost_frames : Number of PLC frames to produce
@@ -125,6 +219,32 @@ int16_t WebRtcOpus_DecodeSlave(OpusDecInst* inst, int16_t* encoded,
  */
 int16_t WebRtcOpus_DecodePlc(OpusDecInst* inst, int16_t* decoded,
                              int16_t number_of_lost_frames);
+int16_t WebRtcOpus_DecodePlcMaster(OpusDecInst* inst, int16_t* decoded,
+                                   int16_t number_of_lost_frames);
+int16_t WebRtcOpus_DecodePlcSlave(OpusDecInst* inst, int16_t* decoded,
+                                  int16_t number_of_lost_frames);
+
+/****************************************************************************
+ * WebRtcOpus_DecodeFec(...)
+ *
+ * This function decodes the FEC data from an Opus packet into one or more audio
+ * frames at the ACM interface's sampling rate (32 kHz).
+ *
+ * Input:
+ *      - inst               : Decoder context
+ *      - encoded            : Encoded data
+ *      - encoded_bytes      : Bytes in encoded vector
+ *
+ * Output:
+ *      - decoded            : The decoded vector (previous frame)
+ *
+ * Return value              : >0 - Samples per channel in decoded vector
+ *                              0 - No FEC data in the packet
+ *                             -1 - Error
+ */
+int16_t WebRtcOpus_DecodeFec(OpusDecInst* inst, const uint8_t* encoded,
+                             int16_t encoded_bytes, int16_t* decoded,
+                             int16_t* audio_type);
 
 /****************************************************************************
  * WebRtcOpus_DurationEst(...)
@@ -140,6 +260,40 @@ int16_t WebRtcOpus_DecodePlc(OpusDecInst* inst, int16_t* decoded,
 int WebRtcOpus_DurationEst(OpusDecInst* inst,
                            const uint8_t* payload,
                            int payload_length_bytes);
+
+/* TODO(minyue): Check whether it is needed to add a decoder context to the
+ * arguments, like WebRtcOpus_DurationEst(...). In fact, the packet itself tells
+ * the duration. The decoder context in WebRtcOpus_DurationEst(...) is not used.
+ * So it may be advisable to remove it from WebRtcOpus_DurationEst(...). */
+
+/****************************************************************************
+ * WebRtcOpus_FecDurationEst(...)
+ *
+ * This function calculates the duration of the FEC data within an opus packet.
+ * Input:
+ *        - payload              : Encoded data pointer
+ *        - payload_length_bytes : Bytes of encoded data
+ *
+ * Return value                  : >0 - The duration of the FEC data in the
+ *                                 packet in samples.
+ *                                  0 - No FEC data in the packet.
+ */
+int WebRtcOpus_FecDurationEst(const uint8_t* payload,
+                              int payload_length_bytes);
+
+/****************************************************************************
+ * WebRtcOpus_PacketHasFec(...)
+ *
+ * This function detects if an opus packet has FEC.
+ * Input:
+ *        - payload              : Encoded data pointer
+ *        - payload_length_bytes : Bytes of encoded data
+ *
+ * Return value                  : 0 - the packet does NOT contain FEC.
+ *                                 1 - the packet contains FEC.
+ */
+int WebRtcOpus_PacketHasFec(const uint8_t* payload,
+                            int payload_length_bytes);
 
 #ifdef __cplusplus
 }  // extern "C"

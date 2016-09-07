@@ -10,6 +10,8 @@
 interface HTMLSelectElement : HTMLElement {
   [SetterThrows, Pure]
            attribute boolean autofocus;
+  [Pref="dom.forms.autocomplete.experimental", SetterThrows, Pure]
+           attribute DOMString autocomplete;
   [SetterThrows, Pure]
            attribute boolean disabled;
   [Pure]
@@ -38,7 +40,7 @@ interface HTMLSelectElement : HTMLElement {
   [Throws]
   setter creator void (unsigned long index, HTMLOptionElement? option);
 
-// NYI:  readonly attribute HTMLCollection selectedOptions;
+  readonly attribute HTMLCollection selectedOptions;
   [SetterThrows, Pure]
            attribute long selectedIndex;
   [Pure]

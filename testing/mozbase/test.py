@@ -17,7 +17,9 @@ import os
 import sys
 import unittest
 
+from mozlog import structured
 from moztest.results import TestResultCollection
+from moztest.adapters.unit import StructuredTestRunner
 
 here = os.path.dirname(os.path.abspath(__file__))
 
@@ -43,10 +45,19 @@ def main(args=sys.argv[1:]):
     # parse command line options
     usage = '%prog [options] manifest.ini <manifest.ini> <...>'
     parser = optparse.OptionParser(usage=usage, description=__doc__)
+    parser.add_option('-b', "--binary",
+                  dest="binary", help="Binary path",
+                  metavar=None, default=None)
     parser.add_option('--list', dest='list_tests',
                       action='store_true', default=False,
                       help="list paths of tests to be run")
+    structured.commandline.add_logging_group(parser)
     options, args = parser.parse_args(args)
+    logger = structured.commandline.setup_logging("mozbase",
+                                                  options,
+                                                  {
+                                                      "tbpl": sys.stdout
+                                                  })
 
     # read the manifest
     if args:
@@ -61,9 +72,15 @@ def main(args=sys.argv[1:]):
     assert not missing, 'manifest(s) not found: %s' % ', '.join(missing)
     manifest = manifestparser.TestManifest(manifests=manifests)
 
+    if options.binary:
+        # A specified binary should override the environment variable
+        os.environ['BROWSER_PATH'] = options.binary
+
     # gather the tests
     tests = manifest.active_tests(disabled=False, **mozinfo.info)
     tests = [test['path'] for test in tests]
+    logger.suite_start(tests)
+
     if options.list_tests:
         # print test paths
         print '\n'.join(tests)
@@ -76,9 +93,10 @@ def main(args=sys.argv[1:]):
 
     # run the tests
     suite = unittest.TestSuite(unittestlist)
-    runner = unittest.TextTestRunner(verbosity=2) # default=1 does not show success of unittests
+    runner = StructuredTestRunner(logger=logger)
     unittest_results = runner.run(suite)
     results = TestResultCollection.from_unittest_results(None, unittest_results)
+    logger.suite_end()
 
     # exit according to results
     sys.exit(1 if results.num_failures else 0)

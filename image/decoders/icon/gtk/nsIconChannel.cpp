@@ -7,6 +7,7 @@
 #include <unistd.h>
 
 #include "mozilla/DebugOnly.h"
+#include "mozilla/Endian.h"
 #include <algorithm>
 
 #ifdef MOZ_ENABLE_GIO
@@ -21,18 +22,19 @@
 #include "nsIStringBundle.h"
 
 #include "nsNetUtil.h"
+#include "nsNullPrincipal.h"
 #include "nsIURL.h"
 #include "prlink.h"
 
 #include "nsIconChannel.h"
 
-NS_IMPL_ISUPPORTS2(nsIconChannel,
-                   nsIRequest,
-                   nsIChannel)
+NS_IMPL_ISUPPORTS(nsIconChannel,
+                  nsIRequest,
+                  nsIChannel)
 
 static nsresult
-moz_gdk_pixbuf_to_channel(GdkPixbuf* aPixbuf, nsIURI *aURI,
-                          nsIChannel **aChannel)
+moz_gdk_pixbuf_to_channel(GdkPixbuf* aPixbuf, nsIURI* aURI,
+                          nsIChannel** aChannel)
 {
   int width = gdk_pixbuf_get_width(aPixbuf);
   int height = gdk_pixbuf_get_height(aPixbuf);
@@ -45,18 +47,18 @@ moz_gdk_pixbuf_to_channel(GdkPixbuf* aPixbuf, nsIURI *aURI,
 
   const int n_channels = 4;
   gsize buf_size = 2 + n_channels * height * width;
-  uint8_t * const buf = (uint8_t*)NS_Alloc(buf_size);
+  uint8_t* const buf = (uint8_t*)NS_Alloc(buf_size);
   NS_ENSURE_TRUE(buf, NS_ERROR_OUT_OF_MEMORY);
-  uint8_t *out = buf;
+  uint8_t* out = buf;
 
   *(out++) = width;
   *(out++) = height;
 
-  const guchar * const pixels = gdk_pixbuf_get_pixels(aPixbuf);
+  const guchar* const pixels = gdk_pixbuf_get_pixels(aPixbuf);
   int rowextra = gdk_pixbuf_get_rowstride(aPixbuf) - width * n_channels;
 
   // encode the RGB data and the A data
-  const guchar * in = pixels;
+  const guchar* in = pixels;
   for (int y = 0; y < height; ++y, in += rowextra) {
     for (int x = 0; x < width; ++x) {
       uint8_t r = *(in++);
@@ -64,7 +66,7 @@ moz_gdk_pixbuf_to_channel(GdkPixbuf* aPixbuf, nsIURI *aURI,
       uint8_t b = *(in++);
       uint8_t a = *(in++);
 #define DO_PREMULTIPLY(c_) uint8_t(uint16_t(c_) * uint16_t(a) / uint16_t(255))
-#ifdef IS_LITTLE_ENDIAN
+#if MOZ_LITTLE_ENDIAN
       *(out++) = DO_PREMULTIPLY(b);
       *(out++) = DO_PREMULTIPLY(g);
       *(out++) = DO_PREMULTIPLY(r);
@@ -84,18 +86,36 @@ moz_gdk_pixbuf_to_channel(GdkPixbuf* aPixbuf, nsIURI *aURI,
   nsresult rv;
   nsCOMPtr<nsIStringInputStream> stream =
     do_CreateInstance("@mozilla.org/io/string-input-stream;1", &rv);
-  NS_ENSURE_SUCCESS(rv, rv);
 
+  // Prevent the leaking of buf
+  if (NS_WARN_IF(NS_FAILED(rv))) {
+    NS_Free(buf);
+    return rv;
+  }
+
+  // stream takes ownership of buf and will free it on destruction.
+  // This function cannot fail.
   rv = stream->AdoptData((char*)buf, buf_size);
+
+  // If this no longer holds then re-examine buf's lifetime.
+  MOZ_ASSERT(NS_SUCCEEDED(rv));
   NS_ENSURE_SUCCESS(rv, rv);
 
-  rv = NS_NewInputStreamChannel(aChannel, aURI, stream,
-                                NS_LITERAL_CSTRING(IMAGE_ICON_MS));
-  return rv;
+  nsCOMPtr<nsIPrincipal> nullPrincipal =
+    do_CreateInstance("@mozilla.org/nullprincipal;1", &rv);
+  NS_ENSURE_SUCCESS(rv, rv);
+
+  return NS_NewInputStreamChannel(aChannel,
+                                  aURI,
+                                  stream,
+                                  nullPrincipal,
+                                  nsILoadInfo::SEC_NORMAL,
+                                  nsIContentPolicy::TYPE_OTHER,
+                                  NS_LITERAL_CSTRING(IMAGE_ICON_MS));
 }
 
-static GtkWidget *gProtoWindow = nullptr;
-static GtkWidget *gStockImageWidget = nullptr;
+static GtkWidget* gProtoWindow = nullptr;
+static GtkWidget* gStockImageWidget = nullptr;
 
 static void
 ensure_stock_image_widget()
@@ -115,32 +135,38 @@ ensure_stock_image_widget()
 }
 
 static GtkIconSize
-moz_gtk_icon_size(const char *name)
+moz_gtk_icon_size(const char* name)
 {
-  if (strcmp(name, "button") == 0)
+  if (strcmp(name, "button") == 0) {
     return GTK_ICON_SIZE_BUTTON;
+  }
 
-  if (strcmp(name, "menu") == 0)
+  if (strcmp(name, "menu") == 0) {
     return GTK_ICON_SIZE_MENU;
+  }
 
-  if (strcmp(name, "toolbar") == 0)
+  if (strcmp(name, "toolbar") == 0) {
     return GTK_ICON_SIZE_LARGE_TOOLBAR;
+  }
 
-  if (strcmp(name, "toolbarsmall") == 0)
+  if (strcmp(name, "toolbarsmall") == 0) {
     return GTK_ICON_SIZE_SMALL_TOOLBAR;
+  }
 
-  if (strcmp(name, "dnd") == 0)
+  if (strcmp(name, "dnd") == 0) {
     return GTK_ICON_SIZE_DND;
+  }
 
-  if (strcmp(name, "dialog") == 0)
+  if (strcmp(name, "dialog") == 0) {
     return GTK_ICON_SIZE_DIALOG;
+  }
 
   return GTK_ICON_SIZE_MENU;
 }
 
 #ifdef MOZ_ENABLE_GIO
 static int32_t
-GetIconSize(nsIMozIconURI *aIconURI)
+GetIconSize(nsIMozIconURI* aIconURI)
 {
   nsAutoCString iconSizeString;
 
@@ -149,37 +175,38 @@ GetIconSize(nsIMozIconURI *aIconURI)
     uint32_t size;
     mozilla::DebugOnly<nsresult> rv = aIconURI->GetImageSize(&size);
     NS_ASSERTION(NS_SUCCEEDED(rv), "GetImageSize failed");
-    return size; 
+    return size;
   } else {
     int size;
 
     GtkIconSize icon_size = moz_gtk_icon_size(iconSizeString.get());
-    gtk_icon_size_lookup(icon_size, &size, NULL);
+    gtk_icon_size_lookup(icon_size, &size, nullptr);
     return size;
   }
 }
 
 /* Scale icon buffer to preferred size */
 static nsresult
-ScaleIconBuf(GdkPixbuf **aBuf, int32_t iconSize)
+ScaleIconBuf(GdkPixbuf** aBuf, int32_t iconSize)
 {
   // Scale buffer only if width or height differ from preferred size
   if (gdk_pixbuf_get_width(*aBuf)  != iconSize &&
       gdk_pixbuf_get_height(*aBuf) != iconSize) {
-    GdkPixbuf *scaled = gdk_pixbuf_scale_simple(*aBuf, iconSize, iconSize,
+    GdkPixbuf* scaled = gdk_pixbuf_scale_simple(*aBuf, iconSize, iconSize,
                                                 GDK_INTERP_BILINEAR);
     // replace original buffer by scaled
     g_object_unref(*aBuf);
     *aBuf = scaled;
-    if (!scaled)
+    if (!scaled) {
       return NS_ERROR_OUT_OF_MEMORY;
+    }
   }
   return NS_OK;
 }
 nsresult
-nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
+nsIconChannel::InitWithGIO(nsIMozIconURI* aIconURI)
 {
-  GIcon *icon = NULL;
+  GIcon *icon = nullptr;
   nsCOMPtr<nsIURL> fileURI;
 
   // Read icon content
@@ -191,21 +218,23 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
     nsAutoCString spec;
     fileURI->GetAsciiSpec(spec);
     if (NS_SUCCEEDED(fileURI->SchemeIs("file", &isFile)) && isFile) {
-      GFile *file = g_file_new_for_uri(spec.get());
-      GFileInfo *fileInfo = g_file_query_info(file,
+      GFile* file = g_file_new_for_uri(spec.get());
+      GFileInfo* fileInfo = g_file_query_info(file,
                                               G_FILE_ATTRIBUTE_STANDARD_ICON,
-                                              G_FILE_QUERY_INFO_NONE, NULL, NULL);
+                                              G_FILE_QUERY_INFO_NONE,
+                                              nullptr, nullptr);
       g_object_unref(file);
       if (fileInfo) {
         // icon from g_content_type_get_icon doesn't need unref
         icon = g_file_info_get_icon(fileInfo);
-        if (icon)
+        if (icon) {
           g_object_ref(icon);
+        }
         g_object_unref(fileInfo);
       }
     }
   }
-  
+
   // Try to get icon by using MIME type
   if (!icon) {
     nsAutoCString type;
@@ -219,7 +248,7 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
         ms->GetTypeFromExtension(fileExt, type);
       }
     }
-    char *ctype = NULL; // character representation of content type
+    char* ctype = nullptr; // character representation of content type
     if (!type.IsEmpty()) {
       ctype = g_content_type_from_mime_type(type.get());
     }
@@ -230,8 +259,8 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
   }
 
   // Get default icon theme
-  GtkIconTheme *iconTheme = gtk_icon_theme_get_default();  
-  GtkIconInfo *iconInfo = NULL;
+  GtkIconTheme* iconTheme = gtk_icon_theme_get_default();
+  GtkIconInfo* iconInfo = nullptr;
   // Get icon size
   int32_t iconSize = GetIconSize(aIconURI);
 
@@ -242,7 +271,7 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
                                               (GtkIconLookupFlags)0);
     g_object_unref(icon);
   }
-  
+
   if (!iconInfo) {
     // Mozilla's mimetype lookup failed. Try the "unknown" icon.
     iconInfo = gtk_icon_theme_lookup_icon(iconTheme,
@@ -252,14 +281,14 @@ nsIconChannel::InitWithGIO(nsIMozIconURI *aIconURI)
       return NS_ERROR_NOT_AVAILABLE;
     }
   }
-  
+
   // Create a GdkPixbuf buffer containing icon and scale it
-  GdkPixbuf* buf = gtk_icon_info_load_icon(iconInfo, NULL);
+  GdkPixbuf* buf = gtk_icon_info_load_icon(iconInfo, nullptr);
   gtk_icon_info_free(iconInfo);
   if (!buf) {
     return NS_ERROR_UNEXPECTED;
   }
-  
+
   nsresult rv = ScaleIconBuf(&buf, iconSize);
   NS_ENSURE_SUCCESS(rv, rv);
 
@@ -319,7 +348,7 @@ nsIconChannel::Init(nsIURI* aURI)
     // >= 2.22 will use a bidi lookup convention that most icon themes do not
     // yet follow.  Therefore, we first check to see if the theme supports the
     // old icon name as this will have bidi support (if found).
-    GtkIconTheme *icon_theme = gtk_icon_theme_get_default();
+    GtkIconTheme* icon_theme = gtk_icon_theme_get_default();
     // Micking what gtk_icon_set_render_icon does with sizes, though it's not
     // critical as icons will be scaled to suit size.  It just means we follow
     // the same pathes and so share caches.
@@ -330,7 +359,7 @@ nsIconChannel::Init(nsIURI* aURI)
       // GTK_ICON_LOOKUP_USE_BUILTIN instead of gtk_icon_theme_has_icon() so
       // we don't pick up fallback icons added by distributions for backward
       // compatibility.
-      GtkIconInfo *icon =
+      GtkIconInfo* icon =
         gtk_icon_theme_lookup_icon(icon_theme, stockIcon.get(),
                                    size, (GtkIconLookupFlags)0);
       if (icon) {
@@ -341,8 +370,8 @@ nsIconChannel::Init(nsIURI* aURI)
   }
 
   ensure_stock_image_widget();
-  GtkStyle *style = gtk_widget_get_style(gStockImageWidget);
-  GtkIconSet *icon_set = NULL;
+  GtkStyle* style = gtk_widget_get_style(gStockImageWidget);
+  GtkIconSet* icon_set = nullptr;
   if (!useIconName) {
     icon_set = gtk_style_lookup_icon_set(style, stockID.get());
   }
@@ -355,26 +384,27 @@ nsIconChannel::Init(nsIURI* aURI)
     // render the icon, possibly with variations suitable for insensitive
     // states.
     icon_set = gtk_icon_set_new();
-    GtkIconSource *icon_source = gtk_icon_source_new();
-    
+    GtkIconSource* icon_source = gtk_icon_source_new();
+
     gtk_icon_source_set_icon_name(icon_source, stockIcon.get());
     gtk_icon_set_add_source(icon_set, icon_source);
     gtk_icon_source_free(icon_source);
   }
 
-  GdkPixbuf *icon =
-    gtk_icon_set_render_icon (icon_set, style, direction, state,
-                              icon_size, gStockImageWidget, NULL);
+  GdkPixbuf* icon =
+    gtk_icon_set_render_icon(icon_set, style, direction, state,
+                             icon_size, gStockImageWidget, nullptr);
   if (useIconName) {
     gtk_icon_set_unref(icon_set);
   }
 
   // According to documentation, gtk_icon_set_render_icon() never returns
-  // NULL, but it does return NULL when we have the problem reported here:
-  // https://bugzilla.gnome.org/show_bug.cgi?id=629878#c13
-  if (!icon)
+  // nullptr, but it does return nullptr when we have the problem reported
+  // here: https://bugzilla.gnome.org/show_bug.cgi?id=629878#c13
+  if (!icon) {
     return NS_ERROR_NOT_AVAILABLE;
-  
+  }
+
   nsresult rv = moz_gdk_pixbuf_to_channel(icon, iconURI,
                                           getter_AddRefs(mRealChannel));
 

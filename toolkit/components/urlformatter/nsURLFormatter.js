@@ -103,7 +103,12 @@ nsURLFormatterService.prototype = {
     BUILD_TARGET:     function() this.appInfo.OS + "_" + this.ABI,
     OS_VERSION:       function() this.OSVersion,
     CHANNEL:          function() UpdateChannel.get(),
+    MOZILLA_API_KEY:   function() "@MOZ_MOZILLA_API_KEY@",
     GOOGLE_API_KEY:   function() "@MOZ_GOOGLE_API_KEY@",
+    GOOGLE_OAUTH_API_CLIENTID:function() "@MOZ_GOOGLE_OAUTH_API_CLIENTID@",
+    GOOGLE_OAUTH_API_KEY:     function() "@MOZ_GOOGLE_OAUTH_API_KEY@",
+    BING_API_CLIENTID:function() "@MOZ_BING_API_CLIENTID@",
+    BING_API_KEY:     function() "@MOZ_BING_API_KEY@",
     DISTRIBUTION:     function() this.distribution.id,
     DISTRIBUTION_VERSION: function() this.distribution.version
   },

@@ -7,14 +7,15 @@
 #ifndef vm_SPSProfiler_h
 #define vm_SPSProfiler_h
 
-#include <stddef.h>
-
 #include "mozilla/DebugOnly.h"
 #include "mozilla/GuardObjects.h"
-#include "mozilla/HashFunctions.h"
 
-#include "js/Utility.h"
+#include <stddef.h>
+
+#include "jslock.h"
 #include "jsscript.h"
+
+#include "js/ProfilingStack.h"
 
 /*
  * SPS Profiler integration with the JS Engine
@@ -69,18 +70,18 @@
  *
  * = Native Stack Pointer
  *
- * The actual value pushed as the native pointer is NULL for most JS functions.
- * The reason for this is that there's actually very little correlation between
- * the JS stack and the C++ stack because many JS functions all run in the same
- * C++ frame, or can even go backwards in C++ when going from the JIT back to
- * the interpreter.
+ * The actual value pushed as the native pointer is nullptr for most JS
+ * functions. The reason for this is that there's actually very little
+ * correlation between the JS stack and the C++ stack because many JS functions
+ * all run in the same C++ frame, or can even go backwards in C++ when going
+ * from the JIT back to the interpreter.
  *
- * To alleviate this problem, all JS functions push NULL as their "native stack
- * pointer" to indicate that it's a JS function call. The function RunScript(),
- * however, pushes an actual C++ stack pointer onto the SPS stack. This way when
- * interleaving C++ and JS, if SPS sees a NULL native stack pointer on the SPS
- * stack, it looks backwards for the first non-NULL pointer and uses that for
- * all subsequent NULL native stack pointers.
+ * To alleviate this problem, all JS functions push nullptr as their "native
+ * stack pointer" to indicate that it's a JS function call. The function
+ * RunScript(), however, pushes an actual C++ stack pointer onto the SPS stack.
+ * This way when interleaving C++ and JS, if SPS sees a nullptr native stack
+ * pointer on the SPS stack, it looks backwards for the first non-nullptr
+ * pointer and uses that for all subsequent nullptr native stack pointers.
  *
  * = Line Numbers
  *
@@ -95,15 +96,13 @@
  * JS was far too expensive, so that is why the pc instead of the translated
  * line number is stored.
  *
- * As an invariant, if the pc is NULL, then the JIT is currently executing
+ * As an invariant, if the pc is nullptr, then the JIT is currently executing
  * generated code. Otherwise execution is in another JS function or in C++. With
- * this in place, only the top entry of the stack can ever have NULL as its pc.
- * Additionally with this invariant, it is possible to maintain mappings of JIT
- * code to pc which can be accessed safely because they will only be accessed
- * from a signal handler when the JIT code is executing.
+ * this in place, only the top entry of the stack can ever have nullptr as its
+ * pc. Additionally with this invariant, it is possible to maintain mappings of
+ * JIT code to pc which can be accessed safely because they will only be
+ * accessed from a signal handler when the JIT code is executing.
  */
-
-class JSFunction;
 
 namespace js {
 
@@ -113,47 +112,53 @@ typedef HashMap<JSScript*, const char*, DefaultHasher<JSScript*>, SystemAllocPol
         ProfileStringMap;
 
 class SPSEntryMarker;
+class SPSBaselineOSRMarker;
 
 class SPSProfiler
 {
     friend class SPSEntryMarker;
+    friend class SPSBaselineOSRMarker;
 
-    JSRuntime            *rt;
+    JSRuntime*           rt;
     ProfileStringMap     strings;
-    ProfileEntry         *stack_;
-    uint32_t             *size_;
+    ProfileEntry*        stack_;
+    uint32_t*            size_;
     uint32_t             max_;
     bool                 slowAssertions;
     uint32_t             enabled_;
+    PRLock*              lock_;
+    void                (*eventMarker_)(const char*);
 
-    const char *allocProfileString(JSContext *cx, JSScript *script,
-                                   JSFunction *function);
-    void push(const char *string, void *sp, JSScript *script, jsbytecode *pc);
+    const char* allocProfileString(JSScript* script, JSFunction* function);
+    void push(const char* string, void* sp, JSScript* script, jsbytecode* pc, bool copy);
     void pop();
 
   public:
-    SPSProfiler(JSRuntime *rt);
+    explicit SPSProfiler(JSRuntime* rt);
     ~SPSProfiler();
 
-    uint32_t **addressOfSizePointer() {
+    bool init();
+
+    uint32_t** addressOfSizePointer() {
         return &size_;
     }
 
-    uint32_t *addressOfMaxSize() {
+    uint32_t* addressOfMaxSize() {
         return &max_;
     }
 
-    ProfileEntry **addressOfStack() {
+    ProfileEntry** addressOfStack() {
         return &stack_;
     }
 
-    uint32_t *sizePointer() { return size_; }
+    uint32_t* sizePointer() { return size_; }
     uint32_t maxSize() { return max_; }
-    ProfileEntry *stack() { return stack_; }
+    uint32_t size() { MOZ_ASSERT(installed()); return *size_; }
+    ProfileEntry* stack() { return stack_; }
 
     /* management of whether instrumentation is on or off */
-    bool enabled() { JS_ASSERT_IF(enabled_, installed()); return enabled_; }
-    bool installed() { return stack_ != NULL && size_ != NULL; }
+    bool enabled() { MOZ_ASSERT_IF(enabled_, installed()); return enabled_; }
+    bool installed() { return stack_ != nullptr && size_ != nullptr; }
     void enable(bool enabled);
     void enableSlowAssertions(bool enabled) { slowAssertions = enabled; }
     bool slowAssertionsEnabled() { return slowAssertions; }
@@ -167,34 +172,88 @@ class SPSProfiler
      *   - exit: this function has ceased execution, and no further
      *           entries/exits will be made
      */
-    bool enter(JSContext *cx, JSScript *script, JSFunction *maybeFun);
-    void exit(JSContext *cx, JSScript *script, JSFunction *maybeFun);
-    void updatePC(JSScript *script, jsbytecode *pc) {
+    bool enter(JSScript* script, JSFunction* maybeFun);
+    void exit(JSScript* script, JSFunction* maybeFun);
+    void updatePC(JSScript* script, jsbytecode* pc) {
         if (enabled() && *size_ - 1 < max_) {
-            JS_ASSERT(*size_ > 0);
-            JS_ASSERT(stack_[*size_ - 1].script() == script);
+            MOZ_ASSERT(*size_ > 0);
+            MOZ_ASSERT(stack_[*size_ - 1].script() == script);
             stack_[*size_ - 1].setPC(pc);
         }
     }
 
-    /* Enter a C++ function. */
-    void enterNative(const char *string, void *sp);
-    void exitNative() { pop(); }
+    /* Enter asm.js code */
+    void beginPseudoJS(const char* string, void* sp);
+    void endPseudoJS() { pop(); }
 
-    jsbytecode *ipToPC(JSScript *script, size_t ip) { return NULL; }
+    jsbytecode* ipToPC(JSScript* script, size_t ip) { return nullptr; }
 
-    void setProfilingStack(ProfileEntry *stack, uint32_t *size, uint32_t max);
-    const char *profileString(JSContext *cx, JSScript *script, JSFunction *maybeFun);
-    void onScriptFinalized(JSScript *script);
+    void setProfilingStack(ProfileEntry* stack, uint32_t* size, uint32_t max);
+    void setEventMarker(void (*fn)(const char*));
+    const char* profileString(JSScript* script, JSFunction* maybeFun);
+    void onScriptFinalized(JSScript* script);
+
+    void markEvent(const char* event);
 
     /* meant to be used for testing, not recommended to call in normal code */
-    size_t stringsCount() { return strings.count(); }
-    void stringsReset() { strings.clear(); }
+    size_t stringsCount();
+    void stringsReset();
 
-    uint32_t *addressOfEnabled() {
+    uint32_t* addressOfEnabled() {
         return &enabled_;
     }
 };
+
+/*
+ * This class is used to make sure the strings table
+ * is only accessed on one thread at a time.
+ */
+class AutoSPSLock
+{
+  public:
+    explicit AutoSPSLock(PRLock* lock)
+    {
+        MOZ_ASSERT(lock, "Parameter should not be null!");
+        lock_ = lock;
+        PR_Lock(lock);
+    }
+    ~AutoSPSLock() { PR_Unlock(lock_); }
+
+  private:
+    PRLock* lock_;
+};
+
+/*
+ * This class is used to suppress profiler sampling during
+ * critical sections where stack state is not valid.
+ */
+class AutoSuppressProfilerSampling
+{
+  public:
+    explicit AutoSuppressProfilerSampling(JSContext* cx MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
+    explicit AutoSuppressProfilerSampling(JSRuntime* rt MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
+
+    ~AutoSuppressProfilerSampling();
+
+  private:
+    JSRuntime* rt_;
+    bool previouslyEnabled_;
+    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
+inline size_t
+SPSProfiler::stringsCount()
+{
+    AutoSPSLock lock(lock_);
+    return strings.count();
+}
+
+inline void
+SPSProfiler::stringsReset()
+{
+    AutoSPSLock lock(lock_);
+    strings.clear();
+}
 
 /*
  * This class is used in RunScript() to push the marker onto the sampling stack
@@ -204,12 +263,31 @@ class SPSProfiler
 class SPSEntryMarker
 {
   public:
-    SPSEntryMarker(JSRuntime *rt
-                   MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
+    explicit SPSEntryMarker(JSRuntime* rt,
+                            JSScript* script
+                            MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
     ~SPSEntryMarker();
 
   private:
-    SPSProfiler *profiler;
+    SPSProfiler* profiler;
+    mozilla::DebugOnly<uint32_t> size_before;
+    MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+};
+
+/*
+ * This class is used in the interpreter to bound regions where the baseline JIT
+ * being entered via OSR.  It marks the current top pseudostack entry as
+ * OSR-ed
+ */
+class SPSBaselineOSRMarker
+{
+  public:
+    explicit SPSBaselineOSRMarker(JSRuntime* rt, bool hasSPSFrame
+                                  MOZ_GUARD_OBJECT_NOTIFIER_PARAM);
+    ~SPSBaselineOSRMarker();
+
+  private:
+    SPSProfiler* profiler;
     mozilla::DebugOnly<uint32_t> size_before;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
 };
@@ -230,163 +308,24 @@ class SPSEntryMarker
 template<class Assembler, class Register>
 class SPSInstrumentation
 {
-    /* Because of inline frames, this is a nested structure in a vector */
-    struct FrameState {
-        JSScript *script; // script for this frame, NULL if not pushed yet
-        bool skipNext;    // should the next call to reenter be skipped?
-        int  left;        // number of leave() calls made without a matching reenter()
-    };
-
-    SPSProfiler *profiler_; // Instrumentation location management
-
-    Vector<FrameState, 1, SystemAllocPolicy> frames;
-    FrameState *frame;
+    SPSProfiler* profiler_; // Instrumentation location management
 
   public:
     /*
      * Creates instrumentation which writes information out the the specified
      * profiler's stack and constituent fields.
      */
-    SPSInstrumentation(SPSProfiler *profiler)
-      : profiler_(profiler), frame(NULL)
-    {
-        enterInlineFrame();
-    }
+    explicit SPSInstrumentation(SPSProfiler* profiler) : profiler_(profiler) {}
 
     /* Small proxies around SPSProfiler */
     bool enabled() { return profiler_ && profiler_->enabled(); }
-    SPSProfiler *profiler() { JS_ASSERT(enabled()); return profiler_; }
-    bool slowAssertions() { return enabled() && profiler_->slowAssertionsEnabled(); }
-
-    /* Signals an inline function returned, reverting to the previous state */
-    void leaveInlineFrame() {
-        if (!enabled())
-            return;
-        JS_ASSERT(frame->left == 0);
-        JS_ASSERT(frame->script != NULL);
-        frames.shrinkBy(1);
-        JS_ASSERT(frames.length() > 0);
-        frame = &frames[frames.length() - 1];
-    }
-
-    /* Saves the current state and assumes a fresh one for the inline function */
-    bool enterInlineFrame() {
-        if (!enabled())
-            return true;
-        JS_ASSERT_IF(frame != NULL, frame->script != NULL);
-        JS_ASSERT_IF(frame != NULL, frame->left == 1);
-        if (!frames.growBy(1))
-            return false;
-        frame = &frames[frames.length() - 1];
-        frame->script = NULL;
-        frame->skipNext = false;
-        frame->left = 0;
-        return true;
-    }
-
-    /* Number of inline frames currently active (doesn't include original one) */
-    unsigned inliningDepth() {
-        return frames.length() - 1;
-    }
-
-    /*
-     * When debugging or with slow assertions, sometimes a C++ method will be
-     * invoked to perform the pop operation from the SPS stack. When we leave
-     * JIT code, we need to record the current PC, but upon reentering JIT code,
-     * no update back to NULL should happen. This method exists to flag this
-     * behavior. The next leave() will emit instrumentation, but the following
-     * reenter() will be a no-op.
-     */
-    void skipNextReenter() {
-        /* If we've left the frame, the reenter will be skipped anyway */
-        if (!enabled() || frame->left != 0)
-            return;
-        JS_ASSERT(frame->script);
-        JS_ASSERT(!frame->skipNext);
-        frame->skipNext = true;
-    }
-
-    /*
-     * In some cases, a frame needs to be flagged as having been pushed, but no
-     * instrumentation should be emitted. This updates internal state to flag
-     * that further instrumentation should actually be emitted.
-     */
-    void setPushed(JSScript *script) {
-        if (!enabled())
-            return;
-        JS_ASSERT(frame->left == 0);
-        frame->script = script;
-    }
-
-    /*
-     * Flags entry into a JS function for the first time. Before this is called,
-     * no instrumentation is emitted, but after this instrumentation is emitted.
-     */
-    bool push(JSContext *cx, JSScript *script, Assembler &masm, Register scratch) {
-        if (!enabled())
-            return true;
-        const char *string = profiler_->profileString(cx, script,
-                                                      script->function());
-        if (string == NULL)
-            return false;
-        masm.spsPushFrame(profiler_, string, script, scratch);
-        setPushed(script);
-        return true;
-    }
-
-    /*
-     * Signifies that C++ performed the push() for this function. C++ always
-     * sets the current PC to something non-null, however, so as soon as JIT
-     * code is reentered this updates the current pc to NULL.
-     */
-    void pushManual(JSScript *script, Assembler &masm, Register scratch) {
-        if (!enabled())
-            return;
-        masm.spsUpdatePCIdx(profiler_, ProfileEntry::NullPCIndex, scratch);
-        setPushed(script);
-    }
-
-    /*
-     * Signals that the current function is leaving for a function call. This
-     * can happen both on JS function calls and also calls to C++. This
-     * internally manages how many leave() calls have been seen, and only the
-     * first leave() emits instrumentation. Similarly, only the last
-     * corresponding reenter() actually emits instrumentation.
-     */
-    void leave(jsbytecode *pc, Assembler &masm, Register scratch) {
-        if (enabled() && frame->script && frame->left++ == 0) {
-            JS_ASSERT(frame->script->code <= pc &&
-                      pc < frame->script->code + frame->script->length);
-            masm.spsUpdatePCIdx(profiler_, pc - frame->script->code, scratch);
-        }
-    }
-
-    /*
-     * Flags that the leaving of the current function has returned. This tracks
-     * state with leave() to only emit instrumentation at proper times.
-     */
-    void reenter(Assembler &masm, Register scratch) {
-        if (!enabled() || !frame->script || frame->left-- != 1)
-            return;
-        if (frame->skipNext)
-            frame->skipNext = false;
-        else
-            masm.spsUpdatePCIdx(profiler_, ProfileEntry::NullPCIndex, scratch);
-    }
-
-    /*
-     * Signifies exiting a JS frame, popping the SPS entry. Because there can be
-     * multiple return sites of a function, this does not cease instrumentation
-     * emission.
-     */
-    void pop(Assembler &masm, Register scratch) {
-        if (enabled()) {
-            JS_ASSERT(frame->left == 0);
-            JS_ASSERT(frame->script);
-            masm.spsPopFrame(profiler_, scratch);
-        }
-    }
+    SPSProfiler* profiler() { MOZ_ASSERT(enabled()); return profiler_; }
+    void disable() { profiler_ = nullptr; }
 };
+
+
+/* Get a pointer to the top-most profiling frame, given the exit frame pointer. */
+void* GetTopProfilingJitFrame(uint8_t* exitFramePtr);
 
 } /* namespace js */
 

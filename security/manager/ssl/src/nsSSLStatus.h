@@ -13,45 +13,52 @@
 #include "nsIX509Cert.h"
 #include "nsISerializable.h"
 #include "nsIClassInfo.h"
+#include "nsNSSCertificate.h" // For EVStatus
 
-class nsSSLStatus
+class nsSSLStatus final
   : public nsISSLStatus
   , public nsISerializable
   , public nsIClassInfo
 {
+protected:
+  virtual ~nsSSLStatus();
 public:
-  NS_DECL_ISUPPORTS
+  NS_DECL_THREADSAFE_ISUPPORTS
   NS_DECL_NSISSLSTATUS
   NS_DECL_NSISERIALIZABLE
   NS_DECL_NSICLASSINFO
 
   nsSSLStatus();
-  virtual ~nsSSLStatus();
+
+  void SetServerCert(nsIX509Cert* aServerCert, nsNSSCertificate::EVStatus aEVStatus);
+
+  bool HasServerCert() {
+    return mServerCert != nullptr;
+  }
 
   /* public for initilization in this file */
-  nsCOMPtr<nsIX509Cert> mServerCert;
-
-  uint32_t mKeyLength;
-  uint32_t mSecretKeyLength;
-  nsXPIDLCString mCipherName;
-  nsXPIDLCString mCipherSuite;
-  
-  uint32_t mProtocolVersion;
+  uint16_t mCipherSuite;
+  uint16_t mProtocolVersion;
 
   bool mIsDomainMismatch;
   bool mIsNotValidAtThisTime;
   bool mIsUntrusted;
+  bool mIsEV;
 
-  bool mHaveKeyLengthAndCipher;
+  bool mHasIsEVStatus;
+  bool mHaveCipherSuiteAndProtocol;
 
   /* mHaveCertErrrorBits is relied on to determine whether or not a SPDY
      connection is eligible for joining in nsNSSSocketInfo::JoinConnection() */
   bool mHaveCertErrorBits;
+
+private:
+  nsCOMPtr<nsIX509Cert> mServerCert;
 };
 
-//dd0197a2-7f40-4224-bd7a-d7a372bd0032
+//9f1a2340-f33c-4063-bfc5-fc555c87dbc4
 #define NS_SSLSTATUS_CID \
-{ 0xdd0197a2, 0x7f40, 0x4224, \
-  { 0xbd, 0x7a, 0xd7, 0xa3, 0x72, 0xbd, 0x00, 0x32 } }
+{ 0x9f1a2340, 0xf33c, 0x4063, \
+  { 0xbf, 0xc5, 0xfc, 0x55, 0x5c, 0x87, 0xdb, 0xc4 } }
 
 #endif

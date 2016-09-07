@@ -8,17 +8,16 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-// ViESender is responsible for encrypting, if enabled, packets and send to
-// network.
+// ViESender is responsible for sending packets to network.
 
 #ifndef WEBRTC_VIDEO_ENGINE_VIE_SENDER_H_
 #define WEBRTC_VIDEO_ENGINE_VIE_SENDER_H_
 
-#include "common_types.h"  // NOLINT
-#include "engine_configurations.h"  // NOLINT
-#include "system_wrappers/interface/scoped_ptr.h"
-#include "typedefs.h"  // NOLINT
-#include "video_engine/vie_defines.h"
+#include "webrtc/common_types.h"
+#include "webrtc/engine_configurations.h"
+#include "webrtc/system_wrappers/interface/scoped_ptr.h"
+#include "webrtc/typedefs.h"
+#include "webrtc/video_engine/vie_defines.h"
 
 namespace webrtc {
 
@@ -32,10 +31,6 @@ class ViESender: public Transport {
   explicit ViESender(const int32_t channel_id);
   ~ViESender();
 
-  // Registers an encryption class to use before sending packets.
-  int RegisterExternalEncryption(Encryption* encryption);
-  int DeregisterExternalEncryption();
-
   // Registers transport to use for sending RTP and RTCP.
   int RegisterSendTransport(Transport* transport);
   int DeregisterSendTransport();
@@ -45,16 +40,14 @@ class ViESender: public Transport {
   int StopRTPDump();
 
   // Implements Transport.
-  virtual int SendPacket(int vie_id, const void* data, int len);
-  virtual int SendRTCPPacket(int vie_id, const void* data, int len);
+  virtual int SendPacket(int vie_id, const void* data, int len) OVERRIDE;
+  virtual int SendRTCPPacket(int vie_id, const void* data, int len) OVERRIDE;
 
  private:
   const int32_t channel_id_;
 
   scoped_ptr<CriticalSectionWrapper> critsect_;
 
-  Encryption* external_encryption_;
-  WebRtc_UWord8* encryption_buffer_;
   Transport* transport_;
   RtpDump* rtp_dump_;
 };

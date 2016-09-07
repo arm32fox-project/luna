@@ -4,12 +4,9 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "nsDirIndex.h"
-#include "nsReadableUtils.h"
-#include "nsCRT.h"
-#include "nsISupportsObsolete.h"
 
-NS_IMPL_ISUPPORTS1(nsDirIndex,
-                   nsIDirIndex)
+NS_IMPL_ISUPPORTS(nsDirIndex,
+                  nsIDirIndex)
 
 nsDirIndex::nsDirIndex() : mType(TYPE_UNKNOWN),
                            mSize(UINT64_MAX),
@@ -18,9 +15,23 @@ nsDirIndex::nsDirIndex() : mType(TYPE_UNKNOWN),
 
 nsDirIndex::~nsDirIndex() {}
 
-NS_IMPL_GETSET(nsDirIndex, Type, uint32_t, mType)
+NS_IMETHODIMP
+nsDirIndex::GetType(uint32_t* aType)
+{
+  if (!aType) {
+    return NS_ERROR_NULL_POINTER;
+  }
 
-// GETSET macros for modern strings would be nice...
+  *aType = mType;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDirIndex::SetType(uint32_t aType)
+{
+  mType = aType;
+  return NS_OK;
+}
 
 NS_IMETHODIMP
 nsDirIndex::GetContentType(char* *aContentType) {
@@ -53,7 +64,7 @@ nsDirIndex::SetLocation(const char* aLocation) {
 }
 
 NS_IMETHODIMP
-nsDirIndex::GetDescription(PRUnichar* *aDescription) {
+nsDirIndex::GetDescription(char16_t* *aDescription) {
   *aDescription = ToNewUnicode(mDescription);
   if (!*aDescription)
     return NS_ERROR_OUT_OF_MEMORY;
@@ -62,11 +73,43 @@ nsDirIndex::GetDescription(PRUnichar* *aDescription) {
 }
 
 NS_IMETHODIMP
-nsDirIndex::SetDescription(const PRUnichar* aDescription) {
+nsDirIndex::SetDescription(const char16_t* aDescription) {
   mDescription.Assign(aDescription);
   return NS_OK;
 }
 
-NS_IMPL_GETSET(nsDirIndex, Size, int64_t, mSize)
-NS_IMPL_GETSET(nsDirIndex, LastModified, PRTime, mLastModified)
+NS_IMETHODIMP
+nsDirIndex::GetSize(int64_t* aSize)
+{
+  if (!aSize) {
+    return NS_ERROR_NULL_POINTER;
+  }
 
+  *aSize = mSize;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDirIndex::SetSize(int64_t aSize)
+{
+  mSize = aSize;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDirIndex::GetLastModified(PRTime* aLastModified)
+{
+  if (!aLastModified) {
+    return NS_ERROR_NULL_POINTER;
+  }
+
+  *aLastModified = mLastModified;
+  return NS_OK;
+}
+
+NS_IMETHODIMP
+nsDirIndex::SetLastModified(PRTime aLastModified)
+{
+  mLastModified = aLastModified;
+  return NS_OK;
+}

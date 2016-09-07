@@ -15,47 +15,54 @@ class nsMeterFrame : public nsContainerFrame,
                      public nsIAnonymousContentCreator
 
 {
+  typedef mozilla::dom::Element Element;
+
 public:
   NS_DECL_QUERYFRAME_TARGET(nsMeterFrame)
   NS_DECL_QUERYFRAME
   NS_DECL_FRAMEARENA_HELPERS
 
-  nsMeterFrame(nsStyleContext* aContext);
+  explicit nsMeterFrame(nsStyleContext* aContext);
   virtual ~nsMeterFrame();
 
-  virtual void DestroyFrom(nsIFrame* aDestructRoot) MOZ_OVERRIDE;
+  virtual void DestroyFrom(nsIFrame* aDestructRoot) override;
 
-  NS_IMETHOD Reflow(nsPresContext*           aCX,
-                    nsHTMLReflowMetrics&     aDesiredSize,
-                    const nsHTMLReflowState& aReflowState,
-                    nsReflowStatus&          aStatus) MOZ_OVERRIDE;
+  virtual void Reflow(nsPresContext*           aCX,
+                      nsHTMLReflowMetrics&     aDesiredSize,
+                      const nsHTMLReflowState& aReflowState,
+                      nsReflowStatus&          aStatus) override;
 
-#ifdef DEBUG
-  NS_IMETHOD GetFrameName(nsAString& aResult) const MOZ_OVERRIDE {
+#ifdef DEBUG_FRAME_DUMP
+  virtual nsresult GetFrameName(nsAString& aResult) const override {
     return MakeFrameName(NS_LITERAL_STRING("Meter"), aResult);
   }
 #endif
 
-  virtual bool IsLeaf() const MOZ_OVERRIDE { return true; }
+  virtual bool IsLeaf() const override { return true; }
 
   // nsIAnonymousContentCreator
-  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements) MOZ_OVERRIDE;
-  virtual void AppendAnonymousContentTo(nsBaseContentList& aElements,
-                                        uint32_t aFilter) MOZ_OVERRIDE;
+  virtual nsresult CreateAnonymousContent(nsTArray<ContentInfo>& aElements) override;
+  virtual void AppendAnonymousContentTo(nsTArray<nsIContent*>& aElements,
+                                        uint32_t aFilter) override;
 
-  NS_IMETHOD AttributeChanged(int32_t  aNameSpaceID,
-                              nsIAtom* aAttribute,
-                              int32_t  aModType) MOZ_OVERRIDE;
+  virtual nsresult AttributeChanged(int32_t  aNameSpaceID,
+                                    nsIAtom* aAttribute,
+                                    int32_t  aModType) override;
 
-  virtual nsSize ComputeAutoSize(nsRenderingContext *aRenderingContext,
-                                 nsSize aCBSize, nscoord aAvailableWidth,
-                                 nsSize aMargin, nsSize aBorder,
-                                 nsSize aPadding, bool aShrinkWrap) MOZ_OVERRIDE;
+  virtual mozilla::LogicalSize
+  ComputeAutoSize(nsRenderingContext *aRenderingContext,
+                  mozilla::WritingMode aWritingMode,
+                  const mozilla::LogicalSize& aCBSize,
+                  nscoord aAvailableISize,
+                  const mozilla::LogicalSize& aMargin,
+                  const mozilla::LogicalSize& aBorder,
+                  const mozilla::LogicalSize& aPadding,
+                  bool aShrinkWrap) override;
 
-  virtual nscoord GetMinWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
-  virtual nscoord GetPrefWidth(nsRenderingContext *aRenderingContext) MOZ_OVERRIDE;
+  virtual nscoord GetMinISize(nsRenderingContext *aRenderingContext) override;
+  virtual nscoord GetPrefISize(nsRenderingContext *aRenderingContext) override;
 
-  virtual bool IsFrameOfType(uint32_t aFlags) const MOZ_OVERRIDE
+  virtual bool IsFrameOfType(uint32_t aFlags) const override
   {
     return nsContainerFrame::IsFrameOfType(aFlags &
       ~(nsIFrame::eReplaced | nsIFrame::eReplacedContainsBlock));
@@ -65,6 +72,8 @@ public:
    * Returns whether the frame and its child should use the native style.
    */
   bool ShouldUseNativeStyle() const;
+
+  virtual Element* GetPseudoElement(nsCSSPseudoElements::Type aType) override;
 
 protected:
   // Helper function which reflow the anonymous div frame.
@@ -76,7 +85,7 @@ protected:
    * The div used to show the meter bar.
    * @see nsMeterFrame::CreateAnonymousContent
    */
-  nsCOMPtr<nsIContent> mBarDiv;
+  nsCOMPtr<Element> mBarDiv;
 };
 
 #endif

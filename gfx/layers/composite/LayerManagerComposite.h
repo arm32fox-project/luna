@@ -6,48 +6,80 @@
 #ifndef GFX_LayerManagerComposite_H
 #define GFX_LayerManagerComposite_H
 
-#include "mozilla/layers/Compositor.h"
-#include "mozilla/layers/ShadowLayers.h"
-#include "Composer2D.h"
-#include "mozilla/TimeStamp.h"
+#include <stdint.h>                     // for int32_t, uint32_t
+#include "GLDefs.h"                     // for GLenum
 #include "Layers.h"
+#include "mozilla/Assertions.h"         // for MOZ_ASSERT, etc
+#include "mozilla/Attributes.h"         // for override
+#include "mozilla/RefPtr.h"             // for RefPtr, TemporaryRef
+#include "mozilla/gfx/2D.h"
+#include "mozilla/gfx/Point.h"          // for IntSize
+#include "mozilla/gfx/Rect.h"           // for Rect
+#include "mozilla/gfx/Types.h"          // for SurfaceFormat
+#include "mozilla/layers/CompositorTypes.h"
+#include "mozilla/layers/LayersTypes.h"  // for LayersBackend, etc
+#include "mozilla/RefPtr.h"
+#include "mozilla/UniquePtr.h"
+#include "nsAString.h"
+#include "nsAutoPtr.h"                  // for nsRefPtr
+#include "nsCOMPtr.h"                   // for already_AddRefed
+#include "nsDebug.h"                    // for NS_ASSERTION
+#include "nsISupportsImpl.h"            // for Layer::AddRef, etc
+#include "nsRect.h"                     // for nsIntRect
+#include "nsRegion.h"                   // for nsIntRegion
+#include "nscore.h"                     // for nsAString, etc
+#include "LayerTreeInvalidation.h"
+
+class gfxContext;
+struct nsIntPoint;
+struct nsIntSize;
 
 #ifdef XP_WIN
 #include <windows.h>
 #endif
 
-#include "gfxContext.h"
-#include "gfx3DMatrix.h"
-#include "GLDefs.h"
-
 namespace mozilla {
+namespace gfx {
+class DrawTarget;
+}
+
 namespace gl {
 class GLContext;
 class TextureImage;
 }
-}
 
-namespace mozilla {
 namespace layers {
 
-class LayerComposite;
-class ThebesLayerComposite;
-class ContainerLayerComposite;
-class ImageLayerComposite;
 class CanvasLayerComposite;
 class ColorLayerComposite;
-class RefLayerComposite;
 class CompositableHost;
-class EffectChain;
+class Compositor;
+class ContainerLayerComposite;
+struct EffectChain;
+class ImageLayer;
+class ImageLayerComposite;
+class LayerComposite;
+class RefLayerComposite;
+class SurfaceDescriptor;
+class PaintedLayerComposite;
 class TiledLayerComposer;
+class TextRenderer;
+class CompositingRenderTarget;
+struct FPSState;
 
-class LayerManagerComposite : public LayerManager
+static const int kVisualWarningDuration = 150; // ms
+
+class LayerManagerComposite final : public LayerManager
 {
+  typedef mozilla::gfx::DrawTarget DrawTarget;
+  typedef mozilla::gfx::IntSize IntSize;
+  typedef mozilla::gfx::SurfaceFormat SurfaceFormat;
+
 public:
-  LayerManagerComposite(Compositor* aCompositor);
+  explicit LayerManagerComposite(Compositor* aCompositor);
   ~LayerManagerComposite();
-  
-  virtual void Destroy() MOZ_OVERRIDE;
+
+  virtual void Destroy() override;
 
   /**
    * return True if initialization was succesful, false when it was not.
@@ -71,95 +103,98 @@ public:
   /**
    * LayerManager implementation.
    */
-  virtual LayerManagerComposite* AsLayerManagerComposite() MOZ_OVERRIDE
+  virtual LayerManagerComposite* AsLayerManagerComposite() override
   {
     return this;
   }
 
   void UpdateRenderBounds(const nsIntRect& aRect);
 
-  void BeginTransaction() MOZ_OVERRIDE;
-  void BeginTransactionWithTarget(gfxContext* aTarget) MOZ_OVERRIDE;
+  virtual void BeginTransaction() override;
+  virtual void BeginTransactionWithTarget(gfxContext* aTarget) override
+  {
+    MOZ_CRASH("Use BeginTransactionWithDrawTarget");
+  }
+  void BeginTransactionWithDrawTarget(gfx::DrawTarget* aTarget, const nsIntRect& aRect);
 
-  void NotifyShadowTreeTransaction();
-
-  virtual bool EndEmptyTransaction(EndTransactionFlags aFlags = END_DEFAULT) MOZ_OVERRIDE;
-  virtual void EndTransaction(DrawThebesLayerCallback aCallback,
+  virtual bool EndEmptyTransaction(EndTransactionFlags aFlags = END_DEFAULT) override;
+  virtual void EndTransaction(DrawPaintedLayerCallback aCallback,
                               void* aCallbackData,
-                              EndTransactionFlags aFlags = END_DEFAULT) MOZ_OVERRIDE;
+                              EndTransactionFlags aFlags = END_DEFAULT) override;
 
-  virtual void SetRoot(Layer* aLayer) MOZ_OVERRIDE { mRoot = aLayer; }
+  virtual void SetRoot(Layer* aLayer) override { mRoot = aLayer; }
 
-  virtual bool CanUseCanvasLayerForSize(const gfxIntSize &aSize) MOZ_OVERRIDE;
+  // XXX[nrc]: never called, we should move this logic to ClientLayerManager
+  // (bug 946926).
+  virtual bool CanUseCanvasLayerForSize(const gfx::IntSize &aSize) override;
 
-  virtual TextureFactoryIdentifier GetTextureFactoryIdentifier() MOZ_OVERRIDE;
+  virtual int32_t GetMaxTextureSize() const override
+  {
+    MOZ_CRASH("Call on compositor, not LayerManagerComposite");
+  }
 
-  virtual int32_t GetMaxTextureSize() const MOZ_OVERRIDE;
+  virtual void ClearCachedResources(Layer* aSubtree = nullptr) override;
 
-  virtual void ClearCachedResources(Layer* aSubtree = nullptr) MOZ_OVERRIDE;
-
-  virtual already_AddRefed<ThebesLayer> CreateThebesLayer() MOZ_OVERRIDE;
-  virtual already_AddRefed<ContainerLayer> CreateContainerLayer() MOZ_OVERRIDE;
-  virtual already_AddRefed<ImageLayer> CreateImageLayer() MOZ_OVERRIDE;
-  virtual already_AddRefed<ColorLayer> CreateColorLayer() MOZ_OVERRIDE;
-  virtual already_AddRefed<CanvasLayer> CreateCanvasLayer() MOZ_OVERRIDE;
-  already_AddRefed<ThebesLayerComposite> CreateThebesLayerComposite();
+  virtual already_AddRefed<PaintedLayer> CreatePaintedLayer() override;
+  virtual already_AddRefed<ContainerLayer> CreateContainerLayer() override;
+  virtual already_AddRefed<ImageLayer> CreateImageLayer() override;
+  virtual already_AddRefed<ColorLayer> CreateColorLayer() override;
+  virtual already_AddRefed<CanvasLayer> CreateCanvasLayer() override;
+  already_AddRefed<PaintedLayerComposite> CreatePaintedLayerComposite();
   already_AddRefed<ContainerLayerComposite> CreateContainerLayerComposite();
   already_AddRefed<ImageLayerComposite> CreateImageLayerComposite();
   already_AddRefed<ColorLayerComposite> CreateColorLayerComposite();
   already_AddRefed<CanvasLayerComposite> CreateCanvasLayerComposite();
   already_AddRefed<RefLayerComposite> CreateRefLayerComposite();
 
-  virtual LayersBackend GetBackendType() MOZ_OVERRIDE
+  virtual LayersBackend GetBackendType() override
   {
-    return LAYERS_NONE;
+    MOZ_CRASH("Shouldn't be called for composited layer manager");
   }
-  virtual void GetBackendName(nsAString& name) MOZ_OVERRIDE
+  virtual void GetBackendName(nsAString& name) override
   {
-    MOZ_ASSERT(false, "Shouldn't be called for composited layer manager");
-    name.AssignLiteral("Composite");
+    MOZ_CRASH("Shouldn't be called for composited layer manager");
   }
 
-  virtual already_AddRefed<gfxASurface>
-    CreateOptimalMaskSurface(const gfxIntSize &aSize) MOZ_OVERRIDE;
+  virtual bool AreComponentAlphaLayersEnabled() override;
 
+  virtual TemporaryRef<DrawTarget>
+    CreateOptimalMaskDrawTarget(const IntSize &aSize) override;
 
-  DrawThebesLayerCallback GetThebesLayerCallback() const
-  { return mThebesLayerCallback; }
-
-  void* GetThebesLayerCallbackData() const
-  { return mThebesLayerCallbackData; }
-
-#ifdef MOZ_LAYERS_HAVE_LOG
-  virtual const char* Name() const MOZ_OVERRIDE { return ""; }
-#endif // MOZ_LAYERS_HAVE_LOG
-
-  enum WorldTransforPolicy {
-    ApplyWorldTransform,
-    DontApplyWorldTransform
-  };
+  virtual const char* Name() const override { return ""; }
 
   /**
-   * Setup World transform matrix.
-   * Transform will be ignored if it is not PreservesAxisAlignedRectangles
-   * or has non integer scale
+   * Restricts the shadow visible region of layers that are covered with
+   * opaque content. aOpaqueRegion is the region already known to be covered
+   * with opaque content, in the post-transform coordinate space of aLayer.
    */
-  void SetWorldTransform(const gfxMatrix& aMatrix);
-  gfxMatrix& GetWorldTransform(void);
+  void ApplyOcclusionCulling(Layer* aLayer, nsIntRegion& aOpaqueRegion);
 
-  static bool AddMaskEffect(Layer* aMaskLayer,
-                            EffectChain& aEffect,
-                            bool aIs3D = false);
+  /**
+   * RAII helper class to add a mask effect with the compositable from aMaskLayer
+   * to the EffectChain aEffect and notify the compositable when we are done.
+   */
+  class AutoAddMaskEffect
+  {
+  public:
+    AutoAddMaskEffect(Layer* aMaskLayer,
+                      EffectChain& aEffect,
+                      bool aIs3D = false);
+    ~AutoAddMaskEffect();
+
+    bool Failed() const { return mFailed; }
+  private:
+    CompositableHost* mCompositable;
+    bool mFailed;
+  };
 
   /**
    * Creates a DrawTarget which is optimized for inter-operating with this
    * layermanager.
    */
   virtual TemporaryRef<mozilla::gfx::DrawTarget>
-    CreateDrawTarget(const mozilla::gfx::IntSize &aSize,
-                     mozilla::gfx::SurfaceFormat aFormat) MOZ_OVERRIDE;
-
-  const nsIntSize& GetWidgetSize();
+    CreateDrawTarget(const mozilla::gfx::IntSize& aSize,
+                     mozilla::gfx::SurfaceFormat aFormat) override;
 
   /**
    * Calculates the 'completeness' of the rendering that intersected with the
@@ -171,16 +206,6 @@ public:
   float ComputeRenderIntegrity();
 
   /**
-   * Try to open |aDescriptor| for direct texturing.  If the
-   * underlying surface supports direct texturing, a non-null
-   * TextureImage is returned.  Otherwise null is returned.
-   */
-  static already_AddRefed<gl::TextureImage>
-  OpenDescriptorForDirectTexturing(gl::GLContext* aContext,
-                                   const SurfaceDescriptor& aDescriptor,
-                                   GLenum aWrapMode);
-
-  /**
    * returns true if PlatformAllocBuffer will return a buffer that supports
    * direct texturing
    */
@@ -188,15 +213,47 @@ public:
 
   static void PlatformSyncBeforeReplyUpdate();
 
-  void SetCompositorID(uint32_t aID);
+  void AddInvalidRegion(const nsIntRegion& aRegion)
+  {
+    mInvalidRegion.Or(mInvalidRegion, aRegion);
+  }
 
   Compositor* GetCompositor() const
   {
     return mCompositor;
   }
 
-  bool PlatformDestroySharedSurface(SurfaceDescriptor* aSurface);
-  RefPtr<Compositor> mCompositor;
+  /**
+   * LayerManagerComposite provides sophisticated debug overlays
+   * that can request a next frame.
+   */
+  bool DebugOverlayWantsNextFrame() { return mDebugOverlayWantsNextFrame; }
+  void SetDebugOverlayWantsNextFrame(bool aVal)
+  { mDebugOverlayWantsNextFrame = aVal; }
+
+  void NotifyShadowTreeTransaction();
+
+  TextRenderer* GetTextRenderer() { return mTextRenderer; }
+
+  /**
+   * Add an on frame warning.
+   * @param severity ranges from 0 to 1. It's used to compute the warning color.
+   */
+  void VisualFrameWarning(float severity) {
+    mozilla::TimeStamp now = TimeStamp::Now();
+    if (mWarnTime.IsNull() ||
+        severity > mWarningLevel ||
+        mWarnTime + TimeDuration::FromMilliseconds(kVisualWarningDuration) < now) {
+      mWarnTime = now;
+      mWarningLevel = severity;
+    }
+  }
+
+  void UnusedApzTransformWarning() {
+    mUnusedApzTransformWarning = true;
+  }
+
+  bool LastFrameMissedHWC() { return mLastFrameMissedHWC; }
 
 private:
   /** Region we're clipping our current drawing to. */
@@ -204,7 +261,7 @@ private:
   nsIntRect mRenderBounds;
 
   /** Current root layer. */
-  LayerComposite *RootLayer() const;
+  LayerComposite* RootLayer() const;
 
   /**
    * Recursive helper method for use by ComputeRenderIntegrity. Subtracts
@@ -215,24 +272,52 @@ private:
   static void ComputeRenderIntegrityInternal(Layer* aLayer,
                                              nsIntRegion& aScreenRegion,
                                              nsIntRegion& aLowPrecisionScreenRegion,
-                                             const gfx3DMatrix& aTransform);
+                                             const gfx::Matrix4x4& aTransform);
 
   /**
    * Render the current layer tree to the active target.
    */
   void Render();
 
-  void WorldTransformRect(nsIntRect& aRect);
+  /**
+   * Render debug overlays such as the FPS/FrameCounter above the frame.
+   */
+  void RenderDebugOverlay(const gfx::Rect& aBounds);
 
-  /** Our more efficient but less powerful alter ego, if one is available. */
-  nsRefPtr<Composer2D> mComposer2D;
 
-  /* Thebes layer callbacks; valid at the end of a transaciton,
-   * while rendering */
-  DrawThebesLayerCallback mThebesLayerCallback;
-  void *mThebesLayerCallbackData;
-  gfxMatrix mWorldMatrix;
+  RefPtr<CompositingRenderTarget> PushGroupForLayerEffects();
+  void PopGroupForLayerEffects(RefPtr<CompositingRenderTarget> aPreviousTarget,
+                               nsIntRect aClipRect,
+                               bool aGrayscaleEffect,
+                               bool aInvertEffect,
+                               float aContrastEffect);
+
+  float mWarningLevel;
+  mozilla::TimeStamp mWarnTime;
+  bool mUnusedApzTransformWarning;
+  RefPtr<Compositor> mCompositor;
+  UniquePtr<LayerProperties> mClonedLayerTreeProperties;
+
+  /**
+   * Context target, nullptr when drawing directly to our swap chain.
+   */
+  RefPtr<gfx::DrawTarget> mTarget;
+  nsIntRect mTargetBounds;
+
+  nsIntRegion mInvalidRegion;
+  UniquePtr<FPSState> mFPS;
+
   bool mInTransaction;
+  bool mIsCompositorReady;
+  bool mDebugOverlayWantsNextFrame;
+
+  RefPtr<CompositingRenderTarget> mTwoPassTmpTarget;
+  RefPtr<TextRenderer> mTextRenderer;
+  bool mGeometryChanged;
+
+  // Testing property. If hardware composer is supported, this will return
+  // true if the last frame was deemed 'too complicated' to be rendered.
+  bool mLastFrameMissedHWC;
 };
 
 /**
@@ -256,7 +341,7 @@ private:
 class LayerComposite
 {
 public:
-  LayerComposite(LayerManagerComposite* aManager);
+  explicit LayerComposite(LayerManagerComposite* aManager);
 
   virtual ~LayerComposite();
 
@@ -272,12 +357,24 @@ public:
 
   virtual Layer* GetLayer() = 0;
 
-  virtual void RenderLayer(const nsIntPoint& aOffset,
-                           const nsIntRect& aClipRect) = 0;
+  virtual void SetLayerManager(LayerManagerComposite* aManager);
 
-  virtual void SetCompositableHost(CompositableHost* aHost)
+  /**
+   * Perform a first pass over the layer tree to render all of the intermediate
+   * surfaces that we can. This allows us to avoid framebuffer switches in the
+   * middle of our render which is inefficient especially on mobile GPUs. This
+   * must be called before RenderLayer.
+   */
+  virtual void Prepare(const RenderTargetIntRect& aClipRect) {}
+
+  // TODO: This should also take RenderTargetIntRect like Prepare.
+  virtual void RenderLayer(const nsIntRect& aClipRect) = 0;
+
+  virtual bool SetCompositableHost(CompositableHost*)
   {
-    MOZ_ASSERT(false, "called SetCompositableHost for a layer without a compositable host");
+    // We must handle this gracefully, see bug 967824
+    NS_WARNING("called SetCompositableHost for a layer type not accepting a compositable");
+    return false;
   }
   virtual CompositableHost* GetCompositableHost() = 0;
 
@@ -285,8 +382,11 @@ public:
 
   virtual TiledLayerComposer* GetTiledLayerComposer() { return nullptr; }
 
-
   virtual void DestroyFrontBuffer() { }
+
+  void AddBlendModeEffect(EffectChain& aEffectChain);
+
+  virtual void GenEffectChain(EffectChain& aEffect) { }
 
   /**
    * The following methods are
@@ -313,7 +413,7 @@ public:
     }
   }
 
-  void SetShadowTransform(const gfx3DMatrix& aMatrix)
+  void SetShadowTransform(const gfx::Matrix4x4& aMatrix)
   {
     mShadowTransform = aMatrix;
   }
@@ -322,15 +422,34 @@ public:
     mShadowTransformSetByAnimation = aSetByAnimation;
   }
 
+  void SetLayerComposited(bool value)
+  {
+    mLayerComposited = value;
+  }
+
+  void SetClearRect(const nsIntRect& aRect)
+  {
+    mClearRect = aRect;
+  }
+
   // These getters can be used anytime.
   float GetShadowOpacity() { return mShadowOpacity; }
   const nsIntRect* GetShadowClipRect() { return mUseShadowClipRect ? &mShadowClipRect : nullptr; }
   const nsIntRegion& GetShadowVisibleRegion() { return mShadowVisibleRegion; }
-  const gfx3DMatrix& GetShadowTransform() { return mShadowTransform; }
+  const gfx::Matrix4x4& GetShadowTransform() { return mShadowTransform; }
   bool GetShadowTransformSetByAnimation() { return mShadowTransformSetByAnimation; }
+  bool HasLayerBeenComposited() { return mLayerComposited; }
+  nsIntRect GetClearRect() { return mClearRect; }
+
+  /**
+   * Return the part of the visible region that has been fully rendered.
+   * While progressive drawing is in progress this region will be
+   * a subset of the shadow visible region.
+   */
+  nsIntRegion GetFullyRenderedRegion();
 
 protected:
-  gfx3DMatrix mShadowTransform;
+  gfx::Matrix4x4 mShadowTransform;
   nsIntRegion mShadowVisibleRegion;
   nsIntRect mShadowClipRect;
   LayerManagerComposite* mCompositeManager;
@@ -339,6 +458,8 @@ protected:
   bool mUseShadowClipRect;
   bool mShadowTransformSetByAnimation;
   bool mDestroyed;
+  bool mLayerComposited;
+  nsIntRect mClearRect;
 };
 
 

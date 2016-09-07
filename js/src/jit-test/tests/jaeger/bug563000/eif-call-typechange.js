@@ -1,5 +1,4 @@
-// |jit-test| mjitalways;debug
-setDebug(true);
+load(libdir + "evalInFrame.js");
 
 function callee() {
   evalInFrame(1, "x = 'success'");

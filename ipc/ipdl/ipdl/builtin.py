@@ -41,17 +41,18 @@ Types = (
 )
 
 
-Includes = (
+HeaderIncludes = (
     'mozilla/Attributes.h',
-    'base/basictypes.h',
     'prtime.h',
-    'nscore.h',
     'IPCMessageStart.h',
     'ipc/IPCMessageUtils.h',
-    'nsAutoPtr.h',
+    'nsRefPtr.h',
     'nsStringGlue.h',
     'nsTArray.h',
-    'nsIFile.h',
     'mozilla/ipc/ProtocolUtils.h',
-    'GoannaProfiler.h'
+)
+
+CppIncludes = (
+    'nsIFile.h',
+    'GoannaProfiler.h',
 )

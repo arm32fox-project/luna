@@ -133,6 +133,15 @@ function test_component(contractid) {
   doTestWorkaround("testACString", "Just a regular C string.");
   doTest("testJsval", {aprop: 12, bprop: "str"}, 4.22);
 
+  // Test out dipper parameters, since they're special and we can't really test
+  // inouts.
+  let outAString = {};
+  o.testOutAString(outAString);
+  do_check_eq(outAString.value, "out");
+  try { o.testOutAString(undefined); } catch (e) {} // Don't crash
+  try { o.testOutAString(null); } catch (e) {} // Don't crash
+  try { o.testOutAString("string"); } catch (e) {} // Don't crash
+
   // Helpers to instantiate various test XPCOM objects.
   var numAsMade = 0;
   function makeA() {
@@ -180,10 +189,10 @@ function test_component(contractid) {
                                     [makeB(), makeB(), makeB()], 3, Ci['nsIXPCTestInterfaceB']);
 
   // Test incorrect (too big) array size parameter; this should throw NOT_ENOUGH_ELEMENTS.
-  doTypedArrayMismatchTest("testShortArray", Int16Array([-3, 7, 4]), 4,
-                                             Int16Array([1, -32, 6]), 3);
+  doTypedArrayMismatchTest("testShortArray", new Int16Array([-3, 7, 4]), 4,
+                                             new Int16Array([1, -32, 6]), 3);
 
   // Test type mismatch (int16 <-> uint16); this should throw BAD_CONVERT_JS.
-  doTypedArrayMismatchTest("testShortArray", Uint16Array([0, 7, 4, 3]), 4,
-                                             Uint16Array([1, 5, 6]), 3);
+  doTypedArrayMismatchTest("testShortArray", new Uint16Array([0, 7, 4, 3]), 4,
+                                             new Uint16Array([1, 5, 6]), 3);
 }

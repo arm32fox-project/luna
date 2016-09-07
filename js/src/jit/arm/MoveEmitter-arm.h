@@ -7,8 +7,8 @@
 #ifndef jit_arm_MoveEmitter_arm_h
 #define jit_arm_MoveEmitter_arm_h
 
+#include "jit/MacroAssembler.h"
 #include "jit/MoveResolver.h"
-#include "jit/IonMacroAssembler.h"
 
 namespace js {
 namespace jit {
@@ -17,11 +17,8 @@ class CodeGenerator;
 
 class MoveEmitterARM
 {
-    typedef MoveResolver::Move Move;
-    typedef MoveResolver::MoveOperand MoveOperand;
-
-    bool inCycle_;
-    MacroAssemblerARMCompat &masm;
+    uint32_t inCycle_;
+    MacroAssemblerARMCompat& masm;
 
     // Original stack push value.
     uint32_t pushedAtStart_;
@@ -31,7 +28,6 @@ class MoveEmitterARM
     // stack space has been allocated for that particular spill.
     int32_t pushedAtCycle_;
     int32_t pushedAtSpill_;
-    int32_t pushedAtDoubleSpill_;
 
     // These are registers that are available for temporary use. They may be
     // assigned InvalidReg. If no corresponding spill space has been assigned,
@@ -42,22 +38,26 @@ class MoveEmitterARM
     void assertDone();
     Register tempReg();
     FloatRegister tempFloatReg();
-    Operand cycleSlot() const;
+    Operand cycleSlot(uint32_t slot, uint32_t subslot) const;
     Operand spillSlot() const;
-    Operand doubleSpillSlot() const;
-    Operand toOperand(const MoveOperand &operand, bool isFloat) const;
+    Operand toOperand(const MoveOperand& operand, bool isFloat) const;
 
-    void emitMove(const MoveOperand &from, const MoveOperand &to);
-    void emitDoubleMove(const MoveOperand &from, const MoveOperand &to);
-    void breakCycle(const MoveOperand &from, const MoveOperand &to, Move::Kind kind);
-    void completeCycle(const MoveOperand &from, const MoveOperand &to, Move::Kind kind);
-    void emit(const Move &move);
+    void emitMove(const MoveOperand& from, const MoveOperand& to);
+    void emitFloat32Move(const MoveOperand& from, const MoveOperand& to);
+    void emitDoubleMove(const MoveOperand& from, const MoveOperand& to);
+    void breakCycle(const MoveOperand& from, const MoveOperand& to,
+                    MoveOp::Type type, uint32_t slot);
+    void completeCycle(const MoveOperand& from, const MoveOperand& to,
+                       MoveOp::Type type, uint32_t slot);
+    void emit(const MoveOp& move);
 
   public:
-    MoveEmitterARM(MacroAssemblerARMCompat &masm);
+    MoveEmitterARM(MacroAssemblerARMCompat& masm);
     ~MoveEmitterARM();
-    void emit(const MoveResolver &moves);
+    void emit(const MoveResolver& moves);
     void finish();
+
+    void setScratchRegister(Register reg) {}
 };
 
 typedef MoveEmitterARM MoveEmitter;

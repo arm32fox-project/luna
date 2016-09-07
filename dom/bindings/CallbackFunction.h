@@ -25,10 +25,10 @@ namespace dom {
 class CallbackFunction : public CallbackObject
 {
 public:
-  explicit CallbackFunction(JSObject* aCallable)
-    : CallbackObject(aCallable)
+  explicit CallbackFunction(JS::Handle<JSObject*> aCallable,
+                            nsIGlobalObject* aIncumbentGlobal)
+    : CallbackObject(aCallable, aIncumbentGlobal)
   {
-    MOZ_ASSERT(JS_ObjectIsCallable(nullptr, mCallback));
   }
 
   JS::Handle<JSObject*> Callable() const
@@ -39,7 +39,7 @@ public:
   bool HasGrayCallable() const
   {
     // Play it safe in case this gets called after unlink.
-    return mCallback && xpc_IsGrayGCThing(mCallback);
+    return mCallback && JS::ObjectIsMarkedGray(mCallback);
   }
 
 protected:

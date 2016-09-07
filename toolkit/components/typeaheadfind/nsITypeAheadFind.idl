@@ -36,7 +36,7 @@ interface nsITypeAheadFind : nsISupports
 
   /* Find another match in the page. */
   unsigned short findAgain(in boolean findBackwards, in boolean aLinksOnly);
-  
+
   /* Return the range of the most recent match. */
   nsIDOMRange getFoundRange();
 
@@ -56,6 +56,8 @@ interface nsITypeAheadFind : nsISupports
    * necessarily happen automatically. */
   void collapseSelection();
 
+  /* Check if a range is visible */
+  boolean isRangeVisible(in nsIDOMRange aRange, in boolean aMustBeInViewPort);
 
   /******************************* Attributes ******************************/
 

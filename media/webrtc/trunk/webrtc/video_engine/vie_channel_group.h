@@ -13,16 +13,16 @@
 
 #include <set>
 
-#include "modules/remote_bitrate_estimator/include/remote_bitrate_estimator.h"
-#include "system_wrappers/interface/scoped_ptr.h"
+#include "webrtc/system_wrappers/interface/scoped_ptr.h"
 
 namespace webrtc {
 
 class BitrateController;
 class CallStats;
+class Config;
 class EncoderStateFeedback;
-struct OverUseDetectorOptions;
 class ProcessThread;
+class RemoteBitrateEstimator;
 class ViEChannel;
 class ViEEncoder;
 class VieRemb;
@@ -31,9 +31,8 @@ class VieRemb;
 // group are assumed to send/receive data to the same end-point.
 class ChannelGroup {
  public:
-  ChannelGroup(ProcessThread* process_thread,
-               const OverUseDetectorOptions& options,
-               RemoteBitrateEstimator::EstimationMode mode);
+  ChannelGroup(int engine_id, ProcessThread* process_thread,
+               const Config* config);
   ~ChannelGroup();
 
   void AddChannel(int channel_id);
@@ -41,11 +40,9 @@ class ChannelGroup {
   bool HasChannel(int channel_id);
   bool Empty();
 
-  bool SetChannelRembStatus(int channel_id,
-                            bool sender,
-                            bool receiver,
-                            ViEChannel* channel,
-                            ViEEncoder* encoder);
+  bool SetChannelRembStatus(int channel_id, bool sender, bool receiver,
+                            ViEChannel* channel);
+  void SetBandwidthEstimationConfig(const webrtc::Config& config);
 
   BitrateController* GetBitrateController();
   CallStats* GetCallStats();
@@ -61,8 +58,11 @@ class ChannelGroup {
   scoped_ptr<RemoteBitrateEstimator> remote_bitrate_estimator_;
   scoped_ptr<EncoderStateFeedback> encoder_state_feedback_;
   ChannelSet channels_;
+  const Config* config_;
+  // Placeholder for the case where this owns the config.
+  scoped_ptr<Config> own_config_;
 
-  // Regisered at construct time and assumed to outlive this class.
+  // Registered at construct time and assumed to outlive this class.
   ProcessThread* process_thread_;
 };
 

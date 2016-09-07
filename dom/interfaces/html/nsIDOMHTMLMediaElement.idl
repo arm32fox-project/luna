@@ -8,8 +8,6 @@
 #include "nsIDOMMediaError.idl"
 #include "nsIDOMTimeRanges.idl"
 
-interface nsIDOMMediaStream;
-
 /**
  * The nsIDOMHTMLMediaElement interface is an interface to be implemented by the HTML
  * <audio> and <video> elements.
@@ -27,17 +25,15 @@ interface nsIDOMMediaStream;
 #endif
 %}
 
-[scriptable, uuid(21354ac9-7166-46a0-a3f0-a3135c3cc804)]
-interface nsIDOMHTMLMediaElement : nsIDOMHTMLElement
+[uuid(c041d76c-15ce-47ad-b61d-e8755a6db638)]
+interface nsIDOMHTMLMediaElement : nsISupports
 {
   // error state
   readonly attribute nsIDOMMediaError error;
 
   // network state
            attribute DOMString src;
-           attribute nsIDOMMediaStream mozSrcObject;
   readonly attribute DOMString currentSrc;
-           attribute DOMString crossOrigin;
   const unsigned short NETWORK_EMPTY = 0;
   const unsigned short NETWORK_IDLE = 1;
   const unsigned short NETWORK_LOADING = 2;
@@ -80,19 +76,7 @@ interface nsIDOMHTMLMediaElement : nsIDOMHTMLElement
            attribute boolean defaultMuted;
 
   // Mozilla extension: stream capture
-  nsIDOMMediaStream mozCaptureStream();
-  nsIDOMMediaStream mozCaptureStreamUntilEnded();
   readonly attribute boolean mozAudioCaptured;
-
-  // Mozilla extension: extra stream metadata information, used as part
-  // of MozAudioAvailable events and the mozWriteAudio() method.  The
-  // mozFrameBufferLength method allows for the size of the framebuffer
-  // used within MozAudioAvailable events to be changed.  The new size must
-  // be between 512 and 16384.  The default size, for a  media element with
-  // audio is (mozChannels * 1024).
-  readonly attribute unsigned long mozChannels;
-  readonly attribute unsigned long mozSampleRate;
-           attribute unsigned long mozFrameBufferLength;
 
   // Mozilla extension: return embedded metadata from the stream as a
   // JSObject with key:value pairs for each tag. This can be used by
@@ -143,4 +127,6 @@ interface nsIDOMHTMLMediaElement : nsIDOMHTMLElement
   // * onmozinterruptbegin - called when the media element is interrupted
   //   because of the audiochannel manager.
   // * onmozinterruptend - called when the interruption is concluded
+
+  [notxpcom] boolean isVideo();
 };

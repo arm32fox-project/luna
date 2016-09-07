@@ -95,10 +95,13 @@
     <command id="Tools:DevToolbox" oncommand="gDevToolsBrowser.toggleToolboxCommand(gBrowser);"/>
     <command id="Tools:DevToolbar" oncommand="DeveloperToolbar.toggle();" disabled="true" hidden="true"/>
     <command id="Tools:DevToolbarFocus" oncommand="DeveloperToolbar.focusToggle();" disabled="true"/>
+    <command id="Tools:DevAppMgr" oncommand="gDevToolsBrowser.openAppManager(gBrowser);" disabled="true" hidden="true"/>
+    <command id="Tools:WebIDE" oncommand="gDevToolsBrowser.openWebIDE();" disabled="true" hidden="true"/>
     <command id="Tools:ChromeDebugger" oncommand="BrowserDebuggerProcess.init();" disabled="true" hidden="true"/>
-    <command id="Tools:BrowserConsole" oncommand="HUDConsoleUI.toggleBrowserConsole();"/>
+    <command id="Tools:BrowserConsole" oncommand="HUDService.openBrowserConsoleOrFocus();"/>
     <command id="Tools:Scratchpad" oncommand="Scratchpad.openScratchpad();" disabled="true" hidden="true"/>
     <command id="Tools:ResponsiveUI" oncommand="ResponsiveUI.toggle();" disabled="true" hidden="true"/>
+    <command id="Tools:Eyedropper" oncommand="openEyedropper();"/>
 #endif
     <command id="Tools:Addons" oncommand="BrowserOpenAddonsMgr();"/>
     <command id="Tools:ErrorConsole" oncommand="toJavaScriptConsole()" disabled="true" hidden="true"/>
@@ -177,6 +180,13 @@
                  type="checkbox" autocheck="false"
                  command="Tools:DevToolbar"
                  key="key_devToolbar"/>
+    <broadcaster id="devtoolsMenuBroadcaster_DevAppMgr"
+                 label="&devAppMgrMenu.label;"
+                 command="Tools:DevAppMgr"/>
+    <broadcaster id="devtoolsMenuBroadcaster_webide"
+                 label="&webide.label;"
+                 command="Tools:WebIDE"
+                 key="key_webide"/>
     <broadcaster id="devtoolsMenuBroadcaster_ChromeDebugger"
                  label="&chromeDebuggerMenu.label;"
                  command="Tools:ChromeDebugger"/>
@@ -193,6 +203,10 @@
                  type="checkbox" autocheck="false"
                  command="Tools:ResponsiveUI"
                  key="key_responsiveUI"/>
+    <broadcaster id="devtoolsMenuBroadcaster_Eyedropper"
+                 label="&eyedropper.label;"
+                 type="checkbox" autocheck="false"
+                 command="Tools:Eyedropper"/>
 #endif
     <broadcaster id="devtoolsMenuBroadcaster_PageSource"
                  label="&pageSourceCmd.label;"

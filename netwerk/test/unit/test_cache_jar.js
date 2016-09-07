@@ -1,11 +1,10 @@
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
 Cu.import("resource://testing-common/httpd.js");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+
+XPCOMUtils.defineLazyGetter(this, "URL", function() {
+  return "http://localhost:" + httpserv.identity.primaryPort + "/cached";
+});
 
 var httpserv = null;
 var handlers_called = 0;
@@ -21,7 +20,14 @@ function cached_handler(metadata, response) {
 
 function makeChan(url, appId, inBrowser) {
   var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-  var chan = ios.newChannel(url, null, null).QueryInterface(Ci.nsIHttpChannel);
+  var chan = ios.newChannel2(url,
+                             null,
+                             null,
+                             null,      // aLoadingNode
+                             Services.scriptSecurityManager.getSystemPrincipal(),
+                             null,      // aTriggeringPrincipal
+                             Ci.nsILoadInfo.SEC_NORMAL,
+                             Ci.nsIContentPolicy.TYPE_OTHER).QueryInterface(Ci.nsIHttpChannel);
   chan.notificationCallbacks = {
     appId: appId,
     isInBrowserElement: inBrowser,
@@ -42,9 +48,9 @@ var thirdTests = [[0, false, 0], [0, true, 0], [1, false, 1], [1, true, 1]];
 function run_all_tests() {
   for (let test of firstTests) {
     handlers_called = 0;
-    var chan = makeChan("http://localhost:4444/cached", test[0], test[1]);
+    var chan = makeChan(URL, test[0], test[1]);
     chan.asyncOpen(new ChannelListener(doneFirstLoad, test[2]), null);
-    yield;
+    yield undefined;
   }
 
   // We can't easily cause webapp data to be cleared from the child process, so skip
@@ -62,9 +68,9 @@ function run_all_tests() {
 
   for (let test of secondTests) {
     handlers_called = 0;
-    var chan = makeChan("http://localhost:4444/cached", test[0], test[1]);
+    var chan = makeChan(URL, test[0], test[1]);
     chan.asyncOpen(new ChannelListener(doneFirstLoad, test[2]), null);
-    yield;
+    yield undefined;
   }
 
   subject = {
@@ -76,9 +82,9 @@ function run_all_tests() {
 
   for (let test of thirdTests) {
     handlers_called = 0;
-    var chan = makeChan("http://localhost:4444/cached", test[0], test[1]);
+    var chan = makeChan(URL, test[0], test[1]);
     chan.asyncOpen(new ChannelListener(doneFirstLoad, test[2]), null);
-    yield;
+    yield undefined;
   }
 }
 
@@ -88,14 +94,14 @@ function run_test() {
   do_test_pending();
   httpserv = new HttpServer();
   httpserv.registerPathHandler("/cached", cached_handler);
-  httpserv.start(4444);
+  httpserv.start(-1);
   gTests = run_all_tests();
   gTests.next();
 }
 
 function doneFirstLoad(req, buffer, expected) {
   // Load it again, make sure it hits the cache
-  var chan = makeChan("http://localhost:4444/cached", 0, false);
+  var chan = makeChan(URL, 0, false);
   chan.asyncOpen(new ChannelListener(doneSecondLoad, expected), null);
 }
 

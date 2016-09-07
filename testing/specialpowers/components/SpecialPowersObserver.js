@@ -28,6 +28,7 @@ loader.loadSubScript("chrome://specialpowers/content/SpecialPowersObserverAPI.js
 /* XPCOM gunk */
 this.SpecialPowersObserver = function SpecialPowersObserver() {
   this._isFrameScriptLoaded = false;
+  this._mmIsGlobal = true;
   this._messageManager = Cc["@mozilla.org/globalmessagemanager;1"].
                          getService(Ci.nsIMessageBroadcaster);
 }
@@ -49,21 +50,13 @@ SpecialPowersObserver.prototype = new SpecialPowersObserverAPI();
         break;
 
       case "chrome-document-global-created":
-        if (!this._isFrameScriptLoaded) {
-          // Register for any messages our API needs us to handle
-          this._messageManager.addMessageListener("SPPrefService", this);
-          this._messageManager.addMessageListener("SPProcessCrashService", this);
-          this._messageManager.addMessageListener("SPPingService", this);
-          this._messageManager.addMessageListener("SpecialPowers.Quit", this);
-          this._messageManager.addMessageListener("SpecialPowers.Focus", this);
-          this._messageManager.addMessageListener("SPPermissionManager", this);
-          this._messageManager.addMessageListener("SPWebAppService", this);
-          this._messageManager.addMessageListener("SPObserverService", this);
+        this._loadFrameScript();
+        break;
 
-          this._messageManager.loadFrameScript(CHILD_LOGGER_SCRIPT, true);
-          this._messageManager.loadFrameScript(CHILD_SCRIPT_API, true);
-          this._messageManager.loadFrameScript(CHILD_SCRIPT, true);
-          this._isFrameScriptLoaded = true;
+      case "http-on-modify-request":
+        if (aSubject instanceof Ci.nsIChannel) {
+          let uri = aSubject.URI.spec;
+          this._sendAsyncMessage("specialpowers-http-notify-request", { uri: uri });
         }
         break;
 
@@ -77,26 +70,64 @@ SpecialPowersObserver.prototype = new SpecialPowersObserverAPI();
     }
   };
 
+  SpecialPowersObserver.prototype._loadFrameScript = function()
+  {
+    if (!this._isFrameScriptLoaded) {
+      // Register for any messages our API needs us to handle
+      this._messageManager.addMessageListener("SPPrefService", this);
+      this._messageManager.addMessageListener("SPProcessCrashService", this);
+      this._messageManager.addMessageListener("SPPingService", this);
+      this._messageManager.addMessageListener("SpecialPowers.Quit", this);
+      this._messageManager.addMessageListener("SpecialPowers.Focus", this);
+      this._messageManager.addMessageListener("SPPermissionManager", this);
+      this._messageManager.addMessageListener("SPWebAppService", this);
+      this._messageManager.addMessageListener("SPObserverService", this);
+      this._messageManager.addMessageListener("SPLoadChromeScript", this);
+      this._messageManager.addMessageListener("SPChromeScriptMessage", this);
+      this._messageManager.addMessageListener("SPQuotaManager", this);
+      this._messageManager.addMessageListener("SPSetTestPluginEnabledState", this);
+
+      this._messageManager.loadFrameScript(CHILD_LOGGER_SCRIPT, true);
+      this._messageManager.loadFrameScript(CHILD_SCRIPT_API, true);
+      this._messageManager.loadFrameScript(CHILD_SCRIPT, true);
+      this._isFrameScriptLoaded = true;
+    }
+  };
+
   SpecialPowersObserver.prototype._sendAsyncMessage = function(msgname, msg)
   {
-    this._messageManager.broadcastAsyncMessage(msgname, msg);
+    if (this._mmIsGlobal) {
+      this._messageManager.broadcastAsyncMessage(msgname, msg);
+    }
+    else {
+      this._messageManager.sendAsyncMessage(msgname, msg);
+    }
   };
 
   SpecialPowersObserver.prototype._receiveMessage = function(aMessage) {
     return this._receiveMessageAPI(aMessage);
   };
 
-  SpecialPowersObserver.prototype.init = function()
+  SpecialPowersObserver.prototype.init = function(messageManager)
   {
     var obs = Services.obs;
     obs.addObserver(this, "xpcom-shutdown", false);
     obs.addObserver(this, "chrome-document-global-created", false);
+    obs.addObserver(this, "http-on-modify-request", false);
+
+    if (messageManager) {
+      this._messageManager = messageManager;
+      this._mmIsGlobal = false;
+
+      this._loadFrameScript();
+    }
   };
 
   SpecialPowersObserver.prototype.uninit = function()
   {
     var obs = Services.obs;
     obs.removeObserver(this, "chrome-document-global-created");
+    obs.removeObserver(this, "http-on-modify-request");
     this._removeProcessCrashObservers();
   };
 

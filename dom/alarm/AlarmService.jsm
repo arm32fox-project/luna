@@ -29,14 +29,14 @@ XPCOMUtils.defineLazyServiceGetter(this, "ppmm",
                                    "nsIMessageListenerManager");
 
 XPCOMUtils.defineLazyGetter(this, "messenger", function() {
-  return Cc["@mozilla.org/system-message-internal;1"].getService(Ci.nsISystemMessagesInternal);
+  return Cc["@mozilla.org/system-message-internal;1"]
+           .getService(Ci.nsISystemMessagesInternal);
 });
 
 XPCOMUtils.defineLazyGetter(this, "powerManagerService", function() {
-  return Cc["@mozilla.org/power/powermanagerservice;1"].getService(Ci.nsIPowerManagerService);
+  return Cc["@mozilla.org/power/powermanagerservice;1"]
+           .getService(Ci.nsIPowerManagerService);
 });
-
-let myGlobal = this;
 
 /**
  * AlarmService provides an API to schedule alarms using the device's RTC.
@@ -52,14 +52,14 @@ let myGlobal = this;
 this.AlarmService = {
   init: function init() {
     debug("init()");
+
     Services.obs.addObserver(this, "profile-change-teardown", false);
     Services.obs.addObserver(this, "webapps-clear-data",false);
 
     this._currentTimezoneOffset = (new Date()).getTimezoneOffset();
 
-    let alarmHalService =
-      this._alarmHalService = Cc["@mozilla.org/alarmHalService;1"]
-                              .getService(Ci.nsIAlarmHalService);
+    let alarmHalService = this._alarmHalService =
+      Cc["@mozilla.org/alarmHalService;1"].getService(Ci.nsIAlarmHalService);
 
     alarmHalService.setAlarmFiredCb(this._onAlarmFired.bind(this));
     alarmHalService.setTimezoneChangedCb(this._onTimezoneChanged.bind(this));
@@ -73,11 +73,8 @@ this.AlarmService = {
     }.bind(this));
 
     // Set the indexeddb database.
-    let idbManager = Cc["@mozilla.org/dom/indexeddb/manager;1"]
-                     .getService(Ci.nsIIndexedDatabaseManager);
-    idbManager.initWindowless(myGlobal);
-    this._db = new AlarmDB(myGlobal);
-    this._db.init(myGlobal);
+    this._db = new AlarmDB();
+    this._db.init();
 
     // Variable to save alarms waiting to be set.
     this._alarmQueue = [];
@@ -114,6 +111,7 @@ this.AlarmService = {
         debug("Got message from a child process with no 'alarms' permission.");
         return null;
       }
+
       if (!aMessage.target.assertContainApp(json.manifestURL)) {
         debug("Got message from a child process containing illegal manifest URL.");
         return null;
@@ -121,37 +119,34 @@ this.AlarmService = {
     }
 
     let mm = aMessage.target.QueryInterface(Ci.nsIMessageSender);
+
     switch (aMessage.name) {
       case "AlarmsManager:GetAll":
-        this._db.getAll(
-          json.manifestURL,
+        this._db.getAll(json.manifestURL,
           function getAllSuccessCb(aAlarms) {
             debug("Callback after getting alarms from database: " +
                   JSON.stringify(aAlarms));
+
             this._sendAsyncMessage(mm, "GetAll", true, json.requestId, aAlarms);
           }.bind(this),
           function getAllErrorCb(aErrorMsg) {
             this._sendAsyncMessage(mm, "GetAll", false, json.requestId, aErrorMsg);
-          }.bind(this)
-        );
+          }.bind(this));
         break;
 
       case "AlarmsManager:Add":
         // Prepare a record for the new alarm to be added.
-        let newAlarm = {
-          date: json.date,
-          ignoreTimezone: json.ignoreTimezone,
-          data: json.data,
-          pageURL: json.pageURL,
-          manifestURL: json.manifestURL
-        };
+        let newAlarm = { date: json.date,
+                         ignoreTimezone: json.ignoreTimezone,
+                         data: json.data,
+                         pageURL: json.pageURL,
+                         manifestURL: json.manifestURL };
 
         this.add(newAlarm, null,
           // Receives the alarm ID as the last argument.
           this._sendAsyncMessage.bind(this, mm, "Add", true, json.requestId),
           // Receives the error message as the last argument.
-          this._sendAsyncMessage.bind(this, mm, "Add", false, json.requestId)
-        );
+          this._sendAsyncMessage.bind(this, mm, "Add", false, json.requestId));
         break;
 
       case "AlarmsManager:Remove":
@@ -174,8 +169,7 @@ this.AlarmService = {
     }
 
     let json = null;
-    switch (aMessageName)
-    {
+    switch (aMessageName) {
       case "Add":
         json = aSuccess ?
           { requestId: aRequestId, id: aData } :
@@ -194,7 +188,8 @@ this.AlarmService = {
     }
 
     aMessageManager.sendAsyncMessage("AlarmsManager:" + aMessageName +
-                                     ":Return:" + (aSuccess ? "OK" : "KO"), json);
+                                       ":Return:" + (aSuccess ? "OK" : "KO"),
+                                     json);
   },
 
   _removeAlarmFromDb: function _removeAlarmFromDb(aId, aManifestURL,
@@ -209,14 +204,10 @@ this.AlarmService = {
       };
     }
 
-    this._db.remove(
-      aId,
-      aManifestURL,
-      aRemoveSuccessCb,
-      function removeErrorCb(aErrorMsg) {
-        throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
-      }
-    );
+    this._db.remove(aId, aManifestURL, aRemoveSuccessCb,
+                    function removeErrorCb(aErrorMsg) {
+                      throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
+                    });
   },
 
   /**
@@ -225,13 +216,11 @@ this.AlarmService = {
    * boolean |ignoreTimezone| field.
    */
   _publicAlarm: function _publicAlarm(aAlarm) {
-    let alarm = {
-      "id":              aAlarm.id,
-      "date":            aAlarm.date,
-      "respectTimezone": aAlarm.ignoreTimezone ?
-                           "ignoreTimezone" : "honorTimezone",
-      "data":            aAlarm.data
-    };
+    let alarm = { "id": aAlarm.id,
+                  "date": aAlarm.date,
+                  "respectTimezone": aAlarm.ignoreTimezone ?
+                                       "ignoreTimezone" : "honorTimezone",
+                  "data": aAlarm.data };
 
     return alarm;
   },
@@ -242,8 +231,10 @@ this.AlarmService = {
     let manifestURI = Services.io.newURI(aAlarm.manifestURL, null, null);
     let pageURI = Services.io.newURI(aAlarm.pageURL, null, null);
 
-    messenger.sendMessage("alarm", this._publicAlarm(aAlarm),
-                          pageURI, manifestURI);
+    messenger.sendMessage("alarm",
+                          this._publicAlarm(aAlarm),
+                          pageURI,
+                          manifestURI);
   },
 
   _notifyAlarmObserver: function _notifyAlarmObserver(aAlarm) {
@@ -281,6 +272,7 @@ this.AlarmService = {
         break;
       }
     }
+
     this._debugCurrentAlarm();
   },
 
@@ -294,8 +286,7 @@ this.AlarmService = {
   _restoreAlarmsFromDb: function _restoreAlarmsFromDb() {
     debug("_restoreAlarmsFromDb()");
 
-    this._db.getAll(
-      null,
+    this._db.getAll(null,
       function getAllSuccessCb(aAlarms) {
         debug("Callback after getting alarms from database: " +
               JSON.stringify(aAlarms));
@@ -316,7 +307,7 @@ this.AlarmService = {
           }
         }.bind(this));
 
-        // Set the next alarm from queue.
+        // Set the next alarm from the queue.
         if (alarmQueue.length) {
           alarmQueue.sort(this._sortAlarmByTimeStamps.bind(this));
           this._currentAlarm = alarmQueue.shift();
@@ -326,21 +317,28 @@ this.AlarmService = {
       }.bind(this),
       function getAllErrorCb(aErrorMsg) {
         throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
-      }
-    );
+      });
   },
 
   _getAlarmTime: function _getAlarmTime(aAlarm) {
-    let alarmTime = (new Date(aAlarm.date)).getTime();
+    // Avoid casting a Date object to a Date again to
+    // preserve milliseconds. See bug 810973.
+    let alarmTime;
+    if (aAlarm.date instanceof Date) {
+      alarmTime = aAlarm.date.getTime();
+    } else {
+      alarmTime = (new Date(aAlarm.date)).getTime();
+    }
 
     // For an alarm specified with "ignoreTimezone", it must be fired respect
     // to the user's timezone.  Supposing an alarm was set at 7:00pm at Tokyo,
     // it must be gone off at 7:00pm respect to Paris' local time when the user
     // is located at Paris.  We can adjust the alarm UTC time by calculating
     // the difference of the orginal timezone and the current timezone.
-    if (aAlarm.ignoreTimezone)
-       alarmTime += (this._currentTimezoneOffset - aAlarm.timezoneOffset) * 60000;
-
+    if (aAlarm.ignoreTimezone) {
+      alarmTime +=
+        (this._currentTimezoneOffset - aAlarm.timezoneOffset) * 60000;
+    }
     return alarmTime;
   },
 
@@ -400,8 +398,7 @@ this.AlarmService = {
 
     aNewAlarm['timezoneOffset'] = this._currentTimezoneOffset;
 
-    this._db.add(
-      aNewAlarm,
+    this._db.add(aNewAlarm,
       function addSuccessCb(aNewId) {
         debug("Callback after adding alarm in database.");
 
@@ -420,7 +417,7 @@ this.AlarmService = {
         }
 
         // If the new alarm is earlier than the current alarm, swap them and
-        // push the previous alarm back to queue.
+        // push the previous alarm back to the queue.
         let alarmQueue = this._alarmQueue;
         let aNewAlarmTime = this._getAlarmTime(aNewAlarm);
         let currentAlarmTime = this._getAlarmTime(this._currentAlarm);
@@ -440,8 +437,7 @@ this.AlarmService = {
       }.bind(this),
       function addErrorCb(aErrorMsg) {
         aErrorCb(aErrorMsg);
-      }.bind(this)
-    );
+      }.bind(this));
   },
 
   /*
@@ -455,9 +451,8 @@ this.AlarmService = {
    */
   remove: function(aAlarmId, aManifestURL) {
     debug("remove(" + aAlarmId + ", " + aManifestURL + ")");
-    this._removeAlarmFromDb(
-      aAlarmId,
-      aManifestURL,
+
+    this._removeAlarmFromDb(aAlarmId, aManifestURL,
       function removeSuccessCb() {
         debug("Callback after removing alarm from database.");
 
@@ -486,7 +481,7 @@ this.AlarmService = {
         }
 
         // The alarm to be removed is the current alarm reset the next alarm
-        // from queue if any.
+        // from the queue if any.
         if (alarmQueue.length) {
           this._currentAlarm = alarmQueue.shift();
           this._debugCurrentAlarm();
@@ -496,20 +491,27 @@ this.AlarmService = {
         // No alarm waiting to be set in the queue.
         this._currentAlarm = null;
         this._debugCurrentAlarm();
-      }.bind(this)
-    );
+      }.bind(this));
   },
 
   observe: function(aSubject, aTopic, aData) {
+    debug("observe(): " + aTopic);
+
     switch (aTopic) {
       case "profile-change-teardown":
         this.uninit();
         break;
+
       case "webapps-clear-data":
         let params =
           aSubject.QueryInterface(Ci.mozIApplicationClearPrivateDataParams);
         if (!params) {
           debug("Error! Fail to remove alarms for an uninstalled app.");
+          return;
+        }
+
+        // Only remove alarms for apps.
+        if (params.browserOnly) {
           return;
         }
 
@@ -519,8 +521,7 @@ this.AlarmService = {
           return;
         }
 
-        this._db.getAll(
-          manifestURL,
+        this._db.getAll(manifestURL,
           function getAllSuccessCb(aAlarms) {
             aAlarms.forEach(function removeAlarm(aAlarm) {
               this.remove(aAlarm.id, manifestURL);
@@ -528,14 +529,14 @@ this.AlarmService = {
           }.bind(this),
           function getAllErrorCb(aErrorMsg) {
             throw Components.results.NS_ERROR_NOT_IMPLEMENTED;
-          }
-        );
+          });
         break;
     }
   },
 
   uninit: function uninit() {
     debug("uninit()");
+
     Services.obs.removeObserver(this, "profile-change-teardown");
     Services.obs.removeObserver(this, "webapps-clear-data");
 

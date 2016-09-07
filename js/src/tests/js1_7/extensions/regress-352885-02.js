@@ -1,4 +1,4 @@
-/* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
+/* -*- indent-tabs-mode: nil; js-indent-level: 2 -*- */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
@@ -26,34 +26,35 @@ function test()
 
     try {
       proto.next();
-      throw "generatorProto.next() does not throw StopIteration";
+      throw "generatorProto.next() does not throw TypeError";
     } catch (e) {
-      if (!(e instanceof StopIteration))
+      if (!(e instanceof TypeError))
         throw "generatorProto.next() throws unexpected exception: "+uneval(e);
     }
 
     try {
       proto.send();
-      throw "generatorProto.send() does not throw StopIteration";
+      throw "generatorProto.send() does not throw TypeError";
     } catch (e) {
-      if (!(e instanceof StopIteration))
+      if (!(e instanceof TypeError))
         throw "generatorProto.send() throws unexpected exception: "+uneval(e);
     }
 
     var obj = {};
     try {
       proto.throw(obj);
-      throw "generatorProto.throw(obj) does not throw obj";
+      throw "generatorProto.throw(obj) does not throw TypeError";
     } catch (e) {
-      if (e !== obj)
+      if (!(e instanceof TypeError))
         throw "generatorProto.throw() throws unexpected exception: "+uneval(e);
     }
 
-    var obj = {};
     try {
       proto.close();
+      throw "generatorProto.close() does not throw TypeError";
     } catch (e) {
-      throw "generatorProto.throw() throws exception: "+uneval(e);
+      if (!(e instanceof TypeError))
+        throw "generatorProto.close() throws unexpected exception: "+uneval(e);
     }
 
   }

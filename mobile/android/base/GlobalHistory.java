@@ -5,24 +5,30 @@
 
 package org.mozilla.goanna;
 
-import org.mozilla.goanna.db.BrowserDB;
-import org.mozilla.goanna.util.ThreadUtils;
-
-import android.database.Cursor;
-import android.net.Uri;
-import android.os.Handler;
-import android.util.Log;
-
 import java.lang.ref.SoftReference;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.Set;
 
+import org.mozilla.goanna.db.BrowserDB;
+import org.mozilla.goanna.util.ThreadUtils;
+
+import android.content.ContentResolver;
+import android.content.Context;
+import android.database.Cursor;
+import android.os.Handler;
+import android.os.SystemClock;
+import android.util.Log;
+
 class GlobalHistory {
     private static final String LOGTAG = "GoannaGlobalHistory";
 
-    private static GlobalHistory sInstance = new GlobalHistory();
+    private static final String TELEMETRY_HISTOGRAM_ADD = "FENNEC_GLOBALHISTORY_ADD_MS";
+    private static final String TELEMETRY_HISTOGRAM_UPDATE = "FENNEC_GLOBALHISTORY_UPDATE_MS";
+    private static final String TELEMETRY_HISTOGRAM_BUILD_VISITED_LINK = "FENNEC_GLOBALHISTORY_VISITED_BUILD_MS";
+
+    private static final GlobalHistory sInstance = new GlobalHistory();
 
     static GlobalHistory getInstance() {
         return sInstance;
@@ -34,47 +40,70 @@ class GlobalHistory {
     private static final long BATCHING_DELAY_MS = 100;
 
     private final Handler mHandler;                     // a background thread on which we can process requests
-    private final Queue<String> mPendingUris;           // URIs that need to be checked
-    private SoftReference<Set<String>> mVisitedCache;   // cache of the visited URI list
-    private final Runnable mNotifierRunnable;           // off-thread runnable used to check URIs
-    private boolean mProcessing; // = false             // whether or not the runnable is queued/working
 
-    private GlobalHistory() {
-        mHandler = ThreadUtils.getBackgroundHandler();
-        mPendingUris = new LinkedList<String>();
-        mVisitedCache = new SoftReference<Set<String>>(null);
-        mNotifierRunnable = new Runnable() {
-            @Override
-            public void run() {
-                Set<String> visitedSet = mVisitedCache.get();
-                if (visitedSet == null) {
-                    // the cache was wiped away, repopulate it
-                    Log.w(LOGTAG, "Rebuilding visited link set...");
+    //  Note: These fields are accessed through the NotificationRunnable inner class.
+    final Queue<String> mPendingUris;           // URIs that need to be checked
+    SoftReference<Set<String>> mVisitedCache;   // cache of the visited URI list
+    boolean mProcessing; // = false             // whether or not the runnable is queued/working
+
+    private class NotifierRunnable implements Runnable {
+        private final ContentResolver mContentResolver;
+        private final BrowserDB mDB;
+
+        public NotifierRunnable(final Context context) {
+            mContentResolver = context.getContentResolver();
+            mDB = GoannaProfile.get(context).getDB();
+        }
+
+        @Override
+        public void run() {
+            Set<String> visitedSet = mVisitedCache.get();
+            if (visitedSet == null) {
+                // The cache was wiped. Repopulate it.
+                Log.w(LOGTAG, "Rebuilding visited link set...");
+                final long start = SystemClock.uptimeMillis();
+                final Cursor c = mDB.getAllVisitedHistory(mContentResolver);
+                if (c == null) {
+                    return;
+                }
+
+                try {
                     visitedSet = new HashSet<String>();
-                    Cursor c = BrowserDB.getAllVisitedHistory(GoannaAppShell.getContext().getContentResolver());
                     if (c.moveToFirst()) {
                         do {
                             visitedSet.add(c.getString(0));
                         } while (c.moveToNext());
                     }
                     mVisitedCache = new SoftReference<Set<String>>(visitedSet);
+                    final long end = SystemClock.uptimeMillis();
+                    final long took = end - start;
+                    Telemetry.addToHistogram(TELEMETRY_HISTOGRAM_BUILD_VISITED_LINK, (int) Math.min(took, Integer.MAX_VALUE));
+                } finally {
                     c.close();
                 }
-
-                // this runs on the same handler thread as the checkUriVisited code,
-                // so no synchronization needed
-                while (true) {
-                    String uri = mPendingUris.poll();
-                    if (uri == null) {
-                        break;
-                    }
-                    if (visitedSet.contains(uri)) {
-                        GoannaAppShell.notifyUriVisited(uri);
-                    }
-                }
-                mProcessing = false;
             }
-        };
+
+            // This runs on the same handler thread as the checkUriVisited code,
+            // so no synchronization is needed.
+            while (true) {
+                final String uri = mPendingUris.poll();
+                if (uri == null) {
+                    break;
+                }
+
+                if (visitedSet.contains(uri)) {
+                    GoannaAppShell.notifyUriVisited(uri);
+                }
+            }
+
+            mProcessing = false;
+        }
+    };
+
+    private GlobalHistory() {
+        mHandler = ThreadUtils.getBackgroundHandler();
+        mPendingUris = new LinkedList<String>();
+        mVisitedCache = new SoftReference<Set<String>>(null);
     }
 
     public void addToGoannaOnly(String uri) {
@@ -85,53 +114,32 @@ class GlobalHistory {
         GoannaAppShell.notifyUriVisited(uri);
     }
 
-    // Logic ported from nsNavHistory::CanAddURI.
-    // http://mxr.mozilla.org/mozilla-central/source/toolkit/components/places/nsNavHistory.cpp#1272
-    private boolean canAddURI(String uri) {
-        if (uri == null || uri.length() == 0)
-            return false;
+    public void add(final Context context, final BrowserDB db, String uri) {
+        ThreadUtils.assertOnBackgroundThread();
+        final long start = SystemClock.uptimeMillis();
 
-        // First, heck the most common cases (HTTP, HTTPS) to avoid most of the work.
-        if (uri.startsWith("http:") || uri.startsWith("https:"))
-            return true;
+        db.updateVisitedHistory(context.getContentResolver(), uri);
 
-        String scheme = Uri.parse(uri).getScheme();
-        if (scheme == null)
-            return false;
-
-        // Now check for all bad things.
-        if (scheme.equals("about") ||
-            scheme.equals("imap") ||
-            scheme.equals("news") ||
-            scheme.equals("mailbox") ||
-            scheme.equals("moz-anno") ||
-            scheme.equals("view-source") ||
-            scheme.equals("chrome") ||
-            scheme.equals("resource") ||
-            scheme.equals("data") ||
-            scheme.equals("wyciwyg") ||
-            scheme.equals("javascript"))
-            return false;
-
-        return true;
-    }
-
-    public void add(String uri) {
-        if (!canAddURI(uri))
-            return;
-
-        BrowserDB.updateVisitedHistory(GoannaAppShell.getContext().getContentResolver(), uri);
+        final long end = SystemClock.uptimeMillis();
+        final long took = end - start;
+        Telemetry.addToHistogram(TELEMETRY_HISTOGRAM_ADD, (int) Math.min(took, Integer.MAX_VALUE));
         addToGoannaOnly(uri);
     }
 
-    public void update(String uri, String title) {
-        if (!canAddURI(uri))
-            return;
+    @SuppressWarnings("static-method")
+    public void update(final ContentResolver cr, final BrowserDB db, String uri, String title) {
+        ThreadUtils.assertOnBackgroundThread();
+        final long start = SystemClock.uptimeMillis();
 
-        BrowserDB.updateHistoryTitle(GoannaAppShell.getContext().getContentResolver(), uri, title);
+        db.updateHistoryTitle(cr, uri, title);
+
+        final long end = SystemClock.uptimeMillis();
+        final long took = end - start;
+        Telemetry.addToHistogram(TELEMETRY_HISTOGRAM_UPDATE, (int) Math.min(took, Integer.MAX_VALUE));
     }
 
     public void checkUriVisited(final String uri) {
+        final NotifierRunnable runnable = new NotifierRunnable(GoannaAppShell.getContext());
         mHandler.post(new Runnable() {
             @Override
             public void run() {
@@ -144,7 +152,7 @@ class GlobalHistory {
                     return;
                 }
                 mProcessing = true;
-                mHandler.postDelayed(mNotifierRunnable, BATCHING_DELAY_MS);
+                mHandler.postDelayed(runnable, BATCHING_DELAY_MS);
             }
         });
     }

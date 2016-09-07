@@ -11,7 +11,9 @@
 #ifndef WEBRTC_MODULES_AUDIO_PROCESSING_AECM_INCLUDE_ECHO_CONTROL_MOBILE_H_
 #define WEBRTC_MODULES_AUDIO_PROCESSING_AECM_INCLUDE_ECHO_CONTROL_MOBILE_H_
 
-#include "typedefs.h"
+#include <stdlib.h>
+
+#include "webrtc/typedefs.h"
 
 enum {
     AecmFalse = 0,
@@ -29,8 +31,8 @@ enum {
 #define AECM_BAD_PARAMETER_WARNING       12100
 
 typedef struct {
-    WebRtc_Word16 cngMode;            // AECM_FALSE, AECM_TRUE (default)
-    WebRtc_Word16 echoMode;           // 0, 1, 2, 3 (default), 4
+    int16_t cngMode;            // AECM_FALSE, AECM_TRUE (default)
+    int16_t echoMode;           // 0, 1, 2, 3 (default), 4
 } AecmConfig;
 
 #ifdef __cplusplus
@@ -43,130 +45,127 @@ extern "C" {
  *
  * Inputs                           Description
  * -------------------------------------------------------------------
- * void **aecmInst                  Pointer to the AECM instance to be
+ * void**  aecmInst                 Pointer to the AECM instance to be
  *                                  created and initialized
  *
  * Outputs                          Description
  * -------------------------------------------------------------------
- * WebRtc_Word32 return             0: OK
+ * int32_t return                   0: OK
  *                                 -1: error
  */
-WebRtc_Word32 WebRtcAecm_Create(void **aecmInst);
+int32_t WebRtcAecm_Create(void **aecmInst);
 
 /*
  * This function releases the memory allocated by WebRtcAecm_Create()
  *
  * Inputs                       Description
  * -------------------------------------------------------------------
- * void *aecmInst               Pointer to the AECM instance
+ * void*    aecmInst            Pointer to the AECM instance
  *
  * Outputs                      Description
  * -------------------------------------------------------------------
- * WebRtc_Word32  return        0: OK
+ * int32_t  return              0: OK
  *                             -1: error
  */
-WebRtc_Word32 WebRtcAecm_Free(void *aecmInst);
+int32_t WebRtcAecm_Free(void *aecmInst);
 
 /*
  * Initializes an AECM instance.
  *
  * Inputs                       Description
  * -------------------------------------------------------------------
- * void           *aecmInst     Pointer to the AECM instance
- * WebRtc_Word32  sampFreq      Sampling frequency of data
+ * void*          aecmInst      Pointer to the AECM instance
+ * int32_t        sampFreq      Sampling frequency of data
  *
  * Outputs                      Description
  * -------------------------------------------------------------------
- * WebRtc_Word32  return        0: OK
+ * int32_t        return        0: OK
  *                             -1: error
  */
-WebRtc_Word32 WebRtcAecm_Init(void* aecmInst,
-                              WebRtc_Word32 sampFreq);
+int32_t WebRtcAecm_Init(void* aecmInst, int32_t sampFreq);
 
 /*
  * Inserts an 80 or 160 sample block of data into the farend buffer.
  *
  * Inputs                       Description
  * -------------------------------------------------------------------
- * void           *aecmInst     Pointer to the AECM instance
- * WebRtc_Word16  *farend       In buffer containing one frame of
+ * void*          aecmInst      Pointer to the AECM instance
+ * int16_t*       farend        In buffer containing one frame of
  *                              farend signal
- * WebRtc_Word16  nrOfSamples   Number of samples in farend buffer
+ * int16_t        nrOfSamples   Number of samples in farend buffer
  *
  * Outputs                      Description
  * -------------------------------------------------------------------
- * WebRtc_Word32  return        0: OK
+ * int32_t        return        0: OK
  *                             -1: error
  */
-WebRtc_Word32 WebRtcAecm_BufferFarend(void* aecmInst,
-                                      const WebRtc_Word16* farend,
-                                      WebRtc_Word16 nrOfSamples);
+int32_t WebRtcAecm_BufferFarend(void* aecmInst,
+                                const int16_t* farend,
+                                int16_t nrOfSamples);
 
 /*
  * Runs the AECM on an 80 or 160 sample blocks of data.
  *
- * Inputs                       Description
+ * Inputs                        Description
  * -------------------------------------------------------------------
- * void           *aecmInst      Pointer to the AECM instance
- * WebRtc_Word16  *nearendNoisy  In buffer containing one frame of
+ * void*          aecmInst       Pointer to the AECM instance
+ * int16_t*       nearendNoisy   In buffer containing one frame of
  *                               reference nearend+echo signal. If
  *                               noise reduction is active, provide
  *                               the noisy signal here.
- * WebRtc_Word16  *nearendClean  In buffer containing one frame of
+ * int16_t*       nearendClean   In buffer containing one frame of
  *                               nearend+echo signal. If noise
  *                               reduction is active, provide the
  *                               clean signal here. Otherwise pass a
  *                               NULL pointer.
- * WebRtc_Word16  nrOfSamples    Number of samples in nearend buffer
- * WebRtc_Word16  msInSndCardBuf Delay estimate for sound card and
+ * int16_t        nrOfSamples    Number of samples in nearend buffer
+ * int16_t        msInSndCardBuf Delay estimate for sound card and
  *                               system buffers
  *
- * Outputs                      Description
+ * Outputs                       Description
  * -------------------------------------------------------------------
- * WebRtc_Word16  *out          Out buffer, one frame of processed nearend
- * WebRtc_Word32  return        0: OK
- *                             -1: error
+ * int16_t*       out            Out buffer, one frame of processed nearend
+ * int32_t        return         0: OK
+ *                              -1: error
  */
-WebRtc_Word32 WebRtcAecm_Process(void* aecmInst,
-                                 const WebRtc_Word16* nearendNoisy,
-                                 const WebRtc_Word16* nearendClean,
-                                 WebRtc_Word16* out,
-                                 WebRtc_Word16 nrOfSamples,
-                                 WebRtc_Word16 msInSndCardBuf);
+int32_t WebRtcAecm_Process(void* aecmInst,
+                           const int16_t* nearendNoisy,
+                           const int16_t* nearendClean,
+                           int16_t* out,
+                           int16_t nrOfSamples,
+                           int16_t msInSndCardBuf);
 
 /*
  * This function enables the user to set certain parameters on-the-fly
  *
  * Inputs                       Description
  * -------------------------------------------------------------------
- * void     *aecmInst           Pointer to the AECM instance
- * AecmConfig config            Config instance that contains all
+ * void*          aecmInst      Pointer to the AECM instance
+ * AecmConfig     config        Config instance that contains all
  *                              properties to be set
  *
  * Outputs                      Description
  * -------------------------------------------------------------------
- * WebRtc_Word32  return        0: OK
+ * int32_t        return        0: OK
  *                             -1: error
  */
-WebRtc_Word32 WebRtcAecm_set_config(void* aecmInst,
-                                    AecmConfig config);
+int32_t WebRtcAecm_set_config(void* aecmInst, AecmConfig config);
 
 /*
  * This function enables the user to set certain parameters on-the-fly
  *
  * Inputs                       Description
  * -------------------------------------------------------------------
- * void *aecmInst               Pointer to the AECM instance
+ * void*          aecmInst      Pointer to the AECM instance
  *
  * Outputs                      Description
  * -------------------------------------------------------------------
- * AecmConfig  *config          Pointer to the config instance that
+ * AecmConfig*    config        Pointer to the config instance that
  *                              all properties will be written to
- * WebRtc_Word32  return        0: OK
+ * int32_t        return        0: OK
  *                             -1: error
  */
-WebRtc_Word32 WebRtcAecm_get_config(void *aecmInst,
-                                    AecmConfig *config);
+int32_t WebRtcAecm_get_config(void *aecmInst, AecmConfig *config);
 
 /*
  * This function enables the user to set the echo path on-the-fly.
@@ -179,12 +178,12 @@ WebRtc_Word32 WebRtcAecm_get_config(void *aecmInst,
  *
  * Outputs                      Description
  * -------------------------------------------------------------------
- * WebRtc_Word32  return        0: OK
+ * int32_t      return          0: OK
  *                             -1: error
  */
-WebRtc_Word32 WebRtcAecm_InitEchoPath(void* aecmInst,
-                                      const void* echo_path,
-                                      size_t size_bytes);
+int32_t WebRtcAecm_InitEchoPath(void* aecmInst,
+                                const void* echo_path,
+                                size_t size_bytes);
 
 /*
  * This function enables the user to get the currently used echo path
@@ -198,19 +197,19 @@ WebRtc_Word32 WebRtcAecm_InitEchoPath(void* aecmInst,
  *
  * Outputs                      Description
  * -------------------------------------------------------------------
- * WebRtc_Word32  return        0: OK
+ * int32_t      return          0: OK
  *                             -1: error
  */
-WebRtc_Word32 WebRtcAecm_GetEchoPath(void* aecmInst,
-                                     void* echo_path,
-                                     size_t size_bytes);
+int32_t WebRtcAecm_GetEchoPath(void* aecmInst,
+                               void* echo_path,
+                               size_t size_bytes);
 
 /*
  * This function enables the user to get the echo path size in bytes
  *
  * Outputs                      Description
  * -------------------------------------------------------------------
- * size_t       return           : size in bytes
+ * size_t       return          Size in bytes
  */
 size_t WebRtcAecm_echo_path_size_bytes();
 
@@ -219,13 +218,13 @@ size_t WebRtcAecm_echo_path_size_bytes();
  *
  * Inputs                       Description
  * -------------------------------------------------------------------
- * void         *aecmInst       Pointer to the AECM instance
+ * void*          aecmInst      Pointer to the AECM instance
  *
  * Outputs                      Description
  * -------------------------------------------------------------------
- * WebRtc_Word32  return        11000-11100: error code
+ * int32_t        return        11000-11100: error code
  */
-WebRtc_Word32 WebRtcAecm_get_error_code(void *aecmInst);
+int32_t WebRtcAecm_get_error_code(void *aecmInst);
 
 #ifdef __cplusplus
 }

@@ -11,6 +11,8 @@
   <script type="application/javascript"
           src="../common.js"></script>
   <script type="application/javascript"
+          src="../role.js"></script>
+  <script type="application/javascript"
           src="../events.js"></script>
 
   <script type="application/javascript">
@@ -19,6 +21,7 @@
     {
       this.selectNode = getNode(aID);
       this.select = getAccessible(this.selectNode);
+      this.selectList = this.select.firstChild;
 
       this.invoke = function addOptGroup_invoke()
       {
@@ -37,7 +40,7 @@
       }
 
       this.eventSeq = [
-        new invokerChecker(EVENT_REORDER, this.select)
+        new invokerChecker(EVENT_REORDER, this.selectList)
       ];
 
       this.finalCheck = function addOptGroup_finalCheck()
@@ -49,7 +52,7 @@
                 { COMBOBOX_OPTION: [
                   { TEXT_LEAF: [] }
                 ] },
-              { COMBOBOX_OPTION: [
+                { COMBOBOX_OPTION: [
                   { TEXT_LEAF: [] }
                 ] },
               ]},
@@ -69,6 +72,7 @@
     {
       this.selectNode = getNode(aID);
       this.select = getAccessible(this.selectNode);
+      this.selectList = this.select.firstChild;
 
       this.invoke = function removeOptGroup_invoke()
       {
@@ -77,7 +81,7 @@
       }
 
       this.eventSeq = [
-        new invokerChecker(EVENT_REORDER, this.select)
+        new invokerChecker(EVENT_REORDER, this.selectList)
       ];
 
       this.finalCheck = function removeOptGroup_finalCheck()

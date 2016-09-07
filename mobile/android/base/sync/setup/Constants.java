@@ -13,6 +13,7 @@ public class Constants {
   public static final String AUTHTOKEN_TYPE_PLAIN = "auth.plain";
   public static final String OPTION_SERVER        = "option.serverUrl";
   public static final String DATA_ENABLE_ON_UPGRADE = "data.enableOnUpgrade";
+  public static final String DATA_SHOULD_BE_REMOVED = "data.shouldBeRemoved";
 
   public static final String DEFAULT_PROFILE = "default";
 
@@ -51,10 +52,6 @@ public class Constants {
     Intent.FLAG_ACTIVITY_NO_ANIMATION;
 
   // Constants for Account Authentication.
-  public static final String AUTH_NODE_DEFAULT    = "https://auth.services.mozilla.com/";
-  public static final String AUTH_NODE_PATHNAME   = "user/";
-  public static final String AUTH_NODE_VERSION    = "1.0/";
-  public static final String AUTH_NODE_SUFFIX     = "node/weave";
   public static final String AUTH_SERVER_VERSION  = "1.1/";
   public static final String AUTH_SERVER_SUFFIX   = "info/collections/";
 

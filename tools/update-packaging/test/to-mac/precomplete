@@ -1,4 +1,0 @@
-remove precomplete
-remove Contents/MacOS/removed-files
-rmdir Contents/MacOS/
-rmdir Contents/

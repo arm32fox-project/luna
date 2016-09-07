@@ -6,28 +6,38 @@
 
 interface nsIURI;
 interface nsIDOMWindow;
+interface nsIMessageSender;
 
 // Implemented by the contract id @mozilla.org/system-message-internal;1
 
-[scriptable, uuid(d8de761a-94fe-44d5-80eb-3c8bd8cd7d0b)]
+[scriptable, uuid(54c8e274-decb-4258-9a24-4ebfcbf3d00a)]
 interface nsISystemMessagesInternal : nsISupports
 {
   /*
-   * Allow any internal user to broadcast a message of a given type.
+   * Allow any internal user to send a message of a given type to a given page
+   * of an app. The message will be sent to all the registered pages of the app
+   * when |pageURI| is not specified.
    * @param type        The type of the message to be sent.
    * @param message     The message payload.
-   * @param pageURI     The URI of the page that will be opened.
+   * @param pageURI     The URI of the page that will be opened. Nullable.
    * @param manifestURI The webapp's manifest URI.
+   * @param extra       Extra opaque information that will be passed around in the observer
+   *                    notification to open the page.
+   * returns a Promise
    */
-  void sendMessage(in DOMString type, in jsval message, in nsIURI pageURI, in nsIURI manifestURI);
+  nsISupports sendMessage(in DOMString type, in jsval message,
+                          in nsIURI pageURI, in nsIURI manifestURI,
+                          [optional] in jsval extra);
 
   /*
    * Allow any internal user to broadcast a message of a given type.
    * The application that registers the message will be launched.
    * @param type        The type of the message to be sent.
    * @param message     The message payload.
+   * @param extra       Extra opaque information that will be passed around in the observer
+   *                    notification to open the page.
    */
-  void broadcastMessage(in DOMString type, in jsval message);
+  void broadcastMessage(in DOMString type, in jsval message, [optional] in jsval extra);
 
   /*
    * Registration of a page that wants to be notified of a message type.
@@ -36,6 +46,12 @@ interface nsISystemMessagesInternal : nsISupports
    * @param manifestURI   The webapp's manifest URI.
    */
   void registerPage(in DOMString type, in nsIURI pageURI, in nsIURI manifestURI);
+
+  /*
+   * Refresh the system message cache in a content process.
+   * @param manifestURI The webapp's manifest URI.
+   */
+  void refreshCache(in nsIMessageSender childMM, in nsIURI manifestURI);
 };
 
 [scriptable, uuid(002f0e82-91f0-41de-ad43-569a2b9d12df)]
@@ -46,4 +62,27 @@ interface nsISystemMessagesWrapper: nsISupports
    * @param message  The json blob to wrap.
    */
   jsval wrapMessage(in jsval message, in nsIDOMWindow window);
+};
+
+/*
+ * Implements an interface to allow specific message types to
+ * configure some behaviors
+ */
+[scriptable, uuid(31b78730-21c6-11e4-8c21-0800200c9a66)]
+interface nsISystemMessagesConfigurator: nsISupports
+{
+  /*
+   * Will be true if this type of system messages assumes/requires
+   * that the app will be brought to the front always.
+   */
+  readonly attribute boolean mustShowRunningApp;
+
+  /*
+   * A broadcast filter for a specific message type.
+   *
+   * @return Promise which resolves with |true| or |false| to indicate if
+   *         we want to dispatch this message.
+   */
+  jsval shouldDispatch(in DOMString manifestURL, in DOMString pageURL,
+                       in DOMString type, in jsval message, [optional] in jsval extra);
 };

@@ -26,12 +26,9 @@
 #include "nsIToolkitChromeRegistry.h"
 #include "nsIToolkitProfile.h"
 
-#if defined(OS_LINUX)
-#  define XP_LINUX
-#endif
-
 #ifdef XP_WIN
 #include <process.h>
+#include "mozilla/ipc/WindowsMessageLoop.h"
 #endif
 
 #include "nsAppDirectoryServiceDefs.h"
@@ -50,6 +47,7 @@
 #include "chrome/common/mach_ipc_mac.h"
 #endif
 #include "nsX11ErrorHandler.h"
+#include "nsGDKErrorHandler.h"
 #include "base/at_exit.h"
 #include "base/command_line.h"
 #include "base/message_loop.h"
@@ -70,8 +68,17 @@
 
 #include "mozilla/ipc/TestShellParent.h"
 #include "mozilla/ipc/XPCShellEnvironment.h"
+#include "mozilla/WindowsDllBlocklist.h"
+
+#include "GMPProcessChild.h"
+#include "GMPLoader.h"
 
 #include "GoannaProfiler.h"
+
+#if defined(MOZ_SANDBOX) && defined(XP_WIN)
+#define TARGET_SANDBOX_EXPORTS
+#include "mozilla/sandboxing/loggingCallbacks.h"
+#endif
 
 #ifdef MOZ_IPDL_TESTS
 #include "mozilla/_ipdltest/IPDLUnitTests.h"
@@ -79,6 +86,11 @@
 
 using mozilla::_ipdltest::IPDLUnitTestProcessChild;
 #endif  // ifdef MOZ_IPDL_TESTS
+
+#ifdef MOZ_B2G_LOADER
+#include "nsLocalFile.h"
+#include "nsXREAppData.h"
+#endif
 
 using namespace mozilla;
 
@@ -93,6 +105,10 @@ using mozilla::dom::ContentProcess;
 using mozilla::dom::ContentParent;
 using mozilla::dom::ContentChild;
 
+using mozilla::gmp::GMPLoader;
+using mozilla::gmp::CreateGMPLoader;
+using mozilla::gmp::GMPProcessChild;
+
 using mozilla::ipc::TestShellParent;
 using mozilla::ipc::TestShellCommandParent;
 using mozilla::ipc::XPCShellEnvironment;
@@ -102,7 +118,7 @@ using mozilla::startup::sChildProcessType;
 static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 #ifdef XP_WIN
-static const PRUnichar kShellLibraryName[] =  L"shell32.dll";
+static const wchar_t kShellLibraryName[] =  L"shell32.dll";
 #endif
 
 nsresult
@@ -198,23 +214,30 @@ XRE_ChildProcessTypeToString(GoannaProcessType aProcessType)
     kGoannaProcessTypeString[aProcessType] : nullptr;
 }
 
-GoannaProcessType
-XRE_StringToChildProcessType(const char* aProcessTypeString)
-{
-  for (int i = 0;
-       i < (int) ArrayLength(kGoannaProcessTypeString);
-       ++i) {
-    if (!strcmp(kGoannaProcessTypeString[i], aProcessTypeString)) {
-      return static_cast<GoannaProcessType>(i);
-    }
-  }
-  return GoannaProcessType_Invalid;
-}
-
 namespace mozilla {
 namespace startup {
 GoannaProcessType sChildProcessType = GoannaProcessType_Default;
 }
+}
+
+void
+XRE_SetProcessType(const char* aProcessTypeString)
+{
+  static bool called = false;
+  if (called) {
+    MOZ_CRASH();
+  }
+  called = true;
+
+  sChildProcessType = GoannaProcessType_Invalid;
+  for (int i = 0;
+       i < (int) ArrayLength(kGoannaProcessTypeString);
+       ++i) {
+    if (!strcmp(kGoannaProcessTypeString[i], aProcessTypeString)) {
+      sChildProcessType = static_cast<GoannaProcessType>(i);
+      return;
+    }
+  }
 }
 
 #if defined(XP_WIN)
@@ -247,11 +270,27 @@ SetTaskbarGroupId(const nsString& aId)
 nsresult
 XRE_InitChildProcess(int aArgc,
                      char* aArgv[],
-                     GoannaProcessType aProcess)
+                     GMPLoader* aGMPLoader)
 {
   NS_ENSURE_ARG_MIN(aArgc, 2);
   NS_ENSURE_ARG_POINTER(aArgv);
   NS_ENSURE_ARG_POINTER(aArgv[0]);
+
+#ifdef HAS_DLL_BLOCKLIST
+  DllBlocklist_Initialize();
+#endif
+
+#if !defined(MOZ_WIDGET_ANDROID) && !defined(MOZ_WIDGET_GONK)
+  // On non-Fennec Goanna, the GMPLoader code resides in plugin-container,
+  // and we must forward it through to the GMP code here.
+  GMPProcessChild::SetGMPLoader(aGMPLoader);
+#else
+  // On Fennec, the GMPLoader's code resides inside XUL (because for the time
+  // being GMPLoader relies upon NSPR, which we can't use in plugin-container
+  // on Android), so we create it here inside XUL and pass it to the GMP code.
+  nsAutoPtr<GMPLoader> loader(CreateGMPLoader(nullptr));
+  GMPProcessChild::SetGMPLoader(loader);
+#endif
 
 #if defined(XP_WIN)
   // From the --attach-console support in nsNativeAppSupportWin.cpp, but
@@ -279,9 +318,9 @@ XRE_InitChildProcess(int aArgc,
 
   char aLocal;
   profiler_init(&aLocal);
-  PROFILER_LABEL("Startup", "XRE_InitChildProcess");
 
-  sChildProcessType = aProcess;
+  PROFILER_LABEL("Startup", "XRE_InitChildProcess",
+    js::ProfileEntry::Category::OTHER);
 
   // Complete 'task_t' exchange for Mac OS X. This structure has the same size
   // regardless of architecture so we don't have any cross-arch issues here.
@@ -293,14 +332,14 @@ XRE_InitChildProcess(int aArgc,
   const int kTimeoutMs = 1000;
 
   MachSendMessage child_message(0);
-  if (!child_message.AddDescriptor(mach_task_self())) {
+  if (!child_message.AddDescriptor(MachMsgPortDescriptor(mach_task_self()))) {
     NS_WARNING("child AddDescriptor(mach_task_self()) failed.");
     return NS_ERROR_FAILURE;
   }
 
   ReceivePort child_recv_port;
   mach_port_t raw_child_recv_port = child_recv_port.GetPort();
-  if (!child_message.AddDescriptor(raw_child_recv_port)) {
+  if (!child_message.AddDescriptor(MachMsgPortDescriptor(raw_child_recv_port))) {
     NS_WARNING("Adding descriptor to message failed");
     return NS_ERROR_FAILURE;
   }
@@ -331,12 +370,12 @@ XRE_InitChildProcess(int aArgc,
   }
 #endif
 
-  SetupErrorHandling(aArgv[0]);  
+  SetupErrorHandling(aArgv[0]);
 
   gArgv = aArgv;
   gArgc = aArgc;
 
-#if defined(MOZ_WIDGET_GTK2)
+#if MOZ_WIDGET_GTK == 2
   XRE_GlibInit();
 #endif
 
@@ -346,27 +385,34 @@ XRE_InitChildProcess(int aArgc,
 
   if (PR_GetEnv("MOZ_DEBUG_CHILD_PROCESS")) {
 #ifdef OS_POSIX
-      printf("\n\nCHILDCHILDCHILDCHILD\n  debug me @%d\n\n", getpid());
+      printf("\n\nCHILDCHILDCHILDCHILD\n  debug me @ %d\n\n", getpid());
       sleep(30);
 #elif defined(OS_WIN)
-      printf("\n\nCHILDCHILDCHILDCHILD\n  debug me @%d\n\n", _getpid());
-      Sleep(30000);
+      // Windows has a decent JIT debugging story, so NS_DebugBreak does the
+      // right thing.
+      NS_DebugBreak(NS_DEBUG_BREAK,
+                    "Invoking NS_DebugBreak() to debug child process",
+                    nullptr, __FILE__, __LINE__);
 #endif
   }
 
   // child processes launched by GoannaChildProcessHost get this magic
   // argument appended to their command lines
   const char* const parentPIDString = aArgv[aArgc-1];
-  NS_ABORT_IF_FALSE(parentPIDString, "NULL parent PID");
+  MOZ_ASSERT(parentPIDString, "NULL parent PID");
   --aArgc;
 
   char* end = 0;
   base::ProcessId parentPID = strtol(parentPIDString, &end, 10);
-  NS_ABORT_IF_FALSE(!*end, "invalid parent PID");
+  MOZ_ASSERT(!*end, "invalid parent PID");
 
-  base::ProcessHandle parentHandle;
-  mozilla::DebugOnly<bool> ok = base::OpenProcessHandle(parentPID, &parentHandle);
-  NS_ABORT_IF_FALSE(ok, "can't open handle to parent");
+  // Retrieve the parent process handle. We need this for shared memory use and
+  // for creating new transports in the child.
+  base::ProcessHandle parentHandle = 0;
+  if (XRE_GetProcessType() != GoannaProcessType_GMPlugin) {
+    mozilla::DebugOnly<bool> ok = base::OpenProcessHandle(parentPID, &parentHandle);
+    MOZ_ASSERT(ok, "can't open handle to parent");
+  }
 
 #if defined(XP_WIN)
   // On Win7+, register the application user model id passed in by
@@ -399,10 +445,13 @@ XRE_InitChildProcess(int aArgc,
   }
 
   MessageLoop::Type uiLoopType;
-  switch (aProcess) {
+  switch (XRE_GetProcessType()) {
   case GoannaProcessType_Content:
       // Content processes need the XPCOM/chromium frankenventloop
       uiLoopType = MessageLoop::TYPE_MOZILLA_CHILD;
+      break;
+  case GoannaProcessType_GMPlugin:
+      uiLoopType = MessageLoop::TYPE_DEFAULT;
       break;
   default:
       uiLoopType = MessageLoop::TYPE_UI;
@@ -420,7 +469,11 @@ XRE_InitChildProcess(int aArgc,
     {
       nsAutoPtr<ProcessChild> process;
 
-      switch (aProcess) {
+#ifdef XP_WIN
+      mozilla::ipc::windows::InitUIThread();
+#endif
+
+      switch (XRE_GetProcessType()) {
       case GoannaProcessType_Default:
         NS_RUNTIMEABORT("This makes no sense");
         break;
@@ -446,9 +499,13 @@ XRE_InitChildProcess(int aArgc,
       case GoannaProcessType_IPDLUnitTest:
 #ifdef MOZ_IPDL_TESTS
         process = new IPDLUnitTestProcessChild(parentHandle);
-#else 
+#else
         NS_RUNTIMEABORT("rebuild with --enable-ipdl-tests");
 #endif
+        break;
+
+      case GoannaProcessType_GMPlugin:
+        process = new gmp::GMPProcessChild(parentHandle);
         break;
 
       default:
@@ -460,6 +517,12 @@ XRE_InitChildProcess(int aArgc,
         NS_LogTerm();
         return NS_ERROR_FAILURE;
       }
+
+#if defined(MOZ_SANDBOX) && defined(XP_WIN)
+      // We need to do this after the process has been initialised, as
+      // InitLoggingIfRequired may need access to prefs.
+      mozilla::sandboxing::InitLoggingIfRequired();
+#endif
 
       // Run the UI event loop on the main thread.
       uiMessageLoop.MessageLoop::Run();
@@ -496,7 +559,7 @@ public:
                        void* aData)
   : mFunction(aFunction),
     mData(aData)
-  { 
+  {
     NS_ASSERTION(aFunction, "Don't give me a null pointer!");
   }
 
@@ -593,7 +656,7 @@ XRE_RunAppShell()
       // Cocoa nsAppShell impl, however, implements its own Run()
       // that's unaware of MessagePump.  That's all rather suboptimal,
       // but oddly enough not a problem... usually.
-      // 
+      //
       // The problem with this setup comes during startup.
       // XPCOM-in-subprocesses depends on IPC, e.g. to init the pref
       // service, so we have to init IPC first.  But, IPC also
@@ -609,7 +672,7 @@ XRE_RunAppShell()
       // run], because it's not aware that MessagePump has work that
       // needs to be processed; that was supposed to be signaled by
       // nsIRunnable(s).
-      // 
+      //
       // So instead of hacking Cocoa nsAppShell or rewriting the
       // event-loop system, we compromise here by processing any tasks
       // that might have been enqueued on MessagePump, *before*
@@ -638,10 +701,10 @@ struct RunnableMethodTraits<ContentChild>
 void
 XRE_ShutdownChildProcess()
 {
-  NS_ABORT_IF_FALSE(MessageLoopForUI::current(), "Wrong thread!");
+  MOZ_ASSERT(NS_IsMainThread(), "Wrong thread!");
 
   mozilla::DebugOnly<MessageLoop*> ioLoop = XRE_GetIOMessageLoop();
-  NS_ABORT_IF_FALSE(!!ioLoop, "Bad shutdown order");
+  MOZ_ASSERT(!!ioLoop, "Bad shutdown order");
 
   // Quit() sets off the following chain of events
   //  (1) UI loop starts quitting
@@ -667,7 +730,7 @@ ContentParent* gContentParent; //long-lived, manually refcounted
 TestShellParent* GetOrCreateTestShellParent()
 {
     if (!gContentParent) {
-        nsRefPtr<ContentParent> parent = ContentParent::GetNewOrUsed().get();
+        nsRefPtr<ContentParent> parent = ContentParent::GetNewOrUsedBrowserProcess();
         parent.forget(&gContentParent);
     } else if (!gContentParent->IsAlive()) {
         return nullptr;
@@ -689,7 +752,7 @@ XRE_SendTestShellCommand(JSContext* aCx,
     TestShellParent* tsp = GetOrCreateTestShellParent();
     NS_ENSURE_TRUE(tsp, false);
 
-    nsDependentJSString command;
+    nsAutoJSString command;
     NS_ENSURE_TRUE(command.init(aCx, cmd), false);
 
     if (!aCallback) {
@@ -725,7 +788,11 @@ XRE_ShutdownTestShell()
 void
 XRE_InstallX11ErrorHandler()
 {
+#if (MOZ_WIDGET_GTK == 3)
+  InstallGdkErrorHandler();
+#else
   InstallX11ErrorHandler();
+#endif
 }
 #endif
 
@@ -746,3 +813,39 @@ XRE_GetWindowsEnvironment()
 }
 #endif // XP_WIN
 
+#ifdef MOZ_B2G_LOADER
+extern const nsXREAppData* gAppData;
+
+/**
+ * Preload static data of Goanna for B2G loader.
+ *
+ * This function is supposed to be called before XPCOM is initialized.
+ * For now, this function preloads
+ *  - XPT interface Information
+ */
+void
+XRE_ProcLoaderPreload(const char* aProgramDir, const nsXREAppData* aAppData)
+{
+    void PreloadXPT(nsIFile *);
+
+    nsresult rv;
+    nsCOMPtr<nsIFile> omnijarFile;
+    rv = NS_NewNativeLocalFile(nsCString(aProgramDir),
+			       true,
+			       getter_AddRefs(omnijarFile));
+    MOZ_RELEASE_ASSERT(NS_SUCCEEDED(rv));
+
+    rv = omnijarFile->AppendNative(NS_LITERAL_CSTRING(NS_STRINGIFY(OMNIJAR_NAME)));
+    MOZ_RELEASE_ASSERT(NS_SUCCEEDED(rv));
+
+    /*
+     * gAppData is required by nsXULAppInfo.  The manifest parser
+     * evaluate flags with the information from nsXULAppInfo.
+     */
+    gAppData = aAppData;
+
+    PreloadXPT(omnijarFile);
+
+    gAppData = nullptr;
+}
+#endif /* MOZ_B2G_LOADER */

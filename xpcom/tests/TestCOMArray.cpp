@@ -18,24 +18,25 @@ public:
 
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_IFOO_IID)
 
-  NS_IMETHOD_(nsrefcnt) RefCnt() = 0;
+  NS_IMETHOD_(MozExternalRefCountType) RefCnt() = 0;
   NS_IMETHOD_(int32_t) ID() = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(IFoo, NS_IFOO_IID)
 
-class Foo MOZ_FINAL : public IFoo {
+class Foo final : public IFoo {
+  ~Foo();
+
 public:
 
-  Foo(int32_t aID);
-  ~Foo();
+  explicit Foo(int32_t aID);
 
   // nsISupports implementation
   NS_DECL_ISUPPORTS
 
   // IFoo implementation
-  NS_IMETHOD_(nsrefcnt) RefCnt() { return mRefCnt; }
-  NS_IMETHOD_(int32_t) ID() { return mID; }
+  NS_IMETHOD_(MozExternalRefCountType) RefCnt() override { return mRefCnt; }
+  NS_IMETHOD_(int32_t) ID() override { return mID; }
 
   static int32_t gCount;
 
@@ -55,7 +56,7 @@ Foo::~Foo()
   --gCount;
 }
 
-NS_IMPL_ISUPPORTS1(Foo, IFoo)
+NS_IMPL_ISUPPORTS(Foo, IFoo)
 
 
 typedef nsCOMArray<IFoo> Array;
@@ -74,11 +75,10 @@ public:
 
 NS_DEFINE_STATIC_IID_ACCESSOR(IBar, NS_IBAR_IID)
 
-class Bar MOZ_FINAL : public IBar {
+class Bar final : public IBar {
 public:
 
   explicit Bar(nsCOMArray<IBar>& aArray);
-  ~Bar();
 
   // nsISupports implementation
   NS_DECL_ISUPPORTS
@@ -86,6 +86,8 @@ public:
   static int32_t sReleaseCalled;
 
 private:
+  ~Bar();
+
   nsCOMArray<IBar>& mArray;
 };
 
@@ -106,9 +108,9 @@ Bar::~Bar()
 }
 
 NS_IMPL_ADDREF(Bar)
-NS_IMPL_QUERY_INTERFACE1(Bar, IBar)
+NS_IMPL_QUERY_INTERFACE(Bar, IBar)
 
-NS_IMETHODIMP_(nsrefcnt)
+NS_IMETHODIMP_(MozExternalRefCountType)
 Bar::Release(void)
 {
   ++Bar::sReleaseCalled;
@@ -180,10 +182,10 @@ int main(int argc, char **argv)
   {
     Array2 arr2;
 
-    IBar *thirdObject,
-         *fourthObject,
-         *fifthObject,
-         *ninthObject;
+    IBar *thirdObject = nullptr,
+         *fourthObject = nullptr,
+         *fifthObject = nullptr,
+         *ninthObject = nullptr;
     for (int32_t i = 0; i < 20; ++i) {
       nsCOMPtr<IBar> bar = new Bar(arr2);
       switch (i) {
@@ -261,10 +263,10 @@ int main(int argc, char **argv)
   {
     Array2 arr2;
 
-    IBar *thirdElement,
-         *fourthElement,
-         *fifthElement,
-         *ninthElement;
+    IBar *thirdElement = nullptr,
+         *fourthElement = nullptr,
+         *fifthElement = nullptr,
+         *ninthElement = nullptr;
     for (int32_t i = 0; i < 20; ++i) {
       nsCOMPtr<IBar> bar = new Bar(arr2);
       switch (i) {

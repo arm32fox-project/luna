@@ -4,11 +4,7 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jscntxt.h"
-#include "jscompartment.h"
 #include "jit/Bailouts.h"
-#include "jit/IonCompartment.h"
-#include "jit/IonFrames-inl.h"
 
 using namespace js;
 using namespace js::jit;
@@ -22,8 +18,8 @@ namespace jit {
 
 class BailoutStack
 {
-    double    fpregs_[FloatRegisters::Total];
-    uintptr_t regs_[Registers::Total];
+    mozilla::Array<double, FloatRegisters::Total> fpregs_;
+    mozilla::Array<uintptr_t, Registers::Total> regs_;
     uintptr_t frameSize_;
     uintptr_t snapshotOffset_;
 
@@ -37,8 +33,8 @@ class BailoutStack
     uint32_t frameSize() const {
         return frameSize_;
     }
-    uint8_t *parentStackPointer() {
-        return (uint8_t *)this + sizeof(BailoutStack);
+    uint8_t* parentStackPointer() {
+        return (uint8_t*)this + sizeof(BailoutStack);
     }
 };
 
@@ -49,32 +45,31 @@ class BailoutStack
 # pragma pack(pop)
 #endif
 
-IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
-                                       BailoutStack *bailout)
-  : IonFrameIterator(activations),
-    machine_(bailout->machineState())
+BailoutFrameInfo::BailoutFrameInfo(const JitActivationIterator& activations,
+                                   BailoutStack* bailout)
+  : machine_(bailout->machineState())
 {
-    uint8_t *sp = bailout->parentStackPointer();
-    uint8_t *fp = sp + bailout->frameSize();
+    uint8_t* sp = bailout->parentStackPointer();
+    framePointer_ = sp + bailout->frameSize();
+    topFrameSize_ = framePointer_ - sp;
 
-    current_ = fp;
-    type_ = IonFrame_OptimizedJS;
-    topFrameSize_ = current_ - sp;
-    topIonScript_ = script()->ionScript();
+    JSScript* script = ScriptFromCalleeToken(((JitFrameLayout*) framePointer_)->calleeToken());
+    topIonScript_ = script->ionScript();
+
+    attachOnJitActivation(activations);
     snapshotOffset_ = bailout->snapshotOffset();
 }
 
-IonBailoutIterator::IonBailoutIterator(const JitActivationIterator &activations,
-                                       InvalidationBailoutStack *bailout)
-  : IonFrameIterator(activations),
-    machine_(bailout->machine())
+BailoutFrameInfo::BailoutFrameInfo(const JitActivationIterator& activations,
+                                   InvalidationBailoutStack* bailout)
+  : machine_(bailout->machine())
 {
-    returnAddressToFp_ = bailout->osiPointReturnAddress();
+    framePointer_ = (uint8_t*) bailout->fp();
+    topFrameSize_ = framePointer_ - bailout->sp();
     topIonScript_ = bailout->ionScript();
-    const OsiIndex *osiIndex = topIonScript_->getOsiIndex(returnAddressToFp_);
+    attachOnJitActivation(activations);
 
-    current_ = (uint8_t*) bailout->fp();
-    type_ = IonFrame_OptimizedJS;
-    topFrameSize_ = current_ - bailout->sp();
+    uint8_t* returnAddressToFp_ = bailout->osiPointReturnAddress();
+    const OsiIndex* osiIndex = topIonScript_->getOsiIndex(returnAddressToFp_);
     snapshotOffset_ = osiIndex->snapshotOffset();
 }

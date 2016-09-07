@@ -25,6 +25,8 @@
 #include "nsCExternalHandlerService.h"
 #include "nsIExternalProtocolService.h"
 
+class nsILoadInfo;
+
 ////////////////////////////////////////////////////////////////////////
 // a stub channel implemenation which will map calls to AsyncRead and OpenInputStream
 // to calls in the OS for loading the url.
@@ -33,16 +35,17 @@
 class nsExtProtocolChannel : public nsIChannel
 {
 public:
-    NS_DECL_ISUPPORTS
+    NS_DECL_THREADSAFE_ISUPPORTS
     NS_DECL_NSICHANNEL
     NS_DECL_NSIREQUEST
 
     nsExtProtocolChannel();
-    virtual ~nsExtProtocolChannel();
 
     nsresult SetURI(nsIURI*);
 
 private:
+    virtual ~nsExtProtocolChannel();
+
     nsresult OpenURL();
     void Finish(nsresult aResult);
     
@@ -54,10 +57,11 @@ private:
     
     nsCOMPtr<nsIInterfaceRequestor> mCallbacks;
     nsCOMPtr<nsILoadGroup> mLoadGroup;
+    nsCOMPtr<nsILoadInfo> mLoadInfo;
 };
 
-NS_IMPL_THREADSAFE_ADDREF(nsExtProtocolChannel)
-NS_IMPL_THREADSAFE_RELEASE(nsExtProtocolChannel)
+NS_IMPL_ADDREF(nsExtProtocolChannel)
+NS_IMPL_RELEASE(nsExtProtocolChannel)
 
 NS_INTERFACE_MAP_BEGIN(nsExtProtocolChannel)
    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIChannel)
@@ -253,14 +257,24 @@ nsExtProtocolChannel::SetContentLength(int64_t aContentLength)
 
 NS_IMETHODIMP nsExtProtocolChannel::GetOwner(nsISupports * *aPrincipal)
 {
-  NS_NOTREACHED("GetOwner");
   return NS_ERROR_NOT_IMPLEMENTED;
 }
 
 NS_IMETHODIMP nsExtProtocolChannel::SetOwner(nsISupports * aPrincipal)
 {
-  NS_NOTREACHED("SetOwner");
   return NS_ERROR_NOT_IMPLEMENTED;
+}
+
+NS_IMETHODIMP nsExtProtocolChannel::GetLoadInfo(nsILoadInfo **aLoadInfo)
+{
+  NS_IF_ADDREF(*aLoadInfo = mLoadInfo);
+  return NS_OK;
+}
+
+NS_IMETHODIMP nsExtProtocolChannel::SetLoadInfo(nsILoadInfo *aLoadInfo)
+{
+  mLoadInfo = aLoadInfo;
+  return NS_OK;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -315,8 +329,8 @@ nsExternalProtocolHandler::nsExternalProtocolHandler()
 nsExternalProtocolHandler::~nsExternalProtocolHandler()
 {}
 
-NS_IMPL_THREADSAFE_ADDREF(nsExternalProtocolHandler)
-NS_IMPL_THREADSAFE_RELEASE(nsExternalProtocolHandler)
+NS_IMPL_ADDREF(nsExternalProtocolHandler)
+NS_IMPL_RELEASE(nsExternalProtocolHandler)
 
 NS_INTERFACE_MAP_BEGIN(nsExternalProtocolHandler)
    NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIProtocolHandler)
@@ -384,7 +398,10 @@ NS_IMETHODIMP nsExternalProtocolHandler::NewURI(const nsACString &aSpec,
   return NS_OK;
 }
 
-NS_IMETHODIMP nsExternalProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
+NS_IMETHODIMP
+nsExternalProtocolHandler::NewChannel2(nsIURI* aURI,
+                                       nsILoadInfo* aLoadInfo,
+                                       nsIChannel** _retval)
 {
   // Only try to return a channel if we have a protocol handler for the url.
   // nsOSHelperAppService::LoadUriInternal relies on this to check trustedness
@@ -399,6 +416,9 @@ NS_IMETHODIMP nsExternalProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_
     ((nsExtProtocolChannel*) channel.get())->SetURI(aURI);
     channel->SetOriginalURI(aURI);
 
+    // set the loadInfo on the new channel
+    ((nsExtProtocolChannel*) channel.get())->SetLoadInfo(aLoadInfo);
+
     if (_retval)
     {
       *_retval = channel;
@@ -408,6 +428,11 @@ NS_IMETHODIMP nsExternalProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_
   }
 
   return NS_ERROR_UNKNOWN_PROTOCOL;
+}
+
+NS_IMETHODIMP nsExternalProtocolHandler::NewChannel(nsIURI *aURI, nsIChannel **_retval)
+{
+  return NewChannel2(aURI, nullptr, _retval);
 }
 
 ///////////////////////////////////////////////////////////////////////

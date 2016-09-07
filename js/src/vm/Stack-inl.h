@@ -7,21 +7,22 @@
 #ifndef vm_Stack_inl_h
 #define vm_Stack_inl_h
 
+#include "vm/Stack.h"
+
 #include "mozilla/PodOperations.h"
 
 #include "jscntxt.h"
-#include "jscompartment.h"
+#include "jsscript.h"
 
-#include "vm/Stack.h"
 #include "jit/BaselineFrame.h"
-#include "jit/BaselineFrame-inl.h"
-#include "jit/IonFrameIterator-inl.h"
+#include "jit/RematerializedFrame.h"
+#include "vm/GeneratorObject.h"
+#include "vm/ScopeObject.h"
 
-#include "jsfuninlines.h"
+#include "jsobjinlines.h"
 #include "jsscriptinlines.h"
 
-#include "ArgumentsObject-inl.h"
-#include "ScopeObject-inl.h"
+#include "jit/BaselineFrame-inl.h"
 
 namespace js {
 
@@ -31,18 +32,18 @@ namespace js {
  * see bug 462734 and bug 487039.
  */
 static inline bool
-IsCacheableNonGlobalScope(JSObject *obj)
+IsCacheableNonGlobalScope(JSObject* obj)
 {
     bool cacheable = (obj->is<CallObject>() || obj->is<BlockObject>() || obj->is<DeclEnvObject>());
 
-    JS_ASSERT_IF(cacheable, !obj->getOps()->lookupProperty);
+    MOZ_ASSERT_IF(cacheable, !obj->getOps()->lookupProperty);
     return cacheable;
 }
 
 inline HandleObject
-StackFrame::scopeChain() const
+InterpreterFrame::scopeChain() const
 {
-    JS_ASSERT_IF(!(flags_ & HAS_SCOPECHAIN), isFunctionFrame());
+    MOZ_ASSERT_IF(!(flags_ & HAS_SCOPECHAIN), isFunctionFrame());
     if (!(flags_ & HAS_SCOPECHAIN)) {
         scopeChain_ = callee().environment();
         flags_ |= HAS_SCOPECHAIN;
@@ -50,37 +51,38 @@ StackFrame::scopeChain() const
     return HandleObject::fromMarkedLocation(&scopeChain_);
 }
 
-inline GlobalObject &
-StackFrame::global() const
+inline GlobalObject&
+InterpreterFrame::global() const
 {
     return scopeChain()->global();
 }
 
-inline JSObject &
-StackFrame::varObj()
+inline JSObject&
+InterpreterFrame::varObj()
 {
-    JSObject *obj = scopeChain();
-    while (!obj->isVarObj())
+    JSObject* obj = scopeChain();
+    while (!obj->isQualifiedVarObj())
         obj = obj->enclosingScope();
     return *obj;
 }
 
-inline JSCompartment *
-StackFrame::compartment() const
+inline JSCompartment*
+InterpreterFrame::compartment() const
 {
-    JS_ASSERT(scopeChain()->compartment() == script()->compartment());
+    MOZ_ASSERT(scopeChain()->compartment() == script()->compartment());
     return scopeChain()->compartment();
 }
 
 inline void
-StackFrame::initCallFrame(JSContext *cx, StackFrame *prev, jsbytecode *prevpc, Value *prevsp, JSFunction &callee,
-                          JSScript *script, Value *argv, uint32_t nactual, StackFrame::Flags flagsArg)
+InterpreterFrame::initCallFrame(JSContext* cx, InterpreterFrame* prev, jsbytecode* prevpc,
+                                Value* prevsp, JSFunction& callee, JSScript* script, Value* argv,
+                                uint32_t nactual, InterpreterFrame::Flags flagsArg)
 {
-    JS_ASSERT((flagsArg & ~CONSTRUCTING) == 0);
-    JS_ASSERT(callee.nonLazyScript() == script);
+    MOZ_ASSERT((flagsArg & ~CONSTRUCTING) == 0);
+    MOZ_ASSERT(callee.nonLazyScript() == script);
 
     /* Initialize stack frame members. */
-    flags_ = FUNCTION | HAS_SCOPECHAIN | HAS_BLOCKCHAIN | flagsArg;
+    flags_ = FUNCTION | HAS_SCOPECHAIN | flagsArg;
     argv_ = argv;
     exec.fun = &callee;
     u.nactual = nactual;
@@ -88,149 +90,158 @@ StackFrame::initCallFrame(JSContext *cx, StackFrame *prev, jsbytecode *prevpc, V
     prev_ = prev;
     prevpc_ = prevpc;
     prevsp_ = prevsp;
-    blockChain_= NULL;
-    JS_ASSERT(!hasBlockChain());
-    JS_ASSERT(!hasHookData());
 
-    initVarsToUndefined();
+    if (script->isDebuggee())
+        setIsDebuggee();
+
+    initLocals();
 }
 
 inline void
-StackFrame::initVarsToUndefined()
+InterpreterFrame::initLocals()
 {
-    SetValueRangeToUndefined(slots(), script()->nfixed);
+    SetValueRangeToUndefined(slots(), script()->nfixedvars());
+
+    // Lexical bindings throw ReferenceErrors if they are used before
+    // initialization. See ES6 8.1.1.1.6.
+    //
+    // For completeness, lexical bindings are initialized in ES6 by calling
+    // InitializeBinding, after which touching the binding will no longer
+    // throw reference errors. See 13.1.11, 9.2.13, 13.6.3.4, 13.6.4.6,
+    // 13.6.4.8, 13.14.5, 15.1.8, and 15.2.0.15.
+    Value* lexicalEnd = slots() + script()->fixedLexicalEnd();
+    for (Value* lexical = slots() + script()->fixedLexicalBegin(); lexical != lexicalEnd; ++lexical)
+        lexical->setMagic(JS_UNINITIALIZED_LEXICAL);
 }
 
-inline Value &
-StackFrame::unaliasedVar(unsigned i, MaybeCheckAliasing checkAliasing)
+inline Value&
+InterpreterFrame::unaliasedLocal(uint32_t i)
 {
-    JS_ASSERT_IF(checkAliasing, !script()->varIsAliased(i));
-    JS_ASSERT(i < script()->nfixed);
+    MOZ_ASSERT(i < script()->nfixed());
     return slots()[i];
 }
 
-inline Value &
-StackFrame::unaliasedLocal(unsigned i, MaybeCheckAliasing checkAliasing)
+inline Value&
+InterpreterFrame::unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing)
 {
-#ifdef DEBUG
-    CheckLocalUnaliased(checkAliasing, script(), maybeBlockChain(), i);
-#endif
-    return slots()[i];
-}
-
-inline Value &
-StackFrame::unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing)
-{
-    JS_ASSERT(i < numFormalArgs());
-    JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
-    JS_ASSERT_IF(checkAliasing, !script()->formalIsAliased(i));
+    MOZ_ASSERT(i < numFormalArgs());
+    MOZ_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
+    MOZ_ASSERT_IF(checkAliasing, !script()->formalIsAliased(i));
     return argv()[i];
 }
 
-inline Value &
-StackFrame::unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing)
+inline Value&
+InterpreterFrame::unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing)
 {
-    JS_ASSERT(i < numActualArgs());
-    JS_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
-    JS_ASSERT_IF(checkAliasing && i < numFormalArgs(), !script()->formalIsAliased(i));
+    MOZ_ASSERT(i < numActualArgs());
+    MOZ_ASSERT_IF(checkAliasing, !script()->argsObjAliasesFormals());
+    MOZ_ASSERT_IF(checkAliasing && i < numFormalArgs(), !script()->formalIsAliased(i));
     return argv()[i];
 }
 
 template <class Op>
 inline void
-StackFrame::forEachUnaliasedActual(Op op)
+InterpreterFrame::unaliasedForEachActual(Op op)
 {
-    JS_ASSERT(!script()->funHasAnyAliasedFormal);
-    JS_ASSERT(!script()->needsArgsObj());
+    // Don't assert !script()->funHasAnyAliasedFormal() since this function is
+    // called from ArgumentsObject::createUnexpected() which can access aliased
+    // slots.
 
-    const Value *argsEnd = argv() + numActualArgs();
-    for (const Value *p = argv(); p < argsEnd; ++p)
+    const Value* argsEnd = argv() + numActualArgs();
+    for (const Value* p = argv(); p < argsEnd; ++p)
         op(*p);
 }
 
 struct CopyTo
 {
-    Value *dst;
-    CopyTo(Value *dst) : dst(dst) {}
-    void operator()(const Value &src) { *dst++ = src; }
+    Value* dst;
+    explicit CopyTo(Value* dst) : dst(dst) {}
+    void operator()(const Value& src) { *dst++ = src; }
 };
 
 struct CopyToHeap
 {
-    HeapValue *dst;
-    CopyToHeap(HeapValue *dst) : dst(dst) {}
-    void operator()(const Value &src) { dst->init(src); ++dst; }
+    HeapValue* dst;
+    explicit CopyToHeap(HeapValue* dst) : dst(dst) {}
+    void operator()(const Value& src) { dst->init(src); ++dst; }
 };
 
-inline ArgumentsObject &
-StackFrame::argsObj() const
+inline ArgumentsObject&
+InterpreterFrame::argsObj() const
 {
-    JS_ASSERT(script()->needsArgsObj());
-    JS_ASSERT(flags_ & HAS_ARGS_OBJ);
+    MOZ_ASSERT(script()->needsArgsObj());
+    MOZ_ASSERT(flags_ & HAS_ARGS_OBJ);
     return *argsObj_;
 }
 
 inline void
-StackFrame::initArgsObj(ArgumentsObject &argsobj)
+InterpreterFrame::initArgsObj(ArgumentsObject& argsobj)
 {
-    JS_ASSERT(script()->needsArgsObj());
+    MOZ_ASSERT(script()->needsArgsObj());
     flags_ |= HAS_ARGS_OBJ;
     argsObj_ = &argsobj;
 }
 
-inline ScopeObject &
-StackFrame::aliasedVarScope(ScopeCoordinate sc) const
+inline ScopeObject&
+InterpreterFrame::aliasedVarScope(ScopeCoordinate sc) const
 {
-    JSObject *scope = &scopeChain()->as<ScopeObject>();
-    for (unsigned i = sc.hops; i; i--)
+    JSObject* scope = &scopeChain()->as<ScopeObject>();
+    for (unsigned i = sc.hops(); i; i--)
         scope = &scope->as<ScopeObject>().enclosingScope();
     return scope->as<ScopeObject>();
 }
 
 inline void
-StackFrame::pushOnScopeChain(ScopeObject &scope)
+InterpreterFrame::pushOnScopeChain(ScopeObject& scope)
 {
-    JS_ASSERT(*scopeChain() == scope.enclosingScope() ||
-              *scopeChain() == scope.as<CallObject>().enclosingScope().as<DeclEnvObject>().enclosingScope());
+    MOZ_ASSERT(*scopeChain() == scope.enclosingScope() ||
+               *scopeChain() == scope.as<CallObject>().enclosingScope().as<DeclEnvObject>().enclosingScope());
     scopeChain_ = &scope;
     flags_ |= HAS_SCOPECHAIN;
 }
 
 inline void
-StackFrame::popOffScopeChain()
+InterpreterFrame::popOffScopeChain()
 {
-    JS_ASSERT(flags_ & HAS_SCOPECHAIN);
+    MOZ_ASSERT(flags_ & HAS_SCOPECHAIN);
     scopeChain_ = &scopeChain_->as<ScopeObject>().enclosingScope();
 }
 
 bool
-StackFrame::hasCallObj() const
+InterpreterFrame::hasCallObj() const
 {
-    JS_ASSERT(isStrictEvalFrame() || fun()->isHeavyweight());
+    MOZ_ASSERT(isStrictEvalFrame() || fun()->isHeavyweight());
     return flags_ & HAS_CALL_OBJ;
 }
 
-inline CallObject &
-StackFrame::callObj() const
+inline CallObject&
+InterpreterFrame::callObj() const
 {
-    JS_ASSERT(fun()->isHeavyweight());
+    MOZ_ASSERT(fun()->isHeavyweight());
 
-    JSObject *pobj = scopeChain();
-    while (JS_UNLIKELY(!pobj->is<CallObject>()))
+    JSObject* pobj = scopeChain();
+    while (MOZ_UNLIKELY(!pobj->is<CallObject>()))
         pobj = pobj->enclosingScope();
     return pobj->as<CallObject>();
+}
+
+inline void
+InterpreterFrame::unsetIsDebuggee()
+{
+    MOZ_ASSERT(!script()->isDebuggee());
+    flags_ &= ~DEBUGGEE;
 }
 
 /*****************************************************************************/
 
 inline void
-InterpreterStack::purge(JSRuntime *rt)
+InterpreterStack::purge(JSRuntime* rt)
 {
-    rt->freeLifoAlloc.transferUnusedFrom(&allocator_);
+    rt->gc.freeUnusedLifoBlocksAfterSweeping(&allocator_);
 }
 
-uint8_t *
-InterpreterStack::allocateFrame(JSContext *cx, size_t size)
+uint8_t*
+InterpreterStack::allocateFrame(JSContext* cx, size_t size)
 {
     size_t maxFrames;
     if (cx->compartment()->principals == cx->runtime()->trustedPrincipals())
@@ -238,71 +249,73 @@ InterpreterStack::allocateFrame(JSContext *cx, size_t size)
     else
         maxFrames = MAX_FRAMES;
 
-    if (JS_UNLIKELY(frameCount_ >= maxFrames)) {
+    if (MOZ_UNLIKELY(frameCount_ >= maxFrames)) {
         js_ReportOverRecursed(cx);
-        return NULL;
+        return nullptr;
     }
 
-    uint8_t *buffer = reinterpret_cast<uint8_t *>(allocator_.alloc(size));
+    uint8_t* buffer = reinterpret_cast<uint8_t*>(allocator_.alloc(size));
     if (!buffer)
-        return NULL;
+        return nullptr;
 
     frameCount_++;
     return buffer;
 }
 
-JS_ALWAYS_INLINE StackFrame *
-InterpreterStack::getCallFrame(JSContext *cx, const CallArgs &args, HandleScript script,
-                               StackFrame::Flags *flags, Value **pargv)
+MOZ_ALWAYS_INLINE InterpreterFrame*
+InterpreterStack::getCallFrame(JSContext* cx, const CallArgs& args, HandleScript script,
+                               InterpreterFrame::Flags* flags, Value** pargv)
 {
-    JSFunction *fun = &args.callee().as<JSFunction>();
+    JSFunction* fun = &args.callee().as<JSFunction>();
 
-    JS_ASSERT(fun->nonLazyScript() == script);
-    unsigned nformal = fun->nargs;
-    unsigned nvals = script->nslots;
+    MOZ_ASSERT(fun->nonLazyScript() == script);
+    unsigned nformal = fun->nargs();
+    unsigned nvals = script->nslots();
 
     if (args.length() >= nformal) {
         *pargv = args.array();
-        uint8_t *buffer = allocateFrame(cx, sizeof(StackFrame) + nvals * sizeof(Value));
-        return reinterpret_cast<StackFrame *>(buffer);
+        uint8_t* buffer = allocateFrame(cx, sizeof(InterpreterFrame) + nvals * sizeof(Value));
+        return reinterpret_cast<InterpreterFrame*>(buffer);
     }
 
     // Pad any missing arguments with |undefined|.
-    JS_ASSERT(args.length() < nformal);
+    MOZ_ASSERT(args.length() < nformal);
 
     nvals += nformal + 2; // Include callee, |this|.
-    uint8_t *buffer = allocateFrame(cx, sizeof(StackFrame) + nvals * sizeof(Value));
+    uint8_t* buffer = allocateFrame(cx, sizeof(InterpreterFrame) + nvals * sizeof(Value));
     if (!buffer)
-        return NULL;
+        return nullptr;
 
-    Value *argv = reinterpret_cast<Value *>(buffer);
+    Value* argv = reinterpret_cast<Value*>(buffer);
     unsigned nmissing = nformal - args.length();
 
     mozilla::PodCopy(argv, args.base(), 2 + args.length());
     SetValueRangeToUndefined(argv + 2 + args.length(), nmissing);
 
     *pargv = argv + 2;
-    return reinterpret_cast<StackFrame *>(argv + 2 + nformal);
+    return reinterpret_cast<InterpreterFrame*>(argv + 2 + nformal);
 }
 
-JS_ALWAYS_INLINE bool
-InterpreterStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs &args,
+MOZ_ALWAYS_INLINE bool
+InterpreterStack::pushInlineFrame(JSContext* cx, InterpreterRegs& regs, const CallArgs& args,
                                   HandleScript script, InitialFrameFlags initial)
 {
-    JSFunction *callee = &args.callee().as<JSFunction>();
-    JS_ASSERT(regs.sp == args.end());
-    JS_ASSERT(callee->nonLazyScript() == script);
+    RootedFunction callee(cx, &args.callee().as<JSFunction>());
+    MOZ_ASSERT(regs.sp == args.end());
+    MOZ_ASSERT(callee->nonLazyScript() == script);
 
-    StackFrame *prev = regs.fp();
-    jsbytecode *prevpc = regs.pc;
-    Value *prevsp = regs.sp;
-    JS_ASSERT(prev);
+    script->ensureNonLazyCanonicalFunction(cx);
+
+    InterpreterFrame* prev = regs.fp();
+    jsbytecode* prevpc = regs.pc;
+    Value* prevsp = regs.sp;
+    MOZ_ASSERT(prev);
 
     LifoAlloc::Mark mark = allocator_.mark();
 
-    StackFrame::Flags flags = ToFrameFlags(initial);
-    Value *argv;
-    StackFrame *fp = getCallFrame(cx, args, script, &flags, &argv);
+    InterpreterFrame::Flags flags = ToFrameFlags(initial);
+    Value* argv;
+    InterpreterFrame* fp = getCallFrame(cx, args, script, &flags, &argv);
     if (!fp)
         return false;
 
@@ -315,134 +328,147 @@ InterpreterStack::pushInlineFrame(JSContext *cx, FrameRegs &regs, const CallArgs
     return true;
 }
 
-JS_ALWAYS_INLINE void
-InterpreterStack::popInlineFrame(FrameRegs &regs)
+MOZ_ALWAYS_INLINE bool
+InterpreterStack::resumeGeneratorCallFrame(JSContext* cx, InterpreterRegs& regs,
+                                           HandleFunction callee, HandleValue thisv,
+                                           HandleObject scopeChain)
 {
-    StackFrame *fp = regs.fp();
+    MOZ_ASSERT(callee->isGenerator());
+    RootedScript script(cx, callee->getOrCreateScript(cx));
+    InterpreterFrame* prev = regs.fp();
+    jsbytecode* prevpc = regs.pc;
+    Value* prevsp = regs.sp;
+    MOZ_ASSERT(prev);
+
+    script->ensureNonLazyCanonicalFunction(cx);
+
+    LifoAlloc::Mark mark = allocator_.mark();
+
+    // Include callee, |this|.
+    unsigned nformal = callee->nargs();
+    unsigned nvals = 2 + nformal + script->nslots();
+
+    uint8_t* buffer = allocateFrame(cx, sizeof(InterpreterFrame) + nvals * sizeof(Value));
+    if (!buffer)
+        return false;
+
+    Value* argv = reinterpret_cast<Value*>(buffer) + 2;
+    argv[-2] = ObjectValue(*callee);
+    argv[-1] = thisv;
+    SetValueRangeToUndefined(argv, nformal);
+
+    InterpreterFrame* fp = reinterpret_cast<InterpreterFrame*>(argv + nformal);
+    InterpreterFrame::Flags flags = ToFrameFlags(INITIAL_NONE);
+    fp->mark_ = mark;
+    fp->initCallFrame(cx, prev, prevpc, prevsp, *callee, script, argv, 0, flags);
+    fp->resumeGeneratorFrame(scopeChain);
+
+    regs.prepareToRun(*fp, script);
+    return true;
+}
+
+MOZ_ALWAYS_INLINE void
+InterpreterStack::popInlineFrame(InterpreterRegs& regs)
+{
+    InterpreterFrame* fp = regs.fp();
     regs.popInlineFrame();
     regs.sp[-1] = fp->returnValue();
     releaseFrame(fp);
-    JS_ASSERT(regs.fp());
+    MOZ_ASSERT(regs.fp());
 }
 
 template <class Op>
 inline void
-ScriptFrameIter::ionForEachCanonicalActualArg(JSContext *cx, Op op)
+FrameIter::unaliasedForEachActual(JSContext* cx, Op op)
 {
-    JS_ASSERT(isJit());
-#ifdef JS_ION
-    if (data_.ionFrames_.isOptimizedJS()) {
-        ionInlineFrames_.forEachCanonicalActualArg(cx, op, 0, -1);
-    } else {
-        JS_ASSERT(data_.ionFrames_.isBaselineJS());
-        data_.ionFrames_.forEachCanonicalActualArg(op, 0, -1);
-    }
-#endif
-}
-
-inline void *
-AbstractFramePtr::maybeHookData() const
-{
-    if (isStackFrame())
-        return asStackFrame()->maybeHookData();
-#ifdef JS_ION
-    return asBaselineFrame()->maybeHookData();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
-}
-
-inline void
-AbstractFramePtr::setHookData(void *data) const
-{
-    if (isStackFrame()) {
-        asStackFrame()->setHookData(data);
+    switch (data_.state_) {
+      case DONE:
+      case ASMJS:
+        break;
+      case INTERP:
+        interpFrame()->unaliasedForEachActual(op);
+        return;
+      case JIT:
+        if (data_.jitFrames_.isIonJS()) {
+            jit::MaybeReadFallback recover(cx, activation()->asJit(), &data_.jitFrames_);
+            ionInlineFrames_.unaliasedForEachActual(cx, op, jit::ReadFrame_Actuals, recover);
+        } else if (data_.jitFrames_.isBailoutJS()) {
+            // :TODO: (Bug 1070962) If we are introspecting the frame which is
+            // being bailed, then we might be in the middle of recovering
+            // instructions. Stacking computeInstructionResults implies that we
+            // might be recovering result twice. In the mean time, to avoid
+            // that, we just return Undefined values for instruction results
+            // which are not yet recovered.
+            jit::MaybeReadFallback fallback;
+            ionInlineFrames_.unaliasedForEachActual(cx, op, jit::ReadFrame_Actuals, fallback);
+        } else {
+            MOZ_ASSERT(data_.jitFrames_.isBaselineJS());
+            data_.jitFrames_.unaliasedForEachActual(op, jit::ReadFrame_Actuals);
+        }
         return;
     }
-#ifdef JS_ION
-    asBaselineFrame()->setHookData(data);
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    MOZ_CRASH("Unexpected state");
 }
 
-inline Value
+inline HandleValue
 AbstractFramePtr::returnValue() const
 {
-    if (isStackFrame())
-        return asStackFrame()->returnValue();
-#ifdef JS_ION
-    return *asBaselineFrame()->returnValue();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->returnValue();
+    return asBaselineFrame()->returnValue();
 }
 
 inline void
-AbstractFramePtr::setReturnValue(const Value &rval) const
+AbstractFramePtr::setReturnValue(const Value& rval) const
 {
-    if (isStackFrame()) {
-        asStackFrame()->setReturnValue(rval);
+    if (isInterpreterFrame()) {
+        asInterpreterFrame()->setReturnValue(rval);
         return;
     }
-#ifdef JS_ION
     asBaselineFrame()->setReturnValue(rval);
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
 }
 
-inline JSObject *
+inline JSObject*
 AbstractFramePtr::scopeChain() const
 {
-    if (isStackFrame())
-        return asStackFrame()->scopeChain();
-#ifdef JS_ION
-    return asBaselineFrame()->scopeChain();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->scopeChain();
+    if (isBaselineFrame())
+        return asBaselineFrame()->scopeChain();
+    return asRematerializedFrame()->scopeChain();
 }
 
 inline void
-AbstractFramePtr::pushOnScopeChain(ScopeObject &scope)
+AbstractFramePtr::pushOnScopeChain(ScopeObject& scope)
 {
-    if (isStackFrame()) {
-        asStackFrame()->pushOnScopeChain(scope);
+    if (isInterpreterFrame()) {
+        asInterpreterFrame()->pushOnScopeChain(scope);
         return;
     }
-#ifdef JS_ION
     asBaselineFrame()->pushOnScopeChain(scope);
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
 }
 
-inline CallObject &
+inline CallObject&
 AbstractFramePtr::callObj() const
 {
-    if (isStackFrame())
-        return asStackFrame()->callObj();
-#ifdef JS_ION
-    return asBaselineFrame()->callObj();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->callObj();
+    if (isBaselineFrame())
+        return asBaselineFrame()->callObj();
+    return asRematerializedFrame()->callObj();
 }
 
 inline bool
-AbstractFramePtr::initFunctionScopeObjects(JSContext *cx)
+AbstractFramePtr::initFunctionScopeObjects(JSContext* cx)
 {
-    if (isStackFrame())
-        return asStackFrame()->initFunctionScopeObjects(cx);
-#ifdef JS_ION
-    return asBaselineFrame()->initFunctionScopeObjects(cx);
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->initFunctionScopeObjects(cx);
+    if (isBaselineFrame())
+        return asBaselineFrame()->initFunctionScopeObjects(cx);
+    return asRematerializedFrame()->initFunctionScopeObjects(cx);
 }
 
-inline JSCompartment *
+inline JSCompartment*
 AbstractFramePtr::compartment() const
 {
     return scopeChain()->compartment();
@@ -451,440 +477,454 @@ AbstractFramePtr::compartment() const
 inline unsigned
 AbstractFramePtr::numActualArgs() const
 {
-    if (isStackFrame())
-        return asStackFrame()->numActualArgs();
-#ifdef JS_ION
-    return asBaselineFrame()->numActualArgs();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->numActualArgs();
+    if (isBaselineFrame())
+        return asBaselineFrame()->numActualArgs();
+    return asRematerializedFrame()->numActualArgs();
 }
+
 inline unsigned
 AbstractFramePtr::numFormalArgs() const
 {
-    if (isStackFrame())
-        return asStackFrame()->numFormalArgs();
-#ifdef JS_ION
-    return asBaselineFrame()->numFormalArgs();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->numFormalArgs();
+    if (isBaselineFrame())
+        return asBaselineFrame()->numFormalArgs();
+    return asRematerializedFrame()->numFormalArgs();
 }
 
-inline Value &
-AbstractFramePtr::unaliasedVar(unsigned i, MaybeCheckAliasing checkAliasing)
+inline Value&
+AbstractFramePtr::unaliasedLocal(uint32_t i)
 {
-    if (isStackFrame())
-        return asStackFrame()->unaliasedVar(i, checkAliasing);
-#ifdef JS_ION
-    return asBaselineFrame()->unaliasedVar(i, checkAliasing);
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->unaliasedLocal(i);
+    if (isBaselineFrame())
+        return asBaselineFrame()->unaliasedLocal(i);
+    return asRematerializedFrame()->unaliasedLocal(i);
 }
 
-inline Value &
-AbstractFramePtr::unaliasedLocal(unsigned i, MaybeCheckAliasing checkAliasing)
-{
-    if (isStackFrame())
-        return asStackFrame()->unaliasedLocal(i, checkAliasing);
-#ifdef JS_ION
-    return asBaselineFrame()->unaliasedLocal(i, checkAliasing);
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
-}
-
-inline Value &
+inline Value&
 AbstractFramePtr::unaliasedFormal(unsigned i, MaybeCheckAliasing checkAliasing)
 {
-    if (isStackFrame())
-        return asStackFrame()->unaliasedFormal(i, checkAliasing);
-#ifdef JS_ION
-    return asBaselineFrame()->unaliasedFormal(i, checkAliasing);
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->unaliasedFormal(i, checkAliasing);
+    if (isBaselineFrame())
+        return asBaselineFrame()->unaliasedFormal(i, checkAliasing);
+    return asRematerializedFrame()->unaliasedFormal(i, checkAliasing);
 }
 
-inline Value &
+inline Value&
 AbstractFramePtr::unaliasedActual(unsigned i, MaybeCheckAliasing checkAliasing)
 {
-    if (isStackFrame())
-        return asStackFrame()->unaliasedActual(i, checkAliasing);
-#ifdef JS_ION
-    return asBaselineFrame()->unaliasedActual(i, checkAliasing);
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->unaliasedActual(i, checkAliasing);
+    if (isBaselineFrame())
+        return asBaselineFrame()->unaliasedActual(i, checkAliasing);
+    return asRematerializedFrame()->unaliasedActual(i, checkAliasing);
 }
 
-inline JSGenerator *
-AbstractFramePtr::maybeSuspendedGenerator(JSRuntime *rt) const
-{
-    if (isStackFrame())
-        return asStackFrame()->maybeSuspendedGenerator(rt);
-    return NULL;
-}
-
-inline StaticBlockObject *
-AbstractFramePtr::maybeBlockChain() const
-{
-    if (isStackFrame())
-        return asStackFrame()->maybeBlockChain();
-#ifdef JS_ION
-    return asBaselineFrame()->maybeBlockChain();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
-}
 inline bool
 AbstractFramePtr::hasCallObj() const
 {
-    if (isStackFrame())
-        return asStackFrame()->hasCallObj();
-#ifdef JS_ION
-    return asBaselineFrame()->hasCallObj();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->hasCallObj();
+    if (isBaselineFrame())
+        return asBaselineFrame()->hasCallObj();
+    return asRematerializedFrame()->hasCallObj();
 }
+
 inline bool
-AbstractFramePtr::useNewType() const
+AbstractFramePtr::createSingleton() const
 {
-    if (isStackFrame())
-        return asStackFrame()->useNewType();
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->createSingleton();
     return false;
 }
-inline bool
-AbstractFramePtr::isGeneratorFrame() const
-{
-    if (isStackFrame())
-        return asStackFrame()->isGeneratorFrame();
-    return false;
-}
-inline bool
-AbstractFramePtr::isYielding() const
-{
-    if (isStackFrame())
-        return asStackFrame()->isYielding();
-    return false;
-}
+
 inline bool
 AbstractFramePtr::isFunctionFrame() const
 {
-    if (isStackFrame())
-        return asStackFrame()->isFunctionFrame();
-#ifdef JS_ION
-    return asBaselineFrame()->isFunctionFrame();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->isFunctionFrame();
+    if (isBaselineFrame())
+        return asBaselineFrame()->isFunctionFrame();
+    return asRematerializedFrame()->isFunctionFrame();
 }
+
 inline bool
 AbstractFramePtr::isGlobalFrame() const
 {
-    if (isStackFrame())
-        return asStackFrame()->isGlobalFrame();
-#ifdef JS_ION
-    return asBaselineFrame()->isGlobalFrame();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->isGlobalFrame();
+    if (isBaselineFrame())
+        return asBaselineFrame()->isGlobalFrame();
+    return asRematerializedFrame()->isGlobalFrame();
 }
+
 inline bool
 AbstractFramePtr::isEvalFrame() const
 {
-    if (isStackFrame())
-        return asStackFrame()->isEvalFrame();
-#ifdef JS_ION
-    return asBaselineFrame()->isEvalFrame();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
-}
-inline bool
-AbstractFramePtr::isFramePushedByExecute() const
-{
-    return isGlobalFrame() || isEvalFrame();
-}
-inline bool
-AbstractFramePtr::isDebuggerFrame() const
-{
-    if (isStackFrame())
-        return asStackFrame()->isDebuggerFrame();
-#ifdef JS_ION
-    return asBaselineFrame()->isDebuggerFrame();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->isEvalFrame();
+    if (isBaselineFrame())
+        return asBaselineFrame()->isEvalFrame();
+    MOZ_ASSERT(isRematerializedFrame());
     return false;
 }
-inline JSScript *
+
+inline bool
+AbstractFramePtr::isDebuggerEvalFrame() const
+{
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->isDebuggerEvalFrame();
+    if (isBaselineFrame())
+        return asBaselineFrame()->isDebuggerEvalFrame();
+    MOZ_ASSERT(isRematerializedFrame());
+    return false;
+}
+
+inline bool
+AbstractFramePtr::isDebuggee() const
+{
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->isDebuggee();
+    if (isBaselineFrame())
+        return asBaselineFrame()->isDebuggee();
+    return asRematerializedFrame()->isDebuggee();
+}
+
+inline void
+AbstractFramePtr::setIsDebuggee()
+{
+    if (isInterpreterFrame())
+        asInterpreterFrame()->setIsDebuggee();
+    else if (isBaselineFrame())
+        asBaselineFrame()->setIsDebuggee();
+    else
+        asRematerializedFrame()->setIsDebuggee();
+}
+
+inline void
+AbstractFramePtr::unsetIsDebuggee()
+{
+    if (isInterpreterFrame())
+        asInterpreterFrame()->unsetIsDebuggee();
+    else if (isBaselineFrame())
+        asBaselineFrame()->unsetIsDebuggee();
+    else
+        asRematerializedFrame()->unsetIsDebuggee();
+}
+
+inline bool
+AbstractFramePtr::hasArgs() const {
+    return isNonEvalFunctionFrame();
+}
+
+inline JSScript*
 AbstractFramePtr::script() const
 {
-    if (isStackFrame())
-        return asStackFrame()->script();
-#ifdef JS_ION
-    return asBaselineFrame()->script();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->script();
+    if (isBaselineFrame())
+        return asBaselineFrame()->script();
+    return asRematerializedFrame()->script();
 }
-inline JSFunction *
+
+inline JSFunction*
 AbstractFramePtr::fun() const
 {
-    if (isStackFrame())
-        return asStackFrame()->fun();
-#ifdef JS_ION
-    return asBaselineFrame()->fun();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->fun();
+    if (isBaselineFrame())
+        return asBaselineFrame()->fun();
+    return asRematerializedFrame()->fun();
 }
-inline JSFunction *
+
+inline JSFunction*
 AbstractFramePtr::maybeFun() const
 {
-    if (isStackFrame())
-        return asStackFrame()->maybeFun();
-#ifdef JS_ION
-    return asBaselineFrame()->maybeFun();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->maybeFun();
+    if (isBaselineFrame())
+        return asBaselineFrame()->maybeFun();
+    return asRematerializedFrame()->maybeFun();
 }
-inline JSFunction *
+
+inline JSFunction*
 AbstractFramePtr::callee() const
 {
-    if (isStackFrame())
-        return &asStackFrame()->callee();
-#ifdef JS_ION
-    return asBaselineFrame()->callee();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return &asInterpreterFrame()->callee();
+    if (isBaselineFrame())
+        return asBaselineFrame()->callee();
+    return asRematerializedFrame()->callee();
 }
+
 inline Value
 AbstractFramePtr::calleev() const
 {
-    if (isStackFrame())
-        return asStackFrame()->calleev();
-#ifdef JS_ION
-    return asBaselineFrame()->calleev();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->calleev();
+    if (isBaselineFrame())
+        return asBaselineFrame()->calleev();
+    return asRematerializedFrame()->calleev();
 }
+
 inline bool
 AbstractFramePtr::isNonEvalFunctionFrame() const
 {
-    if (isStackFrame())
-        return asStackFrame()->isNonEvalFunctionFrame();
-#ifdef JS_ION
-    return asBaselineFrame()->isNonEvalFunctionFrame();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->isNonEvalFunctionFrame();
+    if (isBaselineFrame())
+        return asBaselineFrame()->isNonEvalFunctionFrame();
+    return asRematerializedFrame()->isNonEvalFunctionFrame();
 }
+
 inline bool
 AbstractFramePtr::isNonStrictDirectEvalFrame() const
 {
-    if (isStackFrame())
-        return asStackFrame()->isNonStrictDirectEvalFrame();
-#ifdef JS_ION
-    return asBaselineFrame()->isNonStrictDirectEvalFrame();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->isNonStrictDirectEvalFrame();
+    if (isBaselineFrame())
+        return asBaselineFrame()->isNonStrictDirectEvalFrame();
+    MOZ_ASSERT(isRematerializedFrame());
+    return false;
 }
+
 inline bool
 AbstractFramePtr::isStrictEvalFrame() const
 {
-    if (isStackFrame())
-        return asStackFrame()->isStrictEvalFrame();
-#ifdef JS_ION
-    return asBaselineFrame()->isStrictEvalFrame();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->isStrictEvalFrame();
+    if (isBaselineFrame())
+        return asBaselineFrame()->isStrictEvalFrame();
+    MOZ_ASSERT(isRematerializedFrame());
+    return false;
 }
 
-inline Value *
+inline Value*
 AbstractFramePtr::argv() const
 {
-    if (isStackFrame())
-        return asStackFrame()->argv();
-#ifdef JS_ION
-    return asBaselineFrame()->argv();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->argv();
+    if (isBaselineFrame())
+        return asBaselineFrame()->argv();
+    return asRematerializedFrame()->argv();
 }
 
 inline bool
 AbstractFramePtr::hasArgsObj() const
 {
-    if (isStackFrame())
-        return asStackFrame()->hasArgsObj();
-#ifdef JS_ION
-    return asBaselineFrame()->hasArgsObj();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->hasArgsObj();
+    if (isBaselineFrame())
+        return asBaselineFrame()->hasArgsObj();
+    return asRematerializedFrame()->hasArgsObj();
 }
-inline ArgumentsObject &
+
+inline ArgumentsObject&
 AbstractFramePtr::argsObj() const
 {
-    if (isStackFrame())
-        return asStackFrame()->argsObj();
-#ifdef JS_ION
-    return asBaselineFrame()->argsObj();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->argsObj();
+    if (isBaselineFrame())
+        return asBaselineFrame()->argsObj();
+    return asRematerializedFrame()->argsObj();
 }
+
 inline void
-AbstractFramePtr::initArgsObj(ArgumentsObject &argsobj) const
+AbstractFramePtr::initArgsObj(ArgumentsObject& argsobj) const
 {
-    if (isStackFrame()) {
-        asStackFrame()->initArgsObj(argsobj);
+    if (isInterpreterFrame()) {
+        asInterpreterFrame()->initArgsObj(argsobj);
         return;
     }
-#ifdef JS_ION
     asBaselineFrame()->initArgsObj(argsobj);
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
 }
+
 inline bool
-AbstractFramePtr::copyRawFrameSlots(AutoValueVector *vec) const
+AbstractFramePtr::copyRawFrameSlots(AutoValueVector* vec) const
 {
-    if (isStackFrame())
-        return asStackFrame()->copyRawFrameSlots(vec);
-#ifdef JS_ION
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->copyRawFrameSlots(vec);
     return asBaselineFrame()->copyRawFrameSlots(vec);
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
 }
 
 inline bool
 AbstractFramePtr::prevUpToDate() const
 {
-    if (isStackFrame())
-        return asStackFrame()->prevUpToDate();
-#ifdef JS_ION
-    return asBaselineFrame()->prevUpToDate();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->prevUpToDate();
+    if (isBaselineFrame())
+        return asBaselineFrame()->prevUpToDate();
+    return asRematerializedFrame()->prevUpToDate();
 }
+
 inline void
 AbstractFramePtr::setPrevUpToDate() const
 {
-    if (isStackFrame()) {
-        asStackFrame()->setPrevUpToDate();
+    if (isInterpreterFrame()) {
+        asInterpreterFrame()->setPrevUpToDate();
         return;
     }
-#ifdef JS_ION
-    asBaselineFrame()->setPrevUpToDate();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isBaselineFrame()) {
+        asBaselineFrame()->setPrevUpToDate();
+        return;
+    }
+    asRematerializedFrame()->setPrevUpToDate();
 }
 
-inline Value &
+inline void
+AbstractFramePtr::unsetPrevUpToDate() const
+{
+    if (isInterpreterFrame()) {
+        asInterpreterFrame()->unsetPrevUpToDate();
+        return;
+    }
+    if (isBaselineFrame()) {
+        asBaselineFrame()->unsetPrevUpToDate();
+        return;
+    }
+    asRematerializedFrame()->unsetPrevUpToDate();
+}
+
+inline Value&
 AbstractFramePtr::thisValue() const
 {
-    if (isStackFrame())
-        return asStackFrame()->thisValue();
-#ifdef JS_ION
-    return asBaselineFrame()->thisValue();
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
+    if (isInterpreterFrame())
+        return asInterpreterFrame()->thisValue();
+    if (isBaselineFrame())
+        return asBaselineFrame()->thisValue();
+    return asRematerializedFrame()->thisValue();
 }
 
 inline void
-AbstractFramePtr::popBlock(JSContext *cx) const
+AbstractFramePtr::popBlock(JSContext* cx) const
 {
-    if (isStackFrame()) {
-        asStackFrame()->popBlock(cx);
+    if (isInterpreterFrame()) {
+        asInterpreterFrame()->popBlock(cx);
         return;
     }
-#ifdef JS_ION
     asBaselineFrame()->popBlock(cx);
-#else
-    JS_NOT_REACHED("Invalid frame");
-#endif
 }
 
 inline void
-AbstractFramePtr::popWith(JSContext *cx) const
+AbstractFramePtr::popWith(JSContext* cx) const
 {
-    if (isStackFrame())
-        asStackFrame()->popWith(cx);
-    else
-        JS_NOT_REACHED("Invalid frame");
+    if (isInterpreterFrame()) {
+        asInterpreterFrame()->popWith(cx);
+        return;
+    }
+    asBaselineFrame()->popWith(cx);
 }
 
-Activation::Activation(JSContext *cx, Kind kind)
+Activation::Activation(JSContext* cx, Kind kind)
   : cx_(cx),
     compartment_(cx->compartment()),
-    prev_(cx->mainThread().activation_),
+    prev_(cx->runtime_->activation_),
+    prevProfiling_(prev_ ? prev_->mostRecentProfiling() : nullptr),
     savedFrameChain_(0),
+    hideScriptedCallerCount_(0),
     kind_(kind)
 {
-    cx->mainThread().activation_ = this;
+    cx->runtime_->activation_ = this;
 }
 
 Activation::~Activation()
 {
-    JS_ASSERT(cx_->mainThread().activation_ == this);
-    cx_->mainThread().activation_ = prev_;
+    MOZ_ASSERT_IF(isProfiling(), this != cx_->runtime()->profilingActivation_);
+    MOZ_ASSERT(cx_->runtime_->activation_ == this);
+    MOZ_ASSERT(hideScriptedCallerCount_ == 0);
+    cx_->runtime_->activation_ = prev_;
 }
 
-InterpreterActivation::InterpreterActivation(JSContext *cx, StackFrame *entry, FrameRegs &regs)
+bool
+Activation::isProfiling() const
+{
+    if (isInterpreter())
+        return asInterpreter()->isProfiling();
+
+    if (isJit())
+        return asJit()->isProfiling();
+
+    MOZ_ASSERT(isAsmJS());
+    return asAsmJS()->isProfiling();
+}
+
+Activation*
+Activation::mostRecentProfiling()
+{
+    if (isProfiling())
+        return this;
+    return prevProfiling_;
+}
+
+InterpreterActivation::InterpreterActivation(RunState& state, JSContext* cx,
+                                             InterpreterFrame* entryFrame)
   : Activation(cx, Interpreter),
-    entry_(entry),
-    current_(entry),
-    regs_(regs)
+    entryFrame_(entryFrame),
+    opMask_(0)
 #ifdef DEBUG
-  , oldFrameCount_(cx_->runtime()->interpreterStack().frameCount_)
+  , oldFrameCount_(cx->runtime()->interpreterStack().frameCount_)
 #endif
-{}
+{
+    regs_.prepareToRun(*entryFrame, state.script());
+    MOZ_ASSERT(regs_.pc == state.script()->code());
+    MOZ_ASSERT_IF(entryFrame_->isEvalFrame(), state.script()->isActiveEval());
+}
 
 InterpreterActivation::~InterpreterActivation()
 {
     // Pop all inline frames.
-    while (current_ != entry_)
-        popInlineFrame(current_);
+    while (regs_.fp() != entryFrame_)
+        popInlineFrame(regs_.fp());
 
-    JS_ASSERT(oldFrameCount_ == cx_->runtime()->interpreterStack().frameCount_);
-    JS_ASSERT_IF(oldFrameCount_ == 0, cx_->runtime()->interpreterStack().allocator_.used() == 0);
+    JSContext* cx = cx_->asJSContext();
+    MOZ_ASSERT(oldFrameCount_ == cx->runtime()->interpreterStack().frameCount_);
+    MOZ_ASSERT_IF(oldFrameCount_ == 0, cx->runtime()->interpreterStack().allocator_.used() == 0);
+
+    if (entryFrame_)
+        cx->runtime()->interpreterStack().releaseFrame(entryFrame_);
 }
 
 inline bool
-InterpreterActivation::pushInlineFrame(const CallArgs &args, HandleScript script,
+InterpreterActivation::pushInlineFrame(const CallArgs& args, HandleScript script,
                                        InitialFrameFlags initial)
 {
-    if (!cx_->runtime()->interpreterStack().pushInlineFrame(cx_, regs_, args, script, initial))
+    JSContext* cx = cx_->asJSContext();
+    if (!cx->runtime()->interpreterStack().pushInlineFrame(cx, regs_, args, script, initial))
         return false;
-    JS_ASSERT(regs_.fp()->script()->compartment() == compartment_);
-    current_ = regs_.fp();
+    MOZ_ASSERT(regs_.fp()->script()->compartment() == compartment());
     return true;
 }
 
 inline void
-InterpreterActivation::popInlineFrame(StackFrame *frame)
+InterpreterActivation::popInlineFrame(InterpreterFrame* frame)
 {
-    JS_ASSERT(current_ == frame);
-    JS_ASSERT(current_ != entry_);
+    (void)frame; // Quell compiler warning.
+    MOZ_ASSERT(regs_.fp() == frame);
+    MOZ_ASSERT(regs_.fp() != entryFrame_);
 
-    current_ = frame->prev();
-    JS_ASSERT(current_);
+    cx_->asJSContext()->runtime()->interpreterStack().popInlineFrame(regs_);
+}
 
-    cx_->runtime()->interpreterStack().popInlineFrame(regs_);
+inline bool
+InterpreterActivation::resumeGeneratorFrame(HandleFunction callee, HandleValue thisv,
+                                            HandleObject scopeChain)
+{
+    InterpreterStack& stack = cx_->asJSContext()->runtime()->interpreterStack();
+    if (!stack.resumeGeneratorCallFrame(cx_->asJSContext(), regs_, callee, thisv, scopeChain))
+        return false;
+
+    MOZ_ASSERT(regs_.fp()->script()->compartment() == compartment_);
+    return true;
+}
+
+inline JSContext*
+AsmJSActivation::cx()
+{
+    return cx_->asJSContext();
 }
 
 } /* namespace js */

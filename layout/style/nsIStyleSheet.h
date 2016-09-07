@@ -11,6 +11,7 @@
 #ifndef nsIStyleSheet_h___
 #define nsIStyleSheet_h___
 
+#include "mozilla/MemoryReporting.h"
 #include <stdio.h>
 #include "nsISupports.h"
 
@@ -29,7 +30,7 @@ class nsIDocument;
  * rules.  Those style rules can be reached in one of two ways, depending
  * on which level of the nsStyleSet it is in:
  *   1) It can be |QueryInterface|d to nsIStyleRuleProcessor
- *   2) It can be |QueryInterface|d to nsCSSStyleSheet, with which the
+ *   2) It can be |QueryInterface|d to CSSStyleSheet, with which the
  *      |nsStyleSet| uses an |nsCSSRuleProcessor| to access the rules.
  */
 class nsIStyleSheet : public nsISupports {
@@ -78,7 +79,7 @@ public:
   virtual void List(FILE* out = stdout, int32_t aIndent = 0) const = 0;
 #endif
 
-  virtual size_t SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf) const = 0;
+  virtual size_t SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf) const = 0;
 };
 
 NS_DEFINE_STATIC_IID_ACCESSOR(nsIStyleSheet, NS_ISTYLE_SHEET_IID)

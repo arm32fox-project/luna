@@ -7,13 +7,10 @@
 import mozfile
 import os
 import shutil
+import sqlite3
 import tempfile
 import unittest
 from mozprofile.permissions import Permissions
-try:
-    import sqlite3
-except ImportError:
-    from pysqlite2 import dbapi2 as sqlite3
 
 class PermissionsTest(unittest.TestCase):
 
@@ -43,7 +40,18 @@ http://127.0.0.1:8888           privileged
 
         cursor.execute("PRAGMA user_version=%d;" % version)
 
-        if version == 3:
+        if version == 4:
+            cursor.execute("""CREATE TABLE IF NOT EXISTS moz_hosts (
+               id INTEGER PRIMARY KEY,
+               host TEXT,
+               type TEXT,
+               permission INTEGER,
+               expireType INTEGER,
+               expireTime INTEGER,
+               modificationTime INTEGER,
+               appId INTEGER,
+               isInBrowserElement INTEGER)""")
+        elif version == 3:
             cursor.execute("""CREATE TABLE IF NOT EXISTS moz_hosts (
                id INTEGER PRIMARY KEY,
                host TEXT,
@@ -62,7 +70,7 @@ http://127.0.0.1:8888           privileged
                expireType INTEGER,
                expireTime INTEGER)""")
         else:
-            raise Exception("version must be 2 or 3")
+            raise Exception("version must be 2, 3 or 4")
 
         permDB.commit()
         cursor.close()
@@ -119,32 +127,20 @@ http://127.0.0.1:8888           privileged
         prefs, user_prefs = perms.network_prefs(False)
 
         self.assertEqual(len(user_prefs), 0)
-        self.assertEqual(len(prefs), 6)
-
-        self.assertEqual(prefs[0], ('capability.principal.codebase.p1.granted',
-                                    'UniversalXPConnect'))
-        self.assertEqual(prefs[1], ('capability.principal.codebase.p1.id',
-                                    'http://mochi.test:8888'))
-        self.assertEqual(prefs[2], ('capability.principal.codebase.p1.subjectName', ''))
-
-        self.assertEqual(prefs[3], ('capability.principal.codebase.p2.granted',
-                                    'UniversalXPConnect'))
-        self.assertEqual(prefs[4], ('capability.principal.codebase.p2.id',
-                                    'http://127.0.0.1:8888'))
-        self.assertEqual(prefs[5], ('capability.principal.codebase.p2.subjectName', ''))
+        self.assertEqual(len(prefs), 0)
 
         prefs, user_prefs = perms.network_prefs(True)
         self.assertEqual(len(user_prefs), 2)
         self.assertEqual(user_prefs[0], ('network.proxy.type', 2))
         self.assertEqual(user_prefs[1][0], 'network.proxy.autoconfig_url')
 
-        origins_decl = "var origins = ['http://mochi.test:8888', 'http://127.0.0.1:80', 'http://127.0.0.1:8888'];"
+        origins_decl = "var knownOrigins = (function () {  return ['http://mochi.test:8888', 'http://127.0.0.1:80', 'http://127.0.0.1:8888'].reduce"
         self.assertTrue(origins_decl in user_prefs[1][1])
 
-        proxy_check = ("if (isHttp) return 'PROXY mochi.test:8888';",
-                       "if (isHttps) return 'PROXY mochi.test:4443';",
-                       "if (isWebSocket) return 'PROXY mochi.test:4443';",
-                       "if (isWebSocketSSL) return 'PROXY mochi.test:4443';")
+        proxy_check = ("'http': 'PROXY mochi.test:8888'",
+                       "'https': 'PROXY mochi.test:4443'",
+                       "'ws': 'PROXY mochi.test:4443'",
+                       "'wss': 'PROXY mochi.test:4443'")
         self.assertTrue(all(c in user_prefs[1][1] for c in proxy_check))
 
     def verify_user_version(self, version):
@@ -164,7 +160,7 @@ http://127.0.0.1:8888           privileged
 
         self.assertEqual(len(entries), 3)
 
-        columns = 8 if version == 3 else 6
+        columns = 9 if version == 4 else (8 if version == 3 else 6)
         self.assertEqual(len(entries[0]), columns)
         for x in range(4, columns):
             self.assertEqual(entries[0][x], 0)
@@ -175,6 +171,8 @@ http://127.0.0.1:8888           privileged
     def test_existing_permissions_db_v3(self):
         self.verify_user_version(3)
 
+    def test_existing_permissions_db_v4(self):
+        self.verify_user_version(4)
 
 if __name__ == '__main__':
     unittest.main()

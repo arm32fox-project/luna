@@ -5,11 +5,23 @@
 
 package org.mozilla.goanna;
 
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Semaphore;
+
+import org.json.JSONObject;
+import org.mozilla.goanna.AppConstants.Versions;
 import org.mozilla.goanna.gfx.InputConnectionHandler;
 import org.mozilla.goanna.gfx.LayerView;
+import org.mozilla.goanna.util.GoannaEventListener;
 import org.mozilla.goanna.util.ThreadUtils;
+import org.mozilla.goanna.util.ThreadUtils.AssertBehavior;
 
-import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.text.Editable;
@@ -26,46 +38,6 @@ import android.util.Log;
 import android.view.KeyCharacterMap;
 import android.view.KeyEvent;
 
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
-import java.lang.reflect.Proxy;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Semaphore;
-
-// interface for the IC thread
-interface GoannaEditableClient {
-    void sendEvent(GoannaEvent event);
-    Editable getEditable();
-    void setUpdateGoanna(boolean update);
-    void setSuppressKeyUp(boolean suppress);
-    Handler getInputConnectionHandler();
-    boolean setInputConnectionHandler(Handler handler);
-}
-
-/* interface for the Editable to listen to the Goanna thread
-   and also for the IC thread to listen to the Editable */
-interface GoannaEditableListener {
-    // IME notification type for notifyIME(), corresponding to NotificationToIME enum in Goanna
-    final int NOTIFY_IME_REPLY_EVENT = -1;
-    final int NOTIFY_IME_OF_FOCUS = 1;
-    final int NOTIFY_IME_OF_BLUR = 2;
-    final int NOTIFY_IME_TO_COMMIT_COMPOSITION = 4;
-    final int NOTIFY_IME_TO_CANCEL_COMPOSITION = 5;
-    // IME enabled state for notifyIMEContext()
-    final int IME_STATE_DISABLED = 0;
-    final int IME_STATE_ENABLED = 1;
-    final int IME_STATE_PASSWORD = 2;
-    final int IME_STATE_PLUGIN = 3;
-
-    void notifyIME(int type);
-    void notifyIMEContext(int state, String typeHint,
-                          String modeHint, String actionHint);
-    void onSelectionChange(int start, int end);
-    void onTextChange(String text, int start, int oldEnd, int newEnd);
-}
-
 /*
    GoannaEditable implements only some functions of Editable
    The field mText contains the actual underlying
@@ -73,7 +45,7 @@ interface GoannaEditableListener {
 */
 final class GoannaEditable
         implements InvocationHandler, Editable,
-                   GoannaEditableClient, GoannaEditableListener {
+                   GoannaEditableClient, GoannaEditableListener, GoannaEventListener {
 
     private static final boolean DEBUG = false;
     private static final String LOGTAG = "GoannaEditable";
@@ -98,7 +70,9 @@ final class GoannaEditable
     private int mIcUpdateSeqno;
     private int mLastIcUpdateSeqno;
     private boolean mUpdateGoanna;
-    private boolean mFocused;
+    private boolean mFocused; // Used by IC thread
+    private boolean mGoannaFocused; // Used by Goanna thread
+    private volatile boolean mSuppressCompositions;
     private volatile boolean mSuppressKeyUp;
 
     /* An action that alters the Editable
@@ -125,6 +99,8 @@ final class GoannaEditable
         static final int TYPE_ACKNOWLEDGE_FOCUS = 5;
         // For switching handler; use with IME_SYNCHRONIZE
         static final int TYPE_SET_HANDLER = 6;
+        // For Editable.replace() call involving compositions; use with IME_COMPOSE_TEXT
+        static final int TYPE_COMPOSE_TEXT = 7;
 
         final int mType;
         int mStart;
@@ -141,10 +117,25 @@ final class GoannaEditable
 
         static Action newReplaceText(CharSequence text, int start, int end) {
             if (start < 0 || start > end) {
-                throw new IllegalArgumentException(
-                    "invalid replace text offsets: " + start + " to " + end);
+                Log.e(LOGTAG, "invalid replace text offsets: " + start + " to " + end);
+                throw new IllegalArgumentException("invalid replace text offsets");
             }
-            final Action action = new Action(TYPE_REPLACE_TEXT);
+
+            int actionType = TYPE_REPLACE_TEXT;
+
+            if (text instanceof Spanned) {
+                final Spanned spanned = (Spanned) text;
+                final Object[] spans = spanned.getSpans(0, spanned.length(), Object.class);
+
+                for (Object span : spans) {
+                    if ((spanned.getSpanFlags(span) & Spanned.SPAN_COMPOSING) != 0) {
+                        actionType = TYPE_COMPOSE_TEXT;
+                        break;
+                    }
+                }
+            }
+
+            final Action action = new Action(actionType);
             action.mSequence = text;
             action.mStart = start;
             action.mEnd = end;
@@ -155,8 +146,8 @@ final class GoannaEditable
             // start == -1 when the start offset should remain the same
             // end == -1 when the end offset should remain the same
             if (start < -1 || end < -1) {
-                throw new IllegalArgumentException(
-                    "invalid selection offsets: " + start + " to " + end);
+                Log.e(LOGTAG, "invalid selection offsets: " + start + " to " + end);
+                throw new IllegalArgumentException("invalid selection offsets");
             }
             final Action action = new Action(TYPE_SET_SELECTION);
             action.mStart = start;
@@ -166,14 +157,20 @@ final class GoannaEditable
 
         static Action newSetSpan(Object object, int start, int end, int flags) {
             if (start < 0 || start > end) {
-                throw new IllegalArgumentException(
-                    "invalid span offsets: " + start + " to " + end);
+                Log.e(LOGTAG, "invalid span offsets: " + start + " to " + end);
+                throw new IllegalArgumentException("invalid span offsets");
             }
             final Action action = new Action(TYPE_SET_SPAN);
             action.mSpanObject = object;
             action.mStart = start;
             action.mEnd = end;
             action.mSpanFlags = flags;
+            return action;
+        }
+
+        static Action newRemoveSpan(Object object) {
+            final Action action = new Action(TYPE_REMOVE_SPAN);
+            action.mSpanObject = object;
             return action;
         }
 
@@ -217,6 +214,7 @@ final class GoannaEditable
                 mActionsActive.tryAcquire();
                 mActions.offer(action);
             }
+
             switch (action.mType) {
             case Action.TYPE_EVENT:
             case Action.TYPE_SET_SELECTION:
@@ -226,17 +224,29 @@ final class GoannaEditable
                 GoannaAppShell.sendEventToGoanna(GoannaEvent.createIMEEvent(
                         GoannaEvent.ImeAction.IME_SYNCHRONIZE));
                 break;
+
+            case Action.TYPE_COMPOSE_TEXT:
+                // Send different event for composing text.
+                GoannaAppShell.sendEventToGoanna(GoannaEvent.createIMEComposeEvent(
+                        action.mStart, action.mEnd, action.mSequence.toString()));
+                return;
+
             case Action.TYPE_REPLACE_TEXT:
                 // try key events first
                 sendCharKeyEvents(action);
                 GoannaAppShell.sendEventToGoanna(GoannaEvent.createIMEReplaceEvent(
                         action.mStart, action.mEnd, action.mSequence.toString()));
                 break;
+
             case Action.TYPE_ACKNOWLEDGE_FOCUS:
                 GoannaAppShell.sendEventToGoanna(GoannaEvent.createIMEEvent(
                         GoannaEvent.ImeAction.IME_ACKNOWLEDGE_FOCUS));
                 break;
+
+            default:
+                throw new IllegalStateException("Action not processed");
             }
+
             ++mIcUpdateSeqno;
         }
 
@@ -244,13 +254,13 @@ final class GoannaEditable
             try {
                 if (mKeyMap == null) {
                     mKeyMap = KeyCharacterMap.load(
-                        Build.VERSION.SDK_INT < 11 ? KeyCharacterMap.ALPHA :
-                                                     KeyCharacterMap.VIRTUAL_KEYBOARD);
+                        Versions.preHC ? KeyCharacterMap.ALPHA :
+                                         KeyCharacterMap.VIRTUAL_KEYBOARD);
                 }
             } catch (Exception e) {
-                // KeyCharacterMap.UnavailableExcepton is not found on Gingerbread;
+                // KeyCharacterMap.UnavailableException is not found on Gingerbread;
                 // besides, it seems like HC and ICS will throw something other than
-                // KeyCharacterMap.UnavailableExcepton; so use a generic Exception here
+                // KeyCharacterMap.UnavailableException; so use a generic Exception here
                 return null;
             }
             KeyEvent [] keyEvents = mKeyMap.getEvents(cs.toString().toCharArray());
@@ -295,12 +305,10 @@ final class GoannaEditable
                 throw new IllegalStateException("empty actions queue");
             }
             mActions.poll();
-            // Don't bother locking if queue is not empty yet
-            if (mActions.isEmpty()) {
-                synchronized(this) {
-                    if (mActions.isEmpty()) {
-                        mActionsActive.release();
-                    }
+
+            synchronized(this) {
+                if (mActions.isEmpty()) {
+                    mActionsActive.release();
                 }
             }
         }
@@ -360,7 +368,7 @@ final class GoannaEditable
     }
 
     private void assertOnIcThread() {
-        ThreadUtils.assertOnThread(mIcRunHandler.getLooper().getThread());
+        ThreadUtils.assertOnThread(mIcRunHandler.getLooper().getThread(), AssertBehavior.THROW);
     }
 
     private void goannaPostToIc(Runnable runnable) {
@@ -394,7 +402,10 @@ final class GoannaEditable
 
     private void icUpdateGoanna(boolean force) {
 
-        if (!force && mIcUpdateSeqno == mLastIcUpdateSeqno) {
+        // Skip if receiving a repeated request, or
+        // if suppressing compositions during text selection.
+        if ((!force && mIcUpdateSeqno == mLastIcUpdateSeqno) ||
+            mSuppressCompositions) {
             if (DEBUG) {
                 Log.d(LOGTAG, "icUpdateGoanna() skipped");
             }
@@ -478,8 +489,9 @@ final class GoannaEditable
                 }
                 int tpUnderlineColor = 0;
                 float tpUnderlineThickness = 0.0f;
-                // These TextPaint fields only exist on Android ICS+ and are not in the SDK
-                if (Build.VERSION.SDK_INT >= 14) {
+
+                // These TextPaint fields only exist on Android ICS+ and are not in the SDK.
+                if (Versions.feature14Plus) {
                     tpUnderlineColor = (Integer)getField(tp, "underlineColor", 0);
                     tpUnderlineThickness = (Float)getField(tp, "underlineThickness", 0.0f);
                 }
@@ -531,18 +543,8 @@ final class GoannaEditable
     @Override
     public void sendEvent(final GoannaEvent event) {
         if (DEBUG) {
+            assertOnIcThread();
             Log.d(LOGTAG, "sendEvent(" + event + ")");
-        }
-        if (!onIcThread()) {
-            // Events may get dispatched to the main thread;
-            // reroute to our IC thread instead
-            mIcRunHandler.post(new Runnable() {
-                @Override
-                public void run() {
-                    sendEvent(event);
-                }
-            });
-            return;
         }
         /*
            We are actually sending two events to Goanna here,
@@ -569,7 +571,7 @@ final class GoannaEditable
     }
 
     @Override
-    public void setUpdateGoanna(boolean update) {
+    public void setUpdateGoanna(boolean update, boolean force) {
         if (!onIcThread()) {
             // Android may be holding an old InputConnection; ignore
             if (DEBUG) {
@@ -578,7 +580,7 @@ final class GoannaEditable
             return;
         }
         if (update) {
-            icUpdateGoanna(false);
+            icUpdateGoanna(force);
         }
         mUpdateGoanna = update;
     }
@@ -701,9 +703,15 @@ final class GoannaEditable
                 }
             });
             break;
+
         case Action.TYPE_SET_SPAN:
             mText.setSpan(action.mSpanObject, action.mStart, action.mEnd, action.mSpanFlags);
             break;
+
+        case Action.TYPE_REMOVE_SPAN:
+            mText.removeSpan(action.mSpanObject);
+            break;
+
         case Action.TYPE_SET_HANDLER:
             goannaSetIcHandler(action.mHandler);
             break;
@@ -758,6 +766,22 @@ final class GoannaEditable
                 mListener.notifyIME(type);
             }
         });
+
+        // Register/unregister Goanna-side text selection listeners
+        // and update the mGoannaFocused flag.
+        if (type == NOTIFY_IME_OF_BLUR && mGoannaFocused) {
+            // Check for focus here because Goanna may send us a blur before a focus in some
+            // cases, and we don't want to unregister an event that was not registered.
+            mGoannaFocused = false;
+            mSuppressCompositions = false;
+            EventDispatcher.getInstance().
+                unregisterGoannaThreadListener(this, "TextSelection:DraggingHandle");
+        } else if (type == NOTIFY_IME_OF_FOCUS) {
+            mGoannaFocused = true;
+            mSuppressCompositions = false;
+            EventDispatcher.getInstance().
+                registerGoannaThreadListener(this, "TextSelection:DraggingHandle");
+        }
     }
 
     @Override
@@ -796,8 +820,9 @@ final class GoannaEditable
             Log.d(LOGTAG, "onSelectionChange(" + start + ", " + end + ")");
         }
         if (start < 0 || start > mText.length() || end < 0 || end > mText.length()) {
-            throw new IllegalArgumentException("invalid selection notification range: " +
-                start + " to " + end + ", length: " + mText.length());
+            Log.e(LOGTAG, "invalid selection notification range: " +
+                  start + " to " + end + ", length: " + mText.length());
+            throw new IllegalArgumentException("invalid selection notification range");
         }
         final int seqnoWhenPosted = ++mGoannaUpdateSeqno;
 
@@ -839,25 +864,31 @@ final class GoannaEditable
     }
 
     @Override
-    public void onTextChange(final String text, final int start,
+    public void onTextChange(final CharSequence text, final int start,
                       final int unboundedOldEnd, final int unboundedNewEnd) {
         if (DEBUG) {
             // GoannaEditableListener methods should all be called from the Goanna thread
             ThreadUtils.assertOnGoannaThread();
-            Log.d(LOGTAG, "onTextChange(\"" + text + "\", " + start + ", " +
-                          unboundedOldEnd + ", " + unboundedNewEnd + ")");
+            StringBuilder sb = new StringBuilder("onTextChange(");
+            debugAppend(sb, text);
+            sb.append(", ").append(start).append(", ")
+                .append(unboundedOldEnd).append(", ")
+                .append(unboundedNewEnd).append(")");
+            Log.d(LOGTAG, sb.toString());
         }
         if (start < 0 || start > unboundedOldEnd) {
-            throw new IllegalArgumentException("invalid text notification range: " +
-                start + " to " + unboundedOldEnd);
+            Log.e(LOGTAG, "invalid text notification range: " +
+                  start + " to " + unboundedOldEnd);
+            throw new IllegalArgumentException("invalid text notification range");
         }
         /* For the "end" parameters, Goanna can pass in a large
            number to denote "end of the text". Fix that here */
         final int oldEnd = unboundedOldEnd > mText.length() ? mText.length() : unboundedOldEnd;
         // new end should always match text
         if (start != 0 && unboundedNewEnd != (start + text.length())) {
-            throw new IllegalArgumentException("newEnd does not match text: " +
-                unboundedNewEnd + " vs " + (start + text.length()));
+            Log.e(LOGTAG, "newEnd does not match text: " + unboundedNewEnd + " vs " +
+                  (start + text.length()));
+            throw new IllegalArgumentException("newEnd does not match text");
         }
         final int newEnd = start + text.length();
 
@@ -875,7 +906,8 @@ final class GoannaEditable
 
         if (!mActionQueue.isEmpty()) {
             final Action action = mActionQueue.peek();
-            if (action.mType == Action.TYPE_REPLACE_TEXT &&
+            if ((action.mType == Action.TYPE_REPLACE_TEXT ||
+                    action.mType == Action.TYPE_COMPOSE_TEXT) &&
                     start <= action.mStart &&
                     action.mStart + action.mSequence.length() <= newEnd) {
 
@@ -943,12 +975,12 @@ final class GoannaEditable
         } else if (Proxy.isProxyClass(obj.getClass())) {
             debugAppend(sb, Proxy.getInvocationHandler(obj));
         } else if (obj instanceof CharSequence) {
-            sb.append("\"").append(obj.toString().replace('\n', '\u21b2')).append("\"");
+            sb.append('"').append(obj.toString().replace('\n', '\u21b2')).append('"');
         } else if (obj.getClass().isArray()) {
-            sb.append(obj.getClass().getComponentType().getSimpleName()).append("[")
-              .append(java.lang.reflect.Array.getLength(obj)).append("]");
+            sb.append(obj.getClass().getComponentType().getSimpleName()).append('[')
+              .append(Array.getLength(obj)).append(']');
         } else {
-            sb.append(obj.toString());
+            sb.append(obj);
         }
         return sb;
     }
@@ -1002,11 +1034,13 @@ final class GoannaEditable
         if (DEBUG) {
             StringBuilder log = new StringBuilder(method.getName());
             log.append("(");
-            for (Object arg : args) {
-                debugAppend(log, arg).append(", ");
-            }
-            if (args.length > 0) {
-                log.setLength(log.length() - 2);
+            if (args != null) {
+                for (Object arg : args) {
+                    debugAppend(log, arg).append(", ");
+                }
+                if (args.length > 0) {
+                    log.setLength(log.length() - 2);
+                }
             }
             if (method.getReturnType().equals(Void.TYPE)) {
                 log.append(")");
@@ -1026,11 +1060,7 @@ final class GoannaEditable
                 what == Selection.SELECTION_END) {
             Log.w(LOGTAG, "selection removed with removeSpan()");
         }
-        if (mText.getSpanStart(what) >= 0) { // only remove if it's there
-            // Okay to remove immediately
-            mText.removeSpan(what);
-            mActionQueue.offer(new Action(Action.TYPE_REMOVE_SPAN));
-        }
+        mActionQueue.offer(Action.newRemoveSpan(what));
     }
 
     @Override
@@ -1093,8 +1123,9 @@ final class GoannaEditable
 
         CharSequence text = source;
         if (start < 0 || start > end || end > text.length()) {
-            throw new IllegalArgumentException("invalid replace offsets: " +
-                start + " to " + end + ", length: " + text.length());
+            Log.e(LOGTAG, "invalid replace offsets: " +
+                  start + " to " + end + ", length: " + text.length());
+            throw new IllegalArgumentException("invalid replace offsets");
         }
         if (start != 0 || end != text.length()) {
             text = text.subSequence(start, end);
@@ -1202,6 +1233,17 @@ final class GoannaEditable
     @Override
     public String toString() {
         throw new UnsupportedOperationException("method must be called through mProxy");
+    }
+
+    // GoannaEventListener implementation
+
+    @Override
+    public void handleMessage(String event, JSONObject message) {
+        if (!"TextSelection:DraggingHandle".equals(event)) {
+            return;
+        }
+
+        mSuppressCompositions = message.optBoolean("dragging", false);
     }
 }
 

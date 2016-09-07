@@ -56,15 +56,13 @@ public class AuthenticateAccountStage implements AuthenticatorStage {
         try {
           BufferedReader reader = new BufferedReader(new InputStreamReader(response.getEntity().getContent(), "UTF-8"));
           BaseResource.consumeReader(reader);
-        } catch (IllegalStateException e) {
+        } catch (IllegalStateException | IOException e) {
           Logger.debug(LOG_TAG, "Error reading content.", e);
         } catch (RuntimeException e) {
           Logger.debug(LOG_TAG, "Unexpected exception.", e);
           if (httpRequest != null) {
             httpRequest.abort();
           }
-        } catch (IOException e) {
-          Logger.debug(LOG_TAG, "Error reading content.", e);
         }
       }
 
@@ -96,13 +94,16 @@ public class AuthenticateAccountStage implements AuthenticatorStage {
   public void authenticateAccount(final AuthenticateAccountStageDelegate callbackDelegate, final String authRequestUrl, final String authHeader) throws URISyntaxException {
     final BaseResource httpResource = new BaseResource(authRequestUrl);
     httpResource.delegate = new BaseResourceDelegate(httpResource) {
+      @Override
+      public String getUserAgent() {
+        return SyncConstants.USER_AGENT;
+      }
 
       @Override
       public void addHeaders(HttpRequestBase request, DefaultHttpClient client) {
         // Make reference to request, to abort if necessary.
         httpRequest = request;
         client.log.enableDebug(true);
-        request.setHeader(new BasicHeader("User-Agent", SyncConstants.SYNC_USER_AGENT));
         // Host header is not set for some reason, so do it explicitly.
         try {
           URI authServerUri = new URI(authRequestUrl);

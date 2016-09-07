@@ -3,225 +3,79 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/layers/TextureHostOGL.h"
 #include "CompositorOGL.h"
-#include "mozilla/layers/ImageHost.h"
-#include "mozilla/layers/ContentHost.h"
+#include <stddef.h>                     // for size_t
+#include <stdint.h>                     // for uint32_t, uint8_t
+#include <stdlib.h>                     // for free, malloc
+#include "GLContextProvider.h"          // for GLContextProvider
+#include "GLContext.h"                  // for GLContext
+#include "GLUploadHelpers.h"
+#include "Layers.h"                     // for WriteSnapshotToDumpFile
+#include "LayerScope.h"                 // for LayerScope
+#include "gfx2DGlue.h"                  // for ThebesFilter
+#include "GraphicsFilter.h"             // for GraphicsFilter
+#include "gfxPlatform.h"                // for gfxPlatform
+#include "gfxPrefs.h"                   // for gfxPrefs
+#include "gfxRect.h"                    // for gfxRect
+#include "gfxUtils.h"                   // for NextPowerOfTwo, gfxUtils, etc
+#include "mozilla/ArrayUtils.h"         // for ArrayLength
+#include "mozilla/Preferences.h"        // for Preferences
+#include "mozilla/gfx/BasePoint.h"      // for BasePoint
+#include "mozilla/gfx/Matrix.h"         // for Matrix4x4, Matrix
+#include "mozilla/layers/LayerManagerComposite.h"  // for LayerComposite, etc
 #include "mozilla/layers/CompositingRenderTargetOGL.h"
-#include "mozilla/Preferences.h"
-#include "mozilla/layers/ShadowLayers.h"
-#include "mozilla/layers/PLayer.h"
-#include "mozilla/layers/Effects.h"
-#include "nsIWidget.h"
-#include "FPSCounter.h"
+#include "mozilla/layers/Effects.h"     // for EffectChain, TexturedEffect, etc
+#include "mozilla/layers/TextureHost.h"  // for TextureSource, etc
+#include "mozilla/layers/TextureHostOGL.h"  // for TextureSourceOGL, etc
+#include "mozilla/mozalloc.h"           // for operator delete, etc
+#include "nsAppRunner.h"
+#include "nsAString.h"
+#include "nsIConsoleService.h"          // for nsIConsoleService, etc
+#include "nsIWidget.h"                  // for nsIWidget
+#include "nsLiteralString.h"            // for NS_LITERAL_STRING
+#include "nsMathUtils.h"                // for NS_roundf
+#include "nsRect.h"                     // for nsIntRect
+#include "nsServiceManagerUtils.h"      // for do_GetService
+#include "nsString.h"                   // for nsString, nsAutoCString, etc
+#include "ScopedGLHelpers.h"
+#include "GLReadTexImageHelper.h"
+#include "GLBlitTextureImageHelper.h"
+#include "TiledLayerBuffer.h"           // for TiledLayerComposer
+#include "HeapCopyOfStackArray.h"
 
-#include "gfxUtils.h"
-
-#include "GLContextProvider.h"
-
-#include "nsIServiceManager.h"
-#include "nsIConsoleService.h"
-
-#include "nsMathUtils.h"
-
-#include "GoannaProfiler.h"
-#include <algorithm>
-
-#if MOZ_ANDROID_OMTC
+#if MOZ_WIDGET_ANDROID
 #include "TexturePoolOGL.h"
 #endif
 
+#ifdef XP_MACOSX
+#include "nsCocoaFeatures.h"
+#endif
+
+#include "GoannaProfiler.h"
+
+#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
+#include "libdisplay/GonkDisplay.h"     // for GonkDisplay
+#include <ui/Fence.h>
+#endif
 
 namespace mozilla {
 
+using namespace std;
 using namespace gfx;
 
 namespace layers {
 
 using namespace mozilla::gl;
 
-static inline IntSize ns2gfxSize(const nsIntSize& s) {
-  return IntSize(s.width, s.height);
-}
-
-
-void
-FPSState::DrawFPS(TimeStamp aNow,
-                  GLContext* context, ShaderProgramOGL* copyprog)
+static void
+BindMaskForProgram(ShaderProgramOGL* aProgram, TextureSourceOGL* aSourceMask,
+                   GLenum aTexUnit, const gfx::Matrix4x4& aTransform)
 {
-  int fps = int(mCompositionFps.AddFrameAndGetFps(aNow));
-  int txnFps = int(mTransactionFps.GetFpsAt(aNow));
-
-  GLint viewport[4];
-  context->fGetIntegerv(LOCAL_GL_VIEWPORT, viewport);
-
-  if (!mTexture) {
-    // Bind the number of textures we need, in this case one.
-    context->fGenTextures(1, &mTexture);
-    context->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
-    context->fTexParameteri(LOCAL_GL_TEXTURE_2D,LOCAL_GL_TEXTURE_MIN_FILTER,LOCAL_GL_NEAREST);
-    context->fTexParameteri(LOCAL_GL_TEXTURE_2D,LOCAL_GL_TEXTURE_MAG_FILTER,LOCAL_GL_NEAREST);
-
-    uint32_t text[] = {
-      0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-      0, 255, 255, 255,   0, 255, 255,   0,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255,   0, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0,
-      0, 255,   0, 255,   0,   0, 255,   0,   0,   0,   0, 255,   0,   0,   0, 255,   0, 255,   0, 255,   0, 255,   0,   0,   0, 255,   0,   0,   0,   0,   0, 255,   0, 255,   0, 255,   0, 255,   0, 255,   0,
-      0, 255,   0, 255,   0,   0, 255,   0,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0,   0,   0, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0,
-      0, 255,   0, 255,   0,   0, 255,   0,   0, 255,   0,   0,   0,   0,   0, 255,   0,   0,   0, 255,   0,   0,   0, 255,   0, 255,   0, 255,   0,   0,   0, 255,   0, 255,   0, 255,   0,   0,   0, 255,   0,
-      0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0,   0,   0, 255,   0, 255, 255, 255,   0, 255, 255, 255,   0,   0,   0, 255,   0, 255, 255, 255,   0,   0,   0, 255,   0,
-      0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-    };
-
-    // convert from 8 bit to 32 bit so that don't have to write the text above out in 32 bit format
-    // we rely on int being 32 bits
-    unsigned int* buf = (unsigned int*)malloc(64 * 8 * 4);
-    for (int i = 0; i < 7; i++) {
-      for (int j = 0; j < 41; j++) {
-        unsigned int purple = 0xfff000ff;
-        unsigned int white  = 0xffffffff;
-        buf[i * 64 + j] = (text[i * 41 + j] == 0) ? purple : white;
-      }
-    }
-    context->fTexImage2D(LOCAL_GL_TEXTURE_2D, 0, LOCAL_GL_RGBA, 64, 8, 0, LOCAL_GL_RGBA, LOCAL_GL_UNSIGNED_BYTE, buf);
-    free(buf);
-  }
-
-  struct Vertex2D {
-    float x,y;
-  };
-  float oneOverVP2 = 1.0 / viewport[2];
-  float oneOverVP3 = 1.0 / viewport[3];
-  const Vertex2D vertices[] = {
-    { -1.0f, 1.0f - 42.f * oneOverVP3 },
-    { -1.0f, 1.0f},
-    { -1.0f + 22.f * oneOverVP2, 1.0f - 42.f * oneOverVP3 },
-    { -1.0f + 22.f * oneOverVP2, 1.0f },
-
-    {  -1.0f + 22.f * oneOverVP2, 1.0f - 42.f * oneOverVP3 },
-    {  -1.0f + 22.f * oneOverVP2, 1.0f },
-    {  -1.0f + 44.f * oneOverVP2, 1.0f - 42.f * oneOverVP3 },
-    {  -1.0f + 44.f * oneOverVP2, 1.0f },
-
-    { -1.0f + 44.f * oneOverVP2, 1.0f - 42.f * oneOverVP3 },
-    { -1.0f + 44.f * oneOverVP2, 1.0f },
-    { -1.0f + 66.f * oneOverVP2, 1.0f - 42.f * oneOverVP3 },
-    { -1.0f + 66.f * oneOverVP2, 1.0f }
-  };
-
-  const Vertex2D vertices2[] = {
-    { -1.0f + 80.f * oneOverVP2, 1.0f - 42.f * oneOverVP3 },
-    { -1.0f + 80.f * oneOverVP2, 1.0f },
-    { -1.0f + 102.f * oneOverVP2, 1.0f - 42.f * oneOverVP3 },
-    { -1.0f + 102.f * oneOverVP2, 1.0f },
-
-    { -1.0f + 102.f * oneOverVP2, 1.0f - 42.f * oneOverVP3 },
-    { -1.0f + 102.f * oneOverVP2, 1.0f },
-    { -1.0f + 124.f * oneOverVP2, 1.0f - 42.f * oneOverVP3 },
-    { -1.0f + 124.f * oneOverVP2, 1.0f },
-
-    { -1.0f + 124.f * oneOverVP2, 1.0f - 42.f * oneOverVP3 },
-    { -1.0f + 124.f * oneOverVP2, 1.0f },
-    { -1.0f + 146.f * oneOverVP2, 1.0f - 42.f * oneOverVP3 },
-    { -1.0f + 146.f * oneOverVP2, 1.0f },
-  };
-
-  int v1   = fps % 10;
-  int v10  = (fps % 100) / 10;
-  int v100 = (fps % 1000) / 100;
-
-  int txn1 = txnFps % 10;
-  int txn10  = (txnFps % 100) / 10;
-  int txn100 = (txnFps % 1000) / 100;
-
-  // Feel free to comment these texture coordinates out and use one
-  // of the ones below instead, or play around with your own values.
-  const GLfloat texCoords[] = {
-    (v100 * 4.f) / 64, 7.f / 8,
-    (v100 * 4.f) / 64, 0.0f,
-    (v100 * 4.f + 4) / 64, 7.f / 8,
-    (v100 * 4.f + 4) / 64, 0.0f,
-
-    (v10 * 4.f) / 64, 7.f / 8,
-    (v10 * 4.f) / 64, 0.0f,
-    (v10 * 4.f + 4) / 64, 7.f / 8,
-    (v10 * 4.f + 4) / 64, 0.0f,
-
-    (v1 * 4.f) / 64, 7.f / 8,
-    (v1 * 4.f) / 64, 0.0f,
-    (v1 * 4.f + 4) / 64, 7.f / 8,
-    (v1 * 4.f + 4) / 64, 0.0f,
-  };
-
-  const GLfloat texCoords2[] = {
-    (txn100 * 4.f) / 64, 7.f / 8,
-    (txn100 * 4.f) / 64, 0.0f,
-    (txn100 * 4.f + 4) / 64, 7.f / 8,
-    (txn100 * 4.f + 4) / 64, 0.0f,
-
-    (txn10 * 4.f) / 64, 7.f / 8,
-    (txn10 * 4.f) / 64, 0.0f,
-    (txn10 * 4.f + 4) / 64, 7.f / 8,
-    (txn10 * 4.f + 4) / 64, 0.0f,
-
-    (txn1 * 4.f) / 64, 7.f / 8,
-    (txn1 * 4.f) / 64, 0.0f,
-    (txn1 * 4.f + 4) / 64, 7.f / 8,
-    (txn1 * 4.f + 4) / 64, 0.0f,
-  };
-
-  // Turn necessary features on
-  context->fEnable(LOCAL_GL_BLEND);
-  context->fBlendFunc(LOCAL_GL_ONE, LOCAL_GL_SRC_COLOR);
-
-  context->fActiveTexture(LOCAL_GL_TEXTURE0);
-  context->fBindTexture(LOCAL_GL_TEXTURE_2D, mTexture);
-
-  copyprog->Activate();
-  copyprog->SetTextureUnit(0);
-
-  // we're going to use client-side vertex arrays for this.
-  context->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
-
-  // "COPY"
-  context->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ZERO,
-                              LOCAL_GL_ONE, LOCAL_GL_ZERO);
-
-  // enable our vertex attribs; we'll call glVertexPointer below
-  // to fill with the correct data.
-  GLint vcattr = copyprog->AttribLocation(ShaderProgramOGL::VertexCoordAttrib);
-  GLint tcattr = copyprog->AttribLocation(ShaderProgramOGL::TexCoordAttrib);
-
-  context->fEnableVertexAttribArray(vcattr);
-  context->fEnableVertexAttribArray(tcattr);
-
-  context->fVertexAttribPointer(vcattr,
-                                2, LOCAL_GL_FLOAT,
-                                LOCAL_GL_FALSE,
-                                0, vertices);
-
-  context->fVertexAttribPointer(tcattr,
-                                2, LOCAL_GL_FLOAT,
-                                LOCAL_GL_FALSE,
-                                0, texCoords);
-
-  context->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 12);
-
-  context->fVertexAttribPointer(vcattr,
-                                2, LOCAL_GL_FLOAT,
-                                LOCAL_GL_FALSE,
-                                0, vertices2);
-
-  context->fVertexAttribPointer(tcattr,
-                                2, LOCAL_GL_FLOAT,
-                                LOCAL_GL_FALSE,
-                                0, texCoords2);
-
-  context->fDrawArrays(LOCAL_GL_TRIANGLE_STRIP, 0, 12);
+  MOZ_ASSERT(LOCAL_GL_TEXTURE0 <= aTexUnit && aTexUnit <= LOCAL_GL_TEXTURE31);
+  aSourceMask->BindTexture(aTexUnit, gfx::Filter::LINEAR);
+  aProgram->SetMaskTextureUnit(aTexUnit - LOCAL_GL_TEXTURE0);
+  aProgram->SetMaskLayerTransform(aTransform);
 }
-
-#ifdef CHECK_CURRENT_PROGRAM
-int ShaderProgramOGL::sCurrentProgramKey = 0;
-#endif
 
 CompositorOGL::CompositorOGL(nsIWidget *aWidget, int aSurfaceWidth,
                              int aSurfaceHeight, bool aUseExternalSurfaceSize)
@@ -232,9 +86,11 @@ CompositorOGL::CompositorOGL(nsIWidget *aWidget, int aSurfaceWidth,
   , mUseExternalSurfaceSize(aUseExternalSurfaceSize)
   , mFrameInProgress(false)
   , mDestroyed(false)
+  , mHeight(0)
+  , mCurrentProgram(nullptr)
 {
   MOZ_COUNT_CTOR(CompositorOGL);
-  sBackend = LAYERS_OPENGL;
+  SetBackend(LayersBackend::LAYERS_OPENGL);
 }
 
 CompositorOGL::~CompositorOGL()
@@ -248,6 +104,13 @@ CompositorOGL::CreateContext()
 {
   nsRefPtr<GLContext> context;
 
+  // Used by mock widget to create an offscreen context
+  void* widgetOpenGLContext = mWidget->GetNativeData(NS_NATIVE_OPENGL_CONTEXT);
+  if (widgetOpenGLContext) {
+    GLContext* alreadyRefed = reinterpret_cast<GLContext*>(widgetOpenGLContext);
+    return already_AddRefed<GLContext>(alreadyRefed);
+  }
+
 #ifdef XP_WIN
   if (PR_GetEnv("MOZ_LAYERS_PREFER_EGL")) {
     printf_stderr("Trying GL layers...\n");
@@ -255,56 +118,36 @@ CompositorOGL::CreateContext()
   }
 #endif
 
+  // Allow to create offscreen GL context for main Layer Manager
+  if (!context && PR_GetEnv("MOZ_LAYERS_PREFER_OFFSCREEN")) {
+    SurfaceCaps caps = SurfaceCaps::ForRGB();
+    caps.preserve = false;
+    caps.bpp16 = gfxPlatform::GetPlatform()->GetOffscreenFormat() == gfxImageFormat::RGB16_565;
+
+    bool requireCompatProfile = true;
+    context = GLContextProvider::CreateOffscreen(gfxIntSize(mSurfaceSize.width,
+                                                            mSurfaceSize.height),
+                                                 caps, requireCompatProfile);
+  }
+
   if (!context)
     context = gl::GLContextProvider::CreateForWindow(mWidget);
 
   if (!context) {
     NS_WARNING("Failed to create CompositorOGL context");
   }
+
   return context.forget();
-}
-
-void
-CompositorOGL::AddPrograms(ShaderProgramType aType)
-{
-  for (uint32_t maskType = MaskNone; maskType < NumMaskTypes; ++maskType) {
-    if (ProgramProfileOGL::ProgramExists(aType, static_cast<MaskType>(maskType))) {
-      mPrograms[aType].mVariations[maskType] = new ShaderProgramOGL(this->gl(),
-        ProgramProfileOGL::GetProfileFor(aType, static_cast<MaskType>(maskType)));
-    } else {
-      mPrograms[aType].mVariations[maskType] = nullptr;
-    }
-  }
-}
-
-GLuint
-CompositorOGL::GetTemporaryTexture(GLenum aTextureUnit)
-{
-  size_t index = aTextureUnit - LOCAL_GL_TEXTURE0;
-  // lazily grow the array of temporary textures
-  if (mTextures.Length() <= index) {
-    size_t prevLength = mTextures.Length();
-    mTextures.SetLength(index + 1);
-    for(unsigned i = prevLength; i <= index; ++i) {
-      mTextures[i] = 0;
-    }
-  }
-  // lazily initialize the temporary textures
-  if (!mTextures[index]) {
-    gl()->MakeCurrent();
-    gl()->fGenTextures(1, &mTextures[index]);
-  }
-  return mTextures[index];
 }
 
 void
 CompositorOGL::Destroy()
 {
-  if (gl() && mTextures.Length() > 0) {
-    gl()->MakeCurrent();
-    gl()->fDeleteTextures(mTextures.Length(), &mTextures[0]);
+  if (mTexturePool) {
+    mTexturePool->Clear();
+    mTexturePool = nullptr;
   }
-  mTextures.SetLength(0);
+
   if (!mDestroyed) {
     mDestroyed = true;
     CleanupResources();
@@ -322,9 +165,18 @@ CompositorOGL::CleanupResources()
     ctx = mGLContext;
   }
 
-  mPrograms.Clear();
+  for (std::map<ShaderConfigOGL, ShaderProgramOGL *>::iterator iter = mPrograms.begin();
+       iter != mPrograms.end();
+       iter++) {
+    delete iter->second;
+  }
+  mPrograms.clear();
 
-  ctx->MakeCurrent();
+  if (!ctx->MakeCurrent()) {
+    mQuadVBO = 0;
+    mGLContext = nullptr;
+    return;
+  }
 
   ctx->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
 
@@ -333,24 +185,31 @@ CompositorOGL::CleanupResources()
     mQuadVBO = 0;
   }
 
-  mGLContext = nullptr;
-}
+  DestroyVR(ctx);
 
-// Impl of a a helper-runnable's "Run" method, used in Initialize()
-NS_IMETHODIMP
-CompositorOGL::ReadDrawFPSPref::Run()
-{
-  // NOTE: This must match the code in Initialize()'s NS_IsMainThread check.
-  Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
-  Preferences::AddBoolVarCache(&sFrameCounter, "layers.acceleration.frame-counter");
-  return NS_OK;
+  mGLContext->MakeCurrent();
+
+  mBlitTextureImageHelper = nullptr;
+
+  mContextStateTracker.DestroyOGL(mGLContext);
+
+  // On the main thread the Widget will be destroyed soon and calling MakeCurrent
+  // after that could cause a crash (at least with GLX, see bug 1059793), unless
+  // context is marked as destroyed.
+  // There may be some textures still alive that will try to call MakeCurrent on
+  // the context so let's make sure it is marked destroyed now.
+  mGLContext->MarkDestroyed();
+
+  mGLContext = nullptr;
 }
 
 bool
 CompositorOGL::Initialize()
 {
+  bool force = gfxPrefs::LayersAccelerationForceEnabled();
+
   // Do not allow double initialization
-  NS_ABORT_IF_FALSE(mGLContext == nullptr, "Don't reinitialize CompositorOGL");
+  MOZ_ASSERT(mGLContext == nullptr, "Don't reinitialize CompositorOGL");
 
   mGLContext = CreateContext();
 
@@ -362,8 +221,6 @@ CompositorOGL::Initialize()
   if (!mGLContext)
     return false;
 
-  mGLContext->SetFlipped(true);
-
   MakeCurrent();
 
   mHasBGRA =
@@ -374,13 +231,10 @@ CompositorOGL::Initialize()
                                  LOCAL_GL_ONE, LOCAL_GL_ONE);
   mGLContext->fEnable(LOCAL_GL_BLEND);
 
-  mPrograms.AppendElements(NumProgramTypes);
-  for (int type = 0; type < NumProgramTypes; ++type) {
-    AddPrograms(static_cast<ShaderProgramType>(type));
-  }
-
   // initialise a common shader to check that we can actually compile a shader
-  if (!mPrograms[gl::RGBALayerProgramType].mVariations[MaskNone]->Initialize()) {
+  RefPtr<EffectSolidColor> effect = new EffectSolidColor(Color(0, 0, 0, 0));
+  ShaderConfigOGL config = GetShaderConfigFor(effect);
+  if (!GetShaderProgramFor(config)) {
     return false;
   }
 
@@ -395,8 +249,9 @@ CompositorOGL::Initialize()
       LOCAL_GL_NONE
     };
 
-    if (mGLContext->IsGLES2()) {
-        textureTargets[1] = LOCAL_GL_TEXTURE_RECTANGLE_ARB;
+    if (!mGLContext->IsGLES()) {
+      // No TEXTURE_RECTANGLE_ARB available on ES2
+      textureTargets[1] = LOCAL_GL_TEXTURE_RECTANGLE_ARB;
     }
 
     mFBOTextureTarget = LOCAL_GL_NONE;
@@ -425,7 +280,7 @@ CompositorOGL::Initialize()
                               0,
                               LOCAL_GL_RGBA,
                               LOCAL_GL_UNSIGNED_BYTE,
-                              NULL);
+                              nullptr);
 
       // unbind this texture, in preparation for binding it to the FBO
       mGLContext->fBindTexture(target, 0);
@@ -479,15 +334,41 @@ CompositorOGL::Initialize()
   mGLContext->fGenBuffers(1, &mQuadVBO);
   mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mQuadVBO);
 
+  // 4 quads, with the number of the quad (vertexID) encoded in w.
   GLfloat vertices[] = {
-    /* First quad vertices */
-    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,
-    /* Then quad texcoords */
-    0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f,
-    /* Then flipped quad texcoords */
-    0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f,
+    0.0f, 0.0f, 0.0f, 0.0f,
+    1.0f, 0.0f, 0.0f, 0.0f,
+    0.0f, 1.0f, 0.0f, 0.0f,
+    1.0f, 0.0f, 0.0f, 0.0f,
+    0.0f, 1.0f, 0.0f, 0.0f,
+    1.0f, 1.0f, 0.0f, 0.0f,
+
+    0.0f, 0.0f, 0.0f, 1.0f,
+    1.0f, 0.0f, 0.0f, 1.0f,
+    0.0f, 1.0f, 0.0f, 1.0f,
+    1.0f, 0.0f, 0.0f, 1.0f,
+    0.0f, 1.0f, 0.0f, 1.0f,
+    1.0f, 1.0f, 0.0f, 1.0f,
+
+    0.0f, 0.0f, 0.0f, 2.0f,
+    1.0f, 0.0f, 0.0f, 2.0f,
+    0.0f, 1.0f, 0.0f, 2.0f,
+    1.0f, 0.0f, 0.0f, 2.0f,
+    0.0f, 1.0f, 0.0f, 2.0f,
+    1.0f, 1.0f, 0.0f, 2.0f,
+
+    0.0f, 0.0f, 0.0f, 3.0f,
+    1.0f, 0.0f, 0.0f, 3.0f,
+    0.0f, 1.0f, 0.0f, 3.0f,
+    1.0f, 0.0f, 0.0f, 3.0f,
+    0.0f, 1.0f, 0.0f, 3.0f,
+    1.0f, 1.0f, 0.0f, 3.0f,
   };
-  mGLContext->fBufferData(LOCAL_GL_ARRAY_BUFFER, sizeof(vertices), vertices, LOCAL_GL_STATIC_DRAW);
+  HeapCopyOfStackArray<GLfloat> verticesOnHeap(vertices);
+  mGLContext->fBufferData(LOCAL_GL_ARRAY_BUFFER,
+                          verticesOnHeap.ByteLength(),
+                          verticesOnHeap.Data(),
+                          LOCAL_GL_STATIC_DRAW);
   mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
 
   nsCOMPtr<nsIConsoleService>
@@ -496,7 +377,7 @@ CompositorOGL::Initialize()
   if (console) {
     nsString msg;
     msg +=
-      NS_LITERAL_STRING("OpenGL LayerManager Initialized Succesfully.\nVersion: ");
+      NS_LITERAL_STRING("OpenGL compositor Initialized Succesfully.\nVersion: ");
     msg += NS_ConvertUTF8toUTF16(
       nsDependentCString((const char*)mGLContext->fGetString(LOCAL_GL_VERSION)));
     msg += NS_LITERAL_STRING("\nVendor: ");
@@ -513,193 +394,124 @@ CompositorOGL::Initialize()
     console->LogStringMessage(msg.get());
   }
 
-  if (NS_IsMainThread()) {
-    // NOTE: This must match the code in ReadDrawFPSPref::Run().
-    Preferences::AddBoolVarCache(&sDrawFPS, "layers.acceleration.draw-fps");
-    Preferences::AddBoolVarCache(&sFrameCounter, "layers.acceleration.frame-counter");
-  } else {
-    // We have to dispatch an event to the main thread to read the pref.
-    NS_DispatchToMainThread(new ReadDrawFPSPref());
+  mVR.mInitialized = false;
+  if (gfxPrefs::VREnabled()) {
+    if (!InitializeVR()) {
+      NS_WARNING("Failed to initialize VR in CompositorOGL");
+    }
   }
 
   return true;
 }
 
+// |aRect| is the rectangle we want to draw to. We will draw it with
+// up to 4 draw commands if necessary to avoid wrapping.
 // |aTexCoordRect| is the rectangle from the texture that we want to
-// draw using the given program.  The program already has a necessary
-// offset and scale, so the geometry that needs to be drawn is a unit
-// square from 0,0 to 1,1.
-//
-// |aTexSize| is the actual size of the texture, as it can be larger
-// than the rectangle given by |aTexCoordRect|.
+// draw using the given program.
+// |aTexture| is the texture we are drawing. Its actual size can be
+// larger than the rectangle given by |texCoordRect|.
 void
 CompositorOGL::BindAndDrawQuadWithTextureRect(ShaderProgramOGL *aProg,
+                                              const Rect& aRect,
                                               const Rect& aTexCoordRect,
                                               TextureSource *aTexture)
 {
-  NS_ASSERTION(aProg->HasInitialized(), "Shader program not correctly initialized");
-  GLuint vertAttribIndex =
-    aProg->AttribLocation(ShaderProgramOGL::VertexCoordAttrib);
-  GLuint texCoordAttribIndex =
-    aProg->AttribLocation(ShaderProgramOGL::TexCoordAttrib);
-  NS_ASSERTION(texCoordAttribIndex != GLuint(-1), "no texture coords?");
-
-  // clear any bound VBO so that glVertexAttribPointer() goes back to
-  // "pointer mode"
-  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
-
-  // Given what we know about these textures and coordinates, we can
-  // compute fmod(t, 1.0f) to get the same texture coordinate out.  If
-  // the texCoordRect dimension is < 0 or > width/height, then we have
-  // wraparound that we need to deal with by drawing multiple quads,
-  // because we can't rely on full non-power-of-two texture support
-  // (which is required for the REPEAT wrap mode).
-
-  GLContext::RectTriangles rects;
-
-  GLenum wrapMode = aTexture->AsSourceOGL()->GetWrapMode();
-
-  IntSize realTexSize = aTexture->GetSize();
-  if (!mGLContext->CanUploadNonPowerOfTwo()) {
-    realTexSize = IntSize(NextPowerOfTwo(realTexSize.width),
-                          NextPowerOfTwo(realTexSize.height));
-  }
-
-  // We need to convert back to actual texels here to get proper behaviour with
-  // our GL helper functions. Should fix this sometime.
-  // I want to vomit.
-  IntRect texCoordRect = IntRect(NS_roundf(aTexCoordRect.x * aTexture->GetSize().width),
-                                 NS_roundf(aTexCoordRect.y * aTexture->GetSize().height),
-                                 NS_roundf(aTexCoordRect.width * aTexture->GetSize().width),
-                                 NS_roundf(aTexCoordRect.height * aTexture->GetSize().height));
-
-  // This is fairly disgusting - if the texture should be flipped it will have a
-  // negative height, in which case we un-invert the texture coords and pass the
-  // flipped 'flag' to the functions below. We can't just use the inverted coords
-  // because our GL funtions use an explicit flag.
-  bool flipped = false;
-  if (texCoordRect.height < 0) {
-    flipped = true;
-    texCoordRect.y = texCoordRect.YMost();
-    texCoordRect.height = -texCoordRect.height;
-  }
-
-  if (wrapMode == LOCAL_GL_REPEAT) {
-    rects.addRect(/* dest rectangle */
-                  0.0f, 0.0f, 1.0f, 1.0f,
-                  /* tex coords */
-                  texCoordRect.x / GLfloat(realTexSize.width),
-                  texCoordRect.y / GLfloat(realTexSize.height),
-                  texCoordRect.XMost() / GLfloat(realTexSize.width),
-                  texCoordRect.YMost() / GLfloat(realTexSize.height),
-                  flipped);
-  } else {
-    nsIntRect tcRect(texCoordRect.x, texCoordRect.y,
-                     texCoordRect.width, texCoordRect.height);
-    GLContext::DecomposeIntoNoRepeatTriangles(tcRect,
-                                              nsIntSize(realTexSize.width, realTexSize.height),
-                                              rects, flipped);
-  }
-
-  mGLContext->fVertexAttribPointer(vertAttribIndex, 2,
-                                   LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
-                                   rects.vertexPointer());
-
-  mGLContext->fVertexAttribPointer(texCoordAttribIndex, 2,
-                                   LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
-                                   rects.texCoordPointer());
-
-  {
-    mGLContext->fEnableVertexAttribArray(texCoordAttribIndex);
-    {
-      mGLContext->fEnableVertexAttribArray(vertAttribIndex);
-
-      mGLContext->fDrawArrays(LOCAL_GL_TRIANGLES, 0, rects.elements());
-
-      mGLContext->fDisableVertexAttribArray(vertAttribIndex);
-    }
-    mGLContext->fDisableVertexAttribArray(texCoordAttribIndex);
-  }
+  Rect layerRects[4];
+  Rect textureRects[4];
+  size_t rects = DecomposeIntoNoRepeatRects(aRect,
+                                            aTexCoordRect,
+                                            &layerRects,
+                                            &textureRects);
+  BindAndDrawQuads(aProg, rects, layerRects, textureRects);
 }
 
 void
-CompositorOGL::PrepareViewport(const gfx::IntSize& aSize,
-                               const gfxMatrix& aWorldTransform)
+CompositorOGL::PrepareViewport(const gfx::IntSize& aSize)
 {
   // Set the viewport correctly.
   mGLContext->fViewport(0, 0, aSize.width, aSize.height);
+
+  mHeight = aSize.height;
 
   // We flip the view matrix around so that everything is right-side up; we're
   // drawing directly into the window's back buffer, so this keeps things
   // looking correct.
   // XXX: We keep track of whether the window size changed, so we could skip
-  // this update if it hadn't changed since the last call. We will need to
-  // track changes to aTransformPolicy and aWorldTransform for this to work
-  // though.
+  // this update if it hadn't changed since the last call.
 
   // Matrix to transform (0, 0, aWidth, aHeight) to viewport space (-1.0, 1.0,
   // 2, 2) and flip the contents.
-  gfxMatrix viewMatrix;
-  viewMatrix.Translate(-gfxPoint(1.0, -1.0));
-  viewMatrix.Scale(2.0f / float(aSize.width), 2.0f / float(aSize.height));
-  viewMatrix.Scale(1.0f, -1.0f);
-  if (!mTarget) {
-    viewMatrix.Translate(gfxPoint(mRenderOffset.x, mRenderOffset.y));
+  Matrix viewMatrix;
+  if (mGLContext->IsOffscreen() && !gIsGtest) {
+    // In case of rendering via GL Offscreen context, disable Y-Flipping
+    viewMatrix.PreTranslate(-1.0, -1.0);
+    viewMatrix.PreScale(2.0f / float(aSize.width), 2.0f / float(aSize.height));
+  } else {
+    viewMatrix.PreTranslate(-1.0, 1.0);
+    viewMatrix.PreScale(2.0f / float(aSize.width), 2.0f / float(aSize.height));
+    viewMatrix.PreScale(1.0f, -1.0f);
   }
 
-  viewMatrix = aWorldTransform * viewMatrix;
+  MOZ_ASSERT(mCurrentRenderTarget, "No destination");
+  // If we're drawing directly to the window then we want to offset
+  // drawing by the render offset.
+  if (!mTarget && mCurrentRenderTarget->IsWindow()) {
+    viewMatrix.PreTranslate(mRenderOffset.x, mRenderOffset.y);
+  }
 
-  gfx3DMatrix matrix3d = gfx3DMatrix::From2D(viewMatrix);
+  Matrix4x4 matrix3d = Matrix4x4::From2D(viewMatrix);
   matrix3d._33 = 0.0f;
 
-  SetLayerProgramProjectionMatrix(matrix3d);
-}
-
-void
-CompositorOGL::SetLayerProgramProjectionMatrix(const gfx3DMatrix& aMatrix)
-{
-  for (unsigned int i = 0; i < mPrograms.Length(); ++i) {
-    for (uint32_t mask = MaskNone; mask < NumMaskTypes; ++mask) {
-      if (mPrograms[i].mVariations[mask]) {
-        mPrograms[i].mVariations[mask]->CheckAndSetProjectionMatrix(aMatrix);
-      }
-    }
-  }
+  mProjMatrix = matrix3d;
 }
 
 TemporaryRef<CompositingRenderTarget>
 CompositorOGL::CreateRenderTarget(const IntRect &aRect, SurfaceInitMode aInit)
 {
+  MOZ_ASSERT(aRect.width != 0 && aRect.height != 0, "Trying to create a render target of invalid size");
+
+  if (aRect.width * aRect.height == 0) {
+    return nullptr;
+  }
+
   GLuint tex = 0;
   GLuint fbo = 0;
-  CreateFBOWithTexture(aRect, aInit, 0, &fbo, &tex);
+  CreateFBOWithTexture(aRect, false, 0, &fbo, &tex);
   RefPtr<CompositingRenderTargetOGL> surface
-    = new CompositingRenderTargetOGL(this, tex, fbo);
-  surface->Initialize(IntSize(aRect.width, aRect.height), mFBOTextureTarget, aInit);
+    = new CompositingRenderTargetOGL(this, aRect.TopLeft(), tex, fbo);
+  surface->Initialize(aRect.Size(), mFBOTextureTarget, aInit);
   return surface.forget();
 }
 
 TemporaryRef<CompositingRenderTarget>
 CompositorOGL::CreateRenderTargetFromSource(const IntRect &aRect,
-                                            const CompositingRenderTarget *aSource)
+                                            const CompositingRenderTarget *aSource,
+                                            const IntPoint &aSourcePoint)
 {
+  MOZ_ASSERT(aRect.width != 0 && aRect.height != 0, "Trying to create a render target of invalid size");
+
+  if (aRect.width * aRect.height == 0) {
+    return nullptr;
+  }
+
   GLuint tex = 0;
   GLuint fbo = 0;
   const CompositingRenderTargetOGL* sourceSurface
     = static_cast<const CompositingRenderTargetOGL*>(aSource);
+  IntRect sourceRect(aSourcePoint, aRect.Size());
   if (aSource) {
-    CreateFBOWithTexture(aRect, INIT_MODE_COPY, sourceSurface->GetFBO(),
+    CreateFBOWithTexture(sourceRect, true, sourceSurface->GetFBO(),
                          &fbo, &tex);
   } else {
-    CreateFBOWithTexture(aRect, INIT_MODE_COPY, 0,
+    CreateFBOWithTexture(sourceRect, true, 0,
                          &fbo, &tex);
   }
 
   RefPtr<CompositingRenderTargetOGL> surface
-    = new CompositingRenderTargetOGL(this, tex, fbo);
-  surface->Initialize(IntSize(aRect.width, aRect.height),
+    = new CompositingRenderTargetOGL(this, aRect.TopLeft(), tex, fbo);
+  surface->Initialize(aRect.Size(),
                       mFBOTextureTarget,
-                      INIT_MODE_COPY);
+                      INIT_MODE_NONE);
   return surface.forget();
 }
 
@@ -710,13 +522,15 @@ CompositorOGL::SetRenderTarget(CompositingRenderTarget *aSurface)
   CompositingRenderTargetOGL* surface
     = static_cast<CompositingRenderTargetOGL*>(aSurface);
   if (mCurrentRenderTarget != surface) {
-    surface->BindRenderTarget();
     mCurrentRenderTarget = surface;
+    mContextStateTracker.PopOGLSection(gl(), "Frame");
+    mContextStateTracker.PushOGLSection(gl(), "Frame");
+    surface->BindRenderTarget();
   }
 }
 
 CompositingRenderTarget*
-CompositorOGL::GetCurrentRenderTarget()
+CompositorOGL::GetCurrentRenderTarget() const
 {
   return mCurrentRenderTarget;
 }
@@ -732,36 +546,6 @@ GetFrameBufferInternalFormat(GLContext* gl,
   return LOCAL_GL_RGBA;
 }
 
-bool CompositorOGL::sDrawFPS = false;
-bool CompositorOGL::sFrameCounter = false;
-
-static uint16_t sFrameCount = 0;
-void
-FPSState::DrawFrameCounter(GLContext* context)
-{
-  profiler_set_frame_number(sFrameCount);
-
-  context->fEnable(LOCAL_GL_SCISSOR_TEST);
-
-  uint16_t frameNumber = sFrameCount;
-  for (size_t i = 0; i < 16; i++) {
-    context->fScissor(3*i, 0, 3, 3);
-
-    // We should do this using a single draw call
-    // instead of 16 glClear()
-    if ((frameNumber >> i) & 0x1) {
-      context->fClearColor(0.0, 0.0, 0.0, 0.0);
-    } else {
-      context->fClearColor(1.0, 1.0, 1.0, 0.0);
-    }
-    context->fClear(LOCAL_GL_COLOR_BUFFER_BIT);
-  }
-  // We intentionally overflow at 2^16.
-  sFrameCount++;
-
-  context->fDisable(LOCAL_GL_SCISSOR_TEST);
-}
-
 /*
  * Returns a size that is larger than and closest to aSize where both
  * width and height are powers of two.
@@ -771,39 +555,46 @@ FPSState::DrawFrameCounter(GLContext* context)
 static IntSize
 CalculatePOTSize(const IntSize& aSize, GLContext* gl)
 {
-  if (gl->CanUploadNonPowerOfTwo())
+  if (CanUploadNonPowerOfTwo(gl))
     return aSize;
 
   return IntSize(NextPowerOfTwo(aSize.width), NextPowerOfTwo(aSize.height));
 }
 
 void
-CompositorOGL::BeginFrame(const Rect *aClipRectIn, const gfxMatrix& aTransform,
-                          const Rect& aRenderBounds, Rect *aClipRectOut,
+CompositorOGL::ClearRect(const gfx::Rect& aRect)
+{
+  // Map aRect to OGL coordinates, origin:bottom-left
+  GLint y = mHeight - (aRect.y + aRect.height);
+
+  ScopedGLState scopedScissorTestState(mGLContext, LOCAL_GL_SCISSOR_TEST, true);
+  ScopedScissorRect autoScissorRect(mGLContext, aRect.x, y, aRect.width, aRect.height);
+  mGLContext->fClearColor(0.0, 0.0, 0.0, 0.0);
+  mGLContext->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT);
+}
+
+void
+CompositorOGL::BeginFrame(const nsIntRegion& aInvalidRegion,
+                          const Rect *aClipRectIn,
+                          const Rect& aRenderBounds,
+                          Rect *aClipRectOut,
                           Rect *aRenderBoundsOut)
 {
-  MOZ_ASSERT(!mFrameInProgress, "frame still in progress (should have called EndFrame or AbortFrame");
+  PROFILER_LABEL("CompositorOGL", "BeginFrame",
+    js::ProfileEntry::Category::GRAPHICS);
+
+  MOZ_ASSERT(!mFrameInProgress, "frame still in progress (should have called EndFrame");
 
   mFrameInProgress = true;
-  gfxRect rect;
+  gfx::Rect rect;
   if (mUseExternalSurfaceSize) {
-    rect = gfxRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
+    rect = gfx::Rect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
   } else {
-    rect = gfxRect(aRenderBounds.x, aRenderBounds.y, aRenderBounds.width, aRenderBounds.height);
-    // If render bounds is not updated explicitly, try to infer it from widget
-    if (rect.width == 0 || rect.height == 0) {
-      // FIXME/bug XXXXXX this races with rotation changes on the main
-      // thread, and undoes all the care we take with layers txns being
-      // sent atomically with rotation changes
-      nsIntRect intRect;
-      mWidget->GetClientBounds(intRect);
-      rect = gfxRect(0, 0, intRect.width, intRect.height);
-    }
+    rect = gfx::Rect(aRenderBounds.x, aRenderBounds.y, aRenderBounds.width, aRenderBounds.height);
   }
 
-  rect = aTransform.TransformBounds(rect);
   if (aRenderBoundsOut) {
-    *aRenderBoundsOut = Rect(rect.x, rect.y, rect.width, rect.height);
+    *aRenderBoundsOut = rect;
   }
 
   GLint width = rect.width;
@@ -827,14 +618,19 @@ CompositorOGL::BeginFrame(const Rect *aClipRectIn, const gfxMatrix& aTransform,
     MakeCurrent();
   }
 
-#if MOZ_ANDROID_OMTC
+  mPixelsPerFrame = width * height;
+  mPixelsFilled = 0;
+
+#if MOZ_WIDGET_ANDROID
   TexturePoolOGL::Fill(gl());
 #endif
 
-  mCurrentRenderTarget = CompositingRenderTargetOGL::RenderTargetForWindow(this,
-                            IntSize(width, height),
-                            aTransform);
+  mCurrentRenderTarget =
+    CompositingRenderTargetOGL::RenderTargetForWindow(this,
+                                                      IntSize(width, height));
   mCurrentRenderTarget->BindRenderTarget();
+
+  mContextStateTracker.PushOGLSection(gl(), "Frame");
 #ifdef DEBUG
   mWindowRenderTarget = mCurrentRenderTarget;
 #endif
@@ -844,38 +640,44 @@ CompositorOGL::BeginFrame(const Rect *aClipRectIn, const gfxMatrix& aTransform,
                                  LOCAL_GL_ONE, LOCAL_GL_ONE);
   mGLContext->fEnable(LOCAL_GL_BLEND);
 
-  if (!aClipRectIn) {
-    mGLContext->fScissor(0, 0, width, height);
-    if (aClipRectOut) {
-      aClipRectOut->SetRect(0, 0, width, height);
-    }
-  } else {
-    mGLContext->fScissor(aClipRectIn->x, aClipRectIn->y, aClipRectIn->width, aClipRectIn->height);
-  }
-
   mGLContext->fEnable(LOCAL_GL_SCISSOR_TEST);
+
+  if (aClipRectOut && !aClipRectIn) {
+    aClipRectOut->SetRect(0, 0, width, height);
+  }
 
   // If the Android compositor is being used, this clear will be done in
   // DrawWindowUnderlay. Make sure the bits used here match up with those used
   // in mobile/android/base/gfx/LayerRenderer.java
-#ifndef MOZ_ANDROID_OMTC
+#ifndef MOZ_WIDGET_ANDROID
   mGLContext->fClearColor(0.0, 0.0, 0.0, 0.0);
   mGLContext->fClear(LOCAL_GL_COLOR_BUFFER_BIT | LOCAL_GL_DEPTH_BUFFER_BIT);
 #endif
 }
 
 void
-CompositorOGL::CreateFBOWithTexture(const IntRect& aRect, SurfaceInitMode aInit,
+CompositorOGL::CreateFBOWithTexture(const IntRect& aRect, bool aCopyFromSource,
                                     GLuint aSourceFrameBuffer,
                                     GLuint *aFBO, GLuint *aTexture)
 {
+  // we're about to create a framebuffer backed by textures to use as an intermediate
+  // surface. What to do if its size (as given by aRect) would exceed the
+  // maximum texture size supported by the GL? The present code chooses the compromise
+  // of just clamping the framebuffer's size to the max supported size.
+  // This gives us a lower resolution rendering of the intermediate surface (children layers).
+  // See bug 827170 for a discussion.
+  IntRect clampedRect = aRect;
+  int32_t maxTexSize = GetMaxTextureSize();
+  clampedRect.width = std::min(clampedRect.width, maxTexSize);
+  clampedRect.height = std::min(clampedRect.height, maxTexSize);
+
   GLuint tex, fbo;
 
   mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
   mGLContext->fGenTextures(1, &tex);
   mGLContext->fBindTexture(mFBOTextureTarget, tex);
 
-  if (aInit == INIT_MODE_COPY) {
+  if (aCopyFromSource) {
     GLuint curFBO = mCurrentRenderTarget->GetFBO();
     if (curFBO != aSourceFrameBuffer) {
       mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, aSourceFrameBuffer);
@@ -890,46 +692,53 @@ CompositorOGL::CreateFBOWithTexture(const IntRect& aRect, SurfaceInitMode aInit,
       GetFrameBufferInternalFormat(gl(), aSourceFrameBuffer, mWidget);
 
     bool isFormatCompatibleWithRGBA
-        = gl()->IsGLES2() ? (format == LOCAL_GL_RGBA)
+        = gl()->IsGLES() ? (format == LOCAL_GL_RGBA)
                           : true;
 
     if (isFormatCompatibleWithRGBA) {
       mGLContext->fCopyTexImage2D(mFBOTextureTarget,
                                   0,
                                   LOCAL_GL_RGBA,
-                                  aRect.x, aRect.y,
-                                  aRect.width, aRect.height,
+                                  clampedRect.x, FlipY(clampedRect.y + clampedRect.height),
+                                  clampedRect.width, clampedRect.height,
                                   0);
     } else {
       // Curses, incompatible formats.  Take a slow path.
 
       // RGBA
-      size_t bufferSize = aRect.width * aRect.height * 4;
+      size_t bufferSize = clampedRect.width * clampedRect.height * 4;
       nsAutoArrayPtr<uint8_t> buf(new uint8_t[bufferSize]);
 
-      mGLContext->fReadPixels(aRect.x, aRect.y,
-                              aRect.width, aRect.height,
+      mGLContext->fReadPixels(clampedRect.x, clampedRect.y,
+                              clampedRect.width, clampedRect.height,
                               LOCAL_GL_RGBA,
                               LOCAL_GL_UNSIGNED_BYTE,
                               buf);
       mGLContext->fTexImage2D(mFBOTextureTarget,
                               0,
                               LOCAL_GL_RGBA,
-                              aRect.width, aRect.height,
+                              clampedRect.width, clampedRect.height,
                               0,
                               LOCAL_GL_RGBA,
                               LOCAL_GL_UNSIGNED_BYTE,
                               buf);
     }
+    GLenum error = mGLContext->fGetError();
+    if (error != LOCAL_GL_NO_ERROR) {
+      nsAutoCString msg;
+      msg.AppendPrintf("Texture initialization failed! -- error 0x%x, Source %d, Source format %d,  RGBA Compat %d",
+                       error, aSourceFrameBuffer, format, isFormatCompatibleWithRGBA);
+      NS_ERROR(msg.get());
+    }
   } else {
     mGLContext->fTexImage2D(mFBOTextureTarget,
                             0,
                             LOCAL_GL_RGBA,
-                            aRect.width, aRect.height,
+                            clampedRect.width, clampedRect.height,
                             0,
                             LOCAL_GL_RGBA,
                             LOCAL_GL_UNSIGNED_BYTE,
-                            NULL);
+                            nullptr);
   }
   mGLContext->fTexParameteri(mFBOTextureTarget, LOCAL_GL_TEXTURE_MIN_FILTER,
                              LOCAL_GL_LINEAR);
@@ -947,73 +756,183 @@ CompositorOGL::CreateFBOWithTexture(const IntRect& aRect, SurfaceInitMode aInit,
   *aTexture = tex;
 }
 
-gl::ShaderProgramType
-CompositorOGL::GetProgramTypeForEffect(Effect *aEffect) const
+ShaderConfigOGL
+CompositorOGL::GetShaderConfigFor(Effect *aEffect,
+                                  MaskType aMask,
+                                  gfx::CompositionOp aOp,
+                                  bool aColorMatrix) const
 {
+  ShaderConfigOGL config;
+
   switch(aEffect->mType) {
-  case EFFECT_SOLID_COLOR:
-    return gl::ColorLayerProgramType;
-  case EFFECT_RGBA:
-  case EFFECT_RGBX:
-  case EFFECT_BGRA:
-  case EFFECT_BGRX:
+  case EffectTypes::SOLID_COLOR:
+    config.SetRenderColor(true);
+    break;
+  case EffectTypes::YCBCR:
+    config.SetYCbCr(true);
+    break;
+  case EffectTypes::COMPONENT_ALPHA:
   {
+    config.SetComponentAlpha(true);
+    EffectComponentAlpha* effectComponentAlpha =
+      static_cast<EffectComponentAlpha*>(aEffect);
+    gfx::SurfaceFormat format = effectComponentAlpha->mOnWhite->GetFormat();
+    config.SetRBSwap(format == gfx::SurfaceFormat::B8G8R8A8 ||
+                     format == gfx::SurfaceFormat::B8G8R8X8);
+    break;
+  }
+  case EffectTypes::RENDER_TARGET:
+    config.SetTextureTarget(mFBOTextureTarget);
+    break;
+  default:
+  {
+    MOZ_ASSERT(aEffect->mType == EffectTypes::RGB);
     TexturedEffect* texturedEffect =
         static_cast<TexturedEffect*>(aEffect);
     TextureSourceOGL* source = texturedEffect->mTexture->AsSourceOGL();
-    return source->GetShaderProgram();
+    MOZ_ASSERT_IF(source->GetTextureTarget() == LOCAL_GL_TEXTURE_EXTERNAL,
+                  source->GetFormat() == gfx::SurfaceFormat::R8G8B8A8 ||
+                  source->GetFormat() == gfx::SurfaceFormat::R8G8B8X8);
+    MOZ_ASSERT_IF(source->GetTextureTarget() == LOCAL_GL_TEXTURE_RECTANGLE_ARB,
+                  source->GetFormat() == gfx::SurfaceFormat::R8G8B8A8 ||
+                  source->GetFormat() == gfx::SurfaceFormat::R8G8B8X8 ||
+                  source->GetFormat() == gfx::SurfaceFormat::R5G6B5);
+    config = ShaderConfigFromTargetAndFormat(source->GetTextureTarget(),
+                                             source->GetFormat());
+    if (aOp == gfx::CompositionOp::OP_MULTIPLY &&
+        !texturedEffect->mPremultiplied) {
+      // We can do these blend modes just using glBlendFunc but we need the data
+      // to be premultiplied first.
+      config.SetPremultiply(true);
+    }
+    break;
   }
-  case EFFECT_YCBCR:
-    return gl::YCbCrLayerProgramType;
-  case EFFECT_RENDER_TARGET:
-    return GetFBOLayerProgramType();
-  default:
-    return gl::RGBALayerProgramType;
+  }
+  config.SetColorMatrix(aColorMatrix);
+  config.SetMask2D(aMask == MaskType::Mask2d);
+  config.SetMask3D(aMask == MaskType::Mask3d);
+  return config;
+}
+
+ShaderProgramOGL*
+CompositorOGL::GetShaderProgramFor(const ShaderConfigOGL &aConfig)
+{
+  std::map<ShaderConfigOGL, ShaderProgramOGL *>::iterator iter = mPrograms.find(aConfig);
+  if (iter != mPrograms.end())
+    return iter->second;
+
+  ProgramProfileOGL profile = ProgramProfileOGL::GetProfileFor(aConfig);
+  ShaderProgramOGL *shader = new ShaderProgramOGL(gl(), profile);
+  if (!shader->Initialize()) {
+    delete shader;
+    return nullptr;
+  }
+
+  mPrograms[aConfig] = shader;
+  return shader;
+}
+
+void
+CompositorOGL::ActivateProgram(ShaderProgramOGL* aProg)
+{
+  if (mCurrentProgram != aProg) {
+    gl()->fUseProgram(aProg->GetProgram());
+    mCurrentProgram = aProg;
   }
 }
 
-struct MOZ_STACK_CLASS AutoBindTexture
+void
+CompositorOGL::ResetProgram()
 {
-  AutoBindTexture() : mTexture(nullptr) {}
-  AutoBindTexture(TextureSourceOGL* aTexture, GLenum aTextureUnit)
-   : mTexture(nullptr) { Bind(aTexture, aTextureUnit); }
-  ~AutoBindTexture()
-  {
-    if (mTexture) {
-      mTexture->ReleaseTexture();
-    }
+  mCurrentProgram = nullptr;
+}
+
+
+
+static bool SetBlendMode(GLContext* aGL, gfx::CompositionOp aBlendMode, bool aIsPremultiplied = true)
+{
+  if (aBlendMode == gfx::CompositionOp::OP_OVER && aIsPremultiplied) {
+    return false;
   }
 
-  void Bind(TextureSourceOGL* aTexture, GLenum aTextureUnit)
-  {
-    MOZ_ASSERT(!mTexture);
-    mTexture = aTexture;
-    mTexture->BindTexture(aTextureUnit);
+  GLenum srcBlend;
+  GLenum dstBlend;
+  GLenum srcAlphaBlend = LOCAL_GL_ONE;
+  GLenum dstAlphaBlend = LOCAL_GL_ONE;
+
+  switch (aBlendMode) {
+    case gfx::CompositionOp::OP_OVER:
+      MOZ_ASSERT(!aIsPremultiplied);
+      srcBlend = LOCAL_GL_SRC_ALPHA;
+      dstBlend = LOCAL_GL_ONE_MINUS_SRC_ALPHA;
+      break;
+    case gfx::CompositionOp::OP_SCREEN:
+      srcBlend = aIsPremultiplied ? LOCAL_GL_ONE : LOCAL_GL_SRC_ALPHA;
+      dstBlend = LOCAL_GL_ONE_MINUS_SRC_COLOR;
+      break;
+    case gfx::CompositionOp::OP_MULTIPLY:
+      // If the source data was un-premultiplied we should have already
+      // asked the fragment shader to fix that.
+      srcBlend = LOCAL_GL_DST_COLOR;
+      dstBlend = LOCAL_GL_ONE_MINUS_SRC_ALPHA;
+      break;
+    case gfx::CompositionOp::OP_SOURCE:
+      srcBlend = aIsPremultiplied ? LOCAL_GL_ONE : LOCAL_GL_SRC_ALPHA;
+      dstBlend = LOCAL_GL_ZERO;
+      srcAlphaBlend = LOCAL_GL_ONE;
+      dstAlphaBlend = LOCAL_GL_ZERO;
+      break;
+    default:
+      MOZ_ASSERT_UNREACHABLE("Unsupported blend mode!");
+      return false;
   }
 
-private:
-  TextureSourceOGL* mTexture;
-};
+  aGL->fBlendFuncSeparate(srcBlend, dstBlend,
+                          srcAlphaBlend, dstAlphaBlend);
+  return true;
+}
 
 void
-CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
+CompositorOGL::DrawQuad(const Rect& aRect,
+                        const Rect& aClipRect,
                         const EffectChain &aEffectChain,
-                        Float aOpacity, const gfx::Matrix4x4 &aTransform,
-                        const Point& aOffset)
+                        Float aOpacity,
+                        const gfx::Matrix4x4 &aTransform)
 {
-  MOZ_ASSERT(mFrameInProgress, "frame not started");
+  PROFILER_LABEL("CompositorOGL", "DrawQuad",
+    js::ProfileEntry::Category::GRAPHICS);
 
+  MOZ_ASSERT(mFrameInProgress, "frame not started");
+  MOZ_ASSERT(mCurrentRenderTarget, "No destination");
+
+  if (aEffectChain.mPrimaryEffect->mType == EffectTypes::VR_DISTORTION) {
+    DrawVRDistortion(aRect, aClipRect, aEffectChain, aOpacity, aTransform);
+    return;
+  }
+
+  Rect clipRect = aClipRect;
+  // aClipRect is in destination coordinate space (after all
+  // transforms and offsets have been applied) so if our
+  // drawing is going to be shifted by mRenderOffset then we need
+  // to shift the clip rect by the same amount.
+  if (!mTarget && mCurrentRenderTarget->IsWindow()) {
+    clipRect.MoveBy(mRenderOffset.x, mRenderOffset.y);
+  }
   IntRect intClipRect;
-  aClipRect.ToIntRect(&intClipRect);
-  mGLContext->PushScissorRect(nsIntRect(intClipRect.x, intClipRect.y,
-                                        intClipRect.width, intClipRect.height));
+  clipRect.ToIntRect(&intClipRect);
+
+  gl()->fScissor(intClipRect.x, FlipY(intClipRect.y + intClipRect.height),
+                 intClipRect.width, intClipRect.height);
+
+  LayerScope::SendEffectChain(mGLContext, aEffectChain,
+                              aRect.width, aRect.height);
 
   MaskType maskType;
   EffectMask* effectMask;
   TextureSourceOGL* sourceMask = nullptr;
   gfx::Matrix4x4 maskQuadTransform;
-  if (aEffectChain.mSecondaryEffects[EFFECT_MASK]) {
-    effectMask = static_cast<EffectMask*>(aEffectChain.mSecondaryEffects[EFFECT_MASK].get());
+  if (aEffectChain.mSecondaryEffects[EffectTypes::MASK]) {
+    effectMask = static_cast<EffectMask*>(aEffectChain.mSecondaryEffects[EffectTypes::MASK].get());
     sourceMask = effectMask->mMaskTexture->AsSourceOGL();
 
     // NS_ASSERTION(textureMask->IsAlpha(),
@@ -1035,98 +954,121 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
     maskQuadTransform._42 = float(-bounds.y)/bounds.height;
 
     maskType = effectMask->mIs3D
-                 ? Mask3d
-                 : Mask2d;
+                 ? MaskType::Mask3d
+                 : MaskType::Mask2d;
   } else {
-    maskType = MaskNone;
+    maskType = MaskType::MaskNone;
   }
 
-  gl::ShaderProgramType programType = GetProgramTypeForEffect(aEffectChain.mPrimaryEffect);
-  ShaderProgramOGL *program = GetProgram(programType, maskType);
-  program->Activate();
-  if (programType == gl::RGBARectLayerProgramType) {
+  {
+    // XXX: This doesn't handle 3D transforms. It also doesn't handled rotated
+    //      quads. Fix me.
+    const Rect destRect = aTransform.TransformBounds(aRect);
+    mPixelsFilled += destRect.width * destRect.height;
+  }
+
+  // Determine the color if this is a color shader and fold the opacity into
+  // the color since color shaders don't have an opacity uniform.
+  Color color;
+  if (aEffectChain.mPrimaryEffect->mType == EffectTypes::SOLID_COLOR) {
+    EffectSolidColor* effectSolidColor =
+      static_cast<EffectSolidColor*>(aEffectChain.mPrimaryEffect.get());
+    color = effectSolidColor->mColor;
+
+    Float opacity = aOpacity * color.a;
+    color.r *= opacity;
+    color.g *= opacity;
+    color.b *= opacity;
+    color.a = opacity;
+
+    // We can fold opacity into the color, so no need to consider it further.
+    aOpacity = 1.f;
+  }
+
+  gfx::CompositionOp blendMode = gfx::CompositionOp::OP_OVER;
+  if (aEffectChain.mSecondaryEffects[EffectTypes::BLEND_MODE]) {
+    EffectBlendMode *blendEffect =
+      static_cast<EffectBlendMode*>(aEffectChain.mSecondaryEffects[EffectTypes::BLEND_MODE].get());
+    blendMode = blendEffect->mBlendMode;
+  }
+
+  bool colorMatrix = aEffectChain.mSecondaryEffects[EffectTypes::COLOR_MATRIX];
+  ShaderConfigOGL config = GetShaderConfigFor(aEffectChain.mPrimaryEffect, maskType, blendMode, colorMatrix);
+  config.SetOpacity(aOpacity != 1.f);
+  ShaderProgramOGL *program = GetShaderProgramFor(config);
+  ActivateProgram(program);
+  program->SetProjectionMatrix(mProjMatrix);
+  program->SetLayerTransform(aTransform);
+
+  if (colorMatrix) {
+      EffectColorMatrix* effectColorMatrix =
+        static_cast<EffectColorMatrix*>(aEffectChain.mSecondaryEffects[EffectTypes::COLOR_MATRIX].get());
+      program->SetColorMatrix(effectColorMatrix->mColorMatrix);
+  }
+
+  IntPoint offset = mCurrentRenderTarget->GetOrigin();
+  program->SetRenderOffset(offset.x, offset.y);
+  if (aOpacity != 1.f)
+    program->SetLayerOpacity(aOpacity);
+  if (config.mFeatures & ENABLE_TEXTURE_RECT) {
     TexturedEffect* texturedEffect =
         static_cast<TexturedEffect*>(aEffectChain.mPrimaryEffect.get());
     TextureSourceOGL* source = texturedEffect->mTexture->AsSourceOGL();
     // This is used by IOSurface that use 0,0...w,h coordinate rather then 0,0..1,1.
     program->SetTexCoordMultiplier(source->GetSize().width, source->GetSize().height);
   }
-  program->SetLayerQuadRect(aRect);
-  program->SetLayerTransform(aTransform);
-  program->SetRenderOffset(aOffset.x, aOffset.y);
+
+  bool didSetBlendMode = false;
 
   switch (aEffectChain.mPrimaryEffect->mType) {
-    case EFFECT_SOLID_COLOR: {
-      EffectSolidColor* effectSolidColor =
-        static_cast<EffectSolidColor*>(aEffectChain.mPrimaryEffect.get());
-
-      Color color = effectSolidColor->mColor;
-      /* Multiply color by the layer opacity, as the shader
-       * ignores layer opacity and expects a final color to
-       * write to the color buffer.  This saves a needless
-       * multiply in the fragment shader.
-       */
-      Float opacity = aOpacity * color.a;
-      color.r *= opacity;
-      color.g *= opacity;
-      color.b *= opacity;
-      color.a = opacity;
-
+    case EffectTypes::SOLID_COLOR: {
       program->SetRenderColor(color);
 
-      AutoBindTexture bindMask;
-      if (maskType != MaskNone) {
-        bindMask.Bind(sourceMask, LOCAL_GL_TEXTURE0);
-        program->SetMaskTextureUnit(0);
-        program->SetMaskLayerTransform(maskQuadTransform);
+      if (maskType != MaskType::MaskNone) {
+        BindMaskForProgram(program, sourceMask, LOCAL_GL_TEXTURE0, maskQuadTransform);
       }
 
-      BindAndDrawQuad(program);
+      didSetBlendMode = SetBlendMode(gl(), blendMode);
+
+      BindAndDrawQuad(program, aRect);
     }
     break;
 
-  case EFFECT_BGRA:
-  case EFFECT_BGRX:
-  case EFFECT_RGBA:
-  case EFFECT_RGBX: {
+  case EffectTypes::RGB: {
       TexturedEffect* texturedEffect =
           static_cast<TexturedEffect*>(aEffectChain.mPrimaryEffect.get());
-      Rect textureCoords;
       TextureSource *source = texturedEffect->mTexture;
 
-      if (!texturedEffect->mPremultiplied) {
-        mGLContext->fBlendFuncSeparate(LOCAL_GL_SRC_ALPHA, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
-                                       LOCAL_GL_ONE, LOCAL_GL_ONE);
-      }
+      didSetBlendMode = SetBlendMode(gl(), blendMode, texturedEffect->mPremultiplied);
 
-      AutoBindTexture bindSource(source->AsSourceOGL(), LOCAL_GL_TEXTURE0);
-      if (programType == gl::RGBALayerExternalProgramType) {
-        program->SetTextureTransform(source->AsSourceOGL()->GetTextureTransform());
-      }
+      gfx::Filter filter = texturedEffect->mFilter;
+      Matrix4x4 textureTransform = source->AsSourceOGL()->GetTextureTransform();
 
-      mGLContext->ApplyFilterToBoundTexture(source->AsSourceOGL()->GetTextureTarget(),
-                                            ThebesFilter(texturedEffect->mFilter));
+#ifdef MOZ_WIDGET_ANDROID
+      gfx::Matrix textureTransform2D;
+      if (filter != gfx::Filter::POINT &&
+          aTransform.Is2DIntegerTranslation() &&
+          textureTransform.Is2D(&textureTransform2D) &&
+          textureTransform2D.HasOnlyIntegerTranslation()) {
+        // On Android we encounter small resampling errors in what should be
+        // pixel-aligned compositing operations. This works around them. This
+        // code should not be needed!
+        filter = gfx::Filter::POINT;
+      }
+#endif
+      source->AsSourceOGL()->BindTexture(LOCAL_GL_TEXTURE0, filter);
 
       program->SetTextureUnit(0);
-      program->SetLayerOpacity(aOpacity);
+      program->SetTextureTransform(textureTransform);
 
-      AutoBindTexture bindMask;
-      if (maskType != MaskNone) {
-        mGLContext->fActiveTexture(LOCAL_GL_TEXTURE1);
-        bindMask.Bind(sourceMask, LOCAL_GL_TEXTURE1);
-        program->SetMaskTextureUnit(1);
-        program->SetMaskLayerTransform(maskQuadTransform);
+      if (maskType != MaskType::MaskNone) {
+        BindMaskForProgram(program, sourceMask, LOCAL_GL_TEXTURE1, maskQuadTransform);
       }
 
-      BindAndDrawQuadWithTextureRect(program, texturedEffect->mTextureCoords, source);
-
-      if (!texturedEffect->mPremultiplied) {
-        mGLContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
-                                       LOCAL_GL_ONE, LOCAL_GL_ONE);
-      }
+      BindAndDrawQuadWithTextureRect(program, aRect, texturedEffect->mTextureCoords, source);
     }
     break;
-  case EFFECT_YCBCR: {
+  case EffectTypes::YCBCR: {
       EffectYCbCr* effectYCbCr =
         static_cast<EffectYCbCr*>(aEffectChain.mPrimaryEffect.get());
       TextureSource* sourceYCbCr = effectYCbCr->mTexture;
@@ -1140,49 +1082,46 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
         return;
       }
 
-      gfxPattern::GraphicsFilter filter = ThebesFilter(effectYCbCr->mFilter);
-
-      AutoBindTexture bindY(sourceY, LOCAL_GL_TEXTURE0);
-      mGLContext->ApplyFilterToBoundTexture(filter);
-      AutoBindTexture bindCb(sourceCb, LOCAL_GL_TEXTURE1);
-      mGLContext->ApplyFilterToBoundTexture(filter);
-      AutoBindTexture bindCr(sourceCr, LOCAL_GL_TEXTURE2);
-      mGLContext->ApplyFilterToBoundTexture(filter);
+      sourceY->BindTexture(LOCAL_GL_TEXTURE0, effectYCbCr->mFilter);
+      sourceCb->BindTexture(LOCAL_GL_TEXTURE1, effectYCbCr->mFilter);
+      sourceCr->BindTexture(LOCAL_GL_TEXTURE2, effectYCbCr->mFilter);
 
       program->SetYCbCrTextureUnits(Y, Cb, Cr);
-      program->SetLayerOpacity(aOpacity);
+      program->SetTextureTransform(Matrix4x4());
 
-      AutoBindTexture bindMask;
-      if (maskType != MaskNone) {
-        bindMask.Bind(sourceMask, LOCAL_GL_TEXTURE3);
-        program->SetMaskTextureUnit(3);
-        program->SetMaskLayerTransform(maskQuadTransform);
+      if (maskType != MaskType::MaskNone) {
+        BindMaskForProgram(program, sourceMask, LOCAL_GL_TEXTURE3, maskQuadTransform);
       }
-      BindAndDrawQuadWithTextureRect(program, effectYCbCr->mTextureCoords, sourceYCbCr->GetSubSource(Y));
+      didSetBlendMode = SetBlendMode(gl(), blendMode);
+      BindAndDrawQuadWithTextureRect(program,
+                                     aRect,
+                                     effectYCbCr->mTextureCoords,
+                                     sourceYCbCr->GetSubSource(Y));
     }
     break;
-  case EFFECT_RENDER_TARGET: {
+  case EffectTypes::RENDER_TARGET: {
       EffectRenderTarget* effectRenderTarget =
         static_cast<EffectRenderTarget*>(aEffectChain.mPrimaryEffect.get());
       RefPtr<CompositingRenderTargetOGL> surface
         = static_cast<CompositingRenderTargetOGL*>(effectRenderTarget->mRenderTarget.get());
 
-      ShaderProgramOGL *program = GetProgram(GetFBOLayerProgramType(), maskType);
-
       surface->BindTexture(LOCAL_GL_TEXTURE0, mFBOTextureTarget);
 
-      program->Activate();
+      // Drawing is always flipped, but when copying between surfaces we want to avoid
+      // this, so apply a flip here to cancel the other one out.
+      Matrix transform;
+      transform.PreTranslate(0.0, 1.0);
+      transform.PreScale(1.0f, -1.0f);
+      program->SetTextureTransform(Matrix4x4::From2D(transform));
       program->SetTextureUnit(0);
-      program->SetLayerOpacity(aOpacity);
 
-      AutoBindTexture bindMask;
-      if (maskType != MaskNone) {
-        bindMask.Bind(sourceMask, LOCAL_GL_TEXTURE1);
+      if (maskType != MaskType::MaskNone) {
+        sourceMask->BindTexture(LOCAL_GL_TEXTURE1, gfx::Filter::LINEAR);
         program->SetMaskTextureUnit(1);
         program->SetMaskLayerTransform(maskQuadTransform);
       }
 
-      if (program->GetTexCoordMultiplierUniformLocation() != -1) {
+      if (config.mFeatures & ENABLE_TEXTURE_RECT) {
         // 2DRect case, get the multiplier right for a sampler2DRect
         program->SetTexCoordMultiplier(aRect.width, aRect.height);
       }
@@ -1190,10 +1129,13 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
       // Drawing is always flipped, but when copying between surfaces we want to avoid
       // this. Pass true for the flip parameter to introduce a second flip
       // that cancels the other one out.
-      BindAndDrawQuad(program, true);
+      didSetBlendMode = SetBlendMode(gl(), blendMode);
+      BindAndDrawQuad(program, aRect);
     }
     break;
-  case EFFECT_COMPONENT_ALPHA: {
+  case EffectTypes::COMPONENT_ALPHA: {
+      MOZ_ASSERT(gfxPrefs::ComponentAlphaEnabled());
+      MOZ_ASSERT(blendMode == gfx::CompositionOp::OP_OVER, "Can't support blend modes with component alpha!");
       EffectComponentAlpha* effectComponentAlpha =
         static_cast<EffectComponentAlpha*>(aEffectChain.mPrimaryEffect.get());
       TextureSourceOGL* sourceOnWhite = effectComponentAlpha->mOnWhite->AsSourceOGL();
@@ -1205,40 +1147,51 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
         return;
       }
 
-      for (int32_t pass = 1; pass <=2; ++pass) {
-        ShaderProgramOGL* program;
-        if (pass == 1) {
-          program = GetProgram(gl::ComponentAlphaPass1ProgramType, maskType);
-          gl()->fBlendFuncSeparate(LOCAL_GL_ZERO, LOCAL_GL_ONE_MINUS_SRC_COLOR,
-                                   LOCAL_GL_ONE, LOCAL_GL_ONE);
-        } else {
-          program = GetProgram(gl::ComponentAlphaPass2ProgramType, maskType);
-          gl()->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE,
-                                   LOCAL_GL_ONE, LOCAL_GL_ONE);
-        }
+      sourceOnBlack->BindTexture(LOCAL_GL_TEXTURE0, effectComponentAlpha->mFilter);
+      sourceOnWhite->BindTexture(LOCAL_GL_TEXTURE1, effectComponentAlpha->mFilter);
 
-        AutoBindTexture bindSourceOnBlack(sourceOnBlack, LOCAL_GL_TEXTURE0);
-        AutoBindTexture bindSourceOnWhite(sourceOnWhite, LOCAL_GL_TEXTURE1);
+      program->SetBlackTextureUnit(0);
+      program->SetWhiteTextureUnit(1);
+      program->SetTextureTransform(Matrix4x4());
 
-        program->Activate();
-        program->SetBlackTextureUnit(0);
-        program->SetWhiteTextureUnit(1);
-        program->SetLayerOpacity(aOpacity);
-        program->SetLayerTransform(aTransform);
-        program->SetRenderOffset(aOffset.x, aOffset.y);
-        program->SetLayerQuadRect(aRect);
-        AutoBindTexture bindMask;
-        if (maskType != MaskNone) {
-          bindMask.Bind(sourceMask, LOCAL_GL_TEXTURE2);
-          program->SetMaskTextureUnit(2);
-          program->SetMaskLayerTransform(maskQuadTransform);
-        }
-
-        BindAndDrawQuadWithTextureRect(program, effectComponentAlpha->mTextureCoords, effectComponentAlpha->mOnBlack);
-
-        mGLContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
-                                       LOCAL_GL_ONE, LOCAL_GL_ONE);
+      if (maskType != MaskType::MaskNone) {
+        BindMaskForProgram(program, sourceMask, LOCAL_GL_TEXTURE2, maskQuadTransform);
       }
+      // Pass 1.
+      gl()->fBlendFuncSeparate(LOCAL_GL_ZERO, LOCAL_GL_ONE_MINUS_SRC_COLOR,
+                               LOCAL_GL_ONE, LOCAL_GL_ONE);
+      program->SetTexturePass2(false);
+      BindAndDrawQuadWithTextureRect(program,
+                                     aRect,
+                                     effectComponentAlpha->mTextureCoords,
+                                     effectComponentAlpha->mOnBlack);
+
+      // Pass 2.
+      gl()->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE,
+                               LOCAL_GL_ONE, LOCAL_GL_ONE);
+
+#ifdef XP_MACOSX
+      if (gl()->WorkAroundDriverBugs() &&
+          gl()->Vendor() == GLVendor::NVIDIA &&
+          !nsCocoaFeatures::OnMavericksOrLater()) {
+        // Bug 987497: With some GPUs the nvidia driver on 10.8 and below
+        // won't pick up the TexturePass2 uniform change below if we don't do
+        // something to force it. Re-activating the shader seems to be one way
+        // of achieving that.
+        GLint program;
+        mGLContext->fGetIntegerv(LOCAL_GL_CURRENT_PROGRAM, &program);
+        mGLContext->fUseProgram(program);
+      }
+#endif
+
+      program->SetTexturePass2(true);
+      BindAndDrawQuadWithTextureRect(program,
+                                     aRect,
+                                     effectComponentAlpha->mTextureCoords,
+                                     effectComponentAlpha->mOnBlack);
+
+      mGLContext->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
+                                     LOCAL_GL_ONE, LOCAL_GL_ONE);
     }
     break;
   default:
@@ -1246,8 +1199,11 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
     break;
   }
 
-  mGLContext->PopScissorRect();
-  mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
+  if (didSetBlendMode) {
+    gl()->fBlendFuncSeparate(LOCAL_GL_ONE, LOCAL_GL_ONE_MINUS_SRC_ALPHA,
+                             LOCAL_GL_ONE, LOCAL_GL_ONE);
+  }
+
   // in case rendering has used some other GL context
   MakeCurrent();
 }
@@ -1255,6 +1211,9 @@ CompositorOGL::DrawQuad(const Rect& aRect, const Rect& aClipRect,
 void
 CompositorOGL::EndFrame()
 {
+  PROFILER_LABEL("CompositorOGL", "EndFrame",
+    js::ProfileEntry::Category::GRAPHICS);
+
   MOZ_ASSERT(mCurrentRenderTarget == mWindowRenderTarget, "Rendering target not properly restored");
 
 #ifdef MOZ_DUMP_PAINTING
@@ -1265,18 +1224,19 @@ CompositorOGL::EndFrame()
     } else {
       mWidget->GetBounds(rect);
     }
-    nsRefPtr<gfxASurface> surf = gfxPlatform::GetPlatform()->CreateOffscreenSurface(rect.Size(), gfxASurface::CONTENT_COLOR_ALPHA);
-    nsRefPtr<gfxContext> ctx = new gfxContext(surf);
-    CopyToTarget(ctx, mCurrentRenderTarget->GetTransform());
+    RefPtr<DrawTarget> target = gfxPlatform::GetPlatform()->CreateOffscreenContentDrawTarget(IntSize(rect.width, rect.height), SurfaceFormat::B8G8R8A8);
+    CopyToTarget(target, nsIntPoint(), Matrix());
 
-    WriteSnapshotToDumpFile(this, surf);
+    WriteSnapshotToDumpFile(this, target);
   }
 #endif
+
+  mContextStateTracker.PopOGLSection(gl(), "Frame");
 
   mFrameInProgress = false;
 
   if (mTarget) {
-    CopyToTarget(mTarget, mCurrentRenderTarget->GetTransform());
+    CopyToTarget(mTarget, mTargetBounds.TopLeft(), Matrix());
     mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
     mCurrentRenderTarget = nullptr;
     return;
@@ -1284,47 +1244,89 @@ CompositorOGL::EndFrame()
 
   mCurrentRenderTarget = nullptr;
 
-  if (sDrawFPS && !mFPS) {
-    mFPS = new FPSState();
-  } else if (!sDrawFPS && mFPS) {
-    mFPS = nullptr;
-  }
-
-  if (mFPS) {
-    mFPS->DrawFPS(TimeStamp::Now(), mGLContext, GetProgram(Copy2DProgramType));
-  } else if (sFrameCounter) {
-    FPSState::DrawFrameCounter(mGLContext);
+  if (mTexturePool) {
+    mTexturePool->EndFrame();
   }
 
   mGLContext->SwapBuffers();
   mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
-}
 
-void
-CompositorOGL::EndFrameForExternalComposition(const gfxMatrix& aTransform)
-{
-  if (sDrawFPS) {
-    if (!mFPS) {
-      mFPS = new FPSState();
-    }
-    double fps = mFPS->mCompositionFps.AddFrameAndGetFps(TimeStamp::Now());
-    printf_stderr("HWComposer: FPS is %g\n", fps);
+  // Unbind all textures
+  mGLContext->fActiveTexture(LOCAL_GL_TEXTURE0);
+  mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, 0);
+  if (!mGLContext->IsGLES()) {
+    mGLContext->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, 0);
   }
 
+  mGLContext->fActiveTexture(LOCAL_GL_TEXTURE1);
+  mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, 0);
+  if (!mGLContext->IsGLES()) {
+    mGLContext->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, 0);
+  }
+
+  mGLContext->fActiveTexture(LOCAL_GL_TEXTURE2);
+  mGLContext->fBindTexture(LOCAL_GL_TEXTURE_2D, 0);
+  if (!mGLContext->IsGLES()) {
+    mGLContext->fBindTexture(LOCAL_GL_TEXTURE_RECTANGLE_ARB, 0);
+  }
+}
+
+#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 17
+void
+CompositorOGL::SetFBAcquireFence(Layer* aLayer)
+{
+  // OpenGL does not provide ReleaseFence for rendering.
+  // Instead use FBAcquireFence as layer buffer's ReleaseFence
+  // to prevent flickering and tearing.
+  // FBAcquireFence is FramebufferSurface's AcquireFence.
+  // AcquireFence will be signaled when a buffer's content is available.
+  // See Bug 974152.
+
+  if (!aLayer) {
+    return;
+  }
+
+  android::sp<android::Fence> fence = new android::Fence(GetGonkDisplay()->GetPrevFBAcquireFd());
+  if (fence.get() && fence->isValid()) {
+    FenceHandle handle = FenceHandle(fence);
+    mReleaseFenceHandle.Merge(handle);
+  }
+}
+
+FenceHandle
+CompositorOGL::GetReleaseFence()
+{
+  if (!mReleaseFenceHandle.IsValid()) {
+    return FenceHandle();
+  }
+  return FenceHandle(new android::Fence(mReleaseFenceHandle.mFence->dup()));
+}
+
+#else
+void
+CompositorOGL::SetFBAcquireFence(Layer* aLayer)
+{
+}
+
+FenceHandle
+CompositorOGL::GetReleaseFence()
+{
+  return FenceHandle();
+}
+#endif
+
+void
+CompositorOGL::EndFrameForExternalComposition(const gfx::Matrix& aTransform)
+{
   // This lets us reftest and screenshot content rendered externally
   if (mTarget) {
     MakeCurrent();
-    CopyToTarget(mTarget, aTransform);
+    CopyToTarget(mTarget, mTargetBounds.TopLeft(), aTransform);
     mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
   }
-}
-
-void
-CompositorOGL::AbortFrame()
-{
-  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, 0);
-  mFrameInProgress = false;
-  mCurrentRenderTarget = nullptr;
+  if (mTexturePool) {
+    mTexturePool->EndFrame();
+  }
 }
 
 void
@@ -1335,79 +1337,62 @@ CompositorOGL::SetDestinationSurfaceSize(const gfx::IntSize& aSize)
 }
 
 void
-CompositorOGL::CopyToTarget(gfxContext *aTarget, const gfxMatrix& aTransform)
+CompositorOGL::CopyToTarget(DrawTarget* aTarget, const nsIntPoint& aTopLeft, const gfx::Matrix& aTransform)
 {
-  nsIntRect rect;
+  IntRect rect;
   if (mUseExternalSurfaceSize) {
-    rect = nsIntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
+    rect = IntRect(0, 0, mSurfaceSize.width, mSurfaceSize.height);
   } else {
-    rect = nsIntRect(0, 0, mWidgetSize.width, mWidgetSize.height);
+    rect = IntRect(0, 0, mWidgetSize.width, mWidgetSize.height);
   }
   GLint width = rect.width;
   GLint height = rect.height;
 
-  if ((int64_t(width) * int64_t(height) * int64_t(4)) > PR_INT32_MAX) {
+  if ((int64_t(width) * int64_t(height) * int64_t(4)) > INT32_MAX) {
     NS_ERROR("Widget size too big - integer overflow!");
     return;
   }
 
-  nsRefPtr<gfxImageSurface> imageSurface =
-    new gfxImageSurface(gfxIntSize(width, height),
-                        gfxASurface::ImageFormatARGB32);
-
   mGLContext->fBindFramebuffer(LOCAL_GL_FRAMEBUFFER, 0);
 
-  if (!mGLContext->IsGLES2()) {
+  if (!mGLContext->IsGLES()) {
     // GLES2 promises that binding to any custom FBO will attach
     // to GL_COLOR_ATTACHMENT0 attachment point.
     mGLContext->fReadBuffer(LOCAL_GL_BACK);
   }
 
-  NS_ASSERTION(imageSurface->Stride() == width * 4,
-               "Image Surfaces being created with weird stride!");
+  RefPtr<DataSourceSurface> source =
+        Factory::CreateDataSourceSurface(rect.Size(), gfx::SurfaceFormat::B8G8R8A8);
+  if (NS_WARN_IF(!source)) {
+    return;
+  }
 
-  mGLContext->ReadPixelsIntoImageSurface(imageSurface);
+  ReadPixelsIntoDataSurface(mGLContext, source);
 
   // Map from GL space to Cairo space and reverse the world transform.
-  gfxMatrix glToCairoTransform = aTransform;
+  Matrix glToCairoTransform = aTransform;
   glToCairoTransform.Invert();
-  glToCairoTransform.Scale(1.0, -1.0);
-  glToCairoTransform.Translate(-gfxPoint(0.0, height));
+  glToCairoTransform.PreScale(1.0, -1.0);
+  glToCairoTransform.PreTranslate(0.0, -height);
 
-  gfxContextAutoSaveRestore restore(aTarget);
-  aTarget->SetOperator(gfxContext::OPERATOR_SOURCE);
-  aTarget->SetMatrix(glToCairoTransform);
-  aTarget->SetSource(imageSurface);
-  aTarget->Paint();
-}
+  glToCairoTransform.PostTranslate(-aTopLeft.x, -aTopLeft.y);
 
-double
-CompositorOGL::AddFrameAndGetFps(const TimeStamp& timestamp)
-{
-  if (sDrawFPS) {
-    if (!mFPS) {
-      mFPS = new FPSState();
-    }
-    double fps = mFPS->mCompositionFps.AddFrameAndGetFps(timestamp);
-
-    return fps;
-  }
-
-  return 0.;
-}
-
-void
-CompositorOGL::NotifyLayersTransaction()
-{
-  if (mFPS) {
-    mFPS->NotifyShadowTreeTransaction();
-  }
+  Matrix oldMatrix = aTarget->GetTransform();
+  aTarget->SetTransform(glToCairoTransform);
+  Rect floatRect = Rect(rect.x, rect.y, rect.width, rect.height);
+  aTarget->DrawSurface(source, floatRect, floatRect, DrawSurfaceOptions(), DrawOptions(1.0f, CompositionOp::OP_SOURCE));
+  aTarget->SetTransform(oldMatrix);
+  aTarget->Flush();
 }
 
 void
 CompositorOGL::Pause()
 {
 #ifdef MOZ_WIDGET_ANDROID
+  if (!gl() || gl()->IsDestroyed())
+    return;
+
+  // ReleaseSurface internally calls MakeCurrent.
   gl()->ReleaseSurface();
 #endif
 }
@@ -1416,11 +1401,224 @@ bool
 CompositorOGL::Resume()
 {
 #ifdef MOZ_WIDGET_ANDROID
+  if (!gl() || gl()->IsDestroyed())
+    return false;
+
+  // RenewSurface internally calls MakeCurrent.
   return gl()->RenewSurface();
 #endif
   return true;
 }
 
+TemporaryRef<DataTextureSource>
+CompositorOGL::CreateDataTextureSource(TextureFlags aFlags)
+{
+  RefPtr<DataTextureSource> result =
+    new TextureImageTextureSourceOGL(this, aFlags);
+  return result;
+}
+
+bool
+CompositorOGL::SupportsPartialTextureUpdate()
+{
+  return CanUploadSubTextures(mGLContext);
+}
+
+int32_t
+CompositorOGL::GetMaxTextureSize() const
+{
+  MOZ_ASSERT(mGLContext);
+  GLint texSize = 0;
+  mGLContext->fGetIntegerv(LOCAL_GL_MAX_TEXTURE_SIZE,
+                            &texSize);
+  MOZ_ASSERT(texSize != 0);
+  return texSize;
+}
+
+void
+CompositorOGL::MakeCurrent(MakeCurrentFlags aFlags) {
+  if (mDestroyed) {
+    NS_WARNING("Call on destroyed layer manager");
+    return;
+  }
+  mGLContext->MakeCurrent(aFlags & ForceMakeCurrent);
+}
+
+void
+CompositorOGL::BindAndDrawQuads(ShaderProgramOGL *aProg,
+                                int aQuads,
+                                const Rect* aLayerRects,
+                                const Rect* aTextureRects)
+{
+  NS_ASSERTION(aProg->HasInitialized(), "Shader program not correctly initialized");
+
+  const GLuint coordAttribIndex = 0;
+
+  mGLContext->fBindBuffer(LOCAL_GL_ARRAY_BUFFER, mQuadVBO);
+  mGLContext->fVertexAttribPointer(coordAttribIndex, 4,
+                                   LOCAL_GL_FLOAT, LOCAL_GL_FALSE, 0,
+                                   (GLvoid*) 0);
+  mGLContext->fEnableVertexAttribArray(coordAttribIndex);
+
+  aProg->SetLayerRects(aLayerRects);
+  if (aProg->GetTextureCount() > 0) {
+    aProg->SetTextureRects(aTextureRects);
+  }
+
+  // We are using GL_TRIANGLES here because the Mac Intel drivers fail to properly
+  // process uniform arrays with GL_TRIANGLE_STRIP. Go figure.
+  mGLContext->fDrawArrays(LOCAL_GL_TRIANGLES, 0, 6 * aQuads);
+}
+
+GLBlitTextureImageHelper*
+CompositorOGL::BlitTextureImageHelper()
+{
+    if (!mBlitTextureImageHelper) {
+        mBlitTextureImageHelper = MakeUnique<GLBlitTextureImageHelper>(this);
+    }
+
+    return mBlitTextureImageHelper.get();
+}
+
+
+
+GLuint
+CompositorOGL::GetTemporaryTexture(GLenum aTarget, GLenum aUnit)
+{
+  if (!mTexturePool) {
+#ifdef MOZ_WIDGET_GONK
+    mTexturePool = new PerFrameTexturePoolOGL(gl());
+#else
+    mTexturePool = new PerUnitTexturePoolOGL(gl());
+#endif
+  }
+  return mTexturePool->GetTexture(aTarget, aUnit);
+}
+
+GLuint
+PerUnitTexturePoolOGL::GetTexture(GLenum aTarget, GLenum aTextureUnit)
+{
+  if (mTextureTarget == 0) {
+    mTextureTarget = aTarget;
+  }
+  MOZ_ASSERT(mTextureTarget == aTarget);
+
+  size_t index = aTextureUnit - LOCAL_GL_TEXTURE0;
+  // lazily grow the array of temporary textures
+  if (mTextures.Length() <= index) {
+    size_t prevLength = mTextures.Length();
+    mTextures.SetLength(index + 1);
+    for(unsigned int i = prevLength; i <= index; ++i) {
+      mTextures[i] = 0;
+    }
+  }
+  // lazily initialize the temporary textures
+  if (!mTextures[index]) {
+    if (!mGL->MakeCurrent()) {
+      return 0;
+    }
+    mGL->fGenTextures(1, &mTextures[index]);
+    mGL->fBindTexture(aTarget, mTextures[index]);
+    mGL->fTexParameteri(aTarget, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
+    mGL->fTexParameteri(aTarget, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
+  }
+  return mTextures[index];
+}
+
+void
+PerUnitTexturePoolOGL::DestroyTextures()
+{
+  if (mGL && mGL->MakeCurrent()) {
+    if (mTextures.Length() > 0) {
+      mGL->fDeleteTextures(mTextures.Length(), &mTextures[0]);
+    }
+  }
+  mTextures.SetLength(0);
+}
+
+void
+PerFrameTexturePoolOGL::DestroyTextures()
+{
+  if (!mGL->MakeCurrent()) {
+    return;
+  }
+
+  if (mUnusedTextures.Length() > 0) {
+    mGL->fDeleteTextures(mUnusedTextures.Length(), &mUnusedTextures[0]);
+    mUnusedTextures.Clear();
+  }
+
+  if (mCreatedTextures.Length() > 0) {
+    mGL->fDeleteTextures(mCreatedTextures.Length(), &mCreatedTextures[0]);
+    mCreatedTextures.Clear();
+  }
+}
+
+GLuint
+PerFrameTexturePoolOGL::GetTexture(GLenum aTarget, GLenum)
+{
+  if (mTextureTarget == 0) {
+    mTextureTarget = aTarget;
+  }
+
+  // The pool should always use the same texture target because it is illegal
+  // to change the target of an already exisiting gl texture.
+  // If we need to use several targets, a pool with several sub-pools (one per
+  // target) will have to be implemented.
+  // At the moment this pool is only used with tiling on b2g so we always need
+  // the same target.
+  MOZ_ASSERT(mTextureTarget == aTarget);
+
+  GLuint texture = 0;
+
+  if (!mUnusedTextures.IsEmpty()) {
+    // Try to reuse one from the unused pile first
+    texture = mUnusedTextures[0];
+    mUnusedTextures.RemoveElementAt(0);
+  } else if (mGL->MakeCurrent()) {
+    // There isn't one to reuse, create one.
+    mGL->fGenTextures(1, &texture);
+    mGL->fBindTexture(aTarget, texture);
+    mGL->fTexParameteri(aTarget, LOCAL_GL_TEXTURE_WRAP_S, LOCAL_GL_CLAMP_TO_EDGE);
+    mGL->fTexParameteri(aTarget, LOCAL_GL_TEXTURE_WRAP_T, LOCAL_GL_CLAMP_TO_EDGE);
+  }
+
+  if (texture) {
+    mCreatedTextures.AppendElement(texture);
+  }
+
+  return texture;
+}
+
+void
+PerFrameTexturePoolOGL::EndFrame()
+{
+  if (!mGL->MakeCurrent()) {
+    // this means the context got destroyed underneith us somehow, and the driver
+    // already has destroyed the textures.
+    mCreatedTextures.Clear();
+    mUnusedTextures.Clear();
+    return;
+  }
+
+  // Some platforms have issues unlocking Gralloc buffers even when they're
+  // rebound.
+  if (gfxPrefs::OverzealousGrallocUnlocking()) {
+    mUnusedTextures.AppendElements(mCreatedTextures);
+    mCreatedTextures.Clear();
+  }
+
+  // Delete unused textures
+  for (size_t i = 0; i < mUnusedTextures.Length(); i++) {
+    GLuint texture = mUnusedTextures[i];
+    mGL->fDeleteTextures(1, &texture);
+  }
+  mUnusedTextures.Clear();
+
+  // Move all created textures into the unused pile
+  mUnusedTextures.AppendElements(mCreatedTextures);
+  mCreatedTextures.Clear();
+}
 
 } /* layers */
 } /* mozilla */

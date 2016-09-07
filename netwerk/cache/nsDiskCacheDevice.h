@@ -7,6 +7,7 @@
 #ifndef _nsDiskCacheDevice_h_
 #define _nsDiskCacheDevice_h_
 
+#include "mozilla/MemoryReporting.h"
 #include "nsCacheDevice.h"
 #include "nsDiskCacheBinding.h"
 #include "nsDiskCacheBlockFile.h"
@@ -17,10 +18,9 @@
 #include "nsCOMArray.h"
 
 class nsDiskCacheMap;
-class nsIMemoryReporter;
 
 
-class nsDiskCacheDevice : public nsCacheDevice {
+class nsDiskCacheDevice final : public nsCacheDevice {
 public:
     nsDiskCacheDevice();
     virtual ~nsDiskCacheDevice();
@@ -55,7 +55,7 @@ public:
 
     bool                    EntryIsTooBig(int64_t entrySize);
 
-    size_t                 SizeOfIncludingThis(nsMallocSizeOfFun aMallocSizeOf);
+    size_t                 SizeOfIncludingThis(mozilla::MallocSizeOf aMallocSizeOf);
 
     /**
      * Preference accessors
@@ -111,8 +111,6 @@ private:
     nsDiskCacheMap          mCacheMap;
     bool                    mInitialized;
     bool                    mClearingDiskCache;
-
-    nsCOMPtr<nsIMemoryReporter> mReporter;
 };
 
 #endif // _nsDiskCacheDevice_h_

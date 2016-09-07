@@ -6,14 +6,21 @@
 #ifndef mozilla_dom_workers_xmlhttprequest_h__
 #define mozilla_dom_workers_xmlhttprequest_h__
 
-#include "mozilla/dom/workers/bindings/XMLHttpRequestEventTarget.h"
 #include "mozilla/dom/workers/bindings/WorkerFeature.h"
 
 // Need this for XMLHttpRequestResponseType.
 #include "mozilla/dom/XMLHttpRequestBinding.h"
 
-#include "mozilla/dom/BindingUtils.h"
 #include "mozilla/dom/TypedArray.h"
+
+#include "js/StructuredClone.h"
+#include "nsXMLHttpRequest.h"
+
+namespace mozilla {
+namespace dom {
+class File;
+}
+}
 
 BEGIN_WORKERS_NAMESPACE
 
@@ -21,8 +28,8 @@ class Proxy;
 class XMLHttpRequestUpload;
 class WorkerPrivate;
 
-class XMLHttpRequest : public XMLHttpRequestEventTarget,
-                       public WorkerFeature
+class XMLHttpRequest final: public nsXHREventTarget,
+                                public WorkerFeature
 {
 public:
   struct StateData
@@ -32,21 +39,20 @@ public:
     uint32_t mStatus;
     nsCString mStatusText;
     uint16_t mReadyState;
-    jsval mResponse;
+    JS::Heap<JS::Value> mResponse;
     nsresult mResponseTextResult;
     nsresult mStatusResult;
     nsresult mResponseResult;
 
     StateData()
-    : mStatus(0), mReadyState(0), mResponse(JSVAL_VOID),
+    : mStatus(0), mReadyState(0), mResponse(JS::UndefinedValue()),
       mResponseTextResult(NS_OK), mStatusResult(NS_OK),
       mResponseResult(NS_OK)
     { }
   };
 
 private:
-  JSObject* mJSObject;
-  XMLHttpRequestUpload* mUpload;
+  nsRefPtr<XMLHttpRequestUpload> mUpload;
   WorkerPrivate* mWorkerPrivate;
   nsRefPtr<Proxy> mProxy;
   XMLHttpRequestResponseType mResponseType;
@@ -54,7 +60,7 @@ private:
 
   uint32_t mTimeout;
 
-  bool mJSObjectRooted;
+  bool mRooted;
   bool mBackgroundRequest;
   bool mWithCredentials;
   bool mCanceled;
@@ -62,29 +68,33 @@ private:
   bool mMozAnon;
   bool mMozSystem;
 
-protected:
-  XMLHttpRequest(JSContext* aCx, WorkerPrivate* aWorkerPrivate);
-  virtual ~XMLHttpRequest();
-
 public:
-  virtual void
-  _trace(JSTracer* aTrc) MOZ_OVERRIDE;
+  virtual JSObject*
+  WrapObject(JSContext* aCx) override;
 
-  virtual void
-  _finalize(JSFreeOp* aFop) MOZ_OVERRIDE;
+  NS_DECL_ISUPPORTS_INHERITED
+  NS_DECL_CYCLE_COLLECTION_SCRIPT_HOLDER_CLASS_INHERITED(XMLHttpRequest,
+                                                         nsXHREventTarget)
 
-  static XMLHttpRequest*
-  Constructor(const WorkerGlobalObject& aGlobal,
-              const MozXMLHttpRequestParametersWorkers& aParams,
+  nsISupports*
+  GetParentObject() const
+  {
+    // There's only one global on a worker, so we don't need to specify.
+    return nullptr;
+  }
+
+  static already_AddRefed<XMLHttpRequest>
+  Constructor(const GlobalObject& aGlobal,
+              const MozXMLHttpRequestParameters& aParams,
               ErrorResult& aRv);
 
-  static XMLHttpRequest*
-  Constructor(const WorkerGlobalObject& aGlobal, const nsAString& ignored,
+  static already_AddRefed<XMLHttpRequest>
+  Constructor(const GlobalObject& aGlobal, const nsAString& ignored,
               ErrorResult& aRv)
   {
     // Pretend like someone passed null, so we can pick up the default values
-    MozXMLHttpRequestParametersWorkers params;
-    if (!params.Init(aGlobal.GetContext(), JS::NullHandleValue)) {
+    MozXMLHttpRequestParameters params;
+    if (!params.Init(aGlobal.Context(), JS::NullHandleValue)) {
       aRv.Throw(NS_ERROR_UNEXPECTED);
       return nullptr;
     }
@@ -96,25 +106,9 @@ public:
   Unpin();
 
   bool
-  Notify(JSContext* aCx, Status aStatus) MOZ_OVERRIDE;
+  Notify(JSContext* aCx, Status aStatus) override;
 
-#define IMPL_GETTER_AND_SETTER(_type)                                          \
-  JSObject*                                                                    \
-  GetOn##_type(JSContext* /* unused */, ErrorResult& aRv)                      \
-  {                                                                            \
-    return GetEventListener(NS_LITERAL_STRING(#_type), aRv);                   \
-  }                                                                            \
-                                                                               \
-  void                                                                         \
-  SetOn##_type(JSContext* /* unused */,  JS::Handle<JSObject*> aListener,      \
-               ErrorResult& aRv)                                               \
-  {                                                                            \
-    SetEventListener(NS_LITERAL_STRING(#_type), aListener, aRv);               \
-  }
-
-  IMPL_GETTER_AND_SETTER(readystatechange)
-
-#undef IMPL_GETTER_AND_SETTER
+  IMPL_EVENT_HANDLER(readystatechange)
 
   uint16_t
   ReadyState() const
@@ -122,6 +116,11 @@ public:
     return mStateData.mReadyState;
   }
 
+  void Open(const nsACString& aMethod, const nsAString& aUrl, ErrorResult& aRv)
+  {
+    Open(aMethod, aUrl, true, Optional<nsAString>(),
+         Optional<nsAString>(), aRv);
+  }
   void
   Open(const nsACString& aMethod, const nsAString& aUrl, bool aAsync,
        const Optional<nsAString>& aUser, const Optional<nsAString>& aPassword,
@@ -168,23 +167,16 @@ public:
   Send(const nsAString& aBody, ErrorResult& aRv);
 
   void
-  Send(JSObject* aBody, ErrorResult& aRv);
+  Send(JS::Handle<JSObject*> aBody, ErrorResult& aRv);
 
   void
-  Send(JSObject& aBody, ErrorResult& aRv)
-  {
-    Send(&aBody, aRv);
-  }
+  Send(File& aBody, ErrorResult& aRv);
 
   void
-  Send(ArrayBuffer& aBody, ErrorResult& aRv) {
-    return Send(aBody.Obj(), aRv);
-  }
+  Send(const ArrayBuffer& aBody, ErrorResult& aRv);
 
   void
-  Send(ArrayBufferView& aBody, ErrorResult& aRv) {
-    return Send(aBody.Obj(), aRv);
-  }
+  Send(const ArrayBufferView& aBody, ErrorResult& aRv);
 
   void
   SendAsBinary(const nsAString& aBody, ErrorResult& aRv);
@@ -230,29 +222,18 @@ public:
   void
   SetResponseType(XMLHttpRequestResponseType aResponseType, ErrorResult& aRv);
 
-  jsval
-  GetResponse(JSContext* /* unused */, ErrorResult& aRv);
+  void
+  GetResponse(JSContext* /* unused */, JS::MutableHandle<JS::Value> aResponse,
+              ErrorResult& aRv);
 
   void
   GetResponseText(nsAString& aResponseText, ErrorResult& aRv);
 
-  JSObject*
-  GetResponseXML() const
-  {
-    return NULL;
-  }
-
-  JSObject*
-  GetChannel() const
-  {
-    return NULL;
-  }
-
-  JS::Value
-  GetInterface(JSContext* cx, JS::Handle<JSObject*> aIID, ErrorResult& aRv)
+  void
+  GetInterface(JSContext* cx, JS::Handle<JSObject*> aIID,
+               JS::MutableHandle<JS::Value> aRetval, ErrorResult& aRv)
   {
     aRv.Throw(NS_ERROR_FAILURE);
-    return JSVAL_NULL;
   }
 
   XMLHttpRequestUpload*
@@ -262,10 +243,7 @@ public:
   }
 
   void
-  UpdateState(const StateData& aStateData)
-  {
-    mStateData = aStateData;
-  }
+  UpdateState(const StateData& aStateData, bool aUseCachedArrayBufferResponse);
 
   void
   NullResponseText()
@@ -284,7 +262,16 @@ public:
     return mMozSystem;
   }
 
+  bool
+  SendInProgress() const
+  {
+    return mRooted;
+  }
+
 private:
+  explicit XMLHttpRequest(WorkerPrivate* aWorkerPrivate);
+  ~XMLHttpRequest();
+
   enum ReleaseType { Default, XHRIsGoingAway, WorkerIsGoingAway };
 
   void
@@ -297,18 +284,13 @@ private:
   MaybeDispatchPrematureAbortEvents(ErrorResult& aRv);
 
   void
-  DispatchPrematureAbortEvent(JS::Handle<JSObject*> aTarget, uint8_t aEventType,
-                              bool aUploadTarget, ErrorResult& aRv);
-
-  bool
-  SendInProgress() const
-  {
-    return mJSObjectRooted;
-  }
+  DispatchPrematureAbortEvent(EventTarget* aTarget,
+                              const nsAString& aEventType, bool aUploadTarget,
+                              ErrorResult& aRv);
 
   void
   SendInternal(const nsAString& aStringBody,
-               JSAutoStructuredCloneBuffer& aBody,
+               JSAutoStructuredCloneBuffer&& aBody,
                nsTArray<nsCOMPtr<nsISupports> >& aClonedObjects,
                ErrorResult& aRv);
 };

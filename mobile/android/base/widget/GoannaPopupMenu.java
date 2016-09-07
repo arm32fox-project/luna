@@ -17,10 +17,10 @@ import android.view.MenuItem;
 import android.view.View;
 
 /**
- * A PopupMenu that uses the custom GoannaMenu. This menu is 
+ * A PopupMenu that uses the custom GoannaMenu. This menu is
  * usually tied to an anchor, and show as a dropdrown from the anchor.
  */
-public class GoannaPopupMenu implements GoannaMenu.Callback, 
+public class GoannaPopupMenu implements GoannaMenu.Callback,
                                        GoannaMenu.MenuPresenter {
 
     // An interface for listeners for dismissal.
@@ -33,6 +33,11 @@ public class GoannaPopupMenu implements GoannaMenu.Callback,
         public boolean onMenuItemClick(MenuItem item);
     }
 
+    // An interface for listeners for menu item long click events.
+    public static interface OnMenuItemLongClickListener {
+        public boolean onMenuItemLongClick(MenuItem item);
+    }
+
     private View mAnchor;
 
     private MenuPopup mMenuPopup;
@@ -43,6 +48,7 @@ public class GoannaPopupMenu implements GoannaMenu.Callback,
 
     private OnDismissListener mDismissListener;
     private OnMenuItemClickListener mClickListener;
+    private OnMenuItemLongClickListener mLongClickListener;
 
     public GoannaPopupMenu(Context context) {
         initialize(context, null);
@@ -64,6 +70,9 @@ public class GoannaPopupMenu implements GoannaMenu.Callback,
 
         mMenuPopup = new MenuPopup(context);
         mMenuPanel = new MenuPanel(context, null);
+
+        mMenuPanel.addView(mMenu);
+        mMenuPopup.setPanelView(mMenuPanel);
 
         setAnchor(anchor);
     }
@@ -92,10 +101,9 @@ public class GoannaPopupMenu implements GoannaMenu.Callback,
      * @param menuRes The menu resource to be inflated.
      */
     public void inflate(int menuRes) {
-        mMenuInflater.inflate(menuRes, mMenu);
-
-        mMenuPanel.addView(mMenu);
-        mMenuPopup.setPanelView(mMenuPanel);
+        if (menuRes > 0) {
+            mMenuInflater.inflate(menuRes, mMenu);
+        }
     }
 
     /**
@@ -105,6 +113,12 @@ public class GoannaPopupMenu implements GoannaMenu.Callback,
      */
     public void setAnchor(View anchor) {
         mAnchor = anchor;
+
+        // Reposition the popup if the anchor changes while it's showing.
+        if (mMenuPopup.isShowing()) {
+            mMenuPopup.dismiss();
+            mMenuPopup.showAsDropDown(mAnchor);
+        }
     }
 
     public void setOnDismissListener(OnDismissListener listener) {
@@ -113,6 +127,10 @@ public class GoannaPopupMenu implements GoannaMenu.Callback,
 
     public void setOnMenuItemClickListener(OnMenuItemClickListener listener) {
         mClickListener = listener;
+    }
+
+    public void setOnMenuItemLongClickListener(OnMenuItemLongClickListener listener) {
+        mLongClickListener = listener;
     }
 
     /**
@@ -135,20 +153,19 @@ public class GoannaPopupMenu implements GoannaMenu.Callback,
         }
     }
 
-    /**
-     * Show/hide the arrow pointing to the anchor.
-     *
-     * @param show Show/hide the arrow.
-     */
-    public void showArrowToAnchor(boolean show) {
-        mMenuPopup.showArrowToAnchor(show);
+    @Override
+    public boolean onMenuItemClick(MenuItem item) {
+        if (mClickListener != null) {
+            return mClickListener.onMenuItemClick(item);
+        }
+        return false;
     }
 
     @Override
-    public boolean onMenuItemSelected(MenuItem item) {
-        if (mClickListener != null)
-            return mClickListener.onMenuItemClick(item);
-
+    public boolean onMenuItemLongClick(MenuItem item) {
+        if (mLongClickListener != null) {
+            return mLongClickListener.onMenuItemLongClick(item);
+        }
         return false;
     }
 

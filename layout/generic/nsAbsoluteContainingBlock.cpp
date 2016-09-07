@@ -13,12 +13,9 @@
 #include "nsContainerFrame.h"
 #include "nsGkAtoms.h"
 #include "nsIPresShell.h"
-#include "nsHTMLParts.h"
 #include "nsHTMLReflowState.h"
 #include "nsPresContext.h"
-#include "nsFrameManager.h"
 #include "nsCSSFrameConstructor.h"
-#include "nsIDocumentInlines.h"
 
 #ifdef DEBUG
 #include "nsBlockFrame.h"
@@ -37,7 +34,9 @@ static void PrettyUC(nscoord aSize, char* aBuf)
 }
 #endif
 
-nsresult
+using namespace mozilla;
+
+void
 nsAbsoluteContainingBlock::SetInitialChildList(nsIFrame*       aDelegatingFrame,
                                                ChildListID     aListID,
                                                nsFrameList&    aChildList)
@@ -47,10 +46,9 @@ nsAbsoluteContainingBlock::SetInitialChildList(nsIFrame*       aDelegatingFrame,
   nsFrame::VerifyDirtyBitSet(aChildList);
 #endif
   mAbsoluteFrames.SetFrames(aChildList);
-  return NS_OK;
 }
 
-nsresult
+void
 nsAbsoluteContainingBlock::AppendFrames(nsIFrame*      aDelegatingFrame,
                                         ChildListID    aListID,
                                         nsFrameList&   aFrameList)
@@ -68,11 +66,9 @@ nsAbsoluteContainingBlock::AppendFrames(nsIFrame*      aDelegatingFrame,
   aDelegatingFrame->PresContext()->PresShell()->
     FrameNeedsReflow(aDelegatingFrame, nsIPresShell::eResize,
                      NS_FRAME_HAS_DIRTY_CHILDREN);
-
-  return NS_OK;
 }
 
-nsresult
+void
 nsAbsoluteContainingBlock::InsertFrames(nsIFrame*      aDelegatingFrame,
                                         ChildListID    aListID,
                                         nsIFrame*      aPrevFrame,
@@ -92,8 +88,6 @@ nsAbsoluteContainingBlock::InsertFrames(nsIFrame*      aDelegatingFrame,
   aDelegatingFrame->PresContext()->PresShell()->
     FrameNeedsReflow(aDelegatingFrame, nsIPresShell::eResize,
                      NS_FRAME_HAS_DIRTY_CHILDREN);
-
-  return NS_OK;
 }
 
 void
@@ -104,14 +98,13 @@ nsAbsoluteContainingBlock::RemoveFrame(nsIFrame*       aDelegatingFrame,
   NS_ASSERTION(mChildListID == aListID, "unexpected child list");
   nsIFrame* nif = aOldFrame->GetNextInFlow();
   if (nif) {
-    static_cast<nsContainerFrame*>(nif->GetParent())
-      ->DeleteNextInFlowChild(aOldFrame->PresContext(), nif, false);
+    nif->GetParent()->DeleteNextInFlowChild(nif, false);
   }
 
   mAbsoluteFrames.DestroyFrame(aOldFrame);
 }
 
-nsresult
+void
 nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
                                   nsPresContext*           aPresContext,
                                   const nsHTMLReflowState& aReflowState,
@@ -127,7 +120,7 @@ nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
   bool reflowAll = aReflowState.ShouldReflowAllKids();
 
   nsIFrame* kidFrame;
-  nsOverflowContinuationTracker tracker(aPresContext, aDelegatingFrame, true);
+  nsOverflowContinuationTracker tracker(aDelegatingFrame, true);
   for (kidFrame = mAbsoluteFrames.FirstChild(); kidFrame; kidFrame = kidFrame->GetNextSibling()) {
     bool kidNeedsReflow = reflowAll || NS_SUBTREE_DIRTY(kidFrame) ||
       FrameDependsOnContainer(kidFrame, aCBWidthChanged, aCBHeightChanged);
@@ -139,21 +132,26 @@ nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
                           aConstrainHeight, kidFrame, kidStatus,
                           aOverflowAreas);
       nsIFrame* nextFrame = kidFrame->GetNextInFlow();
-      if (!NS_FRAME_IS_FULLY_COMPLETE(kidStatus)  &&
+      if (!NS_FRAME_IS_FULLY_COMPLETE(kidStatus) &&
           aDelegatingFrame->IsFrameOfType(nsIFrame::eCanContainOverflowContainers)) {
-        // We should create a continuation if there is no next-in-flow, but in this
-        // case the flexbox is seemingly overflowing itself, so we don't.
-        if (nextFrame) {
-          tracker.Insert(nextFrame, kidStatus);
-          NS_MergeReflowStatusInto(&reflowStatus, kidStatus);
+        // Need a continuation
+        if (!nextFrame) {
+          nextFrame =
+            aPresContext->PresShell()->FrameConstructor()->
+              CreateContinuingFrame(aPresContext, kidFrame, aDelegatingFrame);
         }
+        // Add it as an overflow container.
+        //XXXfr This is a hack to fix some of our printing dataloss.
+        // See bug 154892. Not sure how to do it "right" yet; probably want
+        // to keep continuations within an nsAbsoluteContainingBlock eventually.
+        tracker.Insert(nextFrame, kidStatus);
+        NS_MergeReflowStatusInto(&reflowStatus, kidStatus);
       }
       else {
         // Delete any continuations
         if (nextFrame) {
           nsOverflowContinuationTracker::AutoFinish fini(&tracker, kidFrame);
-          static_cast<nsContainerFrame*>(nextFrame->GetParent())
-            ->DeleteNextInFlowChild(aPresContext, nextFrame, true);
+          nextFrame->GetParent()->DeleteNextInFlowChild(nextFrame, true);
         }
       }
     }
@@ -191,7 +189,6 @@ nsAbsoluteContainingBlock::Reflow(nsContainerFrame*        aDelegatingFrame,
     NS_FRAME_SET_OVERFLOW_INCOMPLETE(reflowStatus);
 
   NS_MergeReflowStatusInto(&aReflowStatus, reflowStatus);
-  return NS_OK;
 }
 
 static inline bool IsFixedPaddingSize(const nsStyleCoord& aCoord)
@@ -341,7 +338,7 @@ nsAbsoluteContainingBlock::DoMarkFramesDirty(bool aMarkAllDirty)
 // mChildListID == kFixedList, the height is unconstrained.
 // since we don't allow replicated frames to split.
 
-nsresult
+void
 nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegatingFrame,
                                                nsPresContext*           aPresContext,
                                                const nsHTMLReflowState& aReflowState,
@@ -363,8 +360,8 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
 
     char width[16];
     char height[16];
-    PrettyUC(aReflowState.availableWidth, width);
-    PrettyUC(aReflowState.availableHeight, height);
+    PrettyUC(aReflowState.AvailableWidth(), width);
+    PrettyUC(aReflowState.AvailableHeight(), height);
     printf(" a=%s,%s ", width, height);
     PrettyUC(aReflowState.ComputedWidth(), width);
     PrettyUC(aReflowState.ComputedHeight(), height);
@@ -373,17 +370,20 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
   AutoNoisyIndenter indent(nsBlockFrame::gNoisy);
 #endif // DEBUG
 
-  nscoord availWidth = aContainingBlock.width;
-  if (availWidth == -1) {
-    NS_ASSERTION(aReflowState.ComputedWidth() != NS_UNCONSTRAINEDSIZE,
-                 "Must have a useful width _somewhere_");
-    availWidth =
-      aReflowState.ComputedWidth() + aReflowState.mComputedPadding.LeftRight();
+  WritingMode wm = aKidFrame->GetWritingMode();
+  nscoord availISize = LogicalSize(wm, aContainingBlock.Size()).ISize(wm);
+  if (availISize == -1) {
+    NS_ASSERTION(aReflowState.ComputedSize(wm).ISize(wm) !=
+                   NS_UNCONSTRAINEDSIZE,
+                 "Must have a useful inline-size _somewhere_");
+    availISize =
+      aReflowState.ComputedSizeWithPadding(wm).ISize(wm);
   }
 
-  nsHTMLReflowMetrics kidDesiredSize;
+  nsHTMLReflowMetrics kidDesiredSize(aReflowState);
   nsHTMLReflowState kidReflowState(aPresContext, aReflowState, aKidFrame,
-                                   nsSize(availWidth, NS_UNCONSTRAINEDSIZE),
+                                   LogicalSize(wm, availISize,
+                                               NS_UNCONSTRAINEDSIZE),
                                    aContainingBlock.width,
                                    aContainingBlock.height);
 
@@ -393,29 +393,29 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
   // Get the border values
   const nsMargin& border = aReflowState.mStyleBorder->GetComputedBorder();
 
-  bool constrainHeight = (aReflowState.availableHeight != NS_UNCONSTRAINEDSIZE)
+  bool constrainHeight = (aReflowState.AvailableHeight() != NS_UNCONSTRAINEDSIZE)
     && aConstrainHeight
        // Don't split if told not to (e.g. for fixed frames)
     && (aDelegatingFrame->GetType() != nsGkAtoms::inlineFrame)
        //XXX we don't handle splitting frames for inline absolute containing blocks yet
-    && (aKidFrame->GetRect().y <= aReflowState.availableHeight);
+    && (aKidFrame->GetRect().y <= aReflowState.AvailableHeight());
        // Don't split things below the fold. (Ideally we shouldn't *have*
        // anything totally below the fold, but we can't position frames
        // across next-in-flow breaks yet.
   if (constrainHeight) {
-    kidReflowState.availableHeight = aReflowState.availableHeight - border.top
-                                     - kidReflowState.mComputedMargin.top;
-    if (NS_AUTOOFFSET != kidReflowState.mComputedOffsets.top)
-      kidReflowState.availableHeight -= kidReflowState.mComputedOffsets.top;
+    kidReflowState.AvailableHeight() = aReflowState.AvailableHeight() - border.top
+                                     - kidReflowState.ComputedPhysicalMargin().top;
+    if (NS_AUTOOFFSET != kidReflowState.ComputedPhysicalOffsets().top)
+      kidReflowState.AvailableHeight() -= kidReflowState.ComputedPhysicalOffsets().top;
   }
 
   // Do the reflow
-  nsresult rv = aKidFrame->Reflow(aPresContext, kidDesiredSize, kidReflowState, aStatus);
+  aKidFrame->Reflow(aPresContext, kidDesiredSize, kidReflowState, aStatus);
 
   // If we're solving for 'left' or 'top', then compute it now that we know the
   // width/height
-  if ((NS_AUTOOFFSET == kidReflowState.mComputedOffsets.left) ||
-      (NS_AUTOOFFSET == kidReflowState.mComputedOffsets.top)) {
+  if ((NS_AUTOOFFSET == kidReflowState.ComputedPhysicalOffsets().left) ||
+      (NS_AUTOOFFSET == kidReflowState.ComputedPhysicalOffsets().top)) {
     nscoord aContainingBlockWidth = aContainingBlock.width;
     nscoord aContainingBlockHeight = aContainingBlock.height;
 
@@ -427,28 +427,28 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
                                                      aContainingBlockHeight);
     }
 
-    if (NS_AUTOOFFSET == kidReflowState.mComputedOffsets.left) {
-      NS_ASSERTION(NS_AUTOOFFSET != kidReflowState.mComputedOffsets.right,
+    if (NS_AUTOOFFSET == kidReflowState.ComputedPhysicalOffsets().left) {
+      NS_ASSERTION(NS_AUTOOFFSET != kidReflowState.ComputedPhysicalOffsets().right,
                    "Can't solve for both left and right");
-      kidReflowState.mComputedOffsets.left = aContainingBlockWidth -
-                                             kidReflowState.mComputedOffsets.right -
-                                             kidReflowState.mComputedMargin.right -
-                                             kidDesiredSize.width -
-                                             kidReflowState.mComputedMargin.left;
+      kidReflowState.ComputedPhysicalOffsets().left = aContainingBlockWidth -
+                                             kidReflowState.ComputedPhysicalOffsets().right -
+                                             kidReflowState.ComputedPhysicalMargin().right -
+                                             kidDesiredSize.Width() -
+                                             kidReflowState.ComputedPhysicalMargin().left;
     }
-    if (NS_AUTOOFFSET == kidReflowState.mComputedOffsets.top) {
-      kidReflowState.mComputedOffsets.top = aContainingBlockHeight -
-                                            kidReflowState.mComputedOffsets.bottom -
-                                            kidReflowState.mComputedMargin.bottom -
-                                            kidDesiredSize.height -
-                                            kidReflowState.mComputedMargin.top;
+    if (NS_AUTOOFFSET == kidReflowState.ComputedPhysicalOffsets().top) {
+      kidReflowState.ComputedPhysicalOffsets().top = aContainingBlockHeight -
+                                            kidReflowState.ComputedPhysicalOffsets().bottom -
+                                            kidReflowState.ComputedPhysicalMargin().bottom -
+                                            kidDesiredSize.Height() -
+                                            kidReflowState.ComputedPhysicalMargin().top;
     }
   }
 
   // Position the child relative to our padding edge
-  nsRect  rect(border.left + kidReflowState.mComputedOffsets.left + kidReflowState.mComputedMargin.left,
-               border.top + kidReflowState.mComputedOffsets.top + kidReflowState.mComputedMargin.top,
-               kidDesiredSize.width, kidDesiredSize.height);
+  nsRect  rect(border.left + kidReflowState.ComputedPhysicalOffsets().left + kidReflowState.ComputedPhysicalMargin().left,
+               border.top + kidReflowState.ComputedPhysicalOffsets().top + kidReflowState.ComputedPhysicalMargin().top,
+               kidDesiredSize.Width(), kidDesiredSize.Height());
 
   // Offset the frame rect by the given origin of the absolute containing block.
   // If the frame is auto-positioned on both sides of an axis, it will be
@@ -495,6 +495,4 @@ nsAbsoluteContainingBlock::ReflowAbsoluteFrame(nsIFrame*                aDelegat
   if (aOverflowAreas) {
     aOverflowAreas->UnionWith(kidDesiredSize.mOverflowAreas + rect.TopLeft());
   }
-
-  return rv;
 }

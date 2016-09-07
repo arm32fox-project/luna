@@ -42,9 +42,11 @@ public:
  */
 class nsDBusService : public nsISupports
 {
+protected:
+  virtual ~nsDBusService();
+
 public:
   nsDBusService();
-  virtual ~nsDBusService();
 
   NS_DECL_ISUPPORTS
   NS_DECLARE_STATIC_IID_ACCESSOR(NS_DBUS_IID)
@@ -71,5 +73,7 @@ private:
   nsCOMPtr<nsITimer> mReconnectTimer;
   DBusClient*        mSingleClient;
 };
+
+NS_DEFINE_STATIC_IID_ACCESSOR(nsDBusService, NS_DBUS_IID)
 
 #endif /*NSDBUSSERVICE_H_*/

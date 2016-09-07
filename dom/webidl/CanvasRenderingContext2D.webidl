@@ -11,10 +11,19 @@
  * and create derivative works of this document.
  */
 
-interface HitRegionOptions;
-interface Window;
-
 enum CanvasWindingRule { "nonzero", "evenodd" };
+
+dictionary ContextAttributes2D {
+  // whether or not we're planning to do a lot of readback operations
+  boolean willReadFrequently = false;
+  // signal if the canvas contains an alpha channel
+  boolean alpha = true;
+};
+
+dictionary HitRegionOptions {
+  DOMString id = "";
+  Element? control = null;
+};
 
 interface CanvasRenderingContext2D {
 
@@ -38,7 +47,8 @@ interface CanvasRenderingContext2D {
   void transform(double a, double b, double c, double d, double e, double f);
   [Throws, LenientFloat]
   void setTransform(double a, double b, double c, double d, double e, double f);
-// NOT IMPLEMENTED  void resetTransform();
+  [Throws]
+  void resetTransform();
 
   // compositing
            attribute unrestricted double globalAlpha; // (default 1.0)
@@ -46,15 +56,13 @@ interface CanvasRenderingContext2D {
            attribute DOMString globalCompositeOperation; // (default source-over)
 
   // colors and styles (see also the CanvasDrawingStyles interface)
-           [GetterThrows]
-           attribute any strokeStyle; // (default black)
-           [GetterThrows]
-           attribute any fillStyle; // (default black)
-  [Creator]
+           attribute (DOMString or CanvasGradient or CanvasPattern) strokeStyle; // (default black)
+           attribute (DOMString or CanvasGradient or CanvasPattern) fillStyle; // (default black)
+  [NewObject]
   CanvasGradient createLinearGradient(double x0, double y0, double x1, double y1);
-  [Creator, Throws]
+  [NewObject, Throws]
   CanvasGradient createRadialGradient(double x0, double y0, double r0, double x1, double y1, double r1);
-  [Creator, Throws]
+  [NewObject, Throws]
   CanvasPattern createPattern((HTMLImageElement or HTMLCanvasElement or HTMLVideoElement) image, [TreatNullAs=EmptyString] DOMString repetition);
 
   // shadows
@@ -66,6 +74,9 @@ interface CanvasRenderingContext2D {
            attribute double shadowBlur; // (default 0)
            attribute DOMString shadowColor; // (default transparent black)
 
+  [Pref="canvas.filters.enabled", SetterThrows]
+  attribute DOMString filter; // (default empty string = no filter)
+
   // rects
   [LenientFloat]
   void clearRect(double x, double y, double w, double h);
@@ -76,29 +87,30 @@ interface CanvasRenderingContext2D {
 
   // path API (see also CanvasPathMethods)
   void beginPath();
-  void fill([TreatUndefinedAs=Missing] optional CanvasWindingRule winding = "nonzero");
-// NOT IMPLEMENTED  void fill(Path path);
+  void fill(optional CanvasWindingRule winding = "nonzero");
+  void fill(Path2D path, optional CanvasWindingRule winding = "nonzero");
   void stroke();
-// NOT IMPLEMENTED  void stroke(Path path);
-// NOT IMPLEMENTED  void drawSystemFocusRing(Element element);
-// NOT IMPLEMENTED  void drawSystemFocusRing(Path path, Element element);
-// NOT IMPLEMENTED  boolean drawCustomFocusRing(Element element);
-// NOT IMPLEMENTED  boolean drawCustomFocusRing(Path path, Element element);
+  void stroke(Path2D path);
+  [Pref="canvas.focusring.enabled"] void drawFocusIfNeeded(Element element);
+// NOT IMPLEMENTED  void drawSystemFocusRing(Path path, HTMLElement element);
+  [Pref="canvas.customfocusring.enabled"] boolean drawCustomFocusRing(Element element);
+// NOT IMPLEMENTED  boolean drawCustomFocusRing(Path path, HTMLElement element);
 // NOT IMPLEMENTED  void scrollPathIntoView();
 // NOT IMPLEMENTED  void scrollPathIntoView(Path path);
-  void clip([TreatUndefinedAs=Missing] optional CanvasWindingRule winding = "nonzero");
-// NOT IMPLEMENTED  void clip(Path path);
+  void clip(optional CanvasWindingRule winding = "nonzero");
+  void clip(Path2D path, optional CanvasWindingRule winding = "nonzero");
 // NOT IMPLEMENTED  void resetClip();
-  boolean isPointInPath(unrestricted double x, unrestricted double y, [TreatUndefinedAs=Missing] optional CanvasWindingRule winding = "nonzero");
-// NOT IMPLEMENTED  boolean isPointInPath(Path path, unrestricted double x, unrestricted double y);
+  boolean isPointInPath(unrestricted double x, unrestricted double y, optional CanvasWindingRule winding = "nonzero");
+  boolean isPointInPath(Path2D path, unrestricted double x, unrestricted double y, optional CanvasWindingRule winding = "nonzero");
   boolean isPointInStroke(double x, double y);
+  boolean isPointInStroke(Path2D path, unrestricted double x, unrestricted double y);
 
   // text (see also the CanvasDrawingStyles interface)
   [Throws, LenientFloat]
   void fillText(DOMString text, double x, double y, optional double maxWidth);
   [Throws, LenientFloat]
   void strokeText(DOMString text, double x, double y, optional double maxWidth);
-  [Creator, Throws]
+  [NewObject, Throws]
   TextMetrics measureText(DOMString text);
 
   // drawing images
@@ -111,14 +123,16 @@ interface CanvasRenderingContext2D {
   void drawImage((HTMLImageElement or HTMLCanvasElement or HTMLVideoElement) image, double sx, double sy, double sw, double sh, double dx, double dy, double dw, double dh);
 
   // hit regions
-// NOT IMPLEMENTED  void addHitRegion(HitRegionOptions options);
+  [Pref="canvas.hitregions.enabled", Throws] void addHitRegion(optional HitRegionOptions options);
+  [Pref="canvas.hitregions.enabled"] void removeHitRegion(DOMString id);
+  [Pref="canvas.hitregions.enabled"] void clearHitRegions();
 
   // pixel manipulation
-  [Creator, Throws]
+  [NewObject, Throws]
   ImageData createImageData(double sw, double sh);
-  [Creator, Throws]
+  [NewObject, Throws]
   ImageData createImageData(ImageData imagedata);
-  [Creator, Throws]
+  [NewObject, Throws]
   ImageData getImageData(double sx, double sy, double sw, double sh);
   [Throws]
   void putImageData(ImageData imagedata, double dx, double dy);
@@ -209,6 +223,12 @@ interface CanvasRenderingContext2D {
   void asyncDrawXULElement(XULElement elem, double x, double y, double w,
                            double h, DOMString bgColor,
                            optional unsigned long flags = 0);
+  /**
+   * This causes a context that is currently using a hardware-accelerated
+   * backend to fallback to a software one. All state should be preserved.
+   */
+  [ChromeOnly]
+  void demote();
 };
 CanvasRenderingContext2D implements CanvasDrawingStyles;
 CanvasRenderingContext2D implements CanvasPathMethods;
@@ -271,7 +291,11 @@ interface CanvasGradient {
 
 interface CanvasPattern {
   // opaque object
-  // void setTransform(SVGMatrix transform);
+  // [Throws, LenientFloat] - could not do this overload because of bug 1020975
+  // void setTransform(double a, double b, double c, double d, double e, double f);
+
+  // No throw necessary here - SVGMatrix is always good.
+  void setTransform(SVGMatrix matrix);
 };
 
 interface TextMetrics {
@@ -299,3 +323,12 @@ interface TextMetrics {
 
 };
 
+[Pref="canvas.path.enabled",
+ Constructor,
+ Constructor(Path2D other),
+ Constructor(DOMString pathString)]
+interface Path2D
+{
+  void addPath(Path2D path, optional SVGMatrix transformation);
+};
+Path2D implements CanvasPathMethods;

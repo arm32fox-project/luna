@@ -3,22 +3,21 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "jsperf.h"
-#include "jsutil.h"
-
-using namespace js;
-
 /* This variant of nsIPerfMeasurement uses the perf_event interface
  * added in Linux 2.6.31.  We key compilation of this file off the
  * existence of <linux/perf_event.h>.
  */
 
-#include <linux/perf_event.h>
-#include <sys/syscall.h>
-#include <sys/ioctl.h>
 #include <errno.h>
-#include <unistd.h>
+#include <linux/perf_event.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/syscall.h>
+#include <unistd.h>
+
+#include "perf/jsperf.h"
+
+using namespace js;
 
 // As of July 2010, this system call has not been added to the
 // C library, so we have to provide our own wrapper function.
@@ -26,7 +25,7 @@ using namespace js;
 // system call (2.6.30 or older) nothing unpredictable will
 // happen - it will just always fail and return -1.
 static int
-sys_perf_event_open(struct perf_event_attr *attr, pid_t pid, int cpu,
+sys_perf_event_open(struct perf_event_attr* attr, pid_t pid, int cpu,
                     int group_fd, unsigned long flags)
 {
     return syscall(__NR_perf_event_open, attr, pid, cpu, group_fd, flags);
@@ -135,7 +134,7 @@ Impl::~Impl()
 EventMask
 Impl::init(EventMask toMeasure)
 {
-    JS_ASSERT(group_leader == -1);
+    MOZ_ASSERT(group_leader == -1);
     if (!toMeasure)
         return EventMask(0);
 

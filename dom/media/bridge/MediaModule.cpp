@@ -2,8 +2,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "base/linked_ptr.h"
-
 #include "mozilla/ModuleUtils.h"
 #include "nsIClassInfoImpl.h"
 
@@ -16,9 +14,16 @@
 
 #define PEERCONNECTION_CONTRACTID "@mozilla.org/peerconnection;1"
 
-namespace sipcc
+#include "stun_udp_socket_filter.h"
+
+NS_DEFINE_NAMED_CID(NS_STUN_UDP_SOCKET_FILTER_HANDLER_CID)
+
+NS_GENERIC_FACTORY_CONSTRUCTOR(nsStunUDPSocketFilterHandler)
+
+
+namespace mozilla
 {
-// Factory defined in sipcc::, defines sipcc::PeerConnectionImplConstructor
+// Factory defined in mozilla::, defines mozilla::PeerConnectionImplConstructor
 NS_GENERIC_FACTORY_CONSTRUCTOR(PeerConnectionImpl)
 }
 
@@ -26,13 +31,15 @@ NS_GENERIC_FACTORY_CONSTRUCTOR(PeerConnectionImpl)
 NS_DEFINE_NAMED_CID(PEERCONNECTION_CID);
 
 static const mozilla::Module::CIDEntry kCIDs[] = {
-  { &kPEERCONNECTION_CID, false, NULL, sipcc::PeerConnectionImplConstructor },
-  { NULL }
+  { &kPEERCONNECTION_CID, false, nullptr, mozilla::PeerConnectionImplConstructor },
+  { &kNS_STUN_UDP_SOCKET_FILTER_HANDLER_CID, false, nullptr, nsStunUDPSocketFilterHandlerConstructor },
+  { nullptr }
 };
 
 static const mozilla::Module::ContractIDEntry kContracts[] = {
   { PEERCONNECTION_CONTRACTID, &kPEERCONNECTION_CID },
-  { NULL }
+  { NS_STUN_UDP_SOCKET_FILTER_HANDLER_CONTRACTID, &kNS_STUN_UDP_SOCKET_FILTER_HANDLER_CID },
+  { nullptr }
 };
 
 static const mozilla::Module kModule = {

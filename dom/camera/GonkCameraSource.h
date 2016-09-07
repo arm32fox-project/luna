@@ -23,14 +23,17 @@
 #include <camera/CameraParameters.h>
 #include <utils/List.h>
 #include <utils/RefBase.h>
-#include <utils/threads.h>
+#include <utils/String16.h>
 
 #include "GonkCameraHwMgr.h"
+
+namespace mozilla {
+class ICameraControl;
+}
 
 namespace android {
 
 class IMemory;
-class GonkCameraSourceListener;
 
 class GonkCameraSource : public MediaSource, public MediaBufferObserver {
 public:
@@ -40,10 +43,14 @@ public:
                                     int32_t frameRate,
                                     bool storeMetaDataInVideoBuffers = false);
 
+    static GonkCameraSource *Create(mozilla::ICameraControl* aControl,
+                                    Size videoSize,
+                                    int32_t frameRate);
+
     virtual ~GonkCameraSource();
 
     virtual status_t start(MetaData *params = NULL);
-    virtual status_t stop();
+    virtual status_t stop() { return reset(); }
     virtual status_t read(
             MediaBuffer **buffer, const ReadOptions *options = NULL);
 
@@ -76,6 +83,24 @@ public:
 
     virtual void signalBufferReturned(MediaBuffer* buffer);
 
+    /**
+     * It sends recording frames to listener directly in the same thread.
+     * Because recording frame is critical resource and it should not be
+     * propagated to other thread as much as possible or there could be frame
+     * rate jitter due to camera HAL waiting for resource.
+     */
+    class DirectBufferListener : public RefBase {
+    public:
+        DirectBufferListener() {};
+
+        virtual status_t BufferAvailable(MediaBuffer* aBuffer) = 0;
+
+    protected:
+        virtual ~DirectBufferListener() {}
+    };
+
+    status_t AddDirectBufferListener(DirectBufferListener* aListener);
+
 protected:
 
     enum CameraFlags {
@@ -85,6 +110,7 @@ protected:
 
     int32_t  mCameraFlags;
     Size     mVideoSize;
+    int32_t  mNumInputBuffers;
     int32_t  mVideoFrameRate;
     int32_t  mColorFormat;
     status_t mInitCheck;
@@ -127,6 +153,7 @@ private:
     List<sp<IMemory> > mFramesReceived;
     List<sp<IMemory> > mFramesBeingEncoded;
     List<int64_t> mFrameTimes;
+    bool mRateLimit;
 
     int64_t mFirstFrameTimeUs;
     int32_t mNumFramesDropped;
@@ -135,6 +162,7 @@ private:
     bool mCollectStats;
     bool mIsMetaDataStoredInVideoBuffers;
     sp<GonkCameraHardware> mCameraHw;
+    sp<DirectBufferListener> mDirectBufferListener;
 
     void releaseQueuedFrames();
     void releaseOneRecordingFrame(const sp<IMemory>& frame);
@@ -153,6 +181,7 @@ private:
                     int32_t frameRate);
 
     void releaseCamera();
+    status_t reset();
 
     GonkCameraSource(const GonkCameraSource &);
     GonkCameraSource &operator=(const GonkCameraSource &);

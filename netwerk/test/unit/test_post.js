@@ -2,12 +2,12 @@
 // POST test
 //
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
 Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
+
+XPCOMUtils.defineLazyGetter(this, "URL", function() {
+  return "http://localhost:" + httpserver.identity.primaryPort;
+});
 
 var httpserver = new HttpServer();
 var testpath = "/simple";
@@ -56,7 +56,7 @@ function run_test() {
   mime.addContentLength = true;
 
   httpserver.registerPathHandler(testpath, serverHandler);
-  httpserver.start(4444);
+  httpserver.start(-1);
 
   var channel = setupChannel(testpath);
 
@@ -71,7 +71,14 @@ function run_test() {
 
 function setupChannel(path) {
   var ios = Cc["@mozilla.org/network/io-service;1"].getService(Ci.nsIIOService);
-  return chan = ios.newChannel("http://localhost:4444" + path, "", null)
+  return chan = ios.newChannel2(URL + path,
+                               "",
+                               null,
+                               null,      // aLoadingNode
+                               Services.scriptSecurityManager.getSystemPrincipal(),
+                               null,      // aTriggeringPrincipal
+                               Ci.nsILoadInfo.SEC_NORMAL,
+                               Ci.nsIContentPolicy.TYPE_OTHER)
                    .QueryInterface(Ci.nsIHttpChannel);
 }
 

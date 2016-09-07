@@ -8,8 +8,15 @@ const {classes: Cc, interfaces: Ci, utils: Cu} = Components;
 const XHTML_NS = "http://www.w3.org/1999/xhtml";
 
 Cu.import("resource://gre/modules/Services.jsm");
-Cu.import("resource://gre/modules/ConsoleAPIStorage.jsm");
-Cu.import("resource://gre/modules/devtools/WebConsoleUtils.jsm");
+
+let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
+let WebConsoleUtils = devtools.require("devtools/toolkit/webconsole/utils").Utils;
+
+let ConsoleAPIStorage = Cc["@mozilla.org/consoleAPI-storage;1"]
+                          .getService(Ci.nsIConsoleAPIStorage);
+
+let {ConsoleServiceListener, ConsoleAPIListener} =
+  devtools.require("devtools/toolkit/webconsole/utils");
 
 function initCommon()
 {
@@ -113,6 +120,9 @@ function checkValue(aName, aValue, aExpected)
   else if (aValue === undefined) {
     ok(false, "'" + aName + "' is undefined");
   }
+  else if (aValue === null) {
+    ok(false, "'" + aName + "' is null");
+  }
   else if (typeof aExpected == "string" || typeof aExpected == "number" ||
            typeof aExpected == "boolean") {
     is(aValue, aExpected, "property '" + aName + "'");
@@ -148,6 +158,24 @@ function checkHeadersOrCookies(aArray, aExpected)
       ok(false, header + " was not found");
     }
   }
+}
+
+function checkRawHeaders(aText, aExpected)
+{
+  let headers = aText.split(/\r\n|\n|\r/);
+  let arr = [];
+  for (let header of headers) {
+    let index = header.indexOf(": ");
+    if (index < 0) {
+      continue;
+    }
+    arr.push({
+      name: header.substr(0, index),
+      value: header.substr(index + 2)
+    });
+  }
+
+  checkHeadersOrCookies(arr, aExpected);
 }
 
 var gTestState = {};

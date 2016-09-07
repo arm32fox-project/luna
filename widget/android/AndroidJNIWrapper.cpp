@@ -3,8 +3,6 @@
  * License, v. 2.0. If a copy of the MPL was not distributed with this
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
-#include "mozilla/Util.h"
-
 #include <android/log.h>
 #include <dlfcn.h>
 #include <prthread.h>
@@ -13,12 +11,6 @@
 #include "mozilla/Assertions.h"
 #include "nsThreadUtils.h"
 #include "AndroidBridge.h"
-
-#ifdef DEBUG
-#define ALOG_BRIDGE(args...) ALOG(args)
-#else
-#define ALOG_BRIDGE(args...)
-#endif
 
 extern "C" {
   jclass __jsjni_GetGlobalClassRef(const char *className);
@@ -45,7 +37,6 @@ extern "C" {
     // to missing the classpath
     MOZ_ASSERT(NS_IsMainThread());
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
-    if (!env) return NULL;
     return env->FindClass(className);
   }
 
@@ -55,7 +46,7 @@ extern "C" {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
     jclass globalRef = static_cast<jclass>(env->NewGlobalRef(env->FindClass(className)));
     if (!globalRef)
-      return NULL;
+      return nullptr;
 
     // return the newly create global reference
     return globalRef;
@@ -64,10 +55,6 @@ extern "C" {
   __attribute__ ((visibility("default")))
   jclass
   jsjni_GetGlobalClassRef(const char *className) {
-    if (NS_IsMainThread()) {
-      return __jsjni_GetGlobalClassRef(className);
-    }
-
     nsCOMPtr<nsIThread> mainThread;
     mozilla::DebugOnly<nsresult> rv = NS_GetMainThread(getter_AddRefs(mainThread));
     MOZ_ASSERT(NS_SUCCEEDED(rv));
@@ -77,7 +64,7 @@ extern "C" {
                                                                      &foundClass));
     mainThread->Dispatch(runnable_ref, NS_DISPATCH_SYNC);
     if (!foundClass)
-      return NULL;
+      return nullptr;
 
     return foundClass;
   }
@@ -88,7 +75,6 @@ extern "C" {
                           const char *methodName,
                           const char *signature) {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
-    if (!env) return NULL;
     return env->GetStaticMethodID(methodClass, methodName, signature);
   }
 
@@ -96,7 +82,6 @@ extern "C" {
   bool
   jsjni_ExceptionCheck() {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
-    if (!env) return NULL;
     return env->ExceptionCheck();
   }
 
@@ -106,7 +91,6 @@ extern "C" {
                               jmethodID method,
                               jvalue *values) {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
-    if (!env) return;
 
     mozilla::AutoLocalJNIFrame jniFrame(env);
     env->CallStaticVoidMethodA(cls, method, values);
@@ -118,7 +102,6 @@ extern "C" {
                              jmethodID method,
                              jvalue *values) {
     JNIEnv *env = mozilla::AndroidBridge::GetJNIEnv();
-    if (!env) return -1;
 
     mozilla::AutoLocalJNIFrame jniFrame(env);
     return env->CallStaticIntMethodA(cls, method, values);
@@ -132,5 +115,10 @@ extern "C" {
   __attribute__ ((visibility("default")))
   JavaVM* jsjni_GetVM() {
     return mozilla::AndroidBridge::GetVM();
+  }
+
+  __attribute__ ((visibility("default")))
+  JNIEnv* jsjni_GetJNIForThread() {
+    return GetJNIForThread();
   }
 }

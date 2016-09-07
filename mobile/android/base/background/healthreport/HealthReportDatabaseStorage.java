@@ -12,6 +12,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
 
 import org.json.JSONObject;
+import org.mozilla.goanna.background.common.DateUtils;
 import org.mozilla.goanna.background.common.log.Logger;
 import org.mozilla.goanna.background.healthreport.HealthReportStorage.MeasurementFields.FieldSpec;
 
@@ -20,9 +21,9 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.database.Cursor;
 import android.database.SQLException;
+import android.database.sqlite.SQLiteConstraintException;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
-import android.os.Build;
 import android.util.SparseArray;
 
 /**
@@ -126,7 +127,7 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
   };
 
   private static final String[] COLUMNS_ENVIRONMENT_DETAILS = new String[] {
-      "id", "hash",
+      "id", "version", "hash",
       "profileCreation", "cpuCount", "memoryMB",
 
       "isBlocklistEnabled", "isTelemetryEnabled", "extensionCount",
@@ -136,8 +137,15 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
       "appVersion", "appBuildID", "platformVersion", "platformBuildID", "os",
       "xpcomabi", "updateChannel",
 
+      "distribution", "osLocale", "appLocale", "acceptLangSet",
+
       // Joined to the add-ons table.
-      "addonsBody"
+      "addonsBody",
+
+      // v3.
+      "hasHardwareKeyboard",
+      "uiMode", "uiType",
+      "screenLayout", "screenXInMM", "screenYInMM"
   };
 
   public static final String[] COLUMNS_MEASUREMENT_DETAILS = new String[] {"id", "name", "version"};
@@ -186,7 +194,7 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
   protected final HealthReportSQLiteOpenHelper helper;
 
   public static class HealthReportSQLiteOpenHelper extends SQLiteOpenHelper {
-    public static final int CURRENT_VERSION = 4;
+    public static final int CURRENT_VERSION = 7;
     public static final String LOG_TAG = "HealthReportSQL";
 
     /**
@@ -225,131 +233,146 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
       return parent.getAbsolutePath() + File.separator + name;
     }
 
-    public static boolean CAN_USE_ABSOLUTE_DB_PATH = (Build.VERSION.SDK_INT >= Build.VERSION_CODES.FROYO);
     public HealthReportSQLiteOpenHelper(Context context, File profileDirectory, String name) {
-      super(
-          (CAN_USE_ABSOLUTE_DB_PATH ? context : new AbsolutePathContext(context, profileDirectory)),
-          (CAN_USE_ABSOLUTE_DB_PATH ? getAbsolutePath(profileDirectory, name) : name),
-          null,
-          CURRENT_VERSION);
+      this(context, profileDirectory, name, CURRENT_VERSION);
+    }
 
-      if (CAN_USE_ABSOLUTE_DB_PATH) {
-        Logger.pii(LOG_TAG, "Opening: " + getAbsolutePath(profileDirectory, name));
-      }
+    // For testing DBs of different versions.
+    public HealthReportSQLiteOpenHelper(Context context, File profileDirectory, String name, int version) {
+      super(context, getAbsolutePath(profileDirectory, name), null, version);
+      Logger.pii(LOG_TAG, "Opening: " + getAbsolutePath(profileDirectory, name));
     }
 
     @Override
     public void onCreate(SQLiteDatabase db) {
-      db.beginTransaction();
-      try {
-        db.execSQL("CREATE TABLE addons (id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                   "                     body TEXT, " +
-                   "                     UNIQUE (body) " +
-                   ")");
+      db.execSQL("CREATE TABLE addons (id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                 "                     body TEXT, " +
+                 "                     UNIQUE (body) " +
+                 ")");
 
-        db.execSQL("CREATE TABLE environments (id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                   "                           hash TEXT, " +
-                   "                           profileCreation INTEGER, " +
-                   "                           cpuCount        INTEGER, " +
-                   "                           memoryMB        INTEGER, " +
-                   "                           isBlocklistEnabled INTEGER, " +
-                   "                           isTelemetryEnabled INTEGER, " +
-                   "                           extensionCount     INTEGER, " +
-                   "                           pluginCount        INTEGER, " +
-                   "                           themeCount         INTEGER, " +
-                   "                           architecture    TEXT, " +
-                   "                           sysName         TEXT, " +
-                   "                           sysVersion      TEXT, " +
-                   "                           vendor          TEXT, " +
-                   "                           appName         TEXT, " +
-                   "                           appID           TEXT, " +
-                   "                           appVersion      TEXT, " +
-                   "                           appBuildID      TEXT, " +
-                   "                           platformVersion TEXT, " +
-                   "                           platformBuildID TEXT, " +
-                   "                           os              TEXT, " +
-                   "                           xpcomabi        TEXT, " +
-                   "                           updateChannel   TEXT, " +
-                   "                           addonsID        INTEGER, " +
-                   "                           FOREIGN KEY (addonsID) REFERENCES addons(id) ON DELETE RESTRICT, " +
-                   "                           UNIQUE (hash) " +
-                   ")");
+      // N.B., hash collisions can occur across versions. In that case, the system
+      // is likely to persist the original environment version.
+      db.execSQL("CREATE TABLE environments (id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                 "                           version INTEGER, " +
+                 "                           hash TEXT, " +
+                 "                           profileCreation INTEGER, " +
+                 "                           cpuCount        INTEGER, " +
+                 "                           memoryMB        INTEGER, " +
+                 "                           isBlocklistEnabled INTEGER, " +
+                 "                           isTelemetryEnabled INTEGER, " +
+                 "                           extensionCount     INTEGER, " +
+                 "                           pluginCount        INTEGER, " +
+                 "                           themeCount         INTEGER, " +
+                 "                           architecture    TEXT, " +
+                 "                           sysName         TEXT, " +
+                 "                           sysVersion      TEXT, " +
+                 "                           vendor          TEXT, " +
+                 "                           appName         TEXT, " +
+                 "                           appID           TEXT, " +
+                 "                           appVersion      TEXT, " +
+                 "                           appBuildID      TEXT, " +
+                 "                           platformVersion TEXT, " +
+                 "                           platformBuildID TEXT, " +
+                 "                           os              TEXT, " +
+                 "                           xpcomabi        TEXT, " +
+                 "                           updateChannel   TEXT, " +
 
-        db.execSQL("CREATE TABLE measurements (id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                   "                           name TEXT, " +
-                   "                           version INTEGER, " +
-                   "                           UNIQUE (name, version) " +
-                   ")");
+                 "                           distribution    TEXT, " +
+                 "                           osLocale        TEXT, " +
+                 "                           appLocale       TEXT, " +
+                 "                           acceptLangSet   INTEGER, " +
 
-        db.execSQL("CREATE TABLE fields (id INTEGER PRIMARY KEY AUTOINCREMENT, " +
-                   "                     measurement INTEGER, " +
-                   "                     name TEXT, " +
-                   "                     flags INTEGER, " +
-                   "                     FOREIGN KEY (measurement) REFERENCES measurements(id) ON DELETE CASCADE, " +
-                   "                     UNIQUE (measurement, name)" +
-                   ")");
+                 "                           addonsID        INTEGER, " +
 
-        db.execSQL("CREATE TABLE " + EVENTS_INTEGER + "(" +
-                   "                 date  INTEGER, " +
-                   "                 env   INTEGER, " +
-                   "                 field INTEGER, " +
-                   "                 value INTEGER, " +
-                   "                 FOREIGN KEY (field) REFERENCES fields(id) ON DELETE CASCADE, " +
-                   "                 FOREIGN KEY (env) REFERENCES environments(id) ON DELETE CASCADE" +
-                   ")");
+                 "                           hasHardwareKeyboard INTEGER, " +
+                 "                           uiMode          INTEGER, " +
+                 "                           uiType          TEXT, " +
+                 "                           screenLayout    INTEGER, " +
+                 "                           screenXInMM     INTEGER, " +
+                 "                           screenYInMM     INTEGER, " +
 
-        db.execSQL("CREATE TABLE " + EVENTS_TEXTUAL + "(" +
-                   "                 date  INTEGER, " +
-                   "                 env   INTEGER, " +
-                   "                 field INTEGER, " +
-                   "                 value TEXT, " +
-                   "                 FOREIGN KEY (field) REFERENCES fields(id) ON DELETE CASCADE, " +
-                   "                 FOREIGN KEY (env) REFERENCES environments(id) ON DELETE CASCADE" +
-                   ")");
+                 "                           FOREIGN KEY (addonsID) REFERENCES addons(id) ON DELETE RESTRICT, " +
+                 "                           UNIQUE (hash) " +
+                 ")");
 
-        db.execSQL("CREATE INDEX idx_events_integer_date_env_field ON events_integer (date, env, field)");
-        db.execSQL("CREATE INDEX idx_events_textual_date_env_field ON events_textual (date, env, field)");
+      db.execSQL("CREATE TABLE measurements (id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                 "                           name TEXT, " +
+                 "                           version INTEGER, " +
+                 "                           UNIQUE (name, version) " +
+                 ")");
 
-        db.execSQL("CREATE VIEW events AS " +
-                   "SELECT date, env, field, value FROM " + EVENTS_INTEGER + " " +
-                   "UNION ALL " +
-                   "SELECT date, env, field, value FROM " + EVENTS_TEXTUAL);
+      db.execSQL("CREATE TABLE fields (id INTEGER PRIMARY KEY AUTOINCREMENT, " +
+                 "                     measurement INTEGER, " +
+                 "                     name TEXT, " +
+                 "                     flags INTEGER, " +
+                 "                     FOREIGN KEY (measurement) REFERENCES measurements(id) ON DELETE CASCADE, " +
+                 "                     UNIQUE (measurement, name)" +
+                 ")");
 
-        db.execSQL("CREATE VIEW named_events AS " +
-                   "SELECT date, " +
-                   "       environments.hash AS environment, " +
-                   "       measurements.name AS measurement_name, " +
-                   "       measurements.version AS measurement_version, " +
-                   "       fields.name AS field_name, " +
-                   "       fields.flags AS field_flags, " +
-                   "       value FROM " +
-                   "events JOIN environments ON events.env = environments.id " +
-                   "       JOIN fields ON events.field = fields.id " +
-                   "       JOIN measurements ON fields.measurement = measurements.id");
+      db.execSQL("CREATE TABLE " + EVENTS_INTEGER + "(" +
+                 "                 date  INTEGER, " +
+                 "                 env   INTEGER, " +
+                 "                 field INTEGER, " +
+                 "                 value INTEGER, " +
+                 "                 FOREIGN KEY (field) REFERENCES fields(id) ON DELETE CASCADE, " +
+                 "                 FOREIGN KEY (env) REFERENCES environments(id) ON DELETE CASCADE" +
+                 ")");
 
-        db.execSQL("CREATE VIEW named_fields AS " +
-                   "SELECT measurements.name AS measurement_name, " +
-                   "       measurements.id AS measurement_id, " +
-                   "       measurements.version AS measurement_version, " +
-                   "       fields.name AS field_name, " +
-                   "       fields.id AS field_id, " +
-                   "       fields.flags AS field_flags " +
-                   "FROM fields JOIN measurements ON fields.measurement = measurements.id");
+      db.execSQL("CREATE TABLE " + EVENTS_TEXTUAL + "(" +
+                 "                 date  INTEGER, " +
+                 "                 env   INTEGER, " +
+                 "                 field INTEGER, " +
+                 "                 value TEXT, " +
+                 "                 FOREIGN KEY (field) REFERENCES fields(id) ON DELETE CASCADE, " +
+                 "                 FOREIGN KEY (env) REFERENCES environments(id) ON DELETE CASCADE" +
+                 ")");
 
-        db.execSQL("CREATE VIEW current_measurements AS " +
-                   "SELECT name, MAX(version) AS version FROM measurements GROUP BY name");
+      db.execSQL("CREATE INDEX idx_events_integer_date_env_field ON events_integer (date, env, field)");
+      db.execSQL("CREATE INDEX idx_events_textual_date_env_field ON events_textual (date, env, field)");
 
-        createAddonsEnvironmentsView(db);
+      db.execSQL("CREATE VIEW events AS " +
+                 "SELECT date, env, field, value FROM " + EVENTS_INTEGER + " " +
+                 "UNION ALL " +
+                 "SELECT date, env, field, value FROM " + EVENTS_TEXTUAL);
 
-        db.setTransactionSuccessful();
-      } finally {
-        db.endTransaction();
+      db.execSQL("CREATE VIEW named_events AS " +
+                 "SELECT date, " +
+                 "       environments.hash AS environment, " +
+                 "       measurements.name AS measurement_name, " +
+                 "       measurements.version AS measurement_version, " +
+                 "       fields.name AS field_name, " +
+                 "       fields.flags AS field_flags, " +
+                 "       value FROM " +
+                 "events JOIN environments ON events.env = environments.id " +
+                 "       JOIN fields ON events.field = fields.id " +
+                 "       JOIN measurements ON fields.measurement = measurements.id");
+
+      db.execSQL("CREATE VIEW named_fields AS " +
+                 "SELECT measurements.name AS measurement_name, " +
+                 "       measurements.id AS measurement_id, " +
+                 "       measurements.version AS measurement_version, " +
+                 "       fields.name AS field_name, " +
+                 "       fields.id AS field_id, " +
+                 "       fields.flags AS field_flags " +
+                 "FROM fields JOIN measurements ON fields.measurement = measurements.id");
+
+      db.execSQL("CREATE VIEW current_measurements AS " +
+                 "SELECT name, MAX(version) AS version FROM measurements GROUP BY name");
+
+      createAddonsEnvironmentsView(db);
+    }
+
+    @Override
+    public void onOpen(SQLiteDatabase db) {
+      if (!db.isReadOnly()) {
+        db.execSQL("PRAGMA foreign_keys=ON;");
       }
     }
 
     private void createAddonsEnvironmentsView(SQLiteDatabase db) {
       db.execSQL("CREATE VIEW environments_with_addons AS " +
           "SELECT e.id AS id, " +
+          "       e.version AS version, " +
           "       e.hash AS hash, " +
           "       e.profileCreation AS profileCreation, " +
           "       e.cpuCount AS cpuCount, " +
@@ -372,7 +395,19 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
           "       e.os AS os, " +
           "       e.xpcomabi AS xpcomabi, " +
           "       e.updateChannel AS updateChannel, " +
-          "       addons.body AS addonsBody " +
+          "       e.distribution AS distribution, " +
+          "       e.osLocale AS osLocale, " +
+          "       e.appLocale AS appLocale, " +
+          "       e.acceptLangSet AS acceptLangSet, " +
+          "       addons.body AS addonsBody, " +
+
+          "       e.hasHardwareKeyboard AS hasHardwareKeyboard, " +
+          "       e.uiMode AS uiMode, " +
+          "       e.uiType AS uiType, " +
+          "       e.screenLayout AS screenLayout, " +
+          "       e.screenXInMM AS screenXInMM, " +
+          "       e.screenYInMM AS screenYInMM " +
+
           "FROM environments AS e, addons " +
           "WHERE e.addonsID = addons.id");
     }
@@ -385,13 +420,59 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
 
       db.execSQL("ALTER TABLE environments ADD COLUMN addonsID INTEGER REFERENCES addons(id) ON DELETE RESTRICT");
 
-      createAddonsEnvironmentsView(db);
+      // No need to create view: we're just going to upgrade again.
     }
 
     private void upgradeDatabaseFrom3To4(SQLiteDatabase db) {
       // Update search measurements to use a different type.
       db.execSQL("UPDATE OR IGNORE fields SET flags = " + Field.TYPE_COUNTED_STRING_DISCRETE +
                  " WHERE measurement IN (SELECT id FROM measurements WHERE name = 'org.mozilla.searches.counts')");
+    }
+
+    private void upgradeDatabaseFrom4to5(SQLiteDatabase db) {
+      // Delete NULL in addons.body, which appeared as a result of Bug 886156. Note that the
+      // foreign key constraint, "ON DELETE RESTRICT", may be violated, but since onOpen() is
+      // called after this method, foreign keys are not yet enabled and constraints can be broken.
+      db.delete("addons", "body IS NULL", null);
+
+      // Purge any data inconsistent with foreign key references (which may have appeared before
+      // foreign keys were enabled in Bug 900289).
+      db.delete("fields", "measurement NOT IN (SELECT id FROM measurements)", null);
+      db.delete("environments", "addonsID NOT IN (SELECT id from addons)", null);
+      db.delete(EVENTS_INTEGER, "env NOT IN (SELECT id FROM environments)", null);
+      db.delete(EVENTS_TEXTUAL, "env NOT IN (SELECT id FROM environments)", null);
+      db.delete(EVENTS_INTEGER, "field NOT IN (SELECT id FROM fields)", null);
+      db.delete(EVENTS_TEXTUAL, "field NOT IN (SELECT id FROM fields)", null);
+    }
+
+    private void upgradeDatabaseFrom5to6(SQLiteDatabase db) {
+      db.execSQL("DROP VIEW IF EXISTS environments_with_addons");
+
+      // Add version to environment (default to 1).
+      db.execSQL("ALTER TABLE environments ADD COLUMN version INTEGER DEFAULT 1");
+
+      // Add fields to environment (default to empty string).
+      db.execSQL("ALTER TABLE environments ADD COLUMN distribution TEXT DEFAULT ''");
+      db.execSQL("ALTER TABLE environments ADD COLUMN osLocale TEXT DEFAULT ''");
+      db.execSQL("ALTER TABLE environments ADD COLUMN appLocale TEXT DEFAULT ''");
+      db.execSQL("ALTER TABLE environments ADD COLUMN acceptLangSet INTEGER DEFAULT 0");
+
+      // No need to recreate view -- we're just going to upgrade to v7 next.
+    }
+
+    private void upgradeDatabaseFrom6to7(SQLiteDatabase db) {
+      db.execSQL("DROP VIEW IF EXISTS environments_with_addons");
+
+      // Add fields to environment (default to empty string and 0).
+      db.execSQL("ALTER TABLE environments ADD COLUMN hasHardwareKeyboard INTEGER DEFAULT 0");
+      db.execSQL("ALTER TABLE environments ADD COLUMN uiMode INTEGER DEFAULT 0");
+      db.execSQL("ALTER TABLE environments ADD COLUMN uiType TEXT DEFAULT ''");
+      db.execSQL("ALTER TABLE environments ADD COLUMN screenLayout INTEGER DEFAULT 0");
+      db.execSQL("ALTER TABLE environments ADD COLUMN screenXInMM INTEGER DEFAULT 0");
+      db.execSQL("ALTER TABLE environments ADD COLUMN screenYInMM INTEGER DEFAULT 0");
+
+      // Recreate view.
+      createAddonsEnvironmentsView(db);
     }
 
     @Override
@@ -402,19 +483,21 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
 
       Logger.info(LOG_TAG, "onUpgrade: from " + oldVersion + " to " + newVersion + ".");
       try {
-        db.beginTransaction();
         switch (oldVersion) {
         case 2:
           upgradeDatabaseFrom2To3(db);
         case 3:
           upgradeDatabaseFrom3To4(db);
+        case 4:
+          upgradeDatabaseFrom4to5(db);
+        case 5:
+          upgradeDatabaseFrom5to6(db);
+        case 6:
+          upgradeDatabaseFrom6to7(db);
         }
-        db.setTransactionSuccessful();
       } catch (Exception e) {
         Logger.error(LOG_TAG, "Failure in onUpgrade.", e);
         throw new RuntimeException(e);
-      } finally {
-        db.endTransaction();
       }
    }
 
@@ -483,7 +566,7 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
         this.fieldID = integerQuery("named_fields", "field_id",
                                     "measurement_name = ? AND measurement_version = ? AND field_name = ?",
                                     new String[] {measurementName, measurementVersion, fieldName},
-                                    -1);
+                                    UNKNOWN_TYPE_OR_FIELD_ID);
         if (this.fieldID == UNKNOWN_TYPE_OR_FIELD_ID) {
           throw new IllegalStateException("No field with name " + fieldName +
                                           " (" + measurementName + ", " + measurementVersion + ")");
@@ -497,7 +580,9 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
   // store differently stable kinds of data, hence type difference.
   // Note that we don't pre-populate the environment cache. We'll typically only
   // handle one per session.
-  private final ConcurrentHashMap<String, Integer> envs = new ConcurrentHashMap<String, Integer>();
+  //
+  // protected for testing purposes only.
+  protected final ConcurrentHashMap<String, Integer> envs = new ConcurrentHashMap<String, Integer>();
 
   /**
    * An {@link Environment} that knows how to persist to and from our database.
@@ -515,6 +600,7 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
 
       // Otherwise, add data and hash to the DB.
       ContentValues v = new ContentValues();
+      v.put("version", version);
       v.put("hash", h);
       v.put("profileCreation", profileCreation);
       v.put("cpuCount", cpuCount);
@@ -537,6 +623,16 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
       v.put("os", os);
       v.put("xpcomabi", xpcomabi);
       v.put("updateChannel", updateChannel);
+      v.put("distribution", distribution);
+      v.put("osLocale", osLocale);
+      v.put("appLocale", appLocale);
+      v.put("acceptLangSet", acceptLangSet);
+      v.put("hasHardwareKeyboard", hasHardwareKeyboard ? 1 : 0);
+      v.put("uiMode", uiMode);
+      v.put("uiType", uiType.toString());
+      v.put("screenLayout", screenLayout);
+      v.put("screenXInMM", screenXInMM);
+      v.put("screenYInMM", screenYInMM);
 
       final SQLiteDatabase db = storage.helper.getWritableDatabase();
 
@@ -622,6 +718,10 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
     }
 
     public void init(ContentValues v) {
+      version         = v.containsKey("version") ? v.getAsInteger("version") : Environment.CURRENT_VERSION;
+
+      Logger.debug(LOG_TAG, "Initializing environment with version " + version);
+
       profileCreation = v.getAsInteger("profileCreation");
       cpuCount        = v.getAsInteger("cpuCount");
       memoryMB        = v.getAsInteger("memoryMB");
@@ -646,10 +746,24 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
       xpcomabi        = v.getAsString("xpcomabi");
       updateChannel   = v.getAsString("updateChannel");
 
+      distribution    = v.getAsString("distribution");
+      osLocale        = v.getAsString("osLocale");
+      appLocale       = v.getAsString("appLocale");
+      acceptLangSet   = v.getAsInteger("acceptLangSet");
+
       try {
         setJSONForAddons(v.getAsString("addonsBody"));
       } catch (Exception e) {
         // Nothing we can do.
+      }
+
+      if (version >= 3) {
+        hasHardwareKeyboard = v.getAsInteger("hasHardwareKeyboard") != 0;
+        uiMode = v.getAsInteger("uiMode");
+        uiType = UIType.fromLabel(v.getAsString("uiType"));
+        screenLayout = v.getAsInteger("screenLayout");
+        screenXInMM = v.getAsInteger("screenXInMM");
+        screenYInMM = v.getAsInteger("screenYInMM");
       }
 
       this.hash = null;
@@ -665,6 +779,7 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
     public boolean init(Cursor cursor) {
       int i = 0;
       this.id         = cursor.getInt(i++);
+      this.version    = cursor.getInt(i++);
       this.hash       = cursor.getString(i++);
 
       profileCreation = cursor.getInt(i++);
@@ -691,10 +806,24 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
       xpcomabi        = cursor.getString(i++);
       updateChannel   = cursor.getString(i++);
 
+      distribution    = cursor.getString(i++);
+      osLocale        = cursor.getString(i++);
+      appLocale       = cursor.getString(i++);
+      acceptLangSet   = cursor.getInt(i++);
+
       try {
         setJSONForAddons(cursor.getBlob(i++));
       } catch (Exception e) {
         // Nothing we can do.
+      }
+
+      if (this.version >= 3) {
+        hasHardwareKeyboard = cursor.getInt(i++) != 0;
+        uiMode = cursor.getInt(i++);
+        uiType = UIType.fromLabel(cursor.getString(i++));
+        screenLayout = cursor.getInt(i++);
+        screenXInMM = cursor.getInt(i++);
+        screenYInMM = cursor.getInt(i++);
       }
 
       return cursor.moveToNext();
@@ -780,8 +909,14 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
    * Cache the lookup from measurement and field specifier to field instance.
    * This allows us to memoize the field ID lookup, too.
    */
-  private HashMap<String, Field> fields = new HashMap<String, Field>();
+  private final HashMap<String, Field> fields = new HashMap<String, Field>();
   private boolean fieldsCacheUpdated = false;
+
+  private void invalidateFieldsCache() {
+    synchronized (this.fields) {
+      fieldsCacheUpdated = false;
+    }
+  }
 
   private String getFieldKey(String mName, int mVersion, String fieldName) {
     return mVersion + "." + mName + "/" + fieldName;
@@ -942,9 +1077,7 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
     notifyMeasurementVersionUpdated(measurement, version);
 
     // Let's be easy for now.
-    synchronized (fields) {
-      fieldsCacheUpdated = false;
-    }
+    invalidateFieldsCache();
   }
 
   /**
@@ -996,9 +1129,22 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
     this.helper.getWritableDatabase().endTransaction();
   }
 
+  protected int getIntFromQuery(final String sql, final String[] selectionArgs) {
+    final SQLiteDatabase db = this.helper.getReadableDatabase();
+    final Cursor c = db.rawQuery(sql, selectionArgs);
+    try {
+      if (!c.moveToFirst()) {
+        throw new IllegalStateException("Cursor is empty.");
+      }
+      return c.getInt(0);
+    } finally {
+      c.close();
+    }
+  }
+
   @Override
   public int getDay(long time) {
-    return HealthReportUtils.getDay(time);
+    return DateUtils.getDay(time);
   }
 
   @Override
@@ -1031,7 +1177,11 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
       v.put("env", env);
       v.put("field", field);
       v.put("date", day);
-      db.insert(table, null, v);
+      try {
+        db.insertOrThrow(table, null, v);
+      } catch (SQLiteConstraintException e) {
+        throw new IllegalStateException("Event did not reference existing an environment or field.", e);
+      }
     }
   }
 
@@ -1047,7 +1197,7 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
 
   @Override
   public void recordDailyLast(int env, int day, int field, int value) {
-    this.recordDailyLast(env, day, field, Integer.valueOf(value), EVENTS_INTEGER);
+    this.recordDailyLast(env, day, field, value, EVENTS_INTEGER);
   }
 
   private void recordDailyDiscrete(int env, int day, int field, Object value, String table) {
@@ -1063,7 +1213,17 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
 
     final SQLiteDatabase db = this.helper.getWritableDatabase();
     putValue(v, value);
-    db.insert(table, null, v);
+
+    // Using SQLiteDatabase.insertOrThrow throws SQLiteConstraintException we cannot catch for
+    // unknown reasons (bug 961526 comment 13). We believe these are thrown because we attempt to
+    // record events using environment IDs removed from the database by the prune service. We
+    // invalidate the currentEnvironment ID after pruning, preventing further propagation,
+    // however, any event recording waiting for the prune service to complete on the background
+    // thread may carry an invalid ID: we expect an insertion failure and drop these events here.
+    final long res = db.insert(table, null, v);
+    if (res == -1) {
+      Logger.error(LOG_TAG, "Unable to record daily discrete event. Ignoring.");
+    }
   }
 
   @Override
@@ -1133,7 +1293,11 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
       v.put("value", by);
       v.put("field", field);
       v.put("date", day);
-      db.insert(EVENTS_INTEGER, null, v);
+      try {
+        db.insertOrThrow(EVENTS_INTEGER, null, v);
+      } catch (SQLiteConstraintException e) {
+        throw new IllegalStateException("Event did not reference existing an environment or field.", e);
+      }
     }
   }
 
@@ -1205,6 +1369,141 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
     return db.query("named_events", COLUMNS_DATE_ENVSTR_M_MV_F_VALUE,
                     "date >= ?", new String[] {dayString}, null, null,
                     "date, environment, measurement_name, measurement_version, field_name");
+  }
+
+  @Override
+  public int getEventCount() {
+    return getRowCount("events");
+  }
+
+  @Override
+  public int getEnvironmentCount() {
+    return getRowCount("environments");
+  }
+
+  private int getRowCount(String table) {
+    // table should be parameterized, but SQL throws a compilation error if the table in unknown
+    // in advance.
+    return getIntFromQuery("SELECT COUNT(*) from " + table, null);
+  }
+
+  /**
+   * Deletes all environments, addons, and events from the database before the given time. If this
+   * data does not have recorded dates but are no longer referenced by other fields, they are also
+   * removed (with exception to the current environment).
+   *
+   * @param time milliseconds since epoch. Will be converted by {@link #getDay(long)}.
+   * @param curEnv The ID of the current environment.
+   * @return The number of environments and addon entries deleted.
+   */
+  @Override
+  public int deleteDataBefore(final long time, final int curEnv) {
+    final SQLiteDatabase db = this.helper.getWritableDatabase();
+    db.beginTransaction();
+    int numRowsDeleted = 0;
+    try {
+      numRowsDeleted += deleteEnvAndEventsBefore(db, time, curEnv);
+      numRowsDeleted += deleteOrphanedAddons(db);
+      db.setTransactionSuccessful();
+    } finally {
+      db.endTransaction();
+    }
+    return numRowsDeleted;
+  }
+
+  /**
+   * Deletes environments and their referring events recorded before the given time. Environments
+   * referenced by no events are deleted, except for the current environment.
+   *
+   * @param time milliseconds since epoch. Will be converted by {@link #getDay(long)}.
+   * @param curEnv The ID of the current environment.
+   * @return The number of environments (not events) deleted.
+   */
+  protected int deleteEnvAndEventsBefore(final long time, final int curEnv) {
+    final SQLiteDatabase db = this.helper.getWritableDatabase();
+    return deleteEnvAndEventsBefore(db, time, curEnv);
+  }
+
+  // Called internally only to ensure the same db instance is used.
+  protected int deleteEnvAndEventsBefore(final SQLiteDatabase db, final long time, final int curEnv) {
+    // Delete environments only referenced by events occuring before the given time. Cascade
+    // delete these events.
+    String whereClause =
+        "(SELECT COUNT(*) FROM events WHERE date >= ? " +
+        "    AND events.env = environments.id) = 0 " +
+        "AND id IN (SELECT DISTINCT env FROM events WHERE date < ?)";
+    final int day = this.getDay(time);
+    final String dayString = Integer.toString(day, 10);
+    String[] whereArgs = new String[] {dayString, dayString};
+
+    int numEnvDeleted = 0;
+    db.beginTransaction();
+    try {
+      numEnvDeleted += db.delete("environments", whereClause, whereArgs);
+      numEnvDeleted += deleteOrphanedEnv(db, curEnv);
+      // We can't get the number of events deleted through cascading deletions so we do not record
+      // the number of events deleted here.
+      deleteEventsBefore(db, dayString);
+      db.setTransactionSuccessful();
+    } finally {
+      db.endTransaction();
+    }
+    return numEnvDeleted;
+  }
+
+  /**
+   * Deletes environments not referenced by any events except for the given current environment.
+   */
+  protected int deleteOrphanedEnv(final int curEnv) {
+    final SQLiteDatabase db = this.helper.getWritableDatabase();
+    return deleteOrphanedEnv(db, curEnv);
+  }
+
+  // Called internally only to ensure the same db instance is used.
+  @SuppressWarnings("static-method")
+  protected int deleteOrphanedEnv(final SQLiteDatabase db, final int curEnv) {
+    final String whereClause =
+        "id != ? AND " +
+        "id NOT IN (SELECT env FROM events)";
+    final String[] whereArgs = new String[] {Integer.toString(curEnv)};
+    return db.delete("environments", whereClause, whereArgs);
+  }
+
+  protected int deleteEventsBefore(final String dayString) {
+    final SQLiteDatabase db = this.helper.getWritableDatabase();
+    return deleteEventsBefore(db, dayString);
+  }
+
+  // Called internally only to ensure the same db instance is used.
+  @SuppressWarnings("static-method")
+  protected int deleteEventsBefore(final SQLiteDatabase db, final String dayString) {
+    final String whereClause = "date < ?";
+    final String[] whereArgs = new String[] {dayString};
+    int numEventsDeleted = 0;
+    db.beginTransaction();
+    try {
+      numEventsDeleted += db.delete("events_integer", whereClause, whereArgs);
+      numEventsDeleted += db.delete("events_textual", whereClause, whereArgs);
+      db.setTransactionSuccessful();
+    } finally {
+      db.endTransaction();
+    }
+    return numEventsDeleted;
+  }
+
+  /**
+   * Deletes addons not referenced by any environments.
+   */
+  protected int deleteOrphanedAddons() {
+    final SQLiteDatabase db = this.helper.getWritableDatabase();
+    return deleteOrphanedAddons(db);
+  }
+
+  // Called internally only to ensure the same db instance is used.
+  @SuppressWarnings("static-method")
+  protected int deleteOrphanedAddons(final SQLiteDatabase db) {
+    final String whereClause = "id NOT IN (SELECT addonsID FROM environments)";
+    return db.delete("addons", whereClause, null);
   }
 
   /**
@@ -1287,9 +1586,93 @@ public class HealthReportDatabaseStorage implements HealthReportStorage {
     try {
       // Cascade will clear the rest.
       db.delete("measurements", null, null);
+
+      // Clear measurements and fields cache, because some of their IDs are now invalid.
+      invalidateFieldsCache(); // Let it repopulate on its own.
+      populateMeasurementVersionsCache(db); // Performed at Storage init so repopulate now.
+
       db.setTransactionSuccessful();
     } finally {
       db.endTransaction();
     }
+  }
+
+  /**
+   * Prunes the given number of least-recently used environments. Note that orphaned environments
+   * are not removed and the environment cache is cleared.
+   */
+  @Override
+  public void pruneEnvironments(final int numToPrune) {
+    final SQLiteDatabase db = this.helper.getWritableDatabase();
+    db.beginTransaction();
+    try {
+      db.delete("environments",
+          "id in (SELECT env " +
+          "       FROM events " +
+          "       GROUP BY env " +
+          "       ORDER BY MAX(date), env " +
+          "       LIMIT " + numToPrune + ")",
+          null);
+      db.setTransactionSuccessful();
+
+      // Clear environment cache, because some of their IDs are now invalid.
+      this.envs.clear();
+    } finally {
+      db.endTransaction();
+    }
+  }
+
+  /**
+   * Prunes up to a maximum of the given number of the oldest events. While it is more correct to
+   * prune the exact given amount, there is no unique identifier among events so we cannot be so
+   * precise. Instead, we prune on date, deleting all events up to the day before our count of
+   * events reaches the given maximum. Note that this technicality means this method cannot be
+   * used to delete all events.
+   */
+  @Override
+  public void pruneEvents(final int maxNumToPrune) {
+    final SQLiteDatabase db = this.helper.getWritableDatabase();
+
+    final Cursor c = db.rawQuery(
+        "SELECT MAX(date) " +
+        "FROM (SELECT date " +
+        "      FROM events " +
+        "      ORDER BY date " +
+        "      LIMIT " + maxNumToPrune + ")",
+        null);
+    long pruneDate = -1;
+    try {
+      if (!c.moveToFirst()) {
+        Logger.debug(LOG_TAG, "No max date found in events: table is likely empty. Not pruning " +
+            "events.");
+        return;
+      }
+      pruneDate = c.getLong(0);
+    } finally {
+      c.close();
+    }
+
+    final String selection = "date < " + pruneDate;
+    db.beginTransaction();
+    try {
+      db.delete(EVENTS_INTEGER, selection, null);
+      db.delete(EVENTS_TEXTUAL, selection, null);
+      db.setTransactionSuccessful();
+    } finally {
+      db.endTransaction();
+    }
+  }
+
+  public void vacuum() {
+    final SQLiteDatabase db = this.helper.getWritableDatabase();
+    db.execSQL("vacuum");
+  }
+
+  /**
+   * Disables auto_vacuuming. Changes may only take effect after a "vacuum" command.
+   */
+  public void disableAutoVacuuming() {
+    final SQLiteDatabase db = this.helper.getWritableDatabase();
+    db.execSQL("PRAGMA auto_vacuum=0");
   }
 }

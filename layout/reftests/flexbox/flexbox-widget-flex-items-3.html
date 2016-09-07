@@ -17,11 +17,12 @@
       align-items: flex-start;
       background: lightgray;
       width: 400px;
-      height: 30px;
+      height: 40px;
       margin-bottom: 10px;
     }
     div.flexbox > * {
       max-width: 3px;
+      min-width: 0; /* to override default 'min-width:auto' */
       outline: 1px dashed black;
       margin: 0;
       vertical-align: top;

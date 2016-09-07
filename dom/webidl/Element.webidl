@@ -28,16 +28,16 @@ interface Element : Node {
 
   [Pure]
            attribute DOMString id;
-/*
-  FIXME Bug 810677 Move className from HTMLElement to Element
+  [Pure]
            attribute DOMString className;
-*/
   [Constant]
-  readonly attribute DOMTokenList? classList;
+  readonly attribute DOMTokenList classList;
 
-  [Constant]
-  readonly attribute MozNamedAttrMap attributes;
+  [SameObject]
+  readonly attribute NamedNodeMap attributes;
+  [Pure]
   DOMString? getAttribute(DOMString name);
+  [Pure]
   DOMString? getAttributeNS(DOMString? namespace, DOMString localName);
   [Throws]
   void setAttribute(DOMString name, DOMString value);
@@ -47,29 +47,25 @@ interface Element : Node {
   void removeAttribute(DOMString name);
   [Throws]
   void removeAttributeNS(DOMString? namespace, DOMString localName);
+  [Pure]
   boolean hasAttribute(DOMString name);
+  [Pure]
   boolean hasAttributeNS(DOMString? namespace, DOMString localName);
-  
-  [Throws]
-  boolean matches(DOMString selector);
-  
-  HTMLCollection getElementsByTagName(DOMString localName);
-  [Throws]
-  HTMLCollection getElementsByTagNameNS(DOMString? namespace, DOMString localName);
-  HTMLCollection getElementsByClassName(DOMString classNames);
+  [Pure]
+  boolean hasAttributes();
 
-  [Constant]
-  readonly attribute HTMLCollection children;
+  [Throws, Pure]
+  Element? closest(DOMString selector);
+
+  [Throws, Pure]
+  boolean matches(DOMString selector);
+
   [Pure]
-  readonly attribute Element? firstElementChild;
+  HTMLCollection getElementsByTagName(DOMString localName);
+  [Throws, Pure]
+  HTMLCollection getElementsByTagNameNS(DOMString? namespace, DOMString localName);
   [Pure]
-  readonly attribute Element? lastElementChild;
-  [Pure]
-  readonly attribute Element? previousElementSibling;
-  [Pure]
-  readonly attribute Element? nextElementSibling;
-  [Pure]
-  readonly attribute unsigned long childElementCount;
+  HTMLCollection getElementsByClassName(DOMString classNames);
 
   /**
    * The ratio of font-size-inflated text font size to computed font
@@ -86,12 +82,7 @@ interface Element : Node {
   readonly attribute float fontSizeInflation;
 
   // Mozilla specific stuff
-
-  [SetterThrows,LenientThis]
-           attribute EventHandler onmouseenter;
-  [SetterThrows,LenientThis]
-           attribute EventHandler onmouseleave;
-  [SetterThrows]
+  [Pure]
            attribute EventHandler onwheel;
 
   // Selectors API
@@ -101,8 +92,15 @@ interface Element : Node {
    *
    * See <http://dev.w3.org/2006/webapi/selectors-api2/#matchesselector>
    */
-  [Throws]
+  [Throws, Pure]
   boolean mozMatchesSelector(DOMString selector);
+
+  // Pointer events methods.
+  [Throws, Pref="dom.w3c_pointer_events.enabled", UnsafeInPrerendering]
+  void setPointerCapture(long pointerId);
+
+  [Throws, Pref="dom.w3c_pointer_events.enabled"]
+  void releasePointerCapture(long pointerId);
 
   // Proprietary extensions
   /**
@@ -126,9 +124,13 @@ interface Element : Node {
    * Requests that this element be made the full-screen element, as per the DOM
    * full-screen api.
    *
-   * @see <https://wiki.mozilla.org/index.php?title=Gecko:FullScreenAPI>
+   * The options parameter is non-standard. In Goanna, it can be:
+   *  a RequestFullscreenOptions object
+   *
+   * @see <https://wiki.mozilla.org/index.php?title=Goanna:FullScreenAPI>
    */
-  void mozRequestFullScreen();
+  [Throws, UnsafeInPrerendering]
+  void mozRequestFullScreen(optional any options);
 
   /**
    * Requests that this element be made the pointer-locked element, as per the DOM
@@ -136,6 +138,7 @@ interface Element : Node {
    *
    * @see <http://dvcs.w3.org/hg/pointerlock/raw-file/default/index.html>
    */
+  [UnsafeInPrerendering]
   void mozRequestPointerLock();
 
   // Obsolete methods.
@@ -147,20 +150,41 @@ interface Element : Node {
   Attr? getAttributeNodeNS(DOMString? namespaceURI, DOMString localName);
   [Throws]
   Attr? setAttributeNodeNS(Attr newAttr);
+
+  [ChromeOnly]
+  /**
+   * Scrolls the element by (dx, dy) CSS pixels without doing any
+   * layout flushing.
+   */
+  boolean scrollByNoFlush(long dx, long dy);
+};
+
+// http://dev.w3.org/csswg/cssom-view/
+enum ScrollLogicalPosition { "start", "end" };
+dictionary ScrollIntoViewOptions : ScrollOptions {
+  ScrollLogicalPosition block = "start";
 };
 
 // http://dev.w3.org/csswg/cssom-view/#extensions-to-the-element-interface
 partial interface Element {
-  ClientRectList getClientRects();
-  ClientRect getBoundingClientRect();
+  DOMRectList getClientRects();
+  DOMRect getBoundingClientRect();
 
   // scrolling
-  void scrollIntoView(optional boolean top = true);
+  void scrollIntoView(boolean top);
+  void scrollIntoView(optional ScrollIntoViewOptions options);
   // None of the CSSOM attributes are [Pure], because they flush
            attribute long scrollTop;   // scroll on setting
            attribute long scrollLeft;  // scroll on setting
   readonly attribute long scrollWidth;
   readonly attribute long scrollHeight;
+  
+  void scroll(unrestricted double x, unrestricted double y);
+  void scroll(optional ScrollToOptions options);
+  void scrollTo(unrestricted double x, unrestricted double y);
+  void scrollTo(optional ScrollToOptions options);
+  void scrollBy(unrestricted double x, unrestricted double y);
+  void scrollBy(optional ScrollToOptions options);
 
   readonly attribute long clientTop;
   readonly attribute long clientLeft;
@@ -185,9 +209,9 @@ partial interface Element {
 
 // http://domparsing.spec.whatwg.org/#extensions-to-the-element-interface
 partial interface Element {
-  [Throws,TreatNullAs=EmptyString]
+  [Pure,SetterThrows,TreatNullAs=EmptyString]
   attribute DOMString innerHTML;
-  [Throws,TreatNullAs=EmptyString]
+  [Pure,SetterThrows,TreatNullAs=EmptyString]
   attribute DOMString outerHTML;
   [Throws]
   void insertAdjacentHTML(DOMString position, DOMString text);
@@ -195,10 +219,31 @@ partial interface Element {
 
 // http://www.w3.org/TR/selectors-api/#interface-definitions
 partial interface Element {
-  [Throws]
+  [Throws, Pure]
   Element?  querySelector(DOMString selectors);
-  [Throws]
+  [Throws, Pure]
   NodeList  querySelectorAll(DOMString selectors);
 };
 
+// http://w3c.github.io/webcomponents/spec/shadow/#extensions-to-element-interface
+partial interface Element {
+  [Throws,Func="nsDocument::IsWebComponentsEnabled"]
+  ShadowRoot createShadowRoot();
+  [Func="nsDocument::IsWebComponentsEnabled"]
+  NodeList getDestinationInsertionPoints();
+  [Func="nsDocument::IsWebComponentsEnabled"]
+  readonly attribute ShadowRoot? shadowRoot;
+};
+
 Element implements ChildNode;
+Element implements NonDocumentTypeChildNode;
+Element implements ParentNode;
+Element implements Animatable;
+Element implements GeometryUtils;
+
+// non-standard: allows passing options to Element.requestFullScreen
+dictionary RequestFullscreenOptions {
+  // Which HMDVRDevice to go full screen on; also enables VR rendering.
+  // If null, normal fullscreen is entered.
+  HMDVRDevice? vrDisplay = null;
+};

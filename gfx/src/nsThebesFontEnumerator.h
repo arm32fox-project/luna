@@ -6,11 +6,13 @@
 #ifndef _NSTHEBESFONTENUMERATOR_H_
 #define _NSTHEBESFONTENUMERATOR_H_
 
-#include "nsIFontEnumerator.h"
-#include "mozilla/Attributes.h"
+#include "mozilla/Attributes.h"         // for final
+#include "nsIFontEnumerator.h"          // for NS_DECL_NSIFONTENUMERATOR, etc
+#include "nsISupports.h"                // for NS_DECL_ISUPPORTS
 
-class nsThebesFontEnumerator MOZ_FINAL : public nsIFontEnumerator
+class nsThebesFontEnumerator final : public nsIFontEnumerator
 {
+    ~nsThebesFontEnumerator() {}
 public:
     nsThebesFontEnumerator();
 

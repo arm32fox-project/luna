@@ -4,12 +4,8 @@
 // specified in RFC 2616 section 14.9.3 by letting max-age
 // take precedence
 
-const Cc = Components.classes;
-const Ci = Components.interfaces;
-const Cu = Components.utils;
-const Cr = Components.results;
-
 Cu.import("resource://testing-common/httpd.js");
+Cu.import("resource://gre/modules/Services.jsm");
 const BUGID = "203271";
 
 var httpserver = new HttpServer();
@@ -101,7 +97,15 @@ function logit(i, data, ctx) {
 function setupChannel(suffix, value) {
     var ios = Components.classes["@mozilla.org/network/io-service;1"].
                          getService(Ci.nsIIOService);
-    var chan = ios.newChannel("http://localhost:4444" + suffix, "", null);
+    var chan = ios.newChannel2("http://localhost:" +
+                               httpserver.identity.primaryPort + suffix,
+                               "",
+                               null,
+                               null,      // aLoadingNode
+                               Services.scriptSecurityManager.getSystemPrincipal(),
+                               null,      // aTriggeringPrincipal
+                               Ci.nsILoadInfo.SEC_NORMAL,
+                               Ci.nsIContentPolicy.TYPE_OTHER);
     var httpChan = chan.QueryInterface(Components.interfaces.nsIHttpChannel);
     httpChan.requestMethod = "GET"; // default value, just being paranoid...
     httpChan.setRequestHeader("x-request", value, false);
@@ -131,7 +135,7 @@ function checkValueAndTrigger(request, data, ctx) {
 
 function run_test() {
     httpserver.registerPathHandler("/precedence", handler);
-    httpserver.start(4444);
+    httpserver.start(-1);
 
     // clear cache
     evict_cache_entries();

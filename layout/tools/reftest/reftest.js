@@ -1,4 +1,4 @@
-/* -*- Mode: Java; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 4 -*- /
+/* -*- indent-tabs-mode: nil; js-indent-level: 4 -*- /
 /* vim: set shiftwidth=4 tabstop=8 autoindent cindent expandtab: */
 /* This Source Code Form is subject to the terms of the Mozilla Public
  * License, v. 2.0. If a copy of the MPL was not distributed with this
@@ -12,6 +12,7 @@ this.EXPORTED_SYMBOLS = ["OnRefTestLoad"];
 const CC = Components.classes;
 const CI = Components.interfaces;
 const CR = Components.results;
+const CU = Components.utils;
 
 const XHTML_NS = "http://www.w3.org/1999/xhtml";
 const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
@@ -35,12 +36,15 @@ const NS_DIRECTORY_SERVICE_CONTRACTID =
 const NS_OBSERVER_SERVICE_CONTRACTID =
           "@mozilla.org/observer-service;1";
 
-Components.utils.import("resource://gre/modules/FileUtils.jsm");
+CU.import("resource://gre/modules/FileUtils.jsm");
+CU.import("chrome://reftest/content/httpd.jsm", this);
+CU.import("resource://gre/modules/Services.jsm");
 
 var gLoadTimeout = 0;
 var gTimeoutHook = null;
 var gRemote = false;
 var gIgnoreWindowSize = false;
+var gShuffle = false;
 var gTotalChunks = 0;
 var gThisChunk = 0;
 var gContainingWindow = null;
@@ -108,6 +112,9 @@ var gExpectedCrashDumpFiles = [];
 var gUnexpectedCrashDumpFiles = { };
 var gCrashDumpDir;
 var gFailedNoPaint = false;
+
+// The enabled-state of the test-plugins, stored so they can be reset later
+var gTestPluginEnabledStates = null;
 
 const TYPE_REFTEST_EQUAL = '==';
 const TYPE_REFTEST_NOTEQUAL = '!=';
@@ -208,6 +215,20 @@ function IDForEventTarget(event)
     }
 }
 
+function getTestPlugin(aName) {
+  var ph = CC["@mozilla.org/plugin/host;1"].getService(CI.nsIPluginHost);
+  var tags = ph.getPluginTags();
+
+  // Find the test plugin
+  for (var i = 0; i < tags.length; i++) {
+    if (tags[i].name == aName)
+      return tags[i];
+  }
+
+  LogWarning("Failed to find the test-plugin.");
+  return null;
+}
+
 this.OnRefTestLoad = function OnRefTestLoad(win)
 {
     gCrashDumpDir = CC[NS_DIRECTORY_SERVICE_CONTRACTID]
@@ -222,7 +243,7 @@ this.OnRefTestLoad = function OnRefTestLoad(win)
     var prefs = Components.classes["@mozilla.org/preferences-service;1"].
                 getService(Components.interfaces.nsIPrefBranch);
     try {
-        gBrowserIsRemote = prefs.getBoolPref("browser.tabs.remote");
+        gBrowserIsRemote = prefs.getBoolPref("browser.tabs.remote.autostart");
     } catch (e) {
         gBrowserIsRemote = false;
     }
@@ -243,19 +264,21 @@ this.OnRefTestLoad = function OnRefTestLoad(win)
     if (gBrowserIsIframe) {
       gBrowser = gContainingWindow.document.createElementNS(XHTML_NS, "iframe");
       gBrowser.setAttribute("mozbrowser", "");
+      gBrowser.setAttribute("mozapp", prefs.getCharPref("b2g.system_manifest_url"));
     } else {
       gBrowser = gContainingWindow.document.createElementNS(XUL_NS, "xul:browser");
     }
     gBrowser.setAttribute("id", "browser");
     gBrowser.setAttribute("type", "content-primary");
     gBrowser.setAttribute("remote", gBrowserIsRemote ? "true" : "false");
+    gBrowser.setAttribute("mozasyncpanzoom", "true");
     // Make sure the browser element is exactly 800x1000, no matter
     // what size our window is
-    gBrowser.setAttribute("style", "min-width: 800px; min-height: 1000px; max-width: 800px; max-height: 1000px");
+    gBrowser.setAttribute("style", "padding: 0px; margin: 0px; border:none; min-width: 800px; min-height: 1000px; max-width: 800px; max-height: 1000px");
 
-#if BOOTSTRAP
-#if REFTEST_B2G
-    var doc = gContainingWindow.document.getElementsByTagName("window")[0];
+#ifdef BOOTSTRAP
+#ifdef REFTEST_B2G
+    var doc = gContainingWindow.document.getElementsByTagName("html")[0];
 #else
     var doc = gContainingWindow.document.getElementById('main-window');
 #endif
@@ -266,6 +289,17 @@ this.OnRefTestLoad = function OnRefTestLoad(win)
 #else
     document.getElementById("reftest-window").appendChild(gBrowser);
 #endif
+
+    // reftests should have the test plugins enabled, not click-to-play
+    let plugin1 = getTestPlugin("Test Plug-in");
+    let plugin2 = getTestPlugin("Second Test Plug-in");
+    if (plugin1 && plugin2) {
+      gTestPluginEnabledStates = [plugin1.enabledState, plugin2.enabledState];
+      plugin1.enabledState = CI.nsIPluginTag.STATE_ENABLED;
+      plugin2.enabledState = CI.nsIPluginTag.STATE_ENABLED;
+    } else {
+      LogWarning("Could not get test plugin tags.");
+    }
 
     gBrowserMessageManager = gBrowser.QueryInterface(CI.nsIFrameLoaderOwner)
                                      .frameLoader.messageManager;
@@ -304,8 +338,8 @@ function InitAndStartRefTests()
                 var mfl = FileUtils.openFileOutputStream(f, FileUtils.MODE_WRONLY | FileUtils.MODE_CREATE);
                 // Set to mirror to stdout as well as the file
                 gDumpLog = function (msg) {
-#if BOOTSTRAP
-#if REFTEST_B2G
+#ifdef BOOTSTRAP
+#ifdef REFTEST_B2G
                     dump(msg);
 #else
                     //NOTE: on android-xul, we have a libc crash if we do a dump with %7s in the string
@@ -365,8 +399,7 @@ function InitAndStartRefTests()
     if (gRemote) {
         gServer = null;
     } else {
-        gServer = CC["@mozilla.org/server/jshttp;1"].
-                      createInstance(CI.nsIHttpServer);
+        gServer = new HttpServer();
     }
     try {
         if (gServer)
@@ -378,8 +411,10 @@ function InitAndStartRefTests()
         DoneTests();
     }
 
-    // Focus the content browser
-    gBrowser.focus();
+    // Focus the content browser.
+    if (gFocusFilterMode != FOCUS_FILTER_NON_NEEDS_FOCUS_TESTS) {
+        gBrowser.focus();
+    }
 
     StartTests();
 }
@@ -389,6 +424,17 @@ function StartHTTPServer()
     gServer.registerContentType("sjs", "sjs");
     gServer.start(-1);
     gHttpServerPort = gServer.identity.primaryPort;
+}
+
+// Perform a Fisher-Yates shuffle of the array.
+function Shuffle(array)
+{
+    for (var i = array.length - 1; i > 0; i--) {
+        var j = Math.floor(Math.random() * (i + 1));
+        var temp = array[i];
+        array[i] = array[j];
+        array[j] = temp;
+    }
 }
 
 function StartTests()
@@ -407,6 +453,12 @@ function StartTests()
         gNoCanvasCache = prefs.getIntPref("reftest.nocache");
     } catch(e) {
         gNoCanvasCache = false;
+    }
+
+    try {
+      gShuffle = prefs.getBoolPref("reftest.shuffle");
+    } catch (e) {
+      gShuffle = false;
     }
 
     try {
@@ -443,6 +495,11 @@ function StartTests()
         DoneTests();
     }
 #endif
+
+    if (gShuffle) {
+        gNoCanvasCache = true;
+    }
+
     try {
         ReadTopManifest(uri);
         BuildUseCounts();
@@ -481,6 +538,11 @@ function StartTests()
             gDumpLog("REFTEST INFO | Running chunk " + gThisChunk + " out of " + gTotalChunks + " chunks.  ");
             gDumpLog("tests " + (start+1) + "-" + end + "/" + gURLs.length + "\n");
         }
+
+        if (gShuffle) {
+            Shuffle(gURLs);
+        }
+
         gTotalTests = gURLs.length;
 
         if (!gTotalTests)
@@ -498,6 +560,14 @@ function StartTests()
 
 function OnRefTestUnload()
 {
+  let plugin1 = getTestPlugin("Test Plug-in");
+  let plugin2 = getTestPlugin("Second Test Plug-in");
+  if (plugin1 && plugin2) {
+    plugin1.enabledState = gTestPluginEnabledStates[0];
+    plugin2.enabledState = gTestPluginEnabledStates[1];
+  } else {
+    LogWarning("Failed to get test plugin tags.");
+  }
 }
 
 // Read all available data from an input stream and return it
@@ -521,16 +591,17 @@ function getStreamContent(inputStream)
 function BuildConditionSandbox(aURL) {
     var sandbox = new Components.utils.Sandbox(aURL.spec);
     var xr = CC[NS_XREAPPINFO_CONTRACTID].getService(CI.nsIXULRuntime);
+    var appInfo = CC[NS_XREAPPINFO_CONTRACTID].getService(CI.nsIXULAppInfo);
     sandbox.isDebugBuild = gDebug.isDebugBuild;
-    sandbox.xulRuntime = {widgetToolkit: xr.widgetToolkit, OS: xr.OS, __exposedProps__: { widgetToolkit: "r", OS: "r", XPCOMABI: "r", shell: "r" } };
 
     // xr.XPCOMABI throws exception for configurations without full ABI
     // support (mobile builds on ARM)
+    var XPCOMABI = "";
     try {
-        sandbox.xulRuntime.XPCOMABI = xr.XPCOMABI;
-    } catch(e) {
-        sandbox.xulRuntime.XPCOMABI = "";
-    }
+        XPCOMABI = xr.XPCOMABI;
+    } catch(e) {}
+
+    sandbox.xulRuntime = CU.cloneInto({widgetToolkit: xr.widgetToolkit, OS: xr.OS, XPCOMABI: XPCOMABI}, sandbox);
 
     var testRect = gBrowser.getBoundingClientRect();
     sandbox.smallScreen = false;
@@ -538,13 +609,6 @@ function BuildConditionSandbox(aURL) {
         sandbox.smallScreen = true;
     }
 
-#if REFTEST_B2G
-    // XXX nsIGfxInfo isn't available in B2G
-    sandbox.d2d = false;
-    sandbox.azureQuartz = false;
-    sandbox.azureSkia = false;
-    sandbox.contentSameGfxBackendAsCanvas = false;
-#else
     var gfxInfo = (NS_GFXINFO_CONTRACTID in CC) && CC[NS_GFXINFO_CONTRACTID].getService(CI.nsIGfxInfo);
     try {
       sandbox.d2d = gfxInfo.D2DEnabled;
@@ -554,10 +618,11 @@ function BuildConditionSandbox(aURL) {
     var info = gfxInfo.getInfo();
     sandbox.azureQuartz = info.AzureCanvasBackend == "quartz";
     sandbox.azureSkia = info.AzureCanvasBackend == "skia";
+    sandbox.skiaContent = info.AzureContentBackend == "skia";
+    sandbox.azureSkiaGL = info.AzureSkiaAccelerated; // FIXME: assumes GL right now
     // true if we are using the same Azure backend for rendering canvas and content
     sandbox.contentSameGfxBackendAsCanvas = info.AzureContentBackend == info.AzureCanvasBackend
                                             || (info.AzureContentBackend == "none" && info.AzureCanvasBackend == "cairo");
-#endif
 
     sandbox.layersGPUAccelerated =
       gWindowUtils.layerManagerType != "Basic";
@@ -568,11 +633,20 @@ function BuildConditionSandbox(aURL) {
 
     // Shortcuts for widget toolkits.
     sandbox.B2G = xr.widgetToolkit == "gonk";
+    sandbox.B2GDT = appInfo.name.toLowerCase() == "b2g" && !sandbox.B2G;
     sandbox.Android = xr.OS == "Android" && !sandbox.B2G;
     sandbox.cocoaWidget = xr.widgetToolkit == "cocoa";
     sandbox.gtk2Widget = xr.widgetToolkit == "gtk2";
     sandbox.qtWidget = xr.widgetToolkit == "qt";
     sandbox.winWidget = xr.widgetToolkit == "windows";
+
+    if (sandbox.Android) {
+        var sysInfo = CC["@mozilla.org/system-info;1"].getService(CI.nsIPropertyBag2);
+
+        // This is currently used to distinguish Android 4.0.3 (SDK version 15)
+        // and later from Android 2.x
+        sandbox.AndroidVersion = sysInfo.getPropertyAsInt32("version");
+    }
 
 #if MOZ_ASAN
     sandbox.AddressSanitizer = true;
@@ -580,41 +654,35 @@ function BuildConditionSandbox(aURL) {
     sandbox.AddressSanitizer = false;
 #endif
 
+#if MOZ_WEBRTC
+    sandbox.webrtc = true;
+#else
+    sandbox.webrtc = false;
+#endif
+
     var hh = CC[NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX + "http"].
                  getService(CI.nsIHttpProtocolHandler);
-    sandbox.http = { __exposedProps__: {} };
-    for each (var prop in [ "userAgent", "appName", "appVersion",
-                            "vendor", "vendorSub",
-                            "product", "productSub",
-                            "platform", "oscpu", "language", "misc" ]) {
-        sandbox.http[prop] = hh[prop];
-        sandbox.http.__exposedProps__[prop] = "r";
-    }
+    var httpProps = ["userAgent", "appName", "appVersion", "vendor",
+                     "vendorSub", "product", "productSub", "platform",
+                     "oscpu", "language", "misc"];
+    sandbox.http = new sandbox.Object();
+    httpProps.forEach((x) => sandbox.http[x] = hh[x]);
 
-    // Set OSX to the Mac OS X version for Mac, and 0 otherwise.
-    var osxmatch = /Mac OS X (\d+.\d+)$/.exec(hh.oscpu);
-    sandbox.OSX = osxmatch ? parseFloat(osxmatch[1]) : 0;
+    // Set OSX to be the Mac OS X version, as an integer, or undefined
+    // for other platforms.  The integer is formed by 100 times the
+    // major version plus the minor version, so 1006 for 10.6, 1010 for
+    // 10.10, etc.
+    var osxmatch = /Mac OS X (\d+).(\d+)$/.exec(hh.oscpu);
+    sandbox.OSX = osxmatch ? parseInt(osxmatch[1]) * 100 + parseInt(osxmatch[2]) : undefined;
 
     // see if we have the test plugin available,
     // and set a sandox prop accordingly
-    sandbox.haveTestPlugin = false;
-
     var navigator = gContainingWindow.navigator;
-    for (var i = 0; i < navigator.mimeTypes.length; i++) {
-        if (navigator.mimeTypes[i].type == "application/x-test" &&
-            navigator.mimeTypes[i].enabledPlugin != null &&
-            navigator.mimeTypes[i].enabledPlugin.name == "Test Plug-in") {
-            sandbox.haveTestPlugin = true;
-            break;
-        }
-    }
+    var testPlugin = navigator.plugins["Test Plug-in"];
+    sandbox.haveTestPlugin = !!testPlugin;
 
     // Set a flag on sandbox if the windows default theme is active
-    var box = gContainingWindow.document.createElement("box");
-    box.setAttribute("id", "_box_windowsDefaultTheme");
-    gContainingWindow.document.documentElement.appendChild(box);
-    sandbox.windowsDefaultTheme = (gContainingWindow.getComputedStyle(box, null).display == "none");
-    gContainingWindow.document.documentElement.removeChild(box);
+    sandbox.windowsDefaultTheme = gContainingWindow.matchMedia("(-moz-windows-default-theme)").matches;
 
     var prefs = CC["@mozilla.org/preferences-service;1"].
                 getService(CI.nsIPrefBranch);
@@ -624,21 +692,12 @@ function BuildConditionSandbox(aURL) {
         sandbox.nativeThemePref = true;
     }
 
-    sandbox.prefs = {
-        __exposedProps__: {
-            getBoolPref: 'r',
-            getIntPref: 'r',
-        },
-        _prefs:      prefs,
-        getBoolPref: function(p) { return this._prefs.getBoolPref(p); },
-        getIntPref:  function(p) { return this._prefs.getIntPref(p); }
-    }
+    sandbox.prefs = CU.cloneInto({
+        getBoolPref: function(p) { return prefs.getBoolPref(p); },
+        getIntPref:  function(p) { return prefs.getIntPref(p); }
+    }, sandbox, { cloneFunctions: true });
 
     sandbox.testPluginIsOOP = function () {
-        try {
-            netscape.security.PrivilegeManager.enablePrivilege("UniversalXPConnect");
-        } catch (ex) {}
-
         var prefservice = Components.classes["@mozilla.org/preferences-service;1"]
                                     .getService(CI.nsIPrefBranch);
 
@@ -673,13 +732,15 @@ function BuildConditionSandbox(aURL) {
     // crash the content process
     sandbox.browserIsRemote = gBrowserIsRemote;
 
-    // Distinguish the Fennecs:
-    sandbox.xulFennec    = sandbox.Android &&  sandbox.browserIsRemote;
-    sandbox.nativeFennec = sandbox.Android && !sandbox.browserIsRemote;
+    try {
+        sandbox.asyncPanZoom = prefs.getBoolPref("layers.async-pan-zoom.enabled");
+    } catch (e) {
+        sandbox.asyncPanZoom = false;
+    }
 
     if (!gDumpedConditionSandbox) {
         dump("REFTEST INFO | Dumping JSON representation of sandbox \n");
-        dump("REFTEST INFO | " + JSON.stringify(sandbox) + " \n");
+        dump("REFTEST INFO | " + JSON.stringify(CU.waiveXrays(sandbox)) + " \n");
         gDumpedConditionSandbox = true;
     }
     return sandbox;
@@ -741,7 +802,12 @@ function ReadManifest(aURL, inherited_status)
                      .getService(CI.nsIScriptSecurityManager);
 
     var listURL = aURL;
-    var channel = gIOService.newChannelFromURI(aURL);
+    var channel = gIOService.newChannelFromURI2(aURL,
+                                                null,      // aLoadingNode
+                                                Services.scriptSecurityManager.getSystemPrincipal(),
+                                                null,      // aTriggeringPrincipal
+                                                CI.nsILoadInfo.SEC_NORMAL,
+                                                CI.nsIContentPolicy.TYPE_OTHER);
     var inputStream = channel.open();
     if (channel instanceof Components.interfaces.nsIHttpChannel
         && channel.responseStatus != 200) {
@@ -839,7 +905,7 @@ function ReadManifest(aURL, inherited_status)
             } else if ((m = item.match(/^require-or\((.*?)\)$/))) {
                 var args = m[1].split(/,/);
                 if (args.length != 2) {
-                    throw "Error 7 in manifest file " + aURL.spec + " line " + lineNo + ": wrong number of args to require-or";
+                    throw "Error in manifest file " + aURL.spec + " line " + lineNo + ": wrong number of args to require-or";
                 }
                 var [precondition_str, fallback_action] = args;
                 var preconditions = precondition_str.split(/&&/);
@@ -885,7 +951,7 @@ function ReadManifest(aURL, inherited_status)
                 fuzzy_max_pixels = Number(m[3]);
               }
             } else {
-                throw "Error 1 in manifest file " + aURL.spec + " line " + lineNo;
+                throw "Error in manifest file " + aURL.spec + " line " + lineNo + ": unexpected item " + item;
             }
 
             if (cond) {
@@ -936,17 +1002,20 @@ function ReadManifest(aURL, inherited_status)
         var principal = secMan.getSimpleCodebasePrincipal(aURL);
 
         if (items[0] == "include") {
-            if (items.length != 2 || runHttp)
-                throw "Error 2 in manifest file " + aURL.spec + " line " + lineNo;
+            if (items.length != 2)
+                throw "Error in manifest file " + aURL.spec + " line " + lineNo + ": incorrect number of arguments to include";
+            if (runHttp)
+                throw "Error in manifest file " + aURL.spec + " line " + lineNo + ": use of include with http";
             var incURI = gIOService.newURI(items[1], null, listURL);
             secMan.checkLoadURIWithPrincipal(principal, incURI,
                                              CI.nsIScriptSecurityManager.DISALLOW_SCRIPT);
             ReadManifest(incURI, expected_status);
         } else if (items[0] == TYPE_LOAD) {
-            if (items.length != 2 ||
-                (expected_status != EXPECTED_PASS &&
-                 expected_status != EXPECTED_DEATH))
-                throw "Error 3 in manifest file " + aURL.spec + " line " + lineNo;
+            if (items.length != 2)
+                throw "Error in manifest file " + aURL.spec + " line " + lineNo + ": incorrect number of arguments to load";
+            if (expected_status != EXPECTED_PASS &&
+                expected_status != EXPECTED_DEATH)
+                throw "Error in manifest file " + aURL.spec + " line " + lineNo + ": incorrect known failure type for load test";
             var [testURI] = runHttp
                             ? ServeFiles(principal, httpDepth,
                                          listURL, [items[1]])
@@ -972,7 +1041,7 @@ function ReadManifest(aURL, inherited_status)
                           url2: null });
         } else if (items[0] == TYPE_SCRIPT) {
             if (items.length != 2)
-                throw "Error 4 in manifest file " + aURL.spec + " line " + lineNo;
+                throw "Error in manifest file " + aURL.spec + " line " + lineNo + ": incorrect number of arguments to script";
             var [testURI] = runHttp
                             ? ServeFiles(principal, httpDepth,
                                          listURL, [items[1]])
@@ -998,7 +1067,7 @@ function ReadManifest(aURL, inherited_status)
                           url2: null });
         } else if (items[0] == TYPE_REFTEST_EQUAL || items[0] == TYPE_REFTEST_NOTEQUAL) {
             if (items.length != 3)
-                throw "Error 5 in manifest file " + aURL.spec + " line " + lineNo;
+                throw "Error in manifest file " + aURL.spec + " line " + lineNo + ": incorrect number of arguments to " + items[0];
             var [testURI, refURI] = runHttp
                                   ? ServeFiles(principal, httpDepth,
                                                listURL, [items[1], items[2]])
@@ -1026,7 +1095,7 @@ function ReadManifest(aURL, inherited_status)
                           url1: testURI,
                           url2: refURI });
         } else {
-            throw "Error 6 in manifest file " + aURL.spec + " line " + lineNo;
+            throw "Error in manifest file " + aURL.spec + " line " + lineNo + ": unknown test type " + items[0];
         }
     }
 }
@@ -1117,6 +1186,15 @@ function Focus()
     return true;
 }
 
+function Blur()
+{
+    // On non-remote reftests, this will transfer focus to the dummy window
+    // we created to hold focus for non-needs-focus tests.  Buggy tests
+    // (ones which require focus but don't request needs-focus) will then
+    // fail.
+    gContainingWindow.blur();
+}
+
 function StartCurrentTest()
 {
     gTestLog = [];
@@ -1149,6 +1227,9 @@ function StartCurrentTest()
     }
     else {
         gDumpLog("REFTEST TEST-START | " + gURLs[0].prettyPath + "\n");
+        if (!gURLs[0].needsFocus) {
+            Blur();
+        }
         var currentTest = gTotalTests - gURLs.length;
         gContainingWindow.document.title = "reftest: " + currentTest + " / " + gTotalTests +
             " (" + Math.floor(100 * (currentTest / gTotalTests)) + "%)";
@@ -1399,6 +1480,12 @@ function UpdateCurrentCanvasForInvalidation(rects)
         var right = Math.ceil(r.right);
         var bottom = Math.ceil(r.bottom);
 
+        // Clamp the values to the canvas size
+        left = Math.max(0, Math.min(left, gCurrentCanvas.width));
+        top = Math.max(0, Math.min(top, gCurrentCanvas.height));
+        right = Math.max(0, Math.min(right, gCurrentCanvas.width));
+        bottom = Math.max(0, Math.min(bottom, gCurrentCanvas.height));
+
         ctx.save();
         ctx.translate(left, top);
         DoDrawWindow(ctx, left, top, right - left, bottom - top);
@@ -1600,7 +1687,7 @@ function RecordResult(testRunTime, errorMsg, scriptResults)
                         result += "REFTEST   IMAGE 2 (REFERENCE): " + gCanvas2.toDataURL() + "\n";
                     } else {
                         result += "\n";
-                        gDumpLog("REFTEST   IMAGE: " + gCanvas1.toDataURL() + "\n");
+                        result += "REFTEST   IMAGE: " + gCanvas1.toDataURL() + "\n";
                     }
                 } else {
                     result += "\n";
@@ -1609,7 +1696,7 @@ function RecordResult(testRunTime, errorMsg, scriptResults)
                 gDumpLog(result);
             }
 
-            if (!test_passed && expected == EXPECTED_PASS) {
+            if ((!test_passed && expected == EXPECTED_PASS) || (test_passed && expected == EXPECTED_FAIL)) {
                 FlushTestLog();
             }
 
@@ -1631,6 +1718,11 @@ function RecordResult(testRunTime, errorMsg, scriptResults)
 function LoadFailed(why)
 {
     ++gTestResults.FailedLoad;
+    // Once bug 896840 is fixed, this can go away, but for now it will give log
+    // output that is TBPL starable for bug 789751 and bug 720452.
+    if (!why) {
+        gDumpLog("REFTEST TEST-UNEXPECTED-FAIL | load failed with unknown reason\n");
+    }
     gDumpLog("REFTEST TEST-UNEXPECTED-FAIL | " +
          gURLs[0]["url" + gState].spec + " | load failed: " + why + "\n");
     FlushTestLog();
@@ -1694,7 +1786,6 @@ function FinishTestItem()
     gDumpLog("REFTEST INFO | Loading a blank page\n");
     // After clearing, content will notify us of the assertion count
     // and tests will continue.
-    SetAsyncScroll(false);
     SendClear();
     gFailedNoPaint = false;
 }
@@ -1824,19 +1915,8 @@ function RegisterMessageListenersAndLoadContentScript()
         "reftest:ExpectProcessCrash",
         function (m) { RecvExpectProcessCrash(); }
     );
-    gBrowserMessageManager.addMessageListener(
-        "reftest:EnableAsyncScroll",
-        function (m) { SetAsyncScroll(true); }
-    );
 
-    gBrowserMessageManager.loadFrameScript("chrome://reftest/content/reftest-content.js", true);
-}
-
-function SetAsyncScroll(enabled)
-{
-    gBrowser.QueryInterface(CI.nsIFrameLoaderOwner).frameLoader.renderMode =
-        enabled ? CI.nsIFrameLoader.RENDER_MODE_ASYNC_SCROLL :
-                  CI.nsIFrameLoader.RENDER_MODE_DEFAULT;
+    gBrowserMessageManager.loadFrameScript("chrome://reftest/content/reftest-content.js", true, true);
 }
 
 function RecvAssertionCount(count)
