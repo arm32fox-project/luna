@@ -3,8 +3,8 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 // How to run this file:
-// 1. [obtain firefox source code]
-// 2. [build/obtain firefox binaries]
+// 1. [obtain Pale Moon source code]
+// 2. [build/obtain Pale Moon binaries]
 // 3. run `[path to]/run-mozilla.sh [path to]/xpcshell \
 //                                  [path to]/getHSTSPreloadlist.js \
 //                                  [absolute path to]/nsSTSPreloadlist.inc'
@@ -30,7 +30,7 @@ Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/FileUtils.jsm");
 Cu.import("resource:///modules/XPCOMUtils.jsm");
 
-const SOURCE = "https://src.chromium.org/chrome/trunk/src/net/http/transport_security_state_static.json";
+const SOURCE = "https://chromium.googlesource.com/chromium/src/net/+/master/http/transport_security_state_static.json?format=TEXT";
 const OUTPUT = "nsSTSPreloadList.inc";
 const ERROR_OUTPUT = "nsSTSPreloadList.errors";
 const MINIMUM_REQUIRED_MAX_AGE = 60 * 60 * 24 * 7 * 18;
