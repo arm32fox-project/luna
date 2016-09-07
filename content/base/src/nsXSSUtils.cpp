@@ -791,6 +791,11 @@ P1Match(const nsAString& p, const nsAString& s, PRInt32 sOffset,
 
   PRInt32 plen = p.Length();
   PRInt32 slen = s.Length();
+  
+  if (plen <= 3 || plen > 10000 || slen <= 3 || slen > 10000) {
+    // Too small or too large components.
+    return NS_OK;
+  }
 
   dist = (PRInt32 *) nsMemory::Alloc((plen+1)*(slen+1)*sizeof(PRInt32 *));
   if (dist == NULL) {
