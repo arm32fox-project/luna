@@ -1555,15 +1555,35 @@ CSPSource.prototype = {
     if (!(aSource instanceof CSPSource))
       aSource = CSPSource.create(aSource, this._CSPRep);
 
+    let ruleScheme = this.scheme.toLowerCase();
+    let resourceScheme = aSource.scheme.toLowerCase();
+    
     // verify scheme
-    if (this.scheme.toLowerCase() != aSource.scheme.toLowerCase())
-      return false;
-
+    // CSP2 allows an "upgrade" of http to https
+    if (ruleScheme == "http") {
+      // If the rule is http, check if the resource is loaded from http or
+      // https, and if not, don't allow it (no other schemes permitted)
+      if (resourceScheme != "http" && resourceScheme != "https")
+        return false;   
+    } else {
+      // Not http -> do a normal exact scheme match check.
+      if (ruleScheme != resourceScheme)
+        return false;
+    }
+    
     // port is defined in 'this' (undefined means it may not be relevant
     // to the scheme) AND this port (implicit or explicit) matches
     // aSource's port
-    if (this.port && this.port !== "*" && this.port != aSource.port)
-      return false;
+    if (this.port && this.port !== "*") {
+      if (ruleScheme == "http" && resourceScheme == "https") {
+        // Special case for http -> https upgrade.
+        // Fall through, ports differ.
+      } else {
+        // Check port match
+        if (this.port != aSource.port)
+          return false;
+      }
+    }
 
     // host is defined in 'this' (undefined means it may not be relevant
     // to the scheme) AND this host (implicit or explicit) permits
