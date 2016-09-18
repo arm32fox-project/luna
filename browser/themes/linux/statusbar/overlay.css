@@ -30,11 +30,6 @@ toolbar[iconsize="small"] #status4evar-download-progress-bar
 	height: 4px;
 }
 
-#status4evar-download-button[attention] #status4evar-download-icon
-{
-	background-image: url("chrome://browser/skin/downloads/download-glow.png");
-}
-
 toolbar[mode="icons"] #status4evar-download-button[forcelabel="true"] > label
 {
 	margin: 0px 2px !important;

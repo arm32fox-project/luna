@@ -25,9 +25,14 @@
 	height: 5px;
 }
 
-#status4evar-download-button[attention] #status4evar-download-icon
+#status-bar
 {
-	background-image: url("chrome://browser/skin/downloads/download-glow.png");
+	padding-right: 0px;
+}
+
+#browser-bottombox > #addon-bar:last-child
+{
+	padding-right: 16px;
 }
 
 toolbar[mode="icons"] #status4evar-download-button[forcelabel="true"] > label
