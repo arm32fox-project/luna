@@ -189,6 +189,7 @@ destroying the MediaDecoder object.
 #include "nsIObserver.h"
 #include "nsAutoPtr.h"
 #include "nsITimer.h"
+#include "MediaPromise.h"
 #include "MediaResource.h"
 #include "mozilla/dom/AudioChannelBinding.h"
 #include "mozilla/gfx/Rect.h"
@@ -270,6 +271,14 @@ class MediaDecoder : public nsIObserver,
                      public AbstractMediaDecoder
 {
 public:
+  struct SeekResolveValue {
+    SeekResolveValue(bool aAtEnd, MediaDecoderEventVisibility aEventVisibility)
+      : mAtEnd(aAtEnd), mEventVisibility(aEventVisibility) {}
+    bool mAtEnd;
+    MediaDecoderEventVisibility mEventVisibility;
+  };
+
+  typedef MediaPromise<SeekResolveValue, bool /* aIgnored */, /* IsExclusive = */ true> SeekPromise;
   class DecodedStreamGraphListener;
 
   NS_DECL_THREADSAFE_ISUPPORTS
@@ -732,12 +741,6 @@ public:
   // to buffer, given the current download and playback rates.
   bool CanPlayThrough();
 
-  // Make the decoder state machine update the playback position. Called by
-  // the reader on the decoder thread (Assertions for this checked by
-  // mDecoderStateMachine). This must be called with the decode monitor
-  // held.
-  void UpdatePlaybackPosition(int64_t aTime) final override;
-
   void SetAudioChannel(dom::AudioChannel aChannel) { mAudioChannel = aChannel; }
   dom::AudioChannel GetAudioChannel() { return mAudioChannel; }
 
@@ -800,13 +803,8 @@ public:
   // Call on the main thread only.
   void PlaybackEnded();
 
-  // Seeking has stopped. Inform the element on the main
-  // thread.
-  void SeekingStopped(MediaDecoderEventVisibility aEventVisibility = MediaDecoderEventVisibility::Observable);
-
-  // Seeking has stopped at the end of the resource. Inform the element on the main
-  // thread.
-  void SeekingStoppedAtEnd(MediaDecoderEventVisibility aEventVisibility = MediaDecoderEventVisibility::Observable);
+  void OnSeekRejected() { mSeekRequest.Complete(); }
+  void OnSeekResolved(SeekResolveValue aVal);
 
   // Seeking has started. Inform the element on the main
   // thread.
@@ -1140,6 +1138,8 @@ protected:
   // If the SeekTarget's IsValid() accessor returns false, then no seek has
   // been requested. When a seek is started this is reset to invalid.
   SeekTarget mRequestedSeekTarget;
+
+  MediaPromiseConsumerHolder<SeekPromise> mSeekRequest;
 
   // True when seeking or otherwise moving the play position around in
   // such a manner that progress event data is inaccurate. This is set

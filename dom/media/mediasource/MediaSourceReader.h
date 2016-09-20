@@ -45,6 +45,7 @@ public:
   void PrepareInitialization();
 
   bool IsWaitingMediaResources() override;
+  bool IsWaitingOnCDMResource() override;
 
   nsRefPtr<AudioDataPromise> RequestAudioData() override;
   nsRefPtr<VideoDataPromise>
@@ -108,7 +109,7 @@ public:
   nsRefPtr<SeekPromise>
   Seek(int64_t aTime, int64_t aEndTime) override;
 
-  void CancelSeek() override;
+  nsresult ResetDecode() override;
 
   // Acquires the decoder monitor, and is thus callable on any thread.
   nsresult GetBuffered(dom::TimeRanges* aBuffered) override;
