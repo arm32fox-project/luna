@@ -169,10 +169,11 @@ nsresult imgFrame::Init(int32_t aX, int32_t aY, int32_t aWidth, int32_t aHeight,
       return NS_ERROR_FAILURE;
     }
 
-    // Use the fallible allocator here
-    mPalettedImageData = (uint8_t*)moz_malloc(PaletteDataLength() + GetImageDataLength());
+    // Use the fallible allocator here.
+    size_t dataSize = PaletteDataLength() + GetImageDataLength();
+    mPalettedImageData = (uint8_t*)moz_calloc(dataSize, sizeof(uint8_t));
     if (!mPalettedImageData)
-      NS_WARNING("moz_malloc for paletted image data should succeed");
+      NS_WARNING("Call to moz_calloc for paletted image data should succeed");
     NS_ENSURE_TRUE(mPalettedImageData, NS_ERROR_OUT_OF_MEMORY);
   } else {
     // For Windows, we must create the device surface first (if we're
