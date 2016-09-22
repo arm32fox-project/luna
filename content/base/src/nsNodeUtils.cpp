@@ -537,7 +537,7 @@ nsNodeUtils::CloneAndAdopt(nsINode *aNode, bool aClone, bool aDeep,
           }
         }
         if (NS_FAILED(rv)) {
-          aNode->mNodeInfo.swap(nodeInfo);
+          aNode->mNodeInfo.swap(newNodeInfo);
 
           return rv;
         }
