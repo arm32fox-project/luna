@@ -99,7 +99,7 @@
 #elif MOZ_MSVC_REDIST == 1700
 @BINPATH@/msvcp110.dll
 @BINPATH@/msvcr110.dll
-; @BINPATH@/vcomp110.dll
+@BINPATH@/vcomp110.dll
 #endif
 #endif
 #endif
