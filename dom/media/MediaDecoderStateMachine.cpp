@@ -1112,6 +1112,7 @@ MediaDecoderStateMachine::IsVideoDecoding()
 void
 MediaDecoderStateMachine::CheckIfDecodeComplete()
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   if (IsShutdown() ||
       mState == DECODER_STATE_SEEKING ||
@@ -1333,6 +1334,7 @@ static const char* const gMachineStateStr[] = {
 
 void MediaDecoderStateMachine::SetState(State aState)
 {
+  MOZ_ASSERT(OnTaskQueue());
   AssertCurrentThreadInMonitor();
   if (mState == aState) {
     return;
@@ -1571,7 +1573,7 @@ void MediaDecoderStateMachine::SetDormant(bool aDormant)
 
 void MediaDecoderStateMachine::Shutdown()
 {
-  NS_ASSERTION(NS_IsMainThread(), "Should be on main thread.");
+  MOZ_ASSERT(OnTaskQueue());
 
   // Once we've entered the shutdown state here there's no going back.
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
@@ -3265,7 +3267,8 @@ bool MediaDecoderStateMachine::JustExitedQuickBuffering()
 
 void MediaDecoderStateMachine::StartBuffering()
 {
-  AssertCurrentThreadInMonitor();
+  MOZ_ASSERT(OnTaskQueue());
+  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
 
   if (mState != DECODER_STATE_DECODING) {
     // We only move into BUFFERING state if we're actually decoding.
@@ -3462,6 +3465,7 @@ void MediaDecoderStateMachine::QueueMetadata(int64_t aPublishTime,
 
 void MediaDecoderStateMachine::OnAudioEndTimeUpdate(int64_t aAudioEndTime)
 {
+  MOZ_ASSERT(OnTaskQueue());
   ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   MOZ_ASSERT(aAudioEndTime >= mAudioEndTime);
   mAudioEndTime = aAudioEndTime;
@@ -3469,12 +3473,15 @@ void MediaDecoderStateMachine::OnAudioEndTimeUpdate(int64_t aAudioEndTime)
 
 void MediaDecoderStateMachine::OnPlaybackOffsetUpdate(int64_t aPlaybackOffset)
 {
+  MOZ_ASSERT(OnTaskQueue());
+  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   mDecoder->UpdatePlaybackOffset(aPlaybackOffset);
 }
 
 void MediaDecoderStateMachine::OnAudioSinkComplete()
 {
-  AssertCurrentThreadInMonitor();
+  MOZ_ASSERT(OnTaskQueue());
+  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
   if (mAudioCaptured) {
     return;
   }

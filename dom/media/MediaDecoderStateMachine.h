@@ -164,7 +164,16 @@ public:
   bool IsDormantNeeded();
   // Set/Unset dormant state.
   void SetDormant(bool aDormant);
+
+private:
   void Shutdown();
+public:
+
+  void DispatchShutdown()
+  {
+    TaskQueue()->Dispatch(NS_NewRunnableMethod(this, &MediaDecoderStateMachine::Shutdown));
+  }
+
   void ShutdownReader();
   void FinishShutdown();
 
@@ -245,11 +254,17 @@ public:
   // the decode monitor held.
   void UpdatePlaybackPosition(int64_t aTime);
 
+private:
   // Causes the state machine to switch to buffering state, and to
-  // immediately stop playback and buffer downloaded data. Must be called
-  // with the decode monitor held. Called on the state machine thread and
-  // the main thread.
+  // immediately stop playback and buffer downloaded data. Called on
+  // the state machine thread.
   void StartBuffering();
+public:
+
+  void DispatchStartBuffering()
+  {
+    TaskQueue()->Dispatch(NS_NewRunnableMethod(this, &MediaDecoderStateMachine::StartBuffering));
+  }
 
   // This is called on the state machine thread and audio thread.
   // The decoder monitor must be obtained before calling this.
@@ -716,15 +731,37 @@ protected:
   // Can only be called on the state machine thread.
   void SetPlayStartTime(const TimeStamp& aTimeStamp);
 
+private:
   // Update mAudioEndTime.
   void OnAudioEndTimeUpdate(int64_t aAudioEndTime);
+public:
+  void DispatchOnAudioEndTimeUpdate(int64_t aAudioEndTime)
+  {
+    RefPtr<nsRunnable> r =
+      NS_NewRunnableMethodWithArg<int64_t>(this, &MediaDecoderStateMachine::OnAudioEndTimeUpdate, aAudioEndTime);
+    TaskQueue()->Dispatch(r.forget());
+  }
 
+private:
   // Update mDecoder's playback offset.
   void OnPlaybackOffsetUpdate(int64_t aPlaybackOffset);
+public:
+  void DispatchOnPlaybackOffsetUpdate(int64_t aPlaybackOffset)
+  {
+    RefPtr<nsRunnable> r =
+      NS_NewRunnableMethodWithArg<int64_t>(this, &MediaDecoderStateMachine::OnPlaybackOffsetUpdate, aPlaybackOffset);
+    TaskQueue()->Dispatch(r.forget());
+  }
 
+private:
   // Called by the AudioSink to signal that all outstanding work is complete
   // and the sink is shutting down.
   void OnAudioSinkComplete();
+public:
+  void DispatchOnAudioSinkComplete()
+  {
+    TaskQueue()->Dispatch(NS_NewRunnableMethod(this, &MediaDecoderStateMachine::OnAudioSinkComplete));
+  }
 
   // Called by the AudioSink to signal errors.
   void OnAudioSinkError();
