@@ -3846,7 +3846,8 @@ dnl ========================================================
 
 MOZ_ARG_HEADER(Application)
 
-ENABLE_TESTS=1
+ENABLE_TESTS=
+MOZ_DISABLE_PARENTAL_CONTROLS=1
 ENABLE_SYSTEM_EXTENSION_DIRS=1
 MOZ_BRANDING_DIRECTORY=
 MOZ_OFFICIAL_BRANDING=
@@ -3934,14 +3935,14 @@ MOZ_ANDROID_SEARCH_ACTIVITY=
 MOZ_ANDROID_DOWNLOADS_INTEGRATION=
 MOZ_ANDROID_MLS_STUMBLER=
 MOZ_ANDROID_SHARE_OVERLAY=
-ACCESSIBILITY=1
+ACCESSIBILITY=
 MOZ_TIME_MANAGER=
 MOZ_PAY=
 MOZ_AUDIO_CHANNEL_MANAGER=
 NSS_NO_LIBPKIX=
 MOZ_CONTENT_SANDBOX=
 MOZ_GMP_SANDBOX=
-MOZ_SANDBOX=1
+MOZ_SANDBOX=
 
 case "$target_os" in
     mingw*)
@@ -5036,12 +5037,12 @@ MOZ_ARG_DISABLE_BOOL(dbm,
     NSS_DISABLE_DBM=)
 
 dnl ========================================================
-dnl accessibility support on by default on all platforms
+dnl accessibility support off by default on all platforms
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(accessibility,
-[  --disable-accessibility Disable accessibility support],
-    ACCESSIBILITY=,
-    ACCESSIBILITY=1 )
+MOZ_ARG_ENABLE_BOOL(accessibility,
+[  --enable-accessibility Enable accessibility support],
+    ACCESSIBILITY=1,
+    ACCESSIBILITY= )
 if test "$ACCESSIBILITY"; then
     case "$target" in
     *-mingw*)
@@ -6247,22 +6248,8 @@ if test "$OS_ARCH" = "WINNT"; then
 fi
 
 dnl ========================================================
-dnl Web App Runtime
+dnl GNU tar and wget
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(webapp-runtime,
-[  --disable-webapp-runtime  Disable Web App Runtime],
-    MOZ_WEBAPP_RUNTIME=,
-    MOZ_WEBAPP_RUNTIME=1)
-if test "$MOZ_WIDGET_TOOLKIT" != "windows" -a "$MOZ_WIDGET_TOOLKIT" != "cocoa" -a -z "$MOZ_WIDGET_GTK" ; then
-    MOZ_WEBAPP_RUNTIME=
-fi
-if test "$OS_ARCH" = "WINNT" -a -z "$MAKENSISU" -a -n "$CROSS_COMPILE"; then
-    MOZ_WEBAPP_RUNTIME=
-fi
-AC_SUBST(MOZ_WEBAPP_RUNTIME)
-if test "$MOZ_WEBAPP_RUNTIME"; then
-    AC_DEFINE(MOZ_WEBAPP_RUNTIME)
-fi
 
 AC_CHECK_PROGS(TAR, gnutar gtar tar, "")
 if test -z "$TAR"; then
@@ -6367,12 +6354,12 @@ MOZ_ARG_ENABLE_BOOL(update-packaging,
 AC_SUBST(MOZ_UPDATE_PACKAGING)
 
 dnl ========================================================
-dnl build the tests by default
+dnl Do not build the tests by default
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(tests,
-[  --disable-tests         Do not build test libraries & programs],
-    ENABLE_TESTS=,
-    ENABLE_TESTS=1 )
+MOZ_ARG_ENABLE_BOOL(tests,
+[  --enable-tests         Build test libraries & programs],
+    ENABLE_TESTS=1,
+    ENABLE_TESTS= )
 
 if test -n "$ENABLE_TESTS"; then
     GTEST_HAS_RTTI=0
@@ -6395,11 +6382,11 @@ fi
 dnl ========================================================
 dnl parental controls (for Windows Vista)
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(parental-controls,
-[  --disable-parental-controls
-                          Do not build parental controls],
-   MOZ_DISABLE_PARENTAL_CONTROLS=1,
-   MOZ_DISABLE_PARENTAL_CONTROLS=)
+MOZ_ARG_ENABLE_BOOL(parental-controls,
+[  --enable-parental-controls
+                          Build parental controls],
+   MOZ_DISABLE_PARENTAL_CONTROLS=,
+   MOZ_DISABLE_PARENTAL_CONTROLS=1)
 if test -n "$MOZ_DISABLE_PARENTAL_CONTROLS"; then
     AC_DEFINE(MOZ_DISABLE_PARENTAL_CONTROLS)
 fi
@@ -6433,10 +6420,10 @@ AC_SUBST(NSS_NO_LIBPKIX)
 dnl ========================================================
 dnl = Sandboxing support
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(sandbox,
-[  --disable-sandbox        Disable sandboxing support],
-    MOZ_SANDBOX=,
-    MOZ_SANDBOX=1)
+MOZ_ARG_ENABLE_BOOL(sandbox,
+[  --enable-sandbox        Enable sandboxing support],
+    MOZ_SANDBOX=1,
+    MOZ_SANDBOX=)
 
 dnl ========================================================
 dnl = Content process sandboxing
