@@ -8,10 +8,10 @@ const {Cu, Cc, Ci} = require("chrome");
 const events = require("sdk/event/core");
 const protocol = require("devtools/server/protocol");
 try {
-    const { indexedDB } = require("sdk/indexed-db");
+  const { indexedDB } = require("sdk/indexed-db");
 } catch (e) {
-    // In xpcshell tests, we can't actually have indexedDB, which is OK:
-    // we don't use it there anyway.
+  // In xpcshell tests, we can't actually have indexedDB, which is OK:
+  // we don't use it there anyway.
 }
 const {async} = require("devtools/async-utils");
 const {Arg, method, RetVal, types} = protocol;
@@ -21,6 +21,7 @@ Cu.import("resource://gre/modules/Promise.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/devtools/LayoutHelpers.jsm");
+const { setTimeout, clearTimeout } = require("sdk/timers");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Sqlite",
   "resource://gre/modules/Sqlite.jsm");
@@ -34,9 +35,9 @@ let global = this;
 // Maximum number of cookies/local storage key-value-pairs that can be sent
 // over the wire to the client in one request.
 const MAX_STORE_OBJECT_COUNT = 50;
-// Interval for the batch job that sends the accumilated update packets to the
-// client.
-const UPDATE_INTERVAL = 500; // ms
+// Delay for the batch job that sends the accumulated update packets to the
+// client (ms).
+const BATCH_DELAY = 200;
 
 // A RegExp for characters that cannot appear in a file/directory name. This is
 // used to sanitize the host name for indexed db to lookup whether the file is
@@ -68,19 +69,16 @@ function getRegisteredTypes() {
  * An async method equivalent to setTimeout but using Promises
  *
  * @param {number} time
- *        The wait Ttme in milliseconds.
+ *        The wait time in milliseconds.
  */
 function sleep(time) {
-  let wait = Promise.defer();
-  let updateTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-  updateTimer.initWithCallback({
-    notify: function() {
-      updateTimer.cancel();
-      updateTimer = null;
-      wait.resolve(null);
-    }
-  } , time, Ci.nsITimer.TYPE_ONE_SHOT);
-  return wait.promise;
+  let deferred = promise.defer();
+
+  setTimeout(() => {
+    deferred.resolve(null);
+  }, time);
+
+  return deferred.promise;
 }
 
 // Cookies store object
@@ -324,7 +322,8 @@ StorageActors.defaults = function(typeName, observationTopic, storeObjectType) {
      *        Array containing the names of required store objects. Empty if all
      *        items are required.
      * @param {object} options
-     *        Additional options for the request containing following properties:
+     *        Additional options for the request containing following
+     *        properties:
      *         - offset {number} : The begin index of the returned array amongst
      *                  the total values
      *         - size {number} : The number of values required.
@@ -456,7 +455,6 @@ StorageActors.createActor({
 
     this.populateStoresForHosts();
     Services.obs.addObserver(this, "cookie-changed", false);
-    Services.obs.addObserver(this, "http-on-response-set-cookie", false);
     this.onWindowReady = this.onWindowReady.bind(this);
     this.onWindowDestroyed = this.onWindowDestroyed.bind(this);
     events.on(this.storageActor, "window-ready", this.onWindowReady);
@@ -466,7 +464,6 @@ StorageActors.createActor({
   destroy: function() {
     this.hostVsStores.clear();
     Services.obs.removeObserver(this, "cookie-changed", false);
-    Services.obs.removeObserver(this, "http-on-response-set-cookie", false);
     events.off(this.storageActor, "window-ready", this.onWindowReady);
     events.off(this.storageActor, "window-destroyed", this.onWindowDestroyed);
     this.storageActor = null;
@@ -496,12 +493,6 @@ StorageActors.createActor({
    * that host.
    */
   isCookieAtHost: function(cookie, host) {
-    try {
-      cookie = cookie.QueryInterface(Ci.nsICookie)
-                     .QueryInterface(Ci.nsICookie2);
-    } catch(ex) {
-      return false;
-    }
     if (cookie.host == null) {
       return host == null;
     }
@@ -535,10 +526,15 @@ StorageActors.createActor({
 
   populateStoresForHost: function(host) {
     this.hostVsStores.set(host, new Map());
+
+    // Local files have no host.
+    if (host.startsWith("file:///")) {
+      host = "";
+    }
+
     let cookies = Services.cookies.getCookiesFromHost(host);
     while (cookies.hasMoreElements()) {
-      let cookie = cookies.getNext().QueryInterface(Ci.nsICookie)
-                          .QueryInterface(Ci.nsICookie2);
+      let cookie = cookies.getNext().QueryInterface(Ci.nsICookie2);
       if (this.isCookieAtHost(cookie, host)) {
         this.hostVsStores.get(host).set(cookie.name, cookie);
       }
@@ -546,69 +542,9 @@ StorageActors.createActor({
   },
 
   /**
-   * Converts the raw cookie string returned in http request's response header
-   * to a nsICookie compatible object.
-   *
-   * @param {string} cookieString
-   *        The raw cookie string coming from response header.
-   * @param {string} domain
-   *        The domain of the url of the nsiChannel the cookie corresponds to.
-   *        This will be used when the cookie string does not have a domain.
-   *
-   * @returns {[object]}
-   *          An array of nsICookie like objects representing the cookies.
-   */
-  parseCookieString: function(cookieString, domain) {
-    /**
-     * Takes a date string present in raw cookie string coming from http
-     * request's response headers and returns the number of milliseconds elapsed
-     * since epoch. If the date string is undefined, its probably a session
-     * cookie so return 0.
-     */
-    let parseDateString = dateString => {
-      return dateString ? new Date(dateString.replace(/-/g, " ")).getTime(): 0;
-    };
-
-    let cookies = [];
-    for (let string of cookieString.split("\n")) {
-      let keyVals = {}, name = null;
-      for (let keyVal of string.split(/;\s*/)) {
-        let tokens = keyVal.split(/\s*=\s*/);
-        if (!name) {
-          name = tokens[0];
-        }
-        else {
-          tokens[0] = tokens[0].toLowerCase();
-        }
-        keyVals[tokens.splice(0, 1)[0]] = tokens.join("=");
-      }
-      let expiresTime = parseDateString(keyVals.expires);
-      keyVals.domain = keyVals.domain || domain;
-      cookies.push({
-        name: name,
-        value: keyVals[name] || "",
-        path: keyVals.path,
-        host: keyVals.domain,
-        expires: expiresTime/1000, // seconds, to match with nsiCookie.expires
-        lastAccessed: expiresTime * 1000,
-        // microseconds, to match with nsiCookie.lastAccessed
-        creationTime: expiresTime * 1000,
-        // microseconds, to match with nsiCookie.creationTime
-        isHttpOnly: true,
-        isSecure: keyVals.secure != null,
-        isDomain: keyVals.domain.startsWith("."),
-      });
-    }
-    return cookies;
-  },
-
-  /**
-   * Notification observer for topics "http-on-response-set-cookie" and
-   * "cookie-change".
+   * Notification observer for topics "cookie-change".
    *
    * @param subject
-   *        {nsiChannel} The channel associated to the SET-COOKIE response
-   *        header in case of "http-on-response-set-cookie" topic.
    *        {nsiCookie|[nsiCookie]} A single nsiCookie object or a list of it
    *        depending on the action. Array is only in case of "batch-deleted"
    *        action.
@@ -616,42 +552,12 @@ StorageActors.createActor({
    *        The topic of the notification.
    * @param {string} action
    *        Additional data associated with the notification. Its the type of
-   *        cookie change in case of "cookie-change" topic and the cookie string
-   *        in case of "http-on-response-set-cookie" topic.
+   *        cookie change in the "cookie-change" topic.
    */
   observe: function(subject, topic, action) {
-    if (topic == "http-on-response-set-cookie") {
-      // Some cookies got created as a result of http response header SET-COOKIE
-      // subject here is an nsIChannel object referring to the http request.
-      // We get the requestor of this channel and thus the content window.
-      let channel = subject.QueryInterface(Ci.nsIChannel);
-      let requestor = channel.notificationCallbacks ||
-                      channel.loadGroup.notificationCallbacks;
-      // requester can be null sometimes.
-      let window = requestor ? requestor.getInterface(Ci.nsIDOMWindow): null;
-      // Proceed only if this window is present on the currently targetted tab
-      if (window && this.storageActor.isIncludedInTopLevelWindow(window)) {
-        let host = this.getHostName(window.location);
-        if (this.hostVsStores.has(host)) {
-          let cookies = this.parseCookieString(action, channel.URI.host);
-          let data = {};
-          data[host] =  [];
-          for (let cookie of cookies) {
-            if (this.hostVsStores.get(host).has(cookie.name)) {
-              continue;
-            }
-            this.hostVsStores.get(host).set(cookie.name, cookie);
-            data[host].push(cookie.name);
-          }
-          if (data[host]) {
-            this.storageActor.update("added", "cookies", data);
-          }
-        }
-      }
-      return null;
-    }
-
-    if (topic != "cookie-changed") {
+    if (topic !== "cookie-changed" ||
+        !this.storageActor ||
+        !this.storageActor.windows) {
       return null;
     }
 
@@ -662,8 +568,6 @@ StorageActors.createActor({
       case "added":
       case "changed":
         if (hosts.length) {
-          subject = subject.QueryInterface(Ci.nsICookie)
-                           .QueryInterface(Ci.nsICookie2);
           for (let host of hosts) {
             this.hostVsStores.get(host).set(subject.name, subject);
             data[host] = [subject.name];
@@ -674,8 +578,6 @@ StorageActors.createActor({
 
       case "deleted":
         if (hosts.length) {
-          subject = subject.QueryInterface(Ci.nsICookie)
-                           .QueryInterface(Ci.nsICookie2);
           for (let host of hosts) {
             this.hostVsStores.get(host).delete(subject.name);
             data[host] = [subject.name];
@@ -689,8 +591,6 @@ StorageActors.createActor({
           for (let host of hosts) {
             let stores = [];
             for (let cookie of subject) {
-              cookie = cookie.QueryInterface(Ci.nsICookie)
-                             .QueryInterface(Ci.nsICookie2);
               this.hostVsStores.get(host).delete(cookie.name);
               stores.push(cookie.name);
             }
@@ -743,10 +643,10 @@ function getObjectForLocalOrSessionStorage(type) {
       if (!storage) {
         return [];
       }
-      return Object.keys(storage).map(name => {
+      return Object.keys(storage).map(key => {
         return {
-          name: name,
-          value: storage.getItem(name)
+          name: key,
+          value: storage.getItem(key)
         };
       });
     },
@@ -771,7 +671,8 @@ function getObjectForLocalOrSessionStorage(type) {
       this.hostVsStores = new Map();
       try {
         for (let window of this.windows) {
-          this.hostVsStores.set(this.getHostName(window.location), window[type]);
+          this.hostVsStores.set(this.getHostName(window.location),
+                                window[type]);
         }
       } catch(ex) {
         // Exceptions happen when local or session storage is inaccessible
@@ -964,6 +865,7 @@ StorageActors.createActor({
     this.objectsSize = null;
     events.off(this.storageActor, "window-ready", this.onWindowReady);
     events.off(this.storageActor, "window-destroyed", this.onWindowDestroyed);
+    this.storageActor = null;
   },
 
   getHostName: function(location) {
@@ -978,8 +880,7 @@ StorageActors.createActor({
    * cannot be performed synchronously. Thus, the preListStores method exists to
    * do the same task asynchronously.
    */
-  populateStoresForHosts: function() {
-  },
+  populateStoresForHosts: function() {},
 
   getNamesForHost: function(host) {
     let names = [];
@@ -1400,7 +1301,7 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
     }
   },
 
-  initialize: function (conn, tabActor) {
+  initialize: function(conn, tabActor) {
     protocol.Actor.prototype.initialize.call(this, null);
 
     this.conn = conn;
@@ -1422,16 +1323,12 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
     Services.obs.addObserver(this, "content-document-global-created", false);
     Services.obs.addObserver(this, "inner-window-destroyed", false);
     this.onPageChange = this.onPageChange.bind(this);
-    tabActor.browser.addEventListener("pageshow", this.onPageChange, true);
-    tabActor.browser.addEventListener("pagehide", this.onPageChange, true);
+    let handler = tabActor.chromeEventHandler;
+    handler.addEventListener("pageshow", this.onPageChange, true);
+    handler.addEventListener("pagehide", this.onPageChange, true);
 
     this.destroyed = false;
     this.boundUpdate = {};
-    // The time which periodically flushes and transfers the updated store
-    // objects.
-    this.updateTimer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
-    this.updateTimer.initWithCallback(this , UPDATE_INTERVAL,
-      Ci.nsITimer.TYPE_REPEATING_PRECISE_CAN_SKIP);
 
     // Layout helper for window.parent and window.top helper methods that work
     // accross devices.
@@ -1439,8 +1336,8 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
   },
 
   destroy: function() {
-    this.updateTimer.cancel();
-    this.updateTimer = null;
+    clearTimeout(this.batchTimer);
+    this.batchTimer = null;
     this.layoutHelper = null;
     // Remove observers
     Services.obs.removeObserver(this, "content-document-global-created", false);
@@ -1458,11 +1355,12 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
     }
     this.childActorPool.clear();
     this.childWindowPool.clear();
-    this.childWindowPool = this.childActorPool = null;
+    this.childWindowPool = this.childActorPool = this.conn = this.parentActor =
+      this.boundUpdate = null;
   },
 
   /**
-   * Given a docshell, recursively find otu all the child windows from it.
+   * Given a docshell, recursively find out all the child windows from it.
    *
    * @param {nsIDocShell} item
    *        The docshell from which all inner windows need to be extracted.
@@ -1508,7 +1406,7 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
    * Event handler for any docshell update. This lets us figure out whenever
    * any new window is added, or an existing window is removed.
    */
-  observe: function(subject, topic, data) {
+  observe: function(subject, topic) {
     if (subject.location &&
         (!subject.location.href || subject.location.href == "about:blank")) {
       return null;
@@ -1577,22 +1475,9 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
   }),
 
   /**
-   * Notifies the client front with the updates in stores at regular intervals.
-   */
-  notify: function() {
-    if (!this.updatePending || this.updatingUpdateObject) {
-      return null;
-    }
-    events.emit(this, "stores-update", this.boundUpdate);
-    this.boundUpdate = {};
-    this.updatePending = false;
-    return null;
-  },
-
-  /**
    * This method is called by the registered storage types so as to tell the
    * Storage Actor that there are some changes in the stores. Storage Actor then
-   * notifies the client front about these changes at regular (UPDATE_INTERVAL)
+   * notifies the client front about these changes at regular (BATCH_DELAY)
    * interval.
    *
    * @param {string} action
@@ -1614,19 +1499,20 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
   update: function(action, storeType, data) {
     if (action == "cleared" || action == "reloaded") {
       let toSend = {};
-      toSend[storeType] = data
+      toSend[storeType] = data;
       events.emit(this, "stores-" + action, toSend);
       return null;
     }
 
-    this.updatingUpdateObject = true;
+    if (this.batchTimer) {
+      clearTimeout(this.batchTimer);
+    }
     if (!this.boundUpdate[action]) {
       this.boundUpdate[action] = {};
     }
     if (!this.boundUpdate[action][storeType]) {
       this.boundUpdate[action][storeType] = {};
     }
-    this.updatePending = true;
     for (let host in data) {
       if (!this.boundUpdate[action][storeType][host] || action == "deleted") {
         this.boundUpdate[action][storeType][host] = data[host];
@@ -1665,7 +1551,13 @@ let StorageActor = exports.StorageActor = protocol.ActorClass({
         }
       }
     }
-    this.updatingUpdateObject = false;
+
+    this.batchTimer = setTimeout(() => {
+      clearTimeout(this.batchTimer);
+      events.emit(this, "stores-update", this.boundUpdate);
+      this.boundUpdate = {};
+    }, BATCH_DELAY);
+
     return null;
   },
 
