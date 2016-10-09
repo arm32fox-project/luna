@@ -651,8 +651,6 @@
 @RESPATH@/browser/chrome.manifest
 @RESPATH@/browser/chrome/browser@JAREXT@
 @RESPATH@/browser/chrome/browser.manifest
-@RESPATH@/browser/chrome/pdfjs.manifest
-@RESPATH@/browser/chrome/pdfjs/*
 #ifdef NIGHTLY_BUILD
 @RESPATH@/browser/chrome/shumway.manifest
 @RESPATH@/browser/chrome/shumway/*
