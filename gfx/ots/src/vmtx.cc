@@ -4,7 +4,6 @@
 
 #include "vmtx.h"
 
-#include "gsub.h"
 #include "maxp.h"
 #include "vhea.h"
 
@@ -31,10 +30,8 @@ bool ots_vmtx_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
 }
 
 bool ots_vmtx_should_serialise(OpenTypeFile *file) {
-  // vmtx should serialise when vhea and GSUB are preserved.
-  // See the comment in ots_vhea_should_serialise().
-  return file->vmtx != NULL && file->vhea != NULL &&
-      ots_gsub_should_serialise(file);
+  // vmtx should serialise when vhea is preserved.
+  return file->vmtx != NULL && file->vhea != NULL;
 }
 
 bool ots_vmtx_serialise(OTSStream *out, OpenTypeFile *file) {
