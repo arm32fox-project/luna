@@ -14,9 +14,6 @@ DIRS += [
     'themes',
 ]
 
-if CONFIG['MOZ_DEVTOOLS']:
-    DIRS += ['devtools']
-
 DIRS += [
     'app',
 ]
