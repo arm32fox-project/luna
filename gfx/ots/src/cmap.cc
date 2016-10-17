@@ -303,20 +303,6 @@ bool Parse31012(ots::OpenTypeFile *file,
       return OTS_FAILURE();
     }
 
-    // [0xD800, 0xDFFF] are surrogate code points.
-    if (groups[i].start_range >= 0xD800 &&
-        groups[i].start_range <= 0xDFFF) {
-      return OTS_FAILURE();
-    }
-    if (groups[i].end_range >= 0xD800 &&
-        groups[i].end_range <= 0xDFFF) {
-      return OTS_FAILURE();
-    }
-    if (groups[i].start_range < 0xD800 &&
-        groups[i].end_range > 0xDFFF) {
-      return OTS_FAILURE();
-    }
-
     // We assert that the glyph value is within range. Because of the range
     // limits, above, we don't need to worry about overflow.
     if (groups[i].end_range < groups[i].start_range) {
