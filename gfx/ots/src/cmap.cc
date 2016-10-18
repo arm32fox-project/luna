@@ -303,20 +303,6 @@ bool Parse31012(ots::OpenTypeFile *file,
       return OTS_FAILURE();
     }
 
-    // [0xD800, 0xDFFF] are surrogate code points.
-    if (groups[i].start_range >= 0xD800 &&
-        groups[i].start_range <= 0xDFFF) {
-      return OTS_FAILURE();
-    }
-    if (groups[i].end_range >= 0xD800 &&
-        groups[i].end_range <= 0xDFFF) {
-      return OTS_FAILURE();
-    }
-    if (groups[i].start_range < 0xD800 &&
-        groups[i].end_range > 0xDFFF) {
-      return OTS_FAILURE();
-    }
-
     // We assert that the glyph value is within range. Because of the range
     // limits, above, we don't need to worry about overflow.
     if (groups[i].end_range < groups[i].start_range) {
@@ -744,12 +730,12 @@ bool ots_cmap_parse(OpenTypeFile *file, const uint8_t *data, size_t length) {
     if (subtable_headers[i].platform == 0) {
       // Unicode platform
 
-      if ((subtable_headers[i].encoding == 0) &&
+      if ((subtable_headers[i].encoding == 0 || subtable_headers[i].encoding == 1) &&
           (subtable_headers[i].format == 4)) {
-        // parse and output the 0-0-4 table as 3-1-4 table. Sometimes the 0-0-4
-        // table actually points to MS symbol data and thus should be parsed as
-        // 3-0-4 table (e.g., marqueem.ttf and quixotic.ttf). This error will be
-        // recovered in ots_cmap_serialise().
+        // parse and output the 0-0-4 and 0-1-4 tables as 3-1-4 table. Sometimes
+        // the 0-0-4 table actually points to MS symbol data and thus should be
+        // parsed as 3-0-4 table (e.g., marqueem.ttf and quixotic.ttf). This
+        // error will be recovered in ots_cmap_serialise().
         if (!ParseFormat4(file, 3, 1, data + subtable_headers[i].offset,
                       subtable_headers[i].length, num_glyphs)) {
           return OTS_FAILURE();
@@ -849,7 +835,7 @@ bool ots_cmap_serialise(OTSStream *out, OpenTypeFile *file) {
 
   // Some fonts don't have 3-0-4 MS Symbol nor 3-1-4 Unicode BMP tables
   // (e.g., old fonts for Mac). We don't support them.
-  if (!have_304 && !have_314 && !have_034) {
+  if (!have_304 && !have_314 && !have_034 && !have_31012 && !have_31013) {
     return OTS_FAILURE();
   }
 
@@ -979,7 +965,7 @@ bool ots_cmap_serialise(OTSStream *out, OpenTypeFile *file) {
     const unsigned num_groups = groups.size();
     if (!out->WriteU16(13) ||
         !out->WriteU16(0) ||
-        !out->WriteU32(num_groups * 12 + 14) ||
+        !out->WriteU32(num_groups * 12 + 16) ||
         !out->WriteU32(0) ||
         !out->WriteU32(num_groups)) {
       return OTS_FAILURE();

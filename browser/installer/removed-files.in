@@ -699,6 +699,7 @@ xpicleanup@BIN_SUFFIX@
   #if MOZ_MSVC_REDIST != 1700
     msvcp110.dll
     msvcr110.dll
+    vcomp110.dll
   #endif
   plugins/npnul32.dll
 #endif
