@@ -494,6 +494,16 @@ case "$target" in
             AC_MSG_ERROR([Invalid Win32 Redist directory: ${WIN32_REDIST_DIR}])
           fi
           WIN32_REDIST_DIR=`cd "$WIN32_REDIST_DIR" && pwd`
+          # Make sure the OpenMP directory is defined for VS2012
+          if test $_MSC_VER -eq 1700; then
+            if test -z "$WIN32_REDIST_OPENMP_DIR"; then
+              WIN32_REDIST_OPENMP_DIR=`dirname "$WIN32_REDIST_DIR"`/Microsoft.VC110.OPENMP
+            fi
+            if test ! -d "$WIN32_REDIST_OPENMP_DIR"; then
+              AC_MSG_ERROR([Invalid Win32 Redist OpenMP directory: ${WIN32_REDIST_OPENMP_DIR}])
+            fi
+            WIN32_REDIST_OPENMP_DIR=`cd "$WIN32_REDIST_OPENMP_DIR" && pwd`
+          fi
         fi
 
         dnl Ensure that mt.exe is 'Microsoft (R) Manifest Tool',
@@ -8479,6 +8489,7 @@ AC_SUBST(MOZ_MAPINFO)
 AC_SUBST(MOZ_BROWSE_INFO)
 AC_SUBST(MOZ_TOOLS_DIR)
 AC_SUBST(WIN32_REDIST_DIR)
+AC_SUBST(WIN32_REDIST_OPENMP_DIR)
 AC_SUBST(MAKENSISU)
 
 dnl Echo the CFLAGS to remove extra whitespace.
