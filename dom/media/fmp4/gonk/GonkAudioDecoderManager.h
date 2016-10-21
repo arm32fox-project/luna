@@ -24,7 +24,7 @@ class GonkAudioDecoderManager : public GonkDecoderManager {
 typedef android::MediaCodecProxy MediaCodecProxy;
 public:
   GonkAudioDecoderManager(MediaTaskQueue* aTaskQueue,
-                          const mp4_demuxer::AudioDecoderConfig& aConfig);
+                          const AudioInfo& aConfig);
   ~GonkAudioDecoderManager();
 
   virtual android::sp<MediaCodecProxy> Init(MediaDataDecoderCallback* aCallback) override;
@@ -35,9 +35,9 @@ public:
   virtual nsresult Flush() override;
 
 protected:
-  virtual bool PerformFormatSpecificProcess(mp4_demuxer::MP4Sample* aSample) override;
+  virtual bool PerformFormatSpecificProcess(MediaRawData* aSample) override;
 
-  virtual status_t SendSampleToOMX(mp4_demuxer::MP4Sample* aSample) override;
+  virtual status_t SendSampleToOMX(MediaRawData* aSample) override;
 
 private:
 

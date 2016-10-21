@@ -14,8 +14,7 @@
 #include "nsThreadUtils.h"
 #include "Layers.h"
 #include "mozilla/layers/LayersTypes.h"
-#include "mp4_demuxer/AnnexB.h"
-#include "mp4_demuxer/DecoderData.h"
+#include "MediaInfo.h"
 #include "prlog.h"
 #include "gfx2DGlue.h"
 #include "gfxWindowsPlatform.h"
@@ -69,7 +68,7 @@ const CLSID CLSID_WebmMfVp9Dec =
 namespace mozilla {
 
 WMFVideoMFTManager::WMFVideoMFTManager(
-                            const mp4_demuxer::VideoDecoderConfig& aConfig,
+                            const VideoInfo& aConfig,
                             mozilla::layers::LayersBackend aLayersBackend,
                             mozilla::layers::ImageContainer* aImageContainer,
                             bool aDXVAEnabled)
@@ -86,12 +85,12 @@ WMFVideoMFTManager::WMFVideoMFTManager(
   MOZ_COUNT_CTOR(WMFVideoMFTManager);
 
   // Need additional checks/params to check vp8/vp9
-  if (aConfig.mime_type.EqualsLiteral("video/mp4") ||
-      aConfig.mime_type.EqualsLiteral("video/avc")) {
+  if (aConfig.mMimeType.EqualsLiteral("video/mp4") ||
+      aConfig.mMimeType.EqualsLiteral("video/avc")) {
     mStreamType = H264;
-  } else if (aConfig.mime_type.EqualsLiteral("video/webm; codecs=vp8")) {
+  } else if (aConfig.mMimeType.EqualsLiteral("video/webm; codecs=vp8")) {
     mStreamType = VP8;
-  } else if (aConfig.mime_type.EqualsLiteral("video/webm; codecs=vp9")) {
+  } else if (aConfig.mMimeType.EqualsLiteral("video/webm; codecs=vp9")) {
     mStreamType = VP9;
   } else {
     mStreamType = Unknown;
@@ -234,16 +233,16 @@ WMFVideoMFTManager::Init()
 }
 
 HRESULT
-WMFVideoMFTManager::Input(mp4_demuxer::MP4Sample* aSample)
+WMFVideoMFTManager::Input(MediaRawData* aSample)
 {
   if (!mDecoder) {
     // This can happen during shutdown.
     return E_FAIL;
   }
   // Forward sample data to the decoder.
-  const uint8_t* data = reinterpret_cast<const uint8_t*>(aSample->data);
-  uint32_t length = aSample->size;
-  return mDecoder->Input(data, length, aSample->composition_timestamp);
+  return mDecoder->Input(aSample->mData,
+                         uint32_t(aSample->mSize),
+                         aSample->mTime);
 }
 
 HRESULT
@@ -291,7 +290,6 @@ WMFVideoMFTManager::ConfigureVideoFrameGeometry()
 
   // Success! Save state.
   mVideoInfo.mDisplay = displaySize;
-  mVideoInfo.mHasVideo = true;
   GetDefaultStride(mediaType, &mVideoStride);
   mVideoWidth = width;
   mVideoHeight = height;

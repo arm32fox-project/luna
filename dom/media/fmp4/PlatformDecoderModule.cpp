@@ -27,7 +27,7 @@
 #include "SharedThreadPool.h"
 #include "MediaTaskQueue.h"
 
-#include "mp4_demuxer/DecoderData.h"
+#include "MediaInfo.h"
 #include "H264Converter.h"
 
 namespace mozilla {
@@ -143,7 +143,7 @@ PlatformDecoderModule::CreatePDM()
 }
 
 already_AddRefed<MediaDataDecoder>
-PlatformDecoderModule::CreateDecoder(const mp4_demuxer::TrackConfig& aConfig,
+PlatformDecoderModule::CreateDecoder(const TrackInfo& aConfig,
                                      FlushableMediaTaskQueue* aTaskQueue,
                                      MediaDataDecoderCallback* aCallback,
                                      layers::LayersBackend aLayersBackend,
@@ -151,26 +151,26 @@ PlatformDecoderModule::CreateDecoder(const mp4_demuxer::TrackConfig& aConfig,
 {
   nsRefPtr<MediaDataDecoder> m;
 
-  if (aConfig.IsAudioConfig()) {
-    m = CreateAudioDecoder(static_cast<const mp4_demuxer::AudioDecoderConfig&>(aConfig),
+  if (aConfig.GetAsAudioInfo()) {
+    m = CreateAudioDecoder(*aConfig.GetAsAudioInfo(),
                            aTaskQueue,
                            aCallback);
     return m.forget();
   }
 
-  if (!aConfig.IsVideoConfig()) {
+  if (!aConfig.GetAsVideoInfo()) {
     return nullptr;
   }
 
   if (H264Converter::IsH264(aConfig)) {
     m = new H264Converter(this,
-                          static_cast<const mp4_demuxer::VideoDecoderConfig&>(aConfig),
+                          *aConfig.GetAsVideoInfo(),
                           aLayersBackend,
                           aImageContainer,
                           aTaskQueue,
                           aCallback);
   } else {
-    m = CreateVideoDecoder(static_cast<const mp4_demuxer::VideoDecoderConfig&>(aConfig),
+    m = CreateVideoDecoder(*aConfig.GetAsVideoInfo(),
                            aLayersBackend,
                            aImageContainer,
                            aTaskQueue,

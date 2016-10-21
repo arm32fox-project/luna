@@ -12,7 +12,7 @@
 #include "MediaDataDecoderProxy.h"
 #include "PlatformDecoderModule.h"
 #include "mozIGoannaMediaPluginService.h"
-#include "mp4_demuxer/DecoderData.h"
+#include "MediaInfo.h"
 
 namespace mozilla {
 
@@ -51,7 +51,7 @@ private:
 
 class GMPVideoDecoder : public MediaDataDecoder {
 protected:
-  GMPVideoDecoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
+  GMPVideoDecoder(const VideoInfo& aConfig,
                   layers::LayersBackend aLayersBackend,
                   layers::ImageContainer* aImageContainer,
                   MediaTaskQueue* aTaskQueue,
@@ -67,7 +67,7 @@ protected:
   }
 
 public:
-  GMPVideoDecoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
+  GMPVideoDecoder(const VideoInfo& aConfig,
                   layers::LayersBackend aLayersBackend,
                   layers::ImageContainer* aImageContainer,
                   MediaTaskQueue* aTaskQueue,
@@ -77,15 +77,15 @@ public:
    , mGMP(nullptr)
    , mHost(nullptr)
    , mAdapter(new VideoCallbackAdapter(aCallback,
-                                       VideoInfo(aConfig.display_width,
-                                                 aConfig.display_height),
+                                       VideoInfo(aConfig.mDisplay.width,
+                                                 aConfig.mDisplay.height),
                                        aImageContainer))
    , mConvertNALUnitLengths(false)
   {
   }
 
   virtual nsresult Init() override;
-  virtual nsresult Input(mp4_demuxer::MP4Sample* aSample) override;
+  virtual nsresult Input(MediaRawData* aSample) override;
   virtual nsresult Flush() override;
   virtual nsresult Drain() override;
   virtual nsresult Shutdown() override;
@@ -93,10 +93,10 @@ public:
 protected:
   virtual void InitTags(nsTArray<nsCString>& aTags);
   virtual nsCString GetNodeId();
-  virtual GMPUnique<GMPVideoEncodedFrame>::Ptr CreateFrame(mp4_demuxer::MP4Sample* aSample);
+  virtual GMPUnique<GMPVideoEncodedFrame>::Ptr CreateFrame(MediaRawData* aSample);
 
 private:
-  const mp4_demuxer::VideoDecoderConfig& mConfig;
+  const VideoInfo& mConfig;
   MediaDataDecoderCallbackProxy* mCallback;
   nsCOMPtr<mozIGoannaMediaPluginService> mMPS;
   GMPVideoDecoderProxy* mGMP;

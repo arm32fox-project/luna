@@ -19,6 +19,8 @@
 #include <stagefright/foundation/AMessage.h>
 #include <stagefright/foundation/ALooper.h>
 #include "media/openmax/OMX_Audio.h"
+#include "MediaData.h"
+#include "MediaInfo.h"
 
 #include <android/log.h>
 #define GADM_LOG(...) __android_log_print(ANDROID_LOG_DEBUG, "GonkAudioDecoderManager", __VA_ARGS__)
@@ -38,20 +40,20 @@ namespace mozilla {
 
 GonkAudioDecoderManager::GonkAudioDecoderManager(
   MediaTaskQueue* aTaskQueue,
-  const mp4_demuxer::AudioDecoderConfig& aConfig)
+  const AudioInfo& aConfig)
   : GonkDecoderManager(aTaskQueue)
-  , mAudioChannels(aConfig.channel_count)
-  , mAudioRate(aConfig.samples_per_second)
-  , mAudioProfile(aConfig.aac_profile)
+  , mAudioChannels(aConfig.mChannels)
+  , mAudioRate(aConfig.mRate)
+  , mAudioProfile(aConfig.mProfile)
   , mUseAdts(true)
   , mAudioBuffer(nullptr)
 {
   MOZ_COUNT_CTOR(GonkAudioDecoderManager);
   MOZ_ASSERT(mAudioChannels);
-  mUserData.AppendElements(aConfig.audio_specific_config->Elements(),
-                           aConfig.audio_specific_config->Length());
+  mUserData.AppendElements(aConfig.mCodecSpecificConfig->Elements(),
+                           aConfig.mCodecSpecificConfig->Length());
   // Pass through mp3 without applying an ADTS header.
-  if (!aConfig.mime_type.EqualsLiteral("audio/mp4a-latm")) {
+  if (!aConfig.mMimeType.EqualsLiteral("audio/mp4a-latm")) {
       mUseAdts = false;
   }
 }
@@ -100,16 +102,16 @@ GonkAudioDecoderManager::Init(MediaDataDecoderCallback* aCallback)
 }
 
 status_t
-GonkAudioDecoderManager::SendSampleToOMX(mp4_demuxer::MP4Sample* aSample)
+GonkAudioDecoderManager::SendSampleToOMX(MediaRawData* aSample)
 {
-  return mDecoder->Input(reinterpret_cast<const uint8_t*>(aSample->data),
-                         aSample->size,
-                         aSample->composition_timestamp,
+  return mDecoder->Input(reinterpret_cast<const uint8_t*>(aSample->mData),
+                         aSample->mSize,
+                         aSample->mTime,
                          0);
 }
 
 bool
-GonkAudioDecoderManager::PerformFormatSpecificProcess(mp4_demuxer::MP4Sample* aSample)
+GonkAudioDecoderManager::PerformFormatSpecificProcess(MediaRawData* aSample)
 {
   if (aSample && mUseAdts) {
     int8_t frequency_index =

@@ -22,7 +22,7 @@ class H264Converter : public MediaDataDecoder {
 public:
 
   H264Converter(PlatformDecoderModule* aPDM,
-                const mp4_demuxer::VideoDecoderConfig& aConfig,
+                const VideoInfo& aConfig,
                 layers::LayersBackend aLayersBackend,
                 layers::ImageContainer* aImageContainer,
                 FlushableMediaTaskQueue* aVideoTaskQueue,
@@ -30,7 +30,7 @@ public:
   virtual ~H264Converter();
 
   virtual nsresult Init() override;
-  virtual nsresult Input(mp4_demuxer::MP4Sample* aSample) override;
+  virtual nsresult Input(MediaRawData* aSample) override;
   virtual nsresult Flush() override;
   virtual nsresult Drain() override;
   virtual nsresult Shutdown() override;
@@ -41,19 +41,19 @@ public:
   virtual bool IsHardwareAccelerated() const override;
 
   // Return true if mimetype is H.264.
-  static bool IsH264(const mp4_demuxer::TrackConfig& aConfig);
+  static bool IsH264(const TrackInfo& aConfig);
 
 private:
   // Will create the required MediaDataDecoder if need AVCC and we have a SPS NAL.
   // Returns NS_ERROR_FAILURE if error is permanent and can't be recovered and
   // will set mError accordingly.
   nsresult CreateDecoder();
-  nsresult CreateDecoderAndInit(mp4_demuxer::MP4Sample* aSample);
-  nsresult CheckForSPSChange(mp4_demuxer::MP4Sample* aSample);
-  void UpdateConfigFromExtraData(mp4_demuxer::ByteBuffer* aExtraData);
+  nsresult CreateDecoderAndInit(MediaRawData* aSample);
+  nsresult CheckForSPSChange(MediaRawData* aSample);
+  void UpdateConfigFromExtraData(MediaByteBuffer* aExtraData);
 
   nsRefPtr<PlatformDecoderModule> mPDM;
-  mp4_demuxer::VideoDecoderConfig mCurrentConfig;
+  VideoInfo mCurrentConfig;
   layers::LayersBackend mLayersBackend;
   nsRefPtr<layers::ImageContainer> mImageContainer;
   nsRefPtr<FlushableMediaTaskQueue> mVideoTaskQueue;

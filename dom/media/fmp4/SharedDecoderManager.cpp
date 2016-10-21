@@ -5,7 +5,6 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SharedDecoderManager.h"
-#include "mp4_demuxer/DecoderData.h"
 
 namespace mozilla {
 
@@ -76,7 +75,7 @@ SharedDecoderManager::~SharedDecoderManager()
 already_AddRefed<MediaDataDecoder>
 SharedDecoderManager::CreateVideoDecoder(
   PlatformDecoderModule* aPDM,
-  const mp4_demuxer::VideoDecoderConfig& aConfig,
+  const VideoInfo& aConfig,
   layers::LayersBackend aLayersBackend,
   layers::ImageContainer* aImageContainer,
   FlushableMediaTaskQueue* aVideoTaskQueue,
@@ -116,7 +115,7 @@ SharedDecoderManager::DisableHardwareAcceleration()
 }
 
 bool
-SharedDecoderManager::Recreate(const mp4_demuxer::VideoDecoderConfig& aConfig)
+SharedDecoderManager::Recreate(const VideoInfo& aConfig)
 {
   mDecoder->Flush();
   mDecoder->Shutdown();
@@ -218,7 +217,7 @@ SharedDecoderProxy::Init()
 }
 
 nsresult
-SharedDecoderProxy::Input(mp4_demuxer::MP4Sample* aSample)
+SharedDecoderProxy::Input(MediaRawData* aSample)
 {
   if (mManager->mActiveProxy != this) {
     mManager->Select(this);

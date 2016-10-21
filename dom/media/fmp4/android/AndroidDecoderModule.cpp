@@ -13,8 +13,7 @@
 
 #include "MediaData.h"
 
-#include "mp4_demuxer/AnnexB.h"
-#include "mp4_demuxer/DecoderData.h"
+#include "MediaInfo.h"
 
 #include "nsThreadUtils.h"
 #include "nsAutoPtr.h"
@@ -38,10 +37,10 @@ static MediaCodec::LocalRef CreateDecoder(const nsACString& aMimeType)
 
 class VideoDataDecoder : public MediaCodecDataDecoder {
 public:
-  VideoDataDecoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
+  VideoDataDecoder(const VideoInfo& aConfig,
                    MediaFormat::Param aFormat, MediaDataDecoderCallback* aCallback,
                    layers::ImageContainer* aImageContainer)
-    : MediaCodecDataDecoder(MediaData::Type::VIDEO_DATA, aConfig.mime_type, aFormat, aCallback)
+    : MediaCodecDataDecoder(MediaData::Type::VIDEO_DATA, aConfig.mMimeType, aFormat, aCallback)
     , mImageContainer(aImageContainer)
     , mConfig(aConfig)
   {
@@ -62,7 +61,7 @@ public:
     mGLContext = nullptr;
   }
 
-  virtual nsresult Input(mp4_demuxer::MP4Sample* aSample) override {
+  virtual nsresult Input(MediaRawData* aSample) override {
     return MediaCodecDataDecoder::Input(aSample);
   }
 
@@ -101,13 +100,10 @@ public:
       return NS_ERROR_FAILURE;
     }
 
-    VideoInfo videoInfo;
-    videoInfo.mDisplay = nsIntSize(mConfig.display_width, mConfig.display_height);
-
     nsRefPtr<layers::Image> img = mImageContainer->CreateImage(ImageFormat::SURFACE_TEXTURE);
     layers::SurfaceTextureImage::Data data;
     data.mSurfTex = mSurfaceTexture.get();
-    data.mSize = gfx::IntSize(mConfig.display_width, mConfig.display_height);
+    data.mSize = mConfig.mDisplay;
     data.mOriginPos = gl::OriginPos::BottomLeft;
 
     layers::SurfaceTextureImage* stImg = static_cast<layers::SurfaceTextureImage*>(img.get());
@@ -138,7 +134,7 @@ public:
       data.mImage = eglImage;
       data.mSync = eglSync;
       data.mOwns = true;
-      data.mSize = gfx::IntSize(mConfig.display_width, mConfig.display_height);
+      data.mSize = mConfig.mDisplay;
       data.mOriginPos = gl::OriginPos::BottomLeft;
 
       layers::EGLImageImage* typedImg = static_cast<layers::EGLImageImage*>(img.get());
@@ -157,14 +153,18 @@ public:
     int64_t presentationTimeUs;
     NS_ENSURE_SUCCESS(rv = aInfo->PresentationTimeUs(&presentationTimeUs), rv);
 
-    nsRefPtr<VideoData> v = VideoData::CreateFromImage(videoInfo, mImageContainer, offset,
-                                                       presentationTimeUs,
-                                                       aDuration,
-                                                       img, isSync,
-                                                       presentationTimeUs,
-                                                       gfx::IntRect(0, 0,
-                                                         mConfig.display_width,
-                                                         mConfig.display_height));
+    nsRefPtr<VideoData> v =
+      VideoData::CreateFromImage(mConfig,
+                                 mImageContainer,
+                                 offset,
+                                 presentationTimeUs,
+                                 aDuration,
+                                 img,
+                                 isSync,
+                                 presentationTimeUs,
+                                 gfx::IntRect(0, 0,
+                                              mConfig.mDisplay.width,
+                                              mConfig.mDisplay.height));
     mCallback->Output(v);
     return NS_OK;
   }
@@ -180,7 +180,7 @@ protected:
   }
 
   layers::ImageContainer* mImageContainer;
-  const mp4_demuxer::VideoDecoderConfig& mConfig;
+  const VideoInfo& mConfig;
   RefPtr<AndroidSurfaceTexture> mSurfaceTexture;
   nsRefPtr<GLContext> mGLContext;
 };
@@ -190,17 +190,17 @@ private:
   uint8_t csd0[2];
 
 public:
-  AudioDataDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig, MediaFormat::Param aFormat, MediaDataDecoderCallback* aCallback)
-    : MediaCodecDataDecoder(MediaData::Type::AUDIO_DATA, aConfig.mime_type, aFormat, aCallback)
+  AudioDataDecoder(const AudioInfo& aConfig, MediaFormat::Param aFormat, MediaDataDecoderCallback* aCallback)
+    : MediaCodecDataDecoder(MediaData::Type::AUDIO_DATA, aConfig.mMimeType, aFormat, aCallback)
   {
     JNIEnv* env = GetJNIForThread();
 
     jni::Object::LocalRef buffer(env);
     NS_ENSURE_SUCCESS_VOID(aFormat->GetByteBuffer(NS_LITERAL_STRING("csd-0"), &buffer));
 
-    if (!buffer && aConfig.audio_specific_config->Length() >= 2) {
-      csd0[0] = (*aConfig.audio_specific_config)[0];
-      csd0[1] = (*aConfig.audio_specific_config)[1];
+    if (!buffer && aConfig.mCodecSpecificConfig->Length() >= 2) {
+      csd0[0] = (*aConfig.mCodecSpecificConfig)[0];
+      csd0[1] = (*aConfig.mCodecSpecificConfig)[1];
 
       buffer = jni::Object::LocalRef::Adopt(env, env->NewDirectByteBuffer(csd0, 2));
       NS_ENSURE_SUCCESS_VOID(aFormat->SetByteBuffer(NS_LITERAL_STRING("csd-0"), buffer));
@@ -255,7 +255,7 @@ bool AndroidDecoderModule::SupportsMimeType(const nsACString& aMimeType)
 
 already_AddRefed<MediaDataDecoder>
 AndroidDecoderModule::CreateVideoDecoder(
-                                const mp4_demuxer::VideoDecoderConfig& aConfig,
+                                const VideoInfo& aConfig,
                                 layers::LayersBackend aLayersBackend,
                                 layers::ImageContainer* aImageContainer,
                                 FlushableMediaTaskQueue* aVideoTaskQueue,
@@ -264,9 +264,9 @@ AndroidDecoderModule::CreateVideoDecoder(
   MediaFormat::LocalRef format;
 
   NS_ENSURE_SUCCESS(MediaFormat::CreateVideoFormat(
-      aConfig.mime_type,
-      aConfig.display_width,
-      aConfig.display_height,
+      aConfig.mMimeType,
+      aConfig.mDisplay.width,
+      aConfig.mDisplay.height,
       &format), nullptr);
 
   nsRefPtr<MediaDataDecoder> decoder =
@@ -276,18 +276,18 @@ AndroidDecoderModule::CreateVideoDecoder(
 }
 
 already_AddRefed<MediaDataDecoder>
-AndroidDecoderModule::CreateAudioDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig,
+AndroidDecoderModule::CreateAudioDecoder(const AudioInfo& aConfig,
                                          FlushableMediaTaskQueue* aAudioTaskQueue,
                                          MediaDataDecoderCallback* aCallback)
 {
-  MOZ_ASSERT(aConfig.bits_per_sample == 16, "We only handle 16-bit audio!");
+  MOZ_ASSERT(aConfig.mBitDepth == 16, "We only handle 16-bit audio!");
 
   MediaFormat::LocalRef format;
 
   NS_ENSURE_SUCCESS(MediaFormat::CreateAudioFormat(
-      aConfig.mime_type,
-      aConfig.samples_per_second,
-      aConfig.channel_count,
+      aConfig.mMimeType,
+      aConfig.mBitDepth,
+      aConfig.mChannels,
       &format), nullptr);
 
   nsRefPtr<MediaDataDecoder> decoder =
@@ -298,9 +298,9 @@ AndroidDecoderModule::CreateAudioDecoder(const mp4_demuxer::AudioDecoderConfig& 
 }
 
 PlatformDecoderModule::ConversionRequired
-AndroidDecoderModule::DecoderNeedsConversion(const mp4_demuxer::TrackConfig& aConfig) const
+AndroidDecoderModule::DecoderNeedsConversion(const TrackInfo& aConfig) const
 {
-  if (aConfig.IsVideoConfig()) {
+  if (aConfig.IsVideo()) {
     return kNeedAnnexB;
   } else {
     return kNeedNone;
@@ -397,7 +397,7 @@ void MediaCodecDataDecoder::DecoderLoop()
   bool waitingEOF = false;
 
   AutoLocalJNIFrame frame(GetJNIForThread(), 1);
-  mp4_demuxer::MP4Sample* sample = nullptr;
+  nsRefPtr<MediaRawData> sample;
 
   MediaFormat::LocalRef outputFormat(frame.GetEnv());
   nsresult res;
@@ -464,7 +464,7 @@ void MediaCodecDataDecoder::DecoderLoop()
 
         void* directBuffer = frame.GetEnv()->GetDirectBufferAddress(buffer.Get());
 
-        MOZ_ASSERT(frame.GetEnv()->GetDirectBufferCapacity(buffer.Get()) >= sample->size,
+        MOZ_ASSERT(frame.GetEnv()->GetDirectBufferCapacity(buffer.Get()) >= sample->mSize,
           "Decoder buffer is not large enough for sample");
 
         {
@@ -473,14 +473,13 @@ void MediaCodecDataDecoder::DecoderLoop()
           mQueue.pop();
         }
 
-        PodCopy((uint8_t*)directBuffer, sample->data, sample->size);
+        PodCopy((uint8_t*)directBuffer, sample->mData, sample->mSize);
 
-        res = mDecoder->QueueInputBuffer(inputIndex, 0, sample->size,
-                                         sample->composition_timestamp, 0);
+        res = mDecoder->QueueInputBuffer(inputIndex, 0, sample->mSize,
+                                         sample->mTime, 0);
         HANDLE_DECODER_ERROR();
 
-        mDurations.push(sample->duration);
-        delete sample;
+        mDurations.push(sample->mDuration);
         sample = nullptr;
         outputDone = false;
       }
@@ -572,7 +571,6 @@ void MediaCodecDataDecoder::ClearQueue()
 {
   mMonitor.AssertCurrentThreadOwns();
   while (!mQueue.empty()) {
-    delete mQueue.front();
     mQueue.pop();
   }
   while (!mDurations.empty()) {
@@ -580,7 +578,7 @@ void MediaCodecDataDecoder::ClearQueue()
   }
 }
 
-nsresult MediaCodecDataDecoder::Input(mp4_demuxer::MP4Sample* aSample) {
+nsresult MediaCodecDataDecoder::Input(MediaRawData* aSample) {
   MonitorAutoLock lock(mMonitor);
   mQueue.push(aSample);
   lock.NotifyAll();

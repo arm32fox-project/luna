@@ -792,11 +792,10 @@ NS_IMETHODIMP HTMLMediaElement::Load()
 
 void HTMLMediaElement::ResetState()
 {
-  mMediaSize = nsIntSize(-1, -1);
   // There might be a pending MediaDecoder::PlaybackPositionChanged() which
-  // will overwrite |mMediaSize| in UpdateMediaSize() to give staled videoWidth
-  // and videoHeight. We have to call ForgetElement() here such that the staled
-  // callbacks won't reach us.
+  // will overwrite |mMediaInfo.mVideo.mDisplay| in UpdateMediaSize() to give
+  // staled videoWidth and videoHeight. We have to call ForgetElement() here
+  // such that the staled callbacks won't reach us.
   if (mVideoFrameContainer) {
     mVideoFrameContainer->ForgetElement();
     mVideoFrameContainer = nullptr;
@@ -920,17 +919,15 @@ void HTMLMediaElement::NotifyMediaStreamTracksAvailable(DOMMediaStream* aStream)
     return;
   }
 
-  bool oldHasVideo = HasVideo();
-
-  mMediaInfo.mAudio.mHasAudio = !AudioTracks()->IsEmpty();
-  mMediaInfo.mVideo.mHasVideo = !VideoTracks()->IsEmpty();
-
-  if (IsVideo() && oldHasVideo != HasVideo()) {
-    // We are a video element and HasVideo() changed so update the screen wakelock
-    NotifyOwnerDocumentActivityChanged();
-  }
+  bool videoHasChanged = IsVideo() && HasVideo() != !VideoTracks()->IsEmpty();
 
   UpdateReadyStateForData(mLastNextFrameStatus);
+
+  if (videoHasChanged) {
+    // We are a video element and HasVideo() changed so update the screen
+    // wakelock.
+    NotifyOwnerDocumentActivityChanged();
+  }
 }
 
 void HTMLMediaElement::LoadFromSourceChildren()
@@ -1874,11 +1871,11 @@ HTMLMediaElement::CaptureStreamInternal(bool aFinishWhenEnded)
     if (mReadyState >= HAVE_METADATA) {
       // Expose the tracks to JS directly.
       if (HasAudio()) {
-        TrackID audioTrackId = mMediaInfo.mAudio.mTrackInfo.mOutputId;
+        TrackID audioTrackId = mMediaInfo.mAudio.mTrackId;
         out->mStream->CreateDOMTrack(audioTrackId, MediaSegment::AUDIO);
       }
       if (HasVideo()) {
-        TrackID videoTrackId = mMediaInfo.mVideo.mTrackInfo.mOutputId;
+        TrackID videoTrackId = mMediaInfo.mVideo.mTrackId;
         out->mStream->CreateDOMTrack(videoTrackId, MediaSegment::VIDEO);
       }
     }
@@ -2029,7 +2026,6 @@ HTMLMediaElement::HTMLMediaElement(already_AddRefed<mozilla::dom::NodeInfo>& aNo
     mLoadWaitStatus(NOT_WAITING),
     mVolume(1.0),
     mPreloadAction(PRELOAD_UNDEFINED),
-    mMediaSize(-1,-1),
     mLastCurrentTime(0.0),
     mFragmentStart(-1.0),
     mFragmentEnd(-1.0),
@@ -3141,6 +3137,8 @@ void HTMLMediaElement::ProcessMediaFragmentURI()
 void HTMLMediaElement::MetadataLoaded(const MediaInfo* aInfo,
                                       nsAutoPtr<const MetadataTags> aTags)
 {
+  MOZ_ASSERT(NS_IsMainThread());
+
   mMediaInfo = *aInfo;
   mIsEncrypted = aInfo->IsEncrypted();
   mTags = aTags.forget();
@@ -3154,7 +3152,6 @@ void HTMLMediaElement::MetadataLoaded(const MediaInfo* aInfo,
 
   DispatchAsyncEvent(NS_LITERAL_STRING("durationchange"));
   if (IsVideo() && HasVideo()) {
-    mMediaSize = aInfo->mVideo.mDisplay;
     DispatchAsyncEvent(NS_LITERAL_STRING("resize"));
   }
   DispatchAsyncEvent(NS_LITERAL_STRING("loadedmetadata"));
@@ -3172,11 +3169,11 @@ void HTMLMediaElement::MetadataLoaded(const MediaInfo* aInfo,
   // Expose the tracks to JS directly.
   for (OutputMediaStream& out : mOutputStreams) {
     if (aInfo->HasAudio()) {
-      TrackID audioTrackId = aInfo->mAudio.mTrackInfo.mOutputId;
+      TrackID audioTrackId = aInfo->mAudio.mTrackId;
       out.mStream->CreateDOMTrack(audioTrackId, MediaSegment::AUDIO);
     }
     if (aInfo->HasVideo()) {
-      TrackID videoTrackId = aInfo->mVideo.mTrackInfo.mOutputId;
+      TrackID videoTrackId = aInfo->mVideo.mTrackId;
       out.mStream->CreateDOMTrack(videoTrackId, MediaSegment::VIDEO);
     }
   }
@@ -3188,7 +3185,7 @@ void HTMLMediaElement::MetadataLoaded(const MediaInfo* aInfo,
   if (!aInfo->HasVideo()) {
     ResetState();
   } else {
-    UpdateMediaSize(aInfo->mVideo.mDisplay);
+    UpdateReadyStateForData(mLastNextFrameStatus);
   }
 
   if (IsVideo() && aInfo->HasVideo()) {
@@ -3482,18 +3479,22 @@ void HTMLMediaElement::UpdateReadyStateForData(MediaDecoderOwner::NextFrameStatu
   }
 
   if (mSrcStream && mReadyState < nsIDOMHTMLMediaElement::HAVE_METADATA) {
-    if ((!HasAudio() && !HasVideo()) ||
-        (IsVideo() && HasVideo() && mMediaSize == nsIntSize(-1, -1))) {
+    bool hasAudio = !AudioTracks()->IsEmpty();
+    bool hasVideo = !VideoTracks()->IsEmpty();
+
+    if ((!hasAudio && !hasVideo) ||
+        (IsVideo() && hasVideo && !HasVideo())) {
       return;
     }
 
     // We are playing a stream that has video and a video frame is now set.
     // This means we have all metadata needed to change ready state.
-    MediaInfo mediaInfo;
-    mediaInfo.mAudio.mHasAudio = !AudioTracks()->IsEmpty();
-    mediaInfo.mVideo.mHasVideo = !VideoTracks()->IsEmpty();
-    if (mediaInfo.HasVideo()) {
-      mediaInfo.mVideo.mDisplay = mMediaSize;
+    MediaInfo mediaInfo = mMediaInfo;
+    if (hasAudio) {
+      mediaInfo.EnableAudio();
+    }
+    if (hasVideo) {
+      mediaInfo.EnableVideo();
     }
     MetadataLoaded(&mediaInfo, nsAutoPtr<const MetadataTags>(nullptr));
   }
@@ -3843,17 +3844,18 @@ void HTMLMediaElement::NotifyDecoderPrincipalChanged()
 
 void HTMLMediaElement::UpdateMediaSize(const nsIntSize& aSize)
 {
-  if (IsVideo() && mReadyState != HAVE_NOTHING && mMediaSize != aSize) {
+  if (IsVideo() && mReadyState != HAVE_NOTHING &&
+      mMediaInfo.mVideo.mDisplay != aSize) {
     DispatchAsyncEvent(NS_LITERAL_STRING("resize"));
   }
 
-  mMediaSize = aSize;
+  mMediaInfo.mVideo.mDisplay = aSize;
   UpdateReadyStateForData(mLastNextFrameStatus);
 }
 
 void HTMLMediaElement::UpdateInitialMediaSize(const nsIntSize& aSize)
 {
-  if (mMediaSize == nsIntSize(-1, -1)) {
+  if (mMediaInfo.mVideo.mDisplay == nsIntSize(0, 0)) {
     UpdateMediaSize(aSize);
   }
 }
@@ -4113,7 +4115,7 @@ HTMLMediaElement::CopyInnerTo(Element* aDest)
   NS_ENSURE_SUCCESS(rv, rv);
   if (aDest->OwnerDoc()->IsStaticDocument()) {
     HTMLMediaElement* dest = static_cast<HTMLMediaElement*>(aDest);
-    dest->mMediaSize = mMediaSize;
+    dest->mMediaInfo = mMediaInfo;
   }
   return rv;
 }

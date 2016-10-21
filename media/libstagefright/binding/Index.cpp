@@ -7,8 +7,8 @@
 #include "mp4_demuxer/Interval.h"
 #include "mp4_demuxer/MoofParser.h"
 #include "mp4_demuxer/SinfParser.h"
-#include "media/stagefright/MediaSource.h"
-#include "MediaResource.h"
+#include "nsAutoPtr.h"
+#include "nsRefPtr.h"
 
 #include <algorithm>
 #include <limits>
@@ -84,30 +84,29 @@ SampleIterator::SampleIterator(Index* aIndex)
 {
 }
 
-MP4Sample* SampleIterator::GetNext()
+already_AddRefed<MediaRawData> SampleIterator::GetNext()
 {
   Sample* s(Get());
   if (!s) {
     return nullptr;
   }
 
-  nsAutoPtr<MP4Sample> sample(new MP4Sample());
-  sample->decode_timestamp = s->mDecodeTime;
-  sample->composition_timestamp = s->mCompositionRange.start;
-  sample->duration = s->mCompositionRange.Length();
-  sample->byte_offset = s->mByteRange.mStart;
-  sample->is_sync_point = s->mSync;
-  sample->size = s->mByteRange.Length();
+  nsRefPtr<MediaRawData> sample = new MediaRawData();
+  sample->mTimecode= s->mDecodeTime;
+  sample->mTime = s->mCompositionRange.start;
+  sample->mDuration = s->mCompositionRange.Length();
+  sample->mOffset = s->mByteRange.mStart;
+  sample->mKeyframe = s->mSync;
 
+  nsAutoPtr<MediaRawDataWriter> writer(sample->CreateWriter());
   // Do the blocking read
-  sample->data = sample->extra_buffer = new (fallible) uint8_t[sample->size];
-  if (!sample->data) {
+  if (!writer->SetSize(s->mByteRange.Length())) {
     return nullptr;
   }
 
   size_t bytesRead;
-  if (!mIndex->mSource->ReadAt(sample->byte_offset, sample->data, sample->size,
-                               &bytesRead) || bytesRead != sample->size) {
+  if (!mIndex->mSource->ReadAt(sample->mOffset, writer->mData, sample->mSize,
+                               &bytesRead) || bytesRead != sample->mSize) {
     return nullptr;
   }
 
@@ -128,10 +127,10 @@ MP4Sample* SampleIterator::GetNext()
       return nullptr;
     }
     ByteReader reader(cenc);
-    sample->crypto.valid = true;
-    sample->crypto.iv_size = ivSize;
+    sample->mCrypto.valid = true;
+    sample->mCrypto.iv_size = ivSize;
 
-    if (!reader.ReadArray(sample->crypto.iv, ivSize)) {
+    if (!reader.ReadArray(sample->mCrypto.iv, ivSize)) {
       return nullptr;
     }
 
@@ -143,13 +142,13 @@ MP4Sample* SampleIterator::GetNext()
       }
 
       for (size_t i = 0; i < count; i++) {
-        sample->crypto.plain_sizes.AppendElement(reader.ReadU16());
-        sample->crypto.encrypted_sizes.AppendElement(reader.ReadU32());
+        sample->mCrypto.plain_sizes.AppendElement(reader.ReadU16());
+        sample->mCrypto.encrypted_sizes.AppendElement(reader.ReadU32());
       }
     } else {
       // No subsample information means the entire sample is encrypted.
-      sample->crypto.plain_sizes.AppendElement(0);
-      sample->crypto.encrypted_sizes.AppendElement(sample->size);
+      sample->mCrypto.plain_sizes.AppendElement(0);
+      sample->mCrypto.encrypted_sizes.AppendElement(sample->mSize);
     }
   }
 
@@ -227,23 +226,30 @@ SampleIterator::GetNextKeyframeTime()
   return -1;
 }
 
-Index::Index(const nsTArray<MediaSource::Indice>& aIndex,
-             Stream* aSource, uint32_t aTrackId, bool aIsAudio, Monitor* aMonitor)
+Index::Index(const nsTArray<Indice>& aIndex,
+             Stream* aSource,
+             uint32_t aTrackId,
+             bool aIsAudio,
+             Monitor* aMonitor)
   : mSource(aSource)
   , mMonitor(aMonitor)
 {
   if (aIndex.IsEmpty()) {
     mMoofParser = new MoofParser(aSource, aTrackId, aIsAudio, aMonitor);
   } else {
+    if (!mIndex.SetCapacity(aIndex.Length())) {
+      // OOM.
+      return;
+    }
     for (size_t i = 0; i < aIndex.Length(); i++) {
-      const MediaSource::Indice& indice = aIndex[i];
+      const Indice& indice = aIndex[i];
       Sample sample;
       sample.mByteRange = MediaByteRange(indice.start_offset,
                                          indice.end_offset);
       sample.mCompositionRange = Interval<Microseconds>(indice.start_composition,
                                                         indice.end_composition);
       sample.mSync = indice.sync;
-      mIndex.AppendElement(sample);
+      MOZ_ALWAYS_TRUE(mIndex.AppendElement(sample));
     }
   }
 }
@@ -263,7 +269,7 @@ Index::UpdateMoofIndex(const nsTArray<MediaByteRange>& aByteRanges)
 Microseconds
 Index::GetEndCompositionIfBuffered(const nsTArray<MediaByteRange>& aByteRanges)
 {
-  nsTArray<Sample>* index;
+  FallibleTArray<Sample>* index;
   if (mMoofParser) {
     if (!mMoofParser->ReachedEnd() || mMoofParser->Moofs().IsEmpty()) {
       return 0;
@@ -296,7 +302,7 @@ Index::ConvertByteRangesToTimeRanges(
   RangeFinder rangeFinder(aByteRanges);
   nsTArray<Interval<Microseconds>> timeRanges;
 
-  nsTArray<nsTArray<Sample>*> indexes;
+  nsTArray<FallibleTArray<Sample>*> indexes;
   if (mMoofParser) {
     // We take the index out of the moof parser and move it into a local
     // variable so we don't get concurrency issues. It gets freed when we
@@ -319,7 +325,7 @@ Index::ConvertByteRangesToTimeRanges(
 
   bool hasSync = false;
   for (size_t i = 0; i < indexes.Length(); i++) {
-    nsTArray<Sample>* index = indexes[i];
+    FallibleTArray<Sample>* index = indexes[i];
     for (size_t j = 0; j < index->Length(); j++) {
       const Sample& sample = (*index)[j];
       if (!rangeFinder.Contains(sample.mByteRange)) {

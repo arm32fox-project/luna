@@ -7,20 +7,15 @@
 #include "H264Converter.h"
 #include "ImageContainer.h"
 #include "MediaTaskQueue.h"
-#include "mp4_demuxer/DecoderData.h"
+#include "MediaInfo.h"
 #include "mp4_demuxer/AnnexB.h"
 #include "mp4_demuxer/H264.h"
 
 namespace mozilla
 {
 
-  // H264 AnnexB or AVCC handler
-#include "mp4_demuxer/DecoderData.h"
-#include "mp4_demuxer/AnnexB.h"
-#include "mp4_demuxer/H264.h"
-
 H264Converter::H264Converter(PlatformDecoderModule* aPDM,
-                             const mp4_demuxer::VideoDecoderConfig& aConfig,
+                             const VideoInfo& aConfig,
                              layers::LayersBackend aLayersBackend,
                              layers::ImageContainer* aImageContainer,
                              FlushableMediaTaskQueue* aVideoTaskQueue,
@@ -52,7 +47,7 @@ H264Converter::Init()
 }
 
 nsresult
-H264Converter::Input(mp4_demuxer::MP4Sample* aSample)
+H264Converter::Input(MediaRawData* aSample)
 {
   if (!mNeedAVCC) {
     if (!mp4_demuxer::AnnexB::ConvertSampleToAnnexB(aSample)) {
@@ -71,7 +66,7 @@ H264Converter::Input(mp4_demuxer::MP4Sample* aSample)
     rv = CreateDecoderAndInit(aSample);
     if (rv == NS_ERROR_NOT_INITIALIZED) {
       // We are missing the required SPS to create the decoder.
-      // Ignore for the time being, the MP4Sample will be dropped.
+      // Ignore for the time being, the MediaRawData will be dropped.
       return NS_OK;
     }
   } else {
@@ -79,7 +74,7 @@ H264Converter::Input(mp4_demuxer::MP4Sample* aSample)
   }
   NS_ENSURE_SUCCESS(rv, rv);
 
-  aSample->extra_data = mCurrentConfig.extra_data;
+  aSample->mExtraData = mCurrentConfig.mExtraData;
 
   return mDecoder->Input(aSample);
 }
@@ -168,11 +163,11 @@ H264Converter::IsHardwareAccelerated() const
 nsresult
 H264Converter::CreateDecoder()
 {
-  if (mNeedAVCC && !mp4_demuxer::AnnexB::HasSPS(mCurrentConfig.extra_data)) {
+  if (mNeedAVCC && !mp4_demuxer::AnnexB::HasSPS(mCurrentConfig.mExtraData)) {
     // nothing found yet, will try again later
     return NS_ERROR_NOT_INITIALIZED;
   }
-  UpdateConfigFromExtraData(mCurrentConfig.extra_data);
+  UpdateConfigFromExtraData(mCurrentConfig.mExtraData);
 
   mDecoder = mPDM->CreateVideoDecoder(mCurrentConfig,
                                       mLayersBackend,
@@ -187,9 +182,9 @@ H264Converter::CreateDecoder()
 }
 
 nsresult
-H264Converter::CreateDecoderAndInit(mp4_demuxer::MP4Sample* aSample)
+H264Converter::CreateDecoderAndInit(MediaRawData* aSample)
 {
-  nsRefPtr<mp4_demuxer::ByteBuffer> extra_data =
+  nsRefPtr<MediaByteBuffer> extra_data =
     mp4_demuxer::AnnexB::ExtractExtraData(aSample);
   if (!mp4_demuxer::AnnexB::HasSPS(extra_data)) {
     return NS_ERROR_NOT_INITIALIZED;
@@ -202,13 +197,13 @@ H264Converter::CreateDecoderAndInit(mp4_demuxer::MP4Sample* aSample)
 }
 
 nsresult
-H264Converter::CheckForSPSChange(mp4_demuxer::MP4Sample* aSample)
+H264Converter::CheckForSPSChange(MediaRawData* aSample)
 {
-  nsRefPtr<mp4_demuxer::ByteBuffer> extra_data =
+  nsRefPtr<MediaByteBuffer> extra_data =
     mp4_demuxer::AnnexB::ExtractExtraData(aSample);
   if (!mp4_demuxer::AnnexB::HasSPS(extra_data) ||
       mp4_demuxer::AnnexB::CompareExtraData(extra_data,
-                                            mCurrentConfig.extra_data)) {
+                                            mCurrentConfig.mExtraData)) {
         return NS_OK;
       }
   if (!mNeedAVCC) {
@@ -224,26 +219,26 @@ H264Converter::CheckForSPSChange(mp4_demuxer::MP4Sample* aSample)
 }
 
 void
-H264Converter::UpdateConfigFromExtraData(mp4_demuxer::ByteBuffer* aExtraData)
+H264Converter::UpdateConfigFromExtraData(MediaByteBuffer* aExtraData)
 {
   mp4_demuxer::SPSData spsdata;
   if (mp4_demuxer::H264::DecodeSPSFromExtraData(aExtraData, spsdata) &&
       spsdata.pic_width > 0 && spsdata.pic_height > 0) {
     mp4_demuxer::H264::EnsureSPSIsSane(spsdata);
-    mCurrentConfig.image_width = spsdata.pic_width;
-    mCurrentConfig.image_height = spsdata.pic_height;
-    mCurrentConfig.display_width = spsdata.display_width;
-    mCurrentConfig.display_height = spsdata.display_height;
+    mCurrentConfig.mImage.width = spsdata.pic_width;
+    mCurrentConfig.mImage.height = spsdata.pic_height;
+    mCurrentConfig.mDisplay.width = spsdata.display_width;
+    mCurrentConfig.mDisplay.height = spsdata.display_height;
   }
-  mCurrentConfig.extra_data = aExtraData;
+  mCurrentConfig.mExtraData = aExtraData;
 }
 
 /* static */
 bool
-H264Converter::IsH264(const mp4_demuxer::TrackConfig& aConfig)
+H264Converter::IsH264(const TrackInfo& aConfig)
 {
-  return aConfig.mime_type.EqualsLiteral("video/avc") ||
-    aConfig.mime_type.EqualsLiteral("video/mp4");
+  return aConfig.mMimeType.EqualsLiteral("video/avc") ||
+    aConfig.mMimeType.EqualsLiteral("video/mp4");
 }
 
 } // namespace mozilla

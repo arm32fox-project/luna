@@ -27,7 +27,7 @@ GonkDecoderModule::Init()
 }
 
 already_AddRefed<MediaDataDecoder>
-GonkDecoderModule::CreateVideoDecoder(const mp4_demuxer::VideoDecoderConfig& aConfig,
+GonkDecoderModule::CreateVideoDecoder(const VideoInfo& aConfig,
                                      mozilla::layers::LayersBackend aLayersBackend,
                                      mozilla::layers::ImageContainer* aImageContainer,
                                      FlushableMediaTaskQueue* aVideoTaskQueue,
@@ -41,7 +41,7 @@ GonkDecoderModule::CreateVideoDecoder(const mp4_demuxer::VideoDecoderConfig& aCo
 }
 
 already_AddRefed<MediaDataDecoder>
-GonkDecoderModule::CreateAudioDecoder(const mp4_demuxer::AudioDecoderConfig& aConfig,
+GonkDecoderModule::CreateAudioDecoder(const AudioInfo& aConfig,
                                       FlushableMediaTaskQueue* aAudioTaskQueue,
                                       MediaDataDecoderCallback* aCallback)
 {
@@ -52,13 +52,23 @@ GonkDecoderModule::CreateAudioDecoder(const mp4_demuxer::AudioDecoderConfig& aCo
 }
 
 PlatformDecoderModule::ConversionRequired
-GonkDecoderModule::DecoderNeedsConversion(const mp4_demuxer::TrackConfig& aConfig) const
+GonkDecoderModule::DecoderNeedsConversion(const TrackInfo& aConfig) const
 {
-  if (aConfig.IsVideoConfig()) {
+  if (aConfig.IsVideo()) {
     return kNeedAVCC;
   } else {
     return kNeedNone;
   }
 }
 
+bool
+GonkDecoderModule::SupportsMimeType(const nsACString& aMimeType)
+{
+  return aMimeType.EqualsLiteral("audio/mp4a-latm") ||
+  aMimeType.EqualsLiteral("video/mp4") ||
+  aMimeType.EqualsLiteral("video/mp4v-es") ||
+  aMimeType.EqualsLiteral("video/avc");
+}
+
 } // namespace mozilla
+
