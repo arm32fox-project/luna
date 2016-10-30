@@ -347,7 +347,7 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     {
       MonitorAutoUnlock unlock(mDemuxerMonitor);
       ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-      mInfo.mCrypto.mIsEncrypted = mIsEncrypted = mCrypto.valid;
+      mIsEncrypted = mCrypto.valid;
     }
 
     // Remember that we've initialized the demuxer, so that if we're decoding
@@ -375,14 +375,16 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     }
   }
 
-  if (mIsEncrypted) {
+  if (mCrypto.valid) {
     nsTArray<uint8_t> initData;
     ExtractCryptoInitData(initData);
     if (initData.Length() == 0) {
       return NS_ERROR_FAILURE;
     }
-    mInfo.mCrypto.mInitData = initData;
-    mInfo.mCrypto.mType = NS_LITERAL_STRING("cenc");
+
+    // Add init data to info, will get sent from HTMLMediaElement::MetadataLoaded
+    // (i.e., when transitioning from HAVE_NOTHING to HAVE_METADATA).
+    mInfo.mCrypto.AddInitData(NS_LITERAL_STRING("cenc"), Move(initData));
   }
 
   // Get the duration, and report it to the decoder if we have it.
@@ -476,10 +478,9 @@ MP4Reader::ReadUpdatedMetadata(MediaInfo* aInfo)
 bool
 MP4Reader::IsMediaSeekable()
 {
-  // We can seek if we get a duration *and* the reader reports that it's
-  // seekable.
+  // Check Demuxer to see if this content is seekable or not.
   MonitorAutoLock mon(mDemuxerMonitor);
-  return mDecoder->GetResource()->IsTransportSeekable();
+  return mDemuxer->CanSeek();
 }
 
 bool
@@ -967,7 +968,7 @@ MP4Reader::Seek(int64_t aTime, int64_t aEndTime)
   LOG("aTime=(%lld)", aTime);
   MOZ_ASSERT(GetTaskQueue()->IsCurrentThreadIn());
   MonitorAutoLock mon(mDemuxerMonitor);
-  if (!mDecoder->GetResource()->IsTransportSeekable() || !mDemuxer->CanSeek()) {
+  if (!mDemuxer->CanSeek()) {
     VLOG("Seek() END (Unseekable)");
     return SeekPromise::CreateAndReject(NS_ERROR_FAILURE, __func__);
   }
