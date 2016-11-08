@@ -28,12 +28,6 @@ typedef std::deque<nsRefPtr<MediaRawData>> MediaSampleQueue;
 class MP4Stream;
 
 #if defined(MOZ_GONK_MEDIACODEC) || defined(XP_WIN) || defined(MOZ_APPLEMEDIA) || defined(MOZ_FFMPEG)
-#define MP4_READER_DORMANT
-#else
-#undef MP4_READER_DORMANT
-#endif
-
-#if defined(XP_WIN) || defined(MOZ_APPLEMEDIA) || defined(MOZ_FFMPEG)
 #define MP4_READER_DORMANT_HEURISTIC
 #else
 #undef MP4_READER_DORMANT_HEURISTIC
@@ -61,11 +55,6 @@ public:
   virtual bool HasAudio() override;
   virtual bool HasVideo() override;
 
-  // PreReadMetadata() is called by MediaDecoderStateMachine::DecodeMetadata()
-  // before checking hardware resource. In Gonk, it requests hardware codec so
-  // MediaDecoderStateMachine could go to DORMANT state if the hardware codec is
-  // not available.
-  virtual void PreReadMetadata() override;
   virtual nsresult ReadMetadata(MediaInfo* aInfo,
                                 MetadataTags** aTags) override;
 
@@ -135,7 +124,6 @@ private:
   bool IsSupportedAudioMimeType(const nsACString& aMimeType);
   bool IsSupportedVideoMimeType(const nsACString& aMimeType);
   void NotifyResourcesStatusChanged();
-  void RequestCodecResource();
   virtual bool IsWaitingOnCDMResource() override;
 
   Microseconds GetNextKeyframeTime();
@@ -285,8 +273,6 @@ private:
 
   // Synchronized by decoder monitor.
   bool mIsEncrypted;
-
-  bool mAreDecodersSetup;
 
   bool mIndexReady;
   int64_t mLastSeenEnd;
