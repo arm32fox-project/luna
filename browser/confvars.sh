@@ -3,7 +3,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-MOZ_APP_BASENAME=Palemoon
+MOZ_APP_BASENAME=PaleMoon
 MOZ_APP_VENDOR=Moonchild
 MOZ_UPDATER=1
 MOZ_PHOENIX=1
@@ -16,7 +16,7 @@ MOZ_SERVICES_SYNC=1
 MOZ_APP_VERSION=`cat ${_topsrcdir}/$MOZ_BUILD_APP/config/version.txt`
 MOZ_EXTENSIONS_DEFAULT=" gio"
 
-MOZ_SERVICES_FXACCOUNTS=1
+MOZ_SERVICES_FXACCOUNTS=
 MOZ_DISABLE_EXPORT_JS=1
 MOZ_WEBGL_CONFORMANT=1
 MOZ_ACTIVITIES=1
