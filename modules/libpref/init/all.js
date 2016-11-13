@@ -1505,7 +1505,7 @@ pref("network.http.sendRefererHeader",      2);
 pref("network.http.referer.spoofSource", false);
 // 0=full URI, 1=scheme+host+port+path, 2=scheme+host+port
 pref("network.http.referer.trimmingPolicy", 0);
-// 0=always send, 1=send iff base domains match, 2=send iff hosts match
+// 0=always send, 1=send if base domains match, 2=send if hosts match
 pref("network.http.referer.XOriginPolicy", 0);
 
 // Controls whether we send HTTPS referrers to other HTTPS sites.
@@ -4334,7 +4334,7 @@ pref("browser.history.maxStateObjectSize", 655360);
 // XPInstall prefs
 pref("xpinstall.whitelist.required", true);
 pref("extensions.alwaysUnpack", false);
-pref("extensions.minCompatiblePlatformVersion", "2.0");
+pref("extensions.minCompatiblePlatformVersion", "1.8");
 
 pref("network.buffer.cache.count", 24);
 pref("network.buffer.cache.size",  32768);
