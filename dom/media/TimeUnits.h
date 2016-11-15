@@ -14,6 +14,18 @@
 
 namespace mozilla {
 namespace media {
+class TimeIntervals;
+}
+}
+// CopyChooser specalization for nsTArray
+template<>
+struct nsTArray_CopyChooser<mozilla::media::TimeIntervals>
+{
+  typedef nsTArray_CopyWithConstructors<mozilla::media::TimeIntervals> Type;
+};
+
+namespace mozilla {
+namespace media {
 
 // Number of microseconds per second. 1e6.
 static const int64_t USECS_PER_S = 1000000;
@@ -79,7 +91,9 @@ public:
     if (mozilla::IsInfinite<double>(aValue)) {
       return FromInfinity();
     }
-    double val = aValue * USECS_PER_S;
+    // Due to internal double representation, this
+    // operation is not commutative, do not attempt to simplify.
+    double val = (aValue + .0000005) * USECS_PER_S;
     if (val >= double(INT64_MAX)) {
       return FromMicroseconds(INT64_MAX);
     } else if (val <= double(INT64_MIN)) {
