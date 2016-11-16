@@ -38,13 +38,8 @@ public:
   DecoderNeedsConversion(const TrackInfo& aConfig) const override;
 
   static void Init();
-  static nsresult CanDecode();
 
 private:
-  friend class InitTask;
-  friend class LinkTask;
-  friend class UnlinkTask;
-
   static bool sInitialized;
   static bool sIsVTAvailable;
   static bool sIsVTHWAvailable;

@@ -33,46 +33,12 @@ bool AppleDecoderModule::sIsVTHWAvailable = false;
 bool AppleDecoderModule::sIsVDAAvailable = false;
 bool AppleDecoderModule::sForceVDA = false;
 
-class LinkTask : public nsRunnable {
-public:
-  NS_IMETHOD Run() override {
-    MOZ_ASSERT(NS_IsMainThread(), "Must be on main thread.");
-    MOZ_ASSERT(AppleDecoderModule::sInitialized);
-    if (AppleDecoderModule::sIsVDAAvailable) {
-      AppleVDALinker::Link();
-    }
-    if (AppleDecoderModule::sIsVTAvailable) {
-      AppleVTLinker::Link();
-      AppleCMLinker::Link();
-    }
-    return NS_OK;
-  }
-};
-
-class UnlinkTask : public nsRunnable {
-public:
-  NS_IMETHOD Run() override {
-    MOZ_ASSERT(NS_IsMainThread(), "Must be on main thread.");
-    MOZ_ASSERT(AppleDecoderModule::sInitialized);
-    if (AppleDecoderModule::sIsVDAAvailable) {
-      AppleVDALinker::Unlink();
-    }
-    if (AppleDecoderModule::sIsVTAvailable) {
-      AppleVTLinker::Unlink();
-      AppleCMLinker::Unlink();
-    }
-    return NS_OK;
-  }
-};
-
 AppleDecoderModule::AppleDecoderModule()
 {
 }
 
 AppleDecoderModule::~AppleDecoderModule()
 {
-  nsCOMPtr<nsIRunnable> task(new UnlinkTask());
-  NS_DispatchToMainThread(task);
 }
 
 /* static */
@@ -100,50 +66,15 @@ AppleDecoderModule::Init()
 
   sIsVTHWAvailable = AppleVTLinker::skPropEnableHWAccel != nullptr;
 
-  if (sIsVDAAvailable) {
-    AppleVDALinker::Unlink();
-  }
-  if (sIsVTAvailable) {
-    AppleVTLinker::Unlink();
-    AppleCMLinker::Unlink();
-  }
   sInitialized = true;
-}
-
-class InitTask : public nsRunnable {
-public:
-  NS_IMETHOD Run() override {
-    MOZ_ASSERT(NS_IsMainThread(), "Must be on main thread.");
-    AppleDecoderModule::Init();
-    return NS_OK;
-  }
-};
-
-/* static */
-nsresult
-AppleDecoderModule::CanDecode()
-{
-  if (!sInitialized) {
-    if (NS_IsMainThread()) {
-      Init();
-    } else {
-      nsRefPtr<nsIRunnable> task(new InitTask());
-      NS_DispatchToMainThread(task, NS_DISPATCH_SYNC);
-    }
-  }
-
-  return (sIsVDAAvailable || sIsVTAvailable) ? NS_OK : NS_ERROR_NO_INTERFACE;
 }
 
 nsresult
 AppleDecoderModule::Startup()
 {
-  if (!sIsVDAAvailable && !sIsVTAvailable) {
+  if (!sInitialized || (!sIsVDAAvailable && !sIsVTAvailable)) {
     return NS_ERROR_FAILURE;
   }
-
-  nsRefPtr<nsIRunnable> task(new LinkTask());
-  NS_DispatchToMainThread(task, NS_DISPATCH_SYNC);
 
   return NS_OK;
 }
