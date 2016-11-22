@@ -10,7 +10,6 @@
 #include "mozilla/dom/TimeRanges.h"
 #include "DecoderTraits.h"
 #include "MediaDecoderOwner.h"
-#include "MediaFormatReader.h"
 #include "MediaSourceDecoder.h"
 #include "MediaSourceUtils.h"
 #include "SourceBufferDecoder.h"
@@ -20,7 +19,6 @@
 #ifdef MOZ_FMP4
 #include "SharedDecoderManager.h"
 #include "MP4Decoder.h"
-#include "MP4Demuxer.h"
 #include "MP4Reader.h"
 #endif
 
@@ -674,12 +672,7 @@ CreateReaderForType(const nsACString& aType, AbstractMediaDecoder* aDecoder)
   if ((aType.LowerCaseEqualsLiteral("video/mp4") ||
        aType.LowerCaseEqualsLiteral("audio/mp4")) &&
       MP4Decoder::IsEnabled() && aDecoder) {
-    bool useFormatDecoder =
-      Preferences::GetBool("media.mediasource.format-reader.mp4", false);
-    MediaDecoderReader* reader = useFormatDecoder ?
-      static_cast<MediaDecoderReader*>(new MediaFormatReader(aDecoder, new MP4Demuxer(aDecoder->GetResource()))) :
-      static_cast<MediaDecoderReader*>(new MP4Reader(aDecoder));
-    return reader;
+    return new MP4Reader(aDecoder);
   }
 #endif
   return DecoderTraits::CreateReader(aType, aDecoder);

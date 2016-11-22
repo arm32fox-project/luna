@@ -286,6 +286,7 @@ MediaFormatReader::OnDemuxerInitDone(nsresult)
   }
 
   mSeekable = mDemuxer->IsSeekable();
+  mInitDone = true;
 
   // Create demuxer object for main thread.
   mMainThreadDemuxer = mDemuxer->Clone();
@@ -304,8 +305,6 @@ MediaFormatReader::OnDemuxerInitDone(nsresult)
       mMainThreadDemuxer->GetTrackDemuxer(TrackInfo::kAudioTrack, 0);
     MOZ_ASSERT(mAudioTrackDemuxer);
   }
-
-  mInitDone = true;
 
   if (!IsWaitingOnCDMResource() && !EnsureDecodersSetup()) {
     mMetadataPromise.Reject(ReadMetadataFailureReason::METADATA_ERROR, __func__);
@@ -1263,7 +1262,6 @@ MediaFormatReader::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int6
     return;
   }
 
-  MOZ_ASSERT(mMainThreadDemuxer);
   mMainThreadDemuxer->NotifyDataArrived(aLength, aOffset);
 
   // Queue a task to notify our main demuxer.
