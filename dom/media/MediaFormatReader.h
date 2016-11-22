@@ -7,7 +7,6 @@
 #if !defined(MediaFormatReader_h_)
 #define MediaFormatReader_h_
 
-#include "mozilla/Atomics.h"
 #include "mozilla/Maybe.h"
 #include "mozilla/Monitor.h"
 #include "MediaDataDemuxer.h"
@@ -124,11 +123,6 @@ private:
   // Decode any pending already demuxed samples.
   void DecodeDemuxedSamples(TrackType aTrack,
                             AbstractMediaDecoder::AutoNotifyDecoded& aA);
-  void NotifyNewOutput(TrackType aTrack, MediaData* aSample);
-  void NotifyInputExhausted(TrackType aTrack);
-  void NotifyDrainComplete(TrackType aTrack);
-  void NotifyError(TrackType aTrack);
-  void NotifyWaitingForData(TrackType aTrack);
 
   void ExtractCryptoInitData(nsTArray<uint8_t>& aInitData);
 
@@ -190,22 +184,21 @@ private:
                 uint32_t aDecodeAhead)
       : mOwner(aOwner)
       , mType(aType)
-      , mDecodeAhead(aDecodeAhead)
-      , mUpdateScheduled(false)
       , mDemuxEOS(false)
       , mDemuxEOSServiced(false)
       , mWaitingForData(false)
       , mReceivedNewData(false)
-      , mDiscontinuity(true)
-      , mOutputRequested(false)
-      , mInputExhausted(false)
-      , mError(false)
-      , mDrainComplete(false)
-      , mNumSamplesInput(0)
-      , mNumSamplesOutput(0)
-      , mSizeOfQueue(0)
       , mMonitor(aType == MediaData::AUDIO_DATA ? "audio decoder data"
                                                 : "video decoder data")
+      , mNumSamplesInput(0)
+      , mNumSamplesOutput(0)
+      , mDecodeAhead(aDecodeAhead)
+      , mInputExhausted(false)
+      , mError(false)
+      , mIsFlushing(false)
+      , mUpdateScheduled(false)
+      , mDrainComplete(false)
+      , mDiscontinuity(false)
     {}
 
     MediaFormatReader* mOwner;
@@ -221,14 +214,10 @@ private:
     nsAutoPtr<DecoderCallback> mCallback;
 
     // Only accessed from reader's task queue.
-    uint32_t mDecodeAhead;
-    bool mUpdateScheduled;
     bool mDemuxEOS;
     bool mDemuxEOSServiced;
     bool mWaitingForData;
     bool mReceivedNewData;
-    bool mDiscontinuity;
-
     // Queued demux samples waiting to be decoded.
     nsTArray<nsRefPtr<MediaRawData>> mQueuedSamples;
     MediaPromiseConsumerHolder<MediaTrackDemuxer::SamplesPromise> mDemuxRequest;
@@ -239,17 +228,6 @@ private:
       MOZ_ASSERT(mOwner->OnTaskQueue());
       return !mWaitingPromise.IsEmpty();
     }
-
-    // MediaDataDecoder handler's variables.
-    bool mOutputRequested;
-    bool mInputExhausted;
-    bool mError;
-    bool mDrainComplete;
-    // Decoded samples returned my mDecoder awaiting being returned to
-    // state machine upon request.
-    nsTArray<nsRefPtr<MediaData>> mOutput;
-    uint64_t mNumSamplesInput;
-    uint64_t mNumSamplesOutput;
 
     // These get overriden in the templated concrete class.
     // Indicate if we have a pending promise for decoded frame.
@@ -264,21 +242,32 @@ private:
       mDemuxEOSServiced = false;
       mWaitingForData = false;
       mReceivedNewData = false;
-      mDiscontinuity = true;
       mQueuedSamples.Clear();
-      mOutputRequested = false;
-      mInputExhausted = false;
-      mDrainComplete = false;
-      mOutput.Clear();
+      MonitorAutoLock mon(mMonitor);
       mNumSamplesInput = 0;
       mNumSamplesOutput = 0;
+      mOutput.Clear();
+      mInputExhausted = false;
+      mIsFlushing = false;
+      mUpdateScheduled = false;
+      mDrainComplete = false;
+      mDiscontinuity = true;
     }
-
-    // Used by the MDSM for logging purposes.
-    Atomic<size_t> mSizeOfQueue;
     // Monitor that protects all non-threadsafe state; the primitives
     // that follow.
     Monitor mMonitor;
+    uint64_t mNumSamplesInput;
+    uint64_t mNumSamplesOutput;
+    uint32_t mDecodeAhead;
+    // Decoded samples returned my mDecoder awaiting being returned to
+    // state machine upon request.
+    nsTArray<nsRefPtr<MediaData>> mOutput;
+    bool mInputExhausted;
+    bool mError;
+    bool mIsFlushing;
+    bool mUpdateScheduled;
+    bool mDrainComplete;
+    bool mDiscontinuity;
     media::TimeIntervals mTimeRanges;
   };
 
