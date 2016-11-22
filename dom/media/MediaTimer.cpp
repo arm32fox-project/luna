@@ -10,8 +10,6 @@
 
 #include "nsComponentManagerUtils.h"
 #include "nsThreadUtils.h"
-#include "mozilla/RefPtr.h"
-#include "SharedThreadPool.h"
 
 namespace mozilla {
 
