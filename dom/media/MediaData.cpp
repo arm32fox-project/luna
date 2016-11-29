@@ -482,31 +482,28 @@ VideoData::Create(const VideoInfo& aInfo,
 // For 32-bytes aligned, use 31U.
 #define RAW_DATA_ALIGNMENT 31U
 
-#define RAW_DATA_DEFAULT_SIZE 4096
-
 MediaRawData::MediaRawData()
   : MediaData(RAW_DATA)
+  , mCrypto(mCryptoInternal)
   , mData(nullptr)
   , mSize(0)
-  , mCrypto(mCryptoInternal)
-  , mBuffer(new MediaLargeByteBuffer(RAW_DATA_DEFAULT_SIZE))
-  , mPadding(0)
+  , mBuffer(nullptr)
+  , mCapacity(0)
 {
 }
 
 MediaRawData::MediaRawData(const uint8_t* aData, size_t aSize)
   : MediaData(RAW_DATA)
+  , mCrypto(mCryptoInternal)
   , mData(nullptr)
   , mSize(0)
-  , mCrypto(mCryptoInternal)
-  , mBuffer(new MediaLargeByteBuffer(RAW_DATA_DEFAULT_SIZE))
-  , mPadding(0)
+  , mBuffer(nullptr)
+  , mCapacity(0)
 {
   if (!EnsureCapacity(aSize)) {
     return;
   }
-  mBuffer->AppendElements(aData, aSize);
-  mBuffer->AppendElements(RAW_DATA_ALIGNMENT);
+  memcpy(mData, aData, aSize);
   mSize = aSize;
 }
 
@@ -525,40 +522,38 @@ MediaRawData::Clone() const
     if (!s->EnsureCapacity(mSize)) {
       return nullptr;
     }
-    s->mBuffer->AppendElements(mData, mSize);
-    s->mBuffer->AppendElements(RAW_DATA_ALIGNMENT);
+    memcpy(s->mData, mData, mSize);
     s->mSize = mSize;
   }
   return s.forget();
 }
 
+// EnsureCapacity ensures that the buffer is big enough to hold
+// aSize. It doesn't set the mSize. It's up to the caller to adjust it.
 bool
 MediaRawData::EnsureCapacity(size_t aSize)
 {
-  if (mData && mBuffer->Capacity() >= aSize + RAW_DATA_ALIGNMENT * 2) {
+  const size_t sizeNeeded = aSize + RAW_DATA_ALIGNMENT * 2;
+
+  if (mData && mCapacity >= sizeNeeded) {
     return true;
   }
-  if (!mBuffer->SetCapacity(aSize + RAW_DATA_ALIGNMENT * 2)) {
+  nsAutoArrayPtr<uint8_t> newBuffer;
+  newBuffer = new (fallible) uint8_t[sizeNeeded];
+  if (!newBuffer) {
     return false;
   }
   // Find alignment address.
   const uintptr_t alignmask = RAW_DATA_ALIGNMENT;
-  mData = reinterpret_cast<uint8_t*>(
-    (reinterpret_cast<uintptr_t>(mBuffer->Elements()) + alignmask) & ~alignmask);
-  MOZ_ASSERT(uintptr_t(mData) % (RAW_DATA_ALIGNMENT+1) == 0);
+  uint8_t* newData = reinterpret_cast<uint8_t*>(
+    (reinterpret_cast<uintptr_t>(newBuffer.get()) + alignmask) & ~alignmask);
+  MOZ_ASSERT(uintptr_t(newData) % (RAW_DATA_ALIGNMENT+1) == 0);
+  memcpy(newData, mData, mSize);
 
-  // Shift old data according to new padding.
-  uint32_t oldpadding = int32_t(mPadding);
-  mPadding = mData - mBuffer->Elements();
-  int32_t shift = int32_t(mPadding) - int32_t(oldpadding);
+  mBuffer = newBuffer.forget();
+  mCapacity = sizeNeeded;
+  mData = newData;
 
-  if (shift == 0) {
-    // Nothing to do.
-  } else if (shift > 0) {
-    mBuffer->InsertElementsAt(oldpadding, shift);
-  } else {
-    mBuffer->RemoveElementsAt(mPadding, -shift);
-  }
   return true;
 }
 
@@ -572,9 +567,9 @@ MediaRawData::SizeOfIncludingThis(MallocSizeOf aMallocSizeOf) const
   size_t size = aMallocSizeOf(this);
 
   if (mExtraData) {
-    size += mExtraData->SizeOfIncludingThis(aMallocSizeOf);
+    size += aMallocSizeOf(mExtraData.get());
   }
-  size += mBuffer->SizeOfIncludingThis(aMallocSizeOf);
+  size += aMallocSizeOf(mBuffer.get());
   return size;
 }
 
@@ -585,28 +580,20 @@ MediaRawData::CreateWriter()
 }
 
 MediaRawDataWriter::MediaRawDataWriter(MediaRawData* aMediaRawData)
-  : mData(nullptr)
-  , mSize(0)
-  , mCrypto(aMediaRawData->mCryptoInternal)
+  : mCrypto(aMediaRawData->mCryptoInternal)
   , mTarget(aMediaRawData)
-  , mBuffer(aMediaRawData->mBuffer.get())
 {
-  if (aMediaRawData->mData) {
-    mData = mBuffer->Elements() + mTarget->mPadding;
-    mSize = mTarget->mSize;
-  }
 }
 
 bool
 MediaRawDataWriter::EnsureSize(size_t aSize)
 {
-  if (aSize <= mSize) {
+  if (aSize <= mTarget->mSize) {
     return true;
   }
   if (!mTarget->EnsureCapacity(aSize)) {
     return false;
   }
-  mData = mBuffer->Elements() + mTarget->mPadding;
   return true;
 }
 
@@ -616,9 +603,7 @@ MediaRawDataWriter::SetSize(size_t aSize)
   if (aSize > mTarget->mSize && !EnsureSize(aSize)) {
     return false;
   }
-  // Pad our buffer.
-  mBuffer->SetLength(aSize + mTarget->mPadding + RAW_DATA_ALIGNMENT);
-  mTarget->mSize = mSize = aSize;
+  mTarget->mSize = aSize;
   return true;
 }
 
@@ -628,29 +613,43 @@ MediaRawDataWriter::Prepend(const uint8_t* aData, size_t aSize)
   if (!EnsureSize(aSize + mTarget->mSize)) {
     return false;
   }
-  mBuffer->InsertElementsAt(mTarget->mPadding, aData, aSize);
+  // Shift the data to the right by aSize to leave room for the new data.
+  memmove(mTarget->mData + aSize, mTarget->mData, mTarget->mSize);
+  memcpy(mTarget->mData, aData, aSize);
   mTarget->mSize += aSize;
-  mSize = mTarget->mSize;
   return true;
 }
 
 bool
 MediaRawDataWriter::Replace(const uint8_t* aData, size_t aSize)
 {
+  // If aSize is smaller than our current size, we leave the buffer as is,
+  // only adjusting the reported size.
   if (!EnsureSize(aSize)) {
     return false;
   }
-  mBuffer->ReplaceElementsAt(mTarget->mPadding, mTarget->mSize, aData, aSize);
-  mTarget->mSize = mSize = aSize;
+  memcpy(mTarget->mData, aData, aSize);
+  mTarget->mSize = aSize;
   return true;
 }
 
 void
 MediaRawDataWriter::Clear()
 {
-  mBuffer->RemoveElementsAt(mTarget->mPadding, mTarget->mSize);
-  mTarget->mSize = mSize = 0;
-  mTarget->mData = mData = nullptr;
+  mTarget->mSize = 0;
+  mTarget->mData = nullptr;
+}
+
+uint8_t*
+MediaRawDataWriter::Data()
+{
+  return mTarget->mData;
+}
+
+size_t
+MediaRawDataWriter::Size()
+{
+  return mTarget->Size();
 }
 
 } // namespace mozilla
