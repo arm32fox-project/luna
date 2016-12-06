@@ -15,13 +15,50 @@
 #include "FFmpegLog.h"
 #include "mozilla/PodOperations.h"
 
-#define GECKO_FRAME_TYPE 0x00093CC0
-
 typedef mozilla::layers::Image Image;
 typedef mozilla::layers::PlanarYCbCrImage PlanarYCbCrImage;
 
 namespace mozilla
 {
+
+FFmpegH264Decoder<LIBAV_VER>::PtsCorrectionContext::PtsCorrectionContext()
+  : mNumFaultyPts(0)
+  , mNumFaultyDts(0)
+  , mLastPts(INT64_MIN)
+  , mLastDts(INT64_MIN)
+{
+}
+
+int64_t
+FFmpegH264Decoder<LIBAV_VER>::PtsCorrectionContext::GuessCorrectPts(int64_t aPts, int64_t aDts)
+{
+  int64_t pts = AV_NOPTS_VALUE;
+
+  if (aDts != int64_t(AV_NOPTS_VALUE)) {
+    mNumFaultyDts += aDts <= mLastDts;
+    mLastDts = aDts;
+  }
+  if (aPts != int64_t(AV_NOPTS_VALUE)) {
+    mNumFaultyPts += aPts <= mLastPts;
+    mLastPts = aPts;
+  }
+  if ((mNumFaultyPts <= mNumFaultyDts || aDts == int64_t(AV_NOPTS_VALUE)) &&
+      aPts != int64_t(AV_NOPTS_VALUE)) {
+    pts = aPts;
+  } else {
+    pts = aDts;
+  }
+  return pts;
+}
+
+void
+FFmpegH264Decoder<LIBAV_VER>::PtsCorrectionContext::Reset()
+{
+  mNumFaultyPts = 0;
+  mNumFaultyDts = 0;
+  mLastPts = INT64_MIN;
+  mLastDts = INT64_MIN;
+}
 
 FFmpegH264Decoder<LIBAV_VER>::FFmpegH264Decoder(
   FlushableMediaTaskQueue* aTaskQueue, MediaDataDecoderCallback* aCallback,
@@ -55,20 +92,6 @@ FFmpegH264Decoder<LIBAV_VER>::Init()
   return NS_OK;
 }
 
-int64_t
-FFmpegH264Decoder<LIBAV_VER>::GetPts(const AVPacket& packet)
-{
-#if LIBAVCODEC_VERSION_MAJOR == 53
-  if (mFrame->pkt_pts == 0) {
-    return mFrame->pkt_dts;
-  } else {
-    return mFrame->pkt_pts;
-  }
-#else
-  return mFrame->pkt_pts;
-#endif
-}
-
 FFmpegH264Decoder<LIBAV_VER>::DecodeResult
 FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample)
 {
@@ -81,6 +104,13 @@ FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample)
   packet.pts = aSample->mTime;
   packet.flags = aSample->mKeyframe ? AV_PKT_FLAG_KEY : 0;
   packet.pos = aSample->mOffset;
+
+  // LibAV provides no API to retrieve the decoded sample's duration.
+  // (FFmpeg >= 1.0 provides av_frame_get_pkt_duration)
+  // As such we instead use a map using the dts as key that we will retrieve
+  // later.
+  // The map will have a typical size of 16 entry.
+  mDurationMap.Insert(aSample->mTimecode, aSample->mDuration);
 
   if (!PrepareFrame()) {
     NS_WARNING("FFmpeg h264 decoder failed to allocate frame.");
@@ -109,9 +139,22 @@ FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample)
 
   // If we've decoded a frame then we need to output it
   if (decoded) {
-    int64_t pts = GetPts(packet);
+    int64_t pts = mPtsContext.GuessCorrectPts(mFrame->pkt_pts, mFrame->pkt_dts);
     FFMPEG_LOG("Got one frame output with pts=%lld opaque=%lld",
                pts, mCodecContext->reordered_opaque);
+    // Retrieve duration from dts.
+    // We use the first entry found matching this dts (this is done to
+    // handle damaged file with multiple frames with the same dts)
+
+    int64_t duration;
+    if (!mDurationMap.Find(mFrame->pkt_dts, duration)) {
+      NS_WARNING("Unable to retrieve duration from map");
+      duration = aSample->mDuration;
+      // dts are probably incorrectly reported ; so clear the map as we're
+      // unlikely to find them in the future anyway. This also guards
+      // against the map becoming extremely big.
+      mDurationMap.Clear();
+    }
 
     VideoInfo info;
     info.mDisplay = nsIntSize(mDisplayWidth, mDisplayHeight);
@@ -139,9 +182,9 @@ FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample)
                                               mImageContainer,
                                               aSample->mOffset,
                                               pts,
-                                              aSample->mDuration,
+                                              duration,
                                               b,
-                                              aSample->mKeyframe,
+                                              !!mFrame->key_frame,
                                               -1,
                                               gfx::IntRect(0, 0, mCodecContext->width, mCodecContext->height));
     if (!v) {
@@ -264,15 +307,19 @@ FFmpegH264Decoder<LIBAV_VER>::AllocateYUV420PVideoBuffer(
     aFrame->data[i] = buffer + offsets[i] + planesEdgeWidth[i];
   }
 
-  // Unused, but needs to be non-zero to keep ffmpeg happy.
-  aFrame->type = GECKO_FRAME_TYPE;
-
   aFrame->extended_data = aFrame->data;
   aFrame->width = aCodecContext->width;
   aFrame->height = aCodecContext->height;
 
   aFrame->opaque = static_cast<void*>(image.forget().take());
 
+  aFrame->type = FF_BUFFER_TYPE_USER;
+  aFrame->reordered_opaque = aCodecContext->reordered_opaque;
+#if LIBAVCODEC_VERSION_MAJOR == 53
+  if (aCodecContext->pkt) {
+    aFrame->pkt_pts = aCodecContext->pkt->pts;
+  }
+#endif
   return 0;
 }
 
@@ -308,6 +355,8 @@ FFmpegH264Decoder<LIBAV_VER>::Drain()
 nsresult
 FFmpegH264Decoder<LIBAV_VER>::Flush()
 {
+  mPtsContext.Reset();
+  mDurationMap.Clear();
   nsresult rv = FFmpegDataDecoder::Flush();
   // Even if the above fails we may as well clear our frame queue.
   return rv;
