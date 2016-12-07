@@ -2339,7 +2339,7 @@ pref("layout.selection.caret_style", 0);
 pref("layout.frames.force_resizability", false);
 
 // pref to report CSS errors to the error console
-pref("layout.css.report_errors", false);
+pref("layout.css.report_errors", true);
 
 // Should the :visited selector ever match (otherwise :link matches instead)?
 pref("layout.css.visited_links_enabled", true);
@@ -2401,7 +2401,12 @@ pref("layout.css.convertFromNode.enabled", true);
 #endif
 
 // Is support for unicode-range enabled?
+// Currently *nix support isn't working, so only enable on Windows.
+#ifdef XP_WIN
 pref("layout.css.unicode-range.enabled", true);
+#else
+pref("layout.css.unicode-range.enabled", false);
+#endif
 
 // Is support for CSS "text-align: true X" enabled?
 pref("layout.css.text-align-true-value.enabled", false);
