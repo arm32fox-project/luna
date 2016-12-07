@@ -96,7 +96,7 @@
 <!-- LOCALIZATION NOTE (options.selectDefaultTools.label): This is the label for
   -  the heading of group of checkboxes corresponding to the default developer
   -  tools. -->
-<!ENTITY options.selectDefaultTools.label     "Default Firefox Developer Tools">
+<!ENTITY options.selectDefaultTools.label     "Default Pale Moon Developer Tools">
 
 <!-- LOCALIZATION NOTE (options.selectAdditionalTools.label): This is the label for
   -  the heading of group of checkboxes corresponding to the developer tools
@@ -169,9 +169,9 @@
   -  label for the checkbox that toggles the display of the platform data in the,
   -  Profiler i.e. devtools.profiler.ui.show-platform-data a boolean preference
   -  in about:config, in the options panel. -->
-<!ENTITY options.showPlatformData.label    "Show Gecko platform data">
+<!ENTITY options.showPlatformData.label    "Show Goanna platform data">
 <!ENTITY options.showPlatformData.tooltip  "If you enable this option the JavaScript Profiler reports will include
-Gecko platform symbols">
+Goanna platform symbols">
 
 <!-- LOCALIZATION NOTE (options.sourceeditor.*): Options under the editor
   -  section. -->
