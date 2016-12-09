@@ -95,11 +95,56 @@ FFmpegH264Decoder<LIBAV_VER>::Init()
 FFmpegH264Decoder<LIBAV_VER>::DecodeResult
 FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample)
 {
+  uint8_t* inputData = const_cast<uint8_t*>(aSample->Data());
+  size_t inputSize = aSample->Size();
+
+#if LIBAVCODEC_VERSION_MAJOR >= 54
+  if (inputSize && mCodecParser && (mCodecID == AV_CODEC_ID_VP8
+#if LIBAVCODEC_VERSION_MAJOR >= 55
+      || mCodecID == AV_CODEC_ID_VP9
+#endif
+      )) {
+    bool gotFrame = false;
+    while (inputSize) {
+      uint8_t* data;
+      int size;
+      int len = av_parser_parse2(mCodecParser, mCodecContext, &data, &size,
+                                 inputData, inputSize,
+                                 aSample->mTime, aSample->mTimecode,
+                                 aSample->mOffset);
+      if (size_t(len) > inputSize) {
+        mCallback->Error();
+        return DecodeResult::DECODE_ERROR;
+      }
+      inputData += len;
+      inputSize -= len;
+      if (size) {
+        switch (DoDecodeFrame(aSample, data, size)) {
+          case DecodeResult::DECODE_ERROR:
+            return DecodeResult::DECODE_ERROR;
+          case DecodeResult::DECODE_FRAME:
+            gotFrame = true;
+            break;
+          default:
+            break;
+        }
+      }
+    }
+    return gotFrame ? DecodeResult::DECODE_FRAME : DecodeResult::DECODE_NO_FRAME;
+  }
+#endif
+  return DoDecodeFrame(aSample, inputData, inputSize);
+}
+
+FFmpegH264Decoder<LIBAV_VER>::DecodeResult
+FFmpegH264Decoder<LIBAV_VER>::DoDecodeFrame(MediaRawData* aSample,
+                                            uint8_t* aData, int aSize)
+{
   AVPacket packet;
   av_init_packet(&packet);
 
-  packet.data = const_cast<uint8_t*>(aSample->Data());
-  packet.size = aSample->Size();
+  packet.data = aData;
+  packet.size = aSize;
   packet.dts = aSample->mTimecode;
   packet.pts = aSample->mTime;
   packet.flags = aSample->mKeyframe ? AV_PKT_FLAG_KEY : 0;
@@ -377,6 +422,18 @@ FFmpegH264Decoder<LIBAV_VER>::GetCodecId(const nsACString& aMimeType)
   if (aMimeType.EqualsLiteral("video/x-vnd.on2.vp6")) {
     return AV_CODEC_ID_VP6F;
   }
+
+#if LIBAVCODEC_VERSION_MAJOR >= 54
+  if (aMimeType.EqualsLiteral("video/webm; codecs=vp8")) {
+    return AV_CODEC_ID_VP8;
+  }
+#endif
+
+#if LIBAVCODEC_VERSION_MAJOR >= 55
+  if (aMimeType.EqualsLiteral("video/webm; codecs=vp9")) {
+    return AV_CODEC_ID_VP9;
+  }
+#endif
 
   return AV_CODEC_ID_NONE;
 }

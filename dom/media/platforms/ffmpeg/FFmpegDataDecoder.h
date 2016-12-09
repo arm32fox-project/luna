@@ -44,12 +44,12 @@ protected:
   AVCodecContext* mCodecContext;
   AVFrame*        mFrame;
   nsRefPtr<MediaByteBuffer> mExtraData;
+  AVCodecID mCodecID;
+  AVCodecParserContext* mCodecParser;
 
 private:
   static bool sFFmpegInitDone;
   static StaticMutex sMonitor;
-
-  AVCodecID mCodecID;
 };
 
 } // namespace mozilla

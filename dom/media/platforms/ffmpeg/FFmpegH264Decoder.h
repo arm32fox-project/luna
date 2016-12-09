@@ -47,6 +47,7 @@ public:
 private:
   void DecodeFrame(MediaRawData* aSample);
   DecodeResult DoDecodeFrame(MediaRawData* aSample);
+  DecodeResult DoDecodeFrame(MediaRawData* aSample, uint8_t* aData, int aSize);
   void DoDrain();
   void OutputDelayedFrames();
 
