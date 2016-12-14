@@ -61,10 +61,23 @@ define('source-map/source-map-consumer', ['require', 'exports', 'module' ,  'sou
    *
    * [0]: https://docs.google.com/document/d/1U1RGAehQwRypUTovF1KRlpiOFze0b-_2gc6fAH0KY0k/edit?pli=1#
    */
-  function SourceMapConsumer(aSourceMap) {
+  function SourceMapConsumer(aSourceMap, aUrl) {
     var sourceMap = aSourceMap;
     if (typeof aSourceMap === 'string') {
-      sourceMap = JSON.parse(aSourceMap.replace(/^\)\]\}'/, ''));
+      var _sourceMap = aSourceMap.replace(/^\)\]\}'/, '');
+      try {
+        sourceMap = JSON.parse(_sourceMap);
+      } catch (e) {
+        var _contentMaxChars = 1024;
+        var _content = (_sourceMap.length > _contentMaxChars)
+                           ? _sourceMap.slice(0, _contentMaxChars - 1) + "\n[...]"
+                           : _sourceMap;
+        var _error = e.name + ": " + e.message + "\n\n" +
+                     (aUrl ? "URL:\n" + aUrl + "\n\n" : "") +
+                     "Content (the first " + _contentMaxChars + " characters):\n" +
+                     _content + "\n";
+        throw new Error(_error);
+      }
     }
 
     var version = util.getArg(sourceMap, 'version');
