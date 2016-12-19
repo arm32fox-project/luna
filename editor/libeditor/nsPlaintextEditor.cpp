@@ -1168,7 +1168,7 @@ nsPlaintextEditor::CanCutOrCopy(PasswordFieldAllowed aPasswordFieldAllowed)
 }
 
 bool
-nsPlaintextEditor::FireClipboardEvent(int32_t aType, int32_t aSelectionType)
+nsPlaintextEditor::FireClipboardEvent(int32_t aType, int32_t aSelectionType, bool* aActionTaken)
 {
   if (aType == NS_PASTE)
     ForceCompositionEnd();
@@ -1181,7 +1181,7 @@ nsPlaintextEditor::FireClipboardEvent(int32_t aType, int32_t aSelectionType)
     return false;
   }
 
-  if (!nsCopySupport::FireClipboardEvent(aType, aSelectionType, presShell, selection))
+  if (!nsCopySupport::FireClipboardEvent(aType, aSelectionType, presShell, selection, aActionTaken))
     return false;
 
   // If the event handler caused the editor to be destroyed, return false.
@@ -1191,28 +1191,38 @@ nsPlaintextEditor::FireClipboardEvent(int32_t aType, int32_t aSelectionType)
 
 NS_IMETHODIMP nsPlaintextEditor::Cut()
 {
-  if (FireClipboardEvent(NS_CUT, nsIClipboard::kGlobalClipboard))
-    return DeleteSelection(eNone, eStrip);
-  return NS_OK;
+  bool actionTaken = false;
+  if (FireClipboardEvent(NS_CUT, nsIClipboard::kGlobalClipboard, &actionTaken)) {
+    DeleteSelection(eNone, eStrip);
+  }
+  return actionTaken ? NS_OK : NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP nsPlaintextEditor::CanCut(bool *aCanCut)
 {
   NS_ENSURE_ARG_POINTER(aCanCut);
-  *aCanCut = IsModifiable() && CanCutOrCopy(ePasswordFieldNotAllowed);
+  // Cut is always enabled in HTML documents
+  nsCOMPtr<nsIDocument> doc = GetDocument();
+  *aCanCut = (doc && doc->IsHTMLOrXHTML()) ||
+    (IsModifiable() && CanCutOrCopy(ePasswordFieldNotAllowed));
   return NS_OK;
 }
 
 NS_IMETHODIMP nsPlaintextEditor::Copy()
 {
-  FireClipboardEvent(NS_COPY, nsIClipboard::kGlobalClipboard);
-  return NS_OK;
+  bool actionTaken = false;
+  FireClipboardEvent(NS_COPY, nsIClipboard::kGlobalClipboard, &actionTaken);
+
+  return actionTaken ? NS_OK : NS_ERROR_FAILURE;
 }
 
 NS_IMETHODIMP nsPlaintextEditor::CanCopy(bool *aCanCopy)
 {
   NS_ENSURE_ARG_POINTER(aCanCopy);
-  *aCanCopy = CanCutOrCopy(ePasswordFieldNotAllowed);
+  // Copy is always enabled in HTML documents
+  nsCOMPtr<nsIDocument> doc = GetDocument();
+  *aCanCopy = (doc && doc->IsHTMLOrXHTML()) ||
+    CanCutOrCopy(ePasswordFieldNotAllowed);
   return NS_OK;
 }
 
