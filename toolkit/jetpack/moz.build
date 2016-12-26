@@ -160,6 +160,15 @@ EXTRA_JS_MODULES.jetpack.diffpatcher.test += [
     'diffpatcher/test/tap.js',
 ]
 
+EXTRA_JS_MODULES.jetpack.framescript += [
+    'framescript/context-menu.js',
+    'framescript/FrameScriptManager.jsm',
+    'framescript/LoaderHelper.jsm',
+    'framescript/manager.js',
+    'framescript/tab-events.js',
+    'framescript/util.js',
+]
+
 EXTRA_JS_MODULES.jetpack.method += [
     'method/core.js',
 ]
