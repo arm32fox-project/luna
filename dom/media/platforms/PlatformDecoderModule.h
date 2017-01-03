@@ -50,7 +50,7 @@ typedef int64_t Microseconds;
 //
 // A cross-platform decoder module that discards input and produces "blank"
 // output samples exists for testing, and is created when the pref
-// "media.fragmented-mp4.use-blank-decoder" is true.
+// "media.use-blank-decoder" is true.
 class PlatformDecoderModule {
 public:
   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(PlatformDecoderModule)
@@ -142,12 +142,18 @@ protected:
                      FlushableMediaTaskQueue* aAudioTaskQueue,
                      MediaDataDecoderCallback* aCallback) = 0;
 
-  // Caches pref media.fragmented-mp4.use-blank-decoder
+  // PDM pref caches...
   static bool sUseBlankDecoder;
+#ifdef MOZ_FFMPEG
   static bool sFFmpegDecoderEnabled;
+#endif
+#ifdef MOZ_GONK_MEDIACODEC
   static bool sGonkDecoderEnabled;
+#endif
+#ifdef MOZ_WIDGET_ANDROID
   static bool sAndroidMCDecoderPreferred;
   static bool sAndroidMCDecoderEnabled;
+#endif
   static bool sGMPDecoderEnabled;
 };
 
