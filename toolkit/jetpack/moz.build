@@ -87,6 +87,7 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != "gonk":
     ]
 
     EXTRA_JS_MODULES.jetpack.sdk.ui += [
+        'sdk/ui/buttons.js',
         'sdk/ui/frame.js',
         'sdk/ui/id.js',
         'sdk/ui/sidebar.js',
