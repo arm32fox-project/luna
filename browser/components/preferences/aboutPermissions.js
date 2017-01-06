@@ -39,7 +39,7 @@ let gVisitStmt = gPlacesDatabase.createAsyncStatement(
  * Permission types that should be tested with testExactPermission, as opposed
  * to testPermission. This is based on what consumers use to test these permissions.
  */
-let TEST_EXACT_PERM_TYPES = ["geo"];
+let TEST_EXACT_PERM_TYPES = ["desktop-notification", "geo", "pointerLock"];
 
 /**
  * Site object represents a single site, uniquely identified by a host.
@@ -257,10 +257,10 @@ Site.prototype = {
  * Inspired by pageinfo/permissions.js
  */
 let PermissionDefaults = {
-  UNKNOWN: Ci.nsIPermissionManager.UNKNOWN_ACTION, // 0
-  ALLOW: Ci.nsIPermissionManager.ALLOW_ACTION, // 1
-  DENY: Ci.nsIPermissionManager.DENY_ACTION, // 2
-  SESSION: Ci.nsICookiePermission.ACCESS_SESSION, // 8
+  UNKNOWN: Ci.nsIPermissionManager.UNKNOWN_ACTION,   // 0
+  ALLOW: Ci.nsIPermissionManager.ALLOW_ACTION,       // 1
+  DENY: Ci.nsIPermissionManager.DENY_ACTION,         // 2
+  SESSION: Ci.nsICookiePermission.ACCESS_SESSION,    // 8
 
   get password() {
     if (Services.prefs.getBoolPref("signon.rememberSignons")) {
@@ -331,21 +331,28 @@ let PermissionDefaults = {
     Services.prefs.setIntPref("network.cookie.lifetimePolicy", lifetimeValue);
   },
 
-  get install() {
-    // Default to enabled if the preference does not exist
-    switch (Services.prefs.getPrefType("xpinstall.enabled")) {
-      case Ci.nsIPrefBranch.PREF_INVALID:
-        return this.ALLOW;
-      default:
-        if (!Services.prefs.getBoolPref("xpinstall.enabled")) {
-          return this.DENY;
-        }
-        return this.ALLOW;
+  get ["desktop-notification"]() {
+    if (!Services.prefs.getBoolPref("dom.webnotifications.enabled")) {
+      return this.DENY;
     }
+    // We always ask for permission to enable notifications for a specific
+    // site, so there is no global ALLOW.
+    return this.UNKNOWN;
+  },
+  set ["desktop-notification"](aValue) {
+    let value = (aValue != this.DENY);
+    Services.prefs.setBoolPref("dom.webnotifications.enabled", value);
+  },
+
+  get install() {
+    if (Services.prefs.getBoolPref("xpinstall.whitelist.required")) {
+      return this.DENY;
+    }
+    return this.ALLOW;
   },
   set install(aValue) {
-    let value = (aValue != this.DENY);
-    Services.prefs.setBoolPref("xpinstall.enabled", value);
+    let value = (aValue == this.DENY);
+    Services.prefs.setBoolPref("xpinstall.whitelist.required", value);
   },
 
   get geo() {
@@ -378,6 +385,8 @@ let PermissionDefaults = {
     if (!Services.prefs.getBoolPref("full-screen-api.enabled")) {
       return this.DENY;
     }
+    // We always ask for permission to fullscreen with a specific site, so
+    // there is no global ALLOW.
     return this.UNKNOWN;
   },
   set fullscreen(aValue) {
@@ -435,20 +444,23 @@ let AboutPermissions = {
    *
    * Potential future additions: "sts/use", "sts/subd"
    */
-  _supportedPermissions: ["password", "image", "popup", "cookie", "install", "geo", "indexedDB", "fullscreen", "pointerLock"],
+  _supportedPermissions: ["password", "image", "popup", "cookie", "desktop-notification", "install", "geo", "indexedDB", "fullscreen", "pointerLock"],
 
   /**
    * Permissions that don't have a global "Allow" option.
    */
-  _noGlobalAllow: ["geo", "indexedDB", "fullscreen", "pointerLock"],
+  _noGlobalAllow: ["desktop-notification", "geo", "indexedDB", "fullscreen", "pointerLock"],
 
   /**
    * Permissions that don't have a global "Deny" option.
    */
   _noGlobalDeny: [],
 
-  _stringBundle: Services.strings.
-                 createBundle("chrome://browser/locale/preferences/aboutPermissions.properties"),
+  _stringBundleBrowser: Services.strings
+      .createBundle("chrome://browser/locale/browser.properties"),
+
+  _stringBundleAboutPermissions: Services.strings
+      .createBundle("chrome://browser/locale/preferences/aboutPermissions.properties"),
 
   /**
    * Called on page load.
@@ -469,7 +481,8 @@ let AboutPermissions = {
     Services.prefs.addObserver("permissions.default.image", this, false);
     Services.prefs.addObserver("dom.disable_open_during_load", this, false);
     Services.prefs.addObserver("network.cookie.", this, false);
-    Services.prefs.addObserver("xpinstall.enabled", this, false);
+    Services.prefs.addObserver("dom.webnotifications.enabled", this, false);
+    Services.prefs.addObserver("xpinstall.whitelist.required", this, false);
     Services.prefs.addObserver("geo.enabled", this, false);
     Services.prefs.addObserver("dom.indexedDB.enabled", this, false);
     Services.prefs.addObserver("plugins.click_to_play", this, false);
@@ -596,7 +609,8 @@ let AboutPermissions = {
       Services.prefs.removeObserver("permissions.default.image", this, false);
       Services.prefs.removeObserver("dom.disable_open_during_load", this, false);
       Services.prefs.removeObserver("network.cookie.", this, false);
-      Services.prefs.removeObserver("xpinstall.enabled", this, false);
+      Services.prefs.removeObserver("dom.webnotifications.enabled", this, false);
+      Services.prefs.removeObserver("xpinstall.whitelist.required", this, false);
       Services.prefs.removeObserver("geo.enabled", this, false);
       Services.prefs.removeObserver("dom.indexedDB.enabled", this, false);
       Services.prefs.removeObserver("plugins.click_to_play", this, false);
@@ -966,23 +980,34 @@ let AboutPermissions = {
         let pluginPermissionEntry = document.getElementById(aType + "-entry");
         if (pluginPermissionEntry.isBlocklisted()) {
           permissionMenulist.disabled = true;
-          permissionMenulist.setAttribute("tooltiptext", AboutPermissions._stringBundle.GetStringFromName("pluginBlocklisted"));
+          permissionMenulist.setAttribute("tooltiptext",
+              AboutPermissions._stringBundleAboutPermissions
+              .GetStringFromName("pluginBlocklisted"));
         } else {
           permissionMenulist.disabled = false;
           permissionMenulist.removeAttribute("tooltiptext");
         }
       }
     } else {
+      let permissionDefault = PermissionDefaults[aType];
       if (aType == "image") {
         document.getElementById(aType + "-3").hidden = true;
       } else if (aType == "cookie") {
         document.getElementById(aType + "-9").hidden = false;
       } else if (aType.startsWith("plugin")) {
         document.getElementById(aType + "-0").disabled = false;
+        let pluginPermissionEntry = document.getElementById(aType + "-entry");
+        let permString = pluginPermissionEntry.getAttribute("permString");
+        let name = pluginPermissionEntry.getAttribute("label");
+        if (permString.startsWith("plugin-vulnerable:")) {
+          name += " \u2014 " + AboutPermissions._stringBundleBrowser
+                  .GetStringFromName("pluginActivateVulnerable.label");
+          pluginPermissionEntry.setAttribute("label", name);
+        }
       }
       let result = {};
       permissionValue = this._selectedSite.getPermission(aType, result) ?
-                        result.value : PermissionDefaults[aType];
+                        result.value : permissionDefault;
     }
 
     if (aType == "image") {
@@ -1044,7 +1069,8 @@ let AboutPermissions = {
 
   updateVisitCount: function() {
     this._selectedSite.getVisitCount(function(aCount) {
-      let visitForm = AboutPermissions._stringBundle.GetStringFromName("visitCount");
+      let visitForm = AboutPermissions._stringBundleAboutPermissions
+                      .GetStringFromName("visitCount");
       let visitLabel = PluralForm.get(aCount, visitForm)
                                   .replace("#1", aCount);
       document.getElementById("site-visit-count").value = visitLabel;
@@ -1059,7 +1085,8 @@ let AboutPermissions = {
     }
 
     let passwordsCount = this._selectedSite.logins.length;
-    let passwordsForm = this._stringBundle.GetStringFromName("passwordsCount");
+    let passwordsForm = this._stringBundleAboutPermissions
+                        .GetStringFromName("passwordsCount");
     let passwordsLabel = PluralForm.get(passwordsCount, passwordsForm)
                                    .replace("#1", passwordsCount);
 
@@ -1097,7 +1124,8 @@ let AboutPermissions = {
     }
 
     let cookiesCount = this._selectedSite.cookies.length;
-    let cookiesForm = this._stringBundle.GetStringFromName("cookiesCount");
+    let cookiesForm = this._stringBundleAboutPermissions
+                      .GetStringFromName("cookiesCount");
     let cookiesLabel = PluralForm.get(cookiesCount, cookiesForm)
                                  .replace("#1", cookiesCount);
 
