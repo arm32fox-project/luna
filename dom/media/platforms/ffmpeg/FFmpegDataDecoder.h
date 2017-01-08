@@ -35,19 +35,21 @@ public:
   virtual nsresult Drain() override = 0;
   virtual nsresult Shutdown() override;
 
+  static AVCodec* FindAVCodec(AVCodecID aCodec);
+
 protected:
+  virtual void InitCodecContext() {}
   AVFrame*        PrepareFrame();
 
   FlushableMediaTaskQueue* mTaskQueue;
   AVCodecContext* mCodecContext;
   AVFrame*        mFrame;
   nsRefPtr<MediaByteBuffer> mExtraData;
+  AVCodecID mCodecID;
 
 private:
   static bool sFFmpegInitDone;
   static StaticMutex sMonitor;
-
-  AVCodecID mCodecID;
 };
 
 } // namespace mozilla

@@ -325,7 +325,6 @@ struct BindData;
 
 class CompExprTransplanter;
 
-enum LetContext { LetExpression, LetStatement };
 enum VarContext { HoistVars, DontHoistVars };
 enum FunctionType { Getter, Setter, Normal };
 
@@ -549,7 +548,6 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node debuggerStatement();
 
     Node lexicalDeclaration(bool isConst);
-    Node letDeclarationOrBlock();
     Node importDeclaration();
     Node exportDeclaration();
     Node expressionStatement(InvokedPrediction invoked = PredictUninvoked);
@@ -606,7 +604,6 @@ class Parser : private JS::AutoGCRooter, public StrictModeGetter
     Node generatorComprehension(uint32_t begin);
 
     bool argumentList(Node listNode, bool* isSpread);
-    Node deprecatedLetBlockOrExpression(LetContext letContext);
     Node destructuringExpr(BindData<ParseHandler>* data, TokenKind tt);
     Node destructuringExprWithoutYield(BindData<ParseHandler>* data, TokenKind tt, unsigned msg);
 

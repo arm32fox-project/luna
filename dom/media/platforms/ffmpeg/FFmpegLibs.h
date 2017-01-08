@@ -9,9 +9,9 @@
 
 extern "C" {
 #pragma GCC visibility push(default)
-#include <libavcodec/avcodec.h>
-#include <libavformat/avformat.h>
-#include <libavutil/imgutils.h>
+#include "libavcodec/avcodec.h"
+#include "libavutil/avutil.h"
+#include "libavutil/mem.h"
 #pragma GCC visibility pop
 }
 
@@ -20,11 +20,12 @@ extern "C" {
 #define AV_CODEC_ID_H264 CODEC_ID_H264
 #define AV_CODEC_ID_AAC CODEC_ID_AAC
 #define AV_CODEC_ID_MP3 CODEC_ID_MP3
+#define AV_CODEC_ID_VP8 CODEC_ID_VP8
 #define AV_CODEC_ID_NONE CODEC_ID_NONE
 typedef CodecID AVCodecID;
 #endif
 
-enum { LIBAV_VER = LIBAVFORMAT_VERSION_MAJOR };
+enum { LIBAV_VER = LIBAVCODEC_VERSION_MAJOR };
 
 namespace mozilla {
 

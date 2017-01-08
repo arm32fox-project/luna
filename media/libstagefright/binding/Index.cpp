@@ -112,8 +112,8 @@ already_AddRefed<MediaRawData> SampleIterator::GetNext()
   }
 
   size_t bytesRead;
-  if (!mIndex->mSource->ReadAt(sample->mOffset, writer->mData, sample->mSize,
-                               &bytesRead) || bytesRead != sample->mSize) {
+  if (!mIndex->mSource->ReadAt(sample->mOffset, writer->Data(), sample->Size(),
+                               &bytesRead) || bytesRead != sample->Size()) {
     return nullptr;
   }
 
@@ -155,7 +155,7 @@ already_AddRefed<MediaRawData> SampleIterator::GetNext()
     } else {
       // No subsample information means the entire sample is encrypted.
       writer->mCrypto.plain_sizes.AppendElement(0);
-      writer->mCrypto.encrypted_sizes.AppendElement(sample->mSize);
+      writer->mCrypto.encrypted_sizes.AppendElement(sample->Size());
     }
   }
 
@@ -255,6 +255,7 @@ Index::Index(const nsTArray<Indice>& aIndex,
                                          indice.end_offset);
       sample.mCompositionRange = Interval<Microseconds>(indice.start_composition,
                                                         indice.end_composition);
+      sample.mDecodeTime = indice.start_decode;
       sample.mSync = indice.sync;
       MOZ_ALWAYS_TRUE(mIndex.AppendElement(sample));
     }

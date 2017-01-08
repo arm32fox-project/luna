@@ -1871,12 +1871,19 @@ public:
    *
    * Making the fullscreen API content only is useful on platforms where we
    * still want chrome to be visible or accessible while content is
-   * fullscreen, like on Windows 8 in Metro mode.
+   * fullscreen.
    *
    * Note that if the fullscreen API is content only, chrome can still go
    * fullscreen by setting the "fullScreen" attribute on its XUL window.
    */
   static bool IsFullscreenApiContentOnly();
+
+  /**
+   * Returns true if calling execCommand with 'cut' or 'copy' arguments is
+   * allowed in the current context. These are only allowed if the user initiated
+   * them (like with a mouse-click or key press).
+   */
+  static bool IsCutCopyAllowed();
 
   /*
    * Returns true if the performance timing APIs are enabled.

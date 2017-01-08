@@ -22,12 +22,16 @@
 #include "AndroidBridge.h"
 #endif
 
+#ifdef MOZ_FFMPEG
+#include "FFmpegRuntimeLinker.h"
+#endif
+
 namespace mozilla {
 
 MediaDecoderStateMachine* MP4Decoder::CreateStateMachine()
 {
   bool useFormatDecoder =
-    Preferences::GetBool("media.format-reader.mp4", false);
+    Preferences::GetBool("media.format-reader.mp4", true);
   nsRefPtr<MediaDecoderReader> reader = useFormatDecoder ?
     static_cast<MediaDecoderReader*>(new MediaFormatReader(this, new MP4Demuxer(GetResource()))) :
     static_cast<MediaDecoderReader*>(new MP4Reader(this));
@@ -45,7 +49,7 @@ IsSupportedAudioCodec(const nsAString& aCodec,
                     aCodec.EqualsASCII("mp4a.40.5");
   if (aOutContainsAAC) {
 #ifdef XP_WIN
-    if (!Preferences::GetBool("media.fragmented-mp4.use-blank-decoder") &&
+    if (!Preferences::GetBool("media.use-blank-decoder") &&
         !WMFDecoderModule::HasAAC()) {
       return false;
     }
@@ -73,7 +77,7 @@ IsSupportedH264Codec(const nsAString& aCodec)
   }
 
 #ifdef XP_WIN
-  if (!Preferences::GetBool("media.fragmented-mp4.use-blank-decoder") &&
+  if (!Preferences::GetBool("media.use-blank-decoder") &&
       !WMFDecoderModule::HasH264()) {
     return false;
   }
@@ -156,7 +160,11 @@ IsFFmpegAvailable()
 #ifndef MOZ_FFMPEG
   return false;
 #else
-  return Preferences::GetBool("media.fragmented-mp4.ffmpeg.enabled", false);
+  if (!Preferences::GetBool("media.ffmpeg.enabled", false)) {
+    return false;
+  }
+  nsRefPtr<PlatformDecoderModule> m = FFmpegRuntimeLinker::CreateDecoderModule();
+  return !!m;
 #endif
 }
 
@@ -185,19 +193,19 @@ IsAndroidAvailable()
 static bool
 IsGonkMP4DecoderAvailable()
 {
-  return Preferences::GetBool("media.fragmented-mp4.gonk.enabled", false);
+  return Preferences::GetBool("media.gonk.enabled", false);
 }
 
 static bool
 IsGMPDecoderAvailable()
 {
-  return Preferences::GetBool("media.fragmented-mp4.gmp.enabled", false);
+  return Preferences::GetBool("media.gmp.decoder.enabled", false);
 }
 
 static bool
 HavePlatformMPEGDecoders()
 {
-  return Preferences::GetBool("media.fragmented-mp4.use-blank-decoder") ||
+  return Preferences::GetBool("media.use-blank-decoder") ||
 #ifdef XP_WIN
          // We have H.264/AAC platform decoders on Windows Vista and up.
          IsVistaOrLater() ||

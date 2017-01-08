@@ -35,10 +35,16 @@ namespace mozilla {
 extern already_AddRefed<PlatformDecoderModule> CreateBlankDecoderModule();
 
 bool PlatformDecoderModule::sUseBlankDecoder = false;
+#ifdef MOZ_FFMPEG
 bool PlatformDecoderModule::sFFmpegDecoderEnabled = false;
+#endif
+#ifdef MOZ_GONK_MEDIACODEC
 bool PlatformDecoderModule::sGonkDecoderEnabled = false;
+#endif
+#ifdef MOZ_WIDGET_ANDROID
 bool PlatformDecoderModule::sAndroidMCDecoderEnabled = false;
 bool PlatformDecoderModule::sAndroidMCDecoderPreferred = false;
+#endif
 bool PlatformDecoderModule::sGMPDecoderEnabled = false;
 
 /* static */
@@ -53,23 +59,24 @@ PlatformDecoderModule::Init()
   alreadyInitialized = true;
 
   Preferences::AddBoolVarCache(&sUseBlankDecoder,
-                               "media.fragmented-mp4.use-blank-decoder");
+                               "media.use-blank-decoder");
+#ifdef MOZ_FFMPEG
   Preferences::AddBoolVarCache(&sFFmpegDecoderEnabled,
-                               "media.fragmented-mp4.ffmpeg.enabled", false);
-
+                               "media.ffmpeg.enabled", false);
+#endif
 #ifdef MOZ_GONK_MEDIACODEC
   Preferences::AddBoolVarCache(&sGonkDecoderEnabled,
-                               "media.fragmented-mp4.gonk.enabled", false);
+                               "media.gonk.enabled", false);
 #endif
 #ifdef MOZ_WIDGET_ANDROID
   Preferences::AddBoolVarCache(&sAndroidMCDecoderEnabled,
-                               "media.fragmented-mp4.android-media-codec.enabled", false);
+                               "media.android-media-codec.enabled", false);
   Preferences::AddBoolVarCache(&sAndroidMCDecoderPreferred,
-                               "media.fragmented-mp4.android-media-codec.preferred", false);
+                               "media.android-media-codec.preferred", false);
 #endif
 
   Preferences::AddBoolVarCache(&sGMPDecoderEnabled,
-                               "media.fragmented-mp4.gmp.enabled", false);
+                               "media.gmp.decoder.enabled", false);
 
 #ifdef XP_WIN
   WMFDecoderModule::Init();
@@ -115,11 +122,9 @@ PlatformDecoderModule::CreatePDM()
   return m.forget();
 #endif
 #ifdef MOZ_FFMPEG
-  if (sFFmpegDecoderEnabled) {
-    nsRefPtr<PlatformDecoderModule> m = FFmpegRuntimeLinker::CreateDecoderModule();
-    if (m) {
-      return m.forget();
-    }
+  nsRefPtr<PlatformDecoderModule> mffmpeg = FFmpegRuntimeLinker::CreateDecoderModule();
+  if (mffmpeg) {
+    return mffmpeg.forget();
   }
 #endif
 #ifdef MOZ_APPLEMEDIA
@@ -166,12 +171,20 @@ PlatformDecoderModule::CreateDecoder(const TrackInfo& aConfig,
   }
 
   if (H264Converter::IsH264(aConfig)) {
-    m = new H264Converter(this,
+    nsRefPtr<H264Converter> h
+      = new H264Converter(this,
                           *aConfig.GetAsVideoInfo(),
                           aLayersBackend,
                           aImageContainer,
                           aTaskQueue,
                           aCallback);
+    const nsresult rv = h->GetLastError();
+    if (NS_SUCCEEDED(rv) || rv == NS_ERROR_NOT_INITIALIZED) {
+      // The H264Converter either successfully created the wrapped decoder,
+      // or there wasn't enough AVCC data to do so. Otherwise, there was some
+      // problem, for example WMF DLLs were missing.
+      m = h.forget();
+    }
   } else {
     m = CreateVideoDecoder(*aConfig.GetAsVideoInfo(),
                            aLayersBackend,

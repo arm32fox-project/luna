@@ -123,7 +123,6 @@ pref("app.update.cert.maxErrors", 5);
 // |app.update.url.override| user preference has been set for testing updates or
 // when the |app.update.cert.checkAttributes| preference is set to false. Also,
 // the |app.update.url.override| preference should ONLY be used for testing.
-// IMPORTANT! metro.js should also be updated for updates to certs.X.issuerName
 pref("app.update.certs.1.issuerName", "CN=Thawte SSL CA,O=\"Thawte, Inc.\",C=US");
 pref("app.update.certs.1.commonName", "aus3.mozilla.org");
 
@@ -139,7 +138,6 @@ pref("app.update.enabled", true);
 pref("app.update.auto", true);
 
 // See chart in nsUpdateService.js source for more details
-// incompatibilities are ignored by updates in Metro
 pref("app.update.mode", 1);
 
 // If set to true, the Update Service will present no UI for any event.
@@ -283,13 +281,14 @@ pref("browser.urlbar.match.title", "#");
 pref("browser.urlbar.match.url", "@");
 
 // The default behavior for the urlbar can be configured to use any combination
-// of the restrict or match filters with each additional filter restricting
-// more (intersection). Add the following values to set the behavior as the
-// default: 1: history, 2: bookmark, 4: tag, 8: title, 16: url, 32: typed,
-//          64: javascript, 128: tabs
-// E.g., 0 = show all results (no filtering), 1 = only visited pages in history,
-// 2 = only bookmarks, 3 = visited bookmarks, 1+16 = history matching in the url
-pref("browser.urlbar.default.behavior", 0);
+// of the match filters with each additional filter adding more results (union).
+pref("browser.urlbar.suggest.history",              true);
+pref("browser.urlbar.suggest.bookmark",             true);
+pref("browser.urlbar.suggest.openpage",             true);
+
+// Restrictions to current suggestions can also be applied (intersection).
+// Typed suggestion works only if history is set to true.
+pref("browser.urlbar.suggest.history.onlyTyped",    false);
 
 pref("browser.urlbar.formatting.enabled", true);
 pref("browser.urlbar.trimURLs", true);
@@ -1081,7 +1080,7 @@ pref("status4evar.addonbar.legacyShim", true);
 pref("status4evar.addonbar.windowGripper", true);
 
 pref("status4evar.advanced.showWarning", true);
-pref("status4evar.advanced.status.detectFullScreen", true);
+pref("status4evar.advanced.status.detectFullScreen", false);
 pref("status4evar.advanced.status.detectVideo", true);
 pref("status4evar.advanced.urlbar.forceBinding", false);
 

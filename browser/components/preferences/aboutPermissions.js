@@ -9,6 +9,7 @@ let Cu = Components.utils;
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource://gre/modules/PluralForm.jsm");
 Cu.import("resource://gre/modules/DownloadUtils.jsm");
+Cu.import("resource://gre/modules/AddonManager.jsm");
 Cu.import("resource://gre/modules/NetUtil.jsm");
 Cu.import("resource://gre/modules/ForgetAboutSite.jsm");
 
@@ -38,7 +39,7 @@ let gVisitStmt = gPlacesDatabase.createAsyncStatement(
  * Permission types that should be tested with testExactPermission, as opposed
  * to testPermission. This is based on what consumers use to test these permissions.
  */
-let TEST_EXACT_PERM_TYPES = ["geo"];
+let TEST_EXACT_PERM_TYPES = ["desktop-notification", "geo", "pointerLock"];
 
 /**
  * Site object represents a single site, uniquely identified by a host.
@@ -140,6 +141,13 @@ Site.prototype = {
     }
     aResultObj.value = permissionValue;
 
+    if (aType.startsWith("plugin")) {
+      if (permissionValue == Ci.nsIPermissionManager.PROMPT_ACTION) {
+        aResultObj.value = Ci.nsIPermissionManager.UNKNOWN_ACTION;
+        return true;
+      }
+    }
+
     return permissionValue != Ci.nsIPermissionManager.UNKNOWN_ACTION;
   },
 
@@ -159,6 +167,12 @@ Site.prototype = {
     if (aType == "password") {
       this.loginSavingEnabled = aPerm == Ci.nsIPermissionManager.ALLOW_ACTION;
       return;
+    }
+
+    if (aType.startsWith("plugin")) {
+      if (aPerm == Ci.nsIPermissionManager.UNKNOWN_ACTION) {
+        aPerm = Ci.nsIPermissionManager.PROMPT_ACTION;
+      }
     }
 
     // Using httpURI is kind of bogus, but the permission manager stores the
@@ -243,10 +257,10 @@ Site.prototype = {
  * Inspired by pageinfo/permissions.js
  */
 let PermissionDefaults = {
-  UNKNOWN: Ci.nsIPermissionManager.UNKNOWN_ACTION, // 0
-  ALLOW: Ci.nsIPermissionManager.ALLOW_ACTION, // 1
-  DENY: Ci.nsIPermissionManager.DENY_ACTION, // 2
-  SESSION: Ci.nsICookiePermission.ACCESS_SESSION, // 8
+  UNKNOWN: Ci.nsIPermissionManager.UNKNOWN_ACTION,   // 0
+  ALLOW: Ci.nsIPermissionManager.ALLOW_ACTION,       // 1
+  DENY: Ci.nsIPermissionManager.DENY_ACTION,         // 2
+  SESSION: Ci.nsICookiePermission.ACCESS_SESSION,    // 8
 
   get password() {
     if (Services.prefs.getBoolPref("signon.rememberSignons")) {
@@ -317,21 +331,28 @@ let PermissionDefaults = {
     Services.prefs.setIntPref("network.cookie.lifetimePolicy", lifetimeValue);
   },
 
-  get install() {
-    // Default to enabled if the preference does not exist
-    switch (Services.prefs.getPrefType("xpinstall.enabled")) {
-      case Ci.nsIPrefBranch.PREF_INVALID:
-        return this.ALLOW;
-      default:
-        if (!Services.prefs.getBoolPref("xpinstall.enabled")) {
-          return this.DENY;
-        }
-        return this.ALLOW;
+  get ["desktop-notification"]() {
+    if (!Services.prefs.getBoolPref("dom.webnotifications.enabled")) {
+      return this.DENY;
     }
+    // We always ask for permission to enable notifications for a specific
+    // site, so there is no global ALLOW.
+    return this.UNKNOWN;
+  },
+  set ["desktop-notification"](aValue) {
+    let value = (aValue != this.DENY);
+    Services.prefs.setBoolPref("dom.webnotifications.enabled", value);
+  },
+
+  get install() {
+    if (Services.prefs.getBoolPref("xpinstall.whitelist.required")) {
+      return this.DENY;
+    }
+    return this.ALLOW;
   },
   set install(aValue) {
-    let value = (aValue != this.DENY);
-    Services.prefs.setBoolPref("xpinstall.enabled", value);
+    let value = (aValue == this.DENY);
+    Services.prefs.setBoolPref("xpinstall.whitelist.required", value);
   },
 
   get geo() {
@@ -360,21 +381,12 @@ let PermissionDefaults = {
     Services.prefs.setBoolPref("dom.indexedDB.enabled", value);
   },
 
-  get plugins() {
-    if (Services.prefs.getBoolPref("plugins.click_to_play")) {
-      return this.UNKNOWN;
-    }
-    return this.ALLOW;
-  },
-  set plugins(aValue) {
-    let value = (aValue != this.ALLOW);
-    Services.prefs.setBoolPref("plugins.click_to_play", value);
-  },
-  
   get fullscreen() {
     if (!Services.prefs.getBoolPref("full-screen-api.enabled")) {
       return this.DENY;
     }
+    // We always ask for permission to fullscreen with a specific site, so
+    // there is no global ALLOW.
     return this.UNKNOWN;
   },
   set fullscreen(aValue) {
@@ -432,26 +444,32 @@ let AboutPermissions = {
    *
    * Potential future additions: "sts/use", "sts/subd"
    */
-  _supportedPermissions: ["password", "image", "popup", "cookie", "install", "geo", "indexedDB", "plugins", "fullscreen", "pointerLock"],
+  _supportedPermissions: ["password", "image", "popup", "cookie", "desktop-notification", "install", "geo", "indexedDB", "fullscreen", "pointerLock"],
 
   /**
    * Permissions that don't have a global "Allow" option.
    */
-  _noGlobalAllow: ["geo", "indexedDB", "fullscreen", "pointerLock"],
+  _noGlobalAllow: ["desktop-notification", "geo", "indexedDB", "fullscreen", "pointerLock"],
 
   /**
    * Permissions that don't have a global "Deny" option.
    */
-  _noGlobalDeny: ["plugins"],
+  _noGlobalDeny: [],
 
-  _stringBundle: Services.strings.
-                 createBundle("chrome://browser/locale/preferences/aboutPermissions.properties"),
+  _stringBundleBrowser: Services.strings
+      .createBundle("chrome://browser/locale/browser.properties"),
+
+  _stringBundleAboutPermissions: Services.strings
+      .createBundle("chrome://browser/locale/preferences/aboutPermissions.properties"),
 
   /**
    * Called on page load.
    */
   init: function() {
     this.sitesList = document.getElementById("sites-list");
+
+    this.initPluginList();
+    this.cleanupPluginList();
 
     this.getSitesFromPlaces();
 
@@ -463,7 +481,8 @@ let AboutPermissions = {
     Services.prefs.addObserver("permissions.default.image", this, false);
     Services.prefs.addObserver("dom.disable_open_during_load", this, false);
     Services.prefs.addObserver("network.cookie.", this, false);
-    Services.prefs.addObserver("xpinstall.enabled", this, false);
+    Services.prefs.addObserver("dom.webnotifications.enabled", this, false);
+    Services.prefs.addObserver("xpinstall.whitelist.required", this, false);
     Services.prefs.addObserver("geo.enabled", this, false);
     Services.prefs.addObserver("dom.indexedDB.enabled", this, false);
     Services.prefs.addObserver("plugins.click_to_play", this, false);
@@ -474,9 +493,111 @@ let AboutPermissions = {
     Services.obs.addObserver(this, "passwordmgr-storage-changed", false);
     Services.obs.addObserver(this, "cookie-changed", false);
     Services.obs.addObserver(this, "browser:purge-domain-data", false);
+    Services.obs.addObserver(this, "plugin-info-updated", false);
+    Services.obs.addObserver(this, "plugin-list-updated", false);
+    Services.obs.addObserver(this, "blocklist-updated", false);
     
     this._observersInitialized = true;
     Services.obs.notifyObservers(null, "browser-permissions-preinit", null);
+
+    this._supportedPermissions.forEach(function(aType) {
+      this.updatePermission(aType);
+    }, this);
+  },
+
+  // XXX copied this from browser-plugins.js - is there a way to share?
+  // Map the plugin's name to a filtered version more suitable for user UI.
+  makeNicePluginName: function(aName) {
+    if (aName == "Shockwave Flash")
+      return "Adobe Flash";
+
+    // Clean up the plugin name by stripping off any trailing version numbers
+    // or "plugin". EG, "Foo Bar Plugin 1.23_02" --> "Foo Bar"
+    // Do this by first stripping the numbers, etc. off the end, and then
+    // removing "Plugin" (and then trimming to get rid of any whitespace).
+    // (Otherwise, something like "Java(TM) Plug-in 1.7.0_07" gets mangled)
+    let newName = aName.replace(/[\s\d\.\-\_\(\)]+$/, "").replace(/\bplug-?in\b/i, "").trim();
+    return newName;
+  },
+
+  initPluginList: function() {
+    let pluginHost = Components.classes["@mozilla.org/plugin/host;1"]
+                     .getService(Components.interfaces.nsIPluginHost);
+    let tags = pluginHost.getPluginTags();
+    let permissionEntries = [];
+    let XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
+    for (let plugin of tags) {
+      let mimeType = plugin.getMimeTypes()[0];
+      let permString = pluginHost.getPermissionStringForType(mimeType);
+      let permissionEntry = document.createElementNS(XUL_NS, "box");
+      permissionEntry.setAttribute("label", this.makeNicePluginName(plugin.name));
+      permissionEntry.setAttribute("mimeType", mimeType);
+      permissionEntry.setAttribute("permString", permString);
+      permissionEntry.setAttribute("class", "pluginPermission");
+      permissionEntry.setAttribute("id", permString + "-entry");
+      // If the plugin is disabled, it makes no sense to change its
+      // click-to-play status, so don't add it.
+      // If the click-to-play pref is not set and the plugin is not
+      // click-to-play blocklisted, again click-to-play doesn't apply,
+      // so don't add it.
+      if (plugin.disabled ||
+          (!Services.prefs.getBoolPref("plugins.click_to_play") &&
+           pluginHost.getStateForType(mimeType)
+               != Components.interfaces.nsIPluginTag.STATE_CLICKTOPLAY)) {
+        permissionEntry.hidden = true;
+      } else {
+        permissionEntry.hidden = false;
+      }
+      permissionEntries.push(permissionEntry);
+      this._supportedPermissions.push(permString);
+      this._noGlobalDeny.push(permString);
+      Object.defineProperty(PermissionDefaults, permString, {
+        get: function() {
+               return this.isClickToPlay()
+                      ? PermissionDefaults.UNKNOWN
+                      : PermissionDefaults.ALLOW;
+             }.bind(permissionEntry),
+        set: function(aValue) {
+               this.clicktoplay = (aValue == PermissionDefaults.UNKNOWN);
+             }.bind(plugin),
+        configurable: true
+      });
+    }
+
+    if (permissionEntries.length > 0) {
+      permissionEntries.sort(function(entryA, entryB) {
+        let labelA = entryA.getAttribute("label");
+        let labelB = entryB.getAttribute("label");
+        return ((labelA < labelB) ? -1 : (labelA == labelB ? 0 : 1));
+      });
+    }
+
+    let pluginsBox = document.getElementById("plugins-box");
+    while (pluginsBox.hasChildNodes()) {
+      pluginsBox.removeChild(pluginsBox.firstChild);
+    }
+    for (let permissionEntry of permissionEntries) {
+      pluginsBox.appendChild(permissionEntry);
+    }
+  },
+
+  cleanupPluginList: function() {
+    let pluginsPrefItem = document.getElementById("plugins-pref-item");
+    let pluginsBox = document.getElementById("plugins-box");
+    let pluginsBoxEmpty = true;
+    let pluginsBoxSibling = pluginsBox.firstChild;
+    while (pluginsBoxSibling) {
+      if (!pluginsBoxSibling.hidden) {
+        pluginsBoxEmpty = false;
+        break;
+      }
+      pluginsBoxSibling = pluginsBoxSibling.nextSibling;
+    }
+    if (pluginsBoxEmpty) {
+      pluginsPrefItem.collapsed = true;
+    } else {
+      pluginsPrefItem.collapsed = false;
+    }
   },
 
   /**
@@ -488,7 +609,8 @@ let AboutPermissions = {
       Services.prefs.removeObserver("permissions.default.image", this, false);
       Services.prefs.removeObserver("dom.disable_open_during_load", this, false);
       Services.prefs.removeObserver("network.cookie.", this, false);
-      Services.prefs.removeObserver("xpinstall.enabled", this, false);
+      Services.prefs.removeObserver("dom.webnotifications.enabled", this, false);
+      Services.prefs.removeObserver("xpinstall.whitelist.required", this, false);
       Services.prefs.removeObserver("geo.enabled", this, false);
       Services.prefs.removeObserver("dom.indexedDB.enabled", this, false);
       Services.prefs.removeObserver("plugins.click_to_play", this, false);
@@ -499,6 +621,9 @@ let AboutPermissions = {
       Services.obs.removeObserver(this, "passwordmgr-storage-changed");
       Services.obs.removeObserver(this, "cookie-changed");
       Services.obs.removeObserver(this, "browser:purge-domain-data");
+      Services.obs.removeObserver(this, "plugin-info-updated");
+      Services.obs.removeObserver(this, "plugin-list-updated");
+      Services.obs.removeObserver(this, "blocklist-updated");
     }
 
     gSitesStmt.finalize();
@@ -515,7 +640,7 @@ let AboutPermissions = {
         }
         // aSubject is null when nsIPermisionManager::removeAll() is called.
         if (!aSubject) {
-          this._supportedPermissions.forEach(function(aType){
+          this._supportedPermissions.forEach(function(aType) {
             this.updatePermission(aType);
           }, this);
           break;
@@ -529,9 +654,21 @@ let AboutPermissions = {
         }
         break;
       case "nsPref:changed":
-        this._supportedPermissions.forEach(function(aType){
-          this.updatePermission(aType);
+        let plugin = false;
+        if (aData.startsWith("plugin")) {
+          plugin = true;
+        }
+        if (plugin) {
+          this.initPluginList();
+        }
+        this._supportedPermissions.forEach(function(aType) {
+          if (!plugin || (plugin && aType.startsWith("plugin"))) {
+            this.updatePermission(aType);
+          }
         }, this);
+        if (plugin) {
+          this.cleanupPluginList();
+        }
         break;
       case "passwordmgr-storage-changed":
         this.updatePermission("password");
@@ -546,6 +683,17 @@ let AboutPermissions = {
         break;
       case "browser:purge-domain-data":
         this.deleteFromSitesList(aData);
+        break;
+      case "plugin-info-updated":
+      case "plugin-list-updated":
+      case "blocklist-updated":
+        this.initPluginList();
+        this._supportedPermissions.forEach(function(aType) {
+          if (aType.startsWith("plugin")) {
+            this.updatePermission(aType);
+          }
+        }, this);
+        this.cleanupPluginList();
         break;
     }
   },
@@ -787,7 +935,7 @@ let AboutPermissions = {
    * Updates permissions interface based on selected site.
    */
   updatePermissionsBox: function() {
-    this._supportedPermissions.forEach(function(aType){
+    this._supportedPermissions.forEach(function(aType) {
       this.updatePermission(aType);
     }, this);
 
@@ -817,44 +965,103 @@ let AboutPermissions = {
       // If there is no selected site, we are updating the default permissions interface.
       permissionValue = PermissionDefaults[aType];
       if (aType == "image") {
-        // image-3 corresponds to ALLOW_FIRST_PARTY_ONLY, which is reserved
-        // for site-specific preferences only.
-	      document.getElementById("image-3").hidden = false;
+        // (aType + "-3") corresponds to ALLOW_FIRST_PARTY_ONLY, which is reserved
+        // for global preferences only.
+        document.getElementById(aType + "-3").hidden = false;
       } else if (aType == "cookie") {
-        // cookie-9 corresponds to ALLOW_FIRST_PARTY_ONLY, which is reserved
+        // (aType + "-9") corresponds to ALLOW_FIRST_PARTY_ONLY, which is reserved
         // for site-specific preferences only.
-	      document.getElementById("cookie-9").hidden = true;
-      } else if (aType == "plugins") {
-        document.getElementById("plugins-pref-item").hidden = false;
+        document.getElementById(aType + "-9").hidden = true;
+      } else if (aType.startsWith("plugin")) {
+        if (!Services.prefs.getBoolPref("plugins.click_to_play")) {
+          // It is reserved for site-specific preferences only.
+          document.getElementById(aType + "-0").disabled = true;
+        }
+        let pluginPermissionEntry = document.getElementById(aType + "-entry");
+        if (pluginPermissionEntry.isBlocklisted()) {
+          permissionMenulist.disabled = true;
+          permissionMenulist.setAttribute("tooltiptext",
+              AboutPermissions._stringBundleAboutPermissions
+              .GetStringFromName("pluginBlocklisted"));
+        } else {
+          permissionMenulist.disabled = false;
+          permissionMenulist.removeAttribute("tooltiptext");
+        }
       }
     } else {
+      let permissionDefault = PermissionDefaults[aType];
       if (aType == "image") {
-	      document.getElementById("image-3").hidden = true;
+        document.getElementById(aType + "-3").hidden = true;
       } else if (aType == "cookie") {
-        document.getElementById("cookie-9").hidden = false;
-      } else if (aType == "plugins") {
-        document.getElementById("plugins-pref-item").hidden =
-          !Services.prefs.getBoolPref("plugins.click_to_play");
-        return;
+        document.getElementById(aType + "-9").hidden = false;
+      } else if (aType.startsWith("plugin")) {
+        document.getElementById(aType + "-0").disabled = false;
+        let pluginPermissionEntry = document.getElementById(aType + "-entry");
+        let permString = pluginPermissionEntry.getAttribute("permString");
+        let name = pluginPermissionEntry.getAttribute("label");
+        if (permString.startsWith("plugin-vulnerable:")) {
+          name += " \u2014 " + AboutPermissions._stringBundleBrowser
+                  .GetStringFromName("pluginActivateVulnerable.label");
+          pluginPermissionEntry.setAttribute("label", name);
+        }
       }
       let result = {};
       permissionValue = this._selectedSite.getPermission(aType, result) ?
-                        result.value : PermissionDefaults[aType];
-      if ((aType == "image") && (permissionValue == 3)) {
+                        result.value : permissionDefault;
+    }
+
+    if (aType == "image") {
+      if (document.getElementById(aType + "-" + permissionValue).hidden) {
+        // ALLOW
         permissionValue = 1;
       }
     }
-
+    if (aType.startsWith("plugin")) {
+      if (document.getElementById(aType + "-" + permissionValue).disabled) {
+        // ALLOW
+        permissionValue = 1;
+      }
+    }
     permissionMenulist.selectedItem = document.getElementById(aType + "-" + permissionValue);
   },
 
   onPermissionCommand: function(event) {
+    let pluginHost = Components.classes["@mozilla.org/plugin/host;1"] 
+                     .getService(Components.interfaces.nsIPluginHost);
+    let permissionMimeType = event.currentTarget.getAttribute("mimeType");
     let permissionType = event.currentTarget.getAttribute("type");
     let permissionValue = event.target.value;
 
     if (!this._selectedSite) {
-      // If there is no selected site, we are setting the default permission.
-      PermissionDefaults[permissionType] = permissionValue;
+      if (permissionType.startsWith("plugin")) {
+        let addonValue = AddonManager.STATE_ASK_TO_ACTIVATE;
+        switch (permissionValue) {
+          case "1":
+            addonValue = false;
+            break;
+          case "2":
+            addonValue = true;
+            break;
+        }
+
+        let plugin = pluginHost.getPluginTagForType(permissionMimeType);
+        if (plugin) {
+          let pluginName = plugin.name;
+          AddonManager.getAddonsByTypes(["plugin"], function(addons) {
+            for (let addon of addons) {
+              if (addon.name.toLowerCase() == pluginName.toLowerCase()) {
+                addon.userDisabled = addonValue;
+                return;
+              }
+            }
+            // no addons
+            next();
+          });
+        }
+      } else {
+        // If there is no selected site, we are setting the default permission.
+        PermissionDefaults[permissionType] = permissionValue;
+      }
     } else {
       this._selectedSite.setPermission(permissionType, permissionValue);
     }
@@ -862,7 +1069,8 @@ let AboutPermissions = {
 
   updateVisitCount: function() {
     this._selectedSite.getVisitCount(function(aCount) {
-      let visitForm = AboutPermissions._stringBundle.GetStringFromName("visitCount");
+      let visitForm = AboutPermissions._stringBundleAboutPermissions
+                      .GetStringFromName("visitCount");
       let visitLabel = PluralForm.get(aCount, visitForm)
                                   .replace("#1", aCount);
       document.getElementById("site-visit-count").value = visitLabel;
@@ -877,7 +1085,8 @@ let AboutPermissions = {
     }
 
     let passwordsCount = this._selectedSite.logins.length;
-    let passwordsForm = this._stringBundle.GetStringFromName("passwordsCount");
+    let passwordsForm = this._stringBundleAboutPermissions
+                        .GetStringFromName("passwordsCount");
     let passwordsLabel = PluralForm.get(passwordsCount, passwordsForm)
                                    .replace("#1", passwordsCount);
 
@@ -915,7 +1124,8 @@ let AboutPermissions = {
     }
 
     let cookiesCount = this._selectedSite.cookies.length;
-    let cookiesForm = this._stringBundle.GetStringFromName("cookiesCount");
+    let cookiesForm = this._stringBundleAboutPermissions
+                      .GetStringFromName("cookiesCount");
     let cookiesLabel = PluralForm.get(cookiesCount, cookiesForm)
                                  .replace("#1", cookiesCount);
 

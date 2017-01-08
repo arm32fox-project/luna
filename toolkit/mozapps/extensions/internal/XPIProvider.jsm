@@ -128,7 +128,7 @@ const PREFIX_NS_EM                    = "http://www.mozilla.org/2004/em-rdf#";
 const TOOLKIT_ID                      = "toolkit@mozilla.org";
 #ifdef MOZ_PHOENIX_EXTENSIONS
 const FIREFOX_ID                      = "{ec8030f7-c20a-464f-9b0e-13a3a9e97384}"
-const FIREFOX_APPCOMPATVERSION        = "24.9"
+const FIREFOX_APPCOMPATVERSION        = "27.9"
 #endif
 
 // The value for this is in Makefile.in
@@ -1090,10 +1090,21 @@ function loadManifestFromZipReader(aZipReader) {
       addon.hasBinaryComponents = false;
     }
 
-    // Set a boolean value whether the .xpi archive
-    // contains files related to Jetpack and Add-on SDK
-    addon.jetsdk = aZipReader.hasEntry("package.json")
-                || aZipReader.hasEntry("harness-options.json");
+    // Set a boolean value whether the .xpi archive contains file related to old
+    // Mozilla Add-on SDK or contains file related to PMkit (or new Mozilla SDK),
+    // but extension is not directly targeting Pale Moon
+    if (aZipReader.hasEntry("harness-options.json")) {
+      addon.jetsdk = true;
+    } else if (aZipReader.hasEntry("package.json")) {
+      let app = addon.matchingTargetApplication;
+      if (app && app.id == Services.appinfo.ID) {
+        addon.jetsdk = false;
+      } else {
+        addon.jetsdk = true;
+      }
+    } else {
+      addon.jetsdk = false;
+    }
     
     addon.appDisabled = !isUsableAddon(addon);
     return addon;

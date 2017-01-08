@@ -90,7 +90,7 @@ pref("browser.cache.frecency_half_life_hours", 6);
 
 pref("browser.cache.offline.enable",           true);
 // enable offline apps by default, disable prompt
-pref("offline-apps.allow_by_default",          true);
+pref("offline-apps.allow_by_default",          false);
 
 // offline cache capacity in kilobytes
 pref("browser.cache.offline.capacity",         512000);
@@ -284,28 +284,25 @@ pref("media.play-stand-alone", true);
 pref("media.decoder.heuristic.dormant.enabled", true);
 pref("media.decoder.heuristic.dormant.timeout", 60000);
 
-#ifdef MOZ_WMF
-pref("media.windows-media-foundation.enabled", true);
-pref("media.windows-media-foundation.use-dxva", true);
-#endif
 #ifdef MOZ_DIRECTSHOW
 pref("media.directshow.enabled", true);
 #endif
 #ifdef MOZ_FMP4
 pref("media.fragmented-mp4.enabled", true);
-pref("media.fragmented-mp4.ffmpeg.enabled", false);
-pref("media.fragmented-mp4.gmp.enabled", false);
-#if defined(XP_WIN) && defined(MOZ_WMF) || defined(XP_MACOSX) || defined(MOZ_WIDGET_GONK)
-// Denotes that the fragmented MP4 parser can be created by <video> elements.
-pref("media.fragmented-mp4.exposed", true);
-#else
-pref("media.fragmented-mp4.exposed", false);
 #endif
-// Specifies whether the fragmented MP4 parser uses a test decoder that
+// Specifies whether the PDM can create a test decoder that
 // just outputs blank frames/audio instead of actually decoding. The blank
 // decoder works on all platforms.
-pref("media.fragmented-mp4.use-blank-decoder", false);
+pref("media.use-blank-decoder", false);
+#ifdef MOZ_WMF
+pref("media.windows-media-foundation.enabled", true);
+pref("media.windows-media-foundation.use-dxva", true);
 #endif
+#if defined(MOZ_FFMPEG)
+pref("media.ffmpeg.enabled", true);
+pref("media.libavcodec.allow-obsolete", false);
+#endif
+pref("media.gmp.decoder.enabled", false);
 #ifdef MOZ_RAW
 pref("media.raw.enabled", true);
 #endif
@@ -451,15 +448,7 @@ pref("media.webvtt.regions.enabled", false);
 pref("media.track.enabled", false);
 
 // Whether to enable MediaSource support.
-// We want to enable on non-release  builds and on release windows and mac
-// but on release builds restrict to YouTube. We don't enable for other
-// configurations because code for those platforms isn't ready yet.
-#if defined(XP_WIN) || defined(XP_MACOSX)
 pref("media.mediasource.enabled", true);
-#else
-pref("media.mediasource.enabled", false);
-#endif
-
 pref("media.mediasource.mp4.enabled", true);
 pref("media.mediasource.webm.enabled", false);
 
@@ -2339,7 +2328,7 @@ pref("layout.selection.caret_style", 0);
 pref("layout.frames.force_resizability", false);
 
 // pref to report CSS errors to the error console
-pref("layout.css.report_errors", false);
+pref("layout.css.report_errors", true);
 
 // Should the :visited selector ever match (otherwise :link matches instead)?
 pref("layout.css.visited_links_enabled", true);
@@ -2401,7 +2390,12 @@ pref("layout.css.convertFromNode.enabled", true);
 #endif
 
 // Is support for unicode-range enabled?
+// Currently *nix support isn't working, so only enable on Windows.
+#ifdef XP_WIN
 pref("layout.css.unicode-range.enabled", true);
+#else
+pref("layout.css.unicode-range.enabled", false);
+#endif
 
 // Is support for CSS "text-align: true X" enabled?
 pref("layout.css.text-align-true-value.enabled", false);
@@ -2573,6 +2567,10 @@ pref("dom.use_watchdog", true);
 pref("dom.max_chrome_script_run_time", 20);
 pref("dom.max_child_script_run_time", 10);
 pref("dom.max_script_run_time", 10);
+
+// Stop all scripts in a compartment when the "Stop script" button on the
+// "Unresponsive script" dialog is used.
+pref("dom.global_stop_unresponsive_script", true);
 
 // If true, ArchiveReader will be enabled
 pref("dom.archivereader.enabled", false);
@@ -3197,7 +3195,7 @@ pref("gfx.font_rendering.cleartype_params.force_gdi_classic_for_families",
      "Arial,Consolas,Courier New,Microsoft Sans Serif,Segoe UI,Tahoma,Trebuchet MS,Verdana");
 // The maximum size at which we will force GDI classic mode using
 // force_gdi_classic_for_families.
-pref("gfx.font_rendering.cleartype_params.force_gdi_classic_max_size", 15);
+pref("gfx.font_rendering.cleartype_params.force_gdi_classic_max_size", 17);
 
 pref("ui.key.menuAccessKeyFocuses", true);
 

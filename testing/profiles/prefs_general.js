@@ -192,10 +192,6 @@ user_pref("browser.download.panel.shown", true);
 // which test runs first and happens to open about:newtab
 user_pref("browser.newtabpage.introShown", true);
 
-// prefs for firefox metro.
-// Disable first-tun tab
-user_pref("browser.firstrun.count", 0);
-
 // Tell the PBackground infrastructure to run a test at startup.
 user_pref("pbackground.testing", true);
 
@@ -299,3 +295,6 @@ user_pref("dom.ipc.tabs.shutdownTimeoutSecs", 0);
 
 // Avoid performing Readinglist Intro during tests.
 user_pref("browser.readinglist.introShown", true);
+
+// Don't block old libavcodec libraries when testing.
+user_pref("media.libavcodec.allow-obsolete", true);
