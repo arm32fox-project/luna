@@ -271,6 +271,18 @@ CreateMediaDecodeTaskQueue();
 already_AddRefed<FlushableMediaTaskQueue>
 CreateFlushableMediaDecodeTaskQueue();
 
+bool
+ParseCodecsString(const nsAString& aCodecs, nsTArray<nsString>& aOutCodecs);
+
+bool
+IsH264ContentType(const nsAString& aContentType);
+
+bool
+IsAACContentType(const nsAString& aContentType);
+
+bool
+IsAACCodecString(const nsAString& aCodec);
+
 } // end namespace mozilla
 
 #endif
