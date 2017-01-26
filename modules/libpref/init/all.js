@@ -318,7 +318,7 @@ pref("media.webm.intel_decoder.enabled", false);
 #endif
 #endif
 #ifdef MOZ_GSTREAMER
-pref("media.gstreamer.enabled", true);
+pref("media.gstreamer.enabled", false);
 pref("media.gstreamer.enable-blacklist", true);
 #endif
 #ifdef MOZ_APPLEMEDIA
@@ -1975,6 +1975,8 @@ pref("network.proxy.autoconfig_url", "");
 pref("network.proxy.autoconfig_retry_interval_min", 5);    // 5 seconds
 pref("network.proxy.autoconfig_retry_interval_max", 300);  // 5 minutes
 
+// Master switch for HSTS usage (security <-> privacy tradeoff)
+pref("network.stricttransportsecurity.enabled", true);
 // Use the HSTS preload list by default
 pref("network.stricttransportsecurity.preloadlist", true);
 

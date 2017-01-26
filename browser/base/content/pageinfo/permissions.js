@@ -95,7 +95,8 @@ var permissionObserver = {
   observe: function (aSubject, aTopic, aData)
   {
     if (aTopic == "perm-changed") {
-      var permission = aSubject.QueryInterface(Components.interfaces.nsIPermission);
+      var permission = aSubject.QueryInterface(
+                       Components.interfaces.nsIPermission);
       if (permission.host == gPermURI.host) {
         if (permission.type in gPermObj)
           initRow(permission.type);
@@ -154,7 +155,8 @@ function initRow(aPartId)
 
   var checkbox = document.getElementById(aPartId + "Def");
   var command  = document.getElementById("cmd_" + aPartId + "Toggle");
-  // Desktop Notification, Geolocation and PointerLock permission consumers use testExactPermission, not testPermission.
+  // Desktop Notification, Geolocation and PointerLock permission consumers
+  // use testExactPermission, not testPermission.
   var perm;
   if (aPartId == "desktop-notification" || aPartId == "geo" || aPartId == "pointerLock")
     perm = permissionManager.testExactPermission(gPermURI, aPartId);
@@ -289,11 +291,13 @@ function makeNicePluginName(aName) {
   return newName;
 }
 
-function fillInPluginPermissionTemplate(aPluginName, aPermissionString) {
-  let permPluginTemplate = document.getElementById("permPluginTemplate").cloneNode(true);
+function fillInPluginPermissionTemplate(aPermissionString, aPluginObject) {
+  let permPluginTemplate = document.getElementById("permPluginTemplate")
+                           .cloneNode(true);
   permPluginTemplate.setAttribute("permString", aPermissionString);
+  permPluginTemplate.setAttribute("tooltiptext", aPluginObject.description);
   let attrs = [
-    [ ".permPluginTemplateLabel", "value", aPluginName ],
+    [ ".permPluginTemplateLabel", "value", aPluginObject.name ],
     [ ".permPluginTemplateRadioGroup", "id", aPermissionString + "RadioGroup" ],
     [ ".permPluginTemplateRadioDefault", "id", aPermissionString + "#0" ],
     [ ".permPluginTemplateRadioAsk", "id", aPermissionString + "#3" ],
@@ -312,6 +316,7 @@ function clearPluginPermissionTemplate() {
   let permPluginTemplate = document.getElementById("permPluginTemplate");
   permPluginTemplate.hidden = true;
   permPluginTemplate.removeAttribute("permString");
+  permPluginTemplate.removeAttribute("tooltiptext");
   document.querySelector(".permPluginTemplateLabel").removeAttribute("value");
   document.querySelector(".permPluginTemplateRadioGroup").removeAttribute("id");
   document.querySelector(".permPluginTemplateRadioAsk").removeAttribute("id");
@@ -320,34 +325,46 @@ function clearPluginPermissionTemplate() {
 }
 
 function initPluginsRow() {
-  let vulnerableLabel = document.getElementById("browserBundle").getString("pluginActivateVulnerable.label");
-  let pluginHost = Components.classes["@mozilla.org/plugin/host;1"].getService(Components.interfaces.nsIPluginHost);
+  let vulnerableLabel = document.getElementById("browserBundle")
+                        .getString("pluginActivateVulnerable.label");
+  let pluginHost = Components.classes["@mozilla.org/plugin/host;1"]
+                   .getService(Components.interfaces.nsIPluginHost);
+  let tags = pluginHost.getPluginTags();
 
   let permissionMap = new Map();
 
-  for (let plugin of pluginHost.getPluginTags()) {
+  for (let plugin of tags) {
     if (plugin.disabled) {
       continue;
     }
     for (let mimeType of plugin.getMimeTypes()) {
       let permString = pluginHost.getPermissionStringForType(mimeType);
       if (!permissionMap.has(permString)) {
-        var name = makeNicePluginName(plugin.name);
+        var name = makeNicePluginName(plugin.name) + " " + plugin.version;
         if (permString.startsWith("plugin-vulnerable:")) {
           name += " \u2014 " + vulnerableLabel;
         }
-        permissionMap.set(permString, name);
+        permissionMap.set(permString, {
+          "name": name,
+          "description": plugin.description,
+        });
       }
     }
   }
 
-  let entries = [{name: item[1], permission: item[0]} for (item of permissionMap)];
+  let entries = [
+    {
+      "permission": item[0],
+      "obj": item[1],
+    }
+    for (item of permissionMap)
+  ];
   entries.sort(function(a, b) {
-    return ((a.name < b.name) ? -1 : (a.name == b.name ? 0 : 1));
+    return ((a.obj.name < b.obj.name) ? -1 : (a.obj.name == b.obj.name ? 0 : 1));
   });
 
   let permissionEntries = [
-    fillInPluginPermissionTemplate(p.name, p.permission) for (p of entries)
+    fillInPluginPermissionTemplate(p.permission, p.obj) for (p of entries)
   ];
 
   let permPluginsRow = document.getElementById("permPluginsRow");
