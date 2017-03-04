@@ -619,6 +619,7 @@ MediaDecoder::MediaDecoder() :
   MOZ_COUNT_CTOR(MediaDecoder);
   MOZ_ASSERT(NS_IsMainThread());
   MediaMemoryTracker::AddMediaDecoder(this);
+  AbstractThread::EnsureMainThreadSingleton();
 #ifdef PR_LOGGING
   if (!gMediaDecoderLog) {
     gMediaDecoderLog = PR_NewLogModule("MediaDecoder");
@@ -1332,7 +1333,7 @@ void MediaDecoder::ApplyStateToStateMachine(PlayState aState)
         mSeekRequest.Begin(ProxyMediaCall(mDecoderStateMachine->TaskQueue(),
                                           mDecoderStateMachine.get(), __func__,
                                           &MediaDecoderStateMachine::Seek, mRequestedSeekTarget)
-          ->RefableThen(NS_GetCurrentThread(), __func__, this,
+          ->RefableThen(AbstractThread::MainThread(), __func__, this,
                         &MediaDecoder::OnSeekResolved, &MediaDecoder::OnSeekRejected));
         mRequestedSeekTarget.Reset();
         break;
