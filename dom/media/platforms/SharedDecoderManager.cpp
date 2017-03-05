@@ -98,9 +98,12 @@ SharedDecoderManager::CreateVideoDecoder(
       mPDM = nullptr;
       return nullptr;
     }
-    mPDM = aPDM;
     nsresult rv = mDecoder->Init();
-    NS_ENSURE_SUCCESS(rv, nullptr);
+    if (NS_FAILED(rv)) {
+      mDecoder = nullptr;
+      return nullptr;
+    }
+    mPDM = aPDM;
   }
 
   nsRefPtr<SharedDecoderProxy> proxy(new SharedDecoderProxy(this, aCallback));
@@ -147,11 +150,18 @@ void
 SharedDecoderManager::SetIdle(MediaDataDecoder* aProxy)
 {
   if (aProxy && mActiveProxy == aProxy) {
-    mWaitForInternalDrain = true;
-    mActiveProxy->Drain();
-    MonitorAutoLock mon(mMonitor);
-    while (mWaitForInternalDrain) {
-      mon.Wait();
+    {
+      MonitorAutoLock mon(mMonitor);
+      mWaitForInternalDrain = true;
+      // We don't want to hold the lock while calling Drain() as some
+      // platform implementations call DrainComplete() immediately.
+    }
+    nsresult rv = mActiveProxy->Drain();
+    if (NS_SUCCEEDED(rv)) {
+      MonitorAutoLock mon(mMonitor);
+      while (mWaitForInternalDrain) {
+        mon.Wait();
+      }
     }
     mActiveProxy->Flush();
     mActiveProxy = nullptr;
@@ -161,13 +171,15 @@ SharedDecoderManager::SetIdle(MediaDataDecoder* aProxy)
 void
 SharedDecoderManager::DrainComplete()
 {
-  if (mWaitForInternalDrain) {
+  {
     MonitorAutoLock mon(mMonitor);
-    mWaitForInternalDrain = false;
-    mon.NotifyAll();
-  } else {
-    mActiveCallback->DrainComplete();
+    if (mWaitForInternalDrain) {
+      mWaitForInternalDrain = false;
+      mon.NotifyAll();
+      return;
+    }
   }
+  mActiveCallback->DrainComplete();
 }
 
 void
