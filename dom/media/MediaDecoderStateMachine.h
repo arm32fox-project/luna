@@ -328,6 +328,22 @@ public:
 
   void NotifyDataArrived(const char* aBuffer, uint32_t aLength, int64_t aOffset);
 
+  // Returns the tail dispatcher associated with TaskQueue(), which will fire
+  // its tasks when the current task completes. May only be called when running
+  // in TaskQueue().
+  TaskDispatcher& TailDispatcher()
+  {
+    MOZ_ASSERT(OnTaskQueue());
+    return TaskQueue()->TailDispatcher();
+  }
+
+  // Convenience method to perform a tail dispatch.
+  void TailDispatch(AbstractThread* aThread,
+                    already_AddRefed<nsIRunnable> aTask)
+  {
+    TailDispatcher().AddTask(aThread, Move(aTask));
+  }
+
   // Returns the state machine task queue.
   MediaTaskQueue* TaskQueue() const { return mTaskQueue; }
 
@@ -780,6 +796,7 @@ protected:
 
       void Ensure(mozilla::TimeStamp& aTarget)
       {
+        MOZ_ASSERT(mSelf->OnTaskQueue());
         if (IsScheduled() && mTarget <= aTarget) {
           return;
         }
@@ -788,7 +805,7 @@ protected:
         mRequest.Begin(mMediaTimer->WaitUntil(mTarget, __func__)->RefableThen(
           mSelf->TaskQueue(), __func__, mSelf,
           &MediaDecoderStateMachine::OnDelayedSchedule,
-          &MediaDecoderStateMachine::NotReached));
+          &MediaDecoderStateMachine::NotReached, mSelf->TailDispatcher()));
       }
 
       void CompleteRequest()
@@ -878,17 +895,17 @@ protected:
     return mTarget.IsValid();
   }
 
-  void Resolve(bool aAtEnd, const char* aCallSite)
+  void Resolve(bool aAtEnd, const char* aCallSite, TaskDispatcher& aDispatcher)
   {
     mTarget.Reset();
     MediaDecoder::SeekResolveValue val(aAtEnd, mTarget.mEventVisibility);
-    mPromise.Resolve(val, aCallSite);
+    mPromise.Resolve(val, aCallSite, aDispatcher);
   }
 
-  void RejectIfExists(const char* aCallSite)
+  void RejectIfExists(const char* aCallSite, TaskDispatcher& aDispatcher)
   {
     mTarget.Reset();
-    mPromise.RejectIfExists(true, aCallSite);
+    mPromise.RejectIfExists(true, aCallSite, aDispatcher);
   }
 
   ~SeekJob()
@@ -1212,6 +1229,8 @@ protected:
   // to decode any audio/video since the MediaDecoder will trigger a seek
   // operation soon.
   bool mSentFirstFrameLoadedEvent;
+
+  bool mSentPlaybackEndedEvent;
 };
 
 } // namespace mozilla;
