@@ -726,21 +726,6 @@ static bool underMetaDataPath(const Vector<uint32_t> &path) {
         && path[3] == FOURCC('i', 'l', 's', 't');
 }
 
-// Given a time in seconds since Jan 1 1904, produce a human-readable string.
-static bool convertTimeToDate(int64_t time_1904, String8 *s) {
-    time_t time_1970 = time_1904 - (((66 * 365 + 17) * 24) * 3600);
-
-    if (time_1970 < 0) {
-        return false;
-    }
-
-    char tmp[32];
-    strftime(tmp, sizeof(tmp), "%Y%m%dT%H%M%S.000Z", gmtime(&time_1970));
-
-    s->setTo(tmp);
-    return true;
-}
-
 static bool ValidInputSize(int32_t size) {
   // Reject compressed samples larger than an uncompressed UHD
   // frame. This is a reasonable cut-off for a lossy codec,
@@ -1276,9 +1261,8 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
                 }
             }
 
-            if (*offset != stop_offset) {
-                return ERROR_MALFORMED;
-            }
+            // Some muxers add some padding after the stsd content. Skip it.
+            *offset = stop_offset;
             break;
         }
 
@@ -1810,11 +1794,6 @@ status_t MPEG4Extractor::parseChunk(off64_t *offset, int depth) {
             } else {
                 creationTime = U32_AT(&header[4]);
                 mHeaderTimescale = U32_AT(&header[12]);
-            }
-
-            String8 s;
-            if (convertTimeToDate(creationTime, &s)) {
-                mFileMetaData->setCString(kKeyDate, s.string());
             }
 
             *offset += chunk_size;
