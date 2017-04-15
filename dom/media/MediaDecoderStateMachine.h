@@ -211,8 +211,8 @@ public:
 
   // Functions used by assertions to ensure we're calling things
   // on the appropriate threads.
-  bool OnDecodeThread() const;
-  bool OnStateMachineThread() const;
+  bool OnDecodeTaskQueue() const;
+  bool OnTaskQueue() const;
 
   MediaDecoderOwner::NextFrameStatus GetNextFrameStatus();
 
@@ -345,7 +345,7 @@ public:
 
   void OnDelayedSchedule()
   {
-    MOZ_ASSERT(OnStateMachineThread());
+    MOZ_ASSERT(OnTaskQueue());
     ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
     mDelayedScheduler.CompleteRequest();
     ScheduleStateMachine();
@@ -363,19 +363,6 @@ public:
     }
     mDecoder = nullptr;
   }
-
-  // If we're playing into a MediaStream, record the current point in the
-  // MediaStream and the current point in our media resource so later we can
-  // convert MediaStream playback positions to media resource positions. Best to
-  // call this while we're not playing (while the MediaStream is blocked). Can
-  // be called on any thread with the decoder monitor held.
-  void SetSyncPointForMediaStream();
-
-  // Called when the decoded stream is destroyed. |mPlayStartTime| and
-  // |mPlayDuration| are updated to provide a good base for calculating video
-  // stream time using the system clock.
-  void ResyncMediaStreamClock();
-  int64_t GetCurrentTimeViaMediaStreamSync() const;
 
   // Copy queued audio/video data in the reader to any output MediaStreams that
   // need it.
@@ -784,8 +771,7 @@ protected:
 
       void Reset()
       {
-        MOZ_ASSERT(mSelf->OnStateMachineThread(),
-                   "Must be on state machine queue to disconnect");
+        MOZ_ASSERT(mSelf->OnTaskQueue(), "Must be on state machine queue to disconnect");
         if (IsScheduled()) {
           mRequest.Disconnect();
           mTarget = TimeStamp();
@@ -794,6 +780,7 @@ protected:
 
       void Ensure(mozilla::TimeStamp& aTarget)
       {
+        MOZ_ASSERT(mSelf->OnTaskQueue());
         if (IsScheduled() && mTarget <= aTarget) {
           return;
         }
@@ -847,12 +834,6 @@ protected:
   // timing the presentation of video frames when there's no audio.
   // Accessed only via the state machine thread.  Must be set via SetPlayStartTime.
   TimeStamp mPlayStartTime;
-
-  // When we start writing decoded data to a new DecodedDataStream, or we
-  // restart writing due to PlaybackStarted(), we record where we are in the
-  // MediaStream and what that corresponds to in the media.
-  int64_t mSyncPointInMediaStream; // microseconds
-  int64_t mSyncPointInDecodedStream; // microseconds
 
   // The amount of time we've spent playing already the media. The current
   // playback position is therefore |Now() - mPlayStartTime +
@@ -1232,6 +1213,8 @@ protected:
   // to decode any audio/video since the MediaDecoder will trigger a seek
   // operation soon.
   bool mSentFirstFrameLoadedEvent;
+
+  bool mSentPlaybackEndedEvent;
 };
 
 } // namespace mozilla;

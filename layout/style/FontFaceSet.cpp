@@ -462,7 +462,9 @@ FontFaceSet::StartLoad(gfxUserFontEntry* aUserFontEntry,
   } else {
     nsRefPtr<nsCORSListenerProxy> listener =
       new nsCORSListenerProxy(streamLoader, aUserFontEntry->GetPrincipal(), false);
-    rv = listener->Init(channel);
+    // Doesn't matter what data: URI handling we use here, since we
+    // don't even use a CORS listener proxy for the data: case.
+    rv = listener->Init(channel, DataURIHandling::Disallow);
     if (NS_SUCCEEDED(rv)) {
       rv = channel->AsyncOpen(listener, nullptr);
     }
@@ -1340,7 +1342,7 @@ FontFaceSet::CheckLoadingStarted()
     mStatus = FontFaceSetLoadStatus::Loading;
     mDispatchedLoadingEvent = true;
     (new AsyncEventDispatcher(this, NS_LITERAL_STRING("loading"),
-                              false))->RunDOMEventWhenSafe();
+                              false))->PostDOMEvent();
   }
 
   if (mReadyIsResolved && PrefEnabled()) {
@@ -1481,7 +1483,7 @@ FontFaceSet::DispatchLoadingFinishedEvent(
   }
   nsRefPtr<CSSFontFaceLoadEvent> event =
     CSSFontFaceLoadEvent::Constructor(this, aType, init);
-  (new AsyncEventDispatcher(this, event))->RunDOMEventWhenSafe();
+  (new AsyncEventDispatcher(this, event))->PostDOMEvent();
 }
 
 // nsIDOMEventListener

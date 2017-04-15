@@ -84,16 +84,6 @@ MediaFormatReader::MediaFormatReader(AbstractMediaDecoder* aDecoder,
 MediaFormatReader::~MediaFormatReader()
 {
   MOZ_COUNT_DTOR(MediaFormatReader);
-  // shutdown main thread demuxer and track demuxers.
-  if (mAudioTrackDemuxer) {
-    mAudioTrackDemuxer->BreakCycles();
-    mAudioTrackDemuxer = nullptr;
-  }
-  if (mVideoTrackDemuxer) {
-    mVideoTrackDemuxer->BreakCycles();
-    mVideoTrackDemuxer = nullptr;
-  }
-  mMainThreadDemuxer = nullptr;
 }
 
 nsRefPtr<ShutdownPromise>
@@ -141,6 +131,17 @@ MediaFormatReader::Shutdown()
   MOZ_ASSERT(mVideo.mPromise.IsEmpty());
 
   mDemuxer = nullptr;
+
+  // shutdown main thread demuxer and track demuxers.
+  if (mAudioTrackDemuxer) {
+    mAudioTrackDemuxer->BreakCycles();
+    mAudioTrackDemuxer = nullptr;
+  }
+  if (mVideoTrackDemuxer) {
+    mVideoTrackDemuxer->BreakCycles();
+    mVideoTrackDemuxer = nullptr;
+  }
+  mMainThreadDemuxer = nullptr;
 
   mPlatform = nullptr;
 
@@ -923,6 +924,10 @@ MediaFormatReader::WaitForData(MediaData::Type aType)
   TrackType trackType = aType == MediaData::VIDEO_DATA ?
     TrackType::kVideoTrack : TrackType::kAudioTrack;
   auto& decoder = GetDecoderData(trackType);
+  if (!decoder.mWaitingForData) {
+    // We aren't waiting for data any longer.
+    return WaitForDataPromise::CreateAndResolve(decoder.mType, __func__);
+  }
   nsRefPtr<WaitForDataPromise> p = decoder.mWaitingPromise.Ensure(__func__);
   ScheduleUpdate(trackType);
   return p;
@@ -932,8 +937,6 @@ nsresult
 MediaFormatReader::ResetDecode()
 {
   MOZ_ASSERT(OnTaskQueue());
-
-  ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
 
   mAudioSeekRequest.DisconnectIfExists();
   mVideoSeekRequest.DisconnectIfExists();
@@ -1153,7 +1156,6 @@ MediaFormatReader::OnVideoSeekCompleted(media::TimeUnit aTime)
 
   if (HasAudio()) {
     MOZ_ASSERT(mPendingSeekTime.isSome());
-    mPendingSeekTime.ref() = aTime;
     DoAudioSeek();
   } else {
     mPendingSeekTime.reset();
@@ -1237,6 +1239,15 @@ MediaFormatReader::GetBuffered()
     }
     intervals = mCachedTimeRanges;
   } else {
+    if (OnTaskQueue()) {
+      // Ensure we have up to date buffered time range.
+      if (HasVideo()) {
+        UpdateReceivedNewData(TrackType::kVideoTrack);
+      }
+      if (HasAudio()) {
+        UpdateReceivedNewData(TrackType::kAudioTrack);
+      }
+    }
     if (HasVideo()) {
       MonitorAutoLock lock(mVideo.mMonitor);
       videoti = mVideo.mTimeRanges;
@@ -1270,7 +1281,8 @@ void MediaFormatReader::ReleaseMediaResources()
 {
   // Before freeing a video codec, all video buffers needed to be released
   // even from graphics pipeline.
-  VideoFrameContainer* container = mDecoder->GetVideoFrameContainer();
+  VideoFrameContainer* container =
+    mDecoder ? mDecoder->GetVideoFrameContainer() : nullptr;
   if (container) {
     container->ClearCurrentFrame();
   }
@@ -1341,9 +1353,11 @@ MediaFormatReader::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int6
   }
   mCachedTimeRangesStale = true;
 
-  if (!mInitDone) {
+  if (!mInitDone || mShutdown) {
     return;
   }
+
+  MOZ_ASSERT(mMainThreadDemuxer);
 
   // Queue a task to notify our main demuxer.
   RefPtr<nsIRunnable> task =
@@ -1361,7 +1375,7 @@ MediaFormatReader::NotifyDataRemoved()
   mDataRange = ByteInterval();
   mCachedTimeRangesStale = true;
 
-  if (!mInitDone) {
+  if (!mInitDone || mShutdown) {
     return;
   }
 

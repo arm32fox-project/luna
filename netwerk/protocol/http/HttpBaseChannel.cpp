@@ -1041,7 +1041,7 @@ HttpBaseChannel::SetReferrerWithPolicy(nsIURI *referrer,
     if (NS_FAILED(rv)) return rv;
 
     // It's ok to send referrer for https-to-http scenarios if the referrer
-    // policy is "unsafe-url", "origin", or "origin-when-crossorigin".
+    // policy is "unsafe-url", "origin", or "origin-when-cross-origin".
     if (referrerPolicy != REFERRER_POLICY_UNSAFE_URL &&
 	referrerPolicy != REFERRER_POLICY_ORIGIN_WHEN_XORIGIN &&
         referrerPolicy != REFERRER_POLICY_ORIGIN) {
@@ -1433,15 +1433,6 @@ HttpBaseChannel::RedirectTo(nsIURI *newURI)
 //-----------------------------------------------------------------------------
 // HttpBaseChannel::nsIHttpChannelInternal
 //-----------------------------------------------------------------------------
-
-NS_IMETHODIMP
-HttpBaseChannel::ContinueBeginConnect()
-{
-  MOZ_ASSERT(XRE_GetProcessType() != GoannaProcessType_Default,
-             "The parent overrides this");
-  MOZ_ASSERT(false, "This method must be overridden");
-  return NS_ERROR_NOT_IMPLEMENTED;
-}
 
 NS_IMETHODIMP
 HttpBaseChannel::GetTopWindowURI(nsIURI **aTopWindowURI)

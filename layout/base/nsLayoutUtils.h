@@ -1934,6 +1934,11 @@ public:
                                           nscoord aLetterSpacing);
 
   /**
+   * Get orientation flags for textrun construction.
+   */
+  static uint32_t GetTextRunOrientFlagsForStyle(nsStyleContext* aStyleContext);
+
+  /**
    * Takes two rectangles whose origins must be the same, and computes
    * the difference between their union and their intersection as two
    * rectangles. (This difference is a superset of the difference
@@ -2667,6 +2672,17 @@ gfx::Rect NSRectToRect(const nsRect& aRect, double aAppUnitsPerPixel);
  */
 gfx::Rect NSRectToSnappedRect(const nsRect& aRect, double aAppUnitsPerPixel,
                               const gfx::DrawTarget& aSnapDT);
+
+/**
+* Converts, where possible, an nsRect in app units to a Moz2D Rect in pixels
+* (whether those are device pixels or CSS px depends on what the caller
+*  chooses to pass as aAppUnitsPerPixel).
+*
+* If snapping results in a rectangle with zero width or height, the affected
+* coordinates are left unsnapped
+*/
+gfx::Rect NSRectToNonEmptySnappedRect(const nsRect& aRect, double aAppUnitsPerPixel,
+                                      const gfx::DrawTarget& aSnapDT);
 
 void StrokeLineWithSnapping(const nsPoint& aP1, const nsPoint& aP2,
                             int32_t aAppUnitsPerDevPixel,

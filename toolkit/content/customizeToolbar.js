@@ -2,6 +2,8 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+const gToolbarInfoSeparators = ["|", "-"];
+
 var gToolboxDocument = null;
 var gToolbox = null;
 var gCurrentDragOverItem = null;
@@ -172,9 +174,20 @@ function persistCurrentSets()
         // Remove custom toolbars whose contents have been removed.
         gToolbox.removeChild(toolbar);
       } else if (gToolbox.toolbarset) {
+        var hidingAttribute = toolbar.getAttribute("type") == "menubar" ?
+                              "autohide" : "collapsed";
         // Persist custom toolbar info on the <toolbarset/>
+        // Attributes:
+        // Names: "toolbarX" (X - the number of the toolbar)
+        // Values: "Name|HidingAttributeName-HidingAttributeValue|CurrentSet"
         gToolbox.toolbarset.setAttribute("toolbar"+(++customCount),
-                                         toolbar.toolbarName + ":" + currentSet);
+                                         toolbar.toolbarName
+                                         + gToolbarInfoSeparators[0]
+                                         + hidingAttribute
+                                         + gToolbarInfoSeparators[1]
+                                         + toolbar.getAttribute(hidingAttribute)
+                                         + gToolbarInfoSeparators[0]
+                                         + currentSet);
         gToolboxDocument.persist(gToolbox.toolbarset.id, "toolbar"+customCount);
       }
     }
@@ -484,6 +497,11 @@ function addNewToolbar()
       continue;
     }
 
+    if (name.value.includes(gToolbarInfoSeparators[0])) {
+      message = stringBundle.getFormattedString("enterToolbarIllegalChars", [name.value]);
+      continue;
+    }
+
     var dupeFound = false;
 
      // Check for an existing toolbar with the same display name
@@ -505,7 +523,7 @@ function addNewToolbar()
     message = stringBundle.getFormattedString("enterToolbarDup", [name.value]);
   }
 
-  gToolbox.appendCustomToolbar(name.value, "");
+  gToolbox.appendCustomToolbar(name.value, "", [null, null]);
 
   toolboxChanged();
 

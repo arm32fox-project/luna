@@ -193,7 +193,7 @@ MediaDecoderReader::AsyncReadMetadata()
 {
   typedef ReadMetadataFailureReason Reason;
 
-  MOZ_ASSERT(OnDecodeThread());
+  MOZ_ASSERT(OnTaskQueue());
   mDecoder->GetReentrantMonitor().AssertNotCurrentThreadIn();
   DECODER_LOG("MediaDecoderReader::AsyncReadMetadata");
 
@@ -321,10 +321,8 @@ MediaDecoderReader::RequestAudioData()
       AudioQueue().Finish();
       break;
     }
-    // AudioQueue size is still zero, post a task to try again. Don't spin
-    // waiting in this while loop since it somehow prevents audio EOS from
-    // coming in gstreamer 1.x when there is still video buffer waiting to be
-    // consumed. (|mVideoSinkBufferCount| > 0)
+    // AudioQueue size is still zero, post a task to try again.
+    // (|mVideoSinkBufferCount| > 0)
     if (AudioQueue().GetSize() == 0 && mTaskQueue) {
       RefPtr<nsIRunnable> task(new ReRequestAudioTask(this));
       mTaskQueue->Dispatch(task);
@@ -370,7 +368,7 @@ MediaDecoderReader::BreakCycles()
 nsRefPtr<ShutdownPromise>
 MediaDecoderReader::Shutdown()
 {
-  MOZ_ASSERT(OnDecodeThread());
+  MOZ_ASSERT(OnTaskQueue());
   mShutdown = true;
 
   mBaseAudioPromise.RejectIfExists(END_OF_STREAM, __func__);

@@ -24,6 +24,9 @@
 pref("browser.chromeURL","chrome://browser/content/");
 pref("browser.hiddenWindowChromeURL", "chrome://browser/content/hiddenWindow.xul");
 
+// Display the "Get Add-ons" pane in the Add-on Manager
+pref("extensions.getAddons.showPane", true);
+
 // Enables some extra Extension System Logging (can reduce performance)
 pref("extensions.logging.enabled", false);
 
@@ -69,6 +72,12 @@ pref("browser.dictionaries.download.url", "https://addons.mozilla.org/%LOCALE%/f
 
 // Get More Tools link URL
 pref("browser.getdevtools.url","https://addons.mozilla.org/firefox/collections/mozilla/webdeveloper/");
+
+// Feedback URL
+pref("browser.feedback.url", "https://forum.palemoon.org");
+
+// Help button in slow startup dialog
+pref("browser.slowstartup.help.url", "http://www.palemoon.org/support/slowstartup.shtml");
 
 // The minimum delay in seconds for the timer to fire.
 // default=2 minutes
@@ -772,6 +781,10 @@ pref("browser.sessionstore.max_windows_undo", 3);
 // number of crashes that can occur before the about:sessionrestore page is displayed
 // (this pref has no effect if more than 6 hours have passed since the last crash)
 pref("browser.sessionstore.max_resumed_crashes", 1);
+// number of back button session history entries to save (-1 = all of them)
+pref("browser.sessionstore.max_serialize_back", 10);
+// number of forward button session history entries to save (-1 = all of them)
+pref("browser.sessionstore.max_serialize_forward", -1);
 // restore_on_demand overrides browser.sessionstore.max_concurrent_tabs
 // and restore_hidden_tabs. When true, tabs will not be restored until they are
 // focused (also applies to tabs that aren't visible). When false, the values
@@ -787,6 +800,12 @@ pref("browser.sessionstore.restore_hidden_tabs", false);
 // When set to true, this pref overrides that behavior, and pinned tabs will only
 // be restored when they are focused.
 pref("browser.sessionstore.restore_pinned_tabs_on_demand", false);
+// Pale Moon: Allow the user to bypass cached versions of pages when restoring
+// tabs from a previous session
+// 0 = standard behavior: pull fully from cache
+// 1 = perform a soft refresh when restoring a tab (check network)
+// 2 = perform a hard refresh when restoring a tab (bypass cache completely)
+pref("browser.sessionstore.cache_behavior", 0);
 // Pale Moon: Allow exact positioning of windows to previous locations, even
 // if they would be outside of the screen bounds
 pref("browser.sessionstore.exactPos", false);
@@ -909,6 +928,8 @@ pref("browser.taskbar.lists.refreshInSeconds", 120);
 #endif
 
 #ifdef MOZ_SERVICES_SYNC
+// Info when outdated sync detected
+pref("services.sync.outdated.url", "http://www.palemoon.org/sync/update/");
 // The sync engines to use.
 pref("services.sync.registerEngines", "Bookmarks,Form,History,Password,Prefs,Tab,Addons");
 // Preferences to be synced by default

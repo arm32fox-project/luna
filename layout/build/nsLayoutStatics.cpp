@@ -95,10 +95,6 @@
 #include "WMFDecoder.h"
 #endif
 
-#ifdef MOZ_GSTREAMER
-#include "GStreamerFormatHelper.h"
-#endif
-
 #ifdef MOZ_FFMPEG
 #include "FFmpegRuntimeLinker.h"
 #endif
@@ -134,6 +130,7 @@ using namespace mozilla::system;
 #include "nsDocument.h"
 #include "mozilla/dom/HTMLVideoElement.h"
 #include "CameraPreferences.h"
+#include "MediaDecoder.h"
 
 using namespace mozilla;
 using namespace mozilla::net;
@@ -303,6 +300,8 @@ nsLayoutStatics::Initialize()
   RequestSyncWifiService::Init();
 #endif
 
+  MediaDecoder::InitStatics();
+
   return NS_OK;
 }
 
@@ -371,10 +370,6 @@ nsLayoutStatics::Shutdown()
 
 #ifdef MOZ_ANDROID_OMX
   AndroidMediaPluginHost::Shutdown();
-#endif
-
-#ifdef MOZ_GSTREAMER
-  GStreamerFormatHelper::Shutdown();
 #endif
 
 #ifdef MOZ_FFMPEG

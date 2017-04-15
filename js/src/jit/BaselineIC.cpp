@@ -3346,6 +3346,15 @@ IsCacheableGetPropCall(JSContext* cx, JSObject* obj, JSObject* holder, Shape* sh
         return false;
 
     JSFunction* func = &shape->getterObject()->as<JSFunction>();
+
+    if (IsInnerObject(obj)) {
+        if (!func->isNative())
+            return false;
+
+        if (!func->jitInfo() || func->jitInfo()->needsOuterizedThisObject())
+            return false;
+    }
+
     if (func->isNative()) {
         *isScripted = false;
         return true;
@@ -3460,6 +3469,14 @@ IsCacheableSetPropCall(JSContext* cx, JSObject* obj, JSObject* holder, Shape* sh
         return false;
 
     JSFunction* func = &shape->setterObject()->as<JSFunction>();
+
+    if (IsInnerObject(obj)) {
+        if (!func->isNative())
+            return false;
+
+        if (!func->jitInfo() || func->jitInfo()->needsOuterizedThisObject())
+            return false;
+    }
 
     if (func->isNative()) {
         *isScripted = false;
@@ -9757,6 +9774,12 @@ ICCallStubCompiler::guardFunApply(MacroAssembler& masm, GeneralRegisterSet regs,
                           Address(BaselineFrameReg, BaselineFrame::reverseOffsetOfFlags()),
                           Imm32(BaselineFrame::HAS_ARGS_OBJ),
                           failure);
+
+        // Limit the length to something reasonable.
+        masm.branch32(Assembler::Above,
+                      Address(BaselineFrameReg, BaselineFrame::offsetOfNumActualArgs()),
+                      Imm32(ICCall_ScriptedApplyArray::MAX_ARGS_ARRAY_LENGTH),
+                      failure);
     } else {
         MOZ_ASSERT(applyThing == FunApply_Array);
 

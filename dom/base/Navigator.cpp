@@ -1201,7 +1201,7 @@ Navigator::SendBeacon(const nsAString& aUrl,
                                                                principal,
                                                                true);
 
-  rv = cors->Init(channel, true);
+  rv = cors->Init(channel, DataURIHandling::Allow);
   NS_ENSURE_SUCCESS(rv, false);
 
   // Start a preflight if cross-origin and content type is not whitelisted
@@ -2576,16 +2576,6 @@ Navigator::GetUserAgent(nsPIDOMWindow* aWindow, nsIURI* aURI,
                         nsAString& aUserAgent)
 {
   MOZ_ASSERT(NS_IsMainThread());
-
-  if (!aIsCallerChrome) {
-    const nsAdoptingString& override =
-      mozilla::Preferences::GetString("general.useragent.override");
-
-    if (override) {
-      aUserAgent = override;
-      return NS_OK;
-    }
-  }
 
   nsresult rv;
   nsCOMPtr<nsIHttpProtocolHandler>

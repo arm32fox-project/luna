@@ -109,6 +109,9 @@
       <field name="mIsBusy">
         false
       </field>
+      <field name="_outerWindowIDBrowserMap">
+        new Map();
+      </field>
       <field name="arrowKeysShouldWrap" readonly="true">
 #ifdef XP_MACOSX
         true
@@ -295,6 +298,15 @@
           <![CDATA[
             var tab = this._getTabForContentWindow(aDocument.defaultView);
             return tab ? tab.linkedBrowser : null;
+          ]]>
+        </body>
+      </method>
+
+      <method name="getBrowserForOuterWindowID">
+        <parameter name="aID"/>
+        <body>
+          <![CDATA[
+            return this._outerWindowIDBrowserMap.get(aID);
           ]]>
         </body>
       </method>
@@ -1242,7 +1254,6 @@
           <![CDATA[
             var aFromExternal;
             var aRelatedToCurrent;
-            var aIsUTF8;
             if (arguments.length == 2 &&
                 typeof arguments[1] == "object" &&
                 !(arguments[1] instanceof Ci.nsIURI)) {
@@ -1254,7 +1265,6 @@
               aAllowThirdPartyFixup = params.allowThirdPartyFixup;
               aFromExternal         = params.fromExternal;
               aRelatedToCurrent     = params.relatedToCurrent;
-              aIsUTF8               = params.isUTF8;
             }
 
             var bgLoad = (aLoadInBackground != null) ? aLoadInBackground :
@@ -1267,8 +1277,7 @@
                                   ownerTab: owner,
                                   allowThirdPartyFixup: aAllowThirdPartyFixup,
                                   fromExternal: aFromExternal,
-                                  relatedToCurrent: aRelatedToCurrent,
-                                  isUTF8: aIsUTF8});
+                                  relatedToCurrent: aRelatedToCurrent});
             if (!bgLoad)
               this.selectedTab = tab;
 
@@ -1342,7 +1351,6 @@
             var aFromExternal;
             var aRelatedToCurrent;
             var aSkipAnimation;
-            var aIsUTF8;
             if (arguments.length == 2 &&
                 typeof arguments[1] == "object" &&
                 !(arguments[1] instanceof Ci.nsIURI)) {
@@ -1355,7 +1363,6 @@
               aFromExternal         = params.fromExternal;
               aRelatedToCurrent     = params.relatedToCurrent;
               aSkipAnimation        = params.skipAnimation;
-              aIsUTF8               = params.isUTF8;
             }
 
             // if we're adding tabs, we're past interrupt mode, ditch the owner
@@ -1513,8 +1520,6 @@
                 flags |= Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
               if (aFromExternal)
                 flags |= Ci.nsIWebNavigation.LOAD_FLAGS_FROM_EXTERNAL;
-              if (aIsUTF8)
-                flags |= Ci.nsIWebNavigation.LOAD_FLAGS_URI_IS_UTF8;
               try {
                 b.loadURIWithFlags(aURI, flags, aReferrerURI, aCharset, aPostData);
               } catch (ex) {
@@ -1525,6 +1530,21 @@
             // We start our browsers out as inactive, and then maintain
             // activeness in the tab switcher.
             b.docShellIsActive = false;
+
+            // When addTab() is called with an URL that is not "about:blank" we
+            // set the "nodefaultsrc" attribute that prevents a frameLoader
+            // from being created as soon as the linked <browser> is inserted
+            // into the DOM. We thus have to register the new outerWindowID
+            // for non-remote browsers after we have called browser.loadURI().
+            //
+            // Note: Only do this of we still have a docShell. The TabOpen
+            // event was dispatched above and a gBrowser.removeTab() call from
+            // one of its listeners could cause us to fail here.
+            if (Services.prefs.getPrefType("browser.tabs.remote") == Services.prefs.PREF_BOOL &&
+               !Services.prefs.getBoolPref("browser.tabs.remote")
+               && b.docShell) {
+              this._outerWindowIDBrowserMap.set(b.outerWindowID, b);
+            }
 
             // Check if we're opening a tab related to the current tab and
             // move it to after the current tab.
@@ -1907,6 +1927,7 @@
             this.mTabListeners.splice(aTab._tPos, 1);
 
             var browser = this.getBrowserForTab(aTab);
+            this._outerWindowIDBrowserMap.delete(browser.outerWindowID);
 
             // Because of the way XBL works (fields just set JS
             // properties on the element) and the code we have in place
@@ -2154,9 +2175,20 @@
             // Make sure to unregister any open URIs.
             this._swapRegisteredOpenURIs(ourBrowser, aOtherBrowser);
 
+            // Unmap old outerWindowIDs.
+            this._outerWindowIDBrowserMap.delete(ourBrowser.outerWindowID);
+            let remoteBrowser = aOtherBrowser.ownerDocument.defaultView.gBrowser;
+            if (remoteBrowser) {
+              remoteBrowser._outerWindowIDBrowserMap.delete(aOtherBrowser.outerWindowID);
+            }
             // Swap the docshells
             ourBrowser.swapDocShells(aOtherBrowser);
 
+            // Register new outerWindowIDs.
+            this._outerWindowIDBrowserMap.set(ourBrowser.outerWindowID, ourBrowser);
+            if (remoteBrowser) {
+              remoteBrowser._outerWindowIDBrowserMap.set(aOtherBrowser.outerWindowID, aOtherBrowser);
+            }
             // Restore the progress listener
             this.mTabListeners[index] = tabListener =
               this.mTabProgressListener(aOurTab, ourBrowser, false);
@@ -2350,6 +2382,9 @@
         </getter>
         <setter>
           <![CDATA[
+          if (gNavToolbox.collapsed) {
+            return this.mTabBox.selectedTab;
+          }         
           // Update the tab
           this.mTabBox.selectedTab = val;
           return val;
@@ -2979,8 +3014,12 @@
               "-moz-default-background-color" :
               Services.prefs.getCharPref("browser.display.background_color");
 
-          if (Services.prefs.getBoolPref("browser.tabs.remote"))
+          if (Services.prefs.getBoolPref("browser.tabs.remote")) {
             messageManager.addMessageListener("DOMTitleChanged", this);
+          } else {
+            this._outerWindowIDBrowserMap.set(this.mCurrentBrowser.outerWindowID,
+                                              this.mCurrentBrowser);
+          }
         ]]>
       </constructor>
 

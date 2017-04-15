@@ -13,6 +13,7 @@
 #include "mozilla/CheckedInt.h"
 #include "mozilla/dom/BlobSet.h"
 #include "mozilla/dom/File.h"
+#include "mozilla/dom/XMLDocument.h"
 #include "mozilla/dom/XMLHttpRequestUploadBinding.h"
 #include "mozilla/EventDispatcher.h"
 #include "mozilla/EventListenerManager.h"
@@ -297,7 +298,8 @@ nsXMLHttpRequest::nsXMLHttpRequest()
     mUploadTransferred(0), mUploadTotal(0), mUploadComplete(true),
     mProgressSinceLastProgressEvent(false),
     mRequestSentTime(0), mTimeoutMilliseconds(0),
-    mErrorLoad(false), mWaitingForOnStopRequest(false),
+    mErrorLoad(false), mErrorParsingXML(false),
+    mWaitingForOnStopRequest(false),
     mProgressTimerIsActive(false),
     mIsHtml(false),
     mWarnAboutSyncHtml(false),
@@ -392,29 +394,33 @@ nsXMLHttpRequest::InitParameters(bool aAnon, bool aSystem)
   }
 
   // Check for permissions.
-  nsCOMPtr<nsPIDOMWindow> window = do_QueryInterface(GetOwner());
-  if (!window || !window->GetDocShell()) {
-    return;
-  }
-
   // Chrome is always allowed access, so do the permission check only
   // for non-chrome pages.
   if (!IsSystemXHR() && aSystem) {
-    nsCOMPtr<nsIDocument> doc = window->GetExtantDoc();
-    if (!doc) {
+    nsIGlobalObject* global = GetOwnerGlobal();
+    if (NS_WARN_IF(!global)) {
+      SetParameters(aAnon, false);
       return;
     }
 
-    nsCOMPtr<nsIPrincipal> principal = doc->NodePrincipal();
+    nsIPrincipal* principal = global->PrincipalOrNull();
+    if (NS_WARN_IF(!principal)) {
+      SetParameters(aAnon, false);
+      return;
+    }
+
     nsCOMPtr<nsIPermissionManager> permMgr =
       services::GetPermissionManager();
-    if (!permMgr)
+    if (NS_WARN_IF(!permMgr)) {
+      SetParameters(aAnon, false);
       return;
+    }
 
     uint32_t permission;
     nsresult rv =
       permMgr->TestPermissionFromPrincipal(principal, "systemXHR", &permission);
     if (NS_FAILED(rv) || permission != nsIPermissionManager::ALLOW_ACTION) {
+      SetParameters(aAnon, false);
       return;
     }
   }
@@ -742,18 +748,13 @@ nsXMLHttpRequest::GetResponseText(nsString& aResponseText, ErrorResult& aRv)
   // We only decode text lazily if we're also parsing to a doc.
   // Also, if we've decoded all current data already, then no need to decode
   // more.
-  if (!mResponseXML ||
+  if ((!mResponseXML && !mErrorParsingXML) ||
       mResponseBodyDecodedPos == mResponseBody.Length()) {
     aResponseText = mResponseText;
     return;
   }
 
-  if (mResponseCharset != mResponseXML->GetDocumentCharacterSet()) {
-    mResponseCharset = mResponseXML->GetDocumentCharacterSet();
-    mResponseText.Truncate();
-    mResponseBodyDecodedPos = 0;
-    mDecoder = EncodingUtils::DecoderForEncoding(mResponseCharset);
-  }
+  MatchCharsetAndDecoderToResponseDocument();
 
   NS_ASSERTION(mResponseBodyDecodedPos < mResponseBody.Length(),
                "Unexpected mResponseBodyDecodedPos");
@@ -1330,6 +1331,10 @@ nsXMLHttpRequest::GetAllResponseHeaders(nsCString& aResponseHeaders)
   // return the empty string and terminate these steps.
   if (mState & (XML_HTTP_REQUEST_UNSENT |
                 XML_HTTP_REQUEST_OPENED | XML_HTTP_REQUEST_SENT)) {
+    return;
+  }
+
+  if (mErrorLoad) {
     return;
   }
 
@@ -2168,6 +2173,12 @@ nsXMLHttpRequest::OnStartRequest(nsIRequest *request, nsISupports *ctxt)
     nsCOMPtr<nsILoadGroup> loadGroup;
     channel->GetLoadGroup(getter_AddRefs(loadGroup));
 
+    // suppress <parsererror> nodes on XML document parse failure, but only
+    // for non-privileged code (including Web Extensions). See bug 289714.
+    if (!IsSystemXHR()) {
+      mResponseXML->SetSuppressParserErrorElement(true);
+    }
+
     rv = mResponseXML->StartDocumentLoad(kLoadAsData, channel, loadGroup,
                                          nullptr, getter_AddRefs(listener),
                                          !(mState & XML_HTTP_REQUEST_USE_XSITE_AC));
@@ -2280,6 +2291,10 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
 
   mState &= ~XML_HTTP_REQUEST_SYNCLOOPING;
 
+  // update our charset and decoder to match mResponseXML,
+  // before it is possibly nulled out
+  MatchCharsetAndDecoderToResponseDocument();
+
   if (NS_FAILED(status)) {
     // This can happen if the server is unreachable. Other possible
     // reasons are that the user leaves the page or hits the ESC key.
@@ -2316,10 +2331,22 @@ nsXMLHttpRequest::OnStopRequest(nsIRequest *request, nsISupports *ctxt, nsresult
   // check here is that if there is no document element it is not
   // an XML document. We might need a fancier check...
   if (!mResponseXML->GetRootElement()) {
+    mErrorParsingXML = true;
     mResponseXML = nullptr;
   }
   ChangeStateToDone();
   return NS_OK;
+}
+
+void
+nsXMLHttpRequest::MatchCharsetAndDecoderToResponseDocument()
+{
+  if (mResponseXML && mResponseCharset != mResponseXML->GetDocumentCharacterSet()) {
+    mResponseCharset = mResponseXML->GetDocumentCharacterSet();
+    mResponseText.Truncate();
+    mResponseBodyDecodedPos = 0;
+    mDecoder = EncodingUtils::DecoderForEncoding(mResponseCharset);
+  }
 }
 
 void
@@ -2932,7 +2959,7 @@ nsXMLHttpRequest::Send(nsIVariant* aVariant, const Nullable<RequestBody>& aBody)
     // a same-origin request right now, since it could be redirected.
     nsRefPtr<nsCORSListenerProxy> corsListener =
       new nsCORSListenerProxy(listener, mPrincipal, withCredentials);
-    rv = corsListener->Init(mChannel, true);
+    rv = corsListener->Init(mChannel, DataURIHandling::Allow);
     NS_ENSURE_SUCCESS(rv, rv);
     listener = corsListener;
   }

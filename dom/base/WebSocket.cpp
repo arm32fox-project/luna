@@ -78,6 +78,7 @@ public:
 
   explicit WebSocketImpl(WebSocket* aWebSocket)
   : mWebSocket(aWebSocket)
+  , mSecure(false)
   , mOnCloseScheduled(false)
   , mFailed(false)
   , mDisconnectingOrDisconnected(false)
@@ -2581,8 +2582,6 @@ WebSocketImpl::CancelInternal()
   if (readyState == WebSocket::CLOSING || readyState == WebSocket::CLOSED) {
     return NS_OK;
   }
-
-  ConsoleError();
 
   return CloseConnection(nsIWebSocketChannel::CLOSE_GOING_AWAY);
 }

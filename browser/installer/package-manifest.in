@@ -414,6 +414,10 @@
 @RESPATH@/components/crypto-SDR.js
 @RESPATH@/components/jsconsole-clhandler.manifest
 @RESPATH@/components/jsconsole-clhandler.js
+#ifdef MOZ_DEVTOOLS
+@RESPATH@/components/devtools-clhandler.manifest
+@RESPATH@/components/devtools-clhandler.js
+#endif
 @RESPATH@/components/webvtt.xpt
 @RESPATH@/components/WebVTT.manifest
 @RESPATH@/components/WebVTTParserWrapper.js
@@ -631,7 +635,7 @@
 @RESPATH@/components/MozKeyboard.js
 @RESPATH@/components/InputMethod.manifest
 
-#ifdef MOZ_DEBUG
+#if defined(ENABLE_TESTS) && defined(MOZ_DEBUG)
 @RESPATH@/components/TestInterfaceJS.js
 @RESPATH@/components/TestInterfaceJS.manifest
 #endif
@@ -760,7 +764,11 @@
 ; meaning their .chk files are created there directly.
 ;
 #ifndef MOZ_NATIVE_NSS
+#if defined(XP_LINUX) && !defined(ANDROID)
+@BINPATH@/@DLL_PREFIX@freeblpriv3@DLL_SUFFIX@
+#else
 @BINPATH@/@DLL_PREFIX@freebl3@DLL_SUFFIX@
+#endif
 @BINPATH@/@DLL_PREFIX@nss3@DLL_SUFFIX@
 @BINPATH@/@DLL_PREFIX@nssckbi@DLL_SUFFIX@
 #ifndef NSS_DISABLE_DBM

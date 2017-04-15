@@ -13,6 +13,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "CharsetMenu",
                                   "resource:///modules/CharsetMenu.jsm");
 
 const nsIWebNavigation = Ci.nsIWebNavigation;
+const gToolbarInfoSeparators = ["|", "-"];
 
 var gLastBrowserCharset = null;
 var gPrevCharset = null;
@@ -2526,6 +2527,11 @@ var PrintPreviewListener = {
     return gNavToolbox;
   },
   onEnter: function () {
+    // We might have accidentally switched tabs since the user invoked print
+    // preview
+    if (gBrowser.selectedTab != this._printPreviewTab) {
+      gBrowser.selectedTab = this._printPreviewTab;
+    }
     gInPrintPreviewMode = true;
     this._toggleAffectedChrome();
   },
@@ -2814,7 +2820,7 @@ const DOMLinkHandler = {
             if (!rels.feed && rels.alternate && rels.stylesheet)
               break;
 
-            if (isValidFeed(link, link.ownerDocument.nodePrincipal, rels.feed)) {
+            if (isValidFeed(link, link.ownerDocument.nodePrincipal, "feed" in rels)) {
               FeedHandler.addFeed(link, link.ownerDocument);
               feedAdded = true;
             }
@@ -4358,6 +4364,35 @@ function setToolbarVisibility(toolbar, isVisible) {
 
   toolbar.setAttribute(hidingAttribute, !isVisible);
   document.persist(toolbar.id, hidingAttribute);
+
+  // Customizable toolbars - persist the hiding attribute.
+  if (toolbar.hasAttribute("customindex")) {
+    var toolbox = toolbar.parentNode;
+    var name = toolbar.getAttribute("toolbarname");
+    if (toolbox.toolbarset) {
+      try {
+        // Checking all attributes starting with "toolbar".
+        Array.prototype.slice.call(toolbox.toolbarset.attributes, 0)
+            .find(x => {
+              if (x.name.startsWith("toolbar")) {
+                var toolbarInfo = x.value;
+                var infoSplit = toolbarInfo.split(gToolbarInfoSeparators[0]);
+                if (infoSplit[0] == name) {
+                  infoSplit[1] = [
+                    infoSplit[1].split(gToolbarInfoSeparators[1], 1), !isVisible
+                  ].join(gToolbarInfoSeparators[1]);
+                  toolbox.toolbarset.setAttribute(
+                      x.name, infoSplit.join(gToolbarInfoSeparators[0]));
+                  document.persist(toolbox.toolbarset.id, x.name);
+                }
+              }
+            });
+      } catch (e) {
+        Components.utils.reportError(
+            "Customizable toolbars - persist the hiding attribute: " + e);
+      }
+    }
+  }
 
   PlacesToolbarHelper.init();
   BookmarkingUI.onToolbarVisibilityChange();
@@ -5927,6 +5962,10 @@ function BrowserOpenAddonsMgr(aView) {
       aSubject.loadView(aView);
     }, "EM-loaded", false);
   }
+}
+
+function BrowserOpenPermissionsMgr() {
+  switchToTabHavingURI("about:permissions", true);
 }
 
 function AddKeywordForSearchField() {

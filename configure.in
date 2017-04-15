@@ -47,13 +47,13 @@ _SUBDIR_HOST_CXXFLAGS="$HOST_CXXFLAGS"
 _SUBDIR_HOST_LDFLAGS="$HOST_LDFLAGS"
 _SUBDIR_CONFIG_ARGS="$ac_configure_args"
 
-dnl Set the version number of the libs included with mozilla
+dnl Set the version number of the libs included in-tree
 dnl ========================================================
 MOZJPEG=62
 MOZPNG=10616
 MOZWEBP=043
 NSPR_VERSION=4
-NSPR_MINVER=4.10.10
+NSPR_MINVER=4.13.0
 NSS_VERSION=3
 
 dnl Set the minimum version of toolkit libs used by mozilla
@@ -3534,9 +3534,7 @@ MOZ_ARG_WITH_BOOL(system-nss,
     _USE_SYSTEM_NSS=1 )
 
 if test -n "$_USE_SYSTEM_NSS"; then
-    dnl NSS capabilities are out of sync with upstream (Camellia-GCM). Don't allow.
-    AC_MSG_ERROR([Using a system-provided NSS library is currently not supported.])
-    AM_PATH_NSS(3.19.5, [MOZ_NATIVE_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
+    AM_PATH_NSS(3.28.3, [MOZ_NATIVE_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
 fi
 
 if test -n "$MOZ_NATIVE_NSS"; then
@@ -3819,7 +3817,6 @@ MOZ_WAVE=1
 MOZ_SAMPLE_TYPE_FLOAT32=
 MOZ_SAMPLE_TYPE_S16=
 MOZ_WEBM=1
-MOZ_GSTREAMER=
 MOZ_DIRECTSHOW=
 MOZ_WMF=
 if test -n "$MOZ_FMP4"; then
@@ -3843,6 +3840,7 @@ MOZ_NATIVE_LIBWEBP=
 MOZ_VPX=
 MOZ_VPX_ERROR_CONCEALMENT=
 MOZ_WEBSPEECH=1
+MOZ_JXR=1
 VPX_AS=
 VPX_ASFLAGS=
 VPX_AS_DASH_C_FLAG=
@@ -5146,6 +5144,21 @@ fi
 AC_SUBST(MOZ_WEBSPEECH)
 
 dnl ========================================================
+dnl = Disable JPEG-XR (JXR) decoder support
+dnl ========================================================
+
+MOZ_ARG_DISABLE_BOOL(jxr,
+[  --disable-jxr           Disable support for JPEG-XR (JXR) image format],
+    MOZ_JXR=,
+    MOZ_JXR=1)
+
+if test -n "$MOZ_JXR"; then
+    AC_DEFINE(MOZ_JXR)
+fi
+
+AC_SUBST(MOZ_JXR)
+
+dnl ========================================================
 dnl = Enable Raw Codecs
 dnl ========================================================
 MOZ_ARG_ENABLE_BOOL(raw,
@@ -5573,57 +5586,6 @@ fi
 AC_SUBST(MOZ_PULSEAUDIO)
 
 dnl ========================================================
-dnl = Enable GStreamer
-dnl ========================================================
-case "$OS_TARGET" in
-WINNT|Darwin|Android)
-    ;;
-*)
-    MOZ_GSTREAMER=
-    ;;
-esac
-
-MOZ_ARG_ENABLE_BOOL(gstreamer,
-[ --enable-gstreamer                  Enable GStreamer support],
-MOZ_GSTREAMER=1,
-MOZ_GSTREAMER=)
-
-if test "$MOZ_GSTREAMER"; then
-    GST_API_VERSION=1.0
-    # core/base release number
-      GST_VERSION=1.0
-
-    PKG_CHECK_MODULES(GSTREAMER,
-                      gstreamer-$GST_API_VERSION >= $GST_VERSION
-                      gstreamer-app-$GST_API_VERSION
-                      gstreamer-plugins-base-$GST_API_VERSION,
-                      [_HAVE_GSTREAMER=1],
-                      [_HAVE_GSTREAMER=])
-    if test -z "$_HAVE_GSTREAMER"; then
-        AC_MSG_ERROR([gstreamer and gstreamer-plugins-base development packages are needed to build gstreamer backend. Install them or disable gstreamer support with --disable-gstreamer])
-    fi
-
-    _SAVE_LDFLAGS=$LDFLAGS
-    LDFLAGS="$LDFLAGS $GSTREAMER_LIBS -lgstvideo-$GST_API_VERSION"
-    AC_TRY_LINK(,[return 0;],_HAVE_LIBGSTVIDEO=1,_HAVE_LIBGSTVIDEO=)
-    if test -n "$_HAVE_LIBGSTVIDEO" ; then
-        GSTREAMER_LIBS="$GSTREAMER_LIBS -lgstvideo-$GST_API_VERSION"
-    else
-        AC_MSG_ERROR([gstreamer-plugins-base found, but no libgstvideo. Something has gone terribly wrong. Try reinstalling gstreamer-plugins-base; failing that, disable the gstreamer backend with --disable-gstreamer.])
-    fi
-    LDFLAGS=$_SAVE_LDFLAGS
-fi
-
-AC_SUBST(MOZ_GSTREAMER)
-AC_SUBST(GST_API_VERSION)
-
-if test -n "$MOZ_GSTREAMER"; then
-     AC_DEFINE(MOZ_GSTREAMER)
-     AC_DEFINE_UNQUOTED(GST_API_VERSION, "$GST_API_VERSION")
-fi
-
-
-dnl ========================================================
 dnl Permissions System
 dnl ========================================================
 MOZ_ARG_DISABLE_BOOL(permissions,
@@ -5848,24 +5810,10 @@ dnl ========================================================
 MOZ_GAMEPAD=
 MOZ_GAMEPAD_BACKEND=stub
 
-# Gamepad DOM is built on supported platforms by default.
-case "$OS_TARGET" in
-     Darwin|WINNT|Linux)
-       MOZ_GAMEPAD=1
-       ;;
-     Android)
-       if test "$MOZ_WIDGET_TOOLKIT" != "gonk"; then
-         MOZ_GAMEPAD=1
-       fi
-       ;;
-     *)
-       ;;
-esac
-
-MOZ_ARG_DISABLE_BOOL(gamepad,
-[  --disable-gamepad   Disable gamepad support],
-    MOZ_GAMEPAD=,
-    MOZ_GAMEPAD=1)
+MOZ_ARG_ENABLE_BOOL(gamepad,
+[  --enable-gamepad    Enable gamepad support],
+    MOZ_GAMEPAD=1,
+    MOZ_GAMEPAD=)
 
 if test "$MOZ_GAMEPAD"; then
     case "$OS_TARGET" in

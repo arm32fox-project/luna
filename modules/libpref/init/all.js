@@ -179,6 +179,8 @@ pref("dom.undo_manager.enabled", false);
 // Whether URL,nsLocation,Link::GetHash should be percent encoded
 // in setter and percent decoded in getter (old behaviour = true)
 pref("dom.url.encode_decode_hash", true);
+// Whether ::GetHash should do percent decoding (old behaviour = true)
+pref("dom.url.getters_decode_hash", false);
 
 // Whether to run add-on code in different compartments from browser code. This
 // causes a separate compartment for each (addon, global) combination, which may
@@ -284,6 +286,24 @@ pref("media.play-stand-alone", true);
 pref("media.decoder.heuristic.dormant.enabled", true);
 pref("media.decoder.heuristic.dormant.timeout", 60000);
 
+#ifdef MOZ_JXR
+// Enables/disables JXR support at runtime.
+pref("media.jxr.enabled", true);
+// Determines whether toggling "media.jxr.enabled" will amend the contents of
+// "image.http.accept" and thus the appearance of the HTTP Accept header field
+// for image requests. Leave this as 'true' for conditional JXR serving to work;
+// set this to 'false' if you don't want it meddling with the Accept field in
+// your HTTP headers for privacy or whatever other reasons.
+// NOTE: If you set this to 'false', it will be your responsibility to
+//       make/revert any changes to "http.image.accept".
+pref("media.jxr.autoaccept", true);
+// The MIME type that should be advertised in the Accept field of image HTTP
+// requets; the two choices are "image/jxr" and "image/vnd.ms-photo". If
+// "media.jxr.autoaccept" is 'true', "http.image.accept" will be automatically
+// updated with the new type. This pref is mainly for testing and should be
+// removed once the preferred type (most likely "image/jxr") has been chosen.
+pref("media.jxr.advertised_mime_type", "image/jxr");
+#endif
 #ifdef MOZ_DIRECTSHOW
 pref("media.directshow.enabled", true);
 #endif
@@ -316,10 +336,6 @@ pref("media.webm.enabled", true);
 #if defined(MOZ_FMP4) && defined(MOZ_WMF)
 pref("media.webm.intel_decoder.enabled", false);
 #endif
-#endif
-#ifdef MOZ_GSTREAMER
-pref("media.gstreamer.enabled", false);
-pref("media.gstreamer.enable-blacklist", true);
 #endif
 #ifdef MOZ_APPLEMEDIA
 pref("media.apple.mp3.enabled", true);
@@ -1215,6 +1231,9 @@ pref("print.print_edge_bottom", 0);
 // in a document.
 pref("extensions.spellcheck.inline.max-misspellings", 500);
 
+// Predefined convenience pref for overriding the dictionary
+pref("spellchecker.dictionary.override", "");
+
 // Prefs used by libeditor. Prefs specific to seamonkey composer
 // belong in comm-central/editor/ui/composer.js
 
@@ -1823,7 +1842,7 @@ pref("network.IDN.whitelist.xn--zckzah", true);
 // override the settings "network.IDN_show_punycode" and
 // "network.IDN.whitelist.*".  (please keep this value in sync with the
 // built-in fallback in intl/uconv/nsTextToSubURI.cpp)
-pref("network.IDN.blacklist_chars", "\u0020\u00A0\u00BC\u00BD\u00BE\u01C3\u02D0\u0337\u0338\u0589\u05C3\u05F4\u0609\u060A\u066A\u06D4\u0701\u0702\u0703\u0704\u115F\u1160\u1735\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u200B\u200E\u200F\u2024\u2027\u2028\u2029\u202A\u202B\u202C\u202D\u202E\u202F\u2039\u203A\u2041\u2044\u2052\u205F\u2153\u2154\u2155\u2156\u2157\u2158\u2159\u215A\u215B\u215C\u215D\u215E\u215F\u2215\u2236\u23AE\u2571\u29F6\u29F8\u2AFB\u2AFD\u2FF0\u2FF1\u2FF2\u2FF3\u2FF4\u2FF5\u2FF6\u2FF7\u2FF8\u2FF9\u2FFA\u2FFB\u3000\u3002\u3014\u3015\u3033\u3164\u321D\u321E\u33AE\u33AF\u33C6\u33DF\uA789\uFE14\uFE15\uFE3F\uFE5D\uFE5E\uFEFF\uFF0E\uFF0F\uFF61\uFFA0\uFFF9\uFFFA\uFFFB\uFFFC\uFFFD");
+pref("network.IDN.blacklist_chars", "\u0020\u00A0\u00BC\u00BD\u00BE\u01C3\u02D0\u0337\u0338\u0589\u058A\u05C3\u05F4\u0609\u060A\u066A\u06D4\u0701\u0702\u0703\u0704\u115F\u1160\u1735\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A\u200B\u200E\u200F\u2010\u2019\u2024\u2027\u2028\u2029\u202A\u202B\u202C\u202D\u202E\u202F\u2039\u203A\u2041\u2044\u2052\u205F\u2153\u2154\u2155\u2156\u2157\u2158\u2159\u215A\u215B\u215C\u215D\u215E\u215F\u2215\u2236\u23AE\u2571\u29F6\u29F8\u2AFB\u2AFD\u2FF0\u2FF1\u2FF2\u2FF3\u2FF4\u2FF5\u2FF6\u2FF7\u2FF8\u2FF9\u2FFA\u2FFB\u3000\u3002\u3014\u3015\u3033\u30A0\u3164\u321D\u321E\u33AE\u33AF\u33C6\u33DF\uA789\uFE14\uFE15\uFE3F\uFE5D\uFE5E\uFEFF\uFF0E\uFF0F\uFF61\uFFA0\uFFF9\uFFFA\uFFFB\uFFFC\uFFFD");
 
 // This preference specifies a list of domains for which DNS lookups will be
 // IPv4 only. Works around broken DNS servers which can't handle IPv6 lookups
@@ -2420,7 +2439,10 @@ pref("layout.css.scope-pseudo.enabled", true);
 pref("layout.css.background-blend-mode.enabled", true);
 
 // Is support for CSS vertical text enabled?
-pref("layout.css.vertical-text.enabled", false);
+pref("layout.css.vertical-text.enabled", true);
+
+// Is support for CSS text-combine-upright (tate-chu-yoko) enabled?
+pref("layout.css.text-combine-upright.enabled", false);
 
 // Is support for object-fit and object-position enabled?
 pref("layout.css.object-fit-and-position.enabled", true);

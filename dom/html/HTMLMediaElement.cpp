@@ -1073,10 +1073,10 @@ void HTMLMediaElement::UpdatePreloadAction()
     // Find the appropriate preload action by looking at the attribute.
     const nsAttrValue* val = mAttrsAndChildren.GetAttr(nsGkAtoms::preload,
                                                        kNameSpaceID_None);
-    // MSE doesn't work if preload is none, so it ignores the pref when src is
-    // from MSE.
+    // MSE should ignore preload attribute, so it should also ignore the pref
+    // when src is from MSE. Default to auto in that case.
     uint32_t preloadDefault = (mLoadingSrc && IsMediaSourceURI(mLoadingSrc)) ?
-                              HTMLMediaElement::PRELOAD_ATTR_METADATA :
+                              HTMLMediaElement::PRELOAD_ATTR_AUTO :
                               Preferences::GetInt("media.preload.default",
                                                   HTMLMediaElement::PRELOAD_ATTR_METADATA);
     uint32_t preloadAuto =
@@ -1088,8 +1088,11 @@ void HTMLMediaElement::UpdatePreloadAction()
       nextAction = static_cast<PreloadAction>(preloadDefault);
     } else if (val->Type() == nsAttrValue::eEnum) {
       PreloadAttrValue attr = static_cast<PreloadAttrValue>(val->GetEnumValue());
+      // If loaded through an MSE source, preload should be ignored, so treat
+      // it as empty/auto in that case.
       if (attr == HTMLMediaElement::PRELOAD_ATTR_EMPTY ||
-          attr == HTMLMediaElement::PRELOAD_ATTR_AUTO)
+          attr == HTMLMediaElement::PRELOAD_ATTR_AUTO ||
+          (mLoadingSrc && IsMediaSourceURI(mLoadingSrc)))
       {
         nextAction = static_cast<PreloadAction>(preloadAuto);
       } else if (attr == HTMLMediaElement::PRELOAD_ATTR_METADATA) {
@@ -1254,7 +1257,7 @@ nsresult HTMLMediaElement::LoadResource()
       new nsCORSListenerProxy(loadListener,
                               NodePrincipal(),
                               GetCORSMode() == CORS_USE_CREDENTIALS);
-    rv = corsListener->Init(channel);
+    rv = corsListener->Init(channel, DataURIHandling::Allow);
     NS_ENSURE_SUCCESS(rv, rv);
     listener = corsListener;
   } else {
@@ -3857,7 +3860,7 @@ void HTMLMediaElement::UpdateMediaSize(const nsIntSize& aSize)
 
 void HTMLMediaElement::UpdateInitialMediaSize(const nsIntSize& aSize)
 {
-  if (mMediaInfo.mVideo.mDisplay == nsIntSize(0, 0)) {
+  if (!mMediaInfo.HasVideo()) {
     UpdateMediaSize(aSize);
   }
 }

@@ -5,12 +5,6 @@
 #include "ImageLogging.h"
 #include "nsWEBPDecoder.h"
 
-#include "nsIInputStream.h"
-
-#include "nspr.h"
-#include "nsCRT.h"
-#include "gfxColor.h"
-
 #include "gfxPlatform.h"
 
 namespace mozilla {
@@ -27,6 +21,9 @@ static PRLogModuleInfo *gWEBPDecoderAccountingLog =
 
 nsWEBPDecoder::nsWEBPDecoder(RasterImage* aImage)
  : Decoder(aImage)
+ , mDecoder(nullptr)
+ , mData(nullptr)
+ , mPreviousLastLine(0)
 {
   PR_LOG(gWEBPDecoderAccountingLog, PR_LOG_DEBUG,
          ("nsWEBPDecoder::nsWEBPDecoder: Creating WEBP decoder %p",
@@ -38,30 +35,27 @@ nsWEBPDecoder::~nsWEBPDecoder()
   PR_LOG(gWEBPDecoderAccountingLog, PR_LOG_DEBUG,
          ("nsWEBPDecoder::~nsWEBPDecoder: Destroying WEBP decoder %p",
           this));
+
+  // It is safe to pass nullptr to WebPIDelete().
+  WebPIDelete(mDecoder);
 }
 
 
 void
 nsWEBPDecoder::InitInternal()
 {
-  if (!WebPInitDecBuffer(&mDecBuf)) {
-    PostDecoderError(NS_ERROR_FAILURE);
-    return;
-  }
-  mLastLine = 0;
-  mDecBuf.colorspace = MODE_rgbA;
-  mDecoder = WebPINewDecoder(&mDecBuf);
+  mDecoder = WebPINewRGB(MODE_rgbA, nullptr, 0, 0);
+
   if (!mDecoder) {
     PostDecoderError(NS_ERROR_FAILURE);
+    return;
   }
 }
 
 void
 nsWEBPDecoder::FinishInternal()
 {
-  // Flush the Decoder and let it free the output image buffer.
-  WebPIDelete(mDecoder);
-  WebPFreeDecBuffer(&mDecBuf);
+  MOZ_ASSERT(!HasError(), "Shouldn't call FinishInternal after error!");
 
   // We should never make multiple frames
   MOZ_ASSERT(GetFrameCount() <= 1, "Multiple WebP frames?");
@@ -106,14 +100,6 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
 
   mData = WebPIDecGetRGB(mDecoder, &lastLineRead, &width, &height, &stride);
 
-  // The only valid format for WebP decoding for both alpha and non-alpha
-  // images is BGRA, where Opaque images have an A of 255.
-  // Assume transparency for all images.
-  // XXX: This could be compositor-optimized by doing a one-time check for
-  // all-255 alpha pixels, but that might interfere with progressive
-  // decoding. Probably not worth it?
-  PostHasTransparency();
-  
   if (lastLineRead == -1 || !mData)
     return;
 
@@ -128,14 +114,22 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
   if (IsSizeDecode())
     return;
 
+  // The only valid format for WebP decoding for both alpha and non-alpha
+  // images is BGRA, where Opaque images have an A of 255.
+  // Assume transparency for all images.
+  // XXX: This could be compositor-optimized by doing a one-time check for
+  // all-255 alpha pixels, but that might interfere with progressive
+  // decoding. Probably not worth it?
+  PostHasTransparency();
+
   if (!mImageData) {
     PostDecoderError(NS_ERROR_FAILURE);
     return;
   }
 
   // Transfer from mData to mImageData
-  if (lastLineRead > mLastLine) {
-    for (int line = mLastLine; line < lastLineRead; line++) {
+  if (lastLineRead > mPreviousLastLine) {
+    for (int line = mPreviousLastLine; line < lastLineRead; line++) {
       for (int pix = 0; pix < width; pix++) {
         // RGBA -> BGRA
         uint32_t DataOffset = 4 * (line * width + pix);
@@ -144,17 +138,19 @@ nsWEBPDecoder::WriteInternal(const char *aBuffer, uint32_t aCount)
         mImageData[DataOffset+2] = mData[DataOffset+0];
         mImageData[DataOffset+3] = mData[DataOffset+3];
       }
-    } 
+    }
 
     // Invalidate
-    nsIntRect r(0, mLastLine, width, lastLineRead);
+    nsIntRect r(0,
+                mPreviousLastLine,
+                width,
+                lastLineRead - mPreviousLastLine + 1);
     PostInvalidation(r);
   }
 
-  mLastLine = lastLineRead;
+  mPreviousLastLine = lastLineRead;
   return;
 }
 
 } // namespace imagelib
 } // namespace mozilla
-

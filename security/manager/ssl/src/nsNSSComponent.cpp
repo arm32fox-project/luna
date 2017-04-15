@@ -631,18 +631,23 @@ typedef struct {
   bool weak;
 } CipherPref;
 
-// Update the switch statement in HandshakeCallback in nsNSSCallbacks.cpp when
-// you add/remove cipher suites here. (Telemetry)
+// Update the switch statement in AccumulateCipherSuite in nsNSSCallbacks.cpp
+// when you add/remove cipher suites here. (Telemetry)
 static const CipherPref sCipherPrefs[] = {
  { "security.ssl3.ecdhe_rsa_aes_128_gcm_sha256",
    TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256, true },
  { "security.ssl3.ecdhe_ecdsa_aes_128_gcm_sha256",
    TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, true },
-   
- { "security.ssl3.ecdhe_rsa_camellia_128_gcm_sha256",
-   TLS_ECDHE_RSA_WITH_CAMELLIA_128_GCM_SHA256, true },
- { "security.ssl3.ecdhe_ecdsa_camellia_128_gcm_sha256",
-   TLS_ECDHE_ECDSA_WITH_CAMELLIA_128_GCM_SHA256, true },
+
+ { "security.ssl3.ecdhe_ecdsa_chacha20_poly1305_sha256",
+   TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256, true },
+ { "security.ssl3.ecdhe_rsa_chacha20_poly1305_sha256",
+   TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256, true },
+
+ { "security.ssl3.ecdhe_ecdsa_aes_256_gcm_sha384",
+   TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, true },
+ { "security.ssl3.ecdhe_rsa_aes_256_gcm_sha384",
+   TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384, true },
 
  { "security.ssl3.ecdhe_rsa_aes_256_sha",
    TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA, true },
@@ -664,13 +669,19 @@ static const CipherPref sCipherPrefs[] = {
  { "security.ssl3.dhe_rsa_camellia_128_sha", 
    TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA, true },
 
+ // Deprecated (RSA key exchange):
+ { "security.ssl3.rsa_aes_256_gcm_sha384",
+   TLS_RSA_WITH_AES_256_GCM_SHA384, true }, 
+ { "security.ssl3.rsa_aes_256_sha256",
+   TLS_RSA_WITH_AES_256_CBC_SHA256, true }, 
+ {"security.ssl3.rsa_camellia_128_sha",
+   TLS_RSA_WITH_CAMELLIA_128_CBC_SHA, true },
+ {"security.ssl3.rsa_camellia_256_sha",
+   TLS_RSA_WITH_CAMELLIA_256_CBC_SHA, true },
  { "security.ssl3.rsa_aes_128_sha",
-   TLS_RSA_WITH_AES_128_CBC_SHA, true }, // deprecated (RSA key exchange)
+   TLS_RSA_WITH_AES_128_CBC_SHA, true },
  { "security.ssl3.rsa_aes_256_sha",
-   TLS_RSA_WITH_AES_256_CBC_SHA, true }, // deprecated (RSA key exchange)
- { "security.ssl3.rsa_des_ede3_sha",
-   TLS_RSA_WITH_3DES_EDE_CBC_SHA, true }, // deprecated (RSA key exchange, 3DES)
-
+   TLS_RSA_WITH_AES_256_CBC_SHA, true },
 
  // All the rest are disabled by default
  // As per RFC
@@ -690,6 +701,11 @@ static const CipherPref sCipherPrefs[] = {
  {"security.ssl3.rsa_fips_des_ede3_sha", SSL_RSA_FIPS_WITH_3DES_EDE_CBC_SHA, false, true },
  {"security.ssl3.dhe_dss_camellia_256_sha", TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA, false, false },
  {"security.ssl3.dhe_dss_camellia_128_sha", TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA, false, false },
+ {"security.ssl3.rsa_aes_128_gcm_sha256", TLS_RSA_WITH_AES_128_GCM_SHA256, false, false },
+ {"security.ssl3.rsa_aes_128_sha256", TLS_RSA_WITH_AES_128_CBC_SHA256, false, false },
+ // Vulnerable
+ {"security.ssl3.rsa_des_ede3_sha", TLS_RSA_WITH_3DES_EDE_CBC_SHA, false, true }, // (3DES)
+
  // Non-ephemeral
  {"security.ssl3.ecdh_ecdsa_aes_256_sha", TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA, false, false },
  {"security.ssl3.ecdh_ecdsa_aes_128_sha", TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA, false, false },
@@ -706,8 +722,8 @@ static const CipherPref sCipherPrefs[] = {
 // Bit flags indicating what weak ciphers are enabled.
 // The bit index will correspond to the index in sCipherPrefs.
 // Wrtten by the main thread, read from any threads.
-static Atomic<uint32_t> sEnabledWeakCiphers;
-static_assert(MOZ_ARRAY_LENGTH(sCipherPrefs) - 1 <= sizeof(uint32_t) * CHAR_BIT,
+static uint64_t sEnabledWeakCiphers;
+static_assert(MOZ_ARRAY_LENGTH(sCipherPrefs) - 1 <= sizeof(uint64_t) * CHAR_BIT,
               "too many cipher suites");
 
 /*static*/ bool
@@ -719,10 +735,10 @@ nsNSSComponent::AreAnyWeakCiphersEnabled()
 /*static*/ void
 nsNSSComponent::UseWeakCiphersOnSocket(PRFileDesc* fd)
 {
-  const uint32_t enabledWeakCiphers = sEnabledWeakCiphers;
+  const uint64_t enabledWeakCiphers = sEnabledWeakCiphers;
   const CipherPref* const cp = sCipherPrefs;
   for (size_t i = 0; cp[i].pref; ++i) {
-    if (enabledWeakCiphers & ((uint32_t)1 << i)) {
+    if (enabledWeakCiphers & ((uint64_t)1 << i)) {
       SSL_CipherPrefSet(fd, cp[i].id, true);
     }
   }
@@ -851,9 +867,9 @@ CipherSuiteChangeObserver::Observe(nsISupports* aSubject,
           // Only the main thread will change sEnabledWeakCiphers.
           uint32_t enabledWeakCiphers = sEnabledWeakCiphers;
           if (cipherEnabled) {
-            enabledWeakCiphers |= ((uint32_t)1 << i);
+            enabledWeakCiphers |= ((uint64_t)1 << i);
           } else {
-            enabledWeakCiphers &= ~((uint32_t)1 << i);
+            enabledWeakCiphers &= ~((uint64_t)1 << i);
           }
           sEnabledWeakCiphers = enabledWeakCiphers;
         } else {
@@ -1705,7 +1721,7 @@ InitializeCipherSuite()
   }
 
   // Now only set SSL/TLS ciphers we knew about at compile time
-  uint32_t enabledWeakCiphers = 0;
+  uint64_t enabledWeakCiphers = 0;
   const CipherPref* const cp = sCipherPrefs;
   for (size_t i = 0; cp[i].pref; ++i) {
     bool cipherEnabled = Preferences::GetBool(cp[i].pref,
@@ -1714,7 +1730,7 @@ InitializeCipherSuite()
       // Weak ciphers are not used by default. See the comment
       // in CipherSuiteChangeObserver::Observe for details.
       if (cipherEnabled) {
-        enabledWeakCiphers |= ((uint32_t)1 << i);
+        enabledWeakCiphers |= ((uint64_t)1 << i);
       }
     } else {
       SSL_CipherPrefSetDefault(cp[i].id, cipherEnabled);

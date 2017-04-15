@@ -290,6 +290,9 @@ let SessionStoreInternal = {
   // max number of tabs to restore concurrently
   _maxConcurrentTabRestores: DEFAULT_MAX_CONCURRENT_TAB_RESTORES,
   
+  // whether restored tabs load cached versions or force a reload
+  _cacheBehavior: 0,
+  
   // The state from the previous session (after restoring pinned tabs). This
   // state is persisted and passed through to the next session during an app
   // restart to make the third party add-on warning not trash the deferred
@@ -484,13 +487,15 @@ let SessionStoreInternal = {
     this._max_windows_undo = this._prefBranch.getIntPref("sessionstore.max_windows_undo");
     this._prefBranch.addObserver("sessionstore.max_windows_undo", this, true);
     
-    // Straight-up collect the following one-time pref(s)
+    // Straight-up collect the following one-time prefs
     this._maxConcurrentTabRestores = 
          Services.prefs.getIntPref("browser.sessionstore.max_concurrent_tabs");
     // ensure a sane value for concurrency, ignore and set default otherwise
     if (this._maxConcurrentTabRestores < 1 || this._maxConcurrentTabRestores > 10) {
       this._maxConcurrentTabRestores = DEFAULT_MAX_CONCURRENT_TAB_RESTORES;
     }
+    this._cacheBehavior =
+         Services.prefs.getIntPref("browser.sessionstore.cache_behavior");
     
   },
 
@@ -1861,44 +1866,59 @@ let SessionStoreInternal = {
     }
     catch (ex) { } // this could happen if we catch a tab during (de)initialization
 
+    // Limit number of back/forward button history entries to save
+    let oldest, newest;
+    let maxSerializeBack = this._prefBranch.getIntPref("sessionstore.max_serialize_back");
+    if (maxSerializeBack >= 0) {
+      oldest = Math.max(0, history.index - maxSerializeBack);
+    } else { // History.getEntryAtIndex(0, ...) is the oldest.
+      oldest = 0;
+    }
+    let maxSerializeFwd = this._prefBranch.getIntPref("sessionstore.max_serialize_forward");
+    if (maxSerializeFwd >= 0) {
+      newest = Math.min(history.count - 1, history.index + maxSerializeFwd);
+    } else { // History.getEntryAtIndex(history.count - 1, ...) is the newest.
+      newest = history.count - 1;
+    }
+
     // XXXzeniko anchor navigation doesn't reset __SS_data, so we could reuse
     //           data even when we shouldn't (e.g. Back, different anchor)
+    // Warning: this is required to save form data and scrolling position!
     if (history && browser.__SS_data &&
         browser.__SS_data.entries[history.index] &&
         browser.__SS_data.entries[history.index].url == browser.currentURI.spec &&
         history.index < this._sessionhistory_max_entries - 1 && !aFullData) {
-      tabData = browser.__SS_data;
-      tabData.index = history.index + 1;
+      try {
+        tabData.entries = browser.__SS_data.entries.slice(oldest, newest + 1);
+      }
+      catch (ex) {
+        // No errors are expected above, but we use try-catch to keep sessionstore.js safe
+        NS_ASSERT(false, "SessionStore failed to slice history from browser.__SS_data");
+      }
+
+      // Set the one-based index of the currently active tab, ensuring it isn't out of bounds
+      tabData.index = Math.min(history.index - oldest + 1, tabData.entries.length);
     }
     else if (history && history.count > 0) {
       browser.__SS_hostSchemeData = [];
       try {
-        for (var j = 0; j < history.count; j++) {
+        for (var j = oldest; j <= newest; j++) {
           let entry = this._serializeHistoryEntry(history.getEntryAtIndex(j, false),
                                                   aFullData, aTab.pinned, browser.__SS_hostSchemeData);
           tabData.entries.push(entry);
         }
-        // If we make it through the for loop, then we're ok and we should clear
-        // any indicator of brokenness.
-        delete aTab.__SS_broken_history;
       }
       catch (ex) {
         // In some cases, getEntryAtIndex will throw. This seems to be due to
         // history.count being higher than it should be. By doing this in a
         // try-catch, we'll update history to where it breaks, assert for
-        // non-release builds, and still save sessionstore.js. We'll track if
-        // we've shown the assert for this tab so we only show it once.
-        // cf. bug 669196.
-        if (!aTab.__SS_broken_history) {
-          // First Focus the window & tab we're having trouble with.
-          aTab.ownerDocument.defaultView.focus();
-          aTab.ownerDocument.defaultView.gBrowser.selectedTab = aTab;
-          NS_ASSERT(false, "SessionStore failed gathering complete history " +
-                           "for the focused window/tab. See bug 669196.");
-          aTab.__SS_broken_history = true;
-        }
+        // non-release builds, and still save sessionstore.js.
+        NS_ASSERT(false, "SessionStore failed gathering complete history " +
+                         "for the focused window/tab. See bug 669196.");
       }
-      tabData.index = history.index + 1;
+
+      // Set the one-based index of the currently active tab, ensuring it isn't out of bounds
+      tabData.index = Math.min(history.index - oldest + 1, tabData.entries.length);
 
       // make sure not to cache privacy sensitive data which shouldn't get out
       if (!aFullData)
@@ -3177,6 +3197,20 @@ let SessionStoreInternal = {
         // instead of gotoIndex. See bug 597315.
         browser.webNavigation.sessionHistory.getEntryAtIndex(activeIndex, true);
         browser.webNavigation.sessionHistory.reloadCurrentEntry();
+        // If the user prefers it, bypass cache and always load from the network.
+        let flags = Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
+        switch (this._cacheBehavior) {
+          case 2: // hard refresh
+            flags = Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_PROXY |
+                    Ci.nsIWebNavigation.LOAD_FLAGS_BYPASS_CACHE;
+            browser.webNavigation.reload(flags);
+            break;
+          case 1: // soft refresh
+            browser.webNavigation.reload(flags);
+            break;
+          default: // 0 or other: use cache, so do nothing.
+            break;
+        }
       }
       catch (ex) {
         // ignore page load errors

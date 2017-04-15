@@ -185,9 +185,7 @@ MediaOmxReader::Shutdown()
 
   // Wait for the superclass to finish tearing things down before releasing
   // the decoder on the main thread.
-  nsCOMPtr<nsIThread> mt;
-  NS_GetMainThread(getter_AddRefs(mt));
-  p->Then(mt.get(), __func__, this, &MediaOmxReader::ReleaseDecoder, &MediaOmxReader::ReleaseDecoder);
+  p->Then(AbstractThread::MainThread(), __func__, this, &MediaOmxReader::ReleaseDecoder, &MediaOmxReader::ReleaseDecoder);
 
   return p;
 }
@@ -250,7 +248,7 @@ void MediaOmxReader::PreReadMetadata()
 nsresult MediaOmxReader::ReadMetadata(MediaInfo* aInfo,
                                       MetadataTags** aTags)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
   EnsureActive();
 
   *aTags = nullptr;
@@ -360,7 +358,7 @@ MediaOmxReader::IsMediaSeekable()
 bool MediaOmxReader::DecodeVideoFrame(bool &aKeyframeSkip,
                                       int64_t aTimeThreshold)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
   EnsureActive();
 
   // Record number of frames decoded and parsed. Automatically update the
@@ -503,7 +501,7 @@ void MediaOmxReader::NotifyDataArrived(const char* aBuffer, uint32_t aLength, in
 
 bool MediaOmxReader::DecodeAudioData()
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
   EnsureActive();
 
   // This is the approximate byte position in the stream.
@@ -538,7 +536,7 @@ bool MediaOmxReader::DecodeAudioData()
 nsRefPtr<MediaDecoderReader::SeekPromise>
 MediaOmxReader::Seek(int64_t aTarget, int64_t aEndTime)
 {
-  NS_ASSERTION(mDecoder->OnDecodeThread(), "Should be on decode thread.");
+  MOZ_ASSERT(OnTaskQueue());
   EnsureActive();
 
   VideoFrameContainer* container = mDecoder->GetVideoFrameContainer();

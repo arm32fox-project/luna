@@ -24,6 +24,8 @@ XPCOMUtils.defineLazyModuleGetter(this, "ctypes",
 XPCOMUtils.defineLazyModuleGetter(this, "WindowsRegistry",
                                   "resource://gre/modules/WindowsRegistry.jsm");
 
+Cu.importGlobalProperties(["File"]);
+
 ////////////////////////////////////////////////////////////////////////////////
 //// Helpers.
 
@@ -406,7 +408,7 @@ Cookies.prototype = {
         aCallback(success);
       }
     }).bind(this), false);
-    fileReader.readAsText(File(aFile));
+    fileReader.readAsText(new File(aFile));
   },
 
   /**
@@ -440,6 +442,7 @@ Cookies.prototype = {
 
       let hostLen = hostpath.indexOf("/");
       let host = hostpath.substr(0, hostLen);
+      let path = hostpath.substr(hostLen);
 
       // For a non-null domain, assume it's what Mozilla considers
       // a domain cookie.  See bug 222343.
@@ -451,7 +454,6 @@ Cookies.prototype = {
           host = "." + host;
       }
 
-      let path = hostpath.substr(hostLen);
       let expireTime = CtypesHelpers.fileTimeToDate(Number(expireTimeHi),
                                                     Number(expireTimeLo));
       Services.cookies.add(host,
@@ -466,127 +468,6 @@ Cookies.prototype = {
   }
 };
 
-function Settings() {
-}
-
-Settings.prototype = {
-  type: MigrationUtils.resourceTypes.SETTINGS,
-
-  get exists() true,
-
-  migrate: function S_migrate(aCallback) {
-    // Converts from yes/no to a boolean.
-    function yesNoToBoolean(v) v == "yes";
-
-    // Converts source format like "en-us,ar-kw;q=0.7,ar-om;q=0.3" into
-    // destination format like "en-us, ar-kw, ar-om".
-    // Final string is sorted by quality (q=) param.
-    function parseAcceptLanguageList(v) {
-      return v.match(/([a-z]{1,8}(-[a-z]{1,8})?)\s*(;\s*q\s*=\s*(1|0\.[0-9]+))?/gi)
-              .sort(function (a , b) {
-                let qA = parseFloat(a.split(";q=")[1]) || 1.0;
-                let qB = parseFloat(b.split(";q=")[1]) || 1.0;
-                return qA < qB ? 1 : qA == qB ? 0 : -1;
-              })
-              .map(function(a) a.split(";")[0]);
-    }
-
-    // For reference on some of the available IE Registry settings:
-    //  * http://msdn.microsoft.com/en-us/library/cc980058%28v=prot.13%29.aspx
-    //  * http://msdn.microsoft.com/en-us/library/cc980059%28v=prot.13%29.aspx
-
-    // Note that only settings exposed in our UI should be migrated.
-
-    this._set("Software\\Microsoft\\Internet Explorer\\International",
-              "AcceptLanguage",
-              "intl.accept_languages",
-              parseAcceptLanguageList);
-    // TODO (bug 745853): For now, only x-western font is translated.
-    this._set("Software\\Microsoft\\Internet Explorer\\International\\Scripts\\3",
-              "IEFixedFontName",
-              "font.name.monospace.x-western");
-    this._set(kMainKey,
-              "Use FormSuggest",
-              "browser.formfill.enable",
-              yesNoToBoolean);
-    this._set(kMainKey,
-              "FormSuggest Passwords",
-              "signon.rememberSignons",
-              yesNoToBoolean);
-    this._set(kMainKey,
-              "Anchor Underline",
-              "browser.underline_anchors",
-              yesNoToBoolean);
-    this._set(kMainKey,
-              "Display Inline Images",
-              "permissions.default.image",
-              function (v) yesNoToBoolean(v) ? 1 : 2);
-    this._set(kMainKey,
-              "Move System Caret",
-              "accessibility.browsewithcaret",
-              yesNoToBoolean);
-    this._set("Software\\Microsoft\\Internet Explorer\\Settings",
-              "Always Use My Colors",
-              "browser.display.use_document_colors",
-              function (v) !Boolean(v));
-    this._set("Software\\Microsoft\\Internet Explorer\\Settings",
-              "Always Use My Font Face",
-              "browser.display.use_document_fonts",
-              function (v) !Boolean(v));
-    this._set(kMainKey,
-              "SmoothScroll",
-              "general.smoothScroll",
-              Boolean);
-    this._set("Software\\Microsoft\\Internet Explorer\\TabbedBrowsing\\",
-              "WarnOnClose",
-              "browser.tabs.warnOnClose",
-              Boolean);
-    this._set("Software\\Microsoft\\Internet Explorer\\TabbedBrowsing\\",
-              "OpenInForeground",
-              "browser.tabs.loadInBackground",
-              function (v) !Boolean(v));
-
-    aCallback(true);
-  },
-
-  /**
-   * Reads a setting from the Registry and stores the converted result into
-   * the appropriate Firefox preference.
-   * 
-   * @param aPath
-   *        Registry path under HKCU.
-   * @param aKey
-   *        Name of the key.
-   * @param aPref
-   *        Firefox preference.
-   * @param [optional] aTransformFn
-   *        Conversion function from the Registry format to the pref format.
-   */
-  _set: function S__set(aPath, aKey, aPref, aTransformFn) {
-    let value = WindowsRegistry.readRegKey(Ci.nsIWindowsRegKey.ROOT_KEY_CURRENT_USER,
-                                           aPath, aKey);
-    // Don't import settings that have never been flipped.
-    if (value === undefined)
-      return;
-
-    if (aTransformFn)
-      value = aTransformFn(value);
-
-    switch (typeof(value)) {
-      case "string":
-        Services.prefs.setCharPref(aPref, value);
-        break;
-      case "number":
-        Services.prefs.setIntPref(aPref, value);
-        break;
-      case "boolean":
-        Services.prefs.setBoolPref(aPref, value);
-        break;
-      default:
-        throw new Error("Unexpected value type: " + typeof(value));
-    }
-  }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 //// Migrator
@@ -602,7 +483,6 @@ IEProfileMigrator.prototype.getResources = function IE_getResources() {
     new Bookmarks()
   , new History()
   , new Cookies()
-  , new Settings()
   ];
   return [r for each (r in resources) if (r.exists)];
 };
