@@ -226,9 +226,9 @@ Site.prototype = {
       let cookie = enumerator.getNext().QueryInterface(Ci.nsICookie2);
       // getCookiesFromHost returns cookies for base domain, but we only want
       // the cookies for the exact domain.
-      if (cookie.rawHost == this.host) {
+      // if (cookie.rawHost == this.host) {
         cookies.push(cookie);
-      }
+      // }
     }
     return cookies;
   },
@@ -975,9 +975,12 @@ let AboutPermissions = {
 
     let permissionMenulist = document.getElementById(aType + "-menulist");
     let permissionValue;
+    let permissionDefault;
+    let pluginPermissionEntry;
     if (!this._selectedSite) {
       // If there is no selected site, we are updating the default permissions interface.
       permissionValue = PermissionDefaults[aType];
+      permissionDefault = permissionValue;
       if (aType == "image") {
         // (aType + "-3") corresponds to ALLOW_FIRST_PARTY_ONLY, which is reserved
         // for global preferences only.
@@ -991,7 +994,7 @@ let AboutPermissions = {
           // It is reserved for site-specific preferences only.
           document.getElementById(aType + "-0").disabled = true;
         }
-        let pluginPermissionEntry = document.getElementById(aType + "-entry");
+        pluginPermissionEntry = document.getElementById(aType + "-entry");
         pluginPermissionEntry.setAttribute("vulnerable", "");
         if (pluginPermissionEntry.isBlocklisted()) {
           permissionMenulist.disabled = true;
@@ -1004,14 +1007,14 @@ let AboutPermissions = {
         }
       }
     } else {
-      let permissionDefault = PermissionDefaults[aType];
+      permissionDefault = PermissionDefaults[aType];
       if (aType == "image") {
         document.getElementById(aType + "-3").hidden = true;
       } else if (aType == "cookie") {
         document.getElementById(aType + "-9").hidden = false;
       } else if (aType.startsWith("plugin")) {
         document.getElementById(aType + "-0").disabled = false;
-        let pluginPermissionEntry = document.getElementById(aType + "-entry");
+        pluginPermissionEntry = document.getElementById(aType + "-entry");
         let permString = pluginPermissionEntry.getAttribute("permString");
         if (permString.startsWith("plugin-vulnerable:")) {
           let nameVulnerable = " \u2014 "
@@ -1039,6 +1042,24 @@ let AboutPermissions = {
         permissionValue = 1;
       }
     }
+
+    if (!aType.startsWith("plugin")) {
+      let _elementDefault = document.getElementById(aType + "-default");
+      if (!this._selectedSite || (permissionValue == permissionDefault)) {
+        _elementDefault.setAttribute("value", "");
+      } else {
+        _elementDefault.setAttribute("value", "*");
+      }
+    } else {
+      let _elementDefaultVisibility;
+      if (!this._selectedSite || (permissionValue == permissionDefault)) {
+        _elementDefaultVisibility = false;
+      } else {
+        _elementDefaultVisibility = true;
+      }
+      pluginPermissionEntry.setDefaultVisibility(_elementDefaultVisibility);
+    }
+
     permissionMenulist.selectedItem = document.getElementById(aType + "-" + permissionValue);
   },
 
@@ -1131,6 +1152,17 @@ let AboutPermissions = {
     }
   },
 
+  domainFromHost: function(aHost) {
+    let domain = aHost;
+    try {
+      domain = Services.eTLD.getBaseDomainFromHost(aHost);
+    } catch (e) {
+      // getBaseDomainFromHost will fail if the host is an IP address or is empty
+    }
+
+    return domain;
+  },
+
   updateCookiesCount: function() {
     if (!this._selectedSite) {
       document.getElementById("cookies-count").hidden = true;
@@ -1170,17 +1202,19 @@ let AboutPermissions = {
    */
   manageCookies: function() {
     let selectedHost = "";
+    let selectedDomain = "";
     if (this._selectedSite) {
       selectedHost = this._selectedSite.host;
+      selectedDomain = this.domainFromHost(selectedHost);
     }
 
     let win = Services.wm.getMostRecentWindow("Browser:Cookies");
     if (win) {
-      win.gCookiesWindow.setFilter(selectedHost);
+      win.gCookiesWindow.setFilter(selectedDomain);
       win.focus();
     } else {
       window.openDialog("chrome://browser/content/preferences/cookies.xul",
-                        "Browser:Cookies", "", {filterString : selectedHost});
+                        "Browser:Cookies", "", {filterString : selectedDomain});
     }
   }
 }
