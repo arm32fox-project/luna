@@ -579,7 +579,7 @@ bool MediaDecoder::IsInfinite()
 }
 
 MediaDecoder::MediaDecoder() :
-  mReadyStateWatchTarget("MediaDecoder::mReadyStateWatchTarget"),
+  mWatchManager(this),
   mDecoderPosition(0),
   mPlaybackPosition(0),
   mCurrentTime(0.0),
@@ -590,8 +590,6 @@ MediaDecoder::MediaDecoder() :
   mMediaSeekable(true),
   mSameOriginMedia(false),
   mReentrantMonitor("media.decoder"),
-  mPlayState(PLAY_STATE_LOADING, "MediaDecoder::mPlayState"),
-  mNextState(PLAY_STATE_PAUSED),
   mIgnoreProgressData(false),
   mInfiniteStream(false),
   mOwner(nullptr),
@@ -620,13 +618,19 @@ MediaDecoder::MediaDecoder() :
   EnsureStateWatchingLog();
 #endif
 
+  // Initialize canonicals.
+  mPlayState.Init(AbstractThread::MainThread(), PLAY_STATE_LOADING, "MediaDecoder::mPlayState (Canonical)");
+  mNextState.Init(AbstractThread::MainThread(), PLAY_STATE_PAUSED, "MediaDecoder::mNextState (Canonical)");
+
+  // Initialize mirrors.
   mNextFrameStatus.Init(AbstractThread::MainThread(), MediaDecoderOwner::NEXT_FRAME_UNINITIALIZED,
                         "MediaDecoder::mNextFrameStatus (Mirror)");
 
   mAudioChannel = AudioChannelService::GetDefaultAudioChannel();
 
-  mReadyStateWatchTarget->Watch(mPlayState);
-  mReadyStateWatchTarget->Watch(mNextFrameStatus);
+  // Initialize watchers.
+  mWatchManager.Watch(mPlayState, &MediaDecoder::UpdateReadyState);
+  mWatchManager.Watch(mNextFrameStatus, &MediaDecoder::UpdateReadyState);
 }
 
 bool MediaDecoder::Init(MediaDecoderOwner* aOwner)
@@ -819,13 +823,6 @@ nsresult MediaDecoder::Seek(double aTime, SeekTarget::Type aSeekType)
   }
 
   return ScheduleStateMachineThread();
-}
-
-bool MediaDecoder::IsLogicallyPlaying()
-{
-  GetReentrantMonitor().AssertCurrentThreadIn();
-  return mPlayState == PLAY_STATE_PLAYING ||
-         mNextState == PLAY_STATE_PLAYING;
 }
 
 double MediaDecoder::GetCurrentTime()
@@ -1050,7 +1047,6 @@ void MediaDecoder::PlaybackEnded()
   ChangeState(PLAY_STATE_ENDED);
   InvalidateWithFlags(VideoFrameContainer::INVALIDATE_FORCE);
 
-  mReadyStateWatchTarget->Notify(); // - Still necessary?
   if (mOwner)  {
     mOwner->PlaybackEnded();
   }
@@ -1244,7 +1240,6 @@ void MediaDecoder::OnSeekResolved(SeekResolveValue aVal)
   PlaybackPositionChanged(aVal.mEventVisibility);
 
   if (mOwner) {
-    mReadyStateWatchTarget->Notify(); // - Still necessary?
     if (!seekWasAborted && (aVal.mEventVisibility != MediaDecoderEventVisibility::Suppressed)) {
       mOwner->SeekCompleted();
       if (fireEnded) {
@@ -1261,7 +1256,6 @@ void MediaDecoder::SeekingStarted(MediaDecoderEventVisibility aEventVisibility)
     return;
 
   if (mOwner) {
-    mReadyStateWatchTarget->Notify(); // - Still necessary?
     if (aEventVisibility != MediaDecoderEventVisibility::Suppressed) {
       mOwner->SeekStarted();
     }
@@ -1643,7 +1637,10 @@ void MediaDecoder::NotifyDataArrived(const char* aBuffer, uint32_t aLength, int6
   if (mDecoderStateMachine) {
     mDecoderStateMachine->NotifyDataArrived(aBuffer, aLength, aOffset);
   }
-  mReadyStateWatchTarget->Notify(); // - Still necessary?
+
+  // ReadyState computation depends on MediaDecoder::CanPlayThrough, which
+  // depends on the download rate.
+  UpdateReadyState();
 }
 
 // Provide access to the state machine object

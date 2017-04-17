@@ -779,6 +779,9 @@ public:
   // Task queue for running the state machine.
   nsRefPtr<MediaTaskQueue> mTaskQueue;
 
+  // State-watching manager.
+  WatchManager<MediaDecoderStateMachine> mWatchManager;
+
   // True is we are decoding a realtime stream, like a camera stream.
   bool mRealTime;
 
@@ -848,7 +851,7 @@ public:
   // NotifyAll on the monitor must be called when the state is changed so
   // that interested threads can wake up and alter behaviour if appropriate
   // Accessed on state machine, audio, main, and AV thread.
-  State mState;
+  Watchable<State> mState;
 
   // The task queue in which we run decode tasks. This is referred to as
   // the "decode thread", though in practise tasks can run on a different
@@ -888,6 +891,22 @@ public:
   // mDurationSet false doesn't indicate that we do not have a valid duration
   // as mStartTime and mEndTime could have been set separately.
   bool mDurationSet;
+
+  // The current play state and next play state, mirrored from the main thread.
+  Mirror<MediaDecoder::PlayState>::Holder mPlayState;
+  Mirror<MediaDecoder::PlayState>::Holder mNextPlayState;
+
+  // Returns true if we're logically playing, that is, if the Play() has
+  // been called and Pause() has not or we have not yet reached the end
+  // of media. This is irrespective of the seeking state; if the owner
+  // calls Play() and then Seek(), we still count as logically playing.
+  // The decoder monitor must be held.
+  bool IsLogicallyPlaying()
+  {
+    MOZ_ASSERT(OnTaskQueue());
+    return mPlayState == MediaDecoder::PLAY_STATE_PLAYING ||
+           mNextPlayState == MediaDecoder::PLAY_STATE_PLAYING;
+  }
 
   // The status of our next frame. Mirrored on the main thread and used to
   // compute ready state.
@@ -1157,7 +1176,7 @@ protected:
   // the state machine thread. Synchronised via decoder monitor.
   // When data is being sent to a MediaStream, this is true when all data has
   // been written to the MediaStream.
-  bool mAudioCompleted;
+  Watchable<bool> mAudioCompleted;
 
   // True if mDuration has a value obtained from an HTTP header, or from
   // the media index/metadata. Accessed on the state machine thread.
