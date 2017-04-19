@@ -58,8 +58,6 @@ namespace mozilla {
 
 extern PRLogModuleInfo* gStateWatchingLog;
 
-void EnsureStateWatchingLog();
-
 #define WATCH_LOG(x, ...) \
   MOZ_ASSERT(gStateWatchingLog); \
   PR_LOG(gStateWatchingLog, PR_LOG_DEBUG, (x, ##__VA_ARGS__))
@@ -185,23 +183,39 @@ class WatchManager
 {
 public:
   typedef void(OwnerType::*CallbackMethod)();
-  explicit WatchManager(OwnerType* aOwner)
-    : mOwner(aOwner) {}
+  explicit WatchManager(OwnerType* aOwner, AbstractThread* aOwnerThread)
+    : mOwner(aOwner), mOwnerThread(aOwnerThread) {}
 
   ~WatchManager()
   {
+    if (!IsShutdown()) {
+      Shutdown();
+    }
+  }
+
+  bool IsShutdown() const { return !mOwner; }
+
+  // Shutdown needs to happen on mOwnerThread. If the WatchManager will be
+  // destroyed on a different thread, Shutdown() must be called manually.
+  void Shutdown()
+  {
+    MOZ_ASSERT(mOwnerThread->IsCurrentThreadIn());
     for (size_t i = 0; i < mWatchers.Length(); ++i) {
       mWatchers[i]->Destroy();
     }
+    mWatchers.Clear();
+    mOwner = nullptr;
   }
 
   void Watch(WatchTarget& aTarget, CallbackMethod aMethod)
   {
+    MOZ_ASSERT(mOwnerThread->IsCurrentThreadIn());
     aTarget.AddWatcher(&EnsureWatcher(aMethod));
   }
 
   void Unwatch(WatchTarget& aTarget, CallbackMethod aMethod)
   {
+    MOZ_ASSERT(mOwnerThread->IsCurrentThreadIn());
     PerCallbackWatcher* watcher = GetWatcher(aMethod);
     MOZ_ASSERT(watcher);
     aTarget.RemoveWatcher(watcher);
@@ -209,6 +223,7 @@ public:
 
   void ManualNotify(CallbackMethod aMethod)
   {
+    MOZ_ASSERT(mOwnerThread->IsCurrentThreadIn());
     PerCallbackWatcher* watcher = GetWatcher(aMethod);
     MOZ_ASSERT(watcher);
     watcher->Notify();
@@ -218,17 +233,19 @@ private:
   class PerCallbackWatcher : public AbstractWatcher
   {
   public:
-    PerCallbackWatcher(OwnerType* aOwner, CallbackMethod aMethod)
-      : mOwner(aOwner), mCallbackMethod(aMethod) {}
+    PerCallbackWatcher(OwnerType* aOwner, AbstractThread* aOwnerThread, CallbackMethod aMethod)
+      : mOwner(aOwner), mOwnerThread(aOwnerThread), mCallbackMethod(aMethod) {}
 
     void Destroy()
     {
+      MOZ_ASSERT(mOwnerThread->IsCurrentThreadIn());
       mDestroyed = true;
       mOwner = nullptr;
     }
 
     void Notify() override
     {
+      MOZ_ASSERT(mOwnerThread->IsCurrentThreadIn());
       MOZ_DIAGNOSTIC_ASSERT(mOwner, "mOwner is only null after destruction, "
                                     "at which point we shouldn't be notified");
       if (mStrongRef) {
@@ -239,7 +256,7 @@ private:
 
       // Queue up our notification jobs to run in a stable state.
       nsCOMPtr<nsIRunnable> r = NS_NewRunnableMethod(this, &PerCallbackWatcher::DoNotify);
-      AbstractThread::GetCurrent()->TailDispatcher().AddDirectTask(r.forget());
+      mOwnerThread->TailDispatcher().AddDirectTask(r.forget());
     }
 
     bool CallbackMethodIs(CallbackMethod aMethod) const
@@ -252,6 +269,7 @@ private:
 
     void DoNotify()
     {
+      MOZ_ASSERT(mOwnerThread->IsCurrentThreadIn());
       MOZ_ASSERT(mStrongRef);
       nsRefPtr<OwnerType> ref = mStrongRef.forget();
       ((*ref).*mCallbackMethod)();
@@ -259,11 +277,13 @@ private:
 
     OwnerType* mOwner; // Never null.
     nsRefPtr<OwnerType> mStrongRef; // Only non-null when notifying.
+    nsRefPtr<AbstractThread> mOwnerThread;
     CallbackMethod mCallbackMethod;
   };
 
   PerCallbackWatcher* GetWatcher(CallbackMethod aMethod)
   {
+    MOZ_ASSERT(mOwnerThread->IsCurrentThreadIn());
     for (size_t i = 0; i < mWatchers.Length(); ++i) {
       if (mWatchers[i]->CallbackMethodIs(aMethod)) {
         return mWatchers[i];
@@ -274,16 +294,18 @@ private:
 
   PerCallbackWatcher& EnsureWatcher(CallbackMethod aMethod)
   {
+    MOZ_ASSERT(mOwnerThread->IsCurrentThreadIn());
     PerCallbackWatcher* watcher = GetWatcher(aMethod);
     if (watcher) {
       return *watcher;
     }
-    watcher = mWatchers.AppendElement(new PerCallbackWatcher(mOwner, aMethod))->get();
+    watcher = mWatchers.AppendElement(new PerCallbackWatcher(mOwner, mOwnerThread, aMethod))->get();
     return *watcher;
   }
 
   nsTArray<nsRefPtr<PerCallbackWatcher>> mWatchers;
   OwnerType* mOwner;
+  nsRefPtr<AbstractThread> mOwnerThread;
 };
 
 #undef WATCH_LOG

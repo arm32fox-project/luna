@@ -157,10 +157,20 @@ public:
     return mState;
   }
 
-  // Set the audio volume. The decoder monitor must be obtained before
-  // calling this.
-  void SetVolume(double aVolume);
-  void SetAudioCaptured();
+  void DispatchAudioCaptured()
+  {
+    nsRefPtr<MediaDecoderStateMachine> self = this;
+    nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([self] () -> void
+    {
+      MOZ_ASSERT(self->OnTaskQueue());
+      ReentrantMonitorAutoEnter mon(self->mDecoder->GetReentrantMonitor());
+      if (!self->mAudioCaptured) {
+        self->mAudioCaptured = true;
+        self->ScheduleStateMachine();
+      }
+    });
+    TaskQueue()->Dispatch(r.forget());
+  }
 
   // Check if the decoder needs to become dormant state.
   bool IsDormantNeeded();
@@ -168,6 +178,10 @@ public:
   void SetDormant(bool aDormant);
 
 private:
+  // Initialization that needs to happen on the task queue. This is the first
+  // task that gets run on the task queue, and is dispatched from the MDSM
+  // constructor immediately after the task queue is created.
+  void InitializationTask();
   void Shutdown();
 public:
 
@@ -309,9 +323,6 @@ public:
     return mReader->GetBuffered();
   }
 
-  void SetPlaybackRate(double aPlaybackRate);
-  void SetPreservesPitch(bool aPreservesPitch);
-
   size_t SizeOfVideoQueue() {
     if (mReader) {
       return mReader->SizeOfVideoQueueInBytes();
@@ -392,7 +403,21 @@ public:
   // the state machine is free to return to prerolling normally. Note
   // "prerolling" in this context refers to when we decode and buffer decoded
   // samples in advance of when they're needed for playback.
-  void SetMinimizePrerollUntilPlaybackStarts();
+  void DispatchMinimizePrerollUntilPlaybackStarts()
+  {
+    nsRefPtr<MediaDecoderStateMachine> self = this;
+    nsCOMPtr<nsIRunnable> r = NS_NewRunnableFunction([self] () -> void
+    {
+      MOZ_ASSERT(self->OnTaskQueue());
+      ReentrantMonitorAutoEnter mon(self->mDecoder->GetReentrantMonitor());
+      self->mMinimizePreroll = true;
+
+      // Make sure that this arrives before playback starts, otherwise this won't
+      // have the intended effect.
+      MOZ_DIAGNOSTIC_ASSERT(self->mPlayState == MediaDecoder::PLAY_STATE_LOADING);
+    });
+    TaskQueue()->Dispatch(r.forget());
+  };
 
   void OnAudioDecoded(AudioData* aSample);
   void OnVideoDecoded(VideoData* aSample);
@@ -446,6 +471,10 @@ protected:
   // remove the audio thread in bug 750596.
   already_AddRefed<AudioData> PopAudio();
   already_AddRefed<VideoData> PopVideo();
+
+  void VolumeChanged();
+  void LogicalPlaybackRateChanged();
+  void PreservesPitchChanged();
 
   class WakeDecoderRunnable : public nsRunnable {
   public:
@@ -893,8 +922,8 @@ public:
   bool mDurationSet;
 
   // The current play state and next play state, mirrored from the main thread.
-  Mirror<MediaDecoder::PlayState>::Holder mPlayState;
-  Mirror<MediaDecoder::PlayState>::Holder mNextPlayState;
+  Mirror<MediaDecoder::PlayState> mPlayState;
+  Mirror<MediaDecoder::PlayState> mNextPlayState;
 
   // Returns true if we're logically playing, that is, if the Play() has
   // been called and Pause() has not or we have not yet reached the end
@@ -910,7 +939,7 @@ public:
 
   // The status of our next frame. Mirrored on the main thread and used to
   // compute ready state.
-  Canonical<NextFrameStatus>::Holder mNextFrameStatus;
+  Canonical<NextFrameStatus> mNextFrameStatus;
 public:
   AbstractCanonical<NextFrameStatus>* CanonicalNextFrameStatus() { return &mNextFrameStatus; }
 protected:
@@ -1008,17 +1037,19 @@ protected:
   // on decoded video data.
   int64_t mDecodedVideoEndTime;
 
-  // Volume of playback. 0.0 = muted. 1.0 = full volume. Read/Written
-  // from the state machine and main threads. Synchronised via decoder
-  // monitor.
-  double mVolume;
+  // Volume of playback. 0.0 = muted. 1.0 = full volume.
+  Mirror<double> mVolume;
 
-  // Playback rate. 1.0 : normal speed, 0.5 : two times slower. Synchronized via
-  // decoder monitor.
+  // Playback rate. 1.0 : normal speed, 0.5 : two times slower.
+  //
+  // The separation between mPlaybackRate and mLogicalPlaybackRate is a mess
+  // to preserve existing fragile logic while converting this setup to state-
+  // mirroring. This should be cleaned up in the future.
   double mPlaybackRate;
+  Mirror<double> mLogicalPlaybackRate;
 
-  // Pitch preservation for the playback rate. Synchronized via decoder monitor.
-  bool mPreservesPitch;
+  // Pitch preservation for the playback rate.
+  Mirror<bool> mPreservesPitch;
 
   // Time at which we started decoding. Synchronised via decoder monitor.
   TimeStamp mDecodeStartTime;
@@ -1077,12 +1108,14 @@ protected:
 
   bool DonePrerollingAudio()
   {
+    MOZ_ASSERT(OnTaskQueue());
     AssertCurrentThreadInMonitor();
     return !IsAudioDecoding() || GetDecodedAudioDuration() >= AudioPrerollUsecs() * mPlaybackRate;
   }
 
   bool DonePrerollingVideo()
   {
+    MOZ_ASSERT(OnTaskQueue());
     AssertCurrentThreadInMonitor();
     return !IsVideoDecoding() ||
            static_cast<uint32_t>(VideoQueue().GetSize()) >= VideoPrerollFrames() * mPlaybackRate;

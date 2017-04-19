@@ -2023,7 +2023,7 @@ HTMLMediaElement::LookupMediaElementURITable(nsIURI* aURI)
 
 HTMLMediaElement::HTMLMediaElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo),
-    mWatchManager(this),
+    mWatchManager(this, AbstractThread::MainThread()),
     mCurrentLoadID(0),
     mNetworkState(nsIDOMHTMLMediaElement::NETWORK_EMPTY),
     mReadyState(nsIDOMHTMLMediaElement::HAVE_NOTHING, "HTMLMediaElement::mReadyState"),
@@ -2081,7 +2081,6 @@ HTMLMediaElement::HTMLMediaElement(already_AddRefed<mozilla::dom::NodeInfo>& aNo
   if (!gMediaElementEventsLog) {
     gMediaElementEventsLog = PR_NewLogModule("nsMediaElementEvents");
   }
-  EnsureStateWatchingLog();
 #endif
   ErrorResult rv;
 
