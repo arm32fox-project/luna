@@ -861,8 +861,7 @@ PlacesTreeView.prototype = {
           if (Components.isSuccessCode(aStatus)) {
             this._controller.cacheLivemarkInfo(aNode, aLivemark);
             let properties = this._cellProperties.get(aNode);
-            this._cellProperties.set(aNode, properties += " livemark ");
-
+            this._cellProperties.set(aNode, properties += " livemark");
             // The livemark attribute is set as a cell property on the title cell.
             this._invalidateCellValue(aNode, this.COLUMN_TYPE_TITLE);
           }
@@ -1185,7 +1184,8 @@ PlacesTreeView.prototype = {
               function (aStatus, aLivemark) {
                 if (Components.isSuccessCode(aStatus)) {
                   this._controller.cacheLivemarkInfo(node, aLivemark);
-                  properties += " livemark";
+                  let props = this._cellProperties.get(node);
+                  this._cellProperties.set(node, props += " livemark");
                   // The livemark attribute is set as a cell property on the title cell.
                   this._invalidateCellValue(node, this.COLUMN_TYPE_TITLE);
                 }
