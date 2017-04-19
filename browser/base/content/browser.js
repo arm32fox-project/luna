@@ -3815,9 +3815,11 @@ var XULBrowserWindow = {
           // Close the Find toolbar if we're in old-style TAF mode
           gFindBar.close();
         }
-
-        // fix bug 253793 - turn off highlight when page changes
-        gFindBar.getElement("highlight").checked = false;
+        
+        if (gPrefService.getIntPref("accessibility.typeaheadfind.highlightAllBehavior") == 0) {
+            // fix bug 253793 - turn off highlight when page changes
+            gFindBar.getElement("highlight").checked = false;
+        }
       }
     }
     UpdateBackForwardCommands(gBrowser.webNavigation);

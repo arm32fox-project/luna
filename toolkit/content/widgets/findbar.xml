@@ -322,6 +322,9 @@
             case "accessibility.typeaheadfind.casesensitive":
               this._self._setCaseSensitivity(prefsvc.getIntPref(aPrefName));
               break;
+            case "accessibility.typeaheadfind.highlightAllBehavior":
+              this._self._typeAheadHighlightAllBehavior = prefsvc.getIntPref(aPrefName);
+              break;
           }
         }
       })]]></field>
@@ -356,6 +359,8 @@
                             this._observer, false);
         prefsvc.addObserver("accessibility.typeaheadfind.casesensitive",
                             this._observer, false);
+        prefsvc.addObserver("accessibility.typeaheadfind.highlightAllBehavior",
+                            this._observer, false);
 
         this._useTypeAheadFind =
           prefsvc.getBoolPref("accessibility.typeaheadfind");
@@ -363,6 +368,8 @@
           prefsvc.getBoolPref("accessibility.typeaheadfind.linksonly");
         this._typeAheadCaseSensitive =
           prefsvc.getIntPref("accessibility.typeaheadfind.casesensitive");
+        this._typeAheadHighlightAllBehavior =
+          prefsvc.getIntPref("accessibility.typeaheadfind.highlightAllBehavior");
 
         // Convenience
         this.nsITypeAheadFind = Components.interfaces.nsITypeAheadFind;
@@ -401,9 +408,21 @@
                                  this._observer);
           prefsvc.removeObserver("accessibility.typeaheadfind.casesensitive",
                                  this._observer);
+          prefsvc.removeObserver("accessibility.typeaheadfind.highlightAllBehavior",
+                                 this._observer);
 
           // Clear all timers that might still be running.
           this._cancelTimers();
+          
+          // If the "highlight all" option state should be remembered,
+          // then the preference gets overwritten with the current
+          // state (on = 2, off = 3), just before destroying which
+          // usually happens while closing a browser window
+          if (this._typeAheadHighlightAllBehavior > 1) {
+            let pref = "accessibility.typeaheadfind.highlightAllBehavior";
+            let state = this.getElement("highlight").checked ? 2 : 3;
+            prefsvc.setIntPref(pref, state);
+          }
         ]]></body>
       </method>
 
@@ -641,7 +660,17 @@
 
           this._cancelTimers();
           this.toggleHighlight(false);
-          this.getElement("highlight").checked = false;
+          
+          // If the "highlight all" option state should be remembered,
+          // then the preference gets overwritten with the current
+          // state (on = 2, off = 3), just before closing
+          if (this._typeAheadHighlightAllBehavior > 1) {
+            let prefsvc = Components.classes["@mozilla.org/preferences-service;1"]
+                         .getService(Components.interfaces.nsIPrefBranch);
+            let pref = "accessibility.typeaheadfind.highlightAllBehavior";
+            let state = this.getElement("highlight").checked ? 2 : 3;
+            prefsvc.setIntPref(pref, state);
+          }
 
           this._findFailedString = null;
         ]]></body>
@@ -898,6 +927,14 @@
           this.getElement("find-next").hidden =
             this.getElement("find-previous").hidden = showMinimalUI;
           this._updateCaseSensitivity();
+          
+          if (this._typeAheadHighlightAllBehavior == 1 ||
+              this._typeAheadHighlightAllBehavior == 2) {
+            this.getElement("highlight").checked = true;
+            this.toggleHighlight(true);
+          } else {
+            this.getElement("highlight").checked = false;
+          }
 
           if (showMinimalUI)
             this._findField.classList.add("minimal");
@@ -1141,7 +1178,11 @@
             this._find(this._findField.value);
           else
             this._findAgain(aFindPrevious);
-
+            
+          // Fix ignoring the "highlight all" option when page changes
+          // and the "find again" command gets executed afterwards
+          if (this.getElement("highlight").checked)
+            this.toggleHighlight(true);
         ]]></body>
       </method>
 
