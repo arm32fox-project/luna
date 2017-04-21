@@ -124,6 +124,10 @@
   padding-left: 0;
 }
 
+.pref-set-default {
+  visibility: collapse;
+}
+
 .pref-menulist {
   margin-left: 6px;
   margin-right: 6px;
