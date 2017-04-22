@@ -41,6 +41,11 @@ let gFlash = {
   type: "application/x-shockwave-flash",
 };
 
+// XXX:
+// Is there a better way to do this rather than this hacky comparison?
+// Copied this from toolkit/components/passwordmgr/crypto-SDR.js
+const MASTER_PASSWORD_MESSAGE = "User canceled master password entry";
+
 /**
  * Permission types that should be tested with testExactPermission, as opposed
  * to testPermission. This is based on what consumers use to test these
@@ -204,41 +209,59 @@ Site.prototype = {
    * @return An array of the logins stored for the site.
    */
   get logins() {
-    let httpLogins = Services.logins.findLogins(
-        {}, this.httpURI.prePath, "", "");
-    let httpsLogins = Services.logins.findLogins(
-        {}, this.httpsURI.prePath, "", "");
-    return httpLogins.concat(httpsLogins);
+    try {
+      let httpLogins = Services.logins.findLogins(
+          {}, this.httpURI.prePath, "", "");
+      let httpsLogins = Services.logins.findLogins(
+          {}, this.httpsURI.prePath, "", "");
+      return httpLogins.concat(httpsLogins);
+    } catch (e) {
+      if (!e.message.includes(MASTER_PASSWORD_MESSAGE)) {
+        Cu.reportError("AboutPermissions: " + e);
+      }
+      return [];
+    }
   },
 
   get loginSavingEnabled() {
     // Only say that login saving is blocked if it is blocked for both
     // http and https.
-    return Services.logins.getLoginSavingEnabled(this.httpURI.prePath) &&
-           Services.logins.getLoginSavingEnabled(this.httpsURI.prePath);
+    try {
+      return Services.logins.getLoginSavingEnabled(this.httpURI.prePath) &&
+             Services.logins.getLoginSavingEnabled(this.httpsURI.prePath);
+    } catch (e) {
+      if (!e.message.includes(MASTER_PASSWORD_MESSAGE)) {
+        Cu.reportError("AboutPermissions: " + e);
+      }
+      return false;
+    }
   },
 
   set loginSavingEnabled(isEnabled) {
-    Services.logins.setLoginSavingEnabled(this.httpURI.prePath, isEnabled);
-    Services.logins.setLoginSavingEnabled(this.httpsURI.prePath, isEnabled);
+    try {
+      Services.logins.setLoginSavingEnabled(this.httpURI.prePath, isEnabled);
+      Services.logins.setLoginSavingEnabled(this.httpsURI.prePath, isEnabled);
+    } catch (e) {
+      if (!e.message.includes(MASTER_PASSWORD_MESSAGE)) {
+        Cu.reportError("AboutPermissions: " + e);
+      }
+    }
   },
 
   /**
-   * Gets cookies stored for the site. This does not return cookies stored
-   * for the base domain, only the exact hostname stored for the site.
+   * Gets cookies stored for the site and base domain.
    *
-   * @return An array of the cookies set for the site.
+   * @return An array of the cookies set for the site and base domain.
    */
   get cookies() {
     let cookies = [];
-    let enumerator = Services.cookies.getCookiesFromHost(this.host);
+    let enumerator = Services.cookies.enumerator;
     while (enumerator.hasMoreElements()) {
       let cookie = enumerator.getNext().QueryInterface(Ci.nsICookie2);
-      // getCookiesFromHost returns cookies for base domain, but we only want
-      // the cookies for the exact domain.
-      // if (cookie.rawHost == this.host) {
+      if (cookie.host.hasRootDomain(
+          AboutPermissions.domainFromHost(this.host))) {
         cookies.push(cookie);
-      // }
+      }
     }
     return cookies;
   },
@@ -256,7 +279,8 @@ Site.prototype = {
    * Removes all data from the browser corresponding to the site.
    */
   forgetSite: function Site_forgetSite() {
-    ForgetAboutSite.removeDataFromDomain(this.host);
+    ForgetAboutSite.removeDataFromDomain(this.host)
+                   .catch(Cu.reportError);
   }
 }
 
@@ -819,36 +843,42 @@ let AboutPermissions = {
   getEnumerateServicesGenerator: function() {
     let itemCnt = 1;
 
-    let logins = Services.logins.getAllLogins();
-    logins.forEach(function(aLogin) {
-      if (itemCnt % this.LIST_BUILD_CHUNK == 0) {
-        yield true;
-      }
-      try {
-        // aLogin.hostname is a string in origin URL format
-        // (e.g. "http://foo.com").
-        let uri = NetUtil.newURI(aLogin.hostname);
-        this.addHost(uri.host);
-      } catch (e) {
-        // newURI will throw for add-ons logins stored in chrome:// URIs. 
-      }
-      itemCnt++;
-    }, this);
+    try {
+      let logins = Services.logins.getAllLogins();
+      logins.forEach(function(aLogin) {
+        if (itemCnt % this.LIST_BUILD_CHUNK == 0) {
+          yield true;
+        }
+        try {
+          // aLogin.hostname is a string in origin URL format
+          // (e.g. "http://foo.com").
+          let uri = NetUtil.newURI(aLogin.hostname);
+          this.addHost(uri.host);
+        } catch (e) {
+          // newURI will throw for add-ons logins stored in chrome:// URIs. 
+        }
+        itemCnt++;
+      }, this);
 
-    let disabledHosts = Services.logins.getAllDisabledHosts();
-    disabledHosts.forEach(function(aHostname) {
-      if (itemCnt % this.LIST_BUILD_CHUNK == 0) {
-        yield true;
+      let disabledHosts = Services.logins.getAllDisabledHosts();
+      disabledHosts.forEach(function(aHostname) {
+        if (itemCnt % this.LIST_BUILD_CHUNK == 0) {
+          yield true;
+        }
+        try {
+          // aHostname is a string in origin URL format (e.g. "http://foo.com").
+          let uri = NetUtil.newURI(aHostname);
+          this.addHost(uri.host);
+        } catch (e) {
+          // newURI will throw for add-ons logins stored in chrome:// URIs. 
+        }
+        itemCnt++;
+      }, this);
+    } catch (e) {
+      if (!e.message.includes(MASTER_PASSWORD_MESSAGE)) {
+        Cu.reportError("AboutPermissions: " + e);
       }
-      try {
-        // aHostname is a string in origin URL format (e.g. "http://foo.com").
-        let uri = NetUtil.newURI(aHostname);
-        this.addHost(uri.host);
-      } catch (e) {
-        // newURI will throw for add-ons logins stored in chrome:// URIs. 
-      }
-      itemCnt++;
-    }, this);
+    }
 
     let enumerator = Services.perms.enumerator;
     while (enumerator.hasMoreElements()) {
@@ -1269,7 +1299,7 @@ let AboutPermissions = {
   },
 
   /**
-   * Clears cookies for the selected site.
+   * Clears cookies for the selected site and base domain.
    */
   clearCookies: function() {
     if (!this._selectedSite) {
@@ -1302,7 +1332,7 @@ let AboutPermissions = {
   }
 }
 
-// See nsPrivateBrowsingService.js
+// See toolkit/forgetaboutsite/ForgetAboutSite.jsm
 String.prototype.hasRootDomain = function hasRootDomain(aDomain) {
   let index = this.indexOf(aDomain);
   if (index == -1) {
