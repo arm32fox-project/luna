@@ -669,6 +669,13 @@ static const CipherPref sCipherPrefs[] = {
  { "security.ssl3.dhe_rsa_camellia_128_sha", 
    TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA, true },
 
+ { "security.tls13.aes_128_gcm_sha256",
+   TLS_AES_128_GCM_SHA256, true },
+ { "security.tls13.chacha20_poly1305_sha256",
+   TLS_CHACHA20_POLY1305_SHA256, true },
+ { "security.tls13.aes_256_gcm_sha384",
+   TLS_AES_256_GCM_SHA384, true },
+
  // Deprecated (RSA key exchange):
  { "security.ssl3.rsa_aes_256_gcm_sha384",
    TLS_RSA_WITH_AES_256_GCM_SHA384, true }, 
@@ -780,6 +787,7 @@ static const bool REQUIRE_SAFE_NEGOTIATION_DEFAULT = false;
 static const bool FALSE_START_ENABLED_DEFAULT = true;
 static const bool NPN_ENABLED_DEFAULT = true;
 static const bool ALPN_ENABLED_DEFAULT = false;
+static const bool ENABLED_0RTT_DATA_DEFAULT = false;
 
 static void
 ConfigureTLSSessionIdentifiers()
@@ -934,7 +942,7 @@ nsNSSComponent::setEnabledTLSVersions()
   // keep these values in sync with security-prefs.js
   // 0 means SSL 3.0, 1 means TLS 1.0, 2 means TLS 1.1, etc.
   static const uint32_t PSM_DEFAULT_MIN_TLS_VERSION = 1;
-  static const uint32_t PSM_DEFAULT_MAX_TLS_VERSION = 3;
+  static const uint32_t PSM_DEFAULT_MAX_TLS_VERSION = 4;
 
   uint32_t minFromPrefs = Preferences::GetUint("security.tls.version.min",
                                                PSM_DEFAULT_MIN_TLS_VERSION);
@@ -1112,6 +1120,10 @@ nsNSSComponent::InitializeNSS()
   SSL_OptionSetDefault(SSL_ENABLE_ALPN,
                        Preferences::GetBool("security.ssl.enable_alpn",
                                             ALPN_ENABLED_DEFAULT));
+
+  SSL_OptionSetDefault(SSL_ENABLE_0RTT_DATA,
+                       Preferences::GetBool("security.tls.enable_0rtt_data",
+                                            ENABLED_0RTT_DATA_DEFAULT));
 
   if (NS_FAILED(InitializeCipherSuite())) {
     PR_LOG(gPIPNSSLog, PR_LOG_ERROR, ("Unable to initialize cipher suite settings\n"));
@@ -1385,6 +1397,10 @@ nsNSSComponent::Observe(nsISupports* aSubject, const char* aTopic,
       SSL_OptionSetDefault(SSL_ENABLE_ALPN,
                            Preferences::GetBool("security.ssl.enable_alpn",
                                                 ALPN_ENABLED_DEFAULT));
+    } else if (prefName.EqualsLiteral("security.tls.enable_0rtt_data")) {
+      SSL_OptionSetDefault(SSL_ENABLE_0RTT_DATA,
+                           Preferences::GetBool("security.tls.enable_0rtt_data",
+                                                ENABLED_0RTT_DATA_DEFAULT));
     } else if (prefName.Equals("security.ssl.disable_session_identifiers")) {
       ConfigureTLSSessionIdentifiers();
     } else if (prefName.EqualsLiteral("security.OCSP.enabled") ||
