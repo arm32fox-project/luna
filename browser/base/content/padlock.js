@@ -122,6 +122,17 @@ var padlock_PadLock =
   },
   prefbranch : null,
   onLoad: function() {
+    // gBrowser should be always defined at this point, but if it is not then most likely 
+    // it is due to incompatible or outdated language pack is installed and selected.
+    // In this case we reset "general.useragent.locale" to try to recover browser startup.
+    // This fuse code is placed here because padlock.xul has no localized strings and 
+    // therefore works regardless of possible browser.xul errors.
+    if (typeof gBrowser === "undefined") {
+      var prefBranch = Cc["@mozilla.org/preferences-service;1"].getService(Ci.nsIPrefBranch);
+      prefBranch.clearUserPref("general.useragent.locale");
+      return;
+    }
+
     gBrowser.addProgressListener(padlock_PadLock);
     
     var prefService = Components.classes["@mozilla.org/preferences-service;1"].getService(Components.interfaces.nsIPrefService);
