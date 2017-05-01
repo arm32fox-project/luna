@@ -194,8 +194,11 @@ destroying the MediaDecoder object.
 #include "mozilla/dom/AudioChannelBinding.h"
 #include "mozilla/gfx/Rect.h"
 #include "mozilla/ReentrantMonitor.h"
+#include "MediaDecoderOwner.h"
 #include "MediaStreamGraph.h"
 #include "AbstractMediaDecoder.h"
+#include "StateMirroring.h"
+#include "StateWatching.h"
 #include "necko-config.h"
 #include "TimeUnits.h"
 
@@ -209,7 +212,6 @@ class Image;
 
 class VideoFrameContainer;
 class MediaDecoderStateMachine;
-class MediaDecoderOwner;
 
 // GetCurrentTime is defined in winbase.h as zero argument macro forwarding to
 // GetTickCount() and conflicts with MediaDecoder::GetCurrentTime implementation.
@@ -667,6 +669,9 @@ public:
 
   bool OnDecodeTaskQueue() const override;
 
+  MediaDecoderStateMachine* GetStateMachine() { return mDecoderStateMachine; }
+  void SetStateMachine(MediaDecoderStateMachine* aStateMachine);
+
   // Returns the monitor for other threads to synchronise access to
   // state.
   ReentrantMonitor& GetReentrantMonitor() override;
@@ -688,12 +693,6 @@ public:
     return mVideoFrameContainer;
   }
   layers::ImageContainer* GetImageContainer() override;
-
-  // Return the current state. Can be called on any thread. If called from
-  // a non-main thread, the decoder monitor must be held.
-  PlayState GetState() {
-    return mPlayState;
-  }
 
   // Fire timeupdate events if needed according to the time constraints
   // outlined in the specification.
@@ -811,10 +810,6 @@ public:
   // This must be called on the main thread only.
   virtual void PlaybackPositionChanged(MediaDecoderEventVisibility aEventVisibility = MediaDecoderEventVisibility::Observable);
 
-  // Calls mElement->UpdateReadyStateForData, telling it whether we have
-  // data for the next frame and if we're buffering. Main thread only.
-  virtual void UpdateReadyStateForData();
-
   // Find the end of the cached data starting at the current decoder
   // position.
   int64_t GetDownloadPosition();
@@ -836,13 +831,6 @@ public:
   void UpdateSameOriginStatus(bool aSameOrigin);
 
   MediaDecoderOwner* GetOwner() override;
-
-  // Returns true if we're logically playing, that is, if the Play() has
-  // been called and Pause() has not or we have not yet reached the end
-  // of media. This is irrespective of the seeking state; if the owner
-  // calls Play() and then Seek(), we still count as logically playing.
-  // The decoder monitor must be held.
-  bool IsLogicallyPlaying();
 
 #ifdef MOZ_RAW
   static bool IsRawEnabled();
@@ -1019,6 +1007,15 @@ public:
     GetFrameStatistics().NotifyDecodedFrames(aParsed, aDecoded, aDropped);
   }
 
+  void UpdateReadyState()
+  {
+    if (mOwner) {
+      mOwner->UpdateReadyState();
+    }
+  }
+
+  virtual MediaDecoderOwner::NextFrameStatus NextFrameStatus() { return mNextFrameStatus; }
+
 protected:
   virtual ~MediaDecoder();
   void SetStateMachineParameters();
@@ -1033,6 +1030,12 @@ protected:
 
   // Return true if the decoder has reached the end of playback
   bool IsEnded() const;
+
+  // State-watching manager.
+  WatchManager<MediaDecoder> mWatchManager;
+
+  // NextFrameStatus, mirrored from the state machine.
+  Mirror<MediaDecoderOwner::NextFrameStatus> mNextFrameStatus;
 
   /******
    * The following members should be accessed with the decoder lock held.
@@ -1055,14 +1058,22 @@ protected:
   // It is read and written from the main thread only.
   double mCurrentTime;
 
-  // Volume that playback should start at.  0.0 = muted. 1.0 = full
-  // volume.  Readable/Writeable from the main thread.
-  double mInitialVolume;
+  // Volume of playback.  0.0 = muted. 1.0 = full volume.
+  Canonical<double> mVolume;
+public:
+  AbstractCanonical<double>* CanonicalVolume() { return &mVolume; }
+protected:
 
   // PlaybackRate and pitch preservation status we should start at.
-  // Readable/Writeable from the main thread.
-  double mInitialPlaybackRate;
-  bool mInitialPreservesPitch;
+  Canonical<double> mPlaybackRate;
+public:
+  AbstractCanonical<double>* CanonicalPlaybackRate() { return &mPlaybackRate; }
+protected:
+
+  Canonical<bool> mPreservesPitch;
+public:
+  AbstractCanonical<bool>* CanonicalPreservesPitch() { return &mPreservesPitch; }
+protected:
 
   // Duration of the media resource. Set to -1 if unknown.
   // Set when the metadata is loaded. Accessed on the main thread
@@ -1080,17 +1091,19 @@ protected:
    * The following member variables can be accessed from any thread.
    ******/
 
+  // Media data resource.
+  nsRefPtr<MediaResource> mResource;
+
+private:
   // The state machine object for handling the decoding. It is safe to
   // call methods of this object from other threads. Its internal data
   // is synchronised on a monitor. The lifetime of this object is
   // after mPlayState is LOADING and before mPlayState is SHUTDOWN. It
   // is safe to access it during this period.
+  //
+  // Explicitly private to force access via accessors.
   nsRefPtr<MediaDecoderStateMachine> mDecoderStateMachine;
 
-  // Media data resource.
-  nsRefPtr<MediaResource> mResource;
-
-private:
   // |ReentrantMonitor| for detecting when the video play state changes. A call
   // to |Wait| on this monitor will block the thread until the next state
   // change.  Explicitly private for force access via GetReentrantMonitor.
@@ -1112,15 +1125,18 @@ protected:
   // OR on the main thread.
   // Any change to the state on the main thread must call NotifyAll on the
   // monitor so the decode thread can wake up.
-  PlayState mPlayState;
+  Canonical<PlayState> mPlayState;
 
-  // The state to change to after a seek or load operation.
   // This can only be changed on the main thread while holding the decoder
   // monitor. Thus, it can be safely read while holding the decoder monitor
   // OR on the main thread.
   // Any change to the state must call NotifyAll on the monitor.
   // This can only be PLAY_STATE_PAUSED or PLAY_STATE_PLAYING.
-  PlayState mNextState;
+  Canonical<PlayState> mNextState;
+public:
+  AbstractCanonical<PlayState>* CanonicalPlayState() { return &mPlayState; }
+  AbstractCanonical<PlayState>* CanonicalNextPlayState() { return &mNextState; }
+protected:
 
   // Position to seek to when the seek notification is received by the
   // decode thread.

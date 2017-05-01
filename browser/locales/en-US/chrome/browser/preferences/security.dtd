@@ -5,19 +5,6 @@
 <!ENTITY  warnAddonInstall.label        "Warn me when sites try to install add-ons">
 <!ENTITY  warnAddonInstall.accesskey    "W">
 
-<!-- LOCALIZATION NOTE (blockWebForgeries.label, blockAttackSites.label):
-  The methods by which forged (phished) and attack sites will be detected by
-  phishing providers will vary from human review to machine-based heuristics to a
-  combination of both, so it's important that these strings and
-  useDownloadedList.label convey the meaning "reported" (and not something like
-  "known").
--->
-<!ENTITY  blockAttackSites.label     "Block reported attack sites">
-<!ENTITY  blockAttackSites.accesskey "k">
-
-<!ENTITY  blockWebForgeries.label     "Block reported web forgeries">
-<!ENTITY  blockWebForgeries.accesskey "B">
-
 <!ENTITY  addonExceptions.label         "Exceptions…">
 <!ENTITY  addonExceptions.accesskey     "E">
 
@@ -36,6 +23,12 @@
 
 <!ENTITY  savedPasswords.label            "Saved Passwords…">
 <!ENTITY  savedPasswords.accesskey        "P">
+
+<!ENTITY  SecProto.label             "Security Protocols">
+<!ENTITY  enableHSTS.label           "Enable Strict Transport Security (HSTS)">
+<!ENTITY  enableHSTS.accesskey       "S">
+<!ENTITY  enableHPKP.label           "Enable Certificate Key Pinning (HPKP)">
+<!ENTITY  enableHPKP.accesskey       "C">
 
 <!ENTITY  XSSFilt.label              "XSS Filter">
 <!ENTITY  enableXSSFilt.label        "Enable XSS filter">

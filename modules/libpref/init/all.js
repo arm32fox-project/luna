@@ -754,6 +754,8 @@ pref("accessibility.typeaheadfind.autostart", true);
 //     1 - "always" (case-sensitive)
 // other - "auto"   (case-sensitive for mixed-case input, insensitive otherwise)
 pref("accessibility.typeaheadfind.casesensitive", 0);
+pref("accessibility.typeaheadfind.highlightallbydefault", false);
+pref("accessibility.typeaheadfind.highlightallremember", false);
 pref("accessibility.typeaheadfind.linksonly", true);
 pref("accessibility.typeaheadfind.startlinksonly", false);
 pref("accessibility.typeaheadfind.timeout", 4000);
@@ -2117,12 +2119,8 @@ pref("security.apps.privileged.CSP.default", "default-src *; script-src 'self'; 
 pref("security.mixed_content.block_active_content", false);
 pref("security.mixed_content.block_display_content", false);
 
-// Disable pinning checks by default.
-pref("security.cert_pinning.enforcement_level", 0);
-// Do not process hpkp headers rooted by not built in roots by default.
-// This is to prevent accidental pinning from MITM devices and is used
-// for tests.
-pref("security.cert_pinning.process_headers_from_non_builtin_roots", false);
+// Enable pinning checks by default.
+pref("security.cert_pinning.enforcement_level", 2);
 
 // Modifier key prefs: default to Windows settings,
 // menu access key = alt, accelerator key = control.
@@ -2418,8 +2416,8 @@ pref("layout.css.unicode-range.enabled", true);
 pref("layout.css.unicode-range.enabled", false);
 #endif
 
-// Is support for CSS "text-align: true X" enabled?
-pref("layout.css.text-align-true-value.enabled", false);
+// Is support for CSS "text-align: unsafe X" enabled?
+pref("layout.css.text-align-unsafe-value.enabled", false);
 
 // Is support for the CSS4 image-orientation property enabled?
 pref("layout.css.image-orientation.enabled", true);
@@ -4863,20 +4861,22 @@ pref("reader.toolbar.vertical", true);
 
 #if defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
 // Whether to allow, on a Linux system that doesn't support the necessary sandboxing
-// features, loading Goanna Media Plugins unsandboxed.  However, EME CDMs will not be
-// loaded without sandboxing even if this pref is changed.
+// features, loading Goanna Media Plugins unsandboxed.
 pref("media.gmp.insecure.allow", false);
 #endif
 
-// Use vsync aligned rendering. b2g prefs are in b2g.js
+// Use vsync aligned rendering.
 // Only supported on windows, os x, and b2g
 #if defined(XP_WIN) || defined(XP_MACOSX)
-pref("gfx.vsync.hw-vsync.enabled", false);
+pref("gfx.vsync.hw-vsync.enabled", true);
 pref("gfx.vsync.compositor", false);
-pref("gfx.vsync.refreshdriver", false);
+pref("gfx.vsync.refreshdriver", true);
 #endif
 
 // Secure Element API
 #ifdef MOZ_SECUREELEMENT
 pref("dom.secureelement.enabled", false);
 #endif
+
+// Turn rewriting of youtube embeds on/off
+pref("plugins.rewrite_youtube_embeds", true);

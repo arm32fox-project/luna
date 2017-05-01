@@ -52,8 +52,8 @@ MediaOmxCommonDecoder::SetPlatformCanOffloadAudio(bool aCanOffloadAudio)
 bool
 MediaOmxCommonDecoder::CheckDecoderCanOffloadAudio()
 {
-  return (mCanOffloadAudio && !mFallbackToStateMachine && !mOutputStreams.Length() &&
-      mInitialPlaybackRate == 1.0);
+  return (mCanOffloadAudio && !mFallbackToStateMachine &&
+          !mOutputStreams.Length() && mPlaybackRate == 1.0);
 }
 
 void
@@ -108,10 +108,16 @@ MediaOmxCommonDecoder::PauseStateMachine()
     return;
   }
 
-  if (!mDecoderStateMachine) {
+  if (!GetStateMachine()) {
     return;
   }
-  mDecoderStateMachine->SetDormant(true);
+  // enter dormant state
+  RefPtr<nsRunnable> event =
+    NS_NewRunnableMethodWithArg<bool>(
+      GetStateMachine(),
+      &MediaDecoderStateMachine::SetDormant,
+      true);
+  GetStateMachine()->TaskQueue()->Dispatch(event);
 }
 
 void
@@ -126,7 +132,7 @@ MediaOmxCommonDecoder::ResumeStateMachine()
     return;
   }
 
-  if (!mDecoderStateMachine) {
+  if (!GetStateMachine()) {
     return;
   }
 
@@ -139,7 +145,13 @@ MediaOmxCommonDecoder::ResumeStateMachine()
                                     MediaDecoderEventVisibility::Suppressed);
   mNextState = mPlayState;
   ChangeState(PLAY_STATE_LOADING);
-  mDecoderStateMachine->SetDormant(false);
+  // exit dormant state
+  RefPtr<nsRunnable> event =
+    NS_NewRunnableMethodWithArg<bool>(
+      GetStateMachine(),
+      &MediaDecoderStateMachine::SetDormant,
+      false);
+  GetStateMachine()->TaskQueue()->Dispatch(event);
 }
 
 void
@@ -266,18 +278,12 @@ MediaOmxCommonDecoder::SetElementVisibility(bool aIsVisible)
   }
 }
 
-void
-MediaOmxCommonDecoder::UpdateReadyStateForData()
+MediaDecoderOwner::NextFrameStatus
+MediaOmxCommonDecoder::NextFrameStatus()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  if (!mAudioOffloadPlayer) {
-    MediaDecoder::UpdateReadyStateForData();
-    return;
-  }
-
-  if (!mOwner || mShuttingDown)
-    return;
-  mOwner->UpdateReadyStateForData(mAudioOffloadPlayer->GetNextFrameStatus());
+  return mAudioOffloadPlayer ? mAudioOffloadPlayer->GetNextFrameStatus()
+                             : MediaDecoder::NextFrameStatus();
 }
 
 void

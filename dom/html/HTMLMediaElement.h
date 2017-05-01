@@ -20,6 +20,7 @@
 #include "mozilla/dom/Promise.h"
 #include "mozilla/dom/TextTrackManager.h"
 #include "MediaDecoder.h"
+#include "StateWatching.h"
 #include "nsGkAtoms.h"
 
 // X.h on Linux #defines CurrentTime as 0L, so we have to #undef it here.
@@ -213,15 +214,11 @@ public:
   // Dispatch events
   virtual nsresult DispatchAsyncEvent(const nsAString& aName) final override;
 
+  // Triggers a recomputation of readyState.
+  void UpdateReadyState() override { UpdateReadyStateInternal(); }
+
   // Dispatch events that were raised while in the bfcache
   nsresult DispatchPendingMediaEvents();
-
-  // Called by the decoder when some data has been downloaded or
-  // buffering/seeking has ended. aNextFrameAvailable is true when
-  // the data for the next frame is available. This method will
-  // decide whether to set the ready state to HAVE_CURRENT_DATA,
-  // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA.
-  virtual void UpdateReadyStateForData(MediaDecoderOwner::NextFrameStatus aNextFrame) final override;
 
   // Return true if we can activate autoplay assuming enough data has arrived.
   bool CanActivateAutoplay();
@@ -621,6 +618,9 @@ protected:
   class StreamListener;
   class StreamSizeListener;
 
+  MediaDecoderOwner::NextFrameStatus NextFrameStatus();
+  void SetDecoder(MediaDecoder* aDecoder) { mDecoder = aDecoder; }
+
   virtual void GetItemValueText(DOMString& text) override;
   virtual void SetItemValueText(const nsAString& text) override;
 
@@ -983,6 +983,9 @@ protected:
   // MediaElement doesn't yet have one then it will create it.
   TextTrackManager* GetOrCreateTextTrackManager();
 
+  // Recomputes ready state and fires events as necessary based on current state.
+  void UpdateReadyStateInternal();
+
   class nsAsyncEventRunner;
   using nsGenericHTMLElement::DispatchEvent;
   // For nsAsyncEventRunner.
@@ -991,6 +994,9 @@ protected:
   // The current decoder. Load() has been called on this decoder.
   // At most one of mDecoder and mSrcStream can be non-null.
   nsRefPtr<MediaDecoder> mDecoder;
+
+  // State-watching manager.
+  WatchManager<HTMLMediaElement> mWatchManager;
 
   // A reference to the VideoFrameContainer which contains the current frame
   // of video to display.
@@ -1060,10 +1066,7 @@ protected:
   // Media loading flags. See:
   //   http://www.whatwg.org/specs/web-apps/current-work/#video)
   nsMediaNetworkState mNetworkState;
-  nsMediaReadyState mReadyState;
-
-  // Last value passed from codec or stream source to UpdateReadyStateForData.
-  NextFrameStatus mLastNextFrameStatus;
+  Watchable<nsMediaReadyState> mReadyState;
 
   enum LoadAlgorithmState {
     // No load algorithm instance is waiting for a source to be added to the
@@ -1288,7 +1291,7 @@ protected:
   bool mIsEncrypted;
 
   // True if the media's channel's download has been suspended.
-  bool mDownloadSuspendedByCache;
+  Watchable<bool> mDownloadSuspendedByCache;
 
   // Audio Channel.
   AudioChannel mAudioChannel;

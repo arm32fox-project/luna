@@ -994,6 +994,13 @@ protected:
   virtual const nsAttrName* InternalGetExistingAttrNameFromQName(const nsAString& aStr) const override;
 
   /**
+   * Dispatch a simulated mouse click by keyboard to the given element.
+   */
+  nsresult DispatchSimulatedClick(nsGenericHTMLElement* aElement,
+                                  bool aIsTrusted,
+                                  nsPresContext* aPresContext);
+
+  /**
    * Create a URI for the given aURISpec string.
    * Returns INVALID_STATE_ERR and nulls *aURI if aURISpec is empty
    * and the document's URI matches the element's base URI.
@@ -1728,6 +1735,7 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Content)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Mod)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Data)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(DataList)
+NS_DECLARE_NS_NEW_HTML_ELEMENT(Details)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Div)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(FieldSet)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Font)
@@ -1764,6 +1772,7 @@ NS_DECLARE_NS_NEW_HTML_ELEMENT(Shadow)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Source)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Span)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(Style)
+NS_DECLARE_NS_NEW_HTML_ELEMENT(Summary)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(TableCaption)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(TableCell)
 NS_DECLARE_NS_NEW_HTML_ELEMENT(TableCol)

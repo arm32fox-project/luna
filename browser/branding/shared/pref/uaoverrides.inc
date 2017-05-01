@@ -7,7 +7,7 @@
 #define GRE_DATE_SLICE Goanna/20170101
 #define PM_SLICE PaleMoon/@MOZ_APP_VERSION@
 
-#define GK_VERSION 45.9
+#define GK_VERSION 52.9
 #define GK_SLICE Gecko/20100101
 #define FX_SLICE Firefox/@GK_VERSION@
 
@@ -57,8 +57,10 @@ pref("@GUAO_PREF@.www.amazon.com","Mozilla/5.0 (@OS_SLICE@ rv:45.9) @GK_SLICE@ F
 // Soundcloud uses Firefox-exclusive combinations of code. Never pass Firefox slice.
 pref("@GUAO_PREF@.soundcloud.com","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");
 
-// Citi requires native mode. Or it blocks.. "too old firefox"
+// The following requires native mode. Or it blocks.. "too old firefox"
 pref("@GUAO_PREF@.citi.com","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");
+pref("@GUAO_PREF@.deviantart.com","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");
+pref("@GUAO_PREF@.deviantart.net","Mozilla/5.0 (@OS_SLICE@ rv:@GRE_VERSION@) @GRE_DATE_SLICE@ @PM_SLICE@");
 
 // UA-Sniffing domains below have indicated no interest in supporting Pale Moon (BOO!)
 pref("@GUAO_PREF@.humblebundle.com","Mozilla/5.0 (@OS_SLICE@ rv:@GK_VERSION@) @GK_SLICE@ @FX_SLICE@ (Pale Moon)");

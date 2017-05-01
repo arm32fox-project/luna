@@ -24,6 +24,9 @@ public:
   // Dispatch an asynchronous event to the decoder owner
   virtual nsresult DispatchAsyncEvent(const nsAString& aName) = 0;
 
+  // Triggers a recomputation of readyState.
+  virtual void UpdateReadyState() = 0;
+
   /**
    * Fires a timeupdate event. If aPeriodic is true, the event will only
    * be fired if we've not fired a timeupdate event (for any reason) in the
@@ -112,13 +115,6 @@ public:
     // Sentinel value
     NEXT_FRAME_UNINITIALIZED
   };
-
-  // Called by the decoder when some data has been downloaded or
-  // buffering/seeking has ended. aNextFrameAvailable is true when
-  // the data for the next frame is available. This method will
-  // decide whether to set the ready state to HAVE_CURRENT_DATA,
-  // HAVE_FUTURE_DATA or HAVE_ENOUGH_DATA.
-  virtual void UpdateReadyStateForData(NextFrameStatus aNextFrame) = 0;
 
   // Check if the decoder owner is active.
   virtual bool IsActive() = 0;
