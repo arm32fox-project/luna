@@ -25,7 +25,7 @@ public:
   {
   }
   template<size_t S>
-  ByteReader(const nsAutoTArray<uint8_t, S>& aData)
+  explicit ByteReader(const nsAutoTArray<uint8_t, S>& aData)
     : mPtr(aData.Elements()), mRemaining(aData.Length()), mLength(aData.Length())
   {
   }
@@ -33,7 +33,11 @@ public:
     : mPtr(aData.Elements()), mRemaining(aData.Length()), mLength(aData.Length())
   {
   }
-  explicit ByteReader(const MediaByteBuffer* aData)
+  explicit ByteReader(const mozilla::MediaLargeByteBuffer* aData)
+    : mPtr(aData->Elements()), mRemaining(aData->Length()), mLength(aData->Length())
+  {
+  }
+  explicit ByteReader(const mozilla::MediaByteBuffer* aData)
     : mPtr(aData->Elements()), mRemaining(aData->Length()), mLength(aData->Length())
   {
   }

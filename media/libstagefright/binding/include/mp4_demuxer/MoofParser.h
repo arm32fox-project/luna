@@ -228,6 +228,8 @@ public:
   bool BlockingReadNextMoof();
   bool HasMetadata();
   already_AddRefed<mozilla::MediaLargeByteBuffer> Metadata();
+  MediaByteRange FirstCompleteMediaSegment();
+  MediaByteRange FirstCompleteMediaHeader();
 
   mozilla::MediaByteRange mInitRange;
   nsRefPtr<Stream> mSource;
@@ -245,6 +247,7 @@ private:
   void ScanForMetadata(mozilla::MediaByteRange& aFtyp,
                        mozilla::MediaByteRange& aMoov);
   nsTArray<Moof> mMoofs;
+  nsTArray<MediaByteRange> mMediaRanges;
   bool mIsAudio;
 };
 }

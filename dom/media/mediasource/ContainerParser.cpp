@@ -13,6 +13,8 @@
 #include "MediaData.h"
 #ifdef MOZ_FMP4
 #include "MP4Stream.h"
+#include "mp4_demuxer/AtomType.h"
+#include "mp4_demuxer/ByteReader.h"
 #endif
 #include "SourceBufferResource.h"
 
@@ -27,6 +29,7 @@ extern PRLogModuleInfo* GetMediaSourceLog();
 #define STRINGIFY(x) #x
 #define TOSTRING(x) STRINGIFY(x)
 #define MSE_DEBUG(name, arg, ...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG, (TOSTRING(name) "(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
+#define MSE_DEBUGV(name, arg, ...) PR_LOG(GetMediaSourceLog(), PR_LOG_DEBUG, (TOSTRING(name) "(%p:%s)::%s: " arg, this, mType.get(), __func__, ##__VA_ARGS__))
 #else
 #define MSE_DEBUG(...)
 #endif
@@ -95,6 +98,24 @@ ContainerParser::InitData()
   return mInitData;
 }
 
+MediaByteRange
+ContainerParser::InitSegmentRange()
+{
+  return mCompleteInitSegmentRange;
+}
+
+MediaByteRange
+ContainerParser::MediaHeaderRange()
+{
+  return mCompleteMediaHeaderRange;
+}
+
+MediaByteRange
+ContainerParser::MediaSegmentRange()
+{
+  return mCompleteMediaSegmentRange;
+}
+
 class WebMContainerParser : public ContainerParser {
 public:
   explicit WebMContainerParser(const nsACString& aType)
@@ -106,7 +127,7 @@ public:
   static const unsigned NS_PER_USEC = 1000;
   static const unsigned USEC_PER_SEC = 1000000;
 
-  bool IsInitSegmentPresent(MediaLargeByteBuffer* aData)
+  bool IsInitSegmentPresent(MediaLargeByteBuffer* aData) override
   {
     ContainerParser::IsInitSegmentPresent(aData);
     // XXX: This is overly primitive, needs to collect data as it's appended
@@ -131,7 +152,7 @@ public:
     return false;
   }
 
-  bool IsMediaSegmentPresent(MediaLargeByteBuffer* aData)
+  bool IsMediaSegmentPresent(MediaLargeByteBuffer* aData) override
   {
     ContainerParser::IsMediaSegmentPresent(aData);
     // XXX: This is overly primitive, needs to collect data as it's appended
@@ -171,7 +192,7 @@ public:
   }
 
   bool ParseStartAndEndTimestamps(MediaLargeByteBuffer* aData,
-                                  int64_t& aStart, int64_t& aEnd)
+                                  int64_t& aStart, int64_t& aEnd) override
   {
     bool initSegment = IsInitSegmentPresent(aData);
     if (initSegment) {
@@ -203,6 +224,7 @@ public:
           // Super unlikely OOM
           return false;
         }
+        mCompleteInitSegmentRange = MediaByteRange(0, mParser.mInitEndOffset);
         char* buffer = reinterpret_cast<char*>(mInitData->Elements());
         mResource->ReadFromCache(buffer, 0, mParser.mInitEndOffset);
         MSE_DEBUG(WebMContainerParser, "Stashed init of %u bytes.",
@@ -242,7 +264,7 @@ public:
     return true;
   }
 
-  int64_t GetRoundingError()
+  int64_t GetRoundingError() override
   {
     int64_t error = mParser.GetTimecodeScale() / NS_PER_USEC;
     return error * 2;
@@ -262,48 +284,57 @@ public:
     , mMonitor("MP4ContainerParser Index Monitor")
   {}
 
-  bool IsInitSegmentPresent(MediaLargeByteBuffer* aData)
+  bool HasAtom(const mp4_demuxer::AtomType& aAtom, const MediaLargeByteBuffer* aData) {
+    mp4_demuxer::ByteReader reader(aData);
+
+    while (reader.Remaining() >= 8) {
+      uint64_t size = reader.ReadU32();
+      const uint8_t* typec = reader.Peek(4);
+      uint32_t type = reader.ReadU32();
+      MSE_DEBUGV(MP4ContainerParser ,"Checking atom:'%c%c%c%c'",
+                typec[0], typec[1], typec[2], typec[3]);
+      if (mp4_demuxer::AtomType(type) == aAtom) {
+        reader.DiscardRemaining();
+        return true;
+      }
+      if (size == 1) {
+        // 64 bits size.
+        if (!reader.CanReadType<uint64_t>()) {
+          break;
+        }
+        size = reader.ReadU64();
+      } else if (size == 0) {
+        // Atom extends to the end of the buffer, it can't have what we're
+        // looking for.
+        break;
+      }
+      if (reader.Remaining() < size - 8) {
+        // Incomplete atom.
+        break;
+      }
+      reader.Read(size - 8);
+    }
+    reader.DiscardRemaining();
+    return false;
+  }
+
+  bool IsInitSegmentPresent(MediaLargeByteBuffer* aData) override
   {
     ContainerParser::IsInitSegmentPresent(aData);
     // Each MP4 atom has a chunk size and chunk type. The root chunk in an MP4
     // file is the 'ftyp' atom followed by a file type. We just check for a
     // vaguely valid 'ftyp' atom.
-
-    if (aData->Length() < 8) {
-      return false;
-    }
-
-    uint32_t chunk_size = BigEndian::readUint32(aData->Elements());
-    if (chunk_size < 8) {
-      return false;
-    }
-
-    return (*aData)[4] == 'f' && (*aData)[5] == 't' && (*aData)[6] == 'y' &&
-           (*aData)[7] == 'p';
+    return HasAtom(mp4_demuxer::AtomType("ftyp"), aData);
   }
 
-  bool IsMediaSegmentPresent(MediaLargeByteBuffer* aData)
+  bool IsMediaSegmentPresent(MediaLargeByteBuffer* aData) override
   {
     ContainerParser::IsMediaSegmentPresent(aData);
-    if (aData->Length() < 8) {
-      return false;
-    }
-
-    uint32_t chunk_size = BigEndian::readUint32(aData->Elements());
-    if (chunk_size < 8) {
-      return false;
-    }
-
-    return ((*aData)[4] == 'm' && (*aData)[5] == 'o' && (*aData)[6] == 'o' &&
-            (*aData)[7] == 'f') ||
-           ((*aData)[4] == 's' && (*aData)[5] == 't' && (*aData)[6] == 'y' &&
-            (*aData)[7] == 'p') ||
-           ((*aData)[4] == 's' && (*aData)[5] == 'i' && (*aData)[6] == 'd' &&
-            (*aData)[7] == 'x');
+    return HasAtom(mp4_demuxer::AtomType("moof"), aData);
   }
 
   bool ParseStartAndEndTimestamps(MediaLargeByteBuffer* aData,
-                                  int64_t& aStart, int64_t& aEnd)
+                                  int64_t& aStart, int64_t& aEnd) override
   {
     MonitorAutoLock mon(mMonitor); // We're not actually racing against anything,
                                    // but mParser requires us to hold a monitor.
@@ -329,17 +360,17 @@ public:
     mParser->RebuildFragmentedIndex(byteRanges);
 
     if (initSegment || !HasCompleteInitData()) {
-      const MediaByteRange& range = mParser->mInitRange;
-      uint32_t length = range.mEnd - range.mStart;
-      if (length) {
-        if (!mInitData->SetLength(length)) {
+      MediaByteRange& range = mParser->mInitRange;
+      if (range.Length()) {
+        mCompleteInitSegmentRange = range;
+        if (!mInitData->SetLength(range.Length())) {
           // Super unlikely OOM
           return false;
         }
         char* buffer = reinterpret_cast<char*>(mInitData->Elements());
-        mResource->ReadFromCache(buffer, range.mStart, length);
+        mResource->ReadFromCache(buffer, range.mStart, range.Length());
         MSE_DEBUG(MP4ContainerParser ,"Stashed init of %u bytes.",
-                  length);
+                  range.Length());
       } else {
         MSE_DEBUG(MP4ContainerParser, "Incomplete init found.");
       }
@@ -348,7 +379,12 @@ public:
 
     mp4_demuxer::Interval<mp4_demuxer::Microseconds> compositionRange =
       mParser->GetCompositionRange(byteRanges);
-    mResource->EvictData(mParser->mOffset, mParser->mOffset);
+
+    mCompleteMediaHeaderRange = mParser->FirstCompleteMediaHeader();
+    mCompleteMediaSegmentRange = mParser->FirstCompleteMediaSegment();
+    if (HasCompleteInitData()) {
+      mResource->EvictData(mParser->mOffset, mParser->mOffset);
+    }
 
     if (compositionRange.IsNull()) {
       return false;
@@ -362,7 +398,7 @@ public:
 
   // Gaps of up to 35ms (marginally longer than a single frame at 30fps) are considered
   // to be sequential frames.
-  int64_t GetRoundingError()
+  int64_t GetRoundingError() override
   {
     return 35000;
   }
@@ -390,5 +426,6 @@ ContainerParser::CreateForMIMEType(const nsACString& aType)
 }
 
 #undef MSE_DEBUG
+#undef MSE_DEBUGV
 
 } // namespace mozilla
