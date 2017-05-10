@@ -21,6 +21,7 @@ namespace mozilla {
 class ContainerParser;
 class MediaLargeByteBuffer;
 class MediaRawData;
+class MediaSourceDemuxer;
 class SourceBuffer;
 class SourceBufferResource;
 
@@ -215,7 +216,9 @@ private:
     // Byte size of all samples contained in this track buffer.
     uint32_t mSizeBuffer;
     // TrackInfo of the first metadata received.
-    UniquePtr<TrackInfo> mInfo;
+    nsRefPtr<SharedTrackInfo> mInfo;
+    // TrackInfo of the last metadata parsed (updated with each init segment.
+    nsRefPtr<SharedTrackInfo> mLastInfo;
   };
 
   bool ProcessFrame(MediaRawData* aSample, TrackData& aTrackData);
@@ -262,6 +265,7 @@ private:
   // Strong references to external objects.
   nsMainThreadPtrHandle<dom::SourceBuffer> mParent;
   nsMainThreadPtrHandle<MediaSourceDecoder> mParentDecoder;
+  nsRefPtr<MediaSourceDemuxer> mMediaSourceDemuxer;
 
   // Set to true if abort is called.
   Atomic<bool> mAbort;

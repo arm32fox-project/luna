@@ -14,6 +14,8 @@
 #include "MediaSourceUtils.h"
 #include "SourceBufferDecoder.h"
 #include "VideoUtils.h"
+#include "MediaFormatReader.h"
+#include "MediaSourceDemuxer.h"
 
 #ifdef PR_LOGGING
 extern PRLogModuleInfo* GetMediaSourceLog();
@@ -31,7 +33,9 @@ class SourceBufferDecoder;
 
 MediaSourceDecoder::MediaSourceDecoder(dom::HTMLMediaElement* aElement)
   : mMediaSource(nullptr)
+  , mIsUsingFormatReader(Preferences::GetBool("media.mediasource.format-reader", false))
   , mMediaSourceDuration(UnspecifiedNaN<double>())
+  , mEnded(false)
 {
   Init(aElement);
 }
@@ -46,7 +50,12 @@ MediaSourceDecoder::Clone()
 MediaDecoderStateMachine*
 MediaSourceDecoder::CreateStateMachine()
 {
-  mReader = new MediaSourceReader(this);
+  if (mIsUsingFormatReader) {
+    mDemuxer = new MediaSourceDemuxer();
+    mReader = new MediaFormatReader(this, mDemuxer);
+  } else {
+    mReader = new MediaSourceReader(this);
+  }
   return new MediaDecoderStateMachine(this, mReader);
 }
 
@@ -103,6 +112,7 @@ MediaSourceDecoder::Shutdown()
   if (mMediaSource) {
     mMediaSource->Detach();
   }
+  mDemuxer = nullptr;
 
   MediaDecoder::Shutdown();
   // Kick WaitForData out of its slumber.
@@ -134,29 +144,29 @@ MediaSourceDecoder::DetachMediaSource()
 already_AddRefed<SourceBufferDecoder>
 MediaSourceDecoder::CreateSubDecoder(const nsACString& aType, int64_t aTimestampOffset)
 {
-  MOZ_ASSERT(mReader);
-  return mReader->CreateSubDecoder(aType, aTimestampOffset);
+  MOZ_ASSERT(mReader && !mIsUsingFormatReader);
+  return GetReader()->CreateSubDecoder(aType, aTimestampOffset);
 }
 
 void
 MediaSourceDecoder::AddTrackBuffer(TrackBuffer* aTrackBuffer)
 {
-  MOZ_ASSERT(mReader);
-  mReader->AddTrackBuffer(aTrackBuffer);
+  MOZ_ASSERT(mReader && !mIsUsingFormatReader);
+  GetReader()->AddTrackBuffer(aTrackBuffer);
 }
 
 void
 MediaSourceDecoder::RemoveTrackBuffer(TrackBuffer* aTrackBuffer)
 {
-  MOZ_ASSERT(mReader);
-  mReader->RemoveTrackBuffer(aTrackBuffer);
+  MOZ_ASSERT(mReader && !mIsUsingFormatReader);
+  GetReader()->RemoveTrackBuffer(aTrackBuffer);
 }
 
 void
 MediaSourceDecoder::OnTrackBufferConfigured(TrackBuffer* aTrackBuffer, const MediaInfo& aInfo)
 {
-  MOZ_ASSERT(mReader);
-  mReader->OnTrackBufferConfigured(aTrackBuffer, aInfo);
+  MOZ_ASSERT(mReader && !mIsUsingFormatReader);
+  GetReader()->OnTrackBufferConfigured(aTrackBuffer, aInfo);
 }
 
 void
@@ -164,15 +174,17 @@ MediaSourceDecoder::Ended(bool aEnded)
 {
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
   static_cast<MediaSourceResource*>(GetResource())->SetEnded(aEnded);
-  mReader->Ended(aEnded);
+  if (!mIsUsingFormatReader) {
+    GetReader()->Ended(aEnded);
+  }
+  mEnded = true;
   mon.NotifyAll();
 }
 
 bool
 MediaSourceDecoder::IsExpectingMoreData()
 {
-  ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
-  return !mReader->IsEnded();
+  return !mEnded;
 }
 
 class DurationChangedRunnable : public nsRunnable {
@@ -243,8 +255,8 @@ MediaSourceDecoder::SetMediaSourceDuration(double aDuration, MSRangeRemovalActio
     GetStateMachine()->SetDuration(INT64_MAX);
     mMediaSourceDuration = PositiveInfinity<double>();
   }
-  if (mReader) {
-    mReader->SetMediaSourceDuration(mMediaSourceDuration);
+  if (!mIsUsingFormatReader && GetReader()) {
+    GetReader()->SetMediaSourceDuration(mMediaSourceDuration);
   }
   ScheduleDurationChange(oldDuration, aDuration, aAction);
 }
@@ -283,27 +295,33 @@ MediaSourceDecoder::GetMediaSourceDuration()
 void
 MediaSourceDecoder::NotifyTimeRangesChanged()
 {
-  MOZ_ASSERT(mReader);
-  mReader->NotifyTimeRangesChanged();
+  MOZ_ASSERT(mReader && !mIsUsingFormatReader);
+  GetReader()->NotifyTimeRangesChanged();
 }
 
 void
 MediaSourceDecoder::PrepareReaderInitialization()
 {
+  if (mIsUsingFormatReader) {
+    return;
+  }
   MOZ_ASSERT(mReader);
-  mReader->PrepareInitialization();
+  GetReader()->PrepareInitialization();
 }
 
 void
 MediaSourceDecoder::GetMozDebugReaderData(nsAString& aString)
 {
-  mReader->GetMozDebugReaderData(aString);
+  if (mIsUsingFormatReader) {
+    return;
+  }
+  GetReader()->GetMozDebugReaderData(aString);
 }
 
 bool
 MediaSourceDecoder::IsActiveReader(MediaDecoderReader* aReader)
 {
-  return mReader->IsActiveReader(aReader);
+  return !mIsUsingFormatReader && GetReader()->IsActiveReader(aReader);
 }
 
 double
@@ -318,6 +336,7 @@ MediaSourceDecoder::SelectDecoder(int64_t aTarget,
                                   int64_t aTolerance,
                                   const nsTArray<nsRefPtr<SourceBufferDecoder>>& aTrackDecoders)
 {
+  MOZ_ASSERT(!mIsUsingFormatReader);
   ReentrantMonitorAutoEnter mon(GetReentrantMonitor());
 
   media::TimeUnit target{media::TimeUnit::FromMicroseconds(aTarget)};

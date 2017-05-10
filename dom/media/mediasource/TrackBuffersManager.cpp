@@ -7,6 +7,7 @@
 #include "TrackBuffersManager.h"
 #include "SourceBufferResource.h"
 #include "SourceBuffer.h"
+#include "MediaSourceDemuxer.h"
 
 #ifdef MOZ_FMP4
 #include "MP4Demuxer.h"
@@ -36,6 +37,8 @@ AppendStateToStr(TrackBuffersManager::AppendState aState)
   }
 }
 
+static Atomic<uint32_t> sStreamSourceID(0u);
+
 TrackBuffersManager::TrackBuffersManager(dom::SourceBuffer* aParent, MediaSourceDecoder* aParentDecoder, const nsACString& aType)
   : mInputBuffer(new MediaLargeByteBuffer)
   , mAppendState(AppendState::WAITING_FOR_SEGMENT)
@@ -46,9 +49,10 @@ TrackBuffersManager::TrackBuffersManager(dom::SourceBuffer* aParent, MediaSource
   , mParser(ContainerParser::CreateForMIMEType(aType))
   , mProcessedInput(0)
   , mAppendRunning(false)
-  , mTaskQueue(new MediaTaskQueue(GetMediaThreadPool()))
+  , mTaskQueue(aParentDecoder->GetDemuxer()->GetTaskQueue())
   , mParent(new nsMainThreadPtrHolder<dom::SourceBuffer>(aParent, false /* strict */))
   , mParentDecoder(new nsMainThreadPtrHolder<MediaSourceDecoder>(aParentDecoder, false /* strict */))
+  , mMediaSourceDemuxer(mParentDecoder->GetDemuxer())
   , mAbort(false)
   , mMonitor("TrackBuffersManager")
 {
@@ -512,6 +516,9 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
   // Update our reported total size.
   mSizeSourceBuffer = mVideoTracks.mSizeBuffer + mAudioTracks.mSizeBuffer;
 
+  // Tell our demuxer that data was removed.
+  mMediaSourceDemuxer->NotifyTimeRangesChanged();
+
   return dataRemoved;
 }
 
@@ -798,6 +805,9 @@ TrackBuffersManager::OnDemuxerInitDone(nsresult)
   // 4. Let active track flag equal false.
   mActiveTrack = false;
 
+  // Increase our stream id.
+  uint32_t streamID = sStreamSourceID++;
+
   // 5. If the first initialization segment received flag is false, then run the following steps:
   if (!mFirstInitializationSegmentReceived) {
     mAudioTracks.mNumTracks = numAudios;
@@ -833,7 +843,8 @@ TrackBuffersManager::OnDemuxerInitDone(nsresult)
       //   11. Queue a task to fire a trusted event named addtrack, that does not bubble and is not cancelable, and that uses the TrackEvent interface, at the AudioTrackList object referenced by the audioTracks attribute on the HTMLMediaElement.
       mAudioTracks.mBuffers.AppendElement(TrackBuffer());
       // 10. Add the track description for this track to the track buffer.
-      mAudioTracks.mInfo = info.mAudio.Clone();
+      mAudioTracks.mInfo = new SharedTrackInfo(info.mAudio, streamID);
+      mAudioTracks.mLastInfo = mAudioTracks.mInfo;
     }
 
     mVideoTracks.mNumTracks = numVideos;
@@ -864,7 +875,8 @@ TrackBuffersManager::OnDemuxerInitDone(nsresult)
       //   11. Queue a task to fire a trusted event named addtrack, that does not bubble and is not cancelable, and that uses the TrackEvent interface, at the VideoTrackList object referenced by the videoTracks attribute on the HTMLMediaElement.
       mVideoTracks.mBuffers.AppendElement(TrackBuffer());
       // 10. Add the track description for this track to the track buffer.
-      mVideoTracks.mInfo = info.mVideo.Clone();
+      mVideoTracks.mInfo = new SharedTrackInfo(info.mVideo, streamID);
+      mVideoTracks.mLastInfo = mVideoTracks.mInfo;
     }
     // 4. For each text track in the initialization segment, run following steps:
     // 5. If active track flag equals true, then run the following steps:
@@ -872,6 +884,9 @@ TrackBuffersManager::OnDemuxerInitDone(nsresult)
 
     // 6. Set first initialization segment received flag to true.
     mFirstInitializationSegmentReceived = true;
+  } else {
+    mAudioTracks.mLastInfo = new SharedTrackInfo(info.mAudio, streamID);
+    mVideoTracks.mLastInfo = new SharedTrackInfo(info.mVideo, streamID);
   }
 
   // TODO CHECK ENCRYPTION
@@ -1094,6 +1109,9 @@ TrackBuffersManager::CompleteCodedFrameProcessing()
   // 7. Set append state to WAITING_FOR_SEGMENT.
   SetAppendState(AppendState::WAITING_FOR_SEGMENT);
 
+  // Tell our demuxer that data was added.
+  mMediaSourceDemuxer->NotifyTimeRangesChanged();
+
   // 8. Jump to the loop top step above.
   ResolveProcessing(false, __func__);
 }
@@ -1310,6 +1328,8 @@ TrackBuffersManager::ProcessFrame(MediaRawData* aSample,
   // 16. Add the coded frame with the presentation timestamp, decode timestamp, and frame duration to the track buffer.
   aSample->mTime = presentationTimestamp.ToMicroseconds();
   aSample->mTimecode = decodeTimestamp.ToMicroseconds();
+  aSample->mTrackInfo = trackBuffer.mLastInfo;
+
   if (firstRemovedIndex >= 0) {
     data.InsertElementAt(firstRemovedIndex, aSample);
   } else {
@@ -1452,8 +1472,6 @@ TrackBuffersManager::RestartGroupStartTimestamp()
 
 TrackBuffersManager::~TrackBuffersManager()
 {
-  mTaskQueue->BeginShutdown();
-  mTaskQueue = nullptr;
 }
 
 MediaInfo
