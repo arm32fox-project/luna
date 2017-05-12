@@ -91,6 +91,10 @@ td {
   width: 30%;
 }
 
+#contents {
+  clear: right;
+}
+
 #action-box,
 #reset-box,
 #safe-mode-box {
@@ -107,6 +111,11 @@ td {
 
 #action-box button {
   display: block;
+}
+
+#verify-place-result {
+  max-height: 200px;
+  overflow: auto;
 }
 
 .block {
