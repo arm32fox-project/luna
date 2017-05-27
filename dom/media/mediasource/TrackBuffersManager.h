@@ -23,8 +23,11 @@ class ContainerParser;
 class MediaLargeByteBuffer;
 class MediaRawData;
 class MediaSourceDemuxer;
-class SourceBuffer;
 class SourceBufferResource;
+
+namespace dom {
+  class SourceBufferAttributes;
+}
 
 using media::TimeUnit;
 using media::TimeInterval;
@@ -38,7 +41,9 @@ public:
   typedef MediaData::Type MediaType;
   typedef nsTArray<nsRefPtr<MediaRawData>> TrackBuffer;
 
-  TrackBuffersManager(dom::SourceBuffer* aParent, MediaSourceDecoder* aParentDecoder, const nsACString& aType);
+  TrackBuffersManager(dom::SourceBufferAttributes* aAttributes,
+                      MediaSourceDecoder* aParentDecoder,
+                      const nsACString& aType);
 
   bool AppendData(MediaLargeByteBuffer* aData, TimeUnit aTimestampOffset) override;
 
@@ -100,6 +105,7 @@ private:
   void SegmentParserLoop();
   void AppendIncomingBuffers();
   void InitializationSegmentReceived();
+  void ShutdownDemuxers();
   void CreateDemuxerforMIMEType();
   void NeedMoreData();
   void RejectAppend(nsresult aRejectValue, const char* aName);
@@ -252,7 +258,17 @@ private:
     }
   };
 
-  bool ProcessFrame(MediaRawData* aSample, TrackData& aTrackData);
+  void CheckSequenceDiscontinuity();
+  void ProcessFrames(TrackBuffer& aSamples, TrackData& aTrackData);
+  void CheckNextInsertionIndex(TrackData& aTrackData,
+                               const TimeUnit& aSampleTime);
+  void InsertFrames(TrackBuffer& aSamples,
+                    const TimeIntervals& aIntervals,
+                    TrackData& aTrackData);
+  void RemoveFrames(const TimeIntervals& aIntervals,
+                    TrackData& aTrackData,
+                    uint32_t aStartIndex);
+  void UpdateBufferedRanges();
   void RejectProcessing(nsresult aRejectValue, const char* aName);
   void ResolveProcessing(bool aResolveValue, const char* aName);
   MediaPromiseRequestHolder<CodedFrameProcessingPromise> mProcessingRequest;
@@ -289,12 +305,13 @@ private:
   }
   RefPtr<MediaTaskQueue> mTaskQueue;
 
+  TimeInterval mAppendWindow;
   TimeUnit mTimestampOffset;
   TimeUnit mLastTimestampOffset;
   void RestoreCachedVariables();
 
   // Strong references to external objects.
-  nsMainThreadPtrHandle<dom::SourceBuffer> mParent;
+  nsRefPtr<dom::SourceBufferAttributes> mSourceBufferAttributes;
   nsMainThreadPtrHandle<MediaSourceDecoder> mParentDecoder;
   nsRefPtr<MediaSourceDemuxer> mMediaSourceDemuxer;
 
