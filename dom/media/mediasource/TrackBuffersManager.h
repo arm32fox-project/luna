@@ -75,6 +75,7 @@ public:
 
   void SetGroupStartTimestamp(const TimeUnit& aGroupStartTimestamp) override;
   void RestartGroupStartTimestamp() override;
+  TimeUnit GroupEndTimestamp() override;
 
   // Interface for MediaSourceDemuxer
   MediaInfo GetMetadata();
@@ -152,12 +153,13 @@ private:
   // ContainerParser objects and methods.
   // Those are used to parse the incoming input buffer.
 
-  // Recreate the ContainerParser and only feed it with the previous init
-  // segment found.
-  void RecreateParser();
+  // Recreate the ContainerParser and if aReuseInitData is true then
+  // feed it with the previous init segment found.
+  void RecreateParser(bool aReuseInitData);
   nsAutoPtr<ContainerParser> mParser;
 
   // Demuxer objects and methods.
+  nsRefPtr<MediaLargeByteBuffer> mInitData;
   nsRefPtr<SourceBufferResource> mCurrentInputBuffer;
   nsRefPtr<MediaDataDemuxer> mInputDemuxer;
   // Length already processed in current media segment.
@@ -330,6 +332,7 @@ private:
   // Stable audio and video track time ranges.
   TimeIntervals mVideoBufferedRanges;
   TimeIntervals mAudioBufferedRanges;
+  TimeUnit mOfficialGroupEndTimestamp;
   // MediaInfo of the first init segment read.
   MediaInfo mInfo;
 };
