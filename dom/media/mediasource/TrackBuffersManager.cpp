@@ -261,11 +261,18 @@ TrackBuffersManager::Detach()
   MOZ_ASSERT(NS_IsMainThread());
   MSE_DEBUG("");
 
-  // Clear our sourcebuffer
+  // Abort pending operations if any.
+  AbortAppendData();
+
+  nsRefPtr<TrackBuffersManager> self = this;
   nsCOMPtr<nsIRunnable> task =
-    NS_NewRunnableMethodWithArg<TimeInterval>(
-      this, &TrackBuffersManager::CodedFrameRemoval,
-      TimeInterval(TimeUnit::FromSeconds(0), TimeUnit::FromInfinity()));
+    NS_NewRunnableFunction([self] () {
+      // Clear our sourcebuffer
+      self->CodedFrameRemoval(TimeInterval(TimeUnit::FromSeconds(0),
+                                           TimeUnit::FromInfinity()));
+      self->mProcessingPromise.RejectIfExists(NS_ERROR_ABORT, __func__);
+      self->mAppendPromise.RejectIfExists(NS_ERROR_ABORT, __func__);
+    });
   GetTaskQueue()->Dispatch(task.forget());
 }
 
@@ -318,6 +325,8 @@ TrackBuffersManager::CompleteResetParserState()
   mInputBuffer = nullptr;
   if (mCurrentInputBuffer) {
     mCurrentInputBuffer->EvictAll();
+    // The demuxer will be recreated during the next run of SegmentParserLoop.
+    // As such we don't need to notify it that data has been removed.
     mCurrentInputBuffer = new SourceBufferResource(mType);
   }
 
@@ -395,27 +404,22 @@ TrackBuffersManager::DoEvictData(const TimeUnit& aPlaybackTime,
   // 30s is a value chosen as it appears to work with YouTube.
   TimeUnit upperLimit =
     std::max(aPlaybackTime, track.mNextSampleTime) + TimeUnit::FromSeconds(30);
-  lastKeyFrameIndex = buffer.Length();
+  uint32_t evictedFramesStartIndex = buffer.Length();
   for (int32_t i = buffer.Length() - 1; i >= 0; i--) {
     const auto& frame = buffer[i];
-    if (frame->mKeyframe) {
-      lastKeyFrameIndex = i;
-      toEvict -= partialEvict;
-      if (toEvict < 0) {
-        break;
-      }
-      partialEvict = 0;
-    }
-    if (frame->mTime <= upperLimit.ToMicroseconds()) {
+    if (frame->mTime <= upperLimit.ToMicroseconds() || toEvict < 0) {
+      // We've reached a frame that shouldn't be evicted -> Evict after it -> i+1.
+      // Or the previous loop reached the eviction threshold -> Evict from it -> i+1.
+      evictedFramesStartIndex = i + 1;
       break;
     }
-    partialEvict += frame->ComputedSizeOfIncludingThis();
+    toEvict -= frame->ComputedSizeOfIncludingThis();
   }
-  if (lastKeyFrameIndex < buffer.Length()) {
+  if (evictedFramesStartIndex < buffer.Length()) {
     MSE_DEBUG("Step2. Evicting %u bytes from trailing data",
               mSizeSourceBuffer - finalSize);
     CodedFrameRemoval(
-      TimeInterval(TimeUnit::FromMicroseconds(buffer[lastKeyFrameIndex]->GetEndTime() + 1),
+      TimeInterval(TimeUnit::FromMicroseconds(buffer[evictedFramesStartIndex]->mTime),
                    TimeUnit::FromInfinity()));
   }
 }
@@ -436,15 +440,7 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
   MSE_DEBUG("From %.2fs to %.2f",
             aInterval.mStart.ToSeconds(), aInterval.mEnd.ToSeconds());
 
-  double mediaSourceDuration = mParentDecoder->GetMediaSourceDuration();
-  if (IsNaN(mediaSourceDuration)) {
-    MSE_DEBUG("Nothing to remove, aborting");
-    return false;
-  }
-  TimeUnit duration{TimeUnit::FromSeconds(mediaSourceDuration)};
-
 #if DEBUG
-  MSE_DEBUG("duration:%.2f", duration.ToSeconds());
   if (HasVideo()) {
     MSE_DEBUG("before video ranges=%s",
               DumpTimeRanges(mVideoTracks.mBufferedRanges).get());
@@ -467,7 +463,14 @@ TrackBuffersManager::CodedFrameRemoval(TimeInterval aInterval)
     MSE_DEBUGV("Processing %s track", track->mInfo->mMimeType.get());
     // 1. Let remove end timestamp be the current value of duration
     // See bug: https://www.w3.org/Bugs/Public/show_bug.cgi?id=28727
-    TimeUnit removeEndTimestamp = std::max(duration, track->mBufferedRanges.GetEnd());
+    // At worse we will remove all frames until the end, unless a key frame is
+    // found between the current interval's end and the trackbuffer's end.
+    TimeUnit removeEndTimestamp = track->mBufferedRanges.GetEnd();
+
+    if (start > removeEndTimestamp) {
+      // Nothing to remove.
+      continue;
+    }
 
     // 2. If this track buffer has a random access point timestamp that is greater than or equal to end,
     // then update remove end timestamp to that random access point timestamp.
@@ -514,8 +517,8 @@ TrackBuffersManager::UpdateBufferedRanges()
 {
   MonitorAutoLock mon(mMonitor);
 
-  mVideoBufferedRanges = mVideoTracks.mBufferedRanges;
-  mAudioBufferedRanges = mAudioTracks.mBufferedRanges;
+  mVideoBufferedRanges = mVideoTracks.mSanitizedBufferedRanges;
+  mAudioBufferedRanges = mAudioTracks.mSanitizedBufferedRanges;
 
 #if DEBUG
   if (HasVideo()) {
@@ -602,10 +605,9 @@ TrackBuffersManager::SegmentParserLoop()
         SetAppendState(AppendState::PARSING_MEDIA_SEGMENT);
         continue;
       }
-      // We have neither an init segment nor a media segment, this is invalid
-      // data. We can ignore it.
-      MSE_DEBUG("Found invalid data, ignoring.");
-      mInputBuffer = nullptr;
+      // We have neither an init segment nor a media segment, this is either
+      // invalid data or not enough data to detect a segment type.
+      MSE_DEBUG("Found invalid or incomplete data.");
       NeedMoreData();
       return;
     }
@@ -633,7 +635,7 @@ TrackBuffersManager::SegmentParserLoop()
       }
       // 2. If the input buffer does not contain a complete media segment header yet, then jump to the need more data step below.
       if (mParser->MediaHeaderRange().IsNull()) {
-        mCurrentInputBuffer->AppendData(mInputBuffer);
+        AppendDataToCurrentInputBuffer(mInputBuffer);
         mInputBuffer = nullptr;
         NeedMoreData();
         return;
@@ -722,6 +724,16 @@ TrackBuffersManager::CreateDemuxerforMIMEType()
 }
 
 void
+TrackBuffersManager::AppendDataToCurrentInputBuffer(MediaLargeByteBuffer* aData)
+{
+  MOZ_ASSERT(mCurrentInputBuffer);
+  int64_t offset = mCurrentInputBuffer->GetLength();
+  mCurrentInputBuffer->AppendData(aData);
+  // A MediaLargeByteBuffer has a maximum size of 2GB.
+  mInputDemuxer->NotifyDataArrived(uint32_t(aData->Length()), offset);
+}
+
+void
 TrackBuffersManager::InitializationSegmentReceived()
 {
   MOZ_ASSERT(mParser->HasCompleteInitData());
@@ -736,6 +748,9 @@ TrackBuffersManager::InitializationSegmentReceived()
   }
 
   mCurrentInputBuffer = new SourceBufferResource(mType);
+  // The demuxer isn't initialized yet; we don't want to notify it
+  // that data has been appended yet; so we simply append the init segment
+  // to the resource.
   mCurrentInputBuffer->AppendData(mInitData);
   uint32_t length = endInit - (mProcessedInput - mInputBuffer->Length());
   if (mInputBuffer->Length() == length) {
@@ -948,6 +963,7 @@ TrackBuffersManager::OnDemuxerInitDone(nsresult)
   // This step has already been done in InitializationSegmentReceived when we
   // transferred the content into mCurrentInputBuffer.
   mCurrentInputBuffer->EvictAll();
+  mInputDemuxer->NotifyDataRemoved();
   RecreateParser(true);
 
   // 4. Set append state to WAITING_FOR_SEGMENT.
@@ -970,27 +986,31 @@ TrackBuffersManager::CodedFrameProcessing()
 {
   MOZ_ASSERT(OnTaskQueue());
   MOZ_ASSERT(mProcessingPromise.IsEmpty());
-  nsRefPtr<CodedFrameProcessingPromise> p = mProcessingPromise.Ensure(__func__);
 
-  int64_t offset = mCurrentInputBuffer->GetLength();
   MediaByteRange mediaRange = mParser->MediaSegmentRange();
-  uint32_t length;
   if (mediaRange.IsNull()) {
-    length = mInputBuffer->Length();
-    mCurrentInputBuffer->AppendData(mInputBuffer);
+    AppendDataToCurrentInputBuffer(mInputBuffer);
     mInputBuffer = nullptr;
   } else {
+    MOZ_ASSERT(mProcessedInput >= mInputBuffer->Length());
+    if (int64_t(mProcessedInput - mInputBuffer->Length()) > mediaRange.mEnd) {
+      // Something is not quite right with the data appended. Refuse it.
+      // This would typically happen if the previous media segment was partial
+      // yet a new complete media segment was added.
+      return CodedFrameProcessingPromise::CreateAndReject(NS_ERROR_FAILURE, __func__);
+    }
     // The mediaRange is offset by the init segment position previously added.
-    length = mediaRange.mEnd - (mProcessedInput - mInputBuffer->Length());
+    uint32_t length =
+      mediaRange.mEnd - (mProcessedInput - mInputBuffer->Length());
     nsRefPtr<MediaLargeByteBuffer> segment = new MediaLargeByteBuffer;
-    MOZ_ASSERT(mInputBuffer->Length() >= length);
     if (!segment->AppendElements(mInputBuffer->Elements(), length)) {
       return CodedFrameProcessingPromise::CreateAndReject(NS_ERROR_OUT_OF_MEMORY, __func__);
     }
-    mCurrentInputBuffer->AppendData(segment);
+    AppendDataToCurrentInputBuffer(segment);
     mInputBuffer->RemoveElementsAt(0, length);
   }
-  mInputDemuxer->NotifyDataArrived(length, offset);
+
+  nsRefPtr<CodedFrameProcessingPromise> p = mProcessingPromise.Ensure(__func__);
 
   DoDemuxVideo();
 
@@ -1467,11 +1487,14 @@ TrackBuffersManager::InsertFrames(TrackBuffer& aSamples,
                           TimeUnit::FromMicroseconds(aSamples[0]->mTime));
 
   // Adjust our demuxing index if necessary.
-  if (trackBuffer.mNextGetSampleIndex.isSome() &&
-      (trackBuffer.mNextInsertionIndex.ref() < trackBuffer.mNextGetSampleIndex.ref() ||
-       (trackBuffer.mNextInsertionIndex.ref() == trackBuffer.mNextGetSampleIndex.ref() &&
-        aIntervals.GetEnd() < trackBuffer.mNextSampleTime))) {
-    trackBuffer.mNextGetSampleIndex.ref() += aSamples.Length();
+  if (trackBuffer.mNextGetSampleIndex.isSome()) {
+    if (trackBuffer.mNextInsertionIndex.ref() == trackBuffer.mNextGetSampleIndex.ref() &&
+        aIntervals.GetEnd() >= trackBuffer.mNextSampleTime) {
+      MSE_DEBUG("Next sample to be played got overwritten");
+      trackBuffer.mNextGetSampleIndex.reset();
+    } else if (trackBuffer.mNextInsertionIndex.ref() <= trackBuffer.mNextGetSampleIndex.ref()) {
+      trackBuffer.mNextGetSampleIndex.ref() += aSamples.Length();
+    }
   }
 
   TrackBuffer& data = trackBuffer.mBuffers.LastElement();
@@ -1479,12 +1502,13 @@ TrackBuffersManager::InsertFrames(TrackBuffer& aSamples,
   trackBuffer.mNextInsertionIndex.ref() += aSamples.Length();
 
   // Update our buffered range with new sample interval.
+  trackBuffer.mBufferedRanges += aIntervals;
   // We allow a fuzz factor in our interval of half a frame length,
   // as fuzz is +/- value, giving an effective leeway of a full frame
   // length.
   TimeIntervals range(aIntervals);
   range.SetFuzz(trackBuffer.mLongestFrameDuration.ref() / 2);
-  trackBuffer.mBufferedRanges += range;
+  trackBuffer.mSanitizedBufferedRanges += range;
 }
 
 void
@@ -1546,8 +1570,6 @@ TrackBuffersManager::RemoveFrames(const TimeIntervals& aIntervals,
     aTrackData.mSizeBuffer -= sample->ComputedSizeOfIncludingThis();
   }
 
-  removedIntervals.SetFuzz(TimeUnit::FromMicroseconds(maxSampleDuration));
-
   MSE_DEBUG("Removing frames from:%u (frames:%u) ([%f, %f))",
             firstRemovedIndex.ref(),
             lastRemovedIndex - firstRemovedIndex.ref() + 1,
@@ -1569,6 +1591,7 @@ TrackBuffersManager::RemoveFrames(const TimeIntervals& aIntervals,
     if (aTrackData.mNextInsertionIndex.ref() > firstRemovedIndex.ref() &&
         aTrackData.mNextInsertionIndex.ref() <= lastRemovedIndex + 1) {
       aTrackData.ResetAppendState();
+      MSE_DEBUG("NextInsertionIndex got reset.");
     } else if (aTrackData.mNextInsertionIndex.ref() > lastRemovedIndex + 1) {
       aTrackData.mNextInsertionIndex.ref() -=
         lastRemovedIndex - firstRemovedIndex.ref() + 1;
@@ -1577,6 +1600,10 @@ TrackBuffersManager::RemoveFrames(const TimeIntervals& aIntervals,
 
   // Update our buffered range to exclude the range just removed.
   aTrackData.mBufferedRanges -= removedIntervals;
+
+  // Recalculate sanitized buffered ranges.
+  aTrackData.mSanitizedBufferedRanges = aTrackData.mBufferedRanges;
+  aTrackData.mSanitizedBufferedRanges.SetFuzz(TimeUnit::FromMicroseconds(maxSampleDuration/2));
 
   data.RemoveElementsAt(firstRemovedIndex.ref(),
                         lastRemovedIndex - firstRemovedIndex.ref() + 1);
@@ -1688,36 +1715,82 @@ TrackBuffersManager::GetTrackBuffer(TrackInfo::TrackType aTrack)
   return GetTracksData(aTrack).mBuffers.LastElement();
 }
 
+uint32_t TrackBuffersManager::FindSampleIndex(const TrackBuffer& aTrackBuffer,
+                                              const TimeInterval& aInterval)
+{
+  TimeUnit target = aInterval.mStart - aInterval.mFuzz;
+
+  for (uint32_t i = 0; i < aTrackBuffer.Length(); i++) {
+    const nsRefPtr<MediaRawData>& sample = aTrackBuffer[i];
+    if (sample->mTime >= target.ToMicroseconds() ||
+        sample->GetEndTime() > target.ToMicroseconds()) {
+      return i;
+    }
+  }
+  NS_ASSERTION(false, "FindSampleIndex called with invalid arguments");
+
+  return 0;
+}
+
 TimeUnit
 TrackBuffersManager::Seek(TrackInfo::TrackType aTrack,
-                          const TimeUnit& aTime)
+                          const TimeUnit& aTime,
+                          const TimeUnit& aFuzz)
 {
   MOZ_ASSERT(OnTaskQueue());
   auto& trackBuffer = GetTracksData(aTrack);
   const TrackBuffersManager::TrackBuffer& track = GetTrackBuffer(aTrack);
-  TimeUnit lastKeyFrameTime;
+
+  if (!track.Length()) {
+    // This a reset. It will be followed by another valid seek.
+    trackBuffer.mNextGetSampleIndex = Some(uint32_t(0));
+    trackBuffer.mNextSampleTimecode = TimeUnit();
+    trackBuffer.mNextSampleTime = TimeUnit();
+    return TimeUnit();
+  }
+
+  uint32_t i = 0;
+
+  if (aTime != TimeUnit()) {
+    // Determine the interval of samples we're attempting to seek to.
+    TimeIntervals buffered = trackBuffer.mBufferedRanges;
+    TimeIntervals::IndexType index = buffered.Find(aTime);
+    buffered.SetFuzz(aFuzz);
+    index = buffered.Find(aTime);
+    MOZ_ASSERT(index != TimeIntervals::NoIndex);
+
+    TimeInterval target = buffered[index];
+    i = FindSampleIndex(track, target);
+  }
+
+  Maybe<TimeUnit> lastKeyFrameTime;
   TimeUnit lastKeyFrameTimecode;
   uint32_t lastKeyFrameIndex = 0;
-  for (uint32_t i = 0; i < track.Length(); i++) {
+  for (; i < track.Length(); i++) {
     const nsRefPtr<MediaRawData>& sample = track[i];
     TimeUnit sampleTime = TimeUnit::FromMicroseconds(sample->mTime);
-    if (sampleTime > aTime) {
+    if (sampleTime > aTime && lastKeyFrameTime.isSome()) {
       break;
     }
     if (sample->mKeyframe) {
       lastKeyFrameTimecode = TimeUnit::FromMicroseconds(sample->mTimecode);
-      lastKeyFrameTime = sampleTime;
+      lastKeyFrameTime = Some(sampleTime);
       lastKeyFrameIndex = i;
     }
-    if (sampleTime == aTime) {
+    if (sampleTime == aTime ||
+        (sampleTime > aTime && lastKeyFrameTime.isSome())) {
       break;
     }
   }
+  MSE_DEBUG("Keyframe %s found at %lld",
+            lastKeyFrameTime.isSome() ? "" : "not",
+            lastKeyFrameTime.refOr(TimeUnit()).ToMicroseconds());
+
   trackBuffer.mNextGetSampleIndex = Some(lastKeyFrameIndex);
   trackBuffer.mNextSampleTimecode = lastKeyFrameTimecode;
-  trackBuffer.mNextSampleTime = lastKeyFrameTime;
+  trackBuffer.mNextSampleTime = lastKeyFrameTime.refOr(TimeUnit());
 
-  return lastKeyFrameTime;
+  return lastKeyFrameTime.refOr(TimeUnit());
 }
 
 uint32_t

@@ -85,7 +85,9 @@ public:
   {
     return mEnded;
   }
-  TimeUnit Seek(TrackInfo::TrackType aTrack, const TimeUnit& aTime);
+  TimeUnit Seek(TrackInfo::TrackType aTrack,
+                const TimeUnit& aTime,
+                const TimeUnit& aFuzz);
   uint32_t SkipToNextRandomAccessPoint(TrackInfo::TrackType aTrack,
                                        const TimeUnit& aTimeThreadshold,
                                        bool& aFound);
@@ -159,6 +161,7 @@ private:
   nsAutoPtr<ContainerParser> mParser;
 
   // Demuxer objects and methods.
+  void AppendDataToCurrentInputBuffer(MediaLargeByteBuffer* aData);
   nsRefPtr<MediaLargeByteBuffer> mInitData;
   nsRefPtr<SourceBufferResource> mCurrentInputBuffer;
   nsRefPtr<MediaDataDemuxer> mInputDemuxer;
@@ -234,6 +237,9 @@ private:
     // Track buffer ranges variable that represents the presentation time ranges
     // occupied by the coded frames currently stored in the track buffer.
     TimeIntervals mBufferedRanges;
+    // Sanitized mBufferedRanges with a fuzz of half a sample's duration applied
+    // This buffered ranges is the basis of what is exposed to the JS.
+    TimeIntervals mSanitizedBufferedRanges;
     // Byte size of all samples contained in this track buffer.
     uint32_t mSizeBuffer;
     // TrackInfo of the first metadata received.
@@ -242,6 +248,8 @@ private:
     nsRefPtr<SharedTrackInfo> mLastInfo;
 
     // If set, position of the next sample to be retrieved by GetSample().
+    // If the position is equal to the TrackBuffer's length, it indicates that
+    // we've reached EOS.
     Maybe<uint32_t> mNextGetSampleIndex;
     // Approximation of the next sample's decode timestamp.
     TimeUnit mNextSampleTimecode;
@@ -270,6 +278,9 @@ private:
   void RemoveFrames(const TimeIntervals& aIntervals,
                     TrackData& aTrackData,
                     uint32_t aStartIndex);
+  // Find index of sample. Return a negative value if not found.
+  uint32_t FindSampleIndex(const TrackBuffer& aTrackBuffer,
+                           const TimeInterval& aInterval);
   void UpdateBufferedRanges();
   void RejectProcessing(nsresult aRejectValue, const char* aName);
   void ResolveProcessing(bool aResolveValue, const char* aName);
