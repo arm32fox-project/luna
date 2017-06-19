@@ -1201,11 +1201,11 @@ TrackBuffersManager::ResolveProcessing(bool aResolveValue, const char* aName)
 }
 
 void
-TrackBuffersManager::CheckSequenceDiscontinuity()
+TrackBuffersManager::CheckSequenceDiscontinuity(const TimeUnit& aPresentationTime)
 {
   if (mSourceBufferAttributes->GetAppendMode() == SourceBufferAppendMode::Sequence &&
       mGroupStartTimestamp.isSome()) {
-    mTimestampOffset = mGroupStartTimestamp.ref();
+    mTimestampOffset = mGroupStartTimestamp.ref() - aPresentationTime;
     mGroupEndTimestamp = mGroupStartTimestamp.ref();
     mVideoTracks.mNeedRandomAccessPoint = true;
     mAudioTracks.mNeedRandomAccessPoint = true;
@@ -1220,8 +1220,15 @@ TrackBuffersManager::ProcessFrames(TrackBuffer& aSamples, TrackData& aTrackData)
     return;
   }
 
+  // 1. If generate timestamps flag equals true
+  // Let presentation timestamp equal 0.
+  // Otherwise
+  // Let presentation timestamp be a double precision floating point representation of the coded frame's presentation timestamp in seconds.
+  TimeUnit presentationTimestamp = mSourceBufferAttributes->mGenerateTimestamps
+    ? TimeUnit() : TimeUnit::FromMicroseconds(aSamples[0]->mTime);
+
   // 3. If mode equals "sequence" and group start timestamp is set, then run the following steps:
-  CheckSequenceDiscontinuity();
+  CheckSequenceDiscontinuity(presentationTimestamp);
 
   // 5. Let track buffer equal the track buffer that the coded frame will be added to.
   auto& trackBuffer = aTrackData;
@@ -1319,7 +1326,9 @@ TrackBuffersManager::ProcessFrames(TrackBuffer& aSamples, TrackData& aTrackData)
       // Rather that restarting the process for the frame, we run the first
       // steps again instead.
       // 3. If mode equals "sequence" and group start timestamp is set, then run the following steps:
-      CheckSequenceDiscontinuity();
+      TimeUnit presentationTimestamp = mSourceBufferAttributes->mGenerateTimestamps
+        ? TimeUnit() : TimeUnit::FromMicroseconds(sample->mTime);
+      CheckSequenceDiscontinuity(presentationTimestamp);
 
       if (!sample->mKeyframe) {
         continue;
@@ -1405,19 +1414,19 @@ TrackBuffersManager::ProcessFrames(TrackBuffer& aSamples, TrackData& aTrackData)
   }
 }
 
-void
+bool
 TrackBuffersManager::CheckNextInsertionIndex(TrackData& aTrackData,
                                              const TimeUnit& aSampleTime)
 {
   if (aTrackData.mNextInsertionIndex.isSome()) {
-    return;
+    return true;
   }
 
   TrackBuffer& data = aTrackData.mBuffers.LastElement();
 
   if (data.IsEmpty() || aSampleTime < aTrackData.mBufferedRanges.GetStart()) {
     aTrackData.mNextInsertionIndex = Some(size_t(0));
-    return;
+    return true;
   }
 
   // Find which discontinuity we should insert the frame before.
@@ -1431,19 +1440,20 @@ TrackBuffersManager::CheckNextInsertionIndex(TrackData& aTrackData,
   if (target.IsEmpty()) {
     // No target found, it will be added at the end of the track buffer.
     aTrackData.mNextInsertionIndex = Some(data.Length());
-    return;
+    return true;
   }
+  // We now need to find the first frame of the searched interval.
+  // We will insert our new frames right before.
   for (uint32_t i = 0; i < data.Length(); i++) {
    const nsRefPtr<MediaRawData>& sample = data[i];
-    TimeInterval sampleInterval{
-      TimeUnit::FromMicroseconds(sample->mTime),
-      TimeUnit::FromMicroseconds(sample->GetEndTime())};
-    if (target.Intersects(sampleInterval)) {
+    if (sample->mTime >= target.mStart.ToMicroseconds() ||
+        sample->GetEndTime() > target.mStart.ToMicroseconds()) {
       aTrackData.mNextInsertionIndex = Some(size_t(i));
-      return;
+      return true;
     }
   }
-  MOZ_CRASH("Insertion Index Not Found");
+  NS_ASSERTION(false, "Insertion Index Not Found");
+  return false;
 }
 
 void
@@ -1487,8 +1497,11 @@ TrackBuffersManager::InsertFrames(TrackBuffer& aSamples,
   }
 
   // 16. Add the coded frame with the presentation timestamp, decode timestamp, and frame duration to the track buffer.
-  CheckNextInsertionIndex(aTrackData,
-                          TimeUnit::FromMicroseconds(aSamples[0]->mTime));
+  if (!CheckNextInsertionIndex(aTrackData,
+                               TimeUnit::FromMicroseconds(aSamples[0]->mTime))) {
+    RejectProcessing(NS_ERROR_FAILURE, __func__);
+    return;
+  }
 
   // Adjust our demuxing index if necessary.
   if (trackBuffer.mNextGetSampleIndex.isSome()) {
