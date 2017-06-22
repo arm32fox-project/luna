@@ -324,7 +324,13 @@ TrackBuffersManager::CompleteResetParserState()
     // to discard now.
     track->mQueuedSamples.Clear();
   }
-  // 6. Remove all bytes from the input buffer.
+
+  // 6. If the mode attribute equals "sequence", then set the group start timestamp to the group end timestamp
+  if (mSourceBufferAttributes->GetAppendMode() == SourceBufferAppendMode::Sequence) {
+    mGroupStartTimestamp = Some(mGroupEndTimestamp);
+  }
+
+  // 7. Remove all bytes from the input buffer.
   mIncomingBuffers.Clear();
   mInputBuffer = nullptr;
   if (mCurrentInputBuffer) {
@@ -349,7 +355,7 @@ TrackBuffersManager::CompleteResetParserState()
   }
   RecreateParser(true);
 
-  // 7. Set append state to WAITING_FOR_SEGMENT.
+  // 8. Set append state to WAITING_FOR_SEGMENT.
   SetAppendState(AppendState::WAITING_FOR_SEGMENT);
 
   // Reject our promise immediately.
@@ -1233,11 +1239,15 @@ TrackBuffersManager::ProcessFrames(TrackBuffer& aSamples, TrackData& aTrackData)
   // 5. Let track buffer equal the track buffer that the coded frame will be added to.
   auto& trackBuffer = aTrackData;
 
-  // We apply a fuzz search +- mLongestFrameDuration to get around videos where
-  // the start time is negative but close to 0.
-  TimeInterval targetWindow{
-    TimeInterval(mAppendWindow.mStart, mAppendWindow.mEnd,
-                 trackBuffer.mLongestFrameDuration.refOr(TimeUnit::FromMicroseconds(aSamples[0]->mDuration)))};
+  // Some videos do not exactly start at 0, but instead a small negative value.
+  // To avoid evicting the starting frame of those videos, we allow a leeway
+  // of +- mLongestFrameDuration on the append window start.
+  // We only apply the leeway with the default append window start of 0
+  // otherwise do as per spec.
+  TimeInterval targetWindow = mAppendWindow.mStart != TimeUnit::FromSeconds(0)
+    ? mAppendWindow
+    : TimeInterval(mAppendWindow.mStart, mAppendWindow.mEnd,
+                   trackBuffer.mLongestFrameDuration.refOr(TimeUnit::FromMicroseconds(aSamples[0]->mDuration)));
 
   TimeIntervals samplesRange;
   uint32_t sizeNewSamples = 0;
@@ -1356,7 +1366,7 @@ TrackBuffersManager::ProcessFrames(TrackBuffer& aSamples, TrackData& aTrackData)
 
     // 8. If presentation timestamp is less than appendWindowStart, then set the need random access point flag to true, drop the coded frame, and jump to the top of the loop to start processing the next coded frame.
     // 9. If frame end timestamp is greater than appendWindowEnd, then set the need random access point flag to true, drop the coded frame, and jump to the top of the loop to start processing the next coded frame.
-    if (!targetWindow.Contains(sampleInterval)) {
+    if (!targetWindow.ContainsWithStrictEnd(sampleInterval)) {
       if (samples.Length()) {
         // We are creating a discontinuity in the samples.
         // Insert the samples processed so far.
