@@ -104,13 +104,6 @@ class SharedThreadPool;
 class AudioSink;
 class MediaDecoderStateMachineScheduler;
 
-// GetCurrentTime is defined in winbase.h as zero argument macro forwarding to
-// GetTickCount() and conflicts with MediaDecoderStateMachine::GetCurrentTime
-// implementation.
-#ifdef GetCurrentTime
-#undef GetCurrentTime
-#endif
-
 /*
   The state machine class. This manages the decoding and seeking in the
   MediaDecoderReader on the decode task queue, and A/V sync on the shared
@@ -211,50 +204,16 @@ public:
   // media metadata. The decoder monitor must be obtained before calling this.
   // aDuration is in microseconds.
   // A value of INT64_MAX will be treated as infinity.
-  void SetDuration(int64_t aDuration);
-
-  // Called while decoding metadata to set the end time of the media
-  // resource. The decoder monitor must be obtained before calling this.
-  // aEndTime is in microseconds.
-  void SetMediaEndTime(int64_t aEndTime);
-
-  // Called from main thread to update the duration with an estimated value.
-  // The duration is only changed if its significantly different than the
-  // the current duration, as the incoming duration is an estimate and so
-  // often is unstable as more data is read and the estimate is updated.
-  // Can result in a durationchangeevent. aDuration is in microseconds.
-  void UpdateEstimatedDuration(int64_t aDuration);
+  void SetDuration(media::TimeUnit aDuration);
 
   // Functions used by assertions to ensure we're calling things
   // on the appropriate threads.
   bool OnDecodeTaskQueue() const;
   bool OnTaskQueue() const;
 
-  // Cause state transitions. These methods obtain the decoder monitor
-  // to synchronise the change of state, and to notify other threads
-  // that the state has changed.
-  void Play()
-  {
-    MOZ_ASSERT(NS_IsMainThread());
-    RefPtr<nsRunnable> r = NS_NewRunnableMethod(this, &MediaDecoderStateMachine::PlayInternal);
-    TaskQueue()->Dispatch(r);
-  }
-
-private:
-  // The actual work for the above, which happens asynchronously on the state
-  // machine thread.
-  void PlayInternal();
-public:
-
   // Seeks to the decoder to aTarget asynchronously.
   // Must be called on the state machine thread.
   nsRefPtr<MediaDecoder::SeekPromise> Seek(SeekTarget aTarget);
-
-  // Returns the current playback position in seconds.
-  // Called from the main thread to get the current frame time. The decoder
-  // monitor must be obtained before calling this.
-  double GetCurrentTime() const;
-  int64_t GetCurrentTimeUs() const;
 
   // Clear the flag indicating that a playback position change event
   // is currently queued. This is called from the main thread and must
@@ -597,6 +556,12 @@ protected:
   // one lock count. Called on the state machine thread.
   nsresult StartAudioThread();
 
+  // Notification method invoked when mPlayState changes.
+  void PlayStateChanged();
+
+  // Notification method invoked when mLogicallySeeking changes.
+  void LogicallySeekingChanged();
+
   // Sets internal state which causes playback of media to pause.
   // The decoder monitor must be held.
   void StopPlayback();
@@ -667,11 +632,11 @@ protected:
   // Returns the "media time". This is the absolute time which the media
   // playback has reached. i.e. this returns values in the range
   // [mStartTime, mEndTime], and mStartTime will not be 0 if the media does
-  // not start at 0. Note this is different to the value returned
-  // by GetCurrentTime(), which is in the range [0,duration].
+  // not start at 0. Note this is different than the "current playback position",
+  // which is in the range [0,duration].
   int64_t GetMediaTime() const {
     AssertCurrentThreadInMonitor();
-    return mStartTime + mCurrentFrameTime;
+    return mStartTime + mCurrentPosition;
   }
 
   // Returns an upper bound on the number of microseconds of audio that is
@@ -900,14 +865,28 @@ public:
   // It will be set to -1 if the duration is infinite
   int64_t mEndTime;
 
+  // Recomputes the canonical duration from various sources.
+  void RecomputeDuration();
+
   // Will be set when SetDuration has been called with a value != -1
   // mDurationSet false doesn't indicate that we do not have a valid duration
   // as mStartTime and mEndTime could have been set separately.
   bool mDurationSet;
 
+  // The duration according to the demuxer's current estimate, mirrored from the main thread.
+  Mirror<media::NullableTimeUnit> mEstimatedDuration;
+
+  // The duration explicitly set by JS, mirrored from the main thread.
+  Mirror<Maybe<double>> mExplicitDuration;
+
+  // The highest timestamp that our position has reached. Monotonically
+  // increasing.
+  Watchable<media::TimeUnit> mObservedDuration;
+
   // The current play state and next play state, mirrored from the main thread.
   Mirror<MediaDecoder::PlayState> mPlayState;
   Mirror<MediaDecoder::PlayState> mNextPlayState;
+  Mirror<bool> mLogicallySeeking;
 
   // Returns true if we're logically playing, that is, if the Play() has
   // been called and Pause() has not or we have not yet reached the end
@@ -992,11 +971,13 @@ protected:
   // decoder thread has been stopped.
   nsRevocableEventPtr<WakeDecoderRunnable> mPendingWakeDecoder;
 
-  // The time of the current frame in microseconds. This is referenced from
-  // 0 which is the initial playback position. Set by the state machine
-  // thread, and read-only from the main thread to get the current
-  // time value. Synchronised via decoder monitor.
-  int64_t mCurrentFrameTime;
+  // The time of the current frame in microseconds, corresponding to the "current
+  // playback position" in HTML5. This is referenced from 0, which is the initial
+  // playback position.
+  Canonical<int64_t> mCurrentPosition;
+public:
+  AbstractCanonical<int64_t>* CanonicalCurrentPosition() { return &mCurrentPosition; }
+protected:
 
   // The presentation time of the first audio frame that was played in
   // microseconds. We can add this to the audio stream position to determine
