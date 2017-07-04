@@ -45,6 +45,8 @@ var gContentPane = {
     checkboxMSENFR.disabled = preference.value != true;
     checkboxMSEMP4.disabled = preference.value != true;
     checkboxMSEWebM.disabled = preference.value != true;
+    // Check and disable WebM if necessary
+    this.updateMSEWebM();
   },
 
   /**
@@ -59,6 +61,7 @@ var gContentPane = {
     if (preference.value == true) {
       // Switch off incompatible format
       Services.prefs.setBoolPref('media.mediasource.webm.enabled', false);
+      checkboxMSEWebM.checked = false;
     }
   },
 
