@@ -46,7 +46,9 @@ var gContentPane = {
     checkboxMSEMP4.disabled = preference.value != true;
     checkboxMSEWebM.disabled = preference.value != true;
     // Check and disable WebM if necessary
-    this.updateMSEWebM();
+    if (preference.value == true) {
+      this.updateMSEWebM();
+    }
   },
 
   /**
