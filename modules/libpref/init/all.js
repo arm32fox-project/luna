@@ -128,6 +128,12 @@ pref("dom.indexedDB.logging.enabled", true);
 // Detailed output in log messages.
 pref("dom.indexedDB.logging.details", true);
 
+// Whether or not selection events are enabled
+pref("dom.select_events.enabled", true);
+
+// Whether or not selection events on text controls are enabled
+pref("dom.select_events.textcontrols.enabled", true);
+
 // Whether or not Web Workers are enabled.
 pref("dom.workers.enabled", true);
 // The number of workers per domain allowed to run concurrently.

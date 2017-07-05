@@ -110,12 +110,12 @@ public:
   nsresult      SubtractRange(RangeData* aRange, nsRange* aSubtract,
                               nsTArray<RangeData>* aOutput);
   /**
-   * AddItem adds aRange to this Selection.  If mApplyUserSelectStyle is true,
+   * AddItem adds aRange to this Selection.  If mUserInitiated is true,
    * then aRange is first scanned for -moz-user-select:none nodes and split up
    * into multiple ranges to exclude those before adding the resulting ranges
    * to this Selection.
    */
-  nsresult      AddItem(nsRange* aRange, int32_t* aOutIndex);
+  nsresult      AddItem(nsRange* aRange, int32_t* aOutIndex, bool aNoStartSelect = false);
   nsresult      RemoveItem(nsRange* aRange);
   nsresult      RemoveCollapsedRanges();
   nsresult      Clear(nsPresContext* aPresContext);
@@ -208,6 +208,9 @@ public:
                       int16_t aVPercent, int16_t aHPercent,
                       mozilla::ErrorResult& aRv);
 
+  void AddSelectionChangeBlocker();
+  void RemoveSelectionChangeBlocker();
+  bool IsBlockingSelectionChangeEvents() const;
 private:
   friend class ::nsAutoScrollTimer;
 
@@ -226,19 +229,20 @@ public:
 
   nsresult     NotifySelectionListeners();
 
-  friend struct AutoApplyUserSelectStyle;
-  struct MOZ_STACK_CLASS AutoApplyUserSelectStyle
+  friend struct AutoUserInitiated;
+  struct MOZ_STACK_CLASS AutoUserInitiated
   {
-    explicit AutoApplyUserSelectStyle(Selection* aSelection
-                             MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
-      : mSavedValue(aSelection->mApplyUserSelectStyle)
+    explicit AutoUserInitiated(Selection* aSelection
+                               MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+      : mSavedValue(aSelection->mUserInitiated)
     {
       MOZ_GUARD_OBJECT_NOTIFIER_INIT;
-      aSelection->mApplyUserSelectStyle = true;
+      aSelection->mUserInitiated = true;
     }
     AutoRestore<bool> mSavedValue;
     MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
   };
+
 private:
   friend struct mozilla::AutoPrepareFocusRange;
   class ScrollSelectionIntoViewEvent;
@@ -292,6 +296,8 @@ private:
                                  int32_t* aStartIndex, int32_t* aEndIndex);
   RangeData* FindRangeData(nsIDOMRange* aRange);
 
+  void UserSelectRangesToAdd(nsRange* aItem, nsTArray<nsRefPtr<nsRange> >& rangesToAdd);
+
   /**
    * Helper method for AddItem.
    */
@@ -322,9 +328,14 @@ private:
   SelectionType mType;
   /**
    * True if the current selection operation was initiated by user action.
-   * It determines whether we exclude -moz-user-select:none nodes or not.
+   * It determines whether we exclude -moz-user-select:none nodes or not,
+   * as well as whether selectstart events will be fired.
    */
-  bool mApplyUserSelectStyle;
+  bool mUserInitiated;
+
+  // Non-zero if we don't want any changes we make to the selection to be
+  // visible to content. If non-zero, content won't be notified about changes.
+  uint32_t mSelectionChangeBlockerCount;
 };
 
 // Stack-class to turn on/off selection batching.
@@ -345,6 +356,33 @@ public:
   {
     if (mSelection) {
       mSelection->EndBatchChanges();
+    }
+  }
+};
+
+class MOZ_STACK_CLASS AutoHideSelectionChanges final
+{
+private:
+  nsRefPtr<Selection> mSelection;
+  MOZ_DECL_USE_GUARD_OBJECT_NOTIFIER
+public:
+  explicit AutoHideSelectionChanges(const nsFrameSelection* aFrame);
+
+  explicit AutoHideSelectionChanges(Selection* aSelection
+                                    MOZ_GUARD_OBJECT_NOTIFIER_PARAM)
+    : mSelection(aSelection)
+  {
+    MOZ_GUARD_OBJECT_NOTIFIER_INIT;
+    mSelection = aSelection;
+    if (mSelection) {
+      mSelection->AddSelectionChangeBlocker();
+    }
+  }
+
+  ~AutoHideSelectionChanges()
+  {
+    if (mSelection) {
+      mSelection->RemoveSelectionChangeBlocker();
     }
   }
 };
