@@ -6,6 +6,8 @@
 const nsIPermissionManager = Components.interfaces.nsIPermissionManager;
 const nsICookiePermission = Components.interfaces.nsICookiePermission;
 
+const NOTIFICATION_FLUSH_PERMISSIONS = "flush-pending-permissions";
+
 function Permission(host, rawHost, type, capability, perm) 
 {
   this.host = host;
@@ -183,6 +185,7 @@ var gPermissionManager = {
 
     var os = Components.classes["@mozilla.org/observer-service;1"]
                        .getService(Components.interfaces.nsIObserverService);
+    os.notifyObservers(null, NOTIFICATION_FLUSH_PERMISSIONS, this._type);
     os.addObserver(this, "perm-changed", false);
 
     this._loadPermissions();
@@ -207,9 +210,10 @@ var gPermissionManager = {
         this._tree.treeBoxObject.rowCountChanged(this._view.rowCount - 1, 1);        
         // Re-do the sort, since we inserted this new item at the end. 
         gTreeUtils.sort(this._tree, this._view, this._permissions,
+                        this._lastPermissionSortColumn,
                         this._permissionsComparator,
                         this._lastPermissionSortColumn, 
-                        this._lastPermissionSortAscending);        
+                        !this._lastPermissionSortAscending); // keep sort direction        
       }
       else if (aData == "changed") {
         for (var i = 0; i < this._permissions.length; ++i) {
@@ -221,11 +225,12 @@ var gPermissionManager = {
         // Re-do the sort, if the status changed from Block to Allow
         // or vice versa, since if we're sorted on status, we may no
         // longer be in order. 
-        if (this._lastPermissionSortColumn.id == "statusCol") {
+        if (this._lastPermissionSortColumn == "statusCol") {
           gTreeUtils.sort(this._tree, this._view, this._permissions,
+                          this._lastPermissionSortColumn,
                           this._permissionsComparator,
                           this._lastPermissionSortColumn, 
-                          this._lastPermissionSortAscending);
+                          !this._lastPermissionSortAscending); // keep sort direction
         }
         this._tree.treeBoxObject.invalidate();
       }
@@ -315,7 +320,7 @@ var gPermissionManager = {
 
     // sort and display the table
     this._tree.view = this._view;
-    this.onPermissionSort("rawHost", false);
+    this.onPermissionSort("rawHost");
 
     // disable "remove all" button if there are none
     document.getElementById("removeAllPermissions").disabled = this._permissions.length == 0;

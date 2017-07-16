@@ -747,8 +747,8 @@ var PageStyleActor = protocol.ActorClass({
     // the size of the element.
 
     let clientRect = node.rawNode.getBoundingClientRect();
-    layout.width = Math.ceil(clientRect.width);
-    layout.height = Math.ceil(clientRect.height);
+    layout.width = parseFloat(clientRect.width.toPrecision(6));
+    layout.height = parseFloat(clientRect.height.toPrecision(6));
 
     // We compute and update the values of margins & co.
     let style = CssLogic.getComputedStyle(node.rawNode);
@@ -776,7 +776,7 @@ var PageStyleActor = protocol.ActorClass({
 
     for (let i in this.map) {
       let property = this.map[i].property;
-      this.map[i].value = parseInt(style.getPropertyValue(property));
+      this.map[i].value = parseFloat(style.getPropertyValue(property));
     }
 
 
@@ -842,18 +842,20 @@ var PageStyleActor = protocol.ActorClass({
     let style = this.styleElement;
     let sheet = style.sheet;
     let rawNode = node.rawNode;
+    let cssRules = sheet.cssRules;
+    let classes = [...rawNode.classList];
 
     let selector;
     if (rawNode.id) {
-      selector = "#" + rawNode.id;
-    } else if (rawNode.className) {
-      selector = "." + rawNode.className.split(" ")[0];
+      selector = "#" + CSS.escape(rawNode.id);
+    } else if (classes.length > 0) {
+      selector = "." + classes.map(c => CSS.escape(c)).join(".");
     } else {
       selector = rawNode.tagName.toLowerCase();
     }
 
-    let index = sheet.insertRule(selector + " {}", sheet.cssRules.length);
-    let ruleActor = this._styleRef(sheet.cssRules[index]);
+    let index = sheet.insertRule(selector + " {}", cssRules.length);
+    let ruleActor = this._styleRef(cssRules[index]);
     return this.getAppliedProps(node, [{ rule: ruleActor }],
       { matchedSelectors: true });
   }, {

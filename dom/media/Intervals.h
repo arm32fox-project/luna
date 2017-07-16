@@ -129,6 +129,11 @@ public:
     return mStart <= aX && aX < mEnd;
   }
 
+  bool ContainsWithStrictEnd(const T& aX) const
+  {
+    return mStart - mFuzz <= aX && aX < mEnd;
+  }
+
   bool Contains(const SelfType& aOther) const
   {
     return (mStart - mFuzz <= aOther.mStart + aOther.mFuzz) &&
@@ -140,10 +145,21 @@ public:
     return mStart <= aOther.mStart && aOther.mEnd <= mEnd;
   }
 
+  bool ContainsWithStrictEnd(const SelfType& aOther) const
+  {
+    return (mStart - mFuzz <= aOther.mStart + aOther.mFuzz) &&
+      aOther.mEnd <= mEnd;
+  }
+
   bool Intersects(const SelfType& aOther) const
   {
     return (mStart - mFuzz < aOther.mEnd + aOther.mFuzz) &&
       (aOther.mStart - aOther.mFuzz < mEnd + mFuzz);
+  }
+
+  bool IntersectsStrict(const SelfType& aOther) const
+  {
+    return mStart < aOther.mEnd && aOther.mStart < mEnd;
   }
 
   // Same as Intersects, but including the boundaries.
@@ -287,14 +303,18 @@ public:
   SelfType& operator= (const ElemType& aInterval)
   {
     mIntervals.Clear();
-    mIntervals.AppendElement(aInterval);
+    if (!aInterval.IsEmpty()) {
+      mIntervals.AppendElement(aInterval);
+    }
     return *this;
   }
 
   SelfType& operator= (ElemType&& aInterval)
   {
     mIntervals.Clear();
-    mIntervals.AppendElement(Move(aInterval));
+    if (!aInterval.IsEmpty()) {
+      mIntervals.AppendElement(Move(aInterval));
+    }
     return *this;
   }
 
@@ -389,6 +409,38 @@ public:
     return intervals;
   }
 
+  // Excludes an interval from an IntervalSet.
+  // This is done by inverting aInterval within the bounds of mIntervals
+  // and then doing the intersection.
+  SelfType& operator-= (const ElemType& aInterval)
+  {
+    if (aInterval.IsEmpty() || mIntervals.IsEmpty()) {
+      return *this;
+    }
+    T firstEnd = std::max(mIntervals[0].mStart, aInterval.mStart);
+    T secondStart = std::min(mIntervals.LastElement().mEnd, aInterval.mEnd);
+    ElemType startInterval(mIntervals[0].mStart, firstEnd);
+    ElemType endInterval(secondStart, mIntervals.LastElement().mEnd);
+    SelfType intervals(Move(startInterval));
+    intervals += Move(endInterval);
+    return Intersection(intervals);
+  }
+
+  SelfType& operator-= (const SelfType& aIntervals)
+  {
+    for (const auto& interval : aIntervals.mIntervals) {
+      *this -= interval;
+    }
+    return *this;
+  }
+
+  SelfType operator- (const ElemType& aInterval)
+  {
+    SelfType intervals(*this);
+    intervals -= aInterval;
+    return intervals;
+  }
+
   // Mutate this IntervalSet to be the union of this and aOther.
   SelfType& Union(const SelfType& aOther)
   {
@@ -410,7 +462,7 @@ public:
     const ContainerType& other = aOther.mIntervals;
     IndexType i = 0, j = 0;
     for (; i < mIntervals.Length() && j < other.Length();) {
-      if (mIntervals[i].Intersects(other[j])) {
+      if (mIntervals[i].IntersectsStrict(other[j])) {
         intersection.AppendElement(mIntervals[i].Intersection(other[j]));
       }
       if (mIntervals[i].mEnd < other[j].mEnd) {
@@ -537,6 +589,15 @@ public:
     return false;
   }
 
+  bool ContainsWithStrictEnd(const T& aX) const {
+    for (const auto& interval : mIntervals) {
+      if (interval.ContainsWithStrictEnd(aX)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // Shift all values by aOffset.
   SelfType& Shift(const T& aOffset)
   {
@@ -564,6 +625,27 @@ public:
       }
     }
     return NoIndex;
+  }
+
+  // Methods for range-based for loops.
+  typename ContainerType::iterator begin()
+  {
+    return mIntervals.begin();
+  }
+
+  typename ContainerType::const_iterator begin() const
+  {
+    return mIntervals.begin();
+  }
+
+  typename ContainerType::iterator end()
+  {
+    return mIntervals.end();
+  }
+
+  typename ContainerType::const_iterator end() const
+  {
+    return mIntervals.end();
   }
 
 protected:

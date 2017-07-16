@@ -879,16 +879,12 @@ var gBrowserInit = {
     ToolbarIconColor.init();
 
 #ifdef XP_WIN
-    if ((window.matchMedia("(-moz-os-version: windows-win8)").matches ||
-         window.matchMedia("(-moz-os-version: windows-win10)").matches) &&
+    if (window.matchMedia("(-moz-os-version: windows-win8)").matches &&
         window.matchMedia("(-moz-windows-default-theme)").matches) {
       let windows8WindowFrameColor = Cu.import("resource:///modules/Windows8WindowFrameColor.jsm", {}).Windows8WindowFrameColor;
       
       var windowFrameColor;
-      if (window.matchMedia("(-moz-os-version: windows-win10)").matches)
-        windowFrameColor = windows8WindowFrameColor.get_win10();
-      else
-        windowFrameColor = windows8WindowFrameColor.get_win8();
+      windowFrameColor = windows8WindowFrameColor.get_win8();
 
       // Formula from W3C's WCAG 2.0 spec's color ratio and relative luminance,
       // section 1.3.4, http://www.w3.org/TR/WCAG20/ .
@@ -903,7 +899,7 @@ var gBrowserInit = {
                                 windowFrameColor[2] * 0.0722;
       let foregroundLuminance = 0; // Default to black for foreground text.
       let contrastRatio = (backgroundLuminance + 0.05) / (foregroundLuminance + 0.05);
-      if (contrastRatio < 9.5) { // Contrast ratio not at least 9.5:1 -- WCAG states minimum 7:1
+      if (contrastRatio < 7) { // Contrast ratio not at least 7:1 -- per WCAG
         document.documentElement.setAttribute("darkwindowframe", "true");
       }
     }

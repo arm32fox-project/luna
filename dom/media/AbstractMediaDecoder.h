@@ -41,7 +41,7 @@ enum class MediaDecoderEventVisibility : int8_t {
  * The AbstractMediaDecoder class describes the public interface for a media decoder
  * and is used by the MediaReader classes.
  */
-class AbstractMediaDecoder : public nsISupports
+class AbstractMediaDecoder : public nsIObserver
 {
 public:
   // Returns the monitor for other threads to synchronise access to
@@ -72,9 +72,6 @@ public:
   // Return the duration of the media in microseconds.
   virtual int64_t GetMediaDuration() = 0;
 
-  // Set the duration of the media in microseconds.
-  virtual void SetMediaDuration(int64_t aDuration) = 0;
-
   // Sets the duration of the media in microseconds. The MediaDecoder
   // fires a durationchange event to its owner (e.g., an HTML audio
   // tag).
@@ -97,9 +94,6 @@ public:
   virtual void FirstFrameLoaded(nsAutoPtr<MediaInfo> aInfo, MediaDecoderEventVisibility aEventVisibility) = 0;
 
   virtual void RemoveMediaTracks() = 0;
-
-  // Set the media end time in microseconds
-  virtual void SetMediaEndTime(int64_t aTime) = 0;
 
   // May be called by the reader to notify this decoder that the metadata from
   // the media file has been read. Call on the decode thread only.
@@ -150,6 +144,10 @@ public:
     AbstractMediaDecoder* mDecoder;
   };
 
+  // Classes directly inheriting from AbstractMediaDecoder do not support
+  // Observe and it should never be called directly.
+  NS_IMETHOD Observe(nsISupports *aSubject, const char * aTopic, const char16_t * aData) override
+  { MOZ_CRASH("Forbidden method"); return NS_OK; }
 };
 
 class MetadataContainer

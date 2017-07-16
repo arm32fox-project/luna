@@ -27,6 +27,7 @@
 using mozilla::layers::Image;
 using mozilla::layers::LayerManager;
 using mozilla::layers::LayersBackend;
+using mozilla::media::TimeUnit;
 
 #ifdef PR_LOGGING
 PRLogModuleInfo* GetDemuxerLog() {
@@ -246,10 +247,12 @@ MP4Reader::Init(MediaDecoderReader* aCloneDonor)
 
   InitLayersBackendType();
 
-  mAudio.mTaskQueue = new FlushableMediaTaskQueue(GetMediaThreadPool());
+  mAudio.mTaskQueue =
+    new FlushableMediaTaskQueue(GetMediaThreadPool(MediaThreadType::PLATFORM_DECODER));
   NS_ENSURE_TRUE(mAudio.mTaskQueue, NS_ERROR_FAILURE);
 
-  mVideo.mTaskQueue = new FlushableMediaTaskQueue(GetMediaThreadPool());
+  mVideo.mTaskQueue =
+    new FlushableMediaTaskQueue(GetMediaThreadPool(MediaThreadType::PLATFORM_DECODER));
   NS_ENSURE_TRUE(mVideo.mTaskQueue, NS_ERROR_FAILURE);
 
   static bool sSetupPrefCache = false;
@@ -377,8 +380,7 @@ MP4Reader::ReadMetadata(MediaInfo* aInfo,
     duration = mDemuxer->Duration();
   }
   if (duration != -1) {
-    ReentrantMonitorAutoEnter mon(mDecoder->GetReentrantMonitor());
-    mDecoder->SetMediaDuration(duration);
+    mInfo.mMetadataDuration = Some(TimeUnit::FromMicroseconds(duration));
   }
 
   *aInfo = mInfo;
@@ -548,7 +550,7 @@ MP4Reader::ShouldSkip(bool aSkipToNextKeyframe, int64_t aTimeThreshold)
       (nextKeyframe = GetNextKeyframeTime()) == -1) {
     return aSkipToNextKeyframe;
   }
-  return nextKeyframe < aTimeThreshold;
+  return nextKeyframe < aTimeThreshold && nextKeyframe >= 0;
 }
 
 nsRefPtr<MediaDecoderReader::VideoDataPromise>

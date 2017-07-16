@@ -102,6 +102,13 @@ public:
 
   virtual bool IsWaitingOnCDMResource() override;
 
+  int64_t ComputeStartTime(const VideoData* aVideo, const AudioData* aAudio) override;
+
+  bool UseBufferingHeuristics() override
+  {
+    return mTrackDemuxersMayBlock;
+  }
+
 private:
 
   bool InitDemuxer();
@@ -125,11 +132,14 @@ private:
   // Decode any pending already demuxed samples.
   void DecodeDemuxedSamples(TrackType aTrack,
                             AbstractMediaDecoder::AutoNotifyDecoded& aA);
+  // Drain the current decoder.
+  void DrainDecoder(TrackType aTrack);
   void NotifyNewOutput(TrackType aTrack, MediaData* aSample);
   void NotifyInputExhausted(TrackType aTrack);
   void NotifyDrainComplete(TrackType aTrack);
   void NotifyError(TrackType aTrack);
   void NotifyWaitingForData(TrackType aTrack);
+  void NotifyEndOfStream(TrackType aTrack);
 
   void ExtractCryptoInitData(nsTArray<uint8_t>& aInitData);
 
@@ -193,17 +203,19 @@ private:
       , mDecodeAhead(aDecodeAhead)
       , mUpdateScheduled(false)
       , mDemuxEOS(false)
-      , mDemuxEOSServiced(false)
       , mWaitingForData(false)
       , mReceivedNewData(false)
       , mDiscontinuity(true)
       , mOutputRequested(false)
       , mInputExhausted(false)
       , mError(false)
+      , mNeedDraining(false)
+      , mDraining(false)
       , mDrainComplete(false)
       , mNumSamplesInput(0)
       , mNumSamplesOutput(0)
       , mSizeOfQueue(0)
+      , mLastStreamSourceID(UINT32_MAX)
       , mMonitor(aType == MediaData::AUDIO_DATA ? "audio decoder data"
                                                 : "video decoder data")
     {}
@@ -224,14 +236,16 @@ private:
     uint32_t mDecodeAhead;
     bool mUpdateScheduled;
     bool mDemuxEOS;
-    bool mDemuxEOSServiced;
     bool mWaitingForData;
     bool mReceivedNewData;
     bool mDiscontinuity;
 
+    // Pending seek.
+    MediaPromiseRequestHolder<MediaTrackDemuxer::SeekPromise> mSeekRequest;
+
     // Queued demux samples waiting to be decoded.
     nsTArray<nsRefPtr<MediaRawData>> mQueuedSamples;
-    MediaPromiseConsumerHolder<MediaTrackDemuxer::SamplesPromise> mDemuxRequest;
+    MediaPromiseRequestHolder<MediaTrackDemuxer::SamplesPromise> mDemuxRequest;
     MediaPromiseHolder<WaitForDataPromise> mWaitingPromise;
 
     bool HasWaitingPromise()
@@ -244,7 +258,13 @@ private:
     bool mOutputRequested;
     bool mInputExhausted;
     bool mError;
+    bool mNeedDraining;
+    bool mDraining;
     bool mDrainComplete;
+    // If set, all decoded samples prior mTimeThreshold will be dropped.
+    // Used for internal seeking when a change of stream is detected.
+    Maybe<media::TimeUnit> mTimeThreshold;
+
     // Decoded samples returned my mDecoder awaiting being returned to
     // state machine upon request.
     nsTArray<nsRefPtr<MediaData>> mOutput;
@@ -268,25 +288,32 @@ private:
     {
       MOZ_ASSERT(mOwner->OnTaskQueue());
       mDemuxEOS = false;
-      mDemuxEOSServiced = false;
       mWaitingForData = false;
       mReceivedNewData = false;
       mDiscontinuity = true;
       mQueuedSamples.Clear();
       mOutputRequested = false;
       mInputExhausted = false;
+      mNeedDraining = false;
+      mDraining = false;
       mDrainComplete = false;
+      mTimeThreshold.reset();
       mOutput.Clear();
       mNumSamplesInput = 0;
       mNumSamplesOutput = 0;
+      mNextStreamSourceID.reset();
     }
 
     // Used by the MDSM for logging purposes.
     Atomic<size_t> mSizeOfQueue;
+    // Sample format monitoring.
+    uint32_t mLastStreamSourceID;
+    Maybe<uint32_t> mNextStreamSourceID;
     // Monitor that protects all non-threadsafe state; the primitives
     // that follow.
     Monitor mMonitor;
     media::TimeIntervals mTimeRanges;
+    nsRefPtr<SharedTrackInfo> mInfo;
   };
 
   template<typename PromiseType>
@@ -324,7 +351,7 @@ private:
   // Demuxer objects.
   void OnDemuxerInitDone(nsresult);
   void OnDemuxerInitFailed(DemuxerFailureReason aFailure);
-  MediaPromiseConsumerHolder<MediaDataDemuxer::InitPromise> mDemuxerInitRequest;
+  MediaPromiseRequestHolder<MediaDataDemuxer::InitPromise> mDemuxerInitRequest;
   void OnDemuxFailed(TrackType aTrack, DemuxerFailureReason aFailure);
 
   void DoDemuxVideo();
@@ -342,7 +369,7 @@ private:
   }
 
   void SkipVideoDemuxToNextKeyFrame(media::TimeUnit aTimeThreshold);
-  MediaPromiseConsumerHolder<MediaTrackDemuxer::SkipAccessPointPromise> mSkipRequest;
+  MediaPromiseRequestHolder<MediaTrackDemuxer::SkipAccessPointPromise> mSkipRequest;
   void OnVideoSkipCompleted(uint32_t aSkipped);
   void OnVideoSkipFailed(MediaTrackDemuxer::SkipFailureHolder aFailure);
 
@@ -371,6 +398,9 @@ private:
   // become incorrect.
   bool mIsEncrypted;
 
+  // Set to true if any of our track buffers may be blocking.
+  bool mTrackDemuxersMayBlock;
+
   // Seeking objects.
   bool IsSeeking() const { return mPendingSeekTime.isSome(); }
   void AttemptSeek();
@@ -390,8 +420,6 @@ private:
   }
   // Temporary seek information while we wait for the data
   Maybe<media::TimeUnit> mPendingSeekTime;
-  MediaPromiseConsumerHolder<MediaTrackDemuxer::SeekPromise> mVideoSeekRequest;
-  MediaPromiseConsumerHolder<MediaTrackDemuxer::SeekPromise> mAudioSeekRequest;
   MediaPromiseHolder<SeekPromise> mSeekPromise;
 
   nsRefPtr<SharedDecoderManager> mSharedDecoderManager;

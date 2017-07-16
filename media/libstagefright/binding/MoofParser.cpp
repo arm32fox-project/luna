@@ -6,6 +6,7 @@
 #include "mp4_demuxer/Box.h"
 #include "mp4_demuxer/SinfParser.h"
 #include <limits>
+#include "Intervals.h"
 
 #include "prlog.h"
 
@@ -42,9 +43,10 @@ bool
 MoofParser::RebuildFragmentedIndex(BoxContext& aContext)
 {
   bool foundValidMoof = false;
+  bool foundMdat = false;
 
   for (Box box(&aContext, mOffset); box.IsAvailable(); box = box.Next()) {
-    if (box.IsType("moov")) {
+    if (box.IsType("moov") && mInitRange.IsNull()) {
       mInitRange = MediaByteRange(0, box.Range().mEnd);
       ParseMoov(box);
     } else if (box.IsType("moof")) {
@@ -62,11 +64,41 @@ MoofParser::RebuildFragmentedIndex(BoxContext& aContext)
       }
 
       mMoofs.AppendElement(moof);
+      mMediaRanges.AppendElement(moof.mRange);
       foundValidMoof = true;
+    } else if (box.IsType("mdat") && !Moofs().IsEmpty()) {
+      // Check if we have all our data from last moof.
+      Moof& moof = Moofs().LastElement();
+      media::Interval<int64_t> datarange(moof.mMdatRange.mStart, moof.mMdatRange.mEnd, 0);
+      media::Interval<int64_t> mdat(box.Range().mStart, box.Range().mEnd, 0);
+      if (datarange.Intersects(mdat)) {
+        mMediaRanges.LastElement() =
+          mMediaRanges.LastElement().Extents(box.Range());
+      }
     }
     mOffset = box.NextOffset();
   }
   return foundValidMoof;
+}
+
+MediaByteRange
+MoofParser::FirstCompleteMediaHeader()
+{
+  if (Moofs().IsEmpty()) {
+    return MediaByteRange();
+  }
+  return Moofs()[0].mRange;
+}
+
+MediaByteRange
+MoofParser::FirstCompleteMediaSegment()
+{
+  for (uint32_t i = 0 ; i < mMediaRanges.Length(); i++) {
+    if (mMediaRanges[i].Contains(Moofs()[i].mMdatRange)) {
+      return mMediaRanges[i];
+    }
+  }
+  return MediaByteRange();
 }
 
 class BlockingStream : public Stream {
@@ -252,7 +284,11 @@ MoofParser::ParseMvex(Box& aBox)
     if (box.IsType("trex")) {
       Trex trex = Trex(box);
       if (!mTrex.mTrackId || trex.mTrackId == mTrex.mTrackId) {
+        auto trackId = mTrex.mTrackId;
         mTrex = trex;
+        // Keep the original trackId, as should it be 0 we want to continue
+        // parsing all tracks.
+        mTrex.mTrackId = trackId;
       }
     }
   }
@@ -460,11 +496,6 @@ Moof::ParseTrun(Box& aBox, Tfhd& aTfhd, Mvhd& aMvhd, Mdhd& aMdhd, Edts& aEdts, u
     return false;
   }
   uint32_t flags = reader->ReadU32();
-  if ((flags & 0x404) == 0x404) {
-    // Can't use these flags together
-    reader->DiscardRemaining();
-    return true;
-  }
   uint8_t version = flags >> 24;
 
   if (!reader->CanReadType<uint32_t>()) {
@@ -492,8 +523,8 @@ Moof::ParseTrun(Box& aBox, Tfhd& aTfhd, Mvhd& aMvhd, Mdhd& aMdhd, Edts& aEdts, u
   }
 
   uint64_t offset = aTfhd.mBaseDataOffset + (flags & 1 ? reader->ReadU32() : 0);
-  bool hasFirstSampleFlags = flags & 4;
-  uint32_t firstSampleFlags = hasFirstSampleFlags ? reader->ReadU32() : 0;
+  uint32_t firstSampleFlags =
+    flags & 4 ? reader->ReadU32() : aTfhd.mDefaultSampleFlags;
   uint64_t decodeTime = *aDecodeTime;
   nsTArray<Interval<Microseconds>> timeRanges;
 
@@ -508,9 +539,8 @@ Moof::ParseTrun(Box& aBox, Tfhd& aTfhd, Mvhd& aMvhd, Mdhd& aMdhd, Edts& aEdts, u
     uint32_t sampleSize =
       flags & 0x200 ? reader->ReadU32() : aTfhd.mDefaultSampleSize;
     uint32_t sampleFlags =
-      flags & 0x400 ? reader->ReadU32() : hasFirstSampleFlags && i == 0
-                                            ? firstSampleFlags
-                                            : aTfhd.mDefaultSampleFlags;
+      flags & 0x400 ? reader->ReadU32()
+                    : i ? aTfhd.mDefaultSampleFlags : firstSampleFlags;
     int32_t ctsOffset = 0;
     if (flags & 0x800) {
       ctsOffset = reader->Read32();

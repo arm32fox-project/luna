@@ -86,28 +86,41 @@
 }
 
 .requests-menu-header-button:hover {
-  background: rgba(0,0,0,0.10);
+  background-color: rgba(0,0,0,0.10);
 }
 
 .requests-menu-header-button:hover:active {
-  background: rgba(0,0,0,0.25);
+  background-color: rgba(0,0,0,0.25);
 }
 
 .requests-menu-header-button:not(:active)[sorted] {
-  background: rgba(0,0,0,0.15);
+  background-color: rgba(0,0,0,0.15);
 }
 
-.requests-menu-header-button:not(:active)[sorted=ascending] {
-  background-image: radial-gradient(farthest-side at center top, hsla(200,100%,70%,.7), hsla(200,100%,70%,0.3));
-  background-size: 100% 1px;
-  background-repeat: no-repeat;
+.requests-menu-header-button[sorted] {
+  background-position: right 6px center;
 }
 
-.requests-menu-header-button:not(:active)[sorted=descending] {
-  background-image: radial-gradient(farthest-side at center bottom, hsla(200,100%,70%,.7), hsla(200,100%,70%,0.3));
-  background-size: 100% 1px;
+.requests-menu-header-button[sorted]:-moz-locale-dir(rtl) {
+  background-position: left 6px center;
+}
+
+.requests-menu-status[sorted] {
+  background-position: right 1px top 1px;
+}
+
+.requests-menu-status[sorted]:-moz-locale-dir(rtl) {
+  background-position: left 1px top 1px;
+}
+
+.requests-menu-header-button[sorted=ascending] {
+  background-image: url("chrome://global/skin/devtools/sort-arrows.svg#ascending");
   background-repeat: no-repeat;
-  background-position: bottom;
+}
+ 
+.requests-menu-header-button[sorted=descending] {
+  background-image: url("chrome://global/skin/devtools/sort-arrows.svg#descending");
+  background-repeat: no-repeat;
 }
 
 /* Network requests table: specific column dimensions */
@@ -691,6 +704,28 @@ label.requests-menu-status-code {
 .requests-menu-footer-label {
   padding-top: 3px;
   font-weight: 600;
+}
+
+#requests-menu-filter-freetext-text {
+  transition-property: max-width, -moz-padding-end, -moz-padding-start;
+  transition-duration: 250ms;
+  transition-timing-function: ease;
+}
+
+#requests-menu-filter-freetext-text:not([focused]):not([filled]) > .textbox-input-box {
+  overflow: hidden;
+}
+
+#requests-menu-filter-freetext-text:not([focused]):not([filled]) {
+  max-width: 20px !important;
+  -moz-padding-end: 5px;
+  -moz-padding-start: 22px;
+  background-position: 8px center, top left, top left;
+}
+
+#requests-menu-filter-freetext-text[focused],
+#requests-menu-filter-freetext-text[filled] {
+  max-width: 200px !important;
 }
 
 /* Performance analysis buttons */

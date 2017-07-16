@@ -33,6 +33,7 @@ interface GlobalEventHandlers {
 //         attribute OnErrorEventHandler onerror;
            attribute EventHandler onfocus;
            //(Not implemented)attribute EventHandler oncancel;
+           attribute EventHandler onauxclick;
            attribute EventHandler oncanplay;
            attribute EventHandler oncanplaythrough;
            attribute EventHandler onchange;
@@ -90,6 +91,9 @@ interface GlobalEventHandlers {
            attribute EventHandler onwaiting;
 
            attribute EventHandler ontoggle;
+
+           [Pref="dom.select_events.enabled"]
+           attribute EventHandler onselectstart;
 
            // Pointer events handlers
            [Pref="dom.w3c_pointer_events.enabled"]

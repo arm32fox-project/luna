@@ -2417,6 +2417,25 @@ bool
 nsGenericHTMLFormElement::IsElementDisabledForEvents(uint32_t aMessage, 
                                                     nsIFrame* aFrame)
 {
+  switch (aMessage) {
+    case NS_MOUSE_MOVE:
+    case NS_MOUSE_ENTER_SYNTH:
+    case NS_MOUSE_EXIT_SYNTH:
+    case NS_MOUSEENTER:
+    case NS_MOUSELEAVE:
+    case NS_POINTER_MOVE:
+    case NS_POINTER_OVER:
+    case NS_POINTER_OUT:
+    case NS_POINTER_ENTER:
+    case NS_POINTER_LEAVE:
+    case NS_WHEEL_WHEEL:
+    case NS_MOUSE_SCROLL:
+    case NS_MOUSE_PIXEL_SCROLL:
+      return false;
+    default:
+      break;
+  }
+
   bool disabled = IsDisabled();
   if (!disabled && aFrame) {
     const nsStyleUserInterface* uiStyle = aFrame->StyleUserInterface();
@@ -2424,7 +2443,7 @@ nsGenericHTMLFormElement::IsElementDisabledForEvents(uint32_t aMessage,
       uiStyle->mUserInput == NS_STYLE_USER_INPUT_DISABLED;
 
   }
-  return disabled && aMessage != NS_MOUSE_MOVE;
+  return disabled;
 }
 
 void
@@ -3231,15 +3250,47 @@ nsGenericHTMLElement::NewURIFromString(const nsAutoString& aURISpec,
   return NS_OK;
 }
 
+static bool
+IsOrHasAncestorWithDisplayNone(Element* aElement, nsIPresShell* aPresShell)
+{
+  nsTArray<Element*> elementsToCheck;
+  for (Element* e = aElement; e; e = e->GetParentElement()) {
+    if (e->GetPrimaryFrame()) {
+      // e definitely isn't display:none and doesn't have a display:none
+      // ancestor.
+      break;
+    }
+    elementsToCheck.AppendElement(e);
+  }
+
+  if (elementsToCheck.IsEmpty()) {
+    return false;
+  }
+
+  nsStyleSet* styleSet = aPresShell->StyleSet();
+  nsRefPtr<nsStyleContext> sc;
+  for (int32_t i = elementsToCheck.Length() - 1; i >= 0; --i) {
+    if (sc) {
+      sc = styleSet->ResolveStyleFor(elementsToCheck[i], sc);
+    } else {
+      sc = nsComputedDOMStyle::GetStyleContextForElementNoFlush(elementsToCheck[i],
+                                                                nullptr, aPresShell);
+    }
+    if (sc->StyleDisplay()->mDisplay == NS_STYLE_DISPLAY_NONE) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 void
 nsGenericHTMLElement::GetInnerText(mozilla::dom::DOMString& aValue,
                                    mozilla::ErrorResult& aError)
 {
   if (!GetPrimaryFrame(Flush_Layout)) {
-    nsRefPtr<nsStyleContext> sc =
-      nsComputedDOMStyle::GetStyleContextForElementNoFlush(this, nullptr, nullptr);
-    if (!sc || sc->StyleDisplay()->mDisplay == NS_STYLE_DISPLAY_NONE ||
-        !IsInComposedDoc()) {
+    nsIPresShell* presShell = nsComputedDOMStyle::GetPresShellForContent(this);
+    if (!presShell || IsOrHasAncestorWithDisplayNone(this, presShell)) {
       GetTextContentInternal(aValue, aError);
       return;
     }

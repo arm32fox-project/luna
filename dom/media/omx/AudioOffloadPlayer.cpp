@@ -449,10 +449,7 @@ void AudioOffloadPlayer::NotifyAudioEOS()
 void AudioOffloadPlayer::NotifyPositionChanged()
 {
   nsCOMPtr<nsIRunnable> nsEvent =
-    NS_NewRunnableMethodWithArg<MediaDecoderEventVisibility>(
-      mObserver,
-      &MediaOmxCommonDecoder::PlaybackPositionChanged,
-      MediaDecoderEventVisibility::Observable);
+    NS_NewRunnableMethod(mObserver, &MediaOmxCommonDecoder::NotifyOffloadPlayerPositionChanged);
   NS_DispatchToMainThread(nsEvent);
 }
 
@@ -690,7 +687,7 @@ nsresult AudioOffloadPlayer::StopTimeUpdate()
 MediaDecoderOwner::NextFrameStatus AudioOffloadPlayer::GetNextFrameStatus()
 {
   MOZ_ASSERT(NS_IsMainThread());
-  if (mPlayState == MediaDecoder::PLAY_STATE_SEEKING) {
+  if (mSeekTarget.IsValid()) {
     return MediaDecoderOwner::NEXT_FRAME_UNAVAILABLE_SEEKING;
   } else if (mPlayState == MediaDecoder::PLAY_STATE_ENDED) {
     return MediaDecoderOwner::NEXT_FRAME_UNAVAILABLE;

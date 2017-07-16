@@ -16,8 +16,6 @@
 #include "nsIURL.h"
 #include "nsIIOService.h"
 #include "nsIServiceManager.h"
-#include "nsIAppShell.h"
-#include "nsWidgetsCID.h"
 #include "nsNetUtil.h"
 #include "nsContentUtils.h"
 #include "nsContainerFrame.h"
@@ -52,8 +50,6 @@
 #include "mozilla/Preferences.h"
 static const char *kPrefSrcsetEnabled = "dom.image.srcset.enabled";
 
-static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
-
 NS_IMPL_NS_NEW_HTML_ELEMENT(Image)
 
 #ifdef DEBUG
@@ -82,27 +78,39 @@ namespace dom {
 class ImageLoadTask : public nsRunnable
 {
 public:
-  explicit ImageLoadTask(HTMLImageElement *aElement) :
-    mElement(aElement)
-  {}
+  ImageLoadTask(HTMLImageElement *aElement, bool aAlwaysLoad)
+    : mElement(aElement)
+    , mAlwaysLoad(aAlwaysLoad)
+  {
+    mDocument = aElement->OwnerDoc();
+    mDocument->BlockOnload();
+  }
 
   NS_IMETHOD Run()
   {
     if (mElement->mPendingImageLoadTask == this) {
       mElement->mPendingImageLoadTask = nullptr;
-      mElement->LoadSelectedImage(true, true);
+      mElement->LoadSelectedImage(true, true, mAlwaysLoad);
     }
+    mDocument->UnblockOnload(false);
     return NS_OK;
+  }
+
+  bool AlwaysLoad() {
+    return mAlwaysLoad;
   }
 
 private:
   ~ImageLoadTask() {}
   nsRefPtr<HTMLImageElement> mElement;
+  nsCOMPtr<nsIDocument> mDocument;
+  bool mAlwaysLoad;
 };
 
 HTMLImageElement::HTMLImageElement(already_AddRefed<mozilla::dom::NodeInfo>& aNodeInfo)
   : nsGenericHTMLElement(aNodeInfo)
   , mForm(nullptr)
+  , mInDocResponsiveContent(false)
 {
   // We start out broken
   AddStatesSilently(NS_EVENT_STATE_BROKEN);
@@ -423,7 +431,7 @@ HTMLImageElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
           mResponsiveSelector->Content() == this) {
         mResponsiveSelector->SetDefaultSource(NullString());
       }
-      QueueImageLoadTask();
+      QueueImageLoadTask(true);
     } else {
       // Bug 1076583 - We still behave synchronously in the non-responsive case
       CancelImageRequests(aNotify);
@@ -443,7 +451,7 @@ HTMLImageElement::AfterSetAttr(int32_t aNameSpaceID, nsIAtom* aName,
     if (InResponsiveMode()) {
       // per spec, full selection runs when this changes, even though
       // it doesn't directly affect the source selection
-      QueueImageLoadTask();
+      QueueImageLoadTask(true);
     } else {
       // Bug 1076583 - We still use the older synchronous algorithm in
       // non-responsive mode.  Force a new load of the image with the
@@ -543,7 +551,7 @@ HTMLImageElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
           mResponsiveSelector->Content() == this) {
         mResponsiveSelector->SetDefaultSource(aValue);
       }
-      QueueImageLoadTask();
+      QueueImageLoadTask(true);
     } else if (aNotify) {
       // If aNotify is false, we are coming from the parser or some such place;
       // we'll get bound after all the attributes have been set, so we'll do the
@@ -586,10 +594,15 @@ HTMLImageElement::BindToTree(nsIDocument* aDocument, nsIContent* aParent,
     UpdateFormOwner();
   }
 
-  bool addedToPicture = aParent && aParent->IsHTML(nsGkAtoms::picture) &&
-                        HTMLPictureElement::IsPictureEnabled();
-  if (addedToPicture) {
-    QueueImageLoadTask();
+  if (HaveSrcsetOrInPicture()) {
+    if (aDocument && !mInDocResponsiveContent) {
+      aDocument->AddResponsiveContent(this);
+      mInDocResponsiveContent = true;
+    }
+
+    bool forceLoadEvent = HTMLPictureElement::IsPictureEnabled() &&
+      aParent && aParent->IsHTML(nsGkAtoms::picture);
+    QueueImageLoadTask(forceLoadEvent);
   } else if (!InResponsiveMode() &&
              HasAttr(kNameSpaceID_None, nsGkAtoms::src)) {
     // We skip loading when our attributes were set from parser land,
@@ -630,12 +643,23 @@ HTMLImageElement::UnbindFromTree(bool aDeep, bool aNullParent)
     }
   }
 
-  if (aNullParent && GetParent() &&
+  if (mInDocResponsiveContent) {
+    nsIDocument* doc = GetOurOwnerDoc();
+    MOZ_ASSERT(doc);
+    if (doc) {
+      doc->RemoveResponsiveContent(this);
+      mInDocResponsiveContent = false;
+    }
+  }
+
+  if (GetParent() &&
       GetParent()->IsHTML(nsGkAtoms::picture) &&
       HTMLPictureElement::IsPictureEnabled()) {
     // Being removed from picture re-triggers selection, even if we
     // weren't using a <source> peer
-    QueueImageLoadTask();
+    if (aNullParent) {
+      QueueImageLoadTask(true);
+    }
   }
 
   nsImageLoadingContent::UnbindFromTree(aDeep, aNullParent);
@@ -678,7 +702,7 @@ HTMLImageElement::MaybeLoadImage()
 
   // Note, check LoadingEnabled() after LoadImage call.
 
-  LoadSelectedImage(false, true);
+  LoadSelectedImage(false, true, false);
 
   if (!LoadingEnabled()) {
     CancelImageRequests(true);
@@ -858,7 +882,7 @@ HTMLImageElement::ClearForm(bool aRemoveFromForm)
 }
 
 void
-HTMLImageElement::QueueImageLoadTask()
+HTMLImageElement::QueueImageLoadTask(bool aAlwaysLoad)
 {
   // If loading is temporarily disabled, we don't want to queue tasks
   // that may then run when loading is re-enabled.
@@ -866,15 +890,17 @@ HTMLImageElement::QueueImageLoadTask()
     return;
   }
 
-  // The task checks this to determine if it was the last queued event, so this
-  // implicitly cancels earlier tasks
-  mPendingImageLoadTask = new ImageLoadTask(this);
-  nsCOMPtr<nsIAppShell> appShell = do_GetService(kAppShellCID);
-  if (appShell) {
-    appShell->RunInStableState(mPendingImageLoadTask);
-  } else {
-    MOZ_ASSERT(false, "expect appshell for HTMLImageElement");
+  // Ensure that we don't overwrite a previous load request that requires
+  // a complete load to occur.
+  bool alwaysLoad = aAlwaysLoad;
+  if (mPendingImageLoadTask) {
+    alwaysLoad = alwaysLoad || mPendingImageLoadTask->AlwaysLoad();
   }
+  nsRefPtr<ImageLoadTask> task = new ImageLoadTask(this, alwaysLoad);
+  // The task checks this to determine if it was the last
+  // queued event, and so earlier tasks are implicitly canceled.
+  mPendingImageLoadTask = task;
+  nsContentUtils::RunInStableState(task.forget());
 }
 
 bool
@@ -904,7 +930,7 @@ HTMLImageElement::InResponsiveMode()
 }
 
 nsresult
-HTMLImageElement::LoadSelectedImage(bool aForce, bool aNotify)
+HTMLImageElement::LoadSelectedImage(bool aForce, bool aNotify, bool aAlwaysLoad)
 {
   nsresult rv = NS_ERROR_FAILURE;
 
@@ -912,7 +938,9 @@ HTMLImageElement::LoadSelectedImage(bool aForce, bool aNotify)
     // In responsive mode we generally want to re-run the full
     // selection algorithm whenever starting a new load, per
     // spec. This also causes us to re-resolve the URI as appropriate.
-    UpdateResponsiveSource();
+    if (!UpdateResponsiveSource() && !aAlwaysLoad) {
+      return NS_OK;
+    }
   }
 
   if (mResponsiveSelector) {
@@ -965,9 +993,17 @@ HTMLImageElement::PictureSourceSrcsetChanged(nsIContent *aSourceNode,
     mResponsiveSelector->SetCandidatesFromSourceSet(aNewValue);
   }
 
+  if (!mInDocResponsiveContent) {
+    nsIDocument* doc = GetOurOwnerDoc();
+    if (doc) {
+      doc->AddResponsiveContent(this);
+      mInDocResponsiveContent = true;
+    }
+  }
+
   // This always triggers the image update steps per the spec, even if
   // we are not using this source.
-  QueueImageLoadTask();
+  QueueImageLoadTask(true);
 }
 
 void
@@ -994,7 +1030,7 @@ HTMLImageElement::PictureSourceSizesChanged(nsIContent *aSourceNode,
 
   // This always triggers the image update steps per the spec, even if
   // we are not using this source.
-  QueueImageLoadTask();
+  QueueImageLoadTask(true);
 }
 
 void
@@ -1010,7 +1046,7 @@ HTMLImageElement::PictureSourceMediaOrTypeChanged(nsIContent *aSourceNode,
 
   // This always triggers the image update steps per the spec, even if
   // we are not switching to/from this source
-  QueueImageLoadTask();
+  QueueImageLoadTask(true);
 }
 
 void
@@ -1020,7 +1056,7 @@ HTMLImageElement::PictureSourceAdded(nsIContent *aSourceNode)
     return;
   }
 
-  QueueImageLoadTask();
+  QueueImageLoadTask(true);
 }
 
 void
@@ -1030,15 +1066,17 @@ HTMLImageElement::PictureSourceRemoved(nsIContent *aSourceNode)
     return;
   }
 
-  QueueImageLoadTask();
+  QueueImageLoadTask(true);
 }
 
-void
+bool
 HTMLImageElement::UpdateResponsiveSource()
 {
+  bool hadSelector = !!mResponsiveSelector;
+
   if (!IsSrcsetEnabled()) {
     mResponsiveSelector = nullptr;
-    return;
+    return hadSelector;
   }
 
   nsIContent *currentSource =
@@ -1058,9 +1096,21 @@ HTMLImageElement::UpdateResponsiveSource()
     if (candidateSource == currentSource) {
       // found no better source before current, re-run selection on
       // that and keep it if it's still usable.
-      mResponsiveSelector->SelectImage(true);
+      bool changed = mResponsiveSelector->SelectImage(true);
       if (mResponsiveSelector->NumCandidates()) {
-        break;
+        bool isUsableCandidate = true;
+
+        // an otherwise-usable source element may still have a media query that may not
+        // match any more.
+        if (candidateSource->IsElement() &&
+            candidateSource->AsElement()->IsHTML(nsGkAtoms::source) &&
+            !SourceElementMatches(candidateSource->AsContent())) {
+          isUsableCandidate = false;
+        }
+
+        if (isUsableCandidate) {
+          return changed;
+        }
       }
 
       // no longer valid
@@ -1089,6 +1139,8 @@ HTMLImageElement::UpdateResponsiveSource()
     // Ran out of siblings without finding ourself, e.g. XBL magic.
     mResponsiveSelector = nullptr;
   }
+
+  return !hadSelector || mResponsiveSelector;
 }
 
 /*static */ bool
@@ -1097,6 +1149,31 @@ HTMLImageElement::SupportedPictureSourceType(const nsAString& aType)
   return
     imgLoader::SupportImageWithMimeType(NS_ConvertUTF16toUTF8(aType).get(),
                                         AcceptedMimeTypes::IMAGES_AND_DOCUMENTS);
+}
+
+bool
+HTMLImageElement::SourceElementMatches(nsIContent* aSourceNode)
+{
+  MOZ_ASSERT(aSourceNode->IsHTML(nsGkAtoms::source));
+
+  DebugOnly<Element *> parent(nsINode::GetParentElement());
+  MOZ_ASSERT(parent && parent->IsHTML(nsGkAtoms::picture));
+  MOZ_ASSERT(IsPreviousSibling(aSourceNode, this));
+  MOZ_ASSERT(HTMLPictureElement::IsPictureEnabled());
+
+  // Check media and type
+  HTMLSourceElement *src = static_cast<HTMLSourceElement*>(aSourceNode);
+  if (!src->MatchesCurrentMedia()) {
+    return false;
+  }
+
+  nsAutoString type;
+  if (aSourceNode->GetAttr(kNameSpaceID_None, nsGkAtoms::type, type) &&
+      !SupportedPictureSourceType(type)) {
+    return false;
+  }
+
+  return true;
 }
 
 bool
@@ -1112,20 +1189,7 @@ HTMLImageElement::TryCreateResponsiveSelector(nsIContent *aSourceNode,
   // Skip if this is not a <source> with matching media query
   bool isSourceTag = aSourceNode->IsHTML(nsGkAtoms::source);
   if (isSourceTag) {
-    DebugOnly<Element *> parent(nsINode::GetParentElement());
-    MOZ_ASSERT(parent && parent->IsHTML(nsGkAtoms::picture));
-    MOZ_ASSERT(IsPreviousSibling(aSourceNode, this));
-    MOZ_ASSERT(pictureEnabled);
-
-    // Check media and type
-    HTMLSourceElement *src = static_cast<HTMLSourceElement*>(aSourceNode);
-    if (!src->MatchesCurrentMedia()) {
-      return false;
-    }
-
-    nsAutoString type;
-    if (aSourceNode->GetAttr(kNameSpaceID_None, nsGkAtoms::type, type) &&
-        !SupportedPictureSourceType(type)) {
+    if (!SourceElementMatches(aSourceNode)) {
       return false;
     }
   } else if (aSourceNode->IsHTML(nsGkAtoms::img)) {
@@ -1244,6 +1308,12 @@ void
 HTMLImageElement::DestroyContent()
 {
   mResponsiveSelector = nullptr;
+}
+
+void
+HTMLImageElement::MediaFeatureValuesChanged()
+{
+  QueueImageLoadTask(false);
 }
 
 } // namespace dom

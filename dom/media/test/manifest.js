@@ -66,8 +66,7 @@ var gPlayedTests = [
 // anything for testing clone-specific bugs.
 var cloneKey = Math.floor(Math.random()*100000000);
 var gCloneTests = gSmallTests.concat([
-  // Actual duration is ~200ms, we have Content-Duration lie about it.
-  { name:"bug520908.ogv", type:"video/ogg", duration:9000 },
+  { name:"bug520908.ogv", type:"video/ogg", duration:0.2 },
   // short-video is more like 1s, so if you load this twice you'll get an unexpected duration
   { name:"dynamic_resource.sjs?key=" + cloneKey + "&res1=320x240.ogv&res2=short-video.ogv",
     type:"video/ogg", duration:0.266 },
@@ -649,43 +648,6 @@ var gMetadataTests = [
     }
   },
   { name:"wavedata_u8.wav", tags: { }
-  },
-];
-
-// Test files for Encrypted Media Extensions
-var gEMETests = [
-  {
-    name:"gizmo-frag-cencinit.mp4",
-    fragments: [ "gizmo-frag-cencinit.mp4", "gizmo-frag-cenc1.m4s", "gizmo-frag-cenc2.m4s" ],
-    type:"video/mp4; codecs=\"avc1.64000d,mp4a.40.2\"",
-    keys: {
-      // "keyid" : "key"
-      "7e571d037e571d037e571d037e571d03" : "7e5733337e5733337e5733337e573333",
-      "7e571d047e571d047e571d047e571d04" : "7e5744447e5744447e5744447e574444",
-    },
-    sessionType:"temporary",
-    duration:2.00,
-  },
-  {
-    name:"gizmo-frag-cencinit.mp4",
-    fragments: [ "gizmo-frag-cencinit.mp4", "gizmo-frag-cenc1.m4s", "gizmo-frag-cenc2.m4s" ],
-    type:"video/mp4; codecs=\"avc1.64000d,mp4a.40.2\"",
-    keys: {
-      // "keyid" : "key"
-      "7e571d037e571d037e571d037e571d03" : "7e5733337e5733337e5733337e573333",
-      "7e571d047e571d047e571d047e571d04" : "7e5744447e5744447e5744447e574444",
-    },
-    sessionType:"temporary",
-    duration:2.00,
-    crossOrigin:true,
-  },
-];
-
-var gEMENonFragmentedTests = [
-  {
-    name:"short-cenc.mp4",
-    type:"video/mp4; codecs=\"avc1.64000d,mp4a.40.2\"",
-    duration:0.47,
   },
 ];
 

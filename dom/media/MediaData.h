@@ -24,6 +24,7 @@ class ImageContainer;
 
 class MediaLargeByteBuffer;
 class MediaByteBuffer;
+class SharedTrackInfo;
 
 // Container that holds media samples.
 class MediaData {
@@ -379,9 +380,15 @@ public:
   const uint8_t* Data() const { return mData; }
   // Size of buffer.
   size_t Size() const { return mSize; }
+  size_t ComputedSizeOfIncludingThis() const
+  {
+    return sizeof(*this) + mCapacity;
+  }
 
   const CryptoSample& mCrypto;
   nsRefPtr<MediaByteBuffer> mExtraData;
+
+  nsRefPtr<SharedTrackInfo> mTrackInfo;
 
   // Return a deep copy or nullptr if out of memory.
   virtual already_AddRefed<MediaRawData> Clone() const;

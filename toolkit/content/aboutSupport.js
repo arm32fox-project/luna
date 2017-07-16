@@ -13,6 +13,8 @@ Cu.import("resource://gre/modules/ResetProfile.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
                                   "resource://gre/modules/PluralForm.jsm");
+XPCOMUtils.defineLazyModuleGetter(this, "PlacesDBUtils",
+                                  "resource://gre/modules/PlacesDBUtils.jsm");
 
 window.addEventListener("load", function onload(event) {
   try {
@@ -36,6 +38,7 @@ let snapshotFormatters = {
   application: function application(data) {
     $("application-box").textContent = data.name;
     $("useragent-box").textContent = data.userAgent;
+    $("os-box").textContent = data.osVersion;
     $("supportLink").href = data.supportURL;
     let version = data.version;
     if (data.vendor)
@@ -47,6 +50,8 @@ let snapshotFormatters = {
 
     $("multiprocess-box").textContent = stringBundle().formatStringFromName("multiProcessStatus",
       [data.numRemoteWindows, data.numTotalWindows, data.remoteAutoStart], 3);
+
+    $("safemode-box").textContent = data.safeMode;
   },
 
   extensions: function extensions(data) {
@@ -488,7 +493,8 @@ Serializer.prototype = {
     let hasText = false;
     for (let child of elem.childNodes) {
       if (child.nodeType == Node.TEXT_NODE) {
-        let text = this._nodeText(child);
+        let text = this._nodeText(
+            child, (child.classList && child.classList.contains("endline")));
         this._appendText(text);
         hasText = hasText || !!text.trim();
       }
@@ -515,7 +521,7 @@ Serializer.prototype = {
     }
   },
 
-  _startNewLine: function (lines) {
+  _startNewLine: function () {
     let currLine = this._currentLine;
     if (currLine) {
       // The current line is not empty.  Trim it.
@@ -527,7 +533,7 @@ Serializer.prototype = {
     this._lines.push("");
   },
 
-  _appendText: function (text, lines) {
+  _appendText: function (text) {
     this._currentLine += text;
   },
 
@@ -545,7 +551,10 @@ Serializer.prototype = {
       for (let i = tableHeadingCols.length - 1; i >= 0; i--) {
         if (tableHeadingCols[i].localName != "th")
           break;
-        colHeadings[i] = this._nodeText(tableHeadingCols[i]).trim();
+        colHeadings[i] = this._nodeText(
+            tableHeadingCols[i],
+            (tableHeadingCols[i].classList &&
+             tableHeadingCols[i].classList.contains("endline"))).trim();
       }
     }
     let hasColHeadings = Object.keys(colHeadings).length > 0;
@@ -572,7 +581,10 @@ Serializer.prototype = {
           let text = "";
           if (colHeadings[j])
             text += colHeadings[j] + ": ";
-          text += this._nodeText(children[j]).trim();
+          text += this._nodeText(
+              children[j],
+              (children[j].classList &&
+               children[j].classList.contains("endline"))).trim();
           this._appendText(text);
           this._startNewLine();
         }
@@ -588,8 +600,14 @@ Serializer.prototype = {
       if (this._ignoreElement(trs[i]))
         continue;
       let children = trs[i].querySelectorAll("th,td");
-      let rowHeading = this._nodeText(children[0]).trim();
-      this._appendText(rowHeading + ": " + this._nodeText(children[1]).trim());
+      let rowHeading = this._nodeText(
+          children[0],
+          (children[0].classList &&
+           children[0].classList.contains("endline"))).trim();
+      this._appendText(rowHeading + ": " + this._nodeText(
+          children[1],
+          (children[1].classList &&
+           children[1].classList.contains("endline"))).trim());
       this._startNewLine();
     }
     this._startNewLine();
@@ -599,8 +617,16 @@ Serializer.prototype = {
     return elem.classList.contains("no-copy");
   },
 
-  _nodeText: function (node) {
-    return node.textContent.replace(/\s+/g, " ");
+  _nodeText: function (node, endline) {
+    let whiteChars = /\s+/g
+    let whiteCharsButNoEndline = /(?!\n)[\s]+/g;
+    let _node = node.cloneNode(true);
+    if (_node.firstElementChild &&
+        (_node.firstElementChild.nodeName.toLowerCase() == "button")) {
+      _node.removeChild(_node.firstElementChild);
+    }
+    return _node.textContent.replace(
+        endline ? whiteCharsButNoEndline : whiteChars, " ");
   },
 };
 
@@ -629,16 +655,25 @@ function populateActionBox() {
   }
 }
 
-// Prompt user to restart the browser in safe mode
-function safeModeRestart() {
+// Restart the browser
+function restart(safeMode) {
   let cancelQuit = Cc["@mozilla.org/supports-PRBool;1"]
                      .createInstance(Ci.nsISupportsPRBool);
   Services.obs.notifyObservers(cancelQuit, "quit-application-requested", "restart");
 
-  if (!cancelQuit.data) {
-    Services.startup.restartInSafeMode(Ci.nsIAppStartup.eAttemptQuit);
+  if (cancelQuit.data) {
+    return;
+  }
+
+  let flags = Ci.nsIAppStartup.eAttemptQuit;
+
+  if (safeMode) {
+    Services.startup.restartInSafeMode(flags);
+  } else {
+    Services.startup.quit(flags | Ci.nsIAppStartup.eRestart);
   }
 }
+
 /**
  * Set up event listeners for buttons.
  */
@@ -666,7 +701,18 @@ function setupEventListeners(){
       Services.obs.notifyObservers(null, "restart-in-safe-mode", "");
     }
     else {
-      safeModeRestart();
+      restart(true);
     }
+  });
+  $("restart-button").addEventListener("click", function (event) {
+    restart(false);
+  });
+  $("verify-place-integrity-button").addEventListener("click", function(event) {
+    PlacesDBUtils.checkAndFixDatabase(function(aLog) {
+      let msg = aLog.join("\n");
+      $("verify-place-result").style.display = "block";
+      $("verify-place-result-parent").classList.remove("no-copy");
+      $("verify-place-result").textContent = msg;
+    });
   });
 }

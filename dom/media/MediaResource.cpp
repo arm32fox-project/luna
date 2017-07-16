@@ -33,6 +33,8 @@
 #include "nsProxyRelease.h"
 #include "nsIContentPolicy.h"
 
+using mozilla::media::TimeUnit;
+
 #ifdef PR_LOGGING
 PRLogModuleInfo* gMediaResourceLog;
 #define RESOURCE_LOG(msg, ...) PR_LOG(gMediaResourceLog, PR_LOG_DEBUG, \
@@ -53,20 +55,14 @@ namespace mozilla {
 void
 MediaResource::Destroy()
 {
-  // If we're being destroyed on a non-main thread, we AddRef again and
-  // use a proxy to release the MediaResource on the main thread, where
-  // the MediaResource is deleted. This ensures we only delete the
-  // MediaResource on the main thread.
-  if (!NS_IsMainThread()) {
-    nsCOMPtr<nsIThread> mainThread = do_GetMainThread();
-    NS_ENSURE_TRUE_VOID(mainThread);
-    nsRefPtr<MediaResource> doomed(this);
-    if (NS_FAILED(NS_ProxyRelease(mainThread, doomed, true))) {
-      NS_WARNING("Failed to proxy release to main thread!");
-    }
-  } else {
+  // Ensures we only delete the MediaResource on the main thread.
+  if (NS_IsMainThread()) {
     delete this;
+    return;
   }
+   nsCOMPtr<nsIRunnable> destroyRunnable =
+    NS_NewNonOwningRunnableMethod(this, &MediaResource::Destroy);
+  MOZ_ALWAYS_TRUE(NS_SUCCEEDED(NS_DispatchToMainThread(destroyRunnable)));
 }
 
 NS_IMPL_ADDREF(MediaResource)
@@ -241,37 +237,6 @@ ChannelMediaResource::OnStartRequest(nsIRequest* aRequest)
       // "OK" status means Content-Length is for the whole resource.
       // Since that's bounded, we know we have a finite-length resource.
       dataIsBounded = true;
-    }
-
-    if (mOffset == 0) {
-      // Look for duration headers from known Ogg content systems.
-      // In the case of multiple options for obtaining the duration
-      // the order of precedence is:
-      // 1) The Media resource metadata if possible (done by the decoder itself).
-      // 2) Content-Duration message header.
-      // 3) X-AMZ-Meta-Content-Duration.
-      // 4) X-Content-Duration.
-      // 5) Perform a seek in the decoder to find the value.
-      nsAutoCString durationText;
-      nsresult ec = NS_OK;
-      rv = hc->GetResponseHeader(NS_LITERAL_CSTRING("Content-Duration"), durationText);
-      if (NS_FAILED(rv)) {
-        rv = hc->GetResponseHeader(NS_LITERAL_CSTRING("X-AMZ-Meta-Content-Duration"), durationText);
-      }
-      if (NS_FAILED(rv)) {
-        rv = hc->GetResponseHeader(NS_LITERAL_CSTRING("X-Content-Duration"), durationText);
-      }
-
-      // If there is a Content-Duration header with a valid value, record
-      // the duration.
-      if (NS_SUCCEEDED(rv)) {
-        double duration = durationText.ToDouble(&ec);
-        if (ec == NS_OK && duration >= 0) {
-          mDecoder->SetDuration(duration);
-          // We know the resource must be bounded.
-          dataIsBounded = true;
-        }
-      }
     }
 
     // Assume Range requests have a bounded upper limit unless the

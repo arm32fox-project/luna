@@ -138,12 +138,6 @@ CheckedInt64 FramesToUsecs(int64_t aFrames, uint32_t aRate);
 // overflow while calulating the conversion.
 CheckedInt64 UsecsToFrames(int64_t aUsecs, uint32_t aRate);
 
-// Number of microseconds per second. 1e6.
-static const int64_t USECS_PER_S = 1000000;
-
-// Number of microseconds per millisecond.
-static const int64_t USECS_PER_MS = 1000;
-
 // Converts milliseconds to seconds.
 #define MS_TO_SECONDS(ms) ((double)(ms) / (PR_MSEC_PER_SEC))
 
@@ -213,9 +207,18 @@ private:
 
 class SharedThreadPool;
 
+// The MediaDataDecoder API blocks, with implementations waiting on platform
+// decoder tasks.  These platform decoder tasks are queued on a separate
+// thread pool to ensure they can run when the MediaDataDecoder clients'
+// thread pool is blocked.  Tasks on the PLATFORM_DECODER thread pool must not
+// wait on tasks in the PLAYBACK thread pool.
+enum class MediaThreadType {
+  PLAYBACK, // MediaDecoderStateMachine and MediaDecoderReader
+  PLATFORM_DECODER
+};
 // Returns the thread pool that is shared amongst all decoder state machines
 // for decoding streams.
-TemporaryRef<SharedThreadPool> GetMediaThreadPool();
+TemporaryRef<SharedThreadPool> GetMediaThreadPool(MediaThreadType aType);
 
 enum H264_PROFILE {
   H264_PROFILE_UNKNOWN                     = 0,

@@ -5,15 +5,24 @@
  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
 
 #include "SourceBufferContentManager.h"
+#include "TrackBuffer.h"
+#include "TrackBuffersManager.h"
 
 namespace mozilla {
 
 already_AddRefed<SourceBufferContentManager>
-SourceBufferContentManager::CreateManager(MediaSourceDecoder* aParentDecoder,
+SourceBufferContentManager::CreateManager(dom::SourceBufferAttributes* aAttributes,
+                                          MediaSourceDecoder* aParentDecoder,
                                           const nsACString &aType)
 {
   nsRefPtr<SourceBufferContentManager> manager;
-  manager = new TrackBuffer(aParentDecoder, aType);
+  bool useFormatReader =
+    Preferences::GetBool("media.mediasource.format-reader", false);
+  if (useFormatReader) {
+    manager = new TrackBuffersManager(aAttributes, aParentDecoder, aType);
+  } else {
+    manager = new TrackBuffer(aParentDecoder, aType);
+  }
   return  manager.forget();
 }
 

@@ -87,6 +87,7 @@
 #include "nsHostObjectProtocolHandler.h"
 #include "nsHtml5Module.h"
 #include "nsHtml5StringParser.h"
+#include "nsIAppShell.h"
 #include "nsIAsyncVerifyRedirectCallback.h"
 #include "nsICategoryManager.h"
 #include "nsIChannelEventSink.h"
@@ -176,6 +177,7 @@
 #include "nsUnicodeProperties.h"
 #include "nsViewManager.h"
 #include "nsViewportInfo.h"
+#include "nsWidgetsCID.h"
 #include "nsWrapperCacheInlines.h"
 #include "nsXULPopupManager.h"
 #include "xpcprivate.h" // nsXPConnect
@@ -332,6 +334,7 @@ namespace {
 
 static NS_DEFINE_CID(kParserServiceCID, NS_PARSERSERVICE_CID);
 static NS_DEFINE_CID(kCParserCID, NS_PARSER_CID);
+static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
 
 static PLDHashTable sEventListenerManagersHash;
 
@@ -5100,6 +5103,22 @@ nsContentUtils::AddScriptRunner(nsIRunnable* aRunnable)
   return true;
 }
 
+/* static */
+void
+nsContentUtils::RunInStableState(already_AddRefed<nsIRunnable> aRunnable,
+                                 DispatchFailureHandling aHandling)
+{
+  nsCOMPtr<nsIRunnable> runnable = aRunnable;
+  nsCOMPtr<nsIAppShell> appShell(do_GetService(kAppShellCID));
+  if (!appShell) {
+    MOZ_ASSERT(aHandling == DispatchFailureHandling::IgnoreFailure);
+    return;
+  }
+  DebugOnly<nsresult> rv = appShell->RunInStableState(runnable);
+  MOZ_ASSERT(NS_SUCCEEDED(rv) ||
+             aHandling == DispatchFailureHandling::IgnoreFailure);
+}
+
 void
 nsContentUtils::EnterMicroTask()
 {
@@ -5860,6 +5879,26 @@ nsContentUtils::GetUTFOrigin(nsIURI* aURI, nsString& aOrigin)
       NS_ENSURE_SUCCESS(rv, rv);
 
       if (uri && uri != aURI) {
+        return GetUTFOrigin(uri, aOrigin);
+      }
+    } else {
+      // We are probably dealing with an unknown blob URL.
+      bool isBlobURL = false;
+      nsresult rv = aURI->SchemeIs(BLOBURI_SCHEME, &isBlobURL);
+      NS_ENSURE_SUCCESS(rv, rv);
+
+      if (isBlobURL) {
+        nsAutoCString path;
+        rv = aURI->GetPath(path);
+        NS_ENSURE_SUCCESS(rv, rv);
+
+        nsCOMPtr<nsIURI> uri;
+        nsresult rv = NS_NewURI(getter_AddRefs(uri), path);
+        if (NS_FAILED(rv)) {
+          aOrigin.AssignLiteral("null");
+          return NS_OK;
+        }
+
         return GetUTFOrigin(uri, aOrigin);
       }
     }

@@ -22,6 +22,40 @@ const WCC_CLASSNAME = "Web Service Handler";
 
 const TYPE_MAYBE_FEED = "application/vnd.mozilla.maybe.feed";
 const TYPE_ANY = "*/*";
+const TYPE_BLACKLIST = [
+        "application/x-www-form-urlencoded",
+        "application/xhtml+xml",
+        "application/xml",
+        "application/mathml+xml",
+        "application/xslt+xml",
+        "application/x-xpinstall",
+        "image/gif",
+        "image/jpg",
+        "image/jpeg",
+        "image/png",
+        "image/x-png",
+        "image/webp",
+#ifdef MOZ_JXR
+        "image/jxr",
+        "image/vnd.ms-photo",
+#endif
+        "image/svg+xml",
+        "image/bmp",
+        "image/x-ms-bmp",
+        "image/icon",
+        "image/x-icon",
+        "image/vnd.microsoft.icon",
+        "multipart/x-mixed-replace",
+        "multipart/form-data",
+        "text/cache-manifest",
+        "text/css",
+        "text/xsl",
+        "text/html",
+        "text/ping",
+        "text/plain",
+        "text/xml",
+        "text/javascript",  // To prevent malicious intent blocking scripting.
+        "text/ecmascript"];
 
 const PREF_CONTENTHANDLERS_AUTO = "browser.contentHandlers.auto.";
 const PREF_CONTENTHANDLERS_BRANCH = "browser.contentHandlers.types.";
@@ -470,12 +504,16 @@ WebContentConverterRegistrar.prototype = {
   function WCCR_registerContentHandler(aContentType, aURIString, aTitle, aContentWindow) {
     LOG("registerContentHandler(" + aContentType + "," + aURIString + "," + aTitle + ")");
 
-    // We only support feed types at present.
+    // Check against the type blacklist.
     // XXX this should be a "security exception" according to spec, but that
     // isn't defined yet.
     var contentType = this._resolveContentType(aContentType);
-    if (contentType != TYPE_MAYBE_FEED)
-      return;
+    for (let blacklistType of TYPE_BLACKLIST) {
+      if (contentType == blacklistType) {
+        console.error("Unable to register content handler for prohibited MIME type %s.", contentType);
+        return;
+      }
+    }
 
     if (aContentWindow) {
       var uri = this._checkAndGetURI(aURIString, aContentWindow);

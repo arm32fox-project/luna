@@ -1187,6 +1187,11 @@ InitSystemMetrics()
     sSystemMetrics->AppendElement(nsGkAtoms::mac_yosemite_theme);
   }
 
+  rv = LookAndFeel::GetInt(LookAndFeel::eIntID_WindowsAccentColorApplies, &metricResult);
+  if (NS_SUCCEEDED(rv) && metricResult) {
+    sSystemMetrics->AppendElement(nsGkAtoms::windows_accent_color_applies);
+  }
+
   rv = LookAndFeel::GetInt(LookAndFeel::eIntID_DWMCompositor, &metricResult);
   if (NS_SUCCEEDED(rv) && metricResult) {
     sSystemMetrics->AppendElement(nsGkAtoms::windows_compositor);
@@ -1235,21 +1240,6 @@ InitSystemMetrics()
         break;
       case LookAndFeel::eWindowsTheme_AeroLite:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_aero_lite);
-        break;
-      case LookAndFeel::eWindowsTheme_LunaBlue:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_blue);
-        break;
-      case LookAndFeel::eWindowsTheme_LunaOlive:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_olive);
-        break;
-      case LookAndFeel::eWindowsTheme_LunaSilver:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_luna_silver);
-        break;
-      case LookAndFeel::eWindowsTheme_Royale:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_royale);
-        break;
-      case LookAndFeel::eWindowsTheme_Zune:
-        sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_zune);
         break;
       case LookAndFeel::eWindowsTheme_Generic:
         sSystemMetrics->AppendElement(nsGkAtoms::windows_theme_generic);

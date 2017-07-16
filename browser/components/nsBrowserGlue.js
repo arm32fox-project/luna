@@ -58,6 +58,9 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
 XPCOMUtils.defineLazyModuleGetter(this, "PlacesBackups",
                                   "resource://gre/modules/PlacesBackups.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "OS",
+                                  "resource://gre/modules/osfile.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "LoginManagerParent",
                                   "resource://gre/modules/LoginManagerParent.jsm");
 
@@ -895,8 +898,8 @@ BrowserGlue.prototype = {
   /**
    * Initialize Places
    * - imports the bookmarks html file if bookmarks database is empty, try to
-   *   restore bookmarks from a JSON backup if the backend indicates that the
-   *   database was corrupt.
+   *   restore bookmarks from a JSON/JSONLZ4 backup if the backend indicates
+   *   that the database was corrupt.
    *
    * These prefs can be set up by the frontend:
    *
@@ -948,22 +951,19 @@ BrowserGlue.prototype = {
       } catch(ex) {}
 
       // If the user did not require to restore default bookmarks, or import
-      // from bookmarks.html, we will try to restore from JSON
+      // from bookmarks.html, we will try to restore from JSON/JSONLZ4
       if (importBookmarks && !restoreDefaultBookmarks && !importBookmarksHTML) {
-        // get latest JSON backup
-        var bookmarksBackupFile = PlacesBackups.getMostRecent("json");
+        // get latest JSON/JSONLZ4 backup
+        var bookmarksBackupFile = yield PlacesBackups.getMostRecentBackup();
         if (bookmarksBackupFile) {
-          // restore from JSON backup
+          // restore from JSON/JSONLZ4 backup
           yield BookmarkJSONUtils.importFromFile(bookmarksBackupFile, true);
           importBookmarks = false;
         }
         else {
           // We have created a new database but we don't have any backup available
           importBookmarks = true;
-          var dirService = Cc["@mozilla.org/file/directory_service;1"].
-                           getService(Ci.nsIProperties);
-          var bookmarksHTMLFile = dirService.get("BMarks", Ci.nsILocalFile);
-          if (bookmarksHTMLFile.exists()) {
+          if (yield OS.File.exists(BookmarkHTMLUtils.defaultPath)) {
             // If bookmarks.html is available in current profile import it...
             importBookmarksHTML = true;
           }
@@ -982,8 +982,12 @@ BrowserGlue.prototype = {
       if (!importBookmarks) {
         // Now apply distribution customized bookmarks.
         // This should always run after Places initialization.
-        this._distributionCustomizer.applyBookmarks();
-        this.ensurePlacesDefaultQueriesInitialized();
+        try {
+          this._distributionCustomizer.applyBookmarks();
+          this.ensurePlacesDefaultQueriesInitialized();
+        } catch (e) {
+          Cu.reportError(e);
+        }
       }
       else {
         // An import operation is about to run.
@@ -1000,52 +1004,65 @@ BrowserGlue.prototype = {
         if (!autoExportHTML && smartBookmarksVersion != -1)
           Services.prefs.setIntPref("browser.places.smartBookmarksVersion", 0);
 
-        // Get bookmarks.html file location
-        var dirService = Cc["@mozilla.org/file/directory_service;1"].
-                         getService(Ci.nsIProperties);
-
-        var bookmarksURI = null;
+        var bookmarksUrl = null;
         if (restoreDefaultBookmarks) {
           // User wants to restore bookmarks.html file from default profile folder
-          bookmarksURI = NetUtil.newURI("resource:///defaults/profile/bookmarks.html");
+          bookmarksUrl = "resource:///defaults/profile/bookmarks.html";
         }
-        else {
-          var bookmarksFile = dirService.get("BMarks", Ci.nsILocalFile);
-          if (bookmarksFile.exists())
-            bookmarksURI = NetUtil.newURI(bookmarksFile);
+        else if (yield OS.File.exists(BookmarkHTMLUtils.defaultPath)) {
+          bookmarksUrl = OS.Path.toFileURI(BookmarkHTMLUtils.defaultPath);
         }
 
-        if (bookmarksURI) {
+        if (bookmarksUrl) {
           // Import from bookmarks.html file.
           try {
-            BookmarkHTMLUtils.importFromURL(bookmarksURI.spec, true).then(null,
+            BookmarkHTMLUtils.importFromURL(bookmarksUrl, true).then(null,
               function onFailure() {
-                Cu.reportError("Bookmarks.html file could be corrupt.");
+                Cu.reportError(
+                    new Error("Bookmarks.html file could be corrupt."));
               }
             ).then(
               function onComplete() {
-                // Now apply distribution customized bookmarks.
-                // This should always run after Places initialization.
-                this._distributionCustomizer.applyBookmarks();
-                // Ensure that smart bookmarks are created once the operation is
-                // complete.
-                this.ensurePlacesDefaultQueriesInitialized();
+                try {
+                  // Now apply distribution customized bookmarks.
+                  // This should always run after Places initialization.
+                  this._distributionCustomizer.applyBookmarks();
+                  // Ensure that smart bookmarks are created once the operation
+                  // is complete.
+                  this.ensurePlacesDefaultQueriesInitialized();
+                } catch (e) {
+                  Cu.reportError(e);
+                }
               }.bind(this)
             );
-          } catch (err) {
-            Cu.reportError("Bookmarks.html file could be corrupt. " + err);
+          } catch (e) {
+            Cu.reportError(
+                new Error("Bookmarks.html file could be corrupt." + "\n" +
+                e.message));
           }
         }
         else {
-          Cu.reportError("Unable to find bookmarks.html file.");
+          Cu.reportError(new Error("Unable to find bookmarks.html file."));
         }
 
-        // Reset preferences, so we won't try to import again at next run
-        if (importBookmarksHTML)
-          Services.prefs.setBoolPref("browser.places.importBookmarksHTML", false);
-        if (restoreDefaultBookmarks)
-          Services.prefs.setBoolPref("browser.bookmarks.restore_default_bookmarks",
-                                     false);
+        // See #1083:
+        // "Delete all bookmarks except for backups" in Safe Mode doesn't work
+        var timer = Cc["@mozilla.org/timer;1"].createInstance(Ci.nsITimer);
+        let observer = {
+          "observe": function() {
+            delete observer.timer;
+            // Reset preferences, so we won't try to import again at next run
+            if (importBookmarksHTML) {
+              Services.prefs.setBoolPref("browser.places.importBookmarksHTML", false);
+            }
+            if (restoreDefaultBookmarks) {
+              Services.prefs.setBoolPref("browser.bookmarks.restore_default_bookmarks",
+                                         false);
+            }
+          },
+          "timer": timer,
+        };
+        timer.init(observer, 100, Ci.nsITimer.TYPE_ONE_SHOT);
       }
 
       // Initialize bookmark archiving on idle.
@@ -1055,8 +1072,13 @@ BrowserGlue.prototype = {
         this._isIdleObserver = true;
       }
 
+    }.bind(this)).catch(ex => {
+      Cu.reportError(ex);
+    }).then(result => {
+      // NB: deliberately after the catch so that we always do this, even if
+      // we threw halfway through initializing in the Task above.
       Services.obs.notifyObservers(null, "places-browser-init-complete", "");
-    }.bind(this));
+    });
   },
 
   /**
@@ -1094,13 +1116,13 @@ BrowserGlue.prototype = {
     // If this fails to get the preference value, we don't export.
     if (Services.prefs.getBoolPref("browser.bookmarks.autoExportHTML")) {
       // Exceptionally, since this is a non-default setting and HTML format is
-      // discouraged in favor of the JSON backups, we spin the event loop on
-      // shutdown, to wait for the export to finish.  We cannot safely spin
-      // the event loop on shutdown until we include a watchdog to prevent
+      // discouraged in favor of the JSON/JSONLZ4 backups, we spin the event
+      // loop on shutdown, to wait for the export to finish.  We cannot safely
+      // spin the event loop on shutdown until we include a watchdog to prevent
       // potential hangs (bug 518683).  The asynchronous shutdown operations
       // will then be handled by a shutdown service (bug 435058).
       waitingForHTMLExportToComplete = false;
-      BookmarkHTMLUtils.exportToFile(FileUtils.getFile("BMarks", [])).then(
+      BookmarkHTMLUtils.exportToFile(BookmarkHTMLUtils.defaultPath).then(
         function onSuccess() {
           waitingForHTMLExportToComplete = true;
         },

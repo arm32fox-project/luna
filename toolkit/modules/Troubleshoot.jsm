@@ -140,13 +140,19 @@ this.Troubleshoot = {
 let dataProviders = {
 
   application: function application(done) {
+
+    let sysInfo = Cc["@mozilla.org/system-info;1"].
+                  getService(Ci.nsIPropertyBag2);
+
     let data = {
       name: Services.appinfo.name,
+      osVersion: sysInfo.getProperty("name") + " " + sysInfo.getProperty("version"),
       version: Services.appinfo.version,
       buildID: Services.appinfo.appBuildID,
       userAgent: Cc["@mozilla.org/network/protocol;1?name=http"].
                  getService(Ci.nsIHttpProtocolHandler).
                  userAgent,
+      safeMode: Services.appinfo.inSafeMode,
     };
 
 #ifdef MOZ_UPDATER
@@ -168,14 +174,27 @@ let dataProviders = {
     data.numRemoteWindows = 0;
     let winEnumer = Services.ww.getWindowEnumerator("navigator:browser");
     while (winEnumer.hasMoreElements()) {
-      data.numTotalWindows++;
-      let remote = winEnumer.getNext().
-                   QueryInterface(Ci.nsIInterfaceRequestor).
-                   getInterface(Ci.nsIWebNavigation).
-                   QueryInterface(Ci.nsILoadContext).
-                   useRemoteTabs;
-      if (remote) {
-        data.numRemoteWindows++;
+      let winUtils = winEnumer.getNext().
+                     QueryInterface(Ci.nsIInterfaceRequestor).
+                     getInterface(Ci.nsIDOMWindowUtils);
+      try {
+        // Error-state windows need to be skipped
+        if (winUtils.layerManagerType == "None" ||
+            winUtils.layerManagerType == "Reserved") {
+          continue;
+        }      
+        data.numTotalWindows++;
+        
+        let remote = winEnumer.
+                     QueryInterface(Ci.nsIInterfaceRequestor).
+                     getInterface(Ci.nsIWebNavigation).
+                     QueryInterface(Ci.nsILoadContext).
+                     useRemoteTabs;
+        if (remote) {
+          data.numRemoteWindows++;
+        }
+      } catch (e) {
+        continue;
       }
     }
 
@@ -305,11 +324,16 @@ let dataProviders = {
     data.numAcceleratedWindows = 0;
     let winEnumer = Services.ww.getWindowEnumerator();
     while (winEnumer.hasMoreElements()) {
-      data.numTotalWindows++;
       let winUtils = winEnumer.getNext().
                      QueryInterface(Ci.nsIInterfaceRequestor).
                      getInterface(Ci.nsIDOMWindowUtils);
       try {
+        // Error-state windows need to be skipped
+        if (winUtils.layerManagerType == "None" ||
+            winUtils.layerManagerType == "Reserved") {
+          continue;
+        }      
+        data.numTotalWindows++;
         data.windowLayerManagerType = winUtils.layerManagerType;
         data.windowLayerManagerRemote = winUtils.layerManagerRemote;
       }

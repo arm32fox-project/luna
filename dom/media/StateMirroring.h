@@ -138,7 +138,7 @@ private:
       MOZ_ASSERT(OwnerThread()->IsCurrentThreadIn());
       MOZ_ASSERT(!mMirrors.Contains(aMirror));
       mMirrors.AppendElement(aMirror);
-      aMirror->OwnerThread()->Dispatch(MakeNotifier(aMirror), AbstractThread::DontAssertDispatchSuccess);
+      aMirror->OwnerThread()->DispatchStateChange(MakeNotifier(aMirror));
     }
 
     void RemoveMirror(AbstractMirror<T>* aMirror) override
@@ -165,6 +165,9 @@ private:
       MOZ_ASSERT(OwnerThread()->IsCurrentThreadIn());
       return mValue;
     }
+
+    // Temporary workaround for misbehaving code.
+    const T& ReadOnWrongThread() { return mValue; }
 
     void Set(const T& aNewValue)
     {
@@ -244,6 +247,7 @@ public:
 
   // Access to the T.
   const T& Ref() const { return *mImpl; }
+  const T& ReadOnWrongThread() const { return mImpl->ReadOnWrongThread(); }
   operator const T&() const { return Ref(); }
   void Set(const T& aNewValue) { mImpl->Set(aNewValue); }
   Canonical& operator=(const T& aNewValue) { Set(aNewValue); return *this; }

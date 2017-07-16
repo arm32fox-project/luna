@@ -5736,7 +5736,7 @@ nsGlobalWindow::GetScrollMaxY(int32_t* aScrollMaxY)
   return rv.ErrorCode();
 }
 
-CSSIntPoint
+CSSPoint
 nsGlobalWindow::GetScrollXY(bool aDoFlush)
 {
   MOZ_ASSERT(IsOuterWindow());
@@ -5760,10 +5760,10 @@ nsGlobalWindow::GetScrollXY(bool aDoFlush)
     return GetScrollXY(true);
   }
 
-  return sf->GetScrollPositionCSSPixels();
+  return CSSPoint::FromAppUnits(scrollPos);
 }
 
-int32_t
+double
 nsGlobalWindow::GetScrollX(ErrorResult& aError)
 {
   FORWARD_TO_OUTER_OR_THROW(GetScrollX, (aError), aError, 0);
@@ -5779,7 +5779,7 @@ nsGlobalWindow::GetScrollX(int32_t* aScrollX)
   return rv.ErrorCode();
 }
 
-int32_t
+double
 nsGlobalWindow::GetScrollY(ErrorResult& aError)
 {
   FORWARD_TO_OUTER_OR_THROW(GetScrollY, (aError), aError, 0);
@@ -12413,6 +12413,7 @@ nsGlobalWindow::RunTimeoutHandler(nsTimeout* aTimeout,
     // New script entry point required, due to the "Create a script" sub-step of
     // http://www.whatwg.org/specs/web-apps/current-work/#timer-initialization-steps
     AutoEntryScript entryScript(this, true, aScx->GetNativeContext());
+    entryScript.TakeOwnershipOfErrorReporting();
     JS::CompileOptions options(entryScript.cx());
     options.setFileAndLine(filename, lineNo)
            .setVersion(JSVERSION_DEFAULT);

@@ -74,41 +74,46 @@ static nsresult
 IsTypeSupported(const nsAString& aType)
 {
   if (aType.IsEmpty()) {
-    return NS_ERROR_DOM_INVALID_ACCESS_ERR;
+    return NS_ERROR_DOM_TYPE_ERR;
   }
   nsContentTypeParser parser(aType);
   nsAutoString mimeType;
   nsresult rv = parser.GetType(mimeType);
   if (NS_FAILED(rv)) {
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+    return NS_ERROR_DOM_INVALID_STATE_ERR;
   }
-  bool found = false;
+  NS_ConvertUTF16toUTF8 mimeTypeUTF8(mimeType);
+
+  nsAutoString codecs;
+  bool hasCodecs = NS_SUCCEEDED(parser.GetParameter("codecs", codecs));
+
   for (uint32_t i = 0; gMediaSourceTypes[i]; ++i) {
     if (mimeType.EqualsASCII(gMediaSourceTypes[i])) {
-      if ((mimeType.EqualsASCII("video/mp4") ||
-           mimeType.EqualsASCII("audio/mp4")) &&
-          !Preferences::GetBool("media.mediasource.mp4.enabled", false)) {
-        break;
+      if (DecoderTraits::IsMP4Type(mimeTypeUTF8)) {
+        if (!Preferences::GetBool("media.mediasource.mp4.enabled", false)) {
+          return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+        }
+        if (hasCodecs &&
+            DecoderTraits::CanHandleCodecsType(mimeTypeUTF8.get(),
+                                               codecs) == CANPLAY_NO) {
+          return NS_ERROR_DOM_INVALID_STATE_ERR;
+        }
+        return NS_OK;
+      } else if (DecoderTraits::IsWebMType(mimeTypeUTF8)) {
+        if (!Preferences::GetBool("media.mediasource.webm.enabled", false) ||
+            Preferences::GetBool("media.mediasource.format-reader", false)) {
+          return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
+        }
+        if (hasCodecs &&
+            DecoderTraits::CanHandleCodecsType(mimeTypeUTF8.get(),
+                                               codecs) == CANPLAY_NO) {
+          return NS_ERROR_DOM_INVALID_STATE_ERR;
+        }
+        return NS_OK;
       }
-      if ((mimeType.EqualsASCII("video/webm") ||
-           mimeType.EqualsASCII("audio/webm")) &&
-          !Preferences::GetBool("media.mediasource.webm.enabled", false)) {
-        break;
-      }
-      found = true;
-      break;
     }
   }
-  if (!found) {
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
-  }
-  // Check aType against HTMLMediaElement list of MIME types.  Since we've
-  // already restricted the container format, this acts as a specific check
-  // of any specified "codecs" parameter of aType.
-  if (dom::HTMLMediaElement::GetCanPlay(aType) == CANPLAY_NO) {
-    return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
-  }
-  return NS_OK;
+  return NS_ERROR_DOM_NOT_SUPPORTED_ERR;
 }
 
 namespace dom {
@@ -176,7 +181,7 @@ MediaSource::SetDuration(double aDuration, ErrorResult& aRv)
   MOZ_ASSERT(NS_IsMainThread());
   MSE_API("SetDuration(aDuration=%f, ErrorResult)", aDuration);
   if (aDuration < 0 || IsNaN(aDuration)) {
-    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
+    aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
     return;
   }
   if (mReadyState != MediaSourceReadyState::Open ||
@@ -304,17 +309,13 @@ MediaSource::EndOfStream(const Optional<MediaSourceEndOfStreamError>& aError, Er
   }
   switch (aError.Value()) {
   case MediaSourceEndOfStreamError::Network:
-    // TODO: If media element has a readyState of:
-    //   HAVE_NOTHING -> run resource fetch algorithm
-    // > HAVE_NOTHING -> run "interrupted" steps of resource fetch
+    mDecoder->NetworkError();
     break;
   case MediaSourceEndOfStreamError::Decode:
-    // TODO: If media element has a readyState of:
-    //   HAVE_NOTHING -> run "unsupported" steps of resource fetch
-    // > HAVE_NOTHING -> run "corrupted" steps of resource fetch
+    mDecoder->DecodeError();
     break;
   default:
-    aRv.Throw(NS_ERROR_DOM_INVALID_ACCESS_ERR);
+    aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
   }
 }
 
@@ -334,6 +335,50 @@ MediaSource::IsTypeSupported(const GlobalObject&, const nsAString& aType)
 MediaSource::Enabled(JSContext* cx, JSObject* aGlobal)
 {
 return Preferences::GetBool("media.mediasource.enabled");
+}
+
+void
+MediaSource::SetLiveSeekableRange(double aStart, double aEnd, ErrorResult& aRv)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  // 1. If the readyState attribute is not "open" then throw an InvalidStateError
+  // exception and abort these steps.
+  if (mReadyState != MediaSourceReadyState::Open) {
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
+    return;
+  }
+
+  // 2. If start is negative or greater than end, then throw a TypeError
+  // exception and abort these steps.
+  if (aStart < 0 || aStart > aEnd) {
+    aRv.Throw(NS_ERROR_DOM_TYPE_ERR);
+    return;
+  }
+
+  // 3. Set live seekable range to be a new normalized TimeRanges object
+  // containing a single range whose start position is start and end position is
+  // end.
+  mLiveSeekableRange =
+    Some(media::TimeInterval(media::TimeUnit::FromSeconds(aStart),
+                             media::TimeUnit::FromSeconds(aEnd)));
+}
+
+void
+MediaSource::ClearLiveSeekableRange(ErrorResult& aRv)
+{
+  MOZ_ASSERT(NS_IsMainThread());
+
+  // 1. If the readyState attribute is not "open" then throw an InvalidStateError
+  // exception and abort these steps.
+  if (mReadyState != MediaSourceReadyState::Open) {
+    aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
+    return;
+  }
+
+  // 2. If live seekable range contains a range, then set live seekable range to
+  // be a new empty TimeRanges object.
+  mLiveSeekableRange.reset();
 }
 
 bool
@@ -366,8 +411,6 @@ MediaSource::Detach()
     MOZ_ASSERT(mActiveSourceBuffers->IsEmpty() && mSourceBuffers->IsEmpty());
     return;
   }
-  mDecoder->DetachMediaSource();
-  mDecoder = nullptr;
   mMediaElement = nullptr;
   mFirstSourceBufferInitialized = false;
   SetReadyState(MediaSourceReadyState::Closed);
@@ -377,6 +420,8 @@ MediaSource::Detach()
   if (mSourceBuffers) {
     mSourceBuffers->Clear();
   }
+  mDecoder->DetachMediaSource();
+  mDecoder = nullptr;
 }
 
 MediaSource::MediaSource(nsPIDOMWindow* aWindow)

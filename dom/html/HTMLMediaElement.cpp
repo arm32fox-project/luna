@@ -59,8 +59,6 @@
 #include "Layers.h"
 #include <limits>
 #include "nsIAsyncVerifyRedirectCallback.h"
-#include "nsIAppShell.h"
-#include "nsWidgetsCID.h"
 #include "nsMediaFragmentURIParser.h"
 #include "nsURIHashKey.h"
 #include "nsJSUtils.h"
@@ -538,7 +536,7 @@ void
 HTMLMediaElement::SetMozSrcObject(DOMMediaStream* aValue)
 {
   mSrcAttrStream = aValue;
-  Load();
+  DoLoad();
 }
 
 /* readonly attribute nsIDOMHTMLMediaElement mozAutoplayEnabled; */
@@ -745,13 +743,10 @@ public:
   }
 };
 
-static NS_DEFINE_CID(kAppShellCID, NS_APPSHELL_CID);
-
 void HTMLMediaElement::RunInStableState(nsIRunnable* aRunnable)
 {
   nsCOMPtr<nsIRunnable> event = new nsSyncSection(this, aRunnable);
-  nsCOMPtr<nsIAppShell> appShell = do_GetService(kAppShellCID);
-  appShell->RunInStableState(event);
+  nsContentUtils::RunInStableState(event.forget());
 }
 
 void HTMLMediaElement::QueueLoadFromSourceTask()
@@ -776,8 +771,21 @@ void HTMLMediaElement::QueueSelectResourceTask()
 /* void load (); */
 NS_IMETHODIMP HTMLMediaElement::Load()
 {
-  if (mIsRunningLoadMethod)
+  if (mIsRunningLoadMethod) {
     return NS_OK;
+  }
+
+  mIsDoingExplicitLoad = true;
+  DoLoad();
+
+  return NS_OK;
+}
+
+void HTMLMediaElement::DoLoad()
+{
+  if (mIsRunningLoadMethod) {
+    return;
+  }
 
   SetPlayedOrSeeked(false);
   mIsRunningLoadMethod = true;
@@ -786,8 +794,6 @@ NS_IMETHODIMP HTMLMediaElement::Load()
   QueueSelectResourceTask();
   ResetState();
   mIsRunningLoadMethod = false;
-
-  return NS_OK;
 }
 
 void HTMLMediaElement::ResetState()
@@ -820,6 +826,7 @@ void HTMLMediaElement::SelectResourceWrapper()
   SelectResource();
   mIsRunningSelectResource = false;
   mHaveQueuedSelectResource = false;
+  mIsDoingExplicitLoad = false;
 }
 
 void HTMLMediaElement::SelectResource()
@@ -1106,7 +1113,12 @@ void HTMLMediaElement::UpdatePreloadAction()
     }
   }
 
+  if (nextAction == HTMLMediaElement::PRELOAD_NONE && mIsDoingExplicitLoad) {
+    nextAction = HTMLMediaElement::PRELOAD_METADATA;
+  }
+
   mPreloadAction = nextAction;
+
   if (nextAction == HTMLMediaElement::PRELOAD_ENOUGH) {
     if (mSuspendedForPreloadNone) {
       // Our load was previouly suspended due to the media having preload
@@ -1205,8 +1217,10 @@ nsresult HTMLMediaElement::LoadResource()
       // TODO: Handle failure: run "If the media data cannot be fetched at
       // all, due to network errors, causing the user agent to give up
       // trying to fetch the resource" section of resource fetch algorithm.
+      decoder->Shutdown();
       return NS_ERROR_FAILURE;
     }
+    ChangeDelayLoadStatus(false);
     mMediaSource = source.forget();
     nsRefPtr<MediaResource> resource =
       MediaSourceDecoder::CreateResource(mMediaSource->GetPrincipal());
@@ -1657,10 +1671,7 @@ HTMLMediaElement::Pause(ErrorResult& aRv)
 {
   if (mNetworkState == nsIDOMHTMLMediaElement::NETWORK_EMPTY) {
     LOG(PR_LOG_DEBUG, ("Loading due to Pause()"));
-    aRv = Load();
-    if (aRv.Failed()) {
-      return;
-    }
+    DoLoad();
   } else if (mDecoder) {
     mDecoder->Pause();
   }
@@ -2054,6 +2065,7 @@ HTMLMediaElement::HTMLMediaElement(already_AddRefed<mozilla::dom::NodeInfo>& aNo
     mEventDeliveryPaused(false),
     mWaitingFired(false),
     mIsRunningLoadMethod(false),
+    mIsDoingExplicitLoad(false),
     mIsLoadingFromSourceChildren(false),
     mDelayingLoadEvent(false),
     mIsRunningSelectResource(false),
@@ -2071,6 +2083,7 @@ HTMLMediaElement::HTMLMediaElement(already_AddRefed<mozilla::dom::NodeInfo>& aNo
     mAudioChannelFaded(false),
     mPlayingThroughTheAudioChannel(false),
     mDisableVideo(false),
+    mPlayBlockedBecauseHidden(false),
     mElementInTreeState(ELEMENT_NOT_INTREE),
     mHasUserInteraction(false)
 {
@@ -2195,15 +2208,24 @@ HTMLMediaElement::ResetConnectionState()
 void
 HTMLMediaElement::Play(ErrorResult& aRv)
 {
+  nsresult rv = PlayInternal(nsContentUtils::IsCallerChrome());
+  if (NS_FAILED(rv)) {
+    aRv.Throw(rv);
+  }
+}
+
+nsresult
+HTMLMediaElement::PlayInternal(bool aCallerIsChrome)
+{
   // Prevent media element from being auto-started by a script when
   // media.autoplay.enabled=false
   if (!mHasUserInteraction
-  && !IsAutoplayEnabled()
-  && !IsScriptedAutoplayEnabled()
-  && !EventStateManager::IsHandlingUserInput()
-  && !nsContentUtils::IsCallerChrome()) {
-  LOG(PR_LOG_DEBUG, ("%p Blocked attempt to autoplay media.", this));
-  return;
+      && !IsAutoplayEnabled()
+      && !IsScriptedAutoplayEnabled()
+      && !EventStateManager::IsHandlingUserInput()
+      && !aCallerIsChrome) {
+    LOG(PR_LOG_DEBUG, ("%p Blocked attempt to autoplay media.", this));
+    return NS_OK;
   }
 
   // Play was not blocked; assume that the user has interacted with the element.
@@ -2215,14 +2237,20 @@ HTMLMediaElement::Play(ErrorResult& aRv)
   SetPlayedOrSeeked(true);
 
   if (mNetworkState == nsIDOMHTMLMediaElement::NETWORK_EMPTY) {
-    aRv = Load();
-    if (aRv.Failed()) {
-      return;
-    }
+    DoLoad();
   }
   if (mSuspendedForPreloadNone) {
     ResumeLoad(PRELOAD_ENOUGH);
   }
+
+  if (Preferences::GetBool("media.block-play-until-visible", false) &&
+      !aCallerIsChrome &&
+      OwnerDoc()->Hidden()) {
+    LOG(PR_LOG_DEBUG, ("%p Blocked playback because owner hidden.", this));
+    mPlayBlockedBecauseHidden = true;
+    return NS_OK;
+  }
+
   // Even if we just did Load() or ResumeLoad(), we could already have a decoder
   // here if we managed to clone an existing decoder.
   if (mDecoder) {
@@ -2230,9 +2258,9 @@ HTMLMediaElement::Play(ErrorResult& aRv)
       SetCurrentTime(0);
     }
     if (!mPausedForInactiveDocumentOrChannel) {
-      aRv = mDecoder->Play();
-      if (aRv.Failed()) {
-        return;
+      nsresult rv = mDecoder->Play();
+      if (NS_FAILED(rv)) {
+        return rv;
       }
     }
   }
@@ -2270,13 +2298,13 @@ HTMLMediaElement::Play(ErrorResult& aRv)
   // and our preload status.
   AddRemoveSelfReference();
   UpdatePreloadAction();
+
+  return NS_OK;
 }
 
 NS_IMETHODIMP HTMLMediaElement::Play()
 {
-  ErrorResult rv;
-  Play(rv);
-  return rv.ErrorCode();
+  return PlayInternal(/* aCallerIsChrome = */ true);
 }
 
 HTMLMediaElement::WakeLockBoolWrapper&
@@ -2500,7 +2528,7 @@ nsresult HTMLMediaElement::SetAttr(int32_t aNameSpaceID, nsIAtom* aName,
   if (NS_FAILED(rv))
     return rv;
   if (aNameSpaceID == kNameSpaceID_None && aName == nsGkAtoms::src) {
-    Load();
+    DoLoad();
   }
   if (aNotify && aNameSpaceID == kNameSpaceID_None) {
     if (aName == nsGkAtoms::autoplay) {
@@ -2701,11 +2729,7 @@ nsresult HTMLMediaElement::InitializeDecoderAsClone(MediaDecoder* aOriginal)
     return NS_ERROR_FAILURE;
   }
 
-  double duration = aOriginal->GetDuration();
-  if (duration >= 0) {
-    decoder->SetDuration(duration);
-    decoder->SetMediaSeekable(aOriginal->IsMediaSeekable());
-  }
+  decoder->SetMediaSeekable(aOriginal->IsMediaSeekable());
 
   nsRefPtr<MediaResource> resource = originalResource->CloneData(decoder);
   if (!resource) {
@@ -3226,6 +3250,9 @@ void HTMLMediaElement::FirstFrameLoaded()
 
 void HTMLMediaElement::NetworkError()
 {
+  if (mDecoder) {
+    ShutdownDecoder();
+  }
   Error(nsIDOMMediaError::MEDIA_ERR_NETWORK);
 }
 
@@ -3686,12 +3713,14 @@ bool HTMLMediaElement::CanActivateAutoplay()
 {
   // For stream inputs, we activate autoplay on HAVE_NOTHING because
   // this element itself might be blocking the stream from making progress by
-  // being paused.
+  // being paused. We also activate autoplay when playing a media source since
+  // the data download is controlled by the script and there is no way to
+  // evaluate MediaDecoder::CanPlayThrough().
   return !mPausedForInactiveDocumentOrChannel &&
          mAutoplaying &&
          mPaused &&
          ((mDecoder && mReadyState >= nsIDOMHTMLMediaElement::HAVE_ENOUGH_DATA) ||
-          mSrcStream) &&
+          mSrcStream || mMediaSource) &&
          HasAttr(kNameSpaceID_None, nsGkAtoms::autoplay) &&
          mAutoplayEnabled &&
          !IsEditable();
@@ -3699,23 +3728,33 @@ bool HTMLMediaElement::CanActivateAutoplay()
 
 void HTMLMediaElement::CheckAutoplayDataReady()
 {
-  if (CanActivateAutoplay()) {
-    mPaused = false;
-    // We changed mPaused which can affect AddRemoveSelfReference
-    AddRemoveSelfReference();
-
-    if (mDecoder) {
-      SetPlayedOrSeeked(true);
-      if (mCurrentPlayRangeStart == -1.0) {
-        mCurrentPlayRangeStart = CurrentTime();
-      }
-      mDecoder->Play();
-    } else if (mSrcStream) {
-      SetPlayedOrSeeked(true);
-      GetSrcMediaStream()->ChangeExplicitBlockerCount(-1);
-    }
-    DispatchAsyncEvent(NS_LITERAL_STRING("play"));
+  if (!CanActivateAutoplay()) {
+    return;
   }
+
+  if (Preferences::GetBool("media.block-play-until-visible", false) &&
+      OwnerDoc()->Hidden()) {
+    LOG(PR_LOG_DEBUG, ("%p Blocked autoplay because owner hidden.", this));
+    mPlayBlockedBecauseHidden = true;
+    return;
+  }
+
+  mPaused = false;
+  // We changed mPaused which can affect AddRemoveSelfReference
+  AddRemoveSelfReference();
+
+  if (mDecoder) {
+    SetPlayedOrSeeked(true);
+    if (mCurrentPlayRangeStart == -1.0) {
+      mCurrentPlayRangeStart = CurrentTime();
+    }
+    mDecoder->Play();
+  } else if (mSrcStream) {
+    SetPlayedOrSeeked(true);
+    GetSrcMediaStream()->ChangeExplicitBlockerCount(-1);
+  }
+  DispatchAsyncEvent(NS_LITERAL_STRING("play"));
+
 }
 
 bool HTMLMediaElement::IsActive()
@@ -3882,6 +3921,9 @@ void HTMLMediaElement::UpdateInitialMediaSize(const nsIntSize& aSize)
 
 void HTMLMediaElement::SuspendOrResumeElement(bool aPauseElement, bool aSuspendEvents)
 {
+  LOG(PR_LOG_DEBUG, ("%p SuspendOrResumeElement(pause=%d, suspendEvents=%d) hidden=%d",
+      this, aPauseElement, aSuspendEvents, OwnerDoc()->Hidden()));
+
   if (aPauseElement != mPausedForInactiveDocumentOrChannel) {
     mPausedForInactiveDocumentOrChannel = aPauseElement;
     if (aPauseElement) {
@@ -3942,6 +3984,14 @@ void HTMLMediaElement::NotifyOwnerDocumentActivityChanged()
   bool pauseElement = !IsActive() || (mMuted & MUTED_BY_AUDIO_CHANNEL);
 
   SuspendOrResumeElement(pauseElement, !IsActive());
+
+  if (!mPausedForInactiveDocumentOrChannel &&
+      mPlayBlockedBecauseHidden &&
+      !OwnerDoc()->Hidden()) {
+    LOG(PR_LOG_DEBUG, ("%p Resuming playback now that owner doc is visble.", this));
+    mPlayBlockedBecauseHidden = false;
+    Play();
+  }
 
   AddRemoveSelfReference();
 }

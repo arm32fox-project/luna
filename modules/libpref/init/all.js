@@ -128,6 +128,12 @@ pref("dom.indexedDB.logging.enabled", true);
 // Detailed output in log messages.
 pref("dom.indexedDB.logging.details", true);
 
+// Whether or not selection events are enabled
+pref("dom.select_events.enabled", true);
+
+// Whether or not selection events on text controls are enabled
+pref("dom.select_events.textcontrols.enabled", true);
+
 // Whether or not Web Workers are enabled.
 pref("dom.workers.enabled", true);
 // The number of workers per domain allowed to run concurrently.
@@ -282,6 +288,10 @@ pref("media.wakelock_timeout", 2000);
 // Whether we should play videos opened in a "video document", i.e. videos
 // opened as top-level documents, as opposed to inside a media element.
 pref("media.play-stand-alone", true);
+
+// Whether we should delay actioning a "play()" JS function call and autoplay
+// attribute until the media element's owner document is visible.
+pref("media.block-play-until-visible", false);
 
 pref("media.decoder.heuristic.dormant.enabled", true);
 pref("media.decoder.heuristic.dormant.timeout", 60000);
@@ -468,9 +478,12 @@ pref("media.mediasource.enabled", true);
 pref("media.mediasource.mp4.enabled", true);
 pref("media.mediasource.webm.enabled", false);
 
-// Enable new MediaFormatReader architecture for mp4 in MSE
+// Enable new MediaSource architecture.
+pref("media.mediasource.format-reader", true);
+
+// Enable the MediaFormatReader architecture for MP4 + MSE.
 pref("media.mediasource.format-reader.mp4", true);
-// Enable new MediaFormatReader architecture for plain mp4.
+// Enable the MediaFormatReader architecture for plain MP4.
 pref("media.format-reader.mp4", true);
 
 #ifdef MOZ_WEBSPEECH
@@ -4868,8 +4881,8 @@ pref("media.gmp.insecure.allow", false);
 // Use vsync aligned rendering.
 // Only supported on windows, os x, and b2g
 #if defined(XP_WIN) || defined(XP_MACOSX)
-pref("gfx.vsync.hw-vsync.enabled", true);
-pref("gfx.vsync.compositor", false);
+pref("gfx.vsync.hw-vsync.enabled", false);
+pref("gfx.vsync.compositor", true);
 pref("gfx.vsync.refreshdriver", true);
 #endif
 

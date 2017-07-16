@@ -176,6 +176,8 @@ public:
                        }
 
   nsresult             Init(nsDocumentViewer *aDocViewer);
+  
+  void                 Disconnect() { mDocViewer = nullptr; }
 
 protected:
 
@@ -201,6 +203,8 @@ public:
   NS_DECL_NSIDOMEVENTLISTENER
 
   nsresult             Init(nsDocumentViewer *aDocViewer);
+  
+  void                 Disconnect() { mDocViewer = nullptr; }
 
 protected:
   /** default destructor
@@ -356,7 +360,7 @@ protected:
   nsRefPtr<nsPresContext>  mPresContext;
   nsCOMPtr<nsIPresShell>   mPresShell;
 
-  nsCOMPtr<nsISelectionListener> mSelectionListener;
+  nsRefPtr<nsDocViewerSelectionListener> mSelectionListener;
   nsRefPtr<nsDocViewerFocusListener> mFocusListener;
 
   nsCOMPtr<nsIContentViewer> mPreviousViewer;
@@ -532,6 +536,14 @@ nsDocumentViewer::~nsDocumentViewer()
     mSHEntry = nullptr;
 
     Destroy();
+  }
+
+  if (mSelectionListener) {
+    mSelectionListener->Disconnect();
+  }
+
+  if (mFocusListener) {
+    mFocusListener->Disconnect();
   }
 
   // XXX(?) Revoke pending invalidate events
@@ -712,6 +724,9 @@ nsDocumentViewer::InitPresentationStuff(bool aDoInitialReflow)
 
   // Save old listener so we can unregister it
   nsRefPtr<nsDocViewerFocusListener> oldFocusListener = mFocusListener;
+  if (oldFocusListener) {
+    oldFocusListener->Disconnect();
+  }
 
   // focus listener
   //
@@ -1159,16 +1174,36 @@ nsDocumentViewer::PermitUnloadInternal(bool aCallerClosesWindow,
                                      isTabModalPromptAllowed);
       }
 
-      nsXPIDLString title, message, stayLabel, leaveLabel;
+      nsXPIDLString title, message, emptyMessage, stayLabel, leaveLabel;
       rv  = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
                                                "OnBeforeUnloadTitle",
                                                title);
       nsresult tmp = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
-                                               "OnBeforeUnloadMessage",
+                                               "OnBeforeUnloadPreMessage",
                                                message);
       if (NS_FAILED(tmp)) {
         rv = tmp;
       }
+      tmp = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
+                                               "OnBeforeUnloadEmptyMessage",
+                                               emptyMessage);
+      if (NS_FAILED(tmp)) {
+        rv = tmp;
+      }
+      // Limit the length of the text the page can inject into this
+      // dialogue to 500 characters. If there is no supplied text,
+      // insert the default (locale-determined) string.
+      uint32_t len = std::min(int32_t(text.Length()), 500);
+
+      // XXX: Should we only use our default for actually empty strings?
+      // Currently this is set to a minimum length (8 ch) that is considered
+      // required to convey something meaningful as a message.
+      if (len < 8) {
+        message = message + NS_LITERAL_STRING("\n\n") + emptyMessage;
+      } else {
+        message = message + NS_LITERAL_STRING("\n\n") + StringHead(text, len);
+      } 
+
       tmp = nsContentUtils::GetLocalizedString(nsContentUtils::eDOM_PROPERTIES,
                                                "OnBeforeUnloadLeaveButton",
                                                leaveLabel);
@@ -1494,19 +1529,22 @@ nsDocumentViewer::Close(nsISHEntry *aSHEntry)
     mClosingWhilePrinting = true;
   } else
 #endif
-    {
-      // out of band cleanup of docshell
-      mDocument->SetScriptGlobalObject(nullptr);
+  {
+    // out of band cleanup of docshell
+    mDocument->SetScriptGlobalObject(nullptr);
 
-      if (!mSHEntry && mDocument)
-        mDocument->RemovedFromDocShell();
+    if (!mSHEntry && mDocument)
+      mDocument->RemovedFromDocShell();
+  }
+
+  if (mFocusListener) {
+    mFocusListener->Disconnect();
+    if (mDocument) {
+      mDocument->RemoveEventListener(NS_LITERAL_STRING("focus"), mFocusListener,
+                                     false);
+      mDocument->RemoveEventListener(NS_LITERAL_STRING("blur"), mFocusListener,
+                                     false);
     }
-
-  if (mFocusListener && mDocument) {
-    mDocument->RemoveEventListener(NS_LITERAL_STRING("focus"), mFocusListener,
-                                   false);
-    mDocument->RemoveEventListener(NS_LITERAL_STRING("blur"), mFocusListener,
-                                   false);
   }
 
   return NS_OK;
@@ -2124,19 +2162,24 @@ nsDocumentViewer::Hide(void)
     mPresShell->CaptureHistoryState(getter_AddRefs(layoutState));
   }
 
-  DestroyPresShell();
+  {
+    // Do not run ScriptRunners queued by DestroyPresShell() in the intermediate
+    // state before we're done destroying PresShell, PresContext, ViewManager, etc.
+    nsAutoScriptBlocker scriptBlocker;
+    DestroyPresShell();
 
-  DestroyPresContext();
+    DestroyPresContext();
 
-  mViewManager   = nullptr;
-  mWindow        = nullptr;
-  mDeviceContext = nullptr;
-  mParentWidget  = nullptr;
+    mViewManager   = nullptr;
+    mWindow        = nullptr;
+    mDeviceContext = nullptr;
+    mParentWidget  = nullptr;
 
-  nsCOMPtr<nsIBaseWindow> base_win(mContainer);
+    nsCOMPtr<nsIBaseWindow> base_win(mContainer);
 
-  if (base_win && !mAttachedToParent) {
-    base_win->SetParentWidget(nullptr);
+    if (base_win && !mAttachedToParent) {
+      base_win->SetParentWidget(nullptr);
+    }
   }
 
   return NS_OK;
@@ -2617,7 +2660,7 @@ NS_IMETHODIMP nsDocumentViewer::SelectAll()
   rv = selection->RemoveAllRanges();
   if (NS_FAILED(rv)) return rv;
 
-  mozilla::dom::Selection::AutoApplyUserSelectStyle userSelection(selection);
+  mozilla::dom::Selection::AutoUserInitiated userSelection(selection);
   rv = selection->SelectAllChildren(bodyNode);
   return rv;
 }
@@ -3537,7 +3580,9 @@ NS_IMETHODIMP nsDocumentViewer::GetInImage(bool* aInImage)
 
 NS_IMETHODIMP nsDocViewerSelectionListener::NotifySelectionChanged(nsIDOMDocument *, nsISelection *, int16_t aReason)
 {
-  NS_ASSERTION(mDocViewer, "Should have doc viewer!");
+  if (!mDocViewer) {
+    return NS_OK;
+  }
 
   // get the selection state
   nsRefPtr<mozilla::dom::Selection> selection = mDocViewer->GetDocumentSelection();

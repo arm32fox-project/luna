@@ -264,8 +264,7 @@ struct SeekTarget {
   MediaDecoderEventVisibility mEventVisibility;
 };
 
-class MediaDecoder : public nsIObserver,
-                     public AbstractMediaDecoder
+class MediaDecoder : public AbstractMediaDecoder
 {
 public:
   struct SeekResolveValue {
@@ -287,7 +286,6 @@ public:
     PLAY_STATE_LOADING,
     PLAY_STATE_PAUSED,
     PLAY_STATE_PLAYING,
-    PLAY_STATE_SEEKING,
     PLAY_STATE_ENDED,
     PLAY_STATE_SHUTDOWN
   };
@@ -505,6 +503,9 @@ public:
    * Connects mDecodedStream->mStream to aStream->mStream.
    */
   void ConnectDecodedStreamToOutputStream(OutputStreamData* aStream);
+
+  void UpdateDecodedStream();
+
   /**
    * Disconnects mDecodedStream->mStream from all outputs and clears
    * mDecodedStream.
@@ -594,14 +595,6 @@ public:
   // Call on the main thread only.
   virtual bool IsEndedOrShutdown() const;
 
-  // Set the duration of the media resource in units of seconds.
-  // This is called via a channel listener if it can pick up the duration
-  // from a content header. Must be called from the main thread only.
-  virtual void SetDuration(double aDuration);
-
-  // Sets the initial duration of the media. Called while the media metadata
-  // is being read and the decode is being setup.
-  void SetMediaDuration(int64_t aDuration) override;
   // Updates the media duration. This is called while the media is being
   // played, calls before the media has reached loaded metadata are ignored.
   // The duration is assumed to be an estimate, and so a degree of
@@ -628,9 +621,6 @@ public:
   // Set the end time of the media resource. When playback reaches
   // this point the media pauses. aTime is in seconds.
   virtual void SetFragmentEndTime(double aTime);
-
-  // Set the end time of the media. aTime is in microseconds.
-  void SetMediaEndTime(int64_t aTime) final override;
 
   // Invalidate the frame.
   void Invalidate();
@@ -663,7 +653,7 @@ public:
 
   // Called by the state machine to notify the decoder that the duration
   // has changed.
-  void DurationChanged();
+  void DurationChanged(media::TimeUnit aNewDuration);
 
   bool OnStateMachineTaskQueue() const override;
 
@@ -746,9 +736,6 @@ public:
                      nsAutoPtr<MediaInfo> aInfo,
                      nsAutoPtr<MetadataTags> aTags) override;
 
-  int64_t GetSeekTime() { return mRequestedSeekTarget.mTime; }
-  void ResetSeekTime() { mRequestedSeekTarget.Reset(); }
-
   /******
    * The following methods must only be called on the main
    * thread.
@@ -758,10 +745,6 @@ public:
   // notifies any thread blocking on this object's monitor of the
   // change. Call on the main thread only.
   virtual void ChangeState(PlayState aState);
-
-  // Called by |ChangeState|, to update the state machine.
-  // Call on the main thread only and the lock must be obtained.
-  virtual void ApplyStateToStateMachine(PlayState aState);
 
   // May be called by the reader to notify this decoder that the metadata from
   // the media file has been read. Call on the decode thread only.
@@ -798,17 +781,19 @@ public:
   // Call on the main thread only.
   void PlaybackEnded();
 
-  void OnSeekRejected() { mSeekRequest.Complete(); }
+  void OnSeekRejected()
+  {
+    mSeekRequest.Complete();
+    mLogicallySeeking = false;
+  }
   void OnSeekResolved(SeekResolveValue aVal);
 
   // Seeking has started. Inform the element on the main
   // thread.
   void SeekingStarted(MediaDecoderEventVisibility aEventVisibility = MediaDecoderEventVisibility::Observable);
 
-  // Called when the backend has changed the current playback
-  // position. It dispatches a timeupdate event and invalidates the frame.
-  // This must be called on the main thread only.
-  virtual void PlaybackPositionChanged(MediaDecoderEventVisibility aEventVisibility = MediaDecoderEventVisibility::Observable);
+  void UpdateLogicalPosition(MediaDecoderEventVisibility aEventVisibility);
+  void UpdateLogicalPosition() { UpdateLogicalPosition(MediaDecoderEventVisibility::Observable); }
 
   // Find the end of the cached data starting at the current decoder
   // position.
@@ -1052,11 +1037,22 @@ protected:
   // start playing back again.
   int64_t mPlaybackPosition;
 
-  // The current playback position of the media resource in units of
-  // seconds. This is updated approximately at the framerate of the
-  // video (if it is a video) or the callback period of the audio.
-  // It is read and written from the main thread only.
-  double mCurrentTime;
+  // The logical playback position of the media resource in units of
+  // seconds. This corresponds to the "official position" in HTML5. Note that
+  // we need to store this as a double, rather than an int64_t (like
+  // mCurrentPosition), so that |v.currentTime = foo; v.currentTime == foo|
+  // returns true without being affected by rounding errors.
+  double mLogicalPosition;
+
+  // The current playback position of the underlying playback infrastructure.
+  // This corresponds to the "current position" in HTML5.
+  //
+  // NB: Don't use mCurrentPosition directly, but rather CurrentPosition() below.
+  Mirror<int64_t> mCurrentPosition;
+
+  // We allow omx subclasses to substitute an alternative current position for
+  // usage with the audio offload player.
+  virtual int64_t CurrentPosition() { return mCurrentPosition; }
 
   // Volume of playback.  0.0 = muted. 1.0 = full volume.
   Canonical<double> mVolume;
@@ -1119,6 +1115,25 @@ protected:
   // without holding the monitor.
   nsAutoPtr<DecodedStreamData> mDecodedStream;
 
+  // Media duration according to the demuxer's current estimate.
+  //
+  // Note that it's quite bizarre for this to live on the main thread - it would
+  // make much more sense for this to be owned by the demuxer's task queue. But
+  // currently this is only every changed in NotifyDataArrived, which runs on
+  // the main thread. That will need to be cleaned up at some point.
+  Canonical<media::NullableTimeUnit> mEstimatedDuration;
+public:
+  AbstractCanonical<media::NullableTimeUnit>* CanonicalEstimatedDuration() { return &mEstimatedDuration; }
+protected:
+
+  // Media duration set explicitly by JS. Currently, this is only ever present for MSE.
+  Canonical<Maybe<double>> mExplicitDuration;
+  double ExplicitDuration() { return mExplicitDuration.Ref().ref(); }
+  void SetExplicitDuration(double aValue) { mExplicitDuration.Set(Some(aValue)); }
+public:
+  AbstractCanonical<Maybe<double>>* CanonicalExplicitDuration() { return &mExplicitDuration; }
+protected:
+
   // Set to one of the valid play states.
   // This can only be changed on the main thread while holding the decoder
   // monitor. Thus, it can be safely read while holding the decoder monitor
@@ -1133,21 +1148,18 @@ protected:
   // Any change to the state must call NotifyAll on the monitor.
   // This can only be PLAY_STATE_PAUSED or PLAY_STATE_PLAYING.
   Canonical<PlayState> mNextState;
+
+  // True if the decoder is seeking.
+  Canonical<bool> mLogicallySeeking;
 public:
   AbstractCanonical<PlayState>* CanonicalPlayState() { return &mPlayState; }
   AbstractCanonical<PlayState>* CanonicalNextPlayState() { return &mNextState; }
+  AbstractCanonical<bool>* CanonicalLogicallySeeking() { return &mLogicallySeeking; }
 protected:
 
-  // Position to seek to when the seek notification is received by the
-  // decode thread.
-  // This can only be changed on the main thread while holding the decoder
-  // monitor. Thus, it can be safely read while holding the decoder monitor
-  // OR on the main thread.
-  // If the SeekTarget's IsValid() accessor returns false, then no seek has
-  // been requested. When a seek is started this is reset to invalid.
-  SeekTarget mRequestedSeekTarget;
+  virtual void CallSeek(const SeekTarget& aTarget);
 
-  MediaPromiseConsumerHolder<SeekPromise> mSeekRequest;
+  MediaPromiseRequestHolder<SeekPromise> mSeekRequest;
 
   // True when seeking or otherwise moving the play position around in
   // such a manner that progress event data is inaccurate. This is set

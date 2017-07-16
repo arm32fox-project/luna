@@ -923,7 +923,7 @@ NS_INTERFACE_MAP_END
 
 
 // Initialize our static variables.
-uint32_t CanvasRenderingContext2D::sNumLivingContexts = 0;
+uintptr_t CanvasRenderingContext2D::sNumLivingContexts = 0;
 DrawTarget* CanvasRenderingContext2D::sErrorTarget = nullptr;
 
 
@@ -1632,11 +1632,7 @@ CanvasRenderingContext2D::GetInputStream(const char *aMimeType,
     // so always 4-value pixels.
     // GetImageBuffer => SurfaceToPackedBGRA [=> ConvertBGRXToBGRA]
     int32_t dataSize = mWidth * mHeight * 4;
-#if defined(_MSC_VER)
-// Parallelizing pragmas are MSVC-only
-#pragma loop(ivdep)
-#pragma loop(hint_parallel(0))
-#endif
+#pragma omp parallel for
     for (int32_t j = 0; j < dataSize; ++j) {
       if (imageBuffer[j] !=0 && imageBuffer[j] != 255)
         imageBuffer[j] += rand() % 3 - 1;
@@ -4414,8 +4410,11 @@ CanvasRenderingContext2D::DrawImage(const HTMLImageOrCanvasOrVideoElement& image
       res = nsLayoutUtils::SurfaceFromElement(element, sfeFlags, mTarget);
 
     if (!res.mSourceSurface && !res.mDrawInfo.mImgContainer) {
-      // Spec says to silently do nothing if the element is still loading.
-      if (!res.mIsStillLoading) {
+      // The spec says to silently do nothing in the following cases:
+      //   - The element is still loading.
+      //   - The image is bad, but it's not in the broken state (i.e., we could
+      //     decode the headers and get the size).
+      if (!res.mIsStillLoading && !res.mHasSize) {
         error.Throw(NS_ERROR_NOT_AVAILABLE);
       }
       return;

@@ -1733,6 +1733,9 @@ nsPresContext::SysColorChangedInternal()
     sLookAndFeelChanged = false;
   }
 
+  // Invalidate cached '-moz-windows-accent-color-applies' media query:
+  nsCSSRuleProcessor::FreeSystemMetrics();
+
   // Reset default background and foreground colors for the document since
   // they may be using system colors
   GetDocumentColorPreferences();
@@ -1871,6 +1874,8 @@ nsPresContext::MediaFeatureValuesChanged(nsRestyleHint aRestyleHint,
     MOZ_ASSERT(PR_CLIST_IS_EMPTY(mDocument->MediaQueryLists()));
     return;
   }
+
+  mDocument->NotifyMediaFeatureValuesChanged();
 
   MOZ_ASSERT(nsContentUtils::IsSafeToRunScript());
 
