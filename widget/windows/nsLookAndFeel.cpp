@@ -444,6 +444,14 @@ nsLookAndFeel::GetIntImpl(IntID aID, int32_t &aResult)
           aResult = NS_SUCCEEDED(GetAccentColor(unused)) ? 1 : 0;
         }
         break;
+    case eIntID_WindowsAccentColorIsDark:
+        {
+          nscolor accentColor;
+          if (NS_SUCCEEDED(GetAccentColor(accentColor))) {
+            aResult = AccentColorIsDark(accentColor) ? 1 : 0;
+          }
+        }
+        break;
     case eIntID_WindowsGlass:
         // Aero Glass is only available prior to Windows 8 when DWM is used.
         aResult = (nsUXThemeData::CheckForCompositor() && !IsWin8OrLater());
@@ -741,6 +749,16 @@ nsLookAndFeel::GetAccentColor(nscolor& aColor)
   return rv;
 }
 
+bool
+nsLookAndFeel::AccentColorIsDark(nscolor aColor)
+{
+  float luminance = 0.2125f * NS_GET_R(aColor) +
+                    0.7154f * NS_GET_G(aColor) +
+                    0.0721f * NS_GET_B(aColor);
+  
+  return (luminance <= 110);
+}
+
 /* static */ nsresult
 nsLookAndFeel::GetAccentColorText(nscolor& aColor)
 {
@@ -757,11 +775,7 @@ nsLookAndFeel::GetAccentColorText(nscolor& aColor)
   // here based on the luminance of the accent color with a threshhold
   // value that seems consistent with what Windows does.
 
-  float luminance = 0.2125f * NS_GET_R(accentColor) +
-                    0.7154f * NS_GET_G(accentColor) +
-                    0.0721f * NS_GET_B(accentColor);
-
-  aColor = (luminance <= 110) ? NS_RGB(255, 255, 255) : NS_RGB(0, 0, 0);
+  aColor = AccentColorIsDark(accentColor) ? NS_RGB(255, 255, 255) : NS_RGB(0, 0, 0);
 
   return NS_OK;
 }
