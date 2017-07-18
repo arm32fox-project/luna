@@ -13,6 +13,7 @@
 #include "TimeUnits.h"
 #include "VorbisUtils.h"
 #include "WebMBufferedParser.h"
+#include "NesteggPacketHolder.h"
 #include "prsystem.h"
 
 #include <algorithm>
@@ -130,7 +131,7 @@ SoftwareWebMVideoDecoder::DecodeVideoFrame(bool &aKeyframeSkip,
   nsRefPtr<NesteggPacketHolder> next_holder(mReader->NextPacket(WebMReader::VIDEO));
   if (next_holder) {
     next_tstamp = next_holder->Timestamp();
-    mReader->PushVideoPacket(next_holder.forget());
+    mReader->PushVideoPacket(next_holder);
   } else {
     next_tstamp = tstamp;
     next_tstamp += tstamp - mReader->GetLastVideoFrameTime();
