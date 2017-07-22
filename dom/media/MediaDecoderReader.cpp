@@ -64,14 +64,18 @@ public:
   size_t mSize;
 };
 
-MediaDecoderReader::MediaDecoderReader(AbstractMediaDecoder* aDecoder)
+MediaDecoderReader::MediaDecoderReader(AbstractMediaDecoder* aDecoder,
+                                       MediaTaskQueue* aBorrowedTaskQueue)
   : mAudioCompactor(mAudioQueue)
   , mDecoder(aDecoder)
+  , mTaskQueue(aBorrowedTaskQueue ? aBorrowedTaskQueue
+                                  : new MediaTaskQueue(GetMediaThreadPool(MediaThreadType::PLAYBACK),
+                                                       /* aSupportsTailDispatch = */ true))
   , mIgnoreAudioOutputFormat(false)
   , mStartTime(-1)
   , mHitAudioDecodeError(false)
   , mShutdown(false)
-  , mTaskQueueIsBorrowed(false)
+  , mTaskQueueIsBorrowed(!!aBorrowedTaskQueue)
   , mAudioDiscontinuity(false)
   , mVideoDiscontinuity(false)
 {
@@ -335,23 +339,12 @@ MediaDecoderReader::RequestAudioData()
   return p;
 }
 
-MediaTaskQueue*
-MediaDecoderReader::EnsureTaskQueue()
-{
-  if (!mTaskQueue) {
-    MOZ_ASSERT(!mTaskQueueIsBorrowed);
-    RefPtr<SharedThreadPool> pool(GetMediaThreadPool(MediaThreadType::PLAYBACK));
-    MOZ_DIAGNOSTIC_ASSERT(pool);
-    mTaskQueue = new MediaTaskQueue(pool.forget());
-  }
-
-  return mTaskQueue;
-}
-
 void
 MediaDecoderReader::BreakCycles()
 {
-  mTaskQueue = nullptr;
+  // Nothing left to do here these days. We keep this method around so that, if
+  // we need it, we don't have to make all of the subclass implementations call
+  // the superclass method again.
 }
 
 nsRefPtr<ShutdownPromise>
