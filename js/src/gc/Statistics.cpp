@@ -805,7 +805,10 @@ Statistics::Statistics(JSRuntime* rt)
             MOZ_ASSERT(phases[child].parent == PHASE_MULTI_PARENTS);
             int j = child;
             do {
-                dagDescendants[phaseExtra[parent].dagSlot].append(Phase(j));
+                if (!dagDescendants[phaseExtra[parent].dagSlot].append(Phase(j))) {
+                    initialized = false;
+                    return;
+                }
                 j++;
             } while (j != PHASE_LIMIT && phases[j].parent != PHASE_MULTI_PARENTS);
         }
@@ -814,7 +817,10 @@ Statistics::Statistics(JSRuntime* rt)
         // Fill in the depth of each node in the tree. Multi-parented nodes
         // have depth 0.
         mozilla::Vector<Phase> stack;
-        stack.append(PHASE_LIMIT); // Dummy entry to avoid special-casing the first node
+        if (!stack.append(PHASE_LIMIT)) { // Dummy entry to avoid special-casing the first node
+            initialized = false;
+            return;
+        }
         for (int i = 0; i < PHASE_LIMIT; i++) {
             if (phases[i].parent == PHASE_NO_PARENT ||
                 phases[i].parent == PHASE_MULTI_PARENTS)
@@ -825,7 +831,10 @@ Statistics::Statistics(JSRuntime* rt)
                     stack.popBack();
             }
             phaseExtra[i].depth = stack.length();
-            stack.append(Phase(i));
+            if (!stack.append(Phase(i))) {
+                initialized = false;
+                return;
+            }
         }
     }
 
