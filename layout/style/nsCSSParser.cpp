@@ -302,6 +302,10 @@ public:
                                            uint32_t aLineNumber,
                                            uint32_t aLineOffset);
 
+  bool ChromeOrCertifiedAppRulesEnabled() const {
+    return mIsChromeOrCertifiedApp;
+  }
+
   nsCSSProps::EnabledState PropertyEnabledState() const {
     static_assert(nsCSSProps::eEnabledForAllContent == 0,
                   "nsCSSProps::eEnabledForAllContent should be zero for "
@@ -5196,18 +5200,29 @@ CSSParserImpl::ParseAttributeSelector(int32_t&       aDataMask,
     return eSelectorParsingStatus_Error;
   }
 
+  bool gotEOF = false;
   if (! GetToken(true)) { // premature EOF
+    // Treat this just like we saw a ']', but do still output the
+    // warning, similar to what ExpectSymbol does.
     REPORT_UNEXPECTED_EOF(PEAttSelInnerEOF);
-    return eSelectorParsingStatus_Error;
+    gotEOF = true;
   }
-  if ((eCSSToken_Symbol == mToken.mType) ||
+  if (gotEOF ||
+      (eCSSToken_Symbol == mToken.mType) ||
       (eCSSToken_Includes == mToken.mType) ||
       (eCSSToken_Dashmatch == mToken.mType) ||
       (eCSSToken_Beginsmatch == mToken.mType) ||
       (eCSSToken_Endsmatch == mToken.mType) ||
       (eCSSToken_Containsmatch == mToken.mType)) {
     uint8_t func;
-    if (eCSSToken_Includes == mToken.mType) {
+    // Important: Check the EOF/']' case first, since if gotEOF we
+    // don't want to be examining mToken.
+    if (gotEOF || ']' == mToken.mSymbol) {
+      aDataMask |= SEL_MASK_ATTRIB;
+      aSelector.AddAttribute(nameSpaceID, attr);
+      func = NS_ATTR_FUNC_SET;
+    }
+    else if (eCSSToken_Includes == mToken.mType) {
       func = NS_ATTR_FUNC_INCLUDES;
     }
     else if (eCSSToken_Dashmatch == mToken.mType) {
@@ -5221,11 +5236,6 @@ CSSParserImpl::ParseAttributeSelector(int32_t&       aDataMask,
     }
     else if (eCSSToken_Containsmatch == mToken.mType) {
       func = NS_ATTR_FUNC_CONTAINSMATCH;
-    }
-    else if (']' == mToken.mSymbol) {
-      aDataMask |= SEL_MASK_ATTRIB;
-      aSelector.AddAttribute(nameSpaceID, attr);
-      func = NS_ATTR_FUNC_SET;
     }
     else if ('=' == mToken.mSymbol) {
       func = NS_ATTR_FUNC_EQUALS;
@@ -5242,11 +5252,15 @@ CSSParserImpl::ParseAttributeSelector(int32_t&       aDataMask,
       }
       if ((eCSSToken_Ident == mToken.mType) || (eCSSToken_String == mToken.mType)) {
         nsAutoString  value(mToken.mIdent);
+        bool gotClosingBracket;
         if (! GetToken(true)) { // premature EOF
+          // Report a warning, but then treat it as a closing bracket.
           REPORT_UNEXPECTED_EOF(PEAttSelCloseEOF);
-          return eSelectorParsingStatus_Error;
+          gotClosingBracket = true;
+        } else {
+          gotClosingBracket = mToken.IsSymbol(']');
         }
-        if (mToken.IsSymbol(']')) {
+        if (gotClosingBracket) {
           bool isCaseSensitive = true;
 
           // For cases when this style sheet is applied to an HTML
@@ -5402,7 +5416,10 @@ CSSParserImpl::ParsePseudoSelector(int32_t&       aDataMask,
       ((pseudoElementType < nsCSSPseudoElements::ePseudo_PseudoElementCount &&
         nsCSSPseudoElements::PseudoElementIsUASheetOnly(pseudoElementType)) ||
        (pseudoClassType != nsCSSPseudoClasses::ePseudoClass_NotPseudoClass &&
-        nsCSSPseudoClasses::PseudoClassIsUASheetOnly(pseudoClassType)))) {
+        nsCSSPseudoClasses::PseudoClassIsUASheetOnly(pseudoClassType)) ||
+       (!ChromeOrCertifiedAppRulesEnabled() &&
+        (pseudoClassType != nsCSSPseudoClasses::ePseudoClass_NotPseudoClass &&
+         nsCSSPseudoClasses::PseudoClassIsUASheetAndChromeOnly(pseudoClassType))))) {
     // This pseudo-element or pseudo-class is not exposed to content.
     REPORT_UNEXPECTED_TOKEN(PEPseudoSelUnknown);
     UngetToken();
@@ -5480,6 +5497,23 @@ CSSParserImpl::ParsePseudoSelector(int32_t&       aDataMask,
     return eSelectorParsingStatus_Error;
   }
 
+  if (aSelector.IsPseudoElement()) {
+    nsCSSPseudoElements::Type type = aSelector.PseudoType();
+    if (!nsCSSPseudoElements::PseudoElementSupportsUserActionState(type)) {
+      // We only allow user action pseudo-classes on certain pseudo-elements.
+      REPORT_UNEXPECTED_TOKEN(PEPseudoSelNoUserActionPC);
+      UngetToken();
+      return eSelectorParsingStatus_Error;
+    }
+    if (!isPseudoClass || !pseudoClassIsUserAction) {
+      // CSS 4 Selectors says that pseudo-elements can only be followed by
+      // a user action pseudo-class.
+      REPORT_UNEXPECTED_TOKEN(PEPseudoClassNotUserAction);
+      UngetToken();
+      return eSelectorParsingStatus_Error;
+    }
+  }
+
   if (!parsingPseudoElement &&
       nsCSSPseudoClasses::ePseudoClass_notPseudo == pseudoClassType) {
     if (aIsNegated) { // :not() can't be itself negated
@@ -5495,22 +5529,6 @@ CSSParserImpl::ParsePseudoSelector(int32_t&       aDataMask,
     }
   }
   else if (!parsingPseudoElement && isPseudoClass) {
-    if (aSelector.IsPseudoElement()) {
-      nsCSSPseudoElements::Type type = aSelector.PseudoType();
-      if (!nsCSSPseudoElements::PseudoElementSupportsUserActionState(type)) {
-        // We only allow user action pseudo-classes on certain pseudo-elements.
-        REPORT_UNEXPECTED_TOKEN(PEPseudoSelNoUserActionPC);
-        UngetToken();
-        return eSelectorParsingStatus_Error;
-      }
-      if (!pseudoClassIsUserAction) {
-        // CSS 4 Selectors says that pseudo-elements can only be followed by
-        // a user action pseudo-class.
-        REPORT_UNEXPECTED_TOKEN(PEPseudoClassNotUserAction);
-        UngetToken();
-        return eSelectorParsingStatus_Error;
-      }
-    }
     aDataMask |= SEL_MASK_PCLASS;
     if (eCSSToken_Function == mToken.mType) {
       nsSelectorParsingStatus parsingStatus;
@@ -5709,10 +5727,11 @@ CSSParserImpl::ParsePseudoClassWithIdentArg(nsCSSSelector& aSelector,
     return eSelectorParsingStatus_Error; // our caller calls SkipUntil(')')
   }
 
-  // -moz-locale-dir and -moz-dir take an identifier argument.  While
+  // -moz-locale-dir and dir (-moz-dir) take an identifier argument.  While
   // only 'ltr' and 'rtl' (case-insensitively) will match anything, any
   // other identifier is still valid.
   if (aType == nsCSSPseudoClasses::ePseudoClass_mozLocaleDir ||
+      aType == nsCSSPseudoClasses::ePseudoClass_mozDir ||
       aType == nsCSSPseudoClasses::ePseudoClass_dir) {
     nsContentUtils::ASCIIToLower(mToken.mIdent); // case insensitive
   }
@@ -5757,6 +5776,13 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
     }
   }
 
+  // A helper function that checks if the token starts with literal string
+  // |aStr| using a case-insensitive match.
+  auto TokenBeginsWith = [this] (const nsLiteralString& aStr) {
+    return StringBeginsWith(mToken.mIdent, aStr,
+                            nsASCIICaseInsensitiveStringComparator());
+  };
+
   if (eCSSToken_Ident == mToken.mType || eCSSToken_Dimension == mToken.mType) {
     // The CSS tokenization doesn't handle :nth-child() containing - well:
     //   2n-1 is a dimension
@@ -5764,9 +5790,9 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
     // The easiest way to deal with that is to push everything from the
     // minus on back onto the scanner's pushback buffer.
     uint32_t truncAt = 0;
-    if (StringBeginsWith(mToken.mIdent, NS_LITERAL_STRING("n-"))) {
+    if (TokenBeginsWith(NS_LITERAL_STRING("n-"))) {
       truncAt = 1;
-    } else if (StringBeginsWith(mToken.mIdent, NS_LITERAL_STRING("-n-")) && !hasSign[0]) {
+    } else if (TokenBeginsWith(NS_LITERAL_STRING("-n-")) && !hasSign[0]) {
       truncAt = 2;
     }
     if (truncAt != 0) {
@@ -5817,7 +5843,7 @@ CSSParserImpl::ParsePseudoClassWithNthPairArg(nsCSSSelector& aSelector,
       if (eCSSToken_Ident == mToken.mType && mToken.mIdent.LowerCaseEqualsLiteral("n")) {
         numbers[0] = intValue;
       }
-      else if (eCSSToken_Ident == mToken.mType && StringBeginsWith(mToken.mIdent, NS_LITERAL_STRING("n-"))) {
+      else if (eCSSToken_Ident == mToken.mType && TokenBeginsWith(NS_LITERAL_STRING("n-"))) {
         numbers[0] = intValue;
         mScanner->Backup(mToken.mIdent.Length() - 1);
       }
@@ -5945,13 +5971,7 @@ CSSParserImpl::ParseSelector(nsCSSSelectorList* aList,
     ParseTypeOrUniversalSelector(dataMask, *selector, false);
 
   while (parsingStatus == eSelectorParsingStatus_Continue) {
-    if (eCSSToken_ID == mToken.mType) { // #id
-      parsingStatus = ParseIDSelector(dataMask, *selector);
-    }
-    else if (mToken.IsSymbol('.')) {    // .class
-      parsingStatus = ParseClassSelector(dataMask, *selector);
-    }
-    else if (mToken.IsSymbol(':')) {    // :pseudo
+    if (mToken.IsSymbol(':')) {    // :pseudo
       parsingStatus = ParsePseudoSelector(dataMask, *selector, false,
                                           getter_AddRefs(pseudoElement),
                                           getter_Transfers(pseudoElementArgs),
@@ -5969,6 +5989,17 @@ CSSParserImpl::ParseSelector(nsCSSSelectorList* aList,
         selector->mClassList = pseudoElementArgs.forget();
         selector->SetPseudoType(pseudoElementType);
       }
+    } else if (selector->IsPseudoElement()) {
+      // Once we parsed a pseudo-element, we can only parse
+      // pseudo-classes (and only a limited set, which
+      // ParsePseudoSelector knows how to handle).
+      parsingStatus = eSelectorParsingStatus_Done;
+      UngetToken();
+      break;
+    } else if (eCSSToken_ID == mToken.mType) { // #id
+      parsingStatus = ParseIDSelector(dataMask, *selector);
+    } else if (mToken.IsSymbol('.')) {    // .class
+      parsingStatus = ParseClassSelector(dataMask, *selector);
     }
     else if (mToken.IsSymbol('[')) {    // [attribute
       parsingStatus = ParseAttributeSelector(dataMask, *selector);
