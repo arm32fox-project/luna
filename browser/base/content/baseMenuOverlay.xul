@@ -65,7 +65,7 @@
         <menuitem id="helpSafeMode"
                   accesskey="&helpSafeMode.accesskey;"
                   label="&helpSafeMode.label;"
-                  oncommand="safeModeRestart();"/>
+                  oncommand="restart(true);"/>
         <menuseparator id="aboutSeparator"/>
         <menuitem id="aboutName"
                   accesskey="&aboutProduct.accesskey;"

@@ -185,6 +185,10 @@
                 type="checkbox"
                 observes="View:FullScreen"
                 key="key_fullScreen"/>
+      <menuitem id="appmenu_restart"
+                class="menuitem-iconic"
+                label="&appMenuRestart.label;"
+                command="cmd_restartApplication"/>
       <menuitem id="appmenu-quit"
                 class="menuitem-iconic"
 #ifdef XP_WIN
@@ -384,7 +388,7 @@
             <menuseparator/>
             <menuitem id="appmenu_safeMode"
                       label="&appMenuSafeMode.label;"
-                      oncommand="safeModeRestart();"/>
+                      oncommand="restart(true);"/>
             <menuseparator/>
             <menuitem id="appmenu_about"
                       label="&aboutProduct.label;"
