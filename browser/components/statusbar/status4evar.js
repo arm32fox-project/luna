@@ -18,7 +18,7 @@ function Status_4_Evar(){}
 
 Status_4_Evar.prototype =
 {
-	classID:        Components.ID("{b418cd1b-b172-4ef5-bfc5-fc555c87dbc4}"),
+	classID:        Components.ID("{33d0433d-07be-4dc4-87fd-954057310efd}"),
 	QueryInterface: XPCOMUtils.generateQI([
 	                     CI.nsISupportsWeakReference,
 	                     CI.nsIObserver,
@@ -61,6 +61,9 @@ Status_4_Evar.prototype =
 	statusLinkOverDelayHide:        150,
 
 	statusToolbarMaxLength:         0,
+
+	statusToolbarInvertMirror:       false,
+	statusToolbarMouseMirror:        true,
 
 	pref_registry:
 	{
@@ -152,7 +155,7 @@ Status_4_Evar.prototype =
 			},
 			updateDynamicStyle: function(sheet)
 			{
-				sheet.cssRules[4].style.backgroundColor = this.downloadColorActive;
+				sheet.cssRules[2].style.backgroundColor = this.downloadColorActive;
 			}
 		},
 
@@ -164,7 +167,7 @@ Status_4_Evar.prototype =
 			},
 			updateDynamicStyle: function(sheet)
 			{
-				sheet.cssRules[5].style.backgroundColor = this.downloadColorPaused;
+				sheet.cssRules[3].style.backgroundColor = this.downloadColorPaused;
 			}
 		},
 
@@ -263,7 +266,7 @@ Status_4_Evar.prototype =
 			},
 			updateDynamicStyle: function(sheet)
 			{
-				sheet.cssRules[2].style.background = this.progressToolbarCSS;
+				sheet.cssRules[1].style.background = this.progressToolbarCSS;
 			}
 		},
 
@@ -397,6 +400,38 @@ Status_4_Evar.prototype =
 				if(status_widget)
 				{
 					status_widget.maxWidth = (this.statusToolbarMaxLength || "");
+				}
+			}
+		},
+
+		"status.popup.invertMirror":
+		{
+			update: function()
+			{
+				this.statusToolbarInvertMirror = this.prefs.getBoolPref("status.popup.invertMirror");
+			},
+			updateWindow: function(win)
+			{
+				let statusOverlay = win.caligon.status4evar.getters.statusOverlay;
+				if(statusOverlay)
+				{
+					statusOverlay.invertMirror = this.statusToolbarInvertMirror;
+				}
+			}
+		},
+
+		"status.popup.mouseMirror":
+		{
+			update: function()
+			{
+				this.statusToolbarMouseMirror = this.prefs.getBoolPref("status.popup.mouseMirror");
+			},
+			updateWindow: function(win)
+			{
+				let statusOverlay = win.caligon.status4evar.getters.statusOverlay;
+				if(statusOverlay)
+				{
+					statusOverlay.mouseMirror = this.statusToolbarMouseMirror;
 				}
 			}
 		}
