@@ -16,6 +16,7 @@
 
 using mozilla::media::TimeUnit;
 using mozilla::media::TimeIntervals;
+using mp4_demuxer::ByteReader;
 
 namespace mozilla {
 namespace mp3 {
@@ -94,6 +95,14 @@ MP3Demuxer::NotifyDataRemoved() {
 
 MP3TrackDemuxer::MP3TrackDemuxer(MediaResource* aSource)
   : mSource(aSource)
+  , mOffset(0)
+  , mFirstFrameOffset(0)
+  , mNumParsedFrames(0)
+  , mFrameIndex(0)
+  , mTotalFrameLen(0)
+  , mSamplesPerFrame(0)
+  , mSamplesPerSecond(0)
+  , mChannels(0)
 {
   Reset();
 }
@@ -103,7 +112,7 @@ MP3TrackDemuxer::Init() {
   Reset();
   FastSeek(TimeUnit());
   // Read the first frame to fetch sample rate and other meta data.
-  nsRefPtr<MediaRawData> frame(GetNextFrame(FindNextFrame()));
+  nsRefPtr<MediaRawData> frame(GetNextFrame(FindFirstFrame()));
   if (!frame) {
     return false;
   }
@@ -124,7 +133,6 @@ MP3TrackDemuxer::Init() {
   return mSamplesPerSecond && mChannels;
 }
 
-#ifdef ENABLE_TESTS
 const FrameParser::Frame&
 MP3TrackDemuxer::LastFrame() const {
   return mParser.PrevFrame();
@@ -137,9 +145,12 @@ MP3TrackDemuxer::DemuxSample() {
 
 media::TimeUnit
 MP3TrackDemuxer::SeekPosition() const {
-  return Duration(mFrameIndex);
+  TimeUnit pos = Duration(mFrameIndex);
+  if (Duration() > TimeUnit()) {
+    pos = std::min(Duration(), pos);
+  }
+  return pos;
 }
-#endif
 
 const ID3Parser::ID3Header&
 MP3TrackDemuxer::ID3Header() const {
@@ -158,29 +169,34 @@ MP3TrackDemuxer::GetInfo() const {
 
 nsRefPtr<MP3TrackDemuxer::SeekPromise>
 MP3TrackDemuxer::Seek(TimeUnit aTime) {
+  // Efficiently seek to the position.
+  FastSeek(aTime);
+  // Correct seek position by scanning the next frames.
   const TimeUnit seekTime = ScanUntil(aTime);
 
   return SeekPromise::CreateAndResolve(seekTime, __func__);
 }
 
 TimeUnit
-MP3TrackDemuxer::FastSeek(TimeUnit aTime) {
+MP3TrackDemuxer::FastSeek(const TimeUnit& aTime) {
+  const auto& vbr = mParser.VBRInfo();
   if (!aTime.ToMicroseconds()) {
     // Quick seek to the beginning of the stream.
-    mOffset = mFirstFrameOffset;
     mFrameIndex = 0;
-    mParser.EndFrameSession();
-    return TimeUnit();
+    } else if (vbr.IsTOCPresent() && Duration().ToMicroseconds() > 0) {
+    // Use TOC for more precise seeking.
+    const float durationFrac = static_cast<float>(aTime.ToMicroseconds()) /
+                                                  Duration().ToMicroseconds();
+    mFrameIndex = FrameIndexFromOffset(vbr.Offset(durationFrac));
+  } else if (AverageFrameLength() > 0) {
+    mFrameIndex = FrameIndexFromTime(aTime);
   }
 
-  if (!mSamplesPerFrame || !mNumParsedFrames) {
-    return TimeUnit::FromMicroseconds(-1);
-  }
+  mOffset = OffsetFromFrameIndex(mFrameIndex);
 
-  const int64_t numFrames = aTime.ToSeconds() *
-                            mSamplesPerSecond / mSamplesPerFrame;
-  mOffset = mFirstFrameOffset + numFrames * AverageFrameLength();
-  mFrameIndex = numFrames;
+  if (mOffset > mFirstFrameOffset && StreamLength() > 0) {
+    mOffset = std::min(StreamLength() - 1, mOffset);
+  }
 
   mParser.EndFrameSession();
 
@@ -188,7 +204,7 @@ MP3TrackDemuxer::FastSeek(TimeUnit aTime) {
 }
 
 TimeUnit
-MP3TrackDemuxer::ScanUntil(TimeUnit aTime) {
+MP3TrackDemuxer::ScanUntil(const TimeUnit& aTime) {
   if (!aTime.ToMicroseconds()) {
     return FastSeek(aTime);
   }
@@ -197,12 +213,16 @@ MP3TrackDemuxer::ScanUntil(TimeUnit aTime) {
     FastSeek(aTime);
   }
 
+  if (Duration(mFrameIndex + 1) > aTime) {
+    return SeekPosition();
+  }
+
   MediaByteRange nextRange = FindNextFrame();
   while (SkipNextFrame(nextRange) && Duration(mFrameIndex + 1) < aTime) {
     nextRange = FindNextFrame();
   }
 
-  return Duration(mFrameIndex);
+  return SeekPosition();
 }
 
 nsRefPtr<MP3TrackDemuxer::SamplesPromise>
@@ -232,15 +252,7 @@ MP3TrackDemuxer::GetSamples(int32_t aNumSamples) {
 
 void
 MP3TrackDemuxer::Reset() {
-  mOffset = 0;
-  mFirstFrameOffset = 0;
-  mNumParsedFrames = 0;
-  mFrameIndex = 0;
-  mTotalFrameLen = 0;
-  mSamplesPerFrame = 0;
-  mSamplesPerSecond = 0;
-  mChannels = 0;
-
+  FastSeek(TimeUnit());
   mParser.Reset();
 }
 
@@ -279,15 +291,20 @@ MP3TrackDemuxer::Duration() const {
     return TimeUnit::FromMicroseconds(-1);
   }
 
-  const int64_t streamLen = StreamLength();
-  // Assume we know the exact number of frames from the VBR header.
-  int64_t numFrames = mParser.VBRInfo().NumFrames();
-  if (numFrames < 0) {
+  int64_t numFrames = 0;
+  const auto numAudioFrames = mParser.VBRInfo().NumAudioFrames();
+  if (mParser.VBRInfo().IsValid() && numAudioFrames.valueOr(0) + 1 > 1) {
+    // VBR headers don't include the VBR header frame.
+    numFrames = numAudioFrames.value() + 1;
+  } else {
+    const int64_t streamLen = StreamLength();
     if (streamLen < 0) {
       // Unknown length, we can't estimate duration.
       return TimeUnit::FromMicroseconds(-1);
     }
-    numFrames = (streamLen - mFirstFrameOffset) / AverageFrameLength();
+    if (AverageFrameLength() > 0) {
+      numFrames = (streamLen - mFirstFrameOffset) / AverageFrameLength();
+    }
   }
   return Duration(numFrames);
 }
@@ -303,40 +320,102 @@ MP3TrackDemuxer::Duration(int64_t aNumFrames) const {
 }
 
 MediaByteRange
+MP3TrackDemuxer::FindFirstFrame() {
+  static const int MIN_SUCCESSIVE_FRAMES = 4;
+
+  MediaByteRange candidateFrame = FindNextFrame();
+  int numSuccFrames = candidateFrame.Length() > 0;
+  MediaByteRange currentFrame = candidateFrame;
+
+  while (candidateFrame.Length() && numSuccFrames < MIN_SUCCESSIVE_FRAMES) {
+    mParser.EndFrameSession();
+    mOffset = currentFrame.mEnd;
+    const MediaByteRange prevFrame = currentFrame;
+
+    // FindNextFrame() here will only return frames consistent with our candidate frame.
+    currentFrame = FindNextFrame();
+    numSuccFrames += currentFrame.Length() > 0;
+    // Multiple successive false positives, which wouldn't be caught by the consistency
+    // checks alone, can be detected by wrong alignment (non-zero gap between frames).
+    const int64_t frameSeparation = currentFrame.mStart - prevFrame.mEnd;
+
+    if (!currentFrame.Length() || frameSeparation != 0) {
+      mParser.ResetFrameData();
+      mOffset = candidateFrame.mStart + 1;
+      candidateFrame = FindNextFrame();
+      numSuccFrames = candidateFrame.Length() > 0;
+      currentFrame = candidateFrame;
+    }
+  }
+
+  return candidateFrame;
+}
+
+static bool
+VerifyFrameConsistency(
+    const FrameParser::Frame& aFrame1, const FrameParser::Frame& aFrame2) {
+  const auto& h1 = aFrame1.Header();
+  const auto& h2 = aFrame2.Header();
+
+  return h1.IsValid() && h2.IsValid() &&
+         h1.Layer() == h2.Layer() &&
+         h1.SlotSize() == h2.SlotSize() &&
+         h1.SamplesPerFrame() == h2.SamplesPerFrame() &&
+         h1.Channels() == h2.Channels() &&
+         h1.SampleRate() == h2.SampleRate() &&
+         h1.RawVersion() == h2.RawVersion() &&
+         h1.RawProtection() == h2.RawProtection();
+}
+
+MediaByteRange
 MP3TrackDemuxer::FindNextFrame() {
   static const int BUFFER_SIZE = 64;
   static const int MAX_SKIPPED_BYTES = 1024 * BUFFER_SIZE;
 
   uint8_t buffer[BUFFER_SIZE];
   int32_t read = 0;
-  const uint8_t* frameBeg = nullptr;
-  const uint8_t* bufferEnd = nullptr;
+  bool foundFrame = false;
+  int64_t frameHeaderOffset = 0;
 
-  while (frameBeg == bufferEnd) {
+  // Check whether we've found a valid MPEG frame.
+  while (!foundFrame) {
     if ((!mParser.FirstFrame().Length() &&
          mOffset - mParser.ID3Header().Size() > MAX_SKIPPED_BYTES) ||
         (read = Read(buffer, mOffset, BUFFER_SIZE)) == 0) {
       // This is not a valid MPEG audio stream or we've reached EOS, give up.
       break;
     }
-    NS_ENSURE_TRUE(mOffset + read > mOffset, MediaByteRange(0, 0));
-    mOffset += read;
-    bufferEnd = buffer + read;
-    const FrameParserResult parseResults = mParser.Parse(buffer, bufferEnd);
-    frameBeg = parseResults.mBufferPos;
+    ByteReader reader(buffer, read);
+    uint32_t bytesToSkip = 0;
+    foundFrame = mParser.Parse(&reader, &bytesToSkip);
+    frameHeaderOffset = mOffset + reader.Offset() - FrameParser::FrameHeader::SIZE;
 
-    // If mBytesToSkip is > 0, this skips the rest of an ID3 tag which stretches
-    // beyond the current buffer.
-    NS_ENSURE_TRUE(mOffset + parseResults.mBytesToSkip >= mOffset, MediaByteRange(0, 0));
-    mOffset += parseResults.mBytesToSkip;
+    // If we've found neither an MPEG frame header nor an ID3v2 tag,
+    // the reader shouldn't have any bytes remaining.
+    MOZ_ASSERT(foundFrame || bytesToSkip || !reader.Remaining());
+    reader.DiscardRemaining();
+
+    if (foundFrame && mParser.FirstFrame().Length() &&
+        !VerifyFrameConsistency(mParser.FirstFrame(), mParser.CurrentFrame())) {
+      // We've likely hit a false-positive, ignore it and proceed with the
+      // search for the next valid frame.
+      foundFrame = false;
+      mOffset = frameHeaderOffset + 1;
+      mParser.EndFrameSession();
+    } else {
+      // Advance mOffset by the amount of bytes read and if necessary,
+      // skip an ID3v2 tag which stretches beyond the current buffer.
+      NS_ENSURE_TRUE(mOffset + read + bytesToSkip > mOffset,
+                     MediaByteRange(0, 0));
+      mOffset += read + bytesToSkip;
+    }
   }
 
-  if (frameBeg == bufferEnd || !mParser.CurrentFrame().Length()) {
+  if (!foundFrame || !mParser.CurrentFrame().Length()) {
     return { 0, 0 };
   }
 
-  const int64_t nextBeg = mOffset - (bufferEnd - frameBeg) + 1;
-  return { nextBeg, nextBeg + mParser.CurrentFrame().Length() };
+  return { frameHeaderOffset, frameHeaderOffset + mParser.CurrentFrame().Length() };
 }
 
 bool
@@ -385,12 +464,54 @@ MP3TrackDemuxer::GetNextFrame(const MediaByteRange& aRange) {
 
   if (mNumParsedFrames == 1) {
     // First frame parsed, let's read VBR info if available.
-    // TODO: read info that helps with seeking (bug 1163667).
-    mParser.ParseVBRHeader(frame->Data(), frame->Data() + frame->Size());
+    ByteReader reader(frame->Data(), frame->Size());
+    mParser.ParseVBRHeader(&reader);
+    reader.DiscardRemaining();
     mFirstFrameOffset = frame->mOffset;
   }
 
   return frame.forget();
+}
+
+int64_t
+MP3TrackDemuxer::OffsetFromFrameIndex(int64_t aFrameIndex) const {
+  int64_t offset = 0;
+  const auto& vbr = mParser.VBRInfo();
+
+  if (vbr.IsComplete()) {
+    offset = mFirstFrameOffset + aFrameIndex * vbr.NumBytes().value() /
+             vbr.NumAudioFrames().value();
+  } else if (AverageFrameLength() > 0) {
+    offset = mFirstFrameOffset + aFrameIndex * AverageFrameLength();
+  }
+
+  return std::max<int64_t>(mFirstFrameOffset, offset);
+}
+
+int64_t
+MP3TrackDemuxer::FrameIndexFromOffset(int64_t aOffset) const {
+  int64_t frameIndex = 0;
+  const auto& vbr = mParser.VBRInfo();
+
+  if (vbr.IsComplete()) {
+    frameIndex = static_cast<float>(aOffset - mFirstFrameOffset) /
+                 vbr.NumBytes().value() * vbr.NumAudioFrames().value();
+    frameIndex = std::min<int64_t>(vbr.NumAudioFrames().value(), frameIndex);
+  } else if (AverageFrameLength() > 0) {
+    frameIndex = (aOffset - mFirstFrameOffset) / AverageFrameLength();
+  }
+
+  return std::max<int64_t>(0, frameIndex);
+}
+
+int64_t
+MP3TrackDemuxer::FrameIndexFromTime(const media::TimeUnit& aTime) const {
+  int64_t frameIndex = 0;
+  if (mSamplesPerSecond > 0 && mSamplesPerFrame > 0) {
+    frameIndex = aTime.ToSeconds() * mSamplesPerSecond / mSamplesPerFrame - 1;
+  }
+
+  return std::max<int64_t>(0, frameIndex);
 }
 
 void
@@ -407,9 +528,13 @@ MP3TrackDemuxer::UpdateState(const MediaByteRange& aRange) {
   mOffset = aRange.mEnd;
 
   mTotalFrameLen += aRange.Length();
-  mSamplesPerFrame = mParser.CurrentFrame().Header().SamplesPerFrame();
-  mSamplesPerSecond = mParser.CurrentFrame().Header().SampleRate();
-  mChannels = mParser.CurrentFrame().Header().Channels();
+
+  if (!mSamplesPerFrame) {
+    mSamplesPerFrame = mParser.CurrentFrame().Header().SamplesPerFrame();
+    mSamplesPerSecond = mParser.CurrentFrame().Header().SampleRate();
+    mChannels = mParser.CurrentFrame().Header().Channels();
+  }
+
   ++mNumParsedFrames;
   ++mFrameIndex;
   MOZ_ASSERT(mFrameIndex > 0);
@@ -460,10 +585,15 @@ MP3TrackDemuxer::Read(uint8_t* aBuffer, int64_t aOffset, int32_t aSize) {
 
 double
 MP3TrackDemuxer::AverageFrameLength() const {
-  if (!mNumParsedFrames) {
-    return 0.0;
+  if (mNumParsedFrames) {
+    return static_cast<double>(mTotalFrameLen) / mNumParsedFrames;
   }
-  return static_cast<double>(mTotalFrameLen) / mNumParsedFrames;
+  const auto& vbr = mParser.VBRInfo();
+  if (vbr.IsComplete() && vbr.NumAudioFrames().value() + 1) {
+    return static_cast<double>(vbr.NumBytes().value()) /
+           (vbr.NumAudioFrames().value() + 1);
+  }
+  return 0.0;
 }
 
 // FrameParser
@@ -483,8 +613,14 @@ FrameParser::FrameParser()
 void
 FrameParser::Reset() {
   mID3Parser.Reset();
-  mFirstFrame.Reset();
   mFrame.Reset();
+}
+
+void
+FrameParser::ResetFrameData() {
+  mFrame.Reset();
+  mFirstFrame.Reset();
+  mPrevFrame.Reset();
 }
 
 void
@@ -493,9 +629,7 @@ FrameParser::EndFrameSession() {
     // Reset ID3 tags only if we have not parsed a valid ID3 header yet.
     mID3Parser.Reset();
   }
-#ifdef ENABLE_TESTS
   mPrevFrame = mFrame;
-#endif
   mFrame.Reset();
 }
 
@@ -504,12 +638,10 @@ FrameParser::CurrentFrame() const {
   return mFrame;
 }
 
-#ifdef ENABLE_TESTS
 const FrameParser::Frame&
 FrameParser::PrevFrame() const {
   return mPrevFrame;
 }
-#endif
 
 const FrameParser::Frame&
 FrameParser::FirstFrame() const {
@@ -526,45 +658,45 @@ FrameParser::VBRInfo() const {
   return mVBRHeader;
 }
 
-FrameParserResult
-FrameParser::Parse(const uint8_t* aBeg, const uint8_t* aEnd) {
-  if (!aBeg || !aEnd || aBeg >= aEnd) {
-    return { aEnd, 0 };
-  }
+bool
+FrameParser::Parse(ByteReader* aReader, uint32_t* aBytesToSkip) {
+  MOZ_ASSERT(aReader && aBytesToSkip);
+  *aBytesToSkip = 0;
 
   if (!mID3Parser.Header().Size() && !mFirstFrame.Length()) {
     // No MP3 frames have been parsed yet, look for ID3v2 headers at file begin.
     // ID3v1 tags may only be at file end.
     // TODO: should we try to read ID3 tags at end of file/mid-stream, too?
-    const uint8_t* id3Beg = mID3Parser.Parse(aBeg, aEnd);
-    if (id3Beg != aEnd) {
+    const size_t prevReaderOffset = aReader->Offset();
+    const uint32_t tagSize = mID3Parser.Parse(aReader);
+    if (tagSize) {
       // ID3 tag found, skip past it.
-      const uint32_t tagSize = ID3Parser::ID3Header::SIZE + mID3Parser.Header().Size() +
-                               mID3Parser.Header().FooterSize();
-      const uint32_t remainingBuffer = aEnd - id3Beg;
-      if (tagSize > remainingBuffer) {
-        // Skipping across the ID3 tag would take us past the end of the buffer, therefore we
+      const uint32_t skipSize = tagSize - ID3Parser::ID3Header::SIZE;
+
+      if (skipSize > aReader->Remaining()) {
+        // Skipping across the ID3v2 tag would take us past the end of the buffer, therefore we
         // return immediately and let the calling function handle skipping the rest of the tag.
-        return { aEnd, tagSize - remainingBuffer };
+        *aBytesToSkip = skipSize - aReader->Remaining();
+        return false;
       }
-      aBeg = id3Beg + tagSize;
+      aReader->Read(skipSize);
+    } else {
+      // No ID3v2 tag found, rewinding reader in order to search for a MPEG frame header.
+      aReader->Seek(prevReaderOffset);
     }
   }
 
-  while (aBeg < aEnd && !mFrame.ParseNext(*aBeg)) {
-    ++aBeg;
-  }
+  while (aReader->CanRead8() && !mFrame.ParseNext(aReader->ReadU8())) { }
 
   if (mFrame.Length()) {
     // MP3 frame found.
     if (!mFirstFrame.Length()) {
       mFirstFrame = mFrame;
     }
-    // Move to the frame header begin to allow for whole-frame parsing.
-    aBeg -= FrameHeader::SIZE;
-    return { aBeg, 0 };
+    // Indicate success.
+    return true;
   }
-  return { aEnd, 0 };
+  return false;
 }
 
 // FrameParser::Header
@@ -728,7 +860,7 @@ FrameParser::FrameHeader::IsValid(int aPos) const {
   if (aPos == frame_header::SYNC2_VERSION_LAYER_PROTECTION) {
     return Sync2() == 7 &&
            RawVersion() != 1 &&
-           RawLayer() != 0;
+           Layer() == 3;
   }
   if (aPos == frame_header::BITRATE_SAMPLERATE_PADDING_PRIVATE) {
     return RawBitrate() != 0xF && RawBitrate() != 0 &&
@@ -757,9 +889,13 @@ FrameParser::FrameHeader::Update(uint8_t c) {
 
 // FrameParser::VBRHeader
 
+namespace vbr_header {
+static const char* TYPE_STR[3] = {"NONE", "XING", "VBRI"};
+static const uint32_t TOC_SIZE = 100;
+} // namespace vbr_header
+
 FrameParser::VBRHeader::VBRHeader()
-  : mNumFrames(-1),
-    mType(NONE)
+  : mType(NONE)
 {
 }
 
@@ -768,15 +904,66 @@ FrameParser::VBRHeader::Type() const {
   return mType;
 }
 
-int64_t
-FrameParser::VBRHeader::NumFrames() const {
-  return mNumFrames;
+const Maybe<uint32_t>&
+FrameParser::VBRHeader::NumAudioFrames() const {
+  return mNumAudioFrames;
+}
+
+const Maybe<uint32_t>&
+FrameParser::VBRHeader::NumBytes() const {
+  return mNumBytes;
+}
+
+const Maybe<uint32_t>&
+FrameParser::VBRHeader::Scale() const {
+  return mScale;
 }
 
 bool
-FrameParser::VBRHeader::ParseXing(const uint8_t* aBeg, const uint8_t* aEnd) {
-  static const uint32_t TAG = BigEndian::readUint32("Xing");
-  static const uint32_t FRAME_COUNT_OFFSET = 8;
+FrameParser::VBRHeader::IsTOCPresent() const {
+  return mTOC.size() == vbr_header::TOC_SIZE;
+}
+
+bool
+FrameParser::VBRHeader::IsValid() const {
+  return mType != NONE;
+}
+
+bool
+FrameParser::VBRHeader::IsComplete() const {
+  return IsValid() &&
+         mNumAudioFrames.valueOr(0) > 0 &&
+         mNumBytes.valueOr(0) > 0 &&
+         // We don't care about the scale for any computations here.
+         // mScale < 101 &&
+         true;
+}
+
+int64_t
+FrameParser::VBRHeader::Offset(float aDurationFac) const {
+  if (!IsTOCPresent()) {
+    return -1;
+  }
+
+  // Constrain the duration percentage to [0, 99].
+  const float durationPer = 100.0f * std::min(0.99f, std::max(0.0f, aDurationFac));
+  const size_t fullPer = durationPer;
+  const float rest = durationPer - fullPer;
+
+  MOZ_ASSERT(fullPer < mTOC.size());
+  int64_t offset = mTOC.at(fullPer);
+
+  if (rest > 0.0 && fullPer + 1 < mTOC.size()) {
+    offset += rest * (mTOC.at(fullPer + 1) - offset);
+  }
+
+  return offset;
+}
+
+bool
+FrameParser::VBRHeader::ParseXing(ByteReader* aReader) {
+  static const uint32_t XING_TAG = BigEndian::readUint32("Xing");
+  static const uint32_t INFO_TAG = BigEndian::readUint32("Info");
 
   enum Flags {
     NUM_FRAMES = 0x01,
@@ -785,51 +972,82 @@ FrameParser::VBRHeader::ParseXing(const uint8_t* aBeg, const uint8_t* aEnd) {
     VBR_SCALE = 0x08
   };
 
-  if (!aBeg || !aEnd || aBeg >= aEnd) {
-    return false;
-  }
+  MOZ_ASSERT(aReader);
+  const size_t prevReaderOffset = aReader->Offset();
 
   // We have to search for the Xing header as its position can change.
-  for (; aBeg + sizeof(TAG) < aEnd; ++aBeg) {
-    if (BigEndian::readUint32(aBeg) != TAG) {
-      continue;
-    }
-
-    const uint32_t flags = BigEndian::readUint32(aBeg + sizeof(TAG));
-    if (flags & NUM_FRAMES && aBeg + FRAME_COUNT_OFFSET < aEnd) {
-      mNumFrames = BigEndian::readUint32(aBeg + FRAME_COUNT_OFFSET);
-    }
-    mType = XING;
-    return true;
+  while (aReader->CanRead32() &&
+         aReader->PeekU32() != XING_TAG && aReader->PeekU32() != INFO_TAG) {
+    aReader->Read(1);
   }
-  return false;
+
+  if (aReader->CanRead32()) {
+    // Skip across the VBR header ID tag.
+    aReader->ReadU32();
+    mType = XING;
+    }
+  uint32_t flags = 0;
+  if (aReader->CanRead32()) {
+    flags = aReader->ReadU32();
+  }
+  if (flags & NUM_FRAMES && aReader->CanRead32()) {
+    mNumAudioFrames = Some(aReader->ReadU32());
+  }
+  if (flags & NUM_BYTES && aReader->CanRead32()) {
+    mNumBytes = Some(aReader->ReadU32());
+  }
+  if (flags & TOC && aReader->Remaining() >= vbr_header::TOC_SIZE) {
+    if (!mNumBytes) {
+      // We don't have the stream size to calculate offsets, skip the TOC.
+      aReader->Read(vbr_header::TOC_SIZE);
+    } else {
+      mTOC.clear();
+      mTOC.reserve(vbr_header::TOC_SIZE);
+      for (size_t i = 0; i < vbr_header::TOC_SIZE; ++i) {
+        mTOC.push_back(1.0f / 256.0f * aReader->ReadU8() * mNumBytes.value());
+      }
+    }
+  }
+  if (flags & VBR_SCALE && aReader->CanRead32()) {
+    mScale = Some(aReader->ReadU32());
+  }
+
+  aReader->Seek(prevReaderOffset);
+  return mType == XING;
 }
 
 bool
-FrameParser::VBRHeader::ParseVBRI(const uint8_t* aBeg, const uint8_t* aEnd) {
+FrameParser::VBRHeader::ParseVBRI(ByteReader* aReader) {
   static const uint32_t TAG = BigEndian::readUint32("VBRI");
-  static const uint32_t OFFSET = 32 - FrameParser::FrameHeader::SIZE;
+  static const uint32_t OFFSET = 32 + FrameParser::FrameHeader::SIZE;
   static const uint32_t FRAME_COUNT_OFFSET = OFFSET + 14;
   static const uint32_t MIN_FRAME_SIZE = OFFSET + 26;
 
-  if (!aBeg || !aEnd || aBeg >= aEnd) {
-    return false;
-  }
+  MOZ_ASSERT(aReader);
+  // ParseVBRI assumes that the ByteReader offset points to the beginning of a frame,
+  // therefore as a simple check, we look for the presence of a frame sync at that position.
+  MOZ_ASSERT((aReader->PeekU16() & 0xFFE0) == 0xFFE0);
+  const size_t prevReaderOffset = aReader->Offset();
 
-  const int64_t frameLen = aEnd - aBeg;
   // VBRI have a fixed relative position, so let's check for it there.
-  if (frameLen > MIN_FRAME_SIZE &&
-      BigEndian::readUint32(aBeg + OFFSET) == TAG) {
-    mNumFrames = BigEndian::readUint32(aBeg + FRAME_COUNT_OFFSET);
-    mType = VBRI;
-    return true;
+  if (aReader->Remaining() > MIN_FRAME_SIZE) {
+    aReader->Seek(prevReaderOffset + OFFSET);
+    if (aReader->ReadU32() == TAG) {
+      aReader->Seek(prevReaderOffset + FRAME_COUNT_OFFSET);
+      mNumAudioFrames = Some(aReader->ReadU32());
+      mType = VBRI;
+      aReader->Seek(prevReaderOffset);
+      return true;
+    }
   }
+  aReader->Seek(prevReaderOffset);
   return false;
 }
 
 bool
-FrameParser::VBRHeader::Parse(const uint8_t* aBeg, const uint8_t* aEnd) {
-  return ParseVBRI(aBeg, aEnd) || ParseXing(aBeg, aEnd);
+FrameParser::VBRHeader::Parse(ByteReader* aReader) {
+  const bool rv = ParseVBRI(aReader) || ParseXing(aReader);
+  return rv;
 }
 
 // FrameParser::Frame
@@ -863,8 +1081,8 @@ FrameParser::Frame::Header() const {
 }
 
 bool
-FrameParser::ParseVBRHeader(const uint8_t* aBeg, const uint8_t* aEnd) {
-  return mVBRHeader.Parse(aBeg, aEnd);
+FrameParser::ParseVBRHeader(ByteReader* aReader) {
+  return mVBRHeader.Parse(aReader);
 }
 
 // ID3Parser
@@ -887,21 +1105,18 @@ static const uint8_t MIN_MAJOR_VER = 2;
 static const uint8_t MAX_MAJOR_VER = 4;
 }
 
-const uint8_t*
-ID3Parser::Parse(const uint8_t* aBeg, const uint8_t* aEnd) {
-  if (!aBeg || !aEnd || aBeg >= aEnd) {
-    return aEnd;
+uint32_t
+ID3Parser::Parse(ByteReader* aReader) {
+  MOZ_ASSERT(aReader);
+
+  while (aReader->CanRead8() && !mHeader.ParseNext(aReader->ReadU8())) { }
+
+  if (mHeader.IsValid()) {
+    // Header found, return total tag size.
+    return ID3Header::SIZE + Header().Size() + Header().FooterSize();
   }
 
-  while (aBeg < aEnd && !mHeader.ParseNext(*aBeg)) {
-    ++aBeg;
-  }
-
-  if (aBeg < aEnd) {
-    // Header found, move to header begin.
-    aBeg -= ID3Header::SIZE - 1;
-  }
-  return aBeg;
+  return 0;
 }
 
 void
