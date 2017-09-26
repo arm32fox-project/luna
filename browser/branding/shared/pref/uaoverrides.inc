@@ -2,12 +2,12 @@
 
 #define GUAO_PREF general.useragent.override
 
-#define GRE_VERSION 3.4
+#define GRE_VERSION @MOZILLA_UAVERSION@
 #define GRE_VERSION_SLICE Goanna/@GRE_VERSION@
 #define GRE_DATE_SLICE Goanna/20170101
 #define PM_SLICE PaleMoon/@MOZ_APP_VERSION@
 
-#define GK_VERSION 52.9
+#define GK_VERSION @MOZILLA_COMPATVERSION@
 #define GK_SLICE Gecko/20100101
 #define FX_SLICE Firefox/@GK_VERSION@
 
