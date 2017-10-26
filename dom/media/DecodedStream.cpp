@@ -85,6 +85,8 @@ DecodedStreamData::DecodedStreamData(int64_t aInitialTime,
 {
   mListener = new DecodedStreamGraphListener(mStream);
   mStream->AddListener(mListener);
+  // Block the stream until the initialization is done.
+  mStream->ChangeExplicitBlockerCount(1);
 }
 
 DecodedStreamData::~DecodedStreamData()
@@ -178,7 +180,7 @@ DecodedStream::DecodedStream(ReentrantMonitor& aMonitor)
 }
 
 DecodedStreamData*
-DecodedStream::GetData()
+DecodedStream::GetData() const
 {
 	GetReentrantMonitor().AssertCurrentThreadIn();
   return mData.get();
@@ -220,13 +222,16 @@ DecodedStream::DestroyData()
 }
 
 void
-DecodedStream::RecreateData(int64_t aInitialTime, SourceMediaStream* aStream)
+DecodedStream::RecreateData(int64_t aInitialTime, MediaStreamGraph* aGraph)
 {
 	MOZ_ASSERT(NS_IsMainThread());
   GetReentrantMonitor().AssertCurrentThreadIn();
-  MOZ_ASSERT(!mData);
+  MOZ_ASSERT((aGraph && !mData && OutputStreams().IsEmpty()) || // first time
+             (!aGraph && mData)); // 2nd time and later
 
-  mData.reset(new DecodedStreamData(aInitialTime, aStream));
+  auto source = aGraph->CreateSourceStream(nullptr);
+  DestroyData();
+  mData.reset(new DecodedStreamData(aInitialTime, source));
 
 	// Note that the delay between removing ports in DestroyDecodedStream
   // and adding new ones won't cause a glitch since all graph operations
@@ -247,7 +252,7 @@ DecodedStream::OutputStreams()
 }
 
 ReentrantMonitor&
-DecodedStream::GetReentrantMonitor()
+DecodedStream::GetReentrantMonitor() const
 {
   return mMonitor;
 }
