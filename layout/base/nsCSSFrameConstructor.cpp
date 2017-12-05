@@ -3510,13 +3510,6 @@ nsCSSFrameConstructor::FindHTMLData(Element* aElement,
     return nullptr;
   }
 
-  if (aTag == nsGkAtoms::summary &&
-      (!aParentFrame || aParentFrame->GetType() != nsGkAtoms::detailsFrame)) {
-    // <summary> is special only if it is a direct child of <details>. If it
-    // isn't, construct it as a normal block frame instead of a summary frame.
-    return nullptr;
-  }
-
   static const FrameConstructionDataByTag sHTMLData[] = {
     SIMPLE_TAG_CHAIN(img, nsCSSFrameConstructor::FindImgData),
     SIMPLE_TAG_CHAIN(mozgeneratedcontentimage,
@@ -5601,9 +5594,15 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
   }
 
   // When constructing a child of a non-open <details>, create only the frame
-  // for the main <summary> element, and skip other elements.
+  // for the main <summary> element, and skip other elements.  This only applies
+  // to things that are not roots of native anonymous subtrees (except for
+  // ::before and ::after); we always want to create "internal" anonymous
+  // content.
   auto* details = HTMLDetailsElement::FromContentOrNull(parent);
-  if (details && !details->Open()) {
+  if (details && !details->Open() &&
+      (!aContent->IsRootOfNativeAnonymousSubtree() ||
+       aContent->IsGeneratedContentContainerForBefore() ||
+       aContent->IsGeneratedContentContainerForAfter())) {
     auto* summary = HTMLSummaryElement::FromContentOrNull(aContent);
     if (!summary || !summary->IsMainSummary()) {
       SetAsUndisplayedContent(aState, aItems, aContent, styleContext,
@@ -5765,10 +5764,23 @@ nsCSSFrameConstructor::AddFrameConstructionItemsInternal(nsFrameConstructorState
     return;
   }
 
-  FrameConstructionItem* item =
-    aItems.AppendItem(data, aContent, aTag, aNameSpaceID,
-                      pendingBinding, styleContext.forget(),
-                      aSuppressWhiteSpaceOptimizations, aAnonChildren);
+  FrameConstructionItem* item = nullptr;
+  if (details && details->Open()) {
+    auto* summary = HTMLSummaryElement::FromContentOrNull(aContent);
+    if (summary && summary->IsMainSummary()) {
+      // If details is open, the main summary needs to be rendered as if it is
+      // the first child, so add the item to the front of the item list.
+      item = aItems.PrependItem(data, aContent, aTag, aNameSpaceID,
+                                pendingBinding, styleContext.forget(),
+                                aSuppressWhiteSpaceOptimizations, aAnonChildren);
+    }
+  }
+
+  if (!item) {
+    item = aItems.AppendItem(data, aContent, aTag, aNameSpaceID,
+                             pendingBinding, styleContext.forget(),
+                             aSuppressWhiteSpaceOptimizations, aAnonChildren);
+  }
   item->mIsText = isText;
   item->mIsGeneratedContent = isGeneratedContent;
   item->mIsAnonymousContentCreatorContent =
