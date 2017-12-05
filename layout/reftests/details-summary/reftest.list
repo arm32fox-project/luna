@@ -67,6 +67,7 @@
 == details-first-line.html details-first-line-ref.html
 == open-details-first-line-1.html open-details-first-line-ref.html
 == open-details-first-line-2.html open-details-first-line-ref.html
+== summary-three-columns.html summary-three-columns-ref.html
 
 # Dispatch mouse click to summary
 == mouse-click-single-summary.html open-single-summary.html
