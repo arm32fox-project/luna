@@ -65,22 +65,9 @@ SetSourceMap(ExclusiveContext* cx, TokenStream& tokenStream, ScriptSource* ss)
 static bool
 CheckArgumentsWithinEval(JSContext* cx, Parser<FullParseHandler>& parser, HandleFunction fun)
 {
-    if (fun->hasRest()) {
-        // It's an error to use |arguments| in a function that has a rest
-        // parameter.
-        parser.report(ParseError, false, nullptr, JSMSG_ARGUMENTS_AND_REST);
-        return false;
-    }
-
-    // Force construction of arguments objects for functions that use
-    // |arguments| within an eval.
     RootedScript script(cx, fun->getOrCreateScript(cx));
     if (!script)
         return false;
-    if (script->argumentsHasVarBinding()) {
-        if (!JSScript::argumentsOptimizationFailed(cx, script))
-            return false;
-    }
 
     // It's an error to use |arguments| in a legacy generator expression.
     if (script->isGeneratorExp() && script->isLegacyGenerator()) {

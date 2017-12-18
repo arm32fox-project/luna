@@ -6194,9 +6194,6 @@ IonBuilder::jsop_eval(uint32_t argc)
             }
         }
 
-        MInstruction* filterArguments = MFilterArgumentsOrEval::New(alloc(), string);
-        current->add(filterArguments);
-
         MInstruction* ins = MCallDirectEval::New(alloc(), scopeChain, string, thisValue, pc);
         current->add(ins);
         current->push(ins);
@@ -9132,6 +9129,15 @@ IonBuilder::jsop_arguments()
 bool
 IonBuilder::jsop_rest()
 {
+    if (info().analysisMode() == Analysis_ArgumentsUsage) {
+        // There's no BaselineScript with the template object. Just push a
+        // dummy value, it does not affect the arguments analysis.
+        MUnknownValue* unknown = MUnknownValue::New(alloc());
+        current->add(unknown);
+        current->push(unknown);
+        return true;
+    }
+
     ArrayObject* templateObject = &inspector->getTemplateObject(pc)->as<ArrayObject>();
 
     if (inliningDepth_ == 0) {
