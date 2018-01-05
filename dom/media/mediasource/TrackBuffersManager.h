@@ -120,9 +120,7 @@ private:
   // media segment have been processed.
   nsRefPtr<CodedFrameProcessingPromise> CodedFrameProcessing();
   void CompleteCodedFrameProcessing();
-  // Called by ResetParserState. Complete parsing the input buffer for the
-  // current media segment.
-  void FinishCodedFrameProcessing();
+  // Called by ResetParserState.
   void CompleteResetParserState();
   nsRefPtr<RangeRemovalPromise>
     CodedFrameRemovalWithPromise(TimeInterval aInterval);
@@ -293,10 +291,6 @@ private:
   MediaPromiseHolder<CodedFrameProcessingPromise> mProcessingPromise;
 
   MediaPromiseHolder<AppendPromise> mAppendPromise;
-  // Set to true while SegmentParserLoop is running. This is used for diagnostic
-  // purposes only. We can't rely on mAppendPromise to be empty as it is only
-  // cleared in a follow up task.
-  bool mAppendRunning;
 
   // Trackbuffers definition.
   nsTArray<TrackData*> GetTracksList();
@@ -332,8 +326,6 @@ private:
   nsRefPtr<dom::SourceBufferAttributes> mSourceBufferAttributes;
   nsMainThreadPtrHandle<MediaSourceDecoder> mParentDecoder;
 
-  // Set to true if abort is called.
-  Atomic<bool> mAbort;
   // Set to true if mediasource state changed to ended.
   Atomic<bool> mEnded;
 
@@ -343,7 +335,10 @@ private:
   Atomic<bool> mEvictionOccurred;
 
   // Monitor to protect following objects accessed across multiple threads.
+  // mMonitor is also notified if the value of mAppendRunning becomes false.
   mutable Monitor mMonitor;
+  // Set to true while a BufferAppend is running or is pending.
+  Atomic<bool> mAppendRunning;
   // Stable audio and video track time ranges.
   TimeIntervals mVideoBufferedRanges;
   TimeIntervals mAudioBufferedRanges;
