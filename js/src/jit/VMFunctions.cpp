@@ -135,7 +135,6 @@ CheckOverRecursed(JSContext* cx)
 #else
     JS_CHECK_RECURSION(cx, return false);
 #endif
-    gc::MaybeVerifyBarriers(cx);
     return cx->runtime()->handleInterrupt(cx);
 }
 
@@ -180,7 +179,6 @@ CheckOverRecursedWithExtra(JSContext* cx, BaselineFrame* frame,
     JS_CHECK_RECURSION_WITH_SP(cx, checkSp, return false);
 #endif
 
-    gc::MaybeVerifyBarriers(cx);
     return cx->runtime()->handleInterrupt(cx);
 }
 
@@ -465,8 +463,6 @@ SetProperty(JSContext* cx, HandleObject obj, HandlePropertyName name, HandleValu
 bool
 InterruptCheck(JSContext* cx)
 {
-    gc::MaybeVerifyBarriers(cx);
-
     {
         JSRuntime* rt = cx->runtime();
         JitRuntime::AutoPreventBackedgePatching apbp(rt);
@@ -627,11 +623,7 @@ PostWriteElementBarrier(JSRuntime* rt, JSObject* obj, int32_t index)
     if (obj->is<NativeObject>() &&
         !obj->as<NativeObject>().isInWholeCellBuffer() &&
         uint32_t(index) < obj->as<NativeObject>().getDenseInitializedLength() &&
-        (obj->as<NativeObject>().getDenseInitializedLength() > MAX_WHOLE_CELL_BUFFER_SIZE
-#ifdef JS_GC_ZEAL
-         || rt->hasZealMode(gc::ZealMode::ElementsBarrier)
-#endif
-        ))
+        (obj->as<NativeObject>().getDenseInitializedLength() > MAX_WHOLE_CELL_BUFFER_SIZE))
     {
         rt->gc.storeBuffer.putSlot(&obj->as<NativeObject>(), HeapSlot::Element, index, 1);
         return;
