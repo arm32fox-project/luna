@@ -26,6 +26,7 @@
 const bool kIDNA2008_TransitionalProcessing = false;
 
 #include "ICUUtils.h"
+#include "unicode/uscript.h"
 #endif
 
 using namespace mozilla::unicode;
@@ -797,6 +798,7 @@ bool nsIDNService::isLabelSafe(const nsAString &label)
 
   Script lastScript = Script::INVALID;
   uint32_t previousChar = 0;
+  uint32_t baseChar = 0; // last non-diacritic seen (base char for marks)
   uint32_t savedNumberingSystem = 0;
 // Simplified/Traditional Chinese check temporarily disabled -- bug 857481
 #if 0
@@ -834,8 +836,8 @@ bool nsIDNService::isLabelSafe(const nsAString &label)
     }
 
     // Check for mixed numbering systems
-    if (GetGeneralCategory(ch) ==
-        HB_UNICODE_GENERAL_CATEGORY_DECIMAL_NUMBER) {
+    auto genCat = GetGeneralCategory(ch);
+    if (genCat == HB_UNICODE_GENERAL_CATEGORY_DECIMAL_NUMBER) {
       uint32_t zeroCharacter = ch - GetNumericValue(ch);
       if (savedNumberingSystem == 0) {
         // If we encounter a decimal number, save the zero character from that
@@ -846,11 +848,49 @@ bool nsIDNService::isLabelSafe(const nsAString &label)
       }
     }
 
-    // Check for consecutive non-spacing marks
-    if (previousChar != 0 &&
-        previousChar == ch &&
-        GetGeneralCategory(ch) == HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK) {
-      return false;
+    if (genCat == HB_UNICODE_GENERAL_CATEGORY_NON_SPACING_MARK) {
+      // Check for consecutive non-spacing marks
+      if (previousChar != 0 && previousChar == ch) {
+        return false;
+      }
+      // Check for marks whose expected script doesn't match the base script.
+      if (lastScript != Script::INVALID) {
+        const size_t kMaxScripts = 32; // more than ample for current values
+                                       // of ScriptExtensions property
+        UScriptCode scripts[kMaxScripts];
+        UErrorCode errorCode = U_ZERO_ERROR;
+        int nScripts = uscript_getScriptExtensions(ch, scripts, kMaxScripts,
+                                                   &errorCode);
+        MOZ_ASSERT(U_SUCCESS(errorCode), "uscript_getScriptExtensions failed");
+        if (U_FAILURE(errorCode)) {
+          return false;
+        }
+        // nScripts will always be >= 1, because even for undefined characters
+        // uscript_getScriptExtensions will return Script::INVALID.
+        // If the mark just has script=COMMON or INHERITED, we can't check any
+        // more carefully, but if it has specific scriptExtension codes, then
+        // assume those are the only valid scripts to use it with.
+        if (nScripts > 1 ||
+            (Script(scripts[0]) != Script::COMMON &&
+             Script(scripts[0]) != Script::INHERITED)) {
+          while (--nScripts >= 0) {
+            if (Script(scripts[nScripts]) == lastScript) {
+              break;
+            }
+          }
+          if (nScripts == -1) {
+            return false;
+          }
+        }
+      } 
+      // Check for diacritics on dotless-i or dotless-j, which would be
+      // indistinguishable from normal accented letter.
+      if ((baseChar == 0x0237 || baseChar == 0x0131) &&
+          ((ch >= 0x0300 && ch <= 0x0314) || ch == 0x031a)) {
+        return false;
+      }
+    } else {
+       baseChar = ch;
     }
 
     // Simplified/Traditional Chinese check temporarily disabled -- bug 857481
