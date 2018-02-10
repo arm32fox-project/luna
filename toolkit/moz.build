@@ -9,10 +9,10 @@ DIRS += [
     'content',
     'forgetaboutsite',
     'identity',
+    'jetpack',
     'locales',
     'modules',
     'mozapps/downloads',
-    'mozapps/extensions',
     'mozapps/handling',
     'mozapps/preferences',
     'obsolete',
@@ -20,6 +20,9 @@ DIRS += [
     'profile',
     'themes',
 ]
+
+if CONFIG['MOZ_WEBEXTENSIONS']:
+    DIRS += ['mozapps/webextensions']
 
 if CONFIG['MOZ_UPDATER'] and CONFIG['MOZ_WIDGET_TOOLKIT'] != 'android':
     DIRS += ['mozapps/update']
