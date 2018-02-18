@@ -842,7 +842,10 @@ fi
 AC_DEFINE_UNQUOTED(MOZILLA_VERSION,"$MOZILLA_VERSION")
 AC_DEFINE_UNQUOTED(MOZILLA_VERSION_U,$MOZILLA_VERSION)
 AC_DEFINE_UNQUOTED(MOZILLA_UAVERSION,"$MOZILLA_UAVERSION")
+AC_DEFINE_UNQUOTED(MOZILLA_UAVERSION_U,$MOZILLA_UAVERSION)
 AC_SUBST(MOZILLA_SYMBOLVERSION)
+AC_SUBST(MOZILLA_UAVERSION)
+AC_SUBST(MOZILLA_UAVERSION_U)
 
 MOZ_DOING_LTO(lto_is_enabled)
 
@@ -1010,12 +1013,7 @@ case "$target" in
         IMPORT_LIB_SUFFIX=lib
         MKSHLIB='$(LD) -NOLOGO -DLL -OUT:$@ -PDB:$(LINK_PDBFILE) $(DSO_LDOPTS)'
         MKCSHLIB='$(LD) -NOLOGO -DLL -OUT:$@ -PDB:$(LINK_PDBFILE) $(DSO_LDOPTS)'
-        dnl Set subsystem version 5 for Windows XP.
-        if test "$CPU_ARCH" = "x86"; then
-            WIN32_SUBSYSTEM_VERSION=5.01
-        else
-            WIN32_SUBSYSTEM_VERSION=6.01
-        fi
+        WIN32_SUBSYSTEM_VERSION=6.01
         WIN32_CONSOLE_EXE_LDFLAGS=-SUBSYSTEM:CONSOLE,$WIN32_SUBSYSTEM_VERSION
         WIN32_GUI_EXE_LDFLAGS=-SUBSYSTEM:WINDOWS,$WIN32_SUBSYSTEM_VERSION
         DSO_LDOPTS=-SUBSYSTEM:WINDOWS,$WIN32_SUBSYSTEM_VERSION
@@ -2309,9 +2307,11 @@ MOZ_TIME_MANAGER=
 MOZ_AUDIO_CHANNEL_MANAGER=
 MOZ_CONTENT_SANDBOX=
 MOZ_GMP_SANDBOX=
-MOZ_SANDBOX=1
+MOZ_SANDBOX=
 MOZ_BINARY_EXTENSIONS=
-MOZ_DEVTOOLS=server
+MOZ_JETPACK=1
+MOZ_DEVTOOLS_SERVER=1
+MOZ_DEVTOOLS=
 
 case "$target_os" in
     mingw*)
@@ -3928,6 +3928,11 @@ AC_SUBST(MOZ_NO_SMART_CARDS)
 dnl ========================================================
 dnl = Sandboxing support
 dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(sandbox,
+[  --enable-sandbox        Enable sandboxing support],
+    MOZ_SANDBOX=1,
+    MOZ_SANDBOX=)
+
 if test -n "$MOZ_TSAN" -o -n "$MOZ_ASAN"; then
     # Bug 1182565: TSan conflicts with sandboxing on Linux.
     # Bug 1287971: LSan also conflicts with sandboxing on Linux.
@@ -3937,11 +3942,6 @@ if test -n "$MOZ_TSAN" -o -n "$MOZ_ASAN"; then
         ;;
     esac
 fi
-
-MOZ_ARG_DISABLE_BOOL(sandbox,
-[  --disable-sandbox        Disable sandboxing support],
-    MOZ_SANDBOX=,
-    MOZ_SANDBOX=1)
 
 dnl ========================================================
 dnl = Content process sandboxing
@@ -4789,6 +4789,58 @@ dnl ========================================================
 MOZ_ARG_HEADER(Misc. Options)
 
 dnl ========================================================
+dnl = Disable Jetpack
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(jetpack,
+[  --disable-jetpack         Disable Jetpack Support Code],
+    MOZ_JETPACK=,
+    MOZ_JETPACK=1)
+
+if test -n "$MOZ_JETPACK"; then
+    AC_DEFINE(MOZ_JETPACK)
+fi
+
+AC_SUBST(MOZ_JETPACK)
+
+dnl ========================================================
+dnl = Disable Mozilla Developer Tools (server)
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(devtools-server,
+[  --disable-devtools-server         Disable Mozilla Developer Tools (server)],
+    MOZ_DEVTOOLS_SERVER=,
+    MOZ_DEVTOOLS_SERVER=1)
+
+
+
+if test -n "$MOZ_DEVTOOLS_SERVER"; then
+    if test ! -n "$MOZ_JETPACK"; then
+        AC_MSG_ERROR("Jetpack is required to include the Developer Tools Server")
+    fi
+
+    AC_DEFINE(MOZ_DEVTOOLS_SERVER)
+fi
+
+AC_SUBST(MOZ_DEVTOOLS_SERVER)
+
+dnl ========================================================
+dnl = Enable Mozilla Developer Tools (client)
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(devtools,
+[  --enable-devtools           Enable Mozilla Developer Tools (client)],
+    MOZ_DEVTOOLS=1,
+    MOZ_DEVTOOLS=)
+
+if test -n "$MOZ_DEVTOOLS"; then
+    if test ! -n "$MOZ_DEVTOOLS_SERVER"; then
+        AC_MSG_ERROR("The Developer Tools Server is required to include the client")
+    fi
+
+    AC_DEFINE(MOZ_DEVTOOLS)
+fi
+
+AC_SUBST(MOZ_DEVTOOLS)
+
+dnl ========================================================
 dnl = Define default location for MOZILLA_FIVE_HOME
 dnl ========================================================
 MOZ_ARG_WITH_STRING(default-mozilla-five-home,
@@ -5285,7 +5337,6 @@ AC_SUBST(MOZ_ANDROID_ANR_REPORTER)
 AC_SUBST(MOZ_CRASHREPORTER)
 AC_SUBST(MOZ_CRASHREPORTER_INJECTOR)
 AC_SUBST(MOZ_MAINTENANCE_SERVICE)
-AC_SUBST(MOZ_STUB_INSTALLER)
 AC_SUBST(MOZ_VERIFY_MAR_SIGNATURE)
 AC_SUBST(MOZ_ENABLE_SIGNMAR)
 AC_SUBST(MOZ_UPDATER)
@@ -5671,7 +5722,6 @@ AC_SUBST(LIBJPEG_TURBO_USE_YASM)
 AC_SUBST_LIST(LIBJPEG_TURBO_ASFLAGS)
 AC_SUBST(MOZ_LIBAV_FFT)
 AC_SUBST_LIST(LIBAV_FFT_ASFLAGS)
-AC_SUBST(MOZ_DEVTOOLS)
 
 AC_SUBST(MOZ_PACKAGE_JSSHELL)
 AC_SUBST(MOZ_FOLD_LIBS)
