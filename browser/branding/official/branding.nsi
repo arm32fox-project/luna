@@ -20,7 +20,7 @@
 !define OFFICIAL
 !define URLStubDownload ""
 !define URLManualDownload ""
-!define URLSystemRequirements ""
+!define URLSystemRequirements "http://www.basilisk-browser.org/requirements.shtml"
 !define Channel "release"
 
 # The installer's certificate name and issuer expected by the stub installer
