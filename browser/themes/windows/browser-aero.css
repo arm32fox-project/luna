@@ -445,7 +445,7 @@
     }
 
     /* The borders on the glass frame are ours, and inside #browser, and on
-     * vista and win7 we want to make sure they are "glassy", so we can't use
+     * win7 we want to make sure they are "glassy", so we can't use
      * #browser as the exclude-glass container. We use #appcontent instead. */
     #browser {
       -moz-appearance: none;
@@ -458,7 +458,7 @@
 
   @media (-moz-os-version: windows-win8) {
     /* Artificially draw window borders that are covered by lwtheme, see bug 591930.
-     * Borders for vista/win7 are below, win10 doesn't need them. */
+     * Borders for win7 are below, win10 doesn't need them. */
     #main-window[sizemode="normal"] > #tab-view-deck > #browser-panel:-moz-lwtheme {
       border-top: 1px solid @toolbarShadowColor@;
     }
@@ -473,11 +473,9 @@
      * On aero, the menubar fog disappears for inactive windows, and renders gray
      * illegible.
      */
-    @media not all and (-moz-os-version: windows-vista) {
-      @media not all and (-moz-os-version: windows-win7) {
-        #toolbar-menubar:not(:-moz-lwtheme):-moz-window-inactive {
-          color: ThreeDShadow;
-        }
+    @media not all and (-moz-os-version: windows-win7) {
+      #toolbar-menubar:not(:-moz-lwtheme):-moz-window-inactive {
+        color: ThreeDShadow;
       }
     }
   }
@@ -487,9 +485,8 @@
     color: white;
   }
 
-  /* Show borders on vista through win8, but not on win10 and later: */
-  @media (-moz-os-version: windows-vista),
-         (-moz-os-version: windows-win7),
+  /* Show borders on win7 and win8, but not on win10 and later: */
+  @media (-moz-os-version: windows-win7),
          (-moz-os-version: windows-win8) {
     /* Vertical toolbar border */
     #main-window:not([customizing])[sizemode=normal] #navigator-toolbox > toolbar:not(#toolbar-menubar):not(#TabsToolbar):not(:-moz-lwtheme),
