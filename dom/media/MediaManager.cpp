@@ -1853,20 +1853,18 @@ MediaManager::GetNonE10sParent()
 MediaManager::StartupInit()
 {
 #ifdef WIN32
-  if (IsVistaOrLater() && !IsWin8OrLater()) {
-    // Bug 1107702 - Older Windows fail in GetAdaptersInfo (and others) if the
-    // first(?) call occurs after the process size is over 2GB (kb/2588507).
-    // Attempt to 'prime' the pump by making a call at startup.
-    unsigned long out_buf_len = sizeof(IP_ADAPTER_INFO);
-    PIP_ADAPTER_INFO pAdapterInfo = (IP_ADAPTER_INFO *) moz_xmalloc(out_buf_len);
-    if (GetAdaptersInfo(pAdapterInfo, &out_buf_len) == ERROR_BUFFER_OVERFLOW) {
-      free(pAdapterInfo);
-      pAdapterInfo = (IP_ADAPTER_INFO *) moz_xmalloc(out_buf_len);
-      GetAdaptersInfo(pAdapterInfo, &out_buf_len);
-    }
-    if (pAdapterInfo) {
-      free(pAdapterInfo);
-    }
+  // Bug 1107702 - Some Windows versions fail in GetAdaptersInfo (and others)
+  // if the first(?) call occurs after the process size is over 2GB (kb/2588507).
+  // Attempt to 'prime' the pump by making a call at startup.
+  unsigned long out_buf_len = sizeof(IP_ADAPTER_INFO);
+  PIP_ADAPTER_INFO pAdapterInfo = (IP_ADAPTER_INFO *) moz_xmalloc(out_buf_len);
+  if (GetAdaptersInfo(pAdapterInfo, &out_buf_len) == ERROR_BUFFER_OVERFLOW) {
+    free(pAdapterInfo);
+    pAdapterInfo = (IP_ADAPTER_INFO *) moz_xmalloc(out_buf_len);
+    GetAdaptersInfo(pAdapterInfo, &out_buf_len);
+  }
+  if (pAdapterInfo) {
+    free(pAdapterInfo);
   }
 #endif
 }
@@ -2130,19 +2128,11 @@ if (privileged) {
       case MediaSourceEnum::Application:
       case MediaSourceEnum::Window:
         // Deny screensharing request if support is disabled, or
-        // the requesting document is not from a host on the whitelist, or
-        // we're on WinXP until proved that it works
+        // the requesting document is not from a host on the whitelist
         if (!Preferences::GetBool(((videoType == MediaSourceEnum::Browser)?
                                    "media.getusermedia.browser.enabled" :
                                    "media.getusermedia.screensharing.enabled"),
                                   false) ||
-#if defined(XP_WIN)
-            (
-              // Allow tab sharing for all platforms including XP
-              (videoType != MediaSourceEnum::Browser) &&
-              !Preferences::GetBool("media.getusermedia.screensharing.allow_on_old_platforms",
-                                    false) && !IsVistaOrLater()) ||
-#endif
             (!privileged && !HostIsHttps(*docURI))) {
           RefPtr<MediaStreamError> error =
               new MediaStreamError(aWindow,

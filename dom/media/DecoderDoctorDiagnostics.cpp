@@ -576,16 +576,9 @@ DecoderDoctorDocumentWatcher::SynthesizeAnalysis()
       // going through expected decoders from most to least desirable.
 #if defined(XP_WIN)
       if (!formatsRequiringWMF.IsEmpty()) {
-        if (IsVistaOrLater()) {
-          DD_INFO("DecoderDoctorDocumentWatcher[%p, doc=%p]::SynthesizeAnalysis() - unplayable formats: %s -> Cannot play media because WMF was not found",
-                  this, mDocument, NS_ConvertUTF16toUTF8(formatsRequiringWMF).get());
-          ReportAnalysis(mDocument, sMediaWMFNeeded, false, formatsRequiringWMF);
-        } else {
-          DD_INFO("DecoderDoctorDocumentWatcher[%p, doc=%p]::SynthesizeAnalysis() - unplayable formats: %s -> Cannot play media before Windows Vista",
-                  this, mDocument, NS_ConvertUTF16toUTF8(formatsRequiringWMF).get());
-          ReportAnalysis(mDocument, sMediaUnsupportedBeforeWindowsVista,
-                         false, formatsRequiringWMF);
-        }
+        DD_INFO("DecoderDoctorDocumentWatcher[%p, doc=%p]::SynthesizeAnalysis() - unplayable formats: %s -> Cannot play media because WMF was not found",
+                this, mDocument, NS_ConvertUTF16toUTF8(formatsRequiringWMF).get());
+        ReportAnalysis(mDocument, sMediaWMFNeeded, false, formatsRequiringWMF);
         return;
       }
 #endif
