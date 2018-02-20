@@ -1102,7 +1102,8 @@ class JS_PUBLIC_API(ContextOptions) {
         dumpStackOnDebuggeeWouldRun_(false),
         werror_(false),
         strictMode_(false),
-        extraWarnings_(false)
+        extraWarnings_(false),
+        arrayProtoValues_(true)
     {
     }
 
@@ -1226,6 +1227,12 @@ class JS_PUBLIC_API(ContextOptions) {
         return *this;
     }
 
+    bool arrayProtoValues() const { return arrayProtoValues_; }
+    ContextOptions& setArrayProtoValues(bool flag) {
+        arrayProtoValues_ = flag;
+        return *this;
+    }
+
   private:
     bool baseline_ : 1;
     bool ion_ : 1;
@@ -1241,6 +1248,7 @@ class JS_PUBLIC_API(ContextOptions) {
     bool werror_ : 1;
     bool strictMode_ : 1;
     bool extraWarnings_ : 1;
+    bool arrayProtoValues_ : 1;
 };
 
 JS_PUBLIC_API(ContextOptions&)
