@@ -210,12 +210,12 @@ MFStartup()
     return hr;
   }
 
-  const int MF_VERSION = (0x0002 << 16 | MF_API_VERSION);
+  const int MF_WIN7_VERSION = (0x0002 << 16 | MF_API_VERSION);
 
   // decltype is unusable for functions having default parameters
   DECL_FUNCTION_PTR(MFStartup, ULONG, DWORD);
   ENSURE_FUNCTION_PTR_(MFStartup, Mfplat.dll)
-  return MFStartupPtr(MF_VERSION, MFSTARTUP_FULL);
+  return MFStartupPtr(MF_WIN7_VERSION, MFSTARTUP_FULL);
 }
 
 HRESULT
