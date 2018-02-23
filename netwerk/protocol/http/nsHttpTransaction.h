@@ -168,7 +168,7 @@ public:
     int64_t GetTransferSize() { return mTransferSize; }
 
     bool Do0RTT() override;
-    nsresult Finish0RTT(bool aRestart) override;
+    nsresult Finish0RTT(bool aRestart, bool aAlpnChanged /* ignored */) override;
 private:
     friend class DeleteHttpTransaction;
     virtual ~nsHttpTransaction();
@@ -479,6 +479,8 @@ private:
     NetAddr                         mPeerAddr;
 
     bool                            m0RTTInProgress;
+
+    nsresult                        mTransportStatus;
 };
 
 } // namespace net

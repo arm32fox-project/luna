@@ -39,6 +39,8 @@
 #include "nsIOService.h"
 #include "nsIRequestContext.h"
 #include "nsIHttpAuthenticator.h"
+#include "NSSErrorsService.h"
+#include "sslerr.h"
 #include <algorithm>
 
 #ifdef MOZ_WIDGET_GONK
@@ -144,6 +146,7 @@ nsHttpTransaction::nsHttpTransaction()
     , mIsInIsolatedMozBrowser(false)
     , mClassOfService(0)
     , m0RTTInProgress(false)
+    , mTransportStatus(NS_OK)
 {
     LOG(("Creating nsHttpTransaction @%p\n", this));
     gHttpHandler->GetMaxPipelineObjectSize(&mMaxPipelineObjectSize);
@@ -550,6 +553,50 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
     LOG(("nsHttpTransaction::OnSocketStatus [this=%p status=%x progress=%lld]\n",
         this, status, progress));
 
+    // A transaction can given to multiple HalfOpen sockets (this is a bug in
+    // nsHttpConnectionMgr). We are going to fix it here as a work around to be
+    // able to uplift it.
+    switch(status) {
+    case NS_NET_STATUS_RESOLVING_HOST:
+        if (mTransportStatus != NS_OK) {
+            LOG(("nsHttpTransaction::OnSocketStatus - ignore socket events "
+                 "from backup transport"));
+            return;
+        }
+        break;
+    case NS_NET_STATUS_RESOLVED_HOST:
+        if (mTransportStatus != NS_NET_STATUS_RESOLVING_HOST &&
+            mTransportStatus != NS_OK) {
+            LOG(("nsHttpTransaction::OnSocketStatus - ignore socket events "
+                 "from backup transport"));
+            return;
+        }
+        break;
+    case NS_NET_STATUS_CONNECTING_TO:
+        if (mTransportStatus != NS_NET_STATUS_RESOLVING_HOST &&
+            mTransportStatus != NS_NET_STATUS_RESOLVED_HOST  &&
+            mTransportStatus != NS_OK) {
+            LOG(("nsHttpTransaction::OnSocketStatus - ignore socket events "
+                 "from backup transport"));
+            return;
+        }
+        break;
+    case NS_NET_STATUS_CONNECTED_TO:
+        if (mTransportStatus != NS_NET_STATUS_RESOLVING_HOST &&
+            mTransportStatus != NS_NET_STATUS_RESOLVED_HOST &&
+            mTransportStatus != NS_NET_STATUS_CONNECTING_TO &&
+            mTransportStatus != NS_OK) {
+            LOG(("nsHttpTransaction::OnSocketStatus - ignore socket events "
+                 "from backup transport"));
+            return;
+        }
+        break;
+    default:
+        LOG(("nsHttpTransaction::OnSocketStatus - a new event"));
+    }
+
+    mTransportStatus = status;
+
     if (status == NS_NET_STATUS_CONNECTED_TO ||
         status == NS_NET_STATUS_WAITING_FOR) {
         nsISocketTransport *socketTransport =
@@ -574,7 +621,9 @@ nsHttpTransaction::OnTransportStatus(nsITransport* transport,
         } else if (status == NS_NET_STATUS_CONNECTING_TO) {
             SetConnectStart(TimeStamp::Now());
         } else if (status == NS_NET_STATUS_CONNECTED_TO) {
-            SetConnectEnd(TimeStamp::Now());
+            SetConnectEnd(TimeStamp::Now(), true);
+        } else if (status == NS_NET_STATUS_TLS_HANDSHAKE_ENDED) {
+            SetConnectEnd(TimeStamp::Now(), false);
         }
     }
 
@@ -998,7 +1047,9 @@ nsHttpTransaction::Close(nsresult reason)
     // connection.  It will break that connection and also confuse the channel's
     // auth provider, beliving the cached credentials are wrong and asking for
     // the password mistakenly again from the user.
-    if ((reason == NS_ERROR_NET_RESET || reason == NS_OK) &&
+    if ((reason == NS_ERROR_NET_RESET ||
+         reason == NS_OK ||
+         reason == psm::GetXPCOMFromNSSError(SSL_ERROR_DOWNGRADE_WITH_EARLY_DATA)) &&
         (!(mCaps & NS_HTTP_STICKY_CONNECTION) || (mCaps & NS_HTTP_CONNECTION_RESTARTABLE))) {
 
         if (mForceRestart && NS_SUCCEEDED(Restart())) {
@@ -1027,9 +1078,10 @@ nsHttpTransaction::Close(nsresult reason)
         bool reallySentData =
             mSentData && (!mConnection || mConnection->BytesWritten());
 
-        if (!mReceivedData &&
+        if (reason == psm::GetXPCOMFromNSSError(SSL_ERROR_DOWNGRADE_WITH_EARLY_DATA) ||
+            (!mReceivedData &&
             ((mRequestHead && mRequestHead->IsSafeMethod()) ||
-             !reallySentData || connReused)) {
+             !reallySentData || connReused))) {
             // if restarting fails, then we must proceed to close the pipe,
             // which will notify the channel that the transaction failed.
 
@@ -1326,6 +1378,8 @@ nsHttpTransaction::Restart()
             mRequestHead->SetHeader(nsHttp::Alternate_Service_Used, NS_LITERAL_CSTRING("0"));
         }
     }
+
+    mTransportStatus = NS_OK;
 
     return gHttpHandler->InitiateTransaction(this, mPriority);
 }
@@ -2440,8 +2494,9 @@ nsHttpTransaction::Do0RTT()
 }
 
 nsresult
-nsHttpTransaction::Finish0RTT(bool aRestart)
+nsHttpTransaction::Finish0RTT(bool aRestart, bool aAlpnChanged /* ignored */)
 {
+    LOG(("nsHttpTransaction::Finish0RTT %p %d %d\n", this, aRestart, aAlpnChanged));
     MOZ_ASSERT(m0RTTInProgress);
     m0RTTInProgress = false;
     if (aRestart) {
@@ -2453,6 +2508,10 @@ nsHttpTransaction::Finish0RTT(bool aRestart)
         } else {
             return NS_ERROR_FAILURE;
         }
+    } else if (!mConnected) {
+        // this is code that was skipped in ::ReadSegments while in 0RTT
+        mConnected = true;
+        mConnection->GetSecurityInfo(getter_AddRefs(mSecurityInfo));
     }
     return NS_OK;
 }
