@@ -15,6 +15,7 @@ Services.scriptloader.loadSubScript(
 const {TableWidget} = require("devtools/client/shared/widgets/TableWidget");
 const SPLIT_CONSOLE_PREF = "devtools.toolbox.splitconsoleEnabled";
 const STORAGE_PREF = "devtools.storage.enabled";
+const DOM_CACHE = "dom.caches.enabled";
 const DUMPEMIT_PREF = "devtools.dump.emit";
 const DEBUGGERLOG_PREF = "devtools.debugger.log";
 // Allows Cache API to be working on usage `http` test page
@@ -23,6 +24,11 @@ const PATH = "browser/devtools/client/storage/test/";
 const MAIN_DOMAIN = "http://test1.example.org/" + PATH;
 const ALT_DOMAIN = "http://sectest1.example.org/" + PATH;
 const ALT_DOMAIN_SECURED = "https://sectest1.example.org:443/" + PATH;
+
+// GUID to be used as a separator in compound keys. This must match the same
+// constant in devtools/server/actors/storage.js,
+// devtools/client/storage/ui.js and devtools/server/tests/browser/head.js
+const SEPARATOR_GUID = "{9d414cc5-8319-0a04-0586-c0a6ae01670a}";
 
 var gToolbox, gPanelWindow, gWindow, gUI;
 
@@ -33,11 +39,12 @@ Services.prefs.setBoolPref(STORAGE_PREF, true);
 Services.prefs.setBoolPref(CACHES_ON_HTTP_PREF, true);
 registerCleanupFunction(() => {
   gToolbox = gPanelWindow = gWindow = gUI = null;
-  Services.prefs.clearUserPref(STORAGE_PREF);
-  Services.prefs.clearUserPref(SPLIT_CONSOLE_PREF);
-  Services.prefs.clearUserPref(DUMPEMIT_PREF);
-  Services.prefs.clearUserPref(DEBUGGERLOG_PREF);
   Services.prefs.clearUserPref(CACHES_ON_HTTP_PREF);
+  Services.prefs.clearUserPref(DEBUGGERLOG_PREF);
+  Services.prefs.clearUserPref(DOM_CACHE);
+  Services.prefs.clearUserPref(DUMPEMIT_PREF);
+  Services.prefs.clearUserPref(SPLIT_CONSOLE_PREF);
+  Services.prefs.clearUserPref(STORAGE_PREF);
 });
 
 /**
@@ -505,9 +512,15 @@ function* selectTreeItem(ids) {
  *        The id of the row in the table widget
  */
 function* selectTableItem(id) {
-  let selector = ".table-widget-cell[data-id='" + id + "']";
+  let table = gUI.table;
+  let selector = ".table-widget-column#" + table.uniqueId +
+                 " .table-widget-cell[value='" + id + "']";
   let target = gPanelWindow.document.querySelector(selector);
   ok(target, "table item found with ids " + id);
+
+  if (!target) {
+    showAvailableIds();
+  }
 
   yield click(target);
   yield gUI.once("sidebar-updated");
@@ -586,19 +599,36 @@ function getRowCells(id, includeHidden = false) {
 
   if (!item) {
     ok(false, "Row id '" + id + "' exists");
+
+    showAvailableIds();
   }
 
-  let index = table.columns.get(table.uniqueId).visibleCellNodes.indexOf(item);
+  let index = table.columns.get(table.uniqueId).cellNodes.indexOf(item);
   let cells = {};
 
   for (let [name, column] of [...table.columns]) {
     if (!includeHidden && column.column.parentNode.hidden) {
       continue;
     }
-    cells[name] = column.visibleCellNodes[index];
+    cells[name] = column.cellNodes[index];
   }
 
   return cells;
+}
+
+/**
+ * Show available ids.
+ */
+function showAvailableIds() {
+  let doc = gPanelWindow.document;
+  let table = gUI.table;
+
+  info("Available ids:");
+  let cells = doc.querySelectorAll(".table-widget-column#" + table.uniqueId +
+                                   " .table-widget-cell");
+  for (let cell of cells) {
+    info("  - " + cell.getAttribute("value"));
+  }
 }
 
 /**
@@ -704,6 +734,20 @@ function showColumn(id, state) {
 }
 
 /**
+ * Toggle sort direction on a column by clicking on the column header.
+ *
+ * @param  {String} id
+ *         The uniqueId of the given column.
+ */
+function clickColumnHeader(id) {
+  let columns = gUI.table.columns;
+  let column = columns.get(id);
+  let header = column.header;
+
+  header.click();
+}
+
+/**
  * Show or hide all columns.
  *
  * @param  {Boolean} state
@@ -798,9 +842,18 @@ function* checkState(state) {
 
     is(items.size, names.length,
       `There is correct number of rows in ${storeName}`);
+
+    if (names.length === 0) {
+      showAvailableIds();
+    }
+
     for (let name of names) {
       ok(items.has(name),
         `There is item with name '${name}' in ${storeName}`);
+
+      if (!items.has(name)) {
+        showAvailableIds();
+      }
     }
   }
 }
@@ -838,3 +891,59 @@ var focusSearchBoxUsingShortcut = Task.async(function* (panelWin, callback) {
     callback();
   }
 });
+
+function getCookieId(name, domain, path) {
+  return `${name}${SEPARATOR_GUID}${domain}${SEPARATOR_GUID}${path}`;
+}
+
+function setPermission(url, permission) {
+  const nsIPermissionManager = Components.interfaces.nsIPermissionManager;
+
+  let uri = Components.classes["@mozilla.org/network/io-service;1"]
+                      .getService(Components.interfaces.nsIIOService)
+                      .newURI(url, null, null);
+  let ssm = Components.classes["@mozilla.org/scriptsecuritymanager;1"]
+                      .getService(Ci.nsIScriptSecurityManager);
+  let principal = ssm.createCodebasePrincipal(uri, {});
+
+  Components.classes["@mozilla.org/permissionmanager;1"]
+            .getService(nsIPermissionManager)
+            .addFromPrincipal(principal, permission,
+                              nsIPermissionManager.ALLOW_ACTION);
+}
+
+/**
+ * Add an item.
+ * @param  {Array} store
+ *         An array containing the path to the store to which we wish to add an
+ *         item.
+ */
+function* performAdd(store) {
+  let storeName = store.join(" > ");
+  let toolbar = gPanelWindow.document.getElementById("storage-toolbar");
+  let type = store[0];
+
+  yield selectTreeItem(store);
+
+  let menuAdd = toolbar.querySelector(
+    "#add-button");
+
+  if (menuAdd.hidden) {
+    is(menuAdd.hidden, false,
+       `performAdd called for ${storeName} but it is not supported`);
+    return;
+  }
+
+  let eventEdit = gUI.table.once("row-edit");
+  let eventWait = gUI.once("store-objects-updated");
+
+  menuAdd.click();
+
+  let rowId = yield eventEdit;
+  yield eventWait;
+
+  let key = type === "cookies" ? "uniqueKey" : "name";
+  let value = getCellValue(rowId, key);
+
+  is(rowId, value, `Row '${rowId}' was successfully added.`);
+}
