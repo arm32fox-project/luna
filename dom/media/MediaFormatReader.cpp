@@ -750,7 +750,7 @@ MediaFormatReader::UpdateReceivedNewData(TrackType aTrack)
     decoder.mTimeRanges = decoder.mTrackDemuxer->GetBuffered();
   }
   if (decoder.mTimeRanges.Length() &&
-      (!hasLastEnd || decoder.mTimeRanges.GetEnd() > lastEnd)) {
+      (!hasLastEnd || decoder.mTimeRanges.GetEnd() < lastEnd)) {
     // New data was added after our previous end, we can clear the EOS flag.
     decoder.mDemuxEOS = false;
   }
@@ -1000,9 +1000,11 @@ MediaFormatReader::Update(TrackType aTrack)
       decoder.RejectPromise(DECODE_ERROR, __func__);
       return;
     } else if (decoder.mWaitingForData) {
-      LOG("Waiting For Data");
-      decoder.RejectPromise(WAITING_FOR_DATA, __func__);
-      return;
+      if (!decoder.mReceivedNewData) {
+        LOG("Waiting For Data");
+        decoder.RejectPromise(WAITING_FOR_DATA, __func__);
+        return;
+      }
     }
   }
 

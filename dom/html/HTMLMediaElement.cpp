@@ -1598,7 +1598,8 @@ already_AddRefed<TimeRanges>
 HTMLMediaElement::Seekable() const
 {
   nsRefPtr<TimeRanges> ranges = new TimeRanges();
-  if (mDecoder && mReadyState > nsIDOMHTMLMediaElement::HAVE_NOTHING) {
+  if (mMediaSource ||
+      (mDecoder && mReadyState > nsIDOMHTMLMediaElement::HAVE_NOTHING)) {
     mDecoder->GetSeekable().ToTimeRanges(ranges);
   }
   return ranges.forget();
@@ -3228,7 +3229,7 @@ void HTMLMediaElement::MetadataLoaded(const MediaInfo* aInfo,
     NotifyOwnerDocumentActivityChanged();
   }
 
-  if (mDefaultPlaybackStartPosition > 0) {
+  if (mDefaultPlaybackStartPosition != 0.0) {
     SetCurrentTime(mDefaultPlaybackStartPosition);
     mDefaultPlaybackStartPosition = 0.0;
   }
