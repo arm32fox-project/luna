@@ -6,15 +6,15 @@
 
 "use strict";
 
-// Test that cookies with domain equal to full host name are listed.
-// E.g., ".example.org" vs. example.org). Bug 1149497.
+// Test that cookies with domain equal to full host name and port are listed.
+// E.g., ".example.org:8000" vs. example.org:8000).
 
 add_task(function* () {
-  yield openTabAndSetupStorage(MAIN_DOMAIN + "storage-cookies.html");
+  yield openTabAndSetupStorage(MAIN_DOMAIN_WITH_PORT + "storage-cookies.html");
 
   yield checkState([
     [
-      ["cookies", "http://test1.example.org"],
+      ["cookies", "http://test1.example.org:8000"],
       [
         getCookieId("test1", ".test1.example.org", "/browser"),
         getCookieId("test2", "test1.example.org", "/browser"),
