@@ -2425,16 +2425,6 @@ if test -n "$MOZ_GRAPHENE"; then
     AC_DEFINE(MOZ_GRAPHENE)
 fi
 
-# Propagate feature switches for code written in rust from confvars.sh
-if test -n "$MOZ_RUST"; then
-    if test -n "$MOZ_RUST_MP4PARSE"; then
-        AC_DEFINE(MOZ_RUST_MP4PARSE)
-    fi
-    if test -n "$MOZ_RUST_URLPARSE"; then
-        AC_DEFINE(MOZ_RUST_URLPARSE)
-    fi
-fi
-
 AC_SUBST(MOZ_XULRUNNER)
 AC_SUBST(MOZ_B2G)
 AC_SUBST(MOZ_B2G_VERSION)
@@ -5984,7 +5974,6 @@ export MOZ_ZLIB_CFLAGS
 export MOZ_ZLIB_LIBS
 export MOZ_APP_NAME
 export MOZ_APP_REMOTINGNAME
-export RUSTC
 export MOZILLA_CENTRAL_PATH=$_topsrcdir
 export STLPORT_CPPFLAGS
 export STLPORT_LIBS
