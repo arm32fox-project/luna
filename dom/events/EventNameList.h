@@ -1019,6 +1019,10 @@ EVENT(animationiteration,
       eAnimationIteration,
       EventNameType_All,
       eAnimationEventClass)
+EVENT(animationcancel,
+      eAnimationCancel,
+      EventNameType_All,
+      eAnimationEventClass)
 
 // Webkit-prefixed versions of Transition & Animation events, for web compat:
 EVENT(webkitAnimationEnd,
