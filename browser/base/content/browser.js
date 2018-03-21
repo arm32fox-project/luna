@@ -336,6 +336,46 @@ const gSessionHistoryObserver = {
   }
 };
 
+var gURLBarSettings = {
+  prefSuggest: "browser.urlbar.suggest.",
+  /*
+  For searching in the source code:
+    browser.urlbar.suggest.bookmark
+    browser.urlbar.suggest.history
+    browser.urlbar.suggest.openpage
+  */
+  prefSuggests: [
+    "bookmark",
+    "history",
+    "openpage",
+  ],
+
+  observe: function(aSubject, aTopic, aData) {
+    if (aTopic != "nsPref:changed")
+      return;
+
+    this.writePlaceholder();
+  },
+
+  writePlaceholder: function() {
+    let attribute = "placeholder";
+    let suggests = this.prefSuggests.map(pref => {
+      return this.prefSuggest + pref;
+    });
+    let placeholderDefault = suggests.some(pref => {
+      return gPrefService.getBoolPref(pref);
+    });
+
+    if (placeholderDefault) {
+      gURLBar.setAttribute(
+          attribute, gNavigatorBundle.getString("urlbar.placeholder"));
+    } else {
+      gURLBar.setAttribute(
+          attribute, gNavigatorBundle.getString("urlbar.placeholderURLOnly"));
+    }
+  }
+};
+
 /**
  * Given a starting docshell and a URI to look up, find the docshell the URI
  * is loaded in.
@@ -968,6 +1008,10 @@ var gBrowserInit = {
     Services.obs.addObserver(gXPInstallObserver, "addon-install-complete", false);
     Services.obs.addObserver(gXSSObserver, "xss-on-violate-policy", false);
 
+    gPrefService.addObserver(gURLBarSettings.prefSuggest, gURLBarSettings, false);
+
+    gURLBarSettings.writePlaceholder();
+
     BrowserOffline.init();
     OfflineApps.init();
     IndexedDBPromptHelper.init();
@@ -1312,6 +1356,12 @@ var gBrowserInit = {
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-failed");
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-complete");
       Services.obs.removeObserver(gXSSObserver, "xss-on-violate-policy");
+
+      try {
+        gPrefService.removeObserver(gURLBarSettings.prefSuggest, gURLBarSettings);
+      } catch (ex) {
+        Cu.reportError(ex);
+      }
 
       try {
         gPrefService.removeObserver(gHomeButton.prefDomain, gHomeButton);
