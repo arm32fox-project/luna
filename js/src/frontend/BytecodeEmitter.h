@@ -43,12 +43,10 @@ class CGConstList {
 
 struct CGObjectList {
     uint32_t            length;     /* number of emitted so far objects */
-    ObjectBox*          firstbox;  /* first emitted object */
     ObjectBox*          lastbox;   /* last emitted object */
 
-    CGObjectList() : length(0), firstbox(nullptr), lastbox(nullptr) {}
+    CGObjectList() : length(0), lastbox(nullptr) {}
 
-    bool isAdded(ObjectBox* objbox);
     unsigned add(ObjectBox* objbox);
     unsigned indexOf(JSObject* obj);
     void finish(ObjectArray* array);
@@ -611,7 +609,7 @@ struct MOZ_STACK_CLASS BytecodeEmitter
     // Emit bytecode to put operands for a JSOP_GETELEM/CALLELEM/SETELEM/DELELEM
     // opcode onto the stack in the right order. In the case of SETELEM, the
     // value to be assigned must already be pushed.
-    enum class EmitElemOption { Get, Set, Call, IncDec, CompoundAssign };
+    enum class EmitElemOption { Get, Set, Call, IncDec, CompoundAssign, Ref };
     MOZ_MUST_USE bool emitElemOperands(ParseNode* pn, EmitElemOption opts);
 
     MOZ_MUST_USE bool emitElemOpBase(JSOp op);
@@ -644,11 +642,18 @@ struct MOZ_STACK_CLASS BytecodeEmitter
         DestructuringAssignment
     };
 
-    // emitDestructuringLHS assumes the to-be-destructured value has been pushed on
-    // the stack and emits code to destructure a single lhs expression (either a
-    // name or a compound []/{} expression).
-    MOZ_MUST_USE bool emitDestructuringLHS(ParseNode* target, DestructuringFlavor flav);
-    MOZ_MUST_USE bool emitDestructuringLHSInBranch(ParseNode* target, DestructuringFlavor flav);
+    // emitDestructuringLHSRef emits the lhs expression's reference.
+    // If the lhs expression is object property |OBJ.prop|, it emits |OBJ|.
+    // If it's object element |OBJ[ELEM]|, it emits |OBJ| and |ELEM|.
+    // If there's nothing to evaluate for the reference, it emits nothing.
+    // |emitted| parameter receives the number of values pushed onto the stack.
+    MOZ_MUST_USE bool emitDestructuringLHSRef(ParseNode* target, size_t* emitted);
+
+    // emitSetOrInitializeDestructuring assumes the lhs expression's reference
+    // and the to-be-destructured value has been pushed on the stack.  It emits
+    // code to destructure a single lhs expression (either a name or a compound
+    // []/{} expression).
+    MOZ_MUST_USE bool emitSetOrInitializeDestructuring(ParseNode* target, DestructuringFlavor flav);
 
     // emitDestructuringOps assumes the to-be-destructured value has been
     // pushed on the stack and emits code to destructure each part of a [] or
