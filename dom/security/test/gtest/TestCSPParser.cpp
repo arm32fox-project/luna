@@ -204,6 +204,8 @@ TEST(CSPParser, Directives)
 {
   static const PolicyTest policies[] =
   {
+    { "connect-src xn--mnchen-3ya.de",
+      "connect-src http://xn--mnchen-3ya.de"},
     { "default-src http://www.example.com",
       "default-src http://www.example.com" },
     { "script-src http://www.example.com",
@@ -238,6 +240,10 @@ TEST(CSPParser, Directives)
       "script-src 'nonce-foo' 'strict-dynamic' 'unsafe-inline' https:" },
     { "default-src 'sha256-siVR8' 'strict-dynamic' 'unsafe-inline' https:  ",
       "default-src 'sha256-siVR8' 'unsafe-inline' https:" },
+    { "worker-src https://example.com",
+      "worker-src https://example.com" },
+    { "worker-src http://worker.com; frame-src http://frame.com; child-src http://child.com",
+      "worker-src http://worker.com; frame-src http://frame.com; child-src http://child.com" },
   };
 
   uint32_t policyCount = sizeof(policies) / sizeof(PolicyTest);

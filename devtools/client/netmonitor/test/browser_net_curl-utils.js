@@ -7,7 +7,7 @@
  * Tests Curl Utils functionality.
  */
 
-const { CurlUtils } = require("devtools/client/shared/curl");
+const { Curl, CurlUtils } = require("devtools/client/shared/curl");
 
 add_task(function* () {
   let { tab, monitor } = yield initNetMonitor(CURL_UTILS_URL);
@@ -18,7 +18,7 @@ add_task(function* () {
 
   RequestsMenu.lazyUpdate = false;
 
-  let wait = waitForNetworkEvents(monitor, 1, 3);
+  let wait = waitForNetworkEvents(monitor, 1, 4);
   yield ContentTask.spawn(tab.linkedBrowser, SIMPLE_SJS, function* (url) {
     content.wrappedJSObject.performRequests(url);
   });
@@ -27,8 +27,9 @@ add_task(function* () {
   let requests = {
     get: RequestsMenu.getItemAtIndex(0),
     post: RequestsMenu.getItemAtIndex(1),
-    multipart: RequestsMenu.getItemAtIndex(2),
-    multipartForm: RequestsMenu.getItemAtIndex(3)
+    patch: RequestsMenu.getItemAtIndex(2),
+    multipart: RequestsMenu.getItemAtIndex(3),
+    multipartForm: RequestsMenu.getItemAtIndex(4)
   };
 
   let data = yield createCurlData(requests.get.attachment, gNetwork);
@@ -37,6 +38,12 @@ add_task(function* () {
   data = yield createCurlData(requests.post.attachment, gNetwork);
   testIsUrlEncodedRequest(data);
   testWritePostDataTextParams(data);
+  testWriteEmptyPostDataTextParams(data);
+  testDataArgumentOnGeneratedCommand(data);
+
+  data = yield createCurlData(requests.patch.attachment, gNetwork);
+  testWritePostDataTextParams(data);
+  testDataArgumentOnGeneratedCommand(data);
 
   data = yield createCurlData(requests.multipart.attachment, gNetwork);
   testIsMultipartRequest(data);
@@ -83,6 +90,18 @@ function testWritePostDataTextParams(data) {
   let params = CurlUtils.writePostDataTextParams(data.postDataText);
   is(params, "param1=value1&param2=value2&param3=value3",
     "Should return a serialized representation of the request parameters");
+}
+
+function testWriteEmptyPostDataTextParams(data) {
+  let params = CurlUtils.writePostDataTextParams(null);
+  is(params, "",
+    "Should return a empty string when no parameters provided");
+}
+
+function testDataArgumentOnGeneratedCommand(data) {
+  let curlCommand = Curl.generateCommand(data);
+  ok(curlCommand.includes("--data"),
+    "Should return a curl command with --data");
 }
 
 function testGetMultipartBoundary(data) {

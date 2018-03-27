@@ -8,6 +8,8 @@ loader.lazyRequireGetter(this, "setNamedTimeout",
   "devtools/client/shared/widgets/view-helpers", true);
 loader.lazyRequireGetter(this, "clearNamedTimeout",
   "devtools/client/shared/widgets/view-helpers", true);
+loader.lazyRequireGetter(this, "naturalSortCaseInsensitive",
+  "devtools/client/shared/natural-sort", true);
 const {KeyCodes} = require("devtools/client/shared/keycodes");
 
 const XUL_NS = "http://www.mozilla.org/keymaster/gatekeeper/there.is.only.xul";
@@ -123,6 +125,8 @@ function TableWidget(node, options = {}) {
 TableWidget.prototype = {
 
   items: null,
+  editBookmark: null,
+  scrollIntoViewOnUpdate: null,
 
   /**
    * Getter for the headers context menu popup id.
@@ -139,7 +143,12 @@ TableWidget.prototype = {
    */
   set selectedRow(id) {
     for (let column of this.columns.values()) {
-      column.selectRow(id[this.uniqueId] || id);
+      if (id) {
+        column.selectRow(id[this.uniqueId] || id);
+      } else {
+        column.selectedRow = null;
+        column.selectRow(null);
+      }
     }
   },
 
@@ -615,8 +624,13 @@ TableWidget.prototype = {
   /**
    * Populates the header context menu with the names of the columns along with
    * displaying which columns are hidden or visible.
+   *
+   * @param {Array} privateColumns=[]
+   *        An array of column names that should never appear in the table. This
+   *        allows us to e.g. have an invisible compound primary key for a
+   *        table's rows.
    */
-  populateMenuPopup: function () {
+  populateMenuPopup: function (privateColumns = []) {
     if (!this.menupopup) {
       return;
     }
@@ -626,6 +640,10 @@ TableWidget.prototype = {
     }
 
     for (let column of this.columns.values()) {
+      if (privateColumns.includes(column.id)) {
+        continue;
+      }
+
       let menuitem = this.document.createElementNS(XUL_NS, "menuitem");
       menuitem.setAttribute("label", column.header.getAttribute("value"));
       menuitem.setAttribute("data-id", column.id);
@@ -663,16 +681,21 @@ TableWidget.prototype = {
    * Creates the columns in the table. Without calling this method, data cannot
    * be inserted into the table unless `initialColumns` was supplied.
    *
-   * @param {object} columns
+   * @param {Object} columns
    *        A key value pair representing the columns of the table. Where the
    *        key represents the id of the column and the value is the displayed
    *        label in the header of the column.
-   * @param {string} sortOn
+   * @param {String} sortOn
    *        The id of the column on which the table will be initially sorted on.
-   * @param {array} hiddenColumns
+   * @param {Array} hiddenColumns
    *        Ids of all the columns that are hidden by default.
+   * @param {Array} privateColumns=[]
+   *        An array of column names that should never appear in the table. This
+   *        allows us to e.g. have an invisible compound primary key for a
+   *        table's rows.
    */
-  setColumns: function (columns, sortOn = this.sortedOn, hiddenColumns = []) {
+  setColumns: function (columns, sortOn = this.sortedOn, hiddenColumns = [],
+                        privateColumns = []) {
     for (let column of this.columns.values()) {
       column.destroy();
     }
@@ -702,13 +725,18 @@ TableWidget.prototype = {
       }
 
       this.columns.set(id, new Column(this, id, columns[id]));
-      if (hiddenColumns.indexOf(id) > -1) {
+      if (hiddenColumns.includes(id) || privateColumns.includes(id)) {
+        // Hide the column.
         this.columns.get(id).toggleColumn();
+
+        if (privateColumns.includes(id)) {
+          this.columns.get(id).private = true;
+        }
       }
     }
     this.sortedOn = sortOn;
     this.sortBy(this.sortedOn);
-    this.populateMenuPopup();
+    this.populateMenuPopup(privateColumns);
   },
 
   /**
@@ -778,6 +806,11 @@ TableWidget.prototype = {
       return;
     }
 
+    if (this.editBookmark && !this.items.has(this.editBookmark)) {
+      // Key has been updated... update bookmark.
+      this.editBookmark = item[this.uniqueId];
+    }
+
     let index = this.columns.get(this.sortedOn).push(item);
     for (let [key, column] of this.columns) {
       if (key != this.sortedOn) {
@@ -814,7 +847,8 @@ TableWidget.prototype = {
       column.remove(item);
       column.updateZebra();
     }
-    if (this.items.size == 0) {
+    if (this.items.size === 0) {
+      this.selectedRow = null;
       this.tbody.setAttribute("empty", "empty");
     }
 
@@ -856,6 +890,8 @@ TableWidget.prototype = {
     }
     this.tbody.setAttribute("empty", "empty");
     this.setPlaceholderText(this.emptyText);
+
+    this.selectedRow = null;
 
     this.emit(EVENTS.TABLE_CLEARED, this);
   },
@@ -958,6 +994,9 @@ module.exports.TableWidget = TableWidget;
  *        The displayed string on the column's header.
  */
 function Column(table, id, header) {
+  // By default cells are visible in the UI.
+  this._private = false;
+
   this.tbody = table.tbody;
   this.document = table.document;
   this.window = table.window;
@@ -1041,6 +1080,23 @@ Column.prototype = {
   },
 
   /**
+   * Get the private state of the column (visibility in the UI).
+   */
+  get private() {
+    return this._private;
+  },
+
+  /**
+   * Set the private state of the column (visibility in the UI).
+   *
+   * @param  {Boolean} state
+   *         Private (true or false)
+   */
+  set private(state) {
+    this._private = state;
+  },
+
+  /**
    * Sets the sorted value
    */
   set sorted(value) {
@@ -1115,7 +1171,9 @@ Column.prototype = {
   },
 
   /**
-   * Called when a row is updated.
+   * Called when a row is updated e.g. a cell is changed. This means that
+   * for a new row this method will be called once for each column. If a single
+   * cell is changed this method will be called just once.
    *
    * @param {string} event
    *        The event name of the event. i.e. EVENTS.ROW_UPDATED
@@ -1124,7 +1182,23 @@ Column.prototype = {
    */
   onRowUpdated: function (event, id) {
     this._updateItems();
+
     if (this.highlightUpdated && this.items[id] != null) {
+      if (this.table.scrollIntoViewOnUpdate) {
+        let cell = this.cells[this.items[id]];
+
+        // When a new row is created this method is called once for each column
+        // as each cell is updated. We can only scroll to cells if they are
+        // visible. We check for visibility and once we find the first visible
+        // cell in a row we scroll it into view and reset the
+        // scrollIntoViewOnUpdate flag.
+        if (cell.label.clientHeight > 0) {
+          cell.scrollIntoView();
+
+          this.table.scrollIntoViewOnUpdate = null;
+        }
+      }
+
       if (this.table.editBookmark) {
         // A rows position in the table can change as the result of an edit. In
         // order to ensure that the correct row is highlighted after an edit we
@@ -1136,6 +1210,7 @@ Column.prototype = {
 
       this.cells[this.items[id]].flash();
     }
+
     this.updateZebra();
   },
 
@@ -1160,15 +1235,16 @@ Column.prototype = {
    */
   selectRowAt: function (index) {
     if (this.selectedRow != null) {
-      this.cells[this.items[this.selectedRow]].toggleClass("theme-selected");
+      this.cells[this.items[this.selectedRow]].classList.remove("theme-selected");
     }
-    if (index < 0) {
-      this.selectedRow = null;
-      return;
-    }
+
     let cell = this.cells[index];
-    cell.toggleClass("theme-selected");
-    this.selectedRow = cell.id;
+    if (cell) {
+      cell.classList.add("theme-selected");
+      this.selectedRow = cell.id;
+    } else {
+      this.selectedRow = null;
+    }
   },
 
   /**
@@ -1218,11 +1294,11 @@ Column.prototype = {
       let index;
       if (this.sorted == 1) {
         index = this.cells.findIndex(element => {
-          return value < element.value;
+          return naturalSortCaseInsensitive(value, element.value) === -1;
         });
       } else {
         index = this.cells.findIndex(element => {
-          return value > element.value;
+          return naturalSortCaseInsensitive(value, element.value) === 1;
         });
       }
       index = index >= 0 ? index : this.cells.length;
@@ -1332,7 +1408,6 @@ Column.prototype = {
     this.cells = [];
     this.items = {};
     this._itemsDirty = false;
-    this.selectedRow = null;
     while (this.header.nextSibling) {
       this.header.nextSibling.remove();
     }
@@ -1350,7 +1425,7 @@ Column.prototype = {
             a[this.id].textContent : a[this.id];
         let val2 = (b[this.id] instanceof Node) ?
             b[this.id].textContent : b[this.id];
-        return val1 > val2;
+        return naturalSortCaseInsensitive(val1, val2);
       });
     } else if (this.sorted > 1) {
       items.sort((a, b) => {
@@ -1358,12 +1433,12 @@ Column.prototype = {
             a[this.id].textContent : a[this.id];
         let val2 = (b[this.id] instanceof Node) ?
             b[this.id].textContent : b[this.id];
-        return val2 > val1;
+        return naturalSortCaseInsensitive(val2, val1);
       });
     }
 
     if (this.selectedRow) {
-      this.cells[this.items[this.selectedRow]].toggleClass("theme-selected");
+      this.cells[this.items[this.selectedRow]].classList.remove("theme-selected");
     }
     this.items = {};
     // Otherwise, just use the sorted array passed to update the cells value.
@@ -1373,7 +1448,7 @@ Column.prototype = {
       this.cells[i].id = item[this.uniqueId];
     });
     if (this.selectedRow) {
-      this.cells[this.items[this.selectedRow]].toggleClass("theme-selected");
+      this.cells[this.items[this.selectedRow]].classList.add("theme-selected");
     }
     this._itemsDirty = false;
     this.updateZebra();
@@ -1387,7 +1462,9 @@ Column.prototype = {
       if (!cell.hidden) {
         i++;
       }
-      cell.toggleClass("even", !(i % 2));
+
+      let even = !(i % 2);
+      cell.classList.toggle("even", even);
     }
   },
 
@@ -1523,8 +1600,8 @@ Cell.prototype = {
     return this._value;
   },
 
-  toggleClass: function (className, condition) {
-    this.label.classList.toggle(className, condition);
+  get classList() {
+    return this.label.classList;
   },
 
   /**
@@ -1548,6 +1625,10 @@ Cell.prototype = {
 
   focus: function () {
     this.label.focus();
+  },
+
+  scrollIntoView: function () {
+    this.label.scrollIntoView(false);
   },
 
   destroy: function () {

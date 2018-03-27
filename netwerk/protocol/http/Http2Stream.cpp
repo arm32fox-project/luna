@@ -70,6 +70,7 @@ Http2Stream::Http2Stream(nsAHttpTransaction *httpTransaction,
   , mTotalSent(0)
   , mTotalRead(0)
   , mPushSource(nullptr)
+  , mAttempting0RTT(false)
   , mIsTunnel(false)
   , mPlainTextTunnel(false)
 {
@@ -102,8 +103,18 @@ Http2Stream::Http2Stream(nsAHttpTransaction *httpTransaction,
 
 Http2Stream::~Http2Stream()
 {
+  ClearPushSource();
   ClearTransactionsBlockedOnTunnel();
   mStreamID = Http2Session::kDeadStreamID;
+}
+
+void
+Http2Stream::ClearPushSource()
+{
+  if (mPushSource) {
+    mPushSource->SetConsumerStream(nullptr);
+    mPushSource = nullptr;
+  }
 }
 
 // ReadSegments() is used to write data down the socket. Generally, HTTP
@@ -925,7 +936,9 @@ Http2Stream::TransmitFrame(const char *buf,
     *countUsed += mTxStreamFrameSize;
   }
 
-  mSession->FlushOutputQueue();
+  if (!mAttempting0RTT) {
+    mSession->FlushOutputQueue();
+  }
 
   // calling this will trigger waiting_for if mRequestBodyLenRemaining is 0
   UpdateTransportSendEvents(mTxInlineFrameUsed + mTxStreamFrameSize);
@@ -1080,6 +1093,10 @@ Http2Stream::ConvertPushHeaders(Http2Decompressor *decompressor,
 void
 Http2Stream::Close(nsresult reason)
 {
+  // In case we are connected to a push, make sure the push knows we are closed,
+  // so it doesn't try to give us any more DATA that comes on it after our close.
+  ClearPushSource();
+
   mTransaction->Close(reason);
 }
 
@@ -1467,6 +1484,27 @@ Http2Stream::MapStreamToHttpConnection()
   qiTrans->MapStreamToHttpConnection(mSocketTransport,
                                      mTransaction->ConnectionInfo());
 }
+
+// -----------------------------------------------------------------------------
+// mirror nsAHttpTransaction
+// -----------------------------------------------------------------------------
+
+bool
+Http2Stream::Do0RTT()
+{
+  MOZ_ASSERT(mTransaction);
+  mAttempting0RTT = true;
+  return mTransaction->Do0RTT();
+}
+
+nsresult
+Http2Stream::Finish0RTT(bool aRestart, bool aAlpnChanged)
+{
+  MOZ_ASSERT(mTransaction);
+  mAttempting0RTT = false;
+  return mTransaction->Finish0RTT(aRestart, aAlpnChanged);
+}
+
 
 } // namespace net
 } // namespace mozilla

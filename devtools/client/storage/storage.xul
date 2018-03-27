@@ -26,13 +26,18 @@
     <menupopup id="storage-tree-popup">
       <menuitem id="storage-tree-popup-delete-all"
                 label="&storage.popupMenu.deleteAllLabel;"/>
+      <menuitem id="storage-tree-popup-delete-all-session-cookies"
+                label="&storage.popupMenu.deleteAllSessionCookiesLabel;"/>
       <menuitem id="storage-tree-popup-delete"/>
     </menupopup>
     <menupopup id="storage-table-popup">
+      <menuitem id="storage-table-popup-add"/>
       <menuitem id="storage-table-popup-delete"/>
       <menuitem id="storage-table-popup-delete-all-from"/>
       <menuitem id="storage-table-popup-delete-all"
                 label="&storage.popupMenu.deleteAllLabel;"/>
+      <menuitem id="storage-table-popup-delete-all-session-cookies"
+                label="&storage.popupMenu.deleteAllSessionCookiesLabel;"/>
     </menupopup>
   </popupset>
 
@@ -41,6 +46,11 @@
     <splitter class="devtools-side-splitter"/>
     <vbox flex="1">
       <hbox id="storage-toolbar" class="devtools-toolbar">
+        <button id="add-button"
+                class="devtools-button add-button"></button>
+        <button id="refresh-button"
+                class="devtools-button refresh-button"></button>
+        <spacer flex="1"/>
         <textbox id="storage-searchbox"
                  class="devtools-filterinput"
                  type="search"

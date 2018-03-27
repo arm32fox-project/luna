@@ -407,6 +407,9 @@ TargetEventsHandler.prototype = {
         if (!Services.prefs.getBoolPref("devtools.webconsole.persistlog")) {
           NetMonitorView.RequestsMenu.reset();
           NetMonitorView.Sidebar.toggle(false);
+        } else {
+          // If the log is persistent, just clear some informations.
+          NetMonitorView.RequestsMenu.resetNotPersistent();
         }
         // Switch to the default network traffic inspector view.
         if (NetMonitorController.getCurrentActivity() == ACTIVITY_TYPE.NONE) {
@@ -414,6 +417,7 @@ TargetEventsHandler.prototype = {
         }
         // Clear any accumulated markers.
         NetMonitorController.NetworkEventsHandler.clearMarkers();
+        gStore.dispatch(Actions.clearTimingMarkers());
 
         window.emit(EVENTS.TARGET_WILL_NAVIGATE);
         break;
@@ -534,6 +538,7 @@ NetworkEventsHandler.prototype = {
   _onDocLoadingMarker: function (marker) {
     window.emit(EVENTS.TIMELINE_EVENT, marker);
     this._markers.push(marker);
+    gStore.dispatch(Actions.addTimingMarker(marker));
   },
 
   /**

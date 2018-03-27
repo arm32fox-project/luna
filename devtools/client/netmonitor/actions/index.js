@@ -4,6 +4,8 @@
 "use strict";
 
 const filters = require("./filters");
-const sidebar = require("./sidebar");
+const requests = require("./requests");
+const timingMarkers = require("./timing-markers");
+const ui = require("./ui");
 
-module.exports = Object.assign({}, filters, sidebar);
+module.exports = Object.assign({}, filters, requests, timingMarkers, ui);

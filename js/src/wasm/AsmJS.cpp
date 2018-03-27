@@ -21,6 +21,7 @@
 #include "mozilla/Attributes.h"
 #include "mozilla/Compression.h"
 #include "mozilla/MathAlgorithms.h"
+#include "mozilla/Maybe.h"
 
 #include "jsmath.h"
 #include "jsprf.h"
@@ -678,7 +679,7 @@ FunctionObject(ParseNode* fn)
 static inline PropertyName*
 FunctionName(ParseNode* fn)
 {
-    if (JSAtom* name = FunctionObject(fn)->name())
+    if (JSAtom* name = FunctionObject(fn)->explicitName())
         return name->asPropertyName();
     return nullptr;
 }
@@ -3248,7 +3249,7 @@ static bool
 CheckFunctionHead(ModuleValidator& m, ParseNode* fn)
 {
     JSFunction* fun = FunctionObject(fn);
-    if (fun->hasRest())
+    if (fn->pn_funbox->hasRest())
         return m.fail(fn, "rest args not allowed");
     if (fun->isExprBody())
         return m.fail(fn, "expression closures not allowed");
@@ -8033,25 +8034,10 @@ TryInstantiate(JSContext* cx, CallArgs args, Module& module, const AsmJSMetadata
     return true;
 }
 
-static MOZ_MUST_USE bool
-MaybeAppendUTF8Name(JSContext* cx, const char* utf8Chars, MutableHandle<PropertyNameVector> names)
-{
-    if (!utf8Chars)
-        return true;
-
-    UTF8Chars utf8(utf8Chars, strlen(utf8Chars));
-
-    JSAtom* atom = AtomizeUTF8Chars(cx, utf8Chars, strlen(utf8Chars));
-    if (!atom)
-        return false;
-
-    return names.append(atom->asPropertyName());
-}
-
 static bool
 HandleInstantiationFailure(JSContext* cx, CallArgs args, const AsmJSMetadata& metadata)
 {
-    RootedAtom name(cx, args.callee().as<JSFunction>().name());
+    RootedAtom name(cx, args.callee().as<JSFunction>().explicitName());
 
     if (cx->isExceptionPending())
         return false;
@@ -8068,8 +8054,8 @@ HandleInstantiationFailure(JSContext* cx, CallArgs args, const AsmJSMetadata& me
         return false;
     }
 
-    uint32_t begin = metadata.srcBodyStart;  // starts right after 'use asm'
-    uint32_t end = metadata.srcEndBeforeCurly();
+    uint32_t begin = metadata.srcStart;
+    uint32_t end = metadata.srcEndAfterCurly();
     Rooted<JSFlatString*> src(cx, source->substringDontDeflate(cx, begin, end));
     if (!src)
         return false;
@@ -8080,18 +8066,11 @@ HandleInstantiationFailure(JSContext* cx, CallArgs args, const AsmJSMetadata& me
     if (!fun)
         return false;
 
-    Rooted<PropertyNameVector> formals(cx, PropertyNameVector(cx));
-    if (!MaybeAppendUTF8Name(cx, metadata.globalArgumentName.get(), &formals))
-        return false;
-    if (!MaybeAppendUTF8Name(cx, metadata.importArgumentName.get(), &formals))
-        return false;
-    if (!MaybeAppendUTF8Name(cx, metadata.bufferArgumentName.get(), &formals))
-        return false;
-
     CompileOptions options(cx);
     options.setMutedErrors(source->mutedErrors())
            .setFile(source->filename())
            .setNoScriptRval(false);
+    options.asmJSOption = AsmJSOption::Disabled;
 
     // The exported function inherits an implicit strict context if the module
     // also inherited it somehow.
@@ -8106,8 +8085,8 @@ HandleInstantiationFailure(JSContext* cx, CallArgs args, const AsmJSMetadata& me
     SourceBufferHolder::Ownership ownership = stableChars.maybeGiveOwnershipToCaller()
                                               ? SourceBufferHolder::GiveOwnership
                                               : SourceBufferHolder::NoOwnership;
-    SourceBufferHolder srcBuf(chars, end - begin, ownership);
-    if (!frontend::CompileFunctionBody(cx, &fun, options, formals, srcBuf))
+    SourceBufferHolder srcBuf(chars, stableChars.twoByteRange().length(), ownership);
+    if (!frontend::CompileStandaloneFunction(cx, &fun, options, srcBuf, Nothing()))
         return false;
 
     // Call the function we just recompiled.
@@ -8149,7 +8128,7 @@ InstantiateAsmJS(JSContext* cx, unsigned argc, JS::Value* vp)
 static JSFunction*
 NewAsmJSModuleFunction(ExclusiveContext* cx, JSFunction* origFun, HandleObject moduleObj)
 {
-    RootedAtom name(cx, origFun->name());
+    RootedAtom name(cx, origFun->explicitName());
 
     JSFunction::Flags flags = origFun->isLambda() ? JSFunction::ASMJS_LAMBDA_CTOR
                                                   : JSFunction::ASMJS_CTOR;
@@ -8849,23 +8828,6 @@ js::IsAsmJSModuleLoadedFromCache(JSContext* cx, unsigned argc, Value* vp)
 /*****************************************************************************/
 // asm.js toString/toSource support
 
-static MOZ_MUST_USE bool
-MaybeAppendUTF8Chars(JSContext* cx, const char* sep, const char* utf8Chars, StringBuffer* sb)
-{
-    if (!utf8Chars)
-        return true;
-
-    UTF8Chars utf8(utf8Chars, strlen(utf8Chars));
-
-    size_t length;
-    UniqueTwoByteChars twoByteChars(UTF8CharsToNewTwoByteCharsZ(cx, utf8, &length).get());
-    if (!twoByteChars)
-        return false;
-
-    return sb->append(sep, strlen(sep)) &&
-           sb->append(twoByteChars.get(), length);
-}
-
 JSString*
 js::AsmJSModuleToString(JSContext* cx, HandleFunction fun, bool addParenToLambda)
 {
@@ -8884,7 +8846,7 @@ js::AsmJSModuleToString(JSContext* cx, HandleFunction fun, bool addParenToLambda
     if (!out.append("function "))
         return nullptr;
 
-    if (fun->name() && !out.append(fun->name()))
+    if (fun->explicitName() && !out.append(fun->explicitName()))
         return nullptr;
 
     bool haveSource = source->hasSourceData();
@@ -8895,32 +8857,11 @@ js::AsmJSModuleToString(JSContext* cx, HandleFunction fun, bool addParenToLambda
         if (!out.append("() {\n    [sourceless code]\n}"))
             return nullptr;
     } else {
-        // Whether the function has been created with a Function ctor
-        bool funCtor = begin == 0 && end == source->length() && source->argumentsNotIncluded();
-        if (funCtor) {
-            // Functions created with the function constructor don't have arguments in their source.
-            if (!out.append("("))
-                return nullptr;
-
-            if (!MaybeAppendUTF8Chars(cx, "", metadata.globalArgumentName.get(), &out))
-                return nullptr;
-            if (!MaybeAppendUTF8Chars(cx, ", ", metadata.importArgumentName.get(), &out))
-                return nullptr;
-            if (!MaybeAppendUTF8Chars(cx, ", ", metadata.bufferArgumentName.get(), &out))
-                return nullptr;
-
-            if (!out.append(") {\n"))
-                return nullptr;
-        }
-
         Rooted<JSFlatString*> src(cx, source->substring(cx, begin, end));
         if (!src)
             return nullptr;
 
         if (!out.append(src))
-            return nullptr;
-
-        if (funCtor && !out.append("\n}"))
             return nullptr;
     }
 
@@ -8953,16 +8894,12 @@ js::AsmJSFunctionToString(JSContext* cx, HandleFunction fun)
 
     if (!haveSource) {
         // asm.js functions can't be anonymous
-        MOZ_ASSERT(fun->name());
-        if (!out.append(fun->name()))
+        MOZ_ASSERT(fun->explicitName());
+        if (!out.append(fun->explicitName()))
             return nullptr;
         if (!out.append("() {\n    [sourceless code]\n}"))
             return nullptr;
     } else {
-        // asm.js functions cannot have been created with a Function constructor
-        // as they belong within a module.
-        MOZ_ASSERT(!(begin == 0 && end == source->length() && source->argumentsNotIncluded()));
-
         Rooted<JSFlatString*> src(cx, source->substring(cx, begin, end));
         if (!src)
             return nullptr;

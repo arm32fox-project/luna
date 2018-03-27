@@ -18,7 +18,7 @@ if test "$OS_ARCH" = "WINNT"; then
   MOZ_MAINTENANCE_SERVICE=
 fi
 
-# For Basilisk we want to use 55.0.YYYY.MM.DD as MOZ_APP_VERSION in release
+# For Basilisk we want to use 52.9.YYYY.MM.DD as MOZ_APP_VERSION in release
 # builds so add-on developers have something to target while maintaining
 # Firefox compatiblity.
 # To enable add "export BASILISK_VERSION=1" to the .mozconfig file.
@@ -26,7 +26,7 @@ fi
 # don't export the variable if you are in development or don't care.
 # When not exported we fall back the value in the version*.txt file.
 if test -n "$BASILISK_VERSION" ; then
-    MOZ_APP_VERSION=55.0.`date --utc '+%Y.%m.%d'`
+    MOZ_APP_VERSION=52.9.`date --utc '+%Y.%m.%d'`
     MOZ_APP_VERSION_DISPLAY=`date --utc '+%Y.%m.%d'`
 else
     MOZ_APP_VERSION=`cat ${_topsrcdir}/$MOZ_BUILD_APP/config/version.txt`
@@ -53,17 +53,10 @@ MOZ_PROFILE_MIGRATOR=1
 MOZ_APP_STATIC_INI=1
 MOZ_WEBGL_CONFORMANT=1
 MOZ_JSDOWNLOADS=1
-MOZ_RUST_MP4PARSE=1
-MOZ_RUST_URLPARSE=1
+MOZ_WEBRTC=1
 MOZ_WEBEXTENSIONS=1
+MOZ_DEVTOOLS=1
 
 # Disable checking that add-ons are signed by the trusted root
 MOZ_ADDON_SIGNING=0
 MOZ_REQUIRE_SIGNING=0
-
-# Include the DevTools client, not just the server (which is the default)
-if test -n "$BASILISK_DISABLE_DEVTOOLS" ; then
-MOZ_DEVTOOLS=
-else
-MOZ_DEVTOOLS=1
-fi

@@ -958,30 +958,35 @@ IonBuilder::build()
 bool
 IonBuilder::processIterators()
 {
-    // Find phis that must directly hold an iterator live.
-    Vector<MPhi*, 0, SystemAllocPolicy> worklist;
+    // Find and mark phis that must transitively hold an iterator live.
+
+    Vector<MDefinition*, 8, SystemAllocPolicy> worklist;
+
     for (size_t i = 0; i < iterators_.length(); i++) {
-        MInstruction* ins = iterators_[i];
-        for (MUseDefIterator iter(ins); iter; iter++) {
-            if (iter.def()->isPhi()) {
-                if (!worklist.append(iter.def()->toPhi()))
-                    return false;
-            }
+        MDefinition* iter = iterators_[i];
+        if (!iter->isInWorklist()) {
+            if (!worklist.append(iter))
+                return false;
+            iter->setInWorklist();
         }
     }
 
-    // Propagate the iterator and live status of phis to all other connected
-    // phis.
     while (!worklist.empty()) {
-        MPhi* phi = worklist.popCopy();
-        phi->setIterator();
-        phi->setImplicitlyUsedUnchecked();
+        MDefinition* def = worklist.popCopy();
+        def->setNotInWorklist();
 
-        for (MUseDefIterator iter(phi); iter; iter++) {
-            if (iter.def()->isPhi()) {
-                MPhi* other = iter.def()->toPhi();
-                if (!other->isIterator() && !worklist.append(other))
+        if (def->isPhi()) {
+            MPhi* phi = def->toPhi();
+            phi->setIterator();
+            phi->setImplicitlyUsedUnchecked();
+        }
+
+        for (MUseDefIterator iter(def); iter; iter++) {
+            MDefinition* use = iter.def();
+            if (!use->isInWorklist() && (!use->isPhi() || !use->toPhi()->isIterator())) {
+                if (!worklist.append(use))
                     return false;
+                use->setInWorklist();
             }
         }
     }
@@ -1563,6 +1568,7 @@ IonBuilder::traverseBytecode()
               case JSOP_DUP:
               case JSOP_DUP2:
               case JSOP_PICK:
+              case JSOP_UNPICK:
               case JSOP_SWAP:
               case JSOP_SETARG:
               case JSOP_SETLOCAL:
@@ -1672,6 +1678,7 @@ IonBuilder::inspectOpcode(JSOp op)
     switch (op) {
       case JSOP_NOP:
       case JSOP_NOP_DESTRUCTURING:
+      case JSOP_TRY_DESTRUCTURING_ITERCLOSE:
       case JSOP_LINENO:
       case JSOP_LOOPENTRY:
       case JSOP_JUMPTARGET:
@@ -1935,6 +1942,10 @@ IonBuilder::inspectOpcode(JSOp op)
       case JSOP_CALLITER:
       case JSOP_NEW:
       case JSOP_SUPERCALL:
+        if (op == JSOP_CALLITER) {
+            if (!outermostBuilder()->iterators_.append(current->peek(-1)))
+                return false;
+        }
         return jsop_call(GET_ARGC(pc), (JSOp)*pc == JSOP_NEW || (JSOp)*pc == JSOP_SUPERCALL);
 
       case JSOP_EVAL:
@@ -2015,6 +2026,10 @@ IonBuilder::inspectOpcode(JSOp op)
 
       case JSOP_PICK:
         current->pick(-GET_INT8(pc));
+        return true;
+
+      case JSOP_UNPICK:
+        current->unpick(-GET_INT8(pc));
         return true;
 
       case JSOP_GETALIASEDVAR:
@@ -2122,6 +2137,9 @@ IonBuilder::inspectOpcode(JSOp op)
       case JSOP_LAMBDA_ARROW:
         return jsop_lambda_arrow(info().getFunction(pc));
 
+      case JSOP_SETFUNNAME:
+        return jsop_setfunname(GET_UINT8(pc));
+
       case JSOP_ITER:
         return jsop_iter(GET_INT8(pc));
 
@@ -2165,6 +2183,9 @@ IonBuilder::inspectOpcode(JSOp op)
 
       case JSOP_CHECKISOBJ:
         return jsop_checkisobj(GET_UINT8(pc));
+
+      case JSOP_CHECKISCALLABLE:
+        return jsop_checkiscallable(GET_UINT8(pc));
 
       case JSOP_CHECKOBJCOERCIBLE:
         return jsop_checkobjcoercible();
@@ -10883,6 +10904,15 @@ IonBuilder::jsop_checkisobj(uint8_t kind)
 }
 
 bool
+IonBuilder::jsop_checkiscallable(uint8_t kind)
+{
+    MCheckIsCallable* check = MCheckIsCallable::New(alloc(), current->pop(), kind);
+    current->add(check);
+    current->push(check);
+    return true;
+}
+
+bool
 IonBuilder::jsop_checkobjcoercible()
 {
     MDefinition* toCheck = current->peek(-1);
@@ -13335,6 +13365,21 @@ IonBuilder::jsop_lambda_arrow(JSFunction* fun)
                                           newTargetDef, fun);
     current->add(ins);
     current->push(ins);
+
+    return resumeAfter(ins);
+}
+
+bool
+IonBuilder::jsop_setfunname(uint8_t prefixKind)
+{
+    MDefinition* name = current->pop();
+    MDefinition* fun = current->pop();
+    MOZ_ASSERT(fun->type() == MIRType::Object);
+
+    MSetFunName* ins = MSetFunName::New(alloc(), fun, name, prefixKind);
+
+    current->add(ins);
+    current->push(fun);
 
     return resumeAfter(ins);
 }

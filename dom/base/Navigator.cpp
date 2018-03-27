@@ -97,8 +97,10 @@
 #endif
 #include "mozilla/dom/ContentChild.h"
 
+#ifdef MOZ_EME
 #include "mozilla/EMEUtils.h"
 #include "mozilla/DetailedPromise.h"
+#endif
 
 namespace mozilla {
 namespace dom {
@@ -214,7 +216,9 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN(Navigator)
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mServiceWorkerContainer)
 
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mWindow)
+#ifdef MOZ_EME
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mMediaKeySystemAccessManager)
+#endif
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mPresentation)
 #ifdef MOZ_GAMEPAD
   NS_IMPL_CYCLE_COLLECTION_TRAVERSE(mGamepadServiceTest)
@@ -288,10 +292,12 @@ Navigator::Invalidate()
 
   mServiceWorkerContainer = nullptr;
 
+#ifdef MOZ_EME
   if (mMediaKeySystemAccessManager) {
     mMediaKeySystemAccessManager->Shutdown();
     mMediaKeySystemAccessManager = nullptr;
   }
+#endif
 
 #ifdef MOZ_GAMEPAD
   if (mGamepadServiceTest) {
@@ -1854,16 +1860,6 @@ Navigator::GetUserAgent(nsPIDOMWindowInner* aWindow, nsIURI* aURI,
 {
   MOZ_ASSERT(NS_IsMainThread());
 
-  if (!aIsCallerChrome) {
-    const nsAdoptingString& override =
-      mozilla::Preferences::GetString("general.useragent.override");
-
-    if (override) {
-      aUserAgent = override;
-      return NS_OK;
-    }
-  }
-
   nsresult rv;
   nsCOMPtr<nsIHttpProtocolHandler>
     service(do_GetService(NS_NETWORK_PROTOCOL_CONTRACTID_PREFIX "http", &rv));
@@ -1894,6 +1890,7 @@ Navigator::GetUserAgent(nsPIDOMWindowInner* aWindow, nsIURI* aURI,
   return siteSpecificUA->GetUserAgentForURIAndWindow(aURI, aWindow, aUserAgent);
 }
 
+#ifdef MOZ_EME
 static nsCString
 ToCString(const nsString& aString)
 {
@@ -2019,6 +2016,7 @@ Navigator::RequestMediaKeySystemAccess(const nsAString& aKeySystem,
   mMediaKeySystemAccessManager->Request(promise, aKeySystem, aConfigs);
   return promise.forget();
 }
+#endif
 
 Presentation*
 Navigator::GetPresentation(ErrorResult& aRv)

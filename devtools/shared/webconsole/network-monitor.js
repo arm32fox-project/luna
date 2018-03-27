@@ -732,7 +732,9 @@ NetworkMonitor.prototype = {
     0x804b0004: "STATUS_CONNECTED_TO",
     0x804b0005: "STATUS_SENDING_TO",
     0x804b000a: "STATUS_WAITING_FOR",
-    0x804b0006: "STATUS_RECEIVING_FROM"
+    0x804b0006: "STATUS_RECEIVING_FROM",
+    0x804b000c: "STATUS_TLS_STARTING",
+    0x804b000d: "STATUS_TLS_ENDING"
   },
 
   httpDownloadActivities: [
@@ -1327,8 +1329,24 @@ NetworkMonitor.prototype = {
 
     let response = {};
     response.httpVersion = statusLineArray.shift();
-    response.remoteAddress = httpActivity.channel.remoteAddress;
-    response.remotePort = httpActivity.channel.remotePort;
+    // XXX: 
+    // Sometimes, when using a proxy server (manual proxy configuration),
+    // throws an error:
+    // 0x80040111 (NS_ERROR_NOT_AVAILABLE)
+    // [nsIHttpChannelInternal.remoteAddress]
+    // Bug 1337791 is the suspect.
+    response.remoteAddress = null;
+    try {
+      response.remoteAddress = httpActivity.channel.remoteAddress;
+    } catch (e) {
+      Cu.reportError(e);
+    }
+    response.remotePort = null;
+    try {
+      response.remotePort = httpActivity.channel.remotePort;
+    } catch (e) {
+      Cu.reportError(e);
+    }
     response.status = statusLineArray.shift();
     response.statusText = statusLineArray.join(" ");
     response.headersSize = extraStringData.length;
@@ -1390,6 +1408,7 @@ NetworkMonitor.prototype = {
         timings: {
           blocked: 0,
           dns: 0,
+          ssl: 0,
           connect: 0,
           send: 0,
           wait: 0,
@@ -1422,6 +1441,36 @@ NetworkMonitor.prototype = {
                            timings.STATUS_CONNECTING_TO.first;
     } else {
       harTimings.connect = -1;
+    }
+
+    if (timings.STATUS_TLS_STARTING && timings.STATUS_TLS_ENDING) {
+      harTimings.ssl = timings.STATUS_TLS_ENDING.last -
+                           timings.STATUS_TLS_STARTING.first;
+    } else {
+      harTimings.ssl = -1;
+    }
+
+    // sometimes the connection information events are attached to a speculative
+    // channel instead of this one, but necko might glue them back together in the
+    // nsITimedChannel interface used by Resource and Navigation Timing
+    let timedChannel = httpActivity.channel.QueryInterface(Ci.nsITimedChannel);
+
+    if ((harTimings.connect <= 0) && timedChannel) {
+      if (timedChannel.secureConnectionStartTime > timedChannel.connectStartTime) {
+        harTimings.connect =
+          timedChannel.secureConnectionStartTime - timedChannel.connectStartTime;
+        harTimings.ssl =
+          timedChannel.connectEndTime - timedChannel.secureConnectionStartTime;
+      } else {
+        harTimings.connect =
+          timedChannel.connectEndTime - timedChannel.connectStartTime;
+        harTimings.ssl = -1;
+      }
+    }
+
+    if ((harTimings.dns <= 0) && timedChannel) {
+      harTimings.dns =
+        timedChannel.domainLookupEndTime - timedChannel.domainLookupStartTime;
     }
 
     if (timings.STATUS_SENDING_TO) {

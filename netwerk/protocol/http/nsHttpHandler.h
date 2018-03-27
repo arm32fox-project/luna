@@ -485,7 +485,11 @@ private:
     nsXPIDLCString mProductSub;
     nsXPIDLCString mAppName;
     nsXPIDLCString mAppVersion;
+    bool           mAppVersionIsBuildID;
+    nsCString      mCompatGecko;
+    bool           mCompatGeckoEnabled;
     nsCString      mCompatFirefox;
+    nsCString      mCompatFirefoxVersion;
     bool           mCompatFirefoxEnabled;
     nsXPIDLCString mCompatDevice;
     nsCString      mDeviceModelId;
