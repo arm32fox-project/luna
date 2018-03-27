@@ -2585,11 +2585,28 @@ Notes(JSContext* cx, unsigned argc, Value* vp)
     return true;
 }
 
-JS_STATIC_ASSERT(JSTRY_CATCH == 0);
-JS_STATIC_ASSERT(JSTRY_FINALLY == 1);
-JS_STATIC_ASSERT(JSTRY_FOR_IN == 2);
+static const char*
+TryNoteName(JSTryNoteKind kind)
+{
+    switch (kind) {
+      case JSTRY_CATCH:
+        return "catch";
+      case JSTRY_FINALLY:
+        return "finally";
+      case JSTRY_FOR_IN:
+        return "for-in";
+      case JSTRY_FOR_OF:
+        return "for-of";
+      case JSTRY_LOOP:
+        return "loop";
+      case JSTRY_FOR_OF_ITERCLOSE:
+        return "for-of-iterclose";
+      case JSTRY_DESTRUCTURING_ITERCLOSE:
+        return "dstr-iterclose";
+    }
 
-static const char* const TryNoteNames[] = { "catch", "finally", "for-in", "for-of", "loop" };
+    MOZ_CRASH("Bad JSTryNoteKind");
+}
 
 static MOZ_MUST_USE bool
 TryNotes(JSContext* cx, HandleScript script, Sprinter* sp)
@@ -2597,17 +2614,16 @@ TryNotes(JSContext* cx, HandleScript script, Sprinter* sp)
     if (!script->hasTrynotes())
         return true;
 
-    if (sp->put("\nException table:\nkind      stack    start      end\n") < 0)
+    if (sp->put("\nException table:\nkind               stack    start      end\n") < 0)
         return false;
 
     JSTryNote* tn = script->trynotes()->vector;
     JSTryNote* tnlimit = tn + script->trynotes()->length;
     do {
-        MOZ_ASSERT(tn->kind < ArrayLength(TryNoteNames));
-        uint8_t startOff = script->pcToOffset(script->main()) + tn->start;
-        if (!sp->jsprintf(" %-7s %6u %8u %8u\n",
-                          TryNoteNames[tn->kind], tn->stackDepth,
-                          startOff, startOff + tn->length))
+        uint32_t startOff = script->pcToOffset(script->main()) + tn->start;
+        if (!sp->jsprintf(" %-16s %6u %8u %8u\n",
+                          TryNoteName(static_cast<JSTryNoteKind>(tn->kind)),
+                          tn->stackDepth, startOff, startOff + tn->length))
         {
             return false;
         }

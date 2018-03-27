@@ -1080,6 +1080,9 @@ js::UnwindEnvironmentToTryPc(JSScript* script, JSTryNote* tn)
     if (tn->kind == JSTRY_CATCH || tn->kind == JSTRY_FINALLY) {
         pc -= JSOP_TRY_LENGTH;
         MOZ_ASSERT(*pc == JSOP_TRY);
+    } else if (tn->kind == JSTRY_DESTRUCTURING_ITERCLOSE) {
+        pc -= JSOP_TRY_DESTRUCTURING_ITERCLOSE_LENGTH;
+        MOZ_ASSERT(*pc == JSOP_TRY_DESTRUCTURING_ITERCLOSE);
     }
     return pc;
 }
@@ -1156,6 +1159,7 @@ enum HandleErrorContinuation
 static HandleErrorContinuation
 ProcessTryNotes(JSContext* cx, EnvironmentIter& ei, InterpreterRegs& regs)
 {
+    bool inForOfIterClose = false;
     for (TryNoteIterInterpreter tni(cx, regs); !tni.done(); ++tni) {
         JSTryNote* tn = *tni;
 
@@ -1164,10 +1168,38 @@ ProcessTryNotes(JSContext* cx, EnvironmentIter& ei, InterpreterRegs& regs)
             /* Catch cannot intercept the closing of a generator. */
             if (cx->isClosingGenerator())
                 break;
+
+            // If IteratorClose due to abnormal completion threw inside a
+            // for-of loop, it is not catchable by try statements inside of
+            // the for-of loop.
+            //
+            // This is handled by this weirdness in the exception handler
+            // instead of in bytecode because it is hard to do so in bytecode:
+            //
+            //   1. IteratorClose emitted due to abnormal completion (break,
+            //   throw, return) are emitted inline, at the source location of
+            //   the break, throw, or return statement. For example:
+            //
+            //     for (x of iter) {
+            //       try { return; } catch (e) { }
+            //     }
+            //
+            //   From the try-note nesting's perspective, the IteratorClose
+            //   resulting from |return| is covered by the inner try, when it
+            //   should not be.
+            //
+            //   2. Try-catch notes cannot be disjoint. That is, we can't have
+            //   multiple notes with disjoint pc ranges jumping to the same
+            //   catch block.
+            if (inForOfIterClose)
+                break;
             SettleOnTryNote(cx, tn, ei, regs);
             return CatchContinuation;
 
           case JSTRY_FINALLY:
+            // See note above.
+            if (inForOfIterClose)
+                break;
             SettleOnTryNote(cx, tn, ei, regs);
             return FinallyContinuation;
 
@@ -1189,7 +1221,31 @@ ProcessTryNotes(JSContext* cx, EnvironmentIter& ei, InterpreterRegs& regs)
             break;
           }
 
+          case JSTRY_DESTRUCTURING_ITERCLOSE: {
+            // Whether the destructuring iterator is done is at the top of the
+            // stack. The iterator object is second from the top.
+            MOZ_ASSERT(tn->stackDepth > 1);
+            Value* sp = regs.spForStackDepth(tn->stackDepth);
+            RootedValue doneValue(cx, sp[-1]);
+            bool done = ToBoolean(doneValue);
+            if (!done) {
+                RootedObject iterObject(cx, &sp[-2].toObject());
+                if (!IteratorCloseForException(cx, iterObject)) {
+                    SettleOnTryNote(cx, tn, ei, regs);
+                    return ErrorReturnContinuation;
+                }
+            }
+            break;
+          }
+
+          case JSTRY_FOR_OF_ITERCLOSE:
+            inForOfIterClose = true;
+            break;
+
           case JSTRY_FOR_OF:
+            inForOfIterClose = false;
+            break;
+
           case JSTRY_LOOP:
             break;
 
@@ -1860,13 +1916,11 @@ CASE(EnableInterruptsPseudoOpcode)
 /* Various 1-byte no-ops. */
 CASE(JSOP_NOP)
 CASE(JSOP_NOP_DESTRUCTURING)
-CASE(JSOP_UNUSED187)
 CASE(JSOP_UNUSED192)
 CASE(JSOP_UNUSED209)
 CASE(JSOP_UNUSED210)
 CASE(JSOP_UNUSED211)
-CASE(JSOP_UNUSED219)
-CASE(JSOP_UNUSED220)
+CASE(JSOP_TRY_DESTRUCTURING_ITERCLOSE)
 CASE(JSOP_UNUSED221)
 CASE(JSOP_UNUSED222)
 CASE(JSOP_UNUSED223)
@@ -2154,6 +2208,13 @@ CASE(JSOP_ENDITER)
         goto error;
 }
 END_CASE(JSOP_ENDITER)
+
+CASE(JSOP_ISGENCLOSING)
+{
+    bool b = REGS.sp[-1].isMagic(JS_GENERATOR_CLOSING);
+    PUSH_BOOLEAN(b);
+}
+END_CASE(JSOP_ISGENCLOSING)
 
 CASE(JSOP_DUP)
 {
@@ -2602,6 +2663,15 @@ CASE(JSOP_CHECKISOBJ)
     }
 }
 END_CASE(JSOP_CHECKISOBJ)
+
+CASE(JSOP_CHECKISCALLABLE)
+{
+    if (!IsCallable(REGS.sp[-1])) {
+        MOZ_ALWAYS_FALSE(ThrowCheckIsCallable(cx, CheckIsCallableKind(GET_UINT8(REGS.pc))));
+        goto error;
+    }
+}
+END_CASE(JSOP_CHECKISCALLABLE)
 
 CASE(JSOP_CHECKTHIS)
 {
@@ -5040,10 +5110,32 @@ js::ThrowCheckIsObject(JSContext* cx, CheckIsObjectKind kind)
 {
     switch (kind) {
       case CheckIsObjectKind::IteratorNext:
-        JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_NEXT_RETURNED_PRIMITIVE);
+        JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                                  JSMSG_ITER_METHOD_RETURNED_PRIMITIVE, "next");
+        break;
+      case CheckIsObjectKind::IteratorReturn:
+        JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                                  JSMSG_ITER_METHOD_RETURNED_PRIMITIVE, "return");
+        break;
+      case CheckIsObjectKind::IteratorThrow:
+        JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr,
+                                  JSMSG_ITER_METHOD_RETURNED_PRIMITIVE, "throw");
         break;
       case CheckIsObjectKind::GetIterator:
         JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_GET_ITER_RETURNED_PRIMITIVE);
+        break;
+      default:
+        MOZ_CRASH("Unknown kind");
+    }
+    return false;
+}
+
+bool
+js::ThrowCheckIsCallable(JSContext* cx, CheckIsCallableKind kind)
+{
+    switch (kind) {
+      case CheckIsCallableKind::IteratorReturn:
+        JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_RETURN_NOT_CALLABLE);
         break;
       default:
         MOZ_CRASH("Unknown kind");

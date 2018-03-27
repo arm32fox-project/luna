@@ -783,6 +783,7 @@ class IonBuilder
     MOZ_MUST_USE bool jsop_debugger();
     MOZ_MUST_USE bool jsop_newtarget();
     MOZ_MUST_USE bool jsop_checkisobj(uint8_t kind);
+    MOZ_MUST_USE bool jsop_checkiscallable(uint8_t kind);
     MOZ_MUST_USE bool jsop_checkobjcoercible();
     MOZ_MUST_USE bool jsop_pushcallobj();
 
@@ -1242,7 +1243,7 @@ class IonBuilder
     Vector<ControlFlowInfo, 4, JitAllocPolicy> loops_;
     Vector<ControlFlowInfo, 0, JitAllocPolicy> switches_;
     Vector<ControlFlowInfo, 2, JitAllocPolicy> labels_;
-    Vector<MInstruction*, 2, JitAllocPolicy> iterators_;
+    Vector<MDefinition*, 2, JitAllocPolicy> iterators_;
     Vector<LoopHeader, 0, JitAllocPolicy> loopHeaders_;
     BaselineInspector* inspector;
 

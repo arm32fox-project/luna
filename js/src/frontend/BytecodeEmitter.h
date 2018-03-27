@@ -100,7 +100,9 @@ struct CGScopeNoteList {
 
 struct CGYieldOffsetList {
     Vector<uint32_t> list;
-    explicit CGYieldOffsetList(ExclusiveContext* cx) : list(cx) {}
+    uint32_t numYields;
+    uint32_t numAwaits;
+    explicit CGYieldOffsetList(ExclusiveContext* cx) : list(cx), numYields(0), numAwaits(0) {}
 
     MOZ_MUST_USE bool append(uint32_t offset) { return list.append(offset); }
     size_t length() const { return list.length(); }
@@ -452,8 +454,6 @@ struct MOZ_STACK_CLASS BytecodeEmitter
 
     JSOp strictifySetNameOp(JSOp op);
 
-    MOZ_MUST_USE bool flushPops(int* npops);
-
     MOZ_MUST_USE bool emitCheck(ptrdiff_t delta, ptrdiff_t* offset);
 
     // Emit one bytecode.
@@ -472,6 +472,9 @@ struct MOZ_STACK_CLASS BytecodeEmitter
 
     // Helper to emit JSOP_CHECKISOBJ.
     MOZ_MUST_USE bool emitCheckIsObj(CheckIsObjectKind kind);
+
+    // Helper to emit JSOP_CHECKISCALLABLE.
+    MOZ_MUST_USE bool emitCheckIsCallable(CheckIsCallableKind kind);
 
     // Emit a bytecode followed by an uint16 immediate operand stored in
     // big-endian order.
@@ -679,6 +682,12 @@ struct MOZ_STACK_CLASS BytecodeEmitter
     // Pops iterator from the top of the stack. Pushes the result of |.next()|
     // onto the stack.
     MOZ_MUST_USE bool emitIteratorNext(ParseNode* pn, bool allowSelfHosted = false);
+    MOZ_MUST_USE bool emitIteratorClose(CompletionKind completionKind = CompletionKind::Normal,
+                                        bool allowSelfHosted = false);
+
+    template <typename InnerEmitter>
+    MOZ_MUST_USE bool wrapWithDestructuringIteratorCloseTryNote(int32_t iterDepth,
+                                                                InnerEmitter emitter);
 
     // Check if the value on top of the stack is "undefined". If so, replace
     // that value on the stack with the value defined by |defaultExpr|.
@@ -726,7 +735,7 @@ struct MOZ_STACK_CLASS BytecodeEmitter
     MOZ_MUST_USE bool emitSelfHostedCallFunction(ParseNode* pn);
     MOZ_MUST_USE bool emitSelfHostedResumeGenerator(ParseNode* pn);
     MOZ_MUST_USE bool emitSelfHostedForceInterpreter(ParseNode* pn);
-    MOZ_MUST_USE bool emitSelfHostedAllowContentSpread(ParseNode* pn);
+    MOZ_MUST_USE bool emitSelfHostedAllowContentIter(ParseNode* pn);
 
     MOZ_MUST_USE bool emitComprehensionFor(ParseNode* compFor);
     MOZ_MUST_USE bool emitComprehensionForIn(ParseNode* pn);
