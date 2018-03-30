@@ -13,11 +13,7 @@ MOZ_PKG_MANIFEST = $(srcdir)/package-manifest.in
 MOZ_PKG_DUPEFLAGS = -f $(srcdir)/allowed-dupes.mn
 
 # Some files have been already bundled with xulrunner
-ifndef MOZ_MULET
 MOZ_PKG_FATAL_WARNINGS = 1
-else
-DEFINES += -DMOZ_MULET
-endif
 
 # When packaging an artifact build not all xpt files expected by the
 # packager will be present.
@@ -60,9 +56,6 @@ ifdef MOZ_ANGLE_RENDERER
 DEFINES += -DMOZ_ANGLE_RENDERER=$(MOZ_ANGLE_RENDERER)
 ifdef MOZ_D3DCOMPILER_VISTA_DLL
 DEFINES += -DMOZ_D3DCOMPILER_VISTA_DLL=$(MOZ_D3DCOMPILER_VISTA_DLL)
-endif
-ifdef MOZ_D3DCOMPILER_XP_DLL
-DEFINES += -DMOZ_D3DCOMPILER_XP_DLL=$(MOZ_D3DCOMPILER_XP_DLL)
 endif
 endif
 

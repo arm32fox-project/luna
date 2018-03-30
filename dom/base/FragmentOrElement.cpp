@@ -574,6 +574,9 @@ FragmentOrElement::nsDOMSlots::Traverse(nsCycleCollectionTraversalCallback &cb, 
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mChildrenList");
   cb.NoteXPCOMChild(NS_ISUPPORTS_CAST(nsIDOMNodeList*, mChildrenList));
 
+  NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mLabelsList");
+  cb.NoteXPCOMChild(NS_ISUPPORTS_CAST(nsIDOMNodeList*, mLabelsList));
+
   NS_CYCLE_COLLECTION_NOTE_EDGE_NAME(cb, "mSlots->mClassList");
   cb.NoteXPCOMChild(mClassList.get());
 
@@ -602,6 +605,7 @@ FragmentOrElement::nsDOMSlots::Unlink(bool aIsXUL)
   mShadowRoot = nullptr;
   mContainingShadow = nullptr;
   mChildrenList = nullptr;
+  mLabelsList = nullptr;
   mCustomElementData = nullptr;
   mClassList = nullptr;
 }
@@ -1827,7 +1831,8 @@ NS_IMPL_CYCLE_COLLECTION_TRAVERSE_BEGIN_INTERNAL(FragmentOrElement)
     }
 
     nsAutoString classes;
-    const nsAttrValue* classAttrValue = tmp->GetClasses();
+    const nsAttrValue* classAttrValue = tmp->IsElement() ?
+      tmp->AsElement()->GetClasses() : nullptr;
     if (classAttrValue) {
       classes.AppendLiteral(" class='");
       nsAutoString classString;

@@ -607,10 +607,6 @@
 #ifdef MOZ_D3DCOMPILER_VISTA_DLL
 @BINPATH@/@MOZ_D3DCOMPILER_VISTA_DLL@
 #endif
-
-#ifdef MOZ_D3DCOMPILER_XP_DLL
-@BINPATH@/@MOZ_D3DCOMPILER_XP_DLL@
-#endif
 #endif # MOZ_ANGLE_RENDERER
 
 ; [Browser Chrome Files]
@@ -825,15 +821,13 @@ bin/libfreebl_32int64_3.so
 
 
 ; media
+#ifdef MOZ_EME
 @RESPATH@/gmp-clearkey/0.1/@DLL_PREFIX@clearkey@DLL_SUFFIX@
 @RESPATH@/gmp-clearkey/0.1/clearkey.info
+#endif
 
 ; gfx
 #ifdef XP_WIN
 @RESPATH@/components/GfxSanityTest.manifest
 @RESPATH@/components/SanityTest.js
-#endif
-
-#ifdef MOZ_MULET
-#include ../../b2g/installer/package-manifest.in
 #endif

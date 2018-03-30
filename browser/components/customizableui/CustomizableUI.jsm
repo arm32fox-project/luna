@@ -207,15 +207,6 @@ var CustomizableUIInternal = {
       panelPlacements.splice(-1, 0, "developer-button");
     }
 
-    if (AppConstants.E10S_TESTING_ONLY) {
-      if (gPalette.has("e10s-button")) {
-        let newWindowIndex = panelPlacements.indexOf("new-window-button");
-        if (newWindowIndex > -1) {
-          panelPlacements.splice(newWindowIndex + 1, 0, "e10s-button");
-        }
-      }
-    }
-
     let showCharacterEncoding = Services.prefs.getComplexValue(
       "browser.menu.showCharacterEncoding",
       Ci.nsIPrefLocalizedString
@@ -262,24 +253,14 @@ var CustomizableUIInternal = {
       defaultCollapsed: false,
     }, true);
 
-    if (AppConstants.platform != "macosx") {
+    if (AppConstants.MENUBAR_CAN_AUTOHIDE) {
       this.registerArea(CustomizableUI.AREA_MENUBAR, {
         legacy: true,
         type: CustomizableUI.TYPE_TOOLBAR,
         defaultPlacements: [
           "menubar-items",
         ],
-        get defaultCollapsed() {
-          if (AppConstants.MENUBAR_CAN_AUTOHIDE) {
-            if (AppConstants.platform == "linux") {
-              return true;
-            }
-            // This is duplicated logic from /browser/base/jar.mn
-            // for win6BrowserOverlay.xul.
-            return AppConstants.isPlatformAndVersionAtLeast("win", 6);
-          }
-          return false;
-        }
+        defaultCollapsed: true,
       }, true);
     }
 

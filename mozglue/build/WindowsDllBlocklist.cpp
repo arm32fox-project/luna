@@ -67,7 +67,6 @@ struct DllBlockInfo {
   enum {
     FLAGS_DEFAULT = 0,
     BLOCK_WIN8PLUS_ONLY = 1,
-    BLOCK_XP_ONLY = 2,
     USE_TIMESTAMP = 4,
   } flags;
 };
@@ -155,9 +154,6 @@ static DllBlockInfo sWindowsDllBlocklist[] = {
 
   // Topcrash with Conduit SearchProtect, bug 944542
   { "spvc32.dll", ALL_VERSIONS },
-
-  // XP topcrash with F-Secure, bug 970362
-  { "fs_ccf_ni_umh32.dll", MAKE_VERSION(1, 42, 101, 0), DllBlockInfo::BLOCK_XP_ONLY },
 
   // Topcrash with V-bates, bug 1002748 and bug 1023239
   { "libinject.dll", UNVERSIONED },
@@ -676,11 +672,6 @@ patched_LdrLoadDll (PWCHAR filePath, PULONG flags, PUNICODE_STRING moduleFileNam
       goto continue_loading;
     }
 
-    if ((info->flags == DllBlockInfo::BLOCK_XP_ONLY) &&
-        IsWin2003OrLater()) {
-      goto continue_loading;
-    }
-
     unsigned long long fVersion = ALL_VERSIONS;
 
     if (info->maxVersion != ALL_VERSIONS) {
@@ -749,7 +740,7 @@ continue_loading:
       return STATUS_DLL_NOT_FOUND;
     }
 
-    if (IsVistaOrLater() && !CheckASLR(full_fname.get())) {
+    if (!CheckASLR(full_fname.get())) {
       printf_stderr("LdrLoadDll: Blocking load of '%s'.  XPCOM components must support ASLR.\n", dllName);
       return STATUS_DLL_NOT_FOUND;
     }

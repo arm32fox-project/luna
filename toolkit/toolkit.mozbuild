@@ -132,8 +132,10 @@ DIRS += [
 if CONFIG['MOZ_PREF_EXTENSIONS']:
     DIRS += ['/extensions/pref']
 
+if CONFIG['MOZ_DEVTOOLS_SERVER']:
+    DIRS += ['/devtools']
+
 DIRS += [
-    '/devtools',
     '/services',
     '/startupcache',
     '/js/ductwork/debugger',
@@ -142,12 +144,6 @@ DIRS += [
 
 if CONFIG['MOZ_GIO_COMPONENT']:
     DIRS += ['/extensions/gio']
-
-if CONFIG['MOZ_RUST']:
-    DIRS += [
-        '/toolkit/library/gtest/rust',
-        '/toolkit/library/rust',
-    ]
 
 DIRS += [
     '/toolkit/library/StaticXULComponentsEnd',
@@ -165,8 +161,12 @@ if CONFIG['ENABLE_MARIONETTE'] or CONFIG['MOZ_WIDGET_TOOLKIT'] not in ('gonk', '
 
 DIRS += [
     '/tools/quitter',
-    '/media/gmp-clearkey/0.1',
 ]
+
+if CONFIG['MOZ_EME']:
+    DIRS += [
+    '/media/gmp-clearkey/0.1',
+    ]
 
 if CONFIG['ENABLE_TESTS']:
     DIRS += [

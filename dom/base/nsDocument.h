@@ -1267,7 +1267,9 @@ public:
 
   js::ExpandoAndGeneration mExpandoAndGeneration;
 
+#ifdef MOZ_EME
   bool ContainsEMEContent();
+#endif
 
   bool ContainsMSEContent();
 
@@ -1491,7 +1493,6 @@ private:
   void PostUnblockOnloadEvent();
   void DoUnblockOnload();
 
-  nsresult CheckFrameOptions();
   nsresult InitCSP(nsIChannel* aChannel);
 
   /**

@@ -28,9 +28,8 @@
                   id="react-filter-buttons-hook"/>
         <spacer id="requests-menu-spacer"
                 flex="1"/>
-        <toolbarbutton id="requests-menu-network-summary-button"
-                       class="devtools-toolbarbutton icon-and-text"
-                       data-localization="tooltiptext=netmonitor.toolbar.perf"/>
+        <html:div xmlns="http://www.w3.org/1999/xhtml"
+                  id="react-summary-button-hook"/>
         <html:div xmlns="http://www.w3.org/1999/xhtml"
                   id="react-search-box-hook"/>
         <html:div xmlns="http://www.w3.org/1999/xhtml"
@@ -479,6 +478,14 @@
                     <hbox class="requests-menu-timings-box connect"/>
                     <label class="plain requests-menu-timings-total"/>
                   </hbox>
+                  <hbox id="timings-summary-ssl"
+                        class="tabpanel-summary-container"
+                        align="center">
+                    <label class="plain tabpanel-summary-label"
+                           data-localization="content=netmonitor.timings.ssl"/>
+                    <hbox class="requests-menu-timings-box ssl"/>
+                    <label class="plain requests-menu-timings-total"/>
+                  </hbox>
                   <hbox id="timings-summary-send"
                         class="tabpanel-summary-container"
                         align="center">
@@ -550,6 +557,26 @@
                           <image class="security-warning-icon"
                                  id="security-warning-cipher"
                                  data-localization="tooltiptext=netmonitor.security.warning.cipher" />
+                        </hbox>
+                        <hbox id="security-keagroup"
+                              class="tabpanel-summary-container"
+                              align="baseline">
+                          <label class="plain tabpanel-summary-label"
+                                 data-localization="content=netmonitor.security.keaGroup"/>
+                          <textbox id="security-keagroup-value"
+                                   class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
+                                   flex="1"
+                                   readonly="true"/>
+                        </hbox>
+                        <hbox id="security-signaturescheme"
+                              class="tabpanel-summary-container"
+                              align="baseline">
+                          <label class="plain tabpanel-summary-label"
+                                 data-localization="content=netmonitor.security.signatureScheme"/>
+                          <textbox id="security-signaturescheme-value"
+                                   class="plain tabpanel-summary-value devtools-monospace cropped-textbox"
+                                   flex="1"
+                                   readonly="true"/>
                         </hbox>
                       </vbox>
                     </vbox>

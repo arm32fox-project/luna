@@ -230,7 +230,7 @@ CSP_ContentTypeToDirective(nsContentPolicyType aType)
     case nsIContentPolicy::TYPE_INTERNAL_WORKER:
     case nsIContentPolicy::TYPE_INTERNAL_SHARED_WORKER:
     case nsIContentPolicy::TYPE_INTERNAL_SERVICE_WORKER:
-      return nsIContentSecurityPolicy::CHILD_SRC_DIRECTIVE;
+      return nsIContentSecurityPolicy::WORKER_SRC_DIRECTIVE;
 
     case nsIContentPolicy::TYPE_SUBDOCUMENT:
       return nsIContentSecurityPolicy::FRAME_SRC_DIRECTIVE;
@@ -266,20 +266,21 @@ CSP_ContentTypeToDirective(nsContentPolicyType aType)
 }
 
 nsCSPHostSrc*
-CSP_CreateHostSrcFromURI(nsIURI* aURI)
+CSP_CreateHostSrcFromSelfURI(nsIURI* aSelfURI)
 {
   // Create the host first
   nsCString host;
-  aURI->GetHost(host);
+  aSelfURI->GetAsciiHost(host);
   nsCSPHostSrc *hostsrc = new nsCSPHostSrc(NS_ConvertUTF8toUTF16(host));
+  hostsrc->setGeneratedFromSelfKeyword();
 
   // Add the scheme.
   nsCString scheme;
-  aURI->GetScheme(scheme);
+  aSelfURI->GetScheme(scheme);
   hostsrc->setScheme(NS_ConvertUTF8toUTF16(scheme));
 
   int32_t port;
-  aURI->GetPort(&port);
+  aSelfURI->GetPort(&port);
   // Only add port if it's not default port.
   if (port > 0) {
     nsAutoString portStr;
@@ -348,13 +349,17 @@ CSP_IsQuotelessKeyword(const nsAString& aKey)
  * @param aUpgradeInsecure
  *        Whether the policy makes use of the directive
  *        'upgrade-insecure-requests'.
+ * @param aFromSelfURI
+ *        Whether a scheme was generated from the keyword 'self'
+ *        which then allows schemeless sources to match ws and wss.
  */
 
 bool
 permitsScheme(const nsAString& aEnforcementScheme,
               nsIURI* aUri,
               bool aReportOnly,
-              bool aUpgradeInsecure)
+              bool aUpgradeInsecure,
+              bool aFromSelfURI)
 {
   nsAutoCString scheme;
   nsresult rv = aUri->GetScheme(scheme);
@@ -373,8 +378,20 @@ permitsScheme(const nsAString& aEnforcementScheme,
   // allow scheme-less sources where the protected resource is http
   // and the load is https, see:
   // http://www.w3.org/TR/CSP2/#match-source-expression
-  if (aEnforcementScheme.EqualsASCII("http") &&
-      scheme.EqualsASCII("https")) {
+  if (aEnforcementScheme.EqualsASCII("http")) {
+    if (scheme.EqualsASCII("https")) {
+      return true;
+    }
+    if ((scheme.EqualsASCII("ws") || scheme.EqualsASCII("wss")) && aFromSelfURI) {
+      return true;
+    }
+  }
+  if (aEnforcementScheme.EqualsASCII("https")) {
+    if (scheme.EqualsLiteral("wss") && aFromSelfURI) {
+      return true;
+    }
+  }
+  if (aEnforcementScheme.EqualsASCII("ws") && scheme.EqualsASCII("wss")) {
     return true;
   }
 
@@ -483,7 +500,7 @@ nsCSPSchemeSrc::permits(nsIURI* aUri, const nsAString& aNonce, bool aWasRedirect
   if (mInvalidated) {
     return false;
   }
-  return permitsScheme(mScheme, aUri, aReportOnly, aUpgradeInsecure);
+  return permitsScheme(mScheme, aUri, aReportOnly, aUpgradeInsecure, false);
 }
 
 bool
@@ -503,6 +520,7 @@ nsCSPSchemeSrc::toString(nsAString& outStr) const
 
 nsCSPHostSrc::nsCSPHostSrc(const nsAString& aHost)
   : mHost(aHost)
+  , mGeneratedFromSelfKeyword(false)
   , mWithinFrameAncstorsDir(false)
 {
   ToLowerCase(mHost);
@@ -612,7 +630,7 @@ nsCSPHostSrc::permits(nsIURI* aUri, const nsAString& aNonce, bool aWasRedirected
   // http://www.w3.org/TR/CSP11/#match-source-expression
 
   // 4.3) scheme matching: Check if the scheme matches.
-  if (!permitsScheme(mScheme, aUri, aReportOnly, aUpgradeInsecure)) {
+  if (!permitsScheme(mScheme, aUri, aReportOnly, aUpgradeInsecure, mGeneratedFromSelfKeyword)) {
     return false;
   }
 
@@ -643,7 +661,7 @@ nsCSPHostSrc::permits(nsIURI* aUri, const nsAString& aNonce, bool aWasRedirected
   // Before we can check if the host matches, we have to
   // extract the host part from aUri.
   nsAutoCString uriHost;
-  nsresult rv = aUri->GetHost(uriHost);
+  nsresult rv = aUri->GetAsciiHost(uriHost);
   NS_ENSURE_SUCCESS(rv, false);
 
   nsString decodedUriHost;
@@ -1166,6 +1184,11 @@ nsCSPDirective::toDomCSPStruct(mozilla::dom::CSP& outCSP) const
       outCSP.mSandbox.Value() = mozilla::Move(srcs);
       return;
 
+    case nsIContentSecurityPolicy::WORKER_SRC_DIRECTIVE:
+      outCSP.mWorker_src.Construct();
+      outCSP.mWorker_src.Value() = mozilla::Move(srcs);
+      return;
+
     // REFERRER_DIRECTIVE and REQUIRE_SRI_FOR are handled in nsCSPPolicy::toDomCSPStruct()
 
     default:
@@ -1218,7 +1241,8 @@ bool nsCSPDirective::equals(CSPDirective aDirective) const
 
 nsCSPChildSrcDirective::nsCSPChildSrcDirective(CSPDirective aDirective)
   : nsCSPDirective(aDirective)
-  , mHandleFrameSrc(false)
+  , mRestrictFrames(false)
+  , mRestrictWorkers(false)
 {
 }
 
@@ -1226,30 +1250,58 @@ nsCSPChildSrcDirective::~nsCSPChildSrcDirective()
 {
 }
 
-void nsCSPChildSrcDirective::setHandleFrameSrc()
-{
-  mHandleFrameSrc = true;
-}
-
 bool nsCSPChildSrcDirective::restrictsContentType(nsContentPolicyType aContentType) const
 {
   if (aContentType == nsIContentPolicy::TYPE_SUBDOCUMENT) {
-    return mHandleFrameSrc;
+    return mRestrictFrames;
   }
-
-  return (aContentType == nsIContentPolicy::TYPE_INTERNAL_WORKER
-      || aContentType == nsIContentPolicy::TYPE_INTERNAL_SHARED_WORKER
-      || aContentType == nsIContentPolicy::TYPE_INTERNAL_SERVICE_WORKER
-      );
+  if (aContentType == nsIContentPolicy::TYPE_INTERNAL_WORKER ||
+      aContentType == nsIContentPolicy::TYPE_INTERNAL_SHARED_WORKER ||
+      aContentType == nsIContentPolicy::TYPE_INTERNAL_SERVICE_WORKER) {
+    return mRestrictWorkers;
+  }
+  return false;
 }
 
 bool nsCSPChildSrcDirective::equals(CSPDirective aDirective) const
 {
   if (aDirective == nsIContentSecurityPolicy::FRAME_SRC_DIRECTIVE) {
-    return mHandleFrameSrc;
+    return mRestrictFrames;
   }
+  if (aDirective == nsIContentSecurityPolicy::WORKER_SRC_DIRECTIVE) {
+    return mRestrictWorkers;
+  }
+  return (mDirective == aDirective);
+}
 
-  return (aDirective == nsIContentSecurityPolicy::CHILD_SRC_DIRECTIVE);
+/* =============== nsCSPScriptSrcDirective ============= */
+
+nsCSPScriptSrcDirective::nsCSPScriptSrcDirective(CSPDirective aDirective)
+  : nsCSPDirective(aDirective)
+  , mRestrictWorkers(false)
+{
+}
+
+nsCSPScriptSrcDirective::~nsCSPScriptSrcDirective()
+{
+}
+
+bool nsCSPScriptSrcDirective::restrictsContentType(nsContentPolicyType aContentType) const
+{
+  if (aContentType == nsIContentPolicy::TYPE_INTERNAL_WORKER ||
+      aContentType == nsIContentPolicy::TYPE_INTERNAL_SHARED_WORKER ||
+      aContentType == nsIContentPolicy::TYPE_INTERNAL_SERVICE_WORKER) {
+    return mRestrictWorkers;
+  }
+  return mDirective == CSP_ContentTypeToDirective(aContentType);
+}
+
+bool nsCSPScriptSrcDirective::equals(CSPDirective aDirective) const
+{
+  if (aDirective == nsIContentSecurityPolicy::WORKER_SRC_DIRECTIVE) {
+    return mRestrictWorkers;
+  }
+  return (mDirective == aDirective);
 }
 
 /* =============== nsBlockAllMixedContentDirective ============= */

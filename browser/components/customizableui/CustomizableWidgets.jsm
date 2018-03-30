@@ -1187,10 +1187,7 @@ let preferencesButton = {
     win.openPreferences();
   }
 };
-if (AppConstants.platform == "win") {
-  preferencesButton.label = "preferences-button.labelWin";
-  preferencesButton.tooltiptext = "preferences-button.tooltipWin2";
-} else if (AppConstants.platform == "macosx") {
+if (AppConstants.platform == "macosx") {
   preferencesButton.tooltiptext = "preferences-button.tooltiptext.withshortcut";
   preferencesButton.shortcutId = "key_preferencesCmdMac";
 } else {
@@ -1260,22 +1257,4 @@ if (Services.prefs.getBoolPref("privacy.panicButton.enabled")) {
       forgetButton.removeEventListener("command", this);
     },
   });
-}
-
-if (AppConstants.E10S_TESTING_ONLY) {
-  if (Services.appinfo.browserTabsRemoteAutostart) {
-    CustomizableWidgets.push({
-      id: "e10s-button",
-      defaultArea: CustomizableUI.AREA_PANEL,
-      onBuild: function(aDocument) {
-        let node = aDocument.createElementNS(kNSXUL, "toolbarbutton");
-        node.setAttribute("label", CustomizableUI.getLocalizedProperty(this, "label"));
-        node.setAttribute("tooltiptext", CustomizableUI.getLocalizedProperty(this, "tooltiptext"));
-      },
-      onCommand: function(aEvent) {
-        let win = aEvent.view;
-        win.OpenBrowserWindow({remote: false});
-      },
-    });
-  }
 }

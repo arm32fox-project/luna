@@ -98,7 +98,6 @@
 #include <intrin.h>
 #include <math.h>
 #include "cairo/cairo-features.h"
-#include "mozilla/WindowsVersion.h"
 #include "mozilla/mscom/MainThreadRuntime.h"
 #include "mozilla/widget/AudioSession.h"
 
@@ -1590,28 +1589,29 @@ DumpHelp()
 
 #ifdef MOZ_X11
   printf("X11 options\n"
-         "  --display=DISPLAY  X display to use\n"
-         "  --sync             Make X calls synchronous\n");
+         "  --display=DISPLAY                            X display to use.\n"
+         "  --sync                                       Make X calls synchronous.\n");
 #endif
 #ifdef XP_UNIX
-  printf("  --g-fatal-warnings Make all warnings fatal\n"
+  printf("  --g-fatal-warnings                           Make all warnings fatal.\n"
          "\n%s options\n", gAppData->name);
 #endif
 
-  printf("  -h or --help       Print this message.\n"
-         "  -v or --version    Print %s version.\n"
-         "  -P <profile>       Start with <profile>.\n"
-         "  --profile <path>   Start with profile at <path>.\n"
-         "  --migration        Start with migration wizard.\n"
-         "  --ProfileManager   Start with ProfileManager.\n"
-         "  --no-remote        Do not accept or send remote commands; implies\n"
-         "                     --new-instance.\n"
-         "  --new-instance     Open new instance, not a new window in running instance.\n"
-         "  --UILocale <locale> Start with <locale> resources as UI Locale.\n"
-         "  --safe-mode        Disables extensions and themes for this session.\n", gAppData->name);
+  printf("  -h or --help                                 Print this message.\n"
+         "  -v or --version                              Print %s version.\n"
+         "  -P <profile>                                 Start with <profile>.\n"
+         "  --profile <path>                             Start with profile at <path>.\n"
+         "  --migration                                  Start with migration wizard.\n"
+         "  --ProfileManager                             Start with ProfileManager.\n"
+         "  --no-remote                                  Do not accept or send remote commands;\n"
+         "                                               implies --new-instance.\n"
+         "  --new-instance                               Open new instance, not a new window\n"
+         "                                               in running instance.\n"
+         "  --UILocale <locale>                          Start with <locale> resources as UI Locale.\n"
+         "  --safe-mode                                  Disables extensions and themes for this session.\n", (const char*) gAppData->name);
 
 #if defined(XP_WIN)
-  printf("  --console          Start %s with a debugging console.\n", gAppData->name);
+  printf("  --console                                    Start %s with a debugging console.\n", (const char*) gAppData->name);
 #endif
 
   // this works, but only after the components have registered.  so if you drop in a new command line handler, --help
@@ -3106,10 +3106,7 @@ XREMain::XRE_mainInit(bool* aExitFlag)
     // manual font file I/O on _all_ system fonts.  To avoid this, load the
     // dwrite library and create a factory as early as possible so that the
     // FntCache service is ready by the time it's needed.
-
-    if (IsVistaOrLater()) {
-      CreateThread(nullptr, 0, &InitDwriteBG, nullptr, 0, nullptr);
-    }
+    CreateThread(nullptr, 0, &InitDwriteBG, nullptr, 0, nullptr);
   }
 #endif
 
@@ -4835,7 +4832,7 @@ enum {
   kE10sDisabledForAddons = 7,
   kE10sForceDisabled = 8,
   // kE10sDisabledForXPAcceleration = 9, removed in bug 1296353
-  kE10sDisabledForOperatingSystem = 10,
+  // kE10sDisabledForOperatingSystem = 10, removed due to xp-eol
 };
 
 const char* kAccessibilityLastRunDatePref = "accessibility.lastLoadDate";
@@ -4911,19 +4908,6 @@ MultiprocessBlockPolicy() {
     return gMultiprocessBlockPolicy;
   }
 #endif
-
-  /**
-   * Avoids enabling e10s for Windows XP users on the release channel.
-   */
-#if defined(XP_WIN)
-  if (!IsVistaOrLater()) {
-    nsAdoptingCString channelName = Preferences::GetDefaultCString("app.update.channel");
-    if (channelName.EqualsLiteral("release") || channelName.EqualsLiteral("esr")) {
-      gMultiprocessBlockPolicy = kE10sDisabledForOperatingSystem;
-      return gMultiprocessBlockPolicy;
-    }
-  }
-#endif // XP_WIN
 
   /*
    * None of the blocking policies matched, so e10s is allowed to run.

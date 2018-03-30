@@ -34,12 +34,6 @@
                           accesskey="&newPrivateWindow.accesskey;"
                           command="Tools:PrivateBrowsing"
                           key="key_privatebrowsing"/>
-#ifdef E10S_TESTING_ONLY
-                <menuitem id="menu_newNonRemoteWindow"
-                          label="&newNonRemoteWindow.label;"
-                          hidden="true"
-                          command="Tools:NonRemoteWindow"/>
-#endif
 #ifdef MAC_NON_BROWSER_WINDOW
                 <menuitem id="menu_openLocation"
                           label="&openLocationCmd.label;"
@@ -179,15 +173,6 @@
                           label="&bidiSwitchTextDirectionItem.label;"
                           accesskey="&bidiSwitchTextDirectionItem.accesskey;"
                           hidden="true"/>
-#ifdef XP_UNIX
-#ifndef XP_MACOSX
-                <menuseparator/>
-                <menuitem id="menu_preferences"
-                          label="&preferencesCmdUnix.label;"
-                          accesskey="&preferencesCmdUnix.accesskey;"
-                          oncommand="openPreferences();"/>
-#endif
-#endif
               </menupopup>
             </menu>
 
@@ -521,13 +506,11 @@
                 <menupopup id="menu_mirrorTab-popup"
                            onpopupshowing="populateMirrorTabMenu(this)"/>
               </menu>
-#ifndef XP_UNIX
               <menuseparator id="prefSep"/>
               <menuitem id="menu_preferences"
                         label="&preferencesCmd2.label;"
                         accesskey="&preferencesCmd2.accesskey;"
                         oncommand="openPreferences();"/>
-#endif
               </menupopup>
             </menu>
 

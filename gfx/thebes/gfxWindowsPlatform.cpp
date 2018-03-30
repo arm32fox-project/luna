@@ -146,9 +146,6 @@ public:
 
 NS_IMPL_ISUPPORTS(GfxD2DVramReporter, nsIMemoryReporter)
 
-#define GFX_USE_CLEARTYPE_ALWAYS "gfx.font_rendering.cleartype.always_use_for_content"
-#define GFX_DOWNLOADABLE_FONTS_USE_CLEARTYPE "gfx.font_rendering.cleartype.use_for_downloadable_fonts"
-
 #define GFX_CLEARTYPE_PARAMS           "gfx.font_rendering.cleartype_params."
 #define GFX_CLEARTYPE_PARAMS_GAMMA     "gfx.font_rendering.cleartype_params.gamma"
 #define GFX_CLEARTYPE_PARAMS_CONTRAST  "gfx.font_rendering.cleartype_params.enhanced_contrast"
@@ -193,10 +190,6 @@ public:
 
         HMODULE gdi32Handle;
         PFND3DKMTQS queryD3DKMTStatistics = nullptr;
-
-        // GPU memory reporting is not available before Windows 7
-        if (!IsWin7OrLater())
-            return NS_OK;
 
         if ((gdi32Handle = LoadLibrary(TEXT("gdi32.dll"))))
             queryD3DKMTStatistics = (PFND3DKMTQS)GetProcAddress(gdi32Handle, "D3DKMTQueryStatistics");
@@ -320,9 +313,6 @@ NS_IMPL_ISUPPORTS(D3DSharedTexturesReporter, nsIMemoryReporter)
 gfxWindowsPlatform::gfxWindowsPlatform()
   : mRenderMode(RENDER_GDI)
 {
-  mUseClearTypeForDownloadableFonts = UNINITIALIZED_VALUE;
-  mUseClearTypeAlways = UNINITIALIZED_VALUE;
-
   /*
    * Initialize COM
    */
@@ -402,10 +392,6 @@ gfxWindowsPlatform::CanUseHardwareVideoDecoding()
 bool
 gfxWindowsPlatform::InitDWriteSupport()
 {
-  if (!IsVistaOrLater()) {
-    return false;
-  }
-
   // DWrite is only supported on Windows 7 with the platform update and higher.
   // We check this by seeing if D2D1 support is available.
   if (!Factory::SupportsD2D1()) {
@@ -997,26 +983,6 @@ gfxWindowsPlatform::GetPlatformCMSOutputProfile(void* &mem, size_t &mem_size)
 #endif // _WIN32
 }
 
-bool
-gfxWindowsPlatform::UseClearTypeForDownloadableFonts()
-{
-    if (mUseClearTypeForDownloadableFonts == UNINITIALIZED_VALUE) {
-        mUseClearTypeForDownloadableFonts = Preferences::GetBool(GFX_DOWNLOADABLE_FONTS_USE_CLEARTYPE, true);
-    }
-
-    return mUseClearTypeForDownloadableFonts;
-}
-
-bool
-gfxWindowsPlatform::UseClearTypeAlways()
-{
-    if (mUseClearTypeAlways == UNINITIALIZED_VALUE) {
-        mUseClearTypeAlways = Preferences::GetBool(GFX_USE_CLEARTYPE_ALWAYS, false);
-    }
-
-    return mUseClearTypeAlways;
-}
-
 void
 gfxWindowsPlatform::GetDLLVersion(char16ptr_t aDLLPath, nsAString& aVersion)
 {
@@ -1160,14 +1126,7 @@ gfxWindowsPlatform::FontsPrefsChanged(const char *aPref)
 
     gfxPlatform::FontsPrefsChanged(aPref);
 
-    if (!aPref) {
-        mUseClearTypeForDownloadableFonts = UNINITIALIZED_VALUE;
-        mUseClearTypeAlways = UNINITIALIZED_VALUE;
-    } else if (!strcmp(GFX_DOWNLOADABLE_FONTS_USE_CLEARTYPE, aPref)) {
-        mUseClearTypeForDownloadableFonts = UNINITIALIZED_VALUE;
-    } else if (!strcmp(GFX_USE_CLEARTYPE_ALWAYS, aPref)) {
-        mUseClearTypeAlways = UNINITIALIZED_VALUE;
-    } else if (!strncmp(GFX_CLEARTYPE_PARAMS, aPref, strlen(GFX_CLEARTYPE_PARAMS))) {
+    if (aPref && !strncmp(GFX_CLEARTYPE_PARAMS, aPref, strlen(GFX_CLEARTYPE_PARAMS))) {
         SetupClearTypeParams();
     } else {
         clearTextFontCaches = false;
@@ -1415,17 +1374,13 @@ gfxWindowsPlatform::InitializeD3D9Config()
     return;
   }
 
-  if (!IsVistaOrLater()) {
-    d3d9.EnableByDefault();
-  } else {
-    d3d9.SetDefaultFromPref(
-      gfxPrefs::GetLayersAllowD3D9FallbackPrefName(),
-      true,
-      gfxPrefs::GetLayersAllowD3D9FallbackPrefDefault());
+  d3d9.SetDefaultFromPref(
+    gfxPrefs::GetLayersAllowD3D9FallbackPrefName(),
+    true,
+    gfxPrefs::GetLayersAllowD3D9FallbackPrefDefault());
 
-    if (!d3d9.IsEnabled() && gfxPrefs::LayersPreferD3D9()) {
-      d3d9.UserEnable("Direct3D9 enabled via layers.prefer-d3d9");
-    }
+  if (!d3d9.IsEnabled() && gfxPrefs::LayersPreferD3D9()) {
+    d3d9.UserEnable("Direct3D9 enabled via layers.prefer-d3d9");
   }
 
   nsCString message;
@@ -1596,11 +1551,6 @@ gfxWindowsPlatform::InitializeD2DConfig()
                           NS_LITERAL_CSTRING("FEATURE_FAILURE_D2D_D3D11_COMP"));
     return;
   }
-  if (!IsVistaOrLater()) {
-    d2d1.DisableByDefault(FeatureStatus::Unavailable, "Direct2D is not available on Windows XP",
-                          NS_LITERAL_CSTRING("FEATURE_FAILURE_D2D_XP"));
-    return;
-  }
 
   d2d1.SetDefaultFromPref(
     gfxPrefs::GetDirect2DDisabledPrefName(),
@@ -1692,14 +1642,12 @@ gfxWindowsPlatform::InitGPUProcessSupport()
       "Not using GPU Process since D3D11 is unavailable",
       NS_LITERAL_CSTRING("FEATURE_FAILURE_NO_D3D11"));
   } else if (!IsWin7SP1OrLater()) {
-    // For Windows XP, we simply don't care enough to support this
-    // configuration. On Windows Vista and 7 Pre-SP1, DXGI 1.2 is not
-    // available and remote presentation for D3D11 will not work. Rather
-    // than take a regression and use D3D9, we revert back to in-process
-    // rendering.
+    // On Windows 7 Pre-SP1, DXGI 1.2 is not available and remote presentation
+    // for D3D11 will not work. Rather than take a regression and use D3D9, we
+    // revert back to in-process rendering.
     gpuProc.Disable(
       FeatureStatus::Unavailable,
-      "Windows XP, Vista, and 7 Pre-SP1 cannot use the GPU process",
+      "Windows 7 Pre-SP1 cannot use the GPU process",
       NS_LITERAL_CSTRING("FEATURE_FAILURE_OLD_WINDOWS"));
   } else if (!IsWin8OrLater()) {
     // Windows 7 SP1 can have DXGI 1.2 only via the Platform Update, so we
@@ -1722,10 +1670,6 @@ gfxWindowsPlatform::InitGPUProcessSupport()
 bool
 gfxWindowsPlatform::DwmCompositionEnabled()
 {
-  if (!IsVistaOrLater()) {
-    return false;
-  }
-
   MOZ_ASSERT(WinUtils::dwmIsCompositionEnabledPtr);
   BOOL dwmEnabled = false;
 

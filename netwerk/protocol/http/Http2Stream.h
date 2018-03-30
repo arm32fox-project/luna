@@ -50,6 +50,7 @@ public:
 
   uint32_t StreamID() { return mStreamID; }
   Http2PushedStream *PushSource() { return mPushSource; }
+  void ClearPushSource();
 
   stateType HTTPState() { return mState; }
   void SetHTTPState(stateType val) { mState = val; }
@@ -153,6 +154,10 @@ public:
   static nsresult MakeOriginURL(const nsACString &scheme,
                                 const nsACString &origin,
                                 RefPtr<nsStandardURL> &url);
+
+  // Mirrors nsAHttpTransaction
+  bool Do0RTT();
+  nsresult Finish0RTT(bool aRestart, bool aAlpnIgnored);
 
 protected:
   static void CreatePushHashKey(const nsCString &scheme,
@@ -327,6 +332,8 @@ private:
   // Used to store stream data when the transaction channel cannot keep up
   // and flow control has not yet kicked in.
   SimpleBuffer mSimpleBuffer;
+
+  bool mAttempting0RTT;
 
 /// connect tunnels
 public:

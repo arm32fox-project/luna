@@ -5,15 +5,13 @@
 include $(topsrcdir)/toolkit/mozapps/installer/package-name.mk
 
 CONFIG_DIR = instgen
-SFX_MODULE = $(topsrcdir)/other-licenses/7zstub/firefox/7zSD.sfx
+SFX_MODULE = $(topsrcdir)/other-licenses/7zstub/uxp/7zSD.sfx
 
 INSTALLER_FILES = \
 	app.tag \
 	nsis/installer.nsi \
 	nsis/uninstaller.nsi \
-	nsis/stub.nsi \
 	nsis/shared.nsh \
-	stub.tag \
 	$(NULL)
 
 ifdef MOZ_MAINTENANCE_SERVICE
@@ -25,11 +23,6 @@ endif
 BRANDING_FILES = \
 	branding.nsi \
 	appname.bmp \
-	bgintro.bmp \
-	clock.bmp \
-	particles.bmp \
-	pencil.bmp \
-	pencil-rtl.bmp \
 	wizHeader.bmp \
 	wizHeaderRTL.bmp \
 	wizWatermark.bmp \
@@ -90,9 +83,6 @@ $(CONFIG_DIR)/setup.exe::
 	  --preprocess-single-file $(topsrcdir) \
 	  $(PPL_LOCALE_ARGS) $(CONFIG_DIR) \
 	  nsisstrings.properties nsisstrings.nlf
-	$(PYTHON) $(topsrcdir)/toolkit/mozapps/installer/windows/nsis/preprocess-locale.py \
-	  --convert-utf8-utf16le \
-	  $(srcdir)/nsis/oneoff_en-US.nsh $(CONFIG_DIR)/oneoff_en-US.nsh
 
 GARBARGE_DIRS += instgen
 

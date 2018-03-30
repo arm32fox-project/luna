@@ -242,6 +242,7 @@
     _(Lambda)                       \
     _(LambdaArrow)                  \
     _(LambdaForSingleton)           \
+    _(SetFunName)                   \
     _(KeepAliveObject)              \
     _(Slots)                        \
     _(Elements)                     \
@@ -401,6 +402,7 @@
     _(ArrowNewTarget)               \
     _(CheckReturn)                  \
     _(CheckIsObj)                   \
+    _(CheckIsCallable)              \
     _(CheckObjCoercible)            \
     _(DebugCheckSelfHosted)         \
     _(AsmJSLoadHeap)                \

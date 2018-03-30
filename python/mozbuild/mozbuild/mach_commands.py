@@ -536,10 +536,6 @@ class Build(MachCommandBase):
                 # arguably make the build action useful for Fennec. Another day...
                 if self.substs['MOZ_BUILD_APP'] != 'mobile/android':
                     print('To take your build for a test drive, run: |mach run|')
-                app = self.substs['MOZ_BUILD_APP']
-                if app in ('browser', 'mobile/android'):
-                    print('For more information on what to do now, see '
-                        'https://developer.mozilla.org/docs/Developer_Guide/So_You_Just_Built_Firefox')
             except Exception:
                 # Ignore Exceptions in case we can't find config.status (such
                 # as when doing OSX Universal builds)
@@ -1074,6 +1070,24 @@ class Package(MachCommandBase):
         if ret == 0:
             self.notify('Packaging complete')
         return ret
+
+@CommandProvider
+class Installer(MachCommandBase):
+    """Create the windows installer for the built product."""
+
+    @Command('installer', category='post-build',
+        description='Create the installer for the built product for distribution.')
+    def installer(self):
+        return self._run_make(directory=".", target='installer', ensure_exit_code=False)
+
+@CommandProvider
+class Mar(MachCommandBase):
+    """Create the mar file for the built product."""
+
+    @Command('mar', category='post-build',
+        description='Create the mar file for the built product for distribution.')
+    def mar(self):
+        return self._run_make(directory="./tools/update-packaging/", target='', ensure_exit_code=False)
 
 @CommandProvider
 class Install(MachCommandBase):

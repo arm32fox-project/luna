@@ -8,6 +8,7 @@
 }
 
 #react-clear-button-hook,
+#react-summary-button-hook,
 #react-details-pane-toggle-hook {
   display: flex;
 }
@@ -47,7 +48,7 @@
   #details-pane-toggle,
   #details-pane.pane-collapsed,
   .requests-menu-waterfall,
-  #requests-menu-network-summary-button > .toolbarbutton-text {
+  #requests-menu-network-summary-button > .summary-info-text {
     display: none;
   }
 }
@@ -58,6 +59,7 @@
 
   --timing-blocked-color: rgba(235, 83, 104, 0.8);
   --timing-dns-color: rgba(223, 128, 255, 0.8); /* pink */
+  --timing-ssl-color: rgba(217, 102, 41, 0.8); /* orange */
   --timing-connect-color: rgba(217, 102, 41, 0.8); /* orange */
   --timing-send-color: rgba(70, 175, 227, 0.8); /* light blue */
   --timing-wait-color: rgba(94, 136, 176, 0.8); /* blue grey */
@@ -73,6 +75,7 @@
 
   --timing-blocked-color: rgba(235, 83, 104, 0.8);
   --timing-dns-color: rgba(223, 128, 255, 0.8); /* pink */
+  --timing-ssl-color: rgba(217, 102, 41, 0.8); /* orange */
   --timing-connect-color: rgba(217, 102, 41, 0.8); /* orange */
   --timing-send-color: rgba(0, 136, 204, 0.8); /* blue */
   --timing-wait-color: rgba(95, 136, 176, 0.8); /* blue grey */
@@ -504,6 +507,10 @@
   background-color: var(--timing-connect-color);
 }
 
+.requests-menu-timings-box.ssl {
+  background-color: var(--timing-ssl-color);
+}
+
 .requests-menu-timings-box.send {
   background-color: var(--timing-send-color);
 }
@@ -744,14 +751,33 @@
 /* Performance analysis buttons */
 
 #requests-menu-network-summary-button {
+  display: flex;
+  align-items: center;
   background: none;
   box-shadow: none;
   border-color: transparent;
-  list-style-image: url(images/profiler-stopwatch.svg);
   padding-inline-end: 0;
   cursor: pointer;
   margin-inline-end: 1em;
   min-width: 0;
+}
+
+#requests-menu-network-summary-button > .summary-info-icon {
+  background-image: url(images/profiler-stopwatch.svg);
+  filter: var(--icon-filter);
+  width: 16px;
+  height: 16px;
+  opacity: 0.8;
+}
+
+#requests-menu-network-summary-button > .summary-info-text {
+  opacity: 0.8;
+  margin-inline-start: 0.5em;
+}
+
+#requests-menu-network-summary-button:hover > .summary-info-icon,
+#requests-menu-network-summary-button:hover > .summary-info-text {
+  opacity: 1;
 }
 
 /* Performance analysis view */

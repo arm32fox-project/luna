@@ -125,7 +125,6 @@ var NetMonitorView = {
     if (!Prefs.statistics) {
       $("#request-menu-context-perf").hidden = true;
       $("#notice-perf-message").hidden = true;
-      $("#requests-menu-network-summary-button").hidden = true;
     }
   },
 
@@ -171,10 +170,10 @@ var NetMonitorView = {
 
     if (flags.visible) {
       this._body.classList.remove("pane-collapsed");
-      gStore.dispatch(Actions.showSidebar(true));
+      gStore.dispatch(Actions.openSidebar(true));
     } else {
       this._body.classList.add("pane-collapsed");
-      gStore.dispatch(Actions.showSidebar(false));
+      gStore.dispatch(Actions.openSidebar(false));
     }
 
     if (tabIndex !== undefined) {
@@ -234,7 +233,7 @@ var NetMonitorView = {
         // populating the statistics view.
         // • The response mime type is used for categorization.
         yield whenDataAvailable(requestsView, [
-          "responseHeaders", "status", "contentSize", "mimeType", "totalTime"
+          "responseHeaders", "status", "contentSize", "transferredSize", "mimeType", "totalTime"
         ]);
       } catch (ex) {
         // Timed out while waiting for data. Continue with what we have.
@@ -964,7 +963,7 @@ NetworkDetailsView.prototype = {
     if (!response) {
       return;
     }
-    let { blocked, dns, connect, send, wait, receive } = response.timings;
+    let { blocked, dns, connect, ssl, send, wait, receive } = response.timings;
 
     let tabboxWidth = $("#details-pane").getAttribute("width");
 
@@ -989,6 +988,11 @@ NetworkDetailsView.prototype = {
     $("#timings-summary-connect .requests-menu-timings-total")
       .setAttribute("value", L10N.getFormatStr("networkMenu.totalMS", connect));
 
+    $("#timings-summary-ssl .requests-menu-timings-box")
+      .setAttribute("width", ssl * scale);
+    $("#timings-summary-ssl .requests-menu-timings-total")
+      .setAttribute("value", L10N.getFormatStr("networkMenu.totalMS", ssl));
+
     $("#timings-summary-send .requests-menu-timings-box")
       .setAttribute("width", send * scale);
     $("#timings-summary-send .requests-menu-timings-total")
@@ -1008,6 +1012,8 @@ NetworkDetailsView.prototype = {
       .style.transform = "translateX(" + (scale * blocked) + "px)";
     $("#timings-summary-connect .requests-menu-timings-box")
       .style.transform = "translateX(" + (scale * (blocked + dns)) + "px)";
+    $("#timings-summary-ssl .requests-menu-timings-box")
+      .style.transform = "translateX(" + (scale * blocked) + "px)";
     $("#timings-summary-send .requests-menu-timings-box")
       .style.transform =
         "translateX(" + (scale * (blocked + dns + connect)) + "px)";
@@ -1023,6 +1029,8 @@ NetworkDetailsView.prototype = {
       .style.transform = "translateX(" + (scale * blocked) + "px)";
     $("#timings-summary-connect .requests-menu-timings-total")
       .style.transform = "translateX(" + (scale * (blocked + dns)) + "px)";
+    $("#timings-summary-ssl .requests-menu-timings-total")
+      .style.transform = "translateX(" + (scale * blocked) + "px)";
     $("#timings-summary-send .requests-menu-timings-total")
       .style.transform =
         "translateX(" + (scale * (blocked + dns + connect)) + "px)";
@@ -1125,6 +1133,8 @@ NetworkDetailsView.prototype = {
       setValue("#security-protocol-version-value",
         securityInfo.protocolVersion);
       setValue("#security-ciphersuite-value", securityInfo.cipherSuite);
+      setValue("#security-keagroup-value", securityInfo.keaGroupName);
+      setValue("#security-signaturescheme-value", securityInfo.signatureSchemeName);
 
       // Host header
       let domain = getUriHostPort(url);

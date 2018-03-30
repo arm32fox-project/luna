@@ -45,7 +45,7 @@
       <vbox id="leftBox" flex="1"/>
       <vbox id="rightBox" flex="1">
         <hbox align="baseline">
-#expand <label id="version">__MOZ_APP_VERSION_DISPLAY__</label>
+#expand <label id="version"></label>
 #ifndef NIGHTLY_BUILD
        <label id="releasenotes" class="text-link">&releaseNotes.link;</label>
 #endif
@@ -120,20 +120,20 @@
           <vbox id="experimental" hidden="true">
             <description class="text-blurb" id="warningDesc">
               &warningDesc.version;
-#ifdef MOZ_TELEMETRY_ON_BY_DEFAULT
-              &warningDesc.telemetryDesc;
-#endif
-            </description>
-            <description class="text-blurb" id="communityExperimentalDesc">
-              &community.exp.start;<label class="text-link" href="http://www.mozilla.org/">&community.exp.mozillaLink;</label>&community.exp.middle;<label class="text-link" useoriginprincipal="true" href="about:credits">&community.exp.creditsLink;</label>&community.exp.end;
             </description>
           </vbox>
+#ifdef MC_PRIVATE_BUILD
+<description class="text-blurb" id="communityDesc">
+              This is a private build of Basilisk. If you did not manually build this copy from source yourself, then please download an official version from the <label class="text-link" href="http://www.basilisk-browser.org/">Basilisk website</label>.
+          </description>
+#else
           <description class="text-blurb" id="communityDesc">
-            &community.start2;<label class="text-link" href="http://www.mozilla.org/">&community.mozillaLink;</label>&community.middle2;<label class="text-link" useoriginprincipal="true" href="about:credits">&community.creditsLink;</label>&community.end3;
+              Basilisk is community software released by <label class="text-link" href="http://www.palemoon.org/">the Pale Moon team</label> and Mozilla developers. Learn <label class="text-link" useoriginprincipal="true" href="about:credits">who contributed</label> to this software.
           </description>
           <description class="text-blurb" id="contributeDesc">
-              &helpus.start;<label class="text-link" href="https://sendto.mozilla.org/page/contribute/Give-Now?source=mozillaorg_default_footer&#38;ref=firefox_about&#38;utm_campaign=firefox_about&#38;tm_source=firefox&#38;tm_medium=referral&#38;utm_content=20140929_FireFoxAbout">&helpus.donateLink;</label>&helpus.middle;<label class="text-link" href="http://www.mozilla.org/contribute/">&helpus.getInvolvedLink;</label>&helpus.end;
+              Want to help? Please consider <label class="text-link" href="https://www.palemoon.org/donations.shtml">donating</label> or get involved with our <label class="text-link" href="https://github.com/MoonchildProductions/UXP">development</label> of the Unified XUL Platform.
           </description>
+#endif
         </vbox>
       </vbox>
     </hbox>
@@ -141,7 +141,7 @@
       <hbox pack="center">
         <label class="text-link bottom-link" useoriginprincipal="true" href="about:license">&bottomLinks.license;</label>
         <label class="text-link bottom-link" useoriginprincipal="true" href="about:rights">&bottomLinks.rights;</label>
-        <label class="text-link bottom-link" href="https://www.mozilla.org/privacy/">&bottomLinks.privacy;</label>
+        <label class="text-link bottom-link" href="https://www.palemoon.org/privacy.shtml">&bottomLinks.privacy;</label>
       </hbox>
       <description id="trademark">&trademarkInfo.part1;</description>
     </vbox>

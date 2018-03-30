@@ -4,6 +4,7 @@
 
 MOZ_APP_BASENAME=Fennec
 MOZ_APP_VENDOR=Mozilla
+MOZ_FENNEC=1
 
 MOZ_APP_VERSION=`cat ${_topsrcdir}/$MOZ_BUILD_APP/config/version.txt`
 MOZ_APP_VERSION_DISPLAY=`cat ${_topsrcdir}/$MOZ_BUILD_APP/config/version_display.txt`
@@ -29,8 +30,6 @@ MOZ_XULRUNNER=
 
 MOZ_CAPTURE=1
 MOZ_RAW=1
-
-MOZ_RUST_MP4PARSE=1
 
 # use custom widget for html:select
 MOZ_USE_NATIVE_POPUP_WINDOWS=1

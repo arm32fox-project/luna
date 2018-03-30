@@ -205,31 +205,17 @@ LoadDLLs()
 HRESULT
 MFStartup()
 {
-  if (!IsVistaOrLater() || IsWin7AndPre2000Compatible()) {
-    // *Only* use WMF on Vista and later, as if Firefox is run in Windows 95
-    // compatibility mode on Windows 7 (it does happen!) we may crash trying
-    // to startup WMF. So we need to detect the OS version here, as in
-    // compatibility mode IsVistaOrLater() and friends behave as if we're on
-    // the emulated version of Windows. See bug 1279171.
-    // Using GetVersionEx API which takes compatibility mode into account.
-    return E_FAIL;
-  }
-
   HRESULT hr = LoadDLLs();
   if (FAILED(hr)) {
     return hr;
   }
 
-  const int MF_VISTA_VERSION = (0x0001 << 16 | MF_API_VERSION);
   const int MF_WIN7_VERSION = (0x0002 << 16 | MF_API_VERSION);
 
   // decltype is unusable for functions having default parameters
   DECL_FUNCTION_PTR(MFStartup, ULONG, DWORD);
   ENSURE_FUNCTION_PTR_(MFStartup, Mfplat.dll)
-  if (!IsWin7OrLater())
-    return MFStartupPtr(MF_VISTA_VERSION, MFSTARTUP_FULL);
-  else
-    return MFStartupPtr(MF_WIN7_VERSION, MFSTARTUP_FULL);
+  return MFStartupPtr(MF_WIN7_VERSION, MFSTARTUP_FULL);
 }
 
 HRESULT

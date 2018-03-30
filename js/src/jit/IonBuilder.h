@@ -766,6 +766,7 @@ class IonBuilder
     MOZ_MUST_USE bool jsop_object(JSObject* obj);
     MOZ_MUST_USE bool jsop_lambda(JSFunction* fun);
     MOZ_MUST_USE bool jsop_lambda_arrow(JSFunction* fun);
+    MOZ_MUST_USE bool jsop_setfunname(uint8_t prefixKind);
     MOZ_MUST_USE bool jsop_functionthis();
     MOZ_MUST_USE bool jsop_globalthis();
     MOZ_MUST_USE bool jsop_typeof();
@@ -782,6 +783,7 @@ class IonBuilder
     MOZ_MUST_USE bool jsop_debugger();
     MOZ_MUST_USE bool jsop_newtarget();
     MOZ_MUST_USE bool jsop_checkisobj(uint8_t kind);
+    MOZ_MUST_USE bool jsop_checkiscallable(uint8_t kind);
     MOZ_MUST_USE bool jsop_checkobjcoercible();
     MOZ_MUST_USE bool jsop_pushcallobj();
 
@@ -1241,7 +1243,7 @@ class IonBuilder
     Vector<ControlFlowInfo, 4, JitAllocPolicy> loops_;
     Vector<ControlFlowInfo, 0, JitAllocPolicy> switches_;
     Vector<ControlFlowInfo, 2, JitAllocPolicy> labels_;
-    Vector<MInstruction*, 2, JitAllocPolicy> iterators_;
+    Vector<MDefinition*, 2, JitAllocPolicy> iterators_;
     Vector<LoopHeader, 0, JitAllocPolicy> loopHeaders_;
     BaselineInspector* inspector;
 

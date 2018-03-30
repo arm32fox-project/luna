@@ -214,18 +214,6 @@
         ]]></body>
       </method>
 
-      <method name="updateWindowResizers">
-        <body><![CDATA[
-          if (!window.gShowPageResizers)
-            return;
-
-          var show = window.windowState == window.STATE_NORMAL;
-          for (let i = 0; i < this.browsers.length; i++) {
-            this.browsers[i].showWindowResizer = show;
-          }
-        ]]></body>
-      </method>
-
       <method name="_setCloseKeyState">
         <parameter name="aEnabled"/>
         <body><![CDATA[
@@ -1970,10 +1958,6 @@
               b.QueryInterface(Ci.nsIFrameLoaderOwner).presetOpenerWindow(aParams.opener);
             }
 
-            if (window.gShowPageResizers && window.windowState == window.STATE_NORMAL) {
-              b.setAttribute("showresizer", "true");
-            }
-
             if (!aParams.isPreloadBrowser && this.hasAttribute("autocompletepopup")) {
               b.setAttribute("autocompletepopup", this.getAttribute("autocompletepopup"));
             }
@@ -3234,20 +3218,6 @@
 
             // tell a new window to take the "dropped" tab
             return window.openDialog(getBrowserURL(), "_blank", options, aTab);
-          ]]>
-        </body>
-      </method>
-
-      <!-- Opens a given tab to a non-remote window. -->
-      <method name="openNonRemoteWindow">
-        <parameter name="aTab"/>
-        <body>
-          <![CDATA[
-            if (!this.AppConstants.E10S_TESTING_ONLY) {
-              throw "This method is intended only for e10s testing!";
-            }
-            let url = aTab.linkedBrowser.currentURI.spec;
-            return window.openDialog("chrome://browser/content/", "_blank", "chrome,all,dialog=no,non-remote", url);
           ]]>
         </body>
       </method>
@@ -4597,8 +4567,7 @@
               label = this.mStringBundle.getString(stringID);
             }
           } else {
-            label = tab.getAttribute("label") +
-                      (this.AppConstants.E10S_TESTING_ONLY && tab.linkedBrowser && tab.linkedBrowser.isRemoteBrowser ? " - e10s" : "");
+            label = tab.getAttribute("label");
           }
           event.target.setAttribute("label", label);
         ]]></body>
@@ -4835,7 +4804,6 @@
           this.appendChild(this._autoScrollPopup);
           this.mCurrentBrowser.setAttribute("autoscrollpopup", this._autoScrollPopup.id);
           this.mCurrentBrowser.droppedLinkHandler = handleDroppedLink;
-          this.updateWindowResizers();
 
           // Hook up the event listeners to the first browser
           var tabListener = this.mTabProgressListener(this.mCurrentTab, this.mCurrentBrowser, true, false);
@@ -5854,8 +5822,6 @@
                 this._handleTabSelect();
                 this.mTabstripWidth = width;
               }
-
-              this.tabbrowser.updateWindowResizers();
               break;
             case "mouseout":
               // If the "related target" (the node to which the pointer went) is not

@@ -68,7 +68,7 @@ GNOMEUI_VERSION=2.2.0
 GCONF_VERSION=1.2.1
 STARTUP_NOTIFICATION_VERSION=0.8
 DBUS_VERSION=0.60
-SQLITE_VERSION=3.19.3
+SQLITE_VERSION=3.21.0
 
 dnl Set various checks
 dnl ========================================================
@@ -212,7 +212,7 @@ dnl ========================================================
 dnl Special win32 checks
 dnl ========================================================
 
-WINVER=502
+WINVER=601
 
 case "$target" in
 *-mingw*)
@@ -842,7 +842,10 @@ fi
 AC_DEFINE_UNQUOTED(MOZILLA_VERSION,"$MOZILLA_VERSION")
 AC_DEFINE_UNQUOTED(MOZILLA_VERSION_U,$MOZILLA_VERSION)
 AC_DEFINE_UNQUOTED(MOZILLA_UAVERSION,"$MOZILLA_UAVERSION")
+AC_DEFINE_UNQUOTED(MOZILLA_UAVERSION_U,$MOZILLA_UAVERSION)
 AC_SUBST(MOZILLA_SYMBOLVERSION)
+AC_SUBST(MOZILLA_UAVERSION)
+AC_SUBST(MOZILLA_UAVERSION_U)
 
 MOZ_DOING_LTO(lto_is_enabled)
 
@@ -1010,12 +1013,7 @@ case "$target" in
         IMPORT_LIB_SUFFIX=lib
         MKSHLIB='$(LD) -NOLOGO -DLL -OUT:$@ -PDB:$(LINK_PDBFILE) $(DSO_LDOPTS)'
         MKCSHLIB='$(LD) -NOLOGO -DLL -OUT:$@ -PDB:$(LINK_PDBFILE) $(DSO_LDOPTS)'
-        dnl Set subsystem version 5 for Windows XP.
-        if test "$CPU_ARCH" = "x86"; then
-            WIN32_SUBSYSTEM_VERSION=5.01
-        else
-            WIN32_SUBSYSTEM_VERSION=6.01
-        fi
+        WIN32_SUBSYSTEM_VERSION=6.01
         WIN32_CONSOLE_EXE_LDFLAGS=-SUBSYSTEM:CONSOLE,$WIN32_SUBSYSTEM_VERSION
         WIN32_GUI_EXE_LDFLAGS=-SUBSYSTEM:WINDOWS,$WIN32_SUBSYSTEM_VERSION
         DSO_LDOPTS=-SUBSYSTEM:WINDOWS,$WIN32_SUBSYSTEM_VERSION
@@ -2111,7 +2109,7 @@ MOZ_ARG_WITH_BOOL(system-nss,
     _USE_SYSTEM_NSS=1 )
 
 if test -n "$_USE_SYSTEM_NSS"; then
-    AM_PATH_NSS(3.28.6, [MOZ_SYSTEM_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
+    AM_PATH_NSS(3.35, [MOZ_SYSTEM_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
 fi
 
 if test -n "$MOZ_SYSTEM_NSS"; then
@@ -2309,9 +2307,11 @@ MOZ_TIME_MANAGER=
 MOZ_AUDIO_CHANNEL_MANAGER=
 MOZ_CONTENT_SANDBOX=
 MOZ_GMP_SANDBOX=
-MOZ_SANDBOX=1
+MOZ_SANDBOX=
 MOZ_BINARY_EXTENSIONS=
-MOZ_DEVTOOLS=server
+MOZ_JETPACK=1
+MOZ_DEVTOOLS_SERVER=1
+MOZ_DEVTOOLS=
 
 case "$target_os" in
     mingw*)
@@ -2425,23 +2425,8 @@ if test -n "$MOZ_GRAPHENE"; then
     AC_DEFINE(MOZ_GRAPHENE)
 fi
 
-if test -n "$MOZ_MULET"; then
-    AC_DEFINE(MOZ_MULET)
-fi
-
-# Propagate feature switches for code written in rust from confvars.sh
-if test -n "$MOZ_RUST"; then
-    if test -n "$MOZ_RUST_MP4PARSE"; then
-        AC_DEFINE(MOZ_RUST_MP4PARSE)
-    fi
-    if test -n "$MOZ_RUST_URLPARSE"; then
-        AC_DEFINE(MOZ_RUST_URLPARSE)
-    fi
-fi
-
 AC_SUBST(MOZ_XULRUNNER)
 AC_SUBST(MOZ_B2G)
-AC_SUBST(MOZ_MULET)
 AC_SUBST(MOZ_B2G_VERSION)
 
 dnl ========================================================
@@ -2622,6 +2607,22 @@ elif test -f "${EXTERNAL_SOURCE_DIR}/$REAL_BRANDING_DIRECTORY/configure.sh"; the
 fi
 
 AC_SUBST(MOZ_BRANDING_DIRECTORY)
+
+dnl ========================================================
+dnl = Private Build
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(private-build,
+[  --enable-private-build   Enable private builds
+                            This allows you to build with official
+                            branding for personal use only using any
+                            build time configuration.],
+    MC_PRIVATE_BUILD=1,
+    MC_PRIVATE_BUILD=)
+
+AC_SUBST(MC_PRIVATE_BUILD)
+if test -n "$MC_PRIVATE_BUILD"; then
+  AC_DEFINE(MC_PRIVATE_BUILD)
+fi
 
 dnl ========================================================
 dnl = Distribution ID
@@ -2878,12 +2879,12 @@ x86_64 | arm | aarch64 | x86 | ppc* | ia64)
 esac
 
 dnl ========================================================
-dnl = Disable WebRTC code
+dnl = Enable WebRTC code
 dnl ========================================================
-MOZ_ARG_DISABLE_BOOL(webrtc,
-[  --disable-webrtc        Disable support for WebRTC],
-    MOZ_WEBRTC=,
-    MOZ_WEBRTC=1)
+MOZ_ARG_ENABLE_BOOL(webrtc,
+[  --enable-webrtc        Enable support for WebRTC],
+    MOZ_WEBRTC=1,
+    MOZ_WEBRTC=)
 
 if test -n "$MOZ_WEBRTC"; then
     AC_DEFINE(MOZ_WEBRTC)
@@ -3002,6 +3003,35 @@ if test x"$MOZ_WIDGET_TOOLKIT" = x"gonk" -a -n "$MOZ_FMP4" -a -n "$android_versi
     fi
 fi
 
+dnl ========================================================
+dnl = EME support
+dnl ========================================================
+
+MOZ_ARG_ENABLE_STRING(eme,
+[  --enable-eme[=widevine]  Enable support for Encrypted Media Extensions  ],
+    MOZ_EME_ARGS=$enableval)
+
+if test "$MOZ_EME_ARGS"; then
+    if test "$MOZ_EME_ARGS" = "no"; then
+        dnl EME explicitly disabled with --disable-eme
+        MOZ_EME=
+    elif test "$MOZ_EME_ARGS" = "yes"; then
+        dnl EME explicitly enabled with --enable-eme
+        MOZ_EME=1
+    else
+        dnl EME explicitly enabled with --enable-eme=<args>
+        MOZ_EME=1
+        MOZ_EME_MODULES=`echo $MOZ_EME_ARGS | sed -e 's/,/ /g'`
+    fi
+fi
+
+AC_SUBST_SET(MOZ_EME_MODULES)
+if test -n "$MOZ_EME"; then
+    if test -z "$MOZ_FMP4"; then
+        AC_MSG_ERROR([Encrypted Media Extension support requires Fragmented MP4 support])
+    fi
+    AC_DEFINE(MOZ_EME)
+fi
 
 dnl ========================================================
 dnl = Enable media plugin support
@@ -3210,15 +3240,20 @@ dnl ==================================
 dnl = Check alsa availability on Linux
 dnl ==================================
 
+dnl If using Linux, enable the alsa library by default
+if test "$OS_TARGET" = "Linux"; then
+    MOZ_ALSA=1
+fi
+
 MOZ_ARG_ENABLE_BOOL(alsa,
-[  --enable-alsa          Enable Alsa support],
+[  --enable-alsa          Enable Alsa support (default on Linux)],
    MOZ_ALSA=1,
    MOZ_ALSA=)
 
 if test -n "$MOZ_ALSA"; then
     PKG_CHECK_MODULES(MOZ_ALSA, alsa, ,
          [echo "$MOZ_ALSA_PKG_ERRORS"
-          AC_MSG_ERROR([Need alsa for audio output on Linux. (On Ubuntu, you might try installing the package libasound2-dev.)])])
+          AC_MSG_ERROR([You need ALSA for audio output on Linux.])])
 fi
 
 AC_SUBST(MOZ_ALSA)
@@ -3246,7 +3281,7 @@ if test -n "$MOZ_PULSEAUDIO"; then
     if test -z "$gonkdir"; then
         PKG_CHECK_MODULES(MOZ_PULSEAUDIO, libpulse, ,
              [echo "$MOZ_PULSEAUDIO_PKG_ERRORS"
-              AC_MSG_ERROR([pulseaudio audio backend requires libpulse development package])])
+              AC_MSG_ERROR([Building pulseaudio audio backend requires libpulse development package])])
     else
         MOZ_PULSEAUDIO_CFLAGS="-I$gonkdir/external/pulseaudio/pulseaudio/src"
     fi
@@ -3312,9 +3347,6 @@ MOZ_D3D_CPU_SUFFIX=
 MOZ_HAS_WINSDK_WITH_D3D=
 MOZ_D3DCOMPILER_VISTA_DLL=
 MOZ_D3DCOMPILER_VISTA_DLL_PATH=
-MOZ_DIRECTX_SDK_PATH=
-MOZ_D3DCOMPILER_XP_DLL=
-MOZ_D3DCOMPILER_XP_CAB=
 
 if test "$COMPILE_ENVIRONMENT" ; then
 case "$target_os" in
@@ -3332,11 +3364,6 @@ x86_64)
   MOZ_D3D_CPU_SUFFIX=x64
   ;;
 esac
-
-MOZ_ARG_ENABLE_BOOL(require-all-d3dc-versions,
-[  --enable-require-all-d3dc-versions Require all versions of the D3D compiler needed for supported Windows systems.],
-    MOZ_REQUIRE_ALL_D3DCS=1,
-    MOZ_REQUIRE_ALL_D3DCS=)
 
 # This is potentially set in external mozconfig files; if it's set,
 # then the build exposes the "webgl" context name, which is reserved
@@ -3396,87 +3423,17 @@ if test -n "$MOZ_ANGLE_RENDERER"; then
   fi
 
   ######################################
-  # Find _43 for use by XP.
-
-  if test "$HAVE_64BIT_BUILD"; then
-    AC_MSG_RESULT([We are building a 64-bit binary, skip checking d3dcompiler_43.])
-  else
-    # Get the SDK path from the registry.
-    # First try to get the June 2010 SDK
-    MOZ_DIRECTX_SDK_REG_KEY=`reg query 'HKLM\Software\Microsoft\DirectX' //s | grep 'Microsoft DirectX SDK (June 2010)' | head -n 1`
-    if test -z "$MOZ_DIRECTX_SDK_REG_KEY" ; then
-      # Otherwise just take whatever comes first
-      MOZ_DIRECTX_SDK_REG_KEY=`reg query 'HKLM\Software\Microsoft\DirectX' //s | grep 'Microsoft DirectX SDK' | head -n 1`
-    fi
-    MOZ_DIRECTX_SDK_PATH=`reg query "$MOZ_DIRECTX_SDK_REG_KEY" //v InstallPath | grep REG_SZ | sed 's/.*\([[a-zA-Z]]\)\\:\\\\/\\1\\:\\\\/' | sed 's,\\\\,/,g'`
-
-    if test -n "$MOZ_DIRECTX_SDK_PATH" &&
-       test -f "$MOZ_DIRECTX_SDK_PATH"/lib/$MOZ_D3D_CPU_SUFFIX/dxguid.lib ; then
-      AC_MSG_RESULT([Found DirectX SDK via registry, using $MOZ_DIRECTX_SDK_PATH])
-    else
-      AC_MSG_RESULT([DirectX SDK not found.])
-      MOZ_DIRECTX_SDK_PATH=
-    fi
-
-    # Check that our DirectX SDK is acceptable.
-    if test -n "$MOZ_DIRECTX_SDK_PATH"; then
-      if test -n "`echo $MOZ_DIRECTX_SDK_REG_KEY | grep 'February 2010'`" ; then
-        AC_MSG_RESULT([Found the February 2010 DirectX SDK, which is unacceptable to ANGLE.])
-        MOZ_DIRECTX_SDK_PATH=
-      fi
-    fi
-
-    if test -n "$MOZ_DIRECTX_SDK_PATH"; then
-      # Find a D3D compiler DLL in the DirectX SDK, if we didn't find one already.
-      # Get the SDK numeric version (e.g. 43) by looking at the dependencies of d3dx9.lib
-      MOZ_D3DX9_VERSION=`dumpbin //headers "$MOZ_DIRECTX_SDK_PATH"/lib/$MOZ_D3D_CPU_SUFFIX/d3dx9.lib | egrep d3dx9_[[0-9]][[0-9]]\.dll | head -n1 | sed 's/.*\([[0-9]][[0-9]]\).*/\\1/g'`
-
-      if test -n "$MOZ_D3DX9_VERSION" ; then
-        MOZ_D3DCOMPILER_XP_CAB=`find "$MOZ_DIRECTX_SDK_PATH"/Redist -name *D3DCompiler_${MOZ_D3DX9_VERSION}_${MOZ_D3D_CPU_SUFFIX}.cab | head -n1`
-
-        if test -n "$MOZ_D3DCOMPILER_XP_CAB"; then
-          MOZ_D3DCOMPILER_XP_DLL=D3DCompiler_$MOZ_D3DX9_VERSION.dll
-        else
-          AC_MSG_RESULT([Couldn't find a CAB containing the D3D compiler DLL.])
-          AC_MSG_ERROR([DirectX SDK at "$MOZ_DIRECTX_SDK_PATH" appears broken.])
-          MOZ_DIRECTX_SDK_PATH=
-        fi
-      else
-        AC_MSG_RESULT([Couldn't determine the D3DX9 version for the DirectX SDK.])
-        MOZ_DIRECTX_SDK_PATH=
-      fi
-    else
-      AC_MSG_RESULT([Couldn't find an acceptable DirectX SDK for ANGLE, needed for d3dcompiler_43.])
-    fi
-  fi
-
-  ######################################
   # Check that we found what we needed.
   MOZ_FOUND_A_D3D_COMPILER=
-  MOZ_FOUND_BOTH_D3D_COMPILERS=1
 
   if test -n "$MOZ_D3DCOMPILER_VISTA_DLL"; then
     MOZ_FOUND_A_D3D_COMPILER=1
     AC_MSG_RESULT([Found d3dcompiler DLL for Vista+: $MOZ_D3DCOMPILER_VISTA_DLL])
-  else
-    MOZ_FOUND_BOTH_D3D_COMPILERS=
-  fi
-
-  if test -n "$MOZ_D3DCOMPILER_XP_DLL"; then
-    MOZ_FOUND_A_D3D_COMPILER=1
-    AC_MSG_RESULT([Found d3dcompiler DLL for XP: $MOZ_D3DCOMPILER_XP_DLL])
-  else
-    MOZ_FOUND_BOTH_D3D_COMPILERS=
   fi
 
   if test -z "$CROSS_COMPILE"; then
     if test -z "MOZ_FOUND_A_D3D_COMPILER"; then
       AC_MSG_ERROR([Couldn't find an acceptable D3D compiler DLL.])
-    fi
-
-    if test -n "$MOZ_REQUIRE_ALL_D3DCS" -a -z "$MOZ_FOUND_BOTH_D3D_COMPILERS"; then
-      AC_MSG_ERROR([Both D3D compilers _43 and _46+ are required by --enable-require-d3d-compilers.])
-      AC_MSG_ERROR([  Install Windows SDK 8.0+, as well as DirectX SDK (June 2010 version or newer), or reconfigure without this flag.])
     fi
   fi
 fi # MOZ_ANGLE_RENDERER
@@ -3928,6 +3885,11 @@ AC_SUBST(MOZ_NO_SMART_CARDS)
 dnl ========================================================
 dnl = Sandboxing support
 dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(sandbox,
+[  --enable-sandbox        Enable sandboxing support],
+    MOZ_SANDBOX=1,
+    MOZ_SANDBOX=)
+
 if test -n "$MOZ_TSAN" -o -n "$MOZ_ASAN"; then
     # Bug 1182565: TSan conflicts with sandboxing on Linux.
     # Bug 1287971: LSan also conflicts with sandboxing on Linux.
@@ -3937,11 +3899,6 @@ if test -n "$MOZ_TSAN" -o -n "$MOZ_ASAN"; then
         ;;
     esac
 fi
-
-MOZ_ARG_DISABLE_BOOL(sandbox,
-[  --disable-sandbox        Disable sandboxing support],
-    MOZ_SANDBOX=,
-    MOZ_SANDBOX=1)
 
 dnl ========================================================
 dnl = Content process sandboxing
@@ -4789,6 +4746,58 @@ dnl ========================================================
 MOZ_ARG_HEADER(Misc. Options)
 
 dnl ========================================================
+dnl = Disable Jetpack
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(jetpack,
+[  --disable-jetpack         Disable Jetpack Support Code],
+    MOZ_JETPACK=,
+    MOZ_JETPACK=1)
+
+if test -n "$MOZ_JETPACK"; then
+    AC_DEFINE(MOZ_JETPACK)
+fi
+
+AC_SUBST(MOZ_JETPACK)
+
+dnl ========================================================
+dnl = Disable Mozilla Developer Tools (server)
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(devtools-server,
+[  --disable-devtools-server         Disable Mozilla Developer Tools (server)],
+    MOZ_DEVTOOLS_SERVER=,
+    MOZ_DEVTOOLS_SERVER=1)
+
+
+
+if test -n "$MOZ_DEVTOOLS_SERVER"; then
+    if test ! -n "$MOZ_JETPACK"; then
+        AC_MSG_ERROR("Jetpack is required to include the Developer Tools Server")
+    fi
+
+    AC_DEFINE(MOZ_DEVTOOLS_SERVER)
+fi
+
+AC_SUBST(MOZ_DEVTOOLS_SERVER)
+
+dnl ========================================================
+dnl = Disable Mozilla Developer Tools (client)
+dnl ========================================================
+MOZ_ARG_DISABLE_BOOL(devtools,
+[  --disable-devtools           Disable Mozilla Developer Tools (client)],
+    MOZ_DEVTOOLS=,
+    MOZ_DEVTOOLS=1)
+
+if test -n "$MOZ_DEVTOOLS"; then
+    if test ! -n "$MOZ_DEVTOOLS_SERVER"; then
+        AC_MSG_ERROR("The Developer Tools Server is required to include the client")
+    fi
+
+    AC_DEFINE(MOZ_DEVTOOLS)
+fi
+
+AC_SUBST(MOZ_DEVTOOLS)
+
+dnl ========================================================
 dnl = Define default location for MOZILLA_FIVE_HOME
 dnl ========================================================
 MOZ_ARG_WITH_STRING(default-mozilla-five-home,
@@ -5285,7 +5294,6 @@ AC_SUBST(MOZ_ANDROID_ANR_REPORTER)
 AC_SUBST(MOZ_CRASHREPORTER)
 AC_SUBST(MOZ_CRASHREPORTER_INJECTOR)
 AC_SUBST(MOZ_MAINTENANCE_SERVICE)
-AC_SUBST(MOZ_STUB_INSTALLER)
 AC_SUBST(MOZ_VERIFY_MAR_SIGNATURE)
 AC_SUBST(MOZ_ENABLE_SIGNMAR)
 AC_SUBST(MOZ_UPDATER)
@@ -5295,9 +5303,6 @@ AC_SUBST(MOZ_D3D_CPU_SUFFIX)
 AC_SUBST(MOZ_HAS_WINSDK_WITH_D3D)
 AC_SUBST(MOZ_D3DCOMPILER_VISTA_DLL)
 AC_SUBST(MOZ_D3DCOMPILER_VISTA_DLL_PATH)
-AC_SUBST(MOZ_DIRECTX_SDK_PATH)
-AC_SUBST(MOZ_D3DCOMPILER_XP_DLL)
-AC_SUBST(MOZ_D3DCOMPILER_XP_CAB)
 
 AC_SUBST(MOZ_ANDROID_APPLICATION_CLASS)
 AC_SUBST(MOZ_ANDROID_BROWSER_INTENT_CLASS)
@@ -5489,6 +5494,9 @@ fi
 
 AC_SUBST(MOZ_APP_STATIC_INI)
 
+AC_DEFINE_UNQUOTED(MOZ_UA_BUILDID, "$MOZ_UA_BUILDID")
+AC_SUBST(MOZ_UA_BUILDID)
+
 AC_SUBST(MOZ_PKG_SPECIAL)
 AC_SUBST(MOZ_SIMPLE_PACKAGE_NAME)
 
@@ -5657,6 +5665,7 @@ AC_SUBST(MOZ_VORBIS)
 AC_SUBST(MOZ_TREMOR)
 AC_SUBST(MOZ_FFVPX)
 AC_SUBST_LIST(FFVPX_ASFLAGS)
+AC_SUBST(MOZ_EME)
 AC_SUBST(MOZ_DIRECTSHOW)
 AC_SUBST(MOZ_ANDROID_OMX)
 AC_SUBST(MOZ_OMX_PLUGIN)
@@ -5671,7 +5680,6 @@ AC_SUBST(LIBJPEG_TURBO_USE_YASM)
 AC_SUBST_LIST(LIBJPEG_TURBO_ASFLAGS)
 AC_SUBST(MOZ_LIBAV_FFT)
 AC_SUBST_LIST(LIBAV_FFT_ASFLAGS)
-AC_SUBST(MOZ_DEVTOOLS)
 
 AC_SUBST(MOZ_PACKAGE_JSSHELL)
 AC_SUBST(MOZ_FOLD_LIBS)
@@ -5764,7 +5772,8 @@ dnl ========================================================
 dnl Directive 4
 dnl ========================================================
 
-DIRECTIVE4_LIST="MOZ_OFFICIAL_BRANDING=$MOZ_OFFICIAL_BRANDING
+DIRECTIVE4_LIST="
+MOZ_OFFICIAL_BRANDING=$MOZ_OFFICIAL_BRANDING
 MOZ_BRANDING_DIRECTORY=$MOZ_BRANDING_DIRECTORY
 MC_BASILISK=$MC_BASILISK
 MC_PALEMOON=$MC_PALEMOON
@@ -5784,7 +5793,11 @@ MOZ_SYSTEM_JEMALLOC=$MOZ_SYSTEM_JEMALLOC"
 DIRECTIVE4=`$PYTHON $_topsrcdir/build/directive4.py $DIRECTIVE4_LIST`
 
 if test -n "$DIRECTIVE4"; then
-    AC_ERROR([Branding Violation - Please see: http://www.palemoon.org/redist.shtml])
+    if test -n "$MC_PRIVATE_BUILD"; then
+        AC_MSG_WARN([Private Build - The configuration you have chosen to use with official branding deviates from official build configuration. Your build is thus for personal and private use only and must not be (re)distributed - Please see: http://www.palemoon.org/redist.shtml])
+    else
+        AC_MSG_ERROR([Branding Violation - Please see: http://www.palemoon.org/redist.shtml])
+    fi
 fi
 
 AC_SUBST(DIRECTIVE4)
@@ -5961,7 +5974,6 @@ export MOZ_ZLIB_CFLAGS
 export MOZ_ZLIB_LIBS
 export MOZ_APP_NAME
 export MOZ_APP_REMOTINGNAME
-export RUSTC
 export MOZILLA_CENTRAL_PATH=$_topsrcdir
 export STLPORT_CPPFLAGS
 export STLPORT_LIBS

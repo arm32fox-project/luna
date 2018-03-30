@@ -650,7 +650,8 @@ typedef enum JSExnType {
         JSEXN_DEBUGGEEWOULDRUN,
         JSEXN_WASMCOMPILEERROR,
         JSEXN_WASMRUNTIMEERROR,
-    JSEXN_WARN,
+    JSEXN_ERROR_LIMIT,
+    JSEXN_WARN = JSEXN_ERROR_LIMIT,
     JSEXN_LIMIT
 } JSExnType;
 
@@ -874,11 +875,7 @@ class MOZ_STACK_CLASS SourceBufferHolder final
 
 #define JSFUN_CONSTRUCTOR      0x400    /* native that can be called as a ctor */
 
-//                             0x800    /* Unused */
-
-#define JSFUN_HAS_REST        0x1000    /* function has ...rest parameter. */
-
-#define JSFUN_FLAGS_MASK      0x1e00    /* | of all the JSFUN_* flags */
+#define JSFUN_FLAGS_MASK       0x600    /* | of all the JSFUN_* flags */
 
 /*
  * If set, will allow redefining a non-configurable property, but only on a
@@ -1102,7 +1099,8 @@ class JS_PUBLIC_API(ContextOptions) {
         dumpStackOnDebuggeeWouldRun_(false),
         werror_(false),
         strictMode_(false),
-        extraWarnings_(false)
+        extraWarnings_(false),
+        arrayProtoValues_(true)
     {
     }
 
@@ -1226,6 +1224,12 @@ class JS_PUBLIC_API(ContextOptions) {
         return *this;
     }
 
+    bool arrayProtoValues() const { return arrayProtoValues_; }
+    ContextOptions& setArrayProtoValues(bool flag) {
+        arrayProtoValues_ = flag;
+        return *this;
+    }
+
   private:
     bool baseline_ : 1;
     bool ion_ : 1;
@@ -1241,6 +1245,7 @@ class JS_PUBLIC_API(ContextOptions) {
     bool werror_ : 1;
     bool strictMode_ : 1;
     bool extraWarnings_ : 1;
+    bool arrayProtoValues_ : 1;
 };
 
 JS_PUBLIC_API(ContextOptions&)
@@ -6167,6 +6172,12 @@ class MOZ_STACK_CLASS JS_PUBLIC_API(ForOfIterator) {
     bool next(JS::MutableHandleValue val, bool* done);
 
     /**
+     * Close the iterator.
+     * For the case that completion type is throw.
+     */
+    void closeThrow();
+
+    /**
      * If initialized with throwOnNonCallable = false, check whether
      * the value is iterable.
      */
@@ -6619,5 +6630,14 @@ SetGetPerformanceGroupsCallback(JSContext*, GetGroupsCallback, void*);
 
 } /* namespace js */
 
+namespace js {
+
+enum class CompletionKind {
+    Normal,
+    Return,
+    Throw
+};
+
+} /* namespace js */
 
 #endif /* jsapi_h */

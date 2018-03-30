@@ -41,6 +41,7 @@
 #include "nsNetUtil.h"
 #include "nsPIDOMWindow.h"
 #include "nsPrintfCString.h"
+#include "mozilla/TimerClamping.h"
 #include "OscillatorNode.h"
 #include "PannerNode.h"
 #include "PeriodicWave.h"
@@ -379,10 +380,12 @@ AudioContext::CreateMediaElementSource(HTMLMediaElement& aMediaElement,
     return nullptr;
   }
 
+#ifdef MOZ_EME
   if (aMediaElement.ContainsRestrictedContent()) {
     aRv.Throw(NS_ERROR_DOM_NOT_SUPPORTED_ERR);
     return nullptr;
   }
+#endif
 
   if (CheckClosed(aRv)) {
     return nullptr;
@@ -744,7 +747,7 @@ double
 AudioContext::CurrentTime() const
 {
   MediaStream* stream = Destination()->Stream();
-  return stream->StreamTimeToSeconds(stream->GetCurrentTime());
+  return TimerClamping::ReduceSTimeValue(stream->StreamTimeToSeconds(stream->GetCurrentTime()));
 }
 
 void

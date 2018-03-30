@@ -97,11 +97,6 @@ XPCOMUtils.defineLazyGetter(this, "gCustomizeMode", function() {
   return new scope.CustomizeMode(window);
 });
 
-XPCOMUtils.defineLazyGetter(window, "gShowPageResizers", function () {
-  // Only show resizers on Windows 2000 and XP
-  return AppConstants.isPlatformAndVersionAtMost("win", "5.9");
-});
-
 XPCOMUtils.defineLazyGetter(this, "gPrefService", function() {
   return Services.prefs;
 });
@@ -473,9 +468,7 @@ var gPopupBlockerObserver = {
         var brandShortName = brandBundle.getString("brandShortName");
         var popupCount = gBrowser.selectedBrowser.blockedPopups.length;
 
-        var stringKey = AppConstants.platform == "win"
-                        ? "popupWarningButton"
-                        : "popupWarningButtonUnix";
+        var stringKey = "popupWarningButton";
 
         var popupButtonText = gNavigatorBundle.getString(stringKey);
         var popupButtonAccesskey = gNavigatorBundle.getString(stringKey + ".accesskey");
@@ -1224,9 +1217,6 @@ var gBrowserInit = {
     BrowserOffline.init();
     IndexedDBPromptHelper.init();
 
-    if (AppConstants.E10S_TESTING_ONLY)
-      gRemoteTabsUI.init();
-
     // Initialize the full zoom setting.
     // We do this before the session restore service gets initialized so we can
     // apply full zoom settings to tabs restored by the session restore service.
@@ -1658,10 +1648,6 @@ if (AppConstants.platform == "macosx") {
 
     // initialize the sync UI
     gSyncUI.init();
-
-    if (AppConstants.E10S_TESTING_ONLY) {
-      gRemoteTabsUI.init();
-    }
   };
 
   gBrowserInit.nonBrowserWindowShutdown = function() {
@@ -3373,8 +3359,6 @@ var PrintPreviewListener = {
     var notificationBox = gBrowser.getNotificationBox();
     this._chromeState.notificationsOpen = !notificationBox.notificationsHidden;
     notificationBox.notificationsHidden = true;
-
-    gBrowser.updateWindowResizers();
 
     this._chromeState.findOpen = gFindBarInitialized && !gFindBar.hidden;
     if (gFindBarInitialized)
@@ -5224,7 +5208,6 @@ function setToolbarVisibility(toolbar, isVisible, persist=true) {
 
   PlacesToolbarHelper.init();
   BookmarkingUI.onToolbarVisibilityChange();
-  gBrowser.updateWindowResizers();
   if (isVisible)
     ToolbarIconColor.inferFromText();
 }
@@ -7845,16 +7828,6 @@ var TabContextMenu = {
     for (let menuItem of menuItems)
       menuItem.disabled = disabled;
 
-    if (AppConstants.E10S_TESTING_ONLY) {
-      menuItems = aPopupMenu.getElementsByAttribute("tbattr", "tabbrowser-remote");
-      for (let menuItem of menuItems) {
-        menuItem.hidden = !gMultiProcessBrowser;
-        if (menuItem.id == "context_openNonRemoteWindow") {
-          menuItem.disabled = !!parseInt(this.contextTab.getAttribute("usercontextid"));
-        }
-      }
-    }
-
     disabled = gBrowser.visibleTabs.length == 1;
     menuItems = aPopupMenu.getElementsByAttribute("tbattr", "tabbrowser-multiple-visible");
     for (let menuItem of menuItems)
@@ -7923,7 +7896,7 @@ var TabContextMenu = {
 Object.defineProperty(this, "HUDService", {
   get: function HUDService_getter() {
     let devtools = Cu.import("resource://devtools/shared/Loader.jsm", {}).devtools;
-    return devtools.require("devtools/client/webconsole/hudservice");
+    return devtools.require("devtools/client/webconsole/hudservice").HUDService;
   },
   configurable: true,
   enumerable: true
@@ -8075,6 +8048,7 @@ var ToolbarIconColor = {
     window.addEventListener("activate", this);
     window.addEventListener("deactivate", this);
     Services.obs.addObserver(this, "lightweight-theme-styling-update", false);
+    gPrefService.addObserver("ui.colorChanged", this, false);
 
     // If the window isn't active now, we assume that it has never been active
     // before and will soon become active such that inferFromText will be
@@ -8089,6 +8063,7 @@ var ToolbarIconColor = {
     window.removeEventListener("activate", this);
     window.removeEventListener("deactivate", this);
     Services.obs.removeObserver(this, "lightweight-theme-styling-update");
+    gPrefService.removeObserver("ui.colorChanged", this);
   },
 
   handleEvent: function (event) {
@@ -8107,6 +8082,18 @@ var ToolbarIconColor = {
         // lightweight-theme-styling-update observer.
         setTimeout(() => { this.inferFromText(); }, 0);
         break;
+      case "nsPref:changed":
+        // system color change
+        var colorChangedPref = false;
+        try {
+          colorChangedPref = gPrefService.getBoolPref("ui.colorChanged");
+        } catch(e) { }
+        // if pref indicates change, call inferFromText() on a small delay
+        if (colorChangedPref == true)
+          setTimeout(() => { this.inferFromText(); }, 300);
+        break;
+      default:
+        console.error("ToolbarIconColor: Uncaught topic " + aTopic);
     }
   },
 
@@ -8130,16 +8117,19 @@ var ToolbarIconColor = {
     let luminances = new Map;
     for (let toolbar of document.querySelectorAll(toolbarSelector)) {
       let [r, g, b] = parseRGB(getComputedStyle(toolbar).color);
-      let luminance = 0.2125 * r + 0.7154 * g + 0.0721 * b;
+      let luminance = (2 * r + 5 * g + b) / 8;
       luminances.set(toolbar, luminance);
     }
 
     for (let [toolbar, luminance] of luminances) {
-      if (luminance <= 110)
+      if (luminance <= 128)
         toolbar.removeAttribute("brighttext");
       else
         toolbar.setAttribute("brighttext", "true");
     }
+    
+    // Clear pref if set, since we're done applying the color changes.
+    gPrefService.clearUserPref("ui.colorChanged");
   }
 }
 

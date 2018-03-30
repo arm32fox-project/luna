@@ -81,7 +81,7 @@ loader.lazyRequireGetter(this, "DebuggerServer", "devtools/server/main", true);
 loader.lazyRequireGetter(this, "DebuggerClient", "devtools/shared/client/main", true);
 loader.lazyRequireGetter(this, "EnvironmentClient", "devtools/shared/client/main", true);
 loader.lazyRequireGetter(this, "ObjectClient", "devtools/shared/client/main", true);
-loader.lazyRequireGetter(this, "HUDService", "devtools/client/webconsole/hudservice");
+loader.lazyRequireGetter(this, "HUDService", "devtools/client/webconsole/hudservice", true);
 
 XPCOMUtils.defineLazyGetter(this, "REMOTE_TIMEOUT", () =>
   Services.prefs.getIntPref("devtools.debugger.remote-timeout"));
@@ -1743,6 +1743,9 @@ var Scratchpad = {
       this.editor.on("saveRequested", () => this.saveFile());
       this.editor.focus();
       this.editor.setCursor({ line: lines.length, ch: lines.pop().length });
+
+      // Add the commands controller for the source-editor.
+      this.editor.insertCommandsController();
 
       if (state)
         this.dirty = !state.saved;
