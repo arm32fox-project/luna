@@ -214,7 +214,8 @@ var gInitialPages = [
   "about:home",
   "about:privatebrowsing",
   "about:welcomeback",
-  "about:sessionrestore"
+  "about:sessionrestore",
+  "about:logopage"
 ];
 
 function* browserWindows() {
