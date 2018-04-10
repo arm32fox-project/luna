@@ -359,7 +359,7 @@ function loadPageInfo()
   makeTabs(gDocument, gWindow);
 
   initFeedTab();
-  onLoadPermission();
+  onLoadPermission(gDocument.nodePrincipal);
 
   /* Call registered overlay init functions */
   onLoadRegistry.forEach(function(func) { func(); });
@@ -857,7 +857,7 @@ function onBlockImage()
   if (checkbox.checked)
     permissionManager.add(uri, "image", nsIPermissionManager.DENY_ACTION);
   else
-    permissionManager.remove(uri.host, "image");
+    permissionManager.remove(uri, "image");
 }
 
 function onImageSelect()
