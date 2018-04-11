@@ -8,7 +8,7 @@
  * This is the main module loaded in Firefox desktop that handles browser
  * windows and coordinates devtools around each window.
  *
- * This module is loaded lazily by devtools-clhandler.js, once the first
+ * This module is loaded lazily by devtools-startup.js, once the first
  * browser window is ready (i.e. fired browser-delayed-startup-finished event)
  **/
 
@@ -27,8 +27,10 @@ loader.lazyRequireGetter(this, "DebuggerServer", "devtools/server/main", true);
 loader.lazyRequireGetter(this, "DebuggerClient", "devtools/shared/client/main", true);
 loader.lazyRequireGetter(this, "BrowserMenus", "devtools/client/framework/browser-menus");
 
-loader.lazyImporter(this, "CustomizableUI", "resource:///modules/CustomizableUI.jsm");
 loader.lazyImporter(this, "AppConstants", "resource://gre/modules/AppConstants.jsm");
+#ifdef MC_BASILISK
+loader.lazyImporter(this, "CustomizableUI", "resource:///modules/CustomizableUI.jsm");
+#endif
 
 const {LocalizationHelper} = require("devtools/shared/l10n");
 const L10N = new LocalizationHelper("devtools/client/locales/toolbox.properties");
@@ -85,6 +87,9 @@ var gDevToolsBrowser = exports.gDevToolsBrowser = {
 
     function toggleMenuItem(id, isEnabled) {
       let cmd = doc.getElementById(id);
+      if (!cmd) {
+        return;
+      }
       if (isEnabled) {
         cmd.removeAttribute("disabled");
         cmd.removeAttribute("hidden");
@@ -94,22 +99,39 @@ var gDevToolsBrowser = exports.gDevToolsBrowser = {
       }
     }
 
+    let idEls = [];
+    
     // Enable developer toolbar?
     let devToolbarEnabled = Services.prefs.getBoolPref("devtools.toolbar.enabled");
-    toggleMenuItem("menu_devToolbar", devToolbarEnabled);
-    let focusEl = doc.getElementById("menu_devToolbar");
-    if (devToolbarEnabled) {
-      focusEl.removeAttribute("disabled");
-    } else {
-      focusEl.setAttribute("disabled", "true");
-    }
+    idEls = [
+      "appmenu_devToolbar",
+      "menu_devToolbar"
+    ];
+    idEls.forEach(function (idEl) {
+      toggleMenuItem(idEl, devToolbarEnabled);
+      let focusEl = doc.getElementById(idEl);
+      if (!focusEl) {
+        return;
+      }
+      if (devToolbarEnabled) {
+        focusEl.removeAttribute("disabled");
+      } else {
+        focusEl.setAttribute("disabled", "true");
+      }
+    });
     if (devToolbarEnabled && Services.prefs.getBoolPref("devtools.toolbar.visible")) {
       win.DeveloperToolbar.show(false).catch(console.error);
     }
 
     // Enable WebIDE?
     let webIDEEnabled = Services.prefs.getBoolPref("devtools.webide.enabled");
-    toggleMenuItem("menu_webide", webIDEEnabled);
+    idEls = [
+      "appmenu_webide",
+      "menu_webide"
+    ];
+    idEls.forEach(function (idEl) {
+      toggleMenuItem(idEl, webIDEEnabled);
+    });
 
     let showWebIDEWidget = Services.prefs.getBoolPref("devtools.webide.widget.enabled");
     if (webIDEEnabled && showWebIDEWidget) {
@@ -122,11 +144,29 @@ var gDevToolsBrowser = exports.gDevToolsBrowser = {
     let chromeEnabled = Services.prefs.getBoolPref("devtools.chrome.enabled");
     let devtoolsRemoteEnabled = Services.prefs.getBoolPref("devtools.debugger.remote-enabled");
     let remoteEnabled = chromeEnabled && devtoolsRemoteEnabled;
-    toggleMenuItem("menu_browserToolbox", remoteEnabled);
-    toggleMenuItem("menu_browserContentToolbox", remoteEnabled && win.gMultiProcessBrowser);
+    idEls = [
+      "appmenu_browserToolbox",
+      "menu_browserToolbox"
+    ];
+    idEls.forEach(function (idEl) {
+      toggleMenuItem(idEl, remoteEnabled);
+    });
+    idEls = [
+      "appmenu_browserContentToolbox",
+      "menu_browserContentToolbox"
+    ];
+    idEls.forEach(function (idEl) {
+      toggleMenuItem(idEl, remoteEnabled && win.gMultiProcessBrowser);
+    });
 
     // Enable DevTools connection screen, if the preference allows this.
-    toggleMenuItem("menu_devtools_connect", devtoolsRemoteEnabled);
+    idEls = [
+      "appmenu_devtools_connect",
+      "menu_devtools_connect"
+    ];
+    idEls.forEach(function (idEl) {
+      toggleMenuItem(idEl, devtoolsRemoteEnabled);
+    });
   },
 
   observe: function (subject, topic, prefName) {
@@ -295,6 +335,7 @@ var gDevToolsBrowser = exports.gDevToolsBrowser = {
    * Install Developer widget
    */
   installDeveloperWidget: function () {
+#ifdef MC_BASILISK
     let id = "developer-button";
     let widget = CustomizableUI.getWidget(id);
     if (widget && widget.provider == CustomizableUI.PROVIDER_API) {
@@ -343,6 +384,9 @@ var gDevToolsBrowser = exports.gDevToolsBrowser = {
         doc.getElementById("PanelUI-multiView").appendChild(view);
       }
     });
+#else
+    return;
+#endif
   },
 
   /**
@@ -350,6 +394,7 @@ var gDevToolsBrowser = exports.gDevToolsBrowser = {
    */
   // Used by itself
   installWebIDEWidget: function () {
+#ifdef MC_BASILISK
     if (this.isWebIDEWidgetInstalled()) {
       return;
     }
@@ -371,11 +416,18 @@ var gDevToolsBrowser = exports.gDevToolsBrowser = {
         gDevToolsBrowser.openWebIDE();
       }
     });
+#else
+    return;
+#endif
   },
 
   isWebIDEWidgetInstalled: function () {
+#ifdef MC_BASILISK
     let widgetWrapper = CustomizableUI.getWidget("webide-button");
     return !!(widgetWrapper && widgetWrapper.provider == CustomizableUI.PROVIDER_API);
+#else
+    return false;
+#endif
   },
 
   /**
@@ -387,10 +439,14 @@ var gDevToolsBrowser = exports.gDevToolsBrowser = {
    * Uninstall WebIDE widget
    */
   uninstallWebIDEWidget: function () {
+#ifdef MC_BASILISK
     if (this.isWebIDEWidgetInstalled()) {
       CustomizableUI.removeWidgetFromArea("webide-button");
     }
     CustomizableUI.destroyWidget("webide-button");
+#else
+    return;
+#endif
   },
 
   /**
@@ -398,7 +454,11 @@ var gDevToolsBrowser = exports.gDevToolsBrowser = {
    */
    // Used by webide.js
   moveWebIDEWidgetInNavbar: function () {
+#ifdef MC_BASILISK
     CustomizableUI.addWidgetToArea("webide-button", CustomizableUI.AREA_NAVBAR);
+#else
+    return;
+#endif
   },
 
   /**
@@ -591,12 +651,23 @@ var gDevToolsBrowser = exports.gDevToolsBrowser = {
 
       let hasToolbox = gDevToolsBrowser.hasToolboxOpened(win);
 
-      let menu = win.document.getElementById("menu_devToolbox");
-      if (hasToolbox) {
-        menu.setAttribute("checked", "true");
-      } else {
-        menu.removeAttribute("checked");
-      }
+      let idEls = [];
+
+      idEls = [
+        "appmenu_devToolbox",
+        "menu_devToolbox"
+      ];
+      idEls.forEach(function (idEl) {
+        let menu = win.document.getElementById(idEl);
+        if (!menu) {
+          return;
+        }
+        if (hasToolbox) {
+          menu.setAttribute("checked", "true");
+        } else {
+          menu.removeAttribute("checked");
+        }
+      });
     }
   },
 

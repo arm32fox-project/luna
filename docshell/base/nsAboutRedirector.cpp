@@ -42,12 +42,12 @@ static RedirEntry kRedirMap[] = {
   {
     "buildconfig", "chrome://global/content/buildconfig.html",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
-      nsIAboutModule::MAKE_LINKABLE
+    nsIAboutModule::MAKE_LINKABLE
   },
   {
     "checkerboard", "chrome://global/content/aboutCheckerboard.xhtml",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
-      nsIAboutModule::ALLOW_SCRIPT
+    nsIAboutModule::ALLOW_SCRIPT
   },
   { "config", "chrome://global/content/config.xul", 0 },
   {
@@ -64,7 +64,7 @@ static RedirEntry kRedirMap[] = {
   {
     "license", "chrome://global/content/license.html",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
-      nsIAboutModule::MAKE_LINKABLE
+    nsIAboutModule::MAKE_LINKABLE
   },
   {
     "logo", "chrome://branding/content/about.png",
@@ -72,6 +72,13 @@ static RedirEntry kRedirMap[] = {
     // Linkable for testing reasons.
     nsIAboutModule::MAKE_LINKABLE
   },
+#ifdef MOZ_PHOENIX
+  {
+    "logopage", "chrome://global/content/logopage.xhtml",
+    nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
+    nsIAboutModule::HIDE_FROM_ABOUTABOUT
+  },
+#endif
   {
     "memory", "chrome://global/content/aboutMemory.xhtml",
     nsIAboutModule::ALLOW_SCRIPT
@@ -83,9 +90,9 @@ static RedirEntry kRedirMap[] = {
   {
     "neterror", "chrome://global/content/netError.xhtml",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
-      nsIAboutModule::URI_CAN_LOAD_IN_CHILD |
-      nsIAboutModule::ALLOW_SCRIPT |
-      nsIAboutModule::HIDE_FROM_ABOUTABOUT
+    nsIAboutModule::URI_CAN_LOAD_IN_CHILD |
+    nsIAboutModule::ALLOW_SCRIPT |
+    nsIAboutModule::HIDE_FROM_ABOUTABOUT
   },
   {
     "networking", "chrome://global/content/aboutNetworking.xhtml",
@@ -94,7 +101,7 @@ static RedirEntry kRedirMap[] = {
   {
     "newaddon", "chrome://mozapps/content/extensions/newaddon.xul",
     nsIAboutModule::ALLOW_SCRIPT |
-      nsIAboutModule::HIDE_FROM_ABOUTABOUT
+    nsIAboutModule::HIDE_FROM_ABOUTABOUT
   },
   {
     "performance", "chrome://global/content/aboutPerformance.xhtml",
@@ -121,10 +128,10 @@ static RedirEntry kRedirMap[] = {
   {
     "srcdoc", "about:blank",
     nsIAboutModule::URI_SAFE_FOR_UNTRUSTED_CONTENT |
-      nsIAboutModule::HIDE_FROM_ABOUTABOUT |
-      // Needs to be linkable so content can touch its own srcdoc frames
-      nsIAboutModule::MAKE_LINKABLE |
-      nsIAboutModule::URI_CAN_LOAD_IN_CHILD
+    nsIAboutModule::HIDE_FROM_ABOUTABOUT |
+    // Needs to be linkable so content can touch its own srcdoc frames
+    nsIAboutModule::MAKE_LINKABLE |
+    nsIAboutModule::URI_CAN_LOAD_IN_CHILD
   },
   {
     "support", "chrome://global/content/aboutSupport.xhtml",

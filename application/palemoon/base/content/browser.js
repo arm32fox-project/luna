@@ -3,6 +3,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
+let Cc = Components.classes;
 let Ci = Components.interfaces;
 let Cu = Components.utils;
 
@@ -109,20 +110,6 @@ XPCOMUtils.defineLazyGetter(this, "PopupNotifications", function () {
   }
 });
 
-#ifdef MOZ_DEVTOOLS
-XPCOMUtils.defineLazyGetter(this, "DeveloperToolbar", function() {
-  let tmp = {};
-  Cu.import("resource://gre/modules/devtools/DeveloperToolbar.jsm", tmp);
-  return new tmp.DeveloperToolbar(window, document.getElementById("developer-toolbar"));
-});
-
-XPCOMUtils.defineLazyGetter(this, "BrowserToolboxProcess", function() {
-  let tmp = {};
-  Cu.import("resource://gre/modules/devtools/ToolboxProcess.jsm", tmp);
-  return tmp.BrowserToolboxProcess;
-});
-#endif
-
 XPCOMUtils.defineLazyModuleGetter(this, "PageThumbs",
   "resource://gre/modules/PageThumbs.jsm");
 
@@ -152,7 +139,11 @@ let gInitialPages = [
 #include browser-plugins.js
 #include browser-tabPreviews.js
 #include browser-thumbnails.js
+
+#ifdef MOZ_WEBRTC
 #include browser-webrtcUI.js
+#endif
+
 #include browser-gestureSupport.js
 
 #ifdef MOZ_SERVICES_SYNC
@@ -332,6 +323,48 @@ const gSessionHistoryObserver = {
     if (gURLBar) {
       // Clear undo history of the URL bar
       gURLBar.editor.transactionManager.clear()
+    }
+  }
+};
+
+var gURLBarSettings = {
+  prefSuggest: "browser.urlbar.suggest.",
+  /*
+  For searching in the source code:
+    browser.urlbar.suggest.bookmark
+    browser.urlbar.suggest.history
+    browser.urlbar.suggest.openpage
+  */
+  prefSuggests: [
+    "bookmark",
+    "history",
+    "openpage"
+  ],
+  prefKeyword: "keyword.enabled",
+
+  observe: function(aSubject, aTopic, aData) {
+    if (aTopic != "nsPref:changed")
+      return;
+
+    this.writePlaceholder();
+  },
+
+  writePlaceholder: function() {
+    let attribute = "placeholder";
+    let prefs = this.prefSuggests.map(pref => {
+      return this.prefSuggest + pref;
+    });
+    prefs.push(this.prefKeyword);
+    let placeholderDefault = prefs.some(pref => {
+      return gPrefService.getBoolPref(pref);
+    });
+
+    if (placeholderDefault) {
+      gURLBar.setAttribute(
+          attribute, gNavigatorBundle.getString("urlbar.placeholder"));
+    } else {
+      gURLBar.setAttribute(
+          attribute, gNavigatorBundle.getString("urlbar.placeholderURLOnly"));
     }
   }
 };
@@ -663,6 +696,8 @@ const gXSSObserver = {
 };
 
 var gBrowserInit = {
+  delayedStartupFinished: false,
+
   onLoad: function() {
     gMultiProcessBrowser = gPrefService.getBoolPref("browser.tabs.remote");
 
@@ -968,11 +1003,18 @@ var gBrowserInit = {
     Services.obs.addObserver(gXPInstallObserver, "addon-install-complete", false);
     Services.obs.addObserver(gXSSObserver, "xss-on-violate-policy", false);
 
+    gPrefService.addObserver(gURLBarSettings.prefSuggest, gURLBarSettings, false);
+    gPrefService.addObserver(gURLBarSettings.prefKeyword, gURLBarSettings, false);
+
+    gURLBarSettings.writePlaceholder();
+
     BrowserOffline.init();
     OfflineApps.init();
     IndexedDBPromptHelper.init();
     AddonManager.addAddonListener(AddonsMgrListener);
+#ifdef MOZ_WEBRTC
     WebrtcIndicator.init();
+#endif
 
     // Ensure login manager is up and running.
     Services.logins;
@@ -1114,27 +1156,6 @@ var gBrowserInit = {
         setUrlAndSearchBarWidthForConditionalForwardButton();
     });
 
-#ifdef MOZ_DEVTOOLS
-    // Enable Chrome Debugger?
-    let chromeEnabled = gPrefService.getBoolPref("devtools.chrome.enabled");
-    let remoteEnabled = chromeEnabled &&
-                        gPrefService.getBoolPref("devtools.debugger.chrome-enabled") &&
-                        gPrefService.getBoolPref("devtools.debugger.remote-enabled");
-    if (remoteEnabled) {
-      let cmd = document.getElementById("Tools:ChromeDebugger");
-      cmd.removeAttribute("disabled");
-      cmd.removeAttribute("hidden");
-    }
-
-    // Enable Scratchpad in the UI, if the preference allows this.
-    let scratchpadEnabled = gPrefService.getBoolPref(Scratchpad.prefEnabledName);
-    if (scratchpadEnabled) {
-      let cmd = document.getElementById("Tools:Scratchpad");
-      cmd.removeAttribute("disabled");
-      cmd.removeAttribute("hidden");
-    }
-#endif
-
     // Enable Error Console?
     let consoleEnabled = gPrefService.getBoolPref("devtools.errorconsole.enabled");
     if (consoleEnabled) {
@@ -1150,19 +1171,6 @@ var gBrowserInit = {
     if ("true" != gPrefService.getComplexValue("browser.menu.showCharacterEncoding",
                                                Ci.nsIPrefLocalizedString).data)
       document.getElementById("appmenu_charsetMenu").hidden = true;
-#endif
-
-#ifdef MOZ_DEVTOOLS
-    // Enable Responsive UI?
-    let responsiveUIEnabled = gPrefService.getBoolPref("devtools.responsiveUI.enabled");
-    if (responsiveUIEnabled) {
-      let cmd = document.getElementById("Tools:ResponsiveUI");
-      cmd.removeAttribute("disabled");
-      cmd.removeAttribute("hidden");
-    }
-
-    // Add Devtools menuitems and listeners
-    gDevToolsBrowser.registerBrowserWindow(window);
 #endif
 
     let appMenuButton = document.getElementById("appmenu-button");
@@ -1205,6 +1213,8 @@ var gBrowserInit = {
       setTimeout(function () { BrowserChromeTest.markAsReady(); }, 0);
     });
 
+    this.delayedStartupFinished = true;
+
     Services.obs.notifyObservers(window, "browser-delayed-startup-finished", "");
   },
 
@@ -1239,15 +1249,6 @@ var gBrowserInit = {
     // load completes). In that case, there's nothing to do here.
     if (!this._loadHandled)
       return;
-
-#ifdef MOZ_DEVTOOLS
-    gDevToolsBrowser.forgetBrowserWindow(window);
-
-    let desc = Object.getOwnPropertyDescriptor(window, "DeveloperToolbar");
-    if (desc && !desc.get) {
-      DeveloperToolbar.destroy();
-    }
-#endif
 
     // First clean up services initialized in gBrowserInit.onLoad (or those whose
     // uninit methods don't depend on the services having been initialized).
@@ -1312,6 +1313,13 @@ var gBrowserInit = {
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-failed");
       Services.obs.removeObserver(gXPInstallObserver, "addon-install-complete");
       Services.obs.removeObserver(gXSSObserver, "xss-on-violate-policy");
+
+      try {
+        gPrefService.removeObserver(gURLBarSettings.prefSuggest, gURLBarSettings);
+        gPrefService.removeObserver(gURLBarSettings.prefKeyword, gURLBarSettings);
+      } catch (ex) {
+        Cu.reportError(ex);
+      }
 
       try {
         gPrefService.removeObserver(gHomeButton.prefDomain, gHomeButton);
@@ -6825,20 +6833,9 @@ var TabContextMenu = {
 };
 
 #ifdef MOZ_DEVTOOLS
+// Note: Do not delete! It is used for: base/content/nsContextMenu.js
 XPCOMUtils.defineLazyModuleGetter(this, "gDevTools",
-                                  "resource://gre/modules/devtools/gDevTools.jsm");
-
-XPCOMUtils.defineLazyModuleGetter(this, "gDevToolsBrowser",
-                                  "resource://gre/modules/devtools/gDevTools.jsm");
-
-Object.defineProperty(this, "HUDService", {
-  get: function HUDService_getter() {
-    let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
-    return devtools.require("devtools/webconsole/hudservice").HUDService;
-  },
-  configurable: true,
-  enumerable: true
-});
+                                  "resource://devtools/client/framework/gDevTools.jsm");
 #endif
 
 // Prompt user to restart the browser in safe mode or normally
@@ -6928,49 +6925,6 @@ function toggleAddonBar() {
   let addonBar = document.getElementById("addon-bar");
   setToolbarVisibility(addonBar, addonBar.collapsed);
 }
-
-#ifdef MOZ_DEVTOOLS
-var Scratchpad = {
-  prefEnabledName: "devtools.scratchpad.enabled",
-
-  openScratchpad: function SP_openScratchpad() {
-    return this.ScratchpadManager.openScratchpad();
-  }
-};
-
-XPCOMUtils.defineLazyGetter(Scratchpad, "ScratchpadManager", function() {
-  let tmp = {};
-  Cu.import("resource://gre/modules/devtools/scratchpad-manager.jsm", tmp);
-  return tmp.ScratchpadManager;
-});
-
-var ResponsiveUI = {
-  toggle: function RUI_toggle() {
-    this.ResponsiveUIManager.toggle(window, gBrowser.selectedTab);
-  }
-};
-
-XPCOMUtils.defineLazyGetter(ResponsiveUI, "ResponsiveUIManager", function() {
-  let tmp = {};
-  Cu.import("resource://gre/modules/devtools/responsivedesign.jsm", tmp);
-  return tmp.ResponsiveUIManager;
-});
-
-function openEyedropper() {
-  var eyedropper = new this.Eyedropper(this, { context: "menu",
-                                               copyOnSelect: true });
-  eyedropper.open();
-}
-
-Object.defineProperty(this, "Eyedropper", {
-  get: function() {
-    let devtools = Cu.import("resource://gre/modules/devtools/Loader.jsm", {}).devtools;
-    return devtools.require("devtools/eyedropper/eyedropper").Eyedropper;
-  },
-  configurable: true,
-  enumerable: true
-});
-#endif
 
 XPCOMUtils.defineLazyGetter(window, "gShowPageResizers", function () {
 #ifdef XP_WIN

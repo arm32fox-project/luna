@@ -410,7 +410,7 @@
       <toolbaritem id="urlbar-container" align="center" flex="400" persist="width" combined="true"
                    title="&locationItem.title;" class="chromeclass-location" removable="true">
         <textbox id="urlbar" flex="1"
-                 placeholder="&urlbar.placeholder2;"
+                 placeholder=""
                  type="autocomplete"
                  autocompletesearch="urlinline history"
                  autocompletesearchparam="enable-actions"
@@ -440,8 +440,10 @@
             <image id="alert-plugins-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="blocked-plugins-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="mixed-content-blocked-notification-icon" class="notification-anchor-icon" role="button"/>
+#ifdef MOZ_WEBRTC
             <image id="webRTC-shareDevices-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="webRTC-sharingDevices-notification-icon" class="notification-anchor-icon" role="button"/>
+#endif
             <image id="pointerLock-notification-icon" class="notification-anchor-icon" role="button"/>
             <image id="servicesInstall-notification-icon" class="notification-anchor-icon" role="button"/>
           </box>
@@ -513,7 +515,7 @@
                    flex="100" persist="width" removable="true">
         <searchbar id="searchbar" flex="1"/>
       </toolbaritem>
-
+#ifdef MOZ_WEBRTC
       <toolbarbutton id="webrtc-status-button"
                      class="toolbarbutton-1 chromeclass-toolbar-additional"
                      type="menu"
@@ -525,7 +527,7 @@
                    onpopuphiding="WebrtcIndicator.clearPopup(this);"
                    oncommand="WebrtcIndicator.menuCommand(event.target);"/>
       </toolbarbutton>
-
+#endif
       <toolbarbutton id="bookmarks-menu-button"
                      class="toolbarbutton-1 chromeclass-toolbar-additional"
                      persist="class"
@@ -971,33 +973,6 @@
 
   <vbox id="browser-bottombox" layer="true">
     <notificationbox id="global-notificationbox"/>
-#ifdef MOZ_DEVTOOLS
-    <toolbar id="developer-toolbar"
-             class="devtools-toolbar"
-             hidden="true">
-#ifdef XP_MACOSX
-          <toolbarbutton id="developer-toolbar-closebutton"
-                         class="devtools-closebutton"
-                         oncommand="DeveloperToolbar.hide();"
-                         tooltiptext="&devToolbarCloseButton.tooltiptext;"/>
-#endif
-          <stack class="gclitoolbar-stack-node" flex="1">
-            <textbox class="gclitoolbar-input-node" rows="1"/>
-            <hbox class="gclitoolbar-complete-node"/>
-          </stack>
-          <toolbarbutton id="developer-toolbar-toolbox-button"
-                         class="developer-toolbar-button"
-                         observes="devtoolsMenuBroadcaster_DevToolbox"
-                         tooltiptext="&devToolbarToolsButton.tooltip;"/>
-#ifndef XP_MACOSX
-          <toolbarbutton id="developer-toolbar-closebutton"
-                         class="devtools-closebutton"
-                         oncommand="DeveloperToolbar.hide();"
-                         tooltiptext="&devToolbarCloseButton.tooltiptext;"/>
-#endif
-   </toolbar>
-#endif
-
     <toolbar id="addon-bar"
              toolbarname="&statusBar.label;" accesskey="&statusBar.accesskey;"
              collapsed="true"

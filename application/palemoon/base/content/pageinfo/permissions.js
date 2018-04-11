@@ -12,9 +12,10 @@ const IMAGE_DENY = 2;
 const COOKIE_DENY = 2;
 const COOKIE_SESSION = 2;
 
-const nsIQuotaManager = Components.interfaces.nsIQuotaManager;
+const nsIQuotaManagerService = Components.interfaces.nsIQuotaManagerService;
 
 var gPermURI;
+var gPermPrincipal;
 var gPrefs;
 var gUsageRequest;
 
@@ -107,7 +108,7 @@ var permissionObserver = {
   }
 };
 
-function onLoadPermission()
+function onLoadPermission(principal)
 {
   gPrefs = Components.classes[PREFERENCES_CONTRACTID]
                      .getService(Components.interfaces.nsIPrefBranch);
@@ -116,6 +117,7 @@ function onLoadPermission()
   var permTab = document.getElementById("permTab");
   if (/^https?$/.test(uri.scheme)) {
     gPermURI = uri;
+    gPermPrincipal = principal;
     var hostText = document.getElementById("hostText");
     hostText.value = gPermURI.host;
 
@@ -187,7 +189,7 @@ function onCheckboxClick(aPartId)
   var command  = document.getElementById("cmd_" + aPartId + "Toggle");
   var checkbox = document.getElementById(aPartId + "Def");
   if (checkbox.checked) {
-    permissionManager.remove(gPermURI.host, aPartId);
+    permissionManager.remove(gPermURI, aPartId);
     command.setAttribute("disabled", "true");
     var perm = gPermObj[aPartId]();
     setRadioState(aPartId, perm);
@@ -211,7 +213,7 @@ function onRadioClick(aPartId)
   var id = radioGroup.selectedItem.id;
   var permission = id.split('#')[1];
   if (permission == UNKNOWN) {
-    permissionManager.remove(gPermURI.host, aPartId);
+    permissionManager.remove(gPermURI, aPartId);
   } else {
     permissionManager.add(gPermURI, aPartId, permission);
   }
@@ -230,10 +232,13 @@ function initIndexedDBRow()
 
   row.appendChild(extras);
 
-  var quotaManager = Components.classes["@mozilla.org/dom/quota/manager;1"]
-                               .getService(nsIQuotaManager);
+  var quotaManagerService =
+    Components.classes["@mozilla.org/dom/quota-manager-service;1"]
+              .getService(nsIQuotaManagerService);
+
   gUsageRequest =
-    quotaManager.getUsageForURI(gPermURI, onIndexedDBUsageCallback);
+    quotaManagerService.getUsageForPrincipal(gPermPrincipal,
+                                             onIndexedDBUsageCallback);
 
   var status = document.getElementById("indexedDBStatus");
   var button = document.getElementById("indexedDBClear");
@@ -245,22 +250,24 @@ function initIndexedDBRow()
 
 function onIndexedDBClear()
 {
-  Components.classes["@mozilla.org/dom/quota/manager;1"]
-            .getService(nsIQuotaManager)
-            .clearStoragesForURI(gPermURI);
+  Components.classes["@mozilla.org/dom/quota-manager-service;1"]
+            .getService(nsIQuotaManagerService)
+            .clearStoragesForPrincipal(gPermPrincipal);
 
   var permissionManager = Components.classes[PERMISSION_CONTRACTID]
                                     .getService(nsIPermissionManager);
-  permissionManager.remove(gPermURI.host, "indexedDB");
+  permissionManager.remove(gPermURI, "indexedDB");
   initIndexedDBRow();
 }
 
-function onIndexedDBUsageCallback(uri, usage, fileUsage)
+function onIndexedDBUsageCallback(request)
 {
+  let uri = request.principal.URI;
   if (!uri.equals(gPermURI)) {
-    throw new Error("Callback received for bad URI: " + uri);
+    throw new Error("Callback received for bad URI: " + uri.spec);
   }
 
+  let usage = request.result.usage;
   if (usage) {
     if (!("DownloadUtils" in window)) {
       Components.utils.import("resource://gre/modules/DownloadUtils.jsm");
@@ -355,20 +362,33 @@ function initPluginsRow() {
     }
   }
 
-  let entries = [
-    {
+  // Tycho:
+  // let entries = [
+  //   {
+  //     "permission": item[0],
+  //     "obj": item[1],
+  //   }
+  //   for (item of permissionMap)
+  // ];
+  let entries = [];
+  for (let item of permissionMap) {
+    entries.push({
       "permission": item[0],
-      "obj": item[1],
-    }
-    for (item of permissionMap)
-  ];
+      "obj": item[1]
+    });
+  }    
   entries.sort(function(a, b) {
     return ((a.obj.name < b.obj.name) ? -1 : (a.obj.name == b.obj.name ? 0 : 1));
   });
 
-  let permissionEntries = [
-    fillInPluginPermissionTemplate(p.permission, p.obj) for (p of entries)
-  ];
+  // Tycho:
+  // let permissionEntries = [
+  //   fillInPluginPermissionTemplate(p.permission, p.obj) for (p of entries)
+  // ];
+  let permissionEntries = [];
+  entries.forEach(function (p) {
+    permissionEntries.push(fillInPluginPermissionTemplate(p.permission, p.obj));
+  });
 
   let permPluginsRow = document.getElementById("permPluginsRow");
   clearPluginPermissionTemplate();
