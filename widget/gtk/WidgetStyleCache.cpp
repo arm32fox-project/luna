@@ -434,15 +434,6 @@ CreateScrolledWindowWidget()
 }
 
 static GtkWidget*
-CreateTextViewWidget()
-{
-  GtkWidget* widget = gtk_text_view_new();
-  gtk_container_add(GTK_CONTAINER(GetWidget(MOZ_GTK_SCROLLED_WINDOW)),
-                    widget);
-  return widget;
-}
-
-static GtkWidget*
 CreateMenuSeparatorWidget()
 {
   GtkWidget* widget = gtk_separator_menu_item_new();
@@ -591,8 +582,6 @@ CreateWidget(WidgetNodeType aWidgetType)
       return CreateEntryWidget();
     case MOZ_GTK_SCROLLED_WINDOW: 
       return CreateScrolledWindowWidget();
-    case MOZ_GTK_TEXT_VIEW:
-      return CreateTextViewWidget();
     case MOZ_GTK_TREEVIEW:
       return CreateTreeViewWidget();
     case MOZ_GTK_TREE_HEADER_CELL:
@@ -637,6 +626,24 @@ GetWidget(WidgetNodeType aWidgetType)
   GtkWidget* widget = sWidgetStorage[aWidgetType];
   if (!widget) {
     widget = CreateWidget(aWidgetType);
+    // Some widgets (MOZ_GTK_COMBOBOX_SEPARATOR for instance) may not be
+    // available or implemented.
+    if (!widget)
+      return nullptr;
+    // In GTK versions prior to 3.18, automatic invalidation of style contexts
+    // for widgets was delayed until the next resize event.  Gecko however,
+    // typically uses the style context before the resize event runs and so an
+    // explicit invalidation may be required.  This is necessary if a style
+    // property was retrieved before all changes were made to the style
+    // context.  One such situation is where gtk_button_construct_child()
+    // retrieves the style property "image-spacing" during construction of the
+    // GtkButton, before its parent is set to provide inheritance of ancestor
+    // properties.  More recent GTK versions do not need this, but do not
+    // re-resolve until required and so invalidation does not trigger
+    // unnecessary resolution in general.
+    GtkStyleContext* style = gtk_widget_get_style_context(widget);
+    gtk_style_context_invalidate(style);
+
     sWidgetStorage[aWidgetType] = widget;
   }
   return widget;
@@ -725,6 +732,21 @@ CreateCSSNode(const char* aName, GtkStyleContext* aParentStyle, GType aType)
   gtk_style_context_set_parent(context, aParentStyle);
   gtk_widget_path_unref(path);
 
+  // In GTK 3.4, gtk_render_* functions use |theming_engine| on the style
+  // context without ensuring any style resolution sets it appropriately
+  // in style_data_lookup(). e.g.
+  // https://git.gnome.org/browse/gtk+/tree/gtk/gtkstylecontext.c?h=3.4.4#n3847
+  //
+  // That can result in incorrect drawing on first draw.  To work around this,
+  // force a style look-up to set |theming_engine|.  It is sufficient to do
+  // this only on context creation, instead of after every modification to the
+  // context, because themes typically (Ambiance and oxygen-gtk, at least) set
+  // the "engine" property with the '*' selector.
+  if (GTK_MAJOR_VERSION == 3 && gtk_get_minor_version() < 6) {
+    GdkRGBA unused;
+    gtk_style_context_get_color(context, GTK_STATE_FLAG_NORMAL, &unused);
+  }
+
   return context;
 }
 
@@ -747,12 +769,37 @@ GetWidgetRootStyle(WidgetNodeType aNodeType)
     case MOZ_GTK_IMAGEMENUITEM:
       style = CreateStyleForWidget(gtk_image_menu_item_new(), MOZ_GTK_MENUPOPUP);
       break;
-    case MOZ_GTK_CHECKMENUITEM_CONTAINER:
+    case MOZ_GTK_CHECKMENUITEM:
       style = CreateStyleForWidget(gtk_check_menu_item_new(), MOZ_GTK_MENUPOPUP);
       break;
-    case MOZ_GTK_RADIOMENUITEM_CONTAINER:
+    case MOZ_GTK_RADIOMENUITEM:
       style = CreateStyleForWidget(gtk_radio_menu_item_new(nullptr),
                                    MOZ_GTK_MENUPOPUP);
+      break;
+    case MOZ_GTK_TEXT_VIEW:
+      style = CreateStyleForWidget(gtk_text_view_new(),
+                                   MOZ_GTK_SCROLLED_WINDOW);
+      break;
+    case MOZ_GTK_TOOLTIP:
+      if (gtk_check_version(3, 20, 0) != nullptr) {
+          // The tooltip style class is added first in CreateTooltipWidget()
+          // and transfered to style in CreateStyleForWidget().
+          GtkWidget* tooltipWindow = CreateTooltipWidget();
+          style = CreateStyleForWidget(tooltipWindow, nullptr);
+          gtk_widget_destroy(tooltipWindow); // Release GtkWindow self-reference.
+      } else {
+          // We create this from the path because GtkTooltipWindow is not public.
+          style = CreateCSSNode("tooltip", nullptr, GTK_TYPE_TOOLTIP);
+          gtk_style_context_add_class(style, GTK_STYLE_CLASS_BACKGROUND);
+      }
+      break;
+    case MOZ_GTK_TOOLTIP_BOX:
+      style = CreateStyleForWidget(gtk_box_new(GTK_ORIENTATION_HORIZONTAL, 0),
+                                   MOZ_GTK_TOOLTIP);
+      break;
+    case MOZ_GTK_TOOLTIP_BOX_LABEL:
+      style = CreateStyleForWidget(gtk_label_new(nullptr),
+                                   MOZ_GTK_TOOLTIP_BOX);
       break;
     default:
       GtkWidget* widget = GetWidget(aNodeType);
@@ -827,13 +874,13 @@ GetCssNodeStyleInternal(WidgetNodeType aNodeType)
       style = CreateChildCSSNode(GTK_STYLE_CLASS_CHECK,
                                  MOZ_GTK_CHECKBUTTON_CONTAINER);
       break;
-    case MOZ_GTK_RADIOMENUITEM:
+    case MOZ_GTK_RADIOMENUITEM_INDICATOR:
       style = CreateChildCSSNode(GTK_STYLE_CLASS_RADIO,
-                                 MOZ_GTK_RADIOMENUITEM_CONTAINER);
+                                 MOZ_GTK_RADIOMENUITEM);
       break;
-    case MOZ_GTK_CHECKMENUITEM:
+    case MOZ_GTK_CHECKMENUITEM_INDICATOR:
       style = CreateChildCSSNode(GTK_STYLE_CLASS_CHECK,
-                                 MOZ_GTK_CHECKMENUITEM_CONTAINER);
+                                 MOZ_GTK_CHECKMENUITEM);
       break;
     case MOZ_GTK_PROGRESS_TROUGH:
       /* Progress bar background (trough) */
@@ -844,11 +891,6 @@ GetCssNodeStyleInternal(WidgetNodeType aNodeType)
       style = CreateChildCSSNode("progress",
                                  MOZ_GTK_PROGRESS_TROUGH);
       break;
-    case MOZ_GTK_TOOLTIP:
-      // We create this from the path because GtkTooltipWindow is not public.
-      style = CreateCSSNode("tooltip", nullptr, GTK_TYPE_TOOLTIP);
-      gtk_style_context_add_class(style, GTK_STYLE_CLASS_BACKGROUND);
-      break; 
     case MOZ_GTK_GRIPPER:
       // TODO - create from CSS node
       return GetWidgetStyleWithClass(MOZ_GTK_GRIPPER,
@@ -865,10 +907,28 @@ GetCssNodeStyleInternal(WidgetNodeType aNodeType)
       // TODO - create from CSS node
       return GetWidgetStyleWithClass(MOZ_GTK_SCROLLED_WINDOW,
                                      GTK_STYLE_CLASS_FRAME);
-    case MOZ_GTK_TEXT_VIEW:
-      // TODO - create from CSS node
-      return GetWidgetStyleWithClass(MOZ_GTK_TEXT_VIEW,
-                                     GTK_STYLE_CLASS_VIEW);
+    case MOZ_GTK_TEXT_VIEW_TEXT:
+    case MOZ_GTK_RESIZER:
+      style = CreateChildCSSNode("text", MOZ_GTK_TEXT_VIEW);
+      if (aNodeType == MOZ_GTK_RESIZER) {
+        // The "grip" class provides the correct builtin icon from
+        // gtk_render_handle().  The icon is drawn with shaded variants of
+        // the background color, and so a transparent background would lead to
+        // a transparent resizer.  gtk_render_handle() also uses the
+        // background color to draw a background, and so this style otherwise
+        // matches what is used in GtkTextView to match the background with
+        // textarea elements.
+        GdkRGBA color;
+        gtk_style_context_get_background_color(style, GTK_STATE_FLAG_NORMAL,
+                                               &color);
+        if (color.alpha == 0.0) {
+          g_object_unref(style);
+          style = CreateStyleForWidget(gtk_text_view_new(),
+                                       MOZ_GTK_SCROLLED_WINDOW);
+        }
+        gtk_style_context_add_class(style, GTK_STYLE_CLASS_GRIP);
+      }
+      break;
     case MOZ_GTK_FRAME_BORDER:
       style = CreateChildCSSNode("border", MOZ_GTK_FRAME);
       break;
@@ -971,27 +1031,20 @@ GetWidgetStyleInternal(WidgetNodeType aNodeType)
     case MOZ_GTK_CHECKBUTTON:
       return GetWidgetStyleWithClass(MOZ_GTK_CHECKBUTTON_CONTAINER,
                                      GTK_STYLE_CLASS_CHECK);
-    case MOZ_GTK_RADIOMENUITEM:
-      return GetWidgetStyleWithClass(MOZ_GTK_RADIOMENUITEM_CONTAINER,
+    case MOZ_GTK_RADIOMENUITEM_INDICATOR:
+      return GetWidgetStyleWithClass(MOZ_GTK_RADIOMENUITEM,
                                      GTK_STYLE_CLASS_RADIO);
-    case MOZ_GTK_CHECKMENUITEM:
-      return GetWidgetStyleWithClass(MOZ_GTK_CHECKMENUITEM_CONTAINER,
+    case MOZ_GTK_CHECKMENUITEM_INDICATOR:
+      return GetWidgetStyleWithClass(MOZ_GTK_CHECKMENUITEM,
                                      GTK_STYLE_CLASS_CHECK);
     case MOZ_GTK_PROGRESS_TROUGH:
       return GetWidgetStyleWithClass(MOZ_GTK_PROGRESSBAR,
                                      GTK_STYLE_CLASS_TROUGH);
-    case MOZ_GTK_TOOLTIP: {
-      GtkStyleContext* style = sStyleStorage[aNodeType];
-      if (style)
-        return style;
-
-      // The tooltip style class is added first in CreateTooltipWidget() so
-      // that gtk_widget_path_append_for_widget() in CreateStyleForWidget()
-      // will find it.
-      GtkWidget* tooltipWindow = CreateTooltipWidget();
-      style = CreateStyleForWidget(tooltipWindow, nullptr);
-      gtk_widget_destroy(tooltipWindow); // Release GtkWindow self-reference.
-      sStyleStorage[aNodeType] = style;
+    case MOZ_GTK_PROGRESS_CHUNK: {
+      GtkStyleContext* style =
+        GetWidgetStyleWithClass(MOZ_GTK_PROGRESSBAR,
+                                GTK_STYLE_CLASS_PROGRESSBAR);
+      gtk_style_context_remove_class(style, GTK_STYLE_CLASS_TROUGH);
       return style;
     }
     case MOZ_GTK_GRIPPER:
@@ -1006,9 +1059,25 @@ GetWidgetStyleInternal(WidgetNodeType aNodeType)
     case MOZ_GTK_SCROLLED_WINDOW:
       return GetWidgetStyleWithClass(MOZ_GTK_SCROLLED_WINDOW,
                                      GTK_STYLE_CLASS_FRAME);
-    case MOZ_GTK_TEXT_VIEW:
-      return GetWidgetStyleWithClass(MOZ_GTK_TEXT_VIEW,
-                                     GTK_STYLE_CLASS_VIEW);
+    case MOZ_GTK_TEXT_VIEW_TEXT:
+    case MOZ_GTK_RESIZER: {
+      // GTK versions prior to 3.20 do not have the view class on the root
+      // node, but add this to determine the background for the text window.
+      GtkStyleContext* style =
+        GetWidgetStyleWithClass(MOZ_GTK_TEXT_VIEW, GTK_STYLE_CLASS_VIEW);
+      if (aNodeType == MOZ_GTK_RESIZER) {
+        // The "grip" class provides the correct builtin icon from
+        // gtk_render_handle().  The icon is drawn with shaded variants of
+        // the background color, and so a transparent background would lead to
+        // a transparent resizer.  gtk_render_handle() also uses the
+        // background color to draw a background, and so this style otherwise
+        // matches MOZ_GTK_TEXT_VIEW_TEXT to match the background with
+        // textarea elements.  GtkTextView creates a separate text window and
+        // so the background should not be transparent.
+        gtk_style_context_add_class(style, GTK_STYLE_CLASS_GRIP);
+      }
+      return style;
+    }
     case MOZ_GTK_FRAME_BORDER:
       return GetWidgetRootStyle(MOZ_GTK_FRAME);
     case MOZ_GTK_TREEVIEW_VIEW:
