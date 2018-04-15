@@ -2677,8 +2677,8 @@ var browserDragAndDrop = {
     }
   },
 
-  drop: function (aEvent, aName, aDisallowInherit) {
-    return Services.droppedLinkHandler.dropLink(aEvent, aName, aDisallowInherit);
+  dropLinks: function (aEvent, aDisallowInherit) {
+    return Services.droppedLinkHandler.dropLinks(aEvent, aDisallowInherit);
   }
 };
 
@@ -5125,10 +5125,29 @@ function handleDroppedLink(event, urlOrLinks, name)
 
   let lastLocationChange = gBrowser.selectedBrowser.lastLocationChange;
 
-  getShortcutOrURIAndPostData(url).then(data => {
-    if (data.url &&
-        lastLocationChange == gBrowser.selectedBrowser.lastLocationChange)
-      loadURI(data.url, null, data.postData, false);
+  let userContextId = gBrowser.selectedBrowser.getAttribute("usercontextid");
+
+  let inBackground = Services.prefs.getBoolPref("browser.tabs.loadInBackground");
+  if (event.shiftKey)
+    inBackground = !inBackground;
+
+  Task.spawn(function*() {
+    let urls = [];
+    let postDatas = [];
+    for (let link of links) {
+      let data = yield getShortcutOrURIAndPostData(link.url);
+      urls.push(data.url);
+      postDatas.push(data.postData);
+    }
+    if (lastLocationChange == gBrowser.selectedBrowser.lastLocationChange) {
+      gBrowser.loadTabs(urls, {
+        inBackground,
+        replace: true,
+        allowThirdPartyFixup: false,
+        postDatas,
+        userContextId,
+      });
+    }
   });
 
   // Keep the event from being handled by the dragDrop listeners
