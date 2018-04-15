@@ -238,6 +238,9 @@ partial interface HTMLInputElement {
 dictionary DateTimeValue {
   long hour;
   long minute;
+  long year;
+  long month;
+  long day;
 };
 
 partial interface HTMLInputElement {
@@ -250,6 +253,14 @@ partial interface HTMLInputElement {
   [Pref="dom.forms.datetime", ChromeOnly]
   void setDateTimePickerState(boolean open);
 
+  [Pref="dom.forms.datetime", ChromeOnly,
+   BinaryName="getMinimumAsDouble"]
+  double getMinimum();
+
+  [Pref="dom.forms.datetime", ChromeOnly,
+   BinaryName="getMaximumAsDouble"]
+  double getMaximum();
+
   [Pref="dom.forms.datetime", Func="IsChromeOrXBL"]
   void openDateTimePicker(optional DateTimeValue initialValue);
 
@@ -258,4 +269,12 @@ partial interface HTMLInputElement {
 
   [Pref="dom.forms.datetime", Func="IsChromeOrXBL"]
   void closeDateTimePicker();
+
+  [Pref="dom.forms.datetime", Func="IsChromeOrXBL",
+   BinaryName="getStepAsDouble"]
+  double getStep();
+
+  [Pref="dom.forms.datetime", Func="IsChromeOrXBL",
+   BinaryName="getStepBaseAsDouble"]
+  double getStepBase();
 };

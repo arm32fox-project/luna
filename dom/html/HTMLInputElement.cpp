@@ -543,9 +543,8 @@ GetDOMFileOrDirectoryPath(const OwningFileOrDirectory& aData,
 bool
 HTMLInputElement::ValueAsDateEnabled(JSContext* cx, JSObject* obj)
 {
-  return Preferences::GetBool("dom.experimental_forms", false) ||
-    Preferences::GetBool("dom.forms.datepicker", false) ||
-    Preferences::GetBool("dom.forms.datetime", false);
+  return IsExperimentalFormsEnabled() || IsDatePickerEnabled() ||
+         IsInputDateTimeEnabled();
 }
 
 NS_IMETHODIMP
@@ -628,7 +627,7 @@ HTMLInputElement::nsFilePickerShownCallback::Done(int16_t aResult)
   RefPtr<DispatchChangeEventCallback> dispatchChangeEventCallback =
     new DispatchChangeEventCallback(mInput);
 
-  if (Preferences::GetBool("dom.webkitBlink.dirPicker.enabled", false) &&
+  if (IsWebkitDirPickerEnabled() &&
       mInput->HasAttr(kNameSpaceID_None, nsGkAtoms::webkitdirectory)) {
     ErrorResult error;
     GetFilesHelper* helper = mInput->GetOrCreateGetFilesHelper(true, error);
@@ -827,7 +826,7 @@ HTMLInputElement::IsPopupBlocked() const
 nsresult
 HTMLInputElement::InitDatePicker()
 {
-  if (!Preferences::GetBool("dom.forms.datepicker", false)) {
+  if (!IsDatePickerEnabled()) {
     return NS_OK;
   }
 
@@ -1919,6 +1918,22 @@ HTMLInputElement::ConvertStringToNumber(nsAString& aValue,
         aResultValue = Decimal::fromDouble(days * kMsPerDay);
         return true;
       }
+    case NS_FORM_INPUT_DATETIME_LOCAL:
+      {
+        uint32_t year, month, day, timeInMs;
+        if (!ParseDateTimeLocal(aValue, &year, &month, &day, &timeInMs)) {
+          return false;
+        }
+
+        JS::ClippedTime time = JS::TimeClip(JS::MakeDate(year, month - 1, day,
+                                                         timeInMs));
+        if (!time.isValid()) {
+          return false;
+        }
+
+        aResultValue = Decimal::fromDouble(time.toDouble());
+        return true;
+      }
     default:
       MOZ_ASSERT(false, "Unrecognized input type");
       return false;
@@ -2108,21 +2123,17 @@ HTMLInputElement::ConvertNumberToString(Decimal aValue,
       }
     case NS_FORM_INPUT_TIME:
       {
+        aValue = aValue.floor();
         // Per spec, we need to truncate |aValue| and we should only represent
         // times inside a day [00:00, 24:00[, which means that we should do a
         // modulo on |aValue| using the number of milliseconds in a day (86400000).
-        uint32_t value = NS_floorModulo(aValue.floor(), Decimal(86400000)).toDouble();
+        uint32_t value =
+          NS_floorModulo(aValue, Decimal::fromDouble(kMsPerDay)).toDouble();
 
-        uint16_t milliseconds = value % 1000;
-        value /= 1000;
-
-        uint8_t seconds = value % 60;
-        value /= 60;
-
-        uint8_t minutes = value % 60;
-        value /= 60;
-
-        uint8_t hours = value;
+        uint16_t milliseconds, seconds, minutes, hours;
+        if (!GetTimeFromMs(value, &hours, &minutes, &seconds, &milliseconds)) {
+          return false;
+        }
 
         if (milliseconds != 0) {
           aResultString.AppendPrintf("%02d:%02d:%02d.%03d",
@@ -2192,6 +2203,42 @@ HTMLInputElement::ConvertNumberToString(Decimal aValue,
         aResultString.AppendPrintf("%04.0f-W%02d", year, week);
         return true;
       }
+    case NS_FORM_INPUT_DATETIME_LOCAL:
+      {
+        aValue = aValue.floor();
+
+        uint32_t timeValue =
+          NS_floorModulo(aValue, Decimal::fromDouble(kMsPerDay)).toDouble();
+
+        uint16_t milliseconds, seconds, minutes, hours;
+        if (!GetTimeFromMs(timeValue,
+                           &hours, &minutes, &seconds, &milliseconds)) {
+          return false;
+        }
+
+        double year = JS::YearFromTime(aValue.toDouble());
+        double month = JS::MonthFromTime(aValue.toDouble());
+        double day = JS::DayFromTime(aValue.toDouble());
+
+        if (IsNaN(year) || IsNaN(month) || IsNaN(day)) {
+          return false;
+        }
+
+        if (milliseconds != 0) {
+          aResultString.AppendPrintf("%04.0f-%02.0f-%02.0fT%02d:%02d:%02d.%03d",
+                                     year, month + 1, day, hours, minutes,
+                                     seconds, milliseconds);
+        } else if (seconds != 0) {
+          aResultString.AppendPrintf("%04.0f-%02.0f-%02.0fT%02d:%02d:%02d",
+                                     year, month + 1, day, hours, minutes,
+                                     seconds);
+        } else {
+          aResultString.AppendPrintf("%04.0f-%02.0f-%02.0fT%02d:%02d",
+                                     year, month + 1, day, hours, minutes);
+        }
+
+        return true;
+      }
     default:
       MOZ_ASSERT(false, "Unrecognized input type");
       return false;
@@ -2202,8 +2249,7 @@ HTMLInputElement::ConvertNumberToString(Decimal aValue,
 Nullable<Date>
 HTMLInputElement::GetValueAsDate(ErrorResult& aRv)
 {
-  // TODO: this is temporary until bug 888331 is fixed.
-  if (!IsDateTimeInputType(mType) || mType == NS_FORM_INPUT_DATETIME_LOCAL) {
+  if (!IsDateTimeInputType(mType)) {
     return Nullable<Date>();
   }
 
@@ -2261,6 +2307,19 @@ HTMLInputElement::GetValueAsDate(ErrorResult& aRv)
 
       return Nullable<Date>(Date(time));
     }
+    case NS_FORM_INPUT_DATETIME_LOCAL:
+    {
+      uint32_t year, month, day, timeInMs;
+      nsAutoString value;
+      GetValueInternal(value);
+      if (!ParseDateTimeLocal(value, &year, &month, &day, &timeInMs)) {
+        return Nullable<Date>();
+      }
+
+      JS::ClippedTime time = JS::TimeClip(JS::MakeDate(year, month - 1, day,
+                                                       timeInMs));
+      return Nullable<Date>(Date(time));
+    }
   }
 
   MOZ_ASSERT(false, "Unrecognized input type");
@@ -2271,8 +2330,7 @@ HTMLInputElement::GetValueAsDate(ErrorResult& aRv)
 void
 HTMLInputElement::SetValueAsDate(Nullable<Date> aDate, ErrorResult& aRv)
 {
-  // TODO: this is temporary until bug 888331 is fixed.
-  if (!IsDateTimeInputType(mType) || mType == NS_FORM_INPUT_DATETIME_LOCAL) {
+  if (!IsDateTimeInputType(mType)) {
     aRv.Throw(NS_ERROR_DOM_INVALID_STATE_ERR);
     return;
   }
@@ -2380,11 +2438,8 @@ HTMLInputElement::GetMaximum() const
 Decimal
 HTMLInputElement::GetStepBase() const
 {
-  MOZ_ASSERT(mType == NS_FORM_INPUT_NUMBER ||
-             mType == NS_FORM_INPUT_DATE ||
-             mType == NS_FORM_INPUT_TIME ||
-             mType == NS_FORM_INPUT_MONTH ||
-             mType == NS_FORM_INPUT_WEEK ||
+  MOZ_ASSERT(IsDateTimeInputType(mType) ||
+             mType == NS_FORM_INPUT_NUMBER ||
              mType == NS_FORM_INPUT_RANGE,
              "Check that kDefaultStepBase is correct for this new type");
 
@@ -2516,10 +2571,8 @@ bool
 HTMLInputElement::IsExperimentalMobileType(uint8_t aType)
 {
   return (aType == NS_FORM_INPUT_DATE &&
-    !Preferences::GetBool("dom.forms.datetime", false) &&
-    !Preferences::GetBool("dom.forms.datepicker", false)) ||
-    (aType == NS_FORM_INPUT_TIME &&
-     !Preferences::GetBool("dom.forms.datetime", false));
+    !IsInputDateTimeEnabled() && !IsDatePickerEnabled()) ||
+    (aType == NS_FORM_INPUT_TIME && !IsInputDateTimeEnabled());
 }
 
 bool
@@ -2832,7 +2885,8 @@ HTMLInputElement::GetOwnerDateTimeControl()
       HTMLInputElement::FromContentOrNull(
         GetParent()->GetParent()->GetParent()->GetParent());
     if (ownerDateTimeControl &&
-        ownerDateTimeControl->mType == NS_FORM_INPUT_TIME) {
+        (ownerDateTimeControl->mType == NS_FORM_INPUT_TIME ||
+         ownerDateTimeControl->mType == NS_FORM_INPUT_DATE)) {
       return ownerDateTimeControl;
     }
   }
@@ -3024,8 +3078,8 @@ HTMLInputElement::GetDisplayFileName(nsAString& aValue) const
   nsXPIDLString value;
 
   if (mFilesOrDirectories.IsEmpty()) {
-    if ((Preferences::GetBool("dom.input.dirpicker", false) && Allowdirs()) ||
-        (Preferences::GetBool("dom.webkitBlink.dirPicker.enabled", false) &&
+    if ((IsDirPickerEnabled() && Allowdirs()) ||
+        (IsWebkitDirPickerEnabled() &&
          HasAttr(kNameSpaceID_None, nsGkAtoms::webkitdirectory))) {
       nsContentUtils::GetLocalizedString(nsContentUtils::eFORMS_PROPERTIES,
                                          "NoDirSelected", value);
@@ -3054,7 +3108,7 @@ HTMLInputElement::SetFilesOrDirectories(const nsTArray<OwningFileOrDirectory>& a
 {
   ClearGetFilesHelpers();
 
-  if (Preferences::GetBool("dom.webkitBlink.filesystem.enabled", false)) {
+  if (IsWebkitFileSystemEnabled()) {
     HTMLInputElementBinding::ClearCachedWebkitEntriesValue(this);
     mEntries.Clear();
   }
@@ -3073,7 +3127,7 @@ HTMLInputElement::SetFiles(nsIDOMFileList* aFiles,
   mFilesOrDirectories.Clear();
   ClearGetFilesHelpers();
 
-  if (Preferences::GetBool("dom.webkitBlink.filesystem.enabled", false)) {
+  if (IsWebkitFileSystemEnabled()) {
     HTMLInputElementBinding::ClearCachedWebkitEntriesValue(this);
     mEntries.Clear();
   }
@@ -3096,14 +3150,14 @@ HTMLInputElement::MozSetDndFilesAndDirectories(const nsTArray<OwningFileOrDirect
 {
   SetFilesOrDirectories(aFilesOrDirectories, true);
 
-  if (Preferences::GetBool("dom.webkitBlink.filesystem.enabled", false)) {
+  if (IsWebkitFileSystemEnabled()) {
     UpdateEntries(aFilesOrDirectories);
   }
 
   RefPtr<DispatchChangeEventCallback> dispatchChangeEventCallback =
     new DispatchChangeEventCallback(this);
 
-  if (Preferences::GetBool("dom.webkitBlink.dirPicker.enabled", false) &&
+  if (IsWebkitDirPickerEnabled() &&
       HasAttr(kNameSpaceID_None, nsGkAtoms::webkitdirectory)) {
     ErrorResult rv;
     GetFilesHelper* helper = GetOrCreateGetFilesHelper(true /* recursionFlag */,
@@ -3181,8 +3235,8 @@ HTMLInputElement::GetFiles()
     return nullptr;
   }
 
-  if (Preferences::GetBool("dom.input.dirpicker", false) && Allowdirs() &&
-      (!Preferences::GetBool("dom.webkitBlink.dirPicker.enabled", false) ||
+  if (IsDirPickerEnabled() && Allowdirs() &&
+      (!IsWebkitDirPickerEnabled() ||
        !HasAttr(kNameSpaceID_None, nsGkAtoms::webkitdirectory))) {
     return nullptr;
   }
@@ -3282,7 +3336,8 @@ HTMLInputElement::SetValueInternal(const nsAString& aValue, uint32_t aFlags)
           if (frame) {
             frame->UpdateForValueChange();
           }
-        } else if (mType == NS_FORM_INPUT_TIME &&
+        } else if ((mType == NS_FORM_INPUT_TIME ||
+                    mType == NS_FORM_INPUT_DATE) &&
                    !IsExperimentalMobileType(mType)) {
           nsDateTimeControlFrame* frame = do_QueryFrame(GetPrimaryFrame());
           if (frame) {
@@ -3591,7 +3646,8 @@ HTMLInputElement::Blur(ErrorResult& aError)
     }
   }
 
-  if (mType == NS_FORM_INPUT_TIME && !IsExperimentalMobileType(mType)) {
+  if ((mType == NS_FORM_INPUT_TIME || mType == NS_FORM_INPUT_DATE) &&
+      !IsExperimentalMobileType(mType)) {
     nsDateTimeControlFrame* frame = do_QueryFrame(GetPrimaryFrame());
     if (frame) {
       frame->HandleBlurEvent();
@@ -3618,7 +3674,8 @@ HTMLInputElement::Focus(ErrorResult& aError)
     }
   }
 
-  if (mType == NS_FORM_INPUT_TIME && !IsExperimentalMobileType(mType)) {
+  if ((mType == NS_FORM_INPUT_TIME || mType == NS_FORM_INPUT_DATE) &&
+      !IsExperimentalMobileType(mType)) {
     nsDateTimeControlFrame* frame = do_QueryFrame(GetPrimaryFrame());
     if (frame) {
       frame->HandleFocusEvent();
@@ -3956,7 +4013,7 @@ HTMLInputElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
     }
   }
 
-  if (mType == NS_FORM_INPUT_TIME &&
+  if ((mType == NS_FORM_INPUT_TIME || mType == NS_FORM_INPUT_DATE) &&
       !IsExperimentalMobileType(mType) &&
       aVisitor.mEvent->mMessage == eFocus &&
       aVisitor.mEvent->mOriginalTarget == this) {
@@ -4083,7 +4140,8 @@ HTMLInputElement::PreHandleEvent(EventChainPreVisitor& aVisitor)
   // Stop the event if the related target's first non-native ancestor is the
   // same as the original target's first non-native ancestor (we are moving
   // inside of the same element).
-  if (mType == NS_FORM_INPUT_TIME && !IsExperimentalMobileType(mType) &&
+  if ((mType == NS_FORM_INPUT_TIME || mType == NS_FORM_INPUT_DATE) &&
+      !IsExperimentalMobileType(mType) &&
       (aVisitor.mEvent->mMessage == eFocus ||
        aVisitor.mEvent->mMessage == eFocusIn ||
        aVisitor.mEvent->mMessage == eFocusOut ||
@@ -4361,8 +4419,8 @@ HTMLInputElement::MaybeInitPickers(EventChainPostVisitor& aVisitor)
       do_QueryInterface(aVisitor.mEvent->mOriginalTarget);
     if (target &&
         target->FindFirstNonChromeOnlyAccessContent() == this &&
-        ((Preferences::GetBool("dom.input.dirpicker", false) && Allowdirs()) ||
-         (Preferences::GetBool("dom.webkitBlink.dirPicker.enabled", false) &&
+        ((IsDirPickerEnabled() && Allowdirs()) ||
+         (IsWebkitDirPickerEnabled() &&
           HasAttr(kNameSpaceID_None, nsGkAtoms::webkitdirectory)))) {
       type = FILE_PICKER_DIRECTORY;
     }
@@ -5383,6 +5441,29 @@ HTMLInputElement::MaximumWeekInYear(uint32_t aYear) const
 }
 
 bool
+HTMLInputElement::GetTimeFromMs(double aValue, uint16_t* aHours,
+                                uint16_t* aMinutes, uint16_t* aSeconds,
+                                uint16_t* aMilliseconds) const {
+  MOZ_ASSERT(aValue >= 0 && aValue < kMsPerDay,
+             "aValue must be milliseconds within a day!");
+
+  uint32_t value = floor(aValue);
+
+  *aMilliseconds = value % 1000;
+  value /= 1000;
+
+  *aSeconds = value % 60;
+  value /= 60;
+
+  *aMinutes = value % 60;
+  value /= 60;
+
+  *aHours = value;
+
+  return true;
+}
+
+bool
 HTMLInputElement::IsValidWeek(const nsAString& aValue) const
 {
   uint32_t year, week;
@@ -5730,20 +5811,133 @@ HTMLInputElement::ParseTime(const nsAString& aValue, uint32_t* aResult)
   return true;
 }
 
-static bool
-IsDateTimeEnabled(int32_t aNewType)
+/* static */ bool
+HTMLInputElement::IsDateTimeTypeSupported(uint8_t aDateTimeInputType)
 {
-  return (aNewType == NS_FORM_INPUT_DATE &&
-          (Preferences::GetBool("dom.forms.datetime", false) ||
-           Preferences::GetBool("dom.experimental_forms", false) ||
-           Preferences::GetBool("dom.forms.datepicker", false))) ||
-         (aNewType == NS_FORM_INPUT_TIME &&
-          (Preferences::GetBool("dom.forms.datetime", false) ||
-           Preferences::GetBool("dom.experimental_forms", false))) ||
-         ((aNewType == NS_FORM_INPUT_MONTH ||
-           aNewType == NS_FORM_INPUT_WEEK ||
-           aNewType == NS_FORM_INPUT_DATETIME_LOCAL) &&
-          Preferences::GetBool("dom.forms.datetime", false));
+  return (aDateTimeInputType == NS_FORM_INPUT_DATE &&
+          (IsInputDateTimeEnabled() || IsExperimentalFormsEnabled() ||
+           IsDatePickerEnabled())) ||
+         (aDateTimeInputType == NS_FORM_INPUT_TIME &&
+          (IsInputDateTimeEnabled() || IsExperimentalFormsEnabled())) ||
+         ((aDateTimeInputType == NS_FORM_INPUT_MONTH ||
+           aDateTimeInputType == NS_FORM_INPUT_WEEK ||
+           aDateTimeInputType == NS_FORM_INPUT_DATETIME_LOCAL) &&
+          IsInputDateTimeEnabled());
+}
+
+/* static */ bool
+HTMLInputElement::IsWebkitDirPickerEnabled()
+{
+  static bool sWebkitDirPickerEnabled = false;
+  static bool sWebkitDirPickerPrefCached = false;
+  if (!sWebkitDirPickerPrefCached) {
+    sWebkitDirPickerPrefCached = true;
+    Preferences::AddBoolVarCache(&sWebkitDirPickerEnabled,
+                                 "dom.webkitBlink.dirPicker.enabled",
+                                 false);
+  }
+
+  return sWebkitDirPickerEnabled;
+}
+
+/* static */ bool
+HTMLInputElement::IsWebkitFileSystemEnabled()
+{
+  static bool sWebkitFileSystemEnabled = false;
+  static bool sWebkitFileSystemPrefCached = false;
+  if (!sWebkitFileSystemPrefCached) {
+    sWebkitFileSystemPrefCached = true;
+    Preferences::AddBoolVarCache(&sWebkitFileSystemEnabled,
+                                 "dom.webkitBlink.filesystem.enabled",
+                                 false);
+  }
+
+  return sWebkitFileSystemEnabled;
+}
+
+/* static */ bool
+HTMLInputElement::IsDirPickerEnabled()
+{
+  static bool sDirPickerEnabled = false;
+  static bool sDirPickerPrefCached = false;
+  if (!sDirPickerPrefCached) {
+    sDirPickerPrefCached = true;
+    Preferences::AddBoolVarCache(&sDirPickerEnabled, "dom.input.dirpicker",
+                                 false);
+  }
+
+  return sDirPickerEnabled;
+}
+
+/* static */ bool
+HTMLInputElement::IsDatePickerEnabled()
+{
+  static bool sDatePickerEnabled = false;
+  static bool sDatePickerPrefCached = false;
+  if (!sDatePickerPrefCached) {
+    sDatePickerPrefCached = true;
+    Preferences::AddBoolVarCache(&sDatePickerEnabled, "dom.forms.datepicker",
+                                 false);
+  }
+
+  return sDatePickerEnabled;
+}
+
+/* static */ bool
+HTMLInputElement::IsExperimentalFormsEnabled()
+{
+  static bool sExperimentalFormsEnabled = false;
+  static bool sExperimentalFormsPrefCached = false;
+  if (!sExperimentalFormsPrefCached) {
+    sExperimentalFormsPrefCached = true;
+    Preferences::AddBoolVarCache(&sExperimentalFormsEnabled,
+                                 "dom.experimental_forms",
+                                 false);
+  }
+
+  return sExperimentalFormsEnabled;
+}
+
+/* static */ bool
+HTMLInputElement::IsInputDateTimeEnabled()
+{
+  static bool sDateTimeEnabled = false;
+  static bool sDateTimePrefCached = false;
+  if (!sDateTimePrefCached) {
+    sDateTimePrefCached = true;
+    Preferences::AddBoolVarCache(&sDateTimeEnabled, "dom.forms.datetime",
+                                 false);
+  }
+
+  return sDateTimeEnabled;
+}
+
+/* static */ bool
+HTMLInputElement::IsInputNumberEnabled()
+{
+  static bool sInputNumberEnabled = false;
+  static bool sInputNumberPrefCached = false;
+  if (!sInputNumberPrefCached) {
+    sInputNumberPrefCached = true;
+    Preferences::AddBoolVarCache(&sInputNumberEnabled, "dom.forms.number",
+                                 false);
+  }
+
+  return sInputNumberEnabled;
+}
+
+/* static */ bool
+HTMLInputElement::IsInputColorEnabled()
+{
+  static bool sInputColorEnabled = false;
+  static bool sInputColorPrefCached = false;
+  if (!sInputColorPrefCached) {
+    sInputColorPrefCached = true;
+    Preferences::AddBoolVarCache(&sInputColorEnabled, "dom.forms.color",
+                                 false);
+  }
+
+  return sInputColorEnabled;
 }
 
 bool
@@ -5761,12 +5955,11 @@ HTMLInputElement::ParseAttribute(int32_t aNamespaceID,
       if (success) {
         newType = aResult.GetEnumValue();
         if ((IsExperimentalMobileType(newType) &&
-             !Preferences::GetBool("dom.experimental_forms", false)) ||
-            (newType == NS_FORM_INPUT_NUMBER &&
-             !Preferences::GetBool("dom.forms.number", false)) ||
-            (newType == NS_FORM_INPUT_COLOR &&
-             !Preferences::GetBool("dom.forms.color", false)) ||
-            (IsDateTimeInputType(newType) && !IsDateTimeEnabled(newType))) {
+             !IsExperimentalFormsEnabled()) ||
+            (newType == NS_FORM_INPUT_NUMBER && !IsInputNumberEnabled()) ||
+            (newType == NS_FORM_INPUT_COLOR && !IsInputColorEnabled()) ||
+            (IsDateTimeInputType(newType) &&
+             !IsDateTimeTypeSupported(newType))) {
           newType = kInputDefaultType->value;
           aResult.SetTo(newType, &aValue);
         }
@@ -7161,13 +7354,15 @@ HTMLInputElement::IsHTMLFocusable(bool aWithMouse, bool* aIsFocusable, int32_t* 
 
   if (mType == NS_FORM_INPUT_FILE ||
       mType == NS_FORM_INPUT_NUMBER ||
-      mType == NS_FORM_INPUT_TIME) {
+      mType == NS_FORM_INPUT_TIME ||
+      mType == NS_FORM_INPUT_DATE) {
     if (aTabIndex) {
       // We only want our native anonymous child to be tabable to, not ourself.
       *aTabIndex = -1;
     }
     if (mType == NS_FORM_INPUT_NUMBER ||
-        mType == NS_FORM_INPUT_TIME) {
+        mType == NS_FORM_INPUT_TIME ||
+        mType == NS_FORM_INPUT_DATE) {
       *aIsFocusable = true;
     } else {
       *aIsFocusable = defaultFocusable;
@@ -7650,8 +7845,7 @@ HTMLInputElement::HasPatternMismatch() const
 bool
 HTMLInputElement::IsRangeOverflow() const
 {
-  // TODO: this is temporary until bug 888331 is fixed.
-  if (!DoesMinMaxApply() || mType == NS_FORM_INPUT_DATETIME_LOCAL) {
+  if (!DoesMinMaxApply()) {
     return false;
   }
 
@@ -7671,8 +7865,7 @@ HTMLInputElement::IsRangeOverflow() const
 bool
 HTMLInputElement::IsRangeUnderflow() const
 {
-  // TODO: this is temporary until bug 888331 is fixed.
-  if (!DoesMinMaxApply() || mType == NS_FORM_INPUT_DATETIME_LOCAL) {
+  if (!DoesMinMaxApply()) {
     return false;
   }
 
@@ -8622,6 +8815,7 @@ HTMLInputElement::GetStepScaleFactor() const
     case NS_FORM_INPUT_RANGE:
       return kStepScaleFactorNumberRange;
     case NS_FORM_INPUT_TIME:
+    case NS_FORM_INPUT_DATETIME_LOCAL:
       return kStepScaleFactorTime;
     case NS_FORM_INPUT_MONTH:
       return kStepScaleFactorMonth;
@@ -8646,6 +8840,7 @@ HTMLInputElement::GetDefaultStep() const
     case NS_FORM_INPUT_RANGE:
       return kDefaultStep;
     case NS_FORM_INPUT_TIME:
+    case NS_FORM_INPUT_DATETIME_LOCAL:
       return kDefaultStepTime;
     default:
       MOZ_ASSERT(false, "Unrecognized input type");
@@ -8680,8 +8875,7 @@ HTMLInputElement::UpdateHasRange()
 
   mHasRange = false;
 
-  // TODO: this is temporary until bug 888331 is fixed.
-  if (!DoesMinMaxApply() || mType == NS_FORM_INPUT_DATETIME_LOCAL) {
+  if (!DoesMinMaxApply()) {
     return;
   }
 
