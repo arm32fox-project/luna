@@ -38,12 +38,18 @@ def ApplicationBranding():
             'dsstore',
             'firefox.icns',
         ]
-    elif CONFIG['MOZ_WIDGET_GTK']:
+    elif 'gtk' in CONFIG['MOZ_WIDGET_TOOLKIT']:
         BRANDING_FILES += [
             'default16.png',
             'default32.png',
             'default48.png',
             'mozicon128.png',
+        ]
+        FINAL_TARGET_FILES.icons += ['mozicon128.png']
+        FINAL_TARGET_FILES.chrome.icons.default += [
+            'default16.png',
+            'default32.png',
+            'default48.png',
         ]
 
     DEFINES['MOZ_APP_VERSION'] = CONFIG['MOZ_APP_VERSION']

@@ -2404,7 +2404,7 @@ let SessionStoreInternal = {
       for (var [host, isPinned] in Iterator(internalWindow.hosts)) {
         let list;
         try {
-          list = Services.cookies.getCookiesFromHost(host);
+          list = Services.cookies.getCookiesFromHost(host, {});
         }
         catch (ex) {
           debug("getCookiesFromHost failed. Host: " + host);
@@ -3655,7 +3655,7 @@ let SessionStoreInternal = {
       try {
         Services.cookies.add(cookie.host, cookie.path || "", cookie.name || "",
                              cookie.value, !!cookie.secure, !!cookie.httponly, true,
-                             "expiry" in cookie ? cookie.expiry : MAX_EXPIRY);
+                             "expiry" in cookie ? cookie.expiry : MAX_EXPIRY, {});
       }
       catch (ex) { Cu.reportError(ex); } // don't let a single cookie stop recovering
     }
