@@ -7,6 +7,7 @@ var Ci = Components.interfaces;
 var Cu = Components.utils;
 
 Cu.import("resource://gre/modules/XPCOMUtils.jsm");
+Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/RecentWindow.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "Task",
@@ -144,6 +145,7 @@ let gInitialPages = [
 #include browser-plugins.js
 #include browser-tabPreviews.js
 #include browser-thumbnails.js
+#include browser-uacompat.js
 
 #ifdef MOZ_WEBRTC
 #include browser-webrtcUI.js
@@ -920,6 +922,7 @@ var gBrowserInit = {
     TabsInTitlebar.init();
     retrieveToolbarIconsizesFromTheme();
     ToolbarIconColor.init();
+    UserAgentCompatibility.init();
 
 #ifdef XP_WIN
     if (window.matchMedia("(-moz-os-version: windows-win8)").matches &&
@@ -1295,6 +1298,8 @@ var gBrowserInit = {
 #ifdef MOZ_DEVTOOLS
     DevToolsTheme.uninit();
 #endif
+
+    UserAgentCompatibility.uninit();
 
     var enumerator = Services.wm.getEnumerator(null);
     enumerator.getNext();
@@ -2370,7 +2375,7 @@ function BrowserOnAboutPageLoad(doc) {
 /**
  * Handle command events bubbling up from error page content
  */
-let BrowserOnClick = {
+var BrowserOnClick = {
   handleEvent: function BrowserOnClick_handleEvent(aEvent) {
     if (!aEvent.isTrusted || // Don't trust synthetic events
         aEvent.button == 2 || aEvent.target.localName != "button") {
@@ -7096,7 +7101,8 @@ function focusNextFrame(event) {
   if (element.ownerDocument == document)
     focusAndSelectUrlBar();
 }
-let BrowserChromeTest = {
+
+var BrowserChromeTest = {
   _cb: null,
   _ready: false,
   markAsReady: function () {
@@ -7114,7 +7120,7 @@ let BrowserChromeTest = {
   }
 };
 
-let ToolbarIconColor = {
+var ToolbarIconColor = {
   init: function () {
     this._initialized = true;
 

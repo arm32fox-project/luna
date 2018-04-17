@@ -796,6 +796,15 @@ public:
   void UpdateDateTimePicker(const DateTimeValue& aValue);
   void CloseDateTimePicker();
 
+  /*
+   * The following are called from datetime input box binding to get the
+   * corresponding computed values.
+   */
+  double GetStepAsDouble() { return GetStep().toDouble(); }
+  double GetStepBaseAsDouble() { return GetStepBase().toDouble(); }
+  double GetMinimumAsDouble() { return GetMinimum().toDouble(); }
+  double GetMaximumAsDouble() { return GetMaximum().toDouble(); }
+
   HTMLInputElement* GetOwnerNumberControl();
   HTMLInputElement* GetOwnerDateTimeControl();
 
@@ -1061,11 +1070,7 @@ protected:
   /**
    * Returns if the step attribute apply for the current type.
    */
-  bool DoesStepApply() const
-  {
-    // TODO: this is temporary until bug 888331 is fixed.
-    return DoesMinMaxApply() && mType != NS_FORM_INPUT_DATETIME_LOCAL;
-  }
+  bool DoesStepApply() const { return DoesMinMaxApply(); }
 
   /**
    * Returns if stepDown and stepUp methods apply for the current type.
@@ -1075,11 +1080,7 @@ protected:
   /**
    * Returns if valueAsNumber attribute applies for the current type.
    */
-  bool DoesValueAsNumberApply() const
-  {
-    // TODO: this is temporary until bug 888331 is fixed.
-    return DoesMinMaxApply() && mType != NS_FORM_INPUT_DATETIME_LOCAL;
-  }
+  bool DoesValueAsNumberApply() const { return DoesMinMaxApply(); }
 
   /**
    * Returns if autocomplete attribute applies for the current type.
@@ -1287,6 +1288,7 @@ protected:
    * https://html.spec.whatwg.org/multipage/infrastructure.html#valid-normalised-local-date-and-time-string
    */
   void NormalizeDateTimeLocal(nsAString& aValue) const;
+
   /**
    * This methods returns the number of days since epoch for a given year and
    * week.
@@ -1316,6 +1318,13 @@ protected:
    * result is either 52 or 53.
    */
   uint32_t MaximumWeekInYear(uint32_t aYear) const;
+
+  /**
+   * This method converts aValue (milliseconds within a day) to hours, minutes,
+   * seconds and milliseconds.
+   */
+  bool GetTimeFromMs(double aValue, uint16_t* aHours, uint16_t* aMinutes,
+                     uint16_t* aSeconds, uint16_t* aMilliseconds) const;
 
   /**
    * This methods returns true if it's a leap year.
@@ -1442,7 +1451,6 @@ protected:
   };
   nsresult InitFilePicker(FilePickerType aType);
   nsresult InitColorPicker();
-  nsresult InitDatePicker();
 
   /**
    * Use this function before trying to open a picker.
@@ -1632,8 +1640,72 @@ private:
     return IsSingleLineTextControl(false, aType) ||
            aType == NS_FORM_INPUT_RANGE ||
            aType == NS_FORM_INPUT_NUMBER ||
-           aType == NS_FORM_INPUT_TIME;
+           aType == NS_FORM_INPUT_TIME ||
+           aType == NS_FORM_INPUT_DATE;
   }
+
+  /**
+   * Checks if aDateTimeInputType should be supported based on "dom.forms.datetime",
+   * and "dom.experimental_forms".
+   */
+  static bool
+  IsDateTimeTypeSupported(uint8_t aDateTimeInputType);
+
+  /**
+   * Checks preference "dom.webkitBlink.dirPicker.enabled" to determine if
+   * webkitdirectory should be supported.
+   */
+  static bool
+  IsWebkitDirPickerEnabled();
+
+  /**
+   * Checks preference "dom.webkitBlink.filesystem.enabled" to determine if
+   * webkitEntries should be supported.
+   */
+  static bool
+  IsWebkitFileSystemEnabled();
+
+  /**
+   * Checks preference "dom.input.dirpicker" to determine if file and directory
+   * entries API should be supported.
+   */
+  static bool
+  IsDirPickerEnabled();
+
+  /**
+   * Checks preference "dom.experimental_forms" to determine if experimental
+   * implementation of input element should be enabled.
+   */
+  static bool
+  IsExperimentalFormsEnabled();
+
+  /**
+   * Checks preference "dom.forms.datetime" to determine if input date and time
+   * should be supported.
+   */
+  static bool
+  IsInputDateTimeEnabled();
+
+  /**
+   * Checks preference "dom.forms.datetime.others" to determine if input week,
+   * month and datetime-local should be supported.
+   */
+  static bool
+  IsInputDateTimeOthersEnabled();
+
+  /**
+   * Checks preference "dom.forms.number" to determine if input type=number
+   * should be supported.
+   */
+  static bool
+  IsInputNumberEnabled();
+
+  /**
+   * Checks preference "dom.forms.color" to determine if date/time related
+   * types should be supported.
+   */
+  static bool
+  IsInputColorEnabled();
 
   struct nsFilePickerFilter {
     nsFilePickerFilter()
