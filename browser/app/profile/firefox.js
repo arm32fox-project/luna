@@ -122,11 +122,7 @@ pref("app.update.auto", true);
 pref("app.update.silent", false);
 
 // If set to true, the hamburger button will show badges for update events.
-#ifndef RELEASE_OR_BETA
 pref("app.update.badge", true);
-#else
-pref("app.update.badge", false);
-#endif
 // app.update.badgeWaitTime is in branding section
 
 // If set to true, the Update Service will apply updates in the background
@@ -179,7 +175,7 @@ pref("browser.eme.ui.enabled", false);
 #endif
 
 // UI tour experience.
-pref("browser.uitour.enabled", true);
+pref("browser.uitour.enabled", false);
 pref("browser.uitour.loglevel", "Error");
 pref("browser.uitour.requireSecure", true);
 pref("browser.uitour.themeOrigin", "https://addons.mozilla.org/%LOCALE%/firefox/themes/");
@@ -209,11 +205,7 @@ pref("general.autoScroll", true);
 pref("browser.shell.checkDefaultBrowser", true);
 pref("browser.shell.shortcutFavicons",true);
 pref("browser.shell.mostRecentDateSetAsDefault", "");
-#ifdef RELEASE_OR_BETA
 pref("browser.shell.skipDefaultBrowserCheckOnFirstRun", false);
-#else
-pref("browser.shell.skipDefaultBrowserCheckOnFirstRun", true);
-#endif
 pref("browser.shell.skipDefaultBrowserCheck", true);
 pref("browser.shell.defaultBrowserCheckCount", 0);
 pref("browser.defaultbrowser.notificationbar", false);
@@ -306,11 +298,7 @@ pref("browser.urlbar.suggest.history.onlyTyped",    false);
 pref("browser.urlbar.formatting.enabled", true);
 pref("browser.urlbar.trimURLs", true);
 
-#if defined(NIGHTLY_BUILD)
-pref("browser.urlbar.oneOffSearches", true);
-#else
 pref("browser.urlbar.oneOffSearches", false);
-#endif
 
 pref("browser.altClickSave", false);
 

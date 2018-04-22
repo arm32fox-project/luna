@@ -41,8 +41,7 @@ pref("app.update.url.details", "https://@BRANDING_SITEURL@/@BRANDING_RELNOTESPAT
 pref("general.useragent.compatMode.firefox",true);
 pref("general.useragent.compatMode.gecko",true);
 
-// Switch Application Updates off for now
-pref("app.update.enabled", false);
+pref("app.update.enabled", true);
 
 // Shared User Agent Overrides
 #include ../../shared/uaoverrides.inc
