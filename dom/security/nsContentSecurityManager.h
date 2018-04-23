@@ -32,6 +32,8 @@ public:
   static nsresult doContentSecurityCheck(nsIChannel* aChannel,
                                          nsCOMPtr<nsIStreamListener>& aInAndOutListener);
 
+  static bool AllowTopLevelNavigationToDataURI(nsIChannel* aChannel);
+
 private:
   static nsresult CheckChannel(nsIChannel* aChannel);
 
