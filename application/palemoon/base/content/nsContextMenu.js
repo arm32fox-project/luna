@@ -4,6 +4,8 @@
 
 Components.utils.import("resource://gre/modules/PrivateBrowsingUtils.jsm");
 
+var gContextMenuContentData = null;
+
 function nsContextMenu(aXulMenu, aIsShift) {
   this.shouldDisplay = true;
   this.initMenu(aXulMenu, aIsShift);
@@ -39,6 +41,7 @@ nsContextMenu.prototype = {
   },
 
   hiding: function CM_hiding() {
+    gContextMenuContentData = null;
     InlineSpellCheckerUI.clearSuggestionsFromMenu();
     InlineSpellCheckerUI.clearDictionaryListFromMenu();
     InlineSpellCheckerUI.uninit();
@@ -906,7 +909,8 @@ nsContextMenu.prototype = {
                        Ci.nsIScriptSecurityManager.DISALLOW_SCRIPT);
       let doc = this.target.ownerDocument;
       openUILink(viewURL, e, { disallowInheritPrincipal: true,
-                               referrerURI: doc.documentURIObject });
+                               referrerURI: doc.documentURIObject,
+                               forceAllowDataURI: true });
     }
   },
 

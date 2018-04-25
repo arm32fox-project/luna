@@ -328,6 +328,66 @@ panel[noactions] > richlistbox > richlistitem[type~="action"] > .ac-url-box > .a
   visibility: hidden;
 }
 
+/* Private Autocomplete */
+textbox[type="private-autocomplete"] {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#autocomplete");
+}
+
+panel[type="private-autocomplete"] {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#autocomplete-result-popup");
+}
+
+panel[type="private-autocomplete-richlistbox"] {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#private-autocomplete-rich-result-popup");
+}
+
+.private-autocomplete-tree {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#private-autocomplete-tree");
+  -moz-user-focus: ignore;
+}
+
+.private-autocomplete-treebody {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#private-autocomplete-treebody");
+}
+
+.private-autocomplete-richlistbox {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#private-autocomplete-richlistbox");
+  -moz-user-focus: ignore;
+}
+
+.private-autocomplete-richlistbox > scrollbox {
+  overflow-x: hidden !important;
+}
+
+.private-autocomplete-richlistitem {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#private-autocomplete-richlistitem");
+  -moz-box-orient: vertical;
+  overflow: -moz-hidden-unscrollable;
+}
+
+.private-autocomplete-treerows {
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#private-autocomplete-treerows");
+}
+
+.private-autocomplete-history-dropmarker {
+  display: none;
+}
+
+.private-autocomplete-history-dropmarker[enablehistory="true"] {
+  display: -moz-box;
+  -moz-binding: url("chrome://browser/content/autocomplete.xml#private-history-dropmarker");
+}
+
+.ac-ellipsis-after {
+  visibility: hidden;
+}
+
+.ac-url-text[type~="action"],
+.ac-action-text:not([type~="action"]) {
+  visibility: collapse;
+}
+
+
 /* ::::: Unified Back-/Forward Button ::::: */
 #back-button > .toolbarbutton-menu-dropmarker,
 #forward-button > .toolbarbutton-menu-dropmarker {
@@ -690,7 +750,7 @@ toolbarbutton[type="badged"] {
 }
 
 /* Strict icon size for PMkit 'ui/button' */
-toolbarbutton[pmkit-button="true"] > .toolbarbutton-badge-container > .toolbarbutton-icon {
+toolbarbutton[pmkit-button="true"] > .toolbarbutton-badge-stack > .toolbarbutton-icon {
   width: 16px;
   height: 16px;
 }

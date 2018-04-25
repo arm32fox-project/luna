@@ -85,10 +85,18 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != "gonk":
         'sdk/ui/toolbar.js',
     ]
 
+    if CONFIG['MC_PALEMOON']:
+        EXTRA_JS_MODULES.commonjs.sdk.ui += [
+            'sdk/ui/buttons.js',
+        ]
+
     EXTRA_JS_MODULES.commonjs.sdk.ui.button += [
         'sdk/ui/button/action.js',
         'sdk/ui/button/contract.js',
         'sdk/ui/button/toggle.js',
+    ]
+
+    EXTRA_PP_JS_MODULES.commonjs.sdk.ui.button += [
         'sdk/ui/button/view.js',
     ]
 
@@ -120,9 +128,10 @@ EXTRA_JS_MODULES.commonjs += [
     'test.js',
 ]
 
-EXTRA_JS_MODULES.commonjs.sdk += [
-    'sdk/webextension.js',
-]
+if CONFIG['MOZ_WEBEXTENSIONS']:
+    EXTRA_JS_MODULES.commonjs.sdk += [
+        'sdk/webextension.js',
+    ]
 
 EXTRA_JS_MODULES.commonjs.dev += [
     'dev/debuggee.js',
@@ -211,19 +220,25 @@ EXTRA_JS_MODULES.commonjs.sdk += [
     'sdk/tabs.js',
     'sdk/test.js',
     'sdk/timers.js',
-    'sdk/ui.js',
     'sdk/url.js',
     'sdk/windows.js',
 ]
 
+EXTRA_PP_JS_MODULES.commonjs.sdk += [
+    'sdk/ui.js',
+]
+
 EXTRA_JS_MODULES.commonjs.sdk.addon += [
-    'sdk/addon/bootstrap.js',
     'sdk/addon/events.js',
     'sdk/addon/host.js',
     'sdk/addon/installer.js',
     'sdk/addon/manager.js',
     'sdk/addon/runner.js',
     'sdk/addon/window.js',
+]
+
+EXTRA_PP_JS_MODULES.commonjs.sdk.addon += [
+    'sdk/addon/bootstrap.js',
 ]
 
 EXTRA_JS_MODULES.commonjs.sdk.browser += [
