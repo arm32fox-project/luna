@@ -369,6 +369,8 @@ protected:
   nsresult DoURILoad(nsIURI* aURI,
                      nsIURI* aOriginalURI,
                      bool aLoadReplace,
+                     bool aLoadFromExternal,
+                     bool aForceAllowDataURI,
                      nsIURI* aReferrer,
                      bool aSendReferrer,
                      uint32_t aReferrerPolicy,
