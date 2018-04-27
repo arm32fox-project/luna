@@ -1,5 +1,4 @@
 /*
- * Copyright (c) 2001 Fabrice Bellard
  * Copyright (c) 2002-2004 Michael Niedermayer <michaelni@gmx.at>
  *
  * This file is part of FFmpeg.
@@ -19,12 +18,11 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
  */
 
-#ifndef AVCODEC_OPTIONS_TABLE_H
-#define AVCODEC_OPTIONS_TABLE_H
+#ifndef AVUTIL_REVERSE_H
+#define AVUTIL_REVERSE_H
 
-#include "libavutil/opt.h"
-static const AVOption avcodec_options[] = {
-{NULL},
-};
+#include <stdint.h>
 
-#endif /* AVCODEC_OPTIONS_TABLE_H */
+extern const uint8_t ff_reverse[256];
+
+#endif /* AVUTIL_REVERSE_H */
