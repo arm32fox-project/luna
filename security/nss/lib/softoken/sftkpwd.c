@@ -273,7 +273,7 @@ sftkdb_EncryptAttribute(PLArenaPool *arena, SECItem *passKey,
     RNG_GenerateGlobalRandomBytes(saltData, cipherValue.salt.len);
 
     param = nsspkcs5_NewParam(cipherValue.alg, HASH_AlgSHA1, &cipherValue.salt,
-                              30000);
+                              1);
     if (param == NULL) {
         rv = SECFailure;
         goto loser;
@@ -444,7 +444,7 @@ sftkdb_SignAttribute(PLArenaPool *arena, SECItem *passKey,
     RNG_GenerateGlobalRandomBytes(saltData, prfLength);
 
     /* initialize our pkcs5 parameter */
-    param = nsspkcs5_NewParam(signValue.alg, HASH_AlgSHA1, &signValue.salt, 30000);
+    param = nsspkcs5_NewParam(signValue.alg, HASH_AlgSHA1, &signValue.salt, 1);
     if (param == NULL) {
         rv = SECFailure;
         goto loser;
@@ -924,13 +924,6 @@ sftk_updateMacs(PLArenaPool *arena, SFTKDBHandle *handle,
 
         if ((authAttrs[i].ulValueLen == -1) || (authAttrs[i].ulValueLen == 0)) {
             continue;
-        }
-
-        if (authAttrs[i].ulValueLen == sizeof(CK_ULONG) &&
-            sftkdb_isULONGAttribute(authAttrs[i].type)) {
-            CK_ULONG value = *(CK_ULONG *)authAttrs[i].pValue;
-            sftk_ULong2SDBULong(authAttrs[i].pValue, value);
-            authAttrs[i].ulValueLen = SDB_ULONG_SIZE;
         }
 
         plainText.data = authAttrs[i].pValue;
