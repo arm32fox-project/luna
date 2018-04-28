@@ -209,9 +209,6 @@
 
 #ifdef MOZ_MEMORY_WINDOWS
 
-/* Some defines from the CRT internal headers that we need here. */
-#define _CRT_SPINCOUNT 5000
-#define __crtInitCritSecAndSpinCount InitializeCriticalSectionAndSpinCount
 #include <io.h>
 #include <windows.h>
 #include <intrin.h>
@@ -600,8 +597,8 @@ void *_mmap(void *addr, size_t length, int prot, int flags,
  * issues in some cases.
  */
 #if defined(MOZ_MEMORY_WINDOWS)
-#define malloc_mutex_t CRITICAL_SECTION
-#define malloc_spinlock_t CRITICAL_SECTION
+#define malloc_mutex_t SRWLOCK
+#define malloc_spinlock_t SRWLOCK
 #elif defined(MOZ_MEMORY_DARWIN)
 typedef struct {
 	OSSpinLock	lock;
@@ -1566,8 +1563,7 @@ static bool
 malloc_mutex_init(malloc_mutex_t *mutex)
 {
 #if defined(MOZ_MEMORY_WINDOWS)
-	if (! __crtInitCritSecAndSpinCount(mutex, _CRT_SPINCOUNT))
-		return (true);
+    InitializeSRWLock(mutex);
 #elif defined(MOZ_MEMORY_DARWIN)
 	mutex->lock = OS_SPINLOCK_INIT;
 #elif defined(MOZ_MEMORY_LINUX) && !defined(MOZ_MEMORY_ANDROID)
@@ -1596,7 +1592,7 @@ malloc_mutex_lock(malloc_mutex_t *mutex)
 {
 
 #if defined(MOZ_MEMORY_WINDOWS)
-	EnterCriticalSection(mutex);
+	AcquireSRWLockExclusive(mutex);
 #elif defined(MOZ_MEMORY_DARWIN)
 	OSSpinLockLock(&mutex->lock);
 #elif defined(MOZ_MEMORY)
@@ -1611,7 +1607,7 @@ malloc_mutex_unlock(malloc_mutex_t *mutex)
 {
 
 #if defined(MOZ_MEMORY_WINDOWS)
-	LeaveCriticalSection(mutex);
+	ReleaseSRWLockExclusive(mutex);
 #elif defined(MOZ_MEMORY_DARWIN)
 	OSSpinLockUnlock(&mutex->lock);
 #elif defined(MOZ_MEMORY)
@@ -1628,8 +1624,7 @@ static bool
 malloc_spin_init(malloc_spinlock_t *lock)
 {
 #if defined(MOZ_MEMORY_WINDOWS)
-	if (! __crtInitCritSecAndSpinCount(lock, _CRT_SPINCOUNT))
-		return (true);
+	InitializeSRWLock(lock);
 #elif defined(MOZ_MEMORY_DARWIN)
 	lock->lock = OS_SPINLOCK_INIT;
 #elif defined(MOZ_MEMORY_LINUX) && !defined(MOZ_MEMORY_ANDROID)
@@ -1656,7 +1651,7 @@ malloc_spin_lock(malloc_spinlock_t *lock)
 {
 
 #if defined(MOZ_MEMORY_WINDOWS)
-	EnterCriticalSection(lock);
+	AcquireSRWLockExclusive(lock);
 #elif defined(MOZ_MEMORY_DARWIN)
 	OSSpinLockLock(&lock->lock);
 #elif defined(MOZ_MEMORY)
@@ -1670,7 +1665,7 @@ static inline void
 malloc_spin_unlock(malloc_spinlock_t *lock)
 {
 #if defined(MOZ_MEMORY_WINDOWS)
-	LeaveCriticalSection(lock);
+	ReleaseSRWLockExclusive(lock);
 #elif defined(MOZ_MEMORY_DARWIN)
 	OSSpinLockUnlock(&lock->lock);
 #elif defined(MOZ_MEMORY)
