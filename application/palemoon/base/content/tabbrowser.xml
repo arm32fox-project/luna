@@ -738,8 +738,10 @@
                                              aFlags]);
               }
 
-              if (topLevel)
+              if (topLevel) {
                 this.mBrowser.lastURI = aLocation;
+                this.mBrowser.lastLocationChange = Date.now();
+              }
             },
 
             onStatusChange: function (aWebProgress, aRequest, aStatus, aMessage) {
@@ -1312,6 +1314,24 @@
         <parameter name="aLoadInBackground"/>
         <parameter name="aReplace"/>
         <body><![CDATA[
+          let aAllowThirdPartyFixup;
+          let aTargetTab;
+          let aNewIndex = -1;
+          let aPostDatas = [];
+          let aUserContextId;
+          if (arguments.length == 2 &&
+              typeof arguments[1] == "object") {
+            let params = arguments[1];
+            aLoadInBackground     = params.inBackground;
+            aReplace              = params.replace;
+            aAllowThirdPartyFixup = params.allowThirdPartyFixup;
+            aTargetTab            = params.targetTab;
+            aNewIndex             = typeof params.newIndex === "number" ?
+                                    params.newIndex : aNewIndex;
+            aPostDatas            = params.postDatas || aPostDatas;
+            aUserContextId        = params.userContextId;
+          }
+
           if (!aURIs.length)
             return;
 
@@ -1329,22 +1349,53 @@
           var multiple = aURIs.length > 1;
           var owner = multiple || aLoadInBackground ? null : this.selectedTab;
           var firstTabAdded = null;
+          var targetTabIndex = -1;
 
           if (aReplace) {
+            let browser;
+            if (aTargetTab) {
+              browser = this.getBrowserForTab(aTargetTab);
+              targetTabIndex = aTargetTab._tPos;
+            } else {
+              browser = this.mCurrentBrowser;
+              targetTabIndex = this.tabContainer.selectedIndex;
+            }
+            let flags = Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
+            if (aAllowThirdPartyFixup) {
+              flags |= Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP |
+                       Ci.nsIWebNavigation.LOAD_FLAGS_FIXUP_SCHEME_TYPOS;
+            }
             try {
-              this.loadURI(aURIs[0], null, null);
+              browser.loadURIWithFlags(aURIs[0], {
+                flags, postData: aPostDatas[0]
+              });
             } catch (e) {
               // Ignore failure in case a URI is wrong, so we can continue
               // opening the next ones.
             }
+          } else {
+            firstTabAdded = this.addTab(aURIs[0], {
+              ownerTab: owner,
+              skipAnimation: multiple,
+              allowThirdPartyFixup: aAllowThirdPartyFixup,
+              postData: aPostDatas[0],
+              userContextId: aUserContextId
+            });
+            if (aNewIndex !== -1) {
+              this.moveTabTo(firstTabAdded, aNewIndex);
+              targetTabIndex = firstTabAdded._tPos;
+            }
           }
-          else
-            firstTabAdded = this.addTab(aURIs[0], {ownerTab: owner, skipAnimation: multiple});
 
-          var tabNum = this.tabContainer.selectedIndex;
+          let tabNum = targetTabIndex;
           for (let i = 1; i < aURIs.length; ++i) {
-            let tab = this.addTab(aURIs[i], {skipAnimation: true});
-            if (aReplace)
+            let tab = this.addTab(aURIs[i], {
+              skipAnimation: true,
+              allowThirdPartyFixup: aAllowThirdPartyFixup,
+              postData: aPostDatas[i],
+              userContextId: aUserContextId
+            });
+            if (targetTabIndex !== -1)
               this.moveTabTo(tab, ++tabNum);
           }
 
@@ -4456,40 +4507,35 @@
           this.tabbrowser.updateCurrentBrowser(true);
         } else {
           // Pass true to disallow dropping javascript: or data: urls
-          let url;
+          let links;
           try {
-            url = browserDragAndDrop.drop(event, { }, true);
+            links = browserDragAndDrop.dropLinks(event, true);
           } catch (ex) {}
 
 //          // valid urls don't contain spaces ' '; if we have a space it isn't a valid url.
 //          if (!url || url.includes(" ")) //PMed
-          if (!url) //FF
+          if (!links || links.length === 0) //FF
             return;
 
-          let bgLoad = Services.prefs.getBoolPref("browser.tabs.loadInBackground");
+          let inBackground = Services.prefs.getBoolPref("browser.tabs.loadInBackground");
 
           if (event.shiftKey)
-            bgLoad = !bgLoad;
+            inBackground = !inBackground;
 
-          let tab = this._getDragTargetTab(event);
-          if (!tab || dropEffect == "copy") {
-            // We're adding a new tab.
-            let newIndex = this._getDropIndex(event);
-            let newTab = this.tabbrowser.loadOneTab(url, {inBackground: bgLoad, allowThirdPartyFixup: true});
-            this.tabbrowser.moveTabTo(newTab, newIndex);
-          } else {
-            // Load in an existing tab.
-            try {
-              let webNav = Ci.nsIWebNavigation;
-              let flags = webNav.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP |
-                          webNav.LOAD_FLAGS_FIXUP_SCHEME_TYPOS;
-              this.tabbrowser.getBrowserForTab(tab).loadURIWithFlags(url, flags);
-              if (!bgLoad)
-                this.selectedItem = tab;
-            } catch(ex) {
-              // Just ignore invalid urls
-            }
-          }
+          let targetTab = this._getDragTargetTab(event);
+          let userContextId = this.selectedItem
+                              .getAttribute("usercontextid") || 0;
+          let replace = !(!targetTab || dropEffect == "copy");
+          let newIndex = this._getDropIndex(event);
+          let urls = links.map(link => link.url);
+          this.tabbrowser.loadTabs(urls, {
+            inBackground,
+            replace,
+            allowThirdPartyFixup: true,
+            targetTab,
+            newIndex,
+            userContextId,
+          });
         }
 
         if (draggedTab) {
