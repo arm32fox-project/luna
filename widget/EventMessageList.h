@@ -341,9 +341,11 @@ NS_EVENT_MESSAGE(eScrolledAreaChanged)
 NS_EVENT_MESSAGE(eTransitionStart)
 NS_EVENT_MESSAGE(eTransitionRun)
 NS_EVENT_MESSAGE(eTransitionEnd)
+NS_EVENT_MESSAGE(eTransitionCancel)
 NS_EVENT_MESSAGE(eAnimationStart)
 NS_EVENT_MESSAGE(eAnimationEnd)
 NS_EVENT_MESSAGE(eAnimationIteration)
+NS_EVENT_MESSAGE(eAnimationCancel)
 
 // Webkit-prefixed versions of Transition & Animation events, for web compat:
 NS_EVENT_MESSAGE(eWebkitTransitionEnd)

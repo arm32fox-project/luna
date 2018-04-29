@@ -1007,6 +1007,10 @@ EVENT(transitionend,
       eTransitionEnd,
       EventNameType_All,
       eTransitionEventClass)
+EVENT(transitioncancel,
+      eTransitionCancel,
+      EventNameType_All,
+      eTransitionEventClass)
 EVENT(animationstart,
       eAnimationStart,
       EventNameType_All,
@@ -1017,6 +1021,10 @@ EVENT(animationend,
       eAnimationEventClass)
 EVENT(animationiteration,
       eAnimationIteration,
+      EventNameType_All,
+      eAnimationEventClass)
+EVENT(animationcancel,
+      eAnimationCancel,
       EventNameType_All,
       eAnimationEventClass)
 
