@@ -13,12 +13,14 @@
 #include "PerformanceMeasure.h"
 #include "PerformanceObserver.h"
 #include "PerformanceResourceTiming.h"
+#include "PerformanceService.h"
 #include "PerformanceWorker.h"
 #include "mozilla/ErrorResult.h"
 #include "mozilla/dom/PerformanceBinding.h"
 #include "mozilla/dom/PerformanceEntryEvent.h"
 #include "mozilla/dom/PerformanceNavigationBinding.h"
 #include "mozilla/dom/PerformanceObserverBinding.h"
+#include "mozilla/dom/PerformanceNavigationTiming.h"
 #include "mozilla/IntegerPrintfMacros.h"
 #include "mozilla/Preferences.h"
 #include "mozilla/TimerClamping.h"
@@ -82,14 +84,12 @@ NS_IMPL_RELEASE_INHERITED(Performance, DOMEventTargetHelper)
 /* static */ already_AddRefed<Performance>
 Performance::CreateForMainThread(nsPIDOMWindowInner* aWindow,
                                  nsDOMNavigationTiming* aDOMTiming,
-                                 nsITimedChannel* aChannel,
-                                 Performance* aParentPerformance)
+                                 nsITimedChannel* aChannel)
 {
   MOZ_ASSERT(NS_IsMainThread());
 
   RefPtr<Performance> performance =
-    new PerformanceMainThread(aWindow, aDOMTiming, aChannel,
-                              aParentPerformance);
+    new PerformanceMainThread(aWindow, aDOMTiming, aChannel);
   return performance.forget();
 }
 
@@ -120,6 +120,24 @@ Performance::Performance(nsPIDOMWindowInner* aWindow)
 
 Performance::~Performance()
 {}
+
+DOMHighResTimeStamp
+Performance::Now() const
+{
+  TimeDuration duration = TimeStamp::Now() - CreationTimeStamp();
+  return RoundTime(duration.ToMilliseconds());
+}
+
+DOMHighResTimeStamp
+Performance::TimeOrigin()
+{
+  if (!mPerformanceService) {
+    mPerformanceService = PerformanceService::GetOrCreate();
+  }
+
+  MOZ_ASSERT(mPerformanceService);
+  return mPerformanceService->TimeOrigin(CreationTimeStamp());
+}
 
 JSObject*
 Performance::WrapObject(JSContext* aCx, JS::Handle<JSObject*> aGivenProto)
@@ -245,7 +263,7 @@ Performance::ClearMarks(const Optional<nsAString>& aName)
 
 DOMHighResTimeStamp
 Performance::ResolveTimestampFromName(const nsAString& aName,
-                                          ErrorResult& aRv)
+                                      ErrorResult& aRv)
 {
   AutoTArray<RefPtr<PerformanceEntry>, 1> arr;
   DOMHighResTimeStamp ts;
