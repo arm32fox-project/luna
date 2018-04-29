@@ -5,6 +5,8 @@
 
 const nsICookie = Components.interfaces.nsICookie;
 
+Components.utils.import("resource://gre/modules/PluralForm.jsm");
+
 var gCookiesWindow = {
   _cm               : Components.classes["@mozilla.org/cookiemanager;1"]
                                 .getService(Components.interfaces.nsICookieManager),
@@ -23,6 +25,11 @@ var gCookiesWindow = {
 
     this._bundle = document.getElementById("bundlePreferences");
     this._tree = document.getElementById("cookiesList");
+
+    let removeAllCookies = document.getElementById("removeAllCookies");
+    removeAllCookies.setAttribute("accesskey", this._bundle.getString("removeAllCookies.accesskey"));
+    let removeSelectedCookies = document.getElementById("removeSelectedCookies");
+    removeSelectedCookies.setAttribute("accesskey", this._bundle.getString("removeSelectedCookies.accesskey"));
 
     this._populateList(true);
 
@@ -63,7 +70,9 @@ var gCookiesWindow = {
   _cookieEquals: function (aCookieA, aCookieB, aStrippedHost) {
     return aCookieA.rawHost == aStrippedHost &&
            aCookieA.name == aCookieB.name &&
-           aCookieA.path == aCookieB.path;
+           aCookieA.path == aCookieB.path &&
+           ChromeUtils.isOriginAttributesEqual(aCookieA.originAttributes,
+                                               aCookieB.originAttributes);
   },
 
   observe: function (aCookie, aTopic, aData) {
@@ -268,15 +277,19 @@ var gCookiesWindow = {
       var item = this._getItemAtIndex(aIndex);
       if (!item) return;
       this._invalidateCache(aIndex - 1);
-      if (item.container)
+      if (item.container) {
         gCookiesWindow._hosts[item.rawHost] = null;
-      else {
+      } else {
         var parent = this._getItemAtIndex(item.parentIndex);
         for (var i = 0; i < parent.cookies.length; ++i) {
           var cookie = parent.cookies[i];
           if (item.rawHost == cookie.rawHost &&
-              item.name == cookie.name && item.path == cookie.path)
+              item.name == cookie.name &&
+              item.path == cookie.path &&
+              ChromeUtils.isOriginAttributesEqual(item.originAttributes,
+                                                  cookie.originAttributes)) {
             parent.cookies.splice(i, removeCount);
+          }
         }
       }
     },
@@ -451,16 +464,17 @@ var gCookiesWindow = {
   _makeCookieObject: function (aStrippedHost, aCookie) {
     var host = aCookie.host;
     var formattedHost = host.charAt(0) == "." ? host.substring(1, host.length) : host;
-    var c = { name        : aCookie.name,
-              value       : aCookie.value,
-              isDomain    : aCookie.isDomain,
-              host        : aCookie.host,
-              rawHost     : aStrippedHost,
-              path        : aCookie.path,
-              isSecure    : aCookie.isSecure,
-              expires     : aCookie.expires,
-              level       : 1,
-              container   : false };
+    var c = { name            : aCookie.name,
+              value           : aCookie.value,
+              isDomain        : aCookie.isDomain,
+              host            : aCookie.host,
+              rawHost         : aStrippedHost,
+              path            : aCookie.path,
+              isSecure        : aCookie.isSecure,
+              expires         : aCookie.expires,
+              level           : 1,
+              container       : false,
+              originAttributes: aCookie.originAttributes };
     return c;
   },
 
@@ -551,12 +565,12 @@ var gCookiesWindow = {
     if (item && seln.count == 1 && item.container && item.open)
       selectedCookieCount += 2;
 
-    var removeCookie = document.getElementById("removeCookie");
-    var removeCookies = document.getElementById("removeCookies");
-    removeCookie.parentNode.selectedPanel =
-      selectedCookieCount == 1 ? removeCookie : removeCookies;
+    let buttonLabel = this._bundle.getString("removeSelectedCookies.label");
+    let removeSelectedCookies = document.getElementById("removeSelectedCookies");
+    removeSelectedCookies.label = PluralForm.get(selectedCookieCount, buttonLabel)
+                                            .replace("#1", selectedCookieCount);
 
-    removeCookie.disabled = removeCookies.disabled = !(seln.count > 0);
+    removeSelectedCookies.disabled = !(seln.count > 0);
   },
 
   performDeletion: function gCookiesWindow_performDeletion(deleteItems) {
@@ -567,7 +581,8 @@ var gCookiesWindow = {
       blockFutureCookies = psvc.getBoolPref("network.cookie.blockFutureCookies");
     for (var i = 0; i < deleteItems.length; ++i) {
       var item = deleteItems[i];
-      this._cm.remove(item.host, item.name, item.path, blockFutureCookies);
+      this._cm.remove(item.host, item.name, item.path,
+                      blockFutureCookies, item.originAttributes);
     }
   },
 
@@ -717,8 +732,13 @@ var gCookiesWindow = {
   },
 
   onCookieKeyPress: function (aEvent) {
-    if (aEvent.keyCode == 46)
+    if (aEvent.keyCode == KeyEvent.DOM_VK_DELETE
+#ifdef XP_MACOSX
+        || aEvent.keyCode == KeyEvent.DOM_VK_BACK_SPACE
+#endif
+       ) {
       this.deleteCookie();
+    }
   },
 
   _lastSortProperty : "",
@@ -860,7 +880,17 @@ var gCookiesWindow = {
   },
 
   _updateRemoveAllButton: function gCookiesWindow__updateRemoveAllButton() {
-    document.getElementById("removeAllCookies").disabled = this._view._rowCount == 0;
+    let removeAllCookies = document.getElementById("removeAllCookies");
+    removeAllCookies.disabled = this._view._rowCount == 0;
+
+    let labelStringID = "removeAllCookies.label";
+    let accessKeyStringID = "removeAllCookies.accesskey";
+    if (this._view._filtered) {
+      labelStringID = "removeAllShownCookies.label";
+      accessKeyStringID = "removeAllShownCookies.accesskey";
+    }
+    removeAllCookies.setAttribute("label", this._bundle.getString(labelStringID));
+    removeAllCookies.setAttribute("accesskey", this._bundle.getString(accessKeyStringID));
   },
 
   filter: function () {

@@ -263,6 +263,9 @@
           var postData = null;
 
           var action = this._parseActionUrl(url);
+          let lastLocationChange = gBrowser.selectedBrowser.lastLocationChange;
+
+          let matchLastLocationChange = true;
           if (action) {
             url = action.param;
             if (this.hasAttribute("actiontype")) {
@@ -275,82 +278,94 @@
               }
               return;
             }
+            continueOperation.call(this);
           }
           else {
-            [url, postData, mayInheritPrincipal] = this._canonizeURL(aTriggeringEvent);
-            if (!url)
-              return;
+            this._canonizeURL(aTriggeringEvent, response => {
+              [url, postData, mayInheritPrincipal] = response;
+              if (url) {
+                matchLastLocationChange = (lastLocationChange ==
+                                           gBrowser.selectedBrowser.lastLocationChange);
+                continueOperation.call(this);
+              }
+            });
           }
 
-          this.value = url;
-          gBrowser.userTypedValue = url;
-          try {
-            addToUrlbarHistory(url);
-          } catch (ex) {
-            // Things may go wrong when adding url to session history,
-            // but don't let that interfere with the loading of the url.
-            Cu.reportError(ex);
-          }
-
-          function loadCurrent() {
-            let webnav = Ci.nsIWebNavigation;
-            let flags = webnav.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP |
-                        webnav.LOAD_FLAGS_FIXUP_SCHEME_TYPOS;
-            // Pass LOAD_FLAGS_DISALLOW_INHERIT_OWNER to prevent any loads from
-            // inheriting the currently loaded document's principal, unless this
-            // URL is marked as safe to inherit (e.g. came from a bookmark
-            // keyword).
-            if (!mayInheritPrincipal)
-              flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
-            gBrowser.loadURIWithFlags(url, flags, null, null, postData);
-          }
-
-          // Focus the content area before triggering loads, since if the load
-          // occurs in a new tab, we want focus to be restored to the content
-          // area when the current tab is re-selected.
-          gBrowser.selectedBrowser.focus();
-
-          let isMouseEvent = aTriggeringEvent instanceof MouseEvent;
-          let altEnter = !isMouseEvent && aTriggeringEvent && aTriggeringEvent.altKey;
-
-          if (altEnter) {
-            // XXX This was added a long time ago, and I'm not sure why it is
-            // necessary. Alt+Enter's default action might cause a system beep,
-            // or something like that?
-            aTriggeringEvent.preventDefault();
-            aTriggeringEvent.stopPropagation();
-          }
-
-          // If the current tab is empty, ignore Alt+Enter (just reuse this tab)
-          altEnter = altEnter && !isTabEmpty(gBrowser.selectedTab);
-
-          if (isMouseEvent || altEnter) {
-            // Use the standard UI link behaviors for clicks or Alt+Enter
-            let where = "tab";
-            if (isMouseEvent)
-              where = whereToOpenLink(aTriggeringEvent, false, false);
-
-            if (where == "current") {
-              loadCurrent();
-            } else {
-              this.handleRevert();
-              let params = { allowThirdPartyFixup: true,
-                             postData: postData,
-                             initiatingDoc: document };
-              openUILinkIn(url, where, params);
+          function continueOperation()
+          {
+            this.value = url;
+            gBrowser.userTypedValue = url;
+            try {
+              addToUrlbarHistory(url);
+            } catch (ex) {
+              // Things may go wrong when adding url to session history,
+              // but don't let that interfere with the loading of the url.
+              Cu.reportError(ex);
             }
-          } else {
-            loadCurrent();
+
+            function loadCurrent() {
+              let flags = Ci.nsIWebNavigation.LOAD_FLAGS_ALLOW_THIRD_PARTY_FIXUP;
+              // Pass LOAD_FLAGS_DISALLOW_INHERIT_OWNER to prevent any loads from
+              // inheriting the currently loaded document's principal, unless this
+              // URL is marked as safe to inherit (e.g. came from a bookmark
+              // keyword).
+              if (!mayInheritPrincipal)
+                flags |= Ci.nsIWebNavigation.LOAD_FLAGS_DISALLOW_INHERIT_OWNER;
+              // If the value wasn't typed, we know that we decoded the value as
+              // UTF-8 (see losslessDecodeURI)
+              if (!this.valueIsTyped)
+                flags |= Ci.nsIWebNavigation.LOAD_FLAGS_URI_IS_UTF8;
+              gBrowser.loadURIWithFlags(url, flags, null, null, postData);
+            }
+
+            // Focus the content area before triggering loads, since if the load
+            // occurs in a new tab, we want focus to be restored to the content
+            // area when the current tab is re-selected.
+            gBrowser.selectedBrowser.focus();
+
+            let isMouseEvent = aTriggeringEvent instanceof MouseEvent;
+
+            // If the current tab is empty, ignore Alt+Enter (just reuse this tab)
+            let altEnter = !isMouseEvent && aTriggeringEvent &&
+              aTriggeringEvent.altKey && !isTabEmpty(gBrowser.selectedTab);
+
+            if (isMouseEvent || altEnter) {
+              // Use the standard UI link behaviors for clicks or Alt+Enter
+              let where = "tab";
+              if (isMouseEvent)
+                where = whereToOpenLink(aTriggeringEvent, false, false);
+
+              if (where == "current") {
+                if (matchLastLocationChange) {
+                  loadCurrent();
+                }
+              } else {
+                this.handleRevert();
+                let params = { allowThirdPartyFixup: true,
+                               postData: postData,
+                               initiatingDoc: document };
+                if (!this.valueIsTyped)
+                  params.isUTF8 = true;
+                openUILinkIn(url, where, params);
+              }
+            } else {
+              if (matchLastLocationChange) {
+                loadCurrent();
+              }
+            }
           }
         ]]></body>
       </method>
 
       <method name="_canonizeURL">
         <parameter name="aTriggeringEvent"/>
+        <parameter name="aCallback"/>
         <body><![CDATA[
           var url = this.value;
-          if (!url)
-            return ["", null, false];
+          if (!url) {
+            aCallback(["", null, false]);
+            return;
+          }
 
           // Only add the suffix when the URL bar value isn't already "URL-like",
           // and only if we get a keyboard event, to match user expectations.
@@ -403,11 +418,9 @@
             }
           }
 
-          var postData = {};
-          var mayInheritPrincipal = { value: false };
-          url = getShortcutOrURI(url, postData, mayInheritPrincipal);
-
-          return [url, postData.value, mayInheritPrincipal.value];
+          getShortcutOrURIAndPostData(url).then(data => {
+            aCallback([data.url, data.postData, data.mayInheritPrincipal]);
+          });
         ]]></body>
       </method>
 
@@ -442,11 +455,12 @@
       <method name="onDrop">
         <parameter name="aEvent"/>
         <body><![CDATA[
-          let url = browserDragAndDrop.drop(aEvent, { })
+          let links = browserDragAndDrop.dropLinks(aEvent);
 
           // The URL bar automatically handles inputs with newline characters,
           // so we can get away with treating text/x-moz-url flavours as text/plain.
-          if (url) {
+          if (links.length > 0 && links[0].url) {
+            let url = links[0].url;
             aEvent.preventDefault();
             this.value = url;
             SetPageProxyState("invalid");
@@ -1356,8 +1370,8 @@
             return;
           }
 
-          let host = gPluginHandler._getHostFromPrincipal(this.notification.browser.contentWindow.document.nodePrincipal);
-          this._setupDescription("pluginActivateMultiple.message", null, host);
+          let prePath = this.notification.browser.contentWindow.document.nodePrincipal.URI.prePath;
+          this._setupDescription("pluginActivateMultiple.message", null, prePath);
 
           var showBox = document.getAnonymousElementByAttribute(this, "anonid", "plugin-notification-showbox");
 
@@ -1396,7 +1410,7 @@
       <method name="_setupSingleState">
         <body><![CDATA[
           var action = this.notification.options.centerActions[0];
-          var host = action.pluginPermissionHost;
+          var prePath = action.pluginPermissionPrePath;
 
           let label, linkLabel, linkUrl, button1, button2;
 
@@ -1491,7 +1505,7 @@
               Cu.reportError(Error("Unexpected blocklist state"));
             }
           }
-          this._setupDescription(label, action.pluginName, host);
+          this._setupDescription(label, action.pluginName, prePath);
           this._setupLink(linkLabel, action.detailsLink);
 
           this._primaryButton.label = gNavigatorBundle.getString(button1.label);
@@ -1512,7 +1526,7 @@
       <method name="_setupDescription">
         <parameter name="baseString" />
         <parameter name="pluginName" /> <!-- null for the multiple-plugin case -->
-        <parameter name="host" />
+        <parameter name="prePath" />
         <body><![CDATA[
           var bsn = this._brandShortName;
           var span = document.getAnonymousElementByAttribute(this, "anonid", "click-to-play-plugins-notification-description");
@@ -1520,17 +1534,17 @@
             span.removeChild(span.lastChild);
           }
 
-          var args = ["__host__", this._brandShortName];
+          var args = ["__prepath__", this._brandShortName];
           if (pluginName) {
             args.unshift(pluginName);
           }
           var bases = gNavigatorBundle.getFormattedString(baseString, args).
-            split("__host__", 2);
+            split("__prepath__", 2);
 
           span.appendChild(document.createTextNode(bases[0]));
-          var hostSpan = document.createElementNS("http://www.w3.org/1999/xhtml", "em");
-          hostSpan.appendChild(document.createTextNode(host));
-          span.appendChild(hostSpan);
+          var prePathSpan = document.createElementNS("http://www.w3.org/1999/xhtml", "em");
+          prePathSpan.appendChild(document.createTextNode(prePath));
+          span.appendChild(prePathSpan);
           span.appendChild(document.createTextNode(bases[1] + " "));
         ]]></body>
       </method>
