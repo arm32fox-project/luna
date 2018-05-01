@@ -968,6 +968,7 @@ nsContextMenu.prototype = {
   _openLinkInParameters : function (extra) {
     let params = { charset: gContextMenuContentData.charSet,
                    originPrincipal: this.principal,
+                   triggeringPrincipal: this.principal,
                    referrerURI: gContextMenuContentData.documentURIObject,
                    referrerPolicy: gContextMenuContentData.referrerPolicy,
                    noReferrer: this.linkHasNoReferrer };
@@ -1147,10 +1148,12 @@ nsContextMenu.prototype = {
   // Change current window to the URL of the image, video, or audio.
   viewMedia: function(e) {
     let referrerURI = gContextMenuContentData.documentURIObject;
+    let systemPrincipal = Services.scriptSecurityManager.getSystemPrincipal();
     if (this.onCanvas) {
       this._canvasToBlobURL(this.target).then(function(blobURL) {
         openUILink(blobURL, e, { disallowInheritPrincipal: true,
-                                 referrerURI: referrerURI });
+                                 referrerURI: referrerURI,
+                                 triggeringPrincipal: systemPrincipal});
       }, Cu.reportError);
     }
     else {

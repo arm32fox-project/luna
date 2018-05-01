@@ -482,6 +482,7 @@ var ClickEventHandler = {
                  ctrlKey: event.ctrlKey, metaKey: event.metaKey,
                  altKey: event.altKey, href: null, title: null,
                  bookmark: false, referrerPolicy: referrerPolicy,
+                 triggeringPrincipal: principal,
                  originAttributes: principal ? principal.originAttributes : {},
                  isContentWindowPrivate: PrivateBrowsingUtils.isContentWindowPrivate(ownerDoc.defaultView)};
 
@@ -521,6 +522,7 @@ var ClickEventHandler = {
         } catch (e) {}
       }
       json.originPrincipal = ownerDoc.nodePrincipal;
+      json.triggeringPrincipal = ownerDoc.nodePrincipal;
 
       sendAsyncMessage("Content:Click", json);
       return;
