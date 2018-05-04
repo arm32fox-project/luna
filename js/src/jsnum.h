@@ -34,13 +34,7 @@ namespace js {
 
 class StringBuffer;
 
-extern MOZ_MUST_USE bool
-InitRuntimeNumberState(JSRuntime* rt);
-
-#if !EXPOSE_INTL_API
-extern void
-FinishRuntimeNumberState(JSRuntime* rt);
-#endif
+void InitRuntimeNumberState(JSRuntime* rt);
 
 /* Initialize the Number class, returning its prototype object. */
 extern JSObject*
