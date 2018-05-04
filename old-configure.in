@@ -2306,9 +2306,6 @@ MOZ_INSTALL_TRACKING=
 ACCESSIBILITY=1
 MOZ_TIME_MANAGER=
 MOZ_AUDIO_CHANNEL_MANAGER=
-MOZ_CONTENT_SANDBOX=
-MOZ_GMP_SANDBOX=
-MOZ_SANDBOX=
 MOZ_BINARY_EXTENSIONS=
 MOZ_JETPACK=1
 MOZ_DEVTOOLS_SERVER=1
@@ -3841,99 +3838,6 @@ if test -n "$MOZ_NO_SMART_CARDS"; then
     AC_DEFINE(MOZ_NO_SMART_CARDS)
 fi
 AC_SUBST(MOZ_NO_SMART_CARDS)
-
-dnl ========================================================
-dnl = Sandboxing support
-dnl ========================================================
-MOZ_ARG_ENABLE_BOOL(sandbox,
-[  --enable-sandbox        Enable sandboxing support],
-    MOZ_SANDBOX=1,
-    MOZ_SANDBOX=)
-
-if test -n "$MOZ_TSAN" -o -n "$MOZ_ASAN"; then
-    # Bug 1182565: TSan conflicts with sandboxing on Linux.
-    # Bug 1287971: LSan also conflicts with sandboxing on Linux.
-    case $OS_TARGET in
-    Linux|Android)
-        MOZ_SANDBOX=
-        ;;
-    esac
-fi
-
-dnl ========================================================
-dnl = Content process sandboxing
-dnl ========================================================
-if test -n "$gonkdir"; then
-    MOZ_CONTENT_SANDBOX=$MOZ_SANDBOX
-fi
-
-case "$OS_TARGET:$NIGHTLY_BUILD" in
-WINNT:*)
-    MOZ_CONTENT_SANDBOX=$MOZ_SANDBOX
-    ;;
-Darwin:*)
-    MOZ_CONTENT_SANDBOX=$MOZ_SANDBOX
-    ;;
-Linux:1)
-    case $CPU_ARCH in
-        x86_64|x86)
-            MOZ_CONTENT_SANDBOX=$MOZ_SANDBOX
-        ;;
-    esac
-    ;;
-esac
-
-MOZ_ARG_ENABLE_BOOL(content-sandbox,
-[  --enable-content-sandbox Enable sandboxing support for content-processes
-  --disable-content-sandbox Disable sandboxing support for content-processes],
-    MOZ_CONTENT_SANDBOX=1,
-    MOZ_CONTENT_SANDBOX=)
-
-if test -n "$MOZ_CONTENT_SANDBOX" -a -z "$MOZ_SANDBOX"; then
-    AC_MSG_ERROR([--enable-content-sandbox and --disable-sandbox are conflicting options])
-fi
-
-if test -n "$MOZ_CONTENT_SANDBOX"; then
-    AC_DEFINE(MOZ_CONTENT_SANDBOX)
-fi
-
-AC_SUBST(MOZ_CONTENT_SANDBOX)
-
-dnl ========================================================
-dnl = Gecko Media Plugin sandboxing
-dnl ========================================================
-case $OS_TARGET in
-WINNT)
-    MOZ_GMP_SANDBOX=$MOZ_SANDBOX
-    ;;
-Linux)
-    case $CPU_ARCH in
-    x86_64|x86)
-        MOZ_GMP_SANDBOX=$MOZ_SANDBOX
-        ;;
-    esac
-    ;;
-Darwin)
-    MOZ_GMP_SANDBOX=$MOZ_SANDBOX
-    ;;
-esac
-
-if test -n "$MOZ_GMP_SANDBOX"; then
-    AC_DEFINE(MOZ_GMP_SANDBOX)
-fi
-
-AC_SUBST(MOZ_GMP_SANDBOX)
-
-if test -z "$MOZ_CONTENT_SANDBOX" -a -z "$MOZ_GMP_SANDBOX"; then
-    MOZ_SANDBOX=
-fi
-
-if test -n "$MOZ_SANDBOX"; then
-    AC_DEFINE(MOZ_SANDBOX)
-fi
-
-AC_SUBST(MOZ_SANDBOX)
-
 
 dnl ========================================================
 dnl =
@@ -5762,7 +5666,6 @@ MOZ_OFFICIAL_BRANDING=$MOZ_OFFICIAL_BRANDING
 MOZ_BRANDING_DIRECTORY=$MOZ_BRANDING_DIRECTORY
 MC_BASILISK=$MC_BASILISK
 MC_PALEMOON=$MC_PALEMOON
-MOZ_SANDBOX=$MOZ_SANDBOX
 MOZ_EME=$MOZ_EME
 MOZ_WEBRTC=$MOZ_WEBRTC
 MOZ_SYSTEM_LIBEVENT=$MOZ_SYSTEM_LIBEVENT
