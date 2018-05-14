@@ -6653,8 +6653,9 @@ nsLayoutUtils::DrawSingleImage(gfxContext&            aContext,
   nscoord appUnitsPerCSSPixel = nsDeviceContext::AppUnitsPerCSSPixel();
   CSSIntSize pixelImageSize(ComputeSizeForDrawingWithFallback(aImage, aDest.Size()));
   if (pixelImageSize.width < 1 || pixelImageSize.height < 1) {
-    NS_WARNING("Image width or height is non-positive");
-    return DrawResult::TEMPORARY_ERROR;
+    NS_ASSERTION(pixelImageSize.width >= 0 && pixelImageSize.height >= 0,
+                 "Image width or height is negative");
+    return DrawResult::SUCCESS;  // no point in drawing a zero size image
   }
 
   nsSize imageSize(CSSPixel::ToAppUnits(pixelImageSize));
@@ -7013,7 +7014,8 @@ nsLayoutUtils::GetTextRunFlagsForStyle(nsStyleContext* aStyleContext,
                                        nscoord aLetterSpacing)
 {
   uint32_t result = 0;
-  if (aLetterSpacing != 0) {
+  if (aLetterSpacing != 0 ||
+      aStyleText->mTextJustify == StyleTextJustify::InterCharacter) {
     result |= gfxTextRunFactory::TEXT_DISABLE_OPTIONAL_LIGATURES;
   }
   if (aStyleText->mControlCharacterVisibility == NS_STYLE_CONTROL_CHARACTER_VISIBILITY_HIDDEN) {

@@ -20,10 +20,8 @@
 #include "jit/ExecutableAllocator.h"
 #include "jit/Ion.h"
 #include "js/Utility.h"
-#if ENABLE_INTL_API
 #include "unicode/uclean.h"
 #include "unicode/utypes.h"
-#endif // ENABLE_INTL_API
 #include "vm/DateTime.h"
 #include "vm/HelperThreads.h"
 #include "vm/Runtime.h"
@@ -113,12 +111,10 @@ JS::detail::InitWithFailureDiagnostic(bool isDebugBuild)
 
     js::DateTimeInfo::init();
 
-#if EXPOSE_INTL_API
     UErrorCode err = U_ZERO_ERROR;
     u_init(&err);
     if (U_FAILURE(err))
         return "u_init() failed";
-#endif // EXPOSE_INTL_API
 
     RETURN_IF_FAIL(js::CreateHelperThreadsState());
     RETURN_IF_FAIL(FutexRuntime::initialize());
@@ -171,9 +167,7 @@ JS_ShutDown(void)
     // to do it only when PRMJ_Now is eventually called.
     PRMJ_NowShutdown();
 
-#if EXPOSE_INTL_API
     u_cleanup();
-#endif // EXPOSE_INTL_API
 
     if (!JSRuntime::hasLiveRuntimes())
         js::jit::ReleaseProcessExecutableMemory();
@@ -188,11 +182,7 @@ JS_SetICUMemoryFunctions(JS_ICUAllocFn allocFn, JS_ICUReallocFn reallocFn, JS_IC
                "must call JS_SetICUMemoryFunctions before any other JSAPI "
                "operation (including JS_Init)");
 
-#if EXPOSE_INTL_API
     UErrorCode status = U_ZERO_ERROR;
     u_setMemoryFunctions(/* context = */ nullptr, allocFn, reallocFn, freeFn, &status);
     return U_SUCCESS(status);
-#else
-    return true;
-#endif
 }

@@ -4,7 +4,7 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
-if CONFIG['OS_TARGET'] != 'WINNT' and CONFIG['MOZ_WIDGET_TOOLKIT'] != 'gonk':
+if CONFIG['OS_TARGET'] != 'WINNT':
     Library('necko_standalone')
 
 src_list = [
@@ -27,7 +27,6 @@ netwerk_dns_src = [
     'DNS.cpp',
     'DNSListenerProxy.cpp',
     'GetAddrInfo.cpp',
-    'nameprep.c',
     'nsDNSService2.cpp',
     'nsIDNService.cpp',
     'punycode.c',

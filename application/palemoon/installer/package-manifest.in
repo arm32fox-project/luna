@@ -35,11 +35,9 @@
 #ifdef XP_MACOSX
 ; Mac bundle stuff
 @APPNAME@/Contents/Info.plist
-@APPNAME@/Contents/Library/LaunchServices
 @APPNAME@/Contents/PkgInfo
 @RESPATH@/firefox.icns
 @RESPATH@/document.icns
-@RESPATH@/@LPROJ_ROOT@.lproj/*
 #endif
 
 [@AB_CD@]
@@ -175,8 +173,6 @@
 #ifdef NS_PRINTING
 #endif
 #ifdef MOZ_ENABLE_PROFILER_SPS
-#endif
-#ifdef ENABLE_INTL_API
 #endif
 #ifdef NECKO_WIFI
 #endif
@@ -333,21 +329,6 @@
 #endif
 @RESPATH@/chrome/pippki@JAREXT@
 @RESPATH@/chrome/pippki.manifest
-
-; For process sandboxing
-#if defined(MOZ_SANDBOX)
-#if defined(XP_WIN)
-#if defined(WOW_HELPER)
-@BINPATH@/wow_helper.exe
-#endif
-#endif
-#endif
-
-#if defined(MOZ_SANDBOX)
-#if defined(XP_LINUX)
-@BINPATH@/@DLL_PREFIX@mozsandbox@DLL_SUFFIX@
-#endif
-#endif
 
 ; for Solaris SPARC
 #ifdef SOLARIS

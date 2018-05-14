@@ -1644,7 +1644,7 @@ nsDocShell::LoadStream(nsIInputStream* aStream, nsIURI* aURI,
                                          uri,
                                          aStream,
                                          triggeringPrincipal,
-                                         nsILoadInfo::SEC_NORMAL,
+                                         nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL,
                                          nsIContentPolicy::TYPE_OTHER,
                                          aContentType,
                                          aContentCharset);
@@ -4732,7 +4732,7 @@ nsDocShell::LoadURI(const char16_t* aURI,
 {
   return LoadURIWithOptions(aURI, aLoadFlags, aReferringURI,
                             mozilla::net::RP_Default, aPostStream,
-                            aHeaderStream, nullptr);
+                            aHeaderStream, nullptr, nullptr);
 }
 
 NS_IMETHODIMP
@@ -4742,7 +4742,8 @@ nsDocShell::LoadURIWithOptions(const char16_t* aURI,
                                uint32_t aReferrerPolicy,
                                nsIInputStream* aPostStream,
                                nsIInputStream* aHeaderStream,
-                               nsIURI* aBaseURI)
+                               nsIURI* aBaseURI,
+                               nsIPrincipal* aTriggeringPrincipal)
 {
   NS_ASSERTION((aLoadFlags & 0xf) == 0, "Unexpected flags");
 
@@ -4861,6 +4862,7 @@ nsDocShell::LoadURIWithOptions(const char16_t* aURI,
   loadInfo->SetReferrerPolicy(aReferrerPolicy);
   loadInfo->SetHeadersStream(aHeaderStream);
   loadInfo->SetBaseURI(aBaseURI);
+  loadInfo->SetTriggeringPrincipal(aTriggeringPrincipal);
   loadInfo->SetForceAllowDataURI(forceAllowDataURI);
 
   if (fixupInfo) {
@@ -5687,6 +5689,11 @@ nsDocShell::LoadPage(nsISupports* aPageDescriptor, uint32_t aDisplayType)
     }
     shEntry->SetURI(newUri);
     shEntry->SetOriginalURI(nullptr);
+    // shEntry's current triggering principal is whoever loaded that page initially.
+    // But now we're doing another load of the page, via an API that is only exposed
+    // to system code.  The triggering principal for this load should be the system
+    // principal.
+    shEntry->SetTriggeringPrincipal(nsContentUtils::GetSystemPrincipal());
   }
 
   rv = LoadHistoryEntry(shEntry, LOAD_HISTORY);
@@ -9145,8 +9152,13 @@ nsDocShell::CreateContentViewer(const nsACString& aContentType,
 
     // Make sure we have a URI to set currentURI.
     nsCOMPtr<nsIURI> failedURI;
+    nsCOMPtr<nsIPrincipal> triggeringPrincipal;
     if (failedChannel) {
       NS_GetFinalChannelURI(failedChannel, getter_AddRefs(failedURI));
+    } else {
+      // if there is no failed channel we have to explicitly provide
+      // a triggeringPrincipal for the history entry.
+      triggeringPrincipal = nsContentUtils::GetSystemPrincipal();
     }
 
     if (!failedURI) {
@@ -9167,7 +9179,8 @@ nsDocShell::CreateContentViewer(const nsACString& aContentType,
     // Create an shistory entry for the old load.
     if (failedURI) {
       bool errorOnLocationChangeNeeded = OnNewURI(
-        failedURI, failedChannel, nullptr, nullptr, mLoadType, false, false, false);
+        failedURI, failedChannel, triggeringPrincipal,
+        nullptr, mLoadType, false, false, false);
 
       if (errorOnLocationChangeNeeded) {
         FireOnLocationChange(this, failedChannel, failedURI,
@@ -10394,10 +10407,13 @@ nsDocShell::InternalLoad(nsIURI* aURI,
        * call OnNewURI() so that, this traversal will be
        * recorded in session and global history.
        */
-      nsCOMPtr<nsIPrincipal> triggeringPrincipal, principalToInherit;
+      nsCOMPtr<nsIPrincipal> newURITriggeringPrincipal, newURIPrincipalToInherit;
       if (mOSHE) {
-        mOSHE->GetTriggeringPrincipal(getter_AddRefs(triggeringPrincipal));
-        mOSHE->GetPrincipalToInherit(getter_AddRefs(principalToInherit));
+        mOSHE->GetTriggeringPrincipal(getter_AddRefs(newURITriggeringPrincipal));
+        mOSHE->GetPrincipalToInherit(getter_AddRefs(newURIPrincipalToInherit));
+      } else {
+        newURITriggeringPrincipal = aTriggeringPrincipal;
+        newURIPrincipalToInherit = doc->NodePrincipal();
       }
       // Pass true for aCloneSHChildren, since we're not
       // changing documents here, so all of our subframes are
@@ -10407,7 +10423,7 @@ nsDocShell::InternalLoad(nsIURI* aURI,
       // flag on firing onLocationChange(...).
       // Anyway, aCloneSHChildren param is simply reflecting
       // doShortCircuitedLoad in this scope.
-      OnNewURI(aURI, nullptr, triggeringPrincipal, principalToInherit,
+      OnNewURI(aURI, nullptr, newURITriggeringPrincipal, newURIPrincipalToInherit,
                mLoadType, true, true, true);
 
       nsCOMPtr<nsIInputStream> postData;
@@ -10606,7 +10622,7 @@ nsDocShell::InternalLoad(nsIURI* aURI,
     }
     bool shouldLoad;
     rv = browserChrome3->ShouldLoadURI(this, uriForShouldLoadCheck, aReferrer,
-                                       &shouldLoad);
+                                       aTriggeringPrincipal, &shouldLoad);
     if (NS_SUCCEEDED(rv) && !shouldLoad) {
       return NS_OK;
     }
@@ -10961,7 +10977,8 @@ nsDocShell::DoURILoad(nsIURI* aURI,
   }
 
   nsLoadFlags loadFlags = mDefaultLoadFlags;
-  nsSecurityFlags securityFlags = nsILoadInfo::SEC_NORMAL;
+  nsSecurityFlags securityFlags =
+    nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_IS_NULL;
 
   if (aFirstParty) {
     // tag first party URL loads
@@ -12123,7 +12140,9 @@ nsDocShell::AddState(JS::Handle<JS::Value> aData, const nsAString& aTitle,
 
     // Since we're not changing which page we have loaded, pass
     // true for aCloneChildren.
-    rv = AddToSessionHistory(newURI, nullptr, nullptr, nullptr, true,
+    rv = AddToSessionHistory(newURI, nullptr,
+                             document->NodePrincipal(), // triggeringPrincipal
+                             nullptr, true,
                              getter_AddRefs(newSHEntry));
     NS_ENSURE_SUCCESS(rv, rv);
 
@@ -12399,11 +12418,6 @@ nsDocShell::AddToSessionHistory(nsIURI* aURI, nsIChannel* aChannel,
       discardLayoutState = ShouldDiscardLayoutState(httpChannel);
     }
 
-    // XXX Bug 1286838: Replace channel owner with loadInfo triggeringPrincipal
-    nsCOMPtr<nsISupports> owner;
-    aChannel->GetOwner(getter_AddRefs(owner));
-    triggeringPrincipal = do_QueryInterface(owner);
-
     nsCOMPtr<nsILoadInfo> loadInfo = aChannel->GetLoadInfo();
     if (loadInfo) {
       if (!triggeringPrincipal) {
@@ -12649,10 +12663,6 @@ nsDocShell::LoadHistoryEntry(nsISHEntry* aEntry, uint32_t aLoadType)
     srcdoc = NullString();
   }
 
-  // If there is no triggeringPrincipal we can fall back to using the
-  // SystemPrincipal as the triggeringPrincipal for loading the history
-  // entry, since the history entry can only end up in history if security
-  // checks passed in the initial loading phase.
   if (!triggeringPrincipal) {
     triggeringPrincipal = nsContentUtils::GetSystemPrincipal();
   }
@@ -13917,7 +13927,8 @@ public:
                    const nsAString& aFileName,
                    nsIInputStream* aPostDataStream,
                    nsIInputStream* aHeadersDataStream,
-                   bool aIsTrusted);
+                   bool aIsTrusted,
+                   nsIPrincipal* aTriggeringPrincipal);
 
   NS_IMETHOD Run() override
   {
@@ -13933,7 +13944,7 @@ public:
       mHandler->OnLinkClickSync(mContent, mURI,
                                 mTargetSpec.get(), mFileName,
                                 mPostDataStream, mHeadersDataStream,
-                                nullptr, nullptr);
+                                nullptr, nullptr, mTriggeringPrincipal);
     }
     return NS_OK;
   }
@@ -13948,6 +13959,7 @@ private:
   nsCOMPtr<nsIContent> mContent;
   PopupControlState mPopupState;
   bool mIsTrusted;
+  nsCOMPtr<nsIPrincipal> mTriggeringPrincipal;
 };
 
 OnLinkClickEvent::OnLinkClickEvent(nsDocShell* aHandler,
@@ -13957,7 +13969,8 @@ OnLinkClickEvent::OnLinkClickEvent(nsDocShell* aHandler,
                                    const nsAString& aFileName,
                                    nsIInputStream* aPostDataStream,
                                    nsIInputStream* aHeadersDataStream,
-                                   bool aIsTrusted)
+                                   bool aIsTrusted,
+                                   nsIPrincipal* aTriggeringPrincipal)
   : mHandler(aHandler)
   , mURI(aURI)
   , mTargetSpec(aTargetSpec)
@@ -13967,6 +13980,7 @@ OnLinkClickEvent::OnLinkClickEvent(nsDocShell* aHandler,
   , mContent(aContent)
   , mPopupState(mHandler->mScriptGlobal->GetPopupControlState())
   , mIsTrusted(aIsTrusted)
+  , mTriggeringPrincipal(aTriggeringPrincipal)
 {
 }
 
@@ -13977,7 +13991,8 @@ nsDocShell::OnLinkClick(nsIContent* aContent,
                         const nsAString& aFileName,
                         nsIInputStream* aPostDataStream,
                         nsIInputStream* aHeadersDataStream,
-                        bool aIsTrusted)
+                        bool aIsTrusted,
+                        nsIPrincipal* aTriggeringPrincipal)
 {
   NS_ASSERTION(NS_IsMainThread(), "wrong thread");
 
@@ -14016,7 +14031,8 @@ nsDocShell::OnLinkClick(nsIContent* aContent,
 
   nsCOMPtr<nsIRunnable> ev =
     new OnLinkClickEvent(this, aContent, aURI, target.get(), aFileName,
-                         aPostDataStream, aHeadersDataStream, aIsTrusted);
+                         aPostDataStream, aHeadersDataStream,
+                         aIsTrusted, aTriggeringPrincipal);
   return NS_DispatchToCurrentThread(ev);
 }
 
@@ -14028,7 +14044,8 @@ nsDocShell::OnLinkClickSync(nsIContent* aContent,
                             nsIInputStream* aPostDataStream,
                             nsIInputStream* aHeadersDataStream,
                             nsIDocShell** aDocShell,
-                            nsIRequest** aRequest)
+                            nsIRequest** aRequest,
+                            nsIPrincipal* aTriggeringPrincipal)
 {
   // Initialize the DocShell / Request
   if (aDocShell) {
@@ -14151,13 +14168,18 @@ nsDocShell::OnLinkClickSync(nsIContent* aContent,
     return NS_ERROR_OUT_OF_MEMORY;
   }
 
+  // if the triggeringPrincipal is not passed explicitly, then we
+  // fall back to using doc->NodePrincipal() as the triggeringPrincipal.
+  nsCOMPtr<nsIPrincipal> triggeringPrincipal =
+    aTriggeringPrincipal ? aTriggeringPrincipal
+                         : aContent->NodePrincipal();
+
   nsresult rv = InternalLoad(clonedURI,                 // New URI
                              nullptr,                   // Original URI
                              false,                     // LoadReplace
                              referer,                   // Referer URI
                              refererPolicy,             // Referer policy
-                             aContent->NodePrincipal(), // Triggering is our node's
-                                                        // principal
+                             triggeringPrincipal,
                              aContent->NodePrincipal(),
                              flags,
                              target,                    // Window target

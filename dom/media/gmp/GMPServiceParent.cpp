@@ -27,9 +27,6 @@
 #include "nsComponentManagerUtils.h"
 #include "runnable_utils.h"
 #include "VideoUtils.h"
-#if defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
-#include "mozilla/SandboxInfo.h"
-#endif
 #include "nsAppDirectoryServiceDefs.h"
 #include "nsDirectoryServiceUtils.h"
 #include "nsDirectoryServiceDefs.h"
@@ -273,11 +270,7 @@ GeckoMediaPluginServiceParent::InitStorage()
 
   // Directory service is main thread only, so cache the profile dir here
   // so that we can use it off main thread.
-#ifdef MOZ_WIDGET_GONK
-  nsresult rv = NS_NewLocalFile(NS_LITERAL_STRING("/data/b2g/mozilla"), false, getter_AddRefs(mStorageBaseDir));
-#else
   nsresult rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR, getter_AddRefs(mStorageBaseDir));
-#endif
 
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return rv;
@@ -960,15 +953,6 @@ GeckoMediaPluginServiceParent::SelectPluginForAPI(const nsACString& aNodeId,
 RefPtr<GMPParent>
 CreateGMPParent()
 {
-#if defined(XP_LINUX) && defined(MOZ_GMP_SANDBOX)
-  if (!SandboxInfo::Get().CanSandboxMedia()) {
-    if (!MediaPrefs::GMPAllowInsecure()) {
-      NS_WARNING("Denying media plugin load due to lack of sandboxing.");
-      return nullptr;
-    }
-    NS_WARNING("Loading media plugin despite lack of sandboxing.");
-  }
-#endif
   return new GMPParent();
 }
 

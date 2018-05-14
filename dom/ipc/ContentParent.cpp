@@ -16,11 +16,6 @@
 # include <sys/resource.h>
 #endif
 
-#ifdef MOZ_WIDGET_GONK
-#include <sys/types.h>
-#include <sys/wait.h>
-#endif
-
 #include "chrome/common/process_watcher.h"
 
 #include "mozilla/a11y/PDocAccessible.h"
@@ -210,14 +205,6 @@
 # include "AndroidBridge.h"
 #endif
 
-#ifdef MOZ_WIDGET_GONK
-#include "nsIVolume.h"
-#include "nsVolumeService.h"
-#include "nsIVolumeService.h"
-#include "SpeakerManagerService.h"
-using namespace mozilla::system;
-#endif
-
 #ifdef MOZ_WIDGET_GTK
 #include <gdk/gdk.h>
 #endif
@@ -228,12 +215,6 @@ using namespace mozilla::system;
 
 #ifdef MOZ_WEBSPEECH
 #include "mozilla/dom/SpeechSynthesisParent.h"
-#endif
-
-#if defined(MOZ_CONTENT_SANDBOX) && defined(XP_LINUX)
-#include "mozilla/SandboxInfo.h"
-#include "mozilla/SandboxBroker.h"
-#include "mozilla/SandboxBrokerPolicyFactory.h"
 #endif
 
 #ifdef MOZ_TOOLKIT_SEARCH
@@ -503,9 +484,6 @@ nsTArray<ContentParent*>* ContentParent::sNonAppContentParents;
 nsTArray<ContentParent*>* ContentParent::sLargeAllocationContentParents;
 nsTArray<ContentParent*>* ContentParent::sPrivateContent;
 StaticAutoPtr<LinkedList<ContentParent> > ContentParent::sContentParents;
-#if defined(XP_LINUX) && defined(MOZ_CONTENT_SANDBOX)
-UniquePtr<SandboxBrokerPolicyFactory> ContentParent::sSandboxBrokerPolicyFactory;
-#endif
 
 // This is true when subprocess launching is enabled.  This is the
 // case between StartUp() and ShutDown() or JoinAllSubprocesses().
@@ -535,11 +513,6 @@ static const char* sObserverTopics[] = {
   "child-mmu-request",
   "last-pb-context-exited",
   "file-watcher-update",
-#ifdef MOZ_WIDGET_GONK
-  NS_VOLUME_STATE_CHANGED,
-  NS_VOLUME_REMOVED,
-  "phone-state-changed",
-#endif
 #ifdef ACCESSIBILITY
   "a11y-init-or-shutdown",
 #endif
@@ -637,18 +610,6 @@ ContentParent::StartUp()
     return;
   }
 
-#if defined(MOZ_CONTENT_SANDBOX) && defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 19
-  // Require sandboxing on B2G >= KitKat.  This condition must stay
-  // in sync with ContentChild::RecvSetProcessSandbox.
-  if (!SandboxInfo::Get().CanSandboxContent()) {
-    // MOZ_CRASH strings are only for debug builds; make sure the
-    // message is clear on non-debug builds as well:
-    printf_stderr("Sandboxing support is required on this platform.  "
-                  "Recompile kernel with CONFIG_SECCOMP_FILTER=y\n");
-    MOZ_CRASH("Sandboxing support is required on this platform.");
-  }
-#endif
-
   // Note: This reporter measures all ContentParents.
   RegisterStrongMemoryReporter(new ContentParentsMemoryReporter());
 
@@ -662,10 +623,6 @@ ContentParent::StartUp()
   PreallocatedProcessManager::AllocateAfterDelay();
 
   sDisableUnsafeCPOWWarnings = PR_GetEnv("DISABLE_UNSAFE_CPOW_WARNINGS");
-
-#if defined(XP_LINUX) && defined(MOZ_CONTENT_SANDBOX)
-  sSandboxBrokerPolicyFactory = MakeUnique<SandboxBrokerPolicyFactory>();
-#endif
 }
 
 /*static*/ void
@@ -674,10 +631,6 @@ ContentParent::ShutDown()
   // No-op for now.  We rely on normal process shutdown and
   // ClearOnShutdown() to clean up our state.
   sCanLaunchSubprocesses = false;
-
-#if defined(XP_LINUX) && defined(MOZ_CONTENT_SANDBOX)
-  sSandboxBrokerPolicyFactory = nullptr;
-#endif
 }
 
 /*static*/ void
@@ -1384,14 +1337,6 @@ ContentParent::ForwardKnownInfo()
   if (!mMetamorphosed) {
     return;
   }
-#ifdef MOZ_WIDGET_GONK
-  InfallibleTArray<VolumeInfo> volumeInfo;
-  RefPtr<nsVolumeService> vs = nsVolumeService::GetSingleton();
-  if (vs) {
-    vs->GetVolumesForIPC(&volumeInfo);
-    Unused << SendVolumes(volumeInfo);
-  }
-#endif /* MOZ_WIDGET_GONK */
 }
 
 namespace {
@@ -1439,23 +1384,6 @@ bool
 ContentParent::SetPriorityAndCheckIsAlive(ProcessPriority aPriority)
 {
   ProcessPriorityManager::SetProcessPriority(this, aPriority);
-
-  // Now that we've set this process's priority, check whether the process is
-  // still alive.  Hopefully we've set the priority to FOREGROUND*, so the
-  // process won't unexpectedly crash after this point!
-  //
-  // Bug 943174: use waitid() with WNOWAIT so that, if the process
-  // did exit, we won't consume its zombie and confuse the
-  // GeckoChildProcessHost dtor.
-#ifdef MOZ_WIDGET_GONK
-  siginfo_t info;
-  info.si_pid = 0;
-  if (waitid(P_PID, Pid(), &info, WNOWAIT | WNOHANG | WEXITED) == 0
-    && info.si_pid != 0) {
-    return false;
-  }
-#endif
-
   return true;
 }
 
@@ -2106,7 +2034,7 @@ ContentParent::ContentParent(mozIApplication* aApp,
   // PID along with the warning.
   nsDebugImpl::SetMultiprocessMode("Parent");
 
-#if defined(XP_WIN) && !defined(MOZ_B2G)
+#if defined(XP_WIN)
   // Request Windows message deferral behavior on our side of the PContent
   // channel. Generally only applies to the situation where we get caught in
   // a deadlock with the plugin process when sending CPOWs.
@@ -2244,37 +2172,6 @@ ContentParent::InitInternal(ProcessPriority aInitialPriority,
     }
   }
 
-#ifdef MOZ_CONTENT_SANDBOX
-  bool shouldSandbox = true;
-  MaybeFileDesc brokerFd = void_t();
-#ifdef XP_LINUX
-  // XXX: Checking the pref here makes it possible to enable/disable sandboxing
-  // during an active session. Currently the pref is only used for testing
-  // purpose. If the decision is made to permanently rely on the pref, this
-  // should be changed so that it is required to restart firefox for the change
-  // of value to take effect.
-  shouldSandbox = (Preferences::GetInt("security.sandbox.content.level") > 0) &&
-    !PR_GetEnv("MOZ_DISABLE_CONTENT_SANDBOX");
-
-  if (shouldSandbox) {
-    MOZ_ASSERT(!mSandboxBroker);
-    UniquePtr<SandboxBroker::Policy> policy =
-      sSandboxBrokerPolicyFactory->GetContentPolicy(Pid());
-    if (policy) {
-      brokerFd = FileDescriptor();
-      mSandboxBroker = SandboxBroker::Create(Move(policy), Pid(), brokerFd);
-      if (!mSandboxBroker) {
-        KillHard("SandboxBroker::Create failed");
-        return;
-      }
-      MOZ_ASSERT(static_cast<const FileDescriptor&>(brokerFd).IsValid());
-    }
-  }
-#endif
-  if (shouldSandbox && !SendSetProcessSandbox(brokerFd)) {
-    KillHard("SandboxInitFailed");
-  }
-#endif
 #if defined(XP_WIN)
   // Send the info needed to join the browser process's audio session.
   nsID id;
@@ -2746,50 +2643,6 @@ ContentParent::Observe(nsISupports* aSubject,
   else if (!strcmp(aTopic, "last-pb-context-exited")) {
     Unused << SendLastPrivateDocShellDestroyed();
   }
-#ifdef MOZ_WIDGET_GONK
-  else if(!strcmp(aTopic, NS_VOLUME_STATE_CHANGED)) {
-    nsCOMPtr<nsIVolume> vol = do_QueryInterface(aSubject);
-    if (!vol) {
-      return NS_ERROR_NOT_AVAILABLE;
-    }
-
-    nsString volName;
-    nsString mountPoint;
-    int32_t  state;
-    int32_t  mountGeneration;
-    bool   isMediaPresent;
-    bool   isSharing;
-    bool   isFormatting;
-    bool   isFake;
-    bool   isUnmounting;
-    bool   isRemovable;
-    bool   isHotSwappable;
-
-    vol->GetName(volName);
-    vol->GetMountPoint(mountPoint);
-    vol->GetState(&state);
-    vol->GetMountGeneration(&mountGeneration);
-    vol->GetIsMediaPresent(&isMediaPresent);
-    vol->GetIsSharing(&isSharing);
-    vol->GetIsFormatting(&isFormatting);
-    vol->GetIsFake(&isFake);
-    vol->GetIsUnmounting(&isUnmounting);
-    vol->GetIsRemovable(&isRemovable);
-    vol->GetIsHotSwappable(&isHotSwappable);
-
-    Unused << SendFileSystemUpdate(volName, mountPoint, state,
-                                   mountGeneration, isMediaPresent,
-                                   isSharing, isFormatting, isFake,
-                                   isUnmounting, isRemovable, isHotSwappable);
-  } else if (!strcmp(aTopic, "phone-state-changed")) {
-    nsString state(aData);
-    Unused << SendNotifyPhoneStateChange(state);
-  }
-  else if(!strcmp(aTopic, NS_VOLUME_REMOVED)) {
-    nsString volName(aData);
-    Unused << SendVolumeRemoved(volName);
-  }
-#endif
 #ifdef ACCESSIBILITY
   else if (aData && !strcmp(aTopic, "a11y-init-or-shutdown")) {
     if (*aData == '1') {
@@ -3458,29 +3311,12 @@ ContentParent::RecvPSpeechSynthesisConstructor(PSpeechSynthesisParent* aActor)
 bool
 ContentParent::RecvSpeakerManagerGetSpeakerStatus(bool* aValue)
 {
-#ifdef MOZ_WIDGET_GONK
-  *aValue = false;
-  RefPtr<SpeakerManagerService> service =
-  SpeakerManagerService::GetOrCreateSpeakerManagerService();
-  MOZ_ASSERT(service);
-
-  *aValue = service->GetSpeakerStatus();
-  return true;
-#endif
   return false;
 }
 
 bool
 ContentParent::RecvSpeakerManagerForceSpeaker(const bool& aEnable)
 {
-#ifdef MOZ_WIDGET_GONK
-  RefPtr<SpeakerManagerService> service =
-  SpeakerManagerService::GetOrCreateSpeakerManagerService();
-  MOZ_ASSERT(service);
-  service->ForceSpeaker(aEnable, mChildID);
-
-  return true;
-#endif
   return false;
 }
 
@@ -4036,49 +3872,22 @@ bool
 ContentParent::RecvCreateFakeVolume(const nsString& fsName,
                                     const nsString& mountPoint)
 {
-#ifdef MOZ_WIDGET_GONK
-  nsresult rv;
-  nsCOMPtr<nsIVolumeService> vs = do_GetService(NS_VOLUMESERVICE_CONTRACTID, &rv);
-  if (vs) {
-    vs->CreateFakeVolume(fsName, mountPoint);
-  }
-  return true;
-#else
-  NS_WARNING("ContentParent::RecvCreateFakeVolume shouldn't be called when MOZ_WIDGET_GONK is not defined");
+  NS_WARNING("ContentParent::RecvCreateFakeVolume shouldn't be called");
   return false;
-#endif
 }
 
 bool
 ContentParent::RecvSetFakeVolumeState(const nsString& fsName, const int32_t& fsState)
 {
-#ifdef MOZ_WIDGET_GONK
-  nsresult rv;
-  nsCOMPtr<nsIVolumeService> vs = do_GetService(NS_VOLUMESERVICE_CONTRACTID, &rv);
-  if (vs) {
-    vs->SetFakeVolumeState(fsName, fsState);
-  }
-  return true;
-#else
-  NS_WARNING("ContentParent::RecvSetFakeVolumeState shouldn't be called when MOZ_WIDGET_GONK is not defined");
+  NS_WARNING("ContentParent::RecvSetFakeVolumeState shouldn't be called");
   return false;
-#endif
 }
 
 bool
 ContentParent::RecvRemoveFakeVolume(const nsString& fsName)
 {
-#ifdef MOZ_WIDGET_GONK
-  nsresult rv;
-  nsCOMPtr<nsIVolumeService> vs = do_GetService(NS_VOLUMESERVICE_CONTRACTID, &rv);
-  if (vs) {
-    vs->RemoveFakeVolume(fsName);
-  }
-  return true;
-#else
-  NS_WARNING("ContentParent::RecvRemoveFakeVolume shouldn't be called when MOZ_WIDGET_GONK is not defined");
+  NS_WARNING("ContentParent::RecvRemoveFakeVolume shouldn't be called");
   return false;
-#endif
 }
 
 bool

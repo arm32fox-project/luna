@@ -385,16 +385,6 @@ nsresult nsDocumentOpenInfo::DispatchContent(nsIRequest *request, nsISupports * 
 
   bool allowContentDispositionToForceExternalHandling = true;
 
-#ifdef MOZ_B2G
-
-  // On B2G, OMA content files should never be handled by an external handler
-  // (even if the server specifies Content-Disposition: attachment) because the
-  // data should never be stored on an unencrypted form.
-  allowContentDispositionToForceExternalHandling =
-    !mContentType.LowerCaseEqualsASCII("application/vnd.oma.drm.message");
-
-#endif
-
   if (NS_SUCCEEDED(rv) && (disposition == nsIChannel::DISPOSITION_ATTACHMENT) &&
       allowContentDispositionToForceExternalHandling) {
     forceExternalHandling = true;
@@ -834,7 +824,7 @@ NS_IMETHODIMP nsURILoader::OpenURI(nsIChannel *channel,
     // the preferred protocol handler. 
 
     // But for now, I'm going to let necko do the work for us....
-    rv = channel->AsyncOpen(loader, nullptr);
+    rv = channel->AsyncOpen2(loader);
 
     // no content from this load - that's OK.
     if (rv == NS_ERROR_NO_CONTENT) {

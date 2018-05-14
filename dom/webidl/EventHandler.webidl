@@ -33,6 +33,7 @@ interface GlobalEventHandlers {
 //         attribute OnErrorEventHandler onerror;
            attribute EventHandler onfocus;
            //(Not implemented)attribute EventHandler oncancel;
+           attribute EventHandler onauxclick;
            attribute EventHandler oncanplay;
            attribute EventHandler oncanplaythrough;
            attribute EventHandler onchange;
@@ -128,14 +129,14 @@ interface GlobalEventHandlers {
            attribute EventHandler onmozpointerlockerror;
 
            // CSS-Animation and CSS-Transition handlers.
+           attribute EventHandler onanimationcancel;
            attribute EventHandler onanimationend;
            attribute EventHandler onanimationiteration;
            attribute EventHandler onanimationstart;
+           attribute EventHandler ontransitioncancel;
            attribute EventHandler ontransitionend;
-           // We will ship transitionrun and transitionstart events
-           // on Firefox 53. (For detail, see bug 1324985)
-//           attribute EventHandler ontransitionrun;
-//           attribute EventHandler ontransitionstart;
+           attribute EventHandler ontransitionrun;
+           attribute EventHandler ontransitionstart;
 
            // CSS-Animation and CSS-Transition legacy handlers.
            // This handler isn't standard.

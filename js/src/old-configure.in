@@ -734,12 +734,14 @@ case "$target" in
           dnl VS2012+ defaults to -arch:SSE2. We want to target nothing
           dnl more recent, so set that explicitly here unless another
           dnl target arch has already been set.
+          changequote(,)
           if test -z `echo $CFLAGS | grep -i [-/]arch:` ; then
             CFLAGS="$CFLAGS -arch:SSE2"
-            fi
+          fi
           if test -z `echo $CXXFLAGS | grep -i [-/]arch:` ; then
             CXXFLAGS="$CXXFLAGS -arch:SSE2"
           fi
+          changequote([,])
         fi
         dnl VS2013+ requires -FS when parallel building by make -jN.
         dnl If nothing, compiler sometimes causes C1041 error.
@@ -1534,6 +1536,14 @@ MOZ_ARG_ENABLE_STRING(ui-locale,
 AC_SUBST(MOZ_UI_LOCALE)
 
 dnl ========================================================
+dnl Build the tests?
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(tests,
+[  --enable-tests          Build test libraries & programs],
+    ENABLE_TESTS=1,
+    ENABLE_TESTS= )
+
+dnl ========================================================
 dnl =
 dnl = Module specific options
 dnl =
@@ -2091,6 +2101,8 @@ AC_SUBST(MOZ_DEBUG_LDFLAGS)
 AC_SUBST(WARNINGS_AS_ERRORS)
 AC_SUBST(LIBICONV)
 
+AC_SUBST(ENABLE_TESTS)
+
 AC_SUBST(ENABLE_STRIP)
 AC_SUBST(PKG_SKIP_STRIP)
 AC_SUBST(INCREMENTAL_LINKER)
@@ -2243,8 +2255,6 @@ fi
 AC_SUBST(JS_LIBRARY_NAME)
 AC_SUBST(JS_CONFIG_MOZ_JS_LIBS)
 AC_SUBST(JS_CONFIG_LIBS)
-
-MOZ_SUBCONFIGURE_JEMALLOC()
 
 # Avoid using obsolete NSPR features
 AC_DEFINE(NO_NSPR_10_SUPPORT)

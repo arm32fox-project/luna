@@ -416,6 +416,9 @@ nsSHEntry::Create(nsIURI* aURI, const nsAString& aTitle,
                   uint64_t aDocShellID,
                   bool aDynamicCreation)
 {
+  MOZ_ASSERT(aTriggeringPrincipal,
+             "need a valid triggeringPrincipal to create a session history entry");
+
   mURI = aURI;
   mTitle = aTitle;
   mPostData = aInputStream;

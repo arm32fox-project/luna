@@ -76,20 +76,6 @@ var gPermObj = {
   {
     return UNKNOWN;
   },
-  fullscreen: function getFullscreenDefaultPermissions()
-  {
-    if (!gPrefs.getBoolPref("full-screen-api.enabled")) {
-      return DENY;
-    }
-    return UNKNOWN;  
-  },
-  pointerLock: function getPointerLockPermissions()
-  {
-    if (!gPrefs.getBoolPref("full-screen-api.pointer-lock.enabled")) {
-      return DENY;
-    }
-    return ALLOW;
-  },
 };
 
 var permissionObserver = {
@@ -98,7 +84,7 @@ var permissionObserver = {
     if (aTopic == "perm-changed") {
       var permission = aSubject.QueryInterface(
                        Components.interfaces.nsIPermission);
-      if (permission.host == gPermURI.host) {
+      if (permission.matchesURI(gPermURI, true)) {
         if (permission.type in gPermObj)
           initRow(permission.type);
         else if (permission.type.startsWith("plugin"))
@@ -119,7 +105,7 @@ function onLoadPermission(principal)
     gPermURI = uri;
     gPermPrincipal = principal;
     var hostText = document.getElementById("hostText");
-    hostText.value = gPermURI.host;
+    hostText.value = gPermURI.prePath;
 
     for (var i in gPermObj)
       initRow(i);

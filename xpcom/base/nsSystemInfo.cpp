@@ -50,12 +50,6 @@
 #include "mozilla/dom/ContentChild.h"
 #endif
 
-#ifdef MOZ_WIDGET_GONK
-#include <sys/system_properties.h>
-#include "mozilla/Preferences.h"
-#include "nsPrintfCString.h"
-#endif
-
 #ifdef ANDROID
 extern "C" {
 NS_EXPORT int android_sdk_version;
@@ -64,10 +58,6 @@ NS_EXPORT int android_sdk_version;
 
 #ifdef XP_MACOSX
 #include <sys/sysctl.h>
-#endif
-
-#if defined(XP_LINUX) && defined(MOZ_SANDBOX)
-#include "mozilla/SandboxInfo.h"
 #endif
 
 // Slot for NS_InitXPCOM2 to pass information to nsSystemInfo::Init.
@@ -750,67 +740,6 @@ nsSystemInfo::Init()
     SetupAndroidInfo(info);
   }
 #endif
-
-#ifdef MOZ_WIDGET_GONK
-  char sdk[PROP_VALUE_MAX];
-  if (__system_property_get("ro.build.version.sdk", sdk)) {
-    android_sdk_version = atoi(sdk);
-    SetPropertyAsInt32(NS_LITERAL_STRING("sdk_version"), android_sdk_version);
-
-    SetPropertyAsACString(NS_LITERAL_STRING("secondaryLibrary"),
-                          nsPrintfCString("SDK %u", android_sdk_version));
-  }
-
-  char characteristics[PROP_VALUE_MAX];
-  if (__system_property_get("ro.build.characteristics", characteristics)) {
-    if (!strcmp(characteristics, "tablet")) {
-      SetPropertyAsBool(NS_LITERAL_STRING("tablet"), true);
-    } else if (!strcmp(characteristics, "tv")) {
-      SetPropertyAsBool(NS_LITERAL_STRING("tv"), true);
-    }
-  }
-
-  nsAutoString str;
-  rv = GetPropertyAsAString(NS_LITERAL_STRING("version"), str);
-  if (NS_SUCCEEDED(rv)) {
-    SetPropertyAsAString(NS_LITERAL_STRING("kernel_version"), str);
-  }
-
-  const nsAdoptingString& b2g_os_name =
-    mozilla::Preferences::GetString("b2g.osName");
-  if (b2g_os_name) {
-    SetPropertyAsAString(NS_LITERAL_STRING("name"), b2g_os_name);
-  }
-
-  const nsAdoptingString& b2g_version =
-    mozilla::Preferences::GetString("b2g.version");
-  if (b2g_version) {
-    SetPropertyAsAString(NS_LITERAL_STRING("version"), b2g_version);
-  }
-#endif
-
-#if defined(XP_LINUX) && defined(MOZ_SANDBOX)
-  SandboxInfo sandInfo = SandboxInfo::Get();
-
-  SetPropertyAsBool(NS_LITERAL_STRING("hasSeccompBPF"),
-                    sandInfo.Test(SandboxInfo::kHasSeccompBPF));
-  SetPropertyAsBool(NS_LITERAL_STRING("hasSeccompTSync"),
-                    sandInfo.Test(SandboxInfo::kHasSeccompTSync));
-  SetPropertyAsBool(NS_LITERAL_STRING("hasUserNamespaces"),
-                    sandInfo.Test(SandboxInfo::kHasUserNamespaces));
-  SetPropertyAsBool(NS_LITERAL_STRING("hasPrivilegedUserNamespaces"),
-                    sandInfo.Test(SandboxInfo::kHasPrivilegedUserNamespaces));
-
-  if (sandInfo.Test(SandboxInfo::kEnabledForContent)) {
-    SetPropertyAsBool(NS_LITERAL_STRING("canSandboxContent"),
-                      sandInfo.CanSandboxContent());
-  }
-
-  if (sandInfo.Test(SandboxInfo::kEnabledForMedia)) {
-    SetPropertyAsBool(NS_LITERAL_STRING("canSandboxMedia"),
-                      sandInfo.CanSandboxMedia());
-  }
-#endif // XP_LINUX && MOZ_SANDBOX
 
   return NS_OK;
 }

@@ -44,9 +44,6 @@
 #ifdef XP_WIN
 #include "mozilla/widget/AudioSession.h"
 #include <windows.h>
-#if defined(MOZ_SANDBOX)
-#include "SandboxBroker.h"
-#endif
 #endif
 
 // all this crap is needed to do the interactive shell stuff
@@ -1235,11 +1232,8 @@ GetCurrentWorkingDirectory(nsAString& workingDirectory)
 static JSSecurityCallbacks shellSecurityCallbacks;
 
 int
-XRE_XPCShellMain(int argc, char** argv, char** envp,
-                 const XREShellData* aShellData)
+XRE_XPCShellMain(int argc, char** argv, char** envp)
 {
-    MOZ_ASSERT(aShellData);
-
     JSContext* cx;
     int result = 0;
     nsresult rv;
@@ -1484,16 +1478,6 @@ XRE_XPCShellMain(int argc, char** argv, char** envp,
         // Plugin may require audio session if installed plugin can initialize
         // asynchronized.
         AutoAudioSession audioSession;
-
-#if defined(MOZ_SANDBOX)
-        // Required for sandboxed child processes.
-        if (aShellData->sandboxBrokerServices) {
-          SandboxBroker::Initialize(aShellData->sandboxBrokerServices);
-        } else {
-          NS_WARNING("Failed to initialize broker services, sandboxed "
-                     "processes will fail to start.");
-        }
-#endif
 #endif
 
         {

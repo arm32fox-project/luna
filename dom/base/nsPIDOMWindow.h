@@ -444,31 +444,13 @@ public:
    */
   virtual void DisableDeviceSensor(uint32_t aType) = 0;
 
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
   virtual void EnableOrientationChangeListener() = 0;
   virtual void DisableOrientationChangeListener() = 0;
 #endif
 
   virtual void EnableTimeChangeNotifications() = 0;
   virtual void DisableTimeChangeNotifications() = 0;
-
-#ifdef MOZ_B2G
-  /**
-   * Tell the window that it should start to listen to the network event of the
-   * given aType.
-   *
-   * Inner windows only.
-   */
-  virtual void EnableNetworkEvent(mozilla::EventMessage aEventMessage) = 0;
-
-  /**
-   * Tell the window that it should stop to listen to the network event of the
-   * given aType.
-   *
-   * Inner windows only.
-   */
-  virtual void DisableNetworkEvent(mozilla::EventMessage aEventMessage) = 0;
-#endif // MOZ_B2G
 
   /**
    * Tell this window that there is an observer for gamepad input

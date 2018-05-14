@@ -10,6 +10,9 @@ Cu.import("resource://gre/modules/XPCOMUtils.jsm");
 Cu.import("resource://gre/modules/Services.jsm");
 Cu.import("resource:///modules/RecentWindow.jsm");
 
+XPCOMUtils.defineLazyModuleGetter(this, "Task",
+                                  "resource://gre/modules/Task.jsm");
+
 XPCOMUtils.defineLazyModuleGetter(this, "CharsetMenu",
                                   "resource:///modules/CharsetMenu.jsm");
 
@@ -83,14 +86,8 @@ this.__defineSetter__("AddonManager", function (val) {
   return this.AddonManager = val;
 });
 
-this.__defineGetter__("PluralForm", function() {
-  Cu.import("resource://gre/modules/PluralForm.jsm");
-  return this.PluralForm;
-});
-this.__defineSetter__("PluralForm", function (val) {
-  delete this.PluralForm;
-  return this.PluralForm = val;
-});
+XPCOMUtils.defineLazyModuleGetter(this, "PluralForm",
+  "resource://gre/modules/PluralForm.jsm");
 
 XPCOMUtils.defineLazyModuleGetter(this, "AboutHomeUtils",
   "resource:///modules/AboutHomeUtils.jsm");
@@ -125,7 +122,7 @@ XPCOMUtils.defineLazyModuleGetter(this, "PrivateBrowsingUtils",
 XPCOMUtils.defineLazyModuleGetter(this, "FormValidationHandler",
   "resource:///modules/FormValidationHandler.jsm");
 
-let gInitialPages = [
+var gInitialPages = [
   "about:blank",
   "about:newtab",
   "about:home",
@@ -993,12 +990,23 @@ var gBrowserInit = {
 
         gBrowser.swapBrowsersAndCloseOther(gBrowser.selectedTab, uriToLoad);
       }
-      // window.arguments[2]: referrer (nsIURI)
+      // window.arguments[2]: referrer (nsIURI | string)
       //                 [3]: postData (nsIInputStream)
       //                 [4]: allowThirdPartyFixup (bool)
+      //                 [5]: referrerPolicy (int)
       else if (window.arguments.length >= 3) {
-        loadURI(uriToLoad, window.arguments[2], window.arguments[3] || null,
-                window.arguments[4] || false);
+        let referrerURI = window.arguments[2];
+        if (typeof(referrerURI) == "string") {
+          try {
+            referrerURI = makeURI(referrerURI);
+          } catch (e) {
+            referrerURI = null;
+          }
+        }
+        let referrerPolicy = (window.arguments[5] != undefined ?
+            window.arguments[5] : Ci.nsIHttpChannel.REFERRER_POLICY_DEFAULT);
+        loadURI(uriToLoad, referrerURI, window.arguments[3] || null,
+                window.arguments[4] || false, referrerPolicy);
         window.focus();
       }
       // Note: loadOneOrMoreURIs *must not* be called if window.arguments.length >= 3.
@@ -1149,7 +1157,7 @@ var gBrowserInit = {
 
     // Called when we enter DOM full-screen mode. Note we can already be in browser
     // full-screen mode when we enter DOM full-screen mode.
-    window.addEventListener("MozEnteredDomFullscreen", onMozEnteredDomFullscreen, true);
+    window.addEventListener("MozDOMFullscreen:NewOrigin", onMozEnteredDomFullscreen, true);
 
     if (window.fullScreen)
       onFullScreen();
@@ -1733,7 +1741,7 @@ function loadOneOrMoreURIs(aURIString)
 function focusAndSelectUrlBar() {
   if (gURLBar) {
     if (window.fullScreen)
-      FullScreen.mouseoverToggle(true);
+      FullScreen.showNavToolbox();
 
     gURLBar.select();
     if (document.activeElement == gURLBar.inputField)
@@ -1886,7 +1894,7 @@ function BrowserTryToCloseWindow()
     window.close();     // WindowIsClosing does all the necessary checks
 }
 
-function loadURI(uri, referrer, postData, allowThirdPartyFixup) {
+function loadURI(uri, referrer, postData, allowThirdPartyFixup, referrerPolicy) {
   if (postData === undefined)
     postData = null;
 
@@ -1897,92 +1905,135 @@ function loadURI(uri, referrer, postData, allowThirdPartyFixup) {
   }
 
   try {
-    gBrowser.loadURIWithFlags(uri, flags, referrer, null, postData);
+    gBrowser.loadURIWithFlags(uri, {
+                              flags: flags,
+                              referrerURI: referrer,
+                              referrerPolicy: referrerPolicy,
+                              postData: postData,
+                              });
   } catch (e) {}
 }
 
-function getShortcutOrURI(aURL, aPostDataRef, aMayInheritPrincipal) {
-  // Initialize outparam to false
-  if (aMayInheritPrincipal)
-    aMayInheritPrincipal.value = false;
-
-  var shortcutURL = null;
-  var keyword = aURL;
-  var param = "";
-
-  var offset = aURL.indexOf(" ");
-  if (offset > 0) {
-    keyword = aURL.substr(0, offset);
-    param = aURL.substr(offset + 1);
+/**
+ * Given a urlbar value, discerns between URIs, keywords and aliases.
+ *
+ * @param url
+ *        The urlbar value.
+ * @param callback (optional, deprecated)
+ *        The callback function invoked when done. This parameter is
+ *        deprecated, please use the Promise that is returned.
+ *
+ * @return Promise<{ postData, url, mayInheritPrincipal }>
+ */
+function getShortcutOrURIAndPostData(url, callback = null) {
+  if (callback) {
+    Deprecated.warning("Please use the Promise returned by " +
+                       "getShortcutOrURIAndPostData() instead of passing a " +
+                       "callback",
+                       "https://bugzilla.mozilla.org/show_bug.cgi?id=1100294");
   }
 
-  if (!aPostDataRef)
-    aPostDataRef = {};
+  return Task.spawn(function* () {
+    let mayInheritPrincipal = false;
+    let postData = null;
+    let shortcutURL = null;
+    let keyword = url;
+    let param = "";
 
-  var engine = Services.search.getEngineByAlias(keyword);
-  if (engine) {
-    var submission = engine.getSubmission(param);
-    aPostDataRef.value = submission.postData;
-    return submission.uri.spec;
-  }
-
-  [shortcutURL, aPostDataRef.value] =
-    PlacesUtils.getURLAndPostDataForKeyword(keyword);
-
-  if (!shortcutURL)
-    return aURL;
-
-  var postData = "";
-  if (aPostDataRef.value)
-    postData = unescape(aPostDataRef.value);
-
-  if (/%s/i.test(shortcutURL) || /%s/i.test(postData)) {
-    var charset = "";
-    const re = /^(.*)\&mozcharset=([a-zA-Z][_\-a-zA-Z0-9]+)\s*$/;
-    var matches = shortcutURL.match(re);
-    if (matches)
-      [, shortcutURL, charset] = matches;
-    else {
-      // Try to get the saved character-set.
-      try {
-        // makeURI throws if URI is invalid.
-        // Will return an empty string if character-set is not found.
-        charset = PlacesUtils.history.getCharsetForURI(makeURI(shortcutURL));
-      } catch (e) {}
+    let offset = url.indexOf(" ");
+    if (offset > 0) {
+      keyword = url.substr(0, offset);
+      param = url.substr(offset + 1);
     }
 
-    // encodeURIComponent produces UTF-8, and cannot be used for other charsets.
-    // escape() works in those cases, but it doesn't uri-encode +, @, and /.
-    // Therefore we need to manually replace these ASCII characters by their
-    // encodeURIComponent result, to match the behavior of nsEscape() with
-    // url_XPAlphas
-    var encodedParam = "";
-    if (charset && charset != "UTF-8")
-      encodedParam = escape(convertFromUnicode(charset, param)).
-                     replace(/[+@\/]+/g, encodeURIComponent);
-    else // Default charset is UTF-8
-      encodedParam = encodeURIComponent(param);
+    let engine = Services.search.getEngineByAlias(keyword);
+    if (engine) {
+      let submission = engine.getSubmission(param, null, "keyword");
+      postData = submission.postData;
+      return { postData: submission.postData, url: submission.uri.spec,
+               mayInheritPrincipal };
+    }
 
-    shortcutURL = shortcutURL.replace(/%s/g, encodedParam).replace(/%S/g, param);
+    let entry = yield PlacesUtils.keywords.fetch(keyword);
+    if (entry) {
+      shortcutURL = entry.url.href;
+      postData = entry.postData;
+    }
 
-    if (/%s/i.test(postData)) // POST keyword
-      aPostDataRef.value = getPostDataStream(postData, param, encodedParam,
-                                             "application/x-www-form-urlencoded");
-  }
-  else if (param) {
-    // This keyword doesn't take a parameter, but one was provided. Just return
-    // the original URL.
-    aPostDataRef.value = null;
+    if (!shortcutURL) {
+      return { postData, url, mayInheritPrincipal };
+    }
 
-    return aURL;
-  }
+    let escapedPostData = "";
+    if (postData)
+      escapedPostData = unescape(postData);
 
-  // This URL came from a bookmark, so it's safe to let it inherit the current
-  // document's principal.
-  if (aMayInheritPrincipal)
-    aMayInheritPrincipal.value = true;
+    if (/%s/i.test(shortcutURL) || /%s/i.test(escapedPostData)) {
+      let charset = "";
+      const re = /^(.*)\&mozcharset=([a-zA-Z][_\-a-zA-Z0-9]+)\s*$/;
+      let matches = shortcutURL.match(re);
 
-  return shortcutURL;
+      if (matches) {
+        [, shortcutURL, charset] = matches;
+      } else {
+        let uri;
+        try {
+          // makeURI() throws if URI is invalid.
+          uri = makeURI(shortcutURL);
+        } catch (ex) {}
+
+        if (uri) {
+          // Try to get the saved character-set.
+          // Will return an empty string if character-set is not found.
+          charset = yield PlacesUtils.getCharsetForURI(uri);
+        }
+      }
+
+      // encodeURIComponent produces UTF-8, and cannot be used for other charsets.
+      // escape() works in those cases, but it doesn't uri-encode +, @, and /.
+      // Therefore we need to manually replace these ASCII characters by their
+      // encodeURIComponent result, to match the behavior of nsEscape() with
+      // url_XPAlphas
+      let encodedParam = "";
+      if (charset && charset != "UTF-8")
+        encodedParam = escape(convertFromUnicode(charset, param)).
+                       replace(/[+@\/]+/g, encodeURIComponent);
+      else // Default charset is UTF-8
+        encodedParam = encodeURIComponent(param);
+
+      shortcutURL = shortcutURL.replace(/%s/g, encodedParam).replace(/%S/g, param);
+
+      if (/%s/i.test(escapedPostData)) // POST keyword
+        postData = getPostDataStream(escapedPostData, param, encodedParam,
+                                     "application/x-www-form-urlencoded");
+
+      // This URL came from a bookmark, so it's safe to let it inherit the current
+      // document's principal.
+      mayInheritPrincipal = true;
+
+      return { postData, url: shortcutURL, mayInheritPrincipal };
+    }
+
+    if (param) {
+      // This keyword doesn't take a parameter, but one was provided. Just return
+      // the original URL.
+      postData = null;
+
+      return { postData, url, mayInheritPrincipal };
+    }
+
+    // This URL came from a bookmark, so it's safe to let it inherit the current
+    // document's principal.
+    mayInheritPrincipal = true;
+
+    return { postData, url: shortcutURL, mayInheritPrincipal };
+  }).then(data => {
+    if (callback) {
+      callback(data);
+    }
+
+    return data;
+  });
 }
 
 function getPostDataStream(aStringData, aKeyword, aEncKeyword, aType) {
@@ -2482,8 +2533,8 @@ function BrowserFullScreen()
   window.fullScreen = !window.fullScreen;
 }
 
-function onFullScreen(event) {
-  FullScreen.toggle(event);
+function onFullScreen() {
+  FullScreen.toggle();
 }
 
 function onMozEnteredDomFullscreen(event) {
@@ -2641,8 +2692,8 @@ var browserDragAndDrop = {
     }
   },
 
-  drop: function (aEvent, aName, aDisallowInherit) {
-    return Services.droppedLinkHandler.dropLink(aEvent, aName, aDisallowInherit);
+  dropLinks: function (aEvent, aDisallowInherit) {
+    return Services.droppedLinkHandler.dropLinks(aEvent, aDisallowInherit);
   }
 };
 
@@ -2650,8 +2701,10 @@ var homeButtonObserver = {
   onDrop: function (aEvent)
     {
       // disallow setting home pages that inherit the principal
-      let url = browserDragAndDrop.drop(aEvent, {}, true);
-      setTimeout(openHomeDialog, 0, url);
+      let links = browserDragAndDrop.dropLinks(aEvent, true);
+      if (links.length) {
+        setTimeout(openHomeDialog, 0, links.map(link => link.url).join("|"));
+      }
     },
 
   onDragOver: function (aEvent)
@@ -2667,18 +2720,24 @@ var homeButtonObserver = {
 function openHomeDialog(aURL)
 {
   var promptTitle = gNavigatorBundle.getString("droponhometitle");
-  var promptMsg   = gNavigatorBundle.getString("droponhomemsg");
+  var promptMsg;
+  if (aURL.includes("|")) {
+    promptMsg = gNavigatorBundle.getString("droponhomemsgMultiple");
+  } else {
+    promptMsg = gNavigatorBundle.getString("droponhomemsg");
+  }
+
   var pressedVal  = Services.prompt.confirmEx(window, promptTitle, promptMsg,
                           Services.prompt.STD_YES_NO_BUTTONS,
                           null, null, null, null, {value:0});
 
   if (pressedVal == 0) {
     try {
-      var str = Components.classes["@mozilla.org/supports-string;1"]
-                          .createInstance(Components.interfaces.nsISupportsString);
-      str.data = aURL;
+      var homepageStr = Components.classes["@mozilla.org/supports-string;1"]
+                        .createInstance(Components.interfaces.nsISupportsString);
+      homepageStr.data = aURL;
       gPrefService.setComplexValue("browser.startup.homepage",
-                                   Components.interfaces.nsISupportsString, str);
+                                   Components.interfaces.nsISupportsString, homepageStr);
     } catch (ex) {
       dump("Failed to set the home page.\n"+ex+"\n");
     }
@@ -2726,13 +2785,16 @@ var newTabButtonObserver = {
 
   onDrop: function (aEvent)
   {
-    let url = browserDragAndDrop.drop(aEvent, { });
-    var postData = {};
-    url = getShortcutOrURI(url, postData);
-    if (url) {
-      // allow third-party services to fixup this URL
-      openNewTabWith(url, null, postData.value, aEvent, true);
-    }
+    let links = browserDragAndDrop.dropLinks(aEvent);
+    Task.spawn(function*() {
+      for (let link of links) {
+        let data = yield getShortcutOrURIAndPostData(link.url);
+        if (data.url) {
+          // allow third-party services to fixup this URL
+          openNewTabWith(data.url, null, data.postData, aEvent, true);
+        }
+      }
+    });
   }
 }
 
@@ -2746,13 +2808,16 @@ var newWindowButtonObserver = {
   },
   onDrop: function (aEvent)
   {
-    let url = browserDragAndDrop.drop(aEvent, { });
-    var postData = {};
-    url = getShortcutOrURI(url, postData);
-    if (url) {
-      // allow third-party services to fixup this URL
-      openNewWindowWith(url, null, postData.value, true);
-    }
+    let links = browserDragAndDrop.dropLinks(aEvent);
+    Task.spawn(function*() {
+      for (let link of links) {
+        let data = yield getShortcutOrURIAndPostData(link.url);
+        if (data.url) {
+          // allow third-party services to fixup this URL
+          openNewWindowWith(data.url, null, data.postData, true);
+        }
+      }
+    });
   }
 }
 
@@ -2950,7 +3015,7 @@ const BrowserSearch = {
 #endif
     var searchBar = this.searchBar;
     if (searchBar && window.fullScreen)
-      FullScreen.mouseoverToggle(true);
+      FullScreen.showNavToolbox();
     if (searchBar)
       searchBar.select();
     if (!searchBar || document.activeElement != searchBar.textbox.inputField)
@@ -4239,6 +4304,13 @@ nsBrowserAccess.prototype = {
       else
         aWhere = gPrefService.getIntPref("browser.link.open_newwindow");
     }
+
+    let referrer = aOpener ? makeURI(aOpener.location.href) : null;
+    let referrerPolicy = Ci.nsIHttpChannel.REFERRER_POLICY_DEFAULT;
+    if (aOpener && aOpener.document) {
+      referrerPolicy = aOpener.document.referrerPolicy;
+    }
+
     switch (aWhere) {
       case Ci.nsIBrowserDOMWindow.OPEN_NEWWINDOW :
         // FIXME: Bug 408379. So how come this doesn't send the
@@ -4277,6 +4349,7 @@ nsBrowserAccess.prototype = {
 
         let tab = win.gBrowser.loadOneTab(aURI ? aURI.spec : "about:blank", {
                                           referrerURI: referrer,
+                                          referrerPolicy: referrerPolicy,
                                           fromExternal: isExternal,
                                           inBackground: loadInBackground});
         let browser = win.gBrowser.getBrowserForTab(tab);
@@ -4292,11 +4365,14 @@ nsBrowserAccess.prototype = {
       default : // OPEN_CURRENTWINDOW or an illegal value
         newWindow = content;
         if (aURI) {
-          let referrer = aOpener ? makeURI(aOpener.location.href) : null;
           let loadflags = isExternal ?
                             Ci.nsIWebNavigation.LOAD_FLAGS_FROM_EXTERNAL :
                             Ci.nsIWebNavigation.LOAD_FLAGS_NONE;
-          gBrowser.loadURIWithFlags(aURI.spec, loadflags, referrer, null, null);
+          gBrowser.loadURIWithFlags(aURI.spec, {
+                                    flags: loadflags,
+                                    referrerURI: referrer,
+                                    referrerPolicy: referrerPolicy,
+                                    });
         }
         if (!gPrefService.getBoolPref("browser.tabs.loadDivertedInBackground"))
           window.focus();
@@ -5026,7 +5102,8 @@ function handleLinkClick(event, href, linkNode) {
 
   urlSecurityCheck(href, doc.nodePrincipal);
   openLinkIn(href, where, { referrerURI: doc.documentURIObject,
-                            charset: doc.characterSet });
+                            charset: doc.characterSet,
+                            referrerPolicy: doc.referrerPolicy });
   event.preventDefault();
   return true;
 }
@@ -5040,36 +5117,81 @@ function middleMousePaste(event) {
   // bar's behavior (stripsurroundingwhitespace)
   clipboard = clipboard.replace(/\s*\n\s*/g, "");
 
-  let mayInheritPrincipal = { value: false };
-  let url = getShortcutOrURI(clipboard, mayInheritPrincipal);
-  try {
-    makeURI(url);
-  } catch (ex) {
-    // Not a valid URI.
-    return;
+  // if it's not the current tab, we don't need to do anything because the 
+  // browser doesn't exist.
+  let where = whereToOpenLink(event, true, false);
+  let lastLocationChange;
+  if (where == "current") {
+    lastLocationChange = gBrowser.selectedBrowser.lastLocationChange;
   }
 
-  try {
-    addToUrlbarHistory(url);
-  } catch (ex) {
-    // Things may go wrong when adding url to session history,
-    // but don't let that interfere with the loading of the url.
-    Cu.reportError(ex);
-  }
+  getShortcutOrURIAndPostData(clipboard).then(data => {
+    try {
+      makeURI(data.url);
+    } catch (ex) {
+      // Not a valid URI.
+      return;
+    }
 
-  openUILink(url, event,
-             { ignoreButton: true,
-               disallowInheritPrincipal: !mayInheritPrincipal.value });
+    try {
+      addToUrlbarHistory(data.url);
+    } catch (ex) {
+      // Things may go wrong when adding url to session history,
+      // but don't let that interfere with the loading of the url.
+      Cu.reportError(ex);
+    }
+
+    if (where != "current" ||
+        lastLocationChange == gBrowser.selectedBrowser.lastLocationChange) {
+      openUILink(data.url, event,
+                 { ignoreButton: true,
+                   disallowInheritPrincipal: !data.mayInheritPrincipal,
+                   initiatingDoc: event ? event.target.ownerDocument : null });
+    }
+  });
 
   event.stopPropagation();
 }
 
-function handleDroppedLink(event, url, name)
+// handleDroppedLink has the following 2 overloads:
+//   handleDroppedLink(event, url, name)
+//   handleDroppedLink(event, links)
+function handleDroppedLink(event, urlOrLinks, name)
 {
-  let postData = { };
-  let uri = getShortcutOrURI(url, postData);
-  if (uri)
-    loadURI(uri, null, postData.value, false);
+  let links;
+  if (Array.isArray(urlOrLinks)) {
+    links = urlOrLinks;
+  } else {
+    links = [{ url: urlOrLinks, name, type: "" }];
+  }
+
+  let lastLocationChange = gBrowser.selectedBrowser.lastLocationChange;
+
+  let userContextId = gBrowser.selectedBrowser
+                      .getAttribute("usercontextid") || 0;
+
+  let inBackground = Services.prefs.getBoolPref("browser.tabs.loadInBackground");
+  if (event.shiftKey)
+    inBackground = !inBackground;
+
+  Task.spawn(function*() {
+    let urls = [];
+    let postDatas = [];
+    for (let link of links) {
+      let data = yield getShortcutOrURIAndPostData(link.url);
+      urls.push(data.url);
+      postDatas.push(data.postData);
+    }
+    if (lastLocationChange == gBrowser.selectedBrowser.lastLocationChange) {
+      gBrowser.loadTabs(urls, {
+        inBackground,
+        replace: true,
+        allowThirdPartyFixup: false,
+        postDatas,
+        userContextId,
+      });
+    }
+  });
 
   // Keep the event from being handled by the dragDrop listeners
   // built-in to goanna if they happen to be above us.
@@ -5183,7 +5305,6 @@ function charsetLoadListener() {
     gLastBrowserCharset = charset;
   }
 }
-
 
 var gPageStyleMenu = {
 

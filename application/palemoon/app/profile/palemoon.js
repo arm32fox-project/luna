@@ -236,6 +236,15 @@ pref("general.useragent.complexOverride.moodle", false); // bug 797703
 // At startup, check if we're the default browser and prompt user if not.
 pref("browser.shell.checkDefaultBrowser", true);
 pref("browser.shell.shortcutFavicons",true);
+pref("browser.shell.mostRecentDateSetAsDefault", "");
+#ifdef RELEASE_OR_BETA
+pref("browser.shell.skipDefaultBrowserCheckOnFirstRun", false);
+#else
+pref("browser.shell.skipDefaultBrowserCheckOnFirstRun", true);
+#endif
+pref("browser.shell.skipDefaultBrowserCheck", true);
+pref("browser.shell.defaultBrowserCheckCount", 0);
+pref("browser.defaultbrowser.notificationbar", false);
 
 // 0 = blank, 1 = home (browser.startup.homepage), 2 = last visited page, 3 = resume previous browser session
 // The behavior of option 3 is detailed at: http://wiki.mozilla.org/Session_Restore
@@ -756,6 +765,7 @@ pref("goanna.handlerService.allowRegisterFromDifferentHost", false);
 
 pref("browser.geolocation.warning.infoURL", "http://www.palemoon.org/info-url/geolocation.shtml");
 pref("browser.mixedcontent.warning.infoURL", "http://www.palemoon.org/info-url/mixedcontent.shtml");
+pref("browser.push.warning.infoURL", "https://www.mozilla.org/%LOCALE%/firefox/push/");
 
 pref("browser.EULA.version", 3);
 pref("browser.rights.version", 3);
@@ -1047,11 +1057,6 @@ pref("browser.newtabpage.rows", 4);
 
 // Enable the DOM fullscreen API.
 pref("full-screen-api.enabled", true);
-
-// True if the fullscreen API requires approval upon a domain entering fullscreen.
-// Domains that have already had fullscreen permission granted won't re-request
-// approval.
-pref("full-screen-api.approval-required", true);
 
 // about:permissions
 // Maximum number of sites to return from the places database.

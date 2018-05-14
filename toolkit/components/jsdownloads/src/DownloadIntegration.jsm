@@ -300,12 +300,7 @@ this.DownloadIntegration = {
         aDownload.hasBlockedData) {
       return true;
     }
-#ifdef MOZ_B2G
-    // On B2G we keep a few days of history.
-    let maxTime = Date.now() -
-      Services.prefs.getIntPref("dom.downloads.max_retention_days") * 24 * 60 * 60 * 1000;
-    return aDownload.startTime > maxTime;
-#elif defined(MOZ_WIDGET_ANDROID)
+#if defined(MOZ_WIDGET_ANDROID)
     // On Android we store all history.
     return true;
 #else
@@ -414,8 +409,6 @@ this.DownloadIntegration = {
 #ifdef XP_MACOSX
     directoryPath = yield this.getPreferredDownloadsDirectory();
 #elifdef MOZ_WIDGET_ANDROID
-    directoryPath = yield this.getSystemDownloadsDirectory();
-#elifdef MOZ_WIDGET_GONK
     directoryPath = yield this.getSystemDownloadsDirectory();
 #else
     directoryPath = this._getDirectory("TmpD");

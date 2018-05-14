@@ -25,7 +25,7 @@
 #include "mozilla/dom/Timeout.h"
 #include "mozilla/dom/TimeoutHandler.h"
 #include "mozilla/IntegerPrintfMacros.h"
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
 #include "mozilla/dom/WindowOrientationObserver.h"
 #endif
 #include "nsDOMOfflineResourceList.h"
@@ -247,10 +247,6 @@
 
 #ifdef MOZ_WEBSPEECH
 #include "mozilla/dom/SpeechSynthesis.h"
-#endif
-
-#ifdef MOZ_B2G
-#include "nsPISocketTransportService.h"
 #endif
 
 // Apple system headers seem to have a check() macro.  <sigh>
@@ -1557,10 +1553,6 @@ nsGlobalWindow::nsGlobalWindow(nsGlobalWindow *aOuterWindow)
 #ifdef DEBUG
     mSetOpenerWindowCalled(false),
 #endif
-#ifdef MOZ_B2G
-    mNetworkUploadObserverEnabled(false),
-    mNetworkDownloadObserverEnabled(false),
-#endif
     mCleanedUp(false),
     mDialogAbuseCount(0),
     mAreDialogsEnabled(true),
@@ -1913,11 +1905,6 @@ nsGlobalWindow::CleanUp()
       os->RemoveObserver(mObserver, "dom-storage2-changed");
     }
 
-#ifdef MOZ_B2G
-    DisableNetworkEvent(eNetworkUpload);
-    DisableNetworkEvent(eNetworkDownload);
-#endif // MOZ_B2G
-
     if (mIdleService) {
       mIdleService->RemoveIdleObserver(mObserver, MIN_IDLE_NOTIFICATION_TIME_S);
     }
@@ -1961,7 +1948,7 @@ nsGlobalWindow::CleanUp()
   mSpeechSynthesis = nullptr;
 #endif
 
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
   mOrientationChangeObserver = nullptr;
 #endif
 
@@ -1986,9 +1973,6 @@ nsGlobalWindow::CleanUp()
     mHasGamepad = false;
     DisableVRUpdates();
     mHasVREvents = false;
-#ifdef MOZ_B2G
-    DisableTimeChangeNotifications();
-#endif
     DisableIdleCallbackRequests();
   } else {
     MOZ_ASSERT(!mHasGamepad);
@@ -2092,7 +2076,7 @@ nsGlobalWindow::FreeInnerObjects()
     mScreen = nullptr;
   }
 
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
   mOrientationChangeObserver = nullptr;
 #endif
 
@@ -2521,8 +2505,13 @@ nsGlobalWindow::WouldReuseInnerWindow(nsIDocument* aNewDocument)
     return false;
   }
 
-  NS_ASSERTION(NS_IsAboutBlank(mDoc->GetDocumentURI()),
-               "How'd this happen?");
+#ifdef DEBUG
+{
+  nsCOMPtr<nsIURI> uri;
+  mDoc->GetDocumentURI()->CloneIgnoringRef(getter_AddRefs(uri));
+  NS_ASSERTION(NS_IsAboutBlank(uri), "How'd this happen?");
+}
+#endif
 
   // Great, we're the original document, check for one of the other
   // conditions.
@@ -3124,8 +3113,7 @@ nsGlobalWindow::SetNewDocument(nsIDocument* aDocument,
           newInnerWindow->mPerformance =
             Performance::CreateForMainThread(newInnerWindow->AsInner(),
                                              currentInner->mPerformance->GetDOMTiming(),
-                                             currentInner->mPerformance->GetChannel(),
-                                             currentInner->mPerformance->GetParentPerformance());
+                                             currentInner->mPerformance->GetChannel());
         }
       }
 
@@ -4339,22 +4327,7 @@ nsPIDOMWindowInner::CreatePerformanceObjectIfNeeded()
     timedChannel = nullptr;
   }
   if (timing) {
-    // If we are dealing with an iframe, we will need the parent's performance
-    // object (so we can add the iframe as a resource of that page).
-    Performance* parentPerformance = nullptr;
-    nsCOMPtr<nsPIDOMWindowOuter> parentWindow = GetScriptableParentOrNull();
-    if (parentWindow) {
-      nsPIDOMWindowInner* parentInnerWindow = nullptr;
-      if (parentWindow) {
-        parentInnerWindow = parentWindow->GetCurrentInnerWindow();
-      }
-      if (parentInnerWindow) {
-        parentPerformance = parentInnerWindow->GetPerformance();
-      }
-    }
-    mPerformance =
-      Performance::CreateForMainThread(this, timing, timedChannel,
-                                       parentPerformance);
+    mPerformance = Performance::CreateForMainThread(this, timing, timedChannel);
   }
 }
 
@@ -12144,27 +12117,6 @@ nsGlobalWindow::Observe(nsISupports* aSubject, const char* aTopic,
     return NS_OK;
   }
 
-#ifdef MOZ_B2G
-  if (!nsCRT::strcmp(aTopic, NS_NETWORK_ACTIVITY_BLIP_UPLOAD_TOPIC) ||
-      !nsCRT::strcmp(aTopic, NS_NETWORK_ACTIVITY_BLIP_DOWNLOAD_TOPIC)) {
-    MOZ_ASSERT(IsInnerWindow());
-    if (!AsInner()->IsCurrentInnerWindow()) {
-      return NS_OK;
-    }
-
-    RefPtr<Event> event = NS_NewDOMEvent(this, nullptr, nullptr);
-    event->InitEvent(
-      !nsCRT::strcmp(aTopic, NS_NETWORK_ACTIVITY_BLIP_UPLOAD_TOPIC)
-        ? NETWORK_UPLOAD_EVENT_NAME
-        : NETWORK_DOWNLOAD_EVENT_NAME,
-      false, false);
-    event->SetTrusted(true);
-
-    bool dummy;
-    return DispatchEvent(event, &dummy);
-  }
-#endif // MOZ_B2G
-
   if (!nsCRT::strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {
     MOZ_ASSERT(!NS_strcmp(aData, u"intl.accept_languages"));
     MOZ_ASSERT(IsInnerWindow());
@@ -14057,7 +14009,7 @@ nsGlobalWindow::DisableDeviceSensor(uint32_t aType)
   }
 }
 
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
 void
 nsGlobalWindow::EnableOrientationChangeListener()
 {
@@ -14950,7 +14902,7 @@ nsGlobalWindow::IsModalContentWindow(JSContext* aCx, JSObject* aGlobal)
   return xpc::WindowOrNull(aGlobal)->IsModalContentWindow();
 }
 
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
 int16_t
 nsGlobalWindow::Orientation(CallerType aCallerType) const
 {
@@ -15063,80 +15015,6 @@ nsGlobalWindow::GetIsPrerendered()
   nsIDocShell* docShell = GetDocShell();
   return docShell && docShell->GetIsPrerendered();
 }
-
-#ifdef MOZ_B2G
-void
-nsGlobalWindow::EnableNetworkEvent(EventMessage aEventMessage)
-{
-  MOZ_ASSERT(IsInnerWindow());
-
-  nsCOMPtr<nsIPermissionManager> permMgr =
-    services::GetPermissionManager();
-  if (!permMgr) {
-    NS_ERROR("No PermissionManager available!");
-    return;
-  }
-
-  uint32_t permission = nsIPermissionManager::DENY_ACTION;
-  permMgr->TestExactPermissionFromPrincipal(GetPrincipal(), "network-events",
-                                            &permission);
-
-  if (permission != nsIPermissionManager::ALLOW_ACTION) {
-    return;
-  }
-
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  if (!os) {
-    NS_ERROR("ObserverService should be available!");
-    return;
-  }
-
-  switch (aEventMessage) {
-    case eNetworkUpload:
-      if (!mNetworkUploadObserverEnabled) {
-        mNetworkUploadObserverEnabled = true;
-        os->AddObserver(mObserver, NS_NETWORK_ACTIVITY_BLIP_UPLOAD_TOPIC, false);
-      }
-      break;
-    case eNetworkDownload:
-      if (!mNetworkDownloadObserverEnabled) {
-        mNetworkDownloadObserverEnabled = true;
-        os->AddObserver(mObserver, NS_NETWORK_ACTIVITY_BLIP_DOWNLOAD_TOPIC, false);
-      }
-      break;
-    default:
-      break;
-  }
-}
-
-void
-nsGlobalWindow::DisableNetworkEvent(EventMessage aEventMessage)
-{
-  MOZ_ASSERT(IsInnerWindow());
-
-  nsCOMPtr<nsIObserverService> os = mozilla::services::GetObserverService();
-  if (!os) {
-    return;
-  }
-
-  switch (aEventMessage) {
-    case eNetworkUpload:
-      if (mNetworkUploadObserverEnabled) {
-        mNetworkUploadObserverEnabled = false;
-        os->RemoveObserver(mObserver, NS_NETWORK_ACTIVITY_BLIP_UPLOAD_TOPIC);
-      }
-      break;
-    case eNetworkDownload:
-      if (mNetworkDownloadObserverEnabled) {
-        mNetworkDownloadObserverEnabled = false;
-        os->RemoveObserver(mObserver, NS_NETWORK_ACTIVITY_BLIP_DOWNLOAD_TOPIC);
-      }
-      break;
-    default:
-      break;
-  }
-}
-#endif // MOZ_B2G
 
 void
 nsGlobalWindow::RedefineProperty(JSContext* aCx, const char* aPropName,

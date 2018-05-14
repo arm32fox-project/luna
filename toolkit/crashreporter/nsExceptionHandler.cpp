@@ -1527,11 +1527,9 @@ nsresult SetExceptionHandler(nsIFile* aXREDirectory,
   if (gExceptionHandler)
     return NS_ERROR_ALREADY_INITIALIZED;
 
-#if !defined(DEBUG) || defined(MOZ_WIDGET_GONK)
+#if !defined(DEBUG)
   // In non-debug builds, enable the crash reporter by default, and allow
   // disabling it with the MOZ_CRASHREPORTER_DISABLE environment variable.
-  // Also enable it by default in debug gonk builds as it is difficult to
-  // set environment on startup.
   const char *envvar = PR_GetEnv("MOZ_CRASHREPORTER_DISABLE");
   if (envvar && *envvar && !force)
     return NS_OK;
@@ -1543,10 +1541,7 @@ nsresult SetExceptionHandler(nsIFile* aXREDirectory,
     return NS_OK;
 #endif
 
-#if defined(MOZ_WIDGET_GONK)
-  doReport = false;
-  headlessClient = true;
-#elif defined(XP_WIN)
+#if defined(XP_WIN)
   doReport = ShouldReport();
 #else
   // this environment variable prevents us from launching
@@ -3417,22 +3412,10 @@ OOPInit()
 
 #if (defined(XP_WIN) || defined(XP_MACOSX))
   nsCOMPtr<nsIFile> tmpDir;
-# if defined(MOZ_CONTENT_SANDBOX)
-  nsresult rv = NS_GetSpecialDirectory(NS_APP_CONTENT_PROCESS_TEMP_DIR,
-                                       getter_AddRefs(tmpDir));
-  if (NS_FAILED(rv) && PR_GetEnv("XPCSHELL_TEST_PROFILE_DIR")) {
-    // Temporary hack for xpcshell, will be fixed in bug 1257098
-    rv = NS_GetSpecialDirectory(NS_OS_TEMP_DIR, getter_AddRefs(tmpDir));
-  }
-  if (NS_SUCCEEDED(rv)) {
-    childProcessTmpDir = CreatePathFromFile(tmpDir);
-  }
-# else
   if (NS_SUCCEEDED(NS_GetSpecialDirectory(NS_OS_TEMP_DIR,
                                           getter_AddRefs(tmpDir)))) {
     childProcessTmpDir = CreatePathFromFile(tmpDir);
   }
-# endif // defined(MOZ_CONTENT_SANDBOX)
 #endif // (defined(XP_WIN) || defined(XP_MACOSX))
 
 #if defined(XP_WIN)

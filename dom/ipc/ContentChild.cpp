@@ -65,21 +65,6 @@
 #include "imgLoader.h"
 #include "GMPServiceChild.h"
 
-#if defined(MOZ_CONTENT_SANDBOX)
-#if defined(XP_WIN)
-#define TARGET_SANDBOX_EXPORTS
-#include "mozilla/sandboxTarget.h"
-#elif defined(XP_LINUX)
-#include "mozilla/Sandbox.h"
-#include "mozilla/SandboxInfo.h"
-
-// Remove this include with Bug 1104619
-#include "CubebUtils.h"
-#elif defined(XP_MACOSX)
-#include "mozilla/Sandbox.h"
-#endif
-#endif
-
 #include "mozilla/Unused.h"
 
 #include "mozInlineSpellChecker.h"
@@ -152,12 +137,6 @@
 #include "APKOpen.h"
 #endif
 
-#if defined(MOZ_WIDGET_GONK)
-#include "nsVolume.h"
-#include "nsVolumeService.h"
-#include "SpeakerManagerService.h"
-#endif
-
 #ifdef XP_WIN
 #include <process.h>
 #define getpid _getpid
@@ -211,9 +190,6 @@ using namespace mozilla::net;
 using namespace mozilla::jsipc;
 using namespace mozilla::psm;
 using namespace mozilla::widget;
-#if defined(MOZ_WIDGET_GONK)
-using namespace mozilla::system;
-#endif
 using namespace mozilla::widget;
 
 namespace mozilla {
@@ -600,15 +576,7 @@ ContentChild::Init(MessageLoop* aIOLoop,
 void
 ContentChild::InitProcessAttributes()
 {
-#ifdef MOZ_WIDGET_GONK
-  if (mIsForApp && !mIsForBrowser) {
-    SetProcessName(NS_LITERAL_STRING("(Preallocated app)"), false);
-  } else {
-    SetProcessName(NS_LITERAL_STRING("Browser"), false);
-  }
-#else
   SetProcessName(NS_LITERAL_STRING("Web Content"), true);
-#endif
 }
 
 void
@@ -1250,192 +1218,11 @@ ContentChild::AllocPProcessHangMonitorChild(Transport* aTransport,
   return CreateHangMonitorChild(aTransport, aOtherProcess);
 }
 
-#if defined(XP_MACOSX) && defined(MOZ_CONTENT_SANDBOX)
-
-#include <stdlib.h>
-
-static bool
-GetAppPaths(nsCString &aAppPath, nsCString &aAppBinaryPath, nsCString &aAppDir)
-{
-  nsAutoCString appPath;
-  nsAutoCString appBinaryPath(
-    (CommandLine::ForCurrentProcess()->argv()[0]).c_str());
-
-  nsAutoCString::const_iterator start, end;
-  appBinaryPath.BeginReading(start);
-  appBinaryPath.EndReading(end);
-  if (RFindInReadable(NS_LITERAL_CSTRING(".app/Contents/MacOS/"), start, end)) {
-    end = start;
-    ++end; ++end; ++end; ++end;
-    appBinaryPath.BeginReading(start);
-    appPath.Assign(Substring(start, end));
-  } else {
-    return false;
-  }
-
-  nsCOMPtr<nsIFile> app, appBinary;
-  nsresult rv = NS_NewLocalFile(NS_ConvertUTF8toUTF16(appPath),
-                                true, getter_AddRefs(app));
-  if (NS_FAILED(rv)) {
-    return false;
-  }
-  rv = NS_NewLocalFile(NS_ConvertUTF8toUTF16(appBinaryPath),
-                       true, getter_AddRefs(appBinary));
-  if (NS_FAILED(rv)) {
-    return false;
-  }
-
-  nsCOMPtr<nsIFile> appDir;
-  nsCOMPtr<nsIProperties> dirSvc =
-    do_GetService(NS_DIRECTORY_SERVICE_CONTRACTID);
-  if (!dirSvc) {
-    return false;
-  }
-  rv = dirSvc->Get(NS_XPCOM_CURRENT_PROCESS_DIR,
-                   NS_GET_IID(nsIFile), getter_AddRefs(appDir));
-  if (NS_FAILED(rv)) {
-    return false;
-  }
-  bool exists;
-  rv = appDir->Exists(&exists);
-  if (NS_FAILED(rv) || !exists) {
-    return false;
-  }
-
-  bool isLink;
-  app->IsSymlink(&isLink);
-  if (isLink) {
-    app->GetNativeTarget(aAppPath);
-  } else {
-    app->GetNativePath(aAppPath);
-  }
-  appBinary->IsSymlink(&isLink);
-  if (isLink) {
-    appBinary->GetNativeTarget(aAppBinaryPath);
-  } else {
-    appBinary->GetNativePath(aAppBinaryPath);
-  }
-  appDir->IsSymlink(&isLink);
-  if (isLink) {
-    appDir->GetNativeTarget(aAppDir);
-  } else {
-    appDir->GetNativePath(aAppDir);
-  }
-
-  return true;
-}
-
-static bool
-StartMacOSContentSandbox()
-{
-  int sandboxLevel = Preferences::GetInt("security.sandbox.content.level");
-  if (sandboxLevel < 1) {
-    return false;
-  }
-
-  nsAutoCString appPath, appBinaryPath, appDir;
-  if (!GetAppPaths(appPath, appBinaryPath, appDir)) {
-    MOZ_CRASH("Error resolving child process path");
-  }
-
-  // During sandboxed content process startup, before reaching
-  // this point, NS_OS_TEMP_DIR is modified to refer to a sandbox-
-  // writable temporary directory
-  nsCOMPtr<nsIFile> tempDir;
-  nsresult rv = nsDirectoryService::gService->Get(NS_OS_TEMP_DIR,
-      NS_GET_IID(nsIFile), getter_AddRefs(tempDir));
-  if (NS_FAILED(rv)) {
-    MOZ_CRASH("Failed to get NS_OS_TEMP_DIR");
-  }
-
-  nsAutoCString tempDirPath;
-  tempDir->Normalize();
-  rv = tempDir->GetNativePath(tempDirPath);
-  if (NS_FAILED(rv)) {
-    MOZ_CRASH("Failed to get NS_OS_TEMP_DIR path");
-  }
-
-  nsCOMPtr<nsIFile> profileDir;
-  ContentChild::GetSingleton()->GetProfileDir(getter_AddRefs(profileDir));
-  nsCString profileDirPath;
-  if (profileDir) {
-    rv = profileDir->GetNativePath(profileDirPath);
-    if (NS_FAILED(rv) || profileDirPath.IsEmpty()) {
-      MOZ_CRASH("Failed to get profile path");
-    }
-  }
-
-  MacSandboxInfo info;
-  info.type = MacSandboxType_Content;
-  info.level = info.level = sandboxLevel;
-  info.appPath.assign(appPath.get());
-  info.appBinaryPath.assign(appBinaryPath.get());
-  info.appDir.assign(appDir.get());
-  info.appTempDir.assign(tempDirPath.get());
-
-  if (profileDir) {
-    info.hasSandboxedProfile = true;
-    info.profileDir.assign(profileDirPath.get());
-  } else {
-    info.hasSandboxedProfile = false;
-  }
-
-  std::string err;
-  if (!mozilla::StartMacSandbox(info, err)) {
-    NS_WARNING(err.c_str());
-    MOZ_CRASH("sandbox_init() failed");
-  }
-
-  return true;
-}
-#endif
-
 bool
 ContentChild::RecvSetProcessSandbox(const MaybeFileDesc& aBroker)
 {
   // We may want to move the sandbox initialization somewhere else
   // at some point; see bug 880808.
-#if defined(MOZ_CONTENT_SANDBOX)
-  bool sandboxEnabled = true;
-#if defined(XP_LINUX)
-#if defined(MOZ_WIDGET_GONK) && ANDROID_VERSION >= 19
-  // For B2G >= KitKat, sandboxing is mandatory; this has already
-  // been enforced by ContentParent::StartUp().
-  MOZ_ASSERT(SandboxInfo::Get().CanSandboxContent());
-#else
-  // Otherwise, sandboxing is best-effort.
-  if (!SandboxInfo::Get().CanSandboxContent()) {
-       sandboxEnabled = false;
-   } else {
-       // This triggers the initialization of cubeb, which needs to happen
-       // before seccomp is enabled (Bug 1259508). It also increases the startup
-       // time of the content process, because cubeb is usually initialized
-       // when it is actually needed. This call here is no longer required
-       // once Bug 1104619 (remoting audio) is resolved.
-       Unused << CubebUtils::GetCubebContext();
-  }
-
-#endif /* MOZ_WIDGET_GONK && ANDROID_VERSION >= 19 */
-  if (sandboxEnabled) {
-    int brokerFd = -1;
-    if (aBroker.type() == MaybeFileDesc::TFileDescriptor) {
-      auto fd = aBroker.get_FileDescriptor().ClonePlatformHandle();
-      brokerFd = fd.release();
-      // brokerFd < 0 means to allow direct filesystem access, so
-      // make absolutely sure that doesn't happen if the parent
-      // didn't intend it.
-      MOZ_RELEASE_ASSERT(brokerFd >= 0);
-    }
-    sandboxEnabled = SetContentProcessSandbox(brokerFd);
-  }
-#elif defined(XP_WIN)
-  mozilla::SandboxTarget::Instance()->StartSandbox();
-#elif defined(XP_MACOSX)
-  sandboxEnabled = StartMacOSContentSandbox();
-#endif
-
-#endif /* MOZ_CONTENT_SANDBOX */
-
   return true;
 }
 
@@ -1453,15 +1240,6 @@ ContentChild::RecvNotifyLayerAllocated(const dom::TabId& aTabId, const uint64_t&
 bool
 ContentChild::RecvSpeakerManagerNotify()
 {
-#ifdef MOZ_WIDGET_GONK
-  // Only notify the process which has the SpeakerManager instance.
-  RefPtr<SpeakerManagerService> service =
-    SpeakerManagerService::GetSpeakerManagerService();
-  if (service) {
-    service->Notify();
-  }
-  return true;
-#endif
   return false;
 }
 
@@ -2480,12 +2258,6 @@ ContentChild::RecvLastPrivateDocShellDestroyed()
 bool
 ContentChild::RecvVolumes(nsTArray<VolumeInfo>&& aVolumes)
 {
-#ifdef MOZ_WIDGET_GONK
-  RefPtr<nsVolumeService> vs = nsVolumeService::GetSingleton();
-  if (vs) {
-    vs->RecvVolumesFromParent(aVolumes);
-  }
-#endif
   return true;
 }
 
@@ -2502,17 +2274,6 @@ ContentChild::RecvFileSystemUpdate(const nsString& aFsName,
                                    const bool& aIsRemovable,
                                    const bool& aIsHotSwappable)
 {
-#ifdef MOZ_WIDGET_GONK
-  RefPtr<nsVolume> volume = new nsVolume(aFsName, aVolumeName, aState,
-                                         aMountGeneration, aIsMediaPresent,
-                                         aIsSharing, aIsFormatting, aIsFake,
-                                         aIsUnmounting, aIsRemovable, aIsHotSwappable);
-
-  RefPtr<nsVolumeService> vs = nsVolumeService::GetSingleton();
-  if (vs) {
-    vs->UpdateVolume(volume);
-  }
-#else
   // Remove warnings about unused arguments
   Unused << aFsName;
   Unused << aVolumeName;
@@ -2525,22 +2286,15 @@ ContentChild::RecvFileSystemUpdate(const nsString& aFsName,
   Unused << aIsUnmounting;
   Unused << aIsRemovable;
   Unused << aIsHotSwappable;
-#endif
+
   return true;
 }
 
 bool
 ContentChild::RecvVolumeRemoved(const nsString& aFsName)
 {
-#ifdef MOZ_WIDGET_GONK
-  RefPtr<nsVolumeService> vs = nsVolumeService::GetSingleton();
-  if (vs) {
-    vs->RemoveVolumeByName(aFsName);
-  }
-#else
   // Remove warnings about unused arguments
   Unused << aFsName;
-#endif
   return true;
 }
 

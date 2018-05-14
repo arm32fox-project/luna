@@ -214,6 +214,10 @@ public:
       const TimeDuration& aStartTime,
       double aPlaybackRate);
 
+  void MaybeQueueCancelEvent(StickyTimeDuration aActiveTime) override {
+    QueueEvents(aActiveTime);
+  }
+
 protected:
   virtual ~CSSTransition()
   {
@@ -225,7 +229,10 @@ protected:
   void UpdateTiming(SeekFlag aSeekFlag,
                     SyncNotifyFlag aSyncNotifyFlag) override;
 
-  void QueueEvents();
+  void QueueEvents(StickyTimeDuration activeTime = StickyTimeDuration());
+
+
+  enum class TransitionPhase;
 
   // The (pseudo-)element whose computed transition-property refers to this
   // transition (if any).
@@ -250,7 +257,7 @@ protected:
   // to be queued on this tick.
   // See: https://drafts.csswg.org/css-transitions-2/#transition-phase
   enum class TransitionPhase {
-    Idle   = static_cast<int>(ComputedTiming::AnimationPhase::Null),
+    Idle   = static_cast<int>(ComputedTiming::AnimationPhase::Idle),
     Before = static_cast<int>(ComputedTiming::AnimationPhase::Before),
     Active = static_cast<int>(ComputedTiming::AnimationPhase::Active),
     After  = static_cast<int>(ComputedTiming::AnimationPhase::After),

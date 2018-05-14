@@ -112,11 +112,6 @@ if CONFIG['MOZ_SANDBOX'] and CONFIG['OS_TARGET'] == 'Darwin':
         'mozsandbox',
     ]
 
-if CONFIG['MOZ_CONTENT_SANDBOX'] and CONFIG['OS_ARCH'] == 'Linux':
-    USE_LIBS += [
-        'mozsandbox',
-    ]
-
 LOCAL_INCLUDES += [
     '/caps',
     '/chrome',
@@ -145,12 +140,6 @@ LOCAL_INCLUDES += [
     '/xpcom/threads',
 ]
 
-if CONFIG['MOZ_SANDBOX'] and CONFIG['OS_ARCH'] == 'WINNT':
-    LOCAL_INCLUDES += [
-        '/security/sandbox/chromium',
-        '/security/sandbox/chromium-shim',
-    ]
-
 if CONFIG['OS_ARCH'] != 'WINNT':
     LOCAL_INCLUDES += [
         '/modules/libjar',
@@ -158,7 +147,7 @@ if CONFIG['OS_ARCH'] != 'WINNT':
 
 DEFINES['BIN_SUFFIX'] = '"%s"' % CONFIG['BIN_SUFFIX']
 
-if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('android', 'gtk2', 'gonk'):
+if CONFIG['MOZ_WIDGET_TOOLKIT'] in ('android', 'gtk2'):
     DEFINES['MOZ_ENABLE_FREETYPE'] = True
 
 if CONFIG['MOZ_TOOLKIT_SEARCH']:

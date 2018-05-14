@@ -84,6 +84,7 @@ NS_EVENT_MESSAGE(eMouseEnterIntoWidget)
 NS_EVENT_MESSAGE(eMouseExitFromWidget)
 NS_EVENT_MESSAGE(eMouseDoubleClick)
 NS_EVENT_MESSAGE(eMouseClick)
+NS_EVENT_MESSAGE(eMouseAuxClick)
 // eMouseActivate is fired when the widget is activated by a click.
 NS_EVENT_MESSAGE(eMouseActivate)
 NS_EVENT_MESSAGE(eMouseOver)
@@ -340,9 +341,11 @@ NS_EVENT_MESSAGE(eScrolledAreaChanged)
 NS_EVENT_MESSAGE(eTransitionStart)
 NS_EVENT_MESSAGE(eTransitionRun)
 NS_EVENT_MESSAGE(eTransitionEnd)
+NS_EVENT_MESSAGE(eTransitionCancel)
 NS_EVENT_MESSAGE(eAnimationStart)
 NS_EVENT_MESSAGE(eAnimationEnd)
 NS_EVENT_MESSAGE(eAnimationIteration)
+NS_EVENT_MESSAGE(eAnimationCancel)
 
 // Webkit-prefixed versions of Transition & Animation events, for web compat:
 NS_EVENT_MESSAGE(eWebkitTransitionEnd)
@@ -376,7 +379,7 @@ NS_EVENT_MESSAGE(eDeviceMotion)
 NS_EVENT_MESSAGE(eDeviceProximity)
 NS_EVENT_MESSAGE(eUserProximity)
 NS_EVENT_MESSAGE(eDeviceLight)
-#if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_GONK)
+#if defined(MOZ_WIDGET_ANDROID)
 NS_EVENT_MESSAGE(eOrientationChange)
 #endif
 

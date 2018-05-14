@@ -482,6 +482,7 @@ var ClickEventHandler = {
                  ctrlKey: event.ctrlKey, metaKey: event.metaKey,
                  altKey: event.altKey, href: null, title: null,
                  bookmark: false, referrerPolicy: referrerPolicy,
+                 triggeringPrincipal: principal,
                  originAttributes: principal ? principal.originAttributes : {},
                  isContentWindowPrivate: PrivateBrowsingUtils.isContentWindowPrivate(ownerDoc.defaultView)};
 
@@ -521,6 +522,7 @@ var ClickEventHandler = {
         } catch (e) {}
       }
       json.originPrincipal = ownerDoc.nodePrincipal;
+      json.triggeringPrincipal = ownerDoc.nodePrincipal;
 
       sendAsyncMessage("Content:Click", json);
       return;
@@ -894,6 +896,7 @@ var LightWeightThemeWebInstallListener = {
       case "InstallBrowserTheme": {
         sendAsyncMessage("LightWeightThemeWebInstaller:Install", {
           baseURI: event.target.baseURI,
+          principal: event.target.nodePrincipal,
           themeData: event.target.getAttribute("data-browsertheme"),
         });
         break;
@@ -901,6 +904,7 @@ var LightWeightThemeWebInstallListener = {
       case "PreviewBrowserTheme": {
         sendAsyncMessage("LightWeightThemeWebInstaller:Preview", {
           baseURI: event.target.baseURI,
+          principal: event.target.nodePrincipal,
           themeData: event.target.getAttribute("data-browsertheme"),
         });
         this._previewWindow = event.target.ownerGlobal;
@@ -915,7 +919,7 @@ var LightWeightThemeWebInstallListener = {
       case "ResetBrowserThemePreview": {
         if (this._previewWindow) {
           sendAsyncMessage("LightWeightThemeWebInstaller:ResetPreview",
-                           {baseURI: event.target.baseURI});
+                           {principal: event.target.nodePrincipal});
           this._resetPreviewWindow();
         }
         break;

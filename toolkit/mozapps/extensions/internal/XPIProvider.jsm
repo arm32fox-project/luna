@@ -36,8 +36,10 @@ XPCOMUtils.defineLazyModuleGetter(this, "Task",
                                   "resource://gre/modules/Task.jsm");
 XPCOMUtils.defineLazyModuleGetter(this, "OS",
                                   "resource://gre/modules/osfile.jsm");
+#ifdef MOZ_DEVTOOLS
 XPCOMUtils.defineLazyModuleGetter(this, "BrowserToolboxProcess",
                                   "resource://devtools/client/framework/ToolboxProcess.jsm");
+#endif
 XPCOMUtils.defineLazyModuleGetter(this, "ConsoleAPI",
                                   "resource://gre/modules/Console.jsm");
 
@@ -52,6 +54,10 @@ XPCOMUtils.defineLazyServiceGetter(this,
                                    "ResProtocolHandler",
                                    "@mozilla.org/network/protocol;1?name=resource",
                                    "nsIResProtocolHandler");
+XPCOMUtils.defineLazyServiceGetter(this,
+                                   "AddonPathService",
+                                   "@mozilla.org/addon-path-service;1",
+                                   "amIAddonPathService");
 
 const nsIFile = Components.Constructor("@mozilla.org/file/local;1", "nsIFile",
                                        "initWithPath");
@@ -106,6 +112,10 @@ const DIR_TRASH                       = "trash";
 const FILE_DATABASE                   = "extensions.json";
 const FILE_OLD_CACHE                  = "extensions.cache";
 const FILE_INSTALL_MANIFEST           = "install.rdf";
+#ifndef MOZ_JETPACK
+const FILE_JETPACK_MANIFEST_1         = "harness-options.json";
+const FILE_JETPACK_MANIFEST_2         = "package.json";
+#endif
 const FILE_WEBEXT_MANIFEST            = "manifest.json";
 const FILE_XPI_ADDONS_LIST            = "extensions.ini";
 
@@ -134,7 +144,9 @@ const FIREFOX_APPCOMPATVERSION        = "56.9"
 
 // The value for this is in Makefile.in
 #expand const DB_SCHEMA                       = __MOZ_EXTENSIONS_DB_SCHEMA__;
+#ifdef MOZ_DEVTOOLS
 const NOTIFICATION_TOOLBOXPROCESS_LOADED      = "ToolboxProcessLoaded";
+#endif
 
 // Properties that exist in the install manifest
 const PROP_METADATA      = ["id", "version", "type", "internalName", "updateURL",
@@ -1059,37 +1071,36 @@ function loadManifestFromDir(aDir) {
  * @throws if the XPI file does not contain a valid install manifest.
  *         Throws with |webext:true| if a WebExtension manifest was found
  *         to distinguish between WebExtensions and corrupt files.
+ *         Throws with |jetpacksdk:true| if a Jetpack files were found
+ *         if Jetpack its self isn't built.
  */
 function loadManifestFromZipReader(aZipReader) {
-  let zis;
-  try {
-    zis = aZipReader.getInputStream(FILE_INSTALL_MANIFEST);
-  } catch (e) {
-    // We're going to throw here, but depending on whether we have a
-    // WebExtension manifest in the XPI, we'll throw with the webext flag.
-    try {
-      let zws = aZipReader.getInputStream(FILE_WEBEXT_MANIFEST);
-      zws.close();
-    } catch(e2) {
-      // We have neither an install manifest nor a WebExtension manifest;
-      // this means the extension file has a structural problem.
-      // Just pass the original error up the chain in that case.
+  // If WebExtension but not install.rdf throw an error
+  if (aZipReader.hasEntry(FILE_WEBEXT_MANIFEST)) {
+    if (!aZipReader.hasEntry(FILE_INSTALL_MANIFEST)) {
       throw {
-        name: e.name,
-        message: e.message
+        name: "UnsupportedExtension",
+        message: Services.appinfo.name + " does not support WebExtensions",
+        webext: true
       };
     }
-    // If we get here, we have a WebExtension manifest but no install
-    // manifest. Pass the error up the chain with the webext flag.
+  }
+
+#ifndef MOZ_JETPACK
+  // If Jetpack is not built throw an error
+  if (aZipReader.hasEntry(FILE_JETPACK_MANIFEST_1) ||
+      aZipReader.hasEntry(FILE_JETPACK_MANIFEST_2)) {
     throw {
-      name: e.name,
-      message: e.message,
-      webext: true
+      name: "UnsupportedExtension",
+      message: Services.appinfo.name + " does not support Jetpack Extensions",
+      jetpacksdk: true
     };
   }
-  
-  // We found an install manifest, so it's either a regular or hybrid
-  // extension. Continue processing.
+#endif
+ 
+  // Attempt to open install.rdf else throw normally
+  let zis = aZipReader.getInputStream(FILE_INSTALL_MANIFEST);
+  // Create a buffered input stream for install.rdf
   let bis = Cc["@mozilla.org/network/buffered-input-stream;1"].
             createInstance(Ci.nsIBufferedInputStream);
   bis.init(zis, 4096);
@@ -1118,7 +1129,9 @@ function loadManifestFromZipReader(aZipReader) {
     return addon;
   }
   finally {
+    // Close the buffered input stream
     bis.close();
+    // Close the input stream to install.rdf
     zis.close();
   }
 }
@@ -1842,8 +1855,10 @@ this.XPIProvider = {
   _enabledExperiments: null,
   // A Map from an add-on install to its ID
   _addonFileMap: new Map(),
+#ifdef MOZ_DEVTOOLS
   // Flag to know if ToolboxProcess.jsm has already been loaded by someone or not
   _toolboxProcessLoaded: false,
+#endif
   // Have we started shutting down bootstrap add-ons?
   _closing: false,
 
@@ -1887,8 +1902,7 @@ this.XPIProvider = {
     logger.info("Mapping " + aID + " to " + aFile.path);
     this._addonFileMap.set(aID, aFile.path);
 
-    let service = Cc["@mozilla.org/addon-path-service;1"].getService(Ci.amIAddonPathService);
-    service.insertPath(aFile.path, aID);
+    AddonPathService.insertPath(aFile.path, aID);
   },
 
   /**
@@ -2080,6 +2094,8 @@ this.XPIProvider = {
       Services.prefs.addObserver(PREF_EM_MIN_COMPAT_APP_VERSION, this, false);
       Services.prefs.addObserver(PREF_EM_MIN_COMPAT_PLATFORM_VERSION, this, false);
       Services.obs.addObserver(this, NOTIFICATION_FLUSH_PERMISSIONS, false);
+
+#ifdef MOZ_DEVTOOLS
       if (Cu.isModuleLoaded("resource://devtools/client/framework/ToolboxProcess.jsm")) {
         // If BrowserToolboxProcess is already loaded, set the boolean to true
         // and do whatever is needed
@@ -2091,6 +2107,7 @@ this.XPIProvider = {
         // Else, wait for it to load
         Services.obs.addObserver(this, NOTIFICATION_TOOLBOXPROCESS_LOADED, false);
       }
+#endif
 
       let flushCaches = this.checkForChanges(aAppChanged, aOldAppVersion,
                                              aOldPlatformVersion);
@@ -3916,16 +3933,8 @@ this.XPIProvider = {
    * @see    amIAddonManager.mapURIToAddonID
    */
   mapURIToAddonID: function XPI_mapURIToAddonID(aURI) {
-    let resolved = this._resolveURIToFile(aURI);
-    if (!resolved || !(resolved instanceof Ci.nsIFileURL))
-      return null;
-
-    for (let [id, path] of this._addonFileMap) {
-      if (resolved.file.path.startsWith(path))
-        return id;
-    }
-
-    return null;
+    // Returns `null` instead of empty string if the URI can't be mapped.
+    return AddonPathService.mapURIToAddonId(aURI) || null;
   },
 
   /**
@@ -4093,12 +4102,14 @@ this.XPIProvider = {
       }
       return;
     }
+#ifdef MOZ_DEVTOOLS
     else if (aTopic == NOTIFICATION_TOOLBOXPROCESS_LOADED) {
       Services.obs.removeObserver(this, NOTIFICATION_TOOLBOXPROCESS_LOADED, false);
       this._toolboxProcessLoaded = true;
       BrowserToolboxProcess.on("connectionchange",
                                this.onDebugConnectionChange.bind(this));
     }
+#endif
 
     if (aTopic == "nsPref:changed") {
       switch (aData) {
@@ -4363,12 +4374,14 @@ this.XPIProvider = {
       logger.warn("Error loading bootstrap.js for " + aId, e);
     }
 
+#ifdef MOZ_DEVTOOLS
     // Only access BrowserToolboxProcess if ToolboxProcess.jsm has been
     // initialized as otherwise, when it will be initialized, all addons'
     // globals will be added anyways
     if (this._toolboxProcessLoaded) {
       BrowserToolboxProcess.setAddonOptions(aId, { global: this.bootstrapScopes[aId] });
     }
+#endif
   },
 
   /**
@@ -4388,11 +4401,13 @@ this.XPIProvider = {
     this.persistBootstrappedAddons();
     this.addAddonsToCrashReporter();
 
+#ifdef MOZ_DEVTOOLS
     // Only access BrowserToolboxProcess if ToolboxProcess.jsm has been
     // initialized as otherwise, there won't be any addon globals added to it
     if (this._toolboxProcessLoaded) {
       BrowserToolboxProcess.setAddonOptions(aId, { global: null });
     }
+#endif
   },
 
   /**
@@ -5010,6 +5025,11 @@ AddonInstall.prototype = {
       if (e.webext) {
         logger.warn("WebExtension XPI", e);
         this.error = AddonManager.ERROR_WEBEXT_FILE;
+#ifndef MOZ_JETPACK
+      } else if (e.jetpacksdk) {
+        logger.warn("Jetpack XPI", e);
+        this.error = AddonManager.ERROR_JETPACKSDK_FILE;
+#endif
       } else {
         logger.warn("Invalid XPI", e);
         this.error = AddonManager.ERROR_CORRUPT_FILE;
@@ -5651,6 +5671,10 @@ AddonInstall.prototype = {
         catch (e) {
           if (e.webext) {
             this.downloadFailed(AddonManager.ERROR_WEBEXT_FILE, e);
+#ifndef MOZ_JETPACK
+          } else if (e.jetpacksdk) {
+            this.downloadFailed(AddonManager.ERROR_JETPACKSDK_FILE, e);
+#endif
           } else {
             this.downloadFailed(AddonManager.ERROR_CORRUPT_FILE, e);
           }
@@ -6447,21 +6471,23 @@ AddonInternal.prototype = {
     if (!aPlatformVersion)
       aPlatformVersion = Services.appinfo.platformVersion;
 
+#ifdef MOZ_PHOENIX_EXTENSIONS
     this.native = false;
-  
+#endif
+
     let version;
     if (app.id == Services.appinfo.ID) {
       version = aAppVersion;
+#ifdef MOZ_PHOENIX_EXTENSIONS
       this.native = true;
     }
-#ifdef MOZ_PHOENIX_EXTENSIONS
     else if (app.id == FIREFOX_ID) {
      version = FIREFOX_APPCOMPATVERSION;
       if (this.type == "locale")
         //Never allow language packs in Firefox compatibility mode
         return false;
-    }
 #endif
+    }
     else if (app.id == TOOLKIT_ID)
       version = aPlatformVersion
 

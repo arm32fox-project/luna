@@ -13,7 +13,7 @@
 
 struct js::detail::MutexImpl::PlatformData
 {
-  CRITICAL_SECTION criticalSection;
+  SRWLOCK lock;
 };
 
 #endif // platform_win_MutexPlatformData_h
