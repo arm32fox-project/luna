@@ -188,6 +188,9 @@ function onListClick(aEvent) {
   if (aEvent.button == 2)
     return;
 
+  if (!treeView.treeBox) {
+    return;
+  }
   var cell = treeView.treeBox.getCellAt(aEvent.clientX, aEvent.clientY);
   if (cell.col) {
     // Restore this specific tab in the same window for middle/double/accel clicking
@@ -286,7 +289,9 @@ var treeView = {
   get rowCount()                     { return gTreeData.length; },
   setTree: function(treeBox)         { this.treeBox = treeBox; },
   getCellText: function(idx, column) { return gTreeData[idx].label; },
-  isContainer: function(idx)         { return "open" in gTreeData[idx]; },
+  isContainer: function(idx)         {
+    return gTreeData[idx] ? "open" in gTreeData[idx] : false;
+  },
   getCellValue: function(idx, column){ return gTreeData[idx].checked; },
   isContainerOpen: function(idx)     { return gTreeData[idx].open; },
   isContainerEmpty: function(idx)    { return false; },
