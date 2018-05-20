@@ -33,8 +33,6 @@
 
 #include "nsIGfxInfo.h"
 
-#include "gfxCrashReporterUtils.h"
-
 #include "gfxGDIFontList.h"
 #include "gfxGDIFont.h"
 
@@ -400,7 +398,6 @@ gfxWindowsPlatform::InitDWriteSupport()
     return false;
   }
 
-  mozilla::ScopedGfxFeatureReporter reporter("DWrite");
   decltype(DWriteCreateFactory)* createDWriteFactory = (decltype(DWriteCreateFactory)*)
       GetProcAddress(LoadLibraryW(L"dwrite.dll"), "DWriteCreateFactory");
   if (!createDWriteFactory) {
@@ -422,7 +419,6 @@ gfxWindowsPlatform::InitDWriteSupport()
   Factory::SetDWriteFactory(mDWriteFactory);
 
   SetupClearTypeParams();
-  reporter.SetSuccessful();
   return true;
 }
 
@@ -1569,8 +1565,6 @@ gfxWindowsPlatform::InitializeD2DConfig()
 void
 gfxWindowsPlatform::InitializeD2D()
 {
-  ScopedGfxFeatureReporter d2d1_1("D2D1.1");
-
   FeatureState& d2d1 = gfxConfig::GetFeature(Feature::DIRECT2D);
 
   DeviceManagerDx* dm = DeviceManagerDx::Get();
@@ -1621,7 +1615,6 @@ gfxWindowsPlatform::InitializeD2D()
   }
 
   MOZ_ASSERT(d2d1.IsEnabled());
-  d2d1_1.SetSuccessful();
 }
 
 bool
