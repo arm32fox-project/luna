@@ -12,7 +12,6 @@
 #include "nsXPCOMStrings.h"
 #include "nsISeekableStream.h"
 #include "nsIGfxInfo.h"
-#include "gfxCrashReporterUtils.h"
 #include "prmem.h"
 #include "prlink.h"
 #include "AndroidMediaResourceServer.h"
@@ -109,8 +108,6 @@ static bool IsOmxSupported()
     return false;
   }
 
-  ScopedGfxFeatureReporter reporter("Stagefright", forceEnabled);
-
   if (!forceEnabled) {
     nsCOMPtr<nsIGfxInfo> gfxInfo = services::GetGfxInfo();
     if (gfxInfo) {
@@ -125,7 +122,6 @@ static bool IsOmxSupported()
     }
   }
 
-  reporter.SetSuccessful();
   return true;
 }
 

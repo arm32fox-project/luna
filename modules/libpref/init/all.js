@@ -2158,18 +2158,8 @@ pref("security.block_script_with_wrong_mime", true);
 // Block images of wrong MIME for XCTO: nosniff.
 pref("security.xcto_nosniff_block_images", false);
 
-// OCSP must-staple
-pref("security.ssl.enable_ocsp_must_staple", true);
-
 // Insecure Form Field Warning
 pref("security.insecure_field_warning.contextual.enabled", false);
-
-// Disable pinning checks by default.
-pref("security.cert_pinning.enforcement_level", 0);
-// Do not process hpkp headers rooted by not built in roots by default.
-// This is to prevent accidental pinning from MITM devices and is used
-// for tests.
-pref("security.cert_pinning.process_headers_from_non_builtin_roots", false);
 
 // If set to true, allow view-source URIs to be opened from URIs that share
 // their protocol with the inner URI of the view-source URI
@@ -4853,18 +4843,6 @@ pref("memory.dump_reports_on_oom", false);
 // Number of stack frames to capture in createObjectURL for about:memory.
 pref("memory.blob_report.stack_frames", 0);
 
-// comma separated list of domain origins (e.g. https://domain.com) that still
-// need localStorage in the frameworker
-pref("social.whitelist", "https://mozsocial.cliqz.com");
-// comma separated list of domain origins (e.g. https://domain.com) for
-// directory websites (e.g. AMO) that can install providers for other sites
-pref("social.directories", "https://activations.cdn.mozilla.net");
-// remote-install allows any website to activate a provider, with extended UI
-// notifying user of installation. we can later pref off remote install if
-// necessary. This does not affect whitelisted and directory installs.
-pref("social.remote-install.enabled", true);
-pref("social.toast-notifications.enabled", true);
-
 // Disable idle observer fuzz, because only privileged content can access idle
 // observers (bug 780507).
 pref("dom.idle-observers-api.fuzz_time.disabled", true);
@@ -4990,6 +4968,7 @@ pref("dom.flyweb.enabled", false);
 // Enable mapped array buffer by default.
 pref("dom.mapped_arraybuffer.enabled", true);
 
+#ifdef MOZ_SAFE_BROWSING
 // The tables used for Safebrowsing phishing and malware checks.
 pref("urlclassifier.malwareTable", "goog-malware-shavar,goog-unwanted-shavar,test-malware-simple,test-unwanted-simple");
 
@@ -5096,6 +5075,7 @@ pref("browser.safebrowsing.allowOverride", true);
 pref("browser.safebrowsing.id", "navclient-auto-ffox");
 #else
 pref("browser.safebrowsing.id", "Firefox");
+#endif
 #endif
 
 // Turn off Spatial navigation by default.
@@ -5445,28 +5425,11 @@ pref("media.block-autoplay-until-in-foreground", false);
 pref("layout.css.servo.enabled", true);
 #endif
 
-// HSTS Priming
-// If a request is mixed-content, send an HSTS priming request to attempt to
-// see if it is available over HTTPS.
-#ifdef RELEASE_OR_BETA
-// Don't change the order of evaluation of mixed-content and HSTS upgrades in
-// order to be most compatible with current standards
-pref("security.mixed_content.send_hsts_priming", false);
-pref("security.mixed_content.use_hsts", false);
-#else
-// Change the order of evaluation so HSTS upgrades happen before
-// mixed-content blocking
-pref("security.mixed_content.send_hsts_priming", true);
-pref("security.mixed_content.use_hsts", true);
-#endif
-// Approximately 1 week default cache for HSTS priming failures
-pref ("security.mixed_content.hsts_priming_cache_timeout", 10080);
-
-// TODO: Bug 1380959: Block toplevel data: URI navigations
+// Block toplevel data: URI navigations
 // If true, all toplevel data: URI navigations will be blocked.
 // Please note that manually entering a data: URI in the
 // URL-Bar will not be blocked when flipping this pref.
-pref("security.data_uri.block_toplevel_data_uri_navigations", false);
+pref("security.data_uri.block_toplevel_data_uri_navigations", true);
 
 // Disable Storage api in release builds.
 #ifdef NIGHTLY_BUILD

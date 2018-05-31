@@ -720,17 +720,6 @@ if test "$MOZ_PROFILING" -a -z "$STRIP_FLAGS"; then
 fi
 
 dnl ========================================================
-dnl = Enable DMD
-dnl ========================================================
-
-if test "$MOZ_DMD"; then
-    if test "${CPU_ARCH}" = "arm"; then
-        CFLAGS="$CFLAGS -funwind-tables"
-        CXXFLAGS="$CXXFLAGS -funwind-tables"
-    fi
-fi
-
-dnl ========================================================
 dnl System overrides of the defaults for host
 dnl ========================================================
 case "$host" in
@@ -2058,9 +2047,7 @@ if test -n "$_USE_SYSTEM_NSS"; then
     AM_PATH_NSS(3.28.6, [MOZ_SYSTEM_NSS=1], [AC_MSG_ERROR([you don't have NSS installed or your version is too old])])
 fi
 
-if test -n "$MOZ_SYSTEM_NSS"; then
-   NSS_LIBS="$NSS_LIBS -lcrmf"
-else
+if test -z "$MOZ_SYSTEM_NSS"; then
    NSS_CFLAGS="-I${DIST}/include/nss"
 fi
 
@@ -2237,6 +2224,7 @@ LIBJPEG_TURBO_AS=
 LIBJPEG_TURBO_ASFLAGS=
 MOZ_PREF_EXTENSIONS=1
 MOZ_REFLOW_PERF=
+MOZ_SAFE_BROWSING=
 MOZ_SPELLCHECK=1
 MOZ_TOOLKIT_SEARCH=1
 MOZ_UI_LOCALE=en-US
@@ -2257,7 +2245,6 @@ MOZ_JETPACK=1
 MOZ_DEVTOOLS_SERVER=1
 MOZ_DEVTOOLS=
 MOZ_PLACES=1
-MOZ_SOCIAL=1
 MOZ_SERVICES_HEALTHREPORT=1
 MOZ_SERVICES_SYNC=1
 MOZ_SERVICES_CLOUDSYNC=1
@@ -3952,8 +3939,24 @@ fi
 AC_SUBST(MOZ_SYSTEM_SQLITE)
 
 dnl ========================================================
+dnl = Enable Google safe browsing (anti-phishing)
+dnl ========================================================
+MOZ_ARG_ENABLE_BOOL(safe-browsing,
+[  --enable-safe-browsing  Enable safe browsing (anti-phishing) implementation],
+    MOZ_SAFE_BROWSING=1,
+    MOZ_SAFE_BROWSING= )
+if test -n "$MOZ_SAFE_BROWSING"; then
+    AC_DEFINE(MOZ_SAFE_BROWSING)
+fi
+AC_SUBST(MOZ_SAFE_BROWSING)
+
+dnl ========================================================
 dnl = Enable url-classifier
 dnl ========================================================
+dnl Implicitly enabled by default if building with safe-browsing
+if test -n "$MOZ_SAFE_BROWSING"; then
+    MOZ_URL_CLASSIFIER=1
+fi
 MOZ_ARG_ENABLE_BOOL(url-classifier,
 [  --enable-url-classifier Enable url classifier module],
     MOZ_URL_CLASSIFIER=1,
@@ -4460,7 +4463,7 @@ fi
 
 # Demangle only for debug or DMD builds
 MOZ_DEMANGLE_SYMBOLS=
-if test "$HAVE_DEMANGLE" && test "$MOZ_DEBUG" -o "$MOZ_DMD"; then
+if test "$HAVE_DEMANGLE" && test "$MOZ_DEBUG"; then
     MOZ_DEMANGLE_SYMBOLS=1
     AC_DEFINE(MOZ_DEMANGLE_SYMBOLS)
 fi
@@ -5029,12 +5032,6 @@ if test "$MOZ_PLACES"; then
   AC_DEFINE(MOZ_PLACES)
 fi
 
-dnl Build SocialAPI if required
-AC_SUBST(MOZ_SOCIAL)
-if test "$MOZ_SOCIAL"; then
-  AC_DEFINE(MOZ_SOCIAL)
-fi
-
 dnl Build Firefox Health Reporter Service
 AC_SUBST(MOZ_SERVICES_HEALTHREPORT)
 if test -n "$MOZ_SERVICES_HEALTHREPORT"; then
@@ -5055,7 +5052,7 @@ fi
 
 
 dnl ========================================================
-if test "$MOZ_DEBUG" -o "$MOZ_DMD"; then
+if test "$MOZ_DEBUG"; then
     MOZ_COMPONENTS_VERSION_SCRIPT_LDFLAGS=
 fi
 

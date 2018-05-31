@@ -81,6 +81,13 @@ this.AppConstants = Object.freeze({
   false,
 #endif
 
+MOZ_SAFE_BROWSING:
+#ifdef MOZ_SAFE_BROWSING
+  true,
+#else
+  false,
+#endif
+
   MOZ_TELEMETRY_REPORTING:
 #ifdef MOZ_TELEMETRY_REPORTING
   true,
@@ -245,13 +252,6 @@ this.AppConstants = Object.freeze({
 
   MOZ_TOOLKIT_SEARCH:
 #ifdef MOZ_TOOLKIT_SEARCH
-  true,
-#else
-  false,
-#endif
-
-  MOZ_ENABLE_PROFILER_SPS:
-#ifdef MOZ_ENABLE_PROFILER_SPS
   true,
 #else
   false,

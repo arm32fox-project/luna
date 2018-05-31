@@ -44,7 +44,6 @@ Cu.import("resource://gre/modules/NotificationDB.jsm");
   ["ShortcutUtils", "resource://gre/modules/ShortcutUtils.jsm"],
   ["SimpleServiceDiscovery", "resource://gre/modules/SimpleServiceDiscovery.jsm"],
   ["SitePermissions", "resource:///modules/SitePermissions.jsm"],
-  ["Social", "resource:///modules/Social.jsm"],
   ["TabCrashHandler", "resource:///modules/ContentCrashHandlers.jsm"],
   ["Task", "resource://gre/modules/Task.jsm"],
   ["TelemetryStopwatch", "resource://gre/modules/TelemetryStopwatch.jsm"],
@@ -60,8 +59,10 @@ Cu.import("resource://gre/modules/NotificationDB.jsm");
   ["webrtcUI", "resource:///modules/webrtcUI.jsm", ]
 ].forEach(([name, resource]) => XPCOMUtils.defineLazyModuleGetter(this, name, resource));
 
-XPCOMUtils.defineLazyModuleGetter(this, "SafeBrowsing",
-  "resource://gre/modules/SafeBrowsing.jsm");
+#ifdef MOZ_SAFE_BROWSING
+  XPCOMUtils.defineLazyModuleGetter(this, "SafeBrowsing",
+    "resource://gre/modules/SafeBrowsing.jsm");
+#endif
 
 // lazy service getters
 [
@@ -1200,8 +1201,10 @@ var gBrowserInit = {
       }
     }
 
+#ifdef MOZ_SAFE_BROWSING
     // Bug 778855 - Perf regression if we do this here. To be addressed in bug 779008.
     setTimeout(function() { SafeBrowsing.init(); }, 2000);
+#endif
 
     Services.obs.addObserver(gIdentityHandler, "perm-changed", false);
     Services.obs.addObserver(gSessionHistoryObserver, "browser:purge-session-history", false);
@@ -1401,8 +1404,6 @@ var gBrowserInit = {
       // Enable the Restore Last Session command if needed
       RestoreLastSessionObserver.init();
 
-      SocialUI.init();
-
       // Start monitoring slow add-ons
       AddonWatcher.init();
 
@@ -1533,7 +1534,6 @@ var gBrowserInit = {
 
       gPrefService.removeObserver(ctrlTab.prefName, ctrlTab);
       ctrlTab.uninit();
-      SocialUI.uninit();
       gBrowserThumbnails.uninit();
       FullZoom.destroy();
 
@@ -4293,9 +4293,7 @@ var XULBrowserWindow = {
 
   // Called before links are navigated to to allow us to retarget them if needed.
   onBeforeLinkTraversal: function(originalTarget, linkURI, linkNode, isAppTab) {
-    let target = BrowserUtils.onBeforeLinkTraversal(originalTarget, linkURI, linkNode, isAppTab);
-    SocialUI.closeSocialPanelForLinkTraversal(target, linkNode);
-    return target;
+    return BrowserUtils.onBeforeLinkTraversal(originalTarget, linkURI, linkNode, isAppTab);
   },
 
   // Check whether this URI should load in the current process
@@ -4475,8 +4473,6 @@ var XULBrowserWindow = {
       BookmarkingUI.onLocationChange();
 
       gIdentityHandler.onLocationChange();
-
-      SocialUI.updateState();
 
       UITour.onLocationChange(location);
 

@@ -69,9 +69,6 @@
 #ifndef MOZ_STATIC_JS
 @BINPATH@/@DLL_PREFIX@mozjs@DLL_SUFFIX@
 #endif
-#ifdef MOZ_DMD
-@BINPATH@/@DLL_PREFIX@dmd@DLL_SUFFIX@
-#endif
 #ifndef MOZ_SYSTEM_NSPR
 #ifndef MOZ_FOLD_LIBS
 @BINPATH@/@DLL_PREFIX@nspr4@DLL_SUFFIX@
@@ -254,9 +251,6 @@
 @RESPATH@/components/layout_xul.xpt
 @RESPATH@/components/locale.xpt
 @RESPATH@/components/lwbrk.xpt
-#ifdef MOZ_ENABLE_PROFILER_SPS
-@RESPATH@/components/memory_profiler.xpt
-#endif
 @RESPATH@/browser/components/migration.xpt
 @RESPATH@/components/mimetype.xpt
 @RESPATH@/components/mozfind.xpt
@@ -288,9 +282,6 @@
 @RESPATH@/components/plugin.xpt
 @RESPATH@/components/pref.xpt
 @RESPATH@/components/prefetch.xpt
-#ifdef MOZ_ENABLE_PROFILER_SPS
-@RESPATH@/components/profiler.xpt
-#endif
 @RESPATH@/components/rdf.xpt
 @RESPATH@/components/satchel.xpt
 @RESPATH@/components/saxparser.xpt
@@ -417,6 +408,7 @@
 #endif
 @RESPATH@/components/amWebInstallListener.js
 @RESPATH@/components/nsBlocklistService.js
+@RESPATH@/components/blocklist.manifest
 #ifdef MOZ_WEBEXTENSIONS
 @RESPATH@/components/nsBlocklistServiceContent.js
 #endif
@@ -578,12 +570,14 @@
 @RESPATH@/browser/modules/*
 @RESPATH@/modules/*
 
+#ifdef MOZ_URL_CLASSIFIER
 ; Safe Browsing
 @RESPATH@/components/nsURLClassifier.manifest
 @RESPATH@/components/nsUrlClassifierHashCompleter.js
 @RESPATH@/components/nsUrlClassifierListManager.js
 @RESPATH@/components/nsUrlClassifierLib.js
 @RESPATH@/components/url-classifier.xpt
+#endif
 
 ; Private Browsing
 @RESPATH@/components/privatebrowsing.xpt

@@ -11,7 +11,6 @@
 #include "ContentChild.h"
 
 #include "BlobChild.h"
-#include "CrashReporterChild.h"
 #include "GeckoProfiler.h"
 #include "TabChild.h"
 #include "HandlerServiceChild.h"
@@ -32,7 +31,6 @@
 #include "mozilla/dom/ExternalHelperAppChild.h"
 #include "mozilla/dom/FlyWebPublishedServerIPC.h"
 #include "mozilla/dom/GetFilesHelper.h"
-#include "mozilla/dom/PCrashReporterChild.h"
 #include "mozilla/dom/ProcessGlobal.h"
 #include "mozilla/dom/PushNotifier.h"
 #include "mozilla/dom/workers/ServiceWorkerManager.h"
@@ -535,8 +533,7 @@ ContentChild::Init(MessageLoop* aIOLoop,
   NS_ASSERTION(!sSingleton, "only one ContentChild per child");
 
   // Once we start sending IPC messages, we need the thread manager to be
-  // initialized so we can deal with the responses. Do that here before we
-  // try to construct the crash reporter.
+  // initialized so we can deal with the responses. Do that here.
   nsresult rv = nsThreadManager::get().Init();
   if (NS_WARN_IF(NS_FAILED(rv))) {
     return false;
@@ -1497,19 +1494,6 @@ ContentChild::RecvNotifyEmptyHTTPCache()
   return true;
 }
 
-PCrashReporterChild*
-ContentChild::AllocPCrashReporterChild(const mozilla::dom::NativeThreadId& id,
-                                       const uint32_t& processType)
-{
-    return nullptr;
-}
-
-bool
-ContentChild::DeallocPCrashReporterChild(PCrashReporterChild* crashreporter)
-{
-  delete crashreporter;
-  return true;
-}
 
 PHalChild*
 ContentChild::AllocPHalChild()
@@ -2420,61 +2404,6 @@ ContentChild::DeallocPOfflineCacheUpdateChild(POfflineCacheUpdateChild* actor)
 }
 
 bool
-ContentChild::RecvStartProfiler(const ProfilerInitParams& params)
-{
-  nsTArray<const char*> featureArray;
-  for (size_t i = 0; i < params.features().Length(); ++i) {
-    featureArray.AppendElement(params.features()[i].get());
-  }
-
-  nsTArray<const char*> threadNameFilterArray;
-  for (size_t i = 0; i < params.threadFilters().Length(); ++i) {
-    threadNameFilterArray.AppendElement(params.threadFilters()[i].get());
-  }
-
-  profiler_start(params.entries(), params.interval(),
-                 featureArray.Elements(), featureArray.Length(),
-                 threadNameFilterArray.Elements(),
-                 threadNameFilterArray.Length());
-
- return true;
-}
-
-bool
-ContentChild::RecvStopProfiler()
-{
-  profiler_stop();
-  return true;
-}
-
-bool
-ContentChild::RecvPauseProfiler(const bool& aPause)
-{
-  if (aPause) {
-    profiler_pause();
-  } else {
-    profiler_resume();
-  }
-
-  return true;
-}
-
-bool
-ContentChild::RecvGatherProfile()
-{
-  nsCString profileCString;
-  UniquePtr<char[]> profile = profiler_get_profile();
-  if (profile) {
-    profileCString = nsCString(profile.get(), strlen(profile.get()));
-  } else {
-    profileCString = EmptyCString();
-  }
-
-  Unused << SendProfile(profileCString);
-  return true;
-}
-
-bool
 ContentChild::RecvLoadPluginResult(const uint32_t& aPluginId,
                                    const bool& aResult)
 {
@@ -2627,15 +2556,6 @@ ContentChild::RecvShutdown()
 #endif
 
   GetIPCChannel()->SetAbortOnError(false);
-
-#ifdef MOZ_ENABLE_PROFILER_SPS
-  if (profiler_is_active()) {
-    // We're shutting down while we were profiling. Send the
-    // profile up to the parent so that we don't lose this
-    // information.
-    Unused << RecvGatherProfile();
-  }
-#endif
 
   // Start a timer that will insure we quickly exit after a reasonable
   // period of time. Prevents shutdown hangs after our connection to the

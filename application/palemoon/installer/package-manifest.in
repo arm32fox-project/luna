@@ -72,9 +72,6 @@
 #ifndef MOZ_STATIC_JS
 @BINPATH@/@DLL_PREFIX@mozjs@DLL_SUFFIX@
 #endif
-#ifdef MOZ_DMD
-@BINPATH@/@DLL_PREFIX@dmd@DLL_SUFFIX@
-#endif
 #ifndef MOZ_SYSTEM_NSPR
 #ifndef MOZ_FOLD_LIBS
 @BINPATH@/@DLL_PREFIX@nspr4@DLL_SUFFIX@
@@ -172,13 +169,9 @@
 #endif
 #ifdef NS_PRINTING
 #endif
-#ifdef MOZ_ENABLE_PROFILER_SPS
-#endif
 #ifdef NECKO_WIFI
 #endif
 #ifdef MOZ_WEBRTC
-#endif
-#ifdef MOZ_ENABLE_PROFILER_SPS
 #endif
 #ifdef MOZ_ENABLE_XREMOTE
 #endif
@@ -206,9 +199,7 @@
 @RESPATH@/browser/chrome.manifest
 @RESPATH@/browser/chrome/browser@JAREXT@
 @RESPATH@/browser/chrome/browser.manifest
-#ifdef XP_WIN
 @RESPATH@/browser/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/chrome.manifest
-#endif
 @RESPATH@/browser/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/icon.png
 @RESPATH@/browser/extensions/{972ce4c6-7e08-4474-a285-3208198ce6fd}/install.rdf
 @RESPATH@/chrome/toolkit@JAREXT@

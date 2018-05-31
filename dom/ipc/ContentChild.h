@@ -186,13 +186,6 @@ public:
 
   virtual bool DeallocPBlobChild(PBlobChild* aActor) override;
 
-  virtual PCrashReporterChild*
-  AllocPCrashReporterChild(const mozilla::dom::NativeThreadId& id,
-                           const uint32_t& processType) override;
-
-  virtual bool
-  DeallocPCrashReporterChild(PCrashReporterChild*) override;
-
   virtual PHalChild* AllocPHalChild() override;
   virtual bool DeallocPHalChild(PHalChild*) override;
 
@@ -460,14 +453,6 @@ public:
                                     const bool& aResult) override;
 
   virtual bool RecvUpdateWindow(const uintptr_t& aChildId) override;
-
-  virtual bool RecvStartProfiler(const ProfilerInitParams& params) override;
-
-  virtual bool RecvPauseProfiler(const bool& aPause) override;
-
-  virtual bool RecvStopProfiler() override;
-
-  virtual bool RecvGatherProfile() override;
 
   virtual bool RecvDomainSetChanged(const uint32_t& aSetType,
                                     const uint32_t& aChangeType,

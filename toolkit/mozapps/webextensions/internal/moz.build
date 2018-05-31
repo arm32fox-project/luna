@@ -5,17 +5,16 @@
 # file, You can obtain one at http://mozilla.org/MPL/2.0/.
 
 EXTRA_JS_MODULES.addons += [
+    '../../extensions/internal/ProductAddonChecker.jsm',
+    '../../extensions/internal/SpellCheckDictionaryBootstrap.js',
     'AddonLogging.jsm',
     'AddonRepository.jsm',
     'AddonRepository_SQLiteMigrator.jsm',
-    'AddonUpdateChecker.jsm',
     'APIExtensionBootstrap.js',
     'Content.js',
     'E10SAddonsRollout.jsm',
     'GMPProvider.jsm',
     'LightweightThemeImageOptimizer.jsm',
-    'ProductAddonChecker.jsm',
-    'SpellCheckDictionaryBootstrap.js',
     'WebExtensionBootstrap.js',
     'XPIProvider.jsm',
     'XPIProviderUtils.js',
@@ -33,4 +32,5 @@ if CONFIG['MOZ_WIDGET_TOOLKIT'] != 'android':
 
 EXTRA_PP_JS_MODULES.addons += [
     'AddonConstants.jsm',
+    'AddonUpdateChecker.jsm',
 ]

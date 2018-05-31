@@ -5,7 +5,6 @@
 
 include protocol PPluginInstance;
 include protocol PPluginScriptableObject;
-include protocol PCrashReporter;
 include protocol PContent;
 include ProfilerTypes;
 
@@ -39,7 +38,6 @@ intr protocol PPluginModule
   bridges PContent, PPluginModule;
 
   manages PPluginInstance;
-  manages PCrashReporter;
 
 both:
   // Window-specific message which instructs the interrupt mechanism to enter
@@ -94,17 +92,6 @@ child:
 
   async SetParentHangTimeout(uint32_t seconds);
 
-  intr PCrashReporter()
-    returns (NativeThreadId tid, uint32_t processType);
-
-  /**
-   * Control the Gecko Profiler in the plugin process.
-   */
-  async StartProfiler(ProfilerInitParams params);
-  async StopProfiler();
-
-  async GatherProfile();
-
   async SettingChanged(PluginSettings settings);
 
   async NPP_SetValue_NPNVaudioDeviceChangeDetails(NPAudioDeviceChangeDetailsIPC changeDetails);
@@ -152,8 +139,6 @@ parent:
   // process was destroyed. The chrome process may choose to asynchronously shut
   // down the plugin process in response.
   async NotifyContentModuleDestroyed();
-
-  async Profile(nsCString aProfile);
 
   // Answers to request about site data
   async ReturnClearSiteData(NPError aRv, uint64_t aCallbackId);

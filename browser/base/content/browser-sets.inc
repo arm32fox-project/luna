@@ -105,8 +105,6 @@
       oncommand="OpenBrowserWindow({private: true});" reserved="true"/>
     <command id="History:UndoCloseTab" oncommand="undoCloseTab();"/>
     <command id="History:UndoCloseWindow" oncommand="undoCloseWindow();"/>
-    <command id="Social:SharePage" oncommand="SocialShare.sharePage();"/>
-    <command id="Social:Addons" oncommand="BrowserOpenAddonsMgr('addons://list/service');"/>
   </commandset>
 
   <commandset id="placesCommands">
@@ -117,7 +115,6 @@
   </commandset>
 
   <broadcasterset id="mainBroadcasterSet">
-    <broadcaster id="Social:PageShareable" disabled="true"/>
     <broadcaster id="viewBookmarksSidebar" autoCheck="false" label="&bookmarksButton.label;"
                  type="checkbox" group="sidebar" sidebarurl="chrome://browser/content/bookmarks/bookmarksPanel.xul"
                  oncommand="SidebarUI.toggle('viewBookmarksSidebar');"/>
@@ -285,7 +282,7 @@
     <key id="key_fullScreen_old" key="&fullScreenCmd.macCommandKey;" command="View:FullScreen" modifiers="accel,shift"/>
     <key keycode="VK_F11" command="View:FullScreen"/>
 #endif
-    <key id="toggleReaderMode" key="&toggleReaderMode.key;" command="View:ReaderView" modifiers="accel,alt" disabled="true"/>
+    <key id="key_toggleReaderMode" key="&toggleReaderMode.key;" command="View:ReaderView" modifiers="accel,alt" disabled="true"/>
     <key key="&reloadCmd.commandkey;" command="Browser:Reload" modifiers="accel" id="key_reload"/>
     <key key="&reloadCmd.commandkey;" command="Browser:ReloadSkipCache" modifiers="accel,shift"/>
     <key id="key_viewSource" key="&pageSourceCmd.commandkey;" command="View:PageSource" modifiers="accel"/>
