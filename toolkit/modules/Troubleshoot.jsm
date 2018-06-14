@@ -182,7 +182,7 @@ var dataProviders = {
                  userAgent,
       safeMode: Services.appinfo.inSafeMode,
     };
-#expand let data.version = "__MOZ_APP_VERSION_DISPLAY__";
+#expand data.version = "__MOZ_APP_VERSION_DISPLAY__";
 
 #ifdef MOZ_UPDATER
     data.updateChannel = Cu.import("resource://gre/modules/UpdateUtils.jsm", {}).UpdateUtils.UpdateChannel;
