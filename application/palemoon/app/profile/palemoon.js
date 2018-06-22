@@ -1056,11 +1056,16 @@ pref("browser.newtabpage.enabled", true);
 // XXX: Remove this when "enhanced" tiles are dead
 pref("browser.newtabpage.enhanced", false);
 
+// enables showing basic placeholders for missing thumbnails
+pref("browser.newtabpage.thumbnailPlaceholder", false);
+
+pref("privacy.usercontext.about_newtab_segregation.enabled", false);
+
 // number of columns of newtab grid
 pref("browser.newtabpage.columns", 4);
 
 // number of rows of newtab grid
-pref("browser.newtabpage.rows", 4);
+pref("browser.newtabpage.rows", 3);
 
 // Enable the DOM fullscreen API.
 pref("full-screen-api.enabled", true);
@@ -1116,6 +1121,12 @@ pref("browser.padlock.urlbar_background", 2);
 
 //Pale Moon standalone image background color
 pref("browser.display.standalone_images.background_color", "#2E3B41");
+
+// These are the thumbnail width/height set in about:newtab.
+// If you change this, ENSURE IT IS THE SAME SIZE SET
+// by about:newtab. These values are in CSS pixels.
+pref("toolkit.pageThumbs.minWidth", 250);
+pref("toolkit.pageThumbs.minHeight", 180);
 
 // ****************** domain-specific UAs ******************
 

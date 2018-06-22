@@ -69,7 +69,7 @@ browser.jar:
         content/browser/padlock_classic_https.png     (content/padlock_classic_https.png)
         content/browser/padlock_classic_low.png       (content/padlock_classic_low.png)
         content/browser/padlock_classic_broken.png    (content/padlock_classic_broken.png)
-        content/browser/newtab/newTab.xul             (content/newtab/newTab.xul)
+        content/browser/newtab/newTab.xhtml           (content/newtab/newTab.xhtml)
 *       content/browser/newtab/newTab.js              (content/newtab/newTab.js)
         content/browser/newtab/newTab.css             (content/newtab/newTab.css)
 *       content/browser/pageinfo/pageInfo.xul         (content/pageinfo/pageInfo.xul)

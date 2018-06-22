@@ -4,6 +4,9 @@
  * You can obtain one at http://mozilla.org/MPL/2.0/. */
 #endif
 
+const THUMBNAIL_PLACEHOLDER_ENABLED =
+  Services.prefs.getBoolPref("browser.newtabpage.thumbnailPlaceholder");
+
 /**
  * This class represents a site that is contained in a cell and can be pinned,
  * moved around or deleted.
@@ -37,7 +40,7 @@ Site.prototype = {
   /**
    * The title of the site's link.
    */
-  get title() { return this.link.title; },
+  get title() { return this.link.title || this.link.url; },
 
   /**
    * The site's parent cell.
@@ -50,13 +53,19 @@ Site.prototype = {
   /**
    * Pins the site on its current or a given index.
    * @param aIndex The pinned index (optional).
+   * @return true if link changed type after pin
    */
   pin: function Site_pin(aIndex) {
     if (typeof aIndex == "undefined")
       aIndex = this.cell.index;
 
     this._updateAttributes(true);
-    gPinnedLinks.pin(this._link, aIndex);
+    let changed = gPinnedLinks.pin(this._link, aIndex);
+    if (changed) {
+      // render site again
+      this._render();
+    }
+    return changed;
   },
 
   /**
@@ -108,11 +117,50 @@ Site.prototype = {
     let control = this._querySelector(".newtab-control-pin");
 
     if (aPinned) {
-      control.setAttribute("pinned", true);
+      this.node.setAttribute("pinned", true);
       control.setAttribute("title", newTabString("unpin"));
     } else {
-      control.removeAttribute("pinned");
+      this.node.removeAttribute("pinned");
       control.setAttribute("title", newTabString("pin"));
+    }
+  },
+
+  _newTabString: function(str, substrArr) {
+    let regExp = /%[0-9]\$S/g;
+    let matches;
+    while ((matches = regExp.exec(str))) {
+      let match = matches[0];
+      let index = match.charAt(1); // Get the digit in the regExp.
+      str = str.replace(match, substrArr[index - 1]);
+    }
+    return str;
+  },
+
+  _getSuggestedTileExplanation: function() {
+    let targetedName = `<strong> ${this.link.targetedName} </strong>`;
+    let targetedSite = `<strong> ${this.link.targetedSite} </strong>`;
+    if (this.link.explanation) {
+      return this._newTabString(this.link.explanation, [targetedName, targetedSite]);
+    }
+    return newTabString("suggested.button", [targetedName]);
+  },
+
+  /**
+   * Checks for and modifies link at campaign end time
+   */
+  _checkLinkEndTime: function Site_checkLinkEndTime() {
+    if (this.link.endTime && this.link.endTime < Date.now()) {
+       let oldUrl = this.url;
+       // chop off the path part from url
+       this.link.url = Services.io.newURI(this.url, null, null).resolve("/");
+       // clear supplied images - this triggers thumbnail download for new url
+       delete this.link.imageURI;
+       delete this.link.enhancedImageURI;
+       // remove endTime to avoid further time checks
+       delete this.link.endTime;
+       // clear enhanced-content image that may still exist in preloaded page
+       this._querySelector(".enhanced-content").style.backgroundImage = "";
+       gPinnedLinks.replace(oldUrl, this.link);
     }
   },
 
@@ -120,21 +168,94 @@ Site.prototype = {
    * Renders the site's data (fills the HTML fragment).
    */
   _render: function Site_render() {
+    // first check for end time, as it may modify the link
+    this._checkLinkEndTime();
+    // setup display variables
     let url = this.url;
-    let title = this.title || url;
-    let tooltip = (title == url ? title : title + "\n" + url);
+    let title = this.link.type == "history" ? this.link.baseDomain :
+                this.title;
+    let tooltip = (this.title == url ? this.title : this.title + "\n" + url);
 
     let link = this._querySelector(".newtab-link");
     link.setAttribute("title", tooltip);
     link.setAttribute("href", url);
-    this._querySelector(".newtab-title").textContent = title;
+    this.node.setAttribute("type", this.link.type);
+
+    let titleNode = this._querySelector(".newtab-title");
+    titleNode.textContent = title;
+    if (this.link.titleBgColor) {
+      titleNode.style.backgroundColor = this.link.titleBgColor;
+    }
 
     if (this.isPinned())
       this._updateAttributes(true);
+    // Capture the page if the thumbnail is missing, which will cause page.js
+    // to be notified and call our refreshThumbnail() method.
+    this.captureIfMissing();
+    // but still display whatever thumbnail might be available now.
+    this.refreshThumbnail();
+  },
 
-    let thumbnailURL = PageThumbs.getThumbnailURL(this.url);
-    let thumbnail = this._querySelector(".newtab-thumbnail");
-    thumbnail.style.backgroundImage = "url(" + thumbnailURL + ")";
+  /**
+   * Called when the site's tab becomes visible for the first time.
+   * Since the newtab may be preloaded long before it's displayed,
+   * check for changed conditions and re-render if needed
+   */
+  onFirstVisible: function Site_onFirstVisible() {
+    if (this.link.endTime && this.link.endTime < Date.now()) {
+      // site needs to change landing url and background image
+      this._render();
+    }
+    else {
+      this.captureIfMissing();
+    }
+  },
+
+  /**
+   * Captures the site's thumbnail in the background, but only if there's no
+   * existing thumbnail and the page allows background captures.
+   */
+  captureIfMissing: function Site_captureIfMissing() {
+    if (!document.hidden && !this.link.imageURI) {
+      BackgroundPageThumbs.captureIfMissing(this.url);
+    }
+  },
+
+  /**
+   * Refreshes the thumbnail for the site.
+   */
+  refreshThumbnail: function Site_refreshThumbnail() {
+    let link = this.link;
+
+    let thumbnail = this._querySelector(".newtab-thumbnail.thumbnail");
+    if (link.bgColor) {
+      thumbnail.style.backgroundColor = link.bgColor;
+    }
+    let uri = link.imageURI || PageThumbs.getThumbnailURL(this.url);
+    thumbnail.style.backgroundImage = 'url("' + uri + '")';
+
+    if (THUMBNAIL_PLACEHOLDER_ENABLED &&
+        link.type == "history" &&
+        link.baseDomain) {
+      let placeholder = this._querySelector(".newtab-thumbnail.placeholder");
+      let charCodeSum = 0;
+      for (let c of link.baseDomain) {
+        charCodeSum += c.charCodeAt(0);
+      }
+      const COLORS = 16;
+      let hue = Math.round((charCodeSum % COLORS) / COLORS * 360);
+      placeholder.style.backgroundColor = "hsl(" + hue + ",80%,40%)";
+      placeholder.textContent = link.baseDomain.substr(0,1).toUpperCase();
+    }
+  },
+
+  _ignoreHoverEvents: function(element) {
+    element.addEventListener("mouseover", () => {
+      this.cell.node.setAttribute("ignorehover", "true");
+    });
+    element.addEventListener("mouseout", () => {
+      this.cell.node.removeAttribute("ignorehover");
+    });
   },
 
   /**
@@ -145,10 +266,6 @@ Site.prototype = {
     this._node.addEventListener("dragstart", this, false);
     this._node.addEventListener("dragend", this, false);
     this._node.addEventListener("mouseover", this, false);
-
-    let controls = this.node.querySelectorAll(".newtab-control");
-    for (let i = 0; i < controls.length; i++)
-      controls[i].addEventListener("click", this, false);
   },
 
   /**
@@ -157,7 +274,75 @@ Site.prototype = {
   _speculativeConnect: function Site_speculativeConnect() {
     let sc = Services.io.QueryInterface(Ci.nsISpeculativeConnect);
     let uri = Services.io.newURI(this.url, null, null);
-    sc.speculativeConnect(uri, null);
+    try {
+      // This can throw for certain internal URLs, when they wind up in
+      // about:newtab. Be sure not to propagate the error.
+      sc.speculativeConnect(uri, null);
+    } catch (e) {}
+  },
+
+  /**
+   * Record interaction with site using telemetry.
+   */
+  _recordSiteClicked: function Site_recordSiteClicked(aIndex) {
+    if (Services.prefs.prefHasUserValue("browser.newtabpage.rows") ||
+        Services.prefs.prefHasUserValue("browser.newtabpage.columns") ||
+        aIndex > 8) {
+      // We only want to get indices for the default configuration, everything
+      // else goes in the same bucket.
+      aIndex = 9;
+    }
+    Services.telemetry.getHistogramById("NEWTAB_PAGE_SITE_CLICKED")
+                      .add(aIndex);
+  },
+
+  _toggleLegalText: function(buttonClass, explanationTextClass) {
+    let button = this._querySelector(buttonClass);
+    if (button.hasAttribute("active")) {
+      let explain = this._querySelector(explanationTextClass);
+      explain.parentNode.removeChild(explain);
+
+      button.removeAttribute("active");
+    }
+  },
+
+  /**
+   * Handles site click events.
+   */
+  onClick: function Site_onClick(aEvent) {
+    let action;
+    let pinned = this.isPinned();
+    let tileIndex = this.cell.index;
+    let {button, target} = aEvent;
+
+    // Handle tile/thumbnail link click
+    if (target.classList.contains("newtab-link") ||
+        target.parentElement.classList.contains("newtab-link")) {
+      // Record for primary and middle clicks
+      if (button == 0 || button == 1) {
+        this._recordSiteClicked(tileIndex);
+        action = "click";
+      }
+    }
+    // Only handle primary clicks for the remaining targets
+    else if (button == 0) {
+      aEvent.preventDefault();
+      if (target.classList.contains("newtab-control-block")) {
+        this.block();
+        action = "block";
+      }
+      else if (pinned && target.classList.contains("newtab-control-pin")) {
+        this.unpin();
+        action = "unpin";
+      }
+      else if (!pinned && target.classList.contains("newtab-control-pin")) {
+        if (this.pin()) {
+          // suggested link has changed - update rest of the pages
+          gAllPages.update(gPage);
+        }
+        action = "pin";
+      }
+    }
   },
 
   /**
@@ -165,24 +350,12 @@ Site.prototype = {
    */
   handleEvent: function Site_handleEvent(aEvent) {
     switch (aEvent.type) {
-      case "click":
-        aEvent.preventDefault();
-        if (aEvent.target.classList.contains("newtab-control-block"))
-          this.block();
-        else if (this.isPinned())
-          this.unpin();
-        else
-          this.pin();
-        break;
       case "mouseover":
         this._node.removeEventListener("mouseover", this, false);
         this._speculativeConnect();
         break;
       case "dragstart":
         gDrag.start(this, aEvent);
-        break;
-      case "drag":
-        gDrag.drag(this, aEvent);
         break;
       case "dragend":
         gDrag.end(this, aEvent);
