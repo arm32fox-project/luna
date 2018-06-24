@@ -565,6 +565,8 @@ var gCookiesWindow = {
   onCookieSelected: function () {
     var item;
     var seln = this._tree.view.selection;
+    var hasRows = this._tree.view.rowCount > 0;
+    var hasSelection = seln.count > 0;
     if (!this._view._filtered)
       item = this._view._getItemAtIndex(seln.currentIndex);
     else
@@ -592,7 +594,7 @@ var gCookiesWindow = {
     removeSelectedCookies.label = PluralForm.get(selectedCookieCount, buttonLabel)
                                             .replace("#1", selectedCookieCount);
 
-    removeSelectedCookies.disabled = !(seln.count > 0);
+    removeSelectedCookies.disabled = !hasRows || !hasSelection;
   },
 
   performDeletion: function gCookiesWindow_performDeletion(deleteItems) {
@@ -806,7 +808,9 @@ var gCookiesWindow = {
 
     this._view._invalidateCache(0);
     this._view.selection.clearSelection();
-    this._view.selection.select(0);
+    if (this._view.rowCount > 0) {
+      this._view.selection.select(0);
+    }
     this._tree.treeBoxObject.invalidate();
     this._tree.treeBoxObject.ensureRowIsVisible(0);
 
